@@ -574,3 +574,77 @@ Mirroring the bot's `confirmCancelHostingPlan` flow into the web HostPanel so cu
 - `frontend/src/components/panel/AccountSettings.js` (new — 181 lines).
 - `frontend/src/pages/PanelDashboard.js` — import + 7th tab + user icon.
 - `frontend/src/App.css` — `.acct-*` styles (dark + light).
+
+
+## Feb 2026 — Self-Service "Take Site Offline / Bring Online" Toggle
+
+### Background
+User asked for a way to temporarily take their site offline and put it back. Existing infra: `whmService.suspendAccount/unsuspendAccount` already used for the auto-renew expiry path; `cpanelAccounts.suspended` already in schema; `cpProxy.getFileContent` and `cpProxy.saveFileContent` (Fileman UAPI) already wrap `.htaccess` reads/writes for the anti-red service.
+
+### Two offline modes (user picks)
+1. **🛠️ Maintenance Mode** (recommended) — clean visitor-facing "We'll be back soon" page, email/FTP/DBs unaffected. Implemented by:
+   - Writing `public_html/maintenance.html` (small inline-styled HTML, ~80 lines).
+   - Prepending a `BEGIN/END NOMADLY MAINTENANCE` block to `public_html/.htaccess` containing `mod_rewrite` 503-redirect + `Retry-After` + `ErrorDocument 503`. The block is excluded for static assets (css/js/png/etc) so the maintenance page itself can load.
+   - Block is delimited by markers and stripped surgically on bring-online — user's existing `.htaccess` rules are preserved.
+2. **🚫 Full Suspend** — WHM `suspendacct` (HTTP + FTP + email + DB all stopped). Visitor sees standard cPanel suspended page.
+
+### Critical UX guard rail (user's explicit ask)
+**Every** offline-related screen — bot menu, web-panel mode-picker, both confirm dialogs, both success messages — explicitly tells the user that taking the site offline does **NOT**:
+- Pause the expiry countdown
+- Pause auto-renewal billing
+
+Verified via smoke test that the chooseSiteOfflineMode strings in all 4 locales contain both `auto-renew` and `expir` keywords.
+
+### New module: `js/site-status-service.js`
+Encapsulates all five operations (`enableMaintenanceMode`, `disableMaintenanceMode`, `suspend`, `unsuspend`, `readStatus`), shared by both bot and panel routes — single source of truth for the WHM/cPanel calls.
+
+### Bot side
+- New buttons in `viewHostingPlanDetails`: `🔌 Take Site Offline` (when online) / `🌐 Bring Site Online` (when offline). Label flips automatically based on `plan.suspended || plan.maintenanceMode`.
+- New plan-status badge: `✅ Active (online)` / `🛠️ Maintenance (offline — public only)` / `🚫 Suspended (offline — full)`.
+- 3 new actions: `chooseSiteOfflineMode`, `confirmSiteOfflineMode`, `confirmBringSiteOnline`.
+- Fully localized in en/fr/hi/zh — 9 t-strings + 6 user-strings × 4 locales = 60 i18n keys verified.
+
+### Panel side
+- New component `SiteStatusCard.js` rendered above the Danger Zone in the Account tab.
+- Stages: `view → choosing-mode → confirming-offline → submitting → view` (or `view → confirming-online → submitting → view` when reversing).
+- Shows live meta-grid (domain, plan, expiry, auto-renew status) so the user sees their billing context in the same card.
+- Persistent yellow billing-warning callout on the mode-picker step + inline reminder on the confirm step.
+- Two new endpoints:
+  - `GET /panel/account/site-status` — returns `{status, domain, plan, expiryDate, autoRenew, suspendedAt, maintenanceModeAt, lastBroughtOnlineAt}`.
+  - `POST /panel/account/site-status` — body `{action: 'take_offline'|'bring_online', mode?: 'maintenance'|'suspended'}`. Idempotent (`409` if already in target state).
+- Both endpoints share the same backing service module as the bot, so any bug fix improves both surfaces simultaneously.
+
+### Tests
+- `js/tests/test_site_status.js` — htaccess strip is idempotent, surgical, handles repeats, preserves user rules. `readStatus` returns correct enum for each cpanelAccounts shape.
+- `js/tests/test_site_toggle_lang.js` — site-status-service public API exported (5 functions); all 60 i18n keys present in en/fr/hi/zh; suspended vs maintenance copy diverges; both contain the billing-keeps-running reminder.
+- All 3 test suites green.
+
+### Curl integration matrix (passed)
+- GET no-auth → 401
+- GET auth OK → 200 with full status payload
+- POST invalid action → 400
+- POST take_offline missing mode → 400
+- POST take_offline bad mode → 400
+
+### Frontend smoke (passed)
+- Site status card visible after Account-tab click
+- "Take site offline" button shown for online sites
+- Danger Zone still rendered below
+- Meta-grid visible
+- Mode picker appears, billing warning + both options + back button visible
+- Click maintenance → confirm screen renders
+- Go back → returns to view stage
+
+### Files touched
+- `js/site-status-service.js` (new — 230 lines).
+- `js/_index.js` — `viewHostingPlanDetails` renders new button/status; 3 new action constants; 3 new state-machine handlers; suspended/maintenance fields written on every transition.
+- `js/cpanel-routes.js` — 2 new routes (`GET`/`POST /account/site-status`).
+- `js/lang/en.js`, `fr.js`, `hi.js`, `zh.js` — 9 t-strings + 6 user-strings each, all with explicit billing-keeps-running reminders.
+- `frontend/src/components/panel/SiteStatusCard.js` (new — 230 lines).
+- `frontend/src/components/panel/AccountSettings.js` — imports + renders SiteStatusCard above Danger Zone.
+- `frontend/src/App.css` — `.acct-card--online/--offline`, `.acct-meta-grid`, `.acct-billing-warning`, `.acct-mode-*`, `.acct-btn--warn/--success` (light + dark theme).
+- `js/tests/test_site_status.js`, `js/tests/test_site_toggle_lang.js` (new test suites).
+
+### How users hear about it
+Bot side: button is auto-discovered from the existing `My Hosting Plans → [domain]` flow.
+Panel side: visible the moment they open the Account tab.

@@ -199,6 +199,12 @@ const user = {
  toggleAutoRenew: '🔁 Toggle Auto-Renew',
  unlinkDomain: '🗑️ Unlink a Domain',
  cancelHostingPlan: '🚫 Cancel Hosting Plan',
+ takeSiteOffline: '🔌 Take Site Offline',
+ bringSiteOnline: '🌐 Bring Site Online',
+ siteOfflineModeMaintenance: '🛠️ Maintenance Mode (recommended)',
+ siteOfflineModeSuspend: '🚫 Full Suspend (HTTP + email + FTP + DB)',
+ confirmTakeOfflineBtn: '✅ Yes, take it offline',
+ confirmBringOnlineBtn: '✅ Yes, bring it online',
  confirmUnlinkBtn: '✅ Yes, unlink it',
  confirmCancelHostingBtn: '🗑️ Yes, cancel plan',
  cancelGoBackBtn: '⬅️ No, go back',
@@ -2075,6 +2081,21 @@ Service delivered.`,
  cancellingHostingPlan: domain => `⏳ Cancelling hosting plan for <b>${domain}</b>...`,
  cancelHostingPlanSuccess: domain => `✅ Hosting plan for <b>${domain}</b> has been cancelled.\n\nYour cPanel account, files, and all addon domains have been removed. Your domain remains registered and is now free of any hosting plan.`,
  cancelHostingPlanFailed: domain => `❌ Failed to cancel hosting plan for <b>${domain}</b>. Please try again, or contact support if the problem persists.`,
+
+ // Site offline / maintenance toggle
+ chooseSiteOfflineMode: domain => `🔌 <b>Take site offline</b>\n\nDomain: <b>${domain}</b>\n\nPick how you want to take the site offline:\n\n🛠️ <b>Maintenance Mode</b> (recommended)\nVisitors see a clean "We'll be back soon" page. Email, FTP, databases keep working. Best for quick edits or short outages.\n\n🚫 <b>Full Suspend</b>\nHTTP, FTP, email, databases all stopped. Visitors see the standard cPanel "Account Suspended" notice. Use this if you want to fully shut everything down.\n\n⚠️ <b>Important — taking your site offline does NOT pause:</b>\n• The expiry countdown\n• Auto-renewal billing\n\nThe plan keeps ticking like normal. This is a visibility toggle only.`,
+ confirmSiteOfflineMode: (domain, mode) => mode === 'suspended'
+  ? `⚠️ <b>Confirm Full Suspend</b>\n\nYou're about to fully suspend <b>${domain}</b>.\n\nThis will stop:\n• HTTP (your website)\n• FTP\n• Email accounts\n• Databases\n\nVisitors will see cPanel's standard "Account Suspended" page. You can bring everything back online at any time from this same menu.\n\n<b>Reminder — billing keeps running:</b>\n• Expiry date is unchanged\n• Auto-renewal will still trigger\n\nProceed?`
+  : `⚠️ <b>Confirm Maintenance Mode</b>\n\nYou're about to enable maintenance mode for <b>${domain}</b>.\n\nWhat happens:\n• Visitors see a "We'll be back soon" page\n• Email, FTP, databases keep working\n• A small block is added to your <code>.htaccess</code> (cleanly removed when you go online)\n• A <code>maintenance.html</code> file is created in <code>public_html/</code>\n\n<b>Reminder — billing keeps running:</b>\n• Expiry date is unchanged\n• Auto-renewal will still trigger\n\nProceed?`,
+ takingSiteOffline: (domain, mode) => `⏳ ${mode === 'suspended' ? 'Suspending' : 'Enabling maintenance mode for'} <b>${domain}</b>...`,
+ takeSiteOfflineSuccess: (domain, mode) => mode === 'suspended'
+  ? `✅ <b>${domain}</b> is now offline (full suspend). Visitors see the suspended page. Tap "Bring Site Online" to restore.\n\n<i>Reminder: your plan continues to count down toward expiry and auto-renew is unaffected.</i>`
+  : `✅ <b>${domain}</b> is now in maintenance mode. Visitors see a "We'll be back soon" page. Email & FTP still work. Tap "Bring Site Online" when you're ready to go live again.\n\n<i>Reminder: your plan continues to count down toward expiry and auto-renew is unaffected.</i>`,
+ takeSiteOfflineFailed: (domain, err) => `❌ Failed to take <b>${domain}</b> offline.${err ? `\n\nReason: <code>${err}</code>` : ''}\n\nPlease try again or contact support.`,
+ confirmBringSiteOnline: domain => `🌐 <b>Bring site back online</b>\n\nDomain: <b>${domain}</b>\n\nThis will restore public access immediately. If you used <i>Maintenance Mode</i>, the redirect block is removed from your <code>.htaccess</code>. If you used <i>Full Suspend</i>, the cPanel account is unsuspended and HTTP/FTP/email/DB all come back.\n\nProceed?`,
+ bringingSiteOnline: domain => `⏳ Bringing <b>${domain}</b> back online...`,
+ bringSiteOnlineSuccess: domain => `✅ <b>${domain}</b> is back online. Allow up to 1 minute for caching/CDN to fully clear.`,
+ bringSiteOnlineFailed: (domain, err) => `❌ Failed to bring <b>${domain}</b> back online.${err ? `\n\nReason: <code>${err}</code>` : ''}\n\nPlease try again or contact support.`,
 }
 
 const phoneNumberLeads = ['🎯 Premium Targeted Leads', '✅📲 Validate PhoneLeads']

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from './AuthContext';
+import SiteStatusCard from './SiteStatusCard';
 
 /**
  * AccountSettings — Danger Zone.
@@ -89,6 +90,8 @@ export default function AccountSettings() {
           Signed in as <strong>{user?.username}</strong> · <strong>{user?.domain}</strong>
         </p>
       </div>
+
+      <SiteStatusCard />
 
       <div className="acct-card acct-card--danger" data-testid="account-danger-zone">
         <div className="acct-card-head">

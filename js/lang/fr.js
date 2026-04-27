@@ -200,6 +200,12 @@ const user = {
  toggleAutoRenew: '🔁 Activer/Désactiver le Renouvellement Auto',
  unlinkDomain: '🗑️ Détacher un Domaine',
  cancelHostingPlan: '🚫 Annuler le Plan d\'Hébergement',
+ takeSiteOffline: '🔌 Mettre le Site Hors Ligne',
+ bringSiteOnline: '🌐 Remettre le Site En Ligne',
+ siteOfflineModeMaintenance: '🛠️ Mode Maintenance (recommandé)',
+ siteOfflineModeSuspend: '🚫 Suspension Complète (HTTP + email + FTP + DB)',
+ confirmTakeOfflineBtn: '✅ Oui, le mettre hors ligne',
+ confirmBringOnlineBtn: '✅ Oui, le remettre en ligne',
  confirmUnlinkBtn: '✅ Oui, le détacher',
  confirmCancelHostingBtn: '🗑️ Oui, annuler le plan',
  cancelGoBackBtn: '⬅️ Non, retour',
@@ -1919,6 +1925,21 @@ ${CHAT_BOT_NAME}`,
  cancellingHostingPlan: domain => `⏳ Annulation du plan d'hébergement pour <b>${domain}</b>...`,
  cancelHostingPlanSuccess: domain => `✅ Le plan d'hébergement pour <b>${domain}</b> a été annulé.\n\nVotre compte cPanel, fichiers et domaines addon ont été supprimés. Votre domaine reste enregistré et est désormais sans plan d'hébergement.`,
  cancelHostingPlanFailed: domain => `❌ Échec de l'annulation du plan pour <b>${domain}</b>. Réessayez ou contactez le support.`,
+
+ // Site offline / maintenance toggle (Fr)
+ chooseSiteOfflineMode: domain => `🔌 <b>Mettre le site hors ligne</b>\n\nDomaine : <b>${domain}</b>\n\nChoisissez comment mettre le site hors ligne :\n\n🛠️ <b>Mode Maintenance</b> (recommandé)\nLes visiteurs voient une page "Bientôt de retour". Email, FTP et bases de données restent actifs. Idéal pour des modifications rapides ou de courtes interruptions.\n\n🚫 <b>Suspension Complète</b>\nHTTP, FTP, email et bases de données sont tous arrêtés. Les visiteurs voient la page standard "Compte Suspendu" de cPanel. À utiliser pour tout couper.\n\n⚠️ <b>Important — mettre votre site hors ligne ne suspend PAS :</b>\n• Le décompte avant expiration\n• La facturation du renouvellement automatique\n\nLe plan continue normalement. Il s'agit uniquement d'un interrupteur de visibilité.`,
+ confirmSiteOfflineMode: (domain, mode) => mode === 'suspended'
+  ? `⚠️ <b>Confirmer la Suspension Complète</b>\n\nVous allez suspendre entièrement <b>${domain}</b>.\n\nCela arrêtera :\n• HTTP (votre site web)\n• FTP\n• Comptes email\n• Bases de données\n\nLes visiteurs verront la page "Compte Suspendu" standard de cPanel. Vous pouvez tout remettre en ligne à tout moment depuis ce même menu.\n\n<b>Rappel — la facturation continue :</b>\n• La date d'expiration est inchangée\n• Le renouvellement automatique reste actif\n\nContinuer ?`
+  : `⚠️ <b>Confirmer le Mode Maintenance</b>\n\nVous allez activer le mode maintenance pour <b>${domain}</b>.\n\nCe qui se passe :\n• Les visiteurs voient une page "Bientôt de retour"\n• Email, FTP, bases de données restent actifs\n• Un petit bloc est ajouté à votre <code>.htaccess</code> (proprement retiré quand vous redevenez en ligne)\n• Un fichier <code>maintenance.html</code> est créé dans <code>public_html/</code>\n\n<b>Rappel — la facturation continue :</b>\n• La date d'expiration est inchangée\n• Le renouvellement automatique reste actif\n\nContinuer ?`,
+ takingSiteOffline: (domain, mode) => `⏳ ${mode === 'suspended' ? 'Suspension de' : 'Activation du mode maintenance pour'} <b>${domain}</b>...`,
+ takeSiteOfflineSuccess: (domain, mode) => mode === 'suspended'
+  ? `✅ <b>${domain}</b> est maintenant hors ligne (suspension complète). Les visiteurs voient la page de suspension. Tapez "Remettre le Site En Ligne" pour restaurer.\n\n<i>Rappel : votre plan continue à compter jusqu'à expiration et le renouvellement automatique n'est pas affecté.</i>`
+  : `✅ <b>${domain}</b> est maintenant en mode maintenance. Les visiteurs voient une page "Bientôt de retour". Email & FTP fonctionnent toujours. Tapez "Remettre le Site En Ligne" quand vous êtes prêt.\n\n<i>Rappel : votre plan continue à compter jusqu'à expiration et le renouvellement automatique n'est pas affecté.</i>`,
+ takeSiteOfflineFailed: (domain, err) => `❌ Échec de la mise hors ligne de <b>${domain}</b>.${err ? `\n\nRaison : <code>${err}</code>` : ''}\n\nRéessayez ou contactez le support.`,
+ confirmBringSiteOnline: domain => `🌐 <b>Remettre le site en ligne</b>\n\nDomaine : <b>${domain}</b>\n\nCela restaurera l'accès public immédiatement. Si vous avez utilisé le <i>Mode Maintenance</i>, le bloc de redirection est retiré de votre <code>.htaccess</code>. Si vous avez utilisé la <i>Suspension Complète</i>, le compte cPanel est réactivé et HTTP/FTP/email/DB reviennent.\n\nContinuer ?`,
+ bringingSiteOnline: domain => `⏳ Remise en ligne de <b>${domain}</b>...`,
+ bringSiteOnlineSuccess: domain => `✅ <b>${domain}</b> est de nouveau en ligne. Comptez jusqu'à 1 minute pour que le cache/CDN se vide complètement.`,
+ bringSiteOnlineFailed: (domain, err) => `❌ Échec de la remise en ligne de <b>${domain}</b>.${err ? `\n\nRaison : <code>${err}</code>` : ''}\n\nRéessayez ou contactez le support.`,
 }
 
 const phoneNumberLeads = ['🎯 Leads Premium Ciblés', '✅📲 Valider les leads téléphoniques']

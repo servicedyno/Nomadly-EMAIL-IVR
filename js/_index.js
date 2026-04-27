@@ -4739,6 +4739,9 @@ bot?.on('message', msg => {
     selectDomainToUnlink: 'selectDomainToUnlink',
     confirmUnlinkAddonDomain: 'confirmUnlinkAddonDomain',
     confirmCancelHostingPlan: 'confirmCancelHostingPlan',
+    chooseSiteOfflineMode: 'chooseSiteOfflineMode',
+    confirmSiteOfflineMode: 'confirmSiteOfflineMode',
+    confirmBringSiteOnline: 'confirmBringSiteOnline',
 
     askDomainToUseWithShortener: 'askDomainToUseWithShortener',
     domainNsSelect: 'domainNsSelect',
@@ -6737,7 +6740,8 @@ Enter new value:`), bc)
       const expiry = plan.expiryDate ? new Date(plan.expiryDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
       const created = plan.createdAt ? new Date(plan.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
       const isExpired = plan.expiryDate && new Date(plan.expiryDate) < new Date()
-      const status = plan.suspended ? '🚫 Suspended' : isExpired ? '❌ Expired' : '✅ Active'
+      const siteStatus = plan.suspended ? 'suspended' : (plan.maintenanceMode ? 'maintenance' : 'online')
+      const status = plan.suspended ? '🚫 Suspended (offline — full)' : (plan.maintenanceMode ? '🛠️ Maintenance (offline — public only)' : (isExpired ? '❌ Expired' : '✅ Active (online)'))
       const isWeekly = (plan.plan || '').toLowerCase().includes('week')
       const autoRenewStatus = isWeekly ? '❌ OFF (weekly plans never auto-renew)' : (plan.autoRenew !== false ? '✅ ON' : '❌ OFF')
 
@@ -6770,6 +6774,12 @@ Enter new value:`), bc)
       const buttons = [[user.revealCredentials], [user.renewHostingPlan]]
       if (isWeekly) buttons.push([user.upgradeHostingPlan])
       if (!isWeekly) buttons.push([user.toggleAutoRenew])
+      // Site status toggle — label depends on current state
+      if (siteStatus === 'online') {
+        buttons.push([user.takeSiteOffline])
+      } else {
+        buttons.push([user.bringSiteOnline])
+      }
       // Allow user to unlink an addon domain (only when at least one is attached)
       if ((plan.addonDomains || []).length > 0) buttons.push([user.unlinkDomain])
       // Always allow cancelling the entire hosting plan
@@ -9444,6 +9454,34 @@ All verified numbers generated during sourcing.`))
       await set(state, chatId, 'action', a.confirmUpgradeHosting)
       return send(chatId, text, k.of(buttons))
     }
+    if (message === user.takeSiteOffline) {
+      const domain = info?.selectedHostingDomain
+      if (!domain) return goto.myHostingPlans()
+      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
+      if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+      if (plan.suspended || plan.maintenanceMode) {
+        await send(chatId, '⚠️ Your site is already offline. Use "Bring Site Online" to re-enable it.', { parse_mode: 'HTML' })
+        return goto.viewHostingPlanDetails(domain)
+      }
+      await set(state, chatId, 'action', a.chooseSiteOfflineMode)
+      return send(chatId, t.chooseSiteOfflineMode(domain), k.of([
+        [user.siteOfflineModeMaintenance],
+        [user.siteOfflineModeSuspend],
+        [user.cancelGoBackBtn],
+      ]), { parse_mode: 'HTML' })
+    }
+    if (message === user.bringSiteOnline) {
+      const domain = info?.selectedHostingDomain
+      if (!domain) return goto.myHostingPlans()
+      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
+      if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+      if (!plan.suspended && !plan.maintenanceMode) {
+        await send(chatId, '✅ Your site is already online.', { parse_mode: 'HTML' })
+        return goto.viewHostingPlanDetails(domain)
+      }
+      await set(state, chatId, 'action', a.confirmBringSiteOnline)
+      return send(chatId, t.confirmBringSiteOnline(domain), k.of([[user.confirmBringOnlineBtn], [user.cancelGoBackBtn]]), { parse_mode: 'HTML' })
+    }
     if (message === user.unlinkDomain) {
       const domain = info?.selectedHostingDomain
       if (!domain) return goto.myHostingPlans()
@@ -9466,6 +9504,112 @@ All verified numbers generated during sourcing.`))
       await set(state, chatId, 'action', a.confirmCancelHostingPlan)
       return send(chatId, t.confirmCancelHostingPlan(domain, plan.plan || 'Hosting'), k.of([[user.confirmCancelHostingBtn], [user.cancelGoBackBtn]]), { parse_mode: 'HTML' })
     }
+  }
+
+  // ── Site Offline — choose mode ──
+  if (action === a.chooseSiteOfflineMode) {
+    if (message === user.cancelGoBackBtn) return goto.viewHostingPlanDetails(info?.selectedHostingDomain)
+    if (message !== user.siteOfflineModeMaintenance && message !== user.siteOfflineModeSuspend) {
+      return send(chatId, t.selectCorrectOption || 'Please tap one of the options.', k.of([
+        [user.siteOfflineModeMaintenance],
+        [user.siteOfflineModeSuspend],
+        [user.cancelGoBackBtn],
+      ]))
+    }
+    const mode = message === user.siteOfflineModeMaintenance ? 'maintenance' : 'suspended'
+    saveInfo('siteOfflineMode', mode)
+    const domain = info?.selectedHostingDomain
+    if (!domain) return goto.myHostingPlans()
+    await set(state, chatId, 'action', a.confirmSiteOfflineMode)
+    return send(chatId, t.confirmSiteOfflineMode(domain, mode), k.of([[user.confirmTakeOfflineBtn], [user.cancelGoBackBtn]]), { parse_mode: 'HTML' })
+  }
+
+  // ── Site Offline — confirm + execute ──
+  if (action === a.confirmSiteOfflineMode) {
+    if (message === user.cancelGoBackBtn) return goto.viewHostingPlanDetails(info?.selectedHostingDomain)
+    if (message !== user.confirmTakeOfflineBtn) {
+      return send(chatId, t.selectCorrectOption || 'Please tap one of the options.', k.of([[user.confirmTakeOfflineBtn], [user.cancelGoBackBtn]]))
+    }
+    const domain = info?.selectedHostingDomain
+    const mode = info?.siteOfflineMode === 'suspended' ? 'suspended' : 'maintenance'
+    if (!domain) return goto.myHostingPlans()
+    const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
+    if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+
+    await send(chatId, t.takingSiteOffline(domain, mode), { parse_mode: 'HTML' })
+
+    const siteStatusService = require('./site-status-service')
+    let result
+    try {
+      result = (mode === 'suspended')
+        ? await siteStatusService.suspend(plan, `Taken offline by user (chatId ${chatId})`)
+        : await siteStatusService.enableMaintenanceMode(plan)
+    } catch (err) {
+      log(`[Hosting] takeOffline error: ${err.message}`)
+      result = { ok: false, error: err.message }
+    }
+
+    if (result?.ok) {
+      const update = (mode === 'suspended')
+        ? { suspended: true, suspendedAt: new Date(), suspendedBy: 'user', maintenanceMode: false }
+        : { maintenanceMode: true, maintenanceModeAt: new Date(), maintenanceModeBy: 'user', suspended: false }
+      await cpanelAccounts.updateOne({ _id: plan._id }, { $set: update })
+      await send(chatId, t.takeSiteOfflineSuccess(domain, mode), { parse_mode: 'HTML' })
+      try {
+        notifyAdmin(`🔌 <b>Site taken offline by user</b>\nUser: ${chatId}\nDomain: <b>${domain}</b>\nMode: <code>${mode}</code>\ncPanel: <code>${plan.cpUser}</code>`)
+      } catch {}
+    } else {
+      await send(chatId, t.takeSiteOfflineFailed(domain, result?.error), { parse_mode: 'HTML' })
+    }
+    return goto.viewHostingPlanDetails(domain)
+  }
+
+  // ── Site Online — confirm + execute ──
+  if (action === a.confirmBringSiteOnline) {
+    if (message === user.cancelGoBackBtn) return goto.viewHostingPlanDetails(info?.selectedHostingDomain)
+    if (message !== user.confirmBringOnlineBtn) {
+      return send(chatId, t.selectCorrectOption || 'Please tap one of the options.', k.of([[user.confirmBringOnlineBtn], [user.cancelGoBackBtn]]))
+    }
+    const domain = info?.selectedHostingDomain
+    if (!domain) return goto.myHostingPlans()
+    const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
+    if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+
+    const wasMode = plan.suspended ? 'suspended' : (plan.maintenanceMode ? 'maintenance' : null)
+    if (!wasMode) {
+      await send(chatId, '✅ Your site is already online.', { parse_mode: 'HTML' })
+      return goto.viewHostingPlanDetails(domain)
+    }
+
+    await send(chatId, t.bringingSiteOnline(domain), { parse_mode: 'HTML' })
+
+    const siteStatusService = require('./site-status-service')
+    let result
+    try {
+      result = (wasMode === 'suspended')
+        ? await siteStatusService.unsuspend(plan)
+        : await siteStatusService.disableMaintenanceMode(plan)
+    } catch (err) {
+      log(`[Hosting] bringOnline error: ${err.message}`)
+      result = { ok: false, error: err.message }
+    }
+
+    if (result?.ok) {
+      await cpanelAccounts.updateOne({ _id: plan._id }, {
+        $set: {
+          suspended: false,
+          maintenanceMode: false,
+          lastBroughtOnlineAt: new Date(),
+        },
+      })
+      await send(chatId, t.bringSiteOnlineSuccess(domain), { parse_mode: 'HTML' })
+      try {
+        notifyAdmin(`🌐 <b>Site brought back online by user</b>\nUser: ${chatId}\nDomain: <b>${domain}</b>\nWas: <code>${wasMode}</code>\ncPanel: <code>${plan.cpUser}</code>`)
+      } catch {}
+    } else {
+      await send(chatId, t.bringSiteOnlineFailed(domain, result?.error), { parse_mode: 'HTML' })
+    }
+    return goto.viewHostingPlanDetails(domain)
   }
 
   // ── Unlink Addon Domain — pick domain ──

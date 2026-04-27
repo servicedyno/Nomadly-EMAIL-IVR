@@ -5165,3 +5165,169 @@
   .acct-actions { flex-direction: column; }
   .acct-actions .acct-btn { width: 100%; justify-content: center; }
 }
+
+
+/* ─── Site Status Card ───────────────────────────── */
+.acct-card--online {
+  border: 1px solid rgba(52, 211, 153, 0.25);
+  background: linear-gradient(180deg, rgba(52, 211, 153, 0.04) 0%, rgba(28, 28, 38, 0.7) 60%);
+}
+.acct-card--offline {
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  background: linear-gradient(180deg, rgba(251, 191, 36, 0.06) 0%, rgba(28, 28, 38, 0.7) 60%);
+}
+.acct-card-icon--warn {
+  background: rgba(251, 191, 36, 0.15);
+  color: #fbbf24;
+}
+
+.acct-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin: 14px 0 18px 0;
+  padding: 14px;
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+.acct-meta-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.acct-meta-grid span {
+  font-size: 11.5px;
+  color: #6b6b80;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.acct-meta-grid strong {
+  font-size: 13.5px;
+  color: #f3f4f6;
+  font-weight: 500;
+  word-break: break-word;
+}
+
+.acct-billing-warning {
+  margin: 0 0 14px 0;
+  padding: 12px 14px;
+  border-left: 3px solid #fbbf24;
+  background: rgba(251, 191, 36, 0.08);
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #f3f4f6;
+}
+.acct-billing-warning strong { color: #fcd34d; }
+
+.acct-billing-warning-inline {
+  font-size: 13px;
+  color: #fcd34d !important;
+  background: rgba(251, 191, 36, 0.06);
+  padding: 8px 12px;
+  border-radius: 6px;
+  border-left: 3px solid #fbbf24;
+}
+
+.acct-mode-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+.acct-mode-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  color: inherit;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+.acct-mode-option:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+.acct-mode-option:active { transform: translateY(1px); }
+.acct-mode-emoji {
+  font-size: 24px;
+  line-height: 1;
+  flex-shrink: 0;
+  width: 36px;
+  text-align: center;
+}
+.acct-mode-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.acct-mode-text strong {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: #f3f4f6;
+}
+.acct-mode-desc {
+  font-size: 13px;
+  color: #b8b8c8;
+  line-height: 1.55;
+}
+
+.acct-btn--warn {
+  background: #f59e0b;
+  border-color: #d97706;
+  color: #1f2937;
+}
+.acct-btn--warn:hover:not(:disabled) {
+  background: #d97706;
+  color: #fff;
+}
+.acct-btn--success {
+  background: #10b981;
+  border-color: #059669;
+  color: #fff;
+}
+.acct-btn--success:hover:not(:disabled) {
+  background: #059669;
+}
+
+/* Light theme */
+.panel-light .acct-card--online {
+  background: linear-gradient(180deg, rgba(16, 185, 129, 0.04) 0%, #ffffff 60%);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+.panel-light .acct-card--offline {
+  background: linear-gradient(180deg, rgba(251, 191, 36, 0.05) 0%, #ffffff 60%);
+  border-color: rgba(217, 119, 6, 0.4);
+}
+.panel-light .acct-card-icon--warn { background: rgba(251, 191, 36, 0.15); color: #d97706; }
+.panel-light .acct-meta-grid {
+  background: #f9fafb;
+  border-color: rgba(0, 0, 0, 0.06);
+}
+.panel-light .acct-meta-grid span { color: #6b7280; }
+.panel-light .acct-meta-grid strong { color: #111827; }
+.panel-light .acct-billing-warning {
+  background: rgba(251, 191, 36, 0.08);
+  color: #1f2937;
+}
+.panel-light .acct-billing-warning strong { color: #b45309; }
+.panel-light .acct-billing-warning-inline {
+  color: #b45309 !important;
+  background: rgba(251, 191, 36, 0.06);
+}
+.panel-light .acct-mode-option {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.08);
+}
+.panel-light .acct-mode-option:hover {
+  background: #f9fafb;
+  border-color: rgba(0, 0, 0, 0.16);
+}
+.panel-light .acct-mode-text strong { color: #111827; }
+.panel-light .acct-mode-desc { color: #4b5563; }

@@ -511,6 +511,97 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     return res.status(500).json({ error: 'Failed to terminate hosting plan. Please try again or contact support.' })
   })
 
+  // ─── Account: Site Status (online / maintenance / suspended) ────
+  // GET → returns current state + plan billing info (so the UI can remind the user
+  //       that taking the site offline does NOT pause billing).
+  // POST { action: 'take_offline' | 'bring_online', mode?: 'maintenance'|'suspended' }
+  router.get('/account/site-status', ...auth, async (req, res) => {
+    const col = getCpanelCol()
+    if (!col) return res.status(503).json({ error: 'Service starting up, try again shortly.' })
+    const account = await col.findOne({ _id: req.cpUser.toLowerCase() })
+    if (!account) return res.status(404).json({ error: 'Account not found' })
+
+    const siteStatusService = require('./site-status-service')
+    return res.json({
+      status: siteStatusService.readStatus(account),
+      domain: account.domain,
+      plan: account.plan || null,
+      expiryDate: account.expiryDate || null,
+      autoRenew: account.autoRenew !== false,
+      suspendedAt: account.suspendedAt || null,
+      maintenanceModeAt: account.maintenanceModeAt || null,
+      lastBroughtOnlineAt: account.lastBroughtOnlineAt || null,
+    })
+  })
+
+  router.post('/account/site-status', ...auth, async (req, res) => {
+    const { action, mode } = req.body || {}
+    if (action !== 'take_offline' && action !== 'bring_online') {
+      return res.status(400).json({ error: 'action must be take_offline or bring_online' })
+    }
+    if (action === 'take_offline' && mode !== 'maintenance' && mode !== 'suspended') {
+      return res.status(400).json({ error: 'mode must be maintenance or suspended' })
+    }
+
+    const col = getCpanelCol()
+    if (!col) return res.status(503).json({ error: 'Service starting up, try again shortly.' })
+    const account = await col.findOne({ _id: req.cpUser.toLowerCase() })
+    if (!account) return res.status(404).json({ error: 'Account not found' })
+    if (account.deleted) return res.status(409).json({ error: 'This hosting plan has been cancelled.' })
+
+    const siteStatusService = require('./site-status-service')
+    const before = siteStatusService.readStatus(account)
+
+    if (action === 'take_offline') {
+      if (before !== 'online') {
+        return res.status(409).json({ error: `Site is already ${before}.` })
+      }
+      let result
+      try {
+        result = (mode === 'suspended')
+          ? await siteStatusService.suspend(account, `Taken offline by user via web panel (chatId ${account.chatId})`)
+          : await siteStatusService.enableMaintenanceMode(account)
+      } catch (err) {
+        result = { ok: false, error: err.message }
+      }
+      if (!result?.ok) {
+        return res.status(500).json({ error: result?.error || 'Failed to take site offline.' })
+      }
+      const update = (mode === 'suspended')
+        ? { suspended: true, suspendedAt: new Date(), suspendedBy: 'user', suspendedFrom: 'panel', maintenanceMode: false }
+        : { maintenanceMode: true, maintenanceModeAt: new Date(), maintenanceModeBy: 'user', maintenanceModeFrom: 'panel', suspended: false }
+      await col.updateOne({ _id: account._id }, { $set: update })
+      try {
+        notifier(`🔌 <b>Site taken offline by user (via web HostPanel)</b>\nUser: ${account.chatId}\nDomain: <b>${account.domain}</b>\nMode: <code>${mode}</code>\ncPanel: <code>${account.cpUser}</code>`)
+      } catch {}
+      return res.json({ success: true, status: mode })
+    }
+
+    // action === 'bring_online'
+    if (before === 'online') {
+      return res.status(409).json({ error: 'Site is already online.' })
+    }
+    let result
+    try {
+      result = (before === 'suspended')
+        ? await siteStatusService.unsuspend(account)
+        : await siteStatusService.disableMaintenanceMode(account)
+    } catch (err) {
+      result = { ok: false, error: err.message }
+    }
+    if (!result?.ok) {
+      return res.status(500).json({ error: result?.error || 'Failed to bring site online.' })
+    }
+    await col.updateOne(
+      { _id: account._id },
+      { $set: { suspended: false, maintenanceMode: false, lastBroughtOnlineAt: new Date() } }
+    )
+    try {
+      notifier(`🌐 <b>Site brought back online by user (via web HostPanel)</b>\nUser: ${account.chatId}\nDomain: <b>${account.domain}</b>\nWas: <code>${before}</code>\ncPanel: <code>${account.cpUser}</code>`)
+    } catch {}
+    return res.json({ success: true, status: 'online' })
+  })
+
   // ─── Email ──────────────────────────────────────────────
 
   router.get('/email', ...auth, async (req, res) => {

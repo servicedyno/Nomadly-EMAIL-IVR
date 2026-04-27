@@ -199,6 +199,12 @@ const user = {
  toggleAutoRenew: '🔁 切换自动续费',
  unlinkDomain: '🗑️ 解除域名绑定',
  cancelHostingPlan: '🚫 取消主机方案',
+ takeSiteOffline: '🔌 让网站下线',
+ bringSiteOnline: '🌐 让网站上线',
+ siteOfflineModeMaintenance: '🛠️ 维护模式（推荐）',
+ siteOfflineModeSuspend: '🚫 完全暂停（HTTP + 邮箱 + FTP + 数据库）',
+ confirmTakeOfflineBtn: '✅ 是的，让其下线',
+ confirmBringOnlineBtn: '✅ 是的，让其上线',
  confirmUnlinkBtn: '✅ 是的，解除绑定',
  confirmCancelHostingBtn: '🗑️ 是的，取消方案',
  cancelGoBackBtn: '⬅️ 否，返回',
@@ -1902,6 +1908,21 @@ ${CHAT_BOT_NAME}`,
  cancellingHostingPlan: domain => `⏳ 正在取消 <b>${domain}</b> 的主机方案...`,
  cancelHostingPlanSuccess: domain => `✅ <b>${domain}</b> 的主机方案已取消。\n\n您的 cPanel 帐号、文件和所有附加域名已被移除。域名仍归您注册所有，且现已不绑定任何主机方案。`,
  cancelHostingPlanFailed: domain => `❌ 取消 <b>${domain}</b> 的主机方案失败。请重试或联系支持。`,
+
+ // Site offline / maintenance toggle (Zh)
+ chooseSiteOfflineMode: domain => `🔌 <b>让网站下线</b>\n\n域名：<b>${domain}</b>\n\n请选择下线方式：\n\n🛠️ <b>维护模式</b>（推荐）\n访客看到一个干净的"我们很快回来"页面。邮箱、FTP、数据库继续工作。适合快速编辑或短时间下线。\n\n🚫 <b>完全暂停</b>\nHTTP、FTP、邮箱、数据库全部停止。访客看到 cPanel 标准的"账户已暂停"通知。如需完全停掉所有服务请使用此项。\n\n⚠️ <b>重要 — 让网站下线不会暂停：</b>\n• 到期倒计时\n• 自动续费扣款\n\n方案仍然正常计时。这只是可见性开关。`,
+ confirmSiteOfflineMode: (domain, mode) => mode === 'suspended'
+  ? `⚠️ <b>确认完全暂停</b>\n\n您即将完全暂停 <b>${domain}</b>。\n\n这将停止：\n• HTTP（您的网站）\n• FTP\n• 邮箱账户\n• 数据库\n\n访客将看到 cPanel 标准的"账户已暂停"页面。您随时可以从同一菜单恢复全部服务。\n\n<b>提醒 — 计费照常进行：</b>\n• 到期日期不变\n• 自动续费仍会触发\n\n继续？`
+  : `⚠️ <b>确认维护模式</b>\n\n您即将为 <b>${domain}</b> 启用维护模式。\n\n将会发生：\n• 访客看到"我们很快回来"页面\n• 邮箱、FTP、数据库继续工作\n• 在您的 <code>.htaccess</code> 中添加一小段代码块（恢复在线时会被干净移除）\n• 在 <code>public_html/</code> 中创建 <code>maintenance.html</code> 文件\n\n<b>提醒 — 计费照常进行：</b>\n• 到期日期不变\n• 自动续费仍会触发\n\n继续？`,
+ takingSiteOffline: (domain, mode) => `⏳ ${mode === 'suspended' ? '正在暂停' : '正在为以下域名启用维护模式'} <b>${domain}</b>...`,
+ takeSiteOfflineSuccess: (domain, mode) => mode === 'suspended'
+  ? `✅ <b>${domain}</b> 已下线（完全暂停）。访客看到暂停页面。点击"让网站上线"以恢复。\n\n<i>提醒：您的方案继续向到期日倒计时，自动续费不受影响。</i>`
+  : `✅ <b>${domain}</b> 已进入维护模式。访客看到"我们很快回来"页面。邮箱与 FTP 仍正常工作。准备就绪后点击"让网站上线"。\n\n<i>提醒：您的方案继续向到期日倒计时，自动续费不受影响。</i>`,
+ takeSiteOfflineFailed: (domain, err) => `❌ 让 <b>${domain}</b> 下线失败。${err ? `\n\n原因：<code>${err}</code>` : ''}\n\n请重试或联系支持。`,
+ confirmBringSiteOnline: domain => `🌐 <b>让网站重新上线</b>\n\n域名：<b>${domain}</b>\n\n这将立即恢复公共访问。如果您使用的是<i>维护模式</i>，<code>.htaccess</code> 中的重定向块将被移除。如果您使用的是<i>完全暂停</i>，cPanel 账户将取消暂停，HTTP/FTP/邮箱/DB 全部恢复。\n\n继续？`,
+ bringingSiteOnline: domain => `⏳ 正在让 <b>${domain}</b> 重新上线...`,
+ bringSiteOnlineSuccess: domain => `✅ <b>${domain}</b> 已重新上线。请等待最多 1 分钟以让缓存/CDN 完全清除。`,
+ bringSiteOnlineFailed: (domain, err) => `❌ 让 <b>${domain}</b> 重新上线失败。${err ? `\n\n原因：<code>${err}</code>` : ''}\n\n请重试或联系支持。`,
 }
 
 const phoneNumberLeads = ['🎯 精准目标线索', '✅📲 验证电话线索']
