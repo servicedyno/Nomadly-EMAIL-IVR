@@ -1,0 +1,101 @@
+[2026-04-27T12:19:24] [info] Enter the key number (0-9) for this option: 0,1,2,3,4,5,6,7,8,9,Back,Cancel	to: 8273560746
+[2026-04-27T12:19:29] [info] message: 2	from: 8273560746 Scoreboard44
+[2026-04-27T12:19:29] [info] What should happen when a caller presses <b>2</b>? 📞 Forward Call,💬 Play Message,📬 Send to Voicemail,Back,Cancel	to: 8273560746
+[2026-04-27T12:19:29] [info] message: 📞 Forward Call	from: 8273560746 Scoreboard44
+[2026-04-27T12:19:29] [info] <i>Example: +15551234567</i> Back,Cancel	to: 8273560746
+[2026-04-27T12:19:46] [info] message: +19314399742	from: 8273560746 Scoreboard44
+[2026-04-27T12:19:47] [info]  🎤 Set Greeting,➕ Add Menu Option,➖ Remove Option,📋 View Menu Options,📊 IVR Analytics,🚫 Disable IVR,Back,Cancel	to: 8273560746
+[2026-04-27T12:19:47] [info] reply: ✅ Key <b>2</b> → Forward to <b>+19314399742</b> — saved! 	to: 8273560746
+[2026-04-27T12:20:17] [info] message: Cancel	from: 8273560746 Scoreboard44
+[2026-04-27T12:20:17] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746
+[2026-04-27T12:21:15] [info] When done, send /done to close the chat. /done	to: 8273560746
+[2026-04-27T12:21:15] [info] User: <b>@Scoreboard44</b> (8273560746)
+[2026-04-27T12:21:15] [info] Reply with: /reply 8273560746 <i>your message</i>
+[2026-04-27T12:21:15] [info] 📎 Or attach a photo/file with caption: <code>/reply 8273560746 your caption</code>
+[2026-04-27T12:21:15] [info] Close with: /close 8273560746 	to: 5590563715
+[2026-04-27T12:21:15] [info] [Support] Session opened for 8273560746 Scoreboard44 — AI will auto-respond, escalation to admin if needed
+[2026-04-27T12:21:15] [info] message: 💬 Support	from: 8273560746 Scoreboard44
+[2026-04-27T12:23:41] [info] message: Bro can you make it so my phone setting not resetting everytime?.... ESCALATE THIS, the vic called me back from last night this morning and it wasn't setup...	from: 8273560746 Scoreboard44
+[2026-04-27T12:23:42] [info] reply: 💬 <b>@Scoreboard44</b> (8273560746):
+[2026-04-27T12:23:42] [info] ↩️ /reply 8273560746 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-04-27T12:23:42] [info] [Support] 8273560746 -> admin: Bro can you make it so my phone setting not resetting everytime?.... ESCALATE THIS, the vic called me back from last night this morning and it wasn't setup... (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)
+[2026-04-27T12:23:44] [info] Thank you for your patience! /done	to: 8273560746
+[2026-04-27T12:23:44] [info] reply: 🤖 <b>AI replied to @Scoreboard44</b> (8273560746):
+[2026-04-27T12:23:44] [info] [Support] AI -> 8273560746: I understand you're having trouble with your phone settings resetting, and that a caller contacted y... (escalate: true)
+[2026-04-27T12:24:25] [info] message: +18888370876	from: 8273560746 Scoreboard44
+[2026-04-27T12:24:26] [info] reply: 💬 <b>@Scoreboard44</b> (8273560746):
+[2026-04-27T12:24:26] [info] ↩️ /reply 8273560746 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-04-27T12:24:26] [info] [Support] 8273560746 -> admin: +18888370876 (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)
+[2026-04-27T12:24:29] [info] Is there anything else I can assist with meanwhile? /done	to: 8273560746
+[2026-04-27T12:24:29] [info] reply: 🤖 <b>AI replied to @Scoreboard44</b> (8273560746):
+[2026-04-27T12:24:29] [info] [Support] AI -> 8273560746: Thanks for providing the number +18888370876. I've noted this for the technical team to investigate ... (escalate: true)
+[2026-04-27T12:24:37] [info] message: /reply 8273560746 which setting is resetting? Please be clear	from: 5590563715 onarrival1
+[2026-04-27T12:24:37] [info] which setting is resetting? Please be clear /done	to: 8273560746
+[2026-04-27T12:24:37] [info] [Support] Admin replied to 8273560746: which setting is resetting? Please be clear (targetLang: en, translated: false) — session re-opened, admin takeover ON
+[2026-04-27T12:24:57] [info] [Support] 8273560746 -> admin: Everything (botLang: en, msgLang: en, translated: false, adminTakeover: true, sessionOpen: true)
+[2026-04-27T12:24:57] [info] reply: ✉️ Message received! A support agent will respond shortly. /done	to: 8273560746
+[2026-04-27T12:24:57] [info] message: Everything	from: 8273560746 Scoreboard44
+[2026-04-27T12:24:57] [info] reply: 💬 <b>@Scoreboard44</b> (8273560746):
+[2026-04-27T12:24:57] [info] ↩️ /reply 8273560746 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-04-27T12:25:05] [info] message: I have to reset voicemail	from: 8273560746 Scoreboard44
+[2026-04-27T12:25:05] [info] reply: 💬 <b>@Scoreboard44</b> (8273560746):
+[2026-04-27T12:25:05] [info] ↩️ /reply 8273560746 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-04-27T12:25:05] [info] [Support] 8273560746 -> admin: I have to reset voicemail (botLang: en, msgLang: en, translated: false, adminTakeover: true, sessionOpen: true)
+[2026-04-27T12:25:05] [info] reply: ✉️ Message received! A support agent will respond shortly. /done	to: 8273560746
+[2026-04-27T12:25:09] [info] message: Callback	from: 8273560746 Scoreboard44
+[2026-04-27T12:25:10] [info] reply: 💬 <b>@Scoreboard44</b> (8273560746):
+[2026-04-27T12:25:10] [info] ↩️ /reply 8273560746 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-04-27T12:25:10] [info] [Support] 8273560746 -> admin: Callback (botLang: en, msgLang: en, translated: false, adminTakeover: true, sessionOpen: true)
+[2026-04-27T12:25:10] [info] reply: ✉️ Message received! A support agent will respond shortly. /done	to: 8273560746
+[2026-04-27T12:25:11] [info] message: Ivr	from: 8273560746 Scoreboard44
+[2026-04-27T12:25:12] [info] ↩️ /reply 8273560746 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-04-27T12:25:12] [info] reply: 💬 <b>@Scoreboard44</b> (8273560746):
+[2026-04-27T12:25:12] [info] [Support] 8273560746 -> admin: Ivr (botLang: en, msgLang: en, translated: false, adminTakeover: true, sessionOpen: true)
+[2026-04-27T12:25:12] [info] reply: ✉️ Message received! A support agent will respond shortly. /done	to: 8273560746
+[2026-04-27T12:25:16] [info] message: Everything	from: 8273560746 Scoreboard44
+[2026-04-27T12:25:17] [info] reply: 💬 <b>@Scoreboard44</b> (8273560746):
+[2026-04-27T12:25:17] [info] ↩️ /reply 8273560746 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-04-27T12:25:17] [info] [Support] 8273560746 -> admin: Everything (botLang: en, msgLang: en, translated: false, adminTakeover: true, sessionOpen: true)
+[2026-04-27T12:25:17] [info] reply: ✉️ Message received! A support agent will respond shortly. /done	to: 8273560746
+[2026-04-27T12:26:17] [info] [Support] Admin replied to 8273560746: is phone number +18888370876 purchased on your username @Scoreboard44? (targetLang: en, translated: false) — session re-opened, admin takeover ON
+[2026-04-27T12:26:17] [info] message: /reply 8273560746 is phone number +18888370876 purchased on your username @Scoreboard44?	from: 5590563715 onarrival1
+[2026-04-27T12:26:17] [info] is phone number +18888370876 purchased on your username @Scoreboard44? /done	to: 8273560746
+[2026-04-27T12:27:07] [info] message: Yes	from: 8273560746 Scoreboard44
+[2026-04-27T12:27:07] [info] [Support] 8273560746 -> admin: Yes (botLang: en, msgLang: en, translated: false, adminTakeover: true, sessionOpen: true)
+[2026-04-27T12:27:07] [info] reply: ✉️ Message received! A support agent will respond shortly. /done	to: 8273560746
+[2026-04-27T12:27:07] [info] reply: 💬 <b>@Scoreboard44</b> (8273560746):
+[2026-04-27T12:27:07] [info] ↩️ /reply 8273560746 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-04-27T12:31:34] [info] message: /reply 8273560746 taking a look at the issues and will report back with the status.	from: 5590563715 onarrival1
+[2026-04-27T12:31:34] [info] taking a look at the issues and will report back with the status. /done	to: 8273560746
+[2026-04-27T12:31:34] [info] [Support] Admin replied to 8273560746: taking a look at the issues and will report back with the status. (targetLang: en, translated: false) — session re-opened, admin takeover ON
+[2026-04-27T12:33:44] [info] message: /done	from: 8273560746 Scoreboard44
+[2026-04-27T12:33:44] [info] reply: ✅ Support session ended. Thank you for reaching out! 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746
+[2026-04-27T12:33:44] [info] reply: 📴 Support session closed by user <b>@Scoreboard44</b> (8273560746) 	to: 5590563715
+[2026-04-27T12:33:44] [info] reply: 📝 <b>Quick feedback:</b> Was our support helpful? 	to: 8273560746
+[2026-04-27T12:33:44] [info] [Support] Session ended by user 8273560746 — admin takeover OFF
+[2026-04-27T12:33:44] [info] message: 📞 Cloud IVR + SIP	from: 8273560746 Scoreboard44
+[2026-04-27T12:33:44] [info] 📞 33 phone numbers activated this week 📢 Quick IVR Call,📞 Bulk IVR Campaign,🎵 Audio Library,🧪 Test SIP Free,🛒 Choose a Plan,📋 My Plans,📖 SIP Setup Guide,📊 Usage & Billing,❓ How It Works,Back,Cancel	to: 8273560746
+[2026-04-27T12:33:47] [info] message: 📋 My Plans	from: 8273560746 Scoreboard44
+[2026-04-27T12:33:47] [info]  1,2,🛒 Buy Another Number,Back,Cancel	to: 8273560746
+[2026-04-27T12:33:49] [info] message: 1	from: 8273560746 Scoreboard44
+[2026-04-27T12:33:49] [info] [Queue] Error processing message for 8273560746: hasVoice is not defined
+[2026-04-27T12:34:09] [info] message: 1	from: 8273560746 Scoreboard44
+[2026-04-27T12:34:09] [info] reply: Please select an option. 	to: 8273560746
+[2026-04-27T12:34:09] [info] message: 1	from: 8273560746 Scoreboard44
+[2026-04-27T12:34:09] [info] reply: Please select an option. 	to: 8273560746
+[2026-04-27T12:34:11] [info] message: Back	from: 8273560746 Scoreboard44
+[2026-04-27T12:34:11] [info]  1,2,🛒 Buy Another Number,Back,Cancel	to: 8273560746
+[2026-04-27T12:34:15] [info] [Queue] Error processing message for 8273560746: hasVoice is not defined
+[2026-04-27T12:34:15] [info] message: 1	from: 8273560746 Scoreboard44
+[2026-04-27T12:34:35] [info] message: Cancel	from: 8273560746 Scoreboard44
+[2026-04-27T12:34:35] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746
+[2026-04-27T12:34:35] [info] message: 📞 Cloud IVR + SIP	from: 8273560746 Scoreboard44
+[2026-04-27T12:34:35] [info] 📞 33 phone numbers activated this week 📢 Quick IVR Call,📞 Bulk IVR Campaign,🎵 Audio Library,🧪 Test SIP Free,🛒 Choose a Plan,📋 My Plans,📖 SIP Setup Guide,📊 Usage & Billing,❓ How It Works,Back,Cancel	to: 8273560746
+[2026-04-27T12:34:35] [info] message: 📋 My Plans	from: 8273560746 Scoreboard44
+[2026-04-27T12:34:35] [info]  1,2,🛒 Buy Another Number,Back,Cancel	to: 8273560746
+[2026-04-27T12:34:37] [info] message: 1	from: 8273560746 Scoreboard44
+[2026-04-27T12:34:37] [info] [Queue] Error processing message for 8273560746: hasVoice is not defined
+[2026-04-27T12:35:17] [info] [Twilio] IVR gather: chatId=8273560746 digits=1 from=+19106516884 to=+18888370876
+[2026-04-27T12:35:17] [info] [Twilio] Voicemail recorded: REa41ea1b672b5f08bcf299f6882777730 (2s) for chatId=8273560746
+[2026-04-27T12:35:37] [info] message: Cancel	from: 8273560746 Scoreboard44
+[2026-04-27T12:35:37] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746

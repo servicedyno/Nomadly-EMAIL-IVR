@@ -1,0 +1,101 @@
+[2026-04-27T00:55:43] [info] message: ✅ Continue	from: 8273560746 Scoreboard44
+[2026-04-27T00:56:14] [info] message: Patricia Davin	from: 8273560746 Scoreboard44
+[2026-04-27T00:56:34] [info] message: GENESSEE VALLEY CREDIT UNION	from: 8273560746 Scoreboard44
+[2026-04-27T00:56:41] [info] message: 8 5 3 8	from: 8273560746 Scoreboard44
+[2026-04-27T00:56:43] [info] message: unauthorized transaction	from: 8273560746 Scoreboard44
+[2026-04-27T00:56:45] [info] message: 📌 Barnes & Noble	from: 8273560746 Scoreboard44
+[2026-04-27T00:56:51] [info] message: Arlington, Texas	from: 8273560746 Scoreboard44
+[2026-04-27T00:56:53] [info] message: 📌 $89.71	from: 8273560746 Scoreboard44
+[2026-04-27T00:56:55] [info] message: 🔗 Transfer	from: 8273560746 Scoreboard44
+[2026-04-27T00:57:01] [info] message: 19314399742	from: 8273560746 Scoreboard44
+[2026-04-27T00:57:22] [info] message: +19314399742	from: 8273560746 Scoreboard44
+[2026-04-27T00:57:22] [info] message: 🟢 OpenAI — Best	from: 8273560746 Scoreboard44
+[2026-04-27T00:57:22] [info] message: ⭐ Last: Onyx	from: 8273560746 Scoreboard44
+[2026-04-27T00:57:22] [info] message: ⭐ Last: 0.7x	from: 8273560746 Scoreboard44
+[2026-04-27T00:57:31] [info] message: 🔇 Hold Music: OFF	from: 8273560746 Scoreboard44
+[2026-04-27T01:01:03] [info] message: ✅ Confirm	from: 8273560746 Scoreboard44
+[2026-04-27T01:01:08] [info] message: /yes	from: 8273560746 Scoreboard44
+[2026-04-27T12:06:55] [info] message: /start	from: 8273560746 Scoreboard44
+[2026-04-27T12:06:57] [info] message: 📞 Cloud IVR + SIP	from: 8273560746 Scoreboard44
+[2026-04-27T12:07:01] [info] message: Cancel	from: 8273560746 Scoreboard44
+[2026-04-27T12:07:04] [info] message: 🛒 Digital Products	from: 8273560746 Scoreboard44
+[2026-04-27T12:16:41] [info] message: 📞 Cloud IVR + SIP	from: 8273560746 Scoreboard44
+[2026-04-27T12:16:41] [info] message: /start	from: 8273560746 Scoreboard44
+[2026-04-27T12:16:41] [info] message: 📋 My Plans	from: 8273560746 Scoreboard44
+[2026-04-27T12:16:41] [info] message: 1	from: 8273560746 Scoreboard44
+[2026-04-27T12:16:44] [info] message: 📞 Call Forwarding	from: 8273560746 Scoreboard44
+[2026-04-27T12:16:46] [info] message: 📞 Always Forward	from: 8273560746 Scoreboard44
+[2026-04-27T12:17:16] [info] message: +19314399742	from: 8273560746 Scoreboard44
+[2026-04-27T12:17:18] [info] message: 📞 Call Forwarding	from: 8273560746 Scoreboard44
+[2026-04-27T12:17:21] [info] message: 🎵 Hold Music: OFF	from: 8273560746 Scoreboard44
+[2026-04-27T12:17:25] [info] message: Back	from: 8273560746 Scoreboard44
+[2026-04-27T12:17:27] [info] message: 🎙️ Voicemail	from: 8273560746 Scoreboard44
+[2026-04-27T12:17:28] [info] message: ✅ Enable Voicemail	from: 8273560746 Scoreboard44
+[2026-04-27T12:17:33] [info] message: 🎙️ Voicemail	from: 8273560746 Scoreboard44
+[2026-04-27T12:17:34] [info] message: 🔊 Greeting	from: 8273560746 Scoreboard44
+[2026-04-27T12:17:36] [info] message: 🎤 Custom Greeting (Audio)	from: 8273560746 Scoreboard44
+[2026-04-27T12:17:38] [info] message: 📝 Type Text (AI Voice)	from: 8273560746 Scoreboard44
+[2026-04-27T12:18:08] [info] message: After the tone,  please Include your name, and callback number. We've saved your place in line. One of our agents will contact you by the order in which we received your call. Thank you.	from: 8273560746 Scoreboard44
+[2026-04-27T12:18:08] [info] message: 🇺🇸 English	from: 8273560746 Scoreboard44
+[2026-04-27T12:18:08] [info] message: 🟢 OpenAI — Best	from: 8273560746 Scoreboard44
+[2026-04-27T12:18:08] [info] message: Onyx — Deep, authoritative male	from: 8273560746 Scoreboard44
+[2026-04-27T12:18:20] [info] message: ✅ Save Greeting	from: 8273560746 Scoreboard44
+[2026-04-27T12:18:23] [info] message: Back	from: 8273560746 Scoreboard44
+[2026-04-27T12:18:25] [info] message: 🤖 IVR / Auto-attendant	from: 8273560746 Scoreboard44
+[2026-04-27T12:18:27] [info] message: ✅ Enable IVR	from: 8273560746 Scoreboard44
+[2026-04-27T12:18:32] [info] message: 🎤 Set Greeting	from: 8273560746 Scoreboard44
+[2026-04-27T12:18:34] [info] message: 📝 Type Text (AI Voice)	from: 8273560746 Scoreboard44
+[2026-04-27T12:18:41] [info] message: Welcome to card self service.  All of our agents are currently assisting other callers. Press 1 for a callback, and One of our agents will be right with you shortly. Press 2  if you would like to hold until a representative is available.	from: 8273560746 Scoreboard44
+[2026-04-27T12:18:43] [info] message: 🇺🇸 English	from: 8273560746 Scoreboard44
+[2026-04-27T12:18:45] [info] message: 🟢 OpenAI — Best	from: 8273560746 Scoreboard44
+[2026-04-27T12:18:52] [info] message: Onyx — Deep, authoritative male	from: 8273560746 Scoreboard44
+[2026-04-27T12:19:09] [info] message: ✅ Save Greeting	from: 8273560746 Scoreboard44
+[2026-04-27T12:19:13] [info] message: ➕ Add Menu Option	from: 8273560746 Scoreboard44
+[2026-04-27T12:19:15] [info] message: 1	from: 8273560746 Scoreboard44
+[2026-04-27T12:19:21] [info] message: 📬 Send to Voicemail	from: 8273560746 Scoreboard44
+[2026-04-27T12:19:24] [info] message: ➕ Add Menu Option	from: 8273560746 Scoreboard44
+[2026-04-27T12:19:29] [info] message: 2	from: 8273560746 Scoreboard44
+[2026-04-27T12:19:29] [info] message: 📞 Forward Call	from: 8273560746 Scoreboard44
+[2026-04-27T12:19:46] [info] message: +19314399742	from: 8273560746 Scoreboard44
+[2026-04-27T12:20:17] [info] message: Cancel	from: 8273560746 Scoreboard44
+[2026-04-27T12:21:15] [info] User: <b>@Scoreboard44</b> (8273560746)
+[2026-04-27T12:21:15] [info] [Support] Session opened for 8273560746 Scoreboard44 — AI will auto-respond, escalation to admin if needed
+[2026-04-27T12:21:15] [info] message: 💬 Support	from: 8273560746 Scoreboard44
+[2026-04-27T12:23:41] [info] message: Bro can you make it so my phone setting not resetting everytime?.... ESCALATE THIS, the vic called me back from last night this morning and it wasn't setup...	from: 8273560746 Scoreboard44
+[2026-04-27T12:23:42] [info] reply: 💬 <b>@Scoreboard44</b> (8273560746):
+[2026-04-27T12:23:44] [info] reply: 🤖 <b>AI replied to @Scoreboard44</b> (8273560746):
+[2026-04-27T12:24:25] [info] message: +18888370876	from: 8273560746 Scoreboard44
+[2026-04-27T12:24:26] [info] reply: 💬 <b>@Scoreboard44</b> (8273560746):
+[2026-04-27T12:24:29] [info] reply: 🤖 <b>AI replied to @Scoreboard44</b> (8273560746):
+[2026-04-27T12:24:37] [info] reply: ✅ Reply sent to Scoreboard44 (no translation needed) 	to: 5590563715
+[2026-04-27T12:24:57] [info] message: Everything	from: 8273560746 Scoreboard44
+[2026-04-27T12:24:57] [info] reply: 💬 <b>@Scoreboard44</b> (8273560746):
+[2026-04-27T12:25:05] [info] message: I have to reset voicemail	from: 8273560746 Scoreboard44
+[2026-04-27T12:25:05] [info] reply: 💬 <b>@Scoreboard44</b> (8273560746):
+[2026-04-27T12:25:09] [info] message: Callback	from: 8273560746 Scoreboard44
+[2026-04-27T12:25:10] [info] reply: 💬 <b>@Scoreboard44</b> (8273560746):
+[2026-04-27T12:25:11] [info] message: Ivr	from: 8273560746 Scoreboard44
+[2026-04-27T12:25:12] [info] reply: 💬 <b>@Scoreboard44</b> (8273560746):
+[2026-04-27T12:25:16] [info] message: Everything	from: 8273560746 Scoreboard44
+[2026-04-27T12:25:17] [info] reply: 💬 <b>@Scoreboard44</b> (8273560746):
+[2026-04-27T12:26:17] [info] reply: ✅ Reply sent to Scoreboard44 (no translation needed) 	to: 5590563715
+[2026-04-27T12:26:17] [info] [Support] Admin replied to 8273560746: is phone number +18888370876 purchased on your username @Scoreboard44? (targetLang: en, translated: false) — session re-opened, admin takeover ON
+[2026-04-27T12:26:17] [info] message: /reply 8273560746 is phone number +18888370876 purchased on your username @Scoreboard44?	from: 5590563715 onarrival1
+[2026-04-27T12:26:17] [info] is phone number +18888370876 purchased on your username @Scoreboard44? /done	to: 8273560746
+[2026-04-27T12:27:07] [info] message: Yes	from: 8273560746 Scoreboard44
+[2026-04-27T12:27:07] [info] reply: 💬 <b>@Scoreboard44</b> (8273560746):
+[2026-04-27T12:31:34] [info] reply: ✅ Reply sent to Scoreboard44 (no translation needed) 	to: 5590563715
+[2026-04-27T12:33:44] [info] message: /done	from: 8273560746 Scoreboard44
+[2026-04-27T12:33:44] [info] reply: 📴 Support session closed by user <b>@Scoreboard44</b> (8273560746) 	to: 5590563715
+[2026-04-27T12:33:44] [info] message: 📞 Cloud IVR + SIP	from: 8273560746 Scoreboard44
+[2026-04-27T12:33:47] [info] message: 📋 My Plans	from: 8273560746 Scoreboard44
+[2026-04-27T12:33:49] [info] message: 1	from: 8273560746 Scoreboard44
+[2026-04-27T12:34:09] [info] message: 1	from: 8273560746 Scoreboard44
+[2026-04-27T12:34:09] [info] message: 1	from: 8273560746 Scoreboard44
+[2026-04-27T12:34:11] [info] message: Back	from: 8273560746 Scoreboard44
+[2026-04-27T12:34:15] [info] message: 1	from: 8273560746 Scoreboard44
+[2026-04-27T12:34:35] [info] message: Cancel	from: 8273560746 Scoreboard44
+[2026-04-27T12:34:35] [info] message: 📞 Cloud IVR + SIP	from: 8273560746 Scoreboard44
+[2026-04-27T12:34:35] [info] message: 📋 My Plans	from: 8273560746 Scoreboard44
+[2026-04-27T12:34:37] [info] message: 1	from: 8273560746 Scoreboard44
+[2026-04-27T12:35:37] [info] message: Cancel	from: 8273560746 Scoreboard44

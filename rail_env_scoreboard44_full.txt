@@ -1,0 +1,1390 @@
+[2026-04-19T10:08:18] [info] Thank you for choosing Nomadly Bot! Please choose an option below: 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,📦 Ship & Mail,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746
+[2026-04-19T10:08:18] [info] message: Been busy I'll let you know today	from: 8273560746 Scoreboard44
+[2026-04-19T10:08:18] [info] [reset] Unrecognized message from 8273560746: "Been busy I'll let you know today" (was action: none). Resetting to main menu.
+[2026-04-19T10:08:23] [info] message: 💬 Support	from: 8273560746 Scoreboard44
+[2026-04-19T10:08:23] [info] Send /done when you're finished. /done	to: 8273560746
+[2026-04-19T10:08:23] [info] User: <b>Scoreboard44</b> (8273560746)
+[2026-04-19T10:08:23] [info] Reply with: /reply 8273560746 <i>your message</i>
+[2026-04-19T10:08:23] [info] Close with: /close 8273560746 	to: 5590563715
+[2026-04-19T10:08:23] [info] [Support] Session opened for 8273560746 Scoreboard44 — admin takeover OFF (fresh session)
+[2026-04-19T10:08:44] [info] message: Been busy I'll let you know today	from: 8273560746 Scoreboard44
+[2026-04-19T10:08:44] [info] reply: 💬 <b>Scoreboard44</b> (8273560746):
+[2026-04-19T10:08:44] [info] ↩️ /reply 8273560746 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-04-19T10:08:44] [info] [Support] 8273560746 -> admin: Been busy I'll let you know today (botLang: en, msgLang: en, translated: false, adminTakeover: false)
+[2026-04-19T10:08:44] [info] reply: No problem! Feel free to reach out whenever you're ready, and I'll be here to assist you with anything you need. 😊 If you have any questions or need help with our services, just let me know! /done	to: 8273560746
+[2026-04-19T10:08:44] [info] reply: 🤖 <b>AI replied to Scoreboard44</b> (8273560746):
+[2026-04-19T10:08:44] [info] [Support] AI -> 8273560746: No problem! Feel free to reach out whenever you're ready, and I'll be here to assist you with anythi... (escalate: false)
+[2026-04-19T10:08:46] [info] reply: 📴 Support session closed by user <b>Scoreboard44</b> (8273560746) 	to: 5590563715
+[2026-04-19T10:08:46] [info] [Support] Session ended by user 8273560746 — admin takeover OFF
+[2026-04-19T10:08:46] [info] message: /done	from: 8273560746 Scoreboard44
+[2026-04-19T10:08:46] [info] reply: 📝 <b>Quick feedback:</b> Was our support helpful? 	to: 8273560746
+[2026-04-19T10:08:46] [info] reply: ✅ Support session ended. Thank you for reaching out! 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,📦 Ship & Mail,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746
+[2026-04-19T10:08:51] [info] [AI Support] Session rated by 8273560746: good
+[2026-04-19T10:08:55] [info] message: 💳 Virtual Card	from: 8273560746 Scoreboard44
+[2026-04-19T10:09:08] [info] message: $1000	from: 8273560746 Scoreboard44
+[2026-04-19T10:09:08] [info] United States</i> 	to: 8273560746
+[2026-04-19T10:09:49] [info] 28304	from: 8273560746 Scoreboard44
+[2026-04-19T10:09:49] [info] Select payment method: Crypto,Bank ₦aira + Card🏦💳,👛 Wallet,💬 Ask Question,Back,🏠 Main Menu,Cancel	to: 8273560746
+[2026-04-19T10:10:09] [info] message: 💬 Ask Question	from: 8273560746 Scoreboard44
+[2026-04-19T10:10:09] [info] reply: Please choose a valid payment option 	to: 8273560746
+[2026-04-19T10:10:09] [info] message: 💬 Ask Question	from: 8273560746 Scoreboard44
+[2026-04-19T10:10:09] [info] reply: Please choose a valid payment option 	to: 8273560746
+[2026-04-19T10:10:11] [info] message: Cancel	from: 8273560746 Scoreboard44
+[2026-04-19T10:10:11] [info] 10:10:11 [CartRecovery] User 8273560746 abandoned virtualcard (action: virtual-card-pay). Scheduling nudge in 45 min
+[2026-04-19T10:10:11] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,📦 Ship & Mail,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746
+[2026-04-19T10:10:13] [info] message: 💬 Support	from: 8273560746 Scoreboard44
+[2026-04-19T10:10:13] [info] Send /done when you're finished. /done	to: 8273560746
+[2026-04-19T10:10:13] [info] User: <b>Scoreboard44</b> (8273560746)
+[2026-04-19T10:10:13] [info] Reply with: /reply 8273560746 <i>your message</i>
+[2026-04-19T10:10:13] [info] Close with: /close 8273560746 	to: 5590563715
+[2026-04-19T10:10:13] [info] [Support] Session opened for 8273560746 Scoreboard44 — admin takeover OFF (fresh session)
+[2026-04-19T10:11:03] [info] message: What kind of card is being issued? And what can i use wipe it on, And like technically could I use these as drops?	from: 8273560746 Scoreboard44
+[2026-04-19T10:11:05] [info] reply: 💬 <b>Scoreboard44</b> (8273560746):
+[2026-04-19T10:11:05] [info] ↩️ /reply 8273560746 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-04-19T10:11:05] [info] [Support] 8273560746 -> admin: What kind of card is being issued? And what can i use wipe it on, And like technically could I use these as drops? (botLang: en, msgLang: en, translated: false, adminTakeover: false)
+[2026-04-19T10:11:07] [info] If you have any other questions or need further assistance, feel free to ask! 💳 Virtual Card,/done	to: 8273560746
+[2026-04-19T10:11:07] [info] reply: 🤖 <b>AI replied to Scoreboard44</b> (8273560746):
+[2026-04-19T10:11:07] [info] [Support] AI -> 8273560746: Nomadly offers <b>Virtual Debit Cards</b> that can be used for online transactions worldwide. You ca... (escalate: false)
+[2026-04-19T10:11:37] [info] message: Escalate, I need human	from: 8273560746 Scoreboard44
+[2026-04-19T10:11:37] [info] reply: 💬 <b>Scoreboard44</b> (8273560746):
+[2026-04-19T10:11:37] [info] ↩️ /reply 8273560746 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-04-19T10:11:37] [info] [Support] 8273560746 -> admin: Escalate, I need human (botLang: en, msgLang: en, translated: false, adminTakeover: false)
+[2026-04-19T10:11:37] [info] reply: I can see you're looking for more specific information regarding the use of virtual cards. I'm flagging this for our support team — a human agent will review your case shortly. If you have any specific details or questions you'd like to share, please go ahead, as it might help the team assist you better. 💳 Virtual Card,/done	to: 8273560746
+[2026-04-19T10:11:37] [info] reply: 🤖 <b>AI replied to Scoreboard44</b> (8273560746):
+[2026-04-19T10:11:37] [info] [Support] AI -> 8273560746: I can see you're looking for more specific information regarding the use of virtual cards. I'm flagg... (escalate: true)
+[2026-04-19T10:11:41] [info] message: /done	from: 8273560746 Scoreboard44
+[2026-04-19T10:11:41] [info] reply: 📝 <b>Quick feedback:</b> Was our support helpful? 	to: 8273560746
+[2026-04-19T10:11:41] [info] reply: ✅ Support session ended. Thank you for reaching out! 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,📦 Ship & Mail,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746
+[2026-04-19T10:11:41] [info] reply: 📴 Support session closed by user <b>Scoreboard44</b> (8273560746) 	to: 5590563715
+[2026-04-19T10:11:41] [info] [Support] Session ended by user 8273560746 — admin takeover OFF
+[2026-04-19T10:11:51] [info] [AI Support] Session rated by 8273560746: good
+[2026-04-19T10:55:16] [info] 10:55:11 [CartRecovery] ✅ Nudged 8273560746 for virtualcard abandonment (lang: en)
+[2026-04-19T12:21:03] [info] message: 🤝 Refer & Earn	from: 8273560746 Scoreboard44
+[2026-04-19T12:21:03] [info] 🔗 <a href="https://t.me/Nomadlybot?start=ref_8273560746">Tap to copy your invite link</a>
+[2026-04-19T12:21:03] [info] <i>Reward unlocks when your referral's total spending hits $30.</i> Back,Back,Cancel	to: 8273560746
+[2026-04-19T12:21:23] [info] message: /start ref_8273560746	from: 8273560746 Scoreboard44
+[2026-04-19T12:21:23] [info] [Referral] Wallet referral saved: 8273560746 referred by 8273560746 (8273560746)
+[2026-04-19T12:21:23] [info] You can always change your language later in the settings. 	to: 8273560746
+[2026-04-19T12:21:26] [info] message: 🇬🇧 English	from: 8273560746 Scoreboard44
+[2026-04-19T12:21:26] [info] 12:21:26 [Conversion] Onboarding tracked for 8273560746 (lang: en, no guided message)
+[2026-04-19T12:21:26] [info] 12:21:26 [Conversion] Welcome offer scheduled for 8273560746 in 120 min
+[2026-04-19T12:21:26] [info] 🆔 Chat ID: <code>8273560746</code>
+[2026-04-19T12:21:26] [info] /reply 8273560746 Welcome to Nomadly Bot! 🎉 	to: 5590563715
+[2026-04-19T12:21:26] [info] [WelcomeBonus] Transaction logged: TXN-20260419-3UV1Q - $5 to 8273560746
+[2026-04-19T12:21:26] [info] [WelcomeBonus] Awarded $5 to chatId=8273560746
+[2026-04-19T12:21:26] [info] Thank you for joining Nomadly! 🚀 	to: 8273560746
+[2026-04-19T12:21:26] [info] [WelcomeBonus] Awarded $5 to new user chatId=8273560746
+[2026-04-19T12:21:28] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,📦 Ship & Mail,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746
+[2026-04-19T12:21:58] [info] message: /start	from: 8273560746 Scoreboard44
+[2026-04-19T12:21:58] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,📦 Ship & Mail,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746
+[2026-04-19T12:22:04] [info] message: 💬 Support	from: 8273560746 Scoreboard44
+[2026-04-19T12:22:04] [info] Send /done when you're finished. /done	to: 8273560746
+[2026-04-19T12:22:04] [info] User: <b>Scoreboard44</b> (8273560746)
+[2026-04-19T12:22:04] [info] Reply with: /reply 8273560746 <i>your message</i>
+[2026-04-19T12:22:04] [info] Close with: /close 8273560746 	to: 5590563715
+[2026-04-19T12:22:04] [info] [Support] Session opened for 8273560746 Scoreboard44 — admin takeover OFF (fresh session)
+[2026-04-19T12:22:12] [info] message: /done	from: 8273560746 Scoreboard44
+[2026-04-19T12:22:12] [info] reply: 📝 <b>Quick feedback:</b> Was our support helpful? 	to: 8273560746
+[2026-04-19T12:22:12] [info] reply: ✅ Support session ended. Thank you for reaching out! 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,📦 Ship & Mail,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746
+[2026-04-19T12:22:12] [info] reply: 📴 Support session closed by user <b>Scoreboard44</b> (8273560746) 	to: 5590563715
+[2026-04-19T12:22:12] [info] [Support] Session ended by user 8273560746 — admin takeover OFF
+[2026-04-19T12:22:13] [info] message: 📞 Cloud IVR + SIP	from: 8273560746 Scoreboard44
+[2026-04-19T12:22:13] [info] 📞 15 phone numbers activated this week 📢 Quick IVR Call,📞 Bulk IVR Campaign,🎵 Audio Library,🧪 Test SIP Free,🛒 Choose a Plan,📋 My Plans,📖 SIP Setup Guide,📊 Usage & Billing,❓ How It Works,Back,Cancel	to: 8273560746
+[2026-04-19T12:22:15] [info] message: 📋 My Plans	from: 8273560746 Scoreboard44
+[2026-04-19T12:22:15] [info] Tap below to get your first virtual number. 🛒 Choose a Plan,Back,Cancel	to: 8273560746
+[2026-04-19T12:22:44] [info] message: Cancel	from: 8273560746 Scoreboard44
+[2026-04-19T12:22:44] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,📦 Ship & Mail,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746
+[2026-04-19T12:22:46] [info] message: 💬 Support	from: 8273560746 Scoreboard44
+[2026-04-19T12:22:46] [info] Send /done when you're finished. /done	to: 8273560746
+[2026-04-19T12:22:46] [info] User: <b>Scoreboard44</b> (8273560746)
+[2026-04-19T12:22:46] [info] Reply with: /reply 8273560746 <i>your message</i>
+[2026-04-19T12:22:46] [info] Close with: /close 8273560746 	to: 5590563715
+[2026-04-19T12:22:46] [info] [Support] Session opened for 8273560746 Scoreboard44 — admin takeover OFF (fresh session)
+[2026-04-19T12:23:06] [info] ↩️ /reply 8273560746 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-04-19T12:23:06] [info] [Support] 8273560746 -> admin: Wtf why was my account deleted, escalate immediately (botLang: en, msgLang: en, translated: false, adminTakeover: false)
+[2026-04-19T12:23:06] [info] reply: I'm sorry to hear you're having trouble with your account. I'll flag this for our support team right away — a human agent will review your case shortly. Could you please provide any specific details you have about the deletion to help us investigate faster? /done	to: 8273560746
+[2026-04-19T12:23:06] [info] message: Wtf why was my account deleted, escalate immediately	from: 8273560746 Scoreboard44
+[2026-04-19T12:23:06] [info] reply: 💬 <b>Scoreboard44</b> (8273560746):
+[2026-04-19T12:23:06] [info] reply: 🤖 <b>AI replied to Scoreboard44</b> (8273560746):
+[2026-04-19T12:23:06] [info] [Support] AI -> 8273560746: I'm sorry to hear you're having trouble with your account. I'll flag this for our support team right... (escalate: true)
+[2026-04-19T12:23:24] [info] message: Its showing $5 I had 60	from: 8273560746 Scoreboard44
+[2026-04-19T12:23:25] [info] reply: 💬 <b>Scoreboard44</b> (8273560746):
+[2026-04-19T12:23:25] [info] ↩️ /reply 8273560746 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-04-19T12:23:25] [info] [Support] 8273560746 -> admin: Its showing $5 I had 60 (botLang: en, msgLang: en, translated: false, adminTakeover: false)
+[2026-04-19T12:23:28] [info] reply: I see your concern about the discrepancy in your wallet balance. I'll escalate this to our support team immediately so they can investigate the matter. A human agent will review your case shortly. Could you please confirm if there were any recent transactions or issues that might help our team resolve this faster? 👛 Wallet,/done	to: 8273560746
+[2026-04-19T12:23:28] [info] reply: 🤖 <b>AI replied to Scoreboard44</b> (8273560746):
+[2026-04-19T12:23:28] [info] [Support] AI -> 8273560746: I see your concern about the discrepancy in your wallet balance. I'll escalate this to our support t... (escalate: true)
+[2026-04-19T12:23:33] [info] message: With 2 phone numbers	from: 8273560746 Scoreboard44
+[2026-04-19T12:23:33] [info] reply: 💬 <b>Scoreboard44</b> (8273560746):
+[2026-04-19T12:23:33] [info] ↩️ /reply 8273560746 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-04-19T12:23:33] [info] [Support] 8273560746 -> admin: With 2 phone numbers (botLang: en, msgLang: en, translated: false, adminTakeover: false)
+[2026-04-19T12:23:36] [info] reply: 🤖 <b>AI replied to Scoreboard44</b> (8273560746):
+[2026-04-19T12:23:36] [info] [Support] AI -> 8273560746: Thank you for providing that information. I'll ensure our support team is aware of the issue with yo... (escalate: true)
+[2026-04-19T12:23:36] [info] reply: Thank you for providing that information. I'll ensure our support team is aware of the issue with your phone numbers as well. A human agent will be in touch shortly to assist you with this matter. /done	to: 8273560746
+[2026-04-19T12:23:40] [info] message: /done	from: 8273560746 Scoreboard44
+[2026-04-19T12:23:40] [info] reply: 📝 <b>Quick feedback:</b> Was our support helpful? 	to: 8273560746
+[2026-04-19T12:23:40] [info] reply: ✅ Support session ended. Thank you for reaching out! 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,📦 Ship & Mail,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746
+[2026-04-19T12:23:40] [info] reply: 📴 Support session closed by user <b>Scoreboard44</b> (8273560746) 	to: 5590563715
+[2026-04-19T12:23:40] [info] [Support] Session ended by user 8273560746 — admin takeover OFF
+[2026-04-19T12:23:43] [info] [AI Support] Session rated by 8273560746: bad
+[2026-04-19T12:24:13] [info] message: 👛 Wallet	from: 8273560746 Scoreboard44
+[2026-04-19T12:24:13] [info] 🏆 Spend <b>$100</b> more → <b>Silver 🥈</b> (5% off everything) ➕💵 Deposit,📜 Transactions,🏆 My Tier,Back,Back,Cancel	to: 8273560746
+[2026-04-19T12:24:13] [info] message: 📜 Transactions	from: 8273560746 Scoreboard44
+[2026-04-19T12:24:13] [info] reply: ⏳ Loading transactions... 	to: 8273560746
+[2026-04-19T12:24:13] [info] Showing last 1 transaction ➕💵 Deposit,Back,Back,Cancel	to: 8273560746
+[2026-04-19T12:24:20] [info] message: ➕💵 Deposit	from: 8273560746 Scoreboard44
+[2026-04-19T12:24:21] [info] reply: 💵 Deposit Amount (min. $10): 	to: 8273560746
+[2026-04-19T12:24:23] [info] message: Cancel	from: 8273560746 Scoreboard44
+[2026-04-19T12:24:24] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,📦 Ship & Mail,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746
+[2026-04-19T12:32:54] [info] { message: 'Wallet Balance:\n\n$60.00', chatId: '8273560746' }
+[2026-04-19T12:32:54] [info] [Admin] Transaction logged: TXN-20260419-7H9S4 - $55 to 8273560746
+[2026-04-19T12:32:54] [info]   chatId: '8273560746'
+[2026-04-19T12:32:54] [info] reply: ✅ Credited <b>$55.00 USD</b> to <b>Scoreboard44</b> (8273560746)
+[2026-04-19T12:32:54] [info] [Admin] Credited $55 to Scoreboard44 (8273560746)
+[2026-04-19T12:34:14] [info] message: /reply 8273560746 we were moving data and your wallet address has now been fixed. For the numbers, please DM @onarrival1	from: 5590563715 onarrival1
+[2026-04-19T12:34:14] [info] we were moving data and your wallet address has now been fixed. For the numbers, please DM @onarrival1 /done	to: 8273560746
+[2026-04-19T12:34:14] [info] [Support] Admin replied to 8273560746: we were moving data and your wallet address has now been fixed. For the numbers, please DM @onarrival1 (targetLang: en, translated: false) — session re-opened, admin takeover ON
+[2026-04-19T14:22:03] [info] 👇 Tap /start and browse our services!	to: 8273560746
+[2026-04-19T14:22:03] [info] 14:21:59 [Conversion] ✅ Welcome offer sent to 8273560746: WELCOME25-GG4C2X (25% off, expires 2026-04-20T14:21:59.025Z)
+[2026-04-19T14:23:03] [info] 👇 Tap /start → 📞 Cloud IVR + SIP	to: 8273560746
+[2026-04-19T14:23:03] [info] 14:22:59 [Conversion] ✅ Browse follow-up sent to 8273560746 for category: cloudphone
+[2026-04-19T16:08:05] [info] message: /done	from: 8273560746 Scoreboard44
+[2026-04-19T16:08:05] [info] reply: 📝 <b>Quick feedback:</b> Was our support helpful? 	to: 8273560746
+[2026-04-19T16:08:05] [info] reply: ✅ Support session ended. Thank you for reaching out! 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,📦 Ship & Mail,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746
+[2026-04-19T16:08:05] [info] reply: 📴 Support session closed by user <b>Scoreboard44</b> (8273560746) 	to: 5590563715
+[2026-04-19T16:08:05] [info] [Support] Session ended by user 8273560746 — admin takeover OFF
+[2026-04-19T16:08:05] [info] message: 📞 Cloud IVR + SIP	from: 8273560746 Scoreboard44
+[2026-04-19T16:08:05] [info] 📞 21 phone numbers activated this week 📢 Quick IVR Call,📞 Bulk IVR Campaign,🎵 Audio Library,🧪 Test SIP Free,🛒 Choose a Plan,📋 My Plans,📖 SIP Setup Guide,📊 Usage & Billing,❓ How It Works,Back,Cancel	to: 8273560746
+[2026-04-19T16:08:05] [info] message: 📢 Quick IVR Call	from: 8273560746 Scoreboard44
+[2026-04-19T16:08:05] [info]  📞 New Call,Back,Cancel	to: 8273560746
+[2026-04-19T16:08:08] [info] message: Back	from: 8273560746 Scoreboard44
+[2026-04-19T16:08:08] [info] 📞 21 phone numbers activated this week 📢 Quick IVR Call,📞 Bulk IVR Campaign,🎵 Audio Library,🧪 Test SIP Free,🛒 Choose a Plan,📋 My Plans,📖 SIP Setup Guide,📊 Usage & Billing,❓ How It Works,Back,Cancel	to: 8273560746
+[2026-04-19T16:08:10] [info] message: 📋 My Plans	from: 8273560746 Scoreboard44
+[2026-04-19T16:08:10] [info]  1,2,🛒 Buy Another Number,Back,Cancel	to: 8273560746
+[2026-04-19T16:08:20] [info] message: 1	from: 8273560746 Scoreboard44
+[2026-04-19T16:08:20] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-19T16:08:23] [info] message: 📞 Call Forwarding	from: 8273560746 Scoreboard44
+[2026-04-19T16:08:23] [info] 💳 Charged from wallet at $0.5/min · 💳 $60.00 📞 Always Forward,📵 Forward When Busy,⏰ Forward If No Answer,Back,Cancel	to: 8273560746
+[2026-04-19T16:08:28] [info] message: 📞 Always Forward	from: 8273560746 Scoreboard44
+[2026-04-19T16:08:28] [info] 💰 <b>$0.5/min</b> · 💳 $60.00 	to: 8273560746
+[2026-04-19T16:08:48] [info] [Queue] Error processing message for 8273560746: Cannot set properties of undefined (setting 'callForwarding')
+[2026-04-19T16:08:48] [info] reply: ⏳ Validating destination... 	to: 8273560746
+[2026-04-19T16:08:48] [info] message: +19106516884	from: 8273560746 Scoreboard44
+[2026-04-19T16:09:08] [info] message: 📞 Always Forward	from: 8273560746 Scoreboard44
+[2026-04-19T16:09:08] [info] reply: Enter a valid phone number with country code (e.g. +14155551234). 	to: 8273560746
+[2026-04-19T16:09:08] [info] message: Back	from: 8273560746 Scoreboard44
+[2026-04-19T16:09:08] [info] 💳 Charged from wallet at $0.5/min · 💳 $60.00 📞 Always Forward,📵 Forward When Busy,⏰ Forward If No Answer,Back,Cancel	to: 8273560746
+[2026-04-19T16:09:29] [info] message: Back	from: 8273560746 Scoreboard44
+[2026-04-19T16:09:29] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-19T16:09:29] [info] message: Back	from: 8273560746 Scoreboard44
+[2026-04-19T16:09:29] [info]  1,2,🛒 Buy Another Number,Back,Cancel	to: 8273560746
+[2026-04-19T16:09:29] [info] message: 2	from: 8273560746 Scoreboard44
+[2026-04-19T16:09:29] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-19T16:09:31] [info] message: 📞 Call Forwarding	from: 8273560746 Scoreboard44
+[2026-04-19T16:09:31] [info] 💳 Charged from wallet at $0.5/min · 💳 $60.00 📞 Always Forward,📵 Forward When Busy,⏰ Forward If No Answer,Back,Cancel	to: 8273560746
+[2026-04-19T16:09:35] [info] message: Cancel	from: 8273560746 Scoreboard44
+[2026-04-19T16:09:35] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,📦 Ship & Mail,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746
+[2026-04-19T16:09:37] [info] message: 📞 Cloud IVR + SIP	from: 8273560746 Scoreboard44
+[2026-04-19T16:09:37] [info] 📞 21 phone numbers activated this week 📢 Quick IVR Call,📞 Bulk IVR Campaign,🎵 Audio Library,🧪 Test SIP Free,🛒 Choose a Plan,📋 My Plans,📖 SIP Setup Guide,📊 Usage & Billing,❓ How It Works,Back,Cancel	to: 8273560746
+[2026-04-19T16:09:46] [info] message: 📋 My Plans	from: 8273560746 Scoreboard44
+[2026-04-19T16:09:46] [info]  1,2,🛒 Buy Another Number,Back,Cancel	to: 8273560746
+[2026-04-19T16:09:49] [info] message: 1	from: 8273560746 Scoreboard44
+[2026-04-19T16:09:49] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-19T16:09:53] [info] message: 📞 Call Forwarding	from: 8273560746 Scoreboard44
+[2026-04-19T16:09:53] [info] 💳 Charged from wallet at $0.5/min · 💳 $60.00 📞 Always Forward,📵 Forward When Busy,⏰ Forward If No Answer,Back,Cancel	to: 8273560746
+[2026-04-19T16:09:57] [info] message: Back	from: 8273560746 Scoreboard44
+[2026-04-19T16:09:57] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-19T16:10:04] [info] message: 📞 Call Forwarding	from: 8273560746 Scoreboard44
+[2026-04-19T16:10:04] [info] 💳 Charged from wallet at $0.5/min · 💳 $60.00 📞 Always Forward,📵 Forward When Busy,⏰ Forward If No Answer,Back,Cancel	to: 8273560746
+[2026-04-19T16:10:06] [info] message: 📞 Always Forward	from: 8273560746 Scoreboard44
+[2026-04-19T16:10:06] [info] 💰 <b>$0.5/min</b> · 💳 $60.00 	to: 8273560746
+[2026-04-19T16:10:10] [info] message: +19106516884	from: 8273560746 Scoreboard44
+[2026-04-19T16:10:10] [info] reply: ⏳ Validating destination... 	to: 8273560746
+[2026-04-19T16:10:10] [info] [Queue] Error processing message for 8273560746: Cannot set properties of undefined (setting 'callForwarding')
+[2026-04-19T16:10:30] [info] message: +19106516884	from: 8273560746 Scoreboard44
+[2026-04-19T16:10:30] [info] reply: ⏳ Validating destination... 	to: 8273560746
+[2026-04-19T16:10:30] [info] [Queue] Error processing message for 8273560746: Cannot set properties of undefined (setting 'callForwarding')
+[2026-04-19T16:27:49] [info] message: 📞 Always Forward	from: 8273560746 Scoreboard44
+[2026-04-19T16:27:49] [info] reply: Enter a valid phone number with country code (e.g. +14155551234). 	to: 8273560746
+[2026-04-19T16:27:58] [info] message: +15513194781	from: 8273560746 Scoreboard44
+[2026-04-19T16:27:58] [info] reply: ⏳ Validating destination... 	to: 8273560746
+[2026-04-19T16:27:59] [info] [Queue] Error processing message for 8273560746: Cannot set properties of undefined (setting 'callForwarding')
+[2026-04-19T16:29:19] [info] message: Cancel	from: 8273560746 Scoreboard44
+[2026-04-19T16:29:19] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,📦 Ship & Mail,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746
+[2026-04-19T16:29:19] [info] message: 📞 Cloud IVR + SIP	from: 8273560746 Scoreboard44
+[2026-04-19T16:29:19] [info]  📞 New Call,Back,Cancel	to: 8273560746
+[2026-04-19T16:29:19] [info] 📞 21 phone numbers activated this week 📢 Quick IVR Call,📞 Bulk IVR Campaign,🎵 Audio Library,🧪 Test SIP Free,🛒 Choose a Plan,📋 My Plans,📖 SIP Setup Guide,📊 Usage & Billing,❓ How It Works,Back,Cancel	to: 8273560746
+[2026-04-19T16:29:19] [info] message: Back	from: 8273560746 Scoreboard44
+[2026-04-19T16:29:19] [info] message: 📢 Quick IVR Call	from: 8273560746 Scoreboard44
+[2026-04-19T16:29:19] [info] 📞 21 phone numbers activated this week 📢 Quick IVR Call,📞 Bulk IVR Campaign,🎵 Audio Library,🧪 Test SIP Free,🛒 Choose a Plan,📋 My Plans,📖 SIP Setup Guide,📊 Usage & Billing,❓ How It Works,Back,Cancel	to: 8273560746
+[2026-04-19T16:29:21] [info]  1,2,🛒 Buy Another Number,Back,Cancel	to: 8273560746
+[2026-04-19T16:29:21] [info] message: 📋 My Plans	from: 8273560746 Scoreboard44
+[2026-04-19T16:29:23] [info] message: 1	from: 8273560746 Scoreboard44
+[2026-04-19T16:29:23] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-19T16:29:25] [info] message: 📞 Call Forwarding	from: 8273560746 Scoreboard44
+[2026-04-19T16:29:25] [info] 💳 Charged from wallet at $0.5/min · 💳 $60.00 📞 Always Forward,📵 Forward When Busy,⏰ Forward If No Answer,Back,Cancel	to: 8273560746
+[2026-04-19T16:29:28] [info] message: 📞 Always Forward	from: 8273560746 Scoreboard44
+[2026-04-19T16:29:28] [info] 💰 <b>$0.5/min</b> · 💳 $60.00 	to: 8273560746
+[2026-04-19T16:29:49] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-19T16:29:49] [info] message: +15513194781	from: 8273560746 Scoreboard44
+[2026-04-19T16:29:49] [info] reply: ⏳ Validating destination... 	to: 8273560746
+[2026-04-19T16:29:49] [info] 💳 $60.00 (~120 min) 	to: 8273560746
+[2026-04-19T16:30:29] [info] message: 🎙️ Voicemail	from: 8273560746 Scoreboard44
+[2026-04-19T16:30:30] [info] When enabled, unanswered calls will hear a greeting and callers can leave a voice message. ✅ Enable Voicemail,Back,Cancel	to: 8273560746
+[2026-04-19T16:30:32] [info] message: ✅ Enable Voicemail	from: 8273560746 Scoreboard44
+[2026-04-19T16:30:32] [info] Recordings will be sent to this Telegram chat. 	to: 8273560746
+[2026-04-19T16:30:32] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-19T16:30:44] [info] message: 🎙️ Voicemail	from: 8273560746 Scoreboard44
+[2026-04-19T16:30:44] [info] ⏰ Ring Time: 25s 🔊 Greeting,📲 VM to Telegram ✅ ON,📧 VM to Email ❌ OFF,⏰ Ring Time: 25s,🚫 Disable Voicemail,Back,Cancel	to: 8273560746
+[2026-04-19T16:30:46] [info] message: 🔊 Greeting	from: 8273560746 Scoreboard44
+[2026-04-19T16:30:46] [info] Choose an option below: 🎤 Custom Greeting (Audio),🔄 Default Greeting,Back,Back,Cancel	to: 8273560746
+[2026-04-19T16:30:52] [info] message: 🎤 Custom Greeting (Audio)	from: 8273560746 Scoreboard44
+[2026-04-19T16:30:52] [info] Choose how to create your greeting: 📋 Use Template,📝 Type Text (AI Voice),🎙️ Upload Audio,Back,Cancel	to: 8273560746
+[2026-04-19T16:31:22] [info] message: 📝 Type Text (AI Voice)	from: 8273560746 Scoreboard44
+[2026-04-19T16:31:22] [info] reply: 📝 Type the greeting callers will hear: Back,Cancel	to: 8273560746
+[2026-04-19T16:32:12] [info] message: After the tone,  please Include your name, and callback number. We've saved your place in line. One of our agents will contact you in by the order in which we received your call. Thank you.	from: 8273560746 Scoreboard44
+[2026-04-19T16:32:12] [info] <i>"After the tone,  please Include your name, and callback number. We've saved your..."</i> 🇺🇸 English,🇫🇷 Français,🇪🇸 Español,🇩🇪 Deutsch,🇮🇹 Italiano,🇧🇷 Português,🇳🇱 Nederlands,🇵🇱 Polski,🇯🇵 日本語,🇰🇷 한국어,🇨🇳 中文,🇮🇳 हिन्दी,🇸🇦 العربية,🇷🇺 Русский,🇹🇷 Türkçe,🇸🇪 Svenska,🇩🇰 Dansk,🇳🇴 Norsk,🇫🇮 Suomi,🇬🇷 Ελληνικά,Back,Cancel	to: 8273560746
+[2026-04-19T16:32:14] [info] message: 🇺🇸 English	from: 8273560746 Scoreboard44
+[2026-04-19T16:32:14] [info] reply: 🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine: 🟢 OpenAI — Best,🔵 ElevenLabs,Back,Cancel	to: 8273560746
+[2026-04-19T16:32:17] [info] message: 🟢 OpenAI — Best	from: 8273560746 Scoreboard44
+[2026-04-19T16:32:17] [info] reply: 🎙️ Choose a voice: Alloy — Most used,Fable — Expressive, British,Nova — Warm, friendly female,Shimmer — Clear, pleasant female,Echo — Warm, deep male,Onyx — Deep, authoritative male,Back,Cancel	to: 8273560746
+[2026-04-19T16:32:20] [info] message: Onyx — Deep, authoritative male	from: 8273560746 Scoreboard44
+[2026-04-19T16:32:20] [info] reply: 🔄 Generating audio preview... 	to: 8273560746
+[2026-04-19T16:32:27] [info] Save this greeting? ✅ Save Greeting,🔄 Try Different Voice,🌐 Change Language,📝 Re-type Text,Back,Cancel	to: 8273560746
+[2026-04-19T16:33:07] [info] reply: How long should the phone ring before voicemail? 15s,20s,25s,30s,Back,Cancel	to: 8273560746
+[2026-04-19T16:33:07] [info] message: ✅ Save Greeting	from: 8273560746 Scoreboard44
+[2026-04-19T16:33:07] [info] reply: ✅ Voicemail greeting saved! 	to: 8273560746
+[2026-04-19T16:33:07] [info] ⏰ Ring Time: 25s 🔊 Greeting,📲 VM to Telegram ✅ ON,📧 VM to Email ❌ OFF,⏰ Ring Time: 25s,🚫 Disable Voicemail,Back,Cancel	to: 8273560746
+[2026-04-19T16:33:07] [info] message: ⏰ Ring Time: 25s	from: 8273560746 Scoreboard44
+[2026-04-19T16:33:08] [info] message: 15s	from: 8273560746 Scoreboard44
+[2026-04-19T16:33:08] [info] reply: ✅ Ring time updated to 15 seconds. 	to: 8273560746
+[2026-04-19T16:33:08] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-19T16:33:11] [info] message: 📩 SMS Settings	from: 8273560746 Scoreboard44
+[2026-04-19T16:33:12] [info] 🔗 Webhook URL: ❌ Not Set 📲 SMS to Telegram ✅ ON,📧 SMS to Email ❌ OFF,🔗 Webhook URL ❌ Not Set,Back,Cancel	to: 8273560746
+[2026-04-19T16:33:19] [info] message: Back	from: 8273560746 Scoreboard44
+[2026-04-19T16:33:19] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-19T16:33:22] [info] message: 📨 SMS Inbox	from: 8273560746 Scoreboard44
+[2026-04-19T16:33:22] [info] <i>When someone texts your number, messages will appear here.</i> 🔄 Refresh,Back,Cancel	to: 8273560746
+[2026-04-19T16:33:26] [info] message: Back	from: 8273560746 Scoreboard44
+[2026-04-19T16:33:26] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-19T16:33:29] [info] message: 🤖 IVR / Auto-attendant	from: 8273560746 Scoreboard44
+[2026-04-19T16:33:30] [info] When enabled, callers hear a greeting menu and can press keys to reach the right destination. ✅ Enable IVR,Back,Cancel	to: 8273560746
+[2026-04-19T16:33:32] [info] message: ✅ Enable IVR	from: 8273560746 Scoreboard44
+[2026-04-19T16:33:32] [info] Callers will hear your greeting and can press keys to navigate. 	to: 8273560746
+[2026-04-19T16:33:32] [info]  🎤 Set Greeting,➕ Add Menu Option,➖ Remove Option,📋 View Menu Options,📊 IVR Analytics,🚫 Disable IVR,Back,Cancel	to: 8273560746
+[2026-04-19T16:33:36] [info] message: 🎤 Set Greeting	from: 8273560746 Scoreboard44
+[2026-04-19T16:33:36] [info] reply: 🎤 <b>Set IVR Greeting</b>\n\nChoose how to create your greeting: 📋 Use Template,📝 Type Text (AI Voice),🎙️ Upload Audio,Back,Cancel	to: 8273560746
+[2026-04-19T16:33:43] [info] message: 📝 Type Text (AI Voice)	from: 8273560746 Scoreboard44
+[2026-04-19T16:33:43] [info] reply: 📝 Type the greeting callers will hear.\n\n<i>Example: "Thank you for calling Nomadly. Press 1 for sales, press 2 for support."</i> Back,Cancel	to: 8273560746
+[2026-04-19T16:34:04] [info] message: 🟢 OpenAI — Best	from: 8273560746 Scoreboard44
+[2026-04-19T16:34:04] [info] reply: 🎙️ Choose a voice for your greeting: Alloy — Most used,Fable — Expressive, British,Nova — Warm, friendly female,Shimmer — Clear, pleasant female,Echo — Warm, deep male,Onyx — Deep, authoritative male,Back,Cancel	to: 8273560746
+[2026-04-19T16:34:04] [info] message: 🇺🇸 English	from: 8273560746 Scoreboard44
+[2026-04-19T16:34:04] [info] reply: 🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine: 🟢 OpenAI — Best,🔵 ElevenLabs,Back,Cancel	to: 8273560746
+[2026-04-19T16:34:04] [info] message: Welcome to card self service.  All of our agents are currently assisting other callers. Press 1 for a callback, and One of our agents will be right with you shortly. Press 2  if you would like to hold until a representative is available.	from: 8273560746 Scoreboard44
+[2026-04-19T16:34:04] [info] <i>"Welcome to card self service.  All of our agents are currently assisting other c..."</i> 🇺🇸 English,🇫🇷 Français,🇪🇸 Español,🇩🇪 Deutsch,🇮🇹 Italiano,🇧🇷 Português,🇳🇱 Nederlands,🇵🇱 Polski,🇯🇵 日本語,🇰🇷 한국어,🇨🇳 中文,🇮🇳 हिन्दी,🇸🇦 العربية,🇷🇺 Русский,🇹🇷 Türkçe,🇸🇪 Svenska,🇩🇰 Dansk,🇳🇴 Norsk,🇫🇮 Suomi,🇬🇷 Ελληνικά,Back,Cancel	to: 8273560746
+[2026-04-19T16:34:04] [info] message: Onyx — Deep, authoritative male	from: 8273560746 Scoreboard44
+[2026-04-19T16:34:04] [info] reply: 🔄 Generating audio preview... 	to: 8273560746
+[2026-04-19T16:34:38] [info] message: ➕ Add Menu Option	from: 8273560746 Scoreboard44
+[2026-04-19T16:34:38] [info] 📝 Re-type the text? ✅ Save Greeting,🔄 Try Different Voice,🌐 Change Language,📝 Re-type Text,Back,Cancel	to: 8273560746
+[2026-04-19T16:34:38] [info]  🎤 Set Greeting,➕ Add Menu Option,➖ Remove Option,📋 View Menu Options,📊 IVR Analytics,🚫 Disable IVR,Back,Cancel	to: 8273560746
+[2026-04-19T16:34:38] [info] message: ✅ Save Greeting	from: 8273560746 Scoreboard44
+[2026-04-19T16:34:38] [info] reply: ✅ IVR greeting saved! 	to: 8273560746
+[2026-04-19T16:34:38] [info] Enter the key number (0-9) for this option: 0,1,2,3,4,5,6,7,8,9,Back,Cancel	to: 8273560746
+[2026-04-19T16:34:41] [info] message: 1	from: 8273560746 Scoreboard44
+[2026-04-19T16:34:41] [info] What should happen when a caller presses <b>1</b>? 📞 Forward Call,💬 Play Message,📬 Send to Voicemail,Back,Cancel	to: 8273560746
+[2026-04-19T16:35:00] [info] message: 📬 Send to Voicemail	from: 8273560746 Scoreboard44
+[2026-04-19T16:35:00] [info] reply: ✅ Key <b>1</b> → Send to Voicemail — saved! 	to: 8273560746
+[2026-04-19T16:35:00] [info]  🎤 Set Greeting,➕ Add Menu Option,➖ Remove Option,📋 View Menu Options,📊 IVR Analytics,🚫 Disable IVR,Back,Cancel	to: 8273560746
+[2026-04-19T16:35:20] [info] message: ➕ Add Menu Option	from: 8273560746 Scoreboard44
+[2026-04-19T16:35:20] [info] message: ➖ Remove Option	from: 8273560746 Scoreboard44
+[2026-04-19T16:35:20] [info] reply: Which key do you want to remove? Key 1,Back,Cancel	to: 8273560746
+[2026-04-19T16:35:20] [info] message: Back	from: 8273560746 Scoreboard44
+[2026-04-19T16:35:20] [info]  🎤 Set Greeting,➕ Add Menu Option,➖ Remove Option,📋 View Menu Options,📊 IVR Analytics,🚫 Disable IVR,Back,Cancel	to: 8273560746
+[2026-04-19T16:35:20] [info] Enter the key number (0-9) for this option: 0,1,2,3,4,5,6,7,8,9,Back,Cancel	to: 8273560746
+[2026-04-19T16:35:21] [info] message: 2	from: 8273560746 Scoreboard44
+[2026-04-19T16:35:21] [info] What should happen when a caller presses <b>2</b>? 📞 Forward Call,💬 Play Message,📬 Send to Voicemail,Back,Cancel	to: 8273560746
+[2026-04-19T16:35:51] [info] <i>Example: +15551234567</i> Back,Cancel	to: 8273560746
+[2026-04-19T16:35:51] [info] message: 📞 Forward Call	from: 8273560746 Scoreboard44
+[2026-04-19T16:35:54] [info] message: +15513194781	from: 8273560746 Scoreboard44
+[2026-04-19T16:35:54] [info] reply: ✅ Key <b>2</b> → Forward to <b>+15513194781</b> — saved! 	to: 8273560746
+[2026-04-19T16:35:54] [info]  🎤 Set Greeting,➕ Add Menu Option,➖ Remove Option,📋 View Menu Options,📊 IVR Analytics,🚫 Disable IVR,Back,Cancel	to: 8273560746
+[2026-04-19T16:36:14] [info] message: Back	from: 8273560746 Scoreboard44
+[2026-04-19T16:36:14] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-19T16:36:20] [info] message: 📞 Call Forwarding	from: 8273560746 Scoreboard44
+[2026-04-19T16:36:20] [info] 💳 Charged from wallet at $0.15/min · 💳 $60.00 📞 Always Forward,📵 Forward When Busy,⏰ Forward If No Answer,🎵 Hold Music: OFF,📲 Change Forward-To Number,🚫 Disable Forwarding,Back,Cancel	to: 8273560746
+[2026-04-19T16:36:24] [info] message: 🎵 Hold Music: OFF	from: 8273560746 Scoreboard44
+[2026-04-19T16:36:24] [info] Callers will hear hold music while being connected. 	to: 8273560746
+[2026-04-19T16:36:24] [info] 💳 Charged from wallet at $0.15/min · 💳 $60.00 📞 Always Forward,📵 Forward When Busy,⏰ Forward If No Answer,🎵 Hold Music: ON,📲 Change Forward-To Number,🚫 Disable Forwarding,Back,Cancel	to: 8273560746
+[2026-04-19T16:37:04] [info] message: 📞 Always Forward	from: 8273560746 Scoreboard44
+[2026-04-19T16:37:04] [info] 💰 <b>$0.5/min</b> · 💳 $60.00 	to: 8273560746
+[2026-04-19T16:37:34] [info] message: Back	from: 8273560746 Scoreboard44
+[2026-04-19T16:37:34] [info] 💳 Charged from wallet at $0.15/min · 💳 $60.00 📞 Always Forward,📵 Forward When Busy,⏰ Forward If No Answer,🎵 Hold Music: ON,📲 Change Forward-To Number,🚫 Disable Forwarding,Back,Cancel	to: 8273560746
+[2026-04-19T16:37:38] [info] message: Back	from: 8273560746 Scoreboard44
+[2026-04-19T16:37:38] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-19T16:37:41] [info] ⏰ Ring Time: 15s 🔊 Greeting,📲 VM to Telegram ✅ ON,📧 VM to Email ❌ OFF,⏰ Ring Time: 15s,🚫 Disable Voicemail,Back,Cancel	to: 8273560746
+[2026-04-19T16:37:41] [info] message: 🎙️ Voicemail	from: 8273560746 Scoreboard44
+[2026-04-19T16:38:30] [info] message: Back	from: 8273560746 Scoreboard44
+[2026-04-19T16:38:30] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-19T16:38:31] [info]  🎤 Set Greeting,➕ Add Menu Option,➖ Remove Option,📋 View Menu Options,📊 IVR Analytics,🚫 Disable IVR,Back,Cancel	to: 8273560746
+[2026-04-19T16:38:31] [info] message: 🤖 IVR / Auto-attendant	from: 8273560746 Scoreboard44
+[2026-04-19T16:38:34] [info] message: ➖ Remove Option	from: 8273560746 Scoreboard44
+[2026-04-19T16:38:34] [info] reply: Which key do you want to remove? Key 1,Key 2,Back,Cancel	to: 8273560746
+[2026-04-19T16:38:36] [info]  🎤 Set Greeting,➕ Add Menu Option,➖ Remove Option,📋 View Menu Options,📊 IVR Analytics,🚫 Disable IVR,Back,Cancel	to: 8273560746
+[2026-04-19T16:38:36] [info] message: Key 2	from: 8273560746 Scoreboard44
+[2026-04-19T16:38:36] [info] reply: ✅ IVR option for key <b>2</b> removed. 	to: 8273560746
+[2026-04-19T16:38:38] [info] message: ➕ Add Menu Option	from: 8273560746 Scoreboard44
+[2026-04-19T16:38:38] [info] Enter the key number (0-9) for this option: 0,1,2,3,4,5,6,7,8,9,Back,Cancel	to: 8273560746
+[2026-04-19T16:38:40] [info] message: 2	from: 8273560746 Scoreboard44
+[2026-04-19T16:38:40] [info] What should happen when a caller presses <b>2</b>? 📞 Forward Call,💬 Play Message,📬 Send to Voicemail,Back,Cancel	to: 8273560746
+[2026-04-19T16:38:43] [info] How do you want to create the message? 📋 Use Template,📝 Type Text (AI Voice),🎙️ Upload Audio,Back,Cancel	to: 8273560746
+[2026-04-19T16:38:43] [info] message: 💬 Play Message	from: 8273560746 Scoreboard44
+[2026-04-19T16:38:46] [info] message: 📝 Type Text (AI Voice)	from: 8273560746 Scoreboard44
+[2026-04-19T16:38:46] [info] reply: 📝 Type the message callers will hear when they press <b>2</b>: Back,Cancel	to: 8273560746
+[2026-04-19T16:42:16] [info] message: Please Continue To Hold While We Wait For An Agent. Press 0 To Save Your Place In Line.	from: 8273560746 Scoreboard44
+[2026-04-19T16:42:16] [info] <i>"Please Continue To Hold While We Wait For An Agent. Press 0 To Save Your Place I..."</i> 🇺🇸 English,🇫🇷 Français,🇪🇸 Español,🇩🇪 Deutsch,🇮🇹 Italiano,🇧🇷 Português,🇳🇱 Nederlands,🇵🇱 Polski,🇯🇵 日本語,🇰🇷 한국어,🇨🇳 中文,🇮🇳 हिन्दी,🇸🇦 العربية,🇷🇺 Русский,🇹🇷 Türkçe,🇸🇪 Svenska,🇩🇰 Dansk,🇳🇴 Norsk,🇫🇮 Suomi,🇬🇷 Ελληνικά,Back,Cancel	to: 8273560746
+[2026-04-19T16:42:16] [info] message: 🇺🇸 English	from: 8273560746 Scoreboard44
+[2026-04-19T16:42:16] [info] reply: 🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine: 🟢 OpenAI — Best,🔵 ElevenLabs,Back,Cancel	to: 8273560746
+[2026-04-19T16:42:19] [info] message: 🟢 OpenAI — Best	from: 8273560746 Scoreboard44
+[2026-04-19T16:42:19] [info] reply: 🎙️ Choose a voice: Alloy — Most used,Fable — Expressive, British,Nova — Warm, friendly female,Shimmer — Clear, pleasant female,Echo — Warm, deep male,Onyx — Deep, authoritative male,Back,Cancel	to: 8273560746
+[2026-04-19T16:42:21] [info] message: Onyx — Deep, authoritative male	from: 8273560746 Scoreboard44
+[2026-04-19T16:42:21] [info] reply: 🔄 Generating audio preview... 	to: 8273560746
+[2026-04-19T16:42:26] [info] Save this option? ✅ Save Option,🔄 Try Different Voice,🌐 Change Language,📝 Re-type Text,Back,Cancel	to: 8273560746
+[2026-04-19T16:42:46] [info] message: ➕ Add Menu Option	from: 8273560746 Scoreboard44
+[2026-04-19T16:42:46] [info] message: ✅ Save Option	from: 8273560746 Scoreboard44
+[2026-04-19T16:42:46] [info] Enter the key number (0-9) for this option: 0,1,2,3,4,5,6,7,8,9,Back,Cancel	to: 8273560746
+[2026-04-19T16:42:46] [info] reply: ✅ Key <b>2</b> → Play Message — saved! 	to: 8273560746
+[2026-04-19T16:42:46] [info]  🎤 Set Greeting,➕ Add Menu Option,➖ Remove Option,📋 View Menu Options,📊 IVR Analytics,🚫 Disable IVR,Back,Cancel	to: 8273560746
+[2026-04-19T16:42:49] [info] message: 0	from: 8273560746 Scoreboard44
+[2026-04-19T16:42:49] [info] What should happen when a caller presses <b>0</b>? 📞 Forward Call,💬 Play Message,📬 Send to Voicemail,Back,Cancel	to: 8273560746
+[2026-04-19T16:42:54] [info] message: 📞 Forward Call	from: 8273560746 Scoreboard44
+[2026-04-19T16:42:54] [info] <i>Example: +15551234567</i> Back,Cancel	to: 8273560746
+[2026-04-19T16:43:00] [info] reply: ✅ Key <b>0</b> → Forward to <b>+15513194781</b> — saved! 	to: 8273560746
+[2026-04-19T16:43:00] [info] message: +15513194781	from: 8273560746 Scoreboard44
+[2026-04-19T16:43:00] [info]  🎤 Set Greeting,➕ Add Menu Option,➖ Remove Option,📋 View Menu Options,📊 IVR Analytics,🚫 Disable IVR,Back,Cancel	to: 8273560746
+[2026-04-19T17:27:03] [info] message: /start ref_8273560746	from: 7270166092 DoDaDash00
+[2026-04-19T17:27:03] [info] [Referral] Wallet referral saved: 7270166092 referred by 8273560746 (8273560746)
+[2026-04-19T17:29:05] [info] message: /start ref_8273560746	from: 7270166092 DoDaDash00
+[2026-04-19T20:01:59] [info] message: 🎤 Set Greeting	from: 8273560746 Scoreboard44
+[2026-04-19T20:02:00] [info] reply: 🎤 <b>Set IVR Greeting</b>\n\nChoose how to create your greeting: 📋 Use Template,📝 Type Text (AI Voice),🎙️ Upload Audio,Back,Cancel	to: 8273560746
+[2026-04-19T20:02:01] [info] message: 📝 Type Text (AI Voice)	from: 8273560746 Scoreboard44
+[2026-04-19T20:02:02] [info] reply: 📝 Type the greeting callers will hear.\n\n<i>Example: "Thank you for calling Nomadly. Press 1 for sales, press 2 for support."</i> Back,Cancel	to: 8273560746
+[2026-04-19T20:02:31] [info] message: Welcome to card self service.  All of our agents are currently assisting other callers. Press 1 for a callback, and One of our agents will be right with you shortly. Press 2  if you would like to hold until a representative is available.	from: 8273560746 Scoreboard44
+[2026-04-19T20:02:31] [info] <i>"Welcome to card self service.  All of our agents are currently assisting other c..."</i> 🇺🇸 English,🇫🇷 Français,🇪🇸 Español,🇩🇪 Deutsch,🇮🇹 Italiano,🇧🇷 Português,🇳🇱 Nederlands,🇵🇱 Polski,🇯🇵 日本語,🇰🇷 한국어,🇨🇳 中文,🇮🇳 हिन्दी,🇸🇦 العربية,🇷🇺 Русский,🇹🇷 Türkçe,🇸🇪 Svenska,🇩🇰 Dansk,🇳🇴 Norsk,🇫🇮 Suomi,🇬🇷 Ελληνικά,Back,Cancel	to: 8273560746
+[2026-04-19T20:02:31] [info] message: 🇺🇸 English	from: 8273560746 Scoreboard44
+[2026-04-19T20:02:31] [info] reply: 🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine: 🟢 OpenAI — Best,🔵 ElevenLabs,Back,Cancel	to: 8273560746
+[2026-04-19T20:02:31] [info] message: 🟢 OpenAI — Best	from: 8273560746 Scoreboard44
+[2026-04-19T20:02:31] [info] reply: 🎙️ Choose a voice for your greeting: Alloy — Most used,Fable — Expressive, British,Nova — Warm, friendly female,Shimmer — Clear, pleasant female,Echo — Warm, deep male,Onyx — Deep, authoritative male,Back,Cancel	to: 8273560746
+[2026-04-19T20:02:31] [info] message: Onyx — Deep, authoritative male	from: 8273560746 Scoreboard44
+[2026-04-19T20:02:31] [info] reply: 🔄 Generating audio preview... 	to: 8273560746
+[2026-04-19T20:02:38] [info] 📝 Re-type the text? ✅ Save Greeting,🔄 Try Different Voice,🌐 Change Language,📝 Re-type Text,Back,Cancel	to: 8273560746
+[2026-04-19T20:02:40] [info] message: ✅ Save Greeting	from: 8273560746 Scoreboard44
+[2026-04-19T20:02:40] [info]  🎤 Set Greeting,➕ Add Menu Option,➖ Remove Option,📋 View Menu Options,📊 IVR Analytics,🚫 Disable IVR,Back,Cancel	to: 8273560746
+[2026-04-19T20:02:40] [info] reply: ✅ IVR greeting saved! 	to: 8273560746
+[2026-04-19T20:03:20] [info] [Twilio] IVR gather: chatId=8273560746 digits=2 from=+19106516884 to=+18888370876
+[2026-04-19T20:04:01] [info] message: ➖ Remove Option	from: 8273560746 Scoreboard44
+[2026-04-19T20:04:01] [info] reply: Which key do you want to remove? Key 0,Key 1,Key 2,Back,Cancel	to: 8273560746
+[2026-04-19T20:04:03] [info]  🎤 Set Greeting,➕ Add Menu Option,➖ Remove Option,📋 View Menu Options,📊 IVR Analytics,🚫 Disable IVR,Back,Cancel	to: 8273560746
+[2026-04-19T20:04:03] [info] message: Key 2	from: 8273560746 Scoreboard44
+[2026-04-19T20:04:03] [info] reply: ✅ IVR option for key <b>2</b> removed. 	to: 8273560746
+[2026-04-19T20:04:05] [info] message: ➖ Remove Option	from: 8273560746 Scoreboard44
+[2026-04-19T20:04:05] [info] reply: Which key do you want to remove? Key 0,Key 1,Back,Cancel	to: 8273560746
+[2026-04-19T20:04:08] [info] message: Key 0	from: 8273560746 Scoreboard44
+[2026-04-19T20:04:08] [info] reply: ✅ IVR option for key <b>0</b> removed. 	to: 8273560746
+[2026-04-19T20:04:08] [info]  🎤 Set Greeting,➕ Add Menu Option,➖ Remove Option,📋 View Menu Options,📊 IVR Analytics,🚫 Disable IVR,Back,Cancel	to: 8273560746
+[2026-04-19T20:04:10] [info] Enter the key number (0-9) for this option: 0,1,2,3,4,5,6,7,8,9,Back,Cancel	to: 8273560746
+[2026-04-19T20:04:10] [info] message: ➕ Add Menu Option	from: 8273560746 Scoreboard44
+[2026-04-19T20:04:20] [info] message: 2	from: 8273560746 Scoreboard44
+[2026-04-19T20:04:20] [info] What should happen when a caller presses <b>2</b>? 📞 Forward Call,💬 Play Message,📬 Send to Voicemail,Back,Cancel	to: 8273560746
+[2026-04-19T20:04:24] [info] message: 📞 Forward Call	from: 8273560746 Scoreboard44
+[2026-04-19T20:04:24] [info] <i>Example: +15551234567</i> Back,Cancel	to: 8273560746
+[2026-04-19T20:04:32] [info] message: +15513194781	from: 8273560746 Scoreboard44
+[2026-04-19T20:04:32] [info]  🎤 Set Greeting,➕ Add Menu Option,➖ Remove Option,📋 View Menu Options,📊 IVR Analytics,🚫 Disable IVR,Back,Cancel	to: 8273560746
+[2026-04-19T20:04:32] [info] reply: ✅ Key <b>2</b> → Forward to <b>+15513194781</b> — saved! 	to: 8273560746
+[2026-04-19T20:12:43] [info] message: 📞 Cloud IVR + SIP	from: 8273560746 Scoreboard44
+[2026-04-19T20:12:43] [info] message: Cancel	from: 8273560746 Scoreboard44
+[2026-04-19T20:12:43] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,📦 Ship & Mail,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746
+[2026-04-19T20:12:43] [info] 📞 21 phone numbers activated this week 📢 Quick IVR Call,📞 Bulk IVR Campaign,🎵 Audio Library,🧪 Test SIP Free,🛒 Choose a Plan,📋 My Plans,📖 SIP Setup Guide,📊 Usage & Billing,❓ How It Works,Back,Cancel	to: 8273560746
+[2026-04-19T20:12:43] [info] message: 📢 Quick IVR Call	from: 8273560746 Scoreboard44
+[2026-04-19T20:12:43] [info]  📞 New Call,Back,Cancel	to: 8273560746
+[2026-04-19T20:12:47] [info] message: 📞 New Call	from: 8273560746 Scoreboard44
+[2026-04-19T20:12:47] [info] reply: 📞 <b>New IVR Call</b>\n\nSelect the number to call FROM (Caller ID): +18888370876,+18339561373,↩️ Back,Back,Cancel	to: 8273560746
+[2026-04-19T20:12:50] [info] message: +18888370876	from: 8273560746 Scoreboard44
+[2026-04-19T20:12:50] [info] <i>Batch: +12025551234, +12025555678</i> Back,Cancel	to: 8273560746
+[2026-04-19T20:13:20] [info] message: +16015060422	from: 8273560746 Scoreboard44
+[2026-04-19T20:13:20] [info] reply: 🔍 Looking up number... 	to: 8273560746
+[2026-04-19T20:13:20] [info] reply: 📋 Found: <b>Anderson Della</b> 	to: 8273560746
+[2026-04-19T20:13:20] [info] Choose template or write your own: ✍️ Custom Script,💳 Payment Alerts,🔒 Account Security,📦 Delivery & Service,Back,Cancel	to: 8273560746
+[2026-04-19T20:13:21] [info] message: ✍️ Custom Script	from: 8273560746 Scoreboard44
+[2026-04-19T20:13:21] [info] reply: ✍️ <b>Custom Script</b>\n\nType your IVR message. Use <b>[Brackets]</b> for variables:\n\n<b>Standard:</b> [Name], [Company], [Bank], [Amount]\n<b>Smart (auto-fill):</b> [CardLast4], [CaseID], [ReferenceNum]\n<b>Smart (pick):</b> [Reason], [Location], [CallBack]\n\n<i>Example: Hello [Name]. This is [Bank] security. A charge of $[Amount] was made on card ending [CardLast4]. Case [CaseID]. Press 1 to dispute.</i>\n\nType your script: ℹ️ All Placeholders,Back,Cancel	to: 8273560746
+[2026-04-19T20:14:01] [info] If you authorized this transaction, you may hang up.  If you did not authorize this payment,  please press 1,  to block this transaction immediately.	from: 8273560746 Scoreboard44
+[2026-04-19T20:14:01] [info] <i>Example: 1,2,3 or 1,5,9</i> ✅ Continue,↩️ Back,Back,Cancel	to: 8273560746
+[2026-04-19T20:14:01] [info] message: ✅ Continue	from: 8273560746 Scoreboard44
+[2026-04-19T20:14:01] [info] reply: Enter value for <b>[Name]</b>: Anderson Della,Dear Customer,Back,Cancel	to: 8273560746
+[2026-04-19T20:14:03] [info] message: Della Anderson	from: 8273560746 Scoreboard44
+[2026-04-19T20:14:03] [info] Enter value for <b>[Bank]</b>: Back,Cancel	to: 8273560746
+[2026-04-19T20:14:09] [info] message: FSNB	from: 8273560746 Scoreboard44
+[2026-04-19T20:14:09] [info] Tap to accept, regenerate, or type your own: 💳 4144,🔄 Regenerate,Back,Cancel	to: 8273560746
+[2026-04-19T20:14:15] [info] message: 7 6 2 2	from: 8273560746 Scoreboard44
+[2026-04-19T20:14:15] [info] Select from the list or type your own: fraud alert,account suspension,unusual activity,security verification,unauthorized transaction,identity confirmation,account review,payment dispute,✍️ Custom,Back,Cancel	to: 8273560746
+[2026-04-19T20:14:19] [info] message: unauthorized transaction	from: 8273560746 Scoreboard44
+[2026-04-19T20:14:19] [info] Enter value for <b>[Company]</b>: Back,Cancel	to: 8273560746
+[2026-04-19T20:14:38] [info] <i>Example: Houston, Texas</i> Back,Cancel	to: 8273560746
+[2026-04-19T20:14:38] [info] message: Arlington, Texas	from: 8273560746 Scoreboard44
+[2026-04-19T20:14:38] [info] message: Barnes & Noble	from: 8273560746 Scoreboard44
+[2026-04-19T20:14:38] [info] Enter value for <b>[Amount]</b>: Back,Cancel	to: 8273560746
+[2026-04-19T20:14:43] [info] message: $89.71	from: 8273560746 Scoreboard44
+[2026-04-19T20:14:43] [info] reply: ✅ All values set!\n\n📋 <b>Select Call Mode</b>\n\n🔗 <b>Transfer</b> — When target presses the key, bridge them to your number\n🔑 <b>OTP Collection</b> — Prompt target for a code, you verify via Telegram\n\nBoth modes report full results. 🔗 Transfer,🔑 OTP Collection,↩️ Back,Back,Cancel	to: 8273560746
+[2026-04-19T20:15:03] [info] <b>Default Reject:</b> <i>"Maximum verification attempts reached. Goodbye."</i> ✍️ Customize Messages,⏭️ Use Defaults,↩️ Back,Back,Cancel	to: 8273560746
+[2026-04-19T20:15:03] [info] message: 🔑 OTP Collection	from: 8273560746 Scoreboard44
+[2026-04-19T20:15:03] [info] reply: 🔑 <b>OTP Collection Mode</b>\n\nHow many digits should the code be?\n\n<i>Default: 6 digits</i> 4 digits,5 digits,6 digits,8 digits,↩️ Back,Back,Cancel	to: 8273560746
+[2026-04-19T20:15:03] [info] message: 6 digits	from: 8273560746 Scoreboard44
+[2026-04-19T20:15:06] [info] message: ✍️ Customize Messages	from: 8273560746 Scoreboard44
+[2026-04-19T20:15:06] [info] reply: ✅ <b>Confirmation Message</b>\n\nType what the caller hears when you <b>CONFIRM</b> their code:\n\n<i>Example: "Your code has been verified. We've blocked the transaction and secured your account. A specialist will contact you within 24 hours. Thank you for choosing our bank. Goodbye."</i> ↩️ Back,Back,Cancel	to: 8273560746
+[2026-04-19T20:15:25] [info] message: Thank you for taking the time to verify this activity. We’ve blocked the transaction and will secure your account. No further action is needed. One of our customer account specialists will contact you within 24 hours to ensure account safety. Thanks for choosing [Name].  Goodbye.	from: 8273560746 Scoreboard44
+[2026-04-19T20:15:25] [info] reply: ❌ <b>Rejection Message</b>\n\nType what the caller hears when you <b>REJECT</b> their code (max attempts reached):\n\n<i>Example: "We were unable to verify your identity. For your security, this session has ended. Please call back or visit your nearest branch for assistance. Goodbye."</i> ↩️ Back,Back,Cancel	to: 8273560746
+[2026-04-19T20:15:26] [info] message: Sorry, That doesnt seem right. Please re-enter the new verification code being sent to the number we have on file.	from: 8273560746 Scoreboard44
+[2026-04-19T20:15:27] [info] reply: ✅ Custom messages saved!\n\n🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine: 🟢 OpenAI — Best,🔵 ElevenLabs,Back,Cancel	to: 8273560746
+[2026-04-19T20:15:29] [info] message: 🟢 OpenAI — Best	from: 8273560746 Scoreboard44
+[2026-04-19T20:15:29] [info] reply: 🎤 <b>Select Voice</b>\n\nChoose a voice for the IVR audio: Alloy — Most used,Fable — Expressive, British,Nova — Warm, friendly female,Shimmer — Clear, pleasant female,Echo — Warm, deep male,Onyx — Deep, authoritative male,Back,Cancel	to: 8273560746
+[2026-04-19T20:15:32] [info] message: Onyx — Deep, authoritative male	from: 8273560746 Scoreboard44
+[2026-04-19T20:15:32] [info] Choose how fast the voice speaks: 🐌 Very Slow (0.7x),🐢 Slow (0.85x),🚶 Normal (1.0x),🏃 Fast (1.15x),⚡ Very Fast (1.35x),✍️ Custom Speed,Back,Cancel	to: 8273560746
+[2026-04-19T20:15:36] [info] message: 🐌 Very Slow (0.7x)	from: 8273560746 Scoreboard44
+[2026-04-19T20:15:36] [info] ⏳ Generating audio preview... 	to: 8273560746
+[2026-04-19T20:16:14] [info] message: 🎤 Change Voice	from: 8273560746 Scoreboard44
+[2026-04-19T20:16:14] [info] reply: 🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine: 🟢 OpenAI — Best,🔵 ElevenLabs,Back,Cancel	to: 8273560746
+[2026-04-19T20:16:16] [info] message: 🟢 OpenAI — Best	from: 8273560746 Scoreboard44
+[2026-04-19T20:16:16] [info] reply: 🎤 <b>Select Voice</b>\n\nChoose a voice for the IVR audio: ⭐ Last: Onyx,Alloy — Most used,Fable — Expressive, British,Nova — Warm, friendly female,Shimmer — Clear, pleasant female,Echo — Warm, deep male,Onyx — Deep, authoritative male,Back,Cancel	to: 8273560746
+[2026-04-19T20:16:21] [info] message: Alloy — Most used	from: 8273560746 Scoreboard44
+[2026-04-19T20:16:22] [info] Choose how fast the voice speaks: ⭐ Last: 0.7x,🐌 Very Slow (0.7x),🐢 Slow (0.85x),🚶 Normal (1.0x),🏃 Fast (1.15x),⚡ Very Fast (1.35x),✍️ Custom Speed,Back,Cancel	to: 8273560746
+[2026-04-19T20:16:23] [info] message: ⭐ Last: 0.7x	from: 8273560746 Scoreboard44
+[2026-04-19T20:16:23] [info] ⏳ Generating audio preview... 	to: 8273560746
+[2026-04-19T20:20:04] [info] message: ✅ Confirm	from: 8273560746 Scoreboard44
+[2026-04-19T20:20:04] [info] /cancel to abort /yes,🕐 Schedule,Back,Cancel	to: 8273560746
+[2026-04-19T20:20:04] [info] message: /yes	from: 8273560746 Scoreboard44
+[2026-04-19T20:20:04] [info] 🏢 Template: Custom Script 	to: 8273560746
+[2026-04-19T20:20:15] [info] message: G2B	from: 8273560746 Scoreboard44
+[2026-04-19T20:20:15] [info] Next time, select it from the Quick IVR menu to skip setup. Back,Cancel	to: 8273560746
+[2026-04-19T20:23:38] [info] message: Cancel	from: 8273560746 Scoreboard44
+[2026-04-19T20:23:38] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,📦 Ship & Mail,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746
+[2026-04-19T20:23:38] [info] message: 📞 Cloud IVR + SIP	from: 8273560746 Scoreboard44
+[2026-04-19T20:23:38] [info] 📞 21 phone numbers activated this week 📢 Quick IVR Call,📞 Bulk IVR Campaign,🎵 Audio Library,🧪 Test SIP Free,🛒 Choose a Plan,📋 My Plans,📖 SIP Setup Guide,📊 Usage & Billing,❓ How It Works,Back,Cancel	to: 8273560746
+[2026-04-19T20:23:38] [info] message: 📢 Quick IVR Call	from: 8273560746 Scoreboard44
+[2026-04-19T20:23:38] [info]  💾 G2B,📞 New Call,🗑️ Delete Preset,Back,Cancel	to: 8273560746
+[2026-04-19T20:23:40] [info] message: 💾 G2B	from: 8273560746 Scoreboard44
+[2026-04-19T20:23:40] [info] <i>Batch: +12025551234, +12025555678</i> Back,Cancel	to: 8273560746
+[2026-04-19T20:24:00] [info] message: +16158290545	from: 8273560746 Scoreboard44
+[2026-04-19T20:24:00] [info] reply: 🔍 Looking up number... 	to: 8273560746
+[2026-04-19T20:24:00] [info] reply: 📋 Found: <b>Nashville Tn</b> 	to: 8273560746
+[2026-04-19T20:24:00] [info] 🔘 Active keys: <b>1</b> 	to: 8273560746
+[2026-04-19T20:24:00] [info] Enter value for <b>[Name]</b>: Nashville Tn,Dear Customer,Back,Cancel	to: 8273560746
+[2026-04-19T20:24:20] [info] message: Harold Whitmore	from: 8273560746 Scoreboard44
+[2026-04-19T20:24:20] [info] message: FSNB	from: 8273560746 Scoreboard44
+[2026-04-19T20:24:20] [info] Enter value for <b>[Bank]</b>: 📌 FSNB,Back,Cancel	to: 8273560746
+[2026-04-19T20:24:20] [info] Tap to accept, regenerate, or type your own: 💳 1666,🔄 Regenerate,Back,Cancel	to: 8273560746
+[2026-04-19T20:24:40] [info] message: 📌 Barnes & Noble	from: 8273560746 Scoreboard44
+[2026-04-19T20:24:40] [info] message: 1 8 7 6	from: 8273560746 Scoreboard44
+[2026-04-19T20:24:40] [info] <i>Example: Houston, Texas</i> Back,Cancel	to: 8273560746
+[2026-04-19T20:24:40] [info] Select from the list or type your own: fraud alert,account suspension,unusual activity,security verification,unauthorized transaction,identity confirmation,account review,payment dispute,✍️ Custom,Back,Cancel	to: 8273560746
+[2026-04-19T20:24:40] [info] message: unauthorized transaction	from: 8273560746 Scoreboard44
+[2026-04-19T20:24:40] [info] Enter value for <b>[Company]</b>: 📌 Barnes & Noble,Back,Cancel	to: 8273560746
+[2026-04-19T20:25:00] [info] message: Arlington, Texas	from: 8273560746 Scoreboard44
+[2026-04-19T20:25:00] [info] Enter value for <b>[Amount]</b>: 📌 $89.71,Back,Cancel	to: 8273560746
+[2026-04-19T20:25:00] [info] message: 📌 $89.71	from: 8273560746 Scoreboard44
+[2026-04-19T20:25:00] [info] reply: ✅ All values set!\n\n📋 <b>Select Call Mode</b>\n\n🔗 <b>Transfer</b> — When target presses the key, bridge them to your number\n🔑 <b>OTP Collection</b> — Prompt target for a code, you verify via Telegram\n\nBoth modes report full results. 🔗 Transfer,🔑 OTP Collection,↩️ Back,Back,Cancel	to: 8273560746
+[2026-04-19T20:25:01] [info] message: 🔑 OTP Collection	from: 8273560746 Scoreboard44
+[2026-04-19T20:25:01] [info] reply: 🔑 <b>OTP Collection Mode</b>\n\nHow many digits should the code be?\n\n<i>Default: 6 digits</i> 4 digits,5 digits,6 digits,8 digits,↩️ Back,Back,Cancel	to: 8273560746
+[2026-04-19T20:25:03] [info] message: 6 digits	from: 8273560746 Scoreboard44
+[2026-04-19T20:25:03] [info] <b>Default Reject:</b> <i>"Maximum verification attempts reached. Goodbye."</i> ✍️ Customize Messages,⏭️ Use Defaults,↩️ Back,Back,Cancel	to: 8273560746
+[2026-04-19T20:25:05] [info] message: ✍️ Customize Messages	from: 8273560746 Scoreboard44
+[2026-04-19T20:25:05] [info] reply: ✅ <b>Confirmation Message</b>\n\nType what the caller hears when you <b>CONFIRM</b> their code:\n\n<i>Example: "Your code has been verified. We've blocked the transaction and secured your account. A specialist will contact you within 24 hours. Thank you for choosing our bank. Goodbye."</i> ↩️ Back,Back,Cancel	to: 8273560746
+[2026-04-19T20:25:13] [info] message: Thank you for taking the time to verify this activity. We’ve blocked the transaction and will secure your account. No further action is needed. One of our customer account specialists will contact you within 24 hours to ensure account safety. Thanks for choosing [Name].  Goodbye.	from: 8273560746 Scoreboard44
+[2026-04-19T20:25:13] [info] reply: ❌ <b>Rejection Message</b>\n\nType what the caller hears when you <b>REJECT</b> their code (max attempts reached):\n\n<i>Example: "We were unable to verify your identity. For your security, this session has ended. Please call back or visit your nearest branch for assistance. Goodbye."</i> ↩️ Back,Back,Cancel	to: 8273560746
+[2026-04-19T20:25:19] [info] message: Sorry, That doesnt seem right. Please re-enter the new verification code being sent to the number we have on file.	from: 8273560746 Scoreboard44
+[2026-04-19T20:25:19] [info] reply: ✅ Custom messages saved!\n\n🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine: 🟢 OpenAI — Best,🔵 ElevenLabs,Back,Cancel	to: 8273560746
+[2026-04-19T20:25:21] [info] message: 🟢 OpenAI — Best	from: 8273560746 Scoreboard44
+[2026-04-19T20:25:21] [info] reply: 🎤 <b>Select Voice</b>\n\nChoose a voice for the IVR audio: ⭐ Last: Alloy,Alloy — Most used,Fable — Expressive, British,Nova — Warm, friendly female,Shimmer — Clear, pleasant female,Echo — Warm, deep male,Onyx — Deep, authoritative male,Back,Cancel	to: 8273560746
+[2026-04-19T20:25:51] [info] message: Onyx — Deep, authoritative male	from: 8273560746 Scoreboard44
+[2026-04-19T20:25:51] [info] Choose how fast the voice speaks: ⭐ Last: 0.7x,🐌 Very Slow (0.7x),🐢 Slow (0.85x),🚶 Normal (1.0x),🏃 Fast (1.15x),⚡ Very Fast (1.35x),✍️ Custom Speed,Back,Cancel	to: 8273560746
+[2026-04-19T20:25:51] [info] message: ⭐ Last: 0.7x	from: 8273560746 Scoreboard44
+[2026-04-19T20:25:51] [info] ⏳ Generating audio preview... 	to: 8273560746
+[2026-04-19T20:26:23] [info] message: ✅ Confirm	from: 8273560746 Scoreboard44
+[2026-04-19T20:26:23] [info] /cancel to abort /yes,🕐 Schedule,Back,Cancel	to: 8273560746
+[2026-04-19T20:26:23] [info] message: /yes	from: 8273560746 Scoreboard44
+[2026-04-19T20:26:23] [info] 🏢 Template: Custom Script 	to: 8273560746
+[2026-04-20T12:42:49] [info] [Twilio Sync] RECOVERED credentials for chatId=8273560746 (subSid=AC98bdf4543e1de798baf8e1119c024bb0)
+[2026-04-21T06:46:58] [info] message: Cancel	from: 8273560746 Scoreboard44
+[2026-04-21T06:46:58] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746
+[2026-04-21T06:46:58] [info] message: 📞 Cloud IVR + SIP	from: 8273560746 Scoreboard44
+[2026-04-21T06:46:58] [info] 📞 24 phone numbers activated this week 📢 Quick IVR Call,📞 Bulk IVR Campaign,🎵 Audio Library,🧪 Test SIP Free,🛒 Choose a Plan,📋 My Plans,📖 SIP Setup Guide,📊 Usage & Billing,❓ How It Works,Back,Cancel	to: 8273560746
+[2026-04-21T06:47:02] [info] message: 🛒 Choose a Plan	from: 8273560746 Scoreboard44
+[2026-04-21T06:47:02] [info] <i>💳 Outbound calls charged from wallet</i> 💡 Starter — $50/mo,⭐ Pro — $75/mo,👑 Business — $120/mo,Back,Cancel	to: 8273560746
+[2026-04-21T06:47:04] [info] message: Back	from: 8273560746 Scoreboard44
+[2026-04-21T06:47:05] [info] 📞 24 phone numbers activated this week 📢 Quick IVR Call,📞 Bulk IVR Campaign,🎵 Audio Library,🧪 Test SIP Free,🛒 Choose a Plan,📋 My Plans,📖 SIP Setup Guide,📊 Usage & Billing,❓ How It Works,Back,Cancel	to: 8273560746
+[2026-04-21T06:47:06] [info] message: 📋 My Plans	from: 8273560746 Scoreboard44
+[2026-04-21T06:47:06] [info]  1,2,🛒 Buy Another Number,Back,Cancel	to: 8273560746
+[2026-04-21T06:47:09] [info] message: 1	from: 8273560746 Scoreboard44
+[2026-04-21T06:47:09] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-21T06:47:39] [info] message: 8888370876	from: 8273560746 Scoreboard44
+[2026-04-21T06:47:39] [info] reply: Please select an option. 	to: 8273560746
+[2026-04-21T06:48:07] [info] [Twilio] IVR gather: chatId=8273560746 digits=2 from=+19106516884 to=+18888370876
+[2026-04-21T06:48:47] [info] [Twilio] Dial status: completed (8s) chatId=8273560746 type=forward sid=CA45f2f0440dbea7d2cf32b8393faac59b
+[2026-04-21T06:48:54] [info] [Twilio] IVR gather: chatId=8273560746 digits=1 from=+19106516884 to=+18888370876
+[2026-04-21T06:48:58] [info] [Twilio] Voicemail recorded: RE502d124dbb710c8063d55b475349285e (2s) for chatId=8273560746
+[2026-04-21T06:49:38] [info] message: 🎙️ Voicemail	from: 8273560746 Scoreboard44
+[2026-04-21T06:49:38] [info] When enabled, unanswered calls will hear a greeting and callers can leave a voice message. ✅ Enable Voicemail,Back,Cancel	to: 8273560746
+[2026-04-21T06:49:39] [info] message: ✅ Enable Voicemail	from: 8273560746 Scoreboard44
+[2026-04-21T06:49:39] [info] Recordings will be sent to this Telegram chat. 	to: 8273560746
+[2026-04-21T06:49:39] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-21T06:49:48] [info] message: 🎙️ Voicemail	from: 8273560746 Scoreboard44
+[2026-04-21T06:49:48] [info] ⏰ Ring Time: 25s 🔊 Greeting,📲 VM to Telegram ✅ ON,📧 VM to Email ❌ OFF,⏰ Ring Time: 25s,🚫 Disable Voicemail,Back,Cancel	to: 8273560746
+[2026-04-21T06:49:50] [info] message: ⏰ Ring Time: 25s	from: 8273560746 Scoreboard44
+[2026-04-21T06:49:50] [info] reply: How long should the phone ring before voicemail? 15s,20s,25s,30s,Back,Cancel	to: 8273560746
+[2026-04-21T06:49:57] [info] message: 15s	from: 8273560746 Scoreboard44
+[2026-04-21T06:49:57] [info] reply: ✅ Ring time updated to 15 seconds. 	to: 8273560746
+[2026-04-21T06:49:57] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-21T06:50:00] [info] message: 🎙️ Voicemail	from: 8273560746 Scoreboard44
+[2026-04-21T06:50:00] [info] ⏰ Ring Time: 15s 🔊 Greeting,📲 VM to Telegram ✅ ON,📧 VM to Email ❌ OFF,⏰ Ring Time: 15s,🚫 Disable Voicemail,Back,Cancel	to: 8273560746
+[2026-04-21T06:50:02] [info] message: 🔊 Greeting	from: 8273560746 Scoreboard44
+[2026-04-21T06:50:02] [info] Choose an option below: 🎤 Custom Greeting (Audio),🔄 Default Greeting,Back,Back,Cancel	to: 8273560746
+[2026-04-21T06:50:04] [info] message: 🎤 Custom Greeting (Audio)	from: 8273560746 Scoreboard44
+[2026-04-21T06:50:04] [info] Choose how to create your greeting: 📋 Use Template,📝 Type Text (AI Voice),🎙️ Upload Audio,Back,Cancel	to: 8273560746
+[2026-04-21T06:50:06] [info] message: 📝 Type Text (AI Voice)	from: 8273560746 Scoreboard44
+[2026-04-21T06:50:06] [info] reply: 📝 Type the greeting callers will hear: Back,Cancel	to: 8273560746
+[2026-04-21T06:50:26] [info] message: After the tone,  please Include your name, and callback number. We've saved your place in line. One of our agents will contact you in by the order in which we received your call. Thank you.	from: 8273560746 Scoreboard44
+[2026-04-21T06:50:26] [info] <i>"After the tone,  please Include your name, and callback number. We've saved your..."</i> 🇺🇸 English,🇫🇷 Français,🇪🇸 Español,🇩🇪 Deutsch,🇮🇹 Italiano,🇧🇷 Português,🇳🇱 Nederlands,🇵🇱 Polski,🇯🇵 日本語,🇰🇷 한국어,🇨🇳 中文,🇮🇳 हिन्दी,🇸🇦 العربية,🇷🇺 Русский,🇹🇷 Türkçe,🇸🇪 Svenska,🇩🇰 Dansk,🇳🇴 Norsk,🇫🇮 Suomi,🇬🇷 Ελληνικά,Back,Cancel	to: 8273560746
+[2026-04-21T06:50:26] [info] message: 🇺🇸 English	from: 8273560746 Scoreboard44
+[2026-04-21T06:50:26] [info] reply: 🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine: 🟢 OpenAI — Best,🔵 ElevenLabs,Back,Cancel	to: 8273560746
+[2026-04-21T06:50:26] [info] message: 🟢 OpenAI — Best	from: 8273560746 Scoreboard44
+[2026-04-21T06:50:26] [info] reply: 🎙️ Choose a voice: Alloy — Most used,Fable — Expressive, British,Nova — Warm, friendly female,Shimmer — Clear, pleasant female,Echo — Warm, deep male,Onyx — Deep, authoritative male,Back,Cancel	to: 8273560746
+[2026-04-21T06:50:28] [info] message: Onyx — Deep, authoritative male	from: 8273560746 Scoreboard44
+[2026-04-21T06:50:28] [info] reply: 🔄 Generating audio preview... 	to: 8273560746
+[2026-04-21T06:50:35] [info] Save this greeting? ✅ Save Greeting,🔄 Try Different Voice,🌐 Change Language,📝 Re-type Text,Back,Cancel	to: 8273560746
+[2026-04-21T06:51:05] [info] message: 📝 Re-type Text	from: 8273560746 Scoreboard44
+[2026-04-21T06:51:05] [info] reply: 📝 Type the greeting text: Back,Cancel	to: 8273560746
+[2026-04-21T06:51:25] [info] message: 34.41.49.151:14293After the tone,  please Include your name, and callback number. We've saved your place in line. One of our agents will contact you by the order in which we received your call. Thank you.	from: 8273560746 Scoreboard44
+[2026-04-21T06:51:25] [info] <i>"34.41.49.151:14293After the tone,  please Include your name, and callback number..."</i> 🇺🇸 English,🇫🇷 Français,🇪🇸 Español,🇩🇪 Deutsch,🇮🇹 Italiano,🇧🇷 Português,🇳🇱 Nederlands,🇵🇱 Polski,🇯🇵 日本語,🇰🇷 한국어,🇨🇳 中文,🇮🇳 हिन्दी,🇸🇦 العربية,🇷🇺 Русский,🇹🇷 Türkçe,🇸🇪 Svenska,🇩🇰 Dansk,🇳🇴 Norsk,🇫🇮 Suomi,🇬🇷 Ελληνικά,Back,Cancel	to: 8273560746
+[2026-04-21T06:51:25] [info] message: 🇺🇸 English	from: 8273560746 Scoreboard44
+[2026-04-21T06:51:25] [info] reply: 🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine: 🟢 OpenAI — Best,🔵 ElevenLabs,Back,Cancel	to: 8273560746
+[2026-04-21T06:51:25] [info] message: Back	from: 8273560746 Scoreboard44
+[2026-04-21T06:51:25] [info] reply: 🎤 <b>Custom Greeting</b>\n\nChoose: 📋 Use Template,📝 Type Text (AI Voice),🎙️ Upload Audio,Back,Cancel	to: 8273560746
+[2026-04-21T06:51:26] [info] message: 📝 Type Text (AI Voice)	from: 8273560746 Scoreboard44
+[2026-04-21T06:51:26] [info] reply: 📝 Type the greeting callers will hear: Back,Cancel	to: 8273560746
+[2026-04-21T06:51:46] [info] message: After the tone,  please Include your name, and callback number. We've saved your place in line. One of our agents will contact you by the order in which we received your call. Thank you.	from: 8273560746 Scoreboard44
+[2026-04-21T06:51:46] [info] reply: 🎙 Select a voice provider: 🟢 OpenAI — Best,🔵 ElevenLabs,Back,Cancel	to: 8273560746
+[2026-04-21T06:51:46] [info] message: 🟢 OpenAI — Best	from: 8273560746 Scoreboard44
+[2026-04-21T06:51:46] [info] reply: 🎙️ Choose a voice: Alloy — Most used,Fable — Expressive, British,Nova — Warm, friendly female,Shimmer — Clear, pleasant female,Echo — Warm, deep male,Onyx — Deep, authoritative male,Back,Cancel	to: 8273560746
+[2026-04-21T06:51:46] [info] message: Onyx — Deep, authoritative male	from: 8273560746 Scoreboard44
+[2026-04-21T06:51:46] [info] reply: 🔄 Generating audio preview... 	to: 8273560746
+[2026-04-21T06:51:50] [info] Save this greeting? ✅ Save Greeting,🔄 Try Different Voice,🌐 Change Language,📝 Re-type Text,Back,Cancel	to: 8273560746
+[2026-04-21T06:52:00] [info] message: 📝 Re-type Text	from: 8273560746 Scoreboard44
+[2026-04-21T06:52:00] [info] reply: 📝 Type the greeting text: Back,Cancel	to: 8273560746
+[2026-04-21T06:52:20] [info] message: After the tone,  please Include your name, and callback number. We've saved your place in line. One of our agents will contact you by the order in which we received your call. Thank you.	from: 8273560746 Scoreboard44
+[2026-04-21T06:52:20] [info] <i>"After the tone,  please Include your name, and callback number. We've saved your..."</i> 🇺🇸 English,🇫🇷 Français,🇪🇸 Español,🇩🇪 Deutsch,🇮🇹 Italiano,🇧🇷 Português,🇳🇱 Nederlands,🇵🇱 Polski,🇯🇵 日本語,🇰🇷 한국어,🇨🇳 中文,🇮🇳 हिन्दी,🇸🇦 العربية,🇷🇺 Русский,🇹🇷 Türkçe,🇸🇪 Svenska,🇩🇰 Dansk,🇳🇴 Norsk,🇫🇮 Suomi,🇬🇷 Ελληνικά,Back,Cancel	to: 8273560746
+[2026-04-21T06:52:20] [info] message: 🇺🇸 English	from: 8273560746 Scoreboard44
+[2026-04-21T06:52:20] [info] reply: 🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine: 🟢 OpenAI — Best,🔵 ElevenLabs,Back,Cancel	to: 8273560746
+[2026-04-21T06:52:20] [info] message: 🟢 OpenAI — Best	from: 8273560746 Scoreboard44
+[2026-04-21T06:52:20] [info] reply: 🎙️ Choose a voice: Alloy — Most used,Fable — Expressive, British,Nova — Warm, friendly female,Shimmer — Clear, pleasant female,Echo — Warm, deep male,Onyx — Deep, authoritative male,Back,Cancel	to: 8273560746
+[2026-04-21T06:52:20] [info] message: Onyx — Deep, authoritative male	from: 8273560746 Scoreboard44
+[2026-04-21T06:52:20] [info] reply: 🔄 Generating audio preview... 	to: 8273560746
+[2026-04-21T06:52:22] [info] Save this greeting? ✅ Save Greeting,🔄 Try Different Voice,🌐 Change Language,📝 Re-type Text,Back,Cancel	to: 8273560746
+[2026-04-21T06:52:42] [info] message: ✅ Save Greeting	from: 8273560746 Scoreboard44
+[2026-04-21T06:52:42] [info] reply: ✅ Voicemail greeting saved! 	to: 8273560746
+[2026-04-21T06:52:42] [info] ⏰ Ring Time: 15s 🔊 Greeting,📲 VM to Telegram ✅ ON,📧 VM to Email ❌ OFF,⏰ Ring Time: 15s,🚫 Disable Voicemail,Back,Cancel	to: 8273560746
+[2026-04-21T06:52:43] [info] message: Back	from: 8273560746 Scoreboard44
+[2026-04-21T06:52:43] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-21T06:52:46] [info] message: 🤖 IVR / Auto-attendant	from: 8273560746 Scoreboard44
+[2026-04-21T06:52:46] [info] When enabled, callers hear a greeting menu and can press keys to reach the right destination. ✅ Enable IVR,Back,Cancel	to: 8273560746
+[2026-04-21T06:52:50] [info] Callers will hear your greeting and can press keys to navigate. 	to: 8273560746
+[2026-04-21T06:52:50] [info] message: ✅ Enable IVR	from: 8273560746 Scoreboard44
+[2026-04-21T06:52:50] [info]  🎤 Set Greeting,➕ Add Menu Option,➖ Remove Option,📋 View Menu Options,📊 IVR Analytics,🚫 Disable IVR,Back,Cancel	to: 8273560746
+[2026-04-21T06:53:09] [info] message: 🎤 Set Greeting	from: 8273560746 Scoreboard44
+[2026-04-21T06:53:09] [info] reply: 🎤 <b>Set IVR Greeting</b>\n\nChoose how to create your greeting: 📋 Use Template,📝 Type Text (AI Voice),🎙️ Upload Audio,Back,Cancel	to: 8273560746
+[2026-04-21T06:53:10] [info] message: 📝 Type Text (AI Voice)	from: 8273560746 Scoreboard44
+[2026-04-21T06:53:10] [info] reply: 📝 Type the greeting callers will hear.\n\n<i>Example: "Thank you for calling Nomadly. Press 1 for sales, press 2 for support."</i> Back,Cancel	to: 8273560746
+[2026-04-21T06:53:30] [info] message: Welcome to card self service.  All of our agents are currently assisting other callers. Press 1 for a callback, and One of our agents will be right with you shortly. Press 2  if you would like to hold until a representative is available.	from: 8273560746 Scoreboard44
+[2026-04-21T06:53:30] [info] <i>"Welcome to card self service.  All of our agents are currently assisting other c..."</i> 🇺🇸 English,🇫🇷 Français,🇪🇸 Español,🇩🇪 Deutsch,🇮🇹 Italiano,🇧🇷 Português,🇳🇱 Nederlands,🇵🇱 Polski,🇯🇵 日本語,🇰🇷 한국어,🇨🇳 中文,🇮🇳 हिन्दी,🇸🇦 العربية,🇷🇺 Русский,🇹🇷 Türkçe,🇸🇪 Svenska,🇩🇰 Dansk,🇳🇴 Norsk,🇫🇮 Suomi,🇬🇷 Ελληνικά,Back,Cancel	to: 8273560746
+[2026-04-21T06:53:30] [info] message: 🇺🇸 English	from: 8273560746 Scoreboard44
+[2026-04-21T06:53:30] [info] reply: 🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine: 🟢 OpenAI — Best,🔵 ElevenLabs,Back,Cancel	to: 8273560746
+[2026-04-21T06:53:30] [info] message: 🟢 OpenAI — Best	from: 8273560746 Scoreboard44
+[2026-04-21T06:53:30] [info] reply: 🎙️ Choose a voice for your greeting: Alloy — Most used,Fable — Expressive, British,Nova — Warm, friendly female,Shimmer — Clear, pleasant female,Echo — Warm, deep male,Onyx — Deep, authoritative male,Back,Cancel	to: 8273560746
+[2026-04-21T06:53:30] [info] message: Onyx — Deep, authoritative male	from: 8273560746 Scoreboard44
+[2026-04-21T06:53:30] [info] reply: 🔄 Generating audio preview... 	to: 8273560746
+[2026-04-21T06:53:33] [info] 📝 Re-type the text? ✅ Save Greeting,🔄 Try Different Voice,🌐 Change Language,📝 Re-type Text,Back,Cancel	to: 8273560746
+[2026-04-21T06:53:56] [info] message: ✅ Save Greeting	from: 8273560746 Scoreboard44
+[2026-04-21T06:53:56] [info] reply: ✅ IVR greeting saved! 	to: 8273560746
+[2026-04-21T06:53:56] [info] message: ➕ Add Menu Option	from: 8273560746 Scoreboard44
+[2026-04-21T06:53:56] [info] Enter the key number (0-9) for this option: 0,1,2,3,4,5,6,7,8,9,Back,Cancel	to: 8273560746
+[2026-04-21T06:53:56] [info]  🎤 Set Greeting,➕ Add Menu Option,➖ Remove Option,📋 View Menu Options,📊 IVR Analytics,🚫 Disable IVR,Back,Cancel	to: 8273560746
+[2026-04-21T06:53:58] [info] What should happen when a caller presses <b>1</b>? 📞 Forward Call,💬 Play Message,📬 Send to Voicemail,Back,Cancel	to: 8273560746
+[2026-04-21T06:53:58] [info] message: 1	from: 8273560746 Scoreboard44
+[2026-04-21T06:54:05] [info] message: 📞 Forward Call	from: 8273560746 Scoreboard44
+[2026-04-21T06:54:05] [info] <i>Example: +15551234567</i> Back,Cancel	to: 8273560746
+[2026-04-21T06:54:32] [info] message: ➕ Add Menu Option	from: 8273560746 Scoreboard44
+[2026-04-21T06:54:32] [info] message: +19106516884	from: 8273560746 Scoreboard44
+[2026-04-21T06:54:32] [info] reply: ✅ Key <b>1</b> → Forward to <b>+19106516884</b> — saved! 	to: 8273560746
+[2026-04-21T06:54:32] [info] Enter the key number (0-9) for this option: 0,1,2,3,4,5,6,7,8,9,Back,Cancel	to: 8273560746
+[2026-04-21T06:54:32] [info]  🎤 Set Greeting,➕ Add Menu Option,➖ Remove Option,📋 View Menu Options,📊 IVR Analytics,🚫 Disable IVR,Back,Cancel	to: 8273560746
+[2026-04-21T06:54:33] [info] message: 2	from: 8273560746 Scoreboard44
+[2026-04-21T06:54:34] [info] What should happen when a caller presses <b>2</b>? 📞 Forward Call,💬 Play Message,📬 Send to Voicemail,Back,Cancel	to: 8273560746
+[2026-04-21T06:54:39] [info] message: Back	from: 8273560746 Scoreboard44
+[2026-04-21T06:54:39] [info] Enter the key number (0-9): 0,1,2,3,4,5,6,7,8,9,Back,Cancel	to: 8273560746
+[2026-04-21T06:54:41] [info] message: Back	from: 8273560746 Scoreboard44
+[2026-04-21T06:54:41] [info]  🎤 Set Greeting,➕ Add Menu Option,➖ Remove Option,📋 View Menu Options,📊 IVR Analytics,🚫 Disable IVR,Back,Cancel	to: 8273560746
+[2026-04-21T06:54:43] [info] message: ➖ Remove Option	from: 8273560746 Scoreboard44
+[2026-04-21T06:54:43] [info] reply: Which key do you want to remove? Key 1,Back,Cancel	to: 8273560746
+[2026-04-21T06:54:44] [info] message: Key 1	from: 8273560746 Scoreboard44
+[2026-04-21T06:54:45] [info]  🎤 Set Greeting,➕ Add Menu Option,➖ Remove Option,📋 View Menu Options,📊 IVR Analytics,🚫 Disable IVR,Back,Cancel	to: 8273560746
+[2026-04-21T06:54:45] [info] reply: ✅ IVR option for key <b>1</b> removed. 	to: 8273560746
+[2026-04-21T06:54:50] [info] message: Back	from: 8273560746 Scoreboard44
+[2026-04-21T06:54:50] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-21T06:54:53] [info] message: 📞 Call Forwarding	from: 8273560746 Scoreboard44
+[2026-04-21T06:54:53] [info] 💳 Charged from wallet at $0.5/min · 💳 $58.80 📞 Always Forward,📵 Forward When Busy,⏰ Forward If No Answer,Back,Cancel	to: 8273560746
+[2026-04-21T06:54:56] [info] message: 📞 Always Forward	from: 8273560746 Scoreboard44
+[2026-04-21T06:54:56] [info] 💰 <b>$0.5/min</b> · 💳 $58.80 	to: 8273560746
+[2026-04-21T06:55:16] [info] message: +19106516884	from: 8273560746 Scoreboard44
+[2026-04-21T06:55:16] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-21T06:55:16] [info] reply: ⏳ Validating destination... 	to: 8273560746
+[2026-04-21T06:55:16] [info] 💳 $58.80 (~117 min) 	to: 8273560746
+[2026-04-21T06:55:16] [info] message: 🤖 IVR / Auto-attendant	from: 8273560746 Scoreboard44
+[2026-04-21T06:55:16] [info]  🎤 Set Greeting,➕ Add Menu Option,➖ Remove Option,📋 View Menu Options,📊 IVR Analytics,🚫 Disable IVR,Back,Cancel	to: 8273560746
+[2026-04-21T06:55:16] [info] message: ➕ Add Menu Option	from: 8273560746 Scoreboard44
+[2026-04-21T06:55:16] [info] Enter the key number (0-9) for this option: 0,1,2,3,4,5,6,7,8,9,Back,Cancel	to: 8273560746
+[2026-04-21T06:55:18] [info] message: 1	from: 8273560746 Scoreboard44
+[2026-04-21T06:55:18] [info] What should happen when a caller presses <b>1</b>? 📞 Forward Call,💬 Play Message,📬 Send to Voicemail,Back,Cancel	to: 8273560746
+[2026-04-21T06:55:21] [info] message: 📬 Send to Voicemail	from: 8273560746 Scoreboard44
+[2026-04-21T06:55:21] [info] reply: ✅ Key <b>1</b> → Send to Voicemail — saved! 	to: 8273560746
+[2026-04-21T06:55:21] [info]  🎤 Set Greeting,➕ Add Menu Option,➖ Remove Option,📋 View Menu Options,📊 IVR Analytics,🚫 Disable IVR,Back,Cancel	to: 8273560746
+[2026-04-21T06:55:23] [info] message: ➕ Add Menu Option	from: 8273560746 Scoreboard44
+[2026-04-21T06:55:23] [info] Enter the key number (0-9) for this option: 0,1,2,3,4,5,6,7,8,9,Back,Cancel	to: 8273560746
+[2026-04-21T06:55:25] [info] message: 2	from: 8273560746 Scoreboard44
+[2026-04-21T06:55:25] [info] What should happen when a caller presses <b>2</b>? 📞 Forward Call,💬 Play Message,📬 Send to Voicemail,Back,Cancel	to: 8273560746
+[2026-04-21T06:55:26] [info] message: 📞 Forward Call	from: 8273560746 Scoreboard44
+[2026-04-21T06:55:26] [info] <i>Example: +15551234567</i> Back,Cancel	to: 8273560746
+[2026-04-21T06:55:35] [info] message: +19106516884	from: 8273560746 Scoreboard44
+[2026-04-21T06:55:35] [info]  🎤 Set Greeting,➕ Add Menu Option,➖ Remove Option,📋 View Menu Options,📊 IVR Analytics,🚫 Disable IVR,Back,Cancel	to: 8273560746
+[2026-04-21T06:55:35] [info] reply: ✅ Key <b>2</b> → Forward to <b>+19106516884</b> — saved! 	to: 8273560746
+[2026-04-21T06:55:55] [info] message: Back	from: 8273560746 Scoreboard44
+[2026-04-21T06:55:55] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-21T06:55:55] [info] message: 🔑 SIP Credentials	from: 8273560746 Scoreboard44
+[2026-04-21T06:55:55] [info] 🎵 Codecs: G.711μ, G.711a, Opus 👁️ Reveal Password,🔄 Reset Password,📖 SIP Setup Guide,Back,Cancel	to: 8273560746
+[2026-04-21T06:56:05] [info] message: Back	from: 8273560746 Scoreboard44
+[2026-04-21T06:56:05] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-21T06:57:05] [info] [Twilio] IVR gather: chatId=8273560746 digits=1 from=+19314399742 to=+18888370876
+[2026-04-21T06:57:05] [info] [Twilio] Voicemail recorded: RE0f9d40681e6f0cfaaeeb5e58e8001200 (2s) for chatId=8273560746
+[2026-04-21T06:57:17] [info] [Twilio] IVR gather: chatId=8273560746 digits=2 from=+19314399742 to=+18888370876
+[2026-04-21T06:57:37] [info] [Twilio] Dial status: no-answer (0s) chatId=8273560746 type=forward sid=CAa9c748d70603d8d62ab73dc3fa5befac
+[2026-04-21T06:57:37] [info] message: 📞 Call Forwarding	from: 8273560746 Scoreboard44
+[2026-04-21T06:57:37] [info] 💳 Charged from wallet at $0.15/min · 💳 $58.80 📞 Always Forward,📵 Forward When Busy,⏰ Forward If No Answer,🎵 Hold Music: OFF,📲 Change Forward-To Number,🚫 Disable Forwarding,Back,Cancel	to: 8273560746
+[2026-04-21T06:57:38] [info] message: 🎵 Hold Music: OFF	from: 8273560746 Scoreboard44
+[2026-04-21T06:57:38] [info] Callers will hear hold music while being connected. 	to: 8273560746
+[2026-04-21T06:57:38] [info] 💳 Charged from wallet at $0.15/min · 💳 $58.80 📞 Always Forward,📵 Forward When Busy,⏰ Forward If No Answer,🎵 Hold Music: ON,📲 Change Forward-To Number,🚫 Disable Forwarding,Back,Cancel	to: 8273560746
+[2026-04-21T06:57:41] [info] message: Back	from: 8273560746 Scoreboard44
+[2026-04-21T06:57:41] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-21T06:57:43] [info] message: 🎙️ Voicemail	from: 8273560746 Scoreboard44
+[2026-04-21T06:57:43] [info] ⏰ Ring Time: 15s 🔊 Greeting,📲 VM to Telegram ✅ ON,📧 VM to Email ❌ OFF,⏰ Ring Time: 15s,🚫 Disable Voicemail,Back,Cancel	to: 8273560746
+[2026-04-21T06:57:46] [info] message: 🔊 Greeting	from: 8273560746 Scoreboard44
+[2026-04-21T06:57:46] [info] Choose an option below: 🎤 Custom Greeting (Audio),🔄 Default Greeting,Back,Back,Cancel	to: 8273560746
+[2026-04-21T06:57:48] [info] Choose how to create your greeting: 📋 Use Template,📝 Type Text (AI Voice),🎙️ Upload Audio,Back,Cancel	to: 8273560746
+[2026-04-21T06:57:48] [info] message: 🎤 Custom Greeting (Audio)	from: 8273560746 Scoreboard44
+[2026-04-21T06:57:50] [info] message: 📝 Type Text (AI Voice)	from: 8273560746 Scoreboard44
+[2026-04-21T06:57:51] [info] reply: 📝 Type the greeting callers will hear: Back,Cancel	to: 8273560746
+[2026-04-21T06:58:11] [info] message: After the tone,  please Include your name, and callback number. We've saved your place in line. One of our agents will contact you by the order in which we received your call. Thank you.	from: 8273560746 Scoreboard44
+[2026-04-21T06:58:11] [info] <i>"After the tone,  please Include your name, and callback number. We've saved your..."</i> 🇺🇸 English,🇫🇷 Français,🇪🇸 Español,🇩🇪 Deutsch,🇮🇹 Italiano,🇧🇷 Português,🇳🇱 Nederlands,🇵🇱 Polski,🇯🇵 日本語,🇰🇷 한국어,🇨🇳 中文,🇮🇳 हिन्दी,🇸🇦 العربية,🇷🇺 Русский,🇹🇷 Türkçe,🇸🇪 Svenska,🇩🇰 Dansk,🇳🇴 Norsk,🇫🇮 Suomi,🇬🇷 Ελληνικά,Back,Cancel	to: 8273560746
+[2026-04-21T06:58:11] [info] message: 🇺🇸 English	from: 8273560746 Scoreboard44
+[2026-04-21T06:58:11] [info] reply: 🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine: 🟢 OpenAI — Best,🔵 ElevenLabs,Back,Cancel	to: 8273560746
+[2026-04-21T06:58:11] [info] message: 🟢 OpenAI — Best	from: 8273560746 Scoreboard44
+[2026-04-21T06:58:11] [info] reply: 🎙️ Choose a voice: Alloy — Most used,Fable — Expressive, British,Nova — Warm, friendly female,Shimmer — Clear, pleasant female,Echo — Warm, deep male,Onyx — Deep, authoritative male,Back,Cancel	to: 8273560746
+[2026-04-21T06:58:11] [info] message: Onyx — Deep, authoritative male	from: 8273560746 Scoreboard44
+[2026-04-21T06:58:11] [info] reply: 🔄 Generating audio preview... 	to: 8273560746
+[2026-04-21T06:58:16] [info] Save this greeting? ✅ Save Greeting,🔄 Try Different Voice,🌐 Change Language,📝 Re-type Text,Back,Cancel	to: 8273560746
+[2026-04-21T06:58:19] [info] message: ✅ Save Greeting	from: 8273560746 Scoreboard44
+[2026-04-21T06:58:19] [info] reply: ✅ Voicemail greeting saved! 	to: 8273560746
+[2026-04-21T06:58:19] [info] ⏰ Ring Time: 15s 🔊 Greeting,📲 VM to Telegram ✅ ON,📧 VM to Email ❌ OFF,⏰ Ring Time: 15s,🚫 Disable Voicemail,Back,Cancel	to: 8273560746
+[2026-04-21T06:58:54] [info] ⏰ Ring Time: 15s 🔊 Greeting,📲 VM to Telegram ✅ ON,📧 VM to Email ❌ OFF,⏰ Ring Time: 15s,🚫 Disable Voicemail,Back,Cancel	to: 8273560746
+[2026-04-21T06:58:54] [info] message: Back	from: 8273560746 Scoreboard44
+[2026-04-21T06:58:54] [info] Choose an option below: 🎤 Custom Greeting (Audio),🔄 Default Greeting,Back,Back,Cancel	to: 8273560746
+[2026-04-21T06:58:54] [info] message: 🔊 Greeting	from: 8273560746 Scoreboard44
+[2026-04-21T06:58:54] [info] message: Back	from: 8273560746 Scoreboard44
+[2026-04-21T06:58:54] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-21T06:58:59] [info] message: 📞 Call Forwarding	from: 8273560746 Scoreboard44
+[2026-04-21T06:58:59] [info] 💳 Charged from wallet at $0.15/min · 💳 $58.80 📞 Always Forward,📵 Forward When Busy,⏰ Forward If No Answer,🎵 Hold Music: ON,📲 Change Forward-To Number,🚫 Disable Forwarding,Back,Cancel	to: 8273560746
+[2026-04-21T06:59:19] [info] message: ⏰ Forward If No Answer	from: 8273560746 Scoreboard44
+[2026-04-21T06:59:19] [info] 💰 <b>$0.5/min</b> · 💳 $58.80 	to: 8273560746
+[2026-04-21T06:59:49] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-21T06:59:49] [info] message: +19106516884	from: 8273560746 Scoreboard44
+[2026-04-21T06:59:49] [info] reply: ⏳ Validating destination... 	to: 8273560746
+[2026-04-21T06:59:49] [info] 💳 $58.80 (~117 min) 	to: 8273560746
+[2026-04-21T07:00:19] [info] [Twilio] Dial status: completed (2s) chatId=8273560746 type=forward sid=CA9acac9d5caf88ae33f4fc2e37de2e67d
+[2026-04-21T07:00:19] [info] message: 📞 Call Forwarding	from: 8273560746 Scoreboard44
+[2026-04-21T07:00:19] [info] 💳 Charged from wallet at $0.15/min · 💳 $58.80 📞 Always Forward,📵 Forward When Busy,⏰ Forward If No Answer,🎵 Hold Music: ON,📲 Change Forward-To Number,🚫 Disable Forwarding,Back,Cancel	to: 8273560746
+[2026-04-21T07:00:21] [info] message: 📵 Forward When Busy	from: 8273560746 Scoreboard44
+[2026-04-21T07:00:21] [info] 💰 <b>$0.5/min</b> · 💳 $58.80 	to: 8273560746
+[2026-04-21T07:00:27] [info] message: +19106516884	from: 8273560746 Scoreboard44
+[2026-04-21T07:00:27] [info] reply: ⏳ Validating destination... 	to: 8273560746
+[2026-04-21T07:00:27] [info] 💳 $58.80 (~117 min) 	to: 8273560746
+[2026-04-21T07:00:27] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-21T07:00:41] [info] [Twilio] Dial status: completed (2s) chatId=8273560746 type=forward sid=CAd3ac4346915621b14a9db995eba0c4e6
+[2026-04-21T07:00:44] [info] message: 📞 Call Forwarding	from: 8273560746 Scoreboard44
+[2026-04-21T07:00:44] [info] 💳 Charged from wallet at $0.15/min · 💳 $58.80 📞 Always Forward,📵 Forward When Busy,⏰ Forward If No Answer,🎵 Hold Music: ON,📲 Change Forward-To Number,🚫 Disable Forwarding,Back,Cancel	to: 8273560746
+[2026-04-21T07:00:47] [info] message: 🚫 Disable Forwarding	from: 8273560746 Scoreboard44
+[2026-04-21T07:00:47] [info] reply: ✅ Forwarding disabled for +1 (888) 837-0876. 	to: 8273560746
+[2026-04-21T07:00:47] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-21T07:00:49] [info] message: 📞 Call Forwarding	from: 8273560746 Scoreboard44
+[2026-04-21T07:00:49] [info] 💳 Charged from wallet at $0.5/min · 💳 $58.80 📞 Always Forward,📵 Forward When Busy,⏰ Forward If No Answer,Back,Cancel	to: 8273560746
+[2026-04-21T07:00:54] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-21T07:00:54] [info] message: Back	from: 8273560746 Scoreboard44
+[2026-04-21T07:00:58] [info] message: 🤖 IVR / Auto-attendant	from: 8273560746 Scoreboard44
+[2026-04-21T07:00:58] [info]  🎤 Set Greeting,➕ Add Menu Option,➖ Remove Option,📋 View Menu Options,📊 IVR Analytics,🚫 Disable IVR,Back,Cancel	to: 8273560746
+[2026-04-21T07:01:18] [info] message: 🎤 Set Greeting	from: 8273560746 Scoreboard44
+[2026-04-21T07:01:18] [info] reply: 🎤 <b>Set IVR Greeting</b>\n\nChoose how to create your greeting: 📋 Use Template,📝 Type Text (AI Voice),🎙️ Upload Audio,Back,Cancel	to: 8273560746
+[2026-04-21T07:01:19] [info] message: 📝 Type Text (AI Voice)	from: 8273560746 Scoreboard44
+[2026-04-21T07:01:20] [info] reply: 📝 Type the greeting callers will hear.\n\n<i>Example: "Thank you for calling Nomadly. Press 1 for sales, press 2 for support."</i> Back,Cancel	to: 8273560746
+[2026-04-21T07:01:28] [info] message: Welcome to card self service.  All of our agents are currently assisting other callers. Press 1 for a callback, and One of our agents will be right with you shortly. Press 2  if you would like to hold until a representative is available.	from: 8273560746 Scoreboard44
+[2026-04-21T07:01:28] [info] <i>"Welcome to card self service.  All of our agents are currently assisting other c..."</i> 🇺🇸 English,🇫🇷 Français,🇪🇸 Español,🇩🇪 Deutsch,🇮🇹 Italiano,🇧🇷 Português,🇳🇱 Nederlands,🇵🇱 Polski,🇯🇵 日本語,🇰🇷 한국어,🇨🇳 中文,🇮🇳 हिन्दी,🇸🇦 العربية,🇷🇺 Русский,🇹🇷 Türkçe,🇸🇪 Svenska,🇩🇰 Dansk,🇳🇴 Norsk,🇫🇮 Suomi,🇬🇷 Ελληνικά,Back,Cancel	to: 8273560746
+[2026-04-21T07:01:30] [info] message: 🇺🇸 English	from: 8273560746 Scoreboard44
+[2026-04-21T07:01:30] [info] reply: 🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine: 🟢 OpenAI — Best,🔵 ElevenLabs,Back,Cancel	to: 8273560746
+[2026-04-21T07:01:32] [info] message: 🟢 OpenAI — Best	from: 8273560746 Scoreboard44
+[2026-04-21T07:01:32] [info] reply: 🎙️ Choose a voice for your greeting: Alloy — Most used,Fable — Expressive, British,Nova — Warm, friendly female,Shimmer — Clear, pleasant female,Echo — Warm, deep male,Onyx — Deep, authoritative male,Back,Cancel	to: 8273560746
+[2026-04-21T07:01:34] [info] message: Onyx — Deep, authoritative male	from: 8273560746 Scoreboard44
+[2026-04-21T07:01:34] [info] reply: 🔄 Generating audio preview... 	to: 8273560746
+[2026-04-21T07:01:41] [info] 📝 Re-type the text? ✅ Save Greeting,🔄 Try Different Voice,🌐 Change Language,📝 Re-type Text,Back,Cancel	to: 8273560746
+[2026-04-21T07:01:47] [info] message: ✅ Save Greeting	from: 8273560746 Scoreboard44
+[2026-04-21T07:01:47] [info] reply: ✅ IVR greeting saved! 	to: 8273560746
+[2026-04-21T07:01:47] [info]  🎤 Set Greeting,➕ Add Menu Option,➖ Remove Option,📋 View Menu Options,📊 IVR Analytics,🚫 Disable IVR,Back,Cancel	to: 8273560746
+[2026-04-21T07:02:00] [info] [Twilio] IVR gather: chatId=8273560746 digits=1 from=+19314399742 to=+18888370876
+[2026-04-21T07:02:04] [info] [Twilio] Voicemail recorded: REc9fcee7b0ffbc907b4ce862757f4c7fd (1s) for chatId=8273560746
+[2026-04-23T21:11:54] [info] message: Back	from: 8273560746 Scoreboard44
+[2026-04-23T21:11:54] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746
+[2026-04-23T21:12:14] [info] 📦 15 digital products sold this week 📞 Twilio Main Account — $450,📞 Twilio Sub-Account — $200,📡 Telnyx Main Account — $400,📡 Telnyx Sub-Account — $150,☁️ AWS Main Account — $350,☁️ AWS Sub-Account — $150,🌐 Google Cloud Main — $300,🌐 Google Cloud Sub — $150,📧 Google Workspace Admin (New Domain) — $150,📧 Google Workspace Admin (Aged Domain) — $250,📧 Zoho Mail (New Domain) — $100,📧 Zoho Mail (Aged Domain) — $150,📱 eSIM T-Mobile — $60,📱 eSIM Airvoice (AT&T) — from $70,📧 IONOS SMTP — $150,Back,🏠 Main Menu,Back,Cancel	to: 8273560746
+[2026-04-23T21:12:14] [info] message: 🛒 Digital Products	from: 8273560746 Scoreboard44
+[2026-04-23T21:12:23] [info] message: 📱 eSIM Airvoice (AT&T) — from $70	from: 8273560746 Scoreboard44
+[2026-04-23T21:12:23] [info] Select plan duration: 1 Month — $70,3 Months — $120,6 Months — $150,1 Year — $180,Back,Back,Cancel	to: 8273560746
+[2026-04-24T22:15:55] [info] message: Back	from: 8273560746 Scoreboard44
+[2026-04-24T22:15:55] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746
+[2026-04-24T22:16:02] [info] message: ⚡ Upgrade Plan	from: 8273560746 Scoreboard44
+[2026-04-24T22:16:02] [info]   6 domains · 15,000 validations · unlimited SMS devices Daily,Weekly,Monthly,Back,Cancel	to: 8273560746
+[2026-04-24T22:16:52] [info] message: Cancel	from: 8273560746 Scoreboard44
+[2026-04-24T22:16:52] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746
+[2026-04-24T22:16:58] [info] message: 🛒 Digital Products	from: 8273560746 Scoreboard44
+[2026-04-24T22:16:58] [info] 📦 15 digital products sold this week 📞 Twilio Main Account — $450,📞 Twilio Sub-Account — $200,📡 Telnyx Main Account — $400,📡 Telnyx Sub-Account — $150,☁️ AWS Main Account — $350,☁️ AWS Sub-Account — $150,🌐 Google Cloud Main — $300,🌐 Google Cloud Sub — $150,📧 Google Workspace Admin (New Domain) — $150,📧 Google Workspace Admin (Aged Domain) — $250,📧 Zoho Mail (New Domain) — $100,📧 Zoho Mail (Aged Domain) — $150,📱 eSIM T-Mobile — $60,📱 eSIM Airvoice (AT&T) — from $70,📧 IONOS SMTP — $150,Back,🏠 Main Menu,Back,Cancel	to: 8273560746
+[2026-04-24T22:17:27] [info] message: Cancel	from: 8273560746 Scoreboard44
+[2026-04-24T22:17:27] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746
+[2026-04-24T22:17:47] [info] message: 👛 Wallet	from: 8273560746 Scoreboard44
+[2026-04-24T22:17:47] [info] 🏆 Spend <b>$99</b> more → <b>Silver 🥈</b> (5% off everything) ➕💵 Deposit,📜 Transactions,🏆 My Tier,Back,Back,Cancel	to: 8273560746
+[2026-04-24T22:26:37] [info] message: Back	from: 8273560746 Scoreboard44
+[2026-04-24T22:26:37] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746
+[2026-04-24T22:26:42] [info] message: 🛒 Digital Products	from: 8273560746 Scoreboard44
+[2026-04-24T22:26:42] [info] 📦 15 digital products sold this week 📞 Twilio Main Account — $450,📞 Twilio Sub-Account — $200,📡 Telnyx Main Account — $400,📡 Telnyx Sub-Account — $150,☁️ AWS Main Account — $350,☁️ AWS Sub-Account — $150,🌐 Google Cloud Main — $300,🌐 Google Cloud Sub — $150,📧 Google Workspace Admin (New Domain) — $150,📧 Google Workspace Admin (Aged Domain) — $250,📧 Zoho Mail (New Domain) — $100,📧 Zoho Mail (Aged Domain) — $150,📱 eSIM T-Mobile — $60,📱 eSIM Airvoice (AT&T) — from $70,📧 IONOS SMTP — $150,Back,🏠 Main Menu,Back,Cancel	to: 8273560746
+[2026-04-24T22:27:10] [info] message: Cancel	from: 8273560746 Scoreboard44
+[2026-04-24T22:27:10] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746
+[2026-04-24T22:27:47] [info] message: 🛒 Digital Products	from: 8273560746 Scoreboard44
+[2026-04-24T22:27:47] [info] 📦 15 digital products sold this week 📞 Twilio Main Account — $450,📞 Twilio Sub-Account — $200,📡 Telnyx Main Account — $400,📡 Telnyx Sub-Account — $150,☁️ AWS Main Account — $350,☁️ AWS Sub-Account — $150,🌐 Google Cloud Main — $300,🌐 Google Cloud Sub — $150,📧 Google Workspace Admin (New Domain) — $150,📧 Google Workspace Admin (Aged Domain) — $250,📧 Zoho Mail (New Domain) — $100,📧 Zoho Mail (Aged Domain) — $150,📱 eSIM T-Mobile — $60,📱 eSIM Airvoice (AT&T) — from $70,📧 IONOS SMTP — $150,Back,🏠 Main Menu,Back,Cancel	to: 8273560746
+[2026-04-25T13:50:29] [info] message: /start ref_8273560746	from: 7270166092 DoDaDash00
+[2026-04-25T19:08:36] [info] message: /start ref_8273560746	from: 8731652358 undefined
+[2026-04-25T19:08:36] [info] [Referral] Wallet referral saved: 8731652358 referred by 8273560746 (8273560746)
+[2026-04-26T18:22:40] [info] message: /start	from: 8273560746 Scoreboard44
+[2026-04-26T18:22:40] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746
+[2026-04-26T18:22:40] [info] message: 📞 Cloud IVR + SIP	from: 8273560746 Scoreboard44
+[2026-04-26T18:22:40] [info] 📞 33 phone numbers activated this week 📢 Quick IVR Call,📞 Bulk IVR Campaign,🎵 Audio Library,🧪 Test SIP Free,🛒 Choose a Plan,📋 My Plans,📖 SIP Setup Guide,📊 Usage & Billing,❓ How It Works,Back,Cancel	to: 8273560746
+[2026-04-26T18:22:42] [info] message: 📢 Quick IVR Call	from: 8273560746 Scoreboard44
+[2026-04-26T18:22:42] [info]  💾 G2B,📞 New Call,🗑️ Delete Preset,Back,Cancel	to: 8273560746
+[2026-04-26T18:22:49] [info] message: 💾 G2B	from: 8273560746 Scoreboard44
+[2026-04-26T18:22:49] [info] <i>Batch: +12025551234, +12025555678</i> Back,Cancel	to: 8273560746
+[2026-04-26T18:23:28] [info] 🔘 Active keys: <b>1</b> 	to: 8273560746
+[2026-04-26T18:23:28] [info] Enter value for <b>[Name]</b>: Nashville Tn,Dear Customer,Back,Cancel	to: 8273560746
+[2026-04-26T18:23:28] [info] message: +16158290545	from: 8273560746 Scoreboard44
+[2026-04-26T18:23:28] [info] reply: 🔍 Looking up number... 	to: 8273560746
+[2026-04-26T18:23:28] [info] reply: 📋 Found: <b>Nashville Tn</b> 	to: 8273560746
+[2026-04-26T18:23:31] [info] message: Harold Whitmore	from: 8273560746 Scoreboard44
+[2026-04-26T18:23:31] [info] Enter value for <b>[Bank]</b>: 📌 FSNB,Back,Cancel	to: 8273560746
+[2026-04-26T18:23:33] [info] message: 📌 FSNB	from: 8273560746 Scoreboard44
+[2026-04-26T18:23:33] [info] Tap to accept, regenerate, or type your own: 💳 8074,🔄 Regenerate,Back,Cancel	to: 8273560746
+[2026-04-26T18:23:40] [info] message: 1 8 7 6	from: 8273560746 Scoreboard44
+[2026-04-26T18:23:40] [info] Select from the list or type your own: fraud alert,account suspension,unusual activity,security verification,unauthorized transaction,identity confirmation,account review,payment dispute,✍️ Custom,Back,Cancel	to: 8273560746
+[2026-04-26T18:23:45] [info] message: unauthorized transaction	from: 8273560746 Scoreboard44
+[2026-04-26T18:23:45] [info] Enter value for <b>[Company]</b>: 📌 Barnes & Noble,Back,Cancel	to: 8273560746
+[2026-04-26T18:23:47] [info] <i>Example: Houston, Texas</i> Back,Cancel	to: 8273560746
+[2026-04-26T18:23:47] [info] message: 📌 Barnes & Noble	from: 8273560746 Scoreboard44
+[2026-04-26T18:23:54] [info] message: Arlington, Texas	from: 8273560746 Scoreboard44
+[2026-04-26T18:23:54] [info] Enter value for <b>[Amount]</b>: 📌 $89.71,Back,Cancel	to: 8273560746
+[2026-04-26T18:23:56] [info] message: 📌 $89.71	from: 8273560746 Scoreboard44
+[2026-04-26T18:23:56] [info] reply: ✅ All values set!\n\n📋 <b>Select Call Mode</b>\n\n🔗 <b>Transfer</b> — When target presses the key, bridge them to your number\n🔑 <b>OTP Collection</b> — Prompt target for a code, you verify via Telegram\n\nBoth modes report full results. 🔗 Transfer,🔑 OTP Collection,↩️ Back,Back,Cancel	to: 8273560746
+[2026-04-26T18:24:02] [info] message: 🔗 Transfer	from: 8273560746 Scoreboard44
+[2026-04-26T18:24:02] [info] reply: 🔗 <b>Transfer Mode</b>\n\nEnter the number to transfer the caller to when they press a key:\n<i>Example: +17174794833</i> ↩️ Back,Back,Cancel	to: 8273560746
+[2026-04-26T18:24:36] [info] message: +19314399742	from: 8273560746 Scoreboard44
+[2026-04-26T18:24:36] [info] reply: 🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine: 🟢 OpenAI — Best,🔵 ElevenLabs,Back,Cancel	to: 8273560746
+[2026-04-26T18:24:38] [info] message: 🟢 OpenAI — Best	from: 8273560746 Scoreboard44
+[2026-04-26T18:24:38] [info] reply: 🎤 <b>Select Voice</b>\n\nChoose a voice for the IVR audio: ⭐ Last: Onyx,Alloy — Most used,Fable — Expressive, British,Nova — Warm, friendly female,Shimmer — Clear, pleasant female,Echo — Warm, deep male,Onyx — Deep, authoritative male,Back,Cancel	to: 8273560746
+[2026-04-26T18:24:40] [info] message: ⭐ Last: Onyx	from: 8273560746 Scoreboard44
+[2026-04-26T18:24:40] [info] Choose how fast the voice speaks: ⭐ Last: 0.7x,🐌 Very Slow (0.7x),🐢 Slow (0.85x),🚶 Normal (1.0x),🏃 Fast (1.15x),⚡ Very Fast (1.35x),✍️ Custom Speed,Back,Cancel	to: 8273560746
+[2026-04-26T18:24:42] [info] ⏳ Generating audio preview... 	to: 8273560746
+[2026-04-26T18:24:42] [info] message: ⭐ Last: 0.7x	from: 8273560746 Scoreboard44
+[2026-04-26T18:24:57] [info] message: ✅ Confirm	from: 8273560746 Scoreboard44
+[2026-04-26T18:24:57] [info] /cancel to abort /yes,🕐 Schedule,Back,Cancel	to: 8273560746
+[2026-04-26T18:25:03] [info] 🏢 Template: Custom Script 	to: 8273560746
+[2026-04-26T18:25:03] [info] message: /yes	from: 8273560746 Scoreboard44
+[2026-04-26T18:28:05] [info] message: Cancel	from: 8273560746 Scoreboard44
+[2026-04-26T18:28:05] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746
+[2026-04-26T18:28:08] [info] message: 📞 Cloud IVR + SIP	from: 8273560746 Scoreboard44
+[2026-04-26T18:28:08] [info] 📞 33 phone numbers activated this week 📢 Quick IVR Call,📞 Bulk IVR Campaign,🎵 Audio Library,🧪 Test SIP Free,🛒 Choose a Plan,📋 My Plans,📖 SIP Setup Guide,📊 Usage & Billing,❓ How It Works,Back,Cancel	to: 8273560746
+[2026-04-26T18:28:11] [info] message: 📢 Quick IVR Call	from: 8273560746 Scoreboard44
+[2026-04-26T18:28:11] [info]  💾 G2B,📞 New Call,🗑️ Delete Preset,Back,Cancel	to: 8273560746
+[2026-04-26T18:28:16] [info] message: Cancel	from: 8273560746 Scoreboard44
+[2026-04-26T18:28:16] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746
+[2026-04-26T18:28:18] [info] message: 📞 Cloud IVR + SIP	from: 8273560746 Scoreboard44
+[2026-04-26T18:28:18] [info] 📞 33 phone numbers activated this week 📢 Quick IVR Call,📞 Bulk IVR Campaign,🎵 Audio Library,🧪 Test SIP Free,🛒 Choose a Plan,📋 My Plans,📖 SIP Setup Guide,📊 Usage & Billing,❓ How It Works,Back,Cancel	to: 8273560746
+[2026-04-26T18:28:20] [info] message: 📢 Quick IVR Call	from: 8273560746 Scoreboard44
+[2026-04-26T18:28:20] [info]  💾 G2B,📞 New Call,🗑️ Delete Preset,Back,Cancel	to: 8273560746
+[2026-04-26T18:28:22] [info] message: 📞 New Call	from: 8273560746 Scoreboard44
+[2026-04-26T18:28:22] [info] reply: 📞 <b>New IVR Call</b>\n\nSelect the number to call FROM (Caller ID): +18888370876,+18339561373,↩️ Back,Back,Cancel	to: 8273560746
+[2026-04-26T18:28:25] [info] message: +18888370876	from: 8273560746 Scoreboard44
+[2026-04-26T18:28:25] [info] <i>Batch: +12025551234, +12025555678</i> Back,Cancel	to: 8273560746
+[2026-04-26T18:28:51] [info] message: +19314399742	from: 8273560746 Scoreboard44
+[2026-04-26T18:28:51] [info] reply: 🔍 Looking up number... 	to: 8273560746
+[2026-04-26T18:28:51] [info] message: ✍️ Custom Script	from: 8273560746 Scoreboard44
+[2026-04-26T18:28:51] [info] reply: ✍️ <b>Custom Script</b>\n\nType your IVR message. Use <b>[Brackets]</b> for variables:\n\n<b>Standard:</b> [Name], [Company], [Bank], [Amount]\n<b>Smart (auto-fill):</b> [CardLast4], [CaseID], [ReferenceNum]\n<b>Smart (pick):</b> [Reason], [Location], [CallBack]\n\n<i>Example: Hello [Name]. This is [Bank] security. A charge of $[Amount] was made on card ending [CardLast4]. Case [CaseID]. Press 1 to dispute.</i>\n\nType your script: ℹ️ All Placeholders,Back,Cancel	to: 8273560746
+[2026-04-26T18:28:51] [info] Choose template or write your own: ✍️ Custom Script,💳 Payment Alerts,🔒 Account Security,📦 Delivery & Service,Back,Cancel	to: 8273560746
+[2026-04-26T18:28:53] [info] message: ℹ️ All Placeholders	from: 8273560746 Scoreboard44
+[2026-04-26T18:28:53] [info] reply: 📋 <b>Complete Placeholder Reference</b>\n\n<b>🔤 Standard (you type the value):</b>\n• <code>[Name]</code> — Recipient's name\n• <code>[Bank]</code> — Bank or institution name\n• <code>[Company]</code> — Company or merchant name\n• <code>[Amount]</code> — Dollar amount\n\n<b>🤖 Smart Auto-Fill (generated for you):</b>\n• <code>[CardLast4]</code> — Random 4-digit card number\n• <code>[CaseID]</code> — Random case/reference ID\n• <code>[ReferenceNum]</code> — Random reference number\n\n<b>📋 Smart Pick (choose from presets):</b>\n• <code>[Reason]</code> — fraud alert, account suspension, unusual activity, etc.\n• <code>[Location]</code> — City, State format (you type)\n• <code>[CallBack]</code> — Your Nomadly phone number\n\n<b>💡 Tips:</b>\n• Mix standard + smart placeholders freely\n• Placeholders are case-sensitive: <code>[Bank]</code> not <code>[bank]</code>\n• Include "press 1" in your script to auto-detect active keys\n\nNow type your script: ℹ️ All Placeholders,Back,Cancel	to: 8273560746
+[2026-04-26T18:30:03] [info] message: /start	from: 8273560746 Scoreboard44
+[2026-04-26T18:30:03] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746
+[2026-04-26T18:30:05] [info] message: 📞 Cloud IVR + SIP	from: 8273560746 Scoreboard44
+[2026-04-26T18:30:05] [info] 📞 33 phone numbers activated this week 📢 Quick IVR Call,📞 Bulk IVR Campaign,🎵 Audio Library,🧪 Test SIP Free,🛒 Choose a Plan,📋 My Plans,📖 SIP Setup Guide,📊 Usage & Billing,❓ How It Works,Back,Cancel	to: 8273560746
+[2026-04-26T18:30:12] [info] message: 📋 My Plans	from: 8273560746 Scoreboard44
+[2026-04-26T18:30:12] [info]  1,2,🛒 Buy Another Number,Back,Cancel	to: 8273560746
+[2026-04-26T18:30:15] [info] message: 1	from: 8273560746 Scoreboard44
+[2026-04-26T18:30:15] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-26T18:30:18] [info] message: 🤖 IVR / Auto-attendant	from: 8273560746 Scoreboard44
+[2026-04-26T18:30:18] [info] When enabled, callers hear a greeting menu and can press keys to reach the right destination. ✅ Enable IVR,Back,Cancel	to: 8273560746
+[2026-04-26T18:30:22] [info] message: ✅ Enable IVR	from: 8273560746 Scoreboard44
+[2026-04-26T18:30:22] [info] Callers will hear your greeting and can press keys to navigate. 	to: 8273560746
+[2026-04-26T18:30:22] [info]  🎤 Set Greeting,➕ Add Menu Option,➖ Remove Option,📋 View Menu Options,📊 IVR Analytics,🚫 Disable IVR,Back,Cancel	to: 8273560746
+[2026-04-26T18:30:24] [info] message: 🎤 Set Greeting	from: 8273560746 Scoreboard44
+[2026-04-26T18:30:24] [info] reply: 🎤 <b>Set IVR Greeting</b>\n\nChoose how to create your greeting: 📋 Use Template,📝 Type Text (AI Voice),🎙️ Upload Audio,Back,Cancel	to: 8273560746
+[2026-04-26T18:30:27] [info] message: 📝 Type Text (AI Voice)	from: 8273560746 Scoreboard44
+[2026-04-26T18:30:27] [info] reply: 📝 Type the greeting callers will hear.\n\n<i>Example: "Thank you for calling Nomadly. Press 1 for sales, press 2 for support."</i> Back,Cancel	to: 8273560746
+[2026-04-26T18:33:25] [info] message: Cancel	from: 8273560746 Scoreboard44
+[2026-04-26T18:33:25] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746
+[2026-04-26T18:33:25] [info] message: 📞 Cloud IVR + SIP	from: 8273560746 Scoreboard44
+[2026-04-26T18:33:25] [info] 📞 33 phone numbers activated this week 📢 Quick IVR Call,📞 Bulk IVR Campaign,🎵 Audio Library,🧪 Test SIP Free,🛒 Choose a Plan,📋 My Plans,📖 SIP Setup Guide,📊 Usage & Billing,❓ How It Works,Back,Cancel	to: 8273560746
+[2026-04-26T18:33:25] [info] message: 📋 My Plans	from: 8273560746 Scoreboard44
+[2026-04-26T18:33:25] [info]  1,2,🛒 Buy Another Number,Back,Cancel	to: 8273560746
+[2026-04-26T18:33:27] [info] message: 1	from: 8273560746 Scoreboard44
+[2026-04-26T18:33:27] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-26T18:33:30] [info] message: 📞 Call Forwarding	from: 8273560746 Scoreboard44
+[2026-04-26T18:33:30] [info] 💳 Charged from wallet at $0.5/min · 💳 $58.20 📞 Always Forward,📵 Forward When Busy,⏰ Forward If No Answer,Back,Cancel	to: 8273560746
+[2026-04-26T18:33:35] [info] message: 📞 Always Forward	from: 8273560746 Scoreboard44
+[2026-04-26T18:33:35] [info] 💰 <b>$0.5/min</b> · 💳 $58.20 	to: 8273560746
+[2026-04-26T18:33:55] [info] message: 19314399742	from: 8273560746 Scoreboard44
+[2026-04-26T18:33:55] [info] reply: ⏳ Validating destination... 	to: 8273560746
+[2026-04-26T18:33:55] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-26T18:33:55] [info] 💳 $58.20 (~116 min) 	to: 8273560746
+[2026-04-26T18:33:56] [info] message: 🎙️ Voicemail	from: 8273560746 Scoreboard44
+[2026-04-26T18:33:56] [info] When enabled, unanswered calls will hear a greeting and callers can leave a voice message. ✅ Enable Voicemail,Back,Cancel	to: 8273560746
+[2026-04-26T18:33:58] [info] message: ✅ Enable Voicemail	from: 8273560746 Scoreboard44
+[2026-04-26T18:33:58] [info] Recordings will be sent to this Telegram chat. 	to: 8273560746
+[2026-04-26T18:33:58] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-26T18:34:02] [info] message: 🎙️ Voicemail	from: 8273560746 Scoreboard44
+[2026-04-26T18:34:02] [info] ⏰ Ring Time: 25s 🔊 Greeting,📲 VM to Telegram ✅ ON,📧 VM to Email ❌ OFF,⏰ Ring Time: 25s,🚫 Disable Voicemail,Back,Cancel	to: 8273560746
+[2026-04-26T18:34:04] [info] message: 🔊 Greeting	from: 8273560746 Scoreboard44
+[2026-04-26T18:34:04] [info] Choose an option below: 🎤 Custom Greeting (Audio),🔄 Default Greeting,Back,Back,Cancel	to: 8273560746
+[2026-04-26T18:34:08] [info] message: 🎤 Custom Greeting (Audio)	from: 8273560746 Scoreboard44
+[2026-04-26T18:34:08] [info] Choose how to create your greeting: 📋 Use Template,📝 Type Text (AI Voice),🎙️ Upload Audio,Back,Cancel	to: 8273560746
+[2026-04-26T18:34:13] [info] message: 📝 Type Text (AI Voice)	from: 8273560746 Scoreboard44
+[2026-04-26T18:34:13] [info] reply: 📝 Type the greeting callers will hear: Back,Cancel	to: 8273560746
+[2026-04-26T18:34:33] [info] message: After the tone,  please Include your name, and callback number. We've saved your place in line. One of our agents will contact you by the order in which we received your call. Thank you.	from: 8273560746 Scoreboard44
+[2026-04-26T18:34:33] [info] <i>"After the tone,  please Include your name, and callback number. We've saved your..."</i> 🇺🇸 English,🇫🇷 Français,🇪🇸 Español,🇩🇪 Deutsch,🇮🇹 Italiano,🇧🇷 Português,🇳🇱 Nederlands,🇵🇱 Polski,🇯🇵 日本語,🇰🇷 한국어,🇨🇳 中文,🇮🇳 हिन्दी,🇸🇦 العربية,🇷🇺 Русский,🇹🇷 Türkçe,🇸🇪 Svenska,🇩🇰 Dansk,🇳🇴 Norsk,🇫🇮 Suomi,🇬🇷 Ελληνικά,Back,Cancel	to: 8273560746
+[2026-04-26T18:34:33] [info] message: 🇺🇸 English	from: 8273560746 Scoreboard44
+[2026-04-26T18:34:33] [info] reply: 🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine: 🟢 OpenAI — Best,🔵 ElevenLabs,Back,Cancel	to: 8273560746
+[2026-04-26T18:34:33] [info] message: 🟢 OpenAI — Best	from: 8273560746 Scoreboard44
+[2026-04-26T18:34:33] [info] reply: 🎙️ Choose a voice: Alloy — Most used,Fable — Expressive, British,Nova — Warm, friendly female,Shimmer — Clear, pleasant female,Echo — Warm, deep male,Onyx — Deep, authoritative male,Back,Cancel	to: 8273560746
+[2026-04-26T18:34:34] [info] message: Onyx — Deep, authoritative male	from: 8273560746 Scoreboard44
+[2026-04-26T18:34:34] [info] reply: 🔄 Generating audio preview... 	to: 8273560746
+[2026-04-26T18:34:41] [info] Save this greeting? ✅ Save Greeting,🔄 Try Different Voice,🌐 Change Language,📝 Re-type Text,Back,Cancel	to: 8273560746
+[2026-04-26T18:34:43] [info] message: ✅ Save Greeting	from: 8273560746 Scoreboard44
+[2026-04-26T18:34:43] [info] reply: ✅ Voicemail greeting saved! 	to: 8273560746
+[2026-04-26T18:34:43] [info] ⏰ Ring Time: 25s 🔊 Greeting,📲 VM to Telegram ✅ ON,📧 VM to Email ❌ OFF,⏰ Ring Time: 25s,🚫 Disable Voicemail,Back,Cancel	to: 8273560746
+[2026-04-26T18:34:46] [info] message: ⏰ Ring Time: 25s	from: 8273560746 Scoreboard44
+[2026-04-26T18:34:46] [info] reply: How long should the phone ring before voicemail? 15s,20s,25s,30s,Back,Cancel	to: 8273560746
+[2026-04-26T18:34:48] [info] message: 15s	from: 8273560746 Scoreboard44
+[2026-04-26T18:34:48] [info] reply: ✅ Ring time updated to 15 seconds. 	to: 8273560746
+[2026-04-26T18:34:48] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-26T18:34:53] [info] message: 🎙️ Voicemail	from: 8273560746 Scoreboard44
+[2026-04-26T18:34:53] [info] ⏰ Ring Time: 15s 🔊 Greeting,📲 VM to Telegram ✅ ON,📧 VM to Email ❌ OFF,⏰ Ring Time: 15s,🚫 Disable Voicemail,Back,Cancel	to: 8273560746
+[2026-04-26T18:34:58] [info] message: Back	from: 8273560746 Scoreboard44
+[2026-04-26T18:34:58] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-26T18:35:00] [info] message: 🤖 IVR / Auto-attendant	from: 8273560746 Scoreboard44
+[2026-04-26T18:35:00] [info] When enabled, callers hear a greeting menu and can press keys to reach the right destination. ✅ Enable IVR,Back,Cancel	to: 8273560746
+[2026-04-26T18:35:02] [info] message: ✅ Enable IVR	from: 8273560746 Scoreboard44
+[2026-04-26T18:35:02] [info]  🎤 Set Greeting,➕ Add Menu Option,➖ Remove Option,📋 View Menu Options,📊 IVR Analytics,🚫 Disable IVR,Back,Cancel	to: 8273560746
+[2026-04-26T18:35:02] [info] Callers will hear your greeting and can press keys to navigate. 	to: 8273560746
+[2026-04-26T18:35:04] [info] message: 🎤 Set Greeting	from: 8273560746 Scoreboard44
+[2026-04-26T18:35:04] [info] reply: 🎤 <b>Set IVR Greeting</b>\n\nChoose how to create your greeting: 📋 Use Template,📝 Type Text (AI Voice),🎙️ Upload Audio,Back,Cancel	to: 8273560746
+[2026-04-26T18:35:07] [info] message: 📝 Type Text (AI Voice)	from: 8273560746 Scoreboard44
+[2026-04-26T18:35:07] [info] reply: 📝 Type the greeting callers will hear.\n\n<i>Example: "Thank you for calling Nomadly. Press 1 for sales, press 2 for support."</i> Back,Cancel	to: 8273560746
+[2026-04-26T18:35:13] [info] message: Welcome to card self service.  All of our agents are currently assisting other callers. Press 1 for a callback, and One of our agents will be right with you shortly. Press 2  if you would like to hold until a representative is available.	from: 8273560746 Scoreboard44
+[2026-04-26T18:35:13] [info] <i>"Welcome to card self service.  All of our agents are currently assisting other c..."</i> 🇺🇸 English,🇫🇷 Français,🇪🇸 Español,🇩🇪 Deutsch,🇮🇹 Italiano,🇧🇷 Português,🇳🇱 Nederlands,🇵🇱 Polski,🇯🇵 日本語,🇰🇷 한국어,🇨🇳 中文,🇮🇳 हिन्दी,🇸🇦 العربية,🇷🇺 Русский,🇹🇷 Türkçe,🇸🇪 Svenska,🇩🇰 Dansk,🇳🇴 Norsk,🇫🇮 Suomi,🇬🇷 Ελληνικά,Back,Cancel	to: 8273560746
+[2026-04-26T18:35:14] [info] message: 🇺🇸 English	from: 8273560746 Scoreboard44
+[2026-04-26T18:35:14] [info] reply: 🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine: 🟢 OpenAI — Best,🔵 ElevenLabs,Back,Cancel	to: 8273560746
+[2026-04-26T18:35:16] [info] message: 🟢 OpenAI — Best	from: 8273560746 Scoreboard44
+[2026-04-26T18:35:16] [info] reply: 🎙️ Choose a voice for your greeting: Alloy — Most used,Fable — Expressive, British,Nova — Warm, friendly female,Shimmer — Clear, pleasant female,Echo — Warm, deep male,Onyx — Deep, authoritative male,Back,Cancel	to: 8273560746
+[2026-04-26T18:35:18] [info] message: Onyx — Deep, authoritative male	from: 8273560746 Scoreboard44
+[2026-04-26T18:35:18] [info] reply: 🔄 Generating audio preview... 	to: 8273560746
+[2026-04-26T18:35:25] [info] 📝 Re-type the text? ✅ Save Greeting,🔄 Try Different Voice,🌐 Change Language,📝 Re-type Text,Back,Cancel	to: 8273560746
+[2026-04-26T18:35:27] [info] message: ✅ Save Greeting	from: 8273560746 Scoreboard44
+[2026-04-26T18:35:27] [info] reply: ✅ IVR greeting saved! 	to: 8273560746
+[2026-04-26T18:35:27] [info]  🎤 Set Greeting,➕ Add Menu Option,➖ Remove Option,📋 View Menu Options,📊 IVR Analytics,🚫 Disable IVR,Back,Cancel	to: 8273560746
+[2026-04-26T18:35:29] [info] message: ➕ Add Menu Option	from: 8273560746 Scoreboard44
+[2026-04-26T18:35:30] [info] Enter the key number (0-9) for this option: 0,1,2,3,4,5,6,7,8,9,Back,Cancel	to: 8273560746
+[2026-04-26T18:35:33] [info] message: 1	from: 8273560746 Scoreboard44
+[2026-04-26T18:35:33] [info] What should happen when a caller presses <b>1</b>? 📞 Forward Call,💬 Play Message,📬 Send to Voicemail,Back,Cancel	to: 8273560746
+[2026-04-26T18:35:40] [info] message: 📬 Send to Voicemail	from: 8273560746 Scoreboard44
+[2026-04-26T18:35:41] [info] reply: ✅ Key <b>1</b> → Send to Voicemail — saved! 	to: 8273560746
+[2026-04-26T18:35:41] [info]  🎤 Set Greeting,➕ Add Menu Option,➖ Remove Option,📋 View Menu Options,📊 IVR Analytics,🚫 Disable IVR,Back,Cancel	to: 8273560746
+[2026-04-26T18:35:43] [info] message: ➕ Add Menu Option	from: 8273560746 Scoreboard44
+[2026-04-26T18:35:43] [info] Enter the key number (0-9) for this option: 0,1,2,3,4,5,6,7,8,9,Back,Cancel	to: 8273560746
+[2026-04-26T18:35:45] [info] message: 2	from: 8273560746 Scoreboard44
+[2026-04-26T18:35:45] [info] What should happen when a caller presses <b>2</b>? 📞 Forward Call,💬 Play Message,📬 Send to Voicemail,Back,Cancel	to: 8273560746
+[2026-04-26T18:36:04] [info] message: 📞 Forward Call	from: 8273560746 Scoreboard44
+[2026-04-26T18:36:04] [info] <i>Example: +15551234567</i> Back,Cancel	to: 8273560746
+[2026-04-26T18:36:07] [info] message: 19314399742	from: 8273560746 Scoreboard44
+[2026-04-26T18:36:07] [info]  🎤 Set Greeting,➕ Add Menu Option,➖ Remove Option,📋 View Menu Options,📊 IVR Analytics,🚫 Disable IVR,Back,Cancel	to: 8273560746
+[2026-04-26T18:36:07] [info] reply: ✅ Key <b>2</b> → Forward to <b>19314399742</b> — saved! 	to: 8273560746
+[2026-04-26T18:36:27] [info] message: Cancel	from: 8273560746 Scoreboard44
+[2026-04-26T18:36:27] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746
+[2026-04-26T18:36:27] [info] message: 📞 Cloud IVR + SIP	from: 8273560746 Scoreboard44
+[2026-04-26T18:36:27] [info]  💾 G2B,📞 New Call,🗑️ Delete Preset,Back,Cancel	to: 8273560746
+[2026-04-26T18:36:27] [info] 📞 33 phone numbers activated this week 📢 Quick IVR Call,📞 Bulk IVR Campaign,🎵 Audio Library,🧪 Test SIP Free,🛒 Choose a Plan,📋 My Plans,📖 SIP Setup Guide,📊 Usage & Billing,❓ How It Works,Back,Cancel	to: 8273560746
+[2026-04-26T18:36:27] [info] message: 📢 Quick IVR Call	from: 8273560746 Scoreboard44
+[2026-04-26T18:36:29] [info] message: 📞 New Call	from: 8273560746 Scoreboard44
+[2026-04-26T18:36:29] [info] reply: 📞 <b>New IVR Call</b>\n\nSelect the number to call FROM (Caller ID): +18888370876,+18339561373,↩️ Back,Back,Cancel	to: 8273560746
+[2026-04-26T18:36:31] [info] message: +18888370876	from: 8273560746 Scoreboard44
+[2026-04-26T18:36:31] [info] <i>Batch: +12025551234, +12025555678</i> Back,Cancel	to: 8273560746
+[2026-04-26T18:37:01] [info] message: +16158290545	from: 8273560746 Scoreboard44
+[2026-04-26T18:37:01] [info] reply: 🔍 Looking up number... 	to: 8273560746
+[2026-04-26T18:37:01] [info] reply: 📋 Found: <b>Nashville Tn</b> 	to: 8273560746
+[2026-04-26T18:37:01] [info] Choose template or write your own: ✍️ Custom Script,💳 Payment Alerts,🔒 Account Security,📦 Delivery & Service,Back,Cancel	to: 8273560746
+[2026-04-26T18:37:01] [info] message: ✍️ Custom Script	from: 8273560746 Scoreboard44
+[2026-04-26T18:37:01] [info] reply: ✍️ <b>Custom Script</b>\n\nType your IVR message. Use <b>[Brackets]</b> for variables:\n\n<b>Standard:</b> [Name], [Company], [Bank], [Amount]\n<b>Smart (auto-fill):</b> [CardLast4], [CaseID], [ReferenceNum]\n<b>Smart (pick):</b> [Reason], [Location], [CallBack]\n\n<i>Example: Hello [Name]. This is [Bank] security. A charge of $[Amount] was made on card ending [CardLast4]. Case [CaseID]. Press 1 to dispute.</i>\n\nType your script: ℹ️ All Placeholders,Back,Cancel	to: 8273560746
+[2026-04-26T18:37:05] [info] message: ℹ️ All Placeholders	from: 8273560746 Scoreboard44
+[2026-04-26T18:37:05] [info] reply: 📋 <b>Complete Placeholder Reference</b>\n\n<b>🔤 Standard (you type the value):</b>\n• <code>[Name]</code> — Recipient's name\n• <code>[Bank]</code> — Bank or institution name\n• <code>[Company]</code> — Company or merchant name\n• <code>[Amount]</code> — Dollar amount\n\n<b>🤖 Smart Auto-Fill (generated for you):</b>\n• <code>[CardLast4]</code> — Random 4-digit card number\n• <code>[CaseID]</code> — Random case/reference ID\n• <code>[ReferenceNum]</code> — Random reference number\n\n<b>📋 Smart Pick (choose from presets):</b>\n• <code>[Reason]</code> — fraud alert, account suspension, unusual activity, etc.\n• <code>[Location]</code> — City, State format (you type)\n• <code>[CallBack]</code> — Your Nomadly phone number\n\n<b>💡 Tips:</b>\n• Mix standard + smart placeholders freely\n• Placeholders are case-sensitive: <code>[Bank]</code> not <code>[bank]</code>\n• Include "press 1" in your script to auto-detect active keys\n\nNow type your script: ℹ️ All Placeholders,Back,Cancel	to: 8273560746
+[2026-04-26T18:37:25] [info] If you authorized this transaction, you may hang up.  If you did not authorize this payment,  please press 1,  to block this transaction immediately.	from: 8273560746 Scoreboard44
+[2026-04-26T18:37:25] [info] <i>Example: 1,2,3 or 1,5,9</i> ✅ Continue,↩️ Back,Back,Cancel	to: 8273560746
+[2026-04-26T18:37:25] [info] message: ✅ Continue	from: 8273560746 Scoreboard44
+[2026-04-26T18:37:25] [info] reply: Enter value for <b>[Name]</b>: Nashville Tn,📌 Harold Whitmore,Dear Customer,Back,Cancel	to: 8273560746
+[2026-04-26T18:37:29] [info] message: 📌 Harold Whitmore	from: 8273560746 Scoreboard44
+[2026-04-26T18:37:29] [info] Enter value for <b>[Bank]</b>: 📌 FSNB,Back,Cancel	to: 8273560746
+[2026-04-26T18:37:31] [info] message: 📌 FSNB	from: 8273560746 Scoreboard44
+[2026-04-26T18:37:31] [info] Tap to accept, regenerate, or type your own: 💳 8450,🔄 Regenerate,Back,Cancel	to: 8273560746
+[2026-04-26T18:37:38] [info] message: 1 8 7 6	from: 8273560746 Scoreboard44
+[2026-04-26T18:37:38] [info] Select from the list or type your own: fraud alert,account suspension,unusual activity,security verification,unauthorized transaction,identity confirmation,account review,payment dispute,✍️ Custom,Back,Cancel	to: 8273560746
+[2026-04-26T18:37:40] [info] message: unauthorized transaction	from: 8273560746 Scoreboard44
+[2026-04-26T18:37:40] [info] Enter value for <b>[Company]</b>: 📌 Barnes & Noble,Back,Cancel	to: 8273560746
+[2026-04-26T18:37:42] [info] message: 📌 Barnes & Noble	from: 8273560746 Scoreboard44
+[2026-04-26T18:37:42] [info] <i>Example: Houston, Texas</i> Back,Cancel	to: 8273560746
+[2026-04-26T18:37:48] [info] message: Arlington, Texas	from: 8273560746 Scoreboard44
+[2026-04-26T18:37:48] [info] Enter value for <b>[Amount]</b>: 📌 $89.71,Back,Cancel	to: 8273560746
+[2026-04-26T18:37:53] [info] message: 📌 $89.71	from: 8273560746 Scoreboard44
+[2026-04-26T18:37:53] [info] reply: ✅ All values set!\n\n📋 <b>Select Call Mode</b>\n\n🔗 <b>Transfer</b> — When target presses the key, bridge them to your number\n🔑 <b>OTP Collection</b> — Prompt target for a code, you verify via Telegram\n\nBoth modes report full results. 🔗 Transfer,🔑 OTP Collection,↩️ Back,Back,Cancel	to: 8273560746
+[2026-04-26T18:37:55] [info] message: 🔗 Transfer	from: 8273560746 Scoreboard44
+[2026-04-26T18:37:55] [info] reply: 🔗 <b>Transfer Mode</b>\n\nEnter the number to transfer the caller to when they press a key:\n<i>Example: +17174794833</i> ↩️ Back,Back,Cancel	to: 8273560746
+[2026-04-26T18:38:25] [info] message: +19314399742	from: 8273560746 Scoreboard44
+[2026-04-26T18:38:25] [info] reply: 🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine: 🟢 OpenAI — Best,🔵 ElevenLabs,Back,Cancel	to: 8273560746
+[2026-04-26T18:38:25] [info] message: 🟢 OpenAI — Best	from: 8273560746 Scoreboard44
+[2026-04-26T18:38:25] [info] reply: 🎤 <b>Select Voice</b>\n\nChoose a voice for the IVR audio: ⭐ Last: Onyx,Alloy — Most used,Fable — Expressive, British,Nova — Warm, friendly female,Shimmer — Clear, pleasant female,Echo — Warm, deep male,Onyx — Deep, authoritative male,Back,Cancel	to: 8273560746
+[2026-04-26T18:38:25] [info] message: ⭐ Last: Onyx	from: 8273560746 Scoreboard44
+[2026-04-26T18:38:25] [info] Choose how fast the voice speaks: ⭐ Last: 0.7x,🐌 Very Slow (0.7x),🐢 Slow (0.85x),🚶 Normal (1.0x),🏃 Fast (1.15x),⚡ Very Fast (1.35x),✍️ Custom Speed,Back,Cancel	to: 8273560746
+[2026-04-26T18:38:25] [info] message: ⭐ Last: 0.7x	from: 8273560746 Scoreboard44
+[2026-04-26T18:38:25] [info] ⏳ Generating audio preview... 	to: 8273560746
+[2026-04-26T18:39:02] [info] message: ✅ Confirm	from: 8273560746 Scoreboard44
+[2026-04-26T18:39:02] [info] /cancel to abort /yes,🕐 Schedule,Back,Cancel	to: 8273560746
+[2026-04-26T18:39:03] [info] message: /yes	from: 8273560746 Scoreboard44
+[2026-04-26T18:39:03] [info] 🏢 Template: Custom Script 	to: 8273560746
+[2026-04-26T18:50:15] [info] message: Cancel	from: 8273560746 Scoreboard44
+[2026-04-26T18:50:15] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746
+[2026-04-26T18:50:16] [info] message: 📞 Cloud IVR + SIP	from: 8273560746 Scoreboard44
+[2026-04-26T18:50:16] [info] 📞 33 phone numbers activated this week 📢 Quick IVR Call,📞 Bulk IVR Campaign,🎵 Audio Library,🧪 Test SIP Free,🛒 Choose a Plan,📋 My Plans,📖 SIP Setup Guide,📊 Usage & Billing,❓ How It Works,Back,Cancel	to: 8273560746
+[2026-04-26T18:50:17] [info] message: 📢 Quick IVR Call	from: 8273560746 Scoreboard44
+[2026-04-26T18:50:17] [info]  💾 G2B,📞 New Call,🗑️ Delete Preset,Back,Cancel	to: 8273560746
+[2026-04-26T18:50:19] [info] message: 📞 New Call	from: 8273560746 Scoreboard44
+[2026-04-26T18:50:19] [info] reply: 📞 <b>New IVR Call</b>\n\nSelect the number to call FROM (Caller ID): +18888370876,+18339561373,↩️ Back,Back,Cancel	to: 8273560746
+[2026-04-26T18:50:21] [info] message: +18888370876	from: 8273560746 Scoreboard44
+[2026-04-26T18:50:21] [info] <i>Batch: +12025551234, +12025555678</i> Back,Cancel	to: 8273560746
+[2026-04-26T18:50:41] [info] message: +15414204336	from: 8273560746 Scoreboard44
+[2026-04-26T18:50:41] [info] reply: 🔍 Looking up number... 	to: 8273560746
+[2026-04-26T18:50:41] [info] reply: 📋 Found: <b>Tracy Todd</b> 	to: 8273560746
+[2026-04-26T18:50:41] [info] Choose template or write your own: ✍️ Custom Script,💳 Payment Alerts,🔒 Account Security,📦 Delivery & Service,Back,Cancel	to: 8273560746
+[2026-04-26T18:50:45] [info] message: ✍️ Custom Script	from: 8273560746 Scoreboard44
+[2026-04-26T18:50:45] [info] reply: ✍️ <b>Custom Script</b>\n\nType your IVR message. Use <b>[Brackets]</b> for variables:\n\n<b>Standard:</b> [Name], [Company], [Bank], [Amount]\n<b>Smart (auto-fill):</b> [CardLast4], [CaseID], [ReferenceNum]\n<b>Smart (pick):</b> [Reason], [Location], [CallBack]\n\n<i>Example: Hello [Name]. This is [Bank] security. A charge of $[Amount] was made on card ending [CardLast4]. Case [CaseID]. Press 1 to dispute.</i>\n\nType your script: ℹ️ All Placeholders,Back,Cancel	to: 8273560746
+[2026-04-26T18:51:05] [info] If you authorized this transaction, you may hang up.  If you did not authorize this payment,  please press 1,  to block this transaction immediately.	from: 8273560746 Scoreboard44
+[2026-04-26T18:51:05] [info] <i>Example: 1,2,3 or 1,5,9</i> ✅ Continue,↩️ Back,Back,Cancel	to: 8273560746
+[2026-04-26T18:51:05] [info] message: ✅ Continue	from: 8273560746 Scoreboard44
+[2026-04-26T18:51:05] [info] reply: Enter value for <b>[Name]</b>: Tracy Todd,📌 Harold Whitmore,Dear Customer,Back,Cancel	to: 8273560746
+[2026-04-26T18:51:10] [info] message: Geoffrey Good	from: 8273560746 Scoreboard44
+[2026-04-26T18:51:10] [info] Enter value for <b>[Bank]</b>: 📌 FSNB,Back,Cancel	to: 8273560746
+[2026-04-26T18:51:12] [info] message: 📌 FSNB	from: 8273560746 Scoreboard44
+[2026-04-26T18:51:12] [info] Tap to accept, regenerate, or type your own: 💳 2408,🔄 Regenerate,Back,Cancel	to: 8273560746
+[2026-04-26T18:51:14] [info] message: Back	from: 8273560746 Scoreboard44
+[2026-04-26T18:51:14] [info] reply: Choose an IVR template category: 💳 Payment Alerts,🔒 Account Security,📦 Delivery & Service,✍️ Custom Script,Back,Cancel	to: 8273560746
+[2026-04-26T18:51:18] [info] reply: ✍️ <b>Custom Script</b>\n\nType your IVR message. Use <b>[Brackets]</b> for variables:\n\n<b>Standard:</b> [Name], [Company], [Bank], [Amount]\n<b>Smart (auto-fill):</b> [CardLast4], [CaseID], [ReferenceNum]\n<b>Smart (pick):</b> [Reason], [Location], [CallBack]\n\n<i>Example: Hello [Name]. This is [Bank] security. A charge of $[Amount] was made on card ending [CardLast4]. Case [CaseID]. Press 1 to dispute.</i>\n\nType your script: ℹ️ All Placeholders,Back,Cancel	to: 8273560746
+[2026-04-26T18:51:18] [info] message: ✍️ Custom Script	from: 8273560746 Scoreboard44
+[2026-04-26T18:51:26] [info] If you authorized this transaction, you may hang up.  If you did not authorize this payment,  please press 1,  to block this transaction immediately.	from: 8273560746 Scoreboard44
+[2026-04-26T18:51:26] [info] <i>Example: 1,2,3 or 1,5,9</i> ✅ Continue,↩️ Back,Back,Cancel	to: 8273560746
+[2026-04-26T18:51:28] [info] message: ✅ Continue	from: 8273560746 Scoreboard44
+[2026-04-26T18:51:28] [info] reply: Enter value for <b>[Name]</b>: Tracy Todd,📌 Harold Whitmore,Dear Customer,Back,Cancel	to: 8273560746
+[2026-04-26T18:51:34] [info] message: Geoffrey Good	from: 8273560746 Scoreboard44
+[2026-04-26T18:51:34] [info] Enter value for <b>[Bank]</b>: 📌 FSNB,Back,Cancel	to: 8273560746
+[2026-04-26T18:51:43] [info] message: ONPOINT COMMUNITY CREDIT UNION	from: 8273560746 Scoreboard44
+[2026-04-26T18:51:43] [info] Tap to accept, regenerate, or type your own: 💳 4002,🔄 Regenerate,Back,Cancel	to: 8273560746
+[2026-04-26T18:51:50] [info] message: 6 2 0 3	from: 8273560746 Scoreboard44
+[2026-04-26T18:51:50] [info] Select from the list or type your own: fraud alert,account suspension,unusual activity,security verification,unauthorized transaction,identity confirmation,account review,payment dispute,✍️ Custom,Back,Cancel	to: 8273560746
+[2026-04-26T18:51:53] [info] message: unauthorized transaction	from: 8273560746 Scoreboard44
+[2026-04-26T18:51:53] [info] Enter value for <b>[Company]</b>: 📌 Barnes & Noble,Back,Cancel	to: 8273560746
+[2026-04-26T18:51:57] [info] message: 📌 Barnes & Noble	from: 8273560746 Scoreboard44
+[2026-04-26T18:51:57] [info] <i>Example: Houston, Texas</i> Back,Cancel	to: 8273560746
+[2026-04-26T18:52:04] [info] message: Arlington, Texas	from: 8273560746 Scoreboard44
+[2026-04-26T18:52:04] [info] Enter value for <b>[Amount]</b>: 📌 $89.71,Back,Cancel	to: 8273560746
+[2026-04-26T18:52:06] [info] message: 📌 $89.71	from: 8273560746 Scoreboard44
+[2026-04-26T18:52:06] [info] reply: ✅ All values set!\n\n📋 <b>Select Call Mode</b>\n\n🔗 <b>Transfer</b> — When target presses the key, bridge them to your number\n🔑 <b>OTP Collection</b> — Prompt target for a code, you verify via Telegram\n\nBoth modes report full results. 🔗 Transfer,🔑 OTP Collection,↩️ Back,Back,Cancel	to: 8273560746
+[2026-04-26T18:52:09] [info] message: 🔗 Transfer	from: 8273560746 Scoreboard44
+[2026-04-26T18:52:09] [info] reply: 🔗 <b>Transfer Mode</b>\n\nEnter the number to transfer the caller to when they press a key:\n<i>Example: +17174794833</i> ↩️ Back,Back,Cancel	to: 8273560746
+[2026-04-26T18:52:29] [info] message: +15414204336	from: 8273560746 Scoreboard44
+[2026-04-26T18:52:29] [info] reply: 🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine: 🟢 OpenAI — Best,🔵 ElevenLabs,Back,Cancel	to: 8273560746
+[2026-04-26T18:52:29] [info] message: 🟢 OpenAI — Best	from: 8273560746 Scoreboard44
+[2026-04-26T18:52:29] [info] reply: 🎤 <b>Select Voice</b>\n\nChoose a voice for the IVR audio: ⭐ Last: Onyx,Alloy — Most used,Fable — Expressive, British,Nova — Warm, friendly female,Shimmer — Clear, pleasant female,Echo — Warm, deep male,Onyx — Deep, authoritative male,Back,Cancel	to: 8273560746
+[2026-04-26T18:52:49] [info] message: ⭐ Last: Onyx	from: 8273560746 Scoreboard44
+[2026-04-26T18:52:49] [info] Choose how fast the voice speaks: ⭐ Last: 0.7x,🐌 Very Slow (0.7x),🐢 Slow (0.85x),🚶 Normal (1.0x),🏃 Fast (1.15x),⚡ Very Fast (1.35x),✍️ Custom Speed,Back,Cancel	to: 8273560746
+[2026-04-26T18:52:49] [info] message: ⭐ Last: 0.7x	from: 8273560746 Scoreboard44
+[2026-04-26T18:52:49] [info] ⏳ Generating audio preview... 	to: 8273560746
+[2026-04-26T18:53:31] [info] reply: What would you like to do? ✅ Confirm,⏭ Skip & Call,🎤 Change Voice,🎚 Change Speed,🎵 Hold Music: ON,Back,Cancel	to: 8273560746
+[2026-04-26T18:53:31] [info] Target will hear "Please hold" + music before transfer. 	to: 8273560746
+[2026-04-26T18:53:31] [info] message: 🔇 Hold Music: OFF	from: 8273560746 Scoreboard44
+[2026-04-26T18:53:51] [info] message: /yes	from: 8273560746 Scoreboard44
+[2026-04-26T18:53:51] [info] message: ✅ Confirm	from: 8273560746 Scoreboard44
+[2026-04-26T18:53:51] [info] /cancel to abort /yes,🕐 Schedule,Back,Cancel	to: 8273560746
+[2026-04-26T18:53:51] [info] 🏢 Template: Custom Script 	to: 8273560746
+[2026-04-27T00:49:18] [info] message: Cancel	from: 8273560746 Scoreboard44
+[2026-04-27T00:49:18] [info] Select an option below 	to: 8273560746
+[2026-04-27T00:49:21] [info] message: 📞 Cloud IVR + SIP	from: 8273560746 Scoreboard44
+[2026-04-27T00:49:21] [info] 📞 33 phone numbers activated this week 📢 Quick IVR Call,📞 Bulk IVR Campaign,🎵 Audio Library,🧪 Test SIP Free,🛒 Choose a Plan,📋 My Plans,📖 SIP Setup Guide,📊 Usage & Billing,❓ How It Works,Back,Cancel	to: 8273560746
+[2026-04-27T00:49:27] [info] message: 📋 My Plans	from: 8273560746 Scoreboard44
+[2026-04-27T00:49:27] [info]  1,2,🛒 Buy Another Number,Back,Cancel	to: 8273560746
+[2026-04-27T00:49:30] [info] message: 1	from: 8273560746 Scoreboard44
+[2026-04-27T00:49:30] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-27T00:49:34] [info] When enabled, callers hear a greeting menu and can press keys to reach the right destination. ✅ Enable IVR,Back,Cancel	to: 8273560746
+[2026-04-27T00:49:34] [info] message: 🤖 IVR / Auto-attendant	from: 8273560746 Scoreboard44
+[2026-04-27T00:49:37] [info] message: ✅ Enable IVR	from: 8273560746 Scoreboard44
+[2026-04-27T00:49:37] [info] Callers will hear your greeting and can press keys to navigate. 	to: 8273560746
+[2026-04-27T00:49:37] [info]  🎤 Set Greeting,➕ Add Menu Option,➖ Remove Option,📋 View Menu Options,📊 IVR Analytics,🚫 Disable IVR,Back,Cancel	to: 8273560746
+[2026-04-27T00:49:48] [info] message: 🎤 Set Greeting	from: 8273560746 Scoreboard44
+[2026-04-27T00:49:48] [info] reply: 🎤 <b>Set IVR Greeting</b>\n\nChoose how to create your greeting: 📋 Use Template,📝 Type Text (AI Voice),🎙️ Upload Audio,Back,Cancel	to: 8273560746
+[2026-04-27T00:49:50] [info] message: 📝 Type Text (AI Voice)	from: 8273560746 Scoreboard44
+[2026-04-27T00:49:50] [info] reply: 📝 Type the greeting callers will hear.\n\n<i>Example: "Thank you for calling Nomadly. Press 1 for sales, press 2 for support."</i> Back,Cancel	to: 8273560746
+[2026-04-27T00:50:08] [info] message: Welcome to card self service.  All of our agents are currently assisting other callers. Press 1 for a callback, and One of our agents will be right with you shortly. Press 2  if you would like to hold until a representative is available.	from: 8273560746 Scoreboard44
+[2026-04-27T00:50:08] [info] <i>"Welcome to card self service.  All of our agents are currently assisting other c..."</i> 🇺🇸 English,🇫🇷 Français,🇪🇸 Español,🇩🇪 Deutsch,🇮🇹 Italiano,🇧🇷 Português,🇳🇱 Nederlands,🇵🇱 Polski,🇯🇵 日本語,🇰🇷 한국어,🇨🇳 中文,🇮🇳 हिन्दी,🇸🇦 العربية,🇷🇺 Русский,🇹🇷 Türkçe,🇸🇪 Svenska,🇩🇰 Dansk,🇳🇴 Norsk,🇫🇮 Suomi,🇬🇷 Ελληνικά,Back,Cancel	to: 8273560746
+[2026-04-27T00:50:10] [info] message: 🇺🇸 English	from: 8273560746 Scoreboard44
+[2026-04-27T00:50:10] [info] reply: 🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine: 🟢 OpenAI — Best,🔵 ElevenLabs,Back,Cancel	to: 8273560746
+[2026-04-27T00:50:11] [info] message: 🟢 OpenAI — Best	from: 8273560746 Scoreboard44
+[2026-04-27T00:50:11] [info] reply: 🎙️ Choose a voice for your greeting: Alloy — Most used,Fable — Expressive, British,Nova — Warm, friendly female,Shimmer — Clear, pleasant female,Echo — Warm, deep male,Onyx — Deep, authoritative male,Back,Cancel	to: 8273560746
+[2026-04-27T00:50:13] [info] message: Onyx — Deep, authoritative male	from: 8273560746 Scoreboard44
+[2026-04-27T00:50:13] [info] reply: 🔄 Generating audio preview... 	to: 8273560746
+[2026-04-27T00:50:22] [info] 📝 Re-type the text? ✅ Save Greeting,🔄 Try Different Voice,🌐 Change Language,📝 Re-type Text,Back,Cancel	to: 8273560746
+[2026-04-27T00:50:37] [info] message: ✅ Save Greeting	from: 8273560746 Scoreboard44
+[2026-04-27T00:50:38] [info] reply: ✅ IVR greeting saved! 	to: 8273560746
+[2026-04-27T00:50:38] [info]  🎤 Set Greeting,➕ Add Menu Option,➖ Remove Option,📋 View Menu Options,📊 IVR Analytics,🚫 Disable IVR,Back,Cancel	to: 8273560746
+[2026-04-27T00:50:41] [info] message: ➕ Add Menu Option	from: 8273560746 Scoreboard44
+[2026-04-27T00:50:41] [info] Enter the key number (0-9) for this option: 0,1,2,3,4,5,6,7,8,9,Back,Cancel	to: 8273560746
+[2026-04-27T00:50:43] [info] message: 1	from: 8273560746 Scoreboard44
+[2026-04-27T00:50:43] [info] What should happen when a caller presses <b>1</b>? 📞 Forward Call,💬 Play Message,📬 Send to Voicemail,Back,Cancel	to: 8273560746
+[2026-04-27T00:52:29] [info] message: 📬 Send to Voicemail	from: 8273560746 Scoreboard44
+[2026-04-27T00:52:29] [info] reply: ✅ Key <b>1</b> → Send to Voicemail — saved! 	to: 8273560746
+[2026-04-27T00:52:29] [info]  🎤 Set Greeting,➕ Add Menu Option,➖ Remove Option,📋 View Menu Options,📊 IVR Analytics,🚫 Disable IVR,Back,Cancel	to: 8273560746
+[2026-04-27T00:52:31] [info] message: ➕ Add Menu Option	from: 8273560746 Scoreboard44
+[2026-04-27T00:52:31] [info] Enter the key number (0-9) for this option: 0,1,2,3,4,5,6,7,8,9,Back,Cancel	to: 8273560746
+[2026-04-27T00:52:33] [info] message: 2	from: 8273560746 Scoreboard44
+[2026-04-27T00:52:33] [info] What should happen when a caller presses <b>2</b>? 📞 Forward Call,💬 Play Message,📬 Send to Voicemail,Back,Cancel	to: 8273560746
+[2026-04-27T00:52:38] [info] message: 📞 Forward Call	from: 8273560746 Scoreboard44
+[2026-04-27T00:52:38] [info] <i>Example: +15551234567</i> Back,Cancel	to: 8273560746
+[2026-04-27T00:52:58] [info] message: 19314399742	from: 8273560746 Scoreboard44
+[2026-04-27T00:52:58] [info] reply: ✅ Key <b>2</b> → Forward to <b>19314399742</b> — saved! 	to: 8273560746
+[2026-04-27T00:52:58] [info]  🎤 Set Greeting,➕ Add Menu Option,➖ Remove Option,📋 View Menu Options,📊 IVR Analytics,🚫 Disable IVR,Back,Cancel	to: 8273560746
+[2026-04-27T00:52:58] [info] message: Back	from: 8273560746 Scoreboard44
+[2026-04-27T00:52:58] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-27T00:53:01] [info] message: 📞 Call Forwarding	from: 8273560746 Scoreboard44
+[2026-04-27T00:53:01] [info] 💳 Charged from wallet at $0.5/min · 💳 $56.55 📞 Always Forward,📵 Forward When Busy,⏰ Forward If No Answer,Back,Cancel	to: 8273560746
+[2026-04-27T00:53:03] [info] message: 📞 Always Forward	from: 8273560746 Scoreboard44
+[2026-04-27T00:53:03] [info] 💰 <b>$0.5/min</b> · 💳 $56.55 	to: 8273560746
+[2026-04-27T00:53:08] [info] message: 19314399742	from: 8273560746 Scoreboard44
+[2026-04-27T00:53:08] [info] reply: ⏳ Validating destination... 	to: 8273560746
+[2026-04-27T00:53:09] [info] 💳 $56.55 (~113 min) 	to: 8273560746
+[2026-04-27T00:53:09] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-27T00:53:11] [info] message: 🎙️ Voicemail	from: 8273560746 Scoreboard44
+[2026-04-27T00:53:11] [info] When enabled, unanswered calls will hear a greeting and callers can leave a voice message. ✅ Enable Voicemail,Back,Cancel	to: 8273560746
+[2026-04-27T00:53:13] [info] message: ✅ Enable Voicemail	from: 8273560746 Scoreboard44
+[2026-04-27T00:53:13] [info] Recordings will be sent to this Telegram chat. 	to: 8273560746
+[2026-04-27T00:53:13] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-27T00:53:21] [info] message: 🎙️ Voicemail	from: 8273560746 Scoreboard44
+[2026-04-27T00:53:21] [info] ⏰ Ring Time: 25s 🔊 Greeting,📲 VM to Telegram ✅ ON,📧 VM to Email ❌ OFF,⏰ Ring Time: 25s,🚫 Disable Voicemail,Back,Cancel	to: 8273560746
+[2026-04-27T00:53:23] [info] message: 🔊 Greeting	from: 8273560746 Scoreboard44
+[2026-04-27T00:53:23] [info] Choose an option below: 🎤 Custom Greeting (Audio),🔄 Default Greeting,Back,Back,Cancel	to: 8273560746
+[2026-04-27T00:53:25] [info] message: 🎤 Custom Greeting (Audio)	from: 8273560746 Scoreboard44
+[2026-04-27T00:53:25] [info] Choose how to create your greeting: 📋 Use Template,📝 Type Text (AI Voice),🎙️ Upload Audio,Back,Cancel	to: 8273560746
+[2026-04-27T00:53:27] [info] message: 📝 Type Text (AI Voice)	from: 8273560746 Scoreboard44
+[2026-04-27T00:53:27] [info] reply: 📝 Type the greeting callers will hear: Back,Cancel	to: 8273560746
+[2026-04-27T00:53:34] [info] message: After the tone,  please Include your name, and callback number. We've saved your place in line. One of our agents will contact you by the order in which we received your call. Thank you.	from: 8273560746 Scoreboard44
+[2026-04-27T00:53:34] [info] <i>"After the tone,  please Include your name, and callback number. We've saved your..."</i> 🇺🇸 English,🇫🇷 Français,🇪🇸 Español,🇩🇪 Deutsch,🇮🇹 Italiano,🇧🇷 Português,🇳🇱 Nederlands,🇵🇱 Polski,🇯🇵 日本語,🇰🇷 한국어,🇨🇳 中文,🇮🇳 हिन्दी,🇸🇦 العربية,🇷🇺 Русский,🇹🇷 Türkçe,🇸🇪 Svenska,🇩🇰 Dansk,🇳🇴 Norsk,🇫🇮 Suomi,🇬🇷 Ελληνικά,Back,Cancel	to: 8273560746
+[2026-04-27T00:53:36] [info] message: 🇺🇸 English	from: 8273560746 Scoreboard44
+[2026-04-27T00:53:36] [info] reply: 🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine: 🟢 OpenAI — Best,🔵 ElevenLabs,Back,Cancel	to: 8273560746
+[2026-04-27T00:53:37] [info] message: 🟢 OpenAI — Best	from: 8273560746 Scoreboard44
+[2026-04-27T00:53:37] [info] reply: 🎙️ Choose a voice: Alloy — Most used,Fable — Expressive, British,Nova — Warm, friendly female,Shimmer — Clear, pleasant female,Echo — Warm, deep male,Onyx — Deep, authoritative male,Back,Cancel	to: 8273560746
+[2026-04-27T00:53:57] [info] reply: 🔄 Generating audio preview... 	to: 8273560746
+[2026-04-27T00:53:57] [info] Save this greeting? ✅ Save Greeting,🔄 Try Different Voice,🌐 Change Language,📝 Re-type Text,Back,Cancel	to: 8273560746
+[2026-04-27T00:53:57] [info] message: Onyx — Deep, authoritative male	from: 8273560746 Scoreboard44
+[2026-04-27T00:54:37] [info] ⏰ Ring Time: 25s 🔊 Greeting,📲 VM to Telegram ✅ ON,📧 VM to Email ❌ OFF,⏰ Ring Time: 25s,🚫 Disable Voicemail,Back,Cancel	to: 8273560746
+[2026-04-27T00:54:37] [info] message: ✅ Save Greeting	from: 8273560746 Scoreboard44
+[2026-04-27T00:54:37] [info] reply: ✅ Voicemail greeting saved! 	to: 8273560746
+[2026-04-27T00:54:42] [info] message: Cancel	from: 8273560746 Scoreboard44
+[2026-04-27T00:54:42] [info] Select an option below 	to: 8273560746
+[2026-04-27T00:54:44] [info] message: 📞 Cloud IVR + SIP	from: 8273560746 Scoreboard44
+[2026-04-27T00:54:44] [info] 📞 33 phone numbers activated this week 📢 Quick IVR Call,📞 Bulk IVR Campaign,🎵 Audio Library,🧪 Test SIP Free,🛒 Choose a Plan,📋 My Plans,📖 SIP Setup Guide,📊 Usage & Billing,❓ How It Works,Back,Cancel	to: 8273560746
+[2026-04-27T00:54:47] [info] message: 📢 Quick IVR Call	from: 8273560746 Scoreboard44
+[2026-04-27T00:54:47] [info]  💾 G2B,📞 New Call,🗑️ Delete Preset,Back,Cancel	to: 8273560746
+[2026-04-27T00:55:07] [info] message: 📞 New Call	from: 8273560746 Scoreboard44
+[2026-04-27T00:55:07] [info] reply: 📞 <b>New IVR Call</b>\n\nSelect the number to call FROM (Caller ID): +18888370876,+18339561373,↩️ Back,Back,Cancel	to: 8273560746
+[2026-04-27T00:55:07] [info] message: +18888370876	from: 8273560746 Scoreboard44
+[2026-04-27T00:55:07] [info] <i>Batch: +12025551234, +12025555678</i> Back,Cancel	to: 8273560746
+[2026-04-27T00:55:17] [info] message: +15852454489	from: 8273560746 Scoreboard44
+[2026-04-27T00:55:17] [info] reply: 🔍 Looking up number... 	to: 8273560746
+[2026-04-27T00:55:18] [info] reply: 📋 Found: <b>Davin Patricia</b> 	to: 8273560746
+[2026-04-27T00:55:18] [info] Choose template or write your own: ✍️ Custom Script,💳 Payment Alerts,🔒 Account Security,📦 Delivery & Service,Back,Cancel	to: 8273560746
+[2026-04-27T00:55:38] [info] message: Patricia Davin	from: 8273560746 Scoreboard44
+[2026-04-27T00:55:38] [info] reply: Please select a category from the buttons. 	to: 8273560746
+[2026-04-27T00:55:38] [info] message: ✍️ Custom Script	from: 8273560746 Scoreboard44
+[2026-04-27T00:55:38] [info] reply: ✍️ <b>Custom Script</b>\n\nType your IVR message. Use <b>[Brackets]</b> for variables:\n\n<b>Standard:</b> [Name], [Company], [Bank], [Amount]\n<b>Smart (auto-fill):</b> [CardLast4], [CaseID], [ReferenceNum]\n<b>Smart (pick):</b> [Reason], [Location], [CallBack]\n\n<i>Example: Hello [Name]. This is [Bank] security. A charge of $[Amount] was made on card ending [CardLast4]. Case [CaseID]. Press 1 to dispute.</i>\n\nType your script: ℹ️ All Placeholders,Back,Cancel	to: 8273560746
+[2026-04-27T00:55:41] [info] If you authorized this transaction, you may hang up.  If you did not authorize this payment,  please press 1,  to block this transaction immediately.	from: 8273560746 Scoreboard44
+[2026-04-27T00:55:41] [info] <i>Example: 1,2,3 or 1,5,9</i> ✅ Continue,↩️ Back,Back,Cancel	to: 8273560746
+[2026-04-27T00:55:43] [info] message: ✅ Continue	from: 8273560746 Scoreboard44
+[2026-04-27T00:55:43] [info] reply: Enter value for <b>[Name]</b>: Davin Patricia,📌 Geoffrey Good,Dear Customer,Back,Cancel	to: 8273560746
+[2026-04-27T00:56:14] [info] message: Patricia Davin	from: 8273560746 Scoreboard44
+[2026-04-27T00:56:14] [info] Enter value for <b>[Bank]</b>: 📌 ONPOINT COMMUNITY CREDIT UNION,Back,Cancel	to: 8273560746
+[2026-04-27T00:56:34] [info] message: GENESSEE VALLEY CREDIT UNION	from: 8273560746 Scoreboard44
+[2026-04-27T00:56:34] [info] Tap to accept, regenerate, or type your own: 💳 6436,🔄 Regenerate,Back,Cancel	to: 8273560746
+[2026-04-27T00:56:41] [info] Select from the list or type your own: fraud alert,account suspension,unusual activity,security verification,unauthorized transaction,identity confirmation,account review,payment dispute,✍️ Custom,Back,Cancel	to: 8273560746
+[2026-04-27T00:56:41] [info] message: 8 5 3 8	from: 8273560746 Scoreboard44
+[2026-04-27T00:56:43] [info] message: unauthorized transaction	from: 8273560746 Scoreboard44
+[2026-04-27T00:56:43] [info] Enter value for <b>[Company]</b>: 📌 Barnes & Noble,Back,Cancel	to: 8273560746
+[2026-04-27T00:56:45] [info] message: 📌 Barnes & Noble	from: 8273560746 Scoreboard44
+[2026-04-27T00:56:45] [info] <i>Example: Houston, Texas</i> Back,Cancel	to: 8273560746
+[2026-04-27T00:56:51] [info] message: Arlington, Texas	from: 8273560746 Scoreboard44
+[2026-04-27T00:56:51] [info] Enter value for <b>[Amount]</b>: 📌 $89.71,Back,Cancel	to: 8273560746
+[2026-04-27T00:56:53] [info] message: 📌 $89.71	from: 8273560746 Scoreboard44
+[2026-04-27T00:56:53] [info] reply: ✅ All values set!\n\n📋 <b>Select Call Mode</b>\n\n🔗 <b>Transfer</b> — When target presses the key, bridge them to your number\n🔑 <b>OTP Collection</b> — Prompt target for a code, you verify via Telegram\n\nBoth modes report full results. 🔗 Transfer,🔑 OTP Collection,↩️ Back,Back,Cancel	to: 8273560746
+[2026-04-27T00:56:55] [info] message: 🔗 Transfer	from: 8273560746 Scoreboard44
+[2026-04-27T00:56:55] [info] reply: 🔗 <b>Transfer Mode</b>\n\nEnter the number to transfer the caller to when they press a key:\n<i>Example: +17174794833</i> ↩️ Back,Back,Cancel	to: 8273560746
+[2026-04-27T00:57:01] [info] message: 19314399742	from: 8273560746 Scoreboard44
+[2026-04-27T00:57:01] [info] reply: Please enter a valid phone number starting with +.\n<i>Example: +17174794833</i> Back,Cancel	to: 8273560746
+[2026-04-27T00:57:22] [info] message: +19314399742	from: 8273560746 Scoreboard44
+[2026-04-27T00:57:22] [info] reply: 🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine: 🟢 OpenAI — Best,🔵 ElevenLabs,Back,Cancel	to: 8273560746
+[2026-04-27T00:57:22] [info] message: 🟢 OpenAI — Best	from: 8273560746 Scoreboard44
+[2026-04-27T00:57:22] [info] reply: 🎤 <b>Select Voice</b>\n\nChoose a voice for the IVR audio: ⭐ Last: Onyx,Alloy — Most used,Fable — Expressive, British,Nova — Warm, friendly female,Shimmer — Clear, pleasant female,Echo — Warm, deep male,Onyx — Deep, authoritative male,Back,Cancel	to: 8273560746
+[2026-04-27T00:57:22] [info] message: ⭐ Last: Onyx	from: 8273560746 Scoreboard44
+[2026-04-27T00:57:22] [info] Choose how fast the voice speaks: ⭐ Last: 0.7x,🐌 Very Slow (0.7x),🐢 Slow (0.85x),🚶 Normal (1.0x),🏃 Fast (1.15x),⚡ Very Fast (1.35x),✍️ Custom Speed,Back,Cancel	to: 8273560746
+[2026-04-27T00:57:22] [info] message: ⭐ Last: 0.7x	from: 8273560746 Scoreboard44
+[2026-04-27T00:57:22] [info] ⏳ Generating audio preview... 	to: 8273560746
+[2026-04-27T00:57:31] [info] message: 🔇 Hold Music: OFF	from: 8273560746 Scoreboard44
+[2026-04-27T00:57:32] [info] Target will hear "Please hold" + music before transfer. 	to: 8273560746
+[2026-04-27T00:57:32] [info] reply: What would you like to do? ✅ Confirm,⏭ Skip & Call,🎤 Change Voice,🎚 Change Speed,🎵 Hold Music: ON,Back,Cancel	to: 8273560746
+[2026-04-27T01:01:03] [info] /cancel to abort /yes,🕐 Schedule,Back,Cancel	to: 8273560746
+[2026-04-27T01:01:03] [info] message: ✅ Confirm	from: 8273560746 Scoreboard44
+[2026-04-27T01:01:08] [info] message: /yes	from: 8273560746 Scoreboard44
+[2026-04-27T01:01:08] [info] 🏢 Template: Custom Script 	to: 8273560746
+[2026-04-27T12:06:55] [info] message: /start	from: 8273560746 Scoreboard44
+[2026-04-27T12:06:55] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746
+[2026-04-27T12:06:57] [info] message: 📞 Cloud IVR + SIP	from: 8273560746 Scoreboard44
+[2026-04-27T12:06:57] [info] 📞 33 phone numbers activated this week 📢 Quick IVR Call,📞 Bulk IVR Campaign,🎵 Audio Library,🧪 Test SIP Free,🛒 Choose a Plan,📋 My Plans,📖 SIP Setup Guide,📊 Usage & Billing,❓ How It Works,Back,Cancel	to: 8273560746
+[2026-04-27T12:07:01] [info] message: Cancel	from: 8273560746 Scoreboard44
+[2026-04-27T12:07:01] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746
+[2026-04-27T12:07:04] [info] message: 🛒 Digital Products	from: 8273560746 Scoreboard44
+[2026-04-27T12:07:04] [info] 📦 15 digital products sold this week 📞 Twilio Main Account — $450,📞 Twilio Sub-Account — $200,📡 Telnyx Main Account — $400,📡 Telnyx Sub-Account — $150,☁️ AWS Main Account — $350,☁️ AWS Sub-Account — $150,🌐 Google Cloud Main — $300,🌐 Google Cloud Sub — $150,📧 Google Workspace Admin (New Domain) — $150,📧 Google Workspace Admin (Aged Domain) — $250,📧 Zoho Mail (New Domain) — $100,📧 Zoho Mail (Aged Domain) — $150,📱 eSIM T-Mobile — $60,📱 eSIM Airvoice (AT&T) — from $70,📧 IONOS SMTP — $150,Back,🏠 Main Menu,Back,Cancel	to: 8273560746
+[2026-04-27T12:14:59] [info] [Twilio] Voicemail recorded: RE006819ae5c46590e42f5c305b4464054 (9s) for chatId=8273560746
+[2026-04-27T12:15:18] [info] [Twilio] Voicemail recorded: REea32be1139c5cf8617b8d74c59223cb3 (5s) for chatId=8273560746
+[2026-04-27T12:16:41] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746
+[2026-04-27T12:16:41] [info] message: 📞 Cloud IVR + SIP	from: 8273560746 Scoreboard44
+[2026-04-27T12:16:41] [info] message: /start	from: 8273560746 Scoreboard44
+[2026-04-27T12:16:41] [info] 📞 33 phone numbers activated this week 📢 Quick IVR Call,📞 Bulk IVR Campaign,🎵 Audio Library,🧪 Test SIP Free,🛒 Choose a Plan,📋 My Plans,📖 SIP Setup Guide,📊 Usage & Billing,❓ How It Works,Back,Cancel	to: 8273560746
+[2026-04-27T12:16:41] [info]  1,2,🛒 Buy Another Number,Back,Cancel	to: 8273560746
+[2026-04-27T12:16:41] [info] message: 📋 My Plans	from: 8273560746 Scoreboard44
+[2026-04-27T12:16:41] [info] message: 1	from: 8273560746 Scoreboard44
+[2026-04-27T12:16:41] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-27T12:16:44] [info] message: 📞 Call Forwarding	from: 8273560746 Scoreboard44
+[2026-04-27T12:16:44] [info] 💳 Charged from wallet at $0.5/min · 💳 $55.35 📞 Always Forward,📵 Forward When Busy,⏰ Forward If No Answer,Back,Cancel	to: 8273560746
+[2026-04-27T12:16:46] [info] message: 📞 Always Forward	from: 8273560746 Scoreboard44
+[2026-04-27T12:16:46] [info] 💰 <b>$0.5/min</b> · 💳 $55.35 	to: 8273560746
+[2026-04-27T12:17:16] [info] 💳 $55.35 (~110 min) 	to: 8273560746
+[2026-04-27T12:17:16] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-27T12:17:16] [info] message: +19314399742	from: 8273560746 Scoreboard44
+[2026-04-27T12:17:16] [info] reply: ⏳ Validating destination... 	to: 8273560746
+[2026-04-27T12:17:18] [info] message: 📞 Call Forwarding	from: 8273560746 Scoreboard44
+[2026-04-27T12:17:18] [info] 💳 Charged from wallet at $0.15/min · 💳 $55.35 📞 Always Forward,📵 Forward When Busy,⏰ Forward If No Answer,🎵 Hold Music: OFF,📲 Change Forward-To Number,🚫 Disable Forwarding,Back,Cancel	to: 8273560746
+[2026-04-27T12:17:21] [info] message: 🎵 Hold Music: OFF	from: 8273560746 Scoreboard44
+[2026-04-27T12:17:21] [info] Callers will hear hold music while being connected. 	to: 8273560746
+[2026-04-27T12:17:21] [info] 💳 Charged from wallet at $0.15/min · 💳 $55.35 📞 Always Forward,📵 Forward When Busy,⏰ Forward If No Answer,🎵 Hold Music: ON,📲 Change Forward-To Number,🚫 Disable Forwarding,Back,Cancel	to: 8273560746
+[2026-04-27T12:17:25] [info] message: Back	from: 8273560746 Scoreboard44
+[2026-04-27T12:17:25] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-27T12:17:27] [info] message: 🎙️ Voicemail	from: 8273560746 Scoreboard44
+[2026-04-27T12:17:27] [info] When enabled, unanswered calls will hear a greeting and callers can leave a voice message. ✅ Enable Voicemail,Back,Cancel	to: 8273560746
+[2026-04-27T12:17:28] [info] message: ✅ Enable Voicemail	from: 8273560746 Scoreboard44
+[2026-04-27T12:17:28] [info] Recordings will be sent to this Telegram chat. 	to: 8273560746
+[2026-04-27T12:17:28] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-27T12:17:33] [info] message: 🎙️ Voicemail	from: 8273560746 Scoreboard44
+[2026-04-27T12:17:33] [info] ⏰ Ring Time: 25s 🔊 Greeting,📲 VM to Telegram ✅ ON,📧 VM to Email ❌ OFF,⏰ Ring Time: 25s,🚫 Disable Voicemail,Back,Cancel	to: 8273560746
+[2026-04-27T12:17:34] [info] message: 🔊 Greeting	from: 8273560746 Scoreboard44
+[2026-04-27T12:17:34] [info] Choose an option below: 🎤 Custom Greeting (Audio),🔄 Default Greeting,Back,Back,Cancel	to: 8273560746
+[2026-04-27T12:17:36] [info] message: 🎤 Custom Greeting (Audio)	from: 8273560746 Scoreboard44
+[2026-04-27T12:17:36] [info] Choose how to create your greeting: 📋 Use Template,📝 Type Text (AI Voice),🎙️ Upload Audio,Back,Cancel	to: 8273560746
+[2026-04-27T12:17:38] [info] message: 📝 Type Text (AI Voice)	from: 8273560746 Scoreboard44
+[2026-04-27T12:17:38] [info] reply: 📝 Type the greeting callers will hear: Back,Cancel	to: 8273560746
+[2026-04-27T12:18:08] [info] message: After the tone,  please Include your name, and callback number. We've saved your place in line. One of our agents will contact you by the order in which we received your call. Thank you.	from: 8273560746 Scoreboard44
+[2026-04-27T12:18:08] [info] <i>"After the tone,  please Include your name, and callback number. We've saved your..."</i> 🇺🇸 English,🇫🇷 Français,🇪🇸 Español,🇩🇪 Deutsch,🇮🇹 Italiano,🇧🇷 Português,🇳🇱 Nederlands,🇵🇱 Polski,🇯🇵 日本語,🇰🇷 한국어,🇨🇳 中文,🇮🇳 हिन्दी,🇸🇦 العربية,🇷🇺 Русский,🇹🇷 Türkçe,🇸🇪 Svenska,🇩🇰 Dansk,🇳🇴 Norsk,🇫🇮 Suomi,🇬🇷 Ελληνικά,Back,Cancel	to: 8273560746
+[2026-04-27T12:18:08] [info] message: 🇺🇸 English	from: 8273560746 Scoreboard44
+[2026-04-27T12:18:08] [info] reply: 🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine: 🟢 OpenAI — Best,🔵 ElevenLabs,Back,Cancel	to: 8273560746
+[2026-04-27T12:18:08] [info] message: 🟢 OpenAI — Best	from: 8273560746 Scoreboard44
+[2026-04-27T12:18:08] [info] reply: 🎙️ Choose a voice: Alloy — Most used,Fable — Expressive, British,Nova — Warm, friendly female,Shimmer — Clear, pleasant female,Echo — Warm, deep male,Onyx — Deep, authoritative male,Back,Cancel	to: 8273560746
+[2026-04-27T12:18:08] [info] message: Onyx — Deep, authoritative male	from: 8273560746 Scoreboard44
+[2026-04-27T12:18:08] [info] reply: 🔄 Generating audio preview... 	to: 8273560746
+[2026-04-27T12:18:13] [info] Save this greeting? ✅ Save Greeting,🔄 Try Different Voice,🌐 Change Language,📝 Re-type Text,Back,Cancel	to: 8273560746
+[2026-04-27T12:18:20] [info] message: ✅ Save Greeting	from: 8273560746 Scoreboard44
+[2026-04-27T12:18:20] [info] reply: ✅ Voicemail greeting saved! 	to: 8273560746
+[2026-04-27T12:18:20] [info] ⏰ Ring Time: 25s 🔊 Greeting,📲 VM to Telegram ✅ ON,📧 VM to Email ❌ OFF,⏰ Ring Time: 25s,🚫 Disable Voicemail,Back,Cancel	to: 8273560746
+[2026-04-27T12:18:23] [info] message: Back	from: 8273560746 Scoreboard44
+[2026-04-27T12:18:23] [info] 🌐 <a href="https://1.speechcue.com/call">Make & receive calls in browser</a> 📞 Call Forwarding,📩 SMS Settings,📨 SMS Inbox,🎙️ Voicemail,🔑 SIP Credentials,🔴 Call Recording,🤖 IVR / Auto-attendant,➕ Add Number to Plan,📊 Call & SMS Logs,🔄 Renew / Change Plan,🗑️ Delete Number,Back,Cancel	to: 8273560746
+[2026-04-27T12:18:25] [info] message: 🤖 IVR / Auto-attendant	from: 8273560746 Scoreboard44
+[2026-04-27T12:18:25] [info] When enabled, callers hear a greeting menu and can press keys to reach the right destination. ✅ Enable IVR,Back,Cancel	to: 8273560746
+[2026-04-27T12:18:27] [info]  🎤 Set Greeting,➕ Add Menu Option,➖ Remove Option,📋 View Menu Options,📊 IVR Analytics,🚫 Disable IVR,Back,Cancel	to: 8273560746
+[2026-04-27T12:18:27] [info] message: ✅ Enable IVR	from: 8273560746 Scoreboard44
+[2026-04-27T12:18:27] [info] Callers will hear your greeting and can press keys to navigate. 	to: 8273560746
+[2026-04-27T12:18:32] [info] message: 🎤 Set Greeting	from: 8273560746 Scoreboard44
+[2026-04-27T12:18:32] [info] reply: 🎤 <b>Set IVR Greeting</b>\n\nChoose how to create your greeting: 📋 Use Template,📝 Type Text (AI Voice),🎙️ Upload Audio,Back,Cancel	to: 8273560746
+[2026-04-27T12:18:34] [info] message: 📝 Type Text (AI Voice)	from: 8273560746 Scoreboard44
+[2026-04-27T12:18:34] [info] reply: 📝 Type the greeting callers will hear.\n\n<i>Example: "Thank you for calling Nomadly. Press 1 for sales, press 2 for support."</i> Back,Cancel	to: 8273560746
+[2026-04-27T12:18:41] [info] message: Welcome to card self service.  All of our agents are currently assisting other callers. Press 1 for a callback, and One of our agents will be right with you shortly. Press 2  if you would like to hold until a representative is available.	from: 8273560746 Scoreboard44
+[2026-04-27T12:18:41] [info] <i>"Welcome to card self service.  All of our agents are currently assisting other c..."</i> 🇺🇸 English,🇫🇷 Français,🇪🇸 Español,🇩🇪 Deutsch,🇮🇹 Italiano,🇧🇷 Português,🇳🇱 Nederlands,🇵🇱 Polski,🇯🇵 日本語,🇰🇷 한국어,🇨🇳 中文,🇮🇳 हिन्दी,🇸🇦 العربية,🇷🇺 Русский,🇹🇷 Türkçe,🇸🇪 Svenska,🇩🇰 Dansk,🇳🇴 Norsk,🇫🇮 Suomi,🇬🇷 Ελληνικά,Back,Cancel	to: 8273560746
+[2026-04-27T12:18:43] [info] message: 🇺🇸 English	from: 8273560746 Scoreboard44
+[2026-04-27T12:18:43] [info] reply: 🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine: 🟢 OpenAI — Best,🔵 ElevenLabs,Back,Cancel	to: 8273560746
+[2026-04-27T12:18:45] [info] message: 🟢 OpenAI — Best	from: 8273560746 Scoreboard44
+[2026-04-27T12:18:45] [info] reply: 🎙️ Choose a voice for your greeting: Alloy — Most used,Fable — Expressive, British,Nova — Warm, friendly female,Shimmer — Clear, pleasant female,Echo — Warm, deep male,Onyx — Deep, authoritative male,Back,Cancel	to: 8273560746
+[2026-04-27T12:18:52] [info] reply: 🔄 Generating audio preview... 	to: 8273560746
+[2026-04-27T12:18:52] [info] message: Onyx — Deep, authoritative male	from: 8273560746 Scoreboard44
+[2026-04-27T12:18:59] [info] 📝 Re-type the text? ✅ Save Greeting,🔄 Try Different Voice,🌐 Change Language,📝 Re-type Text,Back,Cancel	to: 8273560746
+[2026-04-27T12:19:09] [info] message: ✅ Save Greeting	from: 8273560746 Scoreboard44
+[2026-04-27T12:19:09] [info] reply: ✅ IVR greeting saved! 	to: 8273560746
+[2026-04-27T12:19:09] [info]  🎤 Set Greeting,➕ Add Menu Option,➖ Remove Option,📋 View Menu Options,📊 IVR Analytics,🚫 Disable IVR,Back,Cancel	to: 8273560746
+[2026-04-27T12:19:13] [info] message: ➕ Add Menu Option	from: 8273560746 Scoreboard44
+[2026-04-27T12:19:13] [info] Enter the key number (0-9) for this option: 0,1,2,3,4,5,6,7,8,9,Back,Cancel	to: 8273560746
+[2026-04-27T12:19:15] [info] message: 1	from: 8273560746 Scoreboard44
+[2026-04-27T12:19:15] [info] What should happen when a caller presses <b>1</b>? 📞 Forward Call,💬 Play Message,📬 Send to Voicemail,Back,Cancel	to: 8273560746
+[2026-04-27T12:19:21] [info] message: 📬 Send to Voicemail	from: 8273560746 Scoreboard44
+[2026-04-27T12:19:21] [info] reply: ✅ Key <b>1</b> → Send to Voicemail — saved! 	to: 8273560746
+[2026-04-27T12:19:21] [info]  🎤 Set Greeting,➕ Add Menu Option,➖ Remove Option,📋 View Menu Options,📊 IVR Analytics,🚫 Disable IVR,Back,Cancel	to: 8273560746
+[2026-04-27T12:19:24] [info] message: ➕ Add Menu Option	from: 8273560746 Scoreboard44
+[2026-04-27T12:19:24] [info] Enter the key number (0-9) for this option: 0,1,2,3,4,5,6,7,8,9,Back,Cancel	to: 8273560746
+[2026-04-27T12:19:29] [info] message: 2	from: 8273560746 Scoreboard44
+[2026-04-27T12:19:29] [info] What should happen when a caller presses <b>2</b>? 📞 Forward Call,💬 Play Message,📬 Send to Voicemail,Back,Cancel	to: 8273560746
+[2026-04-27T12:19:29] [info] message: 📞 Forward Call	from: 8273560746 Scoreboard44
+[2026-04-27T12:19:29] [info] <i>Example: +15551234567</i> Back,Cancel	to: 8273560746
+[2026-04-27T12:19:46] [info] message: +19314399742	from: 8273560746 Scoreboard44
+[2026-04-27T12:19:47] [info]  🎤 Set Greeting,➕ Add Menu Option,➖ Remove Option,📋 View Menu Options,📊 IVR Analytics,🚫 Disable IVR,Back,Cancel	to: 8273560746
+[2026-04-27T12:19:47] [info] reply: ✅ Key <b>2</b> → Forward to <b>+19314399742</b> — saved! 	to: 8273560746
+[2026-04-27T12:20:17] [info] message: Cancel	from: 8273560746 Scoreboard44
+[2026-04-27T12:20:17] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746
+[2026-04-27T12:21:15] [info] When done, send /done to close the chat. /done	to: 8273560746
+[2026-04-27T12:21:15] [info] User: <b>@Scoreboard44</b> (8273560746)
+[2026-04-27T12:21:15] [info] Reply with: /reply 8273560746 <i>your message</i>
+[2026-04-27T12:21:15] [info] 📎 Or attach a photo/file with caption: <code>/reply 8273560746 your caption</code>
+[2026-04-27T12:21:15] [info] Close with: /close 8273560746 	to: 5590563715
+[2026-04-27T12:21:15] [info] [Support] Session opened for 8273560746 Scoreboard44 — AI will auto-respond, escalation to admin if needed
+[2026-04-27T12:21:15] [info] message: 💬 Support	from: 8273560746 Scoreboard44
+[2026-04-27T12:23:41] [info] message: Bro can you make it so my phone setting not resetting everytime?.... ESCALATE THIS, the vic called me back from last night this morning and it wasn't setup...	from: 8273560746 Scoreboard44
+[2026-04-27T12:23:42] [info] reply: 💬 <b>@Scoreboard44</b> (8273560746):
+[2026-04-27T12:23:42] [info] ↩️ /reply 8273560746 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-04-27T12:23:42] [info] [Support] 8273560746 -> admin: Bro can you make it so my phone setting not resetting everytime?.... ESCALATE THIS, the vic called me back from last night this morning and it wasn't setup... (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)
+[2026-04-27T12:23:44] [info] Thank you for your patience! /done	to: 8273560746
+[2026-04-27T12:23:44] [info] reply: 🤖 <b>AI replied to @Scoreboard44</b> (8273560746):
+[2026-04-27T12:23:44] [info] [Support] AI -> 8273560746: I understand you're having trouble with your phone settings resetting, and that a caller contacted y... (escalate: true)
+[2026-04-27T12:24:25] [info] message: +18888370876	from: 8273560746 Scoreboard44
+[2026-04-27T12:24:26] [info] reply: 💬 <b>@Scoreboard44</b> (8273560746):
+[2026-04-27T12:24:26] [info] ↩️ /reply 8273560746 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-04-27T12:24:26] [info] [Support] 8273560746 -> admin: +18888370876 (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)
+[2026-04-27T12:24:29] [info] Is there anything else I can assist with meanwhile? /done	to: 8273560746
+[2026-04-27T12:24:29] [info] reply: 🤖 <b>AI replied to @Scoreboard44</b> (8273560746):
+[2026-04-27T12:24:29] [info] [Support] AI -> 8273560746: Thanks for providing the number +18888370876. I've noted this for the technical team to investigate ... (escalate: true)
+[2026-04-27T12:24:37] [info] message: /reply 8273560746 which setting is resetting? Please be clear	from: 5590563715 onarrival1
+[2026-04-27T12:24:37] [info] which setting is resetting? Please be clear /done	to: 8273560746
+[2026-04-27T12:24:37] [info] [Support] Admin replied to 8273560746: which setting is resetting? Please be clear (targetLang: en, translated: false) — session re-opened, admin takeover ON
+[2026-04-27T12:24:57] [info] [Support] 8273560746 -> admin: Everything (botLang: en, msgLang: en, translated: false, adminTakeover: true, sessionOpen: true)
+[2026-04-27T12:24:57] [info] reply: ✉️ Message received! A support agent will respond shortly. /done	to: 8273560746
+[2026-04-27T12:24:57] [info] message: Everything	from: 8273560746 Scoreboard44
+[2026-04-27T12:24:57] [info] reply: 💬 <b>@Scoreboard44</b> (8273560746):
+[2026-04-27T12:24:57] [info] ↩️ /reply 8273560746 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-04-27T12:25:05] [info] message: I have to reset voicemail	from: 8273560746 Scoreboard44
+[2026-04-27T12:25:05] [info] reply: 💬 <b>@Scoreboard44</b> (8273560746):
+[2026-04-27T12:25:05] [info] ↩️ /reply 8273560746 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-04-27T12:25:05] [info] [Support] 8273560746 -> admin: I have to reset voicemail (botLang: en, msgLang: en, translated: false, adminTakeover: true, sessionOpen: true)
+[2026-04-27T12:25:05] [info] reply: ✉️ Message received! A support agent will respond shortly. /done	to: 8273560746
+[2026-04-27T12:25:09] [info] message: Callback	from: 8273560746 Scoreboard44
+[2026-04-27T12:25:10] [info] reply: 💬 <b>@Scoreboard44</b> (8273560746):
+[2026-04-27T12:25:10] [info] ↩️ /reply 8273560746 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-04-27T12:25:10] [info] [Support] 8273560746 -> admin: Callback (botLang: en, msgLang: en, translated: false, adminTakeover: true, sessionOpen: true)
+[2026-04-27T12:25:10] [info] reply: ✉️ Message received! A support agent will respond shortly. /done	to: 8273560746
+[2026-04-27T12:25:11] [info] message: Ivr	from: 8273560746 Scoreboard44
+[2026-04-27T12:25:12] [info] ↩️ /reply 8273560746 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-04-27T12:25:12] [info] reply: 💬 <b>@Scoreboard44</b> (8273560746):
+[2026-04-27T12:25:12] [info] [Support] 8273560746 -> admin: Ivr (botLang: en, msgLang: en, translated: false, adminTakeover: true, sessionOpen: true)
+[2026-04-27T12:25:12] [info] reply: ✉️ Message received! A support agent will respond shortly. /done	to: 8273560746
+[2026-04-27T12:25:16] [info] message: Everything	from: 8273560746 Scoreboard44
+[2026-04-27T12:25:17] [info] reply: 💬 <b>@Scoreboard44</b> (8273560746):
+[2026-04-27T12:25:17] [info] ↩️ /reply 8273560746 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-04-27T12:25:17] [info] [Support] 8273560746 -> admin: Everything (botLang: en, msgLang: en, translated: false, adminTakeover: true, sessionOpen: true)
+[2026-04-27T12:25:17] [info] reply: ✉️ Message received! A support agent will respond shortly. /done	to: 8273560746
+[2026-04-27T12:26:17] [info] [Support] Admin replied to 8273560746: is phone number +18888370876 purchased on your username @Scoreboard44? (targetLang: en, translated: false) — session re-opened, admin takeover ON
+[2026-04-27T12:26:17] [info] message: /reply 8273560746 is phone number +18888370876 purchased on your username @Scoreboard44?	from: 5590563715 onarrival1
+[2026-04-27T12:26:17] [info] is phone number +18888370876 purchased on your username @Scoreboard44? /done	to: 8273560746
+[2026-04-27T12:27:07] [info] message: Yes	from: 8273560746 Scoreboard44
+[2026-04-27T12:27:07] [info] [Support] 8273560746 -> admin: Yes (botLang: en, msgLang: en, translated: false, adminTakeover: true, sessionOpen: true)
+[2026-04-27T12:27:07] [info] reply: ✉️ Message received! A support agent will respond shortly. /done	to: 8273560746
+[2026-04-27T12:27:07] [info] reply: 💬 <b>@Scoreboard44</b> (8273560746):
+[2026-04-27T12:27:07] [info] ↩️ /reply 8273560746 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-04-27T12:31:34] [info] message: /reply 8273560746 taking a look at the issues and will report back with the status.	from: 5590563715 onarrival1
+[2026-04-27T12:31:34] [info] taking a look at the issues and will report back with the status. /done	to: 8273560746
+[2026-04-27T12:31:34] [info] [Support] Admin replied to 8273560746: taking a look at the issues and will report back with the status. (targetLang: en, translated: false) — session re-opened, admin takeover ON
+[2026-04-27T12:33:44] [info] message: /done	from: 8273560746 Scoreboard44
+[2026-04-27T12:33:44] [info] reply: ✅ Support session ended. Thank you for reaching out! 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746
+[2026-04-27T12:33:44] [info] reply: 📴 Support session closed by user <b>@Scoreboard44</b> (8273560746) 	to: 5590563715
+[2026-04-27T12:33:44] [info] reply: 📝 <b>Quick feedback:</b> Was our support helpful? 	to: 8273560746
+[2026-04-27T12:33:44] [info] [Support] Session ended by user 8273560746 — admin takeover OFF
+[2026-04-27T12:33:44] [info] message: 📞 Cloud IVR + SIP	from: 8273560746 Scoreboard44
+[2026-04-27T12:33:44] [info] 📞 33 phone numbers activated this week 📢 Quick IVR Call,📞 Bulk IVR Campaign,🎵 Audio Library,🧪 Test SIP Free,🛒 Choose a Plan,📋 My Plans,📖 SIP Setup Guide,📊 Usage & Billing,❓ How It Works,Back,Cancel	to: 8273560746
+[2026-04-27T12:33:47] [info] message: 📋 My Plans	from: 8273560746 Scoreboard44
+[2026-04-27T12:33:47] [info]  1,2,🛒 Buy Another Number,Back,Cancel	to: 8273560746
+[2026-04-27T12:33:49] [info] message: 1	from: 8273560746 Scoreboard44
+[2026-04-27T12:33:49] [info] [Queue] Error processing message for 8273560746: hasVoice is not defined
+[2026-04-27T12:34:09] [info] message: 1	from: 8273560746 Scoreboard44
+[2026-04-27T12:34:09] [info] reply: Please select an option. 	to: 8273560746
+[2026-04-27T12:34:09] [info] message: 1	from: 8273560746 Scoreboard44
+[2026-04-27T12:34:09] [info] reply: Please select an option. 	to: 8273560746
+[2026-04-27T12:34:11] [info] message: Back	from: 8273560746 Scoreboard44
+[2026-04-27T12:34:11] [info]  1,2,🛒 Buy Another Number,Back,Cancel	to: 8273560746
+[2026-04-27T12:34:15] [info] [Queue] Error processing message for 8273560746: hasVoice is not defined
+[2026-04-27T12:34:15] [info] message: 1	from: 8273560746 Scoreboard44
+[2026-04-27T12:34:35] [info] message: Cancel	from: 8273560746 Scoreboard44
+[2026-04-27T12:34:35] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746
+[2026-04-27T12:34:35] [info] message: 📞 Cloud IVR + SIP	from: 8273560746 Scoreboard44
+[2026-04-27T12:34:35] [info] 📞 33 phone numbers activated this week 📢 Quick IVR Call,📞 Bulk IVR Campaign,🎵 Audio Library,🧪 Test SIP Free,🛒 Choose a Plan,📋 My Plans,📖 SIP Setup Guide,📊 Usage & Billing,❓ How It Works,Back,Cancel	to: 8273560746
+[2026-04-27T12:34:35] [info] message: 📋 My Plans	from: 8273560746 Scoreboard44
+[2026-04-27T12:34:35] [info]  1,2,🛒 Buy Another Number,Back,Cancel	to: 8273560746
+[2026-04-27T12:34:37] [info] message: 1	from: 8273560746 Scoreboard44
+[2026-04-27T12:34:37] [info] [Queue] Error processing message for 8273560746: hasVoice is not defined
+[2026-04-27T12:35:17] [info] [Twilio] IVR gather: chatId=8273560746 digits=1 from=+19106516884 to=+18888370876
+[2026-04-27T12:35:17] [info] [Twilio] Voicemail recorded: REa41ea1b672b5f08bcf299f6882777730 (2s) for chatId=8273560746
+[2026-04-27T12:35:37] [info] message: Cancel	from: 8273560746 Scoreboard44
+[2026-04-27T12:35:37] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8273560746
