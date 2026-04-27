@@ -544,6 +544,7 @@ const crAutoWhitelist = require('./cr-auto-whitelist.js')
 const { initScheduler: initHostingScheduler } = require('./hosting-scheduler.js')
 const { initPhoneTestRoutes, generateTestOtp, checkTestCredentialCall, getOrCreateReferralCode, trackReferral } = require('./phone-test-routes.js')
 const { initTestMyNumber, placeTestCall: placeTestMyNumberCall } = require('./test-my-number.js')
+const { initTestOutboundSip, startTest: startTestOutboundSip } = require('./test-outbound-sip.js')
 const antiRedService = require('./anti-red-service.js')
 const { initLeadJobPersistence, flushAllJobs, findInterruptedJobs, resumeJob } = require('./lead-job-persistence.js')
 const { initAiSupport, getAiResponse, getMarketplaceAiResponse, moderateMarketplaceChat, clearHistory: clearAiHistory, isAiEnabled, recordUserError, extractActionButtons, rateSupportSession } = require('./ai-support.js')
@@ -1857,6 +1858,7 @@ const loadData = async () => {
       state,
       loyalty,
       db, // FIX #9: Pass db for persisting balance notification history
+      testOutboundSipMatch: require('./test-outbound-sip.js').matchPendingTest,
     })
     log('[CloudPhone] Voice Service initialized with IVR + Recording + Overage')
 
@@ -1870,6 +1872,14 @@ const loadData = async () => {
       db,
       log,
       selfUrl: SELF_URL,
+      getTxt: phoneConfig.getTxt,
+    })
+
+    // Initialize Test Outbound SIP feature (one-tap "📤 Test Outbound SIP" on Manage screen)
+    initTestOutboundSip({
+      bot,
+      telnyxApi,
+      log,
       getTxt: phoneConfig.getTxt,
     })
   }
@@ -19777,6 +19787,10 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     // Test My Number — quick health check (only for active numbers with voice)
     if (hasVoice && num.status === 'active') {
       rows.push([pc.testMyNumber])
+      // Test Outbound SIP — only when SIP credentials exist (otherwise nothing to test)
+      if (num.sipUsername) {
+        rows.push([pc.testOutboundSip])
+      }
     }
     rows.push([pc.renewChangePlan, pc.releaseNumber])
     return rows
@@ -20234,6 +20248,13 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     if (message === pc.testMyNumber) {
       const lang = info?.userLanguage || 'en'
       const result = await placeTestMyNumberCall(chatId, num, lang)
+      return send(chatId, result.message, { parse_mode: 'HTML', disable_web_page_preview: true })
+    }
+
+    // 📤 Test Outbound SIP — opens a 90s listening window; user dials from softphone
+    if (message === pc.testOutboundSip) {
+      const lang = info?.userLanguage || 'en'
+      const result = startTestOutboundSip(chatId, num, lang)
       return send(chatId, result.message, { parse_mode: 'HTML', disable_web_page_preview: true })
     }
 

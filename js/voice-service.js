@@ -41,6 +41,7 @@ function _trans(key, lang, ...args) {
 let _state = null
 let _twilioService = null
 let _loyalty = null
+let _testOutboundSipMatch = null
 
 // In-memory store for active call sessions (callControlId → session data)
 const activeCalls = {}
@@ -1130,6 +1131,7 @@ function initVoiceService(deps) {
   _twilioService = deps.twilioService || null
   _state = deps.state || null
   _loyalty = deps.loyalty || null
+  _testOutboundSipMatch = deps.testOutboundSipMatch || null
 
   // FIX #9: Load persisted notification history from MongoDB to prevent mass-warning on deploy
   if (deps.db) {
@@ -2605,6 +2607,26 @@ async function handleOutboundSipCall(payload) {
       await _telnyxApi.hangupCall(callControlId)
     } catch (e) { log(`[Voice] Reject error: ${e.message}`) }
     return
+  }
+
+  // ── TEST OUTBOUND SIP HOOK ──
+  // If this user has an active "Test Outbound SIP" session, short-circuit the call:
+  // hang up cleanly (no PSTN leg, no wallet charge, no connection fee) and report back.
+  if (_testOutboundSipMatch) {
+    try {
+      const intercepted = await _testOutboundSipMatch(chatId, num, sipUsername, {
+        provider: num.provider,
+        destination,
+        callControlId,
+        autoRouted: isAutoRouted,
+      })
+      if (intercepted) {
+        log(`[Voice] Outbound SIP test intercept: ${sipUsername} → ${destination} (chatId=${chatId}) — hung up, no billing`)
+        return
+      }
+    } catch (e) {
+      log(`[Voice] testOutboundSipMatch error (non-fatal): ${e.message}`)
+    }
   }
 
   // ── POST-IDENTIFICATION WALLET COOLDOWN CHECK ──

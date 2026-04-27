@@ -839,3 +839,36 @@ All pre-existing SIP tests still green:
 
 ### Deployment status
 - **Local only.** Fixes are in `/app/js/`. Production Railway `Nomadly-EMAIL-IVR` needs redeploy via "Save to Github" → Railway auto-deploy (or manual trigger).
+
+
+## Feb 2026 — "📤 Test Outbound SIP" One-Tap Feature
+
+### What shipped
+New one-tap button on the Manage-Number screen that verifies the user's outbound SIP path works end-to-end WITHOUT placing a real PSTN call or charging the wallet. Companion to the existing "📞 Test My Number" (inbound test).
+
+### Flow
+1. User taps **📤 Test Outbound SIP** (only visible when `num.sipUsername` is set).
+2. Bot opens a 90-second listening window keyed by `chatId + sipUsername` and asks the user to dial **any number** from their softphone (their own mobile works — safest option).
+3. When the outbound call arrives at `voice-service.handleOutboundSipCall`, a hook checks if there's a matching pending test session AFTER user identification but BEFORE connection fee / PSTN transfer.
+4. **On match**: call is immediately hung up (no wallet deduction, no PSTN leg, no provider minutes). User receives a success report with SIP username, provider, destination dialed, and latency.
+5. **On 90s timeout**: helpful diagnostic message lists causes (softphone not registered, wrong creds, firewall, PBX misconfig) with `/sipguide` CTA.
+
+### Why this is useful
+Users like @Mrdoitright53 often had no way to verify that outbound SIP from their softphone reaches our servers with the right credentials. Previously they had to burn real minutes dialing a number and waiting for PSTN connection — now they get a definitive yes/no in under 2 minutes, zero cost.
+
+### Throttle
+5 tests per number per 24 hours (in-memory, same as Test My Number).
+
+### Files
+- `js/test-outbound-sip.js` (new, ~210 LOC) — hook-based module, session map, throttle, matchPendingTest + startTest + finalizeTimeout.
+- `js/voice-service.js` — new `_testOutboundSipMatch` dep + hook in `handleOutboundSipCall` after user-identification, before connection-fee.
+- `js/_index.js` — require + `initTestOutboundSip`, `testOutboundSipMatch` passed into `initVoiceService`, button in `buildManageMenu` gated on `num.sipUsername`, handler calling `startTestOutboundSip`.
+- `js/phone-config.js` — button label in en/fr/zh/hi + full `testOutboundSip` text bundle (6 keys: `listening`, `success`, `timeout`, `throttled`, `inactive`, `noSipConfigured`) in each of the 4 locales.
+- `js/tests/test_test_outbound_sip.js` (new, 68 assertions, all green) — exports, i18n, session lifecycle (start → match → report, start → timeout), throttle, voice-service hook placement, bot wiring.
+
+### Verified
+- Node.js bot boots cleanly: `[TestOutboundSip] initialized — hook-based (no HTTP route)`
+- All 6 SIP-related test suites green: `test_test_outbound_sip` (68), `test_sip_ring_result_fallback` (8), `test_sip_ux_warnings` (10), `test_pool_minute_limit_fix` (10), `test_manage_screen_features` (21), `test_test_my_number_i18n` (32). **Total 149 assertions green, no regressions.**
+
+### Deployment status
+- **Local only.** Will go live when Railway redeploys after next "Save to Github" push.

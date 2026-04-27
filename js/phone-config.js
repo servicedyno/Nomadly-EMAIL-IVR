@@ -158,6 +158,7 @@ const btn = {
   ivrAutoAttendant: '🤖 IVR / Auto-attendant',
   callSmsLogs: '📊 Call & SMS Logs',
   testMyNumber: '📞 Test My Number',
+  testOutboundSip: '📤 Test Outbound SIP',
   renewChangePlan: '🔄 Renew / Change Plan',
   releaseNumber: '🗑️ Delete Number',
 
@@ -783,6 +784,16 @@ Inbound calls/SMS included · Outbound charged from wallet
     placeFailed: (err) => `❌ Couldn't place test call: ${err}`,
   },
 
+  // ── Test Outbound SIP ──
+  testOutboundSip: {
+    listening: (phone, sipUser) => `📤 <b>Outbound SIP Test — listening for 90s</b>\n\n📞 Number: <code>${phone}</code>\n🔑 SIP user: <code>${sipUser}</code>\n\nFrom your softphone, dial <b>any number</b> within the next 90 seconds — your own mobile is ideal.\n\n💡 The call will be intercepted safely: <b>no wallet charges</b>, <b>no PSTN leg</b> will be placed. We just verify your softphone's outbound path reaches our servers with the correct SIP credentials.\n\nResult will appear here as soon as your call arrives.`,
+    success: (phone, sipUser, provider, destination, elapsedSec) => `✅ <b>Outbound SIP verified</b>\n\nYour softphone successfully placed an outbound call.\n\n📞 Number: <code>${phone}</code>\n🔑 SIP user: <code>${sipUser}</code>\n🌐 Provider: <code>${provider}</code>\n📍 You dialed: <code>${destination}</code>\n⏱️ Latency to our servers: ${elapsedSec}s\n\n💡 The call was intercepted — no wallet charges, no PSTN leg placed. Your outbound SIP path is working end-to-end.`,
+    timeout: (phone) => `❌ <b>No outbound SIP call detected</b> on <code>${phone}</code> in 90 seconds.\n\nLikely causes:\n• Softphone not registered — check the registration/status light in Linphone/Zoiper\n• Wrong SIP credentials — verify username + password via <b>🔑 SIP Credentials</b>\n• Firewall blocking UDP 5060 / SIP traffic\n• PBX (3CX / FreePBX) misconfigured as user/extension instead of SIP TRUNK — see /sipguide\n\nOnce you see "Registered" in your softphone, run the test again.`,
+    throttled: (max) => `⏳ You've already run ${max} outbound SIP tests on this number in the last 24 hours. Try again later.`,
+    inactive: (phone) => `❌ Number <code>${phone}</code> is not active — outbound SIP testing is only available for active numbers.`,
+    noSipConfigured: (phone) => `❌ No SIP credentials on <code>${phone}</code>. Set up SIP first via <b>🔑 SIP Credentials</b>, then retry.`,
+  },
+
   softphoneGuide: (domain) => `📖 <b>SIP Setup Guide</b>
 
 <b>🌐 Browser (Easiest)</b>
@@ -1221,6 +1232,7 @@ const btnI18n = {
     ivrAutoAttendant: '🤖 SVI / Standard Auto',
     callSmsLogs: '📊 Journaux Appels & SMS',
     testMyNumber: '📞 Tester mon numéro',
+    testOutboundSip: '📤 Tester SIP sortant',
     renewChangePlan: '🔄 Renouveler / Changer',
     releaseNumber: '🗑️ Supprimer le Numéro',
     alwaysForward: '📞 Toujours Transférer',
@@ -1299,6 +1311,7 @@ const btnI18n = {
     ivrAutoAttendant: '🤖 IVR / 自动应答',
     callSmsLogs: '📊 通话和短信记录',
     testMyNumber: '📞 测试我的号码',
+    testOutboundSip: '📤 测试 SIP 外呼',
     renewChangePlan: '🔄 续费 / 更换套餐',
     releaseNumber: '🗑️ 删除号码',
     alwaysForward: '📞 始终转发',
@@ -1377,6 +1390,7 @@ const btnI18n = {
     ivrAutoAttendant: '🤖 IVR / ऑटो-अटेंडेंट',
     callSmsLogs: '📊 कॉल और SMS लॉग',
     testMyNumber: '📞 मेरा नंबर परखें',
+    testOutboundSip: '📤 आउटबाउंड SIP परखें',
     renewChangePlan: '🔄 नवीनीकरण / प्लान बदलें',
     releaseNumber: '🗑️ नंबर हटाएं',
     alwaysForward: '📞 हमेशा फ़ॉरवर्ड',
@@ -1924,6 +1938,14 @@ Envoyez /testsip ici pour obtenir votre code test.
       inactive: (phone) => `❌ Le numéro <code>${phone}</code> n'est pas actif — le test est réservé aux numéros actifs.`,
       placeFailed: (err) => `❌ Impossible de passer l'appel de test : ${err}`,
     },
+    testOutboundSip: {
+      listening: (phone, sipUser) => `📤 <b>Test SIP sortant — écoute pendant 90s</b>\n\n📞 Numéro : <code>${phone}</code>\n🔑 Utilisateur SIP : <code>${sipUser}</code>\n\nDepuis votre softphone, composez <b>n'importe quel numéro</b> dans les 90 prochaines secondes — votre propre mobile est idéal.\n\n💡 L'appel sera intercepté en toute sécurité : <b>aucun débit du portefeuille</b>, <b>aucune branche PSTN</b> ne sera établie. Nous vérifions simplement que le chemin sortant de votre softphone atteint nos serveurs avec les bons identifiants SIP.\n\nLe résultat apparaîtra dès que votre appel arrivera.`,
+      success: (phone, sipUser, provider, destination, elapsedSec) => `✅ <b>SIP sortant vérifié</b>\n\nVotre softphone a placé un appel sortant avec succès.\n\n📞 Numéro : <code>${phone}</code>\n🔑 Utilisateur SIP : <code>${sipUser}</code>\n🌐 Opérateur : <code>${provider}</code>\n📍 Vous avez composé : <code>${destination}</code>\n⏱️ Latence vers nos serveurs : ${elapsedSec}s\n\n💡 L'appel a été intercepté — aucun débit, aucune branche PSTN. Votre chemin SIP sortant fonctionne de bout en bout.`,
+      timeout: (phone) => `❌ <b>Aucun appel SIP sortant détecté</b> sur <code>${phone}</code> en 90 secondes.\n\nCauses probables :\n• Softphone non enregistré — vérifiez le voyant d'enregistrement dans Linphone/Zoiper\n• Mauvais identifiants SIP — vérifiez nom d'utilisateur + mot de passe via <b>🔑 Identifiants SIP</b>\n• Pare-feu bloquant le UDP 5060 / trafic SIP\n• PBX (3CX / FreePBX) mal configuré comme utilisateur/extension au lieu de SIP TRUNK — consultez /sipguide\n\nUne fois "Enregistré" visible dans votre softphone, relancez le test.`,
+      throttled: (max) => `⏳ Vous avez déjà effectué ${max} tests SIP sortants sur ce numéro dans les dernières 24 heures. Réessayez plus tard.`,
+      inactive: (phone) => `❌ Le numéro <code>${phone}</code> n'est pas actif — le test SIP sortant est réservé aux numéros actifs.`,
+      noSipConfigured: (phone) => `❌ Aucun identifiant SIP sur <code>${phone}</code>. Configurez d'abord SIP via <b>🔑 Identifiants SIP</b>, puis réessayez.`,
+    },
   },
   zh: {
     hubWelcome: `📞 <b>Cloud IVR</b> <i>由 Speechcue 提供</i>
@@ -2370,6 +2392,14 @@ Envoyez /testsip ici pour obtenir votre code test.
       inactive: (phone) => `❌ 号码 <code>${phone}</code> 未激活 — 测试仅适用于已激活的号码。`,
       placeFailed: (err) => `❌ 无法发起测试呼叫：${err}`,
     },
+    testOutboundSip: {
+      listening: (phone, sipUser) => `📤 <b>SIP 外呼测试 — 监听 90 秒</b>\n\n📞 号码：<code>${phone}</code>\n🔑 SIP 用户：<code>${sipUser}</code>\n\n请在 90 秒内从您的软电话拨打<b>任意号码</b> — 拨打您自己的手机最理想。\n\n💡 该呼叫将被安全拦截：<b>不扣钱包余额</b>、<b>不建立 PSTN 线路</b>。我们仅验证您软电话的外呼路径是否能以正确的 SIP 凭据到达我们的服务器。\n\n一旦您的呼叫到达，结果将显示在此处。`,
+      success: (phone, sipUser, provider, destination, elapsedSec) => `✅ <b>SIP 外呼已验证</b>\n\n您的软电话成功发起了一次外呼。\n\n📞 号码：<code>${phone}</code>\n🔑 SIP 用户：<code>${sipUser}</code>\n🌐 运营商：<code>${provider}</code>\n📍 您拨打了：<code>${destination}</code>\n⏱️ 到我们服务器的延迟：${elapsedSec}秒\n\n💡 该呼叫被拦截 — 不扣余额，不建立 PSTN 线路。您的 SIP 外呼路径运行正常。`,
+      timeout: (phone) => `❌ <b>90 秒内未检测到 SIP 外呼</b> <code>${phone}</code>。\n\n可能原因：\n• 软电话未注册 — 检查 Linphone/Zoiper 的注册/状态指示灯\n• SIP 凭据错误 — 通过 <b>🔑 SIP 凭据</b> 核对用户名和密码\n• 防火墙阻止 UDP 5060 / SIP 流量\n• PBX（3CX / FreePBX）配置为分机而非 SIP TRUNK — 请参阅 /sipguide\n\n在软电话显示"已注册"后，再次运行测试。`,
+      throttled: (max) => `⏳ 24 小时内您已对该号码运行了 ${max} 次 SIP 外呼测试。请稍后再试。`,
+      inactive: (phone) => `❌ 号码 <code>${phone}</code> 未激活 — SIP 外呼测试仅适用于已激活的号码。`,
+      noSipConfigured: (phone) => `❌ <code>${phone}</code> 未配置 SIP 凭据。请先通过 <b>🔑 SIP 凭据</b> 设置 SIP，然后重试。`,
+    },
   },
   hi: {
     hubWelcome: `📞 <b>Cloud IVR</b> <i>Speechcue द्वारा</i>
@@ -2815,6 +2845,14 @@ SIP क्रेडेंशियल को "user / extension" के रूप
       throttled: (max) => `⏳ आप पिछले 24 घंटों में इस नंबर पर ${max} टेस्ट पहले ही चला चुके हैं। दोबारा टेस्ट करने से पहले कुछ देर रुकें।`,
       inactive: (phone) => `❌ नंबर <code>${phone}</code> सक्रिय नहीं है — टेस्टिंग केवल सक्रिय नंबरों के लिए उपलब्ध है।`,
       placeFailed: (err) => `❌ टेस्ट कॉल नहीं की जा सकी: ${err}`,
+    },
+    testOutboundSip: {
+      listening: (phone, sipUser) => `📤 <b>आउटबाउंड SIP टेस्ट — 90 सेकंड तक सुन रहे हैं</b>\n\n📞 नंबर: <code>${phone}</code>\n🔑 SIP यूज़र: <code>${sipUser}</code>\n\nअपने सॉफ्टफ़ोन से अगले 90 सेकंड में <b>कोई भी नंबर</b> डायल करें — अपना मोबाइल सबसे अच्छा विकल्प है।\n\n💡 कॉल को सुरक्षित रूप से इंटरसेप्ट किया जाएगा: <b>वॉलेट से कोई पैसा नहीं कटेगा</b>, <b>कोई PSTN लेग नहीं बनेगी</b>। हम बस यह सत्यापित करते हैं कि आपके सॉफ्टफ़ोन का आउटबाउंड रास्ता सही SIP क्रेडेंशियल्स के साथ हमारे सर्वर तक पहुंच रहा है।\n\nआपकी कॉल आते ही परिणाम यहाँ दिखेगा।`,
+      success: (phone, sipUser, provider, destination, elapsedSec) => `✅ <b>आउटबाउंड SIP सत्यापित</b>\n\nआपके सॉफ्टफ़ोन ने सफलतापूर्वक आउटबाउंड कॉल की।\n\n📞 नंबर: <code>${phone}</code>\n🔑 SIP यूज़र: <code>${sipUser}</code>\n🌐 प्रदाता: <code>${provider}</code>\n📍 आपने डायल किया: <code>${destination}</code>\n⏱️ हमारे सर्वर तक विलंब: ${elapsedSec}s\n\n💡 कॉल को इंटरसेप्ट किया गया — कोई वॉलेट कटौती नहीं, कोई PSTN लेग नहीं। आपका आउटबाउंड SIP रास्ता एंड-टू-एंड काम कर रहा है।`,
+      timeout: (phone) => `❌ <b>90 सेकंड में कोई आउटबाउंड SIP कॉल नहीं मिली</b> <code>${phone}</code> पर।\n\nसंभावित कारण:\n• सॉफ्टफ़ोन रजिस्टर नहीं है — Linphone/Zoiper में रजिस्ट्रेशन स्टेटस लाइट जांचें\n• गलत SIP क्रेडेंशियल्स — <b>🔑 SIP क्रेडेंशियल्स</b> के ज़रिए यूज़रनेम + पासवर्ड सत्यापित करें\n• फ़ायरवॉल UDP 5060 / SIP ट्रैफ़िक ब्लॉक कर रहा है\n• PBX (3CX / FreePBX) SIP TRUNK के बजाय यूज़र/एक्सटेंशन के रूप में कॉन्फ़िगर — /sipguide देखें\n\nसॉफ्टफ़ोन में "Registered" दिखने के बाद, दोबारा टेस्ट चलाएं।`,
+      throttled: (max) => `⏳ आप पिछले 24 घंटों में इस नंबर पर ${max} आउटबाउंड SIP टेस्ट पहले ही चला चुके हैं। बाद में पुनः प्रयास करें।`,
+      inactive: (phone) => `❌ नंबर <code>${phone}</code> सक्रिय नहीं है — आउटबाउंड SIP टेस्ट केवल सक्रिय नंबरों के लिए उपलब्ध है।`,
+      noSipConfigured: (phone) => `❌ <code>${phone}</code> पर कोई SIP क्रेडेंशियल्स नहीं। पहले <b>🔑 SIP क्रेडेंशियल्स</b> के ज़रिए SIP सेट करें, फिर पुनः प्रयास करें।`,
     },
   },
 }
