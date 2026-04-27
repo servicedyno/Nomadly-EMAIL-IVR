@@ -16346,7 +16346,21 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       return send(chatId, menuText, k.of(menuRows))
     }
     if (message === pc.sipSettings) {
-      return send(chatId, cpTxt.softphoneGuide(phoneConfig.SIP_DOMAIN), k.of([]))
+      return send(chatId, cpTxt.softphoneGuide(phoneConfig.SIP_DOMAIN), {
+        parse_mode: 'HTML',
+        disable_web_page_preview: true,
+        reply_markup: { keyboard: [
+          [pc.ivrOutboundCall],
+          [pc.bulkCallCampaign],
+          [pc.audioLibrary],
+          [pc.testSipFree],
+          [pc.buyPhoneNumber],
+          [pc.myNumbers],
+          [pc.sipSettings],
+          [pc.usageBilling],
+          [pc.howItWorks],
+        ], resize_keyboard: true }
+      })
     }
     if (message === pc.usageBilling) {
       // Show overall usage if they have numbers
