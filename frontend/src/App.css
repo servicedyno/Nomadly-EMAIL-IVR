@@ -1464,6 +1464,18 @@
   color: #9898cc;
 }
 
+.panel-help-link {
+  color: #60a5fa;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.panel-help-link:hover {
+  color: #93c5fd;
+  text-decoration: underline;
+}
+
 /* Light mode overrides for login help */
 .panel-light .panel-login-help-btn {
   border-color: rgba(0,0,0,0.1);
@@ -1495,6 +1507,14 @@
 
 .panel-light .panel-help-note strong {
   color: #333;
+}
+
+.panel-light .panel-help-link {
+  color: #2563eb;
+}
+
+.panel-light .panel-help-link:hover {
+  color: #1d4ed8;
 }
 
 .panel-light .panel-input-hint {

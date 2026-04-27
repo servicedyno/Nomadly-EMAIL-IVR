@@ -8258,7 +8258,17 @@ All verified numbers generated during sourcing.`))
     // Continue with normal /start flow below
   }
 
-  if (message === '/start' || message.startsWith('/start ref_')) {
+  // Handle /start pinreset deep link — navigate user directly to My Hosting Plans
+  if (message === '/start pinreset' || message === '/start resetpin') {
+    bot?.sendChatAction?.(chatId, 'typing').catch(() => {})
+    log(`[DeepLink] ${chatId} opened PIN reset deep link`)
+    // Trigger the myHostingPlans flow so user can tap "Show Credentials" to get a fresh PIN
+    if (goto?.myHostingPlans) {
+      return goto.myHostingPlans()
+    }
+  }
+
+  if (message === '/start' || message.startsWith('/start ref_') || message === '/start pinreset' || message === '/start resetpin') {
     // Bug 7: Immediate typing indicator — gives instant visual feedback so users
     // don't tap /start multiple times while waiting for the first reply.
     bot?.sendChatAction?.(chatId, 'typing').catch(() => {})
