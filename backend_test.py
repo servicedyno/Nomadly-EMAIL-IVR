@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Comprehensive Backend Testing for Nomadly Coupon System
-Testing against: https://get-started-73.preview.emergentagent.com/api
+Testing against: https://readme-guide-7.preview.emergentagent.com/api
 
 Focus on previously failing issues:
 1. Case insensitivity (lowercase coupons)
@@ -14,7 +14,7 @@ import time
 from datetime import datetime
 
 # Base URL for testing
-BASE_URL = "https://get-started-73.preview.emergentagent.com/api"
+BASE_URL = "https://readme-guide-7.preview.emergentagent.com/api"
 
 class CouponTester:
     def __init__(self):
