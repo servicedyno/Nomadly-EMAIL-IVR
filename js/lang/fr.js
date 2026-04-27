@@ -198,6 +198,11 @@ const user = {
  confirmRenewNow: '✅ Confirmer & Payer',
  cancelRenewNow: '❌ Annuler',
  toggleAutoRenew: '🔁 Activer/Désactiver le Renouvellement Auto',
+ unlinkDomain: '🗑️ Détacher un Domaine',
+ cancelHostingPlan: '🚫 Annuler le Plan d\'Hébergement',
+ confirmUnlinkBtn: '✅ Oui, le détacher',
+ confirmCancelHostingBtn: '🗑️ Oui, annuler le plan',
+ cancelGoBackBtn: '⬅️ Non, retour',
 }
 
 const u = {
@@ -1901,6 +1906,19 @@ ${CHAT_BOT_NAME}`,
  wlt_7: (label) => `Supprimer ${label}?`,
  wlt_8: '⏳ Chargement transactions...',
  wlt_9: '📜 <b>Transaction History</b>\\n\\nNo transactions found yet. Make a dépôt or purchase to see activity here.',
+
+ // Unlink / cancel hosting plan (Fr)
+ selectDomainToUnlink: mainDomain => `🗑️ <b>Détacher un domaine</b>\n\nChoisissez le domaine à détacher de ce plan d'hébergement.\n\n⚠️ Le détachement va :\n• Retirer le domaine addon de cPanel\n• Supprimer ses enregistrements DNS sur Cloudflare\n• Désactiver la protection Anti-Red\n• <b>Supprimer définitivement</b> les fichiers de <code>public_html/&lt;domaine&gt;/</code>\n\nCette action est irréversible.\n\n<i>Le domaine principal (<b>${mainDomain}</b>) ne peut pas être détaché ici — utilisez "Annuler le plan d'hébergement".</i>`,
+ noAddonDomainsToUnlink: '⚠️ Ce plan d\'hébergement n\'a aucun domaine addon à détacher. Seul le domaine principal est connecté.\n\nPour retirer le domaine principal, utilisez "🚫 Annuler le plan d\'hébergement".',
+ confirmUnlinkDomain: (addonDomain, mainDomain) => `⚠️ <b>Confirmer le détachement</b>\n\nVous êtes sur le point de détacher <b>${addonDomain}</b> de votre plan d'hébergement (<code>${mainDomain}</code>).\n\nCela va :\n• Retirer le domaine addon de cPanel\n• Supprimer tous les enregistrements DNS de <b>${addonDomain}</b>\n• Désactiver la protection Anti-Red\n• <b>Supprimer définitivement</b> les fichiers sous <code>public_html/${addonDomain.replace(/\./g, '')}/</code>\n\nAction <b>irréversible</b>, aucun remboursement.\n\nContinuer ?`,
+ unlinkingDomain: addonDomain => `⏳ Détachement de <b>${addonDomain}</b>...`,
+ unlinkDomainSuccess: addonDomain => `✅ <b>${addonDomain}</b> a été détaché de votre plan d'hébergement.\n\nLes enregistrements DNS, le domaine addon et la protection Anti-Red ont tous été supprimés.`,
+ unlinkDomainFailed: addonDomain => `❌ Échec du détachement de <b>${addonDomain}</b>. Réessayez ou contactez le support.`,
+
+ confirmCancelHostingPlan: (domain, plan) => `⚠️ <b>Confirmer l'annulation du plan</b>\n\nVous allez annuler définitivement :\n• Domaine : <b>${domain}</b>\n• Plan : <b>${plan}</b>\n\nSeront <b>supprimés</b> :\n• Votre compte cPanel et tous les fichiers\n• Tous les emails, bases de données & comptes FTP\n• Tous les domaines addon\n• Protection Anti-Red\n\nIrréversible et <b>aucun remboursement</b>.\n\nLe domaine reste enregistré à votre nom — seul l'hébergement est annulé.\n\nÊtes-vous sûr ?`,
+ cancellingHostingPlan: domain => `⏳ Annulation du plan d'hébergement pour <b>${domain}</b>...`,
+ cancelHostingPlanSuccess: domain => `✅ Le plan d'hébergement pour <b>${domain}</b> a été annulé.\n\nVotre compte cPanel, fichiers et domaines addon ont été supprimés. Votre domaine reste enregistré et est désormais sans plan d'hébergement.`,
+ cancelHostingPlanFailed: domain => `❌ Échec de l'annulation du plan pour <b>${domain}</b>. Réessayez ou contactez le support.`,
 }
 
 const phoneNumberLeads = ['🎯 Leads Premium Ciblés', '✅📲 Valider les leads téléphoniques']

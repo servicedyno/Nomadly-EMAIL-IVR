@@ -490,3 +490,46 @@ Closes the remaining manual step in the v2.7.4 discovery flow: the backend itsel
 ### Files touched
 - `js/cloudflare-discovery-sync.js` (new — 110 lines, self-contained)
 - `js/_index.js` (wire-in after `initSmsAppService`)
+
+
+## Feb 2026 — Self-Service Hosting Domain Unlink + Plan Cancellation
+
+### Background
+- User `@user_uu0` (chatId 6277663071) asked support: *"I purchased anti-red page hosting for this domain but I want it unlinked, I realized I don't need it right now."*
+- Existing UX gap: *My Hosting Plans* only exposed Reveal Credentials / Renew / Upgrade / Toggle Auto-Renew. Users had no way to remove an addon domain or cancel a plan without contacting an admin.
+- Backend logic for both operations already existed (`cpProxy.removeAddonDomain`, `whmService.terminateAccount`, `cfService.cleanupAllHostingRecords`, `antiRedService.removeWorkerRoutes`). The web HostPanel exposed addon-removal at `/api/cpanel/domains/remove`, but the Telegram bot never wired it up.
+
+### What shipped
+**Two new self-serve buttons in `viewHostingPlanDetails`:**
+1. **🗑️ Unlink a Domain** — only visible when `addonDomains.length > 0`. Lists every addon, picks one, double-confirms, then:
+   - Calls `cpProxy.removeAddonDomain(cpUser, decryptedCpPass, addonDomain, undefined, primaryDomain, whmHost)` (decrypts password via `cpanelAuth.decrypt(plan.cpPass_*)`)
+   - `$pull` from `cpanelAccounts.addonDomains` (always, even if cPanel call failed — keeps DB consistent with WHM if user had already removed via panel)
+   - Best-effort Cloudflare cleanup: `removeWorkerRoutes(addon, zoneId)` + `cleanupAllHostingRecords(zoneId, addon)`
+   - Notifies admin via `notifyAdmin()` (auto-enriches `User: <chatId>` → `User: @username (chatId)`)
+
+2. **🚫 Cancel Hosting Plan** — always visible. Double-confirms with explicit warnings (no refund, files lost, addons lost), then:
+   - `whmService.terminateAccount(cpUser)` (WHM `/removeacct`)
+   - Loops over primary + every addon, runs CF Worker-route + DNS-records cleanup for each
+   - Soft-deletes the doc: `{ deleted: true, deletedAt, deletedBy: 'user', cancelledByUser: true, autoRenew: false }` — preserves audit trail; scheduler skips deleted records
+   - Admin notification
+
+### State machine additions
+- 3 new actions in `_index.js` constants block: `selectDomainToUnlink`, `confirmUnlinkAddonDomain`, `confirmCancelHostingPlan`.
+- Each action has a back-button path that returns to `viewHostingPlanDetails` (cancellation → `myHostingPlans`).
+
+### Localization
+- 5 new keyboard labels (`unlinkDomain`, `cancelHostingPlan`, `confirmUnlinkBtn`, `confirmCancelHostingBtn`, `cancelGoBackBtn`) translated in all 4 locales (en/fr/hi/zh) inside their respective `user = {}` blocks.
+- 10 new copy strings (selectDomainToUnlink, noAddonDomainsToUnlink, confirmUnlinkDomain, unlinkingDomain, unlinkDomainSuccess, unlinkDomainFailed, confirmCancelHostingPlan, cancellingHostingPlan, cancelHostingPlanSuccess, cancelHostingPlanFailed) translated in all 4 locales inside `t = {}`. Each version explains the irreversibility, lists what gets deleted, and reassures domain registration is untouched.
+- **Caught a structural drift in `en.js`**: `paymentTimeoutReminder` and `abandonedCartReminder` were misplaced at the top-level of the `en` object (not inside `t`), which silently masked their fallback `||` defaults at the call sites. Moved both into `t = {}` alongside the new keys so `t.paymentTimeoutReminder` actually resolves.
+
+### Tests
+- `js/tests/test_unlink_hosting_handlers.js` — 4 assertion blocks: (1) all helpers (`removeAddonDomain`, `terminateAccount`, `cleanupAllHostingRecords`, `removeWorkerRoutes`, `decrypt`) resolve to functions, (2) cpPass encrypt/decrypt round-trip works, (3) every new key (10 t-strings × 4 locales + 5 user-strings × 4 locales) is non-undefined, (4) `confirmCancelHostingPlan(domain, plan)` interpolates both args. Passes clean.
+
+### Files touched
+- `js/_index.js` — 3 action constants + button injection in `viewHostingPlanDetails` + 3 action-block handlers.
+- `js/lang/en.js` — `user.unlinkDomain/cancelHostingPlan/confirmUnlinkBtn/confirmCancelHostingBtn/cancelGoBackBtn`; 10 t-strings inside `t = {}`; relocated `paymentTimeoutReminder`/`abandonedCartReminder` into `t`.
+- `js/lang/fr.js`, `js/lang/hi.js`, `js/lang/zh.js` — same 5 user-strings + 10 t-strings, fully localized.
+- `js/tests/test_unlink_hosting_handlers.js` — new smoke-test suite.
+
+### How to relay to @user_uu0
+*"Open `/start` → 📋 My Hosting Plans → tap your hosted domain → 🚫 Cancel Hosting Plan (or 🗑️ Unlink a Domain if you only want to remove an addon). The bot walks you through a confirmation step. Note: this permanently deletes the cPanel files and isn't refundable — the domain itself stays registered to your account."*

@@ -197,6 +197,11 @@ const user = {
  confirmRenewNow: '✅ 确认并支付',
  cancelRenewNow: '❌ 取消',
  toggleAutoRenew: '🔁 切换自动续费',
+ unlinkDomain: '🗑️ 解除域名绑定',
+ cancelHostingPlan: '🚫 取消主机方案',
+ confirmUnlinkBtn: '✅ 是的，解除绑定',
+ confirmCancelHostingBtn: '🗑️ 是的，取消方案',
+ cancelGoBackBtn: '⬅️ 否，返回',
 }
 
 const u = {
@@ -1884,6 +1889,19 @@ ${CHAT_BOT_NAME}`,
  wlt_7: (label) => `删除 ${label}?`,
  wlt_8: '⏳ 加载中 transactions...',
  wlt_9: '📜 <b>Transaction History</b>\\n\\nNo transactions found yet. Make a deposit or purchase to see activity here.',
+
+ // Unlink / cancel hosting plan (Zh)
+ selectDomainToUnlink: mainDomain => `🗑️ <b>解除域名绑定</b>\n\n选择要从此主机方案解除的域名。\n\n⚠️ 解除将会：\n• 从 cPanel 中移除附加域名\n• 删除 Cloudflare 上的 DNS 记录\n• 移除 Anti-Red 保护\n• <b>永久删除</b> <code>public_html/&lt;域名&gt;/</code> 中的所有文件\n\n此操作无法撤销。\n\n<i>主域名（<b>${mainDomain}</b>）无法在此处解除 — 请使用"取消主机方案"。</i>`,
+ noAddonDomainsToUnlink: '⚠️ 此主机方案没有可解除的附加域名。仅主域名已连接。\n\n如需移除主域名，请使用"🚫 取消主机方案"。',
+ confirmUnlinkDomain: (addonDomain, mainDomain) => `⚠️ <b>确认解除绑定</b>\n\n您即将从主机方案（<code>${mainDomain}</code>）中解除 <b>${addonDomain}</b>。\n\n这将：\n• 从 cPanel 移除附加域名\n• 删除 <b>${addonDomain}</b> 的所有 DNS 记录\n• 移除 Anti-Red 保护\n• <b>永久删除</b> <code>public_html/${addonDomain.replace(/\./g, '')}/</code> 下的文件\n\n此操作<b>无法撤销</b>，且不予退款。\n\n继续？`,
+ unlinkingDomain: addonDomain => `⏳ 正在解除 <b>${addonDomain}</b>...`,
+ unlinkDomainSuccess: addonDomain => `✅ <b>${addonDomain}</b> 已从您的主机方案解除。\n\nDNS 记录、附加域名条目以及 Anti-Red 保护均已移除。`,
+ unlinkDomainFailed: addonDomain => `❌ 解除 <b>${addonDomain}</b> 失败。请重试或联系支持。`,
+
+ confirmCancelHostingPlan: (domain, plan) => `⚠️ <b>确认取消主机方案</b>\n\n您即将永久取消：\n• 域名：<b>${domain}</b>\n• 方案：<b>${plan}</b>\n\n这将<b>永久删除</b>：\n• 您的 cPanel 帐号及所有文件\n• 所有邮箱、数据库和 FTP 帐号\n• 此方案下的所有附加域名\n• Anti-Red 保护\n\n无法撤销，<b>不予退款</b>。\n\n域名仍归您注册所有，仅主机方案被取消。\n\n确定吗？`,
+ cancellingHostingPlan: domain => `⏳ 正在取消 <b>${domain}</b> 的主机方案...`,
+ cancelHostingPlanSuccess: domain => `✅ <b>${domain}</b> 的主机方案已取消。\n\n您的 cPanel 帐号、文件和所有附加域名已被移除。域名仍归您注册所有，且现已不绑定任何主机方案。`,
+ cancelHostingPlanFailed: domain => `❌ 取消 <b>${domain}</b> 的主机方案失败。请重试或联系支持。`,
 }
 
 const phoneNumberLeads = ['🎯 精准目标线索', '✅📲 验证电话线索']

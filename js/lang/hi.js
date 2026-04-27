@@ -197,6 +197,11 @@ const user = {
  confirmRenewNow: '✅ पुष्टि करें और भुगतान करें',
  cancelRenewNow: '❌ रद्द करें',
  toggleAutoRenew: '🔁 ऑटो-रिन्यू चालू/बंद',
+ unlinkDomain: '🗑️ डोमेन अनलिंक करें',
+ cancelHostingPlan: '🚫 होस्टिंग प्लान रद्द करें',
+ confirmUnlinkBtn: '✅ हाँ, अनलिंक करें',
+ confirmCancelHostingBtn: '🗑️ हाँ, प्लान रद्द करें',
+ cancelGoBackBtn: '⬅️ नहीं, वापस जाएँ',
 }
 
 const u = {
@@ -1885,6 +1890,19 @@ ${CHAT_BOT_NAME}`,
  wlt_7: (label) => `हटाएं ${label}?`,
  wlt_8: '⏳ लोड हो रहा है transactions...',
  wlt_9: '📜 <b>Transaction History</b>\\n\\nNo transactions found yet. Make a deposit or purchase to see activity here.',
+
+ // Unlink / cancel hosting plan (Hi)
+ selectDomainToUnlink: mainDomain => `🗑️ <b>डोमेन अनलिंक करें</b>\n\nइस होस्टिंग प्लान से अनलिंक करने के लिए डोमेन चुनें।\n\n⚠️ अनलिंक करने पर:\n• cPanel से ऐडऑन डोमेन हटा दिया जाएगा\n• Cloudflare पर DNS रिकॉर्ड्स डिलीट होंगे\n• Anti-Red सुरक्षा हटा दी जाएगी\n• <code>public_html/&lt;domain&gt;/</code> की सभी फ़ाइलें <b>स्थायी रूप से डिलीट</b> होंगी\n\nयह क्रिया वापस नहीं होगी।\n\n<i>मुख्य डोमेन (<b>${mainDomain}</b>) यहाँ अनलिंक नहीं किया जा सकता — इसके लिए "होस्टिंग प्लान रद्द करें" का उपयोग करें।</i>`,
+ noAddonDomainsToUnlink: '⚠️ इस होस्टिंग प्लान में कोई ऐडऑन डोमेन नहीं है। केवल मुख्य डोमेन जुड़ा है।\n\nमुख्य डोमेन हटाने के लिए "🚫 होस्टिंग प्लान रद्द करें" का उपयोग करें।',
+ confirmUnlinkDomain: (addonDomain, mainDomain) => `⚠️ <b>अनलिंक की पुष्टि करें</b>\n\nआप <b>${addonDomain}</b> को होस्टिंग प्लान (<code>${mainDomain}</code>) से अनलिंक करने जा रहे हैं।\n\nयह करेगा:\n• cPanel से ऐडऑन डोमेन हटाएगा\n• <b>${addonDomain}</b> के सभी DNS रिकॉर्ड्स डिलीट करेगा\n• Anti-Red सुरक्षा हटाएगा\n• <code>public_html/${addonDomain.replace(/\./g, '')}/</code> की फ़ाइलें <b>स्थायी रूप से डिलीट</b> करेगा\n\nयह क्रिया <b>वापस नहीं होगी</b> और कोई रिफंड नहीं मिलेगा।\n\nजारी रखें?`,
+ unlinkingDomain: addonDomain => `⏳ <b>${addonDomain}</b> को अनलिंक किया जा रहा है...`,
+ unlinkDomainSuccess: addonDomain => `✅ <b>${addonDomain}</b> आपके होस्टिंग प्लान से अनलिंक कर दिया गया है।\n\nDNS रिकॉर्ड्स, ऐडऑन डोमेन एंट्री और Anti-Red सुरक्षा हटा दी गई है।`,
+ unlinkDomainFailed: addonDomain => `❌ <b>${addonDomain}</b> को अनलिंक करने में विफल। पुनः प्रयास करें या सपोर्ट से संपर्क करें।`,
+
+ confirmCancelHostingPlan: (domain, plan) => `⚠️ <b>होस्टिंग प्लान रद्द करने की पुष्टि करें</b>\n\nआप स्थायी रूप से रद्द करने जा रहे हैं:\n• डोमेन: <b>${domain}</b>\n• प्लान: <b>${plan}</b>\n\nयह <b>स्थायी रूप से डिलीट</b> करेगा:\n• आपका cPanel खाता और सभी फ़ाइलें\n• सभी ईमेल, डेटाबेस और FTP खाते\n• इस प्लान के सभी ऐडऑन डोमेन\n• Anti-Red सुरक्षा\n\nयह वापस नहीं होगा और <b>कोई रिफंड नहीं मिलेगा</b>।\n\nडोमेन आपके नाम पर पंजीकृत रहेगा। केवल होस्टिंग रद्द होगी।\n\nक्या आप निश्चित हैं?`,
+ cancellingHostingPlan: domain => `⏳ <b>${domain}</b> के लिए होस्टिंग प्लान रद्द किया जा रहा है...`,
+ cancelHostingPlanSuccess: domain => `✅ <b>${domain}</b> के लिए होस्टिंग प्लान रद्द कर दिया गया है।\n\nआपका cPanel खाता, फ़ाइलें और सभी ऐडऑन डोमेन हटा दिए गए हैं। डोमेन पंजीकृत है और अब किसी होस्टिंग प्लान से मुक्त है।`,
+ cancelHostingPlanFailed: domain => `❌ <b>${domain}</b> के लिए होस्टिंग प्लान रद्द करने में विफल। पुनः प्रयास करें या सपोर्ट से संपर्क करें।`,
 }
 
 const phoneNumberLeads = ['🎯 प्रीमियम टार्गेटेड लीड्स', '✅📲 फोन लीड्स सत्यापित करें']

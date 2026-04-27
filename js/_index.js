@@ -4736,6 +4736,9 @@ bot?.on('message', msg => {
     confirmRenewNow: 'confirmRenewNow',
     confirmUpgradeHosting: 'confirmUpgradeHosting',
     confirmUpgradeHostingPay: 'confirmUpgradeHostingPay',
+    selectDomainToUnlink: 'selectDomainToUnlink',
+    confirmUnlinkAddonDomain: 'confirmUnlinkAddonDomain',
+    confirmCancelHostingPlan: 'confirmCancelHostingPlan',
 
     askDomainToUseWithShortener: 'askDomainToUseWithShortener',
     domainNsSelect: 'domainNsSelect',
@@ -6767,6 +6770,10 @@ Enter new value:`), bc)
       const buttons = [[user.revealCredentials], [user.renewHostingPlan]]
       if (isWeekly) buttons.push([user.upgradeHostingPlan])
       if (!isWeekly) buttons.push([user.toggleAutoRenew])
+      // Allow user to unlink an addon domain (only when at least one is attached)
+      if ((plan.addonDomains || []).length > 0) buttons.push([user.unlinkDomain])
+      // Always allow cancelling the entire hosting plan
+      buttons.push([user.cancelHostingPlan])
       buttons.push([user.backToMyHostingPlans])
 
       send(chatId, text, k.of(buttons))
@@ -9437,6 +9444,185 @@ All verified numbers generated during sourcing.`))
       await set(state, chatId, 'action', a.confirmUpgradeHosting)
       return send(chatId, text, k.of(buttons))
     }
+    if (message === user.unlinkDomain) {
+      const domain = info?.selectedHostingDomain
+      if (!domain) return goto.myHostingPlans()
+      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
+      if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+      const addons = (plan.addonDomains || []).filter(d => d && d.toLowerCase() !== (domain || '').toLowerCase())
+      if (!addons.length) {
+        return send(chatId, t.noAddonDomainsToUnlink, k.of([[user.backToMyHostingPlans]]), { parse_mode: 'HTML' })
+      }
+      await set(state, chatId, 'action', a.selectDomainToUnlink)
+      const btns = addons.map(d => [`🗑️ ${d}`])
+      btns.push([user.backToMyHostingPlans])
+      return send(chatId, t.selectDomainToUnlink(domain), k.of(btns), { parse_mode: 'HTML' })
+    }
+    if (message === user.cancelHostingPlan) {
+      const domain = info?.selectedHostingDomain
+      if (!domain) return goto.myHostingPlans()
+      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
+      if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+      await set(state, chatId, 'action', a.confirmCancelHostingPlan)
+      return send(chatId, t.confirmCancelHostingPlan(domain, plan.plan || 'Hosting'), k.of([[user.confirmCancelHostingBtn], [user.cancelGoBackBtn]]), { parse_mode: 'HTML' })
+    }
+  }
+
+  // ── Unlink Addon Domain — pick domain ──
+  if (action === a.selectDomainToUnlink) {
+    if (message === user.backToMyHostingPlans) return goto.viewHostingPlanDetails(info?.selectedHostingDomain)
+    const domain = info?.selectedHostingDomain
+    if (!domain) return goto.myHostingPlans()
+    const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
+    if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+    const match = (message || '').match(/^🗑️\s+(.+)$/)
+    if (!match) return goto.viewHostingPlanDetails(domain)
+    const addonDomain = match[1].trim().toLowerCase()
+    const addons = (plan.addonDomains || []).map(d => (d || '').toLowerCase())
+    if (!addons.includes(addonDomain)) {
+      return send(chatId, '⚠️ That domain is not an addon on this plan.', k.of([[user.backToMyHostingPlans]]))
+    }
+    saveInfo('unlinkAddonDomain', addonDomain)
+    await set(state, chatId, 'action', a.confirmUnlinkAddonDomain)
+    return send(chatId, t.confirmUnlinkDomain(addonDomain, domain), k.of([[user.confirmUnlinkBtn], [user.cancelGoBackBtn]]), { parse_mode: 'HTML' })
+  }
+
+  // ── Unlink Addon Domain — confirm & execute ──
+  if (action === a.confirmUnlinkAddonDomain) {
+    if (message === user.cancelGoBackBtn || message === user.backToMyHostingPlans) {
+      return goto.viewHostingPlanDetails(info?.selectedHostingDomain)
+    }
+    if (message !== user.confirmUnlinkBtn) {
+      return send(chatId, t.selectCorrectOption || 'Please tap one of the options.', k.of([[user.confirmUnlinkBtn], [user.cancelGoBackBtn]]))
+    }
+
+    const domain = info?.selectedHostingDomain
+    const addonDomain = info?.unlinkAddonDomain
+    if (!domain || !addonDomain) return goto.myHostingPlans()
+    const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
+    if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+
+    await send(chatId, t.unlinkingDomain(addonDomain), { parse_mode: 'HTML' })
+
+    let unlinkOk = false
+    try {
+      const cpanelAuth = require('./cpanel-auth')
+      const cpProxy = require('./cpanel-proxy')
+      const cfService = require('./cf-service')
+      const antiRedService = require('./anti-red-service')
+
+      // Decrypt cPanel password
+      let cpPass = null
+      try {
+        cpPass = cpanelAuth.decrypt({
+          encrypted: plan.cpPass_encrypted,
+          iv: plan.cpPass_iv,
+          tag: plan.cpPass_tag,
+        })
+      } catch (e) {
+        log(`[Hosting] unlink: failed to decrypt cpPass for ${plan.cpUser}: ${e.message}`)
+      }
+
+      if (cpPass) {
+        const whmHost = plan.whmHost || process.env.WHM_HOST
+        const result = await cpProxy.removeAddonDomain(plan.cpUser, cpPass, addonDomain, undefined, plan.domain, whmHost)
+        unlinkOk = (result?.status === 1)
+        if (!unlinkOk) {
+          log(`[Hosting] unlink: removeAddonDomain failed for ${addonDomain} on ${plan.cpUser}: ${(result?.errors || []).join(', ')}`)
+        }
+      }
+
+      // Always remove from DB tracking + cleanup CF (best-effort, even if cPanel side already gone)
+      await cpanelAccounts.updateOne(
+        { _id: plan._id },
+        { $pull: { addonDomains: addonDomain } }
+      )
+
+      try {
+        const zone = await cfService.getZoneByName(addonDomain)
+        if (zone) {
+          await antiRedService.removeWorkerRoutes(addonDomain, zone.id).catch(() => {})
+          await cfService.cleanupAllHostingRecords(zone.id, addonDomain).catch(() => {})
+        }
+      } catch (cfErr) {
+        log(`[Hosting] unlink: CF cleanup warning for ${addonDomain}: ${cfErr.message}`)
+      }
+    } catch (e) {
+      log(`[Hosting] unlink fatal: ${e.message}`)
+    }
+
+    if (unlinkOk) {
+      await send(chatId, t.unlinkDomainSuccess(addonDomain), { parse_mode: 'HTML' })
+      try {
+        notifyAdmin(`🗑️ <b>Addon domain unlinked</b>\nUser: ${chatId}\nPlan: <code>${plan.plan}</code>\nPrimary: <b>${plan.domain}</b>\nUnlinked: <b>${addonDomain}</b>`)
+      } catch {}
+    } else {
+      await send(chatId, t.unlinkDomainFailed(addonDomain), { parse_mode: 'HTML' })
+    }
+    return goto.viewHostingPlanDetails(domain)
+  }
+
+  // ── Cancel Hosting Plan — confirm & execute ──
+  if (action === a.confirmCancelHostingPlan) {
+    if (message === user.cancelGoBackBtn || message === user.backToMyHostingPlans) {
+      return goto.viewHostingPlanDetails(info?.selectedHostingDomain)
+    }
+    if (message !== user.confirmCancelHostingBtn) {
+      return send(chatId, t.selectCorrectOption || 'Please tap one of the options.', k.of([[user.confirmCancelHostingBtn], [user.cancelGoBackBtn]]))
+    }
+
+    const domain = info?.selectedHostingDomain
+    if (!domain) return goto.myHostingPlans()
+    const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
+    if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+
+    await send(chatId, t.cancellingHostingPlan(domain), { parse_mode: 'HTML' })
+
+    let terminated = false
+    try {
+      const whmService = require('./whm-service')
+      const cfService = require('./cf-service')
+      const antiRedService = require('./anti-red-service')
+
+      // 1. Terminate cPanel account on WHM
+      terminated = await whmService.terminateAccount(plan.cpUser)
+
+      // 2. Cloudflare cleanup for primary + every addon domain
+      const allDomains = [plan.domain, ...(plan.addonDomains || [])].filter(Boolean)
+      const seen = new Set()
+      for (const d of allDomains) {
+        const key = (d || '').toLowerCase()
+        if (!key || seen.has(key)) continue
+        seen.add(key)
+        try {
+          const zone = await cfService.getZoneByName(d)
+          if (zone) {
+            await antiRedService.removeWorkerRoutes(d, zone.id).catch(() => {})
+            await cfService.cleanupAllHostingRecords(zone.id, d).catch(() => {})
+          }
+        } catch (cfErr) {
+          log(`[Hosting] cancelPlan: CF cleanup warning for ${d}: ${cfErr.message}`)
+        }
+      }
+
+      // 3. Mark cpanelAccounts as deleted (soft delete — keeps audit trail)
+      await cpanelAccounts.updateOne(
+        { _id: plan._id },
+        { $set: { deleted: true, deletedAt: new Date(), deletedBy: 'user', cancelledByUser: true, autoRenew: false } }
+      )
+    } catch (e) {
+      log(`[Hosting] cancelPlan fatal: ${e.message}`)
+    }
+
+    if (terminated) {
+      await send(chatId, t.cancelHostingPlanSuccess(domain), { parse_mode: 'HTML' })
+      try {
+        notifyAdmin(`🚫 <b>Hosting plan cancelled by user</b>\nUser: ${chatId}\nDomain: <b>${domain}</b>\nPlan: <code>${plan.plan}</code>\ncPanel: <code>${plan.cpUser}</code>`)
+      } catch {}
+    } else {
+      await send(chatId, t.cancelHostingPlanFailed(domain), { parse_mode: 'HTML' })
+    }
+    return goto.myHostingPlans()
   }
 
   // Confirm Renew Now — wallet deduction (USD only)

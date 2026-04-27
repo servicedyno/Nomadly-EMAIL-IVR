@@ -197,6 +197,11 @@ const user = {
  confirmRenewNow: '✅ Confirm & Pay',
  cancelRenewNow: '❌ Cancel',
  toggleAutoRenew: '🔁 Toggle Auto-Renew',
+ unlinkDomain: '🗑️ Unlink a Domain',
+ cancelHostingPlan: '🚫 Cancel Hosting Plan',
+ confirmUnlinkBtn: '✅ Yes, unlink it',
+ confirmCancelHostingBtn: '🗑️ Yes, cancel plan',
+ cancelGoBackBtn: '⬅️ No, go back',
  backToMyHostingPlans: '⬅️ Back to My Plans',
 }
 const u = {
@@ -2048,6 +2053,28 @@ Service delivered.`,
  vs_listen: 'Listen',
  adm_error_prefix: '❌ Error: ',
  dom_confirm_prompt: 'Confirm?',
+
+ // Payment timeout and abandoned cart reminders
+ paymentTimeoutReminder: `⏰ <b>Your payment session timed out</b>\n\nYour checkout session expired after 6 hours of inactivity.\n\nDon't worry! You can start again anytime by selecting the product or service you want.\n\n💬 Need help? Tap <b>Support</b>`,
+ abandonedCartReminder: (productName, price) =>
+   `🛒 <b>Still interested in ${productName}?</b>\n\n` +
+   `You left it in your cart 2 hours ago.\n\n` +
+   `💳 Price: $${price}\n\n` +
+   `Complete your purchase now! The product is waiting for you. 🎁\n\n` +
+   `Tap /start to continue or 💬 <b>Support</b> if you have questions.`,
+
+ // Unlink / cancel hosting plan
+ selectDomainToUnlink: mainDomain => `🗑️ <b>Unlink a Domain</b>\n\nPick the domain you'd like to unlink from this hosting plan.\n\n⚠️ Unlinking will:\n• Remove the addon domain from cPanel\n• Delete its DNS records on Cloudflare\n• Remove Anti-Red protection\n• <b>Permanently delete</b> all files in <code>public_html/&lt;domain&gt;/</code>\n\nThis cannot be undone.\n\n<i>Primary domain (<b>${mainDomain}</b>) cannot be unlinked here — use "Cancel Hosting Plan" instead.</i>`,
+ noAddonDomainsToUnlink: '⚠️ This hosting plan has no addon domains to unlink. Only the primary domain is connected.\n\nIf you want to remove the primary domain, use "🚫 Cancel Hosting Plan" instead.',
+ confirmUnlinkDomain: (addonDomain, mainDomain) => `⚠️ <b>Confirm Unlink</b>\n\nYou are about to unlink <b>${addonDomain}</b> from your hosting plan (<code>${mainDomain}</code>).\n\nThis will:\n• Remove the addon domain from cPanel\n• Delete all DNS records for <b>${addonDomain}</b>\n• Remove Anti-Red protection\n• <b>Permanently delete</b> files under <code>public_html/${addonDomain.replace(/\./g, '')}/</code>\n\nThis action <b>cannot be undone</b> and no refund will be issued.\n\nProceed?`,
+ unlinkingDomain: addonDomain => `⏳ Unlinking <b>${addonDomain}</b>...`,
+ unlinkDomainSuccess: addonDomain => `✅ <b>${addonDomain}</b> has been unlinked from your hosting plan.\n\nDNS records, addon domain entry, and Anti-Red protection have all been removed.`,
+ unlinkDomainFailed: addonDomain => `❌ Failed to unlink <b>${addonDomain}</b>. Please try again, or contact support if the problem persists.`,
+
+ confirmCancelHostingPlan: (domain, plan) => `⚠️ <b>Confirm Cancel Hosting Plan</b>\n\nYou are about to permanently cancel:\n• Domain: <b>${domain}</b>\n• Plan: <b>${plan}</b>\n\nThis will <b>permanently delete</b>:\n• Your cPanel account & all files\n• All emails, databases & FTP accounts\n• All addon domains on this plan\n• Anti-Red protection\n\nThis cannot be undone and <b>no refund will be issued</b>.\n\nThe domain itself stays registered to you. Only the hosting is cancelled.\n\nAre you sure?`,
+ cancellingHostingPlan: domain => `⏳ Cancelling hosting plan for <b>${domain}</b>...`,
+ cancelHostingPlanSuccess: domain => `✅ Hosting plan for <b>${domain}</b> has been cancelled.\n\nYour cPanel account, files, and all addon domains have been removed. Your domain remains registered and is now free of any hosting plan.`,
+ cancelHostingPlanFailed: domain => `❌ Failed to cancel hosting plan for <b>${domain}</b>. Please try again, or contact support if the problem persists.`,
 }
 
 const phoneNumberLeads = ['🎯 Premium Targeted Leads', '✅📲 Validate PhoneLeads']
@@ -3387,16 +3414,6 @@ const en = {
  vp,
  vpsPlanOf,
  vpsCpanelOptional,
- 
- // Payment timeout and abandoned cart reminders
- paymentTimeoutReminder: `⏰ <b>Your payment session timed out</b>\n\nYour checkout session expired after 6 hours of inactivity.\n\nDon't worry! You can start again anytime by selecting the product or service you want.\n\n💬 Need help? Tap <b>Support</b>`,
- 
- abandonedCartReminder: (productName, price) => 
-   `🛒 <b>Still interested in ${productName}?</b>\n\n` +
-   `You left it in your cart 2 hours ago.\n\n` +
-   `💳 Price: $${price}\n\n` +
-   `Complete your purchase now! The product is waiting for you. 🎁\n\n` +
-   `Tap /start to continue or 💬 <b>Support</b> if you have questions.`,
 }
 
 module.exports = {
