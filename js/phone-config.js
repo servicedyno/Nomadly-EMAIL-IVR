@@ -644,6 +644,10 @@ Inbound calls/SMS included · Outbound charged from wallet
     // Browser call hint
     if (hasVoice) text += `\n\n🌐 <a href="${CALL_PAGE_URL}">Make & receive calls in browser</a>`
 
+    // "Last changed: X ago" — sourced from `n.updatedAt`, stamped by updatePhoneNumberFeature / updatePhoneNumberField
+    const lastChanged = formatRelativeTime(n.updatedAt, 'en')
+    if (lastChanged) text += `\n<i>🕒 Last changed: ${lastChanged}</i>`
+
     return text
   },
 
@@ -984,6 +988,27 @@ function formatDuration(seconds) {
   const m = Math.floor(seconds / 60)
   const s = seconds % 60
   return `${m}:${s.toString().padStart(2, '0')}`
+}
+
+// Relative-time formatter ("2 mins ago" / "il y a 2 min" / "2分钟前" / "2 मिनट पहले").
+// Shown under each phone number on the Manage screen; sourced from `num.updatedAt`.
+function formatRelativeTime(iso, lang) {
+  if (!iso) return null
+  const then = new Date(iso).getTime()
+  if (!Number.isFinite(then)) return null
+  const secs = Math.max(0, Math.floor((Date.now() - then) / 1000))
+  const L = {
+    en: { justNow: 'just now',            min: (n) => `${n} min${n === 1 ? '' : 's'} ago`,      hr: (n) => `${n} hr${n === 1 ? '' : 's'} ago`,  day: (n) => `${n} day${n === 1 ? '' : 's'} ago`,  wk: (n) => `${n} wk${n === 1 ? '' : 's'} ago` },
+    fr: { justNow: 'à l’instant',         min: (n) => `il y a ${n} min`,                        hr: (n) => `il y a ${n} h`,                     day: (n) => `il y a ${n} j`,                      wk: (n) => `il y a ${n} sem` },
+    zh: { justNow: '刚刚',                 min: (n) => `${n} 分钟前`,                            hr: (n) => `${n} 小时前`,                        day: (n) => `${n} 天前`,                           wk: (n) => `${n} 周前` },
+    hi: { justNow: 'अभी अभी',              min: (n) => `${n} मिनट पहले`,                        hr: (n) => `${n} घंटे पहले`,                     day: (n) => `${n} दिन पहले`,                       wk: (n) => `${n} सप्ताह पहले` },
+  }
+  const l = L[lang] || L.en
+  if (secs < 60) return l.justNow
+  if (secs < 3600) return l.min(Math.floor(secs / 60))
+  if (secs < 86400) return l.hr(Math.floor(secs / 3600))
+  if (secs < 604800) return l.day(Math.floor(secs / 86400))
+  return l.wk(Math.floor(secs / 604800))
 }
 
 function shortDate(dateStr) {
@@ -1645,6 +1670,8 @@ Votre propre numéro virtuel dans plus de 30 pays. Recevez des appels, envoyez d
         text += `\n\n⚠️ <b>SVI activé mais incomplet</b> — aucune option de menu. Les appelants ignoreront le menu et iront vers la messagerie. Touchez <b>🤖 SVI / Standard Auto</b> pour ajouter des options.`
       }
       if (hasVoice) text += `\n\n🌐 <a href="${CALL_PAGE_URL}">Appeler et recevoir dans le navigateur</a>`
+      const lastChanged = formatRelativeTime(n.updatedAt, 'fr')
+      if (lastChanged) text += `\n<i>🕒 Dernière modif. : ${lastChanged}</i>`
       return text
     },
     // ── Sub-number texts ──
@@ -2089,6 +2116,8 @@ Envoyez /testsip ici pour obtenir votre code test.
         text += `\n\n⚠️ <b>IVR 已启用但不完整</b> — 没有菜单选项。来电者将跳过菜单直接进入语音信箱。点击 <b>🤖 IVR / 自动应答</b> 添加选项。`
       }
       if (hasVoice) text += `\n\n🌐 <a href="${CALL_PAGE_URL}">在浏览器中拨打电话</a>`
+      const lastChanged = formatRelativeTime(n.updatedAt, 'zh')
+      if (lastChanged) text += `\n<i>🕒 上次修改：${lastChanged}</i>`
       return text
     },
     // ── 附加号码 ──
@@ -2533,6 +2562,8 @@ Envoyez /testsip ici pour obtenir votre code test.
         text += `\n\n⚠️ <b>IVR सक्रिय है लेकिन अधूरा</b> — कोई मेनू विकल्प नहीं। कॉलर मेनू को छोड़कर सीधे वॉइसमेल पर चले जाएंगे। विकल्प जोड़ने के लिए <b>🤖 IVR / ऑटो-अटेंडेंट</b> पर टैप करें।`
       }
       if (hasVoice) text += `\n\n🌐 <a href="${CALL_PAGE_URL}">ब्राउज़र में कॉल करें</a>`
+      const lastChanged = formatRelativeTime(n.updatedAt, 'hi')
+      if (lastChanged) text += `\n<i>🕒 अंतिम बदलाव: ${lastChanged}</i>`
       return text
     },
     // ── अतिरिक्त नंबर ──

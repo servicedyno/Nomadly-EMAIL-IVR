@@ -25201,26 +25201,33 @@ async function applyPhonePlanUpgrade(chatId, num, newPlan, newPrice, lang, payme
 }
 
 async function updatePhoneNumberFeature(col, chatId, phoneNumber, featureKey, value) {
-  const userData = await get(col, chatId)
-  if (!userData?.numbers) return
-  const nums = userData.numbers
-  const idx = nums.findIndex(n => n.phoneNumber === phoneNumber)
-  if (idx === -1) return
-  nums[idx].features = nums[idx].features || {}
-  nums[idx].features[featureKey] = value
-  // Atomic update: only touch val.numbers, never clobber sibling fields like twilioSubAccountSid/Token
-  await setFields(col, chatId, { 'val.numbers': nums })
+  // Fully atomic positional $set — never rewrite the whole numbers array
+  // (prior read-modify-write pattern could race with concurrent feature edits
+  // and wipe IVR/voicemail/forwarding settings saved moments earlier).
+  // MongoDB auto-creates nested paths, so `features.<key>` works even if features is missing.
+  // Stamp updatedAt so the Manage screen can show "Last changed: X ago".
+  await col.updateOne(
+    { _id: chatId, 'val.numbers.phoneNumber': phoneNumber },
+    { $set: {
+      [`val.numbers.$.features.${featureKey}`]: value,
+      'val.numbers.$.updatedAt': new Date().toISOString(),
+    } }
+  )
 }
 
 async function updatePhoneNumberField(col, chatId, phoneNumber, fieldKey, value) {
-  const userData = await get(col, chatId)
-  if (!userData?.numbers) return
-  const nums = userData.numbers
-  const idx = nums.findIndex(n => n.phoneNumber === phoneNumber)
-  if (idx === -1) return
-  nums[idx][fieldKey] = value
-  // Atomic update: only touch val.numbers, never clobber sibling fields like twilioSubAccountSid/Token
-  await setFields(col, chatId, { 'val.numbers': nums })
+  // Fully atomic positional $set — see updatePhoneNumberFeature for context.
+  // Skip updatedAt stamp for purely-internal bookkeeping fields that auto-tick every call/SMS
+  // (otherwise every inbound SMS would reset the "Last changed" timestamp).
+  const INTERNAL_FIELDS = new Set(['smsUsed', 'minutesUsed', '_smsLimitNotified', '_minLimitNotified', 'lastCallAt', 'lastSmsAt'])
+  const setObj = { [`val.numbers.$.${fieldKey}`]: value }
+  if (!INTERNAL_FIELDS.has(fieldKey)) {
+    setObj['val.numbers.$.updatedAt'] = new Date().toISOString()
+  }
+  await col.updateOne(
+    { _id: chatId, 'val.numbers.phoneNumber': phoneNumber },
+    { $set: setObj }
+  )
 }
 
 const auth = async (req, res, next) => {

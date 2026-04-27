@@ -705,6 +705,13 @@ End-to-end trace:
 ### Deployment status
 - **Local only.** Fixes are in `/app/js/`. Production Railway service `Nomadly-EMAIL-IVR` has NOT been redeployed yet — the next time Railway redeploys, the fixes will go live for @Mrdoitright53 and all other users.
 
+## Feb 2026 — "Last changed: X ago" on Manage-Number screen
+- `js/phone-config.js` adds `formatRelativeTime(iso, lang)` helper producing locale-native relative strings (en/fr/zh/hi) across all 5 ranges: `just now`, minutes, hours, days, weeks.
+- All 4 locale `manageNumber(...)` renderers append a subtle italic line: `🕒 Last changed: 2 mins ago` / `🕒 Dernière modif. : il y a 2 min` / `🕒 上次修改：2 分钟前` / `🕒 अंतिम बदलाव: 2 मिनट पहले`. Line is hidden on legacy records without `updatedAt`.
+- `updatePhoneNumberFeature(...)` and `updatePhoneNumberField(...)` now additionally stamp `val.numbers.$.updatedAt = new Date().toISOString()` on every write — via the same **atomic positional $set** (no more read-modify-write on the entire array, closing the last race-prone helpers from Fix #4).
+- Internal bookkeeping fields (`smsUsed`, `minutesUsed`, `_smsLimitNotified`, `_minLimitNotified`, `lastCallAt`, `lastSmsAt`) are excluded from the stamp so every inbound SMS / call doesn't spuriously reset "Last changed".
+- Regression test `js/tests/test_last_changed_timestamp.js` — 44 assertions covering all 4 locales × 5 time ranges + null-hiding behaviour. All green.
+
 ## Feb 2026 — @Scoreboard44 "phone settings resetting" RCA + fix set
 - **P0 fix** `js/_index.js:19587` — `buildManageMenu()` referenced undefined `hasVoice` (regression from the "Test My Number" button feature). Every Manage-Number open crashed silently after the 2026-04-27T12:17Z deploy. Added missing `const hasVoice = num.capabilities?.voice !== false`.
 - **P1 fix** 35 sites of `const num = info?.cpActiveNumber` + primary `numbers[idx]` load — all now normalize `num.features = {}` and `num.capabilities = {...}` defaults. Prevents the Apr-19 class crash `Cannot set properties of undefined (setting 'callForwarding')` on legacy records.
