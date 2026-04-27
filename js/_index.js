@@ -514,6 +514,7 @@ const { initPhoneScheduler } = require('./phone-scheduler.js')
 const crAutoWhitelist = require('./cr-auto-whitelist.js')
 const { initScheduler: initHostingScheduler } = require('./hosting-scheduler.js')
 const { initPhoneTestRoutes, generateTestOtp, checkTestCredentialCall, getOrCreateReferralCode, trackReferral } = require('./phone-test-routes.js')
+const { initTestMyNumber, placeTestCall: placeTestMyNumberCall } = require('./test-my-number.js')
 const antiRedService = require('./anti-red-service.js')
 const { initLeadJobPersistence, flushAllJobs, findInterruptedJobs, resumeJob } = require('./lead-job-persistence.js')
 const { initAiSupport, getAiResponse, getMarketplaceAiResponse, moderateMarketplaceChat, clearHistory: clearAiHistory, isAiEnabled, recordUserError, extractActionButtons, rateSupportSession } = require('./ai-support.js')
@@ -1815,6 +1816,16 @@ const loadData = async () => {
 
     // Initialize Phone Test routes (Speechcue SIP test page)
     initPhoneTestRoutes(app, db, telnyxApi, telnyxResources.sipConnectionId, bot)
+
+    // Initialize Test-My-Number feature (one-tap "📞 Test my number" on Manage screen)
+    initTestMyNumber(app, {
+      bot,
+      telnyxApi,
+      db,
+      log,
+      selfUrl: SELF_URL,
+      getTxt: phoneConfig.getTxt,
+    })
   }
 
   // Initialize SMS Service limits (real-time enforcement)
@@ -19595,6 +19606,10 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     }
     // Logs & Billing
     rows.push([pc.callSmsLogs])
+    // Test My Number — quick health check (only for active numbers with voice)
+    if (hasVoice && num.status === 'active') {
+      rows.push([pc.testMyNumber])
+    }
     rows.push([pc.renewChangePlan, pc.releaseNumber])
     return rows
   }
@@ -20039,6 +20054,13 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
         })
       }
       return send(chatId, text, k.of([]))
+    }
+
+    // 📞 Test My Number — places a test call from Nomadly trial line to user's number
+    if (message === pc.testMyNumber) {
+      const lang = info?.userLanguage || 'en'
+      const result = await placeTestMyNumberCall(chatId, num, lang)
+      return send(chatId, result.message, { parse_mode: 'HTML', disable_web_page_preview: true })
     }
 
     // Renew / Change Plan

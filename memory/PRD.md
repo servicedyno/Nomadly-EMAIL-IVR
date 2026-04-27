@@ -704,3 +704,56 @@ End-to-end trace:
 
 ### Deployment status
 - **Local only.** Fixes are in `/app/js/`. Production Railway service `Nomadly-EMAIL-IVR` has NOT been redeployed yet — the next time Railway redeploys, the fixes will go live for @Mrdoitright53 and all other users.
+
+## Feb 2026 — Manage-Number UX upgrades (follow-on to the 3CX investigation)
+
+### Goal
+Make the IVR-broken state and "is my SIP routing actually working?" question discoverable from the main Manage-Number screen — without users needing to dig into submenus or message support.
+
+### What's new
+
+**1. ⚠️ "IVR enabled but incomplete" badge on the Manage-Number screen**
+Until now, the warning was only visible inside the IVR submenu. Users like @Mrdoitright53 had `ivr.enabled=true` with `options={}` and never saw a problem until they opened IVR. Now `cpTxt.manageNumber()` in en/fr/zh/hi appends a prominent ⚠️ block right above the browser-call link when the broken state is detected:
+- EN: "⚠️ IVR enabled but incomplete — no menu options. Callers will skip the menu and go to voicemail. Tap 🤖 IVR / Auto-attendant to add options."
+- FR/ZH/HI: localized equivalents
+
+**2. 📞 "Test My Number" one-tap button on the Manage-Number screen**
+New `/app/js/test-my-number.js` module (~210 LOC, fully self-contained). When tapped:
+1. Throttle check (max 5 tests per number per 24h, in-memory).
+2. Places a Telnyx outbound call from `TELNYX_TRIAL_CALLER_ID` (`+18889020132`) → user's Twilio number with `answering_machine_detection: 'detect'`.
+3. Webhook events for THIS call are routed to `/test-call/webhook` (registered without `/api` prefix because of the global `/api`-stripping middleware at `_index.js:25301`; external URL is still `/api/test-call/webhook` — the middleware handles the rewrite).
+4. On `call.answered`: speaks "Press 1 to confirm your SIP device is working" and gathers DTMF (12s window).
+5. Reports back via Telegram message based on outcome:
+   - **DTMF received** → ✅ "Reached your SIP device — calls are working."
+   - **AMD = 'machine'** → ⚠️ "Got voicemail / PBX answer — looks like 3CX/FreePBX is dumping the call to its own voicemail. Open /sipguide for SIP TRUNK setup, or switch to Linphone/Zoiper."
+   - **Answered, no DTMF** → ⚠️ "Call answered but no key was pressed within 12s — could be PBX voicemail or you missed the prompt. See /sipguide if a PBX is involved."
+   - **No answer / hangup before answered** → ❌ "No answer — make sure your softphone is registered and online. See /sipguide."
+6. Hard 60s timeout finalizes the report even if events are lost.
+
+### Wiring
+- `_index.js:516` — `require('./test-my-number.js')`
+- `_index.js:1820–1828` — `initTestMyNumber(app, { bot, telnyxApi, db, log, selfUrl: SELF_URL, getTxt: phoneConfig.getTxt })`
+- `phone-config.js:160` — `pc.testMyNumber` button label in 4 langs
+- `phone-config.js:771–784` — `cpTxt.testMyNumber.{placing, successDtmf, voicemail, answeredNoDtmf, noAnswer, throttled, inactive, placeFailed}` localization bundle (EN; FR/ZH/HI fall back to EN gracefully via the optional-chaining lookup in the module)
+- `_index.js:19594–19598` — `buildManageMenu` adds the button only for `hasVoice && num.status === 'active'`
+- `_index.js:20060–20067` — message handler invokes `placeTestMyNumberCall(chatId, num, lang)`
+
+### Tests
+- `js/tests/test_manage_screen_features.js` — 21 new assertions, all green:
+  - 12 cases × 4 langs verifying the IVR-incomplete badge appears for broken IVR and is absent for working IVR / disabled IVR
+  - 9 cases verifying the testMyNumber button label in 4 langs, the localized text bundle has all 8 keys, the voicemail message includes /sipguide CTA + 3CX/PBX wording, success/no-answer messages are properly formatted, and `placeTestCall` correctly rejects inactive numbers + uninitialized state.
+- `js/tests/test_pool_minute_limit_fix.js` (10 green) and `js/tests/test_sip_ux_warnings.js` (10 green) — re-run, no regressions. **41 total assertions green.**
+- Live smoke test: `curl -X POST http://localhost:5000/test-call/webhook` and via `/api/` prefix → both return 200 OK; module logs "no session for ccId=abc" gracefully.
+
+### Files touched
+- `js/_index.js` — require + init for the new module, `buildManageMenu` extension, button-tap handler
+- `js/phone-config.js` — IVR-incomplete badge in `manageNumber()` for en/fr/zh/hi, `testMyNumber` button labels in 4 langs, EN `cpTxt.testMyNumber` bundle
+- `js/test-my-number.js` (new, 210 LOC) — feature module, sessions, throttling, AMD/DTMF interpretation, result reporting
+- `js/tests/test_manage_screen_features.js` (new, 21 assertions)
+
+### Deployment status
+- **Local only** — Railway production needs a redeploy to push to live users.
+- After redeploy, @Mrdoitright53 will:
+  1. See the ⚠️ IVR-incomplete badge as soon as they open `+18882437690`'s Manage screen
+  2. Be able to tap `📞 Test My Number` and get a definitive yes/no answer about whether their SIP routing reaches their 3CX correctly — with /sipguide CTA baked into the failure paths.
+

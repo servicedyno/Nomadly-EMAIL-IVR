@@ -157,6 +157,7 @@ const btn = {
   callRecording: '🔴 Call Recording',
   ivrAutoAttendant: '🤖 IVR / Auto-attendant',
   callSmsLogs: '📊 Call & SMS Logs',
+  testMyNumber: '📞 Test My Number',
   renewChangePlan: '🔄 Renew / Change Plan',
   releaseNumber: '🗑️ Delete Number',
 
@@ -635,6 +636,11 @@ Inbound calls/SMS included · Outbound charged from wallet
       text += `\n➕ Sub-numbers: ${subCount} / ${subLimit}`
     }
 
+    // ⚠️ IVR-incomplete badge — visible BEFORE user opens the IVR submenu
+    if (n.features?.ivr?.enabled && Object.keys(n.features.ivr.options || {}).length === 0) {
+      text += `\n\n⚠️ <b>IVR enabled but incomplete</b> — no menu options. Callers will skip the menu and go to voicemail. Tap <b>🤖 IVR / Auto-attendant</b> to add options.`
+    }
+
     // Browser call hint
     if (hasVoice) text += `\n\n🌐 <a href="${CALL_PAGE_URL}">Make & receive calls in browser</a>`
 
@@ -760,6 +766,19 @@ Inbound calls/SMS included · Outbound charged from wallet
 
   sipRevealed: (password) => `🔑 Password: <code>${password}</code>\n\n⚠️ Save this now — this message will be deleted in 30 seconds.`,
   sipReset: (password) => `✅ SIP password has been reset!\n\n🔑 New Password: <code>${password}</code>\n\n⚠️ Save this now. Update this password on all your SIP devices.`,
+
+  // ── Test My Number ──
+  testMyNumber: {
+    placing: (phone) => `📞 Calling <code>${phone}</code> from a Nomadly test line… pick up on your softphone and press <b>1</b> when it rings (you have ~12 seconds after answer).\n\nResult will appear here within 60 seconds.`,
+    successDtmf: (phone) => `✅ <b>Reached your SIP device</b> — calls to <code>${phone}</code> are working end-to-end. The far end answered and a key was pressed.`,
+    voicemail: (phone) => `⚠️ <b>Got voicemail / PBX answer</b> on <code>${phone}</code>.\n\nThis usually means a PBX (3CX, FreePBX, Asterisk…) is answering and dumping the call to its own voicemail instead of ringing your extension.\n\nFix: open /sipguide for the SIP TRUNK setup walk-through, or switch to a single-line softphone (Linphone, Zoiper) for an instant fix.`,
+    answeredNoDtmf: (phone) => `⚠️ <b>Call answered, but no key was pressed</b> on <code>${phone}</code> within 12 seconds.\n\nIf you didn't pick up, your softphone may not be receiving the call. If you DID pick up but didn't press 1, just retry. If a PBX (3CX/FreePBX) is involved, see /sipguide for SIP TRUNK setup.`,
+    noAnswer: (phone) => `❌ <b>No answer</b> on <code>${phone}</code>.\n\nMake sure your softphone (Linphone / Zoiper / 3CX trunk) is registered and online, then run the test again. Open /sipguide for setup help.`,
+    throttled: (max) => `⏳ You've already run ${max} tests on this number in the last 24 hours. Please wait before testing again.`,
+    inactive: (phone) => `❌ Number <code>${phone}</code> is not active — testing is only available for active numbers.`,
+    placeFailed: (err) => `❌ Couldn't place test call: ${err}`,
+  },
+
   softphoneGuide: (domain) => `📖 <b>SIP Setup Guide</b>
 
 <b>🌐 Browser (Easiest)</b>
@@ -1176,6 +1195,7 @@ const btnI18n = {
     callRecording: '🔴 Enregistrement d\'Appels',
     ivrAutoAttendant: '🤖 SVI / Standard Auto',
     callSmsLogs: '📊 Journaux Appels & SMS',
+    testMyNumber: '📞 Tester mon numéro',
     renewChangePlan: '🔄 Renouveler / Changer',
     releaseNumber: '🗑️ Supprimer le Numéro',
     alwaysForward: '📞 Toujours Transférer',
@@ -1253,6 +1273,7 @@ const btnI18n = {
     callRecording: '🔴 通话录音',
     ivrAutoAttendant: '🤖 IVR / 自动应答',
     callSmsLogs: '📊 通话和短信记录',
+    testMyNumber: '📞 测试我的号码',
     renewChangePlan: '🔄 续费 / 更换套餐',
     releaseNumber: '🗑️ 删除号码',
     alwaysForward: '📞 始终转发',
@@ -1330,6 +1351,7 @@ const btnI18n = {
     callRecording: '🔴 कॉल रिकॉर्डिंग',
     ivrAutoAttendant: '🤖 IVR / ऑटो-अटेंडेंट',
     callSmsLogs: '📊 कॉल और SMS लॉग',
+    testMyNumber: '📞 मेरा नंबर परखें',
     renewChangePlan: '🔄 नवीनीकरण / प्लान बदलें',
     releaseNumber: '🗑️ नंबर हटाएं',
     alwaysForward: '📞 हमेशा फ़ॉरवर्ड',
@@ -1618,6 +1640,9 @@ Votre propre numéro virtuel dans plus de 30 pays. Recevez des appels, envoyez d
       text += `\n📋 Capacités : ${caps.join(' · ')}`
       if (!n.isSubNumber && subCount !== undefined && subLimit !== undefined) {
         text += `\n➕ Numéros ajoutés : ${subCount} / ${subLimit}`
+      }
+      if (n.features?.ivr?.enabled && Object.keys(n.features.ivr.options || {}).length === 0) {
+        text += `\n\n⚠️ <b>SVI activé mais incomplet</b> — aucune option de menu. Les appelants ignoreront le menu et iront vers la messagerie. Touchez <b>🤖 SVI / Standard Auto</b> pour ajouter des options.`
       }
       if (hasVoice) text += `\n\n🌐 <a href="${CALL_PAGE_URL}">Appeler et recevoir dans le navigateur</a>`
       return text
@@ -2050,6 +2075,9 @@ Envoyez /testsip ici pour obtenir votre code test.
       if (!n.isSubNumber && subCount !== undefined && subLimit !== undefined) {
         text += `\n➕ 附加号码：${subCount} / ${subLimit}`
       }
+      if (n.features?.ivr?.enabled && Object.keys(n.features.ivr.options || {}).length === 0) {
+        text += `\n\n⚠️ <b>IVR 已启用但不完整</b> — 没有菜单选项。来电者将跳过菜单直接进入语音信箱。点击 <b>🤖 IVR / 自动应答</b> 添加选项。`
+      }
       if (hasVoice) text += `\n\n🌐 <a href="${CALL_PAGE_URL}">在浏览器中拨打电话</a>`
       return text
     },
@@ -2480,6 +2508,9 @@ Envoyez /testsip ici pour obtenir votre code test.
       text += `\n📋 क्षमताएँ: ${caps.join(' · ')}`
       if (!n.isSubNumber && subCount !== undefined && subLimit !== undefined) {
         text += `\n➕ अतिरिक्त नंबर: ${subCount} / ${subLimit}`
+      }
+      if (n.features?.ivr?.enabled && Object.keys(n.features.ivr.options || {}).length === 0) {
+        text += `\n\n⚠️ <b>IVR सक्रिय है लेकिन अधूरा</b> — कोई मेनू विकल्प नहीं। कॉलर मेनू को छोड़कर सीधे वॉइसमेल पर चले जाएंगे। विकल्प जोड़ने के लिए <b>🤖 IVR / ऑटो-अटेंडेंट</b> पर टैप करें।`
       }
       if (hasVoice) text += `\n\n🌐 <a href="${CALL_PAGE_URL}">ब्राउज़र में कॉल करें</a>`
       return text
