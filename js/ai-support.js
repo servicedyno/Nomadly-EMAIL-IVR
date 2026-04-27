@@ -337,6 +337,17 @@ After choosing a plan → Register new domain or use existing → Enter email �
 ${HOSTING_PANEL_URL ? `<b>Hosting Panel Login:</b> ${HOSTING_PANEL_URL} — Use the username and PIN from your credentials to log in and manage your hosting.` : ''}
 To view/reveal your hosting credentials: <b>🛡️🔥 Anti-Red Hosting</b> → <b>📋 My Hosting Plans</b> → Select domain → <b>🔑 Reveal Credentials</b>
 
+<b>Self-service management options</b> (visible inside <b>📋 My Hosting Plans</b> → select a domain):
+- 🔑 <b>Show Credentials</b> — reveal cPanel username + PIN (regenerates a fresh PIN each time)
+- 🔄 <b>Renew Now</b> — pay for another billing cycle from your wallet
+- ⬆️ <b>Upgrade Plan</b> (weekly only) — move to monthly with a 25% credit applied
+- 🔁 <b>Toggle Auto-Renew</b> (monthly only) — switch automatic renewal on/off; weekly plans never auto-renew
+- 🔌 <b>Take Site Offline</b> / 🌐 <b>Bring Site Online</b> — pick maintenance mode (clean "We'll be back soon" page; email/FTP/DBs keep working) or full suspend (everything stopped). <b>Does NOT pause expiry or auto-renewal billing.</b>
+- 🗑️ <b>Unlink a Domain</b> (only when addon domains exist) — remove an addon domain from cPanel + Cloudflare + DB. Permanent and non-refundable.
+- 🚫 <b>Cancel Hosting Plan</b> — terminate the entire cPanel account (files, email, databases, addons all deleted). Irreversible, no refund. Domain stays registered to user.
+
+Same actions are also available in the <b>web HostPanel → Account tab</b> (Site status card + Danger Zone).
+
 ### 🛒 Digital Products
 From main menu → tap <b>🛒 Digital Products</b>
 Available products with pricing:
@@ -578,6 +589,18 @@ From main menu → tap <b>💼 Become A Reseller</b>
 
 ### "How do I access my hosting panel?" / "Where do I log in to cPanel?" / "What is my hosting panel URL?"
 → Your hosting panel login URL is: <b>${HOSTING_PANEL_URL || 'available in your hosting credentials'}</b>. To get your login credentials: <b>🛡️🔥 Anti-Red Hosting</b> → <b>📋 My Hosting Plans</b> → Select your domain → <b>🔑 Reveal Credentials</b>. Use the username and PIN shown to log in at the panel URL.
+
+### "How do I take my website offline?" / "Can I temporarily disable my site?" / "Maintenance mode"
+→ Yes — two ways: (1) Bot: <b>🛡️🔥 Anti-Red Hosting</b> → <b>📋 My Hosting Plans</b> → select your domain → <b>🔌 Take Site Offline</b>. (2) Web HostPanel: log in → <b>Account</b> tab → <b>Take site offline</b>. You can choose <b>🛠️ Maintenance Mode</b> (recommended — visitors see a "We'll be back soon" page; email/FTP/databases keep working) or <b>🚫 Full Suspend</b> (HTTP/FTP/email/DB all stopped; visitors see "Account Suspended"). <b>IMPORTANT:</b> taking your site offline does NOT pause your expiry countdown or auto-renewal billing. The plan keeps ticking — this is a visibility toggle only.
+
+### "How do I bring my site back online?" / "How do I undo maintenance mode?"
+→ Same place as turning it off — Bot: <b>🛡️🔥 Anti-Red Hosting</b> → <b>📋 My Hosting Plans</b> → select your domain → <b>🌐 Bring Site Online</b>. Web HostPanel: <b>Account</b> tab → <b>Bring site back online</b>. Public access resumes immediately. Allow up to 1 minute for caching/CDN to fully clear.
+
+### "How do I unlink an addon domain from my hosting plan?" / "Remove a domain from hosting"
+→ Bot: <b>🛡️🔥 Anti-Red Hosting</b> → <b>📋 My Hosting Plans</b> → select your domain → <b>🗑️ Unlink a Domain</b>. Pick the addon to unlink, confirm. This removes the addon from cPanel, deletes its DNS records on Cloudflare, and removes Anti-Red protection for that domain. <b>It permanently deletes files under <code>public_html/&lt;domain&gt;/</code></b> and is not refundable. The button only appears when at least one addon is attached to the plan. The primary domain cannot be unlinked here — use "Cancel Hosting Plan" instead.
+
+### "How do I cancel my hosting plan?" / "I want to delete my hosting" / "Stop my anti-red hosting"
+→ Two ways: (1) Bot: <b>🛡️🔥 Anti-Red Hosting</b> → <b>📋 My Hosting Plans</b> → select your domain → <b>🚫 Cancel Hosting Plan</b>. (2) Web HostPanel: <b>Account</b> tab → <b>Cancel hosting plan</b> → type <code>CANCEL</code> to confirm. This permanently deletes the cPanel account, all files, email accounts, databases, FTP accounts, and unlinks every addon domain. It's <b>irreversible</b> and <b>no refund</b> is issued. Your domain itself stays registered to you — only the hosting is cancelled.
 
 ### "How do I set up SIP / connect a softphone?"
 → Two ways: (1) From hub: <b>📞 Cloud IVR + SIP</b> → <b>📖 SIP Setup Guide</b>. (2) From your number: <b>📋 My Plans</b> → select number → <b>🔑 SIP Credentials</b> → <b>📖 SIP Setup Guide</b>. Download Zoiper/Ooma, enter username + password from 🔑 SIP Credentials, domain: <code>${SIP_DOMAIN}</code>.
