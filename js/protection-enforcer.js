@@ -72,6 +72,7 @@ async function collectAllDomains() {
         domains.set(domain.toLowerCase(), {
           source: 'registeredDomains',
           cfZoneId: doc.val?.cfZoneId || null,
+          antiRedOff: doc.val?.antiRedOff === true,
         })
       }
     }
@@ -111,7 +112,7 @@ async function collectAllDomains() {
         // Include cpUser for SSL upgrade logic (AutoSSL needs the cPanel username)
         const existing = domains.get(mainDomain.toLowerCase())
         if (existing) {
-          // Merge cpUser into existing entry
+          // Merge cpUser into existing entry (preserve antiRedOff from registeredDomains)
           existing.source = 'cpanelAccounts'
           existing.cpUser = account._id || account.cpUser || null
         } else {
@@ -119,6 +120,7 @@ async function collectAllDomains() {
             source: 'cpanelAccounts',
             cfZoneId: null,
             cpUser: account._id || account.cpUser || null,
+            antiRedOff: false,
           })
         }
       }
@@ -128,11 +130,13 @@ async function collectAllDomains() {
           const d = (typeof addon === 'string' ? addon : addon.domain || '').toLowerCase()
           if (d && d.includes('.') && !domains.has(d)) {
             // Propagate cpUser from parent account so SSL enforcement works on addon domains
+            // antiRedOff defaults to false; addon domains inherit from registeredDomains if they exist there
             domains.set(d, {
               source: 'cpanelAddon',
               cfZoneId: null,
               cpUser: account._id || account.cpUser || null,
               parentDomain: mainDomain?.toLowerCase() || null,
+              antiRedOff: false,
             })
           }
         }
@@ -650,6 +654,13 @@ async function runEnforcement() {
       // Domain-only domains should NOT get anti-red Workers, even if their DNS
       // points to our server (could be leftover DNS or misconfiguration).
       if (entry.source === 'cpanelAccounts' || entry.source === 'cpanelAddon') {
+        // Respect user preference: skip domains where user explicitly disabled Anti-Red
+        if (entry.antiRedOff) {
+          log(`[ProtectionEnforcer] SKIP: ${domain} — user disabled Anti-Red (antiRedOff=true)`)
+          summary.protected++ // count as OK, user chose to disable
+          continue
+        }
+
         // Enforce worker routes for hosting domains (main + addon)
         const result = await enforceWorkerRoutes(domain, zoneId)
 

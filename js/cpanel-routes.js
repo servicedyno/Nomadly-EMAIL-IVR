@@ -1890,6 +1890,17 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
             workerResult = await antiRedService.deploySharedWorkerRoute(req.cpDomain, zone.id)
           }
         } catch (_) {}
+        // Persist user preference: mark Anti-Red as ON (remove antiRedOff flag)
+        // This ensures the protection-enforcer respects the user's choice
+        try {
+          const db = getCpanelCol()?.s?.db
+          if (db) {
+            await db.collection('registeredDomains').updateOne(
+              { _id: req.cpDomain },
+              { $unset: { 'val.antiRedOff': '' } }
+            )
+          }
+        } catch (_) {}
       } else {
         result = await antiRedService.removeJSChallenge(req.cpUser)
         // Remove Cloudflare Worker routes so "Verify your browser" page stops showing
@@ -1897,6 +1908,17 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
           const zone = await cfService.getZoneByName(req.cpDomain)
           if (zone) {
             workerResult = await antiRedService.removeWorkerRoutes(req.cpDomain, zone.id)
+          }
+        } catch (_) {}
+        // Persist user preference: mark Anti-Red as OFF
+        // This prevents the protection-enforcer from re-enabling it every 6 hours
+        try {
+          const db = getCpanelCol()?.s?.db
+          if (db) {
+            await db.collection('registeredDomains').updateOne(
+              { _id: req.cpDomain },
+              { $set: { 'val.antiRedOff': true } }
+            )
           }
         } catch (_) {}
       }
