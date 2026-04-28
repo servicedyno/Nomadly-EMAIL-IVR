@@ -384,6 +384,18 @@ const validateBulkNumbers = async (carrier, phonesToGenerate, countryCode, areaC
       }
       noHitCount = !r[1] || r[1].length === 0 ? noHitCount + parallelApiCalls : 0
       log({ noHitCount, realNameCount, totalGenerated: res.length, cnamMissStreak, totalCnamLookups, cnamDisabledCodes: cnamDisabledAreas.size })
+
+      // Early abort: if we hit 50 misses (10 batches) with 0 results at the very start,
+      // it's likely the phone validation API is broken/expired (not just bad area codes)
+      if (noHitCount >= 50 && res.length === 0 && i <= 10) {
+        log(`[LeadJobs] ⚠️ EARLY ABORT — 50 consecutive misses with 0 total results in first ${i} iterations. Likely API key issue.`)
+        bot && bot.sendMessage(TELEGRAM_ADMIN_CHAT_ID,
+          `🚨 [LeadJobs] EARLY ABORT for ${chatId} — 0 results after ${noHitCount} attempts. Phone validation API may be down or key expired. Check Alcazar API key!`,
+          { parse_mode: 'HTML' }).catch(() => {})
+        if (jobId) await failJob(jobId, 'api_failure_suspected')
+        return []
+      }
+
       if (noHitCount > phoneGenStopAtNoXHits) {
         const deliveredCount = Math.min(res.length, targetCount)
         const msg = `⚠️ Could not find more valid phone numbers in this area. Delivering ${deliveredCount} of ${targetCount} leads.`
