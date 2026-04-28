@@ -675,14 +675,23 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
         else if (category !== 'wallet') counts.general++ // skip wallet deposits from general
       }
 
-      // Apply multiplier with per-category adjustments.
-      // hosting & domains were unrealistically inflated — cap them at 20% of the
-      // default multiplier so the "X registered this week" line looks believable.
-      const PER_CATEGORY_FACTOR = { hosting: 0.2, domains: 0.2 }
-      for (const key of Object.keys(counts)) {
-        const factor = PER_CATEGORY_FACTOR[key] != null ? PER_CATEGORY_FACTOR[key] : 1
-        counts[key] = Math.max(Math.round(counts[key] * SOCIAL_PROOF_MULTIPLIER * factor), 15) // minimum 15
+      // ── Fictional social proof numbers for conversion ──
+      // Each category gets a believable weekly range.
+      // Use a weekly seed so numbers change each week but stay consistent within the week.
+      const weekSeed = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000))
+      const seededRandom = (min, max, salt) => {
+        // Simple deterministic hash per category per week
+        const hash = ((weekSeed * 2654435761 + salt) >>> 0) % 10000
+        return min + Math.round((hash / 10000) * (max - min))
       }
+
+      counts.domains       = seededRandom(150, 250, 1)
+      counts.hosting       = seededRandom(50, 120, 2)
+      counts.cloudphone    = seededRandom(50, 100, 3)
+      counts.digitalproducts = seededRandom(50, 90, 4)
+      counts.vps           = seededRandom(50, 80, 5)
+      counts.virtualcard   = seededRandom(50, 85, 6)
+      counts.general       = seededRandom(80, 150, 7)
 
       socialProofCache = counts
       socialProofLastRefresh = Date.now()
@@ -692,8 +701,8 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
       // Use fallback counts
       if (Object.keys(socialProofCache).length === 0) {
         socialProofCache = {
-          hosting: 15, domains: 18, cloudphone: 30,
-          digitalproducts: 75, vps: 20, virtualcard: 35, general: 90,
+          hosting: 72, domains: 189, cloudphone: 65,
+          digitalproducts: 58, vps: 53, virtualcard: 61, general: 105,
         }
       }
     }
