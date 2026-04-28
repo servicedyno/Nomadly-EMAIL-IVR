@@ -4653,9 +4653,7 @@ bot?.on('message', msg => {
 
   if (!db) return send(chatId, ({ en: 'Database is connecting, please try again in a moment', fr: 'La base de données se connecte, veuillez réessayer dans un instant', zh: '数据库正在连接中，请稍后重试', hi: 'डेटाबेस कनेक्ट हो रहा है, कृपया कुछ क्षण में पुनः प्रयास करें' }[lang] || 'Database is connecting, please try again in a moment'))
   // ConnectReseller status never blocks the bot — domain ops fallback to OpenProvider
-  if (!connect_reseller_working && NOT_TRY_CR === undefined) {
-    tryConnectReseller() // non-blocking background retry
-  }
+  // Removed per-message retry: the startup autoWhitelist() handles retries on its own schedule
 
   const nameOfChatId = await get(nameOf, chatId)
   const currentUsername = msg?.from?.username || null
@@ -27776,7 +27774,14 @@ app.post('/dynopay/crypto-pay-leads', authDyno, async (req, res) => {
       else if (['Australia'].includes(ld.country)) { areaCodes = ['4'] }
       else { areaCodes = ld.area === 'Mixed Area Codes' ? _buyLeadsSelectAreaCode(ld.country, ld.area) : [ld.area] }
       const result = await validateBulkNumbers(ld.carrier, ld.amount, cc, areaCodes, cnam, bot, chatId, lang, false, { target: ld.targetName, price: price, walletDeducted: true, paymentCoin: 'DYNOPAY' })
-      if (!result) return sendMessage(chatId, translation('t.buyLeadsError', lang)) || res.send(html())
+      if (!result || result.length === 0) {
+        // Full refund to wallet — no leads generated
+        await atomicIncrement(walletOf, chatId, 'usdIn', Number(price))
+        log(`[Leads] DynoPay full refund $${price} for ${chatId} — 0 leads generated`)
+        if (TELEGRAM_ADMIN_CHAT_ID) bot?.sendMessage(TELEGRAM_ADMIN_CHAT_ID, `💰 <b>Full Lead Refund (DynoPay)</b>\n👤 ${chatId}\n📊 0/${ld.amount} leads\n💵 $${Number(price).toFixed(2)} → wallet\n📝 Generation returned 0 results`, { parse_mode: 'HTML' }).catch(() => {})
+        sendMessage(chatId, translation('t.buyLeadsError', lang))
+        return res.send(html())
+      }
       // ── Partial delivery refund for DynoPay crypto — credit wallet USD ──
       if (result._partialReason) {
         const requested = result._targetCount || ld.amount || 1

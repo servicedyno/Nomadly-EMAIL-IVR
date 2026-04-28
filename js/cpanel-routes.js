@@ -311,16 +311,24 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     const { dir, file, isDirectory } = req.body
     if (!dir || !file) return res.status(400).json({ error: 'dir and file are required' })
     if (isProtectedAntiRedFile(dir, file)) {
+      log(`[Panel] Delete blocked (anti-red protected): ${file} in ${dir} (user: ${req.cpUser})`)
       return res.status(403).json({ error: `Cannot delete ${file} — this file is managed by the anti-red protection system and will be re-created automatically.` })
     }
-    const result = await cpProxy.deleteFile(req.cpUser, req.cpPass, dir, file, req.whmHost, !!isDirectory)
-    // Surface cPanel-level failures as HTTP 500 so the frontend's api() helper throws
-    // and the user sees a real error message instead of a silent no-op refresh.
-    if (result?.status !== 1) {
-      const reason = result?.errors?.[0] || 'cPanel refused to delete this item'
-      return res.status(500).json({ error: `Delete failed: ${reason}`, ...result })
+    try {
+      const result = await cpProxy.deleteFile(req.cpUser, req.cpPass, dir, file, req.whmHost, !!isDirectory)
+      // Surface cPanel-level failures as HTTP 500 so the frontend's api() helper throws
+      // and the user sees a real error message instead of a silent no-op refresh.
+      if (result?.status !== 1) {
+        const reason = result?.errors?.[0] || 'cPanel refused to delete this item'
+        log(`[Panel] Delete failed: ${file} in ${dir} (user: ${req.cpUser}) — ${reason}`)
+        return res.status(500).json({ error: `Delete failed: ${reason}`, ...result })
+      }
+      log(`[Panel] Deleted ${isDirectory ? 'folder' : 'file'}: ${file} in ${dir} (user: ${req.cpUser})`)
+      res.json(result)
+    } catch (err) {
+      log(`[Panel] Delete exception: ${file} in ${dir} (user: ${req.cpUser}) — ${err.message}`)
+      return res.status(500).json({ error: `Delete failed: ${err.message}` })
     }
-    res.json(result)
   })
 
   router.post('/files/rename', ...auth, async (req, res) => {

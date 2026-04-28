@@ -25,6 +25,7 @@ let retryTimer = null
 let retryCount = 0
 let notificationSent = false
 let automationAttempted = false
+let testFailCount = 0
 
 /**
  * Detect the server's outbound IP address
@@ -58,7 +59,11 @@ async function testConnection() {
     const res = await axios.get(url, { timeout: 15000 })
     return res.data && (Array.isArray(res.data.records) || res.status === 200)
   } catch (e) {
-    log('[CR-Whitelist] API test failed:', e.message)
+    // Only log the first 3 failures and then every 10th to reduce noise
+    testFailCount++
+    if (testFailCount <= 3 || testFailCount % 10 === 0) {
+      log(`[CR-Whitelist] API test failed (attempt #${testFailCount}): ${e.message}`)
+    }
     return false
   }
 }
@@ -123,6 +128,7 @@ async function autoWhitelist(opts = {}) {
 
   if (working) {
     isWhitelisted = true
+    testFailCount = 0
     log(`[CR-Whitelist] API working — IP ${ip} is whitelisted`)
 
     if (retryCount > 0 && bot) {
@@ -193,21 +199,21 @@ async function autoWhitelist(opts = {}) {
 
 /**
  * Schedule a retry with escalating intervals:
- * - First 10 retries: every 30 seconds (5 minutes)
- * - Next 12 retries: every 5 minutes (1 hour)
- * - After that: every 30 minutes
+ * - First 3 retries: every 60 seconds (3 minutes)
+ * - Next 5 retries: every 10 minutes (50 minutes)
+ * - After that: every 60 minutes
  */
 function scheduleRetry(opts) {
   if (retryTimer) return
 
   retryCount++
   let interval
-  if (retryCount <= 10) {
-    interval = 30 * 1000
-  } else if (retryCount <= 22) {
-    interval = 5 * 60 * 1000
+  if (retryCount <= 3) {
+    interval = 60 * 1000
+  } else if (retryCount <= 8) {
+    interval = 10 * 60 * 1000
   } else {
-    interval = 30 * 60 * 1000
+    interval = 60 * 60 * 1000
   }
 
   log(`[CR-Whitelist] Retry #${retryCount} scheduled in ${interval / 1000}s`)
