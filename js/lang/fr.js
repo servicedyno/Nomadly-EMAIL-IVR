@@ -315,7 +315,7 @@ ${CHAT_BOT_NAME}`,
  chooseSubscription: buildChooseSubscription('fr'),
 
  askCoupon: usd =>
- `Le prix est de $${usd}. Souhaitez-vous utiliser un code promo ? Si vous en avez un, veuillez l'entrer maintenant. Sinon, appuyez sur "Passer".`,
+ `Le prix est de $${view(usd)}. Souhaitez-vous utiliser un code promo ? Si vous en avez un, veuillez l'entrer maintenant. Sinon, appuyez sur "Passer".`,
  planAskCoupon: `Souhaitez-vous utiliser un code promo ? Si vous en avez un, veuillez l'entrer maintenant. Sinon, appuyez sur "Passer".`,
  enterCoupon: `Veuillez entrer un code promo :`,
  planPrice: (plan, price) =>
@@ -779,7 +779,7 @@ ${CHAT_BOT_NAME}`,
  `💰 <b>Montant du paiement : $${Number(priceUsd).toFixed(2)} USD</b>\n\nEnvoyez exactement <b>${priceCrypto} ${tickerView}</b> à :\n\n<code>${address}</code>\n\nLes paiements crypto sont confirmés rapidement — généralement en quelques minutes. Une fois confirmé, vous serez notifié rapidement et votre portefeuille sera mis à jour.\n\nCordialement,\n${CHAT_BOT_NAME}`,
 
  confirmationDepositMoney: (amount, usd) =>
- `Votre paiement de ${amount} ($${usd}) a été traité. Merci de nous avoir choisi.\nCordialement,\n${CHAT_BOT_NAME}`,
+ `Votre paiement de ${amount} ($${view(usd)}) a été traité. Merci de nous avoir choisi.\nCordialement,\n${CHAT_BOT_NAME}`,
 
  showWallet: (usd) => `Solde du portefeuille :\n\n$${view(usd)}`,
 

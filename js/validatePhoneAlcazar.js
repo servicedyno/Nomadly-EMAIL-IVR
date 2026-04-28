@@ -11,7 +11,13 @@ const apiUrl = 'http://api.east.alcazarnetworks.com/api/2.2/lrn'
 let alcazarKeyErrorLogged = false
 
 const validatePhoneAlcazar = async (carrier, phone) => {
-  const url = `${apiUrl}?tn=${phone}&extended=true&output=json&&key=${API_ALCAZAR}`
+  // Validate US phone number format: must be exactly 11 digits starting with 1
+  const cleanPhone = String(phone).replace(/[^0-9]/g, '')
+  if (cleanPhone.length !== 11 || !cleanPhone.startsWith('1')) {
+    return null // silently skip malformed numbers
+  }
+
+  const url = `${apiUrl}?tn=${cleanPhone}&extended=true&output=json&&key=${API_ALCAZAR}`
 
   const d1 = new Date()
   const res = await axios.get(url)

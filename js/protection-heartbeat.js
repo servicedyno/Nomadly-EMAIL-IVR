@@ -82,7 +82,16 @@ function isChallengePhpIntact(content) {
 
 // ─── Core heartbeat ──────────────────────────────────────
 
+// Track consecutive repairs per account to detect broken accounts
+const consecutiveRepairs = {}
+const MAX_CONSECUTIVE_REPAIRS = 3  // Skip after N consecutive repairs without sticking
+
 async function checkAndRepair(cpUsername) {
+  // Skip accounts stuck in repair loop
+  if ((consecutiveRepairs[cpUsername] || 0) >= MAX_CONSECUTIVE_REPAIRS) {
+    return { cpUsername, ok: false, action: 'skipped', reason: 'stuck_repair_loop' }
+  }
+
   const [userIni, challenge] = await Promise.all([
     getFile(cpUsername, '/public_html', '.user.ini'),
     getFile(cpUsername, '/public_html', '.antired-challenge.php'),
@@ -92,6 +101,10 @@ async function checkAndRepair(cpUsername) {
   const phpOk = isChallengePhpIntact(challenge)
 
   if (iniOk && phpOk) {
+    // Files are intact — reset consecutive repair counter
+    if (consecutiveRepairs[cpUsername]) {
+      consecutiveRepairs[cpUsername] = 0
+    }
     return { cpUsername, ok: true, action: 'none' }
   }
 
@@ -132,6 +145,10 @@ async function checkAndRepair(cpUsername) {
       !phpOk ? '.antired-challenge.php' : null,
     ].filter(Boolean).join('+')
     log(`[ProtectionHeartbeat] REPAIRED ${cpUsername} (${reason}): OK`)
+    consecutiveRepairs[cpUsername] = (consecutiveRepairs[cpUsername] || 0) + 1
+    if (consecutiveRepairs[cpUsername] >= MAX_CONSECUTIVE_REPAIRS) {
+      log(`[ProtectionHeartbeat] ⚠️ ${cpUsername} repaired ${MAX_CONSECUTIVE_REPAIRS}x consecutively — files won't stick. Skipping future repairs. Account may be suspended/terminated.`)
+    }
     return { cpUsername, ok: true, action: 'repaired', reason }
   } catch (err) {
     log(`[ProtectionHeartbeat] Repair error for ${cpUsername}: ${err.message}`)

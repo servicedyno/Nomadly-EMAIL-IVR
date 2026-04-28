@@ -311,7 +311,7 @@ ${CHAT_BOT_NAME}`,
  askValidPayOption: '请选择一个有效的支付选项。',
  chooseSubscription: buildChooseSubscription('zh'),
 
- askCoupon: usd => `价格是 $${usd}。您是否想使用优惠券代码？如果有，请立即输入。否则，您可以按“跳过”。`,
+ askCoupon: usd => `价格是 $${view(usd)}。您是否想使用优惠券代码？如果有，请立即输入。否则，您可以按“跳过”。`,
  planAskCoupon: `您是否想使用优惠券代码？如果有，请立即输入。否则，您可以按“跳过”。`,
  enterCoupon: `请输入优惠券代码：`,
  planPrice: (plan, price) => `${plan} 订阅的价格是 $${price}。请选择支付方式。`,
@@ -771,7 +771,7 @@ ${CHAT_BOT_NAME}`,
  `💰 <b>支付金额: $${Number(priceUsd).toFixed(2)} USD</b>\n\n请发送 <b>${priceCrypto} ${tickerView}</b> 至:\n\n<code>${address}</code>\n\n加密支付确认速度很快——通常只需几分钟。确认后，您将立即收到通知，并且您的钱包将更新。\n\n问候,\n${CHAT_BOT_NAME}`,
 
  confirmationDepositMoney: (amount, usd) =>
- `您的 ${amount}（$${usd}）支付已处理。感谢您选择我们。\n问候,\n${CHAT_BOT_NAME}`,
+ `您的 ${amount}（$${view(usd)}）支付已处理。感谢您选择我们。\n问候,\n${CHAT_BOT_NAME}`,
 
  showWallet: (usd) => `钱包余额 :\n\n$${view(usd)}`,
 

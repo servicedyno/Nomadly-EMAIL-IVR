@@ -271,7 +271,7 @@ ${CHAT_BOT_NAME}`,
   chooseSubscription: buildChooseSubscription('en'),
 
   askCoupon: usd =>
-    `The price is $${usd}. Would you like to apply a coupon code? If you have one, please enter it now. Otherwise, you can press 'Skip'.`,
+    `The price is $${view(usd)}. Would you like to apply a coupon code? If you have one, please enter it now. Otherwise, you can press 'Skip'.`,
   planAskCoupon: `Would you like to apply a coupon code? If you have one, please enter it now. Otherwise, you can press 'Skip'.`,
   enterCoupon: `Please enter a coupon code:`,
   planPrice: (plan, price) => `Price of ${plan} subscription is $${price} Please choose payment method.`,
@@ -472,7 +472,7 @@ ${CHAT_BOT_NAME}`,
   confirmationDepositMoney: (
     amount,
     usd,
-  ) => `Your payment of ${amount} ($${usd}) is processed. Thank you for choosing us.
+  ) => `Your payment of ${amount} ($${view(usd)}) is processed. Thank you for choosing us.
 Best,
 ${CHAT_BOT_NAME}`,
 
@@ -717,7 +717,7 @@ const targetLeadsAreaCodeButtons = (target, city) => {
 }
 
 const buyLeadsSelectCountry = Object.keys(areasOfCountry)
-const buyLeadsSelectSmsVoice = ['SMS (Price 20$ for 1000)', 'Voice (Price 0$ for 1000)']
+const buyLeadsSelectSmsVoice = ['SMS (Price 20$ for 1000)']
 const buyLeadsSelectArea = country => Object.keys(areasOfCountry?.[country])
 const buyLeadsSelectAreaCode = (country, area) => {
   const codes = areasOfCountry?.[country]?.[area].map(c => format(countryCodeOf[country], c))
@@ -730,7 +730,7 @@ const buyLeadsSelectAmount = ['1000', '2000', '3000', '4000', '5000']
 const buyLeadsSelectFormat = ['Local Format', 'International Format']
 
 const validatorSelectCountry = Object.keys(areasOfCountry)
-const validatorSelectSmsVoice = ['SMS (Price 15$ for 1000)', 'Voice (Price 0$ for 1000)']
+const validatorSelectSmsVoice = ['SMS (Price 15$ for 1000)']
 const validatorSelectCarrier = country => carriersOf[country]
 const validatorSelectCnam = yesNo
 const validatorSelectAmount = ['ALL', '1000', '2000', '3000', '4000', '5000']
