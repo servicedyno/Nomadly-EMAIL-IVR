@@ -27727,6 +27727,8 @@ app.post('/dynopay/crypto-pay-leads', authDyno, async (req, res) => {
   const isValidator = lastStep === 'validatorSelectFormat'
   const label = isValidator ? 'Validation' : 'Leads'
   set(payments, ref, `Crypto,${label},$${price},${chatId},${name},${new Date()},${value} ${coin},transaction,${id}`)
+  // Immediate payment notification — don't wait for lead generation to complete
+  notifyGroup(`💰 <b>Crypto Payment Received!</b>\n👤 User: ${maskName(name)}\n💵 Paid: <b>$${price}</b> (${coin})\n📦 Product: ${leadsData?.amount?.toLocaleString() || '?'} ${leadsData?.targetName || label}\n⏳ Generation in progress...`)
   const ticker = tickerViewOfDyno[coin]
   const baseAmount = req.body.base_amount
   const feePayer = req.body.fee_payer
