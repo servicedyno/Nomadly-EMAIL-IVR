@@ -884,7 +884,7 @@ ${CHAT_BOT_NAME}`,
  confirmationDepositMoney: (
  amount,
  usd,
- ) => `Your payment of ${amount} ($${usd}) is processed. Thank you for choosing us.
+ ) => `Your payment of ${amount} ($${view(usd)}) is processed. Thank you for choosing us.
 Best,
 ${CHAT_BOT_NAME}`,
 
