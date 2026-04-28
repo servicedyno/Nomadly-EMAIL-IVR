@@ -316,15 +316,54 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     }
     try {
       const result = await cpProxy.deleteFile(req.cpUser, req.cpPass, dir, file, req.whmHost, !!isDirectory)
-      // Surface cPanel-level failures as HTTP 500 so the frontend's api() helper throws
-      // and the user sees a real error message instead of a silent no-op refresh.
-      if (result?.status !== 1) {
-        const reason = result?.errors?.[0] || 'cPanel refused to delete this item'
-        log(`[Panel] Delete failed: ${file} in ${dir} (user: ${req.cpUser}) — ${reason}`)
-        return res.status(500).json({ error: `Delete failed: ${reason}`, ...result })
+      if (result?.status === 1) {
+        log(`[Panel] Deleted ${isDirectory ? 'folder' : 'file'}: ${file} in ${dir} (user: ${req.cpUser})`)
+        return res.json(result)
       }
-      log(`[Panel] Deleted ${isDirectory ? 'folder' : 'file'}: ${file} in ${dir} (user: ${req.cpUser})`)
-      res.json(result)
+
+      // User-level cPanel API2 failed — try WHM-level fallback (root can delete on behalf of user)
+      const whmHost = req.whmHost || process.env.WHM_HOST
+      const whmToken = process.env.WHM_TOKEN
+      if (whmHost && whmToken) {
+        log(`[Panel] Delete user-level failed for ${file}, trying WHM fallback (user: ${req.cpUser}, reason: ${result?.errors?.[0] || 'unknown'})`)
+        const https = require('https')
+        const axios = require('axios')
+        const whmApi = axios.create({
+          baseURL: `https://${whmHost}:2087/json-api`,
+          headers: { Authorization: `whm ${process.env.WHM_USERNAME || 'root'}:${whmToken}` },
+          timeout: 30000,
+          httpsAgent: new https.Agent({ rejectUnauthorized: false }),
+        })
+        const op = isDirectory ? 'killdir' : 'unlink'
+        const whmRes = await whmApi.get('/cpanel', {
+          params: {
+            'api.version': 1,
+            cpanel_jsonapi_user: req.cpUser,
+            cpanel_jsonapi_apiversion: 2,
+            cpanel_jsonapi_module: 'Fileman',
+            cpanel_jsonapi_func: 'fileop',
+            doubledecode: 0,
+            op,
+            sourcefiles: `${dir}/${file}`,
+          },
+        })
+        const whmData = whmRes.data?.cpanelresult || whmRes.data?.result || {}
+        const whmDataArr = whmData.data || []
+        const whmOk = whmDataArr.length > 0 && whmDataArr[0]?.result === 1
+        if (whmOk || (whmData.event?.result === 1 && whmDataArr.length === 0)) {
+          log(`[Panel] Deleted via WHM fallback: ${file} in ${dir} (user: ${req.cpUser})`)
+          return res.json({ status: 1, data: whmDataArr, errors: null, via: 'whm-fallback' })
+        }
+        // WHM fallback also failed — report combined error
+        const whmReason = whmDataArr[0]?.reason || whmData.error || 'WHM operation also failed'
+        log(`[Panel] Delete WHM fallback also failed: ${file} in ${dir} (user: ${req.cpUser}) — ${whmReason}`)
+        return res.status(500).json({ error: `Delete failed: ${whmReason}` })
+      }
+
+      // No WHM credentials available — report the original error
+      const reason = result?.errors?.[0] || 'cPanel refused to delete this item'
+      log(`[Panel] Delete failed: ${file} in ${dir} (user: ${req.cpUser}) — ${reason}`)
+      return res.status(500).json({ error: `Delete failed: ${reason}`, ...result })
     } catch (err) {
       log(`[Panel] Delete exception: ${file} in ${dir} (user: ${req.cpUser}) — ${err.message}`)
       return res.status(500).json({ error: `Delete failed: ${err.message}` })

@@ -56,7 +56,7 @@ const routeSrc = routesSrc.substring(routeStart, routeEnd)
 
 assert(routeSrc.includes('isDirectory'), 'route reads isDirectory from req.body')
 assert(routeSrc.includes('cpProxy.deleteFile(req.cpUser, req.cpPass, dir, file, req.whmHost, !!isDirectory)'), 'route passes isDirectory to cpProxy.deleteFile')
-assert(routeSrc.includes('result?.status !== 1'), 'route checks cPanel result.status')
+assert(routeSrc.includes('result?.status === 1') || routeSrc.includes('result?.status !== 1'), 'route checks cPanel result.status')
 assert(routeSrc.includes('res.status(500).json({ error: `Delete failed'), 'route returns HTTP 500 with descriptive error on failure')
 assert(routeSrc.includes('isProtectedAntiRedFile(dir, file)'), 'anti-red guard still present')
 assert(routeSrc.includes('res.status(403)'), 'anti-red guard still returns 403')
@@ -65,7 +65,7 @@ assert(routeSrc.includes('res.status(403)'), 'anti-red guard still returns 403')
 const iBody = routeSrc.indexOf('if (!dir || !file)')
 const iProtect = routeSrc.indexOf('isProtectedAntiRedFile')
 const iCall = routeSrc.indexOf('cpProxy.deleteFile')
-const iStatus = routeSrc.indexOf('result?.status !== 1')
+const iStatus = routeSrc.indexOf('result?.status === 1') >= 0 ? routeSrc.indexOf('result?.status === 1') : routeSrc.indexOf('result?.status !== 1')
 assert(iBody > 0 && iProtect > iBody && iCall > iProtect && iStatus > iCall, 'route order: validation → antired guard → call → status check')
 
 // ── 5 + 6. Frontend handleDelete ──
