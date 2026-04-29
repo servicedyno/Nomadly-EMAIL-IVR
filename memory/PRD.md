@@ -6,6 +6,60 @@
 - Node.js Express (port 5000) - core business logic
 - MongoDB (port 27017)
 
+## 🐛 Cloud IVR Call-Forwarding Bug — @wizardchop +15162719167 (Feb 2026)
+
+### User report
+"Set call forwarding for my Cloud IVR number from the bot but every call goes to voicemail."
+
+### Root cause (verified against production MongoDB)
+`@wizardchop` (chatId `1167900472`) had **THREE features simultaneously enabled** on `+15162719167`:
+- `callForwarding`: `enabled=true, mode='always', forwardTo='+19382616936'`
+- `ivr`: `enabled=true, options={'1': {action: 'voicemail'}}` — single option, dumps caller to VM
+- `voicemail`: `enabled=true`
+
+The routing priority in `js/voice-service.js → handleCallAnswered()` checked **IVR before Forwarding(always)**. Every inbound call hit the IVR menu first, the caller pressed nothing or `1`, and the call dropped into voicemail. Forwarding-always **was never reached**.
+
+### Fix — priority swap
+**`js/voice-service.js:3249-3380`** — new order:
+
+> **Forwarding(always) → IVR → Forwarding(busy/no_answer) → SIP ring → Voicemail → Missed**
+
+`Always-Forward` is now the highest priority — it's an explicit user statement that EVERY call should forward, so IVR is correctly skipped. Added `_forwardingWalletGate()` helper to dedupe wallet-precheck logic across the two forwarding code paths. Log line `[Voice] ... — IVR skipped (always-forward overrides)` provides observability when the override fires.
+
+### Awareness layer (3-tier UX hardening to prevent recurrence)
+**Layer 1 — Call-flow preview** at top of Forwarding/IVR/Voicemail bot screens. Plain-English one-liner, e.g.:
+> *🧭 Currently: All calls auto-forward to +1 (938) 261-6936. IVR & voicemail won't play. ⚠️ IVR, voicemail are enabled but skipped.*
+
+**Layer 2 — Post-Always-Forward conflict warning** + one-tap remediation buttons (`🔇 Disable IVR`, `🔇 Disable SIP`, `🔇 Disable Voicemail`, `✓ Keep all`). Fires only when conflicts exist. Re-evaluates after each toggle so user can clear them in sequence.
+
+**Layer 3 — `(skipped)` badge** on overridden features in the per-number manage screen. Localized in en/fr/zh/hi.
+
+### Single source of truth
+- `js/phone-config.js → getCallRouteSummary(num)` returns `{primary, secondary, skippedFeatures, hasFwd, hasIvr, hasSip, hasVm, fwdMode}`. Used by:
+  - `js/_index.js` (bot UX preview + remediation flow)
+  - Future agents who want to query "what happens when this number is called?"
+- `js/phone-config.js → formatCallFlowPreview(num, lang)` — localized one-liner for end-user display.
+
+### Tests
+- New: `js/tests/test_call_route_priority.js` — 17 cases covering all priority permutations + 4-locale previews + static source-order assertion. **17/17 passing.**
+- Sibling regressions all green: `test_bulkivr_wallet (10/10)`, `test_manage_screen_features (21/21)`, `test_billing_menu_and_gold_copy`, `test_plan_copy`, `test_i18n_coverage`.
+
+### Files touched
+- `js/voice-service.js` — restructured `handleCallAnswered()` priority order + new `_forwardingWalletGate()` helper.
+- `js/phone-config.js` — new helpers `getCallRouteSummary` + `formatCallFlowPreview` + 4-locale labels (en/fr/zh/hi).
+- `js/_index.js` — preview at top of 3 feature screens, post-save conflict warning + remediation handler `cpForwardingConflictResolve`, `(skipped)` badges in `buildManageMenu`, support for badged button matching via `startsWith`.
+- `js/tests/test_call_route_priority.js` — 17 unit tests.
+
+### Deployment
+- Local repo only. **NOT yet deployed to Railway.** User pushes via "Save to Github" → Railway auto-deploys.
+- After deploy, @wizardchop's next call to `+15162719167` will forward to `+19382616936` (no production data mutation required — priority fix alone resolves it).
+
+### Followups flagged by testing agent (not blocking)
+1. `voice-service.js` is 4877 lines — refactor candidate. Splitting `route-priority` into its own module would let voice-service consume `getCallRouteSummary` directly instead of duplicating precedence logic.
+2. `_forwardingWalletGate` fails-open on transient wallet errors — acceptable for now; consider circuit breaker later for high-volume Always-Forward numbers.
+3. `(fwdConfig.mode || 'always') === 'always'` defaults to 'always' when mode is undefined — preserves prior behavior; legacy records with `enabled=true, forwardTo=set, mode=undefined` will now forward instead of hitting IVR (intentional).
+
+
 ## 🎁 Plan extension + 🛡️ post-delete verify-and-retry safety net (2026-04-29)
 
 ### Task 1: 5-day goodwill extension for @thebiggestbag22
