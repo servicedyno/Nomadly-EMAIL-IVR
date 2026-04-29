@@ -23321,13 +23321,8 @@ Select a category:`), k.of(catBtns))
 
       const shortenerBtn = shortenerActive ? t.domainActionDeactivateShortener : t.domainActionShortener
       await set(state, chatId, 'action', 'view-domain-actions')
-      // Only show Anti-Red toggle for domains with a hosting plan (cpanelAccount)
-      // Check both main domain field AND addonDomains array
-      const hasHostingMain = await db.collection('cpanelAccounts').findOne({ chatId: String(chatId), domain: { $regex: new RegExp('^' + domain.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') } })
-      const hasHostingAddon = !hasHostingMain ? await db.collection('cpanelAccounts').findOne({ chatId: String(chatId), addonDomains: { $elemMatch: { domain: { $regex: new RegExp('^' + domain.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') } } } }) : null
-      const hasHosting = hasHostingMain || hasHostingAddon
+      // Visitor Captcha toggle is now exposed under "📋 My Hosting Plans → tap [domain]" — not under Bulletproof Domains.
       const actionBtns = [[t.domainActionDns], [shortenerBtn]]
-      if (hasHosting) actionBtns.push([t.domainActionAntiRed])
       actionBtns.push([t.back])
       send(chatId, t.selectDomainAction(domain), k.of(actionBtns))
       return
@@ -23512,10 +23507,8 @@ Select a category:`), k.of(catBtns))
       )
       const shortenerBtn = shortenerActive ? t.domainActionDeactivateShortener : t.domainActionShortener
       await set(state, chatId, 'action', 'view-domain-actions')
-      // Only show Anti-Red toggle for domains with a hosting plan
-      const hasHosting = await db.collection('cpanelAccounts').findOne({ domain: { $regex: new RegExp('^' + domain.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') } })
+      // Visitor Captcha lives under My Hosting Plans now — Bulletproof Domains menu only has DNS + Shortener.
       const actionBtns = [[t.domainActionDns], [shortenerBtn]]
-      if (hasHosting) actionBtns.push([t.domainActionAntiRed])
       actionBtns.push([t.back])
       return send(chatId, t.selectDomainAction(domain), k.of(actionBtns))
     }
@@ -23544,7 +23537,7 @@ Select a category:`), k.of(catBtns))
             return goto.viewHostingPlanDetails(info.selectedHostingDomain)
           }
           await set(state, chatId, 'action', 'view-domain-actions')
-          return send(chatId, t.antiRedEnabled(domain), k.of([[t.domainActionAntiRed], [t.back]]), { parse_mode: 'HTML' })
+          return send(chatId, t.antiRedEnabled(domain), k.of([[t.back]]), { parse_mode: 'HTML' })
         }
         return send(chatId, t.antiRedError)
       } catch (e) {
@@ -23575,7 +23568,7 @@ Select a category:`), k.of(catBtns))
             return goto.viewHostingPlanDetails(info.selectedHostingDomain)
           }
           await set(state, chatId, 'action', 'view-domain-actions')
-          return send(chatId, t.antiRedDisabled(domain), k.of([[t.domainActionAntiRed], [t.back]]), { parse_mode: 'HTML' })
+          return send(chatId, t.antiRedDisabled(domain), k.of([[t.back]]), { parse_mode: 'HTML' })
         }
         return send(chatId, t.antiRedError)
       } catch (e) {
@@ -23599,13 +23592,9 @@ Select a category:`), k.of(catBtns))
       // User canceled — return to domain actions menu
       const domain = info?.domainToManage
       await set(state, chatId, 'action', 'view-domain-actions')
-      
-      // Check if domain has hosting for correct menu display
-      const hostingPlan = await cpanelAccounts.findOne({ domain: domain })
+
+      // Visitor Captcha lives under My Hosting Plans — Bulletproof Domains menu only has DNS + Shortener.
       const menuButtons = [[t.domainActionDns]]
-      if (hostingPlan) {
-        menuButtons.push([t.domainActionAntiRed])
-      }
       // Check shortener state for dynamic button
       const dnsData = await domainService.viewDNSRecords(domain, db)
       const records = dnsData?.records || []

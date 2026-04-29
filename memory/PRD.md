@@ -11,8 +11,16 @@
 
 **Root cause** (verified via Railway logs): Toggle was only available under "🌐 Bulletproof Domains → tap [domain]" — a menu the user never visited. He was looking under "📋 My Hosting Plans → tap [domain]".
 
+**Production data verified for @jasonthekidd via Railway logs**:
+- `cap1online360.com` → `Golden Anti-Red HostPanel (1-Month)` (Gold ✅)
+- `huntingtononlinebanking.it` → `Golden Anti-Red HostPanel (1-Month)` (Gold ✅)
+Both qualify for Visitor Captcha — he'll see the active toggle (not the locked variant).
+
 ### Changes implemented
-- 🤖 **Bot** (`js/_index.js`): Added "🛡️ Visitor Captcha" button to the **Hosting Plan view** (My Hosting Plans → tap [domain]). Locked variant "🔒 Visitor Captcha (Gold only)" shown for non-Golden users with upgrade CTA. Existing Bulletproof-Domains entry also Gold-gated.
+- 🤖 **Bot** (`js/_index.js`): 
+  - Added "🛡️ Visitor Captcha" button to the **Hosting Plan view** (My Hosting Plans → tap [domain]). Locked variant "🔒 Visitor Captcha (Gold only)" shown for non-Golden users with upgrade CTA.
+  - **Removed** the captcha toggle from "🌐 Bulletproof Domains → tap [domain]" entirely (3 places: line 23297, 23476, 23555 + post-toggle nav buttons). Bulletproof Domains menu now only has DNS + Shortener.
+  - Captcha toggle handler at line 23461 left intact (defensive, for stale states).
 - 🌐 **Web Panel** (`frontend/src/components/panel/DomainList.js`): Added a per-domain Visitor Captcha toggle next to each domain card (Main + Addons) — replaces the global Security panel toggle as primary entry point. Gold-locked badge for non-Golden plans + upgrade banner above domain list.
 - 🔌 **Backend** (`js/cpanel-routes.js`):
   - New `GET /security/captcha/status` — returns `{ isGold, plan, captchaGoldOnly, domains: [{domain, enabled, hasCloudflare, isMain}] }` for all main + addon domains
