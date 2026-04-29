@@ -6,6 +6,25 @@
 - Node.js Express (port 5000) - core business logic
 - MongoDB (port 27017)
 
+## 🛡️ Visitor Captcha — Gold-only feature (2026-04-29)
+**Reported by**: @jasonthekidd (chatId 7893016294) — couldn't find the captcha toggle.
+
+**Root cause** (verified via Railway logs): Toggle was only available under "🌐 Bulletproof Domains → tap [domain]" — a menu the user never visited. He was looking under "📋 My Hosting Plans → tap [domain]".
+
+### Changes implemented
+- 🤖 **Bot** (`js/_index.js`): Added "🛡️ Visitor Captcha" button to the **Hosting Plan view** (My Hosting Plans → tap [domain]). Locked variant "🔒 Visitor Captcha (Gold only)" shown for non-Golden users with upgrade CTA. Existing Bulletproof-Domains entry also Gold-gated.
+- 🌐 **Web Panel** (`frontend/src/components/panel/DomainList.js`): Added a per-domain Visitor Captcha toggle next to each domain card (Main + Addons) — replaces the global Security panel toggle as primary entry point. Gold-locked badge for non-Golden plans + upgrade banner above domain list.
+- 🔌 **Backend** (`js/cpanel-routes.js`):
+  - New `GET /security/captcha/status` — returns `{ isGold, plan, captchaGoldOnly, domains: [{domain, enabled, hasCloudflare, isMain}] }` for all main + addon domains
+  - New `POST /security/captcha/toggle` — body `{ domain, enabled }` — Gold-gated 403, domain-ownership check, deploys/removes CF Worker route + KV bypass
+  - Existing `POST /security/js-challenge/toggle` — added Gold gating (403 with `upgradeRequired: true`)
+  - `resolveCpPass` middleware now exposes `req.cpPlan`, `req.cpIsGold`, `req.cpAddonDomains`
+- 🌍 **Translations** (`js/lang/{en,fr,zh,hi}.js`): Renamed "Anti-Red Protection" → "Visitor Captcha" everywhere in user-facing strings. Added `visitorCaptchaGoldOnly` and `visitorCaptchaNoHosting` keys.
+- 🎨 **CSS** (`App.css`): New `.dl-cap-toggle`, `.dl-cap-badge--locked/--nocf/--loading`, `.dl-captcha-banner` styles.
+
+### Plan match logic
+Case-insensitive regex `/Golden Anti-Red HostPanel/i` on `cpanelAccounts.plan` — covers both `(1-Month)` and `(30 Days)` variants.
+
 ## Recent Fixes (Railway Log Anomalies)
 1. **Fix 1**: Added notifyGroup() to all 4 hosting payment paths (Wallet, Bank NGN, BlockBee, DynoPay)
 2. **Fix 2**: Added displayMainMenuButtons to goto object (was called but never defined)

@@ -2671,6 +2671,13 @@
 }
 .sec-badge--active { background: rgba(52,211,153,0.1); color: #34d399; }
 .sec-badge--inactive { background: rgba(90,90,112,0.15); color: #5a5a70; }
+.sec-badge--locked {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+  border: 1px dashed rgba(245, 158, 11, 0.35);
+  font-weight: 600;
+  cursor: help;
+}
 .sec-badge--loading { background: rgba(107,107,128,0.1); color: #6b6b80; }
 .sec-badge-dot { width: 6px; height: 6px; border-radius: 50%; }
 .sec-badge-dot--on { background: #34d399; }
@@ -3617,6 +3624,127 @@
 .dl-ns-check-btn:hover {
   background: rgba(109, 158, 255, 0.15);
 }
+
+/* Visitor Captcha (Anti-Red) per-domain toggle */
+.dl-cap-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.dl-cap-badge--loading {
+  background: rgba(255,255,255,0.04);
+  color: #6b6b80;
+}
+
+.dl-cap-badge--locked {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+  border: 1px dashed rgba(245, 158, 11, 0.35);
+  cursor: help;
+}
+
+.dl-cap-badge--nocf {
+  background: rgba(255,255,255,0.04);
+  color: #5a5a70;
+  cursor: help;
+}
+
+.dl-cap-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px 3px 6px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+
+.dl-cap-toggle--on {
+  background: rgba(16, 185, 129, 0.12);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.30);
+}
+
+.dl-cap-toggle--off {
+  background: rgba(239, 68, 68, 0.10);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.30);
+}
+
+.dl-cap-toggle:hover { filter: brightness(1.15); }
+.dl-cap-toggle:disabled { opacity: 0.6; cursor: wait; }
+
+.dl-cap-knob {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: currentColor;
+  display: inline-block;
+}
+
+.dl-captcha-banner {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  margin: 8px 0 12px;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.10), rgba(245, 158, 11, 0.04));
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: 8px;
+  color: #fcd34d;
+}
+
+.dl-captcha-banner svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.dl-captcha-banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.dl-captcha-banner-text strong {
+  color: #fde68a;
+}
+
+.dl-captcha-banner-text b {
+  color: #fcd34d;
+  font-weight: 700;
+}
+
+.panel-light .dl-cap-badge--locked {
+  background: rgba(245, 158, 11, 0.10);
+  color: #b45309;
+  border-color: rgba(245, 158, 11, 0.40);
+}
+.panel-light .dl-cap-toggle--on {
+  background: rgba(16, 185, 129, 0.10);
+  color: #047857;
+  border-color: rgba(16, 185, 129, 0.30);
+}
+.panel-light .dl-cap-toggle--off {
+  background: rgba(239, 68, 68, 0.08);
+  color: #b91c1c;
+  border-color: rgba(239, 68, 68, 0.30);
+}
+.panel-light .dl-captcha-banner {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(245, 158, 11, 0.04));
+  color: #92400e;
+}
+.panel-light .dl-captcha-banner-text strong { color: #92400e; }
+.panel-light .dl-captcha-banner-text b { color: #b45309; }
 
 /* ─── SSL Badge ──────────────────────────── */
 .dl-ssl-badge {

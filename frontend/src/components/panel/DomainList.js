@@ -104,6 +104,98 @@ export default function DomainList() {
   const [autoSSLLoading, setAutoSSLLoading] = useState(false);
   const [autoSSLResult, setAutoSSLResult] = useState(null);
 
+  // Visitor Captcha (Anti-Red) per-domain toggle state
+  const [captchaInfo, setCaptchaInfo] = useState({ isGold: false, plan: '', loaded: false });
+  const [captchaByDomain, setCaptchaByDomain] = useState({});
+  const [captchaToggling, setCaptchaToggling] = useState({});
+  const [captchaError, setCaptchaError] = useState('');
+
+  const fetchCaptcha = useCallback(async () => {
+    try {
+      const res = await api('/security/captcha/status');
+      const map = {};
+      (res.domains || []).forEach(d => { map[d.domain] = d; });
+      setCaptchaByDomain(map);
+      setCaptchaInfo({ isGold: !!res.isGold, plan: res.plan || '', loaded: true });
+    } catch (_) {
+      setCaptchaInfo({ isGold: false, plan: '', loaded: true });
+    }
+  }, [api]);
+
+  useEffect(() => { fetchCaptcha(); }, [fetchCaptcha]);
+
+  const toggleCaptcha = async (domain) => {
+    const current = captchaByDomain[domain];
+    if (!current) return;
+    if (!captchaInfo.isGold) return; // locked — handled in UI
+    if (!current.hasCloudflare) {
+      setCaptchaError(`${domain} is not on Cloudflare. Visitor Captcha requires Cloudflare nameservers.`);
+      return;
+    }
+    if (current.enabled) {
+      const ok = window.confirm(`Disable Visitor Captcha for ${domain}?\n\nVisitors will no longer see the "Verifying your browser" check. Bots and scanners will not be blocked at the edge.`);
+      if (!ok) return;
+    }
+    setCaptchaToggling(p => ({ ...p, [domain]: true }));
+    setCaptchaError('');
+    try {
+      const res = await api('/security/captcha/toggle', {
+        method: 'POST',
+        body: JSON.stringify({ domain, enabled: !current.enabled }),
+      });
+      if (res.success) {
+        setCaptchaByDomain(p => ({ ...p, [domain]: { ...p[domain], enabled: !!res.enabled } }));
+      } else {
+        setCaptchaError(res.error || 'Failed to toggle Visitor Captcha');
+      }
+    } catch (err) {
+      setCaptchaError(err.message);
+    } finally {
+      setCaptchaToggling(p => ({ ...p, [domain]: false }));
+    }
+  };
+
+  const CaptchaBadge = ({ domain }) => {
+    const info = captchaByDomain[domain];
+    const isGold = captchaInfo.isGold;
+    const toggling = !!captchaToggling[domain];
+    if (!captchaInfo.loaded || !info) {
+      return <span className="dl-cap-badge dl-cap-badge--loading" data-testid={`dl-cap-loading-${domain}`}>Captcha...</span>;
+    }
+    if (!isGold) {
+      return (
+        <span
+          className="dl-cap-badge dl-cap-badge--locked"
+          title={`Visitor Captcha is exclusive to Golden Anti-Red HostPanel plans. Your plan: ${captchaInfo.plan || 'unknown'}`}
+          data-testid={`dl-cap-locked-${domain}`}
+        >
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          🔒 Captcha (Gold)
+        </span>
+      );
+    }
+    if (!info.hasCloudflare) {
+      return (
+        <span className="dl-cap-badge dl-cap-badge--nocf" title="Visitor Captcha requires Cloudflare nameservers" data-testid={`dl-cap-nocf-${domain}`}>
+          Captcha N/A
+        </span>
+      );
+    }
+    return (
+      <button
+        type="button"
+        className={`dl-cap-toggle ${info.enabled ? 'dl-cap-toggle--on' : 'dl-cap-toggle--off'}`}
+        onClick={() => toggleCaptcha(domain)}
+        disabled={toggling}
+        title={info.enabled ? 'Visitor Captcha is ON — click to disable' : 'Visitor Captcha is OFF — click to enable'}
+        data-testid={`dl-cap-toggle-${domain}`}
+      >
+        <span className="dl-cap-knob" />
+        <span className="dl-cap-label">{toggling ? '...' : (info.enabled ? '🛡️ Captcha ON' : '🛡️ Captcha OFF')}</span>
+      </button>
+    );
+  };
+
   const triggerAutoSSL = async () => {
     setAutoSSLLoading(true);
     setAutoSSLResult(null);
@@ -350,6 +442,18 @@ export default function DomainList() {
       )}
 
       {error && <div className="fm-error" data-testid="dl-error">{error}</div>}
+      {captchaError && <div className="fm-error" data-testid="dl-captcha-error">{captchaError}</div>}
+
+      {/* Visitor Captcha plan banner */}
+      {captchaInfo.loaded && !captchaInfo.isGold && (
+        <div className="dl-captcha-banner" data-testid="dl-captcha-upgrade-banner">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          <div className="dl-captcha-banner-text">
+            <strong>🛡️ Visitor Captcha — Gold-only feature</strong>
+            <span>Block scanners, scrapers and bots at the Cloudflare edge with a per-domain "Verifying your browser" challenge. Available exclusively on <b>👑 Golden Anti-Red HostPanel</b> plans.</span>
+          </div>
+        </div>
+      )}
 
       {/* Add Domain Form */}
       {showAdd && (
@@ -443,6 +547,7 @@ export default function DomainList() {
                   <div className="dl-badges-row">
                     <SSLBadge domain={mainDomain} />
                     <NSBadge domain={mainDomain} />
+                    <CaptchaBadge domain={mainDomain} />
                     <span className="dl-badge dl-badge--primary">Primary</span>
                   </div>
                 </div>
@@ -468,6 +573,7 @@ export default function DomainList() {
                       <div className="dl-badges-row">
                         <SSLBadge domain={d} />
                         <NSBadge domain={d} />
+                        <CaptchaBadge domain={d} />
                         <span className="dl-badge">Addon</span>
                       </div>
                       <button onClick={() => handleRemove(d)} className="fm-action-btn fm-action-btn--danger" title="Remove" data-testid={`dl-remove-${d}`}>

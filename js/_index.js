@@ -6970,6 +6970,9 @@ Enter new value:`), bc)
       const buttons = [[user.revealCredentials], [user.renewHostingPlan]]
       if (isWeekly) buttons.push([user.upgradeHostingPlan])
       if (!isWeekly) buttons.push([user.toggleAutoRenew])
+      // Visitor Captcha (Gold-only feature) — show locked button for non-Gold users
+      const isGoldPlan = /Golden Anti-Red HostPanel/i.test(plan.plan || '')
+      buttons.push([isGoldPlan ? user.manageVisitorCaptcha : user.manageVisitorCaptchaLocked])
       // Site status toggle — label depends on current state
       if (siteStatus === 'online') {
         buttons.push([user.takeSiteOffline])
@@ -9560,6 +9563,35 @@ All verified numbers generated during sourcing.`))
   if (action === a.viewHostingPlan) {
     if (message === user.backToMyHostingPlans) return goto.myHostingPlans()
     if (message === user.revealCredentials) return goto.revealHostingCredentials()
+    // Visitor Captcha button (Gold-only) — locked variant shows upgrade prompt; active variant opens domain-action toggle flow
+    if (message === user.manageVisitorCaptchaLocked) {
+      const domain = info?.selectedHostingDomain
+      return send(chatId, t.visitorCaptchaGoldOnly ? t.visitorCaptchaGoldOnly(domain || '') : `🔒 Visitor Captcha is exclusive to Golden Anti-Red HostPanel plans. Upgrade your plan to enable it.`, k.of([[user.upgradeHostingPlan], [user.backToMyHostingPlans]]), { parse_mode: 'HTML' })
+    }
+    if (message === user.manageVisitorCaptcha) {
+      const domain = info?.selectedHostingDomain
+      if (!domain) return goto.myHostingPlans()
+      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
+      if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+      const isGoldPlan = /Golden Anti-Red HostPanel/i.test(plan.plan || '')
+      if (!isGoldPlan) {
+        return send(chatId, t.visitorCaptchaGoldOnly ? t.visitorCaptchaGoldOnly(domain) : `🔒 Visitor Captcha is exclusive to Golden Anti-Red HostPanel plans.`, k.of([[user.upgradeHostingPlan], [user.backToMyHostingPlans]]), { parse_mode: 'HTML' })
+      }
+      // Open captcha toggle for the main hosting domain
+      await set(state, chatId, 'domainToManage', domain)
+      await saveInfo('captchaFromPlan', true)
+      const domainDoc = await db.collection('registeredDomains').findOne({ _id: domain })
+      const val = domainDoc?.val || {}
+      if (!val.cfZoneId || val.nameserverType !== 'cloudflare') {
+        return send(chatId, t.antiRedNoCF(domain), k.of([[user.backToMyHostingPlans]]), { parse_mode: 'HTML' })
+      }
+      const isOff = val.antiRedOff === true
+      await set(state, chatId, 'action', 'anti-red-toggle')
+      if (isOff) {
+        return send(chatId, t.antiRedStatusOff(domain), k.of([[t.antiRedTurnOn], [t.back]]), { parse_mode: 'HTML' })
+      }
+      return send(chatId, t.antiRedStatusOn(domain), k.of([[t.antiRedTurnOff], [t.back]]), { parse_mode: 'HTML' })
+    }
     if (message === user.toggleAutoRenew) {
       const domain = info?.selectedHostingDomain
       if (!domain) return goto.myHostingPlans()
@@ -23430,7 +23462,7 @@ Select a category:`), k.of(catBtns))
       }
       return
     }
-    // Anti-Red Protection toggle — only for domains with hosting plans
+    // Visitor Captcha toggle — only for domains with a Golden Anti-Red HostPanel plan
     if (message === t.domainActionAntiRed) {
       const domain = info?.domainToManage
       if (!domain) return send(chatId, t.noDomainSelected || 'No domain selected.')
@@ -23439,7 +23471,12 @@ Select a category:`), k.of(catBtns))
       const hasHostingAddon = !hasHostingMain ? await db.collection('cpanelAccounts').findOne({ chatId: String(chatId), addonDomains: { $elemMatch: { domain: { $regex: new RegExp('^' + domain.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') } } } }) : null
       const hasHosting = hasHostingMain || hasHostingAddon
       if (!hasHosting) {
-        return send(chatId, ({ en: `⚠️ <b>Anti-Red Protection</b> is only available for domains with a hosting plan.\n\nDomain: <b>${domain}</b> is registered without hosting.\n\nTo enable Anti-Red, purchase a hosting plan for this domain first.`, fr: `⚠️ <b>Protection Anti-Red</b> n'est disponible que pour les domaines avec un plan d'hébergement.\n\nDomaine : <b>${domain}</b> est enregistré sans hébergement.\n\nPour activer l'Anti-Red, achetez d'abord un plan d'hébergement pour ce domaine.`, zh: `⚠️ <b>Anti-Red 保护</b>仅适用于有托管计划的域名。\n\n域名：<b>${domain}</b> 已注册但无托管。\n\n要启用 Anti-Red，请先为此域名购买托管计划。`, hi: `⚠️ <b>Anti-Red सुरक्षा</b> केवल होस्टिंग प्लान वाले डोमेन के लिए उपलब्ध है।\n\nडोमेन: <b>${domain}</b> बिना होस्टिंग के पंजीकृत है।\n\nAnti-Red सक्षम करने के लिए, पहले इस डोमेन के लिए होस्टिंग प्लान खरीदें।` }[lang] || `⚠️ <b>Anti-Red Protection</b> is only available for domains with a hosting plan.\n\nDomain: <b>${domain}</b> is registered without hosting.\n\nTo enable Anti-Red, purchase a hosting plan for this domain first.`), { parse_mode: 'HTML' })
+        return send(chatId, t.visitorCaptchaNoHosting ? t.visitorCaptchaNoHosting(domain) : `⚠️ <b>Visitor Captcha</b> is only available for domains attached to a Golden Anti-Red HostPanel plan.\n\nDomain: <b>${domain}</b> is registered without a Golden hosting plan.\n\nUpgrade to Golden Anti-Red HostPanel to enable Visitor Captcha for this domain.`, { parse_mode: 'HTML' })
+      }
+      // Gate to Golden Anti-Red HostPanel only
+      const isGoldPlan = /Golden Anti-Red HostPanel/i.test(hasHosting.plan || '')
+      if (!isGoldPlan) {
+        return send(chatId, t.visitorCaptchaGoldOnly ? t.visitorCaptchaGoldOnly(domain) : `🔒 <b>Visitor Captcha</b> for <b>${domain}</b> is exclusive to Golden Anti-Red HostPanel plans.\n\nYour current plan does not include this feature. Upgrade to Golden Anti-Red HostPanel to unlock per-domain bot protection.`, { parse_mode: 'HTML' })
       }
       // Check if domain has Cloudflare
       const domainDoc = await db.collection('registeredDomains').findOne({ _id: domain })
@@ -23460,7 +23497,12 @@ Select a category:`), k.of(catBtns))
   }
   if (action === 'anti-red-toggle') {
     if (message === t.back) {
-      // Go back to domain actions
+      // If user entered captcha toggle from the hosting plan view, go back there.
+      if (info?.captchaFromPlan && info?.selectedHostingDomain) {
+        await saveInfo('captchaFromPlan', false)
+        return goto.viewHostingPlanDetails(info.selectedHostingDomain)
+      }
+      // Otherwise, go back to domain actions
       const domain = info?.domainToManage
       if (!domain) return send(chatId, t.noDomainSelected || 'No domain selected.')
       const dnsResult = await domainService.viewDNSRecords(domain, db)
@@ -23496,6 +23538,11 @@ Select a category:`), k.of(catBtns))
             const { setDomainChallengeBypass } = require('./anti-red-service')
             await setDomainChallengeBypass(domain, false)
           } catch (_) {}
+          if (info?.captchaFromPlan && info?.selectedHostingDomain) {
+            await send(chatId, t.antiRedEnabled(domain), { parse_mode: 'HTML' })
+            await saveInfo('captchaFromPlan', false)
+            return goto.viewHostingPlanDetails(info.selectedHostingDomain)
+          }
           await set(state, chatId, 'action', 'view-domain-actions')
           return send(chatId, t.antiRedEnabled(domain), k.of([[t.domainActionAntiRed], [t.back]]), { parse_mode: 'HTML' })
         }
@@ -23522,6 +23569,11 @@ Select a category:`), k.of(catBtns))
           )
           // Also set CF Worker KV bypass so edge respects the toggle immediately
           try { await setDomainChallengeBypass(domain, true) } catch (_) {}
+          if (info?.captchaFromPlan && info?.selectedHostingDomain) {
+            await send(chatId, t.antiRedDisabled(domain), { parse_mode: 'HTML' })
+            await saveInfo('captchaFromPlan', false)
+            return goto.viewHostingPlanDetails(info.selectedHostingDomain)
+          }
           await set(state, chatId, 'action', 'view-domain-actions')
           return send(chatId, t.antiRedDisabled(domain), k.of([[t.domainActionAntiRed], [t.back]]), { parse_mode: 'HTML' })
         }

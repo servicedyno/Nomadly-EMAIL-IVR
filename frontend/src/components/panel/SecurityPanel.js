@@ -16,7 +16,7 @@ const LAYERS = [
   { key: 'scannerUaBlocking', label: 'Scanner UA Blocking', desc: 'Blocks 40+ scanner user-agents via .htaccess' },
   { key: 'cfWafRules', label: 'Cloudflare WAF Rules', desc: 'WAF rules blocking malicious crawlers at the edge' },
   { key: 'cfWorker', label: 'Cloudflare Worker', desc: 'Edge-level challenge injection & scanner blocking' },
-  { key: 'jsChallenge', label: 'JavaScript Challenge', desc: 'Client-side bot detection (headless browser, WebDriver) — Recommended: Keep enabled for maximum protection' },
+  { key: 'jsChallenge', label: 'Visitor Captcha (JS Challenge)', desc: 'Per-domain bot challenge — Golden plan only. Manage per-domain in the Domains tab.' },
 ];
 
 export default function SecurityPanel() {
@@ -44,9 +44,13 @@ export default function SecurityPanel() {
 
   const toggleJsChallenge = async () => {
     const current = status?.protectionLayers?.jsChallenge;
+    if (captchaGoldOnly && !isGold) {
+      setError('Visitor Captcha is exclusive to Golden Anti-Red HostPanel plans. Upgrade your plan to enable it.');
+      return;
+    }
     if (current) {
       const confirmed = window.confirm(
-        '⚠️ Warning: Disabling JS Challenge significantly reduces your protection against automated scanners and bots. We strongly recommend keeping it enabled for maximum security.\n\nAre you sure you want to disable it?'
+        '⚠️ Warning: Disabling Visitor Captcha significantly reduces your protection against automated scanners and bots. We strongly recommend keeping it enabled for maximum security.\n\nAre you sure you want to disable it?'
       );
       if (!confirmed) return;
     }
@@ -59,8 +63,10 @@ export default function SecurityPanel() {
         body: JSON.stringify({ enabled: !current }),
       });
       if (res.jsChallengeEnabled !== undefined) {
-        setSuccess(`JavaScript Challenge ${res.jsChallengeEnabled ? 'enabled' : 'disabled'}`);
+        setSuccess(`Visitor Captcha ${res.jsChallengeEnabled ? 'enabled' : 'disabled'}`);
         fetchStatus();
+      } else if (res.captchaGoldOnly) {
+        setError(res.error || 'Visitor Captcha is exclusive to Golden Anti-Red HostPanel plans.');
       } else {
         setError(res.error || 'Failed to toggle');
       }
@@ -75,6 +81,8 @@ export default function SecurityPanel() {
   const stats = status?.stats || {};
   const sb = status?.antiRed?.safeBrowsing;
   const bl = status?.antiRed?.blacklist;
+  const isGold = !!status?.isGold;
+  const captchaGoldOnly = !!status?.captchaGoldOnly;
   const activeCount = Object.values(layers).filter(Boolean).length;
   const totalCount = LAYERS.length;
 
@@ -129,15 +137,25 @@ export default function SecurityPanel() {
                     </div>
                     <div className="sec-layer-right">
                       {isJsChallenge ? (
-                        <button
-                          className={`sec-toggle ${active ? 'sec-toggle--on' : 'sec-toggle--off'}`}
-                          onClick={toggleJsChallenge}
-                          disabled={toggling}
-                          data-testid="sec-js-toggle"
-                          title={active ? 'Disable JS Challenge' : 'Enable JS Challenge'}
-                        >
-                          <span className="sec-toggle-knob" />
-                        </button>
+                        captchaGoldOnly && !isGold ? (
+                          <span
+                            className="sec-badge sec-badge--locked"
+                            title={`Visitor Captcha is exclusive to Golden Anti-Red HostPanel plans. Your plan: ${status?.plan || 'unknown'}`}
+                            data-testid="sec-js-locked"
+                          >
+                            🔒 Gold only
+                          </span>
+                        ) : (
+                          <button
+                            className={`sec-toggle ${active ? 'sec-toggle--on' : 'sec-toggle--off'}`}
+                            onClick={toggleJsChallenge}
+                            disabled={toggling}
+                            data-testid="sec-js-toggle"
+                            title={active ? 'Disable Visitor Captcha' : 'Enable Visitor Captcha'}
+                          >
+                            <span className="sec-toggle-knob" />
+                          </button>
+                        )
                       ) : (
                         <StatusBadge active={active} loading={false} label={active ? 'Active' : 'Inactive'} />
                       )}

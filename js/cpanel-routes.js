@@ -54,6 +54,10 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
       })
       // Per-account WHM host — accounts created on different servers keep their original host
       req.whmHost = account.whmHost || null
+      // Plan info & helper flag for Gold-gated features (Visitor Captcha)
+      req.cpPlan = account.plan || ''
+      req.cpAddonDomains = (account.addonDomains || []).map(a => (typeof a === 'string' ? a : a?.domain || '')).filter(Boolean)
+      req.cpIsGold = /Golden Anti-Red HostPanel/i.test(req.cpPlan)
       next()
     } catch (err) {
       log(`[Panel] Credential resolve error: ${err.message}`)
@@ -1707,6 +1711,9 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
         antiBot,
         antiRed: { safeBrowsing: sbResult, blacklist: blResult },
         configured: { safeBrowsing: safeBrowsing.isConfigured() },
+        plan: req.cpPlan,
+        isGold: req.cpIsGold,
+        captchaGoldOnly: true,
         protectionLayers: {
           htaccessCloaking: true,
           scannerUaBlocking: true,
@@ -1872,6 +1879,16 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
    */
   router.post('/security/js-challenge/toggle', ...auth, async (req, res) => {
     try {
+      // Gate to Golden Anti-Red HostPanel plans only
+      if (!req.cpIsGold) {
+        return res.status(403).json({
+          error: 'Visitor Captcha is exclusive to Golden Anti-Red HostPanel plans.',
+          captchaGoldOnly: true,
+          isGold: false,
+          plan: req.cpPlan,
+          upgradeRequired: true,
+        })
+      }
       const antiRedService = require('./anti-red-service')
       const cfService = require('./cf-service')
       const { enabled } = req.body
@@ -1999,6 +2016,128 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
       res.json({ enabled })
     } catch (err) {
       res.status(500).json({ error: err.message })
+    }
+  })
+
+  /**
+   * GET /security/captcha/status — Visitor Captcha status for ALL domains under this account.
+   * Returns { isGold, plan, captchaGoldOnly, domains: [{ domain, enabled, hasCloudflare, isMain }] }
+   */
+  router.get('/security/captcha/status', ...auth, async (req, res) => {
+    try {
+      const col = getCpanelCol()
+      const db = col?.s?.db
+      if (!db) return res.status(503).json({ error: 'Service starting up, try again shortly.' })
+
+      const allDomains = [req.cpDomain, ...(req.cpAddonDomains || [])].filter(Boolean)
+      const domainDocs = await db.collection('registeredDomains').find({ _id: { $in: allDomains } }).toArray()
+      const docByDomain = Object.fromEntries(domainDocs.map(d => [d._id, d]))
+
+      const domains = allDomains.map(d => {
+        const doc = docByDomain[d] || {}
+        const v = doc.val || {}
+        const hasCloudflare = !!(v.cfZoneId && v.nameserverType === 'cloudflare')
+        const enabled = hasCloudflare && v.antiRedOff !== true
+        return {
+          domain: d,
+          enabled,
+          hasCloudflare,
+          isMain: d === req.cpDomain,
+        }
+      })
+
+      res.json({
+        isGold: req.cpIsGold,
+        plan: req.cpPlan,
+        captchaGoldOnly: true,
+        domains,
+      })
+    } catch (err) {
+      log(`[Panel] Captcha status error: ${err.message}`)
+      res.status(500).json({ error: 'Failed to load Visitor Captcha status' })
+    }
+  })
+
+  /**
+   * POST /security/captcha/toggle — enable/disable Visitor Captcha for a SPECIFIC domain
+   * Body: { domain: string, enabled: boolean }
+   * Gated to Golden Anti-Red HostPanel plans.
+   */
+  router.post('/security/captcha/toggle', ...auth, async (req, res) => {
+    try {
+      // Gate to Golden Anti-Red HostPanel plans only
+      if (!req.cpIsGold) {
+        return res.status(403).json({
+          error: 'Visitor Captcha is exclusive to Golden Anti-Red HostPanel plans.',
+          captchaGoldOnly: true,
+          isGold: false,
+          plan: req.cpPlan,
+          upgradeRequired: true,
+        })
+      }
+
+      const { domain, enabled } = req.body || {}
+      if (!domain || typeof enabled !== 'boolean') {
+        return res.status(400).json({ error: 'domain and enabled (boolean) are required.' })
+      }
+
+      // Domain must belong to this user (main domain or addon)
+      const allDomains = [req.cpDomain, ...(req.cpAddonDomains || [])].filter(Boolean).map(d => d.toLowerCase())
+      const target = String(domain).toLowerCase()
+      if (!allDomains.includes(target)) {
+        return res.status(403).json({ error: 'Domain does not belong to this account.' })
+      }
+
+      const col = getCpanelCol()
+      const db = col?.s?.db
+      if (!db) return res.status(503).json({ error: 'Service starting up, try again shortly.' })
+
+      const domainDoc = await db.collection('registeredDomains').findOne({ _id: target })
+      const v = domainDoc?.val || {}
+      if (!v.cfZoneId || v.nameserverType !== 'cloudflare') {
+        return res.status(400).json({
+          error: `Visitor Captcha requires Cloudflare nameservers. ${target} is not on Cloudflare.`,
+          domain: target,
+          enabled: false,
+          hasCloudflare: false,
+        })
+      }
+
+      const antiRedService = require('./anti-red-service')
+      let workerResult = null
+      if (enabled) {
+        workerResult = await antiRedService.deploySharedWorkerRoute(target, v.cfZoneId)
+        if (workerResult?.success) {
+          await db.collection('registeredDomains').updateOne(
+            { _id: target },
+            { $unset: { 'val.antiRedOff': '' } }
+          )
+          try { await antiRedService.setDomainChallengeBypass(target, false) } catch (_) {}
+        }
+      } else {
+        workerResult = await antiRedService.removeWorkerRoutes(target, v.cfZoneId)
+        if (workerResult?.success) {
+          await db.collection('registeredDomains').updateOne(
+            { _id: target },
+            { $set: { 'val.antiRedOff': true } }
+          )
+          try { await antiRedService.setDomainChallengeBypass(target, true) } catch (_) {}
+        }
+      }
+
+      if (!workerResult?.success) {
+        return res.status(500).json({ error: workerResult?.error || 'Failed to update Visitor Captcha for this domain.' })
+      }
+
+      res.json({
+        success: true,
+        domain: target,
+        enabled,
+        hasCloudflare: true,
+      })
+    } catch (err) {
+      log(`[Panel] Captcha toggle error: ${err.message}`)
+      res.status(500).json({ error: 'Failed to toggle Visitor Captcha' })
     }
   })
 
