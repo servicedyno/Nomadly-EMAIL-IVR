@@ -19,7 +19,8 @@ let fails = 0
 const assert = (cond, msg) => { if (cond) { console.log(`  ✅ ${msg}`) } else { console.log(`  ❌ ${msg}`); fails++ } }
 
 console.log('─── Fix #1: hasVoice defined in buildManageMenu ───')
-const buildManageMenuMatch = src.match(/function buildManageMenu\(num[\s\S]{0,2000}?\n  \}/m)
+// Widened window from 2000 → 5000 to accommodate later additions (skipped/dormant badge logic).
+const buildManageMenuMatch = src.match(/function buildManageMenu\(num[\s\S]{0,5000}?\n  \}/m)
 assert(buildManageMenuMatch, 'buildManageMenu fn located')
 if (buildManageMenuMatch) {
   const body = buildManageMenuMatch[0]
@@ -46,8 +47,9 @@ if (cfBlock) {
   assert(/\/\^1\\d\{10\}\$\/\.test\(forwardTo\)/.test(b), 'CF: 11-digit starting with 1 → + auto-correct')
   assert(/startsWith\('\+'\)/.test(b), 'CF: rejects non-+ after normalization')
 }
-// IVR forward-menu handler — same pattern
-const ivrBlock = src.match(/if \(draft\.action === 'forward'\)[\s\S]{0,1000}draft\.forwardTo = phone/)
+// IVR forward-menu handler — same pattern. Widened from 1000 → 3000 chars to accommodate
+// self-call-loop detection + the new scope-clarifying tip that was added in Feb 2026.
+const ivrBlock = src.match(/if \(draft\.action === 'forward'\)[\s\S]{0,3000}draft\.forwardTo = phone/)
 assert(ivrBlock, 'IVR forward-menu block located')
 if (ivrBlock) {
   const b = ivrBlock[0]

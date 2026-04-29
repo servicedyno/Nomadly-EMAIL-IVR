@@ -20042,6 +20042,46 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     return send(chatId, cpTxt.manageNumber(num, subCount, subLimit, allNumbers), k.of(buildManageMenu(num, subCount, subLimit)))
   }
 
+  // ── Reciprocal-conflict helper ──
+  // Fires AFTER enabling IVR or Voicemail. If Always-Forward (or IVR, in the voicemail case)
+  // is already on, the just-enabled feature will be skipped/dormant — tell the user up front so
+  // they don't end up in @wizardchop's situation again, where the symptom shows up only on a
+  // real inbound call.
+  function maybeWarnPreemptedByAlwaysForward(chatId, num, justEnabled, lang) {
+    const summary = phoneConfig.getCallRouteSummary(num)
+    if (justEnabled === 'ivr' && summary.skippedFeatures.includes('ivr')) {
+      const fwdTo = num?.features?.callForwarding?.forwardTo
+      const tip = {
+        en: `⚠️ <b>Heads up:</b> IVR is enabled but currently <b>skipped</b> — Always-Forward to <b>${phoneConfig.formatPhone(fwdTo)}</b> is on, and overrides the IVR menu. To make the IVR fire, disable Always-Forward or switch it to "Forward When Busy" / "If No Answer" via 📲 Call Forwarding.`,
+        fr: `⚠️ <b>Attention :</b> SVI activé mais <b>ignoré</b> — Le transfert systématique vers <b>${phoneConfig.formatPhone(fwdTo)}</b> est actif et prend la priorité. Pour que le SVI se déclenche, désactivez le transfert systématique ou passez en « Si occupé » / « Sans réponse ».`,
+        zh: `⚠️ <b>提示：</b>IVR 已启用但当前<b>被跳过</b> — 全部转接至 <b>${phoneConfig.formatPhone(fwdTo)}</b> 已开启，会覆盖 IVR 菜单。要让 IVR 生效，请关闭"全部转接"或改为"占线"/"无应答"。`,
+        hi: `⚠️ <b>ध्यान दें:</b> IVR चालू है पर अभी <b>छोड़ा जा रहा</b> — Always-Forward (<b>${phoneConfig.formatPhone(fwdTo)}</b>) IVR मेनू पर हावी है। IVR चलाने के लिए Always-Forward बंद करें या "Busy"/"No-Answer" पर बदलें।`,
+      }[lang] || `⚠️ <b>Heads up:</b> IVR is enabled but currently <b>skipped</b> — Always-Forward to <b>${phoneConfig.formatPhone(fwdTo)}</b> is on, and overrides the IVR menu.`
+      send(chatId, tip, { parse_mode: 'HTML' })
+    } else if (justEnabled === 'voicemail') {
+      const skipped = summary.skippedFeatures.includes('voicemail')
+      const dormant = summary.dormantFeatures.some(d => d.feature === 'voicemail')
+      if (skipped) {
+        const fwdTo = num?.features?.callForwarding?.forwardTo
+        const tip = {
+          en: `⚠️ <b>Heads up:</b> Voicemail is enabled but currently <b>skipped</b> — Always-Forward to <b>${phoneConfig.formatPhone(fwdTo)}</b> is on. Voicemail will only fire if you turn off Always-Forward.`,
+          fr: `⚠️ <b>Attention :</b> Messagerie activée mais <b>ignorée</b> — Le transfert systématique vers <b>${phoneConfig.formatPhone(fwdTo)}</b> est actif. La messagerie ne se déclenchera qu'après désactivation du transfert.`,
+          zh: `⚠️ <b>提示：</b>语音信箱已启用但当前<b>被跳过</b> — 全部转接至 <b>${phoneConfig.formatPhone(fwdTo)}</b> 已开启。仅在关闭"全部转接"后语音信箱才会触发。`,
+          hi: `⚠️ <b>ध्यान दें:</b> वॉइसमेल चालू है पर <b>छोड़ा जा रहा</b> — Always-Forward (<b>${phoneConfig.formatPhone(fwdTo)}</b>) सक्रिय है। Always-Forward बंद करने पर ही वॉइसमेल चलेगा।`,
+        }[lang] || `⚠️ <b>Heads up:</b> Voicemail is enabled but currently <b>skipped</b> — Always-Forward is on.`
+        send(chatId, tip, { parse_mode: 'HTML' })
+      } else if (dormant) {
+        const tip = {
+          en: `💤 <b>Heads up:</b> Voicemail is enabled but currently <b>dormant</b> — your IVR menu intercepts every call first. Voicemail will only fire if a caller picks an IVR option that routes there, or if you disable IVR entirely.`,
+          fr: `💤 <b>Attention :</b> Messagerie activée mais <b>dormante</b> — votre menu SVI intercepte tous les appels d'abord. La messagerie ne se déclenchera que si un appelant choisit une option SVI qui y mène, ou si vous désactivez le SVI.`,
+          zh: `💤 <b>提示：</b>语音信箱已启用但<b>处于休眠</b> — IVR 菜单先拦截所有来电。仅当来电者选择路由到语音信箱的 IVR 选项，或您禁用 IVR 时才会触发。`,
+          hi: `💤 <b>ध्यान दें:</b> वॉइसमेल चालू पर <b>सुप्त</b> — IVR मेनू सभी कॉल पहले पकड़ता है। केवल कोई IVR विकल्प वॉइसमेल पर रूट करे या IVR बंद हो तो ही चलेगा।`,
+        }[lang] || `💤 <b>Heads up:</b> Voicemail is enabled but currently <b>dormant</b> — your IVR menu intercepts every call first.`
+        send(chatId, tip, { parse_mode: 'HTML' })
+      }
+    }
+  }
+
   // ━━━ MY NUMBERS ━━━
 
   // Helper: Show SMS Inbox with CNAM lookups + pagination
@@ -21004,6 +21044,20 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       return send(chatId, warnTxt, k.of(remediationBtns))
     }
 
+    // ── Dormant warning: Forward(busy/no_answer) configured while IVR is on ──
+    // The forwarding mode won't fire because IVR returns first. Tell the user upfront so they
+    // don't expect callers to hit the busy/no-answer branch.
+    if ((mode === 'busy' || mode === 'no_answer') && summary.dormantFeatures.some(d => d.feature === 'forward_' + mode)) {
+      const lang = info?.userLanguage || 'en'
+      const dormantTxt = {
+        en: `💤 <b>Heads up:</b> Forward-when-${mode === 'busy' ? 'busy' : 'no-answer'} is configured but currently <b>dormant</b> — your IVR menu intercepts every call first, so this fallback won't fire until you disable IVR (or replace it with Always-Forward).`,
+        fr: `💤 <b>Attention :</b> Le transfert ${mode === 'busy' ? 'si occupé' : 'sans réponse'} est configuré mais <b>dormant</b> — votre menu SVI intercepte tous les appels d'abord. Ce repli ne s'activera qu'après désactivation du SVI.`,
+        zh: `💤 <b>提示：</b>已配置${mode === 'busy' ? '占线' : '无应答'}转接，但目前<b>处于休眠</b> — IVR 菜单先拦截所有来电，此回退在禁用 IVR 之前不会触发。`,
+        hi: `💤 <b>ध्यान दें:</b> ${mode === 'busy' ? 'व्यस्त' : 'No-Answer'} फ़ॉरवर्ड कॉन्फ़िगर है पर अभी <b>सुप्त</b> — आपका IVR मेनू हर कॉल पहले पकड़ता है। IVR बंद करने तक यह fallback नहीं चलेगा।`,
+      }[lang] || `💤 <b>Heads up:</b> Forward-when-${mode === 'busy' ? 'busy' : 'no-answer'} is configured but currently <b>dormant</b> — your IVR menu intercepts every call first.`
+      send(chatId, dormantTxt, { parse_mode: 'HTML' })
+    }
+
     await set(state, chatId, 'action', a.cpManageNumber)
     return showManageScreen(chatId, num)
   }
@@ -21253,6 +21307,8 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       num.features.voicemail = { enabled: true, greetingType: 'default', forwardToTelegram: true, forwardToEmail: null, ringTimeout: 25 }
       await saveInfo('cpActiveNumber', num)
       send(chatId, cpTxt.voicemailEnabled(num.phoneNumber))
+      // ── Reciprocal conflict awareness: if Always-Forward (or IVR) is on, warn that voicemail won't fire ──
+      maybeWarnPreemptedByAlwaysForward(chatId, num, 'voicemail', info?.userLanguage || 'en')
       await set(state, chatId, 'action', a.cpManageNumber)
       return showManageScreen(chatId, num)
     }
@@ -21707,6 +21763,8 @@ Professional templates for voicemail, customer support, financial institutions, 
       num.features.ivr = ivrConf
       await saveInfo('cpActiveNumber', num)
       send(chatId, cpTxt.ivrEnabled(num.phoneNumber))
+      // ── Reciprocal conflict awareness: if Always-Forward is on, warn that IVR will be skipped ──
+      maybeWarnPreemptedByAlwaysForward(chatId, num, 'ivr', info?.userLanguage || 'en')
       return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
         [pc.ivrGreeting], [pc.ivrAddOption], [pc.ivrRemoveOption], [pc.ivrViewOptions], [pc.ivrAnalytics], [pc.disableIvr]
       ]))
