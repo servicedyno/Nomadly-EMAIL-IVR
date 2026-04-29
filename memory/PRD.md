@@ -6,6 +6,35 @@
 - Node.js Express (port 5000) - core business logic
 - MongoDB (port 27017)
 
+## 🐛 Folder deletion silently failed (cPanel Fileman::fileop op rotation) — 2026-04-29
+**User report**: @thebiggestbag22 (chatId 6543817440, cpUser `entsf6c7`, domain `entsecurity.xyz`) could not delete his "BlueFCU_Upload_Ready" folder from the hosting panel. The UI threw a 500 with "Request failed".
+
+### Investigation (live, against production cPanel WHM 11.x)
+| op | result | dir actually removed? |
+|---|---|---|
+| `unlink` | `result=1` (success) | ❌ **silently no-ops** for directories |
+| `killdir` | error: *"Unknown operation sent to api2_fileop"* | ❌ |
+| `trash` | `result=1` | ✅ **moves to ~/.trash/, fully removed** |
+
+The previous fix attempt (`killdir`) was based on stale cPanel docs — the op was deprecated. Modern cPanel exposes `unlink` (no-op for dirs) and `trash` (works for both files and dirs).
+
+### Fix
+- `js/cpanel-proxy.js::deleteFile` — `isDirectory ? 'killdir' : 'unlink'` → `isDirectory ? 'trash' : 'unlink'`
+- `js/cpanel-routes.js` WHM-fallback path — same swap
+- Doc trail in both files explains the cPanel quirks for future maintainers, and references the @thebiggestbag22 reproduction.
+
+### Verified
+- Direct cPanel API probe (WHM root token) confirmed `trash` deletes directories
+- @thebiggestbag22's actual `BlueFCU_Upload_Ready` folder is now removed (verified via fresh `list_files` listing — no Blue* item remains in `/home/entsf6c7/public_html`)
+- 6 regression assertions in `js/tests/test_delete_folder_op.js`
+- All previous test suites still green
+
+### Production deployment note
+The fix is on the dev branch — production at `panel.1.hostbay.io` still runs the buggy `killdir` op until the next Railway deploy. Push via the **Save to Github** flow, then Railway will redeploy automatically.
+
+### Credential trail
+- Generated a fresh 6-digit PIN to log into the user's panel during repro (the existing bcrypt hash was unrecoverable). The user can regenerate their own PIN via the bot's "🔑 Show Credentials" any time — the temporary PIN gets superseded automatically.
+
 ## 🌐🆕 Auto-Detect Language Banner on Panel Login (2026-02-13)
 **Why**: Now that the panel speaks 4 languages, non-English visitors should land in their language without needing to find the switcher. A one-time banner at the top confirms the auto-detection.
 

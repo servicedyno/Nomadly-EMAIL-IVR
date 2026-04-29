@@ -351,7 +351,10 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
           timeout: 30000,
           httpsAgent: new https.Agent({ rejectUnauthorized: false }),
         })
-        const op = isDirectory ? 'killdir' : 'unlink'
+        // For directories: `unlink` silently no-ops (returns result=1 with no actual deletion),
+        // `killdir` is unrecognised on current cPanel — `trash` is the only op that works.
+        // For plain files, `unlink` is fine.
+        const op = isDirectory ? 'trash' : 'unlink'
         const whmRes = await whmApi.get('/cpanel', {
           params: {
             'api.version': 1,

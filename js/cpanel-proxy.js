@@ -190,13 +190,19 @@ async function createDirectory(cpUser, cpPass, dir, name, host = null) {
 }
 
 async function deleteFile(cpUser, cpPass, dir, file, host = null, isDirectory = false) {
-  // WHM API2 Fileman::fileop uses different ops for files vs directories:
-  //   unlink  → files only (silently fails / returns result=0 on directories)
-  //   killdir → directories (recursive)
-  // Prior bug: unlink was used for everything → folder deletes silently failed,
-  // frontend refresh showed the folder still present with no error message
-  // (see @Thebiggestbag22 "BlueFCU upload ready I need to delete" Feb 2026).
-  const op = isDirectory ? 'killdir' : 'unlink'
+  // cPanel API2 Fileman::fileop quirks:
+  //   • op=unlink     → reliably deletes FILES.
+  //                     For directories it returns result=1 BUT the dir is NOT removed
+  //                     (silent no-op — see @Thebiggestbag22 "BlueFCU_Upload_Ready"
+  //                     bug Apr 2026, reproduced live against panel.1.hostbay.io).
+  //   • op=killdir    → "Unknown operation sent to api2_fileop" on current cPanel
+  //                     servers (deprecated).
+  //   • op=trash      → ✅ works for BOTH files and directories. Moves the item
+  //                     to ~/.trash/, fully removed from the visible tree.
+  //                     Verified end-to-end on production cPanel WHM 11.x.
+  // Strategy: prefer `trash` for directories (the only op that works), keep
+  // `unlink` for plain files (it's faster and bypasses the trash bin).
+  const op = isDirectory ? 'trash' : 'unlink'
   return api2(cpUser, cpPass, 'Fileman', 'fileop', {
     doubledecode: 0,
     op,
