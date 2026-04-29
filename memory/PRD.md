@@ -6,6 +6,40 @@
 - Node.js Express (port 5000) - core business logic
 - MongoDB (port 27017)
 
+## 💳 Billing-menu split + Gold-exclusive value-stack copy (2026-02-13)
+**Why**: Renew & Auto-Renew controls were buried inside the per-domain "View Hosting Plan" view, mixing operational settings with billing actions. The Gold upgrade page also listed features as 3 abstract bullets rather than a clear value-stack.
+
+### Changes implemented
+- 🤖 **Bot** (`js/_index.js`):
+  - New top-level **💳 My Plan / Billing** button surfaced in `submenu3` next to "📋 My Hosting Plans".
+  - New `goto.billingMenu()` lists every plan with two per-plan action buttons:
+    - `🔄 Renew Now — <domain>`
+    - `🔁 Toggle Auto-Renew — <domain>` (skipped on weekly plans)
+  - Removed `[user.renewHostingPlan]` and `[user.toggleAutoRenew]` button rows from `viewHostingPlanDetails`. Plan view now stays purely operational (credentials, site online/offline, captcha, upgrade, cancel).
+  - Plan view now includes a one-line nudge: *"To renew or toggle Auto-Renew, open 💳 My Plan / Billing from the Hosting menu."*
+  - `confirmRenewNow` cancel/success branches respect a new `info.billingFlow` flag — users coming from the Billing menu return to the Billing menu, others return to the plan view.
+  - Action constant `a.billingMenu` added; full action handler covers per-domain renew + auto-renew toggle parsing.
+- 🌍 **Translations** (`js/lang/{en,fr,zh,hi}.js`):
+  - Added `user.billingMenu` and `user.backToBillingMenu` keys in all four locales.
+- ✨ **Gold-exclusive value-stack** (`js/hosting/plans.js`):
+  - Refactored `generatePlanText()` for Gold to emit one bullet per feature, with `✨ Gold-exclusive` callouts next to:
+    - 🌐 Unlimited bandwidth
+    - 🔐 Wildcard SSL
+    - 🚀 Priority support
+    - 🛡️ Visitor Captcha toggle
+  - Premium tiers keep their compact existing format (no Gold-exclusive callouts).
+- 🆙 **Upgrade modal** (`js/_index.js`): Gold tier shown in the in-flight upgrade modal also stacks bullets with the same `✨ Gold-exclusive` highlights.
+
+### Files touched
+- `js/_index.js` — submenu3, goto.billingMenu, action handler, viewHostingPlanDetails, confirmRenewNow, upgrade modal
+- `js/hosting/plans.js` — Gold value-stack rendering
+- `js/lang/{en,fr,zh,hi}.js` — billingMenu + backToBillingMenu labels
+- `js/tests/test_billing_menu_and_gold_copy.js` — 26 regression assertions
+
+### Tests
+- `node js/tests/test_billing_menu_and_gold_copy.js` — 26 / 26 passing
+- `node js/tests/test_plan_copy.js` — 9 / 9 passing (no regression)
+
 ## 🛡️ Visitor Captcha — Gold-only feature (2026-04-29)
 **Reported by**: @jasonthekidd (chatId 7893016294) — couldn't find the captcha toggle.
 

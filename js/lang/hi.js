@@ -189,6 +189,8 @@ const user = {
  enterAnotherDomain: '🔍 दूसरा डोमेन दर्ज करें',
  backToPurchaseOptions: '⬅️ खरीद विकल्पों पर वापस जाएं',
  myHostingPlans: '📋 मेरे होस्टिंग प्लान',
+ billingMenu: '💳 मेरा प्लान / बिलिंग',
+ backToBillingMenu: '⬅️ बिलिंग पर वापस',
  revealCredentials: '🔑 क्रेडेंशियल दिखाएं',
  manageVisitorCaptcha: '🛡️ विज़िटर Captcha',
  manageVisitorCaptchaLocked: '🔒 विज़िटर Captcha (केवल Gold)',

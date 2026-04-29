@@ -189,6 +189,8 @@ const user = {
  enterAnotherDomain: '🔍 输入另一个域名',
  backToPurchaseOptions: '⬅️ 返回购买选项',
  myHostingPlans: '📋 我的托管计划',
+ billingMenu: '💳 我的计划 / 账单',
+ backToBillingMenu: '⬅️ 返回账单',
  revealCredentials: '🔑 显示凭证',
  manageVisitorCaptcha: '🛡️ 访客验证码',
  manageVisitorCaptchaLocked: '🔒 访客验证码 (仅限 Gold)',

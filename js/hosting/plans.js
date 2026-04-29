@@ -18,6 +18,7 @@ const plans = (hostingType) => {
       ssl: 'Free SSL',
       protection: 'IP cloaking · Bot detection · UA blocking',
       panel: 'HostPanel — file, DB & email management',
+      support: 'Standard support',
       captcha: '🔒 Visitor Captcha toggle — not included',
     },
     premiumCpanel: {
@@ -30,6 +31,7 @@ const plans = (hostingType) => {
       ssl: 'Free SSL',
       protection: 'IP cloaking · JS challenge · UA & TLS blocking',
       panel: 'HostPanel — backups, migration & advanced tools',
+      support: 'Standard support',
       captcha: '🔒 Visitor Captcha toggle — not included',
     },
     goldenCpanel: {
@@ -37,18 +39,32 @@ const plans = (hostingType) => {
       price: GOLDEN_ANTIRED_CPANEL_PRICE,
       duration: '30 days',
       storage: '100 GB SSD',
-      bandwidth: 'Unlimited',
+      bandwidth: 'Unlimited bandwidth ✨ Gold-exclusive',
       domains: 'Unlimited domains',
-      ssl: 'Free SSL + Wildcard',
-      protection: 'Full Anti-Red: IP cloaking · JS challenge · TLS/JA3 · WAF rules · Priority support',
+      ssl: 'Free SSL + Wildcard SSL ✨ Gold-exclusive',
+      protection: 'Full Anti-Red: IP cloaking · JS challenge · TLS/JA3 · WAF rules',
+      support: '🚀 Priority support ✨ Gold-exclusive',
       panel: 'HostPanel — staging, security & all advanced tools',
-      captcha: '🛡️ Visitor Captcha toggle ON/OFF per domain — Gold exclusive ✨',
+      captcha: '🛡️ Visitor Captcha toggle ON/OFF per domain ✨ Gold-exclusive',
     },
   }
 }
 
 const generatePlanText = (hostingType, planKey) => {
   const plan = plans(hostingType)[planKey]
+  const isGold = planKey === 'goldenCpanel'
+  if (isGold) {
+    return `<b>${plan.name} — $${plan.price}</b>
+
+• 📦 ${plan.storage}
+• 🌐 ${plan.bandwidth}
+• 🔗 ${plan.domains}
+• 🔐 ${plan.ssl}
+• 🛡️ ${plan.protection}
+• ${plan.support}
+• 🖥️ ${plan.panel}
+• ${plan.captcha}`
+  }
   return `<b>${plan.name} — $${plan.price}</b>
 
 ${plan.storage} · ${plan.bandwidth} · ${plan.domains}

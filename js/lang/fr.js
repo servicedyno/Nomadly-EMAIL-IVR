@@ -190,6 +190,8 @@ const user = {
  enterAnotherDomain: '🔍 Entrer un autre domaine',
  backToPurchaseOptions: "⬅️ Retour aux options d'achat",
  myHostingPlans: '📋 Mes Plans d\'Hébergement',
+ billingMenu: '💳 Mon Plan / Facturation',
+ backToBillingMenu: '⬅️ Retour à la Facturation',
  revealCredentials: '🔑 Afficher les Identifiants',
  manageVisitorCaptcha: '🛡️ Captcha Visiteur',
  manageVisitorCaptchaLocked: '🔒 Captcha Visiteur (Gold uniquement)',

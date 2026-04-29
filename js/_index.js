@@ -4922,6 +4922,7 @@ bot?.on('message', msg => {
     plansAskCoupon: 'plansAskCoupon',
     skipCoupon: 'skipCoupon',
     myHostingPlans: 'myHostingPlans',
+    billingMenu: 'billingMenu',
     viewHostingPlan: 'viewHostingPlan',
     confirmRenewNow: 'confirmRenewNow',
     confirmUpgradeHosting: 'confirmUpgradeHosting',
@@ -6643,8 +6644,8 @@ Enter new value:`), bc)
       }
       send( chatId, planMsg, k.of(
         HOSTING_TRIAL_PLAN_ON && HOSTING_TRIAL_PLAN_ON === 'true'
-          ? [[user.freeTrial, user.premiumWeekly], [user.premiumCpanel, user.goldenCpanel], [user.myHostingPlans], user.contactSupport]
-          : [[user.premiumWeekly], [user.premiumCpanel, user.goldenCpanel], [user.myHostingPlans], user.contactSupport]
+          ? [[user.freeTrial, user.premiumWeekly], [user.premiumCpanel, user.goldenCpanel], [user.myHostingPlans, user.billingMenu], user.contactSupport]
+          : [[user.premiumWeekly], [user.premiumCpanel, user.goldenCpanel], [user.myHostingPlans, user.billingMenu], user.contactSupport]
       ));
     },
 
@@ -6926,6 +6927,35 @@ Enter new value:`), bc)
       send(chatId, text, k.of(planButtons))
     },
 
+    // 💳 My Plan / Billing — central place to renew & toggle auto-renew
+    billingMenu: async () => {
+      await set(state, chatId, 'action', a.billingMenu)
+      const plans = await cpanelAccounts.find({ chatId: String(chatId) }).toArray()
+      if (!plans || plans.length === 0) {
+        return send(chatId, '💳 <b>My Plan / Billing</b>\n\nYou don\'t have any active hosting plans yet.', k.of([[user.hostingDomainsRedirect], [t.backButton]]))
+      }
+      let text = '💳 <b>My Plan / Billing</b>\n\n'
+      text += 'Manage renewals and auto-renew for each of your hosting plans.\n\n'
+      const billingButtons = []
+      for (const p of plans) {
+        const expiry = p.expiryDate ? new Date(p.expiryDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
+        const isExpired = p.expiryDate && new Date(p.expiryDate) < new Date()
+        const planIsWeekly = (p.plan || '').toLowerCase().includes('week')
+        const autoRenewLabel = planIsWeekly
+          ? '❌ OFF (weekly)'
+          : (p.autoRenew !== false ? '✅ ON' : '❌ OFF')
+        const status = p.suspended ? '🚫 Suspended' : isExpired ? '❌ Expired' : '✅ Active'
+        text += `<b>${p.domain}</b> (${p.plan})\n   ${status} · Expires: ${expiry}\n   Auto-Renew: ${autoRenewLabel}\n\n`
+        // Per-domain billing actions
+        billingButtons.push([`🔄 Renew Now — ${p.domain}`])
+        if (!planIsWeekly) {
+          billingButtons.push([`🔁 Toggle Auto-Renew — ${p.domain}`])
+        }
+      }
+      billingButtons.push([t.backButton])
+      send(chatId, text, k.of(billingButtons))
+    },
+
     // View single hosting plan details
     viewHostingPlanDetails: async (domain) => {
       await set(state, chatId, 'action', a.viewHostingPlan)
@@ -6961,15 +6991,15 @@ Enter new value:`), bc)
         + `<b>Expires:</b> ${expiry}\n`
         + `<b>Auto-Renew:</b> ${autoRenewStatus}\n`
         + `<b>Username:</b> <code>${plan.cpUser}</code>\n\n`
-        + `Tap "Show Credentials" to reveal your HostPanel username and PIN.`
+        + `Tap "Show Credentials" to reveal your HostPanel username and PIN.\n`
+        + `💡 To renew or toggle Auto-Renew, open <b>💳 My Plan / Billing</b> from the Hosting menu.`
 
       if (isWeekly && atLimit) {
         text += `\n\n💡 <b>Want to host more sites?</b> Upgrade to a monthly plan for multi-site hosting, more storage, and advanced Anti-Red protection.`
       }
 
-      const buttons = [[user.revealCredentials], [user.renewHostingPlan]]
+      const buttons = [[user.revealCredentials]]
       if (isWeekly) buttons.push([user.upgradeHostingPlan])
-      if (!isWeekly) buttons.push([user.toggleAutoRenew])
       // Visitor Captcha (Gold-only feature) — show locked button for non-Gold users
       const isGoldPlan = /Golden Anti-Red HostPanel/i.test(plan.plan || '')
       buttons.push([isGoldPlan ? user.manageVisitorCaptcha : user.manageVisitorCaptchaLocked])
@@ -9548,6 +9578,78 @@ All verified numbers generated during sourcing.`))
     return goto.myHostingPlans()
   }
 
+  // 💳 My Plan / Billing — entry point
+  if (message === user.billingMenu) {
+    saveInfo('billingFlow', false) // reset; only set when entering renew/toggle from billing
+    return goto.billingMenu()
+  }
+
+  // 💳 My Plan / Billing — handle in-menu actions
+  if (action === a.billingMenu) {
+    if (message === t.backButton || message === t.back) {
+      saveInfo('billingFlow', false)
+      return goto.submenu3()
+    }
+    if (message === user.hostingDomainsRedirect) return goto.submenu3()
+
+    // 🔄 Renew Now — <domain>
+    const renewMatch = typeof message === 'string' && message.match(/^🔄 Renew Now — (.+)$/)
+    if (renewMatch) {
+      const domain = renewMatch[1].trim()
+      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
+      if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToBillingMenu]]))
+
+      saveInfo('selectedHostingDomain', domain)
+      saveInfo('billingFlow', true)
+
+      const { getPlanPrice, getPlanDuration } = require('./hosting-scheduler')
+      const price = getPlanPrice(plan.plan)
+      const duration = getPlanDuration(plan.plan)
+      const { usdBal } = await getBalance(walletOf, chatId)
+      const expiry = plan.expiryDate ? new Date(plan.expiryDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
+      const isExpired = plan.expiryDate && new Date(plan.expiryDate) < new Date()
+      const canPay = usdBal >= price
+
+      let text = `<b>Renew Plan — ${plan.plan}</b>\n\n`
+        + `<b>Domain:</b> ${domain}\n`
+        + `<b>Current Expiry:</b> ${expiry}${isExpired ? ' (EXPIRED)' : ''}\n`
+        + `<b>Duration:</b> ${duration} days\n`
+        + `<b>Price:</b> $${price}\n\n`
+        + `<b>Wallet Balance:</b> $${usdBal.toFixed(2)}\n`
+      text += canPay ? `\n✅ Confirm payment below:` : `\n⚠️ Insufficient funds. Please deposit first.`
+
+      saveInfo('renewPrice', price)
+      await set(state, chatId, 'action', a.confirmRenewNow)
+      const buttons = []
+      if (canPay) buttons.push([`💵 Pay $${price} USD`])
+      if (!canPay) buttons.push([trans('u.deposit')])
+      buttons.push([user.cancelRenewNow])
+      return send(chatId, text, k.of(buttons))
+    }
+
+    // 🔁 Toggle Auto-Renew — <domain>
+    const toggleMatch = typeof message === 'string' && message.match(/^🔁 Toggle Auto-Renew — (.+)$/)
+    if (toggleMatch) {
+      const domain = toggleMatch[1].trim()
+      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
+      if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToBillingMenu]]))
+      const planIsWeekly = (plan.plan || '').toLowerCase().includes('week')
+      if (planIsWeekly) {
+        await send(chatId, '❌ Auto-Renew is not available on weekly plans.')
+        return goto.billingMenu()
+      }
+      const newAutoRenew = plan.autoRenew === false ? true : false
+      await cpanelAccounts.updateOne({ _id: plan._id }, { $set: { autoRenew: newAutoRenew } })
+      const statusText = newAutoRenew
+        ? `✅ Auto-Renew is now <b>ON</b> for <b>${domain}</b>. Your plan will be renewed automatically when it expires.`
+        : `❌ Auto-Renew is now <b>OFF</b> for <b>${domain}</b>. Your plan will expire and be suspended after grace period.`
+      await send(chatId, statusText)
+      return goto.billingMenu()
+    }
+
+    if (message === user.backToBillingMenu) return goto.billingMenu()
+  }
+
   // My Hosting Plans — select a plan to view
   if (action === a.myHostingPlans) {
     if (message === t.backButton || message === t.back) return goto.submenu3()
@@ -9669,7 +9771,10 @@ All verified numbers generated during sourcing.`))
           price: Number(process.env.PREMIUM_ANTIRED_CPANEL_PRICE || 75),
           domains: 'Up to 5 addon domains',
           storage: '50 GB SSD',
-          bandwidth: '500 GB',
+          bandwidth: '500 GB bandwidth',
+          ssl: 'Free SSL',
+          support: 'Standard support',
+          captcha: '🔒 Visitor Captcha — not included',
         })
         upgradeOptions.push({
           name: 'Golden Anti-Red HostPanel (30 Days)',
@@ -9677,7 +9782,10 @@ All verified numbers generated during sourcing.`))
           price: Number(process.env.GOLDEN_ANTIRED_CPANEL_PRICE || 100),
           domains: 'Unlimited domains',
           storage: '100 GB SSD',
-          bandwidth: 'Unlimited',
+          bandwidth: 'Unlimited bandwidth ✨ Gold-exclusive',
+          ssl: 'Free SSL + Wildcard SSL ✨ Gold-exclusive',
+          support: '🚀 Priority support ✨ Gold-exclusive',
+          captcha: '🛡️ Visitor Captcha toggle ON/OFF per domain ✨ Gold-exclusive',
         })
       } else if (currentPlan.includes('premium') && !currentPlan.includes('week')) {
         upgradeOptions.push({
@@ -9686,7 +9794,10 @@ All verified numbers generated during sourcing.`))
           price: Number(process.env.GOLDEN_ANTIRED_CPANEL_PRICE || 100),
           domains: 'Unlimited domains',
           storage: '100 GB SSD',
-          bandwidth: 'Unlimited',
+          bandwidth: 'Unlimited bandwidth ✨ Gold-exclusive',
+          ssl: 'Free SSL + Wildcard SSL ✨ Gold-exclusive',
+          support: '🚀 Priority support ✨ Gold-exclusive',
+          captcha: '🛡️ Visitor Captcha toggle ON/OFF per domain ✨ Gold-exclusive',
         })
       }
 
@@ -9702,8 +9813,18 @@ All verified numbers generated during sourcing.`))
 
       const buttons = []
       for (const opt of upgradeOptions) {
+        const isGold = opt.key === 'goldenCpanel'
         text += `<b>${opt.name} — $${opt.price}</b>\n`
-          + `${opt.storage} · ${opt.bandwidth} · ${opt.domains}\n\n`
+        if (isGold) {
+          text += `• 📦 ${opt.storage}\n`
+            + `• 🌐 ${opt.bandwidth}\n`
+            + `• 🔗 ${opt.domains}\n`
+            + `• 🔐 ${opt.ssl}\n`
+            + `• ${opt.support}\n`
+            + `• ${opt.captcha}\n\n`
+        } else {
+          text += `${opt.storage} · ${opt.bandwidth} · ${opt.domains}\n\n`
+        }
         buttons.push([`⬆️ ${opt.name} ($${opt.price})`])
       }
       buttons.push([user.backToMyHostingPlans])
@@ -10029,7 +10150,13 @@ All verified numbers generated during sourcing.`))
 
   // Confirm Renew Now — wallet deduction (USD only)
   if (action === a.confirmRenewNow) {
-    if (message === user.cancelRenewNow) return goto.viewHostingPlanDetails(info?.selectedHostingDomain)
+    if (message === user.cancelRenewNow) {
+      if (info?.billingFlow) {
+        saveInfo('billingFlow', false)
+        return goto.billingMenu()
+      }
+      return goto.viewHostingPlanDetails(info?.selectedHostingDomain)
+    }
 
     const isPayUsd = message.startsWith('💵 Pay')
     const isLegacyConfirm = message === user.confirmRenewNow
@@ -10112,6 +10239,10 @@ All verified numbers generated during sourcing.`))
           + `<b>Remaining Balance:</b> $${newUsdBal.toFixed(2)}\n\n`
           + `Anti-Red protection has been refreshed.`
         )
+        if (info?.billingFlow) {
+          saveInfo('billingFlow', false)
+          return goto.billingMenu()
+        }
         return goto.viewHostingPlanDetails(domain)
       } catch (renewErr) {
         try {
