@@ -6,6 +6,9 @@
   "scripts": {
     "start": "node js/start-bot.js",
     "start:dev": "nodemon js/start-bot.js",
+    "lint:await": "node scripts/lint_async_in_if.js",
+    "lint:lang": "node scripts/check_lang_parity.js",
+    "lint:ci": "node scripts/lint_async_in_if.js && node scripts/check_lang_parity.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

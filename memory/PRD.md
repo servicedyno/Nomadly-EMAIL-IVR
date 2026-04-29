@@ -1062,3 +1062,41 @@ Implementation details:
 - 🟠 `claief8e` AntiRed silently disabled — owner notification not sent.
 - 🚀 Redeploy Railway to ship voice-service `await` fix, file-delete modal, EV cancel patches, and this gentle-hint UX upgrade.
 
+
+## CI Lint Rules — Async-in-condition + Translation parity (2026-04-29)
+
+Two new automated checks added to prevent recurrence of bugs we hit this week.
+
+### 1. `lint:await` — flags `if (asyncFn(...))` without `await`
+- **Script:** `scripts/lint_async_in_if.js` (~250 lines, AST-based via `acorn` already in tree).
+- **What it does:** parses every `.js` under `js/`, builds two registries of async functions:
+  - **bareNames**: from `async function foo`, `const foo = async ...`, etc.
+  - **qualifiedNames**: from `obj.foo = async ...`, `const obj = { foo: async ... }`, class methods.
+  Then walks every `IfStatement` / `WhileStatement` / `DoWhileStatement` / `ConditionalExpression` test, plus operands of `LogicalExpression` (`&&`, `||`), and flags any `CallExpression` whose callee resolves to an async function and is **not** wrapped in `await`.
+- **Namespace-aware** to minimise false positives: `obj.foo()` only flags if `obj.foo` is in `qualifiedNames` — different namespaces are not conflated.
+- **Caught** the exact pattern that broke voice forwarding for @wizardchop, plus **2 additional sister bugs** I missed in the manual fix in `voice-service.js processHangup()` — those have now been patched.
+- **Verified false-positive rate** = 0 across the 156 .js files in `js/`.
+- **Verified true-positive**: a sanity test that re-introduces the bug (`if (handleIvrTransferLegInitiated(payload)) break`) is correctly flagged.
+
+### 2. `lint:lang` — Translation parity gate (en ↔ fr / hi / zh)
+- **Script:** `scripts/check_lang_parity.js` (~80 lines).
+- **What it does:** loads each lang file, recursively collects all keys (deep-walked through nested objects), and reports any key present in `en.js` but missing from `fr.js`/`hi.js`/`zh.js`.
+- **Skip-list** for intentional reverse-mapping tables (`supportedCryptoView`, `supportedLanguages`, `planOptionsOf`, `selectFormatOf`, `vpsPlanOf`, plus DNS-record-type and CAA-tag mappings inside `t`) — these have language-specific KEYS by design (e.g., `'MX Record'` in en vs `'Enregistrement MX'` in fr). Skip-list keeps the gate strict for real keys without false-failing on these tables.
+- **Verified true-positive**: removing one key from `fr.js` correctly produces a "missing 2 key(s): t.smsManageDevices, user.smsManageDevices" failure.
+- **Verified true-negative**: current state passes (28 extra keys per lang are informational only).
+
+### Wiring
+- **`package.json` scripts** (use with `npm run` since project's `engines.node` blocks yarn locally):
+  - `npm run lint:await` — async-in-condition check
+  - `npm run lint:lang` — translation parity check
+  - `npm run lint:ci` — runs both, exits non-zero on any failure
+- **`.github/workflows/lint.yml`** — GitHub Actions workflow runs both checks on every push and PR to main/master. Two parallel jobs: `lint-await`, `lint-lang`.
+- **`scripts/git-pre-commit.sh`** — optional local pre-commit hook (auto-runs only when `.js` or `js/lang/*.js` is staged). Install: `cp scripts/git-pre-commit.sh .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit`.
+
+### Files added/touched
+- `scripts/lint_async_in_if.js` (new, AST-based, namespace-aware)
+- `scripts/check_lang_parity.js` (new, deep-walk + skip-list)
+- `scripts/git-pre-commit.sh` (new, optional local gate)
+- `.github/workflows/lint.yml` (new, CI gate)
+- `package.json` (added 3 scripts: `lint:await`, `lint:lang`, `lint:ci`)
+- `js/voice-service.js` (fixed 2 additional sister bugs in `processHangup()` discovered by the new lint rule)

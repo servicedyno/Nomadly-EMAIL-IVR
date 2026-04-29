@@ -1,0 +1,34 @@
+name: lint
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  lint-await:
+    name: lint:await — flag unawaited async fns in conditions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install minimal deps (acorn comes with eslint)
+        run: |
+          if [ -f package-lock.json ]; then npm ci --no-audit --no-fund || npm install acorn; \
+          else npm install acorn --no-save; fi
+      - name: Run lint:await
+        run: node scripts/lint_async_in_if.js
+
+  lint-lang:
+    name: lint:lang — translation parity (en ↔ fr/hi/zh)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run lint:lang
+        run: node scripts/check_lang_parity.js

@@ -1719,8 +1719,9 @@ function bufferHangup(callControlId, payload) {
 
 async function processHangup(payload) {
   if (await handleBridgeTransferHangup(payload)) return
-  if (handleOutboundIvrHangup(payload)) return
-  if (handleIvrTransferLegHangup(payload)) return
+  // BUG FIX: handleOutboundIvrHangup and handleIvrTransferLegHangup are async — must be awaited.
+  if (await handleOutboundIvrHangup(payload)) return
+  if (await handleIvrTransferLegHangup(payload)) return
   await handleCallHangup(payload)
 }
 
