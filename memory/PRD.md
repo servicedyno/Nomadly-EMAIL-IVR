@@ -6,6 +6,32 @@
 - Node.js Express (port 5000) - core business logic
 - MongoDB (port 27017)
 
+## 🌐🆕 Auto-Detect Language Banner on Panel Login (2026-02-13)
+**Why**: Now that the panel speaks 4 languages, non-English visitors should land in their language without needing to find the switcher. A one-time banner at the top confirms the auto-detection.
+
+### Behaviour
+- On panel login mount, if the user **hasn't yet answered the banner** (no `hp.lang.bannerDismissed` flag in localStorage) AND `i18next-browser-languagedetector` resolved to a non-English supported locale (`fr`/`zh`/`hi`), a centred top-of-page banner appears.
+- Banner copy is in the detected language: e.g. *"Nous avons détecté que votre navigateur est en Français — Garder cette langue pour le panneau ? [Oui — garder Français] [Passer à l'anglais] [×]"*
+- **Yes / Keep** → confirms current locale, sets `hp.lang.bannerDismissed=1`, banner gone for good.
+- **Switch to English** → flips i18n live, persists `hp.lang=en` + `bannerDismissed=1`.
+- **× (close)** → keeps current locale, sets `bannerDismissed=1`.
+- Picking via the LanguageSwitcher dropdown also sets `bannerDismissed=1` so the banner doesn't reappear.
+- **Subtle bug avoided**: `i18next-browser-languagedetector` auto-caches its detected language to `hp.lang` on first visit. The banner deliberately checks ONLY `hp.lang.bannerDismissed`, never `hp.lang`, so it isn't suppressed by the auto-cache.
+
+### Files
+- New: `frontend/src/components/AutoDetectLanguageBanner.js`
+- New: `frontend/tests/test_auto_detect_banner.py` — 13 assertions across 4 scenarios
+- Updated: `frontend/src/locales/{en,fr,zh,hi}.json` (added `banner.*` keys)
+- Updated: `frontend/src/pages/PanelLogin.js` (mount banner above card)
+- Updated: `frontend/src/components/LanguageSwitcher.js` (also sets `bannerDismissed`)
+
+### Tests (Playwright, headless)
+- ✓ EN browser: banner does NOT show
+- ✓ FR browser: banner shows in French; "Keep" persists; reload doesn't re-show
+- ✓ ZH browser: "Switch to English" flips title + submit live, persists `hp.lang=en`
+- ✓ HI browser w/ pre-set `bannerDismissed`: banner suppressed
+- All 13/13 assertions pass
+
 ## 🌐 Full-stack i18n / Language Coverage Audit + P0–P3 Fix (2026-02-13)
 **Why**: End-to-end audit found ~30 user-facing hardcoded English strings across the bot service helpers and 100% English-only React frontend. User asked for a complete fix from P0 (highest-traffic) through P3 (frontend i18n).
 

@@ -142,5 +142,11 @@
     "fr": "Français",
     "zh": "中文",
     "hi": "हिन्दी"
+  },
+  "banner": {
+    "detected": "我们检测到您的浏览器使用{{lang}}",
+    "tagline": "面板使用此语言吗？",
+    "keep": "是 — 保留{{lang}}",
+    "switchToEnglish": "切换为英文"
   }
 }

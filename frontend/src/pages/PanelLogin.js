@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../components/panel/AuthContext';
 import useTheme from '../components/panel/useTheme';
 import LanguageSwitcher from '../components/LanguageSwitcher';
+import AutoDetectLanguageBanner from '../components/AutoDetectLanguageBanner';
 
 export default function PanelLogin() {
   const { t } = useTranslation();
@@ -29,6 +30,7 @@ export default function PanelLogin() {
 
   return (
     <div className={`panel-login-page ${theme === 'light' ? 'panel-light' : ''}`} data-testid="panel-login-page" data-panel-theme={theme}>
+      <AutoDetectLanguageBanner />
       <div style={{position: 'absolute', top: 12, right: 12, display: 'flex', gap: 8, alignItems: 'center', zIndex: 5}}>
         <LanguageSwitcher />
         <button onClick={toggleTheme} className="panel-theme-btn panel-theme-btn--login" data-testid="panel-theme-toggle-login" title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}>

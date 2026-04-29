@@ -22,6 +22,9 @@ export const LanguageSwitcher = () => {
     i18n.changeLanguage(lang)
     try {
       window.localStorage?.setItem('hp.lang', lang)
+      // Picking via the switcher counts as an explicit answer — suppress the
+      // auto-detect banner from showing later.
+      window.localStorage?.setItem('hp.lang.bannerDismissed', '1')
     } catch (_) { /* private mode — ignore */ }
   }
 

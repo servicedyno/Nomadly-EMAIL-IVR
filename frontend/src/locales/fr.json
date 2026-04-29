@@ -142,5 +142,11 @@
     "fr": "Français",
     "zh": "中文",
     "hi": "हिन्दी"
+  },
+  "banner": {
+    "detected": "Nous avons détecté que votre navigateur est en {{lang}}",
+    "tagline": "Garder cette langue pour le panneau ?",
+    "keep": "Oui — garder {{lang}}",
+    "switchToEnglish": "Passer à l'anglais"
   }
 }
