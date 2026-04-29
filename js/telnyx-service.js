@@ -352,18 +352,20 @@ async function ensureProfileWhitelist(profileId) {
 
 // ── Call Control: Answer ──
 async function answerCall(callControlId) {
+  const t0 = Date.now()
   try {
-    const res = await axios.post(`${BASE}/calls/${callControlId}/actions/answer`, {}, { headers: headers() })
+    const res = await axios.post(`${BASE}/calls/${callControlId}/actions/answer`, {}, { headers: headers(), timeout: 10000 })
+    log(`[Telnyx] answerCall OK cc=${callControlId} in ${Date.now() - t0}ms`)
     return res.data?.data || true
   } catch (e) {
     const errDetail = e.response?.data?.errors?.[0]?.detail || e.message || ''
     const errCode = e.response?.data?.errors?.[0]?.code
     // Fix #3: Suppress noisy 90018 "Call has already ended" — expected race condition
     if (errCode === '90018' || errDetail.includes('already ended') || errDetail.includes('not found')) {
-      // Silently return — call ended before we could answer, not an actionable error
+      log(`[Telnyx] answerCall stale cc=${callControlId} code=${errCode || 'n/a'} detail="${errDetail}" in ${Date.now() - t0}ms`)
       return null
     }
-    log('Telnyx answerCall error:', e.response?.data || e.message)
+    log(`[Telnyx] answerCall ERROR cc=${callControlId} in ${Date.now() - t0}ms code=${errCode || 'n/a'}: ${errDetail}`)
     const err = new Error(errDetail)
     err.telnyxCode = errCode
     throw err

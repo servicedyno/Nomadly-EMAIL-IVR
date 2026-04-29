@@ -21,6 +21,8 @@ export default function FileManager() {
   const [successMessage, setSuccessMessage] = useState('');
   const [copyMoveAction, setCopyMoveAction] = useState(null);
   const [destDir, setDestDir] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState(null); // { fileName, isDir }
+  const [deleting, setDeleting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [dismissedGuide, setDismissedGuide] = useState(() => {
     return sessionStorage.getItem('panel_guide_dismissed') === 'true';
@@ -194,19 +196,32 @@ export default function FileManager() {
     return m || 'Upload failed.';
   };
 
-  const handleDelete = async (fileName, isDir = false) => {
-    const kind = isDir ? 'folder (and everything inside)' : 'file';
-    if (!window.confirm(`Delete this ${kind}?\n\n${fileName}\n\nThis cannot be undone.`)) return;
+  const handleDelete = (fileName, isDir = false) => {
+    // Open a custom in-app confirmation modal — native window.confirm() is unreliable
+    // inside Telegram WebApp and some mobile in-app browsers (silently returns false).
+    setDeleteTarget({ fileName, isDir });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget || deleting) return;
+    const { fileName, isDir } = deleteTarget;
+    setDeleting(true);
+    setError('');
     try {
       await api('/files/delete', {
         method: 'POST',
         body: JSON.stringify({ dir: currentDir, file: fileName, isDirectory: isDir }),
       });
+      setDeleteTarget(null);
       setSuccessMessage(`${isDir ? 'Folder' : 'File'} deleted: ${fileName}`);
+      setTimeout(() => setSuccessMessage(''), 4000);
       fetchFiles(currentDir);
     } catch (err) {
       // Surface the real cPanel error (e.g., "not a regular file", permissions)
       setError(err.message || `Could not delete ${fileName}`);
+      setDeleteTarget(null);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -886,6 +901,50 @@ export default function FileManager() {
               <button onClick={() => setCopyMoveAction(null)} className="fm-btn fm-btn--ghost">Cancel</button>
               <button onClick={handleCopyMove} className="fm-btn fm-btn--primary" data-testid="fm-copymove-submit">
                 {copyMoveAction.type === 'copy' ? 'Copy' : 'Move'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteTarget && (
+        <div className="fm-modal-overlay" data-testid="fm-delete-modal">
+          <div className="fm-modal fm-modal--sm">
+            <div className="fm-modal-header">
+              <span>Delete {deleteTarget.isDir ? 'folder' : 'file'}?</span>
+              <button onClick={() => !deleting && setDeleteTarget(null)} className="fm-modal-close" data-testid="fm-delete-close">&times;</button>
+            </div>
+            <div style={{ padding: '16px 20px' }}>
+              <div style={{ fontSize: 14, color: '#e2e8f0', wordBreak: 'break-all', marginBottom: 12 }} data-testid="fm-delete-target-name">
+                {deleteTarget.fileName}
+              </div>
+              {deleteTarget.isDir && (
+                <div style={{ fontSize: 13, color: '#fca5a5', marginBottom: 8 }}>
+                  This will permanently delete the folder and everything inside it.
+                </div>
+              )}
+              <div style={{ fontSize: 12, color: '#94a3b8' }}>
+                This cannot be undone.
+              </div>
+            </div>
+            <div className="fm-modal-actions">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="fm-btn fm-btn--ghost"
+                disabled={deleting}
+                data-testid="fm-delete-cancel"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="fm-btn fm-btn--primary"
+                disabled={deleting}
+                data-testid="fm-delete-confirm"
+                style={{ background: '#dc2626', borderColor: '#dc2626' }}
+              >
+                {deleting ? 'Deleting…' : 'Delete'}
               </button>
             </div>
           </div>

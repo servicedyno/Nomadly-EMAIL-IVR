@@ -933,3 +933,63 @@ Reviewed `/app/js/_index.js:27777` and all other `notifyGroup()` call sites — 
 ### Files touched
 - `js/lang/fr.js`, `js/lang/hi.js`, `js/lang/zh.js`
 
+## P1 Fix — IVR Call Forwarding Broken (@wizardchop) (2026-04-29)
+
+### Root Cause (verified via Railway production logs)
+A **missing `await`** in `js/voice-service.js` `handleVoiceWebhook()` switch caused **every inbound `call.initiated` event** to be silently dropped:
+
+```js
+// BUG: handleIvrTransferLegInitiated is `async`, returning a Promise (always truthy)
+if (handleIvrTransferLegInitiated(payload)) break  // ← always breaks!
+```
+
+Because the if-condition was a non-awaited Promise, it was always truthy, so `break` ran on every call and `handleCallInitiated()` was **never called** for inbound calls. Telnyx parked the call awaiting bot instructions; the bot never answered or transferred; caller heard silence and hung up after ~10–30s. Two sister sites in the same switch had the same bug.
+
+### Diagnostic evidence
+- DB lookup: `+15162719167` IS in `phoneNumbersOf` (chatId `1167900472`, plan=business, callForwarding.mode=always, forwardTo=`+19382616936`).
+- Telnyx API: 26 call events to/from this number, **`webhook_delivery.status: delivered`** for every event.
+- Railway logs (dep `279ca693`, time-windowed 17:05–17:30 UTC on 2026-04-28): each `call.initiated` produced exactly three log lines (`📞 Telnyx voice webhook received`, `[Voice] Event: call.initiated`, `[Voice] PAYLOAD DUMP …`) and **nothing else** until the caller's `call.hangup` arrived seconds later. Confirmed `handleCallInitiated()` never executed.
+
+### Fixes
+1. **`js/voice-service.js`**: added `await` to three async-but-unawaited dispatcher calls:
+   - `case 'call.initiated'` → `await handleIvrTransferLegInitiated(payload)`
+   - `case 'call.answered'` → `await handleIvrTransferLegAnswered(payload)`
+   - `case 'call.hangup'` → `await handleOutboundIvrHangup(payload)` and `await handleIvrTransferLegHangup(payload)`
+2. Added structured observability so the next failure is one-glance traceable:
+   - `[Voice] handleCallInitiated: ${direction} from=… to=… conn=… cc=…`
+   - `[Voice] Number owner found: chatId=… plan=… sip/fwd/ivr/vm flags`
+   - `[Voice] Answering call for … (hasSip=…, hasIvr=…, hasForwardAlways=…)`
+   - `[Voice] answerCall accepted/returned null` (explicit instead of silent return)
+   - `[Voice] handleCallAnswered: …` + features summary
+   - `[Voice] ⚠️ Stale call.initiated: ${ageMs}ms old` for >5s-delayed webhooks
+3. **`js/telnyx-service.js`**: added 10-second axios timeout and `[Telnyx] answerCall OK/stale/ERROR` logs to `answerCall()` so silent hangs surface immediately.
+
+### Verified locally
+- Synthetic webhook to `localhost:5000/telnyx/voice-webhook` now produces:
+  `📞 Telnyx voice webhook received → [Voice] Event → PAYLOAD DUMP → ⚠️ Stale (when applicable) → handleCallInitiated → [Telnyx] answerCall ERROR/OK` — full trace as expected.
+- Lint passes on both files. Node service restarted, healthy.
+
+### Pending
+- Production redeploy is required (user action: "Save to Github") for @wizardchop to retest. Bot logs will now make any further failure pinpoint-debuggable.
+
+---
+
+## P2 Fix — File Manager Delete UI Silent Failure (@Thebiggestbag22) (2026-04-29)
+
+### Root cause
+`/app/frontend/src/components/panel/FileManager.js` `handleDelete` used `window.confirm()`. **Native `window.confirm` is unreliable in Telegram WebApp and many mobile in-app browsers** (silently returns `false` or never opens), so taps on the Delete button looked like nothing happened.
+
+### Fix
+- Replaced the `window.confirm()` gate with a custom React modal that mirrors the existing Rename / Copy-Move modal pattern (same `fm-modal` styling, same `data-testid` conventions).
+- Added states: `deleteTarget` (pending file/dir + isDir flag) and `deleting` (in-flight).
+- Modal shows the file name, an extra warning when deleting a folder, Cancel + red Delete button.
+- Success path now also auto-clears the success message after 4 s for consistency with other operations.
+- Added test IDs: `fm-delete-modal`, `fm-delete-target-name`, `fm-delete-cancel`, `fm-delete-confirm`, `fm-delete-close`.
+
+### Verified
+- Lint passes. Frontend hot-reload picks up changes; HTTP 200 on root.
+- Existing backend (`js/cpanel-routes.js` `deleteFile` + WHM fallback) untouched — only the UX confirm-step changed.
+
+### Files touched
+- `js/voice-service.js`, `js/telnyx-service.js`, `frontend/src/components/panel/FileManager.js`
+

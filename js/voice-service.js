@@ -1756,7 +1756,12 @@ async function handleVoiceWebhook(req, res) {
         }
 
         if (handleOutboundIvrInitiated(payload)) break
-        if (handleIvrTransferLegInitiated(payload)) break
+        // BUG FIX: handleIvrTransferLegInitiated is async — must be awaited.
+        // Without `await`, the returned Promise is always truthy, so `break` always
+        // fires and handleCallInitiated() is NEVER called for inbound calls.
+        // This caused all inbound calls (forwarding/IVR/voicemail) to silently drop
+        // — Telnyx parks the call but the bot never tells it what to do.
+        if (await handleIvrTransferLegInitiated(payload)) break
         // Skip normal routing for bridge transfer legs (e.g., SIP ring, call forwarding)
         if (activeBridgeTransfers[callControlId]) {
           log(`[Voice] call.initiated for bridge transfer leg ${callControlId} — skipping normal routing`)
@@ -1787,7 +1792,8 @@ async function handleVoiceWebhook(req, res) {
       case 'call.answered':
         if (await handleBridgeTransferAnswered(payload)) break
         if (await handleOutboundIvrAnswered(payload)) break
-        if (handleIvrTransferLegAnswered(payload)) break
+        // BUG FIX: handleIvrTransferLegAnswered is async — must be awaited.
+        if (await handleIvrTransferLegAnswered(payload)) break
         await handleCallAnswered(payload)
         break
       case 'call.hangup': {
@@ -1808,8 +1814,9 @@ async function handleVoiceWebhook(req, res) {
           }
         }
         if (await handleBridgeTransferHangup(payload)) break
-        if (handleOutboundIvrHangup(payload)) break
-        if (handleIvrTransferLegHangup(payload)) break
+        // BUG FIX: handleOutboundIvrHangup and handleIvrTransferLegHangup are async — must be awaited.
+        if (await handleOutboundIvrHangup(payload)) break
+        if (await handleIvrTransferLegHangup(payload)) break
         await handleCallHangup(payload)
         break
       }
@@ -1913,6 +1920,16 @@ async function handleCallInitiated(payload) {
   const connectionId = payload.connection_id || ''
   const sipConnectionId = process.env.TELNYX_SIP_CONNECTION_ID || ''
 
+  // Webhook delivery delay diagnostic — Telnyx sometimes delivers events with multi-second lag
+  if (payload.start_time) {
+    const ageMs = Date.now() - new Date(payload.start_time).getTime()
+    if (ageMs > 5000) {
+      log(`[Voice] ⚠️ Stale call.initiated: ${ageMs}ms old cc=${callControlId} to=${to}`)
+    }
+  }
+
+  log(`[Voice] handleCallInitiated: ${direction || '?'} from=${from} to=${to} conn=${connectionId} cc=${callControlId}`)
+
   // ── OUTBOUND / SIP CALLS ──
   // Route to SIP handler if:
   // 1. direction is 'outgoing' (explicit outbound)
@@ -1946,6 +1963,8 @@ async function handleCallInitiated(payload) {
     }
     return
   }
+
+  log(`[Voice] Number owner found: chatId=${chatId} plan=${num.plan} status=${num.status} sip=${!!num.sipUsername} fwd=${!!num.features?.callForwarding?.enabled}(${num.features?.callForwarding?.mode || 'n/a'}) ivr=${!!num.features?.ivr?.enabled} vm=${!!num.features?.voicemail?.enabled}`)
 
   // ── CHECK: Number suspended? ──
   if (num.status !== 'active') {
@@ -2122,14 +2141,17 @@ async function handleCallInitiated(payload) {
   }
 
   // Answer the call — for non-SIP numbers, or SIP ring failed, or IVR/forwarding-always
+  log(`[Voice] Answering call for ${to} (hasSip=${hasSip}, hasIvr=${hasIvr}, hasForwardAlways=${hasForwardAlways}) — waiting for call.answered to apply features`)
   try {
     const ansResult = await _telnyxApi.answerCall(callControlId)
     // Fix #3: answerCall now returns null for 90018 (call already ended) instead of throwing
     if (ansResult === null) {
+      log(`[Voice] answerCall returned null (call ended before answer) for ${to} cc=${callControlId} — skipping feature routing`)
       if (sessionRef._limitTimer) clearInterval(sessionRef._limitTimer)
       delete activeCalls[callControlId]
       return
     }
+    log(`[Voice] answerCall accepted for ${to} cc=${callControlId} — Telnyx will fire call.answered next`)
   } catch (answerErr) {
     const errMsg = answerErr?.message || ''
     log(`[Voice] answerCall error for ${to}: ${errMsg}`)
@@ -3195,9 +3217,13 @@ async function findNumberBySipUser(sipUsername, fromPhone, connectionPhoneNumber
 async function handleCallAnswered(payload) {
   const callControlId = payload.call_control_id
   const session = activeCalls[callControlId]
-  if (!session) return
+  if (!session) {
+    log(`[Voice] handleCallAnswered: NO SESSION for cc=${callControlId} (likely outbound or expired) — skipping`)
+    return
+  }
 
   const { num, chatId, to, from } = session
+  log(`[Voice] handleCallAnswered: chatId=${chatId} to=${to} from=${from} phase=${session.phase} hasFwd=${!!num.features?.callForwarding?.enabled}(${num.features?.callForwarding?.mode || 'n/a'}→${num.features?.callForwarding?.forwardTo || 'n/a'}) hasIvr=${!!num.features?.ivr?.enabled} hasVm=${!!num.features?.voicemail?.enabled}`)
 
   // Outbound SIP calls: skip inbound feature routing (IVR, forwarding, voicemail)
   // Just start recording if enabled and update phase
