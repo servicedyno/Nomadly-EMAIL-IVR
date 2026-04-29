@@ -23195,14 +23195,26 @@ Select a category:`), k.of(catBtns))
   }
   if (message === user.viewDomainNames) {
     const purchasedDomains = await getPurchasedDomains(chatId)
-    if (purchasedDomains.length === 0) {
+    // Also include addon domains from user's hosting plans
+    const userCpAccounts = await db.collection('cpanelAccounts').find({ chatId: String(chatId) }, { projection: { addonDomains: 1 } }).toArray()
+    const addonDomains = []
+    for (const acc of userCpAccounts) {
+      if (Array.isArray(acc.addonDomains)) {
+        for (const addon of acc.addonDomains) {
+          const d = (typeof addon === 'string' ? addon : addon.domain || '').toLowerCase()
+          if (d && !purchasedDomains.includes(d)) addonDomains.push(d)
+        }
+      }
+    }
+    const allDomains = [...purchasedDomains, ...addonDomains]
+    if (allDomains.length === 0) {
       send(chatId, t.noDomainRegistered, k.of([[user.buyDomainName], [t.back]]))
       return
     }
 
-    const domainsText = purchasedDomains.join('\n')
+    const domainsText = allDomains.join('\n')
     await set(state, chatId, 'action', 'view-domain-select')
-    send(chatId, t.registeredDomainList(domainsText), k.of([...purchasedDomains.map(d => [d]), [user.buyDomainName], [t.back]]))
+    send(chatId, t.registeredDomainList(domainsText), k.of([...allDomains.map(d => [d]), [user.buyDomainName], [t.back]]))
     return
   }
   if (action === 'view-domain-select') {
@@ -23213,7 +23225,18 @@ Select a category:`), k.of(catBtns))
     } else {
       const domain = message.toLowerCase()
       const purchasedDomains = await getPurchasedDomains(chatId)
-      if (!purchasedDomains.includes(domain)) {
+      // Also accept addon domains from user's hosting plans
+      let allValidDomains = [...purchasedDomains]
+      const userCpAccounts = await db.collection('cpanelAccounts').find({ chatId: String(chatId) }, { projection: { addonDomains: 1 } }).toArray()
+      for (const acc of userCpAccounts) {
+        if (Array.isArray(acc.addonDomains)) {
+          for (const addon of acc.addonDomains) {
+            const d = (typeof addon === 'string' ? addon : addon.domain || '').toLowerCase()
+            if (d && !allValidDomains.includes(d)) allValidDomains.push(d)
+          }
+        }
+      }
+      if (!allValidDomains.includes(domain)) {
         return send(chatId, t.chooseValidDomain || 'Please select a valid domain.')
       }
 
@@ -23230,7 +23253,10 @@ Select a category:`), k.of(catBtns))
       const shortenerBtn = shortenerActive ? t.domainActionDeactivateShortener : t.domainActionShortener
       await set(state, chatId, 'action', 'view-domain-actions')
       // Only show Anti-Red toggle for domains with a hosting plan (cpanelAccount)
-      const hasHosting = await db.collection('cpanelAccounts').findOne({ domain: { $regex: new RegExp('^' + domain.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') } })
+      // Check both main domain field AND addonDomains array
+      const hasHostingMain = await db.collection('cpanelAccounts').findOne({ chatId: String(chatId), domain: { $regex: new RegExp('^' + domain.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') } })
+      const hasHostingAddon = !hasHostingMain ? await db.collection('cpanelAccounts').findOne({ chatId: String(chatId), addonDomains: { $elemMatch: { domain: { $regex: new RegExp('^' + domain.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') } } } }) : null
+      const hasHosting = hasHostingMain || hasHostingAddon
       const actionBtns = [[t.domainActionDns], [shortenerBtn]]
       if (hasHosting) actionBtns.push([t.domainActionAntiRed])
       actionBtns.push([t.back])
@@ -23240,11 +23266,22 @@ Select a category:`), k.of(catBtns))
   }
   if (action === 'view-domain-actions') {
     if (message === t.back) {
-      // Go back to domain list
+      // Go back to domain list (include addon domains)
       const purchasedDomains = await getPurchasedDomains(chatId)
-      const domainsText = purchasedDomains.join('\n')
+      const userCpAccounts = await db.collection('cpanelAccounts').find({ chatId: String(chatId) }, { projection: { addonDomains: 1 } }).toArray()
+      const addonDomains = []
+      for (const acc of userCpAccounts) {
+        if (Array.isArray(acc.addonDomains)) {
+          for (const addon of acc.addonDomains) {
+            const d = (typeof addon === 'string' ? addon : addon.domain || '').toLowerCase()
+            if (d && !purchasedDomains.includes(d)) addonDomains.push(d)
+          }
+        }
+      }
+      const allDomains = [...purchasedDomains, ...addonDomains]
+      const domainsText = allDomains.join('\n')
       await set(state, chatId, 'action', 'view-domain-select')
-      return send(chatId, t.registeredDomainList(domainsText), k.of([...purchasedDomains.map(d => [d]), [user.buyDomainName], [t.back]]))
+      return send(chatId, t.registeredDomainList(domainsText), k.of([...allDomains.map(d => [d]), [user.buyDomainName], [t.back]]))
     }
     if (message === t.domainActionDns) {
       // Check if domain has an active hosting plan
@@ -23360,8 +23397,10 @@ Select a category:`), k.of(catBtns))
     if (message === t.domainActionAntiRed) {
       const domain = info?.domainToManage
       if (!domain) return send(chatId, t.noDomainSelected || 'No domain selected.')
-      // Check if domain has a hosting plan (cpanelAccount)
-      const hasHosting = await db.collection('cpanelAccounts').findOne({ domain: { $regex: new RegExp('^' + domain.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') } })
+      // Check if domain has a hosting plan (cpanelAccount) — main domain OR addon domain
+      const hasHostingMain = await db.collection('cpanelAccounts').findOne({ chatId: String(chatId), domain: { $regex: new RegExp('^' + domain.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') } })
+      const hasHostingAddon = !hasHostingMain ? await db.collection('cpanelAccounts').findOne({ chatId: String(chatId), addonDomains: { $elemMatch: { domain: { $regex: new RegExp('^' + domain.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') } } } }) : null
+      const hasHosting = hasHostingMain || hasHostingAddon
       if (!hasHosting) {
         return send(chatId, ({ en: `⚠️ <b>Anti-Red Protection</b> is only available for domains with a hosting plan.\n\nDomain: <b>${domain}</b> is registered without hosting.\n\nTo enable Anti-Red, purchase a hosting plan for this domain first.`, fr: `⚠️ <b>Protection Anti-Red</b> n'est disponible que pour les domaines avec un plan d'hébergement.\n\nDomaine : <b>${domain}</b> est enregistré sans hébergement.\n\nPour activer l'Anti-Red, achetez d'abord un plan d'hébergement pour ce domaine.`, zh: `⚠️ <b>Anti-Red 保护</b>仅适用于有托管计划的域名。\n\n域名：<b>${domain}</b> 已注册但无托管。\n\n要启用 Anti-Red，请先为此域名购买托管计划。`, hi: `⚠️ <b>Anti-Red सुरक्षा</b> केवल होस्टिंग प्लान वाले डोमेन के लिए उपलब्ध है।\n\nडोमेन: <b>${domain}</b> बिना होस्टिंग के पंजीकृत है।\n\nAnti-Red सक्षम करने के लिए, पहले इस डोमेन के लिए होस्टिंग प्लान खरीदें।` }[lang] || `⚠️ <b>Anti-Red Protection</b> is only available for domains with a hosting plan.\n\nDomain: <b>${domain}</b> is registered without hosting.\n\nTo enable Anti-Red, purchase a hosting plan for this domain first.`), { parse_mode: 'HTML' })
       }
