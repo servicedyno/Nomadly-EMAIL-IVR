@@ -189,8 +189,35 @@ async function createDirectory(cpUser, cpPass, dir, name, host = null) {
   return result
 }
 
+/**
+ * Run a single Fileman::fileop deletion attempt. Returns the raw api2 result.
+ */
+async function _fileopDelete(cpUser, cpPass, dir, file, op, host) {
+  return api2(cpUser, cpPass, 'Fileman', 'fileop', {
+    doubledecode: 0,
+    op,
+    sourcefiles: `${dir}/${file}`,
+  }, host)
+}
+
+/**
+ * Verify a target file/dir is no longer present in `dir` by listing the parent.
+ * Returns true when target is gone, false when it still appears, null if the
+ * listing call itself failed (treat null as "unknown — assume best").
+ */
+async function _verifyDeleted(cpUser, cpPass, dir, file, host) {
+  try {
+    const listing = await listFiles(cpUser, cpPass, dir, host)
+    const items = listing?.data || []
+    if (!Array.isArray(items)) return null
+    return !items.some(f => f && (f.file === file || f.fullname === file))
+  } catch (_) {
+    return null
+  }
+}
+
 async function deleteFile(cpUser, cpPass, dir, file, host = null, isDirectory = false) {
-  // cPanel API2 Fileman::fileop quirks:
+  // cPanel API2 Fileman::fileop quirks observed on production WHM 11.x:
   //   • op=unlink     → reliably deletes FILES.
   //                     For directories it returns result=1 BUT the dir is NOT removed
   //                     (silent no-op — see @Thebiggestbag22 "BlueFCU_Upload_Ready"
@@ -200,14 +227,49 @@ async function deleteFile(cpUser, cpPass, dir, file, host = null, isDirectory = 
   //   • op=trash      → ✅ works for BOTH files and directories. Moves the item
   //                     to ~/.trash/, fully removed from the visible tree.
   //                     Verified end-to-end on production cPanel WHM 11.x.
-  // Strategy: prefer `trash` for directories (the only op that works), keep
-  // `unlink` for plain files (it's faster and bypasses the trash bin).
-  const op = isDirectory ? 'trash' : 'unlink'
-  return api2(cpUser, cpPass, 'Fileman', 'fileop', {
-    doubledecode: 0,
-    op,
-    sourcefiles: `${dir}/${file}`,
-  }, host)
+  //
+  // Strategy:
+  //   1. Try the preferred op (trash for dirs, unlink for files).
+  //   2. Verify by re-listing the parent dir — if the target is still there,
+  //      retry with the alternate op (the silent-no-op guard suggested by the
+  //      BlueFCU post-mortem).
+  //   3. Re-verify. If still present, surface a clear error to the caller.
+  const primary = isDirectory ? 'trash' : 'unlink'
+  const fallback = isDirectory ? 'unlink' : 'trash'
+
+  let result = await _fileopDelete(cpUser, cpPass, dir, file, primary, host)
+  let gone = await _verifyDeleted(cpUser, cpPass, dir, file, host)
+
+  if (gone === false) {
+    // Silent no-op detected — try the alternate op.
+    const fallbackResult = await _fileopDelete(cpUser, cpPass, dir, file, fallback, host)
+    const goneAfter = await _verifyDeleted(cpUser, cpPass, dir, file, host)
+    if (goneAfter === false) {
+      return {
+        ...result,
+        status: 0,
+        errors: [
+          `Both '${primary}' and '${fallback}' returned success but the target is still present. ` +
+          `Permission issue or read-only filesystem? Original op response was kept above.`,
+        ],
+        attempted_ops: [primary, fallback],
+        fallback_response: fallbackResult,
+      }
+    }
+    // Fallback worked — promote it.
+    return {
+      ...fallbackResult,
+      status: 1,
+      attempted_ops: [primary, fallback],
+      verified_via: 'fallback',
+    }
+  }
+
+  // Primary worked (or verification failed but we'll trust the API's success).
+  if (gone === true) {
+    return { ...result, status: 1, attempted_ops: [primary], verified_via: 'primary' }
+  }
+  return result
 }
 
 async function renameFile(cpUser, cpPass, dir, oldName, newName, host = null) {

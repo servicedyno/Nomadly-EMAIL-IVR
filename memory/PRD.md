@@ -6,6 +6,44 @@
 - Node.js Express (port 5000) - core business logic
 - MongoDB (port 27017)
 
+## 🎁 Plan extension + 🛡️ post-delete verify-and-retry safety net (2026-04-29)
+
+### Task 1: 5-day goodwill extension for @thebiggestbag22
+- Granted +5 days on `entsf6c7 / entsecurity.xyz` (Premium Anti-Red 1-Week plan).
+- New expiry: **May 9, 2026 UTC** (was May 4).
+- Stored an audit trail entry in `cpanelAccounts.extensionLog[]` with reason, days, old/new expiry, and grant timestamp — so finance can reconcile and any future agent can see why expiry deviates from the original purchase.
+- Cleared the `expiryNotified` and `expiryUserNotified` flags so the scheduler will re-warn before the new expiry instead of staying silent.
+- Sent the user an HTML Telegram message confirming the extension and the bug fix.
+
+### Task 2: Post-delete verify-and-retry guard (deepens BlueFCU fix)
+The previous fix (`killdir` → `trash`) addressed the symptom but didn't prevent **future** silent-no-op classes of bugs. Now both deletion code paths verify the deletion landed by re-listing the parent dir and **automatically retry with the alternate op** if the target is still present.
+
+**`js/cpanel-proxy.js::deleteFile`** now:
+1. Runs primary op (`trash` for dirs, `unlink` for files)
+2. Re-lists the parent dir
+3. If target is still present → retries with the **alternate op** (`unlink` ↔ `trash`)
+4. Re-verifies; if still present, returns `status: 0` with a clear diagnostic + both response payloads
+5. If the verify call itself fails (network/timeout), returns the raw primary result (don't double-charge cPanel)
+6. Annotates response with `attempted_ops: [primary]` or `[primary, fallback]` and `verified_via: 'primary' | 'fallback'`
+
+**`js/cpanel-routes.js`** WHM-fallback path now mirrors the same control flow using WHM root token for the fileop + UAPI3 `list_files` for verification.
+
+### Tests
+- 12 static-analysis regression assertions (`test_delete_folder_op.js`)
+- **5 functional-mock scenarios** (`test_delete_verify_retry.js`):
+  - Primary succeeds → no retry
+  - Primary silent no-op → fallback succeeds
+  - Both silent no-op → status:0 with diagnostic
+  - File delete uses unlink-primary, trash-fallback (inverse direction)
+  - Verify call fails → returns primary result without retry
+- All previous suites still green: 26/26 billing/Gold + 9/9 plan-copy + 442/442 bot i18n + 45/45 frontend i18n
+
+### Files
+- `js/cpanel-proxy.js` — `_fileopDelete`, `_verifyDeleted` helpers + verify-and-retry control flow in `deleteFile`
+- `js/cpanel-routes.js` — same control flow in WHM-fallback path
+- `js/tests/test_delete_folder_op.js` — updated for new shape
+- `js/tests/test_delete_verify_retry.js` (new) — 5 functional scenarios with axios mock
+
 ## 🐛 Folder deletion silently failed (cPanel Fileman::fileop op rotation) — 2026-04-29
 **User report**: @thebiggestbag22 (chatId 6543817440, cpUser `entsf6c7`, domain `entsecurity.xyz`) could not delete his "BlueFCU_Upload_Ready" folder from the hosting panel. The UI threw a 500 with "Request failed".
 

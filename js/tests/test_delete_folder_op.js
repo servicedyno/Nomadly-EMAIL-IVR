@@ -38,12 +38,40 @@ const proxySrc = fs.readFileSync(
   'utf8'
 )
 
-check('cpanel-proxy.js: deleteFile uses op=trash for directories', () => {
-  // The body must be: const op = isDirectory ? 'trash' : 'unlink'
+check('cpanel-proxy.js: deleteFile uses op=trash for directories (primary)', () => {
+  // After the verify-and-retry refactor, the primary op is set via:
+  //   const primary = isDirectory ? 'trash' : 'unlink'
   assert.ok(
-    /const op = isDirectory \? 'trash' : 'unlink'/.test(proxySrc),
-    'expected `const op = isDirectory ? \'trash\' : \'unlink\'`'
+    /const primary = isDirectory \? 'trash' : 'unlink'/.test(proxySrc),
+    'expected `const primary = isDirectory ? \'trash\' : \'unlink\'`'
   )
+})
+
+check('cpanel-proxy.js: deleteFile defines a fallback op for the silent-no-op retry', () => {
+  assert.ok(
+    /const fallback = isDirectory \? 'unlink' : 'trash'/.test(proxySrc),
+    'expected fallback op to be the inverse of primary'
+  )
+})
+
+check('cpanel-proxy.js: deleteFile verifies the target is gone via list re-read', () => {
+  assert.ok(
+    /_verifyDeleted\(/.test(proxySrc),
+    'expected a _verifyDeleted helper that re-lists the parent dir'
+  )
+})
+
+check('cpanel-proxy.js: deleteFile retries with fallback op when verify fails', () => {
+  // The control flow must be: primary op → verify → if !gone, run fallback → verify again
+  assert.ok(
+    /if \(gone === false\) \{[\s\S]{0,400}_fileopDelete\([\s\S]{0,200}fallback/.test(proxySrc),
+    'expected a retry-with-fallback branch on silent-no-op detection'
+  )
+})
+
+check('cpanel-proxy.js: deleteFile annotates response with attempted_ops', () => {
+  assert.ok(/attempted_ops:\s*\[primary\]/.test(proxySrc))
+  assert.ok(/attempted_ops:\s*\[primary,\s*fallback\]/.test(proxySrc))
 })
 
 check('cpanel-proxy.js: no longer uses killdir in code (only in doc comments)', () => {
@@ -63,11 +91,27 @@ const routesSrc = fs.readFileSync(
   'utf8'
 )
 
-check('cpanel-routes.js: WHM-fallback delete uses op=trash for directories', () => {
+check('cpanel-routes.js: WHM-fallback delete uses primary op = trash for dirs / unlink for files', () => {
   assert.ok(
-    /const op = isDirectory \? 'trash' : 'unlink'/.test(routesSrc),
-    'expected WHM-fallback path to use trash for dirs'
+    /const primary = isDirectory \? 'trash' : 'unlink'/.test(routesSrc),
+    'expected primary op selection in WHM-fallback path'
   )
+})
+
+check('cpanel-routes.js: WHM-fallback retries with alternate op on silent no-op', () => {
+  assert.ok(
+    /const fallback = isDirectory \? 'unlink' : 'trash'/.test(routesSrc)
+  )
+  // The verify-and-retry control flow must be present
+  assert.ok(
+    /if \(gone === false\)[\s\S]{0,400}runOp\(fallback\)/.test(routesSrc),
+    'expected `if (gone === false) { … runOp(fallback) }` retry branch'
+  )
+})
+
+check('cpanel-routes.js: WHM-fallback verifies deletion via list_files re-read', () => {
+  assert.ok(/cpanel_jsonapi_func:\s*'list_files'/.test(routesSrc))
+  assert.ok(/const verifyGone = async \(\) =>/.test(routesSrc))
 })
 
 check('cpanel-routes.js: no killdir in code (only in comments)', () => {
@@ -86,8 +130,9 @@ check('cpanel-routes.js: no killdir in code (only in comments)', () => {
 // site shape contains the right `op` variable.
 
 check('cpanel-proxy.js: deleteFile passes op via shorthand into api2', () => {
+  // After refactor the call lives inside `_fileopDelete`, still using the same shape.
   assert.ok(
-    /return api2\(cpUser, cpPass, 'Fileman', 'fileop', \{[\s\S]{0,200}op,[\s\S]{0,200}\}/.test(proxySrc)
+    /api2\(cpUser, cpPass, 'Fileman', 'fileop', \{[\s\S]{0,200}op,[\s\S]{0,200}\}/.test(proxySrc)
   )
 })
 

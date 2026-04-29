@@ -351,33 +351,77 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
           timeout: 30000,
           httpsAgent: new https.Agent({ rejectUnauthorized: false }),
         })
-        // For directories: `unlink` silently no-ops (returns result=1 with no actual deletion),
-        // `killdir` is unrecognised on current cPanel — `trash` is the only op that works.
-        // For plain files, `unlink` is fine.
-        const op = isDirectory ? 'trash' : 'unlink'
-        const whmRes = await whmApi.get('/cpanel', {
-          params: {
-            'api.version': 1,
-            cpanel_jsonapi_user: req.cpUser,
-            cpanel_jsonapi_apiversion: 2,
-            cpanel_jsonapi_module: 'Fileman',
-            cpanel_jsonapi_func: 'fileop',
-            doubledecode: 0,
-            op,
-            sourcefiles: `${dir}/${file}`,
-          },
-        })
-        const whmData = whmRes.data?.cpanelresult || whmRes.data?.result || {}
-        const whmDataArr = whmData.data || []
-        const whmOk = whmDataArr.length > 0 && whmDataArr[0]?.result === 1
-        if (whmOk || (whmData.event?.result === 1 && whmDataArr.length === 0)) {
-          log(`[Panel] Deleted via WHM fallback: ${file} in ${dir} (user: ${req.cpUser})`)
-          return res.json({ status: 1, data: whmDataArr, errors: null, via: 'whm-fallback' })
+
+        // Helper: run a single fileop call as the user, return cpanelresult.data
+        const runOp = async (op) => {
+          const r = await whmApi.get('/cpanel', {
+            params: {
+              'api.version': 1,
+              cpanel_jsonapi_user: req.cpUser,
+              cpanel_jsonapi_apiversion: 2,
+              cpanel_jsonapi_module: 'Fileman',
+              cpanel_jsonapi_func: 'fileop',
+              doubledecode: 0,
+              op,
+              sourcefiles: `${dir}/${file}`,
+            },
+          })
+          return r.data?.cpanelresult || r.data?.result || {}
         }
-        // WHM fallback also failed — report combined error
-        const whmReason = whmDataArr[0]?.reason || whmData.error || 'WHM operation also failed'
-        log(`[Panel] Delete WHM fallback also failed: ${file} in ${dir} (user: ${req.cpUser}) — ${whmReason}`)
-        return res.status(500).json({ error: `Delete failed: ${whmReason}` })
+
+        // Helper: verify the target is gone by re-listing the parent dir.
+        // Returns true (gone), false (still present), or null (could not verify).
+        const verifyGone = async () => {
+          try {
+            const r = await whmApi.get('/cpanel', {
+              params: {
+                'api.version': 1,
+                cpanel_jsonapi_user: req.cpUser,
+                cpanel_jsonapi_apiversion: 3,
+                cpanel_jsonapi_module: 'Fileman',
+                cpanel_jsonapi_func: 'list_files',
+                dir,
+              },
+            })
+            const items = r.data?.result?.data || []
+            return !items.some(f => f && (f.file === file || f.fullname === file))
+          } catch (_) {
+            return null
+          }
+        }
+
+        // For directories: `unlink` silently no-ops, `killdir` is unrecognised.
+        // `trash` is the only op that works for directories on modern cPanel.
+        // For plain files, `unlink` is fast.
+        // We try the primary op, verify the deletion landed, and on silent
+        // no-op we automatically retry with the alternate op.
+        const primary = isDirectory ? 'trash' : 'unlink'
+        const fallback = isDirectory ? 'unlink' : 'trash'
+        const attempted = [primary]
+        let opResult = await runOp(primary)
+        let gone = await verifyGone()
+
+        if (gone === false) {
+          log(`[Panel] WHM fallback: ${primary} returned success but ${file} still present — retrying with ${fallback} (user: ${req.cpUser})`)
+          attempted.push(fallback)
+          opResult = await runOp(fallback)
+          gone = await verifyGone()
+        }
+
+        const opData = opResult.data || []
+        const opOk = opData.length > 0 && opData[0]?.result === 1
+        const opEventOk = opResult.event?.result === 1 && opData.length === 0
+        if ((opOk || opEventOk) && gone !== false) {
+          log(`[Panel] Deleted via WHM fallback: ${file} in ${dir} (user: ${req.cpUser}, ops_tried: [${attempted.join(', ')}], verified: ${gone === true})`)
+          return res.json({ status: 1, data: opData, errors: null, via: 'whm-fallback', attempted_ops: attempted })
+        }
+
+        // WHM fallback (both ops) failed — report combined error
+        const whmReason = opData[0]?.reason
+          || opResult.error
+          || (gone === false ? 'Both ops returned success but target is still present (permission/readonly?)' : 'WHM operation also failed')
+        log(`[Panel] Delete WHM fallback also failed: ${file} in ${dir} (user: ${req.cpUser}, ops_tried: [${attempted.join(', ')}]) — ${whmReason}`)
+        return res.status(500).json({ error: `Delete failed: ${whmReason}`, attempted_ops: attempted })
       }
 
       // No WHM credentials available — report the original error
