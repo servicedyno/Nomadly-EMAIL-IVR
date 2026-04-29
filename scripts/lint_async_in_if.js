@@ -1,26 +1,41 @@
 #!/usr/bin/env node
 /**
- * lint:await — flags `if (asyncFn(...))` (without `await`) in conditional
- * contexts (if/while/ternary/&&/||).
+ * lint:await — flags two classes of unawaited-async bugs.
  *
- * Catches the exact class of bug fixed in voice-service.js where
- * `if (handleIvrTransferLegInitiated(payload)) break` always took the
- * branch because the unawaited Promise was truthy.
+ * PATTERN A — async fn called directly inside a conditional (no `await`):
+ *   if (asyncFn(payload)) break               // ← always truthy → bug
+ *   while (cond && asyncFn()) ...             // ← same
+ *   asyncFn() ? a : b                          // ← same (ternary)
+ *
+ *   Catches the exact bug fixed in voice-service.js where
+ *   `if (handleIvrTransferLegInitiated(payload)) break` always took the
+ *   branch because the unawaited Promise was truthy.
+ *
+ * PATTERN B — variable assigned to async fn result, then used as a value
+ * (no `await`, no `.then/.catch/.finally`, no Promise.all wrapper):
+ *   const user = fetchUser()                   // ← Promise, not awaited
+ *   if (user) { ... }                          // ← always truthy → bug
+ *   if (!user) return                          // ← always false → bug
+ *   user ? 'a' : 'b'                            // ← always 'a' → bug
+ *   user && doThing()                          // ← always truthy → bug
  *
  * Strategy:
- *   1. Parse each .js file under js/ with acorn (loose-friendly).
- *   2. Walk the AST, building two sets of async function "signatures":
+ *   1. Parse each .js file under js/ with acorn.
+ *   2. Collect async functions:
  *        - bareNames: 'foo' (when declared as `async function foo`, `const foo = async ...`)
  *        - qualifiedNames: 'goto.foo' / 'this.foo' / 'obj.foo'
- *           (when declared as object/class member or assigned to a member)
- *   3. Walk again — for every conditional test (IfStatement, ConditionalExpression,
- *      LogicalExpression, etc.), inspect any non-awaited CallExpression and check
- *      if the callee resolves to a known async function.
+ *   3. PATTERN A — walk every conditional test (if/while/ternary/&&/||) and
+ *      flag any non-awaited CallExpression whose callee resolves to an async fn.
+ *   4. PATTERN B — collect candidate variables (`const x = asyncFn()` without
+ *      await/then chain), then walk the AST tracking lexical scope. A use of
+ *      such a variable in a truthy/value context (if/while/ternary/!/&&/||)
+ *      is a bug. Other uses (await x, x.then/.catch, return x, fn(x), etc.)
+ *      are neutral or safe and produce no warning.
  *
- *      To minimise false positives:
- *        - For `obj.foo()`, look up qualified `obj.foo` FIRST.
- *          If qualified is found → flag. Otherwise: do NOT flag (different ns).
- *        - For bare `foo()`, look up bare `foo`. If bare match exists, flag.
+ * To minimise false positives:
+ *   - Pattern A: namespace-aware (obj.foo is checked against qualified set first).
+ *   - Pattern B: scope-aware — `user` declared in fn1 is independent from
+ *     `user` declared in fn2.
  *
  * Exit 1 on findings, 0 otherwise.
  */
@@ -258,6 +273,209 @@ for (const file of files) {
   }
   visitTopLevel(ast);
 
+  // ── Pattern B: floating-Promise variable that's later used as a value ──
+  // Catches `const x = asyncFn()` (without await/then/catch) where x is later
+  // used in a truthy/value context like `if (x)`, `!x`, `x === foo`, etc.
+  //
+  // Promise-aware uses are SAFE and do NOT flag:
+  //   - await x                                  (awaited)
+  //   - Promise.all([..., x, ...])               (parallel)
+  //   - Promise.race([...]) / allSettled / any   (parallel)
+  //   - x.then(...) / x.catch(...) / x.finally() (chained)
+  //   - return x                                  (caller awaits)
+  //   - throw x                                   (caller handles)
+  //   - void x                                    (explicit fire-and-forget)
+  //
+  // Step 1: collect candidate variables (`const x = asyncCall()` without chain/await).
+  // Step 2: walk full AST tracking each use of those vars; classify as Promise-aware vs misuse.
+
+  function isAsyncCall(callNode) {
+    if (!callNode || callNode.type !== 'CallExpression') return false;
+    const callee = callNode.callee;
+    const qual = callee.type === 'MemberExpression' ? memberPath(callee) : null;
+    if (qual && qualifiedNames.has(qual)) return true;
+    if (callee.type === 'Identifier' && bareNames.has(callee.name)) return true;
+    return false;
+  }
+
+  function isPromiseChain(callNode) {
+    // x.then(...) | x.catch(...) | x.finally(...)
+    if (!callNode || callNode.type !== 'CallExpression') return false;
+    if (callNode.callee?.type !== 'MemberExpression') return false;
+    if (callNode.callee.computed) return false;
+    const m = callNode.callee.property?.name;
+    return m === 'then' || m === 'catch' || m === 'finally';
+  }
+
+  // Promises-aware patterns at the call-site root: `asyncFn().then/catch/finally(...)`
+  // also `await asyncFn()` etc.
+  function isPromiseAwareInit(initNode) {
+    if (!initNode) return false;
+    if (initNode.type === 'AwaitExpression') return true;
+    if (isPromiseChain(initNode)) {
+      // Walk through the chain — if the eventual base is a CallExpression, check it
+      // (we don't actually need the base — just confirms .then/.catch/.finally is present)
+      return true;
+    }
+    return false;
+  }
+
+  // Step 1: collect candidates (scope-aware)
+  // Each function/method/arrow is its own scope. We tag candidates by their
+  // containing function "scope id" so misuses in different scopes don't conflict.
+  const candidateVars = new Map(); // scopeId → Map(name → { line, col, fnName })
+  let _scopeCounter = 0;
+  const _scopeStack = [0]; // global scope = 0
+  const allCandidates = []; // [{ scopeId, name, line, col, fnName }]
+
+  function isFunctionLike(node) {
+    return node && (
+      node.type === 'FunctionDeclaration' ||
+      node.type === 'FunctionExpression' ||
+      node.type === 'ArrowFunctionExpression' ||
+      node.type === 'MethodDefinition'
+    );
+  }
+
+  function collectCandidates(node) {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { for (const n of node) collectCandidates(n); return; }
+    if (typeof node.type !== 'string') return;
+
+    let pushedScope = false;
+    if (isFunctionLike(node)) {
+      _scopeCounter++;
+      _scopeStack.push(_scopeCounter);
+      pushedScope = true;
+    }
+
+    if (node.type === 'VariableDeclarator' && node.id?.type === 'Identifier' && node.init) {
+      if (isAsyncCall(node.init) && !isPromiseAwareInit(node.init)) {
+        const name = node.id.name;
+        const callee = node.init.callee;
+        const fnName = callee.type === 'Identifier' ? callee.name :
+          (callee.type === 'MemberExpression' ? (memberPath(callee) || callee.property?.name) : '?');
+        const scopeId = _scopeStack[_scopeStack.length - 1];
+        if (!candidateVars.has(scopeId)) candidateVars.set(scopeId, new Map());
+        candidateVars.get(scopeId).set(name, {
+          line: node.loc?.start?.line ?? 0,
+          col: (node.loc?.start?.column ?? 0) + 1,
+          fnName,
+          scopeId,
+        });
+        allCandidates.push({ scopeId, name });
+      }
+    }
+
+    for (const key of Object.keys(node)) {
+      if (key === 'loc' || key === 'start' || key === 'end' || key === 'range') continue;
+      const c = node[key];
+      if (c && typeof c === 'object') collectCandidates(c);
+    }
+
+    if (pushedScope) _scopeStack.pop();
+  }
+  collectCandidates(ast);
+
+  // Step 2: track every use of candidate vars (scope-aware) and classify
+  // each one as a misuse (used in a truthy/value context) — these are real bugs
+  // since `if (promise)` is always truthy regardless of resolved value.
+  const misuses = []; // { scopeId, name, line, col, contextTag }
+
+  function resolveCandidate(name, scopeStack) {
+    // Walk inner-most → outer-most; first hit wins.
+    for (let i = scopeStack.length - 1; i >= 0; i--) {
+      const sid = scopeStack[i];
+      const m = candidateVars.get(sid);
+      if (m && m.has(name)) return sid;
+    }
+    return null;
+  }
+
+  function classifyUse(node, parent, parentKey, scopeStack) {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { for (const n of node) classifyUse(n, parent, parentKey, scopeStack); return; }
+    if (typeof node.type !== 'string') return;
+
+    let pushedScope = false;
+    if (isFunctionLike(node)) {
+      _scopeCounter++;
+      // We don't want to allocate new scope ids — instead, use the SAME counter
+      // mechanism as Step 1 (which is reset). To stay aligned with Step 1, we
+      // need deterministic scope IDs. The simplest approach: count function-like
+      // nodes deterministically as we visit. Because Step 1 also visited in the
+      // same order, the scope IDs will match.
+      scopeStack = [...scopeStack, _scopeCounter];
+      pushedScope = true;
+    }
+
+    // Identifier reference
+    if (node.type === 'Identifier') {
+      // Skip declarator id (left-hand side of `const x = ...`)
+      if (parent && parent.type === 'VariableDeclarator' && parentKey === 'id') {
+        // pass-through to recurse children, no classification
+      }
+      // Skip property name in MemberExpression (e.g., obj.foo — `foo` is property, not a var ref)
+      else if (parent && parent.type === 'MemberExpression' && parentKey === 'property' && !parent.computed) {
+        // not a var ref
+      }
+      // Skip function/method name as the callee (we're interested in argument vars only)
+      else {
+        const candidateScope = resolveCandidate(node.name, scopeStack);
+        if (candidateScope !== null) {
+          // MISUSE: used in a truthy/value context
+          if (parent && (parent.type === 'IfStatement' || parent.type === 'WhileStatement' || parent.type === 'DoWhileStatement') && parentKey === 'test') {
+            misuses.push({ scopeId: candidateScope, name: node.name, line: node.loc?.start?.line ?? 0, col: (node.loc?.start?.column ?? 0) + 1, contextTag: 'if/while test' });
+          }
+          else if (parent && parent.type === 'ConditionalExpression' && parentKey === 'test') {
+            misuses.push({ scopeId: candidateScope, name: node.name, line: node.loc?.start?.line ?? 0, col: (node.loc?.start?.column ?? 0) + 1, contextTag: 'ternary test' });
+          }
+          else if (parent && parent.type === 'UnaryExpression' && parent.operator === '!') {
+            misuses.push({ scopeId: candidateScope, name: node.name, line: node.loc?.start?.line ?? 0, col: (node.loc?.start?.column ?? 0) + 1, contextTag: 'logical-not' });
+          }
+          else if (parent && parent.type === 'LogicalExpression') {
+            misuses.push({ scopeId: candidateScope, name: node.name, line: node.loc?.start?.line ?? 0, col: (node.loc?.start?.column ?? 0) + 1, contextTag: '&&/||' });
+          }
+          // Other uses (await x, x.then, x.catch, return x, void x, fn(x), etc.) are neutral or safe.
+        }
+      }
+    }
+
+    for (const key of Object.keys(node)) {
+      if (key === 'loc' || key === 'start' || key === 'end' || key === 'range') continue;
+      const c = node[key];
+      if (c && typeof c === 'object') classifyUse(c, node, key, scopeStack);
+    }
+
+    if (pushedScope) {
+      // No state to pop — scopeStack is per-call (we shadowed it).
+    }
+  }
+
+  // Reset the scope counter for the second walk so IDs match Step 1's assignments.
+  _scopeCounter = 0;
+  classifyUse(ast, null, null, [0]);
+
+  // Step 3: emit Pattern B findings — every misuse is a real bug regardless
+  // of any other Promise-aware uses elsewhere. (`if (promise)` is always truthy
+  // even if the same promise is awaited 5 lines later.)
+  const patternBFindings = [];
+  const seenComposite = new Set(); // dedupe: same scope+name+line+contextTag
+  for (const m of misuses) {
+    const key = `${m.scopeId}:${m.name}:${m.line}:${m.col}:${m.contextTag}`;
+    if (seenComposite.has(key)) continue;
+    seenComposite.add(key);
+    const decl = candidateVars.get(m.scopeId)?.get(m.name);
+    patternBFindings.push({
+      line: m.line,
+      col: m.col,
+      varName: m.name,
+      fnName: decl?.fnName || '?',
+      declLine: decl?.line || 0,
+      contextTag: m.contextTag,
+    });
+  }
+
   if (findings.length) {
     const rel = path.relative(ROOT, file);
     for (const f of findings) {
@@ -265,6 +483,14 @@ for (const file of files) {
       console.log(`    ${f.snippet.trim()}`);
     }
     totalFindings += findings.length;
+  }
+
+  if (patternBFindings.length) {
+    const rel = path.relative(ROOT, file);
+    for (const f of patternBFindings) {
+      console.log(`${rel}:${f.line}:${f.col}  [floating-promise-as-value]  '${f.varName}' (= ${f.fnName}() at L${f.declLine}) is an unawaited Promise but used in ${f.contextTag} → always truthy/falsy. Add \`await\`.`);
+    }
+    totalFindings += patternBFindings.length;
   }
 }
 

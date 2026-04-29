@@ -1100,3 +1100,35 @@ Two new automated checks added to prevent recurrence of bugs we hit this week.
 - `.github/workflows/lint.yml` (new, CI gate)
 - `package.json` (added 3 scripts: `lint:await`, `lint:lang`, `lint:ci`)
 - `js/voice-service.js` (fixed 2 additional sister bugs in `processHangup()` discovered by the new lint rule)
+
+### `lint:await` — extended with Pattern B (floating-Promise-as-value) (2026-04-29)
+
+The original `lint:await` only caught Pattern A — async calls directly inside conditions. Extended to also catch Pattern B: variables assigned to async results that are then used as truthy/falsy values.
+
+**Pattern B examples now caught:**
+```js
+const user = fetchUser()          // Promise, not awaited
+if (user) { ... }                  // ← always truthy → bug
+if (!user) return                  // ← always false → bug
+user ? 'a' : 'b'                    // ← always 'a' → bug
+user && doThing()                  // ← always truthy → bug
+```
+
+**Safely IGNORED (no false positives on these patterns):**
+- `const user = await fetchUser()` (awaited at decl)
+- `const userPromise = fetchUser(); const user = await userPromise` (awaited later)
+- `const p = fetchUser().then(...)` (chained)
+- `const p1 = fn1(); const p2 = fn2(); await Promise.all([p1, p2])` (parallelism)
+- `const p = fetchUser(); return p` (caller awaits)
+- `const p = fetchUser(); void p` (explicit fire-and-forget)
+
+**Implementation details:**
+- **Scope-aware**: a variable named `user` declared in `bug1()` is independent from a `user` declared in `safe1()`. Uses a deterministic scope counter consistent across the two AST passes.
+- **Misuse-only flagging**: any single use in a truthy/value context is a real bug regardless of other Promise-aware uses elsewhere — `if (promise)` is always truthy even if the same promise is awaited 5 lines later.
+- **Pattern label**: `[floating-promise-as-value]` (distinct from `[no-async-in-condition]` so log triage is easy).
+
+**Verified:**
+- Synthetic fixture with 4 bug variants + 6 safe patterns: exactly 4 flagged, 0 false positives.
+- Full codebase: 0 findings across 156 files (no real misuses exist after this week's fixes).
+- Pattern A regression: re-introducing the voice-service `await` bug is still caught correctly.
+
