@@ -16,15 +16,31 @@ const translation = (key, language, ...args) => {
     return path.split('.').reduce((acc, part) => (acc && acc[part] !== undefined ? acc[part] : undefined), obj)
   }
 
-  const value = getNestedValue(data[lang], key)
+  let value = getNestedValue(data[lang], key)
+
+  // If missing in current locale, fall back to English (and warn) BEFORE returning the literal key.
+  if (value === undefined && lang !== 'en') {
+    const fallback = getNestedValue(data.en, key)
+    if (fallback !== undefined) {
+      if (process.env.NODE_ENV !== 'production' || process.env.LANG_WARN === 'true') {
+        console.warn(`[i18n] Missing key "${key}" in lang="${lang}" — fell back to en`)
+      }
+      value = fallback
+    }
+  }
+
+  // Final guard: still missing — log loudly so prod gaps are visible, return the key string.
+  if (value === undefined) {
+    console.warn(`[i18n] Missing key "${key}" in ALL locales — returning raw key`)
+    return key
+  }
 
   // If the value is a function, call it with the provided arguments
   if (typeof value === 'function') {
     return value(...args)
   }
 
-  // Return the value if found, or fallback to the key
-  return value !== undefined ? value : key
+  return value
 }
 
 module.exports = {

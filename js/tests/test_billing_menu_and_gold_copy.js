@@ -72,12 +72,17 @@ check('_index.js: action handler exists for a.billingMenu', () => {
   assert.ok(/if\s*\(action\s*===\s*a\.billingMenu\)/m.test(indexSrc))
 })
 
-check('_index.js: per-domain Renew button parser present', () => {
-  assert.ok(/\^🔄 Renew Now — \(\.\+\)\$/.test(indexSrc))
+check('_index.js: per-domain Renew button parser present (locale-aware)', () => {
+  // After i18n refactor, button matching is by emoji prefix (handles all 4 locales).
+  assert.ok(
+    /message\.startsWith\('🔄 '\)\s*&&\s*message\.includes\(' — '\)/.test(indexSrc)
+  )
 })
 
-check('_index.js: per-domain Toggle Auto-Renew button parser present', () => {
-  assert.ok(/\^🔁 Toggle Auto-Renew — \(\.\+\)\$/.test(indexSrc))
+check('_index.js: per-domain Toggle Auto-Renew button parser present (locale-aware)', () => {
+  assert.ok(
+    /message\.startsWith\('🔁 '\)\s*&&\s*message\.includes\(' — '\)/.test(indexSrc)
+  )
 })
 
 check('_index.js: hosting submenu surfaces billingMenu next to myHostingPlans', () => {
@@ -106,11 +111,21 @@ check('_index.js: viewHostingPlanDetails no longer renders Toggle Auto-Renew but
 })
 
 check('_index.js: in-plan view nudges users toward the new Billing menu', () => {
+  // After i18n refactor the nudge lives in the lang files. Verify the translation
+  // key is referenced from _index.js AND the en.js copy is intact.
+  assert.ok(
+    /trans\(['"]t\.planViewBillingNudge['"]\)/.test(indexSrc),
+    'planViewBillingNudge translation key not used in viewHostingPlanDetails'
+  )
+  const enLangSrc = fs.readFileSync(
+    path.join(__dirname, '..', 'lang', 'en.js'),
+    'utf8'
+  )
   assert.ok(
     /To renew or toggle Auto-Renew, open <b>💳 My Plan \/ Billing<\/b>/.test(
-      indexSrc
+      enLangSrc
     ),
-    'help line referencing the billing menu missing from plan view'
+    'planViewBillingNudge copy missing from en.js'
   )
 })
 

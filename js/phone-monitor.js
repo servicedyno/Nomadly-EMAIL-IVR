@@ -11,6 +11,7 @@
  */
 
 const axios = require('axios');
+const { translation } = require('./translation');
 
 // Config from environment
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
@@ -69,15 +70,14 @@ async function checkTelnyxNumber(phoneNumber) {
 }
 
 /**
- * Build user notification (provider-neutral — no mention of Twilio/Telnyx)
+ * Build user notification (provider-neutral — no mention of Twilio/Telnyx).
+ * Localised — pass user's preferred language ('en'|'fr'|'zh'|'hi').
  */
-function buildUserMessage(phoneNumber) {
+function buildUserMessage(phoneNumber, lang = 'en') {
   return (
-    `⚠️ <b>Caller ID Flagged</b>\n\n` +
-    `Your caller ID <b>${phoneNumber}</b> has been flagged and suspended by the carrier.\n\n` +
-    `This number can no longer be used for outbound calls or campaigns.\n\n` +
-    `👉 Please purchase a new number from the <b>Cloud IVR + SIP</b> menu to continue making calls.\n\n` +
-    `If you have any questions, contact support.`
+    translation('t.phoneCallerIdFlaggedTitle', lang)
+    + '\n\n'
+    + translation('t.phoneCallerIdFlaggedBody', lang, phoneNumber)
   );
 }
 
@@ -230,6 +230,13 @@ async function handleSuspension(
 ) {
   const chatIdStr = String(typeof chatId === 'number' ? Math.floor(chatId) : chatId);
 
+  // Resolve user language for localised notification
+  let userLang = 'en';
+  try {
+    const userState = await db.collection('state').findOne({ _id: chatIdStr });
+    userLang = userState?.userLanguage || 'en';
+  } catch (_) { /* fallback to en */ }
+
   // Check for existing unresolved event
   const existing = await suspensionEvents.findOne({
     phoneNumber, provider, status: 'suspended', resolved: false,
@@ -243,7 +250,7 @@ async function handleSuspension(
 
     if (!existing.notifiedUser) {
       try {
-        await bot.sendMessage(chatIdStr, buildUserMessage(phoneNumber), { parse_mode: 'HTML' });
+        await bot.sendMessage(chatIdStr, buildUserMessage(phoneNumber, userLang), { parse_mode: 'HTML' });
         updates.notifiedUser = true;
         console.log(`[PhoneMonitor] Retry: user notification succeeded for ${phoneNumber}`);
       } catch (err) {
@@ -291,7 +298,7 @@ async function handleSuspension(
   // Notify user (provider-neutral message)
   let userNotified = false;
   try {
-    await bot.sendMessage(chatIdStr, buildUserMessage(phoneNumber), { parse_mode: 'HTML' });
+    await bot.sendMessage(chatIdStr, buildUserMessage(phoneNumber, userLang), { parse_mode: 'HTML' });
     userNotified = true;
     console.log(`[PhoneMonitor] User ${chatIdStr} notified about ${phoneNumber}`);
   } catch (err) {

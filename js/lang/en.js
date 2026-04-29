@@ -1827,7 +1827,155 @@ Service delivered.`,
  host_30: '❌ Upgrade failed. Your wallet has been refunded. Please try again or contact support.',
  host_31: '🚧 VPS service is coming soon! Stay tuned.',
  host_32: '⚠️ Unable to load referral page. Try again later.',
- host_4: (safeHtml) => `${safeHtml}`,
+
+// === Hosting Plan / Billing UX (added 2026-02) ===
+// Headers
+myHostingPlansHeader: '📋 <b>My Hosting Plans</b>',
+billingMenuHeader: '💳 <b>My Plan / Billing</b>',
+billingMenuIntro: 'Manage renewals and auto-renew for each of your hosting plans.',
+billingMenuEmpty: '💳 <b>My Plan / Billing</b>\n\nYou don\'t have any active hosting plans yet.',
+// Status indicators
+statusActive: '✅ Active',
+statusActiveOnline: '✅ Active (online)',
+statusSuspended: '🚫 Suspended',
+statusSuspendedFull: '🚫 Suspended (offline — full)',
+statusExpired: '❌ Expired',
+statusMaintenance: '🛠️ Maintenance (offline — public only)',
+// Auto-Renew states
+autoRenewOn: '✅ ON',
+autoRenewOff: '❌ OFF',
+autoRenewWeeklyOff: '❌ OFF (weekly plans never auto-renew)',
+autoRenewWeeklyShort: '❌ OFF (weekly)',
+// Field labels
+planLabel: 'Plan:',
+statusLabel: 'Status:',
+domainTypeFieldLabel: 'Domain Type:',
+createdLabel: 'Created:',
+expiresLabel: 'Expires:',
+autoRenewFieldLabel: 'Auto-Renew:',
+usernameLabel: 'Username:',
+priceLabel: 'Price:',
+durationLabel: 'Duration:',
+walletBalanceLabel: 'Wallet Balance:',
+chargedLabel: 'Charged:',
+newExpiryLabel: 'New Expiry:',
+remainingBalanceLabel: 'Remaining Balance:',
+domainLabel: 'Domain:',
+currentLabel: 'Current:',
+// Plan view body
+planViewCredentialsHint: 'Tap "Show Credentials" to reveal your HostPanel username and PIN.',
+planViewBillingNudge: '💡 To renew or toggle Auto-Renew, open <b>💳 My Plan / Billing</b> from the Hosting menu.',
+planViewMultiHostUpsell: '💡 <b>Want to host more sites?</b> Upgrade to a monthly plan for multi-site hosting, more storage, and advanced Anti-Red protection.',
+// Renew modal
+renewModalHeader: planName => `<b>Renew Plan — ${planName}</b>`,
+renewModalCurrentExpiry: (date, isExpired) => `<b>Current Expiry:</b> ${date}${isExpired ? ' (EXPIRED)' : ''}`,
+renewModalDuration: days => `<b>Duration:</b> ${days} days`,
+renewModalConfirmHint: '✅ Confirm payment below:',
+renewModalInsufficient: '⚠️ Insufficient funds. Please deposit first.',
+renewModalPayButton: price => `💵 Pay $${price} USD`,
+// Renew success / failure
+renewSuccessTitle: '✅ <b>Plan Renewed Successfully!</b>',
+renewSuccessAntiRedNote: 'Anti-Red protection has been refreshed.',
+renewFailureFallback: '❌ Renewal failed. Your wallet has been refunded. Please try again or contact support.',
+// Upgrade modal
+upgradeModalHeader: '<b>⬆️ Upgrade Plan</b>',
+upgradeModalChooseHint: 'Choose your new plan:',
+// Per-domain billing buttons
+billingRenewBtn: domain => `🔄 Renew Now — ${domain}`,
+billingToggleAutoRenewBtn: domain => `🔁 Toggle Auto-Renew — ${domain}`,
+// Auto-Renew toggle status
+autoRenewTurnedOn: domain => `✅ Auto-Renew is now <b>ON</b> for <b>${domain}</b>. Your plan will be renewed automatically when it expires.`,
+autoRenewTurnedOff: domain => `❌ Auto-Renew is now <b>OFF</b> for <b>${domain}</b>. Your plan will expire and be suspended after grace period.`,
+autoRenewNotForWeekly: '❌ Auto-Renew is not available on weekly plans.',
+// Toast strings
+siteAlreadyOffline: '⚠️ Your site is already offline. Use "Bring Site Online" to re-enable it.',
+siteAlreadyOnline: '✅ Your site is already online.',
+addonNotOnPlan: '⚠️ That domain is not an addon on this plan.',
+promoMessagesEnabled: '🔔 Promotional messages are now enabled.',
+promoMessagesDisabled: '✅ Promotional messages are now disabled.',
+// Credentials reveal
+credentialsHeader: domain => `🔑 <b>Credentials for ${domain}</b>`,
+credentialsPinLabel: 'PIN:',
+credentialsPanelUrlLabel: 'Panel Login URL:',
+credentialsFreshNotice: '⚠️ <i>This PIN has been freshly generated. Your old PIN no longer works.</i>',
+// Hosting Scheduler notifications
+schedExpiryWarningTitle: '⏰ <b>Hosting Expiry Notice</b>',
+schedExpiryWarningBody: (plan, domain) => `Your plan <b>${plan}</b> for <b>${domain}</b> expires in less than 24 hours.`,
+schedRenewTextOn: '✅ Auto-renew is <b>ON</b>. Your plan will be renewed automatically when it expires.',
+schedRenewTextOff: hours => `Auto-renew is <b>OFF</b>. Your hosting will be <b>suspended immediately</b> on expiry and deleted after ${hours}h if not manually renewed.`,
+schedRenewTextWeekly: 'Weekly plans do not auto-renew. Please renew manually before expiry.',
+schedRenewTextWalletHint: 'Wallet Balance: Check via /wallet',
+schedRenewTextToggleHint: domain => `To toggle auto-renew: open <b>💳 My Plan / Billing</b>`,
+schedAutoRenewedTitle: '✅ <b>Plan Auto-Renewed!</b>',
+schedAutoRenewedBody: (plan, domain, price, newExpiry, remBalance) =>
+  `<b>${plan}</b> for <b>${domain}</b> has been renewed.\n<b>Charged:</b> $${price}\n<b>New Expiry:</b> ${newExpiry}\n<b>Remaining Balance:</b> $${remBalance}`,
+schedAutoRenewFailedTitle: '⚠️ <b>Auto-Renew Failed — Insufficient Funds</b>',
+schedAutoRenewFailedBody: (plan, domain, price, balance, hours) =>
+  `<b>${plan}</b> for <b>${domain}</b> has expired.\n<b>Renewal Price:</b> $${price}\n<b>Your Balance:</b> $${balance}\n\nPlease deposit funds to renew.\nYour hosting has been <b>suspended</b>. Deposit funds to reactivate.\nYour account will be <b>deleted</b> in ${hours}h if not renewed.`,
+schedWeeklyExpiredTitle: '⏰ <b>Weekly Plan Expired</b>',
+schedWeeklyExpiredBody: (plan, domain, hours) =>
+  `Your plan <b>${plan}</b> for <b>${domain}</b> has expired.\n\n⚠️ Weekly plans do <b>not</b> auto-renew.\nYour hosting has been <b>suspended</b> — website is now offline.\nPlease renew manually from <b>💳 My Plan / Billing</b> to reactivate.\n\nYour account will be <b>permanently deleted</b> in ${hours}h if not renewed.`,
+schedDeletedTitle: '🗑️ <b>Hosting Deleted</b>',
+schedDeletedBody: (domain, plan) =>
+  `<b>${domain}</b> cPanel account has been permanently deleted.\nPlan: ${plan}\n\nAll files, databases, and emails have been removed.\nTo start fresh, purchase a new hosting plan.`,
+schedDeletedBodyHours: (domain, plan, hoursExpired, gracePeriod) =>
+  `<b>${domain}</b> cPanel account has been permanently deleted.\nPlan: ${plan} — expired ${hoursExpired}h ago (${gracePeriod}h grace period exceeded).\n\nAll files, databases, and emails have been removed.\nTo start fresh, purchase a new hosting plan.`,
+schedSuspendedTitle: '🚫 <b>Hosting Suspended</b>',
+schedSuspendedBody: (domain, plan, hoursExpired, gracePeriod) =>
+  `<b>${domain}</b> has been suspended — your plan <b>${plan}</b> expired ${hoursExpired}h ago.\n\n⚠️ Your site is now <b>offline</b>.\nRenew from <b>💳 My Plan / Billing</b> to reactivate.\nAccount will be <b>permanently deleted</b> ${gracePeriod}h after expiry if not renewed.`,
+// === Phone-monitor / Phone-scheduler ===
+phoneCallerIdFlaggedTitle: '⚠️ <b>Caller ID Flagged</b>',
+phoneCallerIdFlaggedBody: phoneNumber =>
+  `Your caller ID <b>${phoneNumber}</b> has been flagged and suspended by the carrier.\n\nThis number can no longer be used for outbound calls or campaigns.\n\n👉 Please purchase a new number from the <b>Cloud IVR + SIP</b> menu to continue making calls.\n\nIf you have any questions, contact support.`,
+phoneAutoRenewFailedTitle: '❌ <b>Auto-Renewal Failed — Number Deleted</b>',
+phoneAutoRenewFailedBody: (phoneNumber, planName, planPrice, buyLabel) =>
+  `📞 ${phoneNumber}\n📦 Plan: ${planName} ($${planPrice}/mo)\n\n⚠️ Insufficient wallet balance. Your number has been <b>permanently deleted</b> to prevent further billing.\n\nThis action is irreversible. To get a new number, visit 📞☁️ Cloud Phone → ${buyLabel}.`,
+phoneSuspendedTitle: '⚠️ <b>Number Expired — Permanently Deleted</b>',
+phoneSuspendedBody: (phoneNumber, buyLabel) =>
+  `📞 ${phoneNumber} has expired and been <b>permanently deleted</b>.\n\nAuto-Renew was OFF. To avoid losing numbers in the future, enable Auto-Renew on your next number.\n\nGet a new number: 📞☁️ Cloud Phone → ${buyLabel}.`,
+phoneUsageAlertTitle: '⚠️ <b>Usage Alert</b>',
+phoneUsageAlertBody: (phoneNumber, used, limit, type, percent, rate, unit) =>
+  `📞 ${phoneNumber}\n\nYou've used <b>${used}/${limit}</b> inbound ${type} this month (${percent}%).\nOnce exhausted, overage billing kicks in at <b>$${rate}/${unit}</b> from your wallet. Service pauses if wallet is empty.`,
+phoneUsageLimitTitle: type => `💰 <b>Inbound ${type} — Overage Active</b>`,
+phoneUsageLimitBody: (phoneNumber, type, limit, rate, unit) =>
+  `📞 ${phoneNumber}\n\nYou've used all <b>${limit}</b> inbound ${type} in your plan this month.\nOverage billing is now active — <b>$${rate}/${unit}</b> charged from your wallet per use.\nService pauses if wallet balance runs out. Top up or upgrade your plan.`,
+// === Generic error toast (error-handler.js) ===
+genericErrorTitle: '❌ <b>Error</b>',
+genericErrorBody: txnId =>
+  `Something went wrong${txnId ? ` (Transaction: ${txnId})` : ''}.\n\nOur team has been notified and will investigate.`,
+genericErrorRefundedNote: '✅ Your payment has been refunded.',
+genericErrorContactSupport: 'Please contact support if this persists.',
+// === Bulk-call campaign ===
+bulkCallProgressLine: (icon, displayNumber, displayName, statusText, durText, bar, completed, total, pct, kp, missed, failed) =>
+  `${icon} <b>${displayNumber}</b>${displayName} — ${statusText}${durText}\n${bar} ${completed}/${total} (${pct}%) | 🔘${kp} 📵${missed} ❌${failed}`,
+bulkCallReportTitle: '📊 <b>Campaign Complete!</b>',
+bulkCallReportCallerId: 'Caller ID:',
+bulkCallReportAudio: 'Audio:',
+bulkCallReportProvider: 'Provider:',
+bulkCallReportDuration: 'Duration:',
+bulkCallReportTotal: 'Total Calls:',
+bulkCallReportAnswered: 'Answered:',
+bulkCallReportKeyPressed: 'Key Pressed:',
+bulkCallReportTransferred: 'Transferred:',
+bulkCallReportNoAnswer: 'No Answer:',
+bulkCallReportHungUp: 'Hung Up:',
+bulkCallReportBusy: 'Busy:',
+bulkCallReportFailed: 'Failed:',
+// === SMS App service ===
+smsAppTrialCompleteTitle: '📱 <b>BulkSMS Free Trial Complete!</b>',
+smsAppTrialCompleteBody: limit =>
+  `You've used all ${limit} free SMS messages from your trial. Great job testing the platform!`,
+smsAppTrialExpiredTitle: '📱 <b>BulkSMS Trial Expired</b>',
+smsAppTrialExpiredBody: 'Subscribe to continue sending SMS campaigns.\n👉 Tap <b>👛 Wallet → 📋 View Subscriptions</b> to upgrade!',
+// === cPanel-routes Anti-Red warnings ===
+antiRedWarningTitle: '⚠️ <b>Anti-Red Protection Warning</b>',
+antiRedWarningBodyShort: domain =>
+  `Protection deployed for <b>${domain}</b> but not yet verified. Ensure nameservers point to Cloudflare.`,
+antiRedFailedTitle: '🚨 <b>Anti-Red Protection Failed</b>',
+antiRedFailedBodyShort: (domain, retries) =>
+  `Protection could not be deployed for <b>${domain}</b> after ${retries} attempts. Ensure nameservers point to Cloudflare.`,
+
+host_4: (safeHtml) => `${safeHtml}`,
  host_5: (CHAT_BOT_NAME) => `<b>${CHAT_BOT_NAME} Help</b>\n\n<b>Quick Commands:</b>\n• <code>/shorten URL</code> — Instant short link\n• <code>/shorten URL alias</code> — Custom alias\n• Just paste any URL — Auto-detect & shorten\n\n<b>Features:</b>\n• URL Shortener\n• Domain Names\n• Phone Leads\n• Wallet & Payments\n• Web Hosting\n\nUse the menu below to get started!`,
  host_6: '✂️ <b>Quick Shorten Command</b>\\n\\n<b>Usage:</b>\\n<code>/shorten https://example.com</code> — Random short link\\n<code>/shorten https://example.com myalias</code> — Custom alias\\n\\nOr just paste any URL and I\'ll offer to shorten it!',
  host_7: '❌ Invalid URL. Please provide a valid URL starting with http:// or https://',

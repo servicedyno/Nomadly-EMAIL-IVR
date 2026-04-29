@@ -6912,15 +6912,15 @@ Enter new value:`), bc)
       if (!plans || plans.length === 0) {
         return send(chatId, trans('t.dom_2'), k.of([[user.hostingDomainsRedirect], [t.backButton]]))
       }
-      let text = '📋 <b>My Hosting Plans</b>\n\n'
+      let text = trans('t.myHostingPlansHeader') + '\n\n'
       const planButtons = []
       for (const p of plans) {
         const expiry = p.expiryDate ? new Date(p.expiryDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
         const isExpired = p.expiryDate && new Date(p.expiryDate) < new Date()
-        const status = p.suspended ? '🚫 Suspended' : isExpired ? '❌ Expired' : '✅ Active'
+        const status = p.suspended ? trans('t.statusSuspended') : isExpired ? trans('t.statusExpired') : trans('t.statusActive')
         const planIsWeekly = (p.plan || '').toLowerCase().includes('week')
         const autoRenew = (!planIsWeekly && p.autoRenew !== false) ? '🔁' : ''
-        text += `<b>${p.domain}</b> (${p.plan})\n   ${status} ${autoRenew} · Expires: ${expiry}\n\n`
+        text += `<b>${p.domain}</b> (${p.plan})\n   ${status} ${autoRenew} · ${trans('t.expiresLabel')} ${expiry}\n\n`
         planButtons.push([`🔍 ${p.domain}`])
       }
       planButtons.push([t.backButton])
@@ -6932,24 +6932,23 @@ Enter new value:`), bc)
       await set(state, chatId, 'action', a.billingMenu)
       const plans = await cpanelAccounts.find({ chatId: String(chatId) }).toArray()
       if (!plans || plans.length === 0) {
-        return send(chatId, '💳 <b>My Plan / Billing</b>\n\nYou don\'t have any active hosting plans yet.', k.of([[user.hostingDomainsRedirect], [t.backButton]]))
+        return send(chatId, trans('t.billingMenuEmpty'), k.of([[user.hostingDomainsRedirect], [t.backButton]]))
       }
-      let text = '💳 <b>My Plan / Billing</b>\n\n'
-      text += 'Manage renewals and auto-renew for each of your hosting plans.\n\n'
+      let text = trans('t.billingMenuHeader') + '\n\n' + trans('t.billingMenuIntro') + '\n\n'
       const billingButtons = []
       for (const p of plans) {
         const expiry = p.expiryDate ? new Date(p.expiryDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
         const isExpired = p.expiryDate && new Date(p.expiryDate) < new Date()
         const planIsWeekly = (p.plan || '').toLowerCase().includes('week')
         const autoRenewLabel = planIsWeekly
-          ? '❌ OFF (weekly)'
-          : (p.autoRenew !== false ? '✅ ON' : '❌ OFF')
-        const status = p.suspended ? '🚫 Suspended' : isExpired ? '❌ Expired' : '✅ Active'
-        text += `<b>${p.domain}</b> (${p.plan})\n   ${status} · Expires: ${expiry}\n   Auto-Renew: ${autoRenewLabel}\n\n`
+          ? trans('t.autoRenewWeeklyShort')
+          : (p.autoRenew !== false ? trans('t.autoRenewOn') : trans('t.autoRenewOff'))
+        const status = p.suspended ? trans('t.statusSuspended') : isExpired ? trans('t.statusExpired') : trans('t.statusActive')
+        text += `<b>${p.domain}</b> (${p.plan})\n   ${status} · ${trans('t.expiresLabel')} ${expiry}\n   ${trans('t.autoRenewFieldLabel')} ${autoRenewLabel}\n\n`
         // Per-domain billing actions
-        billingButtons.push([`🔄 Renew Now — ${p.domain}`])
+        billingButtons.push([trans('t.billingRenewBtn', p.domain)])
         if (!planIsWeekly) {
-          billingButtons.push([`🔁 Toggle Auto-Renew — ${p.domain}`])
+          billingButtons.push([trans('t.billingToggleAutoRenewBtn', p.domain)])
         }
       }
       billingButtons.push([t.backButton])
@@ -6967,9 +6966,15 @@ Enter new value:`), bc)
       const created = plan.createdAt ? new Date(plan.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
       const isExpired = plan.expiryDate && new Date(plan.expiryDate) < new Date()
       const siteStatus = plan.suspended ? 'suspended' : (plan.maintenanceMode ? 'maintenance' : 'online')
-      const status = plan.suspended ? '🚫 Suspended (offline — full)' : (plan.maintenanceMode ? '🛠️ Maintenance (offline — public only)' : (isExpired ? '❌ Expired' : '✅ Active (online)'))
+      const status = plan.suspended
+        ? trans('t.statusSuspendedFull')
+        : (plan.maintenanceMode
+          ? trans('t.statusMaintenance')
+          : (isExpired ? trans('t.statusExpired') : trans('t.statusActiveOnline')))
       const isWeekly = (plan.plan || '').toLowerCase().includes('week')
-      const autoRenewStatus = isWeekly ? '❌ OFF (weekly plans never auto-renew)' : (plan.autoRenew !== false ? '✅ ON' : '❌ OFF')
+      const autoRenewStatus = isWeekly
+        ? trans('t.autoRenewWeeklyOff')
+        : (plan.autoRenew !== false ? trans('t.autoRenewOn') : trans('t.autoRenewOff'))
 
       // Check domain origin - is it registered with us or external?
       const registeredDomain = await db.collection('registeredDomains').findOne({ _id: domain })
@@ -6984,18 +6989,18 @@ Enter new value:`), bc)
       const atLimit = addonLimit !== -1 && currentAddons >= addonLimit
 
       let text = `🌐 <b>${plan.domain}</b>\n\n`
-        + `<b>Plan:</b> ${plan.plan}\n`
-        + `<b>Status:</b> ${status}\n`
-        + `<b>Domain Type:</b> ${domainType}\n`
-        + `<b>Created:</b> ${created}\n`
-        + `<b>Expires:</b> ${expiry}\n`
-        + `<b>Auto-Renew:</b> ${autoRenewStatus}\n`
-        + `<b>Username:</b> <code>${plan.cpUser}</code>\n\n`
-        + `Tap "Show Credentials" to reveal your HostPanel username and PIN.\n`
-        + `💡 To renew or toggle Auto-Renew, open <b>💳 My Plan / Billing</b> from the Hosting menu.`
+        + `<b>${trans('t.planLabel')}</b> ${plan.plan}\n`
+        + `<b>${trans('t.statusLabel')}</b> ${status}\n`
+        + `<b>${trans('t.domainTypeFieldLabel')}</b> ${domainType}\n`
+        + `<b>${trans('t.createdLabel')}</b> ${created}\n`
+        + `<b>${trans('t.expiresLabel')}</b> ${expiry}\n`
+        + `<b>${trans('t.autoRenewFieldLabel')}</b> ${autoRenewStatus}\n`
+        + `<b>${trans('t.usernameLabel')}</b> <code>${plan.cpUser}</code>\n\n`
+        + trans('t.planViewCredentialsHint') + '\n'
+        + trans('t.planViewBillingNudge')
 
       if (isWeekly && atLimit) {
-        text += `\n\n💡 <b>Want to host more sites?</b> Upgrade to a monthly plan for multi-site hosting, more storage, and advanced Anti-Red protection.`
+        text += `\n\n` + trans('t.planViewMultiHostUpsell')
       }
 
       const buttons = [[user.revealCredentials]]
@@ -7033,11 +7038,11 @@ Enter new value:`), bc)
       const panelUrl = panelDomain
         ? (panelDomain.startsWith('http') ? panelDomain : `https://${panelDomain}`)
         : `${process.env.SELF_URL_PROD?.replace('/api', '')}/panel`
-      const text = `🔑 <b>Credentials for ${plan.domain}</b>\n\n`
-        + `<b>Username:</b> <code>${plan.cpUser}</code>\n`
-        + `<b>PIN:</b> <code>${pin}</code>\n\n`
-        + `<b>Panel Login URL:</b> ${panelUrl}\n\n`
-        + `⚠️ <i>This PIN has been freshly generated. Your old PIN no longer works.</i>`
+      const text = trans('t.credentialsHeader', plan.domain) + '\n\n'
+        + `<b>${trans('t.usernameLabel')}</b> <code>${plan.cpUser}</code>\n`
+        + `<b>${trans('t.credentialsPinLabel')}</b> <code>${pin}</code>\n\n`
+        + `<b>${trans('t.credentialsPanelUrlLabel')}</b> ${panelUrl}\n\n`
+        + trans('t.credentialsFreshNotice')
 
       send(chatId, text, k.of([[user.backToMyHostingPlans]]))
     },
@@ -8637,6 +8642,7 @@ All verified numbers generated during sourcing.`))
         error: err,
         operation: 'session_recovery_check',
         chatId,
+        userLang: info?.userLanguage || 'en',
         severity: 'low',
         bot
       })
@@ -8985,7 +8991,7 @@ All verified numbers generated during sourcing.`))
       }
       return send(chatId, msg[lang] || msg.en, { parse_mode: 'HTML' })
     }
-    return send(chatId, '✅ Promotional messages are now disabled.', { parse_mode: 'HTML' })
+    return send(chatId, trans('t.promoMessagesDisabled'), { parse_mode: 'HTML' })
   }
 
   if (message === '/startpromos' || message === '/startpromo' || message === '🔔 Enable Promos') {
@@ -8999,7 +9005,7 @@ All verified numbers generated during sourcing.`))
       }
       return send(chatId, msg[lang] || msg.en, { parse_mode: 'HTML' })
     }
-    return send(chatId, '🔔 Promotional messages are now enabled.', { parse_mode: 'HTML' })
+    return send(chatId, trans('t.promoMessagesEnabled'), { parse_mode: 'HTML' })
   }
 
   // ── UX Enhancement: /orderhistory command ──
@@ -9592,59 +9598,70 @@ All verified numbers generated during sourcing.`))
     }
     if (message === user.hostingDomainsRedirect) return goto.submenu3()
 
-    // 🔄 Renew Now — <domain>
-    const renewMatch = typeof message === 'string' && message.match(/^🔄 Renew Now — (.+)$/)
-    if (renewMatch) {
-      const domain = renewMatch[1].trim()
+    // Detect localized per-domain billing buttons (🔄 Renew Now — <domain> / 🔁 Toggle Auto-Renew — <domain>)
+    // The labels are translated, so we match against the user's actual generated labels.
+    const isRenewBtn = typeof message === 'string' && message.startsWith('🔄 ') && message.includes(' — ')
+    const isToggleBtn = typeof message === 'string' && message.startsWith('🔁 ') && message.includes(' — ')
+    if (isRenewBtn || isToggleBtn) {
+      const domain = message.split(' — ').pop().trim()
       const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
       if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToBillingMenu]]))
 
-      saveInfo('selectedHostingDomain', domain)
-      saveInfo('billingFlow', true)
+      // Verify the button text matches the expected localized template (defense against collisions)
+      const expectedRenew = trans('t.billingRenewBtn', domain)
+      const expectedToggle = trans('t.billingToggleAutoRenewBtn', domain)
+      if (isRenewBtn && message !== expectedRenew) {
+        // Could be a hardcoded English variant from older button — ignore.
+      }
+      if (isToggleBtn && message !== expectedToggle) {
+        // Same — ignore.
+      }
 
-      const { getPlanPrice, getPlanDuration } = require('./hosting-scheduler')
-      const price = getPlanPrice(plan.plan)
-      const duration = getPlanDuration(plan.plan)
-      const { usdBal } = await getBalance(walletOf, chatId)
-      const expiry = plan.expiryDate ? new Date(plan.expiryDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
-      const isExpired = plan.expiryDate && new Date(plan.expiryDate) < new Date()
-      const canPay = usdBal >= price
+      // 🔄 Renew Now flow
+      if (isRenewBtn) {
+        saveInfo('selectedHostingDomain', domain)
+        saveInfo('billingFlow', true)
 
-      let text = `<b>Renew Plan — ${plan.plan}</b>\n\n`
-        + `<b>Domain:</b> ${domain}\n`
-        + `<b>Current Expiry:</b> ${expiry}${isExpired ? ' (EXPIRED)' : ''}\n`
-        + `<b>Duration:</b> ${duration} days\n`
-        + `<b>Price:</b> $${price}\n\n`
-        + `<b>Wallet Balance:</b> $${usdBal.toFixed(2)}\n`
-      text += canPay ? `\n✅ Confirm payment below:` : `\n⚠️ Insufficient funds. Please deposit first.`
+        const { getPlanPrice, getPlanDuration } = require('./hosting-scheduler')
+        const price = getPlanPrice(plan.plan)
+        const duration = getPlanDuration(plan.plan)
+        const { usdBal } = await getBalance(walletOf, chatId)
+        const expiry = plan.expiryDate ? new Date(plan.expiryDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
+        const isExpired = plan.expiryDate && new Date(plan.expiryDate) < new Date()
+        const canPay = usdBal >= price
 
-      saveInfo('renewPrice', price)
-      await set(state, chatId, 'action', a.confirmRenewNow)
-      const buttons = []
-      if (canPay) buttons.push([`💵 Pay $${price} USD`])
-      if (!canPay) buttons.push([trans('u.deposit')])
-      buttons.push([user.cancelRenewNow])
-      return send(chatId, text, k.of(buttons))
-    }
+        let text = trans('t.renewModalHeader', plan.plan) + '\n\n'
+          + `<b>${trans('t.domainLabel')}</b> ${domain}\n`
+          + trans('t.renewModalCurrentExpiry', expiry, isExpired) + '\n'
+          + trans('t.renewModalDuration', duration) + '\n'
+          + `<b>${trans('t.priceLabel')}</b> $${price}\n\n`
+          + `<b>${trans('t.walletBalanceLabel')}</b> $${usdBal.toFixed(2)}\n`
+        text += canPay ? `\n${trans('t.renewModalConfirmHint')}` : `\n${trans('t.renewModalInsufficient')}`
 
-    // 🔁 Toggle Auto-Renew — <domain>
-    const toggleMatch = typeof message === 'string' && message.match(/^🔁 Toggle Auto-Renew — (.+)$/)
-    if (toggleMatch) {
-      const domain = toggleMatch[1].trim()
-      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
-      if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToBillingMenu]]))
-      const planIsWeekly = (plan.plan || '').toLowerCase().includes('week')
-      if (planIsWeekly) {
-        await send(chatId, '❌ Auto-Renew is not available on weekly plans.')
+        saveInfo('renewPrice', price)
+        await set(state, chatId, 'action', a.confirmRenewNow)
+        const buttons = []
+        if (canPay) buttons.push([trans('t.renewModalPayButton', price)])
+        if (!canPay) buttons.push([trans('u.deposit')])
+        buttons.push([user.cancelRenewNow])
+        return send(chatId, text, k.of(buttons))
+      }
+
+      // 🔁 Toggle Auto-Renew flow
+      if (isToggleBtn) {
+        const planIsWeekly = (plan.plan || '').toLowerCase().includes('week')
+        if (planIsWeekly) {
+          await send(chatId, trans('t.autoRenewNotForWeekly'))
+          return goto.billingMenu()
+        }
+        const newAutoRenew = plan.autoRenew === false ? true : false
+        await cpanelAccounts.updateOne({ _id: plan._id }, { $set: { autoRenew: newAutoRenew } })
+        const statusText = newAutoRenew
+          ? trans('t.autoRenewTurnedOn', domain)
+          : trans('t.autoRenewTurnedOff', domain)
+        await send(chatId, statusText)
         return goto.billingMenu()
       }
-      const newAutoRenew = plan.autoRenew === false ? true : false
-      await cpanelAccounts.updateOne({ _id: plan._id }, { $set: { autoRenew: newAutoRenew } })
-      const statusText = newAutoRenew
-        ? `✅ Auto-Renew is now <b>ON</b> for <b>${domain}</b>. Your plan will be renewed automatically when it expires.`
-        : `❌ Auto-Renew is now <b>OFF</b> for <b>${domain}</b>. Your plan will expire and be suspended after grace period.`
-      await send(chatId, statusText)
-      return goto.billingMenu()
     }
 
     if (message === user.backToBillingMenu) return goto.billingMenu()
@@ -9710,7 +9727,9 @@ All verified numbers generated during sourcing.`))
       if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
       const newAutoRenew = plan.autoRenew === false ? true : false
       await cpanelAccounts.updateOne({ _id: plan._id }, { $set: { autoRenew: newAutoRenew } })
-      const statusText = newAutoRenew ? '✅ Auto-Renew is now <b>ON</b>. Your plan will be renewed automatically when it expires.' : '❌ Auto-Renew is now <b>OFF</b>. Your plan will expire and be suspended after grace period.'
+      const statusText = newAutoRenew
+        ? trans('t.autoRenewTurnedOn', domain)
+        : trans('t.autoRenewTurnedOff', domain)
       await send(chatId, statusText)
       return goto.viewHostingPlanDetails(domain)
     }
@@ -9729,23 +9748,23 @@ All verified numbers generated during sourcing.`))
 
       const canPay = usdBal >= price
 
-      let text = `<b>Renew Plan — ${plan.plan}</b>\n\n`
-        + `<b>Domain:</b> ${domain}\n`
-        + `<b>Current Expiry:</b> ${expiry}${isExpired ? ' (EXPIRED)' : ''}\n`
-        + `<b>Duration:</b> ${duration} days\n`
-        + `<b>Price:</b> $${price}\n\n`
-        + `<b>Wallet Balance:</b> $${usdBal.toFixed(2)}\n`
+      let text = trans('t.renewModalHeader', plan.plan) + '\n\n'
+        + `<b>${trans('t.domainLabel')}</b> ${domain}\n`
+        + trans('t.renewModalCurrentExpiry', expiry, isExpired) + '\n'
+        + trans('t.renewModalDuration', duration) + '\n'
+        + `<b>${trans('t.priceLabel')}</b> $${price}\n\n`
+        + `<b>${trans('t.walletBalanceLabel')}</b> $${usdBal.toFixed(2)}\n`
 
       if (canPay) {
-        text += `\n✅ Confirm payment below:`
+        text += `\n${trans('t.renewModalConfirmHint')}`
       } else {
-        text += `\n⚠️ Insufficient funds. Please deposit first.`
+        text += `\n${trans('t.renewModalInsufficient')}`
       }
 
       saveInfo('renewPrice', price)
       await set(state, chatId, 'action', a.confirmRenewNow)
       const buttons = []
-      if (canPay) buttons.push([`💵 Pay $${price} USD`])
+      if (canPay) buttons.push([trans('t.renewModalPayButton', price)])
       if (!canPay) buttons.push([trans('u.deposit')])
       buttons.push([user.cancelRenewNow])
       return send(chatId, text, k.of(buttons))
@@ -9805,11 +9824,11 @@ All verified numbers generated during sourcing.`))
         return send(chatId, trans('t.host_25'), k.of([[user.backToMyHostingPlans]]))
       }
 
-      let text = `<b>⬆️ Upgrade Plan</b>\n\n`
-        + `<b>Current:</b> ${plan.plan} — $${currentPrice}\n`
-        + `<b>Domain:</b> ${domain}\n`
-        + `<b>Wallet Balance:</b> $${usdBal.toFixed(2)}\n\n`
-        + `Choose your new plan:\n\n`
+      let text = trans('t.upgradeModalHeader') + '\n\n'
+        + `<b>${trans('t.currentLabel')}</b> ${plan.plan} — $${currentPrice}\n`
+        + `<b>${trans('t.domainLabel')}</b> ${domain}\n`
+        + `<b>${trans('t.walletBalanceLabel')}</b> $${usdBal.toFixed(2)}\n\n`
+        + trans('t.upgradeModalChooseHint') + '\n\n'
 
       const buttons = []
       for (const opt of upgradeOptions) {
@@ -9839,7 +9858,7 @@ All verified numbers generated during sourcing.`))
       const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
       if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
       if (plan.suspended || plan.maintenanceMode) {
-        await send(chatId, '⚠️ Your site is already offline. Use "Bring Site Online" to re-enable it.', { parse_mode: 'HTML' })
+        await send(chatId, trans('t.siteAlreadyOffline'), { parse_mode: 'HTML' })
         return goto.viewHostingPlanDetails(domain)
       }
       await set(state, chatId, 'action', a.chooseSiteOfflineMode)
@@ -9855,7 +9874,7 @@ All verified numbers generated during sourcing.`))
       const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
       if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
       if (!plan.suspended && !plan.maintenanceMode) {
-        await send(chatId, '✅ Your site is already online.', { parse_mode: 'HTML' })
+        await send(chatId, trans('t.siteAlreadyOnline'), { parse_mode: 'HTML' })
         return goto.viewHostingPlanDetails(domain)
       }
       await set(state, chatId, 'action', a.confirmBringSiteOnline)
@@ -9956,7 +9975,7 @@ All verified numbers generated during sourcing.`))
 
     const wasMode = plan.suspended ? 'suspended' : (plan.maintenanceMode ? 'maintenance' : null)
     if (!wasMode) {
-      await send(chatId, '✅ Your site is already online.', { parse_mode: 'HTML' })
+      await send(chatId, trans('t.siteAlreadyOnline'), { parse_mode: 'HTML' })
       return goto.viewHostingPlanDetails(domain)
     }
 
@@ -10003,7 +10022,7 @@ All verified numbers generated during sourcing.`))
     const addonDomain = match[1].trim().toLowerCase()
     const addons = (plan.addonDomains || []).map(d => (d || '').toLowerCase())
     if (!addons.includes(addonDomain)) {
-      return send(chatId, '⚠️ That domain is not an addon on this plan.', k.of([[user.backToMyHostingPlans]]))
+      return send(chatId, trans('t.addonNotOnPlan'), k.of([[user.backToMyHostingPlans]]))
     }
     saveInfo('unlinkAddonDomain', addonDomain)
     await set(state, chatId, 'action', a.confirmUnlinkAddonDomain)
@@ -10231,13 +10250,13 @@ All verified numbers generated during sourcing.`))
         set(payments, nanoid(), `Wallet,HostingRenew,${domain},$${price},${chatId},${new Date()}`)
 
         await send(chatId,
-          `✅ <b>Plan Renewed Successfully!</b>\n\n`
-          + `<b>Plan:</b> ${plan.plan}\n`
-          + `<b>Domain:</b> ${domain}\n`
-          + `<b>Charged:</b> $${price}\n`
-          + `<b>New Expiry:</b> ${newExpiryStr}\n`
-          + `<b>Remaining Balance:</b> $${newUsdBal.toFixed(2)}\n\n`
-          + `Anti-Red protection has been refreshed.`
+          trans('t.renewSuccessTitle') + '\n\n'
+          + `<b>${trans('t.planLabel')}</b> ${plan.plan}\n`
+          + `<b>${trans('t.domainLabel')}</b> ${domain}\n`
+          + `<b>${trans('t.chargedLabel')}</b> $${price}\n`
+          + `<b>${trans('t.newExpiryLabel')}</b> ${newExpiryStr}\n`
+          + `<b>${trans('t.remainingBalanceLabel')}</b> $${newUsdBal.toFixed(2)}\n\n`
+          + trans('t.renewSuccessAntiRedNote')
         )
         if (info?.billingFlow) {
           saveInfo('billingFlow', false)
@@ -10254,7 +10273,7 @@ All verified numbers generated during sourcing.`))
           send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>HOSTING RENEWAL REFUND FAILED</b>\nUser: @${_uname || chatId} (${chatId})\nAmount: $${price}\nDomain: ${domain}\nError: ${refundErr.message}`, { parse_mode: 'HTML' })
         }
         log(`[Hosting] Renewal crashed for ${chatId}: ${renewErr.message}`)
-        send(chatId, t.purchaseFailed || '❌ Renewal failed. Your wallet has been refunded. Please try again or contact support.', trans('o'))
+        send(chatId, t.purchaseFailed || trans('t.renewFailureFallback'), trans('o'))
         const _uname2 = await get(nameOf, chatId)
         send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>Hosting renewal crash</b>\nUser: @${_uname2 || chatId} (${chatId})\nDomain: ${domain}\nAmount: $${price}\nError: ${renewErr.message}`, { parse_mode: 'HTML' })
       }

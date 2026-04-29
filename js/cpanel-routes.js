@@ -14,6 +14,19 @@ const cfService = require('./cf-service')
 const safeBrowsing = require('./safe-browsing-service')
 const whmService = require('./whm-service')
 const { log } = require('console')
+const { translation } = require('./translation')
+
+/**
+ * Resolve user's preferred language for localised notifications.
+ */
+async function getUserLang(account) {
+  try {
+    const db = require('./_index')?._db || require('./_index')?.db
+    if (!db || !account?.chatId) return 'en'
+    const userState = await db.collection('state').findOne({ _id: String(account.chatId) })
+    return userState?.userLanguage || 'en'
+  } catch (_) { return 'en' }
+}
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } })
 
@@ -542,11 +555,10 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
                     if (account?.chatId) {
                       const bot = require('./_index')?._bot
                       if (bot) {
+                        const lang = await getUserLang(account)
                         bot.sendMessage(account.chatId,
-                          `⚠️ <b>Anti-Red Protection Warning</b>\n\n` +
-                          `Protection was deployed for <b>${domain}</b> but could not be verified.\n` +
-                          `This may happen if DNS hasn't propagated yet.\n\n` +
-                          `<b>Action needed:</b> Ensure your domain's nameservers point to Cloudflare. Protection will be re-checked automatically.`,
+                          translation('t.antiRedWarningTitle', lang) + '\n\n' +
+                          translation('t.antiRedWarningBodyShort', lang, domain),
                           { parse_mode: 'HTML' }
                         ).catch(() => {})
                       }
@@ -575,12 +587,10 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
                 if (account?.chatId) {
                   const bot = require('./_index')?._bot
                   if (bot) {
+                    const lang = await getUserLang(account)
                     bot.sendMessage(account.chatId,
-                      `🚨 <b>Anti-Red Protection Failed</b>\n\n` +
-                      `Protection could not be deployed for <b>${domain}</b> after ${MAX_RETRIES} attempts.\n` +
-                      `Error: ${protErr.message}\n\n` +
-                      `<b>Your domain may be unprotected.</b>\n` +
-                      `Please ensure your domain's nameservers point to Cloudflare, then try adding the domain again.`,
+                      translation('t.antiRedFailedTitle', lang) + '\n\n' +
+                      translation('t.antiRedFailedBodyShort', lang, domain, MAX_RETRIES),
                       { parse_mode: 'HTML' }
                     ).catch(() => {})
                   }
@@ -1151,10 +1161,14 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
                   log(`[Panel] add-enhanced: ⚠️ protection deployed but NOT verified for ${domain}`)
                   if (account?.chatId) {
                     const bot = require('./_index')?._bot
-                    if (bot) bot.sendMessage(account.chatId,
-                      `⚠️ <b>Anti-Red Warning</b>\nProtection deployed for <b>${domain}</b> but not yet verified. Ensure nameservers point to Cloudflare.`,
-                      { parse_mode: 'HTML' }
-                    ).catch(() => {})
+                    if (bot) {
+                      const lang = await getUserLang(account)
+                      bot.sendMessage(account.chatId,
+                        translation('t.antiRedWarningTitle', lang) + '\n' +
+                        translation('t.antiRedWarningBodyShort', lang, domain),
+                        { parse_mode: 'HTML' }
+                      ).catch(() => {})
+                    }
                   }
                 }
               } catch (_) {}
@@ -1162,10 +1176,14 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
           } else if (account?.chatId) {
             try {
               const bot = require('./_index')?._bot
-              if (bot) bot.sendMessage(account.chatId,
-                `🚨 <b>Anti-Red Failed</b>\nProtection could not be deployed for <b>${domain}</b> after ${MAX_RETRIES} attempts. Ensure nameservers point to Cloudflare.`,
-                { parse_mode: 'HTML' }
-              ).catch(() => {})
+              if (bot) {
+                const lang = await getUserLang(account)
+                bot.sendMessage(account.chatId,
+                  translation('t.antiRedFailedTitle', lang) + '\n' +
+                  translation('t.antiRedFailedBodyShort', lang, domain, MAX_RETRIES),
+                  { parse_mode: 'HTML' }
+                ).catch(() => {})
+              }
             } catch (_) {}
           }
         } catch (_) {}

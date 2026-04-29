@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../components/panel/AuthContext';
 import FileManager from '../components/panel/FileManager';
 import DomainList from '../components/panel/DomainList';
@@ -7,19 +8,21 @@ import GeoManager from '../components/panel/GeoManager';
 import Analytics from '../components/panel/Analytics';
 import SecurityPanel from '../components/panel/SecurityPanel';
 import AccountSettings from '../components/panel/AccountSettings';
+import LanguageSwitcher from '../components/LanguageSwitcher';
 import useTheme from '../components/panel/useTheme';
 
 const TABS = [
-  { id: 'files', label: 'Files', icon: 'folder', desc: 'Upload & manage website files' },
-  { id: 'domains', label: 'Domains', icon: 'globe', desc: 'Manage connected domains' },
-  { id: 'email', label: 'Email', icon: 'mail', desc: 'Create email accounts' },
-  { id: 'security', label: 'Security', icon: 'shield', desc: 'Anti-bot & protection' },
-  { id: 'geo', label: 'Geo', icon: 'lock', desc: 'Geographic restrictions' },
-  { id: 'analytics', label: 'Analytics', icon: 'chart', desc: 'Traffic & visitor stats' },
-  { id: 'account', label: 'Account', icon: 'user', desc: 'Account settings & danger zone' },
+  { id: 'files', i18nKey: 'files', icon: 'folder' },
+  { id: 'domains', i18nKey: 'domains', icon: 'globe' },
+  { id: 'email', i18nKey: 'email', icon: 'mail' },
+  { id: 'security', i18nKey: 'security', icon: 'shield' },
+  { id: 'geo', i18nKey: 'geo', icon: 'lock' },
+  { id: 'analytics', i18nKey: 'analytics', icon: 'chart' },
+  { id: 'account', i18nKey: 'account', icon: 'user' },
 ];
 
 export default function PanelDashboard() {
+  const { t } = useTranslation();
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('files');
   const { theme, toggleTheme, isDark } = useTheme();
@@ -50,6 +53,7 @@ export default function PanelDashboard() {
           </a>
         </div>
         <div className="panel-header-right">
+          <LanguageSwitcher />
           <button onClick={toggleTheme} className="panel-theme-btn" data-testid="panel-theme-toggle" title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}>
             {isDark ? (
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
@@ -63,7 +67,7 @@ export default function PanelDashboard() {
           </span>
           <button onClick={logout} className="panel-logout-btn" data-testid="panel-logout-btn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-            Sign Out
+            {t('account.logout')}
           </button>
         </div>
       </header>
@@ -75,10 +79,10 @@ export default function PanelDashboard() {
             className={`panel-tab ${activeTab === tab.id ? 'panel-tab--active' : ''}`}
             onClick={() => setActiveTab(tab.id)}
             data-testid={`panel-tab-${tab.id}`}
-            title={tab.desc}
+            title={t(`dashboard.tabs.${tab.i18nKey}`)}
           >
             <TabIcon name={tab.icon} />
-            <span>{tab.label}</span>
+            <span>{t(`dashboard.tabs.${tab.i18nKey}`)}</span>
           </button>
         ))}
       </nav>

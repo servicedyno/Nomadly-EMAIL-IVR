@@ -10,6 +10,7 @@ const { formatPhone, shortDate, plans, OVERAGE_RATE_SMS, OVERAGE_RATE_MIN } = re
 const phoneConfig = require('./phone-config.js')
 const telnyxApi = require('./telnyx-service.js')
 const twilioService = require('./twilio-service.js')
+const { translation } = require('./translation.js')
 
 const TELNYX_API_KEY = process.env.TELNYX_API_KEY
 const TELNYX_BASE = 'https://api.telnyx.com/v2'
@@ -343,6 +344,13 @@ async function runUsageTracking() {
       const numbers = user.val?.numbers || []
       let modified = false
 
+      // Resolve user language once per user for localised usage alerts.
+      let userLang = 'en'
+      try {
+        const userState = await _stateOf?.findOne?.({ _id: String(chatId) })
+        userLang = userState?.userLanguage || 'en'
+      } catch (_) { /* fallback to en */ }
+
       for (let i = 0; i < numbers.length; i++) {
         const num = numbers[i]
         if (num.status !== 'active') continue
@@ -409,13 +417,13 @@ async function runUsageTracking() {
 
           // 80% SMS usage alert
           if (smsPercent >= 80 && smsPercent < 100 && !numbers[i]._smsAlert80) {
-            sendToUser(chatId, buildUsageAlertMsg(num, 'SMS', smsUsed, smsLimit, smsPercent))
+            sendToUser(chatId, buildUsageAlertMsg(num, 'SMS', smsUsed, smsLimit, smsPercent, userLang))
             numbers[i]._smsAlert80 = true
             modified = true
           }
           // 100% SMS usage alert
           if (smsPercent >= 100 && !numbers[i]._smsAlert100) {
-            sendToUser(chatId, buildUsageLimitMsg(num, 'SMS', smsUsed, smsLimit))
+            sendToUser(chatId, buildUsageLimitMsg(num, 'SMS', smsUsed, smsLimit, userLang))
             numbers[i]._smsAlert100 = true
             modified = true
           }
@@ -427,12 +435,12 @@ async function runUsageTracking() {
             const minPercent = Math.round((minUsed / minLimit) * 100)
 
             if (minPercent >= 80 && minPercent < 100 && !numbers[i]._minAlert80) {
-              sendToUser(chatId, buildUsageAlertMsg(num, 'Minutes', minUsed, minLimit, minPercent))
+              sendToUser(chatId, buildUsageAlertMsg(num, 'Minutes', minUsed, minLimit, minPercent, userLang))
               numbers[i]._minAlert80 = true
               modified = true
             }
             if (minPercent >= 100 && !numbers[i]._minAlert100) {
-              sendToUser(chatId, buildUsageLimitMsg(num, 'Minutes', minUsed, minLimit))
+              sendToUser(chatId, buildUsageLimitMsg(num, 'Minutes', minUsed, minLimit, userLang))
               numbers[i]._minAlert100 = true
               modified = true
             }
@@ -557,46 +565,50 @@ Wallet: $${oldBal.toFixed(2)} → $${newBal.toFixed(2)}`
 function buildAutoRenewFailedMsg(num, lang) {
   const plan = plans[num.plan] || { name: num.plan }
   const buyLabel = phoneConfig.getBtnLabel('buyPhoneNumber', lang || 'en')
-  return `❌ <b>Auto-Renewal Failed — Number Deleted</b>
-
-📞 ${formatPhone(num.phoneNumber)}
-📦 Plan: ${plan.name} ($${num.planPrice}/mo)
-
-⚠️ Insufficient wallet balance. Your number has been <b>permanently deleted</b> to prevent further billing.
-
-This action is irreversible. To get a new number, visit 📞☁️ Cloud Phone → ${buyLabel}.`
+  return translation('t.phoneAutoRenewFailedTitle', lang || 'en')
+    + '\n\n'
+    + translation('t.phoneAutoRenewFailedBody', lang || 'en',
+      formatPhone(num.phoneNumber),
+      plan.name,
+      num.planPrice,
+      buyLabel)
 }
 
 function buildSuspendedMsg(num, lang) {
   const buyLabel = phoneConfig.getBtnLabel('buyPhoneNumber', lang || 'en')
-  return `⚠️ <b>Number Expired — Permanently Deleted</b>
-
-📞 ${formatPhone(num.phoneNumber)} has expired and been <b>permanently deleted</b>.
-
-Auto-Renew was OFF. To avoid losing numbers in the future, enable Auto-Renew on your next number.
-
-Get a new number: 📞☁️ Cloud Phone → ${buyLabel}.`
+  return translation('t.phoneSuspendedTitle', lang || 'en')
+    + '\n\n'
+    + translation('t.phoneSuspendedBody', lang || 'en',
+      formatPhone(num.phoneNumber),
+      buyLabel)
 }
 
-function buildUsageAlertMsg(num, type, used, limit, percent) {
+function buildUsageAlertMsg(num, type, used, limit, percent, lang) {
   const rate = type === 'SMS' ? OVERAGE_RATE_SMS : OVERAGE_RATE_MIN
-  return `⚠️ <b>Usage Alert</b>
-
-📞 ${formatPhone(num.phoneNumber)}
-
-You've used <b>${used}/${limit}</b> inbound ${type} this month (${percent}%).
-Once exhausted, overage billing kicks in at <b>$${rate}/${type === 'SMS' ? 'SMS' : 'min'}</b> from your wallet. Service pauses if wallet is empty.`
+  const unit = type === 'SMS' ? 'SMS' : 'min'
+  return translation('t.phoneUsageAlertTitle', lang || 'en')
+    + '\n\n'
+    + translation('t.phoneUsageAlertBody', lang || 'en',
+      formatPhone(num.phoneNumber),
+      used,
+      limit,
+      type,
+      percent,
+      rate,
+      unit)
 }
 
-function buildUsageLimitMsg(num, type, used, limit) {
+function buildUsageLimitMsg(num, type, used, limit, lang) {
   const rate = type === 'SMS' ? OVERAGE_RATE_SMS : OVERAGE_RATE_MIN
-  return `💰 <b>Inbound ${type} — Overage Active</b>
-
-📞 ${formatPhone(num.phoneNumber)}
-
-You've used all <b>${limit}</b> inbound ${type} in your plan this month.
-Overage billing is now active — <b>$${rate}/${type === 'SMS' ? 'SMS' : 'min'}</b> charged from your wallet per use.
-Service pauses if wallet balance runs out. Top up or upgrade your plan.`
+  const unit = type === 'SMS' ? 'SMS' : 'min'
+  return translation('t.phoneUsageLimitTitle', lang || 'en', type)
+    + '\n\n'
+    + translation('t.phoneUsageLimitBody', lang || 'en',
+      formatPhone(num.phoneNumber),
+      type,
+      limit,
+      rate,
+      unit)
 }
 
 function sendToUser(chatId, text) {

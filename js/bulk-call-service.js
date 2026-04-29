@@ -10,6 +10,7 @@ const { log } = require('console')
 const { sanitizeProviderError, sanitizeHangupCause } = require('./sanitize-provider')
 const { getBalance, smartWalletDeduct, smartWalletCheck } = require('./utils.js')
 const { get } = require('./db.js')
+const { translation } = require('./translation.js')
 
 // ━━━ Bulk Call Pricing & Limits ━━━
 const BULK_CALL_RATE       = parseFloat(process.env.BULK_CALL_RATE_PER_MIN || '0.15')   // $/min — charged whether answered or not
@@ -793,6 +794,17 @@ async function sendProgressUpdate(campaignId, leadIndex, result) {
 }
 
 /**
+ * Resolve the user's preferred language for localised reports.
+ */
+async function getUserLang(chatId) {
+  if (!_db) return 'en'
+  try {
+    const userState = await _db.collection('state').findOne({ _id: String(chatId) })
+    return userState?.userLanguage || 'en'
+  } catch (_) { return 'en' }
+}
+
+/**
  * Check if a campaign is complete (all leads processed)
  */
 async function checkCampaignCompletion(campaignId) {
@@ -828,23 +840,26 @@ async function sendFinalReport(campaignId) {
   const durMin = Math.floor(duration / 60)
   const durSec = duration % 60
 
+  const lang = await getUserLang(campaign.chatId)
+  const tt = (key, ...args) => translation(`t.${key}`, lang, ...args)
+
   // Summary message
   const summary = [
-    `📊 <b>Campaign Complete!</b>`,
+    tt('bulkCallReportTitle'),
     ``,
-    `📱 Caller ID: <b>${campaign.callerId}</b>`,
-    `🎵 Audio: <b>${campaign.audioName}</b>`,
-    `📞 Provider: <b>Speechcue</b>`,
-    `⏱ Duration: <b>${durMin}m ${durSec}s</b>`,
+    `📱 ${tt('bulkCallReportCallerId')} <b>${campaign.callerId}</b>`,
+    `🎵 ${tt('bulkCallReportAudio')} <b>${campaign.audioName}</b>`,
+    `📞 ${tt('bulkCallReportProvider')} <b>Speechcue</b>`,
+    `⏱ ${tt('bulkCallReportDuration')} <b>${durMin}m ${durSec}s</b>`,
     ``,
-    `📞 Total Calls: <b>${stats.total}</b>`,
-    `✅ Answered: <b>${stats.answered}</b>`,
-    `🔘 Key Pressed: <b>${stats.keyPressed}</b>`,
-    campaign.mode === 'transfer' ? `🔗 Transferred: <b>${stats.transferred}</b>` : null,
-    `📵 No Answer: <b>${stats.noAnswer}</b>`,
-    `📵 Hung Up: <b>${stats.hungUp}</b>`,
-    `🚫 Busy: <b>${stats.busy}</b>`,
-    `❌ Failed: <b>${stats.failed}</b>`,
+    `📞 ${tt('bulkCallReportTotal')} <b>${stats.total}</b>`,
+    `✅ ${tt('bulkCallReportAnswered')} <b>${stats.answered}</b>`,
+    `🔘 ${tt('bulkCallReportKeyPressed')} <b>${stats.keyPressed}</b>`,
+    campaign.mode === 'transfer' ? `🔗 ${tt('bulkCallReportTransferred')} <b>${stats.transferred}</b>` : null,
+    `📵 ${tt('bulkCallReportNoAnswer')} <b>${stats.noAnswer}</b>`,
+    `📵 ${tt('bulkCallReportHungUp')} <b>${stats.hungUp}</b>`,
+    `🚫 ${tt('bulkCallReportBusy')} <b>${stats.busy}</b>`,
+    `❌ ${tt('bulkCallReportFailed')} <b>${stats.failed}</b>`,
   ].filter(Boolean).join('\n')
 
   _bot?.sendMessage(campaign.chatId, summary, { parse_mode: 'HTML' }).catch(() => {})

@@ -3,15 +3,18 @@
  * Provides real-time updates for long-running operations
  */
 
+const { translation } = require('./translation.js')
+
 /**
  * Progress tracker for multi-step operations
  */
 class ProgressTracker {
-  constructor(bot, chatId, totalSteps, operation) {
+  constructor(bot, chatId, totalSteps, operation, lang = 'en') {
     this.bot = bot
     this.chatId = chatId
     this.totalSteps = totalSteps
     this.operation = operation
+    this.lang = lang
     this.currentStep = 0
     this.messageId = null
     this.steps = []
@@ -174,10 +177,11 @@ class ProgressTracker {
 }
 
 /**
- * Create a progress tracker for an operation
+ * Create a progress tracker for an operation.
+ * Pass `lang` (e.g. 'en'|'fr'|'zh'|'hi') so the success/failure messages render in the user's language.
  */
-function createProgressTracker(bot, chatId, operation, stepLabels) {
-  const tracker = new ProgressTracker(bot, chatId, stepLabels.length, operation)
+function createProgressTracker(bot, chatId, operation, stepLabels, lang = 'en') {
+  const tracker = new ProgressTracker(bot, chatId, stepLabels.length, operation, lang)
   tracker.setSteps(stepLabels)
   return tracker
 }

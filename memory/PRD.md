@@ -6,6 +6,66 @@
 - Node.js Express (port 5000) - core business logic
 - MongoDB (port 27017)
 
+## 🌐 Full-stack i18n / Language Coverage Audit + P0–P3 Fix (2026-02-13)
+**Why**: End-to-end audit found ~30 user-facing hardcoded English strings across the bot service helpers and 100% English-only React frontend. User asked for a complete fix from P0 (highest-traffic) through P3 (frontend i18n).
+
+### What landed
+- 🛠️ **Foundation** (`js/translation.js`):
+  - `translation()` now falls back from missing locale → English (instead of immediately returning the raw key) and emits `console.warn` for both partial and total misses, surfacing prod gaps.
+- 🤖 **Bot core hosting & billing** (`js/_index.js`, `js/lang/{en,fr,zh,hi}.js`):
+  - Added ~110 new translation keys covering: hosting plan card, billing menu, renew/upgrade modals, credentials reveal, toast strings, status/auto-renew indicators.
+  - Refactored `goto.myHostingPlans`, `goto.billingMenu`, `goto.viewHostingPlanDetails`, `goto.revealHostingCredentials`, the Renew Plan modal, the Upgrade Plan modal, and 7 toast strings to use `trans('t.<key>')` lookups.
+  - Per-domain billing buttons (`🔄 Renew Now — domain` / `🔁 Toggle Auto-Renew — domain`) now render localised in all 4 languages; matcher rewritten to use emoji-prefix detection so it handles all locales.
+- 🔔 **Hosting Scheduler** (`js/hosting-scheduler.js`):
+  - Notifications now load each user's `userLanguage` from the `state` collection per loop iteration.
+  - All 6 notification surfaces internationalised: 24h expiry warning, auto-renewed success, auto-renew failed, weekly-expired, deleted (post-grace), startup-enforced suspension/deletion.
+- 📞 **Phone services** (`js/phone-monitor.js`, `js/phone-scheduler.js`):
+  - `buildUserMessage()` (caller-ID-flagged) now accepts `lang`; callers resolve userLanguage from state.
+  - All 4 phone-scheduler builders (`buildAutoRenewFailedMsg`, `buildSuspendedMsg`, `buildUsageAlertMsg`, `buildUsageLimitMsg`) refactored to use translation keys for both title and body.
+- ⚠️ **Generic error & progress** (`js/error-handler.js`, `js/progress-tracker.js`):
+  - `handleError()` accepts `userLang` option; user-facing error toast renders in the user's language.
+  - `ProgressTracker` accepts a `lang` parameter (callers pass it through `createProgressTracker`).
+- 🚀 **Other services** (P2):
+  - `js/bulk-call-service.js` — final campaign report internationalised with per-user lang lookup.
+  - `js/sms-app-service.js` — BulkSMS trial-complete + trial-expired messages internationalised.
+  - `js/cpanel-routes.js` — All 4 Anti-Red protection warnings internationalised (deploy warning + verify-failed + duplicate paths in two flows).
+- 🇬🇧🇫🇷🇨🇳🇮🇳 **React Frontend** (P3):
+  - Installed `i18next` + `react-i18next` + `i18next-browser-languagedetector` via yarn.
+  - Created `src/i18n.js` with all 4 locales, browser detection (localStorage `hp.lang` → navigator → fallback en).
+  - Created `src/locales/{en,fr,zh,hi}.json` with ~120 keys spanning login, dashboard tabs, domains/files/email/security/geo/analytics/account, common verbs, and language names.
+  - New `src/components/LanguageSwitcher.js` — reusable globe-icon dropdown using shadcn UI primitives, persists choice to localStorage.
+  - Refactored `PanelLogin.js` to use translations (title, subtitle, username/PIN labels, submit button, forgot-PIN help).
+  - Refactored `PanelDashboard.js` — header, language switcher slot, all 7 tab labels, sign-out button.
+  - Verified live language switching with playwright: EN → FR → ZH → HI all render correctly.
+
+### Files touched (Phase 0 / P0 / P1 / P2 / P3)
+- `js/translation.js` — fallback + warning
+- `js/lang/{en,fr,zh,hi}.js` — ~110 new keys per locale
+- `js/_index.js` — hosting/billing flow refactor
+- `js/hosting-scheduler.js`, `js/phone-monitor.js`, `js/phone-scheduler.js`
+- `js/error-handler.js`, `js/progress-tracker.js`
+- `js/bulk-call-service.js`, `js/sms-app-service.js`, `js/cpanel-routes.js`
+- `frontend/package.json`, `frontend/src/i18n.js` (new)
+- `frontend/src/locales/{en,fr,zh,hi}.json` (new, 4 files)
+- `frontend/src/components/LanguageSwitcher.js` (new)
+- `frontend/src/pages/{PanelLogin,PanelDashboard}.js`
+- `frontend/src/index.js` (i18n init)
+- `js/tests/test_billing_menu_and_gold_copy.js` (updated for locale-aware match)
+- `js/tests/test_i18n_coverage.js` (new — 442 assertions)
+- `frontend/tests/test_i18n_frontend.js` (new — 45 assertions)
+
+### Tests
+- 26/26 — billing menu + Gold value-stack regression (`test_billing_menu_and_gold_copy.js`)
+- 9/9  — plan-copy locale parity (`test_plan_copy.js`)
+- 442/442 — bot i18n coverage across 4 locales × ~110 keys (`test_i18n_coverage.js`)
+- 45/45 — frontend i18n setup (`test_i18n_frontend.js`)
+- Live playwright smoke confirmed switcher EN→FR→ZH→HI works in the panel login.
+
+### Backlog / known gaps
+- **P3 deeper coverage**: AccountSettings, FileManager, DomainList, EmailManager, SecurityPanel, GeoManager, Analytics, PhoneTestPage, SiteStatusCard still hold ~80% of their strings hardcoded. The i18n infrastructure is in place — switching them over is mechanical.
+- **Bot SMS-app device-rename flow** (~10 strings around `_index.js:23956–24160`) and the bulk-call live progress line (`bulk-call-service.js:788`) remain English. Voice-service notifications also unchanged.
+- **17 orphan keys** in fr/zh/hi `t` namespaces (`cancelRenewNow`, `Daily`, `Hourly`, etc.) — harmless dead code, defer cleanup.
+
 ## 💳 Billing-menu split + Gold-exclusive value-stack copy (2026-02-13)
 **Why**: Renew & Auto-Renew controls were buried inside the per-domain "View Hosting Plan" view, mixing operational settings with billing actions. The Gold upgrade page also listed features as 3 abstract bullets rather than a clear value-stack.
 

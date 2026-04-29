@@ -5,6 +5,7 @@
 
 const TELEGRAM_ADMIN_CHAT_ID = process.env.TELEGRAM_ADMIN_CHAT_ID
 const TELEGRAM_DEV_CHAT_ID = process.env.TELEGRAM_DEV_CHAT_ID
+const { translation } = require('./translation.js')
 
 // Critical operations that require admin notification
 const CRITICAL_OPERATIONS = new Set([
@@ -29,6 +30,7 @@ function handleError(options) {
     notifyUser = false,
     notifyAdmin = false,
     bot = null,
+    userLang = 'en',
     severity = 'medium' // 'low', 'medium', 'high', 'critical'
   } = options
 
@@ -65,11 +67,10 @@ function handleError(options) {
 
   // Optionally notify user
   if (notifyUser && bot && chatId) {
-    const userMessage = `❌ <b>Error</b>\n\n` +
-      `Something went wrong${context.transactionId ? ` (Transaction: ${context.transactionId})` : ''}.\n\n` +
-      `Our team has been notified and will investigate.\n\n` +
-      (context.refunded ? `✅ Your payment has been refunded.\n\n` : '') +
-      `Please contact support if this persists.`
+    const userMessage = translation('t.genericErrorTitle', userLang) + '\n\n' +
+      translation('t.genericErrorBody', userLang, context.transactionId) + '\n\n' +
+      (context.refunded ? translation('t.genericErrorRefundedNote', userLang) + '\n\n' : '') +
+      translation('t.genericErrorContactSupport', userLang)
 
     bot.sendMessage(chatId, userMessage, { parse_mode: 'HTML' })
       .catch(err => console.error('[ErrorNotification] Failed to notify user:', err.message))

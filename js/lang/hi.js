@@ -1688,7 +1688,155 @@ ${CHAT_BOT_NAME}`,
  host_30: '❌ Upgrade failed. Your wallet has been refunded. कृपया पुनः प्रयास करें or contact support.',
  host_31: '🚧 VPS service is coming soon! Stay tuned.',
  host_32: '⚠️ Unable to load referral page. Try again later.',
- host_4: (safeHtml) => `${safeHtml}`,
+
+// === Hosting Plan / Billing UX (added 2026-02) ===
+// Headers
+myHostingPlansHeader: '📋 <b>मेरे होस्टिंग प्लान</b>',
+billingMenuHeader: '💳 <b>मेरा प्लान / बिलिंग</b>',
+billingMenuIntro: 'अपने प्रत्येक होस्टिंग प्लान के लिए नवीनीकरण और ऑटो-रिन्यू प्रबंधित करें।',
+billingMenuEmpty: '💳 <b>मेरा प्लान / बिलिंग</b>\n\nआपके पास अभी तक कोई सक्रिय होस्टिंग प्लान नहीं है।',
+// Status indicators
+statusActive: '✅ सक्रिय',
+statusActiveOnline: '✅ सक्रिय (ऑनलाइन)',
+statusSuspended: '🚫 निलंबित',
+statusSuspendedFull: '🚫 निलंबित (ऑफ़लाइन — पूर्ण)',
+statusExpired: '❌ समाप्त',
+statusMaintenance: '🛠️ रखरखाव (ऑफ़लाइन — केवल सार्वजनिक)',
+// Auto-Renew states
+autoRenewOn: '✅ चालू',
+autoRenewOff: '❌ बंद',
+autoRenewWeeklyOff: '❌ बंद (साप्ताहिक प्लान कभी ऑटो-रिन्यू नहीं होते)',
+autoRenewWeeklyShort: '❌ बंद (साप्ताहिक)',
+// Field labels
+planLabel: 'प्लान:',
+statusLabel: 'स्थिति:',
+domainTypeFieldLabel: 'डोमेन प्रकार:',
+createdLabel: 'बनाया गया:',
+expiresLabel: 'समाप्ति:',
+autoRenewFieldLabel: 'ऑटो-रिन्यू:',
+usernameLabel: 'उपयोगकर्ता नाम:',
+priceLabel: 'मूल्य:',
+durationLabel: 'अवधि:',
+walletBalanceLabel: 'वॉलेट शेष:',
+chargedLabel: 'चार्ज किया गया:',
+newExpiryLabel: 'नई समाप्ति:',
+remainingBalanceLabel: 'शेष शेष राशि:',
+domainLabel: 'डोमेन:',
+currentLabel: 'वर्तमान:',
+// Plan view body
+planViewCredentialsHint: 'अपना HostPanel उपयोगकर्ता नाम और PIN देखने के लिए "क्रेडेंशियल दिखाएं" पर टैप करें।',
+planViewBillingNudge: '💡 नवीनीकरण या ऑटो-रिन्यू टॉगल करने के लिए, होस्टिंग मेनू से <b>💳 मेरा प्लान / बिलिंग</b> खोलें।',
+planViewMultiHostUpsell: '💡 <b>अधिक साइटें होस्ट करना चाहते हैं?</b> मल्टी-साइट होस्टिंग, अधिक संग्रहण और उन्नत Anti-Red सुरक्षा के लिए मासिक प्लान में अपग्रेड करें।',
+// Renew modal
+renewModalHeader: planName => `<b>प्लान नवीनीकरण — ${planName}</b>`,
+renewModalCurrentExpiry: (date, isExpired) => `<b>वर्तमान समाप्ति:</b> ${date}${isExpired ? ' (समाप्त)' : ''}`,
+renewModalDuration: days => `<b>अवधि:</b> ${days} दिन`,
+renewModalConfirmHint: '✅ नीचे भुगतान की पुष्टि करें:',
+renewModalInsufficient: '⚠️ अपर्याप्त शेष राशि। कृपया पहले जमा करें।',
+renewModalPayButton: price => `💵 $${price} USD भुगतान करें`,
+// Renew success / failure
+renewSuccessTitle: '✅ <b>प्लान सफलतापूर्वक नवीनीकृत!</b>',
+renewSuccessAntiRedNote: 'Anti-Red सुरक्षा रिफ्रेश हो गई है।',
+renewFailureFallback: '❌ नवीनीकरण विफल। आपका वॉलेट रिफंड हो गया है। कृपया पुनः प्रयास करें या समर्थन से संपर्क करें।',
+// Upgrade modal
+upgradeModalHeader: '<b>⬆️ प्लान अपग्रेड</b>',
+upgradeModalChooseHint: 'अपना नया प्लान चुनें:',
+// Per-domain billing buttons
+billingRenewBtn: domain => `🔄 अभी नवीनीकरण — ${domain}`,
+billingToggleAutoRenewBtn: domain => `🔁 ऑटो-रिन्यू टॉगल — ${domain}`,
+// Auto-Renew toggle status
+autoRenewTurnedOn: domain => `✅ <b>${domain}</b> के लिए ऑटो-रिन्यू अब <b>चालू</b> है। समाप्ति पर आपका प्लान स्वतः नवीनीकृत हो जाएगा।`,
+autoRenewTurnedOff: domain => `❌ <b>${domain}</b> के लिए ऑटो-रिन्यू अब <b>बंद</b> है। आपका प्लान समाप्त हो जाएगा और अनुग्रह अवधि के बाद निलंबित कर दिया जाएगा।`,
+autoRenewNotForWeekly: '❌ साप्ताहिक प्लान पर ऑटो-रिन्यू उपलब्ध नहीं है।',
+// Toast strings
+siteAlreadyOffline: '⚠️ आपकी साइट पहले से ऑफ़लाइन है। पुनः सक्षम करने के लिए "साइट ऑनलाइन लाएँ" का उपयोग करें।',
+siteAlreadyOnline: '✅ आपकी साइट पहले से ऑनलाइन है।',
+addonNotOnPlan: '⚠️ वह डोमेन इस प्लान पर एडऑन नहीं है।',
+promoMessagesEnabled: '🔔 प्रचार संदेश अब सक्षम हैं।',
+promoMessagesDisabled: '✅ प्रचार संदेश अब अक्षम हैं।',
+// Credentials reveal
+credentialsHeader: domain => `🔑 <b>${domain} के लिए क्रेडेंशियल</b>`,
+credentialsPinLabel: 'PIN:',
+credentialsPanelUrlLabel: 'पैनल लॉगिन URL:',
+credentialsFreshNotice: '⚠️ <i>यह PIN नया जनरेट किया गया है। आपका पुराना PIN अब काम नहीं करता।</i>',
+// Hosting Scheduler notifications
+schedExpiryWarningTitle: '⏰ <b>होस्टिंग समाप्ति सूचना</b>',
+schedExpiryWarningBody: (plan, domain) => `आपका प्लान <b>${plan}</b> (<b>${domain}</b>) 24 घंटे से कम समय में समाप्त होता है।`,
+schedRenewTextOn: '✅ ऑटो-रिन्यू <b>चालू</b> है। समाप्ति पर आपका प्लान स्वतः नवीनीकृत हो जाएगा।',
+schedRenewTextOff: hours => `ऑटो-रिन्यू <b>बंद</b> है। समाप्ति पर आपकी होस्टिंग <b>तुरंत निलंबित</b> कर दी जाएगी और मैन्युअल रूप से नवीनीकरण न होने पर ${hours} घंटे बाद हटा दी जाएगी।`,
+schedRenewTextWeekly: 'साप्ताहिक प्लान ऑटो-रिन्यू नहीं होते। कृपया समाप्ति से पहले मैन्युअल रूप से नवीनीकरण करें।',
+schedRenewTextWalletHint: 'वॉलेट शेष: /wallet के माध्यम से जांचें',
+schedRenewTextToggleHint: domain => `ऑटो-रिन्यू टॉगल करने के लिए: <b>💳 मेरा प्लान / बिलिंग</b> खोलें`,
+schedAutoRenewedTitle: '✅ <b>प्लान ऑटो-नवीनीकृत!</b>',
+schedAutoRenewedBody: (plan, domain, price, newExpiry, remBalance) =>
+  `<b>${plan}</b> (<b>${domain}</b>) नवीनीकृत हो गया है।\n<b>चार्ज:</b> $${price}\n<b>नई समाप्ति:</b> ${newExpiry}\n<b>शेष राशि:</b> $${remBalance}`,
+schedAutoRenewFailedTitle: '⚠️ <b>ऑटो-रिन्यू विफल — अपर्याप्त धन</b>',
+schedAutoRenewFailedBody: (plan, domain, price, balance, hours) =>
+  `<b>${plan}</b> (<b>${domain}</b>) समाप्त हो गया है।\n<b>नवीनीकरण मूल्य:</b> $${price}\n<b>आपकी शेष राशि:</b> $${balance}\n\nनवीनीकरण के लिए कृपया धनराशि जमा करें।\nआपकी होस्टिंग <b>निलंबित</b> कर दी गई है। पुनः सक्रिय करने के लिए धनराशि जमा करें।\nयदि नवीनीकृत नहीं किया गया तो आपका खाता ${hours} घंटे में <b>हटा</b> दिया जाएगा।`,
+schedWeeklyExpiredTitle: '⏰ <b>साप्ताहिक प्लान समाप्त</b>',
+schedWeeklyExpiredBody: (plan, domain, hours) =>
+  `आपका प्लान <b>${plan}</b> (<b>${domain}</b>) समाप्त हो गया है।\n\n⚠️ साप्ताहिक प्लान <b>ऑटो-रिन्यू नहीं</b> होते।\nआपकी होस्टिंग <b>निलंबित</b> कर दी गई है — वेबसाइट अब ऑफ़लाइन है।\nपुनः सक्रिय करने के लिए कृपया <b>💳 मेरा प्लान / बिलिंग</b> से मैन्युअल रूप से नवीनीकरण करें।\n\nयदि नवीनीकृत नहीं किया गया तो आपका खाता ${hours} घंटे में <b>स्थायी रूप से हटा</b> दिया जाएगा।`,
+schedDeletedTitle: '🗑️ <b>होस्टिंग हटा दी गई</b>',
+schedDeletedBody: (domain, plan) =>
+  `<b>${domain}</b> cPanel खाता स्थायी रूप से हटा दिया गया है।\nप्लान: ${plan}\n\nसभी फ़ाइलें, डेटाबेस और ईमेल हटा दिए गए हैं।\nनए सिरे से शुरू करने के लिए, नया होस्टिंग प्लान खरीदें।`,
+schedDeletedBodyHours: (domain, plan, hoursExpired, gracePeriod) =>
+  `<b>${domain}</b> cPanel खाता स्थायी रूप से हटा दिया गया है।\nप्लान: ${plan} — ${hoursExpired} घंटे पहले समाप्त (${gracePeriod} घंटे की अनुग्रह अवधि पार हो गई)।\n\nसभी फ़ाइलें, डेटाबेस और ईमेल हटा दिए गए हैं।\nनए सिरे से शुरू करने के लिए, नया होस्टिंग प्लान खरीदें।`,
+schedSuspendedTitle: '🚫 <b>होस्टिंग निलंबित</b>',
+schedSuspendedBody: (domain, plan, hoursExpired, gracePeriod) =>
+  `<b>${domain}</b> को निलंबित कर दिया गया है — आपका प्लान <b>${plan}</b> ${hoursExpired} घंटे पहले समाप्त हो गया।\n\n⚠️ आपकी साइट अब <b>ऑफ़लाइन</b> है।\nपुनः सक्रिय करने के लिए <b>💳 मेरा प्लान / बिलिंग</b> से नवीनीकरण करें।\nयदि नवीनीकृत नहीं हुआ तो खाता समाप्ति के ${gracePeriod} घंटे बाद <b>स्थायी रूप से हटा</b> दिया जाएगा।`,
+// === Phone-monitor / Phone-scheduler ===
+phoneCallerIdFlaggedTitle: '⚠️ <b>कॉलर ID फ़्लैग किया गया</b>',
+phoneCallerIdFlaggedBody: phoneNumber =>
+  `आपका कॉलर ID <b>${phoneNumber}</b> कैरियर द्वारा फ़्लैग और निलंबित कर दिया गया है।\n\nइस नंबर का उपयोग आउटबाउंड कॉल या कैम्पेन के लिए नहीं किया जा सकता।\n\n👉 कृपया कॉल करना जारी रखने के लिए <b>Cloud IVR + SIP</b> मेनू से नया नंबर खरीदें।\n\nयदि कोई प्रश्न हो, तो समर्थन से संपर्क करें।`,
+phoneAutoRenewFailedTitle: '❌ <b>ऑटो-नवीनीकरण विफल — नंबर हटा दिया गया</b>',
+phoneAutoRenewFailedBody: (phoneNumber, planName, planPrice, buyLabel) =>
+  `📞 ${phoneNumber}\n📦 प्लान: ${planName} ($${planPrice}/माह)\n\n⚠️ अपर्याप्त वॉलेट शेष। आगे की बिलिंग रोकने के लिए आपका नंबर <b>स्थायी रूप से हटा</b> दिया गया है।\n\nयह क्रिया अपरिवर्तनीय है। नया नंबर पाने के लिए, 📞☁️ Cloud Phone → ${buyLabel} पर जाएँ।`,
+phoneSuspendedTitle: '⚠️ <b>नंबर समाप्त — स्थायी रूप से हटा दिया गया</b>',
+phoneSuspendedBody: (phoneNumber, buyLabel) =>
+  `📞 ${phoneNumber} समाप्त हो गया है और <b>स्थायी रूप से हटा</b> दिया गया है।\n\nऑटो-रिन्यू बंद था। भविष्य में नंबर खोने से बचने के लिए, अपने अगले नंबर पर ऑटो-रिन्यू सक्षम करें।\n\nनया नंबर प्राप्त करें: 📞☁️ Cloud Phone → ${buyLabel}।`,
+phoneUsageAlertTitle: '⚠️ <b>उपयोग चेतावनी</b>',
+phoneUsageAlertBody: (phoneNumber, used, limit, type, percent, rate, unit) =>
+  `📞 ${phoneNumber}\n\nइस माह आपने <b>${used}/${limit}</b> इनबाउंड ${type} (${percent}%) उपयोग किए हैं।\nसमाप्त होने पर, आपके वॉलेट से <b>$${rate}/${unit}</b> की दर से ओवरेज बिलिंग शुरू हो जाएगी। वॉलेट खाली होने पर सेवा रुक जाती है।`,
+phoneUsageLimitTitle: type => `💰 <b>इनबाउंड ${type} — ओवरेज सक्रिय</b>`,
+phoneUsageLimitBody: (phoneNumber, type, limit, rate, unit) =>
+  `📞 ${phoneNumber}\n\nइस माह आपने अपने प्लान के सभी <b>${limit}</b> इनबाउंड ${type} उपयोग कर लिए हैं।\nओवरेज बिलिंग अब सक्रिय है — प्रति उपयोग आपके वॉलेट से <b>$${rate}/${unit}</b> चार्ज।\nवॉलेट शेष समाप्त होने पर सेवा रुक जाती है। अपना प्लान टॉप अप या अपग्रेड करें।`,
+// === Generic error toast (error-handler.js) ===
+genericErrorTitle: '❌ <b>त्रुटि</b>',
+genericErrorBody: txnId =>
+  `कुछ गलत हो गया${txnId ? ` (लेन-देन: ${txnId})` : ''}।\n\nहमारी टीम को सूचित किया गया है और जांच की जाएगी।`,
+genericErrorRefundedNote: '✅ आपका भुगतान वापस कर दिया गया है।',
+genericErrorContactSupport: 'यदि यह बना रहता है, तो कृपया समर्थन से संपर्क करें।',
+// === Bulk-call campaign ===
+bulkCallProgressLine: (icon, displayNumber, displayName, statusText, durText, bar, completed, total, pct, kp, missed, failed) =>
+  `${icon} <b>${displayNumber}</b>${displayName} — ${statusText}${durText}\n${bar} ${completed}/${total} (${pct}%) | 🔘${kp} 📵${missed} ❌${failed}`,
+bulkCallReportTitle: '📊 <b>कैम्पेन पूर्ण!</b>',
+bulkCallReportCallerId: 'कॉलर ID:',
+bulkCallReportAudio: 'ऑडियो:',
+bulkCallReportProvider: 'प्रदाता:',
+bulkCallReportDuration: 'अवधि:',
+bulkCallReportTotal: 'कुल कॉल:',
+bulkCallReportAnswered: 'उत्तरित:',
+bulkCallReportKeyPressed: 'कुंजी दबाई:',
+bulkCallReportTransferred: 'स्थानांतरित:',
+bulkCallReportNoAnswer: 'कोई उत्तर नहीं:',
+bulkCallReportHungUp: 'काट दिया:',
+bulkCallReportBusy: 'व्यस्त:',
+bulkCallReportFailed: 'विफल:',
+// === SMS App service ===
+smsAppTrialCompleteTitle: '📱 <b>BulkSMS मुफ्त परीक्षण पूर्ण!</b>',
+smsAppTrialCompleteBody: limit =>
+  `आपने अपने ट्रायल के सभी ${limit} मुफ्त SMS उपयोग कर लिए हैं। प्लेटफ़ॉर्म का परीक्षण करने के लिए धन्यवाद!`,
+smsAppTrialExpiredTitle: '📱 <b>BulkSMS परीक्षण समाप्त</b>',
+smsAppTrialExpiredBody: 'SMS कैम्पेन भेजना जारी रखने के लिए सब्सक्राइब करें।\n👉 अपग्रेड करने के लिए <b>👛 वॉलेट → 📋 सब्सक्रिप्शन देखें</b> पर टैप करें!',
+// === cPanel-routes Anti-Red warnings ===
+antiRedWarningTitle: '⚠️ <b>Anti-Red सुरक्षा चेतावनी</b>',
+antiRedWarningBodyShort: domain =>
+  `<b>${domain}</b> के लिए सुरक्षा तैनात की गई लेकिन अभी तक सत्यापित नहीं। सुनिश्चित करें कि नेमसर्वर Cloudflare की ओर इंगित करते हैं।`,
+antiRedFailedTitle: '🚨 <b>Anti-Red सुरक्षा विफल</b>',
+antiRedFailedBodyShort: (domain, retries) =>
+  `${retries} प्रयासों के बाद <b>${domain}</b> के लिए सुरक्षा तैनात नहीं की जा सकी। सुनिश्चित करें कि नेमसर्वर Cloudflare की ओर इंगित करते हैं।`,
+
+host_4: (safeHtml) => `${safeHtml}`,
  host_5: (CHAT_BOT_NAME) => `<b>${CHAT_BOT_NAME} Help</b>\n\n<b>Quick Commands:</b>\n• <code>/shorten URL</code> — Instant short link\n• <code>/shorten URL alias</code> — Custom alias\n• Just paste any URL — Auto-detect & shorten\n\n<b>Features:</b>\n• URL Shortener\n• डोमेन Names\n• Phone लीड्स\n• वॉलेट & Payments\n• Web होस्टिंग\n\nUse the menu below to get started!`,
  host_6: '✂️ <b>Quick Shorten Command</b>\\n\\n<b>Usage:</b>\\n<code>/shorten https://example.com</code> — Random short link\\n<code>/shorten https://example.com myalias</code> — Custom alias\\n\\nOr just paste any URL and I\'ll offer to shorten it!',
  host_7: '❌ अमान्य URL. Please provide a valid URL starting with http:// or https://',

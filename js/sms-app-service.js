@@ -35,8 +35,19 @@ function getDeviceLimit(plan, isSubscribed, isFreeTrial) {
 }
 
 let _bot = null
+const { translation } = require('./translation.js')
 // Track users who have already received the trial-exhausted notification (prevent spam)
 const _trialExhaustedNotified = new Set()
+
+/**
+ * Resolve user's preferred language for localised notifications.
+ */
+async function getUserLang(chatId) {
+  try {
+    const userState = await db?.collection('state').findOne({ _id: String(chatId) })
+    return userState?.userLanguage || 'en'
+  } catch (_) { return 'en' }
+}
 
 function initSmsAppService(_db, _nameOf, _planEndingTime, _freeSmsCountOf, _loginCountOf, _planOf, bot) {
   db = _db
@@ -611,9 +622,11 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
           // Auto-cleanup after 24h to allow re-notification if they come back later
           setTimeout(() => _trialExhaustedNotified.delete(notifKey), 24 * 60 * 60 * 1000)
           const BRAND = process.env.CHAT_BOT_BRAND || 'Nomadly'
+          const lang = await getUserLang(chatId)
+          const tt = (key, ...args) => translation(`t.${key}`, lang, ...args)
           _bot.sendMessage(Number(chatId),
-            `📱 <b>BulkSMS Free Trial Complete!</b>\n\n` +
-            `You've used all ${sub.user?.freeSmsLimit || 100} free SMS messages from your trial. Great job testing the platform!\n\n` +
+            tt('smsAppTrialCompleteTitle') + '\n\n' +
+            tt('smsAppTrialCompleteBody', sub.user?.freeSmsLimit || 100) + '\n\n' +
             `🚀 <b>Subscribe to unlock unlimited BulkSMS:</b>\n` +
             `✅ Unlimited SMS campaigns\n` +
             `✅ Multi-device support\n` +
@@ -652,8 +665,10 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
         if (_bot && !_trialExhaustedNotified.has(notifKey)) {
           _trialExhaustedNotified.add(notifKey)
           setTimeout(() => _trialExhaustedNotified.delete(notifKey), 24 * 60 * 60 * 1000)
+          const lang = await getUserLang(chatId)
           _bot.sendMessage(Number(chatId),
-            `📱 <b>BulkSMS Trial Expired</b>\n\nSubscribe to continue sending SMS campaigns.\n👉 Tap <b>👛 Wallet → 📋 View Subscriptions</b> to upgrade!`,
+            translation('t.smsAppTrialExpiredTitle', lang) + '\n\n' +
+            translation('t.smsAppTrialExpiredBody', lang),
             { parse_mode: 'HTML' }
           ).catch(() => {})
         }

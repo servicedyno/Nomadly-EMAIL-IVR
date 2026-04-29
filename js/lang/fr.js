@@ -1704,7 +1704,155 @@ ${CHAT_BOT_NAME}`,
  host_30: '❌ Upgrade failed. Your portefeuille has been refunded. Veuillez réessayer or contact support.',
  host_31: '🚧 VPS service is coming soon! Stay tuned.',
  host_32: '⚠️ Unable to load referral page. Try again later.',
- host_4: (safeHtml) => `${safeHtml}`,
+
+// === Hosting Plan / Billing UX (added 2026-02) ===
+// Headers
+myHostingPlansHeader: '📋 <b>Mes Plans d\'Hébergement</b>',
+billingMenuHeader: '💳 <b>Mon Plan / Facturation</b>',
+billingMenuIntro: 'Gérez les renouvellements et le renouvellement automatique de chacun de vos plans d\'hébergement.',
+billingMenuEmpty: '💳 <b>Mon Plan / Facturation</b>\n\nVous n\'avez pas encore de plan d\'hébergement actif.',
+// Status indicators
+statusActive: '✅ Actif',
+statusActiveOnline: '✅ Actif (en ligne)',
+statusSuspended: '🚫 Suspendu',
+statusSuspendedFull: '🚫 Suspendu (hors ligne — complet)',
+statusExpired: '❌ Expiré',
+statusMaintenance: '🛠️ Maintenance (hors ligne — public uniquement)',
+// Auto-Renew states
+autoRenewOn: '✅ ACTIVÉ',
+autoRenewOff: '❌ DÉSACTIVÉ',
+autoRenewWeeklyOff: '❌ DÉSACTIVÉ (les plans hebdomadaires ne se renouvellent jamais automatiquement)',
+autoRenewWeeklyShort: '❌ DÉSACTIVÉ (hebdomadaire)',
+// Field labels
+planLabel: 'Plan :',
+statusLabel: 'Statut :',
+domainTypeFieldLabel: 'Type de domaine :',
+createdLabel: 'Créé :',
+expiresLabel: 'Expire :',
+autoRenewFieldLabel: 'Renouvellement auto :',
+usernameLabel: 'Nom d\'utilisateur :',
+priceLabel: 'Prix :',
+durationLabel: 'Durée :',
+walletBalanceLabel: 'Solde du portefeuille :',
+chargedLabel: 'Débité :',
+newExpiryLabel: 'Nouvelle expiration :',
+remainingBalanceLabel: 'Solde restant :',
+domainLabel: 'Domaine :',
+currentLabel: 'Actuel :',
+// Plan view body
+planViewCredentialsHint: 'Appuyez sur "Afficher les Identifiants" pour révéler votre nom d\'utilisateur HostPanel et votre PIN.',
+planViewBillingNudge: '💡 Pour renouveler ou activer/désactiver le renouvellement automatique, ouvrez <b>💳 Mon Plan / Facturation</b> depuis le menu Hébergement.',
+planViewMultiHostUpsell: '💡 <b>Vous voulez héberger plus de sites ?</b> Passez à un plan mensuel pour l\'hébergement multi-sites, plus de stockage et une protection Anti-Red avancée.',
+// Renew modal
+renewModalHeader: planName => `<b>Renouveler le plan — ${planName}</b>`,
+renewModalCurrentExpiry: (date, isExpired) => `<b>Expiration actuelle :</b> ${date}${isExpired ? ' (EXPIRÉ)' : ''}`,
+renewModalDuration: days => `<b>Durée :</b> ${days} jours`,
+renewModalConfirmHint: '✅ Confirmez le paiement ci-dessous :',
+renewModalInsufficient: '⚠️ Solde insuffisant. Veuillez d\'abord déposer.',
+renewModalPayButton: price => `💵 Payer $${price} USD`,
+// Renew success / failure
+renewSuccessTitle: '✅ <b>Plan renouvelé avec succès !</b>',
+renewSuccessAntiRedNote: 'La protection Anti-Red a été actualisée.',
+renewFailureFallback: '❌ Le renouvellement a échoué. Votre portefeuille a été remboursé. Veuillez réessayer ou contacter le support.',
+// Upgrade modal
+upgradeModalHeader: '<b>⬆️ Mise à niveau du plan</b>',
+upgradeModalChooseHint: 'Choisissez votre nouveau plan :',
+// Per-domain billing buttons
+billingRenewBtn: domain => `🔄 Renouveler — ${domain}`,
+billingToggleAutoRenewBtn: domain => `🔁 Activer/Désactiver Renouv. Auto — ${domain}`,
+// Auto-Renew toggle status
+autoRenewTurnedOn: domain => `✅ Le renouvellement auto est maintenant <b>ACTIVÉ</b> pour <b>${domain}</b>. Votre plan sera renouvelé automatiquement à l'expiration.`,
+autoRenewTurnedOff: domain => `❌ Le renouvellement auto est maintenant <b>DÉSACTIVÉ</b> pour <b>${domain}</b>. Votre plan expirera et sera suspendu après la période de grâce.`,
+autoRenewNotForWeekly: '❌ Le renouvellement automatique n\'est pas disponible sur les plans hebdomadaires.',
+// Toast strings
+siteAlreadyOffline: '⚠️ Votre site est déjà hors ligne. Utilisez "Remettre le Site En Ligne" pour le réactiver.',
+siteAlreadyOnline: '✅ Votre site est déjà en ligne.',
+addonNotOnPlan: '⚠️ Ce domaine n\'est pas un domaine additionnel sur ce plan.',
+promoMessagesEnabled: '🔔 Les messages promotionnels sont maintenant activés.',
+promoMessagesDisabled: '✅ Les messages promotionnels sont maintenant désactivés.',
+// Credentials reveal
+credentialsHeader: domain => `🔑 <b>Identifiants pour ${domain}</b>`,
+credentialsPinLabel: 'PIN :',
+credentialsPanelUrlLabel: 'URL de connexion au panneau :',
+credentialsFreshNotice: '⚠️ <i>Ce PIN vient d\'être généré. Votre ancien PIN ne fonctionne plus.</i>',
+// Hosting Scheduler notifications
+schedExpiryWarningTitle: '⏰ <b>Avis d\'expiration d\'hébergement</b>',
+schedExpiryWarningBody: (plan, domain) => `Votre plan <b>${plan}</b> pour <b>${domain}</b> expire dans moins de 24 heures.`,
+schedRenewTextOn: '✅ Le renouvellement auto est <b>ACTIVÉ</b>. Votre plan sera renouvelé automatiquement à l\'expiration.',
+schedRenewTextOff: hours => `Le renouvellement auto est <b>DÉSACTIVÉ</b>. Votre hébergement sera <b>suspendu immédiatement</b> à l\'expiration et supprimé après ${hours}h s\'il n\'est pas renouvelé manuellement.`,
+schedRenewTextWeekly: 'Les plans hebdomadaires ne se renouvellent pas automatiquement. Veuillez renouveler manuellement avant l\'expiration.',
+schedRenewTextWalletHint: 'Solde du portefeuille : Vérifiez via /wallet',
+schedRenewTextToggleHint: domain => `Pour activer/désactiver le renouvellement auto : ouvrez <b>💳 Mon Plan / Facturation</b>`,
+schedAutoRenewedTitle: '✅ <b>Plan renouvelé automatiquement !</b>',
+schedAutoRenewedBody: (plan, domain, price, newExpiry, remBalance) =>
+  `<b>${plan}</b> pour <b>${domain}</b> a été renouvelé.\n<b>Débité :</b> $${price}\n<b>Nouvelle expiration :</b> ${newExpiry}\n<b>Solde restant :</b> $${remBalance}`,
+schedAutoRenewFailedTitle: '⚠️ <b>Renouvellement auto échoué — Solde insuffisant</b>',
+schedAutoRenewFailedBody: (plan, domain, price, balance, hours) =>
+  `<b>${plan}</b> pour <b>${domain}</b> a expiré.\n<b>Prix de renouvellement :</b> $${price}\n<b>Votre solde :</b> $${balance}\n\nVeuillez déposer des fonds pour renouveler.\nVotre hébergement a été <b>suspendu</b>. Déposez des fonds pour le réactiver.\nVotre compte sera <b>supprimé</b> dans ${hours}h s'il n'est pas renouvelé.`,
+schedWeeklyExpiredTitle: '⏰ <b>Plan hebdomadaire expiré</b>',
+schedWeeklyExpiredBody: (plan, domain, hours) =>
+  `Votre plan <b>${plan}</b> pour <b>${domain}</b> a expiré.\n\n⚠️ Les plans hebdomadaires ne se renouvellent <b>pas</b> automatiquement.\nVotre hébergement a été <b>suspendu</b> — le site est maintenant hors ligne.\nVeuillez renouveler manuellement depuis <b>💳 Mon Plan / Facturation</b> pour réactiver.\n\nVotre compte sera <b>définitivement supprimé</b> dans ${hours}h s'il n'est pas renouvelé.`,
+schedDeletedTitle: '🗑️ <b>Hébergement supprimé</b>',
+schedDeletedBody: (domain, plan) =>
+  `Le compte cPanel <b>${domain}</b> a été définitivement supprimé.\nPlan : ${plan}\n\nTous les fichiers, bases de données et e-mails ont été supprimés.\nPour recommencer, achetez un nouveau plan d'hébergement.`,
+schedDeletedBodyHours: (domain, plan, hoursExpired, gracePeriod) =>
+  `Le compte cPanel <b>${domain}</b> a été définitivement supprimé.\nPlan : ${plan} — expiré il y a ${hoursExpired}h (période de grâce de ${gracePeriod}h dépassée).\n\nTous les fichiers, bases de données et e-mails ont été supprimés.\nPour recommencer, achetez un nouveau plan d'hébergement.`,
+schedSuspendedTitle: '🚫 <b>Hébergement suspendu</b>',
+schedSuspendedBody: (domain, plan, hoursExpired, gracePeriod) =>
+  `<b>${domain}</b> a été suspendu — votre plan <b>${plan}</b> a expiré il y a ${hoursExpired}h.\n\n⚠️ Votre site est maintenant <b>hors ligne</b>.\nRenouvelez depuis <b>💳 Mon Plan / Facturation</b> pour réactiver.\nLe compte sera <b>définitivement supprimé</b> ${gracePeriod}h après l'expiration s'il n'est pas renouvelé.`,
+// === Phone-monitor / Phone-scheduler ===
+phoneCallerIdFlaggedTitle: '⚠️ <b>Numéro signalé</b>',
+phoneCallerIdFlaggedBody: phoneNumber =>
+  `Votre numéro <b>${phoneNumber}</b> a été signalé et suspendu par l'opérateur.\n\nCe numéro ne peut plus être utilisé pour les appels sortants ou les campagnes.\n\n👉 Veuillez acheter un nouveau numéro depuis le menu <b>Cloud IVR + SIP</b> pour continuer à passer des appels.\n\nPour toute question, contactez le support.`,
+phoneAutoRenewFailedTitle: '❌ <b>Échec du renouvellement auto — Numéro supprimé</b>',
+phoneAutoRenewFailedBody: (phoneNumber, planName, planPrice, buyLabel) =>
+  `📞 ${phoneNumber}\n📦 Plan : ${planName} ($${planPrice}/mois)\n\n⚠️ Solde du portefeuille insuffisant. Votre numéro a été <b>définitivement supprimé</b> pour éviter toute facturation supplémentaire.\n\nCette action est irréversible. Pour obtenir un nouveau numéro, visitez 📞☁️ Cloud Phone → ${buyLabel}.`,
+phoneSuspendedTitle: '⚠️ <b>Numéro expiré — Définitivement supprimé</b>',
+phoneSuspendedBody: (phoneNumber, buyLabel) =>
+  `📞 ${phoneNumber} a expiré et a été <b>définitivement supprimé</b>.\n\nLe renouvellement auto était DÉSACTIVÉ. Pour éviter de perdre des numéros à l'avenir, activez le renouvellement auto sur votre prochain numéro.\n\nObtenez un nouveau numéro : 📞☁️ Cloud Phone → ${buyLabel}.`,
+phoneUsageAlertTitle: '⚠️ <b>Alerte d\'utilisation</b>',
+phoneUsageAlertBody: (phoneNumber, used, limit, type, percent, rate, unit) =>
+  `📞 ${phoneNumber}\n\nVous avez utilisé <b>${used}/${limit}</b> ${type} entrants ce mois (${percent}%).\nUne fois épuisé, la facturation des dépassements démarre à <b>$${rate}/${unit}</b> depuis votre portefeuille. Le service s'interrompt si le portefeuille est vide.`,
+phoneUsageLimitTitle: type => `💰 <b>${type} entrants — Dépassement actif</b>`,
+phoneUsageLimitBody: (phoneNumber, type, limit, rate, unit) =>
+  `📞 ${phoneNumber}\n\nVous avez utilisé tous les <b>${limit}</b> ${type} entrants de votre plan ce mois.\nLa facturation des dépassements est maintenant active — <b>$${rate}/${unit}</b> débité de votre portefeuille par utilisation.\nLe service s'interrompt si le solde du portefeuille est épuisé. Rechargez ou améliorez votre plan.`,
+// === Generic error toast (error-handler.js) ===
+genericErrorTitle: '❌ <b>Erreur</b>',
+genericErrorBody: txnId =>
+  `Une erreur est survenue${txnId ? ` (Transaction : ${txnId})` : ''}.\n\nNotre équipe a été notifiée et enquêtera.`,
+genericErrorRefundedNote: '✅ Votre paiement a été remboursé.',
+genericErrorContactSupport: 'Veuillez contacter le support si cela persiste.',
+// === Bulk-call campaign ===
+bulkCallProgressLine: (icon, displayNumber, displayName, statusText, durText, bar, completed, total, pct, kp, missed, failed) =>
+  `${icon} <b>${displayNumber}</b>${displayName} — ${statusText}${durText}\n${bar} ${completed}/${total} (${pct}%) | 🔘${kp} 📵${missed} ❌${failed}`,
+bulkCallReportTitle: '📊 <b>Campagne terminée !</b>',
+bulkCallReportCallerId: 'ID Appelant :',
+bulkCallReportAudio: 'Audio :',
+bulkCallReportProvider: 'Fournisseur :',
+bulkCallReportDuration: 'Durée :',
+bulkCallReportTotal: 'Total des appels :',
+bulkCallReportAnswered: 'Répondu :',
+bulkCallReportKeyPressed: 'Touche pressée :',
+bulkCallReportTransferred: 'Transféré :',
+bulkCallReportNoAnswer: 'Sans réponse :',
+bulkCallReportHungUp: 'Raccroché :',
+bulkCallReportBusy: 'Occupé :',
+bulkCallReportFailed: 'Échec :',
+// === SMS App service ===
+smsAppTrialCompleteTitle: '📱 <b>Essai gratuit BulkSMS terminé !</b>',
+smsAppTrialCompleteBody: limit =>
+  `Vous avez utilisé tous les ${limit} SMS gratuits de votre essai. Bravo pour avoir testé la plateforme !`,
+smsAppTrialExpiredTitle: '📱 <b>Essai BulkSMS expiré</b>',
+smsAppTrialExpiredBody: 'Abonnez-vous pour continuer à envoyer des campagnes SMS.\n👉 Appuyez sur <b>👛 Portefeuille → 📋 Voir les abonnements</b> pour mettre à niveau !',
+// === cPanel-routes Anti-Red warnings ===
+antiRedWarningTitle: '⚠️ <b>Avertissement de protection Anti-Red</b>',
+antiRedWarningBodyShort: domain =>
+  `Protection déployée pour <b>${domain}</b> mais pas encore vérifiée. Assurez-vous que les serveurs de noms pointent vers Cloudflare.`,
+antiRedFailedTitle: '🚨 <b>Protection Anti-Red échouée</b>',
+antiRedFailedBodyShort: (domain, retries) =>
+  `La protection n'a pas pu être déployée pour <b>${domain}</b> après ${retries} tentatives. Assurez-vous que les serveurs de noms pointent vers Cloudflare.`,
+
+host_4: (safeHtml) => `${safeHtml}`,
  host_5: (CHAT_BOT_NAME) => `<b>${CHAT_BOT_NAME} Aide</b>\n\n<b>Quick Commands:</b>\n• <code>/shorten URL</code> — Instant short lien\n• <code>/shorten URL alias</code> — Custom alias\n• Just paste any URL — Auto-detect & shorten\n\n<b>Features:</b>\n• URL Raccourcisseur\n• Domaine Names\n• Phone Leads\n• Portefeuille & Payments\n• Web Hébergement\n\nUse the menu below to get started!`,
  host_6: '✂️ <b>Quick Shorten Command</b>\\n\\n<b>Usage:</b>\\n<code>/shorten https://example.com</code> — Random short lien\\n<code>/shorten https://example.com myalias</code> — Custom alias\\n\\nOr just paste any URL and I\'ll offer to shorten it!',
  host_7: '❌ Invalide URL. Please provide a valide URL starting with http:// or https://',

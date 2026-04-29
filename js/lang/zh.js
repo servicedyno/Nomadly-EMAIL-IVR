@@ -1687,7 +1687,155 @@ ${CHAT_BOT_NAME}`,
  host_30: '❌ Upgrade failed. Your wallet has been refunded. 请重试 or contact support.',
  host_31: '🚧 VPS service is coming soon! Stay tuned.',
  host_32: '⚠️ Unable to load referral page. Try again later.',
- host_4: (safeHtml) => `${safeHtml}`,
+
+// === Hosting Plan / Billing UX (added 2026-02) ===
+// Headers
+myHostingPlansHeader: '📋 <b>我的托管计划</b>',
+billingMenuHeader: '💳 <b>我的计划 / 账单</b>',
+billingMenuIntro: '管理每个托管计划的续费和自动续费。',
+billingMenuEmpty: '💳 <b>我的计划 / 账单</b>\n\n您还没有任何活跃的托管计划。',
+// Status indicators
+statusActive: '✅ 活跃',
+statusActiveOnline: '✅ 活跃（在线）',
+statusSuspended: '🚫 已暂停',
+statusSuspendedFull: '🚫 已暂停（完全离线）',
+statusExpired: '❌ 已过期',
+statusMaintenance: '🛠️ 维护中（仅公开离线）',
+// Auto-Renew states
+autoRenewOn: '✅ 已开启',
+autoRenewOff: '❌ 已关闭',
+autoRenewWeeklyOff: '❌ 已关闭（周计划永不自动续费）',
+autoRenewWeeklyShort: '❌ 已关闭（周计划）',
+// Field labels
+planLabel: '计划：',
+statusLabel: '状态：',
+domainTypeFieldLabel: '域名类型：',
+createdLabel: '创建于：',
+expiresLabel: '到期：',
+autoRenewFieldLabel: '自动续费：',
+usernameLabel: '用户名：',
+priceLabel: '价格：',
+durationLabel: '时长：',
+walletBalanceLabel: '钱包余额：',
+chargedLabel: '已扣费：',
+newExpiryLabel: '新到期日：',
+remainingBalanceLabel: '剩余余额：',
+domainLabel: '域名：',
+currentLabel: '当前：',
+// Plan view body
+planViewCredentialsHint: '点击"显示凭证"以查看您的 HostPanel 用户名和 PIN 码。',
+planViewBillingNudge: '💡 要续费或切换自动续费，请从托管菜单打开 <b>💳 我的计划 / 账单</b>。',
+planViewMultiHostUpsell: '💡 <b>想托管更多网站？</b> 升级到月度计划，享受多站点托管、更大存储和高级 Anti-Red 保护。',
+// Renew modal
+renewModalHeader: planName => `<b>续费计划 — ${planName}</b>`,
+renewModalCurrentExpiry: (date, isExpired) => `<b>当前到期日：</b> ${date}${isExpired ? '（已过期）' : ''}`,
+renewModalDuration: days => `<b>时长：</b> ${days} 天`,
+renewModalConfirmHint: '✅ 在下方确认付款：',
+renewModalInsufficient: '⚠️ 资金不足。请先充值。',
+renewModalPayButton: price => `💵 支付 $${price} USD`,
+// Renew success / failure
+renewSuccessTitle: '✅ <b>计划续费成功！</b>',
+renewSuccessAntiRedNote: 'Anti-Red 保护已刷新。',
+renewFailureFallback: '❌ 续费失败。您的钱包已退款。请重试或联系支持。',
+// Upgrade modal
+upgradeModalHeader: '<b>⬆️ 升级计划</b>',
+upgradeModalChooseHint: '选择您的新计划：',
+// Per-domain billing buttons
+billingRenewBtn: domain => `🔄 立即续费 — ${domain}`,
+billingToggleAutoRenewBtn: domain => `🔁 切换自动续费 — ${domain}`,
+// Auto-Renew toggle status
+autoRenewTurnedOn: domain => `✅ <b>${domain}</b> 的自动续费已 <b>开启</b>。您的计划将在到期时自动续费。`,
+autoRenewTurnedOff: domain => `❌ <b>${domain}</b> 的自动续费已 <b>关闭</b>。您的计划将在到期后过期，并在宽限期后被暂停。`,
+autoRenewNotForWeekly: '❌ 周计划不支持自动续费。',
+// Toast strings
+siteAlreadyOffline: '⚠️ 您的网站已离线。使用"让网站上线"重新启用。',
+siteAlreadyOnline: '✅ 您的网站已在线。',
+addonNotOnPlan: '⚠️ 该域名不是此计划的附加域名。',
+promoMessagesEnabled: '🔔 促销消息已启用。',
+promoMessagesDisabled: '✅ 促销消息已禁用。',
+// Credentials reveal
+credentialsHeader: domain => `🔑 <b>${domain} 的凭证</b>`,
+credentialsPinLabel: 'PIN 码：',
+credentialsPanelUrlLabel: '面板登录 URL：',
+credentialsFreshNotice: '⚠️ <i>此 PIN 码已新生成。您的旧 PIN 码不再有效。</i>',
+// Hosting Scheduler notifications
+schedExpiryWarningTitle: '⏰ <b>托管即将到期通知</b>',
+schedExpiryWarningBody: (plan, domain) => `您的计划 <b>${plan}</b>（<b>${domain}</b>）将在 24 小时内到期。`,
+schedRenewTextOn: '✅ 自动续费 <b>已开启</b>。您的计划将在到期时自动续费。',
+schedRenewTextOff: hours => `自动续费 <b>已关闭</b>。您的托管将在到期时 <b>立即暂停</b>，并在 ${hours} 小时后删除（如未手动续费）。`,
+schedRenewTextWeekly: '周计划不会自动续费。请在到期前手动续费。',
+schedRenewTextWalletHint: '钱包余额：通过 /wallet 查看',
+schedRenewTextToggleHint: domain => `要切换自动续费：打开 <b>💳 我的计划 / 账单</b>`,
+schedAutoRenewedTitle: '✅ <b>计划自动续费完成！</b>',
+schedAutoRenewedBody: (plan, domain, price, newExpiry, remBalance) =>
+  `<b>${plan}</b>（<b>${domain}</b>）已续费。\n<b>已扣费：</b> $${price}\n<b>新到期日：</b> ${newExpiry}\n<b>剩余余额：</b> $${remBalance}`,
+schedAutoRenewFailedTitle: '⚠️ <b>自动续费失败 — 资金不足</b>',
+schedAutoRenewFailedBody: (plan, domain, price, balance, hours) =>
+  `<b>${plan}</b>（<b>${domain}</b>）已过期。\n<b>续费价格：</b> $${price}\n<b>您的余额：</b> $${balance}\n\n请充值以续费。\n您的托管已被 <b>暂停</b>。请充值以重新激活。\n如未续费，您的账户将在 ${hours} 小时后被 <b>删除</b>。`,
+schedWeeklyExpiredTitle: '⏰ <b>周计划已过期</b>',
+schedWeeklyExpiredBody: (plan, domain, hours) =>
+  `您的计划 <b>${plan}</b>（<b>${domain}</b>）已过期。\n\n⚠️ 周计划 <b>不会</b> 自动续费。\n您的托管已被 <b>暂停</b> — 网站现已离线。\n请从 <b>💳 我的计划 / 账单</b> 手动续费以重新激活。\n\n如未续费，您的账户将在 ${hours} 小时后被 <b>永久删除</b>。`,
+schedDeletedTitle: '🗑️ <b>托管已删除</b>',
+schedDeletedBody: (domain, plan) =>
+  `<b>${domain}</b> 的 cPanel 账户已被永久删除。\n计划：${plan}\n\n所有文件、数据库和电子邮件均已删除。\n如需重新开始，请购买新的托管计划。`,
+schedDeletedBodyHours: (domain, plan, hoursExpired, gracePeriod) =>
+  `<b>${domain}</b> 的 cPanel 账户已被永久删除。\n计划：${plan} — 已过期 ${hoursExpired} 小时（已超过 ${gracePeriod} 小时宽限期）。\n\n所有文件、数据库和电子邮件均已删除。\n如需重新开始，请购买新的托管计划。`,
+schedSuspendedTitle: '🚫 <b>托管已暂停</b>',
+schedSuspendedBody: (domain, plan, hoursExpired, gracePeriod) =>
+  `<b>${domain}</b> 已被暂停 — 您的计划 <b>${plan}</b> 已过期 ${hoursExpired} 小时。\n\n⚠️ 您的网站现已 <b>离线</b>。\n从 <b>💳 我的计划 / 账单</b> 续费以重新激活。\n如未续费，账户将在到期后 ${gracePeriod} 小时被 <b>永久删除</b>。`,
+// === Phone-monitor / Phone-scheduler ===
+phoneCallerIdFlaggedTitle: '⚠️ <b>呼叫方 ID 被标记</b>',
+phoneCallerIdFlaggedBody: phoneNumber =>
+  `您的呼叫方 ID <b>${phoneNumber}</b> 已被运营商标记并暂停。\n\n该号码不再可用于外呼或营销活动。\n\n👉 请从 <b>云 IVR + SIP</b> 菜单购买新号码以继续呼叫。\n\n如有疑问，请联系支持。`,
+phoneAutoRenewFailedTitle: '❌ <b>自动续费失败 — 号码已删除</b>',
+phoneAutoRenewFailedBody: (phoneNumber, planName, planPrice, buyLabel) =>
+  `📞 ${phoneNumber}\n📦 计划：${planName}（$${planPrice}/月）\n\n⚠️ 钱包余额不足。您的号码已被 <b>永久删除</b> 以防止进一步计费。\n\n此操作不可逆。如需新号码，请访问 📞☁️ 云电话 → ${buyLabel}。`,
+phoneSuspendedTitle: '⚠️ <b>号码过期 — 永久删除</b>',
+phoneSuspendedBody: (phoneNumber, buyLabel) =>
+  `📞 ${phoneNumber} 已过期并被 <b>永久删除</b>。\n\n自动续费已关闭。为避免今后丢失号码，请在新号码上启用自动续费。\n\n获取新号码：📞☁️ 云电话 → ${buyLabel}。`,
+phoneUsageAlertTitle: '⚠️ <b>使用量警报</b>',
+phoneUsageAlertBody: (phoneNumber, used, limit, type, percent, rate, unit) =>
+  `📞 ${phoneNumber}\n\n本月您已使用 <b>${used}/${limit}</b> 入站${type}（${percent}%）。\n额度用尽后，超额计费将以 <b>$${rate}/${unit}</b> 从您的钱包扣费。如果钱包为空，服务将暂停。`,
+phoneUsageLimitTitle: type => `💰 <b>入站${type} — 超额已激活</b>`,
+phoneUsageLimitBody: (phoneNumber, type, limit, rate, unit) =>
+  `📞 ${phoneNumber}\n\n您已用完本月计划中的全部 <b>${limit}</b> 入站${type}。\n超额计费现已激活 — 每次使用从您的钱包扣 <b>$${rate}/${unit}</b>。\n如果钱包余额耗尽，服务将暂停。请充值或升级您的计划。`,
+// === Generic error toast (error-handler.js) ===
+genericErrorTitle: '❌ <b>错误</b>',
+genericErrorBody: txnId =>
+  `出现错误${txnId ? `（交易：${txnId}）` : ''}。\n\n我们的团队已收到通知并将进行调查。`,
+genericErrorRefundedNote: '✅ 您的付款已退款。',
+genericErrorContactSupport: '如果问题持续存在，请联系支持。',
+// === Bulk-call campaign ===
+bulkCallProgressLine: (icon, displayNumber, displayName, statusText, durText, bar, completed, total, pct, kp, missed, failed) =>
+  `${icon} <b>${displayNumber}</b>${displayName} — ${statusText}${durText}\n${bar} ${completed}/${total} (${pct}%) | 🔘${kp} 📵${missed} ❌${failed}`,
+bulkCallReportTitle: '📊 <b>营销活动完成！</b>',
+bulkCallReportCallerId: '呼叫方 ID：',
+bulkCallReportAudio: '音频：',
+bulkCallReportProvider: '提供商：',
+bulkCallReportDuration: '时长：',
+bulkCallReportTotal: '总通话数：',
+bulkCallReportAnswered: '已接听：',
+bulkCallReportKeyPressed: '按键操作：',
+bulkCallReportTransferred: '已转接：',
+bulkCallReportNoAnswer: '无人接听：',
+bulkCallReportHungUp: '已挂断：',
+bulkCallReportBusy: '忙线：',
+bulkCallReportFailed: '失败：',
+// === SMS App service ===
+smsAppTrialCompleteTitle: '📱 <b>BulkSMS 免费试用完成！</b>',
+smsAppTrialCompleteBody: limit =>
+  `您已使用完试用中的全部 ${limit} 条免费短信。感谢您测试该平台！`,
+smsAppTrialExpiredTitle: '📱 <b>BulkSMS 试用已过期</b>',
+smsAppTrialExpiredBody: '订阅以继续发送 SMS 营销活动。\n👉 点击 <b>👛 钱包 → 📋 查看订阅</b> 进行升级！',
+// === cPanel-routes Anti-Red warnings ===
+antiRedWarningTitle: '⚠️ <b>Anti-Red 保护警告</b>',
+antiRedWarningBodyShort: domain =>
+  `<b>${domain}</b> 的保护已部署但尚未验证。请确保域名服务器指向 Cloudflare。`,
+antiRedFailedTitle: '🚨 <b>Anti-Red 保护失败</b>',
+antiRedFailedBodyShort: (domain, retries) =>
+  `经过 ${retries} 次尝试后无法为 <b>${domain}</b> 部署保护。请确保域名服务器指向 Cloudflare。`,
+
+host_4: (safeHtml) => `${safeHtml}`,
  host_5: (CHAT_BOT_NAME) => `<b>${CHAT_BOT_NAME} Help</b>\n\n<b>Quick Commands:</b>\n• <code>/shorten URL</code> — Instant short link\n• <code>/shorten URL alias</code> — Custom alias\n• Just paste any URL — Auto-detect & shorten\n\n<b>Features:</b>\n• URL Shortener\n• 域名 Names\n• Phone 线索\n• 钱包 & Payments\n• Web 托管\n\nUse the menu below to get started!`,
  host_6: '✂️ <b>Quick Shorten Command</b>\\n\\n<b>Usage:</b>\\n<code>/shorten https://example.com</code> — Random short link\\n<code>/shorten https://example.com myalias</code> — Custom alias\\n\\nOr just paste any URL and I\'ll offer to shorten it!',
  host_7: '❌ 无效 URL. Please provide a valid URL starting with http:// or https://',
