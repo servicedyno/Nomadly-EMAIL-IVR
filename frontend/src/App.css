@@ -3724,6 +3724,27 @@
   font-weight: 700;
 }
 
+.dl-captcha-upgrade-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  padding: 6px 14px;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #1f1f2e !important;
+  font-weight: 700;
+  font-size: 13px;
+  border-radius: 6px;
+  text-decoration: none;
+  transition: filter 0.15s, transform 0.15s;
+  align-self: flex-start;
+}
+
+.dl-captcha-upgrade-cta:hover {
+  filter: brightness(1.1);
+  transform: translateX(2px);
+}
+
 .panel-light .dl-cap-badge--locked {
   background: rgba(245, 158, 11, 0.10);
   color: #b45309;

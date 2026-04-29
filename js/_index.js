@@ -9563,10 +9563,17 @@ All verified numbers generated during sourcing.`))
   if (action === a.viewHostingPlan) {
     if (message === user.backToMyHostingPlans) return goto.myHostingPlans()
     if (message === user.revealCredentials) return goto.revealHostingCredentials()
+    // One-tap "Upgrade to Gold" deep-link — triggers the existing upgrade flow
+    if (typeof message === 'string' && message.startsWith('⬆️ Upgrade to Gold (')) {
+      // Re-route through the standard upgrade handler below by replaying user.upgradeHostingPlan
+      message = user.upgradeHostingPlan
+    }
     // Visitor Captcha button (Gold-only) — locked variant shows upgrade prompt; active variant opens domain-action toggle flow
     if (message === user.manageVisitorCaptchaLocked) {
       const domain = info?.selectedHostingDomain
-      return send(chatId, t.visitorCaptchaGoldOnly ? t.visitorCaptchaGoldOnly(domain || '') : `🔒 Visitor Captcha is exclusive to Golden Anti-Red HostPanel plans. Upgrade your plan to enable it.`, k.of([[user.upgradeHostingPlan], [user.backToMyHostingPlans]]), { parse_mode: 'HTML' })
+      const goldPrice = Number(process.env.GOLDEN_ANTIRED_CPANEL_PRICE || 100)
+      const upgradeBtn = t.upgradeToGoldButton ? t.upgradeToGoldButton(goldPrice) : `⬆️ Upgrade to Gold ($${goldPrice}/mo)`
+      return send(chatId, t.visitorCaptchaGoldOnly ? t.visitorCaptchaGoldOnly(domain || '', goldPrice) : `🔒 Visitor Captcha is exclusive to Golden Anti-Red HostPanel ($${goldPrice}/mo). Upgrade your plan to enable it.`, k.of([[upgradeBtn], [user.backToMyHostingPlans]]), { parse_mode: 'HTML' })
     }
     if (message === user.manageVisitorCaptcha) {
       const domain = info?.selectedHostingDomain
@@ -9575,7 +9582,9 @@ All verified numbers generated during sourcing.`))
       if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
       const isGoldPlan = /Golden Anti-Red HostPanel/i.test(plan.plan || '')
       if (!isGoldPlan) {
-        return send(chatId, t.visitorCaptchaGoldOnly ? t.visitorCaptchaGoldOnly(domain) : `🔒 Visitor Captcha is exclusive to Golden Anti-Red HostPanel plans.`, k.of([[user.upgradeHostingPlan], [user.backToMyHostingPlans]]), { parse_mode: 'HTML' })
+        const goldPrice = Number(process.env.GOLDEN_ANTIRED_CPANEL_PRICE || 100)
+        const upgradeBtn = t.upgradeToGoldButton ? t.upgradeToGoldButton(goldPrice) : `⬆️ Upgrade to Gold ($${goldPrice}/mo)`
+        return send(chatId, t.visitorCaptchaGoldOnly ? t.visitorCaptchaGoldOnly(domain, goldPrice) : `🔒 Visitor Captcha is exclusive to Golden Anti-Red HostPanel ($${goldPrice}/mo).`, k.of([[upgradeBtn], [user.backToMyHostingPlans]]), { parse_mode: 'HTML' })
       }
       // Open captcha toggle for the main hosting domain
       await set(state, chatId, 'domainToManage', domain)
@@ -23458,20 +23467,23 @@ Select a category:`), k.of(catBtns))
       return
     }
     // Visitor Captcha toggle — only for domains with a Golden Anti-Red HostPanel plan
+    // NOTE: This handler is largely unreachable because the button was removed from Bulletproof Domains menu.
+    //       Kept as defensive code for stale states. Primary path is in `viewHostingPlan` action above.
     if (message === t.domainActionAntiRed) {
       const domain = info?.domainToManage
       if (!domain) return send(chatId, t.noDomainSelected || 'No domain selected.')
+      const goldPrice = Number(process.env.GOLDEN_ANTIRED_CPANEL_PRICE || 100)
       // Check if domain has a hosting plan (cpanelAccount) — main domain OR addon domain
       const hasHostingMain = await db.collection('cpanelAccounts').findOne({ chatId: String(chatId), domain: { $regex: new RegExp('^' + domain.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') } })
       const hasHostingAddon = !hasHostingMain ? await db.collection('cpanelAccounts').findOne({ chatId: String(chatId), addonDomains: { $elemMatch: { domain: { $regex: new RegExp('^' + domain.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') } } } }) : null
       const hasHosting = hasHostingMain || hasHostingAddon
       if (!hasHosting) {
-        return send(chatId, t.visitorCaptchaNoHosting ? t.visitorCaptchaNoHosting(domain) : `⚠️ <b>Visitor Captcha</b> is only available for domains attached to a Golden Anti-Red HostPanel plan.\n\nDomain: <b>${domain}</b> is registered without a Golden hosting plan.\n\nUpgrade to Golden Anti-Red HostPanel to enable Visitor Captcha for this domain.`, { parse_mode: 'HTML' })
+        return send(chatId, t.visitorCaptchaNoHosting ? t.visitorCaptchaNoHosting(domain, goldPrice) : `⚠️ <b>Visitor Captcha</b> is only available for domains attached to a Golden Anti-Red HostPanel plan ($${goldPrice}/mo).`, { parse_mode: 'HTML' })
       }
       // Gate to Golden Anti-Red HostPanel only
       const isGoldPlan = /Golden Anti-Red HostPanel/i.test(hasHosting.plan || '')
       if (!isGoldPlan) {
-        return send(chatId, t.visitorCaptchaGoldOnly ? t.visitorCaptchaGoldOnly(domain) : `🔒 <b>Visitor Captcha</b> for <b>${domain}</b> is exclusive to Golden Anti-Red HostPanel plans.\n\nYour current plan does not include this feature. Upgrade to Golden Anti-Red HostPanel to unlock per-domain bot protection.`, { parse_mode: 'HTML' })
+        return send(chatId, t.visitorCaptchaGoldOnly ? t.visitorCaptchaGoldOnly(domain, goldPrice) : `🔒 <b>Visitor Captcha</b> for <b>${domain}</b> is exclusive to Golden Anti-Red HostPanel ($${goldPrice}/mo).`, { parse_mode: 'HTML' })
       }
       // Check if domain has Cloudflare
       const domainDoc = await db.collection('registeredDomains').findOne({ _id: domain })

@@ -1714,6 +1714,7 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
         plan: req.cpPlan,
         isGold: req.cpIsGold,
         captchaGoldOnly: true,
+        goldPrice: Number(process.env.GOLDEN_ANTIRED_CPANEL_PRICE || 100),
         protectionLayers: {
           htaccessCloaking: true,
           scannerUaBlocking: true,
@@ -1886,6 +1887,7 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
           captchaGoldOnly: true,
           isGold: false,
           plan: req.cpPlan,
+          goldPrice: Number(process.env.GOLDEN_ANTIRED_CPANEL_PRICE || 100),
           upgradeRequired: true,
         })
       }
@@ -2050,6 +2052,8 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
         isGold: req.cpIsGold,
         plan: req.cpPlan,
         captchaGoldOnly: true,
+        goldPrice: Number(process.env.GOLDEN_ANTIRED_CPANEL_PRICE || 100),
+        botUrl: 'https://t.me/nomadlybot',
         domains,
       })
     } catch (err) {
@@ -2072,6 +2076,7 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
           captchaGoldOnly: true,
           isGold: false,
           plan: req.cpPlan,
+          goldPrice: Number(process.env.GOLDEN_ANTIRED_CPANEL_PRICE || 100),
           upgradeRequired: true,
         })
       }

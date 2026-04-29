@@ -105,7 +105,7 @@ export default function DomainList() {
   const [autoSSLResult, setAutoSSLResult] = useState(null);
 
   // Visitor Captcha (Anti-Red) per-domain toggle state
-  const [captchaInfo, setCaptchaInfo] = useState({ isGold: false, plan: '', loaded: false });
+  const [captchaInfo, setCaptchaInfo] = useState({ isGold: false, plan: '', goldPrice: 100, botUrl: '', loaded: false });
   const [captchaByDomain, setCaptchaByDomain] = useState({});
   const [captchaToggling, setCaptchaToggling] = useState({});
   const [captchaError, setCaptchaError] = useState('');
@@ -116,9 +116,15 @@ export default function DomainList() {
       const map = {};
       (res.domains || []).forEach(d => { map[d.domain] = d; });
       setCaptchaByDomain(map);
-      setCaptchaInfo({ isGold: !!res.isGold, plan: res.plan || '', loaded: true });
+      setCaptchaInfo({
+        isGold: !!res.isGold,
+        plan: res.plan || '',
+        goldPrice: Number(res.goldPrice) || 100,
+        botUrl: res.botUrl || 'https://t.me/nomadlybot',
+        loaded: true,
+      });
     } catch (_) {
-      setCaptchaInfo({ isGold: false, plan: '', loaded: true });
+      setCaptchaInfo({ isGold: false, plan: '', goldPrice: 100, botUrl: 'https://t.me/nomadlybot', loaded: true });
     }
   }, [api]);
 
@@ -166,11 +172,11 @@ export default function DomainList() {
       return (
         <span
           className="dl-cap-badge dl-cap-badge--locked"
-          title={`Visitor Captcha is exclusive to Golden Anti-Red HostPanel plans. Your plan: ${captchaInfo.plan || 'unknown'}`}
+          title={`Visitor Captcha is exclusive to Golden Anti-Red HostPanel ($${captchaInfo.goldPrice}/mo). Your plan: ${captchaInfo.plan || 'unknown'}`}
           data-testid={`dl-cap-locked-${domain}`}
         >
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-          🔒 Captcha (Gold)
+          🔒 Captcha · Gold ${captchaInfo.goldPrice}/mo
         </span>
       );
     }
@@ -450,7 +456,16 @@ export default function DomainList() {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
           <div className="dl-captcha-banner-text">
             <strong>🛡️ Visitor Captcha — Gold-only feature</strong>
-            <span>Block scanners, scrapers and bots at the Cloudflare edge with a per-domain "Verifying your browser" challenge. Available exclusively on <b>👑 Golden Anti-Red HostPanel</b> plans.</span>
+            <span>Block scanners, scrapers and bots at the Cloudflare edge with a per-domain "Verifying your browser" challenge. Available exclusively on <b>👑 Golden Anti-Red HostPanel — ${captchaInfo.goldPrice}/mo</b>.</span>
+            <a
+              className="dl-captcha-upgrade-cta"
+              href={captchaInfo.botUrl || 'https://t.me/nomadlybot'}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="dl-captcha-upgrade-cta"
+            >
+              ⬆️ Upgrade to Gold (${captchaInfo.goldPrice}/mo) →
+            </a>
           </div>
         </div>
       )}

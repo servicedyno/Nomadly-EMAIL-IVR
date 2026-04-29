@@ -18,6 +18,7 @@ const plans = (hostingType) => {
       ssl: 'Free SSL',
       protection: 'IP cloaking · Bot detection · UA blocking',
       panel: 'HostPanel — file, DB & email management',
+      captcha: '🔒 Visitor Captcha toggle — not included',
     },
     premiumCpanel: {
       name: 'Premium Anti-Red HostPanel (30 Days)',
@@ -29,6 +30,7 @@ const plans = (hostingType) => {
       ssl: 'Free SSL',
       protection: 'IP cloaking · JS challenge · UA & TLS blocking',
       panel: 'HostPanel — backups, migration & advanced tools',
+      captcha: '🔒 Visitor Captcha toggle — not included',
     },
     goldenCpanel: {
       name: 'Golden Anti-Red HostPanel (30 Days)',
@@ -40,6 +42,7 @@ const plans = (hostingType) => {
       ssl: 'Free SSL + Wildcard',
       protection: 'Full Anti-Red: IP cloaking · JS challenge · TLS/JA3 · WAF rules · Priority support',
       panel: 'HostPanel — staging, security & all advanced tools',
+      captcha: '🛡️ Visitor Captcha toggle ON/OFF per domain — Gold exclusive ✨',
     },
   }
 }
@@ -50,7 +53,8 @@ const generatePlanText = (hostingType, planKey) => {
 
 ${plan.storage} · ${plan.bandwidth} · ${plan.domains}
 ${plan.ssl} · ${plan.protection}
-${plan.panel}`
+${plan.panel}
+${plan.captcha}`
 }
 
 const generatePlanStepText = step => {
