@@ -53,9 +53,9 @@ t('IVR only → primary=ivr, no skipped', () => {
 })
 
 // ────────────────────────────────────────
-// 3. IVR + forward(busy) → IVR primary, busy in secondary
+// 3. IVR + forward(busy) → IVR primary, forward_busy is DORMANT (not secondary)
 // ────────────────────────────────────────
-t('IVR + forward(busy) → IVR primary, forward_busy in secondary', () => {
+t('IVR + forward(busy) → IVR primary, forward_busy in dormantFeatures (truly never fires under IVR)', () => {
   const num = {
     plan: 'business',
     features: {
@@ -65,16 +65,16 @@ t('IVR + forward(busy) → IVR primary, forward_busy in secondary', () => {
   }
   const r = getCallRouteSummary(num)
   assert.strictEqual(r.primary.action, 'ivr')
-  assert.strictEqual(r.skippedFeatures.length, 0, 'busy/no_answer modes are not skipped — they run if conditions hit')
-  const fwdSec = r.secondary.find(s => s.action === 'forward_busy')
-  assert.ok(fwdSec, 'forward_busy should be in secondary')
-  assert.strictEqual(fwdSec.forwardTo, '+15555550000')
+  assert.strictEqual(r.skippedFeatures.length, 0, 'forward(busy/no_answer) under IVR are dormant, not skipped')
+  const dorm = r.dormantFeatures.find(d => d.feature === 'forward_busy')
+  assert.ok(dorm, 'forward_busy should be in dormantFeatures (IVR pre-empts it)')
+  assert.strictEqual(dorm.forwardTo, '+15555550000')
 })
 
 // ────────────────────────────────────────
-// 4. IVR + forward(no_answer) → IVR primary, no_answer in secondary
+// 4. IVR + forward(no_answer) → IVR primary, forward_no_answer DORMANT
 // ────────────────────────────────────────
-t('IVR + forward(no_answer) → IVR primary, forward_no_answer in secondary', () => {
+t('IVR + forward(no_answer) → IVR primary, forward_no_answer in dormantFeatures', () => {
   const num = {
     plan: 'business',
     features: {
@@ -84,9 +84,9 @@ t('IVR + forward(no_answer) → IVR primary, forward_no_answer in secondary', ()
   }
   const r = getCallRouteSummary(num)
   assert.strictEqual(r.primary.action, 'ivr')
-  const fwdSec = r.secondary.find(s => s.action === 'forward_no_answer')
-  assert.ok(fwdSec)
-  assert.strictEqual(fwdSec.ringTimeout, 30)
+  const dorm = r.dormantFeatures.find(d => d.feature === 'forward_no_answer')
+  assert.ok(dorm)
+  assert.strictEqual(dorm.ringTimeout, 30)
 })
 
 // ────────────────────────────────────────
@@ -235,6 +235,162 @@ t('formatCallFlowPreview HI — missed', () => {
   const num = { plan: 'starter', features: {} }
   const txt = formatCallFlowPreview(num, 'hi')
   assert.match(txt, /अनुपलब्ध|उपलब्ध नहीं/)
+})
+
+// ────────────────────────────────────────
+// IVR option enumeration in preview (mirrors screenshot scenario)
+// ────────────────────────────────────────
+t('formatCallFlowPreview EN — IVR with 3 options enumerates Press 1→Forward, Press 2→Message, Press 3→Voicemail', () => {
+  const num = {
+    plan: 'business',
+    features: {
+      ivr: { enabled: true, options: {
+        '1': { action: 'forward', forwardTo: '+19382616936' },
+        '2': { action: 'message' },
+        '3': { action: 'voicemail' },
+      }},
+    },
+  }
+  const txt = formatCallFlowPreview(num, 'en')
+  assert.match(txt, /Press <b>1<\/b>→Forward/)
+  assert.match(txt, /Press <b>2<\/b>→Message/)
+  assert.match(txt, /Press <b>3<\/b>→Voicemail/)
+})
+
+t('formatCallFlowPreview FR — IVR options enumerate with French labels', () => {
+  const num = {
+    plan: 'business',
+    features: {
+      ivr: { enabled: true, options: {
+        '1': { action: 'forward', forwardTo: '+15555550000' },
+        '2': { action: 'voicemail' },
+      }},
+    },
+  }
+  const txt = formatCallFlowPreview(num, 'fr')
+  assert.match(txt, /Touche <b>1<\/b>→Transfert/)
+  assert.match(txt, /Touche <b>2<\/b>→Messagerie/)
+})
+
+t('formatCallFlowPreview EN — IVR with 5 options caps at 3 + "+2 more"', () => {
+  const num = {
+    plan: 'business',
+    features: {
+      ivr: { enabled: true, options: {
+        '1': { action: 'forward', forwardTo: '+15555550001' },
+        '2': { action: 'forward', forwardTo: '+15555550002' },
+        '3': { action: 'message' },
+        '4': { action: 'message' },
+        '5': { action: 'voicemail' },
+      }},
+    },
+  }
+  const txt = formatCallFlowPreview(num, 'en')
+  assert.match(txt, /\+2 more/, 'Should show "+2 more" when capping at 3')
+  assert.match(txt, /Press <b>1<\/b>/)
+  assert.match(txt, /Press <b>3<\/b>/)
+  assert.doesNotMatch(txt, /Press <b>4<\/b>/, 'Press 4 should be hidden behind "+2 more"')
+})
+
+// ────────────────────────────────────────
+// IVR dormant warning in preview
+// ────────────────────────────────────────
+t('formatCallFlowPreview EN — IVR + forward(busy) shows "💤 Forward-when-busy is dormant"', () => {
+  const num = {
+    plan: 'business',
+    features: {
+      ivr: { enabled: true, options: { '1': { action: 'voicemail' } } },
+      callForwarding: { enabled: true, mode: 'busy', forwardTo: '+15555550000' },
+    },
+  }
+  const txt = formatCallFlowPreview(num, 'en')
+  assert.match(txt, /💤/, 'Should include dormant warning emoji')
+  assert.match(txt, /dormant/i)
+  assert.match(txt, /Forward-when-busy/)
+})
+
+t('formatCallFlowPreview EN — IVR with all dormant features lists each one', () => {
+  const num = {
+    plan: 'business',
+    sipUsername: 'sipxyz',
+    features: {
+      ivr: { enabled: true, options: { '1': { action: 'voicemail' } } },
+      callForwarding: { enabled: true, mode: 'no_answer', forwardTo: '+15555550000', ringTimeout: 30 },
+      voicemail: { enabled: true },
+    },
+  }
+  const txt = formatCallFlowPreview(num, 'en')
+  assert.match(txt, /Forward-on-no-answer/)
+  assert.match(txt, /SIP ring/)
+  assert.match(txt, /Voicemail/)
+  assert.match(txt, /dormant/)
+})
+
+// ────────────────────────────────────────
+// Broken IVR — enabled but no options
+// ────────────────────────────────────────
+t('Broken IVR (enabled, no options) → primary=missed, broken-IVR message in preview', () => {
+  const num = {
+    plan: 'business',
+    features: {
+      ivr: { enabled: true, options: {} },
+    },
+  }
+  const r = getCallRouteSummary(num)
+  assert.strictEqual(r.primary.action, 'missed', 'enabled-but-empty IVR should not be primary')
+  assert.ok(r.hasBrokenIvr, 'broken IVR flag should be set')
+  const txt = formatCallFlowPreview(num, 'en')
+  assert.match(txt, /no menu options yet/, 'Preview should warn about missing options')
+})
+
+// ────────────────────────────────────────
+// Exact screenshot scenario — IVR auto-attendant with 3 options, no Always-Forward
+// ────────────────────────────────────────
+t('Screenshot scenario (IVR auto-attendant, no Always-Forward) → no skipped, no dormant', () => {
+  const num = {
+    plan: 'business',
+    sipUsername: null,
+    features: {
+      ivr: { enabled: true, options: {
+        '1': { action: 'forward', forwardTo: '+19382616936' },
+        '2': { action: 'message' },
+        '3': { action: 'voicemail' },
+      }},
+      // Pre-existing default voicemail/forwarding off — they don't conflict
+      callForwarding: { enabled: false, mode: 'disabled', forwardTo: null },
+      voicemail: { enabled: false },
+    },
+  }
+  const r = getCallRouteSummary(num)
+  assert.strictEqual(r.primary.action, 'ivr')
+  assert.strictEqual(r.skippedFeatures.length, 0, 'No conflict warning should fire — pure IVR setup')
+  assert.strictEqual(r.dormantFeatures.length, 0, 'No dormant features either — all top-level features off')
+  const txt = formatCallFlowPreview(num, 'en')
+  assert.doesNotMatch(txt, /skipped/, 'Should not mention skipped features')
+  assert.doesNotMatch(txt, /dormant/, 'Should not mention dormant features')
+})
+
+// ────────────────────────────────────────
+// formatIvrOptionsInline — direct unit test
+// ────────────────────────────────────────
+t('formatIvrOptionsInline EN — empty options returns ""', () => {
+  assert.strictEqual(phoneConfig.formatIvrOptionsInline({}, 'en'), '')
+  assert.strictEqual(phoneConfig.formatIvrOptionsInline(null, 'en'), '')
+  assert.strictEqual(phoneConfig.formatIvrOptionsInline(undefined, 'en'), '')
+})
+
+t('formatIvrOptionsInline EN — sorts keys numerically', () => {
+  const txt = phoneConfig.formatIvrOptionsInline({
+    '3': { action: 'voicemail' },
+    '1': { action: 'forward' },
+    '2': { action: 'message' },
+  }, 'en')
+  // Press 1 should come before Press 2 should come before Press 3
+  const idx1 = txt.indexOf('Press <b>1</b>')
+  const idx2 = txt.indexOf('Press <b>2</b>')
+  const idx3 = txt.indexOf('Press <b>3</b>')
+  assert.ok(idx1 > -1 && idx2 > -1 && idx3 > -1)
+  assert.ok(idx1 < idx2 && idx2 < idx3, `Keys should be sorted: got 1@${idx1}, 2@${idx2}, 3@${idx3}`)
 })
 
 // ────────────────────────────────────────

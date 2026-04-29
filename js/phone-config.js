@@ -2878,17 +2878,23 @@ function getMsg(lang) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Call-flow summary — single source of truth for "what happens when someone calls?"
 // Mirrors the priority order in voice-service.js → handleCallAnswered():
-//   1. Forwarding(always) — overrides everything
+//   1. Forwarding(always) — overrides everything (IVR, SIP, VM all skipped)
 //   2. IVR — runs if enabled (with options) and forwarding is not "always"
-//   3. Forwarding(busy/no_answer) — runs after IVR fails or before SIP fallback
-//   4. SIP ring — if user has SIP credentials
-//   5. Voicemail — if enabled
+//   3. Forwarding(busy/no_answer) — only reached when IVR is NOT primary
+//   4. SIP ring — only reached when IVR is NOT primary
+//   5. Voicemail — only reached when nothing else handled the call
 //   6. Missed
-// Returns: { primary, secondary, skippedFeatures: ['ivr'|'voicemail'|...] }
-//   primary    — the dominant routing action (one of: 'forward_always','ivr','forward_busy',
+// Returns: { primary, secondary, skippedFeatures, dormantFeatures, ... }
+//   primary    — dominant routing action ('forward_always','ivr','forward_busy',
 //                'forward_no_answer','sip_ring','voicemail','missed')
-//   secondary  — array of fallback actions, in order
-//   skippedFeatures — features the user has enabled but that won't fire because of priority
+//   secondary  — deterministic fall-throughs after primary (e.g. SIP→Voicemail)
+//   skippedFeatures — features ENABLED but FULLY OVERRIDDEN by primary (e.g. IVR while
+//                     Always-Forward is on — they are pre-empted by an unconditional override)
+//   dormantFeatures — features ENABLED but PRE-EMPTED by primary's routing logic so their
+//                     trigger conditions never get checked (e.g. forward(busy) while IVR is on —
+//                     IVR returns first, the busy check is never reached). These are softer
+//                     warnings than 'skipped' — the user might still want to keep them for
+//                     when they later toggle off the primary.
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function getCallRouteSummary(num) {
   const f = num?.features || {}
@@ -2898,24 +2904,31 @@ function getCallRouteSummary(num) {
   const plan = num?.plan || 'starter'
   const hasFwd = !!(fwd.enabled && fwd.forwardTo)
   const fwdMode = fwd.mode || 'always'
-  const hasIvr = !!(ivr.enabled && canAccessFeature(plan, 'ivr') && ivr.options && Object.keys(ivr.options).length > 0)
-  const hasSip = !!num?.sipUsername
+  const ivrOptionCount = ivr.options ? Object.keys(ivr.options).length : 0
+  const hasIvr = !!(ivr.enabled && canAccessFeature(plan, 'ivr') && ivrOptionCount > 0)
+  // IVR is "broken" if enabled but has no options — it's a misconfig, not a primary action
+  const hasBrokenIvr = !!(ivr.enabled && canAccessFeature(plan, 'ivr') && ivrOptionCount === 0)
+  const hasSip = !!num?.sipUsername && !num?.sipDisabled
   const hasVm = !!(vm.enabled && canAccessFeature(plan, 'voicemail'))
 
   const skipped = []
+  const dormant = []
   let primary, secondary = []
 
   if (hasFwd && fwdMode === 'always') {
     primary = { action: 'forward_always', forwardTo: fwd.forwardTo }
-    if (hasIvr) skipped.push('ivr')
+    if (hasIvr || hasBrokenIvr) skipped.push('ivr')
     if (hasSip) skipped.push('sip_ring')
     if (hasVm) skipped.push('voicemail')
   } else if (hasIvr) {
-    primary = { action: 'ivr' }
-    if (hasFwd && fwdMode === 'busy') secondary.push({ action: 'forward_busy', forwardTo: fwd.forwardTo })
-    if (hasFwd && fwdMode === 'no_answer') secondary.push({ action: 'forward_no_answer', forwardTo: fwd.forwardTo, ringTimeout: fwd.ringTimeout || 25 })
-    if (hasSip) secondary.push({ action: 'sip_ring' })
-    if (hasVm) secondary.push({ action: 'voicemail' })
+    primary = { action: 'ivr', options: ivr.options, optionCount: ivrOptionCount }
+    // Top-level forward(busy/no_answer) — DORMANT under IVR (IVR returns before the busy/no-answer
+    // check is reached in handleCallAnswered). Surface as dormant so user knows it doesn't fire.
+    if (hasFwd && fwdMode === 'busy') dormant.push({ feature: 'forward_busy', forwardTo: fwd.forwardTo })
+    if (hasFwd && fwdMode === 'no_answer') dormant.push({ feature: 'forward_no_answer', forwardTo: fwd.forwardTo, ringTimeout: fwd.ringTimeout || 25 })
+    // SIP ring & voicemail — also dormant under IVR (IVR returns; they only fire if user later disables IVR)
+    if (hasSip) dormant.push({ feature: 'sip_ring' })
+    if (hasVm) dormant.push({ feature: 'voicemail' })
   } else if (hasFwd && fwdMode === 'busy') {
     primary = { action: 'forward_busy', forwardTo: fwd.forwardTo }
     if (hasSip) secondary.push({ action: 'sip_ring' })
@@ -2933,7 +2946,42 @@ function getCallRouteSummary(num) {
     primary = { action: 'missed' }
   }
 
-  return { primary, secondary, skippedFeatures: skipped, hasFwd, hasIvr, hasSip, hasVm, fwdMode }
+  return {
+    primary, secondary,
+    skippedFeatures: skipped,
+    dormantFeatures: dormant,
+    hasFwd, hasIvr, hasBrokenIvr, hasSip, hasVm, fwdMode,
+    ivrOptionCount,
+  }
+}
+
+// Short label for a single IVR option's action — used inline in the call-flow preview.
+// Example: { '1': {action:'forward', forwardTo:'+1...'} } → "Forward"
+function _ivrOptionShortLabel(opt, lang) {
+  const labels = {
+    en: { forward: 'Forward', message: 'Message', voicemail: 'Voicemail' },
+    fr: { forward: 'Transfert', message: 'Message', voicemail: 'Messagerie' },
+    zh: { forward: '转接', message: '消息', voicemail: '语音信箱' },
+    hi: { forward: 'फ़ॉरवर्ड', message: 'मैसेज', voicemail: 'वॉइसमेल' },
+  }
+  const tr = labels[lang] || labels.en
+  return tr[opt?.action] || opt?.action || '?'
+}
+
+// "Press 1→Forward, Press 2→Message, Press 3→Voicemail" — used inside the IVR preview line.
+// Caps at 3 enumerated options when there are more, e.g. "Press 1→Forward, Press 2→Message, +3 more"
+function formatIvrOptionsInline(options, lang = 'en') {
+  if (!options || typeof options !== 'object') return ''
+  const keys = Object.keys(options).sort()
+  if (keys.length === 0) return ''
+  const verbs = { en: 'Press', fr: 'Touche', zh: '按', hi: 'दबाएँ' }
+  const press = verbs[lang] || verbs.en
+  const more = { en: 'more', fr: 'autres', zh: '更多', hi: 'और' }
+  const moreLabel = more[lang] || more.en
+  const cap = 3
+  const shown = keys.slice(0, cap).map(k => `${press} <b>${k}</b>→${_ivrOptionShortLabel(options[k], lang)}`).join(', ')
+  if (keys.length > cap) return `${shown}, +${keys.length - cap} ${moreLabel}`
+  return shown
 }
 
 // Plain-English (or localized) one-liner preview of the call flow.
@@ -2947,50 +2995,62 @@ function formatCallFlowPreview(num, lang = 'en') {
     en: {
       forwardAlways: (n) => `🧭 <b>Currently:</b> All calls auto-forward to <b>${fmt(n)}</b>. IVR & voicemail won't play.`,
       ivrFirst: () => `🧭 <b>Currently:</b> Callers hear your IVR menu first.`,
-      ivrPlusFwdBusy: (n) => `🧭 <b>Currently:</b> Callers hear your IVR menu. Calls forward to <b>${fmt(n)}</b> only when busy.`,
-      ivrPlusFwdNoAns: (n, t) => `🧭 <b>Currently:</b> Callers hear your IVR menu. Forwarded to <b>${fmt(n)}</b> if no answer in ${t}s.`,
+      ivrWithOptions: (opts) => `🧭 <b>Currently:</b> Callers hear your IVR menu (${opts}).`,
+      ivrBroken: () => `🧭 <b>Currently:</b> IVR is enabled but has no menu options yet — callers will hang up. Add options or disable IVR.`,
       fwdBusy: (n) => `🧭 <b>Currently:</b> Calls forward to <b>${fmt(n)}</b> only when busy.`,
       fwdNoAns: (n, t) => `🧭 <b>Currently:</b> Calls forward to <b>${fmt(n)}</b> if no answer in ${t}s.`,
       sipRing: () => `🧭 <b>Currently:</b> Calls ring your SIP/softphone device.`,
       voicemail: () => `🧭 <b>Currently:</b> Callers go straight to voicemail.`,
       missed: () => `🧭 <b>Currently:</b> No features enabled — callers hear "number unavailable".`,
-      skipsLine: (skipped) => `\n⚠️ ${skipped.map(s => ({ ivr: 'IVR', sip_ring: 'SIP', voicemail: 'voicemail' }[s] || s)).join(', ')} ${skipped.length === 1 ? 'is' : 'are'} enabled but skipped.`,
+      skippedLabels: { ivr: 'IVR', sip_ring: 'SIP', voicemail: 'voicemail' },
+      skipsLine: (labels) => `\n⚠️ ${labels.join(', ')} ${labels.length === 1 ? 'is' : 'are'} enabled but skipped.`,
+      dormantLabels: { forward_busy: 'Forward-when-busy', forward_no_answer: 'Forward-on-no-answer', sip_ring: 'SIP ring', voicemail: 'Voicemail' },
+      dormantLine: (labels) => `\n💤 ${labels.join(', ')} ${labels.length === 1 ? 'is' : 'are'} dormant — IVR catches every call first.`,
     },
     fr: {
       forwardAlways: (n) => `🧭 <b>Actuellement :</b> Tous les appels sont transférés vers <b>${fmt(n)}</b>. SVI et messagerie ne se déclenchent pas.`,
       ivrFirst: () => `🧭 <b>Actuellement :</b> Les appelants entendent votre menu SVI en premier.`,
-      ivrPlusFwdBusy: (n) => `🧭 <b>Actuellement :</b> Les appelants entendent votre menu SVI. Transfert vers <b>${fmt(n)}</b> en cas d'occupation.`,
-      ivrPlusFwdNoAns: (n, t) => `🧭 <b>Actuellement :</b> Les appelants entendent votre menu SVI. Transfert vers <b>${fmt(n)}</b> sans réponse en ${t}s.`,
+      ivrWithOptions: (opts) => `🧭 <b>Actuellement :</b> Les appelants entendent votre menu SVI (${opts}).`,
+      ivrBroken: () => `🧭 <b>Actuellement :</b> SVI activé mais sans option — les appelants raccrocheront. Ajoutez des options ou désactivez le SVI.`,
       fwdBusy: (n) => `🧭 <b>Actuellement :</b> Transfert vers <b>${fmt(n)}</b> en cas d'occupation.`,
       fwdNoAns: (n, t) => `🧭 <b>Actuellement :</b> Transfert vers <b>${fmt(n)}</b> sans réponse en ${t}s.`,
       sipRing: () => `🧭 <b>Actuellement :</b> Les appels font sonner votre poste SIP.`,
       voicemail: () => `🧭 <b>Actuellement :</b> Les appelants tombent directement sur la messagerie.`,
       missed: () => `🧭 <b>Actuellement :</b> Aucune fonction activée — les appelants entendent « numéro indisponible ».`,
-      skipsLine: (skipped) => `\n⚠️ ${skipped.map(s => ({ ivr: 'SVI', sip_ring: 'SIP', voicemail: 'messagerie' }[s] || s)).join(', ')} activé(e) mais ignoré(e).`,
+      skippedLabels: { ivr: 'SVI', sip_ring: 'SIP', voicemail: 'messagerie' },
+      skipsLine: (labels) => `\n⚠️ ${labels.join(', ')} activé(e) mais ignoré(e).`,
+      dormantLabels: { forward_busy: 'Transfert-si-occupé', forward_no_answer: 'Transfert-sans-réponse', sip_ring: 'Sonnerie SIP', voicemail: 'Messagerie' },
+      dormantLine: (labels) => `\n💤 ${labels.join(', ')} dormant — le SVI intercepte tous les appels.`,
     },
     zh: {
       forwardAlways: (n) => `🧭 <b>当前：</b>所有来电自动转接至 <b>${fmt(n)}</b>。IVR 与语音信箱不会播放。`,
       ivrFirst: () => `🧭 <b>当前：</b>来电首先听到您的 IVR 菜单。`,
-      ivrPlusFwdBusy: (n) => `🧭 <b>当前：</b>来电先听 IVR 菜单。占线时转接至 <b>${fmt(n)}</b>。`,
-      ivrPlusFwdNoAns: (n, t) => `🧭 <b>当前：</b>来电先听 IVR 菜单。${t}秒未接听则转接至 <b>${fmt(n)}</b>。`,
+      ivrWithOptions: (opts) => `🧭 <b>当前：</b>来电听到您的 IVR 菜单（${opts}）。`,
+      ivrBroken: () => `🧭 <b>当前：</b>IVR 已启用但没有菜单选项 — 来电会直接挂断。请添加选项或关闭 IVR。`,
       fwdBusy: (n) => `🧭 <b>当前：</b>占线时转接至 <b>${fmt(n)}</b>。`,
       fwdNoAns: (n, t) => `🧭 <b>当前：</b>${t}秒未接听则转接至 <b>${fmt(n)}</b>。`,
       sipRing: () => `🧭 <b>当前：</b>来电响铃您的 SIP/软电话。`,
       voicemail: () => `🧭 <b>当前：</b>来电直接进入语音信箱。`,
       missed: () => `🧭 <b>当前：</b>未启用任何功能 — 来电将听到 "号码不可用"。`,
-      skipsLine: (skipped) => `\n⚠️ 已启用但被跳过：${skipped.map(s => ({ ivr: 'IVR', sip_ring: 'SIP', voicemail: '语音信箱' }[s] || s)).join('、')}。`,
+      skippedLabels: { ivr: 'IVR', sip_ring: 'SIP', voicemail: '语音信箱' },
+      skipsLine: (labels) => `\n⚠️ 已启用但被跳过：${labels.join('、')}。`,
+      dormantLabels: { forward_busy: '占线转接', forward_no_answer: '无应答转接', sip_ring: 'SIP 振铃', voicemail: '语音信箱' },
+      dormantLine: (labels) => `\n💤 ${labels.join('、')}处于休眠 — IVR 拦截所有来电。`,
     },
     hi: {
       forwardAlways: (n) => `🧭 <b>अभी:</b> सभी कॉल <b>${fmt(n)}</b> पर ऑटो-फ़ॉरवर्ड होंगे। IVR और वॉइसमेल नहीं चलेंगे।`,
       ivrFirst: () => `🧭 <b>अभी:</b> कॉलर पहले आपका IVR मेनू सुनेंगे।`,
-      ivrPlusFwdBusy: (n) => `🧭 <b>अभी:</b> IVR मेनू पहले। व्यस्त होने पर <b>${fmt(n)}</b> पर फ़ॉरवर्ड।`,
-      ivrPlusFwdNoAns: (n, t) => `🧭 <b>अभी:</b> IVR मेनू पहले। ${t}s तक उत्तर न मिले तो <b>${fmt(n)}</b> पर फ़ॉरवर्ड।`,
+      ivrWithOptions: (opts) => `🧭 <b>अभी:</b> कॉलर आपका IVR मेनू सुनेंगे (${opts})।`,
+      ivrBroken: () => `🧭 <b>अभी:</b> IVR चालू पर कोई विकल्प नहीं — कॉलर कट जाएंगे। विकल्प जोड़ें या IVR बंद करें।`,
       fwdBusy: (n) => `🧭 <b>अभी:</b> व्यस्त होने पर <b>${fmt(n)}</b> पर फ़ॉरवर्ड।`,
       fwdNoAns: (n, t) => `🧭 <b>अभी:</b> ${t}s तक उत्तर न मिले तो <b>${fmt(n)}</b> पर फ़ॉरवर्ड।`,
       sipRing: () => `🧭 <b>अभी:</b> कॉल आपके SIP/सॉफ्टफ़ोन पर बजेगा।`,
       voicemail: () => `🧭 <b>अभी:</b> कॉलर सीधे वॉइसमेल पर जाएंगे।`,
       missed: () => `🧭 <b>अभी:</b> कोई फीचर सक्रिय नहीं — "नंबर अनुपलब्ध" सुनाई देगा।`,
-      skipsLine: (skipped) => `\n⚠️ चालू है पर छोड़ा जाएगा: ${skipped.map(s => ({ ivr: 'IVR', sip_ring: 'SIP', voicemail: 'वॉइसमेल' }[s] || s)).join(', ')}।`,
+      skippedLabels: { ivr: 'IVR', sip_ring: 'SIP', voicemail: 'वॉइसमेल' },
+      skipsLine: (labels) => `\n⚠️ चालू है पर छोड़ा जाएगा: ${labels.join(', ')}।`,
+      dormantLabels: { forward_busy: 'Forward-व्यस्त', forward_no_answer: 'Forward-no-answer', sip_ring: 'SIP रिंग', voicemail: 'वॉइसमेल' },
+      dormantLine: (labels) => `\n💤 ${labels.join(', ')} सुप्त — IVR सभी कॉल पहले पकड़ता है।`,
     },
   }
   const tr = L[lang] || L.en
@@ -2999,19 +3059,27 @@ function formatCallFlowPreview(num, lang = 'en') {
   switch (p.action) {
     case 'forward_always': line = tr.forwardAlways(p.forwardTo); break
     case 'ivr': {
-      const fwdSec = summary.secondary.find(s => s.action === 'forward_busy' || s.action === 'forward_no_answer')
-      if (fwdSec?.action === 'forward_busy') line = tr.ivrPlusFwdBusy(fwdSec.forwardTo)
-      else if (fwdSec?.action === 'forward_no_answer') line = tr.ivrPlusFwdNoAns(fwdSec.forwardTo, fwdSec.ringTimeout)
-      else line = tr.ivrFirst()
+      const optsInline = formatIvrOptionsInline(p.options, lang)
+      line = optsInline ? tr.ivrWithOptions(optsInline) : tr.ivrFirst()
       break
     }
     case 'forward_busy': line = tr.fwdBusy(p.forwardTo); break
     case 'forward_no_answer': line = tr.fwdNoAns(p.forwardTo, p.ringTimeout); break
     case 'sip_ring': line = tr.sipRing(); break
     case 'voicemail': line = tr.voicemail(); break
-    default: line = tr.missed()
+    default: line = summary.hasBrokenIvr ? tr.ivrBroken() : tr.missed()
   }
-  if (summary.skippedFeatures.length > 0) line += tr.skipsLine(summary.skippedFeatures)
+
+  // Skipped features (fully overridden — Always-Forward case)
+  if (summary.skippedFeatures.length > 0) {
+    const labels = summary.skippedFeatures.map(s => tr.skippedLabels[s] || s)
+    line += tr.skipsLine(labels)
+  }
+  // Dormant features (pre-empted by IVR — softer warning, doesn't fire but isn't a misconfig)
+  if (summary.dormantFeatures.length > 0) {
+    const labels = summary.dormantFeatures.map(d => tr.dormantLabels[d.feature] || d.feature)
+    line += tr.dormantLine(labels)
+  }
   return line
 }
 
@@ -3063,4 +3131,5 @@ module.exports = {
   getSubNumberLimit,
   getCallRouteSummary,
   formatCallFlowPreview,
+  formatIvrOptionsInline,
 }

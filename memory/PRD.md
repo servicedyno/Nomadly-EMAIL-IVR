@@ -41,14 +41,38 @@ The routing priority in `js/voice-service.js → handleCallAnswered()` checked *
 - `js/phone-config.js → formatCallFlowPreview(num, lang)` — localized one-liner for end-user display.
 
 ### Tests
-- New: `js/tests/test_call_route_priority.js` — 17 cases covering all priority permutations + 4-locale previews + static source-order assertion. **17/17 passing.**
+- New: `js/tests/test_call_route_priority.js` — **26 cases** covering all priority permutations + 4-locale previews + IVR option enumeration + dormant-feature detection + broken-IVR detection + the screenshot's pure auto-attendant scenario + static source-order assertion. **26/26 passing.**
 - Sibling regressions all green: `test_bulkivr_wallet (10/10)`, `test_manage_screen_features (21/21)`, `test_billing_menu_and_gold_copy`, `test_plan_copy`, `test_i18n_coverage`.
 
-### Files touched
+### Auto-attendant clarity follow-up (Feb 2026 — same session)
+
+Refined the awareness layer based on a user question about IVR auto-attendant setups (Press 1 → Forward, Press 2 → Message, Press 3 → Voicemail):
+
+**1. IVR option enumeration in preview.** `formatCallFlowPreview()` now renders the inline option list:
+> *🧭 Currently: Callers hear your IVR menu (Press **1**→Forward, Press **2**→Message, Press **3**→Voicemail).*
+Caps at 3 enumerated options + "+N more" for longer menus, sorted by key. Localized in en/fr/zh/hi.
+
+**2. New "dormant features" semantics.** Distinguishes pre-empted features from skipped ones:
+- `skippedFeatures` (`⚠️`): enabled but COMPLETELY overridden — e.g. IVR while Always-Forward is on
+- `dormantFeatures` (`💤`): enabled but PRE-EMPTED by primary's logic so trigger conditions never check — e.g. forward(busy/no_answer) under IVR (IVR returns first; busy check never reached). Softer warning since user might still want them for when primary is later toggled off.
+
+**3. Scope-clarifying tip on IVR Forward option save.** After saving "Press X → Forward to Y", the bot now also sends:
+> *💡 This forwards only when callers press X. To forward every incoming call regardless of menu, go to 📲 Call Forwarding → Always Forward (which would override this IVR entirely).*
+
+**4. Broken-IVR detection.** When IVR is enabled but has no options (a misconfig that would drop calls), the preview reads:
+> *🧭 Currently: IVR is enabled but has no menu options yet — callers will hang up. Add options or disable IVR.*
+
+#### Updated files
+- `js/phone-config.js` — `getCallRouteSummary` now returns `dormantFeatures`, `hasBrokenIvr`, `ivrOptionCount`, and `primary.options` for IVR. New `formatIvrOptionsInline(options, lang)` helper. `formatCallFlowPreview` rendering for all 4 locales updated.
+- `js/_index.js` — IVR add-option Forward confirmation now fires a 2nd `send()` with the scope-clarifying tip in the user's language.
+- `js/tests/test_call_route_priority.js` — expanded from 17 → 26 tests; updated existing IVR + forward(busy/no_answer) tests to assert dormant-features semantics.
+
+#### Files touched
 - `js/voice-service.js` — restructured `handleCallAnswered()` priority order + new `_forwardingWalletGate()` helper.
-- `js/phone-config.js` — new helpers `getCallRouteSummary` + `formatCallFlowPreview` + 4-locale labels (en/fr/zh/hi).
-- `js/_index.js` — preview at top of 3 feature screens, post-save conflict warning + remediation handler `cpForwardingConflictResolve`, `(skipped)` badges in `buildManageMenu`, support for badged button matching via `startsWith`.
-- `js/tests/test_call_route_priority.js` — 17 unit tests.
+- `js/phone-config.js` — new helpers `getCallRouteSummary` + `formatCallFlowPreview` + `formatIvrOptionsInline` + 4-locale labels (en/fr/zh/hi). Distinguishes `skippedFeatures` from `dormantFeatures`. Detects broken IVR.
+- `js/_index.js` — preview at top of 3 feature screens, post-save conflict warning + remediation handler `cpForwardingConflictResolve`, `(skipped)` badges in `buildManageMenu`, support for badged button matching via `startsWith`, scope-clarifying tip on IVR Forward option save.
+- `js/tests/test_call_route_priority.js` — 26 unit tests.
+- `scripts/reset_wizardchop_settings.py` — production-data reset script (executed once for @wizardchop, kept for future similar incidents).
 
 ### Deployment
 - Local repo only. **NOT yet deployed to Railway.** User pushes via "Save to Github" → Railway auto-deploys.

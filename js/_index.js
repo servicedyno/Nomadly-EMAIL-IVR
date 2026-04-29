@@ -22277,6 +22277,15 @@ How do you want to create the message?`), k.of([[btn.useTemplate], [btn.typeText
       await saveInfo('cpActiveNumber', num)
       await saveInfo('cpIvrDraft', null)
       send(chatId, ({ en: `✅ Key <b>${draft.key}</b> → Forward to <b>${phone}</b> — saved!`, fr: `✅ Touche <b>${draft.key}</b> → Transférer vers <b>${phone}</b> — enregistré !`, zh: `✅ 按键 <b>${draft.key}</b> → 转接到 <b>${phone}</b> — 已保存！`, hi: `✅ कुंजी <b>${draft.key}</b> → <b>${phone}</b> पर फ़ॉरवर्ड — सेव!` }[lang] || `✅ Key <b>${draft.key}</b> → Forward to <b>${phone}</b> — saved!`))
+      // Scope-clarifying tip — distinguishes IVR-option forwarding (per-key) from top-level Always-Forward.
+      // Common confusion: users think setting up "Press 1 → Forward" also means "all calls forward".
+      // It does NOT — only when the caller actually presses 1.
+      send(chatId, ({
+        en: `💡 This forwards <b>only when callers press ${draft.key}</b>. To forward <b>every</b> incoming call regardless of menu, go to 📲 Call Forwarding → Always Forward (which would override this IVR entirely).`,
+        fr: `💡 Ce transfert se déclenche <b>uniquement quand les appelants tapent ${draft.key}</b>. Pour transférer <b>tous</b> les appels indépendamment du menu, allez dans 📲 Transfert d'appel → Transfert systématique (ce qui désactiverait ce SVI).`,
+        zh: `💡 此转接<b>仅在来电者按 ${draft.key} 时</b>触发。要转接<b>所有</b>来电（不经菜单），请前往 📲 呼叫转移 → 全部转接（将完全覆盖此 IVR）。`,
+        hi: `💡 यह ट्रांसफर <b>सिर्फ तब होगा जब कॉलर ${draft.key} दबाएँ</b>। मेनू के बिना <b>हर</b> कॉल फ़ॉरवर्ड करने के लिए 📲 Call Forwarding → Always Forward में जाएँ (जो इस IVR को पूरी तरह बदल देगा)।`,
+      }[lang] || `💡 This forwards <b>only when callers press ${draft.key}</b>. To forward <b>every</b> incoming call regardless of menu, go to 📲 Call Forwarding → Always Forward (which would override this IVR entirely).`))
       await set(state, chatId, 'action', a.cpIvr)
       return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
         [pc.ivrGreeting], [pc.ivrAddOption], [pc.ivrRemoveOption], [pc.ivrViewOptions], [pc.ivrAnalytics], [pc.disableIvr]
