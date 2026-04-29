@@ -10426,7 +10426,7 @@ All verified numbers generated during sourcing.`))
 
   // ── Email Validation Menu Handler ──
   if (action === a.evMenu) {
-    if (message === t.back || message === t.cancel || message === '🔙 Back') return goto.displayMainMenuButtons()
+    if (message === t.back || message === t.cancel || message === '🔙 Back' || message === '❌ Cancel') return goto.displayMainMenuButtons()
 
     if (message === '📤 Upload List (CSV/TXT)') {
       await set(state, chatId, 'action', a.evUploadList)
@@ -10517,6 +10517,24 @@ All verified numbers generated during sourcing.`))
       }
       return send(chatId, hint[lang] || hint.en, { parse_mode: 'HTML', reply_markup: { keyboard: [['❌ Cancel']], resize_keyboard: true } })
     }
+
+    // ── Graceful fallback: unrecognized input on EV menu ──
+    // Previously fell through to a hard reset to main menu. Now show a friendly hint
+    // and re-render the EV menu so the user keeps their context.
+    const evHint = {
+      en: `❓ I didn't catch that. Tap one of the buttons below to upload, paste, or view your validations.`,
+      fr: `❓ Je n'ai pas compris. Touchez un bouton ci-dessous pour télécharger, coller ou voir vos validations.`,
+      zh: `❓ 没听懂。请点击下方按钮上传、粘贴或查看验证记录。`,
+      hi: `❓ समझ नहीं आया। नीचे दिए गए बटन से अपलोड, पेस्ट या सत्यापन देखें।`,
+    }
+    const evBtnsFb = [
+      ['📤 Upload List (CSV/TXT)'],
+      ['📋 Paste Emails'],
+      ['📜 My Validations'],
+    ]
+    if (isAdmin(chatId)) evBtnsFb.push(['⚙️ EV IP Manager'])
+    evBtnsFb.push([t.back || '🔙 Back'])
+    return send(chatId, evHint[lang] || evHint.en, { parse_mode: 'HTML', reply_markup: { keyboard: evBtnsFb, resize_keyboard: true } })
   }
 
   // ── Email Validation: Admin IP Manager ──
@@ -10633,7 +10651,15 @@ All verified numbers generated during sourcing.`))
   if (action === a.evUploadList) {
     if (message === '❌ Cancel' || message === t.back || message === t.cancel) {
       await set(state, chatId, 'action', a.evMenu)
-      return send(chatId, trans('t.ev_16'), { parse_mode: 'HTML' })
+      // Re-render the EV menu so the keyboard is replaced (not just text reply)
+      const evBtnsBack = [
+        ['📤 Upload List (CSV/TXT)'],
+        ['📋 Paste Emails'],
+        ['📜 My Validations'],
+      ]
+      if (isAdmin(chatId)) evBtnsBack.push(['⚙️ EV IP Manager'])
+      evBtnsBack.push([t.back || '🔙 Back'])
+      return send(chatId, trans('t.ev_16'), { parse_mode: 'HTML', reply_markup: { keyboard: evBtnsBack, resize_keyboard: true } })
     }
 
     let content = ''
@@ -10743,7 +10769,15 @@ All verified numbers generated during sourcing.`))
   if (action === a.evPasteEmails) {
     if (message === '❌ Cancel' || message === t.back || message === t.cancel) {
       await set(state, chatId, 'action', a.evMenu)
-      return send(chatId, trans('t.ev_23'), { parse_mode: 'HTML' })
+      // Re-render the EV menu so the keyboard is replaced (not just text reply)
+      const evBtnsBack = [
+        ['📤 Upload List (CSV/TXT)'],
+        ['📋 Paste Emails'],
+        ['📜 My Validations'],
+      ]
+      if (isAdmin(chatId)) evBtnsBack.push(['⚙️ EV IP Manager'])
+      evBtnsBack.push([t.back || '🔙 Back'])
+      return send(chatId, trans('t.ev_23'), { parse_mode: 'HTML', reply_markup: { keyboard: evBtnsBack, resize_keyboard: true } })
     }
 
     if (!message || !message.trim()) {
@@ -11033,7 +11067,7 @@ All verified numbers generated during sourcing.`))
 
   // Email Blast Menu Handler
   if (action === a.ebMenu) {
-    if (message === t.back || message === t.cancel || message === '🔙 Back') return goto.displayMainMenuButtons()
+    if (message === t.back || message === t.cancel || message === '🔙 Back' || message === '❌ Cancel' || message === (t.ebCancelBtn || '❌ Cancel')) return goto.displayMainMenuButtons()
 
     if (message === t.ebSendBlast || message === '📤 Send Email Blast') {
       await set(state, chatId, 'action', a.ebUploadList)

@@ -993,3 +993,35 @@ Because the if-condition was a non-awaited Promise, it was always truthy, so `br
 ### Files touched
 - `js/voice-service.js`, `js/telnyx-service.js`, `frontend/src/components/panel/FileManager.js`
 
+## P3 Fix — Email Validation Cancel UX & Hard-Reset Bug (jinnXI session) (2026-04-29)
+
+### Bug found via Railway log replay
+User `8280668528` (jinnXI) hit two unexpected `[reset] Unrecognized message ... Resetting to main menu` events while on the Email Validation menu (`evMenu` action):
+1. Typed `'50'` (likely thought EV expected a quantity) → no graceful fallback → hard reset.
+2. Tapped `'❌ Cancel'` from a stale keyboard left over from the paste flow → `evMenu` only matched `t.cancel = 'Cancel'` (no emoji) → hard reset.
+
+### Fixes
+1. **`evMenu` accepts `'❌ Cancel'`** as exit (alongside `t.back` / `t.cancel` / `'🔙 Back'`).
+2. **Graceful fallback for unrecognized text in `evMenu`**: instead of falling through to the global `[reset]` handler, the bot now replies "❓ I didn't catch that. Tap one of the buttons below…" and **re-renders the menu keyboard** (Upload / Paste / History / Back) — translated for en/fr/zh/hi.
+3. **Cancel from `evPasteEmails` and `evUploadList` now re-renders the EV menu keyboard** instead of just sending text — so the stale `'❌ Cancel'` button in Telegram's persisted keyboard is properly replaced and users see the right buttons immediately.
+
+### Audited the rest of the bot for the same pattern
+Wrote a quick AST-style audit (245 action handlers in `_index.js`) to find any handler that:
+- Accepts `t.cancel` ('Cancel') as exit, AND
+- Renders `'❌ Cancel'` (emoji variant) in its UI keyboards
+
+Only **one** other handler had the same blind spot:
+- **`ebMenu`** (Email Blast) at `_index.js:11069` — also fixed to accept `'❌ Cancel'` and `t.ebCancelBtn` as exit.
+
+### Verified
+- Lint passes on `_index.js`.
+- Node restarted cleanly; bot webhook live; CR-Whitelist API check passing locally.
+
+### What was NOT changed (intentional)
+- The paste flow (`evPasteEmails`) only shows `'❌ Cancel'` because the user is mid-paste — adding a Continue button would be premature. After valid emails are parsed (≥10), the bot already auto-displays the proper payment options (Free Trial / Pay USD / Pay NGN / Cancel), so the flow does complete correctly.
+- The 4 handlers that show `'❌ Cancel'` but have no Cancel-handling logic at all (`ebTestEmail`, `downloadSSHKey`, `validatorSelectFormat`, `submenu2`) were verified — they're terminal handlers that return after their work; they don't need to handle Cancel.
+
+### Files touched
+- `js/_index.js` (3 handler patches: `evMenu` + fallback, `evPasteEmails` cancel keyboard, `evUploadList` cancel keyboard, `ebMenu` cancel match)
+
+
