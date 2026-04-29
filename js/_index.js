@@ -23415,6 +23415,11 @@ Select a category:`), k.of(catBtns))
             { _id: domain },
             { $unset: { 'val.antiRedOff': '' } }
           )
+          // Remove CF Worker KV bypass so edge re-enables the challenge
+          try {
+            const { setDomainChallengeBypass } = require('./anti-red-service')
+            await setDomainChallengeBypass(domain, false)
+          } catch (_) {}
           await set(state, chatId, 'action', 'view-domain-actions')
           return send(chatId, t.antiRedEnabled(domain), k.of([[t.domainActionAntiRed], [t.back]]), { parse_mode: 'HTML' })
         }
@@ -23432,13 +23437,15 @@ Select a category:`), k.of(catBtns))
         const domainDoc = await db.collection('registeredDomains').findOne({ _id: domain })
         const zoneId = domainDoc?.val?.cfZoneId
         if (!zoneId) return send(chatId, t.antiRedNoCF(domain), { parse_mode: 'HTML' })
-        const { removeWorkerRoutes } = require('./anti-red-service')
+        const { removeWorkerRoutes, setDomainChallengeBypass } = require('./anti-red-service')
         const result = await removeWorkerRoutes(domain, zoneId)
         if (result.success) {
           await db.collection('registeredDomains').updateOne(
             { _id: domain },
             { $set: { 'val.antiRedOff': true } }
           )
+          // Also set CF Worker KV bypass so edge respects the toggle immediately
+          try { await setDomainChallengeBypass(domain, true) } catch (_) {}
           await set(state, chatId, 'action', 'view-domain-actions')
           return send(chatId, t.antiRedDisabled(domain), k.of([[t.domainActionAntiRed], [t.back]]), { parse_mode: 'HTML' })
         }

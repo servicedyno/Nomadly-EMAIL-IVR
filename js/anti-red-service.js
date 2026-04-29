@@ -1757,6 +1757,23 @@ async function handleRequest(request) {
     });
   }
 
+  // ── Step 0b: Check if domain has challenge BYPASSED (user disabled Anti-Red) ──
+  // The domain-level bypass is stored in KV as 'bypass:{domain}'
+  // When present, skip the challenge page entirely but keep IP bans + honeypot active
+  try {
+    if (typeof BANNED_IPS !== 'undefined') {
+      const bypass = await BANNED_IPS.get('bypass:' + domain);
+      if (bypass) {
+        // User opted out of the challenge page — pass through directly
+        // IP bans (Step 0) and honeypot triggers (Step 1) still remain active
+        const response = await fetch(request, { redirect: 'manual' });
+        const newHeaders = new Headers(response.headers);
+        newHeaders.set('X-AntiRed', 'bypassed');
+        return new Response(response.body, { status: response.status, headers: newHeaders });
+      }
+    }
+  } catch (e) { /* KV read failed, continue with challenge */ }
+
   // ── Step 1: Handle honeypot triggers ──
   if (url.pathname.startsWith('/__honeypot/')) {
     return handleHoneypotTrigger(request, url.pathname);
@@ -2165,6 +2182,67 @@ async function verifyProtection(domain) {
   }
 }
 
+/**
+ * Set or remove the domain bypass flag in Cloudflare KV.
+ * When set, the CF Worker will pass through without showing the challenge page.
+ * Other protections (IP bans, honeypots, .htaccess, WAF) remain active.
+ */
+async function setDomainChallengeBypass(domain, bypass = true) {
+  try {
+    const honeypotService = require('./honeypot-service')
+    const kvNamespaceId = await honeypotService.getOrCreateKVNamespace()
+    if (!kvNamespaceId) {
+      log(`[AntiRed] Cannot set domain bypass — KV namespace not available`)
+      return { success: false, error: 'KV namespace not available' }
+    }
+
+    const CF_API_KEY = process.env.CLOUDFLARE_API_KEY
+    const CF_EMAIL = process.env.CLOUDFLARE_EMAIL
+    const ACCOUNT_ID = 'ed6035ebf6bd3d85f5b26c60189a21e2'
+
+    if (!CF_API_KEY || !CF_EMAIL) {
+      return { success: false, error: 'Missing Cloudflare credentials' }
+    }
+
+    const key = `bypass:${domain}`
+
+    if (bypass) {
+      // Write bypass key to KV (no expiry — permanent until removed)
+      await axios.put(
+        `https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/storage/kv/namespaces/${kvNamespaceId}/values/${encodeURIComponent(key)}`,
+        'true',
+        {
+          headers: {
+            'X-Auth-Email': CF_EMAIL,
+            'X-Auth-Key': CF_API_KEY,
+            'Content-Type': 'text/plain',
+          },
+          timeout: 10000,
+        }
+      )
+      log(`[AntiRed] Domain bypass SET for ${domain} — challenge page disabled at edge`)
+    } else {
+      // Remove bypass key from KV
+      await axios.delete(
+        `https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/storage/kv/namespaces/${kvNamespaceId}/values/${encodeURIComponent(key)}`,
+        {
+          headers: {
+            'X-Auth-Email': CF_EMAIL,
+            'X-Auth-Key': CF_API_KEY,
+          },
+          timeout: 10000,
+        }
+      )
+      log(`[AntiRed] Domain bypass REMOVED for ${domain} — challenge page re-enabled at edge`)
+    }
+
+    return { success: true }
+  } catch (err) {
+    log(`[AntiRed] setDomainChallengeBypass error for ${domain}: ${err.message}`)
+    return { success: false, error: err.message }
+  }
+}
+
 module.exports = {
   generateHtaccessRules,
   deployHtaccess,
@@ -2186,6 +2264,7 @@ module.exports = {
   deployFullProtection,
   verifyProtection,
   generateCleanPlaceholder,
+  setDomainChallengeBypass,
   SCANNER_IP_RANGES,
   SCANNER_USER_AGENTS,
   SCANNER_JA3_HASHES,

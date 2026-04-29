@@ -1940,6 +1940,11 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
             )
           }
         } catch (_) {}
+        // Remove domain bypass from CF Worker KV (re-enable challenge at edge)
+        try {
+          const antiRedService = require('./anti-red-service')
+          await antiRedService.setDomainChallengeBypass(req.cpDomain, false)
+        } catch (_) {}
       } else {
         result = await antiRedService.removeJSChallenge(req.cpUser)
         // Remove Cloudflare Worker routes so "Verify your browser" page stops showing
@@ -1959,6 +1964,11 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
               { $set: { 'val.antiRedOff': true } }
             )
           }
+        } catch (_) {}
+        // Set domain bypass in CF Worker KV (disable challenge at edge immediately)
+        try {
+          const antiRedService = require('./anti-red-service')
+          await antiRedService.setDomainChallengeBypass(req.cpDomain, true)
         } catch (_) {}
       }
 
