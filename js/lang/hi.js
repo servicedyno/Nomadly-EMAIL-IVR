@@ -120,7 +120,9 @@ const user = {
  smsMyCampaigns: '📋 मेरे अभियान',
  smsDownloadApp: '📲 ऐप डाउनलोड',
  smsResetLogin: '🔓 लॉगिन रीसेट',
+ smsManageDevices: '📱 डिवाइस प्रबंधित करें',
  smsHowItWorks: '❓ कैसे काम करता है',
+ smsAppSettings: '⚙️ SMS सेटिंग्स',
  changeSetting: '🌍 सेटिंग्स',
  changeLanguage: '🌍 भाषा बदलें',
 
@@ -1924,6 +1926,43 @@ ${CHAT_BOT_NAME}`,
  bringingSiteOnline: domain => `⏳ <b>${domain}</b> को वापस ऑनलाइन ला रहे हैं...`,
  bringSiteOnlineSuccess: domain => `✅ <b>${domain}</b> वापस ऑनलाइन है। कैश/CDN पूरी तरह साफ होने में 1 मिनट तक लग सकता है।`,
  bringSiteOnlineFailed: (domain, err) => `❌ <b>${domain}</b> को ऑनलाइन लाने में विफल।${err ? `\n\nकारण: <code>${err}</code>` : ''}\n\nपुनः प्रयास करें या सपोर्ट से संपर्क करें।`,
+
+ // Domain validation errors
+ domainMissingTLD: 'डोमेन एक्सटेंशन गायब है। कृपया .com, .net, .org, या अन्य एक्सटेंशन जोड़ें।\n\nउदाहरण: <b>yourname.com</b>',
+ domainTooShort: 'डोमेन नाम बहुत छोटा है। डॉट से पहले कम से कम 3 अक्षर होने चाहिए।\n\nउदाहरण: <b>abc.com</b>',
+ domainInvalidChars: 'डोमेन में अमान्य अक्षर हैं। केवल अक्षर, अंक और हाइफ़न का उपयोग करें।\n\nउदाहरण: <b>my-site.com</b>',
+ domainStartsEndsHyphen: 'डोमेन हाइफ़न से शुरू या समाप्त नहीं हो सकता।\n\nउदाहरण: <b>mysite.com</b> (नहीं -mysite.com या mysite-.com)',
+ domainSearchTimeout: (domain) => `⏱️ <b>${domain}</b> की डोमेन खोज अपेक्षा से अधिक समय ले रही है।\n\nकृपया कुछ देर में पुनः प्रयास करें या समस्या बनी रहने पर सपोर्ट से संपर्क करें।`,
+
+ // SMS app activation / device management
+ smsAppActivationCode: (chatId, plan, isSubscribed) => {
+   if (!isSubscribed) {
+     return `📱 <b>BulkSMS मुफ्त ट्रायल — 100 मुफ्त SMS</b>\n\n📲 <b>केवल Android डिवाइस</b> — iOS/iPhone समर्थित नहीं (Apple SMS भेजने वाले ऐप्स को प्रतिबंधित करता है)।\n\nआपका एक्टिवेशन कोड:\n<code>${chatId}</code>\n\n📲 <b>ऐप डाउनलोड करें:</b> ${SMS_APP_LINK}\n\nऐप खोलें → कोड दर्ज करें → भेजना शुरू करें!\n\n⚡ <b>ट्रायल:</b> केवल 1 डिवाइस।\n\n💡 असीमित डिवाइस + BulkSMS + URL शॉर्टनिंग + वैलिडेशन & अधिक अनलॉक करने के लिए मुख्य मेनू में <b>⚡ अपग्रेड प्लान</b> टैप करें!\n\neSIM कार्ड चाहिए? 💬 सपोर्ट टैप करें`
+   }
+   const deviceLimit = plan === 'Monthly' ? 'असीमित' : (plan === 'Weekly' ? '10' : (plan === 'Daily' ? '3' : '1'))
+   return `📱 <b>BulkSMS — ${plan} प्लान सक्रिय ✅</b>\n\n📲 <b>केवल Android डिवाइस</b> — iOS/iPhone समर्थित नहीं (Apple SMS भेजने वाले ऐप्स को प्रतिबंधित करता है)।\n\nआपका एक्टिवेशन कोड:\n<code>${chatId}</code>\n\n📲 <b>ऐप डाउनलोड करें:</b> ${SMS_APP_LINK}\n\nऐप खोलें → कोड दर्ज करें → भेजना शुरू करें!\n\n⚡ <b>डिवाइस:</b> ${deviceLimit} ${deviceLimit === 'असीमित' ? 'डिवाइस' : `डिवाइस${deviceLimit === '1' ? '' : ''}`}\n\nऐप या बॉट में अभियान बनाएं।\n\neSIM कार्ड चाहिए? 💬 सपोर्ट टैप करें`
+ },
+ smsManageDevices: '📱 डिवाइस प्रबंधित करें',
+ smsDevicesList: (devices, chatId) => {
+   if (!devices || devices.length === 0) {
+     return `📱 <b>कोई डिवाइस कनेक्ट नहीं</b>\n\nऐप डाउनलोड करें और अपने एक्टिवेशन कोड से लॉगिन करें:\n<code>${chatId}</code>\n\n📲 डाउनलोड: ${SMS_APP_LINK}`
+   }
+   const deviceList = devices.map((d, idx) => {
+     const name = d.deviceName || `डिवाइस ${idx + 1}`
+     const lastActive = d.lastActive ? new Date(d.lastActive).toLocaleString() : 'कभी नहीं'
+     return `${idx + 1}. <b>${name}</b>\n   📱 <code>${d.deviceId}</code>\n   🕒 ${lastActive}`
+   }).join('\n\n')
+   return `📱 <b>आपके डिवाइस (${devices.length})</b>\n\n${deviceList}\n\n✏️ नीचे डिवाइस बटन टैप करके नाम बदलें, या ऐप में नाम बदलें।`
+ },
+
+ // Payment timeout and abandoned cart reminders
+ paymentTimeoutReminder: `⏰ <b>आपका भुगतान सत्र समाप्त हो गया</b>\n\nनिष्क्रियता के 6 घंटे बाद आपका चेकआउट सत्र समाप्त हो गया।\n\nचिंता न करें! आप कभी भी उस उत्पाद या सेवा का चयन करके फिर से शुरू कर सकते हैं जो आप चाहते हैं।\n\n💬 मदद चाहिए? <b>सपोर्ट</b> टैप करें`,
+ abandonedCartReminder: (productName, price) =>
+   `🛒 <b>क्या आप अभी भी ${productName} में रुचि रखते हैं?</b>\n\n` +
+   `आपने इसे 2 घंटे पहले अपने कार्ट में छोड़ा था।\n\n` +
+   `💳 कीमत: $${price}\n\n` +
+   `अभी अपनी खरीदारी पूरी करें! उत्पाद आपका इंतजार कर रहा है। 🎁\n\n` +
+   `जारी रखने के लिए /start टैप करें या प्रश्न होने पर 💬 <b>सपोर्ट</b> टैप करें।`,
 }
 
 const phoneNumberLeads = ['🎯 प्रीमियम टार्गेटेड लीड्स', '✅📲 फोन लीड्स सत्यापित करें']
@@ -2308,6 +2347,7 @@ const dnsQuickActionKeyboard = {
  _bc,
  ],
  },
+ disable_web_page_preview: true,
 }
 
 const dnsMxPriorityKeyboard = {
@@ -2315,6 +2355,7 @@ const dnsMxPriorityKeyboard = {
  reply_markup: {
  keyboard: [['1'], ['5'], ['10'], ['20'], ['50'], _bc],
  },
+ disable_web_page_preview: true,
 }
 
 const dnsSubdomainTargetTypeKeyboard = {
@@ -2322,6 +2363,7 @@ const dnsSubdomainTargetTypeKeyboard = {
  reply_markup: {
  keyboard: [[t.dnsQuickSubdomainIp], [t.dnsQuickSubdomainDomain], _bc],
  },
+ disable_web_page_preview: true,
 }
 
 const getRecordTypeKeyboard = (dnsSource) => {
@@ -2338,6 +2380,7 @@ const dnsCaaTagKeyboard = {
  reply_markup: {
  keyboard: [[t.caaTagIssue], [t.caaTagIssuewild], [t.caaTagIodef], _bc],
  },
+ disable_web_page_preview: true,
 }
 
 const dnsSrvDefaultsKeyboard = {
@@ -2345,6 +2388,7 @@ const dnsSrvDefaultsKeyboard = {
  reply_markup: {
  keyboard: [['10'], ['20'], ['50'], _bc],
  },
+ disable_web_page_preview: true,
 }
 
 const linkType = {

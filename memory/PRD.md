@@ -909,3 +909,27 @@ After Railway redeploy, he can reopen the hosting panel → File Manager → tap
 ### Deployment status
 - **Local only.** Production Railway `Nomadly-EMAIL-IVR` needs redeploy (user action: "Save to Github").
 
+## Language/Translation Gap Audit & Fix (2026-04-29)
+
+Cross-checked recent feature additions in `js/lang/en.js` against `fr.js`, `hi.js`, and `zh.js` to ensure feature parity for non-English Telegram users.
+
+### What was missing & fixed
+- **`user.smsManageDevices`, `user.smsAppSettings`** (button labels) — missing in fr/hi/zh → translated and added in the SMS keyboard block.
+- **`t.smsAppActivationCode(chatId, plan, isSubscribed)`** — multi-line BulkSMS activation message (trial vs paid plan) → fully translated in fr/hi/zh.
+- **`t.smsManageDevices`, `t.smsDevicesList(devices, chatId)`** — device-list panel string → translated in all 3.
+- **`t.paymentTimeoutReminder`** & **`t.abandonedCartReminder(productName, price)`** — payment timeout / cart-abandonment nudges → translated in all 3.
+- **Hindi-only**: `t.domainMissingTLD`, `t.domainTooShort`, `t.domainInvalidChars`, `t.domainStartsEndsHyphen`, `t.domainSearchTimeout(domain)` — domain-validation error strings → added (fr/zh already had them).
+- **`disable_web_page_preview: true`** missing on 5 DNS keyboards (`dnsQuickActionKeyboard`, `dnsMxPriorityKeyboard`, `dnsSubdomainTargetTypeKeyboard`, `dnsCaaTagKeyboard`, `dnsSrvDefaultsKeyboard`) in fr/hi/zh → added so Telegram doesn't render link previews on DNS messages for non-English users.
+
+### Verified
+- All 4 lang files load cleanly (no syntax errors). Lint passes.
+- Functional test (`translation('t.<key>', lang, …)`) returns localized strings for all newly added keys in en/fr/hi/zh.
+- Deep-key audit: only "missing" keys remaining are reverse-mapping reverse keys that are intentionally localized (e.g., en `'MX Record':'MX'` vs fr `'Enregistrement MX':'MX'`) — not real gaps.
+- Node service restarted; webhook + bot live.
+
+### Note on admin `notifyGroup()` crypto-payment string
+Reviewed `/app/js/_index.js:27777` and all other `notifyGroup()` call sites — they use hardcoded English by design (admin/group broadcast channels, not user-facing). Convention preserved; no refactor needed.
+
+### Files touched
+- `js/lang/fr.js`, `js/lang/hi.js`, `js/lang/zh.js`
+

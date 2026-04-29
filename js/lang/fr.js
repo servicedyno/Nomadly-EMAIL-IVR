@@ -121,7 +121,9 @@ const user = {
  smsMyCampaigns: '📋 Mes campagnes',
  smsDownloadApp: '📲 Télécharger l\'appli',
  smsResetLogin: '🔓 Réinitialiser la connexion',
+ smsManageDevices: '📱 Gérer les appareils',
  smsHowItWorks: '❓ Comment ça marche',
+ smsAppSettings: '⚙️ Paramètres SMS',
  changeSetting: '🌍 Paramètres',
  changeLanguage: '🌍 Changer de langue',
 
@@ -1940,6 +1942,36 @@ ${CHAT_BOT_NAME}`,
  bringingSiteOnline: domain => `⏳ Remise en ligne de <b>${domain}</b>...`,
  bringSiteOnlineSuccess: domain => `✅ <b>${domain}</b> est de nouveau en ligne. Comptez jusqu'à 1 minute pour que le cache/CDN se vide complètement.`,
  bringSiteOnlineFailed: (domain, err) => `❌ Échec de la remise en ligne de <b>${domain}</b>.${err ? `\n\nRaison : <code>${err}</code>` : ''}\n\nRéessayez ou contactez le support.`,
+
+ // SMS app activation / device management
+ smsAppActivationCode: (chatId, plan, isSubscribed) => {
+   if (!isSubscribed) {
+     return `📱 <b>Essai gratuit BulkSMS — 100 SMS gratuits</b>\n\n📲 <b>Appareils Android uniquement</b> — iOS/iPhone non pris en charge (Apple bloque l'envoi de SMS).\n\nVotre code d'activation :\n<code>${chatId}</code>\n\n📲 <b>Téléchargez l'appli :</b> ${SMS_APP_LINK}\n\nOuvrez l'appli → Entrez votre code → Commencez à envoyer !\n\n⚡ <b>Essai :</b> 1 appareil uniquement.\n\n💡 Appuyez sur <b>⚡ Améliorer le plan</b> pour débloquer multi-appareils + BulkSMS illimité + raccourcissement d'URL + validations & plus !\n\nBesoin de cartes eSIM ? Appuyez sur 💬 Support`
+   }
+   const deviceLimit = plan === 'Monthly' ? 'illimité' : (plan === 'Weekly' ? '10' : (plan === 'Daily' ? '3' : '1'))
+   return `📱 <b>BulkSMS — Plan ${plan} actif ✅</b>\n\n📲 <b>Appareils Android uniquement</b> — iOS/iPhone non pris en charge (Apple bloque l'envoi de SMS).\n\nVotre code d'activation :\n<code>${chatId}</code>\n\n📲 <b>Téléchargez l'appli :</b> ${SMS_APP_LINK}\n\nOuvrez l'appli → Entrez votre code → Commencez à envoyer !\n\n⚡ <b>Appareils :</b> ${deviceLimit} ${deviceLimit === 'illimité' ? 'appareils' : `appareil${deviceLimit === '1' ? '' : 's'}`}\n\nCréez des campagnes dans l'appli ou sur le bot.\n\nBesoin de cartes eSIM ? Appuyez sur 💬 Support`
+ },
+ smsManageDevices: '📱 Gérer les appareils',
+ smsDevicesList: (devices, chatId) => {
+   if (!devices || devices.length === 0) {
+     return `📱 <b>Aucun appareil connecté</b>\n\nTéléchargez l'appli et connectez-vous avec votre code d'activation :\n<code>${chatId}</code>\n\n📲 Télécharger : ${SMS_APP_LINK}`
+   }
+   const deviceList = devices.map((d, idx) => {
+     const name = d.deviceName || `Appareil ${idx + 1}`
+     const lastActive = d.lastActive ? new Date(d.lastActive).toLocaleString() : 'Jamais'
+     return `${idx + 1}. <b>${name}</b>\n   📱 <code>${d.deviceId}</code>\n   🕒 ${lastActive}`
+   }).join('\n\n')
+   return `📱 <b>Vos appareils (${devices.length})</b>\n\n${deviceList}\n\n✏️ Appuyez sur le bouton d'un appareil ci-dessous pour le renommer, ou renommez-le dans l'appli.`
+ },
+
+ // Payment timeout and abandoned cart reminders
+ paymentTimeoutReminder: `⏰ <b>Votre session de paiement a expiré</b>\n\nVotre session de paiement a expiré après 6 heures d'inactivité.\n\nPas d'inquiétude ! Vous pouvez recommencer à tout moment en sélectionnant le produit ou service souhaité.\n\n💬 Besoin d'aide ? Appuyez sur <b>Support</b>`,
+ abandonedCartReminder: (productName, price) =>
+   `🛒 <b>Toujours intéressé par ${productName} ?</b>\n\n` +
+   `Vous l'avez laissé dans votre panier il y a 2 heures.\n\n` +
+   `💳 Prix : $${price}\n\n` +
+   `Finalisez votre achat maintenant ! Le produit vous attend. 🎁\n\n` +
+   `Appuyez sur /start pour continuer ou 💬 <b>Support</b> si vous avez des questions.`,
 }
 
 const phoneNumberLeads = ['🎯 Leads Premium Ciblés', '✅📲 Valider les leads téléphoniques']
@@ -2325,6 +2357,7 @@ const dnsQuickActionKeyboard = {
  _bc,
  ],
  },
+ disable_web_page_preview: true,
 }
 
 const dnsMxPriorityKeyboard = {
@@ -2332,6 +2365,7 @@ const dnsMxPriorityKeyboard = {
  reply_markup: {
  keyboard: [['1'], ['5'], ['10'], ['20'], ['50'], _bc],
  },
+ disable_web_page_preview: true,
 }
 
 const dnsSubdomainTargetTypeKeyboard = {
@@ -2339,6 +2373,7 @@ const dnsSubdomainTargetTypeKeyboard = {
  reply_markup: {
  keyboard: [[t.dnsQuickSubdomainIp], [t.dnsQuickSubdomainDomain], _bc],
  },
+ disable_web_page_preview: true,
 }
 
 const getRecordTypeKeyboard = (dnsSource) => {
@@ -2355,6 +2390,7 @@ const dnsCaaTagKeyboard = {
  reply_markup: {
  keyboard: [[t.caaTagIssue], [t.caaTagIssuewild], [t.caaTagIodef], _bc],
  },
+ disable_web_page_preview: true,
 }
 
 const dnsSrvDefaultsKeyboard = {
@@ -2362,6 +2398,7 @@ const dnsSrvDefaultsKeyboard = {
  reply_markup: {
  keyboard: [['10'], ['20'], ['50'], _bc],
  },
+ disable_web_page_preview: true,
 }
 
 const linkType = {

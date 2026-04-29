@@ -120,7 +120,9 @@ const user = {
  smsMyCampaigns: '📋 我的活动',
  smsDownloadApp: '📲 下载应用',
  smsResetLogin: '🔓 重置登录',
+ smsManageDevices: '📱 管理设备',
  smsHowItWorks: '❓ 使用说明',
+ smsAppSettings: '⚙️ SMS 设置',
  changeSetting: '🌍 设置',
  changeLanguage: '🌍 更改语言',
 
@@ -1923,6 +1925,36 @@ ${CHAT_BOT_NAME}`,
  bringingSiteOnline: domain => `⏳ 正在让 <b>${domain}</b> 重新上线...`,
  bringSiteOnlineSuccess: domain => `✅ <b>${domain}</b> 已重新上线。请等待最多 1 分钟以让缓存/CDN 完全清除。`,
  bringSiteOnlineFailed: (domain, err) => `❌ 让 <b>${domain}</b> 重新上线失败。${err ? `\n\n原因：<code>${err}</code>` : ''}\n\n请重试或联系支持。`,
+
+ // SMS app activation / device management
+ smsAppActivationCode: (chatId, plan, isSubscribed) => {
+   if (!isSubscribed) {
+     return `📱 <b>BulkSMS 免费试用 — 100 条免费 SMS</b>\n\n📲 <b>仅限 Android 设备</b> — 不支持 iOS/iPhone（Apple 限制应用发送 SMS）。\n\n您的激活码：\n<code>${chatId}</code>\n\n📲 <b>下载应用：</b>${SMS_APP_LINK}\n\n打开应用 → 输入您的代码 → 开始发送！\n\n⚡ <b>试用：</b>仅限 1 台设备。\n\n💡 在主菜单点击 <b>⚡ 升级计划</b> 解锁无限设备 + BulkSMS + URL 缩短 + 验证 & 更多！\n\n需要 eSIM 卡？点击 💬 支持`
+   }
+   const deviceLimit = plan === 'Monthly' ? '无限' : (plan === 'Weekly' ? '10' : (plan === 'Daily' ? '3' : '1'))
+   return `📱 <b>BulkSMS — ${plan} 计划已激活 ✅</b>\n\n📲 <b>仅限 Android 设备</b> — 不支持 iOS/iPhone（Apple 限制应用发送 SMS）。\n\n您的激活码：\n<code>${chatId}</code>\n\n📲 <b>下载应用：</b>${SMS_APP_LINK}\n\n打开应用 → 输入您的代码 → 开始发送！\n\n⚡ <b>设备：</b>${deviceLimit} ${deviceLimit === '无限' ? '台设备' : '台设备'}\n\n在应用或机器人中创建活动。\n\n需要 eSIM 卡？点击 💬 支持`
+ },
+ smsManageDevices: '📱 管理设备',
+ smsDevicesList: (devices, chatId) => {
+   if (!devices || devices.length === 0) {
+     return `📱 <b>没有连接的设备</b>\n\n下载应用并使用您的激活码登录：\n<code>${chatId}</code>\n\n📲 下载：${SMS_APP_LINK}`
+   }
+   const deviceList = devices.map((d, idx) => {
+     const name = d.deviceName || `设备 ${idx + 1}`
+     const lastActive = d.lastActive ? new Date(d.lastActive).toLocaleString() : '从未'
+     return `${idx + 1}. <b>${name}</b>\n   📱 <code>${d.deviceId}</code>\n   🕒 ${lastActive}`
+   }).join('\n\n')
+   return `📱 <b>您的设备 (${devices.length})</b>\n\n${deviceList}\n\n✏️ 点击下面的设备按钮重命名，或在应用中重命名。`
+ },
+
+ // Payment timeout and abandoned cart reminders
+ paymentTimeoutReminder: `⏰ <b>您的付款会话已超时</b>\n\n您的结账会话在 6 小时无活动后已过期。\n\n别担心！您可以随时通过选择您想要的产品或服务重新开始。\n\n💬 需要帮助？点击 <b>支持</b>`,
+ abandonedCartReminder: (productName, price) =>
+   `🛒 <b>仍然对 ${productName} 感兴趣吗？</b>\n\n` +
+   `2 小时前您将其留在了购物车中。\n\n` +
+   `💳 价格：$${price}\n\n` +
+   `立即完成购买！产品正在等待您。🎁\n\n` +
+   `点击 /start 继续或如有疑问请点击 💬 <b>支持</b>。`,
 }
 
 const phoneNumberLeads = ['🎯 精准目标线索', '✅📲 验证电话线索']
@@ -2307,6 +2339,7 @@ const dnsQuickActionKeyboard = {
  _bc,
  ],
  },
+ disable_web_page_preview: true,
 }
 
 const dnsMxPriorityKeyboard = {
@@ -2314,6 +2347,7 @@ const dnsMxPriorityKeyboard = {
  reply_markup: {
  keyboard: [['1'], ['5'], ['10'], ['20'], ['50'], _bc],
  },
+ disable_web_page_preview: true,
 }
 
 const dnsSubdomainTargetTypeKeyboard = {
@@ -2321,6 +2355,7 @@ const dnsSubdomainTargetTypeKeyboard = {
  reply_markup: {
  keyboard: [[t.dnsQuickSubdomainIp], [t.dnsQuickSubdomainDomain], _bc],
  },
+ disable_web_page_preview: true,
 }
 
 const getRecordTypeKeyboard = (dnsSource) => {
@@ -2337,6 +2372,7 @@ const dnsCaaTagKeyboard = {
  reply_markup: {
  keyboard: [[t.caaTagIssue], [t.caaTagIssuewild], [t.caaTagIodef], _bc],
  },
+ disable_web_page_preview: true,
 }
 
 const dnsSrvDefaultsKeyboard = {
@@ -2344,6 +2380,7 @@ const dnsSrvDefaultsKeyboard = {
  reply_markup: {
  keyboard: [['10'], ['20'], ['50'], _bc],
  },
+ disable_web_page_preview: true,
 }
 
 const linkType = {
