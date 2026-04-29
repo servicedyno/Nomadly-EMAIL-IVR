@@ -1025,3 +1025,40 @@ Only **one** other handler had the same blind spot:
 - `js/_index.js` (3 handler patches: `evMenu` + fallback, `evPasteEmails` cancel keyboard, `evUploadList` cancel keyboard, `ebMenu` cancel match)
 
 
+## Global UX Improvement — Contextual gentle-hint reset (2026-04-29)
+
+### Problem
+Whenever a user typed unrecognized text mid-flow (e.g., `'50'` while on EV menu, or random characters while on a sub-menu), the global `[reset]` handler would always send the **main menu**, ejecting the user from their context. Even with the Phase-1 fixes for `evMenu`/`ebMenu`, the **245 other action handlers** that fall through to global reset still dumped users to the main menu — a known cause of cart abandonment.
+
+### Solution (`js/_index.js` global reset handler ~line 24562)
+Three-tier escalation, language-aware:
+
+1. **Tier 1 — Mid-action with no friction yet:** if `action` is set to anything other than `null` / `'none'` / `'mainMenu'` / `'menu'`, send a friendly contextual hint ("❓ I didn't catch that. Tap one of the buttons below, or type /start to see the main menu.") with **NO `reply_markup`** — Telegram preserves the user's existing keyboard so they can continue exactly where they were.
+2. **Tier 2 — Repeated friction (3 hints in 60 s):** escalates to the original main-menu reset (full keyboard replacement) — handles users who are genuinely stuck.
+3. **Tier 3 — Base-state users (no action / on main menu):** unchanged behavior — sends `t.what + t.welcome` with main menu (as before).
+
+Implementation details:
+- Two new module-scoped maps: `_resetHintCount` (per-user `{count, firstHintAt}`) and constants `HINT_ESCALATE_MAX = 3`, `HINT_ESCALATE_WINDOW_MS = 60000`.
+- Sliding-window logic: window resets if user goes >60 s without a hint.
+- After escalation, the counter is cleared so the next batch starts fresh.
+- GC: maps purge entries older than 60 s when size exceeds 5,000 — bounded memory.
+- Translated to en/fr/zh/hi.
+
+### Verified
+- Smoke test: action=`connectExternalDomainFound`, sent 5 unrecognized messages with 5.5 s gaps:
+  - msg 1 → "Gentle hint sent (count=1)" ✅
+  - msg 2 → "Gentle hint sent (count=2)" ✅
+  - msg 3 → "Gentle hint sent (count=3)" ✅
+  - msg 4 → "Escalating to main-menu reset (3 hints in 60s)" ✅
+  - msg 5 → counter cleared, fresh start ✅
+- Action=`none` (base state) → falls through to main-menu reset (unchanged) ✅
+- Lint passes; bot restarts cleanly; CR-Whitelist API check passing locally.
+
+### Files touched
+- `js/_index.js` (added 2 maps + 2 constants near `_lastResetPerUser`; restructured global reset handler with 3-tier path)
+
+### Backlog still open
+- 🔴 Production CR-Whitelist Puppeteer login broken — needs ConnectReseller credential check.
+- 🟠 `claief8e` AntiRed silently disabled — owner notification not sent.
+- 🚀 Redeploy Railway to ship voice-service `await` fix, file-delete modal, EV cancel patches, and this gentle-hint UX upgrade.
+

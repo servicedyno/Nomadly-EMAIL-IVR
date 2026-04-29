@@ -3718,8 +3718,11 @@ const _userMsgQueue = new Map()
 // Tracks {text, timestamp} per user. Skips if identical message arrives within 2 seconds.
 const _lastMsgPerUser = new Map()
 const _lastResetPerUser = new Map() // B3: Rate-limit menu resets to 1 per 5 seconds
+const _resetHintCount = new Map()   // {count, firstHintAt} — escalate to full reset after 3 hints in 60s
 const MSG_DEDUP_WINDOW_MS = 2000   // Skip duplicate messages within 2 seconds
 const RESET_COOLDOWN_MS = 5000     // Only send 1 menu reset per 5 seconds
+const HINT_ESCALATE_MAX = 3         // After this many gentle hints in HINT_ESCALATE_WINDOW_MS → full main-menu reset
+const HINT_ESCALATE_WINDOW_MS = 60000 // 60-second sliding window
 
 function _enqueue(chatId, fn) {
   const prev = _userMsgQueue.get(chatId) || Promise.resolve()
@@ -24559,7 +24562,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
     }
   }
 
-  log(`[reset] Unrecognized message from ${chatId}: "${message}" (was action: ${action || 'none'}). Resetting to main menu.`)
+  log(`[reset] Unrecognized message from ${chatId}: "${message}" (was action: ${action || 'none'}).`)
 
   // B3 fix: Rate-limit menu resets — max 1 menu reset message per 5 seconds per user
   // Prevents flooding when stale cached buttons spam multiple unrecognized messages
@@ -24578,6 +24581,28 @@ Tap a button below to change. Changes sync to your phone on next app open.`
     }
   }
 
+  // ── Contextual gentle-hint with escalation ──
+  // If the user is mid-action (any action other than null/empty/main-menu states),
+  // they already have a context keyboard on screen. Send a friendly hint WITHOUT
+  // replacing their keyboard so they can continue. Escalate to a full main-menu
+  // reset only after HINT_ESCALATE_MAX gentle hints in HINT_ESCALATE_WINDOW_MS.
+  const hintRecord = _resetHintCount.get(chatId)
+  let hintCount = 0
+  if (hintRecord && (resetNow - hintRecord.firstHintAt) < HINT_ESCALATE_WINDOW_MS) {
+    hintCount = hintRecord.count
+  }
+  // Garbage-collect old hint records
+  if (_resetHintCount.size > 5000) {
+    const cutoff = resetNow - HINT_ESCALATE_WINDOW_MS
+    for (const [uid, rec] of _resetHintCount) {
+      if (rec.firstHintAt < cutoff) _resetHintCount.delete(uid)
+    }
+  }
+  // Treat null / 'mainMenu' / 'menu' as base-state where user already sees the main menu
+  const isMidAction = !!action && action !== 'mainMenu' && action !== 'menu' && action !== 'none'
+  const escalate = hintCount >= HINT_ESCALATE_MAX
+  const lang2 = info?.userLanguage || 'en'
+
   // ── Help/How handler — catch confused users typing plain text questions ──
   const helpWords = ['how', 'help', 'what is this', 'how does this work', 'how to use', 'comment', 'aide', 'como', 'kaise', 'kya', 'zenme', 'shenme']
   const messageLower = message.toLowerCase().trim()
@@ -24594,16 +24619,40 @@ Tap a button below to change. Changes sync to your phone on next app open.`
 
   // Enhanced fallback for new users — guide them to use buttons instead of typing
   if (info?.isNewUser) {
-    const lang = info?.userLanguage || 'en'
     const newUserHint = {
       en: '💡 <b>Tip:</b> Use the buttons below to navigate! Just tap on any option to get started.',
       fr: '💡 <b>Astuce :</b> Utilisez les boutons ci-dessous pour naviguer !',
       zh: '💡 <b>提示：</b>请使用下方按钮导航！',
       hi: '💡 <b>सुझाव:</b> नेविगेट करने के लिए नीचे बटन का उपयोग करें!',
     }
-    return send(chatId, (newUserHint[lang] || newUserHint.en) + '\n' + t.welcome, isAdmin(chatId) ? aO : trans('o'))
+    return send(chatId, (newUserHint[lang2] || newUserHint.en) + '\n' + t.welcome, isAdmin(chatId) ? aO : trans('o'))
   }
-  
+
+  // ── Contextual gentle-hint path ──
+  // User is mid-action and hasn't been hint-spammed → send a friendly hint that
+  // PRESERVES their current keyboard (no reply_markup → Telegram keeps last keyboard).
+  // After HINT_ESCALATE_MAX hints in 60s, fall through to the full main-menu reset.
+  if (isMidAction && !escalate) {
+    _resetHintCount.set(chatId, {
+      count: hintCount + 1,
+      firstHintAt: hintRecord?.firstHintAt || resetNow,
+    })
+    const gentleHint = {
+      en: `❓ I didn't catch that.\n\nPlease tap one of the buttons below, or type <b>/start</b> to see the main menu.`,
+      fr: `❓ Je n'ai pas compris.\n\nTouchez un bouton ci-dessous, ou tapez <b>/start</b> pour le menu principal.`,
+      zh: `❓ 没听懂。\n\n请点击下方按钮，或输入 <b>/start</b> 查看主菜单。`,
+      hi: `❓ समझ नहीं आया।\n\nनीचे दिए गए बटन में से कोई एक टैप करें, या मुख्य मेनू देखने के लिए <b>/start</b> टाइप करें।`,
+    }
+    log(`[reset] Gentle hint sent (count=${hintCount + 1}) for chatId=${chatId} action=${action}`)
+    // No reply_markup → Telegram keeps the user's existing keyboard intact
+    return send(chatId, gentleHint[lang2] || gentleHint.en, { parse_mode: 'HTML' })
+  }
+
+  // Escalation path: user has been confused 3+ times → reset to main menu
+  if (escalate) {
+    log(`[reset] Escalating to main-menu reset for chatId=${chatId} (${hintCount} hints in 60s)`)
+    _resetHintCount.delete(chatId) // reset the counter so next time starts fresh
+  }
   return send(chatId, t.what + '\n' + t.welcome, isAdmin(chatId) ? aO : trans('o'))
   }) // end _enqueue async callback
 }) // end bot.on('message')
