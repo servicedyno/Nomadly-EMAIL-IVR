@@ -5072,6 +5072,7 @@ bot?.on('message', msg => {
     cpManageNumber: 'cpManageNumber',
     cpCallForwarding: 'cpCallForwarding',
     cpEnterForwardNumber: 'cpEnterForwardNumber',
+    cpForwardingConflictResolve: 'cpForwardingConflictResolve',
     cpSmsSettings: 'cpSmsSettings',
     cpEnterEmail: 'cpEnterEmail',
     cpEnterWebhook: 'cpEnterWebhook',
@@ -19988,20 +19989,30 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     const hasSms = num.capabilities?.sms !== false && num.features?.sms !== false
     const hasFax = num.capabilities?.fax === true
     const hasVoice = num.capabilities?.voice !== false
+    // ── Conflict awareness: append "(skipped)" badge to features that won't fire due to priority ──
+    const summary = phoneConfig.getCallRouteSummary(num)
+    const skipped = new Set(summary.skippedFeatures || [])
+    const lang = info?.userLanguage || 'en'
+    const skippedSuffix = { en: ' (skipped)', fr: ' (ignoré)', zh: '（跳过）', hi: ' (छोड़ा)' }[lang] || ' (skipped)'
+    const fwdSuffix = num.features?.callForwarding?.enabled ? '' : ''
+    const cfLabel = pc.callForwarding // forwarding itself never gets a "skipped" badge — it's the highest priority when active
+    const ivrLabel = pc.ivrAutoAttendant + (skipped.has('ivr') ? skippedSuffix : '')
+    const vmLabel = pc.voicemail + (skipped.has('voicemail') ? skippedSuffix : '')
+    const sipLabel = pc.sipCredentials + (skipped.has('sip_ring') ? skippedSuffix : '')
     const rows = []
     // Communication
     if (hasSms) {
-      rows.push([pc.callForwarding, pc.smsSettings])
+      rows.push([cfLabel, pc.smsSettings])
       rows.push([pc.smsInbox])
     } else {
-      rows.push([pc.callForwarding])
+      rows.push([cfLabel])
     }
-    if (phoneConfig.canAccessFeature(plan, 'voicemail')) rows.push([pc.voicemail])
+    if (phoneConfig.canAccessFeature(plan, 'voicemail')) rows.push([vmLabel])
     // SIP — always visible so users can find credentials (shows upgrade prompt if Starter)
-    rows.push([pc.sipCredentials])
+    rows.push([sipLabel])
     // Advanced (plan-gated)
     if (phoneConfig.canAccessFeature(plan, 'callRecording')) rows.push([pc.callRecording])
-    if (phoneConfig.canAccessFeature(plan, 'ivr')) rows.push([pc.ivrAutoAttendant])
+    if (phoneConfig.canAccessFeature(plan, 'ivr')) rows.push([ivrLabel])
     // Fax
     if (hasFax) rows.push(['📠 Fax Settings'])
     // Add Number to Plan (only for primary numbers, not sub-numbers)
@@ -20339,7 +20350,8 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       const btns = fwd.enabled
         ? [[pc.alwaysForward], [pc.forwardBusy], [pc.forwardNoAnswer], [holdLabel], ['📲 Change Forward-To Number'], [pc.disableForwarding]]
         : [[pc.alwaysForward], [pc.forwardBusy], [pc.forwardNoAnswer]]
-      return send(chatId, cpTxt.forwardingStatus(num.phoneNumber, fwd, walletBal), k.of(btns))
+      const preview = phoneConfig.formatCallFlowPreview(num, info?.userLanguage || 'en')
+      return send(chatId, `${preview}\n\n${cpTxt.forwardingStatus(num.phoneNumber, fwd, walletBal)}`, k.of(btns))
     }
 
     // SMS Settings
@@ -20371,7 +20383,9 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     }
 
     // Voicemail — Pro/Business only (gated by buildManageMenu, but double-check)
-    if (message === pc.voicemail) {
+    // Match both raw label and the "(skipped)" badged variant injected by buildManageMenu when
+    // Always-Forward is on and overrides voicemail.
+    if (message === pc.voicemail || (typeof message === 'string' && message.startsWith(pc.voicemail))) {
       if (!phoneConfig.canAccessFeature(num.plan, 'voicemail')) {
         return send(chatId, phoneConfig.upgradeMessage('voicemail', num.plan, info?.userLanguage), k.of(buildManageMenu(num)))
       }
@@ -20384,11 +20398,13 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
            [({ en: `⏰ Ring Time: ${vm.ringTimeout || 25}s`, fr: `⏰ Sonnerie : ${vm.ringTimeout || 25}s`, zh: `⏰ 响铃时间：${vm.ringTimeout || 25}s`, hi: `⏰ रिंग टाइम: ${vm.ringTimeout || 25}s` }[lang] || `⏰ Ring Time: ${vm.ringTimeout || 25}s`)],
            [pc.disableVoicemail]]
         : [[pc.enableVoicemail]]
-      return send(chatId, cpTxt.voicemailMenu(num.phoneNumber, vm), k.of(btns))
+      const preview = phoneConfig.formatCallFlowPreview(num, info?.userLanguage || 'en')
+      return send(chatId, `${preview}\n\n${cpTxt.voicemailMenu(num.phoneNumber, vm)}`, k.of(btns))
     }
 
     // SIP Credentials — Pro/Business only
-    if (message === pc.sipCredentials) {
+    // Match both raw label and the "(skipped)" badged variant.
+    if (message === pc.sipCredentials || (typeof message === 'string' && message.startsWith(pc.sipCredentials))) {
       if (num.sipDisabled || !phoneConfig.canAccessFeature(num.plan, 'sipCredentials')) {
         return send(chatId, phoneConfig.upgradeMessage('sipCredentials', num.plan, info?.userLanguage), k.of(buildManageMenu(num)))
       }
@@ -20414,7 +20430,8 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     }
 
     // IVR / Auto-attendant — Business only
-    if (message === pc.ivrAutoAttendant) {
+    // Match both raw label and the "(skipped)" badged variant.
+    if (message === pc.ivrAutoAttendant || (typeof message === 'string' && message.startsWith(pc.ivrAutoAttendant))) {
       if (!phoneConfig.canAccessFeature(num.plan, 'ivr')) {
         return send(chatId, phoneConfig.upgradeMessage('ivr', num.plan, info?.userLanguage), k.of(buildManageMenu(num)))
       }
@@ -20423,7 +20440,8 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       const btns = ivrConf.enabled
         ? [[pc.ivrGreeting], [pc.ivrAddOption], [pc.ivrRemoveOption], [pc.ivrViewOptions], [pc.ivrAnalytics], [pc.disableIvr]]
         : [[pc.enableIvr]]
-      return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of(btns))
+      const preview = phoneConfig.formatCallFlowPreview(num, info?.userLanguage || 'en')
+      return send(chatId, `${preview}\n\n${cpTxt.ivrMenu(num.phoneNumber, ivrConf)}`, k.of(btns))
     }
 
     // Fax Settings
@@ -20950,11 +20968,123 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     await saveInfo('cpActiveNumber', num)
     const modeLabel = mode === 'always' ? 'Always Forward' : mode === 'busy' ? 'Forward When Busy' : 'Forward If No Answer'
     send(chatId, cpTxt.forwardingUpdated(num.phoneNumber, forwardTo, modeLabel, walletBal), { parse_mode: 'HTML' })
+
+    // ── Conflict awareness: Always-Forward overrides IVR / SIP ring / Voicemail ──
+    // If the user has enabled features that won't fire while Always-Forward is on,
+    // surface them upfront with one-tap remediation so they're not surprised on the next call.
+    const summary = phoneConfig.getCallRouteSummary(num)
+    if (mode === 'always' && summary.skippedFeatures.length > 0) {
+      const lang = info?.userLanguage || 'en'
+      const labels = { en: { ivr: 'IVR menu', sip_ring: 'SIP / softphone ring', voicemail: 'Voicemail' },
+                       fr: { ivr: 'Menu SVI', sip_ring: 'Sonnerie SIP / softphone', voicemail: 'Messagerie vocale' },
+                       zh: { ivr: 'IVR 菜单', sip_ring: 'SIP / 软电话振铃', voicemail: '语音信箱' },
+                       hi: { ivr: 'IVR मेनू', sip_ring: 'SIP / सॉफ्टफ़ोन रिंग', voicemail: 'वॉइसमेल' } }
+      const heads = { en: '⚠️ <b>Heads up — settings conflict</b>', fr: '⚠️ <b>Attention — conflit de configuration</b>', zh: '⚠️ <b>提示 — 设置冲突</b>', hi: '⚠️ <b>ध्यान दें — सेटिंग्स में टकराव</b>' }
+      const bodies = { en: 'Always-Forward overrides everything else. These features are enabled but <b>won\'t play</b> for incoming calls:',
+                       fr: 'Le transfert systématique a la priorité. Ces fonctions sont activées mais <b>ne se déclencheront pas</b> :',
+                       zh: '"全部转接" 会优先执行。下列已启用功能将<b>不会触发</b>：',
+                       hi: 'Always-Forward सबसे पहले चलता है। ये फीचर ON हैं पर <b>नहीं चलेंगे</b>:' }
+      const tips = { en: 'Tap below to disable any of them, or keep them for when Always-Forward is later turned off / changed to Busy / No-Answer.',
+                     fr: 'Touchez ci-dessous pour les désactiver, ou gardez-les pour quand le transfert sera désactivé / changé en Occupé / Sans réponse.',
+                     zh: '可点击下方按钮关闭，也可保留以备 "全部转接" 关闭或改为 "占线/无应答" 时使用。',
+                     hi: 'किसी को बंद करने के लिए नीचे टैप करें, या Always-Forward बंद/Busy/No-Answer होने पर इस्तेमाल के लिए रखें।' }
+      const lblMap = labels[lang] || labels.en
+      const skippedLines = summary.skippedFeatures.map(s => `• ${lblMap[s] || s}`).join('\n')
+      const warnTxt = `${heads[lang] || heads.en}\n\n${bodies[lang] || bodies.en}\n${skippedLines}\n\n<i>${tips[lang] || tips.en}</i>`
+      const remediationBtns = []
+      const btnLabels = { en: { ivr: '🔇 Disable IVR', sip_ring: '🔇 Disable SIP', voicemail: '🔇 Disable Voicemail', keep: '✓ Keep all — I understand' },
+                          fr: { ivr: '🔇 Désactiver SVI', sip_ring: '🔇 Désactiver SIP', voicemail: '🔇 Désactiver Messagerie', keep: '✓ Tout garder — compris' },
+                          zh: { ivr: '🔇 关闭 IVR', sip_ring: '🔇 关闭 SIP', voicemail: '🔇 关闭语音信箱', keep: '✓ 全部保留 — 我已了解' },
+                          hi: { ivr: '🔇 IVR बंद करें', sip_ring: '🔇 SIP बंद करें', voicemail: '🔇 वॉइसमेल बंद करें', keep: '✓ सभी रखें — समझ गया' } }
+      const blbl = btnLabels[lang] || btnLabels.en
+      summary.skippedFeatures.forEach(s => { if (blbl[s]) remediationBtns.push([blbl[s]]) })
+      remediationBtns.push([blbl.keep])
+      await set(state, chatId, 'action', a.cpForwardingConflictResolve)
+      await saveInfo('cpForwardingConflictSkipped', summary.skippedFeatures)
+      return send(chatId, warnTxt, k.of(remediationBtns))
+    }
+
     await set(state, chatId, 'action', a.cpManageNumber)
     return showManageScreen(chatId, num)
   }
 
-  // ━━━ SMS SETTINGS ━━━
+  // ━━━ FORWARDING CONFLICT RESOLUTION (post-Always-Forward) ━━━
+  if (action === a.cpForwardingConflictResolve) {
+    const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
+    if (!num) return goto.submenu5()
+    const lang = info?.userLanguage || 'en'
+    const btnLabels = { en: { ivr: '🔇 Disable IVR', sip_ring: '🔇 Disable SIP', voicemail: '🔇 Disable Voicemail', keep: '✓ Keep all — I understand' },
+                        fr: { ivr: '🔇 Désactiver SVI', sip_ring: '🔇 Désactiver SIP', voicemail: '🔇 Désactiver Messagerie', keep: '✓ Tout garder — compris' },
+                        zh: { ivr: '🔇 关闭 IVR', sip_ring: '🔇 关闭 SIP', voicemail: '🔇 关闭语音信箱', keep: '✓ 全部保留 — 我已了解' },
+                        hi: { ivr: '🔇 IVR बंद करें', sip_ring: '🔇 SIP बंद करें', voicemail: '🔇 वॉइसमेल बंद करें', keep: '✓ सभी रखें — समझ गया' } }
+      const blbl = btnLabels[lang] || btnLabels.en
+    const ackTxt = { en: 'Got it — keeping all features as-is. They\'ll resume if you switch Always-Forward to Busy/No-Answer or disable forwarding.',
+                     fr: 'Compris — toutes les fonctions conservées. Elles reprendront si vous passez en Occupé/Sans réponse ou désactivez le transfert.',
+                     zh: '好的 — 所有功能保留不变。当您将 "全部转接" 改为 "占线/无应答" 或关闭转接时它们会恢复。',
+                     hi: 'ठीक है — सभी फीचर वैसे ही रखे गए। Always-Forward को Busy/No-Answer में बदलने या बंद करने पर वे फिर चालू होंगे।' }
+    const confs = { en: { ivr: '✅ IVR disabled. Calls now forward straight to your destination.', sip_ring: '✅ SIP credentials cleared. Calls now forward straight to your destination.', voicemail: '✅ Voicemail disabled.' },
+                    fr: { ivr: '✅ SVI désactivé. Les appels sont transférés directement.', sip_ring: '✅ Identifiants SIP effacés. Les appels sont transférés directement.', voicemail: '✅ Messagerie désactivée.' },
+                    zh: { ivr: '✅ IVR 已关闭。来电直接转接。', sip_ring: '✅ SIP 凭据已清除。来电直接转接。', voicemail: '✅ 语音信箱已关闭。' },
+                    hi: { ivr: '✅ IVR बंद। कॉल सीधे फ़ॉरवर्ड होंगी।', sip_ring: '✅ SIP क्रेडेंशियल हटाए गए। कॉल सीधे फ़ॉरवर्ड होंगी।', voicemail: '✅ वॉइसमेल बंद।' } }
+
+    if (message === blbl.keep || message === btnLabels.en.keep) {
+      send(chatId, ackTxt[lang] || ackTxt.en)
+      await set(state, chatId, 'action', a.cpManageNumber)
+      return showManageScreen(chatId, num)
+    }
+    if (message === blbl.ivr || message === btnLabels.en.ivr) {
+      const ivr = num.features?.ivr || {}
+      await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'ivr', { ...ivr, enabled: false })
+      num.features.ivr = { ...ivr, enabled: false }
+      await saveInfo('cpActiveNumber', num)
+      send(chatId, (confs[lang] || confs.en).ivr)
+      // Re-evaluate remaining conflicts
+      const newSummary = phoneConfig.getCallRouteSummary(num)
+      if (newSummary.skippedFeatures.length === 0) {
+        await set(state, chatId, 'action', a.cpManageNumber)
+        return showManageScreen(chatId, num)
+      }
+      const remaining = newSummary.skippedFeatures.map(s => [blbl[s]]).filter(r => r[0])
+      remaining.push([blbl.keep])
+      return send(chatId, phoneConfig.formatCallFlowPreview(num, lang), k.of(remaining))
+    }
+    if (message === blbl.sip_ring || message === btnLabels.en.sip_ring) {
+      // "Disable SIP" here means clear sipUsername so SIP ring doesn't fire on this number's
+      // Always-Forward path. We don't delete underlying SIP credentials — user keeps the option to
+      // re-link via SIP Credentials menu. For simplicity (and reversibility), set sipDisabled=true.
+      await updatePhoneNumberField(phoneNumbersOf, chatId, num.phoneNumber, 'sipDisabled', true)
+      num.sipDisabled = true
+      await saveInfo('cpActiveNumber', num)
+      send(chatId, (confs[lang] || confs.en).sip_ring)
+      await set(state, chatId, 'action', a.cpManageNumber)
+      return showManageScreen(chatId, num)
+    }
+    if (message === blbl.voicemail || message === btnLabels.en.voicemail) {
+      const vm = num.features?.voicemail || {}
+      await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'voicemail', { ...vm, enabled: false })
+      num.features.voicemail = { ...vm, enabled: false }
+      await saveInfo('cpActiveNumber', num)
+      send(chatId, (confs[lang] || confs.en).voicemail)
+      const newSummary = phoneConfig.getCallRouteSummary(num)
+      if (newSummary.skippedFeatures.length === 0) {
+        await set(state, chatId, 'action', a.cpManageNumber)
+        return showManageScreen(chatId, num)
+      }
+      const remaining = newSummary.skippedFeatures.map(s => [blbl[s]]).filter(r => r[0])
+      remaining.push([blbl.keep])
+      return send(chatId, phoneConfig.formatCallFlowPreview(num, lang), k.of(remaining))
+    }
+    // Unknown input — re-show options
+    const summary = phoneConfig.getCallRouteSummary(num)
+    if (summary.skippedFeatures.length === 0) {
+      await set(state, chatId, 'action', a.cpManageNumber)
+      return showManageScreen(chatId, num)
+    }
+    const opts = summary.skippedFeatures.map(s => [blbl[s]]).filter(r => r[0])
+    opts.push([blbl.keep])
+    return send(chatId, phoneConfig.formatCallFlowPreview(num, lang), k.of(opts))
+  }
   if (action === a.cpSmsSettings) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber

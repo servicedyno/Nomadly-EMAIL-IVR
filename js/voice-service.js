@@ -3246,12 +3246,57 @@ async function handleCallAnswered(payload) {
     session.isRecording = true
   }
 
-  // Route based on features priority: IVR > Forwarding(always) > Ring SIP Device > Voicemail > Missed Call
+  // Route based on features priority:
+  //   Forwarding(always) > IVR > Forwarding(busy) > Forwarding(no_answer) > Ring SIP Device > Voicemail > Missed Call
+  // NOTE: Forwarding-mode "always" is deliberately the highest priority — it's an explicit user
+  // statement that EVERY call should forward. If IVR were checked first, calls would always hit the
+  // IVR menu and never forward (which is exactly the bug @wizardchop reported on +15162719167).
   const ivrConfig = num.features?.ivr
   const fwdConfig = num.features?.callForwarding
   const vmConfig = num.features?.voicemail
 
-  // 1. IVR — Business plan only
+  // Helper: wallet pre-check before any forwarding action. Returns true if forwarding is allowed,
+  // false if blocked (in which case it has already spoken/hung up + notified the user).
+  async function _forwardingWalletGate() {
+    if (!_walletOf) return true
+    try {
+      const { usdBal } = await getBalance(_walletOf, chatId)
+      if (usdBal >= CALL_FORWARDING_RATE_MIN) {
+        const estMinutes = Math.floor(usdBal / CALL_FORWARDING_RATE_MIN)
+        if (usdBal < 5) {
+          const lang = await _getUserLang(chatId)
+          const msg = _trans('vs.lowBalanceForward', lang, usdBal.toFixed(2), estMinutes)
+          if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
+        }
+        return true
+      }
+      log(`[Voice] Forwarding wallet check: $${usdBal} < $${CALL_FORWARDING_RATE_MIN} required — blocking forward`)
+      await _telnyxApi.speakOnCall(callControlId, 'Your wallet balance is insufficient for call forwarding. Please top up your wallet.')
+      setTimeout(() => _telnyxApi.hangupCall(callControlId), 5000)
+      const lang = await _getUserLang(chatId)
+      const msg = _trans('vs.forwardingBlocked', lang, usdBal.toFixed(2), CALL_FORWARDING_RATE_MIN)
+      if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
+      return false
+    } catch (e) {
+      log(`[Voice] Forwarding wallet check error: ${e.message}`)
+      return true // fail-open on transient wallet errors so we don't drop legit forwards
+    }
+  }
+
+  // 1. Call Forwarding — "always" mode (highest priority — user explicitly opted in for every call)
+  if (fwdConfig?.enabled && fwdConfig.forwardTo && (fwdConfig.mode || 'always') === 'always') {
+    const allowed = await _forwardingWalletGate()
+    if (!allowed) return
+    session.phase = 'forwarding'
+    session.forwardingRate = CALL_FORWARDING_RATE_MIN
+    const rate = getCallRate(fwdConfig.forwardTo)
+    const ivrSkipped = ivrConfig?.enabled && canAccessFeature(num.plan, 'ivr') && ivrConfig.options && Object.keys(ivrConfig.options).length > 0
+    log(`[Voice] Forwarding call to ${fwdConfig.forwardTo} from ${to} (rate: $${rate}/min ${isUSCanada(fwdConfig.forwardTo) ? 'US/CA' : 'Intl'})${ivrSkipped ? ' — IVR skipped (always-forward overrides)' : ''}`)
+    await playHoldMusicAndTransfer(callControlId, fwdConfig.forwardTo, to, fwdConfig)
+    return
+  }
+
+  // 2. IVR — Business plan only (only reached when forwarding is NOT in "always" mode)
   if (ivrConfig?.enabled && canAccessFeature(num.plan, 'ivr') && ivrConfig.options && Object.keys(ivrConfig.options).length > 0) {
     session.phase = 'ivr'
     const greeting = ivrConfig.greeting || 'Thank you for calling. Please listen to the following options.'
@@ -3276,44 +3321,15 @@ async function handleCallAnswered(payload) {
     return
   }
 
-  // 2. Call Forwarding (billed at CALL_FORWARDING_RATE_MIN from wallet)
+  // 3. Call Forwarding — "busy" / "no_answer" modes
   if (fwdConfig?.enabled && fwdConfig.forwardTo) {
-    // Check wallet balance for forwarding rate
-    let forwardingAllowed = false
-    if (_walletOf) {
-      try {
-        const { usdBal } = await getBalance(_walletOf, chatId)
-        if (usdBal >= CALL_FORWARDING_RATE_MIN) {
-          forwardingAllowed = true
-          // Low balance warning
-          const estMinutes = Math.floor(usdBal / CALL_FORWARDING_RATE_MIN)
-          if (usdBal < 5) {
-            const lang = await _getUserLang(chatId)
-            const msg = _trans('vs.lowBalanceForward', lang, usdBal.toFixed(2), estMinutes)
-            if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
-          }
-        } else {
-          log(`[Voice] Forwarding wallet check: $${usdBal} < $${CALL_FORWARDING_RATE_MIN} required — blocking forward`)
-          await _telnyxApi.speakOnCall(callControlId, 'Your wallet balance is insufficient for call forwarding. Please top up your wallet.')
-          setTimeout(() => _telnyxApi.hangupCall(callControlId), 5000)
-          const lang = await _getUserLang(chatId)
-          const msg = _trans('vs.forwardingBlocked', lang, usdBal.toFixed(2), CALL_FORWARDING_RATE_MIN)
-          if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
-          return
-        }
-      } catch (e) { log(`[Voice] Forwarding wallet check error: ${e.message}`) }
-    }
+    const allowed = await _forwardingWalletGate()
+    if (!allowed) return
 
     session.phase = 'forwarding'
     session.forwardingRate = CALL_FORWARDING_RATE_MIN
     const mode = fwdConfig.mode || 'always'
 
-    if (mode === 'always') {
-      const rate = getCallRate(fwdConfig.forwardTo)
-      log(`[Voice] Forwarding call to ${fwdConfig.forwardTo} from ${to} (rate: $${rate}/min ${isUSCanada(fwdConfig.forwardTo) ? 'US/CA' : 'Intl'})`)
-      await playHoldMusicAndTransfer(callControlId, fwdConfig.forwardTo, to, fwdConfig)
-      return
-    }
     if (mode === 'busy') {
       // Detect busy: check if there's already another active call for this phone number
       const isNumberBusy = Object.values(activeCalls).some(s =>
@@ -3355,7 +3371,7 @@ async function handleCallAnswered(payload) {
     }
   }
 
-  // 3. Ring SIP device — only reached when call was already answered (IVR/fwd-always fallthrough or SIP ring failed in handleCallInitiated)
+  // 4. Ring SIP device — only reached when call was already answered (IVR/fwd-busy/no_answer fallthrough or SIP ring failed in handleCallInitiated)
   // Primary unanswered SIP ring is handled in handleCallInitiated
   if (num.sipUsername && session.phase !== 'ringing_sip') {
     session.phase = 'ringing_sip'
@@ -3409,7 +3425,7 @@ async function handleCallAnswered(payload) {
     // If we get here, SIP ring failed — fall through to voicemail/missed below
   }
 
-  // 4. Voicemail — Pro/Business (also counts toward minutes)
+  // 5. Voicemail — Pro/Business (also counts toward minutes)
   if (vmConfig?.enabled && canAccessFeature(num.plan, 'voicemail')) {
     session.phase = 'voicemail_greeting'
     
@@ -3440,7 +3456,7 @@ async function handleCallAnswered(payload) {
     return
   }
 
-  // 5. No features / no SIP device — notify missed call and hang up
+  // 6. No features / no SIP device — notify missed call and hang up
   session.phase = 'missed'
   await _telnyxApi.speakOnCall(callControlId, 'This number is currently unavailable. Please try again later.')
   setTimeout(async () => {

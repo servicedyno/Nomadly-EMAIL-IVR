@@ -1,0 +1,36 @@
+{
+  "summary": "Backend-only validation of P0 call-routing priority fix for @wizardchop's Cloud IVR forwarding bug. Verified: (1) /app/js/tests/test_call_route_priority.js — 17/17 passing including static source-order assertion that voice-service.js handleCallAnswered() checks Forwarding(always) BEFORE IVR; (2) phone-config.js exports getCallRouteSummary (line 2893) and formatCallFlowPreview (line 2941) — both reflected in module.exports (lines 3064-3065) and used by 4 locale previews (en/fr/zh/hi) in unit tests; (3) _index.js compiles cleanly with `node --check` and the action constant `cpForwardingConflictResolve` is referenced 3x: line 5075 (constants block), line 21002 (handler setter), line 21012 (action handler block); (4) nodejs supervisor service RUNNING (uptime healthy), Telegram webhook set + verified ('✅ Webhook verification passed' twice in nodejs.out.log, 0 pending updates), no errors in nodejs.err.log; (5) FastAPI proxy at REACT_APP_BACKEND_URL — /api/health returns 200, /api/ returns 200; (6) Sibling regressions all pass: test_bulkivr_wallet (10/10), test_manage_screen_features (21/21), test_billing_menu_and_gold_copy (all pass), test_plan_copy (all pass), test_i18n_coverage (all pass). Static source review of voice-service.js lines 3249-3297 confirms ordered comment header, helper `_forwardingWalletGate()` is wallet-precheck-then-fail-open-on-error (correct), and the `ivrSkipped` log flag is computed for observability when always-forward overrides IVR. Per request, did NOT place real call to +15162719167, did NOT run pytest under /app/backend/tests, did NOT modify production data.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/js/tests/test_call_route_priority.js",
+    "/app/js/tests/test_bulkivr_wallet.js",
+    "/app/js/tests/test_manage_screen_features.js",
+    "/app/js/tests/test_billing_menu_and_gold_copy.js",
+    "/app/js/tests/test_plan_copy.js",
+    "/app/js/tests/test_i18n_coverage.js"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "voice-service.js is 4877 lines — far exceeds 700-line guideline. Recommend splitting into call-routing, wallet-gate, ivr-handler, recording, sip-bridge modules. Priority-routing block at 3249-3380 is now the most safety-critical section in the file and should live in its own testable module (e.g., js/voice/route-priority.js) with handleCallAnswered() as a thin orchestrator that calls into it.",
+    "_forwardingWalletGate() at line 3260 fails-open on transient wallet errors (line 3282 returns true). For an Always-Forward number with high call volume this could cause unbounded wallet drain if the wallet read errors persistently — consider a circuit-breaker or per-chat error-rate threshold before fail-open kicks in.",
+    "Line 3287 condition `(fwdConfig.mode || 'always') === 'always'` treats undefined mode as 'always'. This is correct for the @wizardchop fix (his record has mode='always') but means any legacy record with `enabled=true, forwardTo=set, mode=undefined` will now forward on every call where previously the IVR may have intercepted. Consider an explicit migration check or log-once warning when mode is undefined so this latent behavior change is visible in prod logs.",
+    "Test file test_call_route_priority.js uses regex source-order assertion (last test) which is robust but brittle if comments are rewritten. Consider asserting on AST positions of the two `if` blocks instead — though regex is acceptable for a P0 hot-fix safety net.",
+    "phone-config.js getCallRouteSummary/formatCallFlowPreview are now the SINGLE SOURCE OF TRUTH per request — voice-service.js's actual routing logic should ideally call getCallRouteSummary() to decide rather than duplicate the precedence in two places. Today the unit test guards against drift, but a future contributor editing only voice-service.js could silently break the bot UX preview without breaking tests."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (17/17 priority tests + 5/5 sibling suites + service health + proxy smoke)", "frontend": "N/A (skipped per request)"},
+  "test_credentials": "Not required for this run — static + unit-test validation only. Production MongoDB credentials provided in review_request were NOT used (priority fix is in-process logic; production data unchanged).",
+  "seed_data_creation": "None — all tests use in-memory mock objects.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "P0 call-routing priority fix is fully validated at the static + unit-test level. Re-run anchor: `node /app/js/tests/test_call_route_priority.js` (must show 17/17). Service health: `tail -n 50 /var/log/supervisor/nodejs.out.log` and look for '✅ Webhook verification passed'. Real-call validation against +15162719167 was deliberately skipped (production number). After Save-to-Github + Railway deploy, the next call to that number should forward to +19382616936 instead of hitting voicemail. If a regression is reported post-deploy, first re-run the priority test suite, then check Railway logs for the new log line `[Voice] Forwarding call to ... — IVR skipped (always-forward overrides)`.",
+  "rca of the issue": "ROOT CAUSE: handleCallAnswered() in voice-service.js previously evaluated IVR config before Forwarding-always config. @wizardchop's number had BOTH enabled (callForwarding.mode=always→+19382616936 AND ivr.enabled=true with options['1']=voicemail), so every inbound call hit IVR first, no DTMF was pressed, and the IVR fallback dropped to voicemail — never forwarding. FIX (verified line 3286-3297): Forwarding(always) is now checked first; on match it logs `IVR skipped (always-forward overrides)` and returns before the IVR branch. Mitigation/UX layer added: (a) call-flow preview at top of Forwarding/IVR/Voicemail bot screens, (b) post-Always-Forward conflict warning with one-tap remediation buttons via cpForwardingConflictResolve action, (c) '(skipped)' suffix on overridden features in manage menu. NO PRODUCTION DATA MUTATION required — priority fix alone resolves it on next Railway deploy."
+}
