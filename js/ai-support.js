@@ -166,7 +166,8 @@ ${process.env.PHONE_SERVICE_ON === 'true' ? `- <b>Starter — $${process.env.PHO
 - <b>Business plan OTP</b>: Full customization — user can write their own Confirm message (what caller hears on ✅ Confirm) and Reject/Goodbye message (what caller hears after max attempts). Also includes <b>IVR Redial</b> — a 🔁 Redial button appears after each call to instantly re-call the same number with the same settings.
 
 #### Plan Upgrades & Downgrades:
-- <b>Upgrading</b>: User receives a 25% credit from their current plan price. Upgrade cost = new plan price minus 25% of old plan price. Payment via Wallet, Crypto, or Bank NGN.
+- <b>One-tap upgrade button</b>: From any active Starter/Pro number, the Manage screen now shows ⬆️ Upgrade to Pro / ⬆️ Upgrade to Business directly — the button label includes the live upgrade cost (e.g. "⬆️ Upgrade to Pro — $62.50") so the user knows exactly what they'll pay before tapping. No need to navigate Renew → Change Plan first.
+- <b>Upgrading</b>: User receives a 25% credit from their current plan price <b>only if their current plan is ≤14 days old</b> (purchased within the last 2 weeks). After 14 days, no credit is applied — user pays the full new-plan price. The upgrade preview screen always shows the exact charge and either "Credit (25% of starter, plan only Nd old): -$X.XX" or "No credit applied — plan Nd old, past 14-day window". Payment via Wallet, Crypto, or Bank NGN.
 - <b>Downgrading</b>: No refund for remaining billing period. Features not supported by the new plan are auto-disabled immediately.
 
 #### Feature availability by plan:
@@ -555,7 +556,13 @@ From main menu → tap <b>💼 Become A Reseller</b>
 → All three plans include the same features (unlimited URL shortening, custom domain shortener${!HIDE_SMS_APP ? `, ${SMS_APP_NAME} access` : ''}, subscriber pricing). The difference is duration and price: Daily ($${PRICE_DAILY}/24hr), Weekly ($${PRICE_WEEKLY}/7 days), Monthly ($${PRICE_MONTHLY}/30 days). Monthly is the best value.
 
 ### "Where can I generate/find my SIP credentials?"
-→ Go to <b>📞 Cloud IVR + SIP</b> → <b>📋 My Plans</b> → Select your number → <b>🔑 SIP Credentials</b>. From there tap <b>👁️ Reveal Password</b> to see your password. Note: SIP requires <b>Pro</b> or <b>Business</b> plan — Starter users need to upgrade first via <b>🔄 Renew / Change Plan</b>.
+→ Go to <b>📞 Cloud IVR + SIP</b> → <b>📋 My Plans</b> → Select your number → <b>🔑 SIP Credentials</b>. From there tap <b>👁️ Reveal Password</b> to see your password. Note: SIP requires <b>Pro</b> or <b>Business</b> plan — Starter users see a one-tap <b>⬆️ Upgrade to Pro</b> button on the Manage screen with the exact upgrade cost (25% credit applied if your number is ≤14 days old).
+
+### "Does Starter include IVR / SIP?"
+→ <b>No.</b> Starter ($${process.env.PHONE_STARTER_PRICE || '50'}/mo) covers <b>only</b> call forwarding + SMS to Telegram. <b>IVR features (Quick IVR Call, Bulk IVR Campaign, OTP Collection, Auto-Attendant) and SIP softphone credentials require Pro or Business.</b> Good news: if you bought Starter and need IVR, the Manage screen has a <b>⬆️ Upgrade to Pro</b> one-tap button. If your Starter is ≤14 days old you get a 25% credit (so the Pro upgrade costs $${(((parseFloat(process.env.PHONE_PRO_PRICE) || 75) - 0.25 * (parseFloat(process.env.PHONE_STARTER_PRICE) || 50))).toFixed(2)} instead of $${process.env.PHONE_PRO_PRICE || '75'}). After 14 days, you pay full price.
+
+### "I just bought Starter but I need IVR — what now?"
+→ Open the number from <b>📞 Cloud IVR + SIP</b> → <b>📋 My Plans</b> → tap <b>⬆️ Upgrade to Pro</b> directly. The button shows your exact cost — if you're within the first 14 days you save 25% of your Starter price as credit. Pay via Wallet, Crypto, or Bank NGN. IVR unlocks immediately.
 
 ### "How do I make calls from my browser?"
 → Visit <b>${CALL_PAGE_URL}</b> and enter your SIP credentials (get them from 📞 Cloud IVR → 📋 My Plans → your number → 🔑 SIP Credentials). No app download needed.
@@ -612,7 +619,10 @@ From main menu → tap <b>💼 Become A Reseller</b>
 → <b>📞 Cloud IVR + SIP</b> → <b>📋 My Plans</b> → select your number → <b>📞 Call Forwarding</b>. Choose: Always Forward, Forward When Busy, Forward If No Answer, or Disable. Forwarding costs $${process.env.CALL_FORWARDING_RATE_MIN || '0.50'}/min from wallet.
 
 ### "How do I change my plan / upgrade?"
-→ <b>📞 Cloud IVR + SIP</b> → <b>📋 My Plans</b> → select your number → <b>🔄 Renew / Change Plan</b>. For upgrades: you get a 25% credit from your current plan price — pay the difference via <b>💳 Wallet</b>, <b>🪙 Crypto</b>, or <b>🏦 Bank NGN</b>. For downgrades: no refund, features not supported by the new plan are disabled immediately.
+→ <b>Fastest path (one-tap)</b>: Open the number from <b>📞 Cloud IVR + SIP</b> → <b>📋 My Plans</b> → tap <b>⬆️ Upgrade to Pro</b> or <b>⬆️ Upgrade to Business</b> directly on the Manage screen. The button label shows your exact upgrade cost (e.g. "⬆️ Upgrade to Pro — $62.50") so there are no surprises.
+→ <b>Or via the menu</b>: Cloud IVR + SIP → My Plans → select your number → 🔄 Renew / Change Plan → Choose target plan.
+→ <b>14-day upgrade credit</b>: If your current plan is <b>≤14 days old</b>, you get a 25% credit from your current plan price (e.g. Starter $50 → 25% credit = -$12.50, so Pro upgrade costs $62.50 instead of $75). After 14 days, no credit — you pay the full new-plan price. The upgrade preview always shows the exact breakdown.
+→ Pay via <b>💳 Wallet</b>, <b>🪙 Crypto</b>, or <b>🏦 Bank NGN</b>. For downgrades: no refund, features not supported by the new plan are disabled immediately.
 
 ### "How do I use OTP Collection?"
 → Go to <b>📞 Cloud IVR + SIP</b> → <b>📢 Quick IVR Call</b> → Select your Caller ID → Enter the target number → Select a template → Fill in any placeholders → Choose <b>🔑 OTP Collection</b> mode → Select OTP digit length → Choose voice → Preview → Confirm the call. When the target presses the active key and enters a code, you'll receive it here on Telegram with <b>✅ Confirm</b> and <b>❌ Reject</b> buttons. Requires <b>Pro</b> or <b>Business</b> plan. Business plan users get additional customization: write your own Confirm and Goodbye messages that callers hear, plus <b>🔁 Redial</b> to instantly re-call the same number.

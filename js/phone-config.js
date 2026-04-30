@@ -566,7 +566,12 @@ Inbound calls/SMS included · Outbound charged from wallet
     const ivrLine = planKey === 'starter'
       ? `\n\n<i>⚠️ Starter does <b>not</b> include IVR (Quick IVR Call, Bulk IVR Campaign, OTP, Auto-Attendant) or SIP softphone credentials. Need IVR? Pick Pro or Business instead.</i>`
       : ''
-    return `📋 <b>Order Summary</b>\n\n📞 ${formatPhone(number)} · ${country}\n📦 ${plan.name} — $${price}/mo\n📩 ${plan.sms} SMS · 📞 ${plan.minutes} min\n\n💰 Total: <b>$${price}</b> (first month)\n\n<i>💳 Outbound calls charged from wallet</i>${ivrLine}`
+    const creditLine = planKey === 'starter'
+      ? `\n<i>🛡️ 14-day upgrade credit — get 25% off if you upgrade to Pro/Business within 14 days</i>`
+      : planKey === 'pro'
+      ? `\n<i>🛡️ 14-day upgrade credit — get 25% off if you upgrade to Business within 14 days</i>`
+      : ''
+    return `📋 <b>Order Summary</b>\n\n📞 ${formatPhone(number)} · ${country}\n📦 ${plan.name} — $${price}/mo\n📩 ${plan.sms} SMS · 📞 ${plan.minutes} min\n\n💰 Total: <b>$${price}</b> (first month)\n\n<i>💳 Outbound calls charged from wallet</i>${creditLine}${ivrLine}`
   },
 
   paymentPrompt: (price) => `Price: <b>$${price}</b>. Choose payment method:`,
@@ -1696,7 +1701,12 @@ Votre propre numéro virtuel dans plus de 30 pays. Recevez des appels, envoyez d
       const ivrLine = planKey === 'starter'
         ? `\n\n<i>⚠️ Starter n'inclut <b>pas</b> l'IVR (Quick IVR, Bulk IVR, OTP, Auto-Attendant) ni les identifiants SIP. Besoin d'IVR ? Choisissez Pro ou Business.</i>`
         : ''
-      return `📋 <b>Récapitulatif</b>\n\n📞 ${formatPhone(number)} · ${country}\n📦 ${plan.name} — $${price}/mois\n📩 ${plan.sms} SMS entrants · 📞 ${plan.minutes} min entrantes\n💳 Appels sortants et transferts facturés depuis le portefeuille\n⚡ ${features.join(', ')}\n\n💰 Total : <b>$${price}</b> (premier mois)${ivrLine}`
+      const creditLine = planKey === 'starter'
+        ? `\n<i>🛡️ Crédit de surclassement 14 jours — 25 % de remise si vous passez à Pro/Business dans les 14 jours</i>`
+        : planKey === 'pro'
+        ? `\n<i>🛡️ Crédit de surclassement 14 jours — 25 % de remise si vous passez à Business dans les 14 jours</i>`
+        : ''
+      return `📋 <b>Récapitulatif</b>\n\n📞 ${formatPhone(number)} · ${country}\n📦 ${plan.name} — $${price}/mois\n📩 ${plan.sms} SMS entrants · 📞 ${plan.minutes} min entrantes\n💳 Appels sortants et transferts facturés depuis le portefeuille\n⚡ ${features.join(', ')}\n\n💰 Total : <b>$${price}</b> (premier mois)${creditLine}${ivrLine}`
     },
     paymentPrompt: (price) => `Prix : <b>$${price}</b>. Choisissez le mode de paiement :`,
     activated: (number, plan, price, sipUser, sipDomain, expiry) => `🎉 <b>Votre Cloud IVR est Actif !</b>\n\n📞 Numéro : ${formatPhone(number)}\n📦 Forfait : ${plan} ($${price}/mois)\n📅 Renouvellement : ${expiry}\n\n━━━ <b>Identifiants SIP</b> ━━━\n🌐 Serveur : ${sipDomain}\n👤 Utilisateur : ${sipUser}\n🔑 Mot de passe : ●●●●●●●● (utilisez 🔑 Identifiants SIP pour révéler)\n📡 Port : 5060 (UDP/TCP) | 5061 (TLS)\n\n━━━ <b>Configuration Rapide</b> ━━━\n• Navigateur : Appelez sur <a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a>\n• Softphone : Téléchargez Zoiper/Ooma, entrez les identifiants SIP\n• SMS : Les SMS entrants sont transférés ici automatiquement\n• Transfert : Configurez via 📱 Mes Numéros → Transfert d'Appels`,
@@ -2157,7 +2167,12 @@ Envoyez /testsip ici pour obtenir votre code test.
       const ivrLine = planKey === 'starter'
         ? `\n\n<i>⚠️ 入门版<b>不</b>包含IVR（快速IVR、批量IVR、OTP、自动接待）和SIP凭据。需要IVR？请选择专业版或商务版。</i>`
         : ''
-      return `📋 <b>订单摘要</b>\n\n📞 ${formatPhone(number)} · ${country}\n📦 ${plan.name} — $${price}/月\n📩 ${plan.sms} 来电短信 · 📞 ${plan.minutes} 来电分钟\n💳 外呼通话和转发从钱包扣费\n⚡ ${features.join(', ')}\n\n💰 合计：<b>$${price}</b>（首月）${ivrLine}`
+      const creditLine = planKey === 'starter'
+        ? `\n<i>🛡️ 14天升级抵扣 — 14天内升级到专业版/商务版可享 25% 抵扣</i>`
+        : planKey === 'pro'
+        ? `\n<i>🛡️ 14天升级抵扣 — 14天内升级到商务版可享 25% 抵扣</i>`
+        : ''
+      return `📋 <b>订单摘要</b>\n\n📞 ${formatPhone(number)} · ${country}\n📦 ${plan.name} — $${price}/月\n📩 ${plan.sms} 来电短信 · 📞 ${plan.minutes} 来电分钟\n💳 外呼通话和转发从钱包扣费\n⚡ ${features.join(', ')}\n\n💰 合计：<b>$${price}</b>（首月）${creditLine}${ivrLine}`
     },
     paymentPrompt: (price) => `价格：<b>$${price}</b>。选择支付方式：`,
     activated: (number, plan, price, sipUser, sipDomain, expiry) => `🎉 <b>您的 Cloud IVR 已激活！</b>\n\n📞 号码：${formatPhone(number)}\n📦 套餐：${plan}（$${price}/月）\n📅 续费日期：${expiry}\n\n━━━ <b>SIP 凭据</b> ━━━\n🌐 服务器：${sipDomain}\n👤 用户名：${sipUser}\n🔑 密码：●●●●●●●●（使用 🔑 SIP 凭据 查看）\n📡 端口：5060 (UDP/TCP) | 5061 (TLS)\n\n━━━ <b>快速设置</b> ━━━\n• 浏览器：在 <a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a> 拨打电话\n• 软电话：下载 Zoiper/Ooma，输入 SIP 凭据\n• 短信：来电短信自动转发到此聊天\n• 转发：通过 📱 我的号码 → 呼叫转移 设置`,
@@ -2618,7 +2633,12 @@ Envoyez /testsip ici pour obtenir votre code test.
       const ivrLine = planKey === 'starter'
         ? `\n\n<i>⚠️ स्टार्टर में IVR (त्वरित IVR, बल्क IVR, OTP, ऑटो-अटेंडेंट) और SIP क्रेडेंशियल्स शामिल <b>नहीं</b> हैं। IVR चाहिए? प्रो या बिज़नेस चुनें।</i>`
         : ''
-      return `📋 <b>ऑर्डर सारांश</b>\n\n📞 ${formatPhone(number)} · ${country}\n📦 ${plan.name} — $${price}/माह\n📩 ${plan.sms} इनबाउंड SMS · 📞 ${plan.minutes} इनबाउंड मिनट\n💳 आउटबाउंड कॉल और फ़ॉरवर्डिंग वॉलेट से चार्ज\n⚡ ${features.join(', ')}\n\n💰 कुल: <b>$${price}</b> (पहला महीना)${ivrLine}`
+      const creditLine = planKey === 'starter'
+        ? `\n<i>🛡️ 14-दिन अपग्रेड क्रेडिट — 14 दिनों में प्रो/बिज़नेस पर अपग्रेड करें और 25% छूट पाएं</i>`
+        : planKey === 'pro'
+        ? `\n<i>🛡️ 14-दिन अपग्रेड क्रेडिट — 14 दिनों में बिज़नेस पर अपग्रेड करें और 25% छूट पाएं</i>`
+        : ''
+      return `📋 <b>ऑर्डर सारांश</b>\n\n📞 ${formatPhone(number)} · ${country}\n📦 ${plan.name} — $${price}/माह\n📩 ${plan.sms} इनबाउंड SMS · 📞 ${plan.minutes} इनबाउंड मिनट\n💳 आउटबाउंड कॉल और फ़ॉरवर्डिंग वॉलेट से चार्ज\n⚡ ${features.join(', ')}\n\n💰 कुल: <b>$${price}</b> (पहला महीना)${creditLine}${ivrLine}`
     },
     paymentPrompt: (price) => `मूल्य: <b>$${price}</b>। भुगतान विधि चुनें:`,
     activated: (number, plan, price, sipUser, sipDomain, expiry) => `🎉 <b>आपका Cloud IVR सक्रिय है!</b>\n\n📞 नंबर: ${formatPhone(number)}\n📦 प्लान: ${plan} ($${price}/माह)\n📅 नवीनीकरण: ${expiry}\n\n━━━ <b>SIP क्रेडेंशियल्स</b> ━━━\n🌐 सर्वर: ${sipDomain}\n👤 उपयोगकर्ता: ${sipUser}\n🔑 पासवर्ड: ●●●●●●●● (देखने के लिए 🔑 SIP क्रेडेंशियल्स उपयोग करें)\n📡 पोर्ट: 5060 (UDP/TCP) | 5061 (TLS)\n\n━━━ <b>त्वरित सेटअप</b> ━━━\n• ब्राउज़र: <a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a> पर कॉल करें\n• सॉफ्टफ़ोन: Zoiper/Ooma डाउनलोड करें, SIP क्रेडेंशियल्स दर्ज करें\n• SMS: इनबाउंड SMS स्वचालित रूप से यहाँ फ़ॉरवर्ड होते हैं\n• फ़ॉरवर्डिंग: 📱 मेरे नंबर → कॉल फ़ॉरवर्डिंग से सेट करें`,

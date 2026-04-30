@@ -7,6 +7,38 @@
 - MongoDB (port 27017)
 
 
+## ✅ orderSummary Upgrade-Credit Badge + AI Support Sync (Apr 30, 2026)
+
+### Why
+Second touchpoint for the upgrade-credit message. The picker badge sets the expectation; the orderSummary badge reinforces it at the **payment-confirmation** screen (highest-friction moment) — the place most analogous to a checkout review where users abandon. Also brings the AI support prompt up to date with the new one-tap upgrade button + 14-day rule so support answers don't contradict the UI.
+
+### Implementation
+
+**`js/phone-config.js` `orderSummary(...)` for EN/FR/ZH/HI**
+- Starter purchase → adds `🛡️ 14-day upgrade credit — get 25% off if you upgrade to Pro/Business within 14 days` (italic).
+- Pro purchase → adds `🛡️ 14-day upgrade credit — get 25% off if you upgrade to Business within 14 days` (target = Business only, NOT "Pro/Business" — Pro can't upgrade to itself).
+- Business purchase → no badge (top tier).
+- All copy localized to FR/ZH/HI with the same plan-tier-aware logic.
+
+**`js/ai-support.js` SYSTEM_PROMPT (LLM knowledge base)**
+- Updated `Plan Upgrades & Downgrades` section:
+  - Lead with the new **one-tap upgrade button** location (Manage screen) and explains the live-price label `⬆️ Upgrade to Pro — $62.50`.
+  - Replaced the old "always 25% credit" claim with the 14-day eligibility rule, including the exact disclosure text the user sees on the upgrade preview.
+- Replaced `"How do I change my plan / upgrade?"` Q&A with two sub-paths: fastest one-tap and the menu route, both calling out the 14-day window with worked example ($50 Starter → $62.50 Pro).
+- New Q&A `"Does Starter include IVR / SIP?"` with explicit `No.` answer + the one-tap upgrade pointer (directly addresses the @fuckthisapp incident where the bot's old answer left the user paying $50 expecting IVR).
+- New Q&A `"I just bought Starter but I need IVR — what now?"` — short, action-oriented escalation to the one-tap CTA.
+- Updated SIP-credentials Q&A to mention the one-tap button instead of just "🔄 Renew / Change Plan".
+
+### Tests — `js/tests/test_plan_picker_ivr_clarity.js` (extended again)
++7 assertions, total **34/34 pass**:
+- EN orderSummary: Starter row has badge with "Pro/Business" target, Pro row has badge with **only** "Business" target, Business row has **no** badge.
+- FR / ZH / HI orderSummary: Starter+Pro carry the badge, Business does not (3 separate locale assertions).
+- AI support SYSTEM_PROMPT regression check: parses just the prompt block and asserts it mentions (a) the 14-day rule, (b) the one-tap upgrade button, (c) the explicit "no credit after 14 days" rule.
+
+### Regression
+Full sweep across 10 suites all green: `test_one_tap_upgrade` (31/31), `test_plan_picker_ivr_clarity` (34/34), `test_ai_support_phase1` (19/19), `test_manage_screen_features` (21/21), `test_user_facing_localization` (26/26), `test_i18n_coverage`, plus 4 others. Total ~130 assertions, 0 failures. nodejs restarted clean (10s uptime, no warnings); `/api/` returns HTTP 200 in 271ms.
+
+
 ## ✅ 14-day Upgrade-Credit Badge in Plan Picker (Apr 30, 2026)
 
 ### Why

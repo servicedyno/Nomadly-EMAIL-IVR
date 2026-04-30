@@ -227,6 +227,85 @@ t('HI selectPlan shows the credit badge on Starter and Pro rows', () => {
     'HI badge must appear exactly twice (Starter + Pro)')
 })
 
+// ── orderSummary upgrade-credit badge (Apr 30 — second touchpoint) ──
+t('EN orderSummary for Starter shows upgrade-credit badge', () => {
+  const out = pc.getTxt('en').orderSummary(
+    '+18005551234', 'US',
+    { name: 'Starter', sms: 50, minutes: 100 }, 50)
+  assert(/14-day upgrade credit[\s\S]*25% off[\s\S]*Pro\/Business/.test(out),
+    `expected Starter orderSummary to include upgrade-credit badge, got:\n${out}`)
+})
+
+t('EN orderSummary for Pro shows upgrade-credit badge (target = Business)', () => {
+  const out = pc.getTxt('en').orderSummary(
+    '+18005551234', 'US',
+    { name: 'Pro', sms: 200, minutes: 500 }, 75)
+  assert(/14-day upgrade credit[\s\S]*25% off[\s\S]*Business/.test(out),
+    `expected Pro orderSummary to include upgrade-credit badge for Business, got:\n${out}`)
+  assert(!out.includes('Pro/Business'),
+    'Pro orderSummary must point to Business only, not Pro/Business')
+})
+
+t('EN orderSummary for Business does NOT show the badge (top tier)', () => {
+  const out = pc.getTxt('en').orderSummary(
+    '+18005551234', 'US',
+    { name: 'Business', sms: 300, minutes: 600 }, 120)
+  assert(!out.includes('14-day upgrade credit'),
+    'Business is the top tier; orderSummary must NOT include the badge')
+})
+
+t('FR orderSummary: Starter and Pro carry the badge, Business does not', () => {
+  const starter = pc.getTxt('fr').orderSummary('+18005551234', 'US',
+    { name: 'Starter', sms: 50, minutes: 100, features: [] }, 50)
+  const pro = pc.getTxt('fr').orderSummary('+18005551234', 'US',
+    { name: 'Pro', sms: 200, minutes: 500, features: [] }, 75)
+  const biz = pc.getTxt('fr').orderSummary('+18005551234', 'US',
+    { name: 'Business', sms: 300, minutes: 600, features: [] }, 120)
+  assert(starter.includes('Crédit de surclassement 14 jours'), 'FR Starter badge missing')
+  assert(pro.includes('Crédit de surclassement 14 jours'), 'FR Pro badge missing')
+  assert(!biz.includes('Crédit de surclassement 14 jours'), 'FR Business must not have badge')
+})
+
+t('ZH orderSummary: Starter and Pro carry the badge, Business does not', () => {
+  const starter = pc.getTxt('zh').orderSummary('+18005551234', 'US',
+    { name: 'Starter', sms: 50, minutes: 100, features: [] }, 50)
+  const pro = pc.getTxt('zh').orderSummary('+18005551234', 'US',
+    { name: 'Pro', sms: 200, minutes: 500, features: [] }, 75)
+  const biz = pc.getTxt('zh').orderSummary('+18005551234', 'US',
+    { name: 'Business', sms: 300, minutes: 600, features: [] }, 120)
+  assert(starter.includes('14天升级抵扣'), 'ZH Starter badge missing')
+  assert(pro.includes('14天升级抵扣'), 'ZH Pro badge missing')
+  assert(!biz.includes('14天升级抵扣'), 'ZH Business must not have badge')
+})
+
+t('HI orderSummary: Starter and Pro carry the badge, Business does not', () => {
+  const starter = pc.getTxt('hi').orderSummary('+18005551234', 'US',
+    { name: 'Starter', sms: 50, minutes: 100, features: [] }, 50)
+  const pro = pc.getTxt('hi').orderSummary('+18005551234', 'US',
+    { name: 'Pro', sms: 200, minutes: 500, features: [] }, 75)
+  const biz = pc.getTxt('hi').orderSummary('+18005551234', 'US',
+    { name: 'Business', sms: 300, minutes: 600, features: [] }, 120)
+  assert(starter.includes('14-दिन अपग्रेड क्रेडिट'), 'HI Starter badge missing')
+  assert(pro.includes('14-दिन अपग्रेड क्रेडिट'), 'HI Pro badge missing')
+  assert(!biz.includes('14-दिन अपग्रेड क्रेडिट'), 'HI Business must not have badge')
+})
+
+// ── AI support knowledge sync (orderSummary refers to the same rule) ──
+t('AI support SYSTEM_PROMPT mentions the 14-day rule and one-tap button', () => {
+  const fs = require('fs')
+  const path = require('path')
+  const aiSrc = fs.readFileSync(path.join(__dirname, '..', 'ai-support.js'), 'utf8')
+  // Restrict to the SYSTEM_PROMPT block (avoid matching code that accidentally has these words).
+  const promptSection = aiSrc.split('const SYSTEM_PROMPT = `')[1]?.split('const MP_HELPER_PROMPT')[0] || ''
+  assert(promptSection.length > 0, 'could not find SYSTEM_PROMPT block')
+  assert(/≤\s*14\s*days?\s*old|within the last 2 weeks|14-day window/i.test(promptSection),
+    'SYSTEM_PROMPT must mention the 14-day eligibility rule for the upgrade credit')
+  assert(/⬆️\s*Upgrade to Pro|one-tap upgrade button|⬆️ Upgrade to Business/i.test(promptSection),
+    'SYSTEM_PROMPT must mention the one-tap upgrade button so the AI references it')
+  assert(/no credit|past 14-day window|after 14 days/i.test(promptSection),
+    'SYSTEM_PROMPT must explicitly state that no credit is given after 14 days')
+})
+
 // ── Env override still wins ──
 t('Env override beats default (regression: PHONE_STARTER_PRICE=99 honoured)', () => {
   // re-require freshly with env set
