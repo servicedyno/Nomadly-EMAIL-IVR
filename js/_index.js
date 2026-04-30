@@ -23433,7 +23433,7 @@ Select a category:`), k.of(catBtns))
         }
 
         // Apply the plan change
-        await applyPhonePlanUpgrade(chatId, num, upgNewPlan, newPrice, info?.userLanguage, 'wallet')
+        await applyPhonePlanUpgrade(chatId, num, upgNewPlan, newPrice, info?.userLanguage, 'wallet', upgradeData)
         return
       }
 
@@ -26573,7 +26573,9 @@ const upgradeVPSDetails = async (chatId, lang, vpsDetails) => {
 // ── Cloud IVR DB helpers ──
 
 // Shared function to apply a phone plan upgrade — used by wallet, crypto, and bank payment paths
-async function applyPhonePlanUpgrade(chatId, num, newPlan, newPrice, lang, paymentMethod) {
+async function applyPhonePlanUpgrade(chatId, num, newPlan, newPrice, lang, paymentMethod, upgradeData) {
+  const oldPlan = num.plan
+  const oldPrice = num.planPrice
   await updatePhoneNumberField(phoneNumbersOf, chatId, num.phoneNumber, 'plan', newPlan)
   await updatePhoneNumberField(phoneNumbersOf, chatId, num.phoneNumber, 'planPrice', newPrice)
   num.plan = newPlan
@@ -26590,17 +26592,48 @@ async function applyPhonePlanUpgrade(chatId, num, newPlan, newPrice, lang, payme
   await set(state, chatId, 'cpPendingPlan', null)
   await set(state, chatId, 'cpUpgradeData', null)
 
+  // ── Audit-trail: log the upgrade to phoneTransactions ──
+  // Fixes the Apr-30-2026 gap where crypto/wallet/bank upgrades left no record
+  // in phoneTransactions (reconciliation hole discovered when @fuckthisapp's
+  // $62.50 Pro upgrade had zero row in the collection). We capture the actual
+  // charge + credit breakdown so reconciliation can distinguish credited
+  // upgrades from full-price ones.
+  const chargeAmount = Number.isFinite(upgradeData?.chargeAmount) ? upgradeData.chargeAmount : newPrice
+  const credit = Number.isFinite(upgradeData?.credit) ? upgradeData.credit : 0
+  const eligibleForCredit = upgradeData?.eligibleForCredit === true
+  try {
+    await phoneTransactions.insertOne({
+      chatId,
+      phoneNumber: num.phoneNumber,
+      action: 'upgrade',
+      oldPlan,
+      newPlan,
+      oldPrice,
+      newPrice,
+      amount: chargeAmount.toFixed(2),
+      credit: credit.toFixed(2),
+      eligibleForCredit,
+      paymentMethod,
+      timestamp: new Date().toISOString(),
+    })
+  } catch (e) {
+    log(`[CloudPhone] phoneTransactions.insertOne failed for upgrade ${chatId}/${num.phoneNumber}: ${e.message}`)
+  }
+
   const m = phoneConfig.getMsg(lang)
   const confirmMsg = `✅ <b>Plan Upgraded!</b>\n\n📦 New plan: <b>${newPlan.charAt(0).toUpperCase() + newPlan.slice(1)}</b> ($${newPrice}/mo)\n💳 Paid via: ${paymentMethod}\n\nYour new features are now active!`
   sendMessage(chatId, confirmMsg, { parse_mode: 'HTML' })
   const name = await get(nameOf, chatId)
   notifyGroup(
     `⬆️ <b>Plan Upgrade!</b>\nUser ${maskName(name)} upgraded to <b>${newPlan.charAt(0).toUpperCase() + newPlan.slice(1)}</b> — /start`,
-    `⬆️ <b>Phone Plan Upgrade</b>\n👤 ${adminUserTag(name, chatId)}\n📞 Number: ${num.phoneNumber}\n📦 New Plan: <b>${newPlan.charAt(0).toUpperCase() + newPlan.slice(1)}</b>\n💵 Price: <b>$${newPrice}</b>/mo\n💳 Payment: ${paymentMethod}`
+    `⬆️ <b>Phone Plan Upgrade</b>\n👤 ${adminUserTag(name, chatId)}\n📞 Number: ${num.phoneNumber}\n📦 ${oldPlan.charAt(0).toUpperCase() + oldPlan.slice(1)} → <b>${newPlan.charAt(0).toUpperCase() + newPlan.slice(1)}</b>\n💵 Charged: <b>$${chargeAmount.toFixed(2)}</b>${credit > 0 ? ` (credit -$${credit.toFixed(2)})` : ''}\n📅 New renewal: $${newPrice}/mo\n💳 Payment: ${paymentMethod}`
   )
 
   await set(state, chatId, 'action', 'none')
-  log(`[CloudPhone] Plan upgraded for ${chatId}: ${num.phoneNumber} → ${newPlan} ($${newPrice}) via ${paymentMethod}`)
+  // Log the ACTUAL charge (what the user paid) rather than the plan's sticker
+  // price — avoids the Apr-30 ambiguity where the log line read "$75" for an
+  // upgrade that was actually billed at $62.50 (25% credit).
+  log(`[CloudPhone] Plan upgraded for ${chatId}: ${num.phoneNumber} ${oldPlan}→${newPlan} charged $${chargeAmount.toFixed(2)}${credit > 0 ? ` (credit -$${credit.toFixed(2)})` : ''} via ${paymentMethod}`)
 }
 
 async function updatePhoneNumberFeature(col, chatId, phoneNumber, featureKey, value) {
@@ -27641,7 +27674,7 @@ const bankApis = {
     del(chatIdOfPayment, ref)
 
     // Apply the plan upgrade
-    await applyPhonePlanUpgrade(chatId, num, upgradeData.newPlan, upgradeData.newPrice, lang, '🏦 Bank Transfer')
+    await applyPhonePlanUpgrade(chatId, num, upgradeData.newPlan, upgradeData.newPrice, lang, '🏦 Bank Transfer', upgradeData)
     if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
     if (userConversion) userConversion.markPurchased(chatId)
     res.send(html())
@@ -28203,7 +28236,7 @@ app.get('/crypto-pay-phone-upgrade', auth, async (req, res) => {
     return res.send(html('Phone number not found'))
   }
 
-  await applyPhonePlanUpgrade(chatId, num, upgradeData.newPlan, upgradeData.newPrice, lang, `🪙 Crypto (${coin})`)
+  await applyPhonePlanUpgrade(chatId, num, upgradeData.newPlan, upgradeData.newPrice, lang, `🪙 Crypto (${coin})`, upgradeData)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
   res.send(html())
@@ -28960,7 +28993,7 @@ app.post('/dynopay/crypto-pay-phone-upgrade', authDyno, async (req, res) => {
     return res.send(html('Phone number not found'))
   }
 
-  await applyPhonePlanUpgrade(chatId, num, upgradeData.newPlan, upgradeData.newPrice, lang, `🪙 Crypto (${coin})`)
+  await applyPhonePlanUpgrade(chatId, num, upgradeData.newPlan, upgradeData.newPrice, lang, `🪙 Crypto (${coin})`, upgradeData)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
   res.send(html())

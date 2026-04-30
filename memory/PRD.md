@@ -7,6 +7,53 @@
 - MongoDB (port 27017)
 
 
+## ✅ Phone Upgrade Audit-Trail Fix + Backfill (Apr 30, 2026)
+
+### Gap identified
+While auditing @fuckthisapp's successful $62.50 Pro upgrade (first real-world use of the new one-tap button), discovered: **zero upgrade events have ever been written to `phoneTransactions`** — across the entire user base, for any payment method. Only `action: 'purchase'` and `action: 'sub-number-purchase'` rows exist. Crypto, wallet, bank, and DynoPay upgrade paths all bypassed the audit log. Separately, the log line `"Plan upgraded... → pro ($75)"` logged the plan's sticker/renewal price, not the amount actually charged — creating a second ambiguity for reconciliation.
+
+### Implementation — `js/_index.js`
+**`applyPhonePlanUpgrade(chatId, num, newPlan, newPrice, lang, paymentMethod, upgradeData)` — new 7th arg**
+- Snapshots `oldPlan` / `oldPrice` BEFORE mutating the number doc.
+- Extracts `chargeAmount` / `credit` / `eligibleForCredit` from `upgradeData` (with safe defaults: falls back to `newPrice` / `0` / `false` if absent).
+- Writes a new `phoneTransactions` row:
+  ```
+  { chatId, phoneNumber, action: 'upgrade',
+    oldPlan, newPlan, oldPrice, newPrice,
+    amount: chargeAmount.toFixed(2),
+    credit: credit.toFixed(2),
+    eligibleForCredit, paymentMethod, timestamp }
+  ```
+- `insertOne` wrapped in try/catch with `log()` fallback — a DB failure here never strands a user mid-upgrade after their payment has already cleared.
+- **Log line fixed**: now reads `Plan upgraded for ... starter→pro charged $62.50 (credit -$12.50) via 🪙 Crypto (BTC)` — actual charge first, credit disclosed, sticker price only appears in separate `renewal: $X/mo` field on admin notifications.
+- **notifyGroup admin message** gets the credit breakdown too: `Charged: $62.50 (credit -$12.50)` + `New renewal: $75/mo`.
+
+**All 4 call sites updated** to pass `upgradeData` through: wallet (`_index.js:23436`), bank transfer (`27677`), BlockBee crypto (`28239`), DynoPay crypto (`28996`).
+
+### Prod backfill — @fuckthisapp's missing upgrade
+Direct insert into prod `phoneTransactions` to close the retroactive gap:
+- chatId `2086091807` / `+18777000068`
+- `starter → pro`, oldPrice $50, newPrice $75, **amount $62.50**, credit $12.50, eligibleForCredit true
+- payment method `🪙 Crypto (BTC)`, timestamp `2026-04-30T19:39:35.000Z`
+- Stamped `_backfilledAt` + `_backfillReason` so this single row is visually distinguishable from natively-written ones during reconciliation.
+
+### Tests — `js/tests/test_phone_upgrade_audit_trail.js` (new)
+13/13 pass — source-level regression covering:
+- 7-arg signature accepts `upgradeData`
+- `oldPlan`/`oldPrice` snapshot happens BEFORE mutation (ordering assertion)
+- Safe defaults for missing `upgradeData` fields
+- `insertOne` has `action: 'upgrade'` and all 12 audit fields
+- `amount` + `credit` stored as `.toFixed(2)` strings (consistent reconciliation format)
+- `insertOne` wrapped in try/catch
+- Log line uses `chargeAmount`, not `newPrice`
+- Admin `notifyGroup` discloses credit
+- All 4 call sites (wallet / bank / 2× crypto) pass `upgradeData`
+- Zero call sites remain on the old 6-arg signature (regression guard — counts top-level commas per line to catch re-introductions)
+
+### Regression
+All 12 suites green, ~170+ total assertions, 0 failures: `test_one_tap_upgrade` (31/31), `test_plan_picker_ivr_clarity` (34/34), `test_day12_upgrade_credit_nudge` (19/19), `test_phone_upgrade_audit_trail` (13/13), `test_ai_support_phase1` (19/19), `test_manage_screen_features` (21/21), `test_user_facing_localization` (26/26), plus 5 others. nodejs restarted clean; `/api/` HTTP 200 in 310ms.
+
+
 ## ✅ Day-12 Upgrade-Credit Auto-DM Scheduler (Apr 30, 2026)
 
 ### Why
