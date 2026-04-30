@@ -6,6 +6,37 @@
 - Node.js Express (port 5000) - core business logic
 - MongoDB (port 27017)
 
+
+## ✅ Admin-Bot Unmasked Notifications (Feb 2026)
+
+### User request
+"Below should show the deposited amount user @. Should also reveal username of user who joined. Analyze other places where user @username are not shown to the admin bot (not group) and make visible."
+
+Admins need full visibility (`@username (chatId)` + exact deposited amount + full domain) for moderation/support. Public groups must continue to receive masked text (`pi***`, `gol***.com`).
+
+### Implementation — `/app/js/_index.js`
+- **`notifyGroup(groupMsg, adminMsg = null)`** now accepts an optional admin variant:
+  - When `adminMsg` is provided → public groups get the masked `groupMsg`, admin chat (`TELEGRAM_ADMIN_CHAT_ID`) gets the unmasked `adminMsg`. No double-send.
+  - When `adminMsg` is `null` → legacy 1-arg behavior (same message to all). Backward compatible.
+- **New helpers** (alongside `maskName`):
+  - `adminUserTag(name, chatId)` → `@username (chatId)` or `User <chatId>`
+  - `adminDomainTag(domain)` → full domain (no masking)
+- **All ~50 masked `notifyGroup` call sites** were converted to the 2-arg form. Existing redundant `notifyGroup(masked); send(TELEGRAM_ADMIN_CHAT_ID, unmasked)` patterns were consolidated into the new clean form (admin no longer receives the duplicate masked message).
+
+### Concrete admin-now-visible flows
+- **Wallet top-ups** (Bank `/bank-wallet`, BlockBee `/crypto-wallet`, DynoPay `/dynopay/crypto-wallet`) — admin sees `@username (chatId) | $X.XX USD | Y COIN | Ref: ...`
+- **New member join** — admin sees display name, `@username`, chatId, language, `/reply` quick action
+- **Cloud IVR purchase / sub-number / release / plan upgrade** — uses `adminPurchasePrivate`/`adminSubPurchasePrivate`/`adminReleasePrivate` with `adminUserTag`
+- **Domain registration / Hosting activation / VPS deploy / VPS upgrade / Plan upgrade** — admin sees full domain + `@username (chatId)` + exact USD price + payment method
+- **Subscriptions, Digital Product / Virtual Card / Leads / Bundle / Short Link** — admin sees `@username (chatId)` + order ID + exact amounts + ticker (where crypto)
+- **Partial lead refund** — admin sees `@username (chatId) | delivered/requested | refund $X.XX | reason`
+
+### Tests
+- `js/tests/test_admin_unmasked_notify.js` — 5/5 pass: wallet-topup admin variant carries username + amount + ticker, group sees masked; new-member-join admin sees full identity; domain reg admin sees full domain; legacy 1-arg form remains backward-compatible; `adminUserTag` fallback for missing username.
+- Sibling regression: `test_call_route_priority.js` — 26/26 pass.
+- Syntax: `node -c js/_index.js` clean; ESLint clean.
+
+
 ## 🐛 Cloud IVR Call-Forwarding Bug — @wizardchop +15162719167 (Feb 2026)
 
 ### User report
