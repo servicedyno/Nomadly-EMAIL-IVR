@@ -549,10 +549,10 @@ Inbound calls/SMS included · Outbound charged from wallet
   selectPlan: (number) => {
     let text = `✅ Selected: <b>${formatPhone(number)}</b>\n\n📋 Choose your plan:\n\n`
     if (PHONE_STARTER_ON) {
-      text += `<b>💡 Starter — $${PHONE_STARTER_PRICE}/mo</b>\n📞 ${plans.starter.minutes} min · 📩 ${plans.starter.sms} SMS · Forwarding · Up to ${SUB_NUMBER_LIMITS.starter} extra numbers\n<b>🎙 IVR / SIP softphone:</b> ❌ <i>not included</i>\n\n`
+      text += `<b>💡 Starter — $${PHONE_STARTER_PRICE}/mo</b>\n📞 ${plans.starter.minutes} min · 📩 ${plans.starter.sms} SMS · Forwarding · Up to ${SUB_NUMBER_LIMITS.starter} extra numbers\n<b>🎙 IVR / SIP softphone:</b> ❌ <i>not included</i>\n🛡️ <i>14-day upgrade credit — get 25% off Pro/Business if you upgrade within 14 days</i>\n\n`
     }
     if (PHONE_PRO_ON) {
-      text += `<b>⭐ Pro — $${PHONE_PRO_PRICE}/mo</b>\n📞 ${plans.pro.minutes} min · 📩 ${plans.pro.sms} SMS · All Starter + Voicemail · SIP · Webhooks · IVR\n<b>🎙 IVR / SIP softphone:</b> ✅ <i>Quick IVR + Bulk IVR + OTP</i>\n\n`
+      text += `<b>⭐ Pro — $${PHONE_PRO_PRICE}/mo</b>\n📞 ${plans.pro.minutes} min · 📩 ${plans.pro.sms} SMS · All Starter + Voicemail · SIP · Webhooks · IVR\n<b>🎙 IVR / SIP softphone:</b> ✅ <i>Quick IVR + Bulk IVR + OTP</i>\n🛡️ <i>14-day upgrade credit — get 25% off Business if you upgrade within 14 days</i>\n\n`
     }
     if (PHONE_BUSINESS_ON) {
       text += `<b>👑 Business — $${PHONE_BUSINESS_PRICE}/mo</b>\n📞 ${plans.business.minutes} min · 📩 ${plans.business.sms} SMS · All Pro + Recording · Auto-Attendant · Priority Support\n<b>🎙 IVR / SIP softphone:</b> ✅ <i>Pro + Auto-Attendant + Recording</i>\n\n`
@@ -1684,8 +1684,8 @@ Votre propre numéro virtuel dans plus de 30 pays. Recevez des appels, envoyez d
     },
     selectPlan: (number) => {
       let text = `✅ Sélectionné : <b>${formatPhone(number)}</b>\n\n📋 Choisissez votre forfait :\n\n`
-      if (PHONE_STARTER_ON) text += `<b>💡 Starter — $${PHONE_STARTER_PRICE}/mois</b>\n📞 ${plans.starter.minutes} min entrantes · 📩 ${plans.starter.sms} SMS entrants · ${plansI18n.fr.starter.features.join(' · ')}\n<b>🎙 IVR / SIP :</b> ❌ <i>non inclus</i>\n➕ Ajoutez jusqu'à ${SUB_NUMBER_LIMITS.starter} numéros supplémentaires (à partir de $${SUB_NUMBER_BASE_PRICE}/mois chacun)\n\n`
-      if (PHONE_PRO_ON) text += `<b>⭐ Pro — $${PHONE_PRO_PRICE}/mois</b>\n📞 ${plans.pro.minutes} min entrantes · 📩 ${plans.pro.sms} SMS entrants · ${plansI18n.fr.pro.features.join(' · ')}\n<b>🎙 IVR / SIP :</b> ✅ <i>Quick IVR + Bulk IVR + OTP</i>\n➕ Ajoutez jusqu'à ${SUB_NUMBER_LIMITS.pro} numéros supplémentaires (à partir de $${SUB_NUMBER_BASE_PRICE}/mois chacun)\n\n`
+      if (PHONE_STARTER_ON) text += `<b>💡 Starter — $${PHONE_STARTER_PRICE}/mois</b>\n📞 ${plans.starter.minutes} min entrantes · 📩 ${plans.starter.sms} SMS entrants · ${plansI18n.fr.starter.features.join(' · ')}\n<b>🎙 IVR / SIP :</b> ❌ <i>non inclus</i>\n🛡️ <i>Crédit de surclassement 14 jours — 25 % de remise sur Pro/Business si vous passez à un forfait supérieur dans les 14 jours</i>\n➕ Ajoutez jusqu'à ${SUB_NUMBER_LIMITS.starter} numéros supplémentaires (à partir de $${SUB_NUMBER_BASE_PRICE}/mois chacun)\n\n`
+      if (PHONE_PRO_ON) text += `<b>⭐ Pro — $${PHONE_PRO_PRICE}/mois</b>\n📞 ${plans.pro.minutes} min entrantes · 📩 ${plans.pro.sms} SMS entrants · ${plansI18n.fr.pro.features.join(' · ')}\n<b>🎙 IVR / SIP :</b> ✅ <i>Quick IVR + Bulk IVR + OTP</i>\n🛡️ <i>Crédit de surclassement 14 jours — 25 % de remise sur Business si vous passez à un forfait supérieur dans les 14 jours</i>\n➕ Ajoutez jusqu'à ${SUB_NUMBER_LIMITS.pro} numéros supplémentaires (à partir de $${SUB_NUMBER_BASE_PRICE}/mois chacun)\n\n`
       if (PHONE_BUSINESS_ON) text += `<b>👑 Business — $${PHONE_BUSINESS_PRICE}/mois</b>\n📞 ${plans.business.minutes} min entrantes · 📩 ${plans.business.sms} SMS entrants · ${plansI18n.fr.business.features.join(' · ')}\n<b>🎙 IVR / SIP :</b> ✅ <i>Pro + Auto-Attendant + Enregistrement</i>\n➕ Ajoutez jusqu'à ${SUB_NUMBER_LIMITS.business} numéros supplémentaires (à partir de $${SUB_NUMBER_BASE_PRICE}/mois chacun)\n\n`
       text += `<i>📞 Les minutes du forfait sont pour les appels entrants uniquement.\n💳 Les appels sortants et transferts sont facturés depuis votre portefeuille.\n⚠️ Besoin d'IVR (Quick IVR, Bulk IVR, OTP, Auto-Attendant) ? Choisissez Pro ou Business — Starter n'inclut <b>pas</b> l'IVR.</i>`
       return text
@@ -2145,8 +2145,8 @@ Envoyez /testsip ici pour obtenir votre code test.
     },
     selectPlan: (number) => {
       let text = `✅ 已选择：<b>${formatPhone(number)}</b>\n\n📋 选择您的套餐：\n\n`
-      if (PHONE_STARTER_ON) text += `<b>💡 入门版 — $${PHONE_STARTER_PRICE}/月</b>\n📞 ${plans.starter.minutes} 来电分钟 · 📩 ${plans.starter.sms} 来电短信 · ${plansI18n.zh.starter.features.join(' · ')}\n<b>🎙 IVR / SIP：</b> ❌ <i>不包含</i>\n➕ 可添加最多 ${SUB_NUMBER_LIMITS.starter} 个额外号码（每个 $${SUB_NUMBER_BASE_PRICE}/月起）\n\n`
-      if (PHONE_PRO_ON) text += `<b>⭐ 专业版 — $${PHONE_PRO_PRICE}/月</b>\n📞 ${plans.pro.minutes} 来电分钟 · 📩 ${plans.pro.sms} 来电短信 · ${plansI18n.zh.pro.features.join(' · ')}\n<b>🎙 IVR / SIP：</b> ✅ <i>快速IVR + 批量IVR + OTP</i>\n➕ 可添加最多 ${SUB_NUMBER_LIMITS.pro} 个额外号码（每个 $${SUB_NUMBER_BASE_PRICE}/月起）\n\n`
+      if (PHONE_STARTER_ON) text += `<b>💡 入门版 — $${PHONE_STARTER_PRICE}/月</b>\n📞 ${plans.starter.minutes} 来电分钟 · 📩 ${plans.starter.sms} 来电短信 · ${plansI18n.zh.starter.features.join(' · ')}\n<b>🎙 IVR / SIP：</b> ❌ <i>不包含</i>\n🛡️ <i>14天升级抵扣 — 14天内升级到专业版/商务版可享 25% 抵扣</i>\n➕ 可添加最多 ${SUB_NUMBER_LIMITS.starter} 个额外号码（每个 $${SUB_NUMBER_BASE_PRICE}/月起）\n\n`
+      if (PHONE_PRO_ON) text += `<b>⭐ 专业版 — $${PHONE_PRO_PRICE}/月</b>\n📞 ${plans.pro.minutes} 来电分钟 · 📩 ${plans.pro.sms} 来电短信 · ${plansI18n.zh.pro.features.join(' · ')}\n<b>🎙 IVR / SIP：</b> ✅ <i>快速IVR + 批量IVR + OTP</i>\n🛡️ <i>14天升级抵扣 — 14天内升级到商务版可享 25% 抵扣</i>\n➕ 可添加最多 ${SUB_NUMBER_LIMITS.pro} 个额外号码（每个 $${SUB_NUMBER_BASE_PRICE}/月起）\n\n`
       if (PHONE_BUSINESS_ON) text += `<b>👑 商务版 — $${PHONE_BUSINESS_PRICE}/月</b>\n📞 ${plans.business.minutes} 来电分钟 · 📩 ${plans.business.sms} 来电短信 · ${plansI18n.zh.business.features.join(' · ')}\n<b>🎙 IVR / SIP：</b> ✅ <i>专业版 + 自动接待 + 录音</i>\n➕ 可添加最多 ${SUB_NUMBER_LIMITS.business} 个额外号码（每个 $${SUB_NUMBER_BASE_PRICE}/月起）\n\n`
       text += `<i>📞 套餐分钟仅用于来电。\n💳 外呼通话和转发从钱包余额扣费。\n⚠️ 需要IVR(快速IVR、批量IVR、OTP、自动接待)? 请选择专业版或商务版 —— 入门版<b>不</b>包含IVR。</i>`
       return text
@@ -2606,8 +2606,8 @@ Envoyez /testsip ici pour obtenir votre code test.
     },
     selectPlan: (number) => {
       let text = `✅ चयनित: <b>${formatPhone(number)}</b>\n\n📋 अपना प्लान चुनें:\n\n`
-      if (PHONE_STARTER_ON) text += `<b>💡 स्टार्टर — $${PHONE_STARTER_PRICE}/माह</b>\n📞 ${plans.starter.minutes} इनबाउंड मिनट · 📩 ${plans.starter.sms} इनबाउंड SMS · ${plansI18n.hi.starter.features.join(' · ')}\n<b>🎙 IVR / SIP:</b> ❌ <i>शामिल नहीं</i>\n➕ ${SUB_NUMBER_LIMITS.starter} अतिरिक्त नंबर जोड़ें ($${SUB_NUMBER_BASE_PRICE}/माह प्रत्येक से)\n\n`
-      if (PHONE_PRO_ON) text += `<b>⭐ प्रो — $${PHONE_PRO_PRICE}/माह</b>\n📞 ${plans.pro.minutes} इनबाउंड मिनट · 📩 ${plans.pro.sms} इनबाउंड SMS · ${plansI18n.hi.pro.features.join(' · ')}\n<b>🎙 IVR / SIP:</b> ✅ <i>त्वरित IVR + बल्क IVR + OTP</i>\n➕ ${SUB_NUMBER_LIMITS.pro} अतिरिक्त नंबर जोड़ें ($${SUB_NUMBER_BASE_PRICE}/माह प्रत्येक से)\n\n`
+      if (PHONE_STARTER_ON) text += `<b>💡 स्टार्टर — $${PHONE_STARTER_PRICE}/माह</b>\n📞 ${plans.starter.minutes} इनबाउंड मिनट · 📩 ${plans.starter.sms} इनबाउंड SMS · ${plansI18n.hi.starter.features.join(' · ')}\n<b>🎙 IVR / SIP:</b> ❌ <i>शामिल नहीं</i>\n🛡️ <i>14-दिन अपग्रेड क्रेडिट — 14 दिनों में प्रो/बिज़नेस पर अपग्रेड करें और 25% छूट पाएं</i>\n➕ ${SUB_NUMBER_LIMITS.starter} अतिरिक्त नंबर जोड़ें ($${SUB_NUMBER_BASE_PRICE}/माह प्रत्येक से)\n\n`
+      if (PHONE_PRO_ON) text += `<b>⭐ प्रो — $${PHONE_PRO_PRICE}/माह</b>\n📞 ${plans.pro.minutes} इनबाउंड मिनट · 📩 ${plans.pro.sms} इनबाउंड SMS · ${plansI18n.hi.pro.features.join(' · ')}\n<b>🎙 IVR / SIP:</b> ✅ <i>त्वरित IVR + बल्क IVR + OTP</i>\n🛡️ <i>14-दिन अपग्रेड क्रेडिट — 14 दिनों में बिज़नेस पर अपग्रेड करें और 25% छूट पाएं</i>\n➕ ${SUB_NUMBER_LIMITS.pro} अतिरिक्त नंबर जोड़ें ($${SUB_NUMBER_BASE_PRICE}/माह प्रत्येक से)\n\n`
       if (PHONE_BUSINESS_ON) text += `<b>👑 बिज़नेस — $${PHONE_BUSINESS_PRICE}/माह</b>\n📞 ${plans.business.minutes} इनबाउंड मिनट · 📩 ${plans.business.sms} इनबाउंड SMS · ${plansI18n.hi.business.features.join(' · ')}\n<b>🎙 IVR / SIP:</b> ✅ <i>प्रो + ऑटो-अटेंडेंट + रिकॉर्डिंग</i>\n➕ ${SUB_NUMBER_LIMITS.business} अतिरिक्त नंबर जोड़ें ($${SUB_NUMBER_BASE_PRICE}/माह प्रत्येक से)\n\n`
       text += `<i>📞 प्लान मिनट केवल इनबाउंड कॉल के लिए हैं।\n💳 आउटबाउंड कॉल और फ़ॉरवर्डिंग वॉलेट से चार्ज होते हैं।\n⚠️ IVR (त्वरित IVR, बल्क IVR, OTP, ऑटो-अटेंडेंट) चाहिए? प्रो या बिज़नेस चुनें — स्टार्टर में IVR शामिल <b>नहीं</b> है।</i>`
       return text

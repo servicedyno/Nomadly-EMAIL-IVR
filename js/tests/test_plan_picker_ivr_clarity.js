@@ -186,6 +186,47 @@ t('HI orderSummary for Starter shows IVR warning', () => {
     'HI Starter order summary should warn about IVR')
 })
 
+// ── 14-day upgrade-credit badge (Apr 30 enhancement) ──
+t('EN selectPlan shows 14-day upgrade-credit badge on Starter row', () => {
+  const txt = pc.getTxt('en').selectPlan('+18005551234')
+  assert(/Starter — \$50\/mo[\s\S]*?14-day upgrade credit[\s\S]*?25% off Pro\/Business/.test(txt),
+    'expected 14-day credit badge under Starter row')
+})
+
+t('EN selectPlan shows 14-day upgrade-credit badge on Pro row (→ Business)', () => {
+  const txt = pc.getTxt('en').selectPlan('+18005551234')
+  assert(/Pro — \$75\/mo[\s\S]*?14-day upgrade credit[\s\S]*?25% off Business/.test(txt),
+    'expected 14-day credit badge under Pro row, mentioning Business as the upgrade target')
+})
+
+t('EN selectPlan: Business (top tier) does NOT show the badge', () => {
+  const txt = pc.getTxt('en').selectPlan('+18005551234')
+  // Business row segment ends at the start of the footer "<i>💳 Outbound..."
+  const businessSegment = txt.split('Business — $120/mo')[1]?.split('<i>💳 Outbound')[0] || ''
+  assert(!businessSegment.includes('14-day upgrade credit'),
+    'Business is the top tier; no upgrade target so no badge')
+})
+
+t('FR selectPlan shows the credit badge on Starter and Pro rows', () => {
+  const txt = pc.getTxt('fr').selectPlan('+18005551234')
+  assert(txt.includes('Crédit de surclassement 14 jours'),
+    'FR badge string must appear')
+  assert((txt.match(/Crédit de surclassement 14 jours/g) || []).length === 2,
+    'FR badge must appear exactly twice (Starter + Pro)')
+})
+
+t('ZH selectPlan shows the credit badge on Starter and Pro rows', () => {
+  const txt = pc.getTxt('zh').selectPlan('+18005551234')
+  assert((txt.match(/14天升级抵扣/g) || []).length === 2,
+    'ZH badge must appear exactly twice (Starter + Pro)')
+})
+
+t('HI selectPlan shows the credit badge on Starter and Pro rows', () => {
+  const txt = pc.getTxt('hi').selectPlan('+18005551234')
+  assert((txt.match(/14-दिन अपग्रेड क्रेडिट/g) || []).length === 2,
+    'HI badge must appear exactly twice (Starter + Pro)')
+})
+
 // ── Env override still wins ──
 t('Env override beats default (regression: PHONE_STARTER_PRICE=99 honoured)', () => {
   // re-require freshly with env set

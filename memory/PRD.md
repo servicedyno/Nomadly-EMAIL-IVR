@@ -7,6 +7,33 @@
 - MongoDB (port 27017)
 
 
+## ✅ 14-day Upgrade-Credit Badge in Plan Picker (Apr 30, 2026)
+
+### Why
+Conversion nudge added on top of the one-tap upgrade flow shipped same day. Users on the fence about Starter ($50) vs. Pro ($75) needed an at-a-glance reason to commit: "if I outgrow Starter, will I lose my $50?" The badge tells them up front that they can upgrade with a 25% credit (=$12.50 off Pro / $18.75 off Business) within 14 days, which de-risks the cheap-tier purchase and increases the natural Starter→Pro path.
+
+### Implementation — `js/phone-config.js` `selectPlan(number)` for EN/FR/ZH/HI
+- New italicized badge line under each row that has an upgrade target:
+  - **Starter row** → `🛡️ 14-day upgrade credit — get 25% off Pro/Business if you upgrade within 14 days`
+  - **Pro row** → `🛡️ 14-day upgrade credit — get 25% off Business if you upgrade within 14 days`
+  - **Business row** → no badge (top tier; no upgrade target).
+- Localized strings:
+  - FR: `Crédit de surclassement 14 jours — 25 % de remise sur …`
+  - ZH: `14天升级抵扣 — 14天内升级到…可享 25% 抵扣`
+  - HI: `14-दिन अपग्रेड क्रेडिट — 14 दिनों में …पर अपग्रेड करें और 25% छूट पाएं`
+- Copy choice: "upgrade credit" (factually accurate — the 25% is applied as a discount on the upgrade charge, not refunded). Avoids the legally fuzzy "money-back" framing.
+
+### Tests — extension to `js/tests/test_plan_picker_ivr_clarity.js`
++6 assertions, total 27/27 pass:
+- Starter row in EN includes "14-day upgrade credit" + "25% off Pro/Business"
+- Pro row in EN includes the badge with target = Business only
+- Business row does **not** include the badge (top tier)
+- FR / ZH / HI badges appear exactly twice each (Starter + Pro rows)
+
+### Regression
+`test_one_tap_upgrade.js` (31/31), `test_ai_support_phase1.js` (19/19), `test_manage_screen_features.js` (21/21), `test_user_facing_localization.js` (26/26), `test_i18n_coverage`, plus 4 other suites — all green. nodejs restarted clean; `/api/` returns HTTP 200.
+
+
 ## ✅ One-Tap Plan Upgrade + 14-day Credit Gate (Apr 30, 2026)
 
 ### User request
