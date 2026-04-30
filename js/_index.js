@@ -975,27 +975,41 @@ function simLabelFor(prefs, sim) {
 // v2.7.0). Honors user prefs + custom SIM labels.
 async function renderCampaignSimPicker(chatId, campaignId) {
   try {
+    const _info = await state.findOne({ _id: String(chatId) })
+    const lang = _info?.userLanguage || 'en'
     const prefs = await smsAppService.getUserSmsPrefs(chatId)
     const sims = Array.isArray(prefs?.sims) ? prefs.sims : []
     if (sims.length === 0) {
       // App hasn't reported SIMs yet. Hint user so they know the option exists.
       return bot?.sendMessage(chatId,
-        `📶 <b>Tip:</b> Open the Nomadly SMS app once, then come back — you'll be able to pick which SIM (or auto-rotate across all SIMs) for each campaign.`,
+        ({
+          en: `📶 <b>Tip:</b> Open the Nomadly SMS app once, then come back — you'll be able to pick which SIM (or auto-rotate across all SIMs) for each campaign.`,
+          fr: `📶 <b>Astuce :</b> Ouvrez l'application Nomadly SMS une fois, puis revenez — vous pourrez choisir la SIM (ou rotation automatique entre toutes les SIM) pour chaque campagne.`,
+          zh: `📶 <b>提示：</b>打开 Nomadly SMS 应用一次，然后返回 — 您将能够为每个活动选择 SIM（或在所有 SIM 之间自动轮换）。`,
+          hi: `📶 <b>सुझाव:</b> Nomadly SMS ऐप एक बार खोलें, फिर वापस आएँ — आप प्रत्येक अभियान के लिए SIM चुन सकेंगे (या सभी SIMs में स्वतः-घुमाव)।`,
+        }[lang]) || `📶 <b>Tip:</b> Open the Nomadly SMS app once, then come back — you'll be able to pick which SIM (or auto-rotate across all SIMs) for each campaign.`,
         { parse_mode: 'HTML' }
       )
     }
     const rows = []
+    const _useDefault = ({en:'Use default',fr:'Utiliser par défaut',zh:'使用默认',hi:'डिफ़ॉल्ट उपयोग'}[lang]) || 'Use default'
+    const _autoRotate = ({en:'🔁 Auto-rotate',fr:'🔁 Rotation auto',zh:'🔁 自动轮换',hi:'🔁 स्वतः-घुमाव'}[lang]) || '🔁 Auto-rotate'
     const perCampaignBtns = [
-      { text: 'Use default', callback_data: `campsim:${campaignId}:default` }
+      { text: _useDefault, callback_data: `campsim:${campaignId}:default` }
     ]
-    if (sims.length > 1) perCampaignBtns.push({ text: '🔁 Auto-rotate', callback_data: `campsim:${campaignId}:rotate` })
+    if (sims.length > 1) perCampaignBtns.push({ text: _autoRotate, callback_data: `campsim:${campaignId}:rotate` })
     sims.forEach((s, i) => perCampaignBtns.push({
       text: `SIM ${i + 1} — ${simLabelFor(prefs, s).slice(0, 14)}`,
       callback_data: `campsim:${campaignId}:${s.subscriptionId}`
     }))
     for (let i = 0; i < perCampaignBtns.length; i += 2) rows.push(perCampaignBtns.slice(i, i + 2))
     return bot?.sendMessage(chatId,
-      `📶 <b>Which SIM should send this campaign?</b>\nDefault keeps your existing preference. Tap <b>Auto-rotate</b> to spread load across all SIMs.`,
+      ({
+        en: `📶 <b>Which SIM should send this campaign?</b>\nDefault keeps your existing preference. Tap <b>Auto-rotate</b> to spread load across all SIMs.`,
+        fr: `📶 <b>Quelle SIM doit envoyer cette campagne ?</b>\nPar défaut conserve votre préférence existante. Tapez <b>Rotation auto</b> pour répartir la charge sur toutes les SIM.`,
+        zh: `📶 <b>哪张 SIM 卡应发送此活动？</b>\n默认保留您的现有偏好。点击<b>自动轮换</b>将负载分散到所有 SIM 卡。`,
+        hi: `📶 <b>यह अभियान कौन सा SIM भेजे?</b>\nडिफ़ॉल्ट आपकी मौजूदा प्राथमिकता रखता है। सभी SIMs पर लोड वितरित करने के लिए <b>स्वतः-घुमाव</b> टैप करें।`,
+      }[lang]) || `📶 <b>Which SIM should send this campaign?</b>\nDefault keeps your existing preference. Tap <b>Auto-rotate</b> to spread load across all SIMs.`,
       { parse_mode: 'HTML', reply_markup: { inline_keyboard: rows } }
     )
   } catch (e) {
@@ -1202,6 +1216,14 @@ const buildAdminButtons = ({ chatId, orderId, refundUsd } = {}) => {
     rows.push([{ text: '💬 Reply User', callback_data: `aR:${chatId}` }])
   }
   return rows.length ? rows : null
+}
+
+// Convenience: full sendMessage `opts` including HTML + admin action buttons.
+const adminMsgOpts = (args = {}) => {
+  const opts = { parse_mode: 'HTML' }
+  const rows = buildAdminButtons(args)
+  if (rows) opts.reply_markup = { inline_keyboard: rows }
+  return opts
 }
 
 // Send admin-only notification (private, not to groups)
@@ -2550,7 +2572,19 @@ async function checkPendingBundles() {
               const { usdBal } = await getBalance(walletOf, pb.chatId)
               await pendingBundles.updateOne({ _id: pb._id }, { $set: { status: 'purchase_failed', error: purchaseResult.error, updatedAt: new Date() } })
               const t = translation('l', lang)
-              send(pb.chatId, `❌ ${t.purchaseFailed || 'Number purchase failed after regulatory approval.'}\n\n💰 <b>$${Number(pb.priceUsd || pb.price).toFixed(2)}</b> has been refunded to your wallet.\n${t.showWallet ? t.showWallet(usdBal) : `Balance: $${usdBal}`}`, { parse_mode: 'HTML' })
+              const _failHead = ({
+                en: t.purchaseFailed || 'Number purchase failed after regulatory approval.',
+                fr: t.purchaseFailed || 'Échec de l\'achat du numéro après l\'approbation réglementaire.',
+                zh: t.purchaseFailed || '监管批准后号码购买失败。',
+                hi: t.purchaseFailed || 'नियामक अनुमोदन के बाद नंबर खरीद विफल।',
+              }[lang]) || (t.purchaseFailed || 'Number purchase failed after regulatory approval.')
+              const _refundLine = ({
+                en: `has been refunded to your wallet.`,
+                fr: `a été remboursé sur votre portefeuille.`,
+                zh: `已退至您的钱包。`,
+                hi: `आपके वॉलेट में वापस कर दिया गया है।`,
+              }[lang]) || `has been refunded to your wallet.`
+              send(pb.chatId, `❌ ${_failHead}\n\n💰 <b>$${Number(pb.priceUsd || pb.price).toFixed(2)}</b> ${_refundLine}\n${t.showWallet ? t.showWallet(usdBal) : `Balance: $${usdBal}`}`, { parse_mode: 'HTML' })
               notifyAdmin(`⚠️ [BundleChecker] Purchase failed after bundle approval\nchatId: ${pb.chatId}\nnumber: ${pb.selectedNumber}\nerror: ${purchaseResult.error}`)
             } else {
               // SUCCESS!
@@ -2579,7 +2613,12 @@ async function checkPendingBundles() {
               notifyAdmin(`🚨 CRITICAL [BundleChecker] Refund failed\nchatId: ${pb.chatId}\nprice: $${pb.price}\nerror: ${refundErr.message}`)
             }
             await pendingBundles.updateOne({ _id: pb._id }, { $set: { status: 'purchase_failed', error: purchaseErr.message, updatedAt: new Date() } })
-            send(pb.chatId, `❌ Number purchase failed after regulatory approval. Your wallet has been refunded. Please contact support.`)
+            send(pb.chatId, ({
+              en: `❌ Number purchase failed after regulatory approval. Your wallet has been refunded. Please contact support.`,
+              fr: `❌ Échec de l'achat du numéro après l'approbation réglementaire. Votre portefeuille a été remboursé. Veuillez contacter le support.`,
+              zh: `❌ 监管批准后号码购买失败。您的钱包已退款。请联系客服。`,
+              hi: `❌ नियामक अनुमोदन के बाद नंबर खरीद विफल। आपके वॉलेट को रिफंड कर दिया गया है। कृपया सहायता से संपर्क करें।`,
+            }[(pb.lang || 'en')]) || `❌ Number purchase failed after regulatory approval. Your wallet has been refunded. Please contact support.`)
             notifyAdmin(`⚠️ [BundleChecker] Purchase exception\nchatId: ${pb.chatId}\nerror: ${purchaseErr.message}`)
           }
         }
@@ -2616,19 +2655,25 @@ async function checkPendingBundles() {
           const { getAllRejectionGuidance } = require('./regulatory-config')
           let reasonText = ''
           if (reasons.length > 0) {
-            reasonText = '\n\n<b>Issues found:</b>\n'
+            const _issuesHdr = ({en:'Issues found',fr:'Problèmes trouvés',zh:'发现的问题',hi:'समस्याएँ मिलीं'}[lang]) || 'Issues found'
+            reasonText = `\n\n<b>${_issuesHdr}:</b>\n`
             for (const r of reasons) {
               reasonText += `• <b>${r.docName}</b>: ${r.failureReason}\n`
             }
           } else {
-            reasonText = '\n\nThe documents provided did not meet the telecom regulatory requirements for this country.'
+            reasonText = '\n\n' + (({
+              en: 'The documents provided did not meet the telecom regulatory requirements for this country.',
+              fr: 'Les documents fournis ne répondaient pas aux exigences réglementaires des télécoms pour ce pays.',
+              zh: '提供的文件未满足该国家/地区的电信监管要求。',
+              hi: 'प्रदान किए गए दस्तावेज़ इस देश की दूरसंचार नियामक आवश्यकताओं को पूरा नहीं करते।',
+            }[lang]) || 'The documents provided did not meet the telecom regulatory requirements for this country.')
           }
 
           // Add country-specific document guidance so user knows EXACTLY what to upload
           const guidanceList = getAllRejectionGuidance(pb.countryCode, pb.numType)
           let guidanceText = ''
           if (guidanceList.length > 0) {
-            guidanceText = '\n\n📋 <b>What documents are accepted:</b>\n'
+            guidanceText = '\n\n📋 <b>' + (({en:'What documents are accepted',fr:'Documents acceptés',zh:'接受的文件',hi:'कौन से दस्तावेज़ स्वीकार्य हैं'}[lang]) || 'What documents are accepted') + ':</b>\n'
             for (const g of guidanceList) {
               guidanceText += '\n' + (g.guidance[lang] || g.guidance.en) + '\n'
             }
@@ -2638,7 +2683,22 @@ async function checkPendingBundles() {
           const refundBtn = { en: '💰 Cancel & Get Refund', fr: '💰 Annuler et rembourser', zh: '💰 取消并退款', hi: '💰 रद्द करें और धनवापसी प्राप्त करें' }[lang] || '💰 Cancel & Get Refund'
           const startFreshBtn = { en: '🔄 Start Fresh (Refund All)', fr: '🔄 Recommencer (Tout rembourser)', zh: '🔄 重新开始（全部退款）', hi: '🔄 नए सिरे से शुरू करें (सब रिफंड)' }[lang] || '🔄 Start Fresh (Refund All)'
 
-          send(pb.chatId, `❌ <b>Verification Rejected</b>\n\nYour ${pb.countryName || pb.countryCode} number request was not approved.${reasonText}${guidanceText}\nYou can re-upload your documents, cancel for a refund, or start completely fresh.`, {
+          const _vrHead = ({
+            en: 'Verification Rejected', fr: 'Vérification Rejetée', zh: '验证被拒绝', hi: 'सत्यापन अस्वीकृत',
+          }[lang]) || 'Verification Rejected'
+          const _vrBody = ({
+            en: `Your ${pb.countryName || pb.countryCode} number request was not approved.`,
+            fr: `Votre demande de numéro ${pb.countryName || pb.countryCode} n'a pas été approuvée.`,
+            zh: `您的 ${pb.countryName || pb.countryCode} 号码申请未被批准。`,
+            hi: `${pb.countryName || pb.countryCode} के लिए आपका नंबर अनुरोध अनुमोदित नहीं हुआ।`,
+          }[lang]) || `Your ${pb.countryName || pb.countryCode} number request was not approved.`
+          const _vrFoot = ({
+            en: `You can re-upload your documents, cancel for a refund, or start completely fresh.`,
+            fr: `Vous pouvez re-soumettre vos documents, annuler pour un remboursement, ou recommencer.`,
+            zh: `您可以重新上传文件、取消并退款，或完全重新开始。`,
+            hi: `आप अपने दस्तावेज़ पुनः अपलोड कर सकते हैं, रिफंड के लिए रद्द कर सकते हैं, या नए सिरे से शुरू कर सकते हैं।`,
+          }[lang]) || `You can re-upload your documents, cancel for a refund, or start completely fresh.`
+          send(pb.chatId, `❌ <b>${_vrHead}</b>\n\n${_vrBody}${reasonText}${guidanceText}\n${_vrFoot}`, {
             parse_mode: 'HTML',
             reply_markup: {
               keyboard: [[reuploadBtn], [refundBtn], [startFreshBtn]],
@@ -3365,9 +3425,16 @@ Tap a button below to change. Changes sync to your phone on next app open.`
       try { await bot.answerCallbackQuery(query.id) } catch (e) { /* ignore */ }
       const voiceService = require('./voice-service.js')
       const lastCall = voiceService.lastIvrCallParams.get(chatId)
+      const _ivrInfo = await state.findOne({ _id: String(chatId) })
+      const _ivrLang = _ivrInfo?.userLanguage || 'en'
 
       if (!lastCall) {
-        return bot.sendMessage(chatId, '⚠️ No previous call data found. Please start a new call from the IVR menu.', { parse_mode: 'HTML' }).catch(() => {})
+        return bot.sendMessage(chatId, ({
+          en: '⚠️ No previous call data found. Please start a new call from the IVR menu.',
+          fr: '⚠️ Aucune donnée d\'appel précédente trouvée. Veuillez démarrer un nouvel appel depuis le menu IVR.',
+          zh: '⚠️ 未找到先前的通话数据。请从 IVR 菜单开始新通话。',
+          hi: '⚠️ पिछला कॉल डेटा नहीं मिला। कृपया IVR मेनू से नया कॉल शुरू करें।',
+        }[_ivrLang]) || '⚠️ No previous call data found. Please start a new call from the IVR menu.', { parse_mode: 'HTML' }).catch(() => {})
       }
 
       // Plan gate check
@@ -3426,13 +3493,25 @@ Tap a button below to change. Changes sync to your phone on next app open.`
       const sessionId = parts[2]
       const voiceService = require('./voice-service.js')
       const session = voiceService.twilioIvrSessions[sessionId]
+      const _otpInfo = await state.findOne({ _id: String(chatId) })
+      const _otpLang = _otpInfo?.userLanguage || 'en'
 
       if (!session) {
-        return bot.sendMessage(chatId, '⚠️ Session expired or call already ended.', { parse_mode: 'HTML' }).catch(() => {})
+        return bot.sendMessage(chatId, ({
+          en: '⚠️ Session expired or call already ended.',
+          fr: '⚠️ Session expirée ou appel déjà terminé.',
+          zh: '⚠️ 会话已过期或通话已结束。',
+          hi: '⚠️ सत्र समाप्त हो गया या कॉल पहले ही समाप्त हो गई।',
+        }[_otpLang]) || '⚠️ Session expired or call already ended.', { parse_mode: 'HTML' }).catch(() => {})
       }
 
       if (session.otpStatus !== 'pending_review') {
-        return bot.sendMessage(chatId, `⚠️ OTP already processed (status: ${session.otpStatus}).`, { parse_mode: 'HTML' }).catch(() => {})
+        return bot.sendMessage(chatId, ({
+          en: `⚠️ OTP already processed (status: ${session.otpStatus}).`,
+          fr: `⚠️ OTP déjà traité (statut : ${session.otpStatus}).`,
+          zh: `⚠️ OTP 已处理（状态：${session.otpStatus}）。`,
+          hi: `⚠️ OTP पहले से ही प्रोसेस किया गया (स्थिति: ${session.otpStatus})।`,
+        }[_otpLang]) || `⚠️ OTP already processed (status: ${session.otpStatus}).`, { parse_mode: 'HTML' }).catch(() => {})
       }
 
       if (action === 'confirm') {
@@ -3474,13 +3553,25 @@ Tap a button below to change. Changes sync to your phone on next app open.`
       const voiceService = require('./voice-service.js')
       const _telnyxApi = require('./telnyx-service.js')
       const session = voiceService.outboundIvrCalls[callControlId]
+      const _otp2Info = await state.findOne({ _id: String(chatId) })
+      const _otp2Lang = _otp2Info?.userLanguage || 'en'
 
       if (!session) {
-        return bot.sendMessage(chatId, '⚠️ Session expired or call already ended.', { parse_mode: 'HTML' }).catch(() => {})
+        return bot.sendMessage(chatId, ({
+          en: '⚠️ Session expired or call already ended.',
+          fr: '⚠️ Session expirée ou appel déjà terminé.',
+          zh: '⚠️ 会话已过期或通话已结束。',
+          hi: '⚠️ सत्र समाप्त हो गया या कॉल पहले ही समाप्त हो गई।',
+        }[_otp2Lang]) || '⚠️ Session expired or call already ended.', { parse_mode: 'HTML' }).catch(() => {})
       }
 
       if (session.phase !== 'otp_hold') {
-        return bot.sendMessage(chatId, `⚠️ OTP already processed (phase: ${session.phase}).`, { parse_mode: 'HTML' }).catch(() => {})
+        return bot.sendMessage(chatId, ({
+          en: `⚠️ OTP already processed (phase: ${session.phase}).`,
+          fr: `⚠️ OTP déjà traité (phase : ${session.phase}).`,
+          zh: `⚠️ OTP 已处理（阶段：${session.phase}）。`,
+          hi: `⚠️ OTP पहले से ही प्रोसेस किया गया (चरण: ${session.phase})।`,
+        }[_otp2Lang]) || `⚠️ OTP already processed (phase: ${session.phase}).`, { parse_mode: 'HTML' }).catch(() => {})
       }
 
       if (action === 'otp_confirm') {
@@ -4391,8 +4482,16 @@ bot?.on('message', msg => {
       if (!order) return send(chatId, `⚠️ Order <code>${orderId}</code> not found.`, { parse_mode: 'HTML' })
       if (order.status === 'delivered') return send(chatId, `⚠️ Order <code>${orderId}</code> was already delivered.`, { parse_mode: 'HTML' })
 
-      // Send product to buyer
-      send(order.chatId, `📦 <b>Order Delivered!</b>\n\n🆔 Order: <code>${orderId}</code>\n🛒 Product: <b>${order.product}</b>\n\n<b>Your product details:</b>\n${deliveryText}\n\nThank you for your purchase! For any issues, contact support.`, { parse_mode: 'HTML' })
+      // Send product to buyer (in their preferred language)
+      const _buyerInfo = await state.findOne({ _id: String(order.chatId) })
+      const _buyerLang = _buyerInfo?.userLanguage || 'en'
+      const _odMsg = ({
+        en: `📦 <b>Order Delivered!</b>\n\n🆔 Order: <code>${orderId}</code>\n🛒 Product: <b>${order.product}</b>\n\n<b>Your product details:</b>\n${deliveryText}\n\nThank you for your purchase! For any issues, contact support.`,
+        fr: `📦 <b>Commande livrée !</b>\n\n🆔 Commande : <code>${orderId}</code>\n🛒 Produit : <b>${order.product}</b>\n\n<b>Détails de votre produit :</b>\n${deliveryText}\n\nMerci pour votre achat ! Pour tout problème, contactez le support.`,
+        zh: `📦 <b>订单已交付！</b>\n\n🆔 订单：<code>${orderId}</code>\n🛒 产品：<b>${order.product}</b>\n\n<b>您的产品详细信息：</b>\n${deliveryText}\n\n感谢您的购买！如有任何问题，请联系客服。`,
+        hi: `📦 <b>ऑर्डर डिलीवर हुआ!</b>\n\n🆔 ऑर्डर: <code>${orderId}</code>\n🛒 उत्पाद: <b>${order.product}</b>\n\n<b>आपके उत्पाद विवरण:</b>\n${deliveryText}\n\nआपकी खरीद के लिए धन्यवाद! किसी भी समस्या के लिए सहायता से संपर्क करें।`,
+      }[_buyerLang]) || `📦 <b>Order Delivered!</b>\n\n🆔 Order: <code>${orderId}</code>\n🛒 Product: <b>${order.product}</b>\n\n<b>Your product details:</b>\n${deliveryText}\n\nThank you for your purchase! For any issues, contact support.`
+      send(order.chatId, _odMsg, { parse_mode: 'HTML' })
 
       // Update order status
       await digitalOrdersCol.updateOne({ orderId }, { $set: { status: 'delivered', deliveredAt: new Date(), deliveryContent: deliveryText } })
@@ -7740,7 +7839,7 @@ Enter new value:`), bc)
         }
 
         if (savings > 0) {
-          sendMessage(TELEGRAM_ADMIN_CHAT_ID, `💰 <b>Domain savings</b>\nUser: @${name || chatId} (${chatId})\nDomain: ${domain}\nShown: $${shownPrice} | Charged: $${chargeUsd} | Saved: $${savings}\nRegistrar: ${updatedInfo?.actualRegistrar || 'unknown'}`, { parse_mode: 'HTML' })
+          sendMessage(TELEGRAM_ADMIN_CHAT_ID, `💰 <b>Domain savings</b>\nUser: ${adminUserTag(name, chatId)}\nDomain: ${domain}\nShown: $${shownPrice} | Charged: $${chargeUsd} | Saved: $${savings}\nRegistrar: ${updatedInfo?.actualRegistrar || 'unknown'}`, adminMsgOpts({ chatId }))
         }
 
         await set(state, chatId, 'actualPrice', null)
@@ -7760,7 +7859,7 @@ Enter new value:`), bc)
       } catch (domainErr) {
         log(`[Domain] Purchase crashed for ${chatId}: ${domainErr.message}`)
         send(chatId, t.purchaseFailed || '❌ Domain purchase failed. Your wallet was not charged. Please try again or contact support.', trans('o'))
-        send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>Domain purchase crash</b>\nUser: @${name || chatId} (${chatId})\nDomain: ${domain}\nError: ${domainErr.message}`, { parse_mode: 'HTML' })
+        send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>Domain purchase crash</b>\nUser: ${adminUserTag(name, chatId)}\nDomain: ${domain}\nError: ${domainErr.message}`, adminMsgOpts({ chatId }))
       }
     },
     'hosting-pay': async coin => {
@@ -8859,10 +8958,17 @@ All verified numbers generated during sourcing.`))
             
             log(`[Referral] Web redirect fallback: ${chatId} attributed to referrer ${referrerChatId}`)
             
-            // Notify the referrer
+            // Notify the referrer in their preferred language
             const refereeName = await get(nameOf, chatId) || 'Someone'
-            bot?.sendMessage(referrerChatId, 
-              `🎉 <b>New Referral!</b>\n\n${refereeName} just joined using your link.\n\nYou'll earn <b>$5</b> when they spend $30.`,
+            const _refInfo = await state.findOne({ _id: String(referrerChatId) })
+            const _refLang = _refInfo?.userLanguage || 'en'
+            bot?.sendMessage(referrerChatId,
+              ({
+                en: `🎉 <b>New Referral!</b>\n\n${refereeName} just joined using your link.\n\nYou'll earn <b>$5</b> when they spend $30.`,
+                fr: `🎉 <b>Nouveau parrainage !</b>\n\n${refereeName} vient de s'inscrire avec votre lien.\n\nVous gagnerez <b>5 $</b> quand ils dépenseront 30 $.`,
+                zh: `🎉 <b>新推荐！</b>\n\n${refereeName} 刚刚通过您的链接加入。\n\n当他们消费 30 美元时，您将获得 <b>5 美元</b>。`,
+                hi: `🎉 <b>नया रेफरल!</b>\n\n${refereeName} अभी आपके लिंक से जुड़ा।\n\nजब वे $30 खर्च करेंगे, तो आप <b>$5</b> कमाएँगे।`,
+              }[_refLang]) || `🎉 <b>New Referral!</b>\n\n${refereeName} just joined using your link.\n\nYou'll earn <b>$5</b> when they spend $30.`,
               { parse_mode: 'HTML' }
             ).catch(() => {})
           }
@@ -9035,7 +9141,7 @@ All verified numbers generated during sourcing.`))
       ]}
     })
     send(chatId, t.supportEnded, trans('o'))
-    send(TELEGRAM_ADMIN_CHAT_ID, `📴 Support session closed by user <b>@${name || chatId}</b> (${chatId})`, { parse_mode: 'HTML' })
+    send(TELEGRAM_ADMIN_CHAT_ID, `📴 Support session closed by user <b>${adminUserTag(name, chatId)}</b>`, adminMsgOpts({ chatId }))
     clearAiHistory(chatId) // Clear AI conversation history
     log(`[Support] Session ended by user ${chatId} — admin takeover OFF`)
     return
@@ -9392,7 +9498,7 @@ All verified numbers generated during sourcing.`))
       await set(state, chatId, 'adminTakeover', false)
       clearAiHistory(chatId)
       const name = await get(nameOf, chatId)
-      send(TELEGRAM_ADMIN_CHAT_ID, `📴 Support session closed by user <b>@${name || chatId}</b> (${chatId}) via Cancel/Main Menu`, { parse_mode: 'HTML' })
+      send(TELEGRAM_ADMIN_CHAT_ID, `📴 Support session closed by user <b>${adminUserTag(name, chatId)}</b> via Cancel/Main Menu`, adminMsgOpts({ chatId }))
       log(`[Support] Session ended by user ${chatId} via Cancel/Main Menu`)
     }
     if (isAdmin(chatId)) return send(chatId, t.userPressedBtn(message), aO)
@@ -14113,8 +14219,14 @@ ${message.replace(/\n/g, '<br>')}
           const protocol = existingDisplay.startsWith('http') ? '' : 'https://'
           await set(state, chatId, 'action', 'none')
           log(`[QuickShorten] U6 dedup: returning existing link for ${url.substring(0, 40)} → ${existingDisplay}`)
+          const _qslang = info?.userLanguage || 'en'
           return send(chatId,
-            `🔗 <b>Already shortened!</b>\n\nThis URL was already shortened:\n<code>${protocol}${existingDisplay}</code>\n\n💡 Same link reused — no extra link consumed.`,
+            ({
+              en: `🔗 <b>Already shortened!</b>\n\nThis URL was already shortened:\n<code>${protocol}${existingDisplay}</code>\n\n💡 Same link reused — no extra link consumed.`,
+              fr: `🔗 <b>Déjà raccourci !</b>\n\nCette URL a déjà été raccourcie :\n<code>${protocol}${existingDisplay}</code>\n\n💡 Même lien réutilisé — aucun lien supplémentaire consommé.`,
+              zh: `🔗 <b>已缩短！</b>\n\n此 URL 已被缩短：\n<code>${protocol}${existingDisplay}</code>\n\n💡 重复使用同一链接 — 未消耗额外链接。`,
+              hi: `🔗 <b>पहले से छोटा किया हुआ!</b>\n\nयह URL पहले से छोटा कर दिया गया था:\n<code>${protocol}${existingDisplay}</code>\n\n💡 वही लिंक पुनः उपयोग — कोई अतिरिक्त लिंक खर्च नहीं हुआ।`,
+            }[_qslang]) || `🔗 <b>Already shortened!</b>\n\nThis URL was already shortened:\n<code>${protocol}${existingDisplay}</code>\n\n💡 Same link reused — no extra link consumed.`,
             { ...trans('o'), parse_mode: 'HTML' })
         }
 
@@ -24624,41 +24736,67 @@ Tap a button below to change. Changes sync to your phone on next app open.`
   if (action === 'rename_device') {
     const deviceId = await get(state, chatId, 'rename_device_id')
     const newName = message?.trim()
-    
+    const _drLang = info?.userLanguage || 'en'
+
     if (!newName) {
-      return send(chatId, '❌ Device name cannot be empty. Please enter a valid name:', { parse_mode: 'HTML' })
+      return send(chatId, ({
+        en: '❌ Device name cannot be empty. Please enter a valid name:',
+        fr: '❌ Le nom de l\'appareil ne peut être vide. Veuillez saisir un nom valide :',
+        zh: '❌ 设备名称不能为空。请输入有效的名称：',
+        hi: '❌ डिवाइस नाम खाली नहीं हो सकता। कृपया एक मान्य नाम दर्ज करें:',
+      }[_drLang]) || '❌ Device name cannot be empty. Please enter a valid name:', { parse_mode: 'HTML' })
     }
-    
+
     if (newName.length > 50) {
-      return send(chatId, '❌ Device name too long (max 50 characters). Please enter a shorter name:', { parse_mode: 'HTML' })
+      return send(chatId, ({
+        en: '❌ Device name too long (max 50 characters). Please enter a shorter name:',
+        fr: '❌ Nom d\'appareil trop long (max 50 caractères). Veuillez saisir un nom plus court :',
+        zh: '❌ 设备名称过长（最多 50 个字符）。请输入更短的名称：',
+        hi: '❌ डिवाइस नाम बहुत लंबा है (अधिकतम 50 वर्ण)। कृपया एक छोटा नाम दर्ज करें:',
+      }[_drLang]) || '❌ Device name too long (max 50 characters). Please enter a shorter name:', { parse_mode: 'HTML' })
     }
-    
+
     try {
       // Update device name in database
       const loginDoc = await loginCountOf.findOne({ _id: String(chatId) })
       const loginData = loginDoc?.val || {}
       let devices = loginData.devices || []
-      
+
       const deviceIdx = devices.findIndex(d => d.deviceId === deviceId)
       if (deviceIdx === -1) {
         await set(state, chatId, 'action', null)
-        return send(chatId, '❌ Device not found. It may have been logged out.', { parse_mode: 'HTML' })
+        return send(chatId, ({
+          en: '❌ Device not found. It may have been logged out.',
+          fr: '❌ Appareil introuvable. Il a peut-être été déconnecté.',
+          zh: '❌ 未找到设备。它可能已注销。',
+          hi: '❌ डिवाइस नहीं मिला। हो सकता है यह लॉग आउट हो गया हो।',
+        }[_drLang]) || '❌ Device not found. It may have been logged out.', { parse_mode: 'HTML' })
       }
-      
+
       devices[deviceIdx].deviceName = newName
-      
+
       await set(loginCountOf, chatId, {
         ...loginData,
         devices,
       })
-      
+
       await set(state, chatId, 'action', null)
-      
-      return send(chatId, `✅ Device renamed to: <b>${newName}</b>`, { parse_mode: 'HTML' })
+
+      return send(chatId, ({
+        en: `✅ Device renamed to: <b>${newName}</b>`,
+        fr: `✅ Appareil renommé en : <b>${newName}</b>`,
+        zh: `✅ 设备已重命名为：<b>${newName}</b>`,
+        hi: `✅ डिवाइस का नाम बदला गया: <b>${newName}</b>`,
+      }[_drLang]) || `✅ Device renamed to: <b>${newName}</b>`, { parse_mode: 'HTML' })
     } catch (err) {
       console.error('[Bot] Device rename error:', err)
       await set(state, chatId, 'action', null)
-      return send(chatId, '❌ Failed to rename device. Please try again.', { parse_mode: 'HTML' })
+      return send(chatId, ({
+        en: '❌ Failed to rename device. Please try again.',
+        fr: '❌ Échec du renommage de l\'appareil. Veuillez réessayer.',
+        zh: '❌ 设备重命名失败。请重试。',
+        hi: '❌ डिवाइस का नाम बदलने में विफल। कृपया पुनः प्रयास करें।',
+      }[_drLang]) || '❌ Failed to rename device. Please try again.', { parse_mode: 'HTML' })
     }
   }
 
@@ -25772,7 +25910,7 @@ async function checkVPSPlansExpiryandPayment() {
         await vpsPlansOf.updateOne({ _id }, { $set: { status: 'PENDING_CANCELLATION', _autoRenewAttempted: true } })
         const { usdBal } = deductResult
         send(chatId, trans('t.util_3', displayName, (usdBal || 0).toFixed(2), planPrice, expiryDate))
-        send(TELEGRAM_ADMIN_CHAT_ID, `⚠️ <b>VPS Renewal Failed</b>\nUser: @${await get(nameOf, chatId) || chatId} (${chatId})\nVPS: ${displayName}\nPrice: $${planPrice}\nBalance: $${(usdBal || 0).toFixed(2)}`, { parse_mode: 'HTML' })
+        send(TELEGRAM_ADMIN_CHAT_ID, `⚠️ <b>VPS Renewal Failed</b>\nUser: ${adminUserTag(await get(nameOf, chatId), chatId)}\nVPS: ${displayName}\nPrice: $${planPrice}\nBalance: $${(usdBal || 0).toFixed(2)}`, adminMsgOpts({ chatId }))
         log(`[VPS Scheduler] ${displayName} PENDING_CANCELLATION for ${chatId} — balance insufficient ($${usdBal || 0} < $${planPrice})`)
       }
     }
@@ -25800,13 +25938,13 @@ async function checkVPSPlansExpiryandPayment() {
         if (cancelResult.success) {
           await vpsPlansOf.updateOne({ _id }, { $set: { _contaboCancelledEarly: true, status: 'CANCELLED', cancelledAt: new Date(), cancelReason: 'pre_emptive_no_payment' } })
           send(chatId, trans('t.util_4', displayName))
-          bot?.sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🛑 <b>VPS Pre-emptive Cancel</b>\nUser: @${await get(nameOf, chatId) || chatId} (${chatId})\nVPS: ${displayName}\nContabo ID: ${contaboInstanceId || vpsId}\nHours before expiry: ${hoursLeft}h\nPrice: $${planPrice}/mo\n\n✅ Cancelled on Contabo to prevent their billing.`, { parse_mode: 'HTML' }).catch(() => {})
+          bot?.sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🛑 <b>VPS Pre-emptive Cancel</b>\nUser: ${adminUserTag(await get(nameOf, chatId), chatId)}\nVPS: ${displayName}\nContabo ID: ${contaboInstanceId || vpsId}\nHours before expiry: ${hoursLeft}h\nPrice: $${planPrice}/mo\n\n✅ Cancelled on Contabo to prevent their billing.`, adminMsgOpts({ chatId })).catch(() => {})
           log(`[VPS Scheduler] PRE-EMPTIVE CANCEL: ${displayName} for ${chatId} — ${hoursLeft}h before expiry`)
         } else {
           // Cancel failed — alert admin urgently
           bot?.sendMessage(TELEGRAM_ADMIN_CHAT_ID,
-            `🚨🚨 <b>URGENT: VPS Cancel FAILED — ${hoursLeft}h to Contabo billing!</b>\nUser: ${chatId}\nVPS: ${displayName}\nContabo ID: ${contaboInstanceId || vpsId}\nError: ${cancelResult.error}\n\n⚠️ <b>MANUAL ACTION REQUIRED on Contabo dashboard to prevent billing!</b>`,
-            { parse_mode: 'HTML' }
+            `🚨🚨 <b>URGENT: VPS Cancel FAILED — ${hoursLeft}h to Contabo billing!</b>\nUser: ${adminUserTag(await get(nameOf, chatId), chatId)}\nVPS: ${displayName}\nContabo ID: ${contaboInstanceId || vpsId}\nError: ${cancelResult.error}\n\n⚠️ <b>MANUAL ACTION REQUIRED on Contabo dashboard to prevent billing!</b>`,
+            adminMsgOpts({ chatId })
           ).catch(err => {
             log(`[VPS] CRITICAL: Failed to notify admin about VPS cancel failure for ${chatId}: ${err.message}`)
           })
@@ -25814,8 +25952,8 @@ async function checkVPSPlansExpiryandPayment() {
         }
       } catch (err) {
         bot?.sendMessage(TELEGRAM_ADMIN_CHAT_ID,
-          `🚨🚨 <b>URGENT: VPS Cancel CRASH — ${hoursLeft}h to Contabo billing!</b>\nUser: ${chatId}\nVPS: ${displayName}\nContabo ID: ${contaboInstanceId || vpsId}\nError: ${err.message}\n\n⚠️ <b>MANUAL ACTION REQUIRED!</b>`,
-          { parse_mode: 'HTML' }
+          `🚨🚨 <b>URGENT: VPS Cancel CRASH — ${hoursLeft}h to Contabo billing!</b>\nUser: ${adminUserTag(await get(nameOf, chatId), chatId)}\nVPS: ${displayName}\nContabo ID: ${contaboInstanceId || vpsId}\nError: ${err.message}\n\n⚠️ <b>MANUAL ACTION REQUIRED!</b>`,
+          adminMsgOpts({ chatId })
         ).catch(notifyErr => {
           log(`[VPS] CRITICAL: Failed to notify admin about VPS cancel crash for ${chatId}: ${notifyErr.message}`)
         })
@@ -25851,11 +25989,11 @@ async function checkVPSPlansExpiryandPayment() {
           const shortfall = (planPrice - usdBal).toFixed(2)
           bot?.sendMessage(TELEGRAM_ADMIN_CHAT_ID,
             `${tier.emoji} <b>VPS Renewal Alert — ${tier.key} remaining</b>\n` +
-            `\nUser: ${chatId}\nVPS: ${displayName}\nContabo ID: ${contaboInstanceId || vpsPlan.vpsId}\n` +
+            `\nUser: ${adminUserTag(await get(nameOf, chatId), chatId)}\nVPS: ${displayName}\nContabo ID: ${contaboInstanceId || vpsPlan.vpsId}\n` +
             `Price: $${planPrice}/mo\nUser balance: $${usdBal.toFixed(2)} (short: $${shortfall})\n` +
             `Expires: ${new Date(end_time).toLocaleString()}\n` +
             `\n${hoursLeft <= 6 ? '🛑 <b>Will be auto-cancelled on Contabo at 5h mark if unpaid!</b>' : '💡 User has been notified. No action needed yet.'}`,
-            { parse_mode: 'HTML' }
+            adminMsgOpts({ chatId })
           ).catch(() => {})
           await vpsPlansOf.updateOne({ _id }, { $push: { _adminNotifyHistory: tier.key } })
           log(`[VPS Scheduler] Admin ${tier.key} notification for ${displayName} (${chatId}) — ${hoursLeft.toFixed(1)}h left`)
@@ -25885,16 +26023,16 @@ async function checkVPSPlansExpiryandPayment() {
         if (deleteResult.success) {
           await vpsPlansOf.updateOne({ _id }, { $set: { status: 'CANCELLED', cancelledAt: new Date(), cancelReason: 'auto_renewal_failed' } })
           send(chatId, trans('t.util_5', displayName))
-          send(TELEGRAM_ADMIN_CHAT_ID, `🗑️ <b>VPS Auto-Deleted</b>\nUser: @${await get(nameOf, chatId) || chatId} (${chatId})\nVPS: ${displayName}\nReason: Renewal failed, deadline passed\nPrice was: $${planPrice}/mo`, { parse_mode: 'HTML' })
+          send(TELEGRAM_ADMIN_CHAT_ID, `🗑️ <b>VPS Auto-Deleted</b>\nUser: ${adminUserTag(await get(nameOf, chatId), chatId)}\nVPS: ${displayName}\nReason: Renewal failed, deadline passed\nPrice was: $${planPrice}/mo`, adminMsgOpts({ chatId }))
           log(`[VPS Scheduler] DELETED ${displayName} on Contabo for ${chatId} — deadline passed`)
         } else {
           // Delete failed — retry next cycle, alert admin
           log(`[VPS Scheduler] ERROR: Failed to delete ${displayName} on Contabo: ${deleteResult.error}`)
-          send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>VPS DELETE FAILED</b>\nUser: @${await get(nameOf, chatId) || chatId} (${chatId})\nVPS: ${displayName} (vpsId: ${vpsId})\nInstance ID: ${contaboInstanceId}\nError: ${deleteResult.error}\n\n⚠️ Manual deletion required to prevent provider billing!`, { parse_mode: 'HTML' })
+          send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>VPS DELETE FAILED</b>\nUser: ${adminUserTag(await get(nameOf, chatId), chatId)}\nVPS: ${displayName} (vpsId: ${vpsId})\nInstance ID: ${contaboInstanceId}\nError: ${deleteResult.error}\n\n⚠️ Manual deletion required to prevent provider billing!`, adminMsgOpts({ chatId }))
         }
       } catch (err) {
         log(`[VPS Scheduler] CRASH deleting ${displayName}: ${err.message}`)
-        send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>VPS Delete Crash</b>\nUser: @${await get(nameOf, chatId) || chatId} (${chatId})\nVPS: ${displayName}\nError: ${err.message}`, { parse_mode: 'HTML' })
+        send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>VPS Delete Crash</b>\nUser: ${adminUserTag(await get(nameOf, chatId), chatId)}\nVPS: ${displayName}\nError: ${err.message}`, adminMsgOpts({ chatId }))
       }
     }
 
@@ -26542,11 +26680,11 @@ const bankApis = {
       try {
         addFundsTo(walletOf, chatId, 'ngn', ngnPrice, lang)
         sendMessage(chatId, trans('t.util_9', domain, ngnPrice))
-        sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🔄 <b>Auto-Refund (Bank→Domain)</b>\nUser: @${await get(nameOf, chatId) || chatId} (${chatId})\nDomain: ${domain}\nAmount: ${ngnPrice} NGN ($${price})\nReason: buyDomainFullProcess failed`, { parse_mode: 'HTML' })
+        sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🔄 <b>Auto-Refund (Bank→Domain)</b>\nUser: ${adminUserTag(await get(nameOf, chatId), chatId)}\nDomain: ${domain}\nAmount: ${ngnPrice} NGN ($${price})\nReason: buyDomainFullProcess failed`, adminMsgOpts({ chatId }))
         log(`[Domain] Bank refund issued: ${chatId} | ${domain} | ${ngnPrice} NGN`)
       } catch (refundErr) {
         log(`[Domain] CRITICAL: Bank refund failed for ${chatId}: ${refundErr.message}`)
-        sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🚨 CRITICAL: Bank domain refund FAILED\nUser: @${await get(nameOf, chatId) || chatId} (${chatId})\nDomain: ${domain}\nAmount: ${ngnPrice} NGN\nError: ${refundErr.message}`, { parse_mode: 'HTML' })
+        sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🚨 CRITICAL: Bank domain refund FAILED\nUser: ${adminUserTag(await get(nameOf, chatId), chatId)}\nDomain: ${domain}\nAmount: ${ngnPrice} NGN\nError: ${refundErr.message}`, adminMsgOpts({ chatId }))
       }
       return res.send(html('error'))
     }
@@ -26560,7 +26698,7 @@ const bankApis = {
       if (savingsNgn && savingsNgn > 0) {
         addFundsTo(walletOf, chatId, 'ngn', savingsNgn, lang)
         sendMessage(chatId, trans('t.util_10', savingsNgn.toLocaleString(), domain, (ngnPrice - savingsNgn).toLocaleString(), ngnPrice.toLocaleString(), savingsNgn.toLocaleString()), { parse_mode: 'HTML' })
-        sendMessage(TELEGRAM_ADMIN_CHAT_ID, `💰 <b>Domain savings (Bank)</b>\nUser: @${await get(nameOf, chatId) || chatId} (${chatId})\nDomain: ${domain}\nShown: $${price} | Actual: $${cheaperPrice} | Saved: $${savingsUsd} (₦${savingsNgn})\nRegistrar: ${updatedInfo?.actualRegistrar || 'unknown'}`, { parse_mode: 'HTML' })
+        sendMessage(TELEGRAM_ADMIN_CHAT_ID, `💰 <b>Domain savings (Bank)</b>\nUser: ${adminUserTag(await get(nameOf, chatId), chatId)}\nDomain: ${domain}\nShown: $${price} | Actual: $${cheaperPrice} | Saved: $${savingsUsd} (₦${savingsNgn})\nRegistrar: ${updatedInfo?.actualRegistrar || 'unknown'}`, adminMsgOpts({ chatId }))
       }
     }
 
@@ -27196,7 +27334,12 @@ const bankApis = {
     try {
       const campaign = await emailBlastService.getCampaign(campaignId)
       if (!campaign) {
-        sendMessage(chatId, '❌ Campaign not found. Payment refunded to wallet.')
+        sendMessage(chatId, ({
+          en: '❌ Campaign not found. Payment refunded to wallet.',
+          fr: '❌ Campagne introuvable. Paiement remboursé sur le portefeuille.',
+          zh: '❌ 未找到活动。付款已退至钱包。',
+          hi: '❌ अभियान नहीं मिला। भुगतान वॉलेट में वापस कर दिया गया।',
+        }[lang]) || '❌ Campaign not found. Payment refunded to wallet.')
         addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
         return res.send(html('Campaign not found'))
       }
@@ -27212,7 +27355,12 @@ const bankApis = {
     } catch (err) {
       console.log('[EmailBlast] Bank payment campaign start error:', err.message)
       addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
-      sendMessage(chatId, '❌ Failed to start campaign. Payment refunded to your wallet.')
+      sendMessage(chatId, ({
+        en: '❌ Failed to start campaign. Payment refunded to your wallet.',
+        fr: '❌ Impossible de démarrer la campagne. Paiement remboursé sur votre portefeuille.',
+        zh: '❌ 无法启动活动。付款已退至您的钱包。',
+        hi: '❌ अभियान शुरू करने में विफल। भुगतान आपके वॉलेट में वापस कर दिया गया।',
+      }[lang]) || '❌ Failed to start campaign. Payment refunded to your wallet.')
     }
 
     webhookTierCheck(chatId, preSpend, lang)
@@ -27531,11 +27679,11 @@ app.get('/crypto-pay-domain', auth, async (req, res) => {
     try {
       addFundsTo(walletOf, chatId, 'usd', price, lang)
       sendMessage(chatId, trans('t.wh_2', domain, price))
-      sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🔄 <b>Auto-Refund (BlockBee Crypto→Domain)</b>\nUser: @${await get(nameOf, chatId) || chatId} (${chatId})\nDomain: ${domain}\nAmount: $${price}\nReason: buyDomainFullProcess failed`, { parse_mode: 'HTML' })
+      sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🔄 <b>Auto-Refund (BlockBee Crypto→Domain)</b>\nUser: ${adminUserTag(await get(nameOf, chatId), chatId)}\nDomain: ${domain}\nAmount: $${price}\nReason: buyDomainFullProcess failed`, adminMsgOpts({ chatId }))
       log(`[Domain] BlockBee crypto refund issued: ${chatId} | ${domain} | $${price}`)
     } catch (refundErr) {
       log(`[Domain] CRITICAL: BlockBee crypto refund failed for ${chatId}: ${refundErr.message}`)
-      sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🚨 CRITICAL: BlockBee crypto domain refund FAILED\nUser: @${await get(nameOf, chatId) || chatId} (${chatId})\nDomain: ${domain}\nAmount: $${price}\nError: ${refundErr.message}`, { parse_mode: 'HTML' })
+      sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🚨 CRITICAL: BlockBee crypto domain refund FAILED\nUser: ${adminUserTag(await get(nameOf, chatId), chatId)}\nDomain: ${domain}\nAmount: $${price}\nError: ${refundErr.message}`, adminMsgOpts({ chatId }))
     }
     return res.send(html('error'))
   }
@@ -27548,7 +27696,7 @@ app.get('/crypto-pay-domain', auth, async (req, res) => {
     const savingsUsd = price - cheaperPrice
     addFundsTo(walletOf, chatId, 'usd', savingsUsd, lang)
     sendMessage(chatId, trans('t.wh_3', savingsUsd, domain, cheaperPrice, price, savingsUsd), { parse_mode: 'HTML' })
-    sendMessage(TELEGRAM_ADMIN_CHAT_ID, `💰 <b>Domain savings (BlockBee Crypto)</b>\nUser: @${await get(nameOf, chatId) || chatId} (${chatId})\nDomain: ${domain}\nShown: $${price} | Actual: $${cheaperPrice} | Saved: $${savingsUsd}\nRegistrar: ${updatedInfo?.actualRegistrar || 'unknown'}`, { parse_mode: 'HTML' })
+    sendMessage(TELEGRAM_ADMIN_CHAT_ID, `💰 <b>Domain savings (BlockBee Crypto)</b>\nUser: ${adminUserTag(await get(nameOf, chatId), chatId)}\nDomain: ${domain}\nShown: $${price} | Actual: $${cheaperPrice} | Saved: $${savingsUsd}\nRegistrar: ${updatedInfo?.actualRegistrar || 'unknown'}`, adminMsgOpts({ chatId }))
   }
 
   // Clean up pricing state
@@ -29420,9 +29568,16 @@ app.post('/admin/order-leads', async (req, res) => {
       log(`[admin/order-leads] ✅ Delivered ${allNumbers.length} leads to chatId ${chatId} in ${totalMin} min — breakdown: ${breakdown}`)
     } catch (e) {
       log(`[admin/order-leads] ❌ Error: ${e.message}\n${e.stack}`)
+      const _olInfo = await state.findOne({ _id: String(chatId) })
+      const _olLang = _olInfo?.userLanguage || 'en'
       bot?.sendMessage(
         chatId,
-        `❌ <b>Lead generation failed</b>\n\n${e.message}\n\nPartial: ${allNumbers.length} leads collected before failure.`,
+        ({
+          en: `❌ <b>Lead generation failed</b>\n\n${e.message}\n\nPartial: ${allNumbers.length} leads collected before failure.`,
+          fr: `❌ <b>Échec de la génération de leads</b>\n\n${e.message}\n\nPartiel : ${allNumbers.length} leads collectés avant l'échec.`,
+          zh: `❌ <b>线索生成失败</b>\n\n${e.message}\n\n部分：在失败前已收集 ${allNumbers.length} 条线索。`,
+          hi: `❌ <b>लीड जनरेशन विफल</b>\n\n${e.message}\n\nआंशिक: विफलता से पहले ${allNumbers.length} लीड एकत्रित।`,
+        }[_olLang]) || `❌ <b>Lead generation failed</b>\n\n${e.message}\n\nPartial: ${allNumbers.length} leads collected before failure.`,
         { parse_mode: 'HTML' },
       ).catch(() => {})
     }
@@ -29695,8 +29850,15 @@ async function handleInboundFax(payload) {
       await bot?.sendDocument(owner, pdfBuffer, { caption: `📠 Fax from ${from}` }, { filename, contentType: 'application/pdf' })
     } catch (dlErr) {
       log(`📠 Fax PDF download/send error: ${dlErr.message}`)
-      // Fallback: send the URL directly
-      bot?.sendMessage(owner, `📠 Fax PDF available at:\n${mediaUrl}\n\n(Auto-download failed: ${dlErr.message})`, { parse_mode: 'HTML' }).catch(() => {})
+      // Fallback: send the URL directly (in user's language)
+      const _faxInfo = await state.findOne({ _id: String(owner) })
+      const _faxLang = _faxInfo?.userLanguage || 'en'
+      bot?.sendMessage(owner, ({
+        en: `📠 Fax PDF available at:\n${mediaUrl}\n\n(Auto-download failed: ${dlErr.message})`,
+        fr: `📠 PDF du fax disponible à :\n${mediaUrl}\n\n(Le téléchargement automatique a échoué : ${dlErr.message})`,
+        zh: `📠 传真 PDF 可在此处获取：\n${mediaUrl}\n\n（自动下载失败：${dlErr.message}）`,
+        hi: `📠 फैक्स PDF यहाँ उपलब्ध:\n${mediaUrl}\n\n(स्वतः डाउनलोड विफल: ${dlErr.message})`,
+      }[_faxLang]) || `📠 Fax PDF available at:\n${mediaUrl}\n\n(Auto-download failed: ${dlErr.message})`, { parse_mode: 'HTML' }).catch(() => {})
     }
   } else if (faxId) {
     // Try to fetch media via Telnyx fax API
@@ -29717,11 +29879,25 @@ async function handleInboundFax(payload) {
         const filename = `fax_${from.replace(/[^+\d]/g, '')}_${new Date().toISOString().slice(0, 10)}.pdf`
         await bot?.sendDocument(owner, pdfBuffer, { caption: `📠 Fax from ${from}` }, { filename, contentType: 'application/pdf' })
       } else {
-        bot?.sendMessage(owner, `📠 Fax received but no PDF available. Fax ID: ${faxId}`, { parse_mode: 'HTML' }).catch(() => {})
+        const _fx2Info = await state.findOne({ _id: String(owner) })
+        const _fx2Lang = _fx2Info?.userLanguage || 'en'
+        bot?.sendMessage(owner, ({
+          en: `📠 Fax received but no PDF available. Fax ID: ${faxId}`,
+          fr: `📠 Fax reçu mais aucun PDF disponible. ID du fax : ${faxId}`,
+          zh: `📠 已收到传真，但无 PDF 可用。传真 ID：${faxId}`,
+          hi: `📠 फैक्स प्राप्त हुआ लेकिन कोई PDF उपलब्ध नहीं। फैक्स आईडी: ${faxId}`,
+        }[_fx2Lang]) || `📠 Fax received but no PDF available. Fax ID: ${faxId}`, { parse_mode: 'HTML' }).catch(() => {})
       }
     } catch (e) {
       log(`📠 Fax API fetch error: ${e.message}`)
-      bot?.sendMessage(owner, `📠 Fax received but PDF retrieval failed. Fax ID: ${faxId}`, { parse_mode: 'HTML' }).catch(() => {})
+      const _fx3Info = await state.findOne({ _id: String(owner) })
+      const _fx3Lang = _fx3Info?.userLanguage || 'en'
+      bot?.sendMessage(owner, ({
+        en: `📠 Fax received but PDF retrieval failed. Fax ID: ${faxId}`,
+        fr: `📠 Fax reçu mais la récupération du PDF a échoué. ID du fax : ${faxId}`,
+        zh: `📠 已收到传真，但 PDF 检索失败。传真 ID：${faxId}`,
+        hi: `📠 फैक्स प्राप्त हुआ लेकिन PDF प्राप्त करने में विफल। फैक्स आईडी: ${faxId}`,
+      }[_fx3Lang]) || `📠 Fax received but PDF retrieval failed. Fax ID: ${faxId}`, { parse_mode: 'HTML' }).catch(() => {})
     }
   }
 
@@ -30043,14 +30219,28 @@ app.post('/twilio/voice-webhook', async (req, res) => {
           // No wallet balance — block call
           response.say('This number has reached its monthly minute limit and wallet is empty. Please top up.')
           response.hangup()
-          bot?.sendMessage(chatId, `🚫 <b>Incoming Call Blocked — No Credits</b>\n📞 ${phoneConfig.formatPhone(From)} → ${phoneConfig.formatPhone(To)}\n\nPlan: ${poolMinutesUsed}/${minuteLimit} min used\nWallet: $${usdBal.toFixed(2)} (need $${rate}/min)\n\nTop up via 👛 Wallet or upgrade your plan.`, { parse_mode: 'HTML' }).catch(() => {})
+          const _cbInfo = await state.findOne({ _id: String(chatId) })
+          const _cbLang = _cbInfo?.userLanguage || 'en'
+          bot?.sendMessage(chatId, ({
+            en: `🚫 <b>Incoming Call Blocked — No Credits</b>\n📞 ${phoneConfig.formatPhone(From)} → ${phoneConfig.formatPhone(To)}\n\nPlan: ${poolMinutesUsed}/${minuteLimit} min used\nWallet: $${usdBal.toFixed(2)} (need $${rate}/min)\n\nTop up via 👛 Wallet or upgrade your plan.`,
+            fr: `🚫 <b>Appel entrant bloqué — Aucun crédit</b>\n📞 ${phoneConfig.formatPhone(From)} → ${phoneConfig.formatPhone(To)}\n\nForfait : ${poolMinutesUsed}/${minuteLimit} min utilisées\nPortefeuille : $${usdBal.toFixed(2)} (besoin de $${rate}/min)\n\nRechargez via 👛 Portefeuille ou améliorez votre forfait.`,
+            zh: `🚫 <b>来电被阻止 — 无余额</b>\n📞 ${phoneConfig.formatPhone(From)} → ${phoneConfig.formatPhone(To)}\n\n套餐：已使用 ${poolMinutesUsed}/${minuteLimit} 分钟\n钱包：$${usdBal.toFixed(2)}（需要 $${rate}/分钟）\n\n通过 👛 钱包充值或升级您的套餐。`,
+            hi: `🚫 <b>इनकमिंग कॉल अवरुद्ध — क्रेडिट नहीं</b>\n📞 ${phoneConfig.formatPhone(From)} → ${phoneConfig.formatPhone(To)}\n\nप्लान: ${poolMinutesUsed}/${minuteLimit} मिनट उपयोग\nवॉलेट: $${usdBal.toFixed(2)} ($${rate}/मिनट चाहिए)\n\n👛 वॉलेट से टॉप-अप करें या अपना प्लान अपग्रेड करें।`,
+          }[_cbLang]) || `🚫 <b>Incoming Call Blocked — No Credits</b>\n📞 ${phoneConfig.formatPhone(From)} → ${phoneConfig.formatPhone(To)}\n\nPlan: ${poolMinutesUsed}/${minuteLimit} min used\nWallet: $${usdBal.toFixed(2)} (need $${rate}/min)\n\nTop up via 👛 Wallet or upgrade your plan.`, { parse_mode: 'HTML' }).catch(() => {})
           return res.type('text/xml').send(response.toString())
         }
       } catch (e) {
         log(`[Twilio] Wallet check error on limit block: ${e.message}`)
         response.say('This number has reached its monthly minute limit.')
         response.hangup()
-        bot?.sendMessage(chatId, `🚫 <b>Call Blocked</b> — Minute limit reached (${poolMinutesUsed}/${minuteLimit} min).\nUpgrade your plan for more minutes.`, { parse_mode: 'HTML' }).catch(() => {})
+        const _cb2Info = await state.findOne({ _id: String(chatId) })
+        const _cb2Lang = _cb2Info?.userLanguage || 'en'
+        bot?.sendMessage(chatId, ({
+          en: `🚫 <b>Call Blocked</b> — Minute limit reached (${poolMinutesUsed}/${minuteLimit} min).\nUpgrade your plan for more minutes.`,
+          fr: `🚫 <b>Appel bloqué</b> — Limite de minutes atteinte (${poolMinutesUsed}/${minuteLimit} min).\nAméliorez votre forfait pour plus de minutes.`,
+          zh: `🚫 <b>通话被阻止</b> — 已达到分钟限制（${poolMinutesUsed}/${minuteLimit} 分钟）。\n升级您的套餐以获得更多分钟。`,
+          hi: `🚫 <b>कॉल अवरुद्ध</b> — मिनट सीमा पूरी (${poolMinutesUsed}/${minuteLimit} मिनट)।\nअधिक मिनटों के लिए अपना प्लान अपग्रेड करें।`,
+        }[_cb2Lang]) || `🚫 <b>Call Blocked</b> — Minute limit reached (${poolMinutesUsed}/${minuteLimit} min).\nUpgrade your plan for more minutes.`, { parse_mode: 'HTML' }).catch(() => {})
         return res.type('text/xml').send(response.toString())
       }
     }

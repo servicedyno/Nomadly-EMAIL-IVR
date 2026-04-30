@@ -59,6 +59,31 @@ Admin notifications now ship with inline-keyboard buttons so the admin can compl
 ### Tests
 - 11/11 in `test_admin_unmasked_notify.js` (5 admin-buttons specific cases added).
 
+## ✅ End-to-End Gap Closure (Feb 2026)
+
+### A) Admin-side `adminUserTag` consistency cleanup (13 sites)
+All direct `sendMessage(TELEGRAM_ADMIN_CHAT_ID, ...)` admin notifications outside `notifyGroup` now route through `adminUserTag(name, chatId)` for uniform `@username (chatId)` formatting + carry the `[💬 Reply User]` quick-action button via the new `adminMsgOpts({ chatId })` helper. Sites updated: domain savings (wallet/bank/BlockBee), domain purchase crash, VPS renewal failure, VPS pre-emptive cancel, VPS cancel-failed/cancel-crash, VPS escalating renewal alerts, VPS auto-deleted/delete-failed/delete-crash, bank-domain auto-refund + critical-failure, BlockBee crypto-domain auto-refund + critical-failure, support-session-closed (×2). One tap from any of these → admin can reply to the affected user immediately.
+
+### B) User-facing language gaps closed (15 sites, 4 locales)
+Every user-facing notification we found in English-only is now `en/fr/zh/hi`:
+- **Cloud-IVR**: number-purchase-failed wallet refund DM, exception refund DM, **Verification Rejected** flow (header + body + footer + "Issues found" + "What documents are accepted" + "documents did not meet requirements")
+- **Order ops**: `/deliver` order delivery DM to buyer (the flagship gap)
+- **Referrals**: New-Referral notification to referrer
+- **Voice**: IVR redial "no previous call data", Twilio + Telnyx OTP "already processed (status/phase)", "Session expired or call already ended"
+- **SMS**: SIM picker prompt + tip + button labels (Use default, Auto-rotate)
+- **Email Blast**: campaign-not-found, failed-to-start-campaign refund DMs
+- **Lead Gen**: admin/order-leads failure notification
+- **Fax**: PDF-available fallback, fax-received-but-no-PDF, fax-received-but-retrieval-failed
+- **Phone Plan**: incoming call blocked (no credits), call blocked (minute limit)
+- **URL Shortener**: "Already shortened" link-reuse hint
+- **Devices**: rename validation (empty, too-long, not-found, success, failure)
+
+### Tests
+- `js/tests/test_user_facing_localization.js` — **26/26 pass**: static-source check that every anchor EN string is paired with FR + ZH + HI translations in the same source file. CI-friendly regression — fails loudly if anyone reverts a localization.
+- `js/tests/test_admin_unmasked_notify.js` — 12/12 still pass.
+- `js/tests/test_call_route_priority.js` — 26/26 still pass.
+- Total: 64/64 pass. Bot syntax-clean, restarts cleanly.
+
 
 ## 🐛 Cloud IVR Call-Forwarding Bug — @wizardchop +15162719167 (Feb 2026)
 
