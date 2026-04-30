@@ -7,6 +7,33 @@
 - MongoDB (port 27017)
 
 
+## ✅ Production Anomaly Audit & Fixes (Apr 30, 2026)
+
+### Audit
+Pulled Railway production logs from latest deployment `cad26cc2-7d19-45a4-9605-23d38c59d6bc` (4.5h uptime, status SUCCESS) and cross-checked against prod MongoDB. **No exceptions, no crashes, no service errors.** Investigated 5 anomaly classes flagged by the user.
+
+### Verified findings
+| # | Anomaly | Reality | Action |
+|---|---|---|---|
+| 1 | Plan-price desync (2 Business @ $30, 1 Pro @ $15, 1 Pro @ $25 in `phoneNumbersOf.val.numbers[*].planPrice`) | Root cause: stale `$5/$15/$30` defaults in `phone-config.js:5-7` kicked in when `PHONE_*_PRICE` env vars were unset on past deploys. The $25 Pro is a sub-number (`SUB_NUMBER_BASE_PRICE=25`, intentional). The $15 Pro is admin-restored (`_restoration: true`). | **FIXED** — defaults bumped to live pricing |
+| 2 | Three users in 40 min surprised that Starter $50 has no IVR (`@fuckthisapp` paid $50 via DynoPay then complained) | Plan picker showed only feature lists with no explicit IVR availability indicator; users assumed Starter included IVR (the product is called "Cloud IVR + SIP") | **FIXED** — explicit IVR row + footer warning + final-confirmation warning |
+| 3 | Crypto purchase missing from `transactions` collection | False alarm — recorded in `phoneTransactions` (separate collection by design); audit trail intact | No action |
+| 4 | Three users pressing /start 3-4× in seconds | UX-frustration signal, not a bug; existing CartRecovery already tracks this | Tracked in roadmap |
+| 5 | User @Mrdoitright53 calling with $4.85 wallet balance | Already auto-mitigated: WalletNotify WARNING fired + Twilio `timeLimit` calculated per-call from balance/rate | No action |
+
+### Implementation — `js/phone-config.js`
+- **Default prices bumped** from legacy `5/15/30` to current public `50/75/120` (lines 5-15). Added `console.warn` when any `PHONE_*_PRICE` env is missing — so a future misconfigured deploy produces a loud log line instead of silently underpricing every new Cloud IVR purchase.
+- **`selectPlan(number)` (EN/FR/ZH/HI)** — every plan row now ends with an explicit `🎙 IVR / SIP softphone: ❌ not included` (Starter) / `✅ Quick IVR + Bulk IVR + OTP` (Pro) / `✅ Pro + Auto-Attendant + Recording` (Business) line, plus a footer warning that Starter does **not** include IVR.
+- **`orderSummary(number, country, plan, price)` (EN/FR/ZH/HI)** — final-confirmation screen before payment now appends an italicized warning *only when the user is about to buy Starter*, calling out IVR/SIP exclusions one last time. Pro/Business order summaries are unchanged.
+- **`manageNumber(n, ...)` (EN/FR/ZH/HI)** — sub-numbers no longer display the misleading `Plan: Pro ($25/mo)` line. They now read `Sub-number — $25/mo (under Pro plan)` (and the equivalent in FR/ZH/HI). Primary numbers' rendering is unchanged.
+
+### Tests — `js/tests/test_plan_picker_ivr_clarity.js` (new)
+21/21 pass. Covers: default-price fallback ($50/$75/$120), IVR `❌`/`✅` badges in all four locales, footer warning in all four locales, sub-number relabel in all four locales, primary-number unchanged, Starter-only orderSummary warning in all four locales, and an env-override regression (`PHONE_STARTER_PRICE=99` is honoured).
+
+### Regression sweep
+All adjacent suites still green: `test_ai_support_phase1.js` (19/19), `test_billing_menu_and_gold_copy.js`, `test_manage_screen_features.js` (21/21), `test_plan_copy.js`, `test_invariants_no_refund_dynamic_buttons.js`, `test_phone_settings_reset_fix.js`, `test_user_facing_localization.js` (26/26). Node service restarted cleanly; `/api/` returns 200.
+
+
 ## ✅ AI Support Phase 1 Test Harness Fix (Feb 2026)
 
 ### User report

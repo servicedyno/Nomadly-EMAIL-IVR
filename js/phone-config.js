@@ -2,9 +2,17 @@
 // Cloud IVR Config — Texts, keyboards, state actions
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-const PHONE_STARTER_PRICE = parseFloat(process.env.PHONE_STARTER_PRICE || '5')
-const PHONE_PRO_PRICE = parseFloat(process.env.PHONE_PRO_PRICE || '15')
-const PHONE_BUSINESS_PRICE = parseFloat(process.env.PHONE_BUSINESS_PRICE || '30')
+// Defaults match current public pricing. If env is missing, we MUST fall back
+// to the live prices (not cheap dev defaults) so a misconfigured deploy never
+// silently provisions plans at legacy/dev rates. See post-mortem on the $30
+// Business / $15 Pro grandfathered numbers (2026-04-30 audit).
+const PHONE_STARTER_PRICE = parseFloat(process.env.PHONE_STARTER_PRICE || '50')
+const PHONE_PRO_PRICE = parseFloat(process.env.PHONE_PRO_PRICE || '75')
+const PHONE_BUSINESS_PRICE = parseFloat(process.env.PHONE_BUSINESS_PRICE || '120')
+if (!process.env.PHONE_STARTER_PRICE || !process.env.PHONE_PRO_PRICE || !process.env.PHONE_BUSINESS_PRICE) {
+  // Loud warning so missing env is visible in logs and supervisor health checks.
+  console.warn(`[phone-config] ⚠️ One or more PHONE_*_PRICE env vars missing; using current public defaults: starter=$${PHONE_STARTER_PRICE} pro=$${PHONE_PRO_PRICE} business=$${PHONE_BUSINESS_PRICE}`)
+}
 const SIP_DOMAIN = process.env.SIP_DOMAIN || 'sip.speechcue.com'
 const CALL_PAGE_URL = process.env.CALL_PAGE_URL || 'https://speechcue.com/call'
 
@@ -486,20 +494,24 @@ Inbound calls/SMS included · Outbound charged from wallet
   selectPlan: (number) => {
     let text = `✅ Selected: <b>${formatPhone(number)}</b>\n\n📋 Choose your plan:\n\n`
     if (PHONE_STARTER_ON) {
-      text += `<b>💡 Starter — $${PHONE_STARTER_PRICE}/mo</b>\n📞 ${plans.starter.minutes} min · 📩 ${plans.starter.sms} SMS · Forwarding · Up to ${SUB_NUMBER_LIMITS.starter} extra numbers\n\n`
+      text += `<b>💡 Starter — $${PHONE_STARTER_PRICE}/mo</b>\n📞 ${plans.starter.minutes} min · 📩 ${plans.starter.sms} SMS · Forwarding · Up to ${SUB_NUMBER_LIMITS.starter} extra numbers\n<b>🎙 IVR / SIP softphone:</b> ❌ <i>not included</i>\n\n`
     }
     if (PHONE_PRO_ON) {
-      text += `<b>⭐ Pro — $${PHONE_PRO_PRICE}/mo</b>\n📞 ${plans.pro.minutes} min · 📩 ${plans.pro.sms} SMS · All Starter + Voicemail · SIP · Webhooks · IVR\n\n`
+      text += `<b>⭐ Pro — $${PHONE_PRO_PRICE}/mo</b>\n📞 ${plans.pro.minutes} min · 📩 ${plans.pro.sms} SMS · All Starter + Voicemail · SIP · Webhooks · IVR\n<b>🎙 IVR / SIP softphone:</b> ✅ <i>Quick IVR + Bulk IVR + OTP</i>\n\n`
     }
     if (PHONE_BUSINESS_ON) {
-      text += `<b>👑 Business — $${PHONE_BUSINESS_PRICE}/mo</b>\n📞 ${plans.business.minutes} min · 📩 ${plans.business.sms} SMS · All Pro + Recording · Auto-Attendant · Priority Support\n\n`
+      text += `<b>👑 Business — $${PHONE_BUSINESS_PRICE}/mo</b>\n📞 ${plans.business.minutes} min · 📩 ${plans.business.sms} SMS · All Pro + Recording · Auto-Attendant · Priority Support\n<b>🎙 IVR / SIP softphone:</b> ✅ <i>Pro + Auto-Attendant + Recording</i>\n\n`
     }
-    text += `<i>💳 Outbound calls charged from wallet</i>`
+    text += `<i>💳 Outbound calls charged from wallet</i>\n<i>⚠️ Need IVR (Quick IVR Call, Bulk IVR Campaign, OTP, Auto-Attendant)? Choose Pro or Business — Starter does <b>not</b> include IVR.</i>`
     return text
   },
 
   orderSummary: (number, country, plan, price) => {
-    return `📋 <b>Order Summary</b>\n\n📞 ${formatPhone(number)} · ${country}\n📦 ${plan.name} — $${price}/mo\n📩 ${plan.sms} SMS · 📞 ${plan.minutes} min\n\n💰 Total: <b>$${price}</b> (first month)\n\n<i>💳 Outbound calls charged from wallet</i>`
+    const planKey = (plan.name || '').toLowerCase()
+    const ivrLine = planKey === 'starter'
+      ? `\n\n<i>⚠️ Starter does <b>not</b> include IVR (Quick IVR Call, Bulk IVR Campaign, OTP, Auto-Attendant) or SIP softphone credentials. Need IVR? Pick Pro or Business instead.</i>`
+      : ''
+    return `📋 <b>Order Summary</b>\n\n📞 ${formatPhone(number)} · ${country}\n📦 ${plan.name} — $${price}/mo\n📩 ${plan.sms} SMS · 📞 ${plan.minutes} min\n\n💰 Total: <b>$${price}</b> (first month)\n\n<i>💳 Outbound calls charged from wallet</i>${ivrLine}`
   },
 
   paymentPrompt: (price) => `Price: <b>$${price}</b>. Choose payment method:`,
@@ -618,7 +630,11 @@ Inbound calls/SMS included · Outbound charged from wallet
 
     let text = `⚙️ Managing: <b>${formatPhone(n.phoneNumber)}</b>`
     if (n.isSubNumber) text += ` <i>(sub-number)</i>`
-    text += `\n\nStatus: ${n.status === 'active' ? '✅ Active' : '⚠️ ' + n.status}\nPlan: ${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)} ($${n.planPrice}/mo)`
+    if (n.isSubNumber) {
+      text += `\n\nStatus: ${n.status === 'active' ? '✅ Active' : '⚠️ ' + n.status}\nSub-number — $${n.planPrice}/mo (under ${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)} plan)`
+    } else {
+      text += `\n\nStatus: ${n.status === 'active' ? '✅ Active' : '⚠️ ' + n.status}\nPlan: ${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)} ($${n.planPrice}/mo)`
+    }
     if (n.isSubNumber && n.parentNumber) text += `\n🔗 Parent: ${formatPhone(n.parentNumber)}`
     if (hasVoice) text += `\n📞 Inbound Minutes: ${minDisplay}${minWarning}`
     if (hasSms) text += `\n📩 Inbound SMS: ${smsDisplay} (receive only)${smsWarning}`
@@ -1607,16 +1623,19 @@ Votre propre numéro virtuel dans plus de 30 pays. Recevez des appels, envoyez d
     },
     selectPlan: (number) => {
       let text = `✅ Sélectionné : <b>${formatPhone(number)}</b>\n\n📋 Choisissez votre forfait :\n\n`
-      if (PHONE_STARTER_ON) text += `<b>💡 Starter — $${PHONE_STARTER_PRICE}/mois</b>\n📞 ${plans.starter.minutes} min entrantes · 📩 ${plans.starter.sms} SMS entrants · ${plansI18n.fr.starter.features.join(' · ')}\n➕ Ajoutez jusqu'à ${SUB_NUMBER_LIMITS.starter} numéros supplémentaires (à partir de $${SUB_NUMBER_BASE_PRICE}/mois chacun)\n\n`
-      if (PHONE_PRO_ON) text += `<b>⭐ Pro — $${PHONE_PRO_PRICE}/mois</b>\n📞 ${plans.pro.minutes} min entrantes · 📩 ${plans.pro.sms} SMS entrants · ${plansI18n.fr.pro.features.join(' · ')}\n➕ Ajoutez jusqu'à ${SUB_NUMBER_LIMITS.pro} numéros supplémentaires (à partir de $${SUB_NUMBER_BASE_PRICE}/mois chacun)\n\n`
-      if (PHONE_BUSINESS_ON) text += `<b>👑 Business — $${PHONE_BUSINESS_PRICE}/mois</b>\n📞 ${plans.business.minutes} min entrantes · 📩 ${plans.business.sms} SMS entrants · ${plansI18n.fr.business.features.join(' · ')}\n➕ Ajoutez jusqu'à ${SUB_NUMBER_LIMITS.business} numéros supplémentaires (à partir de $${SUB_NUMBER_BASE_PRICE}/mois chacun)\n\n`
-      text += `<i>📞 Les minutes du forfait sont pour les appels entrants uniquement.\n💳 Les appels sortants et transferts sont facturés depuis votre portefeuille.</i>`
+      if (PHONE_STARTER_ON) text += `<b>💡 Starter — $${PHONE_STARTER_PRICE}/mois</b>\n📞 ${plans.starter.minutes} min entrantes · 📩 ${plans.starter.sms} SMS entrants · ${plansI18n.fr.starter.features.join(' · ')}\n<b>🎙 IVR / SIP :</b> ❌ <i>non inclus</i>\n➕ Ajoutez jusqu'à ${SUB_NUMBER_LIMITS.starter} numéros supplémentaires (à partir de $${SUB_NUMBER_BASE_PRICE}/mois chacun)\n\n`
+      if (PHONE_PRO_ON) text += `<b>⭐ Pro — $${PHONE_PRO_PRICE}/mois</b>\n📞 ${plans.pro.minutes} min entrantes · 📩 ${plans.pro.sms} SMS entrants · ${plansI18n.fr.pro.features.join(' · ')}\n<b>🎙 IVR / SIP :</b> ✅ <i>Quick IVR + Bulk IVR + OTP</i>\n➕ Ajoutez jusqu'à ${SUB_NUMBER_LIMITS.pro} numéros supplémentaires (à partir de $${SUB_NUMBER_BASE_PRICE}/mois chacun)\n\n`
+      if (PHONE_BUSINESS_ON) text += `<b>👑 Business — $${PHONE_BUSINESS_PRICE}/mois</b>\n📞 ${plans.business.minutes} min entrantes · 📩 ${plans.business.sms} SMS entrants · ${plansI18n.fr.business.features.join(' · ')}\n<b>🎙 IVR / SIP :</b> ✅ <i>Pro + Auto-Attendant + Enregistrement</i>\n➕ Ajoutez jusqu'à ${SUB_NUMBER_LIMITS.business} numéros supplémentaires (à partir de $${SUB_NUMBER_BASE_PRICE}/mois chacun)\n\n`
+      text += `<i>📞 Les minutes du forfait sont pour les appels entrants uniquement.\n💳 Les appels sortants et transferts sont facturés depuis votre portefeuille.\n⚠️ Besoin d'IVR (Quick IVR, Bulk IVR, OTP, Auto-Attendant) ? Choisissez Pro ou Business — Starter n'inclut <b>pas</b> l'IVR.</i>`
       return text
     },
     orderSummary: (number, country, plan, price) => {
       const planKey = plan.name.toLowerCase()
       const features = plansI18n.fr[planKey]?.features || plan.features
-      return `📋 <b>Récapitulatif</b>\n\n📞 ${formatPhone(number)} · ${country}\n📦 ${plan.name} — $${price}/mois\n📩 ${plan.sms} SMS entrants · 📞 ${plan.minutes} min entrantes\n💳 Appels sortants et transferts facturés depuis le portefeuille\n⚡ ${features.join(', ')}\n\n💰 Total : <b>$${price}</b> (premier mois)`
+      const ivrLine = planKey === 'starter'
+        ? `\n\n<i>⚠️ Starter n'inclut <b>pas</b> l'IVR (Quick IVR, Bulk IVR, OTP, Auto-Attendant) ni les identifiants SIP. Besoin d'IVR ? Choisissez Pro ou Business.</i>`
+        : ''
+      return `📋 <b>Récapitulatif</b>\n\n📞 ${formatPhone(number)} · ${country}\n📦 ${plan.name} — $${price}/mois\n📩 ${plan.sms} SMS entrants · 📞 ${plan.minutes} min entrantes\n💳 Appels sortants et transferts facturés depuis le portefeuille\n⚡ ${features.join(', ')}\n\n💰 Total : <b>$${price}</b> (premier mois)${ivrLine}`
     },
     paymentPrompt: (price) => `Prix : <b>$${price}</b>. Choisissez le mode de paiement :`,
     activated: (number, plan, price, sipUser, sipDomain, expiry) => `🎉 <b>Votre Cloud IVR est Actif !</b>\n\n📞 Numéro : ${formatPhone(number)}\n📦 Forfait : ${plan} ($${price}/mois)\n📅 Renouvellement : ${expiry}\n\n━━━ <b>Identifiants SIP</b> ━━━\n🌐 Serveur : ${sipDomain}\n👤 Utilisateur : ${sipUser}\n🔑 Mot de passe : ●●●●●●●● (utilisez 🔑 Identifiants SIP pour révéler)\n📡 Port : 5060 (UDP/TCP) | 5061 (TLS)\n\n━━━ <b>Configuration Rapide</b> ━━━\n• Navigateur : Appelez sur <a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a>\n• Softphone : Téléchargez Zoiper/Ooma, entrez les identifiants SIP\n• SMS : Les SMS entrants sont transférés ici automatiquement\n• Transfert : Configurez via 📱 Mes Numéros → Transfert d'Appels`,
@@ -1666,7 +1685,11 @@ Votre propre numéro virtuel dans plus de 30 pays. Recevez des appels, envoyez d
       const hasVoice = n.capabilities?.voice !== false
       let text = `⚙️ Gestion : <b>${formatPhone(n.phoneNumber)}</b>`
       if (n.isSubNumber) text += ` <i>(numéro ajouté)</i>`
-      text += `\n\nStatut : ${n.status === 'active' ? '✅ Actif' : '⚠️ ' + n.status}\nForfait : ${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)} ($${n.planPrice}/mois)`
+      if (n.isSubNumber) {
+        text += `\n\nStatut : ${n.status === 'active' ? '✅ Actif' : '⚠️ ' + n.status}\nNuméro ajouté — $${n.planPrice}/mois (sous le forfait ${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)})`
+      } else {
+        text += `\n\nStatut : ${n.status === 'active' ? '✅ Actif' : '⚠️ ' + n.status}\nForfait : ${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)} ($${n.planPrice}/mois)`
+      }
       if (n.isSubNumber && n.parentNumber) text += `\n🔗 Parent : ${formatPhone(n.parentNumber)}`
       if (hasVoice) text += `\n📞 Minutes entrantes : ${minDisplay}${minWarning}`
       if (hasSms) text += `\n📩 SMS entrants : ${smsDisplay} (réception seule)${smsWarning}`
@@ -2061,16 +2084,19 @@ Envoyez /testsip ici pour obtenir votre code test.
     },
     selectPlan: (number) => {
       let text = `✅ 已选择：<b>${formatPhone(number)}</b>\n\n📋 选择您的套餐：\n\n`
-      if (PHONE_STARTER_ON) text += `<b>💡 入门版 — $${PHONE_STARTER_PRICE}/月</b>\n📞 ${plans.starter.minutes} 来电分钟 · 📩 ${plans.starter.sms} 来电短信 · ${plansI18n.zh.starter.features.join(' · ')}\n➕ 可添加最多 ${SUB_NUMBER_LIMITS.starter} 个额外号码（每个 $${SUB_NUMBER_BASE_PRICE}/月起）\n\n`
-      if (PHONE_PRO_ON) text += `<b>⭐ 专业版 — $${PHONE_PRO_PRICE}/月</b>\n📞 ${plans.pro.minutes} 来电分钟 · 📩 ${plans.pro.sms} 来电短信 · ${plansI18n.zh.pro.features.join(' · ')}\n➕ 可添加最多 ${SUB_NUMBER_LIMITS.pro} 个额外号码（每个 $${SUB_NUMBER_BASE_PRICE}/月起）\n\n`
-      if (PHONE_BUSINESS_ON) text += `<b>👑 商务版 — $${PHONE_BUSINESS_PRICE}/月</b>\n📞 ${plans.business.minutes} 来电分钟 · 📩 ${plans.business.sms} 来电短信 · ${plansI18n.zh.business.features.join(' · ')}\n➕ 可添加最多 ${SUB_NUMBER_LIMITS.business} 个额外号码（每个 $${SUB_NUMBER_BASE_PRICE}/月起）\n\n`
-      text += `<i>📞 套餐分钟仅用于来电。\n💳 外呼通话和转发从钱包余额扣费。</i>`
+      if (PHONE_STARTER_ON) text += `<b>💡 入门版 — $${PHONE_STARTER_PRICE}/月</b>\n📞 ${plans.starter.minutes} 来电分钟 · 📩 ${plans.starter.sms} 来电短信 · ${plansI18n.zh.starter.features.join(' · ')}\n<b>🎙 IVR / SIP：</b> ❌ <i>不包含</i>\n➕ 可添加最多 ${SUB_NUMBER_LIMITS.starter} 个额外号码（每个 $${SUB_NUMBER_BASE_PRICE}/月起）\n\n`
+      if (PHONE_PRO_ON) text += `<b>⭐ 专业版 — $${PHONE_PRO_PRICE}/月</b>\n📞 ${plans.pro.minutes} 来电分钟 · 📩 ${plans.pro.sms} 来电短信 · ${plansI18n.zh.pro.features.join(' · ')}\n<b>🎙 IVR / SIP：</b> ✅ <i>快速IVR + 批量IVR + OTP</i>\n➕ 可添加最多 ${SUB_NUMBER_LIMITS.pro} 个额外号码（每个 $${SUB_NUMBER_BASE_PRICE}/月起）\n\n`
+      if (PHONE_BUSINESS_ON) text += `<b>👑 商务版 — $${PHONE_BUSINESS_PRICE}/月</b>\n📞 ${plans.business.minutes} 来电分钟 · 📩 ${plans.business.sms} 来电短信 · ${plansI18n.zh.business.features.join(' · ')}\n<b>🎙 IVR / SIP：</b> ✅ <i>专业版 + 自动接待 + 录音</i>\n➕ 可添加最多 ${SUB_NUMBER_LIMITS.business} 个额外号码（每个 $${SUB_NUMBER_BASE_PRICE}/月起）\n\n`
+      text += `<i>📞 套餐分钟仅用于来电。\n💳 外呼通话和转发从钱包余额扣费。\n⚠️ 需要IVR(快速IVR、批量IVR、OTP、自动接待)? 请选择专业版或商务版 —— 入门版<b>不</b>包含IVR。</i>`
       return text
     },
     orderSummary: (number, country, plan, price) => {
       const planKey = plan.name.toLowerCase()
       const features = plansI18n.zh[planKey]?.features || plan.features
-      return `📋 <b>订单摘要</b>\n\n📞 ${formatPhone(number)} · ${country}\n📦 ${plan.name} — $${price}/月\n📩 ${plan.sms} 来电短信 · 📞 ${plan.minutes} 来电分钟\n💳 外呼通话和转发从钱包扣费\n⚡ ${features.join(', ')}\n\n💰 合计：<b>$${price}</b>（首月）`
+      const ivrLine = planKey === 'starter'
+        ? `\n\n<i>⚠️ 入门版<b>不</b>包含IVR（快速IVR、批量IVR、OTP、自动接待）和SIP凭据。需要IVR？请选择专业版或商务版。</i>`
+        : ''
+      return `📋 <b>订单摘要</b>\n\n📞 ${formatPhone(number)} · ${country}\n📦 ${plan.name} — $${price}/月\n📩 ${plan.sms} 来电短信 · 📞 ${plan.minutes} 来电分钟\n💳 外呼通话和转发从钱包扣费\n⚡ ${features.join(', ')}\n\n💰 合计：<b>$${price}</b>（首月）${ivrLine}`
     },
     paymentPrompt: (price) => `价格：<b>$${price}</b>。选择支付方式：`,
     activated: (number, plan, price, sipUser, sipDomain, expiry) => `🎉 <b>您的 Cloud IVR 已激活！</b>\n\n📞 号码：${formatPhone(number)}\n📦 套餐：${plan}（$${price}/月）\n📅 续费日期：${expiry}\n\n━━━ <b>SIP 凭据</b> ━━━\n🌐 服务器：${sipDomain}\n👤 用户名：${sipUser}\n🔑 密码：●●●●●●●●（使用 🔑 SIP 凭据 查看）\n📡 端口：5060 (UDP/TCP) | 5061 (TLS)\n\n━━━ <b>快速设置</b> ━━━\n• 浏览器：在 <a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a> 拨打电话\n• 软电话：下载 Zoiper/Ooma，输入 SIP 凭据\n• 短信：来电短信自动转发到此聊天\n• 转发：通过 📱 我的号码 → 呼叫转移 设置`,
@@ -2120,7 +2146,11 @@ Envoyez /testsip ici pour obtenir votre code test.
       const hasVoice = n.capabilities?.voice !== false
       let text = `⚙️ 管理：<b>${formatPhone(n.phoneNumber)}</b>`
       if (n.isSubNumber) text += ` <i>(附加号码)</i>`
-      text += `\n\n状态：${n.status === 'active' ? '✅ 活跃' : '⚠️ ' + n.status}\n套餐：${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)}（$${n.planPrice}/月）`
+      if (n.isSubNumber) {
+        text += `\n\n状态：${n.status === 'active' ? '✅ 活跃' : '⚠️ ' + n.status}\n附加号码 — $${n.planPrice}/月（在 ${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)} 套餐下）`
+      } else {
+        text += `\n\n状态：${n.status === 'active' ? '✅ 活跃' : '⚠️ ' + n.status}\n套餐：${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)}（$${n.planPrice}/月）`
+      }
       if (n.isSubNumber && n.parentNumber) text += `\n🔗 主号码：${formatPhone(n.parentNumber)}`
       if (hasVoice) text += `\n📞 来电分钟：${minDisplay}${minWarning}`
       if (hasSms) text += `\n📩 来电短信：${smsDisplay}（仅接收）${smsWarning}`
@@ -2515,16 +2545,19 @@ Envoyez /testsip ici pour obtenir votre code test.
     },
     selectPlan: (number) => {
       let text = `✅ चयनित: <b>${formatPhone(number)}</b>\n\n📋 अपना प्लान चुनें:\n\n`
-      if (PHONE_STARTER_ON) text += `<b>💡 स्टार्टर — $${PHONE_STARTER_PRICE}/माह</b>\n📞 ${plans.starter.minutes} इनबाउंड मिनट · 📩 ${plans.starter.sms} इनबाउंड SMS · ${plansI18n.hi.starter.features.join(' · ')}\n➕ ${SUB_NUMBER_LIMITS.starter} अतिरिक्त नंबर जोड़ें ($${SUB_NUMBER_BASE_PRICE}/माह प्रत्येक से)\n\n`
-      if (PHONE_PRO_ON) text += `<b>⭐ प्रो — $${PHONE_PRO_PRICE}/माह</b>\n📞 ${plans.pro.minutes} इनबाउंड मिनट · 📩 ${plans.pro.sms} इनबाउंड SMS · ${plansI18n.hi.pro.features.join(' · ')}\n➕ ${SUB_NUMBER_LIMITS.pro} अतिरिक्त नंबर जोड़ें ($${SUB_NUMBER_BASE_PRICE}/माह प्रत्येक से)\n\n`
-      if (PHONE_BUSINESS_ON) text += `<b>👑 बिज़नेस — $${PHONE_BUSINESS_PRICE}/माह</b>\n📞 ${plans.business.minutes} इनबाउंड मिनट · 📩 ${plans.business.sms} इनबाउंड SMS · ${plansI18n.hi.business.features.join(' · ')}\n➕ ${SUB_NUMBER_LIMITS.business} अतिरिक्त नंबर जोड़ें ($${SUB_NUMBER_BASE_PRICE}/माह प्रत्येक से)\n\n`
-      text += `<i>📞 प्लान मिनट केवल इनबाउंड कॉल के लिए हैं।\n💳 आउटबाउंड कॉल और फ़ॉरवर्डिंग वॉलेट से चार्ज होते हैं।</i>`
+      if (PHONE_STARTER_ON) text += `<b>💡 स्टार्टर — $${PHONE_STARTER_PRICE}/माह</b>\n📞 ${plans.starter.minutes} इनबाउंड मिनट · 📩 ${plans.starter.sms} इनबाउंड SMS · ${plansI18n.hi.starter.features.join(' · ')}\n<b>🎙 IVR / SIP:</b> ❌ <i>शामिल नहीं</i>\n➕ ${SUB_NUMBER_LIMITS.starter} अतिरिक्त नंबर जोड़ें ($${SUB_NUMBER_BASE_PRICE}/माह प्रत्येक से)\n\n`
+      if (PHONE_PRO_ON) text += `<b>⭐ प्रो — $${PHONE_PRO_PRICE}/माह</b>\n📞 ${plans.pro.minutes} इनबाउंड मिनट · 📩 ${plans.pro.sms} इनबाउंड SMS · ${plansI18n.hi.pro.features.join(' · ')}\n<b>🎙 IVR / SIP:</b> ✅ <i>त्वरित IVR + बल्क IVR + OTP</i>\n➕ ${SUB_NUMBER_LIMITS.pro} अतिरिक्त नंबर जोड़ें ($${SUB_NUMBER_BASE_PRICE}/माह प्रत्येक से)\n\n`
+      if (PHONE_BUSINESS_ON) text += `<b>👑 बिज़नेस — $${PHONE_BUSINESS_PRICE}/माह</b>\n📞 ${plans.business.minutes} इनबाउंड मिनट · 📩 ${plans.business.sms} इनबाउंड SMS · ${plansI18n.hi.business.features.join(' · ')}\n<b>🎙 IVR / SIP:</b> ✅ <i>प्रो + ऑटो-अटेंडेंट + रिकॉर्डिंग</i>\n➕ ${SUB_NUMBER_LIMITS.business} अतिरिक्त नंबर जोड़ें ($${SUB_NUMBER_BASE_PRICE}/माह प्रत्येक से)\n\n`
+      text += `<i>📞 प्लान मिनट केवल इनबाउंड कॉल के लिए हैं।\n💳 आउटबाउंड कॉल और फ़ॉरवर्डिंग वॉलेट से चार्ज होते हैं।\n⚠️ IVR (त्वरित IVR, बल्क IVR, OTP, ऑटो-अटेंडेंट) चाहिए? प्रो या बिज़नेस चुनें — स्टार्टर में IVR शामिल <b>नहीं</b> है।</i>`
       return text
     },
     orderSummary: (number, country, plan, price) => {
       const planKey = plan.name.toLowerCase()
       const features = plansI18n.hi[planKey]?.features || plan.features
-      return `📋 <b>ऑर्डर सारांश</b>\n\n📞 ${formatPhone(number)} · ${country}\n📦 ${plan.name} — $${price}/माह\n📩 ${plan.sms} इनबाउंड SMS · 📞 ${plan.minutes} इनबाउंड मिनट\n💳 आउटबाउंड कॉल और फ़ॉरवर्डिंग वॉलेट से चार्ज\n⚡ ${features.join(', ')}\n\n💰 कुल: <b>$${price}</b> (पहला महीना)`
+      const ivrLine = planKey === 'starter'
+        ? `\n\n<i>⚠️ स्टार्टर में IVR (त्वरित IVR, बल्क IVR, OTP, ऑटो-अटेंडेंट) और SIP क्रेडेंशियल्स शामिल <b>नहीं</b> हैं। IVR चाहिए? प्रो या बिज़नेस चुनें।</i>`
+        : ''
+      return `📋 <b>ऑर्डर सारांश</b>\n\n📞 ${formatPhone(number)} · ${country}\n📦 ${plan.name} — $${price}/माह\n📩 ${plan.sms} इनबाउंड SMS · 📞 ${plan.minutes} इनबाउंड मिनट\n💳 आउटबाउंड कॉल और फ़ॉरवर्डिंग वॉलेट से चार्ज\n⚡ ${features.join(', ')}\n\n💰 कुल: <b>$${price}</b> (पहला महीना)${ivrLine}`
     },
     paymentPrompt: (price) => `मूल्य: <b>$${price}</b>। भुगतान विधि चुनें:`,
     activated: (number, plan, price, sipUser, sipDomain, expiry) => `🎉 <b>आपका Cloud IVR सक्रिय है!</b>\n\n📞 नंबर: ${formatPhone(number)}\n📦 प्लान: ${plan} ($${price}/माह)\n📅 नवीनीकरण: ${expiry}\n\n━━━ <b>SIP क्रेडेंशियल्स</b> ━━━\n🌐 सर्वर: ${sipDomain}\n👤 उपयोगकर्ता: ${sipUser}\n🔑 पासवर्ड: ●●●●●●●● (देखने के लिए 🔑 SIP क्रेडेंशियल्स उपयोग करें)\n📡 पोर्ट: 5060 (UDP/TCP) | 5061 (TLS)\n\n━━━ <b>त्वरित सेटअप</b> ━━━\n• ब्राउज़र: <a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a> पर कॉल करें\n• सॉफ्टफ़ोन: Zoiper/Ooma डाउनलोड करें, SIP क्रेडेंशियल्स दर्ज करें\n• SMS: इनबाउंड SMS स्वचालित रूप से यहाँ फ़ॉरवर्ड होते हैं\n• फ़ॉरवर्डिंग: 📱 मेरे नंबर → कॉल फ़ॉरवर्डिंग से सेट करें`,
@@ -2574,7 +2607,11 @@ Envoyez /testsip ici pour obtenir votre code test.
       const hasVoice = n.capabilities?.voice !== false
       let text = `⚙️ प्रबंधन: <b>${formatPhone(n.phoneNumber)}</b>`
       if (n.isSubNumber) text += ` <i>(अतिरिक्त नंबर)</i>`
-      text += `\n\nस्थिति: ${n.status === 'active' ? '✅ सक्रिय' : '⚠️ ' + n.status}\nप्लान: ${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)} ($${n.planPrice}/माह)`
+      if (n.isSubNumber) {
+        text += `\n\nस्थिति: ${n.status === 'active' ? '✅ सक्रिय' : '⚠️ ' + n.status}\nअतिरिक्त नंबर — $${n.planPrice}/माह (${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)} प्लान के तहत)`
+      } else {
+        text += `\n\nस्थिति: ${n.status === 'active' ? '✅ सक्रिय' : '⚠️ ' + n.status}\nप्लान: ${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)} ($${n.planPrice}/माह)`
+      }
       if (n.isSubNumber && n.parentNumber) text += `\n🔗 मुख्य नंबर: ${formatPhone(n.parentNumber)}`
       if (hasVoice) text += `\n📞 इनबाउंड मिनट: ${minDisplay}${minWarning}`
       if (hasSms) text += `\n📩 इनबाउंड SMS: ${smsDisplay} (केवल प्राप्ति)${smsWarning}`
