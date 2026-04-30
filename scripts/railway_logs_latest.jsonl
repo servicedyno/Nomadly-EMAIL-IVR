@@ -190,570 +190,570 @@
 {"timestamp": "2026-04-30T02:36:18.092142495Z", "message": "[BulkCall] Starting campaign 69410022-06ff-47c4-8fa8-edb537998a27: 76 leads, concurrency 10", "severity": "info"}
 {"timestamp": "2026-04-30T02:36:18.092145615Z", "message": "[Twilio] Outbound call: CAc295020024203ff819f6acb5b9b4206f from=+18884879051 to=+14087780673", "severity": "info"}
 {"timestamp": "2026-04-30T02:36:18.092149151Z", "message": "[BulkCall] Speechcue call initiated: CAc295020024203ff819f6acb5b9b4206f \u2192 +14087780673", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:18.093203654Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=0 sid=CAc295020024203ff819f6acb5b9b4206f status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:18.093203654Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=0 sid=CAc295020024203ff819f6acb5b9b4206f status=initiated duration=0s", "severity": "info"}
 {"timestamp": "2026-04-30T02:36:18.093206737Z", "message": "[Twilio] Outbound call: CAfa62f9925f73ee86d3dc0f71d1f57e0f from=+18884879051 to=+15599366726", "severity": "info"}
 {"timestamp": "2026-04-30T02:36:18.093209918Z", "message": "[BulkCall] Speechcue call initiated: CAfa62f9925f73ee86d3dc0f71d1f57e0f \u2192 +15599366726", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:18.093212967Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=1 sid=CAfa62f9925f73ee86d3dc0f71d1f57e0f status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:18.093212967Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=1 sid=CAfa62f9925f73ee86d3dc0f71d1f57e0f status=initiated duration=0s", "severity": "info"}
 {"timestamp": "2026-04-30T02:36:18.093215991Z", "message": "[Twilio] Outbound call: CAfa2d6f9915cf796b7d532ee284f05113 from=+18884879051 to=+14083919731", "severity": "info"}
 {"timestamp": "2026-04-30T02:36:18.093218740Z", "message": "[BulkCall] Speechcue call initiated: CAfa2d6f9915cf796b7d532ee284f05113 \u2192 +14083919731", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:18.093221391Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=2 sid=CAfa2d6f9915cf796b7d532ee284f05113 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:18.093221391Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=2 sid=CAfa2d6f9915cf796b7d532ee284f05113 status=initiated duration=0s", "severity": "info"}
 {"timestamp": "2026-04-30T02:36:18.093224034Z", "message": "[Twilio] Outbound call: CAe92511595ee144e45ccaf03356fed926 from=+18884879051 to=+16502540184", "severity": "info"}
 {"timestamp": "2026-04-30T02:36:18.093226782Z", "message": "[BulkCall] Speechcue call initiated: CAe92511595ee144e45ccaf03356fed926 \u2192 +16502540184", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:18.100678209Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=3 sid=CAe92511595ee144e45ccaf03356fed926 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:18.100678209Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=3 sid=CAe92511595ee144e45ccaf03356fed926 status=initiated duration=0s", "severity": "info"}
 {"timestamp": "2026-04-30T02:36:18.224530067Z", "message": "[Twilio] Outbound call: CA9e9da390390d58aa5d4b60e0fc591e47 from=+18884879051 to=+16504683901", "severity": "info"}
 {"timestamp": "2026-04-30T02:36:18.232458331Z", "message": "[BulkCall] Speechcue call initiated: CA9e9da390390d58aa5d4b60e0fc591e47 \u2192 +16504683901", "severity": "info"}
 {"timestamp": "2026-04-30T02:36:18.572759762Z", "message": "[Twilio] Outbound call: CA3051eb514113b4b1347c10fa52d9132c from=+18884879051 to=+15163549677", "severity": "info"}
 {"timestamp": "2026-04-30T02:36:18.572764675Z", "message": "[BulkCall] Speechcue call initiated: CA3051eb514113b4b1347c10fa52d9132c \u2192 +15163549677", "severity": "info"}
 {"timestamp": "2026-04-30T02:36:18.584127576Z", "message": "[Twilio] Outbound call: CAf8d253ded1896ef857748f15118b6973 from=+18884879051 to=+16508680895", "severity": "info"}
 {"timestamp": "2026-04-30T02:36:18.594641398Z", "message": "[BulkCall] Speechcue call initiated: CAf8d253ded1896ef857748f15118b6973 \u2192 +16508680895", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:18.656998375Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=6 sid=CAf8d253ded1896ef857748f15118b6973 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:18.656998375Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=6 sid=CAf8d253ded1896ef857748f15118b6973 status=initiated duration=0s", "severity": "info"}
 {"timestamp": "2026-04-30T02:36:18.745243421Z", "message": "[Twilio] Outbound call: CA887abd5ef822231d58e84f59df30b81d from=+18884879051 to=+16509416685", "severity": "info"}
 {"timestamp": "2026-04-30T02:36:18.751537619Z", "message": "[BulkCall] Speechcue call initiated: CA887abd5ef822231d58e84f59df30b81d \u2192 +16509416685", "severity": "info"}
 {"timestamp": "2026-04-30T02:36:18.909160668Z", "message": "[Twilio] Outbound call: CAa83b340691731f7507208284fda10183 from=+18884879051 to=+16508680896", "severity": "info"}
 {"timestamp": "2026-04-30T02:36:18.910299255Z", "message": "[BulkCall] Speechcue call initiated: CAa83b340691731f7507208284fda10183 \u2192 +16508680896", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:18.955127000Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=0 sid=CAc295020024203ff819f6acb5b9b4206f status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:18.955127000Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=0 sid=CAc295020024203ff819f6acb5b9b4206f status=ringing duration=0s", "severity": "info"}
 {"timestamp": "2026-04-30T02:36:19.087237009Z", "message": "[Twilio] Outbound call: CAddd163466586aa20a7522dd89cd2d7c1 from=+18884879051 to=+14089977759", "severity": "info"}
 {"timestamp": "2026-04-30T02:36:19.093482803Z", "message": "[BulkCall] Speechcue call initiated: CAddd163466586aa20a7522dd89cd2d7c1 \u2192 +14089977759", "severity": "info"}
 {"timestamp": "2026-04-30T02:36:19.093490401Z", "message": "reply: Campaign is running! You'll see progress updates here. \ud83d\udcca Show Status,Back,Cancel\tto: 817673476", "severity": "info"}
 {"timestamp": "2026-04-30T02:36:19.093494375Z", "message": "", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:19.724886941Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=1", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:19.731093041Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=1 sid=CAfa62f9925f73ee86d3dc0f71d1f57e0f status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:20.206045744Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=6 sid=CAf8d253ded1896ef857748f15118b6973 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:20.663744262Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=3 sid=CAe92511595ee144e45ccaf03356fed926 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:21.003256605Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=2 sid=CAfa2d6f9915cf796b7d532ee284f05113 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:23.661907202Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=4 sid=CA9e9da390390d58aa5d4b60e0fc591e47 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:23.741253809Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=7 sid=CA887abd5ef822231d58e84f59df30b81d status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:24.034580239Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=9 sid=CAddd163466586aa20a7522dd89cd2d7c1 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:24.165436743Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=5 sid=CA3051eb514113b4b1347c10fa52d9132c status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:24.783577098Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=4 sid=CA9e9da390390d58aa5d4b60e0fc591e47 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:25.595248119Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=5 sid=CA3051eb514113b4b1347c10fa52d9132c status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:25.761877436Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=7 sid=CA887abd5ef822231d58e84f59df30b81d status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:28.645430790Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=1 sid=CAfa62f9925f73ee86d3dc0f71d1f57e0f status=completed duration=9s", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:28.645438796Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=1 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:19.724886941Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=1", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:19.731093041Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=1 sid=CAfa62f9925f73ee86d3dc0f71d1f57e0f status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:20.206045744Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=6 sid=CAf8d253ded1896ef857748f15118b6973 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:20.663744262Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=3 sid=CAe92511595ee144e45ccaf03356fed926 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:21.003256605Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=2 sid=CAfa2d6f9915cf796b7d532ee284f05113 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:23.661907202Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=4 sid=CA9e9da390390d58aa5d4b60e0fc591e47 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:23.741253809Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=7 sid=CA887abd5ef822231d58e84f59df30b81d status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:24.034580239Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=9 sid=CAddd163466586aa20a7522dd89cd2d7c1 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:24.165436743Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=5 sid=CA3051eb514113b4b1347c10fa52d9132c status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:24.783577098Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=4 sid=CA9e9da390390d58aa5d4b60e0fc591e47 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:25.595248119Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=5 sid=CA3051eb514113b4b1347c10fa52d9132c status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:25.761877436Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=7 sid=CA887abd5ef822231d58e84f59df30b81d status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:28.645430790Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=1 sid=CAfa62f9925f73ee86d3dc0f71d1f57e0f status=completed duration=9s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:28.645438796Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=1 status=completed", "severity": "info"}
 {"timestamp": "2026-04-30T02:36:28.645443457Z", "message": "[Twilio] Outbound call: CAa49a0bee5c08539b4be895211f354827 from=+18884879051 to=+14088469861", "severity": "info"}
 {"timestamp": "2026-04-30T02:36:28.645447279Z", "message": "[BulkCall] Speechcue call initiated: CAa49a0bee5c08539b4be895211f354827 \u2192 +14088469861", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:29.790820577Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=8 sid=CAa83b340691731f7507208284fda10183 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:30.010946706Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=10 sid=CAa49a0bee5c08539b4be895211f354827 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:31.735743644Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=10 sid=CAa49a0bee5c08539b4be895211f354827 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:32.245562002Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=8 sid=CAa83b340691731f7507208284fda10183 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:33.870151264Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=9 sid=CAddd163466586aa20a7522dd89cd2d7c1 status=failed duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:33.897025560Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=9 status=failed", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:29.790820577Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=8 sid=CAa83b340691731f7507208284fda10183 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:30.010946706Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=10 sid=CAa49a0bee5c08539b4be895211f354827 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:31.735743644Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=10 sid=CAa49a0bee5c08539b4be895211f354827 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:32.245562002Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=8 sid=CAa83b340691731f7507208284fda10183 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:33.870151264Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=9 sid=CAddd163466586aa20a7522dd89cd2d7c1 status=failed duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:33.897025560Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=9 status=failed", "severity": "info"}
 {"timestamp": "2026-04-30T02:36:34.091128888Z", "message": "[Twilio] Outbound call: CA0ef96f2a2ffa698fd09f5c9bf2a1b800 from=+18884879051 to=+14085335119", "severity": "info"}
 {"timestamp": "2026-04-30T02:36:34.099476358Z", "message": "[BulkCall] Speechcue call initiated: CA0ef96f2a2ffa698fd09f5c9bf2a1b800 \u2192 +14085335119", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:35.991742529Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=11 sid=CA0ef96f2a2ffa698fd09f5c9bf2a1b800 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:37.220567035Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=11 sid=CA0ef96f2a2ffa698fd09f5c9bf2a1b800 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:39.043428891Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=0 sid=CAc295020024203ff819f6acb5b9b4206f status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:39.208327003Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=0", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:43.865263325Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=2 sid=CAfa2d6f9915cf796b7d532ee284f05113 status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:43.888284344Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=2", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:44.031317664Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=5", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:44.076051060Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=5 sid=CA3051eb514113b4b1347c10fa52d9132c status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:48.262105986Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=3 sid=CAe92511595ee144e45ccaf03356fed926 status=no-answer duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:48.287353471Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=3 status=no_answer", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:35.991742529Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=11 sid=CA0ef96f2a2ffa698fd09f5c9bf2a1b800 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:37.220567035Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=11 sid=CA0ef96f2a2ffa698fd09f5c9bf2a1b800 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:39.043428891Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=0 sid=CAc295020024203ff819f6acb5b9b4206f status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:39.208327003Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=0", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:43.865263325Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=2 sid=CAfa2d6f9915cf796b7d532ee284f05113 status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:43.888284344Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=2", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:44.031317664Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=5", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:44.076051060Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=5 sid=CA3051eb514113b4b1347c10fa52d9132c status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:48.262105986Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=3 sid=CAe92511595ee144e45ccaf03356fed926 status=no-answer duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:48.287353471Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=3 status=no_answer", "severity": "info"}
 {"timestamp": "2026-04-30T02:36:48.732526219Z", "message": "[Twilio] Outbound call: CA5dec78c05c830410aee4961f37e101da from=+18884879051 to=+14082512087", "severity": "info"}
 {"timestamp": "2026-04-30T02:36:48.732530717Z", "message": "[BulkCall] Speechcue call initiated: CA5dec78c05c830410aee4961f37e101da \u2192 +14082512087", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:48.732534170Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=12 sid=CA5dec78c05c830410aee4961f37e101da status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:48.732542719Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=6 sid=CAf8d253ded1896ef857748f15118b6973 status=no-answer duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:48.743976446Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=6 status=no_answer", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:48.732534170Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=12 sid=CA5dec78c05c830410aee4961f37e101da status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:48.732542719Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=6 sid=CAf8d253ded1896ef857748f15118b6973 status=no-answer duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:48.743976446Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=6 status=no_answer", "severity": "info"}
 {"timestamp": "2026-04-30T02:36:48.943144369Z", "message": "[Twilio] Outbound call: CAde3abd891483746ee3b89b60b4afe2d7 from=+18884879051 to=+15302584372", "severity": "info"}
 {"timestamp": "2026-04-30T02:36:48.950131972Z", "message": "[BulkCall] Speechcue call initiated: CAde3abd891483746ee3b89b60b4afe2d7 \u2192 +15302584372", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:50.115492155Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=12 sid=CA5dec78c05c830410aee4961f37e101da status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:53.151876525Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=8 sid=CAa83b340691731f7507208284fda10183 status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:53.168571188Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=8", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:53.740990915Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=4 sid=CA9e9da390390d58aa5d4b60e0fc591e47 status=no-answer duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:53.768716464Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=4 status=no_answer", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:53.903553575Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=7 sid=CA887abd5ef822231d58e84f59df30b81d status=no-answer duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:53.927774890Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=7 status=no_answer", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:50.115492155Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=12 sid=CA5dec78c05c830410aee4961f37e101da status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:53.151876525Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=8 sid=CAa83b340691731f7507208284fda10183 status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:53.168571188Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=8", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:53.740990915Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=4 sid=CA9e9da390390d58aa5d4b60e0fc591e47 status=no-answer duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:53.768716464Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=4 status=no_answer", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:53.903553575Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=7 sid=CA887abd5ef822231d58e84f59df30b81d status=no-answer duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:53.927774890Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=7 status=no_answer", "severity": "info"}
 {"timestamp": "2026-04-30T02:36:53.971297581Z", "message": "[Twilio] Outbound call: CAdb40b650118d93279e05088f0f633c56 from=+18884879051 to=+14089296355", "severity": "info"}
 {"timestamp": "2026-04-30T02:36:53.980718365Z", "message": "[BulkCall] Speechcue call initiated: CAdb40b650118d93279e05088f0f633c56 \u2192 +14089296355", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:54.018489148Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=14 sid=CAdb40b650118d93279e05088f0f633c56 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:54.018489148Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=14 sid=CAdb40b650118d93279e05088f0f633c56 status=initiated duration=0s", "severity": "info"}
 {"timestamp": "2026-04-30T02:36:54.136294627Z", "message": "[Twilio] Outbound call: CA280acca78ef3f863455b0d44e9df3bdc from=+18884879051 to=+14089296355", "severity": "info"}
 {"timestamp": "2026-04-30T02:36:54.161884584Z", "message": "[BulkCall] Speechcue call initiated: CA280acca78ef3f863455b0d44e9df3bdc \u2192 +14089296355", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:54.285126759Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=14 sid=CA280acca78ef3f863455b0d44e9df3bdc status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:54.718351678Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=13 sid=CAde3abd891483746ee3b89b60b4afe2d7 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:55.716377479Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=11 sid=CA0ef96f2a2ffa698fd09f5c9bf2a1b800 status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:55.716381541Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=11", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:55.716385803Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=14 sid=CAdb40b650118d93279e05088f0f633c56 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:56.156582031Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=13 sid=CAde3abd891483746ee3b89b60b4afe2d7 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:36:56.229643033Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=14 sid=CA280acca78ef3f863455b0d44e9df3bdc status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:00.029732470Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=10 sid=CAa49a0bee5c08539b4be895211f354827 status=no-answer duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:00.068719764Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=10 status=no_answer", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:54.285126759Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=14 sid=CA280acca78ef3f863455b0d44e9df3bdc status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:54.718351678Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=13 sid=CAde3abd891483746ee3b89b60b4afe2d7 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:55.716377479Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=11 sid=CA0ef96f2a2ffa698fd09f5c9bf2a1b800 status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:55.716381541Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=11", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:55.716385803Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=14 sid=CAdb40b650118d93279e05088f0f633c56 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:56.156582031Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=13 sid=CAde3abd891483746ee3b89b60b4afe2d7 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:36:56.229643033Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=14 sid=CA280acca78ef3f863455b0d44e9df3bdc status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:00.029732470Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=10 sid=CAa49a0bee5c08539b4be895211f354827 status=no-answer duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:00.068719764Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=10 status=no_answer", "severity": "info"}
 {"timestamp": "2026-04-30T02:37:00.254753486Z", "message": "[Twilio] Outbound call: CAa7756f079baa401d8ac9dc85190f3ac2 from=+18884879051 to=+14082643178", "severity": "info"}
 {"timestamp": "2026-04-30T02:37:00.254757771Z", "message": "[BulkCall] Speechcue call initiated: CAa7756f079baa401d8ac9dc85190f3ac2 \u2192 +14082643178", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:00.749232941Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=15 sid=CAa7756f079baa401d8ac9dc85190f3ac2 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:01.891132155Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=15 sid=CAa7756f079baa401d8ac9dc85190f3ac2 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:01.968533149Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=8 sid=CAa83b340691731f7507208284fda10183 status=completed duration=9s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:01.974939727Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=8 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:00.749232941Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=15 sid=CAa7756f079baa401d8ac9dc85190f3ac2 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:01.891132155Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=15 sid=CAa7756f079baa401d8ac9dc85190f3ac2 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:01.968533149Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=8 sid=CAa83b340691731f7507208284fda10183 status=completed duration=9s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:01.974939727Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=8 status=completed", "severity": "info"}
 {"timestamp": "2026-04-30T02:37:02.165687276Z", "message": "[Twilio] Outbound call: CA40ec019f836b665867c971e337dc23da from=+18884879051 to=+15308857962", "severity": "info"}
 {"timestamp": "2026-04-30T02:37:02.171924612Z", "message": "[BulkCall] Speechcue call initiated: CA40ec019f836b665867c971e337dc23da \u2192 +15308857962", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:06.738954952Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=16 sid=CA40ec019f836b665867c971e337dc23da status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:11.720259540Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=5 sid=CA3051eb514113b4b1347c10fa52d9132c status=completed duration=28s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:11.720264436Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=5 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:06.738954952Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=16 sid=CA40ec019f836b665867c971e337dc23da status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:11.720259540Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=5 sid=CA3051eb514113b4b1347c10fa52d9132c status=completed duration=28s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:11.720264436Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=5 status=completed", "severity": "info"}
 {"timestamp": "2026-04-30T02:37:11.720270615Z", "message": "[Twilio] Outbound call: CA3be903edd5ece5af24fffcd4ce9f4205 from=+18884879051 to=+14083095371", "severity": "info"}
 {"timestamp": "2026-04-30T02:37:11.720275550Z", "message": "[BulkCall] Speechcue call initiated: CA3be903edd5ece5af24fffcd4ce9f4205 \u2192 +14083095371", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:12.720127580Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=17 sid=CA3be903edd5ece5af24fffcd4ce9f4205 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:14.182876063Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=17 sid=CA3be903edd5ece5af24fffcd4ce9f4205 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:14.764869557Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=16 sid=CA40ec019f836b665867c971e337dc23da status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:14.946948688Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=16", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:15.037710918Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=16 sid=CA40ec019f836b665867c971e337dc23da status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:19.086429445Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=12 sid=CA5dec78c05c830410aee4961f37e101da status=no-answer duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:19.086435303Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=12 status=no_answer", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:12.720127580Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=17 sid=CA3be903edd5ece5af24fffcd4ce9f4205 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:14.182876063Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=17 sid=CA3be903edd5ece5af24fffcd4ce9f4205 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:14.764869557Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=16 sid=CA40ec019f836b665867c971e337dc23da status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:14.946948688Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=16", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:15.037710918Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=16 sid=CA40ec019f836b665867c971e337dc23da status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:19.086429445Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=12 sid=CA5dec78c05c830410aee4961f37e101da status=no-answer duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:19.086435303Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=12 status=no_answer", "severity": "info"}
 {"timestamp": "2026-04-30T02:37:19.261189152Z", "message": "[Twilio] Outbound call: CAdd44b5589e4f2774563c626674c46586 from=+18884879051 to=+14082686223", "severity": "info"}
 {"timestamp": "2026-04-30T02:37:19.267360507Z", "message": "[BulkCall] Speechcue call initiated: CAdd44b5589e4f2774563c626674c46586 \u2192 +14082686223", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:19.732744414Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=18 sid=CAdd44b5589e4f2774563c626674c46586 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:23.923304642Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=0 sid=CAc295020024203ff819f6acb5b9b4206f status=completed duration=45s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:23.952182122Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=0 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:19.732744414Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=18 sid=CAdd44b5589e4f2774563c626674c46586 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:23.923304642Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=0 sid=CAc295020024203ff819f6acb5b9b4206f status=completed duration=45s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:23.952182122Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=0 status=completed", "severity": "info"}
 {"timestamp": "2026-04-30T02:37:24.148326664Z", "message": "[Twilio] Outbound call: CAff19a0c0b694d9682a0df8d96572fbc3 from=+18884879051 to=+14087791159", "severity": "info"}
 {"timestamp": "2026-04-30T02:37:24.154791012Z", "message": "[BulkCall] Speechcue call initiated: CAff19a0c0b694d9682a0df8d96572fbc3 \u2192 +14087791159", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:24.234101313Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=19 sid=CAff19a0c0b694d9682a0df8d96572fbc3 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:24.286853883Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=14 sid=CA280acca78ef3f863455b0d44e9df3bdc status=no-answer duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:24.318235059Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=14 status=no_answer", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:24.741199596Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=14 sid=CAdb40b650118d93279e05088f0f633c56 status=no-answer duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:24.741209258Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=14 status=no_answer", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:24.234101313Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=19 sid=CAff19a0c0b694d9682a0df8d96572fbc3 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:24.286853883Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=14 sid=CA280acca78ef3f863455b0d44e9df3bdc status=no-answer duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:24.318235059Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=14 status=no_answer", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:24.741199596Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=14 sid=CAdb40b650118d93279e05088f0f633c56 status=no-answer duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:24.741209258Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=14 status=no_answer", "severity": "info"}
 {"timestamp": "2026-04-30T02:37:24.741214136Z", "message": "[Twilio] Outbound call: CAbf83200b38bac7249d877e81cfc1a2b7 from=+18884879051 to=+14084398730", "severity": "info"}
 {"timestamp": "2026-04-30T02:37:24.741218276Z", "message": "[BulkCall] Speechcue call initiated: CAbf83200b38bac7249d877e81cfc1a2b7 \u2192 +14084398730", "severity": "info"}
 {"timestamp": "2026-04-30T02:37:24.741222391Z", "message": "[Twilio] Outbound call: CA88e6326db4034a27791c40695ab6764d from=+18884879051 to=+14084398730", "severity": "info"}
 {"timestamp": "2026-04-30T02:37:24.741226569Z", "message": "[BulkCall] Speechcue call initiated: CA88e6326db4034a27791c40695ab6764d \u2192 +14084398730", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:24.741229858Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=13 sid=CAde3abd891483746ee3b89b60b4afe2d7 status=no-answer duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:24.741233328Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=13 status=no_answer", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:24.741229858Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=13 sid=CAde3abd891483746ee3b89b60b4afe2d7 status=no-answer duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:24.741233328Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=13 status=no_answer", "severity": "info"}
 {"timestamp": "2026-04-30T02:37:24.880789594Z", "message": "[Twilio] Outbound call: CA8d1a7493e309fb3a22351ce966935c79 from=+18884879051 to=+14082948730", "severity": "info"}
 {"timestamp": "2026-04-30T02:37:24.886806028Z", "message": "[BulkCall] Speechcue call initiated: CA8d1a7493e309fb3a22351ce966935c79 \u2192 +14082948730", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:25.322150043Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=20 sid=CAbf83200b38bac7249d877e81cfc1a2b7 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:26.236429441Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=19 sid=CAff19a0c0b694d9682a0df8d96572fbc3 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:27.325600459Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=20", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:27.366326413Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=20 sid=CAbf83200b38bac7249d877e81cfc1a2b7 status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:30.287823211Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=20 sid=CA88e6326db4034a27791c40695ab6764d status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:30.767273871Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=15 sid=CAa7756f079baa401d8ac9dc85190f3ac2 status=no-answer duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:30.767277434Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=15 status=no_answer", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:25.322150043Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=20 sid=CAbf83200b38bac7249d877e81cfc1a2b7 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:26.236429441Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=19 sid=CAff19a0c0b694d9682a0df8d96572fbc3 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:27.325600459Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=20", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:27.366326413Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=20 sid=CAbf83200b38bac7249d877e81cfc1a2b7 status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:30.287823211Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=20 sid=CA88e6326db4034a27791c40695ab6764d status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:30.767273871Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=15 sid=CAa7756f079baa401d8ac9dc85190f3ac2 status=no-answer duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:30.767277434Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=15 status=no_answer", "severity": "info"}
 {"timestamp": "2026-04-30T02:37:30.767280359Z", "message": "[Twilio] Outbound call: CA6b03738c389dd27ca941b21f75602dc7 from=+18884879051 to=+15303435469", "severity": "info"}
 {"timestamp": "2026-04-30T02:37:30.767283968Z", "message": "[BulkCall] Speechcue call initiated: CA6b03738c389dd27ca941b21f75602dc7 \u2192 +15303435469", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:30.767287166Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=22 sid=CA6b03738c389dd27ca941b21f75602dc7 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:31.384672184Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=21 sid=CA8d1a7493e309fb3a22351ce966935c79 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:31.995566824Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=18 sid=CAdd44b5589e4f2774563c626674c46586 status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:32.009681068Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=18", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:32.337412531Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=20 sid=CA88e6326db4034a27791c40695ab6764d status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:32.356891096Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=20", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:32.769790355Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=22 sid=CA6b03738c389dd27ca941b21f75602dc7 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:32.928586762Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=21 sid=CA8d1a7493e309fb3a22351ce966935c79 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:35.969451818Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=17 sid=CA3be903edd5ece5af24fffcd4ce9f4205 status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:36.116396176Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=17", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:36.366823954Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=20 sid=CAbf83200b38bac7249d877e81cfc1a2b7 status=completed duration=9s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:36.389861321Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=20 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:30.767287166Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=22 sid=CA6b03738c389dd27ca941b21f75602dc7 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:31.384672184Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=21 sid=CA8d1a7493e309fb3a22351ce966935c79 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:31.995566824Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=18 sid=CAdd44b5589e4f2774563c626674c46586 status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:32.009681068Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=18", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:32.337412531Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=20 sid=CA88e6326db4034a27791c40695ab6764d status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:32.356891096Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=20", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:32.769790355Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=22 sid=CA6b03738c389dd27ca941b21f75602dc7 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:32.928586762Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=21 sid=CA8d1a7493e309fb3a22351ce966935c79 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:35.969451818Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=17 sid=CA3be903edd5ece5af24fffcd4ce9f4205 status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:36.116396176Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=17", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:36.366823954Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=20 sid=CAbf83200b38bac7249d877e81cfc1a2b7 status=completed duration=9s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:36.389861321Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=20 status=completed", "severity": "info"}
 {"timestamp": "2026-04-30T02:37:36.764775448Z", "message": "[Twilio] Outbound call: CA1c3a6fcb4cb10657a47fd5e338dc0c3d from=+18884879051 to=+14089817536", "severity": "info"}
 {"timestamp": "2026-04-30T02:37:36.764778701Z", "message": "[BulkCall] Speechcue call initiated: CA1c3a6fcb4cb10657a47fd5e338dc0c3d \u2192 +14089817536", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:36.764782223Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=23 sid=CA1c3a6fcb4cb10657a47fd5e338dc0c3d status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:38.817233396Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=23 sid=CA1c3a6fcb4cb10657a47fd5e338dc0c3d status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:41.393802336Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=20 sid=CA88e6326db4034a27791c40695ab6764d status=completed duration=9s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:41.418767103Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=20 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:36.764782223Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=23 sid=CA1c3a6fcb4cb10657a47fd5e338dc0c3d status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:38.817233396Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=23 sid=CA1c3a6fcb4cb10657a47fd5e338dc0c3d status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:41.393802336Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=20 sid=CA88e6326db4034a27791c40695ab6764d status=completed duration=9s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:41.418767103Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=20 status=completed", "severity": "info"}
 {"timestamp": "2026-04-30T02:37:41.794815877Z", "message": "[Twilio] Outbound call: CAde97cdf24e811454ee426b583375de02 from=+18884879051 to=+14089971144", "severity": "info"}
 {"timestamp": "2026-04-30T02:37:41.794820160Z", "message": "[BulkCall] Speechcue call initiated: CAde97cdf24e811454ee426b583375de02 \u2192 +14089971144", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:41.794825050Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=24 sid=CAde97cdf24e811454ee426b583375de02 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:44.417376734Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=24 sid=CAde97cdf24e811454ee426b583375de02 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:46.995961962Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=2 sid=CAfa2d6f9915cf796b7d532ee284f05113 status=completed duration=63s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:47.033368218Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=2 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:41.794825050Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=24 sid=CAde97cdf24e811454ee426b583375de02 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:44.417376734Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=24 sid=CAde97cdf24e811454ee426b583375de02 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:46.995961962Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=2 sid=CAfa2d6f9915cf796b7d532ee284f05113 status=completed duration=63s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:47.033368218Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=get-started-74 lead=2 status=completed", "severity": "info"}
 {"timestamp": "2026-04-30T02:37:47.217886008Z", "message": "[Twilio] Outbound call: CAdd2ec3719c73d106369b8c15e91eeec6 from=+18884879051 to=+14083001659", "severity": "info"}
 {"timestamp": "2026-04-30T02:37:47.219585113Z", "message": "[BulkCall] Speechcue call initiated: CAdd2ec3719c73d106369b8c15e91eeec6 \u2192 +14083001659", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:47.339009066Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=25 sid=CAdd2ec3719c73d106369b8c15e91eeec6 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:52.811002063Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=19 sid=CAff19a0c0b694d9682a0df8d96572fbc3 status=no-answer duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:52.811007100Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=19 status=no_answer", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:47.339009066Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=25 sid=CAdd2ec3719c73d106369b8c15e91eeec6 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:52.811002063Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=19 sid=CAff19a0c0b694d9682a0df8d96572fbc3 status=no-answer duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:52.811007100Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=19 status=no_answer", "severity": "info"}
 {"timestamp": "2026-04-30T02:37:52.811012232Z", "message": "[Twilio] Outbound call: CA68abf7b04d670d879d2b9712dc73411d from=+18884879051 to=+16508685995", "severity": "info"}
 {"timestamp": "2026-04-30T02:37:52.811015839Z", "message": "[BulkCall] Speechcue call initiated: CA68abf7b04d670d879d2b9712dc73411d \u2192 +16508685995", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:52.812192478Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=26 sid=CA68abf7b04d670d879d2b9712dc73411d status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:54.806967324Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=25 sid=CAdd2ec3719c73d106369b8c15e91eeec6 status=failed duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:54.806972779Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=25 status=failed", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:52.812192478Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=26 sid=CA68abf7b04d670d879d2b9712dc73411d status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:54.806967324Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=25 sid=CAdd2ec3719c73d106369b8c15e91eeec6 status=failed duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:54.806972779Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=25 status=failed", "severity": "info"}
 {"timestamp": "2026-04-30T02:37:54.924074969Z", "message": "[Twilio] Outbound call: CA3fd28b0d562b3cd856986bfea9b88091 from=+18884879051 to=+16509482936", "severity": "info"}
 {"timestamp": "2026-04-30T02:37:54.924083042Z", "message": "[BulkCall] Speechcue call initiated: CA3fd28b0d562b3cd856986bfea9b88091 \u2192 +16509482936", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:55.012876620Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=26 sid=CA68abf7b04d670d879d2b9712dc73411d status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:55.055628590Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=27 sid=CA3fd28b0d562b3cd856986bfea9b88091 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:57.105496501Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=27 sid=CA3fd28b0d562b3cd856986bfea9b88091 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:58.349202272Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=23 sid=CA1c3a6fcb4cb10657a47fd5e338dc0c3d status=no-answer duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:58.375785944Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=23 status=no_answer", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:55.012876620Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=26 sid=CA68abf7b04d670d879d2b9712dc73411d status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:55.055628590Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=27 sid=CA3fd28b0d562b3cd856986bfea9b88091 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:57.105496501Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=27 sid=CA3fd28b0d562b3cd856986bfea9b88091 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:58.349202272Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=23 sid=CA1c3a6fcb4cb10657a47fd5e338dc0c3d status=no-answer duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:58.375785944Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=23 status=no_answer", "severity": "info"}
 {"timestamp": "2026-04-30T02:37:58.771304661Z", "message": "[Twilio] Outbound call: CAf9a695b69d10001c51b6c429c73e12fb from=+18884879051 to=+16503642850", "severity": "info"}
 {"timestamp": "2026-04-30T02:37:58.771309521Z", "message": "[BulkCall] Speechcue call initiated: CAf9a695b69d10001c51b6c429c73e12fb \u2192 +16503642850", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:58.771313915Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=28 sid=CAf9a695b69d10001c51b6c429c73e12fb status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:59.358322364Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=11 sid=CA0ef96f2a2ffa698fd09f5c9bf2a1b800 status=completed duration=64s", "severity": "info"}
-{"timestamp": "2026-04-30T02:37:59.389295675Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=11 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:58.771313915Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=28 sid=CAf9a695b69d10001c51b6c429c73e12fb status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:59.358322364Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=11 sid=CA0ef96f2a2ffa698fd09f5c9bf2a1b800 status=completed duration=64s", "severity": "info"}
+{"timestamp": "2026-04-30T02:37:59.389295675Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=get-started-74 lead=11 status=completed", "severity": "info"}
 {"timestamp": "2026-04-30T02:37:59.798025298Z", "message": "[Twilio] Outbound call: CA3ffd4df703c631e312ee8a17595d6e20 from=+18884879051 to=+19376267232", "severity": "info"}
 {"timestamp": "2026-04-30T02:37:59.798034830Z", "message": "[BulkCall] Speechcue call initiated: CA3ffd4df703c631e312ee8a17595d6e20 \u2192 +19376267232", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:00.814565929Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=28 sid=CAf9a695b69d10001c51b6c429c73e12fb status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:00.814569642Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=22 sid=CA6b03738c389dd27ca941b21f75602dc7 status=no-answer duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:00.841366568Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=22 status=no_answer", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:00.814565929Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=28 sid=CAf9a695b69d10001c51b6c429c73e12fb status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:00.814569642Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=22 sid=CA6b03738c389dd27ca941b21f75602dc7 status=no-answer duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:00.841366568Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=22 status=no_answer", "severity": "info"}
 {"timestamp": "2026-04-30T02:38:01.033984552Z", "message": "[Twilio] Outbound call: CA39a8cd8ffc3f0647a6d6ecfcf0778e87 from=+18884879051 to=+14085291282", "severity": "info"}
 {"timestamp": "2026-04-30T02:38:01.033990927Z", "message": "[BulkCall] Speechcue call initiated: CA39a8cd8ffc3f0647a6d6ecfcf0778e87 \u2192 +14085291282", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:01.150710445Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=30 sid=CA39a8cd8ffc3f0647a6d6ecfcf0778e87 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:01.436671741Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=21 sid=CA8d1a7493e309fb3a22351ce966935c79 status=no-answer duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:01.460160521Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=21 status=no_answer", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:01.150710445Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=30 sid=CA39a8cd8ffc3f0647a6d6ecfcf0778e87 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:01.436671741Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=21 sid=CA8d1a7493e309fb3a22351ce966935c79 status=no-answer duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:01.460160521Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=21 status=no_answer", "severity": "info"}
 {"timestamp": "2026-04-30T02:38:01.742930263Z", "message": "[Twilio] Outbound call: CAca687902e5ef052217c305701d0cf06b from=+18884879051 to=+19374319060", "severity": "info"}
 {"timestamp": "2026-04-30T02:38:01.742934964Z", "message": "[BulkCall] Speechcue call initiated: CAca687902e5ef052217c305701d0cf06b \u2192 +19374319060", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:01.742939439Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=31 sid=CAca687902e5ef052217c305701d0cf06b status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:03.000597688Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=30 sid=CA39a8cd8ffc3f0647a6d6ecfcf0778e87 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:03.137780298Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=30 sid=CA39a8cd8ffc3f0647a6d6ecfcf0778e87 status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:03.209597675Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=30", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:04.786900210Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=29 sid=CA3ffd4df703c631e312ee8a17595d6e20 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:05.173952979Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=31 sid=CAca687902e5ef052217c305701d0cf06b status=busy duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:05.198806316Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=31 status=busy", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:01.742939439Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=31 sid=CAca687902e5ef052217c305701d0cf06b status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:03.000597688Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=30 sid=CA39a8cd8ffc3f0647a6d6ecfcf0778e87 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:03.137780298Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=30 sid=CA39a8cd8ffc3f0647a6d6ecfcf0778e87 status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:03.209597675Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=30", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:04.786900210Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=29 sid=CA3ffd4df703c631e312ee8a17595d6e20 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:05.173952979Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=31 sid=CAca687902e5ef052217c305701d0cf06b status=busy duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:05.198806316Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=31 status=busy", "severity": "info"}
 {"timestamp": "2026-04-30T02:38:05.384514095Z", "message": "[Twilio] Outbound call: CA2f6119aa94c60750dd3f7e0bab0c4584 from=+18884879051 to=+14082037058", "severity": "info"}
 {"timestamp": "2026-04-30T02:38:05.391208601Z", "message": "[BulkCall] Speechcue call initiated: CA2f6119aa94c60750dd3f7e0bab0c4584 \u2192 +14082037058", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:05.821580862Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=29 sid=CA3ffd4df703c631e312ee8a17595d6e20 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:08.287858697Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=29 sid=CA3ffd4df703c631e312ee8a17595d6e20 status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:08.318150467Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=29", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:10.777361030Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=32 sid=CA2f6119aa94c60750dd3f7e0bab0c4584 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:11.843943145Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=24 sid=CAde97cdf24e811454ee426b583375de02 status=no-answer duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:11.843948774Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=24 status=no_answer", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:11.843954277Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=30 sid=CA39a8cd8ffc3f0647a6d6ecfcf0778e87 status=completed duration=8s", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:11.843958677Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=30 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:05.821580862Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=29 sid=CA3ffd4df703c631e312ee8a17595d6e20 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:08.287858697Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=29 sid=CA3ffd4df703c631e312ee8a17595d6e20 status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:08.318150467Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=29", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:10.777361030Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=32 sid=CA2f6119aa94c60750dd3f7e0bab0c4584 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:11.843943145Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=24 sid=CAde97cdf24e811454ee426b583375de02 status=no-answer duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:11.843948774Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=24 status=no_answer", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:11.843954277Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=30 sid=CA39a8cd8ffc3f0647a6d6ecfcf0778e87 status=completed duration=8s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:11.843958677Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=30 status=completed", "severity": "info"}
 {"timestamp": "2026-04-30T02:38:11.967269429Z", "message": "[Twilio] Outbound call: CA838f85ea77e0e2e39daecb9e8d261ee0 from=+18884879051 to=+14089450770", "severity": "info"}
 {"timestamp": "2026-04-30T02:38:11.973230488Z", "message": "[BulkCall] Speechcue call initiated: CA838f85ea77e0e2e39daecb9e8d261ee0 \u2192 +14089450770", "severity": "info"}
 {"timestamp": "2026-04-30T02:38:12.016425431Z", "message": "[Twilio] Outbound call: CA8f8646a20d210e99348c378b79747317 from=+18884879051 to=+14089450770", "severity": "info"}
 {"timestamp": "2026-04-30T02:38:12.023874137Z", "message": "[BulkCall] Speechcue call initiated: CA8f8646a20d210e99348c378b79747317 \u2192 +14089450770", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:12.140940097Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=33 sid=CA8f8646a20d210e99348c378b79747317 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:12.140940097Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=33 sid=CA8f8646a20d210e99348c378b79747317 status=initiated duration=0s", "severity": "info"}
 {"timestamp": "2026-04-30T02:38:12.142242822Z", "message": "[Twilio] Outbound call: CA08809488caf39529572e9e98de50a0f7 from=+18884879051 to=+14089125447", "severity": "info"}
 {"timestamp": "2026-04-30T02:38:12.148147279Z", "message": "[BulkCall] Speechcue call initiated: CA08809488caf39529572e9e98de50a0f7 \u2192 +14089125447", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:12.283163909Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=33 sid=CA838f85ea77e0e2e39daecb9e8d261ee0 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:12.859180753Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=33 sid=CA838f85ea77e0e2e39daecb9e8d261ee0 status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:12.859187571Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=33", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:12.859193848Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=33 sid=CA8f8646a20d210e99348c378b79747317 status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:12.859200245Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=33", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:12.859206254Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=32 sid=CA2f6119aa94c60750dd3f7e0bab0c4584 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:16.851094647Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=34 sid=CA08809488caf39529572e9e98de50a0f7 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:17.955317877Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=16 sid=CA40ec019f836b665867c971e337dc23da status=completed duration=63s", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:17.982921745Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=16 status=completed", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:20.854185368Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=34 sid=CA08809488caf39529572e9e98de50a0f7 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:21.424742176Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=26 sid=CA68abf7b04d670d879d2b9712dc73411d status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:21.445552536Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=26", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:25.037615135Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=27 sid=CA3fd28b0d562b3cd856986bfea9b88091 status=no-answer duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:25.065671001Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=27 status=no_answer", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:12.283163909Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=33 sid=CA838f85ea77e0e2e39daecb9e8d261ee0 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:12.859180753Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=33 sid=CA838f85ea77e0e2e39daecb9e8d261ee0 status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:12.859187571Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=33", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:12.859193848Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=33 sid=CA8f8646a20d210e99348c378b79747317 status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:12.859200245Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=33", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:12.859206254Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=32 sid=CA2f6119aa94c60750dd3f7e0bab0c4584 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:16.851094647Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=34 sid=CA08809488caf39529572e9e98de50a0f7 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:17.955317877Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=16 sid=CA40ec019f836b665867c971e337dc23da status=completed duration=63s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:17.982921745Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=get-started-74 lead=16 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:20.854185368Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=34 sid=CA08809488caf39529572e9e98de50a0f7 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:21.424742176Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=26 sid=CA68abf7b04d670d879d2b9712dc73411d status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:21.445552536Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=26", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:25.037615135Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=27 sid=CA3fd28b0d562b3cd856986bfea9b88091 status=no-answer duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:25.065671001Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=27 status=no_answer", "severity": "info"}
 {"timestamp": "2026-04-30T02:38:25.268205654Z", "message": "[Twilio] Outbound call: CA4e22cd2fd9f4a7d30a61e1b252cc11b9 from=+18884879051 to=+14088670727", "severity": "info"}
 {"timestamp": "2026-04-30T02:38:25.269757011Z", "message": "[BulkCall] Speechcue call initiated: CA4e22cd2fd9f4a7d30a61e1b252cc11b9 \u2192 +14088670727", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:25.303126108Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=35 sid=CA4e22cd2fd9f4a7d30a61e1b252cc11b9 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:26.938950225Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=35 sid=CA4e22cd2fd9f4a7d30a61e1b252cc11b9 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:28.884558058Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=28 sid=CAf9a695b69d10001c51b6c429c73e12fb status=no-answer duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:28.884562791Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=28 status=no_answer", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:25.303126108Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=35 sid=CA4e22cd2fd9f4a7d30a61e1b252cc11b9 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:26.938950225Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=35 sid=CA4e22cd2fd9f4a7d30a61e1b252cc11b9 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:28.884558058Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=28 sid=CAf9a695b69d10001c51b6c429c73e12fb status=no-answer duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:28.884562791Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=28 status=no_answer", "severity": "info"}
 {"timestamp": "2026-04-30T02:38:28.939212060Z", "message": "[Twilio] Outbound call: CA7a34aea71bad11cdc388edfb45d7db69 from=+18884879051 to=+14088021493", "severity": "info"}
 {"timestamp": "2026-04-30T02:38:28.944078063Z", "message": "[BulkCall] Speechcue call initiated: CA7a34aea71bad11cdc388edfb45d7db69 \u2192 +14088021493", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:31.414108204Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=36 sid=CA7a34aea71bad11cdc388edfb45d7db69 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:33.336496170Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=36 sid=CA7a34aea71bad11cdc388edfb45d7db69 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:35.900582731Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=18 sid=CAdd44b5589e4f2774563c626674c46586 status=completed duration=64s", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:35.900587395Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=18 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:31.414108204Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=36 sid=CA7a34aea71bad11cdc388edfb45d7db69 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:33.336496170Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=36 sid=CA7a34aea71bad11cdc388edfb45d7db69 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:35.900582731Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=18 sid=CAdd44b5589e4f2774563c626674c46586 status=completed duration=64s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:35.900587395Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=get-started-74 lead=18 status=completed", "severity": "info"}
 {"timestamp": "2026-04-30T02:38:35.900591282Z", "message": "[Twilio] Outbound call: CA01931a90236e0844727bd78546a84dff from=+18884879051 to=+14088720571", "severity": "info"}
 {"timestamp": "2026-04-30T02:38:35.900595789Z", "message": "[BulkCall] Speechcue call initiated: CA01931a90236e0844727bd78546a84dff \u2192 +14088720571", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:37.374168815Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=37 sid=CA01931a90236e0844727bd78546a84dff status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:38.955911249Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=37 sid=CA01931a90236e0844727bd78546a84dff status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:39.317251533Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=17 sid=CA3be903edd5ece5af24fffcd4ce9f4205 status=completed duration=64s", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:39.345471985Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=17 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:37.374168815Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=37 sid=CA01931a90236e0844727bd78546a84dff status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:38.955911249Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=37 sid=CA01931a90236e0844727bd78546a84dff status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:39.317251533Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=17 sid=CA3be903edd5ece5af24fffcd4ce9f4205 status=completed duration=64s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:39.345471985Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=get-started-74 lead=17 status=completed", "severity": "info"}
 {"timestamp": "2026-04-30T02:38:39.537615086Z", "message": "[Twilio] Outbound call: CAdd946750940e2618888dfe73f4c9dd70 from=+18884879051 to=+14089730915", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:39.537620323Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=32 sid=CA2f6119aa94c60750dd3f7e0bab0c4584 status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:39.537620323Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=32 sid=CA2f6119aa94c60750dd3f7e0bab0c4584 status=in-progress duration=0s", "severity": "info"}
 {"timestamp": "2026-04-30T02:38:39.543522690Z", "message": "[BulkCall] Speechcue call initiated: CAdd946750940e2618888dfe73f4c9dd70 \u2192 +14089730915", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:39.558833350Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=32", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:41.973789434Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=34", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:41.973793624Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=34 sid=CA08809488caf39529572e9e98de50a0f7 status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:43.369276800Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=38 sid=CAdd946750940e2618888dfe73f4c9dd70 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:45.379899377Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=38 sid=CAdd946750940e2618888dfe73f4c9dd70 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:50.990949512Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=36 sid=CA7a34aea71bad11cdc388edfb45d7db69 status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:50.999538872Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=36", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:55.438115401Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=35 sid=CA4e22cd2fd9f4a7d30a61e1b252cc11b9 status=no-answer duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:55.976190279Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=35 status=no_answer", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:39.558833350Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=32", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:41.973789434Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=34", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:41.973793624Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=34 sid=CA08809488caf39529572e9e98de50a0f7 status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:43.369276800Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=38 sid=CAdd946750940e2618888dfe73f4c9dd70 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:45.379899377Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=38 sid=CAdd946750940e2618888dfe73f4c9dd70 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:50.990949512Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=36 sid=CA7a34aea71bad11cdc388edfb45d7db69 status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:50.999538872Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=36", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:55.438115401Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=35 sid=CA4e22cd2fd9f4a7d30a61e1b252cc11b9 status=no-answer duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:55.976190279Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=35 status=no_answer", "severity": "info"}
 {"timestamp": "2026-04-30T02:38:55.976195702Z", "message": "[Twilio] Outbound call: CA0cac032c249535c7c4e6151d50555571 from=+18884879051 to=+15108486328", "severity": "info"}
 {"timestamp": "2026-04-30T02:38:55.976201084Z", "message": "[BulkCall] Speechcue call initiated: CA0cac032c249535c7c4e6151d50555571 \u2192 +15108486328", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:55.976206799Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=39 sid=CA0cac032c249535c7c4e6151d50555571 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:38:59.044101142Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=39 sid=CA0cac032c249535c7c4e6151d50555571 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:07.452271708Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=37 sid=CA01931a90236e0844727bd78546a84dff status=no-answer duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:07.482661968Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=37 status=no_answer", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:55.976206799Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=39 sid=CA0cac032c249535c7c4e6151d50555571 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:38:59.044101142Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=39 sid=CA0cac032c249535c7c4e6151d50555571 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:07.452271708Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=37 sid=CA01931a90236e0844727bd78546a84dff status=no-answer duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:07.482661968Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=37 status=no_answer", "severity": "info"}
 {"timestamp": "2026-04-30T02:39:07.971925021Z", "message": "[Twilio] Outbound call: CAcf60fead6e1154246bd036fa75b635da from=+18884879051 to=+14083482991", "severity": "info"}
 {"timestamp": "2026-04-30T02:39:07.971928704Z", "message": "[BulkCall] Speechcue call initiated: CAcf60fead6e1154246bd036fa75b635da \u2192 +14083482991", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:07.971933294Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=40 sid=CAcf60fead6e1154246bd036fa75b635da status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:09.381025940Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=40 sid=CAcf60fead6e1154246bd036fa75b635da status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:11.504054912Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=29 sid=CA3ffd4df703c631e312ee8a17595d6e20 status=completed duration=63s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:11.529604859Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=29 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:07.971933294Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=40 sid=CAcf60fead6e1154246bd036fa75b635da status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:09.381025940Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=40 sid=CAcf60fead6e1154246bd036fa75b635da status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:11.504054912Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=29 sid=CA3ffd4df703c631e312ee8a17595d6e20 status=completed duration=63s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:11.529604859Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=get-started-74 lead=29 status=completed", "severity": "info"}
 {"timestamp": "2026-04-30T02:39:11.982164495Z", "message": "[Twilio] Outbound call: CAf5e8584b1e01118a57f06a6b46585524 from=+18884879051 to=+14082573926", "severity": "info"}
 {"timestamp": "2026-04-30T02:39:11.982168526Z", "message": "[BulkCall] Speechcue call initiated: CAf5e8584b1e01118a57f06a6b46585524 \u2192 +14082573926", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:11.982172202Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=41 sid=CAf5e8584b1e01118a57f06a6b46585524 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:13.403098380Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=38 sid=CAdd946750940e2618888dfe73f4c9dd70 status=no-answer duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:13.435485845Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=38 status=no_answer", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:13.448288012Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=41 sid=CAf5e8584b1e01118a57f06a6b46585524 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:11.982172202Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=41 sid=CAf5e8584b1e01118a57f06a6b46585524 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:13.403098380Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=38 sid=CAdd946750940e2618888dfe73f4c9dd70 status=no-answer duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:13.435485845Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=38 status=no_answer", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:13.448288012Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=41 sid=CAf5e8584b1e01118a57f06a6b46585524 status=ringing duration=0s", "severity": "info"}
 {"timestamp": "2026-04-30T02:39:13.628314248Z", "message": "[Twilio] Outbound call: CAbcfeefa254852aba552e4e9f778da322 from=+18884879051 to=+14082536318", "severity": "info"}
 {"timestamp": "2026-04-30T02:39:13.630037770Z", "message": "[BulkCall] Speechcue call initiated: CAbcfeefa254852aba552e4e9f778da322 \u2192 +14082536318", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:13.988380798Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=42 sid=CAbcfeefa254852aba552e4e9f778da322 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:14.098355980Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=40", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:14.107114390Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=40 sid=CAcf60fead6e1154246bd036fa75b635da status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:16.009484592Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=33 sid=CA838f85ea77e0e2e39daecb9e8d261ee0 status=completed duration=63s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:16.009489827Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=33 sid=CA8f8646a20d210e99348c378b79747317 status=completed duration=63s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:16.009495729Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=33 status=completed", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:16.009500711Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=33 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:13.988380798Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=42 sid=CAbcfeefa254852aba552e4e9f778da322 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:14.098355980Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=40", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:14.107114390Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=40 sid=CAcf60fead6e1154246bd036fa75b635da status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:16.009484592Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=33 sid=CA838f85ea77e0e2e39daecb9e8d261ee0 status=completed duration=63s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:16.009489827Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=33 sid=CA8f8646a20d210e99348c378b79747317 status=completed duration=63s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:16.009495729Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=get-started-74 lead=33 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:16.009500711Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=get-started-74 lead=33 status=completed", "severity": "info"}
 {"timestamp": "2026-04-30T02:39:16.105825196Z", "message": "[Twilio] Outbound call: CAee1eede0c5473dbead5390d238618b25 from=+18884879051 to=+18042484556", "severity": "info"}
 {"timestamp": "2026-04-30T02:39:16.111975462Z", "message": "[BulkCall] Speechcue call initiated: CAee1eede0c5473dbead5390d238618b25 \u2192 +18042484556", "severity": "info"}
 {"timestamp": "2026-04-30T02:39:16.147526308Z", "message": "[Twilio] Outbound call: CA25c488a043e2ac84031c1be6f7158c68 from=+18884879051 to=+18042484556", "severity": "info"}
 {"timestamp": "2026-04-30T02:39:16.155582813Z", "message": "[BulkCall] Speechcue call initiated: CA25c488a043e2ac84031c1be6f7158c68 \u2192 +18042484556", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:16.252964717Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=43 sid=CAee1eede0c5473dbead5390d238618b25 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:16.252964717Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=43 sid=CAee1eede0c5473dbead5390d238618b25 status=initiated duration=0s", "severity": "info"}
 {"timestamp": "2026-04-30T02:39:16.276949062Z", "message": "[Twilio] Outbound call: CAad1d8177749f40ffce02cc6e5fc4185c from=+18884879051 to=+14082539919", "severity": "info"}
 {"timestamp": "2026-04-30T02:39:16.283688647Z", "message": "[BulkCall] Speechcue call initiated: CAad1d8177749f40ffce02cc6e5fc4185c \u2192 +14082539919", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:16.401310785Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=44 sid=CAad1d8177749f40ffce02cc6e5fc4185c status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:16.445960185Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=42 sid=CAbcfeefa254852aba552e4e9f778da322 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:18.004556751Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=43 sid=CAee1eede0c5473dbead5390d238618b25 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:18.004560107Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=43 sid=CA25c488a043e2ac84031c1be6f7158c68 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:19.003766354Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=43 sid=CA25c488a043e2ac84031c1be6f7158c68 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:19.003781648Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=43", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:19.003786963Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=43 sid=CA25c488a043e2ac84031c1be6f7158c68 status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:20.331200303Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=39 sid=CA0cac032c249535c7c4e6151d50555571 status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:20.403642503Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=39", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:25.010629931Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=26 sid=CA68abf7b04d670d879d2b9712dc73411d status=completed duration=63s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:25.010634761Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=26 status=completed", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:27.024357816Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=44 sid=CAad1d8177749f40ffce02cc6e5fc4185c status=failed duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:27.042155597Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=44 status=failed", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:16.401310785Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=44 sid=CAad1d8177749f40ffce02cc6e5fc4185c status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:16.445960185Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=42 sid=CAbcfeefa254852aba552e4e9f778da322 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:18.004556751Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=43 sid=CAee1eede0c5473dbead5390d238618b25 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:18.004560107Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=43 sid=CA25c488a043e2ac84031c1be6f7158c68 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:19.003766354Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=43 sid=CA25c488a043e2ac84031c1be6f7158c68 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:19.003781648Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=43", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:19.003786963Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=43 sid=CA25c488a043e2ac84031c1be6f7158c68 status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:20.331200303Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=39 sid=CA0cac032c249535c7c4e6151d50555571 status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:20.403642503Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=39", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:25.010629931Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=26 sid=CA68abf7b04d670d879d2b9712dc73411d status=completed duration=63s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:25.010634761Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=get-started-74 lead=26 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:27.024357816Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=44 sid=CAad1d8177749f40ffce02cc6e5fc4185c status=failed duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:27.042155597Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=44 status=failed", "severity": "info"}
 {"timestamp": "2026-04-30T02:39:27.232974081Z", "message": "[Twilio] Outbound call: CAc012eb2ae2390b3b3c61facef3026820 from=+18884879051 to=+19175238962", "severity": "info"}
 {"timestamp": "2026-04-30T02:39:27.238957910Z", "message": "[BulkCall] Speechcue call initiated: CAc012eb2ae2390b3b3c61facef3026820 \u2192 +19175238962", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:27.285085322Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=45 sid=CAc012eb2ae2390b3b3c61facef3026820 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:28.000292852Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=45 sid=CAc012eb2ae2390b3b3c61facef3026820 status=busy duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:28.000297645Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=45 status=busy", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:27.285085322Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=45 sid=CAc012eb2ae2390b3b3c61facef3026820 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:28.000292852Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=45 sid=CAc012eb2ae2390b3b3c61facef3026820 status=busy duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:28.000297645Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=45 status=busy", "severity": "info"}
 {"timestamp": "2026-04-30T02:39:28.096931369Z", "message": "[Twilio] Outbound call: CAce0842b81a85f673861c2675899019c0 from=+18884879051 to=+17145926380", "severity": "info"}
 {"timestamp": "2026-04-30T02:39:28.098253567Z", "message": "[BulkCall] Speechcue call initiated: CAce0842b81a85f673861c2675899019c0 \u2192 +17145926380", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:28.198029490Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=46 sid=CAce0842b81a85f673861c2675899019c0 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:29.492338837Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=46 sid=CAce0842b81a85f673861c2675899019c0 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:29.649197531Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=46 sid=CAce0842b81a85f673861c2675899019c0 status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:30.034950436Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=46", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:35.347426938Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=40 sid=CAcf60fead6e1154246bd036fa75b635da status=completed duration=22s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:35.376049225Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=40 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:28.198029490Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=46 sid=CAce0842b81a85f673861c2675899019c0 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:29.492338837Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=46 sid=CAce0842b81a85f673861c2675899019c0 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:29.649197531Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=46 sid=CAce0842b81a85f673861c2675899019c0 status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:30.034950436Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=46", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:35.347426938Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=40 sid=CAcf60fead6e1154246bd036fa75b635da status=completed duration=22s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:35.376049225Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=40 status=completed", "severity": "info"}
 {"timestamp": "2026-04-30T02:39:35.596351131Z", "message": "[Twilio] Outbound call: CA90ed0d89ecf7d83e7e3fe151913cb1ba from=+18884879051 to=+14086750767", "severity": "info"}
 {"timestamp": "2026-04-30T02:39:35.596355666Z", "message": "[BulkCall] Speechcue call initiated: CA90ed0d89ecf7d83e7e3fe151913cb1ba \u2192 +14086750767", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:35.688283138Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=47 sid=CA90ed0d89ecf7d83e7e3fe151913cb1ba status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:37.072989548Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=47 sid=CA90ed0d89ecf7d83e7e3fe151913cb1ba status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:37.686921068Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=42", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:37.723129516Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=42 sid=CAbcfeefa254852aba552e4e9f778da322 status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:42.082168351Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=41 sid=CAf5e8584b1e01118a57f06a6b46585524 status=no-answer duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:42.082173609Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=41 status=no_answer", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:35.688283138Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=47 sid=CA90ed0d89ecf7d83e7e3fe151913cb1ba status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:37.072989548Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=47 sid=CA90ed0d89ecf7d83e7e3fe151913cb1ba status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:37.686921068Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=42", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:37.723129516Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=42 sid=CAbcfeefa254852aba552e4e9f778da322 status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:42.082168351Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=41 sid=CAf5e8584b1e01118a57f06a6b46585524 status=no-answer duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:42.082173609Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=41 status=no_answer", "severity": "info"}
 {"timestamp": "2026-04-30T02:39:42.126421651Z", "message": "[Twilio] Outbound call: CA8b6d6e6ad78b364386c8773fc0697227 from=+18884879051 to=+14087457850", "severity": "info"}
 {"timestamp": "2026-04-30T02:39:42.134459413Z", "message": "[BulkCall] Speechcue call initiated: CA8b6d6e6ad78b364386c8773fc0697227 \u2192 +14087457850", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:42.221697652Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=48 sid=CA8b6d6e6ad78b364386c8773fc0697227 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:43.080340592Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=32 sid=CA2f6119aa94c60750dd3f7e0bab0c4584 status=completed duration=63s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:43.080343887Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=32 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:42.221697652Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=48 sid=CA8b6d6e6ad78b364386c8773fc0697227 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:43.080340592Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=32 sid=CA2f6119aa94c60750dd3f7e0bab0c4584 status=completed duration=63s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:43.080343887Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=get-started-74 lead=32 status=completed", "severity": "info"}
 {"timestamp": "2026-04-30T02:39:43.184053289Z", "message": "[Twilio] Outbound call: CA37368c64d28375998d0ee591e5a80dd6 from=+18884879051 to=+14087341509", "severity": "info"}
 {"timestamp": "2026-04-30T02:39:43.187483173Z", "message": "[BulkCall] Speechcue call initiated: CA37368c64d28375998d0ee591e5a80dd6 \u2192 +14087341509", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:43.311841080Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=49 sid=CA37368c64d28375998d0ee591e5a80dd6 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:45.249194892Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=48 sid=CA8b6d6e6ad78b364386c8773fc0697227 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:45.456872468Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=49 sid=CA37368c64d28375998d0ee591e5a80dd6 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:45.568241666Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=34 sid=CA08809488caf39529572e9e98de50a0f7 status=completed duration=64s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:45.592508638Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=34 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:43.311841080Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=49 sid=CA37368c64d28375998d0ee591e5a80dd6 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:45.249194892Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=48 sid=CA8b6d6e6ad78b364386c8773fc0697227 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:45.456872468Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=49 sid=CA37368c64d28375998d0ee591e5a80dd6 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:45.568241666Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=34 sid=CA08809488caf39529572e9e98de50a0f7 status=completed duration=64s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:45.592508638Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=get-started-74 lead=34 status=completed", "severity": "info"}
 {"timestamp": "2026-04-30T02:39:46.101348889Z", "message": "[Twilio] Outbound call: CA5508cecac080dac4058a017fb42a82c3 from=+18884879051 to=+14083918879", "severity": "info"}
 {"timestamp": "2026-04-30T02:39:46.101352465Z", "message": "[BulkCall] Speechcue call initiated: CA5508cecac080dac4058a017fb42a82c3 \u2192 +14083918879", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:46.101356766Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=50 sid=CA5508cecac080dac4058a017fb42a82c3 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:46.263970501Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=43 sid=CAee1eede0c5473dbead5390d238618b25 status=no-answer duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:46.286836189Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=43 status=no_answer", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:46.101356766Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=50 sid=CA5508cecac080dac4058a017fb42a82c3 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:46.263970501Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=43 sid=CAee1eede0c5473dbead5390d238618b25 status=no-answer duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:46.286836189Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=43 status=no_answer", "severity": "info"}
 {"timestamp": "2026-04-30T02:39:46.483383857Z", "message": "[Twilio] Outbound call: CA2aee034bca4abb0f7550977a0c9a3802 from=+18884879051 to=+14089961639", "severity": "info"}
 {"timestamp": "2026-04-30T02:39:46.484418094Z", "message": "[BulkCall] Speechcue call initiated: CA2aee034bca4abb0f7550977a0c9a3802 \u2192 +14089961639", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:46.598735134Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=51 sid=CA2aee034bca4abb0f7550977a0c9a3802 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:48.300696589Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=46 sid=CAce0842b81a85f673861c2675899019c0 status=completed duration=19s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:48.325200639Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=46 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:46.598735134Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=51 sid=CA2aee034bca4abb0f7550977a0c9a3802 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:48.300696589Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=46 sid=CAce0842b81a85f673861c2675899019c0 status=completed duration=19s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:48.325200639Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=46 status=completed", "severity": "info"}
 {"timestamp": "2026-04-30T02:39:48.517444903Z", "message": "[Twilio] Outbound call: CAc5fe906444ac2880b21edffbe06e68d2 from=+18884879051 to=+16147382941", "severity": "info"}
 {"timestamp": "2026-04-30T02:39:48.522361952Z", "message": "[BulkCall] Speechcue call initiated: CAc5fe906444ac2880b21edffbe06e68d2 \u2192 +16147382941", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:49.244478916Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=50 sid=CA5508cecac080dac4058a017fb42a82c3 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:49.305629059Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=52 sid=CAc5fe906444ac2880b21edffbe06e68d2 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:49.658568961Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=50 sid=CA5508cecac080dac4058a017fb42a82c3 status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:49.665026894Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=50", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:50.345070084Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=52 sid=CAc5fe906444ac2880b21edffbe06e68d2 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:54.158254652Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=36 sid=CA7a34aea71bad11cdc388edfb45d7db69 status=completed duration=63s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:54.189193902Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=36 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:49.244478916Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=50 sid=CA5508cecac080dac4058a017fb42a82c3 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:49.305629059Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=52 sid=CAc5fe906444ac2880b21edffbe06e68d2 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:49.658568961Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=50 sid=CA5508cecac080dac4058a017fb42a82c3 status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:49.665026894Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=50", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:50.345070084Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=52 sid=CAc5fe906444ac2880b21edffbe06e68d2 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:54.158254652Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=36 sid=CA7a34aea71bad11cdc388edfb45d7db69 status=completed duration=63s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:54.189193902Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=get-started-74 lead=36 status=completed", "severity": "info"}
 {"timestamp": "2026-04-30T02:39:54.390281382Z", "message": "[Twilio] Outbound call: CAdcbd3b31e55759e89f5610a4ae97ab8a from=+18884879051 to=+19519708413", "severity": "info"}
 {"timestamp": "2026-04-30T02:39:54.393050687Z", "message": "[BulkCall] Speechcue call initiated: CAdcbd3b31e55759e89f5610a4ae97ab8a \u2192 +19519708413", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:54.513768047Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=53 sid=CAdcbd3b31e55759e89f5610a4ae97ab8a status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:55.129503809Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=48 sid=CA8b6d6e6ad78b364386c8773fc0697227 status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:55.129509104Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=48", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:57.127602902Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=42 sid=CAbcfeefa254852aba552e4e9f778da322 status=completed duration=19s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:57.127607384Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=42 status=completed", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:57.127610949Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=51 sid=CA2aee034bca4abb0f7550977a0c9a3802 status=failed duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:57.127616361Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=51 status=failed", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:54.513768047Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=53 sid=CAdcbd3b31e55759e89f5610a4ae97ab8a status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:55.129503809Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=48 sid=CA8b6d6e6ad78b364386c8773fc0697227 status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:55.129509104Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=48", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:57.127602902Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=42 sid=CAbcfeefa254852aba552e4e9f778da322 status=completed duration=19s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:57.127607384Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=42 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:57.127610949Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=51 sid=CA2aee034bca4abb0f7550977a0c9a3802 status=failed duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:57.127616361Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=51 status=failed", "severity": "info"}
 {"timestamp": "2026-04-30T02:39:57.164976383Z", "message": "[Twilio] Outbound call: CA3160e50e9950fea2f0cb66cbce27c011 from=+18884879051 to=+19518947643", "severity": "info"}
 {"timestamp": "2026-04-30T02:39:57.171786457Z", "message": "[BulkCall] Speechcue call initiated: CA3160e50e9950fea2f0cb66cbce27c011 \u2192 +19518947643", "severity": "info"}
 {"timestamp": "2026-04-30T02:39:57.280843757Z", "message": "[Twilio] Outbound call: CA53cd96105549ecb5a459370af6a9faa2 from=+18884879051 to=+19518947643", "severity": "info"}
 {"timestamp": "2026-04-30T02:39:57.280849428Z", "message": "[BulkCall] Speechcue call initiated: CA53cd96105549ecb5a459370af6a9faa2 \u2192 +19518947643", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:57.355818666Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=54 sid=CA53cd96105549ecb5a459370af6a9faa2 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:58.677708748Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=54 sid=CA53cd96105549ecb5a459370af6a9faa2 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:59.155156054Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=47", "severity": "info"}
-{"timestamp": "2026-04-30T02:39:59.155159064Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=47 sid=CA90ed0d89ecf7d83e7e3fe151913cb1ba status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:00.443949843Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=54 sid=CA3160e50e9950fea2f0cb66cbce27c011 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:01.730521011Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=54 sid=CA3160e50e9950fea2f0cb66cbce27c011 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:02.460333253Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=52 sid=CAc5fe906444ac2880b21edffbe06e68d2 status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:02.471776887Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=52", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:07.171725962Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=53 sid=CAdcbd3b31e55759e89f5610a4ae97ab8a status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:07.227390375Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=53 sid=CAdcbd3b31e55759e89f5610a4ae97ab8a status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:07.246683749Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=53", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:13.317868349Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=49 sid=CA37368c64d28375998d0ee591e5a80dd6 status=no-answer duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:13.365602988Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=49 status=no_answer", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:57.355818666Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=54 sid=CA53cd96105549ecb5a459370af6a9faa2 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:58.677708748Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=54 sid=CA53cd96105549ecb5a459370af6a9faa2 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:59.155156054Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=47", "severity": "info"}
+{"timestamp": "2026-04-30T02:39:59.155159064Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=47 sid=CA90ed0d89ecf7d83e7e3fe151913cb1ba status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:00.443949843Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=54 sid=CA3160e50e9950fea2f0cb66cbce27c011 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:01.730521011Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=54 sid=CA3160e50e9950fea2f0cb66cbce27c011 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:02.460333253Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=52 sid=CAc5fe906444ac2880b21edffbe06e68d2 status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:02.471776887Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=52", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:07.171725962Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=53 sid=CAdcbd3b31e55759e89f5610a4ae97ab8a status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:07.227390375Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=53 sid=CAdcbd3b31e55759e89f5610a4ae97ab8a status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:07.246683749Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=53", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:13.317868349Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=49 sid=CA37368c64d28375998d0ee591e5a80dd6 status=no-answer duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:13.365602988Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=49 status=no_answer", "severity": "info"}
 {"timestamp": "2026-04-30T02:40:13.566407819Z", "message": "[Twilio] Outbound call: CA02282b410521655a2746ed6bc3a5ae03 from=+18884879051 to=+14082231363", "severity": "info"}
 {"timestamp": "2026-04-30T02:40:13.568091819Z", "message": "[BulkCall] Speechcue call initiated: CA02282b410521655a2746ed6bc3a5ae03 \u2192 +14082231363", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:13.684249571Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=55 sid=CA02282b410521655a2746ed6bc3a5ae03 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:15.535329523Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=55 sid=CA02282b410521655a2746ed6bc3a5ae03 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:18.795848690Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=53 sid=CAdcbd3b31e55759e89f5610a4ae97ab8a status=completed duration=11s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:18.823370194Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=53 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:13.684249571Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=55 sid=CA02282b410521655a2746ed6bc3a5ae03 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:15.535329523Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=55 sid=CA02282b410521655a2746ed6bc3a5ae03 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:18.795848690Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=53 sid=CAdcbd3b31e55759e89f5610a4ae97ab8a status=completed duration=11s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:18.823370194Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=53 status=completed", "severity": "info"}
 {"timestamp": "2026-04-30T02:40:19.217449674Z", "message": "[Twilio] Outbound call: CA526ebd259ec5dcb14fdeb3a65917a6e7 from=+18884879051 to=+19517044302", "severity": "info"}
 {"timestamp": "2026-04-30T02:40:19.217454587Z", "message": "[BulkCall] Speechcue call initiated: CA526ebd259ec5dcb14fdeb3a65917a6e7 \u2192 +19517044302", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:19.217459837Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=56 sid=CA526ebd259ec5dcb14fdeb3a65917a6e7 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:22.503694165Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=43 sid=CA25c488a043e2ac84031c1be6f7158c68 status=completed duration=63s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:22.537866020Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=43 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:19.217459837Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=56 sid=CA526ebd259ec5dcb14fdeb3a65917a6e7 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:22.503694165Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=43 sid=CA25c488a043e2ac84031c1be6f7158c68 status=completed duration=63s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:22.537866020Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=get-started-74 lead=43 status=completed", "severity": "info"}
 {"timestamp": "2026-04-30T02:40:22.728565495Z", "message": "[Twilio] Outbound call: CA7efc6bb54c76b46dc1b97209dfb4c223 from=+18884879051 to=+16508044999", "severity": "info"}
 {"timestamp": "2026-04-30T02:40:22.729944025Z", "message": "[BulkCall] Speechcue call initiated: CA7efc6bb54c76b46dc1b97209dfb4c223 \u2192 +16508044999", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:22.867369587Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=57 sid=CA7efc6bb54c76b46dc1b97209dfb4c223 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:23.595193506Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=39 sid=CA0cac032c249535c7c4e6151d50555571 status=completed duration=63s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:23.620833419Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=39 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:22.867369587Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=57 sid=CA7efc6bb54c76b46dc1b97209dfb4c223 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:23.595193506Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=39 sid=CA0cac032c249535c7c4e6151d50555571 status=completed duration=63s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:23.620833419Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=get-started-74 lead=39 status=completed", "severity": "info"}
 {"timestamp": "2026-04-30T02:40:23.809055012Z", "message": "[Twilio] Outbound call: CA38b46ffe13ae4df85e776f61fab618b1 from=+18884879051 to=+16504943726", "severity": "info"}
 {"timestamp": "2026-04-30T02:40:23.814884288Z", "message": "[BulkCall] Speechcue call initiated: CA38b46ffe13ae4df85e776f61fab618b1 \u2192 +16504943726", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:25.224863129Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=58 sid=CA38b46ffe13ae4df85e776f61fab618b1 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:25.587733863Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=57 sid=CA7efc6bb54c76b46dc1b97209dfb4c223 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:27.449569169Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=57 sid=CA7efc6bb54c76b46dc1b97209dfb4c223 status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:27.465289808Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=57", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:27.466643643Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=54 sid=CA53cd96105549ecb5a459370af6a9faa2 status=no-answer duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:27.494324306Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=54 status=no_answer", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:25.224863129Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=58 sid=CA38b46ffe13ae4df85e776f61fab618b1 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:25.587733863Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=57 sid=CA7efc6bb54c76b46dc1b97209dfb4c223 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:27.449569169Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=57 sid=CA7efc6bb54c76b46dc1b97209dfb4c223 status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:27.465289808Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=57", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:27.466643643Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=54 sid=CA53cd96105549ecb5a459370af6a9faa2 status=no-answer duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:27.494324306Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=54 status=no_answer", "severity": "info"}
 {"timestamp": "2026-04-30T02:40:27.678626539Z", "message": "[Twilio] Outbound call: CA61454acb4902e9a7ad631dbfc51b57a9 from=+18884879051 to=+16508571243", "severity": "info"}
 {"timestamp": "2026-04-30T02:40:27.685736654Z", "message": "[BulkCall] Speechcue call initiated: CA61454acb4902e9a7ad631dbfc51b57a9 \u2192 +16508571243", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:27.742924379Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=58 sid=CA38b46ffe13ae4df85e776f61fab618b1 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:28.854476447Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=59 sid=CA61454acb4902e9a7ad631dbfc51b57a9 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:30.530514148Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=54 sid=CA3160e50e9950fea2f0cb66cbce27c011 status=no-answer duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:30.556286846Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=54 status=no_answer", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:30.627413909Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=59 sid=CA61454acb4902e9a7ad631dbfc51b57a9 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:27.742924379Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=58 sid=CA38b46ffe13ae4df85e776f61fab618b1 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:28.854476447Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=59 sid=CA61454acb4902e9a7ad631dbfc51b57a9 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:30.530514148Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=54 sid=CA3160e50e9950fea2f0cb66cbce27c011 status=no-answer duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:30.556286846Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=54 status=no_answer", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:30.627413909Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=59 sid=CA61454acb4902e9a7ad631dbfc51b57a9 status=ringing duration=0s", "severity": "info"}
 {"timestamp": "2026-04-30T02:40:30.752274003Z", "message": "[Twilio] Outbound call: CA275dcfb784334ecc6697f699f348a106 from=+18884879051 to=+14087363618", "severity": "info"}
 {"timestamp": "2026-04-30T02:40:30.753931866Z", "message": "[BulkCall] Speechcue call initiated: CA275dcfb784334ecc6697f699f348a106 \u2192 +14087363618", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:31.785635590Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=56 sid=CA526ebd259ec5dcb14fdeb3a65917a6e7 status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:31.791809071Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=56", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:34.244063925Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=47 sid=CA90ed0d89ecf7d83e7e3fe151913cb1ba status=completed duration=35s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:34.244068930Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=47 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:31.785635590Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=56 sid=CA526ebd259ec5dcb14fdeb3a65917a6e7 status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:31.791809071Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=56", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:34.244063925Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=47 sid=CA90ed0d89ecf7d83e7e3fe151913cb1ba status=completed duration=35s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:34.244068930Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=47 status=completed", "severity": "info"}
 {"timestamp": "2026-04-30T02:40:34.350571520Z", "message": "[Twilio] Outbound call: CA3ad11f9fc037c2652f74ce3c6dedf81d from=+18884879051 to=+14152400429", "severity": "info"}
 {"timestamp": "2026-04-30T02:40:34.356985847Z", "message": "[BulkCall] Speechcue call initiated: CA3ad11f9fc037c2652f74ce3c6dedf81d \u2192 +14152400429", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:34.400939250Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=61 sid=CA3ad11f9fc037c2652f74ce3c6dedf81d status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:34.861968763Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=60 sid=CA275dcfb784334ecc6697f699f348a106 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:35.282941643Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=61 sid=CA3ad11f9fc037c2652f74ce3c6dedf81d status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:36.485996919Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=60 sid=CA275dcfb784334ecc6697f699f348a106 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:40.670653406Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=48 sid=CA8b6d6e6ad78b364386c8773fc0697227 status=completed duration=46s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:40.700689700Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=48 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:34.400939250Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=61 sid=CA3ad11f9fc037c2652f74ce3c6dedf81d status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:34.861968763Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=60 sid=CA275dcfb784334ecc6697f699f348a106 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:35.282941643Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=61 sid=CA3ad11f9fc037c2652f74ce3c6dedf81d status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:36.485996919Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=60 sid=CA275dcfb784334ecc6697f699f348a106 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:40.670653406Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=48 sid=CA8b6d6e6ad78b364386c8773fc0697227 status=completed duration=46s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:40.700689700Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=48 status=completed", "severity": "info"}
 {"timestamp": "2026-04-30T02:40:40.892376364Z", "message": "[Twilio] Outbound call: CA1ab0a3942c123e5ed82ae4aba417f3e3 from=+18884879051 to=+14087368725", "severity": "info"}
 {"timestamp": "2026-04-30T02:40:40.896098996Z", "message": "[BulkCall] Speechcue call initiated: CA1ab0a3942c123e5ed82ae4aba417f3e3 \u2192 +14087368725", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:41.268776970Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=62 sid=CA1ab0a3942c123e5ed82ae4aba417f3e3 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:43.304951482Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=62 sid=CA1ab0a3942c123e5ed82ae4aba417f3e3 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:43.664816655Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=50 sid=CA5508cecac080dac4058a017fb42a82c3 status=completed duration=54s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:43.698320866Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=50 status=completed", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:43.743616015Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=55 sid=CA02282b410521655a2746ed6bc3a5ae03 status=no-answer duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:43.768622056Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=55 status=no_answer", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:41.268776970Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=62 sid=CA1ab0a3942c123e5ed82ae4aba417f3e3 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:43.304951482Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=62 sid=CA1ab0a3942c123e5ed82ae4aba417f3e3 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:43.664816655Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=50 sid=CA5508cecac080dac4058a017fb42a82c3 status=completed duration=54s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:43.698320866Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=50 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:43.743616015Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=55 sid=CA02282b410521655a2746ed6bc3a5ae03 status=no-answer duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:43.768622056Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=55 status=no_answer", "severity": "info"}
 {"timestamp": "2026-04-30T02:40:43.902240788Z", "message": "[Twilio] Outbound call: CA2bfdaf493730887ab9dcdaf3be61e492 from=+18884879051 to=+14088580610", "severity": "info"}
 {"timestamp": "2026-04-30T02:40:43.907271191Z", "message": "[BulkCall] Speechcue call initiated: CA2bfdaf493730887ab9dcdaf3be61e492 \u2192 +14088580610", "severity": "info"}
 {"timestamp": "2026-04-30T02:40:44.301562268Z", "message": "[Twilio] Outbound call: CA528dd8b6f20095d48d77e093d14b60b2 from=+18884879051 to=+14088580610", "severity": "info"}
 {"timestamp": "2026-04-30T02:40:44.301567197Z", "message": "[BulkCall] Speechcue call initiated: CA528dd8b6f20095d48d77e093d14b60b2 \u2192 +14088580610", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:44.301572020Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=63 sid=CA2bfdaf493730887ab9dcdaf3be61e492 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:44.301576686Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=63 sid=CA528dd8b6f20095d48d77e093d14b60b2 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:44.329389260Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=60 sid=CA275dcfb784334ecc6697f699f348a106 status=busy duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:44.373666785Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=60 status=busy", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:44.301572020Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=63 sid=CA2bfdaf493730887ab9dcdaf3be61e492 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:44.301576686Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=63 sid=CA528dd8b6f20095d48d77e093d14b60b2 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:44.329389260Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=60 sid=CA275dcfb784334ecc6697f699f348a106 status=busy duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:44.373666785Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=60 status=busy", "severity": "info"}
 {"timestamp": "2026-04-30T02:40:44.544729166Z", "message": "[Twilio] Outbound call: CA35ec770af070faf895a6403bbf353d82 from=+18884879051 to=+14084451135", "severity": "info"}
 {"timestamp": "2026-04-30T02:40:44.550927444Z", "message": "[BulkCall] Speechcue call initiated: CA35ec770af070faf895a6403bbf353d82 \u2192 +14084451135", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:44.677966090Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=64 sid=CA35ec770af070faf895a6403bbf353d82 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:49.343564797Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=64 sid=CA35ec770af070faf895a6403bbf353d82 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:49.343570041Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=63 sid=CA2bfdaf493730887ab9dcdaf3be61e492 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:49.483525656Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=63", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:49.539364110Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=63 sid=CA2bfdaf493730887ab9dcdaf3be61e492 status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:49.685942714Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=63 sid=CA528dd8b6f20095d48d77e093d14b60b2 status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:49.722385148Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=63", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:55.327703259Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=58 sid=CA38b46ffe13ae4df85e776f61fab618b1 status=no-answer duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:55.327707627Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=58 status=no_answer", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:44.677966090Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=64 sid=CA35ec770af070faf895a6403bbf353d82 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:49.343564797Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=64 sid=CA35ec770af070faf895a6403bbf353d82 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:49.343570041Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=63 sid=CA2bfdaf493730887ab9dcdaf3be61e492 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:49.483525656Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=63", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:49.539364110Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=63 sid=CA2bfdaf493730887ab9dcdaf3be61e492 status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:49.685942714Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=63 sid=CA528dd8b6f20095d48d77e093d14b60b2 status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:49.722385148Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=63", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:55.327703259Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=58 sid=CA38b46ffe13ae4df85e776f61fab618b1 status=no-answer duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:55.327707627Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=58 status=no_answer", "severity": "info"}
 {"timestamp": "2026-04-30T02:40:55.379736282Z", "message": "[Twilio] Outbound call: CAa5a01a9567dbc3761cdc1ce728a32b6e from=+18884879051 to=+14082169446", "severity": "info"}
 {"timestamp": "2026-04-30T02:40:55.381241297Z", "message": "[BulkCall] Speechcue call initiated: CAa5a01a9567dbc3761cdc1ce728a32b6e \u2192 +14082169446", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:55.530034521Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=65 sid=CAa5a01a9567dbc3761cdc1ce728a32b6e status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:56.320091458Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=65 sid=CAa5a01a9567dbc3761cdc1ce728a32b6e status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:59.298085892Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=59 sid=CA61454acb4902e9a7ad631dbfc51b57a9 status=no-answer duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:40:59.298088857Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=59 status=no_answer", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:55.530034521Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=65 sid=CAa5a01a9567dbc3761cdc1ce728a32b6e status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:56.320091458Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=65 sid=CAa5a01a9567dbc3761cdc1ce728a32b6e status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:59.298085892Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=59 sid=CA61454acb4902e9a7ad631dbfc51b57a9 status=no-answer duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:40:59.298088857Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=59 status=no_answer", "severity": "info"}
 {"timestamp": "2026-04-30T02:40:59.298092691Z", "message": "[Twilio] Outbound call: CA9906a4f1bc60b532ca0327f0e5b02f7a from=+18884879051 to=+14082748237", "severity": "info"}
 {"timestamp": "2026-04-30T02:40:59.298095940Z", "message": "[BulkCall] Speechcue call initiated: CA9906a4f1bc60b532ca0327f0e5b02f7a \u2192 +14082748237", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:01.518843211Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=66 sid=CA9906a4f1bc60b532ca0327f0e5b02f7a status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:04.491046599Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=61 sid=CA3ad11f9fc037c2652f74ce3c6dedf81d status=no-answer duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:04.517685903Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=61 status=no_answer", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:01.518843211Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=66 sid=CA9906a4f1bc60b532ca0327f0e5b02f7a status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:04.491046599Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=61 sid=CA3ad11f9fc037c2652f74ce3c6dedf81d status=no-answer duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:04.517685903Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=61 status=no_answer", "severity": "info"}
 {"timestamp": "2026-04-30T02:41:04.721396291Z", "message": "[Twilio] Outbound call: CA0458882898db4f82e57336bd5991210a from=+18884879051 to=+14078599472", "severity": "info"}
 {"timestamp": "2026-04-30T02:41:04.744879642Z", "message": "[BulkCall] Speechcue call initiated: CA0458882898db4f82e57336bd5991210a \u2192 +14078599472", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:04.843605521Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=67 sid=CA0458882898db4f82e57336bd5991210a status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:05.589383659Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=52 sid=CAc5fe906444ac2880b21edffbe06e68d2 status=completed duration=63s", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:05.608200481Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=52 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:04.843605521Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=67 sid=CA0458882898db4f82e57336bd5991210a status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:05.589383659Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=52 sid=CAc5fe906444ac2880b21edffbe06e68d2 status=completed duration=63s", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:05.608200481Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=get-started-74 lead=52 status=completed", "severity": "info"}
 {"timestamp": "2026-04-30T02:41:05.790012566Z", "message": "[Twilio] Outbound call: CAb357008ff68cc768bb9948b85f800f3a from=+18884879051 to=+14089305503", "severity": "info"}
 {"timestamp": "2026-04-30T02:41:05.796092651Z", "message": "[BulkCall] Speechcue call initiated: CAb357008ff68cc768bb9948b85f800f3a \u2192 +14089305503", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:05.860504690Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=68 sid=CAb357008ff68cc768bb9948b85f800f3a status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:06.650080272Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=68 sid=CAb357008ff68cc768bb9948b85f800f3a status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:06.884660434Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=68 sid=CAb357008ff68cc768bb9948b85f800f3a status=busy duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:06.900379034Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=68 status=busy", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:06.916208063Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=67 sid=CA0458882898db4f82e57336bd5991210a status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:05.860504690Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=68 sid=CAb357008ff68cc768bb9948b85f800f3a status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:06.650080272Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=68 sid=CAb357008ff68cc768bb9948b85f800f3a status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:06.884660434Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=68 sid=CAb357008ff68cc768bb9948b85f800f3a status=busy duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:06.900379034Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=68 status=busy", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:06.916208063Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=67 sid=CA0458882898db4f82e57336bd5991210a status=ringing duration=0s", "severity": "info"}
 {"timestamp": "2026-04-30T02:41:07.357565845Z", "message": "[Twilio] Outbound call: CA3721c21249cd989c6bbf53a2f3a8362c from=+18884879051 to=+14082232130", "severity": "info"}
 {"timestamp": "2026-04-30T02:41:07.357570347Z", "message": "[BulkCall] Speechcue call initiated: CA3721c21249cd989c6bbf53a2f3a8362c \u2192 +14082232130", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:07.538069476Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=69 sid=CA3721c21249cd989c6bbf53a2f3a8362c status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:10.381505779Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=64 sid=CA35ec770af070faf895a6403bbf353d82 status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:10.381514486Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=64", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:11.312982181Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=62 sid=CA1ab0a3942c123e5ed82ae4aba417f3e3 status=no-answer duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:11.312987713Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=62 status=no_answer", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:07.538069476Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=69 sid=CA3721c21249cd989c6bbf53a2f3a8362c status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:10.381505779Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=64 sid=CA35ec770af070faf895a6403bbf353d82 status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:10.381514486Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=64", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:11.312982181Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=62 sid=CA1ab0a3942c123e5ed82ae4aba417f3e3 status=no-answer duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:11.312987713Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=62 status=no_answer", "severity": "info"}
 {"timestamp": "2026-04-30T02:41:11.312991198Z", "message": "[Twilio] Outbound call: CAf12ce1f0f9a108ed4b4a6ac776b66428 from=+18884879051 to=+14082236823", "severity": "info"}
 {"timestamp": "2026-04-30T02:41:11.312994558Z", "message": "[BulkCall] Speechcue call initiated: CAf12ce1f0f9a108ed4b4a6ac776b66428 \u2192 +14082236823", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:11.922341711Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=70 sid=CAf12ce1f0f9a108ed4b4a6ac776b66428 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:12.280716459Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=66 sid=CA9906a4f1bc60b532ca0327f0e5b02f7a status=failed duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:12.280721811Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=66 status=failed", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:12.280726758Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=69 sid=CA3721c21249cd989c6bbf53a2f3a8362c status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:11.922341711Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=70 sid=CAf12ce1f0f9a108ed4b4a6ac776b66428 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:12.280716459Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=66 sid=CA9906a4f1bc60b532ca0327f0e5b02f7a status=failed duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:12.280721811Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=66 status=failed", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:12.280726758Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=69 sid=CA3721c21249cd989c6bbf53a2f3a8362c status=ringing duration=0s", "severity": "info"}
 {"timestamp": "2026-04-30T02:41:12.280732189Z", "message": "[Twilio] Outbound call: CAcedb722d02ff8488f71ab1251592ce90 from=+18884879051 to=+14082236130", "severity": "info"}
 {"timestamp": "2026-04-30T02:41:12.280736797Z", "message": "[BulkCall] Speechcue call initiated: CAcedb722d02ff8488f71ab1251592ce90 \u2192 +14082236130", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:13.454585725Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=71 sid=CAcedb722d02ff8488f71ab1251592ce90 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:15.583159996Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=71 sid=CAcedb722d02ff8488f71ab1251592ce90 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:17.658823328Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=65 sid=CAa5a01a9567dbc3761cdc1ce728a32b6e status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:17.728365533Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=65", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:26.473479441Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=70 sid=CAf12ce1f0f9a108ed4b4a6ac776b66428 status=failed duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:26.502561439Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=70 status=failed", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:13.454585725Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=71 sid=CAcedb722d02ff8488f71ab1251592ce90 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:15.583159996Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=71 sid=CAcedb722d02ff8488f71ab1251592ce90 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:17.658823328Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=65 sid=CAa5a01a9567dbc3761cdc1ce728a32b6e status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:17.728365533Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=65", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:26.473479441Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=70 sid=CAf12ce1f0f9a108ed4b4a6ac776b66428 status=failed duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:26.502561439Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=70 status=failed", "severity": "info"}
 {"timestamp": "2026-04-30T02:41:26.716072264Z", "message": "[Twilio] Outbound call: CA050a97558061d73265e269c8f8feff75 from=+18884879051 to=+14084764388", "severity": "info"}
 {"timestamp": "2026-04-30T02:41:26.722713126Z", "message": "[BulkCall] Speechcue call initiated: CA050a97558061d73265e269c8f8feff75 \u2192 +14084764388", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:26.829944864Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=72 sid=CA050a97558061d73265e269c8f8feff75 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:26.927680091Z", "message": "[BulkIVR] Gather: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=57 digits=1", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:26.939227248Z", "message": "[BulkCall] Digit received: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=57 digit=1", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:26.829944864Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=72 sid=CA050a97558061d73265e269c8f8feff75 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:26.927680091Z", "message": "[BulkIVR] Gather: campaign=get-started-74 lead=57 digits=1", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:26.939227248Z", "message": "[BulkCall] Digit received: campaign=get-started-74 lead=57 digit=1", "severity": "info"}
 {"timestamp": "2026-04-30T02:41:26.939233409Z", "message": "[BulkIVR] Transferring lead=57 to +18889082460", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:29.434304174Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=72 sid=CA050a97558061d73265e269c8f8feff75 status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:29.434307592Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=72", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:29.761047433Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=64 sid=CA35ec770af070faf895a6403bbf353d82 status=completed duration=20s", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:29.789383752Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=64 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:29.434304174Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=72 sid=CA050a97558061d73265e269c8f8feff75 status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:29.434307592Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=72", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:29.761047433Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=64 sid=CA35ec770af070faf895a6403bbf353d82 status=completed duration=20s", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:29.789383752Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=64 status=completed", "severity": "info"}
 {"timestamp": "2026-04-30T02:41:29.970956461Z", "message": "[Twilio] Outbound call: CAd18c11702576c8d39528c7ddcc9c0f42 from=+18884879051 to=+14089261576", "severity": "info"}
 {"timestamp": "2026-04-30T02:41:29.975190393Z", "message": "[BulkCall] Speechcue call initiated: CAd18c11702576c8d39528c7ddcc9c0f42 \u2192 +14089261576", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:30.042264947Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=73 sid=CAd18c11702576c8d39528c7ddcc9c0f42 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:31.710314147Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=73 sid=CAd18c11702576c8d39528c7ddcc9c0f42 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:33.406835110Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=69 sid=CA3721c21249cd989c6bbf53a2f3a8362c status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:33.406838847Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=69", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:34.874262275Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=67 sid=CA0458882898db4f82e57336bd5991210a status=no-answer duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:34.901250690Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=67 status=no_answer", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:34.995635095Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=56 sid=CA526ebd259ec5dcb14fdeb3a65917a6e7 status=completed duration=63s", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:35.019505093Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=56 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:30.042264947Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=73 sid=CAd18c11702576c8d39528c7ddcc9c0f42 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:31.710314147Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=73 sid=CAd18c11702576c8d39528c7ddcc9c0f42 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:33.406835110Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=69 sid=CA3721c21249cd989c6bbf53a2f3a8362c status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:33.406838847Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=69", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:34.874262275Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=67 sid=CA0458882898db4f82e57336bd5991210a status=no-answer duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:34.901250690Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=67 status=no_answer", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:34.995635095Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=56 sid=CA526ebd259ec5dcb14fdeb3a65917a6e7 status=completed duration=63s", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:35.019505093Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=get-started-74 lead=56 status=completed", "severity": "info"}
 {"timestamp": "2026-04-30T02:41:35.408024068Z", "message": "[Twilio] Outbound call: CAe7ab8842821f6760e945d8c1fa784bce from=+18884879051 to=+14082626030", "severity": "info"}
 {"timestamp": "2026-04-30T02:41:35.408028795Z", "message": "[BulkCall] Speechcue call initiated: CAe7ab8842821f6760e945d8c1fa784bce \u2192 +14082626030", "severity": "info"}
 {"timestamp": "2026-04-30T02:41:35.408034006Z", "message": "[Twilio] Outbound call: CA7671295363871224fe683058d96f1973 from=+18884879051 to=+14082626030", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:35.408038112Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=74 sid=CAe7ab8842821f6760e945d8c1fa784bce status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:35.408038112Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=74 sid=CAe7ab8842821f6760e945d8c1fa784bce status=initiated duration=0s", "severity": "info"}
 {"timestamp": "2026-04-30T02:41:35.408041053Z", "message": "[BulkCall] Speechcue call initiated: CA7671295363871224fe683058d96f1973 \u2192 +14082626030", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:35.408044219Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=74 sid=CA7671295363871224fe683058d96f1973 status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:37.629484833Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=74 sid=CAe7ab8842821f6760e945d8c1fa784bce status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:37.851297609Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=74 sid=CA7671295363871224fe683058d96f1973 status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:43.449883720Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=74 sid=CA7671295363871224fe683058d96f1973 status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:43.449889503Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=74", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:43.596079850Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=71 sid=CAcedb722d02ff8488f71ab1251592ce90 status=no-answer duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:43.625541765Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=71 status=no_answer", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:35.408044219Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=74 sid=CA7671295363871224fe683058d96f1973 status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:37.629484833Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=74 sid=CAe7ab8842821f6760e945d8c1fa784bce status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:37.851297609Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=74 sid=CA7671295363871224fe683058d96f1973 status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:43.449883720Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=74 sid=CA7671295363871224fe683058d96f1973 status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:43.449889503Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=74", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:43.596079850Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=71 sid=CAcedb722d02ff8488f71ab1251592ce90 status=no-answer duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:43.625541765Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=71 status=no_answer", "severity": "info"}
 {"timestamp": "2026-04-30T02:41:43.819642250Z", "message": "[Twilio] Outbound call: CA53dda8b912e029357f808ec755be5e5f from=+18884879051 to=+14088398424", "severity": "info"}
 {"timestamp": "2026-04-30T02:41:43.825520771Z", "message": "[BulkCall] Speechcue call initiated: CA53dda8b912e029357f808ec755be5e5f \u2192 +14088398424", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:43.872383845Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=75 sid=CA53dda8b912e029357f808ec755be5e5f status=initiated duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:45.430782024Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=75 sid=CA53dda8b912e029357f808ec755be5e5f status=ringing duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:50.446775579Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=73", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:50.446779776Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=73 sid=CAd18c11702576c8d39528c7ddcc9c0f42 status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:52.458110347Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=74", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:52.458113226Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=74 sid=CAe7ab8842821f6760e945d8c1fa784bce status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:52.686010623Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=63 sid=CA2bfdaf493730887ab9dcdaf3be61e492 status=completed duration=63s", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:52.710544282Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=63 status=completed", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:52.768812543Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=63 sid=CA528dd8b6f20095d48d77e093d14b60b2 status=completed duration=63s", "severity": "info"}
-{"timestamp": "2026-04-30T02:41:52.789152696Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=63 status=completed", "severity": "info"}
-{"timestamp": "2026-04-30T02:42:12.788325667Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=75 sid=CA53dda8b912e029357f808ec755be5e5f status=in-progress duration=0s", "severity": "info"}
-{"timestamp": "2026-04-30T02:42:12.788331485Z", "message": "[BulkIVR] TwiML served for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=75", "severity": "info"}
-{"timestamp": "2026-04-30T02:42:19.555358104Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=74 sid=CAe7ab8842821f6760e945d8c1fa784bce status=completed duration=27s", "severity": "info"}
-{"timestamp": "2026-04-30T02:42:19.555362973Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=74 status=completed", "severity": "info"}
-{"timestamp": "2026-04-30T02:42:20.895461484Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=65 sid=CAa5a01a9567dbc3761cdc1ce728a32b6e status=completed duration=63s", "severity": "info"}
-{"timestamp": "2026-04-30T02:42:20.924829211Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=65 status=completed", "severity": "info"}
-{"timestamp": "2026-04-30T02:42:21.531786375Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=74 sid=CA7671295363871224fe683058d96f1973 status=completed duration=38s", "severity": "info"}
-{"timestamp": "2026-04-30T02:42:21.531790846Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=74 status=completed", "severity": "info"}
-{"timestamp": "2026-04-30T02:42:41.210573810Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=72 sid=CA050a97558061d73265e269c8f8feff75 status=completed duration=63s", "severity": "info"}
-{"timestamp": "2026-04-30T02:42:41.210578199Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=72 status=completed", "severity": "info"}
-{"timestamp": "2026-04-30T02:42:41.210581385Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=69 sid=CA3721c21249cd989c6bbf53a2f3a8362c status=completed duration=63s", "severity": "info"}
-{"timestamp": "2026-04-30T02:42:41.210584628Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=69 status=completed", "severity": "info"}
-{"timestamp": "2026-04-30T02:43:01.210554399Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=73 sid=CAd18c11702576c8d39528c7ddcc9c0f42 status=completed duration=63s", "severity": "info"}
-{"timestamp": "2026-04-30T02:43:01.210559022Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=73 status=completed", "severity": "info"}
-{"timestamp": "2026-04-30T02:43:07.279369442Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=75 sid=CA53dda8b912e029357f808ec755be5e5f status=completed duration=64s", "severity": "info"}
-{"timestamp": "2026-04-30T02:43:07.307859919Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=75 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:43.872383845Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=75 sid=CA53dda8b912e029357f808ec755be5e5f status=initiated duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:45.430782024Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=75 sid=CA53dda8b912e029357f808ec755be5e5f status=ringing duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:50.446775579Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=73", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:50.446779776Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=73 sid=CAd18c11702576c8d39528c7ddcc9c0f42 status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:52.458110347Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=74", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:52.458113226Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=74 sid=CAe7ab8842821f6760e945d8c1fa784bce status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:52.686010623Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=63 sid=CA2bfdaf493730887ab9dcdaf3be61e492 status=completed duration=63s", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:52.710544282Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=get-started-74 lead=63 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:52.768812543Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=63 sid=CA528dd8b6f20095d48d77e093d14b60b2 status=completed duration=63s", "severity": "info"}
+{"timestamp": "2026-04-30T02:41:52.789152696Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=get-started-74 lead=63 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:42:12.788325667Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=75 sid=CA53dda8b912e029357f808ec755be5e5f status=in-progress duration=0s", "severity": "info"}
+{"timestamp": "2026-04-30T02:42:12.788331485Z", "message": "[BulkIVR] TwiML served for campaign=get-started-74 lead=75", "severity": "info"}
+{"timestamp": "2026-04-30T02:42:19.555358104Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=74 sid=CAe7ab8842821f6760e945d8c1fa784bce status=completed duration=27s", "severity": "info"}
+{"timestamp": "2026-04-30T02:42:19.555362973Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=74 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:42:20.895461484Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=65 sid=CAa5a01a9567dbc3761cdc1ce728a32b6e status=completed duration=63s", "severity": "info"}
+{"timestamp": "2026-04-30T02:42:20.924829211Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=get-started-74 lead=65 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:42:21.531786375Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=74 sid=CA7671295363871224fe683058d96f1973 status=completed duration=38s", "severity": "info"}
+{"timestamp": "2026-04-30T02:42:21.531790846Z", "message": "[BulkCall] Billed $0.15 (1 min \u00d7 $0.15/min) for campaign=get-started-74 lead=74 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:42:41.210573810Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=72 sid=CA050a97558061d73265e269c8f8feff75 status=completed duration=63s", "severity": "info"}
+{"timestamp": "2026-04-30T02:42:41.210578199Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=get-started-74 lead=72 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:42:41.210581385Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=69 sid=CA3721c21249cd989c6bbf53a2f3a8362c status=completed duration=63s", "severity": "info"}
+{"timestamp": "2026-04-30T02:42:41.210584628Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=get-started-74 lead=69 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:43:01.210554399Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=73 sid=CAd18c11702576c8d39528c7ddcc9c0f42 status=completed duration=63s", "severity": "info"}
+{"timestamp": "2026-04-30T02:43:01.210559022Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=get-started-74 lead=73 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:43:07.279369442Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=75 sid=CA53dda8b912e029357f808ec755be5e5f status=completed duration=64s", "severity": "info"}
+{"timestamp": "2026-04-30T02:43:07.307859919Z", "message": "[BulkCall] Billed $0.30 (2 min \u00d7 $0.15/min) for campaign=get-started-74 lead=75 status=completed", "severity": "info"}
 {"timestamp": "2026-04-30T02:43:15.724058286Z", "message": "[SmsApp] Progress: user 817673476, campaign 22bf031d-1e41-44aa-921f-24518f35a8a1: +5 SMS (0\u21925), failed=0, status=sending", "severity": "info"}
 {"timestamp": "2026-04-30T02:43:45.384564694Z", "message": "[SmsApp] Progress: user 817673476, campaign 22bf031d-1e41-44aa-921f-24518f35a8a1: +5 SMS (5\u219210), failed=0, status=sending", "severity": "info"}
 {"timestamp": "2026-04-30T02:44:15.388946946Z", "message": "[SmsApp] Progress: user 817673476, campaign 22bf031d-1e41-44aa-921f-24518f35a8a1: +5 SMS (10\u219215), failed=0, status=sending", "severity": "info"}
@@ -765,8 +765,8 @@
 {"timestamp": "2026-04-30T02:50:11.832010719Z", "message": "[SmsApp] Progress: user 817673476, campaign 22bf031d-1e41-44aa-921f-24518f35a8a1: +2 SMS (74\u219276), failed=0, status=completed", "severity": "info"}
 {"timestamp": "2026-04-30T02:50:15.027437874Z", "message": "[SmsApp] Sync request for chatId: 817673476, version: 2.7.5", "severity": "info"}
 {"timestamp": "2026-04-30T02:50:15.082172836Z", "message": "[SmsApp] Sync for 817673476 - canUseSms: true, isFreeTrial: false, freeSmsUsed: 601, freeSmsRemaining: 0, isSubscribed: true", "severity": "info"}
-{"timestamp": "2026-04-30T02:54:35.509437126Z", "message": "[BulkIVR] Status: campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=57 sid=CA7efc6bb54c76b46dc1b97209dfb4c223 status=completed duration=845s", "severity": "info"}
-{"timestamp": "2026-04-30T02:54:35.509441498Z", "message": "[BulkCall] Billed $2.25 (15 min \u00d7 $0.15/min) for campaign=69410022-06ff-47c4-8fa8-edb537998a27 lead=57 status=completed", "severity": "info"}
+{"timestamp": "2026-04-30T02:54:35.509437126Z", "message": "[BulkIVR] Status: campaign=get-started-74 lead=57 sid=CA7efc6bb54c76b46dc1b97209dfb4c223 status=completed duration=845s", "severity": "info"}
+{"timestamp": "2026-04-30T02:54:35.509441498Z", "message": "[BulkCall] Billed $2.25 (15 min \u00d7 $0.15/min) for campaign=get-started-74 lead=57 status=completed", "severity": "info"}
 {"timestamp": "2026-04-30T02:54:35.509444381Z", "message": "[BulkCall] Campaign 69410022-06ff-47c4-8fa8-edb537998a27 completed!", "severity": "info"}
 {"timestamp": "2026-04-30T02:55:05.230040827Z", "message": "02:54:55 [Conversion] Processed 1 scheduled event(s)", "severity": "info"}
 {"timestamp": "2026-04-30T02:55:05.230046648Z", "message": "[PhoneMonitor] === Health check started ===", "severity": "info"}
