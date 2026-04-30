@@ -1105,15 +1105,15 @@ const sendDomainUpsell = (chatId, lang, domain, delayMs = 2000) => {
 
 // Send event notification to all registered groups + configured fallback targets.
 //
-// 2-arg form: `notifyGroup(groupMsg, adminMsg)`
+// 3-arg form: `notifyGroup(groupMsg, adminMsg, adminButtons)`
 //   • Public groups (configured + auto-registered) receive `groupMsg` (masked).
-//   • Admin chat (TELEGRAM_ADMIN_CHAT_ID) receives `adminMsg` (unmasked) ONLY —
-//     the masked message is NOT sent to admin to avoid double-notifications.
+//   • Admin chat (TELEGRAM_ADMIN_CHAT_ID) receives `adminMsg` (unmasked) + optional
+//     inline keyboard `adminButtons` (array of rows, each row an array of buttons).
 //
-// 1-arg form: `notifyGroup(message)` — legacy/back-compat.
-//   • Both groups AND admin receive the same `message`.
+// 2-arg form: `notifyGroup(groupMsg, adminMsg)` — admin gets unmasked, no buttons.
+// 1-arg form: `notifyGroup(message)` — legacy/back-compat (both groups + admin same msg).
 const TELEGRAM_NOTIFY_GROUP_ID = process.env.TELEGRAM_NOTIFY_GROUP_ID
-const notifyGroup = async (message, adminMessage = null) => {
+const notifyGroup = async (message, adminMessage = null, adminButtons = null) => {
   try {
     const taggedMessage = message + `\n— <b>${CHAT_BOT_NAME}</b>`
     const taggedAdminMessage = adminMessage != null
@@ -1121,7 +1121,7 @@ const notifyGroup = async (message, adminMessage = null) => {
       : taggedMessage
     const sentTo = new Set()
 
-    // 1. Always send to configured notification group (if set) — masked
+    // 1. Always send to configured notification group (if set) — masked, no buttons
     if (TELEGRAM_NOTIFY_GROUP_ID) {
       const gid = Number(TELEGRAM_NOTIFY_GROUP_ID)
       sentTo.add(String(gid)) // normalize to String for consistent dedup
@@ -1133,17 +1133,21 @@ const notifyGroup = async (message, adminMessage = null) => {
     }
 
     // 2. Always send to admin chat — UNMASKED if `adminMessage` provided,
-    //    otherwise falls back to the masked group message.
+    //    with optional inline keyboard for one-tap actions.
     if (TELEGRAM_ADMIN_CHAT_ID && !sentTo.has(String(TELEGRAM_ADMIN_CHAT_ID))) {
       sentTo.add(String(TELEGRAM_ADMIN_CHAT_ID))
-      bot?.sendMessage(TELEGRAM_ADMIN_CHAT_ID, taggedAdminMessage, { parse_mode: 'HTML' })?.then(() => {
-        log('[NotifyGroup] ✅ Sent to admin ' + TELEGRAM_ADMIN_CHAT_ID + (adminMessage != null ? ' (unmasked)' : ''))
+      const adminOpts = { parse_mode: 'HTML' }
+      if (adminButtons && Array.isArray(adminButtons) && adminButtons.length && adminMessage != null) {
+        adminOpts.reply_markup = { inline_keyboard: adminButtons }
+      }
+      bot?.sendMessage(TELEGRAM_ADMIN_CHAT_ID, taggedAdminMessage, adminOpts)?.then(() => {
+        log('[NotifyGroup] ✅ Sent to admin ' + TELEGRAM_ADMIN_CHAT_ID + (adminMessage != null ? ' (unmasked)' : '') + (adminOpts.reply_markup ? ' [+buttons]' : ''))
       })?.catch(e => {
         log('Admin notify error: ' + e.message)
       })
     }
 
-    // 3. Send to all auto-registered groups from notifyGroups collection — masked
+    // 3. Send to all auto-registered groups from notifyGroups collection — masked, no buttons
     if (notifyGroupsCol?.find) {
       const groups = await notifyGroupsCol.find({}).toArray()
       log('[NotifyGroup] Auto-registered groups found: ' + groups.length + (groups.length ? ' → ' + groups.map(g => g.title || g._id).join(', ') : ''))
@@ -1171,6 +1175,33 @@ const notifyGroup = async (message, adminMessage = null) => {
   } catch (e) {
     log('notifyGroup error: ' + e.message)
   }
+}
+
+// ─── Admin one-tap action buttons (inline_keyboard rows) ───
+// Used as the 3rd arg of `notifyGroup`. Callback handler lives in the existing
+// `bot.on('callback_query')` block; awaiting-state hand-off lives in the early
+// admin-message interceptor in the main on('message') handler.
+//   • aR:<chatId>          → 💬 Reply (prompts admin, then runs /reply)
+//   • aD:<orderId>         → 📩 Deliver (prompts admin, then runs /deliver)
+//   • aRO:<orderId>        → ❌ Refund Order (confirm dialog, then refund)
+//   • aRC:<chatId>:<usd>   → 💵 Refund $X.XX (confirm dialog, then refund)
+//   • aCONF:<encoded>      → confirmation for a destructive action
+//   • aCANCEL              → cancel a pending confirmation
+const buildAdminButtons = ({ chatId, orderId, refundUsd } = {}) => {
+  const rows = []
+  if (orderId) {
+    rows.push([
+      { text: '📩 Deliver', callback_data: `aD:${orderId}` },
+      { text: '❌ Refund Order', callback_data: `aRO:${orderId}` },
+    ])
+  }
+  if (refundUsd && chatId) {
+    rows.push([{ text: `💵 Refund $${Number(refundUsd).toFixed(2)}`, callback_data: `aRC:${chatId}:${Number(refundUsd).toFixed(2)}` }])
+  }
+  if (chatId) {
+    rows.push([{ text: '💬 Reply User', callback_data: `aR:${chatId}` }])
+  }
+  return rows.length ? rows : null
 }
 
 // Send admin-only notification (private, not to groups)
@@ -3730,6 +3761,145 @@ Tap a button below to change. Changes sync to your phone on next app open.`
   }
 })
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Admin one-tap action callbacks (💬 Reply, 📩 Deliver, ❌/💵 Refund)
+// Buttons attached to admin-bot notifications by `notifyGroup(g, a, buildAdminButtons(...))`.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+bot?.on('callback_query', async (query) => {
+  try {
+    const data = query?.data || ''
+    const fromId = String(query?.from?.id || '')
+
+    // All admin-action callbacks are prefixed with a* and gated to the admin chatId
+    if (!data || !(/^a[A-Z]/.test(data) || data === 'aCANCEL' || data === 'aCONF')) return
+    if (fromId !== String(TELEGRAM_ADMIN_CHAT_ID)) {
+      try { await bot.answerCallbackQuery(query.id, { text: '⛔ Admin only.', show_alert: true }) } catch {}
+      return
+    }
+    const adminId = fromId
+    const ackPopup = (text) => bot.answerCallbackQuery(query.id, text ? { text } : undefined).catch(() => {})
+
+    // ── 💬 Reply User ── aR:<targetChatId>
+    if (data.startsWith('aR:')) {
+      const target = data.slice(3)
+      if (!/^\d+$/.test(target)) { await ackPopup('Invalid target'); return }
+      await set(state, adminId, 'awaitingAdminAction', { type: 'reply', target, ts: Date.now() })
+      await ackPopup('Type your reply…')
+      const tName = await get(nameOf, target)
+      const label = tName ? `@${tName} (${target})` : `User ${target}`
+      send(adminId, `💬 <b>Quick Reply</b>\nType your message to ${label}.\n<i>Send /cancel to abort.</i>`, { parse_mode: 'HTML' })
+      return
+    }
+
+    // ── 📩 Deliver ── aD:<orderId>
+    if (data.startsWith('aD:')) {
+      const orderId = data.slice(3)
+      if (!orderId) { await ackPopup('Invalid order'); return }
+      const order = await digitalOrdersCol.findOne({ orderId })
+      if (!order) { await ackPopup('Order not found'); return }
+      if (order.status === 'delivered') { await ackPopup('Already delivered'); return }
+      if (order.status === 'refunded') { await ackPopup('Order was refunded'); return }
+      await set(state, adminId, 'awaitingAdminAction', { type: 'deliver', orderId, ts: Date.now() })
+      await ackPopup('Paste delivery details…')
+      send(adminId, `📩 <b>Quick Deliver</b>\nPaste delivery details for order <code>${orderId}</code> (${order.product}).\n<i>Send /cancel to abort.</i>`, { parse_mode: 'HTML' })
+      return
+    }
+
+    // ── ❌ Refund Order ── aRO:<orderId>
+    if (data.startsWith('aRO:')) {
+      const orderId = data.slice(4)
+      const order = await digitalOrdersCol.findOne({ orderId })
+      if (!order) { await ackPopup('Order not found'); return }
+      if (order.status === 'refunded') { await ackPopup('Already refunded'); return }
+      if (order.status === 'delivered') { await ackPopup('Already delivered (cannot auto-refund)'); return }
+      await ackPopup()
+      const buyerName = await get(nameOf, order.chatId)
+      const buyerLabel = buyerName ? `@${buyerName} (${order.chatId})` : `User ${order.chatId}`
+      send(adminId, `⚠️ <b>Confirm Refund</b>\nOrder: <code>${orderId}</code>\nProduct: <b>${order.product}</b>\nBuyer: ${buyerLabel}\nAmount: <b>$${order.price}</b>\n\nThis will credit the buyer's wallet and mark the order as refunded.`, {
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [[
+            { text: `✅ Confirm Refund $${order.price}`, callback_data: `aRO_OK:${orderId}` },
+            { text: '✖️ Cancel', callback_data: 'aCANCEL' },
+          ]],
+        },
+      })
+      return
+    }
+
+    // ── ✅ Confirm Refund Order ── aRO_OK:<orderId>
+    if (data.startsWith('aRO_OK:')) {
+      const orderId = data.slice(7)
+      const order = await digitalOrdersCol.findOne({ orderId })
+      if (!order) { await ackPopup('Order not found'); return }
+      if (order.status === 'refunded') { await ackPopup('Already refunded'); return }
+      try {
+        await atomicIncrement(walletOf, order.chatId, 'usdIn', Number(order.price) || 0)
+        await digitalOrdersCol.updateOne({ orderId }, { $set: { status: 'refunded', refundedAt: new Date(), refundedBy: adminId } })
+        send(order.chatId, `💵 <b>Refund Issued</b>\n\n🆔 Order: <code>${orderId}</code>\n📦 Product: <b>${order.product}</b>\n💵 Refunded: <b>$${order.price}</b> to your wallet.\n\nFor questions, contact support.`, { parse_mode: 'HTML' })
+        await ackPopup(`Refunded $${order.price}`)
+        try { await bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: query.message.chat.id, message_id: query.message.message_id }) } catch {}
+        send(adminId, `✅ Refund <b>$${order.price}</b> issued for order <code>${orderId}</code> → ${order.chatId}.`, { parse_mode: 'HTML' })
+        log(`[Admin] Refund issued: order=${orderId} amount=$${order.price} chatId=${order.chatId} by=${adminId}`)
+      } catch (e) {
+        await ackPopup(`Error: ${e.message}`)
+        send(adminId, `❌ Refund failed for order <code>${orderId}</code>: ${e.message}`, { parse_mode: 'HTML' })
+      }
+      return
+    }
+
+    // ── 💵 Refund custom amount ── aRC:<chatId>:<amount>
+    if (data.startsWith('aRC:')) {
+      const [, target, amountStr] = data.split(':')
+      const amount = Number(amountStr)
+      if (!/^\d+$/.test(target) || !(amount > 0)) { await ackPopup('Invalid'); return }
+      await ackPopup()
+      const tName = await get(nameOf, target)
+      const tLabel = tName ? `@${tName} (${target})` : `User ${target}`
+      send(adminId, `⚠️ <b>Confirm Refund</b>\nUser: ${tLabel}\nAmount: <b>$${amount.toFixed(2)}</b>\n\nThis will credit the user's wallet.`, {
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [[
+            { text: `✅ Confirm Refund $${amount.toFixed(2)}`, callback_data: `aRC_OK:${target}:${amount.toFixed(2)}` },
+            { text: '✖️ Cancel', callback_data: 'aCANCEL' },
+          ]],
+        },
+      })
+      return
+    }
+
+    // ── ✅ Confirm Refund custom amount ── aRC_OK:<chatId>:<amount>
+    if (data.startsWith('aRC_OK:')) {
+      const [, target, amountStr] = data.split(':')
+      const amount = Number(amountStr)
+      if (!/^\d+$/.test(target) || !(amount > 0)) { await ackPopup('Invalid'); return }
+      try {
+        await atomicIncrement(walletOf, target, 'usdIn', amount)
+        send(target, `💵 <b>Refund Issued</b>\n\n💵 Amount: <b>$${amount.toFixed(2)}</b> credited to your wallet.\n\nFor questions, contact support.`, { parse_mode: 'HTML' })
+        await ackPopup(`Refunded $${amount.toFixed(2)}`)
+        try { await bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: query.message.chat.id, message_id: query.message.message_id }) } catch {}
+        send(adminId, `✅ Refund <b>$${amount.toFixed(2)}</b> issued to ${target}.`, { parse_mode: 'HTML' })
+        log(`[Admin] Custom refund issued: amount=$${amount.toFixed(2)} chatId=${target} by=${adminId}`)
+      } catch (e) {
+        await ackPopup(`Error: ${e.message}`)
+        send(adminId, `❌ Refund failed for ${target}: ${e.message}`, { parse_mode: 'HTML' })
+      }
+      return
+    }
+
+    // ── ✖️ Cancel any pending confirmation ── aCANCEL
+    if (data === 'aCANCEL') {
+      await ackPopup('Cancelled')
+      try { await bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: query.message.chat.id, message_id: query.message.message_id }) } catch {}
+      send(adminId, '✖️ Action cancelled.')
+      return
+    }
+  } catch (e) {
+    log(`[AdminAction] callback_query error: ${e.message}`)
+    try { await bot.answerCallbackQuery(query.id, { text: 'Error: ' + e.message }) } catch {}
+  }
+})
+
 // ── Per-user message queue to prevent race conditions ──
 // Serializes message processing per chatId so concurrent webhooks don't interleave
 const _userMsgQueue = new Map()
@@ -3799,6 +3969,37 @@ bot?.on('message', msg => {
   // Private chats — enqueue per user to serialize processing
   _enqueue(chatId, async () => {
   let message = msg?.text || ''
+
+  // ═══════════════════════════════════════════════════
+  // Admin one-tap action follow-up — transparently rewrite admin's free-text
+  // reply into the corresponding /reply or /deliver command after they tapped
+  // a button on a notification. /cancel aborts. Only fires for the admin chat
+  // and only on text messages (media falls through to the existing flows).
+  // ═══════════════════════════════════════════════════
+  if (isAdmin(chatId) && message && !msg?.photo && !msg?.document && !msg?.video) {
+    const adminInfo = await get(state, chatId)
+    const pending = adminInfo?.awaitingAdminAction
+    if (pending && pending.type) {
+      // Stale guard — abandon after 10 minutes
+      if (pending.ts && (Date.now() - pending.ts) > 10 * 60 * 1000) {
+        await set(state, chatId, 'awaitingAdminAction', null)
+      } else if (message.trim() === '/cancel' || message.trim().toLowerCase() === 'cancel') {
+        await set(state, chatId, 'awaitingAdminAction', null)
+        return send(chatId, '✖️ Quick action cancelled.')
+      } else if (message.startsWith('/')) {
+        // If admin types a different command, abandon the pending action and let it fall through
+        await set(state, chatId, 'awaitingAdminAction', null)
+      } else if (pending.type === 'reply' && pending.target) {
+        await set(state, chatId, 'awaitingAdminAction', null)
+        message = `/reply ${pending.target} ${message}`
+        log(`[AdminAction] Quick-reply rewritten → ${message.substring(0, 80)}…`)
+      } else if (pending.type === 'deliver' && pending.orderId) {
+        await set(state, chatId, 'awaitingAdminAction', null)
+        message = `/deliver ${pending.orderId} ${message}`
+        log(`[AdminAction] Quick-deliver rewritten → ${message.substring(0, 80)}…`)
+      }
+    }
+  }
 
   // (group handling moved above the queue)
   if (false) {
@@ -7727,7 +7928,8 @@ Enter new value:`), bc)
 
       notifyGroup(
         `🛒 <b>New Digital Product Order!</b>\n\n👤 User: ${maskName(name)}\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${priceUsd}</b>\n\n✅ Order placed successfully.`,
-        `🛒 <b>New Digital Product Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${adminUserTag(name, chatId)}\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${priceUsd}</b> (Wallet USD)\n\n📩 Deliver with:\n<code>/deliver ${orderId} [product details/credentials]</code>`
+        `🛒 <b>New Digital Product Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${adminUserTag(name, chatId)}\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${priceUsd}</b> (Wallet USD)\n\n📩 Deliver with:\n<code>/deliver ${orderId} [product details/credentials]</code>`,
+        buildAdminButtons({ chatId, orderId })
       )
     },
     // ━━━ Virtual Card wallet payment ━━━
@@ -7769,7 +7971,8 @@ Enter new value:`), bc)
 
       notifyGroup(
         `💳 <b>New Virtual Card Order!</b>\n\n👤 User: ${maskName(name)}\n💵 Card: <b>$${vcAmount}</b> | Total: <b>$${priceUsd}</b>\n💳 Payment: Wallet USD\n\n✅ Order placed successfully.`,
-        `💳 <b>New Virtual Card Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${adminUserTag(name, chatId)}\n💵 Card: <b>$${vcAmount}</b> | Total: <b>$${priceUsd}</b>\n📬 Address:\n<pre>${address}</pre>\n💳 Payment: Wallet USD\n\n📩 Deliver with:\n<code>/deliver ${orderId} [card number, expiry, CVV]</code>`
+        `💳 <b>New Virtual Card Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${adminUserTag(name, chatId)}\n💵 Card: <b>$${vcAmount}</b> | Total: <b>$${priceUsd}</b>\n📬 Address:\n<pre>${address}</pre>\n💳 Payment: Wallet USD\n\n📩 Deliver with:\n<code>/deliver ${orderId} [card number, expiry, CVV]</code>`,
+        buildAdminButtons({ chatId, orderId })
       )
     },
     'phone-pay': async coin => {
@@ -8179,7 +8382,8 @@ Enter new value:`), bc)
             const name = await get(nameOf, chatId)
             notifyGroup(
               `💰 Partial refund: $${refundAmount.toFixed(2)} → ${maskName(name)} (${delivered}/${requested} leads, ${res._partialReason})`,
-              `💰 <b>Partial Lead Refund</b>\n👤 ${adminUserTag(name, chatId)}\n📊 ${delivered}/${requested} leads delivered\n💵 Refund: $${refundAmount.toFixed(2)}\n📝 Reason: ${res._partialReason}`
+              `💰 <b>Partial Lead Refund</b>\n👤 ${adminUserTag(name, chatId)}\n📊 ${delivered}/${requested} leads delivered\n💵 Refund: $${refundAmount.toFixed(2)}\n📝 Reason: ${res._partialReason}`,
+              buildAdminButtons({ chatId, refundUsd: refundAmount })
             )
           }
         }
@@ -9272,7 +9476,8 @@ All verified numbers generated during sourcing.`))
     const _tgUsername = msg?.from?.username ? `@${msg.from.username}` : 'no username'
     notifyGroup(
       `🎉 <b>New Member!</b>\nUser ${maskName(username)} just joined ${CHAT_BOT_NAME} — domains, leads, hosting, digital products & more at your fingertips.\nSee what's possible — /start`,
-      `👋 <b>New Member Joined!</b>\n\n👤 Name: <b>${_displayName}</b>\n🆔 Chat ID: <code>${chatId}</code>\n📎 Username: ${_tgUsername}\n🌐 Language: ${validLanguage}\n\n💬 Welcome them:\n/reply ${chatId} Welcome to ${CHAT_BOT_NAME}! 🎉`
+      `👋 <b>New Member Joined!</b>\n\n👤 Name: <b>${_displayName}</b>\n🆔 Chat ID: <code>${chatId}</code>\n📎 Username: ${_tgUsername}\n🌐 Language: ${validLanguage}\n\n💬 Welcome them:\n/reply ${chatId} Welcome to ${CHAT_BOT_NAME}! 🎉`,
+      buildAdminButtons({ chatId })
     )
 
     // ── Welcome Gift: Award $5 to new user ──
@@ -12283,7 +12488,8 @@ ${message.replace(/\n/g, '<br>')}
     set(chatIdOfPayment, ref, { chatId, price, product, orderId, endpoint: '/bank-pay-digital-product', _createdAt: new Date().toISOString() })
     notifyGroup(
       `🛒 <b>New Digital Product Order!</b>\n\n👤 User: ${maskName(name)}\n📦 Product: <b>${product}</b>\n💵 Price: <b>$${price}</b>\n💳 Payment: Bank\n⏳ Awaiting payment`,
-      `🛒 <b>New Digital Product Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${adminUserTag(name, chatId)}\n📦 Product: <b>${product}</b>\n💵 Price: <b>$${price}</b>\n💳 Payment: Bank\n⏳ Awaiting payment\n\n📩 After payment confirms:\n<code>/deliver ${orderId} [details]</code>`
+      `🛒 <b>New Digital Product Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${adminUserTag(name, chatId)}\n📦 Product: <b>${product}</b>\n💵 Price: <b>$${price}</b>\n💳 Payment: Bank\n⏳ Awaiting payment\n\n📩 After payment confirms:\n<code>/deliver ${orderId} [details]</code>`,
+      buildAdminButtons({ chatId })
     )
     const { url, error } = await createCheckout(priceNGN, `/ok?a=b&ref=${ref}&`, email, username, ref)
     if (error) return send(chatId, error, trans('o'))
@@ -12368,7 +12574,8 @@ ${message.replace(/\n/g, '<br>')}
 
     notifyGroup(
       `🛒 <b>New Digital Product Order!</b>\n\n👤 User: ${maskName(name)}\n📦 Product: <b>${product}</b>\n💵 Price: <b>$${price}</b> (Crypto)\n⏳ Awaiting crypto payment`,
-      `🛒 <b>New Digital Product Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${adminUserTag(name, chatId)}\n📦 Product: <b>${product}</b>\n💵 Price: <b>$${price}</b> (Crypto: ${tickerKey})\n⏳ Awaiting crypto payment\n\n📩 After payment confirms:\n<code>/deliver ${orderId} [details]</code>`
+      `🛒 <b>New Digital Product Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${adminUserTag(name, chatId)}\n📦 Product: <b>${product}</b>\n💵 Price: <b>$${price}</b> (Crypto: ${tickerKey})\n⏳ Awaiting crypto payment\n\n📩 After payment confirms:\n<code>/deliver ${orderId} [details]</code>`,
+      buildAdminButtons({ chatId })
     )
     return
   }
@@ -12457,7 +12664,8 @@ ${message.replace(/\n/g, '<br>')}
     set(chatIdOfPayment, ref, { chatId, price, product: `Virtual Card ($${vcAmount})`, orderId, endpoint: '/bank-pay-virtual-card', _createdAt: new Date().toISOString() })
     notifyGroup(
       `💳 <b>New Virtual Card Order!</b>\n\n👤 User: ${maskName(name)}\n💵 Card: <b>$${vcAmount}</b> | Total: <b>$${price}</b>\n💳 Payment: Bank\n⏳ Awaiting payment`,
-      `💳 <b>New Virtual Card Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${adminUserTag(name, chatId)}\n💵 Card: <b>$${vcAmount}</b> | Total: <b>$${price}</b>\n📬 Address:\n<pre>${address}</pre>\n💳 Payment: Bank\n⏳ Awaiting payment\n\n📩 After payment confirms:\n<code>/deliver ${orderId} [card details]</code>`
+      `💳 <b>New Virtual Card Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${adminUserTag(name, chatId)}\n💵 Card: <b>$${vcAmount}</b> | Total: <b>$${price}</b>\n📬 Address:\n<pre>${address}</pre>\n💳 Payment: Bank\n⏳ Awaiting payment\n\n📩 After payment confirms:\n<code>/deliver ${orderId} [card details]</code>`,
+      buildAdminButtons({ chatId })
     )
     const { url, error } = await createCheckout(priceNGN, `/ok?a=b&ref=${ref}&`, email, username, ref)
     if (error) return send(chatId, error, trans('o'))
@@ -12537,7 +12745,8 @@ ${message.replace(/\n/g, '<br>')}
 
     notifyGroup(
       `💳 <b>New Virtual Card Order!</b>\n\n👤 User: ${maskName(name)}\n💵 Card: <b>$${vcAmount}</b> | Total: <b>$${price}</b>\n💳 Payment: Crypto\n⏳ Awaiting payment`,
-      `💳 <b>New Virtual Card Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${adminUserTag(name, chatId)}\n💵 Card: <b>$${vcAmount}</b> | Total: <b>$${price}</b>\n📬 Address:\n<pre>${address}</pre>\n💳 Payment: Crypto (${tickerKey})\n⏳ Awaiting payment\n\n📩 After payment confirms:\n<code>/deliver ${orderId} [card details]</code>`
+      `💳 <b>New Virtual Card Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${adminUserTag(name, chatId)}\n💵 Card: <b>$${vcAmount}</b> | Total: <b>$${price}</b>\n📬 Address:\n<pre>${address}</pre>\n💳 Payment: Crypto (${tickerKey})\n⏳ Awaiting payment\n\n📩 After payment confirms:\n<code>/deliver ${orderId} [card details]</code>`,
+      buildAdminButtons({ chatId })
     )
     return
   }
@@ -26848,7 +27057,8 @@ const bankApis = {
     send(chatId, translation('t.dpOrderConfirmed', lang, product, price, orderId), translation('o', lang))
     notifyGroup(
       `🛒 <b>Digital Product Paid!</b>\n\n👤 User: ${maskName(name)}\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${price}</b>\n\n✅ Payment confirmed.`,
-      `🛒 <b>Digital Product Paid (Bank)</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${adminUserTag(name, chatId)}\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${price}</b> (₦${ngnIn})\n💳 Payment: Bank NGN\n\n📩 Deliver with:\n<code>/deliver ${orderId} [details]</code>`
+      `🛒 <b>Digital Product Paid (Bank)</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${adminUserTag(name, chatId)}\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${price}</b> (₦${ngnIn})\n💳 Payment: Bank NGN\n\n📩 Deliver with:\n<code>/deliver ${orderId} [details]</code>`,
+      buildAdminButtons({ chatId, orderId })
     )
     webhookTierCheck(chatId, preSpend, lang)
     if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
@@ -26885,7 +27095,8 @@ const bankApis = {
     sendMessage(chatId, translation('t.vcOrderConfirmed', lang, vcAmount, price, orderId))
     notifyGroup(
       `💳 <b>Virtual Card Paid!</b>\n\n👤 User: ${maskName(name)}\n💵 Card: <b>$${vcAmount}</b> | Paid: <b>$${price}</b>\n\n✅ Payment confirmed.`,
-      `💳 <b>Virtual Card Paid (Bank)</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${adminUserTag(name, chatId)}\n💵 Card: <b>$${vcAmount}</b> | Paid: <b>$${price}</b> (₦${ngnIn})\n📬 Address:\n<pre>${vcAddress}</pre>\n💳 Payment: Bank NGN\n\n📩 Deliver with:\n<code>/deliver ${orderId} [card details]</code>`
+      `💳 <b>Virtual Card Paid (Bank)</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${adminUserTag(name, chatId)}\n💵 Card: <b>$${vcAmount}</b> | Paid: <b>$${price}</b> (₦${ngnIn})\n📬 Address:\n<pre>${vcAddress}</pre>\n💳 Payment: Bank NGN\n\n📩 Deliver with:\n<code>/deliver ${orderId} [card details]</code>`,
+      buildAdminButtons({ chatId, orderId })
     )
     webhookTierCheck(chatId, preSpend, lang)
     if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
@@ -26919,7 +27130,8 @@ const bankApis = {
     set(payments, ref, `Bank,Wallet,wallet,$${usdIn},${chatId},${name},${new Date()},${ngnIn} NGN`)
     notifyGroup(
       `💰 <b>Wallet Top-Up!</b>\nUser ${maskName(name)} just topped up via <b>🏦 Bank Transfer</b>\nFund yours in seconds — /start`,
-      `💰 <b>Wallet Top-Up (Bank)</b>\n👤 User: ${adminUserTag(name, chatId)}\n💵 Credited: <b>$${usdIn}</b> USD\n🏦 Received: <b>${ngnIn} NGN</b>\n🔖 Ref: <code>${ref}</code>`
+      `💰 <b>Wallet Top-Up (Bank)</b>\n👤 User: ${adminUserTag(name, chatId)}\n💵 Credited: <b>$${usdIn}</b> USD\n🏦 Received: <b>${ngnIn} NGN</b>\n🔖 Ref: <code>${ref}</code>`,
+      buildAdminButtons({ chatId })
     )
     // ── First-Purchase Deposit Bonus (Feature 2) ──
     if (userConversion) {
@@ -27845,7 +28057,8 @@ app.get('/crypto-pay-digital-product', auth, async (req, res) => {
   send(chatId, translation('t.dpOrderConfirmed', lang, product, price, orderId), translation('o', lang))
   notifyGroup(
     `🛒 <b>Digital Product Paid!</b>\n\n👤 User: ${maskName(name)}\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${price}</b>\n\n✅ Payment confirmed.`,
-    `🛒 <b>Digital Product Paid (Crypto BlockBee)</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${adminUserTag(name, chatId)}\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${price}</b> (${value} ${coin})\n💳 Payment: Crypto BlockBee\n\n📩 Deliver with:\n<code>/deliver ${orderId} [details]</code>`
+    `🛒 <b>Digital Product Paid (Crypto BlockBee)</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${adminUserTag(name, chatId)}\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${price}</b> (${value} ${coin})\n💳 Payment: Crypto BlockBee\n\n📩 Deliver with:\n<code>/deliver ${orderId} [details]</code>`,
+    buildAdminButtons({ chatId, orderId })
   )
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
@@ -27882,7 +28095,8 @@ app.get('/crypto-pay-virtual-card', auth, async (req, res) => {
   sendMessage(chatId, translation('t.vcOrderConfirmed', lang, vcAmount, price, orderId))
   notifyGroup(
     `💳 <b>Virtual Card Paid!</b>\n\n👤 User: ${maskName(name)}\n💵 Card: <b>$${vcAmount}</b> | Paid: <b>$${price}</b>\n\n✅ Payment confirmed.`,
-    `💳 <b>Virtual Card Paid (Crypto BlockBee)</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${adminUserTag(name, chatId)}\n💵 Card: <b>$${vcAmount}</b> | Paid: <b>$${price}</b> (${value} ${coin})\n📬 Address:\n<pre>${vcAddress}</pre>\n💳 Payment: Crypto BlockBee\n\n📩 Deliver with:\n<code>/deliver ${orderId} [card details]</code>`
+    `💳 <b>Virtual Card Paid (Crypto BlockBee)</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${adminUserTag(name, chatId)}\n💵 Card: <b>$${vcAmount}</b> | Paid: <b>$${price}</b> (${value} ${coin})\n📬 Address:\n<pre>${vcAddress}</pre>\n💳 Payment: Crypto BlockBee\n\n📩 Deliver with:\n<code>/deliver ${orderId} [card details]</code>`,
+    buildAdminButtons({ chatId, orderId })
   )
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
@@ -27912,7 +28126,8 @@ app.get('/crypto-wallet', auth, async (req, res) => {
   set(payments, ref, `Crypto,Wallet,wallet,$${usdIn},${chatId},${name},${new Date()},${value} ${coin}`)
   notifyGroup(
     `💰 <b>Wallet Top-Up!</b>\nUser ${maskName(name)} just topped up via <b>₿ Crypto (BlockBee)</b>\nFund yours in seconds — /start`,
-    `💰 <b>Wallet Top-Up (BlockBee)</b>\n👤 User: ${adminUserTag(name, chatId)}\n💵 Credited: <b>$${usdIn}</b> USD\n🪙 Received: <b>${value} ${tickerViewOf[coin] || coin}</b>\n🔖 Ref: <code>${ref}</code>`
+    `💰 <b>Wallet Top-Up (BlockBee)</b>\n👤 User: ${adminUserTag(name, chatId)}\n💵 Credited: <b>$${usdIn}</b> USD\n🪙 Received: <b>${value} ${tickerViewOf[coin] || coin}</b>\n🔖 Ref: <code>${ref}</code>`,
+    buildAdminButtons({ chatId })
   )
   // ── First-Purchase Deposit Bonus (Feature 2) ──
   if (userConversion) {
@@ -28649,7 +28864,8 @@ app.post('/dynopay/crypto-pay-digital-product', authDyno, async (req, res) => {
   send(chatId, translation('t.dpOrderConfirmed', lang, product, price, orderId), translation('o', lang))
   notifyGroup(
     `🛒 <b>Digital Product Paid!</b>\n\n👤 User: ${maskName(name)}\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${price}</b>\n\n✅ Payment confirmed.`,
-    `🛒 <b>Digital Product Paid (Crypto DynoPay)</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${adminUserTag(name, chatId)}\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${price}</b> (${value} ${coin})\n💳 Payment: Crypto DynoPay\n\n📩 Deliver with:\n<code>/deliver ${orderId} [details]</code>`
+    `🛒 <b>Digital Product Paid (Crypto DynoPay)</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${adminUserTag(name, chatId)}\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${price}</b> (${value} ${coin})\n💳 Payment: Crypto DynoPay\n\n📩 Deliver with:\n<code>/deliver ${orderId} [details]</code>`,
+    buildAdminButtons({ chatId, orderId })
   )
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
@@ -28693,7 +28909,8 @@ app.post('/dynopay/crypto-pay-virtual-card', authDyno, async (req, res) => {
   sendMessage(chatId, translation('t.vcOrderConfirmed', lang, vcAmount, price, orderId))
   notifyGroup(
     `💳 <b>Virtual Card Paid!</b>\n\n👤 User: ${maskName(name)}\n💵 Card: <b>$${vcAmount}</b> | Paid: <b>$${price}</b>\n\n✅ Payment confirmed.`,
-    `💳 <b>Virtual Card Paid (Crypto DynoPay)</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${adminUserTag(name, chatId)}\n💵 Card: <b>$${vcAmount}</b> | Paid: <b>$${price}</b> (${value} ${coin})\n📬 Address:\n<pre>${vcAddress}</pre>\n💳 Payment: Crypto DynoPay\n\n📩 Deliver with:\n<code>/deliver ${orderId} [card details]</code>`
+    `💳 <b>Virtual Card Paid (Crypto DynoPay)</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${adminUserTag(name, chatId)}\n💵 Card: <b>$${vcAmount}</b> | Paid: <b>$${price}</b> (${value} ${coin})\n📬 Address:\n<pre>${vcAddress}</pre>\n💳 Payment: Crypto DynoPay\n\n📩 Deliver with:\n<code>/deliver ${orderId} [card details]</code>`,
+    buildAdminButtons({ chatId, orderId })
   )
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
@@ -28780,7 +28997,8 @@ app.post('/dynopay/crypto-wallet', authDyno, async (req, res) => {
   set(payments, ref, `Crypto,Wallet,wallet,$${usdIn},${chatId},${name},${new Date()},${value} ${coin},transaction,${id}`)
   notifyGroup(
     `💰 <b>Wallet Top-Up!</b>\nUser ${maskName(name)} just topped up via <b>💎 Crypto (DynoPay)</b>\nFund yours in seconds — /start`,
-    `💰 <b>Wallet Top-Up (DynoPay)</b>\n👤 User: ${adminUserTag(name, chatId)}\n💵 Credited: <b>$${usdIn}</b> USD\n🪙 Received: <b>${value} ${coin}</b>\n🔖 Ref: <code>${ref}</code>\n🆔 Txn: <code>${txnId}</code>`
+    `💰 <b>Wallet Top-Up (DynoPay)</b>\n👤 User: ${adminUserTag(name, chatId)}\n💵 Credited: <b>$${usdIn}</b> USD\n🪙 Received: <b>${value} ${coin}</b>\n🔖 Ref: <code>${ref}</code>\n🆔 Txn: <code>${txnId}</code>`,
+    buildAdminButtons({ chatId })
   )
   // ── First-Purchase Deposit Bonus (Feature 2) ──
   if (userConversion) {

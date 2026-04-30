@@ -32,9 +32,32 @@ Admins need full visibility (`@username (chatId)` + exact deposited amount + ful
 - **Partial lead refund** — admin sees `@username (chatId) | delivered/requested | refund $X.XX | reason`
 
 ### Tests
-- `js/tests/test_admin_unmasked_notify.js` — 5/5 pass: wallet-topup admin variant carries username + amount + ticker, group sees masked; new-member-join admin sees full identity; domain reg admin sees full domain; legacy 1-arg form remains backward-compatible; `adminUserTag` fallback for missing username.
+- `js/tests/test_admin_unmasked_notify.js` — 11/11 pass: wallet-topup admin variant carries username + amount + ticker, group sees masked; new-member-join admin sees full identity; domain reg admin sees full domain; legacy 1-arg form remains backward-compatible; `adminUserTag` fallback for missing username; `buildAdminButtons` produces correct rows for orders / top-ups / partial-refund / empty input; inline keyboard goes only to admin and is suppressed when `adminMessage` is null.
 - Sibling regression: `test_call_route_priority.js` — 26/26 pass.
 - Syntax: `node -c js/_index.js` clean; ESLint clean.
+
+## ✅ Admin One-Tap Action Buttons (Feb 2026)
+
+### What it does
+Admin notifications now ship with inline-keyboard buttons so the admin can complete the most common follow-ups in one tap from the chat:
+- **📩 Deliver** (orders) → bot prompts "Paste delivery details for order ABC123…" — admin types/pastes → bot internally rewrites it as `/deliver ABC123 <text>` and runs the existing delivery flow.
+- **❌ Refund Order** (orders) → confirm dialog `[✅ Confirm Refund $X | ✖️ Cancel]` → on confirm, refunds USD to buyer's wallet, marks order `refunded`, DMs the buyer.
+- **💵 Refund $X.XX** (partial-refund / future error notifications) → confirm dialog → on confirm, credits the user's wallet by that exact amount and DMs them.
+- **💬 Reply User** (every admin notification with a chatId) → bot prompts "Type your message to @user…" — admin types → bot internally rewrites it as `/reply <chatId> <text>` and runs the existing translation + admin-takeover flow.
+- **/cancel** in any pending state aborts; entering any `/command` also abandons the pending state and falls through.
+
+### Implementation — `/app/js/_index.js`
+- `notifyGroup(groupMsg, adminMsg, adminButtons = null)` — 3rd arg attaches an `inline_keyboard` to the admin message ONLY (groups always get a clean masked broadcast).
+- `buildAdminButtons({ chatId, orderId, refundUsd })` — composable helper:
+  - `orderId` → row of `[📩 Deliver, ❌ Refund Order]`
+  - `refundUsd` + `chatId` → row of `[💵 Refund $X.XX]`
+  - `chatId` → row of `[💬 Reply User]`
+- New admin-only branch in `bot.on('callback_query', …)` handles `aR:`, `aD:`, `aRO:`, `aRO_OK:`, `aRC:`, `aRC_OK:`, `aCANCEL` (gated by `query.from.id === TELEGRAM_ADMIN_CHAT_ID` with a popup for non-admins).
+- Early interceptor in `bot.on('message')` checks `state[adminId].awaitingAdminAction` and transparently rewrites the admin's free-text reply into `/reply <chatId> <text>` or `/deliver <orderId> <text>` so the existing handlers (with translation + auto-deliver-on-card-pattern detection + `digitalOrdersCol` updates) execute unchanged. 10-min staleness guard.
+- Wired into all order notifications (digital product / virtual card across wallet, bank, BlockBee, DynoPay), all wallet top-ups, new-member-join, and partial lead refund.
+
+### Tests
+- 11/11 in `test_admin_unmasked_notify.js` (5 admin-buttons specific cases added).
 
 
 ## 🐛 Cloud IVR Call-Forwarding Bug — @wizardchop +15162719167 (Feb 2026)

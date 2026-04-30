@@ -44,18 +44,17 @@ const adminUserTag = (name, chatId) => {
 const adminDomainTag = domain =>
   (domain && typeof domain === 'string') ? domain : '***'
 
-// In-memory bot capturing every send
-const sent = [] // { chatId, text }
+// In-memory bot capturing every send (text + opts)
+const sent = [] // { chatId, text, opts }
 const bot = {
-  sendMessage: (chatId, text /*, opts */) => {
-    sent.push({ chatId: String(chatId), text })
-    // Mimic the .then().catch() chain used in the real notifyGroup
+  sendMessage: (chatId, text, opts) => {
+    sent.push({ chatId: String(chatId), text, opts: opts || {} })
     return Promise.resolve({ then: cb => { cb(); return { catch: () => {} } }, catch: () => {} })
   },
 }
 
 // Simplified notifyGroup — same routing semantics as the production one.
-async function notifyGroup(message, adminMessage = null) {
+async function notifyGroup(message, adminMessage = null, adminButtons = null) {
   const taggedMessage = message + `\n— <b>${CHAT_BOT_NAME}</b>`
   const taggedAdminMessage = adminMessage != null
     ? adminMessage + `\n— <b>${CHAT_BOT_NAME}</b>`
@@ -64,12 +63,33 @@ async function notifyGroup(message, adminMessage = null) {
   if (TELEGRAM_NOTIFY_GROUP_ID) {
     const gid = Number(TELEGRAM_NOTIFY_GROUP_ID)
     sentTo.add(String(gid))
-    await bot.sendMessage(gid, taggedMessage)
+    await bot.sendMessage(gid, taggedMessage, { parse_mode: 'HTML' })
   }
   if (TELEGRAM_ADMIN_CHAT_ID && !sentTo.has(String(TELEGRAM_ADMIN_CHAT_ID))) {
     sentTo.add(String(TELEGRAM_ADMIN_CHAT_ID))
-    await bot.sendMessage(TELEGRAM_ADMIN_CHAT_ID, taggedAdminMessage)
+    const adminOpts = { parse_mode: 'HTML' }
+    if (adminButtons && Array.isArray(adminButtons) && adminButtons.length && adminMessage != null) {
+      adminOpts.reply_markup = { inline_keyboard: adminButtons }
+    }
+    await bot.sendMessage(TELEGRAM_ADMIN_CHAT_ID, taggedAdminMessage, adminOpts)
   }
+}
+
+const buildAdminButtons = ({ chatId, orderId, refundUsd } = {}) => {
+  const rows = []
+  if (orderId) {
+    rows.push([
+      { text: '📩 Deliver', callback_data: `aD:${orderId}` },
+      { text: '❌ Refund Order', callback_data: `aRO:${orderId}` },
+    ])
+  }
+  if (refundUsd && chatId) {
+    rows.push([{ text: `💵 Refund $${Number(refundUsd).toFixed(2)}`, callback_data: `aRC:${chatId}:${Number(refundUsd).toFixed(2)}` }])
+  }
+  if (chatId) {
+    rows.push([{ text: '💬 Reply User', callback_data: `aR:${chatId}` }])
+  }
+  return rows.length ? rows : null
 }
 
 // ─────────────────────────────── Tests ───────────────────────────────────
@@ -181,6 +201,59 @@ async function run() {
     assert.strictEqual(adminUserTag(null, '123'), 'User 123')
     assert.strictEqual(adminUserTag(undefined, '123'), 'User 123')
     assert.strictEqual(adminUserTag('bob', null), '@bob')
+  })
+
+  // (6) buildAdminButtons — orders get Deliver+Refund+Reply, top-ups get only Reply
+  await t('buildAdminButtons — order: 3 buttons (Deliver, Refund Order, Reply)', () => {
+    const rows = buildAdminButtons({ chatId: '999', orderId: 'ORD123' })
+    assert(rows.length === 2, 'expected 2 rows')
+    const allButtons = rows.flat()
+    assert(allButtons.find(b => b.callback_data === 'aD:ORD123'), 'Deliver btn missing')
+    assert(allButtons.find(b => b.callback_data === 'aRO:ORD123'), 'Refund Order btn missing')
+    assert(allButtons.find(b => b.callback_data === 'aR:999'), 'Reply btn missing')
+  })
+
+  await t('buildAdminButtons — top-up: only Reply User', () => {
+    const rows = buildAdminButtons({ chatId: '999' })
+    const allButtons = rows.flat()
+    assert.strictEqual(allButtons.length, 1)
+    assert.strictEqual(allButtons[0].callback_data, 'aR:999')
+    assert(allButtons[0].text.includes('Reply'))
+  })
+
+  await t('buildAdminButtons — partial refund: Refund $X.XX + Reply', () => {
+    const rows = buildAdminButtons({ chatId: '999', refundUsd: 12.5 })
+    const allButtons = rows.flat()
+    assert.strictEqual(allButtons.length, 2)
+    const refundBtn = allButtons.find(b => b.callback_data.startsWith('aRC:'))
+    assert(refundBtn, 'Refund custom button missing')
+    assert.strictEqual(refundBtn.callback_data, 'aRC:999:12.50')
+    assert(refundBtn.text.includes('$12.50'))
+  })
+
+  await t('buildAdminButtons — empty input returns null', () => {
+    assert.strictEqual(buildAdminButtons({}), null)
+    assert.strictEqual(buildAdminButtons(), null)
+  })
+
+  // (7) notifyGroup attaches inline keyboard ONLY to admin send
+  await t('notifyGroup — inline keyboard attached to admin only, never to public group', async () => {
+    const buttons = buildAdminButtons({ chatId: '999', orderId: 'ORD42' })
+    await notifyGroup('group msg', 'admin msg', buttons)
+    const groupSend = sent.find(s => s.chatId === '1001')
+    const adminSend = sent.find(s => s.chatId === '2002')
+    assert(!groupSend.opts.reply_markup, 'group must NOT receive inline keyboard')
+    assert(adminSend.opts.reply_markup, 'admin must receive inline keyboard')
+    assert(adminSend.opts.reply_markup.inline_keyboard, 'admin reply_markup must have inline_keyboard')
+    assert.strictEqual(adminSend.opts.reply_markup.inline_keyboard.length, 2)
+  })
+
+  // (8) notifyGroup — buttons ignored when adminMessage is null (legacy form)
+  await t('notifyGroup — buttons ignored when adminMessage is null', async () => {
+    const buttons = buildAdminButtons({ chatId: '999' })
+    await notifyGroup('plain', null, buttons)
+    const adminSend = sent.find(s => s.chatId === '2002')
+    assert(!adminSend.opts.reply_markup, 'no buttons when adminMsg=null (legacy form)')
   })
 
   console.log(`\n=== ${passed} passed, ${failed} failed ===\n`)
