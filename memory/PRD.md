@@ -7,6 +7,44 @@
 - MongoDB (port 27017)
 
 
+## ✅ Day-12 Upgrade-Credit Auto-DM Scheduler (Apr 30, 2026)
+
+### Why
+Picker badge sets the expectation. orderSummary badge reinforces at payment. Manage-screen one-tap CTA executes the upgrade. **This scheduler closes the loop** — auto-DMs Starter/Pro buyers exactly when they have 2 days left to lock in the credit, before the 14-day window slams shut. Day 12 is the sweet spot: enough time to feel the plan's limits, before the credit expires.
+
+### Implementation — `js/_index.js`
+- New `async function sendDay12UpgradeCreditNudges()` registered via `schedule.scheduleJob('0 14 * * *', …)` — daily at 14:00 UTC (late morning US East / mid afternoon EU / evening Asia, balancing reach).
+- **Per-number eligibility filter** (not per-user, since a user can own several numbers):
+  - `status === 'active'`
+  - `plan ∈ {starter, pro}` (Business is top tier)
+  - `!isSubNumber` (sub-numbers ride parent plan)
+  - `purchaseDate` between **12 and 13 days ago** (sweet spot — felt limits, credit unexpired; capped at 13d so we don't spam if cron is offline a few hours)
+  - next-tier plan currently available (`PHONE_PRO_ON` / `PHONE_BUSINESS_ON`)
+  - no `_upgradeCreditNudgeSentAt` already on the doc
+- **Dollar amount in the DM is computed by the same `phoneConfig.computeUpgradeQuote()` helper used by the Manage-screen one-tap button** — so the message and the actual upgrade button cannot disagree.
+- **Idempotent**: stamps `val.numbers.${i}._upgradeCreditNudgeSentAt` on the exact array index (chatId-scoped) — guards against race conditions if the user adds/removes another number while the scheduler iterates.
+- **Localized message bodies** for EN / FR / ZH / HI. Each says: "2 days left", current plan + age, target plan + exact charge, "what it would cost after the credit expires" anchor, and the explicit one-tap path (`📞 Cloud IVR + SIP → 📋 My Plans → ⬆️ Upgrade to Pro/Business`).
+
+### Tests — `js/tests/test_day12_upgrade_credit_nudge.js` (new)
+Hermetic end-to-end test that spins up a temp DB on the same MongoDB the app uses, seeds 13 fixture users covering every eligibility branch, runs the scheduler, asserts who got DMd, and runs again to verify idempotency. **19/19 pass**:
+- Eligible Starter (12d) → DMd, body contains `$62.50` and "Upgrade to Pro"
+- Eligible Pro (12d) → DMd with `$101.25` and "Upgrade to Business"
+- Day-8 (too young) → skipped
+- Day-20 (past window) → skipped
+- Business plan → skipped (top tier)
+- Already-nudged → skipped (idempotent)
+- Sub-number → skipped
+- Suspended → skipped
+- Missing `purchaseDate` → skipped (defensive default)
+- FR/ZH/HI users → received localized bodies
+- Two-numbers user with mixed eligibility → stamp lands on the eligible index only
+- Re-running scheduler → 0 new sends (idempotent)
+- Source-level: cron registered, uses `computeUpgradeQuote` and `nextUpgradePlan`, filters Starter/Pro only
+
+### Regression
+Full sweep across 11 suites, ~150+ assertions, 0 failures: `test_one_tap_upgrade` (31/31), `test_plan_picker_ivr_clarity` (34/34), `test_day12_upgrade_credit_nudge` (19/19), `test_ai_support_phase1` (19/19), `test_manage_screen_features` (21/21), `test_user_facing_localization` (26/26), plus 5 others. nodejs restarted clean; `/api/` returns HTTP 200 in 178ms.
+
+
 ## ✅ orderSummary Upgrade-Credit Badge + AI Support Sync (Apr 30, 2026)
 
 ### Why

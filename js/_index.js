@@ -3011,6 +3011,126 @@ schedule.scheduleJob('*/5 * * * *', function() {
   sendRemindersForExpiringPackages()
 })
 
+// ─── Day-12 upgrade-credit nudge (Apr-30 audit follow-up) ────────────────
+// Goal: catch Starter/Pro buyers exactly when they have 2 days left to lock
+// in the 25% upgrade credit, before the 14-day window closes. The picker +
+// orderSummary badges set the expectation; this scheduler is the third
+// touchpoint that actually closes the loop. We DM each eligible number at
+// most once. Sends are idempotent: a `_upgradeCreditNudgeSentAt` flag is
+// stamped on the number sub-doc so re-running the scheduler won't spam.
+//
+// Eligibility (per number, not per user — a user can own several numbers):
+//   • status === 'active'
+//   • plan in {starter, pro}                 (Business is the top tier)
+//   • !isSubNumber                            (sub-numbers ride parent plan)
+//   • purchaseDate is between 12d and 13d ago (sweet spot — felt the limits,
+//     credit not expired). Numbers older than 13d would catch users right at
+//     the deadline (which is fine), but we cap at 13d so we don't spam if
+//     the cron job is offline a few hours and reprocesses the queue.
+//   • next-tier plan is currently available  (PHONE_PRO_ON / PHONE_BUSINESS_ON)
+//   • no `_upgradeCreditNudgeSentAt` already on the doc
+//
+// The nudge uses the same computeUpgradeQuote helper as the Manage screen so
+// the dollar amount is identical to the user's actual one-tap upgrade button.
+async function sendDay12UpgradeCreditNudges() {
+  if (!phoneNumbersOf || typeof phoneNumbersOf.find !== 'function') {
+    return // DB not ready yet
+  }
+  const now = Date.now()
+  const day12Ago = now - 12 * 24 * 60 * 60 * 1000
+  const day13Ago = now - 13 * 24 * 60 * 60 * 1000
+  let sent = 0, scanned = 0, errors = 0
+
+  try {
+    // Stream all docs with at least one number — narrow scan rather than
+    // table-scan via aggregation since the collection holds full sub-doc
+    // arrays per chatId (already small per doc).
+    const cursor = phoneNumbersOf.find({}, { projection: { _id: 1, val: 1 } })
+    while (await cursor.hasNext()) {
+      const doc = await cursor.next()
+      const chatId = doc._id
+      const numbers = doc.val?.numbers || []
+      if (!numbers.length) continue
+
+      for (let i = 0; i < numbers.length; i++) {
+        const num = numbers[i]
+        scanned++
+        if (num.status !== 'active') continue
+        if (num.isSubNumber) continue
+        if (num.plan !== 'starter' && num.plan !== 'pro') continue
+        if (num._upgradeCreditNudgeSentAt) continue
+        const purchasedTs = num.purchaseDate ? new Date(num.purchaseDate).getTime() : 0
+        if (!purchasedTs || isNaN(purchasedTs)) continue
+        if (purchasedTs > day12Ago) continue   // <12d — too soon
+        if (purchasedTs <= day13Ago) continue  // >13d — past sweet spot
+
+        const nextUp = phoneConfig.nextUpgradePlan(num)
+        if (!nextUp) continue
+
+        const quote = phoneConfig.computeUpgradeQuote(num, nextUp)
+        if (!quote || !quote.eligibleForCredit) continue // belt-and-braces
+
+        try {
+          const info = await get(state, chatId)
+          const lang = info?.userLanguage || 'en'
+          const cpTxt = phoneConfig.getTxt(lang)
+          const targetLabel = nextUp === 'pro' ? 'Pro' : 'Business'
+          const phoneLabel = phoneConfig.formatPhone(num.phoneNumber)
+          // Localized message bodies.
+          const bodyByLang = {
+            en: `🛡️ <b>2 days left on your upgrade credit</b>\n\n` +
+                `Your <b>${num.plan.charAt(0).toUpperCase() + num.plan.slice(1)}</b> plan on ${phoneLabel} is 12 days old. You still have <b>2 days</b> to upgrade with the 25% credit.\n\n` +
+                `Upgrade to <b>${targetLabel}</b> now for <b>$${quote.chargeAmount.toFixed(2)}</b> ` +
+                `(would be $${quote.newPrice} after the credit expires).\n\n` +
+                `<i>Open the number from 📞 Cloud IVR + SIP → 📋 My Plans and tap ⬆️ Upgrade to ${targetLabel}.</i>`,
+            fr: `🛡️ <b>Plus que 2 jours pour votre crédit de surclassement</b>\n\n` +
+                `Votre forfait <b>${num.plan.charAt(0).toUpperCase() + num.plan.slice(1)}</b> sur ${phoneLabel} a 12 jours. Il vous reste <b>2 jours</b> pour passer à un forfait supérieur avec un crédit de 25 %.\n\n` +
+                `Passez à <b>${targetLabel}</b> maintenant pour <b>$${quote.chargeAmount.toFixed(2)}</b> ` +
+                `(ce sera $${quote.newPrice} après l'expiration du crédit).\n\n` +
+                `<i>Ouvrez le numéro depuis 📞 Cloud IVR + SIP → 📋 Mes Forfaits et appuyez sur ⬆️ Passer à ${targetLabel}.</i>`,
+            zh: `🛡️ <b>升级抵扣还剩 2 天</b>\n\n` +
+                `您在 ${phoneLabel} 上的 <b>${num.plan === 'starter' ? '入门版' : '专业版'}</b> 套餐已使用 12 天。您还有 <b>2 天</b> 可享 25% 抵扣升级。\n\n` +
+                `立即升级到 <b>${nextUp === 'pro' ? '专业版' : '商务版'}</b>，仅需 <b>$${quote.chargeAmount.toFixed(2)}</b> ` +
+                `（抵扣到期后为 $${quote.newPrice}）。\n\n` +
+                `<i>打开号码：📞 Cloud IVR + SIP → 📋 我的套餐，点击 ⬆️ 升级到${nextUp === 'pro' ? '专业版' : '商务版'}。</i>`,
+            hi: `🛡️ <b>आपके अपग्रेड क्रेडिट के 2 दिन शेष</b>\n\n` +
+                `${phoneLabel} पर आपका <b>${num.plan === 'starter' ? 'स्टार्टर' : 'प्रो'}</b> प्लान 12 दिन का हो गया है। 25% क्रेडिट के साथ अपग्रेड करने के लिए आपके पास <b>2 दिन</b> शेष हैं।\n\n` +
+                `अभी <b>${nextUp === 'pro' ? 'प्रो' : 'बिज़नेस'}</b> में अपग्रेड करें — केवल <b>$${quote.chargeAmount.toFixed(2)}</b> ` +
+                `(क्रेडिट समाप्त होने के बाद $${quote.newPrice} होगा)।\n\n` +
+                `<i>नंबर खोलें: 📞 Cloud IVR + SIP → 📋 मेरे प्लान्स और ⬆️ ${nextUp === 'pro' ? 'प्रो' : 'बिज़नेस'} में अपग्रेड करें टैप करें।</i>`,
+          }
+          const body = bodyByLang[lang] || bodyByLang.en
+          await send(chatId, body, { parse_mode: 'HTML' })
+
+          // Stamp the sent flag on the EXACT array element by index, scoped
+          // to chatId — guards against race conditions if the user adds /
+          // removes another number while this iteration runs.
+          const updatePath = {}
+          updatePath[`val.numbers.${i}._upgradeCreditNudgeSentAt`] = new Date().toISOString()
+          await phoneNumbersOf.updateOne({ _id: chatId }, { $set: updatePath })
+          sent++
+          log(`[Day12Nudge] Sent to ${chatId} for ${num.phoneNumber} ${num.plan}→${nextUp} ($${quote.chargeAmount.toFixed(2)})`)
+        } catch (innerErr) {
+          errors++
+          log(`[Day12Nudge] Send failed for ${chatId}/${num.phoneNumber}: ${innerErr.message}`)
+        }
+      }
+    }
+  } catch (e) {
+    log(`[Day12Nudge] Scan error: ${e.message}`)
+    errors++
+  }
+
+  if (sent > 0 || errors > 0) {
+    log(`[Day12Nudge] Cycle complete — scanned:${scanned} sent:${sent} errors:${errors}`)
+  }
+}
+
+// Run once daily at 14:00 UTC — late-morning US East / mid-afternoon Europe /
+// evening Asia, balancing reach across the user base. Same pattern as
+// existing schedulers (node-schedule + cron string).
+schedule.scheduleJob('0 14 * * *', sendDay12UpgradeCreditNudges)
+
 // ─── Periodic Anti-Red Worker deployment (fail-safe) ────
 // Runs every 6 hours to catch any CF-proxied domains missing the Worker route
 const { deploySharedWorkerRoute } = require('./anti-red-service')
