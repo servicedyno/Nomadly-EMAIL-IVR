@@ -27121,7 +27121,7 @@ const bankApis = {
     del(chatIdOfPayment, ref)
     const usdIn = await ngnToUsd(ngnIn)
     let transaction = {
-      type: vpsDetails.upgradeType === 'plan' ? 'upgarde-plan' : 'upgrade-disk',
+      type: vpsDetails.upgradeType === 'plan' ? 'upgrade-plan' : 'upgrade-disk',
       response : response
     }
     await insert(vpsTransactions, chatId, "bank", transaction)
@@ -27906,6 +27906,25 @@ app.get('/crypto-pay-plan', auth, async (req, res) => {
 
   // Subscribe Plan
   subscribePlan(planEndingTime, freeDomainNamesAvailableFor, planOf, chatId, plan, bot, lang, freeValidationsAvailableFor)
+
+  // ── Universal-ledger audit (Apr-30-2026 sweep) ──
+  // Previously the BlockBee bot-plan subscription webhook wrote NO row to
+  // `transactions`, leaving ~$15-75/mo recurring revenue off the audit ledger
+  // until the DynoPay equivalent (different PSP) was rolled out.
+  try {
+    await logTransaction(db, {
+      transactionId: generateTransactionId(),
+      chatId,
+      type: 'plan-subscription',
+      amount: price,
+      currency: 'USD',
+      status: 'completed',
+      metadata: { plan, coin, value, ref, psp: 'blockbee' },
+    })
+  } catch (txErr) {
+    log('[Plan] Failed to log BlockBee subscription transaction (non-blocking): ' + txErr.message)
+  }
+
   notifyGroup(
     `💎 <b>New Subscription!</b>\nUser ${maskName(name)} just upgraded to the <b>${plan} Plan</b> — unlocking unlimited URL shortening + ${(freeValidationsOf[plan] || 0).toLocaleString()} phone validations.\nDon't miss out — /start`,
     `💎 <b>New Subscription (Crypto BlockBee)</b>\n👤 User: ${adminUserTag(name, chatId)}\n📦 Plan: <b>${plan}</b>\n💵 Paid: <b>$${usdIn}</b> (${value} ${coin})\n💳 Payment: Crypto BlockBee`
@@ -27973,6 +27992,21 @@ app.get('/crypto-pay-domain', auth, async (req, res) => {
   await set(state, chatId, 'actualPrice', null)
   await set(state, chatId, 'actualRegistrar', null)
   await set(state, chatId, 'registrarFallback', null)
+
+  // ── Universal-ledger audit (Apr-30-2026 sweep) ──
+  try {
+    await logTransaction(db, {
+      transactionId: generateTransactionId(),
+      chatId,
+      type: 'domain',
+      amount: updatedInfo?.actualPrice || cheaperPrice || price,
+      currency: 'USD',
+      status: 'completed',
+      metadata: { domain, registrar: updatedInfo?.actualRegistrar, coin, value, ref, psp: 'blockbee' },
+    })
+  } catch (txErr) {
+    log('[Domain] Failed to log BlockBee domain transaction (non-blocking): ' + txErr.message)
+  }
 
   notifyGroup(
     `🌐 <b>Domain Registered!</b>\nUser ${maskName(name)} just claimed <b>${maskDomain(domain)}</b> — your dream domain could be next.\nGrab yours before it's taken — /start`,
@@ -28555,6 +28589,25 @@ app.get('/crypto-wallet', auth, async (req, res) => {
   const usdIn = await convert(value, coin, 'usd')
   addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
   sendMessage(chatId, translation('t.confirmationDepositMoney', lang, value + ' ' + tickerViewOf[coin], usdIn))
+
+  // ── Universal-ledger audit (Apr-30-2026 sweep) ──
+  // Parity with /dynopay/crypto-wallet — every wallet top-up path must write
+  // a row to the `transactions` collection so reconciliation, order history,
+  // and support queries can find every deposit regardless of PSP.
+  const txnId = generateTransactionId()
+  try {
+    await logTransaction(db, {
+      transactionId: txnId,
+      chatId,
+      type: 'wallet-topup',
+      amount: usdIn,
+      currency: 'USD',
+      status: 'completed',
+      metadata: { coin: tickerViewOf[coin] || coin, value, ref, psp: 'blockbee' },
+    })
+  } catch (txErr) {
+    log('[Wallet] Failed to log BlockBee top-up transaction (non-blocking): ' + txErr.message)
+  }
 
   // Logs
   res.send(html())

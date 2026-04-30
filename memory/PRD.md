@@ -7,6 +7,51 @@
 - MongoDB (port 27017)
 
 
+## ✅ Payment Audit-Trail Sweep — Phase 1 of 2 (Apr 30, 2026)
+
+### Audit findings
+Systematically mapped every payment-success webhook to see which call `logTransaction(db, {...})` → universal `transactions` ledger (231 rows, type-distributed: wallet-topup, domain, hosting, vps, phone-number, plan-subscription, etc).
+
+**Full gap matrix:**
+
+| Flow (BlockBee) | logs to `transactions`? |   | Flow (DynoPay) | logs to `transactions`? |
+|---|:-:|---|---|:-:|
+| `/crypto-wallet` top-up | ❌ → **✅ fixed** | | `/dynopay/crypto-wallet` top-up | ✅ |
+| `/crypto-pay-plan` bot sub | ❌ → **✅ fixed** | | `/dynopay/crypto-pay-plan` | ❌ pending |
+| `/crypto-pay-domain` | ❌ → **✅ fixed** | | `/dynopay/crypto-pay-domain` | ❌ pending |
+| `/crypto-pay-hosting` | ❌ pending | | `/dynopay/crypto-pay-hosting` | ❌ pending |
+| `/crypto-pay-phone` | ❌ pending (phoneTransactions yes) | | `/dynopay/crypto-pay-phone` | ❌ pending (phoneTransactions yes) |
+| `/crypto-pay-vps` | ❌ pending (vpsTransactions blob) | | `/dynopay/crypto-pay-vps` | ❌ pending |
+| `/crypto-pay-upgrade-vps` | ❌ pending | | `/dynopay/crypto-pay-upgrade-vps` | ❌ pending |
+| `/crypto-pay-digital-product` | ❌ pending | | `/dynopay/crypto-pay-digital-product` | ❌ pending |
+| `/crypto-pay-virtual-card` | ❌ pending | | `/dynopay/crypto-pay-virtual-card` | ❌ pending |
+| `/crypto-pay-leads` | ❌ pending | | `/dynopay/crypto-pay-leads` | ❌ pending |
+
+**Impact**: wallet-paid flows (lines 8508 / 25958 / 26431 / 27314) all log correctly. The gap is specifically in **webhook callback handlers** from the two crypto PSPs for everything except `/dynopay/crypto-wallet`. Prior to this sweep the `transactions` collection was missing ~50% of crypto-paid product purchases.
+
+### Fixed in this batch (Phase 1)
+1. **`/crypto-wallet`** (BlockBee wallet top-up) — now calls `logTransaction(db, { type: 'wallet-topup', amount: usdIn, metadata: { coin, value, ref, psp: 'blockbee' } })` with try/catch. Parity with DynoPay equivalent.
+2. **`/crypto-pay-plan`** (BlockBee bot-plan subscription) — now logs `type: 'plan-subscription'` with plan, coin, psp. Closes the $15-75/mo recurring-revenue audit gap.
+3. **`/crypto-pay-domain`** (BlockBee domain purchase) — now logs `type: 'domain'` with the ACTUAL price paid after registrar fallback (`updatedInfo?.actualPrice || cheaperPrice || price`), so audit reflects real spend, not the quoted price.
+4. **`upgarde-plan` typo** in VPS transaction types → corrected to `upgrade-plan`.
+
+### Remaining gaps (Phase 2 — tracked in `test_payment_audit_sweep.js` DOCUMENTED_GAPS array)
+16 more webhook paths need the same fix. They all follow an identical pattern (`logTransaction(db, { transactionId: generateTransactionId(), chatId, type, amount, currency, status, metadata })` wrapped in try/catch) so a batched follow-up can knock them out in ~15 min with another focused pass. Additionally the VPS `insert(vpsTransactions, chatId, "bank", blob)` pattern should gain top-level `amount` / `paymentMethod` / `type` / `plan` fields to make those queryable.
+
+### Tests — `js/tests/test_payment_audit_sweep.js` (new)
+9/9 pass. Source-level regression with helper that extracts each handler's body:
+- `/crypto-wallet`, `/crypto-pay-plan`, `/crypto-pay-domain` all call `logTransaction` with correct `type` + `psp: 'blockbee'` metadata
+- Try/catch wrapping present
+- `/crypto-pay-domain` uses `actualPrice || cheaperPrice || price` (registrar-fallback-aware audit)
+- `upgarde-plan` typo is gone (zero occurrences) and `upgrade-plan` exists
+- Parity guard: DynoPay wallet `logTransaction` still present (didn't break it while adding the BlockBee one)
+- Phone upgrade audit trail still works (previous fix regression guard)
+- Documented 16 remaining gaps in a smoke-checked array so future agents can see exactly what's left
+
+### Regression
+13 suites all green: `test_payment_audit_sweep` (9/9), `test_phone_upgrade_audit_trail` (13/13), `test_one_tap_upgrade` (31/31), `test_plan_picker_ivr_clarity` (34/34), `test_day12_upgrade_credit_nudge` (19/19), `test_ai_support_phase1` (19/19), `test_manage_screen_features` (21/21), `test_user_facing_localization` (26/26), plus 5 others. nodejs restarted clean; `/api/` HTTP 200 in 294ms.
+
+
 ## ✅ Phone Upgrade Audit-Trail Fix + Backfill (Apr 30, 2026)
 
 ### Gap identified
