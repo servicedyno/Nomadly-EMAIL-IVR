@@ -3836,7 +3836,17 @@ bot?.on('callback_query', async (query) => {
       try {
         await atomicIncrement(walletOf, order.chatId, 'usdIn', Number(order.price) || 0)
         await digitalOrdersCol.updateOne({ orderId }, { $set: { status: 'refunded', refundedAt: new Date(), refundedBy: adminId } })
-        send(order.chatId, `💵 <b>Refund Issued</b>\n\n🆔 Order: <code>${orderId}</code>\n📦 Product: <b>${order.product}</b>\n💵 Refunded: <b>$${order.price}</b> to your wallet.\n\nFor questions, contact support.`, { parse_mode: 'HTML' })
+        const _bs = await state.findOne({ _id: String(order.chatId) })
+        const _blang = _bs?.userLanguage || 'en'
+        const _refundMsg = ({
+          en: `💵 <b>Refund Issued</b>\n\n🆔 Order: <code>${orderId}</code>\n📦 Product: <b>${order.product}</b>\n💵 Refunded: <b>$${order.price}</b> to your wallet.\n\nFor questions, contact support.`,
+          fr: `💵 <b>Remboursement effectué</b>\n\n🆔 Commande : <code>${orderId}</code>\n📦 Produit : <b>${order.product}</b>\n💵 Remboursé : <b>$${order.price}</b> sur votre portefeuille.\n\nPour toute question, contactez le support.`,
+          zh: `💵 <b>已退款</b>\n\n🆔 订单：<code>${orderId}</code>\n📦 产品：<b>${order.product}</b>\n💵 退款：<b>$${order.price}</b> 已退至您的钱包。\n\n如有疑问，请联系客服。`,
+          hi: `💵 <b>रिफंड जारी</b>\n\n🆔 ऑर्डर: <code>${orderId}</code>\n📦 उत्पाद: <b>${order.product}</b>\n💵 रिफंड: <b>$${order.price}</b> आपके वॉलेट में।\n\nप्रश्नों के लिए सहायता से संपर्क करें।`,
+        }[_blang]) || ({
+          en: `💵 <b>Refund Issued</b>\n\n🆔 Order: <code>${orderId}</code>\n📦 Product: <b>${order.product}</b>\n💵 Refunded: <b>$${order.price}</b> to your wallet.\n\nFor questions, contact support.`,
+        }.en)
+        send(order.chatId, _refundMsg, { parse_mode: 'HTML' })
         await ackPopup(`Refunded $${order.price}`)
         try { await bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: query.message.chat.id, message_id: query.message.message_id }) } catch {}
         send(adminId, `✅ Refund <b>$${order.price}</b> issued for order <code>${orderId}</code> → ${order.chatId}.`, { parse_mode: 'HTML' })
@@ -3875,11 +3885,20 @@ bot?.on('callback_query', async (query) => {
       if (!/^\d+$/.test(target) || !(amount > 0)) { await ackPopup('Invalid'); return }
       try {
         await atomicIncrement(walletOf, target, 'usdIn', amount)
-        send(target, `💵 <b>Refund Issued</b>\n\n💵 Amount: <b>$${amount.toFixed(2)}</b> credited to your wallet.\n\nFor questions, contact support.`, { parse_mode: 'HTML' })
-        await ackPopup(`Refunded $${amount.toFixed(2)}`)
+        const _ts = await state.findOne({ _id: String(target) })
+        const _tlang = _ts?.userLanguage || 'en'
+        const _amtFix = amount.toFixed(2)
+        const _refundMsg = ({
+          en: `💵 <b>Refund Issued</b>\n\n💵 Amount: <b>$${_amtFix}</b> credited to your wallet.\n\nFor questions, contact support.`,
+          fr: `💵 <b>Remboursement effectué</b>\n\n💵 Montant : <b>$${_amtFix}</b> crédité sur votre portefeuille.\n\nPour toute question, contactez le support.`,
+          zh: `💵 <b>已退款</b>\n\n💵 金额：<b>$${_amtFix}</b> 已退至您的钱包。\n\n如有疑问，请联系客服。`,
+          hi: `💵 <b>रिफंड जारी</b>\n\n💵 राशि: <b>$${_amtFix}</b> आपके वॉलेट में जमा।\n\nप्रश्नों के लिए सहायता से संपर्क करें।`,
+        }[_tlang]) || `💵 <b>Refund Issued</b>\n\n💵 Amount: <b>$${_amtFix}</b> credited to your wallet.\n\nFor questions, contact support.`
+        send(target, _refundMsg, { parse_mode: 'HTML' })
+        await ackPopup(`Refunded $${_amtFix}`)
         try { await bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: query.message.chat.id, message_id: query.message.message_id }) } catch {}
-        send(adminId, `✅ Refund <b>$${amount.toFixed(2)}</b> issued to ${target}.`, { parse_mode: 'HTML' })
-        log(`[Admin] Custom refund issued: amount=$${amount.toFixed(2)} chatId=${target} by=${adminId}`)
+        send(adminId, `✅ Refund <b>$${_amtFix}</b> issued to ${target}.`, { parse_mode: 'HTML' })
+        log(`[Admin] Custom refund issued: amount=$${_amtFix} chatId=${target} by=${adminId}`)
       } catch (e) {
         await ackPopup(`Error: ${e.message}`)
         send(adminId, `❌ Refund failed for ${target}: ${e.message}`, { parse_mode: 'HTML' })

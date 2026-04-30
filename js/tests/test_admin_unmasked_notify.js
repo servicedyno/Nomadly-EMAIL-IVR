@@ -256,6 +256,24 @@ async function run() {
     assert(!adminSend.opts.reply_markup, 'no buttons when adminMsg=null (legacy form)')
   })
 
+  // (9) Refund DMs cover all 4 supported languages (regression for user-DM gap)
+  await t('Refund-Issued user DM — present in en/fr/zh/hi (no English-only fallback)', () => {
+    const fs = require('fs')
+    const src = fs.readFileSync(require('path').join(__dirname, '..', '_index.js'), 'utf8')
+    const aROStart = src.indexOf("data.startsWith('aRO_OK")
+    const aRCStart = src.indexOf("data.startsWith('aRC_OK")
+    const aCANCEL = src.lastIndexOf("data === 'aCANCEL'")
+    assert(aROStart > 0 && aRCStart > aROStart && aCANCEL > aRCStart, 'expected handler order: aRO_OK → aRC_OK → aCANCEL')
+    const aROBlock = src.slice(aROStart, aRCStart)
+    const aRCBlock = src.slice(aRCStart, aCANCEL)
+    for (const [name, block] of [['aRO_OK', aROBlock], ['aRC_OK', aRCBlock]]) {
+      assert(/Refund Issued/.test(block), `${name} missing en string`)
+      assert(/Remboursement effectué/.test(block), `${name} missing fr string`)
+      assert(/已退款/.test(block), `${name} missing zh string`)
+      assert(/रिफंड जारी/.test(block), `${name} missing hi string`)
+    }
+  })
+
   console.log(`\n=== ${passed} passed, ${failed} failed ===\n`)
   process.exit(failed === 0 ? 0 : 1)
 }
