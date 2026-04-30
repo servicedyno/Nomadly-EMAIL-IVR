@@ -804,24 +804,61 @@ const ESCALATION_KEYWORDS = {
 }
 const ALL_ESCALATION_KEYWORDS = Object.values(ESCALATION_KEYWORDS).flat()
 
-// ── Tier 1 Feature 4: Smart escalation — context-aware ──
-function needsEscalation(message, lang, aiResponse = null) {
-  const lower = message.toLowerCase()
-  const langCritical = CRITICAL_ESCALATION[lang] || []
-  const critical = [...new Set([...CRITICAL_ESCALATION.en, ...langCritical])]
+// ── In-session escalation dedup ──
+// Tracks which critical keywords already alerted the admin in this session,
+// so the admin gets ONE 🚨 ping per critical topic per session — not one per
+// user message that contains the same keyword.
+//
+// Cleared when the session ends (`clearHistory(chatId)` below).
+const _escalatedThisSession = new Map() // chatId → Set<keyword>
 
-  // CRITICAL keywords: always escalate regardless of AI response
-  if (critical.some(kw => lower.includes(kw))) return true
+function _findFirstCriticalKeyword(lower, lang) {
+  const langCritical = CRITICAL_ESCALATION[lang] || []
+  const all = [...new Set([...CRITICAL_ESCALATION.en, ...langCritical])]
+  for (const kw of all) {
+    if (lower.includes(kw)) return kw
+  }
+  return null
+}
+
+// ── Tier 1 Feature 4: Smart escalation — context-aware ──
+// Returns:
+//   • true   → escalate to admin and emit a 🚨 admin ping
+//   • false  → do not escalate
+//
+// 4th positional arg `chatId` is required for in-session dedup. Older callers
+// that pass only (message, lang, aiResponse) still work — they just don't get
+// dedup (legacy behavior — every message with a critical keyword pings).
+function needsEscalation(message, lang, aiResponse = null, chatId = null) {
+  const lower = message.toLowerCase()
+  const matched = _findFirstCriticalKeyword(lower, lang)
+
+  // CRITICAL keywords: escalate, but only ONCE per session per keyword
+  if (matched) {
+    if (chatId == null) return true
+    const key = String(chatId)
+    if (!_escalatedThisSession.has(key)) _escalatedThisSession.set(key, new Set())
+    const set = _escalatedThisSession.get(key)
+    if (set.has(matched)) return false // already pinged admin for this keyword in this session
+    set.add(matched)
+    return true
+  }
 
   // SOFT keywords: only escalate if AI couldn't provide actionable answer
   const langSoft = SOFT_ESCALATION[lang] || []
   const soft = [...new Set([...SOFT_ESCALATION.en, ...langSoft])]
   if (soft.some(kw => lower.includes(kw))) {
-    // If AI gave a response with navigation path (→) or specific steps, it handled it
+    // If AI gave a response with navigation path (→) or specific steps, it handled it.
+    // Recognize tap/click/go-to verbs in EN + FR + ZH + HI so non-EN navigation
+    // answers don't trigger false escalations.
     if (aiResponse) {
       const hasNavPath = aiResponse.includes('→') || aiResponse.includes('&#8594;') || aiResponse.includes('&gt;')
       const hasSteps = /\d+\.\s/.test(aiResponse) // numbered steps like "1. Go to..."
-      const hasTapInstruction = /tap|click|press|go to|navigate/i.test(aiResponse)
+      // EN: tap/click/press/go to/navigate
+      // FR: appuyez/cliquez/touchez/allez/naviguez/accédez
+      // ZH: 点击/点按/前往/进入/导航/打开
+      // HI: टैप/क्लिक/दबाएं/जाएं/खोलें/नेविगेट
+      const hasTapInstruction = /(tap|click|press|go to|navigate|appuyez|cliquez|touchez|allez|naviguez|accédez|点击|点按|前往|进入|导航|打开|टैप|क्लिक|दबाएं|जाएं|खोलें|नेविगेट)/i.test(aiResponse)
       if (hasNavPath || hasSteps || hasTapInstruction) return false
     }
     return true
@@ -1019,7 +1056,7 @@ const LANG_NAMES = {
 // ── Main AI response function ──
 async function getAiResponse(chatId, userMessage, lang = 'en') {
   if (!openai) {
-    return { response: null, escalate: needsEscalation(userMessage, lang), error: 'OpenAI not initialized' }
+    return { response: null, escalate: needsEscalation(userMessage, lang, null, chatId), error: 'OpenAI not initialized' }
   }
 
   try {
@@ -1050,7 +1087,7 @@ async function getAiResponse(chatId, userMessage, lang = 'en') {
         completion = await openai.chat.completions.create({
           model: 'gpt-4.1-mini',
           messages,
-          max_tokens: 500,
+          max_tokens: 1200,
           temperature: 0.7,
         })
         break // success
@@ -1078,8 +1115,9 @@ async function getAiResponse(chatId, userMessage, lang = 'en') {
     await saveMessage(chatId, 'user', userMessage)
     await saveMessage(chatId, 'assistant', aiResponse)
 
-    // Check if AI itself flagged escalation or if keywords match (smart escalation)
-    const escalate = needsEscalation(userMessage, lang, aiResponse) ||
+    // Check if AI itself flagged escalation or if keywords match (smart escalation).
+    // Pass chatId so critical-keyword pings are deduped within a session.
+    const escalate = needsEscalation(userMessage, lang, aiResponse, chatId) ||
       aiResponse.toLowerCase().includes('human agent') ||
       aiResponse.toLowerCase().includes('support team') ||
       aiResponse.toLowerCase().includes('escalat') ||
@@ -1105,6 +1143,8 @@ async function getAiResponse(chatId, userMessage, lang = 'en') {
 
 // ── Clear conversation history (when support session ends) ──
 async function clearHistory(chatId) {
+  // Reset in-memory escalation dedup so the next session starts clean.
+  _escalatedThisSession.delete(String(chatId))
   if (!_aiChatHistory) return
   try {
     await _aiChatHistory.deleteMany({ chatId })
@@ -1168,8 +1208,52 @@ SAFETY RULES you MUST emphasize:
 - Report suspicious users with /report
 - AI monitors all chats for scam patterns
 
+LANGUAGE-AWARE BUTTON LABELS (use the user's language verbatim when telling them where to tap):
+- EN: "🏪 Marketplace" → "📦 My Listings" / "🛒 Browse" / "💬 My Chats" / "📜 Listing Rules"
+- FR: "🏪 Marché" → "📦 Mes annonces" / "🛒 Parcourir" / "💬 Mes Chats" / "📜 Règles d'annonce"
+- ZH: "🏪 市场" → "📦 我的房源" / "🛒 浏览" / "💬 我的聊天" / "📜 房源规则"
+- HI: "🏪 मार्केटप्लेस" → "📦 मेरी लिस्टिंग" / "🛒 ब्राउज़" / "💬 मेरी चैट्स" / "📜 लिस्टिंग नियम"
+
 Be concise (under 200 words), use Telegram HTML formatting (<b>, <i>), and be friendly.
 When the user's language is not English, respond in their language.`
+
+// Build a marketplace-specific user context (parallels getUserContext but
+// limited to data that matters in MP — listings, conversations, escrow, wallet
+// for fee context). Keeps the call lightweight (~40-100 tokens).
+async function getMarketplaceContext(chatId) {
+  if (!_db) return ''
+  const ctx = []
+  try {
+    const wallet = await _db.collection('walletOf').findOne({ _id: chatId })
+    if (wallet?.val) {
+      const usd = Number(wallet.val.usdIn || 0).toFixed(2)
+      ctx.push(`Wallet: $${usd} USD`)
+    }
+    const listings = await _db.collection('marketplaceProducts')
+      .find({ sellerId: chatId, status: { $in: ['active', 'pending'] } })
+      .limit(5)
+      .toArray()
+    if (listings.length) {
+      const summary = listings
+        .map(l => `${l.title || l.name || l._id} ($${l.price || '?'})`)
+        .slice(0, 3)
+        .join(', ')
+      ctx.push(`Active listings (${listings.length}): ${summary}`)
+    }
+    const convs = await _db.collection('marketplaceConversations')
+      .find({ $or: [{ sellerId: chatId }, { buyerId: chatId }] })
+      .sort({ updatedAt: -1 })
+      .limit(3)
+      .toArray()
+    if (convs.length) {
+      const states = convs.map(c => c.escrowStatus || c.status || 'open').join(', ')
+      ctx.push(`Open conversations: ${convs.length} (states: ${states})`)
+    }
+  } catch (e) {
+    log(`[MP AI] context build error: ${e.message}`)
+  }
+  return ctx.length ? `\n\nUser context:\n- ${ctx.join('\n- ')}` : ''
+}
 
 async function getMarketplaceAiResponse(chatId, userMessage, lang = 'en') {
   if (!openai) return { response: null, error: 'AI not available' }
@@ -1180,15 +1264,16 @@ async function getMarketplaceAiResponse(chatId, userMessage, lang = 'en') {
       : ''
 
     const history = await getConversationHistory(chatId, 5)
+    const userContext = await getMarketplaceContext(chatId)
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4.1-mini',
       messages: [
-        { role: 'system', content: MP_HELPER_PROMPT + langInstruction },
+        { role: 'system', content: MP_HELPER_PROMPT + userContext + langInstruction },
         ...history.slice(-4),
         { role: 'user', content: userMessage },
       ],
-      max_tokens: 400,
+      max_tokens: 800,
       temperature: 0.7,
     })
 
@@ -1225,7 +1310,11 @@ async function recordUserError(chatId, feature, error) {
 function extractActionButtons(aiResponse, lang = 'en') {
   if (!aiResponse) return []
 
-  // Map of keyword patterns → button labels per language
+  // Map of keyword patterns → button labels per language.
+  // Keywords are matched against the AI response text in the user's language,
+  // so each map stores keywords in that language. ZH/HI maps were missing
+  // before — without them, ZH/HI users got EN button labels even when the AI
+  // response was fully translated.
   const buttonMap = {
     en: {
       'url shortener': '🔗✂️ URL Shortener — Unlimited',
@@ -1249,10 +1338,51 @@ function extractActionButtons(aiResponse, lang = 'en') {
       'portefeuille': '👛 Portefeuille',
       'dépôt': '👛 Portefeuille',
       'marketplace': '🏪 Marketplace',
+      'marché': '🏪 Marché',
       'domaine': '🌐 Domaines Bulletproof',
       'hébergement': '🛡️🔥 Hébergement Anti-Red',
       'vps': '🖥️ VPS/RDP',
       'sms': '📱 Leads SMS',
+      'carte virtuelle': '💳 Carte Virtuelle',
+      'validation d\'e-mails': '📧 Validation d\'e-mails',
+      'produit numérique': '📦 Produits numériques',
+    },
+    zh: {
+      '缩短器': '🔗✂️ URL 缩短器 — 无限',
+      '短链': '🔗✂️ URL 缩短器 — 无限',
+      'cloud ivr': '📞 Cloud IVR + SIP',
+      'sip': '📞 Cloud IVR + SIP',
+      '钱包': '👛 我的钱包',
+      '充值': '👛 我的钱包',
+      '存款': '👛 我的钱包',
+      '市场': '🏪 市场',
+      '域名': '🌐 防弹域名',
+      '托管': '🌐 离岸托管',
+      '主机': '🌐 离岸托管',
+      'vps': '🖥️ VPS/RDP',
+      '短信线索': '📱 短信线索',
+      '虚拟卡': '💳 虚拟卡',
+      '邮箱验证': '📧 邮箱验证',
+      '群发邮件': '📧 群发邮件',
+      '数字产品': '🛒 数字产品',
+    },
+    hi: {
+      'छोटा करें': '🔗✂️ URL छोटा करें — असीमित',
+      'शॉर्टनर': '🔗✂️ URL छोटा करें — असीमित',
+      'cloud ivr': '📞 Cloud IVR + SIP',
+      'sip': '📞 Cloud IVR + SIP',
+      'वॉलेट': '👛 मेरा वॉलेट',
+      'जमा': '👛 मेरा वॉलेट',
+      'डिपॉजिट': '👛 मेरा वॉलेट',
+      'मार्केटप्लेस': '🏪 मार्केटप्लेस',
+      'डोमेन': '🌐 बुलेटप्रूफ डोमेन',
+      'होस्टिंग': '🌐 ऑफ़शोर होस्टिंग',
+      'vps': '🖥️ VPS/RDP',
+      'sms लीड': '📱 SMS लीड्स',
+      'वर्चुअल कार्ड': '💳 वर्चुअल कार्ड',
+      'ईमेल सत्यापन': '📧 ईमेल सत्यापन',
+      'ईमेल ब्लास्ट': '📧 ईमेल ब्लास्ट',
+      'डिजिटल उत्पाद': '🛒 डिजिटल उत्पाद',
     },
   }
 

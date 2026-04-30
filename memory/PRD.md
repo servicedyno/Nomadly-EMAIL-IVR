@@ -84,6 +84,24 @@ Every user-facing notification we found in English-only is now `en/fr/zh/hi`:
 - `js/tests/test_call_route_priority.js` — 26/26 still pass.
 - Total: 64/64 pass. Bot syntax-clean, restarts cleanly.
 
+## ✅ AI Support — Phase 1 (Feb 2026)
+
+### What shipped
+Language polish + escalation hardening in `/app/js/ai-support.js`:
+- **L1** — `extractActionButtons` now ships full ZH and HI keyword→button maps (was EN+FR only). ZH/HI users now get native button labels in AI responses.
+- **L2** — `MP_HELPER_PROMPT` (Marketplace AI) now embeds the 4-language Marketplace button-label table so MP AI tells FR/ZH/HI users to tap *"📦 Mes annonces"* / *"📦 我的房源"* / *"📦 मेरी लिस्टिंग"* instead of the EN equivalents.
+- **L3** — New `getMarketplaceContext(chatId)` injects wallet + 3 active listings + 3 open conversations into the MP system prompt so MP AI can answer "where's my listing?" / "what's my escrow status?" without asking.
+- **L7** — Soft-escalation regex now recognizes navigation verbs in FR (*appuyez/cliquez/touchez/allez/naviguez/accédez*), ZH (*点击/前往/进入/导航/打开*), and HI (*टैप/क्लिक/दबाएं/जाएं/खोलें*). Eliminates false escalations when AI gave a perfectly good navigation answer in a non-EN language.
+- **S6** — Bumped `max_tokens` 500→**1200** (main AI) and 400→**800** (Marketplace AI). Complex answers no longer truncate.
+- **S12** — New in-memory `_escalatedThisSession` map dedups critical-keyword admin pings: if user types "refund" 3 times in the same session, admin gets ONE 🚨 ping (not 3). Cleared on `clearHistory(chatId)`. Backward-compatible — legacy 3-arg `needsEscalation(message, lang, aiResponse)` callers still work.
+
+### Tests
+- `js/tests/test_ai_support_phase1.js` — **19/19 pass** (button maps for all 4 langs, soft-escalation regex per lang, max_tokens regression, dedup correctness, MP prompt + context).
+- Total project tests: 83/83 pass.
+
+### Future phases — see `/app/memory/AI_SUPPORT_PHASES.md`
+Documented: Phase 2 (sentiment + proactive triggers + smart routing + service-status), Phase 3 (function-calling + screenshot vision), Phase 4 (FAQ embedding cache + user-profile memory + summarization), Phase 5 (agentic actions, streaming, locale-formatted currency).
+
 
 ## 🐛 Cloud IVR Call-Forwarding Bug — @wizardchop +15162719167 (Feb 2026)
 
