@@ -20427,6 +20427,20 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
         rows.push([pc.testOutboundSip])
       }
     }
+    // ── One-tap upgrade CTA ──
+    // Surfaces "⬆️ Upgrade to Pro/Business — $X" right above the Renew/Release
+    // row for primary numbers on Starter/Pro. The dollar amount is the actual
+    // upgrade cost AFTER applying the 25%-of-old-plan credit (only if the
+    // current plan is ≤14 days old; otherwise the full new-plan price).
+    const _nextUp = phoneConfig.nextUpgradePlan(num)
+    if (_nextUp) {
+      const _quote = phoneConfig.computeUpgradeQuote(num, _nextUp)
+      const _btnLabel = _nextUp === 'pro' ? pc.upgradeToPro : pc.upgradeToBusiness
+      const _suffix = (_quote && Number.isFinite(_quote.chargeAmount))
+        ? ` — $${_quote.chargeAmount.toFixed(2)}`
+        : ''
+      rows.push([`${_btnLabel}${_suffix}`])
+    }
     rows.push([pc.renewChangePlan, pc.releaseNumber])
     return rows
   }
@@ -20438,6 +20452,69 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     const subCount = num.isSubNumber ? 0 : allNumbers.filter(n => n.isSubNumber && n.parentNumber === num.phoneNumber && (n.status === 'active' || n.status === 'suspended')).length
     const subLimit = num.isSubNumber ? 0 : phoneConfig.getSubNumberLimit(num.plan)
     return send(chatId, cpTxt.manageNumber(num, subCount, subLimit, allNumbers), k.of(buildManageMenu(num, subCount, subLimit)))
+  }
+
+  // ── Helper: Render upgrade preview for one-tap upgrades ──
+  // Used by the cpManageNumber one-tap CTA so the user lands directly on the
+  // payment-method screen, without going through Renew → Change Plan first.
+  // Mirrors the body of the cpChangePlan handler's upgrade-preview branch
+  // (only the "no feature loss" path — strict tier upgrades only). Sets
+  // state.action = cpChangePlan and stashes cpUpgradeData / cpPendingPlan
+  // exactly the same way so the wallet / crypto / bank handlers downstream
+  // can pick up where the user left off.
+  async function processChangePlanSelection(chatId, num, newPlan, lang) {
+    const oldPlan = num.plan
+    const newPrice = phoneConfig.plans[newPlan]?.price
+    if (!newPrice) return send(chatId, phoneConfig.getMsg(lang).selectValidPlan)
+
+    const gainedFeatures = []
+    if (phoneConfig.canAccessFeature(newPlan, 'sipCredentials') && !phoneConfig.canAccessFeature(oldPlan, 'sipCredentials')) gainedFeatures.push('🔑 SIP Credentials')
+    if (phoneConfig.canAccessFeature(newPlan, 'voicemail') && !phoneConfig.canAccessFeature(oldPlan, 'voicemail')) gainedFeatures.push('🎙️ Voicemail')
+    if (phoneConfig.canAccessFeature(newPlan, 'smsToEmail') && !phoneConfig.canAccessFeature(oldPlan, 'smsToEmail')) gainedFeatures.push('📧 SMS to Email & Webhook')
+    if (phoneConfig.canAccessFeature(newPlan, 'callRecording') && !phoneConfig.canAccessFeature(oldPlan, 'callRecording')) gainedFeatures.push('🔴 Call Recording')
+    if (phoneConfig.canAccessFeature(newPlan, 'ivr') && !phoneConfig.canAccessFeature(oldPlan, 'ivr')) gainedFeatures.push('🤖 IVR / Auto-attendant')
+
+    const oldPlanObj = phoneConfig.plans[oldPlan]
+    const newPlanObj = phoneConfig.plans[newPlan]
+
+    const quote = phoneConfig.computeUpgradeQuote(num, newPlan) || {}
+    const credit = quote.credit ?? 0
+    const chargeAmount = quote.chargeAmount ?? newPrice
+    const eligibleForCredit = quote.eligibleForCredit === true
+    const ageDays = Number.isFinite(quote.ageDays) ? quote.ageDays : null
+
+    let walletBal = 0
+    try { const { usdBal } = await getBalance(walletOf, chatId); walletBal = usdBal } catch (e) {}
+
+    let upgradeMsg = `⬆️ <b>Upgrade Preview</b>\n\n`
+    upgradeMsg += `${oldPlan.charAt(0).toUpperCase() + oldPlan.slice(1)} → <b>${newPlan.charAt(0).toUpperCase() + newPlan.slice(1)}</b> ($${newPrice}/mo)\n\n`
+    if (gainedFeatures.length > 0) {
+      upgradeMsg += `<b>New features you'll unlock:</b>\n${gainedFeatures.join('\n')}\n\n`
+    }
+    upgradeMsg += `<b>Limits upgrade:</b>\n`
+    upgradeMsg += `📞 Minutes: ${oldPlanObj?.minutes || 0} → ${newPlanObj?.minutes === 'Unlimited' ? 'Unlimited' : newPlanObj?.minutes || 0}\n`
+    upgradeMsg += `📩 SMS: ${oldPlanObj?.sms || 0} → ${newPlanObj?.sms || 0}\n\n`
+    if (chargeAmount > 0) {
+      upgradeMsg += `💰 <b>Upgrade cost: $${chargeAmount.toFixed(2)}</b>\n`
+      upgradeMsg += `   ├ New plan: $${newPrice}/mo\n`
+      if (eligibleForCredit && credit > 0) {
+        upgradeMsg += `   └ Credit (25% of ${oldPlan}, plan only ${ageDays}d old): -$${credit.toFixed(2)}\n`
+      } else {
+        const ageNote = ageDays === null ? `plan age unknown` : `plan ${ageDays}d old, past 14-day window`
+        upgradeMsg += `   └ <i>No credit applied — ${ageNote}</i>\n`
+      }
+      upgradeMsg += `👛 Wallet: $${walletBal.toFixed(2)}\n\n`
+    }
+    upgradeMsg += `Select payment method:`
+
+    await saveInfo('cpPendingPlan', newPlan)
+    await saveInfo('cpUpgradeData', { chargeAmount, newPlan, oldPlan, newPrice, phoneNumber: num.phoneNumber, credit, eligibleForCredit, ageDays })
+    const _pcBtn = phoneConfig.getBtn(lang || 'en')
+    const payBtns = [[payIn.wallet]]
+    payBtns.push([payIn.crypto])
+    if (payIn.bank) payBtns.push([payIn.bank])
+    payBtns.push([_pcBtn.back])
+    return send(chatId, upgradeMsg, k.of(payBtns))
   }
 
   // ── Reciprocal-conflict helper ──
@@ -20949,6 +21026,34 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
         [pc.changePlan],
         ['🔁 Auto-Renew: ' + (num.autoRenew ? '✅ ON' : '❌ OFF')],
       ]))
+    }
+
+    // ── One-tap upgrade CTA ──
+    // Catches "⬆️ Upgrade to Pro — $XX.XX" / "⬆️ Upgrade to Business — $XX.XX"
+    // (and the FR/ZH/HI variants — we match by language-aware label prefix
+    // since the dollar suffix varies). Sets state to cpChangePlan so that the
+    // existing payment-flow handlers (wallet / crypto / bank) just work, and
+    // synthesises the same upgrade-preview the user would see if they'd
+    // navigated through Renew → Change Plan → Upgrade to X.
+    if (message.startsWith(pc.upgradeToPro) || message.startsWith(pc.upgradeToBusiness)) {
+      const _targetPlan = message.startsWith(pc.upgradeToPro) ? 'pro' : 'business'
+      const _nextUp = phoneConfig.nextUpgradePlan(num)
+      if (_nextUp !== _targetPlan) {
+        return send(chatId, phoneConfig.getMsg(info?.userLanguage).selectValidPlan)
+      }
+      await set(state, chatId, 'action', a.cpChangePlan)
+      // Re-dispatch through the cpChangePlan handler by synthesising a message
+      // that contains the plan name keyword it scans for ("Pro"/"Business").
+      // The handler at line ~23293 detects the keyword and renders the
+      // upgrade preview with payment buttons.
+      const synth = _targetPlan === 'pro' ? '⭐ Upgrade to Pro' : '👑 Upgrade to Business'
+      // Update state then immediately call the same handler logic by emitting
+      // a synthetic re-process: easiest path is to set the in-memory `message`
+      // and fall through to the action dispatcher. Since the cpManageNumber
+      // and cpChangePlan handlers are siblings inside the same closure, we
+      // just emit the preview directly.
+      await processChangePlanSelection(chatId, num, _targetPlan, info?.userLanguage)
+      return
     }
 
     // Release Number
@@ -23357,10 +23462,15 @@ Select a category:`), k.of(catBtns))
     const oldPlanObj = phoneConfig.plans[oldPlan]
     const newPlanObj = phoneConfig.plans[newPlan]
 
-    // Calculate upgrade charge: 25% credit from old plan price
-    const oldPrice = oldPlanObj?.price || num.planPrice
-    const credit = parseFloat((oldPrice * 0.25).toFixed(2))
-    const chargeAmount = Math.max(0, parseFloat((newPrice - credit).toFixed(2)))
+    // ── Calculate upgrade charge ──
+    // 25% credit from the OLD plan price is granted ONLY if the current plan
+    // has been active for ≤14 days (purchaseDate within the last 2 weeks).
+    // After that, the user pays the full new-plan price (no credit).
+    const quote = phoneConfig.computeUpgradeQuote(num, newPlan) || {}
+    const credit = quote.credit ?? 0
+    const chargeAmount = quote.chargeAmount ?? newPrice
+    const eligibleForCredit = quote.eligibleForCredit === true
+    const ageDays = Number.isFinite(quote.ageDays) ? quote.ageDays : null
 
     // Check wallet balance
     let walletBal = 0
@@ -23377,7 +23487,14 @@ Select a category:`), k.of(catBtns))
     if (chargeAmount > 0) {
       upgradeMsg += `💰 <b>Upgrade cost: $${chargeAmount.toFixed(2)}</b>\n`
       upgradeMsg += `   ├ New plan: $${newPrice}/mo\n`
-      upgradeMsg += `   └ Credit (25% of ${oldPlan}): -$${credit.toFixed(2)}\n`
+      if (eligibleForCredit && credit > 0) {
+        upgradeMsg += `   └ Credit (25% of ${oldPlan}, plan only ${ageDays}d old): -$${credit.toFixed(2)}\n`
+      } else {
+        const ageNote = ageDays === null
+          ? `plan age unknown`
+          : `plan ${ageDays}d old, past 14-day window`
+        upgradeMsg += `   └ <i>No credit applied — ${ageNote}</i>\n`
+      }
       upgradeMsg += `👛 Wallet: $${walletBal.toFixed(2)}\n\n`
     }
     upgradeMsg += `Select payment method:`

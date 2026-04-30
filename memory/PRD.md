@@ -7,6 +7,31 @@
 - MongoDB (port 27017)
 
 
+## ✅ One-Tap Plan Upgrade + 14-day Credit Gate (Apr 30, 2026)
+
+### User request
+> "Starter → Pro one-tap upgrade. Same should apply to Pro → Business upgrade. Ensure user only gets 25% credit when upgrading if the plan hasn't run more than 2 weeks, otherwise no credit."
+
+### Implementation
+
+**`js/phone-config.js`**
+- New constants: `PLAN_UPGRADE_CREDIT_PCT = 0.25`, `PLAN_UPGRADE_CREDIT_AGE_DAYS = 14`, `NEXT_PLAN = { starter: 'pro', pro: 'business' }`.
+- New pure helper **`computeUpgradeQuote(num, newPlanKey)`** — returns `{ oldPrice, newPrice, ageDays, eligibleForCredit, credit, chargeAmount, ... }`. The 25% credit fires **only** when `ageDays ≤ 14` (computed from `purchaseDate`); otherwise `credit = 0` and `chargeAmount = newPrice`. Defensive defaults: missing/invalid `purchaseDate` → `ageDays = Infinity` → no credit. Returns `null` for unknown plans / null inputs.
+- New helper **`nextUpgradePlan(num)`** — Starter→Pro, Pro→Business, Business→null, sub-numbers→null, unavailable next-tier→null.
+- New button labels in EN/FR/ZH/HI: `upgradeToPro` (`⬆️ Upgrade to Pro` / `⬆️ Passer à Pro` / `⬆️ 升级到专业版` / `⬆️ प्रो में अपग्रेड करें`) and `upgradeToBusiness`.
+
+**`js/_index.js`**
+- `buildManageMenu()` now appends a one-tap row right above Renew/Release for any primary number on Starter or Pro: `⬆️ Upgrade to Pro — $XX.XX` (the price suffix is the **actual** charge after applying the 14-day rule, computed live by `computeUpgradeQuote`).
+- New shared helper `processChangePlanSelection(chatId, num, newPlan, lang)` near `showManageScreen` — renders the upgrade-preview and stashes `cpUpgradeData` so the existing wallet/crypto/bank payment handlers downstream pick up unchanged.
+- `cpManageNumber` action handler catches `pc.upgradeToPro` / `pc.upgradeToBusiness` (matched by `startsWith` so the `$XX.XX` suffix doesn't break the match), validates against `nextUpgradePlan`, sets `action = a.cpChangePlan`, and dispatches into `processChangePlanSelection`.
+- `cpChangePlan` upgrade-preview branch now also uses `computeUpgradeQuote` (replacing the old hard-coded `oldPrice * 0.25`), so the "Renew → Change Plan → Upgrade to X" path and the new one-tap path produce identical numbers.
+- Upgrade-preview message disclosure: when credit is applied, shows `Credit (25% of starter, plan only Nd old): -$X.XX`. When credit is denied, shows `<i>No credit applied — plan Nd old, past 14-day window</i>`.
+
+### Tests
+- New: `js/tests/test_one_tap_upgrade.js` — **31/31 pass**. Boundary at exactly 14 days, day 13 (eligible), day 15 (denied), day 0, day 90, missing/invalid `purchaseDate`, both upgrade tiers, button-label localization, `nextUpgradePlan` for sub-numbers/top-tier/null inputs, source-level wiring checks (buildManageMenu, cpManageNumber, cpChangePlan, processChangePlanSelection all use the shared quote helper), and the @fuckthisapp scenario explicitly: Starter purchased today → Pro one-tap upgrade quote = $62.50.
+- Regression sweep all green: `test_ai_support_phase1` (19), `test_manage_screen_features` (21), `test_plan_picker_ivr_clarity` (21), `test_user_facing_localization` (26), `test_i18n_coverage`, `test_plan_copy`, `test_billing_menu_and_gold_copy`, `test_invariants_no_refund_dynamic_buttons`, `test_phone_settings_reset_fix`. Node service restarted clean; `/api/` returns HTTP 200.
+
+
 ## ✅ Production Anomaly Audit & Fixes (Apr 30, 2026)
 
 ### Audit

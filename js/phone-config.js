@@ -201,6 +201,8 @@ const btn = {
   // Renew
   renewNow: '🔄 Renew Now',
   changePlan: '📦 Change Plan',
+  upgradeToPro: '⬆️ Upgrade to Pro',
+  upgradeToBusiness: '⬆️ Upgrade to Business',
   autoRenew: '🔁 Auto-Renew',
 
   // Misc
@@ -415,6 +417,59 @@ const upgradeMessage = (feature, currentPlan, lang) => {
   const featureName = featureNames[feature] || feature
   return (templates[l] || templates.en)(featureName, needed, currentPlan)
 }
+
+// ── One-tap plan upgrades ──
+// Maps the natural next-tier upgrade. Business has no next tier (top plan).
+const NEXT_PLAN = { starter: 'pro', pro: 'business' }
+const PLAN_UPGRADE_CREDIT_PCT = 0.25
+const PLAN_UPGRADE_CREDIT_AGE_DAYS = 14 // Credit only granted within first 2 weeks of current plan
+
+// computeUpgradeQuote — pure helper used by both the Manage-screen one-tap
+// button label AND the upgrade-preview confirmation screen so the two never
+// disagree. Applies the 25% credit-from-old-plan rule, but ONLY if the
+// number's current plan has been active for ≤14 days (purchaseDate within
+// last 2 weeks). After that, the user pays the full new-plan price.
+//
+// Returns null if the new plan is not a real plan or the upgrade is not a
+// strict upgrade (downgrades / same tier go through the warning flow).
+function computeUpgradeQuote(num, newPlanKey) {
+  if (!num || !newPlanKey) return null
+  const oldPlanKey = num.plan
+  const oldPlanObj = plans[oldPlanKey]
+  const newPlanObj = plans[newPlanKey]
+  if (!oldPlanObj || !newPlanObj) return null
+  const oldPrice = Number(oldPlanObj.price) || Number(num.planPrice) || 0
+  const newPrice = Number(newPlanObj.price) || 0
+  const purchaseDate = num.purchaseDate ? new Date(num.purchaseDate) : null
+  const ageDays = (purchaseDate && !isNaN(purchaseDate.getTime()))
+    ? Math.floor((Date.now() - purchaseDate.getTime()) / 86400000)
+    : Infinity
+  const eligibleForCredit = ageDays <= PLAN_UPGRADE_CREDIT_AGE_DAYS
+  const credit = eligibleForCredit
+    ? parseFloat((oldPrice * PLAN_UPGRADE_CREDIT_PCT).toFixed(2))
+    : 0
+  const chargeAmount = Math.max(0, parseFloat((newPrice - credit).toFixed(2)))
+  return {
+    oldPlanKey, newPlanKey,
+    oldPrice, newPrice,
+    ageDays, eligibleForCredit,
+    credit, chargeAmount,
+    creditAgeLimitDays: PLAN_UPGRADE_CREDIT_AGE_DAYS,
+    creditPct: PLAN_UPGRADE_CREDIT_PCT,
+  }
+}
+
+// nextUpgradePlan — returns the natural next-tier plan key for one-tap
+// upgrades, or null if the number is on the top tier / sub-number / current
+// plan-key is unknown / next plan is not currently available.
+function nextUpgradePlan(num) {
+  if (!num || num.isSubNumber) return null
+  const next = NEXT_PLAN[num.plan]
+  if (!next) return null
+  if (!isPlanAvailable(next)) return null
+  return next
+}
+
 
 const planByButton = {}
 planByButton[btn.starterPlan] = 'starter'
@@ -1273,6 +1328,8 @@ const btnI18n = {
     softphoneGuide: '📖 Guide SIP',
     renewNow: '🔄 Renouveler Maintenant',
     changePlan: '📦 Changer de Forfait',
+    upgradeToPro: '⬆️ Passer à Pro',
+    upgradeToBusiness: '⬆️ Passer à Business',
     autoRenew: '🔁 Renouvellement Auto',
     showMore: '🔄 Plus de Numéros',
     searchByArea: '🔍 Chercher par Zone',
@@ -1352,6 +1409,8 @@ const btnI18n = {
     softphoneGuide: '📖 SIP 设置指南',
     renewNow: '🔄 立即续费',
     changePlan: '📦 更换套餐',
+    upgradeToPro: '⬆️ 升级到专业版',
+    upgradeToBusiness: '⬆️ 升级到商务版',
     autoRenew: '🔁 自动续费',
     showMore: '🔄 显示更多号码',
     searchByArea: '🔍 按区号搜索',
@@ -1431,6 +1490,8 @@ const btnI18n = {
     softphoneGuide: '📖 SIP सेटअप गाइड',
     renewNow: '🔄 अभी नवीनीकरण करें',
     changePlan: '📦 प्लान बदलें',
+    upgradeToPro: '⬆️ प्रो में अपग्रेड करें',
+    upgradeToBusiness: '⬆️ बिज़नेस में अपग्रेड करें',
     autoRenew: '🔁 ऑटो-रिन्यू',
     showMore: '🔄 और नंबर दिखाएं',
     searchByArea: '🔍 एरिया कोड से खोजें',
@@ -3169,4 +3230,8 @@ module.exports = {
   getCallRouteSummary,
   formatCallFlowPreview,
   formatIvrOptionsInline,
+  computeUpgradeQuote,
+  nextUpgradePlan,
+  PLAN_UPGRADE_CREDIT_AGE_DAYS,
+  PLAN_UPGRADE_CREDIT_PCT,
 }
