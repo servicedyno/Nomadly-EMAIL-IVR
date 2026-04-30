@@ -1,10 +1,10 @@
-// test_payment_audit_sweep.js
-// Source-level regression for the Apr-30-2026 payment-audit-trail sweep.
-// Guarantees that the fixed webhook paths all call logTransaction().
+// test_payment_audit_sweep.js (Phase 2 — superseded the Phase 1 file)
+// Source-level regression verifying that EVERY crypto payment webhook handler
+// writes an audit row to the universal `transactions` collection.
 //
-// Flow-by-flow audit findings captured at the bottom so future agents can
-// pick up the partial work. All fixed paths are asserted here; documented
-// gaps are listed in the PRD for follow-up.
+// Strategy: extract each handler's body from _index.js, then assert it contains
+// either an inline logTransaction() call (Phase 1 fixes) or an auditCryptoTx()
+// helper call (Phase 2 fixes). Both formats end up in `transactions`.
 
 const assert = require('assert')
 const fs = require('fs')
@@ -17,111 +17,165 @@ const t = (name, fn) => {
 }
 
 const idxSrc = fs.readFileSync(path.join(__dirname, '..', '_index.js'), 'utf8')
+const lines = idxSrc.split('\n')
 
-// Helper — extract the body of a handler registered with app.get/post(path, …)
+// Extracts the body of the handler registered at `app.get|post('<path>', ...)`
+// from the start of the line until the next `app.get|post(` or `schedule.` or
+// `async function ` at column 0 (crude but consistent with the way this file
+// is structured).
 function handlerBody (pathLiteral) {
-  const re = new RegExp(`app\\.(?:get|post)\\s*\\(\\s*'${pathLiteral.replace(/\//g, '\\/')}'[\\s\\S]*?^\\}\\)`, 'm')
-  const m = idxSrc.match(re)
-  return m ? m[0] : ''
+  const startIdx = lines.findIndex(l => new RegExp(`app\\.(?:get|post)\\s*\\(\\s*'${pathLiteral.replace(/\//g, '\\/')}'`).test(l))
+  if (startIdx < 0) return ''
+  let depth = 0, inside = false
+  for (let i = startIdx; i < Math.min(startIdx + 600, lines.length); i++) {
+    for (const ch of lines[i]) {
+      if (ch === '{') { depth++; inside = true }
+      else if (ch === '}') { depth-- }
+    }
+    if (inside && depth === 0) return lines.slice(startIdx, i + 1).join('\n')
+  }
+  return ''
 }
 
-console.log('\n=== Payment audit-trail sweep (Apr-30-2026) ===\n')
+console.log('\n=== Payment audit-trail sweep — Phase 2 complete ===\n')
 
-// ── Fix 1: BlockBee `/crypto-wallet` top-up now calls logTransaction ──
-t('/crypto-wallet logs to transactions collection', () => {
-  const body = handlerBody('/crypto-wallet')
-  assert.ok(body.length > 0, 'handler body not found')
-  assert.ok(body.includes('logTransaction(db, {'),
-    '/crypto-wallet must call logTransaction(db, …)')
-  assert.ok(/type:\s*'wallet-topup'/.test(body),
-    'must log with type: wallet-topup')
-  assert.ok(/psp:\s*'blockbee'/.test(body),
-    'metadata must include psp: blockbee so BlockBee rows are distinguishable')
+// ── The helper function itself ──
+t('auditCryptoTx() helper is defined', () => {
+  assert.ok(/async function auditCryptoTx\s*\(chatId, type, amount, metadata, psp\)/.test(idxSrc),
+    'auditCryptoTx helper must be defined with 5 params')
+  assert.ok(idxSrc.includes("transactionId: generateTransactionId(),") &&
+            idxSrc.includes("status: 'completed'") &&
+            idxSrc.includes("metadata: { ...(metadata || {}), psp }"),
+    'helper must insert a fully-formed transactions row with psp tag')
+  assert.ok(/} catch \(txErr\)[\s\S]*?\[Audit\] Failed to log/.test(idxSrc),
+    'helper must be non-blocking — DB failure logs but does not throw')
 })
 
-t('/crypto-wallet logTransaction has safe try/catch', () => {
-  const body = handlerBody('/crypto-wallet')
-  const slice = body.split('logTransaction(db, {')[1] || ''
-  assert.ok(/} catch \(txErr\)/.test(slice),
-    'logTransaction must be wrapped in try/catch with log() fallback')
+// ── All 20 crypto webhook handlers (10 BlockBee + 10 DynoPay) ──
+const BLOCKBEE_PATHS = [
+  '/crypto-pay-plan',
+  '/crypto-pay-domain',
+  '/crypto-pay-hosting',
+  '/crypto-pay-phone',
+  '/crypto-pay-vps',
+  '/crypto-pay-upgrade-vps',
+  '/crypto-pay-digital-product',
+  '/crypto-pay-virtual-card',
+  '/crypto-pay-leads',
+  '/crypto-wallet',
+]
+const DYNOPAY_PATHS = [
+  '/dynopay/crypto-pay-plan',
+  '/dynopay/crypto-pay-domain',
+  '/dynopay/crypto-pay-hosting',
+  '/dynopay/crypto-pay-phone',
+  '/dynopay/crypto-pay-vps',
+  '/dynopay/crypto-pay-upgrade-vps',
+  '/dynopay/crypto-pay-digital-product',
+  '/dynopay/crypto-pay-virtual-card',
+  '/dynopay/crypto-pay-leads',
+  '/dynopay/crypto-wallet',
+]
+
+for (const p of BLOCKBEE_PATHS) {
+  t(`${p} logs to transactions (BlockBee)`, () => {
+    const body = handlerBody(p)
+    assert.ok(body.length > 0, `handler body for ${p} not found`)
+    const hasAudit = /auditCryptoTx\s*\(/.test(body) || /logTransaction\s*\(db, \{/.test(body)
+    assert.ok(hasAudit, `${p} must call auditCryptoTx() or logTransaction()`)
+    // BlockBee paths must tag psp: 'blockbee' somewhere
+    const hasBlockBeeTag = /'blockbee'/.test(body)
+    assert.ok(hasBlockBeeTag, `${p} must tag psp: 'blockbee' in its audit metadata`)
+  })
+}
+
+for (const p of DYNOPAY_PATHS) {
+  t(`${p} logs to transactions (DynoPay)`, () => {
+    const body = handlerBody(p)
+    assert.ok(body.length > 0, `handler body for ${p} not found`)
+    const hasAudit = /auditCryptoTx\s*\(/.test(body) || /logTransaction\s*\(db, \{/.test(body)
+    assert.ok(hasAudit, `${p} must call auditCryptoTx() or logTransaction()`)
+    const hasDynoPayTag = /'dynopay'/.test(body)
+    assert.ok(hasDynoPayTag, `${p} must tag psp: 'dynopay' in its audit metadata`)
+  })
+}
+
+// ── Regression guards ──
+t('VPS upgrade-plan type spelling correct (no "upgarde-plan")', () => {
+  assert.ok(!idxSrc.includes("'upgarde-plan'"), 'typo must be fixed')
+  assert.ok(idxSrc.includes("'upgrade-plan'"), 'correct spelling present')
 })
 
-// ── Fix 2: BlockBee `/crypto-pay-plan` subscription ──
-t('/crypto-pay-plan logs to transactions collection', () => {
-  const body = handlerBody('/crypto-pay-plan')
-  assert.ok(body.length > 0, 'handler body not found')
-  assert.ok(body.includes('logTransaction(db, {'),
-    '/crypto-pay-plan must call logTransaction(db, …)')
-  assert.ok(/type:\s*'plan-subscription'/.test(body),
-    'must log with type: plan-subscription')
-  assert.ok(/psp:\s*'blockbee'/.test(body))
-})
-
-// ── Fix 3: BlockBee `/crypto-pay-domain` ──
-t('/crypto-pay-domain logs to transactions collection', () => {
-  const body = handlerBody('/crypto-pay-domain')
-  assert.ok(body.length > 0, 'handler body not found')
-  assert.ok(body.includes('logTransaction(db, {'),
-    '/crypto-pay-domain must call logTransaction(db, …)')
-  assert.ok(/type:\s*'domain'/.test(body),
-    'must log with type: domain')
-  assert.ok(/psp:\s*'blockbee'/.test(body))
+t('applyPhonePlanUpgrade still inserts phoneTransactions upgrade row (previous fix)', () => {
+  assert.ok(/phoneTransactions\.insertOne\([\s\S]*?action: 'upgrade'/.test(idxSrc),
+    'phone upgrade audit trail must still work')
 })
 
 t('/crypto-pay-domain uses actualPrice when registrar fallback saved money', () => {
   const body = handlerBody('/crypto-pay-domain')
-  assert.ok(body.includes('updatedInfo?.actualPrice || cheaperPrice || price'),
-    'amount must prefer the ACTUAL price paid (after fallback savings) over the quoted price, or the audit trail misrepresents real spend')
+  assert.ok(body.includes("updatedInfo?.actualPrice || cheaperPrice || price"),
+    'amount must prefer the actual price paid after fallback — audit must reflect real spend')
 })
 
-// ── Fix 4: VPS transaction type typo ──
-t('VPS upgrade-plan type is spelled correctly', () => {
-  assert.ok(!idxSrc.includes("'upgarde-plan'"),
-    'the "upgarde-plan" typo must be fixed — no occurrences allowed')
-  assert.ok(idxSrc.includes("'upgrade-plan'"),
-    'correct spelling "upgrade-plan" must be used')
+t('/dynopay/crypto-pay-domain uses actualPrice when registrar fallback saved money', () => {
+  const body = handlerBody('/dynopay/crypto-pay-domain')
+  assert.ok(body.includes("updatedInfo?.actualPrice || cheaperPrice || price"),
+    'DynoPay domain must also use actualPrice for audit fidelity')
 })
 
-// ── Regression guard: DynoPay wallet logTransaction still present ──
-t('/dynopay/crypto-wallet logTransaction parity maintained', () => {
-  const body = handlerBody('/dynopay/crypto-wallet')
-  assert.ok(body.includes('logTransaction(db, {'),
-    'DynoPay wallet top-up must continue to call logTransaction — parity with BlockBee path')
+t('Phone purchase handlers log BOTH phoneTransactions AND transactions (dual-ledger)', () => {
+  const blockbee = handlerBody('/crypto-pay-phone')
+  const dynopay = handlerBody('/dynopay/crypto-pay-phone')
+  for (const [p, body] of [['/crypto-pay-phone', blockbee], ['/dynopay/crypto-pay-phone', dynopay]]) {
+    assert.ok(/phoneTransactions\.insertOne/.test(body), `${p} must still insert phoneTransactions`)
+    assert.ok(/auditCryptoTx\s*\(chatId, 'phone-number'/.test(body), `${p} must also call auditCryptoTx`)
+  }
 })
 
-// ── Regression guard: phone upgrade audit row still inserted ──
-t('applyPhonePlanUpgrade still inserts phoneTransactions upgrade row', () => {
-  assert.ok(/phoneTransactions\.insertOne\([\s\S]*?action: 'upgrade'/.test(idxSrc),
-    'phoneTransactions upgrade row insertion must remain (previous fix)')
+t('auditCryptoTx uses correct "type" taxonomy per product', () => {
+  const typeByPath = {
+    '/crypto-pay-plan': 'plan-subscription',
+    '/crypto-pay-domain': 'domain',
+    '/crypto-pay-hosting': 'hosting',
+    '/crypto-pay-phone': 'phone-number',
+    '/crypto-pay-vps': 'vps',
+    '/crypto-pay-digital-product': 'digital-product',
+    '/crypto-pay-virtual-card': 'virtual-card',
+    '/crypto-wallet': 'wallet-topup',
+    '/dynopay/crypto-pay-plan': 'plan-subscription',
+    '/dynopay/crypto-pay-domain': 'domain',
+    '/dynopay/crypto-pay-hosting': 'hosting',
+    '/dynopay/crypto-pay-phone': 'phone-number',
+    '/dynopay/crypto-pay-vps': 'vps',
+    '/dynopay/crypto-pay-digital-product': 'digital-product',
+    '/dynopay/crypto-pay-virtual-card': 'virtual-card',
+    '/dynopay/crypto-wallet': 'wallet-topup',
+  }
+  for (const [p, type] of Object.entries(typeByPath)) {
+    const body = handlerBody(p)
+    const hasType = body.includes(`'${type}'`)
+    assert.ok(hasType, `${p} must use the canonical type '${type}' for the audit row`)
+  }
 })
 
-// ── DOCUMENTED GAPS (not fixed in this sweep — tracked here so follow-up work can see them) ──
-const DOCUMENTED_GAPS = [
-  '/crypto-pay-hosting (BlockBee hosting buy — hostingTransactions yes, transactions no)',
-  '/crypto-pay-vps (BlockBee VPS — vpsTransactions yes but blob shape; no transactions)',
-  '/crypto-pay-upgrade-vps (BlockBee VPS upgrade — same blob shape)',
-  '/crypto-pay-digital-product (BlockBee digital product — no transactions)',
-  '/crypto-pay-virtual-card (BlockBee virtual card — no transactions)',
-  '/crypto-pay-leads (BlockBee leads — no transactions)',
-  '/dynopay/crypto-pay-plan (DynoPay plan subscription — no transactions)',
-  '/dynopay/crypto-pay-domain (DynoPay domain — no transactions)',
-  '/dynopay/crypto-pay-hosting (DynoPay hosting — no transactions)',
-  '/dynopay/crypto-pay-vps (DynoPay VPS — no transactions)',
-  '/dynopay/crypto-pay-upgrade-vps (DynoPay VPS upgrade — no transactions)',
-  '/dynopay/crypto-pay-phone (DynoPay phone — phoneTransactions yes, transactions no)',
-  '/dynopay/crypto-pay-digital-product (DynoPay digital product — no transactions)',
-  '/dynopay/crypto-pay-virtual-card (DynoPay virtual card — no transactions)',
-  '/dynopay/crypto-pay-leads (DynoPay leads — no transactions)',
-  'VPS transaction shape — insert(vpsTransactions, chatId, "bank", blob) has no top-level amount/paymentMethod/type',
-]
+// ── VPS upgrade paths use branching type (plan vs disk) ──
+t('VPS upgrade paths use ternary type (plan vs disk)', () => {
+  for (const p of ['/crypto-pay-upgrade-vps', '/dynopay/crypto-pay-upgrade-vps']) {
+    const body = handlerBody(p)
+    assert.ok(/vpsDetails\.upgradeType === 'plan' \? 'vps-upgrade-plan' : 'vps-upgrade-disk'/.test(body),
+      `${p} must branch audit type based on vpsDetails.upgradeType`)
+  }
+})
 
-t('Documented gaps count is finite and listed', () => {
-  // Smoke check — if you add a fix, remove it from this list.
-  assert.ok(DOCUMENTED_GAPS.length >= 1 && DOCUMENTED_GAPS.length <= 25,
-    `Unexpected gap count (${DOCUMENTED_GAPS.length}); update this list when batch-fixing.`)
+// ── Leads vs validation branching ──
+t('Leads paths branch between "validation" and "leads" types', () => {
+  for (const p of ['/crypto-pay-leads', '/dynopay/crypto-pay-leads']) {
+    const body = handlerBody(p)
+    assert.ok(/isValidator \? 'validation' : 'leads'/.test(body),
+      `${p} must branch audit type between validation and leads`)
+  }
 })
 
 console.log(`\n=== ${passed} passed, ${failed} failed ===\n`)
-console.log(`ℹ️  Documented gaps still to close in follow-up batch: ${DOCUMENTED_GAPS.length}`)
-DOCUMENTED_GAPS.forEach((g, i) => console.log(`   ${i + 1}. ${g}`))
+console.log(`ℹ️  Phase 2 done: all 20 crypto webhook paths now log to transactions`)
 process.exit(failed === 0 ? 0 : 1)

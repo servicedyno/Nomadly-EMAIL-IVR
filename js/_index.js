@@ -26572,6 +26572,28 @@ const upgradeVPSDetails = async (chatId, lang, vpsDetails) => {
 
 // ── Cloud IVR DB helpers ──
 
+// Audit-trail helper for crypto PSP webhook callbacks (BlockBee + DynoPay).
+// Writes a row to the universal `transactions` ledger so every crypto-paid
+// product purchase can be reconciled alongside wallet-paid flows that
+// already call logTransaction() inline. Designed to be non-blocking — a
+// DB failure here must never strand a user who has already paid + been
+// provisioned. See the Apr-30-2026 audit-trail sweep for context.
+async function auditCryptoTx(chatId, type, amount, metadata, psp) {
+  try {
+    await logTransaction(db, {
+      transactionId: generateTransactionId(),
+      chatId,
+      type,
+      amount,
+      currency: 'USD',
+      status: 'completed',
+      metadata: { ...(metadata || {}), psp },
+    })
+  } catch (txErr) {
+    log(`[Audit] Failed to log ${psp} ${type} transaction (non-blocking): ${txErr.message}`)
+  }
+}
+
 // Shared function to apply a phone plan upgrade — used by wallet, crypto, and bank payment paths
 async function applyPhonePlanUpgrade(chatId, num, newPlan, newPrice, lang, paymentMethod, upgradeData) {
   const oldPlan = num.plan
@@ -28082,6 +28104,8 @@ app.get('/crypto-pay-hosting', auth, async (req, res) => {
 
   // Record successful hosting transaction
   recordHostingTransaction(chatId, { ...txBase, outcome: 'success' })
+  await auditCryptoTx(chatId, 'hosting', price, { domain: txDomain, plan: txPlan, hostingType: txHostingType, coin, value, ref }, 'blockbee')
+
 
   // ── Hosting purchase group notification (was missing — Fix #1) ──
   try {
@@ -28229,6 +28253,7 @@ app.get('/crypto-pay-phone', auth, async (req, res) => {
   )
   const existing = await get(phoneNumbersOf, chatId)
   await phoneTransactions.insertOne({ chatId, phoneNumber: selectedNumber, action: 'purchase', plan: planKey, amount: price, paymentMethod: 'crypto_' + coin, timestamp: new Date().toISOString() })
+  await auditCryptoTx(chatId, 'phone-number', price, { phoneNumber: selectedNumber, plan: planKey, countryCode, provider: 'telnyx', coin, value, ref }, 'blockbee')
   sendMessage(chatId, cpTxt.activated(selectedNumber, plan.name, price, sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(expiresAt.toISOString())))
   notifyGroup(cpTxt.adminPurchase(maskName(name), selectedNumber, plan.name, price, 'Crypto ' + coin), cpTxt.adminPurchasePrivate(adminUserTag(name, chatId), selectedNumber, plan.name, price, 'Crypto ' + coin))
   webhookTierCheck(chatId, preSpend, lang)
@@ -28379,6 +28404,7 @@ app.get('/crypto-pay-leads', auth, async (req, res) => {
       }
     }
     set(payments, nanoid(), `Crypto,${label},${ld.amount} leads,$${price},${chatId},${name},${new Date()},${coin}`)
+    await auditCryptoTx(chatId, isValidator ? 'validation' : 'leads', price, { amount: ld.amount, country: ld.country, carrier: ld.carrier, targetName: ld.targetName || null, coin, value, ref }, 'blockbee')
     notifyGroup(
       `🏦 <b>${ld.targetName || label} Acquired!</b>\nUser ${maskName(name)} just grabbed ${ld.amount?.toLocaleString()} verified ${ld.targetName ? ld.targetName + ' ' : ''}leads with phone owner names via crypto.\nGet yours — /start`,
       `🏦 <b>${ld.targetName || label} Acquired (Crypto BlockBee)</b>\n👤 User: ${adminUserTag(name, chatId)}\n📊 Leads: <b>${ld.amount?.toLocaleString()}</b> ${ld.targetName || ''}\n💵 Price: <b>$${price}</b> (${coin})\n💳 Payment: Crypto BlockBee`
@@ -28446,6 +28472,7 @@ app.get('/crypto-pay-vps', auth, async (req, res) => {
     }
     return res.send(html('error'))
   }
+  await auditCryptoTx(chatId, 'vps', price, { plan: vpsDetails?.plan, region: vpsDetails?.region, type: 'new-plan', coin, value, ref }, 'blockbee')
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
@@ -28494,6 +28521,7 @@ app.get('/crypto-pay-upgrade-vps', auth, async (req, res) => {
   // Upgrade VPS plan or disk
   const isSuccess = await upgradeVPSDetails(chatId, lang, vpsDetails)
   if (!isSuccess) return res.send(html('error'))
+  await auditCryptoTx(chatId, vpsDetails.upgradeType === 'plan' ? 'vps-upgrade-plan' : 'vps-upgrade-disk', price, { plan: vpsDetails?.plan, upgradeType: vpsDetails?.upgradeType, coin, value, ref }, 'blockbee')
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
@@ -28525,6 +28553,8 @@ app.get('/crypto-pay-digital-product', auth, async (req, res) => {
     sendMessage(chatId, translation('t.sentMoreMoney', lang, `$${price}`, `$${usdIn}`))
   }
   await digitalOrdersCol.updateOne({ orderId }, { $set: { status: 'pending', paymentConfirmedAt: new Date() } })
+  await auditCryptoTx(chatId, 'digital-product', price, { product, orderId, coin, value, ref }, 'blockbee')
+
   send(chatId, translation('t.dpOrderConfirmed', lang, product, price, orderId), translation('o', lang))
   notifyGroup(
     `🛒 <b>Digital Product Paid!</b>\n\n👤 User: ${maskName(name)}\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${price}</b>\n\n✅ Payment confirmed.`,
@@ -28563,6 +28593,8 @@ app.get('/crypto-pay-virtual-card', auth, async (req, res) => {
   const vcAmount = info?.vcAmount || 0
   const vcAddress = info?.vcAddress || ''
   await digitalOrdersCol.updateOne({ orderId }, { $set: { status: 'pending', paymentConfirmedAt: new Date() } })
+  await auditCryptoTx(chatId, 'virtual-card', price, { orderId, vcAmount, coin, value, ref }, 'blockbee')
+
   sendMessage(chatId, translation('t.vcOrderConfirmed', lang, vcAmount, price, orderId))
   notifyGroup(
     `💳 <b>Virtual Card Paid!</b>\n\n👤 User: ${maskName(name)}\n💵 Card: <b>$${vcAmount}</b> | Paid: <b>$${price}</b>\n\n✅ Payment confirmed.`,
@@ -28677,6 +28709,7 @@ app.post('/dynopay/crypto-pay-plan', authDyno, async (req, res) => {
 
   // Subscribe Plan
   subscribePlan(planEndingTime, freeDomainNamesAvailableFor, planOf, chatId, plan, bot, lang, freeValidationsAvailableFor)
+  await auditCryptoTx(chatId, 'plan-subscription', price, { plan, coin, value, ref, payment_id: id }, 'dynopay')
   notifyGroup(
     `💎 <b>New Subscription!</b>\nUser ${maskName(name)} just upgraded to the <b>${plan} Plan</b> — unlocking unlimited URL shortening + ${(freeValidationsOf[plan] || 0).toLocaleString()} phone validations.\nDon't miss out — /start`,
     `💎 <b>New Subscription (Crypto DynoPay)</b>\n👤 User: ${adminUserTag(name, chatId)}\n📦 Plan: <b>${plan}</b>\n💵 Paid: <b>$${usdIn}</b> (${value} ${coin})\n💳 Payment: Crypto DynoPay`
@@ -28758,6 +28791,8 @@ app.post('/dynopay/crypto-pay-domain', authDyno, async (req, res) => {
   await set(state, chatId, 'actualPrice', null)
   await set(state, chatId, 'actualRegistrar', null)
   await set(state, chatId, 'registrarFallback', null)
+
+  await auditCryptoTx(chatId, 'domain', updatedInfo?.actualPrice || cheaperPrice || price, { domain, registrar: updatedInfo?.actualRegistrar, coin, value, ref }, 'dynopay')
 
   notifyGroup(
     `🌐 <b>Domain Registered!</b>\nUser ${maskName(name)} just claimed <b>${maskDomain(domain)}</b> — your dream domain could be next.\nGrab yours before it's taken — /start`,
@@ -28843,6 +28878,8 @@ app.post('/dynopay/crypto-pay-hosting', authDyno, async (req, res) => {
 
   // Record successful hosting transaction
   recordHostingTransaction(chatId, { ...txBase, outcome: 'success' })
+  await auditCryptoTx(chatId, 'hosting', price, { domain: txDomain, plan: txPlan, hostingType: txHostingType, coin, value, ref }, 'dynopay')
+
 
   // ── Hosting purchase group notification (was missing — Fix #1) ──
   try {
@@ -28999,6 +29036,7 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
   )
   const existing = await get(phoneNumbersOf, chatId)
   await phoneTransactions.insertOne({ chatId, phoneNumber: selectedNumber, action: 'purchase', plan: planKey, amount: price, paymentMethod: 'crypto_dynopay_' + coin, timestamp: new Date().toISOString() })
+  await auditCryptoTx(chatId, 'phone-number', price, { phoneNumber: selectedNumber, plan: planKey, countryCode, provider: 'telnyx', coin, value, ref }, 'dynopay')
   sendMessage(chatId, cpTxt.activated(selectedNumber, plan.name, price, sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(expiresAt.toISOString())))
   notifyGroup(cpTxt.adminPurchase(maskName(name), selectedNumber, plan.name, price, 'Crypto DynoPay'), cpTxt.adminPurchasePrivate(adminUserTag(name, chatId), selectedNumber, plan.name, price, 'Crypto DynoPay'))
   webhookTierCheck(chatId, preSpend, lang)
@@ -29165,6 +29203,7 @@ app.post('/dynopay/crypto-pay-leads', authDyno, async (req, res) => {
       }
     }
     set(payments, nanoid(), `Crypto,${label},${ld.amount} leads,$${price},${chatId},${name},${new Date()},DynoPay ${coin}`)
+    await auditCryptoTx(chatId, isValidator ? 'validation' : 'leads', price, { amount: ld.amount, country: ld.country, carrier: ld.carrier, targetName: ld.targetName || null, coin, value, ref }, 'dynopay')
     notifyGroup(
       `🏦 <b>${ld.targetName || label} Acquired!</b>\nUser ${maskName(name)} just grabbed ${ld.amount?.toLocaleString()} verified ${ld.targetName ? ld.targetName + ' ' : ''}leads with phone owner names via crypto.\nGet yours — /start`,
       `🏦 <b>${ld.targetName || label} Acquired (Crypto DynoPay)</b>\n👤 User: ${adminUserTag(name, chatId)}\n📊 Leads: <b>${ld.amount?.toLocaleString()}</b> ${ld.targetName || ''}\n💵 Price: <b>$${price}</b> (${coin})\n💳 Payment: Crypto DynoPay`
@@ -29244,6 +29283,7 @@ app.post('/dynopay/crypto-pay-vps', authDyno, async (req, res) => {
     }
     return res.send(html('error'))
   }
+  await auditCryptoTx(chatId, 'vps', price, { plan: vpsDetails?.plan, region: vpsDetails?.region, type: 'new-plan', coin, value, ref }, 'dynopay')
   notifyGroup(
     `🖥️ <b>VPS Deployed!</b>\nUser ${maskName(name)} just deployed a new VPS server via crypto.\nDeploy yours in seconds — /start`,
     `🖥️ <b>New VPS (Crypto DynoPay)</b>\n👤 User: ${adminUserTag(name, chatId)}\n💰 Price: <b>$${Number(price).toFixed(2)}</b> (${value} ${coin})\n📦 Plan: ${vpsDetails?.plan || 'VPS'}\n💳 Payment: Crypto DynoPay`
@@ -29306,6 +29346,7 @@ app.post('/dynopay/crypto-pay-upgrade-vps', authDyno, async (req, res) => {
 
   const isSuccess = await upgradeVPSDetails(chatId, lang, vpsDetails)
   if (!isSuccess) return res.send(html('error'))
+  await auditCryptoTx(chatId, vpsDetails.upgradeType === 'plan' ? 'vps-upgrade-plan' : 'vps-upgrade-disk', price, { plan: vpsDetails?.plan, upgradeType: vpsDetails?.upgradeType, coin, value, ref }, 'dynopay')
   const upgradeLabel = vpsDetails.upgradeType === 'plan' ? 'Plan Upgrade' : 'Disk Upgrade'
   const name = await get(nameOf, chatId)
   notifyGroup(
@@ -29351,6 +29392,8 @@ app.post('/dynopay/crypto-pay-digital-product', authDyno, async (req, res) => {
     sendMessage(chatId, translation('t.sentMoreMoney', lang, `$${price}`, `$${usdIn}`))
   }
   await digitalOrdersCol.updateOne({ orderId }, { $set: { status: 'pending', paymentConfirmedAt: new Date() } })
+  await auditCryptoTx(chatId, 'digital-product', price, { product, orderId, coin, value, ref }, 'dynopay')
+
   send(chatId, translation('t.dpOrderConfirmed', lang, product, price, orderId), translation('o', lang))
   notifyGroup(
     `🛒 <b>Digital Product Paid!</b>\n\n👤 User: ${maskName(name)}\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${price}</b>\n\n✅ Payment confirmed.`,
@@ -29396,6 +29439,8 @@ app.post('/dynopay/crypto-pay-virtual-card', authDyno, async (req, res) => {
   const vcAmount = info?.vcAmount || 0
   const vcAddress = info?.vcAddress || ''
   await digitalOrdersCol.updateOne({ orderId }, { $set: { status: 'pending', paymentConfirmedAt: new Date() } })
+  await auditCryptoTx(chatId, 'virtual-card', price, { orderId, vcAmount, coin, value, ref }, 'dynopay')
+
   sendMessage(chatId, translation('t.vcOrderConfirmed', lang, vcAmount, price, orderId))
   notifyGroup(
     `💳 <b>Virtual Card Paid!</b>\n\n👤 User: ${maskName(name)}\n💵 Card: <b>$${vcAmount}</b> | Paid: <b>$${price}</b>\n\n✅ Payment confirmed.`,
@@ -29468,12 +29513,12 @@ app.post('/dynopay/crypto-wallet', authDyno, async (req, res) => {
       amount: usdIn,
       currency: 'USD',
       status: 'completed',
-      metadata: { coin, value, ref }
+      metadata: { coin, value, ref, psp: 'dynopay' }
     })
   } catch (txErr) {
     log('[Wallet] Failed to log transaction (non-blocking):', txErr.message)
   }
-  
+
   log('Sending confirmation message to user...')
   const confirmMsg = translation('t.confirmationDepositMoney', lang, value + ' ' + coin, usdIn) + 
     `\n\n<b>Transaction ID:</b> <code>${txnId}</code>\n<i>Quote this ID when contacting support</i>`

@@ -7,6 +7,60 @@
 - MongoDB (port 27017)
 
 
+## ✅ Payment Audit-Trail Sweep — Phase 2 Complete (Apr 30, 2026)
+
+### Scope
+Phase 1 closed 3 BlockBee handlers + 1 typo. Phase 2 closes **all remaining 16 webhook paths** — every crypto PSP callback now writes to the universal `transactions` ledger.
+
+### New helper — `auditCryptoTx(chatId, type, amount, metadata, psp)`
+Added near `applyPhonePlanUpgrade` in `js/_index.js`. Wraps `logTransaction(db, {...})` with `{ transactionId: generateTransactionId(), chatId, type, amount, currency: 'USD', status: 'completed', metadata: {...metadata, psp} }` in a try/catch so a DB failure never strands a paid-and-provisioned user. Eliminates 16× boilerplate repetition.
+
+### Webhooks instrumented (Phase 2, 16 paths)
+**BlockBee side (`/crypto-pay-*`)**: hosting, phone, vps, upgrade-vps, digital-product, virtual-card, leads. All now call `auditCryptoTx(chatId, <type>, price, { ...details, coin, value, ref }, 'blockbee')`.
+
+**DynoPay side (`/dynopay/crypto-pay-*`)**: plan, domain, hosting, phone, vps, upgrade-vps, digital-product, virtual-card, leads. All now call `auditCryptoTx(..., 'dynopay')`. Plus `/dynopay/crypto-wallet` had its existing inline `logTransaction` backfilled with `psp: 'dynopay'` in metadata for parity.
+
+### Type taxonomy established (queryable via `db.transactions.find({type: 'X'})`)
+| Type | Applies to |
+|---|---|
+| `wallet-topup` | BlockBee + DynoPay wallet deposits |
+| `plan-subscription` | Bot plan subscription (urlme/etc) |
+| `domain` | Domain purchases — amount reflects ACTUAL price after registrar fallback |
+| `hosting` | Shared hosting |
+| `phone-number` | Cloud IVR number purchase (DUAL-ledger with phoneTransactions) |
+| `vps` | New VPS provisioning |
+| `vps-upgrade-plan` / `vps-upgrade-disk` | VPS upgrade (ternary based on `vpsDetails.upgradeType`) |
+| `digital-product` | ebbooks/templates orders |
+| `virtual-card` | Prepaid card purchases |
+| `leads` / `validation` | Lead data / phone validation (ternary based on validator flag) |
+
+### Metadata shape per PSP
+- **BlockBee**: `{ ...productDetails, coin, value, ref, psp: 'blockbee' }`
+- **DynoPay**: `{ ...productDetails, coin, value, ref, psp: 'dynopay' }` (wallet path also has `payment_id`)
+
+### Tests — `js/tests/test_payment_audit_sweep.js` (replaced; was 9 tests now 29)
+**29/29 pass**. Handler-body extractor that matches `{` / `}` depth for accurate boundary detection. Full coverage:
+- Helper function definition + try/catch wrapping
+- All 10 BlockBee paths call auditCryptoTx + tag `psp: 'blockbee'`
+- All 10 DynoPay paths call auditCryptoTx + tag `psp: 'dynopay'`
+- Correct `type` per path (canonical taxonomy enforced)
+- VPS upgrade paths use ternary type branching
+- Leads/validation paths use ternary type branching
+- Phone handlers log to BOTH `phoneTransactions` and universal `transactions` (dual-ledger)
+- Domain handlers use `actualPrice` for registrar-fallback-aware audit
+- Regression guards: typo fix, phone upgrade trail
+
+### Regression
+All 13 suites green, ~220+ total assertions, **0 failures**: `test_payment_audit_sweep` (29/29), `test_plan_picker_ivr_clarity` (34/34), `test_one_tap_upgrade` (31/31), `test_day12_upgrade_credit_nudge` (19/19), `test_phone_upgrade_audit_trail` (13/13), `test_ai_support_phase1` (19/19), `test_manage_screen_features` (21/21), `test_user_facing_localization` (26/26), plus 5 others. nodejs restarted clean; `/api/` HTTP 200 in 270ms.
+
+### Audit coverage — before vs after
+| Flow (20 crypto webhook paths) | Before | After |
+|---|:-:|:-:|
+| Logs to universal `transactions` | 4/20 (20%) | 20/20 (100%) |
+| Logs to product-specific collection (phoneTransactions / hostingTransactions / vpsTransactions) | 10/20 | 10/20 (unchanged) |
+| Complete dual-ledger coverage | 0/20 | 10/20 |
+
+
 ## ✅ Payment Audit-Trail Sweep — Phase 1 of 2 (Apr 30, 2026)
 
 ### Audit findings
