@@ -7,6 +7,27 @@
 - MongoDB (port 27017)
 
 
+## ✅ AI Support Phase 1 Test Harness Fix (Feb 2026)
+
+### User report
+Running `node /app/js/tests/test_ai_support_phase1.js` showed `18 passed, 1 failed` for the user, but every run in the fresh pod reported `19 passed, 0 failed`.
+
+### Root cause
+The test runner's `t()` wrapper was synchronous (`try { fn(); ... }`) but one test — `S12: clearHistory resets dedup so next session starts clean` — was declared `async`. In Node.js, calling an async function from a sync try/catch returns a Promise immediately without surfacing any thrown assertion. The wrapper was therefore counting the async test as ✅ passed even when its assertion failed, and only emitting an unhandled-rejection warning that was easy to miss. This is why the pod couldn't reproduce the 18/1 output — the runner itself was masking the real state.
+
+### Fix — `js/tests/test_ai_support_phase1.js`
+- `t()` now pushes `{ name, fn }` into a queue; a new `async runAll()` iterates and `await`s each test so async assertions are caught by the try/catch.
+- Registered a `process.on('unhandledRejection', …)` guard that prints `❌ unhandled rejection` and bumps `failed` so hidden async failures can never again masquerade as passes.
+- Final `console.log`/`process.exit` moved into `runAll().then(...)`.
+
+### Verification
+- 19/19 deterministic passes across repeated runs in the pod.
+- Controlled reproduction: forcing the S12 async assertion to fail now correctly prints `=== 18 passed, 1 failed ===` with a proper `❌` line, exactly matching the user's original output — confirming the wrapper was the silencing factor.
+
+### Note
+`test_ai_support_phase2.js` referenced in the user's command does not exist — Phase 2 is a future roadmap item in `memory/AI_SUPPORT_PHASES.md`, not a regression.
+
+
 ## ✅ Admin-Bot Unmasked Notifications (Feb 2026)
 
 ### User request

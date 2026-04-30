@@ -19,14 +19,28 @@ const ai = require('../ai-support.js')
 const src = fs.readFileSync(path.join(__dirname, '..', 'ai-support.js'), 'utf8')
 
 let passed = 0, failed = 0
+const tests = []
 const t = (name, fn) => {
-  try {
-    fn()
-    console.log(`  ✅ ${name}`)
-    passed++
-  } catch (e) {
-    console.log(`  ❌ ${name}\n     ${e.message}`)
-    failed++
+  tests.push({ name, fn })
+}
+
+// Surface unhandled promise rejections so async test bugs cannot masquerade as passes.
+process.on('unhandledRejection', (err) => {
+  console.log(`  ❌ unhandled rejection\n     ${err && err.stack ? err.stack : err}`)
+  failed++
+  process.exitCode = 1
+})
+
+async function runAll () {
+  for (const { name, fn } of tests) {
+    try {
+      await fn()
+      console.log(`  ✅ ${name}`)
+      passed++
+    } catch (e) {
+      console.log(`  ❌ ${name}\n     ${e.message}`)
+      failed++
+    }
   }
 }
 
@@ -155,5 +169,8 @@ t('L3: getMarketplaceContext function exists and is called by MP AI', () => {
   assert(/marketplaceConversations/.test(ctxBlock), 'MP context should fetch conversations')
 })
 
-console.log(`\n=== ${passed} passed, ${failed} failed ===\n`)
-process.exit(failed === 0 ? 0 : 1)
+runAll().then(() => {
+  console.log(`\n=== ${passed} passed, ${failed} failed ===\n`)
+  process.exit(failed === 0 ? 0 : 1)
+})
+
