@@ -7,6 +7,38 @@
 - MongoDB (port 27017)
 
 
+## ✅ Telegram Bot Back-Button Trap Fix (May 1, 2026)
+
+### Problem (from production logs)
+On 2026-04-30, user `fuckthisapp` / chat `2086091807` (username literally voiced their frustration) tapped Back **16 times** in 8 s while in the IVR Custom-Script flow. Trace showed they were trapped — every tap was treated as their script content rather than a back-navigation.
+
+### Root cause
+257 handler conditions across the bot used `message === t.back` which matches only the locale-specific plain word (`'Back'` / `'Retour'` / `'返回'` / `'वापस'`). But every Back **button** is rendered as the emoji-prefixed string `↩️ Back` (always English, regardless of user language). So:
+- A French user (lang=fr) would see button `↩️ Back` but `t.back === 'Retour'` → no match → fallthrough → message treated as input.
+- The IVR Custom Script screen also showed only an `ℹ️ All Placeholders` keyboard (no Back button at all), forcing users to rely on stale persistent buttons from previous screens.
+
+### Fix
+**`js/_index.js`**:
+- New helper `isBackPress(message)` — robust matcher accepting `↩️ Back`, `🔙 Back`, `🔙 Retour`, `🔙 返回`, `🔙 वापस`, `↩️ Retour`, plus all 4 plain locale words; whitespace tolerant; rejects non-string / substrings like "Backwards" / "go back to start".
+- Replaced **257 occurrences** of `message === t.back` with `isBackPress(message)` (strict superset, zero regression risk — every match the old check accepted is still accepted, plus emoji variants now also work).
+- Added a visible `↩️ Back` row to the 3 IVR-OB screens that were missing one:
+  - Category-selection screen (line ~18068)
+  - Custom-Script prompt #1 (`✍️ Custom Script` shortcut) (line ~18087)
+  - Custom-Script prompt #2 (Custom from category list) (line ~18115)
+  - Placeholder-reference screen (`ℹ️ All Placeholders`) — was a self-loop with no escape (line ~18142)
+- Preserved `message === t.backButton` (different button, kept distinct) — 26 occurrences untouched.
+
+### Tests (25 new tests in `js/tests/test_back_button.js`)
+- Source-level assertion: `_index.js` no longer contains any `message === t.back` (excluding `t.backButton`)
+- Visible button strings: `↩️ Back`, `🔙 Back`, `🔙 Retour`, `🔙 返回`, `🔙 वापस`, `↩️ Retour` all match
+- Plain locale words: `Back`, `Retour`, `返回`, `वापस` all match
+- Whitespace tolerance: `"  ↩️ Back  "` and `" Back "` match
+- Negatives: empty / null / undefined / number, substring traps (`"Backwards"`, `"Bring Online"`, `"go back to start"`)
+- 3 explicit production-rage-tap scenario regressions
+
+**Total test suite: 117/117 passing.**
+
+
 ## ✅ Existing-User Mutation Queue Wire-Up (May 1, 2026)
 
 ### Problem

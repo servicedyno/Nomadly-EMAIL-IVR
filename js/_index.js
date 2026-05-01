@@ -1120,6 +1120,38 @@ async function tryWhmOrQueue(args) {
   return false
 }
 
+/**
+ * Robust "is this message a Back-button press?" detector.
+ *
+ * Background: across the bot, Back buttons are sometimes rendered as plain
+ * locale text (`Back` / `Retour` / `返回` / `वापस`) and sometimes with an emoji
+ * prefix (`↩️ Back`, `🔙 Back`, `🔙 Retour`, `🔙 返回`, `🔙 वापस`). The IVR-OB
+ * Custom-Script flow used `isBackPress(message)` which only matched the plain
+ * locale text — a French user tapping the visible `↩️ Back` button would have
+ * the click silently ignored, the literal string treated as their script
+ * content, and would loop pressing Back trying to escape (production rage-tap
+ * incident: user `fuckthisapp` hit Back 16× in 8 s).
+ *
+ * This helper accepts ALL plausible Back-button strings across all 4 locales,
+ * so handlers don't have to enumerate variants.
+ */
+function isBackPress(message) {
+  if (!message || typeof message !== 'string') return false
+  const m = message.trim()
+  // Fast path: emoji-prefixed English (most common UI button)
+  if (m === '↩️ Back' || m === '🔙 Back') return true
+  // Plain locale words (any language) — trim emojis if any
+  const stripped = m.replace(/^[\p{Extended_Pictographic}\u200d\ufe0f\s↩🔙]+/u, '').trim()
+  // Match against the 'back' translation in any of the 4 locales
+  const knownBacks = new Set([
+    'Back',     // en  (t.back)
+    'Retour',   // fr
+    '返回',     // zh
+    'वापस',    // hi
+  ])
+  return knownBacks.has(stripped)
+}
+
 const send = (chatId, message, options) => {
   // Auto-detect HTML in message and add parse_mode if not already set
   const opts = options || {}
@@ -9804,7 +9836,7 @@ All verified numbers generated during sourcing.`))
     ]))
   }
   //
-  if (message === t.cancel || message === '🏠 Main Menu' || (firstSteps.includes(action) && message === t.back)) {
+  if (message === t.cancel || message === '🏠 Main Menu' || (firstSteps.includes(action) && isBackPress(message))) {
     await set(state, chatId, 'action', 'none')
     if (action === a.supportChat) {
       // Cancel from support should end support session
@@ -9878,7 +9910,7 @@ All verified numbers generated during sourcing.`))
     return goto.adminConfirmMessage()
   }
   if (action === 'adminConfirmMessage') {
-    if (message === t.back || message === t.no) return goto[admin.messageUsers]()
+    if (isBackPress(message) || message === t.no) return goto[admin.messageUsers]()
     if (message !== t.yes) return send(chatId, t.what)
 
     await set(state, chatId, 'action', 'none')
@@ -10021,7 +10053,7 @@ All verified numbers generated during sourcing.`))
   }
 
   if (action === a.freeTrial) {
-    if (message === t.back) return goto.submenu3()
+    if (isBackPress(message)) return goto.submenu3()
     if (message === t.backButton) return goto.freeTrialMenu()
     if (message === user.freeTrialMenuButton) return goto.freeTrial()
     if (message === user.getFreeTrialPlanNow) return goto.getFreeTrialPlanNow()
@@ -10128,7 +10160,7 @@ All verified numbers generated during sourcing.`))
 
 
   if (action === a.registerNewDomain) {
-    if (message === t.back) return goto.buyPlan(a.premiumWeekly)
+    if (isBackPress(message)) return goto.buyPlan(a.premiumWeekly)
     send(chatId, t.checkingDomainAvail)
     const { modifiedDomain, price } = await planGetNewDomain(message, chatId, send, saveInfo, info.hostingType);
     if (modifiedDomain === null || price === null) return
@@ -10136,7 +10168,7 @@ All verified numbers generated during sourcing.`))
   }
 
   if (action === a.useExistingDomain) {
-    if (message === t.back || message === t.cancel) return goto.submenu3()
+    if (isBackPress(message) || message === t.cancel) return goto.submenu3()
     send(chatId, t.checkingExistingDomainAvail)
     let modifiedDomain = removeProtocolFromDomain(message)
     const { available, chatMessage } = await planCheckExistingDomain(modifiedDomain, info.hostingType)
@@ -10150,7 +10182,7 @@ All verified numbers generated during sourcing.`))
 
   // Use My Domain — user selects from their purchased domains
   if (action === a.useMyDomain) {
-    if (message === t.backButton || message === t.back) return goto.buyPlan(a.premiumWeekly)
+    if (message === t.backButton || isBackPress(message)) return goto.buyPlan(a.premiumWeekly)
     // User tapped a domain name from the list
     const domains = await getPurchasedDomains(chatId)
     if (domains.includes(message)) {
@@ -10169,7 +10201,7 @@ All verified numbers generated during sourcing.`))
 
   // Connect External Domain — user types a domain they own elsewhere
   if (action === a.connectExternalDomain) {
-    if (message === t.back || message === t.backButton || message === t.cancel) return goto.buyPlan(a.premiumWeekly)
+    if (isBackPress(message) || message === t.backButton || message === t.cancel) return goto.buyPlan(a.premiumWeekly)
     let modifiedDomain = removeProtocolFromDomain(message)
     // Validate it looks like a domain
     if (!modifiedDomain || !modifiedDomain.includes('.')) {
@@ -10185,7 +10217,7 @@ All verified numbers generated during sourcing.`))
 
   // Connect External Domain — confirm
   if (action === a.connectExternalDomainFound) {
-    if (message === t.back || message === user.searchAnotherDomain) return goto.connectExternalDomain()
+    if (isBackPress(message) || message === user.searchAnotherDomain) return goto.connectExternalDomain()
     if (message === user.continueWithDomain(info.website_name)) {
       saveInfo('connectExternalDomain', true)
       saveInfo('nameserver', 'cloudflare')
@@ -10194,13 +10226,13 @@ All verified numbers generated during sourcing.`))
   }
 
   if (action === a.domainNotFound) {
-    if (message === t.back) return goto.buyPlan(a.premiumWeekly)
+    if (isBackPress(message)) return goto.buyPlan(a.premiumWeekly)
     if (message === user.searchAnotherDomain) return goto.registerNewDomain()
     if (message === user.continueWithDomain(info.website_name)) return goto.enterYourEmail()
   }
 
   if (action === a.registerNewDomainFound) {
-    if (message === t.back || message === user.searchAnotherDomain) return goto.registerNewDomain()
+    if (isBackPress(message) || message === user.searchAnotherDomain) return goto.registerNewDomain()
     if (message === user.continueWithDomain(info.website_name)) {
       await saveInfo('continue_domain_last_state', 'registerNewDomain')
       // Auto-set Cloudflare NS — skip NS selection
@@ -10210,7 +10242,7 @@ All verified numbers generated during sourcing.`))
   }
 
   if (action === a.useExistingDomainFound) {
-    if (message === t.back || message === user.searchAnotherDomain) return goto.useExistingDomain()
+    if (isBackPress(message) || message === user.searchAnotherDomain) return goto.useExistingDomain()
     if (message === user.continueWithDomain(info.website_name)) {
       await saveInfo('continue_domain_last_state', 'useExistingDomain')
       // Auto-set Cloudflare NS — skip NS selection
@@ -10226,7 +10258,7 @@ All verified numbers generated during sourcing.`))
   }
 
   if (action === a.enterYourEmail) {
-    if (message === t.back) {
+    if (isBackPress(message)) {
       // Go back to the domain step, not NS selection
       if (info?.continue_domain_last_state === 'registerNewDomain') return goto.registerNewDomainFound(info.website_name, info.price)
       else if (info?.continue_domain_last_state === 'useExistingDomain') return goto.useExistingDomainFound(info.website_name)
@@ -10246,12 +10278,12 @@ All verified numbers generated during sourcing.`))
   }
 
   if (action === a.confirmEmailBeforeProceeding) {
-    if (message === t.back) return goto.enterYourEmail()
+    if (isBackPress(message)) return goto.enterYourEmail()
     if (message === t.yesProceedWithThisEmail(info.email)) return goto.proceedWithEmail(info.website_name, info.price)
   }
 
   if (action === a.proceedWithEmail) {
-    if (message === t.back) return goto.enterYourEmail()
+    if (isBackPress(message)) return goto.enterYourEmail()
     if (message === t.proceedWithPayment) {
       return goto['hosting-pay']()
     }
@@ -10259,7 +10291,7 @@ All verified numbers generated during sourcing.`))
 
   // 123456
   if (action === a.proceedWithPaymentProcess) {
-    if (message === t.back) return goto['hosting-pay']()
+    if (isBackPress(message)) return goto['hosting-pay']()
   }
 
   // My Hosting Plans — entry point
@@ -10275,7 +10307,7 @@ All verified numbers generated during sourcing.`))
 
   // 💳 My Plan / Billing — handle in-menu actions
   if (action === a.billingMenu) {
-    if (message === t.backButton || message === t.back) {
+    if (message === t.backButton || isBackPress(message)) {
       saveInfo('billingFlow', false)
       return goto.submenu3()
     }
@@ -10352,7 +10384,7 @@ All verified numbers generated during sourcing.`))
 
   // My Hosting Plans — select a plan to view
   if (action === a.myHostingPlans) {
-    if (message === t.backButton || message === t.back) return goto.submenu3()
+    if (message === t.backButton || isBackPress(message)) return goto.submenu3()
     // Check if user tapped a plan button (format: "🔍 domain.com")
     const domainMatch = message.match(/^🔍\s+(.+)$/)
     if (domainMatch) {
@@ -11327,7 +11359,7 @@ All verified numbers generated during sourcing.`))
 
   // ━━━ Bundle Selection Handler ━━━
   if (action === a.bundleMenu) {
-    if (message === t.back || message === '↩️ Back') return goto.displayMainMenuButtons()
+    if (isBackPress(message) || message === '↩️ Back') return goto.displayMainMenuButtons()
     // Match selected bundle by name
     const cleanMsg = message.replace('⭐ ', '')
     const bundleIds = Object.keys(monetization.SERVICE_BUNDLES)
@@ -11354,7 +11386,7 @@ All verified numbers generated during sourcing.`))
 
   // ━━━ Bundle Confirm/Purchase ━━━
   if (action === a.bundleConfirm) {
-    if (message === t.back || message === '↩️ Back') {
+    if (isBackPress(message) || message === '↩️ Back') {
       // Go back to bundle menu
       await set(state, chatId, 'action', a.bundleMenu)
       const bundleMenuMsg = monetization.formatBundleMenu(lang)
@@ -11443,7 +11475,7 @@ All verified numbers generated during sourcing.`))
 
   // ── Email Validation Menu Handler ──
   if (action === a.evMenu) {
-    if (message === t.back || message === t.cancel || message === '🔙 Back' || message === '❌ Cancel') return goto.displayMainMenuButtons()
+    if (isBackPress(message) || message === t.cancel || message === '🔙 Back' || message === '❌ Cancel') return goto.displayMainMenuButtons()
 
     if (message === '📤 Upload List (CSV/TXT)') {
       await set(state, chatId, 'action', a.evUploadList)
@@ -11666,7 +11698,7 @@ All verified numbers generated during sourcing.`))
   }
 
   if (action === a.evUploadList) {
-    if (message === '❌ Cancel' || message === t.back || message === t.cancel) {
+    if (message === '❌ Cancel' || isBackPress(message) || message === t.cancel) {
       await set(state, chatId, 'action', a.evMenu)
       // Re-render the EV menu so the keyboard is replaced (not just text reply)
       const evBtnsBack = [
@@ -11784,7 +11816,7 @@ All verified numbers generated during sourcing.`))
 
   // ── Email Validation: Paste Emails ──
   if (action === a.evPasteEmails) {
-    if (message === '❌ Cancel' || message === t.back || message === t.cancel) {
+    if (message === '❌ Cancel' || isBackPress(message) || message === t.cancel) {
       await set(state, chatId, 'action', a.evMenu)
       // Re-render the EV menu so the keyboard is replaced (not just text reply)
       const evBtnsBack = [
@@ -11883,7 +11915,7 @@ All verified numbers generated during sourcing.`))
 
   // ── Email Validation: Confirm & Pay ──
   if (action === a.evConfirmPay) {
-    if (message === '❌ Cancel' || message === t.back || message === t.cancel) {
+    if (message === '❌ Cancel' || isBackPress(message) || message === t.cancel) {
       await set(state, chatId, 'action', a.evMenu)
       await saveInfo('evEmails', null)
       return send(chatId, trans('t.ev_28'), { parse_mode: 'HTML' })
@@ -12084,7 +12116,7 @@ All verified numbers generated during sourcing.`))
 
   // Email Blast Menu Handler
   if (action === a.ebMenu) {
-    if (message === t.back || message === t.cancel || message === '🔙 Back' || message === '❌ Cancel' || message === (t.ebCancelBtn || '❌ Cancel')) return goto.displayMainMenuButtons()
+    if (isBackPress(message) || message === t.cancel || message === '🔙 Back' || message === '❌ Cancel' || message === (t.ebCancelBtn || '❌ Cancel')) return goto.displayMainMenuButtons()
 
     if (message === t.ebSendBlast || message === '📤 Send Email Blast') {
       await set(state, chatId, 'action', a.ebUploadList)
@@ -12140,7 +12172,7 @@ All verified numbers generated during sourcing.`))
 
   // Upload Email List (handles both file and text paste)
   if (action === a.ebUploadList) {
-    if (message === (t.ebCancelBtn || '❌ Cancel') || message === '❌ Cancel' || message === t.back || message === t.cancel) {
+    if (message === (t.ebCancelBtn || '❌ Cancel') || message === '❌ Cancel' || isBackPress(message) || message === t.cancel) {
       await set(state, chatId, 'action', a.ebMenu)
       return send(chatId, t.ebCancelled || '❌ Cancelled.', { parse_mode: 'HTML' })
     }
@@ -12419,7 +12451,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // Bank payment for Email Blast: collect email → create Fincra checkout
   if (action === 'bank-pay-email-blast') {
-    if (message === t.back) {
+    if (isBackPress(message)) {
       // Return to payment options
       const emails = info.ebValidEmails ? JSON.parse(info.ebValidEmails) : []
       const settings = await emailBlastService.getSettings()
@@ -12934,7 +12966,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // Digital Products: product selection
   if (action === a.submenu6) {
-    if (message === t.back || message === t.cancel) return goto.displayMainMenuButtons()
+    if (isBackPress(message) || message === t.cancel) return goto.displayMainMenuButtons()
 
     // Airvoice has a duration picker sub-menu
     if (message === t.dpEsimAirvoice) return goto['airvoice-duration']()
@@ -12969,7 +13001,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // Airvoice eSIM: duration selection
   if (action === a.airvoiceDuration) {
-    if (message === t.back) return goto.submenu6()
+    if (isBackPress(message)) return goto.submenu6()
 
     const airvoicePlans = {
       [t.dpAirvoice1m]: { name: 'eSIM Airvoice (AT&T) — 1 Month',   key: 'airvoice_1m', price: DP_PRICE_AIRVOICE_1M },
@@ -12991,7 +13023,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // Digital Products: payment method selection
   if (action === a.digitalProductPay) {
-    if (message === t.back) return goto.submenu6()
+    if (isBackPress(message)) return goto.submenu6()
     if (message === '🏠 Main Menu') return goto.displayMainMenuButtons()
     
     // Handle "Ask Question" button - direct user to support
@@ -13032,7 +13064,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // Digital Products: bank payment
   if (action === 'bank-pay-digital-product') {
-    if (message === t.back) return goto['digital-product-pay']()
+    if (isBackPress(message)) return goto['digital-product-pay']()
     const email = message
     const price = info?.dpPrice
     const product = info?.dpProductName
@@ -13078,7 +13110,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // Digital Products: crypto payment
   if (action === 'crypto-pay-digital-product') {
-    if (message === t.back) return goto['digital-product-pay']()
+    if (isBackPress(message)) return goto['digital-product-pay']()
     const supportedCryptoView = trans('supportedCryptoView')
     const tickerKey = supportedCryptoView[message]
     if (!tickerKey) return send(chatId, t.askValidCrypto)
@@ -13163,7 +13195,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // Virtual Card: enter amount
   if (action === a.vcEnterAmount) {
-    if (message === t.back || message === t.cancel) return goto.displayMainMenuButtons()
+    if (isBackPress(message) || message === t.cancel) return goto.displayMainMenuButtons()
 
     // Handle "Custom Amount" button — re-prompt for manual entry
     if (message === '✏️ Custom Amount') {
@@ -13183,7 +13215,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // Virtual Card: enter address
   if (action === a.vcEnterAddress) {
-    if (message === t.back) return goto['virtual-card-start']()
+    if (isBackPress(message)) return goto['virtual-card-start']()
     if (message.length < 10) return send(chatId, t.vcAddressTooShort)
     await saveInfo('vcAddress', message)
     await saveInfo('lastStep', 'virtual-card-pay')
@@ -13192,7 +13224,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // Virtual Card: payment method selection
   if (action === a.virtualCardPay) {
-    if (message === t.back) return goto['virtual-card-address']()
+    if (isBackPress(message)) return goto['virtual-card-address']()
 
     const payOption = message
 
@@ -13216,7 +13248,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // Virtual Card: bank payment
   if (action === 'bank-pay-virtual-card') {
-    if (message === t.back) return goto['virtual-card-pay']()
+    if (isBackPress(message)) return goto['virtual-card-pay']()
     const email = message
     if (!isValidEmail(email)) return send(chatId, t.askValidEmail)
 
@@ -13254,7 +13286,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // Virtual Card: crypto payment
   if (action === 'crypto-pay-virtual-card') {
-    if (message === t.back) return goto['virtual-card-pay']()
+    if (isBackPress(message)) return goto['virtual-card-pay']()
     const supportedCryptoView = trans('supportedCryptoView')
     const tickerKey = supportedCryptoView[message]
     if (!tickerKey) return send(chatId, t.askValidCrypto)
@@ -13373,7 +13405,7 @@ ${message.replace(/\n/g, '<br>')}
     if (!convId) return goto.marketplace()
 
     // /done — end conversation
-    if (message === '/done' || message === t.back || message === t.backButton) {
+    if (message === '/done' || isBackPress(message) || message === t.backButton) {
       await marketplaceService.closeConversation(convId)
       const conv = await marketplaceService.getConversation(convId)
       const otherParty = conv?.buyerId === chatId ? conv?.sellerId : conv?.buyerId
@@ -13491,7 +13523,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // ── Marketplace AI Helper ──
   if (action === a.mpAiHelper) {
-    if (message === t.back || message === t.backButton) return goto.marketplace()
+    if (isBackPress(message) || message === t.backButton) return goto.marketplace()
     // User asked a question → get AI response
     send(chatId, t.mpAiThinking)
     try {
@@ -13508,7 +13540,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // ── Marketplace Home ──
   if (action === a.mpHome) {
-    if (message === t.back || message === t.backButton) return goto.displayMainMenuButtons()
+    if (isBackPress(message) || message === t.backButton) return goto.displayMainMenuButtons()
 
     if (message === t.mpBrowse) {
       await set(state, chatId, 'action', a.mpBrowseCategory)
@@ -13574,7 +13606,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // ── Browse Category Selection ──
   if (action === a.mpBrowseCategory) {
-    if (message === t.back || message === t.backButton) return goto.marketplace()
+    if (isBackPress(message) || message === t.backButton) return goto.marketplace()
 
     let cat = message === t.mpAllCategories ? 'all' : _mpCategoryFromTranslated(message) || message
     if (cat !== 'all' && !marketplaceService.CATEGORIES.includes(cat)) {
@@ -13619,7 +13651,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // ── My Listings — select a listing to manage ──
   if (action === a.mpMyListings) {
-    if (message === t.back || message === t.backButton) return goto.marketplace()
+    if (isBackPress(message) || message === t.backButton) return goto.marketplace()
     if (message === t.mpListProduct) {
       // Check marketplace ban before allowing listing
       const mpBanList2 = await marketplaceService.isUserBanned(chatId)
@@ -13652,7 +13684,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // ── Manage Listing ──
   if (action === a.mpManageListing) {
-    if (message === t.back || message === t.backButton) {
+    if (isBackPress(message) || message === t.backButton) {
       await set(state, chatId, 'action', a.mpHome)
       return send(chatId, t.mpHome, k.of([[t.mpBrowse], [t.mpListProduct], [t.mpMyConversations], [t.mpMyListings], [t.mpAiHelper]]))
     }
@@ -13690,7 +13722,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // ── Edit Title ──
   if (action === a.mpEditTitle) {
-    if (message === t.back || message === t.backButton) { await set(state, chatId, 'action', a.mpManageListing); return send(chatId, t.mpEditWhat, k.of([[t.mpEditTitle], [t.mpEditDesc], [t.mpEditPrice]])) }
+    if (isBackPress(message) || message === t.backButton) { await set(state, chatId, 'action', a.mpManageListing); return send(chatId, t.mpEditWhat, k.of([[t.mpEditTitle], [t.mpEditDesc], [t.mpEditPrice]])) }
     const pid = info?.mpActiveProduct
     if (!pid) return goto.marketplace()
     await marketplaceService.updateProduct(pid, { title: message.slice(0, marketplaceService.MAX_TITLE) })
@@ -13701,7 +13733,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // ── Edit Description ──
   if (action === a.mpEditDesc) {
-    if (message === t.back || message === t.backButton) { await set(state, chatId, 'action', a.mpManageListing); return send(chatId, t.mpEditWhat, k.of([[t.mpEditTitle], [t.mpEditDesc], [t.mpEditPrice]])) }
+    if (isBackPress(message) || message === t.backButton) { await set(state, chatId, 'action', a.mpManageListing); return send(chatId, t.mpEditWhat, k.of([[t.mpEditTitle], [t.mpEditDesc], [t.mpEditPrice]])) }
     const pid = info?.mpActiveProduct
     if (!pid) return goto.marketplace()
     await marketplaceService.updateProduct(pid, { description: message.slice(0, marketplaceService.MAX_DESC) })
@@ -13712,7 +13744,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // ── Edit Price ──
   if (action === a.mpEditPrice) {
-    if (message === t.back || message === t.backButton) { await set(state, chatId, 'action', a.mpManageListing); return send(chatId, t.mpEditWhat, k.of([[t.mpEditTitle], [t.mpEditDesc], [t.mpEditPrice]])) }
+    if (isBackPress(message) || message === t.backButton) { await set(state, chatId, 'action', a.mpManageListing); return send(chatId, t.mpEditWhat, k.of([[t.mpEditTitle], [t.mpEditDesc], [t.mpEditPrice]])) }
     const pid = info?.mpActiveProduct
     if (!pid) return goto.marketplace()
     const price = parseFloat(message.replace(/[^0-9.]/g, ''))
@@ -13725,7 +13757,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // ── New Product: Upload Images ──
   if (action === a.mpNewImage) {
-    if (message === t.back || message === t.backButton || message === t.mpCancel) return goto.marketplace()
+    if (isBackPress(message) || message === t.backButton || message === t.mpCancel) return goto.marketplace()
     if (message === t.mpDoneUpload) {
       const images = info?.mpImages || []
       if (images.length === 0) return send(chatId, t.mpNoImage)
@@ -13738,7 +13770,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // ── New Product: Title ──
   if (action === a.mpNewTitle) {
-    if (message === t.back || message === t.backButton) {
+    if (isBackPress(message) || message === t.backButton) {
       await set(state, chatId, 'action', a.mpNewImage)
       return send(chatId, t.mpUploadImages, k.of([[t.mpDoneUpload]]))
     }
@@ -13749,7 +13781,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // ── New Product: Description ──
   if (action === a.mpNewDesc) {
-    if (message === t.back || message === t.backButton) {
+    if (isBackPress(message) || message === t.backButton) {
       await set(state, chatId, 'action', a.mpNewTitle)
       return send(chatId, t.mpEnterTitle, bc)
     }
@@ -13760,7 +13792,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // ── New Product: Price ──
   if (action === a.mpNewPrice) {
-    if (message === t.back || message === t.backButton) {
+    if (isBackPress(message) || message === t.backButton) {
       await set(state, chatId, 'action', a.mpNewDesc)
       return send(chatId, t.mpEnterDesc, bc)
     }
@@ -13774,7 +13806,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // ── New Product: Category ──
   if (action === a.mpNewCategory) {
-    if (message === t.back || message === t.backButton) {
+    if (isBackPress(message) || message === t.backButton) {
       await set(state, chatId, 'action', a.mpNewPrice)
       return send(chatId, t.mpEnterPrice, bc)
     }
@@ -13791,7 +13823,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // ── New Product: Confirm & Publish ──
   if (action === a.mpNewConfirm) {
-    if (message === t.mpCancel || message === t.back || message === t.backButton) return goto.marketplace()
+    if (message === t.mpCancel || isBackPress(message) || message === t.backButton) return goto.marketplace()
     if (message === t.mpPublish) {
       try {
         const product = await marketplaceService.createProduct({
@@ -13819,7 +13851,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // ── My Conversations — select one to resume ──
   if (action === a.mpConversations) {
-    if (message === t.back || message === t.backButton) return goto.marketplace()
+    if (isBackPress(message) || message === t.backButton) return goto.marketplace()
     const convList = info?.mpConvList || []
     const match = convList.find(c => message.includes(c.title.slice(0, 30)))
     if (!match) return goto.marketplace()
@@ -14733,7 +14765,7 @@ ${message.replace(/\n/g, '<br>')}
   }
   
   if (action === 'quick-shorten-custom-alias') {
-    if (message === t.back || message === '❌ Cancel') {
+    if (isBackPress(message) || message === '❌ Cancel') {
       await set(state, chatId, 'action', 'none')
       return send(chatId, t.cancelled || 'Cancelled.', trans('o'))
     }
@@ -14811,7 +14843,7 @@ ${message.replace(/\n/g, '<br>')}
   }
 
   if (action === a.redSelectUrl) {
-    if (message === t.back) return goto.submenu1()
+    if (isBackPress(message)) return goto.submenu1()
     // S1 fix (2026-04-21): sanitize before validating — strips trailing
     // punctuation (e.g. "https://cnn.com." → "https://cnn.com") that
     // otherwise passes URL() parse but later trips RapidAPI 400.
@@ -14822,7 +14854,7 @@ ${message.replace(/\n/g, '<br>')}
   }
 
   if (action === a.redSelectProvider) {
-    if (message === t.back) return goto.redSelectUrl()
+    if (isBackPress(message)) return goto.redSelectUrl()
     if (message === user.buyPlan) return goto['choose-subscription']()
     const redSelectProvider = trans('redSelectProvider')
     if (!redSelectProvider.includes(message)) return send(chatId, t.what)
@@ -14837,7 +14869,7 @@ ${message.replace(/\n/g, '<br>')}
     }
   }
   if (action === a.redSelectRandomCustom) {
-    if (message === t.back) return goto.redSelectUrl()
+    if (isBackPress(message)) return goto.redSelectUrl()
 
     const redSelectRandomCustom = trans('redSelectRandomCustom')
 
@@ -14952,7 +14984,7 @@ ${message.replace(/\n/g, '<br>')}
     if (redSelectRandomCustom[1] === message) return goto.redSelectCustomExt()
   }
   if (action === a.redSelectCustomExt) {
-    if (message === t.back) return goto.redSelectRandomCustom()
+    if (isBackPress(message)) return goto.redSelectRandomCustom()
 
     // Check if user has free links or is subscribed
     if (!(await isSubscribed(chatId)) && !(await freeLinksAvailable(chatId))) {
@@ -15029,7 +15061,7 @@ ${message.replace(/\n/g, '<br>')}
   }
 
   if (action === a.askCoupon + a.redSelectProvider) {
-    if (message === t.back) return goto.redSelectProvider()
+    if (isBackPress(message)) return goto.redSelectProvider()
     if (message === t.skip) {
       saveInfo('lastStep', a.redSelectProvider)
       return (await saveInfo('couponApplied', false)) || goto.walletSelectCurrency()
@@ -15059,7 +15091,7 @@ ${message.replace(/\n/g, '<br>')}
     return goto['quick-activate-domain-shortener']()
   }
   if (action === 'quick-activate-domain-shortener') {
-    if (message === t.back || message === t.cancel) return goto.submenu1()
+    if (isBackPress(message) || message === t.cancel) return goto.submenu1()
 
     const domain = message.toLowerCase()
     const domains = await getPurchasedDomains(chatId)
@@ -15145,7 +15177,7 @@ ${message.replace(/\n/g, '<br>')}
     return
   }
   if (action === 'choose-url-to-shorten') {
-    if (message === t.back) return goto.submenu1()
+    if (isBackPress(message)) return goto.submenu1()
     // S1 fix (2026-04-21): sanitize before validating — same rationale as redSelectUrl
     const cleanedUrl2 = sanitizeShortenerUrl(message)
     if (!isValidUrl(cleanedUrl2)) return send(chatId, t.provideLink, bc)
@@ -15156,7 +15188,7 @@ ${message.replace(/\n/g, '<br>')}
     return goto['choose-domain-with-shorten']([...domains, ...adminDomains])
   }
   if (action === 'choose-domain-with-shorten') {
-    if (message === t.back) return goto['choose-url-to-shorten']()
+    if (isBackPress(message)) return goto['choose-url-to-shorten']()
     if (message === user.buyDomainName) return goto['choose-domain-to-buy']()
 
     const domain = message.toLowerCase()
@@ -15174,7 +15206,7 @@ ${message.replace(/\n/g, '<br>')}
     return goto['choose-link-type']()
   }
   if (action === 'choose-link-type') {
-    if (message === t.back) return goto['choose-domain-with-shorten'](await getPurchasedDomains(chatId))
+    if (isBackPress(message)) return goto['choose-domain-with-shorten'](await getPurchasedDomains(chatId))
     const linkOptions = trans('linkOptions')
     if (!linkOptions.includes(message)) return send(chatId, t.what)
 
@@ -15225,7 +15257,7 @@ ${message.replace(/\n/g, '<br>')}
     return
   }
   if (action === 'shorten-custom') {
-    if (message === t.back) return goto['choose-link-type']()
+    if (isBackPress(message)) return goto['choose-link-type']()
 
     // Check if user has free links or is subscribed
     if (!(await isSubscribed(chatId)) && !(await freeLinksAvailable(chatId))) {
@@ -15272,7 +15304,7 @@ ${message.replace(/\n/g, '<br>')}
     return goto['choose-domain-to-buy']()
   }
   if (action === 'choose-domain-to-buy') {
-    if (message === t.back) return goto.submenu2()
+    if (isBackPress(message)) return goto.submenu2()
     let domain = message.toLowerCase().trim()
     domain = domain.replace('https://', '')
     domain = domain.replace('http://', '')
@@ -15389,7 +15421,7 @@ ${message.replace(/\n/g, '<br>')}
   }
   if (action === a.askDomainToUseWithShortener) {
     const yesNo = trans('yesNo')
-    if (message === t.back) return goto['choose-domain-to-buy']()
+    if (isBackPress(message)) return goto['choose-domain-to-buy']()
     if (!yesNo.includes(message)) return send(chatId, t.what)
     saveInfo('askDomainToUseWithShortener', message === yesNo[0])
 
@@ -15404,7 +15436,7 @@ ${message.replace(/\n/g, '<br>')}
     return goto.domainNsSelect()
   }
   if (action === a.domainNsSelect) {
-    if (message === t.back) return goto.askDomainToUseWithShortener()
+    if (isBackPress(message)) return goto.askDomainToUseWithShortener()
     if (message === configUser.nsProviderDefault) {
       saveInfo('nsChoice', 'provider_default')
     } else if (message === configUser.nsCloudflare) {
@@ -15418,7 +15450,7 @@ ${message.replace(/\n/g, '<br>')}
     return goto['domain-pay']()
   }
   if (action === a.domainCustomNsEntry) {
-    if (message === t.back) return goto.domainNsSelect()
+    if (isBackPress(message)) return goto.domainNsSelect()
     const nsParts = message.trim().split(/\s+/)
     if (nsParts.length < 2) {
       return send(chatId, t.provide2Nameservers)
@@ -15436,7 +15468,7 @@ ${message.replace(/\n/g, '<br>')}
     return goto['domain-pay']()
   }
   if (action === a.askCoupon + 'choose-domain-to-buy') {
-    if (message === t.back) return goto['domain-pay']()
+    if (isBackPress(message)) return goto['domain-pay']()
     if (message === t.skip) return goto.skipCoupon('domain-pay')
 
     const { price } = info
@@ -15457,7 +15489,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // Coupon for domain
   if (action === a.askCoupon + 'choose-hosting-to-buy') {
-    if (message === t.back) return goto.proceedWithEmail(info.website_name, info.price)
+    if (isBackPress(message)) return goto.proceedWithEmail(info.website_name, info.price)
     if (message === t.skip) return goto.skipCoupon('hosting-pay')
 
     const { totalPrice } = info
@@ -15479,7 +15511,7 @@ ${message.replace(/\n/g, '<br>')}
     return goto['hosting-pay']()
   }
   if (action === 'domain-pay') {
-    if (message === t.back) {
+    if (isBackPress(message)) {
       // Go back to NS selection if shortener=No, otherwise to shortener question
       if (info?.askDomainToUseWithShortener === false) return goto.domainNsSelect()
       return goto.askDomainToUseWithShortener()
@@ -15510,7 +15542,7 @@ ${message.replace(/\n/g, '<br>')}
     return send(chatId, t.askValidPayOption)
   }
   if (action === 'bank-pay-domain') {
-    if (message === t.back) return goto['domain-pay']()
+    if (isBackPress(message)) return goto['domain-pay']()
     const email = message
     const price = info?.price
     const domain = info?.domain
@@ -15531,7 +15563,7 @@ ${message.replace(/\n/g, '<br>')}
     return send(chatId, t.bankPayDomain(priceNGN, domain), trans('payBank', url))
   }
   if (action === 'crypto-pay-domain') {
-    if (message === t.back) return goto['domain-pay']()
+    if (isBackPress(message)) return goto['domain-pay']()
       const tickerView = message
       const supportedCryptoView = trans('supportedCryptoView')
       const ticker = supportedCryptoView[tickerView]
@@ -15597,7 +15629,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // Hosting payment
   if (action === 'hosting-pay') {
-    if (message === t.back || message === t.backButton || message === '⬅️ Back') {
+    if (isBackPress(message) || message === t.backButton || message === '⬅️ Back') {
       saveInfo('processingPayment', false) // Clear stale payment lock on Back
       return goto.enterYourEmail()
     }
@@ -15628,7 +15660,7 @@ ${message.replace(/\n/g, '<br>')}
     return send(chatId, t.askValidPayOption)
   }
   if (action === 'hosting-apply-coupon') {
-    if (message === t.skip || message === t.back) return goto['hosting-pay']()
+    if (message === t.skip || isBackPress(message)) return goto['hosting-pay']()
     const couponResult = await resolveCoupon(message, chatId)
     if (!couponResult) return send(chatId, t.invalidCoupon || 'Invalid coupon. Try again or tap Skip.', k.of([t.skip]))
     if (couponResult.error === 'already_used') return send(chatId, t.couponAlreadyUsed || 'Coupon already used. Try another or tap Skip.', k.of([t.skip]))
@@ -15642,7 +15674,7 @@ ${message.replace(/\n/g, '<br>')}
     return goto['hosting-pay']()
   }
   if (action === 'bank-pay-hosting') {
-    if (message === t.back) return goto['hosting-pay']()
+    if (isBackPress(message)) return goto['hosting-pay']()
     const email = message
     const price = info?.totalPrice
     const domain = info?.domain
@@ -15663,7 +15695,7 @@ ${message.replace(/\n/g, '<br>')}
     return send(chatId, hP.bankPayDomain(priceNGN, info.plan), trans('payBank', url))
   }
   if (action === 'crypto-pay-hosting') {
-    if (message === t.back) {
+    if (isBackPress(message)) {
       saveInfo('processingPayment', false) // Clear processing flag
       return goto['hosting-pay']()
     }
@@ -15746,7 +15778,7 @@ ${message.replace(/\n/g, '<br>')}
     }
   }
   if (action === 'get-free-domain') {
-    if (message === t.back || message === t.no) return goto['choose-domain-to-buy']()
+    if (isBackPress(message) || message === t.no) return goto['choose-domain-to-buy']()
     if (message !== t.yes) return send(chatId, t.what)
 
     const domain = info?.domain
@@ -15764,7 +15796,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // VPS Payments
   if (action === 'vps-plan-pay') {
-    if (message === t.back) return goto.vpsAskPaymentConfirmation()
+    if (isBackPress(message)) return goto.vpsAskPaymentConfirmation()
     const payOption = message
 
     if (payOption === payIn.crypto) {
@@ -15786,7 +15818,7 @@ ${message.replace(/\n/g, '<br>')}
   }
 
   if (action === 'bank-pay-vps') {
-    if (message === t.back) return goto['vps-plan-pay']()
+    if (isBackPress(message)) return goto['vps-plan-pay']()
     const email = message
     const vpsDetails = info?.vpsDetails
     const price = vpsDetails?.totalPrice
@@ -15807,7 +15839,7 @@ ${message.replace(/\n/g, '<br>')}
     return send(chatId, vp.bankPayVPS(priceNGN, vpsDetails.plan), trans('payBank', url))
   }
   if (action === 'crypto-pay-vps') {
-    if (message === t.back) return goto['vps-plan-pay']()
+    if (isBackPress(message)) return goto['vps-plan-pay']()
     const tickerView = message
     const supportedCryptoView = trans('supportedCryptoView')
     const ticker = supportedCryptoView[tickerView]
@@ -15870,7 +15902,7 @@ ${message.replace(/\n/g, '<br>')}
 
   //upgrade Plan payments
   if (action === 'vps-upgrade-plan-pay') {
-    if (message === t.back) return info.vpsDetails.upgradeType === 'vps-renew' || info.vpsDetails.upgradeType === 'vps-cPanel-renew' ? goto.confirmVPSRenewDetails()
+    if (isBackPress(message)) return info.vpsDetails.upgradeType === 'vps-renew' || info.vpsDetails.upgradeType === 'vps-cPanel-renew' ? goto.confirmVPSRenewDetails()
       : goto.askVpsUpgradePayment()
     const payOption = message
 
@@ -15893,7 +15925,7 @@ ${message.replace(/\n/g, '<br>')}
   }
 
   if (action === 'bank-pay-vps-upgrade') {
-    if (message === t.back) return goto['vps-upgrade-plan-pay']()
+    if (isBackPress(message)) return goto['vps-upgrade-plan-pay']()
     const email = message
     const vpsDetails = info?.vpsDetails
     const price = vpsDetails?.totalPrice
@@ -15923,7 +15955,7 @@ ${message.replace(/\n/g, '<br>')}
   }
 
   if (action === 'crypto-pay-vps-upgrade') {
-    if (message === t.back) return goto['vps-upgrade-plan-pay']()
+    if (isBackPress(message)) return goto['vps-upgrade-plan-pay']()
     const tickerView = message
     const supportedCryptoView = trans('supportedCryptoView')
     const ticker = supportedCryptoView[tickerView]
@@ -15996,7 +16028,7 @@ ${message.replace(/\n/g, '<br>')}
     return goto.askCoupon('choose-subscription')
   }
   if (action === a.askCoupon + 'choose-subscription') {
-    if (message === t.back) return goto['choose-subscription']()
+    if (isBackPress(message)) return goto['choose-subscription']()
     const price = priceOf[info?.plan]
     saveInfo('price', price)
     if (message === t.skip) return (await saveInfo('couponApplied', false)) || goto['plan-pay']()
@@ -16015,7 +16047,7 @@ ${message.replace(/\n/g, '<br>')}
     return goto['plan-pay']()
   }
   if (action === 'plan-pay') {
-    if (message === t.back) return goto.askCoupon('choose-subscription')
+    if (isBackPress(message)) return goto.askCoupon('choose-subscription')
     const payOption = message
     if (payOption === payIn.crypto) {
       await set(state, chatId, 'action', 'crypto-pay-plan')
@@ -16032,7 +16064,7 @@ ${message.replace(/\n/g, '<br>')}
     return send(chatId, t.askValidPayOption)
   }
   if (action === 'bank-pay-plan') {
-    if (message === t.back) return goto['plan-pay']()
+    if (isBackPress(message)) return goto['plan-pay']()
 
     const email = message
     if (!isValidEmail(email)) return send(chatId, t.askValidEmail)
@@ -16055,7 +16087,7 @@ ${message.replace(/\n/g, '<br>')}
     return send(chatId, t['bank-pay-plan'](priceNGN, plan), trans('payBank', url))
   }
   if (action === 'crypto-pay-plan') {
-    if (message === t.back) return goto['plan-pay']()
+    if (isBackPress(message)) return goto['plan-pay']()
 
     const ref = nanoid()
     const tickerView = message
@@ -16128,7 +16160,7 @@ ${message.replace(/\n/g, '<br>')}
     return goto['choose-domain-to-manage']()
   }
   if (action === 'choose-domain-to-manage') {
-    if (message === t.back) return goto.submenu2()
+    if (isBackPress(message)) return goto.submenu2()
     const domain = message.toLowerCase()
 
     const domains = await getPurchasedDomains(chatId)
@@ -16142,7 +16174,7 @@ ${message.replace(/\n/g, '<br>')}
     return goto['choose-dns-action']()
   }
   if (action === 'choose-dns-action') {
-    if (message === t.back || message === t.backButton || message === '⬅️ Back') return goto['choose-domain-to-manage']()
+    if (isBackPress(message) || message === t.backButton || message === '⬅️ Back') return goto['choose-domain-to-manage']()
 
     if (![t.addDns, t.updateDns, t.deleteDns, t.activateShortener, t.deactivateShortener, t.quickActions, t.checkDns, t.switchToCf, t.switchToProviderDefault, t.manageNameservers].includes(message)) return send(chatId, t.selectValidOption)
 
@@ -16296,7 +16328,7 @@ ${message.replace(/\n/g, '<br>')}
   }
   // Switch to Cloudflare confirmation handler
   if (action === 'confirm-switch-to-cloudflare') {
-    if (message === t.back || message === t.no || message === 'No') return goto['manage-nameservers-menu']()
+    if (isBackPress(message) || message === t.no || message === 'No') return goto['manage-nameservers-menu']()
     if (message !== t.yes && message !== 'Yes') return send(chatId, t.what)
 
     const domain = info?.domainToManage
@@ -16335,7 +16367,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // Switch to Provider Default confirmation handler
   if (action === 'confirm-switch-to-provider-default') {
-    if (message === t.back || message === t.no || message === 'No') return goto['manage-nameservers-menu']()
+    if (isBackPress(message) || message === t.no || message === 'No') return goto['manage-nameservers-menu']()
     if (message !== t.yes && message !== 'Yes') return send(chatId, t.what)
 
     const domain = info?.domainToManage
@@ -16399,7 +16431,7 @@ ${message.replace(/\n/g, '<br>')}
   }
   // ── Manage Nameservers submenu action handler ──
   if (action === 'manage-nameservers-menu') {
-    if (message === t.back) return goto['choose-dns-action']()
+    if (isBackPress(message)) return goto['choose-dns-action']()
 
     if (message === t.switchToCf) {
       const domain = info?.domainToManage
@@ -16451,7 +16483,7 @@ ${message.replace(/\n/g, '<br>')}
   }
   //
   if (action === 'select-dns-record-id-to-delete') {
-    if (message === t.back || message === t.cancel) return goto['choose-dns-action']()
+    if (isBackPress(message) || message === t.cancel) return goto['choose-dns-action']()
 
     // Parse record number from button text like "1. NS → value" or plain number
     const match = message.match(/^(\d+)/)
@@ -16462,7 +16494,7 @@ ${message.replace(/\n/g, '<br>')}
     return goto['confirm-dns-record-id-to-delete']()
   }
   if (action === 'confirm-dns-record-id-to-delete') {
-    if (message === t.back || message === t.no) return goto['select-dns-record-id-to-delete']()
+    if (isBackPress(message) || message === t.no) return goto['select-dns-record-id-to-delete']()
     if (message !== t.yes) return send(chatId, t.what)
 
     const { domainNameId, dnsRecords, domainToManage, delId, dnsSource } = info
@@ -16501,7 +16533,7 @@ ${message.replace(/\n/g, '<br>')}
     return goto['choose-dns-action']()
   }
   if (action === 'select-dns-record-type-to-add') {
-    if (message === t.back) return goto['choose-dns-action']()
+    if (isBackPress(message)) return goto['choose-dns-action']()
 
     const recordType = message
     // NS records cannot be added — only updated
@@ -16530,7 +16562,7 @@ ${message.replace(/\n/g, '<br>')}
     return send(chatId, t.selectValidOption)
   }
   if (action === 'type-dns-record-data-to-add') {
-    if (message === t.back) return goto['select-dns-record-type-to-add']()
+    if (isBackPress(message)) return goto['select-dns-record-type-to-add']()
 
     const domain = info?.domainToManage
     const dnsSource = info?.dnsSource
@@ -16573,7 +16605,7 @@ ${message.replace(/\n/g, '<br>')}
   }
   //
   if (action === 'select-dns-record-id-to-update') {
-    if (message === t.back || message === t.cancel) return goto['choose-dns-action']()
+    if (isBackPress(message) || message === t.cancel) return goto['choose-dns-action']()
 
     // Handle consolidated "Update Nameservers" button
     if (message.startsWith('🔄 Update Nameservers')) {
@@ -16602,7 +16634,7 @@ ${message.replace(/\n/g, '<br>')}
     return goto['type-dns-record-data-to-update'](id, record?.recordType, record?.recordContent)
   }
   if (action === 'type-dns-record-data-to-update') {
-    if (message === t.back) return goto['select-dns-record-id-to-update']()
+    if (isBackPress(message)) return goto['select-dns-record-id-to-update']()
 
     const dnsRecords = info?.dnsRecords
     const domainNameId = info?.domainNameId
@@ -16725,7 +16757,7 @@ ${message.replace(/\n/g, '<br>')}
   //
   // ── Bulk NS update handler ────────────────────────────
   if (action === 'dns-update-all-ns') {
-    if (message === t.back || message === t.cancel) {
+    if (isBackPress(message) || message === t.cancel) {
       const origin = info?.nsUpdateOrigin
       if (origin === 'manage-nameservers-menu') {
         await set(state, chatId, 'nsUpdateOrigin', null)
@@ -16809,7 +16841,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   // DNS WIZARD: Quick Actions + Multi-step Add
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   if (action === 'dns-quick-action-menu') {
-    if (message === t.back || message === t.cancel) return goto['choose-dns-action']()
+    if (isBackPress(message) || message === t.cancel) return goto['choose-dns-action']()
     const qa = t.dnsQuickActions || {}
     if (message === qa.pointToIp) return goto['dns-quick-point-to-ip']()
     if (message === qa.googleEmail) {
@@ -16876,7 +16908,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === 'dns-quick-point-to-ip') {
-    if (message === t.back || message === t.cancel) return goto['dns-quick-action-menu']()
+    if (isBackPress(message) || message === t.cancel) return goto['dns-quick-action-menu']()
     const ipv4Regex = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/
     const match = message.match(ipv4Regex)
     if (!match || [match[1], match[2], match[3], match[4]].some(n => Number(n) > 255)) {
@@ -16895,7 +16927,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === 'dns-quick-verification') {
-    if (message === t.back || message === t.cancel) return goto['dns-quick-action-menu']()
+    if (isBackPress(message) || message === t.cancel) return goto['dns-quick-action-menu']()
     const domain = info?.domainToManage
     const txtValue = message.trim()
     const result = await domainService.addDNSRecord(domain, 'TXT', txtValue, '', db)
@@ -16905,7 +16937,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === 'dns-quick-subdomain-name') {
-    if (message === t.back || message === t.cancel) return goto['dns-quick-action-menu']()
+    if (isBackPress(message) || message === t.cancel) return goto['dns-quick-action-menu']()
     const hostnameRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$/
     if (!hostnameRegex.test(message.trim())) {
       return send(chatId, t.dnsInvalidHostname)
@@ -16916,14 +16948,14 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === 'dns-quick-subdomain-target') {
-    if (message === t.back || message === t.cancel) return goto['dns-quick-subdomain-name']()
+    if (isBackPress(message) || message === t.cancel) return goto['dns-quick-subdomain-name']()
     if (message === t.dnsQuickSubdomainIp) return goto['dns-quick-subdomain-ip']()
     if (message === t.dnsQuickSubdomainDomain) return goto['dns-quick-subdomain-domain']()
     return send(chatId, t.selectValidOption)
   }
 
   if (action === 'dns-quick-subdomain-ip') {
-    if (message === t.back || message === t.cancel) return goto['dns-quick-subdomain-target']()
+    if (isBackPress(message) || message === t.cancel) return goto['dns-quick-subdomain-target']()
     const ipv4Regex = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/
     const match = message.match(ipv4Regex)
     if (!match || [match[1], match[2], match[3], match[4]].some(n => Number(n) > 255)) {
@@ -16938,7 +16970,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === 'dns-quick-subdomain-domain') {
-    if (message === t.back || message === t.cancel) return goto['dns-quick-subdomain-target']()
+    if (isBackPress(message) || message === t.cancel) return goto['dns-quick-subdomain-target']()
     const domain = info?.domainToManage
     const subName = info?.dnsSubdomainName
     const target = message.trim()
@@ -16950,7 +16982,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
   // DNS Wizard: Multi-step add record (MX, TXT)
   if (action === 'dns-add-hostname') {
-    if (message === t.back || message === t.cancel) return goto['select-dns-record-type-to-add']()
+    if (isBackPress(message) || message === t.cancel) return goto['select-dns-record-type-to-add']()
     const recordType = info?.dnsAddRecordType
     let hostname = message.trim()
     // NS doesn't need hostname step — skip
@@ -16977,7 +17009,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === 'dns-add-value') {
-    if (message === t.back || message === t.cancel) return goto['select-dns-record-type-to-add']()
+    if (isBackPress(message) || message === t.cancel) return goto['select-dns-record-type-to-add']()
     const recordType = info?.dnsAddRecordType
     const hostname = info?.dnsAddHostname || ''
     const value = message.trim()
@@ -17032,7 +17064,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
   // Handle CNAME/A conflict confirmation
   if (action === 'dns-confirm-conflict-replace') {
-    if (message === t.no || message === 'No' || message === t.back || message === t.cancel) {
+    if (message === t.no || message === 'No' || isBackPress(message) || message === t.cancel) {
       return goto['choose-dns-action']()
     }
     if (message !== t.yes && message !== 'Yes') return send(chatId, t.what)
@@ -17056,7 +17088,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === 'dns-add-mx-priority') {
-    if (message === t.back || message === t.cancel) return goto['select-dns-record-type-to-add']()
+    if (isBackPress(message) || message === t.cancel) return goto['select-dns-record-type-to-add']()
     const priority = Number(message.trim())
     if (isNaN(priority) || priority < 1 || priority > 65535) {
       return send(chatId, t.dnsInvalidMxPriority)
@@ -17078,7 +17110,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   // Phase 2: SRV Record Wizard
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   if (action === 'dns-srv-service') {
-    if (message === t.back || message === t.cancel) return goto['select-dns-record-type-to-add']()
+    if (isBackPress(message) || message === t.cancel) return goto['select-dns-record-type-to-add']()
     const srvInput = message.trim()
     // Parse service and protocol (e.g. _sip._tcp or _http._tcp)
     const srvMatch = srvInput.match(/^(_[a-zA-Z0-9-]+)\.(_[a-zA-Z]+)$/)
@@ -17092,7 +17124,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === 'dns-srv-target') {
-    if (message === t.back || message === t.cancel) return goto['dns-srv-service']()
+    if (isBackPress(message) || message === t.cancel) return goto['dns-srv-service']()
     const target = message.trim()
     await set(state, chatId, 'dnsSrvTarget', target)
     info = await get(state, chatId)
@@ -17100,7 +17132,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === 'dns-srv-port') {
-    if (message === t.back || message === t.cancel) return goto['dns-srv-target']()
+    if (isBackPress(message) || message === t.cancel) return goto['dns-srv-target']()
     const port = Number(message.trim())
     if (isNaN(port) || port < 1 || port > 65535) {
       return send(chatId, t.dnsInvalidPort)
@@ -17111,7 +17143,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === 'dns-srv-priority') {
-    if (message === t.back || message === t.cancel) return goto['dns-srv-port']()
+    if (isBackPress(message) || message === t.cancel) return goto['dns-srv-port']()
     const priority = Number(message.trim())
     if (isNaN(priority) || priority < 0 || priority > 65535) {
       return send(chatId, t.dnsInvalidMxPriority)
@@ -17122,7 +17154,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === 'dns-srv-weight') {
-    if (message === t.back || message === t.cancel) return goto['dns-srv-priority']()
+    if (isBackPress(message) || message === t.cancel) return goto['dns-srv-priority']()
     const weight = Number(message.trim())
     if (isNaN(weight) || weight < 0 || weight > 65535) {
       return send(chatId, t.dnsInvalidWeight)
@@ -17149,7 +17181,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   // Phase 2: CAA Record Wizard
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   if (action === 'dns-caa-hostname') {
-    if (message === t.back || message === t.cancel) return goto['select-dns-record-type-to-add']()
+    if (isBackPress(message) || message === t.cancel) return goto['select-dns-record-type-to-add']()
     let hostname = message.trim()
     if (hostname !== '@') {
       const hostnameRegex = /^[a-zA-Z0-9_]([a-zA-Z0-9_.:-]*[a-zA-Z0-9_])?$/
@@ -17164,7 +17196,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === 'dns-caa-tag') {
-    if (message === t.back || message === t.cancel) return goto['dns-caa-hostname']()
+    if (isBackPress(message) || message === t.cancel) return goto['dns-caa-hostname']()
     // Accept localized tag labels and map to real tag
     const realTag = t[message]
     if (!['issue', 'issuewild', 'iodef'].includes(realTag)) {
@@ -17176,7 +17208,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === 'dns-caa-value') {
-    if (message === t.back || message === t.cancel) return goto['dns-caa-tag']()
+    if (isBackPress(message) || message === t.cancel) return goto['dns-caa-tag']()
     const value = message.trim()
     const domain = info?.domainToManage
     const hostname = info?.dnsCaaHostname || ''
@@ -17217,7 +17249,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   if (message === u.deposit) return goto[a.selectCurrencyToDeposit]()
 
   if (action === a.selectCurrencyToDeposit) {
-    if (message === t.back) return goto[user.wallet]()
+    if (isBackPress(message)) return goto[user.wallet]()
 
     // User enters USD amount
     const sanitized = message.replace(/[$,\s]/g, '').replace(/^USD\s*/i, '')
@@ -17229,7 +17261,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === a.depositMethodSelect) {
-    if (message === t.back) return goto[a.selectCurrencyToDeposit]()
+    if (isBackPress(message)) return goto[a.selectCurrencyToDeposit]()
     const bankLabel = info?.bankLabel
     if (bankLabel && message === bankLabel) {
       // Bank (Naira) selected → proceed directly to checkout (no email prompt)
@@ -17243,7 +17275,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === a.depositNGN) {
-    if (message === t.back) return goto[a.selectCurrencyToDeposit]()
+    if (isBackPress(message)) return goto[a.selectCurrencyToDeposit]()
 
     // Legacy handler — redirects to new flow (no email prompt)
     const sanitized = message.replace(/[#₦,\s]/g, '').replace(/^NGN\s*/i, '').replace(/NGN\s*Amount:?\s*/i, '')
@@ -17264,7 +17296,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   // Email prompt handler removed - now uses DEPOSIT_EMAIL from .env
 
   if (action === a.depositUSD) {
-    if (message === t.back) return goto[a.depositMethodSelect]()
+    if (isBackPress(message)) return goto[a.depositMethodSelect]()
 
     // Legacy handler for direct USD amount entry (if someone reaches it directly)
     const sanitized = message.replace(/[$,\s]/g, '').replace(/^USD\s*/i, '')
@@ -17276,7 +17308,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     return goto[a.selectCryptoToDeposit]()
   }
   if (action === a.selectCryptoToDeposit) {
-    if (message === t.back) return goto[a.depositMethodSelect]()
+    if (isBackPress(message)) return goto[a.depositMethodSelect]()
 
     const tickerView = message
     const supportedCryptoView = trans('supportedCryptoView')
@@ -17288,13 +17320,13 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   //
   //
   if (action === a.walletSelectCurrency) {
-    if (message === t.back) return goto[info?.lastStep]()
+    if (isBackPress(message)) return goto[info?.lastStep]()
     // USD-only wallet — auto-set coin and route to confirm
     await saveInfo('coin', u.usd)
     return goto.walletSelectCurrencyConfirm()
   }
   if (action === a.walletSelectCurrencyConfirm) {
-    if (message === t.back) {
+    if (isBackPress(message)) {
       // Go back to payment method selection based on lastStep
       const lastStep = info?.lastStep
       if (lastStep === 'phone-pay') {
@@ -17445,7 +17477,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   if (action === a.submenu5) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const buyLabel = pc.buyPhoneNumber
-    if (message === t.back || message === pc.back || message === t.cancel || message === pc.cancel) return send(chatId, t.userPressedBtn(message), trans('o'))
+    if (isBackPress(message) || message === pc.back || message === t.cancel || message === pc.cancel) return send(chatId, t.userPressedBtn(message), trans('o'))
     if (phoneConfig.btnKeyOf(message) === 'buyPhoneNumber') {
       // Step 1: Select Plan FIRST — reset stale phone purchase state
       saveInfo('cpIsSubNumber', false)
@@ -17726,7 +17758,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   // IVR OUTBOUND CALL — Full conversational flow
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   if (action === a.ivrObSelectCallerId) {
-    if (message === 'Cancel' || message === t.cancel || message === t.back) return goto.submenu5()
+    if (message === 'Cancel' || message === t.cancel || isBackPress(message)) return goto.submenu5()
     const userData = await get(phoneNumbersOf, chatId)
     const numbers = (userData?.numbers || []).filter(n => n.status === 'active')
     const eligibleNumbers = numbers.filter(n => phoneConfig.canAccessFeature(n.plan, 'ivrOutbound'))
@@ -17836,7 +17868,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
   if (action === a.ivrObEnterTarget) {
     if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
-    if (message === t.back) {
+    if (isBackPress(message)) {
       const ivrObData = info?.ivrObData || {}
       if (ivrObData.isTrial) return goto.submenu5()
       // Back → caller ID selection
@@ -18034,12 +18066,13 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     const lastCat = info?.ivrPrefs?.lastCategory
     if (lastCat) rows.push([`⭐ Last: ${lastCat}`])
     rows.push(...catBtns.map(b => [b]))
+    rows.push(['↩️ Back'])
     return send(chatId, ({ en: `📞 Target: <b>${ivrObData.targetNumber}</b>\n\nChoose template or write your own:` }[lang] || `📞 Target: <b>${ivrObData.targetNumber}</b>\n\nChoose template or write your own:`), k.of(rows))
   }
 
   if (action === a.ivrObSelectCategory) {
     if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
-    if (message === t.back) {
+    if (isBackPress(message)) {
       // Back → enter target number
       await set(state, chatId, 'action', a.ivrObEnterTarget)
       return send(chatId, trans('t.cp_42'), k.of([]))
@@ -18052,7 +18085,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       ivrObData.category = 'custom'
       await saveInfo('ivrObData', ivrObData)
       await set(state, chatId, 'action', a.ivrObCustomScript)
-      return send(chatId, trans('t.cp_43'), k.of([['ℹ️ All Placeholders']]))
+      return send(chatId, trans('t.cp_43'), k.of([['ℹ️ All Placeholders'], ['↩️ Back']]))
     }
 
     // "⭐ Last:" shortcut (#7 Flatten)
@@ -18080,7 +18113,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       ivrObData.category = 'custom'
       await saveInfo('ivrObData', ivrObData)
       await set(state, chatId, 'action', a.ivrObCustomScript)
-      return send(chatId, trans('t.cp_46'), k.of([['ℹ️ All Placeholders']]))
+      return send(chatId, trans('t.cp_46'), k.of([['ℹ️ All Placeholders'], ['↩️ Back']]))
     }
 
     ivrObData.category = cat
@@ -18096,18 +18129,19 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
   if (action === a.ivrObCustomScript) {
     if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
-    if (message === t.back) {
+    if (isBackPress(message)) {
       // Back → category selection
       await set(state, chatId, 'action', a.ivrObSelectCategory)
       const ivrOb = require('./ivr-outbound.js')
       const catBtns = ivrOb.getCategoryButtons(lang)
       const rows = catBtns.map(b => [b])
+      rows.push(['↩️ Back'])
       return send(chatId, ({ en: "Choose an IVR template category:", fr: "Choisissez une catégorie de modèle IVR :", zh: "选择 IVR 模板分类：", hi: "IVR टेम्पलेट श्रेणी चुनें:" }[lang] || "Choose an IVR template category:"), k.of(rows))
     }
 
     // Show full placeholder reference
     if (message === 'ℹ️ All Placeholders') {
-      return send(chatId, trans('t.cp_47'), k.of([['ℹ️ All Placeholders']]))
+      return send(chatId, trans('t.cp_47'), k.of([['ℹ️ All Placeholders'], ['↩️ Back']]))
     }
 
     const ivrOb = require('./ivr-outbound.js')
@@ -18136,7 +18170,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   // Quick IVR — Confirm/edit active keys (after custom script)
   if (action === a.ivrObConfirmKeys) {
     if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
-    if (message === '↩️ Back' || message === t.back) {
+    if (message === '↩️ Back' || isBackPress(message)) {
       await set(state, chatId, 'action', a.ivrObCustomScript)
       return send(chatId, trans('t.cp_49'), k.of([['↩️ Back']]))
     }
@@ -18205,7 +18239,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === a.ivrObSelectTemplate) {
-    if (message === '↩️ Back' || message === t.back) {
+    if (message === '↩️ Back' || isBackPress(message)) {
       await set(state, chatId, 'action', a.ivrObSelectCategory)
       const ivrOb = require('./ivr-outbound.js')
       const catBtns = ivrOb.getCategoryButtons(lang)
@@ -18273,7 +18307,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
   if (action === a.ivrObFillPlaceholder) {
     if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
-    if (message === t.back) {
+    if (isBackPress(message)) {
       // Back → category selection (restarting template flow)
       await set(state, chatId, 'action', a.ivrObSelectCategory)
       const ivrOb = require('./ivr-outbound.js')
@@ -18390,7 +18424,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   // Quick IVR — Select mode (Transfer vs OTP Collection)
   if (action === a.ivrObSelectMode) {
     if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
-    if (message === '↩️ Back' || message === t.back) {
+    if (message === '↩️ Back' || isBackPress(message)) {
       await set(state, chatId, 'action', a.ivrObSelectCategory)
       const ivrOb = require('./ivr-outbound.js')
       const catBtns = ivrOb.getCategoryButtons(lang)
@@ -18432,7 +18466,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   // Quick IVR — OTP digit length
   if (action === a.ivrObOtpLength) {
     if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
-    if (message === '↩️ Back' || message === t.back) {
+    if (message === '↩️ Back' || isBackPress(message)) {
       await set(state, chatId, 'action', a.ivrObSelectMode)
       return send(chatId, trans('t.cp_79'), k.of([['🔗 Transfer'], ['🔑 OTP Collection'], ['↩️ Back']]))
     }
@@ -18473,7 +18507,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   // Quick IVR — OTP Messages customization (confirm/reject)
   if (action === a.ivrObOtpMessages) {
     if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
-    if (message === '↩️ Back' || message === t.back) {
+    if (message === '↩️ Back' || isBackPress(message)) {
       await set(state, chatId, 'action', a.ivrObOtpLength)
       return send(chatId, trans('t.cp_83'), k.of([['4 digits'], ['5 digits'], ['6 digits'], ['8 digits'], ['↩️ Back']]))
     }
@@ -18502,7 +18536,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   // Quick IVR — OTP Confirm message
   if (action === a.ivrObOtpConfirmMsg) {
     if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
-    if (message === '↩️ Back' || message === t.back) {
+    if (message === '↩️ Back' || isBackPress(message)) {
       await set(state, chatId, 'action', a.ivrObOtpMessages)
       return send(chatId, trans('t.cp_87'), k.of([['✍️ Customize Messages'], ['⏭️ Use Defaults'], ['↩️ Back']]))
     }
@@ -18518,7 +18552,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   // Quick IVR — OTP Reject message
   if (action === a.ivrObOtpRejectMsg) {
     if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
-    if (message === '↩️ Back' || message === t.back) {
+    if (message === '↩️ Back' || isBackPress(message)) {
       await set(state, chatId, 'action', a.ivrObOtpConfirmMsg)
       return send(chatId, trans('t.cp_89'), k.of([['↩️ Back']]))
     }
@@ -18536,7 +18570,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
   if (action === a.ivrObEnterIvrNumber) {
     if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
-    if (message === t.back) {
+    if (isBackPress(message)) {
       // Back → category selection
       await set(state, chatId, 'action', a.ivrObSelectCategory)
       const ivrOb = require('./ivr-outbound.js')
@@ -18562,7 +18596,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
   if (action === a.ivrObSelectProvider) {
     if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
-    if (message === t.back) {
+    if (isBackPress(message)) {
       // Back → enter IVR number
       await set(state, chatId, 'action', a.ivrObEnterIvrNumber)
       return send(chatId, trans('t.cp_93'), k.of([]))
@@ -18590,7 +18624,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
   if (action === a.ivrObSelectVoice) {
     if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
-    if (message === t.back) {
+    if (isBackPress(message)) {
       // Back → provider selection
       await set(state, chatId, 'action', a.ivrObSelectProvider)
       const ttsService = require('./tts-service.js')
@@ -18623,7 +18657,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
   if (action === a.ivrObSelectSpeed) {
     if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
-    if (message === t.back || message === '🎤 Change Voice') {
+    if (isBackPress(message) || message === '🎤 Change Voice') {
       await set(state, chatId, 'action', a.ivrObSelectProvider)
       const ttsService = require('./tts-service.js')
       const providerBtns = ttsService.getProviderButtons().map(b => [b])
@@ -18730,7 +18764,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
   if (action === a.ivrObAudioPreview) {
     if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
-    if (message === t.back) {
+    if (isBackPress(message)) {
       // Back → voice selection
       await set(state, chatId, 'action', a.ivrObSelectProvider)
       const ttsService = require('./tts-service.js')
@@ -18781,7 +18815,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
   if (action === a.ivrObCallPreview) {
     if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
-    if (message === t.back) {
+    if (isBackPress(message)) {
       // Back → audio preview / hold music toggle
       await set(state, chatId, 'action', a.ivrObAudioPreview)
       const ivrObData = info?.ivrObData || {}
@@ -18981,7 +19015,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === a.audioLibMenu) {
-    if (message === '↩️ Back' || message === t.back) return goto.submenu5()
+    if (message === '↩️ Back' || isBackPress(message)) return goto.submenu5()
     if (message === '📎 Upload Audio') {
       await set(state, chatId, 'action', a.audioLibUpload)
       return send(chatId, ({ en: `🎵 <b>Upload Audio</b>\n\nSend me an audio file (MP3, WAV, OGG) or a voice message.\n\nThis will be saved to your library for use in IVR campaigns.`, fr: `🎵 <b>Télécharger Audio</b>\n\nEnvoyez-moi un fichier audio (MP3, WAV, OGG) ou un message vocal.\n\nIl sera sauvegardé dans votre bibliothèque pour les campagnes IVR.`, zh: `🎵 <b>上传音频</b>\n\n请发送音频文件（MP3、WAV、OGG）或语音消息。\n\n将保存到您的音频库用于 IVR 活动。`, hi: `🎵 <b>ऑडियो अपलोड</b>\n\nमुझे एक ऑडियो फाइल (MP3, WAV, OGG) या वॉइस मैसेज भेजें।\n\nयह IVR अभियानों के लिए आपकी लाइब्रेरी में सहेजा जाएगा।` }[lang] || `🎵 <b>Upload Audio</b>\n\nSend me an audio file (MP3, WAV, OGG) or a voice message.\n\nThis will be saved to your library for use in IVR campaigns.`), k.of([['↩️ Back']]))
@@ -19008,7 +19042,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === a.audioLibUpload) {
-    if (message === '↩️ Back' || message === t.back) {
+    if (message === '↩️ Back' || isBackPress(message)) {
       await set(state, chatId, 'action', a.audioLibMenu)
       const audios = await audioLibraryService.listAudios(chatId)
       const btns = [['📎 Upload Audio'], ...audios.map(a => [`🗑 Delete: ${a.name.substring(0, 25)}`]), ['↩️ Back']]
@@ -19038,7 +19072,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === a.audioLibName) {
-    if (message === '↩️ Back' || message === t.back) {
+    if (message === '↩️ Back' || isBackPress(message)) {
       await set(state, chatId, 'action', a.audioLibUpload)
       return send(chatId, trans('t.cp_129'), k.of([['↩️ Back']]))
     }
@@ -19064,7 +19098,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   // BULK CALL CAMPAIGN — Full conversational flow
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   if (action === a.bulkSelectCaller) {
-    if (message === '↩️ Back' || message === t.back || message === t.cancel) return goto.submenu5()
+    if (message === '↩️ Back' || isBackPress(message) || message === t.cancel) return goto.submenu5()
     // Match against caller ID labels
     const allCallerIds = info?.bulkCallerIds || []
     const found = allCallerIds.find(c => c.label === message)
@@ -19081,7 +19115,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === a.bulkUploadLeads) {
-    if (message === '↩️ Back' || message === t.back) {
+    if (message === '↩️ Back' || isBackPress(message)) {
       await set(state, chatId, 'action', a.bulkSelectCaller)
       const allCallerIds = info?.bulkCallerIds || []
       const numBtns = allCallerIds.map(c => [c.label])
@@ -19133,7 +19167,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === a.bulkSelectAudio) {
-    if (message === '↩️ Back' || message === t.back) {
+    if (message === '↩️ Back' || isBackPress(message)) {
       await set(state, chatId, 'action', a.bulkUploadLeads)
       return send(chatId, trans('t.cp_139'), k.of([['↩️ Back']]))
     }
@@ -19166,7 +19200,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === a.bulkUploadAudio) {
-    if (message === '↩️ Back' || message === t.back) {
+    if (message === '↩️ Back' || isBackPress(message)) {
       await set(state, chatId, 'action', a.bulkSelectAudio)
       const audios = await audioLibraryService.listAudios(chatId)
       const audioBtns = audios.map(a => [`🎵 ${a.name.substring(0, 30)}`])
@@ -19211,7 +19245,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === a.bulkSelectMode) {
-    if (message === '↩️ Back' || message === t.back) {
+    if (message === '↩️ Back' || isBackPress(message)) {
       await set(state, chatId, 'action', a.bulkSelectAudio)
       const audios = await audioLibraryService.listAudios(chatId)
       const audioBtns = audios.map(a => [`🎵 ${a.name.substring(0, 30)}`])
@@ -19235,7 +19269,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === a.bulkEnterTransfer) {
-    if (message === '↩️ Back' || message === t.back) {
+    if (message === '↩️ Back' || isBackPress(message)) {
       await set(state, chatId, 'action', a.bulkSelectMode)
       return send(chatId, trans('t.cp_154'), k.of([['🔗 Transfer + Report'], ['📊 Report Only'], ['↩️ Back']]))
     }
@@ -19255,7 +19289,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
   // ── Bulk IVR: Select Active Keys ──
   if (action === a.bulkSelectKeys) {
-    if (message === '↩️ Back' || message === t.back) {
+    if (message === '↩️ Back' || isBackPress(message)) {
       const bulkData = info?.bulkData || {}
       if (bulkData.mode === 'transfer') {
         await set(state, chatId, 'action', a.bulkEnterTransfer)
@@ -19289,7 +19323,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === a.bulkEnterCustomKeys) {
-    if (message === '↩️ Back' || message === t.back) {
+    if (message === '↩️ Back' || isBackPress(message)) {
       await set(state, chatId, 'action', a.bulkSelectKeys)
       return send(chatId, trans('t.cp_162'), k.of([['1 only'], ['1 and 2'], ['1, 2, and 3'], ['0-9 (any key)'], ['✍️ Custom keys'], ['↩️ Back']]))
     }
@@ -19306,7 +19340,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
   // ── Bulk IVR: Inline TTS Template Flow ──
   if (action === a.bulkTTSCategory) {
-    if (message === '↩️ Back' || message === t.back) {
+    if (message === '↩️ Back' || isBackPress(message)) {
       await set(state, chatId, 'action', a.bulkSelectAudio)
       const audios = await audioLibraryService.listAudios(chatId)
       const audioBtns = audios.map(a => [`🎵 ${a.name.substring(0, 30)}`])
@@ -19332,7 +19366,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === a.bulkTTSCustomScript) {
-    if (message === '↩️ Back' || message === t.back) {
+    if (message === '↩️ Back' || isBackPress(message)) {
       const ivrOb = require('./ivr-outbound.js')
       const catBtns = ivrOb.getCategoryButtons(lang).filter(b => !b.startsWith('✍️')).map(b => [b])
       await set(state, chatId, 'action', a.bulkTTSCategory)
@@ -19386,7 +19420,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === a.bulkTTSTemplate) {
-    if (message === '↩️ Back' || message === t.back) {
+    if (message === '↩️ Back' || isBackPress(message)) {
       const ivrOb = require('./ivr-outbound.js')
       const catBtns = ivrOb.getCategoryButtons(lang).filter(b => !b.startsWith('✍️')).map(b => [b])
       await set(state, chatId, 'action', a.bulkTTSCategory)
@@ -19443,7 +19477,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === a.bulkTTSPlaceholder) {
-    if (message === '↩️ Back' || message === t.back) {
+    if (message === '↩️ Back' || isBackPress(message)) {
       const ivrOb = require('./ivr-outbound.js')
       const catBtns = ivrOb.getCategoryButtons(lang).filter(b => !b.startsWith('✍️')).map(b => [b])
       await set(state, chatId, 'action', a.bulkTTSCategory)
@@ -19526,7 +19560,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
   // ── Bulk TTS: Provider Selection (OpenAI / ElevenLabs) ──
   if (action === a.bulkTTSProvider) {
-    if (message === '↩️ Back' || message === t.back) {
+    if (message === '↩️ Back' || isBackPress(message)) {
       const ivrOb = require('./ivr-outbound.js')
       const catBtns = ivrOb.getCategoryButtons(lang).filter(b => !b.startsWith('✍️')).map(b => [b])
       await set(state, chatId, 'action', a.bulkTTSCategory)
@@ -19549,7 +19583,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
 
   if (action === a.bulkTTSVoice) {
-    if (message === '↩️ Back' || message === t.back) {
+    if (message === '↩️ Back' || isBackPress(message)) {
       // Go back to provider selection
       await set(state, chatId, 'action', a.bulkTTSProvider)
       const ttsService = require('./tts-service.js')
@@ -19578,7 +19612,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === a.bulkTTSSpeed) {
-    if (message === '↩️ Back' || message === t.back) {
+    if (message === '↩️ Back' || isBackPress(message)) {
       await set(state, chatId, 'action', a.bulkTTSProvider)
       const ttsService = require('./tts-service.js')
       const providerBtns = ttsService.getProviderButtons().map(b => [b])
@@ -19659,7 +19693,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === a.bulkTTSPreview) {
-    if (message === '↩️ Back' || message === t.back) {
+    if (message === '↩️ Back' || isBackPress(message)) {
       const ivrOb = require('./ivr-outbound.js')
       const catBtns = ivrOb.getCategoryButtons(lang).filter(b => !b.startsWith('✍️')).map(b => [b])
       await set(state, chatId, 'action', a.bulkTTSCategory)
@@ -19706,7 +19740,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === a.bulkSetConcurrency) {
-    if (message === '↩️ Back' || message === t.back) {
+    if (message === '↩️ Back' || isBackPress(message)) {
       await set(state, chatId, 'action', a.bulkSelectKeys)
       return send(chatId, trans('t.cp_214'), k.of([['1 only'], ['1 and 2'], ['1, 2, and 3'], ['0-9 (any key)'], ['✍️ Custom keys'], ['↩️ Back']]))
     }
@@ -19743,7 +19777,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === a.bulkConfirm) {
-    if (message === '↩️ Back' || message === t.back) {
+    if (message === '↩️ Back' || isBackPress(message)) {
       await set(state, chatId, 'action', a.bulkSetConcurrency)
       return send(chatId, trans('t.cp_216'), k.of([['5'], ['10'], ['15'], ['20'], ['↩️ Back']]))
     }
@@ -19817,7 +19851,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   // ── BUY FLOW: Select Country ──
   if (action === a.cpSelectCountry) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
-    if (message === t.back || message === pc.back) {
+    if (isBackPress(message) || message === pc.back) {
       // Go back to plan selection
       await set(state, chatId, 'action', a.cpSelectPlan)
       const availablePlanBtns = []
@@ -19858,7 +19892,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   // ── BUY FLOW: Select Type ──
   if (action === a.cpSelectType) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
-    if (message === t.back || message === pc.back) {
+    if (isBackPress(message) || message === pc.back) {
       await set(state, chatId, 'action', a.cpSelectCountry)
       const countryBtns = phoneConfig.allCountries.map(c => c.name)
       const rows = []
@@ -19929,7 +19963,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   // ── BUY FLOW: Select Area ──
   if (action === a.cpSelectArea) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
-    if (message === t.back || message === pc.back) {
+    if (isBackPress(message) || message === pc.back) {
       await set(state, chatId, 'action', a.cpSelectType)
       return send(chatId, cpTxt.selectType(info?.cpCountryName || ''), k.of([[pc.localNumber], [pc.tollFreeNumber]]))
     }
@@ -19978,7 +20012,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   // ── BUY FLOW: Enter Area Code ──
   if (action === a.cpEnterAreaCode) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
-    if (message === t.back || message === pc.back) {
+    if (isBackPress(message) || message === pc.back) {
       await set(state, chatId, 'action', a.cpSelectArea)
       const areaBtns = phoneConfig.usAreaCodes.map(a => `${a.city} (${a.code})`)
       const rows = []
@@ -20027,7 +20061,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   // ── BUY FLOW: Select Number ──
   if (action === a.cpSelectNumber) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
-    if (message === t.back || message === pc.back) {
+    if (isBackPress(message) || message === pc.back) {
       const cc = info?.cpCountryCode || 'US'
       if (cc === 'US' && info?.cpNumberType === 'local') {
         await set(state, chatId, 'action', a.cpSelectArea)
@@ -20121,7 +20155,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   // ── BUY FLOW: Select Plan (FIRST STEP) ──
   if (action === a.cpSelectPlan) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
-    if (message === t.back || message === pc.back) return goto.submenu5()
+    if (isBackPress(message) || message === pc.back) return goto.submenu5()
 
     const planKey = phoneConfig.planByButton[message]
     if (!planKey) return send(chatId, phoneConfig.getMsg(info?.userLanguage).selectPlan)
@@ -20151,7 +20185,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   // ── BUY FLOW: Order Summary → Payment ──
   if (action === a.cpOrderSummary) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
-    if (message === t.back || message === pc.back) {
+    if (isBackPress(message) || message === pc.back) {
       await set(state, chatId, 'action', a.cpSelectPlan)
       const availBtns2 = []
       if (phoneConfig.isPlanAvailable('starter')) availBtns2.push([pc.starterPlan])
@@ -20171,7 +20205,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   // ── PHONE PAY ──
   if (action === 'phone-pay') {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
-    if (message === t.back) {
+    if (isBackPress(message)) {
       await set(state, chatId, 'action', a.cpOrderSummary)
       const plan = phoneConfig.plans[info?.cpPlanKey]
       const totalPrice = info?.cpPrice || plan?.price
@@ -20200,7 +20234,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     return send(chatId, t.askValidPayOption)
   }
   if (action === 'bank-pay-phone') {
-    if (message === t.back) return goto['phone-pay']()
+    if (isBackPress(message)) return goto['phone-pay']()
     const email = message
     const price = info?.cpPrice
     if (!isValidEmail(email)) return send(chatId, t.askValidEmail)
@@ -20215,7 +20249,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     return send(chatId, trans('t.cp_234', priceNGN.toLocaleString()), trans('payBank', url))
   }
   if (action === 'crypto-pay-phone') {
-    if (message === t.back) return goto['phone-pay']()
+    if (isBackPress(message)) return goto['phone-pay']()
     const tickerView = message
     const supportedCryptoView = trans('supportedCryptoView')
     const ticker = supportedCryptoView[tickerView]
@@ -20277,7 +20311,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
   // ── BANK NGN PAYMENT FOR PLAN UPGRADE ──
   if (action === 'bank-pay-phone-upgrade') {
-    if (message === t.back) {
+    if (isBackPress(message)) {
       await set(state, chatId, 'action', a.cpManageNumber)
       return showManageScreen(chatId, num)
     }
@@ -20300,7 +20334,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
   // ── CRYPTO PAYMENT FOR PLAN UPGRADE ──
   if (action === 'crypto-pay-phone-upgrade') {
-    if (message === t.back) {
+    if (isBackPress(message)) {
       await set(state, chatId, 'action', a.cpManageNumber)
       return showManageScreen(chatId, num)
     }
@@ -20754,7 +20788,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
   // ── LEADS PAY (Crypto / Bank / Wallet for both Buy Leads & Validate Leads) ──
   if (action === 'leads-pay') {
-    if (message === t.back) {
+    if (isBackPress(message)) {
       const lastStep = info?.lastStep
       if (lastStep === a.validatorSelectFormat) return goto.validatorSelectFormat()
       if (info?.targetName) return goto.targetLeadsConfirm()
@@ -20775,7 +20809,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     return send(chatId, t.askValidPayOption)
   }
   if (action === 'bank-pay-leads') {
-    if (message === t.back) return goto['leads-pay']()
+    if (isBackPress(message)) return goto['leads-pay']()
     const email = message
     const price = info?.couponApplied ? info?.newPrice : info?.price
     if (!isValidEmail(email)) return send(chatId, t.askValidEmail)
@@ -20792,7 +20826,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     return send(chatId, trans('t.cp_251', label, priceNGN.toLocaleString()), trans('payBank', url))
   }
   if (action === 'crypto-pay-leads') {
-    if (message === t.back) return goto['leads-pay']()
+    if (isBackPress(message)) return goto['leads-pay']()
     const tickerView = message
     const supportedCryptoView = trans('supportedCryptoView')
     const ticker = supportedCryptoView[tickerView]
@@ -21079,7 +21113,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
   if (action === a.cpMyNumbers) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
-    if (message === t.back || message === pc.back) return goto.submenu5()
+    if (isBackPress(message) || message === pc.back) return goto.submenu5()
     if (message === pc.buyAnother || phoneConfig.btnKeyOf(message) === 'buyPhoneNumber') {
       // Check if user already has active primary numbers → route to sub-number (discounted) flow
       const userData = await get(phoneNumbersOf, chatId)
@@ -21200,7 +21234,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     const pb = info?.cpActivePendingBundle
     if (!pb) return goto.submenu5()
 
-    if (message === t.back || message === pc.back) {
+    if (isBackPress(message) || message === pc.back) {
       // Go back to My Numbers (with pending)
       const userData = await get(phoneNumbersOf, chatId)
       const numbers = (userData?.numbers || []).filter(n => n.status === 'active' || n.status === 'suspended')
@@ -21317,7 +21351,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (message === t.back || message === pc.back) {
+    if (isBackPress(message) || message === pc.back) {
       // Go back to my numbers list
       const userData = await get(phoneNumbersOf, chatId)
       const numbers = (userData?.numbers || []).filter(n => n.status === 'active' || n.status === 'suspended')
@@ -21564,7 +21598,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   // ━━━ BUY ANOTHER: Select Parent Plan (multi-plan users) ━━━
   if (action === a.cpSelectParentForBuyAnother) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
-    if (message === t.back || message === pc.back || message === t.cancel || message === pc.cancel) {
+    if (isBackPress(message) || message === pc.back || message === t.cancel || message === pc.cancel) {
       return goto.submenu5()
     }
     const primaries = info?.cpBuyAnotherPrimaries || []
@@ -21595,7 +21629,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   // ━━━ SUB-NUMBER: Select Country ━━━
   if (action === a.cpSubAddCountry) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
-    if (message === t.back || message === pc.back) {
+    if (isBackPress(message) || message === pc.back) {
       await set(state, chatId, 'action', a.cpManageNumber)
       const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
@@ -21631,7 +21665,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   // ━━━ SUB-NUMBER: Select Type ━━━
   if (action === a.cpSubAddType) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
-    if (message === t.back || message === pc.back) {
+    if (isBackPress(message) || message === pc.back) {
       await set(state, chatId, 'action', a.cpSubAddCountry)
       const countryBtns = phoneConfig.allCountries.map(c => c.name)
       const rows = []
@@ -21687,7 +21721,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   // ━━━ SUB-NUMBER: Select Area (US local) ━━━
   if (action === a.cpSubAddArea) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
-    if (message === t.back || message === pc.back) {
+    if (isBackPress(message) || message === pc.back) {
       await set(state, chatId, 'action', a.cpSubAddType)
       return send(chatId, cpTxt.selectType(info?.cpCountryName || ''), k.of([[pc.localNumber], [pc.tollFreeNumber]]))
     }
@@ -21733,7 +21767,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   // ━━━ SUB-NUMBER: Enter Area Code ━━━
   if (action === a.cpSubAddEnterArea) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
-    if (message === t.back || message === pc.back) {
+    if (isBackPress(message) || message === pc.back) {
       await set(state, chatId, 'action', a.cpSubAddArea)
       const areaBtns = phoneConfig.usAreaCodes.map(ab => `${ab.city} (${ab.code})`)
       const rows = []
@@ -21779,7 +21813,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   // ━━━ SUB-NUMBER: Select Number ━━━
   if (action === a.cpSubAddNumber) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
-    if (message === t.back || message === pc.back) {
+    if (isBackPress(message) || message === pc.back) {
       await set(state, chatId, 'action', a.cpSubAddCountry)
       const countryBtns = phoneConfig.allCountries.map(c => c.name)
       const rows = []
@@ -21854,7 +21888,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   // ━━━ SUB-NUMBER: Confirm & Pay ━━━
   if (action === a.cpSubAddConfirm) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
-    if (message === t.back || message === pc.back || message === pc.cancel) {
+    if (isBackPress(message) || message === pc.back || message === pc.cancel) {
       await set(state, chatId, 'action', a.cpManageNumber)
       const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
@@ -21876,7 +21910,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (message === t.back || message === pc.back) {
+    if (isBackPress(message) || message === pc.back) {
       await set(state, chatId, 'action', a.cpManageNumber)
       return showManageScreen(chatId, num)
     }
@@ -21937,7 +21971,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (message === t.back || message === pc.back) {
+    if (isBackPress(message) || message === pc.back) {
       await set(state, chatId, 'action', a.cpCallForwarding)
       const fwd = num.features?.callForwarding || {}
       let walletBal = 0
@@ -22119,7 +22153,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (message === t.back || message === pc.back) {
+    if (isBackPress(message) || message === pc.back) {
       await set(state, chatId, 'action', a.cpManageNumber)
       return showManageScreen(chatId, num)
     }
@@ -22175,7 +22209,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (message === t.back || message === pc.back) {
+    if (isBackPress(message) || message === pc.back) {
       await set(state, chatId, 'action', a.cpSmsSettings)
       const smsConf = num.features?.smsForwarding || {}
       const tgLabel = `📲 SMS to Telegram ${smsConf.toTelegram !== false ? '✅ ON' : '❌ OFF'}`
@@ -22197,7 +22231,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (message === t.back || message === pc.back) {
+    if (isBackPress(message) || message === pc.back) {
       await set(state, chatId, 'action', a.cpSmsSettings)
       const smsConf = num.features?.smsForwarding || {}
       const tgLabel = `📲 SMS to Telegram ${smsConf.toTelegram !== false ? '✅ ON' : '❌ OFF'}`
@@ -22221,7 +22255,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (message === t.back || message === pc.back) {
+    if (isBackPress(message) || message === pc.back) {
       await set(state, chatId, 'action', a.cpManageNumber)
       return showManageScreen(chatId, num)
     }
@@ -22248,7 +22282,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (message === t.back || message === pc.back) {
+    if (isBackPress(message) || message === pc.back) {
       await set(state, chatId, 'action', a.cpManageNumber)
       return showManageScreen(chatId, num)
     }
@@ -22273,7 +22307,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (message === t.back || message === pc.back) {
+    if (isBackPress(message) || message === pc.back) {
       await set(state, chatId, 'action', a.cpManageNumber)
       return showManageScreen(chatId, num)
     }
@@ -22338,7 +22372,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (message === t.back || message === pc.back || message === t.cancel) {
+    if (isBackPress(message) || message === pc.back || message === t.cancel) {
       await set(state, chatId, 'action', a.cpVoicemail)
       const vm = num.features?.voicemail || {}
       const btns = vm.enabled
@@ -22383,7 +22417,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (message === t.back || message === pc.back || message === t.cancel) {
+    if (isBackPress(message) || message === pc.back || message === t.cancel) {
       await set(state, chatId, 'action', a.cpVmGreeting)
       return send(chatId, cpTxt.vmGreetingMenu(num.phoneNumber, num.features?.voicemail || {}), k.of([
         [pc.vmCustomGreeting], [pc.vmDefaultGreeting],
@@ -22442,7 +22476,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (message === t.back || message === pc.back || message === t.cancel) {
+    if (isBackPress(message) || message === pc.back || message === t.cancel) {
       await set(state, chatId, 'action', a.cpVmAudioUpload)
       return send(chatId, trans('t.cp_269'), k.of([[btn.useTemplate], [btn.typeText], [btn.uploadAudio]]))
     }
@@ -22478,7 +22512,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (message === t.back || message === pc.back || message === t.cancel) {
+    if (isBackPress(message) || message === pc.back || message === t.cancel) {
       const draft = info?.cpTtsDraft || {}
       draft.templateCategory = null
       draft.templateKey = null
@@ -22518,7 +22552,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (message === t.back || message === pc.back || message === t.cancel) {
+    if (isBackPress(message) || message === pc.back || message === t.cancel) {
       await set(state, chatId, 'action', a.cpVmAudioUpload)
       return send(chatId, trans('t.cp_275'), k.of([[btn.useTemplate], [btn.typeText], [btn.uploadAudio]]))
     }
@@ -22601,7 +22635,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (message === t.back || message === pc.back || message === t.cancel) {
+    if (isBackPress(message) || message === pc.back || message === t.cancel) {
       await set(state, chatId, 'action', a.cpVmGreeting)
       return send(chatId, cpTxt.vmGreetingMenu(num.phoneNumber, num.features?.voicemail || {}), k.of([
         [pc.vmCustomGreeting], [pc.vmDefaultGreeting],
@@ -22696,7 +22730,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (message === t.back || message === pc.back) {
+    if (isBackPress(message) || message === pc.back) {
       await set(state, chatId, 'action', a.cpManageNumber)
       return showManageScreen(chatId, num)
     }
@@ -22727,7 +22761,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (message === t.back || message === pc.back) {
+    if (isBackPress(message) || message === pc.back) {
       await set(state, chatId, 'action', a.cpManageNumber)
       return showManageScreen(chatId, num)
     }
@@ -22794,7 +22828,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (message === t.back || message === pc.back || message === t.cancel) {
+    if (isBackPress(message) || message === pc.back || message === t.cancel) {
       await set(state, chatId, 'action', a.cpIvr)
       const ivrConf = num.features?.ivr || {}
       return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
@@ -22826,7 +22860,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (message === t.back || message === pc.back || message === t.cancel) {
+    if (isBackPress(message) || message === pc.back || message === t.cancel) {
       await set(state, chatId, 'action', a.cpIvrGreeting)
       return send(chatId, trans('t.cp_299'), k.of([[btn.useTemplate], [btn.typeText], [btn.uploadAudio]]))
     }
@@ -22862,7 +22896,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (message === t.back || message === pc.back || message === t.cancel) {
+    if (isBackPress(message) || message === pc.back || message === t.cancel) {
       const draft = info?.cpTtsDraft || {}
       draft.templateCategory = null
       draft.templateKey = null
@@ -22902,7 +22936,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (message === t.back || message === pc.back || message === t.cancel) {
+    if (isBackPress(message) || message === pc.back || message === t.cancel) {
       await set(state, chatId, 'action', a.cpIvrGreeting)
       return send(chatId, trans('t.cp_305'), k.of([[btn.useTemplate], [btn.typeText], [btn.uploadAudio]]))
     }
@@ -22991,7 +23025,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (message === t.back || message === pc.back || message === t.cancel) {
+    if (isBackPress(message) || message === pc.back || message === t.cancel) {
       await set(state, chatId, 'action', a.cpIvr)
       const ivrConf = num.features?.ivr || {}
       return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
@@ -23115,7 +23149,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (message === t.back || message === pc.back || message === t.cancel) {
+    if (isBackPress(message) || message === pc.back || message === t.cancel) {
       await set(state, chatId, 'action', a.cpIvr)
       const ivrConf = num.features?.ivr || {}
       return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
@@ -23183,7 +23217,7 @@ What should happen when a caller presses <b>${key}</b>?`), k.of([[btn.forwardCal
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (message === t.back || message === pc.back || message === t.cancel) {
+    if (isBackPress(message) || message === pc.back || message === t.cancel) {
       await set(state, chatId, 'action', a.cpIvrOptionKey)
       const ivrConf = num.features?.ivr || {}
       const usedKeys = Object.keys(ivrConf.options || {}).join(', ') || 'none'
@@ -23278,7 +23312,7 @@ How do you want to create the message?`), k.of([[btn.useTemplate], [btn.typeText
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (message === t.back || message === pc.back || message === t.cancel) {
+    if (isBackPress(message) || message === pc.back || message === t.cancel) {
       await set(state, chatId, 'action', a.cpIvrOptionAction)
       return send(chatId, trans('t.cp_328', (info?.cpIvrDraft || {}).key), k.of([[btn.forwardCall], [btn.playMessage], [btn.sendToVoicemail]]))
     }
@@ -23433,7 +23467,7 @@ Select a category:`), k.of(catBtns))
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (message === t.back || message === pc.back || message === t.cancel) {
+    if (isBackPress(message) || message === pc.back || message === t.cancel) {
       const draft = info?.cpIvrDraft || {}
       draft.lang = null; draft.voice = null; draft.audioPath = null; draft.ttsProvider = null
       await saveInfo('cpIvrDraft', draft)
@@ -23513,7 +23547,7 @@ Select a category:`), k.of(catBtns))
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (message === t.back || message === pc.back || message === t.cancel) {
+    if (isBackPress(message) || message === pc.back || message === t.cancel) {
       await set(state, chatId, 'action', a.cpIvr)
       const ivrConf = num.features?.ivr || {}
       return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
@@ -23607,7 +23641,7 @@ Select a category:`), k.of(catBtns))
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (message === t.back || message === pc.back) {
+    if (isBackPress(message) || message === pc.back) {
       await set(state, chatId, 'action', a.cpIvr)
       const ivrConf = num.features?.ivr || {}
       return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
@@ -23638,7 +23672,7 @@ Select a category:`), k.of(catBtns))
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (message === t.back || message === pc.back) {
+    if (isBackPress(message) || message === pc.back) {
       await set(state, chatId, 'action', a.cpManageNumber)
       return showManageScreen(chatId, num)
     }
@@ -23697,7 +23731,7 @@ Select a category:`), k.of(catBtns))
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (message === t.back || message === pc.back) {
+    if (isBackPress(message) || message === pc.back) {
       await set(state, chatId, 'action', a.cpManageNumber)
       return showManageScreen(chatId, num)
     }
@@ -23743,7 +23777,7 @@ Select a category:`), k.of(catBtns))
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (message === t.back || message === pc.back) {
+    if (isBackPress(message) || message === pc.back) {
       await set(state, chatId, 'action', a.cpRenewPlan)
       const plan = phoneConfig.plans[num.plan] || { name: num.plan, price: num.planPrice }
       return send(chatId, cpTxt.renewMenu(num.phoneNumber, plan.name, num.planPrice, num.expiresAt, num.autoRenew), k.of([
@@ -23987,7 +24021,7 @@ Select a category:`), k.of(catBtns))
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (message === pc.noKeep || message === t.back) {
+    if (message === pc.noKeep || isBackPress(message)) {
       await set(state, chatId, 'action', a.cpManageNumber)
       return showManageScreen(chatId, num)
     }
@@ -24003,7 +24037,7 @@ Select a category:`), k.of(catBtns))
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (message === t.back || message === pc.back) {
+    if (isBackPress(message) || message === pc.back) {
       await set(state, chatId, 'action', a.cpReleaseConfirm)
       return send(chatId, cpTxt.releaseConfirm(num.phoneNumber), k.of([[pc.yesRelease, pc.noKeep]]))
     }
@@ -24059,7 +24093,7 @@ Select a category:`), k.of(catBtns))
   // TARGET LEADS HANDLERS
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   if (action === a.targetSelectTarget) {
-    if (message === t.back) return goto.displayMainMenuButtons ? goto.displayMainMenuButtons() : send(chatId, t.userPressedBtn(message), isAdmin(chatId) ? aO : trans('o'))
+    if (isBackPress(message)) return goto.displayMainMenuButtons ? goto.displayMainMenuButtons() : send(chatId, t.userPressedBtn(message), isAdmin(chatId) ? aO : trans('o'))
     const validateBtn = trans('phoneNumberLeads')[1] || '✅📲 Validate PhoneLeads'
     if (message === validateBtn) return goto.validatorSelectCountry()
     if (message === (t.leadRequestTarget || '📝 Request Custom Target')) return goto.customLeadRequestName()
@@ -24069,7 +24103,7 @@ Select a category:`), k.of(catBtns))
     return goto.targetSelectCity()
   }
   if (action === a.targetSelectCity) {
-    if (message === t.back) return goto.targetSelectTarget()
+    if (isBackPress(message)) return goto.targetSelectTarget()
     const target = info?.targetName
     const validCities = [t.leadAllCities || 'All Cities', ...targetLeadsCities(target)]
     if (!validCities.includes(message)) return send(chatId, t.what)
@@ -24084,7 +24118,7 @@ Select a category:`), k.of(catBtns))
     return goto.targetSelectAreaCode()
   }
   if (action === a.targetSelectAreaCode) {
-    if (message === t.back) return goto.targetSelectCity()
+    if (isBackPress(message)) return goto.targetSelectCity()
     const target = info?.targetName
     const city = info?.targetCity
     const validButtons = targetLeadsAreaCodeButtons(target, city)
@@ -24102,7 +24136,7 @@ Select a category:`), k.of(catBtns))
     return goto.buyLeadsSelectCarrier()
   }
   if (action === a.targetLeadsConfirm) {
-    if (message === t.back) return goto.buyLeadsSelectAmount()
+    if (isBackPress(message)) return goto.buyLeadsSelectAmount()
     if (message === btn.applyCoupon) {
       return goto.askCoupon(a.buyLeadsSelectFormat)
     }
@@ -24156,14 +24190,14 @@ Select a category:`), k.of(catBtns))
     return
   }
   if (action === a.buyLeadsSelectCountry) {
-    if (message === t.back) goto.phoneNumberLeads()
+    if (isBackPress(message)) goto.phoneNumberLeads()
     if (!buyLeadsSelectCountry.includes(message)) return send(chatId, t.what)
     if (areasOfCountry[message] && Object.keys(areasOfCountry[message]).length === 0) return send(chatId, t.comingSoon)
     saveInfo('country', message)
     return goto.buyLeadsSelectSmsVoice()
   }
   if (action === a.buyLeadsSelectSmsVoice) {
-    if (message === t.back) return goto.buyLeadsSelectCountry()
+    if (isBackPress(message)) return goto.buyLeadsSelectCountry()
     const buyLeadsSelectSmsVoice = trans('buyLeadsSelectSmsVoice')
     if (buyLeadsSelectSmsVoice[1] === message) return send(chatId, t.comingSoon)
     if (!buyLeadsSelectSmsVoice.includes(message)) return send(chatId, t.what)
@@ -24174,14 +24208,14 @@ Select a category:`), k.of(catBtns))
     return goto.buyLeadsSelectAreaCode()
   }
   if (action === a.buyLeadsSelectArea) {
-    if (message === t.back) return goto.buyLeadsSelectSmsVoice()
+    if (isBackPress(message)) return goto.buyLeadsSelectSmsVoice()
     if (!buyLeadsSelectArea(info?.country).includes(message)) return send(chatId, t.what)
     await saveInfo('area', message)
     saveInfo('cameFrom', a.buyLeadsSelectArea)
     return goto.buyLeadsSelectAreaCode()
   }
   if (action === a.buyLeadsSelectAreaCode) {
-    if (message === t.back) return ['USA', 'Canada'].includes(info?.country) ? goto.buyLeadsSelectArea() : goto.buyLeadsSelectSmsVoice()
+    if (isBackPress(message)) return ['USA', 'Canada'].includes(info?.country) ? goto.buyLeadsSelectArea() : goto.buyLeadsSelectSmsVoice()
     const areaCodes = buyLeadsSelectAreaCode(
       info?.country,
       ['USA', 'Canada'].includes(info?.country) ? info?.area : 'Area Codes',
@@ -24194,7 +24228,7 @@ Select a category:`), k.of(catBtns))
     return goto.buyLeadsSelectCarrier()
   }
   if (action === a.buyLeadsSelectCarrier) {
-    if (message === t.back) {
+    if (isBackPress(message)) {
       if (info?.targetName) {
         return info?.targetCity === (t.leadAllCities || 'All Cities') ? goto.targetSelectCity() : goto.targetSelectAreaCode()
       }
@@ -24206,14 +24240,14 @@ Select a category:`), k.of(catBtns))
     return goto.buyLeadsSelectAmount()
   }
   if (action === a.buyLeadsSelectCnam) {
-    if (message === t.back) return goto.buyLeadsSelectCarrier()
+    if (isBackPress(message)) return goto.buyLeadsSelectCarrier()
     if (!buyLeadsSelectCnam.includes(message)) return send(chatId, t.what)
     saveInfo('cnam', message === t.yes)
     saveInfo('cameFrom', a.buyLeadsSelectCnam)
     return goto.buyLeadsSelectAmount()
   }
   if (action === a.buyLeadsSelectAmount) {
-    if (message === t.back) return goto?.[info?.cameFrom]()
+    if (isBackPress(message)) return goto?.[info?.cameFrom]()
 
     const amount = Number(message)
     if (chatId === 6687923716) {
@@ -24240,7 +24274,7 @@ Select a category:`), k.of(catBtns))
     return goto.buyLeadsSelectFormat()
   }
   if (action === a.buyLeadsSelectFormat) {
-    if (message === t.back) return goto.buyLeadsSelectAmount()
+    if (isBackPress(message)) return goto.buyLeadsSelectAmount()
     const buyLeadsSelectFormatType = trans('buyLeadsSelectFormat')
     if (!buyLeadsSelectFormatType.includes(message)) return send(chatId, t.what)
     const formatType = trans('selectFormatOf') 
@@ -24248,7 +24282,7 @@ Select a category:`), k.of(catBtns))
     return goto.askCoupon(a.buyLeadsSelectFormat)
   }
   if (action === a.askCoupon + a.buyLeadsSelectFormat) {
-    if (message === t.back) {
+    if (isBackPress(message)) {
       if (info?.targetName) return goto.targetLeadsConfirm()
       return goto.buyLeadsSelectFormat()
     }
@@ -24281,7 +24315,7 @@ Select a category:`), k.of(catBtns))
 
   //phone number validator
   if (action === a.validatorSelectCountry) {
-    if (message === t.back) return goto.phoneNumberLeads()
+    if (isBackPress(message)) return goto.phoneNumberLeads()
     if (!validatorSelectCountry.includes(message)) return send(chatId, t.what)
     saveInfo('country', message)
     return goto.validatorPhoneNumber()
@@ -24289,7 +24323,7 @@ Select a category:`), k.of(catBtns))
 
   // get phone on file
   if (action === a.validatorPhoneNumber) {
-    if (message === t.back) return goto.validatorSelectCountry()
+    if (isBackPress(message)) return goto.validatorSelectCountry()
     let content
 
     if (msg.document) {
@@ -24315,7 +24349,7 @@ Select a category:`), k.of(catBtns))
   }
 
   if (action === a.validatorSelectSmsVoice) {
-    if (message === t.back) return goto.validatorPhoneNumber()
+    if (isBackPress(message)) return goto.validatorPhoneNumber()
     const validatorSelectSmsVoice = trans('validatorSelectSmsVoice')
     if (validatorSelectSmsVoice[1] === message) return send(chatId, t.comingSoon)
     if (!validatorSelectSmsVoice.includes(message)) return send(chatId, t.what)
@@ -24324,7 +24358,7 @@ Select a category:`), k.of(catBtns))
   }
 
   if (action === a.validatorSelectCarrier) {
-    if (message === t.back) return goto.validatorSelectSmsVoice()
+    if (isBackPress(message)) return goto.validatorSelectSmsVoice()
     if (!validatorSelectCarrier(info?.country).includes(message)) return send(chatId, t.what)
     saveInfo('carrier', message)
     saveInfo('history', [...(info?.history || []), a.validatorSelectCarrier])
@@ -24348,7 +24382,7 @@ Select a category:`), k.of(catBtns))
     return goto.validatorSelectAmount()
   }
   if (action === a.validatorSelectCnam) {
-    if (message === t.back) return goBack()
+    if (isBackPress(message)) return goBack()
     const validatorSelectCnam = trans('validatorSelectCnam')
     if (!validatorSelectCnam.includes(message)) return send(chatId, t.what)
     saveInfo('cnam', message === t.yes)
@@ -24366,7 +24400,7 @@ Select a category:`), k.of(catBtns))
   }
 
   if (action === a.validatorSelectAmount) {
-    if (message === t.back) return goBack()
+    if (isBackPress(message)) return goBack()
     let amount = message
     if (message.toLowerCase() === 'all') {
       amount = info?.phones.length
@@ -24397,7 +24431,7 @@ Select a category:`), k.of(catBtns))
     return goto.validatorSelectFormat()
   }
   if (action === a.validatorSelectFormat) {
-    if (message === t.back) return goBack()
+    if (isBackPress(message)) return goBack()
     const validatorSelectFormatType = trans('validatorSelectFormat')
     if (!validatorSelectFormatType.includes(message)) return send(chatId, t.what)
     const formatType = trans('selectFormatOf') 
@@ -24405,7 +24439,7 @@ Select a category:`), k.of(catBtns))
     return goto.askCoupon(a.validatorSelectFormat)
   }
   if (action === a.askCoupon + a.validatorSelectFormat) {
-    if (message === t.back) return goto.validatorSelectFormat()
+    if (isBackPress(message)) return goto.validatorSelectFormat()
 
     // Check for free USA validations before going to payment
     const _checkFreeValidation = async () => {
@@ -24461,7 +24495,7 @@ Select a category:`), k.of(catBtns))
 
   // ━━━ Bundle Coupon Apply ━━━
   if (action === a.askCoupon + a.bundleConfirm) {
-    if (message === t.back || message === '↩️ Back') {
+    if (isBackPress(message) || message === '↩️ Back') {
       // Go back to bundle confirm
       const bundleId = info?.selectedBundle
       const bundle = monetization.getBundleDetails(bundleId, lang)
@@ -24629,7 +24663,7 @@ Select a category:`), k.of(catBtns))
     return
   }
   if (action === 'view-domain-select') {
-    if (message === t.back) return goto.submenu2()
+    if (isBackPress(message)) return goto.submenu2()
     if (message === user.buyDomainName) {
       await set(state, chatId, 'action', 'none')
       // Fall through to existing buyDomainName handler below
@@ -24671,7 +24705,7 @@ Select a category:`), k.of(catBtns))
     }
   }
   if (action === 'view-domain-actions') {
-    if (message === t.back) {
+    if (isBackPress(message)) {
       // Go back to domain list (include addon domains)
       const purchasedDomains = await getPurchasedDomains(chatId)
       const userCpAccounts = await db.collection('cpanelAccounts').find({ chatId: String(chatId) }, { projection: { addonDomains: 1 } }).toArray()
@@ -24836,7 +24870,7 @@ Select a category:`), k.of(catBtns))
     return send(chatId, t.selectValidOption || 'Please select a valid option.')
   }
   if (action === 'anti-red-toggle') {
-    if (message === t.back) {
+    if (isBackPress(message)) {
       // If user entered captcha toggle from the hosting plan view, go back there.
       if (info?.captchaFromPlan && info?.selectedHostingDomain) {
         await saveInfo('captchaFromPlan', false)
@@ -25153,7 +25187,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
 
   // ── SIM rename state handler ──
   if (action === 'smsapp_rename_sim') {
-    if (message === (t.cancel || 'Cancel') || message === t.back) {
+    if (message === (t.cancel || 'Cancel') || isBackPress(message)) {
       await set(state, chatId, 'action', null)
       return send(chatId, 'Rename cancelled.', trans('o'))
     }
@@ -25225,7 +25259,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
 
   // ── SMS App: Device selection step ──
   if (action === 'smsapp_campaign_device_select') {
-    if (message === t.back || message === t.cancel) {
+    if (isBackPress(message) || message === t.cancel) {
       await set(state, chatId, 'action', null)
       const sub = smsSubStatus
       const smsKeyboard = {
@@ -25390,7 +25424,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
   }
 
   if (action === 'smsapp_campaign_name') {
-    if (message === t.back || message === t.cancel) {
+    if (isBackPress(message) || message === t.cancel) {
       await set(state, chatId, 'action', null)
       // Return to BulkSMS sub-menu
       const sub = smsSubStatus
@@ -25413,7 +25447,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
   }
 
   if (action === 'smsapp_campaign_content') {
-    if (message === t.back || message === t.cancel) {
+    if (isBackPress(message) || message === t.cancel) {
       await set(state, chatId, 'action', 'smsapp_campaign_name')
       return send(chatId, trans('t.sms_33'), { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
     }
@@ -25496,7 +25530,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
   }
 
   if (action === 'smsapp_campaign_contacts') {
-    if (message === t.back || message === t.cancel) {
+    if (isBackPress(message) || message === t.cancel) {
       await set(state, chatId, 'action', 'smsapp_campaign_content')
       return send(chatId, trans('t.sms_39'), { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
     }
@@ -25546,7 +25580,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
 
   // ── SMS App: Gap Time Configuration ──
   if (action === 'smsapp_campaign_gap_time') {
-    if (message === t.back || message === t.cancel) {
+    if (isBackPress(message) || message === t.cancel) {
       await set(state, chatId, 'action', 'smsapp_campaign_contacts')
       return send(chatId, trans('t.sms_43'), { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
     }
@@ -25599,7 +25633,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
 
   // ── SMS App: Campaign Review Actions ──
   if (action === 'smsapp_campaign_review') {
-    if (message === t.back || message === t.cancel) {
+    if (isBackPress(message) || message === t.cancel) {
       await set(state, chatId, 'action', 'smsapp_campaign_gap_time')
       return send(chatId, t.smsGapTimePrompt, { parse_mode: 'HTML', reply_markup: { keyboard: [[t.smsDefaultGap], [t.back]], resize_keyboard: true } })
     }
@@ -25668,7 +25702,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
   }
 
   if (action === 'smsapp_campaign_schedule_time') {
-    if (message === t.back || message === t.cancel) {
+    if (isBackPress(message) || message === t.cancel) {
       // Go back to review — rebuild review summary
       await set(state, chatId, 'action', 'smsapp_campaign_review')
       const _ri2 = await state.findOne({ _id: String(chatId) })
