@@ -49,12 +49,13 @@ export default function PanelLogin() {
 
       <div className="panel-login-card" data-testid="panel-login-card">
         <div className="panel-login-logo">
-          <div className="panel-login-icon">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <rect x="2" y="2" width="20" height="8" rx="2"/>
-              <rect x="2" y="14" width="20" height="8" rx="2"/>
-              <circle cx="6" cy="6" r="1" fill="currentColor"/>
-              <circle cx="6" cy="18" r="1" fill="currentColor"/>
+          <div className="panel-login-icon" data-testid="panel-login-brand-mark" aria-label="HostBay">
+            <svg width="34" height="34" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              {/* HostBay logomark — H letterform (Host) over a gentle wave (Bay) */}
+              <rect x="6" y="4" width="4" height="20" rx="1.5" fill="currentColor"/>
+              <rect x="22" y="4" width="4" height="20" rx="1.5" fill="currentColor"/>
+              <rect x="10" y="12" width="12" height="4" fill="currentColor"/>
+              <path d="M5 28 Q10.5 25 16 28 T27 28" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.85"/>
             </svg>
           </div>
           <h1>{t('login.title')}</h1>
