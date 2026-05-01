@@ -239,10 +239,10 @@ const bal = (usd) => `$${view(usd)}`
 const dnsEntryFormat = '' // deprecated — A/CNAME now use multi-step wizard
 
 const t = {
- yes: 'हाँ',
- no: 'नहीं',
+ yes: '✅ हाँ',
+ no: '❌ नहीं',
  back: 'वापस',
- cancel: 'रद्द करें',
+ cancel: '❌ रद्द करें',
  skip: 'छोड़ें',
  becomeReseller: (() => {
  const services = ['URL शॉर्टनिंग', 'डोमेन पंजीकरण']

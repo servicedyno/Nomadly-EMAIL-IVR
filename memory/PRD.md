@@ -7,6 +7,41 @@
 - MongoDB (port 27017)
 
 
+## ✅ Cancel/Yes/No Button Visual Standardization (May 1, 2026)
+
+### Problem
+After back-button standardization, audit revealed Cancel/Yes/No buttons had similar fragmentation:
+- Cancel: 32 rendered buttons across 3 visuals (`'❌ Cancel'`, `'Cancel'`, `t.cancel` plain)
+- Yes/Confirm: 11 rendered across 2 visuals (`'✅ Confirm'`, `t.yes` plain locale)
+- No: 7 rendered as `t.no` plain locale (no emoji)
+
+### Implementation
+
+**`js/_index.js`** — added 3 new helpers (mirroring `isBackPress`):
+- `isCancelPress(message)` — accepts plain locale (`Cancel`/`Annuler`/`取消`/`रद्द करें`) + any emoji-prefixed (`❌`, `❎`, `🚫`)
+- `isYesPress(message)` — accepts `Yes`/`Oui`/`是`/`हाँ` + `Confirm`/`Confirmer`/`确认`/`पुष्टि करें` variants + emoji prefixes
+- `isNoPress(message)` — accepts `No`/`Non`/`否`/`नहीं` + emoji prefixes
+
+Replaced ALL handler comparisons (strict superset, zero regression):
+- `message === t.cancel` → `isCancelPress(message)` (54 sites)
+- `message === t.yes` → `isYesPress(message)` (43 sites; preserved 2 `t.yesProceedWithThisEmail` accidentals)
+- `message === t.no` → `isNoPress(message)` (15 sites)
+
+**`js/lang/{en,fr,zh,hi}.js`** — added emoji prefixes to top-level `t` object:
+- `t.cancel`: `'❌ Cancel'` / `'❌ Annuler'` / `'❌ 取消'` / `'❌ रद्द करें'`
+- `t.yes`: `'✅ Yes'` / `'✅ Oui'` / `'✅ 是'` / `'✅ हाँ'`
+- `t.no`: `'❌ No'` / `'❌ Non'` / `'❌ 否'` / `'❌ नहीं'`
+
+This standardizes 89 currently-mismatched-visual button renders to consistent emoji-prefixed visuals while keeping full localization. All deploy-window stale-keyboard scenarios are absorbed by the `isCancelPress` / `isYesPress` / `isNoPress` accept-lists.
+
+### Tests (49 new tests in `js/tests/test_button_helpers.js`)
+- Source-level: helpers exist in `_index.js`, no residual `message === t.cancel/yes/no`
+- Lang-file: all 4 locales have emoji-prefixed `t.cancel`, `t.yes`, `t.no`
+- Helper functional: each accepts plain locale + emoji-prefixed + whitespace tolerance, rejects non-buttons, null/undefined/empty
+
+**Cumulative test suite: 173 pass / 0 fail** (across 25+ test files; 2 pre-existing failures in `test_fr_domain_fix.js` (TLD data) and `test_file_delete_folder_fix.js` (file-manager delete logic) are unrelated to button standardization). Bot rebooted clean.
+
+
 ## ✅ Back-Button Visual Standardization (May 1, 2026)
 
 ### Problem

@@ -245,10 +245,10 @@ const dnsQuickActions = {
 }
 
 const t = {
- yes: 'Yes',
- no: 'No',
+ yes: '✅ Yes',
+ no: '❌ No',
  back: 'Back',
- cancel: 'Cancel',
+ cancel: '❌ Cancel',
  skip: 'Skip',
  becomeReseller: (() => {
  const services = ['URL Shortening', 'Domain Registration']

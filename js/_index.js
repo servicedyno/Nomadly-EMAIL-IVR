@@ -1152,6 +1152,48 @@ function isBackPress(message) {
   return knownBacks.has(stripped)
 }
 
+/**
+ * Robust Cancel-button matcher — same approach as isBackPress.
+ * Accepts plain locale words (`Cancel` / `Annuler` / `取消` / `रद्द करें`) and
+ * any emoji-prefixed variant (`❌ Cancel`, `❎ Cancel`, `🚫 Cancel`, etc.).
+ *
+ * Used to make handlers robust to deploy-window stale-keyboard scenarios
+ * where a user might have an old (pre-emoji) Cancel button on their screen
+ * while we've shipped emoji-prefixed renders.
+ */
+function isCancelPress(message) {
+  if (!message || typeof message !== 'string') return false
+  const m = message.trim()
+  const stripped = m.replace(/^[\p{Extended_Pictographic}\u200d\ufe0f\s❌❎🚫]+/u, '').trim()
+  const knownCancels = new Set(['Cancel', 'Annuler', '取消', 'रद्द करें'])
+  return knownCancels.has(stripped)
+}
+
+/**
+ * Robust Yes-button matcher — accepts plain locale (`Yes` / `Oui` / `是` /
+ * `हाँ`), emoji-prefixed (`✅ Yes`, `✔️ Yes`, `✅ Confirm`, etc.).
+ * Also accepts "Confirm" variants since they're commonly rendered as Yes-style.
+ */
+function isYesPress(message) {
+  if (!message || typeof message !== 'string') return false
+  const m = message.trim()
+  const stripped = m.replace(/^[\p{Extended_Pictographic}\u200d\ufe0f\s✅✔]+/u, '').trim()
+  const knownYes = new Set(['Yes', 'Oui', '是', 'हाँ', 'Confirm', 'Confirmer', '确认', 'पुष्टि करें'])
+  return knownYes.has(stripped)
+}
+
+/**
+ * Robust No-button matcher — accepts plain locale (`No` / `Non` / `否` /
+ * `नहीं`) and emoji-prefixed (`❌ No`, etc.).
+ */
+function isNoPress(message) {
+  if (!message || typeof message !== 'string') return false
+  const m = message.trim()
+  const stripped = m.replace(/^[\p{Extended_Pictographic}\u200d\ufe0f\s❌❎🚫]+/u, '').trim()
+  const knownNo = new Set(['No', 'Non', '否', 'नहीं'])
+  return knownNo.has(stripped)
+}
+
 const send = (chatId, message, options) => {
   // Auto-detect HTML in message and add parse_mode if not already set
   const opts = options || {}
@@ -9836,7 +9878,7 @@ All verified numbers generated during sourcing.`))
     ]))
   }
   //
-  if (message === t.cancel || message === '🏠 Main Menu' || (firstSteps.includes(action) && isBackPress(message))) {
+  if (isCancelPress(message) || message === '🏠 Main Menu' || (firstSteps.includes(action) && isBackPress(message))) {
     await set(state, chatId, 'action', 'none')
     if (action === a.supportChat) {
       // Cancel from support should end support session
@@ -9910,7 +9952,7 @@ All verified numbers generated during sourcing.`))
     return goto.adminConfirmMessage()
   }
   if (action === 'adminConfirmMessage') {
-    if (isBackPress(message) || message === t.no) return goto[admin.messageUsers]()
+    if (isBackPress(message) || isNoPress(message)) return goto[admin.messageUsers]()
     if (message !== t.yes) return send(chatId, t.what)
 
     await set(state, chatId, 'action', 'none')
@@ -10168,7 +10210,7 @@ All verified numbers generated during sourcing.`))
   }
 
   if (action === a.useExistingDomain) {
-    if (isBackPress(message) || message === t.cancel) return goto.submenu3()
+    if (isBackPress(message) || isCancelPress(message)) return goto.submenu3()
     send(chatId, t.checkingExistingDomainAvail)
     let modifiedDomain = removeProtocolFromDomain(message)
     const { available, chatMessage } = await planCheckExistingDomain(modifiedDomain, info.hostingType)
@@ -10201,7 +10243,7 @@ All verified numbers generated during sourcing.`))
 
   // Connect External Domain — user types a domain they own elsewhere
   if (action === a.connectExternalDomain) {
-    if (isBackPress(message) || message === '↩️ Back' || message === t.cancel) return goto.buyPlan(a.premiumWeekly)
+    if (isBackPress(message) || message === '↩️ Back' || isCancelPress(message)) return goto.buyPlan(a.premiumWeekly)
     let modifiedDomain = removeProtocolFromDomain(message)
     // Validate it looks like a domain
     if (!modifiedDomain || !modifiedDomain.includes('.')) {
@@ -11475,7 +11517,7 @@ All verified numbers generated during sourcing.`))
 
   // ── Email Validation Menu Handler ──
   if (action === a.evMenu) {
-    if (isBackPress(message) || message === t.cancel || message === '↩️ Back' || message === '❌ Cancel') return goto.displayMainMenuButtons()
+    if (isBackPress(message) || isCancelPress(message) || message === '↩️ Back' || message === '❌ Cancel') return goto.displayMainMenuButtons()
 
     if (message === '📤 Upload List (CSV/TXT)') {
       await set(state, chatId, 'action', a.evUploadList)
@@ -11698,7 +11740,7 @@ All verified numbers generated during sourcing.`))
   }
 
   if (action === a.evUploadList) {
-    if (message === '❌ Cancel' || isBackPress(message) || message === t.cancel) {
+    if (message === '❌ Cancel' || isBackPress(message) || isCancelPress(message)) {
       await set(state, chatId, 'action', a.evMenu)
       // Re-render the EV menu so the keyboard is replaced (not just text reply)
       const evBtnsBack = [
@@ -11816,7 +11858,7 @@ All verified numbers generated during sourcing.`))
 
   // ── Email Validation: Paste Emails ──
   if (action === a.evPasteEmails) {
-    if (message === '❌ Cancel' || isBackPress(message) || message === t.cancel) {
+    if (message === '❌ Cancel' || isBackPress(message) || isCancelPress(message)) {
       await set(state, chatId, 'action', a.evMenu)
       // Re-render the EV menu so the keyboard is replaced (not just text reply)
       const evBtnsBack = [
@@ -11915,7 +11957,7 @@ All verified numbers generated during sourcing.`))
 
   // ── Email Validation: Confirm & Pay ──
   if (action === a.evConfirmPay) {
-    if (message === '❌ Cancel' || isBackPress(message) || message === t.cancel) {
+    if (message === '❌ Cancel' || isBackPress(message) || isCancelPress(message)) {
       await set(state, chatId, 'action', a.evMenu)
       await saveInfo('evEmails', null)
       return send(chatId, trans('t.ev_28'), { parse_mode: 'HTML' })
@@ -12116,7 +12158,7 @@ All verified numbers generated during sourcing.`))
 
   // Email Blast Menu Handler
   if (action === a.ebMenu) {
-    if (isBackPress(message) || message === t.cancel || message === '↩️ Back' || message === '❌ Cancel' || message === (t.ebCancelBtn || '❌ Cancel')) return goto.displayMainMenuButtons()
+    if (isBackPress(message) || isCancelPress(message) || message === '↩️ Back' || message === '❌ Cancel' || message === (t.ebCancelBtn || '❌ Cancel')) return goto.displayMainMenuButtons()
 
     if (message === t.ebSendBlast || message === '📤 Send Email Blast') {
       await set(state, chatId, 'action', a.ebUploadList)
@@ -12172,7 +12214,7 @@ All verified numbers generated during sourcing.`))
 
   // Upload Email List (handles both file and text paste)
   if (action === a.ebUploadList) {
-    if (message === (t.ebCancelBtn || '❌ Cancel') || message === '❌ Cancel' || isBackPress(message) || message === t.cancel) {
+    if (message === (t.ebCancelBtn || '❌ Cancel') || message === '❌ Cancel' || isBackPress(message) || isCancelPress(message)) {
       await set(state, chatId, 'action', a.ebMenu)
       return send(chatId, t.ebCancelled || '❌ Cancelled.', { parse_mode: 'HTML' })
     }
@@ -12966,7 +13008,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // Digital Products: product selection
   if (action === a.submenu6) {
-    if (isBackPress(message) || message === t.cancel) return goto.displayMainMenuButtons()
+    if (isBackPress(message) || isCancelPress(message)) return goto.displayMainMenuButtons()
 
     // Airvoice has a duration picker sub-menu
     if (message === t.dpEsimAirvoice) return goto['airvoice-duration']()
@@ -13195,7 +13237,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // Virtual Card: enter amount
   if (action === a.vcEnterAmount) {
-    if (isBackPress(message) || message === t.cancel) return goto.displayMainMenuButtons()
+    if (isBackPress(message) || isCancelPress(message)) return goto.displayMainMenuButtons()
 
     // Handle "Custom Amount" button — re-prompt for manual entry
     if (message === '✏️ Custom Amount') {
@@ -15091,7 +15133,7 @@ ${message.replace(/\n/g, '<br>')}
     return goto['quick-activate-domain-shortener']()
   }
   if (action === 'quick-activate-domain-shortener') {
-    if (isBackPress(message) || message === t.cancel) return goto.submenu1()
+    if (isBackPress(message) || isCancelPress(message)) return goto.submenu1()
 
     const domain = message.toLowerCase()
     const domains = await getPurchasedDomains(chatId)
@@ -15778,7 +15820,7 @@ ${message.replace(/\n/g, '<br>')}
     }
   }
   if (action === 'get-free-domain') {
-    if (isBackPress(message) || message === t.no) return goto['choose-domain-to-buy']()
+    if (isBackPress(message) || isNoPress(message)) return goto['choose-domain-to-buy']()
     if (message !== t.yes) return send(chatId, t.what)
 
     const domain = info?.domain
@@ -16328,7 +16370,7 @@ ${message.replace(/\n/g, '<br>')}
   }
   // Switch to Cloudflare confirmation handler
   if (action === 'confirm-switch-to-cloudflare') {
-    if (isBackPress(message) || message === t.no || message === 'No') return goto['manage-nameservers-menu']()
+    if (isBackPress(message) || isNoPress(message) || message === 'No') return goto['manage-nameservers-menu']()
     if (message !== t.yes && message !== 'Yes') return send(chatId, t.what)
 
     const domain = info?.domainToManage
@@ -16367,7 +16409,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // Switch to Provider Default confirmation handler
   if (action === 'confirm-switch-to-provider-default') {
-    if (isBackPress(message) || message === t.no || message === 'No') return goto['manage-nameservers-menu']()
+    if (isBackPress(message) || isNoPress(message) || message === 'No') return goto['manage-nameservers-menu']()
     if (message !== t.yes && message !== 'Yes') return send(chatId, t.what)
 
     const domain = info?.domainToManage
@@ -16483,7 +16525,7 @@ ${message.replace(/\n/g, '<br>')}
   }
   //
   if (action === 'select-dns-record-id-to-delete') {
-    if (isBackPress(message) || message === t.cancel) return goto['choose-dns-action']()
+    if (isBackPress(message) || isCancelPress(message)) return goto['choose-dns-action']()
 
     // Parse record number from button text like "1. NS → value" or plain number
     const match = message.match(/^(\d+)/)
@@ -16494,7 +16536,7 @@ ${message.replace(/\n/g, '<br>')}
     return goto['confirm-dns-record-id-to-delete']()
   }
   if (action === 'confirm-dns-record-id-to-delete') {
-    if (isBackPress(message) || message === t.no) return goto['select-dns-record-id-to-delete']()
+    if (isBackPress(message) || isNoPress(message)) return goto['select-dns-record-id-to-delete']()
     if (message !== t.yes) return send(chatId, t.what)
 
     const { domainNameId, dnsRecords, domainToManage, delId, dnsSource } = info
@@ -16605,7 +16647,7 @@ ${message.replace(/\n/g, '<br>')}
   }
   //
   if (action === 'select-dns-record-id-to-update') {
-    if (isBackPress(message) || message === t.cancel) return goto['choose-dns-action']()
+    if (isBackPress(message) || isCancelPress(message)) return goto['choose-dns-action']()
 
     // Handle consolidated "Update Nameservers" button
     if (message.startsWith('🔄 Update Nameservers')) {
@@ -16757,7 +16799,7 @@ ${message.replace(/\n/g, '<br>')}
   //
   // ── Bulk NS update handler ────────────────────────────
   if (action === 'dns-update-all-ns') {
-    if (isBackPress(message) || message === t.cancel) {
+    if (isBackPress(message) || isCancelPress(message)) {
       const origin = info?.nsUpdateOrigin
       if (origin === 'manage-nameservers-menu') {
         await set(state, chatId, 'nsUpdateOrigin', null)
@@ -16841,7 +16883,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   // DNS WIZARD: Quick Actions + Multi-step Add
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   if (action === 'dns-quick-action-menu') {
-    if (isBackPress(message) || message === t.cancel) return goto['choose-dns-action']()
+    if (isBackPress(message) || isCancelPress(message)) return goto['choose-dns-action']()
     const qa = t.dnsQuickActions || {}
     if (message === qa.pointToIp) return goto['dns-quick-point-to-ip']()
     if (message === qa.googleEmail) {
@@ -16908,7 +16950,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === 'dns-quick-point-to-ip') {
-    if (isBackPress(message) || message === t.cancel) return goto['dns-quick-action-menu']()
+    if (isBackPress(message) || isCancelPress(message)) return goto['dns-quick-action-menu']()
     const ipv4Regex = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/
     const match = message.match(ipv4Regex)
     if (!match || [match[1], match[2], match[3], match[4]].some(n => Number(n) > 255)) {
@@ -16927,7 +16969,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === 'dns-quick-verification') {
-    if (isBackPress(message) || message === t.cancel) return goto['dns-quick-action-menu']()
+    if (isBackPress(message) || isCancelPress(message)) return goto['dns-quick-action-menu']()
     const domain = info?.domainToManage
     const txtValue = message.trim()
     const result = await domainService.addDNSRecord(domain, 'TXT', txtValue, '', db)
@@ -16937,7 +16979,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === 'dns-quick-subdomain-name') {
-    if (isBackPress(message) || message === t.cancel) return goto['dns-quick-action-menu']()
+    if (isBackPress(message) || isCancelPress(message)) return goto['dns-quick-action-menu']()
     const hostnameRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$/
     if (!hostnameRegex.test(message.trim())) {
       return send(chatId, t.dnsInvalidHostname)
@@ -16948,14 +16990,14 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === 'dns-quick-subdomain-target') {
-    if (isBackPress(message) || message === t.cancel) return goto['dns-quick-subdomain-name']()
+    if (isBackPress(message) || isCancelPress(message)) return goto['dns-quick-subdomain-name']()
     if (message === t.dnsQuickSubdomainIp) return goto['dns-quick-subdomain-ip']()
     if (message === t.dnsQuickSubdomainDomain) return goto['dns-quick-subdomain-domain']()
     return send(chatId, t.selectValidOption)
   }
 
   if (action === 'dns-quick-subdomain-ip') {
-    if (isBackPress(message) || message === t.cancel) return goto['dns-quick-subdomain-target']()
+    if (isBackPress(message) || isCancelPress(message)) return goto['dns-quick-subdomain-target']()
     const ipv4Regex = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/
     const match = message.match(ipv4Regex)
     if (!match || [match[1], match[2], match[3], match[4]].some(n => Number(n) > 255)) {
@@ -16970,7 +17012,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === 'dns-quick-subdomain-domain') {
-    if (isBackPress(message) || message === t.cancel) return goto['dns-quick-subdomain-target']()
+    if (isBackPress(message) || isCancelPress(message)) return goto['dns-quick-subdomain-target']()
     const domain = info?.domainToManage
     const subName = info?.dnsSubdomainName
     const target = message.trim()
@@ -16982,7 +17024,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
   // DNS Wizard: Multi-step add record (MX, TXT)
   if (action === 'dns-add-hostname') {
-    if (isBackPress(message) || message === t.cancel) return goto['select-dns-record-type-to-add']()
+    if (isBackPress(message) || isCancelPress(message)) return goto['select-dns-record-type-to-add']()
     const recordType = info?.dnsAddRecordType
     let hostname = message.trim()
     // NS doesn't need hostname step — skip
@@ -17009,7 +17051,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === 'dns-add-value') {
-    if (isBackPress(message) || message === t.cancel) return goto['select-dns-record-type-to-add']()
+    if (isBackPress(message) || isCancelPress(message)) return goto['select-dns-record-type-to-add']()
     const recordType = info?.dnsAddRecordType
     const hostname = info?.dnsAddHostname || ''
     const value = message.trim()
@@ -17064,7 +17106,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
   // Handle CNAME/A conflict confirmation
   if (action === 'dns-confirm-conflict-replace') {
-    if (message === t.no || message === 'No' || isBackPress(message) || message === t.cancel) {
+    if (isNoPress(message) || message === 'No' || isBackPress(message) || isCancelPress(message)) {
       return goto['choose-dns-action']()
     }
     if (message !== t.yes && message !== 'Yes') return send(chatId, t.what)
@@ -17088,7 +17130,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === 'dns-add-mx-priority') {
-    if (isBackPress(message) || message === t.cancel) return goto['select-dns-record-type-to-add']()
+    if (isBackPress(message) || isCancelPress(message)) return goto['select-dns-record-type-to-add']()
     const priority = Number(message.trim())
     if (isNaN(priority) || priority < 1 || priority > 65535) {
       return send(chatId, t.dnsInvalidMxPriority)
@@ -17110,7 +17152,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   // Phase 2: SRV Record Wizard
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   if (action === 'dns-srv-service') {
-    if (isBackPress(message) || message === t.cancel) return goto['select-dns-record-type-to-add']()
+    if (isBackPress(message) || isCancelPress(message)) return goto['select-dns-record-type-to-add']()
     const srvInput = message.trim()
     // Parse service and protocol (e.g. _sip._tcp or _http._tcp)
     const srvMatch = srvInput.match(/^(_[a-zA-Z0-9-]+)\.(_[a-zA-Z]+)$/)
@@ -17124,7 +17166,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === 'dns-srv-target') {
-    if (isBackPress(message) || message === t.cancel) return goto['dns-srv-service']()
+    if (isBackPress(message) || isCancelPress(message)) return goto['dns-srv-service']()
     const target = message.trim()
     await set(state, chatId, 'dnsSrvTarget', target)
     info = await get(state, chatId)
@@ -17132,7 +17174,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === 'dns-srv-port') {
-    if (isBackPress(message) || message === t.cancel) return goto['dns-srv-target']()
+    if (isBackPress(message) || isCancelPress(message)) return goto['dns-srv-target']()
     const port = Number(message.trim())
     if (isNaN(port) || port < 1 || port > 65535) {
       return send(chatId, t.dnsInvalidPort)
@@ -17143,7 +17185,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === 'dns-srv-priority') {
-    if (isBackPress(message) || message === t.cancel) return goto['dns-srv-port']()
+    if (isBackPress(message) || isCancelPress(message)) return goto['dns-srv-port']()
     const priority = Number(message.trim())
     if (isNaN(priority) || priority < 0 || priority > 65535) {
       return send(chatId, t.dnsInvalidMxPriority)
@@ -17154,7 +17196,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === 'dns-srv-weight') {
-    if (isBackPress(message) || message === t.cancel) return goto['dns-srv-priority']()
+    if (isBackPress(message) || isCancelPress(message)) return goto['dns-srv-priority']()
     const weight = Number(message.trim())
     if (isNaN(weight) || weight < 0 || weight > 65535) {
       return send(chatId, t.dnsInvalidWeight)
@@ -17181,7 +17223,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   // Phase 2: CAA Record Wizard
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   if (action === 'dns-caa-hostname') {
-    if (isBackPress(message) || message === t.cancel) return goto['select-dns-record-type-to-add']()
+    if (isBackPress(message) || isCancelPress(message)) return goto['select-dns-record-type-to-add']()
     let hostname = message.trim()
     if (hostname !== '@') {
       const hostnameRegex = /^[a-zA-Z0-9_]([a-zA-Z0-9_.:-]*[a-zA-Z0-9_])?$/
@@ -17196,7 +17238,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === 'dns-caa-tag') {
-    if (isBackPress(message) || message === t.cancel) return goto['dns-caa-hostname']()
+    if (isBackPress(message) || isCancelPress(message)) return goto['dns-caa-hostname']()
     // Accept localized tag labels and map to real tag
     const realTag = t[message]
     if (!['issue', 'issuewild', 'iodef'].includes(realTag)) {
@@ -17208,7 +17250,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === 'dns-caa-value') {
-    if (isBackPress(message) || message === t.cancel) return goto['dns-caa-tag']()
+    if (isBackPress(message) || isCancelPress(message)) return goto['dns-caa-tag']()
     const value = message.trim()
     const domain = info?.domainToManage
     const hostname = info?.dnsCaaHostname || ''
@@ -17346,7 +17388,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
         return goto[a.walletSelectCurrency]()
       }
     }
-    if (message === t.no) return goto[a.walletSelectCurrency]()
+    if (isNoPress(message)) return goto[a.walletSelectCurrency]()
 
     if (message !== t.yes) return send(chatId, t.what)
 
@@ -17477,7 +17519,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   if (action === a.submenu5) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const buyLabel = pc.buyPhoneNumber
-    if (isBackPress(message) || message === pc.back || message === t.cancel || message === pc.cancel) return send(chatId, t.userPressedBtn(message), trans('o'))
+    if (isBackPress(message) || message === pc.back || isCancelPress(message) || message === pc.cancel) return send(chatId, t.userPressedBtn(message), trans('o'))
     if (phoneConfig.btnKeyOf(message) === 'buyPhoneNumber') {
       // Step 1: Select Plan FIRST — reset stale phone purchase state
       saveInfo('cpIsSubNumber', false)
@@ -17758,7 +17800,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   // IVR OUTBOUND CALL — Full conversational flow
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   if (action === a.ivrObSelectCallerId) {
-    if (message === 'Cancel' || message === t.cancel || isBackPress(message)) return goto.submenu5()
+    if (message === 'Cancel' || isCancelPress(message) || isBackPress(message)) return goto.submenu5()
     const userData = await get(phoneNumbersOf, chatId)
     const numbers = (userData?.numbers || []).filter(n => n.status === 'active')
     const eligibleNumbers = numbers.filter(n => phoneConfig.canAccessFeature(n.plan, 'ivrOutbound'))
@@ -17867,7 +17909,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === a.ivrObEnterTarget) {
-    if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
+    if (message === 'Cancel' || isCancelPress(message)) return goto.submenu5()
     if (isBackPress(message)) {
       const ivrObData = info?.ivrObData || {}
       if (ivrObData.isTrial) return goto.submenu5()
@@ -18071,7 +18113,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === a.ivrObSelectCategory) {
-    if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
+    if (message === 'Cancel' || isCancelPress(message)) return goto.submenu5()
     if (isBackPress(message)) {
       // Back → enter target number
       await set(state, chatId, 'action', a.ivrObEnterTarget)
@@ -18128,7 +18170,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === a.ivrObCustomScript) {
-    if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
+    if (message === 'Cancel' || isCancelPress(message)) return goto.submenu5()
     if (isBackPress(message)) {
       // Back → category selection
       await set(state, chatId, 'action', a.ivrObSelectCategory)
@@ -18169,7 +18211,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
   // Quick IVR — Confirm/edit active keys (after custom script)
   if (action === a.ivrObConfirmKeys) {
-    if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
+    if (message === 'Cancel' || isCancelPress(message)) return goto.submenu5()
     if (message === '↩️ Back' || isBackPress(message)) {
       await set(state, chatId, 'action', a.ivrObCustomScript)
       return send(chatId, trans('t.cp_49'), k.of([['↩️ Back']]))
@@ -18246,7 +18288,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       const rows = catBtns.map(b => [b])
       return send(chatId, ({ en: "Choose an IVR template category:", fr: "Choisissez une catégorie de modèle IVR :", zh: "选择 IVR 模板分类：", hi: "IVR टेम्पलेट श्रेणी चुनें:" }[lang] || "Choose an IVR template category:"), k.of(rows))
     }
-    if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
+    if (message === 'Cancel' || isCancelPress(message)) return goto.submenu5()
     const ivrOb = require('./ivr-outbound.js')
     const ivrObData = info?.ivrObData || {}
     const template = ivrOb.getTemplateByButton(ivrObData.category, message)
@@ -18306,7 +18348,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === a.ivrObFillPlaceholder) {
-    if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
+    if (message === 'Cancel' || isCancelPress(message)) return goto.submenu5()
     if (isBackPress(message)) {
       // Back → category selection (restarting template flow)
       await set(state, chatId, 'action', a.ivrObSelectCategory)
@@ -18423,7 +18465,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
   // Quick IVR — Select mode (Transfer vs OTP Collection)
   if (action === a.ivrObSelectMode) {
-    if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
+    if (message === 'Cancel' || isCancelPress(message)) return goto.submenu5()
     if (message === '↩️ Back' || isBackPress(message)) {
       await set(state, chatId, 'action', a.ivrObSelectCategory)
       const ivrOb = require('./ivr-outbound.js')
@@ -18465,7 +18507,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
   // Quick IVR — OTP digit length
   if (action === a.ivrObOtpLength) {
-    if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
+    if (message === 'Cancel' || isCancelPress(message)) return goto.submenu5()
     if (message === '↩️ Back' || isBackPress(message)) {
       await set(state, chatId, 'action', a.ivrObSelectMode)
       return send(chatId, trans('t.cp_79'), k.of([['🔗 Transfer'], ['🔑 OTP Collection'], ['↩️ Back']]))
@@ -18506,7 +18548,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
   // Quick IVR — OTP Messages customization (confirm/reject)
   if (action === a.ivrObOtpMessages) {
-    if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
+    if (message === 'Cancel' || isCancelPress(message)) return goto.submenu5()
     if (message === '↩️ Back' || isBackPress(message)) {
       await set(state, chatId, 'action', a.ivrObOtpLength)
       return send(chatId, trans('t.cp_83'), k.of([['4 digits'], ['5 digits'], ['6 digits'], ['8 digits'], ['↩️ Back']]))
@@ -18535,7 +18577,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
   // Quick IVR — OTP Confirm message
   if (action === a.ivrObOtpConfirmMsg) {
-    if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
+    if (message === 'Cancel' || isCancelPress(message)) return goto.submenu5()
     if (message === '↩️ Back' || isBackPress(message)) {
       await set(state, chatId, 'action', a.ivrObOtpMessages)
       return send(chatId, trans('t.cp_87'), k.of([['✍️ Customize Messages'], ['⏭️ Use Defaults'], ['↩️ Back']]))
@@ -18551,7 +18593,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
   // Quick IVR — OTP Reject message
   if (action === a.ivrObOtpRejectMsg) {
-    if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
+    if (message === 'Cancel' || isCancelPress(message)) return goto.submenu5()
     if (message === '↩️ Back' || isBackPress(message)) {
       await set(state, chatId, 'action', a.ivrObOtpConfirmMsg)
       return send(chatId, trans('t.cp_89'), k.of([['↩️ Back']]))
@@ -18569,7 +18611,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === a.ivrObEnterIvrNumber) {
-    if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
+    if (message === 'Cancel' || isCancelPress(message)) return goto.submenu5()
     if (isBackPress(message)) {
       // Back → category selection
       await set(state, chatId, 'action', a.ivrObSelectCategory)
@@ -18595,7 +18637,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === a.ivrObSelectProvider) {
-    if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
+    if (message === 'Cancel' || isCancelPress(message)) return goto.submenu5()
     if (isBackPress(message)) {
       // Back → enter IVR number
       await set(state, chatId, 'action', a.ivrObEnterIvrNumber)
@@ -18623,7 +18665,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === a.ivrObSelectVoice) {
-    if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
+    if (message === 'Cancel' || isCancelPress(message)) return goto.submenu5()
     if (isBackPress(message)) {
       // Back → provider selection
       await set(state, chatId, 'action', a.ivrObSelectProvider)
@@ -18656,7 +18698,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === a.ivrObSelectSpeed) {
-    if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
+    if (message === 'Cancel' || isCancelPress(message)) return goto.submenu5()
     if (isBackPress(message) || message === '🎤 Change Voice') {
       await set(state, chatId, 'action', a.ivrObSelectProvider)
       const ttsService = require('./tts-service.js')
@@ -18763,7 +18805,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === a.ivrObAudioPreview) {
-    if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
+    if (message === 'Cancel' || isCancelPress(message)) return goto.submenu5()
     if (isBackPress(message)) {
       // Back → voice selection
       await set(state, chatId, 'action', a.ivrObSelectProvider)
@@ -18814,7 +18856,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === a.ivrObCallPreview) {
-    if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
+    if (message === 'Cancel' || isCancelPress(message)) return goto.submenu5()
     if (isBackPress(message)) {
       // Back → audio preview / hold music toggle
       await set(state, chatId, 'action', a.ivrObAudioPreview)
@@ -18980,7 +19022,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
   // ── Save Preset Name handler (#1) ──
   if (action === a.ivrObPresetName || action === 'ivrObPresetName') {
-    if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
+    if (message === 'Cancel' || isCancelPress(message)) return goto.submenu5()
     const ivrObData = info?.ivrObData || {}
     const presetName = message.trim().substring(0, 50)
     let presets = info?.ivrPresets || []
@@ -19098,7 +19140,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   // BULK CALL CAMPAIGN — Full conversational flow
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   if (action === a.bulkSelectCaller) {
-    if (message === '↩️ Back' || isBackPress(message) || message === t.cancel) return goto.submenu5()
+    if (message === '↩️ Back' || isBackPress(message) || isCancelPress(message)) return goto.submenu5()
     // Match against caller ID labels
     const allCallerIds = info?.bulkCallerIds || []
     const found = allCallerIds.find(c => c.label === message)
@@ -21598,7 +21640,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   // ━━━ BUY ANOTHER: Select Parent Plan (multi-plan users) ━━━
   if (action === a.cpSelectParentForBuyAnother) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
-    if (isBackPress(message) || message === pc.back || message === t.cancel || message === pc.cancel) {
+    if (isBackPress(message) || message === pc.back || isCancelPress(message) || message === pc.cancel) {
       return goto.submenu5()
     }
     const primaries = info?.cpBuyAnotherPrimaries || []
@@ -22372,7 +22414,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (isBackPress(message) || message === pc.back || message === t.cancel) {
+    if (isBackPress(message) || message === pc.back || isCancelPress(message)) {
       await set(state, chatId, 'action', a.cpVoicemail)
       const vm = num.features?.voicemail || {}
       const btns = vm.enabled
@@ -22417,7 +22459,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (isBackPress(message) || message === pc.back || message === t.cancel) {
+    if (isBackPress(message) || message === pc.back || isCancelPress(message)) {
       await set(state, chatId, 'action', a.cpVmGreeting)
       return send(chatId, cpTxt.vmGreetingMenu(num.phoneNumber, num.features?.voicemail || {}), k.of([
         [pc.vmCustomGreeting], [pc.vmDefaultGreeting],
@@ -22476,7 +22518,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (isBackPress(message) || message === pc.back || message === t.cancel) {
+    if (isBackPress(message) || message === pc.back || isCancelPress(message)) {
       await set(state, chatId, 'action', a.cpVmAudioUpload)
       return send(chatId, trans('t.cp_269'), k.of([[btn.useTemplate], [btn.typeText], [btn.uploadAudio]]))
     }
@@ -22512,7 +22554,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (isBackPress(message) || message === pc.back || message === t.cancel) {
+    if (isBackPress(message) || message === pc.back || isCancelPress(message)) {
       const draft = info?.cpTtsDraft || {}
       draft.templateCategory = null
       draft.templateKey = null
@@ -22552,7 +22594,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (isBackPress(message) || message === pc.back || message === t.cancel) {
+    if (isBackPress(message) || message === pc.back || isCancelPress(message)) {
       await set(state, chatId, 'action', a.cpVmAudioUpload)
       return send(chatId, trans('t.cp_275'), k.of([[btn.useTemplate], [btn.typeText], [btn.uploadAudio]]))
     }
@@ -22635,7 +22677,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (isBackPress(message) || message === pc.back || message === t.cancel) {
+    if (isBackPress(message) || message === pc.back || isCancelPress(message)) {
       await set(state, chatId, 'action', a.cpVmGreeting)
       return send(chatId, cpTxt.vmGreetingMenu(num.phoneNumber, num.features?.voicemail || {}), k.of([
         [pc.vmCustomGreeting], [pc.vmDefaultGreeting],
@@ -22828,7 +22870,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (isBackPress(message) || message === pc.back || message === t.cancel) {
+    if (isBackPress(message) || message === pc.back || isCancelPress(message)) {
       await set(state, chatId, 'action', a.cpIvr)
       const ivrConf = num.features?.ivr || {}
       return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
@@ -22860,7 +22902,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (isBackPress(message) || message === pc.back || message === t.cancel) {
+    if (isBackPress(message) || message === pc.back || isCancelPress(message)) {
       await set(state, chatId, 'action', a.cpIvrGreeting)
       return send(chatId, trans('t.cp_299'), k.of([[btn.useTemplate], [btn.typeText], [btn.uploadAudio]]))
     }
@@ -22896,7 +22938,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (isBackPress(message) || message === pc.back || message === t.cancel) {
+    if (isBackPress(message) || message === pc.back || isCancelPress(message)) {
       const draft = info?.cpTtsDraft || {}
       draft.templateCategory = null
       draft.templateKey = null
@@ -22936,7 +22978,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (isBackPress(message) || message === pc.back || message === t.cancel) {
+    if (isBackPress(message) || message === pc.back || isCancelPress(message)) {
       await set(state, chatId, 'action', a.cpIvrGreeting)
       return send(chatId, trans('t.cp_305'), k.of([[btn.useTemplate], [btn.typeText], [btn.uploadAudio]]))
     }
@@ -23025,7 +23067,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (isBackPress(message) || message === pc.back || message === t.cancel) {
+    if (isBackPress(message) || message === pc.back || isCancelPress(message)) {
       await set(state, chatId, 'action', a.cpIvr)
       const ivrConf = num.features?.ivr || {}
       return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
@@ -23149,7 +23191,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (isBackPress(message) || message === pc.back || message === t.cancel) {
+    if (isBackPress(message) || message === pc.back || isCancelPress(message)) {
       await set(state, chatId, 'action', a.cpIvr)
       const ivrConf = num.features?.ivr || {}
       return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
@@ -23217,7 +23259,7 @@ What should happen when a caller presses <b>${key}</b>?`), k.of([[btn.forwardCal
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (isBackPress(message) || message === pc.back || message === t.cancel) {
+    if (isBackPress(message) || message === pc.back || isCancelPress(message)) {
       await set(state, chatId, 'action', a.cpIvrOptionKey)
       const ivrConf = num.features?.ivr || {}
       const usedKeys = Object.keys(ivrConf.options || {}).join(', ') || 'none'
@@ -23312,7 +23354,7 @@ How do you want to create the message?`), k.of([[btn.useTemplate], [btn.typeText
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (isBackPress(message) || message === pc.back || message === t.cancel) {
+    if (isBackPress(message) || message === pc.back || isCancelPress(message)) {
       await set(state, chatId, 'action', a.cpIvrOptionAction)
       return send(chatId, trans('t.cp_328', (info?.cpIvrDraft || {}).key), k.of([[btn.forwardCall], [btn.playMessage], [btn.sendToVoicemail]]))
     }
@@ -23467,7 +23509,7 @@ Select a category:`), k.of(catBtns))
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (isBackPress(message) || message === pc.back || message === t.cancel) {
+    if (isBackPress(message) || message === pc.back || isCancelPress(message)) {
       const draft = info?.cpIvrDraft || {}
       draft.lang = null; draft.voice = null; draft.audioPath = null; draft.ttsProvider = null
       await saveInfo('cpIvrDraft', draft)
@@ -23547,7 +23589,7 @@ Select a category:`), k.of(catBtns))
     const num = info?.cpActiveNumber
     if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
-    if (isBackPress(message) || message === pc.back || message === t.cancel) {
+    if (isBackPress(message) || message === pc.back || isCancelPress(message)) {
       await set(state, chatId, 'action', a.cpIvr)
       const ivrConf = num.features?.ivr || {}
       return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
@@ -24242,7 +24284,7 @@ Select a category:`), k.of(catBtns))
   if (action === a.buyLeadsSelectCnam) {
     if (isBackPress(message)) return goto.buyLeadsSelectCarrier()
     if (!buyLeadsSelectCnam.includes(message)) return send(chatId, t.what)
-    saveInfo('cnam', message === t.yes)
+    saveInfo('cnam', isYesPress(message))
     saveInfo('cameFrom', a.buyLeadsSelectCnam)
     return goto.buyLeadsSelectAmount()
   }
@@ -24385,7 +24427,7 @@ Select a category:`), k.of(catBtns))
     if (isBackPress(message)) return goBack()
     const validatorSelectCnam = trans('validatorSelectCnam')
     if (!validatorSelectCnam.includes(message)) return send(chatId, t.what)
-    saveInfo('cnam', message === t.yes)
+    saveInfo('cnam', isYesPress(message))
     saveInfo('history', [...(info?.history || []), a.validatorSelectCnam])
 
     if (info?.phones.length < 2000) {
@@ -25259,7 +25301,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
 
   // ── SMS App: Device selection step ──
   if (action === 'smsapp_campaign_device_select') {
-    if (isBackPress(message) || message === t.cancel) {
+    if (isBackPress(message) || isCancelPress(message)) {
       await set(state, chatId, 'action', null)
       const sub = smsSubStatus
       const smsKeyboard = {
@@ -25424,7 +25466,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
   }
 
   if (action === 'smsapp_campaign_name') {
-    if (isBackPress(message) || message === t.cancel) {
+    if (isBackPress(message) || isCancelPress(message)) {
       await set(state, chatId, 'action', null)
       // Return to BulkSMS sub-menu
       const sub = smsSubStatus
@@ -25447,7 +25489,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
   }
 
   if (action === 'smsapp_campaign_content') {
-    if (isBackPress(message) || message === t.cancel) {
+    if (isBackPress(message) || isCancelPress(message)) {
       await set(state, chatId, 'action', 'smsapp_campaign_name')
       return send(chatId, trans('t.sms_33'), { parse_mode: 'HTML', reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
     }
@@ -25530,7 +25572,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
   }
 
   if (action === 'smsapp_campaign_contacts') {
-    if (isBackPress(message) || message === t.cancel) {
+    if (isBackPress(message) || isCancelPress(message)) {
       await set(state, chatId, 'action', 'smsapp_campaign_content')
       return send(chatId, trans('t.sms_39'), { parse_mode: 'HTML', reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
     }
@@ -25580,7 +25622,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
 
   // ── SMS App: Gap Time Configuration ──
   if (action === 'smsapp_campaign_gap_time') {
-    if (isBackPress(message) || message === t.cancel) {
+    if (isBackPress(message) || isCancelPress(message)) {
       await set(state, chatId, 'action', 'smsapp_campaign_contacts')
       return send(chatId, trans('t.sms_43'), { parse_mode: 'HTML', reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
     }
@@ -25633,7 +25675,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
 
   // ── SMS App: Campaign Review Actions ──
   if (action === 'smsapp_campaign_review') {
-    if (isBackPress(message) || message === t.cancel) {
+    if (isBackPress(message) || isCancelPress(message)) {
       await set(state, chatId, 'action', 'smsapp_campaign_gap_time')
       return send(chatId, t.smsGapTimePrompt, { parse_mode: 'HTML', reply_markup: { keyboard: [[t.smsDefaultGap], ['↩️ Back']], resize_keyboard: true } })
     }
@@ -25702,7 +25744,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
   }
 
   if (action === 'smsapp_campaign_schedule_time') {
-    if (isBackPress(message) || message === t.cancel) {
+    if (isBackPress(message) || isCancelPress(message)) {
       // Go back to review — rebuild review summary
       await set(state, chatId, 'action', 'smsapp_campaign_review')
       const _ri2 = await state.findOne({ _id: String(chatId) })
@@ -25782,7 +25824,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
   }
 
   if (action === 'listen_reset_login') {
-    if (message === t.yes) {
+    if (isYesPress(message)) {
       await set(loginCountOf, String(chatId), { devices: [], loginCount: 0, canLogin: true, lastLoginAt: Date.now() })
       send(chatId, t.resetLoginAdmit, trans('o'))
     } else {

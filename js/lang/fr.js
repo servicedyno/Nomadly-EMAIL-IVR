@@ -240,10 +240,10 @@ const bal = (usd) => `$${view(usd)}`
 const dnsEntryFormat = '' // deprecated — A/CNAME now use multi-step wizard
 
 const t = {
- yes: 'Oui',
- no: 'Non',
+ yes: '✅ Oui',
+ no: '❌ Non',
  back: 'Retour',
- cancel: 'Annuler',
+ cancel: '❌ Annuler',
  skip: 'Ignorer',
  becomeReseller: (() => {
  const services = ['Raccourcissement URL', 'Enregistrement de domaines']
