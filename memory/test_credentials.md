@@ -32,6 +32,9 @@
 - Tag: `WHM`
 - Image: stock `ubuntu-24-04-x64` (cPanel installed manually on top)
 - SSH keys on account: 0 — droplet is password-only auth
-- Last DO action: `power_cycle` at 2026-05-01 06:23:53 UTC (after license activation)
+- Root SSH password: stored in `/app/backend/.env` as `WHM_ROOT_PASSWORD` (gitignored — never commit)
+- Snapshot taken before upcp on 2026-05-01 08:14 UTC: id `226828287` name `pre-upcp-2026-05-01` (16.58 GB)
 - License: ACTIVE since 2026-05-01 02:27:02 UTC, package `CPDIRECT-PRO-CLOUD` via cPanel Direct
-- ⚠️ Root SSH password attempted (`$Katiekendra12c`) is **rejected** by sshd via 3 different auth paths (sshpass, paramiko, raw ssh). Need new credential — re-paste, or trigger DO `password_reset` action (reboots droplet, emails new password to account email).
+- WHM API token: stored in `/app/backend/.env` as `WHM_TOKEN` (gitignored — never commit). Token name on server: `nomadly-bot-20260501`. Created via `whmapi1 api_token_create` on 2026-05-01 08:17 UTC after upcp completed.
+- 13 cPanel customer accounts intact on host (verified via `whmapi1 listaccts` HTTP 200).
+- cPanel/WHM version: `11.134.0.20`
