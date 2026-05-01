@@ -16,7 +16,7 @@ import os
 import pytest
 import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://setup-helper-36.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://readme-setup-18.preview.emergentagent.com").rstrip("/")
 PANEL = f"{BASE_URL}/api/panel"
 
 
