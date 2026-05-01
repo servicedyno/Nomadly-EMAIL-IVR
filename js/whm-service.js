@@ -204,6 +204,18 @@ async function createAccount(domain, plan, email, customUsername, opts = {}) {
       }
     } catch (err) {
       const errMsg = err.response?.data?.metadata?.reason || err.message
+      const errCode = err.code || ''
+      const isDown = !err.response && /ECONNREFUSED|ETIMEDOUT|ECONNRESET|ENOTFOUND|EAI_AGAIN|socket hang up/i.test(errCode + ' ' + errMsg)
+
+      // If WHM control plane is down (host refusing / timing out), do NOT
+      // burn through retries — bubble up immediately so the caller can queue
+      // the provisioning job. The pending-jobs worker re-runs createAccount()
+      // when the probe sees WHM come back. Burning retries here just delays
+      // the user's "your hosting is being prepared" message.
+      if (isDown) {
+        log(`[WHM] createAccount CPANEL_DOWN (${errCode || errMsg}) — caller will queue`)
+        return { success: false, error: errMsg, code: 'CPANEL_DOWN' }
+      }
 
       // If the error is retryable, try again with a new username
       if (!customUsername && attempt < MAX_RETRIES && isRetryableError(errMsg)) {

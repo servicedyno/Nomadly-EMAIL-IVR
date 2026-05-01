@@ -9,9 +9,22 @@ const cfService = require('./cf-service')
 const opService = require('./op-service')
 const cpAuth = require('./cpanel-auth')
 const domainService = require('./domain-service')
+const cpHealth = require('./cpanel-health')
+const cpQueue = require('./cpanel-job-queue')
 
 const WHM_HOST = process.env.WHM_HOST
 const TELEGRAM_DEV_CHAT_ID = process.env.TELEGRAM_DEV_CHAT_ID
+
+// Friendly "we're processing your hosting in the background" copy
+// shown when WHM is unreachable at the moment of post-payment provisioning.
+// User MUST NOT learn that the hosting server is down — they paid, the order
+// is committed, and the worker will finish provisioning the moment WHM is back.
+const QUEUED_PROVISIONING_MSG = {
+  en: (domain) => `🎉 <b>Payment confirmed!</b>\n\nYour hosting for <b>${domain}</b> is being prepared. We'll send your login details right here as soon as it's ready — usually within a few minutes.\n\n<i>You don't need to do anything — keep this chat open.</i>`,
+  fr: (domain) => `🎉 <b>Paiement confirmé !</b>\n\nVotre hébergement pour <b>${domain}</b> est en cours de préparation. Nous vous enverrons vos identifiants ici dès qu'il sera prêt — généralement en quelques minutes.\n\n<i>Vous n'avez rien à faire — gardez ce chat ouvert.</i>`,
+  zh: (domain) => `🎉 <b>付款已确认！</b>\n\n您的 <b>${domain}</b> 主机正在准备中。准备就绪后，我们会立即在这里发送您的登录详情 — 通常几分钟内。\n\n<i>您无需任何操作 — 保持此聊天窗口打开即可。</i>`,
+  hi: (domain) => `🎉 <b>भुगतान की पुष्टि हो गई!</b>\n\n<b>${domain}</b> के लिए आपकी होस्टिंग तैयार की जा रही है। तैयार होते ही हम आपके लॉगिन विवरण यहीं भेज देंगे — आमतौर पर कुछ मिनटों में।\n\n<i>आपको कुछ नहीं करना — बस इस चैट को खुला रखें।</i>`,
+}
 
 async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state, bot = null) {
   const lang = info?.userLanguage ?? 'en'
@@ -33,6 +46,27 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state,
       domain: domain,
       deleted: { $ne: true },
     })
+
+    // ── RE-RUN SAFETY — skip already-registered domains ──
+    // If this run is a retry from the cpanel-job-queue worker (because WHM was
+    // down on the original attempt and domain registration had already
+    // succeeded), DO NOT re-register — that would double-charge the user.
+    // We detect by looking up the registeredDomains marker. Idempotent.
+    if (!info.skipDomainRegistration) {
+      const alreadyReg = await guardDb.collection('registeredDomains').findOne({
+        _id: domain,
+        'val.ownerChatId': String(chatId),
+        'val.status': 'registered',
+      })
+      if (alreadyReg) {
+        info.skipDomainRegistration = true
+        info.cfZoneId = info.cfZoneId || alreadyReg.val?.cfZoneId
+        info.cfNameservers = info.cfNameservers || alreadyReg.val?.nameservers
+        info.registrar = info.registrar || alreadyReg.val?.registrar
+        log(`[Hosting] re-run: ${domain} already registered to ${chatId} — skipping domain registration step`)
+      }
+    }
+
     await guardClient.close()
     if (existingAccount) {
       log(`[Hosting] IDEMPOTENCY: cpanel already exists for ${domain} (cpUser=${existingAccount.cpUser}, chatId=${existingAccount.chatId}) — aborting duplicate provisioning for ${chatId}`)
@@ -42,6 +76,43 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state,
   } catch (guardErr) {
     // Non-blocking — if guard fails, we continue but log loudly
     log(`[Hosting] IDEMPOTENCY guard error (non-blocking): ${guardErr.message}`)
+  }
+
+  // ── PRE-FLIGHT WHM HEALTH CHECK ──
+  // If the WHM control plane is unreachable RIGHT NOW, do NOT show the user
+  // a server-down error in the middle of the post-payment flow. Their payment
+  // is committed, the order is real — we just defer the provisioning to a
+  // background worker that re-runs this whole function the moment WHM comes
+  // back. The user sees a calm "your hosting is being prepared" message and
+  // gets their login details automatically when ready.
+  //
+  // We skip this check when re-entered from the queue worker (info._fromQueue)
+  // to avoid re-queueing forever on a flaky probe.
+  if (!info._fromQueue) {
+    try {
+      const reachable = await cpHealth.isWhmReachable()
+      if (!reachable) {
+        log(`[Hosting] WHM unreachable at payment time — queueing provisioning for ${domain} (chat=${chatId})`)
+        try {
+          await cpQueue.enqueue({
+            type: 'provision',
+            chatId,
+            lang,
+            domain,
+            plan: info.plan,
+            params: { info: { ...info, _fromQueue: true } },
+            dedupeKey: `provision:${domain}:${chatId}`,
+          })
+        } catch (qErr) {
+          log(`[Hosting] failed to enqueue provisioning (non-blocking): ${qErr.message}`)
+        }
+        const queuedMsg = (QUEUED_PROVISIONING_MSG[lang] || QUEUED_PROVISIONING_MSG.en)(domain)
+        send(chatId, queuedMsg, keyboardButtons)
+        return { success: true, queued: true }
+      }
+    } catch (hErr) {
+      log(`[Hosting] WHM health check error (non-blocking): ${hErr.message}`)
+    }
   }
 
   // ── UX Enhancement: Progress Tracking ──
@@ -83,15 +154,16 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state,
     const isNewDomain = !isExisting && !isExternal
 
     // Track CF zone info — populated during domain registration (new domains)
-    // or CF DNS setup (existing/external domains)
-    let cfZoneId = null
-    let cfNameservers = []
+    // or CF DNS setup (existing/external domains).
+    // On a queue-replay, we may already have these from a prior partial run.
+    let cfZoneId = info.cfZoneId || null
+    let cfNameservers = info.cfNameservers || []
 
     // ── Step 2: Domain registration FIRST (for new domains only) ──
     // This prevents orphan WHM accounts if domain registration fails.
     // For cloudflare NS: registerDomain() internally creates CF zone and
     // passes zone-specific NS to the registrar API at registration time.
-    if (isNewDomain) {
+    if (isNewDomain && !info.skipDomainRegistration) {
       if (progress) {
         await progress.startStep(2)
       } else {
@@ -180,6 +252,39 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state,
       undefined,
       { useCloudflareNS: isCloudflareNS },
     )
+
+    // ── Mid-flight WHM outage handling ──
+    // If WHM became unreachable between the pre-flight check and now (rare,
+    // but we just paid and possibly registered the domain), defer the rest of
+    // provisioning to the queue. Persist the partial state (skipDomainRegistration
+    // + cfZoneId + cfNameservers) into the queued info so the worker doesn't
+    // re-register the domain.
+    if (!result.success && result.code === 'CPANEL_DOWN') {
+      log(`[Hosting] WHM down mid-flight for ${domain} — queueing remaining provisioning`)
+      try {
+        await cpQueue.enqueue({
+          type: 'provision',
+          chatId,
+          lang,
+          domain,
+          plan: info.plan,
+          params: { info: {
+            ...info,
+            _fromQueue: true,
+            skipDomainRegistration: true, // domain is already registered (or wasn't a new domain)
+            cfZoneId,
+            cfNameservers,
+            registrar: info.registrar,
+          } },
+          dedupeKey: `provision:${domain}:${chatId}`,
+        })
+      } catch (qErr) {
+        log(`[Hosting] failed to enqueue mid-flight provisioning (non-blocking): ${qErr.message}`)
+      }
+      const queuedMsg = (QUEUED_PROVISIONING_MSG[lang] || QUEUED_PROVISIONING_MSG.en)(domain)
+      send(chatId, queuedMsg, keyboardButtons)
+      return { success: true, queued: true }
+    }
 
     if (!result.success) {
       log(`[Hosting] WHM createAccount failed: ${result.error}`)

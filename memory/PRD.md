@@ -7,7 +7,44 @@
 - MongoDB (port 27017)
 
 
+## ✅ cPanel/WHM Outage-Resilience (May 1, 2026)
+
+### Problem (from production logs analysis)
+Railway logs showed `cPanel Proxy ECONNREFUSED 209.38.241.9:2083` storms and 7 hours of `ProtectionHeartbeat: total:12 ok:0 errors:12`. Root cause — confirmed via `verify.cpanel.net` → `Results: Not licensed`. cPanel control plane (`cpsrvd`) refused to start without a valid license; Apache port 80 still up (host alive), so symptom was cPanel/WHM-specific.
+
+User requirement: NEW users must NOT be aware that the hosting server is down. They complete checkout normally; the WHM-touching part of provisioning is queued and auto-completes once the server is back, with credentials DM'd to the user. Same queue-and-notify approach for existing-user mutations. NO refund on cancellation.
+
+### Implementation
+
+**New files**
+- `js/cpanel-health.js` — periodic TCP probe to WHM:2087 (15s when up / 5s when down) + cached `verify.cpanel.net` license check (5min TTL). Emits `onUp` / `onDown` events. Exposes `getStatus({ refresh })`.
+- `js/cpanel-job-queue.js` — MongoDB-backed pending-jobs queue (collection `cpanelPendingJobs`). FIFO drain, dedupe by key, deferred-job back-off, 24h escalation to admin. Worker idle when WHM is known-down; auto-drains on `onUp`.
+- `js/cpanel-job-handlers.js` — handlers for `provision` (post-payment hosting setup) and `mutation` (saveFile / unlinkAddon / suspend / unsuspend / enableMaintenance / disableMaintenance / cancelPlan).
+
+**Modified**
+- `js/cpanel-proxy.js` — connection-level errors (ECONNREFUSED/ETIMEDOUT/...) tagged `code: 'CPANEL_DOWN'` with friendly message. Throttled admin alert (15min window).
+- `js/whm-service.js` — `createAccount` short-circuits on connection errors with `code: 'CPANEL_DOWN'` so caller can queue immediately.
+- `js/cr-register-domain-&-create-cpanel.js` — pre-flight WHM probe before any work; mid-flight `CPANEL_DOWN` catch on `whm.createAccount`. Re-run safety: checks `registeredDomains` so a queue replay never double-registers a domain.
+- `js/_index.js` — wires probe loop, queue worker, `notifyAdmin` listeners. Adds admin command `/hostingstatus`.
+
+### User-facing copy (when WHM is down at payment time)
+EN: *"🎉 Payment confirmed! Your hosting for `{domain}` is being prepared. We'll send your login details right here as soon as it's ready — usually within a few minutes."* (also fr/zh/hi)
+
+### Tests (45/45 passing)
+- `js/tests/test_cpanel_health.js` — 7 tests (TCP probe, caching, state-transition listeners)
+- `js/tests/test_cpanel_queue.js` — 11 tests (enqueue/dedupe/drain/defer/hard-fail/unknown-type)
+- `js/tests/test_cpanel_proxy_down.js` — 10 tests (CPANEL_DOWN tagging, friendly messages, throttle)
+- `js/tests/test_provisioning_deferred.js` — 17 tests (full e2e: pay-while-down → calm "preparing" copy → WHM up → worker auto-completes → credentials delivered → idempotent re-runs)
+
+### Admin command
+`/hostingstatus` — shows reachable (TCP :2087), license validity, downtime duration, queue stats (pending / running / done / failed / oldest pending age).
+
+### Operator action still required (external)
+- License is currently invalid for `209.38.241.9`. Owner needs to renew at `manage2.cpanel.net` and run `/usr/local/cpanel/cpkeyclt` on the server. Until then, all hosting flows are silently queued.
+
+
 ## ✅ Payment Audit-Trail Sweep — Phase 2 Complete (Apr 30, 2026)
+
 
 ### Scope
 Phase 1 closed 3 BlockBee handlers + 1 typo. Phase 2 closes **all remaining 16 webhook paths** — every crypto PSP callback now writes to the universal `transactions` ledger.

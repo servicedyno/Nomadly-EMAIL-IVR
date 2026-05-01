@@ -19,11 +19,56 @@ const CPANEL_PORT = 2083
 // Accept self-signed certs on WHM
 const httpsAgent = new https.Agent({ rejectUnauthorized: false })
 
+// ─── Connection-level error detection ───────────────────
+// When axios fails because the cPanel control plane is down (host refusing
+// connections, license invalid → cpsrvd not running, network drop), the user
+// should NEVER see raw "ECONNREFUSED" or server IPs. We tag the response with
+// code: 'CPANEL_DOWN' so callers can switch to friendly UX + queue the action.
+
+const WHM_CONNECT_ERR_RX = /ECONNREFUSED|ETIMEDOUT|ECONNRESET|ENOTFOUND|EAI_AGAIN|socket hang up|connect ETIMEDOUT|connect ECONN/i
+function isControlPlaneDown(err) {
+  if (!err) return false
+  if (err.response) return false // got an HTTP response — server up
+  if (err.code && WHM_CONNECT_ERR_RX.test(err.code)) return true
+  if (err.message && WHM_CONNECT_ERR_RX.test(err.message)) return true
+  return false
+}
+
+// Throttled admin alert — first downward transition + a reminder every 15min.
+let _lastDownAlertAt = 0
+const DOWN_ALERT_THROTTLE_MS = 15 * 60 * 1000
+let _adminNotifier = null
+function setAdminNotifier(fn) { if (typeof fn === 'function') _adminNotifier = fn }
+function _adminAlertDown(reason, host) {
+  const now = Date.now()
+  if (now - _lastDownAlertAt < DOWN_ALERT_THROTTLE_MS) return
+  _lastDownAlertAt = now
+  if (!_adminNotifier) return
+  try {
+    _adminNotifier(
+      `🚨 <b>cPanel control plane unreachable</b>\n` +
+      `Host: <code>${host || WHM_HOST}</code>\n` +
+      `Reason: <code>${reason}</code>\n` +
+      `<i>New users continue to check out (provisioning is queued). Existing-user mutations are queued. Check /hostingstatus.</i>`
+    )
+  } catch (e) { log(`[cPanel Proxy] admin alert error: ${e.message}`) }
+}
+
 // ─── Helpers ────────────────────────────────────────────
 
 function getBaseUrl(host) {
   const effectiveHost = host || WHM_HOST
   return `https://${effectiveHost}:${CPANEL_PORT}`
+}
+
+function downResponse(reason) {
+  return {
+    status: 0,
+    code: 'CPANEL_DOWN',
+    errors: ['Hosting service is temporarily unavailable. Please try again in a few minutes — your data is safe.'],
+    data: null,
+    _internalReason: reason,
+  }
 }
 
 // ─── Sanitization ───────────────────────────────────────
@@ -74,6 +119,11 @@ async function uapi(cpUser, cpPass, module, func, params = {}, method = 'GET', h
     // Sanitize: strip server IP from response
     return sanitize(data, host)
   } catch (err) {
+    if (isControlPlaneDown(err)) {
+      log(`[cPanel Proxy] ${module}::${func} CPANEL_DOWN (${err.code || err.message})`)
+      _adminAlertDown(err.code || err.message, host || WHM_HOST)
+      return downResponse(err.code || err.message)
+    }
     const status = err.response?.status
     const msg = err.response?.data?.errors?.[0] || err.message
     log(`[cPanel Proxy] ${module}::${func} error (${status}): ${msg}`)
@@ -103,6 +153,11 @@ async function uploadFile(cpUser, cpPass, dir, fileName, fileBuffer, host = null
     })
     return sanitize(res.data, host)
   } catch (err) {
+    if (isControlPlaneDown(err)) {
+      log(`[cPanel Proxy] Fileman::upload_files CPANEL_DOWN (${err.code || err.message})`)
+      _adminAlertDown(err.code || err.message, host || WHM_HOST)
+      return downResponse(err.code || err.message)
+    }
     log(`[cPanel Proxy] Fileman::upload_files error: ${err.message}`)
     return { status: 0, errors: [sanitizeString(err.message, host)], data: null }
   }
@@ -146,6 +201,11 @@ async function api2(cpUser, cpPass, module, func, params = {}, host = null) {
       metadata: {},
     }
   } catch (err) {
+    if (isControlPlaneDown(err)) {
+      log(`[cPanel Proxy API2] ${module}::${func} CPANEL_DOWN (${err.code || err.message})`)
+      _adminAlertDown(err.code || err.message, host || WHM_HOST)
+      return downResponse(err.code || err.message)
+    }
     const status = err.response?.status
     const msg = err.response?.data?.errors?.[0] || err.message
     log(`[cPanel Proxy API2] ${module}::${func} error (${status}): ${msg}`)
@@ -351,6 +411,10 @@ async function addAddonDomain(cpUser, cpPass, domain, subDomain, dir, host = nul
     }
     return { status: 0, data: null, errors: [result.reason || 'Failed to add addon domain'] }
   } catch (err) {
+    if (isControlPlaneDown(err)) {
+      _adminAlertDown(err.code || err.message, host || WHM_HOST)
+      return downResponse(err.code || err.message)
+    }
     return { status: 0, data: null, errors: [err.message] }
   }
 }
@@ -380,6 +444,10 @@ async function removeAddonDomain(cpUser, cpPass, domain, subDomain, mainDomain, 
     }
     return { status: 0, data: null, errors: [result.reason || 'Failed to remove addon domain'] }
   } catch (err) {
+    if (isControlPlaneDown(err)) {
+      _adminAlertDown(err.code || err.message, host || WHM_HOST)
+      return downResponse(err.code || err.message)
+    }
     return { status: 0, data: null, errors: [err.message] }
   }
 }
@@ -477,6 +545,10 @@ async function createSubdomain(cpUser, cpPass, subdomain, rootdomain, dir, host 
     }
     return { status: 0, data: null, errors: [result.reason || 'Failed to create subdomain'] }
   } catch (err) {
+    if (isControlPlaneDown(err)) {
+      _adminAlertDown(err.code || err.message, host || WHM_HOST)
+      return downResponse(err.code || err.message)
+    }
     return { status: 0, data: null, errors: [err.message] }
   }
 }
@@ -506,6 +578,10 @@ async function deleteSubdomain(cpUser, cpPass, fullSubdomain, host = null) {
     }
     return { status: 0, data: null, errors: [result.reason || 'Failed to delete subdomain'] }
   } catch (err) {
+    if (isControlPlaneDown(err)) {
+      _adminAlertDown(err.code || err.message, host || WHM_HOST)
+      return downResponse(err.code || err.message)
+    }
     return { status: 0, data: null, errors: [err.message] }
   }
 }
@@ -550,4 +626,7 @@ module.exports = {
   getBandwidthData,
   // SSL
   getSSLStatus,
+  // Health hooks
+  setAdminNotifier,
+  isControlPlaneDown,
 }

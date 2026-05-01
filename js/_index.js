@@ -1621,6 +1621,42 @@ const loadData = async () => {
 
   log(`DB Connected lala. May peace be with you and Lord's mercy and blessings.`)
 
+  // ── cPanel/WHM resilience: probe + job-queue worker ──
+  // - cpanel-health: periodic TCP probe to WHM:2087 + cached license check
+  // - cpanel-job-queue: drains deferred provisioning + mutation jobs once
+  //   the control plane is reachable again.
+  // - cpanel-proxy: sends throttled admin alerts on outage detection.
+  try {
+    const cpHealth = require('./cpanel-health')
+    const cpQueue  = require('./cpanel-job-queue')
+    require('./cpanel-job-handlers') // registers handlers via side-effect
+    const cpProxy  = require('./cpanel-proxy')
+
+    cpProxy.setAdminNotifier(notifyAdmin)
+    cpHealth.startProbeLoop({ intervalMs: 20 * 1000 })
+    cpQueue.init({ db, bot, send, notifyAdmin, rem })
+    cpQueue.startWorker()
+
+    cpHealth.onDown(({ reason }) => {
+      try {
+        notifyAdmin(
+          `🚨 <b>cPanel/WHM control plane down</b>\n` +
+          `Host: <code>${process.env.WHM_HOST}</code>\n` +
+          `Reason: <code>${reason}</code>\n` +
+          `<i>New users keep checking out (provisioning is queued). Mutations are queued. Check /hostingstatus.</i>`
+        )
+      } catch (_) {}
+    })
+    cpHealth.onUp(() => {
+      try {
+        notifyAdmin(`✅ <b>cPanel/WHM control plane back UP</b>\nHost: <code>${process.env.WHM_HOST}</code>\n<i>Draining pending hosting jobs now.</i>`)
+      } catch (_) {}
+    })
+    log('[cPanel Health] probe + queue worker initialised')
+  } catch (e) {
+    log(`[cPanel Health] init error (non-blocking): ${e.message}`)
+  }
+
   // ── Structured hostingTransactions helper ──
   // Records a complete, queryable hosting payment record with business context + outcome
   recordHostingTransaction = async function (chatId, {
@@ -4634,6 +4670,61 @@ bot?.on('message', msg => {
     send(chatId, `👆 <b>Ad Preview</b>\n\nType <b>/ad post</b> to send this to ${TG_CHANNEL}`, { parse_mode: 'HTML' })
     return
   }
+
+  // ── Admin: /hostingstatus — cPanel/WHM control plane health ──
+  // Quick read-only snapshot: license validity, daemon reachability, queue depth.
+  // Used to know at a glance whether new-user provisioning is being deferred
+  // and how many existing-user actions are queued.
+  if (isAdmin(chatId) && message === '/hostingstatus') {
+    try {
+      const cpHealth = require('./cpanel-health')
+      const cpQueue  = require('./cpanel-job-queue')
+      const status = await cpHealth.getStatus({ refresh: true })
+      const stats  = await cpQueue.getStats()
+
+      const summaryEmoji = status.summary === 'up' ? '✅' : (status.summary === 'unlicensed' ? '🪪' : '⛔️')
+      const reachableTxt = status.reachable === null ? 'unknown' : (status.reachable ? 'YES' : 'NO')
+      const licensedTxt  = status.licensed === null ? 'unknown' : (status.licensed ? 'VALID' : 'INVALID (Not licensed)')
+
+      let agePending = '-'
+      if (stats.oldestPendingAt) {
+        const ageMin = Math.round((Date.now() - new Date(stats.oldestPendingAt).getTime()) / 60000)
+        agePending = `${ageMin} min`
+      }
+
+      const downSince = status.firstDownAt
+        ? new Date(status.firstDownAt).toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC')
+        : '-'
+      const lastUp = status.lastUpAt
+        ? new Date(status.lastUpAt).toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC')
+        : '-'
+
+      const text =
+        `${summaryEmoji} <b>Hosting Control-Plane Status</b>\n\n` +
+        `Host: <code>${status.host || '-'}</code>\n` +
+        `Reachable (TCP :2087): <b>${reachableTxt}</b>${status.reachableReason ? ` <i>(${status.reachableReason})</i>` : ''}\n` +
+        `License: <b>${licensedTxt}</b>\n` +
+        `Down since: <code>${downSince}</code>\n` +
+        `Last up at: <code>${lastUp}</code>\n\n` +
+        `📦 <b>Queue</b>\n` +
+        `Pending: <b>${stats.pending || 0}</b>\n` +
+        `Running: <b>${stats.running || 0}</b>\n` +
+        `Done (lifetime): <b>${stats.done || 0}</b>\n` +
+        `Failed: <b>${stats.failed || 0}</b>\n` +
+        `Oldest pending: <b>${agePending}</b>` +
+        (stats.oldestPendingType ? ` (<code>${stats.oldestPendingType}</code> · <code>${stats.oldestPendingDomain || '-'}</code>)` : '') +
+        `\n\n` +
+        (status.summary !== 'up'
+          ? `<i>⚠️ Provisioning + mutations are being queued. They auto-complete the moment WHM is back.</i>${status.licensed === false ? `\n<i>License is invalid — renew at <a href="https://manage2.cpanel.net">manage2.cpanel.net</a> then run <code>/usr/local/cpanel/cpkeyclt</code>.</i>` : ''}`
+          : `<i>✅ Everything healthy.</i>`)
+
+      send(chatId, text, { parse_mode: 'HTML', disable_web_page_preview: true })
+      return
+    } catch (e) {
+      return send(chatId, `❌ /hostingstatus error: ${e.message}`)
+    }
+  }
+
 
   // ── Admin: Reset dead users list ──
   if (isAdmin(chatId) && message === '/resetdead') {
