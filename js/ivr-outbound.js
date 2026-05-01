@@ -173,25 +173,35 @@ const SMART_PLACEHOLDERS = {
   },
 }
 
+// Pre-built case-insensitive index for smart-placeholder lookups.
+// Lets users type "[bank]" or "[BANK]" in custom scripts and still hit the
+// smart-placeholder UI for "Bank" — preventing the case-sensitivity trap that
+// caused 2 launched calls with literal "[bank]" / "[Bank]" in production logs.
+const _SMART_PLACEHOLDERS_LOWER = Object.fromEntries(
+  Object.entries(SMART_PLACEHOLDERS).map(([k, v]) => [k.toLowerCase(), { canonical: k, ...v }])
+)
+
 /**
- * Check if a placeholder name is a smart placeholder
+ * Check if a placeholder name is a smart placeholder (case-insensitive)
  */
 function isSmartPlaceholder(name) {
-  return !!SMART_PLACEHOLDERS[name]
+  return !!_SMART_PLACEHOLDERS_LOWER[String(name || '').toLowerCase()]
 }
 
 /**
- * Get smart placeholder config
+ * Get smart placeholder config (case-insensitive lookup).
+ * Returned config includes `canonical` so the UI can store / display the
+ * canonical name even if the user typed a lowercase variant.
  */
 function getSmartPlaceholder(name) {
-  return SMART_PLACEHOLDERS[name] || null
+  return _SMART_PLACEHOLDERS_LOWER[String(name || '').toLowerCase()] || null
 }
 
 /**
- * Generate auto-value for a smart placeholder
+ * Generate auto-value for a smart placeholder (case-insensitive)
  */
 function generatePlaceholderValue(name) {
-  const sp = SMART_PLACEHOLDERS[name]
+  const sp = _SMART_PLACEHOLDERS_LOWER[String(name || '').toLowerCase()]
   if (sp?.generate) return sp.generate()
   return null
 }
@@ -249,17 +259,68 @@ function getTemplateByKey(templateKey) {
 }
 
 /**
- * Fill template placeholders with user-provided values
+ * Fill template placeholders with user-provided values.
+ *
+ * Case-INSENSITIVE matching: if the script contains [bank] but the user filled
+ * the placeholder under the key "Bank", it is still substituted. This prevents
+ * the production-logged failure mode where users typed "[name]" / "[bank]" /
+ * "$[Amount]" in custom scripts and those bracket-tokens leaked all the way
+ * into the call recipient's audio.
+ *
+ * Whitespace inside the brackets is also tolerated: "[ Bank ]" is treated the
+ * same as "[Bank]".
+ *
+ * Unfilled placeholders are LEFT AS-IS so the caller can detect them via
+ * validateFilled() and refuse to send the call rather than emitting literal
+ * "[Bank]" audio. Never silently drop them.
+ *
  * @param {string} text - Template text with [Placeholder] markers
  * @param {object} values - { Placeholder: 'value' }
- * @returns {string} Filled text
+ * @returns {string} Filled text (any unfilled placeholders preserved verbatim)
  */
 function fillTemplate(text, values) {
-  let result = text
-  for (const [key, val] of Object.entries(values)) {
-    result = result.replace(new RegExp(`\\[${key}\\]`, 'g'), val)
+  if (!text) return ''
+  // Build a case-insensitive lookup from the provided values
+  const lookup = {}
+  for (const [k, v] of Object.entries(values || {})) {
+    if (k && v != null && String(v).length > 0) {
+      lookup[String(k).toLowerCase().trim()] = String(v)
+    }
   }
-  return result
+  return text.replace(/\[([^\]\n]+)\]/g, (match, name) => {
+    const key = name.toLowerCase().trim()
+    return Object.prototype.hasOwnProperty.call(lookup, key) ? lookup[key] : match
+  })
+}
+
+/**
+ * Scan text for any remaining placeholder-shaped tokens [Foo].
+ * Used as a pre-flight check before generating TTS / placing a call so we
+ * never bill a user for a call where the recipient hears literal
+ * "left bracket Bank right bracket".
+ *
+ * Heuristic: only flags ASCII identifiers (letters/digits/underscore) inside
+ * brackets — so brand-prose like "this is [Company XYZ Inc, est. 2010]"
+ * (which has spaces / punctuation) is NOT flagged. Real placeholders in our
+ * templates are always single-word identifiers like [Name], [Bank], [Amount].
+ *
+ * @param {string} text - Filled template text
+ * @returns {{ ok: boolean, unfilled: string[] }}
+ */
+function validateFilled(text) {
+  const matches = (text || '').match(/\[[^\]\n]+\]/g) || []
+  const seen = new Set()
+  const unfilled = []
+  for (const m of matches) {
+    const name = m.slice(1, -1).trim()
+    // Only flag things that LOOK like placeholders: single-word identifier
+    if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(name)) continue
+    const key = name.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    unfilled.push(name)
+  }
+  return { ok: unfilled.length === 0, unfilled }
 }
 
 /**
@@ -411,6 +472,7 @@ module.exports = {
   getTemplateByButton,
   getTemplateByKey,
   fillTemplate,
+  validateFilled,
   extractPlaceholders,
   isSmartPlaceholder,
   getSmartPlaceholder,

@@ -1017,6 +1017,29 @@ async function renderCampaignSimPicker(chatId, campaignId) {
   }
 }
 
+/**
+ * Build a localized "unfilled placeholders" error message.
+ * Used by the IVR / Bulk-call flows to BLOCK the call from being sent if the
+ * script contains literal placeholder tokens like [Bank], [Name], [Amount]
+ * that were never filled with actual values. Without this guard, the literal
+ * brackets ended up in the call recipient's audio (we saw 2 such launches in
+ * production logs on 2026-04-30).
+ *
+ * @param {string[]} unfilled - The placeholder names still in the text
+ * @param {string} lang       - User language ('en'|'fr'|'zh'|'hi')
+ * @returns {string} HTML-formatted error message
+ */
+function formatUnfilledPlaceholderError(unfilled, lang) {
+  const list = unfilled.map(p => `<code>[${p}]</code>`).join(', ')
+  const messages = {
+    en: `❌ <b>Cannot place this call yet</b>\n\nYour script still contains unfilled placeholder${unfilled.length > 1 ? 's' : ''}: ${list}\n\n<i>If left as-is, the recipient would hear "left bracket ${unfilled[0]} right bracket" in the audio.</i>\n\nTap <b>✍️ Custom Script</b> to rewrite the script with the actual value${unfilled.length > 1 ? 's' : ''}, then try again.`,
+    fr: `❌ <b>Impossible de passer cet appel</b>\n\nVotre script contient encore ${unfilled.length > 1 ? 'des' : 'un'} placeholder${unfilled.length > 1 ? 's' : ''} non rempli${unfilled.length > 1 ? 's' : ''} : ${list}\n\n<i>Tel quel, le destinataire entendrait littéralement "crochet ouvrant ${unfilled[0]} crochet fermant".</i>\n\nTouchez <b>✍️ Custom Script</b> pour réécrire le script avec la valeur réelle, puis réessayez.`,
+    zh: `❌ <b>暂时无法发起此通话</b>\n\n您的脚本仍包含未填写的占位符：${list}\n\n<i>如果保持原样，接收方将在音频中听到字面的"左方括号 ${unfilled[0]} 右方括号"。</i>\n\n点击 <b>✍️ Custom Script</b> 用实际值重写脚本后再试。`,
+    hi: `❌ <b>अभी यह कॉल नहीं की जा सकती</b>\n\nआपकी स्क्रिप्ट में अभी भी अधूरे प्लेसहोल्डर हैं: ${list}\n\n<i>ऐसे ही छोड़ने पर, प्राप्तकर्ता ऑडियो में "ब्रैकेट ${unfilled[0]} ब्रैकेट" शब्दशः सुनेगा।</i>\n\n<b>✍️ Custom Script</b> टैप करें, स्क्रिप्ट को वास्तविक मान से दोबारा लिखें, फिर पुनः प्रयास करें।`,
+  }
+  return messages[lang] || messages.en
+}
+
 const send = (chatId, message, options) => {
   // Auto-detect HTML in message and add parse_mode if not already set
   const opts = options || {}
@@ -17686,6 +17709,14 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
           const ttsService = require('./tts-service.js')
           const ivrOb = require('./ivr-outbound.js')
           const filledText = ivrOb.fillTemplate(ivrObData.scriptText || ivrObData.templateText || '', ivrObData.placeholderValues || {})
+          const v = ivrOb.validateFilled(filledText)
+          if (!v.ok) {
+            log(`[PresetAudio] BLOCKED regen due to unfilled placeholders: ${v.unfilled.join(', ')}`)
+            ivrObData.audioUrl = null
+            ivrObData.fromPreset = false
+            await saveInfo('ivrObData', ivrObData)
+            return send(chatId, formatUnfilledPlaceholderError(v.unfilled, lang), k.of([['✍️ Custom Script']]))
+          }
           const voiceKey = ivrObData.voiceKey || ttsService.DEFAULT_VOICE
           const speed = ivrObData.voiceSpeed || 1.0
           const result = await ttsService.generateTTS(filledText, voiceKey, null, speed)
@@ -18445,6 +18476,11 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     try {
       const ivrOb = require('./ivr-outbound.js')
       const filledText = ivrOb.fillTemplate(ivrObData.templateText, ivrObData.placeholderValues || {})
+      const v = ivrOb.validateFilled(filledText)
+      if (!v.ok) {
+        log(`[IVR-OB] BLOCKED unfilled placeholders for chat=${chatId}: ${v.unfilled.join(', ')}`)
+        return send(chatId, formatUnfilledPlaceholderError(v.unfilled, lang), k.of([['✍️ Custom Script'], ['↩️ Back']]))
+      }
       const voiceKey = ivrObData.voiceKey || ttsService.DEFAULT_VOICE
       const result = await ttsService.generateTTS(filledText, voiceKey, null, speed)
       ivrObData.audioPath = result.audioPath
@@ -19374,6 +19410,11 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     try {
       const ivrOb = require('./ivr-outbound.js')
       const filledText = ivrOb.fillTemplate(bulkTTS.templateText, bulkTTS.placeholderValues || {})
+      const v = ivrOb.validateFilled(filledText)
+      if (!v.ok) {
+        log(`[BulkTTS] BLOCKED unfilled placeholders for chat=${chatId}: ${v.unfilled.join(', ')}`)
+        return send(chatId, formatUnfilledPlaceholderError(v.unfilled, lang), k.of([['✍️ Custom Script'], ['↩️ Back']]))
+      }
       const result = await ttsService.generateTTS(filledText, bulkTTS.voiceKey, null, speed)
       bulkTTS.audioPath = result.audioPath
       bulkTTS.audioUrl = result.audioUrl

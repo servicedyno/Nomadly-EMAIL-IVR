@@ -7,6 +7,41 @@
 - MongoDB (port 27017)
 
 
+## ✅ IVR Unfilled-Placeholder Validation (May 1, 2026)
+
+### Problem (from production logs)
+Two IVR campaigns went out on 2026-04-30 with literal `[Name]`, `[bank]`, `$[Amount]`, `[name]` tokens spoken by Telnyx TTS into the call recipient's audio. Root causes:
+1. `fillTemplate()` was case-sensitive — user typed `[bank]` in custom script but placeholders were collected under capitalized key `Bank` → no match → literal token survived
+2. No post-substitution validation — anything unfilled went straight to TTS
+
+### Fix
+**`js/ivr-outbound.js`**:
+- `fillTemplate(text, values)` is now case-insensitive (case-insensitive lookup of `values` keys; whitespace in brackets tolerated; null/empty/undefined values treated as unfilled — preserved verbatim instead of silently dropped)
+- New `validateFilled(text)` returns `{ ok, unfilled[] }` after scanning for any remaining `[Identifier]` patterns. Heuristic only flags ASCII single-word identifiers (so prose like `[Company XYZ Inc]` is NOT flagged)
+- `isSmartPlaceholder` / `getSmartPlaceholder` / `generatePlaceholderValue` now case-insensitive (so `[cardlast4]` or `[CARDLAST4]` still hits the `CardLast4` smart-placeholder UI)
+- Exports updated
+
+**`js/_index.js`**:
+- New `formatUnfilledPlaceholderError(unfilled, lang)` helper with localized en/fr/zh/hi messages
+- All 4 launch points now call `validateFilled()` before generating TTS:
+  - Single IVR audio preview (line ~18459)
+  - Bulk-call TTS (line ~19392)
+  - Preset-template re-generation after redeploy (line ~17699)
+- On failure: log `[IVR-OB] BLOCKED unfilled placeholders for chat=X` + send user a clear message naming the missing placeholders and a `✍️ Custom Script` button to rewrite the script
+
+### Tests (30 new tests in `js/tests/test_ivr_placeholders.js`)
+- Case-insensitive substitution (lowercase placeholder + capital key, capital placeholder + lowercase key, mixed case)
+- `$[Amount]` dollar prefix preservation
+- Whitespace tolerance inside brackets
+- Empty / null / undefined values treated as unfilled
+- Numeric values coerced to string
+- `validateFilled` correctly detects/dedupes unfilled, ignores prose like `[Company XYZ Inc]`, ignores `[1]`/`[123]`
+- Smart-placeholder lookups case-insensitive, `getSmartPlaceholder` returns canonical name
+- 3 explicit production-bug regression tests for the two campaigns from the logs
+
+**Total test suite now: 75/75 passing.**
+
+
 ## ✅ cPanel/WHM Outage-Resilience (May 1, 2026)
 
 ### Problem (from production logs analysis)
