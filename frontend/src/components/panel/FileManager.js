@@ -1,7 +1,24 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from './AuthContext';
 
+/**
+ * Pick a friendly error message from a cpanel-routes / cpanel-proxy response.
+ * If the response has `code: 'CPANEL_DOWN'`, prefer the localized variant for
+ * the user's current language; falls back to a generic translated string.
+ */
+function pickErrorMessage(res, t, lang) {
+  if (!res) return ''
+  if (res.code === 'CPANEL_DOWN') {
+    if (res.localizedMessages && res.localizedMessages[lang]) return res.localizedMessages[lang]
+    return t('errors.cpanelDown')
+  }
+  return (res.errors && res.errors[0]) || ''
+}
+
 export default function FileManager() {
+  const { t, i18n } = useTranslation();
+  const lang = (i18n.language || 'en').slice(0, 2);
   const { api, user } = useAuth();
   const [files, setFiles] = useState([]);
   const [currentDir, setCurrentDir] = useState(`/home/${user?.username}/public_html`);
@@ -38,8 +55,8 @@ export default function FileManager() {
     setError('');
     try {
       const res = await api(`/files?dir=${encodeURIComponent(dir)}`);
-      if (res.errors?.length) {
-        setError(res.errors[0]);
+      if (res.errors?.length || res.code === 'CPANEL_DOWN') {
+        setError(pickErrorMessage(res, t, lang));
         setFiles([]);
       } else {
         const items = res.data || [];
@@ -120,8 +137,8 @@ export default function FileManager() {
       setUploadProgress(`Uploading ${file.name} — chunk ${idx + 1}/${totalChunks} (${Math.round(((idx + 1) / totalChunks) * 100)}%)`)
       const res = await api('/files/upload-chunk', { method: 'POST', body: formData })
       // Last chunk returns the final cPanel response; any error is thrown by `api`
-      if (idx === totalChunks - 1 && res?.errors?.length) {
-        throw new Error(res.errors[0])
+      if (idx === totalChunks - 1 && (res?.errors?.length || res?.code === 'CPANEL_DOWN')) {
+        throw new Error(pickErrorMessage(res, t, lang))
       }
     }
   }
@@ -234,8 +251,10 @@ export default function FileManager() {
         method: 'POST',
         body: JSON.stringify({ dir: currentDir, file: fileName, destDir: currentDir }),
       });
-      if (res.errors?.length) {
-        setError(`Extract failed: ${res.errors[0]}`);
+      if (res.errors?.length || res.code === 'CPANEL_DOWN') {
+        setError(res.code === 'CPANEL_DOWN'
+          ? pickErrorMessage(res, t, lang)
+          : `Extract failed: ${res.errors[0]}`);
       } else {
         const folderName = fileName.replace(/\.(zip|tar\.gz|tgz|tar)$/i, '');
         const extractedUrl = getPublicUrl(folderName, true);
@@ -263,8 +282,10 @@ export default function FileManager() {
         method: 'POST',
         body: JSON.stringify({ dir: currentDir, name: newDirName.trim() }),
       });
-      if (res.errors?.length) {
-        setError(`Create folder failed: ${res.errors[0]}`);
+      if (res.errors?.length || res.code === 'CPANEL_DOWN') {
+        setError(res.code === 'CPANEL_DOWN'
+          ? pickErrorMessage(res, t, lang)
+          : `Create folder failed: ${res.errors[0]}`);
       } else {
         setNewDirName('');
         setShowNewDir(false);
@@ -279,8 +300,8 @@ export default function FileManager() {
     setError('');
     try {
       const res = await api(`/files/content?dir=${encodeURIComponent(currentDir)}&file=${encodeURIComponent(fileName)}`);
-      if (res.errors?.length) {
-        setError(res.errors[0]);
+      if (res.errors?.length || res.code === 'CPANEL_DOWN') {
+        setError(pickErrorMessage(res, t, lang));
       } else {
         setEditingFile(fileName);
         setEditContent(res.data?.content || '');
@@ -342,8 +363,10 @@ export default function FileManager() {
         method: 'POST',
         body: JSON.stringify({ dir: currentDir, file: fileName, destDir: destDir.trim() }),
       });
-      if (res.errors?.length) {
-        setError(`${type === 'copy' ? 'Copy' : 'Move'} failed: ${res.errors[0]}`);
+      if (res.errors?.length || res.code === 'CPANEL_DOWN') {
+        setError(res.code === 'CPANEL_DOWN'
+          ? pickErrorMessage(res, t, lang)
+          : `${type === 'copy' ? 'Copy' : 'Move'} failed: ${res.errors[0]}`);
       } else {
         setSuccessMessage(`${fileName} ${type === 'copy' ? 'copied' : 'moved'} to ${destDir.trim()}`);
         setTimeout(() => setSuccessMessage(''), 5000);

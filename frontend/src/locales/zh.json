@@ -148,5 +148,8 @@
     "tagline": "面板使用此语言吗？",
     "keep": "是 — 保留{{lang}}",
     "switchToEnglish": "切换为英文"
+  },
+  "errors": {
+    "cpanelDown": "主机服务暂时不可用，请几分钟后再试 — 您的数据是安全的。"
   }
 }

@@ -148,5 +148,8 @@
     "tagline": "Keep this language for the panel?",
     "keep": "Yes — keep {{lang}}",
     "switchToEnglish": "Switch to English"
+  },
+  "errors": {
+    "cpanelDown": "Hosting service is temporarily unavailable. Please try again in a few minutes — your data is safe."
   }
 }

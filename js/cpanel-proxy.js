@@ -61,11 +61,25 @@ function getBaseUrl(host) {
   return `https://${effectiveHost}:${CPANEL_PORT}`
 }
 
+// Friendly user-facing copy in every language the bot/frontend supports.
+// Returned alongside `code: 'CPANEL_DOWN'` so callers can pick by user lang.
+const DOWN_MESSAGES = {
+  en: 'Hosting service is temporarily unavailable. Please try again in a few minutes — your data is safe.',
+  fr: "Le service d'hébergement est temporairement indisponible. Veuillez réessayer dans quelques minutes — vos données sont en sécurité.",
+  zh: '主机服务暂时不可用，请几分钟后再试 — 您的数据是安全的。',
+  hi: 'होस्टिंग सेवा अस्थायी रूप से अनुपलब्ध है। कृपया कुछ मिनटों में फिर से प्रयास करें — आपका डेटा सुरक्षित है।',
+}
+function getDownMessage(lang) {
+  return DOWN_MESSAGES[lang] || DOWN_MESSAGES.en
+}
+
 function downResponse(reason) {
   return {
     status: 0,
     code: 'CPANEL_DOWN',
-    errors: ['Hosting service is temporarily unavailable. Please try again in a few minutes — your data is safe.'],
+    // English fallback for legacy callers; localized variants for i18n-aware ones
+    errors: [DOWN_MESSAGES.en],
+    localizedMessages: DOWN_MESSAGES,
     data: null,
     _internalReason: reason,
   }
@@ -629,4 +643,5 @@ module.exports = {
   // Health hooks
   setAdminNotifier,
   isControlPlaneDown,
+  getDownMessage,
 }

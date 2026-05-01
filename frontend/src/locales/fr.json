@@ -148,5 +148,8 @@
     "tagline": "Garder cette langue pour le panneau ?",
     "keep": "Oui — garder {{lang}}",
     "switchToEnglish": "Passer à l'anglais"
+  },
+  "errors": {
+    "cpanelDown": "Le service d'hébergement est temporairement indisponible. Veuillez réessayer dans quelques minutes — vos données sont en sécurité."
   }
 }
