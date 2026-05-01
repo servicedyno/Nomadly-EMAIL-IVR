@@ -21,6 +21,12 @@ const { log } = require('console')
 
 const WHM_HOST = process.env.WHM_HOST
 const WHM_PORT = 2087
+// ── Tunnel routing for health probe ──
+// When WHM_API_URL is set we no longer have direct TCP access to WHM_HOST:2087
+// (the firewall blocks public access). Instead we probe the tunnel hostname
+// with an HTTPS HEAD — any HTTP response (including 401) means the control
+// plane is up. Falls back to the legacy TCP probe when the env var is unset.
+const WHM_API_URL = (process.env.WHM_API_URL || '').replace(/\/+$/, '')
 const REACHABLE_TTL_UP_MS = 15 * 1000
 const REACHABLE_TTL_DOWN_MS = 5 * 1000
 const LICENSE_TTL_MS = 5 * 60 * 1000
@@ -60,6 +66,41 @@ function _tcpProbe(host, port, timeoutMs) {
 }
 
 /**
+ * HTTPS reachability probe via the Cloudflare Tunnel hostname.
+ * Used when WHM_API_URL is set (production lockdown — direct TCP to :2087 is
+ * blocked at the firewall). Any HTTP response (including 401) means the
+ * cloudflared daemon is connected and the WHM server is responding to
+ * requests from the tunnel side.
+ */
+function _tunnelHttpsProbe(url, timeoutMs) {
+  return new Promise(resolve => {
+    let resolved = false
+    const finish = (ok, reason) => {
+      if (resolved) return
+      resolved = true
+      resolve({ ok, reason })
+    }
+    try {
+      const req = https.request(url + '/login/', {
+        method: 'HEAD',
+        timeout: timeoutMs,
+        // The cert at this hostname is Cloudflare's, served by CF edge
+        rejectUnauthorized: true,
+      }, res => {
+        // Any HTTP response = control plane reachable end-to-end
+        finish(true, `http_${res.statusCode}`)
+        try { res.resume() } catch (_) {}
+      })
+      req.on('timeout', () => { try { req.destroy() } catch (_) {}; finish(false, 'TIMEOUT') })
+      req.on('error', err => finish(false, err.code || err.message || 'ERR'))
+      req.end()
+    } catch (e) {
+      finish(false, e.message || 'ERR')
+    }
+  })
+}
+
+/**
  * Probe whether the WHM control-plane port is accepting connections.
  * Distinct from "licensed": the daemon may be running but the license invalid,
  * or vice-versa. Both must be true for control-plane API calls to succeed.
@@ -72,7 +113,9 @@ async function isWhmReachable({ force = false } = {}) {
     return _cache.reachable
   }
 
-  const { ok, reason } = await _tcpProbe(WHM_HOST, WHM_PORT, PROBE_TIMEOUT_MS)
+  const { ok, reason } = WHM_API_URL
+    ? await _tunnelHttpsProbe(WHM_API_URL, PROBE_TIMEOUT_MS)
+    : await _tcpProbe(WHM_HOST, WHM_PORT, PROBE_TIMEOUT_MS)
   const wasReachable = _cache.reachable
   _cache.reachable = ok
   _cache.reachableReason = reason

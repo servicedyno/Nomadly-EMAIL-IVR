@@ -76,7 +76,25 @@ const WHM_BASE = WHM_API_URL ? `${WHM_API_URL}/json-api`
                               : `https://${WHM_HOST}:2087/json-api`
 ```
 
-### 5. Railway env vars (already pushed)
+### 5. Code (`js/cpanel-health.js`) — health probe via tunnel
+
+The health monitor previously TCP-probed `WHM_HOST:2087`. After the lockdown
+that port is firewalled; the legacy probe times out and falsely declares
+"control plane DOWN". Updated:
+
+```js
+const WHM_API_URL = (process.env.WHM_API_URL || '').replace(/\/+$/, '')
+
+// In isWhmReachable():
+const { ok, reason } = WHM_API_URL
+  ? await _tunnelHttpsProbe(WHM_API_URL, PROBE_TIMEOUT_MS)  // HEAD /login/
+  : await _tcpProbe(WHM_HOST, WHM_PORT, PROBE_TIMEOUT_MS)   // legacy
+```
+
+`_tunnelHttpsProbe()` accepts ANY HTTP response (including 401) as proof the
+tunnel + cloudflared + WHM are all alive end-to-end.
+
+### 6. Railway env vars (already pushed)
 
 ```
 CPANEL_API_URL = https://cpanel-api.hostbay.io
@@ -93,9 +111,23 @@ $ node -e "...listFiles via env-set tunnel URL..."  → HTTP 401 (auth fail, but
 
 ## Current state — DO firewall
 
-Ports 2083 and 2087 are STILL OPEN to the public (allow 0.0.0.0/0). This is
-**intentional** — the production code on Railway is still hitting the IP+port
-directly until the user pushes the code change to GitHub and Railway redeploys.
+**🔒 LOCKDOWN COMPLETE (2026-05-01)** — ports 2083 and 2087 are blocked from
+public. All cPanel/WHM API traffic flows through the Cloudflare Tunnel.
+
+```
+INBOUND (final state)
+  tcp/22       from anywhere   (SSH only)
+  icmp         from anywhere   (ping)
+  — everything else BLOCKED —
+```
+
+Verification post-lockdown:
+- `</dev/tcp/209.38.241.9/2083` → BLOCKED ✅
+- `</dev/tcp/209.38.241.9/2087` → BLOCKED ✅
+- `https://cpanel-api.hostbay.io/login/` → HTTP 401 ✅ (tunnel routing works)
+- `https://whm-api.hostbay.io/login/` → HTTP 401 ✅ (tunnel routing works)
+- Customer sites still serving via tunnel (hunt-verify.org, moxx.co etc.)
+- `cpanel-health.js` `isWhmReachable()` returns `true` via HTTPS probe to tunnel
 
 ## Deployment runbook
 
