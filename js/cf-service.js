@@ -8,6 +8,20 @@ const CF_EMAIL = process.env.CLOUDFLARE_EMAIL
 const CF_API_KEY = process.env.CLOUDFLARE_API_KEY
 const CF_TUNNEL_CNAME = process.env.CF_TUNNEL_CNAME || '' // e.g. "xxxx.cfargotunnel.com"
 
+// ─── Mail relay config ──────────────────────────────────
+// To prevent `mail.<domain>` A records from leaking the origin (WHM/hosting) IP,
+// we never create `mail.*` A records pointing to WHM_HOST. Mail DNS is controlled by:
+//   • MAIL_RELAY_HOST — external MX target (e.g. "mx.zoho.com", "mx1.brevo.com")
+//   • MAIL_RELAY_PRIORITY — MX priority (default 10)
+// If MAIL_RELAY_HOST is unset, NO mail/MX records are created (safest default —
+// origin IP never appears in DNS; user can add their own mail DNS if needed).
+const MAIL_RELAY_HOST = process.env.MAIL_RELAY_HOST || ''
+const MAIL_RELAY_PRIORITY = parseInt(process.env.MAIL_RELAY_PRIORITY || '10', 10)
+
+// Origin-leak subdomain prefixes — never create A records for these against WHM_HOST.
+// `mail.` is included because cPanel used to auto-create it pointing at the server.
+const LEAK_PREFIXES = ['mail', 'cpanel', 'webmail', 'webdisk', 'whm', 'autodiscover', 'autoconfig']
+
 const cfHeaders = () => ({
   'X-Auth-Email': CF_EMAIL,
   'X-Auth-Key': CF_API_KEY,
@@ -238,16 +252,48 @@ const deleteDNSRecord = async (zoneId, recordId) => {
 // ─── Default DNS records ────────────────────────────────
 
 /**
- * Create default DNS records for a domain: A record @ + www CNAME
+ * Create default DNS records for a domain: root + www.
+ *
+ * ORIGIN-LEAK HARDENED: If the caller is not using Cloudflare Tunnel, this
+ * function REFUSES to publish an A record pointing to the hosting origin IP.
+ * The only ways root/www get published now:
+ *   1. Cloudflare Tunnel CNAME (recommended — origin never touches public DNS)
+ *   2. A record to a non-origin IP explicitly provided by the caller
+ *
+ * @param {string} zoneId
+ * @param {string} domainName
+ * @param {string} serverIP - may be WHM_HOST (origin) — we'll block that unless tunnel
+ * @param {string} recordType - 'A' or 'CNAME'
  */
 const createDefaultDNSRecords = async (zoneId, domainName, serverIP, recordType = 'A') => {
   const results = []
+  const originIP = process.env.WHM_HOST || ''
 
-  // Root record (A or CNAME) — proxied through Cloudflare for SSL & CDN
+  // SAFETY: If caller passes the origin IP and we have a tunnel, silently upgrade to CNAME→tunnel.
+  // If caller passes the origin IP and we have NO tunnel, refuse — don't leak the origin.
+  const isOriginIP = serverIP && originIP && serverIP === originIP
+
+  if (isOriginIP && CF_TUNNEL_CNAME) {
+    // Upgrade to tunnel — origin IP never enters DNS
+    const rootResult = await createDNSRecord(zoneId, 'CNAME', domainName, CF_TUNNEL_CNAME, 1, true)
+    results.push({ type: 'root-CNAME', ...rootResult })
+    const wwwResult = await createDNSRecord(zoneId, 'CNAME', `www.${domainName}`, CF_TUNNEL_CNAME, 1, true)
+    results.push({ type: 'www-CNAME', ...wwwResult })
+    log(`[CF DNS] ${domainName}: Using tunnel (caller passed origin IP — upgraded to CNAME → ${CF_TUNNEL_CNAME})`)
+    const allSuccess = results.every(r => r.success)
+    return { success: allSuccess, results }
+  }
+
+  if (isOriginIP && !CF_TUNNEL_CNAME) {
+    const msg = `[CF DNS] ❌ REFUSING to create A record for ${domainName} → ${serverIP} (origin IP leak). Set CF_TUNNEL_CNAME or pass a non-origin IP.`
+    log(msg)
+    return { success: false, error: 'origin_ip_leak_blocked', results: [] }
+  }
+
+  // Safe path — caller supplied a non-origin IP or CNAME target.
   const rootResult = await createDNSRecord(zoneId, recordType, domainName, serverIP, 300, true)
   results.push({ type: `root-${recordType}`, ...rootResult })
 
-  // www CNAME pointing to root — proxied through Cloudflare for SSL & CDN
   if (recordType === 'A') {
     const wwwResult = await createDNSRecord(zoneId, 'CNAME', `www.${domainName}`, domainName, 300, true)
     results.push({ type: 'www-CNAME', ...wwwResult })
@@ -262,47 +308,58 @@ const createDefaultDNSRecords = async (zoneId, domainName, serverIP, recordType 
 
 /**
  * Create hosting DNS records for a cPanel domain on Cloudflare
- * Uses Cloudflare Tunnel (CNAME) for web traffic when available, A records as fallback.
- * Management subdomains (mail, cpanel, webmail, webdisk) always use direct A records.
+ *
+ * ORIGIN-LEAK HARDENED — covers the root cause of the DigitalOcean abuse report:
+ *   • Web (root/www): REQUIRES CF_TUNNEL_CNAME. Refuses to create A→origin otherwise.
+ *   • Mail: Uses MAIL_RELAY_HOST if set. Otherwise NO mail/MX records are created
+ *     (safest default — origin IP never appears in public DNS for mail either).
+ *     The old behavior of `mail.<domain>` A → WHM_HOST is REMOVED because it was
+ *     the primary leak vector that exposed 209.38.241.9.
+ *
  * @param {string} zoneId - Cloudflare zone ID
  * @param {string} domainName - Domain name
- * @param {string} serverIP - WHM server IP (used for management subdomains)
+ * @param {string} serverIP - WHM server IP (only used for cross-check; not published)
  */
 const createHostingDNSRecords = async (zoneId, domainName, serverIP, proxied = true) => {
   const results = []
-  const useTunnel = !!CF_TUNNEL_CNAME
 
-  if (useTunnel) {
-    // Web: root CNAME → tunnel (proxied, origin IP never exposed in DNS)
-    results.push({ type: 'root-CNAME', ...(await createDNSRecord(zoneId, 'CNAME', domainName, CF_TUNNEL_CNAME, 1, true)) })
-
-    // Web: www CNAME → tunnel
-    results.push({ type: 'www-CNAME', ...(await createDNSRecord(zoneId, 'CNAME', `www.${domainName}`, CF_TUNNEL_CNAME, 1, true)) })
-
-    log(`[CF Hosting] ${domainName}: Using Cloudflare Tunnel (CNAME → ${CF_TUNNEL_CNAME})`)
-  } else {
-    // Fallback: A records (legacy — exposes origin IP)
-    results.push({ type: 'root-A', ...(await createDNSRecord(zoneId, 'A', domainName, serverIP, proxied ? 1 : 300, proxied)) })
-    results.push({ type: 'www-A', ...(await createDNSRecord(zoneId, 'A', `www.${domainName}`, serverIP, proxied ? 1 : 300, proxied)) })
-    log(`[CF Hosting] ${domainName}: Using A records (no tunnel configured)`)
+  if (!CF_TUNNEL_CNAME) {
+    const msg = `[CF Hosting] ❌ REFUSING hosting DNS for ${domainName} — CF_TUNNEL_CNAME not configured. Set env var to <tunnel-id>.cfargotunnel.com to proceed.`
+    log(msg)
+    return {
+      success: false,
+      error: 'tunnel_not_configured',
+      message: 'CF_TUNNEL_CNAME is not set. Web records would leak origin IP — aborting.',
+      results: [],
+    }
   }
 
-  // Mail: A record (always DNS only — mail can't go through CF proxy or tunnel)
-  results.push({ type: 'mail-A', ...(await createDNSRecord(zoneId, 'A', `mail.${domainName}`, serverIP, 300, false)) })
+  // Web: root + www CNAME → tunnel (origin IP never published)
+  results.push({ type: 'root-CNAME', ...(await createDNSRecord(zoneId, 'CNAME', domainName, CF_TUNNEL_CNAME, 1, true)) })
+  results.push({ type: 'www-CNAME', ...(await createDNSRecord(zoneId, 'CNAME', `www.${domainName}`, CF_TUNNEL_CNAME, 1, true)) })
+  log(`[CF Hosting] ${domainName}: Web via Cloudflare Tunnel (CNAME → ${CF_TUNNEL_CNAME})`)
 
-  // MX record for email
-  results.push({ type: 'MX', ...(await createDNSRecord(zoneId, 'MX', domainName, `mail.${domainName}`, 300, false, 10)) })
+  // Mail: external relay OR no records at all (NEVER publish mail.* → origin IP)
+  if (MAIL_RELAY_HOST) {
+    results.push({
+      type: 'MX',
+      ...(await createDNSRecord(zoneId, 'MX', domainName, MAIL_RELAY_HOST, 300, false, MAIL_RELAY_PRIORITY)),
+    })
+    log(`[CF Hosting] ${domainName}: Mail via external relay (MX → ${MAIL_RELAY_HOST} priority ${MAIL_RELAY_PRIORITY})`)
+  } else {
+    log(`[CF Hosting] ${domainName}: Skipping mail DNS (MAIL_RELAY_HOST unset — preventing origin leak via mail.*)`)
+  }
 
-  // NOTE: cpanel.*, webmail.*, webdisk.* A records intentionally NOT created.
-  // Users access cPanel via HostPanel (web panel). Direct cPanel access subdomains
-  // would expose the origin server IP in DNS, defeating the Cloudflare Tunnel.
+  // NOTE: cpanel.*, webmail.*, webdisk.*, autodiscover.*, autoconfig.* A records intentionally NOT created.
+  // Any such subdomain pointing at WHM_HOST would expose the origin in public DNS.
+  // Users access cPanel via HostPanel (web panel proxy) which already routes through the tunnel.
 
   const allSuccess = results.every(r => r.success)
   const failCount = results.filter(r => !r.success).length
   if (failCount > 0) {
     log(`[CF Hosting] ${domainName}: ${results.length - failCount}/${results.length} DNS records created`)
   } else {
-    log(`[CF Hosting] ${domainName}: All ${results.length} DNS records created`)
+    log(`[CF Hosting] ${domainName}: All ${results.length} DNS records created (origin-leak-free)`)
   }
   return { success: allSuccess, results }
 }
@@ -1123,16 +1180,19 @@ const listOriginCACerts = async (zoneId) => {
 /**
  * Migrate a domain from A-record (direct IP) to CNAME (Cloudflare Tunnel).
  * Deletes existing root + www A records and replaces with CNAME → tunnel.
+ * Also PURGES all origin-leaking subdomains (mail, cpanel, webmail, webdisk,
+ * autodiscover, autoconfig) whose A records point at the origin — these are the
+ * records that typically expose WHM_HOST in public DNS / abuse reports.
  * Only works when CF_TUNNEL_CNAME is configured.
  * @param {string} zoneId - Cloudflare zone ID
  * @param {string} domainName - Domain name to migrate
  * @param {string} serverIP - WHM server IP (to identify which A records to replace)
- * @returns {{ success, migrated[], skipped[], errors[] }}
+ * @returns {{ success, migrated[], skipped[], errors[], leaksPurged[] }}
  */
 const migrateToTunnel = async (zoneId, domainName, serverIP) => {
   if (!CF_TUNNEL_CNAME) return { success: false, error: 'CF_TUNNEL_CNAME not configured' }
 
-  const migrated = [], skipped = [], errors = []
+  const migrated = [], skipped = [], errors = [], leaksPurged = []
   try {
     const records = await listDNSRecords(zoneId)
     const webNames = [domainName, `www.${domainName}`]
@@ -1174,9 +1234,51 @@ const migrateToTunnel = async (zoneId, domainName, serverIP) => {
       }
     }
 
-    return { success: errors.length === 0, migrated, skipped, errors }
+    // ── PURGE origin-leaking subdomain A records ──
+    // These are the records that actually exposed 209.38.241.9 in the DigitalOcean abuse report:
+    // anything like `mail.<domain>`, `cpanel.<domain>`, `webmail.<domain>` pointing at WHM_HOST.
+    for (const rec of records) {
+      if (rec.type !== 'A' || rec.content !== serverIP) continue
+      const prefix = rec.name.split('.')[0].toLowerCase()
+      if (!LEAK_PREFIXES.includes(prefix)) continue
+      // Don't touch root / www — those are handled above
+      if (rec.name === domainName || rec.name === `www.${domainName}`) continue
+      const del = await deleteDNSRecord(zoneId, rec.id)
+      if (del.success) {
+        leaksPurged.push({ name: rec.name, type: 'A', content: rec.content })
+        log(`[CF Tunnel] Purged origin-leak A record: ${rec.name} → ${rec.content}`)
+      } else {
+        errors.push({ name: rec.name, action: 'purge_leak', error: del.error || 'delete failed' })
+      }
+    }
+
+    // ── Also purge MX records that resolve into the origin ──
+    // If an MX points to mail.<domain> which was an A to origin, removing the A already
+    // strips the leak. We also remove the MX so prod doesn't keep trying to deliver mail
+    // to a now-nonexistent hostname. If MAIL_RELAY_HOST is set, add a clean MX.
+    const mxHostname = `mail.${domainName}`
+    const leakyMx = records.find(r => r.type === 'MX' && (r.content === mxHostname || r.content === serverIP))
+    if (leakyMx) {
+      const del = await deleteDNSRecord(zoneId, leakyMx.id)
+      if (del.success) {
+        leaksPurged.push({ name: leakyMx.name, type: 'MX', content: leakyMx.content })
+        log(`[CF Tunnel] Purged leaky MX: ${leakyMx.name} → ${leakyMx.content}`)
+      }
+    }
+    if (MAIL_RELAY_HOST) {
+      const alreadyHasRelay = records.find(r => r.type === 'MX' && r.content === MAIL_RELAY_HOST)
+      if (!alreadyHasRelay) {
+        const created = await createDNSRecord(zoneId, 'MX', domainName, MAIL_RELAY_HOST, 300, false, MAIL_RELAY_PRIORITY)
+        if (created.success) {
+          migrated.push({ name: domainName, type: 'MX', to: MAIL_RELAY_HOST })
+          log(`[CF Tunnel] Added clean MX: ${domainName} → ${MAIL_RELAY_HOST} (priority ${MAIL_RELAY_PRIORITY})`)
+        }
+      }
+    }
+
+    return { success: errors.length === 0, migrated, skipped, errors, leaksPurged }
   } catch (err) {
-    return { success: false, migrated, skipped, errors: [{ message: err.message }] }
+    return { success: false, migrated, skipped, errors: [{ message: err.message }], leaksPurged }
   }
 }
 

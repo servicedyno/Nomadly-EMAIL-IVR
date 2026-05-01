@@ -915,17 +915,18 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
 
     // 2. Create DNS record in Cloudflare for the subdomain
     try {
-      const subdomainWhmHost = req.whmHost || process.env.WHM_HOST
       const zone = await cfService.getZoneByName(rootdomain)
       if (zone) {
         const fqdn = `${subdomain}.${rootdomain}`
-        // Use tunnel CNAME if available, otherwise fallback to A record
+        // ORIGIN-LEAK HARDENED: Only create subdomain via tunnel CNAME.
+        // Previously fell back to A → WHM_HOST when tunnel was unset, which leaked
+        // the origin IP in public DNS (this is how `huntingtononlinebanking.it`
+        // exposed 209.38.241.9 to Cloudflare's abuse forwarder).
         if (cfService.CF_TUNNEL_CNAME) {
           await cfService.createDNSRecord(zone.id, 'CNAME', fqdn, cfService.CF_TUNNEL_CNAME, 1, true)
           log(`[Panel] Created CF DNS CNAME for subdomain: ${fqdn} → ${cfService.CF_TUNNEL_CNAME} (tunnel)`)
-        } else if (subdomainWhmHost) {
-          await cfService.createDNSRecord(zone.id, 'A', fqdn, subdomainWhmHost, 1, true)
-          log(`[Panel] Created CF DNS A record for subdomain: ${fqdn} → ${subdomainWhmHost}`)
+        } else {
+          log(`[Panel] ⚠️ CF_TUNNEL_CNAME not set — skipping DNS for ${fqdn} to avoid origin IP leak`)
         }
       }
     } catch (cfErr) {

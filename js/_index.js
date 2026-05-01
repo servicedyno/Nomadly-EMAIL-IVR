@@ -5311,18 +5311,22 @@ bot?.on('message', msg => {
     if (!cfService.CF_TUNNEL_CNAME) {
       return send(chatId, '❌ <b>CF_TUNNEL_CNAME</b> not configured in .env', { parse_mode: 'HTML' })
     }
-    send(chatId, `🔄 <b>Tunnel Migration</b>\n\nMigrating WHM domains from A records to CNAME → <code>${cfService.CF_TUNNEL_CNAME}</code>\n\nPlease wait...`, { parse_mode: 'HTML' })
+    send(chatId, `🔄 <b>Tunnel Migration + Origin-Leak Purge</b>\n\nMigrating ALL hosting zones to CNAME → <code>${cfService.CF_TUNNEL_CNAME}</code>\nPurging leak-prone subdomains: <code>mail, cpanel, webmail, webdisk, autodiscover, autoconfig</code>\n\nPlease wait...`, { parse_mode: 'HTML' })
 
     const WHM_HOST = process.env.WHM_HOST
-    const WHM_TOKEN = process.env.WHM_TOKEN
     try {
-      // Get all cPanel accounts from WHM
+      // Get all cPanel accounts from WHM (primary + addon domains both need sweeping)
       const whm = require('./whm-service')
       const accounts = await whm.listAccounts()
-      const domains = (accounts || []).map(a => a.domain).filter(Boolean)
+      const domainSet = new Set()
+      for (const a of (accounts || [])) {
+        if (a.domain) domainSet.add(a.domain)
+        if (Array.isArray(a.addonDomains)) a.addonDomains.forEach(d => d && domainSet.add(d))
+      }
+      const domains = Array.from(domainSet)
 
       let report = '📊 <b>Tunnel Migration Report</b>\n\n'
-      let totalMigrated = 0, totalSkipped = 0, totalErrors = 0
+      let totalMigrated = 0, totalSkipped = 0, totalErrors = 0, totalLeaks = 0
 
       for (const domain of domains) {
         const zone = await cfService.getZoneByName(domain)
@@ -5332,12 +5336,14 @@ bot?.on('message', msg => {
           continue
         }
         const result = await cfService.migrateToTunnel(zone.id, domain, WHM_HOST)
-        if (result.migrated?.length > 0) {
-          report += `✅ <b>${domain}</b> — migrated ${result.migrated.length} records\n`
-          totalMigrated += result.migrated.length
-        }
-        if (result.skipped?.length > 0) {
-          report += `⏭ <b>${domain}</b> — already on tunnel\n`
+        const migCount = result.migrated?.length || 0
+        const leakCount = result.leaksPurged?.length || 0
+        if (migCount > 0 || leakCount > 0) {
+          report += `✅ <b>${domain}</b> — ${migCount} migrated, ${leakCount} leaks purged\n`
+          totalMigrated += migCount
+          totalLeaks += leakCount
+        } else if (result.skipped?.length > 0) {
+          report += `⏭ <b>${domain}</b> — already clean\n`
           totalSkipped++
         }
         if (result.errors?.length > 0) {
@@ -5346,8 +5352,8 @@ bot?.on('message', msg => {
         }
       }
 
-      report += `\n<b>Summary:</b> ${totalMigrated} migrated, ${totalSkipped} skipped, ${totalErrors} errors`
-      report += `\n\n⚠️ <b>Important:</b> Sites will only work if <code>cloudflared</code> is running on the WHM server.`
+      report += `\n<b>Summary:</b> ${totalMigrated} migrated, <b>${totalLeaks} origin-leaks purged</b>, ${totalSkipped} skipped, ${totalErrors} errors`
+      report += `\n\n⚠️ <b>Important:</b> Sites only work if <code>cloudflared</code> is running on the WHM server.`
       return send(chatId, report, { parse_mode: 'HTML' })
     } catch (e) {
       log(`[Admin] /tunnel error: ${e.message}`)
