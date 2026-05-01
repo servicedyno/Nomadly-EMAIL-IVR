@@ -9953,7 +9953,7 @@ All verified numbers generated during sourcing.`))
   }
   if (action === 'adminConfirmMessage') {
     if (isBackPress(message) || isNoPress(message)) return goto[admin.messageUsers]()
-    if (message !== t.yes) return send(chatId, t.what)
+    if (!isYesPress(message)) return send(chatId, t.what)
 
     await set(state, chatId, 'action', 'none')
     
@@ -15822,7 +15822,7 @@ ${message.replace(/\n/g, '<br>')}
   }
   if (action === 'get-free-domain') {
     if (isBackPress(message) || isNoPress(message)) return goto['choose-domain-to-buy']()
-    if (message !== t.yes) return send(chatId, t.what)
+    if (!isYesPress(message)) return send(chatId, t.what)
 
     const domain = info?.domain
     const lang = info?.userLanguage ?? 'en'
@@ -16371,8 +16371,8 @@ ${message.replace(/\n/g, '<br>')}
   }
   // Switch to Cloudflare confirmation handler
   if (action === 'confirm-switch-to-cloudflare') {
-    if (isBackPress(message) || isNoPress(message) || message === 'No') return goto['manage-nameservers-menu']()
-    if (message !== t.yes && message !== 'Yes') return send(chatId, t.what)
+    if (isBackPress(message) || isNoPress(message)) return goto['manage-nameservers-menu']()
+    if (!isYesPress(message)) return send(chatId, t.what)
 
     const domain = info?.domainToManage
     if (!domain) return send(chatId, t.noDomainSelected)
@@ -16410,8 +16410,8 @@ ${message.replace(/\n/g, '<br>')}
 
   // Switch to Provider Default confirmation handler
   if (action === 'confirm-switch-to-provider-default') {
-    if (isBackPress(message) || isNoPress(message) || message === 'No') return goto['manage-nameservers-menu']()
-    if (message !== t.yes && message !== 'Yes') return send(chatId, t.what)
+    if (isBackPress(message) || isNoPress(message)) return goto['manage-nameservers-menu']()
+    if (!isYesPress(message)) return send(chatId, t.what)
 
     const domain = info?.domainToManage
     if (!domain) return send(chatId, t.noDomainSelected)
@@ -16538,7 +16538,7 @@ ${message.replace(/\n/g, '<br>')}
   }
   if (action === 'confirm-dns-record-id-to-delete') {
     if (isBackPress(message) || isNoPress(message)) return goto['select-dns-record-id-to-delete']()
-    if (message !== t.yes) return send(chatId, t.what)
+    if (!isYesPress(message)) return send(chatId, t.what)
 
     const { domainNameId, dnsRecords, domainToManage, delId, dnsSource } = info
     if(!!dnsRecords && !!dnsRecords?.[delId]) {
@@ -17107,10 +17107,10 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
   // Handle CNAME/A conflict confirmation
   if (action === 'dns-confirm-conflict-replace') {
-    if (isNoPress(message) || message === 'No' || isBackPress(message) || isCancelPress(message)) {
+    if (isNoPress(message) || isBackPress(message) || isCancelPress(message)) {
       return goto['choose-dns-action']()
     }
-    if (message !== t.yes && message !== 'Yes') return send(chatId, t.what)
+    if (!isYesPress(message)) return send(chatId, t.what)
 
     const domain = info?.domainToManage
     const recordType = info?.dnsAddRecordType
@@ -17391,7 +17391,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     }
     if (isNoPress(message)) return goto[a.walletSelectCurrency]()
 
-    if (message !== t.yes) return send(chatId, t.what)
+    if (!isYesPress(message)) return send(chatId, t.what)
 
     try {
       const handler = walletOk[info?.lastStep]

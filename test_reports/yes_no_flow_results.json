@@ -1,0 +1,55 @@
+{
+  "total": 12,
+  "passed": 12,
+  "failed": 0,
+  "results": [
+    {
+      "test": "sanity/plain-Yes",
+      "ok": true
+    },
+    {
+      "test": "sanity/emoji-Yes",
+      "ok": true
+    },
+    {
+      "test": "sanity/plain-No",
+      "ok": true
+    },
+    {
+      "test": "sanity/emoji-No",
+      "ok": true
+    },
+    {
+      "test": "sanity/fr-Yes",
+      "ok": true
+    },
+    {
+      "test": "sanity/fr-No",
+      "ok": true
+    },
+    {
+      "test": "sanity/zh-Yes",
+      "ok": true
+    },
+    {
+      "test": "sanity/zh-No",
+      "ok": true
+    },
+    {
+      "test": "sanity/hi-Yes",
+      "ok": true
+    },
+    {
+      "test": "sanity/hi-No",
+      "ok": true
+    },
+    {
+      "test": "sanity/confirm",
+      "ok": true
+    },
+    {
+      "test": "askDomainToUseWithShortener/emoji-Yes",
+      "ok": true
+    }
+  ]
+}

@@ -51,24 +51,34 @@ Replaced the brittle plain-text comparison with the already-existing robust matc
    }
 ```
 
-## Audit of other Yes/No flows (no action needed)
-| Line | Action | Keyboard | Validation | Status |
-|------|--------|----------|------------|--------|
-| 9955 | `adminConfirmMessage` | `[t.yes, t.no]` emoji | `isNoPress` + `message !== t.yes` | ✅ OK |
-| 15823 | `get-free-domain` | `[t.yes, t.no]` emoji | `isNoPress` + `message !== t.yes` | ✅ OK |
-| 16373 | `confirm-switch-to-cloudflare` | `yes_no` plain | `isNoPress` + `message !== t.yes && !== 'Yes'` | ✅ OK |
-| 16412 | `confirm-switch-to-provider-default` | `[t.yes, t.no]` emoji | `isNoPress` + `message !== t.yes && !== 'Yes'` | ✅ OK |
-| 16539 | `confirm-dns-record-id-to-delete` | `[t.yes, t.no]` emoji | `isNoPress` + `message !== t.yes` | ✅ OK |
-| 17109 | `dns-confirm-conflict-replace` | `[t.yes, t.no]` emoji | `isNoPress` + `message !== t.yes && !== 'Yes'` | ✅ OK |
-| 17371 | `walletSelectCurrencyConfirm` | `[t.yes], [t.no]` emoji | `isNoPress` + `message !== t.yes` | ✅ OK |
-| 25827 | `listen_reset_login` | `yes_no` plain | `isYesPress` | ✅ OK |
+## Follow-up refactor — defence-in-depth across ALL Yes/No handlers
 
-Only **one** handler was broken (the shortener prompt). All others already used either `message !== t.yes` (matches the emoji keyboard buttons) or the robust matchers.
+After the initial fix, **all** confirmation handlers were migrated to the robust
+`isYesPress()` / `isNoPress()` matchers so no future keyboard-text change can
+silently break them. Each of these lines previously relied on brittle
+`message !== t.yes` / `message === 'No'` string comparisons:
+
+| Line | Action | Before | After |
+|------|--------|--------|-------|
+| 9956 | `adminConfirmMessage` | `message !== t.yes` | `!isYesPress(message)` |
+| 15825 | `get-free-domain` | `message !== t.yes` | `!isYesPress(message)` |
+| 16374–75 | `confirm-switch-to-cloudflare` | `message === 'No'` / `message !== t.yes && !== 'Yes'` | `isNoPress(message)` / `!isYesPress(message)` |
+| 16413–14 | `confirm-switch-to-provider-default` | same as above | same refactor |
+| 16541 | `confirm-dns-record-id-to-delete` | `message !== t.yes` | `!isYesPress(message)` |
+| 17110–13 | `dns-confirm-conflict-replace` | `message === 'No'` / `message !== t.yes && !== 'Yes'` | `isNoPress(message)` / `!isYesPress(message)` |
+| 17394 | `walletSelectCurrencyConfirm` | `message !== t.yes` | `!isYesPress(message)` |
+| 25828 | `listen_reset_login` | already `isYesPress` | no change |
+
+Every confirmation prompt now accepts emoji-prefixed, plain, and multilingual
+(EN / FR / ZH / HI) Yes/No in a single consistent idiom.
 
 ## Verification
 - ✅ Lint passes (`mcp_lint_javascript` — 0 issues)
-- ✅ Node.js service restarted cleanly, webhook re-registered
+- ✅ Node.js service restarted cleanly, webhook re-registered, zero startup errors
 - ✅ Matcher unit test confirmed `isYesPress('✅ Yes')` → `true`, `isNoPress('❌ No')` → `true` in all 4 languages (en/fr/zh/hi)
+- ✅ **Targeted Yes/No regression test** (`/app/test_yes_no_flows.py`) — 12/12 pass (all button-text variants across 4 languages + end-to-end `askDomainToUseWithShortener` flow)
+- ✅ **Comprehensive webhook simulator** (`/app/webhook_sim.py`) — 128/128 pass across EN/FR/ZH/HI (main menu, domain/wallet submenus, digital-products, virtual-card, anti-red hosting, subscriptions, reseller, back/cancel navigation, buy-leads flow, validate-numbers, support)
+- ✅ Driven via `@hostbay_support` (chatId 5168006768) — existing test identity baked into the simulator
 
 ## Production Deployment
 The fix is applied in **dev** (`/app/js/_index.js`). Production runs on Railway and will auto-deploy when the commit lands on the connected branch — use the **Save to GitHub** button in Emergent to push.
