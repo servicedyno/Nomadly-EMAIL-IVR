@@ -24,3 +24,14 @@
 ## Bot
 - Username: @NomadlyBot
 ## Panel Local Test Account\n- Username: testuser\n- PIN: 123456\n- Domain: example-test.com
+
+## DigitalOcean (WHM host management)
+- API token: stored in `/app/backend/.env` as `DIGITALOCEAN_API_TOKEN` (gitignored — never commit)
+- Account email: `moxxcompany@gmail.com`
+- WHM droplet: `id=557194941`, name `ubuntu-s-1vcpu-2gb-fra1-01`, region `fra1`, IP `209.38.241.9` (also `WHM_HOST` in `.env`)
+- Tag: `WHM`
+- Image: stock `ubuntu-24-04-x64` (cPanel installed manually on top)
+- SSH keys on account: 0 — droplet is password-only auth
+- Last DO action: `power_cycle` at 2026-05-01 06:23:53 UTC (after license activation)
+- License: ACTIVE since 2026-05-01 02:27:02 UTC, package `CPDIRECT-PRO-CLOUD` via cPanel Direct
+- ⚠️ Root SSH password attempted (`$Katiekendra12c`) is **rejected** by sshd via 3 different auth paths (sshpass, paramiko, raw ssh). Need new credential — re-paste, or trigger DO `password_reset` action (reboots droplet, emails new password to account email).
