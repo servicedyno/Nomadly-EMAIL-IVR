@@ -15462,13 +15462,14 @@ ${message.replace(/\n/g, '<br>')}
     return goto.askDomainToUseWithShortener()
   }
   if (action === a.askDomainToUseWithShortener) {
-    const yesNo = trans('yesNo')
     if (isBackPress(message)) return goto['choose-domain-to-buy']()
-    if (!yesNo.includes(message)) return send(chatId, t.what)
-    saveInfo('askDomainToUseWithShortener', message === yesNo[0])
+    const yesPressed = isYesPress(message)
+    const noPressed = isNoPress(message)
+    if (!yesPressed && !noPressed) return send(chatId, t.what)
+    saveInfo('askDomainToUseWithShortener', yesPressed)
 
     // Yes = shortener: skip NS selection, use Cloudflare for DNS management
-    if (message === yesNo[0]) {
+    if (yesPressed) {
       saveInfo('nsChoice', 'cloudflare')
 
       return goto['domain-pay']()
