@@ -7,7 +7,13 @@ const { log } = require('console')
 const WHM_HOST = process.env.WHM_HOST
 const WHM_TOKEN = process.env.WHM_TOKEN
 const WHM_USERNAME = process.env.WHM_USERNAME || 'root'
-const WHM_BASE = `https://${WHM_HOST}:2087/json-api`
+// ── Tunnel routing (origin-IP-hidden) ──
+// When WHM_API_URL is set, every WHM JSON API call is routed through that
+// URL instead of `https://<WHM_HOST>:2087`. Used to route through Cloudflare
+// Tunnel so the origin IP and port 2087 can stay locked down.
+// Example value: "https://whm-api.hostbay.io"
+const WHM_API_URL = (process.env.WHM_API_URL || '').replace(/\/+$/, '')
+const WHM_BASE = WHM_API_URL ? `${WHM_API_URL}/json-api` : `https://${WHM_HOST}:2087/json-api`
 const WHM_AUTH = `whm ${WHM_USERNAME}:${WHM_TOKEN}`
 
 // Plan name mapping: bot plan names → WHM package names

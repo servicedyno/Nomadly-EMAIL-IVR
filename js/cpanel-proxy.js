@@ -15,6 +15,12 @@ const FormData = require('form-data')
 
 const WHM_HOST = process.env.WHM_HOST
 const CPANEL_PORT = 2083
+// ── Tunnel routing (origin-IP-hidden) ──
+// When CPANEL_API_URL is set, every cPanel UAPI call is routed through that
+// URL instead of `https://<WHM_HOST>:2083`. Used to route through Cloudflare
+// Tunnel so the origin IP and ports 2083/2087 can stay locked down.
+// Example value: "https://cpanel-api.hostbay.io"
+const CPANEL_API_URL = (process.env.CPANEL_API_URL || '').replace(/\/+$/, '')
 
 // Accept self-signed certs on WHM
 const httpsAgent = new https.Agent({ rejectUnauthorized: false })
@@ -57,6 +63,10 @@ function _adminAlertDown(reason, host) {
 // ─── Helpers ────────────────────────────────────────────
 
 function getBaseUrl(host) {
+  // If a custom (tunnel) URL is configured AND the caller didn't pass a
+  // per-customer reseller `host`, route through the tunnel hostname.
+  // Per-customer hosts (e.g. resellers on different WHM boxes) still go direct.
+  if (CPANEL_API_URL && !host) return CPANEL_API_URL
   const effectiveHost = host || WHM_HOST
   return `https://${effectiveHost}:${CPANEL_PORT}`
 }
@@ -400,9 +410,8 @@ async function listDomains(cpUser, cpPass, host = null) {
 
 async function addAddonDomain(cpUser, cpPass, domain, subDomain, dir, host = null) {
   // Use cPanel API2 for AddonDomain::addaddondomain (UAPI module not available on all versions)
-  const effectiveHost = host || WHM_HOST
   const auth = { username: cpUser, password: cpPass }
-  const url = `https://${effectiveHost}:2083/json-api/cpanel`
+  const url = `${getBaseUrl(host)}/json-api/cpanel`
   const params = {
     cpanel_jsonapi_user: cpUser,
     cpanel_jsonapi_apiversion: 2,
@@ -434,9 +443,8 @@ async function addAddonDomain(cpUser, cpPass, domain, subDomain, dir, host = nul
 }
 
 async function removeAddonDomain(cpUser, cpPass, domain, subDomain, mainDomain, host = null) {
-  const effectiveHost = host || WHM_HOST
   const auth = { username: cpUser, password: cpPass }
-  const url = `https://${effectiveHost}:2083/json-api/cpanel`
+  const url = `${getBaseUrl(host)}/json-api/cpanel`
   const params = {
     cpanel_jsonapi_user: cpUser,
     cpanel_jsonapi_apiversion: 2,
@@ -534,9 +542,8 @@ async function listSubdomains(cpUser, cpPass, host = null) {
 
 async function createSubdomain(cpUser, cpPass, subdomain, rootdomain, dir, host = null) {
   // Use cpanel API2 for SubDomain::addsubdomain
-  const effectiveHost = host || WHM_HOST
   const auth = { username: cpUser, password: cpPass }
-  const url = `https://${effectiveHost}:2083/json-api/cpanel`
+  const url = `${getBaseUrl(host)}/json-api/cpanel`
   const params = {
     cpanel_jsonapi_user: cpUser,
     cpanel_jsonapi_apiversion: 2,
@@ -571,7 +578,7 @@ async function deleteSubdomain(cpUser, cpPass, fullSubdomain, host = null) {
   // Use cpanel API2 for SubDomain::delsubdomain
   const effectiveHost = host || WHM_HOST
   const auth = { username: cpUser, password: cpPass }
-  const url = `https://${effectiveHost}:2083/json-api/cpanel`
+  const url = `${getBaseUrl(host)}/json-api/cpanel`
   const params = {
     cpanel_jsonapi_user: cpUser,
     cpanel_jsonapi_apiversion: 2,
