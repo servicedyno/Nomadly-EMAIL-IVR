@@ -23,7 +23,7 @@ function ok(name, cond, note = '') {
 function isBackPress(message) {
   if (!message || typeof message !== 'string') return false
   const m = message.trim()
-  if (m === '↩️ Back' || m === '🔙 Back') return true
+  if (m === '↩️ Back' || m === '🔙 Back' || m === '⬅️ Back') return true
   const stripped = m.replace(/^[\p{Extended_Pictographic}\u200d\ufe0f\s↩🔙]+/u, '').trim()
   const knownBacks = new Set(['Back', 'Retour', '返回', 'वापस'])
   return knownBacks.has(stripped)
@@ -36,9 +36,35 @@ ok('_index.js no longer contains strict "message === t.back" patterns',
    !/message\s*===\s*t\.back\b(?!Button)/.test(src),
    '(use replace_all should have caught all of them)')
 
+// ─── Standardization: exactly one back-button style is rendered ───────
+// (THE assertion: every visible button is `↩️ Back`, never `🔙 Back` / `⬅️ Back`
+//  / `t.backButton` / raw `t.back` in a row. The two non-button references
+//  to `🔙 Back` and `⬅️ Back` inside `isBackPress` are preserved for backward
+//  compatibility — accepting old keyboards that may still be on user screens.)
+const occ = (re) => (src.match(re) || []).length
+ok('rendered keyboards use ONLY "↩️ Back"',
+   occ(/'↩️ Back'/g) > 100,                         // sanity: a lot of them
+   `count=${occ(/'↩️ Back'/g)}`)
+ok('NO "🔙 Back" buttons remain (except inside isBackPress accept-list)',
+   occ(/'🔙 Back'/g) === 1,                         // only inside isBackPress()
+   `count=${occ(/'🔙 Back'/g)}`)
+ok('NO "⬅️ Back" buttons remain (except inside isBackPress accept-list)',
+   occ(/'⬅️ Back'/g) === 1,                         // only inside isBackPress()
+   `count=${occ(/'⬅️ Back'/g)}`)
+ok('NO "t.backButton" references remain anywhere',
+   occ(/t\.backButton\b/g) === 0,
+   `count=${occ(/t\.backButton\b/g)}`)
+ok('NO "[t.back]" raw rows remain (was 77)',
+   occ(/\[t\.back\]/g) === 0,
+   `count=${occ(/\[t\.back\]/g)}`)
+ok('NO "t.back || ..." fallback patterns remain',
+   occ(/t\.back\s*\|\|\s*'/g) === 0,
+   `count=${occ(/t\.back\s*\|\|\s*'/g)}`)
+
 // ─── Visible button strings (must all return true) ────────────────────
 ok('"↩️ Back" matches (THE rage-tap regression)', isBackPress('↩️ Back') === true)
 ok('"🔙 Back" matches', isBackPress('🔙 Back') === true)
+ok('"⬅️ Back" matches (legacy t.backButton style)', isBackPress('⬅️ Back') === true)
 ok('"🔙 Retour" matches (fr)', isBackPress('🔙 Retour') === true)
 ok('"🔙 返回" matches (zh)', isBackPress('🔙 返回') === true)
 ok('"🔙 वापस" matches (hi)', isBackPress('🔙 वापस') === true)

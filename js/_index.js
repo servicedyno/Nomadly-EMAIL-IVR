@@ -1139,7 +1139,7 @@ function isBackPress(message) {
   if (!message || typeof message !== 'string') return false
   const m = message.trim()
   // Fast path: emoji-prefixed English (most common UI button)
-  if (m === '↩️ Back' || m === '🔙 Back') return true
+  if (m === '↩️ Back' || m === '🔙 Back' || m === '⬅️ Back') return true
   // Plain locale words (any language) — trim emojis if any
   const stripped = m.replace(/^[\p{Extended_Pictographic}\u200d\ufe0f\s↩🔙]+/u, '').trim()
   // Match against the 'back' translation in any of the 4 locales
@@ -6000,7 +6000,7 @@ bot?.on('message', msg => {
         : k.of([
             Object.values(payIn),
             [btn.applyCoupon],
-            [t.backButton],
+            ['↩️ Back'],
           ])
       await set(state, chatId, 'action', 'hosting-pay')
       send(chatId, hP.generateInvoiceText(payload), payKeyboard)
@@ -6095,7 +6095,7 @@ bot?.on('message', msg => {
         [t.dpEsim],
         [t.dpEsimAirvoice],
         [t.dpIonosSmtp],
-        [t.back, '🏠 Main Menu'],
+        ['↩️ Back', '🏠 Main Menu'],
       ]))
     },
     'digital-product-pay': async () => {
@@ -6116,7 +6116,7 @@ bot?.on('message', msg => {
         [t.dpAirvoice3m],
         [t.dpAirvoice6m],
         [t.dpAirvoice1y],
-        [t.back],
+        ['↩️ Back'],
       ]))
     },
     // ━━━ Virtual Card ━━━
@@ -6160,7 +6160,7 @@ bot?.on('message', msg => {
         [t.mpMyConversations],
         [t.mpMyListings],
         [t.mpAiHelper],
-        [t.back, '🏠 Main Menu'],
+        ['↩️ Back', '🏠 Main Menu'],
       ]))
     },
     'leads-pay': async () => {
@@ -6190,7 +6190,7 @@ bot?.on('message', msg => {
       const domain = info?.domain || ''
       const price = info?.price || ''
       const priceText = domain && price ? `✅ <b>${domain}</b> — <b>$${price}</b>\n\n` : ''
-      send(chatId, trans('t.wlt_3', priceText, t.askDomainToUseWithShortener), k.of([[t.yes, t.no], [t.back]]))
+      send(chatId, trans('t.wlt_3', priceText, t.askDomainToUseWithShortener), k.of([[t.yes, t.no], ['↩️ Back']]))
     },
     domainNsSelect: async () => {
       await set(state, chatId, 'action', a.domainNsSelect)
@@ -6248,7 +6248,7 @@ bot?.on('message', msg => {
       send(chatId, trans('t.wlt_6'), trans('k.of', [...domains.map(d => [d])]))
     },
     'get-free-domain': async () => {
-      send(chatId, t.chooseFreeDomainText,  k.of([[t.yes, t.no], [t.back]]))
+      send(chatId, t.chooseFreeDomainText,  k.of([[t.yes, t.no], ['↩️ Back']]))
       await set(state, chatId, 'action', 'get-free-domain')
     },
 
@@ -6274,7 +6274,7 @@ bot?.on('message', msg => {
         const nameLabel = r.recordName === domainToManage ? '@' : (r.recordName || '@').replace('.' + domainToManage, '')
         return [`${r.originalIndex + 1}. ${r.recordType} ${nameLabel} → ${short}`]
       })
-      const keyboard = { parse_mode: 'HTML', reply_markup: { keyboard: [...recordBtns, [t.back, t.cancel]] } }
+      const keyboard = { parse_mode: 'HTML', reply_markup: { keyboard: [...recordBtns, ['↩️ Back', t.cancel]] } }
       send(chatId, t.deleteDnsTxt, keyboard)
       await set(state, chatId, 'action', 'select-dns-record-id-to-delete')
     },
@@ -6284,7 +6284,7 @@ bot?.on('message', msg => {
       const delId = info?.delId
       const rec = records[delId]
       const label = rec ? `<b>${rec.recordType}</b> → ${rec.recordContent || '—'}` : 'this record'
-      send(chatId, trans('t.wlt_7', label), k.of([[t.yes, t.no], [t.back]]))
+      send(chatId, trans('t.wlt_7', label), k.of([[t.yes, t.no], ['↩️ Back']]))
       await set(state, chatId, 'action', 'confirm-dns-record-id-to-delete')
     },
 
@@ -6341,7 +6341,7 @@ bot?.on('message', msg => {
 
       // Dynamic keyboard — custom NS domains only get Manage NS
       const shortenerBtn = shortenerActive ? t.deactivateShortener : t.activateShortener
-      const _bc = [t.backButton || '⬅️ Back']
+      const _bc = ['↩️ Back']
       let kbRows
       if (nameserverType === 'custom') {
         // Custom nameservers: DNS is managed externally — surface NS management prominently
@@ -6377,7 +6377,7 @@ bot?.on('message', msg => {
         kbRows.push([t.switchToProviderDefault])
       }
       kbRows.push([t.setCustomNs])
-      kbRows.push([t.back])
+      kbRows.push(['↩️ Back'])
 
       const keyboard = {
         parse_mode: 'HTML',
@@ -6412,7 +6412,7 @@ bot?.on('message', msg => {
         const short = label.length > 30 ? label.substring(0, 28) + '..' : label
         recordBtns.push([`${nonNsIndex}. ${r.recordType} → ${short}`])
       })
-      const keyboard = { parse_mode: 'HTML', reply_markup: { keyboard: [...recordBtns, [t.back, t.cancel]] } }
+      const keyboard = { parse_mode: 'HTML', reply_markup: { keyboard: [...recordBtns, ['↩️ Back', t.cancel]] } }
       send(chatId, t.updateDnsTxt, keyboard)
       await set(state, chatId, 'action', 'select-dns-record-id-to-update')
     },
@@ -6479,7 +6479,7 @@ Enter new value:`), bc)
         msg += `  NS${i + 1}: <code>${r.recordContent || '—'}</code>\n`
       })
       msg += `\nEnter all new nameservers (one per line, min 2, max 4):\n\n<i>Example:\nns1.example.com\nns2.example.com\nns3.example.com</i>`
-      send(chatId, msg, { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back, t.cancel]] } })
+      send(chatId, msg, { parse_mode: 'HTML', reply_markup: { keyboard: [['↩️ Back', t.cancel]] } })
     },
 
     'select-dns-record-type-to-add': async () => {
@@ -6582,7 +6582,7 @@ Enter new value:`), bc)
       await set(state, chatId, 'action', admin.messageUsers)
     },
     adminConfirmMessage: async () => {
-      send(chatId, trans('t.dom_confirm_prompt'),  k.of([[t.yes, t.no], [t.back]]))
+      send(chatId, trans('t.dom_confirm_prompt'),  k.of([[t.yes, t.no], ['↩️ Back']]))
       await set(state, chatId, 'action', 'adminConfirmMessage')
     },
     broadcastSettings: async () => {
@@ -6627,7 +6627,7 @@ Enter new value:`), bc)
         tierNudge = nudges[lang] || nudges.en
       }
       
-      send(chatId, t.wallet(usdBal) + tierLine + walletTip + tierNudge, k.of([[u.deposit], [u.txHistory], [u.myTier], [t.back]]))
+      send(chatId, t.wallet(usdBal) + tierLine + walletTip + tierNudge, k.of([[u.deposit], [u.txHistory], [u.myTier], ['↩️ Back']]))
     },
     // ── Transaction History ──
     txHistory: async () => {
@@ -6826,10 +6826,10 @@ Enter new value:`), bc)
 
         msg += `\n${'─'.repeat(25)}\nShowing last ${recent.length} transaction${recent.length > 1 ? 's' : ''}`
 
-        send(chatId, msg, { parse_mode: 'HTML', ...k.of([[u.deposit], [t.back]]) })
+        send(chatId, msg, { parse_mode: 'HTML', ...k.of([[u.deposit], ['↩️ Back']]) })
       } catch (e) {
         log(`[TxHistory] Error for ${chatId}: ${e.message}`)
-        send(chatId, trans('t.wlt_10'), k.of([[t.back]]))
+        send(chatId, trans('t.wlt_10'), k.of([['↩️ Back']]))
       }
     },
     //
@@ -6848,7 +6848,7 @@ Enter new value:`), bc)
       const buttons = []
       if (bankLabel && process.env.HIDE_BANK_PAYMENT !== 'true') buttons.push([bankLabel])
       buttons.push([cryptoLabel])
-      buttons.push([t.back])
+      buttons.push(['↩️ Back'])
       send(chatId, trans('t.wlt_11', amount), k.of(buttons))
     },
     //
@@ -6998,7 +6998,7 @@ Enter new value:`), bc)
       await saveInfo('coin', u.usd)
       const { usdBal } = await getBalance(walletOf, chatId)
       const finalPrice = info?.couponApplied ? info?.newPrice : (info?.price || info?.totalPrice || 0)
-      send(chatId, t.walletSelectCurrency(usdBal) + `\n\n💵 Amount: <b>$${Number(finalPrice).toFixed(2)}</b>\n\n` + t.walletSelectCurrencyConfirm, k.of([[t.yes], [t.no], [t.back]]))
+      send(chatId, t.walletSelectCurrency(usdBal) + `\n\n💵 Amount: <b>$${Number(finalPrice).toFixed(2)}</b>\n\n` + t.walletSelectCurrencyConfirm, k.of([[t.yes], [t.no], ['↩️ Back']]))
       await set(state, chatId, 'action', a.walletSelectCurrencyConfirm)
     },
     walletSelectCurrencyConfirm: async () => {
@@ -7006,7 +7006,7 @@ Enter new value:`), bc)
       const { price, totalPrice, couponApplied, newPrice } = info
       const p = couponApplied ? newPrice : (price || totalPrice || 0)
 
-      send(chatId, trans('t.ld_1', Number(p).toFixed(2)) + t.walletSelectCurrencyConfirm, k.of([[t.yes], [t.no], [t.back]]))
+      send(chatId, trans('t.ld_1', Number(p).toFixed(2)) + t.walletSelectCurrencyConfirm, k.of([[t.yes], [t.no], ['↩️ Back']]))
       await set(state, chatId, 'action', a.walletSelectCurrencyConfirm)
     },
     //
@@ -7113,15 +7113,15 @@ Enter new value:`), bc)
 
     // Custom lead request
     customLeadRequestName: async () => {
-      send(chatId, trans('t.ld_3'), { parse_mode: 'HTML', reply_markup: { keyboard: [[t.backButton || '⬅️ Back']], resize_keyboard: true } })
+      send(chatId, trans('t.ld_3'), { parse_mode: 'HTML', reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
       await set(state, chatId, 'action', a.customLeadRequestName)
     },
     customLeadRequestCity: async () => {
-      send(chatId, t.leadCustomCity ? t.leadCustomCity(info?.customLeadTarget) : `🏙️ Which city or area do you want leads from?\n\nTarget: <b>${info?.customLeadTarget}</b>\n\nType the city name or "Nationwide" for all areas:`, { parse_mode: 'HTML', reply_markup: { keyboard: [[t.leadNationwide || 'Nationwide'], [t.backButton || '⬅️ Back']], resize_keyboard: true } })
+      send(chatId, t.leadCustomCity ? t.leadCustomCity(info?.customLeadTarget) : `🏙️ Which city or area do you want leads from?\n\nTarget: <b>${info?.customLeadTarget}</b>\n\nType the city name or "Nationwide" for all areas:`, { parse_mode: 'HTML', reply_markup: { keyboard: [[t.leadNationwide || 'Nationwide'], ['↩️ Back']], resize_keyboard: true } })
       await set(state, chatId, 'action', a.customLeadRequestCity)
     },
     customLeadRequestDetails: async () => {
-      send(chatId, t.leadCustomDetails ? t.leadCustomDetails(info?.customLeadTarget, info?.customLeadCity) : `📋 Any additional details? (e.g., preferred area codes, carrier, volume needed)\n\nTarget: <b>${info?.customLeadTarget}</b>\nArea: <b>${info?.customLeadCity}</b>\n\nType details or "None" to skip:`, { parse_mode: 'HTML', reply_markup: { keyboard: [[t.leadNone || 'None'], [t.backButton || '⬅️ Back']], resize_keyboard: true } })
+      send(chatId, t.leadCustomDetails ? t.leadCustomDetails(info?.customLeadTarget, info?.customLeadCity) : `📋 Any additional details? (e.g., preferred area codes, carrier, volume needed)\n\nTarget: <b>${info?.customLeadTarget}</b>\nArea: <b>${info?.customLeadCity}</b>\n\nType details or "None" to skip:`, { parse_mode: 'HTML', reply_markup: { keyboard: [[t.leadNone || 'None'], ['↩️ Back']], resize_keyboard: true } })
       await set(state, chatId, 'action', a.customLeadRequestDetails)
     },
 
@@ -7336,7 +7336,7 @@ Enter new value:`), bc)
     },
 
     displayEmailValidationError: () => {
-      send(chatId, t.trialPlanInValidEmail, k.of([[t.backButton]]))
+      send(chatId, t.trialPlanInValidEmail, k.of([['↩️ Back']]))
     },
 
     //free Trial Package
@@ -7346,7 +7346,7 @@ Enter new value:`), bc)
     },
     freeTrial: async () => {
       await set(state, chatId, 'action', a.freeTrial)
-      send(chatId, t.freeTrialPlanSelected(info.hostingType), k.of([[user.getFreeTrialPlanNow, t.backButton]]))
+      send(chatId, t.freeTrialPlanSelected(info.hostingType), k.of([[user.getFreeTrialPlanNow, '↩️ Back']]))
     },
     getFreeTrialPlanNow: async () => {
       await set(state, chatId, 'action', a.getPlanNow)
@@ -7357,21 +7357,21 @@ Enter new value:`), bc)
       await set(state, chatId, 'action', a.domainAvailableContinue)
       saveInfo('website_name', websiteName)
       saveInfo('existingDomain', false)
-      send(chatId, t.trialPlanContinueWithDomainNameSBSMatched(websiteName), k.of([[user.continueWithDomainNameSBS(websiteName)], [user.searchAnotherDomain], [t.backButton]]))
+      send(chatId, t.trialPlanContinueWithDomainNameSBSMatched(websiteName), k.of([[user.continueWithDomainNameSBS(websiteName)], [user.searchAnotherDomain], ['↩️ Back']]))
     },
     nameserverSelectionSBS: async (websiteName) => {
       await set(state, chatId, 'action', a.nameserverSelectionSBS)
-      const actions = [[user.privHostNS], [user.cloudflareNS], [t.backButton]];
+      const actions = [[user.privHostNS], [user.cloudflareNS], ['↩️ Back']];
       send(chatId, t.trialPlanNameserverSelection(websiteName), k.of(actions))
     },
     proceedContinueWithDomainNameSBS: async () => {
       await set(state, chatId, 'action', a.continueWithDomainNameSBS)
-      send(chatId, t.trialPlanDomainNameMatched, k.of([[t.skipEmail], [t.backButton]]))
+      send(chatId, t.trialPlanDomainNameMatched, k.of([[t.skipEmail], ['↩️ Back']]))
     },
     confirmEmailBeforeProceedingSBS: async (email) => {
       saveInfo('email', email)
       await set(state, chatId, 'action', a.confirmEmailBeforeProceedingSBS)
-      send(chatId, t.confirmEmailBeforeProceedingSBS(email), k.of([[t.yesProceedWithThisEmail(email)], [t.backButton]]))
+      send(chatId, t.confirmEmailBeforeProceedingSBS(email), k.of([[t.yesProceedWithThisEmail(email)], ['↩️ Back']]))
     },
     sendcPanelCredentialsAsEmailToUser: async () => {
       try {
@@ -7457,14 +7457,14 @@ Enter new value:`), bc)
     useMyDomain: async () => {
       const domains = await getPurchasedDomains(chatId)
       if (domains.length === 0) {
-        send(chatId, trans('t.dom_1'), k.of([user.registerANewDomain, user.connectExternalDomain, [t.backButton]]))
+        send(chatId, trans('t.dom_1'), k.of([user.registerANewDomain, user.connectExternalDomain, ['↩️ Back']]))
         return
       }
       await set(state, chatId, 'action', a.useMyDomain)
       saveInfo('existingDomain', true)
       saveInfo('connectExternalDomain', false)
       const domainButtons = domains.map(d => [d])
-      domainButtons.push([t.backButton])
+      domainButtons.push(['↩️ Back'])
       send(chatId, ({ en: 'Select a domain from your registered domains:', fr: 'Sélectionnez un domaine parmi vos domaines enregistrés :', zh: '从您的注册域名中选择一个：', hi: 'अपने पंजीकृत डोमेन में से एक चुनें:' }[lang] || 'Select a domain from your registered domains:'), k.of(domainButtons))
     },
 
@@ -7596,7 +7596,7 @@ Enter new value:`), bc)
       await set(state, chatId, 'action', a.myHostingPlans)
       const plans = await cpanelAccounts.find({ chatId: String(chatId) }).toArray()
       if (!plans || plans.length === 0) {
-        return send(chatId, trans('t.dom_2'), k.of([[user.hostingDomainsRedirect], [t.backButton]]))
+        return send(chatId, trans('t.dom_2'), k.of([[user.hostingDomainsRedirect], ['↩️ Back']]))
       }
       let text = trans('t.myHostingPlansHeader') + '\n\n'
       const planButtons = []
@@ -7609,7 +7609,7 @@ Enter new value:`), bc)
         text += `<b>${p.domain}</b> (${p.plan})\n   ${status} ${autoRenew} · ${trans('t.expiresLabel')} ${expiry}\n\n`
         planButtons.push([`🔍 ${p.domain}`])
       }
-      planButtons.push([t.backButton])
+      planButtons.push(['↩️ Back'])
       send(chatId, text, k.of(planButtons))
     },
 
@@ -7618,7 +7618,7 @@ Enter new value:`), bc)
       await set(state, chatId, 'action', a.billingMenu)
       const plans = await cpanelAccounts.find({ chatId: String(chatId) }).toArray()
       if (!plans || plans.length === 0) {
-        return send(chatId, trans('t.billingMenuEmpty'), k.of([[user.hostingDomainsRedirect], [t.backButton]]))
+        return send(chatId, trans('t.billingMenuEmpty'), k.of([[user.hostingDomainsRedirect], ['↩️ Back']]))
       }
       let text = trans('t.billingMenuHeader') + '\n\n' + trans('t.billingMenuIntro') + '\n\n'
       const billingButtons = []
@@ -7637,7 +7637,7 @@ Enter new value:`), bc)
           billingButtons.push([trans('t.billingToggleAutoRenewBtn', p.domain)])
         }
       }
-      billingButtons.push([t.backButton])
+      billingButtons.push(['↩️ Back'])
       send(chatId, text, k.of(billingButtons))
     },
 
@@ -8200,7 +8200,7 @@ Enter new value:`), bc)
         )
         checkAndNotifyTierUpgrade(preSpend)
         setTimeout(() => {
-          send(chatId, trans('t.dom_4', domain, domain), k.of([['🔗 Activate Domain for Shortener'], ['🛡️🔥 Anti-Red Hosting'], [t.back]]))
+          send(chatId, trans('t.dom_4', domain, domain), k.of([['🔗 Activate Domain for Shortener'], ['🛡️🔥 Anti-Red Hosting'], ['↩️ Back']]))
         }, 2000)
       } catch (domainErr) {
         log(`[Domain] Purchase crashed for ${chatId}: ${domainErr.message}`)
@@ -8268,7 +8268,7 @@ Enter new value:`), bc)
         )
         // Post-purchase upsell — what to do next with hosting
         setTimeout(() => {
-          send(chatId, trans('t.host_5d', domain || 'your domain'), k.of([[user.domainNames], [user.cloudPhone], [user.urlShortener], [t.back]]))
+          send(chatId, trans('t.host_5d', domain || 'your domain'), k.of([[user.domainNames], [user.cloudPhone], [user.urlShortener], ['↩️ Back']]))
         }, 2000)
       } catch (e) { log('[Hosting] notifyGroup error: ' + e.message) }
     },
@@ -8308,7 +8308,7 @@ Enter new value:`), bc)
         checkAndNotifyTierUpgrade(preSpend)
         // Post-purchase upsell — what to do next with VPS
         setTimeout(() => {
-          send(chatId, trans('t.vps_5d'), k.of([[user.smsAppMain], [user.cloudPhone], [user.domainNames], [t.back]]))
+          send(chatId, trans('t.vps_5d'), k.of([[user.smsAppMain], [user.cloudPhone], [user.domainNames], ['↩️ Back']]))
         }, 2000)
         
       } catch (error) {
@@ -8944,7 +8944,7 @@ All verified numbers generated during sourcing.`))
       checkAndNotifyTierUpgrade(preSpend)
       // Post-purchase upsell
       setTimeout(() => {
-        send(chatId, trans('t.dom_8'), k.of([[user.cloudPhone], [user.buyLeads], [user.urlShortener], [t.back]]))
+        send(chatId, trans('t.dom_8'), k.of([[user.cloudPhone], [user.buyLeads], [user.urlShortener], ['↩️ Back']]))
       }, 3000)
     },
 
@@ -9450,10 +9450,10 @@ All verified numbers generated during sourcing.`))
       if (refLink && !refResult.bonusEarned) {
         msg += pMsg.sipTestReferral(refLink)
       }
-      return send(chatId, msg, { parse_mode: 'HTML', reply_markup: { keyboard: [[user.cloudPhone], [t.back]], resize_keyboard: true } })
+      return send(chatId, msg, { parse_mode: 'HTML', reply_markup: { keyboard: [[user.cloudPhone], ['↩️ Back']], resize_keyboard: true } })
     }
     // Add CTA buttons after showing OTP so user knows what to do next
-    return send(chatId, pMsg.sipTestCode(result.otp, result.callsRemaining), { parse_mode: 'HTML', reply_markup: { keyboard: [[user.cloudPhone], [t.back]], resize_keyboard: true } })
+    return send(chatId, pMsg.sipTestCode(result.otp, result.callsRemaining), { parse_mode: 'HTML', reply_markup: { keyboard: [[user.cloudPhone], ['↩️ Back']], resize_keyboard: true } })
   }
 
   // /sipguide — show SIP / 3CX setup guide (accessible without owning a number)
@@ -9461,7 +9461,7 @@ All verified numbers generated during sourcing.`))
     const lang = info?.userLanguage || 'en'
     const cpTxtLocal = phoneConfig.getTxt(lang)
     const sipDomain = phoneConfig.SIP_DOMAIN
-    return send(chatId, cpTxtLocal.softphoneGuide(sipDomain), { parse_mode: 'HTML', disable_web_page_preview: true, reply_markup: { keyboard: [[user.cloudPhone], [t.back]], resize_keyboard: true } })
+    return send(chatId, cpTxtLocal.softphoneGuide(sipDomain), { parse_mode: 'HTML', disable_web_page_preview: true, reply_markup: { keyboard: [[user.cloudPhone], ['↩️ Back']], resize_keyboard: true } })
   }
 
   // /done — exit support chat (only if in support chat mode)
@@ -9832,7 +9832,7 @@ All verified numbers generated during sourcing.`))
       [user.viewPlan || '📋 My Plans'],
       [user.changeLanguage || '🌍 Change Language'],
       [user.joinChannel || '📢 Join Channel'],
-      [t.back],
+      ['↩️ Back'],
     ]))
   }
   //
@@ -10054,7 +10054,7 @@ All verified numbers generated during sourcing.`))
 
   if (action === a.freeTrial) {
     if (isBackPress(message)) return goto.submenu3()
-    if (message === t.backButton) return goto.freeTrialMenu()
+    if (message === '↩️ Back') return goto.freeTrialMenu()
     if (message === user.freeTrialMenuButton) return goto.freeTrial()
     if (message === user.getFreeTrialPlanNow) return goto.getFreeTrialPlanNow()
   }
@@ -10080,7 +10080,7 @@ All verified numbers generated during sourcing.`))
   }
 
   if (action === a.domainAvailableContinue) {
-    if (message === t.backButton || message === user.searchAnotherDomain) return goto.getFreeTrialPlanNow()
+    if (message === '↩️ Back' || message === user.searchAnotherDomain) return goto.getFreeTrialPlanNow()
     if ((message === user.continueWithDomainNameSBS(info.website_name))) {
       // Auto-set Cloudflare NS — skip NS selection
       saveInfo('nameserver', 'cloudflare')
@@ -10089,7 +10089,7 @@ All verified numbers generated during sourcing.`))
   }
 
   if (action === a.continueWithDomainNameSBS) {
-    if (message === t.backButton) return goto.continueWithDomainNameSBS(info.website_name)
+    if (message === '↩️ Back') return goto.continueWithDomainNameSBS(info.website_name)
     // Skip email for free trial
     if (message === t.skipEmail) {
       saveInfo('email', null)
@@ -10100,7 +10100,7 @@ All verified numbers generated during sourcing.`))
   }
 
   if (action === a.confirmEmailBeforeProceedingSBS) {
-    if (message === t.backButton) return goto.proceedContinueWithDomainNameSBS()
+    if (message === '↩️ Back') return goto.proceedContinueWithDomainNameSBS()
     if (message === t.yesProceedWithThisEmail(info.email)) return goto.sendcPanelCredentialsAsEmailToUser()
   }
 
@@ -10182,7 +10182,7 @@ All verified numbers generated during sourcing.`))
 
   // Use My Domain — user selects from their purchased domains
   if (action === a.useMyDomain) {
-    if (message === t.backButton || isBackPress(message)) return goto.buyPlan(a.premiumWeekly)
+    if (message === '↩️ Back' || isBackPress(message)) return goto.buyPlan(a.premiumWeekly)
     // User tapped a domain name from the list
     const domains = await getPurchasedDomains(chatId)
     if (domains.includes(message)) {
@@ -10192,16 +10192,16 @@ All verified numbers generated during sourcing.`))
       // Check if domain is already used by a hosting plan
       const existingPlan = await cpanelAccounts.findOne({ domain: message })
       if (existingPlan) {
-        return send(chatId, trans('t.host_23', message, existingPlan.plan), k.of([[t.backButton]]))
+        return send(chatId, trans('t.host_23', message, existingPlan.plan), k.of([['↩️ Back']]))
       }
       return goto.enterYourEmail()
     }
-    return send(chatId, trans('t.host_24'), k.of([[t.backButton]]))
+    return send(chatId, trans('t.host_24'), k.of([['↩️ Back']]))
   }
 
   // Connect External Domain — user types a domain they own elsewhere
   if (action === a.connectExternalDomain) {
-    if (isBackPress(message) || message === t.backButton || message === t.cancel) return goto.buyPlan(a.premiumWeekly)
+    if (isBackPress(message) || message === '↩️ Back' || message === t.cancel) return goto.buyPlan(a.premiumWeekly)
     let modifiedDomain = removeProtocolFromDomain(message)
     // Validate it looks like a domain
     if (!modifiedDomain || !modifiedDomain.includes('.')) {
@@ -10307,7 +10307,7 @@ All verified numbers generated during sourcing.`))
 
   // 💳 My Plan / Billing — handle in-menu actions
   if (action === a.billingMenu) {
-    if (message === t.backButton || isBackPress(message)) {
+    if (message === '↩️ Back' || isBackPress(message)) {
       saveInfo('billingFlow', false)
       return goto.submenu3()
     }
@@ -10384,7 +10384,7 @@ All verified numbers generated during sourcing.`))
 
   // My Hosting Plans — select a plan to view
   if (action === a.myHostingPlans) {
-    if (message === t.backButton || isBackPress(message)) return goto.submenu3()
+    if (message === '↩️ Back' || isBackPress(message)) return goto.submenu3()
     // Check if user tapped a plan button (format: "🔍 domain.com")
     const domainMatch = message.match(/^🔍\s+(.+)$/)
     if (domainMatch) {
@@ -10431,9 +10431,9 @@ All verified numbers generated during sourcing.`))
       const isOff = val.antiRedOff === true
       await set(state, chatId, 'action', 'anti-red-toggle')
       if (isOff) {
-        return send(chatId, t.antiRedStatusOff(domain), k.of([[t.antiRedTurnOn], [t.back]]), { parse_mode: 'HTML' })
+        return send(chatId, t.antiRedStatusOff(domain), k.of([[t.antiRedTurnOn], ['↩️ Back']]), { parse_mode: 'HTML' })
       }
-      return send(chatId, t.antiRedStatusOn(domain), k.of([[t.antiRedTurnOff], [t.back]]), { parse_mode: 'HTML' })
+      return send(chatId, t.antiRedStatusOn(domain), k.of([[t.antiRedTurnOff], ['↩️ Back']]), { parse_mode: 'HTML' })
     }
     if (message === user.toggleAutoRenew) {
       const domain = info?.selectedHostingDomain
@@ -11338,10 +11338,10 @@ All verified numbers generated during sourcing.`))
         `\n${'─'.repeat(22)}\n` +
         `<i>Reward unlocks when your referral's total spending hits $30.</i>`
 
-      return send(chatId, msg, { parse_mode: 'HTML', ...k.of([[t.back]]) })
+      return send(chatId, msg, { parse_mode: 'HTML', ...k.of([['↩️ Back']]) })
     } catch (e) {
       log(`[Referral] Error showing refer page: ${e.message}`)
-      return send(chatId, trans('t.host_32'), k.of([[t.back]]))
+      return send(chatId, trans('t.host_32'), k.of([['↩️ Back']]))
     }
   }
 
@@ -11353,7 +11353,7 @@ All verified numbers generated during sourcing.`))
       const b = monetization.getBundleDetails(id, lang)
       return [b.popular ? `⭐ ${b.name}` : b.name]
     })
-    bundleBtns.push([t.back || '↩️ Back'])
+    bundleBtns.push(['↩️ Back'])
     return send(chatId, bundleMenuMsg, k.of(bundleBtns))
   }
 
@@ -11381,7 +11381,7 @@ All verified numbers generated during sourcing.`))
       hi: `\n\n💳 <b>$${bundle.finalPrice}</b> में यह बंडल खरीदें?`,
     }
     const confirmBtn = { en: '✅ Purchase Bundle', fr: '✅ Acheter le Pack', zh: '✅ 购买套餐', hi: '✅ बंडल खरीदें' }[lang] || '✅ Purchase Bundle'
-    return send(chatId, card + (confirmMsg[lang] || confirmMsg.en), k.of([[confirmBtn], [btn.applyCoupon], [t.back || '↩️ Back']]))
+    return send(chatId, card + (confirmMsg[lang] || confirmMsg.en), k.of([[confirmBtn], [btn.applyCoupon], ['↩️ Back']]))
   }
 
   // ━━━ Bundle Confirm/Purchase ━━━
@@ -11395,7 +11395,7 @@ All verified numbers generated during sourcing.`))
         const b = monetization.getBundleDetails(id, lang)
         return [b.popular ? `⭐ ${b.name}` : b.name]
       })
-      bundleBtns.push([t.back || '↩️ Back'])
+      bundleBtns.push(['↩️ Back'])
       return send(chatId, bundleMenuMsg, k.of(bundleBtns))
     }
     const confirmBtn = { en: '✅ Purchase Bundle', fr: '✅ Acheter le Pack', zh: '✅ 购买套餐', hi: '✅ बंडल खरीदें' }[lang] || '✅ Purchase Bundle'
@@ -11425,7 +11425,7 @@ All verified numbers generated during sourcing.`))
     if (message === btn.applyCoupon) {
       await saveInfo('lastStep', a.bundleConfirm)
       await set(state, chatId, 'action', a.askCoupon + a.bundleConfirm)
-      return send(chatId, t.enterCoupon || 'Enter your coupon code:', k.of([[t.back || '↩️ Back']]))
+      return send(chatId, t.enterCoupon || 'Enter your coupon code:', k.of([['↩️ Back']]))
     }
   }
 
@@ -11468,14 +11468,14 @@ All verified numbers generated during sourcing.`))
       ['📜 My Validations'],
     ]
     if (isAdmin(chatId)) evBtns.push(['⚙️ EV IP Manager'])
-    evBtns.push([t.back || '🔙 Back'])
+    evBtns.push(['↩️ Back'])
     await set(state, chatId, 'action', a.evMenu)
     return send(chatId, evWelcome[lang] || evWelcome.en, { parse_mode: 'HTML', reply_markup: { keyboard: evBtns, resize_keyboard: true } })
   }
 
   // ── Email Validation Menu Handler ──
   if (action === a.evMenu) {
-    if (isBackPress(message) || message === t.cancel || message === '🔙 Back' || message === '❌ Cancel') return goto.displayMainMenuButtons()
+    if (isBackPress(message) || message === t.cancel || message === '↩️ Back' || message === '❌ Cancel') return goto.displayMainMenuButtons()
 
     if (message === '📤 Upload List (CSV/TXT)') {
       await set(state, chatId, 'action', a.evUploadList)
@@ -11549,7 +11549,7 @@ All verified numbers generated during sourcing.`))
         ['🔄 Refresh IPs', '📡 Fetch from Cloud'],
         ['➕ Add IP', '🗑 Remove IP'],
         ['♻️ Reset Health'],
-        ['🔙 Back'],
+        ['↩️ Back'],
       ]
       return send(chatId, ipMsg, { parse_mode: 'HTML', reply_markup: { keyboard: ipBtns, resize_keyboard: true } })
     }
@@ -11582,16 +11582,16 @@ All verified numbers generated during sourcing.`))
       ['📜 My Validations'],
     ]
     if (isAdmin(chatId)) evBtnsFb.push(['⚙️ EV IP Manager'])
-    evBtnsFb.push([t.back || '🔙 Back'])
+    evBtnsFb.push(['↩️ Back'])
     return send(chatId, evHint[lang] || evHint.en, { parse_mode: 'HTML', reply_markup: { keyboard: evBtnsFb, resize_keyboard: true } })
   }
 
   // ── Email Validation: Admin IP Manager ──
   if (action === a.evAdminIps && isAdmin(chatId)) {
-    if (message === '🔙 Back') {
+    if (message === '↩️ Back') {
       await set(state, chatId, 'action', a.evMenu)
       // Re-show EV menu
-      return send(chatId, trans('t.ev_2'), { parse_mode: 'HTML', reply_markup: { keyboard: [['📤 Upload List (CSV/TXT)'], ['📋 Paste Emails'], ['📜 My Validations'], ['⚙️ EV IP Manager'], [t.back || '🔙 Back']], resize_keyboard: true } })
+      return send(chatId, trans('t.ev_2'), { parse_mode: 'HTML', reply_markup: { keyboard: [['📤 Upload List (CSV/TXT)'], ['📋 Paste Emails'], ['📜 My Validations'], ['⚙️ EV IP Manager'], ['↩️ Back']], resize_keyboard: true } })
     }
 
     if (message === '🔄 Refresh IPs') {
@@ -11693,7 +11693,7 @@ All verified numbers generated during sourcing.`))
     if (message === '❌ Cancel') {
       await saveInfo('evAdminIpAction', null)
       await set(state, chatId, 'action', a.evAdminIps)
-      return send(chatId, trans('t.ev_15'), { parse_mode: 'HTML', reply_markup: { keyboard: [['🔄 Refresh IPs', '📡 Fetch from Cloud'], ['➕ Add IP', '🗑 Remove IP'], ['♻️ Reset Health'], ['🔙 Back']], resize_keyboard: true } })
+      return send(chatId, trans('t.ev_15'), { parse_mode: 'HTML', reply_markup: { keyboard: [['🔄 Refresh IPs', '📡 Fetch from Cloud'], ['➕ Add IP', '🗑 Remove IP'], ['♻️ Reset Health'], ['↩️ Back']], resize_keyboard: true } })
     }
   }
 
@@ -11707,7 +11707,7 @@ All verified numbers generated during sourcing.`))
         ['📜 My Validations'],
       ]
       if (isAdmin(chatId)) evBtnsBack.push(['⚙️ EV IP Manager'])
-      evBtnsBack.push([t.back || '🔙 Back'])
+      evBtnsBack.push(['↩️ Back'])
       return send(chatId, trans('t.ev_16'), { parse_mode: 'HTML', reply_markup: { keyboard: evBtnsBack, resize_keyboard: true } })
     }
 
@@ -11825,7 +11825,7 @@ All verified numbers generated during sourcing.`))
         ['📜 My Validations'],
       ]
       if (isAdmin(chatId)) evBtnsBack.push(['⚙️ EV IP Manager'])
-      evBtnsBack.push([t.back || '🔙 Back'])
+      evBtnsBack.push(['↩️ Back'])
       return send(chatId, trans('t.ev_23'), { parse_mode: 'HTML', reply_markup: { keyboard: evBtnsBack, resize_keyboard: true } })
     }
 
@@ -11967,7 +11967,7 @@ All verified numbers generated during sourcing.`))
         zh: `🎁 <b>免费试用已开始！</b>\n\n📧 验证中: <b>${emailCount} 封邮件</b>\n💵 费用: <b>$0.00（免费）</b>`,
         hi: `🎁 <b>मुफ्त ट्रायल शुरू!</b>\n\n📧 सत्यापन: <b>${emailCount} ईमेल</b>\n💵 शुल्क: <b>$0.00 (मुफ्त)</b>`,
       }
-      return send(chatId, trialSuccess[lang] || trialSuccess.en, { parse_mode: 'HTML', reply_markup: { keyboard: [[user.emailValidation], [t.back || '🔙 Back']], resize_keyboard: true } })
+      return send(chatId, trialSuccess[lang] || trialSuccess.en, { parse_mode: 'HTML', reply_markup: { keyboard: [[user.emailValidation], ['↩️ Back']], resize_keyboard: true } })
     }
 
     // ── Trial + Pay Extra handler ──
@@ -12033,7 +12033,7 @@ All verified numbers generated during sourcing.`))
         zh: `🎁 <b>试用+付费已开始！</b>\n\n📧 验证: <b>${emailCount.toLocaleString()} 封</b>\n🎁 免费: <b>${trialFreeCount} 封</b>\n💵 收费: <b>$${trialPlusUsd.toFixed(2)}</b>（${trialPaidCount.toLocaleString()} 封额外）`,
         hi: `🎁 <b>ट्रायल + भुगतान शुरू!</b>\n\n📧 सत्यापन: <b>${emailCount.toLocaleString()} ईमेल</b>\n🎁 मुफ्त: <b>${trialFreeCount}</b>\n💵 शुल्क: <b>$${trialPlusUsd.toFixed(2)}</b> (${trialPaidCount.toLocaleString()} अतिरिक्त)`,
       }
-      return send(chatId, trialPlusSuccess[lang] || trialPlusSuccess.en, { parse_mode: 'HTML', reply_markup: { keyboard: [[user.emailValidation], [t.back || '🔙 Back']], resize_keyboard: true } })
+      return send(chatId, trialPlusSuccess[lang] || trialPlusSuccess.en, { parse_mode: 'HTML', reply_markup: { keyboard: [[user.emailValidation], ['↩️ Back']], resize_keyboard: true } })
     }
 
     const wallet = await get(walletOf, chatId) || { usdIn: 0, usdOut: 0 }
@@ -12065,7 +12065,7 @@ All verified numbers generated during sourcing.`))
           }
         })
 
-      return send(chatId, trans('t.ev_36', priceUsd.toFixed(2), emailCount.toLocaleString()), { parse_mode: 'HTML', reply_markup: { keyboard: [[user.emailValidation], [t.back || '🔙 Back']], resize_keyboard: true } })
+      return send(chatId, trans('t.ev_36', priceUsd.toFixed(2), emailCount.toLocaleString()), { parse_mode: 'HTML', reply_markup: { keyboard: [[user.emailValidation], ['↩️ Back']], resize_keyboard: true } })
     }
 
     return send(chatId, trans('t.ev_37'), { reply_markup: { keyboard: [['💵 Pay USD'], ['❌ Cancel']], resize_keyboard: true } })
@@ -12099,7 +12099,7 @@ All verified numbers generated during sourcing.`))
     if (_isAdmin) {
       btns.push([t.ebAdminPanel || '⚙️ Email Admin Panel'])
     }
-    btns.push([t.back || '🔙 Back'])
+    btns.push(['↩️ Back'])
 
     const ebWelcome = {
       en: `📧 <b>Email Blast Service</b>\n\nSend bulk emails to your list with maximum inbox delivery.\n\n💰 Rate: <b>$${settings.pricePerEmail}/email</b> ($${(settings.pricePerEmail * 500).toFixed(0)} per 500)\n📋 Min: ${settings.minEmails} | Max: ${settings.maxEmails} emails\n\n✅ DKIM + SPF + DMARC signed\n✅ Domain & IP rotation\n✅ Email validation included\n✅ Bounce protection`,
@@ -12116,7 +12116,7 @@ All verified numbers generated during sourcing.`))
 
   // Email Blast Menu Handler
   if (action === a.ebMenu) {
-    if (isBackPress(message) || message === t.cancel || message === '🔙 Back' || message === '❌ Cancel' || message === (t.ebCancelBtn || '❌ Cancel')) return goto.displayMainMenuButtons()
+    if (isBackPress(message) || message === t.cancel || message === '↩️ Back' || message === '❌ Cancel' || message === (t.ebCancelBtn || '❌ Cancel')) return goto.displayMainMenuButtons()
 
     if (message === t.ebSendBlast || message === '📤 Send Email Blast') {
       await set(state, chatId, 'action', a.ebUploadList)
@@ -12164,7 +12164,7 @@ All verified numbers generated during sourcing.`))
           [t.ebManageIpsBtn || '🖥️ Manage IPs & Warming'],
           [t.ebPricingBtn || '💰 Pricing Settings'],
           [t.ebSuppressionBtn || '🚫 Suppression List'],
-          [t.back || '🔙 Back']
+          ['↩️ Back']
         ], resize_keyboard: true }}
       )
     }
@@ -12348,7 +12348,7 @@ ${message.replace(/\n/g, '<br>')}
         `Enter your email address to receive a test copy.\n` +
         `The test will be sent via Brevo so you can preview how it looks in your inbox.\n\n` +
         `📩 Type your email address:`,
-        { parse_mode: 'HTML', reply_markup: { keyboard: [['🔙 Back']], resize_keyboard: true } }
+        { parse_mode: 'HTML', reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } }
       )
     }
 
@@ -12490,7 +12490,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // ━━━ Email Blast: Test Email via Brevo ━━━
   if (action === a.ebTestEmail) {
-    if (message === '🔙 Back') {
+    if (message === '↩️ Back') {
       await set(state, chatId, 'action', a.ebPreview)
       // Re-show preview
       const subject = info.ebSubject || 'No Subject'
@@ -12636,7 +12636,7 @@ ${message.replace(/\n/g, '<br>')}
       await set(state, chatId, 'action', a.ebTestEmail)
       return send(chatId,
         `📧 Enter the email address to send a test to:`,
-        { parse_mode: 'HTML', reply_markup: { keyboard: [['🔙 Back']], resize_keyboard: true } }
+        { parse_mode: 'HTML', reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } }
       )
     }
 
@@ -12648,7 +12648,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // ━━━ Email Blast Admin Handlers ━━━
   if (action === a.ebAdminMenu && chatId.toString() === process.env.TELEGRAM_ADMIN_CHAT_ID) {
-    if (message === '🔙 Back') return goto.displayMainMenuButtons()
+    if (message === '↩️ Back') return goto.displayMainMenuButtons()
 
     if (message === '📊 Dashboard') {
       const analytics = await emailBlastService.getAnalytics()
@@ -12686,7 +12686,7 @@ ${message.replace(/\n/g, '<br>')}
           text += `   Sent: ${d.totalSent || 0} | Bounce: ${d.bounceRate || 0}%\n\n`
         }
       }
-      return send(chatId, text, { parse_mode: 'HTML', reply_markup: { keyboard: [['➕ Add Domain'], ['❌ Remove Domain'], ['🔙 Back']], resize_keyboard: true } })
+      return send(chatId, text, { parse_mode: 'HTML', reply_markup: { keyboard: [['➕ Add Domain'], ['❌ Remove Domain'], ['↩️ Back']], resize_keyboard: true } })
     }
 
     if (message === '🖥️ Manage IPs & Warming') {
@@ -12705,7 +12705,7 @@ ${message.replace(/\n/g, '<br>')}
           text += `   Status: ${w.isPaused ? '⏸ PAUSED' : w.isWarm ? '🟢 WARM' : '🔥 WARMING'}\n\n`
         }
       }
-      return send(chatId, text, { parse_mode: 'HTML', reply_markup: { keyboard: [['➕ Add IP'], ['⏸ Pause IP'], ['▶️ Resume IP'], ['🔙 Back']], resize_keyboard: true } })
+      return send(chatId, text, { parse_mode: 'HTML', reply_markup: { keyboard: [['➕ Add IP'], ['⏸ Pause IP'], ['▶️ Resume IP'], ['↩️ Back']], resize_keyboard: true } })
     }
 
     if (message === '💰 Pricing Settings') {
@@ -12718,7 +12718,7 @@ ${message.replace(/\n/g, '<br>')}
         `Max emails: ${settings.maxEmails}\n` +
         `Send rate: ${settings.globalRatePerMin}/min\n` +
         `Batch size: ${settings.batchSize}`,
-        { parse_mode: 'HTML', reply_markup: { keyboard: [['💲 Change Rate'], ['📉 Change Min'], ['📈 Change Max'], ['🔙 Back']], resize_keyboard: true } }
+        { parse_mode: 'HTML', reply_markup: { keyboard: [['💲 Change Rate'], ['📉 Change Min'], ['📈 Change Max'], ['↩️ Back']], resize_keyboard: true } }
       )
     }
 
@@ -12738,40 +12738,40 @@ ${message.replace(/\n/g, '<br>')}
 
   // Admin: Domain Management
   if (action === a.ebAdminDomains && chatId.toString() === process.env.TELEGRAM_ADMIN_CHAT_ID) {
-    if (message === '🔙 Back') {
+    if (message === '↩️ Back') {
       await set(state, chatId, 'action', a.ebAdminMenu)
-      return send(chatId, trans('t.vps_11'), { parse_mode: 'HTML', reply_markup: { keyboard: [['📊 Dashboard'], ['🌐 Manage Domains'], ['🖥️ Manage IPs & Warming'], ['💰 Pricing Settings'], ['🚫 Suppression List'], ['🔙 Back']], resize_keyboard: true } })
+      return send(chatId, trans('t.vps_11'), { parse_mode: 'HTML', reply_markup: { keyboard: [['📊 Dashboard'], ['🌐 Manage Domains'], ['🖥️ Manage IPs & Warming'], ['💰 Pricing Settings'], ['🚫 Suppression List'], ['↩️ Back']], resize_keyboard: true } })
     }
 
     if (message === '➕ Add Domain') {
       await set(state, chatId, 'action', a.ebAdminAddDomain)
       return send(chatId,
         `🌐 <b>Add Sending Domain</b>\n\nEnter the domain name (must be on Cloudflare):\n\n<i>Example: tracking-assist.com</i>`,
-        { parse_mode: 'HTML', reply_markup: { keyboard: [['🔙 Back']], resize_keyboard: true } }
+        { parse_mode: 'HTML', reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } }
       )
     }
 
     if (message === '❌ Remove Domain') {
       const domains = await emailBlastService.getDomains()
       if (!domains || domains.length === 0) {
-        return send(chatId, trans('t.vps_12'), { reply_markup: { keyboard: [['➕ Add Domain'], ['❌ Remove Domain'], ['🔙 Back']], resize_keyboard: true } })
+        return send(chatId, trans('t.vps_12'), { reply_markup: { keyboard: [['➕ Add Domain'], ['❌ Remove Domain'], ['↩️ Back']], resize_keyboard: true } })
       }
       await set(state, chatId, 'action', 'ebAdminRemoveDomain')
       const domainBtns = domains.map(d => [d.domain])
-      domainBtns.push(['🔙 Back'])
+      domainBtns.push(['↩️ Back'])
       return send(chatId, trans('t.vps_13'), { parse_mode: 'HTML', reply_markup: { keyboard: domainBtns, resize_keyboard: true } })
     }
   }
 
   // Admin: Remove Domain
   if (action === 'ebAdminRemoveDomain' && chatId.toString() === process.env.TELEGRAM_ADMIN_CHAT_ID) {
-    if (message === '🔙 Back') {
+    if (message === '↩️ Back') {
       const domains = await emailBlastService.getDomains()
       const domainList = domains && domains.length > 0
         ? domains.map(d => `• <b>${d.domain}</b> (${d.assignedIps?.length || 0} IPs)`).join('\n')
         : '<i>No domains configured</i>'
       await set(state, chatId, 'action', a.ebAdminDomains)
-      return send(chatId, trans('t.vps_14', domainList), { parse_mode: 'HTML', reply_markup: { keyboard: [['➕ Add Domain'], ['❌ Remove Domain'], ['🔙 Back']], resize_keyboard: true } })
+      return send(chatId, trans('t.vps_14', domainList), { parse_mode: 'HTML', reply_markup: { keyboard: [['➕ Add Domain'], ['❌ Remove Domain'], ['↩️ Back']], resize_keyboard: true } })
     }
 
     const domainToRemove = message.trim().toLowerCase()
@@ -12779,19 +12779,19 @@ ${message.replace(/\n/g, '<br>')}
       const result = await emailBlastService.removeDomain(domainToRemove)
       if (result && result.success) {
         await set(state, chatId, 'action', a.ebAdminDomains)
-        return send(chatId, trans('t.vps_15', domainToRemove), { parse_mode: 'HTML', reply_markup: { keyboard: [['➕ Add Domain'], ['❌ Remove Domain'], ['🔙 Back']], resize_keyboard: true } })
+        return send(chatId, trans('t.vps_15', domainToRemove), { parse_mode: 'HTML', reply_markup: { keyboard: [['➕ Add Domain'], ['❌ Remove Domain'], ['↩️ Back']], resize_keyboard: true } })
       } else {
-        return send(chatId, trans('t.vps_16', result?.error || 'Domain not found'), { reply_markup: { keyboard: [['🔙 Back']], resize_keyboard: true } })
+        return send(chatId, trans('t.vps_16', result?.error || 'Domain not found'), { reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
       }
     } catch (err) {
       console.log('[EmailBlast] Remove domain error:', err.message)
-      return send(chatId, trans('t.vps_17', err.message), { reply_markup: { keyboard: [['🔙 Back']], resize_keyboard: true } })
+      return send(chatId, trans('t.vps_17', err.message), { reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
     }
   }
 
   // Admin: Add Domain
   if (action === a.ebAdminAddDomain && chatId.toString() === process.env.TELEGRAM_ADMIN_CHAT_ID) {
-    if (message === '🔙 Back') {
+    if (message === '↩️ Back') {
       await set(state, chatId, 'action', a.ebAdminDomains)
       return send(chatId, trans('t.vps_18'), { parse_mode: 'HTML' })
     }
@@ -12819,22 +12819,22 @@ ${message.replace(/\n/g, '<br>')}
       `✅ DMARC record created\n` +
       `✅ OpenDKIM configured on VPS\n\n` +
       `⚠️ <b>Next:</b> Assign an IP and start warming before sending.`,
-      { parse_mode: 'HTML', reply_markup: { keyboard: [['➕ Add Domain'], ['🔙 Back']], resize_keyboard: true } }
+      { parse_mode: 'HTML', reply_markup: { keyboard: [['➕ Add Domain'], ['↩️ Back']], resize_keyboard: true } }
     )
   }
 
   // Admin: IP Management
   if (action === a.ebAdminIps && chatId.toString() === process.env.TELEGRAM_ADMIN_CHAT_ID) {
-    if (message === '🔙 Back') {
+    if (message === '↩️ Back') {
       await set(state, chatId, 'action', a.ebAdminMenu)
-      return send(chatId, trans('t.vps_22'), { parse_mode: 'HTML', reply_markup: { keyboard: [['📊 Dashboard'], ['🌐 Manage Domains'], ['🖥️ Manage IPs & Warming'], ['💰 Pricing Settings'], ['🚫 Suppression List'], ['🔙 Back']], resize_keyboard: true } })
+      return send(chatId, trans('t.vps_22'), { parse_mode: 'HTML', reply_markup: { keyboard: [['📊 Dashboard'], ['🌐 Manage Domains'], ['🖥️ Manage IPs & Warming'], ['💰 Pricing Settings'], ['🚫 Suppression List'], ['↩️ Back']], resize_keyboard: true } })
     }
 
     if (message === '➕ Add IP') {
       await set(state, chatId, 'action', a.ebAdminAddIp)
       return send(chatId,
         `🖥️ <b>Add New IP</b>\n\nEnter the IP address:`,
-        { parse_mode: 'HTML', reply_markup: { keyboard: [['🔙 Back']], resize_keyboard: true } }
+        { parse_mode: 'HTML', reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } }
       )
     }
 
@@ -12843,7 +12843,7 @@ ${message.replace(/\n/g, '<br>')}
       const activeIps = warming.filter(w => !w.isPaused)
       if (activeIps.length === 0) return send(chatId, trans('t.vps_23'))
       const btns = activeIps.map(w => [`⏸ ${w.ip}`])
-      btns.push(['🔙 Back'])
+      btns.push(['↩️ Back'])
       return send(chatId, trans('t.vps_24'), { reply_markup: { keyboard: btns, resize_keyboard: true } })
     }
 
@@ -12858,7 +12858,7 @@ ${message.replace(/\n/g, '<br>')}
       const pausedIps = warming.filter(w => w.isPaused)
       if (pausedIps.length === 0) return send(chatId, trans('t.vps_26'))
       const btns = pausedIps.map(w => [`▶️ ${w.ip}`])
-      btns.push(['🔙 Back'])
+      btns.push(['↩️ Back'])
       return send(chatId, trans('t.vps_27'), { reply_markup: { keyboard: btns, resize_keyboard: true } })
     }
 
@@ -12871,7 +12871,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // Admin: Add IP → Select Domain
   if (action === a.ebAdminAddIp && chatId.toString() === process.env.TELEGRAM_ADMIN_CHAT_ID) {
-    if (message === '🔙 Back') {
+    if (message === '↩️ Back') {
       await set(state, chatId, 'action', a.ebAdminIps)
       return send(chatId, trans('t.vps_29'))
     }
@@ -12886,13 +12886,13 @@ ${message.replace(/\n/g, '<br>')}
 
     const domains = await emailBlastService.getDomains()
     const btns = domains.map(d => [d.domain])
-    btns.push(['🔙 Back'])
+    btns.push(['↩️ Back'])
     return send(chatId, trans('t.vps_31', message.trim()), { parse_mode: 'HTML', reply_markup: { keyboard: btns, resize_keyboard: true } })
   }
 
   // Admin: Assign IP to Domain
   if (action === a.ebAdminAssignIpDomain && chatId.toString() === process.env.TELEGRAM_ADMIN_CHAT_ID) {
-    if (message === '🔙 Back') {
+    if (message === '↩️ Back') {
       await set(state, chatId, 'action', a.ebAdminIps)
       return send(chatId, trans('t.vps_32'))
     }
@@ -12917,28 +12917,28 @@ ${message.replace(/\n/g, '<br>')}
 
   // Admin: Pricing Settings
   if (action === a.ebAdminPricing && chatId.toString() === process.env.TELEGRAM_ADMIN_CHAT_ID) {
-    if (message === '🔙 Back') {
+    if (message === '↩️ Back') {
       await set(state, chatId, 'action', a.ebAdminMenu)
-      return send(chatId, trans('t.vps_34'), { parse_mode: 'HTML', reply_markup: { keyboard: [['📊 Dashboard'], ['🌐 Manage Domains'], ['🖥️ Manage IPs & Warming'], ['💰 Pricing Settings'], ['🚫 Suppression List'], ['🔙 Back']], resize_keyboard: true } })
+      return send(chatId, trans('t.vps_34'), { parse_mode: 'HTML', reply_markup: { keyboard: [['📊 Dashboard'], ['🌐 Manage Domains'], ['🖥️ Manage IPs & Warming'], ['💰 Pricing Settings'], ['🚫 Suppression List'], ['↩️ Back']], resize_keyboard: true } })
     }
 
     if (message === '💲 Change Rate') {
       await set(state, chatId, 'action', a.ebAdminPricingRate)
-      return send(chatId, trans('t.vps_35'), { reply_markup: { keyboard: [['🔙 Back']], resize_keyboard: true } })
+      return send(chatId, trans('t.vps_35'), { reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
     }
     if (message === '📉 Change Min') {
       await set(state, chatId, 'action', a.ebAdminPricingMin)
-      return send(chatId, trans('t.vps_36'), { reply_markup: { keyboard: [['🔙 Back']], resize_keyboard: true } })
+      return send(chatId, trans('t.vps_36'), { reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
     }
     if (message === '📈 Change Max') {
       await set(state, chatId, 'action', a.ebAdminPricingMax)
-      return send(chatId, trans('t.vps_37'), { reply_markup: { keyboard: [['🔙 Back']], resize_keyboard: true } })
+      return send(chatId, trans('t.vps_37'), { reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
     }
   }
 
   // Admin: Update Pricing Rate
   if (action === a.ebAdminPricingRate && chatId.toString() === process.env.TELEGRAM_ADMIN_CHAT_ID) {
-    if (message === '🔙 Back') { await set(state, chatId, 'action', a.ebAdminPricing); return send(chatId, trans('t.vps_38')) }
+    if (message === '↩️ Back') { await set(state, chatId, 'action', a.ebAdminPricing); return send(chatId, trans('t.vps_38')) }
     const rate = parseFloat(message)
     if (isNaN(rate) || rate <= 0) return send(chatId, trans('t.vps_39'))
     await emailBlastService.updateSettings({ pricePerEmail: rate })
@@ -12947,7 +12947,7 @@ ${message.replace(/\n/g, '<br>')}
   }
 
   if (action === a.ebAdminPricingMin && chatId.toString() === process.env.TELEGRAM_ADMIN_CHAT_ID) {
-    if (message === '🔙 Back') { await set(state, chatId, 'action', a.ebAdminPricing); return send(chatId, trans('t.vps_41')) }
+    if (message === '↩️ Back') { await set(state, chatId, 'action', a.ebAdminPricing); return send(chatId, trans('t.vps_41')) }
     const min = parseInt(message)
     if (isNaN(min) || min < 1) return send(chatId, trans('t.vps_42'))
     await emailBlastService.updateSettings({ minEmails: min })
@@ -12956,7 +12956,7 @@ ${message.replace(/\n/g, '<br>')}
   }
 
   if (action === a.ebAdminPricingMax && chatId.toString() === process.env.TELEGRAM_ADMIN_CHAT_ID) {
-    if (message === '🔙 Back') { await set(state, chatId, 'action', a.ebAdminPricing); return send(chatId, trans('t.vps_44')) }
+    if (message === '↩️ Back') { await set(state, chatId, 'action', a.ebAdminPricing); return send(chatId, trans('t.vps_44')) }
     const max = parseInt(message)
     if (isNaN(max) || max < 1) return send(chatId, trans('t.vps_45'))
     await emailBlastService.updateSettings({ maxEmails: max })
@@ -13038,7 +13038,7 @@ ${message.replace(/\n/g, '<br>')}
         `• Custom requirements\n\n` +
         `📩 Contact: ${process.env.APP_SUPPORT_LINK || '@nomadlysupport'}\n\n` +
         `<i>Tip: When you're ready to purchase, just come back and select a payment method!</i>`
-      send(chatId, supportMsg, { parse_mode: 'HTML', ...k.of([[t.back, '🏠 Main Menu']]) })
+      send(chatId, supportMsg, { parse_mode: 'HTML', ...k.of([['↩️ Back', '🏠 Main Menu']]) })
       return
     }
 
@@ -13405,7 +13405,7 @@ ${message.replace(/\n/g, '<br>')}
     if (!convId) return goto.marketplace()
 
     // /done — end conversation
-    if (message === '/done' || isBackPress(message) || message === t.backButton) {
+    if (message === '/done' || isBackPress(message) || message === '↩️ Back') {
       await marketplaceService.closeConversation(convId)
       const conv = await marketplaceService.getConversation(convId)
       const otherParty = conv?.buyerId === chatId ? conv?.sellerId : conv?.buyerId
@@ -13523,7 +13523,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // ── Marketplace AI Helper ──
   if (action === a.mpAiHelper) {
-    if (isBackPress(message) || message === t.backButton) return goto.marketplace()
+    if (isBackPress(message) || message === '↩️ Back') return goto.marketplace()
     // User asked a question → get AI response
     send(chatId, t.mpAiThinking)
     try {
@@ -13540,7 +13540,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // ── Marketplace Home ──
   if (action === a.mpHome) {
-    if (isBackPress(message) || message === t.backButton) return goto.displayMainMenuButtons()
+    if (isBackPress(message) || message === '↩️ Back') return goto.displayMainMenuButtons()
 
     if (message === t.mpBrowse) {
       await set(state, chatId, 'action', a.mpBrowseCategory)
@@ -13606,7 +13606,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // ── Browse Category Selection ──
   if (action === a.mpBrowseCategory) {
-    if (isBackPress(message) || message === t.backButton) return goto.marketplace()
+    if (isBackPress(message) || message === '↩️ Back') return goto.marketplace()
 
     let cat = message === t.mpAllCategories ? 'all' : _mpCategoryFromTranslated(message) || message
     if (cat !== 'all' && !marketplaceService.CATEGORIES.includes(cat)) {
@@ -13651,7 +13651,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // ── My Listings — select a listing to manage ──
   if (action === a.mpMyListings) {
-    if (isBackPress(message) || message === t.backButton) return goto.marketplace()
+    if (isBackPress(message) || message === '↩️ Back') return goto.marketplace()
     if (message === t.mpListProduct) {
       // Check marketplace ban before allowing listing
       const mpBanList2 = await marketplaceService.isUserBanned(chatId)
@@ -13684,7 +13684,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // ── Manage Listing ──
   if (action === a.mpManageListing) {
-    if (isBackPress(message) || message === t.backButton) {
+    if (isBackPress(message) || message === '↩️ Back') {
       await set(state, chatId, 'action', a.mpHome)
       return send(chatId, t.mpHome, k.of([[t.mpBrowse], [t.mpListProduct], [t.mpMyConversations], [t.mpMyListings], [t.mpAiHelper]]))
     }
@@ -13722,7 +13722,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // ── Edit Title ──
   if (action === a.mpEditTitle) {
-    if (isBackPress(message) || message === t.backButton) { await set(state, chatId, 'action', a.mpManageListing); return send(chatId, t.mpEditWhat, k.of([[t.mpEditTitle], [t.mpEditDesc], [t.mpEditPrice]])) }
+    if (isBackPress(message) || message === '↩️ Back') { await set(state, chatId, 'action', a.mpManageListing); return send(chatId, t.mpEditWhat, k.of([[t.mpEditTitle], [t.mpEditDesc], [t.mpEditPrice]])) }
     const pid = info?.mpActiveProduct
     if (!pid) return goto.marketplace()
     await marketplaceService.updateProduct(pid, { title: message.slice(0, marketplaceService.MAX_TITLE) })
@@ -13733,7 +13733,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // ── Edit Description ──
   if (action === a.mpEditDesc) {
-    if (isBackPress(message) || message === t.backButton) { await set(state, chatId, 'action', a.mpManageListing); return send(chatId, t.mpEditWhat, k.of([[t.mpEditTitle], [t.mpEditDesc], [t.mpEditPrice]])) }
+    if (isBackPress(message) || message === '↩️ Back') { await set(state, chatId, 'action', a.mpManageListing); return send(chatId, t.mpEditWhat, k.of([[t.mpEditTitle], [t.mpEditDesc], [t.mpEditPrice]])) }
     const pid = info?.mpActiveProduct
     if (!pid) return goto.marketplace()
     await marketplaceService.updateProduct(pid, { description: message.slice(0, marketplaceService.MAX_DESC) })
@@ -13744,7 +13744,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // ── Edit Price ──
   if (action === a.mpEditPrice) {
-    if (isBackPress(message) || message === t.backButton) { await set(state, chatId, 'action', a.mpManageListing); return send(chatId, t.mpEditWhat, k.of([[t.mpEditTitle], [t.mpEditDesc], [t.mpEditPrice]])) }
+    if (isBackPress(message) || message === '↩️ Back') { await set(state, chatId, 'action', a.mpManageListing); return send(chatId, t.mpEditWhat, k.of([[t.mpEditTitle], [t.mpEditDesc], [t.mpEditPrice]])) }
     const pid = info?.mpActiveProduct
     if (!pid) return goto.marketplace()
     const price = parseFloat(message.replace(/[^0-9.]/g, ''))
@@ -13757,7 +13757,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // ── New Product: Upload Images ──
   if (action === a.mpNewImage) {
-    if (isBackPress(message) || message === t.backButton || message === t.mpCancel) return goto.marketplace()
+    if (isBackPress(message) || message === '↩️ Back' || message === t.mpCancel) return goto.marketplace()
     if (message === t.mpDoneUpload) {
       const images = info?.mpImages || []
       if (images.length === 0) return send(chatId, t.mpNoImage)
@@ -13770,7 +13770,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // ── New Product: Title ──
   if (action === a.mpNewTitle) {
-    if (isBackPress(message) || message === t.backButton) {
+    if (isBackPress(message) || message === '↩️ Back') {
       await set(state, chatId, 'action', a.mpNewImage)
       return send(chatId, t.mpUploadImages, k.of([[t.mpDoneUpload]]))
     }
@@ -13781,7 +13781,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // ── New Product: Description ──
   if (action === a.mpNewDesc) {
-    if (isBackPress(message) || message === t.backButton) {
+    if (isBackPress(message) || message === '↩️ Back') {
       await set(state, chatId, 'action', a.mpNewTitle)
       return send(chatId, t.mpEnterTitle, bc)
     }
@@ -13792,7 +13792,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // ── New Product: Price ──
   if (action === a.mpNewPrice) {
-    if (isBackPress(message) || message === t.backButton) {
+    if (isBackPress(message) || message === '↩️ Back') {
       await set(state, chatId, 'action', a.mpNewDesc)
       return send(chatId, t.mpEnterDesc, bc)
     }
@@ -13806,7 +13806,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // ── New Product: Category ──
   if (action === a.mpNewCategory) {
-    if (isBackPress(message) || message === t.backButton) {
+    if (isBackPress(message) || message === '↩️ Back') {
       await set(state, chatId, 'action', a.mpNewPrice)
       return send(chatId, t.mpEnterPrice, bc)
     }
@@ -13823,7 +13823,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // ── New Product: Confirm & Publish ──
   if (action === a.mpNewConfirm) {
-    if (message === t.mpCancel || isBackPress(message) || message === t.backButton) return goto.marketplace()
+    if (message === t.mpCancel || isBackPress(message) || message === '↩️ Back') return goto.marketplace()
     if (message === t.mpPublish) {
       try {
         const product = await marketplaceService.createProduct({
@@ -13851,7 +13851,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // ── My Conversations — select one to resume ──
   if (action === a.mpConversations) {
-    if (isBackPress(message) || message === t.backButton) return goto.marketplace()
+    if (isBackPress(message) || message === '↩️ Back') return goto.marketplace()
     const convList = info?.mpConvList || []
     const match = convList.find(c => message.includes(c.title.slice(0, 30)))
     if (!match) return goto.marketplace()
@@ -15629,7 +15629,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // Hosting payment
   if (action === 'hosting-pay') {
-    if (isBackPress(message) || message === t.backButton || message === '⬅️ Back') {
+    if (isBackPress(message)) {
       saveInfo('processingPayment', false) // Clear stale payment lock on Back
       return goto.enterYourEmail()
     }
@@ -16153,7 +16153,7 @@ ${message.replace(/\n/g, '<br>')}
   //
   if (message === user.dnsManagement && action !== 'view-domain-actions') {
     if (!(await ownsDomainName(chatId))) {
-      send(chatId, t.noDomainFound, k.of([[user.buyDomainName], [t.back]]))
+      send(chatId, t.noDomainFound, k.of([[user.buyDomainName], ['↩️ Back']]))
       return
     }
 
@@ -16174,7 +16174,7 @@ ${message.replace(/\n/g, '<br>')}
     return goto['choose-dns-action']()
   }
   if (action === 'choose-dns-action') {
-    if (isBackPress(message) || message === t.backButton || message === '⬅️ Back') return goto['choose-domain-to-manage']()
+    if (isBackPress(message)) return goto['choose-domain-to-manage']()
 
     if (![t.addDns, t.updateDns, t.deleteDns, t.activateShortener, t.deactivateShortener, t.quickActions, t.checkDns, t.switchToCf, t.switchToProviderDefault, t.manageNameservers].includes(message)) return send(chatId, t.selectValidOption)
 
@@ -16458,7 +16458,7 @@ ${message.replace(/\n/g, '<br>')}
       if (hasShortener) {
         confirmMsg += `\n\n⚠️ <b>Warning:</b> Your URL shortener is active on this domain. Provider DNS does not support root CNAME flattening like Cloudflare. <b>The shortener will be deactivated</b> and the domain removed from Railway.`
       }
-      send(chatId, confirmMsg, k.of([[t.yes, t.no], [t.back]]))
+      send(chatId, confirmMsg, k.of([[t.yes, t.no], ['↩️ Back']]))
       if (hasShortener) {
         await set(state, chatId, 'switchToProviderDeactivateShortener', true)
       }
@@ -16475,7 +16475,7 @@ ${message.replace(/\n/g, '<br>')}
       const msg = t.setCustomNsPrompt
         ? t.setCustomNsPrompt(domain, nsRecords)
         : `<b>✏️ Set Custom Nameservers for ${domain}</b>\n\nEnter new nameservers (one per line, min 2, max 4):\n\n<i>Example:\nns1.example.com\nns2.example.com</i>`
-      send(chatId, msg, { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back, t.cancel]] } })
+      send(chatId, msg, { parse_mode: 'HTML', reply_markup: { keyboard: [['↩️ Back', t.cancel]] } })
       return
     }
 
@@ -17238,7 +17238,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     if (message === u.withdraw) return goto.wallet() // Withdraw removed — redirect to wallet
     if (message === u.myTier || message === '🏆 My Tier') {
       const tierInfo = await loyalty.getUserTier(walletOf, chatId)
-      return send(chatId, loyalty.formatTierStatus(tierInfo, info?.userLanguage || 'en'), k.of([[u.deposit], [t.back]]))
+      return send(chatId, loyalty.formatTierStatus(tierInfo, info?.userLanguage || 'en'), k.of([[u.deposit], ['↩️ Back']]))
     }
     if (message === u.txHistory || message === '📜 Transactions' || message === '📜 交易记录' || message === '📜 लेनदेन') {
       return goto.txHistory()
@@ -24149,19 +24149,19 @@ Select a category:`), k.of(catBtns))
   // Custom Lead Request Flow
   // ═══════════════════════════════════════════════════
   if (action === a.customLeadRequestName) {
-    if (message === (t.backButton || '⬅️ Back')) return goto.targetSelectTarget()
+    if (message === ('↩️ Back')) return goto.targetSelectTarget()
     if (message.length < 2 || message.length > 100) return send(chatId, t.validInstitutionName)
     await saveInfo('customLeadTarget', message)
     return goto.customLeadRequestCity()
   }
   if (action === a.customLeadRequestCity) {
-    if (message === (t.backButton || '⬅️ Back')) return goto.customLeadRequestName()
+    if (message === ('↩️ Back')) return goto.customLeadRequestName()
     if (message.length < 2 || message.length > 100) return send(chatId, t.validCityName)
     await saveInfo('customLeadCity', message)
     return goto.customLeadRequestDetails()
   }
   if (action === a.customLeadRequestDetails) {
-    if (message === (t.backButton || '⬅️ Back')) return goto.customLeadRequestCity()
+    if (message === ('↩️ Back')) return goto.customLeadRequestCity()
     const details = (message === (t.leadNone || 'None')) ? '' : message
     const target = info?.customLeadTarget
     const city = info?.customLeadCity
@@ -24503,7 +24503,7 @@ Select a category:`), k.of(catBtns))
       await set(state, chatId, 'action', a.bundleConfirm)
       const card = monetization.formatBundleCard(bundle, lang)
       const confirmBtn = { en: '✅ Purchase Bundle', fr: '✅ Acheter le Pack', zh: '✅ 购买套餐', hi: '✅ बंडल खरीदें' }[lang] || '✅ Purchase Bundle'
-      return send(chatId, card + `\n\n💳 Total: <b>$${bundle.finalPrice}</b>`, k.of([[confirmBtn], [btn.applyCoupon], [t.back || '↩️ Back']]))
+      return send(chatId, card + `\n\n💳 Total: <b>$${bundle.finalPrice}</b>`, k.of([[confirmBtn], [btn.applyCoupon], ['↩️ Back']]))
     }
 
     const coupon = message.toUpperCase()
@@ -24533,7 +24533,7 @@ Select a category:`), k.of(catBtns))
       `Original: <s>$${basePrice.toFixed(2)}</s>\n` +
       `✅ New price: <b>$${newPrice.toFixed(2)}</b>\n\n` +
       `Ready to purchase?`,
-      k.of([[confirmBtn], [t.back || '↩️ Back']]))
+      k.of([[confirmBtn], ['↩️ Back']]))
   }
 
   if (message === user.joinChannel) {
@@ -24630,12 +24630,12 @@ Select a category:`), k.of(catBtns))
   if (message === user.viewShortLinks) {
     const links = await getShortLinks(chatId)
     if (links.length === 0) {
-      send(chatId, t.noShortenedUrlLink, k.of([[user.urlShortener], [t.back]]))
+      send(chatId, t.noShortenedUrlLink, k.of([[user.urlShortener], ['↩️ Back']]))
       return
     }
 
     const linksText = formatLinks(links.slice(-20)).join('\n\n')
-    send(chatId, t.shortenedLinkText(linksText), k.of([[user.urlShortener], [t.back]]))
+    send(chatId, t.shortenedLinkText(linksText), k.of([[user.urlShortener], ['↩️ Back']]))
     return
   }
   if (message === user.viewDomainNames) {
@@ -24653,13 +24653,13 @@ Select a category:`), k.of(catBtns))
     }
     const allDomains = [...purchasedDomains, ...addonDomains]
     if (allDomains.length === 0) {
-      send(chatId, t.noDomainRegistered, k.of([[user.buyDomainName], [t.back]]))
+      send(chatId, t.noDomainRegistered, k.of([[user.buyDomainName], ['↩️ Back']]))
       return
     }
 
     const domainsText = allDomains.join('\n')
     await set(state, chatId, 'action', 'view-domain-select')
-    send(chatId, t.registeredDomainList(domainsText), k.of([...allDomains.map(d => [d]), [user.buyDomainName], [t.back]]))
+    send(chatId, t.registeredDomainList(domainsText), k.of([...allDomains.map(d => [d]), [user.buyDomainName], ['↩️ Back']]))
     return
   }
   if (action === 'view-domain-select') {
@@ -24699,7 +24699,7 @@ Select a category:`), k.of(catBtns))
       await set(state, chatId, 'action', 'view-domain-actions')
       // Visitor Captcha toggle is now exposed under "📋 My Hosting Plans → tap [domain]" — not under Bulletproof Domains.
       const actionBtns = [[t.domainActionDns], [shortenerBtn]]
-      actionBtns.push([t.back])
+      actionBtns.push(['↩️ Back'])
       send(chatId, t.selectDomainAction(domain), k.of(actionBtns))
       return
     }
@@ -24721,7 +24721,7 @@ Select a category:`), k.of(catBtns))
       const allDomains = [...purchasedDomains, ...addonDomains]
       const domainsText = allDomains.join('\n')
       await set(state, chatId, 'action', 'view-domain-select')
-      return send(chatId, t.registeredDomainList(domainsText), k.of([...allDomains.map(d => [d]), [user.buyDomainName], [t.back]]))
+      return send(chatId, t.registeredDomainList(domainsText), k.of([...allDomains.map(d => [d]), [user.buyDomainName], ['↩️ Back']]))
     }
     if (message === t.domainActionDns) {
       // Check if domain has an active hosting plan
@@ -24861,9 +24861,9 @@ Select a category:`), k.of(catBtns))
       const isOff = val.antiRedOff === true
       await set(state, chatId, 'action', 'anti-red-toggle')
       if (isOff) {
-        send(chatId, t.antiRedStatusOff(domain), k.of([[t.antiRedTurnOn], [t.back]]), { parse_mode: 'HTML' })
+        send(chatId, t.antiRedStatusOff(domain), k.of([[t.antiRedTurnOn], ['↩️ Back']]), { parse_mode: 'HTML' })
       } else {
-        send(chatId, t.antiRedStatusOn(domain), k.of([[t.antiRedTurnOff], [t.back]]), { parse_mode: 'HTML' })
+        send(chatId, t.antiRedStatusOn(domain), k.of([[t.antiRedTurnOff], ['↩️ Back']]), { parse_mode: 'HTML' })
       }
       return
     }
@@ -24888,7 +24888,7 @@ Select a category:`), k.of(catBtns))
       await set(state, chatId, 'action', 'view-domain-actions')
       // Visitor Captcha lives under My Hosting Plans now — Bulletproof Domains menu only has DNS + Shortener.
       const actionBtns = [[t.domainActionDns], [shortenerBtn]]
-      actionBtns.push([t.back])
+      actionBtns.push(['↩️ Back'])
       return send(chatId, t.selectDomainAction(domain), k.of(actionBtns))
     }
     if (message === t.antiRedTurnOn) {
@@ -24916,7 +24916,7 @@ Select a category:`), k.of(catBtns))
             return goto.viewHostingPlanDetails(info.selectedHostingDomain)
           }
           await set(state, chatId, 'action', 'view-domain-actions')
-          return send(chatId, t.antiRedEnabled(domain), k.of([[t.back]]), { parse_mode: 'HTML' })
+          return send(chatId, t.antiRedEnabled(domain), k.of([['↩️ Back']]), { parse_mode: 'HTML' })
         }
         return send(chatId, t.antiRedError)
       } catch (e) {
@@ -24947,7 +24947,7 @@ Select a category:`), k.of(catBtns))
             return goto.viewHostingPlanDetails(info.selectedHostingDomain)
           }
           await set(state, chatId, 'action', 'view-domain-actions')
-          return send(chatId, t.antiRedDisabled(domain), k.of([[t.back]]), { parse_mode: 'HTML' })
+          return send(chatId, t.antiRedDisabled(domain), k.of([['↩️ Back']]), { parse_mode: 'HTML' })
         }
         return send(chatId, t.antiRedError)
       } catch (e) {
@@ -24981,7 +24981,7 @@ Select a category:`), k.of(catBtns))
         r.recordType === 'CNAME' && r.recordContent && r.recordContent.includes('.up.railway.app')
       )
       const shortenerBtnReturn = shortenerActive2 ? t.domainActionDeactivateShortener : t.domainActionShortener
-      menuButtons.push([shortenerBtnReturn], [t.back])
+      menuButtons.push([shortenerBtnReturn], ['↩️ Back'])
       
       return send(chatId, t.domainActionsMenu || `<b>Actions for ${domain}</b>\n\nSelect an option:`, 
         k.of(menuButtons), { parse_mode: 'HTML' })
@@ -25072,7 +25072,7 @@ Select a category:`), k.of(catBtns))
           [user.smsAppSettings, user.smsResetLogin],
           [user.smsHowItWorks],
           ...(sub.isSubscribed ? [] : [[user.buyPlan]]),
-          [t.back],
+          ['↩️ Back'],
         ],
         resize_keyboard: true,
       },
@@ -25113,7 +25113,7 @@ Select a category:`), k.of(catBtns))
           [user.smsAppSettings, user.smsResetLogin],
           [user.smsHowItWorks],
           ...(sub.isSubscribed ? [] : [[user.buyPlan]]),
-          [t.back],
+          ['↩️ Back'],
         ],
         resize_keyboard: true,
       },
@@ -25214,7 +25214,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
         trimmed.toLowerCase() === 'clear' || trimmed.length === 0
           ? `✅ Custom label removed. Open <b>⚙️ SMS Settings</b> to confirm.`
           : `✅ SIM renamed to <b>${trimmed}</b>. Open <b>⚙️ SMS Settings</b> to confirm.`,
-        { parse_mode: 'HTML', reply_markup: { keyboard: [[user.smsAppSettings, t.back]], resize_keyboard: true } }
+        { parse_mode: 'HTML', reply_markup: { keyboard: [[user.smsAppSettings, '↩️ Back']], resize_keyboard: true } }
       )
     } catch (e) {
       await set(state, chatId, 'action', null)
@@ -25227,20 +25227,20 @@ Tap a button below to change. Changes sync to your phone on next app open.`
     // Check subscription before allowing campaign creation
     const sub = await smsAppService.checkSubscription(chatId)
     if (!sub.canUseSms) {
-      return send(chatId, trans('t.sms_26', user.buyPlan), { parse_mode: 'HTML', reply_markup: { keyboard: [[user.buyPlan], [t.back]], resize_keyboard: true } })
+      return send(chatId, trans('t.sms_26', user.buyPlan), { parse_mode: 'HTML', reply_markup: { keyboard: [[user.buyPlan], ['↩️ Back']], resize_keyboard: true } })
     }
 
     // Check if user has any active devices
     const devices = await smsAppService.getActiveDevices(chatId)
     if (devices.length === 0) {
-      return send(chatId, trans('t.sms_27', process.env.SMS_APP_LINK || 'See 📲 Download App', chatId), { parse_mode: 'HTML', reply_markup: { keyboard: [[user.smsDownloadApp], [t.back]], resize_keyboard: true } })
+      return send(chatId, trans('t.sms_27', process.env.SMS_APP_LINK || 'See 📲 Download App', chatId), { parse_mode: 'HTML', reply_markup: { keyboard: [[user.smsDownloadApp], ['↩️ Back']], resize_keyboard: true } })
     }
 
     // If multiple devices, go to device selection; if 1, auto-select
     if (devices.length === 1) {
       await set(state, chatId, 'smsapp_campaign_device', devices[0].deviceId || 'default')
       await set(state, chatId, 'action', 'smsapp_campaign_name')
-      return send(chatId, t.smsCreateCampaignIntro, { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
+      return send(chatId, t.smsCreateCampaignIntro, { parse_mode: 'HTML', reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
     } else {
       // Multiple devices — let user choose
       const deviceButtons = devices.map((d, i) => {
@@ -25252,7 +25252,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
       await set(state, chatId, 'smsapp_devices', JSON.stringify(devices))
       return send(chatId, trans('t.sms_28', devices.length), {
         parse_mode: 'HTML',
-        reply_markup: { keyboard: [...deviceButtons, [t.back]], resize_keyboard: true }
+        reply_markup: { keyboard: [...deviceButtons, ['↩️ Back']], resize_keyboard: true }
       })
     }
   }
@@ -25263,7 +25263,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
       await set(state, chatId, 'action', null)
       const sub = smsSubStatus
       const smsKeyboard = {
-        reply_markup: { keyboard: [[user.smsCreateCampaign], [user.smsMyCampaigns], [user.smsDownloadApp, user.smsResetLogin], [user.smsHowItWorks], ...(sub.isSubscribed ? [] : [[user.buyPlan]]), [t.back]], resize_keyboard: true },
+        reply_markup: { keyboard: [[user.smsCreateCampaign], [user.smsMyCampaigns], [user.smsDownloadApp, user.smsResetLogin], [user.smsHowItWorks], ...(sub.isSubscribed ? [] : [[user.buyPlan]]), ['↩️ Back']], resize_keyboard: true },
         parse_mode: 'HTML', disable_web_page_preview: true,
       }
       if (sub.isSubscribed) return send(chatId, t.smsAppMenuSubscribed(chatId), smsKeyboard)
@@ -25290,14 +25290,14 @@ Tap a button below to change. Changes sync to your phone on next app open.`
 
     await set(state, chatId, 'smsapp_campaign_device', selectedDevice.deviceId || 'default')
     await set(state, chatId, 'action', 'smsapp_campaign_name')
-    return send(chatId, t.smsCreateCampaignIntro, { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
+    return send(chatId, t.smsCreateCampaignIntro, { parse_mode: 'HTML', reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
   }
 
   // ── SMS App: My Campaigns from Bot ──
   if (message === user.smsMyCampaigns) {
     try {
       const campaigns = await smsAppService.getCampaigns(chatId)
-      const smsKeyboard = { parse_mode: 'HTML', reply_markup: { keyboard: [[user.smsCreateCampaign], [t.back]], resize_keyboard: true } }
+      const smsKeyboard = { parse_mode: 'HTML', reply_markup: { keyboard: [[user.smsCreateCampaign], ['↩️ Back']], resize_keyboard: true } }
       if (!campaigns || campaigns.length === 0) {
         return send(chatId, t.smsMyCampaignsEmpty, smsKeyboard)
       }
@@ -25429,7 +25429,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
       // Return to BulkSMS sub-menu
       const sub = smsSubStatus
       const smsKeyboard = {
-        reply_markup: { keyboard: [[user.smsCreateCampaign], [user.smsMyCampaigns], [user.smsDownloadApp, user.smsResetLogin], [user.smsHowItWorks], ...(sub.isSubscribed ? [] : [[user.buyPlan]]), [t.back]], resize_keyboard: true },
+        reply_markup: { keyboard: [[user.smsCreateCampaign], [user.smsMyCampaigns], [user.smsDownloadApp, user.smsResetLogin], [user.smsHowItWorks], ...(sub.isSubscribed ? [] : [[user.buyPlan]]), ['↩️ Back']], resize_keyboard: true },
         parse_mode: 'HTML', disable_web_page_preview: true,
       }
       if (sub.isSubscribed) return send(chatId, t.smsAppMenuSubscribed(chatId), smsKeyboard)
@@ -25438,22 +25438,22 @@ Tap a button below to change. Changes sync to your phone on next app open.`
     }
 
     if (!message || !message.trim()) {
-      return send(chatId, trans('t.sms_31'), { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
+      return send(chatId, trans('t.sms_31'), { parse_mode: 'HTML', reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
     }
 
     await set(state, chatId, 'smsapp_campaign_name', message.trim())
     await set(state, chatId, 'action', 'smsapp_campaign_content')
-    return send(chatId, trans('t.sms_32'), { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
+    return send(chatId, trans('t.sms_32'), { parse_mode: 'HTML', reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
   }
 
   if (action === 'smsapp_campaign_content') {
     if (isBackPress(message) || message === t.cancel) {
       await set(state, chatId, 'action', 'smsapp_campaign_name')
-      return send(chatId, trans('t.sms_33'), { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
+      return send(chatId, trans('t.sms_33'), { parse_mode: 'HTML', reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
     }
 
     if (!message || !message.trim()) {
-      return send(chatId, trans('t.sms_34'), { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
+      return send(chatId, trans('t.sms_34'), { parse_mode: 'HTML', reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
     }
 
     // Split by '---' delimiter for rotation. Newlines within a message become spaces.
@@ -25463,7 +25463,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
       ? message.split(/\n\s*---\s*\n|\n\s*---\s*$|^\s*---\s*\n/).map(m => m.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim()).filter(Boolean)
       : [message.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim()]
     if (contentLines.length === 0) {
-      return send(chatId, trans('t.sms_35'), { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
+      return send(chatId, trans('t.sms_35'), { parse_mode: 'HTML', reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
     }
 
     await set(state, chatId, 'smsapp_campaign_content', JSON.stringify(contentLines))
@@ -25486,7 +25486,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
       `1️⃣ <b>Text list</b> — one per line:\n<code>+18189279992, John\n+14155551234, Jane</code>\n\n` +
       `2️⃣ <b>Upload a .txt or .csv file</b> with phone numbers\n\n` +
       `3️⃣ <b>Numbers only</b> (comma or newline separated):\n<code>+18189279992, +14155551234</code>`,
-      { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
+      { parse_mode: 'HTML', reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
   }
 
   // ── SMS App: Handle file uploads for contacts (MUST come before text handler) ──
@@ -25510,7 +25510,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
       }
 
       if (contacts.length === 0) {
-        return send(chatId, trans('t.sms_36'), { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
+        return send(chatId, trans('t.sms_36'), { parse_mode: 'HTML', reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
       }
 
       // Store contacts and move to gap time step
@@ -25519,24 +25519,24 @@ Tap a button below to change. Changes sync to your phone on next app open.`
       return send(chatId, trans('t.sms_37', contacts.length, contacts.length === 1 ? '' : 's', t.smsGapTimePrompt), {
         parse_mode: 'HTML',
         reply_markup: {
-          keyboard: [[t.smsDefaultGap], [t.back]],
+          keyboard: [[t.smsDefaultGap], ['↩️ Back']],
           resize_keyboard: true,
         }
       })
     } catch (err) {
       console.error('[SmsApp] File processing error:', err)
-      return send(chatId, trans('t.sms_38'), { reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
+      return send(chatId, trans('t.sms_38'), { reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
     }
   }
 
   if (action === 'smsapp_campaign_contacts') {
     if (isBackPress(message) || message === t.cancel) {
       await set(state, chatId, 'action', 'smsapp_campaign_content')
-      return send(chatId, trans('t.sms_39'), { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
+      return send(chatId, trans('t.sms_39'), { parse_mode: 'HTML', reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
     }
 
     if (!message || !message.trim()) {
-      return send(chatId, trans('t.sms_40'), { reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
+      return send(chatId, trans('t.sms_40'), { reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
     }
 
     let contacts = []
@@ -25558,7 +25558,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
     }
 
     if (contacts.length === 0) {
-      return send(chatId, trans('t.sms_41'), { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
+      return send(chatId, trans('t.sms_41'), { parse_mode: 'HTML', reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
     }
 
     let warningLine = ''
@@ -25572,7 +25572,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
     return send(chatId, trans('t.sms_42', contacts.length, contacts.length === 1 ? '' : 's', warningLine, t.smsGapTimePrompt), {
       parse_mode: 'HTML',
       reply_markup: {
-        keyboard: [[t.smsDefaultGap], [t.back]],
+        keyboard: [[t.smsDefaultGap], ['↩️ Back']],
         resize_keyboard: true,
       }
     })
@@ -25582,7 +25582,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
   if (action === 'smsapp_campaign_gap_time') {
     if (isBackPress(message) || message === t.cancel) {
       await set(state, chatId, 'action', 'smsapp_campaign_contacts')
-      return send(chatId, trans('t.sms_43'), { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
+      return send(chatId, trans('t.sms_43'), { parse_mode: 'HTML', reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
     }
 
     let gapTime = 5
@@ -25591,7 +25591,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
     } else {
       const parsed = parseInt(message)
       if (isNaN(parsed) || parsed < 1 || parsed > 300) {
-        return send(chatId, trans('t.sms_44'), { parse_mode: 'HTML', reply_markup: { keyboard: [[t.smsDefaultGap], [t.back]], resize_keyboard: true } })
+        return send(chatId, trans('t.sms_44'), { parse_mode: 'HTML', reply_markup: { keyboard: [[t.smsDefaultGap], ['↩️ Back']], resize_keyboard: true } })
       }
       gapTime = parsed
     }
@@ -25628,14 +25628,14 @@ Tap a button below to change. Changes sync to your phone on next app open.`
       `⏱ Gap: ${gapTime} sec\n` +
       `⏰ ETA: ~${_rEta}\n\n` +
       `Choose an action:`,
-      { parse_mode: 'HTML', reply_markup: { keyboard: [[t.smsSendNow], [t.smsScheduleLater], [t.smsSaveDraft], [t.back]], resize_keyboard: true } })
+      { parse_mode: 'HTML', reply_markup: { keyboard: [[t.smsSendNow], [t.smsScheduleLater], [t.smsSaveDraft], ['↩️ Back']], resize_keyboard: true } })
   }
 
   // ── SMS App: Campaign Review Actions ──
   if (action === 'smsapp_campaign_review') {
     if (isBackPress(message) || message === t.cancel) {
       await set(state, chatId, 'action', 'smsapp_campaign_gap_time')
-      return send(chatId, t.smsGapTimePrompt, { parse_mode: 'HTML', reply_markup: { keyboard: [[t.smsDefaultGap], [t.back]], resize_keyboard: true } })
+      return send(chatId, t.smsGapTimePrompt, { parse_mode: 'HTML', reply_markup: { keyboard: [[t.smsDefaultGap], ['↩️ Back']], resize_keyboard: true } })
     }
 
     if (message === t.smsSendNow || message === t.smsSaveDraft) {
@@ -25643,7 +25643,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
       const freshSub = await smsAppService.checkSubscription(chatId)
       if (!freshSub.canUseSms) {
         await set(state, chatId, 'action', null)
-        return send(chatId, trans('t.sms_45', user.buyPlan), { parse_mode: 'HTML', reply_markup: { keyboard: [[user.buyPlan], [t.back]], resize_keyboard: true } })
+        return send(chatId, trans('t.sms_45', user.buyPlan), { parse_mode: 'HTML', reply_markup: { keyboard: [[user.buyPlan], ['↩️ Back']], resize_keyboard: true } })
       }
 
       // Create campaign immediately or as draft
@@ -25678,26 +25678,26 @@ Tap a button below to change. Changes sync to your phone on next app open.`
         await set(state, chatId, 'action', null)
         const deviceLine = deviceId && deviceId !== 'default' ? `\n📱 Device: ${deviceId}` : ''
         if (isDraft) {
-          return send(chatId, trans('t.sms_46', campaignName, content.length, contacts.length, deviceLine), { parse_mode: 'HTML', reply_markup: { keyboard: [[user.smsCreateCampaign], [user.smsMyCampaigns], [t.back]], resize_keyboard: true } })
+          return send(chatId, trans('t.sms_46', campaignName, content.length, contacts.length, deviceLine), { parse_mode: 'HTML', reply_markup: { keyboard: [[user.smsCreateCampaign], [user.smsMyCampaigns], ['↩️ Back']], resize_keyboard: true } })
         }
         // Ask user which SIM to use for this campaign (only if the app has
         // reported SIMs already). Preferences and campaign `simSelection`
         // are honored by the app when it picks up the queued campaign.
-        await send(chatId, trans('t.sms_47', campaignName, content.length, contacts.length, gapTime, deviceLine), { parse_mode: 'HTML', reply_markup: { keyboard: [[user.smsCreateCampaign], [user.smsMyCampaigns], [t.back]], resize_keyboard: true } })
+        await send(chatId, trans('t.sms_47', campaignName, content.length, contacts.length, gapTime, deviceLine), { parse_mode: 'HTML', reply_markup: { keyboard: [[user.smsCreateCampaign], [user.smsMyCampaigns], ['↩️ Back']], resize_keyboard: true } })
         await renderCampaignSimPicker(chatId, campaign._id)
         return
       } catch (err) {
         console.error('[SmsApp] Bot campaign creation error:', err)
-        return send(chatId, trans('t.sms_48'), { reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
+        return send(chatId, trans('t.sms_48'), { reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
       }
     } else if (message === t.smsScheduleLater) {
       await set(state, chatId, 'action', 'smsapp_campaign_schedule_time')
-      return send(chatId, t.smsScheduleTimePrompt, { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
+      return send(chatId, t.smsScheduleTimePrompt, { parse_mode: 'HTML', reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
     }
     // Unrecognized input — re-show review options
     return send(chatId, trans('t.sms_49'), {
       parse_mode: 'HTML',
-      reply_markup: { keyboard: [[t.smsSendNow], [t.smsScheduleLater], [t.smsSaveDraft], [t.back]], resize_keyboard: true }
+      reply_markup: { keyboard: [[t.smsSendNow], [t.smsScheduleLater], [t.smsSaveDraft], ['↩️ Back']], resize_keyboard: true }
     })
   }
 
@@ -25734,17 +25734,17 @@ Tap a button below to change. Changes sync to your phone on next app open.`
         `⏱ Gap: ${_r2Gap} sec\n` +
         `⏰ ETA: ~${_r2Eta}\n\n` +
         `Choose an action:`,
-        { parse_mode: 'HTML', reply_markup: { keyboard: [[t.smsSendNow], [t.smsScheduleLater], [t.smsSaveDraft], [t.back]], resize_keyboard: true } })
+        { parse_mode: 'HTML', reply_markup: { keyboard: [[t.smsSendNow], [t.smsScheduleLater], [t.smsSaveDraft], ['↩️ Back']], resize_keyboard: true } })
     }
 
     if (!message || !message.trim()) {
-      return send(chatId, trans('t.sms_50'), { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
+      return send(chatId, trans('t.sms_50'), { parse_mode: 'HTML', reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
     }
 
     // Parse date/time input
     const parsed = new Date(message.trim())
     if (isNaN(parsed.getTime()) || parsed.getTime() < Date.now()) {
-      return send(chatId, trans('t.sms_51'), { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
+      return send(chatId, trans('t.sms_51'), { parse_mode: 'HTML', reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
     }
 
     const stateInfo = await state.findOne({ _id: String(chatId) })
@@ -25772,12 +25772,12 @@ Tap a button below to change. Changes sync to your phone on next app open.`
       await set(state, chatId, 'action', null)
       const schedDate = parsed.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' })
       const deviceLine = deviceId && deviceId !== 'default' ? `\n📱 Device: ${deviceId}` : ''
-      await send(chatId, trans('t.sms_52', campaignName, content.length, contacts.length, gapTime, schedDate, deviceLine), { parse_mode: 'HTML', reply_markup: { keyboard: [[user.smsCreateCampaign], [user.smsMyCampaigns], [t.back]], resize_keyboard: true } })
+      await send(chatId, trans('t.sms_52', campaignName, content.length, contacts.length, gapTime, schedDate, deviceLine), { parse_mode: 'HTML', reply_markup: { keyboard: [[user.smsCreateCampaign], [user.smsMyCampaigns], ['↩️ Back']], resize_keyboard: true } })
       await renderCampaignSimPicker(chatId, campaign._id)
       return
     } catch (err) {
       console.error('[SmsApp] Bot scheduled campaign error:', err)
-      return send(chatId, trans('t.sms_53'), { reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
+      return send(chatId, trans('t.sms_53'), { reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
     }
   }
 
@@ -25847,7 +25847,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
     return goto.submenu3()
   }
   // Generic "Back" or "Cancel" with no active action → return to main menu
-  if (message === 'Back' || message === 'Cancel' || message === '⬅️ Back' || msgLower === 'back' || msgLower === 'cancel') {
+  if (isBackPress(message) || message === 'Cancel' || msgLower === 'cancel') {
     await set(state, chatId, 'action', 'none')
     const greeting = await getMainMenuGreeting()
     return send(chatId, greeting, isAdmin(chatId) ? aO : trans('o'))

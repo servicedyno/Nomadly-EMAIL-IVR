@@ -7,6 +7,39 @@
 - MongoDB (port 27017)
 
 
+## ✅ Back-Button Visual Standardization (May 1, 2026)
+
+### Problem
+Even after the `isBackPress()` fix, the bot still rendered Back buttons in **4 different visual styles** across screens:
+- `↩️ Back` (152 occurrences) — most common
+- `🔙 Back` (51) — alt
+- `⬅️ Back` (`t.backButton`, 48) — left-arrow
+- raw `t.back` (~85) — plain locale word, no emoji at all
+
+International users would see different visuals on consecutive screens, making the bot feel inconsistent.
+
+### Implementation
+**`js/_index.js`** — full standardization sweep:
+- `'🔙 Back'` → `'↩️ Back'` everywhere (51 replacements)
+- `t.back || '↩️ Back'` / `t.back || '🔙 Back'` → `'↩️ Back'` (16 replacements)
+- `[t.back, '🏠 Main Menu']` → `['↩️ Back', '🏠 Main Menu']` (multiple)
+- `[t.back, t.cancel]` / `[user.smsAppSettings, t.back]` → emoji-prefixed equivalents
+- `[t.back]` raw rows → `['↩️ Back']` (77 replacements)
+- `t.backButton` (was `⬅️ Back`) → `'↩️ Back'` (48 replacements)
+- 3 stray `message === '⬅️ Back'` handler comparisons consolidated through `isBackPress`
+- `isBackPress()` extended to accept `⬅️ Back` (backward compat — old keyboards on user screens still work after deploy)
+- `⬅️ Prev` (pagination) preserved unchanged — different concept
+
+**Net result**: 333 visible Back buttons, all rendered as `↩️ Back`. ZERO `🔙 Back` / `⬅️ Back` / `t.backButton` / raw `t.back` left in keyboards.
+
+### Tests (32 total in test_back_button.js — was 25)
+Added 6 source-level standardization assertions:
+- `_index.js` has >100 `'↩️ Back'` rendered buttons
+- ZERO `'🔙 Back'` / `'⬅️ Back'` / `t.backButton` / `[t.back]` / `t.back || ...` outside `isBackPress` itself
+
+**Total test suite: 124/124 passing.** Bot rebooted clean.
+
+
 ## ✅ Telegram Bot Back-Button Trap Fix (May 1, 2026)
 
 ### Problem (from production logs)
