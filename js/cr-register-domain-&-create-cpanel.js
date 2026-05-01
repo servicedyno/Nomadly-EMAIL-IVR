@@ -167,24 +167,29 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state,
 
     // Track CF zone info — populated during domain registration (new domains)
     // or CF DNS setup (existing/external domains).
-    // On a queue-replay, we may already have these from a prior partial run.
     //
-    // BUG FIX (wrong-zone): For `isExisting` (Use My Domain) and `isExternal`
-    // (Connect External Domain), NEVER trust `info.cfZoneId` from user state —
-    // it's stamped by every "Manage DNS" interaction (_index.js:6385) and
-    // commonly contains a different domain's zone. Always re-resolve from the
-    // domain itself: prefer the per-domain DB record, fall back to a live CF
-    // lookup. Only `_fromQueue` runs (a true mid-flight resume) may keep the
-    // queue-supplied zone, since the queue persisted the same per-domain id.
-    let cfZoneId = info.cfZoneId || null
-    let cfNameservers = info.cfNameservers || []
+    // BUG FIX (wrong-zone): NEVER trust `info.cfZoneId` from session state.
+    // Historically, `_index.js` stamped `state.cfZoneId` for every "Manage DNS"
+    // interaction. That value then leaked into hosting provisioning, causing
+    // records to be created in the WRONG zone (Cloudflare auto-appends the
+    // zone domain when the supplied record name doesn't match the zone, so
+    // `name="hunt-verify.org"` + `zone=*.it` produced
+    // `hunt-verify.org.huntingtononlinebanking.it` in the .it zone with NO
+    // records in the actual hunt-verify.org zone).
+    //
+    // The session-state setter has been removed (_index.js:6385), but for
+    // backward safety we ALSO ignore `info.cfZoneId` here and always
+    // re-resolve from per-domain sources. Only `_fromQueue` runs (true
+    // mid-flight resume) keep their queued zone — the queue persists the
+    // same per-domain id.
+    let cfZoneId = null
+    let cfNameservers = []
 
-    const isExisting_pre = info.existingDomain
-    const isExternal_pre = info.connectExternalDomain
-    if ((isExisting_pre || isExternal_pre) && !info._fromQueue) {
-      const stale = cfZoneId
-      cfZoneId = null
-      cfNameservers = []
+    if (info._fromQueue && info.cfZoneId) {
+      cfZoneId = info.cfZoneId
+      cfNameservers = info.cfNameservers || []
+    } else {
+      const stale = info.cfZoneId || null
       try {
         const { MongoClient } = require('mongodb')
         const zClient = new MongoClient(process.env.MONGO_URL)
@@ -195,19 +200,20 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state,
         if (reg?.val?.cfZoneId) {
           cfZoneId = reg.val.cfZoneId
           cfNameservers = reg.val.nameservers || []
-          log(`[Hosting] cfZoneId for ${domain} resolved from DB: ${cfZoneId}${stale && stale !== cfZoneId ? ` (replaced stale info.cfZoneId=${stale})` : ''}`)
+          log(`[Hosting] cfZoneId for ${domain} resolved from DB: ${cfZoneId}${stale && stale !== cfZoneId ? ` (ignored stale info.cfZoneId=${stale})` : ''}`)
         }
       } catch (zErr) {
         log(`[Hosting] DB cfZoneId lookup failed for ${domain}: ${zErr.message}`)
       }
-      // Fall back to a live CF lookup if DB had no record
+      // Fall back to a live CF lookup if DB had no record (e.g. CF zone
+      // exists but was created out-of-band).
       if (!cfZoneId) {
         try {
           const liveZone = await cfService.getZoneByName(domain)
           if (liveZone?.id) {
             cfZoneId = liveZone.id
             cfNameservers = liveZone.name_servers || []
-            log(`[Hosting] cfZoneId for ${domain} resolved live from CF: ${cfZoneId}${stale && stale !== cfZoneId ? ` (replaced stale info.cfZoneId=${stale})` : ''}`)
+            log(`[Hosting] cfZoneId for ${domain} resolved live from CF: ${cfZoneId}${stale && stale !== cfZoneId ? ` (ignored stale info.cfZoneId=${stale})` : ''}`)
           }
         } catch (lErr) {
           log(`[Hosting] live CF zone lookup failed for ${domain}: ${lErr.message}`)

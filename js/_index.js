@@ -6382,7 +6382,13 @@ bot?.on('message', msg => {
 
       set(state, chatId, 'dnsRecords', toSave)
       set(state, chatId, 'dnsSource', source)
-      set(state, chatId, 'cfZoneId', cfZoneId)
+      // NOTE: `cfZoneId` is intentionally NOT stamped on session state.
+      // It used to be set here as `set(state, chatId, 'cfZoneId', cfZoneId)`,
+      // but that polluted user state with the most recently MANAGED domain's
+      // zone ID, which then leaked into hosting provisioning and caused records
+      // to be created in the wrong CF zone (see WRONG_ZONE_CFZONEID_BUG.md).
+      // `cfZoneId` MUST be looked up per-domain from `registeredDomains` DB
+      // or via `cfService.getZoneByName(domain)` at the point of use.
       set(state, chatId, 'domainNameId', domainNameId)
       set(state, chatId, 'nameserverType', nameserverType)
       await set(state, chatId, 'action', 'choose-dns-action')

@@ -93,6 +93,46 @@ $ curl -sSL -o /dev/null -w "%{http_code} | %{remote_ip}" https://hunt-verify.or
   this domain — but ONLY after the code is pushed to GitHub → Railway redeploy.
   The env-var-only push from earlier did not include the code changes.
 
+## Defence-in-depth (2026-05-01 follow-up)
+
+After the original fix, three additional hardening changes were made:
+
+### 1. Killed pollution at the source (`_index.js:6385`)
+Removed `set(state, chatId, 'cfZoneId', cfZoneId)` from the DNS-management
+flow. `cfZoneId` is no longer stamped on user session state. Audit confirmed
+**no consumer** outside `cr-register-domain-&-create-cpanel.js` was reading
+it back — all other reads use the per-domain `registeredDomains` DB record
+or a live `getZoneByName()` lookup.
+
+### 2. ALWAYS re-resolve `cfZoneId` in hosting provisioning
+Extended the bug fix beyond `isExisting`/`isExternal` to every flow type
+(including new domain registration). Previously, even for new registrations,
+a stale `info.cfZoneId` could short-circuit the `if (!cfZoneId) createZone()`
+path and reuse the wrong zone. Now the function ALWAYS reads from
+`registeredDomains` DB → live CF lookup, ignoring `info.cfZoneId` (except
+on `_fromQueue` mid-flight resumes where the queue itself persists the
+correct id).
+
+### 3. Zone-name sanity check in `createDNSRecord` (`cf-service.js`)
+New `getZoneName(zoneId)` helper with in-memory cache. Every DNS write now
+verifies the supplied record name belongs to the supplied zone:
+
+```js
+if (!(lower === zoneName || lower.endsWith(`.${zoneName}`))) {
+  return { success: false, error: 'zone_name_mismatch', ... }
+}
+```
+
+This is the **last line of defence**: even if a future bug somehow passes a
+wrong `zoneId` to `createDNSRecord`, Cloudflare's silent name-appending
+behaviour can no longer create ghost records. Verified end-to-end:
+
+- TEST 1: `createDNSRecord(huntingtononlinebanking_it_zone, 'A', 'hunt-verify.org', ...)`
+  → REFUSED with `zone_name_mismatch` ✅
+- TEST 2: `createDNSRecord(hunt_verify_org_zone, 'TXT', '_sanitytest.hunt-verify.org', ...)`
+  → SUCCESS ✅
+- TEST 3: `createDNSRecord(any_zone, 'TXT', '@', ...)` (root) → SUCCESS ✅
+
 ## Lessons
 
 - `info.*` user-session state is global per-user, not per-domain. NEVER rely

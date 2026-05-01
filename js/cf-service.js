@@ -156,9 +156,50 @@ const listDNSRecords = async (zoneId, recordType) => {
   }
 }
 
+// ─── Zone-name cache (zoneId → zone domain) ─────────────
+// Used by createDNSRecord to verify that the supplied record name belongs
+// to the supplied zone. Cached because zone names are immutable per zone id
+// and the verification runs on every DNS write.
+const _zoneNameCache = new Map()
+const getZoneName = async (zoneId) => {
+  if (_zoneNameCache.has(zoneId)) return _zoneNameCache.get(zoneId)
+  try {
+    const res = await axios.get(`${CF_BASE_URL}/zones/${zoneId}`, {
+      headers: cfHeaders(), timeout: 10000,
+    })
+    if (res.data?.success && res.data.result?.name) {
+      const name = String(res.data.result.name).toLowerCase()
+      _zoneNameCache.set(zoneId, name)
+      return name
+    }
+  } catch (err) {
+    log(`CF getZoneName(${zoneId}) error: ${err.response?.status || ''} ${err.message}`)
+  }
+  return null
+}
+
 const createDNSRecord = async (zoneId, recordType, name, content, ttl = 300, proxied = false, priority, extraData) => {
   try {
     const type = recordType.toUpperCase()
+
+    // ── ZONE-NAME SANITY CHECK ──
+    // Refuse if the supplied `name` doesn't belong to the supplied zone.
+    // This catches the wrong-zone bug where stale `info.cfZoneId` from
+    // session state caused records to be created in the wrong zone.
+    // Cloudflare's API silently auto-appends the zone domain when names
+    // don't match (e.g. name="hunt-verify.org" + zone=*.it produces
+    // "hunt-verify.org.huntingtononlinebanking.it"). We refuse instead.
+    const zoneName = await getZoneName(zoneId)
+    if (zoneName && name && name !== '@') {
+      const lower = String(name).toLowerCase()
+      const inZone = lower === zoneName || lower.endsWith(`.${zoneName}`)
+      if (!inZone) {
+        const msg = `[CF createDNSRecord] ❌ REFUSING — record name "${name}" does not belong to zone "${zoneName}" (id=${zoneId}). Possible stale cfZoneId. Aborting.`
+        log(msg)
+        return { success: false, error: 'zone_name_mismatch', message: msg }
+      }
+    }
+
     let data = { type, name, content, ttl, proxied }
     if (type === 'MX' && priority !== undefined) data.priority = Number(priority)
     // SRV uses a structured data object in Cloudflare API
