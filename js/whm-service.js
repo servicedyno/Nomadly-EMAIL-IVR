@@ -51,7 +51,16 @@ function getAddonLimit(planName) {
 
 const whmApi = axios.create({
   baseURL: WHM_BASE,
-  headers: { Authorization: WHM_AUTH },
+  headers: {
+    Authorization: WHM_AUTH,
+    // Cloudflare Access service token (Zero Trust). Sent on every request;
+    // ignored by direct WHM API but required when WHM_API_URL routes through
+    // a CF Access-protected tunnel hostname.
+    ...(process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET ? {
+      'CF-Access-Client-Id': process.env.CF_ACCESS_CLIENT_ID,
+      'CF-Access-Client-Secret': process.env.CF_ACCESS_CLIENT_SECRET,
+    } : {}),
+  },
   httpsAgent: new (require('https').Agent)({ rejectUnauthorized: false }),
   timeout: 30000,
 })

@@ -81,9 +81,14 @@ function _tunnelHttpsProbe(url, timeoutMs) {
       resolve({ ok, reason })
     }
     try {
+      const accessHeaders = (process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET) ? {
+        'CF-Access-Client-Id': process.env.CF_ACCESS_CLIENT_ID,
+        'CF-Access-Client-Secret': process.env.CF_ACCESS_CLIENT_SECRET,
+      } : {}
       const req = https.request(url + '/login/', {
         method: 'HEAD',
         timeout: timeoutMs,
+        headers: accessHeaders,
         // The cert at this hostname is Cloudflare's, served by CF edge
         rejectUnauthorized: true,
       }, res => {

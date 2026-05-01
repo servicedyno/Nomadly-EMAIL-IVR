@@ -22,6 +22,18 @@ const CPANEL_PORT = 2083
 // Example value: "https://cpanel-api.hostbay.io"
 const CPANEL_API_URL = (process.env.CPANEL_API_URL || '').replace(/\/+$/, '')
 
+// Cloudflare Access service token (Zero Trust). When set, every request to
+// the tunneled cPanel hostname carries CF-Access-Client-Id/Secret headers so
+// the public-facing tunnel hostname is auth-locked to the bot.
+const CF_ACCESS_CLIENT_ID = process.env.CF_ACCESS_CLIENT_ID || ''
+const CF_ACCESS_CLIENT_SECRET = process.env.CF_ACCESS_CLIENT_SECRET || ''
+const _accessHeaders = (CF_ACCESS_CLIENT_ID && CF_ACCESS_CLIENT_SECRET)
+  ? { 'CF-Access-Client-Id': CF_ACCESS_CLIENT_ID, 'CF-Access-Client-Secret': CF_ACCESS_CLIENT_SECRET }
+  : {}
+function _maybeAccessHeaders(url) {
+  return CPANEL_API_URL && url && url.startsWith(CPANEL_API_URL) ? _accessHeaders : {}
+}
+
 // Accept self-signed certs on WHM
 const httpsAgent = new https.Agent({ rejectUnauthorized: false })
 
@@ -130,13 +142,14 @@ async function uapi(cpUser, cpPass, module, func, params = {}, method = 'GET', h
   const baseUrl = getBaseUrl(host)
   const url = `${baseUrl}/execute/${module}/${func}`
   const auth = { username: cpUser, password: cpPass }
+  const headers = _maybeAccessHeaders(baseUrl)
 
   try {
     let res
     if (method === 'GET') {
-      res = await axios.get(url, { params, auth, httpsAgent, timeout: 30000 })
+      res = await axios.get(url, { params, auth, httpsAgent, timeout: 30000, headers })
     } else {
-      res = await axios.post(url, params, { auth, httpsAgent, timeout: 30000 })
+      res = await axios.post(url, params, { auth, httpsAgent, timeout: 30000, headers })
     }
 
     const data = res.data
@@ -172,7 +185,7 @@ async function uploadFile(cpUser, cpPass, dir, fileName, fileBuffer, host = null
       auth,
       httpsAgent,
       timeout: 120000,
-      headers: form.getHeaders(),
+      headers: { ...form.getHeaders(), ..._maybeAccessHeaders(baseUrl) },
       maxContentLength: 100 * 1024 * 1024, // 100MB
     })
     return sanitize(res.data, host)
@@ -203,7 +216,7 @@ async function api2(cpUser, cpPass, module, func, params = {}, host = null) {
   }
 
   try {
-    const res = await axios.get(url, { params: queryParams, auth, httpsAgent, timeout: 60000 })
+    const res = await axios.get(url, { params: queryParams, auth, httpsAgent, timeout: 60000, headers: _maybeAccessHeaders(baseUrl) })
     const raw = sanitize(res.data, host)
 
     // Normalize API2 response to UAPI-like format
@@ -427,6 +440,7 @@ async function addAddonDomain(cpUser, cpPass, domain, subDomain, dir, host = nul
       auth,
       httpsAgent: new (require('https').Agent)({ rejectUnauthorized: false }),
       timeout: 30000,
+      headers: _maybeAccessHeaders(getBaseUrl(host)),
     })
     const result = res.data?.cpanelresult?.data?.[0] || {}
     if (result.result === 1) {
@@ -459,6 +473,7 @@ async function removeAddonDomain(cpUser, cpPass, domain, subDomain, mainDomain, 
       auth,
       httpsAgent: new (require('https').Agent)({ rejectUnauthorized: false }),
       timeout: 30000,
+      headers: _maybeAccessHeaders(getBaseUrl(host)),
     })
     const result = res.data?.cpanelresult?.data?.[0] || {}
     if (result.result === 1) {
@@ -559,6 +574,7 @@ async function createSubdomain(cpUser, cpPass, subdomain, rootdomain, dir, host 
       auth,
       httpsAgent: new (require('https').Agent)({ rejectUnauthorized: false }),
       timeout: 30000,
+      headers: _maybeAccessHeaders(getBaseUrl(host)),
     })
     const result = res.data?.cpanelresult?.data?.[0] || {}
     if (result.result === 1) {
@@ -592,6 +608,7 @@ async function deleteSubdomain(cpUser, cpPass, fullSubdomain, host = null) {
       auth,
       httpsAgent: new (require('https').Agent)({ rejectUnauthorized: false }),
       timeout: 30000,
+      headers: _maybeAccessHeaders(getBaseUrl(host)),
     })
     const result = res.data?.cpanelresult?.data?.[0] || {}
     if (result.result === 1) {
