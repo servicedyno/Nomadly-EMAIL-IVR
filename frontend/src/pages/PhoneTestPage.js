@@ -43,6 +43,11 @@ const PhoneTestPage = () => {
 
   const clientRef = useRef(null);
   const callRef = useRef(null);
+
+  // Speechcue Cloud Phone branding for this page (default index.html title is HostBay)
+  useEffect(() => {
+    document.title = 'Speechcue | Cloud Phone';
+  }, []);
   const timerRef = useRef(null);
   const callStartRef = useRef(null);
   const audioRef = useRef(null);

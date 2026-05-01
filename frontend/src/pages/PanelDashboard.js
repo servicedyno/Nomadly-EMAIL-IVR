@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../components/panel/AuthContext';
 import FileManager from '../components/panel/FileManager';
@@ -26,6 +26,11 @@ export default function PanelDashboard() {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('files');
   const { theme, toggleTheme, isDark } = useTheme();
+
+  // Set browser tab title — overrides static "Speechcue | Cloud Phone" from index.html
+  useEffect(() => {
+    document.title = 'HostBay | Hosting Panel';
+  }, []);
 
   return (
     <div className={`panel-dashboard ${theme === 'light' ? 'panel-light' : ''}`} data-testid="panel-dashboard" data-panel-theme={theme}>

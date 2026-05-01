@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../components/panel/AuthContext';
 import useTheme from '../components/panel/useTheme';
@@ -14,6 +14,11 @@ export default function PanelLogin() {
   const [loading, setLoading] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const { theme, toggleTheme, isDark } = useTheme();
+
+  // Set browser tab title — overrides static "Speechcue | Cloud Phone" from index.html
+  useEffect(() => {
+    document.title = 'HostBay | Hosting Panel';
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
