@@ -7,6 +7,34 @@
 - MongoDB (port 27017)
 
 
+## ✅ Existing-User Mutation Queue Wire-Up (May 1, 2026)
+
+### Problem
+The cpanel-job-queue, handlers, and post-payment provisioning were already queue-aware (May 1 morning). But the **5 existing-user mutation call-sites** in `_index.js` were still calling cPanel/WHM directly. If WHM went down at the moment a user tapped "Take site offline" / "Bring online" / "Unlink addon" / "Cancel plan" / "Renew (suspended)", the call would either timeout or show a server-down style error — exactly what we'd promised to prevent.
+
+### Implementation
+**`js/_index.js`** — new helper `tryWhmOrQueue({ chatId, lang, kind, label, params, domain, dedupeKey, silent })`:
+- Pre-flight: cheap cached `cpHealth.isWhmReachable()` check
+- If reachable → returns `true` so caller continues with direct call
+- If down → enqueues `mutation` job + sends localized "⏳ Your request is being processed in the background — we'll notify you when it's done" (en/fr/zh/hi via `formatMutationQueuedMessage`)
+
+**5 call-sites wired**:
+1. **Take Offline** (suspend / enableMaintenance) — line ~10547
+2. **Bring Online** (unsuspend / disableMaintenance) — line ~10605
+3. **Unlink Addon Domain** — line ~10692. CF cleanup runs immediately even when WHM-down (CF doesn't depend on cPanel uptime); the cPanel-side removeAddonDomain is queued.
+4. **Cancel Hosting Plan** — line ~10880. Per spec: NO REFUND. DB row marked `deleted: true` immediately for instant UX confirmation; CF cleanup runs immediately; WHM termination queued. Admin gets a separate alert distinguishing queued cancellations.
+5. **Auto-Unsuspend after Renewal** — line ~11030. Uses `silent: true` so the user just sees their renewal-success message; the unsuspend completes in background if WHM was down.
+
+### Tests (17 new tests in `js/tests/test_mutation_queue.js`)
+- Each mutation kind: enqueue → drain → handler runs → DB updated correctly
+  - suspend / unsuspend / enableMaintenance / disableMaintenance / unlinkAddon / cancelPlan
+- User receives "✅ {label} completed" DM after each successful drain
+- DB side-effects verified (suspended flag, maintenanceMode flag, addonDomains array, deleted flag with `deleteReason`)
+- CPANEL_DOWN-shaped error during handler → job re-marked pending (deferred), drain pauses
+
+**Total test suite: 92/92 passing.**
+
+
 ## ✅ IVR Unfilled-Placeholder Validation (May 1, 2026)
 
 ### Problem (from production logs)

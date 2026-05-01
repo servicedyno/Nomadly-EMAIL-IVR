@@ -1040,6 +1040,86 @@ function formatUnfilledPlaceholderError(unfilled, lang) {
   return messages[lang] || messages.en
 }
 
+/**
+ * Build a localized "your request is being processed in the background" message
+ * for existing-user mutation flows (take-offline / bring-online / unlink-addon /
+ * cancel-plan) when the WHM control plane is unreachable.
+ *
+ * Same calm tone as the post-payment provisioning flow — user is NOT told that
+ * the hosting server is down. They see an in-progress message + know they will
+ * be notified when it completes (via the cpanel-job-queue worker DMing
+ * "✅ <label> completed").
+ */
+function formatMutationQueuedMessage(label, lang) {
+  const messages = {
+    en: `⏳ <b>Your request is being processed</b>\n\n${label} for your hosting plan is queued and will complete in the background — usually within a few minutes. We'll notify you here as soon as it's done.\n\n<i>You don't need to do anything — keep this chat open.</i>`,
+    fr: `⏳ <b>Votre demande est en cours de traitement</b>\n\n${label} pour votre plan d'hébergement est en file d'attente et sera terminé en arrière-plan — généralement en quelques minutes. Nous vous notifierons ici dès que ce sera fait.\n\n<i>Vous n'avez rien à faire — gardez ce chat ouvert.</i>`,
+    zh: `⏳ <b>您的请求正在处理中</b>\n\n您主机方案的 ${label} 已加入队列，将在后台完成 — 通常几分钟内。完成后我们会立即在此通知您。\n\n<i>您无需任何操作 — 保持此聊天窗口打开即可。</i>`,
+    hi: `⏳ <b>आपका अनुरोध संसाधित किया जा रहा है</b>\n\nआपके होस्टिंग प्लान के लिए ${label} कतार में है और पृष्ठभूमि में पूरा होगा — आमतौर पर कुछ मिनटों में। पूर्ण होते ही हम आपको यहीं सूचित करेंगे।\n\n<i>आपको कुछ नहीं करना — बस इस चैट को खुला रखें।</i>`,
+  }
+  return messages[lang] || messages.en
+}
+
+/**
+ * Try-then-queue a cPanel mutation. Returns `true` if WHM is reachable so the
+ * caller should proceed with the existing direct call, or `false` if the
+ * action was queued instead (caller should return without further work).
+ *
+ * Centralises the pre-flight WHM probe + mutation enqueue + user notification
+ * so each of the 4 mutation call-sites in _index.js can wrap its action in 3
+ * lines instead of repeating the boilerplate.
+ *
+ * @param {object} args
+ * @param {string|number} args.chatId  - Telegram chat
+ * @param {string} args.lang           - 'en' | 'fr' | 'zh' | 'hi'
+ * @param {string} args.kind           - mutation kind handled by cpanel-job-handlers
+ *                                       ('suspend'|'unsuspend'|'enableMaintenance'|
+ *                                        'disableMaintenance'|'unlinkAddon'|'cancelPlan'|
+ *                                        'saveFile')
+ * @param {string} args.label          - Human-readable description for the
+ *                                       "processing" message + completion DM
+ * @param {object} args.params         - Mutation-specific params (forwarded to handler)
+ * @param {string} args.domain         - Primary domain (for queue introspection)
+ * @param {string} [args.dedupeKey]    - Optional dedupe key; if a job with this
+ *                                       key is already pending/running, no new
+ *                                       job is created.
+ * @param {boolean} [args.silent=false] - If true, do NOT send the "processing"
+ *                                       message (used by automated flows like
+ *                                       post-renewal auto-unsuspend).
+ * @returns {Promise<boolean>} true → caller should proceed with direct call.
+ *                              false → action queued, caller should return.
+ */
+async function tryWhmOrQueue(args) {
+  try {
+    const cpHealth = require('./cpanel-health')
+    const reachable = await cpHealth.isWhmReachable()
+    if (reachable) return true
+  } catch (e) {
+    log(`[mutation-queue] health probe error (proceed direct): ${e.message}`)
+    return true
+  }
+  // WHM is down — enqueue + (optionally) notify user
+  try {
+    const cpQueue = require('./cpanel-job-queue')
+    await cpQueue.enqueue({
+      type: 'mutation',
+      chatId: args.chatId,
+      lang: args.lang,
+      domain: args.domain,
+      params: { kind: args.kind, label: args.label, args: args.params || {} },
+      dedupeKey: args.dedupeKey || `${args.kind}:${args.domain}:${args.chatId}`,
+    })
+    if (!args.silent) {
+      send(args.chatId, formatMutationQueuedMessage(args.label, args.lang))
+    }
+    log(`[mutation-queue] queued ${args.kind} for chat=${args.chatId} domain=${args.domain || '-'}`)
+  } catch (e) {
+    log(`[mutation-queue] enqueue failed (falling through to direct call): ${e.message}`)
+    return true
+  }
+  return false
+}
+
 const send = (chatId, message, options) => {
   // Auto-detect HTML in message and add parse_mode if not already set
   const opts = options || {}
@@ -10539,6 +10619,25 @@ All verified numbers generated during sourcing.`))
 
     await send(chatId, t.takingSiteOffline(domain, mode), { parse_mode: 'HTML' })
 
+    // ── WHM-down resilience: pre-flight check + queue if needed ──
+    const offlineLabelByLang = {
+      en: mode === 'suspended' ? 'Taking your site offline' : 'Enabling maintenance mode',
+      fr: mode === 'suspended' ? 'Mise hors ligne du site' : 'Activation du mode maintenance',
+      zh: mode === 'suspended' ? '将您的网站下线' : '启用维护模式',
+      hi: mode === 'suspended' ? 'आपकी साइट को ऑफ़लाइन करना' : 'मेंटेनेंस मोड चालू करना',
+    }
+    const proceedDirect = await tryWhmOrQueue({
+      chatId, lang, domain,
+      kind: mode === 'suspended' ? 'suspend' : 'enableMaintenance',
+      label: offlineLabelByLang[lang] || offlineLabelByLang.en,
+      params: { domain, reason: `Taken offline by user (chatId ${chatId})` },
+      dedupeKey: `${mode === 'suspended' ? 'suspend' : 'enableMaintenance'}:${plan.cpUser}`,
+    })
+    if (!proceedDirect) {
+      // Queued — DB will be flipped by the worker on success
+      return goto.viewHostingPlanDetails(domain)
+    }
+
     const siteStatusService = require('./site-status-service')
     let result
     try {
@@ -10583,6 +10682,24 @@ All verified numbers generated during sourcing.`))
     }
 
     await send(chatId, t.bringingSiteOnline(domain), { parse_mode: 'HTML' })
+
+    // ── WHM-down resilience: pre-flight check + queue if needed ──
+    const onlineLabelByLang = {
+      en: wasMode === 'suspended' ? 'Bringing your site back online' : 'Disabling maintenance mode',
+      fr: wasMode === 'suspended' ? 'Remise en ligne du site' : 'Désactivation du mode maintenance',
+      zh: wasMode === 'suspended' ? '将您的网站重新上线' : '关闭维护模式',
+      hi: wasMode === 'suspended' ? 'आपकी साइट को फिर से ऑनलाइन करना' : 'मेंटेनेंस मोड बंद करना',
+    }
+    const proceedDirect = await tryWhmOrQueue({
+      chatId, lang, domain,
+      kind: wasMode === 'suspended' ? 'unsuspend' : 'disableMaintenance',
+      label: onlineLabelByLang[lang] || onlineLabelByLang.en,
+      params: { domain },
+      dedupeKey: `${wasMode === 'suspended' ? 'unsuspend' : 'disableMaintenance'}:${plan.cpUser}`,
+    })
+    if (!proceedDirect) {
+      return goto.viewHostingPlanDetails(domain)
+    }
 
     const siteStatusService = require('./site-status-service')
     let result
@@ -10648,6 +10765,45 @@ All verified numbers generated during sourcing.`))
     if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
 
     await send(chatId, t.unlinkingDomain(addonDomain), { parse_mode: 'HTML' })
+
+    // ── WHM-down resilience: pre-flight check + queue if needed ──
+    // The CF cleanup + DB tracking-removal still happens directly below; only
+    // the cPanel-side removeAddonDomain call needs the queue. We skip the
+    // pre-flight when WHM is up and run inline as before.
+    const unlinkLabelByLang = {
+      en: `Unlinking <b>${addonDomain}</b>`,
+      fr: `Déconnexion de <b>${addonDomain}</b>`,
+      zh: `解除链接 <b>${addonDomain}</b>`,
+      hi: `<b>${addonDomain}</b> को अनलिंक करना`,
+    }
+    const proceedDirect = await tryWhmOrQueue({
+      chatId, lang, domain,
+      kind: 'unlinkAddon',
+      label: unlinkLabelByLang[lang] || unlinkLabelByLang.en,
+      params: { domain, addonDomain },
+      dedupeKey: `unlinkAddon:${plan.cpUser}:${addonDomain}`,
+    })
+    if (!proceedDirect) {
+      // Still remove from local DB tracking + clean up Cloudflare immediately
+      // (these don't require WHM and shouldn't be deferred — user already paid
+      // to unlink and CF zones aren't dependent on cPanel uptime).
+      try {
+        await cpanelAccounts.updateOne(
+          { _id: plan._id },
+          { $pull: { addonDomains: addonDomain } }
+        )
+        const cfService = require('./cf-service')
+        const antiRedService = require('./anti-red-service')
+        const zone = await cfService.getZoneByName(addonDomain)
+        if (zone) {
+          await antiRedService.removeWorkerRoutes(addonDomain, zone.id).catch(() => {})
+          await cfService.cleanupAllHostingRecords(zone.id, addonDomain).catch(() => {})
+        }
+      } catch (cfErr) {
+        log(`[Hosting] unlink (queued): CF cleanup warning for ${addonDomain}: ${cfErr.message}`)
+      }
+      return goto.viewHostingPlanDetails(domain)
+    }
 
     let unlinkOk = false
     try {
@@ -10722,6 +10878,57 @@ All verified numbers generated during sourcing.`))
     if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
 
     await send(chatId, t.cancellingHostingPlan(domain), { parse_mode: 'HTML' })
+
+    // ── WHM-down resilience: pre-flight check + queue if needed ──
+    // Per requirement: cancellation = same queue, NO REFUND. We always set
+    // deleted=true in the bot DB so the user sees the plan cancelled in their
+    // hosting-plans list immediately. The actual WHM termination happens via
+    // the queue worker once the control plane is back. Cloudflare cleanup runs
+    // immediately either way (CF doesn't depend on WHM uptime).
+    const cancelLabelByLang = {
+      en: `Cancelling your hosting plan for <b>${domain}</b>`,
+      fr: `Annulation de votre plan d'hébergement pour <b>${domain}</b>`,
+      zh: `取消您的 <b>${domain}</b> 主机方案`,
+      hi: `<b>${domain}</b> के लिए आपका होस्टिंग प्लान रद्द करना`,
+    }
+    const proceedDirect = await tryWhmOrQueue({
+      chatId, lang, domain,
+      kind: 'cancelPlan',
+      label: cancelLabelByLang[lang] || cancelLabelByLang.en,
+      params: { domain },
+      dedupeKey: `cancelPlan:${plan.cpUser}`,
+    })
+    if (!proceedDirect) {
+      // Mark deleted in DB + run CF cleanup now (no WHM dependency)
+      try {
+        await cpanelAccounts.updateOne(
+          { _id: plan._id },
+          { $set: { deleted: true, deletedAt: new Date(), deletedBy: 'user', cancelledByUser: true, autoRenew: false } }
+        )
+        const cfService = require('./cf-service')
+        const antiRedService = require('./anti-red-service')
+        const allDomains = [plan.domain, ...(plan.addonDomains || [])].filter(Boolean)
+        const seen = new Set()
+        for (const d of allDomains) {
+          const key = (d || '').toLowerCase()
+          if (!key || seen.has(key)) continue
+          seen.add(key)
+          try {
+            const zone = await cfService.getZoneByName(d)
+            if (zone) {
+              await antiRedService.removeWorkerRoutes(d, zone.id).catch(() => {})
+              await cfService.cleanupAllHostingRecords(zone.id, d).catch(() => {})
+            }
+          } catch (cfErr) {
+            log(`[Hosting] cancelPlan (queued): CF cleanup warning for ${d}: ${cfErr.message}`)
+          }
+        }
+        notifyAdmin(`🚫 <b>Hosting plan cancellation queued (WHM down)</b>\nUser: ${chatId}\nDomain: <b>${domain}</b>\nPlan: <code>${plan.plan}</code>\ncPanel: <code>${plan.cpUser}</code>\n<i>WHM termination will run when control plane is back.</i>`)
+      } catch (e) {
+        log(`[Hosting] cancelPlan (queued): cleanup error: ${e.message}`)
+      }
+      return goto.myHostingPlans()
+    }
 
     let terminated = false
     try {
@@ -10817,11 +11024,24 @@ All verified numbers generated during sourcing.`))
           }
         )
 
-        // Unsuspend if was suspended
+        // Unsuspend if was suspended.
+        // If WHM is down, queue silently — the user already paid for renewal,
+        // we shouldn't surface infrastructure problems to them. The queue
+        // worker will run the unsuspend when control plane is back.
         if (plan.suspended) {
           try {
-            const whmService = require('./whm-service')
-            await whmService.unsuspendAccount(plan.cpUser)
+            const proceedDirect = await tryWhmOrQueue({
+              chatId, lang, domain,
+              kind: 'unsuspend',
+              label: 'Restoring your renewed hosting plan',
+              params: { domain },
+              dedupeKey: `unsuspend-renewal:${plan.cpUser}`,
+              silent: true, // automated post-renewal — no in-progress message
+            })
+            if (proceedDirect) {
+              const whmService = require('./whm-service')
+              await whmService.unsuspendAccount(plan.cpUser)
+            }
           } catch (_) {}
         }
 
