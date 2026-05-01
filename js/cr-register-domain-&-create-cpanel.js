@@ -52,6 +52,17 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state,
     // down on the original attempt and domain registration had already
     // succeeded), DO NOT re-register — that would double-charge the user.
     // We detect by looking up the registeredDomains marker. Idempotent.
+    //
+    // BUG FIX (origin-leak / wrong-zone): The per-domain `registeredDomains`
+    // record is the source of truth for `cfZoneId`. Previously we used
+    // `info.cfZoneId || alreadyReg.val?.cfZoneId` — but `info.cfZoneId` is
+    // user-session state polluted by the most recently MANAGED domain
+    // (see _index.js:6385 `set(state, chatId, 'cfZoneId', cfZoneId)`).
+    // For a user who manages multiple domains, this leaked the WRONG zone
+    // into hosting provisioning, creating ghost records like
+    // `hunt-verify.org.huntingtononlinebanking.it → origin_ip` in the
+    // wrong zone (Cloudflare auto-appends the zone domain when the supplied
+    // record name doesn't match the zone).
     if (!info.skipDomainRegistration) {
       const alreadyReg = await guardDb.collection('registeredDomains').findOne({
         _id: domain,
@@ -60,9 +71,10 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state,
       })
       if (alreadyReg) {
         info.skipDomainRegistration = true
-        info.cfZoneId = info.cfZoneId || alreadyReg.val?.cfZoneId
-        info.cfNameservers = info.cfNameservers || alreadyReg.val?.nameservers
-        info.registrar = info.registrar || alreadyReg.val?.registrar
+        // Per-domain DB record WINS over user-session state
+        info.cfZoneId = alreadyReg.val?.cfZoneId || info.cfZoneId
+        info.cfNameservers = alreadyReg.val?.nameservers || info.cfNameservers
+        info.registrar = alreadyReg.val?.registrar || info.registrar
         log(`[Hosting] re-run: ${domain} already registered to ${chatId} — skipping domain registration step`)
       }
     }
@@ -156,8 +168,52 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state,
     // Track CF zone info — populated during domain registration (new domains)
     // or CF DNS setup (existing/external domains).
     // On a queue-replay, we may already have these from a prior partial run.
+    //
+    // BUG FIX (wrong-zone): For `isExisting` (Use My Domain) and `isExternal`
+    // (Connect External Domain), NEVER trust `info.cfZoneId` from user state —
+    // it's stamped by every "Manage DNS" interaction (_index.js:6385) and
+    // commonly contains a different domain's zone. Always re-resolve from the
+    // domain itself: prefer the per-domain DB record, fall back to a live CF
+    // lookup. Only `_fromQueue` runs (a true mid-flight resume) may keep the
+    // queue-supplied zone, since the queue persisted the same per-domain id.
     let cfZoneId = info.cfZoneId || null
     let cfNameservers = info.cfNameservers || []
+
+    const isExisting_pre = info.existingDomain
+    const isExternal_pre = info.connectExternalDomain
+    if ((isExisting_pre || isExternal_pre) && !info._fromQueue) {
+      const stale = cfZoneId
+      cfZoneId = null
+      cfNameservers = []
+      try {
+        const { MongoClient } = require('mongodb')
+        const zClient = new MongoClient(process.env.MONGO_URL)
+        await zClient.connect()
+        const zDb = zClient.db(process.env.DB_NAME || 'test')
+        const reg = await zDb.collection('registeredDomains').findOne({ _id: domain })
+        await zClient.close()
+        if (reg?.val?.cfZoneId) {
+          cfZoneId = reg.val.cfZoneId
+          cfNameservers = reg.val.nameservers || []
+          log(`[Hosting] cfZoneId for ${domain} resolved from DB: ${cfZoneId}${stale && stale !== cfZoneId ? ` (replaced stale info.cfZoneId=${stale})` : ''}`)
+        }
+      } catch (zErr) {
+        log(`[Hosting] DB cfZoneId lookup failed for ${domain}: ${zErr.message}`)
+      }
+      // Fall back to a live CF lookup if DB had no record
+      if (!cfZoneId) {
+        try {
+          const liveZone = await cfService.getZoneByName(domain)
+          if (liveZone?.id) {
+            cfZoneId = liveZone.id
+            cfNameservers = liveZone.name_servers || []
+            log(`[Hosting] cfZoneId for ${domain} resolved live from CF: ${cfZoneId}${stale && stale !== cfZoneId ? ` (replaced stale info.cfZoneId=${stale})` : ''}`)
+          }
+        } catch (lErr) {
+          log(`[Hosting] live CF zone lookup failed for ${domain}: ${lErr.message}`)
+        }
+      }
+    }
 
     // ── Step 2: Domain registration FIRST (for new domains only) ──
     // This prevents orphan WHM accounts if domain registration fails.
