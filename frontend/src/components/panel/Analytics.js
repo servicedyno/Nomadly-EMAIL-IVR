@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from './AuthContext';
 
 function formatBytes(bytes) {
@@ -22,12 +23,17 @@ function statusColor(code) {
   return '#f87171';
 }
 
-function truncateUA(ua, len = 60) {
-  if (!ua) return '(empty)';
-  return ua.length > len ? ua.slice(0, len) + '...' : ua;
+function useTruncateUA() {
+  const { t } = useTranslation();
+  return (ua, len = 60) => {
+    if (!ua) return t('an.emptyUA');
+    return ua.length > len ? ua.slice(0, len) + '...' : ua;
+  };
 }
 
 export default function Analytics() {
+  const { t } = useTranslation();
+  const truncateUA = useTruncateUA();
   const { api } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -67,7 +73,7 @@ export default function Analytics() {
   return (
     <div className="an" data-testid="analytics">
       <div className="dl-header">
-        <h2>Visitor Analytics</h2>
+        <h2>{t('an.title')}</h2>
         <div className="an-period-toggle">
           {[7, 14, 30].map(d => (
             <button
@@ -85,31 +91,33 @@ export default function Analytics() {
       {error && <div className="fm-error" data-testid="an-error">{error}</div>}
 
       {loading ? (
-        <div className="fm-loading">Loading analytics...</div>
+        <div className="fm-loading">{t('an.loading')}</div>
       ) : !totals ? (
-        <div className="fm-empty">No analytics data available. Ensure your domain is active on Cloudflare.</div>
+        <div className="fm-empty">{t('an.emptyNoData')}</div>
       ) : (
         <>
           {/* Stats Cards */}
           <div className="an-cards" data-testid="an-cards">
-            <StatCard icon="visitors" value={formatNum(totals.uniqueVisitors)} label="Unique Visitors" testId="an-visitors" />
-            <StatCard icon="requests" value={formatNum(totals.requests)} label="Total Requests" testId="an-requests" />
-            <StatCard icon="bandwidth" value={formatBytes(totals.bandwidth)} label="Bandwidth" testId="an-bandwidth" />
-            <StatCard icon="threats" value={formatNum(totals.threats)} label="Threats Blocked" testId="an-threats" />
+            <StatCard icon="visitors" value={formatNum(totals.uniqueVisitors)} label={t('an.uniqueVisitors')} testId="an-visitors" />
+            <StatCard icon="requests" value={formatNum(totals.requests)} label={t('an.totalRequests')} testId="an-requests" />
+            <StatCard icon="bandwidth" value={formatBytes(totals.bandwidth)} label={t('an.bandwidth')} testId="an-bandwidth" />
+            <StatCard icon="threats" value={formatNum(totals.threats)} label={t('an.threatsBlocked')} testId="an-threats" />
           </div>
 
           {/* Traffic Quality */}
           {tq && (tq.estimatedHuman > 0 || tq.estimatedBot > 0) && (
             <div className="an-section" data-testid="an-traffic-quality">
-              <h3>Traffic Quality <span className="an-section-badge">(last 24h)</span></h3>
+              <h3>{t('an.trafficQuality')} <span className="an-section-badge">{t('an.last24h')}</span></h3>
               <div className="an-tq-row">
                 <div className="an-tq-bar-wrap">
                   <div className="an-tq-bar an-tq-bar--human" style={{ width: `${100 - (tq.botPercentage || 0)}%` }} />
                   <div className="an-tq-bar an-tq-bar--bot" style={{ width: `${tq.botPercentage || 0}%` }} />
                 </div>
                 <div className="an-tq-legend">
-                  <span className="an-tq-dot an-tq-dot--human" /> Human: {formatNum(tq.estimatedHuman)} ({100 - (tq.botPercentage || 0)}%)
-                  <span className="an-tq-dot an-tq-dot--bot" style={{ marginLeft: 16 }} /> Bot: {formatNum(tq.estimatedBot)} ({tq.botPercentage || 0}%)
+                  <span className="an-tq-dot an-tq-dot--human" />
+                  {t('an.humanPct', { count: formatNum(tq.estimatedHuman), pct: 100 - (tq.botPercentage || 0) })}
+                  <span className="an-tq-dot an-tq-dot--bot" style={{ marginLeft: 16 }} />
+                  {t('an.botPct', { count: formatNum(tq.estimatedBot), pct: tq.botPercentage || 0 })}
                 </div>
               </div>
             </div>
@@ -118,14 +126,18 @@ export default function Analytics() {
           {/* Visitor Chart */}
           {timeseries.length > 0 && (
             <div className="an-chart-container" data-testid="an-chart">
-              <h3>Daily Visitors</h3>
+              <h3>{t('an.dailyVisitors')}</h3>
               <div className="an-chart">
-                {timeseries.map((t, i) => {
-                  const pct = (t.uniqueVisitors / maxVisitors) * 100;
-                  const date = new Date(t.date || t.since);
+                {timeseries.map((ts, i) => {
+                  const pct = (ts.uniqueVisitors / maxVisitors) * 100;
+                  const date = new Date(ts.date || ts.since);
                   const label = `${date.getMonth() + 1}/${date.getDate()}`;
                   return (
-                    <div key={i} className="an-bar-col" title={`${label}: ${t.uniqueVisitors} visitors, ${t.requests} req`}>
+                    <div
+                      key={i}
+                      className="an-bar-col"
+                      title={t('an.chartBarTitle', { label, visitors: ts.uniqueVisitors, requests: ts.requests })}
+                    >
                       <div className="an-bar-wrapper">
                         <div className="an-bar" style={{ height: `${Math.max(pct, 2)}%` }} data-testid={`an-bar-${i}`} />
                       </div>
@@ -144,7 +156,7 @@ export default function Analytics() {
             {/* Per-Domain Breakdown */}
             {byHost.length > 0 && (
               <div className="an-section" data-testid="an-by-host">
-                <h3>Per Domain <span className="an-section-badge">(last 24h)</span></h3>
+                <h3>{t('an.perDomain')} <span className="an-section-badge">{t('an.last24h')}</span></h3>
                 <div className="an-table">
                   {byHost.map((h, i) => {
                     const pct = (h.requests / (byHost[0]?.requests || 1)) * 100;
@@ -165,7 +177,7 @@ export default function Analytics() {
             {/* Country Breakdown */}
             {byCountry.length > 0 && (
               <div className="an-section" data-testid="an-by-country">
-                <h3>By Country</h3>
+                <h3>{t('an.byCountry')}</h3>
                 <div className="an-table">
                   {byCountry.slice(0, 10).map((c, i) => {
                     const pct = (c.requests / (byCountry[0]?.requests || 1)) * 100;
@@ -176,7 +188,7 @@ export default function Analytics() {
                           <div className="an-table-bar" style={{ width: `${pct}%`, background: '#a78bfa' }} />
                         </div>
                         <span className="an-table-val">{formatNum(c.requests)}</span>
-                        {c.threats > 0 && <span className="an-table-threat">{c.threats} threats</span>}
+                        {c.threats > 0 && <span className="an-table-threat">{t('an.countryThreats', { count: c.threats })}</span>}
                       </div>
                     );
                   })}
@@ -190,7 +202,7 @@ export default function Analytics() {
             {/* HTTP Status Codes */}
             {byStatus.length > 0 && (
               <div className="an-section" data-testid="an-by-status">
-                <h3>HTTP Status Codes</h3>
+                <h3>{t('an.httpStatusCodes')}</h3>
                 <div className="an-table">
                   {byStatus.map((s, i) => {
                     const pct = (s.requests / (byStatus[0]?.requests || 1)) * 100;
@@ -213,7 +225,7 @@ export default function Analytics() {
             {/* Top Paths */}
             {topPaths.length > 0 && (
               <div className="an-section" data-testid="an-top-paths">
-                <h3>Top Paths <span className="an-section-badge">(last 24h)</span></h3>
+                <h3>{t('an.topPaths')} <span className="an-section-badge">{t('an.last24h')}</span></h3>
                 <div className="an-table">
                   {topPaths.slice(0, 10).map((p, i) => {
                     const pct = (p.requests / (topPaths[0]?.requests || 1)) * 100;
@@ -241,7 +253,7 @@ export default function Analytics() {
           {/* Top User Agents */}
           {topUserAgents.length > 0 && (
             <div className="an-section an-section--full" data-testid="an-top-ua">
-              <h3>Top User Agents <span className="an-section-badge">(last 24h)</span></h3>
+              <h3>{t('an.topUserAgents')} <span className="an-section-badge">{t('an.last24h')}</span></h3>
               <div className="an-table">
                 {topUserAgents.map((u, i) => (
                   <div key={i} className="an-table-row an-table-row--ua" data-testid={`an-ua-${i}`}>

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from './AuthContext';
 import SiteStatusCard from './SiteStatusCard';
 
@@ -17,6 +18,7 @@ import SiteStatusCard from './SiteStatusCard';
  *      to interact with a torn-down cPanel account.
  */
 export default function AccountSettings() {
+  const { t } = useTranslation();
   const { user, api, logout } = useAuth();
   const [stage, setStage] = useState('idle'); // idle | reviewing | submitting | done | error
   const [confirmText, setConfirmText] = useState('');
@@ -48,7 +50,7 @@ export default function AccountSettings() {
       });
       setStage('done');
     } catch (err) {
-      setError(err.message || 'Failed to cancel hosting plan.');
+      setError(err.message || t('acct.defaultErr'));
       setStage('error');
     }
   };
@@ -60,22 +62,16 @@ export default function AccountSettings() {
           <div className="acct-card-icon" aria-hidden="true">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>
           </div>
-          <h2 className="acct-card-title">Hosting plan cancelled</h2>
-          <p className="acct-card-body">
-            Your hosting for <strong>{user?.domain}</strong> has been terminated. The cPanel account, files,
-            email accounts, databases, and all addon domains have been removed.
-          </p>
-          <p className="acct-card-body">
-            <strong>Your domain itself stays registered to your account</strong> — it&apos;s just no longer
-            attached to a hosting plan. You can purchase a new hosting plan anytime from the Telegram bot.
-          </p>
+          <h2 className="acct-card-title">{t('acct.cancelDoneTitle')}</h2>
+          <p className="acct-card-body" dangerouslySetInnerHTML={{ __html: t('acct.cancelDoneBody1', { domain: user?.domain || '' }) }} />
+          <p className="acct-card-body" dangerouslySetInnerHTML={{ __html: t('acct.cancelDoneBody2') }} />
           <button
             type="button"
             className="acct-btn acct-btn--neutral"
             onClick={logout}
             data-testid="account-cancel-signout-btn"
           >
-            Sign out
+            {t('acct.signOut')}
           </button>
         </div>
       </div>
@@ -85,10 +81,11 @@ export default function AccountSettings() {
   return (
     <div className="acct-section" data-testid="account-settings-section">
       <div className="acct-header">
-        <h2 className="acct-header-title">Account</h2>
-        <p className="acct-header-sub">
-          Signed in as <strong>{user?.username}</strong> · <strong>{user?.domain}</strong>
-        </p>
+        <h2 className="acct-header-title">{t('acct.sectionTitle')}</h2>
+        <p
+          className="acct-header-sub"
+          dangerouslySetInnerHTML={{ __html: t('acct.signedInAs', { username: user?.username || '', domain: user?.domain || '' }) }}
+        />
       </div>
 
       <SiteStatusCard />
@@ -103,22 +100,23 @@ export default function AccountSettings() {
             </svg>
           </div>
           <div>
-            <h3 className="acct-card-title">Cancel hosting plan</h3>
-            <p className="acct-card-sub">
-              Permanently terminate this hosting plan for <strong>{user?.domain}</strong>.
-            </p>
+            <h3 className="acct-card-title">{t('acct.dangerCancelTitle')}</h3>
+            <p
+              className="acct-card-sub"
+              dangerouslySetInnerHTML={{ __html: t('acct.dangerCancelSub', { domain: user?.domain || '' }) }}
+            />
           </div>
         </div>
 
         {stage === 'idle' && (
           <>
             <ul className="acct-warn-list">
-              <li>Your cPanel account and all files will be permanently deleted</li>
-              <li>All email accounts, databases, and FTP accounts will be removed</li>
-              <li>All addon domains attached to this plan will be unlinked</li>
-              <li>Anti-Red protection and Cloudflare DNS records will be cleaned up</li>
-              <li>This <strong>cannot be undone</strong> and <strong>no refund</strong> will be issued</li>
-              <li>The domain itself remains registered to you — only the hosting is cancelled</li>
+              <li>{t('acct.warn1')}</li>
+              <li>{t('acct.warn2')}</li>
+              <li>{t('acct.warn3')}</li>
+              <li>{t('acct.warn4')}</li>
+              <li dangerouslySetInnerHTML={{ __html: t('acct.warn5') }} />
+              <li>{t('acct.warn6')}</li>
             </ul>
             <div className="acct-actions">
               <button
@@ -127,7 +125,7 @@ export default function AccountSettings() {
                 onClick={startReview}
                 data-testid="account-cancel-start-btn"
               >
-                Cancel hosting plan
+                {t('acct.cancelBtnIdle')}
               </button>
             </div>
           </>
@@ -136,17 +134,17 @@ export default function AccountSettings() {
         {(stage === 'reviewing' || stage === 'submitting' || stage === 'error') && (
           <>
             <div className="acct-confirm-box">
-              <p className="acct-confirm-prompt">
-                To confirm, type <code>CANCEL</code> in the box below. The button stays disabled until the
-                phrase matches exactly.
-              </p>
+              <p
+                className="acct-confirm-prompt"
+                dangerouslySetInnerHTML={{ __html: t('acct.confirmPrompt') }}
+              />
               <input
                 type="text"
                 className="acct-confirm-input"
                 value={confirmText}
                 onChange={(e) => setConfirmText(e.target.value)}
-                placeholder="Type CANCEL to confirm"
-                aria-label="Type CANCEL to confirm"
+                placeholder={t('acct.confirmPlaceholder')}
+                aria-label={t('acct.confirmAria')}
                 disabled={stage === 'submitting'}
                 autoFocus
                 data-testid="account-cancel-confirm-input"
@@ -163,7 +161,7 @@ export default function AccountSettings() {
                 disabled={stage === 'submitting'}
                 data-testid="account-cancel-back-btn"
               >
-                Go back
+                {t('acct.goBack')}
               </button>
               <button
                 type="button"
@@ -172,7 +170,7 @@ export default function AccountSettings() {
                 disabled={!isPhraseValid || stage === 'submitting'}
                 data-testid="account-cancel-confirm-btn"
               >
-                {stage === 'submitting' ? 'Cancelling…' : 'Permanently cancel'}
+                {stage === 'submitting' ? t('acct.cancelling') : t('acct.permanentlyCancel')}
               </button>
             </div>
           </>

@@ -1,0 +1,50 @@
+{
+  "summary": "Frontend i18n regression + source-level validation pass for iteration_14 (extends iter_13 FileManager/PanelLogin coverage to the 7 authenticated panel components: EmailManager, SecurityPanel, DomainList, Analytics, AccountSettings, GeoManager, SiteStatusCard). Live PanelLogin re-tested in en/fr/hi/zh + dark mode + mobile 375x812 after en.json restructure — 0 i18n key leaks. Source-level heuristic scan for hardcoded English on the 7 panel files returned 0 hits across all files. Parity script `check_panel_lang_parity.js` exits 0 (fr/hi/zh all in parity with en for 500 keys, placeholders + HTML tags preserved). <strong> tags in translated values are correctly wired via dangerouslySetInnerHTML (AccountSettings.js warn5 + signedInAs + dangerCancelSub, SiteStatusCard.js headsUp + bringOnlineConfirm + reminderBilling). Authenticated panel runtime rendering could not be exercised — no cPanel creds / WHM firewalled (same constraint as iter_13).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "verifications_passed": [
+    "Parity: `node /app/scripts/check_panel_lang_parity.js` → exit 0. fr/hi/zh all have 500 keys matching en.json structure, placeholders + HTML tags preserved.",
+    "Hardcoded English heuristic grep on 7 panel files: EmailManager=0, SecurityPanel=0, DomainList=0, Analytics=0, AccountSettings=0, GeoManager=0, SiteStatusCard=0 matches for `>Capitalized [a-z]{2,}<` | `placeholder=\"[A-Z]` | `title=\"[A-Z]` | `aria-label=\"[A-Z]`.",
+    "PanelLogin live regression in en/fr/hi/zh — title/submit render in each language, 0 i18n key leaks (regex namespace.key sentinel applied to document.body.innerText).",
+    "en: title='Sign in to your hosting panel' submit='Sign In'. fr: title=\"Connectez-vous à votre panel d'hébergement\" submit='Se connecter'. hi: 'अपने होस्टिंग पैनल में साइन इन करें' / 'साइन इन करें'. zh: '登录到您的主机面板' / '登录'.",
+    "Mobile viewport 375x812 (hi): no horizontal overflow, form readable, language switcher reachable.",
+    "Dark mode: html.class='dark', dataTheme='dark', body bg=rgb(10,10,10) — Radix portal theme mirror still working after en.json restructure.",
+    "Namespace key counts in en.json: em=49+, sec=38+, dl=77+, an=22+, geo=20+, acct=22+, site=25+ (all present in fr/hi/zh).",
+    "Placeholder/pluralization probes: em.countAccount_one='account'/_other='accounts' (en), 'compte'/'comptes' (fr), 'खाता'/'खाते' (hi), '账户'/'账户' (zh). {{count}}-style plural wiring intact.",
+    "<strong> HTML tags preserved in acct.warn5 across all 4 locales: en='This <strong>cannot be undone</strong> and <strong>no refund</strong>...', fr='...<strong>ne peut pas être annulé</strong> et <strong>aucun remboursement</strong>...', hi='...<strong>पूर्ववत नहीं किया जा सकता</strong> और <strong>कोई रिफंड</strong>...', zh='...<strong>无法撤销</strong> 且 <strong>不予退款</strong>'.",
+    "Mustache-style placeholders intact: an.last24h='(last 24h)' / '(dernières 24h)' / '(पिछले 24 घंटे)' / '(过去24小时)'.",
+    "Bold markup rendering path verified via source: AccountSettings.js uses `dangerouslySetInnerHTML={{__html:t('acct.warn5')}}` (line 118); SiteStatusCard.js uses same for site.headsUp (168), site.reminderBilling (215), site.bringOnlineConfirm (245). No raw <strong> literal-text leak risk.",
+    "t() wiring density per file: EmailManager=67, SecurityPanel=25, DomainList=85, Analytics=21, AccountSettings=24, GeoManager=20, SiteStatusCard=33 → all components extensively i18n-wired.",
+    "Language switch via localStorage hp.lang + reload works in 4 locales; banner dismissible via hp.lang.bannerDismissed=1."
+  ],
+  "verifications_skipped_deferred": [
+    "Runtime rendering of 7 authenticated panels (EmailManager/SecurityPanel/DomainList/Analytics/AccountSettings/GeoManager/SiteStatusCard) under fr/hi/zh — blocked: no cPanel test account / WHM firewalled. Source-level grep + parity + probe verification applied as per agent_to_agent_context_note.",
+    "Manual click-through of window.confirm() dialogs (SiteStatusCard take-offline / AccountSettings cancel-plan confirm / DomainList remove-addon confirm) — requires auth.",
+    "Visual inspection of <strong> bold rendering inside dangerouslySetInnerHTML contexts (acct.warn5 / site.headsUp / dl confirm prompts) in live panel — same auth blocker. Source wiring confirmed correct though."
+  ],
+  "test_report_links": [
+    "/app/scripts/check_panel_lang_parity.js"
+  ],
+  "action_items": [
+    "(Non-blocking) check_panel_lang_parity.js reports 7 stale 'geo.*' keys in fr/hi/zh not in en.json (geo.description, geo.ruleCountry, geo.ruleAction, geo.actionAllow, geo.actionBlock, geo.actionRedirect, geo.addRule). Script still exits 0 (warnings not errors). If these are deprecated keys, consider deleting them from fr/hi/zh for cleanliness. Not blocking — no runtime impact.",
+    "(Non-blocking, deferred to next iteration) When a cPanel test account becomes available: log in and runtime-verify each of the 7 panels under hi/zh to confirm no late i18n key leaks visible at render-time (e.g., inside map-rendered list items, dynamically shown modals, or JS-constructed strings)."
+  ],
+  "critical_code_review_comments": [
+    "AccountSettings acct.warn5 English source string contains a typo: 'no refund will be is' — likely should be 'no refund will be issued'. All 3 target translations were auto-translated from this source, so fr/hi/zh may carry an awkward literal rendering of the typo. Recommend fixing in en.json then regenerating fr/hi/zh for warn5 only.",
+    "The 7 stale geo.* keys in target locales (geo.description, geo.ruleCountry, etc.) are not in en.json. They look like an older GeoManager schema that was replaced with the new namespace. Safe to delete from fr/hi/zh to keep files tight.",
+    "Consider adding `yarn lint:lang` as a git pre-commit hook (and/or CI gate) — the current setup relies on developer discipline to run check_panel_lang_parity.js.",
+    "DomainList.js has 85 t() calls for 77 keys — highest density. If any keys are conditionally dead-code, consider a usage-audit pass."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "skipped (frontend-only)", "frontend": "100% (unauthenticated scope)"},
+  "test_credentials": "N/A — /panel login page + source-level validation only. No cPanel test creds available per task brief.",
+  "seed_data_creation": "none",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter_14 verified (a) PanelLogin clean in 4 langs after en.json grew 234→500 keys (no regression from iter_13), (b) 7 new authenticated-panel files have zero hardcoded English per regex heuristic, (c) parity script green, (d) <strong>/mustache placeholder preservation verified for spot-check keys. NEXT ITERATION priorities when cPanel creds become available: log in as test user and live-render EmailManager, SecurityPanel, DomainList, Analytics, AccountSettings, GeoManager, SiteStatusCard in hi then zh. Sentinel regex for leaks: /\\b(fm|em|dl|sec|geo|an|site|acct|login|common|panel|dashboard)\\.[a-zA-Z0-9_]+/ against document.body.innerText after route navigation. Focus especially on (i) modal dialogs (send test email, bulk delete, cancel-plan confirm, take-offline confirm, add domain) because strings inside conditionally-rendered JSX are the highest leak risk, (ii) dynamically pluralized strings (em.countAccount_one/_other with real counts like 0/1/2/5 accounts — verify English fallback doesn't leak when a _zero variant is missing), (iii) toast messages fired from API error paths (AutoSSL failure, domain add failure). Also spot-check that `acct.warn5` renders as actual bold HTML <strong>cannot be undone</strong> and NOT as literal escaped text.",
+  "rca of the issue": "N/A — no bugs reproduced this iteration. All source-level checks green + live login page regression clean."
+}

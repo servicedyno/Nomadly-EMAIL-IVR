@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from './AuthContext';
 
 const COUNTRIES = [
@@ -21,6 +22,7 @@ const COUNTRIES = [
 ];
 
 export default function GeoManager() {
+  const { t } = useTranslation();
   const { api } = useAuth();
   const [rules, setRules] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -58,8 +60,8 @@ export default function GeoManager() {
     setError('');
     try {
       const desc = mode === 'block'
-        ? `Block: ${selected.join(', ')}`
-        : `Allow only: ${selected.join(', ')}`;
+        ? t('geo.descBlockPrefix', { codes: selected.join(', ') })
+        : t('geo.descAllowPrefix', { codes: selected.join(', ') });
       const res = await api('/geo/create', {
         method: 'POST',
         body: JSON.stringify({ countries: selected, mode, description: desc }),
@@ -69,7 +71,7 @@ export default function GeoManager() {
         setShowCreate(false);
         fetchRules();
       } else {
-        setError(res.errors?.[0]?.message || 'Failed to create rule');
+        setError(res.errors?.[0]?.message || t('geo.failedCreate'));
       }
     } catch (err) {
       setError(err.message);
@@ -79,7 +81,7 @@ export default function GeoManager() {
   };
 
   const handleDelete = async (ruleId) => {
-    if (!window.confirm('Delete this geo rule?')) return;
+    if (!window.confirm(t('geo.deleteRuleConfirm'))) return;
     setDeleting(ruleId);
     try {
       const res = await api('/geo/delete', {
@@ -89,7 +91,7 @@ export default function GeoManager() {
       if (res.success) {
         fetchRules();
       } else {
-        setError(res.errors?.[0]?.message || 'Failed to delete rule');
+        setError(res.errors?.[0]?.message || t('geo.failedDelete'));
       }
     } catch (err) {
       setError(err.message);
@@ -111,9 +113,9 @@ export default function GeoManager() {
   return (
     <div className="geo" data-testid="geo-manager">
       <div className="dl-header">
-        <h2>Geo Settings</h2>
+        <h2>{t('geo.title')}</h2>
         <button onClick={() => setShowCreate(!showCreate)} className="fm-btn fm-btn--primary" data-testid="geo-create-btn">
-          + New Rule
+          {t('geo.newRule')}
         </button>
       </div>
 
@@ -127,27 +129,25 @@ export default function GeoManager() {
               onClick={() => setMode('block')}
               data-testid="geo-mode-block"
             >
-              Block Countries
+              {t('geo.modeBlockLabel')}
             </button>
             <button
               className={`geo-mode-btn ${mode === 'allow' ? 'geo-mode-btn--active geo-mode-btn--allow' : ''}`}
               onClick={() => setMode('allow')}
               data-testid="geo-mode-allow"
             >
-              Allow Only
+              {t('geo.modeAllowLabel')}
             </button>
           </div>
 
           <p className="geo-mode-desc">
-            {mode === 'block'
-              ? 'Visitors from selected countries will be BLOCKED from your website.'
-              : 'ONLY visitors from selected countries can access your website. All others will be blocked.'}
+            {mode === 'block' ? t('geo.modeBlockDesc') : t('geo.modeAllowDesc')}
           </p>
 
           <input
             className="geo-search"
             type="text"
-            placeholder="Search countries..."
+            placeholder={t('geo.searchPlaceholder')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             data-testid="geo-search"
@@ -187,18 +187,20 @@ export default function GeoManager() {
               disabled={creating || !selected.length}
               data-testid="geo-submit"
             >
-              {creating ? 'Creating...' : `${mode === 'block' ? 'Block' : 'Allow Only'} ${selected.length} Countries`}
+              {creating
+                ? t('geo.creating')
+                : t(mode === 'block' ? 'geo.submitBlock' : 'geo.submitAllow', { count: selected.length })}
             </button>
-            <button onClick={() => { setShowCreate(false); setSelected([]); setSearch(''); }} className="fm-btn fm-btn--ghost">Cancel</button>
+            <button onClick={() => { setShowCreate(false); setSelected([]); setSearch(''); }} className="fm-btn fm-btn--ghost">{t('geo.cancel')}</button>
           </div>
         </div>
       )}
 
       {loading ? (
-        <div className="fm-loading">Loading geo rules...</div>
+        <div className="fm-loading">{t('geo.loading')}</div>
       ) : rules.length === 0 ? (
         <div className="fm-empty">
-          No geo rules configured. All countries can access your website.
+          {t('geo.emptyNone')}
         </div>
       ) : (
         <div className="geo-rules-list" data-testid="geo-rules-list">
@@ -208,14 +210,14 @@ export default function GeoManager() {
               <div key={rule.id} className={`geo-rule-card ${isAllow ? 'geo-rule-card--allow' : 'geo-rule-card--block'}`} data-testid={`geo-rule-${rule.id}`}>
                 <div className="geo-rule-header">
                   <span className={`geo-rule-badge ${isAllow ? 'geo-rule-badge--allow' : 'geo-rule-badge--block'}`}>
-                    {isAllow ? 'Allow Only' : 'Block'}
+                    {isAllow ? t('geo.ruleAllowBadge') : t('geo.ruleBlockBadge')}
                   </span>
-                  <span className="geo-rule-count">{codes.length} countries</span>
+                  <span className="geo-rule-count">{t('geo.ruleCountries', { count: codes.length })}</span>
                   <button
                     onClick={() => handleDelete(rule.id)}
                     className="fm-action-btn fm-action-btn--danger"
                     disabled={deleting === rule.id}
-                    title="Delete rule"
+                    title={t('geo.deleteRuleTitle')}
                     data-testid={`geo-delete-${rule.id}`}
                   >
                     {deleting === rule.id ? '...' : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>}

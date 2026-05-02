@@ -66,17 +66,20 @@ def deep_get(d, path):
 
 
 def collect_missing(en_dict, target_dict, prefix=()):
-    """Recursively walk en; yield (path, en_value) for every leaf missing in target."""
+    """Recursively walk en; yield (path, en_value) for every leaf missing in target.
+    target_dict should already be the sub-tree at `prefix`, so we only look up
+    each immediate child `k` directly rather than re-descending from the root.
+    """
     out = {}
+    td = target_dict if isinstance(target_dict, dict) else {}
     for k, v in en_dict.items():
         path = prefix + (k,)
         if isinstance(v, dict):
-            sub = collect_missing(v, deep_get(target_dict, [*path]) or {}, path)
+            sub = collect_missing(v, td.get(k) if isinstance(td.get(k), dict) else {}, path)
             if sub:
                 out[k] = sub
         else:
-            tgt_val = deep_get(target_dict, path)
-            if tgt_val is None:
+            if k not in td or td.get(k) is None:
                 out[k] = v
     return out
 
@@ -102,29 +105,48 @@ async def main():
             continue
 
         # Emergent LLM key has a tight per-session budget, so translate one
-        # top-level section at a time (small payload per LLM call).
-        translated = {}
+        # top-level section at a time (small payload per LLM call). For very
+        # large sections (e.g. dl has 77 keys) further sub-chunk by direct
+        # children so we stay under GPT-4o-mini's reliable JSON output window.
+        #
+        # IMPORTANT: write incrementally after each section — if the outer
+        # timeout kills us mid-way, already-translated sections are preserved
+        # so a re-run only processes what's left.
+        async def translate_and_merge(payload, session_suffix):
+            chat = LlmChat(
+                api_key=EMERGENT_LLM_KEY,
+                session_id=f"panel-i18n-{code}-{session_suffix}",
+                system_message=SYSTEM_PROMPT.format(target_lang=name),
+            ).with_model("openai", "gpt-4o-mini")
+            return await translate_chunk(chat, payload, name)
+
         for section_key, section_val in missing.items():
             section_keys_count = sum(1 for _ in _iter_leaves({section_key: section_val}))
             print(f"  → {section_key} ({section_keys_count} keys)", end=" ", flush=True)
-            chat = LlmChat(
-                api_key=EMERGENT_LLM_KEY,
-                session_id=f"panel-i18n-{code}-{section_key}",
-                system_message=SYSTEM_PROMPT.format(target_lang=name),
-            ).with_model("openai", "gpt-4o-mini")
             try:
-                section_translated = await translate_chunk(chat, {section_key: section_val}, name)
-                translated.update(section_translated)
+                if isinstance(section_val, dict) and section_keys_count > 40:
+                    # Split on direct children — each child gets its own LLM call.
+                    merged_section = {}
+                    for sub_k, sub_v in section_val.items():
+                        sub_out = await translate_and_merge({sub_k: sub_v}, f"{section_key}-{sub_k}")
+                        # sub_out is wrapped in the same child key — unwrap safely
+                        if sub_k in sub_out:
+                            merged_section[sub_k] = sub_out[sub_k]
+                        else:
+                            merged_section.update(sub_out)
+                    section_translated = {section_key: merged_section}
+                else:
+                    section_translated = await translate_and_merge({section_key: section_val}, section_key)
+                # Incremental persist
+                tgt = deep_merge(tgt, section_translated)
+                tgt_path.write_text(json.dumps(tgt, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
                 print("✓")
             except Exception as e:
                 print(f"FAIL ({e})")
                 # Keep going — partial is better than nothing
-        if not translated:
-            continue
-        print(f"   got {sum(1 for _ in _iter_leaves(translated))} translated keys")
-        merged = deep_merge(tgt, translated)
-        tgt_path.write_text(json.dumps(merged, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        print(f"   wrote {tgt_path}")
+
+        done_count = sum(1 for _ in _iter_leaves(tgt))
+        print(f"   {done_count} keys now in {tgt_path}")
 
 
 def _iter_leaves(d):

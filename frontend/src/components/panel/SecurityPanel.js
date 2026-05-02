@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from './AuthContext';
 
 function StatusBadge({ active, loading, label }) {
@@ -11,15 +12,12 @@ function StatusBadge({ active, loading, label }) {
   );
 }
 
-const LAYERS = [
-  { key: 'htaccessCloaking', label: '.htaccess IP Cloaking', desc: 'Blocks 35+ known scanner IP ranges at server level' },
-  { key: 'scannerUaBlocking', label: 'Scanner UA Blocking', desc: 'Blocks 40+ scanner user-agents via .htaccess' },
-  { key: 'cfWafRules', label: 'Cloudflare WAF Rules', desc: 'WAF rules blocking malicious crawlers at the edge' },
-  { key: 'cfWorker', label: 'Cloudflare Worker', desc: 'Edge-level challenge injection & scanner blocking' },
-  { key: 'jsChallenge', label: 'Visitor Captcha (JS Challenge)', desc: 'Per-domain bot challenge — Golden plan only. Manage per-domain in the Domains tab.' },
-];
+// Layer keys drive both the data wiring (to security/status response) and the
+// i18n lookup (sec.layers.<key>.label / .desc). Keep in sync with en.json.
+const LAYER_KEYS = ['htaccessCloaking', 'scannerUaBlocking', 'cfWafRules', 'cfWorker', 'jsChallenge'];
 
 export default function SecurityPanel() {
+  const { t } = useTranslation();
   const { api } = useAuth();
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -45,13 +43,11 @@ export default function SecurityPanel() {
   const toggleJsChallenge = async () => {
     const current = status?.protectionLayers?.jsChallenge;
     if (captchaGoldOnly && !isGold) {
-      setError('Visitor Captcha is exclusive to Golden Anti-Red HostPanel plans. Upgrade your plan to enable it.');
+      setError(t('sec.captchaGoldOnlyError'));
       return;
     }
     if (current) {
-      const confirmed = window.confirm(
-        '⚠️ Warning: Disabling Visitor Captcha significantly reduces your protection against automated scanners and bots. We strongly recommend keeping it enabled for maximum security.\n\nAre you sure you want to disable it?'
-      );
+      const confirmed = window.confirm(t('sec.captchaDisableWarning'));
       if (!confirmed) return;
     }
     setToggling(true);
@@ -63,12 +59,12 @@ export default function SecurityPanel() {
         body: JSON.stringify({ enabled: !current }),
       });
       if (res.jsChallengeEnabled !== undefined) {
-        setSuccess(`Visitor Captcha ${res.jsChallengeEnabled ? 'enabled' : 'disabled'}`);
+        setSuccess(res.jsChallengeEnabled ? t('sec.captchaStatusEnabled') : t('sec.captchaStatusDisabled'));
         fetchStatus();
       } else if (res.captchaGoldOnly) {
-        setError(res.error || 'Visitor Captcha is exclusive to Golden Anti-Red HostPanel plans.');
+        setError(res.error || t('sec.captchaDefaultGoldError'));
       } else {
-        setError(res.error || 'Failed to toggle');
+        setError(res.error || t('sec.failedToggle'));
       }
     } catch (err) {
       setError(err.message);
@@ -79,20 +75,20 @@ export default function SecurityPanel() {
 
   const layers = status?.protectionLayers || {};
   const stats = status?.stats || {};
-  const sb = status?.antiRed?.safeBrowsing;
+  const sb = status?.antiRed?.safeBrowsing;  // eslint-disable-line no-unused-vars
   const bl = status?.antiRed?.blacklist;
   const isGold = !!status?.isGold;
   const captchaGoldOnly = !!status?.captchaGoldOnly;
   const activeCount = Object.values(layers).filter(Boolean).length;
-  const totalCount = LAYERS.length;
+  const totalCount = LAYER_KEYS.length;
 
   return (
     <div className="sec" data-testid="security-panel">
       <div className="dl-header">
-        <h2>Security</h2>
+        <h2>{t('sec.title')}</h2>
         <div className="dl-header-actions">
           <button onClick={fetchStatus} className="fm-btn fm-btn--ghost" disabled={loading} data-testid="sec-refresh">
-            {loading ? 'Checking...' : 'Refresh'}
+            {loading ? t('sec.checking') : t('sec.refresh')}
           </button>
         </div>
       </div>
@@ -101,7 +97,7 @@ export default function SecurityPanel() {
       {success && <div className="sec-success" data-testid="sec-success">{success}</div>}
 
       {loading ? (
-        <div className="fm-loading">Checking security status...</div>
+        <div className="fm-loading">{t('sec.checkingStatus')}</div>
       ) : (
         <>
           {/* Overall Protection Score */}
@@ -114,25 +110,27 @@ export default function SecurityPanel() {
               <span className="sec-ring-text">{activeCount}/{totalCount}</span>
             </div>
             <div className="sec-overview-info">
-              <span className="sec-overview-title">Protection Active</span>
-              <span className="sec-overview-sub">{activeCount} of {totalCount} security layers enabled</span>
+              <span className="sec-overview-title">{t('sec.protectionActive')}</span>
+              <span className="sec-overview-sub">{t('sec.protectionSub', { active: activeCount, total: totalCount })}</span>
             </div>
           </div>
 
           {/* Protection Layers */}
           <div className="sec-section" data-testid="sec-layers">
-            <h3>Protection Layers</h3>
+            <h3>{t('sec.protectionLayers')}</h3>
             <div className="sec-layers">
-              {LAYERS.map(layer => {
-                const active = layers[layer.key];
-                const isJsChallenge = layer.key === 'jsChallenge';
+              {LAYER_KEYS.map(key => {
+                const active = layers[key];
+                const isJsChallenge = key === 'jsChallenge';
+                const label = t(`sec.layers.${key}.label`);
+                const desc = t(`sec.layers.${key}.desc`);
                 return (
-                  <div key={layer.key} className={`sec-layer ${active ? 'sec-layer--active' : 'sec-layer--inactive'}`} data-testid={`sec-layer-${layer.key}`}>
+                  <div key={key} className={`sec-layer ${active ? 'sec-layer--active' : 'sec-layer--inactive'}`} data-testid={`sec-layer-${key}`}>
                     <div className="sec-layer-left">
                       <span className={`sec-layer-indicator ${active ? 'sec-layer-indicator--on' : 'sec-layer-indicator--off'}`} />
                       <div className="sec-layer-text">
-                        <span className="sec-layer-name">{layer.label}</span>
-                        <span className="sec-layer-desc">{layer.desc}</span>
+                        <span className="sec-layer-name">{label}</span>
+                        <span className="sec-layer-desc">{desc}</span>
                       </div>
                     </div>
                     <div className="sec-layer-right">
@@ -140,10 +138,10 @@ export default function SecurityPanel() {
                         captchaGoldOnly && !isGold ? (
                           <span
                             className="sec-badge sec-badge--locked"
-                            title={`Visitor Captcha is exclusive to Golden Anti-Red HostPanel plans. Your plan: ${status?.plan || 'unknown'}`}
+                            title={t('sec.goldOnlyTooltip', { plan: status?.plan || t('sec.unknownPlan') })}
                             data-testid="sec-js-locked"
                           >
-                            🔒 Gold only
+                            🔒 {t('sec.goldOnly')}
                           </span>
                         ) : (
                           <button
@@ -151,13 +149,13 @@ export default function SecurityPanel() {
                             onClick={toggleJsChallenge}
                             disabled={toggling}
                             data-testid="sec-js-toggle"
-                            title={active ? 'Disable Visitor Captcha' : 'Enable Visitor Captcha'}
+                            title={active ? t('sec.disableCaptchaTitle') : t('sec.enableCaptchaTitle')}
                           >
                             <span className="sec-toggle-knob" />
                           </button>
                         )
                       ) : (
-                        <StatusBadge active={active} loading={false} label={active ? 'Active' : 'Inactive'} />
+                        <StatusBadge active={active} loading={false} label={active ? t('sec.active') : t('sec.inactive')} />
                       )}
                     </div>
                   </div>
@@ -171,28 +169,30 @@ export default function SecurityPanel() {
             <div className="sec-stats" data-testid="sec-stats">
               <div className="sec-stat">
                 <span className="sec-stat-val">{stats.scannerIpRanges || 0}</span>
-                <span className="sec-stat-label">Blocked IP Ranges</span>
+                <span className="sec-stat-label">{t('sec.blockedIpRanges')}</span>
               </div>
               <div className="sec-stat">
                 <span className="sec-stat-val">{stats.scannerUserAgents || 0}</span>
-                <span className="sec-stat-label">Blocked User Agents</span>
+                <span className="sec-stat-label">{t('sec.blockedUserAgents')}</span>
               </div>
               <div className="sec-stat">
                 <span className="sec-stat-val">{stats.ja3Hashes || 0}</span>
-                <span className="sec-stat-label">JA3 Fingerprints</span>
+                <span className="sec-stat-label">{t('sec.ja3Fingerprints')}</span>
               </div>
             </div>
           )}
 
           {/* Domain Health */}
           <div className="sec-section" data-testid="sec-health">
-            <h3>Domain Health</h3>
+            <h3>{t('sec.domainHealth')}</h3>
             <div className="sec-health-items">
               <div className={`sec-health-item ${bl?.listed === false ? 'sec-health-item--ok' : bl?.listed === true ? 'sec-health-item--bad' : 'sec-health-item--unknown'}`} data-testid="sec-health-bl">
                 <span className={`sec-health-dot ${bl?.listed === false ? 'sec-health-dot--ok' : bl?.listed === true ? 'sec-health-dot--bad' : 'sec-health-dot--unknown'}`} />
-                <span className="sec-health-name">IP Blacklist</span>
+                <span className="sec-health-name">{t('sec.ipBlacklist')}</span>
                 <span className="sec-health-status">
-                  {bl?.listed === false ? `Clean (${bl?.ip || ''})` : bl?.listed === true ? 'Listed' : 'N/A'}
+                  {bl?.listed === false
+                    ? t('sec.blCleanFormat', { ip: bl?.ip || '' })
+                    : bl?.listed === true ? t('sec.blListed') : t('sec.naShort')}
                 </span>
               </div>
             </div>

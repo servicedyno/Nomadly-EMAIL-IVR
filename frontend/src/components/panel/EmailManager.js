@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from './AuthContext';
 import PanelToolbar from './shared/PanelToolbar';
 import PanelBulkBar from './shared/PanelBulkBar';
@@ -18,6 +19,7 @@ const SvgTrash = (
 );
 
 export default function EmailManager() {
+  const { t } = useTranslation();
   const { api, user } = useAuth();
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -104,7 +106,7 @@ export default function EmailManager() {
 
   // Single-row delete (kept for the row's trash icon).
   const handleDelete = async (email, domain) => {
-    if (!window.confirm(`Delete email account: ${email}@${domain}?`)) return;
+    if (!window.confirm(t('em.deleteSingleConfirm', { email: `${email}@${domain}` }))) return;
     try {
       const res = await api('/email/delete', {
         method: 'POST',
@@ -222,7 +224,7 @@ export default function EmailManager() {
           okCount++;
         }
       } catch (err) {
-        failures.push({ email, msg: err.message || 'Delete failed' });
+        failures.push({ email, msg: err.message || t('em.deleteFailedGeneric') });
       }
     }
     setBulkDeleting(false);
@@ -231,7 +233,13 @@ export default function EmailManager() {
     if (failures.length === 0) {
       setError('');
     } else {
-      setError(`${okCount}/${selected.size} deleted — ${failures.length} failed (first: ${failures[0].email}: ${failures[0].msg})`);
+      setError(t('em.bulkDeleteFailSummary', {
+        ok: okCount,
+        total: selected.size,
+        fail: failures.length,
+        email: failures[0].email,
+        msg: failures[0].msg,
+      }));
     }
     fetchAccounts();
   };
@@ -243,10 +251,12 @@ export default function EmailManager() {
         testid="em-toolbar"
         leftSlot={
           <div className="panel-toolbar-title">
-            <h2>Email Accounts</h2>
+            <h2>{t('em.title')}</h2>
             {accounts.length > 0 && (
               <span className="panel-toolbar-title-meta" data-testid="em-count">
-                {visibleAccounts.length}{q ? ` of ${accounts.length}` : ''} {accounts.length === 1 ? 'account' : 'accounts'}
+                {visibleAccounts.length}
+                {q ? t('em.countOfSuffix', { total: accounts.length }) : ''}{' '}
+                {t(accounts.length === 1 ? 'em.countAccount_one' : 'em.countAccount_other')}
               </span>
             )}
           </div>
@@ -254,14 +264,14 @@ export default function EmailManager() {
         search={accounts.length > 0 ? {
           value: search,
           onChange: setSearch,
-          placeholder: 'Search emails…',
+          placeholder: t('em.searchPlaceholder'),
           testid: 'em-search-input',
-          ariaLabel: 'Search email accounts',
+          ariaLabel: t('em.searchAriaLabel'),
         } : null}
         actions={[
           {
             key: 'create',
-            label: showCreate ? 'Cancel' : 'Create Email',
+            label: showCreate ? t('em.cancel') : t('em.createAccount'),
             icon: showCreate ? null : SvgPlus,
             variant: 'primary',
             onClick: () => setShowCreate(!showCreate),
@@ -272,7 +282,7 @@ export default function EmailManager() {
 
       <PanelBulkBar
         count={selected.size}
-        label={`email${selected.size === 1 ? '' : 's'} selected`}
+        label={t(selected.size === 1 ? 'em.bulkLabel_one' : 'em.bulkLabel_other')}
         testid="em-bulk-bar"
         countTestid="em-bulk-count"
         clearTestid="em-bulk-clear"
@@ -280,12 +290,12 @@ export default function EmailManager() {
         actions={[
           {
             key: 'delete',
-            label: 'Delete',
+            label: t('fm.actions.delete'),
             icon: SvgTrash,
             variant: 'danger',
             onClick: () => setBulkConfirm(true),
             testid: 'em-bulk-delete',
-            title: 'Delete selected email accounts',
+            title: t('em.bulkDeleteTitle'),
           },
         ]}
       />
@@ -296,13 +306,13 @@ export default function EmailManager() {
         <div className="em-create-form" data-testid="em-create-form">
           <div className="em-form-row">
             <div className="em-form-field">
-              <label>Email</label>
+              <label>{t('em.emailLabel')}</label>
               <div className="em-email-input">
                 <input
                   type="text"
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  placeholder="info"
+                  placeholder={t('em.emailPlaceholder')}
                   data-testid="em-input-email"
                 />
                 <span className="em-at">@</span>
@@ -314,20 +324,20 @@ export default function EmailManager() {
           </div>
           <div className="em-form-row">
             <div className="em-form-field">
-              <label>Password</label>
+              <label>{t('em.passwordLabel')}</label>
               <div className="em-email-input">
                 <input
                   type="text"
                   value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  placeholder="Strong password"
+                  placeholder={t('em.passwordPlaceholder')}
                   data-testid="em-input-password"
                 />
-                <button onClick={generatePassword} className="panel-btn panel-btn--ghost" type="button" data-testid="em-gen-password">Generate</button>
+                <button onClick={generatePassword} className="panel-btn panel-btn--ghost" type="button" data-testid="em-gen-password">{t('em.generatePassword')}</button>
               </div>
             </div>
             <div className="em-form-field em-form-field--small">
-              <label>Quota (MB)</label>
+              <label>{t('em.quotaLabel')}</label>
               <input
                 type="number"
                 value={form.quota}
@@ -338,23 +348,23 @@ export default function EmailManager() {
           </div>
           <div className="em-form-actions">
             <button onClick={handleCreate} className="panel-btn panel-btn--primary" disabled={creating || !form.email || !form.password} data-testid="em-submit-create">
-              {creating ? 'Creating...' : 'Create Account'}
+              {creating ? t('em.creating') : t('em.createAccountBtn')}
             </button>
-            <button onClick={() => setShowCreate(false)} className="panel-btn panel-btn--ghost">Cancel</button>
+            <button onClick={() => setShowCreate(false)} className="panel-btn panel-btn--ghost">{t('em.cancel')}</button>
           </div>
         </div>
       )}
 
       {loading ? (
-        <div className="fm-loading">Loading email accounts...</div>
+        <div className="fm-loading">{t('em.loading')}</div>
       ) : accounts.length === 0 ? (
         <div className="fm-empty">
-          <p>No email accounts yet. Create one to get started.</p>
+          <p>{t('em.emptyNoAccounts')}</p>
         </div>
       ) : visibleAccounts.length === 0 ? (
         <div className="fm-empty" data-testid="em-empty-search">
-          <p>No emails match &quot;{search}&quot;</p>
-          <span>Try a different search term, or press <strong>Esc</strong> to clear.</span>
+          <p>{t('em.emptySearchFound', { query: search })}</p>
+          <span dangerouslySetInnerHTML={{ __html: t('fm.searchTryAgain') }} />
         </div>
       ) : (
         <div className="em-list">
@@ -367,9 +377,11 @@ export default function EmailManager() {
               checked={allChecked}
               onChange={toggleSelectAll}
               data-testid="em-select-all"
-              aria-label="Select all visible emails"
+              aria-label={t('em.selectAllAria')}
             />
-            <span>Select all{q ? ` (${visibleAccounts.length} matching)` : ''}</span>
+            <span>
+              {q ? t('em.selectAllMatching', { count: visibleAccounts.length }) : t('em.selectAll')}
+            </span>
           </label>
 
           {visibleAccounts.map((acc, i) => {
@@ -378,9 +390,11 @@ export default function EmailManager() {
             const emailDomain = parts[1] || acc.domain || '';
             const usedBytes = acc._diskused ? parseFloat(acc._diskused) : 0;
             const usedMB = (usedBytes / (1024 * 1024)).toFixed(1);
-            const used = usedBytes > 0 ? `${usedMB} MB used` : 'No usage';
+            const used = usedBytes > 0 ? t('em.usedMB', { mb: usedMB }) : t('em.noUsage');
             const quotaRaw = acc._diskquota;
-            const quota = quotaRaw === 'unlimited' || quotaRaw === 0 ? 'Unlimited' : `${Math.round(parseFloat(quotaRaw) / (1024 * 1024))} MB`;
+            const quota = quotaRaw === 'unlimited' || quotaRaw === 0
+              ? t('em.unlimited')
+              : `${Math.round(parseFloat(quotaRaw) / (1024 * 1024))} MB`;
             const isSelected = selected.has(acc.email);
 
             return (
@@ -411,19 +425,19 @@ export default function EmailManager() {
                   <button
                     onClick={() => openTestModal(acc.email)}
                     className="em-test-btn"
-                    title="Send test email"
+                    title={t('em.sendTestTitle')}
                     data-testid={`em-test-${acc.email}`}
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <line x1="22" y1="2" x2="11" y2="13"/>
                       <polygon points="22 2 15 22 11 13 2 9 22 2"/>
                     </svg>
-                    Test
+                    {t('em.testBtnLabel')}
                   </button>
                   <button
                     onClick={() => handleDelete(emailUser, emailDomain)}
                     className="fm-action-btn fm-action-btn--danger"
-                    title="Delete"
+                    title={t('em.deleteBtnTitle')}
                     data-testid={`em-delete-${acc.email}`}
                   >
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -443,7 +457,9 @@ export default function EmailManager() {
         <div className="fm-modal-overlay" data-testid="em-bulk-delete-modal">
           <div className="fm-modal fm-modal--sm">
             <div className="fm-modal-header">
-              <span>Delete {selected.size} email account{selected.size === 1 ? '' : 's'}?</span>
+              <span>
+                {t(selected.size === 1 ? 'em.bulkDeleteHeading_one' : 'em.bulkDeleteHeading_other', { count: selected.size })}
+              </span>
               <button onClick={() => !bulkDeleting && setBulkConfirm(false)} className="fm-modal-close">&times;</button>
             </div>
             <div style={{ padding: '16px 20px' }}>
@@ -455,16 +471,16 @@ export default function EmailManager() {
                 ))}
                 {selected.size > 12 && (
                   <div style={{ padding: '4px 0', color: 'var(--pv-text-muted)', fontSize: 12 }}>
-                    …and {selected.size - 12} more
+                    {t('em.bulkDeleteMore', { count: selected.size - 12 })}
                   </div>
                 )}
               </div>
               <div style={{ fontSize: 12, color: 'var(--pv-text-muted)' }}>
-                All mail in these inboxes will be permanently deleted. This cannot be undone.
+                {t('em.bulkDeleteWarning')}
               </div>
             </div>
             <div className="fm-modal-actions">
-              <button onClick={() => setBulkConfirm(false)} className="panel-btn panel-btn--ghost" disabled={bulkDeleting}>Cancel</button>
+              <button onClick={() => setBulkConfirm(false)} className="panel-btn panel-btn--ghost" disabled={bulkDeleting}>{t('em.cancel')}</button>
               <button
                 onClick={performBulkDelete}
                 className="panel-btn panel-btn--primary"
@@ -472,7 +488,7 @@ export default function EmailManager() {
                 data-testid="em-bulk-delete-confirm"
                 style={{ background: '#dc2626', borderColor: '#dc2626' }}
               >
-                {bulkDeleting ? 'Deleting…' : `Delete ${selected.size}`}
+                {bulkDeleting ? t('em.deletingBtn') : t('em.bulkDeleteCount', { count: selected.size })}
               </button>
             </div>
           </div>
@@ -483,17 +499,17 @@ export default function EmailManager() {
       {testFrom && (
         <div className="em-test-overlay" onClick={closeTestModal} data-testid="em-test-modal">
           <div className="em-test-modal" onClick={e => e.stopPropagation()}>
-            <h3>Send Test Email</h3>
+            <h3>{t('em.sendTestModalTitle')}</h3>
             <p className="em-test-from">
-              From: <strong>{testFrom}</strong>
+              {t('em.sendTestFromLabel')} <strong>{testFrom}</strong>
             </p>
             <div className="em-test-field">
-              <label>Send to:</label>
+              <label>{t('em.sendTestToLabel')}</label>
               <input
                 type="email"
                 value={testTo}
                 onChange={(e) => setTestTo(e.target.value)}
-                placeholder="recipient@example.com"
+                placeholder={t('em.sendTestToPlaceholder')}
                 data-testid="em-test-to-input"
                 onKeyDown={(e) => e.key === 'Enter' && handleSendTest()}
                 autoFocus
@@ -510,7 +526,7 @@ export default function EmailManager() {
                 ) : (
                   <>
                     <span className="em-test-icon">&#10007;</span>
-                    {testResult.error || 'Failed to send test email'}
+                    {testResult.error || t('em.sendTestFailDefault')}
                     {testResult.hint && <p className="em-test-hint">{testResult.hint}</p>}
                   </>
                 )}
@@ -524,9 +540,9 @@ export default function EmailManager() {
                 disabled={testSending || !testTo}
                 data-testid="em-test-send-btn"
               >
-                {testSending ? 'Sending...' : 'Send Test'}
+                {testSending ? t('em.sending') : t('em.sendTestBtn')}
               </button>
-              <button onClick={closeTestModal} className="panel-btn panel-btn--ghost">Close</button>
+              <button onClick={closeTestModal} className="panel-btn panel-btn--ghost">{t('em.closeBtn')}</button>
             </div>
           </div>
         </div>

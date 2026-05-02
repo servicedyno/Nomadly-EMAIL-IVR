@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from './AuthContext';
 
 /**
@@ -9,6 +10,7 @@ import { useAuth } from './AuthContext';
  * users don't expect billing relief.
  */
 export default function SiteStatusCard() {
+  const { t, i18n } = useTranslation();
   const { user, api } = useAuth();
   const [status, setStatus] = useState(null);
   const [stage, setStage] = useState('view'); // view | choosing-mode | confirming-offline | confirming-online | submitting
@@ -63,7 +65,7 @@ export default function SiteStatusCard() {
       await fetchStatus();
       reset();
     } catch (err) {
-      setError(err.message || 'Failed to take site offline.');
+      setError(err.message || t('site.failedOffline'));
       setStage('confirming-offline');
     }
   };
@@ -79,22 +81,22 @@ export default function SiteStatusCard() {
       await fetchStatus();
       reset();
     } catch (err) {
-      setError(err.message || 'Failed to bring site online.');
+      setError(err.message || t('site.failedOnline'));
       setStage('confirming-online');
     }
   };
 
   const formatDate = (iso) => {
-    if (!iso) return '—';
+    if (!iso) return t('site.dashPlaceholder');
     try {
-      return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    } catch { return '—'; }
+      return new Date(iso).toLocaleDateString(i18n.language || 'en', { month: 'short', day: 'numeric', year: 'numeric' });
+    } catch { return t('site.dashPlaceholder'); }
   };
 
   if (loading) {
     return (
       <div className="acct-card" data-testid="site-status-loading">
-        <p className="acct-card-body">Loading site status…</p>
+        <p className="acct-card-body">{t('site.loading')}</p>
       </div>
     );
   }
@@ -102,13 +104,13 @@ export default function SiteStatusCard() {
   const current = status?.status || 'online';
   const cardClass = current === 'online' ? 'acct-card--online' : 'acct-card--offline';
   const statusLabel = current === 'online'
-    ? '✅ Online'
-    : current === 'maintenance' ? '🛠️ Maintenance Mode' : '🚫 Suspended';
+    ? `✅ ${t('site.statusOnline')}`
+    : current === 'maintenance' ? `🛠️ ${t('site.statusMaintenance')}` : `🚫 ${t('site.statusSuspended')}`;
   const statusDesc = current === 'online'
-    ? 'Your site is publicly accessible.'
+    ? t('site.descOnline')
     : current === 'maintenance'
-      ? 'Visitors see a "We\'ll be back soon" page. Email, FTP, and databases still work.'
-      : 'HTTP, FTP, email, and databases are all paused. Visitors see the standard "Account Suspended" notice.';
+      ? t('site.descMaintenance')
+      : t('site.descSuspended');
 
   return (
     <div className={`acct-card ${cardClass}`} data-testid="site-status-card">
@@ -121,16 +123,16 @@ export default function SiteStatusCard() {
           )}
         </div>
         <div>
-          <h3 className="acct-card-title">Site status — {statusLabel}</h3>
+          <h3 className="acct-card-title">{t('site.cardTitle', { label: statusLabel })}</h3>
           <p className="acct-card-sub">{statusDesc}</p>
         </div>
       </div>
 
       <div className="acct-meta-grid" data-testid="site-status-meta">
-        <div><span>Domain</span><strong>{status?.domain || user?.domain}</strong></div>
-        <div><span>Plan</span><strong>{status?.plan || '—'}</strong></div>
-        <div><span>Expires</span><strong>{formatDate(status?.expiryDate)}</strong></div>
-        <div><span>Auto-renew</span><strong>{status?.autoRenew ? '✅ ON' : '❌ OFF'}</strong></div>
+        <div><span>{t('site.metaDomain')}</span><strong>{status?.domain || user?.domain}</strong></div>
+        <div><span>{t('site.metaPlan')}</span><strong>{status?.plan || t('site.dashPlaceholder')}</strong></div>
+        <div><span>{t('site.metaExpires')}</span><strong>{formatDate(status?.expiryDate)}</strong></div>
+        <div><span>{t('site.metaAutoRenew')}</span><strong>{status?.autoRenew ? `✅ ${t('site.autoRenewOn')}` : `❌ ${t('site.autoRenewOff')}`}</strong></div>
       </div>
 
       {/* ── VIEW (no action selected yet) ─────────────────── */}
@@ -142,7 +144,7 @@ export default function SiteStatusCard() {
             onClick={startTakeOffline}
             data-testid="site-take-offline-btn"
           >
-            Take site offline
+            {t('site.takeOffline')}
           </button>
         </div>
       )}
@@ -155,7 +157,7 @@ export default function SiteStatusCard() {
             onClick={startBringOnline}
             data-testid="site-bring-online-btn"
           >
-            Bring site back online
+            {t('site.bringOnline')}
           </button>
         </div>
       )}
@@ -163,11 +165,7 @@ export default function SiteStatusCard() {
       {/* ── CHOOSING MODE ──────────────────────────────────── */}
       {stage === 'choosing-mode' && (
         <div className="acct-mode-picker" data-testid="site-mode-picker">
-          <div className="acct-billing-warning" data-testid="site-billing-warning">
-            <strong>Heads up:</strong> Taking your site offline does <strong>not</strong> pause your
-            expiry countdown or auto-renewal billing. The plan keeps ticking like normal — this is
-            a visibility toggle only.
-          </div>
+          <div className="acct-billing-warning" data-testid="site-billing-warning" dangerouslySetInnerHTML={{ __html: t('site.headsUp') }} />
           <button
             type="button"
             className="acct-mode-option"
@@ -176,8 +174,8 @@ export default function SiteStatusCard() {
           >
             <span className="acct-mode-emoji" aria-hidden="true">🛠️</span>
             <span className="acct-mode-text">
-              <strong>Maintenance Mode</strong>
-              <span className="acct-mode-desc">Recommended. Visitors see a clean "We'll be back soon" page. Email, FTP, and databases keep working.</span>
+              <strong>{t('site.modeMaintenance')}</strong>
+              <span className="acct-mode-desc">{t('site.modeMaintenanceDesc')}</span>
             </span>
           </button>
           <button
@@ -188,8 +186,8 @@ export default function SiteStatusCard() {
           >
             <span className="acct-mode-emoji" aria-hidden="true">🚫</span>
             <span className="acct-mode-text">
-              <strong>Full Suspend</strong>
-              <span className="acct-mode-desc">Stops HTTP, FTP, email, and databases. Visitors see the standard cPanel "Account Suspended" page.</span>
+              <strong>{t('site.modeSuspend')}</strong>
+              <span className="acct-mode-desc">{t('site.modeSuspendDesc')}</span>
             </span>
           </button>
           <div className="acct-actions">
@@ -199,7 +197,7 @@ export default function SiteStatusCard() {
               onClick={reset}
               data-testid="site-mode-cancel-btn"
             >
-              Go back
+              {t('acct.goBack')}
             </button>
           </div>
         </div>
@@ -208,16 +206,13 @@ export default function SiteStatusCard() {
       {/* ── CONFIRMING OFFLINE ─────────────────────────────── */}
       {(stage === 'confirming-offline' || (stage === 'submitting' && pendingMode)) && (
         <div className="acct-confirm-box" data-testid="site-confirm-offline">
-          <p className="acct-card-body">
-            {pendingMode === 'maintenance' ? (
-              <>You&apos;re about to enable <strong>Maintenance Mode</strong> on <strong>{status?.domain}</strong>. Visitors will see a "We&apos;ll be back soon" page. Email, FTP, and databases will keep working.</>
-            ) : (
-              <>You&apos;re about to <strong>fully suspend</strong> <strong>{status?.domain}</strong>. HTTP, FTP, email, and databases will all stop. Visitors will see cPanel&apos;s "Account Suspended" page.</>
-            )}
-          </p>
-          <p className="acct-card-body acct-billing-warning-inline">
-            <strong>Reminder:</strong> billing keeps running. Your expiry date stays the same and auto-renewal will still trigger if enabled.
-          </p>
+          <p
+            className="acct-card-body"
+            dangerouslySetInnerHTML={{
+              __html: t(pendingMode === 'maintenance' ? 'site.confirmMaintenance' : 'site.confirmSuspend', { domain: status?.domain || '' }),
+            }}
+          />
+          <p className="acct-card-body acct-billing-warning-inline" dangerouslySetInnerHTML={{ __html: t('site.reminderBilling') }} />
           {error && <p className="acct-error" data-testid="site-status-error">{error}</p>}
           <div className="acct-actions">
             <button
@@ -227,7 +222,7 @@ export default function SiteStatusCard() {
               disabled={stage === 'submitting'}
               data-testid="site-offline-back-btn"
             >
-              Go back
+              {t('acct.goBack')}
             </button>
             <button
               type="button"
@@ -236,7 +231,7 @@ export default function SiteStatusCard() {
               disabled={stage === 'submitting'}
               data-testid="site-offline-confirm-btn"
             >
-              {stage === 'submitting' ? 'Working…' : (pendingMode === 'suspended' ? 'Suspend now' : 'Enable maintenance')}
+              {stage === 'submitting' ? t('site.working') : (pendingMode === 'suspended' ? t('site.suspendNow') : t('site.enableMaintenance'))}
             </button>
           </div>
         </div>
@@ -245,10 +240,10 @@ export default function SiteStatusCard() {
       {/* ── CONFIRMING ONLINE ──────────────────────────────── */}
       {(stage === 'confirming-online' || (stage === 'submitting' && !pendingMode)) && (
         <div className="acct-confirm-box" data-testid="site-confirm-online">
-          <p className="acct-card-body">
-            Bring <strong>{status?.domain}</strong> back online? Public access resumes immediately.
-            Allow up to 1 minute for caching/CDN to fully clear.
-          </p>
+          <p
+            className="acct-card-body"
+            dangerouslySetInnerHTML={{ __html: t('site.bringOnlineConfirm', { domain: status?.domain || '' }) }}
+          />
           {error && <p className="acct-error" data-testid="site-status-error">{error}</p>}
           <div className="acct-actions">
             <button
@@ -258,7 +253,7 @@ export default function SiteStatusCard() {
               disabled={stage === 'submitting'}
               data-testid="site-online-back-btn"
             >
-              Go back
+              {t('acct.goBack')}
             </button>
             <button
               type="button"
@@ -267,7 +262,7 @@ export default function SiteStatusCard() {
               disabled={stage === 'submitting'}
               data-testid="site-online-confirm-btn"
             >
-              {stage === 'submitting' ? 'Working…' : 'Bring online now'}
+              {stage === 'submitting' ? t('site.working') : t('site.bringOnlineNow')}
             </button>
           </div>
         </div>
