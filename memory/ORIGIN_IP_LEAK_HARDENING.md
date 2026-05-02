@@ -50,7 +50,7 @@ Subdomain creation in `cpanel-routes.js:921–929` had the same silent-fallback 
 - Updated header to reflect both tunnel migration and leak-purge behavior.
 
 ### 4. Railway production config
-- Pushed `CF_TUNNEL_CNAME=f63ce7b5-43f2-4fc8-ab74-28481e29ce7e.cfargotunnel.com` via
+- Pushed `CF_TUNNEL_CNAME=readme-setup-19.cfargotunnel.com` via
   Railway GraphQL API. Verified via read-back. Railway auto-redeploys in ~30s.
 - `MAIL_RELAY_HOST` intentionally left unset → no mail records published for new plans
   (safest default; user opted to skip mail for now).
