@@ -6,20 +6,7 @@ import BulkBar from './file-manager/BulkBar';
 import DragOverlay from './file-manager/DragOverlay';
 import ImagePreviewModal from './file-manager/ImagePreviewModal';
 import useHotkeys from './file-manager/useHotkeys';
-
-/**
- * Pick a friendly error message from a cpanel-routes / cpanel-proxy response.
- * If the response has `code: 'CPANEL_DOWN'`, prefer the localized variant for
- * the user's current language; falls back to a generic translated string.
- */
-function pickErrorMessage(res, t, lang) {
-  if (!res) return ''
-  if (res.code === 'CPANEL_DOWN') {
-    if (res.localizedMessages && res.localizedMessages[lang]) return res.localizedMessages[lang]
-    return t('errors.cpanelDown')
-  }
-  return (res.errors && res.errors[0]) || ''
-}
+import { pickErrorMessage, friendlyMessage, isTransientError } from './shared/cpanelErrors';
 
 export default function FileManager() {
   const { t, i18n } = useTranslation();
@@ -29,6 +16,11 @@ export default function FileManager() {
   const [currentDir, setCurrentDir] = useState(`/home/${user?.username}/public_html`);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  // Tracks the RAW upstream error string behind the user-facing `error` banner.
+  // We can't just regex-match `error` for transience because by then it has
+  // been localized ("Your hosting server is responding slowly…"). Keeping the
+  // raw axios/cpanel message lets the banner decide whether to offer a Retry.
+  const [errorRaw, setErrorRaw] = useState('');
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState('');
   const [extracting, setExtracting] = useState(null);
@@ -53,6 +45,10 @@ export default function FileManager() {
   const [search, setSearch] = useState('');
   const [bulkMoveTarget, setBulkMoveTarget] = useState(null); // { destDir }
   const [imagePreview, setImagePreview] = useState(null); // { name, url }
+  // Elapsed-seconds counter while uploading — drives the "(0:23)" suffix and
+  // the "still working" slow-warning banner so users on a flaky mobile link
+  // don't think the upload hung. Reset when upload starts / finishes.
+  const [uploadElapsed, setUploadElapsed] = useState(0);
   const fileInputRef = useRef(null);
   const folderInputRef = useRef(null);
   const dropZoneRef = useRef(null);
@@ -64,10 +60,12 @@ export default function FileManager() {
   const fetchFiles = useCallback(async (dir) => {
     setLoading(true);
     setError('');
+    setErrorRaw('');
     try {
       const res = await api(`/files?dir=${encodeURIComponent(dir)}`);
       if (res.errors?.length || res.code === 'CPANEL_DOWN') {
         setError(pickErrorMessage(res, t, lang));
+        setErrorRaw((res.errors && res.errors[0]) || res.code || '');
         setFiles([]);
       } else {
         const items = res.data || [];
@@ -79,7 +77,11 @@ export default function FileManager() {
         setFiles(items);
       }
     } catch (err) {
-      setError(err.message);
+      // Map raw axios error strings ("timeout of 30000ms exceeded", "ECONNREFUSED")
+      // to the localized "cpanelSlow" / "cpanelUnreachable" copy so users see a
+      // calm, actionable message instead of engineering jargon after login.
+      setError(friendlyMessage(err.message, t) || err.message);
+      setErrorRaw(err.message || '');
     } finally {
       setLoading(false);
     }
@@ -94,6 +96,22 @@ export default function FileManager() {
     setSelected(new Set());
     setSearch('');
   }, [currentDir]);
+
+  // Drive the uploadElapsed counter (seconds) while an upload is in flight —
+  // without this the user sees a static "Uploading foo.rar" for 30-120s while
+  // a slow cPanel server hangs the axios request and thinks the panel froze.
+  useEffect(() => {
+    if (!uploading) {
+      setUploadElapsed(0);
+      return undefined;
+    }
+    const t0 = Date.now();
+    setUploadElapsed(0);
+    const id = setInterval(() => {
+      setUploadElapsed(Math.floor((Date.now() - t0) / 1000));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [uploading]);
 
   // Holder for visible-files reference used by keyboard handlers
   const visibleFilesRef = useRef([]);
@@ -303,7 +321,16 @@ export default function FileManager() {
             // resolved name so any nested folder name segments are honoured.
             formData.append('file', file, fileName);
             formData.append('dir', targetDir);
-            await api('/files/upload', { method: 'POST', body: formData });
+            const res = await api('/files/upload', { method: 'POST', body: formData });
+            // The /files/upload route returns HTTP 200 even when the upstream
+            // cPanel UAPI call failed (shape: { status: 0, errors: [msg], data: null }).
+            // Without this check the loop previously counted those as successful
+            // uploads and showed a "File uploaded successfully!" toast while the
+            // file had not actually reached the server — the exact silent-fail
+            // the @ciroovblzz "upload forever" report pointed at.
+            if (res?.errors?.length || res?.code === 'CPANEL_DOWN') {
+              throw new Error(pickErrorMessage(res, t, lang));
+            }
           }
           done++;
         } catch (err) {
@@ -855,11 +882,27 @@ export default function FileManager() {
         onClear={() => setSelected(new Set())}
       />
 
-      {/* Upload progress */}
+      {/* Upload progress — includes elapsed timer and a "still working" warning
+          after 30s so users on slow cPanel responses don't think the tab froze. */}
       {uploadProgress && (
         <div className="fm-upload-progress" data-testid="fm-upload-progress">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="fm-spin"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
-          <span>{uploadProgress}</span>
+          <span>
+            {uploadProgress}
+            {uploadElapsed > 0 && (
+              <span className="fm-upload-elapsed" data-testid="fm-upload-elapsed"> · {Math.floor(uploadElapsed / 60)}:{String(uploadElapsed % 60).padStart(2, '0')}</span>
+            )}
+          </span>
+        </div>
+      )}
+      {uploading && uploadElapsed >= 30 && (
+        <div className="fm-upload-slow" data-testid="fm-upload-slow" style={{
+          padding: '0.6rem 0.85rem', margin: '0.35rem 0 0',
+          borderRadius: 10, fontSize: '0.82rem', lineHeight: 1.45,
+          background: 'rgba(225, 29, 72, 0.06)', color: 'var(--fm-muted, #6b7280)',
+          border: '1px solid rgba(225, 29, 72, 0.18)',
+        }}>
+          {t('errors.uploadSlow')}
         </div>
       )}
 
@@ -879,7 +922,26 @@ export default function FileManager() {
         </div>
       )}
 
-      {error && <div className="fm-error" data-testid="fm-error">{error}</div>}
+      {error && (
+        <div className="fm-error" data-testid="fm-error">
+          <span>{error}</span>
+          {/* Offer a Retry button when the error looks transient (timeout /
+              unreachable) and the file list is empty — this is the exact
+              "error after login" post-login state @ciroovblzz reported. One
+              tap refetches without forcing a full page reload. */}
+          {!loading && files.length === 0 && isTransientError(errorRaw) && (
+            <button
+              type="button"
+              className="fm-btn fm-btn--ghost"
+              onClick={() => fetchFiles(currentDir)}
+              data-testid="fm-error-retry"
+              style={{ marginLeft: '0.75rem' }}
+            >
+              {t('errors.retry')}
+            </button>
+          )}
+        </div>
+      )}
       
       {successMessage && (
         <div className="fm-success" data-testid="fm-success">

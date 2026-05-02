@@ -144,18 +144,54 @@ function sanitize(obj, extraHost) {
 
 // ─── Core UAPI call ─────────────────────────────────────
 
+// Idempotent UAPI reads that are safe to auto-retry ONCE on a transient
+// upstream timeout. These are pure GETs — they don't mutate cPanel state, so
+// a retry can only recover from a flaky control-plane blip (which the Railway
+// logs show is the dominant failure pattern: a single 30s timeout surrounded
+// by successful calls within a few seconds). This directly addresses the
+// @ciroovblzz post-login "error screen" reports.
+const RETRY_SAFE_UAPI = new Set([
+  'Fileman::list_files',
+  'Fileman::get_file_content',
+  'DomainInfo::list_domains',
+  'DomainInfo::domains_data',
+  'DomainInfo::single_domain_data',
+  'SSL::installed_hosts',
+  'StatsBar::get_stats',
+  'Quota::get_quota_info',
+])
+const UPSTREAM_TIMEOUT_RX = /ECONNABORTED|ETIMEDOUT|timeout of \d+ms exceeded/i
+
 async function uapi(cpUser, cpPass, module, func, params = {}, method = 'GET', host = null) {
   const baseUrl = getBaseUrl(host)
   const url = `${baseUrl}/execute/${module}/${func}`
   const auth = { username: cpUser, password: cpPass }
   const headers = _maybeAccessHeaders(baseUrl)
+  const key = `${module}::${func}`
+
+  const doCall = async () => {
+    if (method === 'GET') {
+      return axios.get(url, { params, auth, httpsAgent, timeout: 30000, headers })
+    }
+    return axios.post(url, params, { auth, httpsAgent, timeout: 30000, headers })
+  }
 
   try {
     let res
-    if (method === 'GET') {
-      res = await axios.get(url, { params, auth, httpsAgent, timeout: 30000, headers })
-    } else {
-      res = await axios.post(url, params, { auth, httpsAgent, timeout: 30000, headers })
+    try {
+      res = await doCall()
+    } catch (err) {
+      // Single retry on transient timeouts for known-idempotent reads — the
+      // panel would otherwise surface a jarring "timeout of 30000ms exceeded"
+      // banner right after login while the cPanel control plane is recovering.
+      const transient = UPSTREAM_TIMEOUT_RX.test(err.code || '') || UPSTREAM_TIMEOUT_RX.test(err.message || '')
+      if (transient && RETRY_SAFE_UAPI.has(key)) {
+        log(`[cPanel Proxy] ${key} transient timeout — retrying once`)
+        await new Promise(r => setTimeout(r, 500))
+        res = await doCall()
+      } else {
+        throw err
+      }
     }
 
     const data = res.data

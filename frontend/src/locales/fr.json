@@ -174,7 +174,11 @@
     "switchToEnglish": "Passer à l'anglais"
   },
   "errors": {
-    "cpanelDown": "Le service d'hébergement est temporairement indisponible. Veuillez réessayer dans quelques minutes — vos données sont en sécurité."
+    "cpanelDown": "Le service d'hébergement est temporairement indisponible. Veuillez réessayer dans quelques minutes — vos données sont en sécurité.",
+    "cpanelSlow": "Votre serveur d'hébergement répond lentement en ce moment. Veuillez réessayer dans un instant.",
+    "cpanelUnreachable": "Impossible de joindre votre serveur d'hébergement pour le moment. Veuillez réessayer dans un instant.",
+    "retry": "Réessayer",
+    "uploadSlow": "Toujours en cours — votre serveur d'hébergement répond lentement. Les fichiers volumineux ou les réseaux mobiles lents peuvent prendre plus de temps. Ne fermez pas cet onglet."
   },
   "fm": {
     "websiteFolder": "Dossier du site web",

@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from './AuthContext';
+import { pickErrorMessage, friendlyMessage, isTransientError } from './shared/cpanelErrors';
 
 export default function DomainList() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = (i18n.language || 'en').slice(0, 2);
   const { api } = useAuth();
   const [domains, setDomains] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [errorRaw, setErrorRaw] = useState('');
   const [showAdd, setShowAdd] = useState(false);
   const [newDomain, setNewDomain] = useState('');
   const [adding, setAdding] = useState(false);
@@ -29,19 +32,22 @@ export default function DomainList() {
   const fetchDomains = useCallback(async () => {
     setLoading(true);
     setError('');
+    setErrorRaw('');
     try {
       const res = await api('/domains');
-      if (res.errors?.length) {
-        setError(res.errors[0]);
+      if (res.errors?.length || res.code === 'CPANEL_DOWN') {
+        setError(pickErrorMessage(res, t, lang));
+        setErrorRaw((res.errors && res.errors[0]) || res.code || '');
       } else {
         setDomains(res.data || {});
       }
     } catch (err) {
-      setError(err.message);
+      setError(friendlyMessage(err.message, t) || err.message);
+      setErrorRaw(err.message || '');
     } finally {
       setLoading(false);
     }
-  }, [api]);
+  }, [api, t, lang]);
 
   const fetchSubdomains = useCallback(async () => {
     setSubLoading(true);
@@ -451,7 +457,22 @@ export default function DomainList() {
         </div>
       )}
 
-      {error && <div className="fm-error" data-testid="dl-error">{error}</div>}
+      {error && (
+        <div className="fm-error" data-testid="dl-error">
+          <span>{error}</span>
+          {!loading && !domains && isTransientError(errorRaw) && (
+            <button
+              type="button"
+              className="fm-btn fm-btn--ghost"
+              onClick={fetchDomains}
+              data-testid="dl-error-retry"
+              style={{ marginLeft: '0.75rem' }}
+            >
+              {t('errors.retry')}
+            </button>
+          )}
+        </div>
+      )}
       {captchaError && <div className="fm-error" data-testid="dl-captcha-error">{captchaError}</div>}
 
       {/* Visitor Captcha plan banner */}

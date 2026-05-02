@@ -7,6 +7,42 @@
 - MongoDB (port 27017)
 
 
+## ✅ @ciroovblzz Production Bug — Transient-Error Soft-Landing (May 2, 2026)
+
+### Scope
+Production report: Telegram Mini-App user saw a raw `timeout of 30000ms exceeded` error banner right after logging into the hosting panel, and an upload of `netflix - @ciroovblzz.rar` (4.1 MB) "spun forever" before silently claiming success. Railway logs for deployment `7be32cd6` confirmed sporadic WHM/UAPI timeouts (not a sustained outage) — adjacent calls succeeded within seconds.
+
+### Root causes (by layer)
+| # | Layer | Issue |
+|---|-------|-------|
+| 1 | Node proxy (`js/cpanel-proxy.js`) | No retry for idempotent reads — a single WHM blip surfaced to the user |
+| 2 | Frontend `FileManager.js` | `fetchFiles` used raw axios error strings verbatim in the banner |
+| 3 | Frontend `FileManager.js` | Small-file upload path never inspected `res.errors[]`, so cPanel failures returned as HTTP 200 looked like successes |
+| 4 | Frontend `FileManager.js` | Upload progress was static — no feedback over the 120s upload timeout |
+
+### Changes
+- **`js/cpanel-proxy.js`** — single 500 ms retry on `ECONNABORTED` / `ETIMEDOUT` / `timeout of Nms` for IDEMPOTENT UAPI reads only (`Fileman::list_files`, `DomainInfo::list_domains`, `DomainInfo::domains_data`, `DomainInfo::single_domain_data`, `SSL::installed_hosts`, `StatsBar::get_stats`, `Quota::get_quota_info`, `Fileman::get_file_content`). Mutations (upload, delete, mkdir, email_add_pop…) never retry.
+- **`frontend/src/components/panel/shared/cpanelErrors.js`** — NEW shared helper exporting `pickErrorMessage()` / `friendlyMessage()` / `isTransientError()`. Maps raw axios/Node error codes to localized i18n keys (`errors.cpanelSlow`, `errors.cpanelUnreachable`, `errors.cpanelDown`).
+- **`FileManager.js`**
+  - Uses shared helper for list + upload errors
+  - Non-chunked upload now inspects `res.errors?.length || res.code === 'CPANEL_DOWN'` and throws — no more silent fake-successes
+  - New `uploadElapsed` state + interval → progress shows `· 0:23` counter; after 30 s a calm `fm-upload-slow` banner surfaces `errors.uploadSlow` copy
+  - Error banner gets a `Try Again` button (`data-testid="fm-error-retry"`) when error is transient and file list is empty
+- **`DomainList.js`** — same friendly-error mapping + `Try Again` button (`dl-error-retry`)
+- **i18n** — added `errors.cpanelSlow`, `errors.cpanelUnreachable`, `errors.retry`, `errors.uploadSlow` to en.json, fr.json, hi.json, zh.json
+
+### Tests — 14/14 ✅
+- **Backend** `js/tests/test_cpanel_proxy_retry.js` — 4 cases (retry fires, mutations don't retry, list_domains retries, persistent timeout caps at 2 attempts)
+- **Frontend helper** `frontend/tests/test_cpanel_errors_helper.js` — 10 cases (axios timeouts, connection errors, CPANEL_DOWN localization, permanent-error passthrough, transience detection)
+- **UI smoke** — preview panel login page renders cleanly (screenshot verified, no console errors)
+
+### Deployment
+Local-only commit (per user request). No env-var changes. Rollback = revert commits touching `cpanel-proxy.js`, `FileManager.js`, `DomainList.js`, `shared/cpanelErrors.js`, and the 4 locale JSON files.
+
+### Detailed write-up
+See `/app/CIROOVBLZZ_PROD_BUG_REPORT.md` for the full timeline, log excerpts, and before/after user-facing behaviour table.
+
+
 ## ✅ FileManager Refactor — Sub-components + useHotkeys hook (May 2, 2026 — same session)
 
 ### Scope
