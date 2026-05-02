@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Lightbox-style preview for an image file in the current folder, with arrow
@@ -22,6 +23,7 @@ export default function ImagePreviewModal({
   onNav,
   onClose,
 }) {
+  const { t } = useTranslation();
   if (!preview) return null;
   return (
     <div className="fm-modal-overlay" data-testid="fm-img-modal" onClick={onClose}>
@@ -43,8 +45,8 @@ export default function ImagePreviewModal({
               className="fm-img-nav fm-img-nav--prev"
               onClick={() => onNav(-1)}
               data-testid="fm-img-prev"
-              aria-label="Previous image"
-              title="Previous (←)"
+              aria-label={t('fm.imgPreview.prev')}
+              title={t('fm.imgPreview.prevTitle')}
             >
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M15 18l-6-6 6-6" />
@@ -57,8 +59,8 @@ export default function ImagePreviewModal({
               className="fm-img-nav fm-img-nav--next"
               onClick={() => onNav(1)}
               data-testid="fm-img-next"
-              aria-label="Next image"
-              title="Next (→)"
+              aria-label={t('fm.imgPreview.next')}
+              title={t('fm.imgPreview.nextTitle')}
             >
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M9 18l6-6-6-6" />
@@ -69,13 +71,13 @@ export default function ImagePreviewModal({
         <div className="fm-modal-actions">
           {galleryLength > 1 && (
             <span style={{ marginRight: 'auto', fontSize: 11.5, color: 'var(--pv-text-muted)', fontFamily: 'var(--pv-font-mono)' }}>
-              ← / → to navigate
+              {t('fm.imgPreview.navHint')}
             </span>
           )}
           <a href={preview.url} target="_blank" rel="noopener noreferrer" className="fm-btn fm-btn--ghost" data-testid="fm-img-open-tab">
-            Open in tab
+            {t('fm.imgPreview.openInTab')}
           </a>
-          <button onClick={onClose} className="fm-btn fm-btn--primary">Close</button>
+          <button onClick={onClose} className="fm-btn fm-btn--primary">{t('common.close')}</button>
         </div>
       </div>
     </div>

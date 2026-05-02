@@ -1,6 +1,6 @@
 {
   "common": {
-    "appName": "Panneau d'Hébergement",
+    "appName": "Panneau d'hébergement",
     "save": "Enregistrer",
     "cancel": "Annuler",
     "delete": "Supprimer",
@@ -23,9 +23,9 @@
     "domain": "Domaine",
     "username": "Nom d'utilisateur",
     "password": "Mot de passe",
-    "email": "E-mail",
-    "submit": "Envoyer",
-    "refresh": "Actualiser",
+    "email": "Email",
+    "submit": "Soumettre",
+    "refresh": "Rafraîchir",
     "settings": "Paramètres",
     "language": "Langue"
   },
@@ -37,81 +37,91 @@
     "pinLabel": "PIN",
     "pinPlaceholder": "Entrez votre PIN",
     "submitButton": "Se connecter",
-    "submitting": "Connexion…",
+    "submitting": "Connexion en cours…",
     "invalidCredentials": "Nom d'utilisateur ou PIN invalide. Veuillez réessayer.",
     "rememberMe": "Se souvenir de moi sur cet appareil",
-    "forgotPin": "PIN oublié ?",
-    "forgotPinHint": "Ouvrez le bot, allez dans Mes Plans d'Hébergement et appuyez sur \"Afficher les identifiants\" pour régénérer."
+    "forgotPin": "Vous avez oublié votre PIN ?",
+    "forgotPinHint": "Ouvrez le bot, allez dans Mes Plans d'Hébergement, et appuyez sur \"Afficher les identifiants\" pour régénérer.",
+    "rememberUsername": "Se souvenir du nom d'utilisateur sur cet appareil",
+    "tooManyAttempts": "Trop de tentatives. Réessayez dans",
+    "capsLockOn": "Le verrouillage des majuscules est activé",
+    "attemptsRemaining_one": "{{count}} tentative restante avant verrouillage.",
+    "attemptsRemaining_other": "{{count}} tentatives restantes avant verrouillage.",
+    "switchToLight": "Passer au mode clair",
+    "switchToDark": "Passer au mode sombre",
+    "hidePin": "Cacher le PIN",
+    "showPin": "Afficher le PIN"
   },
   "dashboard": {
     "tabs": {
       "overview": "Aperçu",
       "domains": "Domaines",
       "files": "Fichiers",
-      "email": "E-mail",
-      "geo": "Géo-cloak",
+      "email": "Email",
+      "geo": "Géolocalisation",
       "security": "Sécurité",
-      "analytics": "Analyses",
+      "analytics": "Analyse",
       "account": "Compte"
     },
-    "welcome": "Bon retour, {{name}}",
+    "welcome": "Bienvenue de nouveau, {{name}}",
     "planLabel": "Plan",
     "expiresLabel": "Expire",
-    "manageBilling": "Gérez la facturation dans le bot"
+    "manageBilling": "Gérer la facturation dans le bot",
+    "visitWebsite": "Visitez votre site web"
   },
   "domains": {
     "title": "Vos Domaines",
-    "addAddon": "Ajouter un domaine additionnel",
+    "addAddon": "Ajouter un Domaine Addon",
     "primary": "Principal",
-    "addon": "Additionnel",
+    "addon": "Addon",
     "subdomain": "Sous-domaine",
-    "documentRoot": "Racine du document",
-    "noDomains": "Aucun domaine pour l'instant. Ajoutez votre premier domaine additionnel ci-dessus.",
-    "deleteConfirm": "Supprimer définitivement {{domain}} ? Les fichiers dans sa racine ne seront pas touchés.",
-    "deleteButton": "Supprimer le domaine",
-    "redirect": "Redirection",
+    "documentRoot": "Racine de Document",
+    "noDomains": "Aucuns domaines pour le moment. Ajoutez votre premier domaine addon ci-dessus.",
+    "deleteConfirm": "Supprimer définitivement {{domain}} ? Les fichiers dans sa racine de document resteront inchangés.",
+    "deleteButton": "Supprimer le Domaine",
+    "redirect": "Rediriger",
     "ssl": "SSL",
-    "addedOn": "Ajouté le {{date}}"
+    "addedOn": "Ajouté {{date}}"
   },
   "files": {
     "title": "Gestionnaire de fichiers",
     "newFolder": "Nouveau dossier",
-    "upload": "Téléverser",
-    "uploadingProgress": "Téléversement de {{name}}… {{percent}}%",
+    "upload": "Télécharger",
+    "uploadingProgress": "Téléchargement de {{name}}… {{percent}}%",
     "extract": "Extraire",
-    "compress": "Compresser",
+    "compress": "Comprimer",
     "rename": "Renommer",
-    "permissions": "Permissions",
+    "permissions": "Autorisations",
     "emptyFolder": "Ce dossier est vide.",
     "deleteConfirm": "Supprimer {{count}} élément(s) ? Cela ne peut pas être annulé.",
     "fileNamePlaceholder": "Entrez le nom du fichier"
   },
   "email": {
-    "title": "Gestionnaire d'e-mails",
-    "createAccount": "Créer un compte e-mail",
-    "noAccounts": "Aucun compte e-mail.",
-    "address": "Adresse e-mail",
-    "quotaLabel": "Quota (Mo)",
+    "title": "Gestionnaire d'Email",
+    "createAccount": "Créer un Compte Email",
+    "noAccounts": "Aucun compte email pour le moment.",
+    "address": "Adresse Email",
+    "quotaLabel": "Quota (MB)",
     "unlimited": "Illimité",
-    "deleteConfirm": "Supprimer {{address}} ? Tous les messages seront perdus.",
-    "changePassword": "Changer le mot de passe",
+    "deleteConfirm": "Supprimer {{address}}? Tous les messages seront perdus.",
+    "changePassword": "Changer le Mot de Passe",
     "passwordChanged": "Mot de passe changé."
   },
   "security": {
     "title": "Sécurité",
-    "antiRedStatus": "État Anti-Red",
+    "antiRedStatus": "Statut Anti-Rouge",
     "antiRedActive": "Actif — protection déployée",
     "antiRedInactive": "Inactif",
-    "verifyAntiRed": "Vérifier maintenant",
-    "captchaTitle": "Captcha visiteur (exclusif Gold)",
-    "captchaUnavailable": "Le Captcha visiteur est disponible uniquement sur le plan Gold.",
+    "verifyAntiRed": "Vérifier Maintenant",
+    "captchaTitle": "Captcha Visiteur (exclusif Gold)",
+    "captchaUnavailable": "Le Captcha Visiteur est disponible uniquement sur le plan Gold.",
     "captchaOn": "ACTIVÉ",
     "captchaOff": "DÉSACTIVÉ",
-    "blockedCountries": "Pays bloqués"
+    "blockedCountries": "Pays Bloqués"
   },
   "geo": {
-    "title": "Géo-cloak",
-    "description": "Affichez un contenu différent aux visiteurs selon leur pays.",
+    "title": "Géocloisonnement",
+    "description": "Afficher un contenu différent aux visiteurs en fonction de leur pays.",
     "ruleCountry": "Pays",
     "ruleAction": "Action",
     "actionAllow": "Autoriser",
@@ -120,13 +130,13 @@
     "addRule": "Ajouter une règle"
   },
   "analytics": {
-    "title": "Analyses",
-    "totalVisitors": "Visiteurs totaux",
-    "uniqueVisitors": "Visiteurs uniques",
-    "topCountries": "Pays principaux",
-    "topPages": "Pages principales",
-    "last7Days": "7 derniers jours",
-    "last30Days": "30 derniers jours"
+    "title": "Analytique",
+    "totalVisitors": "Visiteurs Totaux",
+    "uniqueVisitors": "Visiteurs Uniques",
+    "topCountries": "Meilleurs Pays",
+    "topPages": "Meilleures Pages",
+    "last7Days": "Derniers 7 Jours",
+    "last30Days": "Derniers 30 Jours"
   },
   "account": {
     "title": "Paramètres du compte",
@@ -144,12 +154,107 @@
     "hi": "हिन्दी"
   },
   "banner": {
-    "detected": "Nous avons détecté que votre navigateur est en {{lang}}",
-    "tagline": "Garder cette langue pour le panneau ?",
-    "keep": "Oui — garder {{lang}}",
+    "detected": "Nous avons remarqué que votre navigateur est en {{lang}}",
+    "tagline": "Conservez cette langue pour le panneau ?",
+    "keep": "Oui — conserver {{lang}}",
     "switchToEnglish": "Passer à l'anglais"
   },
   "errors": {
     "cpanelDown": "Le service d'hébergement est temporairement indisponible. Veuillez réessayer dans quelques minutes — vos données sont en sécurité."
+  },
+  "fm": {
+    "websiteFolder": "Dossier du site web",
+    "filesLiveAt": "Les fichiers ici apparaissent à",
+    "getStarted": {
+      "title": "Mettez votre site en ligne",
+      "subtitle": "Vous êtes au bon endroit ! Téléchargez vos fichiers de site ici et ils seront en ligne à <strong>{{url}}</strong>",
+      "dismissGuide": "Ignorer le guide",
+      "step1Title": "Téléchargez vos fichiers",
+      "step1Body": "Cliquez sur \"Télécharger\" ou faites glisser et déposez vos fichiers de site (HTML, CSS, JS, images) dans cette zone. Pour un site complet, téléchargez un <strong>fichier .zip</strong> et cliquez sur \"Extraire\".",
+      "step2Title": "Assurez-vous que index.html existe",
+      "step2Body": "Votre page principale doit être nommée <strong>index.html</strong> (ou index.php). C'est ce que les visiteurs voient quand ils ouvrent votre domaine.",
+      "step3Title": "Visitez votre site web",
+      "step3Body": "Une fois les fichiers téléchargés, votre site est en ligne à {{url}}",
+      "proTip": "<strong>Astuce pro :</strong> Zippez tout votre dossier de site, téléchargez le .zip, puis cliquez sur \"Extraire\" — c'est beaucoup plus rapide que de télécharger les fichiers un par un !"
+    },
+    "bulkTip": "<strong>Astuce :</strong> Téléchargez un <strong>.zip</strong> de votre site web et cliquez sur \"Extraire\" pour décompresser tous les fichiers d'un coup. Votre site sera en ligne à <strong>{{url}}</strong>",
+    "table": {
+      "name": "Nom",
+      "publicUrl": "URL publique",
+      "size": "Taille",
+      "modified": "Modifié",
+      "actions": "Actions"
+    },
+    "selectAll": "Sélectionner tous les fichiers visibles",
+    "selectOne": "Sélectionner {{name}}",
+    "clickToPreview": "Cliquez pour prévisualiser",
+    "editingFile": "Édition : {{name}}",
+    "folderNamePlaceholder": "Nom du dossier",
+    "create": "Créer",
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "saving": "Enregistrement...",
+    "loading": "Chargement des fichiers...",
+    "emptyFolder": "Ce dossier est vide",
+    "emptySearch": "Aucun fichier ne correspond à \"{{query}}\"",
+    "emptyUploadHint": "Téléchargez vos fichiers de site ici pour commencer",
+    "searchTryAgain": "Essayez un autre terme de recherche, ou appuyez sur <strong>Esc</strong> pour effacer.",
+    "actions": {
+      "copyUrl": "Copier l'URL",
+      "copied": "Copié !",
+      "openInBrowser": "Ouvrir dans le navigateur",
+      "edit": "Éditer",
+      "extract": "Extraire/Dézipper ici",
+      "rename": "Renommer",
+      "copyTo": "Copier vers...",
+      "moveTo": "Déplacer vers...",
+      "delete": "Supprimer",
+      "view": "Voir",
+      "copy": "Copier",
+      "move": "Déplacer"
+    },
+    "drag": {
+      "dropHere": "Déposez des fichiers ou dossiers ici pour télécharger",
+      "hintPublic": "La structure des dossiers est préservée · Les fichiers seront en ligne sur votre site web",
+      "hintOther": "La structure des dossiers est préservée · Des sous-répertoires seront créés automatiquement"
+    },
+    "rename": {
+      "title": "Renommer : {{name}}",
+      "submit": "Renommer"
+    },
+    "copymove": {
+      "copyTitle": "Copier : {{name}}",
+      "moveTitle": "Déplacer : {{name}}",
+      "destinationLabel": "Dossier de destination :",
+      "hint": "Entrez le chemin complet où vous souhaitez {{action}} le fichier.",
+      "copy": "Copier",
+      "move": "Déplacer"
+    },
+    "delete": {
+      "bulkTitle": "Supprimer {{count}} éléments ?",
+      "bulkTitleOne": "Supprimer 1 élément ?",
+      "folderTitle": "Supprimer le dossier ?",
+      "fileTitle": "Supprimer le fichier ?",
+      "bulkMore": "…et {{count}} autres",
+      "folderWarning": "Certains éléments sont des dossiers — leur contenu sera définitivement supprimé.",
+      "singleFolderWarning": "Cela supprimera définitivement le dossier et tout ce qu'il contient.",
+      "cannotUndo": "Cela ne peut pas être annulé.",
+      "deleting": "Suppression…"
+    },
+    "bulkMove": {
+      "title": "Déplacer {{count}} éléments vers…",
+      "titleOne": "Déplacer 1 élément vers…",
+      "destinationLabel": "Dossier de destination :",
+      "hint": "Entrez le chemin complet où vous souhaitez déplacer les éléments sélectionnés.",
+      "submit": "Déplacer {{count}}"
+    },
+    "imgPreview": {
+      "prev": "Image précédente",
+      "next": "Image suivante",
+      "prevTitle": "Précédent (←)",
+      "nextTitle": "Suivant (→)",
+      "navHint": "← / → pour naviguer",
+      "openInTab": "Ouvrir dans un onglet"
+    }
   }
 }

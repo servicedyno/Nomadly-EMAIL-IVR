@@ -40,8 +40,17 @@
     "submitting": "Signing in…",
     "invalidCredentials": "Invalid username or PIN. Please try again.",
     "rememberMe": "Remember me on this device",
+    "rememberUsername": "Remember username on this device",
     "forgotPin": "Forgot your PIN?",
-    "forgotPinHint": "Open the bot, go to My Hosting Plans, and tap \"Show Credentials\" to regenerate."
+    "forgotPinHint": "Open the bot, go to My Hosting Plans, and tap \"Show Credentials\" to regenerate.",
+    "tooManyAttempts": "Too many attempts. Try again in",
+    "capsLockOn": "Caps Lock is on",
+    "attemptsRemaining_one": "{{count}} attempt remaining before lockout.",
+    "attemptsRemaining_other": "{{count}} attempts remaining before lockout.",
+    "switchToLight": "Switch to light mode",
+    "switchToDark": "Switch to dark mode",
+    "hidePin": "Hide PIN",
+    "showPin": "Show PIN"
   },
   "dashboard": {
     "tabs": {
@@ -57,7 +66,8 @@
     "welcome": "Welcome back, {{name}}",
     "planLabel": "Plan",
     "expiresLabel": "Expires",
-    "manageBilling": "Manage billing in the bot"
+    "manageBilling": "Manage billing in the bot",
+    "visitWebsite": "Visit your website"
   },
   "domains": {
     "title": "Your Domains",
@@ -85,6 +95,101 @@
     "emptyFolder": "This folder is empty.",
     "deleteConfirm": "Delete {{count}} item(s)? This cannot be undone.",
     "fileNamePlaceholder": "Enter file name"
+  },
+  "fm": {
+    "websiteFolder": "Website folder",
+    "filesLiveAt": "Files here appear at",
+    "getStarted": {
+      "title": "Get your website online",
+      "subtitle": "You're in the right place! Upload your website files here and they'll be live at <strong>{{url}}</strong>",
+      "dismissGuide": "Dismiss guide",
+      "step1Title": "Upload your files",
+      "step1Body": "Click \"Upload\" or drag & drop your website files (HTML, CSS, JS, images) into this area. For a full site, upload a <strong>.zip file</strong> and click \"Extract\".",
+      "step2Title": "Make sure index.html exists",
+      "step2Body": "Your main page should be named <strong>index.html</strong> (or index.php). This is what visitors see when they open your domain.",
+      "step3Title": "Visit your website",
+      "step3Body": "Once files are uploaded, your site is live at {{url}}",
+      "proTip": "<strong>Pro tip:</strong> Zip your entire website folder, upload the .zip, then click \"Extract\" — much faster than uploading files one by one!"
+    },
+    "bulkTip": "<strong>Tip:</strong> Upload a <strong>.zip</strong> of your website and click \"Extract\" to unpack all files at once. Your site goes live at <strong>{{url}}</strong>",
+    "table": {
+      "name": "Name",
+      "publicUrl": "Public URL",
+      "size": "Size",
+      "modified": "Modified",
+      "actions": "Actions"
+    },
+    "selectAll": "Select all visible files",
+    "selectOne": "Select {{name}}",
+    "clickToPreview": "Click to preview",
+    "editingFile": "Editing: {{name}}",
+    "folderNamePlaceholder": "Folder name",
+    "create": "Create",
+    "cancel": "Cancel",
+    "save": "Save",
+    "saving": "Saving...",
+    "loading": "Loading files...",
+    "emptyFolder": "This folder is empty",
+    "emptySearch": "No files match \"{{query}}\"",
+    "emptyUploadHint": "Upload your website files here to get started",
+    "searchTryAgain": "Try a different search term, or press <strong>Esc</strong> to clear.",
+    "actions": {
+      "copyUrl": "Copy URL",
+      "copied": "Copied!",
+      "openInBrowser": "Open in browser",
+      "edit": "Edit",
+      "extract": "Extract/Unzip here",
+      "rename": "Rename",
+      "copyTo": "Copy to...",
+      "moveTo": "Move to...",
+      "delete": "Delete",
+      "view": "View",
+      "copy": "Copy",
+      "move": "Move"
+    },
+    "drag": {
+      "dropHere": "Drop files or folders here to upload",
+      "hintPublic": "Folder structure is preserved · Files go live on your website",
+      "hintOther": "Folder structure is preserved · Subdirectories will be created automatically"
+    },
+    "rename": {
+      "title": "Rename: {{name}}",
+      "submit": "Rename"
+    },
+    "copymove": {
+      "copyTitle": "Copy: {{name}}",
+      "moveTitle": "Move: {{name}}",
+      "destinationLabel": "Destination folder:",
+      "hint": "Enter the full path where you want to {{action}} the file.",
+      "copy": "Copy",
+      "move": "Move"
+    },
+    "delete": {
+      "bulkTitle": "Delete {{count}} items?",
+      "bulkTitleOne": "Delete 1 item?",
+      "folderTitle": "Delete folder?",
+      "fileTitle": "Delete file?",
+      "bulkMore": "…and {{count}} more",
+      "folderWarning": "Some items are folders — their contents will be permanently deleted.",
+      "singleFolderWarning": "This will permanently delete the folder and everything inside it.",
+      "cannotUndo": "This cannot be undone.",
+      "deleting": "Deleting…"
+    },
+    "bulkMove": {
+      "title": "Move {{count}} items to…",
+      "titleOne": "Move 1 item to…",
+      "destinationLabel": "Destination folder:",
+      "hint": "Enter the full path where you want to move the selected items.",
+      "submit": "Move {{count}}"
+    },
+    "imgPreview": {
+      "prev": "Previous image",
+      "next": "Next image",
+      "prevTitle": "Previous (←)",
+      "nextTitle": "Next (→)",
+      "navHint": "← / → to navigate",
+      "openInTab": "Open in tab"
+    }
   },
   "email": {
     "title": "Email Manager",

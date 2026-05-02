@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Full-screen tinted overlay that appears while the user is dragging
@@ -7,6 +8,7 @@ import React from 'react';
  * — the structure is preserved".
  */
 export default function DragOverlay({ isPublicHtml }) {
+  const { t } = useTranslation();
   return (
     <div className="fm-drag-overlay" data-testid="fm-drag-overlay">
       <div className="fm-drag-content">
@@ -15,10 +17,10 @@ export default function DragOverlay({ isPublicHtml }) {
           <polyline points="17 8 12 3 7 8" />
           <line x1="12" y1="3" x2="12" y2="15" />
         </svg>
-        <p>Drop files or folders here to upload</p>
+        <p>{t('fm.drag.dropHere')}</p>
         {isPublicHtml
-          ? <span>Folder structure is preserved · Files go live on your website</span>
-          : <span>Folder structure is preserved · Subdirectories will be created automatically</span>}
+          ? <span>{t('fm.drag.hintPublic')}</span>
+          : <span>{t('fm.drag.hintOther')}</span>}
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 {
   "common": {
-    "appName": "托管面板",
+    "appName": "主机面板",
     "save": "保存",
     "cancel": "取消",
     "delete": "删除",
@@ -23,25 +23,34 @@
     "domain": "域名",
     "username": "用户名",
     "password": "密码",
-    "email": "邮箱",
+    "email": "电子邮件",
     "submit": "提交",
     "refresh": "刷新",
     "settings": "设置",
     "language": "语言"
   },
   "login": {
-    "title": "登录您的托管面板",
-    "subtitle": "在一个地方管理您的域名、文件、邮件和安全。",
+    "title": "登录到您的主机面板",
+    "subtitle": "从一个地方管理您的域名、文件、电子邮件和安全性。",
     "usernameLabel": "用户名",
     "usernamePlaceholder": "输入您的 cPanel 用户名",
-    "pinLabel": "PIN 码",
-    "pinPlaceholder": "输入您的 PIN 码",
+    "pinLabel": "PIN",
+    "pinPlaceholder": "输入您的 PIN",
     "submitButton": "登录",
     "submitting": "登录中…",
-    "invalidCredentials": "用户名或 PIN 码无效。请重试。",
-    "rememberMe": "在此设备上记住我",
-    "forgotPin": "忘记 PIN 码？",
-    "forgotPinHint": "打开机器人，进入「我的托管计划」，点击「显示凭证」以重新生成。"
+    "invalidCredentials": "无效的用户名或 PIN。请再试一次。",
+    "rememberMe": "记住我在此设备上",
+    "forgotPin": "忘记您的 PIN？",
+    "forgotPinHint": "打开机器人，转到我的主机计划，然后点击\"显示凭据\"以重新生成。",
+    "rememberUsername": "记住用户名在此设备上",
+    "tooManyAttempts": "尝试次数过多。请在",
+    "capsLockOn": "大写锁定已开启",
+    "attemptsRemaining_one": "{{count}} 次尝试剩余，锁定之前。",
+    "attemptsRemaining_other": "{{count}} 次尝试剩余，锁定之前。",
+    "switchToLight": "切换到浅色模式",
+    "switchToDark": "切换到深色模式",
+    "hidePin": "隐藏 PIN",
+    "showPin": "显示 PIN"
   },
   "dashboard": {
     "tabs": {
@@ -49,107 +58,203 @@
       "domains": "域名",
       "files": "文件",
       "email": "邮件",
-      "geo": "地理伪装",
+      "geo": "地理隐匿",
       "security": "安全",
       "analytics": "分析",
       "account": "账户"
     },
-    "welcome": "欢迎回来，{{name}}",
-    "planLabel": "计划",
+    "welcome": "欢迎回来, {{name}}",
+    "planLabel": "套餐",
     "expiresLabel": "到期",
-    "manageBilling": "在机器人中管理账单"
+    "manageBilling": "在机器人中管理账单",
+    "visitWebsite": "访问您的网站"
   },
   "domains": {
     "title": "您的域名",
     "addAddon": "添加附加域名",
-    "primary": "主要",
-    "addon": "附加",
+    "primary": "主域名",
+    "addon": "附加域名",
     "subdomain": "子域名",
     "documentRoot": "文档根目录",
-    "noDomains": "暂无域名。请在上方添加您的第一个附加域名。",
-    "deleteConfirm": "永久删除 {{domain}}？文档根目录中的文件不会被触动。",
+    "noDomains": "尚无域名。请在上方添加您的第一个附加域名。",
+    "deleteConfirm": "永久删除{{domain}}？其文档根目录中的文件将保持不变。",
     "deleteButton": "删除域名",
     "redirect": "重定向",
     "ssl": "SSL",
-    "addedOn": "添加于 {{date}}"
+    "addedOn": "添加于{{date}}"
   },
   "files": {
     "title": "文件管理器",
-    "newFolder": "新建文件夹",
+    "newFolder": "新文件夹",
     "upload": "上传",
     "uploadingProgress": "正在上传 {{name}}… {{percent}}%",
     "extract": "解压",
     "compress": "压缩",
     "rename": "重命名",
     "permissions": "权限",
-    "emptyFolder": "此文件夹为空。",
-    "deleteConfirm": "删除 {{count}} 个项目？此操作无法撤销。",
+    "emptyFolder": "该文件夹为空。",
+    "deleteConfirm": "删除 {{count}} 项？此操作无法撤销。",
     "fileNamePlaceholder": "输入文件名"
   },
   "email": {
-    "title": "邮件管理器",
-    "createAccount": "创建邮箱账户",
-    "noAccounts": "暂无邮箱账户。",
-    "address": "邮箱地址",
-    "quotaLabel": "配额（MB）",
+    "title": "电子邮件管理器",
+    "createAccount": "创建电子邮件账户",
+    "noAccounts": "尚无电子邮件账户。",
+    "address": "电子邮件地址",
+    "quotaLabel": "配额 (MB)",
     "unlimited": "无限制",
-    "deleteConfirm": "删除 {{address}}？所有邮件将丢失。",
+    "deleteConfirm": "删除 {{address}}? 所有消息将会丢失。",
     "changePassword": "更改密码",
     "passwordChanged": "密码已更改。"
   },
   "security": {
     "title": "安全",
-    "antiRedStatus": "Anti-Red 状态",
-    "antiRedActive": "活跃 — 保护已部署",
-    "antiRedInactive": "未活跃",
+    "antiRedStatus": "反红状态",
+    "antiRedActive": "已激活 — 保护已部署",
+    "antiRedInactive": "未激活",
     "verifyAntiRed": "立即验证",
-    "captchaTitle": "访客验证码（Gold 专属）",
-    "captchaUnavailable": "访客验证码仅在 Gold 计划上可用。",
-    "captchaOn": "已开启",
-    "captchaOff": "已关闭",
-    "blockedCountries": "屏蔽的国家"
+    "captchaTitle": "访客验证码（仅限Gold）",
+    "captchaUnavailable": "访客验证码仅在Gold计划中提供。",
+    "captchaOn": "开启",
+    "captchaOff": "关闭",
+    "blockedCountries": "被封锁国家"
   },
   "geo": {
-    "title": "地理伪装",
-    "description": "根据访客所在国家显示不同内容。",
+    "title": "地理遮蔽",
+    "description": "根据访问者的国家显示不同的内容。",
     "ruleCountry": "国家",
     "ruleAction": "操作",
     "actionAllow": "允许",
-    "actionBlock": "屏蔽",
+    "actionBlock": "阻止",
     "actionRedirect": "重定向",
     "addRule": "添加规则"
   },
   "analytics": {
     "title": "分析",
-    "totalVisitors": "总访客数",
+    "totalVisitors": "总访客",
     "uniqueVisitors": "独立访客",
-    "topCountries": "热门国家",
+    "topCountries": "主要国家",
     "topPages": "热门页面",
     "last7Days": "过去 7 天",
     "last30Days": "过去 30 天"
   },
   "account": {
-    "title": "账户设置",
+    "title": "帐户设置",
     "profile": "个人资料",
     "displayName": "显示名称",
     "language": "语言",
     "darkMode": "深色模式",
-    "logout": "退出登录",
+    "logout": "登出",
     "loggedIn": "已登录为 {{name}}"
   },
   "languageNames": {
-    "en": "English",
-    "fr": "Français",
+    "en": "英语",
+    "fr": "法语",
     "zh": "中文",
     "hi": "हिन्दी"
   },
   "banner": {
-    "detected": "我们检测到您的浏览器使用{{lang}}",
-    "tagline": "面板使用此语言吗？",
-    "keep": "是 — 保留{{lang}}",
-    "switchToEnglish": "切换为英文"
+    "detected": "我们注意到您的浏览器语言是{{lang}}",
+    "tagline": "保持这个语言用于面板吗？",
+    "keep": "是 — 保持{{lang}}",
+    "switchToEnglish": "切换到英语"
   },
   "errors": {
-    "cpanelDown": "主机服务暂时不可用，请几分钟后再试 — 您的数据是安全的。"
+    "cpanelDown": "主机服务暂时不可用。请稍后再试 — 您的数据是安全的。"
+  },
+  "fm": {
+    "websiteFolder": "网站文件夹",
+    "filesLiveAt": "这里的文件显示在",
+    "getStarted": {
+      "title": "让您的网站上线",
+      "subtitle": "您来对地方了！在这里上传您的网站文件，它们将在 <strong>{{url}}</strong> 上线",
+      "dismissGuide": "关闭指南",
+      "step1Title": "上传您的文件",
+      "step1Body": "点击“上传”或将您的网站文件（HTML, CSS, JS, 图片）拖放到此区域。要上传完整网站，请上传一个 <strong>.zip 文件</strong> 并点击“提取”。",
+      "step2Title": "确保存在 index.html",
+      "step2Body": "您的主页应该命名为 <strong>index.html</strong>（或 index.php）。这是访问者打开您的域时看到的内容。",
+      "step3Title": "访问您的网站",
+      "step3Body": "文件上传后，您的网站在 {{url}} 上线",
+      "proTip": "<strong>专业提示：</strong> 压缩您的整个网站文件夹，上传 .zip 然后点击“提取” — 比逐个上传文件快得多！"
+    },
+    "bulkTip": "<strong>提示：</strong> 上传您网站的 <strong>.zip</strong> 文件并点击“提取”以一次解压所有文件。您的网站将在 <strong>{{url}}</strong> 上线",
+    "table": {
+      "name": "名称",
+      "publicUrl": "公共 URL",
+      "size": "大小",
+      "modified": "修改时间",
+      "actions": "操作"
+    },
+    "selectAll": "选择所有可见文件",
+    "selectOne": "选择 {{name}}",
+    "clickToPreview": "点击预览",
+    "editingFile": "正在编辑：{{name}}",
+    "folderNamePlaceholder": "文件夹名称",
+    "create": "创建",
+    "cancel": "取消",
+    "save": "保存",
+    "saving": "保存中...",
+    "loading": "加载文件中...",
+    "emptyFolder": "此文件夹为空",
+    "emptySearch": "没有与 \"{{query}}\" 匹配的文件",
+    "emptyUploadHint": "在这里上传您的网站文件以开始",
+    "searchTryAgain": "尝试不同的搜索词，或按 <strong>Esc</strong> 清除。",
+    "actions": {
+      "copyUrl": "复制 URL",
+      "copied": "已复制！",
+      "openInBrowser": "在浏览器中打开",
+      "edit": "编辑",
+      "extract": "提取/解压到这里",
+      "rename": "重命名",
+      "copyTo": "复制到...",
+      "moveTo": "移动到...",
+      "delete": "删除",
+      "view": "查看",
+      "copy": "复制",
+      "move": "移动"
+    },
+    "drag": {
+      "dropHere": "将文件或文件夹拖到此处上传",
+      "hintPublic": "文件夹结构被保留 · 文件将在您的网站上线",
+      "hintOther": "文件夹结构被保留 · 子目录将自动创建"
+    },
+    "rename": {
+      "title": "重命名：{{name}}",
+      "submit": "重命名"
+    },
+    "copymove": {
+      "copyTitle": "复制：{{name}}",
+      "moveTitle": "移动：{{name}}",
+      "destinationLabel": "目标文件夹：",
+      "hint": "输入您想要 {{action}} 文件的完整路径。",
+      "copy": "复制",
+      "move": "移动"
+    },
+    "delete": {
+      "bulkTitle": "删除 {{count}} 项?",
+      "bulkTitleOne": "删除 1 项?",
+      "folderTitle": "删除文件夹?",
+      "fileTitle": "删除文件?",
+      "bulkMore": "…还有 {{count}} 项",
+      "folderWarning": "某些项目是文件夹 — 它们的内容将被永久删除。",
+      "singleFolderWarning": "这将永久删除文件夹及其内部的所有内容。",
+      "cannotUndo": "此操作无法撤销。",
+      "deleting": "删除中…"
+    },
+    "bulkMove": {
+      "title": "将 {{count}} 项移动到…",
+      "titleOne": "将 1 项移动到…",
+      "destinationLabel": "目标文件夹：",
+      "hint": "输入您想要移动所选项目的完整路径。",
+      "submit": "移动 {{count}}"
+    },
+    "imgPreview": {
+      "prev": "上一张图片",
+      "next": "下一张图片",
+      "prevTitle": "上一张 (←)",
+      "nextTitle": "下一张 (→)",
+      "navHint": "← / → 导航",
+      "openInTab": "在新标签中打开"
+    }
   }
 }

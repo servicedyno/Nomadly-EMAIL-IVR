@@ -1,0 +1,43 @@
+{
+  "summary": "Frontend-only verification of panel i18n P0 regression fix + 3 P1 polish bugs. Tested /panel unauthenticated login page across en/fr/hi/zh + dark-mode Radix portal. ALL 210 locale keys resolve correctly — ZERO raw i18n key leaks detected in any of the 4 languages. useTheme.js correctly mirrors theme to documentElement (html.dark + data-theme=dark), so shadcn/Radix dropdown inherits dark styling (portal bg=rgb(10,10,10), fg=rgb(250,250,250)). Help toggle is closed by default in all 4 langs (no .help-box in DOM until button click). Redundant .panel-input-hint spans removed — only placeholders remain as helper text. Mobile viewport 375x812 clean, no overflow. <strong> tags preserved in all 4 locale files for fm.getStarted.step1Body.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "verifications_passed": [
+    "EN: title='Sign in to your hosting panel', submit='Sign In', remember='Remember username on this device', forgotPin='Forgot your PIN?', theme tooltip='Switch to dark mode', pin tooltip='Show PIN' — no leaks.",
+    "FR: title=\"Connectez-vous à votre panneau d'hébergement\", submit='Se connecter', remember=\"Se souvenir du nom d'utilisateur sur cet appareil\", forgotPin='Vous avez oublié votre PIN ?', theme tooltip='Passer au mode sombre', pin tooltip='Afficher le PIN' — no leaks.",
+    "HI: title='अपने होस्टिंग पैनल में साइन इन करें', submit='साइन इन करें', remember='इस डिवाइस पर उपयोगकर्ता नाम याद रखें', forgotPin='क्या आपने अपना PIN भुला दिया?', theme='डार्क मोड में स्विच करें', pin='PIN दिखाएं' — no leaks.",
+    "ZH: title='登录到您的主机面板', submit='登录', remember='记住用户名在此设备上', forgotPin='忘记您的 PIN？', theme='切换到深色模式', pin='显示 PIN' — no leaks.",
+    "Help toggle closed by default in all 4 langs: helpBoxExists=false on initial load in en/fr/hi/zh. Click in hi reveals help box with translated forgotPinHint ('बॉट खोलें, मेरे होस्टिंग योजनाओं पर जाएं...').",
+    "Help toggle close-state text uses common.close: toggled button label becomes 'बंद करें' (hi) — common.close key wired correctly.",
+    "Redundant placeholder+hint removed: hintSpans query returns [] ; no .panel-input-hint element in DOM. Placeholders 'Enter your cPanel username' / 'अपना cPanel उपयोगकर्ता नाम डालें' / 'Entrez votre nom d'utilisateur cPanel' / '输入您的 cPanel 用户名' serve as the only helper text.",
+    "Dark-mode theme mirroring (useTheme.js fix): document.documentElement.className='dark', dataset.theme='dark'. Body bg=rgb(10,10,10).",
+    "LanguageSwitcher Radix portal in dark mode: [data-radix-popper-content-wrapper] contents have bg=rgb(10,10,10) color=rgb(250,250,250) via bg-popover/text-popover-foreground — NO white-on-dark issue. Screenshot confirms visually dark dropdown.",
+    "Mobile 375x812 (hi): panel-login-card width 327px, no horizontal overflow (cardRight <= bodyWidth). All text wraps cleanly. Language auto-detect banner also translated ('हमने देखा कि आपका ब्राउज़र हिन्दी में है').",
+    "Locale file parity: en/fr/hi/zh all 210 keys — identical structure, no missing keys.",
+    "<strong> tags preserved in fm.getStarted.step1Body across fr/hi/zh (inspected raw locale files). Placeholder {{count}} preserved in login.attemptsRemaining_{one,other} across all 4 langs.",
+    "i18n key leak regex scan (panel|login|fm|common|dashboard)\\.[a-zA-Z0-9_.]+ against body text → empty array in en/fr/hi/zh."
+  ],
+  "verifications_skipped_deferred": [
+    "FileManager, DragOverlay, ImagePreviewModal runtime i18n — requires logged-in session; WHM origin firewalled and no cPanel creds available. Locale keys (fm.*) all exist in all 4 files and are wired per source grep (verified via spot-checks of FileManager.js, DragOverlay.jsx, ImagePreviewModal.jsx t() calls). Recommend runtime verification next iteration when cPanel test account available.",
+    "PanelDashboard visitWebsite + theme toggle tooltip — same reason (requires auth). Keys dashboard.visitWebsite / panel.theme.* present and wired in source."
+  ],
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Language auto-detect banner (shown on first Hindi visit) appears above the login card on mobile and briefly obscures the H logo. Minor UX — consider dismissible-once-per-session state or placing it below the hero. Not blocking.",
+    "login.pinPlaceholder renders in a letter-spaced style ('अ प ना  P I N  डा लें' visible on screenshot due to font-feature spacing). Looks intentional for PIN cadence but worth confirming with design. Not a bug.",
+    "Locale file key count is 210 per language — consider adding a CI jest-based schema check (deepKeys(en) ⊆ deepKeys(fr/hi/zh)) to catch future regressions automatically."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "skipped (frontend-only)", "frontend": "100%"},
+  "test_credentials": "N/A — unauthenticated /panel testing only (per agent_to_agent_context_note)",
+  "seed_data_creation": "none",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All panel i18n fixes VERIFIED green on unauthenticated /panel. Next logical pass (when cPanel creds / live WHM available): log in as a test user and exercise (a) FileManager 'Get your website online' guide rendering across fr/hi/zh — especially that <strong>.zip file</strong>, <strong>ftp address</strong> etc. render as bold HTML not literal text — remember PanelLogin/FM already use dangerouslySetInnerHTML or i18next Trans? If literal <strong> shows up, wire <Trans i18nKey='...'> or dangerouslySetInnerHTML={{__html: t(...)}}. (b) FileManager table headers / row action tooltips / drag overlay / image-preview modal under fr/hi/zh. (c) PanelDashboard visitWebsite title + theme toggle title. (d) Attempts-remaining plural forms (trigger lockout flow to validate attemptsRemaining_one vs attemptsRemaining_other).",
+  "rca of the issue": "N/A — no bugs reproduced this iteration. All claimed P0 (i18n) + P1 (theme mirror, duplicate hint, help default-closed) fixes validated."
+}

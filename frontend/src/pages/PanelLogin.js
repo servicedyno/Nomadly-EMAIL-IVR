@@ -102,7 +102,7 @@ export default function PanelLogin() {
       <AutoDetectLanguageBanner />
       <div style={{position: 'absolute', top: 12, right: 12, display: 'flex', gap: 8, alignItems: 'center', zIndex: 5}}>
         <LanguageSwitcher />
-        <button onClick={toggleTheme} className="panel-theme-btn panel-theme-btn--login" data-testid="panel-theme-toggle-login" title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}>
+        <button onClick={toggleTheme} className="panel-theme-btn panel-theme-btn--login" data-testid="panel-theme-toggle-login" title={isDark ? t('login.switchToLight') : t('login.switchToDark')}>
           {isDark ? (
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
           ) : (
@@ -134,7 +134,7 @@ export default function PanelLogin() {
                 {error}
                 {typeof attemptsRemaining === 'number' && attemptsRemaining > 0 && attemptsRemaining <= 3 && (
                   <strong data-testid="panel-attempts-remaining" style={{ display: 'block', fontSize: 12, marginTop: 4, fontWeight: 600 }}>
-                    {attemptsRemaining} attempt{attemptsRemaining === 1 ? '' : 's'} remaining before lockout.
+                    {t(attemptsRemaining === 1 ? 'login.attemptsRemaining_one' : 'login.attemptsRemaining_other', { count: attemptsRemaining })}
                   </strong>
                 )}
               </span>
@@ -144,7 +144,7 @@ export default function PanelLogin() {
           {isLocked && (
             <div className="pv-rate-limit" data-testid="panel-login-rate-limit">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{flexShrink: 0}}><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-              <span>Too many attempts. Try again in</span>
+              <span>{t('login.tooManyAttempts')}</span>
               <span className="pv-rate-limit-clock" data-testid="panel-login-rate-limit-clock">{String(Math.floor(remainingLockSec / 60)).padStart(2, '0')}:{String(remainingLockSec % 60).padStart(2, '0')}</span>
             </div>
           )}
@@ -165,11 +165,10 @@ export default function PanelLogin() {
               disabled={isLocked}
               required
             />
-            <span className="panel-input-hint">{t('login.usernamePlaceholder')}</span>
             {capsOn && (
               <div className="pv-caps-lock" data-testid="panel-caps-lock-warning">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 19v3"/><path d="M19 12H5L12 5l7 7z"/></svg>
-                <span>Caps Lock is on</span>
+                <span>{t('login.capsLockOn')}</span>
               </div>
             )}
           </div>
@@ -197,8 +196,8 @@ export default function PanelLogin() {
                 className="pv-pin-toggle"
                 onClick={() => setShowPin(v => !v)}
                 data-testid="panel-login-pin-toggle"
-                aria-label={showPin ? 'Hide PIN' : 'Show PIN'}
-                title={showPin ? 'Hide PIN' : 'Show PIN'}
+                aria-label={showPin ? t('login.hidePin') : t('login.showPin')}
+                title={showPin ? t('login.hidePin') : t('login.showPin')}
                 tabIndex={-1}
               >
                 {showPin ? (
@@ -208,7 +207,6 @@ export default function PanelLogin() {
                 )}
               </button>
             </div>
-            <span className="panel-input-hint">{t('login.pinPlaceholder')}</span>
           </div>
 
           <label className="pv-remember" data-testid="panel-remember-username-row">
@@ -218,7 +216,7 @@ export default function PanelLogin() {
               onChange={(e) => setRemember(e.target.checked)}
               data-testid="panel-remember-username"
             />
-            <span>Remember username on this device</span>
+            <span>{t('login.rememberUsername')}</span>
           </label>
 
           <button

@@ -47,5 +47,18 @@ export default function useTheme() {
     });
   }, []);
 
+  // Mirror the panel theme onto the document root so portal-mounted components
+  // (Radix DropdownMenu, sonner toasts, Shadcn popovers) can pick it up via
+  // the standard `html.dark` class / `data-theme` attribute. Without this, the
+  // panel looks correct but any element rendered via React Portal inherits the
+  // default (usually light) theme of the host document — e.g. the language
+  // switcher dropdown was rendering on a white background in dark mode.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.theme = theme;
+    if (theme === 'dark') root.classList.add('dark');
+    else root.classList.remove('dark');
+  }, [theme]);
+
   return { theme, toggleTheme, isDark: theme === 'dark' };
 }

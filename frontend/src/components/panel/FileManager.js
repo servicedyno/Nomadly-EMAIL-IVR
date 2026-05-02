@@ -738,7 +738,7 @@ export default function FileManager() {
         <div className="fm-modal-overlay" data-testid="fm-editor-modal">
           <div className="fm-modal">
             <div className="fm-modal-header">
-              <span>Editing: {editingFile}</span>
+              <span>{t('fm.editingFile', { name: editingFile })}</span>
               <button onClick={() => setEditingFile(null)} className="fm-modal-close">&times;</button>
             </div>
             <textarea
@@ -749,9 +749,9 @@ export default function FileManager() {
               spellCheck={false}
             />
             <div className="fm-modal-actions">
-              <button onClick={() => setEditingFile(null)} className="fm-btn fm-btn--ghost">Cancel</button>
+              <button onClick={() => setEditingFile(null)} className="fm-btn fm-btn--ghost">{t('fm.cancel')}</button>
               <button onClick={handleSave} className="fm-btn fm-btn--primary" disabled={saving} data-testid="fm-editor-save">
-                {saving ? 'Saving...' : 'Save'}
+                {saving ? t('fm.saving') : t('fm.save')}
               </button>
             </div>
           </div>
@@ -769,9 +769,9 @@ export default function FileManager() {
             </svg>
           </div>
           <div className="fm-location-banner-text">
-            <span className="fm-location-banner-label">Website folder</span>
+            <span className="fm-location-banner-label">{t('fm.websiteFolder')}</span>
             <span className="fm-location-banner-domain">
-              Files here appear at <a href={`https://${user?.domain}`} target="_blank" rel="noopener noreferrer">https://{user?.domain}</a>
+              {t('fm.filesLiveAt')} <a href={`https://${user?.domain}`} target="_blank" rel="noopener noreferrer">https://{user?.domain}</a>
             </span>
           </div>
         </div>
@@ -783,34 +783,41 @@ export default function FileManager() {
           <div className="fm-gs-header">
             <h3>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-              Get your website online
+              {t('fm.getStarted.title')}
             </h3>
-            <button onClick={dismissGuide} className="fm-gs-dismiss" title="Dismiss guide">
+            <button onClick={dismissGuide} className="fm-gs-dismiss" title={t('fm.getStarted.dismissGuide')}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
           </div>
-          <p className="fm-gs-subtitle">You're in the right place! Upload your website files here and they'll be live at <strong>https://{user?.domain}</strong></p>
-          
+          <p
+            className="fm-gs-subtitle"
+            // i18n strings contain inline <strong> tags we want to render as real markup.
+            dangerouslySetInnerHTML={{ __html: t('fm.getStarted.subtitle', { url: `https://${user?.domain}` }) }}
+          />
+
           <div className="fm-gs-steps">
             <div className="fm-gs-step">
               <div className="fm-gs-step-num">1</div>
               <div className="fm-gs-step-content">
-                <strong>Upload your files</strong>
-                <p>Click "Upload" or drag & drop your website files (HTML, CSS, JS, images) into this area. For a full site, upload a <strong>.zip file</strong> and click "Extract".</p>
+                <strong>{t('fm.getStarted.step1Title')}</strong>
+                <p dangerouslySetInnerHTML={{ __html: t('fm.getStarted.step1Body') }} />
               </div>
             </div>
             <div className="fm-gs-step">
               <div className="fm-gs-step-num">2</div>
               <div className="fm-gs-step-content">
-                <strong>Make sure index.html exists</strong>
-                <p>Your main page should be named <strong>index.html</strong> (or index.php). This is what visitors see when they open your domain.</p>
+                <strong>{t('fm.getStarted.step2Title')}</strong>
+                <p dangerouslySetInnerHTML={{ __html: t('fm.getStarted.step2Body') }} />
               </div>
             </div>
             <div className="fm-gs-step">
               <div className="fm-gs-step-num">3</div>
               <div className="fm-gs-step-content">
-                <strong>Visit your website</strong>
-                <p>Once files are uploaded, your site is live at <a href={`https://${user?.domain}`} target="_blank" rel="noopener noreferrer">https://{user?.domain}</a></p>
+                <strong>{t('fm.getStarted.step3Title')}</strong>
+                <p>
+                  {t('fm.getStarted.step3Body', { url: '' }).replace(/\s*$/, '')}{' '}
+                  <a href={`https://${user?.domain}`} target="_blank" rel="noopener noreferrer">https://{user?.domain}</a>
+                </p>
               </div>
             </div>
           </div>
@@ -818,7 +825,7 @@ export default function FileManager() {
           <div className="fm-gs-tips">
             <div className="fm-gs-tip">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="2"/><path d="M9 2v6h6V2"/><path d="M12 8v4"/><path d="M9 12h6"/></svg>
-              <span><strong>Pro tip:</strong> Zip your entire website folder, upload the .zip, then click "Extract" — much faster than uploading files one by one!</span>
+              <span dangerouslySetInnerHTML={{ __html: t('fm.getStarted.proTip') }} />
             </div>
           </div>
         </div>
@@ -863,12 +870,12 @@ export default function FileManager() {
             type="text"
             value={newDirName}
             onChange={(e) => setNewDirName(e.target.value)}
-            placeholder="Folder name"
+            placeholder={t('fm.folderNamePlaceholder')}
             data-testid="fm-new-dir-input"
             onKeyDown={(e) => e.key === 'Enter' && handleCreateDir()}
           />
-          <button onClick={handleCreateDir} className="fm-btn fm-btn--primary" data-testid="fm-new-dir-create">Create</button>
-          <button onClick={() => { setShowNewDir(false); setNewDirName(''); }} className="fm-btn fm-btn--ghost">Cancel</button>
+          <button onClick={handleCreateDir} className="fm-btn fm-btn--primary" data-testid="fm-new-dir-create">{t('fm.create')}</button>
+          <button onClick={() => { setShowNewDir(false); setNewDirName(''); }} className="fm-btn fm-btn--ghost">{t('fm.cancel')}</button>
         </div>
       )}
 
@@ -885,7 +892,7 @@ export default function FileManager() {
       {!loading && !showGettingStarted && isPublicHtmlRoot && files.length <= 3 && !error && !successMessage && (
         <div className="fm-tip" data-testid="fm-bulk-tip">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-          <span><strong>Tip:</strong> Upload a <strong>.zip</strong> of your website and click "Extract" to unpack all files at once. Your site goes live at <strong>https://{user?.domain}</strong></span>
+          <span dangerouslySetInnerHTML={{ __html: t('fm.bulkTip', { url: `https://${user?.domain}` }) }} />
         </div>
       )}
 
@@ -894,16 +901,16 @@ export default function FileManager() {
         {loading ? (
           <div className="fm-loading">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="fm-spin"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
-            <span>Loading files...</span>
+            <span>{t('fm.loading')}</span>
           </div>
         ) : visibleFiles.length === 0 ? (
           <div className="fm-empty" data-testid="fm-empty-state">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{opacity: 0.4}}>
               <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
             </svg>
-            <p>{search ? `No files match "${search}"` : 'This folder is empty'}</p>
-            {!search && isPublicHtml && <span>Upload your website files here to get started</span>}
-            {search && <span>Try a different search term, or press <strong>Esc</strong> to clear.</span>}
+            <p>{search ? t('fm.emptySearch', { query: search }) : t('fm.emptyFolder')}</p>
+            {!search && isPublicHtml && <span>{t('fm.emptyUploadHint')}</span>}
+            {search && <span dangerouslySetInnerHTML={{ __html: t('fm.searchTryAgain') }} />}
           </div>
         ) : (
           <>
@@ -919,14 +926,14 @@ export default function FileManager() {
                       checked={allChecked}
                       onChange={toggleSelectAll}
                       data-testid="fm-select-all"
-                      aria-label="Select all visible files"
+                      aria-label={t('fm.selectAll')}
                     />
                   </th>
-                  <th>Name</th>
-                  <th>Public URL</th>
-                  <th>Size</th>
-                  <th>Modified</th>
-                  <th>Actions</th>
+                  <th>{t('fm.table.name')}</th>
+                  <th>{t('fm.table.publicUrl')}</th>
+                  <th>{t('fm.table.size')}</th>
+                  <th>{t('fm.table.modified')}</th>
+                  <th>{t('fm.table.actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -948,7 +955,7 @@ export default function FileManager() {
                           checked={isSelected}
                           onChange={() => toggleSelect(name)}
                           data-testid={`fm-select-${name}`}
-                          aria-label={`Select ${name}`}
+                          aria-label={t('fm.selectOne', { name })}
                         />
                       </td>
                       <td>
@@ -958,7 +965,7 @@ export default function FileManager() {
                             {name}
                           </button>
                         ) : isImg && publicUrl ? (
-                          <button className="fm-file-link" onClick={() => openImagePreview(name)} data-testid={`fm-img-preview-${name}`} title="Click to preview">
+                          <button className="fm-file-link" onClick={() => openImagePreview(name)} data-testid={`fm-img-preview-${name}`} title={t('fm.clickToPreview')}>
                             <img className="fm-thumb" src={publicUrl} alt={name} loading="lazy" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                             {name}
                           </button>
@@ -995,7 +1002,7 @@ export default function FileManager() {
                             <button 
                               onClick={() => copyUrl(publicUrl, name)} 
                               className={`fm-action-btn ${copiedUrl === name ? 'fm-action-btn--success' : ''}`}
-                              title={copiedUrl === name ? 'Copied!' : 'Copy URL'}
+                              title={copiedUrl === name ? t('fm.actions.copied') : t('fm.actions.copyUrl')}
                               data-testid={`fm-copy-${name}`}
                             >
                               {copiedUrl === name ? (
@@ -1010,7 +1017,7 @@ export default function FileManager() {
                                 target="_blank" 
                                 rel="noopener noreferrer" 
                                 className="fm-action-btn fm-action-btn--view"
-                                title="Open in browser"
+                                title={t('fm.actions.openInBrowser')}
                                 data-testid={`fm-view-${name}`}
                               >
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -1019,7 +1026,7 @@ export default function FileManager() {
                           </>
                         )}
                         {!isDir && isTextFile(name) && (
-                          <button onClick={() => handleEdit(name)} className="fm-action-btn" title="Edit" data-testid={`fm-edit-${name}`}>
+                          <button onClick={() => handleEdit(name)} className="fm-action-btn" title={t('fm.actions.edit')} data-testid={`fm-edit-${name}`}>
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                           </button>
                         )}
@@ -1027,7 +1034,7 @@ export default function FileManager() {
                           <button
                             onClick={() => handleExtract(name)}
                             className={`fm-action-btn fm-action-btn--extract ${extracting === name ? 'fm-action-btn--spinning' : ''}`}
-                            title="Extract/Unzip here"
+                            title={t('fm.actions.extract')}
                             data-testid={`fm-extract-${name}`}
                             disabled={!!extracting}
                           >
@@ -1038,16 +1045,16 @@ export default function FileManager() {
                             )}
                           </button>
                         )}
-                        <button onClick={() => { setRenaming(name); setRenameValue(name); }} className="fm-action-btn" title="Rename" data-testid={`fm-rename-${name}`}>
+                        <button onClick={() => { setRenaming(name); setRenameValue(name); }} className="fm-action-btn" title={t('fm.actions.rename')} data-testid={`fm-rename-${name}`}>
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                         </button>
-                        <button onClick={() => openCopyMove('copy', name)} className="fm-action-btn" title="Copy to..." data-testid={`fm-copy-file-${name}`}>
+                        <button onClick={() => openCopyMove('copy', name)} className="fm-action-btn" title={t('fm.actions.copyTo')} data-testid={`fm-copy-file-${name}`}>
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
                         </button>
-                        <button onClick={() => openCopyMove('move', name)} className="fm-action-btn" title="Move to..." data-testid={`fm-move-file-${name}`}>
+                        <button onClick={() => openCopyMove('move', name)} className="fm-action-btn" title={t('fm.actions.moveTo')} data-testid={`fm-move-file-${name}`}>
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
                         </button>
-                        <button onClick={() => handleDelete(name, isDir)} className="fm-action-btn fm-action-btn--danger" title="Delete" data-testid={`fm-delete-${name}`}>
+                        <button onClick={() => handleDelete(name, isDir)} className="fm-action-btn fm-action-btn--danger" title={t('fm.actions.delete')} data-testid={`fm-delete-${name}`}>
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
                         </button>
                       </td>
@@ -1076,7 +1083,7 @@ export default function FileManager() {
                         checked={isSelected}
                         onChange={() => toggleSelect(name)}
                         data-testid={`fm-select-mobile-${name}`}
-                        aria-label={`Select ${name}`}
+                        aria-label={t('fm.selectOne', { name })}
                         onClick={(e) => e.stopPropagation()}
                         style={{ marginRight: 4 }}
                       />
@@ -1129,7 +1136,7 @@ export default function FileManager() {
                             ) : (
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
                             )}
-                            <span>{copiedUrl === name ? 'Copied!' : 'Copy URL'}</span>
+                            <span>{copiedUrl === name ? t('fm.actions.copied') : t('fm.actions.copyUrl')}</span>
                           </button>
                           {!isDir && isWebFile(name) && (
                             <a 
@@ -1140,7 +1147,7 @@ export default function FileManager() {
                               data-testid={`fm-view-mobile-${name}`}
                             >
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                              <span>View</span>
+                              <span>{t('fm.actions.view')}</span>
                             </a>
                           )}
                         </>
@@ -1157,30 +1164,30 @@ export default function FileManager() {
                           ) : (
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="2"/><path d="M9 2v6h6V2"/><path d="M12 8v4"/><path d="M9 12h6"/></svg>
                           )}
-                          <span>Extract</span>
+                          <span>{t('files.extract')}</span>
                         </button>
                       )}
                       {!isDir && isTextFile(name) && (
                         <button onClick={() => handleEdit(name)} className="fm-action-chip" data-testid={`fm-edit-mobile-${name}`}>
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                          <span>Edit</span>
+                          <span>{t('fm.actions.edit')}</span>
                         </button>
                       )}
                       <button onClick={() => { setRenaming(name); setRenameValue(name); }} className="fm-action-chip" data-testid={`fm-rename-mobile-${name}`}>
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                        <span>Rename</span>
+                        <span>{t('fm.actions.rename')}</span>
                       </button>
                       <button onClick={() => openCopyMove('copy', name)} className="fm-action-chip" data-testid={`fm-copy-file-mobile-${name}`}>
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-                        <span>Copy</span>
+                        <span>{t('fm.actions.copy')}</span>
                       </button>
                       <button onClick={() => openCopyMove('move', name)} className="fm-action-chip" data-testid={`fm-move-file-mobile-${name}`}>
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
-                        <span>Move</span>
+                        <span>{t('fm.actions.move')}</span>
                       </button>
                       <button onClick={() => handleDelete(name, isDir)} className="fm-action-chip fm-action-chip--danger" data-testid={`fm-delete-mobile-${name}`}>
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
-                        <span>Delete</span>
+                        <span>{t('fm.actions.delete')}</span>
                       </button>
                     </div>
                   </div>
@@ -1196,7 +1203,7 @@ export default function FileManager() {
         <div className="fm-modal-overlay" data-testid="fm-rename-modal">
           <div className="fm-modal fm-modal--sm">
             <div className="fm-modal-header">
-              <span>Rename: {renaming}</span>
+              <span>{t('fm.rename.title', { name: renaming })}</span>
               <button onClick={() => setRenaming(null)} className="fm-modal-close">&times;</button>
             </div>
             <div style={{ padding: '16px 20px' }}>
@@ -1211,8 +1218,8 @@ export default function FileManager() {
               />
             </div>
             <div className="fm-modal-actions">
-              <button onClick={() => setRenaming(null)} className="fm-btn fm-btn--ghost">Cancel</button>
-              <button onClick={() => handleRename(renaming)} className="fm-btn fm-btn--primary" data-testid="fm-rename-submit">Rename</button>
+              <button onClick={() => setRenaming(null)} className="fm-btn fm-btn--ghost">{t('fm.cancel')}</button>
+              <button onClick={() => handleRename(renaming)} className="fm-btn fm-btn--primary" data-testid="fm-rename-submit">{t('fm.rename.submit')}</button>
             </div>
           </div>
         </div>
@@ -1223,12 +1230,14 @@ export default function FileManager() {
         <div className="fm-modal-overlay" data-testid="fm-copymove-modal">
           <div className="fm-modal fm-modal--sm">
             <div className="fm-modal-header">
-              <span>{copyMoveAction.type === 'copy' ? 'Copy' : 'Move'}: {copyMoveAction.fileName}</span>
+              <span>
+                {t(copyMoveAction.type === 'copy' ? 'fm.copymove.copyTitle' : 'fm.copymove.moveTitle', { name: copyMoveAction.fileName })}
+              </span>
               <button onClick={() => setCopyMoveAction(null)} className="fm-modal-close">&times;</button>
             </div>
             <div style={{ padding: '16px 20px' }}>
               <label style={{ display: 'block', marginBottom: 8, fontSize: 13, color: '#94a3b8' }}>
-                Destination folder:
+                {t('fm.copymove.destinationLabel')}
               </label>
               <input
                 type="text"
@@ -1241,13 +1250,13 @@ export default function FileManager() {
                 autoFocus
               />
               <div style={{ marginTop: 8, fontSize: 12, color: '#64748b' }}>
-                Enter the full path where you want to {copyMoveAction.type} the file.
+                {t('fm.copymove.hint', { action: t(copyMoveAction.type === 'copy' ? 'fm.copymove.copy' : 'fm.copymove.move').toLowerCase() })}
               </div>
             </div>
             <div className="fm-modal-actions">
-              <button onClick={() => setCopyMoveAction(null)} className="fm-btn fm-btn--ghost">Cancel</button>
+              <button onClick={() => setCopyMoveAction(null)} className="fm-btn fm-btn--ghost">{t('fm.cancel')}</button>
               <button onClick={handleCopyMove} className="fm-btn fm-btn--primary" data-testid="fm-copymove-submit">
-                {copyMoveAction.type === 'copy' ? 'Copy' : 'Move'}
+                {t(copyMoveAction.type === 'copy' ? 'fm.copymove.copy' : 'fm.copymove.move')}
               </button>
             </div>
           </div>
@@ -1261,8 +1270,8 @@ export default function FileManager() {
             <div className="fm-modal-header">
               <span>
                 {deleteTarget.bulk
-                  ? `Delete ${deleteTarget.items.length} item${deleteTarget.items.length === 1 ? '' : 's'}?`
-                  : `Delete ${deleteTarget.isDir ? 'folder' : 'file'}?`}
+                  ? t(deleteTarget.items.length === 1 ? 'fm.delete.bulkTitleOne' : 'fm.delete.bulkTitle', { count: deleteTarget.items.length })
+                  : t(deleteTarget.isDir ? 'fm.delete.folderTitle' : 'fm.delete.fileTitle')}
               </span>
               <button onClick={() => !deleting && setDeleteTarget(null)} className="fm-modal-close" data-testid="fm-delete-close">&times;</button>
             </div>
@@ -1277,13 +1286,13 @@ export default function FileManager() {
                     ))}
                     {deleteTarget.items.length > 12 && (
                       <div style={{ padding: '4px 0', color: 'var(--pv-text-muted)', fontSize: 12 }}>
-                        …and {deleteTarget.items.length - 12} more
+                        {t('fm.delete.bulkMore', { count: deleteTarget.items.length - 12 })}
                       </div>
                     )}
                   </div>
                   {deleteTarget.items.some(it => it.isDir) && (
                     <div style={{ fontSize: 13, color: '#fca5a5', marginBottom: 8 }}>
-                      Some items are folders — their contents will be permanently deleted.
+                      {t('fm.delete.folderWarning')}
                     </div>
                   )}
                 </>
@@ -1294,13 +1303,13 @@ export default function FileManager() {
                   </div>
                   {deleteTarget.isDir && (
                     <div style={{ fontSize: 13, color: '#fca5a5', marginBottom: 8 }}>
-                      This will permanently delete the folder and everything inside it.
+                      {t('fm.delete.singleFolderWarning')}
                     </div>
                   )}
                 </>
               )}
               <div style={{ fontSize: 12, color: '#94a3b8' }}>
-                This cannot be undone.
+                {t('fm.delete.cannotUndo')}
               </div>
             </div>
             <div className="fm-modal-actions">
@@ -1310,7 +1319,7 @@ export default function FileManager() {
                 disabled={deleting}
                 data-testid="fm-delete-cancel"
               >
-                Cancel
+                {t('fm.cancel')}
               </button>
               <button
                 onClick={confirmDelete}
@@ -1319,7 +1328,7 @@ export default function FileManager() {
                 data-testid="fm-delete-confirm"
                 style={{ background: '#dc2626', borderColor: '#dc2626' }}
               >
-                {deleting ? 'Deleting…' : 'Delete'}
+                {deleting ? t('fm.delete.deleting') : t('fm.actions.delete')}
               </button>
             </div>
           </div>
@@ -1331,12 +1340,14 @@ export default function FileManager() {
         <div className="fm-modal-overlay" data-testid="fm-bulk-move-modal">
           <div className="fm-modal fm-modal--sm">
             <div className="fm-modal-header">
-              <span>Move {selected.size} item{selected.size === 1 ? '' : 's'} to…</span>
+              <span>
+                {t(selected.size === 1 ? 'fm.bulkMove.titleOne' : 'fm.bulkMove.title', { count: selected.size })}
+              </span>
               <button onClick={() => setBulkMoveTarget(null)} className="fm-modal-close">&times;</button>
             </div>
             <div style={{ padding: '16px 20px' }}>
               <label style={{ display: 'block', marginBottom: 8, fontSize: 13, color: 'var(--pv-text-secondary)' }}>
-                Destination folder:
+                {t('fm.bulkMove.destinationLabel')}
               </label>
               <input
                 type="text"
@@ -1349,13 +1360,13 @@ export default function FileManager() {
                 autoFocus
               />
               <div style={{ marginTop: 8, fontSize: 12, color: 'var(--pv-text-muted)' }}>
-                Enter the full path where you want to move the selected items.
+                {t('fm.bulkMove.hint')}
               </div>
             </div>
             <div className="fm-modal-actions">
-              <button onClick={() => setBulkMoveTarget(null)} className="fm-btn fm-btn--ghost">Cancel</button>
+              <button onClick={() => setBulkMoveTarget(null)} className="fm-btn fm-btn--ghost">{t('fm.cancel')}</button>
               <button onClick={performBulkMove} className="fm-btn fm-btn--primary" data-testid="fm-bulk-move-submit">
-                Move {selected.size}
+                {t('fm.bulkMove.submit', { count: selected.size })}
               </button>
             </div>
           </div>
