@@ -60,6 +60,12 @@ function setAdminNotifier(fn) { if (typeof fn === 'function') _adminNotifier = f
 function _adminAlertDown(reason, host) {
   const now = Date.now()
   if (now - _lastDownAlertAt < DOWN_ALERT_THROTTLE_MS) return
+  // Defensive: never page the admin for an obviously-fake hostname.
+  // Test fixtures historically used "test" / "test.host" — those rows can
+  // end up in the DB via the captcha seed script and would otherwise spam
+  // the admin chat with ENOTFOUND every time someone touches them.
+  const h = String(host || '').toLowerCase()
+  if (!h || h === 'test' || h === 'test.host' || h === 'localhost' || h === '127.0.0.1') return
   _lastDownAlertAt = now
   if (!_adminNotifier) return
   try {

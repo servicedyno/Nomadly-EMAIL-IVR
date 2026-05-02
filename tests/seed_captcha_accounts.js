@@ -32,7 +32,10 @@ async function main() {
     domain: 'goldtest.com',
     addonDomains: [{ domain: 'goldaddon.com' }],
     plan: 'Golden Anti-Red HostPanel (30 Days)',
-    whmHost: 'test',
+    // null → the panel falls back to the environment's WHM_HOST. Setting a
+    // bogus literal here would trigger ENOTFOUND admin alerts on every
+    // proxy call by this account.
+    whmHost: process.env.WHM_HOST || null,
     expiryDate: expiry,
     createdAt: now,
   }
@@ -49,7 +52,7 @@ async function main() {
     domain: 'premtest.com',
     addonDomains: [],
     plan: 'Premium Anti-Red HostPanel (30 Days)',
-    whmHost: 'test',
+    whmHost: process.env.WHM_HOST || null,
     expiryDate: expiry,
     createdAt: now,
   }
