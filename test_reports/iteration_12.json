@@ -1,0 +1,44 @@
+{
+  "summary": "Frontend-only verification of the shared PanelToolbar / PanelBulkBar primitives and their adoption by FileManager (regression) and EmailManager (new). Login as goldtest/123456 succeeded; FileManager testids + `/` shortcut + webkitdirectory folder upload all intact; EmailManager uses the shared .panel-toolbar with identical computed styling. Negative-state (accounts.length === 0 due to CPANEL_DOWN) correctly suppresses em-count / em-search-input / em-select-all-row / em-bulk-bar. Multi-select, bulk-delete loop, em-empty-search, and bulk-confirm modal verified via source inspection (cannot exercise against live data while WHM is down).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "verifications_passed": [
+    "PanelToolbar.jsx — renders .panel-toolbar, supports leftSlot / search (with inputRef, shortcutHint, testid, ariaLabel) / actions (primary|ghost, fileInput for label-wrapped <input type=file>). Pure-render, prop contract matches spec.",
+    "PanelBulkBar.jsx — returns null when count<=0; renders .panel-bulk-bar with count chip + actions (default|danger) + optional Clear. countTestid / clearTestid overridable.",
+    "FileManager Toolbar adapter — fm-toolbar/fm-search-input/fm-go-up/fm-new-dir-btn/fm-upload-input/fm-upload-folder-input all count=1. fm-toolbar classes = 'panel-toolbar fm-toolbar'.",
+    "fm-upload-folder-input attrs: webkitdirectory=true, directory=true, multiple=true (preserved).",
+    "Breadcrumb leftSlot renders '/home / goldtest / public_html' with public_html carrying fm-bread-item--highlight (coral).",
+    "`/` keyboard shortcut focuses data-testid=fm-search-input (document.activeElement.testid='fm-search-input').",
+    "FileManager BulkBar adapter — wraps PanelBulkBar, preserves fm-bulk-bar/fm-bulk-count/fm-bulk-move/fm-bulk-delete/fm-bulk-clear, delegates rendering. (Source verified — no files selected during live test so bar is correctly null.)",
+    "EmailManager em-toolbar present with hasPanelToolbar=true, title='Email Accounts', create button label='Create Email', classes='panel-btn panel-btn--primary' (coral primary).",
+    "Create button toggle: click → form (em-create-form count=1) appears, label flips to 'Cancel'; click again → form removed, label returns to 'Create Email'.",
+    "Negative state (accounts.length===0): em-count/em-search-input/em-select-all-row/em-bulk-bar all count=0 — matches EmailManager.js conditional renders.",
+    "em-error banner renders CPANEL_DOWN copy: 'Hosting service is temporarily unavailable…'",
+    "Visual parity: em-toolbar and fm-toolbar share identical computed styles — background rgba(255,255,255,0.85), position sticky, padding 12px 14px, gap 12px.",
+    "Source review of multi-select logic: toggleSelect/toggleSelectAll use Set immutably; indeterminate drives header checkbox via headerCheckboxRef; selection is pruned when visibleAccounts changes (search filter).",
+    "Source review of performBulkDelete: iterates `for (const email of selected)`, resolves acc → splits email/domain, POSTs /email/delete, aggregates okCount + failures, clears selection + closes modal, re-fetches accounts.",
+    "Source review of bulk confirm modal: em-bulk-delete-modal overlay, em-bulk-delete-list shows first 12 selected addresses + '…and N more' overflow line; em-bulk-delete-confirm danger button.",
+    "Source review of em-empty-search: renders 'No emails match \"<term>\"' + Esc hint when visibleAccounts.length===0 while accounts.length>0."
+  ],
+  "test_report_links": [],
+  "action_items": [
+    "When WHM is back online, run a live pass covering: em-search-input filter behavior, em-select-all + per-row em-select-{email}, em-bulk-bar appearance, em-bulk-delete-confirm flow, and em-empty-search fallback.",
+    "Consider adding an Esc-to-clear listener on em-search-input (the em-empty-search block advertises Esc but no handler is wired in EmailManager.js — minor UX polish, not blocking)."
+  ],
+  "critical_code_review_comments": [
+    "EmailManager.handleDelete still uses window.confirm() for single-row deletes. The bulk path uses a proper modal; consider replacing window.confirm with the shared confirm modal for UX consistency (not blocking, existing behavior).",
+    "PanelToolbar passes `disabled = a.disabled || a.loading` but the loading-class flash can overlap a pending onClick (file inputs are not disabled when loading=true because labels ignore `disabled`). Minor; consider adding pointer-events:none when --loading.",
+    "EmailManager.js is ~540 lines and mixes account CRUD + create form + bulk delete + send-test modal. A future split (CreateForm / AccountRow / TestEmailModal / BulkDeleteModal) would mirror the FileManager refactor."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "skipped (frontend-only)", "frontend": "100%"},
+  "test_credentials": "goldtest / 123456 (Panel)",
+  "seed_data_creation": "none — used existing seeded Gold account",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "WHM is CPANEL_DOWN — EmailManager.fetchAccounts returns an empty list, so all multi-select / search / bulk delete flows can only be source-verified. Once WHM is back, prefill at least 2 email accounts and re-run the em-* interactive flow: type in em-search-input to exercise visibleAccounts filter + em-empty-search fallback, tick em-select-all then confirm em-bulk-bar + em-bulk-count, click em-bulk-delete → em-bulk-delete-modal → em-bulk-delete-confirm, and verify accounts refetch. Everything UI-wise in the shared toolbar/bulkbar primitives is already green on this iteration."
+}

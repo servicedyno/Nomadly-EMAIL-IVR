@@ -2510,6 +2510,33 @@
   transform: translateY(-1px);
 }
 
+.em-account-card--selected {
+  background: var(--pv-selection-bg);
+  border-color: var(--pv-coral);
+}
+
+.em-select-all-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  margin-bottom: 8px;
+  background: var(--pv-bg-card);
+  border: 1px solid var(--pv-border-subtle);
+  border-radius: var(--pv-radius);
+  font-size: 12px;
+  color: var(--pv-text-secondary);
+  font-family: var(--pv-font-display);
+  cursor: pointer;
+  user-select: none;
+  transition: all var(--pv-fast);
+}
+
+.em-select-all-row:hover {
+  border-color: var(--pv-border-hover);
+  color: var(--pv-text-primary);
+}
+
 .em-account-info {
   display: flex;
   align-items: center;
@@ -3271,4 +3298,242 @@
 .panel-light .em-form-field select {
   background: var(--pv-bg-panel);
   border-color: var(--pv-border-subtle);
+}
+
+/* ═══ Shared Panel Primitives (Toolbar / BulkBar / Btn) ═══════
+   Used by FileManager, EmailManager, and (future) DomainList so every
+   list view in the panel feels identical. The legacy .fm-toolbar /
+   .fm-bulk-bar / .fm-btn rules continue to work via aliases below — this
+   keeps existing data-testids and CSS specificity in place. */
+
+.panel-toolbar {
+  position: sticky;
+  top: 51px; /* below tab nav */
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: rgba(10, 10, 20, 0.78);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--pv-border-subtle);
+  border-radius: var(--pv-radius-lg);
+  box-shadow: var(--pv-shadow-2);
+}
+
+.panel-light .panel-toolbar { background: rgba(255, 255, 255, 0.85); }
+
+.panel-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.panel-toolbar-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* Title block used by EmailManager / DomainList in their leftSlot */
+.panel-toolbar-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.panel-toolbar-title h2 {
+  font-family: var(--pv-font-display);
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: -0.01em;
+  color: var(--pv-text-primary);
+  margin: 0;
+}
+
+.panel-toolbar-title-meta {
+  font-size: 11.5px;
+  color: var(--pv-text-muted);
+  font-family: var(--pv-font-mono);
+}
+
+/* Search input (consistent across consumers) */
+.panel-search {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.panel-search input {
+  width: 200px;
+  padding: 7px 10px 7px 32px;
+  background: var(--pv-bg-panel);
+  border: 1px solid var(--pv-border-subtle);
+  border-radius: var(--pv-radius);
+  color: var(--pv-text-primary);
+  font-family: var(--pv-font-display);
+  font-size: 13px;
+  outline: none;
+  transition: all var(--pv-fast);
+}
+
+.panel-search input::placeholder { color: var(--pv-text-muted); }
+
+.panel-search input:focus {
+  border-color: var(--pv-coral);
+  box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.15);
+  width: 240px;
+}
+
+.panel-search-icon {
+  position: absolute;
+  left: 10px;
+  color: var(--pv-text-muted);
+  pointer-events: none;
+}
+
+.panel-search-shortcut {
+  position: absolute;
+  right: 8px;
+  font-family: var(--pv-font-mono);
+  font-size: 10.5px;
+  color: var(--pv-text-muted);
+  background: var(--pv-bg-card);
+  border: 1px solid var(--pv-border-subtle);
+  padding: 2px 5px;
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+.panel-search input:focus + .panel-search-shortcut { display: none; }
+
+/* Buttons (shared) */
+.panel-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border-radius: var(--pv-radius);
+  font-family: var(--pv-font-display);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--pv-fast);
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.panel-btn--primary {
+  background: var(--pv-coral);
+  color: white;
+  border-color: var(--pv-coral);
+  box-shadow: 0 4px 12px -4px var(--pv-coral-glow);
+}
+
+.panel-btn--primary:hover:not(:disabled) {
+  background: var(--pv-coral-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px -6px var(--pv-coral-glow);
+}
+
+.panel-btn--primary:active:not(:disabled) { transform: translateY(0); filter: brightness(0.95); }
+
+.panel-btn--primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.4);
+}
+
+.panel-btn--ghost {
+  background: var(--pv-bg-card);
+  color: var(--pv-text-secondary);
+  border-color: var(--pv-border-subtle);
+}
+
+.panel-btn--ghost:hover:not(:disabled) {
+  background: var(--pv-bg-card-hover);
+  color: var(--pv-text-primary);
+  border-color: var(--pv-border-hover);
+  transform: translateY(-1px);
+}
+
+.panel-btn--ghost:disabled { opacity: 0.5; cursor: not-allowed; }
+.panel-btn--loading { opacity: 0.6; pointer-events: none; }
+
+/* Bulk action bar (shared) */
+.panel-bulk-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  background: linear-gradient(to right, rgba(255, 107, 107, 0.10), rgba(99, 102, 241, 0.10));
+  border: 1px solid var(--pv-coral);
+  border-radius: var(--pv-radius);
+  box-shadow: var(--pv-shadow-glow-coral);
+  animation: pv-stagger 240ms var(--pv-ease) both;
+}
+
+.panel-bulk-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--pv-text-primary);
+  font-weight: 500;
+}
+
+.panel-bulk-count {
+  font-family: var(--pv-font-mono);
+  background: var(--pv-coral);
+  color: white;
+  padding: 2px 8px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.panel-bulk-actions { display: flex; gap: 8px; }
+
+.panel-bulk-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 11px;
+  background: var(--pv-bg-card);
+  border: 1px solid var(--pv-border-subtle);
+  border-radius: 7px;
+  color: var(--pv-text-secondary);
+  font-family: var(--pv-font-display);
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: all var(--pv-fast);
+}
+
+.panel-bulk-btn:hover {
+  color: var(--pv-text-primary);
+  border-color: var(--pv-border-hover);
+  transform: translateY(-1px);
+}
+
+.panel-bulk-btn--danger:hover {
+  background: rgba(251, 113, 133, 0.12);
+  border-color: var(--pv-danger);
+  color: var(--pv-danger);
+}
+
+/* Mobile toolbar adjustments (apply to shared one too) */
+@media (max-width: 760px) {
+  .panel-toolbar { top: 50px; padding: 10px; gap: 8px; }
+  .panel-search input { width: 100%; min-width: 140px; }
+  .panel-search input:focus { width: 100%; }
+  .panel-search-shortcut { display: none; }
+  .panel-toolbar-actions { width: 100%; justify-content: flex-start; }
 }
