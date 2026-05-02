@@ -1,0 +1,233 @@
+{"timestamp": "2026-05-02T09:27:17.135303644Z", "severity": "info", "message": "Starting Container"}
+{"timestamp": "2026-05-02T09:27:18.044154930Z", "severity": "info", "message": "[WHM-Whitelist] cPHulk: 162.220.232.226 whitelisted successfully"}
+{"timestamp": "2026-05-02T09:27:18.688363447Z", "severity": "info", "message": "[WHM-Whitelist] CSF not installed on server (skipped)"}
+{"timestamp": "2026-05-02T09:27:18.688369206Z", "severity": "info", "message": "[WHM-Whitelist] Host Access: 162.220.232.226 added"}
+{"timestamp": "2026-05-02T09:27:18.688376436Z", "severity": "info", "message": "[WHM-Whitelist] Complete \u2014 IP: 162.220.232.226, cPHulk: true, CSF: not_installed"}
+{"timestamp": "2026-05-02T09:27:18.688380776Z", "severity": "info", "message": "Working, Fincra API"}
+{"timestamp": "2026-05-02T09:27:18.688385546Z", "severity": "info", "message": "Working, Railway API, now starting the bot"}
+{"timestamp": "2026-05-02T09:27:18.976243793Z", "severity": "info", "message": "[AI Support] OpenAI initialized"}
+{"timestamp": "2026-05-02T09:27:18.982752227Z", "severity": "info", "message": "TELEGRAM_BOT_ON: true"}
+{"timestamp": "2026-05-02T09:27:18.982755927Z", "severity": "info", "message": "Bot initialized with webhook support"}
+{"timestamp": "2026-05-02T09:27:18.982761817Z", "severity": "info", "message": "Bot ran away! Sat May 02 2026 09:27:18 GMT+0000 (Coordinated Universal Time)"}
+{"timestamp": "2026-05-02T09:27:19.014060333Z", "severity": "info", "message": "[Honeypot] Express routes mounted: POST /honeypot/report, GET /honeypot/stats, GET /honeypot/check/:ip"}
+{"timestamp": "2026-05-02T09:27:19.020789475Z", "severity": "info", "message": "[Express] Panel domain guard active: panel.1.hostbay.io/panel"}
+{"timestamp": "2026-05-02T09:27:19.020794195Z", "severity": "info", "message": "[Express] Serving React frontend from build directory"}
+{"timestamp": "2026-05-02T09:27:19.020797775Z", "severity": "info", "message": "\u2705 Main application ready! Server already listening on port 8080"}
+{"timestamp": "2026-05-02T09:27:19.023088114Z", "severity": "info", "message": "\ud83d\ude80 Early health check server started on port 8080"}
+{"timestamp": "2026-05-02T09:27:19.037728190Z", "severity": "info", "message": "\u2705 MongoDB connection pool ready"}
+{"timestamp": "2026-05-02T09:27:19.071547463Z", "severity": "info", "message": "DB Connected lala. May peace be with you and Lord's mercy and blessings."}
+{"timestamp": "2026-05-02T09:27:19.071553393Z", "severity": "info", "message": "[cPanel Queue] worker started"}
+{"timestamp": "2026-05-02T09:27:19.071559183Z", "severity": "info", "message": "[cPanel Health] probe + queue worker initialised"}
+{"timestamp": "2026-05-02T09:27:19.071566183Z", "severity": "info", "message": "[AutoPromo] Scheduled morning for EN at local 10:00 (UTC 10:00)"}
+{"timestamp": "2026-05-02T09:27:19.071572053Z", "severity": "info", "message": "[AutoPromo] Scheduled evening for EN at local 19:00 (UTC 19:00)"}
+{"timestamp": "2026-05-02T09:27:19.071578173Z", "severity": "info", "message": "[AutoPromo] Scheduled morning for FR at local 10:00 (UTC 9:00)"}
+{"timestamp": "2026-05-02T09:27:19.071583373Z", "severity": "info", "message": "[AutoPromo] Scheduled evening for FR at local 19:00 (UTC 18:00)"}
+{"timestamp": "2026-05-02T09:27:19.071588113Z", "severity": "info", "message": "[AutoPromo] Scheduled morning for ZH at local 10:00 (UTC 2:00)"}
+{"timestamp": "2026-05-02T09:27:19.071592853Z", "severity": "info", "message": "[AutoPromo] Scheduled evening for ZH at local 19:00 (UTC 11:00)"}
+{"timestamp": "2026-05-02T09:27:19.073975961Z", "severity": "info", "message": "[AutoPromo] Scheduled morning for HI at local 10:00 (UTC 4:30)"}
+{"timestamp": "2026-05-02T09:27:19.073978831Z", "severity": "info", "message": "[AutoPromo] Scheduled evening for HI at local 19:00 (UTC 13:30)"}
+{"timestamp": "2026-05-02T09:27:19.073981831Z", "severity": "info", "message": "[AutoPromo] Initialized \u2014 8 jobs (4 langs \u00d7 2 slots/day), 12 themes: cloudphone, antired_hosting, leads_validation, domains_shortener, digital_products, cards_bundles, email_validation, marketplace, vps_rdp, bulksms_app, email_blast, refer_earn"}
+{"timestamp": "2026-05-02T09:27:19.073984461Z", "severity": "info", "message": "[AutoPromo] Schedule: \ud83c\udf05 Morning hero (10am) + \ud83c\udf19 Evening cross-sell (7pm), 7 days/week"}
+{"timestamp": "2026-05-02T09:27:19.073987511Z", "severity": "info", "message": "[AutoPromo] Resurrection scan enabled \u2014 every 6h, 200 users/batch"}
+{"timestamp": "2026-05-02T09:27:19.073990881Z", "severity": "info", "message": "[AutoPromo] System loaded successfully"}
+{"timestamp": "2026-05-02T09:27:19.076524378Z", "severity": "info", "message": "[DailyCoupon] System initialized"}
+{"timestamp": "2026-05-02T09:27:19.076531858Z", "severity": "info", "message": "[DailyCoupon] System loaded successfully"}
+{"timestamp": "2026-05-02T09:27:19.076537037Z", "severity": "info", "message": "09:27:19 [CartRecovery] Initialized \u2014 nudge delay: 45min, cooldown: 24h, silent timeout: 20min, languages: en/fr/zh/hi"}
+{"timestamp": "2026-05-02T09:27:19.076541837Z", "severity": "info", "message": "09:27:19 [CartRecovery] Tracking 50 payment action states"}
+{"timestamp": "2026-05-02T09:27:19.076546377Z", "severity": "info", "message": "[CartRecovery] System loaded successfully"}
+{"timestamp": "2026-05-02T09:27:19.076553167Z", "severity": "info", "message": "09:27:19 [Conversion] New User Conversion Engine initialized \u2014 5 features active"}
+{"timestamp": "2026-05-02T09:27:19.076557697Z", "severity": "info", "message": "09:27:19 [Conversion] First deposit bonus: $5 (min $20), Welcome offer: 25% (2h delay), Social proof: \u00d73"}
+{"timestamp": "2026-05-02T09:27:19.076562367Z", "severity": "info", "message": "[Conversion] System loaded successfully"}
+{"timestamp": "2026-05-02T09:27:19.076567077Z", "severity": "info", "message": "\u2501\u2501\u2501 Initializing Telnyx Resources \u2501\u2501\u2501"}
+{"timestamp": "2026-05-02T09:27:19.076572027Z", "severity": "info", "message": "Voice webhook: https://nomadly-email-ivr-production.up.railway.app/telnyx/voice-webhook"}
+{"timestamp": "2026-05-02T09:27:19.076576527Z", "severity": "info", "message": "SMS webhook: https://nomadly-email-ivr-production.up.railway.app/telnyx/sms-webhook"}
+{"timestamp": "2026-05-02T09:27:19.092388878Z", "severity": "info", "message": "[DailyCoupon] Coupons already exist for 2026-05-02"}
+{"timestamp": "2026-05-02T09:27:19.092392018Z", "severity": "info", "message": "[CR-Whitelist] Outbound IP: 162.220.232.226"}
+{"timestamp": "2026-05-02T09:27:19.379249577Z", "severity": "info", "message": "[CR-Whitelist] API test failed (attempt #1): Request failed with status code 401"}
+{"timestamp": "2026-05-02T09:27:19.379254597Z", "severity": "info", "message": "[CR-Whitelist] API blocked \u2014 IP 162.220.232.226 needs whitelisting"}
+{"timestamp": "2026-05-02T09:27:19.379257857Z", "severity": "info", "message": "[CR-Whitelist] Running browser automation to whitelist 162.220.232.226..."}
+{"timestamp": "2026-05-02T09:27:19.674930830Z", "severity": "info", "message": "\ud83d\udce1 Webhook URL: https://nomadly-email-ivr-production.up.railway.app/telegram/webhook"}
+{"timestamp": "2026-05-02T09:27:19.674978079Z", "severity": "info", "message": "Updated SIP Connection webhook: 2898118323872990714"}
+{"timestamp": "2026-05-02T09:27:19.674983089Z", "severity": "info", "message": "\ud83d\uddd1\ufe0f  Deleted old webhook"}
+{"timestamp": "2026-05-02T09:27:19.674987329Z", "severity": "info", "message": "\u2705 Telegram webhook set successfully"}
+{"timestamp": "2026-05-02T09:27:19.794268063Z", "severity": "info", "message": "\ud83d\udcca Webhook info: {"}
+{"timestamp": "2026-05-02T09:27:19.794271043Z", "severity": "info", "message": "  \"url\": \"https://nomadly-email-ivr-production.up.railway.app/telegram/webhook\","}
+{"timestamp": "2026-05-02T09:27:19.794274153Z", "severity": "info", "message": "  \"has_custom_certificate\": false,"}
+{"timestamp": "2026-05-02T09:27:19.794277213Z", "severity": "info", "message": "  \"pending_update_count\": 0,"}
+{"timestamp": "2026-05-02T09:27:19.794280023Z", "severity": "info", "message": "  \"max_connections\": 40,"}
+{"timestamp": "2026-05-02T09:27:19.794283673Z", "severity": "info", "message": "  \"ip_address\": \"151.101.2.15\","}
+{"timestamp": "2026-05-02T09:27:19.794286913Z", "severity": "info", "message": "  \"allowed_updates\": ["}
+{"timestamp": "2026-05-02T09:27:19.794289853Z", "severity": "info", "message": "    \"message\","}
+{"timestamp": "2026-05-02T09:27:19.794292572Z", "severity": "info", "message": "    \"callback_query\","}
+{"timestamp": "2026-05-02T09:27:19.794295222Z", "severity": "info", "message": "\"my_chat_member\""}
+{"timestamp": "2026-05-02T09:27:19.794297652Z", "severity": "info", "message": "  ]"}
+{"timestamp": "2026-05-02T09:27:19.794301272Z", "severity": "info", "message": "}"}
+{"timestamp": "2026-05-02T09:27:19.794303602Z", "severity": "info", "message": "\u2705 Webhook verification passed"}
+{"timestamp": "2026-05-02T09:27:20.004082430Z", "severity": "info", "message": "\u2705 Default bot commands registered"}
+{"timestamp": "2026-05-02T09:27:20.018813736Z", "severity": "info", "message": "Updated Messaging Profile webhook: 40019c71-59a6-497a-8246-49536bd08d87"}
+{"timestamp": "2026-05-02T09:27:20.180809144Z", "severity": "info", "message": "\u2705 Admin bot commands registered for chat 5590563715"}
+{"timestamp": "2026-05-02T09:27:20.272454594Z", "severity": "info", "message": "[Telnyx] Outbound voice profile 2897375459551478845 whitelist OK (250 countries)"}
+{"timestamp": "2026-05-02T09:27:20.730501681Z", "severity": "info", "message": "[Telnyx] Migration complete: 0 migrated, 2 already correct, 5 external skipped, 0 external detached, 7 total"}
+{"timestamp": "2026-05-02T09:27:20.730560210Z", "severity": "info", "message": "Updated Call Control App webhook: 2898117434361775526"}
+{"timestamp": "2026-05-02T09:27:20.730563610Z", "severity": "info", "message": "\u2501\u2501\u2501 Telnyx Resources Ready \u2501\u2501\u2501"}
+{"timestamp": "2026-05-02T09:27:20.730567070Z", "severity": "info", "message": "SIP Connection ID: 2898118323872990714"}
+{"timestamp": "2026-05-02T09:27:20.730570980Z", "severity": "info", "message": "Messaging Profile ID: 40019c71-59a6-497a-8246-49536bd08d87"}
+{"timestamp": "2026-05-02T09:27:20.730574680Z", "severity": "info", "message": "Call Control App ID: 2898117434361775526"}
+{"timestamp": "2026-05-02T09:27:20.730577640Z", "severity": "info", "message": "[CloudPhone] Telnyx resources initialized"}
+{"timestamp": "2026-05-02T09:27:20.916647200Z", "severity": "info", "message": "[Telnyx] ANI override updated to +18778570205"}
+{"timestamp": "2026-05-02T09:27:20.916651660Z", "severity": "info", "message": "[CloudPhone] SIP connection ANI override set to TOLL-FREE number: +18778570205"}
+{"timestamp": "2026-05-02T09:27:20.918288749Z", "severity": "info", "message": "\u2501\u2501\u2501 Initializing Twilio Resources \u2501\u2501\u2501"}
+{"timestamp": "2026-05-02T09:27:21.070441258Z", "severity": "info", "message": "[Twilio] Connected: Speechcue (active)"}
+{"timestamp": "2026-05-02T09:27:21.310257439Z", "severity": "info", "message": "[Twilio] Updated SIP domain webhook: speechcue-7937a0.sip.twilio.com"}
+{"timestamp": "2026-05-02T09:27:21.719601849Z", "severity": "info", "message": "[Twilio] Credential mapping note: CLfe5ba0b48274412e6e953eb58901c9ce already associated with SDdb6525d35a1f09e4d1dfc19a2128ed96"}
+{"timestamp": "2026-05-02T09:27:21.763365592Z", "severity": "info", "message": "[Twilio] IP ACL mapping note: AL9d507c8e92b81b62c224100679943c8d already associated with SDdb6525d35a1f09e4d1dfc19a2128ed96"}
+{"timestamp": "2026-05-02T09:27:21.763368682Z", "severity": "info", "message": "[CloudPhone] Twilio initialized \u2014 SIP: speechcue-7937a0.sip.twilio.com"}
+{"timestamp": "2026-05-02T09:27:21.763371412Z", "severity": "info", "message": "[PhoneScheduler] Scheduled: expiry check (hourly), usage tracking (daily 3AM), monthly reset (daily 0:05AM)"}
+{"timestamp": "2026-05-02T09:27:21.763374391Z", "severity": "info", "message": "[CloudPhone] Scheduler initialized"}
+{"timestamp": "2026-05-02T09:27:21.763377001Z", "severity": "info", "message": "[HostingScheduler] Initialized \u2014 checking every hour"}
+{"timestamp": "2026-05-02T09:27:21.763379731Z", "severity": "info", "message": "[HostingScheduler] Policy: weekly plans NEVER auto-renew, monthly plans auto-renew if enabled"}
+{"timestamp": "2026-05-02T09:27:21.763382381Z", "severity": "info", "message": "[HostingScheduler] Scheduled: expiry check (every 60 min)"}
+{"timestamp": "2026-05-02T09:27:21.763385301Z", "severity": "info", "message": "[HostingScheduler] Initialized"}
+{"timestamp": "2026-05-02T09:27:21.763388131Z", "severity": "info", "message": "[ProtectionEnforcer] Initialized"}
+{"timestamp": "2026-05-02T09:27:21.763390561Z", "severity": "info", "message": "[ProtectionEnforcer] Scheduler started \u2014 runs every 6h"}
+{"timestamp": "2026-05-02T09:27:21.763393210Z", "severity": "info", "message": "[ProtectionEnforcer] Initialized and scheduled"}
+{"timestamp": "2026-05-02T09:27:21.765596602Z", "severity": "info", "message": "[ProtectionHeartbeat] Initialized"}
+{"timestamp": "2026-05-02T09:27:21.765604142Z", "severity": "info", "message": "[ProtectionHeartbeat] Scheduler started \u2014 runs every 60m"}
+{"timestamp": "2026-05-02T09:27:21.765609092Z", "severity": "info", "message": "[ProtectionHeartbeat] Initialized and scheduled"}
+{"timestamp": "2026-05-02T09:27:21.765613302Z", "severity": "info", "message": "[VoiceService] Initialized with IVR + Recording + Analytics + Limits + Overage billing + SIP Bridge + Twilio IVR + Loyalty Discounts + Pre-Dial Prevention"}
+{"timestamp": "2026-05-02T09:27:21.765617072Z", "severity": "info", "message": "[CloudPhone] Voice Service initialized with IVR + Recording + Overage"}
+{"timestamp": "2026-05-02T09:27:21.765621102Z", "severity": "info", "message": "[PhoneTest] Routes initialized: /phone/test/verify-otp, /phone/test/prepare-call, /phone/test/caller-info"}
+{"timestamp": "2026-05-02T09:27:21.765625122Z", "severity": "info", "message": "[TestMyNumber] initialized \u2014 POST /test-call/webhook ready (external: /api/test-call/webhook)"}
+{"timestamp": "2026-05-02T09:27:21.765628842Z", "severity": "info", "message": "[TestOutboundSip] initialized \u2014 hook-based (no HTTP route)"}
+{"timestamp": "2026-05-02T09:27:21.765633532Z", "severity": "info", "message": "[SmsService] Initialized with real-time limit enforcement + overage billing"}
+{"timestamp": "2026-05-02T09:27:21.765637642Z", "severity": "info", "message": "[CloudPhone] SMS Service limits initialized with overage billing"}
+{"timestamp": "2026-05-02T09:27:21.765641562Z", "severity": "info", "message": "[CnamService] Initialized \u2014 priority: Telnyx \u2192 Multitel \u2192 SignalWire + MongoDB cache + circuit breaker"}
+{"timestamp": "2026-05-02T09:27:21.765645132Z", "severity": "info", "message": "[CloudPhone] CNAM Service initialized"}
+{"timestamp": "2026-05-02T09:27:21.765649461Z", "severity": "info", "message": "[LeadJobs] Persistence initialized"}
+{"timestamp": "2026-05-02T09:27:21.765653671Z", "severity": "info", "message": "[AI Support] MongoDB collections initialized"}
+{"timestamp": "2026-05-02T09:27:21.765657631Z", "severity": "info", "message": "[ShortenerPersistence] Initialized"}
+{"timestamp": "2026-05-02T09:27:21.767356038Z", "severity": "info", "message": "[Honeypot] MongoDB collection initialized with indexes"}
+{"timestamp": "2026-05-02T09:27:21.767360678Z", "severity": "info", "message": "[SmsApp] Service initialized"}
+{"timestamp": "2026-05-02T09:27:21.770028003Z", "severity": "info", "message": "[SmsApp] Routes registered"}
+{"timestamp": "2026-05-02T09:27:21.770032483Z", "severity": "info", "message": "[EmailBlast] Service initialized with queue processor"}
+{"timestamp": "2026-05-02T09:27:21.770035903Z", "severity": "info", "message": "[EmailValidation] Service initialized"}
+{"timestamp": "2026-05-02T09:27:21.770040043Z", "severity": "info", "message": "[BalanceMonitor] Initialized \u2014 checking every 120min (warn=$10, crit=$5)"}
+{"timestamp": "2026-05-02T09:27:21.770043533Z", "severity": "info", "message": "[UserWalletMonitor] Initialized \u2014 scanning every 6h (warn=$5, crit=$2, empty=$0)"}
+{"timestamp": "2026-05-02T09:27:21.771945998Z", "severity": "info", "message": "[PhoneMonitor] Initialized \u2014 checking every 30 minutes"}
+{"timestamp": "2026-05-02T09:27:21.771952338Z", "severity": "info", "message": "[WelcomeBonus] Initialized \u2014 $5 welcome gift for new users"}
+{"timestamp": "2026-05-02T09:27:21.771965268Z", "severity": "info", "message": "[WinBack] Initialized \u2014 scans for 7-day inactive users daily at 10:00 UTC, 20% discount, 48h expiry"}
+{"timestamp": "2026-05-02T09:27:21.771968298Z", "severity": "info", "message": "[Monetization] Engine initialized \u2014 Upsell + Welcome Bonus + Win-Back + Bundles"}
+{"timestamp": "2026-05-02T09:27:21.771971428Z", "severity": "info", "message": "[RegulatoryFlow] Initialized"}
+{"timestamp": "2026-05-02T09:27:21.771974687Z", "severity": "info", "message": "[Marketplace] Stale conversation cleanup scheduled (every 6h)"}
+{"timestamp": "2026-05-02T09:27:21.771977417Z", "severity": "info", "message": "[StateCleanup] Scheduled every 6h (stale threshold: 24h)"}
+{"timestamp": "2026-05-02T09:27:21.771980647Z", "severity": "info", "message": "[PaymentTimeout] Scheduled every 30min (timeout: 6h)"}
+{"timestamp": "2026-05-02T09:27:21.771983387Z", "severity": "info", "message": "[StaleOrderCleanup] Scheduled every 60min (timeout: 24h)"}
+{"timestamp": "2026-05-02T09:27:21.771987117Z", "severity": "info", "message": "[AbandonedCart] Scheduled every 30min (reminder delay: 2h)"}
+{"timestamp": "2026-05-02T09:27:21.771989847Z", "severity": "info", "message": "[BundleChecker] Scheduled every 30min"}
+{"timestamp": "2026-05-02T09:27:21.771992687Z", "severity": "info", "message": "[FincraReconcile] Payment recovery scheduled every 5min"}
+{"timestamp": "2026-05-02T09:27:21.804364010Z", "severity": "info", "message": "[SmsApp] Version 2.7.5 already announced \u2014 skipping broadcast"}
+{"timestamp": "2026-05-02T09:27:21.804369540Z", "severity": "info", "message": "[AudioLibrary] Initialized"}
+{"timestamp": "2026-05-02T09:27:21.804373910Z", "severity": "info", "message": "[UserWalletMonitor] Loaded 8 active notification histories from DB (122 total, 114 expired/skipped)"}
+{"timestamp": "2026-05-02T09:27:21.804377440Z", "severity": "info", "message": "[BulkCall] Service initialized (Speechcue mode)"}
+{"timestamp": "2026-05-02T09:27:21.804380260Z", "severity": "info", "message": "[EmailWarming] Initialized with 8-stage schedule"}
+{"timestamp": "2026-05-02T09:27:21.812376254Z", "severity": "info", "message": "[EmailBlast] Service initialized \u2014 queue processor running every 30s"}
+{"timestamp": "2026-05-02T09:27:21.829922862Z", "severity": "info", "message": "[Marketplace] Initialized"}
+{"timestamp": "2026-05-02T09:27:21.873941360Z", "severity": "info", "message": "[Honeypot] Found existing KV namespace: 812aca1cbade413d9814bff1708e74db"}
+{"timestamp": "2026-05-02T09:27:21.873945260Z", "severity": "info", "message": "[Honeypot] KV namespace ready: 812aca1cbade413d9814bff1708e74db"}
+{"timestamp": "2026-05-02T09:27:22.120532081Z", "severity": "info", "message": "[Twilio] Updated webhooks for number PNca258a8882e24136d6936e63ac1c39a6 on sub-account AC98bdf4543e1de798baf8e1119c024bb0"}
+{"timestamp": "2026-05-02T09:27:22.706551477Z", "severity": "info", "message": "[Twilio] Updated webhooks for number PN9e2d59c7d2013af0e307e6b0f2603365 on sub-account AC01e40ee6bb868cc84290f122ae8b5d8c"}
+{"timestamp": "2026-05-02T09:27:22.744762622Z", "severity": "info", "message": "[Twilio] Updated webhooks for number PN6d15c073ecc85d603443d896dc949409 on sub-account AC01e40ee6bb868cc84290f122ae8b5d8c"}
+{"timestamp": "2026-05-02T09:27:23.067574226Z", "severity": "info", "message": "[Twilio] Updated webhooks for number PNe544131920be8f364e40838f23c41bb7 on sub-account AC23f043f142ce27f5ebada7a6b46d90dc"}
+{"timestamp": "2026-05-02T09:27:23.382442535Z", "severity": "info", "message": "[Twilio] Updated webhooks for number PNbe17b14cdf8967b539c1a5855e509616 on sub-account ACde9f00ea1b8586dbc9116f3e9dd37f31"}
+{"timestamp": "2026-05-02T09:27:23.704547238Z", "severity": "info", "message": "[Twilio] Updated webhooks for number PNb7aa745544e248cfe4af711eda278dad on sub-account ACf08d768ac5193fa9a203cb4f4ddbd480"}
+{"timestamp": "2026-05-02T09:27:23.704549848Z", "severity": "info", "message": "[Twilio Sync] Webhook sync complete: 6 updated, 0 failed, 0 credentials recovered"}
+{"timestamp": "2026-05-02T09:27:24.831346537Z", "severity": "info", "message": "[CF-Sync] Discovery Worker already in sync: https://nomadly-email-ivr-production.up.railway.app"}
+{"timestamp": "2026-05-02T09:27:26.772938247Z", "severity": "info", "message": "[Voice] PRE-DIAL: Loaded 1 blocked credential(s) from DB"}
+{"timestamp": "2026-05-02T09:27:29.080941525Z", "severity": "info", "message": "[Broadcast] Recovery: No interrupted broadcasts to resume"}
+{"timestamp": "2026-05-02T09:27:29.104343445Z", "severity": "info", "message": "09:27:29 [Conversion] Social proof refreshed: {\"hosting\":64,\"domains\":170,\"cloudphone\":60,\"digitalproducts\":58,\"vps\":56,\"virtualcard\":57,\"general\":94}"}
+{"timestamp": "2026-05-02T09:27:31.768412505Z", "severity": "info", "message": "[HostingScheduler] Startup enforcement: no expired accounts need action"}
+{"timestamp": "2026-05-02T09:27:31.775106606Z", "severity": "info", "message": "[PhoneMonitor] === Health check started ==="}
+{"timestamp": "2026-05-02T09:27:31.775112316Z", "severity": "info", "message": "[AntiRed] KV namespace for honeypot bans: 812aca1cbade413d9814bff1708e74db"}
+{"timestamp": "2026-05-02T09:27:31.780899450Z", "severity": "info", "message": "[PhoneMonitor] Checking 7 Twilio subaccounts"}
+{"timestamp": "2026-05-02T09:27:32.753157770Z", "severity": "info", "message": "[PhoneMonitor] Checking 2 Telnyx numbers"}
+{"timestamp": "2026-05-02T09:27:32.858054374Z", "severity": "info", "message": "[PhoneMonitor] === Health check complete: 9 checked, 0 newly suspended ==="}
+{"timestamp": "2026-05-02T09:27:32.968953148Z", "severity": "info", "message": "[AntiRed] Shared worker upgraded: OK (KV: bound)"}
+{"timestamp": "2026-05-02T09:27:32.968957387Z", "severity": "info", "message": "[AntiRed] Startup worker upgrade: OK (KV: true)"}
+{"timestamp": "2026-05-02T09:27:34.025218887Z", "severity": "info", "message": "[CpanelMigration] All accounts already point to current WHM_HOST (209.38.241.9). No migration needed."}
+{"timestamp": "2026-05-02T09:27:36.808670847Z", "severity": "info", "message": "[BulkCall] Recovery: No running campaigns to recover"}
+{"timestamp": "2026-05-02T09:27:37.349136773Z", "severity": "info", "message": "[CR-Whitelist] Browser result: Login failed - landed on https://global.connectreseller.com/login?returnUrl=%2Fadmin%2Fdashboard"}
+{"timestamp": "2026-05-02T09:27:37.349140723Z", "severity": "info", "message": "[CR-Whitelist] Browser automation failed: Login failed - landed on https://global.connectreseller.com/login?returnUrl=%2Fadmin%2Fdashboard"}
+{"timestamp": "2026-05-02T09:27:37.349144043Z", "severity": "info", "message": "[CR-Whitelist] Retry #1 scheduled in 60s"}
+{"timestamp": "2026-05-02T09:27:37.349147093Z", "severity": "info", "message": "[CR-Whitelist] Startup check: IP 162.220.232.226 needs whitelisting \u2014 auto-retrying"}
+{"timestamp": "2026-05-02T09:27:57.340470902Z", "severity": "info", "message": "09:27:49 [CartRecovery] No pending nudges to recover"}
+{"timestamp": "2026-05-02T09:27:57.340475002Z", "severity": "info", "message": "[ProtectionEnforcer] \u2550\u2550\u2550 Starting enforcement run \u2550\u2550\u2550"}
+{"timestamp": "2026-05-02T09:27:57.340478092Z", "severity": "info", "message": "[BalanceMonitor] Running provider balance checks..."}
+{"timestamp": "2026-05-02T09:27:57.340480452Z", "severity": "info", "message": "[ProtectionEnforcer] registeredDomains: 44 entries"}
+{"timestamp": "2026-05-02T09:27:57.340483462Z", "severity": "info", "message": "[ProtectionEnforcer] domainsOf: 11 unique custom domains"}
+{"timestamp": "2026-05-02T09:27:57.340486402Z", "severity": "info", "message": "[ProtectionEnforcer] cpanelAccounts: 13 accounts"}
+{"timestamp": "2026-05-02T09:27:57.340489492Z", "severity": "info", "message": "[ProtectionEnforcer] Total unique domains: 55"}
+{"timestamp": "2026-05-02T09:27:57.340491972Z", "severity": "info", "message": "[BalanceMonitor] Telnyx: $10.49 USD [ok]"}
+{"timestamp": "2026-05-02T09:27:57.340494352Z", "severity": "info", "message": "[BalanceMonitor] Twilio: $1.19 USD [critical]"}
+{"timestamp": "2026-05-02T09:27:57.340496812Z", "severity": "info", "message": "[BalanceMonitor] CRITICAL alert sent for Twilio ($1.19)"}
+{"timestamp": "2026-05-02T09:28:01.845536599Z", "severity": "info", "message": "[ProtectionEnforcer] SKIP: cap1online360.com \u2014 user disabled Anti-Red (antiRedOff=true)"}
+{"timestamp": "2026-05-02T09:28:03.302418927Z", "severity": "info", "message": "[ProtectionEnforcer] SKIP: huntingtononlinebanking.it \u2014 user disabled Anti-Red (antiRedOff=true)"}
+{"timestamp": "2026-05-02T09:28:07.196630117Z", "severity": "info", "message": "[ProtectionEnforcer] \u2550\u2550\u2550 Enforcement complete in 15.4s \u2550\u2550\u2550"}
+{"timestamp": "2026-05-02T09:28:07.196633557Z", "severity": "info", "message": "[ProtectionEnforcer] Total: 55 | Protected: 44 | Fixed: 0 | No Zone: 11 | Errors: 0 | DNS Cached: 29 | Zone Skipped: 0"}
+{"timestamp": "2026-05-02T09:28:47.203304954Z", "severity": "info", "message": "[CR-Whitelist] Outbound IP: 162.220.232.226"}
+{"timestamp": "2026-05-02T09:28:47.203309614Z", "severity": "info", "message": "[CR-Whitelist] API test failed (attempt #2): Request failed with status code 401"}
+{"timestamp": "2026-05-02T09:28:47.203312954Z", "severity": "info", "message": "[CR-Whitelist] API blocked \u2014 IP 162.220.232.226 needs whitelisting"}
+{"timestamp": "2026-05-02T09:28:47.203316414Z", "severity": "info", "message": "[CR-Whitelist] Retry #2 scheduled in 60s"}
+{"timestamp": "2026-05-02T09:29:27.284059699Z", "severity": "info", "message": "[ProtectionHeartbeat] Checking 13 cPanel accounts..."}
+{"timestamp": "2026-05-02T09:29:27.284062238Z", "severity": "info", "message": "[UserWalletMonitor] Running periodic wallet scan (all users)..."}
+{"timestamp": "2026-05-02T09:29:27.284066558Z", "severity": "info", "message": "[UserWalletMonitor] Scan complete: 210 wallets checked, 0 low-balance warnings sent, 158 welcome-only users skipped"}
+{"timestamp": "2026-05-02T09:29:46.966354475Z", "severity": "info", "message": "[CR-Whitelist] Outbound IP: 162.220.232.226"}
+{"timestamp": "2026-05-02T09:29:46.966359155Z", "severity": "info", "message": "[CR-Whitelist] API test failed (attempt #3): Request failed with status code 401"}
+{"timestamp": "2026-05-02T09:29:46.966363844Z", "severity": "info", "message": "[CR-Whitelist] API blocked \u2014 IP 162.220.232.226 needs whitelisting"}
+{"timestamp": "2026-05-02T09:29:46.966369234Z", "severity": "info", "message": "[CR-Whitelist] Retry #3 scheduled in 60s"}
+{"timestamp": "2026-05-02T09:29:51.774706076Z", "severity": "info", "message": "[ProtectionHeartbeat] DIAG sbse8305: .user.ini=MISSING [(empty)] | .php=MISSING [(empty)]"}
+{"timestamp": "2026-05-02T09:30:31.780000221Z", "severity": "info", "message": "[AntiRed] CF IP Fix deploy error for sbse8305: timeout of 30000ms exceeded"}
+{"timestamp": "2026-05-02T09:30:31.780003681Z", "severity": "info", "message": "[ProtectionHeartbeat] REPAIRED sbse8305 (.user.ini+.antired-challenge.php): OK"}
+{"timestamp": "2026-05-02T09:30:38.491904907Z", "severity": "info", "message": "[CR-Whitelist] Outbound IP: 162.220.232.226"}
+{"timestamp": "2026-05-02T09:30:38.491907257Z", "severity": "info", "message": "[CR-Whitelist] API blocked \u2014 IP 162.220.232.226 needs whitelisting"}
+{"timestamp": "2026-05-02T09:30:38.491909857Z", "severity": "info", "message": "[CR-Whitelist] Retry #4 scheduled in 600s"}
+{"timestamp": "2026-05-02T09:30:58.495140020Z", "severity": "info", "message": "[ProtectionHeartbeat] DIAG entsf6c7: .user.ini=MISSING [(empty)] | .php=MISSING [(empty)]"}
+{"timestamp": "2026-05-02T09:31:28.213539551Z", "severity": "info", "message": "[AntiRed] CF IP Fix deploy error for entsf6c7: timeout of 30000ms exceeded"}
+{"timestamp": "2026-05-02T09:31:28.213542311Z", "severity": "info", "message": "[ProtectionHeartbeat] REPAIRED entsf6c7 (.user.ini+.antired-challenge.php): OK"}
+{"timestamp": "2026-05-02T09:31:58.220548245Z", "severity": "info", "message": "[ProtectionHeartbeat] DIAG retu7547: .user.ini=MISSING [(empty)] | .php=MISSING [(empty)]"}
+{"timestamp": "2026-05-02T09:32:28.225267167Z", "severity": "info", "message": "[ResurrectionScan] No candidates to test"}
+{"timestamp": "2026-05-02T09:32:28.225269907Z", "severity": "info", "message": "[AntiRed] CF IP Fix deploy error for retu7547: timeout of 30000ms exceeded"}
+{"timestamp": "2026-05-02T09:32:28.225272777Z", "severity": "info", "message": "[ProtectionHeartbeat] REPAIRED retu7547 (.user.ini+.antired-challenge.php): OK"}
+{"timestamp": "2026-05-02T09:32:58.224270982Z", "severity": "info", "message": "[ProtectionHeartbeat] DIAG smil123b: .user.ini=MISSING [(empty)] | .php=MISSING [(empty)]"}
+{"timestamp": "2026-05-02T09:33:28.225131431Z", "severity": "info", "message": "[AntiRed] CF IP Fix deploy error for smil123b: timeout of 30000ms exceeded"}
+{"timestamp": "2026-05-02T09:33:28.225134281Z", "severity": "info", "message": "[ProtectionHeartbeat] REPAIRED smil123b (.user.ini+.antired-challenge.php): OK"}
+{"timestamp": "2026-05-02T09:33:58.221438847Z", "severity": "info", "message": "[ProtectionHeartbeat] DIAG peakb09c: .user.ini=MISSING [(empty)] | .php=MISSING [(empty)]"}
+{"timestamp": "2026-05-02T09:34:28.268531327Z", "severity": "info", "message": "[AntiRed] CF IP Fix deploy error for peakb09c: timeout of 30000ms exceeded"}
+{"timestamp": "2026-05-02T09:34:28.268535987Z", "severity": "info", "message": "[ProtectionHeartbeat] REPAIRED peakb09c (.user.ini+.antired-challenge.php): OK"}
+{"timestamp": "2026-05-02T09:34:58.421889841Z", "severity": "info", "message": "[ProtectionHeartbeat] DIAG sech752f: .user.ini=MISSING [(empty)] | .php=MISSING [(empty)]"}
+{"timestamp": "2026-05-02T09:35:28.472450141Z", "severity": "info", "message": "[AntiRed] CF IP Fix deploy error for sech752f: timeout of 30000ms exceeded"}
+{"timestamp": "2026-05-02T09:35:28.472454121Z", "severity": "info", "message": "[ProtectionHeartbeat] REPAIRED sech752f (.user.ini+.antired-challenge.php): OK"}
+{"timestamp": "2026-05-02T09:35:58.173984949Z", "severity": "info", "message": "[ProtectionHeartbeat] DIAG tdsee735: .user.ini=MISSING [(empty)] | .php=MISSING [(empty)]"}
+{"timestamp": "2026-05-02T09:36:28.170022335Z", "severity": "info", "message": "[AntiRed] CF IP Fix deploy error for tdsee735: timeout of 30000ms exceeded"}
+{"timestamp": "2026-05-02T09:36:28.170031704Z", "severity": "info", "message": "[ProtectionHeartbeat] REPAIRED tdsee735 (.user.ini+.antired-challenge.php): OK"}
+{"timestamp": "2026-05-02T09:36:58.175824300Z", "severity": "info", "message": "[ProtectionHeartbeat] DIAG claief8e: .user.ini=MISSING [(empty)] | .php=MISSING [(empty)]"}
+{"timestamp": "2026-05-02T09:37:28.173466346Z", "severity": "info", "message": "[AntiRed] CF IP Fix deploy error for claief8e: timeout of 30000ms exceeded"}
+{"timestamp": "2026-05-02T09:37:28.173471416Z", "severity": "info", "message": "[ProtectionHeartbeat] REPAIRED claief8e (.user.ini+.antired-challenge.php): OK"}
+{"timestamp": "2026-05-02T09:37:58.172556476Z", "severity": "info", "message": "[ProtectionHeartbeat] DIAG cap1a612: .user.ini=MISSING [(empty)] | .php=MISSING [(empty)]"}
+{"timestamp": "2026-05-02T09:38:28.188908639Z", "severity": "info", "message": "[AntiRed] CF IP Fix deploy error for cap1a612: timeout of 30000ms exceeded"}
+{"timestamp": "2026-05-02T09:38:28.188913038Z", "severity": "info", "message": "[ProtectionHeartbeat] REPAIRED cap1a612 (.user.ini+.antired-challenge.php): OK"}
+{"timestamp": "2026-05-02T09:38:58.192224228Z", "severity": "info", "message": "[ProtectionHeartbeat] DIAG down9747: .user.ini=MISSING [(empty)] | .php=MISSING [(empty)]"}
+{"timestamp": "2026-05-02T09:39:28.203253050Z", "severity": "info", "message": "[AntiRed] CF IP Fix deploy error for down9747: timeout of 30000ms exceeded"}
+{"timestamp": "2026-05-02T09:39:28.203256400Z", "severity": "info", "message": "[ProtectionHeartbeat] REPAIRED down9747 (.user.ini+.antired-challenge.php): OK"}
+{"timestamp": "2026-05-02T09:39:58.205718025Z", "severity": "info", "message": "[ProtectionHeartbeat] DIAG hunt9853: .user.ini=MISSING [(empty)] | .php=MISSING [(empty)]"}
+{"timestamp": "2026-05-02T09:40:27.955711526Z", "severity": "info", "message": "[AntiRed] CF IP Fix deploy error for hunt9853: timeout of 30000ms exceeded"}
+{"timestamp": "2026-05-02T09:40:27.955717146Z", "severity": "info", "message": "[ProtectionHeartbeat] REPAIRED hunt9853 (.user.ini+.antired-challenge.php): OK"}
+{"timestamp": "2026-05-02T09:40:47.962576473Z", "severity": "info", "message": "[CR-Whitelist] Outbound IP: 162.220.232.226"}
+{"timestamp": "2026-05-02T09:40:47.962580683Z", "severity": "info", "message": "[CR-Whitelist] API blocked \u2014 IP 162.220.232.226 needs whitelisting"}
+{"timestamp": "2026-05-02T09:40:47.962586083Z", "severity": "info", "message": "[CR-Whitelist] Retry #5 scheduled in 600s"}
+{"timestamp": "2026-05-02T09:40:54.602584756Z", "severity": "info", "message": "[ProtectionHeartbeat] DIAG bott1cb2: .user.ini=MISSING [(empty)] | .php=MISSING [(empty)]"}
+{"timestamp": "2026-05-02T09:41:34.604807991Z", "severity": "info", "message": "[AntiRed] CF IP Fix deploy error for bott1cb2: timeout of 30000ms exceeded"}
+{"timestamp": "2026-05-02T09:41:34.604823821Z", "severity": "info", "message": "[ProtectionHeartbeat] REPAIRED bott1cb2 (.user.ini+.antired-challenge.php): OK"}
+{"timestamp": "2026-05-02T09:42:04.618402958Z", "severity": "info", "message": "[ProtectionHeartbeat] DIAG hunt724f: .user.ini=MISSING [(empty)] | .php=MISSING [(empty)]"}
+{"timestamp": "2026-05-02T09:42:34.685674891Z", "severity": "info", "message": "[AntiRed] CF IP Fix deploy error for hunt724f: timeout of 30000ms exceeded"}
+{"timestamp": "2026-05-02T09:42:34.685677600Z", "severity": "info", "message": "[ProtectionHeartbeat] REPAIRED hunt724f (.user.ini+.antired-challenge.php): OK"}
+{"timestamp": "2026-05-02T09:42:34.685680130Z", "severity": "info", "message": "[ProtectionHeartbeat] Done in 783.3s \u2014 total:13 ok:0 repaired:13 errors:0"}

@@ -1,0 +1,610 @@
+{"timestamp": "2026-05-01T23:45:41.002113718Z", "severity": "info", "message": "> tg-bot-link-shorten@1.0.0 start"}
+{"timestamp": "2026-05-01T23:45:41.002123910Z", "severity": "info", "message": "> node js/start-bot.js"}
+{"timestamp": "2026-05-01T23:45:41.002129885Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:45:41.002134749Z", "severity": "info", "message": "\ud83d\udd27 Loading configuration..."}
+{"timestamp": "2026-05-01T23:45:41.002139640Z", "severity": "info", "message": "\ud83c\udf10 Webhook base URL: https://nomadly-email-ivr-production.up.railway.app"}
+{"timestamp": "2026-05-01T23:45:41.002146015Z", "severity": "info", "message": "\ud83d\udccd URL Source: SELF_URL_PROD"}
+{"timestamp": "2026-05-01T23:45:41.002150600Z", "severity": "info", "message": "\ud83d\udce1 Webhook endpoint: https://nomadly-email-ivr-production.up.railway.app/telegram/webhook"}
+{"timestamp": "2026-05-01T23:45:41.002155265Z", "severity": "info", "message": "\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501"}
+{"timestamp": "2026-05-01T23:45:41.002159615Z", "severity": "info", "message": "\ud83e\udd16 BOT ENVIRONMENT CONFIGURATION"}
+{"timestamp": "2026-05-01T23:45:41.002164338Z", "severity": "info", "message": "\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501"}
+{"timestamp": "2026-05-01T23:45:41.002169492Z", "severity": "info", "message": "Environment: PRODUCTION"}
+{"timestamp": "2026-05-01T23:45:41.002174016Z", "severity": "info", "message": "Token Source: TELEGRAM_BOT_TOKEN_PROD"}
+{"timestamp": "2026-05-01T23:45:41.002178766Z", "severity": "info", "message": "Token Configured: YES \u2705"}
+{"timestamp": "2026-05-01T23:45:41.002183387Z", "severity": "info", "message": "Detection basis: BOT_ENVIRONMENT=production, NODE_ENV=production"}
+{"timestamp": "2026-05-01T23:45:41.002188180Z", "severity": "info", "message": "\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501"}
+{"timestamp": "2026-05-01T23:45:41.002191748Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:45:41.002194906Z", "severity": "info", "message": "\ud83d\udd27 Setting default for DAILY_PLAN_FREE_VALIDATIONS: 5000"}
+{"timestamp": "2026-05-01T23:45:41.002199240Z", "severity": "info", "message": "\ud83d\udd27 Setting default for WEEKLY_PLAN_FREE_VALIDATIONS: 10000"}
+{"timestamp": "2026-05-01T23:45:41.002201518Z", "severity": "error", "message": "npm warn config production Use `--omit=dev` instead."}
+{"timestamp": "2026-05-01T23:45:41.002203992Z", "severity": "info", "message": "\ud83d\udd27 Setting default for MONTHLY_PLAN_FREE_VALIDATIONS: 15000"}
+{"timestamp": "2026-05-01T23:45:41.002207723Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:45:41.002210378Z", "severity": "info", "message": "\u2705 All critical environment variables are set"}
+{"timestamp": "2026-05-01T23:45:41.003182077Z", "severity": "info", "message": "\u2705 Configuration setup completed"}
+{"timestamp": "2026-05-01T23:45:41.003185146Z", "severity": "info", "message": "[WHM-Whitelist] Detected outbound IP: 52.8.192.101"}
+{"timestamp": "2026-05-01T23:45:41.154652773Z", "severity": "info", "message": "Starting Container"}
+{"timestamp": "2026-05-01T23:45:41.219676874Z", "severity": "info", "message": "[WHM-Whitelist] cPHulk: 52.8.192.101 whitelisted successfully"}
+{"timestamp": "2026-05-01T23:45:41.971414860Z", "severity": "info", "message": "[WHM-Whitelist] CSF not installed on server (skipped)"}
+{"timestamp": "2026-05-01T23:45:42.365013241Z", "severity": "info", "message": "[WHM-Whitelist] Host Access: 52.8.192.101 added"}
+{"timestamp": "2026-05-01T23:45:42.365016201Z", "severity": "info", "message": "[WHM-Whitelist] Complete \u2014 IP: 52.8.192.101, cPHulk: true, CSF: not_installed"}
+{"timestamp": "2026-05-01T23:45:42.365019643Z", "severity": "info", "message": "Working, Fincra API"}
+{"timestamp": "2026-05-01T23:45:42.365022221Z", "severity": "info", "message": "Working, Railway API, now starting the bot"}
+{"timestamp": "2026-05-01T23:45:42.994098275Z", "severity": "info", "message": "[AutoPromo] Scheduled morning for FR at local 10:00 (UTC 9:00)"}
+{"timestamp": "2026-05-01T23:45:42.994106070Z", "severity": "info", "message": "[AutoPromo] Scheduled evening for FR at local 19:00 (UTC 18:00)"}
+{"timestamp": "2026-05-01T23:45:42.994109902Z", "severity": "info", "message": "[AutoPromo] Scheduled morning for ZH at local 10:00 (UTC 2:00)"}
+{"timestamp": "2026-05-01T23:45:42.994113105Z", "severity": "info", "message": "[AutoPromo] Scheduled evening for ZH at local 19:00 (UTC 11:00)"}
+{"timestamp": "2026-05-01T23:45:42.994117205Z", "severity": "info", "message": "[AutoPromo] Scheduled morning for HI at local 10:00 (UTC 4:30)"}
+{"timestamp": "2026-05-01T23:45:42.994123106Z", "severity": "info", "message": "[AutoPromo] Scheduled evening for HI at local 19:00 (UTC 13:30)"}
+{"timestamp": "2026-05-01T23:45:42.994125171Z", "severity": "info", "message": "[AI Support] OpenAI initialized"}
+{"timestamp": "2026-05-01T23:45:42.994129528Z", "severity": "info", "message": "TELEGRAM_BOT_ON: true"}
+{"timestamp": "2026-05-01T23:45:42.994133188Z", "severity": "info", "message": "Bot initialized with webhook support"}
+{"timestamp": "2026-05-01T23:45:42.994137029Z", "severity": "info", "message": "Bot ran away! Fri May 01 2026 23:45:42 GMT+0000 (Coordinated Universal Time)"}
+{"timestamp": "2026-05-01T23:45:42.994141463Z", "severity": "info", "message": "[Honeypot] Express routes mounted: POST /honeypot/report, GET /honeypot/stats, GET /honeypot/check/:ip"}
+{"timestamp": "2026-05-01T23:45:42.994145516Z", "severity": "info", "message": "[Express] Panel domain guard active: panel.1.hostbay.io/panel"}
+{"timestamp": "2026-05-01T23:45:42.994149312Z", "severity": "info", "message": "[Express] Serving React frontend from build directory"}
+{"timestamp": "2026-05-01T23:45:42.994154011Z", "severity": "info", "message": "\u2705 Main application ready! Server already listening on port 8080"}
+{"timestamp": "2026-05-01T23:45:42.994158490Z", "severity": "info", "message": "\ud83d\ude80 Early health check server started on port 8080"}
+{"timestamp": "2026-05-01T23:45:42.994162500Z", "severity": "info", "message": "\u2705 MongoDB connection pool ready"}
+{"timestamp": "2026-05-01T23:45:42.994166193Z", "severity": "info", "message": "DB Connected lala. May peace be with you and Lord's mercy and blessings."}
+{"timestamp": "2026-05-01T23:45:42.994170013Z", "severity": "info", "message": "[cPanel Queue] worker started"}
+{"timestamp": "2026-05-01T23:45:42.994179521Z", "severity": "info", "message": "[cPanel Health] probe + queue worker initialised"}
+{"timestamp": "2026-05-01T23:45:42.994183299Z", "severity": "info", "message": "[AutoPromo] Scheduled morning for EN at local 10:00 (UTC 10:00)"}
+{"timestamp": "2026-05-01T23:45:42.994186747Z", "severity": "info", "message": "[AutoPromo] Scheduled evening for EN at local 19:00 (UTC 19:00)"}
+{"timestamp": "2026-05-01T23:45:42.995340223Z", "severity": "info", "message": "[Conversion] System loaded successfully"}
+{"timestamp": "2026-05-01T23:45:42.995343341Z", "severity": "info", "message": "[CR-Whitelist] Outbound IP: 52.8.192.101"}
+{"timestamp": "2026-05-01T23:45:42.995345395Z", "severity": "info", "message": "\u2501\u2501\u2501 Initializing Telnyx Resources \u2501\u2501\u2501"}
+{"timestamp": "2026-05-01T23:45:42.995348611Z", "severity": "info", "message": "Voice webhook: https://nomadly-email-ivr-production.up.railway.app/telnyx/voice-webhook"}
+{"timestamp": "2026-05-01T23:45:42.995354044Z", "severity": "info", "message": "[DailyCoupon] System loaded successfully"}
+{"timestamp": "2026-05-01T23:45:42.995354381Z", "severity": "info", "message": "SMS webhook: https://nomadly-email-ivr-production.up.railway.app/telnyx/sms-webhook"}
+{"timestamp": "2026-05-01T23:45:42.995360159Z", "severity": "info", "message": "[DailyCoupon] Coupons already exist for 2026-05-01"}
+{"timestamp": "2026-05-01T23:45:42.995362171Z", "severity": "info", "message": "23:45:42 [CartRecovery] Initialized \u2014 nudge delay: 45min, cooldown: 24h, silent timeout: 20min, languages: en/fr/zh/hi"}
+{"timestamp": "2026-05-01T23:45:42.995368716Z", "severity": "info", "message": "23:45:42 [CartRecovery] Tracking 50 payment action states"}
+{"timestamp": "2026-05-01T23:45:42.995373733Z", "severity": "info", "message": "[CartRecovery] System loaded successfully"}
+{"timestamp": "2026-05-01T23:45:42.995376985Z", "severity": "info", "message": "23:45:42 [Conversion] New User Conversion Engine initialized \u2014 5 features active"}
+{"timestamp": "2026-05-01T23:45:42.995380156Z", "severity": "info", "message": "23:45:42 [Conversion] First deposit bonus: $5 (min $20), Welcome offer: 25% (2h delay), Social proof: \u00d73"}
+{"timestamp": "2026-05-01T23:45:42.995407425Z", "severity": "info", "message": "[AutoPromo] Initialized \u2014 8 jobs (4 langs \u00d7 2 slots/day), 12 themes: cloudphone, antired_hosting, leads_validation, domains_shortener, digital_products, cards_bundles, email_validation, marketplace, vps_rdp, bulksms_app, email_blast, refer_earn"}
+{"timestamp": "2026-05-01T23:45:42.995411845Z", "severity": "info", "message": "[AutoPromo] Schedule: \ud83c\udf05 Morning hero (10am) + \ud83c\udf19 Evening cross-sell (7pm), 7 days/week"}
+{"timestamp": "2026-05-01T23:45:42.995415514Z", "severity": "info", "message": "[AutoPromo] Resurrection scan enabled \u2014 every 6h, 200 users/batch"}
+{"timestamp": "2026-05-01T23:45:42.995418774Z", "severity": "info", "message": "[AutoPromo] System loaded successfully"}
+{"timestamp": "2026-05-01T23:45:42.995422394Z", "severity": "info", "message": "[DailyCoupon] System initialized"}
+{"timestamp": "2026-05-01T23:45:43.106529039Z", "severity": "info", "message": "[CR-Whitelist] API test failed (attempt #1): Request failed with status code 401"}
+{"timestamp": "2026-05-01T23:45:43.106533046Z", "severity": "info", "message": "[CR-Whitelist] API blocked \u2014 IP 52.8.192.101 needs whitelisting"}
+{"timestamp": "2026-05-01T23:45:43.106535964Z", "severity": "info", "message": "[CR-Whitelist] Running browser automation to whitelist 52.8.192.101..."}
+{"timestamp": "2026-05-01T23:45:43.134228724Z", "severity": "info", "message": "Updated SIP Connection webhook: 2898118323872990714"}
+{"timestamp": "2026-05-01T23:45:43.186340233Z", "severity": "info", "message": "\ud83d\uddd1\ufe0f  Deleted old webhook"}
+{"timestamp": "2026-05-01T23:45:43.346518004Z", "severity": "info", "message": "\u2705 Telegram webhook set successfully"}
+{"timestamp": "2026-05-01T23:45:43.346520867Z", "severity": "info", "message": "\ud83d\udce1 Webhook URL: https://nomadly-email-ivr-production.up.railway.app/telegram/webhook"}
+{"timestamp": "2026-05-01T23:45:43.475115619Z", "severity": "info", "message": "\ud83d\udcca Webhook info: {"}
+{"timestamp": "2026-05-01T23:45:43.475121559Z", "severity": "info", "message": "  \"url\": \"https://nomadly-email-ivr-production.up.railway.app/telegram/webhook\","}
+{"timestamp": "2026-05-01T23:45:43.475125416Z", "severity": "info", "message": "  \"has_custom_certificate\": false,"}
+{"timestamp": "2026-05-01T23:45:43.475129778Z", "severity": "info", "message": "  \"pending_update_count\": 0,"}
+{"timestamp": "2026-05-01T23:45:43.475134442Z", "severity": "info", "message": "  \"max_connections\": 40,"}
+{"timestamp": "2026-05-01T23:45:43.475138221Z", "severity": "info", "message": "  \"ip_address\": \"151.101.2.15\","}
+{"timestamp": "2026-05-01T23:45:43.475141945Z", "severity": "info", "message": "  \"allowed_updates\": ["}
+{"timestamp": "2026-05-01T23:45:43.475145341Z", "severity": "info", "message": "    \"message\","}
+{"timestamp": "2026-05-01T23:45:43.475148840Z", "severity": "info", "message": "    \"callback_query\","}
+{"timestamp": "2026-05-01T23:45:43.475151958Z", "severity": "info", "message": "\"my_chat_member\""}
+{"timestamp": "2026-05-01T23:45:43.475155633Z", "severity": "info", "message": "  ]"}
+{"timestamp": "2026-05-01T23:45:43.475159938Z", "severity": "info", "message": "}"}
+{"timestamp": "2026-05-01T23:45:43.475163084Z", "severity": "info", "message": "\u2705 Webhook verification passed"}
+{"timestamp": "2026-05-01T23:45:43.620635201Z", "severity": "info", "message": "Updated Messaging Profile webhook: 40019c71-59a6-497a-8246-49536bd08d87"}
+{"timestamp": "2026-05-01T23:45:43.620640989Z", "severity": "info", "message": "\u2705 Default bot commands registered"}
+{"timestamp": "2026-05-01T23:45:43.983593019Z", "severity": "info", "message": "[Telnyx] Outbound voice profile 2897375459551478845 whitelist OK (250 countries)"}
+{"timestamp": "2026-05-01T23:45:43.983602803Z", "severity": "info", "message": "\u2705 Admin bot commands registered for chat 5590563715"}
+{"timestamp": "2026-05-01T23:45:44.102161579Z", "severity": "info", "message": "Updated Call Control App webhook: 2898117434361775526"}
+{"timestamp": "2026-05-01T23:45:44.102170117Z", "severity": "info", "message": "\u2501\u2501\u2501 Telnyx Resources Ready \u2501\u2501\u2501"}
+{"timestamp": "2026-05-01T23:45:44.102173356Z", "severity": "info", "message": "SIP Connection ID: 2898118323872990714"}
+{"timestamp": "2026-05-01T23:45:44.102176060Z", "severity": "info", "message": "Messaging Profile ID: 40019c71-59a6-497a-8246-49536bd08d87"}
+{"timestamp": "2026-05-01T23:45:44.102178761Z", "severity": "info", "message": "Call Control App ID: 2898117434361775526"}
+{"timestamp": "2026-05-01T23:45:44.102181328Z", "severity": "info", "message": "[CloudPhone] Telnyx resources initialized"}
+{"timestamp": "2026-05-01T23:45:44.217412382Z", "severity": "info", "message": "[Telnyx] Migration complete: 0 migrated, 2 already correct, 5 external skipped, 0 external detached, 7 total"}
+{"timestamp": "2026-05-01T23:45:44.500291640Z", "severity": "info", "message": "[Telnyx] ANI override updated to +18778570205"}
+{"timestamp": "2026-05-01T23:45:44.500297571Z", "severity": "info", "message": "[CloudPhone] SIP connection ANI override set to TOLL-FREE number: +18778570205"}
+{"timestamp": "2026-05-01T23:45:44.500302442Z", "severity": "info", "message": "\u2501\u2501\u2501 Initializing Twilio Resources \u2501\u2501\u2501"}
+{"timestamp": "2026-05-01T23:45:45.078349426Z", "severity": "info", "message": "[Twilio] Connected: Speechcue (active)"}
+{"timestamp": "2026-05-01T23:45:45.078354929Z", "severity": "info", "message": "[Twilio] Updated SIP domain webhook: speechcue-7937a0.sip.twilio.com"}
+{"timestamp": "2026-05-01T23:45:45.217899345Z", "severity": "info", "message": "[Twilio] Credential mapping note: CLfe5ba0b48274412e6e953eb58901c9ce already associated with SDdb6525d35a1f09e4d1dfc19a2128ed96"}
+{"timestamp": "2026-05-01T23:45:45.469572441Z", "severity": "info", "message": "[Twilio] IP ACL mapping note: AL9d507c8e92b81b62c224100679943c8d already associated with SDdb6525d35a1f09e4d1dfc19a2128ed96"}
+{"timestamp": "2026-05-01T23:45:45.469576029Z", "severity": "info", "message": "[CloudPhone] Twilio initialized \u2014 SIP: speechcue-7937a0.sip.twilio.com"}
+{"timestamp": "2026-05-01T23:45:45.469579618Z", "severity": "info", "message": "[PhoneScheduler] Scheduled: expiry check (hourly), usage tracking (daily 3AM), monthly reset (daily 0:05AM)"}
+{"timestamp": "2026-05-01T23:45:45.469584396Z", "severity": "info", "message": "[CloudPhone] Scheduler initialized"}
+{"timestamp": "2026-05-01T23:45:45.469588355Z", "severity": "info", "message": "[HostingScheduler] Initialized \u2014 checking every hour"}
+{"timestamp": "2026-05-01T23:45:45.469592302Z", "severity": "info", "message": "[HostingScheduler] Policy: weekly plans NEVER auto-renew, monthly plans auto-renew if enabled"}
+{"timestamp": "2026-05-01T23:45:45.469595638Z", "severity": "info", "message": "[HostingScheduler] Scheduled: expiry check (every 60 min)"}
+{"timestamp": "2026-05-01T23:45:45.469600504Z", "severity": "info", "message": "[HostingScheduler] Initialized"}
+{"timestamp": "2026-05-01T23:45:45.469604286Z", "severity": "info", "message": "[ProtectionEnforcer] Initialized"}
+{"timestamp": "2026-05-01T23:45:45.469607438Z", "severity": "info", "message": "[ProtectionEnforcer] Scheduler started \u2014 runs every 6h"}
+{"timestamp": "2026-05-01T23:45:45.469610298Z", "severity": "info", "message": "[ProtectionEnforcer] Initialized and scheduled"}
+{"timestamp": "2026-05-01T23:45:45.469613154Z", "severity": "info", "message": "[ProtectionHeartbeat] Initialized"}
+{"timestamp": "2026-05-01T23:45:45.469616161Z", "severity": "info", "message": "[ProtectionHeartbeat] Scheduler started \u2014 runs every 60m"}
+{"timestamp": "2026-05-01T23:45:45.469618996Z", "severity": "info", "message": "[ProtectionHeartbeat] Initialized and scheduled"}
+{"timestamp": "2026-05-01T23:45:45.469622183Z", "severity": "info", "message": "[VoiceService] Initialized with IVR + Recording + Analytics + Limits + Overage billing + SIP Bridge + Twilio IVR + Loyalty Discounts + Pre-Dial Prevention"}
+{"timestamp": "2026-05-01T23:45:45.469625718Z", "severity": "info", "message": "[CloudPhone] Voice Service initialized with IVR + Recording + Overage"}
+{"timestamp": "2026-05-01T23:45:45.469628803Z", "severity": "info", "message": "[PhoneTest] Routes initialized: /phone/test/verify-otp, /phone/test/prepare-call, /phone/test/caller-info"}
+{"timestamp": "2026-05-01T23:45:45.469631798Z", "severity": "info", "message": "[TestMyNumber] initialized \u2014 POST /test-call/webhook ready (external: /api/test-call/webhook)"}
+{"timestamp": "2026-05-01T23:45:45.471303175Z", "severity": "info", "message": "[Monetization] Engine initialized \u2014 Upsell + Welcome Bonus + Win-Back + Bundles"}
+{"timestamp": "2026-05-01T23:45:45.471311838Z", "severity": "info", "message": "[RegulatoryFlow] Initialized"}
+{"timestamp": "2026-05-01T23:45:45.471315035Z", "severity": "info", "message": "[TestOutboundSip] initialized \u2014 hook-based (no HTTP route)"}
+{"timestamp": "2026-05-01T23:45:45.471320833Z", "severity": "info", "message": "[SmsService] Initialized with real-time limit enforcement + overage billing"}
+{"timestamp": "2026-05-01T23:45:45.471321027Z", "severity": "info", "message": "[Marketplace] Stale conversation cleanup scheduled (every 6h)"}
+{"timestamp": "2026-05-01T23:45:45.471324810Z", "severity": "info", "message": "[CloudPhone] SMS Service limits initialized with overage billing"}
+{"timestamp": "2026-05-01T23:45:45.471329286Z", "severity": "info", "message": "[CnamService] Initialized \u2014 priority: Telnyx \u2192 Multitel \u2192 SignalWire + MongoDB cache + circuit breaker"}
+{"timestamp": "2026-05-01T23:45:45.471333293Z", "severity": "info", "message": "[CloudPhone] CNAM Service initialized"}
+{"timestamp": "2026-05-01T23:45:45.471336939Z", "severity": "info", "message": "[LeadJobs] Persistence initialized"}
+{"timestamp": "2026-05-01T23:45:45.471340491Z", "severity": "info", "message": "[AI Support] MongoDB collections initialized"}
+{"timestamp": "2026-05-01T23:45:45.471344203Z", "severity": "info", "message": "[ShortenerPersistence] Initialized"}
+{"timestamp": "2026-05-01T23:45:45.471348188Z", "severity": "info", "message": "[Honeypot] MongoDB collection initialized with indexes"}
+{"timestamp": "2026-05-01T23:45:45.471351662Z", "severity": "info", "message": "[SmsApp] Service initialized"}
+{"timestamp": "2026-05-01T23:45:45.471354773Z", "severity": "info", "message": "[SmsApp] Routes registered"}
+{"timestamp": "2026-05-01T23:45:45.471358239Z", "severity": "info", "message": "[EmailBlast] Service initialized with queue processor"}
+{"timestamp": "2026-05-01T23:45:45.471363082Z", "severity": "info", "message": "[EmailValidation] Service initialized"}
+{"timestamp": "2026-05-01T23:45:45.471366854Z", "severity": "info", "message": "[BalanceMonitor] Initialized \u2014 checking every 120min (warn=$10, crit=$5)"}
+{"timestamp": "2026-05-01T23:45:45.471369616Z", "severity": "info", "message": "[UserWalletMonitor] Initialized \u2014 scanning every 6h (warn=$5, crit=$2, empty=$0)"}
+{"timestamp": "2026-05-01T23:45:45.471372430Z", "severity": "info", "message": "[PhoneMonitor] Initialized \u2014 checking every 30 minutes"}
+{"timestamp": "2026-05-01T23:45:45.471375917Z", "severity": "info", "message": "[WelcomeBonus] Initialized \u2014 $5 welcome gift for new users"}
+{"timestamp": "2026-05-01T23:45:45.471379597Z", "severity": "info", "message": "[WinBack] Initialized \u2014 scans for 7-day inactive users daily at 10:00 UTC, 20% discount, 48h expiry"}
+{"timestamp": "2026-05-01T23:45:45.472326442Z", "severity": "info", "message": "[StateCleanup] Scheduled every 6h (stale threshold: 24h)"}
+{"timestamp": "2026-05-01T23:45:45.472329551Z", "severity": "info", "message": "[PaymentTimeout] Scheduled every 30min (timeout: 6h)"}
+{"timestamp": "2026-05-01T23:45:45.472332527Z", "severity": "info", "message": "[StaleOrderCleanup] Scheduled every 60min (timeout: 24h)"}
+{"timestamp": "2026-05-01T23:45:45.472335612Z", "severity": "info", "message": "[AbandonedCart] Scheduled every 30min (reminder delay: 2h)"}
+{"timestamp": "2026-05-01T23:45:45.472338458Z", "severity": "info", "message": "[BundleChecker] Scheduled every 30min"}
+{"timestamp": "2026-05-01T23:45:45.472341327Z", "severity": "info", "message": "[FincraReconcile] Payment recovery scheduled every 5min"}
+{"timestamp": "2026-05-01T23:45:45.472343935Z", "severity": "info", "message": "[SmsApp] Version 2.7.5 already announced \u2014 skipping broadcast"}
+{"timestamp": "2026-05-01T23:45:45.472347246Z", "severity": "info", "message": "[UserWalletMonitor] Loaded 9 active notification histories from DB (122 total, 113 expired/skipped)"}
+{"timestamp": "2026-05-01T23:45:45.472350028Z", "severity": "info", "message": "[BulkCall] Service initialized (Speechcue mode)"}
+{"timestamp": "2026-05-01T23:45:45.472352793Z", "severity": "info", "message": "[AudioLibrary] Initialized"}
+{"timestamp": "2026-05-01T23:45:45.472355328Z", "severity": "info", "message": "[EmailWarming] Initialized with 8-stage schedule"}
+{"timestamp": "2026-05-01T23:45:45.479599592Z", "severity": "info", "message": "[EmailBlast] Service initialized \u2014 queue processor running every 30s"}
+{"timestamp": "2026-05-01T23:45:45.521529794Z", "severity": "info", "message": "[Marketplace] Initialized"}
+{"timestamp": "2026-05-01T23:45:45.536058830Z", "severity": "info", "message": "[Honeypot] Found existing KV namespace: 812aca1cbade413d9814bff1708e74db"}
+{"timestamp": "2026-05-01T23:45:45.536063484Z", "severity": "info", "message": "[Honeypot] KV namespace ready: 812aca1cbade413d9814bff1708e74db"}
+{"timestamp": "2026-05-01T23:45:46.053245361Z", "severity": "info", "message": "[Twilio] Updated webhooks for number PNca258a8882e24136d6936e63ac1c39a6 on sub-account AC98bdf4543e1de798baf8e1119c024bb0"}
+{"timestamp": "2026-05-01T23:45:47.358528909Z", "severity": "info", "message": "[Twilio] Updated webhooks for number PNbe17b14cdf8967b539c1a5855e509616 on sub-account ACde9f00ea1b8586dbc9116f3e9dd37f31"}
+{"timestamp": "2026-05-01T23:45:48.064947455Z", "severity": "info", "message": "[Twilio Sync] Webhook sync complete: 6 updated, 0 failed, 0 credentials recovered"}
+{"timestamp": "2026-05-01T23:45:48.064981685Z", "severity": "info", "message": "[Twilio] Updated webhooks for number PNb7aa745544e248cfe4af711eda278dad on sub-account ACf08d768ac5193fa9a203cb4f4ddbd480"}
+{"timestamp": "2026-05-01T23:45:48.505553834Z", "severity": "info", "message": "[CF-Sync] Discovery Worker already in sync: https://nomadly-email-ivr-production.up.railway.app"}
+{"timestamp": "2026-05-01T23:45:50.330237833Z", "severity": "info", "message": "\ud83d\udce8 Telegram webhook received"}
+{"timestamp": "2026-05-01T23:45:50.423432381Z", "severity": "info", "message": "message: \ud83d\udcde Cloud IVR + SIP\tfrom: 817673476 johngambino"}
+{"timestamp": "2026-05-01T23:45:50.423435647Z", "severity": "info", "message": "[Voice] PRE-DIAL: Loaded 1 blocked credential(s) from DB"}
+{"timestamp": "2026-05-01T23:45:50.491643757Z", "severity": "info", "message": "reply: \ud83d\udcde <b>Cloud IVR</b> <i>by Speechcue</i>"}
+{"timestamp": "2026-05-01T23:45:50.491643758Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:45:50.491649616Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:45:50.491654051Z", "severity": "info", "message": "Virtual numbers in 30+ countries \u00b7 Active in 2 minutes"}
+{"timestamp": "2026-05-01T23:45:50.491658554Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:45:50.491662269Z", "severity": "info", "message": "\ud83d\udcde Call forwarding \u00b7 \ud83d\udcac SMS to Telegram \u00b7 \ud83c\udf10 Browser calls \u00b7 \ud83e\udd16 IVR \u00b7 \ud83d\udd17 SIP"}
+{"timestamp": "2026-05-01T23:45:50.491672529Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:45:50.491675792Z", "severity": "info", "message": "Plans from <b>$50/mo</b> (100 min + 50 SMS included)"}
+{"timestamp": "2026-05-01T23:45:50.491678868Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:45:50.491681502Z", "severity": "info", "message": "New? Tap <b>\u2753 How It Works</b>"}
+{"timestamp": "2026-05-01T23:45:50.491684478Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:45:50.491687300Z", "severity": "info", "message": "\ud83d\udcde 30 phone numbers activated this week \ud83d\udce2 Quick IVR Call,\ud83d\udcde Bulk IVR Campaign,\ud83c\udfb5 Audio Library,\ud83e\uddea Test SIP Free,\ud83d\uded2 Choose a Plan,\ud83d\udccb My Plans,\ud83d\udcd6 SIP Setup Guide,\ud83d\udcca Usage & Billing,\u2753 How It Works,Back,Cancel\tto: 817673476"}
+{"timestamp": "2026-05-01T23:45:50.493365280Z", "severity": "info", "message": "23:45:50 [Conversion] Social proof refreshed: {\"hosting\":64,\"domains\":170,\"cloudphone\":60,\"digitalproducts\":58,\"vps\":56,\"virtualcard\":57,\"general\":94}"}
+{"timestamp": "2026-05-01T23:45:50.605472363Z", "severity": "info", "message": "[CR-Whitelist] API test failed (attempt #2): Request failed with status code 401"}
+{"timestamp": "2026-05-01T23:45:50.693489475Z", "severity": "info", "message": "[CR-Whitelist] Outbound IP: 52.8.192.101"}
+{"timestamp": "2026-05-01T23:45:51.061556825Z", "severity": "info", "message": "[CR-Whitelist] API test failed (attempt #3): Request failed with status code 401"}
+{"timestamp": "2026-05-01T23:45:51.061559825Z", "severity": "info", "message": "[CR-Whitelist] API blocked \u2014 IP 52.8.192.101 needs whitelisting"}
+{"timestamp": "2026-05-01T23:45:51.061563206Z", "severity": "info", "message": "[CR-Whitelist] Retry #1 scheduled in 60s"}
+{"timestamp": "2026-05-01T23:45:53.058261535Z", "severity": "info", "message": "[Broadcast] Recovery: No interrupted broadcasts to resume"}
+{"timestamp": "2026-05-01T23:45:53.058266295Z", "severity": "info", "message": "23:45:52 [Conversion] Social proof refreshed: {\"hosting\":64,\"domains\":170,\"cloudphone\":60,\"digitalproducts\":58,\"vps\":56,\"virtualcard\":57,\"general\":94}"}
+{"timestamp": "2026-05-01T23:45:54.074717000Z", "severity": "info", "message": "\ud83d\udce8 Telegram webhook received"}
+{"timestamp": "2026-05-01T23:45:54.074720542Z", "severity": "info", "message": "message: \ud83d\udcde Bulk IVR Campaign\tfrom: 817673476 johngambino"}
+{"timestamp": "2026-05-01T23:45:54.120450456Z", "severity": "info", "message": "reply: \ud83d\udcde <b>Bulk IVR Campaign</b>\\n\\nCall multiple numbers with an automated IVR message.\\nUpload a CSV of leads and launch a campaign.\\n\\n\u260e\ufe0f = Bulk IVR capable numbers\\n\\n\ud83d\udcf1 Select the Caller ID: +18884879051 \u260e\ufe0f,+18889233702 \u260e\ufe0f,\u21a9\ufe0f Back,Back,Cancel\tto: 817673476"}
+{"timestamp": "2026-05-01T23:45:54.120458102Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:45:55.435435687Z", "severity": "info", "message": "[HostingScheduler] Startup enforcement: no expired accounts need action"}
+{"timestamp": "2026-05-01T23:45:55.435439570Z", "severity": "info", "message": "[PhoneMonitor] === Health check started ==="}
+{"timestamp": "2026-05-01T23:45:55.435442781Z", "severity": "info", "message": "[AntiRed] KV namespace for honeypot bans: 812aca1cbade413d9814bff1708e74db"}
+{"timestamp": "2026-05-01T23:45:55.435446182Z", "severity": "info", "message": "[PhoneMonitor] Checking 7 Twilio subaccounts"}
+{"timestamp": "2026-05-01T23:45:56.244659906Z", "severity": "info", "message": "[PhoneMonitor] Checking 2 Telnyx numbers"}
+{"timestamp": "2026-05-01T23:45:56.618989139Z", "severity": "info", "message": "[PhoneMonitor] === Health check complete: 9 checked, 0 newly suspended ==="}
+{"timestamp": "2026-05-01T23:45:57.099325942Z", "severity": "info", "message": "[AntiRed] Shared worker upgraded: OK (KV: bound)"}
+{"timestamp": "2026-05-01T23:45:57.099328865Z", "severity": "info", "message": "[AntiRed] Startup worker upgrade: OK (KV: true)"}
+{"timestamp": "2026-05-01T23:45:58.095404337Z", "severity": "info", "message": "[CpanelMigration] All accounts already point to current WHM_HOST (209.38.241.9). No migration needed."}
+{"timestamp": "2026-05-01T23:45:59.248650448Z", "severity": "info", "message": "\ud83d\udce8 Telegram webhook received"}
+{"timestamp": "2026-05-01T23:45:59.248654240Z", "severity": "info", "message": "message: +18884879051 \u260e\ufe0f\tfrom: 817673476 johngambino"}
+{"timestamp": "2026-05-01T23:45:59.298904830Z", "severity": "info", "message": "reply: \ud83d\udcf1 Caller ID: <b>+18884879051</b>"}
+{"timestamp": "2026-05-01T23:45:59.298911752Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:45:59.298915508Z", "severity": "info", "message": "\ud83d\udccb <b>Upload Leads File</b>"}
+{"timestamp": "2026-05-01T23:45:59.298919143Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:45:59.298922532Z", "severity": "info", "message": "Send a text file (.txt or .csv) with one phone number per line."}
+{"timestamp": "2026-05-01T23:45:59.298926242Z", "severity": "info", "message": "Optional: <code>number,name</code> per line."}
+{"timestamp": "2026-05-01T23:45:59.298931416Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:45:59.298934980Z", "severity": "info", "message": "Or paste the numbers directly (one per line): \u21a9\ufe0f Back,Back,Cancel\tto: 817673476"}
+{"timestamp": "2026-05-01T23:45:59.298938597Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:46:00.484991030Z", "severity": "info", "message": "[BulkCall] Recovery: No running campaigns to recover"}
+{"timestamp": "2026-05-01T23:46:01.110111646Z", "severity": "info", "message": "[CR-Whitelist] Browser result: Login failed - landed on https://global.connectreseller.com/login?returnUrl=%2Fadmin%2Fdashboard"}
+{"timestamp": "2026-05-01T23:46:01.110116091Z", "severity": "info", "message": "[CR-Whitelist] Browser automation failed: Login failed - landed on https://global.connectreseller.com/login?returnUrl=%2Fadmin%2Fdashboard"}
+{"timestamp": "2026-05-01T23:46:01.110119423Z", "severity": "info", "message": "[CR-Whitelist] Startup check: IP 52.8.192.101 needs whitelisting \u2014 auto-retrying"}
+{"timestamp": "2026-05-01T23:46:05.762332041Z", "severity": "info", "message": "\ud83d\udce8 Telegram webhook received"}
+{"timestamp": "2026-05-01T23:46:05.762338026Z", "severity": "info", "message": "message: +12814708204"}
+{"timestamp": "2026-05-01T23:46:05.762341775Z", "severity": "info", "message": "+12818679089"}
+{"timestamp": "2026-05-01T23:46:05.762345668Z", "severity": "info", "message": "+17134708204"}
+{"timestamp": "2026-05-01T23:46:05.762351221Z", "severity": "info", "message": "+18324143133"}
+{"timestamp": "2026-05-01T23:46:05.762354735Z", "severity": "info", "message": "+14094554418"}
+{"timestamp": "2026-05-01T23:46:05.762358412Z", "severity": "info", "message": "+14095045292"}
+{"timestamp": "2026-05-01T23:46:05.762359564Z", "severity": "info", "message": "+14123666977"}
+{"timestamp": "2026-05-01T23:46:05.762359902Z", "severity": "info", "message": "+14098665153"}
+{"timestamp": "2026-05-01T23:46:05.762365766Z", "severity": "info", "message": "+14093654405"}
+{"timestamp": "2026-05-01T23:46:05.762367550Z", "severity": "info", "message": "+16183442636"}
+{"timestamp": "2026-05-01T23:46:05.762369491Z", "severity": "info", "message": "+12532672905"}
+{"timestamp": "2026-05-01T23:46:05.762374872Z", "severity": "info", "message": "+14095480763"}
+{"timestamp": "2026-05-01T23:46:05.762376162Z", "severity": "info", "message": "+18668665153"}
+{"timestamp": "2026-05-01T23:46:05.762376577Z", "severity": "info", "message": "+14097305142"}
+{"timestamp": "2026-05-01T23:46:05.762383036Z", "severity": "info", "message": "+14097272015"}
+{"timestamp": "2026-05-01T23:46:05.762386805Z", "severity": "info", "message": "+14099628949"}
+{"timestamp": "2026-05-01T23:46:05.762388929Z", "severity": "info", "message": "+14093477521"}
+{"timestamp": "2026-05-01T23:46:05.762389085Z", "severity": "info", "message": "+14095436133"}
+{"timestamp": "2026-05-01T23:46:05.762392351Z", "severity": "info", "message": "+14093325337"}
+{"timestamp": "2026-05-01T23:46:05.762393784Z", "severity": "info", "message": "+14092012857"}
+{"timestamp": "2026-05-01T23:46:05.762396256Z", "severity": "info", "message": "+14099853850"}
+{"timestamp": "2026-05-01T23:46:05.762403044Z", "severity": "info", "message": "+14098992544"}
+{"timestamp": "2026-05-01T23:46:05.762403126Z", "severity": "info", "message": "+14097513338"}
+{"timestamp": "2026-05-01T23:46:05.762403713Z", "severity": "info", "message": "+14095482663"}
+{"timestamp": "2026-05-01T23:46:05.762407009Z", "severity": "info", "message": "+14097298155"}
+{"timestamp": "2026-05-01T23:46:05.762410644Z", "severity": "info", "message": "+14097821738"}
+{"timestamp": "2026-05-01T23:46:05.762412937Z", "severity": "info", "message": "+14099836435"}
+{"timestamp": "2026-05-01T23:46:05.762413371Z", "severity": "info", "message": "+14097196607"}
+{"timestamp": "2026-05-01T23:46:05.762418023Z", "severity": "info", "message": "+14092912126"}
+{"timestamp": "2026-05-01T23:46:05.762419334Z", "severity": "info", "message": "+19367272015"}
+{"timestamp": "2026-05-01T23:46:05.762421625Z", "severity": "info", "message": "+14099827320"}
+{"timestamp": "2026-05-01T23:46:05.762425732Z", "severity": "info", "message": "+14095434372"}
+{"timestamp": "2026-05-01T23:46:05.762426942Z", "severity": "info", "message": "+14097299868"}
+{"timestamp": "2026-05-01T23:46:05.762430072Z", "severity": "info", "message": "+14095400164"}
+{"timestamp": "2026-05-01T23:46:05.762434372Z", "severity": "info", "message": "+14092012856"}
+{"timestamp": "2026-05-01T23:46:05.763783988Z", "severity": "info", "message": "+14099858717"}
+{"timestamp": "2026-05-01T23:46:05.763788995Z", "severity": "info", "message": "+14092990668"}
+{"timestamp": "2026-05-01T23:46:05.763792644Z", "severity": "info", "message": "+14099620956"}
+{"timestamp": "2026-05-01T23:46:05.763796430Z", "severity": "info", "message": "+14098587170"}
+{"timestamp": "2026-05-01T23:46:05.763799625Z", "severity": "info", "message": "+14097197931"}
+{"timestamp": "2026-05-01T23:46:05.763803000Z", "severity": "info", "message": "+14098531987"}
+{"timestamp": "2026-05-01T23:46:05.763805877Z", "severity": "info", "message": "+14097197101"}
+{"timestamp": "2026-05-01T23:46:05.763809109Z", "severity": "info", "message": "+14097221745"}
+{"timestamp": "2026-05-01T23:46:05.763812496Z", "severity": "info", "message": "+14095438030"}
+{"timestamp": "2026-05-01T23:46:05.763816077Z", "severity": "info", "message": "+14093326119"}
+{"timestamp": "2026-05-01T23:46:05.763821267Z", "severity": "info", "message": "+14099627912"}
+{"timestamp": "2026-05-01T23:46:05.763824583Z", "severity": "info", "message": "+14095794179"}
+{"timestamp": "2026-05-01T23:46:05.763828662Z", "severity": "info", "message": "+14095042282"}
+{"timestamp": "2026-05-01T23:46:05.763832217Z", "severity": "info", "message": "+14097242764"}
+{"timestamp": "2026-05-01T23:46:05.763835892Z", "severity": "info", "message": "+14093440981"}
+{"timestamp": "2026-05-01T23:46:05.763839219Z", "severity": "info", "message": "+14092017994"}
+{"timestamp": "2026-05-01T23:46:05.763842151Z", "severity": "info", "message": "+14095535532"}
+{"timestamp": "2026-05-01T23:46:05.763846489Z", "severity": "info", "message": "+14097224184"}
+{"timestamp": "2026-05-01T23:46:05.763850099Z", "severity": "info", "message": "+14094608784"}
+{"timestamp": "2026-05-01T23:46:05.763853539Z", "severity": "info", "message": "+12514631669"}
+{"timestamp": "2026-05-01T23:46:05.763856626Z", "severity": "info", "message": "+14097283938"}
+{"timestamp": "2026-05-01T23:46:05.763859637Z", "severity": "info", "message": "+14093386253"}
+{"timestamp": "2026-05-01T23:46:05.763862597Z", "severity": "info", "message": "+14095436232"}
+{"timestamp": "2026-05-01T23:46:05.763865894Z", "severity": "info", "message": "+14098531814"}
+{"timestamp": "2026-05-01T23:46:05.763870013Z", "severity": "info", "message": "+14098531468"}
+{"timestamp": "2026-05-01T23:46:05.763873325Z", "severity": "info", "message": "+14097292109"}
+{"timestamp": "2026-05-01T23:46:05.763876421Z", "severity": "info", "message": "+14096516062"}
+{"timestamp": "2026-05-01T23:46:05.763879900Z", "severity": "info", "message": "+14097196566"}
+{"timestamp": "2026-05-01T23:46:05.763883187Z", "severity": "info", "message": "+14097247348"}
+{"timestamp": "2026-05-01T23:46:05.763886427Z", "severity": "info", "message": "+15123368928"}
+{"timestamp": "2026-05-01T23:46:05.763889482Z", "severity": "info", "message": "+14097961715"}
+{"timestamp": "2026-05-01T23:46:05.763892781Z", "severity": "info", "message": "+14092895404"}
+{"timestamp": "2026-05-01T23:46:05.763897203Z", "severity": "info", "message": "+14097969617"}
+{"timestamp": "2026-05-01T23:46:05.763900241Z", "severity": "info", "message": "+14095481783"}
+{"timestamp": "2026-05-01T23:46:05.763903390Z", "severity": "info", "message": "+14099621662"}
+{"timestamp": "2026-05-01T23:46:05.763906268Z", "severity": "info", "message": "+14093857305"}
+{"timestamp": "2026-05-01T23:46:05.765895757Z", "severity": "info", "message": "+14094669508"}
+{"timestamp": "2026-05-01T23:46:05.765899160Z", "severity": "info", "message": "+14097826800"}
+{"timestamp": "2026-05-01T23:46:05.765900790Z", "severity": "info", "message": "+14095402005"}
+{"timestamp": "2026-05-01T23:46:05.765905458Z", "severity": "info", "message": "+19363857305"}
+{"timestamp": "2026-05-01T23:46:05.765907680Z", "severity": "info", "message": "+14092872447"}
+{"timestamp": "2026-05-01T23:46:05.765909976Z", "severity": "info", "message": "+14096782695"}
+{"timestamp": "2026-05-01T23:46:05.765912428Z", "severity": "info", "message": "+14097824928"}
+{"timestamp": "2026-05-01T23:46:05.765915817Z", "severity": "info", "message": "+19362872447"}
+{"timestamp": "2026-05-01T23:46:05.765917906Z", "severity": "info", "message": "+14093823133"}
+{"timestamp": "2026-05-01T23:46:05.765918904Z", "severity": "info", "message": "+14092873382"}
+{"timestamp": "2026-05-01T23:46:05.765922829Z", "severity": "info", "message": "+14093853206"}
+{"timestamp": "2026-05-01T23:46:05.765925350Z", "severity": "info", "message": "+14097829709"}
+{"timestamp": "2026-05-01T23:46:05.765929078Z", "severity": "info", "message": "+14093852819"}
+{"timestamp": "2026-05-01T23:46:05.765930658Z", "severity": "info", "message": "+14096518131"}
+{"timestamp": "2026-05-01T23:46:05.765934393Z", "severity": "info", "message": "+14093849725"}
+{"timestamp": "2026-05-01T23:46:05.765938770Z", "severity": "info", "message": "+14098556232"}
+{"timestamp": "2026-05-01T23:46:05.765941815Z", "severity": "info", "message": "+18326310038"}
+{"timestamp": "2026-05-01T23:46:05.765945067Z", "severity": "info", "message": "+14094297391"}
+{"timestamp": "2026-05-01T23:46:05.765945259Z", "severity": "info", "message": "+14098350138"}
+{"timestamp": "2026-05-01T23:46:05.765948685Z", "severity": "info", "message": "+14097671555"}
+{"timestamp": "2026-05-01T23:46:05.765953104Z", "severity": "info", "message": "+14093850893"}
+{"timestamp": "2026-05-01T23:46:05.765953490Z", "severity": "info", "message": "+14094293394"}
+{"timestamp": "2026-05-01T23:46:05.765956055Z", "severity": "info", "message": "+14097552308"}
+{"timestamp": "2026-05-01T23:46:05.765961069Z", "severity": "info", "message": "+14093855221"}
+{"timestamp": "2026-05-01T23:46:05.765961714Z", "severity": "info", "message": "+14097554431"}
+{"timestamp": "2026-05-01T23:46:05.765962063Z", "severity": "info", "message": "+17557552308"}
+{"timestamp": "2026-05-01T23:46:05.765968647Z", "severity": "info", "message": "+14099899697"}
+{"timestamp": "2026-05-01T23:46:05.765969636Z", "severity": "info", "message": "+14097550419"}
+{"timestamp": "2026-05-01T23:46:05.765970432Z", "severity": "info", "message": "+14092018561"}
+{"timestamp": "2026-05-01T23:46:05.765975101Z", "severity": "info", "message": "+14093004033"}
+{"timestamp": "2026-05-01T23:46:05.765975454Z", "severity": "info", "message": "+14092763143"}
+{"timestamp": "2026-05-01T23:46:05.765980872Z", "severity": "info", "message": "+14099845689"}
+{"timestamp": "2026-05-01T23:46:05.765982203Z", "severity": "info", "message": "+14097533012"}
+{"timestamp": "2026-05-01T23:46:05.765986637Z", "severity": "info", "message": "+14097241948"}
+{"timestamp": "2026-05-01T23:46:05.765986973Z", "severity": "info", "message": "+14097532038"}
+{"timestamp": "2026-05-01T23:46:05.765991433Z", "severity": "info", "message": "+14099852865"}
+{"timestamp": "2026-05-01T23:46:05.767711516Z", "severity": "info", "message": "+14097514919"}
+{"timestamp": "2026-05-01T23:46:05.767715302Z", "severity": "info", "message": "+19259469805"}
+{"timestamp": "2026-05-01T23:46:05.767718083Z", "severity": "info", "message": "+15019840382"}
+{"timestamp": "2026-05-01T23:46:05.767721348Z", "severity": "info", "message": "+15019845743"}
+{"timestamp": "2026-05-01T23:46:05.767724482Z", "severity": "info", "message": "+14093477722"}
+{"timestamp": "2026-05-01T23:46:05.767728311Z", "severity": "info", "message": "+14094544735"}
+{"timestamp": "2026-05-01T23:46:05.767732881Z", "severity": "info", "message": "+18504781621"}
+{"timestamp": "2026-05-01T23:46:05.767737172Z", "severity": "info", "message": "+14092873340"}
+{"timestamp": "2026-05-01T23:46:05.767738043Z", "severity": "info", "message": "+14093856377"}
+{"timestamp": "2026-05-01T23:46:05.767738789Z", "severity": "info", "message": "+14097554343"}
+{"timestamp": "2026-05-01T23:46:05.767742934Z", "severity": "info", "message": "+14098342590"}
+{"timestamp": "2026-05-01T23:46:05.767747669Z", "severity": "info", "message": "+14097554544"}
+{"timestamp": "2026-05-01T23:46:05.767750138Z", "severity": "info", "message": "+14092673662"}
+{"timestamp": "2026-05-01T23:46:05.767751309Z", "severity": "info", "message": "+17557554343"}
+{"timestamp": "2026-05-01T23:46:05.767756332Z", "severity": "info", "message": "+14097550836"}
+{"timestamp": "2026-05-01T23:46:05.767756393Z", "severity": "info", "message": "+12252925681"}
+{"timestamp": "2026-05-01T23:46:05.767759378Z", "severity": "info", "message": "+14097819204"}
+{"timestamp": "2026-05-01T23:46:05.767762163Z", "severity": "info", "message": "+15042925681"}
+{"timestamp": "2026-05-01T23:46:05.767762390Z", "severity": "info", "message": "+14097552362"}
+{"timestamp": "2026-05-01T23:46:05.767768787Z", "severity": "info", "message": "+14093856794"}
+{"timestamp": "2026-05-01T23:46:05.767770413Z", "severity": "info", "message": "+14092463485"}
+{"timestamp": "2026-05-01T23:46:05.767770500Z", "severity": "info", "message": "+14096730262"}
+{"timestamp": "2026-05-01T23:46:05.767777294Z", "severity": "info", "message": "+14097820767"}
+{"timestamp": "2026-05-01T23:46:05.767777396Z", "severity": "info", "message": "+14092873968"}
+{"timestamp": "2026-05-01T23:46:05.767783201Z", "severity": "info", "message": "+14092872267"}
+{"timestamp": "2026-05-01T23:46:05.767783468Z", "severity": "info", "message": "+14092095013"}
+{"timestamp": "2026-05-01T23:46:05.767787999Z", "severity": "info", "message": "+14096799505"}
+{"timestamp": "2026-05-01T23:46:05.767790685Z", "severity": "info", "message": "+14092463890"}
+{"timestamp": "2026-05-01T23:46:05.767794238Z", "severity": "info", "message": "+14092468465"}
+{"timestamp": "2026-05-01T23:46:05.767797463Z", "severity": "info", "message": "+14097903176"}
+{"timestamp": "2026-05-01T23:46:05.767800342Z", "severity": "info", "message": "+14097554259"}
+{"timestamp": "2026-05-01T23:46:05.767803147Z", "severity": "info", "message": "+14092274516"}
+{"timestamp": "2026-05-01T23:46:05.767806012Z", "severity": "info", "message": "+14096797527"}
+{"timestamp": "2026-05-01T23:46:05.767809460Z", "severity": "info", "message": "+19363682757"}
+{"timestamp": "2026-05-01T23:46:05.767812356Z", "severity": "info", "message": "+14097557388"}
+{"timestamp": "2026-05-01T23:46:05.767815785Z", "severity": "info", "message": "+14097550959"}
+{"timestamp": "2026-05-01T23:46:05.769352371Z", "severity": "info", "message": "+14093853241"}
+{"timestamp": "2026-05-01T23:46:05.769358654Z", "severity": "info", "message": "+14093861153"}
+{"timestamp": "2026-05-01T23:46:05.769359669Z", "severity": "info", "message": "+14093855681"}
+{"timestamp": "2026-05-01T23:46:05.769363070Z", "severity": "info", "message": "+14096563118"}
+{"timestamp": "2026-05-01T23:46:05.769370343Z", "severity": "info", "message": "+19363855681"}
+{"timestamp": "2026-05-01T23:46:05.769370573Z", "severity": "info", "message": "+14096563209"}
+{"timestamp": "2026-05-01T23:46:05.769374366Z", "severity": "info", "message": "+14097552335"}
+{"timestamp": "2026-05-01T23:46:05.769377709Z", "severity": "info", "message": "+14099884105"}
+{"timestamp": "2026-05-01T23:46:05.769382343Z", "severity": "info", "message": "+14093736388"}
+{"timestamp": "2026-05-01T23:46:05.769383131Z", "severity": "info", "message": "+12147552042"}
+{"timestamp": "2026-05-01T23:46:05.769388533Z", "severity": "info", "message": "+19403651366"}
+{"timestamp": "2026-05-01T23:46:05.769388638Z", "severity": "info", "message": "+14043532580"}
+{"timestamp": "2026-05-01T23:46:05.769393945Z", "severity": "info", "message": "+14092274461"}
+{"timestamp": "2026-05-01T23:46:05.769394125Z", "severity": "info", "message": "+18174616653"}
+{"timestamp": "2026-05-01T23:46:05.769400880Z", "severity": "info", "message": "+14092462984"}
+{"timestamp": "2026-05-01T23:46:05.769401036Z", "severity": "info", "message": "+18174758886"}
+{"timestamp": "2026-05-01T23:46:05.769406001Z", "severity": "info", "message": "+14094200237"}
+{"timestamp": "2026-05-01T23:46:05.769408466Z", "severity": "info", "message": "+14094296202"}
+{"timestamp": "2026-05-01T23:46:05.769409853Z", "severity": "info", "message": "+14092380957"}
+{"timestamp": "2026-05-01T23:46:05.769415864Z", "severity": "info", "message": "+14097900830"}
+{"timestamp": "2026-05-01T23:46:05.769416078Z", "severity": "info", "message": "+14093319080"}
+{"timestamp": "2026-05-01T23:46:05.769421419Z", "severity": "info", "message": "+14092910694"}
+{"timestamp": "2026-05-01T23:46:05.769422236Z", "severity": "info", "message": "+14092838727"}
+{"timestamp": "2026-05-01T23:46:05.769426110Z", "severity": "info", "message": "+14097692026"}
+{"timestamp": "2026-05-01T23:46:05.769428055Z", "severity": "info", "message": "+14095400833"}
+{"timestamp": "2026-05-01T23:46:05.769431390Z", "severity": "info", "message": "+14097901821"}
+{"timestamp": "2026-05-01T23:46:05.769433579Z", "severity": "info", "message": "+14097298989"}
+{"timestamp": "2026-05-01T23:46:05.769438071Z", "severity": "info", "message": "+14097901921"}
+{"timestamp": "2026-05-01T23:46:05.769440035Z", "severity": "info", "message": "+14099628252"}
+{"timestamp": "2026-05-01T23:46:05.769443387Z", "severity": "info", "message": "+14097961938"}
+{"timestamp": "2026-05-01T23:46:05.769445519Z", "severity": "info", "message": "+14093441449"}
+{"timestamp": "2026-05-01T23:46:05.769449227Z", "severity": "info", "message": "+19723757563"}
+{"timestamp": "2026-05-01T23:46:05.769452065Z", "severity": "info", "message": "+14092274665"}
+{"timestamp": "2026-05-01T23:46:05.769454694Z", "severity": "info", "message": "+19366350426"}
+{"timestamp": "2026-05-01T23:46:05.769457566Z", "severity": "info", "message": "+14097516711"}
+{"timestamp": "2026-05-01T23:46:05.769460434Z", "severity": "info", "message": "+14097554915"}
+{"timestamp": "2026-05-01T23:46:05.771272214Z", "severity": "info", "message": "+14097229596"}
+{"timestamp": "2026-05-01T23:46:05.771279050Z", "severity": "info", "message": "+14096229104"}
+{"timestamp": "2026-05-01T23:46:05.771279670Z", "severity": "info", "message": "+16016819323"}
+{"timestamp": "2026-05-01T23:46:05.771282297Z", "severity": "info", "message": "+14097564717"}
+{"timestamp": "2026-05-01T23:46:05.771282397Z", "severity": "info", "message": "+14097288722"}
+{"timestamp": "2026-05-01T23:46:05.771286391Z", "severity": "info", "message": "+14094234726"}
+{"timestamp": "2026-05-01T23:46:05.771290031Z", "severity": "info", "message": "+14097796401"}
+{"timestamp": "2026-05-01T23:46:05.771294054Z", "severity": "info", "message": "+14096738936"}
+{"timestamp": "2026-05-01T23:46:05.771294380Z", "severity": "info", "message": "+14097241726"}
+{"timestamp": "2026-05-01T23:46:05.771295016Z", "severity": "info", "message": "+15122489861"}
+{"timestamp": "2026-05-01T23:46:05.771299328Z", "severity": "info", "message": "+14092464407"}
+{"timestamp": "2026-05-01T23:46:05.771303196Z", "severity": "info", "message": "+14092014088"}
+{"timestamp": "2026-05-01T23:46:05.771304857Z", "severity": "info", "message": "+14097556076"}
+{"timestamp": "2026-05-01T23:46:05.771304883Z", "severity": "info", "message": "+14093736068"}
+{"timestamp": "2026-05-01T23:46:05.771304943Z", "severity": "info", "message": "+14097516002"}
+{"timestamp": "2026-05-01T23:46:05.771315407Z", "severity": "info", "message": "+14097550476"}
+{"timestamp": "2026-05-01T23:46:05.771316017Z", "severity": "info", "message": "+14097241776"}
+{"timestamp": "2026-05-01T23:46:05.771316344Z", "severity": "info", "message": "+14092464343"}
+{"timestamp": "2026-05-01T23:46:05.771320143Z", "severity": "info", "message": "+14093380526"}
+{"timestamp": "2026-05-01T23:46:05.771321886Z", "severity": "info", "message": "+14093732064"}
+{"timestamp": "2026-05-01T23:46:05.771322612Z", "severity": "info", "message": "+14097532030"}
+{"timestamp": "2026-05-01T23:46:05.771323673Z", "severity": "info", "message": "+14092461511"}
+{"timestamp": "2026-05-01T23:46:05.771327479Z", "severity": "info", "message": "+17517513094"}
+{"timestamp": "2026-05-01T23:46:05.771328921Z", "severity": "info", "message": "+19368902889"}
+{"timestamp": "2026-05-01T23:46:05.771328938Z", "severity": "info", "message": "+14092274313"}
+{"timestamp": "2026-05-01T23:46:05.771330935Z", "severity": "info", "message": "+14093852917"}
+{"timestamp": "2026-05-01T23:46:05.771331511Z", "severity": "info", "message": "+14093507873"}
+{"timestamp": "2026-05-01T23:46:05.771335680Z", "severity": "info", "message": "+14097913534"}
+{"timestamp": "2026-05-01T23:46:05.771337880Z", "severity": "info", "message": "+14093854181"}
+{"timestamp": "2026-05-01T23:46:05.771341113Z", "severity": "info", "message": "+14092463490"}
+{"timestamp": "2026-05-01T23:46:05.771343637Z", "severity": "info", "message": "+14097513094"}
+{"timestamp": "2026-05-01T23:46:05.771343758Z", "severity": "info", "message": "+14092394836"}
+{"timestamp": "2026-05-01T23:46:05.771345804Z", "severity": "info", "message": "+14092671779"}
+{"timestamp": "2026-05-01T23:46:05.771349290Z", "severity": "info", "message": "+14097288721"}
+{"timestamp": "2026-05-01T23:46:05.771351116Z", "severity": "info", "message": "+14097908370"}
+{"timestamp": "2026-05-01T23:46:05.771354606Z", "severity": "info", "message": "+14097551214"}
+{"timestamp": "2026-05-01T23:46:05.772425744Z", "severity": "info", "message": "+15046439843"}
+{"timestamp": "2026-05-01T23:46:05.772433198Z", "severity": "info", "message": "+14097815499"}
+{"timestamp": "2026-05-01T23:46:05.772438659Z", "severity": "info", "message": "+14097525349"}
+{"timestamp": "2026-05-01T23:46:05.772443324Z", "severity": "info", "message": "+14097525271\tfrom: 817673476 johngambino"}
+{"timestamp": "2026-05-01T23:46:06.228658332Z", "severity": "info", "message": "Choose from your audio library, upload a new recording, or generate from a template with TTS: \ud83c\udfb5 Account Verification (TTS),\ud83c\udfb5 Account Verification (TTS),\ud83c\udfb5 Suspicious Transaction (TTS),\ud83c\udfb5 Account Verification (TTS),\ud83c\udfb5 Suspicious Transaction (TTS),\ud83c\udfb5 Password Reset Alert (TTS),\ud83c\udfb5 Suspicious Transaction (TTS),\ud83c\udfb5 Account Verification (TTS),\ud83c\udfb5 Password Reset Alert (TTS),\ud83c\udfb5 Password Reset Alert (TTS),\ud83d\udcce Upload New Audio,\ud83d\udcdd Use IVR Template,\u21a9\ufe0f Back,Back,Cancel\tto: 817673476"}
+{"timestamp": "2026-05-01T23:46:06.228663745Z", "severity": "info", "message": "  +14123666977"}
+{"timestamp": "2026-05-01T23:46:06.228669829Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:46:06.228671734Z", "severity": "info", "message": "  ... and 214 more"}
+{"timestamp": "2026-05-01T23:46:06.228688595Z", "severity": "info", "message": "\ud83c\udfb5 <b>Select IVR Audio</b>"}
+{"timestamp": "2026-05-01T23:46:06.228697343Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:46:06.228698948Z", "severity": "info", "message": "reply: \u2705 <b>219 leads loaded!</b>"}
+{"timestamp": "2026-05-01T23:46:06.228705380Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:46:06.228705924Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:46:06.228709078Z", "severity": "info", "message": "  +12818679089"}
+{"timestamp": "2026-05-01T23:46:06.228714018Z", "severity": "info", "message": "\ud83d\udcb0 <b>Estimated cost: $32.85</b> ($0.15/min per number, min 1 min each \u2014 charged whether answered or not)"}
+{"timestamp": "2026-05-01T23:46:06.228718293Z", "severity": "info", "message": "  +17134708204"}
+{"timestamp": "2026-05-01T23:46:06.228718347Z", "severity": "info", "message": "  +12814708204"}
+{"timestamp": "2026-05-01T23:46:06.228722231Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:46:06.228725642Z", "severity": "info", "message": "  +18324143133"}
+{"timestamp": "2026-05-01T23:46:13.339341489Z", "severity": "info", "message": "23:46:12 [CartRecovery] No pending nudges to recover"}
+{"timestamp": "2026-05-01T23:46:15.421342611Z", "severity": "info", "message": "[ProtectionEnforcer] \u2550\u2550\u2550 Starting enforcement run \u2550\u2550\u2550"}
+{"timestamp": "2026-05-01T23:46:15.424041002Z", "severity": "info", "message": "[BalanceMonitor] Running provider balance checks..."}
+{"timestamp": "2026-05-01T23:46:15.430701829Z", "severity": "info", "message": "[ProtectionEnforcer] registeredDomains: 44 entries"}
+{"timestamp": "2026-05-01T23:46:15.432528466Z", "severity": "info", "message": "[ProtectionEnforcer] domainsOf: 11 unique custom domains"}
+{"timestamp": "2026-05-01T23:46:15.440369685Z", "severity": "info", "message": "[ProtectionEnforcer] cpanelAccounts: 13 accounts"}
+{"timestamp": "2026-05-01T23:46:15.440374329Z", "severity": "info", "message": "[ProtectionEnforcer] Total unique domains: 55"}
+{"timestamp": "2026-05-01T23:46:15.646000334Z", "severity": "info", "message": "[BalanceMonitor] Telnyx: $10.51 USD [ok]"}
+{"timestamp": "2026-05-01T23:46:15.646003317Z", "severity": "info", "message": "[BalanceMonitor] Twilio: $7.16 USD [warning]"}
+{"timestamp": "2026-05-01T23:46:15.905283893Z", "severity": "info", "message": "[BalanceMonitor] WARNING alert sent for Twilio ($7.16)"}
+{"timestamp": "2026-05-01T23:46:16.354655658Z", "severity": "info", "message": "\ud83d\udce8 Telegram webhook received"}
+{"timestamp": "2026-05-01T23:46:16.354663532Z", "severity": "info", "message": "message: \ud83d\udcdd Use IVR Template\tfrom: 817673476 johngambino"}
+{"timestamp": "2026-05-01T23:46:16.354668637Z", "severity": "info", "message": "reply: \ud83d\udcdd <b>Generate Audio from Template</b>\\n\\nChoose a template category, or write your own custom script: \ud83d\udcb3 Payment Alerts,\ud83d\udd12 Account Security,\ud83d\udce6 Delivery & Service,\u270d\ufe0f Custom Script,\u21a9\ufe0f Back,Back,Cancel\tto: 817673476"}
+{"timestamp": "2026-05-01T23:46:16.354672541Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:46:36.031105607Z", "severity": "info", "message": "[ProtectionEnforcer] SKIP: cap1online360.com \u2014 user disabled Anti-Red (antiRedOff=true)"}
+{"timestamp": "2026-05-01T23:46:36.031110603Z", "severity": "info", "message": "\ud83d\udce8 Telegram webhook received"}
+{"timestamp": "2026-05-01T23:46:36.031115002Z", "severity": "info", "message": "message: \ud83d\udd12 Account Security\tfrom: 817673476 johngambino"}
+{"timestamp": "2026-05-01T23:46:36.031118832Z", "severity": "info", "message": "reply: Select a template: \ud83d\udd12 Account Verification,\ud83d\udd11 Password Reset Alert,\ud83d\udcf1 New Device Login,\u21a9\ufe0f Back,Back,Cancel\tto: 817673476"}
+{"timestamp": "2026-05-01T23:46:36.031124011Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:46:36.031128425Z", "severity": "info", "message": "[ProtectionEnforcer] SKIP: huntingtononlinebanking.it \u2014 user disabled Anti-Red (antiRedOff=true)"}
+{"timestamp": "2026-05-01T23:46:36.031132817Z", "severity": "info", "message": "\ud83d\udce8 Telegram webhook received"}
+{"timestamp": "2026-05-01T23:46:36.031136532Z", "severity": "info", "message": "message: \ud83d\udd12 Account Verification\tfrom: 817673476 johngambino"}
+{"timestamp": "2026-05-01T23:46:36.031140417Z", "severity": "info", "message": "reply: \ud83d\udccb <b>\ud83d\udd12 Account Verification</b>"}
+{"timestamp": "2026-05-01T23:46:36.031144198Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:46:36.031147863Z", "severity": "info", "message": "<i>\"This is [Company] security team. We have detected [Reason] on your account from [Location]. For your protection, your account access has been temporarily limited. Your case ID is [CaseID]. To verify your identity and restore full access, press 1. To call us back, dial [CallBack].\"</i>"}
+{"timestamp": "2026-05-01T23:46:36.031151814Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:46:36.031155272Z", "severity": "info", "message": "\ud83d\udd18 Active keys: <b>1</b> \tto: 817673476"}
+{"timestamp": "2026-05-01T23:46:36.031159084Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:46:36.031163340Z", "severity": "info", "message": "reply: "}
+{"timestamp": "2026-05-01T23:46:36.031166592Z", "severity": "info", "message": "Enter value for <b>[Company]</b>: Back,Cancel\tto: 817673476"}
+{"timestamp": "2026-05-01T23:46:36.031170107Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:46:36.031173371Z", "severity": "info", "message": "[ProtectionEnforcer] \u2550\u2550\u2550 Enforcement complete in 15.8s \u2550\u2550\u2550"}
+{"timestamp": "2026-05-01T23:46:36.031176875Z", "severity": "info", "message": "[ProtectionEnforcer] Total: 55 | Protected: 44 | Fixed: 0 | No Zone: 11 | Errors: 0 | DNS Cached: 29 | Zone Skipped: 0"}
+{"timestamp": "2026-05-01T23:46:56.028439016Z", "severity": "info", "message": "[CR-Whitelist] Outbound IP: 52.8.192.101"}
+{"timestamp": "2026-05-01T23:46:56.028445576Z", "severity": "info", "message": "[CR-Whitelist] API blocked \u2014 IP 52.8.192.101 needs whitelisting"}
+{"timestamp": "2026-05-01T23:46:56.028448797Z", "severity": "info", "message": "[CR-Whitelist] Retry #2 scheduled in 60s"}
+{"timestamp": "2026-05-01T23:47:45.814142308Z", "severity": "info", "message": "[UserWalletMonitor] Running periodic wallet scan (all users)..."}
+{"timestamp": "2026-05-01T23:47:45.814145164Z", "severity": "info", "message": "[ProtectionHeartbeat] Checking 13 cPanel accounts..."}
+{"timestamp": "2026-05-01T23:47:45.814152832Z", "severity": "info", "message": "[UserWalletMonitor] Scan complete: 207 wallets checked, 0 low-balance warnings sent, 154 welcome-only users skipped"}
+{"timestamp": "2026-05-01T23:47:47.679031302Z", "severity": "info", "message": "\ud83d\udce8 Telegram webhook received"}
+{"timestamp": "2026-05-01T23:47:47.679034637Z", "severity": "info", "message": "message: Five point credit union\tfrom: 817673476 johngambino"}
+{"timestamp": "2026-05-01T23:47:47.679040890Z", "severity": "info", "message": "reply: \u2705 Company: <b>Five point credit union</b>"}
+{"timestamp": "2026-05-01T23:47:47.679044585Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:47:47.679047966Z", "severity": "info", "message": "\ud83d\udccb <b>[Reason]</b> \u2014 Reason for the call"}
+{"timestamp": "2026-05-01T23:47:47.679051522Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:47:47.679054451Z", "severity": "info", "message": "Select from the list or type your own: fraud alert,account suspension,unusual activity,security verification,unauthorized transaction,identity confirmation,account review,payment dispute,\u270d\ufe0f Custom,Back,Cancel\tto: 817673476"}
+{"timestamp": "2026-05-01T23:47:47.679057865Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:47:47.679061062Z", "severity": "info", "message": "[AntiRed] CF IP Fix deployed for sbse8305 (replaces JS challenge, Worker handles bot detection)"}
+{"timestamp": "2026-05-01T23:47:47.679064593Z", "severity": "info", "message": "[ProtectionHeartbeat] REPAIRED sbse8305 (.user.ini+.antired-challenge.php): OK"}
+{"timestamp": "2026-05-01T23:47:49.684077112Z", "severity": "info", "message": "[ProtectionHeartbeat] DIAG retu7547: .user.ini=MISSING [(empty)] | .php=MISSING [(empty)]"}
+{"timestamp": "2026-05-01T23:47:50.702987854Z", "severity": "info", "message": "[AntiRed] CF IP Fix deployed for retu7547 (replaces JS challenge, Worker handles bot detection)"}
+{"timestamp": "2026-05-01T23:47:50.702993668Z", "severity": "info", "message": "[ProtectionHeartbeat] REPAIRED retu7547 (.user.ini+.antired-challenge.php): OK"}
+{"timestamp": "2026-05-01T23:47:51.139718978Z", "severity": "info", "message": "[CR-Whitelist] Outbound IP: 52.8.192.101"}
+{"timestamp": "2026-05-01T23:47:51.724870783Z", "severity": "info", "message": "[CR-Whitelist] API blocked \u2014 IP 52.8.192.101 needs whitelisting"}
+{"timestamp": "2026-05-01T23:47:51.724874306Z", "severity": "info", "message": "[CR-Whitelist] Retry #3 scheduled in 60s"}
+{"timestamp": "2026-05-01T23:47:55.777298849Z", "severity": "info", "message": "[ProtectionHeartbeat] DIAG claief8e: .user.ini=MISSING [(empty)] | .php=MISSING [(empty)]"}
+{"timestamp": "2026-05-01T23:47:56.337354108Z", "severity": "info", "message": "[AntiRed] CF IP Fix deployed for claief8e (replaces JS challenge, Worker handles bot detection)"}
+{"timestamp": "2026-05-01T23:47:56.337360455Z", "severity": "info", "message": "[ProtectionHeartbeat] REPAIRED claief8e (.user.ini+.antired-challenge.php): OK"}
+{"timestamp": "2026-05-01T23:48:02.007318798Z", "severity": "info", "message": "[ProtectionHeartbeat] Done in 16.6s \u2014 total:13 ok:10 repaired:3 errors:0"}
+{"timestamp": "2026-05-01T23:48:09.572686309Z", "severity": "info", "message": "\ud83d\udce8 Telegram webhook received"}
+{"timestamp": "2026-05-01T23:48:09.572692195Z", "severity": "info", "message": "message: unusual activity\tfrom: 817673476 johngambino"}
+{"timestamp": "2026-05-01T23:48:09.637996090Z", "severity": "info", "message": "reply: \u2705 Reason: <b>unusual activity</b>"}
+{"timestamp": "2026-05-01T23:48:09.638002690Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:48:09.638006819Z", "severity": "info", "message": "\ud83d\udccd <b>[Location]</b> \u2014 City, State"}
+{"timestamp": "2026-05-01T23:48:09.638012840Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:48:09.638017848Z", "severity": "info", "message": "<i>Example: Houston, Texas</i> Back,Cancel\tto: 817673476"}
+{"timestamp": "2026-05-01T23:48:09.638021839Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:48:29.640507062Z", "severity": "info", "message": "\ud83d\udce8 Telegram webhook received"}
+{"timestamp": "2026-05-01T23:48:29.640513370Z", "severity": "info", "message": "message: Brooklyn, New York\tfrom: 817673476 johngambino"}
+{"timestamp": "2026-05-01T23:48:29.640518203Z", "severity": "info", "message": "reply: \u2705 Location: <b>Brooklyn, New York</b>"}
+{"timestamp": "2026-05-01T23:48:29.640521695Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:48:29.640525379Z", "severity": "info", "message": "\ud83d\udd16 <b>[CaseID]</b> \u2014 Unique case reference"}
+{"timestamp": "2026-05-01T23:48:29.640530602Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:48:29.640533942Z", "severity": "info", "message": "Auto-generated: <b>CASE-175511</b>"}
+{"timestamp": "2026-05-01T23:48:29.640537342Z", "severity": "info", "message": "Tap to accept, regenerate, or type your own: \ud83d\udd16 CASE-175511,\ud83d\udd04 Regenerate,Back,Cancel\tto: 817673476"}
+{"timestamp": "2026-05-01T23:48:29.640540828Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:48:39.246427714Z", "severity": "info", "message": "\ud83d\udce8 Telegram webhook received"}
+{"timestamp": "2026-05-01T23:48:39.246430445Z", "severity": "info", "message": "message: \ud83d\udd16 CASE-175511\tfrom: 817673476 johngambino"}
+{"timestamp": "2026-05-01T23:48:39.619630772Z", "severity": "info", "message": "reply: \u2705 CaseID: <b>CASE-175511</b>"}
+{"timestamp": "2026-05-01T23:48:39.619634920Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:48:39.619638128Z", "severity": "info", "message": "\ud83d\udcde <b>[CallBack]</b> \u2014 Spoofed callback number"}
+{"timestamp": "2026-05-01T23:48:39.619641519Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:48:39.619644786Z", "severity": "info", "message": "Select your Nomadly number or type a custom number \ud83d\udcf1 +18884879051,\ud83d\udcf1 +18889233702,\u270d\ufe0f Custom Number,Back,Cancel\tto: 817673476"}
+{"timestamp": "2026-05-01T23:48:39.619647696Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:48:44.182912756Z", "severity": "info", "message": "\ud83d\udce8 Telegram webhook received"}
+{"timestamp": "2026-05-01T23:48:44.182917254Z", "severity": "info", "message": "message: \ud83d\udcf1 +18884879051\tfrom: 817673476 johngambino"}
+{"timestamp": "2026-05-01T23:48:44.239109463Z", "severity": "info", "message": "reply: \u2705 All values filled!\\n\\n\ud83c\udf99 <b>Select Voice Provider</b>\\n\\nChoose your TTS engine: \ud83d\udfe2 OpenAI \u2014 Best,\ud83d\udd35 ElevenLabs,\u21a9\ufe0f Back,Back,Cancel\tto: 817673476"}
+{"timestamp": "2026-05-01T23:48:44.239116013Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:48:48.205375204Z", "severity": "info", "message": "reply: \ud83c\udfa4 Voice: <b>Alloy</b>"}
+{"timestamp": "2026-05-01T23:48:48.205382081Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:48:48.205385887Z", "severity": "info", "message": "\ud83c\udf9a <b>Select Speaking Speed</b>"}
+{"timestamp": "2026-05-01T23:48:48.205389739Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:48:48.205393093Z", "severity": "info", "message": "Choose how fast the voice speaks: \ud83d\udc0c Very Slow (0.7x),\ud83d\udc22 Slow (0.85x),\ud83d\udeb6 Normal (1.0x),\ud83c\udfc3 Fast (1.15x),\u26a1 Very Fast (1.35x),\u270d\ufe0f Custom Speed,\u21a9\ufe0f Back,Back,Cancel\tto: 817673476"}
+{"timestamp": "2026-05-01T23:48:48.205396493Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:48:50.810497612Z", "severity": "info", "message": "\ud83d\udce8 Telegram webhook received"}
+{"timestamp": "2026-05-01T23:48:50.810500895Z", "severity": "info", "message": "message: \ud83d\udeb6 Normal (1.0x)\tfrom: 817673476 johngambino"}
+{"timestamp": "2026-05-01T23:48:50.889158128Z", "severity": "info", "message": "reply: \ud83c\udfa4 Voice: <b>Alloy</b> | \ud83c\udf9a Speed: <b>Normal</b>"}
+{"timestamp": "2026-05-01T23:48:50.889173066Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:48:50.889178694Z", "severity": "info", "message": "\u23f3 Generating audio... \tto: 817673476"}
+{"timestamp": "2026-05-01T23:48:50.889182960Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:48:51.718421630Z", "severity": "info", "message": "[CR-Whitelist] Outbound IP: 52.8.192.101"}
+{"timestamp": "2026-05-01T23:48:51.775273932Z", "severity": "info", "message": "[CR-Whitelist] API blocked \u2014 IP 52.8.192.101 needs whitelisting"}
+{"timestamp": "2026-05-01T23:48:51.775281441Z", "severity": "info", "message": "[CR-Whitelist] Retry #4 scheduled in 600s"}
+{"timestamp": "2026-05-01T23:49:01.374340554Z", "severity": "info", "message": "[TTS] Generated: tts_1777679340157_alloy.mp3 (provider: openai, voice: Alloy, 315 chars)"}
+{"timestamp": "2026-05-01T23:50:52.858739849Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:50:52.858761027Z", "severity": "info", "message": "[ResurrectionScan] No candidates to test"}
+{"timestamp": "2026-05-01T23:50:52.858763788Z", "severity": "info", "message": "\ud83d\udce8 Telegram webhook received"}
+{"timestamp": "2026-05-01T23:50:52.858768151Z", "severity": "info", "message": "message: \u2705 Use This Audio\tfrom: 817673476 johngambino"}
+{"timestamp": "2026-05-01T23:50:52.858771060Z", "severity": "info", "message": "[AudioLibrary] Saved metadata: Account Verification (TTS) (id: 731dc23e-c2f3-4ab5-9aff-fd6598db45f9) for chatId 817673476"}
+{"timestamp": "2026-05-01T23:50:52.858774639Z", "severity": "info", "message": "reply: \u2705 Audio saved: <b>Account Verification (TTS)</b>"}
+{"timestamp": "2026-05-01T23:50:52.858777711Z", "severity": "info", "message": "\ud83d\udd18 Active keys (from template): <b>1</b>"}
+{"timestamp": "2026-05-01T23:50:52.858780618Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:50:52.858783575Z", "severity": "info", "message": "\ud83d\udccb <b>Select Campaign Mode</b>"}
+{"timestamp": "2026-05-01T23:50:52.858786624Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:50:52.858789577Z", "severity": "info", "message": "\ud83d\udd17 <b>Transfer + Report</b> \u2014 When lead presses a key, bridge to your phone + always report"}
+{"timestamp": "2026-05-01T23:50:52.858792200Z", "severity": "info", "message": "\ud83d\udcca <b>Report Only</b> \u2014 Just track who pressed a key, no transfer + always report \ud83d\udd17 Transfer + Report,\ud83d\udcca Report Only,\u21a9\ufe0f Back,Back,Cancel\tto: 817673476"}
+{"timestamp": "2026-05-01T23:50:52.858794738Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:50:52.858798953Z", "severity": "info", "message": "\ud83d\udce8 Telegram webhook received"}
+{"timestamp": "2026-05-01T23:50:52.858802836Z", "severity": "info", "message": "message: \ud83d\udd17 Transfer + Report\tfrom: 817673476 johngambino"}
+{"timestamp": "2026-05-01T23:50:52.858806781Z", "severity": "info", "message": "reply: \ud83d\udd17 <b>Transfer Mode</b>\\n\\nEnter the number to transfer calls when lead presses the active key:\\n<i>(Your SIP number or any phone number)</i>\\n<i>Example: +41791234567</i> \u21a9\ufe0f Back,Back,Cancel\tto: 817673476"}
+{"timestamp": "2026-05-01T23:51:12.674357166Z", "severity": "info", "message": "\u26a1 <b>Set Concurrency</b>"}
+{"timestamp": "2026-05-01T23:51:12.674362383Z", "severity": "info", "message": "Default: <b>10</b> 5,10,15,20,\u21a9\ufe0f Back,Back,Cancel\tto: 817673476"}
+{"timestamp": "2026-05-01T23:51:12.674365628Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:51:12.674372656Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:51:12.674374571Z", "severity": "info", "message": "How many simultaneous calls? (1-20)"}
+{"timestamp": "2026-05-01T23:51:12.674379902Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:51:12.674388397Z", "severity": "info", "message": "Which keys trigger the transfer?"}
+{"timestamp": "2026-05-01T23:51:12.674403823Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:51:12.674410004Z", "severity": "info", "message": "Pick a preset or enter custom digits: 1 only,1 and 2,1, 2, and 3,0-9 (any key),\u270d\ufe0f Custom keys,\u21a9\ufe0f Back,Back,Cancel\tto: 817673476"}
+{"timestamp": "2026-05-01T23:51:12.674413898Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:51:12.674417616Z", "severity": "info", "message": "\ud83d\udce8 Telegram webhook received"}
+{"timestamp": "2026-05-01T23:51:12.674420819Z", "severity": "info", "message": "message: 0-9 (any key)\tfrom: 817673476 johngambino"}
+{"timestamp": "2026-05-01T23:51:12.674425062Z", "severity": "info", "message": "reply: \ud83d\udd18 Active keys: <b>0, 1, 2, 3, 4, 5, 6, 7, 8, 9</b>"}
+{"timestamp": "2026-05-01T23:51:12.674430149Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:51:12.674438459Z", "severity": "info", "message": "\ud83d\udce8 Telegram webhook received"}
+{"timestamp": "2026-05-01T23:51:12.674443148Z", "severity": "info", "message": "message: +18889082460\tfrom: 817673476 johngambino"}
+{"timestamp": "2026-05-01T23:51:12.674447569Z", "severity": "info", "message": "reply: \ud83d\udd17 Transfer to: <b>+18889082460</b>"}
+{"timestamp": "2026-05-01T23:51:12.674451079Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:51:12.674454959Z", "severity": "info", "message": "\ud83d\udd18 <b>Select Active Keys</b>"}
+{"timestamp": "2026-05-01T23:52:03.567744773Z", "severity": "info", "message": "\ud83d\udce8 Telegram webhook received"}
+{"timestamp": "2026-05-01T23:52:03.567748011Z", "severity": "info", "message": "message: 10\tfrom: 817673476 johngambino"}
+{"timestamp": "2026-05-01T23:52:03.567751223Z", "severity": "info", "message": "reply: \ud83d\udccb <b>Campaign Preview</b>"}
+{"timestamp": "2026-05-01T23:52:03.567754324Z", "severity": "info", "message": "\ud83d\udcf1 Caller ID: <b>+18884879051</b>"}
+{"timestamp": "2026-05-01T23:52:03.567757428Z", "severity": "info", "message": "\ud83d\udcde Leads: <b>219</b> (max 500)"}
+{"timestamp": "2026-05-01T23:52:03.567760510Z", "severity": "info", "message": "\ud83c\udfb5 Audio: <b>Account Verification (TTS)</b>"}
+{"timestamp": "2026-05-01T23:52:03.567763825Z", "severity": "info", "message": "\ud83d\udcca Mode: <b>\ud83d\udd17 Transfer + Report</b>"}
+{"timestamp": "2026-05-01T23:52:03.567767577Z", "severity": "info", "message": "\ud83d\udd17 Transfer to: <b>+18889082460</b>"}
+{"timestamp": "2026-05-01T23:52:03.567772137Z", "severity": "info", "message": "\u26a1 Concurrency: <b>10</b>"}
+{"timestamp": "2026-05-01T23:52:03.567776115Z", "severity": "info", "message": "\ud83d\udd18 Active keys: <b>0, 1, 2, 3, 4, 5, 6, 7, 8, 9</b>"}
+{"timestamp": "2026-05-01T23:52:03.567779756Z", "severity": "info", "message": "\ud83d\udcb0 <b>Rate: $0.15/min per number</b> (min 1 min, charged whether answered or not)"}
+{"timestamp": "2026-05-01T23:52:03.567783381Z", "severity": "info", "message": "\ud83d\udcb0 <b>Estimated cost: $32.85</b>"}
+{"timestamp": "2026-05-01T23:52:03.567786890Z", "severity": "info", "message": "Ready to launch? Tap <b>\ud83d\ude80 Launch Campaign</b> \ud83d\ude80 Launch Campaign,\u21a9\ufe0f Back,Back,Cancel\tto: 817673476"}
+{"timestamp": "2026-05-01T23:52:03.567791989Z", "severity": "info", "message": ""}
+{"timestamp": "2026-05-01T23:57:25.626054516Z", "severity": "info", "message": "Stopping Container"}
+{"timestamp": "2026-05-01T23:57:27.288730902Z", "severity": "error", "message": "npm error command sh -c node js/start-bot.js"}
+{"timestamp": "2026-05-01T23:57:27.288741183Z", "severity": "error", "message": "npm error A complete log of this run can be found in: /root/.npm/_logs/2026-05-01T23_45_40_210Z-debug-0.log"}
+{"timestamp": "2026-05-01T23:57:27.288815363Z", "severity": "error", "message": "npm error path /app"}
+{"timestamp": "2026-05-01T23:57:27.288827323Z", "severity": "error", "message": "npm error command failed"}
+{"timestamp": "2026-05-01T23:57:27.288830761Z", "severity": "error", "message": "npm error signal SIGTERM"}
