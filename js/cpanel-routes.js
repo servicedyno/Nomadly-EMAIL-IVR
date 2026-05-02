@@ -358,13 +358,27 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
       // User-level cPanel API2 failed — try WHM-level fallback (root can delete on behalf of user)
       const whmHost = req.whmHost || process.env.WHM_HOST
       const whmToken = process.env.WHM_TOKEN
+      // Route through the WHM tunnel when the account lives on the default
+      // shared server — direct IP:2087 is firewalled by the DO lockdown, same
+      // regression that broke @ciroovblzz's file listing. Resellers on their
+      // own box still get direct access via their custom hostname.
+      const whmApiUrl = process.env.WHM_API_URL
+      const whmBaseURL = (whmApiUrl && whmHost === process.env.WHM_HOST)
+        ? `${whmApiUrl.replace(/\/+$/, '')}/json-api`
+        : `https://${whmHost}:2087/json-api`
       if (whmHost && whmToken) {
         log(`[Panel] Delete user-level failed for ${file}, trying WHM fallback (user: ${req.cpUser}, reason: ${result?.errors?.[0] || 'unknown'})`)
         const https = require('https')
         const axios = require('axios')
         const whmApi = axios.create({
-          baseURL: `https://${whmHost}:2087/json-api`,
-          headers: { Authorization: `whm ${process.env.WHM_USERNAME || 'root'}:${whmToken}` },
+          baseURL: whmBaseURL,
+          headers: {
+            Authorization: `whm ${process.env.WHM_USERNAME || 'root'}:${whmToken}`,
+            ...(process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET ? {
+              'CF-Access-Client-Id': process.env.CF_ACCESS_CLIENT_ID,
+              'CF-Access-Client-Secret': process.env.CF_ACCESS_CLIENT_SECRET,
+            } : {}),
+          },
           timeout: 30000,
           httpsAgent: new https.Agent({ rejectUnauthorized: false }),
         })
@@ -1987,10 +2001,23 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
           try {
             const WHM_HOST = req.whmHost || process.env.WHM_HOST
             const WHM_TOKEN = process.env.WHM_TOKEN
+            // Route through the WHM tunnel for the default server — direct
+            // IP:2087 is firewalled. Same fix as the delete fallback / panel
+            // UAPI paths (@ciroovblzz regression report).
+            const whmApiUrl = process.env.WHM_API_URL
+            const whmBaseURL = (whmApiUrl && WHM_HOST === process.env.WHM_HOST)
+              ? `${whmApiUrl.replace(/\/+$/, '')}/json-api`
+              : `https://${WHM_HOST}:2087/json-api`
             if (WHM_HOST && WHM_TOKEN) {
               const whmApi = require('axios').create({
-                baseURL: `https://${WHM_HOST}:2087/json-api`,
-                headers: { Authorization: `whm ${process.env.WHM_USERNAME || 'root'}:${WHM_TOKEN}` },
+                baseURL: whmBaseURL,
+                headers: {
+                  Authorization: `whm ${process.env.WHM_USERNAME || 'root'}:${WHM_TOKEN}`,
+                  ...(process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET ? {
+                    'CF-Access-Client-Id': process.env.CF_ACCESS_CLIENT_ID,
+                    'CF-Access-Client-Secret': process.env.CF_ACCESS_CLIENT_SECRET,
+                  } : {}),
+                },
                 timeout: 30000,
                 httpsAgent: new (require('https').Agent)({ rejectUnauthorized: false }),
               })

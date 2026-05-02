@@ -7,40 +7,49 @@
 - MongoDB (port 27017)
 
 
-## ✅ @ciroovblzz Production Bug — Transient-Error Soft-Landing (May 2, 2026)
+## ✅ @ciroovblzz Production Bug — Tunnel Routing + Transient-Error UX (May 2, 2026)
 
-### Scope
-Production report: Telegram Mini-App user saw a raw `timeout of 30000ms exceeded` error banner right after logging into the hosting panel, and an upload of `netflix - @ciroovblzz.rar` (4.1 MB) "spun forever" before silently claiming success. Railway logs for deployment `7be32cd6` confirmed sporadic WHM/UAPI timeouts (not a sustained outage) — adjacent calls succeeded within seconds.
+### Root cause (confirmed in Railway logs + pod curl)
+DO firewall lockdown closed direct ports 2083/2087 on origin IP `209.38.241.9`, but every `cpanelAccounts` document stored `whmHost = 209.38.241.9` (set by `CpanelMigration`). The `getBaseUrl(host)` helper only used the CF tunnel (`CPANEL_API_URL=https://cpanel-api.hostbay.io`) when `host` was falsy — so every authenticated panel request built `https://209.38.241.9:2083/execute/...` and hit the firewall. Result: "folder is empty" in panel while the site itself served files fine (HTTP 80/443 goes through a different CF Worker path unaffected by the lockdown).
 
-### Root causes (by layer)
-| # | Layer | Issue |
-|---|-------|-------|
-| 1 | Node proxy (`js/cpanel-proxy.js`) | No retry for idempotent reads — a single WHM blip surfaced to the user |
-| 2 | Frontend `FileManager.js` | `fetchFiles` used raw axios error strings verbatim in the banner |
-| 3 | Frontend `FileManager.js` | Small-file upload path never inspected `res.errors[]`, so cPanel failures returned as HTTP 200 looked like successes |
-| 4 | Frontend `FileManager.js` | Upload progress was static — no feedback over the 120s upload timeout |
+Direct curl from Railway confirmed:
+- `cpanel-api.hostbay.io` tunnel → HTTP 200 in 300 ms ✅
+- `whm-api.hostbay.io` tunnel → HTTP 200 in 500 ms ✅
+- `209.38.241.9:2083` direct → timeout after 5 s ❌
+- `209.38.241.9:2087` direct → timeout after 5 s ❌
 
-### Changes
-- **`js/cpanel-proxy.js`** — single 500 ms retry on `ECONNABORTED` / `ETIMEDOUT` / `timeout of Nms` for IDEMPOTENT UAPI reads only (`Fileman::list_files`, `DomainInfo::list_domains`, `DomainInfo::domains_data`, `DomainInfo::single_domain_data`, `SSL::installed_hosts`, `StatsBar::get_stats`, `Quota::get_quota_info`, `Fileman::get_file_content`). Mutations (upload, delete, mkdir, email_add_pop…) never retry.
-- **`frontend/src/components/panel/shared/cpanelErrors.js`** — NEW shared helper exporting `pickErrorMessage()` / `friendlyMessage()` / `isTransientError()`. Maps raw axios/Node error codes to localized i18n keys (`errors.cpanelSlow`, `errors.cpanelUnreachable`, `errors.cpanelDown`).
-- **`FileManager.js`**
-  - Uses shared helper for list + upload errors
-  - Non-chunked upload now inspects `res.errors?.length || res.code === 'CPANEL_DOWN'` and throws — no more silent fake-successes
-  - New `uploadElapsed` state + interval → progress shows `· 0:23` counter; after 30 s a calm `fm-upload-slow` banner surfaces `errors.uploadSlow` copy
-  - Error banner gets a `Try Again` button (`data-testid="fm-error-retry"`) when error is transient and file list is empty
-- **`DomainList.js`** — same friendly-error mapping + `Try Again` button (`dl-error-retry`)
-- **i18n** — added `errors.cpanelSlow`, `errors.cpanelUnreachable`, `errors.retry`, `errors.uploadSlow` to en.json, fr.json, hi.json, zh.json
+### Fixes
+**A. Tunnel routing (root cause) — `js/cpanel-proxy.js`**
+```js
+// Now routes through the tunnel whenever host equals the default WHM_HOST
+if (CPANEL_API_URL && (!host || host === WHM_HOST)) return CPANEL_API_URL
+```
+Resellers on a genuinely different WHM box still get direct routing.
 
-### Tests — 14/14 ✅
-- **Backend** `js/tests/test_cpanel_proxy_retry.js` — 4 cases (retry fires, mutations don't retry, list_domains retries, persistent timeout caps at 2 attempts)
-- **Frontend helper** `frontend/tests/test_cpanel_errors_helper.js` — 10 cases (axios timeouts, connection errors, CPANEL_DOWN localization, permanent-error passthrough, transience detection)
-- **UI smoke** — preview panel login page renders cleanly (screenshot verified, no console errors)
+**B. WHM fallback paths — `js/cpanel-routes.js`**
+Two axios instances (delete fallback line 366-ish, visitor-captcha auto-prepend line 2010-ish) now prefer `WHM_API_URL/json-api` when `whmHost === WHM_HOST`, and forward `CF-Access-Client-Id/Secret` headers when set.
+
+**C. Transient-error soft-landing (same session, before root-cause was found)**
+- `js/cpanel-proxy.js` — single 500 ms retry on `ECONNABORTED`/`ETIMEDOUT` for idempotent reads ONLY (`Fileman::list_files`, `DomainInfo::list_domains`, `DomainInfo::domains_data`, `DomainInfo::single_domain_data`, `SSL::installed_hosts`, `StatsBar::get_stats`, `Quota::get_quota_info`, `Fileman::get_file_content`). Mutations never retry.
+- `frontend/src/components/panel/shared/cpanelErrors.js` — NEW helper: `pickErrorMessage()` / `friendlyMessage()` / `isTransientError()` mapping raw axios strings → localized i18n keys.
+- `FileManager.js`: friendly errors, Try Again button on transient errors, uploadElapsed timer (`· 0:23`), 30 s slow-upload banner, non-chunked upload now inspects `res.errors[]` (no more fake successes).
+- `DomainList.js`: same friendly errors + Retry.
+- 4 locales — `errors.cpanelSlow` / `errors.cpanelUnreachable` / `errors.retry` / `errors.uploadSlow`.
+
+### Tests — 18/18 ✅
+- `js/tests/test_cpanel_proxy_retry.js` — 4 cases (retry fires, mutations don't retry, list_domains retries, persistent timeout caps at 2 attempts)
+- `js/tests/test_cpanel_tunnel_routing.js` — 4 cases (tunnel for null host; tunnel for `host === WHM_HOST`; direct for reseller; upload honors same rules)
+- `frontend/tests/test_cpanel_errors_helper.js` — 10 cases (axios timeouts, connection errors, CPANEL_DOWN localization, permanent-error passthrough, transience detection)
 
 ### Deployment
-Local-only commit (per user request). No env-var changes. Rollback = revert commits touching `cpanel-proxy.js`, `FileManager.js`, `DomainList.js`, `shared/cpanelErrors.js`, and the 4 locale JSON files.
+Local-only commits (per user request). No env-var changes. Rollback = revert 2 JS backend files + 2 frontend components + shared helper + 4 locales.
+
+### Follow-up backlog (LOW priority — log noise only, doesn't affect users)
+Several internal services still hardcode `https://${WHM_HOST}:2087` and timeout every cycle:
+- `js/protection-heartbeat.js:28`, `js/hosting-health-check.js:30`, `js/cpanel-migration.js:83,146`, `js/whm-service.js:242`
 
 ### Detailed write-up
-See `/app/CIROOVBLZZ_PROD_BUG_REPORT.md` for the full timeline, log excerpts, and before/after user-facing behaviour table.
+See `/app/CIROOVBLZZ_PROD_BUG_REPORT.md`.
 
 
 ## ✅ FileManager Refactor — Sub-components + useHotkeys hook (May 2, 2026 — same session)

@@ -81,10 +81,19 @@ function _adminAlertDown(reason, host) {
 // ─── Helpers ────────────────────────────────────────────
 
 function getBaseUrl(host) {
-  // If a custom (tunnel) URL is configured AND the caller didn't pass a
-  // per-customer reseller `host`, route through the tunnel hostname.
-  // Per-customer hosts (e.g. resellers on different WHM boxes) still go direct.
-  if (CPANEL_API_URL && !host) return CPANEL_API_URL
+  // Route every call for the default/shared WHM server through the CF tunnel
+  // (`CPANEL_API_URL`, e.g. https://cpanel-api.hostbay.io) when one is
+  // configured. This is critical: the DO firewall lockdown blocks direct
+  // access to the origin IP on port 2083, so accounts whose stored
+  // `whmHost` equals the default `WHM_HOST` MUST be normalised onto the
+  // tunnel — otherwise the UAPI call times out silently and the panel shows
+  // "This folder is empty" (see @ciroovblzz production report where the
+  // website served files fine but /files returned nothing because
+  // Fileman::list_files couldn't reach 209.38.241.9:2083).
+  //
+  // Only resellers on a genuinely DIFFERENT WHM box get direct routing —
+  // those servers aren't behind our tunnel.
+  if (CPANEL_API_URL && (!host || host === WHM_HOST)) return CPANEL_API_URL
   const effectiveHost = host || WHM_HOST
   return `https://${effectiveHost}:${CPANEL_PORT}`
 }
