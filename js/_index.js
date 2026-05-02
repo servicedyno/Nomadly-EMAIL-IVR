@@ -1243,6 +1243,66 @@ function scheduleSupportSlaNudge(chatId, displayName, openedTs, delayMs = 10 * 6
   } catch (e) { log('[Support] scheduleSupportSlaNudge error: ' + e.message) }
 }
 
+// ─── Post-activation nudge ──────────────────────────────────
+// After a Cloud IVR number is activated (any payment path), users historically
+// had to drill 4 levels (Cloud IVR + SIP → My Plans → [number] → 🔑 SIP
+// Credentials → 👁️ Reveal Password) to see their SIP password. Support log
+// analysis for @LBHAND23 (May 2026) showed this caused repeated confusion and
+// two support tickets per user on average.
+//
+// This helper is called immediately AFTER the activation confirmation message
+// to:
+//   1. Pre-seed session state with `cpActiveNumber` + `action = cpManageNumber`
+//      so the keyboard-based 🔑 SIP Credentials handler (in the main action
+//      dispatcher) works on first tap with zero additional navigation.
+//   2. Surface 🔑 SIP Credentials as the PRIMARY call-to-action via a reply
+//      keyboard on a short localized "next step" message.
+//
+// Resilient to partial state: if the user's number doc isn't yet persisted in
+// `phoneNumbersOf[chatId].numbers`, we still set the nudge based on the
+// phoneNumber string — when the 🔑 SIP Credentials handler resolves `num` from
+// state it'll hit `cpActiveNumber.phoneNumber` and look it up live.
+const postActivationNudge = async (chatId, phoneNumber, planName) => {
+  try {
+    const userData = await get(phoneNumbersOf, chatId)
+    const numberDoc =
+      userData?.numbers?.find(n => n?.phoneNumber === phoneNumber)
+      || { phoneNumber } // fall-back shim; SIP cred handler re-hydrates from DB
+
+    // Write state atomically so the next message arrives in the right context.
+    await setFields(state, chatId, {
+      cpActiveNumber: numberDoc,
+      action: 'cpManageNumber',
+    })
+
+    const info = await get(state, chatId)
+    const lang = info?.userLanguage || 'en'
+    const pc = phoneConfig.getBtn(lang)
+
+    // Localized "next step" copy — concise, actionable, one tap to SIP creds.
+    const body = ({
+      en: `🎯 <b>Next step — grab your SIP credentials</b>\n\nTap <b>${pc.sipCredentials}</b> below to reveal your SIP username / password and get your softphone or browser calling page up and running in under a minute.`,
+      fr: `🎯 <b>Prochaine étape — récupérez vos identifiants SIP</b>\n\nAppuyez sur <b>${pc.sipCredentials}</b> ci-dessous pour afficher votre nom d'utilisateur et mot de passe SIP et démarrer votre softphone ou page d'appel en moins d'une minute.`,
+      hi: `🎯 <b>अगला कदम — अपने SIP क्रेडेंशियल्स प्राप्त करें</b>\n\nअपना SIP उपयोगकर्ता नाम / पासवर्ड दिखाने और एक मिनट में सॉफ्टफोन या ब्राउज़र कॉलिंग शुरू करने के लिए नीचे <b>${pc.sipCredentials}</b> पर टैप करें।`,
+      zh: `🎯 <b>下一步 — 获取您的 SIP 凭据</b>\n\n点击下方的 <b>${pc.sipCredentials}</b> 查看您的 SIP 用户名 / 密码，几秒内即可在软电话或浏览器通话页面上线。`,
+    })[lang] || ({
+      en: `🎯 <b>Next step — grab your SIP credentials</b>\n\nTap <b>${pc.sipCredentials}</b> below to reveal your SIP username / password.`,
+    }).en
+
+    // Reply keyboard puts SIP Credentials as the top button — one tap away.
+    // Include Test My Number and Back so the user has the common quick actions.
+    return sendMessage(chatId, body, k.of([
+      [pc.sipCredentials],
+      [pc.testMyNumber, pc.callForwarding],
+      [pc.back],
+    ]))
+  } catch (err) {
+    // Non-fatal — failure here must never break the activation flow itself.
+    log(`[postActivationNudge] failed for ${chatId}/${phoneNumber}: ${err.message}`)
+  }
+}
+
+
 
 // Mask username: show first 2 chars + ***
 const maskName = name => {
@@ -2813,6 +2873,7 @@ async function checkPendingBundles() {
               send(pb.chatId, (cpTxt.activated
                 ? cpTxt.activated(purchaseNumber, pb.planKey, pb.price, purchaseResult.sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(purchaseResult.expiresAt?.toISOString()))
                 : `✅ Your number <b>${purchaseNumber}</b> is now active!`) + replacementNote, { parse_mode: 'HTML' })
+              postActivationNudge(pb.chatId, purchaseNumber, pb.planKey)
               notifyAdmin(`✅ [BundleChecker] Auto-purchased number after bundle approval\nchatId: ${pb.chatId}\nnumber: ${purchaseNumber}${purchaseNumber !== pb.selectedNumber ? ` (replacement for ${pb.selectedNumber})` : ''}\nbundle: ${pb.bundleSid}`)
               log(`[BundleChecker] ✅ Number ${purchaseNumber} purchased for chatId=${pb.chatId}`)
             }
@@ -5464,6 +5525,25 @@ bot?.on('message', msg => {
 
   let action = info?.action
   const cpTxt = phoneConfig.getTxt(info?.userLanguage || 'en')
+
+  // ── IVR campaign resume after deposit ──────────────────────────────
+  // If the user built an outbound IVR campaign, hit the wallet-insufficient
+  // gate, deposited funds, then came back and typed `/yes` (or `/cancel`),
+  // their `action` may have been reset by the deposit flow or a menu
+  // navigation. Because `ivrObData` IS persisted in MongoDB `state` across
+  // deploys and sessions, we can safely restore `action = ivrObCallPreview`
+  // on the fly so the existing `/yes` launch handler fires. Without this,
+  // users had to rebuild the campaign from scratch (observed for @LBHAND23
+  // 2026-05-02 — they re-entered destination, script, transfer, voice, and
+  // speed a second time).
+  if ((message === '/yes' || message === '/cancel') &&
+      info?.ivrObData?.pendingLaunchAfterDeposit &&
+      action !== 'ivrObCallPreview') {
+    log(`[IVR-Resume] restoring ivrObCallPreview state for ${chatId} (prev action: ${action || 'none'})`)
+    await set(state, chatId, 'action', 'ivrObCallPreview')
+    action = 'ivrObCallPreview'
+    info = await get(state, chatId)
+  }
 
   // ── Cart Abandonment Tracking ──
   // If user was at a payment screen and now sends Back/Cancel, record abandonment
@@ -8679,12 +8759,14 @@ Enter new value:`), bc)
             phoneConfig.SIP_DOMAIN,
             phoneConfig.shortDate(result.expiresAt.toISOString())
           ), trans('o'))
+          postActivationNudge(chatId, selectedNumber, planKey)
         } else {
           send(chatId, cpTxt.activated(
             selectedNumber, result.plan?.name || planKey, price, sipUsername,
             phoneConfig.SIP_DOMAIN,
             phoneConfig.shortDate(result.expiresAt.toISOString())
           ), trans('o'))
+          postActivationNudge(chatId, selectedNumber, result.plan?.name || planKey)
         }
       } else {
         // ── TELNYX PURCHASE FLOW ──
@@ -8807,6 +8889,7 @@ Enter new value:`), bc)
           const activatedMsg = cpTxt.activated(selectedNumber, plan.name, price, sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(expiresAt.toISOString())) + 
             `\n\n<b>Transaction ID:</b> <code>${txnId}</code>\n<i>Quote this ID when contacting support</i>`
           send(chatId, activatedMsg, trans('o'))
+          postActivationNudge(chatId, selectedNumber, plan.name)
           notifyGroup(cpTxt.adminPurchase(maskName(name), selectedNumber, plan.name, price, coin === u.usd ? 'Wallet USD' : 'Wallet USD'), cpTxt.adminPurchasePrivate(adminUserTag(name, chatId), selectedNumber, plan.name, price, coin === u.usd ? 'Wallet USD' : 'Wallet USD'))
         }
       }
@@ -18869,7 +18952,15 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === a.ivrObCallPreview) {
-    if (message === 'Cancel' || isCancelPress(message)) return goto.submenu5()
+    if (message === 'Cancel' || isCancelPress(message)) {
+      // Explicit cancel also clears any pending-deposit resume flag so a
+      // future unrelated /yes doesn't unexpectedly restore this preview.
+      if (info?.ivrObData?.pendingLaunchAfterDeposit) {
+        const cleared = { ...info.ivrObData, pendingLaunchAfterDeposit: false }
+        await saveInfo('ivrObData', cleared)
+      }
+      return goto.submenu5()
+    }
     if (isBackPress(message)) {
       // Back → audio preview / hold music toggle
       await set(state, chatId, 'action', a.ivrObAudioPreview)
@@ -18909,12 +19000,26 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
         const IVR_MIN_WALLET = parseFloat(process.env.BULK_CALL_MIN_WALLET || '50')
         const walletCheck = await smartWalletCheck(walletOf, chatId, IVR_MIN_WALLET)
         if (!walletCheck.sufficient) {
+          // Mark campaign as awaiting deposit so the deposit-confirmed hook
+          // can restore this exact preview state and let `/yes` resume the
+          // launch without forcing the user to rebuild the campaign.
+          // This fixes the session-state-loss bug reported for @LBHAND23 on
+          // 2026-05-02 (see scripts/analyze_railway_12h.py logs).
+          ivrObData.pendingLaunchAfterDeposit = true
+          await saveInfo('ivrObData', ivrObData)
           const depositLabel = ({ en: '➕💵 Deposit', fr: '➕💵 Déposer', zh: '➕💵 充值', hi: '➕💵 जमा' }[lang] || '➕💵 Deposit')
           return send(chatId, trans('t.cp_117', IVR_MIN_WALLET.toFixed(2), walletCheck.usdBal.toFixed(2)), k.of([[depositLabel], ['Cancel']]))
         }
       }
 
       // Notify: calling
+      // Clear the post-deposit resume flag now that the launch is firing —
+      // otherwise a failed launch + deposit-topup + /yes could loop the user
+      // back into a stale preview.
+      if (ivrObData.pendingLaunchAfterDeposit) {
+        ivrObData.pendingLaunchAfterDeposit = false
+        await saveInfo('ivrObData', ivrObData)
+      }
       send(chatId, ivrOb.formatCallNotification('calling', ivrObData))
 
       // Place the call — detect provider to use correct API (Telnyx or Twilio)
@@ -27671,6 +27776,7 @@ const bankApis = {
                 return res.send(html(phoneConfig.getMsg(lang).purchaseFailed))
               }
               sendMessage(chatId, cpTxt.activated(selectedNumber, result.plan?.name || planKey, price, result.sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(result.expiresAt.toISOString())))
+          postActivationNudge(chatId, selectedNumber, result.plan?.name || planKey)
               return res.send(html())
             } else {
               // No approved bundle — redirect to address/bundle flow
@@ -27693,6 +27799,7 @@ const bankApis = {
             return res.send(html(phoneConfig.getMsg(lang).purchaseFailed))
           }
           sendMessage(chatId, cpTxt.activated(selectedNumber, result.plan?.name || planKey, price, result.sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(result.expiresAt.toISOString())))
+          postActivationNudge(chatId, selectedNumber, result.plan?.name || planKey)
           return res.send(html())
         } else {
           // Need address — save state, prompt user
@@ -27716,6 +27823,7 @@ const bankApis = {
         return res.send(html(phoneConfig.getMsg(lang).purchaseFailed))
       }
       sendMessage(chatId, cpTxt.activated(selectedNumber, result.plan?.name || planKey, price, result.sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(result.expiresAt.toISOString())))
+          postActivationNudge(chatId, selectedNumber, result.plan?.name || planKey)
       return res.send(html())
       } catch (purchaseErr) {
         log(`[CloudPhone] ❌ Bank/Twilio purchase crashed for ${chatId}: ${purchaseErr?.message || purchaseErr}`)
@@ -27790,11 +27898,15 @@ const bankApis = {
     const activatedMsg = cpTxt.activated(selectedNumber, plan.name, price, sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(expiresAt.toISOString())) + 
       `\n\n<b>Transaction ID:</b> <code>${txnId}</code>\n<i>Quote this ID when contacting support</i>`
     sendMessage(chatId, activatedMsg)
+    // postActivationNudge both sends the "tap SIP Credentials" follow-up AND
+    // writes action = cpManageNumber so the button works on first tap. Previous
+    // code force-reset action to 'none' right after — that would now wipe our
+    // nudge state. Skip the reset; nudge sets the right action end-state.
+    await postActivationNudge(chatId, selectedNumber, plan.name)
     notifyGroup(cpTxt.adminPurchase(maskName(name), selectedNumber, plan.name, price, 'Bank NGN'), cpTxt.adminPurchasePrivate(adminUserTag(name, chatId), selectedNumber, plan.name, price, 'Bank NGN'))
     webhookTierCheck(chatId, preSpend, lang)
     if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
     if (userConversion) userConversion.markPurchased(chatId)
-    await set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
   },
   '/bank-pay-leads': async (req, res, ngnIn) => {
@@ -28623,6 +28735,7 @@ app.get('/crypto-pay-phone', auth, async (req, res) => {
             const result = await executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, info?.cpNumberType || 'local', 'crypto_' + coin, cachedAddr, null, approvedBundle.bundleSid)
             if (result.error) { addFundsTo(walletOf, chatId, 'usd', Number(price), lang); return res.send(html(phoneConfig.getMsg(lang).purchaseFailed)) }
             sendMessage(chatId, cpTxt.activated(selectedNumber, result.plan?.name || planKey, price, result.sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(result.expiresAt.toISOString())))
+          postActivationNudge(chatId, selectedNumber, result.plan?.name || planKey)
             return res.send(html())
           } else {
             // No approved bundle — redirect to address/bundle flow
@@ -28638,6 +28751,7 @@ app.get('/crypto-pay-phone', auth, async (req, res) => {
         const result = await executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, info?.cpNumberType || 'local', 'crypto_' + coin, cachedAddr)
         if (result.error) { addFundsTo(walletOf, chatId, 'usd', Number(price), lang); return res.send(html(phoneConfig.getMsg(lang).purchaseFailed)) }
         sendMessage(chatId, cpTxt.activated(selectedNumber, result.plan?.name || planKey, price, result.sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(result.expiresAt.toISOString())))
+          postActivationNudge(chatId, selectedNumber, result.plan?.name || planKey)
         return res.send(html())
       } else {
         await state.updateOne({ _id: String(chatId) }, { $set: {
@@ -28652,6 +28766,7 @@ app.get('/crypto-pay-phone', auth, async (req, res) => {
     const result = await executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, info?.cpNumberType || 'local', 'crypto_' + coin, null)
     if (result.error) { addFundsTo(walletOf, chatId, 'usd', Number(price), lang); return res.send(html(phoneConfig.getMsg(lang).purchaseFailed)) }
     sendMessage(chatId, cpTxt.activated(selectedNumber, result.plan?.name || planKey, price, result.sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(result.expiresAt.toISOString())))
+          postActivationNudge(chatId, selectedNumber, result.plan?.name || planKey)
     return res.send(html())
     } catch (purchaseErr) {
       log(`[CloudPhone] ❌ BlockBee/Twilio purchase crashed for ${chatId}: ${purchaseErr?.message || purchaseErr}`)
@@ -28696,11 +28811,14 @@ app.get('/crypto-pay-phone', auth, async (req, res) => {
   await phoneTransactions.insertOne({ chatId, phoneNumber: selectedNumber, action: 'purchase', plan: planKey, amount: price, paymentMethod: 'crypto_' + coin, timestamp: new Date().toISOString() })
   await auditCryptoTx(chatId, 'phone-number', price, { phoneNumber: selectedNumber, plan: planKey, countryCode, provider: 'telnyx', coin, value, ref }, 'blockbee')
   sendMessage(chatId, cpTxt.activated(selectedNumber, plan.name, price, sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(expiresAt.toISOString())))
+  postActivationNudge(chatId, selectedNumber, plan.name)
   notifyGroup(cpTxt.adminPurchase(maskName(name), selectedNumber, plan.name, price, 'Crypto ' + coin), cpTxt.adminPurchasePrivate(adminUserTag(name, chatId), selectedNumber, plan.name, price, 'Crypto ' + coin))
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
-  await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
+  // NOTE: do NOT reset action to 'none' here — postActivationNudge() already
+  // set it to 'cpManageNumber' so the 🔑 SIP Credentials tap works on first
+  // press. Wiping it back to 'none' reintroduces the 4-level drill-down bug.
   res.send(html())
 })
 
@@ -29403,6 +29521,7 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
             const result = await executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, info?.cpNumberType || 'local', 'crypto_dynopay_' + coin, cachedAddr, null, approvedBundle.bundleSid)
             if (result.error) { addFundsTo(walletOf, chatId, 'usd', Number(price), lang); return res.send(html(phoneConfig.getMsg(lang).purchaseFailed)) }
             sendMessage(chatId, cpTxt.activated(selectedNumber, result.plan?.name || planKey, price, result.sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(result.expiresAt.toISOString())))
+          postActivationNudge(chatId, selectedNumber, result.plan?.name || planKey)
             // notifyGroup + admin already sent inside executeTwilioPurchase()
             return res.send(html())
           } else {
@@ -29419,6 +29538,7 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
         const result = await executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, info?.cpNumberType || 'local', 'crypto_dynopay_' + coin, cachedAddr)
         if (result.error) { addFundsTo(walletOf, chatId, 'usd', Number(price), lang); return res.send(html(phoneConfig.getMsg(lang).purchaseFailed)) }
         sendMessage(chatId, cpTxt.activated(selectedNumber, result.plan?.name || planKey, price, result.sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(result.expiresAt.toISOString())))
+          postActivationNudge(chatId, selectedNumber, result.plan?.name || planKey)
         // notifyGroup + admin already sent inside executeTwilioPurchase()
         return res.send(html())
       } else {
@@ -29434,6 +29554,7 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
     const result = await executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, info?.cpNumberType || 'local', 'crypto_dynopay_' + coin, null)
     if (result.error) { addFundsTo(walletOf, chatId, 'usd', Number(price), lang); return res.send(html(phoneConfig.getMsg(lang).purchaseFailed)) }
     sendMessage(chatId, cpTxt.activated(selectedNumber, result.plan?.name || planKey, price, result.sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(result.expiresAt.toISOString())))
+          postActivationNudge(chatId, selectedNumber, result.plan?.name || planKey)
     // notifyGroup + admin already sent inside executeTwilioPurchase()
     return res.send(html())
     } catch (purchaseErr) {
@@ -29479,6 +29600,7 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
   await phoneTransactions.insertOne({ chatId, phoneNumber: selectedNumber, action: 'purchase', plan: planKey, amount: price, paymentMethod: 'crypto_dynopay_' + coin, timestamp: new Date().toISOString() })
   await auditCryptoTx(chatId, 'phone-number', price, { phoneNumber: selectedNumber, plan: planKey, countryCode, provider: 'telnyx', coin, value, ref }, 'dynopay')
   sendMessage(chatId, cpTxt.activated(selectedNumber, plan.name, price, sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(expiresAt.toISOString())))
+  postActivationNudge(chatId, selectedNumber, plan.name)
   notifyGroup(cpTxt.adminPurchase(maskName(name), selectedNumber, plan.name, price, 'Crypto DynoPay'), cpTxt.adminPurchasePrivate(adminUserTag(name, chatId), selectedNumber, plan.name, price, 'Crypto DynoPay'))
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))

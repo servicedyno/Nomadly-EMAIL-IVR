@@ -2384,3 +2384,45 @@ User asked to finish the remaining ~57-string i18n pass on authenticated panel c
 
 ### Production impact
 Next deploy → 100% of the hosting panel renders in the user's language (fr / hi / zh). Previously >80% of authenticated panel text was English-only regardless of locale. From a user-perception standpoint this is the round that makes the panel actually feel internationalized — before, the login page was French but every post-login screen was English.
+
+
+## Fix A + Fix C — @LBHAND23 UX frictions (2026-05-02)
+
+User asked to fix the 2 UX frictions surfaced by the @LBHAND23 log analysis:
+A. SIP credentials buried 4 levels deep after purchase
+C. IVR campaign state lost between wallet-insufficient gate → deposit → retry
+
+### Fix A — Post-activation SIP credentials nudge
+- Added module-level `postActivationNudge(chatId, phoneNumber, planName)` helper in `js/_index.js` (near the existing `send` helper).
+- Sets `cpActiveNumber = <numberDoc>` + `action = 'cpManageNumber'` in MongoDB state so the next message lands in the per-number manage context — the 🔑 SIP Credentials button works on first tap.
+- Sends a localized follow-up message (en/fr/hi/zh) with `[[🔑 SIP Credentials], [🧪 Test My Number, 📞 Call Forwarding], [🏠 Back]]` reply keyboard.
+- Wired into all 16 `cpTxt.activated` call sites (wallet payment, crypto BTC, crypto alts, bank NGN, card, free trial, sub-number, re-purchase of expired, etc.) — every payment path now surfaces the nudge.
+- Removed 2 stray `await set(state, chatId, 'action', 'none')` lines that would have overwritten the nudge state (in bank-NGN + crypto webhook handlers).
+
+### Fix C — IVR campaign survives deposit flow
+- Wallet-insufficient branch at `/yes` now sets `ivrObData.pendingLaunchAfterDeposit = true` and persists via `saveInfo`. Critically: does **not** change `action`, so the ivrObCallPreview state is preserved for later recovery.
+- Added global pre-dispatch recovery check right after `action = info?.action` is read (line 5526): if user types `/yes` or `/cancel` AND `ivrObData.pendingLaunchAfterDeposit === true` AND current action isn't already `ivrObCallPreview`, force restore `action = ivrObCallPreview` and re-hydrate `info` before the handler dispatcher runs. Logs `[IVR-Resume]` for observability.
+- Flag is cleared in two places to prevent stale resume loops:
+  1. Successful launch — cleared right before the "calling" notification.
+  2. Explicit `Cancel` press from the preview screen.
+- `ivrObData` was already persisted to MongoDB `state` collection via `saveInfo` — no schema change needed, just the flag field addition.
+
+### Verification
+Test file: `js/tests/test_sip_nudge_and_ivr_resume.js` — **12 / 12 pass**
+- Fix A: state transitions (`action=cpManageNumber` + `cpActiveNumber.sipUsername` populated), plus orphan-user fallback shim when number doc isn't in `phoneNumbersOf` yet.
+- Fix C: full flow — build campaign → `/yes` → wallet gate sets flag → deposit flow resets action to 'none' → `/yes` recovers → preserves every field (targetNumber, ivrNumber/transfer, customScript, voice, speed) → launch clears flag.
+- Negative case: stray `/yes` without `pendingLaunchAfterDeposit` flag does NOT re-hijack state.
+
+Lint clean, bot boots cleanly ("Bot initialized with webhook support"), no regressions.
+
+### Production impact
+- Every new Cloud IVR user (post-deploy) will see "🎯 Next step — grab your SIP credentials" immediately after their number activates, with the 🔑 SIP Credentials button as the top reply-keyboard action. Should eliminate the 2-support-tickets-per-user pattern seen for @LBHAND23.
+- Any user who hits the wallet-insufficient gate during an outbound IVR launch, deposits funds, then returns and types `/yes` will land back in the preview screen with every field preserved — no rebuild required.
+
+### Files touched
+- MODIFIED: `js/_index.js` — new helper, 16 activation call sites wired, 2 `action='none'` resets removed, resume check added at main handler top, flag clear on launch + cancel.
+- NEW: `js/tests/test_sip_nudge_and_ivr_resume.js`
+
+### Still open (from @LBHAND23 report)
+- B. Wallet balance estimate shown only at final `/yes` — NOT fixed this round (user deferred).
+- D. Misleading `"number not found"` billing log — NOT fixed this round (user deferred).
