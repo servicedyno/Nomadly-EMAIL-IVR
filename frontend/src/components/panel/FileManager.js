@@ -572,6 +572,37 @@ export default function FileManager() {
     setImagePreview({ name, url });
   };
 
+  // Image gallery — list of all image files in current folder (sorted by name)
+  const imageGallery = visibleFiles.filter(f => {
+    const name = f.file || f.fullpath?.split('/').pop() || '';
+    return f.type !== 'dir' && isImage(name);
+  }).map(f => f.file || f.fullpath?.split('/').pop()).filter(Boolean);
+
+  const galleryIndex = imagePreview ? imageGallery.indexOf(imagePreview.name) : -1;
+  const hasPrev = galleryIndex > 0;
+  const hasNext = galleryIndex >= 0 && galleryIndex < imageGallery.length - 1;
+
+  const navGallery = (delta) => {
+    if (!imagePreview || imageGallery.length === 0) return;
+    const idx = galleryIndex + delta;
+    if (idx < 0 || idx >= imageGallery.length) return;
+    const name = imageGallery[idx];
+    const url = getPublicUrl(name, false);
+    if (url) setImagePreview({ name, url });
+  };
+
+  // Arrow-key navigation for image gallery
+  useEffect(() => {
+    if (!imagePreview) return;
+    const onKey = (e) => {
+      if (e.key === 'ArrowLeft' && hasPrev) { e.preventDefault(); navGallery(-1); }
+      else if (e.key === 'ArrowRight' && hasNext) { e.preventDefault(); navGallery(1); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [imagePreview, galleryIndex, hasPrev, hasNext]);
+
   const getPublicUrl = (fileName, isDirectory) => {
     const publicHtmlIndex = currentDir.indexOf('/public_html');
     if (publicHtmlIndex === -1) return null;
@@ -1326,13 +1357,47 @@ export default function FileManager() {
         <div className="fm-modal-overlay" data-testid="fm-img-modal" onClick={() => setImagePreview(null)}>
           <div className="fm-modal" onClick={(e) => e.stopPropagation()}>
             <div className="fm-modal-header">
-              <span>{imagePreview.name}</span>
+              <span data-testid="fm-img-modal-name">
+                {imagePreview.name}
+                {imageGallery.length > 1 && (
+                  <span className="fm-img-counter" data-testid="fm-img-counter">
+                    {galleryIndex + 1} / {imageGallery.length}
+                  </span>
+                )}
+              </span>
               <button onClick={() => setImagePreview(null)} className="fm-modal-close" data-testid="fm-img-modal-close">&times;</button>
             </div>
             <div className="fm-img-preview">
+              {hasPrev && (
+                <button
+                  className="fm-img-nav fm-img-nav--prev"
+                  onClick={() => navGallery(-1)}
+                  data-testid="fm-img-prev"
+                  aria-label="Previous image"
+                  title="Previous (←)"
+                >
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6"/></svg>
+                </button>
+              )}
               <img src={imagePreview.url} alt={imagePreview.name} data-testid="fm-img-modal-img" />
+              {hasNext && (
+                <button
+                  className="fm-img-nav fm-img-nav--next"
+                  onClick={() => navGallery(1)}
+                  data-testid="fm-img-next"
+                  aria-label="Next image"
+                  title="Next (→)"
+                >
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
+                </button>
+              )}
             </div>
             <div className="fm-modal-actions">
+              {imageGallery.length > 1 && (
+                <span style={{ marginRight: 'auto', fontSize: 11.5, color: 'var(--pv-text-muted)', fontFamily: 'var(--pv-font-mono)' }}>
+                  ← / → to navigate
+                </span>
+              )}
               <a href={imagePreview.url} target="_blank" rel="noopener noreferrer" className="fm-btn fm-btn--ghost" data-testid="fm-img-open-tab">
                 Open in tab
               </a>

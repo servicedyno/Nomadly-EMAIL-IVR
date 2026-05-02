@@ -7,6 +7,41 @@
 - MongoDB (port 27017)
 
 
+## ✅ Hosting Panel V2 — Tab Re-skins + Image Gallery Navigation (May 2, 2026 — same session)
+
+### Scope
+Redesigned all remaining hosting-panel tabs (DomainList, EmailManager, SecurityPanel, Analytics, GeoManager, AccountSettings) to the V2 "Sunset Coral & Deep Indigo" design system. Added ←/→ gallery navigation to the FileManager image-preview modal.
+
+### Tab re-skins (`/app/frontend/src/panel-v2.css`, +710 lines)
+All component-specific class trees (`.dl-*`, `.em-*`, `.sec-*`, `.an-*`, `.geo-*`, `.acct-*`) now use V2 CSS variables, IBM Plex Sans + JetBrains Mono fonts, coral/indigo accents, gradient card icons, and consistent `:hover` lift micro-interactions. Light-mode parity bumps appended at the bottom for backgrounds where the legacy `.panel-light .*` (2-class) rules would otherwise win.
+
+Highlights:
+- **Domains**: bold header with action row, coral-bordered primary cards, monospace domain names + docroot, badge color system (NS active=success / pending=warn / unknown=danger / SSL+CF=indigo), pill-shaped captcha toggle
+- **Email**: gradient account-card icons, focus-within ring on email input, glassmorphism test modal, coral "Send Test" CTA
+- **Security**: section cards with header borders, color-coded status pills (ok / warn / danger / disabled)
+- **Analytics**: stat cards with coral→indigo gradient strip + bold numerals, period toggle with coral-active state, gradient bar charts, table rows with progress bars
+- **Geo Cloak**: country-code chips with coral-selected state in a scrollable grid
+- **Account**: gradient card icons with danger variant, danger-bordered "Cancel" card with confirm box (animated slide-down), warn-list bullets
+
+### Image gallery navigation (`/app/frontend/src/components/panel/FileManager.js`)
+- `imageGallery` array auto-built from visible image files (sorted by name)
+- Counter chip "X / Y" in modal header (`data-testid='fm-img-counter'`)
+- Floating circular `←` / `→` buttons (`fm-img-prev` / `fm-img-next`, `data-testid` matching) — shown only when prev/next exists
+- Hover: scale-up + coral glow
+- Arrow-key listener: ArrowLeft/ArrowRight navigates one image; Esc still closes (existing handler)
+- "← / → to navigate" hint text in modal footer when gallery has > 1 image
+
+### Verification
+- Lint: clean (FileManager.js, panel-v2.css)
+- Compile: webpack OK
+- Smoke screenshots: all 7 tabs (Files / Domains / Email / Security / Geo / Analytics / Account) render with new V2 styles in dark mode
+- Note: WHM control plane is down in this pod, so domain/email/file lists are empty — visual structure verified, runtime data flows untouched
+
+### Files touched
+- `/app/frontend/src/panel-v2.css` — appended ~710 lines for `.dl-*`, `.em-*`, `.sec-*`, `.an-*`, `.geo-*`, `.acct-*` re-skins + image gallery navigation styles + light-mode parity bumps
+- `/app/frontend/src/components/panel/FileManager.js` — gallery state (`imageGallery`, `galleryIndex`, `hasPrev`, `hasNext`), `navGallery(delta)` function, ArrowLeft/ArrowRight useEffect listener, modal header counter chip + nav buttons + footer hint
+
+
 ## ✅ Hosting Panel V2 Redesign + Login Hardening + File Manager UX (May 2, 2026)
 
 ### User request
