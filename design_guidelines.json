@@ -1,0 +1,92 @@
+{
+  "theme_archetype": "Archetype 4 (Swiss & High-Contrast) + Technical Developer",
+  "visual_direction": "Sunset Coral & Deep Indigo. High contrast, sharp edges, distinct technical typography, surprise and delight micro-interactions.",
+  "color_system": {
+    "dark": {
+      "--bg-primary": "#05050A",
+      "--bg-panel": "#0A0A14",
+      "--bg-card": "#131323",
+      "--bg-card-hover": "#1C1C31",
+      "--border-subtle": "#26263B",
+      "--border-hover": "#3D3D5C",
+      "--text-primary": "#F4F4F9",
+      "--text-secondary": "#8B8B9F",
+      "--text-muted": "#5C5C70",
+      "--accent-coral": "#FF6B6B",
+      "--accent-indigo": "#6366F1",
+      "--emerald": "#34D399",
+      "--amber": "#FBBF24",
+      "--danger": "#FB7185",
+      "--selection-bg": "rgba(255, 107, 107, 0.15)"
+    },
+    "light": {
+      "--bg-primary": "#FAFAFC",
+      "--bg-panel": "#FFFFFF",
+      "--bg-card": "#F3F4F8",
+      "--bg-card-hover": "#E9EBF2",
+      "--border-subtle": "#E1E3EA",
+      "--border-hover": "#C8CBD6",
+      "--text-primary": "#0F0F1A",
+      "--text-secondary": "#5C5C70",
+      "--text-muted": "#8B8B9F",
+      "--accent-coral": "#E11D48",
+      "--accent-indigo": "#4F46E5",
+      "--emerald": "#059669",
+      "--amber": "#D97706",
+      "--danger": "#E11D48",
+      "--selection-bg": "rgba(225, 29, 72, 0.1)"
+    }
+  },
+  "typography_stack": {
+    "fonts": {
+      "display": "'IBM Plex Sans', system-ui, sans-serif",
+      "body": "'IBM Plex Sans', system-ui, sans-serif",
+      "mono": "'JetBrains Mono', 'Fira Code', monospace"
+    },
+    "hierarchy": {
+      "h1": "text-4xl (36px) font-bold tracking-tight",
+      "h2": "text-2xl (24px) font-semibold tracking-tight",
+      "h3": "text-lg (18px) font-semibold",
+      "body": "text-sm (14px) leading-relaxed",
+      "mono": "text-[13px] tracking-tight"
+    }
+  },
+  "layout_and_spacing": {
+    "login": "Split/Asymmetric focus: Bold center card with a heavy noise texture on the deep indigo root background. Login card uses generous p-10 padding.",
+    "dashboard_shell": "Top header with stark contrast. Sticky tab navigation below it using 'Control Room' tight spacing. Generous spacing (p-6) in the main container.",
+    "file_manager": "Bento-style file manager layout. Sticky toolbar. Dense table rows (py-3) with multi-select checkboxes on the left."
+  },
+  "micro_animations": {
+    "hover": "transform -translate-y-[1px] and slight shadow increase.",
+    "transition_tokens": "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+    "active_ring": "focus:outline-none focus:ring-2 focus:ring-[var(--accent-coral)]"
+  },
+  "glass_grain_depth_recipe": {
+    "glassmorphism": "backdrop-filter: blur(16px); background: rgba(var(--bg-card), 0.7); border: 1px solid var(--border-subtle); box-shadow: 0 8px 32px rgba(0,0,0,0.12);",
+    "noise_texture": "Use a subtle SVG noise filter overlay on the login background and dashboard header for a tactile, dev-tool feel.",
+    "depth": "Replace flat dark slate with layered depth. 1px solid inner strokes. Root bg -> Panel bg -> Card bg."
+  },
+  "component_recipes": {
+    "button_primary": "background: var(--accent-coral); color: white; font-weight: 600; border-radius: 8px; padding: 10px 16px; border-bottom: 2px solid rgba(0,0,0,0.2); transition: all 0.2s; hover: filter brightness(1.1); active: border-bottom-width: 0px; transform: translateY(2px);",
+    "button_ghost": "background: transparent; color: var(--text-secondary); border: 1px solid var(--border-subtle); hover: background: var(--bg-card); color: var(--text-primary);",
+    "button_danger": "background: rgba(var(--danger), 0.1); color: var(--danger); border: 1px solid rgba(var(--danger), 0.2); hover: background: var(--danger); color: white;",
+    "input_field": "background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 10px 14px; color: var(--text-primary); font-family: var(--font-mono); focus: border-color: var(--accent-coral); box-shadow: 0 0 0 2px rgba(var(--accent-coral), 0.2);",
+    "file_row": "border-bottom: 1px solid var(--border-subtle); padding: 12px 0; hover: background: var(--bg-card-hover); transition: background 0.2s. Checked state: background: var(--selection-bg);",
+    "action_chip": "background: var(--bg-card); border: 1px solid var(--border-subtle); color: var(--text-secondary); border-radius: 6px; padding: 6px 12px; font-size: 12px; font-weight: 500; hover: color: var(--accent-coral); border-color: var(--accent-coral);",
+    "modal": "Fixed center, glassmorphism overlay (background: rgba(0,0,0,0.6); backdrop-filter: blur(8px)). Modal content: background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: 16px; box-shadow: 0 24px 48px rgba(0,0,0,0.3); padding: 24px;",
+    "tab_nav": "background: transparent; color: var(--text-secondary); font-weight: 500; padding: 12px 20px; border-bottom: 2px solid transparent; hover: color: var(--text-primary); Active: border-color: var(--accent-coral); color: var(--accent-coral);",
+    "drop_overlay": "position: absolute; inset: 0; background: rgba(var(--accent-indigo), 0.1); backdrop-filter: blur(4px); border: 2px dashed var(--accent-indigo); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: var(--accent-indigo); font-weight: 600; font-size: 18px;"
+  },
+  "instructions_to_main_agent": [
+    "1. Read this entire JSON file carefully to understand the Sunset Coral + Deep Indigo design language.",
+    "2. Edit /app/frontend/src/App.css: Replace the generic `:root` and `.panel-light` variables with the exact hex codes provided in `color_system`.",
+    "3. Edit /app/frontend/src/App.css: Change font imports from DM Sans/Inter to `IBM Plex Sans` and `JetBrains Mono` from Google Fonts. Apply them across body and headings/paths.",
+    "4. Edit /app/frontend/src/App.css: Overhaul component classes (e.g. `.fm-btn--primary`, `.panel-input-group input`, `.panel-tab`) matching the `component_recipes` mapping.",
+    "5. Edit /app/frontend/src/pages/PanelLogin.js: Implement functional features: 6-digit PIN input with show/hide toggle, rate-limit countdown logic (on error), caps-lock indicator on username, and remember-username checkbox.",
+    "6. Edit /app/frontend/src/components/panel/FileManager.js: Add multi-select rows (add a checkbox column to the left). Create a bulk action toolbar when items are selected allowing bulk delete/move.",
+    "7. Edit /app/frontend/src/components/panel/FileManager.js: Implement live folder search/filter (add an input field in `fm-toolbar` that filters the mapped `files` array by name).",
+    "8. Edit /app/frontend/src/components/panel/FileManager.js: Add keyboard shortcuts (e.g. `Delete` key for deletion modal, `Ctrl+A`/`Cmd+A` to select all files).",
+    "9. Edit /app/frontend/src/components/panel/FileManager.js: Add image-file thumbnail preview (if `isWebFile` or matches image extensions, load the thumbnail in the row or as an icon fallback).",
+    "CRITICAL: Do not remove or alter any existing `data-testid` attributes across all files. They are vital for testing."
+  ]
+}
