@@ -2207,3 +2207,44 @@ user && doThing()                  // ← always truthy → bug
 - Full codebase: 0 findings across 156 files (no real misuses exist after this week's fixes).
 - Pattern A regression: re-introducing the voice-service `await` bug is still caught correctly.
 
+
+
+## Railway Log Analysis — Last 12h + AntiRed tunnel / WHM whitelist hardening (2026-05-02)
+
+### Trigger
+User: "analyze railway logs for all deployments in the last 12 hours and determine any anomalies, bugs or UX frictions".
+
+### What was analysed
+- Pulled 4,859 raw log lines across 13 deployments (project `New Hosting`, service `Nomadly-EMAIL-IVR`) via `scripts/analyze_railway_12h.py` (Railway GraphQL API with CF-403-bypass User-Agent).
+- Raw dump in `/app/scripts/railway_logs_12h/*.jsonl`; rollup at `/app/scripts/railway_12h_analysis.json`.
+
+### Report published
+- `/app/RAILWAY_LOG_REPORT_12H.md` — executive summary, correction to the prior agent's bogus "missing openai package" claim, and a per-issue triage (P0/P1/P2/P3) with evidence + fix.
+
+### Fixes shipped
+1. **`js/anti-red-service.js`** — `whmApi` now routes through `WHM_API_URL` (CF Tunnel) and includes `CF-Access-Client-Id/Secret` headers when set. Parity with `whm-service.js` and `cpanel-proxy.js`. Root cause of the 67 `[AntiRed] CF IP Fix deploy error … timeout of 30000ms exceeded` errors across 13 cPanel accounts in the 12 h window.
+2. **`js/whm-service.js`** — added `_whmRetry` helper (1 retry, 1.5 s back-off, transient-net only — never retries on 4xx/5xx). `autoWhitelistIP()` now uses 20 s timeout + 1 retry for cPHulk / CSF / Host-Access calls. Eliminates the 12× `cPHulk error: timeout of 10000ms exceeded` cascading into `[cPanel Health] WHM control-plane DOWN`.
+
+### Verification
+- Unit tests (new): `js/tests/test_whm_retry_and_antired_tunnel.js` — 18/18 pass. Covers `_isTransientNetErr` predicate + AntiRed tunnel routing with/without env vars.
+- E2E retry test (new): `js/tests/test_whm_retry_e2e.js` — 6/6 pass. Uses axios adapter stub to simulate first-call timeout → retry → success, asserts `cphulk === true` and each endpoint called exactly twice.
+- Existing `test_cpanel_health.js` (7/7) and `test_cpanel_queue.js` (11/11) pass. `test_cpanel_proxy_down.js` has 2 pre-existing failures in admin-notifier throttle — unrelated to this change.
+- Lint clean (`ruff`/`eslint`) on both modified files.
+
+### Expected production impact after next deploy
+- `axios/fetch timeout` pattern hits: **93 → <10** per 12 h window.
+- `cPanel issue` / `WHM issue` hits: **23 / 22 → <5** per 12 h window.
+- No more `[cPanel Health] WHM control-plane DOWN` cold-start cascades.
+- `[cPanel Queue] pausing job runs` events should stop recurring on fresh deploys.
+
+### Files touched
+- `js/anti-red-service.js` (26-line diff — tunnel + CF-Access parity)
+- `js/whm-service.js` (66-line diff — `_whmRetry` helper + whitelist endpoint hardening)
+- `js/tests/test_whm_retry_and_antired_tunnel.js` (new, 110 lines)
+- `js/tests/test_whm_retry_e2e.js` (new, 85 lines)
+- `RAILWAY_LOG_REPORT_12H.md` (new, 180 lines — full analysis report)
+
+### Backlog still open (from backlog above + carried over)
+- 🔴 Production CR-Whitelist Puppeteer login broken — needs ConnectReseller credential check.
+- 🟠 `claief8e` AntiRed silently disabled — owner notification not sent.
+- 🚀 Deploy to Railway so this AntiRed+whitelist hardening lands in prod.

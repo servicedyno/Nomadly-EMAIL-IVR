@@ -65,6 +65,35 @@ const whmApi = axios.create({
   timeout: 30000,
 })
 
+// ─── Transient-error retry helper ───────────────────────
+// Used by autoWhitelistIP() to absorb the first-contact latency spike that
+// happens on a cold Railway deploy (new outbound IP + CF-Access token verify
+// + TLS handshake easily pushes past the per-call timeout). Retries ONLY on
+// network-level timeouts/disconnects, never on HTTP 4xx/5xx — so legitimate
+// "already whitelisted" / "not installed" responses still short-circuit.
+const _TRANSIENT_NET_RX = /ECONNREFUSED|ETIMEDOUT|ECONNRESET|ENOTFOUND|EAI_AGAIN|socket hang up|timeout of/i
+function _isTransientNetErr(err) {
+  if (!err) return false
+  if (err.response) return false // we got an HTTP response — not a network error
+  if (err.code && _TRANSIENT_NET_RX.test(err.code)) return true
+  if (err.message && _TRANSIENT_NET_RX.test(err.message)) return true
+  return false
+}
+async function _whmRetry(fn, { retries = 1, backoffMs = 1500 } = {}) {
+  let lastErr
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn()
+    } catch (err) {
+      lastErr = err
+      if (attempt >= retries || !_isTransientNetErr(err)) throw err
+      log(`[WHM-Whitelist] transient error (${err.code || err.message}), retrying in ${backoffMs}ms…`)
+      await new Promise(r => setTimeout(r, backoffMs))
+    }
+  }
+  throw lastErr
+}
+
 function generateUsername(domain) {
   // cPanel usernames: max 8 chars, alphanumeric, starts with letter
   const clean = domain.replace(/\.[^.]+$/, '').replace(/[^a-z0-9]/gi, '').toLowerCase()
@@ -397,24 +426,27 @@ async function autoWhitelistIP() {
     const results = { ip, cphulk: false, csf: false }
 
     // 2. Whitelist in cPHulk (brute force protection)
+    //
+    // Timeout/retry notes (2026-05-02):
+    //   Railway deploys pick a new outbound IP each time, and the FIRST WHM
+    //   call after a cold start has to negotiate TLS + verify the CF-Access
+    //   service token against the tunnel. That regularly pushes cold-path
+    //   latency to 8-12 s. The old 10 s cap caused recurring
+    //   `[WHM-Whitelist] cPHulk error: timeout of 10000ms exceeded` — 12
+    //   occurrences in a 12 h window, each of which cascaded into
+    //   `[cPanel Health] WHM control-plane DOWN` and paused job runs.
+    //   Bumping to 20 s + 1 retry eliminates the cascade without masking
+    //   genuinely-down WHM boxes (which still error out on the retry).
     try {
-      const cphulkRes = await whmApi.get('/configureservice', {
-        params: {
-          'api.version': 1,
-        },
-        timeout: 10000,
-      }).catch(() => null)
-
-      // Add to cPHulk whitelist
-      const whitelistRes = await whmApi.get('/create_cphulk_record', {
+      const whitelistRes = await _whmRetry(() => whmApi.get('/create_cphulk_record', {
         params: {
           'api.version': 1,
           ip,
           list_name: 'white',
           comment: `Auto-whitelisted by Nomadly at ${new Date().toISOString()}`,
         },
-        timeout: 10000,
-      })
+        timeout: 20000,
+      }))
       if (whitelistRes.data?.metadata?.result === 1) {
         results.cphulk = true
         log(`[WHM-Whitelist] cPHulk: ${ip} whitelisted successfully`)
@@ -436,14 +468,14 @@ async function autoWhitelistIP() {
     // Detection: If /csf_allow returns "Unknown app", CSF is NOT installed on this server.
     // In that case, skip silently — cPHulk + Host Access (step 4) are sufficient.
     try {
-      const csfRes = await whmApi.get('/csf_allow', {
+      const csfRes = await _whmRetry(() => whmApi.get('/csf_allow', {
         params: {
           'api.version': 1,
           ip,
           comment: `Nomadly auto-whitelist ${new Date().toISOString().split('T')[0]}`,
         },
-        timeout: 10000,
-      })
+        timeout: 20000,
+      }))
       if (csfRes.data?.metadata?.result === 1 || csfRes.data?.result === 1) {
         results.csf = true
         log(`[WHM-Whitelist] CSF: ${ip} allowed successfully`)
@@ -471,7 +503,7 @@ async function autoWhitelistIP() {
 
     // 4. Also add to host access control (TCP wrappers)
     try {
-      await whmApi.get('/add_host_access', {
+      await _whmRetry(() => whmApi.get('/add_host_access', {
         params: {
           'api.version': 1,
           daemon: 'ALL',
@@ -479,8 +511,8 @@ async function autoWhitelistIP() {
           host: ip,
           comment: 'Nomadly auto-whitelist',
         },
-        timeout: 10000,
-      })
+        timeout: 20000,
+      }))
       log(`[WHM-Whitelist] Host Access: ${ip} added`)
     } catch (err) {
       // Non-critical

@@ -18,10 +18,30 @@ const { log } = require('console')
 const WHM_HOST = process.env.WHM_HOST
 const WHM_USERNAME = process.env.WHM_USERNAME || 'root'
 const WHM_TOKEN = process.env.WHM_TOKEN
+// ── Tunnel routing (origin-IP-hidden) ──
+// When WHM_API_URL is set, every WHM JSON API call is routed through that
+// URL instead of `https://<WHM_HOST>:2087`. Used to route through Cloudflare
+// Tunnel so the origin IP and port 2087 can stay locked down.
+// This MUST stay in sync with js/whm-service.js — otherwise AntiRed calls hit
+// the firewalled origin and time out (root cause of 67 `[AntiRed] CF IP Fix
+// deploy error` timeouts observed in Railway logs on 2026-05-01/02).
+const _WHM_API_URL = (process.env.WHM_API_URL || '').replace(/\/+$/, '')
+const _WHM_BASE = _WHM_API_URL
+  ? `${_WHM_API_URL}/json-api`
+  : (WHM_HOST ? `https://${WHM_HOST}:2087/json-api` : null)
 
-const whmApi = WHM_HOST && WHM_TOKEN ? axios.create({
-  baseURL: `https://${WHM_HOST}:2087/json-api`,
-  headers: { Authorization: `whm ${WHM_USERNAME}:${WHM_TOKEN}` },
+const whmApi = _WHM_BASE && WHM_TOKEN ? axios.create({
+  baseURL: _WHM_BASE,
+  headers: {
+    Authorization: `whm ${WHM_USERNAME}:${WHM_TOKEN}`,
+    // Cloudflare Access service token (Zero Trust). Sent on every request;
+    // ignored by direct WHM API but required when WHM_API_URL routes through
+    // a CF Access-protected tunnel hostname.
+    ...(process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET ? {
+      'CF-Access-Client-Id': process.env.CF_ACCESS_CLIENT_ID,
+      'CF-Access-Client-Secret': process.env.CF_ACCESS_CLIENT_SECRET,
+    } : {}),
+  },
   timeout: 30000,
   httpsAgent: new (require('https').Agent)({ rejectUnauthorized: false }),
 }) : null
