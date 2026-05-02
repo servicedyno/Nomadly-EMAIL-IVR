@@ -7,6 +7,52 @@
 - MongoDB (port 27017)
 
 
+## ✅ Hosting Panel — Folder Upload + Backend-Authoritative Login Rate-Limit (May 2, 2026)
+
+### Scope
+1. **Drag-and-drop folder upload** — `FileManager` now accepts whole folder drops (preserves nested structure)
+2. **Server-driven login lockout** — replaced localStorage-only rate-limit with the panel server's existing in-memory limiter, exposed via HTTP 429 + structured payload
+
+### Folder upload (`/app/frontend/src/components/panel/FileManager.js`)
+- `walkEntry(entry, path)` recursively traverses `FileSystemEntry` trees via `webkitGetAsEntry()` + `createReader.readEntries()`, batching across multi-call reads, attaching a `relativePath` to each yielded `File`
+- `handleDrop` switched to `dataTransfer.items` + entry-walk (with graceful fallback to flat-file list for older browsers)
+- `ensureSubdir(segments, createdSet)` creates the target directory tree on cPanel via `/files/mkdir` (idempotent — silently swallows "already exists" errors), de-dupes via a per-batch `Set`
+- `uploadFiles` now resolves each file's target dir from `relativePath` || `webkitRelativePath` before calling upload/upload-chunk; new helper signature `uploadFileChunked(file, targetDir, overrideFileName)`
+- New "Upload Folder" ghost button in toolbar (`fm-upload-folder-input` with `webkitdirectory=""` + `directory=""` + `mozdirectory=""` for click-to-select-folder)
+- Drop overlay copy updated to: "Drop files or folders here to upload — Folder structure is preserved · Files go live on your website"
+- New success message variant: "N file(s) uploaded across M folder(s)"
+
+### Login rate-limit (backend authoritative)
+- `cpanel-auth.js` already had an in-memory limiter (5 attempts → 15-min lockout). Extended:
+  - `checkRateLimit()` now returns `lockedSeconds` + `lockedUntil` epoch ms (in addition to `lockedMinutes`)
+  - `login()` returns structured `{ rateLimited, lockedSeconds, lockedMinutes, lockedUntil, attemptsRemaining }`
+- `cpanel-routes.js` POST /login:
+  - HTTP 429 + `Retry-After: <lockedSeconds>` header + JSON body when rate-limited
+  - HTTP 401 + `attemptsRemaining` in body when invalid creds (still under threshold)
+- `AuthContext.js` login switched to `XMLHttpRequest` (works around platform `fetch` wrappers that consume the response body for telemetry, which masked the server's error/rate-limit JSON as "Server error (401)"). Bubbles `err.rateLimited` / `err.lockedSeconds` / `err.attemptsRemaining` to UI
+- `PanelLogin.js` removed FAIL_KEY / LOCK_UNTIL_KEY localStorage logic. `lockUntil` is now seeded ONLY from the server's `lockedSeconds`. Added a strong sub-line "{N} attempts remaining before lockout." (`panel-attempts-remaining`) when 1–3 left
+
+### Tested — 100% pass via testing_agent_v3_fork (`iteration_10.json`)
+- Backend pytest 4/4 ✅ (saved to `/app/backend/tests/test_panel_rate_limit.py`):
+  - 401 contract w/ decreasing attemptsRemaining 4→3→2→1
+  - 429 contract w/ `Retry-After: 900` + `lockedSeconds: 900` + `lockedMinutes: 15` + `lockedUntil` on 5th attempt
+  - 6th attempt still 429
+  - Per-username scope isolation (A locked → B still gets 401 with attemptsRemaining=4)
+  - goldtest login still 200 + token
+- Frontend 11/11 ✅:
+  - Lock UI renders at 14:59–15:00 after 5 fails, clock ticks down, fields disabled
+  - "1 attempt remaining" warning at 4th fail
+  - `fm-upload-folder-input` has `webkitdirectory=""` + `multiple` + `type=file`
+  - Drop overlay text contains both "files or folders" and "Folder structure is preserved"
+  - V2 redesign regression: Files tab active = coral `rgb(225, 29, 72)`, login button solid coral (not legacy purple)
+  - Source-inspection of walkEntry / ensureSubdir / uploadFileChunked confirmed correct
+
+### Code review notes (non-blocking, future cleanup)
+- `FileManager.js` ~1400 lines — split into Toolbar / BulkBar / ImagePreviewModal / DragOverlay sub-components
+- Rate-limit Map is single-process — if Node panel is ever scaled horizontally, move to Redis/Mongo
+- AuthContext.login XHR workaround is documented; consider a unit test asserting `err.rateLimited` / `err.attemptsRemaining` shape
+
+
 ## ✅ Hosting Panel V2 — Tab Re-skins + Image Gallery Navigation (May 2, 2026 — same session)
 
 ### Scope
