@@ -2457,3 +2457,45 @@ Lint clean, bot boots cleanly ("Bot initialized with webhook support"), no regre
 ### Production impact
 - Users will now see their wallet balance + min-required AT THE MENU before they invest 15 minutes building a campaign. If they were short, they top up before work, not after.
 - Ops gets loud WARN-level alerts for provider-metadata drift (the actual bug that caused @LBHAND23's call to log as "number not found" — their Twilio number likely had `provider` stored as something other than `'twilio'`) instead of silent skipped-billing.
+
+
+## Fix B+ — Dynamic per-campaign cost estimate (2026-05-02)
+
+User asked to extend the generic "Min $50" wallet banner with a precise
+campaign-specific cost line like `📞 Est: $2.50 (10 targets × $0.25)`.
+
+### Implementation
+- `ivrWalletHintPrefix(chatId, lang, ivrObData?)` now accepts an optional 3rd arg. When the user has picked targets (`ivrObData.batchTargets.length > 0` or `ivrObData.targetNumber`), the helper appends a localized estimate line:
+  - **en**: `📞 Est: $X.XX (N targets × $Y.YY)`
+  - **fr**: `📞 Estimation : X.XX $ (N cibles × Y.YY $)`
+  - **zh**: `📞 预估费用: $X.XX (N 个目标 × $Y.YY)`
+  - **hi**: `📞 अनुमानित: $X.XX (N लक्ष्य × $Y.YY)`
+  - Cost = targetCount × `voiceService.IVR_CALL_RATE` (matches the 1-min-min billing floor).
+- Two-dimensional balance check:
+  1. `wallet ≥ IVR_MIN_WALLET` (the static floor).
+  2. `wallet ≥ estCost` (the dynamic per-campaign floor).
+  - If **both** satisfied → green ✅.
+  - If either fails → red ⚠️ with the **more specific shortfall** (campaign shortfall takes precedence when it's the stricter gate).
+  - Gap amount reflects whichever gate is binding: `to meet the minimum` vs `for this campaign`.
+- Wired into the category-selection screen (`📞 Target: <num>` → choose template) as a third visibility hook so the user sees the cost the moment they pick a target, before spending time on a template.
+
+### Verification
+Test file `js/tests/test_ivr_cost_hint_and_log_clarity.js` extended to 39 / 39 assertions covering:
+- Basic generic hint (no `ivrObData`) — unchanged behaviour.
+- Single-target Quick IVR: `1 target × $0.15 = $0.15`, green.
+- 10-target bulk: `$1.50`, green.
+- 500-target bulk: `$75`, still green on $100 balance.
+- 1000-target bulk: `$150` > $100 → flip to ⚠️ `for this campaign`, exact gap `$50`.
+- Small campaign + low bal: min-gap takes priority (gap `$45 to meet the minimum`).
+- Huge campaign + low bal: campaign-gap takes priority over min-gap (`$145 for this campaign`).
+
+### Files touched
+- MODIFIED: `js/_index.js` — `ivrWalletHintPrefix` signature + logic extended, 3rd callsite added at category-selection screen, both custom-script prompts now pass `ivrObData`.
+- MODIFIED: `js/tests/test_ivr_cost_hint_and_log_clarity.js` — 17 new assertions for the dynamic estimate + dual-gate branching.
+
+### Production impact
+Before: `💰 Wallet: $5.00 · Min: $50.00 · Top up $45.00 before launch.` — generic regardless of whether campaign is 1 call or 500.
+After (1-target campaign): `💰 Wallet: $5.00 · Min: $50.00 · Top up $45.00 to meet the minimum.` + `📞 Est: $0.15 (1 target × $0.15)` — user sees their 1-call campaign only actually costs $0.15; the $50 min is the real floor.
+After (1000-target campaign on $100 wallet): `⚠️ Wallet: $100.00 · Min: $50.00 · Top up $50.00 for this campaign.` + `📞 Est: $150.00 (1000 targets × $0.15)` — user sees they're $50 short for THIS specific campaign, not generically.
+
+This prevents the @LBHAND23 "built 1000-target campaign, surprised by insufficient wallet" pattern at the final /yes — they now see the exact amount needed at target-pick + category-pick + custom-script time.

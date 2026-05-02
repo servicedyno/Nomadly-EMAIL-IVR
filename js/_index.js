@@ -1249,27 +1249,60 @@ function scheduleSupportSlaNudge(chatId, displayName, openedTs, delayMs = 10 * 6
 // second visibility hook (after the Quick IVR entry menu) for fix B: users
 // should see the cost/balance picture BEFORE typing a ~15-minute custom
 // script. Non-fatal if the wallet lookup errors — returns ''.
-const ivrWalletHintPrefix = async (chatId, lang = 'en') => {
+//
+// When `ivrObData` is supplied (post-target-selection) the banner also shows
+// a per-campaign cost estimate: `📞 Est: $X.XX (N targets × $Y.YY)`. The
+// estimate uses IVR_CALL_RATE × 1 minute × target count (matches the billing
+// floor of 1-minute-minimum per call). If balance < estimate the whole
+// banner turns red regardless of the min-wallet check, because the user
+// genuinely cannot complete THIS campaign with their current balance.
+const ivrWalletHintPrefix = async (chatId, lang = 'en', ivrObData = null) => {
   try {
+    const voiceService = require('./voice-service.js')
     const IVR_MIN_WALLET = parseFloat(process.env.BULK_CALL_MIN_WALLET || '50')
+    const IVR_RATE = voiceService.IVR_CALL_RATE || 0.15
     const wc = await smartWalletCheck(walletOf, chatId, IVR_MIN_WALLET)
     const bal = wc.usdBal.toFixed(2)
     const min = IVR_MIN_WALLET.toFixed(2)
-    if (wc.sufficient) {
-      return ({
-        en: `💰 <b>Wallet:</b> $${bal} · <b>Min:</b> $${min} ✅\n\n`,
-        fr: `💰 <b>Portefeuille :</b> ${bal} $ · <b>Min :</b> ${min} $ ✅\n\n`,
-        zh: `💰 <b>钱包:</b> $${bal} · <b>最低:</b> $${min} ✅\n\n`,
-        hi: `💰 <b>वॉलेट:</b> $${bal} · <b>न्यूनतम:</b> $${min} ✅\n\n`,
-      }[lang]) || `💰 <b>Wallet:</b> $${bal} · <b>Min:</b> $${min} ✅\n\n`
+
+    // Per-campaign cost estimate (only if we have target info).
+    const targetCount = Array.isArray(ivrObData?.batchTargets) && ivrObData.batchTargets.length
+      ? ivrObData.batchTargets.length
+      : (ivrObData?.targetNumber ? 1 : 0)
+    const estCost = targetCount * IVR_RATE // 1-minute minimum per call
+    const canCoverCampaign = targetCount === 0 || wc.usdBal >= estCost
+    const estLine = targetCount > 0 ? ({
+      en: `📞 <b>Est:</b> $${estCost.toFixed(2)} (${targetCount} target${targetCount === 1 ? '' : 's'} × $${IVR_RATE.toFixed(2)})\n\n`,
+      fr: `📞 <b>Estimation :</b> ${estCost.toFixed(2)} $ (${targetCount} cible${targetCount === 1 ? '' : 's'} × ${IVR_RATE.toFixed(2)} $)\n\n`,
+      zh: `📞 <b>预估费用:</b> $${estCost.toFixed(2)} (${targetCount} 个目标 × $${IVR_RATE.toFixed(2)})\n\n`,
+      hi: `📞 <b>अनुमानित:</b> $${estCost.toFixed(2)} (${targetCount} लक्ष्य × $${IVR_RATE.toFixed(2)})\n\n`,
+    }[lang] || `📞 <b>Est:</b> $${estCost.toFixed(2)} (${targetCount} targets × $${IVR_RATE.toFixed(2)})\n\n`) : ''
+
+    if (wc.sufficient && canCoverCampaign) {
+      const walletLine = ({
+        en: `💰 <b>Wallet:</b> $${bal} · <b>Min:</b> $${min} ✅\n`,
+        fr: `💰 <b>Portefeuille :</b> ${bal} $ · <b>Min :</b> ${min} $ ✅\n`,
+        zh: `💰 <b>钱包:</b> $${bal} · <b>最低:</b> $${min} ✅\n`,
+        hi: `💰 <b>वॉलेट:</b> $${bal} · <b>न्यूनतम:</b> $${min} ✅\n`,
+      }[lang] || `💰 <b>Wallet:</b> $${bal} · <b>Min:</b> $${min} ✅\n`)
+      return walletLine + estLine + (estLine ? '' : '\n')
     }
-    const short = (IVR_MIN_WALLET - wc.usdBal).toFixed(2)
-    return ({
-      en: `⚠️ <b>Wallet:</b> $${bal} · <b>Min:</b> $${min} · Top up <b>$${short}</b> before launch.\n\n`,
-      fr: `⚠️ <b>Portefeuille :</b> ${bal} $ · <b>Min :</b> ${min} $ · Déposez <b>${short} $</b> avant le lancement.\n\n`,
-      zh: `⚠️ <b>钱包:</b> $${bal} · <b>最低:</b> $${min} · 启动前请充值 <b>$${short}</b>。\n\n`,
-      hi: `⚠️ <b>वॉलेट:</b> $${bal} · <b>न्यूनतम:</b> $${min} · लॉन्च से पहले <b>$${short}</b> जमा करें।\n\n`,
-    }[lang]) || `⚠️ <b>Wallet:</b> $${bal} · <b>Min:</b> $${min} · Top up <b>$${short}</b> before launch.\n\n`
+
+    // Short of either the min-wallet floor OR the per-campaign estimate —
+    // both are blockers, so show the more specific shortfall. Campaign
+    // shortfall takes precedence because it gives the user an exact number.
+    const gap = !canCoverCampaign ? (estCost - wc.usdBal) : (IVR_MIN_WALLET - wc.usdBal)
+    const reasonEn = !canCoverCampaign ? 'for this campaign' : 'to meet the minimum'
+    const reasonFr = !canCoverCampaign ? 'pour cette campagne' : 'pour atteindre le minimum'
+    const reasonZh = !canCoverCampaign ? '用于本次任务' : '以达到最低额'
+    const reasonHi = !canCoverCampaign ? 'इस कैंपेन के लिए' : 'न्यूनतम पूरा करने के लिए'
+    const walletLine = ({
+      en: `⚠️ <b>Wallet:</b> $${bal} · <b>Min:</b> $${min} · Top up <b>$${gap.toFixed(2)}</b> ${reasonEn}.\n`,
+      fr: `⚠️ <b>Portefeuille :</b> ${bal} $ · <b>Min :</b> ${min} $ · Déposez <b>${gap.toFixed(2)} $</b> ${reasonFr}.\n`,
+      zh: `⚠️ <b>钱包:</b> $${bal} · <b>最低:</b> $${min} · 需充值 <b>$${gap.toFixed(2)}</b> ${reasonZh}。\n`,
+      hi: `⚠️ <b>वॉलेट:</b> $${bal} · <b>न्यूनतम:</b> $${min} · <b>$${gap.toFixed(2)}</b> ${reasonHi} जमा करें।\n`,
+    }[lang] || `⚠️ <b>Wallet:</b> $${bal} · <b>Min:</b> $${min} · Top up <b>$${gap.toFixed(2)}</b> ${reasonEn}.\n`)
+    return walletLine + estLine + (estLine ? '' : '\n')
   } catch (e) {
     return ''
   }
@@ -18255,7 +18288,11 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     if (lastCat) rows.push([`⭐ Last: ${lastCat}`])
     rows.push(...catBtns.map(b => [b]))
     rows.push(['↩️ Back'])
-    return send(chatId, ({ en: `📞 Target: <b>${ivrObData.targetNumber}</b>\n\nChoose template or write your own:` }[lang] || `📞 Target: <b>${ivrObData.targetNumber}</b>\n\nChoose template or write your own:`), k.of(rows))
+    // Prefix with dynamic cost-estimate banner — user has just picked a
+    // target, so we can show the per-campaign cost next to their balance.
+    const costHint = ivrObData.isTrial ? '' : await ivrWalletHintPrefix(chatId, lang, ivrObData)
+    const baseMsg = ({ en: `📞 Target: <b>${ivrObData.targetNumber}</b>\n\nChoose template or write your own:` }[lang] || `📞 Target: <b>${ivrObData.targetNumber}</b>\n\nChoose template or write your own:`)
+    return send(chatId, costHint + baseMsg, k.of(rows))
   }
 
   if (action === a.ivrObSelectCategory) {
@@ -18273,7 +18310,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       ivrObData.category = 'custom'
       await saveInfo('ivrObData', ivrObData)
       await set(state, chatId, 'action', a.ivrObCustomScript)
-      const walletHint = ivrObData.isTrial ? '' : await ivrWalletHintPrefix(chatId, lang)
+      const walletHint = ivrObData.isTrial ? '' : await ivrWalletHintPrefix(chatId, lang, ivrObData)
       return send(chatId, walletHint + trans('t.cp_43'), k.of([['ℹ️ All Placeholders'], ['↩️ Back']]))
     }
 
@@ -18302,7 +18339,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       ivrObData.category = 'custom'
       await saveInfo('ivrObData', ivrObData)
       await set(state, chatId, 'action', a.ivrObCustomScript)
-      const walletHint = ivrObData.isTrial ? '' : await ivrWalletHintPrefix(chatId, lang)
+      const walletHint = ivrObData.isTrial ? '' : await ivrWalletHintPrefix(chatId, lang, ivrObData)
       return send(chatId, walletHint + trans('t.cp_46'), k.of([['ℹ️ All Placeholders'], ['↩️ Back']]))
     }
 

@@ -20,28 +20,39 @@ const ok = (label, cond, extra = '') => {
 
   // Inline replica of the ivrWalletHintPrefix contract (identical logic to
   // js/_index.js). We parameterise smartWalletCheck so we can assert on
-  // the three branches: sufficient, insufficient, error.
-  async function ivrWalletHintPrefix(chatId, lang = 'en', { walletCheckImpl } = {}) {
+  // the three branches: sufficient, insufficient, error. Also accepts an
+  // optional `ivrObData` so we can test the per-campaign cost estimate that
+  // appears once the user has picked targets.
+  const IVR_RATE = 0.15 // mirrors voiceService.IVR_CALL_RATE default
+  async function ivrWalletHintPrefix(chatId, lang = 'en', ivrObData = null, { walletCheckImpl } = {}) {
     try {
       const IVR_MIN_WALLET = parseFloat(process.env.BULK_CALL_MIN_WALLET || '50')
       const wc = await walletCheckImpl(chatId, IVR_MIN_WALLET)
       const bal = wc.usdBal.toFixed(2)
       const min = IVR_MIN_WALLET.toFixed(2)
-      if (wc.sufficient) {
-        return ({
-          en: `💰 <b>Wallet:</b> $${bal} · <b>Min:</b> $${min} ✅\n\n`,
-          fr: `💰 <b>Portefeuille :</b> ${bal} $ · <b>Min :</b> ${min} $ ✅\n\n`,
-          zh: `💰 <b>钱包:</b> $${bal} · <b>最低:</b> $${min} ✅\n\n`,
-          hi: `💰 <b>वॉलेट:</b> $${bal} · <b>न्यूनतम:</b> $${min} ✅\n\n`,
-        }[lang]) || `💰 <b>Wallet:</b> $${bal} · <b>Min:</b> $${min} ✅\n\n`
+      const targetCount = Array.isArray(ivrObData?.batchTargets) && ivrObData.batchTargets.length
+        ? ivrObData.batchTargets.length
+        : (ivrObData?.targetNumber ? 1 : 0)
+      const estCost = targetCount * IVR_RATE
+      const canCoverCampaign = targetCount === 0 || wc.usdBal >= estCost
+      const estLine = targetCount > 0 ? ({
+        en: `📞 <b>Est:</b> $${estCost.toFixed(2)} (${targetCount} target${targetCount === 1 ? '' : 's'} × $${IVR_RATE.toFixed(2)})\n\n`,
+        fr: `📞 <b>Estimation :</b> ${estCost.toFixed(2)} $ (${targetCount} cible${targetCount === 1 ? '' : 's'} × ${IVR_RATE.toFixed(2)} $)\n\n`,
+        zh: `📞 <b>预估费用:</b> $${estCost.toFixed(2)} (${targetCount} 个目标 × $${IVR_RATE.toFixed(2)})\n\n`,
+        hi: `📞 <b>अनुमानित:</b> $${estCost.toFixed(2)} (${targetCount} लक्ष्य × $${IVR_RATE.toFixed(2)})\n\n`,
+      }[lang] || `📞 <b>Est:</b> $${estCost.toFixed(2)} (${targetCount} targets × $${IVR_RATE.toFixed(2)})\n\n`) : ''
+      if (wc.sufficient && canCoverCampaign) {
+        const walletLine = ({
+          en: `💰 <b>Wallet:</b> $${bal} · <b>Min:</b> $${min} ✅\n`,
+        }[lang] || `💰 <b>Wallet:</b> $${bal} · <b>Min:</b> $${min} ✅\n`)
+        return walletLine + estLine + (estLine ? '' : '\n')
       }
-      const short = (IVR_MIN_WALLET - wc.usdBal).toFixed(2)
-      return ({
-        en: `⚠️ <b>Wallet:</b> $${bal} · <b>Min:</b> $${min} · Top up <b>$${short}</b> before launch.\n\n`,
-        fr: `⚠️ <b>Portefeuille :</b> ${bal} $ · <b>Min :</b> ${min} $ · Déposez <b>${short} $</b> avant le lancement.\n\n`,
-        zh: `⚠️ <b>钱包:</b> $${bal} · <b>最低:</b> $${min} · 启动前请充值 <b>$${short}</b>。\n\n`,
-        hi: `⚠️ <b>वॉलेट:</b> $${bal} · <b>न्यूनतम:</b> $${min} · लॉन्च से पहले <b>$${short}</b> जमा करें।\n\n`,
-      }[lang]) || `⚠️ <b>Wallet:</b> $${bal} · <b>Min:</b> $${min} · Top up <b>$${short}</b> before launch.\n\n`
+      const gap = !canCoverCampaign ? (estCost - wc.usdBal) : (IVR_MIN_WALLET - wc.usdBal)
+      const reasonEn = !canCoverCampaign ? 'for this campaign' : 'to meet the minimum'
+      const walletLine = ({
+        en: `⚠️ <b>Wallet:</b> $${bal} · <b>Min:</b> $${min} · Top up <b>$${gap.toFixed(2)}</b> ${reasonEn}.\n`,
+      }[lang] || `⚠️ <b>Wallet:</b> $${bal} · <b>Min:</b> $${min} · Top up <b>$${gap.toFixed(2)}</b> ${reasonEn}.\n`)
+      return walletLine + estLine + (estLine ? '' : '\n')
     } catch (e) {
       return ''
     }
@@ -51,28 +62,65 @@ const ok = (label, cond, extra = '') => {
   const insufficient = async (_cid, min) => ({ sufficient: false, usdBal: 5 })
   const errors = async () => { throw new Error('wallet svc down') }
 
-  const okHint = await ivrWalletHintPrefix('1', 'en', { walletCheckImpl: sufficient })
+  // ── Basic (no ivrObData) — generic min-only hint ──
+  const okHint = await ivrWalletHintPrefix('1', 'en', null, { walletCheckImpl: sufficient })
   ok('sufficient wallet renders ✅ marker', okHint.includes('✅'))
   ok('sufficient wallet shows balance $100.00', okHint.includes('$100.00'))
   ok('sufficient wallet shows Min $50.00', okHint.includes('$50.00'))
+  ok('no ivrObData → no per-campaign Est: line', !okHint.includes('Est:'))
 
-  const shortHint = await ivrWalletHintPrefix('1', 'en', { walletCheckImpl: insufficient })
+  const shortHint = await ivrWalletHintPrefix('1', 'en', null, { walletCheckImpl: insufficient })
   ok('insufficient wallet renders ⚠️ marker', shortHint.includes('⚠️'))
-  ok('insufficient wallet says "Top up $45.00"', shortHint.includes('Top up <b>$45.00</b>'))
-  ok('insufficient wallet ends with "before launch."', shortHint.includes('before launch.'))
+  ok('insufficient wallet says "Top up $45.00 to meet the minimum"', shortHint.includes('Top up <b>$45.00</b> to meet the minimum'))
 
-  const frHint = await ivrWalletHintPrefix('1', 'fr', { walletCheckImpl: insufficient })
-  ok('fr locale uses "Déposez"', frHint.includes('Déposez'))
-  ok('fr locale uses "avant le lancement"', frHint.includes('avant le lancement'))
-
-  const zhHint = await ivrWalletHintPrefix('1', 'zh', { walletCheckImpl: insufficient })
-  ok('zh locale uses 充值', zhHint.includes('充值'))
-
-  const hiHint = await ivrWalletHintPrefix('1', 'hi', { walletCheckImpl: insufficient })
-  ok('hi locale uses लॉन्च / जमा', hiHint.includes('लॉन्च') && hiHint.includes('जमा'))
-
-  const errHint = await ivrWalletHintPrefix('1', 'en', { walletCheckImpl: errors })
+  const errHint = await ivrWalletHintPrefix('1', 'en', null, { walletCheckImpl: errors })
   ok('wallet check throwing returns empty string (non-fatal)', errHint === '')
+
+  // ── With ivrObData — per-campaign cost estimate ──
+  console.log('\nFix B+ — dynamic per-campaign cost estimate')
+
+  // Single-target campaign (Quick IVR): 1 × $0.15 = $0.15, bal=$100 sufficient.
+  const single = await ivrWalletHintPrefix('1', 'en', { targetNumber: '+13124340549' }, { walletCheckImpl: sufficient })
+  ok('single target renders Est line', single.includes('Est:'))
+  ok('single target says "1 target"', single.includes('1 target ×'))
+  ok('single target shows estCost $0.15', single.includes('$0.15 (1 target'))
+  ok('single target keeps ✅ (bal covers campaign)', single.includes('✅'))
+
+  // 10-target bulk campaign: 10 × $0.15 = $1.50, bal=$100 sufficient.
+  const bulk10 = await ivrWalletHintPrefix('1', 'en', { batchTargets: new Array(10).fill('+1') }, { walletCheckImpl: sufficient })
+  ok('10-target shows "10 targets"', bulk10.includes('10 targets ×'))
+  ok('10-target shows estCost $1.50', bulk10.includes('$1.50 (10 targets'))
+  ok('10-target keeps ✅', bulk10.includes('✅'))
+
+  // 500-target mega bulk: 500 × $0.15 = $75, bal=$100 sufficient for min AND campaign.
+  const bulk500 = await ivrWalletHintPrefix('1', 'en', { batchTargets: new Array(500).fill('+1') }, { walletCheckImpl: sufficient })
+  ok('500-target shows "500 targets"', bulk500.includes('500 targets'))
+  ok('500-target shows estCost $75.00', bulk500.includes('$75.00'))
+  ok('500-target still ✅ (100 ≥ 75)', bulk500.includes('✅'))
+
+  // 1000-target over-budget: 1000 × $0.15 = $150, bal=$100 < campaign.
+  // Should turn ⚠️ with "for this campaign" reason, gap = $50.
+  const over = await ivrWalletHintPrefix('1', 'en', { batchTargets: new Array(1000).fill('+1') }, { walletCheckImpl: sufficient })
+  ok('1000-target flips to ⚠️ (bal<est)', over.includes('⚠️'))
+  ok('1000-target says "for this campaign"', over.includes('for this campaign'))
+  ok('1000-target gap = $50.00 ($150 - $100)', over.includes('Top up <b>$50.00</b>'))
+  ok('1000-target estCost shown $150.00', over.includes('$150.00'))
+
+  // Insufficient min + small campaign: bal=$5, 1 target = $0.15.
+  // Wallet is short of MIN ($50) but enough for the single call.
+  // Campaign is coverable ($0.15 < $5), so gap = min-gap $45.
+  const smallCampaignLowBal = await ivrWalletHintPrefix('1', 'en', { targetNumber: '+1' }, { walletCheckImpl: insufficient })
+  ok('small campaign + low bal: ⚠️', smallCampaignLowBal.includes('⚠️'))
+  ok('small campaign + low bal: "to meet the minimum" reason', smallCampaignLowBal.includes('to meet the minimum'))
+  ok('small campaign + low bal: gap = $45.00', smallCampaignLowBal.includes('Top up <b>$45.00</b>'))
+  ok('small campaign + low bal: still shows Est: $0.15', smallCampaignLowBal.includes('$0.15 (1 target'))
+
+  // Huge campaign + low bal: both blockers, campaign shortfall takes precedence.
+  const hugeCampaignLowBal = await ivrWalletHintPrefix('1', 'en', { batchTargets: new Array(1000).fill('+1') }, { walletCheckImpl: insufficient })
+  ok('huge campaign + low bal: ⚠️', hugeCampaignLowBal.includes('⚠️'))
+  ok('huge campaign + low bal: "for this campaign" takes precedence over min',
+     hugeCampaignLowBal.includes('for this campaign') && !hugeCampaignLowBal.includes('to meet the minimum'))
+  ok('huge campaign + low bal: gap = $145.00 ($150 - $5)', hugeCampaignLowBal.includes('Top up <b>$145.00</b>'))
 
   // ─── Fix D: Twilio SIP unanswered-billing log disambiguation ─
   console.log('\nFix D — Twilio SIP bridge unanswered-billing log')
