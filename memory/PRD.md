@@ -7,6 +7,38 @@
 - MongoDB (port 27017)
 
 
+## ✅ FileManager Refactor — Sub-components + useHotkeys hook (May 2, 2026 — same session)
+
+### Scope
+Pure refactor — no behavior change. Extracted four UI components and one custom hook from the 1534-line `FileManager.js` into `/app/frontend/src/components/panel/file-manager/`.
+
+### Extracted modules
+| File | Lines | Responsibility |
+|------|-------|----------------|
+| `Toolbar.jsx` | 102 | Breadcrumb, search input + `/` shortcut hint, four toolbar buttons (Up · +Folder · Upload Folder w/ webkitdirectory · Upload Files) |
+| `BulkBar.jsx` | 57 | Sticky bulk action bar (Move / Delete / Clear); early-returns `null` when no selection |
+| `DragOverlay.jsx` | 25 | Tinted drop overlay with "Drop files or folders here" + `isPublicHtml` variant |
+| `ImagePreviewModal.jsx` | 83 | Lightbox preview with gallery counter chip, prev/next nav buttons |
+| `useHotkeys.js` | 82 | Single window keydown listener: `/` focus search · Esc cascade close · Ctrl/Cmd+A select-all · Delete/Backspace bulk-delete |
+
+### After-refactor stats
+- `FileManager.js`: **1534 → 1385 lines** (-149)
+- Total in `/file-manager/`: 349 lines across 5 files
+- Net code: ~+200 lines (mostly explicit prop contracts + helpful JSDoc on each module — readability win)
+
+### Tested — 16/16 ✅ via testing_agent_v3_fork (`iteration_11.json`)
+- All extracted-component data-testids preserved (`fm-toolbar`, `fm-search-input`, `fm-go-up`, `fm-new-dir-btn`, `fm-upload-folder-input`, `fm-upload-input`, `file-manager`)
+- Negative-state assertions: `fm-bulk-bar=0`, `fm-img-modal=0`, `fm-drag-overlay=0` when conditions aren't met
+- Hotkeys: `/` focuses search · Esc clears search · double-Esc safe (no harmful state mutation)
+- V2 theme: Upload Files background = `rgb(225, 29, 72)` coral · Files tab has `panel-tab--active` · public_html highlighted in breadcrumb
+- E2E: login as goldtest → dashboard → Files tab → toolbar visible → `/` focuses search → search "cgi" → Esc clears
+
+### Code review notes (non-blocking)
+- Toolbar breadcrumb uses array index as React key inside `slice(1).map` — acceptable (matches pre-refactor behavior, path segments rarely collide); revisit if rare edge cases emerge
+- `useHotkeys` deps array is comprehensive — no stale-closure risk
+- All early-returns and gating logic correctly preserved
+
+
 ## ✅ Hosting Panel — Folder Upload + Backend-Authoritative Login Rate-Limit (May 2, 2026)
 
 ### Scope
