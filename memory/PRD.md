@@ -7,7 +7,64 @@
 - MongoDB (port 27017)
 
 
+## ✅ Hosting Panel V2 Redesign + Login Hardening + File Manager UX (May 2, 2026)
+
+### User request
+> "Continue hosting panel UX improvements (file manager, login page, drag & drop)" — combined: polish + new file-manager features + login hardening. Visual direction: "Bolder redesign". Run testing agent after batch.
+
+### What shipped
+
+**Visual: "Sunset Coral & Deep Indigo" design language** (`/app/frontend/src/panel-v2.css`, ~870 lines)
+- Replaces generic emerald/violet-on-slate with distinctive coral (#FF6B6B / #E11D48) + deep indigo (#6366F1 / #4F46E5) palette in both dark + light modes.
+- Typography: IBM Plex Sans (display/body) + JetBrains Mono (code, paths, URLs, PIN, breadcrumbs).
+- Glassmorphism login card on a noise-textured background with diagonal accent strokes.
+- Sticky tab nav + sticky file-manager toolbar with backdrop blur.
+- Custom checkbox styling, custom selection color, micro-animations on every interaction (entry stagger, hover lift, shake on bad credentials, slide-down on help reveal).
+- Loaded after App.css in `App.js` so v2 cascades; light-mode specificity bumps appended (.panel-light .* matchers) to defeat legacy 2-class rules.
+
+**Login hardening** (`/app/frontend/src/pages/PanelLogin.js`)
+- Show/hide PIN toggle (eye icon) — `data-testid='panel-login-pin-toggle'`
+- Remember-username checkbox — opt-in localStorage at `panel_remember_username`; pre-fills next visit
+- Caps-lock indicator — appears when `getModifierState('CapsLock')` true on key events in either field
+- Rate-limit countdown — 5 consecutive failed logins → 60-second lockout with mm:ss clock (`data-testid='panel-login-rate-limit-clock'`); auto-clears on expiry
+- Auto-focus PIN if username pre-filled, else username
+- Shake animation on error
+
+**File Manager: new features** (`/app/frontend/src/components/panel/FileManager.js`)
+- Multi-select with header + per-row checkboxes (`fm-select-all`, `fm-select-{name}`); `:indeterminate` pseudo-class for partial state
+- Bulk action bar (`fm-bulk-bar`) with count chip + Move / Delete / Clear; bulk delete iterates with success/failure tally; bulk move modal accepts destination dir
+- Live folder search (`fm-search-input`) with `/` keyboard shortcut + Esc clears
+- Image-file thumbnails — files matching `.png|jpg|jpeg|gif|webp|svg|bmp|ico|avif` show inline thumbnail in name cell + click opens modal preview (`fm-img-modal`) with "Open in tab" link
+- Keyboard shortcuts:
+  - `/` focuses search
+  - `Esc` cascades through state (image preview → modals → search → selection)
+  - `Ctrl/Cmd+A` selects all visible files
+  - `Delete`/`Backspace` triggers bulk delete confirmation when selection non-empty
+- Sticky toolbar (top: 51px under tab nav) with backdrop blur
+- Search-empty state shows `No files match "<term>"` with Esc hint
+- Selection auto-clears on directory change
+
+**Tested: 19/19 frontend assertions PASS** via `testing_agent_v3_fork` (iteration_9.json)
+- Login flows (PIN toggle, caps-lock, remember-username, rate-limit lock + auto-clear, success → dashboard)
+- Theme toggle, brand mark, sticky tab nav
+- File manager toolbar, search + `/` shortcut, Esc behavior, drag overlay, empty-state messaging
+- Light-mode coral palette correctly overrides legacy gradient
+- Bulk action / image preview / bulk move modal data-testids verified via source review (CPANEL_DOWN at runtime; testing agent confirmed render paths)
+
+### Files touched
+- NEW: `/app/frontend/src/panel-v2.css` (full V2 design system)
+- `/app/frontend/src/App.js` — added `import './panel-v2.css';` after App.css
+- `/app/frontend/src/pages/PanelLogin.js` — full rewrite for new login features (preserves all existing data-testids)
+- `/app/frontend/src/components/panel/FileManager.js` — added selection state, search, keyboard listener, bulk actions, image thumbnails, image preview modal, bulk move modal, bulk delete modal variant
+
+### Code review notes (non-blocking, future cleanup)
+- FileManager.js is ~1350 lines — refactor candidate (extract BulkBar/ImagePreviewModal/DeleteModal/BulkMoveModal sub-components)
+- Login rate-limit is localStorage-only (UX nudge, not a security control — backend throttling is authoritative)
+- Consider extracting `useHotkeys` hook for the keydown listener
+
+
 ## ✅ Cancel/Yes/No Button Visual Standardization (May 1, 2026)
+
 
 ### Problem
 After back-button standardization, audit revealed Cancel/Yes/No buttons had similar fragmentation:

@@ -15,7 +15,7 @@
 - **Password**: `Onlygod1234@`
 - **Panel Domain**: `https://panel.1.hostbay.io/panel`
 
-## Visitor Captcha Test Accounts (Gold gating)
+## Visitor Captcha Test Accounts (Gold gating) — also used for Panel V2 redesign tests
 - Seed script: `set -a; source /app/backend/.env; set +a; node /app/tests/seed_captcha_accounts.js`
 - **Gold**: `goldtest` / PIN `123456` — plan `Golden Anti-Red HostPanel (30 Days)`, domain `goldtest.com`, addon `goldaddon.com`
 - **Premium (locked)**: `premtest` / PIN `123456` — plan `Premium Anti-Red HostPanel (30 Days)`, domain `premtest.com`
@@ -23,7 +23,11 @@
 
 ## Bot
 - Username: @NomadlyBot
-## Panel Local Test Account\n- Username: testuser\n- PIN: 123456\n- Domain: example-test.com
+
+## Panel Local Test Account
+- Username: `testuser`
+- PIN: `123456`
+- Domain: `example-test.com`
 
 ## DigitalOcean (WHM host management)
 - API token: stored in `/app/backend/.env` as `DIGITALOCEAN_API_TOKEN` (gitignored — never commit)
