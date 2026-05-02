@@ -2426,3 +2426,34 @@ Lint clean, bot boots cleanly ("Bot initialized with webhook support"), no regre
 ### Still open (from @LBHAND23 report)
 - B. Wallet balance estimate shown only at final `/yes` — NOT fixed this round (user deferred).
 - D. Misleading `"number not found"` billing log — NOT fixed this round (user deferred).
+
+
+## Fixes B + D — @LBHAND23 UX frictions round 2 (2026-05-02)
+
+### Fix B — Wallet cost/balance visibility BEFORE campaign build
+- Added a wallet-balance banner at the **Quick IVR Call entry menu** (the first screen the user sees when starting an outbound campaign). If balance ≥ `BULK_CALL_MIN_WALLET` ($50 default): shows a green `💰 Wallet: $X · Min: $50 ✅`. If short: shows a yellow `⚠️ Wallet: $X · Min: $50 · Deposit $Y before launching.`
+- Added a new module-level helper `ivrWalletHintPrefix(chatId, lang)` that returns the same banner localized en/fr/hi/zh for re-use across downstream builder steps.
+- Prepended the hint to **both** custom-script entry prompts (`t.cp_43` shortcut + `t.cp_46` category-pick flow), so users who pick the highest-time-investment path see the warning twice before typing a 500-char script.
+- Skipped for trial users (`ivrObData.isTrial`) since they don't pay.
+
+### Fix D — Twilio SIP unanswered-billing log disambiguation
+- Replaced the single misleading `[Twilio] SIP Bridge Call unanswered billing skipped — number not found for +XXX` line with a 3-way decision:
+  1. **Billed** (happy path) — unchanged.
+  2. **NOT BILLED (warn)** when `decodedToNum` is in the user's numbers list but `provider !== 'twilio'` — this is a config/metadata drift bug and needs ops attention. Message: `⚠️ NOT BILLED: +X is in user numbers but provider != 'twilio'. Check number-doc hygiene for chatId=N.`
+  3. **Not billed (info)** when the number isn't owned by the user at all (expected: destination/transfer leg). Message: `[Twilio] <label> <reason> <dur>s — not billed (+X is not a Nomadly-owned Twilio number for chatId=N; likely a destination/transfer leg, which is correct).`
+- Now includes call **duration** and **reason** (no answer / busy / failed) in the log line — actually auditable.
+- Attributes `chatId` for traceability.
+
+### Verification
+- New test file: `js/tests/test_ivr_cost_hint_and_log_clarity.js` — **22 / 22 pass**.
+  - Wallet hint: all 4 locales × 3 branches (sufficient, short, error-non-fatal), amount formatting, "Top up $X.XX" correctness.
+  - Log clarity: all 3 case paths (billed / warn / info), duration inclusion, reason inclusion, old "number not found" phrase absent.
+- Bot boots cleanly, lint green.
+
+### Files touched
+- MODIFIED: `js/_index.js` — 2 new module-level helpers + wallet banner on Quick IVR menu + 2 custom-script prompt prefixes + rewritten Twilio SIP log branch.
+- NEW: `js/tests/test_ivr_cost_hint_and_log_clarity.js`
+
+### Production impact
+- Users will now see their wallet balance + min-required AT THE MENU before they invest 15 minutes building a campaign. If they were short, they top up before work, not after.
+- Ops gets loud WARN-level alerts for provider-metadata drift (the actual bug that caused @LBHAND23's call to log as "number not found" — their Twilio number likely had `provider` stored as something other than `'twilio'`) instead of silent skipped-billing.

@@ -1243,7 +1243,39 @@ function scheduleSupportSlaNudge(chatId, displayName, openedTs, delayMs = 10 * 6
   } catch (e) { log('[Support] scheduleSupportSlaNudge error: ' + e.message) }
 }
 
-// ─── Post-activation nudge ──────────────────────────────────
+// ─── IVR campaign wallet hint prefix ─────────────────────────
+// Returns a short localized wallet-balance / minimum-required line that is
+// prepended to script-entry prompts in the outbound IVR builder. This is the
+// second visibility hook (after the Quick IVR entry menu) for fix B: users
+// should see the cost/balance picture BEFORE typing a ~15-minute custom
+// script. Non-fatal if the wallet lookup errors — returns ''.
+const ivrWalletHintPrefix = async (chatId, lang = 'en') => {
+  try {
+    const IVR_MIN_WALLET = parseFloat(process.env.BULK_CALL_MIN_WALLET || '50')
+    const wc = await smartWalletCheck(walletOf, chatId, IVR_MIN_WALLET)
+    const bal = wc.usdBal.toFixed(2)
+    const min = IVR_MIN_WALLET.toFixed(2)
+    if (wc.sufficient) {
+      return ({
+        en: `💰 <b>Wallet:</b> $${bal} · <b>Min:</b> $${min} ✅\n\n`,
+        fr: `💰 <b>Portefeuille :</b> ${bal} $ · <b>Min :</b> ${min} $ ✅\n\n`,
+        zh: `💰 <b>钱包:</b> $${bal} · <b>最低:</b> $${min} ✅\n\n`,
+        hi: `💰 <b>वॉलेट:</b> $${bal} · <b>न्यूनतम:</b> $${min} ✅\n\n`,
+      }[lang]) || `💰 <b>Wallet:</b> $${bal} · <b>Min:</b> $${min} ✅\n\n`
+    }
+    const short = (IVR_MIN_WALLET - wc.usdBal).toFixed(2)
+    return ({
+      en: `⚠️ <b>Wallet:</b> $${bal} · <b>Min:</b> $${min} · Top up <b>$${short}</b> before launch.\n\n`,
+      fr: `⚠️ <b>Portefeuille :</b> ${bal} $ · <b>Min :</b> ${min} $ · Déposez <b>${short} $</b> avant le lancement.\n\n`,
+      zh: `⚠️ <b>钱包:</b> $${bal} · <b>最低:</b> $${min} · 启动前请充值 <b>$${short}</b>。\n\n`,
+      hi: `⚠️ <b>वॉलेट:</b> $${bal} · <b>न्यूनतम:</b> $${min} · लॉन्च से पहले <b>$${short}</b> जमा करें।\n\n`,
+    }[lang]) || `⚠️ <b>Wallet:</b> $${bal} · <b>Min:</b> $${min} · Top up <b>$${short}</b> before launch.\n\n`
+  } catch (e) {
+    return ''
+  }
+}
+
+
 // After a Cloud IVR number is activated (any payment path), users historically
 // had to drill 4 levels (Cloud IVR + SIP → My Plans → [number] → 🔑 SIP
 // Credentials → 👁️ Reveal Password) to see their SIP password. Support log
@@ -17746,8 +17778,26 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
         recentCalls = recentCalls.filter(r => { if (seen.has(r.to)) return false; seen.add(r.to); return true }).slice(0, 5)
       } catch (e) { /* ignore */ }
 
+      // Wallet / cost visibility (fix B for @LBHAND23 2026-05-02).
+      // Users used to build a full campaign (destination, script, transfer,
+      // voice, speed — ~15 min of work) and ONLY then discover at /yes that
+      // their wallet is short of the required minimum. Now we surface the
+      // balance + required minimum at the entry point so they can top up
+      // BEFORE the time investment. Skip for free-trial users (no charge).
+      const IVR_MIN_WALLET = parseFloat(process.env.BULK_CALL_MIN_WALLET || '50')
+      let walletHint = ''
+      try {
+        const wc = await smartWalletCheck(walletOf, chatId, IVR_MIN_WALLET)
+        if (wc.sufficient) {
+          walletHint = `\n💰 <b>Wallet:</b> $${wc.usdBal.toFixed(2)}  ·  <b>Min needed:</b> $${IVR_MIN_WALLET.toFixed(2)}  ✅\n`
+        } else {
+          const short = (IVR_MIN_WALLET - wc.usdBal).toFixed(2)
+          walletHint = `\n⚠️ <b>Wallet:</b> $${wc.usdBal.toFixed(2)}  ·  <b>Min needed:</b> $${IVR_MIN_WALLET.toFixed(2)}  ·  Deposit <b>$${short}</b> before launching.\n`
+        }
+      } catch (e) { /* non-fatal — just omit the hint */ }
+
       // Build menu
-      let menuText = `📢 <b>Quick IVR Call</b>\n\nCall a single number with an automated IVR message.\n`
+      let menuText = `📢 <b>Quick IVR Call</b>\n\nCall a single number with an automated IVR message.\n` + walletHint
       const menuRows = []
 
       if (presets.length > 0) {
@@ -18223,7 +18273,8 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       ivrObData.category = 'custom'
       await saveInfo('ivrObData', ivrObData)
       await set(state, chatId, 'action', a.ivrObCustomScript)
-      return send(chatId, trans('t.cp_43'), k.of([['ℹ️ All Placeholders'], ['↩️ Back']]))
+      const walletHint = ivrObData.isTrial ? '' : await ivrWalletHintPrefix(chatId, lang)
+      return send(chatId, walletHint + trans('t.cp_43'), k.of([['ℹ️ All Placeholders'], ['↩️ Back']]))
     }
 
     // "⭐ Last:" shortcut (#7 Flatten)
@@ -18251,7 +18302,8 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       ivrObData.category = 'custom'
       await saveInfo('ivrObData', ivrObData)
       await set(state, chatId, 'action', a.ivrObCustomScript)
-      return send(chatId, trans('t.cp_46'), k.of([['ℹ️ All Placeholders'], ['↩️ Back']]))
+      const walletHint = ivrObData.isTrial ? '' : await ivrWalletHintPrefix(chatId, lang)
+      return send(chatId, walletHint + trans('t.cp_46'), k.of([['ℹ️ All Placeholders'], ['↩️ Back']]))
     }
 
     ivrObData.category = cat
@@ -32324,6 +32376,7 @@ app.post('/twilio/voice-dial-status', async (req, res) => {
         try {
           const decodedToNum = decodeURIComponent(to)
           const destination = decodeURIComponent(from || '')
+          const dur = parseInt(DialCallDuration || '0')
           const userData = await get(phoneNumbersOf, chatId)
           const numbers = userData?.numbers || []
           const num = numbers.find(n => n.phoneNumber === decodedToNum && n.provider === 'twilio')
@@ -32336,7 +32389,22 @@ app.post('/twilio/voice-dial-status', async (req, res) => {
             }
             log(`[Twilio] ${label} unanswered billed: 1 min minimum @ $${billingInfo.rate} — ${reason}`)
           } else {
-            log(`[Twilio] ${label} unanswered billing skipped — number not found for ${decodedToNum}`)
+            // Lookup miss — this is EXPECTED when the "to" on the webhook
+            // isn't one of the user's owned Nomadly Twilio numbers (e.g. a
+            // destination/transfer target appears in `to` for certain SIP
+            // flows). Old log said `number not found for +XXX` which scared
+            // on-call engineers into thinking billing was broken. Clarify
+            // that billing is intentionally not charged, include call
+            // status + duration so the line is actually auditable, and
+            // escalate to WARN severity only if the number MIGHT be one of
+            // the user's owned numbers (string match without provider
+            // filter), because that's a real provider-metadata drift bug.
+            const hasSameNumberWithWrongProvider = numbers.some(n => n.phoneNumber === decodedToNum && n.provider !== 'twilio')
+            if (hasSameNumberWithWrongProvider) {
+              log(`[Twilio] ${label} ${reason} ${dur}s — ⚠️ NOT BILLED: ${decodedToNum} is in user numbers but provider != 'twilio'. Check number-doc hygiene for chatId=${chatId}.`)
+            } else {
+              log(`[Twilio] ${label} ${reason} ${dur}s — not billed (${decodedToNum} is not a Nomadly-owned Twilio number for chatId=${chatId}; likely a destination/transfer leg, which is correct).`)
+            }
           }
         } catch (e) { log(`[Twilio] ${label} unanswered billing error: ${e.message}`) }
       }
