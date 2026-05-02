@@ -121,13 +121,6 @@
   },
   "geo": {
     "title": "地理遮蔽",
-    "description": "根据访问者的国家显示不同的内容。",
-    "ruleCountry": "国家",
-    "ruleAction": "操作",
-    "actionAllow": "允许",
-    "actionBlock": "阻止",
-    "actionRedirect": "重定向",
-    "addRule": "添加规则",
     "newRule": "+ 新规则",
     "modeBlockLabel": "阻止国家",
     "modeAllowLabel": "仅允许",

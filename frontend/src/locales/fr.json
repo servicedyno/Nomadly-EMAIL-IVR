@@ -121,13 +121,6 @@
   },
   "geo": {
     "title": "Paramètres géographiques",
-    "description": "Afficher un contenu différent aux visiteurs en fonction de leur pays.",
-    "ruleCountry": "Pays",
-    "ruleAction": "Action",
-    "actionAllow": "Autoriser",
-    "actionBlock": "Bloquer",
-    "actionRedirect": "Rediriger",
-    "addRule": "Ajouter une règle",
     "newRule": "+ Nouvelle règle",
     "modeBlockLabel": "Bloquer les pays",
     "modeAllowLabel": "Autoriser seulement",

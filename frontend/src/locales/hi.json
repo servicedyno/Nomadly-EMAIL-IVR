@@ -121,13 +121,6 @@
   },
   "geo": {
     "title": "जियो क्लोक",
-    "description": "युवा के अनुसार विभिन्न सामग्री दिखाएँ।",
-    "ruleCountry": "देश",
-    "ruleAction": "कार्य",
-    "actionAllow": "अनुमति दें",
-    "actionBlock": "रोकें",
-    "actionRedirect": "रेट डाईरेक्ट",
-    "addRule": "नियम जोड़ें",
     "newRule": "+ नया नियम",
     "modeBlockLabel": "देशों को ब्लॉक करें",
     "modeAllowLabel": "केवल अनुमति दें",
