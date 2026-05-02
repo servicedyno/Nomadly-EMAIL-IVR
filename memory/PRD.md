@@ -2248,3 +2248,41 @@ User: "analyze railway logs for all deployments in the last 12 hours and determi
 - 🔴 Production CR-Whitelist Puppeteer login broken — needs ConnectReseller credential check.
 - 🟠 `claief8e` AntiRed silently disabled — owner notification not sent.
 - 🚀 Deploy to Railway so this AntiRed+whitelist hardening lands in prod.
+
+
+## cPanel provisioning E2E test (2026-05-02)
+
+User asked: "test to ensure cpanel provision will work from production bot for users — actual test is needed end to end along with all scenarios."
+
+### Scope agreed
+Hybrid (Option E): comprehensive scenario coverage on real code paths via mocks (zero registrar/cPanel spend) + production deployment state verification.
+
+### Result: 76/76 tests pass + production verified healthy
+
+```
+test_provisioning_deferred.js         17/17  (S1+S4+S5)
+test_provisioning_scenarios.js   NEW  17/17  (S2+S3+S6 + W1-W4)
+test_whm_retry_and_antired_tunnel.js NEW 18/18 (AntiRed tunnel + retry pred.)
+test_whm_retry_e2e.js                NEW   6/6 (autoWhitelistIP retry e2e)
+test_cpanel_health.js                       7/7
+test_cpanel_queue.js                       11/11
+TOTAL                                      76/76
+```
+
+### Production state at 2026-05-02 10:05 UTC
+- Latest Nomadly-EMAIL-IVR deploy `bc4218eb` (09:58 UTC) → SUCCESS
+- 12× `[AntiRed] CF IP Fix deployed for …` succeeded for the same 13 accounts that previously failed
+- 1× `[WHM-Whitelist] cPHulk: … whitelisted successfully` (162.220.232.99)
+- 0× OLD failure signatures (no 10 s/30 s timeouts, no `WHM control-plane DOWN`)
+- Verdict: provisioning works for users RIGHT NOW; hardening fixes still need to be shipped to remove the cold-start latency cliff for future deploys.
+
+### Files added
+- `js/tests/test_provisioning_scenarios.js` — S2, S3, S6 + W1-W4 covering existing-domain skip, external-domain NS notice, username conflict retry, network-error→CPANEL_DOWN, 5xx-no-retry, suspend/unsuspend/list plumbing.
+- `scripts/verify_prod_deploy.py` — Railway API check: latest deploy status + 60-min log pattern hit/miss.
+- `CPANEL_PROVISIONING_E2E_REPORT.md` — full report (scenarios, outcomes, why-no-live-createacct, confidence statement).
+
+### Why no live `createacct` was attempted
+This pod's egress IP `34.16.56.64` is firewalled at the WHM origin (TCP :2087 TIMEOUT after 8 s — exactly the production failure surface). No `WHM_API_URL` / `CF_ACCESS_*` vars locally, so no Cloudflare Tunnel path either. To run a live cycle from this pod you'd need to either whitelist `34.16.56.64` once at the WHM box, or populate the 3 tunnel env vars.
+
+### Next step
+Ship the hardening fixes via Save-to-Github → Railway redeploy. Subsequent prod log scan should show `[WHM-Whitelist] transient error … retrying in 1500ms…` pattern for cold deploys, and zero recurrences of `cPHulk error: timeout of 10000ms exceeded`.
