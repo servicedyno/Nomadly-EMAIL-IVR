@@ -7,6 +7,7 @@ import PanelLogin from './pages/PanelLogin';
 import PanelDashboard from './pages/PanelDashboard';
 import PhoneTestPage from './pages/PhoneTestPage';
 import './App.css';
+import './panel-v2.css';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
 const PANEL_DOMAIN = (process.env.REACT_APP_PANEL_DOMAIN || 'panel.hostbay.io').toLowerCase();

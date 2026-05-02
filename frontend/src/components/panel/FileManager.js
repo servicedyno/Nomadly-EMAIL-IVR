@@ -38,14 +38,19 @@ export default function FileManager() {
   const [successMessage, setSuccessMessage] = useState('');
   const [copyMoveAction, setCopyMoveAction] = useState(null);
   const [destDir, setDestDir] = useState('');
-  const [deleteTarget, setDeleteTarget] = useState(null); // { fileName, isDir }
+  const [deleteTarget, setDeleteTarget] = useState(null); // { fileName, isDir } | { bulk: true, items: [{name,isDir}] }
   const [deleting, setDeleting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [dismissedGuide, setDismissedGuide] = useState(() => {
     return sessionStorage.getItem('panel_guide_dismissed') === 'true';
   });
+  const [selected, setSelected] = useState(() => new Set());
+  const [search, setSearch] = useState('');
+  const [bulkMoveTarget, setBulkMoveTarget] = useState(null); // { destDir }
+  const [imagePreview, setImagePreview] = useState(null); // { name, url }
   const fileInputRef = useRef(null);
   const dropZoneRef = useRef(null);
+  const searchRef = useRef(null);
 
   const isPublicHtml = currentDir.includes('/public_html');
   const isPublicHtmlRoot = currentDir.endsWith('/public_html') || currentDir.endsWith('/public_html/');
@@ -77,6 +82,66 @@ export default function FileManager() {
   useEffect(() => {
     fetchFiles(currentDir);
   }, [currentDir, fetchFiles]);
+
+  // Reset selection + search when changing directory
+  useEffect(() => {
+    setSelected(new Set());
+    setSearch('');
+  }, [currentDir]);
+
+  // Keyboard shortcuts: '/' focuses search, Esc closes modals/clears selection,
+  // Delete triggers bulk delete, Ctrl/Cmd+A selects all visible files.
+  useEffect(() => {
+    const onKey = (e) => {
+      const tag = (e.target?.tagName || '').toUpperCase();
+      const inField = tag === 'INPUT' || tag === 'TEXTAREA' || e.target?.isContentEditable;
+
+      // '/' focuses search (only when not in another input)
+      if (e.key === '/' && !inField && !editingFile && !renaming && !copyMoveAction && !deleteTarget && !bulkMoveTarget && !imagePreview) {
+        e.preventDefault();
+        searchRef.current?.focus();
+        return;
+      }
+
+      // Esc clears state in priority order
+      if (e.key === 'Escape') {
+        if (imagePreview) { setImagePreview(null); return; }
+        if (deleteTarget) { if (!deleting) setDeleteTarget(null); return; }
+        if (bulkMoveTarget) { setBulkMoveTarget(null); return; }
+        if (copyMoveAction) { setCopyMoveAction(null); return; }
+        if (renaming) { setRenaming(null); return; }
+        if (editingFile) { setEditingFile(null); return; }
+        if (showNewDir) { setShowNewDir(false); setNewDirName(''); return; }
+        if (search) { setSearch(''); return; }
+        if (selected.size > 0) { setSelected(new Set()); return; }
+      }
+
+      // Ctrl/Cmd+A: select all (only when not in input + something visible)
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a' && !inField && !editingFile) {
+        e.preventDefault();
+        const visible = visibleFilesRef.current || [];
+        if (selected.size === visible.length && visible.length > 0) {
+          setSelected(new Set());
+        } else {
+          setSelected(new Set(visible.map(f => f.file || f.fullpath?.split('/').pop()).filter(Boolean)));
+        }
+      }
+
+      // Delete key triggers bulk delete prompt
+      if ((e.key === 'Delete' || e.key === 'Backspace') && !inField && selected.size > 0 && !deleteTarget) {
+        e.preventDefault();
+        const items = (visibleFilesRef.current || [])
+          .filter(f => selected.has(f.file || f.fullpath?.split('/').pop()))
+          .map(f => ({ name: f.file || f.fullpath?.split('/').pop(), isDir: f.type === 'dir' }));
+        if (items.length) setDeleteTarget({ bulk: true, items });
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [editingFile, renaming, copyMoveAction, deleteTarget, bulkMoveTarget, imagePreview, showNewDir, search, selected, deleting]);
+
+  // Holder for visible-files reference used by keyboard handlers
+  const visibleFilesRef = useRef([]);
 
   // Drag and drop handlers
   const handleDragOver = (e) => {
@@ -221,6 +286,10 @@ export default function FileManager() {
 
   const confirmDelete = async () => {
     if (!deleteTarget || deleting) return;
+    if (deleteTarget.bulk) {
+      await performBulkDelete();
+      return;
+    }
     const { fileName, isDir } = deleteTarget;
     setDeleting(true);
     setError('');
@@ -388,6 +457,120 @@ export default function FileManager() {
   const isTextFile = (name) => /\.(html?|css|js|json|xml|txt|php|py|md|htaccess|conf|log|yml|yaml|env|sh|sql|csv)$/i.test(name);
   const isArchive = (name) => /\.(zip|tar\.gz|tgz|tar\.bz2|gz|bz2|tar)$/i.test(name);
   const isWebFile = (name) => /\.(html?|php|htm)$/i.test(name);
+  const isImage = (name) => /\.(png|jpe?g|gif|webp|svg|bmp|ico|avif)$/i.test(name);
+
+  // Visible (search-filtered) files
+  const q = search.trim().toLowerCase();
+  const visibleFiles = q
+    ? files.filter(f => (f.file || '').toLowerCase().includes(q))
+    : files;
+  visibleFilesRef.current = visibleFiles;
+
+  const toggleSelect = (name) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selected.size === visibleFiles.length && visibleFiles.length > 0) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(visibleFiles.map(f => f.file || f.fullpath?.split('/').pop()).filter(Boolean)));
+    }
+  };
+
+  const allChecked = visibleFiles.length > 0 && selected.size === visibleFiles.length;
+  const someChecked = selected.size > 0 && selected.size < visibleFiles.length;
+
+  const headerCheckboxRef = useRef(null);
+  useEffect(() => {
+    if (headerCheckboxRef.current) headerCheckboxRef.current.indeterminate = someChecked;
+  }, [someChecked]);
+
+  const performBulkDelete = async () => {
+    if (!deleteTarget?.bulk) return;
+    setDeleting(true);
+    setError('');
+    let okCount = 0;
+    const failures = [];
+    for (const item of deleteTarget.items) {
+      try {
+        await api('/files/delete', {
+          method: 'POST',
+          body: JSON.stringify({ dir: currentDir, file: item.name, isDirectory: item.isDir }),
+        });
+        okCount++;
+      } catch (err) {
+        failures.push({ name: item.name, msg: err.message || 'Delete failed' });
+      }
+    }
+    setDeleting(false);
+    setDeleteTarget(null);
+    setSelected(new Set());
+    if (failures.length === 0) {
+      setSuccessMessage(`${okCount} item${okCount === 1 ? '' : 's'} deleted.`);
+      setTimeout(() => setSuccessMessage(''), 4000);
+    } else {
+      setError(`${okCount}/${deleteTarget.items.length} deleted — ${failures.length} failed (first: ${failures[0].name}: ${failures[0].msg})`);
+    }
+    fetchFiles(currentDir);
+  };
+
+  const performBulkMove = async () => {
+    if (!bulkMoveTarget?.destDir) return;
+    const items = Array.from(selected);
+    if (items.length === 0) { setBulkMoveTarget(null); return; }
+    setError('');
+    setSuccessMessage('');
+    let okCount = 0;
+    const failures = [];
+    for (const name of items) {
+      try {
+        const res = await api('/files/move', {
+          method: 'POST',
+          body: JSON.stringify({ dir: currentDir, file: name, destDir: bulkMoveTarget.destDir.trim() }),
+        });
+        if (res.errors?.length || res.code === 'CPANEL_DOWN') {
+          failures.push({ name, msg: pickErrorMessage(res, t, lang) || 'Move failed' });
+        } else {
+          okCount++;
+        }
+      } catch (err) {
+        failures.push({ name, msg: err.message || 'Move failed' });
+      }
+    }
+    setBulkMoveTarget(null);
+    setSelected(new Set());
+    if (failures.length === 0) {
+      setSuccessMessage(`${okCount} item${okCount === 1 ? '' : 's'} moved to ${bulkMoveTarget.destDir.trim()}`);
+      setTimeout(() => setSuccessMessage(''), 5000);
+    } else {
+      setError(`${okCount}/${items.length} moved — ${failures.length} failed (first: ${failures[0].name}: ${failures[0].msg})`);
+    }
+    fetchFiles(currentDir);
+  };
+
+  const handleBulkDelete = () => {
+    const items = Array.from(selected).map(name => {
+      const f = files.find(fl => (fl.file || fl.fullpath?.split('/').pop()) === name);
+      return { name, isDir: f?.type === 'dir' };
+    });
+    if (items.length) setDeleteTarget({ bulk: true, items });
+  };
+
+  const handleBulkMove = () => {
+    setBulkMoveTarget({ destDir: currentDir });
+  };
+
+  const openImagePreview = (name) => {
+    const url = getPublicUrl(name, false);
+    if (!url) return;
+    setImagePreview({ name, url });
+  };
 
   const getPublicUrl = (fileName, isDirectory) => {
     const publicHtmlIndex = currentDir.indexOf('/public_html');
@@ -556,6 +739,21 @@ export default function FileManager() {
           ))}
         </div>
         <div className="fm-toolbar-actions">
+          <div className="fm-search">
+            <span className="fm-search-icon">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </span>
+            <input
+              ref={searchRef}
+              type="search"
+              placeholder="Search files…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              data-testid="fm-search-input"
+              aria-label="Search files in current folder"
+            />
+            {!search && <span className="fm-search-shortcut" aria-hidden="true">/</span>}
+          </div>
           <button onClick={goUp} className="fm-btn fm-btn--ghost" data-testid="fm-go-up" title="Go up">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6"/></svg>
             Up
@@ -570,6 +768,44 @@ export default function FileManager() {
           </label>
         </div>
       </div>
+
+      {/* Bulk action bar (shows when items selected) */}
+      {selected.size > 0 && (
+        <div className="fm-bulk-bar" data-testid="fm-bulk-bar">
+          <div className="fm-bulk-info">
+            <span className="fm-bulk-count" data-testid="fm-bulk-count">{selected.size}</span>
+            <span>selected</span>
+          </div>
+          <div className="fm-bulk-actions">
+            <button
+              onClick={handleBulkMove}
+              className="fm-bulk-btn"
+              data-testid="fm-bulk-move"
+              title="Move selected items"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+              Move…
+            </button>
+            <button
+              onClick={handleBulkDelete}
+              className="fm-bulk-btn fm-bulk-btn--danger"
+              data-testid="fm-bulk-delete"
+              title="Delete selected items"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+              Delete
+            </button>
+            <button
+              onClick={() => setSelected(new Set())}
+              className="fm-bulk-btn"
+              data-testid="fm-bulk-clear"
+              title="Clear selection"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Upload progress */}
       {uploadProgress && (
@@ -619,13 +855,14 @@ export default function FileManager() {
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="fm-spin"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
             <span>Loading files...</span>
           </div>
-        ) : files.length === 0 ? (
+        ) : visibleFiles.length === 0 ? (
           <div className="fm-empty" data-testid="fm-empty-state">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{opacity: 0.4}}>
               <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
             </svg>
-            <p>This folder is empty</p>
-            {isPublicHtml && <span>Upload your website files here to get started</span>}
+            <p>{search ? `No files match "${search}"` : 'This folder is empty'}</p>
+            {!search && isPublicHtml && <span>Upload your website files here to get started</span>}
+            {search && <span>Try a different search term, or press <strong>Esc</strong> to clear.</span>}
           </div>
         ) : (
           <>
@@ -633,6 +870,17 @@ export default function FileManager() {
             <table className="fm-table fm-table--desktop">
               <thead>
                 <tr>
+                  <th className="fm-cell-select">
+                    <input
+                      ref={headerCheckboxRef}
+                      type="checkbox"
+                      className="fm-checkbox"
+                      checked={allChecked}
+                      onChange={toggleSelectAll}
+                      data-testid="fm-select-all"
+                      aria-label="Select all visible files"
+                    />
+                  </th>
                   <th>Name</th>
                   <th>Public URL</th>
                   <th>Size</th>
@@ -641,19 +889,36 @@ export default function FileManager() {
                 </tr>
               </thead>
               <tbody>
-                {files.map((f, i) => {
+                {visibleFiles.map((f, i) => {
                   const name = f.file || f.fullpath?.split('/').pop() || 'unknown';
                   const isDir = f.type === 'dir';
                   const size = isDir ? '-' : formatSize(f.size || f.rawsize || 0);
                   const modified = f.mtime ? new Date(f.mtime * 1000).toLocaleDateString() : '-';
                   const publicUrl = getPublicUrl(name, isDir);
+                  const isSelected = selected.has(name);
+                  const isImg = !isDir && isImage(name);
 
                   return (
-                    <tr key={i} data-testid={`fm-row-${name}`}>
+                    <tr key={i} data-testid={`fm-row-${name}`} className={isSelected ? 'fm-row--selected' : ''}>
+                      <td className="fm-cell-select">
+                        <input
+                          type="checkbox"
+                          className="fm-checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelect(name)}
+                          data-testid={`fm-select-${name}`}
+                          aria-label={`Select ${name}`}
+                        />
+                      </td>
                       <td>
                         {isDir ? (
                           <button className="fm-file-link fm-file-link--dir" onClick={() => navigate(name)} data-testid={`fm-nav-${name}`}>
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+                            {name}
+                          </button>
+                        ) : isImg && publicUrl ? (
+                          <button className="fm-file-link" onClick={() => openImagePreview(name)} data-testid={`fm-img-preview-${name}`} title="Click to preview">
+                            <img className="fm-thumb" src={publicUrl} alt={name} loading="lazy" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                             {name}
                           </button>
                         ) : (
@@ -753,43 +1018,61 @@ export default function FileManager() {
 
             {/* Mobile: Card view */}
             <div className="fm-cards fm-cards--mobile">
-              {files.map((f, i) => {
+              {visibleFiles.map((f, i) => {
                 const name = f.file || f.fullpath?.split('/').pop() || 'unknown';
                 const isDir = f.type === 'dir';
                 const size = isDir ? '-' : formatSize(f.size || f.rawsize || 0);
                 const modified = f.mtime ? new Date(f.mtime * 1000).toLocaleDateString() : '-';
                 const publicUrl = getPublicUrl(name, isDir);
+                const isSelected = selected.has(name);
 
                 return (
-                  <div key={i} className="fm-card" data-testid={`fm-card-${name}`}>
-                    <div className="fm-card-main" onClick={isDir ? () => navigate(name) : undefined}>
-                      <div className={`fm-card-icon ${isDir ? 'fm-card-icon--dir' : isArchive(name) ? 'fm-card-icon--zip' : ''}`}>
-                        {isDir ? (
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
-                        ) : isArchive(name) ? (
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="2"/><path d="M9 2v6h6V2"/><path d="M12 8v4"/><path d="M9 12h6"/></svg>
-                        ) : (
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                        )}
-                      </div>
-                      <div className="fm-card-info">
-                        <span className={`fm-card-name ${isDir ? 'fm-card-name--dir' : ''}`}>{name}</span>
-                        <span className="fm-card-meta">{size} &middot; {modified}</span>
-                        {publicUrl && (
-                          <a 
-                            href={publicUrl} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            className="fm-card-url"
-                            title={publicUrl}
-                            data-testid={`fm-url-mobile-${name}`}
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                            {publicUrl.replace(/^https?:\/\//, '').substring(0, 35)}
-                            {publicUrl.length > 45 ? '...' : ''}
-                          </a>
-                        )}
+                  <div key={i} className={`fm-card ${isSelected ? 'fm-row--selected' : ''}`} data-testid={`fm-card-${name}`}>
+                    <div className="fm-card-main">
+                      <input
+                        type="checkbox"
+                        className="fm-checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelect(name)}
+                        data-testid={`fm-select-mobile-${name}`}
+                        aria-label={`Select ${name}`}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ marginRight: 4 }}
+                      />
+                      <div
+                        style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, cursor: isDir ? 'pointer' : 'default' }}
+                        onClick={isDir ? () => navigate(name) : undefined}
+                      >
+                        <div className={`fm-card-icon ${isDir ? 'fm-card-icon--dir' : isArchive(name) ? 'fm-card-icon--zip' : ''}`}>
+                          {isDir ? (
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+                          ) : isArchive(name) ? (
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="2"/><path d="M9 2v6h6V2"/><path d="M12 8v4"/><path d="M9 12h6"/></svg>
+                          ) : isImage(name) && publicUrl ? (
+                            <img className="fm-thumb" style={{ width: 28, height: 28 }} src={publicUrl} alt={name} loading="lazy" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                          ) : (
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                          )}
+                        </div>
+                        <div className="fm-card-info">
+                          <span className={`fm-card-name ${isDir ? 'fm-card-name--dir' : ''}`}>{name}</span>
+                          <span className="fm-card-meta">{size} &middot; {modified}</span>
+                          {publicUrl && (
+                            <a 
+                              href={publicUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer" 
+                              className="fm-card-url"
+                              title={publicUrl}
+                              data-testid={`fm-url-mobile-${name}`}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                              {publicUrl.replace(/^https?:\/\//, '').substring(0, 35)}
+                              {publicUrl.length > 45 ? '...' : ''}
+                            </a>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <div className="fm-card-actions">
@@ -935,17 +1218,45 @@ export default function FileManager() {
         <div className="fm-modal-overlay" data-testid="fm-delete-modal">
           <div className="fm-modal fm-modal--sm">
             <div className="fm-modal-header">
-              <span>Delete {deleteTarget.isDir ? 'folder' : 'file'}?</span>
+              <span>
+                {deleteTarget.bulk
+                  ? `Delete ${deleteTarget.items.length} item${deleteTarget.items.length === 1 ? '' : 's'}?`
+                  : `Delete ${deleteTarget.isDir ? 'folder' : 'file'}?`}
+              </span>
               <button onClick={() => !deleting && setDeleteTarget(null)} className="fm-modal-close" data-testid="fm-delete-close">&times;</button>
             </div>
             <div style={{ padding: '16px 20px' }}>
-              <div style={{ fontSize: 14, color: '#e2e8f0', wordBreak: 'break-all', marginBottom: 12 }} data-testid="fm-delete-target-name">
-                {deleteTarget.fileName}
-              </div>
-              {deleteTarget.isDir && (
-                <div style={{ fontSize: 13, color: '#fca5a5', marginBottom: 8 }}>
-                  This will permanently delete the folder and everything inside it.
-                </div>
+              {deleteTarget.bulk ? (
+                <>
+                  <div style={{ fontSize: 13, color: '#e2e8f0', marginBottom: 12, maxHeight: 160, overflowY: 'auto' }} data-testid="fm-bulk-delete-list">
+                    {deleteTarget.items.slice(0, 12).map((it, idx) => (
+                      <div key={idx} style={{ padding: '4px 0', wordBreak: 'break-all', fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}>
+                        {it.isDir ? '📁 ' : '📄 '}{it.name}
+                      </div>
+                    ))}
+                    {deleteTarget.items.length > 12 && (
+                      <div style={{ padding: '4px 0', color: 'var(--pv-text-muted)', fontSize: 12 }}>
+                        …and {deleteTarget.items.length - 12} more
+                      </div>
+                    )}
+                  </div>
+                  {deleteTarget.items.some(it => it.isDir) && (
+                    <div style={{ fontSize: 13, color: '#fca5a5', marginBottom: 8 }}>
+                      Some items are folders — their contents will be permanently deleted.
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div style={{ fontSize: 14, color: '#e2e8f0', wordBreak: 'break-all', marginBottom: 12 }} data-testid="fm-delete-target-name">
+                    {deleteTarget.fileName}
+                  </div>
+                  {deleteTarget.isDir && (
+                    <div style={{ fontSize: 13, color: '#fca5a5', marginBottom: 8 }}>
+                      This will permanently delete the folder and everything inside it.
+                    </div>
+                  )}
+                </>
               )}
               <div style={{ fontSize: 12, color: '#94a3b8' }}>
                 This cannot be undone.
@@ -969,6 +1280,63 @@ export default function FileManager() {
               >
                 {deleting ? 'Deleting…' : 'Delete'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Move Modal */}
+      {bulkMoveTarget && (
+        <div className="fm-modal-overlay" data-testid="fm-bulk-move-modal">
+          <div className="fm-modal fm-modal--sm">
+            <div className="fm-modal-header">
+              <span>Move {selected.size} item{selected.size === 1 ? '' : 's'} to…</span>
+              <button onClick={() => setBulkMoveTarget(null)} className="fm-modal-close">&times;</button>
+            </div>
+            <div style={{ padding: '16px 20px' }}>
+              <label style={{ display: 'block', marginBottom: 8, fontSize: 13, color: 'var(--pv-text-secondary)' }}>
+                Destination folder:
+              </label>
+              <input
+                type="text"
+                className="fm-rename-input"
+                value={bulkMoveTarget.destDir}
+                onChange={(e) => setBulkMoveTarget({ ...bulkMoveTarget, destDir: e.target.value })}
+                onKeyDown={(e) => e.key === 'Enter' && performBulkMove()}
+                placeholder={`/home/${user?.username}/public_html`}
+                data-testid="fm-bulk-move-input"
+                autoFocus
+              />
+              <div style={{ marginTop: 8, fontSize: 12, color: 'var(--pv-text-muted)' }}>
+                Enter the full path where you want to move the selected items.
+              </div>
+            </div>
+            <div className="fm-modal-actions">
+              <button onClick={() => setBulkMoveTarget(null)} className="fm-btn fm-btn--ghost">Cancel</button>
+              <button onClick={performBulkMove} className="fm-btn fm-btn--primary" data-testid="fm-bulk-move-submit">
+                Move {selected.size}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Preview Modal */}
+      {imagePreview && (
+        <div className="fm-modal-overlay" data-testid="fm-img-modal" onClick={() => setImagePreview(null)}>
+          <div className="fm-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="fm-modal-header">
+              <span>{imagePreview.name}</span>
+              <button onClick={() => setImagePreview(null)} className="fm-modal-close" data-testid="fm-img-modal-close">&times;</button>
+            </div>
+            <div className="fm-img-preview">
+              <img src={imagePreview.url} alt={imagePreview.name} data-testid="fm-img-modal-img" />
+            </div>
+            <div className="fm-modal-actions">
+              <a href={imagePreview.url} target="_blank" rel="noopener noreferrer" className="fm-btn fm-btn--ghost" data-testid="fm-img-open-tab">
+                Open in tab
+              </a>
+              <button onClick={() => setImagePreview(null)} className="fm-btn fm-btn--primary">Close</button>
             </div>
           </div>
         </div>
