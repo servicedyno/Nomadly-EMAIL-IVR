@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from './AuthContext';
+import Toolbar from './file-manager/Toolbar';
+import BulkBar from './file-manager/BulkBar';
+import DragOverlay from './file-manager/DragOverlay';
+import ImagePreviewModal from './file-manager/ImagePreviewModal';
+import useHotkeys from './file-manager/useHotkeys';
 
 /**
  * Pick a friendly error message from a cpanel-routes / cpanel-proxy response.
@@ -90,59 +95,36 @@ export default function FileManager() {
     setSearch('');
   }, [currentDir]);
 
-  // Keyboard shortcuts: '/' focuses search, Esc closes modals/clears selection,
-  // Delete triggers bulk delete, Ctrl/Cmd+A selects all visible files.
-  useEffect(() => {
-    const onKey = (e) => {
-      const tag = (e.target?.tagName || '').toUpperCase();
-      const inField = tag === 'INPUT' || tag === 'TEXTAREA' || e.target?.isContentEditable;
-
-      // '/' focuses search (only when not in another input)
-      if (e.key === '/' && !inField && !editingFile && !renaming && !copyMoveAction && !deleteTarget && !bulkMoveTarget && !imagePreview) {
-        e.preventDefault();
-        searchRef.current?.focus();
-        return;
-      }
-
-      // Esc clears state in priority order
-      if (e.key === 'Escape') {
-        if (imagePreview) { setImagePreview(null); return; }
-        if (deleteTarget) { if (!deleting) setDeleteTarget(null); return; }
-        if (bulkMoveTarget) { setBulkMoveTarget(null); return; }
-        if (copyMoveAction) { setCopyMoveAction(null); return; }
-        if (renaming) { setRenaming(null); return; }
-        if (editingFile) { setEditingFile(null); return; }
-        if (showNewDir) { setShowNewDir(false); setNewDirName(''); return; }
-        if (search) { setSearch(''); return; }
-        if (selected.size > 0) { setSelected(new Set()); return; }
-      }
-
-      // Ctrl/Cmd+A: select all (only when not in input + something visible)
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a' && !inField && !editingFile) {
-        e.preventDefault();
-        const visible = visibleFilesRef.current || [];
-        if (selected.size === visible.length && visible.length > 0) {
-          setSelected(new Set());
-        } else {
-          setSelected(new Set(visible.map(f => f.file || f.fullpath?.split('/').pop()).filter(Boolean)));
-        }
-      }
-
-      // Delete key triggers bulk delete prompt
-      if ((e.key === 'Delete' || e.key === 'Backspace') && !inField && selected.size > 0 && !deleteTarget) {
-        e.preventDefault();
-        const items = (visibleFilesRef.current || [])
-          .filter(f => selected.has(f.file || f.fullpath?.split('/').pop()))
-          .map(f => ({ name: f.file || f.fullpath?.split('/').pop(), isDir: f.type === 'dir' }));
-        if (items.length) setDeleteTarget({ bulk: true, items });
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [editingFile, renaming, copyMoveAction, deleteTarget, bulkMoveTarget, imagePreview, showNewDir, search, selected, deleting]);
-
   // Holder for visible-files reference used by keyboard handlers
   const visibleFilesRef = useRef([]);
+
+  // Keyboard shortcuts: '/' focuses search, Esc cascades close, Ctrl/Cmd+A
+  // selects all, Delete/Backspace prompts bulk delete. Logic lives in
+  // ./file-manager/useHotkeys.js.
+  useHotkeys({
+    searchRef,
+    visibleFilesRef,
+    selected,
+    setSelected,
+    search,
+    setSearch,
+    showNewDir,
+    setShowNewDir,
+    setNewDirName,
+    editingFile,
+    setEditingFile,
+    renaming,
+    setRenaming,
+    copyMoveAction,
+    setCopyMoveAction,
+    deleteTarget,
+    setDeleteTarget,
+    bulkMoveTarget,
+    setBulkMoveTarget,
+    imagePreview,
+    setImagePreview,
+    deleting,
+  });
 
   // Drag and drop handlers
   const handleDragOver = (e) => {
@@ -749,19 +731,7 @@ export default function FileManager() {
       onDrop={handleDrop}
     >
       {/* Drag overlay */}
-      {isDragging && (
-        <div className="fm-drag-overlay" data-testid="fm-drag-overlay">
-          <div className="fm-drag-content">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-              <polyline points="17 8 12 3 7 8"/>
-              <line x1="12" y1="3" x2="12" y2="15"/>
-            </svg>
-            <p>Drop files or folders here to upload</p>
-            {isPublicHtml ? <span>Folder structure is preserved · Files go live on your website</span> : <span>Folder structure is preserved · Subdirectories will be created automatically</span>}
-          </div>
-        </div>
-      )}
+      {isDragging && <DragOverlay isPublicHtml={isPublicHtml} />}
 
       {/* Editor Modal */}
       {editingFile && (
@@ -855,102 +825,28 @@ export default function FileManager() {
       )}
 
       {/* Toolbar */}
-      <div className="fm-toolbar" data-testid="fm-toolbar">
-        <div className="fm-breadcrumb">
-          <button onClick={() => setCurrentDir(`/home/${user?.username}`)} className="fm-bread-item">/home</button>
-          {breadcrumbs.slice(1).map((part, i) => (
-            <React.Fragment key={i}>
-              <span className="fm-bread-sep">/</span>
-              <button
-                onClick={() => setCurrentDir('/' + breadcrumbs.slice(0, i + 2).join('/'))}
-                className={`fm-bread-item ${part === 'public_html' ? 'fm-bread-item--highlight' : ''}`}
-              >{part}</button>
-            </React.Fragment>
-          ))}
-        </div>
-        <div className="fm-toolbar-actions">
-          <div className="fm-search">
-            <span className="fm-search-icon">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            </span>
-            <input
-              ref={searchRef}
-              type="search"
-              placeholder="Search files…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              data-testid="fm-search-input"
-              aria-label="Search files in current folder"
-            />
-            {!search && <span className="fm-search-shortcut" aria-hidden="true">/</span>}
-          </div>
-          <button onClick={goUp} className="fm-btn fm-btn--ghost" data-testid="fm-go-up" title="Go up">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6"/></svg>
-            Up
-          </button>
-          <button onClick={() => setShowNewDir(!showNewDir)} className="fm-btn fm-btn--ghost" data-testid="fm-new-dir-btn">
-            + Folder
-          </button>
-          <label className={`fm-btn fm-btn--ghost ${uploading ? 'fm-btn--loading' : ''}`} title="Upload an entire folder (preserves structure)">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/><line x1="12" y1="11" x2="12" y2="17"/><polyline points="9 14 12 11 15 14"/></svg>
-            Upload Folder
-            <input
-              type="file"
-              ref={folderInputRef}
-              onChange={handleUpload}
-              style={{ display: 'none' }}
-              data-testid="fm-upload-folder-input"
-              webkitdirectory=""
-              directory=""
-              mozdirectory=""
-              multiple
-            />
-          </label>
-          <label className={`fm-btn fm-btn--primary ${uploading ? 'fm-btn--loading' : ''}`}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            {uploading ? 'Uploading...' : 'Upload Files'}
-            <input type="file" multiple ref={fileInputRef} onChange={handleUpload} style={{ display: 'none' }} data-testid="fm-upload-input" />
-          </label>
-        </div>
-      </div>
+      <Toolbar
+        homeUsername={user?.username}
+        breadcrumbs={breadcrumbs}
+        onCrumbClick={setCurrentDir}
+        searchRef={searchRef}
+        search={search}
+        onSearchChange={setSearch}
+        onGoUp={goUp}
+        onToggleNewDir={() => setShowNewDir(!showNewDir)}
+        uploading={uploading}
+        fileInputRef={fileInputRef}
+        folderInputRef={folderInputRef}
+        onUpload={handleUpload}
+      />
 
       {/* Bulk action bar (shows when items selected) */}
-      {selected.size > 0 && (
-        <div className="fm-bulk-bar" data-testid="fm-bulk-bar">
-          <div className="fm-bulk-info">
-            <span className="fm-bulk-count" data-testid="fm-bulk-count">{selected.size}</span>
-            <span>selected</span>
-          </div>
-          <div className="fm-bulk-actions">
-            <button
-              onClick={handleBulkMove}
-              className="fm-bulk-btn"
-              data-testid="fm-bulk-move"
-              title="Move selected items"
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
-              Move…
-            </button>
-            <button
-              onClick={handleBulkDelete}
-              className="fm-bulk-btn fm-bulk-btn--danger"
-              data-testid="fm-bulk-delete"
-              title="Delete selected items"
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
-              Delete
-            </button>
-            <button
-              onClick={() => setSelected(new Set())}
-              className="fm-bulk-btn"
-              data-testid="fm-bulk-clear"
-              title="Clear selection"
-            >
-              Clear
-            </button>
-          </div>
-        </div>
-      )}
+      <BulkBar
+        count={selected.size}
+        onMove={handleBulkMove}
+        onDelete={handleBulkDelete}
+        onClear={() => setSelected(new Set())}
+      />
 
       {/* Upload progress */}
       {uploadProgress && (
@@ -1467,59 +1363,15 @@ export default function FileManager() {
       )}
 
       {/* Image Preview Modal */}
-      {imagePreview && (
-        <div className="fm-modal-overlay" data-testid="fm-img-modal" onClick={() => setImagePreview(null)}>
-          <div className="fm-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="fm-modal-header">
-              <span data-testid="fm-img-modal-name">
-                {imagePreview.name}
-                {imageGallery.length > 1 && (
-                  <span className="fm-img-counter" data-testid="fm-img-counter">
-                    {galleryIndex + 1} / {imageGallery.length}
-                  </span>
-                )}
-              </span>
-              <button onClick={() => setImagePreview(null)} className="fm-modal-close" data-testid="fm-img-modal-close">&times;</button>
-            </div>
-            <div className="fm-img-preview">
-              {hasPrev && (
-                <button
-                  className="fm-img-nav fm-img-nav--prev"
-                  onClick={() => navGallery(-1)}
-                  data-testid="fm-img-prev"
-                  aria-label="Previous image"
-                  title="Previous (←)"
-                >
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6"/></svg>
-                </button>
-              )}
-              <img src={imagePreview.url} alt={imagePreview.name} data-testid="fm-img-modal-img" />
-              {hasNext && (
-                <button
-                  className="fm-img-nav fm-img-nav--next"
-                  onClick={() => navGallery(1)}
-                  data-testid="fm-img-next"
-                  aria-label="Next image"
-                  title="Next (→)"
-                >
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
-                </button>
-              )}
-            </div>
-            <div className="fm-modal-actions">
-              {imageGallery.length > 1 && (
-                <span style={{ marginRight: 'auto', fontSize: 11.5, color: 'var(--pv-text-muted)', fontFamily: 'var(--pv-font-mono)' }}>
-                  ← / → to navigate
-                </span>
-              )}
-              <a href={imagePreview.url} target="_blank" rel="noopener noreferrer" className="fm-btn fm-btn--ghost" data-testid="fm-img-open-tab">
-                Open in tab
-              </a>
-              <button onClick={() => setImagePreview(null)} className="fm-btn fm-btn--primary">Close</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ImagePreviewModal
+        preview={imagePreview}
+        galleryLength={imageGallery.length}
+        galleryIndex={galleryIndex}
+        hasPrev={hasPrev}
+        hasNext={hasNext}
+        onNav={navGallery}
+        onClose={() => setImagePreview(null)}
+      />
     </div>
   );
 }

@@ -1,0 +1,34 @@
+{
+  "summary": "Frontend regression smoke for FileManager refactor (1534 → 1385 lines, sub-components extracted to /file-manager/). Source-inspection of all 5 new files (Toolbar.jsx, BulkBar.jsx, DragOverlay.jsx, ImagePreviewModal.jsx, useHotkeys.js) confirms data-testids preserved, props wired correctly, and FileManager.js imports + uses each. Live Playwright E2E (goldtest/123456 on https://readme-setup-19.preview.emergentagent.com/panel) verified login → dashboard → Files tab → toolbar testids → '/' shortcut → Esc cascade → V2 coral theme. All assertions passed; zero JS page errors.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_11.json"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Refactor is clean: each sub-component is a pure render with explicit prop contract, all data-testids relocated correctly, and FileManager.js wiring matches prop signatures.",
+    "useHotkeys deps array is comprehensive — includes every state setter/value referenced inside the listener, so no stale-closure risk.",
+    "BulkBar early-returns null when count<=0 (correct gating). ImagePreviewModal early-returns null when preview is null. DragOverlay always renders when mounted (parent FileManager.js gates with `{isDragging && <DragOverlay …/>}` at line 734) — correct.",
+    "Toolbar.jsx upload-folder input keeps `webkitdirectory=\"\" directory=\"\" mozdirectory=\"\"` attributes, preserving the iteration_10 folder-upload flow contract.",
+    "Minor: Toolbar.jsx breadcrumb uses array index `i` as React key inside slice(1).map — acceptable here because path segments rarely reorder, but if a user enters a folder named the same as a sibling, key collision could theoretically warn. Not a regression — matches pre-refactor behavior."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only run)", "frontend": "100% (16/16 assertions)"},
+  "test_credentials": "goldtest / PIN 123456 (per /app/memory/test_credentials.md)",
+  "seed_data_creation": "None — used existing seeded goldtest account.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Refactor verified safe. Sub-components live at /app/frontend/src/components/panel/file-manager/. WHM is CPANEL_DOWN so file-list / BulkBar / ImagePreviewModal cannot be exercised against real files in this environment — gating behavior was validated via DOM-count assertions (count=0 when not active) plus source review. iteration_10 already covered the live BulkBar/ImagePreview/folder-upload flows when WHM was up.",
+  "rca of the issue": "N/A — no issues found. Pure refactor with no regressions detected.",
+  "evidence": {
+    "testids_verified": ["fm-toolbar=1","fm-search-input=1","fm-go-up=1","fm-new-dir-btn=1","fm-upload-folder-input=1","fm-upload-input=1","file-manager=1"],
+    "negative_assertions": ["fm-bulk-bar=0 (no selection)","fm-img-modal=0 (no preview)","fm-drag-overlay=0 (not dragging)"],
+    "hotkey_validation": {"slash_focuses_search":"PASS","esc_clears_search":"PASS","double_esc_safe":"PASS"},
+    "v2_theme": {"upload_files_bg":"rgb(225, 29, 72) — coral","active_tab_class":"panel-tab--active","public_html_highlight_count":1}
+  }
+}
