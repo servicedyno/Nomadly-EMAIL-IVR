@@ -2286,3 +2286,60 @@ This pod's egress IP `34.16.56.64` is firewalled at the WHM origin (TCP :2087 TI
 
 ### Next step
 Ship the hardening fixes via Save-to-Github → Railway redeploy. Subsequent prod log scan should show `[WHM-Whitelist] transient error … retrying in 1500ms…` pattern for cold deploys, and zero recurrences of `cPHulk error: timeout of 10000ms exceeded`.
+
+
+## Hosting Panel i18n + polish (2026-05-02)
+
+User asked to continue hosting panel UX investigation; chose walkthrough (b) + polish (d).
+
+### What I found (walkthrough)
+**P0 — all 7 shipped UX improvements were English-only.** FileManager had 35 hardcoded UI strings vs only 11 `t()` calls. `PanelLogin` had 3 hardcoded strings including "Remember username on this device". ~100+ hardcoded English strings across 10+ panel files — French/Hindi/Chinese users saw English everywhere.
+
+**P1 — 3 polish bugs:**
+- LanguageSwitcher Radix dropdown popped white-on-dark in dark mode (portal didn't inherit panel theme).
+- Redundant placeholder+hint duplication in PanelLogin (same `t()` key used for both placeholder attribute and separate helper span).
+- Help toggle sometimes appeared open by default (actually Playwright context state artifact — reproduced closed on fresh loads).
+
+### What I shipped
+1. **Expanded `en.json`**: added 78 new keys across `panel.login.*`, `fm.*` (panel file manager), `dashboard.visitWebsite`, consolidated action tooltips. Total 234 keys.
+2. **Auto-translated** 210 panel keys to `fr.json`, `hi.json`, `zh.json` via Emergent LLM key (gpt-4o-mini, chunked by top-level section to respect per-session budget).
+3. **Wired `t()`** across:
+   - `pages/PanelLogin.js` (removed duplicate hints; translated rememberUsername, tooManyAttempts, capsLockOn, showPin/hidePin, switchToLight/Dark, attemptsRemaining pluralisation).
+   - `pages/PanelDashboard.js` (visitWebsite title, theme toggle).
+   - `components/panel/FileManager.js` (entire 1385-line file: banner, getting-started guide with `dangerouslySetInnerHTML` for `<strong>` preservation, table headers, desktop+mobile action tooltips, rename/copy-move/delete/bulk-move modals, editing modal, new-folder form, tips, empty states).
+   - `components/panel/file-manager/DragOverlay.jsx` + `ImagePreviewModal.jsx`.
+4. **Fixed dropdown dark-mode bug** in `components/panel/useTheme.js`: now mirrors theme to `document.documentElement.classList.add('dark')` + `dataset.theme='dark'` so Radix Portals (shadcn dropdown, sonner toasts) inherit panel theme.
+5. **Added CI parity gate** `scripts/check_panel_lang_parity.js` (invoked via existing `yarn lint:lang`). Validates:
+   - every en.json key exists in fr/hi/zh
+   - no stale/extra keys in target locales
+   - every `{{placeholder}}` and `<tag>` in en also present in target leaves
+   Currently **234/234 keys parity** on all 3 targets.
+
+### Verification: frontend testing agent iteration_13 — 100% pass, 11/11 verifications green
+- ZERO raw i18n key leaks in any of 4 locales.
+- Help toggle default CLOSED in en/fr/hi/zh; clicking in HI reveals translated hint.
+- Redundant `.panel-input-hint` spans removed (DOM query returns `[]`).
+- Dark mode: `document.documentElement.classList='dark'`, Radix popper dropdown inherits `bg=rgb(10,10,10)`, `fg=rgb(250,250,250)`.
+- Placeholder + `<strong>` tag preservation validated across 210 leaves × 3 languages.
+- Mobile 375×812 clean, no horizontal overflow, language auto-detect banner translated.
+
+### Testing-agent minor notes (non-blocking, deferred)
+- Language auto-detect banner briefly obscures H logo on mobile Hindi first-visit — consider bottom placement.
+- PIN placeholder letter-spacing looks like monospace-for-cadence — likely intentional.
+- FileManager runtime i18n not tested (needs cPanel login; egress IP firewalled). Source-level grep confirms all `t()` calls wired; keys present in all 4 locale files.
+
+### Files added / modified
+- NEW: `/app/scripts/translate_panel_i18n.py` (one-shot translation runner with chunked LLM calls)
+- NEW: `/app/scripts/check_panel_lang_parity.js` (CI parity gate)
+- MODIFIED: `/app/frontend/src/locales/{en,fr,hi,zh}.json`
+- MODIFIED: `/app/frontend/src/pages/PanelLogin.js`, `PanelDashboard.js`
+- MODIFIED: `/app/frontend/src/components/panel/FileManager.js`
+- MODIFIED: `/app/frontend/src/components/panel/file-manager/DragOverlay.jsx`, `ImagePreviewModal.jsx`
+- MODIFIED: `/app/frontend/src/components/panel/useTheme.js`
+- MODIFIED: `/app/package.json` (lint:lang now runs both parity checks)
+
+### Production impact
+Next deploy → French/Hindi/Chinese panel users see fully-localized UI. Dark-mode Radix dropdowns stop popping white. Login page has no redundant helper text.
+
+### Remaining hardcoded strings out of scope (future P1/P2)
+`EmailManager.js` (12), `SecurityPanel.js` (6), `DomainList.js` (14), `Analytics.js` (6), `AccountSettings.js` (9), `GeoManager.js` (4), `SiteStatusCard.js` (6) — ~57 more strings in components that require authenticated session to render. Locale keys for these sections already exist in `en.json` (`email.*`, `security.*`, `domains.*`, etc.) — only needs `t()` wiring. Suggest next iteration when a real cPanel test account is available to runtime-verify.
