@@ -6,10 +6,6 @@ import LanguageSwitcher from '../components/LanguageSwitcher';
 import AutoDetectLanguageBanner from '../components/AutoDetectLanguageBanner';
 
 const REMEMBER_KEY = 'panel_remember_username';
-const FAIL_KEY = 'panel_login_fails';
-const LOCK_UNTIL_KEY = 'panel_login_lock_until';
-const FAIL_THRESHOLD = 5;
-const LOCK_DURATION_MS = 60_000;
 
 export default function PanelLogin() {
   const { t } = useTranslation();
@@ -20,12 +16,12 @@ export default function PanelLogin() {
   const [remember, setRemember] = useState(() => !!localStorage.getItem(REMEMBER_KEY));
   const [capsOn, setCapsOn] = useState(false);
   const [error, setError] = useState('');
+  const [attemptsRemaining, setAttemptsRemaining] = useState(null); // server-reported
   const [loading, setLoading] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
-  const [lockUntil, setLockUntil] = useState(() => {
-    const v = parseInt(localStorage.getItem(LOCK_UNTIL_KEY) || '0', 10);
-    return Number.isFinite(v) && v > Date.now() ? v : 0;
-  });
+  // Backend-authoritative lock: lockUntil is a wall-clock ms timestamp.
+  // Initial value 0 — only set when the server returns a 429 with lockedSeconds.
+  const [lockUntil, setLockUntil] = useState(0);
   const [now, setNow] = useState(Date.now());
   const usernameRef = useRef(null);
   const { theme, toggleTheme, isDark } = useTheme();
@@ -55,10 +51,9 @@ export default function PanelLogin() {
   // Auto-clear lock when expired
   useEffect(() => {
     if (lockUntil && lockUntil <= now) {
-      localStorage.removeItem(LOCK_UNTIL_KEY);
-      localStorage.removeItem(FAIL_KEY);
       setLockUntil(0);
       setError('');
+      setAttemptsRemaining(null);
     }
   }, [lockUntil, now]);
 
@@ -79,19 +74,22 @@ export default function PanelLogin() {
     setLoading(true);
     try {
       await login(username.trim(), pin.trim());
-      // Success — reset failure counters; persist username if remember is on
-      localStorage.removeItem(FAIL_KEY);
-      localStorage.removeItem(LOCK_UNTIL_KEY);
+      // Success — clear local UI state; persist username if remember is on
+      setAttemptsRemaining(null);
       if (remember) localStorage.setItem(REMEMBER_KEY, username.trim());
       else localStorage.removeItem(REMEMBER_KEY);
     } catch (err) {
-      setError(err.message);
-      const fails = parseInt(localStorage.getItem(FAIL_KEY) || '0', 10) + 1;
-      localStorage.setItem(FAIL_KEY, String(fails));
-      if (fails >= FAIL_THRESHOLD) {
-        const until = Date.now() + LOCK_DURATION_MS;
-        localStorage.setItem(LOCK_UNTIL_KEY, String(until));
+      // Server-authoritative rate-limit: trust the lockedSeconds returned by the
+      // backend. Falls back to plain error display when not rate-limited.
+      if (err.rateLimited && err.lockedSeconds) {
+        const until = Date.now() + err.lockedSeconds * 1000;
         setLockUntil(until);
+        setError('');
+      } else if (typeof err.attemptsRemaining === 'number') {
+        setAttemptsRemaining(err.attemptsRemaining);
+        setError(err.message);
+      } else {
+        setError(err.message);
       }
       setPin('');
     } finally {
@@ -132,7 +130,14 @@ export default function PanelLogin() {
           {error && !isLocked && (
             <div className="panel-login-error" data-testid="panel-login-error">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{flexShrink: 0}}><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-              <span>{error}</span>
+              <span>
+                {error}
+                {typeof attemptsRemaining === 'number' && attemptsRemaining > 0 && attemptsRemaining <= 3 && (
+                  <strong data-testid="panel-attempts-remaining" style={{ display: 'block', fontSize: 12, marginTop: 4, fontWeight: 600 }}>
+                    {attemptsRemaining} attempt{attemptsRemaining === 1 ? '' : 's'} remaining before lockout.
+                  </strong>
+                )}
+              </span>
             </div>
           )}
 

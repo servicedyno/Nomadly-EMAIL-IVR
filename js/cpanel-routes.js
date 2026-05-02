@@ -90,7 +90,24 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     if (!col || !col.findOne) return res.status(503).json({ error: 'Service starting up, try again shortly.' })
 
     const result = await cpAuth.login(col, username, pin)
-    if (!result.success) return res.status(401).json({ error: result.error })
+    if (!result.success) {
+      // Backend-authoritative rate-limit response: HTTP 429 + Retry-After header
+      // so the frontend can render an exact countdown without trusting localStorage.
+      if (result.rateLimited) {
+        if (result.lockedSeconds) res.set('Retry-After', String(result.lockedSeconds))
+        return res.status(429).json({
+          error: result.error,
+          rateLimited: true,
+          lockedSeconds: result.lockedSeconds,
+          lockedMinutes: result.lockedMinutes,
+          lockedUntil: result.lockedUntil,
+        })
+      }
+      return res.status(401).json({
+        error: result.error,
+        attemptsRemaining: result.attemptsRemaining,
+      })
+    }
 
     res.json({
       token: result.token,

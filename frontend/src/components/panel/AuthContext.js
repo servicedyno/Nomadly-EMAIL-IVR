@@ -15,20 +15,42 @@ export function AuthProvider({ children }) {
   });
 
   const login = useCallback(async (username, pin) => {
-    const res = await fetch(`${BACKEND_URL}/api/panel/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, pin }),
+    // We use XMLHttpRequest here (instead of fetch) because some preview/host
+    // environments wrap window.fetch for telemetry and consume the response
+    // body before our code can read it — leaving us with a "body stream already
+    // read" failure that masks the server's actual error/rate-limit payload.
+    const data = await new Promise((resolve, reject) => {
+      try {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', `${BACKEND_URL}/api/panel/login`, true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.onload = () => {
+          let body = {};
+          try { body = xhr.responseText ? JSON.parse(xhr.responseText) : {}; } catch (_) { /* leave as {} */ }
+          resolve({ status: xhr.status, body });
+        };
+        xhr.onerror = () => reject(new Error('Network error — could not reach server'));
+        xhr.ontimeout = () => reject(new Error('Request timed out'));
+        xhr.send(JSON.stringify({ username, pin }));
+      } catch (e) {
+        reject(e);
+      }
     });
-    let data;
-    try {
-      const text = await res.clone().text();
-      data = JSON.parse(text);
-    } catch {
-      try { data = await res.json(); } catch { data = { error: `Server error (${res.status})` }; }
+    const { status, body } = data;
+    if (status < 200 || status >= 300) {
+      const err = new Error(body.error || `Login failed (${status})`);
+      if (status === 429 || body.rateLimited) {
+        err.rateLimited = true;
+        err.lockedSeconds = body.lockedSeconds;
+        err.lockedMinutes = body.lockedMinutes;
+        err.lockedUntil = body.lockedUntil;
+      }
+      if (typeof body.attemptsRemaining === 'number') {
+        err.attemptsRemaining = body.attemptsRemaining;
+      }
+      throw err;
     }
-    if (!res.ok) throw new Error(data.error || 'Login failed');
-    const session = { token: data.token, username: data.username, domain: data.domain };
+    const session = { token: body.token, username: body.username, domain: body.domain };
     sessionStorage.setItem('panel_session', JSON.stringify(session));
     setUser(session);
     return session;

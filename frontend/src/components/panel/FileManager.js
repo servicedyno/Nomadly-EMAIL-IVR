@@ -49,6 +49,7 @@ export default function FileManager() {
   const [bulkMoveTarget, setBulkMoveTarget] = useState(null); // { destDir }
   const [imagePreview, setImagePreview] = useState(null); // { name, url }
   const fileInputRef = useRef(null);
+  const folderInputRef = useRef(null);
   const dropZoneRef = useRef(null);
   const searchRef = useRef(null);
 
@@ -156,11 +157,56 @@ export default function FileManager() {
     setIsDragging(false);
   };
 
+  // Recursively walk a FileSystemDirectoryEntry, returning Files tagged with
+  // their relative path (e.g. "mysite/css/style.css"). Browsers expose this
+  // via the non-standard but widely-supported `webkitGetAsEntry()` API.
+  const walkEntry = (entry, path = '') => new Promise((resolve) => {
+    if (entry.isFile) {
+      entry.file((f) => {
+        // Attach a relativePath to the File so uploadFiles can preserve folder structure.
+        try { Object.defineProperty(f, 'relativePath', { value: path + entry.name, configurable: true }); } catch (_) {}
+        resolve([f]);
+      }, () => resolve([]));
+    } else if (entry.isDirectory) {
+      const reader = entry.createReader();
+      const collected = [];
+      const readBatch = () => {
+        reader.readEntries(async (entries) => {
+          if (!entries.length) {
+            const nested = await Promise.all(collected.map(e => walkEntry(e, path + entry.name + '/')));
+            resolve(nested.flat());
+            return;
+          }
+          collected.push(...entries);
+          readBatch(); // browsers may return entries in batches; keep reading until empty
+        }, () => resolve([]));
+      };
+      readBatch();
+    } else {
+      resolve([]);
+    }
+  });
+
   const handleDrop = async (e) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
-    const droppedFiles = Array.from(e.dataTransfer.files);
+    const items = e.dataTransfer.items ? Array.from(e.dataTransfer.items) : [];
+    const supportsEntries = items.length && typeof items[0].webkitGetAsEntry === 'function';
+
+    let droppedFiles = [];
+    if (supportsEntries) {
+      // Modern path — handles folders (and nested folders).
+      const entries = items
+        .map(i => (typeof i.webkitGetAsEntry === 'function' ? i.webkitGetAsEntry() : null))
+        .filter(Boolean);
+      const nested = await Promise.all(entries.map(en => walkEntry(en, '')));
+      droppedFiles = nested.flat();
+    } else {
+      // Fallback: flat file list (older browsers, no folder traversal).
+      droppedFiles = Array.from(e.dataTransfer.files);
+    }
+
     if (droppedFiles.length > 0) {
       await uploadFiles(droppedFiles);
     }
@@ -184,7 +230,9 @@ export default function FileManager() {
   const CHUNK_THRESHOLD = 8 * 1024 * 1024 // 8 MB
   const CHUNK_SIZE = 5 * 1024 * 1024      // 5 MB
 
-  const uploadFileChunked = async (file) => {
+  const uploadFileChunked = async (file, targetDir, overrideFileName) => {
+    const dir = targetDir || currentDir;
+    const fileName = overrideFileName || file.name;
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE)
     const uploadId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
     for (let idx = 0; idx < totalChunks; idx++) {
@@ -192,14 +240,14 @@ export default function FileManager() {
       const end = Math.min(start + CHUNK_SIZE, file.size)
       const blob = file.slice(start, end)
       const formData = new FormData()
-      formData.append('chunk', blob, file.name)
+      formData.append('chunk', blob, fileName)
       formData.append('uploadId', uploadId)
       formData.append('chunkIndex', String(idx))
       formData.append('totalChunks', String(totalChunks))
-      formData.append('fileName', file.name)
-      formData.append('dir', currentDir)
+      formData.append('fileName', fileName)
+      formData.append('dir', dir)
       formData.append('fileSize', String(file.size))
-      setUploadProgress(`Uploading ${file.name} — chunk ${idx + 1}/${totalChunks} (${Math.round(((idx + 1) / totalChunks) * 100)}%)`)
+      setUploadProgress(`Uploading ${fileName} — chunk ${idx + 1}/${totalChunks} (${Math.round(((idx + 1) / totalChunks) * 100)}%)`)
       const res = await api('/files/upload-chunk', { method: 'POST', body: formData })
       // Last chunk returns the final cPanel response; any error is thrown by `api`
       if (idx === totalChunks - 1 && (res?.errors?.length || res?.code === 'CPANEL_DOWN')) {
@@ -207,6 +255,36 @@ export default function FileManager() {
       }
     }
   }
+
+  // Ensure a subdirectory tree exists under currentDir. Idempotent: ignores
+  // "already exists" errors so the same upload can be retried safely.
+  // segments: e.g. ["mysite", "css"] (no leading/trailing slashes).
+  const ensureSubdir = async (segments, createdSet) => {
+    let parent = currentDir;
+    for (const seg of segments) {
+      if (!seg) continue;
+      const full = parent.endsWith('/') ? parent + seg : parent + '/' + seg;
+      if (!createdSet.has(full)) {
+        try {
+          await api('/files/mkdir', {
+            method: 'POST',
+            body: JSON.stringify({ dir: parent, name: seg }),
+          });
+        } catch (err) {
+          // cPanel returns errors via response shape; `api` already throws on
+          // !res.ok. If the directory already exists or a parallel call wins,
+          // we ignore — subsequent file PUT will surface real failures.
+          if (!/exist|EEXIST/i.test(err?.message || '')) {
+            // Re-throw only if it's a non-existence error so callers can decide.
+            throw err;
+          }
+        }
+        createdSet.add(full);
+      }
+      parent = full;
+    }
+    return parent;
+  };
 
   const uploadFiles = async (selected) => {
     if (!selected.length) return;
@@ -216,26 +294,46 @@ export default function FileManager() {
     const total = selected.length;
     let done = 0;
     let failures = [];
+    const createdDirs = new Set();
+    // Detect whether any file came in with a relative path (folder upload).
+    const isFolderUpload = selected.some(f => f.relativePath || f.webkitRelativePath);
     try {
       for (const file of selected) {
         try {
-          setUploadProgress(`Uploading ${done + 1}/${total}: ${file.name}`);
+          // Resolve target subdir from file.relativePath (drag/drop folder) or
+          // file.webkitRelativePath (input[webkitdirectory]). Falls back to the
+          // current directory for plain file drops.
+          const rel = file.relativePath || file.webkitRelativePath || '';
+          const parts = rel.split('/').filter(Boolean);
+          const fileName = parts.length ? parts[parts.length - 1] : file.name;
+          const subdirParts = parts.slice(0, -1);
+          let targetDir = currentDir;
+          if (subdirParts.length) {
+            targetDir = await ensureSubdir(subdirParts, createdDirs);
+          }
+          setUploadProgress(`Uploading ${done + 1}/${total}: ${rel || file.name}`);
           if (file.size > CHUNK_THRESHOLD) {
-            await uploadFileChunked(file)
+            await uploadFileChunked(file, targetDir, fileName);
           } else {
             const formData = new FormData();
-            formData.append('file', file);
-            formData.append('dir', currentDir);
+            // Multer reads originalname from the third arg of File/Blob
+            // (or the File's own .name). Pass a fresh File-like with the
+            // resolved name so any nested folder name segments are honoured.
+            formData.append('file', file, fileName);
+            formData.append('dir', targetDir);
             await api('/files/upload', { method: 'POST', body: formData });
           }
           done++;
         } catch (err) {
-          failures.push({ name: file.name, msg: friendlyUploadError(err) });
+          failures.push({ name: file.relativePath || file.webkitRelativePath || file.name, msg: friendlyUploadError(err) });
         }
       }
 
       if (failures.length === 0) {
-        if (total === 1) {
+        if (isFolderUpload) {
+          const dirCount = createdDirs.size;
+          setSuccessMessage(`${done} file${done === 1 ? '' : 's'} uploaded across ${dirCount} folder${dirCount === 1 ? '' : 's'}.`);
+        } else if (total === 1) {
           const uploadedUrl = getPublicUrl(selected[0].name, false);
           setSuccessMessage(uploadedUrl
             ? `File uploaded successfully! View it at: ${uploadedUrl}`
@@ -256,6 +354,7 @@ export default function FileManager() {
       setUploading(false);
       setUploadProgress('');
       if (fileInputRef.current) fileInputRef.current.value = '';
+      if (folderInputRef.current) folderInputRef.current.value = '';
     }
   };
 
@@ -658,8 +757,8 @@ export default function FileManager() {
               <polyline points="17 8 12 3 7 8"/>
               <line x1="12" y1="3" x2="12" y2="15"/>
             </svg>
-            <p>Drop files here to upload</p>
-            {isPublicHtml && <span>Files will be accessible on your website</span>}
+            <p>Drop files or folders here to upload</p>
+            {isPublicHtml ? <span>Folder structure is preserved · Files go live on your website</span> : <span>Folder structure is preserved · Subdirectories will be created automatically</span>}
           </div>
         </div>
       )}
@@ -792,6 +891,21 @@ export default function FileManager() {
           <button onClick={() => setShowNewDir(!showNewDir)} className="fm-btn fm-btn--ghost" data-testid="fm-new-dir-btn">
             + Folder
           </button>
+          <label className={`fm-btn fm-btn--ghost ${uploading ? 'fm-btn--loading' : ''}`} title="Upload an entire folder (preserves structure)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/><line x1="12" y1="11" x2="12" y2="17"/><polyline points="9 14 12 11 15 14"/></svg>
+            Upload Folder
+            <input
+              type="file"
+              ref={folderInputRef}
+              onChange={handleUpload}
+              style={{ display: 'none' }}
+              data-testid="fm-upload-folder-input"
+              webkitdirectory=""
+              directory=""
+              mozdirectory=""
+              multiple
+            />
+          </label>
           <label className={`fm-btn fm-btn--primary ${uploading ? 'fm-btn--loading' : ''}`}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             {uploading ? 'Uploading...' : 'Upload Files'}

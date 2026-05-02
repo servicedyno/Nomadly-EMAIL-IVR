@@ -1,0 +1,33 @@
+{
+  "summary": "Iteration 10 — Backend-authoritative login rate-limit + frontend lockout UI + FileManager folder-upload smoke. Backend: 4/4 pytest cases pass against POST /api/panel/login (401 with attemptsRemaining 4→3→2→1, 429 + Retry-After:900 + lockedSeconds=900/lockedMinutes=15/lockedUntil on 5th, persistent 429 on 6th, per-username scope isolation, goldtest login still works). Frontend: panel-login-rate-limit + panel-login-rate-limit-clock render at ~14:59-15:00 after 5 failures, clock ticks down (-2s in 2.2s), username/PIN/submit all disabled while locked, panel-attempts-remaining strong sub-line shows '1 attempt remaining before lockout.' after 4th fail; FileManager: fm-upload-folder-input has webkitdirectory='' + type=file + multiple, fm-drag-overlay text contains 'Drop files or folders here to upload' AND 'Folder structure is preserved'; Files tab active state is coral (rgb(225,29,72)); login submit btn is solid coral (no legacy purple gradient). Source inspection of FileManager.js confirms walkEntry uses webkitGetAsEntry+createReader.readEntries, ensureSubdir is idempotent w/ createdSet dedupe, uploadFileChunked signature is (file, targetDir, overrideFileName), uploadFiles uses webkitRelativePath/relativePath to build subdir tree via /files/mkdir before upload. CPANEL_DOWN expected — image gallery (fm-img-modal) code paths inspected only; no real images to render against.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_panel_rate_limit.py",
+    "/app/test_reports/pytest/pytest_results_iter10.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "FileManager.js is now ~1400+ lines after folder-upload addition — the >700 line split recommendation from iteration_9 still stands; consider extracting Toolbar, BulkBar, ImagePreviewModal, DragOverlay into separate files.",
+    "Rate-limit state in cpanel-auth.js is a single in-memory Map — fine for a single panel server process, but if the Node app is ever horizontally scaled the limiter MUST move to Redis/Mongo or each replica will reset the counter independently (effective lockout = 5 × replica_count).",
+    "checkRateLimit() in /app/js/cpanel-auth.js exposes lockedMinutes via Math.ceil(msLeft/60000) — at lockout creation msLeft = 15*60*1000 exactly, so first response says 15 minutes (correct). Past T+1ms it would still ceil to 15, then 14… acceptable but worth a note that the user-facing minute value is always rounded up.",
+    "AuthContext.login() uses XMLHttpRequest as a deliberate workaround for fetch wrapping; comment explains it but consider adding a unit test that asserts login() returns err.rateLimited / err.attemptsRemaining shape to guard against regressions."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_panel_rate_limit.py (NEW)"
+  ],
+  "success_rate": {"backend": "100% (4/4)", "frontend": "100% (all 11 assertions in review request)"},
+  "test_credentials": "goldtest / PIN 123456 — verified working (200 + token). All rate-limit tests used UNIQUE non-existent usernames (test-rl-<ts>, test-uirl-<ts>, test-scope-a-<ts>, test-scope-b-<ts>) so goldtest is NOT locked.",
+  "seed_data_creation": "None — used existing goldtest seed from /app/tests/seed_captcha_accounts.js.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iteration 10 verified all 11 assertions from the review request: (1) backend 401 contract w/ decreasing attemptsRemaining 4→3→2→1, (2) backend 429 + Retry-After:900 + JSON shape on 5th, (3) backend 6th still 429, (4) per-username scope (locking A doesn't affect B), (5) goldtest login still works (200 + token), (6) panel-login-rate-limit + clock render at 14:59-15:00 starting value, (7) clock ticks down (verified -2s delta over 2.2s sleep), (8) username/PIN/submit disabled while locked, (9) panel-attempts-remaining strong sub-line '1 attempt remaining before lockout.' after 4th fail, (10) fm-upload-folder-input has webkitdirectory='' attribute, (11) fm-drag-overlay text contains both 'Drop files or folders here to upload' AND 'Folder structure is preserved'. Source-inspection confirmed walkEntry/ensureSubdir/uploadFileChunked logic per review request items 8 & 11. The Node.js panel server's in-memory rate-limit Map was NOT reset during the test run — every test used a unique username. NO action items for main agent. Both batches (backend rate-limit + folder upload) are shippable.",
+  "rca of the issue": "N/A — no issues found. All review-request assertions passed."
+}

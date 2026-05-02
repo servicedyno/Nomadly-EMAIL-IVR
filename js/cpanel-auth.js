@@ -91,8 +91,15 @@ function checkRateLimit(username) {
   }
 
   if (record.lockedUntil) {
-    const minsLeft = Math.ceil((record.lockedUntil - Date.now()) / 60000)
-    return { allowed: false, remaining: 0, lockedMinutes: minsLeft }
+    const msLeft = record.lockedUntil - Date.now()
+    const minsLeft = Math.ceil(msLeft / 60000)
+    return {
+      allowed: false,
+      remaining: 0,
+      lockedMinutes: minsLeft,
+      lockedSeconds: Math.ceil(msLeft / 1000),
+      lockedUntil: record.lockedUntil,
+    }
   }
 
   return { allowed: true, remaining: MAX_LOGIN_ATTEMPTS - record.attempts }
@@ -161,19 +168,38 @@ async function storeCredentials(cpanelAccountsCol, data) {
 async function login(cpanelAccountsCol, username, pin) {
   const rateCheck = checkRateLimit(username)
   if (!rateCheck.allowed) {
-    return { success: false, error: `Too many attempts. Try again in ${rateCheck.lockedMinutes} minute(s).` }
+    return {
+      success: false,
+      rateLimited: true,
+      lockedSeconds: rateCheck.lockedSeconds,
+      lockedMinutes: rateCheck.lockedMinutes,
+      lockedUntil: rateCheck.lockedUntil,
+      error: `Too many attempts. Try again in ${rateCheck.lockedMinutes} minute(s).`,
+    }
   }
 
   const account = await cpanelAccountsCol.findOne({ _id: username.toLowerCase() })
   if (!account) {
     recordFailedAttempt(username)
-    return { success: false, error: 'Invalid username or PIN.' }
+    const after = checkRateLimit(username)
+    return {
+      success: false,
+      error: 'Invalid username or PIN.',
+      attemptsRemaining: after.remaining,
+      ...(after.lockedSeconds ? { rateLimited: true, lockedSeconds: after.lockedSeconds, lockedMinutes: after.lockedMinutes, lockedUntil: after.lockedUntil } : {}),
+    }
   }
 
   const pinValid = await verifyPin(pin, account.pinHash)
   if (!pinValid) {
     recordFailedAttempt(username)
-    return { success: false, error: 'Invalid username or PIN.' }
+    const after = checkRateLimit(username)
+    return {
+      success: false,
+      error: 'Invalid username or PIN.',
+      attemptsRemaining: after.remaining,
+      ...(after.lockedSeconds ? { rateLimited: true, lockedSeconds: after.lockedSeconds, lockedMinutes: after.lockedMinutes, lockedUntil: after.lockedUntil } : {}),
+    }
   }
 
   // Success — clear rate limit, create session
