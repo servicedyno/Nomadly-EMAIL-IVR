@@ -1,5 +1,7 @@
-// Daily Coupon System — auto-generates 5% and 10% coupons daily
-// Each coupon is single-use per user, expires at UTC midnight
+// Daily Coupon System — auto-generates ONE 10% coupon daily.
+// Single-use per user, expires at UTC midnight. Historical days kept intact.
+// (Was 5% + 10%. The 5% sibling had zero redemptions over 15 days while
+// diluting urgency next to the 10% offer. Simplified on 2026-05-03.)
 
 const schedule = require('node-schedule')
 const { customAlphabet } = require('nanoid')
@@ -11,7 +13,7 @@ function initDailyCoupons(db, bot, nameOfCol, stateCol) {
   const dailyCouponsCol = db.collection('dailyCoupons')
   const adminChatId = process.env.TELEGRAM_ADMIN_CHAT_ID
 
-  // Generate today's coupons
+  // Generate today's coupon
   async function generateDailyCoupons() {
     const today = new Date().toISOString().slice(0, 10) // YYYY-MM-DD
 
@@ -22,24 +24,22 @@ function initDailyCoupons(db, bot, nameOfCol, stateCol) {
       return existing
     }
 
-    const code5 = `NMD5${generateCode()}`
     const code10 = `NMD10${generateCode()}`
 
     const coupons = {
       _id: today,
       date: today,
       codes: {
-        [code5]: { discount: 5, usedBy: [] },
         [code10]: { discount: 10, usedBy: [] },
       },
       createdAt: new Date(),
     }
 
     await dailyCouponsCol.insertOne(coupons)
-    log(`[DailyCoupon] Generated: ${code5} (5%) and ${code10} (10%) for ${today}`)
+    log(`[DailyCoupon] Generated: ${code10} (10%) for ${today}`)
 
     if (adminChatId) {
-      bot.sendMessage(adminChatId, `<b>Daily Coupons Generated</b>\n\n<code>${code5}</code> — 5% off\n<code>${code10}</code> — 10% off\n\nValid today only. Single use per customer.`, { parse_mode: 'HTML' }).catch(() => {})
+      bot.sendMessage(adminChatId, `<b>Daily Coupon Generated</b>\n\n<code>${code10}</code> — 10% off\n\nValid today only. Single use per customer.`, { parse_mode: 'HTML' }).catch(() => {})
     }
 
     return coupons

@@ -7,6 +7,37 @@
 - MongoDB (port 27017)
 
 
+## ✅ AutoPromo Caption Redesign + Single Daily Coupon (May 3, 2026)
+
+### Problem
+Production audit: 3,187 promo broadcasts over 14 days → only 4 coupon redemptions (0.13%). Coupons were buried at the bottom of ~800-char captions containing the marketing body + SMTP footer + BulkSMS footer + opt-out footer + coupon. Telegram push-preview showed the marketing intro, not the offer. Also: two codes/day (5% + 10%) diluted urgency — the 5% sibling saw ZERO redemptions over 15 days.
+
+### Changes
+- **`js/daily-coupons.js`** — now generates exactly ONE 10% code per day (was 5% + 10%). Admin DM updated to singular "Daily Coupon Generated". `validateDailyCoupon` / `markCouponUsed` unchanged (they iterate whatever codes exist, so historical 2-code docs still validate).
+- **`js/auto-promo.js` — caption rewrite inside `sendPromoToUser()`**:
+  - Coupon line hoisted to TOP → Telegram notification preview now leads with `🎁 TODAY 10% OFF — code NMD10XXX` instead of the marketing intro.
+  - SMTP footer (`getSmtpFooter`) and BulkSMS footer (`getBulkSmsFooter`) DROPPED from every promo. Those products have their own weekly auto-promo slots; stacking them on every unrelated promo was noise.
+  - Opt-out footer kept (unsubscribe hygiene).
+  - New `_trimPromoBody()` guard caps the main body at ~420 visible chars, trimming at the nearest sentence/word boundary with a single trailing `…` — safety net for AI-generated variations.
+  - Coupon line text shortened: `🎫 TODAY ONLY: Use code X for N% off!` → `🎁 TODAY N% OFF — code X`.
+- **Production cleanup** — today's (`2026-05-03`) `dailyCoupons` doc had both 5% and 10% codes already generated before this change; the 5% code was unset in prod so today's users immediately see the singular UX. Historical docs untouched.
+
+### Impact (measured on a real promo sample)
+| Metric | Before | After |
+|---|---|---|
+| Visible caption length | 793 chars | **433 chars** (−45%) |
+| First 100 chars (push preview) | `🛒🔥 PREMIUM ACCOUNTS — DELIVERED…` | **`🎁 TODAY 10% OFF — code NMD10WKPCAR…`** |
+| Footers per message | 3 (SMTP + BulkSMS + opt-out) | 1 (opt-out only) |
+| Coupon codes/day | 2 (5% + 10%) | 1 (10% only) |
+
+### Tests — 15/15 ✅
+- **`js/tests/test_daily_coupons_single.js`** — 7 cases: single code per day, 10% discount, no NMD5 generation, admin DM uses singular wording, generation is idempotent, validate accepts new code, validate rejects stale 5% codes
+- **`js/tests/test_autopromo_caption.js`** — 8 cases: short body unchanged, HTML-only content passes, over-cap bodies trim with `…`, sentence-boundary preferred, word-boundary fallback, coupon-first/opt-out-last ordering, coupon-absent path, codebase guard that SMTP/BulkSMS footers are NOT reintroduced
+
+### Next metric to watch
+Redemption rate (was 0.13%). Target ≥1% after 7 days. If still flat, the next lever is a dedicated "🎁 Today's Deal" button on the main menu that deep-links the active code.
+
+
 ## ✅ @ciroovblzz Production Bug — Tunnel Routing + Transient-Error UX (May 2, 2026)
 
 ### Root cause (confirmed in Railway logs + pod curl)

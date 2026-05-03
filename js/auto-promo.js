@@ -4234,6 +4234,32 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
   const PROMO_SEND_RETRIES = 2
   const PROMO_RETRY_DELAY = 2000
 
+  // Soft length cap for the promo BODY (excluding coupon + opt-out footer).
+  // Based on UX audit on 2026-05-03 — pre-change captions ran 700-900 chars,
+  // with the coupon and opt-out info drowned under piggy-backed SMTP/BulkSMS
+  // ads. We now keep the body lean; any variation that exceeds the cap is
+  // trimmed at the nearest sentence/word boundary with a single trailing "…".
+  const PROMO_BODY_MAX_CHARS = 420
+
+  function _trimPromoBody(raw) {
+    if (typeof raw !== 'string') return raw
+    // Measure plain-text length (strip HTML tags) so Telegram's *visible*
+    // char count is what we guard against, not the raw string length.
+    const plain = raw.replace(/<[^>]+>/g, '')
+    if (plain.length <= PROMO_BODY_MAX_CHARS) return raw
+    // Walk back from the cap until we hit whitespace or sentence end. Use
+    // the raw string so HTML tags aren't broken mid-attribute.
+    let cutoff = PROMO_BODY_MAX_CHARS
+    // Prefer last sentence end before cutoff
+    const sentenceEnd = Math.max(raw.lastIndexOf('. ', cutoff), raw.lastIndexOf('! ', cutoff), raw.lastIndexOf('? ', cutoff), raw.lastIndexOf('\n', cutoff))
+    if (sentenceEnd > cutoff - 120) cutoff = sentenceEnd
+    else {
+      const wordEnd = raw.lastIndexOf(' ', cutoff)
+      if (wordEnd > 0) cutoff = wordEnd
+    }
+    return raw.slice(0, cutoff).replace(/[\s,;—-]+$/, '') + ' …'
+  }
+
   async function sendPromoToUser(chatId, theme, variationIndex, lang, dynamicMessage, couponLine, isEvening = false) {
     try {
       if (await isOptedOut(chatId)) return { success: true, skipped: true }
@@ -4243,13 +4269,20 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
         log(`[AutoPromo] No variations found for ${isEvening ? 'evening' : 'morning'} theme=${theme} lang=${lang}, skipping ${chatId}`)
         return { success: false, error: 'no variations' }
       }
-      let caption = dynamicMessage || variations[variationIndex % variations.length]
-      if (couponLine) caption += '\n\n' + couponLine
-      // Append private SMTP footer
-      caption += '\n\n' + getSmtpFooter(lang)
-      // Append BulkSMS footer to every promo message
-      caption += '\n\n' + getBulkSmsFooter(lang)
-      // Append opt-out footer
+      // Caption assembly (2026-05-03 rewrite):
+      //   1. Coupon line FIRST  — it's the highest-converting hook and was
+      //      previously buried under 3 footers. Moved to the very top so the
+      //      Telegram notification preview shows "🎁 TODAY 10% OFF…" instead
+      //      of the marketing intro.
+      //   2. Body (trimmed to ~400 chars).
+      //   3. Opt-out footer last (required for unsubscribe hygiene).
+      //   4. SMTP + BulkSMS footers DROPPED — those products already have
+      //      dedicated weekly auto-promo slots; stacking them on every other
+      //      promo was noise, not signal.
+      const body = _trimPromoBody(dynamicMessage || variations[variationIndex % variations.length])
+      let caption = ''
+      if (couponLine) caption += couponLine + '\n\n'
+      caption += body
       caption += '\n\n' + getOptOutFooter(lang)
 
       const trySend = async (useHtml) => {
@@ -4423,8 +4456,15 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
         const codes = await dailyCouponSystem.getTodayCoupons()
         const entries = Object.entries(codes)
         if (entries.length > 0) {
+          // Now that only one code exists per day (as of 2026-05-03), this is
+          // effectively deterministic; kept as random for safety when legacy
+          // 2-code documents are still present in the DB.
           const [code, info] = entries[Math.floor(Math.random() * entries.length)]
-          couponLine = `🎫 <b>TODAY ONLY:</b> Use code <code>${code}</code> for ${info.discount}% off!`
+          // New header-style line — appears at the TOP of the caption so it
+          // dominates the Telegram push preview instead of being hidden under
+          // footers. Keep it short (one line): users should see the code +
+          // discount before they even expand the message.
+          couponLine = `🎁 <b>TODAY ${info.discount}% OFF</b> — code <code>${code}</code>`
         }
       } catch (err) { log(`[AutoPromo] Coupon error: ${err.message}`) }
     }
