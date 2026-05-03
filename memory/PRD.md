@@ -7,6 +7,33 @@
 - MongoDB (port 27017)
 
 
+## ✅ cPanel Health Probe Hysteresis — False-Positive Alert Fix (May 3, 2026)
+
+### Problem
+On 2026-05-03 15:26:48 UTC a single 2-second HTTPS HEAD timeout to `whm-api.hostbay.io` caused a false-positive admin alert (`🚨 cPanel/WHM control plane down — ETIMEDOUT`) and paused the job queue for 20s. The very next probe (at 15:27:07) succeeded — WHM was healthy throughout. Root cause: `js/cpanel-health.js` fired the `down` state-transition event on the FIRST probe miss, with a 2-second timeout that was too aggressive for p99 CF Tunnel round-trips.
+
+### Changes (`js/cpanel-health.js`)
+- **`PROBE_TIMEOUT_MS` 2000 → 6000 ms** — comfortably covers p99 of CF tunnel HTTPS HEAD (normal 300-500ms, occasional TLS-session-ticket-expired spikes up to 2-4s).
+- **New `DOWN_THRESHOLD_MISSES = 2`** — require 2 consecutive failed probes before firing the `down` event. Single misses log a warning (`⚠️ WHM probe missed (REASON) — 1/2 before DOWN`) but do NOT alert the admin or pause the queue.
+- **Cached `reachable` state held at `true` until threshold reached** — hot-path callers don't bail out on a single blip.
+- **Log message updated** to reflect the new behavior: `⛔️ WHM control-plane DOWN — confirmed after N consecutive probe misses (REASON)`.
+
+### Impact
+- **No more false-positive admin alerts** from isolated CF edge reroutes / TLS session ticket expiry / DNS cache misses.
+- **True outages still detected in ~40 s** (2 probe intervals) instead of 20 s — acceptable trade-off for zero alert spam.
+- **Flapping misses produce zero alerts** — intermittent 1-miss-then-recover never fires either event.
+
+### Tests — 7/7 ✅
+`js/tests/test_cpanel_health_hysteresis.js`:
+1. First success emits no events
+2. Single probe miss does NOT fire down event (hysteresis)
+3. Two consecutive probe misses fire down event exactly once
+4. Third consecutive miss does NOT duplicate the down event
+5. Recovery fires up event exactly once
+6. Subsequent success does NOT duplicate up event
+7. Flapping misses (miss → success → miss → success) emits ZERO events
+
+
 ## ✅ AutoPromo Caption Redesign + Single Daily Coupon (May 3, 2026)
 
 ### Problem

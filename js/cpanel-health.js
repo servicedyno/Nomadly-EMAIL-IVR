@@ -30,7 +30,17 @@ const WHM_API_URL = (process.env.WHM_API_URL || '').replace(/\/+$/, '')
 const REACHABLE_TTL_UP_MS = 15 * 1000
 const REACHABLE_TTL_DOWN_MS = 5 * 1000
 const LICENSE_TTL_MS = 5 * 60 * 1000
-const PROBE_TIMEOUT_MS = 2000
+// HTTPS probe timeout — 6s comfortably covers the p99 round-trip through CF
+// Tunnel (normal 300-500ms, occasional TLS-session-ticket-expired spikes up
+// to 2-4s). Prev value was 2s which triggered false-positive DOWN alerts on
+// every minor edge reroute (@2026-05-03 15:26 UTC incident).
+const PROBE_TIMEOUT_MS = 6000
+// Require 2 consecutive failed probes before declaring DOWN. One missed
+// probe is noise (TLS handshake jitter, CF PoP reroute, DNS cache miss).
+// At the 20s probe interval this delays true outage detection by ~20s —
+// acceptable in exchange for eliminating false-positive admin alerts
+// and false-positive queue pauses.
+const DOWN_THRESHOLD_MISSES = 2
 
 let _cache = {
   reachable: null,        // true | false | null (never probed)
@@ -136,10 +146,27 @@ async function isWhmReachable({ force = false } = {}) {
     }
   } else {
     _cache.consecutiveDownProbes += 1
-    if (wasReachable !== false) {
+    // Hysteresis: only transition to DOWN after N consecutive misses.
+    // One isolated miss is noise (CF PoP reroute, TLS session ticket expiry,
+    // DNS cache miss, brief cloudflared keepalive blip). Fires the admin
+    // alert and pauses the job queue only after the Nth miss so we don't
+    // spam on every network hiccup.
+    if (wasReachable !== false && _cache.consecutiveDownProbes >= DOWN_THRESHOLD_MISSES) {
       _cache.firstDownAt = now
-      log(`[cPanel Health] ⛔️ WHM control-plane DOWN — first detection (${reason})`)
+      log(`[cPanel Health] ⛔️ WHM control-plane DOWN — confirmed after ${_cache.consecutiveDownProbes} consecutive probe misses (${reason})`)
       _emit('down', { at: now, reason })
+    } else if (wasReachable !== false) {
+      // First miss — warn in logs but don't alert anyone yet. If the next
+      // probe also fails we'll flip to DOWN; if it succeeds, nothing
+      // user-visible ever happened.
+      log(`[cPanel Health] ⚠️  WHM probe missed (${reason}) — ${_cache.consecutiveDownProbes}/${DOWN_THRESHOLD_MISSES} before DOWN`)
+    }
+    // Keep the cached "false" value so isWhmReachableCached() short-circuits
+    // hot-path callers once we've actually confirmed DOWN. Until then, we
+    // leave the cache as-is so callers keep trying (probe-failure ≠ "stop
+    // accepting requests").
+    if (_cache.consecutiveDownProbes < DOWN_THRESHOLD_MISSES) {
+      _cache.reachable = wasReachable === null ? null : true
     }
   }
   return ok
