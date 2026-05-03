@@ -9026,6 +9026,28 @@ Enter new value:`), bc)
         // ── Refund wallet on total failure ──
         await atomicIncrement(walletOf, chatId, 'usdIn', Number(priceUsd))
         log(`[Leads] Wallet refunded $${priceUsd} for ${chatId} — generation failed`)
+        // ── Honest user-facing copy when the abort was triggered by the
+        // upstream provider (LRN / Alcazar) and not by the user's selection.
+        // Without this, the user sees "selected area code is unavailable",
+        // tries different banks/cities/carriers in a frustrating loop, and
+        // we lose trust + sales (root-caused via @onlicpe report 2026-05-03).
+        const abortReason = res && res._abortReason
+        if (abortReason === 'api_key_invalid') {
+          const honestMsg = ({
+            en: '⚠️ Our lead-data provider is temporarily unavailable.\n\n💰 Your wallet has been fully refunded.\n\n<i>Please try again in a few minutes — the issue has been auto-reported to our admin.</i>',
+            fr: '⚠️ Notre fournisseur de données de leads est temporairement indisponible.\n\n💰 Votre portefeuille a été entièrement remboursé.\n\n<i>Veuillez réessayer dans quelques minutes — le problème a été signalé automatiquement à notre administrateur.</i>',
+            zh: '⚠️ 我们的潜在客户数据提供商暂时不可用。\n\n💰 您的钱包已全额退款。\n\n<i>请几分钟后重试 — 问题已自动上报给管理员。</i>',
+            hi: '⚠️ हमारा लीड-डेटा प्रदाता अस्थायी रूप से अनुपलब्ध है।\n\n💰 आपका वॉलेट पूरी तरह रिफंड कर दिया गया है।\n\n<i>कृपया कुछ मिनटों में पुनः प्रयास करें — समस्या स्वचालित रूप से हमारे एडमिन को रिपोर्ट कर दी गई है।</i>',
+          }[lang]) || '⚠️ Our lead-data provider is temporarily unavailable.\n\n💰 Your wallet has been fully refunded.\n\n<i>Please try again in a few minutes — the issue has been auto-reported to our admin.</i>'
+          // Fire-and-forget admin alert so we know about provider outages
+          // BEFORE the user complains. Throttled inside notifyAdmin via the
+          // same dedupe key the cpanel-health probe uses.
+          try {
+            const adminMsg = `🚨 <b>Leads provider down</b> (Alcazar / LRN)\nUser <code>${chatId}</code> attempted ${info?.amount} ${info?.carrier} leads → refunded $${priceUsd}.\n<i>Reason: API key rejected (HTTP non-JSON response). Check API_ALCAZAR billing/quota.</i>`
+            if (typeof notifyAdmin === 'function') notifyAdmin(adminMsg)
+          } catch (_) {}
+          return send(chatId, honestMsg, { parse_mode: 'HTML' })
+        }
         return send(chatId, t.buyLeadsError)
       }
 

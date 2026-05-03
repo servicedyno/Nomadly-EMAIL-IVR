@@ -393,7 +393,14 @@ const validateBulkNumbers = async (carrier, phonesToGenerate, countryCode, areaC
           `🚨 [LeadJobs] EARLY ABORT for ${chatId} — 0 results after ${noHitCount} attempts. Phone validation API may be down or key expired. Check Alcazar API key!`,
           { parse_mode: 'HTML' }).catch(() => {})
         if (jobId) await failJob(jobId, 'api_failure_suspected')
-        return []
+        // Return a 0-length array carrying the abort reason so the caller in
+        // _index.js can show an honest "provider down" message instead of the
+        // misleading "selected area code is unavailable" copy. Plain Array
+        // doesn't preserve custom props across `if (!res || res.length === 0)`,
+        // so attach the reason as a non-enumerable side-channel.
+        const empty = []
+        empty._abortReason = 'api_key_invalid'
+        return empty
       }
 
       if (noHitCount > phoneGenStopAtNoXHits) {

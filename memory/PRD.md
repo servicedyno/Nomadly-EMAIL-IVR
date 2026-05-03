@@ -7,6 +7,34 @@
 - MongoDB (port 27017)
 
 
+## ✅ Leads — Honest Provider-Outage Messaging + Admin Alerting (May 3, 2026)
+
+### Problem (incident: @onlicpe, 2026-05-03 19:09 UTC)
+User attempted to buy 1,000 BOA leads ($25). Alcazar LRN API returned `Fatal Error: Invalid API Key` because the account was past-due. The early-abort logic correctly detected the issue, refunded the wallet, and logged `[LeadJobs] ⚠️ EARLY ABORT — Likely API key issue`. BUT:
+1. The user saw misleading copy `"Unfortunately the selected area code is unavailable"` and tried 60 s later with a different bank, different city, different carrier — same failure → frustrating retry loop, lost trust.
+2. The Alcazar `Invalid API Key` error was logged **only once per process lifetime** (`alcazarKeyErrorLogged` boolean) and **never alerted the admin**. We only learned about it when @onlicpe complained.
+
+### Changes
+- **`js/validatePhoneBulk.js`** — early-abort branch now returns an empty array tagged with `_abortReason: 'api_key_invalid'` (was `return []`). Caller can distinguish "real area-code problem" from "upstream provider down".
+- **`js/_index.js` (leads checkout handler ~line 9024)** — when `res._abortReason === 'api_key_invalid'`, shows honest copy in 4 languages: `"Our lead-data provider is temporarily unavailable. Your wallet has been fully refunded. Please try again in a few minutes — the issue has been auto-reported to our admin."` AND fires `notifyAdmin()` with `🚨 Leads provider down (Alcazar / LRN)`.
+- **`js/validatePhoneAlcazar.js`** — once-per-process `alcazarKeyErrorLogged` boolean replaced with a 1-hour TTL throttle (`alcazarKeyErrorLastLoggedAt`). Long-lived Railway pods now re-surface the issue every hour instead of swallowing it forever.
+
+### Tests — 7/7 ✅
+`js/tests/test_leads_abort_reason.js`:
+1. Returned value is an empty array
+2. `_abortReason` side-channel is preserved on the array instance
+3. Caller guard `(!res || res.length === 0)` still triggers refund branch
+4. Falsy/empty inputs without abort reason fall back to default user copy
+5. Source guarantee: validatePhoneBulk attaches `_abortReason='api_key_invalid'` and returns the marked array
+6. Source guarantee: `_index.js` inspects the abort reason, shows honest copy, fires admin alert
+7. Source guarantee: validatePhoneAlcazar uses TTL-based logging, not once-per-process
+
+### Impact
+- **No more retry loops** when the leads provider is down — user gets the truth immediately and can come back later.
+- **Admin alerts in real-time** — provider outages surface in the admin chat, not via user complaints.
+- **No silent failures** — the once-per-process logging anti-pattern is gone.
+
+
 ## ✅ cPanel Health Probe Hysteresis — False-Positive Alert Fix (May 3, 2026)
 
 ### Problem
