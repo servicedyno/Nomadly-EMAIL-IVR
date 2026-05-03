@@ -1,5 +1,3 @@
-{"timestamp": "2026-05-02T21:08:22.373785313Z", "message": "[PhoneMonitor] === Health check complete: 10 checked, 0 newly suspended ===", "severity": "info"}
-{"timestamp": "2026-05-02T21:19:23.630128695Z", "message": "21:19:18 [Conversion] Processed 1 scheduled event(s)", "severity": "info"}
 {"timestamp": "2026-05-02T21:19:23.630135959Z", "message": "\ud83d\udce8 Telegram webhook received", "severity": "info"}
 {"timestamp": "2026-05-02T21:19:23.630139880Z", "message": "message: /start\tfrom: 5276709597 gwalasix", "severity": "info"}
 {"timestamp": "2026-05-02T21:19:23.630143309Z", "message": "reply: \ud83c\udf0d To ensure everything is in your preferred language, please select one below:", "severity": "info"}
@@ -1499,3 +1497,5 @@
 {"timestamp": "2026-05-03T04:08:30.056288559Z", "message": "[PhoneMonitor] Checking 8 Twilio subaccounts", "severity": "info"}
 {"timestamp": "2026-05-03T04:08:30.056291949Z", "message": "[PhoneMonitor] Checking 2 Telnyx numbers", "severity": "info"}
 {"timestamp": "2026-05-03T04:08:30.056295176Z", "message": "[PhoneMonitor] === Health check complete: 10 checked, 0 newly suspended ===", "severity": "info"}
+{"timestamp": "2026-05-03T04:30:02.196615521Z", "message": "[AutoPromo] Triggered marketplace \ud83c\udf05morning for hi (local 10:00)", "severity": "info"}
+{"timestamp": "2026-05-03T04:30:02.893848829Z", "message": "[AutoPromo] No hi users for marketplace (1 dead, 0 inactive 30+ days skipped)", "severity": "info"}
