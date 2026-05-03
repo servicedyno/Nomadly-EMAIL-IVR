@@ -78,10 +78,28 @@ run('Source guarantees: _index.js inspects the abort reason and shows honest cop
   const src = fs.readFileSync(path.resolve(__dirname, '../_index.js'), 'utf8')
   assert.ok(src.includes("abortReason === 'api_key_invalid'"),
     '_index.js must check res._abortReason before using the legacy buyLeadsError copy')
-  assert.ok(src.includes('lead-data provider is temporarily unavailable'),
-    '_index.js must show the honest "provider down" copy in English')
+  assert.ok(src.includes('Lead generation is temporarily unavailable'),
+    '_index.js must show the honest "lead generation unavailable" copy in English')
   assert.ok(src.includes('Leads provider down'),
     '_index.js must fire an admin alert (notifyAdmin) for provider outages')
+})
+
+run('User-facing copy never leaks vendor/provider names', () => {
+  // Locks in the "no vendor names in user-visible strings" rule. The admin
+  // alert string is allowed to mention Alcazar/LRN but the user-facing
+  // honestMsg block must stay neutral and branded.
+  const fs = require('fs')
+  const path = require('path')
+  const src = fs.readFileSync(path.resolve(__dirname, '../_index.js'), 'utf8')
+  // Extract just the honestMsg object literal (4 langs) so we don't false-positive
+  // on other unrelated mentions of these words elsewhere in _index.js.
+  const blockRx = /const honestMsg = \(\{([\s\S]+?)\}\[lang\]\)/
+  const block = src.match(blockRx)?.[1] || ''
+  assert.ok(block.length > 0, 'honestMsg multilang block must exist')
+  for (const banned of ['Alcazar', 'LRN', 'API_ALCAZAR', 'lead-data provider', 'data provider', 'API key', 'fournisseur', '提供商', 'प्रदाता']) {
+    assert.ok(!block.includes(banned),
+      `honestMsg must not leak vendor/provider language. Found banned token: "${banned}"`)
+  }
 })
 
 run('Source guarantees: validatePhoneAlcazar uses TTL-based logging, not once-per-process', () => {

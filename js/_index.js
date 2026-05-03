@@ -9033,12 +9033,15 @@ Enter new value:`), bc)
         // we lose trust + sales (root-caused via @onlicpe report 2026-05-03).
         const abortReason = res && res._abortReason
         if (abortReason === 'api_key_invalid') {
+          // User-facing copy intentionally avoids "provider" / "API" / vendor
+          // names — users don't need to know we depend on a third-party LRN
+          // service. Keep it branded and reassuring (refund + auto-report).
           const honestMsg = ({
-            en: '⚠️ Our lead-data provider is temporarily unavailable.\n\n💰 Your wallet has been fully refunded.\n\n<i>Please try again in a few minutes — the issue has been auto-reported to our admin.</i>',
-            fr: '⚠️ Notre fournisseur de données de leads est temporairement indisponible.\n\n💰 Votre portefeuille a été entièrement remboursé.\n\n<i>Veuillez réessayer dans quelques minutes — le problème a été signalé automatiquement à notre administrateur.</i>',
-            zh: '⚠️ 我们的潜在客户数据提供商暂时不可用。\n\n💰 您的钱包已全额退款。\n\n<i>请几分钟后重试 — 问题已自动上报给管理员。</i>',
-            hi: '⚠️ हमारा लीड-डेटा प्रदाता अस्थायी रूप से अनुपलब्ध है।\n\n💰 आपका वॉलेट पूरी तरह रिफंड कर दिया गया है।\n\n<i>कृपया कुछ मिनटों में पुनः प्रयास करें — समस्या स्वचालित रूप से हमारे एडमिन को रिपोर्ट कर दी गई है।</i>',
-          }[lang]) || '⚠️ Our lead-data provider is temporarily unavailable.\n\n💰 Your wallet has been fully refunded.\n\n<i>Please try again in a few minutes — the issue has been auto-reported to our admin.</i>'
+            en: '⚠️ Lead generation is temporarily unavailable.\n\n💰 Your wallet has been fully refunded.\n\n<i>Please try again in a few minutes — our team has been notified automatically.</i>',
+            fr: '⚠️ La génération de leads est temporairement indisponible.\n\n💰 Votre portefeuille a été entièrement remboursé.\n\n<i>Veuillez réessayer dans quelques minutes — notre équipe a été notifiée automatiquement.</i>',
+            zh: '⚠️ 线索生成暂时不可用。\n\n💰 您的钱包已全额退款。\n\n<i>请几分钟后重试 — 我们的团队已自动收到通知。</i>',
+            hi: '⚠️ लीड जनरेशन अस्थायी रूप से अनुपलब्ध है।\n\n💰 आपका वॉलेट पूरी तरह रिफंड कर दिया गया है।\n\n<i>कृपया कुछ मिनटों में पुनः प्रयास करें — हमारी टीम को स्वचालित रूप से सूचित कर दिया गया है।</i>',
+          }[lang]) || '⚠️ Lead generation is temporarily unavailable.\n\n💰 Your wallet has been fully refunded.\n\n<i>Please try again in a few minutes — our team has been notified automatically.</i>'
           // Fire-and-forget admin alert so we know about provider outages
           // BEFORE the user complains. Throttled inside notifyAdmin via the
           // same dedupe key the cpanel-health probe uses.
