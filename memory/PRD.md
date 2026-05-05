@@ -7,6 +7,26 @@
 - MongoDB (port 27017)
 
 
+## ✅ SIP Credentials Gate Self-Heal + Honest Lock Copy (May 5, 2026)
+
+### Problem (incident: @wizardchop)
+User on `business` plan tapped 🔑 SIP Credentials and saw: "🔒 SIP Credentials requires the Pro plan or higher. Your current plan: business" — a contradictory message because Business already includes SIP. Root cause: the user bought the number on a lower plan (which set `sipDisabled: true`), later upgraded to Business, but the upgrade flow at `_index.js:~27324` didn't backfill the existing `sipDisabled` flag. The gate at `_index.js:21761` then fired the lock screen because of the stuck flag.
+
+Production audit found **2 affected users** (@wizardchop + chat_id 8273560746 — also a paying business user, the heavy IVR campaigner from yesterday).
+
+### Changes
+- **`js/_index.js` SIP-credentials handler** — added lazy self-heal: when `num.sipDisabled === true` AND `phoneConfig.canAccessFeature(num.plan, 'sipCredentials') === true`, the gate now clears the flag in `phoneNumbersOf/<chatId>.val.numbers[idx].sipDisabled` (located by phoneNumber match, robust against array-clone references) and proceeds to credentials. Logs `[Plan] Auto-cleared sipDisabled` for audit.
+- **`js/phone-config.js` `upgradeMessage()`** — now uses a numeric plan-rank table (`starter:1, pro:2, business:3`) to detect whether the current plan already meets the required tier. If yes, switches to a separate `lockedTemplates` family (i18n × 4 langs) that says "feature is temporarily unavailable on this number — please contact @Hostbay_support" instead of the misleading "upgrade to X plan" copy.
+- **Production DB cleanup** — ran a one-off audit + auto-clear: 2/9 owners (∴ 2/totalNumbers) had stuck `sipDisabled: true` on Pro/Business plans. Both cleared. @wizardchop and the heavy IVR user can now access SIP credentials immediately, without waiting for the redeploy.
+
+### Tests — 4/4 ✅
+`js/tests/test_sip_gate_selfheal.js`:
+1. Gate has lazy self-heal for stuck sipDisabled
+2. upgradeMessage detects "current plan already meets requirement"
+3. lockedTemplates avoid the misleading "upgrade to X plan" copy (4 langs covered)
+4. Old buggy copy is no longer the only path in upgradeMessage
+
+
 ## ✅ Three Production Fixes — VPS Back / Wallet-Low Action / Bulk-Call Ledger (May 5, 2026)
 
 Triggered by combined `@burnt0ut777` (lost VPS order) + `@johngambino` (wallet exhaustion mid-IVR-campaign + billing audit) production reports.

@@ -21757,6 +21757,36 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     // SIP Credentials — Pro/Business only
     // Match both raw label and the "(skipped)" badged variant.
     if (message === pc.sipCredentials || (typeof message === 'string' && message.startsWith(pc.sipCredentials))) {
+      // Lazy self-heal: if the user's plan now grants SIP but `sipDisabled`
+      // is still flagged from a previous (lower) plan, clear it on the fly
+      // and continue. Pre-fix bug surfaced by @wizardchop 2026-05-05: their
+      // number was on `business` (which has SIP) but `sipDisabled === true`
+      // from when they originally bought the number on a lower plan, so the
+      // gate at this line returned the misleading "requires Pro plan or
+      // higher. Your current plan: business" message. The plan-upgrade flow
+      // already handles this on transition (see _index.js line ~27324) but
+      // it wasn't backfilled for legacy upgrades.
+      //
+      // Schema: numbers live at `phoneNumbersOf/<chatId>.val.numbers[]`.
+      // We locate the right slot by phoneNumber match (more robust than
+      // array-index since `num` may be a deserialized clone after saveInfo).
+      if (num.sipDisabled && phoneConfig.canAccessFeature(num.plan, 'sipCredentials')) {
+        try {
+          const ownerDoc = await db.collection('phoneNumbersOf').findOne({ _id: chatId })
+          const arr = ownerDoc?.val?.numbers || []
+          const idx = arr.findIndex(x => x.phoneNumber === num.phoneNumber)
+          if (idx >= 0) {
+            await db.collection('phoneNumbersOf').updateOne(
+              { _id: chatId },
+              { $set: { [`val.numbers.${idx}.sipDisabled`]: false } },
+            )
+          }
+          num.sipDisabled = false
+          log(`[Plan] Auto-cleared sipDisabled for ${chatId}/${num.phoneNumber} — plan ${num.plan} grants SIP credentials`)
+        } catch (e) {
+          log(`[Plan] sipDisabled auto-heal write failed for ${chatId}/${num.phoneNumber}: ${e.message}`)
+        }
+      }
       if (num.sipDisabled || !phoneConfig.canAccessFeature(num.plan, 'sipCredentials')) {
         return send(chatId, phoneConfig.upgradeMessage('sipCredentials', num.plan, info?.userLanguage), k.of(buildManageMenu(num)))
       }

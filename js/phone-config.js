@@ -400,22 +400,46 @@ const upgradeMessage = (feature, currentPlan, lang) => {
   const needed = (feature === 'callRecording' || feature === 'ivr' || feature === 'ivrRedial' || feature === 'otpCustomMessages' || feature === 'otpCollection') ? 'Business'
     : (feature === 'ivrOutbound' || feature === 'bulkCall') ? 'Pro'
     : 'Pro'
+  // Detect "current plan already meets the required tier" — happens when the
+  // gate fires for a non-plan reason (e.g. legacy `sipDisabled` flag stuck
+  // from a previous lower plan). Showing "requires Pro or higher. Your
+  // current plan: business" is contradictory and confusing — root-caused
+  // via @wizardchop 2026-05-05 SIP report. Use a neutral "feature is locked"
+  // copy in that case.
+  const planRank = { starter: 1, pro: 2, business: 3 }
+  const currentRank = planRank[String(currentPlan || '').toLowerCase()] || 0
+  const neededRank = planRank[needed.toLowerCase()] || 0
+  const planAlreadyMeets = currentRank > 0 && currentRank >= neededRank
   const featureNamesI18n = {
     en: { voicemail: 'Voicemail', sipCredentials: 'SIP Credentials', smsToEmail: 'SMS to Email', smsWebhook: 'SMS Webhook', callRecording: 'Call Recording', ivr: 'IVR / Auto-attendant', ivrOutbound: 'Quick IVR Call', bulkCall: 'Bulk IVR Campaign', otpCollection: 'OTP Collection (IVR)', ivrRedial: 'IVR Redial', otpCustomMessages: 'Custom OTP Messages' },
     fr: { voicemail: 'Messagerie Vocale', sipCredentials: 'Identifiants SIP', smsToEmail: 'SMS par Email', smsWebhook: 'Webhook SMS', callRecording: 'Enregistrement d\'Appels', ivr: 'SVI / Standard Auto', ivrOutbound: 'Appel IVR Rapide', bulkCall: 'Campagne IVR en Masse', otpCollection: 'Collecte OTP (IVR)', ivrRedial: 'Rappel IVR', otpCustomMessages: 'Messages OTP Personnalisés' },
     zh: { voicemail: '语音信箱', sipCredentials: 'SIP 凭据', smsToEmail: '短信转邮箱', smsWebhook: '短信 Webhook', callRecording: '通话录音', ivr: 'IVR / 自动应答', ivrOutbound: '快速IVR呼叫', bulkCall: '批量IVR活动', otpCollection: 'OTP 收集 (IVR)', ivrRedial: 'IVR 重拨', otpCustomMessages: '自定义OTP消息' },
     hi: { voicemail: 'वॉइसमेल', sipCredentials: 'SIP क्रेडेंशियल्स', smsToEmail: 'SMS ईमेल पर', smsWebhook: 'SMS Webhook', callRecording: 'कॉल रिकॉर्डिंग', ivr: 'IVR / ऑटो-अटेंडेंट', ivrOutbound: 'त्वरित IVR कॉल', bulkCall: 'बल्क IVR अभियान', otpCollection: 'OTP संग्रह (IVR)', ivrRedial: 'IVR रीडायल', otpCustomMessages: 'कस्टम OTP संदेश' },
   }
-  const templates = {
+  const upgradeTemplates = {
     en: (fn, nd, cp) => `🔒 <b>${fn}</b> requires the <b>${nd}</b> plan or higher.\n\nYour current plan: <b>${cp || 'Starter'}</b>\n\nUpgrade via 🔄 Renew / Change Plan.`,
     fr: (fn, nd, cp) => `🔒 <b>${fn}</b> nécessite le forfait <b>${nd}</b> ou supérieur.\n\nVotre forfait actuel : <b>${cp || 'Starter'}</b>\n\nMise à niveau via 🔄 Renouveler / Changer.`,
     zh: (fn, nd, cp) => `🔒 <b>${fn}</b> 需要 <b>${nd}</b> 或更高套餐。\n\n当前套餐：<b>${cp || 'Starter'}</b>\n\n通过 🔄 续费 / 更换套餐 升级。`,
     hi: (fn, nd, cp) => `🔒 <b>${fn}</b> के लिए <b>${nd}</b> या उच्चतर प्लान आवश्यक है।\n\nआपका वर्तमान प्लान: <b>${cp || 'Starter'}</b>\n\n🔄 नवीनीकरण / प्लान बदलें से अपग्रेड करें।`,
   }
+  // "Already on a qualifying plan" templates — used when the gate fires for
+  // a non-plan reason (rare; e.g. admin-disabled, post-abuse lockout, or a
+  // legacy data flag that hasn't been cleared yet). Tells the user to
+  // contact support instead of trying to upgrade to a plan they're already
+  // on (which would do nothing).
+  const lockedTemplates = {
+    en: (fn, cp) => `🔒 <b>${fn}</b> is temporarily unavailable on this number.\n\nYour current plan: <b>${cp}</b> (already includes this feature).\n\nPlease contact <b>@Hostbay_support</b> — we'll re-enable it for you.`,
+    fr: (fn, cp) => `🔒 <b>${fn}</b> est temporairement indisponible sur ce numéro.\n\nVotre forfait actuel : <b>${cp}</b> (inclut déjà cette fonctionnalité).\n\nContactez <b>@Hostbay_support</b> — nous la réactiverons pour vous.`,
+    zh: (fn, cp) => `🔒 <b>${fn}</b> 在此号码上暂时不可用。\n\n当前套餐：<b>${cp}</b>（已包含此功能）。\n\n请联系 <b>@Hostbay_support</b> — 我们将为您重新启用。`,
+    hi: (fn, cp) => `🔒 इस नंबर पर <b>${fn}</b> अस्थायी रूप से अनुपलब्ध है।\n\nआपका वर्तमान प्लान: <b>${cp}</b> (इस सुविधा को पहले से शामिल करता है)।\n\nकृपया <b>@Hostbay_support</b> से संपर्क करें — हम इसे पुनः सक्षम करेंगे।`,
+  }
+  const templates = planAlreadyMeets ? lockedTemplates : upgradeTemplates
   const l = lang && templates[lang] ? lang : 'en'
   const featureNames = featureNamesI18n[l] || featureNamesI18n.en
   const featureName = featureNames[feature] || feature
-  return (templates[l] || templates.en)(featureName, needed, currentPlan)
+  return planAlreadyMeets
+    ? (templates[l] || templates.en)(featureName, currentPlan)
+    : (templates[l] || templates.en)(featureName, needed, currentPlan)
 }
 
 // ── One-tap plan upgrades ──
