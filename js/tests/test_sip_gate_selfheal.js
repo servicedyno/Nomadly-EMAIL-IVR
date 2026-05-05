@@ -59,9 +59,9 @@ run('upgradeMessage detects "current plan already meets requirement"', () => {
 })
 
 run('lockedTemplates avoid the misleading "upgrade to X plan" copy', () => {
-  // Pull just the lockedTemplates object
+  // Pull just the lockedTemplates object (ends at `\n  }\n` before the next template family)
   const start = phoneConfigSrc.indexOf('const lockedTemplates')
-  const end = phoneConfigSrc.indexOf('}\n  const templates = planAlreadyMeets')
+  const end = phoneConfigSrc.indexOf('  // SIP-credentials specific', start)
   assert.ok(start > 0 && end > start, 'lockedTemplates block must exist')
   const block = phoneConfigSrc.slice(start, end)
   assert.ok(!block.includes('Upgrade via'),
@@ -75,17 +75,56 @@ run('lockedTemplates avoid the misleading "upgrade to X plan" copy', () => {
     'lockedTemplates must cover all four supported languages')
 })
 
-run('Old buggy copy is no longer the only path in upgradeMessage', () => {
+run('Old buggy copy only fires for users who genuinely need an upgrade', () => {
   // The contradictory copy "requires Pro plan or higher. Your current plan: business"
   // must only fire when the user actually needs to upgrade.
   const fnStart = phoneConfigSrc.indexOf('const upgradeMessage = (feature, currentPlan, lang) =>')
   const fnEnd = phoneConfigSrc.indexOf('\n}', fnStart)
   const fn = phoneConfigSrc.slice(fnStart, fnEnd + 2)
-  assert.ok(fn.includes('return planAlreadyMeets'),
-    'final return must branch on planAlreadyMeets')
-  // Also confirm the old "always upgrade" pattern is gone
-  assert.ok(!/return \(templates\[l\] \|\| templates\.en\)\(featureName, needed, currentPlan\)\s*\n}\s*$/m.test(fn),
-    'must not unconditionally return upgrade copy — should be inside the planAlreadyMeets===false branch')
+  assert.ok(fn.includes('if (planAlreadyMeets) return'),
+    'function must short-circuit for users who already meet the plan requirement')
+  assert.ok(/if \(feature === 'sipCredentials'\) return/.test(fn),
+    'function must short-circuit for SIP creds (dedicated pitch)')
+  // The generic upgrade copy is still the FALLBACK for non-SIP features when
+  // user is on a lower plan — that's correct. Just make sure it's preceded
+  // by the two short-circuit branches.
+  const lastReturnIdx = fn.lastIndexOf("return (templates[l] || templates.en)(featureName, needed, currentPlan)")
+  const planMeetsBranchIdx = fn.indexOf('if (planAlreadyMeets) return')
+  const sipBranchIdx = fn.indexOf("if (feature === 'sipCredentials') return")
+  assert.ok(planMeetsBranchIdx > 0 && planMeetsBranchIdx < lastReturnIdx,
+    'planAlreadyMeets branch must come BEFORE the generic upgrade fallback')
+  assert.ok(sipBranchIdx > 0 && sipBranchIdx < lastReturnIdx,
+    'sipCredentials branch must come BEFORE the generic upgrade fallback')
+})
+
+// ── Part 3: SIP-creds-specific upgrade pitch for Starter users (item b) ──
+
+run('SIP credentials gets a dedicated upgrade pitch (creds already provisioned)', () => {
+  assert.ok(phoneConfigSrc.includes('sipCredsUpgradeTemplates'),
+    'must define a separate template family for sipCredentials feature')
+  assert.ok(phoneConfigSrc.includes('already provisioned'),
+    'pitch must reassure user creds already exist on our network')
+  assert.ok(phoneConfigSrc.includes('Linphone'),
+    'pitch should name-check at least one popular softphone for tangibility')
+})
+
+run('sipCredsUpgradeTemplates covers all four supported languages', () => {
+  const start = phoneConfigSrc.indexOf('const sipCredsUpgradeTemplates')
+  const end = phoneConfigSrc.indexOf('}\n  // Pick the right template')
+  assert.ok(start > 0 && end > start, 'sipCredsUpgradeTemplates block must exist')
+  const block = phoneConfigSrc.slice(start, end)
+  assert.ok(block.includes('en:') && block.includes('fr:') && block.includes('zh:') && block.includes('hi:'),
+    'sipCredsUpgradeTemplates must cover en/fr/zh/hi')
+})
+
+run('upgradeMessage routes Starter users + sipCredentials to the dedicated pitch', () => {
+  const fnStart = phoneConfigSrc.indexOf('const upgradeMessage = (feature, currentPlan, lang) =>')
+  const fnEnd = phoneConfigSrc.indexOf('\n}', fnStart)
+  const fn = phoneConfigSrc.slice(fnStart, fnEnd + 2)
+  assert.ok(/feature === 'sipCredentials'\s*\)\s*templates = sipCredsUpgradeTemplates/.test(fn),
+    'router must select sipCredsUpgradeTemplates when feature is sipCredentials and plan does NOT yet qualify')
+  assert.ok(fn.includes("if (feature === 'sipCredentials') return"),
+    'final return must call the sipCreds template with just (currentPlan)')
 })
 
 console.log('\nAll SIP-gate self-heal tests passed.')

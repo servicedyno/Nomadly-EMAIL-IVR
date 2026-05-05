@@ -433,13 +433,31 @@ const upgradeMessage = (feature, currentPlan, lang) => {
     zh: (fn, cp) => `🔒 <b>${fn}</b> 在此号码上暂时不可用。\n\n当前套餐：<b>${cp}</b>（已包含此功能）。\n\n请联系 <b>@Hostbay_support</b> — 我们将为您重新启用。`,
     hi: (fn, cp) => `🔒 इस नंबर पर <b>${fn}</b> अस्थायी रूप से अनुपलब्ध है।\n\nआपका वर्तमान प्लान: <b>${cp}</b> (इस सुविधा को पहले से शामिल करता है)।\n\nकृपया <b>@Hostbay_support</b> से संपर्क करें — हम इसे पुनः सक्षम करेंगे।`,
   }
-  const templates = planAlreadyMeets ? lockedTemplates : upgradeTemplates
+  // SIP-credentials specific upgrade pitch — for STARTER users who tap the
+  // gated menu. Reassures them that credentials already exist on Telnyx
+  // (provisioned at purchase regardless of plan — see _index.js:1740-1765)
+  // and "ready to use" the moment they upgrade. Stronger CTA than the
+  // generic upgrade copy used for other locked features.
+  const sipCredsUpgradeTemplates = {
+    en: (cp) => `🔐 <b>SIP Credentials — Pro / Business only</b>\n\nGood news: your SIP credentials were <b>already provisioned</b> on our network the moment your number was purchased.\n\nYour current plan: <b>${cp || 'Starter'}</b>\nUpgrade to <b>Pro</b> or <b>Business</b> to view and use them in your softphone (Linphone, Zoiper, Bria, etc.) — no extra setup required.\n\nTap <b>🔄 Renew / Change Plan</b> to upgrade.`,
+    fr: (cp) => `🔐 <b>Identifiants SIP — Pro / Business uniquement</b>\n\nBonne nouvelle : vos identifiants SIP ont été <b>déjà provisionnés</b> sur notre réseau dès l'achat de votre numéro.\n\nVotre forfait actuel : <b>${cp || 'Starter'}</b>\nPassez à <b>Pro</b> ou <b>Business</b> pour les afficher et les utiliser dans votre softphone (Linphone, Zoiper, Bria, etc.) — aucune configuration supplémentaire requise.\n\nAppuyez sur <b>🔄 Renouveler / Changer</b> pour mettre à niveau.`,
+    zh: (cp) => `🔐 <b>SIP 凭据 — 仅限 Pro / Business</b>\n\n好消息：您的 SIP 凭据在购买号码时<b>已自动配置</b>在我们的网络上。\n\n当前套餐：<b>${cp || 'Starter'}</b>\n升级到 <b>Pro</b> 或 <b>Business</b> 即可在您的软电话 (Linphone, Zoiper, Bria 等) 中查看和使用 — 无需额外设置。\n\n点击 <b>🔄 续费 / 更换套餐</b> 升级。`,
+    hi: (cp) => `🔐 <b>SIP क्रेडेंशियल्स — केवल Pro / Business</b>\n\nखुशखबरी: आपके नंबर खरीदते ही आपके SIP क्रेडेंशियल्स हमारे नेटवर्क पर <b>स्वतः कॉन्फ़िगर</b> हो गए थे।\n\nआपका वर्तमान प्लान: <b>${cp || 'Starter'}</b>\nअपने सॉफ्टफ़ोन (Linphone, Zoiper, Bria आदि) में देखने और उपयोग करने के लिए <b>Pro</b> या <b>Business</b> में अपग्रेड करें — कोई अतिरिक्त सेटअप आवश्यक नहीं।\n\nअपग्रेड करने के लिए <b>🔄 नवीनीकरण / प्लान बदलें</b> पर टैप करें।`,
+  }
+  // Pick the right template family based on context:
+  //   1. Plan already meets requirement      → lockedTemplates  (locked-state copy)
+  //   2. Feature is `sipCredentials`         → sipCredsUpgrade  (creds-already-exist pitch)
+  //   3. Anything else                       → upgradeTemplates (generic)
+  let templates
+  if (planAlreadyMeets) templates = lockedTemplates
+  else if (feature === 'sipCredentials') templates = sipCredsUpgradeTemplates
+  else templates = upgradeTemplates
   const l = lang && templates[lang] ? lang : 'en'
   const featureNames = featureNamesI18n[l] || featureNamesI18n.en
   const featureName = featureNames[feature] || feature
-  return planAlreadyMeets
-    ? (templates[l] || templates.en)(featureName, currentPlan)
-    : (templates[l] || templates.en)(featureName, needed, currentPlan)
+  if (planAlreadyMeets) return (templates[l] || templates.en)(featureName, currentPlan)
+  if (feature === 'sipCredentials') return (templates[l] || templates.en)(currentPlan)
+  return (templates[l] || templates.en)(featureName, needed, currentPlan)
 }
 
 // ── One-tap plan upgrades ──

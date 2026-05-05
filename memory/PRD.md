@@ -7,6 +7,27 @@
 - MongoDB (port 27017)
 
 
+## ✅ SIP Credentials — Starter Upgrade Pitch + Plan-Gated Flag Audit (May 5, 2026)
+
+### Scope
+Follow-up to the @wizardchop SIP-lock fix earlier today — answers two questions raised in the design review:
+
+(b) **What does a STARTER user see when they tap 🔑 SIP Credentials?** Previously the same generic "upgrade to Pro" message every other locked feature shows. Now: a tailored pitch that confirms credentials are *already provisioned* on Telnyx (they are — provisioning happens at purchase regardless of plan, see `_index.js:1740-1765`) and reassures users they're "ready to use the moment you upgrade — no extra setup". Localized in en/fr/zh/hi.
+
+(c) **Are there OTHER stuck-flag patterns like `sipDisabled`?** Audited every per-number disable flag in production: 9 owners × 10 numbers. Result: **zero stuck flags found anywhere** beyond the two `sipDisabled` cases we already cleared this morning. Voicemail/IVR/recording disable-state lives inside `num.features.<feature>.enabled` and is gated dynamically by `canAccessFeature(plan)` — those auto-recover on plan upgrade with no stale-data risk.
+
+### Changes
+- **`js/phone-config.js`** — added `sipCredsUpgradeTemplates` (4 langs) and a 3-way template router: planAlreadyMeets → `lockedTemplates`, feature===sipCredentials → new `sipCredsUpgradeTemplates`, else → generic `upgradeTemplates`. Other features (voicemail, IVR, recording) keep their existing copy unchanged.
+
+### Tests — 7/7 ✅ (extends `test_sip_gate_selfheal.js` from 4 → 7 cases)
+- 5. SIP credentials gets a dedicated upgrade pitch (creds already provisioned)
+- 6. sipCredsUpgradeTemplates covers all four supported languages
+- 7. upgradeMessage routes Starter users + sipCredentials to the dedicated pitch
+
+### Audit script
+Reusable: a one-off Node sweep at `phoneNumbersOf` collection that flags any `sipDisabled === true` paired with a Pro/Business plan. Run on demand via the MongoDB connection script in this PRD's commit history.
+
+
 ## ✅ SIP Credentials Gate Self-Heal + Honest Lock Copy (May 5, 2026)
 
 ### Problem (incident: @wizardchop)
