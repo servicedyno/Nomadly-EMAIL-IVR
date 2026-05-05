@@ -7,6 +7,31 @@
 - MongoDB (port 27017)
 
 
+## ✅ Three Production Fixes — VPS Back / Wallet-Low Action / Bulk-Call Ledger (May 5, 2026)
+
+Triggered by combined `@burnt0ut777` (lost VPS order) + `@johngambino` (wallet exhaustion mid-IVR-campaign + billing audit) production reports.
+
+### Changes
+- **`js/_index.js` — VPS order-confirm Back navigation** — `vpsAskPaymentConfirmation` now records `_prevNavStep ∈ {'rdp', 'sshSkipped', 'sshLinked'}` on `info.vpsDetails`. The `proceedWithVpsPayment` Back handler routes to the IMMEDIATE previous step instead of jumping two steps back to `vpsAskSSHKey`. Fixes the `@burnt0ut777` regression where tapping Back from the order summary bypassed the "Are you sure (skip SSH)?" screen, confused the user, and led to a Cancel that lost the entire fully-configured order.
+- **`js/voice-service.js` — Wallet-low alert action button** — CRITICAL and EMPTY severity alerts now attach an inline keyboard with a single 💰 Top Up Wallet button (callback `wallet_topup_quick`). Low/medium severity is unchanged (avoid nag).
+- **`js/_index.js` — Callback handler `wallet_topup_quick`** — re-issues `/wallet` so the user lands on the existing branded wallet UI immediately. Acks the callback to clear the Telegram loading spinner.
+- **`js/bulk-call-service.js` — Bulk-IVR ledger attribution** — `smartWalletDeduct` now receives `{ type: 'outbound_call', callType: 'BulkIVR', destination, phoneNumber, description }` so every new bulk-call ledger entry is fully attributed. Pre-fix: 2,937 anonymous "wallet_deduction" entries on `@johngambino`'s account alone, making post-hoc disputes unauditable.
+
+### @johngambino billing audit verdict
+- ✅ NOT overcharged. The recent IVR campaign legs were billed at the correct rate ($0.1425/min, 1-minute minimum, 43 legs → $5.85 actual vs $6.13 expected — $0.28 under-charged due to atomic-deduction safety stop).
+- ⚠️ Lifetime mismatch: wallet `usdOut=$568.88` vs ledger sum $551.98 = **$16.90 under-recorded**. Caused by 28 legacy `atomicIncrement(walletOf, ..., 'usdOut', ...)` call sites that bypass `smartWalletDeduct` entirely. Tracked as follow-up; not blocking.
+- Detailed write-up: `/app/JOHNGAMBINO_BILLING_AUDIT_2026_05_05.md`.
+
+### Tests — 6/6 ✅
+`js/tests/test_three_fixes_2026_05_05.js`:
+1. `vpsAskPaymentConfirmation` records `_prevNavStep` before showing bill
+2. `proceedWithVpsPayment` Back uses the breadcrumb (not hardcoded `vpsAskSSHKey`)
+3. CRITICAL low-balance alert exposes an inline Top-Up button
+4. `callback_query` handler routes `wallet_topup_quick` to the `/wallet` command
+5. Bulk-call `smartWalletDeduct` passes metadata for ledger attribution
+6. No bulk-call deduction writes anonymous ledger entries anymore (codebase-level guard)
+
+
 ## ✅ Leads — Honest Provider-Outage Messaging + Admin Alerting (May 3, 2026)
 
 ### Problem (incident: @onlicpe, 2026-05-03 19:09 UTC)

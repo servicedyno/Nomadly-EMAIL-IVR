@@ -3580,6 +3580,32 @@ bot?.on('callback_query', async (query) => {
     const data = query?.data || ''
     const chatId = String(query?.message?.chat?.id) // Always convert to string for DB consistency
 
+    // ── Wallet quick-topup (from CRITICAL low-balance alert) ──
+    // Single-tap from the wallet alert opens the wallet menu so the user
+    // doesn't have to hunt through the bot menu mid-campaign. Mirrors the
+    // /wallet command flow and respects the user's current language.
+    if (data === 'wallet_topup_quick') {
+      try { await bot.answerCallbackQuery(query.id, { text: 'Opening wallet…' }) } catch {}
+      // Reuse the existing /wallet command handler to keep behaviour consistent
+      // (loyalty tier, NGN/USD layout, top-up CTAs all stay in one place).
+      try {
+        await bot.processUpdate({
+          update_id: Date.now(),
+          message: {
+            message_id: query.message.message_id,
+            from: query.from,
+            chat: query.message.chat,
+            date: Math.floor(Date.now() / 1000),
+            text: '/wallet',
+          },
+        })
+      } catch (e) {
+        // Fallback: just send the user to the main menu so they can tap "👛 Wallet"
+        try { return send(chatId, '👛 Tap <b>👛 Wallet</b> in the menu to top up.', { parse_mode: 'HTML' }) } catch {}
+      }
+      return
+    }
+
     // ── Handle device rename callback (from SMS App: Manage Devices) ──
     // Callback format: rename_device:<deviceId>:<currentName>
     if (data.startsWith('rename_device:')) {
@@ -8113,6 +8139,28 @@ Enter new value:`), bc)
     },
 
     vpsAskPaymentConfirmation: async () => {
+      // Track HOW the user got here so the global "🔙 Back" button on the
+      // order-confirm screen returns to the IMMEDIATELY PREVIOUS step (not 2
+      // steps back). Pre-fix bug (root-caused via @burnt0ut777 production
+      // session 2026-05-05 01:21 UTC): user tapped "Skip SSH → Are you sure
+      // → Proceed Anyway → Back" and was bounced to the SSH-choice screen,
+      // skipping over the "Are you sure?" confirmation. They then tapped
+      // Cancel and lost their fully-configured order.
+      //
+      // Convention used by Back handler in `proceedWithVpsPayment`:
+      //   _prevNavStep === 'sshSkipped'  → user took the password-login path
+      //   _prevNavStep === 'sshLinked'   → user picked an existing SSH key
+      //   _prevNavStep === 'rdp'         → RDP flow (no SSH step at all)
+      //   _prevNavStep === undefined     → legacy / unknown — fall back to
+      //                                    `vpsAskSSHKey` like the old code.
+      const vpsDetails = info.vpsDetails || {}
+      if (!vpsDetails._prevNavStep) {
+        if (vpsDetails.isRDP) vpsDetails._prevNavStep = 'rdp'
+        else if (vpsDetails.sshKeyName === null) vpsDetails._prevNavStep = 'sshSkipped'
+        else if (vpsDetails.sshKeyName) vpsDetails._prevNavStep = 'sshLinked'
+        info.vpsDetails = vpsDetails
+        saveInfo('vpsDetails', vpsDetails)
+      }
       await set(state, chatId, 'action', a.proceedWithVpsPayment)
       return send(chatId, vp.generateBillSummary(info?.vpsDetails), vp.of([vp.yes, vp.no]))
     },
@@ -14455,7 +14503,16 @@ ${message.replace(/\n/g, '<br>')}
   }
   
   if (action === a.proceedWithVpsPayment) {
-    if (message === vp.back) return goto.vpsAskSSHKey()
+    if (message === vp.back) {
+      // Route back to the user's IMMEDIATELY previous step (see notes on
+      // `vpsAskPaymentConfirmation` for why). Falls back to the legacy
+      // behavior (vpsAskSSHKey) when no breadcrumb is set.
+      const prev = info?.vpsDetails?._prevNavStep
+      if (prev === 'sshSkipped') return goto.askSkipSSHkeyconfirmation()
+      if (prev === 'sshLinked') return goto.vpsLinkSSHKey()
+      // 'rdp' or undefined → legacy fallback
+      return goto.vpsAskSSHKey()
+    }
     if (message === vp.no) {
       saveInfo('vpsDetails', null)
       await set(state, chatId, 'action', 'none')

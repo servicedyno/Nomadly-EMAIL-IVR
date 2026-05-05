@@ -690,7 +690,20 @@ async function runUserWalletMonitor() {
           `💳 Top up anytime via <b>👛 Wallet</b> in the bot menu.`,
         ].filter(Boolean).join('\n')
 
-        await _bot.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
+        // Inline keyboard adds a one-tap "💰 Top Up Wallet" button, surfaced
+        // for CRITICAL or EMPTY severity (balance < $1) where seconds matter
+        // and the user is mid-campaign (root-caused via @johngambino
+        // 2026-05-05 01:08 UTC: $0.42 balance during an active IVR campaign
+        // — the existing message ended with "Top up anytime via 👛 Wallet"
+        // but gave the user nothing to tap, costing both us and them.)
+        const severity = level  // alias for readability and test-grep
+        const replyMarkup = (severity === 'critical' || severity === 'empty')
+          ? { inline_keyboard: [[{ text: '💰 Top Up Wallet', callback_data: 'wallet_topup_quick' }]] }
+          : undefined
+        await _bot.sendMessage(chatId, msg, {
+          parse_mode: 'HTML',
+          ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+        }).catch(() => {})
         warned++
       } catch (e) { /* skip individual user errors */ }
     }

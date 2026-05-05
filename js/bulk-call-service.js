@@ -640,8 +640,20 @@ async function onCallStatusUpdate(callSid, campaignId, leadIndex, status, durati
         const minutesBilled = Math.max(1, Math.ceil((duration || 0) / 60))  // minimum 1 minute always
         const charge = +(minutesBilled * BULK_CALL_RATE).toFixed(4)
 
-        // Direct wallet deduction (bulk calls do NOT use plan minutes) — tries USD first, then NGN
-        const deductResult = await smartWalletDeduct(_walletOf, freshCampaign.chatId, charge)
+        // Direct wallet deduction (bulk calls do NOT use plan minutes) — tries USD first, then NGN.
+        // Pass metadata so walletLedger gets full attribution per call (was an
+        // anonymous "wallet_deduction" before — fixed 2026-05-05 after the
+        // @johngambino billing audit found 2,937 ledger entries with no
+        // callType / destination / phoneNumber, making post-hoc disputes
+        // unauditable). The corresponding phoneLogs row already has the
+        // detail; this just brings the ledger to parity.
+        const deductResult = await smartWalletDeduct(_walletOf, freshCampaign.chatId, charge, {
+          type: 'outbound_call',
+          callType: 'BulkIVR',
+          destination: freshLead?.number || null,
+          phoneNumber: freshLead?.number || null,
+          description: `BulkIVR ${freshCampaign.callerId} → ${freshLead?.number || 'unknown'} (${minutesBilled} min × $${BULK_CALL_RATE}, status=${finalStatus})`,
+        })
         if (deductResult.success) {
           const chargedStr = deductResult.currency === 'ngn' ? `₦${deductResult.chargedNgn}` : `$${charge.toFixed(2)}`
           // Log the payment
