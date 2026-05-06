@@ -1,28 +1,39 @@
-# Shortit shortener disabled on production
+# Shortit shortener — production status
 
-**Date:** 2026-02 (current session)
-**Scope:** Disable the "Shortit (Trial)" URL-shortener option and the free-trial shortlinks only on Railway production. Bit.ly and Custom Domain Shortener are untouched.
+**Last update:** 2026-02 (current session, re-enabled with srtn.me provider)
 
-## Feature flag
-- `SHORTIT_ENABLED` — treated as enabled unless explicitly set to the string `false`.
-- Default (unset / anything other than `"false"`) → Shortit is **enabled** (local/dev behaviour unchanged).
-- `SHORTIT_ENABLED=false` → Shortit button hidden, handler guarded, and new users are no longer granted free-trial shortlinks.
+## Current production state
+- `SHORTIT_ENABLED=true` on Railway (Nomadly-EMAIL-IVR / production)
+- 242 existing users restored to `freeShortLinksOf.val = 5` (FREE_LINKS)
+- Latest deployed commit on prod: `c0738d94`
+  - ✅ Contains the `SHORTIT_ENABLED` feature flag (button shown again)
+  - ⚠️ **Still calls old `tiny-url-shortner.p.rapidapi.com` provider** in `customCuttly.js`
+- Local HEAD `dbd6db49` has the new srtn.me provider — **not yet pushed to GitHub**
 
-## Code changes (`/app/js/_index.js`)
-- L845 — added `const SHORTIT_ENABLED = process.env.SHORTIT_ENABLED !== 'false'`
-- L5571 — in first-seen-user init, skip granting `FREE_LINKS` when flag is off (`initial = SHORTIT_ENABLED ? FREE_LINKS : 0`)
-- L7492 — `submenu1()` builds keyboard without `user.redShortit` when flag is off
-- L11563 — handler for `user.redShortit` returns "⚠️ Shortit is currently unavailable" when flag is off
+## Provider (in local HEAD, pending push)
+- New endpoint: `https://srtn-me-url-shortener.p.rapidapi.com/api/shorten`
+- Method: `POST` form-urlencoded
+- Body: `url=<longUrl>&description=<optional>`
+- Response: `{"url": "https://srtn.me/<6-char-random>"}`
+- Tested live: `cnn.com → https://srtn.me/vmwq5b → 302 → https://www.cnn.com/` ✅
+- **No custom alias support** on BASIC tier — alias param silently ignored. Bot's vanity-alias UX still uses internal `clicksOn` collection.
 
-## Production rollout actions taken
-- Railway service `Nomadly-EMAIL-IVR` (project `New Hosting`, env `production`) — `SHORTIT_ENABLED=false` set via GraphQL variableUpsert.
-- Production MongoDB `freeShortLinksOf` collection — 242 users with val>0 updated to `val=0`.
-- Railway auto-triggered a redeploy on env-var change; deployment status confirmed `SUCCESS`.
+## Feature flag (local HEAD)
+- `SHORTIT_ENABLED = process.env.SHORTIT_ENABLED !== 'false'`
+- Default: enabled (any value other than the literal `"false"`)
+- Guards 3 sites in `js/_index.js`:
+  - L845 — flag definition
+  - L5571 — skip granting `FREE_LINKS` on first-seen-user when off
+  - L7492 — hide `user.redShortit` button in `submenu1()` keyboard when off
+  - L11563 — handler returns "Shortit is currently unavailable" when off
 
 ## Pending
-- Code changes in `/app/js/_index.js` still need to be pushed to `servicedyno/Nomadly-EMAIL-IVR` (`main`) so the flag check is actually wired into prod. User should use the "Save to Github" button to push. After that, Railway will redeploy and the Shortit button will be hidden from the keyboard and handler will be guarded.
-- Until the code is pushed, the env var has no effect on the deployed build; the DB zeroing provides a temporary mitigation because downstream free-trial checks already gate at `val === 0`.
+- Push local commit `dbd6db49` to `servicedyno/Nomadly-EMAIL-IVR:main` via "Save to Github" so srtn.me reaches production. After push, Railway auto-redeploys.
 
-## Rollback
-1. Railway → Nomadly-EMAIL-IVR → production → set `SHORTIT_ENABLED=true` (or delete the var).
-2. (Optional) Reset counters: `db.freeShortLinksOf.updateMany({ val: 0 }, { $set: { val: FREE_LINKS } })`.
+## Rollback recipes
+**To disable Shortit again:**
+- Railway → set `SHORTIT_ENABLED=false`
+- (optional) MongoDB: `db.freeShortLinksOf.updateMany({val:{$gt:0}}, {$set:{val:0}})`
+
+**To revert provider to old tiny-url-shortner:**
+- `git revert dbd6db49` then push.
