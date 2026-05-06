@@ -841,6 +841,8 @@ const RATE_LEAD_VALIDATOR = Number(process.env.RATE_LEAD_VALIDATOR)
 const RATE_CNAM_VALIDATOR = Number(process.env.RATE_CNAM_VALIDATOR)
 const FREE_LINKS = Number(process.env.FREE_LINKS)
 const HOSTED_ON = process.env.HOSTED_ON
+// Shortit feature flag — disabled only when explicitly set to 'false' (production kill-switch)
+const SHORTIT_ENABLED = process.env.SHORTIT_ENABLED !== 'false'
 
 const CHAT_BOT_NAME = process.env.CHAT_BOT_NAME
 const REST_APIS_ON = process.env.REST_APIS_ON
@@ -5565,8 +5567,10 @@ bot?.on('message', msg => {
 
   let freeLinks = await get(freeShortLinksOf, chatId)
   if (freeLinks === null || freeLinks === undefined) {
-    set(freeShortLinksOf, chatId, FREE_LINKS)
-    freeLinks = FREE_LINKS
+    // Skip granting free-trial shortlinks when Shortit is disabled (production feature-flag).
+    const initial = SHORTIT_ENABLED ? FREE_LINKS : 0
+    set(freeShortLinksOf, chatId, initial)
+    freeLinks = initial
   }
 
   // Fetch SMS app subscription status for dynamic BulkSMS button label
@@ -7485,7 +7489,8 @@ Enter new value:`), bc)
     submenu1: async () => {
       await set(state, chatId, 'action', a.submenu1)
       const domains = await getPurchasedDomains(chatId)
-      const rows = [[user.redBitly, user.redShortit], [user.urlShortener]]
+      const firstRow = SHORTIT_ENABLED ? [user.redBitly, user.redShortit] : [user.redBitly]
+      const rows = [firstRow, [user.urlShortener]]
       if (domains && domains.length > 0) {
         rows.push([user.activateDomainShortener])
       } else {
@@ -11555,6 +11560,9 @@ All verified numbers generated during sourcing.`))
 
   // shortURL — Shortit (trial/free)
   if (message === user.redShortit) {
+    if (!SHORTIT_ENABLED) {
+      return send(chatId, '⚠️ Shortit is currently unavailable. Please use Bit.ly or Custom Domain Shortener.', bc)
+    }
     const redSelectProviderOptions = trans('redSelectProvider')
     saveInfo('provider', redSelectProviderOptions[1])
     return goto.redSelectUrl()
