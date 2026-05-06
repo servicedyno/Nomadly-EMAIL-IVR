@@ -759,10 +759,14 @@ async function reinstallInstance(instanceId, opts = {}) {
 
 /**
  * Cancel (terminate) an instance.
+ * Contabo REJECTS POST bodies that are null/empty when Content-Type is
+ * application/json, so we must always send at least `{}`. Without this
+ * every cancel call returns 400 "Body cannot be empty" and the instance
+ * keeps billing silently — which is the exact bug that leaked €30+/mo.
  */
 async function cancelInstance(instanceId) {
   console.log(`[Contabo] Cancelling instance ${instanceId}`)
-  const res = await apiRequest('POST', `/compute/instances/${instanceId}/cancel`)
+  const res = await apiRequest('POST', `/compute/instances/${instanceId}/cancel`, {})
   console.log(`[Contabo] Instance ${instanceId} cancelled`)
   return res.data?.[0] || res.data
 }

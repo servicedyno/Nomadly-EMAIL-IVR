@@ -1,31 +1,19 @@
 {
-  "runAt": "2026-05-06T23:05:57.446Z",
+  "runAt": "2026-05-06T23:20:08.641Z",
   "summary": {
     "contaboInstanceCount": 11,
     "dbRecordCount": 9,
     "healthyCost": 124.05000000000003,
-    "orphanCost": 34.800000000000004,
+    "infraCost": 4.95,
+    "orphanCost": 29.85,
     "ghostCost": 29.85,
     "pendingCost": 0,
     "expiredCost": 0,
-    "totalCost": 188.70000000000005,
-    "leakedCost": 64.65
+    "totalCost": 188.70000000000002,
+    "leakedCost": 59.7
   },
   "buckets": {
     "orphans": [
-      {
-        "instanceId": 203072960,
-        "name": "vmi3072960",
-        "productId": "V92",
-        "region": "EU",
-        "ip": "5.189.166.127",
-        "status": "running",
-        "cancelDate": null,
-        "createdDate": "2026-02-08T21:03:00.000Z",
-        "osType": "Linux",
-        "monthlyCostUsd": 4.95,
-        "dbRecord": null
-      },
       {
         "instanceId": 203220819,
         "name": "test-probe-v94",
@@ -37,6 +25,21 @@
         "createdDate": "2026-04-09T22:14:34.227Z",
         "osType": "Windows",
         "monthlyCostUsd": 29.85,
+        "dbRecord": null
+      }
+    ],
+    "infra": [
+      {
+        "instanceId": 203072960,
+        "name": "vmi3072960",
+        "productId": "V92",
+        "region": "EU",
+        "ip": "5.189.166.127",
+        "status": "running",
+        "cancelDate": null,
+        "createdDate": "2026-02-08T21:03:00.000Z",
+        "osType": "Linux",
+        "monthlyCostUsd": 4.95,
         "dbRecord": null
       }
     ],

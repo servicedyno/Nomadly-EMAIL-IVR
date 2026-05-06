@@ -6,6 +6,43 @@
 - Node.js Express (port 5000) - core business logic
 - MongoDB (port 27017)
 
+## ✅ Contabo Billing Leak Fix + Orphan Reconciliation (May 6, 2026)
+
+### Problem
+User noticed **€30+ unexpected charge** on credit card from Contabo. Asked to check whether customer VPS instances are being deleted on expiry and whether orphan instances (not linked to any customer) are still billing.
+
+### Diagnostic — production Contabo account vs MongoDB.vpsPlansOf (via Railway API)
+11 live Contabo instances → **8 healthy** (customer-paid, within contract) + **1 infrastructure** (email validator `5.189.166.127` — `EV_WORKER_URL`, used by email-blast-service, email-config, email-dns) + **3 LEAKS totaling $59.70/mo (~€55/mo)**:
+
+| Instance | Cost/mo | Leak type | Resolution |
+|---|---|---|---|
+| `203072960` (vmi3072960) | $4.95 | Initially flagged as orphan, then identified as **email validation worker** — KEEP | added infra whitelist |
+| `203220819` (test-probe-v94) | $29.85 | Orphan, `pending_payment`, never paid, 28 days old | Contabo API won't cancel → **user must cancel via https://my.contabo.com → Unpaid Orders** |
+| `203250431` (nomadly-7163210105-…) | $29.85 | Ghost — DB says DELETED but Contabo still shows `pending_payment` | Same — **manual panel cancel required** |
+
+### Root causes found & fixed
+1. **`contabo-service.js#cancelInstance` was sending POST without body** → Contabo rejected with 400 `"Body cannot be empty when content-type is set to 'application/json'"`. Every cancel call in production was silently failing. **Fix**: pass `{}` as body, matching `startInstance`/`stopInstance` pattern.
+2. **`vm-instance-setup.js#deleteVPSinstance` didn't verify cancellation took effect** — Contabo's API returns 2xx "soft success" for `pending_payment` instances without setting `cancelDate`, leaving the instance alive but DB marked DELETED (ghost). **Fix**: after cancel call, poll `getInstance` up to 3× and confirm `cancelDate` is set before marking DB DELETED; otherwise return `{ error, softSuccess: true }`.
+3. **No ongoing reconciliation between Contabo and DB** → orphans can accumulate undetected for months (the `vmi3072960` example was running since Feb 2026). **Fix**: added weekly cron `reconcileContaboOrphans()` (Mondays 09:00 UTC) that compares Contabo `listInstances()` against `vpsPlansOf`, auto-whitelists IPs referenced in `.env`, and pings admin via Telegram if any orphans exist.
+
+### Files changed
+- `js/contabo-service.js` — `cancelInstance` body fix
+- `js/vm-instance-setup.js` — `deleteVPSinstance` verification loop
+- `js/_index.js` — weekly `reconcileContaboOrphans` cron (scheduleJob `0 9 * * 1`)
+- `js/diagnose_contabo_charges.js` — READ-ONLY diagnostic with infra whitelist (new)
+- `js/cancel_contabo_leaks.js` — LIVE cancellation script with cancelDate verification (new)
+- `js/tests/test_delete_vps_verify.js` — 3/3 unit tests covering success/soft-success/hard-failure (new)
+
+### Tests
+- `node js/tests/test_delete_vps_verify.js` → **3/3 passed**
+- Node service restarted cleanly, all integrations loaded
+- Syntax check passed on all 5 changed files
+
+### Remaining manual action for user
+Log into https://my.contabo.com → **Unpaid Orders** → cancel `test-probe-v94` and `nomadly-7163210105-1776860778161`. Contabo's public API explicitly does not support cancelling `pending_payment` orders (confirmed via their help docs).
+
+
+
 
 ## ✅ SIP Credentials — Starter Upgrade Pitch + Plan-Gated Flag Audit (May 5, 2026)
 

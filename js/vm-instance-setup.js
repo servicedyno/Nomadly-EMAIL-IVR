@@ -930,11 +930,19 @@ async function changeVpsInstanceStatus(vpsDetails, changeStatus) {
 /**
  * OLD: deleteVPSinstance(chatId, vpsId) → { success, data }
  * NEW: Cancels instance on Contabo + marks as DELETED in MongoDB.
+ *
+ * VERIFICATION: after calling Contabo cancelInstance, we re-fetch the
+ * instance and confirm `cancelDate` is now set. Contabo's cancel API has
+ * been observed returning 2xx "soft success" without actually scheduling
+ * cancellation (e.g., for instances in `pending_payment` state), which
+ * previously left ghost records that kept billing silently. If the
+ * verification fails, we DO NOT mark the DB record as DELETED — we
+ * return an error so the caller/admin can intervene.
  */
 async function deleteVPSinstance(chatId, vpsId) {
   try {
     const instanceId = vpsId
-    
+
     // Get the local record to find contaboInstanceId
     let localRecord = null
     if (_vpsPlansOf) {
@@ -946,17 +954,39 @@ async function deleteVPSinstance(chatId, vpsId) {
 
     const contaboId = localRecord?.contaboInstanceId || instanceId
 
+    // Step 1: Call Contabo cancel
     const result = await contabo.cancelInstance(contaboId)
 
-    // Mark as deleted in MongoDB
+    // Step 2: VERIFY the cancellation actually took effect by re-fetching
+    //         and checking that `cancelDate` is now set. Poll briefly
+    //         because Contabo can take a few seconds to update.
+    let verifiedCancelDate = null
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      await new Promise(r => setTimeout(r, 3000))
+      try {
+        const live = await contabo.getInstance(contaboId)
+        if (live?.cancelDate) { verifiedCancelDate = live.cancelDate; break }
+      } catch (fetchErr) {
+        console.log(`[VPS] verify fetch attempt ${attempt} failed: ${fetchErr.message}`)
+      }
+    }
+
+    if (!verifiedCancelDate) {
+      // Contabo returned success but cancelDate never appeared — soft-success.
+      const errorMessage = `Contabo cancel returned success but cancelDate was not set after 9s. Manual cancellation required via Contabo Control Panel > Unpaid Orders. Instance: ${contaboId}`
+      console.error(`[VPS] ${errorMessage}`)
+      return { error: errorMessage, softSuccess: true, contaboId }
+    }
+
+    // Step 3: Mark as deleted in MongoDB only after verification
     if (_vpsPlansOf) {
       await _vpsPlansOf.updateOne(
         { vpsId: String(vpsId) },
-        { $set: { status: 'DELETED', deletedAt: new Date() } }
+        { $set: { status: 'DELETED', deletedAt: new Date(), contaboCancelDate: verifiedCancelDate } }
       )
     }
 
-    return { success: true, data: result }
+    return { success: true, data: result, cancelDate: verifiedCancelDate }
   } catch (err) {
     const errorMessage = `Error deleting VPS instance: ${err.message || JSON.stringify(err)}`
     console.error(errorMessage)

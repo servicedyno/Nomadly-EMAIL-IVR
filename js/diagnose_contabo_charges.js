@@ -82,6 +82,11 @@ async function main() {
   const pendingCancellation = []  // on Contabo, DB flagged PENDING_CANCELLATION
   const expiredRunning = []       // on Contabo, DB says RUNNING but end_time is past
   const healthy = []              // active, mapped, within contract
+  const infra = []                // instance IP is referenced in .env (infrastructure, don't cancel)
+
+  // Load .env to recognise infrastructure instances by IP
+  let envContent = ''
+  try { envContent = require('fs').readFileSync('/app/.env', 'utf8') } catch {}
 
   const now = new Date()
 
@@ -92,12 +97,13 @@ async function main() {
 
     const db = dbByInstanceId.get(String(inst.instanceId))
     const monthlyCost = estimateContaboMonthlyCost(inst)
+    const ip = inst.ipConfig?.v4?.ip || 'pending'
     const entry = {
       instanceId: inst.instanceId,
       name: inst.name || inst.displayName,
       productId: inst.productId,
       region: inst.region,
-      ip: inst.ipConfig?.v4?.ip || 'pending',
+      ip,
       status: inst.status,
       cancelDate: inst.cancelDate,
       createdDate: inst.createdDate,
@@ -118,6 +124,13 @@ async function main() {
     if (isCancelledOnContabo) {
       // Already cancelled provider-side. Include in report but NOT in cost totals.
       entry._providerCancelled = true
+    }
+
+    // Infrastructure instance check: IP is referenced in .env
+    const isInfra = ip && ip !== 'pending' && envContent.split('\n').some(l => l.includes(ip) && !l.trim().startsWith('#'))
+    if (isInfra && !db) {
+      infra.push(entry)
+      continue
     }
 
     if (!db) {
@@ -159,6 +172,8 @@ async function main() {
 
   const orphanCost = printBucket('🛑 ORPHANS — on Contabo, NO customer record in DB', orphans,
     'These instances are being billed to you with ZERO revenue. Prime candidates to cancel.')
+  const infraCost = printBucket('🏗️  INFRASTRUCTURE — IP referenced in .env (keep these running)', infra,
+    'These back production services (email validator, cPanel tunnel, etc.) — DO NOT cancel.')
   const ghostCost = printBucket('⚠️  GHOSTS — DB says CANCELLED/DELETED but instance still live on Contabo', ghosts,
     'Scheduler marked them cancelled but the Contabo cancel call failed or was never made.')
   const pendingCost = printBucket('🕓 PENDING_CANCELLATION — awaiting Contabo cancel', pendingCancellation,
@@ -168,12 +183,13 @@ async function main() {
   const healthyCost = printBucket('✅ HEALTHY — mapped to a customer, within contract', healthy)
 
   const leakedCost = orphanCost + ghostCost + pendingCost + expiredCost
-  const totalCost = leakedCost + healthyCost
+  const totalCost = leakedCost + healthyCost + infraCost
 
   console.log('\n═════════════════════════════════════════════════════════')
   console.log('  SUMMARY — YOUR CONTABO MONTHLY SPEND')
   console.log('═════════════════════════════════════════════════════════')
   console.log(`  Healthy (customer-paid, OK):     ${fmtUsd(healthyCost)} / mo  (${fmtEur(healthyCost)} / mo)`)
+  console.log(`  Infrastructure (whitelisted):    ${fmtUsd(infraCost)} / mo  (${fmtEur(infraCost)} / mo)`)
   console.log(`  Orphans (no customer):           ${fmtUsd(orphanCost)} / mo  (${fmtEur(orphanCost)} / mo)  ← LEAK`)
   console.log(`  Ghosts (cancel failed):          ${fmtUsd(ghostCost)} / mo  (${fmtEur(ghostCost)} / mo)  ← LEAK`)
   console.log(`  Pending cancel (in-flight):      ${fmtUsd(pendingCost)} / mo  (${fmtEur(pendingCost)} / mo)`)
@@ -191,9 +207,9 @@ async function main() {
     summary: {
       contaboInstanceCount: contaboInstances.length,
       dbRecordCount: allPlans.length,
-      healthyCost, orphanCost, ghostCost, pendingCost, expiredCost, totalCost, leakedCost
+      healthyCost, infraCost, orphanCost, ghostCost, pendingCost, expiredCost, totalCost, leakedCost
     },
-    buckets: { orphans, ghosts, pendingCancellation, expiredRunning, healthy }
+    buckets: { orphans, infra, ghosts, pendingCancellation, expiredRunning, healthy }
   }, null, 2))
   console.log(`\n📄 Full report saved to: ${reportPath}`)
 

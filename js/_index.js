@@ -26997,6 +26997,63 @@ schedule.scheduleJob('*/5 * * * *', function() {
   checkVPSPlansExpiryandPayment()
 })
 
+// ─── Weekly Contabo ↔ MongoDB orphan reconciliation ─────────────────────
+// Every Monday at 09:00 UTC. Detects Contabo instances not linked to any
+// customer record in MongoDB. Alerts admin so leaks like the €30+ surprise
+// (test-probe, never-paid pending_payment ghosts) are caught within a week.
+// Infrastructure instances (those whose IPs are referenced by env vars such
+// as EV_WORKER_URL, WHM_HOST, PANEL_DOMAIN, etc.) are whitelisted.
+schedule.scheduleJob('0 9 * * 1', function() {
+  reconcileContaboOrphans()
+})
+
+async function reconcileContaboOrphans() {
+  if (!vpsPlansOf || typeof vpsPlansOf.find !== 'function') {
+    console.log('[Orphan Recon] Database not ready — skipping')
+    return
+  }
+  try {
+    const contabo = require('./contabo-service.js')
+    const fs = require('fs')
+    let envContent = ''
+    try { envContent = fs.readFileSync('.env', 'utf8') } catch {}
+
+    const instances = await contabo.listInstances()
+    const allPlans = await vpsPlansOf.find({}).toArray()
+    const dbByInstanceId = new Map()
+    for (const p of allPlans) {
+      const id = p.contaboInstanceId ?? p.vpsId
+      if (id != null) dbByInstanceId.set(String(id), p)
+    }
+
+    const orphans = []
+    for (const inst of instances) {
+      // Skip instances already queued for cancellation on Contabo
+      if (inst.cancelDate || inst.status === 'cancelled') continue
+      const ip = inst.ipConfig?.v4?.ip
+      // Whitelist infrastructure IPs (referenced by env vars)
+      if (ip && envContent.includes(ip)) continue
+      if (!dbByInstanceId.has(String(inst.instanceId))) {
+        orphans.push({ id: inst.instanceId, name: inst.name, product: inst.productId, region: inst.region, status: inst.status, ip: ip || 'pending', created: inst.createdDate })
+      }
+    }
+
+    if (orphans.length === 0) {
+      log('[Orphan Recon] ✅ No orphans detected')
+      return
+    }
+
+    const list = orphans.map(o => `• <code>${o.id}</code> ${o.name} | ${o.product} @ ${o.region} | ${o.status} | ${o.ip} | since ${new Date(o.created).toISOString().slice(0,10)}`).join('\n')
+    const msg = `🧹 <b>Contabo Orphan Report — ${orphans.length} instance(s) not linked to any customer</b>\n\n${list}\n\n⚠️ Potential billing leak. Review & cancel via Contabo panel if no longer needed.`
+    if (typeof bot?.sendMessage === 'function' && TELEGRAM_ADMIN_CHAT_ID) {
+      bot.sendMessage(TELEGRAM_ADMIN_CHAT_ID, msg, { parse_mode: 'HTML' }).catch(e => log('[Orphan Recon] notify fail: ' + e.message))
+    }
+    log(`[Orphan Recon] ⚠️ ${orphans.length} orphan(s) detected`)
+  } catch (err) {
+    log('[Orphan Recon] error: ' + (err.message || err))
+  }
+}
+
 async function checkVPSPlansExpiryandPayment() {
   // Guard: Ensure database is initialized before proceeding
   if (!vpsPlansOf || typeof vpsPlansOf.find !== 'function') {
