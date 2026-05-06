@@ -695,6 +695,10 @@ async function createVPSInstance(telegramId, vpsDetails) {
         plan: 'Monthly',
         planPrice: vpsDetails.plantotalPrice || vpsDetails.monthlyPrice,
         status: vpsData.status,
+        // Explicit default: safer for user (no surprise wallet deductions).
+        // When undefined, scheduler already treats as false — this just makes
+        // the record self-describing so audits/queries are unambiguous.
+        autoRenewable: false,
         rootPasswordSecretId: passwordSecret.secretId,
         sshKeySecretId: vpsDetails.sshKeySecretId || null,
         timestamp: new Date()
