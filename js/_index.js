@@ -4506,7 +4506,7 @@ const _userMsgQueue = new Map()
 const _lastMsgPerUser = new Map()
 const _lastResetPerUser = new Map() // B3: Rate-limit menu resets to 1 per 5 seconds
 const _resetHintCount = new Map()   // {count, firstHintAt} — escalate to full reset after 3 hints in 60s
-const MSG_DEDUP_WINDOW_MS = 2000   // Skip duplicate messages within 2 seconds
+const MSG_DEDUP_WINDOW_MS = 800   // Skip duplicate messages within 800ms (legit double-taps still go through)
 const RESET_COOLDOWN_MS = 5000     // Only send 1 menu reset per 5 seconds
 const HINT_ESCALATE_MAX = 3         // After this many gentle hints in HINT_ESCALATE_WINDOW_MS → full main-menu reset
 const HINT_ESCALATE_WINDOW_MS = 60000 // 60-second sliding window
@@ -7335,8 +7335,22 @@ Enter new value:`), bc)
       const couponValid = couponApplied && newPrice > 0 && newPrice < price
       const finalPrice = couponValid ? newPrice : price
       const { usdBal } = await getBalance(walletOf, chatId)
-      const summary = `📋 <b>Order Summary</b>\n\n🏦 Institution: <b>${targetName}</b>\n📍 Area: <b>${targetCity}</b>\n📞 Carrier: <b>${carrier}</b>\n📊 Leads: <b>${amount}</b>\n📄 Format: <b>International</b>\n📇 Includes: <b>Phone owner's name</b>${couponValid ? `\n💰 Price: <s>$${price}</s> <b>$${view(finalPrice)}</b>` : `\n💰 Price: <b>$${finalPrice}</b>`}\n\n💳 Wallet: <b>$${view(usdBal)}</b>`
-      send(chatId, summary, k.of([({ en: `✅ Pay ${view(finalPrice)} USD`, fr: `✅ Payer ${view(finalPrice)} USD`, zh: `✅ 支付 ${view(finalPrice)} USD`, hi: `✅ ${view(finalPrice)} USD भुगतान करें` }[lang] || `✅ Pay ${view(finalPrice)} USD`), btn.applyCoupon]))
+      // UX-fix-5: when wallet < price the user used to bounce on the paywall
+      // because the only options were "Pay" (which fails) or "Apply Coupon".
+      // Surface a "💵 Deposit Funds" CTA at the top of the keyboard so they
+      // can top up in one tap without hunting through the menus.
+      const insufficient = usdBal < finalPrice
+      const shortBy = insufficient ? (finalPrice - usdBal) : 0
+      let summary = `📋 <b>Order Summary</b>\n\n🏦 Institution: <b>${targetName}</b>\n📍 Area: <b>${targetCity}</b>\n📞 Carrier: <b>${carrier}</b>\n📊 Leads: <b>${amount}</b>\n📄 Format: <b>International</b>\n📇 Includes: <b>Phone owner's name</b>${couponValid ? `\n💰 Price: <s>$${price}</s> <b>$${view(finalPrice)}</b>` : `\n💰 Price: <b>$${finalPrice}</b>`}\n\n💳 Wallet: <b>$${view(usdBal)}</b>`
+      if (insufficient) {
+        summary += `\n\n⚠️ <b>Insufficient balance</b> — deposit at least <b>$${shortBy.toFixed(2)}</b> to proceed.`
+      }
+      const payBtn = ({ en: `✅ Pay ${view(finalPrice)} USD`, fr: `✅ Payer ${view(finalPrice)} USD`, zh: `✅ 支付 ${view(finalPrice)} USD`, hi: `✅ ${view(finalPrice)} USD भुगतान करें` }[lang] || `✅ Pay ${view(finalPrice)} USD`)
+      const depositBtn = ({ en: `💵 Deposit Funds`, fr: `💵 Déposer des fonds`, zh: `💵 充值`, hi: `💵 राशि जमा करें` }[lang] || `💵 Deposit Funds`)
+      const rows = []
+      if (insufficient) rows.push([depositBtn])
+      rows.push([payBtn, btn.applyCoupon])
+      send(chatId, summary, k.of(rows))
       await set(state, chatId, 'action', a.targetLeadsConfirm)
     },
 
@@ -17941,8 +17955,25 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       menuRows.push(['📞 New Call'])
       if (presets.length > 0) menuRows.push(['🗑️ Delete Preset'])
 
+      // UX-fix-2: surface the user's last cancelled draft so they can resume
+      // instead of re-typing every wizard field. We accept any draft that has
+      // at least placeholderValues filled and is < 24h old.
+      const draft = info?.ivrObDraft
+      const draftFresh = draft && draft.savedAt && (Date.now() - draft.savedAt) < 24 * 60 * 60 * 1000
+      const draftHasProgress = draftFresh && draft.placeholderValues && Object.keys(draft.placeholderValues).length > 0
+      if (draftHasProgress) {
+        menuRows.unshift(['↩️ Resume Last Draft'])
+        const draftAgeMin = Math.max(1, Math.floor((Date.now() - draft.savedAt) / 60000))
+        const draftBank = draft.placeholderValues?.Bank ? ` · Bank: ${draft.placeholderValues.Bank}` : ''
+        const draftTarget = draft.targetNumber ? ` · Target: ${draft.targetNumber}` : ''
+        menuText += `\n💾 <b>Draft saved</b> ${draftAgeMin}m ago${draftTarget}${draftBank}\n`
+      }
+
       await set(state, chatId, 'action', a.ivrObSelectCallerId)
-      await saveInfo('ivrObData', { isTrial: false })
+      // UX-fix-2: don't blow away ivrObData if the user has an active draft
+      // they may want to resume — only clear isTrial flag.
+      const existing = info?.ivrObData || {}
+      await saveInfo('ivrObData', { ...existing, isTrial: false })
 
       // If only one eligible number, auto-select it for presets/recent
       if (eligibleNumbers.length === 1) {
@@ -18068,6 +18099,24 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // IVR OUTBOUND CALL — Full conversational flow
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  // UX-fix-2: when the user hits Cancel in any IVR-OB wizard step, snapshot
+  // their in-progress ivrObData to ivrObDraft so they can resume later
+  // instead of re-entering Name/Bank/CardLast4/Reason/Company/City/Amount.
+  // Runs BEFORE the per-action handlers below; those handlers still call
+  // goto.submenu5() as before, we just persist the draft on the way out.
+  if (typeof action === 'string' && action.startsWith('ivrOb') &&
+      (message === 'Cancel' || isCancelPress(message))) {
+    const cur = info?.ivrObData || {}
+    const hasProgress = (cur.placeholderValues && Object.keys(cur.placeholderValues).length > 0) ||
+                        cur.targetNumber || cur.templateText || cur.customScript
+    if (hasProgress) {
+      try {
+        await saveInfo('ivrObDraft', { ...cur, savedAt: Date.now() })
+      } catch (e) { /* non-fatal */ }
+    }
+  }
+
   if (action === a.ivrObSelectCallerId) {
     if (message === 'Cancel' || isCancelPress(message) || isBackPress(message)) return goto.submenu5()
     const userData = await get(phoneNumbersOf, chatId)
@@ -18079,6 +18128,40 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     if (message === '📞 New Call') {
       const rows = eligibleNumbers.map(n => [n.phoneNumber])
       return send(chatId, trans('t.cp_15'), k.of([...rows, ['↩️ Back']]))
+    }
+
+    // UX-fix-2: Resume Last Draft — restore everything the user had typed
+    // before their last Cancel and skip them straight to the audio-preview
+    // step if all wizard fields were already filled, otherwise to the right
+    // resume point (placeholder fill / mode select).
+    if (message === '↩️ Resume Last Draft') {
+      const draft = info?.ivrObDraft
+      if (!draft || !draft.savedAt) {
+        return send(chatId, '⚠️ No draft found. Tap 📞 New Call to start fresh.', k.of([['📞 New Call'], ['↩️ Back']]))
+      }
+      // Restore the draft; clear the savedAt so it isn't offered again on next entry
+      const restored = { ...draft }
+      delete restored.savedAt
+      await saveInfo('ivrObData', restored)
+      await saveInfo('ivrObDraft', null)
+      // Pick the resume action based on what's already filled
+      const placeholders = restored.placeholders || []
+      const filledCount = restored.placeholderValues ? Object.keys(restored.placeholderValues).length : 0
+      let resumeAction = a.ivrObSelectCategory
+      if (restored.callerId && restored.targetNumber && restored.templateText && filledCount >= placeholders.length && placeholders.length > 0) {
+        resumeAction = a.ivrObSelectMode
+      } else if (restored.callerId && restored.targetNumber && restored.templateText) {
+        resumeAction = a.ivrObFillPlaceholder
+      } else if (restored.callerId && restored.targetNumber) {
+        resumeAction = a.ivrObSelectCategory
+      } else if (restored.callerId) {
+        resumeAction = a.ivrObEnterTarget
+      }
+      await set(state, chatId, 'action', resumeAction)
+      return send(chatId,
+        `✅ <b>Draft restored.</b> Picking up where you left off…\n\n📞 Target: <b>${restored.targetNumber || '?'}</b>\n📋 Template: <b>${restored.templateName || 'Custom Script'}</b>`,
+        { parse_mode: 'HTML', reply_markup: { keyboard: [['↩️ Back'], ['Cancel']], resize_keyboard: true } }
+      )
     }
 
     // ── Handle "Delete Preset" ──
@@ -18421,7 +18504,23 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     }
 
     const cat = ivrOb.getCategoryByButton(message)
-    if (!cat) return send(chatId, trans('t.cp_45'))
+    if (!cat) {
+      // UX-fix-6: free-text on this menu used to land in a dead-end ("Please
+      // select a category from the buttons."). Re-render the keyboard with a
+      // soft hint so the user can simply tap a button instead.
+      const catBtns2 = ivrOb.getCategoryButtons(lang).filter(b => !b.startsWith('✍️'))
+      const rows2 = [['✍️ Custom Script']]
+      const lastCat2 = info?.ivrPrefs?.lastCategory
+      if (lastCat2) rows2.push([`⭐ Last: ${lastCat2}`])
+      rows2.push(...catBtns2.map(b => [b]))
+      rows2.push(['↩️ Back'])
+      return send(chatId, ({
+        en: '👇 Tap a category below to continue:',
+        fr: '👇 Touchez une catégorie ci-dessous pour continuer :',
+        zh: '👇 点击下方分类以继续：',
+        hi: '👇 जारी रखने के लिए नीचे एक श्रेणी पर टैप करें:'
+      }[lang] || '👇 Tap a category below to continue:'), k.of(rows2))
+    }
     const ivrObData = info?.ivrObData || {}
 
     if (cat === 'custom') {
@@ -18674,6 +18773,23 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       if (sp?.type === 'number' && message.startsWith('📱 ')) {
         value = message.replace('📱 ', '')
       }
+
+      // UX-fix-3: CardLast4 — strip whitespace/non-digits and validate length.
+      // Users frequently type "1 9 0 8" (with spaces between digits); the
+      // template auto-fills it as-is which produces wrong TTS playback.
+      if (currentPh === 'CardLast4') {
+        const cleaned = (value || '').replace(/\D/g, '')
+        if (cleaned.length !== 4) {
+          return send(chatId, ({
+            en: `📌 Please enter exactly 4 digits for [CardLast4] (no spaces or letters). You entered: "${value}"`,
+            fr: `📌 Veuillez saisir exactement 4 chiffres pour [CardLast4] (pas d'espaces). Vous avez saisi : "${value}"`,
+            zh: `📌 [CardLast4] 请输入正好 4 位数字（不含空格）。您输入的是："${value}"`,
+            hi: `📌 [CardLast4] के लिए कृपया ठीक 4 अंक दर्ज करें (कोई स्थान नहीं)। आपने दर्ज किया: "${value}"`
+          }[lang] || `📌 Please enter exactly 4 digits for [CardLast4] (no spaces or letters). You entered: "${value}"`), k.of([['🔄 Regenerate']]))
+        }
+        value = cleaned
+      }
+
       // Clear custom-awaiting flag
       if (ivrObData._awaitingCustom) {
         delete ivrObData._awaitingCustom
@@ -19042,7 +19158,32 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     // Generate audio preview
     await set(state, chatId, 'action', a.ivrObAudioPreview)
     const speedLabelDisplay = speed === 1.0 ? 'Normal' : `${speed}x`
-    send(chatId, trans('t.cp_103', ivrObData.voiceName, speedLabelDisplay))
+
+    // UX-fix-1: live progress indicator. Long scripts can take 60-180s;
+    // the old static "⏳ Generating audio preview..." message looked frozen
+    // and caused users to abandon. Send a real message we can edit, then
+    // tick elapsed seconds every 8s until TTS resolves or errors.
+    const ttsStartTs = Date.now()
+    let progressMsg = null
+    let progressInterval = null
+    try {
+      progressMsg = await bot.sendMessage(chatId,
+        `🎤 Voice: <b>${ivrObData.voiceName}</b> | 🎚 Speed: <b>${speedLabelDisplay}</b>\n\n⏳ Generating audio preview... <i>(this typically takes 30-90s)</i>`,
+        { parse_mode: 'HTML' }
+      )
+    } catch (e) { /* fall back silently */ }
+    if (progressMsg && progressMsg.message_id) {
+      progressInterval = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - ttsStartTs) / 1000)
+        const note = elapsed > 120
+          ? '⏳ Still working — long scripts can take up to 3 min...'
+          : `⏳ Generating audio preview... <i>(${elapsed}s elapsed, typically 30-90s)</i>`
+        bot.editMessageText(
+          `🎤 Voice: <b>${ivrObData.voiceName}</b> | 🎚 Speed: <b>${speedLabelDisplay}</b>\n\n${note}`,
+          { chat_id: chatId, message_id: progressMsg.message_id, parse_mode: 'HTML' }
+        ).catch(() => {})
+      }, 8000)
+    }
 
     try {
       const ivrOb = require('./ivr-outbound.js')
@@ -19054,6 +19195,11 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       }
       const voiceKey = ivrObData.voiceKey || ttsService.DEFAULT_VOICE
       const result = await ttsService.generateTTS(filledText, voiceKey, null, speed)
+      // UX-fix-1: TTS resolved — stop ticking and remove the progress message.
+      if (progressInterval) clearInterval(progressInterval)
+      if (progressMsg && progressMsg.message_id) {
+        bot.deleteMessage(chatId, progressMsg.message_id).catch(() => {})
+      }
       ivrObData.audioPath = result.audioPath
       ivrObData.audioUrl = result.audioUrl
       ivrObData.filledText = filledText
@@ -19074,6 +19220,11 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       })
       return
     } catch (err) {
+      // UX-fix-1: also stop the ticker on error.
+      if (progressInterval) clearInterval(progressInterval)
+      if (progressMsg && progressMsg.message_id) {
+        bot.deleteMessage(chatId, progressMsg.message_id).catch(() => {})
+      }
       log(`[IVR-OB] TTS error: ${err.message}`)
       return send(chatId, trans('t.cp_104', err.message), k.of([['🎤 Change Voice']]))
     }
@@ -24508,6 +24659,12 @@ Select a category:`), k.of(catBtns))
     if (isBackPress(message)) return goto.buyLeadsSelectAmount()
     if (message === btn.applyCoupon) {
       return goto.askCoupon(a.buyLeadsSelectFormat)
+    }
+    // UX-fix-5: inline deposit shortcut on the paywall — preserves nothing
+    // beyond what's already in `info` (target/amount/coupon), so when the
+    // user comes back from deposit they can simply re-tap their flow path.
+    if (message.startsWith('💵 Deposit') || message === '💵 Deposit Funds') {
+      return goto[a.selectCurrencyToDeposit]()
     }
     if (message.startsWith('✅ Pay') || message.startsWith('✅ Confirm')) {
       return goto['leads-pay']()
