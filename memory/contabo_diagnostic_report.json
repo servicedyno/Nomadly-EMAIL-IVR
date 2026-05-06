@@ -1,15 +1,15 @@
 {
-  "runAt": "2026-05-06T23:03:38.991Z",
+  "runAt": "2026-05-06T23:05:57.446Z",
   "summary": {
     "contaboInstanceCount": 11,
-    "dbRecordCount": 0,
-    "healthyCost": 0,
-    "orphanCost": 188.7,
-    "ghostCost": 0,
+    "dbRecordCount": 9,
+    "healthyCost": 124.05000000000003,
+    "orphanCost": 34.800000000000004,
+    "ghostCost": 29.85,
     "pendingCost": 0,
     "expiredCost": 0,
-    "totalCost": 188.7,
-    "leakedCost": 188.7
+    "totalCost": 188.70000000000005,
+    "leakedCost": 64.65
   },
   "buckets": {
     "orphans": [
@@ -38,7 +38,34 @@
         "osType": "Windows",
         "monthlyCostUsd": 29.85,
         "dbRecord": null
-      },
+      }
+    ],
+    "ghosts": [
+      {
+        "instanceId": 203250431,
+        "name": "nomadly-7163210105-1776860778161",
+        "productId": "V95",
+        "region": "US-east",
+        "ip": "pending",
+        "status": "pending_payment",
+        "cancelDate": null,
+        "createdDate": "2026-04-22T10:26:20.223Z",
+        "osType": "Windows",
+        "monthlyCostUsd": 29.85,
+        "dbRecord": {
+          "chatId": "7163210105",
+          "label": "nomadly-7163210105-1776860778161",
+          "status": "DELETED",
+          "end_time": "2026-05-22T12:26:20.589Z",
+          "autoRenewable": false,
+          "planPrice": 58.14,
+          "deletedAt": "2026-04-22T12:32:22.739Z"
+        }
+      }
+    ],
+    "pendingCancellation": [],
+    "expiredRunning": [],
+    "healthy": [
       {
         "instanceId": 203220843,
         "name": "vmi3220843",
@@ -50,7 +77,14 @@
         "createdDate": "2026-04-10T00:26:26.000Z",
         "osType": "Windows",
         "monthlyCostUsd": 29.85,
-        "dbRecord": null
+        "dbRecord": {
+          "chatId": "404562920",
+          "label": "nomadly-404562920-1775780785132",
+          "status": "RUNNING",
+          "end_time": "2026-05-10T00:26:26.000Z",
+          "autoRenewable": false,
+          "planPrice": 89.55
+        }
       },
       {
         "instanceId": 203228089,
@@ -63,7 +97,14 @@
         "createdDate": "2026-04-12T19:06:39.000Z",
         "osType": "Linux",
         "monthlyCostUsd": null,
-        "dbRecord": null
+        "dbRecord": {
+          "chatId": "404562920",
+          "label": "nomadly-404562920-1776020799057",
+          "status": "RUNNING",
+          "end_time": "2026-05-12T19:06:39.000Z",
+          "autoRenewable": false,
+          "planPrice": 23.97
+        }
       },
       {
         "instanceId": 203250218,
@@ -76,7 +117,14 @@
         "createdDate": "2026-04-22T10:38:38.000Z",
         "osType": "Windows",
         "monthlyCostUsd": 29.85,
-        "dbRecord": null
+        "dbRecord": {
+          "chatId": "7163210105",
+          "label": "nomadly-7163210105-1776854317881",
+          "status": "INSTALLING",
+          "end_time": "2026-05-22T10:38:44.193Z",
+          "autoRenewable": false,
+          "planPrice": 58.14
+        }
       },
       {
         "instanceId": 203250427,
@@ -89,20 +137,14 @@
         "createdDate": "2026-04-22T12:25:22.000Z",
         "osType": "Windows",
         "monthlyCostUsd": 29.85,
-        "dbRecord": null
-      },
-      {
-        "instanceId": 203250431,
-        "name": "nomadly-7163210105-1776860778161",
-        "productId": "V95",
-        "region": "US-east",
-        "ip": "pending",
-        "status": "pending_payment",
-        "cancelDate": null,
-        "createdDate": "2026-04-22T10:26:20.223Z",
-        "osType": "Windows",
-        "monthlyCostUsd": 29.85,
-        "dbRecord": null
+        "dbRecord": {
+          "chatId": "7163210105",
+          "label": "nomadly-7163210105-1776860722203",
+          "status": "INSTALLING",
+          "end_time": "2026-05-22T12:25:26.567Z",
+          "autoRenewable": false,
+          "planPrice": 58.14
+        }
       },
       {
         "instanceId": 203251506,
@@ -115,7 +157,13 @@
         "createdDate": "2026-04-22T19:24:01.000Z",
         "osType": "Linux",
         "monthlyCostUsd": 6.15,
-        "dbRecord": null
+        "dbRecord": {
+          "chatId": "1137258806",
+          "label": "nomadly-1137258806-1776885840779",
+          "status": "RUNNING",
+          "end_time": "2026-05-22T19:24:05.023Z",
+          "planPrice": 18.45
+        }
       },
       {
         "instanceId": 203255263,
@@ -128,7 +176,13 @@
         "createdDate": "2026-04-24T13:54:50.000Z",
         "osType": "Linux",
         "monthlyCostUsd": 6.75,
-        "dbRecord": null
+        "dbRecord": {
+          "chatId": "6773929524",
+          "label": "nomadly-6773929524-1777038890000",
+          "status": "provisioning",
+          "end_time": "2026-05-24T13:54:54.011Z",
+          "planPrice": 20.25
+        }
       },
       {
         "instanceId": 203257831,
@@ -141,7 +195,13 @@
         "createdDate": "2026-04-25T20:23:22.000Z",
         "osType": "Windows",
         "monthlyCostUsd": 15.45,
-        "dbRecord": null
+        "dbRecord": {
+          "chatId": "6980445843",
+          "label": "nomadly-6980445843-1777148601653",
+          "status": "provisioning",
+          "end_time": "2026-05-25T20:23:26.760Z",
+          "planPrice": 46.35
+        }
       },
       {
         "instanceId": 203259606,
@@ -154,12 +214,14 @@
         "createdDate": "2026-04-26T21:11:03.000Z",
         "osType": "Linux",
         "monthlyCostUsd": 6.15,
-        "dbRecord": null
+        "dbRecord": {
+          "chatId": "6277663071",
+          "label": "nomadly-6277663071-1777237863267",
+          "status": "RUNNING",
+          "end_time": "2026-05-26T21:11:07.313Z",
+          "planPrice": 18.45
+        }
       }
-    ],
-    "ghosts": [],
-    "pendingCancellation": [],
-    "expiredRunning": [],
-    "healthy": []
+    ]
   }
 }
