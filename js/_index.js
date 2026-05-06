@@ -10480,9 +10480,16 @@ All verified numbers generated during sourcing.`))
     // User tapped a domain name from the list
     const domains = await getPurchasedDomains(chatId)
     if (domains.includes(message)) {
-      saveInfo('website_name', message)
-      saveInfo('existingDomain', true)
-      saveInfo('nameserver', 'cloudflare')
+      // BUG FIX 2026-05-06 — these three saveInfo calls MUST be awaited.
+      // saveInfo is `async` and reassigns the outer-scope `info` inside, so
+      // without await the `goto.enterYourEmail()` guard `if (!info.website_name)`
+      // reads stale closure state → redirects back to "Connect External Domain"
+      // menu, creating the exact loop @jasonthekidd reported (tap domain →
+      // bounce to options, repeat). Observed in Railway prod logs:
+      //   "[Hosting] enterYourEmail called without website_name for 7893016294 — redirecting to buyPlan"
+      await saveInfo('website_name', message)
+      await saveInfo('existingDomain', true)
+      await saveInfo('nameserver', 'cloudflare')
       // Check if domain is already used by a hosting plan
       const existingPlan = await cpanelAccounts.findOne({ domain: message })
       if (existingPlan) {

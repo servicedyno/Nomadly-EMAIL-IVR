@@ -6,6 +6,47 @@
 - Node.js Express (port 5000) - core business logic
 - MongoDB (port 27017)
 
+## ✅ "Use My Domain" redirect loop — @jasonthekidd (May 6, 2026)
+
+### Report (via AI support)
+> "When I pick my domain to connect it just keep going back to the options menu"  
+— @jasonthekidd (chat 7893016294), trying to connect `navyfed-verify.com` to both Premium Weekly AND Golden HostPanel. Hit the loop 3 times.
+
+### Root cause (Railway logs)
+Bot logs showed `[Hosting] enterYourEmail called without website_name for 7893016294 — redirecting to buyPlan` at the exact moments the user tapped their domain. In `_index.js` action handler `a.useMyDomain` (around line 10478):
+
+```js
+if (domains.includes(message)) {
+  saveInfo('website_name', message)       // NOT awaited → race
+  saveInfo('existingDomain', true)        // NOT awaited
+  saveInfo('nameserver', 'cloudflare')    // NOT awaited
+  const existingPlan = await cpanelAccounts.findOne(...)  // yields event loop
+  return goto.enterYourEmail()            // reads stale closure info
+}
+```
+
+`saveInfo` is async and reassigns the outer-scope `info` inside its body. Without `await`, the closure's `info.website_name` was still stale when `goto.enterYourEmail()` ran the guard `if (!info.website_name)` → bail → redirect.
+
+### Fix
+Awaited the three `saveInfo(...)` calls. Minimal 3-line change. Same pattern exists in other domain paths (`registerNewDomainFound`, `useExistingDomainFound`, `connectExternalDomainFound`) but they don't repro because `website_name` is persisted BEFORE the user's button tap, so the closure always has it on the next turn. Left those alone to minimize scope.
+
+### Files
+- `js/_index.js` — 3 `await` additions in `a.useMyDomain` handler
+- `js/tests/test_use_my_domain_await.js` — static regression test (4/4 passed) that parses the source and enforces awaiting + ordering
+
+### Verification
+- Syntax check passed, Node service restarted cleanly
+- Regression test passes
+- No code change needed for other domain flows (verified manually by tracing the state machine)
+
+⚠️ **This fix is in the dev pod only** — Railway still runs the buggy code. Need to push via "Save to Github" for the fix to reach @jasonthekidd.
+
+### Unrelated observations from Railway logs
+- **Successful upgrade** (unrelated to bug): `ciroovblzz` (8625434794) upgraded Premium Weekly → Premium HostPanel ($75) at 23:32:44 — flow worked end-to-end
+- **No other failures** on the hosting flow in recent hours; @jasonthekidd's issue is isolated to the `useMyDomain` path
+
+
+
 ## ✅ Contabo Billing Leak Fix + Orphan Reconciliation (May 6, 2026)
 
 ### Problem
