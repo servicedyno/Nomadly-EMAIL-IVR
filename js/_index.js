@@ -2288,6 +2288,7 @@ const loadData = async () => {
     // Defer-register voice/IVR/voicemail webhook routes ONLY after voiceService
     // (and all DB collections it relies on) is fully initialized.
     registerVoiceRoutes()
+    registerExtraTwilioRoutes()
 
     // Initialize Phone Test routes (Speechcue SIP test page)
     initPhoneTestRoutes(app, db, telnyxApi, telnyxResources.sipConnectionId, bot)
@@ -33052,6 +33053,11 @@ app.post('/test/sip-bridge', async (req, res) => {
 })
 
 
+// ── Remaining Twilio routes (verify-callerid / sip-voice / voice-status / sms-webhook)
+//    are deferred-registered by registerExtraTwilioRoutes() in loadData(),
+//    AFTER initVoiceService() completes. They depend on voice-service exports
+//    (pendingBridges, isSmsLimitReached) which are bound by initVoiceService. ──
+function registerExtraTwilioRoutes() {
 // ── Verification endpoint: Responds with DTMF digits for Twilio Caller ID verification ──
 app.post('/twilio/verify-callerid', async (req, res) => {
   const VoiceResponse = require('twilio').twiml.VoiceResponse
@@ -33354,6 +33360,9 @@ app.post('/twilio/sms-webhook', async (req, res) => {
     res.sendStatus(200)
   }
 })
+
+  log('[VoiceService] Extra Twilio routes registered (verify-callerid, sip-voice, voice-status, sms-webhook)')
+} // end registerExtraTwilioRoutes
 
 // ── Referral Tracking Redirect Route ──
 // Handles /r/:referrerCode and tracks the referral in MongoDB before redirecting to Telegram
