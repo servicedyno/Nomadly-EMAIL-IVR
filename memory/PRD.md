@@ -6,6 +6,53 @@
 - Node.js Express (port 5000) - core business logic
 - MongoDB (port 27017)
 
+## ✅ Dead-fallback sweep across _index.js — bot-wide i18n hardening (Feb 2026)
+
+### Ask
+P2 backlog: sweep remaining bot flows for `t.<key> || 'inline English'` patterns. Initial grep showed 173 occurrences across `_index.js` covering wallet, leads, IVR, coupon, email-blast, hosting, support, and shortener flows.
+
+### Result
+**140 dead i18n fallbacks removed, 0 keys missing in any locale.**
+
+### Investigation
+- 173 raw matches → 140 were real i18n keys (verified present in all 4 locales: en/fr/zh/hi) with dead inline-English fallbacks; 33 are legitimate data-field accesses (`result.error`, `msg.document.file_name`, `couponResult.type`, `buyResult.actualPrice`, etc.) on local objects that happen to be named `t`.
+- The dead fallbacks were unreachable because `t = trans('t', lang)` already resolves correctly per user locale, but they masked the real i18n flow and would have hidden any future translation regression.
+
+### Fix
+- Wrote a one-shot Node script (`/app/_tmp_fix_dead_fallbacks.js`, deleted after use) that ran two regex transformations across `_index.js`:
+  1. `t.<key> || '...inline english...'` → `trans('t.<key>')`
+  2. `t.<key> ? t.<key>(args) : '...inline english...'` → `trans('t.<key>', args)`
+- The script only touched 56 known-safe keys (verified to exist in all 4 lang files); data-field accesses on locals were untouched.
+- Manually fixed one multi-line ternary that the script's regex couldn't safely match (`paymentTimeoutReminder`).
+
+### Coverage by category
+| Flow | Keys swept | Replacements |
+|---|---|---|
+| Hosting plan management | `planNotFound`, `selectCorrectOption`, `selectValidOption`, `someIssue`, `chooseValidDomain`, `noDomainSelected`, `domainActionsMenu` | 49 |
+| Email blast (eb*) | `ebCancelBtn`, `ebCampaignNotFound`, `ebBundleNotFound`, `ebAdminPanel(+Title)`, `ebMyCampaigns`, `ebPricingBtn`, `ebDashboardBtn`, `ebCancelled`, `ebManageDomainsBtn`, `ebManageIpsBtn`, `ebSuppressionBtn`, `ebTypeOrUpload`, `ebTypeText`, `ebUploadCsvOnly`, `ebUploadCsvTxt`, `ebUploadHtml`, `ebUploadHtmlFile`, `ebFailedReadHtml`, `ebEnterSubject` | 28 |
+| Coupon redemption | `couponUsedToday`, `couponInvalid`, `couponAlreadyUsed`, `invalidCoupon`, `enterCoupon`, `enterCouponCode`, `notValidHalf` | 13 |
+| Lead requests | `leadAllCities`, `leadNationwide`, `leadNone`, `leadRequestTarget`, `noPendingLeads` | 9 |
+| Support / messaging | `supportMsgReceived`, `noSupportSession`, `keyboardRefreshed`, `welcome`, `cancel`, `cancelled`, `chooseOption`, `no`, `yes`, `linkAlreadyExist` | 17 |
+| Domain / DNS / shortener | `nsCannotAdd`, `switchToCfAlreadyCf`, `switchToProviderAlreadyProvider`, `purchaseFailed` | 13 |
+| IVR / audio | `audioFailedSave`, `audioReceivedShort` | 2 |
+| Promo subscription | `promoOptIn`, `promoOptOut`, `paymentTimeoutReminder` | 3 |
+| **Total** | **56 keys** | **140** |
+
+### Tests — 350/350 pass (`js/tests/test_dead_fallback_sweep.js`)
+- All 56 swept keys resolve correctly per locale (4 langs × 56 keys = 224 runtime checks)
+- Zero `t.<key> || 'string'` patterns remain on swept keys (56 source-level regex checks)
+- Zero `t.<key> ? t.<key>(...) : 'string'` ternaries remain on swept keys (56 checks)
+- All remaining `t.X || ...` patterns in `_index.js` are confirmed data-field accesses on a known allow-list (no orphans)
+
+### Files changed
+- `js/_index.js` — 140 surgical replacements + 1 manual multi-line edit
+- NEW: `js/tests/test_dead_fallback_sweep.js` (350 assertions)
+
+### Verification
+- All prior regression suites still green: `test_addon_from_bot.js` (94/94), `test_dns_warning_i18n.js` (51/51), `test_mutation_queue.js` (17/17), `test_button_helpers.js` (49/49), `test_back_button.js` (32/32), `test_cpanel_health_hysteresis.js` (7/7).
+- Total: **593/593 regression tests pass.**
+- Node service restarted clean, API HTTP 200.
+
 ## ✅ Domain-origin indicator + DNS warning copy — i18n hardening (Feb 2026)
 
 ### Ask

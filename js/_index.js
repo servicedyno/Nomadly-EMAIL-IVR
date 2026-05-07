@@ -2553,9 +2553,8 @@ const loadData = async () => {
           
           // Send gentle reminder
           try {
-            const reminderMsg = t.paymentTimeoutReminder || 
-              `⏰ Your payment session timed out after 6 hours of inactivity.\n\nDon't worry! You can start again anytime by selecting the product/service you want.\n\nNeed help? Tap 💬 Support`
-            
+            const reminderMsg = translation('t.paymentTimeoutReminder', lang)
+
             await send(chatId, reminderMsg, k.main(lang))
             log(`[PaymentTimeout] Cleared ${action} for ${chatId}, sent reminder`)
           } catch (sendErr) {
@@ -2939,11 +2938,11 @@ async function checkPendingBundles() {
               await pendingBundles.updateOne({ _id: pb._id }, { $set: { status: 'purchase_failed', error: purchaseResult.error, updatedAt: new Date() } })
               const t = translation('l', lang)
               const _failHead = ({
-                en: t.purchaseFailed || 'Number purchase failed after regulatory approval.',
-                fr: t.purchaseFailed || 'Échec de l\'achat du numéro après l\'approbation réglementaire.',
-                zh: t.purchaseFailed || '监管批准后号码购买失败。',
-                hi: t.purchaseFailed || 'नियामक अनुमोदन के बाद नंबर खरीद विफल।',
-              }[lang]) || (t.purchaseFailed || 'Number purchase failed after regulatory approval.')
+                en: trans('t.purchaseFailed'),
+                fr: trans('t.purchaseFailed'),
+                zh: trans('t.purchaseFailed'),
+                hi: trans('t.purchaseFailed'),
+              }[lang]) || (trans('t.purchaseFailed'))
               const _refundLine = ({
                 en: `has been refunded to your wallet.`,
                 fr: `a été remboursé sur votre portefeuille.`,
@@ -3792,7 +3791,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
       await set(state, chatId, 'smsapp_rename_sim_subid', subId)
       await send(chatId,
         `✏️ <b>Rename SIM</b>\nSend a short label for SIM <code>${subId}</code> (e.g. <i>Business</i>, <i>Marketing</i>, <i>Backup</i>). Max 20 characters. Send <code>clear</code> to remove a custom label.`,
-        { parse_mode: 'HTML', reply_markup: { keyboard: [[t.cancel || 'Cancel']], resize_keyboard: true } }
+        { parse_mode: 'HTML', reply_markup: { keyboard: [[trans('t.cancel')]], resize_keyboard: true } }
       )
       return
     }
@@ -4723,7 +4722,7 @@ bot?.on('message', msg => {
         }
       } catch (e) {
         log(`[Voice] Audio greeting upload error: ${e.message}`)
-        return send(chatId, t.audioFailedSave || '❌ Failed to save audio greeting. Please try again.')
+        return send(chatId, trans('t.audioFailedSave'))
       }
     }
     // ── Handle voice/audio for Audio Library upload ──
@@ -5315,7 +5314,7 @@ bot?.on('message', msg => {
       const allRequests = await leadRequests.find({}).toArray()
       const pending = allRequests.filter(r => r.val && r.val.status === 'pending')
       if (pending.length === 0) {
-        return send(chatId, t.noPendingLeads || '📝 No pending lead requests.')
+        return send(chatId, trans('t.noPendingLeads'))
       }
       let msg = `📝 <b>Pending Lead Requests (${pending.length})</b>\n\n`
       pending.slice(0, 20).forEach((r, i) => {
@@ -5862,7 +5861,7 @@ bot?.on('message', msg => {
         `${freeTrialLine}${sipTestLine}${welcomeBonusLine}\n` +
         `${g.selectOption}`
     } catch (e) {
-      return t.welcome || 'Welcome! Please select an option:'
+      return trans('t.welcome')
     }
   }
 
@@ -7380,14 +7379,14 @@ Enter new value:`), bc)
           rows.push([targetLeadsTargets[i]])
         }
       }
-      rows.push([t.leadRequestTarget || '📝 Request Custom Target', validateBtn])
+      rows.push([trans('t.leadRequestTarget'), validateBtn])
       send(chatId, trans('t.ld_2'), k.of(rows))
       await set(state, chatId, 'action', a.targetSelectTarget)
     },
     targetSelectCity: async () => {
       const target = info?.targetName
       const cities = targetLeadsCities(target)
-      send(chatId, t.leadSelectMetro ? t.leadSelectMetro(target) : `📍 Select metro area for <b>${target}</b>:\n\nChoose "All Cities" for maximum reach across all regions.`, k.of([t.leadAllCities || 'All Cities', ...cities]))
+      send(chatId, t.leadSelectMetro ? t.leadSelectMetro(target) : `📍 Select metro area for <b>${target}</b>:\n\nChoose "All Cities" for maximum reach across all regions.`, k.of([trans('t.leadAllCities'), ...cities]))
       await set(state, chatId, 'action', a.targetSelectCity)
     },
     targetSelectAreaCode: async () => {
@@ -7438,11 +7437,11 @@ Enter new value:`), bc)
       await set(state, chatId, 'action', a.customLeadRequestName)
     },
     customLeadRequestCity: async () => {
-      send(chatId, t.leadCustomCity ? t.leadCustomCity(info?.customLeadTarget) : `🏙️ Which city or area do you want leads from?\n\nTarget: <b>${info?.customLeadTarget}</b>\n\nType the city name or "Nationwide" for all areas:`, { parse_mode: 'HTML', reply_markup: { keyboard: [[t.leadNationwide || 'Nationwide'], ['↩️ Back']], resize_keyboard: true } })
+      send(chatId, t.leadCustomCity ? t.leadCustomCity(info?.customLeadTarget) : `🏙️ Which city or area do you want leads from?\n\nTarget: <b>${info?.customLeadTarget}</b>\n\nType the city name or "Nationwide" for all areas:`, { parse_mode: 'HTML', reply_markup: { keyboard: [[trans('t.leadNationwide')], ['↩️ Back']], resize_keyboard: true } })
       await set(state, chatId, 'action', a.customLeadRequestCity)
     },
     customLeadRequestDetails: async () => {
-      send(chatId, t.leadCustomDetails ? t.leadCustomDetails(info?.customLeadTarget, info?.customLeadCity) : `📋 Any additional details? (e.g., preferred area codes, carrier, volume needed)\n\nTarget: <b>${info?.customLeadTarget}</b>\nArea: <b>${info?.customLeadCity}</b>\n\nType details or "None" to skip:`, { parse_mode: 'HTML', reply_markup: { keyboard: [[t.leadNone || 'None'], ['↩️ Back']], resize_keyboard: true } })
+      send(chatId, t.leadCustomDetails ? t.leadCustomDetails(info?.customLeadTarget, info?.customLeadCity) : `📋 Any additional details? (e.g., preferred area codes, carrier, volume needed)\n\nTarget: <b>${info?.customLeadTarget}</b>\nArea: <b>${info?.customLeadCity}</b>\n\nType details or "None" to skip:`, { parse_mode: 'HTML', reply_markup: { keyboard: [[trans('t.leadNone')], ['↩️ Back']], resize_keyboard: true } })
       await set(state, chatId, 'action', a.customLeadRequestDetails)
     },
 
@@ -7904,7 +7903,7 @@ Enter new value:`), bc)
         goto[action]()
       } else {
         log(`[skipCoupon] Invalid goto action: ${action} for chatId ${chatId}`)
-        send(chatId, t.someIssue || 'Something went wrong. Please try again.', trans('o'))
+        send(chatId, trans('t.someIssue'), trans('o'))
       }
     },
 
@@ -7968,7 +7967,7 @@ Enter new value:`), bc)
       await set(state, chatId, 'action', a.viewHostingPlan)
       saveInfo('selectedHostingDomain', domain)
       const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain: domain })
-      if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+      if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
 
       const expiry = plan.expiryDate ? new Date(plan.expiryDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
       const created = plan.createdAt ? new Date(plan.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
@@ -8038,7 +8037,7 @@ Enter new value:`), bc)
       const domain = info?.selectedHostingDomain
       if (!domain) return goto.myHostingPlans()
       const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain: domain })
-      if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+      if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
 
       // Reset PIN so we can show it (PIN is bcrypt hashed, can't be reversed)
       const cpanelAuth = require('./cpanel-auth')
@@ -8473,7 +8472,7 @@ Enter new value:`), bc)
       // Guard: prevent wallet deduction with undefined plan/price
       if (!plan || !price || price <= 0) {
         log(`[Plan] walletOk called without valid plan/price for ${chatId}`)
-        return send(chatId, t.someIssue || 'Something went wrong. Please try again.')
+        return send(chatId, trans('t.someIssue'))
       }
       const { usdBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
@@ -8500,7 +8499,7 @@ Enter new value:`), bc)
       const cheaperPrice = info?.cheaperPrice
       if (!domain || !shownPrice || shownPrice <= 0) {
         log(`[Domain] walletOk called without valid domain/price for ${chatId}`)
-        return send(chatId, t.someIssue || 'Something went wrong. Please try again.')
+        return send(chatId, trans('t.someIssue'))
       }
       const { usdBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
@@ -8550,7 +8549,7 @@ Enter new value:`), bc)
         }, 2000)
       } catch (domainErr) {
         log(`[Domain] Purchase crashed for ${chatId}: ${domainErr.message}`)
-        send(chatId, t.purchaseFailed || '❌ Domain purchase failed. Your wallet was not charged. Please try again or contact support.', trans('o'))
+        send(chatId, trans('t.purchaseFailed'), trans('o'))
         send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>Domain purchase crash</b>\nUser: ${adminUserTag(name, chatId)}\nDomain: ${domain}\nError: ${domainErr.message}`, adminMsgOpts({ chatId }))
       }
     },
@@ -8560,7 +8559,7 @@ Enter new value:`), bc)
       const price = info?.couponApplied ? info?.newPrice : info?.totalPrice
       if (!info?.website_name || !price || price <= 0) {
         log(`[Hosting] walletOk called without valid website_name/price for ${chatId}`)
-        return send(chatId, t.someIssue || 'Something went wrong. Please try again.')
+        return send(chatId, trans('t.someIssue'))
       }
       const { usdBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
@@ -8623,7 +8622,7 @@ Enter new value:`), bc)
       const vpsDetails = info?.vpsDetails
       if (!vpsDetails || !vpsDetails.totalPrice) {
         log(`[VPS] walletOk called without valid vpsDetails for ${chatId}`)
-        return send(chatId, t.someIssue || 'Something went wrong. Please try again.')
+        return send(chatId, trans('t.someIssue'))
       }
       const price = Number(vpsDetails.totalPrice)
       const { usdBal } = await getBalance(walletOf, chatId)
@@ -8699,7 +8698,7 @@ Enter new value:`), bc)
       const productKey = info?.dpProductKey
       if (!price || price <= 0 || !product || !productKey) {
         log(`[DigitalProducts] walletOk called without valid product/price for ${chatId}`)
-        return send(chatId, t.someIssue || 'Something went wrong. Please try again.')
+        return send(chatId, trans('t.someIssue'))
       }
       const { usdBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
@@ -8749,7 +8748,7 @@ Enter new value:`), bc)
       const address = info?.vcAddress
       if (!vcAmount || vcAmount <= 0 || !address) {
         log(`[VirtualCard] walletOk called without valid vcAmount/vcAddress for ${chatId}`)
-        return send(chatId, t.someIssue || 'Something went wrong. Please try again.')
+        return send(chatId, trans('t.someIssue'))
       }
       const fee = vcAmount < 200 ? 20 : Math.round(vcAmount * 0.1 * 100) / 100
       const price = Math.round((vcAmount + fee) * 100) / 100
@@ -8790,7 +8789,7 @@ Enter new value:`), bc)
       const price = info?.cpPrice
       if (!price || price <= 0 || !info?.cpSelectedNumber) {
         log(`[CloudPhone] walletOk called without valid cpPrice/cpSelectedNumber for ${chatId}`)
-        return send(chatId, t.someIssue || 'Something went wrong. Please try again.')
+        return send(chatId, trans('t.someIssue'))
       }
       const { usdBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
@@ -9469,7 +9468,7 @@ All verified numbers generated during sourcing.`))
       try {
         const campaignId = info.ebCampaignId
         const campaign = await emailBlastService.getCampaign(campaignId)
-        if (!campaign) return send(chatId, t.ebCampaignNotFound || '❌ Campaign not found.')
+        if (!campaign) return send(chatId, trans('t.ebCampaignNotFound'))
 
         const { usdBal } = await getBalance(walletOf, chatId)
         if (usdBal < campaign.totalPrice) {
@@ -9505,7 +9504,7 @@ All verified numbers generated during sourcing.`))
       await set(state, chatId, 'action', 'none')
       const bundleId = info?.selectedBundle
       const bundle = monetization.getBundleDetails(bundleId, lang)
-      if (!bundle) return send(chatId, t.someIssue || 'Something went wrong.')
+      if (!bundle) return send(chatId, trans('t.someIssue'))
 
       let price = info?.bundlePrice || bundle.finalPrice
       if (info?.couponApplied && info?.newPrice) price = info.newPrice
@@ -9869,7 +9868,7 @@ All verified numbers generated during sourcing.`))
 
   // /done — no active session (only show if not in marketplace chat)
   if (message === '/done' && action !== a.mpChat) {
-    return send(chatId, t.noSupportSession || 'No active support session.', trans('o'))
+    return send(chatId, trans('t.noSupportSession'), trans('o'))
   }
 
   // ═══════════════════════════════════════════════════
@@ -10020,7 +10019,7 @@ All verified numbers generated during sourcing.`))
     // If admin has typed /reply (takeover on), we must NOT run the AI — the user is
     // talking to a real person. But if no admin takeover, AI auto-responds.
     if (isAdminTakeover) {
-      send(chatId, t.supportMsgReceived || '✉️ Message received! A support agent will respond shortly.', { reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
+      send(chatId, trans('t.supportMsgReceived'), { reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
       return
     }
 
@@ -10079,8 +10078,8 @@ All verified numbers generated during sourcing.`))
   // /refresh command — force refresh keyboard for users seeing old buttons
   if (message === '/refresh') {
     await set(state, chatId, 'action', 'none')
-    if (isAdmin(chatId)) return send(chatId, t.keyboardRefreshed || 'Keyboard refreshed! Please select an option:', aO)
-    return send(chatId, t.keyboardRefreshed || 'Keyboard refreshed! Please select an option:', trans('o'))
+    if (isAdmin(chatId)) return send(chatId, trans('t.keyboardRefreshed'), aO)
+    return send(chatId, trans('t.keyboardRefreshed'), trans('o'))
   }
 
   // /help command
@@ -10245,7 +10244,7 @@ All verified numbers generated during sourcing.`))
       if (userConversion) {
         await userConversion.cancelScheduledEvents(chatId)
       }
-      return send(chatId, t.promoOptOut || 'You have been unsubscribed from promotional messages. Type /start_promos to re-subscribe anytime.', bc)
+      return send(chatId, trans('t.promoOptOut'), bc)
     }
     return
   }
@@ -10253,7 +10252,7 @@ All verified numbers generated during sourcing.`))
   if (message === '/start_promos') {
     if (autoPromo) {
       await autoPromo.setOptOut(chatId, false)
-      return send(chatId, t.promoOptIn || 'You have been re-subscribed to promotional messages. You will receive our latest offers and deals!', bc)
+      return send(chatId, trans('t.promoOptIn'), bc)
     }
     return
   }
@@ -10759,7 +10758,7 @@ All verified numbers generated during sourcing.`))
     if (isRenewBtn || isToggleBtn) {
       const domain = message.split(' — ').pop().trim()
       const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
-      if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToBillingMenu]]))
+      if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToBillingMenu]]))
 
       // Verify the button text matches the expected localized template (defense against collisions)
       const expectedRenew = trans('t.billingRenewBtn', domain)
@@ -10852,7 +10851,7 @@ All verified numbers generated during sourcing.`))
       const domain = info?.selectedHostingDomain
       if (!domain) return goto.myHostingPlans()
       const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
-      if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+      if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
       const isGoldPlan = /Golden Anti-Red HostPanel/i.test(plan.plan || '')
       if (!isGoldPlan) {
         const goldPrice = Number(process.env.GOLDEN_ANTIRED_CPANEL_PRICE || 100)
@@ -10878,7 +10877,7 @@ All verified numbers generated during sourcing.`))
       const domain = info?.selectedHostingDomain
       if (!domain) return goto.myHostingPlans()
       const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
-      if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+      if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
       const newAutoRenew = plan.autoRenew === false ? true : false
       await cpanelAccounts.updateOne({ _id: plan._id }, { $set: { autoRenew: newAutoRenew } })
       const statusText = newAutoRenew
@@ -10891,7 +10890,7 @@ All verified numbers generated during sourcing.`))
       const domain = info?.selectedHostingDomain
       if (!domain) return goto.myHostingPlans()
       const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
-      if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+      if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
 
       const { getPlanPrice, getPlanDuration } = require('./hosting-scheduler')
       const price = getPlanPrice(plan.plan)
@@ -10927,7 +10926,7 @@ All verified numbers generated during sourcing.`))
       const domain = info?.selectedHostingDomain
       if (!domain) return goto.myHostingPlans()
       const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
-      if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+      if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
 
       const currentPlan = (plan.plan || '').toLowerCase()
       const { getPlanPrice } = require('./hosting-scheduler')
@@ -11010,7 +11009,7 @@ All verified numbers generated during sourcing.`))
       const domain = info?.selectedHostingDomain
       if (!domain) return goto.myHostingPlans()
       const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
-      if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+      if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
       if (plan.suspended || plan.maintenanceMode) {
         await send(chatId, trans('t.siteAlreadyOffline'), { parse_mode: 'HTML' })
         return goto.viewHostingPlanDetails(domain)
@@ -11026,7 +11025,7 @@ All verified numbers generated during sourcing.`))
       const domain = info?.selectedHostingDomain
       if (!domain) return goto.myHostingPlans()
       const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
-      if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+      if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
       if (!plan.suspended && !plan.maintenanceMode) {
         await send(chatId, trans('t.siteAlreadyOnline'), { parse_mode: 'HTML' })
         return goto.viewHostingPlanDetails(domain)
@@ -11038,7 +11037,7 @@ All verified numbers generated during sourcing.`))
       const domain = info?.selectedHostingDomain
       if (!domain) return goto.myHostingPlans()
       const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
-      if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+      if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
 
       // Plan-limit pre-check
       const { getAddonLimit } = require('./whm-service')
@@ -11080,7 +11079,7 @@ All verified numbers generated during sourcing.`))
       const domain = info?.selectedHostingDomain
       if (!domain) return goto.myHostingPlans()
       const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
-      if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+      if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
       const addons = (plan.addonDomains || []).filter(d => d && d.toLowerCase() !== (domain || '').toLowerCase())
       if (!addons.length) {
         return send(chatId, t.noAddonDomainsToUnlink, k.of([[user.backToMyHostingPlans]]), { parse_mode: 'HTML' })
@@ -11094,7 +11093,7 @@ All verified numbers generated during sourcing.`))
       const domain = info?.selectedHostingDomain
       if (!domain) return goto.myHostingPlans()
       const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
-      if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+      if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
       await set(state, chatId, 'action', a.confirmCancelHostingPlan)
       return send(chatId, t.confirmCancelHostingPlan(domain, plan.plan || 'Hosting'), k.of([[user.confirmCancelHostingBtn], [user.cancelGoBackBtn]]), { parse_mode: 'HTML' })
     }
@@ -11104,7 +11103,7 @@ All verified numbers generated during sourcing.`))
   if (action === a.chooseSiteOfflineMode) {
     if (message === user.cancelGoBackBtn) return goto.viewHostingPlanDetails(info?.selectedHostingDomain)
     if (message !== user.siteOfflineModeMaintenance && message !== user.siteOfflineModeSuspend) {
-      return send(chatId, t.selectCorrectOption || 'Please tap one of the options.', k.of([
+      return send(chatId, trans('t.selectCorrectOption'), k.of([
         [user.siteOfflineModeMaintenance],
         [user.siteOfflineModeSuspend],
         [user.cancelGoBackBtn],
@@ -11122,13 +11121,13 @@ All verified numbers generated during sourcing.`))
   if (action === a.confirmSiteOfflineMode) {
     if (message === user.cancelGoBackBtn) return goto.viewHostingPlanDetails(info?.selectedHostingDomain)
     if (message !== user.confirmTakeOfflineBtn) {
-      return send(chatId, t.selectCorrectOption || 'Please tap one of the options.', k.of([[user.confirmTakeOfflineBtn], [user.cancelGoBackBtn]]))
+      return send(chatId, trans('t.selectCorrectOption'), k.of([[user.confirmTakeOfflineBtn], [user.cancelGoBackBtn]]))
     }
     const domain = info?.selectedHostingDomain
     const mode = info?.siteOfflineMode === 'suspended' ? 'suspended' : 'maintenance'
     if (!domain) return goto.myHostingPlans()
     const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
-    if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+    if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
 
     await send(chatId, t.takingSiteOffline(domain, mode), { parse_mode: 'HTML' })
 
@@ -11181,12 +11180,12 @@ All verified numbers generated during sourcing.`))
   if (action === a.confirmBringSiteOnline) {
     if (message === user.cancelGoBackBtn) return goto.viewHostingPlanDetails(info?.selectedHostingDomain)
     if (message !== user.confirmBringOnlineBtn) {
-      return send(chatId, t.selectCorrectOption || 'Please tap one of the options.', k.of([[user.confirmBringOnlineBtn], [user.cancelGoBackBtn]]))
+      return send(chatId, trans('t.selectCorrectOption'), k.of([[user.confirmBringOnlineBtn], [user.cancelGoBackBtn]]))
     }
     const domain = info?.selectedHostingDomain
     if (!domain) return goto.myHostingPlans()
     const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
-    if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+    if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
 
     const wasMode = plan.suspended ? 'suspended' : (plan.maintenanceMode ? 'maintenance' : null)
     if (!wasMode) {
@@ -11249,7 +11248,7 @@ All verified numbers generated during sourcing.`))
     const domain = info?.selectedHostingDomain
     if (!domain) return goto.myHostingPlans()
     const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
-    if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+    if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
     const match = (message || '').match(/^🗑️\s+(.+)$/)
     if (!match) return goto.viewHostingPlanDetails(domain)
     const addonDomain = match[1].trim().toLowerCase()
@@ -11268,14 +11267,14 @@ All verified numbers generated during sourcing.`))
       return goto.viewHostingPlanDetails(info?.selectedHostingDomain)
     }
     if (message !== user.confirmUnlinkBtn) {
-      return send(chatId, t.selectCorrectOption || 'Please tap one of the options.', k.of([[user.confirmUnlinkBtn], [user.cancelGoBackBtn]]))
+      return send(chatId, trans('t.selectCorrectOption'), k.of([[user.confirmUnlinkBtn], [user.cancelGoBackBtn]]))
     }
 
     const domain = info?.selectedHostingDomain
     const addonDomain = info?.unlinkAddonDomain
     if (!domain || !addonDomain) return goto.myHostingPlans()
     const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
-    if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+    if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
 
     await send(chatId, t.unlinkingDomain(addonDomain), { parse_mode: 'HTML' })
 
@@ -11384,7 +11383,7 @@ All verified numbers generated during sourcing.`))
     const domain = info?.selectedHostingDomain
     if (!domain) return goto.myHostingPlans()
     const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
-    if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+    if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
     const match = (message || '').match(/^➕\s+(.+)$/)
     if (!match) return goto.viewHostingPlanDetails(domain)
     const candidate = match[1].trim().toLowerCase()
@@ -11419,14 +11418,14 @@ All verified numbers generated during sourcing.`))
       return goto.viewHostingPlanDetails(info?.selectedHostingDomain)
     }
     if (message !== user.confirmAttachBtn) {
-      return send(chatId, t.selectCorrectOption || 'Please tap one of the options.', k.of([[user.confirmAttachBtn], [user.cancelGoBackBtn]]))
+      return send(chatId, trans('t.selectCorrectOption'), k.of([[user.confirmAttachBtn], [user.cancelGoBackBtn]]))
     }
 
     const domain = info?.selectedHostingDomain
     const candidate = info?.attachAddonDomain
     if (!domain || !candidate) return goto.myHostingPlans()
     const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
-    if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+    if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
 
     // Re-verify pre-flight (defensive, handles race where another flow attached the domain)
     const onSome = await cpanelAccounts.findOne({
@@ -11528,13 +11527,13 @@ All verified numbers generated during sourcing.`))
       return goto.viewHostingPlanDetails(info?.selectedHostingDomain)
     }
     if (message !== user.confirmCancelHostingBtn) {
-      return send(chatId, t.selectCorrectOption || 'Please tap one of the options.', k.of([[user.confirmCancelHostingBtn], [user.cancelGoBackBtn]]))
+      return send(chatId, trans('t.selectCorrectOption'), k.of([[user.confirmCancelHostingBtn], [user.cancelGoBackBtn]]))
     }
 
     const domain = info?.selectedHostingDomain
     if (!domain) return goto.myHostingPlans()
     const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
-    if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+    if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
 
     await send(chatId, t.cancellingHostingPlan(domain), { parse_mode: 'HTML' })
 
@@ -11653,7 +11652,7 @@ All verified numbers generated during sourcing.`))
       const domain = info?.selectedHostingDomain
       if (!domain) return goto.myHostingPlans()
       const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
-      if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+      if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
 
       const { getPlanPrice, getPlanDuration } = require('./hosting-scheduler')
       const price = getPlanPrice(plan.plan)
@@ -11813,7 +11812,7 @@ All verified numbers generated during sourcing.`))
       const domain = info?.selectedHostingDomain
       if (!domain) return goto.myHostingPlans()
       const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
-      if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+      if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
 
       const selected = info?.selectedUpgrade
       if (!selected) return goto.myHostingPlans()
@@ -12032,7 +12031,7 @@ All verified numbers generated during sourcing.`))
     if (message === confirmBtn) {
       const bundleId = info?.selectedBundle
       const bundle = monetization.getBundleDetails(bundleId, lang)
-      if (!bundle) return send(chatId, t.ebBundleNotFound || '❌ Bundle not found.')
+      if (!bundle) return send(chatId, trans('t.ebBundleNotFound'))
       // Route to wallet payment with bundle price
       let finalPrice = bundle.finalPrice
       // Apply any saved coupon discount
@@ -12055,7 +12054,7 @@ All verified numbers generated during sourcing.`))
     if (message === btn.applyCoupon) {
       await saveInfo('lastStep', a.bundleConfirm)
       await set(state, chatId, 'action', a.askCoupon + a.bundleConfirm)
-      return send(chatId, t.enterCoupon || 'Enter your coupon code:', k.of([['↩️ Back']]))
+      return send(chatId, trans('t.enterCoupon'), k.of([['↩️ Back']]))
     }
   }
 
@@ -12724,10 +12723,10 @@ All verified numbers generated during sourcing.`))
 
     const btns = [
       [t.ebSendBlast],
-      [t.ebMyCampaigns || '📊 My Campaigns'],
+      [trans('t.ebMyCampaigns')],
     ]
     if (_isAdmin) {
-      btns.push([t.ebAdminPanel || '⚙️ Email Admin Panel'])
+      btns.push([trans('t.ebAdminPanel')])
     }
     btns.push(['↩️ Back'])
 
@@ -12746,7 +12745,7 @@ All verified numbers generated during sourcing.`))
 
   // Email Blast Menu Handler
   if (action === a.ebMenu) {
-    if (isBackPress(message) || isCancelPress(message) || message === '↩️ Back' || message === '❌ Cancel' || message === (t.ebCancelBtn || '❌ Cancel')) return goto.displayMainMenuButtons()
+    if (isBackPress(message) || isCancelPress(message) || message === '↩️ Back' || message === '❌ Cancel' || message === (trans('t.ebCancelBtn'))) return goto.displayMainMenuButtons()
 
     if (message === t.ebSendBlast || message === '📤 Send Email Blast') {
       await set(state, chatId, 'action', a.ebUploadList)
@@ -12758,11 +12757,11 @@ All verified numbers generated during sourcing.`))
         hi: `📤 <b>ईमेल सूची अपलोड करें</b>\n\nमुझे ईमेल पतों वाली <b>CSV</b> या <b>TXT</b> फाइल भेजें।\n\n📋 आवश्यकताएं:\n• न्यूनतम: ${settings.minEmails} ईमेल\n• अधिकतम: ${settings.maxEmails} ईमेल\n• प्रति पंक्ति एक ईमेल, या अल्पविराम से अलग\n\n📎 अभी अपनी फाइल अपलोड करें:`,
       }
       return send(chatId, uploadListMsg[lang] || uploadListMsg.en,
-        { parse_mode: 'HTML', reply_markup: { keyboard: [[t.ebCancelBtn || '❌ Cancel']], resize_keyboard: true } }
+        { parse_mode: 'HTML', reply_markup: { keyboard: [[trans('t.ebCancelBtn')]], resize_keyboard: true } }
       )
     }
 
-    if (message === (t.ebMyCampaigns || '📊 My Campaigns') || message === '📊 My Campaigns') {
+    if (message === (trans('t.ebMyCampaigns')) || message === '📊 My Campaigns') {
       const campaigns = await emailBlastService.getUserCampaigns(chatId)
       if (!campaigns || campaigns.length === 0) {
         const noCampaignsMsg = { en: '📊 No campaigns yet. Send your first email blast!', fr: '📊 Aucune campagne. Envoyez votre premier email en masse !', zh: '📊 还没有活动。发送您的第一封群发邮件！', hi: '📊 अभी कोई अभियान नहीं। अपना पहला ईमेल ब्लास्ट भेजें!' }
@@ -12784,16 +12783,16 @@ All verified numbers generated during sourcing.`))
     }
 
     // Admin Panel
-    if ((message === (t.ebAdminPanel || '⚙️ Email Admin Panel') || message === '⚙️ Email Admin Panel') && chatId.toString() === process.env.TELEGRAM_ADMIN_CHAT_ID) {
+    if ((message === (trans('t.ebAdminPanel')) || message === '⚙️ Email Admin Panel') && chatId.toString() === process.env.TELEGRAM_ADMIN_CHAT_ID) {
       await set(state, chatId, 'action', a.ebAdminMenu)
       return send(chatId,
-        `${t.ebAdminPanelTitle || '⚙️ <b>Email Blast Admin Panel</b>'}\n\n${t.chooseOption || 'Select an option:'}`,
+        `${trans('t.ebAdminPanelTitle')}\n\n${trans('t.chooseOption')}`,
         { parse_mode: 'HTML', reply_markup: { keyboard: [
-          [t.ebDashboardBtn || '📊 Dashboard'],
-          [t.ebManageDomainsBtn || '🌐 Manage Domains'],
-          [t.ebManageIpsBtn || '🖥️ Manage IPs & Warming'],
-          [t.ebPricingBtn || '💰 Pricing Settings'],
-          [t.ebSuppressionBtn || '🚫 Suppression List'],
+          [trans('t.ebDashboardBtn')],
+          [trans('t.ebManageDomainsBtn')],
+          [trans('t.ebManageIpsBtn')],
+          [trans('t.ebPricingBtn')],
+          [trans('t.ebSuppressionBtn')],
           ['↩️ Back']
         ], resize_keyboard: true }}
       )
@@ -12802,9 +12801,9 @@ All verified numbers generated during sourcing.`))
 
   // Upload Email List (handles both file and text paste)
   if (action === a.ebUploadList) {
-    if (message === (t.ebCancelBtn || '❌ Cancel') || message === '❌ Cancel' || isBackPress(message) || isCancelPress(message)) {
+    if (message === (trans('t.ebCancelBtn')) || message === '❌ Cancel' || isBackPress(message) || isCancelPress(message)) {
       await set(state, chatId, 'action', a.ebMenu)
-      return send(chatId, t.ebCancelled || '❌ Cancelled.', { parse_mode: 'HTML' })
+      return send(chatId, trans('t.ebCancelled'), { parse_mode: 'HTML' })
     }
 
     let content = ''
@@ -12814,7 +12813,7 @@ All verified numbers generated during sourcing.`))
       try {
         const fileName = msg.document.file_name || ''
         if (!fileName.match(/\.(csv|txt|tsv)$/i)) {
-          return send(chatId, t.ebUploadCsvOnly || '❌ Please upload a <b>.csv</b> or <b>.txt</b> file.', { parse_mode: 'HTML' })
+          return send(chatId, trans('t.ebUploadCsvOnly'), { parse_mode: 'HTML' })
         }
         const fileLink = await bot.getFileLink(msg.document.file_id)
         const response = await require('axios').get(fileLink, { responseType: 'text', timeout: 15000 })
@@ -12827,7 +12826,7 @@ All verified numbers generated during sourcing.`))
     }
 
     if (!content || !content.trim()) {
-      return send(chatId, t.ebUploadCsvTxt || '📎 Please upload a CSV/TXT file or paste email addresses (one per line).')
+      return send(chatId, trans('t.ebUploadCsvTxt'))
     }
 
     const emails = emailValidation.parseEmailList(content)
@@ -12840,49 +12839,49 @@ All verified numbers generated during sourcing.`))
 
   // Enter Subject
   if (action === a.ebEnterSubject) {
-    if (message === (t.ebCancelBtn || '❌ Cancel') || message === '❌ Cancel') return goto.displayMainMenuButtons()
+    if (message === (trans('t.ebCancelBtn')) || message === '❌ Cancel') return goto.displayMainMenuButtons()
     await saveInfo('ebSubject', message)
     await set(state, chatId, 'action', a.ebEnterFromName)
     const subjectConfirmMsg = { en: `✅ Subject: <b>${message}</b>\n\n👤 Now enter the <b>From Name</b> (sender name recipients will see):`, fr: `✅ Objet : <b>${message}</b>\n\n👤 Entrez le <b>Nom de l'expéditeur</b> :`, zh: `✅ 主题：<b>${message}</b>\n\n👤 请输入<b>发件人名称</b>（收件人将看到的名称）：`, hi: `✅ विषय: <b>${message}</b>\n\n👤 अब <b>प्रेषक नाम</b> दर्ज करें:` }
     return send(chatId, subjectConfirmMsg[lang] || subjectConfirmMsg.en,
-      { parse_mode: 'HTML', reply_markup: { keyboard: [['Nomadly'], [t.ebCancelBtn || '❌ Cancel']], resize_keyboard: true } }
+      { parse_mode: 'HTML', reply_markup: { keyboard: [['Nomadly'], [trans('t.ebCancelBtn')]], resize_keyboard: true } }
     )
   }
 
   // Enter From Name
   if (action === a.ebEnterFromName) {
-    if (message === (t.ebCancelBtn || '❌ Cancel') || message === '❌ Cancel') return goto.displayMainMenuButtons()
+    if (message === (trans('t.ebCancelBtn')) || message === '❌ Cancel') return goto.displayMainMenuButtons()
     await saveInfo('ebFromName', message)
     await set(state, chatId, 'action', a.ebSelectContentType)
     const fromConfirmMsg = { en: `✅ From: <b>${message}</b>\n\n📝 <b>How would you like to provide your email content?</b>\n\nChoose an option:`, fr: `✅ De : <b>${message}</b>\n\n📝 <b>Comment souhaitez-vous fournir le contenu ?</b>\n\nChoisissez :`, zh: `✅ 发件人：<b>${message}</b>\n\n📝 <b>您想如何提供邮件内容？</b>\n\n请选择：`, hi: `✅ प्रेषक: <b>${message}</b>\n\n📝 <b>आप ईमेल सामग्री कैसे प्रदान करना चाहेंगे?</b>\n\nविकल्प चुनें:` }
     return send(chatId, fromConfirmMsg[lang] || fromConfirmMsg.en,
       { parse_mode: 'HTML', reply_markup: { keyboard: [
-        [t.ebTypeText || '📝 Type Plain Text'],
-        [t.ebUploadHtml || '📎 Upload HTML File'],
-        [t.ebCancelBtn || '❌ Cancel']
+        [trans('t.ebTypeText')],
+        [trans('t.ebUploadHtml')],
+        [trans('t.ebCancelBtn')]
       ], resize_keyboard: true } }
     )
   }
 
   // Select Content Type
   if (action === a.ebSelectContentType) {
-    if (message === (t.ebCancelBtn || '❌ Cancel') || message === '❌ Cancel') return goto.displayMainMenuButtons()
+    if (message === (trans('t.ebCancelBtn')) || message === '❌ Cancel') return goto.displayMainMenuButtons()
 
-    if (message === (t.ebTypeText || '📝 Type Plain Text') || message === '📝 Type Plain Text') {
+    if (message === (trans('t.ebTypeText')) || message === '📝 Type Plain Text') {
       await saveInfo('ebContentType', 'text')
       await set(state, chatId, 'action', a.ebEnterContent)
       const textPrompt = { en: `📝 <b>Enter Email Body (Plain Text)</b>\n\nType or paste your email message below.\nIt will be automatically formatted for email delivery.\n\n💡 <b>Spintax supported!</b> Use {Hello|Hi|Hey} to randomly vary words per recipient. This dramatically improves inbox placement.\n\n<i>Example: "{Hi|Hello|Hey} there, {I wanted|I'd like} to reach out about..."</i>`, fr: `📝 <b>Saisir le Corps (Texte Brut)</b>\n\nTapez ou collez votre message ci-dessous.\nIl sera automatiquement formaté.\n\n💡 <b>Spintax supporté !</b> Utilisez {Bonjour|Salut|Coucou} pour varier aléatoirement.\n\n<i>Exemple : "{Bonjour|Salut}, {je voulais|j'aimerais} vous contacter..."</i>`, zh: `📝 <b>输入邮件正文（纯文本）</b>\n\n请输入或粘贴您的邮件消息。\n将自动格式化用于邮件发送。\n\n💡 <b>支持旋转语法！</b>使用 {你好|您好|嗨} 随机变化每个收件人的用词。\n\n<i>示例："{你好|您好}，{我想|我希望}联系您..."</i>`, hi: `📝 <b>ईमेल बॉडी दर्ज करें (सादा टेक्स्ट)</b>\n\nनीचे अपना ईमेल संदेश टाइप या पेस्ट करें।\nस्वचालित रूप से फॉर्मेट होगा।\n\n💡 <b>स्पिनटैक्स समर्थित!</b> {नमस्ते|हैलो|हाय} का उपयोग करें।\n\n<i>उदाहरण: "{नमस्ते|हैलो}, {मैं चाहता था|मैं चाहूंगा} संपर्क करना..."</i>` }
       return send(chatId, textPrompt[lang] || textPrompt.en,
-        { parse_mode: 'HTML', reply_markup: { keyboard: [[t.ebCancelBtn || '❌ Cancel']], resize_keyboard: true } }
+        { parse_mode: 'HTML', reply_markup: { keyboard: [[trans('t.ebCancelBtn')]], resize_keyboard: true } }
       )
     }
 
-    if (message === (t.ebUploadHtml || '📎 Upload HTML File') || message === '📎 Upload HTML File') {
+    if (message === (trans('t.ebUploadHtml')) || message === '📎 Upload HTML File') {
       await saveInfo('ebContentType', 'html')
       await set(state, chatId, 'action', a.ebEnterContent)
       const htmlPrompt = { en: `📎 <b>Upload HTML Email Template</b>\n\nSend me an <b>.html</b> file with your email template.\n\n💡 <i>Tip: Use inline CSS for best compatibility across email clients. Avoid external stylesheets or JavaScript.</i>`, fr: `📎 <b>Télécharger le Modèle HTML</b>\n\nEnvoyez-moi un fichier <b>.html</b> avec votre modèle.\n\n💡 <i>Conseil : Utilisez du CSS inline pour une meilleure compatibilité.</i>`, zh: `📎 <b>上传 HTML 邮件模板</b>\n\n请发送包含邮件模板的 <b>.html</b> 文件。\n\n💡 <i>提示：使用内联 CSS 以获得最佳兼容性。避免外部样式表或 JavaScript。</i>`, hi: `📎 <b>HTML ईमेल टेम्पलेट अपलोड</b>\n\nमुझे अपने ईमेल टेम्पलेट वाली <b>.html</b> फाइल भेजें।\n\n💡 <i>सुझाव: बेहतर अनुकूलता के लिए इनलाइन CSS का उपयोग करें।</i>` }
       return send(chatId, htmlPrompt[lang] || htmlPrompt.en,
-        { parse_mode: 'HTML', reply_markup: { keyboard: [[t.ebCancelBtn || '❌ Cancel']], resize_keyboard: true } }
+        { parse_mode: 'HTML', reply_markup: { keyboard: [[trans('t.ebCancelBtn')]], resize_keyboard: true } }
       )
     }
 
@@ -12900,7 +12899,7 @@ All verified numbers generated during sourcing.`))
     if (contentType === 'html' || (msg.document && msg.document.file_name && msg.document.file_name.endsWith('.html'))) {
       // HTML file upload
       if (!msg.document || !msg.document.file_name || !msg.document.file_name.endsWith('.html')) {
-        return send(chatId, t.ebUploadHtmlFile || '📎 Please upload an <b>.html</b> file, or tap ❌ Cancel to start over.', { parse_mode: 'HTML' })
+        return send(chatId, trans('t.ebUploadHtmlFile'), { parse_mode: 'HTML' })
       }
       try {
         const fileLink = await bot.getFileLink(msg.document.file_id)
@@ -12908,7 +12907,7 @@ All verified numbers generated during sourcing.`))
         htmlContent = typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data)
         textContent = htmlContent.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 500)
       } catch (e) {
-        return send(chatId, t.ebFailedReadHtml || '❌ Failed to read HTML file. Please try again or upload a different file.')
+        return send(chatId, trans('t.ebFailedReadHtml'))
       }
     } else if (message) {
       // Plain text content — wrap in responsive HTML email template
@@ -12922,7 +12921,7 @@ All verified numbers generated during sourcing.`))
 ${message.replace(/\n/g, '<br>')}
 </td></tr></table></td></tr></table></body></html>`
     } else {
-      return send(chatId, t.ebTypeOrUpload || '📝 Please type your email message or upload an HTML file.')
+      return send(chatId, trans('t.ebTypeOrUpload'))
     }
 
     await saveInfo('ebBodyHtml', htmlContent)
@@ -12964,11 +12963,11 @@ ${message.replace(/\n/g, '<br>')}
 
   // Campaign Preview — Confirm/Edit/Cancel/Test
   if (action === a.ebPreview) {
-    if (message === (t.ebCancelBtn || '❌ Cancel') || message === '❌ Cancel') return goto.displayMainMenuButtons()
+    if (message === (trans('t.ebCancelBtn')) || message === '❌ Cancel') return goto.displayMainMenuButtons()
 
     if (message === '✏️ Edit') {
       await set(state, chatId, 'action', a.ebEnterSubject)
-      return send(chatId, t.ebEnterSubject || '✏️ Enter the new <b>Subject</b> line:', { parse_mode: 'HTML', reply_markup: { keyboard: [[t.ebCancelBtn || '❌ Cancel']], resize_keyboard: true } })
+      return send(chatId, trans('t.ebEnterSubject'), { parse_mode: 'HTML', reply_markup: { keyboard: [[trans('t.ebCancelBtn')]], resize_keyboard: true } })
     }
 
     if (message === '📧 Send Test Email') {
@@ -13027,14 +13026,14 @@ ${message.replace(/\n/g, '<br>')}
 
   // Payment Handler
   if (action === a.ebPayment) {
-    if (message === (t.ebCancelBtn || '❌ Cancel') || message === '❌ Cancel') {
+    if (message === (trans('t.ebCancelBtn')) || message === '❌ Cancel') {
       if (info.ebCampaignId) await emailBlastService.cancelCampaign(info.ebCampaignId)
       return goto.displayMainMenuButtons()
     }
 
     const campaignId = info.ebCampaignId
     const campaign = await emailBlastService.getCampaign(campaignId)
-    if (!campaign) return send(chatId, t.ebCampaignNotFound || '❌ Campaign not found.')
+    if (!campaign) return send(chatId, trans('t.ebCampaignNotFound'))
 
     if (message && (message.startsWith('💵 Pay') || message.startsWith('👛 Pay from Wallet'))) {
       // USD payment only
@@ -13101,7 +13100,7 @@ ${message.replace(/\n/g, '<br>')}
 
     const campaignId = info.ebCampaignId
     const campaign = await emailBlastService.getCampaign(campaignId)
-    if (!campaign) return send(chatId, t.ebCampaignNotFound || '❌ Campaign not found.')
+    if (!campaign) return send(chatId, trans('t.ebCampaignNotFound'))
 
     const price = campaign.totalPrice
     const ref = nanoid()
@@ -14643,7 +14642,7 @@ ${message.replace(/\n/g, '<br>')}
     }
     const couponResult = await resolveCoupon(coupon, chatId)
     if (!couponResult) return send(chatId, vp.couponInvalid)
-    if (couponResult.error === 'already_used') return send(chatId, t.couponUsedToday || '⚠️ You have already used this coupon today.')
+    if (couponResult.error === 'already_used') return send(chatId, trans('t.couponUsedToday'))
     const discount = couponResult.discount
     const couponDiscount = (vpsDetails.plantotalPrice * discount) / 100;
     const newPrice = Math.max(1, vpsDetails.plantotalPrice - couponDiscount);
@@ -15307,7 +15306,7 @@ ${message.replace(/\n/g, '<br>')}
   if (action === 'quick-shorten-confirm') {
     if (message === '❌ Cancel') {
       await set(state, chatId, 'action', 'none')
-      return send(chatId, t.cancelled || 'Cancelled.', trans('o'))
+      return send(chatId, trans('t.cancelled'), trans('o'))
     }
     
     const url = info?.quickShortenUrl
@@ -15406,7 +15405,7 @@ ${message.replace(/\n/g, '<br>')}
   if (action === 'quick-shorten-custom-alias') {
     if (isBackPress(message) || message === '❌ Cancel') {
       await set(state, chatId, 'action', 'none')
-      return send(chatId, t.cancelled || 'Cancelled.', trans('o'))
+      return send(chatId, trans('t.cancelled'), trans('o'))
     }
     
     const url = info?.quickShortenUrl
@@ -15637,7 +15636,7 @@ ${message.replace(/\n/g, '<br>')}
     // returned a random hash). Instead we use the alias directly as our slug.
     const alias = String(message || '').trim()
     if (!/^[A-Za-z0-9_-]{3,32}$/.test(alias)) {
-      return send(chatId, t.notValidHalf || '⚠️ Alias must be 3–32 chars (letters, digits, dashes, underscores).')
+      return send(chatId, trans('t.notValidHalf'))
     }
     // Reserved words — must match the SPA + system routes in app.get('/:id')
     const reserved = new Set([
@@ -15646,7 +15645,7 @@ ${message.replace(/\n/g, '<br>')}
       'health', 'sms-app', 'voice', 'sms', 'auth',
     ])
     if (reserved.has(alias.toLowerCase())) {
-      return send(chatId, t.notValidHalf || '⚠️ This alias is reserved. Pick another one.')
+      return send(chatId, trans('t.notValidHalf'))
     }
 
     try {
@@ -15657,7 +15656,7 @@ ${message.replace(/\n/g, '<br>')}
 
       // Uniqueness check — prevent collisions
       if (await get(fullUrlOf, shortUrl)) {
-        return send(chatId, t.linkAlreadyExist || '⚠️ That alias is already taken. Pick another one.')
+        return send(chatId, trans('t.linkAlreadyExist'))
       }
 
       // The short URL we return IS our own SELF_URL/alias — no third-party shortener call.
@@ -15710,7 +15709,7 @@ ${message.replace(/\n/g, '<br>')}
     const coupon = message.toUpperCase()
     const couponResult = await resolveCoupon(coupon, chatId)
     if (!couponResult) return send(chatId, t.couponInvalid)
-    if (couponResult.error === 'already_used') return send(chatId, t.couponUsedToday || '⚠️ You have already used this coupon today.')
+    if (couponResult.error === 'already_used') return send(chatId, trans('t.couponUsedToday'))
 
     const newPrice = Math.max(1, price - (price * couponResult.discount) / 100)
     send(chatId, t.redNewPrice(price, newPrice), k.pay)
@@ -15735,7 +15734,7 @@ ${message.replace(/\n/g, '<br>')}
     const domain = message.toLowerCase()
     const domains = await getPurchasedDomains(chatId)
     if (!domains.includes(domain)) {
-      return send(chatId, t.selectValidOption || 'Please choose a valid domain from the list.')
+      return send(chatId, trans('t.selectValidOption'))
     }
 
     // ── BUG FIX: Declare lang before any usage to avoid TDZ ──
@@ -16123,7 +16122,7 @@ ${message.replace(/\n/g, '<br>')}
     const coupon = message.toUpperCase()
     const couponResult = await resolveCoupon(coupon, chatId)
     if (!couponResult) return send(chatId, t.couponInvalid)
-    if (couponResult.error === 'already_used') return send(chatId, t.couponUsedToday || '⚠️ You have already used this coupon today.')
+    if (couponResult.error === 'already_used') return send(chatId, trans('t.couponUsedToday'))
 
     const newPrice = Math.max(1, price - (price * couponResult.discount) / 100)
     await saveInfo('newPrice', newPrice)
@@ -16144,7 +16143,7 @@ ${message.replace(/\n/g, '<br>')}
     const coupon = message.toUpperCase()
     const couponResult = await resolveCoupon(coupon, chatId)
     if (!couponResult) return send(chatId, t.couponInvalid)
-    if (couponResult.error === 'already_used') return send(chatId, t.couponUsedToday || '⚠️ You have already used this coupon today.')
+    if (couponResult.error === 'already_used') return send(chatId, trans('t.couponUsedToday'))
 
     const couponDiscount = (totalPrice * couponResult.discount) / 100;
     const newPrice = Math.max(1, totalPrice - couponDiscount);
@@ -16284,7 +16283,7 @@ ${message.replace(/\n/g, '<br>')}
     // Handle Apply Coupon button
     if (message === btn.applyCoupon) {
       await set(state, chatId, 'action', 'hosting-apply-coupon')
-      return send(chatId, t.enterCouponCode || 'Enter coupon code:', k.of([t.skip]))
+      return send(chatId, trans('t.enterCouponCode'), k.of([t.skip]))
     }
     
     const payOption = message
@@ -16309,8 +16308,8 @@ ${message.replace(/\n/g, '<br>')}
   if (action === 'hosting-apply-coupon') {
     if (message === t.skip || isBackPress(message)) return goto['hosting-pay']()
     const couponResult = await resolveCoupon(message, chatId)
-    if (!couponResult) return send(chatId, t.invalidCoupon || 'Invalid coupon. Try again or tap Skip.', k.of([t.skip]))
-    if (couponResult.error === 'already_used') return send(chatId, t.couponAlreadyUsed || 'Coupon already used. Try another or tap Skip.', k.of([t.skip]))
+    if (!couponResult) return send(chatId, trans('t.invalidCoupon'), k.of([t.skip]))
+    if (couponResult.error === 'already_used') return send(chatId, trans('t.couponAlreadyUsed'), k.of([t.skip]))
     const discount = couponResult.discount
     const couponDiscount = (info.totalPrice * discount) / 100
     saveInfo('couponApplied', true)
@@ -16683,7 +16682,7 @@ ${message.replace(/\n/g, '<br>')}
     const coupon = message.toUpperCase()
     const couponResult = await resolveCoupon(coupon, chatId)
     if (!couponResult) return send(chatId, t.couponInvalid)
-    if (couponResult.error === 'already_used') return send(chatId, t.couponUsedToday || '⚠️ You have already used this coupon today.')
+    if (couponResult.error === 'already_used') return send(chatId, trans('t.couponUsedToday'))
 
     const newPrice = Math.max(1, price - (price * couponResult.discount) / 100)
     await saveInfo('newPrice', newPrice)
@@ -17085,7 +17084,7 @@ ${message.replace(/\n/g, '<br>')}
       const domain = info?.domainToManage
       const nsType = info?.nameserverType
       if (nsType === 'cloudflare') {
-        return send(chatId, t.switchToCfAlreadyCf || 'Already using Cloudflare.')
+        return send(chatId, trans('t.switchToCfAlreadyCf'))
       }
       send(chatId, t.switchToCfConfirm(domain), trans('yes_no'))
       await set(state, chatId, 'action', 'confirm-switch-to-cloudflare')
@@ -17096,7 +17095,7 @@ ${message.replace(/\n/g, '<br>')}
       const domain = info?.domainToManage
       const nsType = info?.nameserverType
       if (nsType !== 'cloudflare') {
-        return send(chatId, t.switchToProviderAlreadyProvider || 'Already using provider default DNS.')
+        return send(chatId, trans('t.switchToProviderAlreadyProvider'))
       }
       const dnsData = await domainService.viewDNSRecords(domain, db)
       const hasShortener = (dnsData?.records || []).some(r =>
@@ -17151,7 +17150,7 @@ ${message.replace(/\n/g, '<br>')}
 
       // NS records can NEVER be deleted — only updated
       if (record.recordType === 'NS') {
-        return send(chatId, (t.nsCannotAdd || `Nameserver records cannot be deleted. Use <b>Update DNS Record</b> to change nameservers.`), { parse_mode: 'HTML' })
+        return send(chatId, (trans('t.nsCannotAdd')), { parse_mode: 'HTML' })
       }
 
       if (dnsSource === 'cloudflare' && record.cfRecordId) {
@@ -17186,7 +17185,7 @@ ${message.replace(/\n/g, '<br>')}
     const recordType = message
     // NS records cannot be added — only updated
     if (recordType === t.ns || recordType === 'NS Record' || recordType === 'Enregistrement NS' || recordType === 'NS 记录' || recordType === 'NS रिकॉर्ड') {
-      return send(chatId, (t.nsCannotAdd || `Nameserver records cannot be added. Use <b>Update DNS Record</b> to change nameservers.`), { parse_mode: 'HTML' })
+      return send(chatId, (trans('t.nsCannotAdd')), { parse_mode: 'HTML' })
     }
     // SRV has its own multi-step flow
     if (recordType === t.srvRecord) {
@@ -17694,7 +17693,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
         await set(state, chatId, 'dnsAddValue', value)
         await set(state, chatId, 'dnsConflictRecords', conflict.conflictingRecords)
         await set(state, chatId, 'action', 'dns-confirm-conflict-replace')
-        return send(chatId, conflict.message, { parse_mode: 'HTML', reply_markup: { keyboard: [[t.yes || 'Yes'], [t.no || 'No']], resize_keyboard: true } })
+        return send(chatId, conflict.message, { parse_mode: 'HTML', reply_markup: { keyboard: [[trans('t.yes')], [trans('t.no')]], resize_keyboard: true } })
       }
     }
 
@@ -20049,7 +20048,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
         const saved = await audioLibraryService.downloadAndSave(fileLink, chatId, originalName, mimeType)
         await saveInfo('bulkAudioPending', { ...saved, duration, mimeType, originalName })
         await set(state, chatId, 'action', a.bulkNameAudio)
-        return send(chatId, (t.audioReceivedShort || `✅ Audio received!\n\nGive it a name:`), k.of([[originalName !== 'voice_message' ? originalName.replace(/\.[^.]+$/, '') : 'Campaign Audio']]))
+        return send(chatId, (trans('t.audioReceivedShort')), k.of([[originalName !== 'voice_message' ? originalName.replace(/\.[^.]+$/, '') : 'Campaign Audio']]))
       } catch (e) {
         return send(chatId, trans('t.cp_147', e.message), k.of([['↩️ Back']]))
       }
@@ -24957,7 +24956,7 @@ Select a category:`), k.of(catBtns))
     if (isBackPress(message)) return goto.displayMainMenuButtons ? goto.displayMainMenuButtons() : send(chatId, t.userPressedBtn(message), isAdmin(chatId) ? aO : trans('o'))
     const validateBtn = trans('phoneNumberLeads')[1] || '✅📲 Validate PhoneLeads'
     if (message === validateBtn) return goto.validatorSelectCountry()
-    if (message === (t.leadRequestTarget || '📝 Request Custom Target')) return goto.customLeadRequestName()
+    if (message === (trans('t.leadRequestTarget'))) return goto.customLeadRequestName()
     if (!targetLeadsTargets.includes(message)) return send(chatId, t.what)
     await saveInfo('targetName', message)
     await saveInfo('country', 'USA')
@@ -24966,10 +24965,10 @@ Select a category:`), k.of(catBtns))
   if (action === a.targetSelectCity) {
     if (isBackPress(message)) return goto.targetSelectTarget()
     const target = info?.targetName
-    const validCities = [t.leadAllCities || 'All Cities', ...targetLeadsCities(target)]
+    const validCities = [trans('t.leadAllCities'), ...targetLeadsCities(target)]
     if (!validCities.includes(message)) return send(chatId, t.what)
     await saveInfo('targetCity', message)
-    if (message === (t.leadAllCities || 'All Cities')) {
+    if (message === (trans('t.leadAllCities'))) {
       const allCodes = targetLeadsAreaCodes(target, 'All Cities')
       await saveInfo('areaCode', 'Mixed Area Codes')
       await saveInfo('targetAreaCodes', allCodes)
@@ -25029,7 +25028,7 @@ Select a category:`), k.of(catBtns))
   }
   if (action === a.customLeadRequestDetails) {
     if (message === ('↩️ Back')) return goto.customLeadRequestCity()
-    const details = (message === (t.leadNone || 'None')) ? '' : message
+    const details = (message === (trans('t.leadNone'))) ? '' : message
     const target = info?.customLeadTarget
     const city = info?.customLeadCity
     const name = await get(nameOf, chatId)
@@ -25097,7 +25096,7 @@ Select a category:`), k.of(catBtns))
   if (action === a.buyLeadsSelectCarrier) {
     if (isBackPress(message)) {
       if (info?.targetName) {
-        return info?.targetCity === (t.leadAllCities || 'All Cities') ? goto.targetSelectCity() : goto.targetSelectAreaCode()
+        return info?.targetCity === (trans('t.leadAllCities')) ? goto.targetSelectCity() : goto.targetSelectAreaCode()
       }
       return ['Australia'].includes(info?.country) ? goto.buyLeadsSelectSmsVoice() : goto.buyLeadsSelectAreaCode()
     }
@@ -25166,7 +25165,7 @@ Select a category:`), k.of(catBtns))
     const couponResult = await resolveCoupon(coupon, chatId)
 
     if (!couponResult) return send(chatId, t.couponInvalid)
-    if (couponResult.error === 'already_used') return send(chatId, t.couponUsedToday || '⚠️ You have already used this coupon today.')
+    if (couponResult.error === 'already_used') return send(chatId, trans('t.couponUsedToday'))
 
     const newPrice = Math.max(1, price - (price * couponResult.discount) / 100)
     await saveInfo('newPrice', newPrice)
@@ -25340,7 +25339,7 @@ Select a category:`), k.of(catBtns))
     const coupon = message.toUpperCase()
     const couponResult = await resolveCoupon(coupon, chatId)
     if (!couponResult) return send(chatId, t.couponInvalid)
-    if (couponResult.error === 'already_used') return send(chatId, t.couponUsedToday || '⚠️ You have already used this coupon today.')
+    if (couponResult.error === 'already_used') return send(chatId, trans('t.couponUsedToday'))
 
     const newPrice = Math.max(1, price - (price * couponResult.discount) / 100)
     await saveInfo('newPrice', newPrice)
@@ -25375,8 +25374,8 @@ Select a category:`), k.of(catBtns))
 
     const coupon = message.toUpperCase()
     const couponResult = await resolveCoupon(coupon, chatId)
-    if (!couponResult) return send(chatId, t.couponInvalid || '❌ Invalid coupon code.')
-    if (couponResult.error === 'already_used') return send(chatId, t.couponUsedToday || '⚠️ Coupon already used.')
+    if (!couponResult) return send(chatId, trans('t.couponInvalid'))
+    if (couponResult.error === 'already_used') return send(chatId, trans('t.couponUsedToday'))
 
     const bundleId = info?.selectedBundle
     const bundle = monetization.getBundleDetails(bundleId, lang)
@@ -25549,7 +25548,7 @@ Select a category:`), k.of(catBtns))
         }
       }
       if (!allValidDomains.includes(domain)) {
-        return send(chatId, t.chooseValidDomain || 'Please select a valid domain.')
+        return send(chatId, trans('t.chooseValidDomain'))
       }
 
       await set(state, chatId, 'domainToManage', domain)
@@ -25593,7 +25592,7 @@ Select a category:`), k.of(catBtns))
     if (message === t.domainActionDns) {
       // Check if domain has an active hosting plan
       const domain = info?.domainToManage
-      if (!domain) return send(chatId, t.noDomainSelected || 'No domain selected.')
+      if (!domain) return send(chatId, trans('t.noDomainSelected'))
       
       const hostingPlan = await cpanelAccounts.findOne({ domain: domain })
       
@@ -25621,7 +25620,7 @@ Select a category:`), k.of(catBtns))
       // Activate shortener directly — domain is already selected
       await set(state, chatId, 'action', 'choose-dns-action')
       const domain = info?.domainToManage
-      if (!domain) return send(chatId, t.noDomainSelected || 'No domain selected.')
+      if (!domain) return send(chatId, trans('t.noDomainSelected'))
       send(chatId, ({ en: `🔗 Activating shortener for <b>${domain}</b>…`, fr: `🔗 Activation du raccourcisseur pour <b>${domain}</b>…`, zh: `🔗 正在为 <b>${domain}</b> 激活短链接…`, hi: `🔗 <b>${domain}</b> के लिए शॉर्टनर सक्रिय कर रहे हैं…` }[lang] || `🔗 Activating shortener for <b>${domain}</b>…`), { parse_mode: 'HTML' })
       try {
         // ── Check for hosting plan conflict ──
@@ -25678,7 +25677,7 @@ Select a category:`), k.of(catBtns))
       // Deactivate shortener directly — domain is already selected
       await set(state, chatId, 'action', 'choose-dns-action')
       const domain = info?.domainToManage
-      if (!domain) return send(chatId, t.noDomainSelected || 'No domain selected.')
+      if (!domain) return send(chatId, trans('t.noDomainSelected'))
       send(chatId, ({ en: `🔗 Deactivating shortener for <b>${domain}</b>...`, fr: `🔗 Désactivation du raccourcisseur pour <b>${domain}</b>...`, zh: `🔗 正在为 <b>${domain}</b> 停用短链接...`, hi: `🔗 <b>${domain}</b> के लिए शॉर्टनर निष्क्रिय कर रहे हैं...` }[lang] || `🔗 Deactivating shortener for <b>${domain}</b>...`), { parse_mode: 'HTML' })
       try {
         const { removeDomainFromRailway } = require('./rl-save-domain-in-server.js')
@@ -25703,7 +25702,7 @@ Select a category:`), k.of(catBtns))
     //       Kept as defensive code for stale states. Primary path is in `viewHostingPlan` action above.
     if (message === t.domainActionAntiRed) {
       const domain = info?.domainToManage
-      if (!domain) return send(chatId, t.noDomainSelected || 'No domain selected.')
+      if (!domain) return send(chatId, trans('t.noDomainSelected'))
       const goldPrice = Number(process.env.GOLDEN_ANTIRED_CPANEL_PRICE || 100)
       // Check if domain has a hosting plan (cpanelAccount) — main domain OR addon domain
       const hasHostingMain = await db.collection('cpanelAccounts').findOne({ chatId: String(chatId), domain: { $regex: new RegExp('^' + domain.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') } })
@@ -25732,7 +25731,7 @@ Select a category:`), k.of(catBtns))
       }
       return
     }
-    return send(chatId, t.selectValidOption || 'Please select a valid option.')
+    return send(chatId, trans('t.selectValidOption'))
   }
   if (action === 'anti-red-toggle') {
     if (isBackPress(message)) {
@@ -25743,7 +25742,7 @@ Select a category:`), k.of(catBtns))
       }
       // Otherwise, go back to domain actions
       const domain = info?.domainToManage
-      if (!domain) return send(chatId, t.noDomainSelected || 'No domain selected.')
+      if (!domain) return send(chatId, trans('t.noDomainSelected'))
       const dnsResult = await domainService.viewDNSRecords(domain, db)
       const records = dnsResult?.records || []
       const shortenerActive = records.some(r =>
@@ -25758,7 +25757,7 @@ Select a category:`), k.of(catBtns))
     }
     if (message === t.antiRedTurnOn) {
       const domain = info?.domainToManage
-      if (!domain) return send(chatId, t.noDomainSelected || 'No domain selected.')
+      if (!domain) return send(chatId, trans('t.noDomainSelected'))
       send(chatId, t.antiRedTurningOn(domain), { parse_mode: 'HTML' })
       try {
         const domainDoc = await db.collection('registeredDomains').findOne({ _id: domain })
@@ -25791,7 +25790,7 @@ Select a category:`), k.of(catBtns))
     }
     if (message === t.antiRedTurnOff) {
       const domain = info?.domainToManage
-      if (!domain) return send(chatId, t.noDomainSelected || 'No domain selected.')
+      if (!domain) return send(chatId, trans('t.noDomainSelected'))
       send(chatId, t.antiRedTurningOff(domain), { parse_mode: 'HTML' })
       try {
         const domainDoc = await db.collection('registeredDomains').findOne({ _id: domain })
@@ -25820,7 +25819,7 @@ Select a category:`), k.of(catBtns))
         return send(chatId, t.antiRedError)
       }
     }
-    return send(chatId, t.selectValidOption || 'Please select a valid option.')
+    return send(chatId, trans('t.selectValidOption'))
   }
   
   // DNS Management Confirmation for Hosting Domains
@@ -25848,7 +25847,7 @@ Select a category:`), k.of(catBtns))
       const shortenerBtnReturn = shortenerActive2 ? t.domainActionDeactivateShortener : t.domainActionShortener
       menuButtons.push([shortenerBtnReturn], ['↩️ Back'])
       
-      return send(chatId, t.domainActionsMenu || `<b>Actions for ${domain}</b>\n\nSelect an option:`, 
+      return send(chatId, trans('t.domainActionsMenu'), 
         k.of(menuButtons), { parse_mode: 'HTML' })
     }
     return send(chatId, ({ en: 'Please select "Proceed Anyway" or "Cancel".', fr: 'Veuillez sélectionner "Continuer quand même" ou "Annuler".', zh: '请选择仍然继续或取消。', hi: 'कृपया "फिर भी जारी रखें" या "रद्द करें" चुनें।' }[lang] || 'Please select "Proceed Anyway" or "Cancel".' ), {
@@ -26052,7 +26051,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
 
   // ── SIM rename state handler ──
   if (action === 'smsapp_rename_sim') {
-    if (message === (t.cancel || 'Cancel') || isBackPress(message)) {
+    if (message === (trans('t.cancel')) || isBackPress(message)) {
       await set(state, chatId, 'action', null)
       return send(chatId, 'Rename cancelled.', trans('o'))
     }
@@ -26739,7 +26738,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
     send(TELEGRAM_ADMIN_CHAT_ID, `⚠️ <b>Continued support message</b>\n👤 <b>${displayName}</b> (${chatId}):\n${message}\n\n${_fbAdminTakeover ? '🔒 <i>Admin takeover active</i>' : '🤖 <i>AI will auto-respond</i>'}\n\n↩️ /reply ${chatId} <i>type response</i>`, { parse_mode: 'HTML' })
     
     if (_fbAdminTakeover) {
-      send(chatId, t.supportMsgReceived || '✉️ Message received! A support agent will respond shortly.', { reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
+      send(chatId, trans('t.supportMsgReceived'), { reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
     } else if (isAiEnabled()) {
       try {
         const { response: aiResponse, escalate, error } = await getAiResponse(chatId, message, lang)
@@ -26760,7 +26759,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
           send(TELEGRAM_ADMIN_CHAT_ID, `🤖 <b>AI replied to ${displayName}</b> (${chatId}):\n<i>${safeHtml.substring(0, 500)}${safeHtml.length > 500 ? '...' : ''}</i>${escalateTag}`, { parse_mode: 'HTML' })
           log(`[Support] Fallback AI -> ${chatId}: ${aiResponse.substring(0, 100)}... (escalate: ${escalate})`)
         } else {
-          send(chatId, t.supportMsgReceived || '✉️ Message received! A support agent will respond shortly.', { reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
+          send(chatId, trans('t.supportMsgReceived'), { reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
           send(TELEGRAM_ADMIN_CHAT_ID, `⚠️ <b>AI failed for ${displayName}</b> (${chatId}) — needs manual reply\nError: ${error || 'unknown'}`, { parse_mode: 'HTML' })
         }
       } catch (e) {
