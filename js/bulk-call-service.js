@@ -34,7 +34,7 @@ const callToCampaign = {}
 /**
  * Initialize bulk call service
  */
-async function initBulkCallService(db, bot, twilioService, walletOf) {
+async function initBulkCallService(db, bot, twilioService, walletOf, app) {
   _db = db
   _bot = bot
   _twilioService = twilioService
@@ -47,9 +47,190 @@ async function initBulkCallService(db, bot, twilioService, walletOf) {
   await _collection.createIndex({ status: 1 })
   log('[BulkCall] Service initialized (Speechcue mode)')
 
+  // Register Twilio webhook routes ONLY after init is complete — prevents
+  // race where status callbacks land before _collection is bound.
+  if (app && !_routesRegistered) {
+    registerRoutes(app)
+    _routesRegistered = true
+    log('[BulkCall] Twilio webhook routes registered')
+  }
+
   // ━━━ CAMPAIGN RECOVERY: Resume campaigns that were running before deployment ━━━
   // Delay recovery to let all services fully initialize (Twilio, webhooks, etc.)
   setTimeout(() => recoverRunningCampaigns().catch(e => log(`[BulkCall] Recovery error: ${e.message}`)), 15000)
+}
+
+function isReady() {
+  return _collection != null
+}
+
+let _routesRegistered = false
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Twilio Webhook Routes — registered AFTER initBulkCallService completes
+// so we never serve a request while _collection is still null.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function registerRoutes(app) {
+  const VoiceResponse = require('twilio').twiml.VoiceResponse
+
+  // TwiML for the outbound call — plays the campaign audio + gathers DTMF
+  app.post('/twilio/bulk-ivr', async (req, res) => {
+    try {
+      const { campaignId, leadIndex } = req.query
+      const response = new VoiceResponse()
+
+      if (!campaignId) {
+        response.say('Configuration error. Goodbye.')
+        response.hangup()
+        return res.type('text/xml').send(response.toString())
+      }
+
+      const campaign = await getCampaign(campaignId)
+      if (!campaign || campaign.status === 'cancelled') {
+        response.say('This campaign has been cancelled. Goodbye.')
+        response.hangup()
+        return res.type('text/xml').send(response.toString())
+      }
+
+      const selfUrl = process.env.SELF_URL_PROD || process.env.SELF_URL || ''
+      const gatherActionUrl = `${selfUrl}/twilio/bulk-ivr-gather?campaignId=${encodeURIComponent(campaignId)}&leadIndex=${leadIndex}`
+
+      // Use audio proxy to serve with correct Content-Type for Twilio
+      // Guard: only build proxy URL if campaign has a valid http(s) audioUrl
+      const rawAudioUrl = campaign.audioUrl
+      const audioUrl = (rawAudioUrl && /^https?:\/\//i.test(rawAudioUrl))
+        ? `${selfUrl}/twilio/audio-proxy?url=${encodeURIComponent(rawAudioUrl)}`
+        : null
+
+      // Gather DTMF while playing audio (2s pause lets recipient put phone to ear)
+      const gather = response.gather({
+        action: gatherActionUrl,
+        method: 'POST',
+        numDigits: 1,
+        timeout: 8,
+        finishOnKey: '',
+      })
+      gather.pause({ length: 2 })
+      if (audioUrl) {
+        gather.play(audioUrl)
+      } else {
+        log(`[BulkIVR] ⚠️ No valid audioUrl for campaign=${campaignId}, using TTS fallback | raw=${(rawAudioUrl || 'null').substring(0, 80)}`)
+        gather.say('Thank you for your time. Press 1 to continue.')
+      }
+
+      // No input — try once more
+      const gather2 = response.gather({
+        action: gatherActionUrl,
+        method: 'POST',
+        numDigits: 1,
+        timeout: 5,
+        finishOnKey: '',
+      })
+      if (audioUrl) {
+        gather2.play(audioUrl)
+      } else {
+        gather2.say('Press 1 to continue or hang up.')
+      }
+
+      // Still no input — hang up
+      response.say('No input received. Goodbye.')
+      response.hangup()
+
+      log(`[BulkIVR] TwiML served for campaign=${campaignId} lead=${leadIndex}`)
+      res.type('text/xml').send(response.toString())
+    } catch (error) {
+      log('[BulkIVR] TwiML error:', error.message)
+      const response = new VoiceResponse()
+      response.say('An error occurred. Goodbye.')
+      response.hangup()
+      res.type('text/xml').send(response.toString())
+    }
+  })
+
+  // TwiML: Gather callback — handle DTMF input
+  app.post('/twilio/bulk-ivr-gather', async (req, res) => {
+    try {
+      const { campaignId, leadIndex } = req.query
+      const digits = req.body?.Digits || ''
+      const response = new VoiceResponse()
+
+      log(`[BulkIVR] Gather: campaign=${campaignId} lead=${leadIndex} digits=${digits}`)
+
+      const campaign = await getCampaign(campaignId)
+      if (!campaign) {
+        response.say('Goodbye.')
+        response.hangup()
+        return res.type('text/xml').send(response.toString())
+      }
+
+      // Record the digit pressed
+      if (digits) {
+        await onDigitReceived(campaignId, parseInt(leadIndex), digits)
+      }
+
+      // Check if it's an active key (e.g., "1")
+      if (digits && campaign.activeKeys.includes(digits)) {
+        if (campaign.mode === 'transfer' && campaign.transferNumber) {
+          // Transfer mode — bridge to the transfer number
+          response.say('Please hold while we connect you.')
+          const dial = response.dial({
+            callerId: campaign.callerId,
+            timeout: 30,
+          })
+          dial.number(campaign.transferNumber)
+          log(`[BulkIVR] Transferring lead=${leadIndex} to ${campaign.transferNumber}`)
+        } else {
+          // Report only — acknowledge and hang up
+          response.say('Thank you. Goodbye.')
+          response.hangup()
+          log(`[BulkIVR] Report-only: lead=${leadIndex} pressed ${digits}`)
+        }
+      } else {
+        // Invalid key or no key
+        response.say('Invalid input. Goodbye.')
+        response.hangup()
+      }
+
+      res.type('text/xml').send(response.toString())
+    } catch (error) {
+      log('[BulkIVR] Gather error:', error.message)
+      const response = new VoiceResponse()
+      response.say('An error occurred. Goodbye.')
+      response.hangup()
+      res.type('text/xml').send(response.toString())
+    }
+  })
+
+  // Twilio Bulk Call Status Callback — tracks call completion
+  app.post('/twilio/bulk-status', async (req, res) => {
+    try {
+      const { campaignId, leadIndex } = req.query
+      const { CallSid, CallStatus, CallDuration, SipResponseCode } = req.body || {}
+      const duration = parseInt(CallDuration || '0')
+
+      log(`[BulkIVR] Status: campaign=${campaignId} lead=${leadIndex} sid=${CallSid} status=${CallStatus} duration=${duration}s`)
+
+      if (campaignId && leadIndex != null) {
+        const hangupCause = CallStatus === 'failed' ? (SipResponseCode || 'call_failed')
+          : CallStatus === 'canceled' ? 'cancelled'
+          : null
+
+        await onCallStatusUpdate(
+          CallSid,
+          campaignId,
+          parseInt(leadIndex),
+          CallStatus,
+          duration,
+          hangupCause
+        )
+      }
+
+      res.sendStatus(200)
+    } catch (error) {
+      log('[BulkIVR] Status error:', error.message)
+      res.sendStatus(200)
+    }
+  })
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -983,6 +1164,8 @@ function getCampaignMapping(callSid) {
 
 module.exports = {
   initBulkCallService,
+  isReady,
+  registerRoutes,
   recoverRunningCampaigns,
   parseLeadsFile,
   createCampaign,
