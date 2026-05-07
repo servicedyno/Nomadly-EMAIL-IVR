@@ -6,6 +6,47 @@
 - Node.js Express (port 5000) - core business logic
 - MongoDB (port 27017)
 
+## ✅ React HostPanel i18n hardening — File Manager toolbar/bulk-bar (Feb 2026)
+
+### Ask
+After the bot-side `t.<key> || 'inline English'` sweep, lift the same hygiene over to the React HostPanel — surface English-only strings inside React components and route them through the existing `react-i18next` setup so non-English customers get a fully translated panel.
+
+### Investigation
+- HostPanel already runs `react-i18next` with all 4 locales (`en/fr/zh/hi`) at full parity (468 keys before this change).
+- 14/71 React component files already use `useTranslation()`. The other ~38 are shadcn/ui primitives (no copy) — leave alone. The remaining ~13 are real components.
+- Daily-use customer surfaces audited: **FileManager toolbar** + **FileManager bulk-action bar** + **EmailManager bulk-action bar** all had hardcoded English (`'Up'`, `'+ Folder'`, `'Upload Files'`, `'Uploading…'`, `'Search files…'`, `'Move…'`, `'Delete'`, `'Clear'`, `'selected'`).
+- Marketing-site components (`URLShortenerDomainJourney.js`, `CloudPhoneJourney.js`, `PhoneTestPage.js`) are intentionally English-only (marketing/admin audience) — not in scope.
+
+### Fix
+- Added 19 new keys to all 4 locales:
+  - `fm.toolbar.{searchPlaceholder, searchAria, up, upTitle, newFolder, uploadFolder, uploadFolderTitle, uploadFiles, uploading}` (9 keys)
+  - `fm.bulk.{selected, move, moveTitle, delete, deleteTitle, clear, clearTitle}` (7 keys)
+  - `common.{clear, clearSelection, working}` (3 keys for any future shared bulk-bar consumer)
+- Refactored `components/panel/file-manager/Toolbar.jsx` and `BulkBar.jsx` to import `useTranslation()` and route every label/title/placeholder through `t('...')`.
+- Extended `components/panel/shared/PanelBulkBar.jsx` with new `clearLabel` + `clearTitle` props (default: English), so consumers control i18n via props (the shared primitive stays pure).
+- Fixed `components/panel/EmailManager.js` to also pass `clearLabel={t('common.clear')}` + `clearTitle={t('common.clearSelection')}` so its own bulk bar honors locale.
+
+### Tests — 101/101 pass (`js/tests/test_panel_i18n_sweep.js`)
+- Locale parity: all 4 locales have identical 487-key set (was 468; +19)
+- All 19 new keys resolve with non-empty string in all 4 locales (76 runtime checks)
+- Toolbar.jsx imports useTranslation, calls 9 translated keys, has zero hardcoded English literals for the swept labels
+- BulkBar.jsx imports useTranslation, calls 4 translated keys, zero hardcoded English
+- PanelBulkBar.jsx accepts the new clearLabel/clearTitle props and renders them
+- EmailManager.js passes clearLabel + clearTitle through to PanelBulkBar
+
+### Files changed
+- `frontend/src/locales/{en,fr,zh,hi}.json` — 19 new keys per locale
+- `frontend/src/components/panel/file-manager/Toolbar.jsx` — useTranslation + 9 t() calls
+- `frontend/src/components/panel/file-manager/BulkBar.jsx` — useTranslation + 6 t() calls
+- `frontend/src/components/panel/shared/PanelBulkBar.jsx` — new clearLabel/clearTitle props
+- `frontend/src/components/panel/EmailManager.js` — passes new props
+- NEW: `js/tests/test_panel_i18n_sweep.js` (101 assertions)
+
+### Verification
+- All prior regression suites still pass: 694 total assertions across 8 suites.
+- Webpack compiled successfully, no eslint errors.
+- Frontend dashboard renders cleanly via Playwright screenshot.
+
 ## ✅ Dead-fallback sweep across _index.js — bot-wide i18n hardening (Feb 2026)
 
 ### Ask

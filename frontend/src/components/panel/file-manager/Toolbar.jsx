@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import PanelToolbar from '../shared/PanelToolbar';
 
 /**
@@ -43,6 +44,7 @@ export default function Toolbar({
   folderInputRef,
   onUpload,
 }) {
+  const { t } = useTranslation();
   const breadcrumbSlot = (
     <div className="fm-breadcrumb">
       <button onClick={() => onCrumbClick(`/home/${homeUsername}`)} className="fm-bread-item">/home</button>
@@ -66,38 +68,38 @@ export default function Toolbar({
       search={{
         value: search,
         onChange: onSearchChange,
-        placeholder: 'Search files…',
+        placeholder: t('fm.toolbar.searchPlaceholder'),
         shortcutHint: SearchIconSlash,
         inputRef: searchRef,
         testid: 'fm-search-input',
-        ariaLabel: 'Search files in current folder',
+        ariaLabel: t('fm.toolbar.searchAria'),
       }}
       actions={[
         {
           key: 'up',
-          label: 'Up',
+          label: t('fm.toolbar.up'),
           icon: SvgUp,
           variant: 'ghost',
           onClick: onGoUp,
           testid: 'fm-go-up',
-          title: 'Go up',
+          title: t('fm.toolbar.upTitle'),
         },
         {
           key: 'new-dir',
-          label: '+ Folder',
+          label: t('fm.toolbar.newFolder'),
           variant: 'ghost',
           onClick: onToggleNewDir,
           testid: 'fm-new-dir-btn',
         },
         {
           key: 'upload-folder',
-          label: 'Upload Folder',
+          label: t('fm.toolbar.uploadFolder'),
           icon: SvgFolder,
           variant: 'ghost',
           onClick: onUpload,
           loading: uploading,
-          loadingLabel: 'Uploading…',
-          title: 'Upload an entire folder (preserves structure)',
+          loadingLabel: t('fm.toolbar.uploading'),
+          title: t('fm.toolbar.uploadFolderTitle'),
           fileInput: true,
           fileInputProps: {
             ref: folderInputRef,
@@ -110,12 +112,12 @@ export default function Toolbar({
         },
         {
           key: 'upload-files',
-          label: 'Upload Files',
+          label: t('fm.toolbar.uploadFiles'),
           icon: SvgUpload,
           variant: 'primary',
           onClick: onUpload,
           loading: uploading,
-          loadingLabel: 'Uploading...',
+          loadingLabel: t('fm.toolbar.uploading'),
           fileInput: true,
           fileInputProps: {
             ref: fileInputRef,

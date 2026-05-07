@@ -27,7 +27,10 @@
     "submit": "提交",
     "refresh": "刷新",
     "settings": "设置",
-    "language": "语言"
+    "language": "语言",
+    "clear": "清除",
+    "clearSelection": "清除选择",
+    "working": "处理中…"
   },
   "login": {
     "title": "登录到您的主机面板",
@@ -273,6 +276,26 @@
       "nextTitle": "下一张 (→)",
       "navHint": "← / → 导航",
       "openInTab": "在新标签中打开"
+    },
+    "toolbar": {
+      "searchPlaceholder": "搜索文件…",
+      "searchAria": "在当前文件夹中搜索文件",
+      "up": "上级",
+      "upTitle": "返回上级",
+      "newFolder": "+ 文件夹",
+      "uploadFolder": "上传文件夹",
+      "uploadFolderTitle": "上传整个文件夹（保留结构）",
+      "uploadFiles": "上传文件",
+      "uploading": "上传中…"
+    },
+    "bulk": {
+      "selected": "已选",
+      "move": "移动…",
+      "moveTitle": "移动所选项目",
+      "delete": "删除",
+      "deleteTitle": "删除所选项目",
+      "clear": "清除",
+      "clearTitle": "清除选择"
     }
   },
   "em": {

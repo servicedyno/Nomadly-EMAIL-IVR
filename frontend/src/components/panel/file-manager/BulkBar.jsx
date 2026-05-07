@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import PanelBulkBar from '../shared/PanelBulkBar';
 
 /**
@@ -22,10 +23,13 @@ const SvgTrash = (
 );
 
 export default function BulkBar({ count, onMove, onDelete, onClear }) {
+  const { t } = useTranslation();
   return (
     <PanelBulkBar
       count={count}
-      label="selected"
+      label={t('fm.bulk.selected')}
+      clearLabel={t('fm.bulk.clear')}
+      clearTitle={t('fm.bulk.clearTitle')}
       testid="fm-bulk-bar"
       countTestid="fm-bulk-count"
       clearTestid="fm-bulk-clear"
@@ -33,20 +37,20 @@ export default function BulkBar({ count, onMove, onDelete, onClear }) {
       actions={[
         {
           key: 'move',
-          label: 'Move…',
+          label: t('fm.bulk.move'),
           icon: SvgMove,
           onClick: onMove,
           testid: 'fm-bulk-move',
-          title: 'Move selected items',
+          title: t('fm.bulk.moveTitle'),
         },
         {
           key: 'delete',
-          label: 'Delete',
+          label: t('fm.bulk.delete'),
           icon: SvgTrash,
           variant: 'danger',
           onClick: onDelete,
           testid: 'fm-bulk-delete',
-          title: 'Delete selected items',
+          title: t('fm.bulk.deleteTitle'),
         },
       ]}
     />

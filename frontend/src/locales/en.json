@@ -27,7 +27,10 @@
     "submit": "Submit",
     "refresh": "Refresh",
     "settings": "Settings",
-    "language": "Language"
+    "language": "Language",
+    "clear": "Clear",
+    "clearSelection": "Clear selection",
+    "working": "Working…"
   },
   "login": {
     "title": "Sign in to your hosting panel",
@@ -189,6 +192,26 @@
       "nextTitle": "Next (→)",
       "navHint": "← / → to navigate",
       "openInTab": "Open in tab"
+    },
+    "toolbar": {
+      "searchPlaceholder": "Search files…",
+      "searchAria": "Search files in current folder",
+      "up": "Up",
+      "upTitle": "Go up",
+      "newFolder": "+ Folder",
+      "uploadFolder": "Upload Folder",
+      "uploadFolderTitle": "Upload an entire folder (preserves structure)",
+      "uploadFiles": "Upload Files",
+      "uploading": "Uploading…"
+    },
+    "bulk": {
+      "selected": "selected",
+      "move": "Move…",
+      "moveTitle": "Move selected items",
+      "delete": "Delete",
+      "deleteTitle": "Delete selected items",
+      "clear": "Clear",
+      "clearTitle": "Clear selection"
     }
   },
   "em": {
@@ -248,11 +271,26 @@
     "checking": "Checking...",
     "checkingStatus": "Checking security status...",
     "layers": {
-      "htaccessCloaking": { "label": ".htaccess IP Cloaking", "desc": "Blocks 35+ known scanner IP ranges at server level" },
-      "scannerUaBlocking": { "label": "Scanner UA Blocking", "desc": "Blocks 40+ scanner user-agents via .htaccess" },
-      "cfWafRules": { "label": "Cloudflare WAF Rules", "desc": "WAF rules blocking malicious crawlers at the edge" },
-      "cfWorker": { "label": "Cloudflare Worker", "desc": "Edge-level challenge injection & scanner blocking" },
-      "jsChallenge": { "label": "Visitor Captcha (JS Challenge)", "desc": "Per-domain bot challenge — Golden plan only. Manage per-domain in the Domains tab." }
+      "htaccessCloaking": {
+        "label": ".htaccess IP Cloaking",
+        "desc": "Blocks 35+ known scanner IP ranges at server level"
+      },
+      "scannerUaBlocking": {
+        "label": "Scanner UA Blocking",
+        "desc": "Blocks 40+ scanner user-agents via .htaccess"
+      },
+      "cfWafRules": {
+        "label": "Cloudflare WAF Rules",
+        "desc": "WAF rules blocking malicious crawlers at the edge"
+      },
+      "cfWorker": {
+        "label": "Cloudflare Worker",
+        "desc": "Edge-level challenge injection & scanner blocking"
+      },
+      "jsChallenge": {
+        "label": "Visitor Captcha (JS Challenge)",
+        "desc": "Per-domain bot challenge — Golden plan only. Manage per-domain in the Domains tab."
+      }
     },
     "captchaGoldOnlyError": "Visitor Captcha is exclusive to Golden Anti-Red HostPanel plans. Upgrade your plan to enable it.",
     "captchaDisableWarning": "Warning: Disabling Visitor Captcha significantly reduces your protection against automated scanners and bots. We strongly recommend keeping it enabled for maximum security.\n\nAre you sure you want to disable it?",

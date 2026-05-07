@@ -283,6 +283,8 @@ export default function EmailManager() {
       <PanelBulkBar
         count={selected.size}
         label={t(selected.size === 1 ? 'em.bulkLabel_one' : 'em.bulkLabel_other')}
+        clearLabel={t('common.clear')}
+        clearTitle={t('common.clearSelection')}
         testid="em-bulk-bar"
         countTestid="em-bulk-count"
         clearTestid="em-bulk-clear"

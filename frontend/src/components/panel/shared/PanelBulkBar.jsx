@@ -21,6 +21,8 @@ export default function PanelBulkBar({
   label = 'selected',
   actions = [],
   onClear,
+  clearLabel = 'Clear',
+  clearTitle = 'Clear selection',
   testid,
   countTestid = 'panel-bulk-count',
   clearTestid = 'panel-bulk-clear',
@@ -52,9 +54,9 @@ export default function PanelBulkBar({
             onClick={onClear}
             className="panel-bulk-btn"
             data-testid={clearTestid}
-            title="Clear selection"
+            title={clearTitle}
           >
-            Clear
+            {clearLabel}
           </button>
         )}
       </div>

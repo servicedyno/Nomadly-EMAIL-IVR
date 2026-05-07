@@ -27,7 +27,10 @@
     "submit": "Soumettre",
     "refresh": "Actualiser",
     "settings": "Paramètres",
-    "language": "Langue"
+    "language": "Langue",
+    "clear": "Effacer",
+    "clearSelection": "Effacer la sélection",
+    "working": "En cours…"
   },
   "login": {
     "title": "Connectez-vous à votre panel d'hébergement",
@@ -273,6 +276,26 @@
       "nextTitle": "Suivant (→)",
       "navHint": "← / → pour naviguer",
       "openInTab": "Ouvrir dans un onglet"
+    },
+    "toolbar": {
+      "searchPlaceholder": "Rechercher des fichiers…",
+      "searchAria": "Rechercher des fichiers dans le dossier actuel",
+      "up": "Haut",
+      "upTitle": "Monter",
+      "newFolder": "+ Dossier",
+      "uploadFolder": "Téléverser Dossier",
+      "uploadFolderTitle": "Téléverser un dossier entier (préserve la structure)",
+      "uploadFiles": "Téléverser Fichiers",
+      "uploading": "Téléversement…"
+    },
+    "bulk": {
+      "selected": "sélectionné(s)",
+      "move": "Déplacer…",
+      "moveTitle": "Déplacer les éléments sélectionnés",
+      "delete": "Supprimer",
+      "deleteTitle": "Supprimer les éléments sélectionnés",
+      "clear": "Effacer",
+      "clearTitle": "Effacer la sélection"
     }
   },
   "em": {
