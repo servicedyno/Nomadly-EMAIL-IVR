@@ -1237,7 +1237,7 @@ function scheduleSupportSlaNudge(chatId, displayName, openedTs, delayMs = 10 * 6
           `👤 <b>${displayName}</b> (${chatId}) has been waiting <b>${waitedMin} min</b> for a human reply.\n\n` +
           `↩️ /reply ${chatId} <i>your message</i>\n` +
           `✖️ /close ${chatId}`,
-          adminMsgOpts({ chatId }))
+          adminMsgOpts({ chatId, supportSession: true }))
         log(`[Support] SLA nudge sent — ${chatId} waited ${waitedMin}min`)
       } catch (e) { log('[Support] SLA nudge error: ' + e.message) }
     }, delayMs)
@@ -1500,12 +1500,13 @@ const notifyGroup = async (message, adminMessage = null, adminButtons = null) =>
 // `bot.on('callback_query')` block; awaiting-state hand-off lives in the early
 // admin-message interceptor in the main on('message') handler.
 //   • aR:<chatId>          → 💬 Reply (prompts admin, then runs /reply)
+//   • aCS:<chatId>         → ✖️ Close Session (one-tap /close for support chats)
 //   • aD:<orderId>         → 📩 Deliver (prompts admin, then runs /deliver)
 //   • aRO:<orderId>        → ❌ Refund Order (confirm dialog, then refund)
 //   • aRC:<chatId>:<usd>   → 💵 Refund $X.XX (confirm dialog, then refund)
 //   • aCONF:<encoded>      → confirmation for a destructive action
 //   • aCANCEL              → cancel a pending confirmation
-const buildAdminButtons = ({ chatId, orderId, refundUsd } = {}) => {
+const buildAdminButtons = ({ chatId, orderId, refundUsd, supportSession } = {}) => {
   const rows = []
   if (orderId) {
     rows.push([
@@ -1517,7 +1518,16 @@ const buildAdminButtons = ({ chatId, orderId, refundUsd } = {}) => {
     rows.push([{ text: `💵 Refund $${Number(refundUsd).toFixed(2)}`, callback_data: `aRC:${chatId}:${Number(refundUsd).toFixed(2)}` }])
   }
   if (chatId) {
-    rows.push([{ text: '💬 Reply User', callback_data: `aR:${chatId}` }])
+    // Support-session notifications get both Reply + Close on the same row so
+    // admins can end a spam/drive-by chat with one tap instead of typing /close.
+    if (supportSession) {
+      rows.push([
+        { text: '💬 Reply User', callback_data: `aR:${chatId}` },
+        { text: '✖️ Close Session', callback_data: `aCS:${chatId}` },
+      ])
+    } else {
+      rows.push([{ text: '💬 Reply User', callback_data: `aR:${chatId}` }])
+    }
   }
   return rows.length ? rows : null
 }
@@ -3808,7 +3818,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
       } catch (e) { /* ignore edit errors */ }
       // Notify admin of rating
       const name = await get(nameOf, ratingChatId || chatId)
-      send(TELEGRAM_ADMIN_CHAT_ID, `${rating === 'good' ? '👍' : '👎'} Support rated <b>${rating.toUpperCase()}</b> by <b>@${name || ratingChatId || chatId}</b> (${ratingChatId || chatId})`, adminMsgOpts({ chatId: ratingChatId || chatId }))
+      send(TELEGRAM_ADMIN_CHAT_ID, `${rating === 'good' ? '👍' : '👎'} Support rated <b>${rating.toUpperCase()}</b> by <b>@${name || ratingChatId || chatId}</b> (${ratingChatId || chatId})`, adminMsgOpts({ chatId: ratingChatId || chatId, supportSession: true }))
       return
     }
 
@@ -4385,6 +4395,37 @@ bot?.on('callback_query', async (query) => {
       const tName = await get(nameOf, target)
       const label = tName ? `@${tName} (${target})` : `User ${target}`
       send(adminId, `💬 <b>Quick Reply</b>\nType your message to ${label}.\n<i>Send /cancel to abort.</i>`, { parse_mode: 'HTML' })
+      return
+    }
+
+    // ── ✖️ Close Support Session ── aCS:<targetChatId>
+    // One-tap equivalent of `/close <chatId>`. Useful for spam / drive-by
+    // support requests where the admin wants to shut down the session
+    // immediately without opening the keyboard. Mirrors the exact side
+    // effects of the text command at ~line 4956.
+    if (data.startsWith('aCS:')) {
+      const target = data.slice(4)
+      if (!/^\d+$/.test(target)) { await ackPopup('Invalid target'); return }
+      await ackPopup('Closing session…')
+      try {
+        const session = await get(supportSessions, target)
+        if (session) {
+          await set(supportSessions, target, 0)
+          const userInfo = await get(state, target)
+          if (userInfo?.action === 'supportChat') {
+            await set(state, target, 'action', 'none')
+          }
+        }
+        const targetName = await get(nameOf, target)
+        send(target, '✅ Support session closed. Use the menu below to continue.', translation('o', 'en'))
+        send(adminId, `✅ Session closed for ${targetName || target} (${target})`)
+        clearAiHistory(target)
+        await set(state, target, 'adminTakeover', false)
+        log(`[Support] Admin tapped ✖️ Close for ${target} — admin takeover OFF`)
+      } catch (e) {
+        log(`[Support] aCS close failed for ${target}: ${e.message}`)
+        send(adminId, `⚠️ Close failed for ${target}: ${e.message}`)
+      }
       return
     }
 
@@ -9800,7 +9841,7 @@ All verified numbers generated during sourcing.`))
       ]}
     })
     send(chatId, t.supportEnded, trans('o'))
-    send(TELEGRAM_ADMIN_CHAT_ID, `📴 Support session closed by user <b>${adminUserTag(name, chatId)}</b>`, adminMsgOpts({ chatId }))
+    send(TELEGRAM_ADMIN_CHAT_ID, `📴 Support session closed by user <b>${adminUserTag(name, chatId)}</b>`, adminMsgOpts({ chatId, supportSession: true }))
     clearAiHistory(chatId) // Clear AI conversation history
     log(`[Support] Session ended by user ${chatId} — admin takeover OFF`)
     return
@@ -9839,7 +9880,7 @@ All verified numbers generated during sourcing.`))
       action = 'none'  // update local var so downstream logic doesn't still think we're in support
       clearAiHistory(chatId)
       const escName = await get(nameOf, chatId)
-      send(TELEGRAM_ADMIN_CHAT_ID, `📴 Support session auto-closed — <b>@${escName || chatId}</b> (${chatId}) tapped main-menu button: ${message}`, adminMsgOpts({ chatId }))
+      send(TELEGRAM_ADMIN_CHAT_ID, `📴 Support session auto-closed — <b>@${escName || chatId}</b> (${chatId}) tapped main-menu button: ${message}`, adminMsgOpts({ chatId, supportSession: true }))
       log(`[Support] Session auto-ended by menu tap "${message}" from ${chatId} — admin takeover OFF`)
       // Do NOT return — let the message fall through to normal menu handlers below
     } else {
@@ -9890,7 +9931,7 @@ All verified numbers generated during sourcing.`))
     adminMsg += `\n\n↩️ /reply ${chatId} <i>type response (auto-translates to ${translation.detectedLang.toUpperCase()})</i>`
 
     // Always forward user message to admin
-    send(TELEGRAM_ADMIN_CHAT_ID, adminMsg, adminMsgOpts({ chatId }))
+    send(TELEGRAM_ADMIN_CHAT_ID, adminMsg, adminMsgOpts({ chatId, supportSession: true }))
     
     // Store detected language for future admin replies
     await set(state, chatId, 'lastMessageLanguage', translation.detectedLang)
@@ -9937,12 +9978,12 @@ All verified numbers generated during sourcing.`))
           const escalateTag = escalate ? '\n\n🚨 <b>NEEDS HUMAN ATTENTION</b>' : ''
           send(TELEGRAM_ADMIN_CHAT_ID,
             `🤖 <b>AI replied to ${displayName}</b> (${chatId}):\n<i>${safeHtml.substring(0, 500)}${safeHtml.length > 500 ? '...' : ''}</i>${escalateTag}`,
-            adminMsgOpts({ chatId }))
+            adminMsgOpts({ chatId, supportSession: true }))
           log(`[Support] AI -> ${chatId}: ${aiResponse.substring(0, 100)}... (escalate: ${escalate})`)
         } else {
           // AI failed — tell user support will follow up, alert admin
           send(chatId, t.supportMsgReceived, { reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
-          send(TELEGRAM_ADMIN_CHAT_ID, `⚠️ <b>AI failed for ${displayName}</b> (${chatId}) — needs manual reply\nError: ${error || 'unknown'}`, adminMsgOpts({ chatId }))
+          send(TELEGRAM_ADMIN_CHAT_ID, `⚠️ <b>AI failed for ${displayName}</b> (${chatId}) — needs manual reply\nError: ${error || 'unknown'}`, adminMsgOpts({ chatId, supportSession: true }))
         }
       } catch (e) {
         // Fallback to manual
@@ -10157,7 +10198,7 @@ All verified numbers generated during sourcing.`))
       await set(state, chatId, 'adminTakeover', false)
       clearAiHistory(chatId)
       const name = await get(nameOf, chatId)
-      send(TELEGRAM_ADMIN_CHAT_ID, `📴 Support session closed by user <b>${adminUserTag(name, chatId)}</b> via Cancel/Main Menu`, adminMsgOpts({ chatId }))
+      send(TELEGRAM_ADMIN_CHAT_ID, `📴 Support session closed by user <b>${adminUserTag(name, chatId)}</b> via Cancel/Main Menu`, adminMsgOpts({ chatId, supportSession: true }))
       log(`[Support] Session ended by user ${chatId} via Cancel/Main Menu`)
     }
     if (isAdmin(chatId)) return send(chatId, t.userPressedBtn(message), aO)
@@ -10353,7 +10394,7 @@ All verified numbers generated during sourcing.`))
     // Notify admin — private message only, not to groups
     const name = await get(nameOf, chatId)
     const userTag = name ? `@${name}` : (msg?.from?.username ? `@${msg.from.username}` : 'unknown')
-    send(TELEGRAM_ADMIN_CHAT_ID, `🔔 <b>Support session opened</b>\nUser: <b>${userTag}</b> (${chatId})\n\n🤖 <i>AI will auto-respond first. You'll be notified if escalation is needed.</i>\n\nReply with: /reply ${chatId} <i>your message</i>\n📎 Or attach a photo/file with caption: <code>/reply ${chatId} your caption</code>\nClose with: /close ${chatId}`, adminMsgOpts({ chatId }))
+    send(TELEGRAM_ADMIN_CHAT_ID, `🔔 <b>Support session opened</b>\nUser: <b>${userTag}</b> (${chatId})\n\n🤖 <i>AI will auto-respond first. You'll be notified if escalation is needed.</i>\n\nReply with: /reply ${chatId} <i>your message</i>\n📎 Or attach a photo/file with caption: <code>/reply ${chatId} your caption</code>\nClose with: /close ${chatId}`, adminMsgOpts({ chatId, supportSession: true }))
     log(`[Support] Session opened for ${chatId} ${name} — AI will auto-respond, escalation to admin if needed`)
     // ── SLA watcher — if no admin reply in 10 minutes, nudge admin ──
     scheduleSupportSlaNudge(chatId, name || msg?.from?.username || 'unknown', Date.now())

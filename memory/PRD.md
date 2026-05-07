@@ -6,6 +6,38 @@
 - Node.js Express (port 5000) - core business logic
 - MongoDB (port 27017)
 
+## ✅ One-tap ✖️ Close Session button (May 7, 2026)
+
+### Ask
+After adding 💬 Reply User buttons to all support notifications earlier, user asked for a complementary one-tap **✖️ Close Session** button so spam / drive-by support requests can be ended without typing `/close <chatId>`.
+
+### Implementation
+1. `buildAdminButtons` now accepts `{ supportSession: true }`. When set, it emits a two-button row `[💬 Reply User | ✖️ Close Session]` instead of the single Reply button.
+2. New callback handler `aCS:<chatId>`:
+   - Admin-gated (same `/^a[A-Z]/` regex as existing handlers)
+   - Numeric target validation (prevents injection)
+   - `ackPopup` called BEFORE Mongo writes (same timeout-hardening as the aR: fix)
+   - Replicates exactly the side-effects of the `/close <chatId>` text command:
+     - Clears `supportSessions` record
+     - Resets user's `state.action` from `supportChat` → `none`
+     - Clears `adminTakeover` flag
+     - Clears AI history
+     - Sends "✅ Support session closed" to user (English + main menu keyboard)
+     - Confirms closure back to admin
+3. All 9 support-admin notification sites pass `supportSession: true`:
+   - 👍/👎 rating, ⏰ SLA breach, forwarded user message, 🔔 session opened, 📴 session closed by user, 📴 auto-closed (main-menu tap), 📴 closed via Cancel, 🤖 AI reply, ⚠️ AI failed
+
+### Files
+- `js/_index.js` — new aCS: handler + supportSession flag + 9 call-site updates
+- `js/tests/test_admin_close_session_button.js` — 10/10 static regression tests
+
+### Verification
+- Both regression suites passing (10/10 new + 5/5 previous)
+- Node service restarted cleanly
+- Regex gate manually verified: `/^a[A-Z]/.test('aCS:123')` → true
+
+
+
 ## ✅ Reply button on all support-admin notifications (May 7, 2026)
 
 ### Report
