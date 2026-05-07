@@ -6,6 +6,25 @@
 - Node.js Express (port 5000) - core business logic
 - MongoDB (port 27017)
 
+## ℹ️ Language switcher — verified already shipped (Feb 2026)
+
+### Ask
+Suggested adding a language switcher to the panel header. Investigation found it was **already fully shipped** from a previous session.
+
+### Verified state
+- Component: `frontend/src/components/LanguageSwitcher.js` (66 LOC, shadcn DropdownMenu trigger)
+- Wired into `pages/PanelLogin.js` (pre-login) and `pages/PanelDashboard.js` line 61 (post-login header)
+- Uses `i18n.changeLanguage()` + persists to `localStorage('hp.lang')`
+- Suppresses auto-detect banner after manual pick (`hp.lang.bannerDismissed`)
+- All 4 `languageNames.*` keys present in en/fr/zh/hi
+- E2E verified via Playwright:
+  - Trigger renders with globe icon + current language label
+  - Dropdown shows all 4 options (English / Français / 中文 / हिन्दी) with current pick checkmarked
+  - Selecting French translates the entire login screen (heading, subtitle, form labels, button) and persists `hp.lang=fr` to localStorage
+
+### Outcome
+No code changes needed. Feature is live and working.
+
 ## ✅ React HostPanel i18n hardening — File Manager toolbar/bulk-bar (Feb 2026)
 
 ### Ask
