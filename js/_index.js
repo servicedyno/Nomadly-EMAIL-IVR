@@ -9878,14 +9878,64 @@ All verified numbers generated during sourcing.`))
     // in an admin-takeover session who taps e.g. "📱 Browse All Services"
     // or "🛡️🔥 Anti-Red Hosting" gets their button text forwarded to support
     // and the menu never opens — they have to manually type /done first.
+    //
+    // Production bug (2026-05-07, user 621432933 roninxman): AI replied to
+    // /support, then user tapped the AI's action keyboard button "🖥️ VPS/RDP".
+    // The bot treated the BUTTON LABEL as a new support text → AI replied AGAIN
+    // even though the user didn't type anything. Root causes:
+    //   1) Wrong user-dict keys here (`vpsRdp`, `vpsRdpExpanded`, `antiRedHosting`
+    //      do NOT exist in lang dicts — actual keys are `vpsPlans` and
+    //      `hostingDomainsRedirect`).
+    //   2) AI's `extractActionButtons` returns short labels (e.g. "🖥️ VPS/RDP")
+    //      that don't equal the menu label ("🖥️ VPS/RDP — Port 25 Open🛡️"),
+    //      so even with correct keys they wouldn't match.
+    // Fix: use correct keys + add the AI action-button label set + map AI labels
+    // back to the canonical menu label so the auto-escape also navigates.
     const menuEscapeLabels = new Set()
     // Top-level service menu buttons — known from user-translation dict
-    for (const key of ['cloudPhone','antiRedHosting','domainNames','digitalProducts','marketplace','vpsRdp','vpsRdpExpanded','emailValidation','emailBlast','virtualCard','wallet','referEarn','becomeReseller','getSupport','changeSetting','changeLanguage','shippingLabel','smsAppMain','freeTrialAvailable','serviceBundles','viewPlan','shortLink','urlShortener','leadsValidation','joinChannel','upgradePlan']) {
+    for (const key of ['cloudPhone','hostingDomainsRedirect','domainNames','digitalProducts','marketplace','vpsPlans','emailValidation','emailBlast','virtualCard','wallet','referEarn','becomeReseller','getSupport','changeSetting','changeLanguage','shippingLabel','smsAppMain','freeTrialAvailable','serviceBundles','viewPlan','shortLink','urlShortener','leadsValidation','joinChannel','upgradePlan']) {
       const v = user && user[key]
       if (typeof v === 'string' && v) menuEscapeLabels.add(v)
     }
     // "📱 Browse All Services" (all 4 langs — from onboardingButtons)
     for (const s of ['📱 Browse All Services','📱 Parcourir tous les services','📱 浏览所有服务','📱 सभी सेवाएं ब्राउज़ करें']) menuEscapeLabels.add(s)
+    // AI action button labels — what `extractActionButtons` puts into the
+    // suggested-actions keyboard alongside /done. Must match exactly.
+    // Each entry maps the AI label → canonical user-dict key for re-routing.
+    const AI_BUTTON_TO_USER_KEY = {
+      '🔗✂️ URL Shortener — Unlimited': 'urlShortener',
+      '📞 Cloud IVR + SIP':              'cloudPhone',
+      '👛 Wallet':                       'wallet',
+      '🏪 Marketplace':                  'marketplace',
+      '🏪 Marché':                       'marketplace',
+      '🌐 Bulletproof Domains':          'domainNames',
+      '🌐 Domaines Bulletproof':         'domainNames',
+      '🌐 防弹域名':                      'domainNames',
+      '🌐 बुलेटप्रूफ डोमेन':            'domainNames',
+      '🛡️🔥 Anti-Red Hosting':           'hostingDomainsRedirect',
+      '🛡️🔥 Hébergement Anti-Red':       'hostingDomainsRedirect',
+      '🌐 离岸托管':                      'hostingDomainsRedirect',
+      '🌐 ऑफ़शोर होस्टिंग':            'hostingDomainsRedirect',
+      '🖥️ VPS/RDP':                     'vpsPlans',
+      '📱 SMS Leads':                    'leadsValidation',
+      '📱 Leads SMS':                    'leadsValidation',
+      '📱 短信线索':                      'leadsValidation',
+      '📱 SMS लीड्स':                    'leadsValidation',
+      '💳 Virtual Card':                 'virtualCard',
+      '💳 Carte Virtuelle':              'virtualCard',
+      '💳 虚拟卡':                        'virtualCard',
+      '💳 वर्चुअल कार्ड':                'virtualCard',
+      '📧 Email Validation':             'emailValidation',
+      '📧 Validation d\'e-mails':        'emailValidation',
+      '📧 邮箱验证':                      'emailValidation',
+      '📧 ईमेल सत्यापन':                'emailValidation',
+      '📲 BulkSMS — Free':               'smsAppMain',
+      '📦 Digital Products':             'digitalProducts',
+      '📦 Produits numériques':          'digitalProducts',
+      '🛒 数字产品':                      'digitalProducts',
+      '🛒 डिजिटल उत्पाद':                'digitalProducts',
+    }
+    for (const aiLabel of Object.keys(AI_BUTTON_TO_USER_KEY)) menuEscapeLabels.add(aiLabel)
 
     const isEscapeTap = menuEscapeLabels.has(message) || /^\/(start|menu|home)\b/.test(message)
     if (isEscapeTap) {
@@ -9895,6 +9945,14 @@ All verified numbers generated during sourcing.`))
       await set(state, chatId, 'adminTakeover', false)
       action = 'none'  // update local var so downstream logic doesn't still think we're in support
       clearAiHistory(chatId)
+      // If the tap was on an AI action button (short label that doesn't equal
+      // the canonical menu label), rewrite `message` to the user-dict menu
+      // label so the existing downstream menu handlers route correctly.
+      const userKey = AI_BUTTON_TO_USER_KEY[message]
+      if (userKey && user && typeof user[userKey] === 'string' && user[userKey] && user[userKey] !== message) {
+        log(`[Support] Rewriting AI button "${message}" → canonical menu label "${user[userKey]}" for ${chatId}`)
+        message = user[userKey]
+      }
       const escName = await get(nameOf, chatId)
       send(TELEGRAM_ADMIN_CHAT_ID, `📴 Support session auto-closed — <b>@${escName || chatId}</b> (${chatId}) tapped main-menu button: ${message}`, adminMsgOpts({ chatId, supportSession: true }))
       log(`[Support] Session auto-ended by menu tap "${message}" from ${chatId} — admin takeover OFF`)
