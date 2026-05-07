@@ -7986,9 +7986,9 @@ Enter new value:`), bc)
 
       // Check domain origin - is it registered with us or external?
       const registeredDomain = await db.collection('registeredDomains').findOne({ _id: domain })
-      const domainType = registeredDomain 
-        ? (t.domainTypeRegistered || '🏷️ Registered with us')
-        : (t.domainTypeExternal || '🌍 External')
+      const domainType = registeredDomain
+        ? trans('t.domainTypeRegistered')
+        : trans('t.domainTypeExternal')
 
       // Check addon domain count vs limit for upgrade nudge
       const currentAddons = (plan.addonDomains || []).length
@@ -25600,16 +25600,14 @@ Select a category:`), k.of(catBtns))
       if (hostingPlan) {
         // Domain has hosting — show warning with confirmation
         await set(state, chatId, 'action', 'confirm-dns-management-for-hosting')
-        const warningText = t.dnsWarningHostedDomain 
-          ? t.dnsWarningHostedDomain(domain, hostingPlan.plan || 'N/A')
-          : `⚠️ <b>WARNING: This domain has an active hosting plan</b>\n\nDomain: <b>${domain}</b>\nPlan: ${hostingPlan.plan || 'N/A'}\n\n<b>⚠️ Modifying DNS records can break your hosting and anti-red protection!</b>\n\nDNS changes should only be made if you fully understand the impact. Incorrect changes may cause your website to become inaccessible or lose security protections.\n\n<b>Are you sure you want to proceed?</b>`
-        
+        const warningText = trans('t.dnsWarningHostedDomain', domain, hostingPlan.plan || 'N/A')
+
         return send(chatId, warningText, {
           parse_mode: 'HTML',
           reply_markup: {
             keyboard: [
-              [t.dnsProceedAnyway || '⚠️ Proceed Anyway'],
-              [t.dnsCancel || '❌ Cancel']
+              [trans('t.dnsProceedAnyway')],
+              [trans('t.dnsCancel')]
             ],
             resize_keyboard: true
           }
@@ -25827,9 +25825,9 @@ Select a category:`), k.of(catBtns))
   
   // DNS Management Confirmation for Hosting Domains
   if (action === 'confirm-dns-management-for-hosting') {
-    const proceedBtn = t.dnsProceedAnyway || '⚠️ Proceed Anyway'
-    const cancelBtn = t.dnsCancel || '❌ Cancel'
-    
+    const proceedBtn = trans('t.dnsProceedAnyway')
+    const cancelBtn = trans('t.dnsCancel')
+
     if (message === proceedBtn) {
       // User confirmed — proceed to DNS management
       return goto['choose-dns-action']()

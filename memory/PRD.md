@@ -6,6 +6,39 @@
 - Node.js Express (port 5000) - core business logic
 - MongoDB (port 27017)
 
+## ✅ Domain-origin indicator + DNS warning copy — i18n hardening (Feb 2026)
+
+### Ask
+P2 backlog item from `HOSTING_FLOWS_ANALYSIS.md`: translate the domain-origin indicator (🏷️ Registered with us / 🌍 External) and the DNS-management warning shown when a hosted domain's DNS is being modified. Both are surfaced inside the bot UI in 4 supported languages.
+
+### Investigation
+The `t.*` keys for both items already existed in `js/lang/{en,fr,zh,hi}.js` (added some time after the analysis doc was written). What was still wrong: `_index.js` had **dead English-fallback patterns** that masked the real i18n flow:
+```js
+t.domainTypeRegistered || '🏷️ Registered with us'                          // dead fallback
+t.dnsWarningHostedDomain ? t.dnsWarningHostedDomain(...) : `inline English` // dead fallback
+[t.dnsProceedAnyway || '⚠️ Proceed Anyway']                                  // dead fallback
+```
+These all defaulted to the user's locale already, but the inline English strings were dead code that confused future readers and would have masked any future translation regression.
+
+### Fix
+- Replaced 5 dead `||` / `? :` fallback patterns in `_index.js` with direct `trans('t.<key>')` calls so the user's selected language is honored without any English shadow string in the source.
+- Lines touched: `_index.js:7989-7991` (domain-origin indicator), `_index.js:25600-25617` (DNS warning prompt + button labels), `_index.js:25827-25831` (matching button handler).
+
+### Tests — 51/51 pass (`js/tests/test_dns_warning_i18n.js`)
+- All 5 keys resolve correctly per locale via `translation()` runtime
+- `dnsWarningHostedDomain(domain, plan)` interpolates both args in all 4 langs
+- Emoji prefixes intact (🏷️ for registered, 🌍 for external, ⚠️ for warning)
+- Source guards: zero inline English fallbacks remain in `_index.js`
+- Source guards: `_index.js` uses `trans('t.<key>')` everywhere
+
+### Files changed
+- `js/_index.js` — 3 small refactors removing dead fallbacks
+- NEW: `js/tests/test_dns_warning_i18n.js` (51 assertions)
+
+### Verification
+- Addon-flow regression suite (`test_addon_from_bot.js`) still 94/94 pass.
+- Node service restarted clean, API HTTP 200.
+
 ## ✅ "Add Domain to Plan" — bot flow for attaching addon domains (Feb 2026)
 
 ### Ask
