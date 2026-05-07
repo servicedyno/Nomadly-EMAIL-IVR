@@ -538,158 +538,54 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     const { domain, subDomain, dir } = req.body
     if (!domain) return res.status(400).json({ error: 'domain is required' })
 
-    // ── Blocked domain check (phishing/abuse) ──
-    try {
-      const blockedCol = db.collection('blockedDomains')
-      const blocked = await blockedCol.findOne({ domain: domain.toLowerCase() })
-      if (blocked) {
-        log(`[Panel] add: BLOCKED domain rejected: ${domain} (reason: ${blocked.reason})`)
-        return res.status(403).json({
-          error: `This domain (${domain}) has been permanently blocked due to abuse policy violations and cannot be added.`,
-          blocked: true,
-        })
-      }
-    } catch (blockErr) {
-      log(`[Panel] add: blocklist check error (non-blocking): ${blockErr.message}`)
+    // Load account doc and call shared addon flow helper.
+    // The helper centralises blocklist + plan-limit + duplicate-on-plan +
+    // cPanel addAddon + persist + DNS + anti-red retry + verify-probe so the
+    // bot and panel paths stay in lockstep.
+    const col = getCpanelCol()
+    const account = col ? await col.findOne({ _id: req.cpUser.toLowerCase() }) : null
+    if (!account) {
+      return res.status(404).json({ error: 'account not found' })
     }
 
-    // ── Addon domain limit enforcement ──
-    try {
-      const col = getCpanelCol()
-      if (col) {
-        const account = await col.findOne({ _id: req.cpUser.toLowerCase() })
-        if (account) {
-          const { getAddonLimit } = require('./whm-service')
-          const limit = getAddonLimit(account.plan)
-          const currentAddons = (account.addonDomains || []).length
-          if (limit !== -1 && currentAddons >= limit) {
-            const isWeekly = (account.plan || '').toLowerCase().includes('week')
-            const upgradeMsg = isWeekly
-              ? `Domain limit reached (${limit} addon${limit !== 1 ? 's' : ''}). Upgrade to a monthly plan for more domains — use the Upgrade Plan button in your hosting details on the bot.`
-              : `Domain limit reached (${limit} addon domains). Upgrade to Golden Anti-Red for unlimited domains.`
-            return res.status(403).json({ error: upgradeMsg, limitReached: true, currentAddons, limit })
-          }
-        }
-      }
-    } catch (limitErr) {
-      log(`[Panel] add: limit check error (non-blocking): ${limitErr.message}`)
+    const addonFlow = require('./addon-domain-flow')
+    const lang = await getUserLang(account)
+    const bot = require('./_index')?._bot || null
+
+    const result = await addonFlow.attachAddonDomain({
+      account,
+      cpPass: req.cpPass,
+      domain,
+      subDomain,
+      dir,
+      db,
+      bot,
+      lang,
+    })
+
+    if (result.ok) {
+      // Maintain legacy success response shape (frontend expects { errors: null|[] })
+      return res.json({ status: 1, errors: null, data: { domain, alreadyAttached: !!result.alreadyAttached, docRoot: result.docRoot } })
     }
 
-    const result = await cpProxy.addAddonDomain(req.cpUser, req.cpPass, domain, subDomain, dir, req.whmHost)
-
-    // Persist addon domain in cpanelAccounts.addonDomains[] for protection-enforcer discovery
-    if (!result.errors?.length) {
-      try {
-        const col = getCpanelCol()
-        if (col) {
-          await col.updateOne(
-            { _id: req.cpUser.toLowerCase() },
-            { $addToSet: { addonDomains: domain.toLowerCase() } }
-          )
-          log(`[Panel] Stored addon domain ${domain} in cpanelAccounts for ${req.cpUser}`)
-        }
-      } catch (dbErr) {
-        log(`[Panel] add: failed to persist addon ${domain}: ${dbErr.message}`)
-      }
-
-      // Deploy anti-red protection + DNS for addon domain (non-blocking, with retry)
-      ;(async () => {
-        const MAX_RETRIES = 3
-        const RETRY_DELAYS = [5000, 15000, 45000] // 5s, 15s, 45s
-
-        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-          try {
-            const accountWhmHost = req.whmHost || process.env.WHM_HOST
-            let zone = await cfService.getZoneByName(domain)
-            if (!zone) {
-              const newZone = await cfService.createZone(domain)
-              if (newZone.success) zone = { id: newZone.zoneId }
-            }
-            if (zone) {
-              await cfService.cleanupConflictingDNS(zone.id, domain)
-              await cfService.createHostingDNSRecords(zone.id, domain, accountWhmHost)
-              // Start with 'flexible' SSL so the site works immediately while AutoSSL issues a cert
-              await cfService.setSSLMode(zone.id, 'flexible')
-              await cfService.enforceHTTPS(zone.id)
-              const antiRedService = require('./anti-red-service')
-              const col2 = getCpanelCol()
-              const account = col2 ? await col2.findOne({ _id: req.cpUser.toLowerCase() }) : null
-              if (account) {
-                await antiRedService.deployFullProtection(req.cpUser, domain, account.plan || '')
-              } else {
-                await antiRedService.deploySharedWorkerRoute(domain, zone.id)
-              }
-
-              // Verify protection is active (delay to allow propagation)
-              setTimeout(async () => {
-                try {
-                  const antiRedService = require('./anti-red-service')
-                  const verification = await antiRedService.verifyProtection(domain)
-                  if (verification.active) {
-                    log(`[Panel] add: ✅ protection VERIFIED for addon ${domain} (worker=${verification.workerDetected}, challenge=${verification.challengeDetected})`)
-                  } else {
-                    log(`[Panel] add: ⚠️ protection deployed but NOT verified for addon ${domain}: ${verification.error || 'no worker/challenge detected'}`)
-                    // Notify user via bot
-                    if (account?.chatId) {
-                      const bot = require('./_index')?._bot
-                      if (bot) {
-                        const lang = await getUserLang(account)
-                        bot.sendMessage(account.chatId,
-                          translation('t.antiRedWarningTitle', lang) + '\n\n' +
-                          translation('t.antiRedWarningBodyShort', lang, domain),
-                          { parse_mode: 'HTML' }
-                        ).catch(() => {})
-                      }
-                    }
-                  }
-                } catch (verifyErr) {
-                  log(`[Panel] add: verification check failed for ${domain}: ${verifyErr.message}`)
-                }
-              }, 30000) // Wait 30s before verification
-
-              log(`[Panel] add: anti-red + DNS deployed for addon ${domain} (attempt ${attempt})`)
-              break // Success — exit retry loop
-            } else {
-              throw new Error('Cloudflare zone could not be created or found')
-            }
-          } catch (protErr) {
-            log(`[Panel] add: protection deploy attempt ${attempt}/${MAX_RETRIES} failed for ${domain}: ${protErr.message}`)
-            if (attempt < MAX_RETRIES) {
-              await new Promise(r => setTimeout(r, RETRY_DELAYS[attempt - 1]))
-            } else {
-              // Final attempt failed — notify user
-              log(`[Panel] add: ❌ all ${MAX_RETRIES} protection deploy attempts failed for addon ${domain}`)
-              try {
-                const col2 = getCpanelCol()
-                const account = col2 ? await col2.findOne({ _id: req.cpUser.toLowerCase() }) : null
-                if (account?.chatId) {
-                  const bot = require('./_index')?._bot
-                  if (bot) {
-                    const lang = await getUserLang(account)
-                    bot.sendMessage(account.chatId,
-                      translation('t.antiRedFailedTitle', lang) + '\n\n' +
-                      translation('t.antiRedFailedBodyShort', lang, domain, MAX_RETRIES),
-                      { parse_mode: 'HTML' }
-                    ).catch(() => {})
-                  }
-                }
-              } catch (_) {}
-            }
-          }
-        }
-
-        // Schedule health check for addon domain (same 3-stage pipeline as primary)
-        try {
-          const healthCheck = require('./hosting-health-check')
-          const col3 = getCpanelCol()
-          const account = col3 ? await col3.findOne({ _id: req.cpUser.toLowerCase() }) : null
-          healthCheck.scheduleHealthCheck(domain, req.cpUser, account?.chatId || '')
-          log(`[Panel] add: health check scheduled for addon ${domain}`)
-        } catch (_) {}
-      })()
+    // Map errorKind → HTTP status
+    if (result.errorKind === 'blocked') {
+      return res.status(403).json({ error: result.error || 'domain blocked', blocked: true })
     }
-
-    res.json(result)
+    if (result.errorKind === 'limit') {
+      const isWeekly = (account.plan || '').toLowerCase().includes('week')
+      const upgradeMsg = isWeekly
+        ? `Domain limit reached (${result.limit} addon${result.limit !== 1 ? 's' : ''}). Upgrade to a monthly plan for more domains — use the Upgrade Plan button in your hosting details on the bot.`
+        : `Domain limit reached (${result.limit} addon domains). Upgrade to Golden Anti-Red for unlimited domains.`
+      return res.status(403).json({ error: upgradeMsg, limitReached: true, currentAddons: result.currentAddons, limit: result.limit })
+    }
+    if (result.errorKind === 'duplicate') {
+      return res.status(409).json({ error: result.error || 'domain already attached', errors: [result.error || 'domain already attached'] })
+    }
+    if (result.errorKind === 'cpanel_down') {
+      return res.status(503).json({ error: 'WHM control plane unreachable. Please retry shortly.', code: 'CPANEL_DOWN', errors: ['CPANEL_DOWN'] })
+    }
+    return res.status(400).json({ error: result.error || 'failed to add domain', errors: [result.error || 'failed to add domain'] })
   })
 
   router.post('/domains/remove', ...auth, async (req, res) => {

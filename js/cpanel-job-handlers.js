@@ -174,6 +174,23 @@ async function _runMutation(kind, args, db) {
       }
       return verdict
     }
+    case 'linkAddon': {
+      const { domain, addonDomain } = args || {}
+      const a = await loadAcct(domain)
+      if (!a?.cpPass) return { reason: 'no credentials' }
+      const addonFlow = require('./addon-domain-flow')
+      const lang = (await db.collection('state').findOne({ _id: String(a.acct.chatId || '') }))?.userLanguage || 'en'
+      const result = await addonFlow.attachAddonDomain({
+        account: a.acct,
+        cpPass: a.cpPass,
+        domain: addonDomain,
+        db,
+        lang,
+      })
+      if (result.ok) return true
+      if (result.errorKind === 'cpanel_down') return { deferred: true, reason: result.error }
+      return { deferred: false, reason: result.error || 'attach failed' }
+    }
     case 'suspend': {
       const { domain, reason } = args || {}
       const a = await loadAcct(domain)

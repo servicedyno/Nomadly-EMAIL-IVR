@@ -5912,6 +5912,8 @@ bot?.on('message', msg => {
     confirmUpgradeHosting: 'confirmUpgradeHosting',
     confirmUpgradeHostingPay: 'confirmUpgradeHostingPay',
     selectDomainToUnlink: 'selectDomainToUnlink',
+    selectDomainToAttach: 'selectDomainToAttach',
+    confirmAttachAddonDomain: 'confirmAttachAddonDomain',
     confirmUnlinkAddonDomain: 'confirmUnlinkAddonDomain',
     confirmCancelHostingPlan: 'confirmCancelHostingPlan',
     chooseSiteOfflineMode: 'chooseSiteOfflineMode',
@@ -8020,6 +8022,8 @@ Enter new value:`), bc)
       } else {
         buttons.push([user.bringSiteOnline])
       }
+      // Allow user to attach a registered domain as an addon (subject to plan limit)
+      if (!atLimit) buttons.push([user.addDomainToPlan])
       // Allow user to unlink an addon domain (only when at least one is attached)
       if ((plan.addonDomains || []).length > 0) buttons.push([user.unlinkDomain])
       // Always allow cancelling the entire hosting plan
@@ -11030,6 +11034,48 @@ All verified numbers generated during sourcing.`))
       await set(state, chatId, 'action', a.confirmBringSiteOnline)
       return send(chatId, t.confirmBringSiteOnline(domain), k.of([[user.confirmBringOnlineBtn], [user.cancelGoBackBtn]]), { parse_mode: 'HTML' })
     }
+    if (message === user.addDomainToPlan) {
+      const domain = info?.selectedHostingDomain
+      if (!domain) return goto.myHostingPlans()
+      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
+      if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+
+      // Plan-limit pre-check
+      const { getAddonLimit } = require('./whm-service')
+      const limit = getAddonLimit(plan.plan)
+      const currentAddons = (plan.addonDomains || []).length
+      if (limit !== -1 && currentAddons >= limit) {
+        return send(chatId, t.attachDomainLimitReached(limit, plan.plan || 'Hosting'), k.of([[user.backToMyHostingPlans]]), { parse_mode: 'HTML' })
+      }
+
+      // Build eligible-domains list: owned & not on any plan
+      const owned = await getPurchasedDomains(chatId)
+      const ownedLower = (owned || []).map(d => (d || '').toLowerCase()).filter(Boolean)
+      let eligible = []
+      if (ownedLower.length > 0) {
+        const usedRows = await cpanelAccounts.find(
+          { $or: [{ domain: { $in: ownedLower } }, { addonDomains: { $in: ownedLower } }], deleted: { $ne: true } },
+          { projection: { domain: 1, addonDomains: 1 } },
+        ).toArray()
+        const usedSet = new Set()
+        for (const row of usedRows) {
+          if (row.domain) usedSet.add(String(row.domain).toLowerCase())
+          if (Array.isArray(row.addonDomains)) {
+            for (const a of row.addonDomains) if (a) usedSet.add(String(a).toLowerCase())
+          }
+        }
+        eligible = ownedLower.filter(d => !usedSet.has(d))
+      }
+
+      if (!eligible.length) {
+        return send(chatId, t.noEligibleDomainsToAttach, k.of([[user.backToMyHostingPlans]]), { parse_mode: 'HTML' })
+      }
+
+      await set(state, chatId, 'action', a.selectDomainToAttach)
+      const btns = eligible.map(d => [`➕ ${d}`])
+      btns.push([user.backToMyHostingPlans])
+      return send(chatId, t.selectDomainToAttachHeader(domain), k.of(btns), { parse_mode: 'HTML' })
+    }
     if (message === user.unlinkDomain) {
       const domain = info?.selectedHostingDomain
       if (!domain) return goto.myHostingPlans()
@@ -11326,6 +11372,152 @@ All verified numbers generated during sourcing.`))
       } catch {}
     } else {
       await send(chatId, t.unlinkDomainFailed(addonDomain), { parse_mode: 'HTML' })
+    }
+    return goto.viewHostingPlanDetails(domain)
+  }
+
+  // ── Attach Addon Domain — pick domain ──
+  if (action === a.selectDomainToAttach) {
+    if (message === user.backToMyHostingPlans || isBackPress(message)) {
+      return goto.viewHostingPlanDetails(info?.selectedHostingDomain)
+    }
+    const domain = info?.selectedHostingDomain
+    if (!domain) return goto.myHostingPlans()
+    const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
+    if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+    const match = (message || '').match(/^➕\s+(.+)$/)
+    if (!match) return goto.viewHostingPlanDetails(domain)
+    const candidate = match[1].trim().toLowerCase()
+
+    // Verify ownership of the candidate
+    const owned = await getPurchasedDomains(chatId)
+    const ownedLower = (owned || []).map(d => (d || '').toLowerCase())
+    if (!ownedLower.includes(candidate)) {
+      // Stale button or list changed under the user — go back to plan detail silently
+      return goto.viewHostingPlanDetails(domain)
+    }
+
+    // Reject if already on any active hosting plan
+    const onSome = await cpanelAccounts.findOne({
+      $or: [{ domain: candidate }, { addonDomains: candidate }],
+      deleted: { $ne: true },
+    })
+    if (onSome) {
+      return send(chatId, t.attachDomainAlreadyOnPlan(candidate), k.of([[user.backToMyHostingPlans]]), { parse_mode: 'HTML' })
+    }
+
+    saveInfo('attachAddonDomain', candidate)
+    await set(state, chatId, 'action', a.confirmAttachAddonDomain)
+    const addonFlow = require('./addon-domain-flow')
+    const docRoot = addonFlow.getAddonDocRoot(candidate)
+    return send(chatId, t.confirmAttachDomain(candidate, domain, docRoot), k.of([[user.confirmAttachBtn], [user.cancelGoBackBtn]]), { parse_mode: 'HTML' })
+  }
+
+  // ── Attach Addon Domain — confirm & execute ──
+  if (action === a.confirmAttachAddonDomain) {
+    if (message === user.cancelGoBackBtn || message === user.backToMyHostingPlans || isBackPress(message)) {
+      return goto.viewHostingPlanDetails(info?.selectedHostingDomain)
+    }
+    if (message !== user.confirmAttachBtn) {
+      return send(chatId, t.selectCorrectOption || 'Please tap one of the options.', k.of([[user.confirmAttachBtn], [user.cancelGoBackBtn]]))
+    }
+
+    const domain = info?.selectedHostingDomain
+    const candidate = info?.attachAddonDomain
+    if (!domain || !candidate) return goto.myHostingPlans()
+    const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
+    if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+
+    // Re-verify pre-flight (defensive, handles race where another flow attached the domain)
+    const onSome = await cpanelAccounts.findOne({
+      $or: [{ domain: candidate }, { addonDomains: candidate }],
+      deleted: { $ne: true },
+    })
+    if (onSome && String(onSome._id || '').toLowerCase() !== String(plan._id || '').toLowerCase()) {
+      await send(chatId, t.attachDomainAlreadyOnPlan(candidate), { parse_mode: 'HTML' })
+      return goto.viewHostingPlanDetails(domain)
+    }
+    if (Array.isArray(plan.addonDomains) && plan.addonDomains.includes(candidate)) {
+      await send(chatId, t.attachDomainAlreadyAttached(candidate), { parse_mode: 'HTML' })
+      return goto.viewHostingPlanDetails(domain)
+    }
+
+    await send(chatId, t.attachingDomain(candidate), { parse_mode: 'HTML' })
+
+    // ── WHM-down resilience: queue if the control plane is down ──
+    const attachLabelByLang = {
+      en: `Attach <b>${candidate}</b>`,
+      fr: `Attacher <b>${candidate}</b>`,
+      zh: `添加 <b>${candidate}</b>`,
+      hi: `<b>${candidate}</b> जोड़ना`,
+    }
+    const proceedDirect = await tryWhmOrQueue({
+      chatId, lang, domain,
+      kind: 'linkAddon',
+      label: attachLabelByLang[lang] || attachLabelByLang.en,
+      params: { domain, addonDomain: candidate, planChatId: String(chatId) },
+      dedupeKey: `linkAddon:${plan.cpUser}:${candidate}`,
+    })
+    if (!proceedDirect) {
+      // Queued — user already saw the "processing" message via tryWhmOrQueue.
+      return goto.viewHostingPlanDetails(domain)
+    }
+
+    // ── Direct path: decrypt cpPass and run shared helper ──
+    let cpPass = null
+    try {
+      const cpanelAuth = require('./cpanel-auth')
+      cpPass = cpanelAuth.decrypt({
+        encrypted: plan.cpPass_encrypted,
+        iv: plan.cpPass_iv,
+        tag: plan.cpPass_tag,
+      })
+    } catch (e) {
+      log(`[AttachAddon] decrypt cpPass failed for ${plan.cpUser}: ${e.message}`)
+    }
+    if (!cpPass) {
+      await send(chatId, t.attachDomainFailed(candidate, 'credentials unavailable'), { parse_mode: 'HTML' })
+      return goto.viewHostingPlanDetails(domain)
+    }
+
+    const addonFlow = require('./addon-domain-flow')
+    let result
+    try {
+      result = await addonFlow.attachAddonDomain({
+        account: plan,
+        cpPass,
+        domain: candidate,
+        db,
+        bot,
+        lang,
+      })
+    } catch (e) {
+      log(`[AttachAddon] fatal: ${e.message}`)
+      result = { ok: false, errorKind: 'unknown', error: e.message }
+    }
+
+    if (result.ok && result.alreadyAttached) {
+      await send(chatId, t.attachDomainAlreadyAttached(candidate), { parse_mode: 'HTML' })
+    } else if (result.ok) {
+      const panelDomain = process.env.PANEL_DOMAIN
+      const panelUrl = panelDomain
+        ? (panelDomain.startsWith('http') ? panelDomain : `https://${panelDomain}`)
+        : `${(process.env.SELF_URL_PROD || '').replace('/api', '')}/panel`
+      await send(chatId, t.attachDomainSuccess(candidate, result.docRoot, panelUrl), { parse_mode: 'HTML' })
+      try {
+        notifyAdmin(`➕ <b>Addon domain attached</b>\nUser: ${chatId}\nPlan: <code>${plan.plan}</code>\nPrimary: <b>${plan.domain}</b>\nAttached: <b>${candidate}</b>`)
+      } catch {}
+    } else {
+      // Map errorKind → user-friendly message
+      if (result.errorKind === 'limit') {
+        await send(chatId, t.attachDomainLimitReached(result.limit || 0, plan.plan || 'Hosting'), { parse_mode: 'HTML' })
+      } else if (result.errorKind === 'duplicate') {
+        await send(chatId, t.attachDomainAlreadyOnPlan(candidate), { parse_mode: 'HTML' })
+      } else if (result.errorKind === 'blocked') {
+        await send(chatId, t.attachDomainBlocked(candidate), { parse_mode: 'HTML' })
+      } else {
+        await send(chatId, t.attachDomainFailed(candidate, result.error || 'unknown error'), { parse_mode: 'HTML' })
+      }
     }
     return goto.viewHostingPlanDetails(domain)
   }

@@ -6,6 +6,58 @@
 - Node.js Express (port 5000) - core business logic
 - MongoDB (port 27017)
 
+## ✅ "Add Domain to Plan" — bot flow for attaching addon domains (Feb 2026)
+
+### Ask
+User asked: "How about connecting a registered domain to an existing hosting plan from the bot?" Previously the only way to attach an addon domain was via the React HostPanel web UI; the Telegram bot only exposed Unlink (remove). User explicitly requested: implement end-to-end with no gaps and 100% test certainty.
+
+### What shipped
+- **New shared helper `js/addon-domain-flow.js`** — single source of truth for "attach addon domain to existing plan". Used by both:
+  - `js/_index.js` Telegram bot "➕ Add Domain to Plan" flow (NEW)
+  - `js/cpanel-routes.js POST /domains/add` (refactored — removes ~150 lines of duplicate logic)
+  
+  Pipeline: idempotency check → blocklist → plan-limit (`getAddonLimit`) → cross-plan duplicate → cPanel `addaddondomain` → persist `addonDomains[]` → Cloudflare zone find/create → conflict cleanup (handles shortener-CNAME-to-hosting transition) → root+www CNAME → CF Tunnel (proxied, origin-leak-free) → SSL flexible + enforce HTTPS + Authenticated Origin Pulls → anti-red protection with 3-retry back-off (5s/15s/45s) → 30s post-deploy verify probe → 5-min health check schedule. DNS pipeline runs fire-and-forget so the user isn't blocked on Cloudflare propagation.
+
+- **Bot UI** — new `[ ➕ Add Domain to Plan ]` button on the hosting plan detail screen (renders only when current addon count < plan limit). Button placed between site online/offline toggle and unlink.
+
+- **Bot state machine** — two new actions `selectDomainToAttach` and `confirmAttachAddonDomain` mirroring the existing unlink flow. Eligibility list filters owned domains (`domainsOf`) against active `cpanelAccounts.{domain, addonDomains}` so users only see domains that aren't already on any plan.
+
+- **Folder education in success message** — explicitly tells the user files for the new addon go in `public_html/<domain>/`, NOT `public_html/`. Includes panel deep link. Addresses the @jasonthekidd-style "files-not-showing" confusion (root cause: users uploading to wrong folder).
+
+- **WHM-down resilience** — uses `tryWhmOrQueue` with new `linkAddon` mutation kind. If WHM is unreachable when the user confirms, the job is queued and the user gets a calm "your request is being processed" message. Once WHM is back, the queue worker calls the same shared helper to complete the attach.
+
+- **Pre-flight on confirm screen** — defensive re-check just before WHM call: domain still owned, not raced to another plan, not already on this plan (idempotent).
+
+- **i18n** — full parity across en/fr/zh/hi for: 2 button labels (`addDomainToPlan`, `confirmAttachBtn`) + 10 message templates (`selectDomainToAttachHeader`, `noEligibleDomainsToAttach`, `confirmAttachDomain`, `attachingDomain`, `attachDomainSuccess`, `attachDomainFailed`, `attachDomainAlreadyOnPlan`, `attachDomainLimitReached`, `attachDomainBlocked`, `attachDomainAlreadyAttached`).
+
+### Tests — 94/94 pass (`js/tests/test_addon_from_bot.js`)
+- Happy path: attach + persist + DNS pipeline scheduled (root CNAME, www CNAME, anti-red deploy)
+- Idempotency: re-attach returns `alreadyAttached:true` without re-calling WHM
+- Pre-flight: primary domain rejected as duplicate
+- Pre-flight: blocked domain rejected (case-insensitive)
+- Pre-flight: plan addon-limit enforced (Premium=1, Golden=∞)
+- Pre-flight: domain on another plan rejected
+- WHM down → returns `errorKind=cpanel_down` (caller can queue)
+- WHM hard error → returns `errorKind=whm_failed` with cPanel reason
+- Folder default helper: `getAddonDocRoot('Foo.Bar') === 'public_html/foo.bar'`
+- 11 source-level guards on `_index.js` wiring
+- 4 locales × 12 keys = 48 lang-parity checks
+- `cpanel-job-handlers` has `linkAddon` case + cpanel_down deferral
+- `cpanel-routes` panel POST uses shared helper + maps errorKind → HTTP status correctly
+- Shared helper has cross-plan duplicate check excluding self
+
+### Files changed
+- NEW: `js/addon-domain-flow.js` (~250 LOC shared helper)
+- NEW: `js/tests/test_addon_from_bot.js` (94 assertions)
+- `js/_index.js` — action constants + plan-detail button + 2 new state handlers (~170 LOC)
+- `js/cpanel-routes.js` — POST `/domains/add` refactored to call shared helper (-150 +60 LOC, removes duplication)
+- `js/cpanel-job-handlers.js` — new `linkAddon` mutation kind (~20 LOC)
+- `js/lang/{en,fr,zh,hi}.js` — 12 new keys per locale
+
+### Verification
+- All regression suites pass: `test_mutation_queue.js` (17/17), `test_button_helpers.js` (49/49), `test_back_button.js` (32/32), `test_cpanel_health_hysteresis.js` (7/7).
+- Node service restarted clean, API HTTP 200, no errors in logs.
+
 ## ✅ One-tap ✖️ Close Session button (May 7, 2026)
 
 ### Ask
