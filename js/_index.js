@@ -2285,6 +2285,10 @@ const loadData = async () => {
     })
     log('[CloudPhone] Voice Service initialized with IVR + Recording + Overage')
 
+    // Defer-register voice/IVR/voicemail webhook routes ONLY after voiceService
+    // (and all DB collections it relies on) is fully initialized.
+    registerVoiceRoutes()
+
     // Initialize Phone Test routes (Speechcue SIP test page)
     initPhoneTestRoutes(app, db, telnyxApi, telnyxResources.sipConnectionId, bot)
 
@@ -31446,6 +31450,11 @@ app.post('/twilio/bundle-status', async (req, res) => {
 // TWILIO WEBHOOKS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+// ── Voice / IVR / Voicemail Twilio routes are deferred-registered by
+//    registerVoiceRoutes() (called after initVoiceService completes inside
+//    loadData), to guarantee voiceService and DB collections are ready
+//    before any inbound webhook is served. ──
+function registerVoiceRoutes() {
 // Twilio Inbound Voice Webhook (PSTN calls to Twilio numbers)
 // Enhanced with IVR, voicemail, and call recording (feature parity with Telnyx)
 app.post('/twilio/voice-webhook', async (req, res) => {
@@ -32961,6 +32970,9 @@ app.post('/twilio/recording-status', async (req, res) => {
     res.sendStatus(200)
   }
 })
+
+  log('[VoiceService] Twilio webhook routes registered')
+} // end registerVoiceRoutes
 
 // Twilio SIP Voice Webhook (Outbound SIP calls)
 
