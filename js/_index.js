@@ -15796,7 +15796,14 @@ ${message.replace(/\n/g, '<br>')}
     if (isBackPress(message)) return goto['choose-domain-to-buy']()
     const yesPressed = isYesPress(message)
     const noPressed = isNoPress(message)
-    if (!yesPressed && !noPressed) return send(chatId, t.what)
+    if (!yesPressed && !noPressed) {
+      // If user typed something that looks like a new domain query, treat as a fresh search
+      const candidate = String(message || '').toLowerCase().trim().replace(/^https?:\/\//, '').replace(/\s+/g, '')
+      if (candidate.includes('.') && /^[a-z0-9.*_-]+$/i.test(candidate)) {
+        return goto['choose-domain-to-buy']()
+      }
+      return send(chatId, t.what)
+    }
     saveInfo('askDomainToUseWithShortener', yesPressed)
 
     // Yes = shortener: skip NS selection, use Cloudflare for DNS management
@@ -16754,8 +16761,9 @@ ${message.replace(/\n/g, '<br>')}
       const shouldDeactivateShortener = info?.switchToProviderDeactivateShortener
       if (shouldDeactivateShortener) {
         log(`[SwitchToProvider] Deactivating shortener for ${domain} (CF CNAME flattening required)`)
+        const { removeDomainFromRailway } = require('./rl-save-domain-in-server.js')
         const removeResult = await removeDomainFromRailway(domain)
-        if (removeResult.error) {
+        if (removeResult?.error) {
           log(`[SwitchToProvider] Warning: Railway remove failed for ${domain}: ${removeResult.error}`)
         } else {
           log(`[SwitchToProvider] Railway domain removed for ${domain}`)

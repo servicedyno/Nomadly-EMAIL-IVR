@@ -583,6 +583,10 @@ async function onDigitReceived(campaignId, leadIndex, digit) {
  * This handles ringing, answered, and completed statuses
  */
 async function onCallStatusUpdate(callSid, campaignId, leadIndex, status, duration, hangupCause) {
+  if (!_collection) {
+    log(`[BulkCall] onCallStatusUpdate: service not yet initialized — ignoring callSid=${callSid} status=${status}`)
+    return
+  }
   const campaign = await _collection.findOne({ id: campaignId })
   if (!campaign) return
 
