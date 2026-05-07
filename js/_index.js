@@ -1921,6 +1921,8 @@ const loadData = async () => {
   leadRequests = db.collection('leadRequests')
   cpanelAccounts = db.collection('cpanelAccounts')
   pendingBundles = db.collection('pendingBundles')
+  // Defer-register Twilio bundle-status route ONLY after the collection is bound
+  registerBundleStatusRoute()
   referrals = db.collection('referrals')
 
   // variables to view system information
@@ -31423,6 +31425,9 @@ app.get('/twilio/audio-proxy', async (req, res) => {
 })
 
 // ── Twilio Regulatory Bundle Status Callback ──
+// Registered by registerBundleStatusRoute() inside loadData() after
+// pendingBundles collection is bound. Until then, Twilio gets a 404 and retries.
+function registerBundleStatusRoute() {
 app.post('/twilio/bundle-status', async (req, res) => {
   try {
     const { bundleSid, bundleStatus } = req.body || {}
@@ -31441,6 +31446,8 @@ app.post('/twilio/bundle-status', async (req, res) => {
     res.status(200).json({ received: true })
   }
 })
+  log('[BundleWebhook] Twilio bundle-status route registered')
+} // end registerBundleStatusRoute
 
 // ── Bulk-call Twilio routes (/twilio/bulk-ivr, /twilio/bulk-ivr-gather, /twilio/bulk-status)
 //    are now registered by bulkCallService.registerRoutes(app) inside initBulkCallService(),
