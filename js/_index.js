@@ -2325,6 +2325,11 @@ const loadData = async () => {
       bot,
     })
     log('[CloudPhone] SMS Service limits initialized with overage billing')
+
+    // Defer-register Telnyx webhook routes — they call handleInboundSms (uses
+    // sms-service module state from initSmsLimits) and handleVoiceWebhook (from
+    // initVoiceService, run earlier in this function).
+    registerTelnyxRoutes()
   }
 
   // Initialize CNAM Service
@@ -31180,6 +31185,14 @@ app.get('/:id', async (req, res) => {
 // TELNYX WEBHOOK ENDPOINTS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+// TELNYX WEBHOOK ENDPOINTS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Routes are deferred-registered by registerTelnyxRoutes() inside loadData()
+// AFTER initVoiceService() and initSmsLimits() complete — they depend on
+// voice-service exports (handleVoiceWebhook) and sms-service module state
+// (handleInboundSms uses _walletOf/_payments bound by initSmsLimits).
+
+function registerTelnyxRoutes() {
 // Telnyx SMS Webhook — receives inbound SMS
 app.post('/telnyx/sms-webhook', async (req, res) => {
   try {
@@ -31242,6 +31255,9 @@ app.post('/telnyx/fax-webhook', async (req, res) => {
     log('Telnyx fax webhook error:', error.message)
   }
 })
+
+  log('[Telnyx] Webhook routes registered (sms / voice / fax)')
+} // end registerTelnyxRoutes
 
 // Handle inbound fax — download PDF and forward to Telegram
 async function handleInboundFax(payload) {
