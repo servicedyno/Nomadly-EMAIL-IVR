@@ -1237,7 +1237,7 @@ function scheduleSupportSlaNudge(chatId, displayName, openedTs, delayMs = 10 * 6
           `👤 <b>${displayName}</b> (${chatId}) has been waiting <b>${waitedMin} min</b> for a human reply.\n\n` +
           `↩️ /reply ${chatId} <i>your message</i>\n` +
           `✖️ /close ${chatId}`,
-          { parse_mode: 'HTML' })
+          adminMsgOpts({ chatId }))
         log(`[Support] SLA nudge sent — ${chatId} waited ${waitedMin}min`)
       } catch (e) { log('[Support] SLA nudge error: ' + e.message) }
     }, delayMs)
@@ -3808,7 +3808,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
       } catch (e) { /* ignore edit errors */ }
       // Notify admin of rating
       const name = await get(nameOf, ratingChatId || chatId)
-      send(TELEGRAM_ADMIN_CHAT_ID, `${rating === 'good' ? '👍' : '👎'} Support rated <b>${rating.toUpperCase()}</b> by <b>@${name || ratingChatId || chatId}</b> (${ratingChatId || chatId})`, { parse_mode: 'HTML' })
+      send(TELEGRAM_ADMIN_CHAT_ID, `${rating === 'good' ? '👍' : '👎'} Support rated <b>${rating.toUpperCase()}</b> by <b>@${name || ratingChatId || chatId}</b> (${ratingChatId || chatId})`, adminMsgOpts({ chatId: ratingChatId || chatId }))
       return
     }
 
@@ -9839,7 +9839,7 @@ All verified numbers generated during sourcing.`))
       action = 'none'  // update local var so downstream logic doesn't still think we're in support
       clearAiHistory(chatId)
       const escName = await get(nameOf, chatId)
-      send(TELEGRAM_ADMIN_CHAT_ID, `📴 Support session auto-closed — <b>@${escName || chatId}</b> (${chatId}) tapped main-menu button: ${message}`, { parse_mode: 'HTML' })
+      send(TELEGRAM_ADMIN_CHAT_ID, `📴 Support session auto-closed — <b>@${escName || chatId}</b> (${chatId}) tapped main-menu button: ${message}`, adminMsgOpts({ chatId }))
       log(`[Support] Session auto-ended by menu tap "${message}" from ${chatId} — admin takeover OFF`)
       // Do NOT return — let the message fall through to normal menu handlers below
     } else {
@@ -9890,7 +9890,7 @@ All verified numbers generated during sourcing.`))
     adminMsg += `\n\n↩️ /reply ${chatId} <i>type response (auto-translates to ${translation.detectedLang.toUpperCase()})</i>`
 
     // Always forward user message to admin
-    send(TELEGRAM_ADMIN_CHAT_ID, adminMsg, { parse_mode: 'HTML' })
+    send(TELEGRAM_ADMIN_CHAT_ID, adminMsg, adminMsgOpts({ chatId }))
     
     // Store detected language for future admin replies
     await set(state, chatId, 'lastMessageLanguage', translation.detectedLang)
@@ -9937,12 +9937,12 @@ All verified numbers generated during sourcing.`))
           const escalateTag = escalate ? '\n\n🚨 <b>NEEDS HUMAN ATTENTION</b>' : ''
           send(TELEGRAM_ADMIN_CHAT_ID,
             `🤖 <b>AI replied to ${displayName}</b> (${chatId}):\n<i>${safeHtml.substring(0, 500)}${safeHtml.length > 500 ? '...' : ''}</i>${escalateTag}`,
-            { parse_mode: 'HTML' })
+            adminMsgOpts({ chatId }))
           log(`[Support] AI -> ${chatId}: ${aiResponse.substring(0, 100)}... (escalate: ${escalate})`)
         } else {
           // AI failed — tell user support will follow up, alert admin
           send(chatId, t.supportMsgReceived, { reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
-          send(TELEGRAM_ADMIN_CHAT_ID, `⚠️ <b>AI failed for ${displayName}</b> (${chatId}) — needs manual reply\nError: ${error || 'unknown'}`, { parse_mode: 'HTML' })
+          send(TELEGRAM_ADMIN_CHAT_ID, `⚠️ <b>AI failed for ${displayName}</b> (${chatId}) — needs manual reply\nError: ${error || 'unknown'}`, adminMsgOpts({ chatId }))
         }
       } catch (e) {
         // Fallback to manual
@@ -10353,7 +10353,7 @@ All verified numbers generated during sourcing.`))
     // Notify admin — private message only, not to groups
     const name = await get(nameOf, chatId)
     const userTag = name ? `@${name}` : (msg?.from?.username ? `@${msg.from.username}` : 'unknown')
-    send(TELEGRAM_ADMIN_CHAT_ID, `🔔 <b>Support session opened</b>\nUser: <b>${userTag}</b> (${chatId})\n\n🤖 <i>AI will auto-respond first. You'll be notified if escalation is needed.</i>\n\nReply with: /reply ${chatId} <i>your message</i>\n📎 Or attach a photo/file with caption: <code>/reply ${chatId} your caption</code>\nClose with: /close ${chatId}`, { parse_mode: 'HTML' })
+    send(TELEGRAM_ADMIN_CHAT_ID, `🔔 <b>Support session opened</b>\nUser: <b>${userTag}</b> (${chatId})\n\n🤖 <i>AI will auto-respond first. You'll be notified if escalation is needed.</i>\n\nReply with: /reply ${chatId} <i>your message</i>\n📎 Or attach a photo/file with caption: <code>/reply ${chatId} your caption</code>\nClose with: /close ${chatId}`, adminMsgOpts({ chatId }))
     log(`[Support] Session opened for ${chatId} ${name} — AI will auto-respond, escalation to admin if needed`)
     // ── SLA watcher — if no admin reply in 10 minutes, nudge admin ──
     scheduleSupportSlaNudge(chatId, name || msg?.from?.username || 'unknown', Date.now())

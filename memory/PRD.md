@@ -6,6 +6,41 @@
 - Node.js Express (port 5000) - core business logic
 - MongoDB (port 27017)
 
+## ✅ Reply button on all support-admin notifications (May 7, 2026)
+
+### Report
+Admin flagged that the forwarded-user-message notification (e.g. `💬 @LBHAND23 (1794625076):\n…`) showed only a text hint `↩️ /reply 1794625076 type response (auto-translates to EN)` — no clickable inline button. Forced admin to copy/paste the chat ID.
+
+### Audit
+Found **6 support-related admin notifications** that used `{ parse_mode: 'HTML' }` instead of `adminMsgOpts({ chatId })` (which attaches the `💬 Reply User` inline button):
+
+| Location | Notification | Was | Now |
+|---|---|---|---|
+| line 3811 | Support rating (👍/👎) | no button | ✅ Reply button |
+| line 9803 (already had it) | Session closed by user | ✅ had it | ✅ unchanged |
+| line 9842 | Session auto-closed (user tapped main menu) | no button | ✅ Reply button |
+| line 9893 | **💬 forwarded user message** (the one flagged) | no button | ✅ Reply button |
+| line 9938 | 🤖 AI reply to user | no button | ✅ Reply button |
+| line 9945 | ⚠️ AI failed | no button | ✅ Reply button |
+| line 10160 (already had it) | Session closed by Cancel/Main Menu | ✅ had it | ✅ unchanged |
+| line 10356 | 🔔 Session opened | no button | ✅ Reply button |
+| line 1235 | ⏰ Support SLA breach | no button | ✅ Reply button |
+
+Admin order / payment / cPanel flow notifications already used `buildAdminButtons(...)` — confirmed intact.
+
+### Implementation
+One-line change per site: swap `{ parse_mode: 'HTML' }` → `adminMsgOpts({ chatId })` (or `{ chatId: ratingChatId }` for the rating handler). The helper was already defined in `_index.js:1526` and wired to the `aR:<chatId>` callback handler (which also got the soft-timeout dedupe fix earlier).
+
+### Files
+- `js/_index.js` — 7 single-line edits
+
+### Verification
+- Node syntax check passed
+- Node service restarted cleanly
+- Existing `test_admin_reply_dedupe.js` still passes (5/5) — the Reply callback handler itself is unchanged
+
+
+
 ## ✅ Admin 💬 Reply double-prompt — @LBHAND23 incident (May 7, 2026)
 
 ### Report
