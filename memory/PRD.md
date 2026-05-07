@@ -6,6 +6,35 @@
 - Node.js Express (port 5000) - core business logic
 - MongoDB (port 27017)
 
+## ✅ Admin 💬 Reply double-prompt — @LBHAND23 incident (May 7, 2026)
+
+### Report
+Admin pressed 💬 Reply under the "📴 Support session closed by user @LBHAND23 (1794625076)" notification. Nothing visibly happened. Admin pressed again. Bot sent **two** "💬 Quick Reply — Type your message to @LBHAND23" prompts (10 seconds apart — 01:42:58 and 01:43:08 UTC).
+
+### Root cause
+In `_index.js` callback handler `aR:<target>`:
+
+```js
+await set(state, adminId, 'awaitingAdminAction', { type: 'reply', target, ts })  // Mongo write FIRST
+await ackPopup('Type your reply…')                                               // ack SECOND
+send(adminId, '💬 Quick Reply\nType your message to...')                          // prompt
+```
+
+Telegram callback_query ack must arrive within ~15s or Telegram marks the press as failed. On Railway-proxied Mongo, the `set()` occasionally takes >10s → Telegram times out → button appears "dead" → admin presses again → second callback ALSO processes late → both prompts send.
+
+### Fix
+1. **Ack the callback first** (`ackPopup(...)` moved before `set()`) — keeps Telegram happy even if Mongo is slow.
+2. **Dedupe same-target presses within 30s** — check `awaitingAdminAction.ts` and early-return if a reply was just prompted for this same target.
+
+### Files
+- `js/_index.js` — `aR:` callback handler reordered + dedupe guard
+- `js/tests/test_admin_reply_dedupe.js` — 5/5 regression tests (static source parsing)
+
+### Not fixed (out of scope, similar pattern exists)
+Same ordering exists for `aD:` (Deliver) and `aRO:` (Refund) callbacks in the same block. Less critical since those actions carry order-status idempotency checks that already prevent duplicate delivery/refund; they'd still show a duplicate prompt UI but wouldn't cause duplicate side-effects. Flagged for future cleanup.
+
+
+
 ## ✅ "Use My Domain" redirect loop — @jasonthekidd (May 6, 2026)
 
 ### Report (via AI support)

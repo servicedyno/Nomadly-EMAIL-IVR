@@ -4361,8 +4361,27 @@ bot?.on('callback_query', async (query) => {
     if (data.startsWith('aR:')) {
       const target = data.slice(3)
       if (!/^\d+$/.test(target)) { await ackPopup('Invalid target'); return }
-      await set(state, adminId, 'awaitingAdminAction', { type: 'reply', target, ts: Date.now() })
+
+      // BUG FIX 2026-05-07 — @LBHAND23 incident:
+      // Admin pressed Reply and saw nothing → pressed again → got 2× "Type your message" prompts.
+      // Cause: `set(state, ...)` (Mongo write) was running BEFORE the callback ack.
+      // When Mongo is slow (>~10s on Railway proxy) Telegram's callback_query
+      // times out, the button shows "nothing happened", the admin taps again,
+      // and BOTH late-arriving callbacks end up sending the prompt.
+      // Fix: (1) ack the callback IMMEDIATELY (non-blocking), (2) dedupe
+      // presses of the same target within a 30s window using the existing
+      // awaitingAdminAction.ts timestamp.
       await ackPopup('Type your reply…')
+
+      const existing = await get(state, adminId)
+      const aw = existing?.awaitingAdminAction
+      if (aw && aw.type === 'reply' && String(aw.target) === String(target) && (Date.now() - (aw.ts || 0)) < 30000) {
+        // Already prompted within the last 30s for THIS target — ignore dupe press.
+        log(`[AdminQuickReply] Deduped duplicate Reply press for target ${target} by admin ${adminId}`)
+        return
+      }
+
+      await set(state, adminId, 'awaitingAdminAction', { type: 'reply', target, ts: Date.now() })
       const tName = await get(nameOf, target)
       const label = tName ? `@${tName} (${target})` : `User ${target}`
       send(adminId, `💬 <b>Quick Reply</b>\nType your message to ${label}.\n<i>Send /cancel to abort.</i>`, { parse_mode: 'HTML' })
