@@ -7,10 +7,10 @@
 - **Free SMS**: 100 used / 100 limit
 
 ## SMS App Web URL
-- Browser test: `https://setup-guide-93.preview.emergentagent.com/api/sms-app-web`
+- Browser test: `https://quick-start-199.preview.emergentagent.com/api/sms-app-web`
 
 ## Hosting Panel
-- **URL**: `https://setup-guide-93.preview.emergentagent.com/panel`
+- **URL**: `https://quick-start-199.preview.emergentagent.com/panel`
 - **Email**: `hello@ivrpod.com`
 - **Password**: `Onlygod1234@`
 - **Panel Domain**: `https://panel.1.hostbay.io/panel`
