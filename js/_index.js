@@ -45,6 +45,15 @@ earlyApp.use('/assets/user-audio', async (req, res, next) => {
 let appReady = false
 let serverStartTime = new Date()
 
+// ── Module-level dedup set: tracks Twilio CallSids already billed in action handlers
+// (sip-ring-result / voice-dial-status). The /twilio/voice-status webhook fires AFTER
+// these and must skip billing if already handled. MUST be declared at module scope
+// because it is referenced both inside the bot 'message' handler (action handlers)
+// AND inside the top-level /twilio/voice-status webhook — different lexical scopes.
+const _twilioBilledCallSids = new Set()
+// Auto-cleanup: remove stale entries every 30 min
+setInterval(() => _twilioBilledCallSids.clear(), 30 * 60 * 1000)
+
 // Health check endpoints - respond immediately
 earlyApp.get('/', (req, res) => {
   // On panel domain, serve the React SPA so the panel login renders (not the greeting)
@@ -32056,13 +32065,7 @@ app.post('/twilio/voice-webhook', async (req, res) => {
 // Twilio SIP Ring Result — fallback when SIP device doesn't answer
 // Priority: Forward-no-answer > Voicemail > Missed notification
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// ── Dedup set: track Twilio CallSids already billed in action handlers (sip-ring-result / voice-dial-status)
-// voice-status callback fires AFTER these and must skip billing if already handled
-const _twilioBilledCallSids = new Set()
-// Auto-cleanup: remove stale entries every 30 min (calls older than 2h can't re-trigger)
-setInterval(() => _twilioBilledCallSids.clear(), 30 * 60 * 1000)
-
-// ── Dedup set already declared above ──
+// ── Dedup set _twilioBilledCallSids declared at module scope (top of file) ──
 
 // ━━━ Twilio Inbound IVR Gather Result ━━━
 app.post('/twilio/inbound-ivr-gather', async (req, res) => {

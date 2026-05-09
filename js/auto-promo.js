@@ -4171,7 +4171,19 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
   }
 
   // Increment fail count and only mark as dead after DEAD_THRESHOLD consecutive failures
+  // EXCEPTION: bot_blocked is set immediately — Telegram 403 means the user explicitly
+  // blocked the bot, no point retrying for 2 more broadcasts. The 7-day TTL above will
+  // still re-test them later in case they unblock.
   async function recordSendFailure(chatId, reason) {
+    if (reason === 'bot_blocked') {
+      await promoOptOut.updateOne(
+        { _id: chatId },
+        { $set: { optedOut: true, reason, updatedAt: new Date() }, $inc: { failCount: 1 } },
+        { upsert: true }
+      )
+      log(`[AutoPromo] User ${chatId} marked dead immediately (bot_blocked — user blocked the bot)`)
+      return
+    }
     await promoOptOut.updateOne(
       { _id: chatId },
       { $set: { reason, updatedAt: new Date() }, $inc: { failCount: 1 } },
@@ -4401,7 +4413,7 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
 
     const permanentlyDead = await promoOptOut.find({
       optedOut: true,
-      reason: { $in: ['chat_not_found', 'user_deactivated'] }
+      reason: { $in: ['chat_not_found', 'user_deactivated', 'bot_blocked'] }
     }).toArray()
     const deadSet = new Set(permanentlyDead.map(r => r._id))
 

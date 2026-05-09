@@ -390,6 +390,14 @@ async function transferCall(callControlId, toNumber, fromNumber, options = {}) {
     if (errCode === '90018' || errDetail.includes('already ended') || errDetail.includes('not found') || errDetail.includes('no longer active')) {
       return null
     }
+    // Suppress "not answered yet" race — voice-service.js retries this with backoff, so the caller log is enough
+    if (errDetail.includes('not been answered') || errDetail.includes('not answered yet')) {
+      // Re-throw so the caller's retry logic engages, but skip the noisy log here
+      const err = new Error(errDetail)
+      err.telnyxCode = errCode
+      err.notAnsweredYet = true
+      throw err
+    }
     log(`[Telnyx] transferCall error (to=${toNumber}): ${JSON.stringify(errDetail)}`)
     return null
   }
