@@ -70,6 +70,50 @@ function initSmsAppService(_db, _nameOf, _planEndingTime, _freeSmsCountOf, _logi
 
   console.log('[SmsApp] Service initialized')
 
+  // ─── Stuck-campaign watchdog ───
+  // The Android app's WebView reports campaign progress/completion via JS polling.
+  // If the WebView dies (OS kill, force-close, network drop, deep sleep) before the
+  // final `status: 'completed'` ping reaches the server, the campaign is left in
+  // `status: 'sending'` forever. This watchdog reaps any campaign whose `updatedAt`
+  // is older than STUCK_THRESHOLD_MS while still flagged `sending`:
+  //   - sentCount > 0 → mark `completed`  (SMS likely went out, just no completion ping)
+  //   - sentCount = 0 → mark `failed`     (nothing got delivered)
+  // Counts and timestamps are preserved; we set `reapedAt` for forensics.
+  const STUCK_THRESHOLD_MS = 30 * 60 * 1000        // 30 min since last progress
+  const WATCHDOG_INTERVAL_MS = 15 * 60 * 1000      // run every 15 min
+
+  async function reapStuckCampaigns() {
+    try {
+      const cutoff = new Date(Date.now() - STUCK_THRESHOLD_MS)
+      const stuck = await smsCampaigns.find({
+        status: 'sending',
+        updatedAt: { $lt: cutoff },
+      }).toArray()
+      if (stuck.length === 0) return
+
+      let completed = 0, failed = 0
+      for (const c of stuck) {
+        const sent = c.sentCount || 0
+        const finalStatus = sent > 0 ? 'completed' : 'failed'
+        await smsCampaigns.updateOne(
+          { _id: c._id, status: 'sending' }, // guard against race with live progress ping
+          { $set: { status: finalStatus, reapedAt: new Date(), reapedReason: 'watchdog-stuck-30min' } }
+        )
+        if (finalStatus === 'completed') completed++; else failed++
+        const ageMin = Math.round((Date.now() - new Date(c.updatedAt).getTime()) / 60000)
+        console.log(`[SmsApp] Watchdog reaped ${finalStatus}: campaign=${c._id} chatId=${c.chatId} sent=${sent} failed=${c.failedCount || 0} stale=${ageMin}min`)
+      }
+      console.log(`[SmsApp] Watchdog: reaped ${stuck.length} stuck campaign(s) — completed=${completed}, failed=${failed}`)
+    } catch (err) {
+      console.error('[SmsApp] Watchdog error:', err.message)
+    }
+  }
+
+  // Run once on startup (catches anything stuck across deploys), then every 15 min
+  setTimeout(reapStuckCampaigns, 30 * 1000)  // 30s after init so DB is ready
+  setInterval(reapStuckCampaigns, WATCHDOG_INTERVAL_MS)
+  console.log(`[SmsApp] Stuck-campaign watchdog scheduled every ${WATCHDOG_INTERVAL_MS / 60000}min (threshold: ${STUCK_THRESHOLD_MS / 60000}min)`)
+
   // ─── Proactive SMS App version announcement to ALL bot users ───
   // When a new version is deployed, automatically notify all users (not just app users)
   const SMS_APP_VERSION = '2.7.5'
