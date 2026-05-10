@@ -1,0 +1,285 @@
+{
+  "runAt": "2026-05-10T07:07:09.389Z",
+  "counts": {
+    "dbTotal": 14,
+    "deletedInDb": 6,
+    "suspendedInDb": 1,
+    "pastExpiryNotDeleted": 0,
+    "activeNoIssues": 7
+  },
+  "buckets": {
+    "deletedInDb": [
+      {
+        "cpUser": "sbse8305",
+        "domain": "sbsecurity-portal.com",
+        "plan": "Premium Anti-Red (1-Week)",
+        "chatId": "8585422151",
+        "deleted": true,
+        "suspended": true,
+        "expiryDate": "2026-05-03 10:12",
+        "deletedAt": "2026-05-05 10:22",
+        "suspendedAt": "2026-05-03 10:38",
+        "logRepairs": 3,
+        "logDiagSamples": [
+          ".user.ini=MISSING [(empty)] | .php=MISSING [(empty)]",
+          ".user.ini=MISSING [(empty)] | .php=MISSING [(empty)]"
+        ],
+        "logErrors": [
+          "rotectionHeartbeat] ⚠️ sbse8305 repaired 3x consecutively — files won't stick. Skipping future repairs. Account may be suspended/terminated."
+        ]
+      },
+      {
+        "cpUser": "retu7547",
+        "domain": "return-claim.com",
+        "plan": "Premium Anti-Red (1-Week)",
+        "chatId": "8585422151",
+        "deleted": true,
+        "suspended": true,
+        "expiryDate": "2026-04-28 19:12",
+        "deletedAt": "2026-04-30 19:34",
+        "suspendedAt": "2026-04-28 19:56",
+        "logRepairs": 3,
+        "logDiagSamples": [
+          ".user.ini=MISSING [(empty)] | .php=MISSING [(empty)]",
+          ".user.ini=MISSING [(empty)] | .php=MISSING [(empty)]"
+        ],
+        "logErrors": [
+          "rotectionHeartbeat] ⚠️ retu7547 repaired 3x consecutively — files won't stick. Skipping future repairs. Account may be suspended/terminated."
+        ]
+      },
+      {
+        "cpUser": "smil123b",
+        "domain": "smilefundsrecoveryservices.com",
+        "plan": "Golden Anti-Red HostPanel (1-Month)",
+        "chatId": "7080940684",
+        "deleted": true,
+        "suspended": true,
+        "expiryDate": "2026-05-07 00:00",
+        "deletedAt": "2026-05-09 00:36",
+        "suspendedAt": "2026-05-07 00:44",
+        "logRepairs": 3,
+        "logDiagSamples": [
+          ".user.ini=MISSING [(empty)] | .php=MISSING [(empty)]",
+          ".user.ini=MISSING [(empty)] | .php=MISSING [(empty)]"
+        ],
+        "logErrors": [
+          "rotectionHeartbeat] ⚠️ smil123b repaired 3x consecutively — files won't stick. Skipping future repairs. Account may be suspended/terminated."
+        ]
+      },
+      {
+        "cpUser": "claief8e",
+        "domain": "claim-interdeposit.com",
+        "plan": "Premium Anti-Red (1-Week)",
+        "chatId": "6277663071",
+        "deleted": true,
+        "suspended": false,
+        "expiryDate": "2026-05-03 19:50",
+        "deletedAt": "2026-04-27 09:26",
+        "suspendedAt": "-",
+        "logRepairs": 3,
+        "logDiagSamples": [
+          ".user.ini=MISSING [(empty)] | .php=MISSING [(empty)]",
+          ".user.ini=MISSING [(empty)] | .php=MISSING [(empty)]"
+        ],
+        "logErrors": [
+          "rotectionHeartbeat] ⚠️ claief8e repaired 3x consecutively — files won't stick. Skipping future repairs. Account may be suspended/terminated."
+        ]
+      },
+      {
+        "cpUser": "down9747",
+        "domain": "downloaddtranscripts.net",
+        "plan": "Premium Anti-Red (1-Week)",
+        "chatId": "6170361668",
+        "deleted": true,
+        "suspended": true,
+        "expiryDate": "2026-05-04 13:07",
+        "deletedAt": "2026-05-06 13:36",
+        "suspendedAt": "2026-05-04 13:51",
+        "logRepairs": 3,
+        "logDiagSamples": [
+          ".user.ini=MISSING [(empty)] | .php=MISSING [(empty)]",
+          ".user.ini=MISSING [(empty)] | .php=MISSING [(empty)]"
+        ],
+        "logErrors": [
+          "rotectionHeartbeat] ⚠️ down9747 repaired 3x consecutively — files won't stick. Skipping future repairs. Account may be suspended/terminated."
+        ]
+      },
+      {
+        "cpUser": "bott1cb2",
+        "domain": "bottomlinesavings.xyz",
+        "plan": "Premium Anti-Red (1-Week)",
+        "chatId": "8373792461",
+        "deleted": true,
+        "suspended": true,
+        "expiryDate": "2026-05-06 17:00",
+        "deletedAt": "2026-05-08 17:36",
+        "suspendedAt": "2026-05-06 17:36",
+        "logRepairs": 3,
+        "logDiagSamples": [
+          ".user.ini=MISSING [(empty)] | .php=MISSING [(empty)]",
+          ".user.ini=MISSING [(empty)] | .php=MISSING [(empty)]"
+        ],
+        "logErrors": [
+          "rotectionHeartbeat] ⚠️ bott1cb2 repaired 3x consecutively — files won't stick. Skipping future repairs. Account may be suspended/terminated."
+        ]
+      }
+    ],
+    "suspendedInDb": [
+      {
+        "cpUser": "entsf6c7",
+        "domain": "entsecurity.xyz",
+        "plan": "Premium Anti-Red (1-Week)",
+        "chatId": "6543817440",
+        "deleted": false,
+        "suspended": true,
+        "expiryDate": "2026-05-09 16:06",
+        "deletedAt": "-",
+        "suspendedAt": "2026-05-09 16:35",
+        "logRepairs": 3,
+        "logDiagSamples": [
+          ".user.ini=MISSING [(empty)] | .php=MISSING [(empty)]",
+          ".user.ini=MISSING [(empty)] | .php=MISSING [(empty)]"
+        ],
+        "logErrors": [
+          "rotectionHeartbeat] ⚠️ entsf6c7 repaired 3x consecutively — files won't stick. Skipping future repairs. Account may be suspended/terminated."
+        ]
+      }
+    ],
+    "pastExpiryNotDeleted": [],
+    "activeNoIssues": [
+      {
+        "cpUser": "peakb09c",
+        "domain": "peakfirmllp.com",
+        "plan": "Golden Anti-Red HostPanel (1-Month)",
+        "chatId": "7080940684",
+        "deleted": false,
+        "suspended": false,
+        "expiryDate": "2026-05-22 07:12",
+        "deletedAt": "-",
+        "suspendedAt": "-",
+        "logRepairs": 3,
+        "logDiagSamples": [
+          ".user.ini=MISSING [(empty)] | .php=MISSING [(empty)]",
+          ".user.ini=MISSING [(empty)] | .php=MISSING [(empty)]"
+        ],
+        "logErrors": [
+          "rotectionHeartbeat] ⚠️ peakb09c repaired 3x consecutively — files won't stick. Skipping future repairs. Account may be suspended/terminated."
+        ]
+      },
+      {
+        "cpUser": "sech752f",
+        "domain": "sechtsft.de",
+        "plan": "Golden Anti-Red HostPanel (1-Month)",
+        "chatId": "8373792461",
+        "deleted": false,
+        "suspended": false,
+        "expiryDate": "2026-05-31 00:29",
+        "deletedAt": "-",
+        "suspendedAt": "-",
+        "logRepairs": 3,
+        "logDiagSamples": [
+          ".user.ini=MISSING [(empty)] | .php=MISSING [(empty)]",
+          ".user.ini=MISSING [(empty)] | .php=MISSING [(empty)]"
+        ],
+        "logErrors": [
+          "rotectionHeartbeat] ⚠️ sech752f repaired 3x consecutively — files won't stick. Skipping future repairs. Account may be suspended/terminated."
+        ]
+      },
+      {
+        "cpUser": "tdsee735",
+        "domain": "tdsecurity-portal.com",
+        "plan": "Premium Anti-Red HostPanel (30 Days)",
+        "chatId": "8625434794",
+        "deleted": false,
+        "suspended": false,
+        "expiryDate": "2026-06-05 23:32",
+        "deletedAt": "-",
+        "suspendedAt": "2026-04-29 23:24",
+        "logRepairs": 3,
+        "logDiagSamples": [
+          ".user.ini=MISSING [(empty)] | .php=MISSING [(empty)]",
+          ".user.ini=MISSING [(empty)] | .php=MISSING [(empty)]"
+        ],
+        "logErrors": [
+          "rotectionHeartbeat] ⚠️ tdsee735 repaired 3x consecutively — files won't stick. Skipping future repairs. Account may be suspended/terminated."
+        ]
+      },
+      {
+        "cpUser": "cap1a612",
+        "domain": "cap1online360.com",
+        "plan": "Golden Anti-Red HostPanel (1-Month)",
+        "chatId": "7893016294",
+        "deleted": false,
+        "suspended": false,
+        "expiryDate": "2026-05-27 03:05",
+        "deletedAt": "-",
+        "suspendedAt": "-",
+        "logRepairs": 3,
+        "logDiagSamples": [
+          ".user.ini=MISSING [(empty)] | .php=MISSING [(empty)]",
+          ".user.ini=MISSING [(empty)] | .php=MISSING [(empty)]"
+        ],
+        "logErrors": [
+          "rotectionHeartbeat] ⚠️ cap1a612 repaired 3x consecutively — files won't stick. Skipping future repairs. Account may be suspended/terminated."
+        ]
+      },
+      {
+        "cpUser": "hunt9853",
+        "domain": "huntingtononlinebanking.it",
+        "plan": "Golden Anti-Red HostPanel (1-Month)",
+        "chatId": "7893016294",
+        "deleted": false,
+        "suspended": false,
+        "expiryDate": "2026-05-29 06:28",
+        "deletedAt": "-",
+        "suspendedAt": "-",
+        "logRepairs": 3,
+        "logDiagSamples": [
+          ".user.ini=MISSING [(empty)] | .php=MISSING [(empty)]",
+          ".user.ini=MISSING [(empty)] | .php=MISSING [(empty)]"
+        ],
+        "logErrors": [
+          "rotectionHeartbeat] ⚠️ hunt9853 repaired 3x consecutively — files won't stick. Skipping future repairs. Account may be suspended/terminated."
+        ]
+      },
+      {
+        "cpUser": "hunt724f",
+        "domain": "hunt-verify.org",
+        "plan": "Golden Anti-Red HostPanel (1-Month)",
+        "chatId": "7893016294",
+        "deleted": false,
+        "suspended": false,
+        "expiryDate": "2026-05-31 18:17",
+        "deletedAt": "-",
+        "suspendedAt": "-",
+        "logRepairs": 3,
+        "logDiagSamples": [
+          ".user.ini=MISSING [(empty)] | .php=MISSING [(empty)]",
+          ".user.ini=MISSING [(empty)] | .php=MISSING [(empty)]"
+        ],
+        "logErrors": [
+          "rotectionHeartbeat] ⚠️ hunt724f repaired 3x consecutively — files won't stick. Skipping future repairs. Account may be suspended/terminated."
+        ]
+      },
+      {
+        "cpUser": "navy0d5d",
+        "domain": "navyfed-verify.com",
+        "plan": "Golden Anti-Red HostPanel (1-Month)",
+        "chatId": "7893016294",
+        "deleted": false,
+        "suspended": false,
+        "expiryDate": "2026-06-06 00:14",
+        "deletedAt": "-",
+        "suspendedAt": "-",
+        "logRepairs": 3,
+        "logDiagSamples": [
+          ".user.ini=MISSING [(empty)] | .php=MISSING [(empty)]",
+          ".user.ini=MISSING [(empty)] | .php=MISSING [(empty)]"
+        ],
+        "logErrors": [
+          "rotectionHeartbeat] ⚠️ navy0d5d repaired 3x consecutively — files won't stick. Skipping future repairs. Account may be suspended/terminated."
+        ]
+      }
+    ]
+  }
+}

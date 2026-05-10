@@ -60,9 +60,16 @@ async function getFile(cpUsername, dir, file) {
         dir, file,
       },
     })
-    return res.data?.result?.data?.content || ''
-  } catch {
-    return ''
+    // cPanel returns `errors: ["No such user"]` for terminated accounts in the
+    // result.errors array, while the HTTP call itself is a 200. Surface that
+    // so the caller can short-circuit to `accountGone`.
+    const result = res.data?.result
+    if (result?.errors && Array.isArray(result.errors) && result.errors.length > 0) {
+      return { content: '', whmErrors: result.errors }
+    }
+    return { content: result?.data?.content || '' }
+  } catch (e) {
+    return { content: '', fetchError: e.message, status: e.response?.status }
   }
 }
 
@@ -91,11 +98,38 @@ async function checkAndRepair(cpUsername) {
   if ((consecutiveRepairs[cpUsername] || 0) >= MAX_CONSECUTIVE_REPAIRS) {
     return { cpUsername, ok: false, action: 'skipped', reason: 'stuck_repair_loop' }
   }
-
-  const [userIni, challenge] = await Promise.all([
+  const [iniRes, phpRes] = await Promise.all([
     getFile(cpUsername, '/public_html', '.user.ini'),
     getFile(cpUsername, '/public_html', '.antired-challenge.php'),
   ])
+
+  // ── If WHM says the user no longer exists, auto-mark as deleted in DB so
+  // future heartbeats stop scanning it. Detected by either an explicit
+  // "No such user" error from cPanel, or a 401/404 from WHM on both files.
+  const whmErrCombined = [
+    ...(iniRes.whmErrors || []),
+    ...(phpRes.whmErrors || []),
+  ]
+  const looksGoneOnWhm =
+    whmErrCombined.some(e => /No such user|user does not exist|Cpanel::Sys::Suspended/i.test(String(e))) ||
+    ((iniRes.status === 401 || iniRes.status === 404) && (phpRes.status === 401 || phpRes.status === 404))
+  if (looksGoneOnWhm) {
+    if (db) {
+      try {
+        await db.collection('cpanelAccounts').updateOne(
+          { _id: cpUsername },
+          { $set: { deleted: true, deletedAt: new Date(), deletedReason: 'auto: not_on_whm', deletedBy: 'protection_heartbeat' } }
+        )
+        log(`[ProtectionHeartbeat] AUTO-DELETED ${cpUsername} in DB — account no longer on WHM (errs: ${JSON.stringify(whmErrCombined).slice(0,200)})`)
+      } catch (dbErr) {
+        log(`[ProtectionHeartbeat] auto-delete DB write failed for ${cpUsername}: ${dbErr.message}`)
+      }
+    }
+    return { cpUsername, ok: false, action: 'skipped', reason: 'not_on_whm' }
+  }
+
+  const userIni = iniRes.content || ''
+  const challenge = phpRes.content || ''
 
   const iniOk = isUserIniIntact(userIni, cpUsername)
   const phpOk = isChallengePhpIntact(challenge)
@@ -134,7 +168,8 @@ async function checkAndRepair(cpUsername) {
       // If we already merged .user.ini above, re-merge to restore our directives
       // (deployCFIPFix overwrites .user.ini)
       if (userIni && !iniOk) {
-        const freshIni = await getFile(cpUsername, '/public_html', '.user.ini')
+        const freshIniRes = await getFile(cpUsername, '/public_html', '.user.ini')
+        const _freshIni = freshIniRes.content || ''
         const reMerged = mergeUserIni(userIni, cpUsername)
         await saveFile(cpUsername, '/public_html', '.user.ini', reMerged)
       }
@@ -196,12 +231,15 @@ async function runHeartbeat() {
 
   isRunning = true
   const startTime = Date.now()
-  const summary = { total: 0, ok: 0, repaired: 0, errors: 0 }
+  const summary = { total: 0, ok: 0, repaired: 0, errors: 0, skipped: 0 }
 
   try {
-    const accounts = await db.collection('cpanelAccounts').find({}).toArray()
+    // Only scan ACTIVE accounts. Deleted accounts can never be repaired
+    // (cPanel user is gone) and waste WHM API calls + flood the log with
+    // "errors:14" lines after the repair-loop counter pins them.
+    const accounts = await db.collection('cpanelAccounts').find({ deleted: { $ne: true } }).toArray()
     summary.total = accounts.length
-    log(`[ProtectionHeartbeat] Checking ${accounts.length} cPanel accounts...`)
+    log(`[ProtectionHeartbeat] Checking ${accounts.length} cPanel accounts (deleted excluded)...`)
 
     for (const account of accounts) {
       const cpUsername = account._id || account.cpUser
@@ -210,6 +248,7 @@ async function runHeartbeat() {
       const result = await checkAndRepair(cpUsername)
       if (result.action === 'none') summary.ok++
       else if (result.action === 'repaired' && result.ok) summary.repaired++
+      else if (result.action === 'skipped') summary.skipped++
       else summary.errors++
 
       await new Promise(r => setTimeout(r, PER_ACCOUNT_DELAY_MS))
@@ -220,7 +259,7 @@ async function runHeartbeat() {
   }
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
-  log(`[ProtectionHeartbeat] Done in ${elapsed}s — total:${summary.total} ok:${summary.ok} repaired:${summary.repaired} errors:${summary.errors}`)
+  log(`[ProtectionHeartbeat] Done in ${elapsed}s — total:${summary.total} ok:${summary.ok} repaired:${summary.repaired} skipped:${summary.skipped} errors:${summary.errors}`)
   isRunning = false
   return summary
 }
