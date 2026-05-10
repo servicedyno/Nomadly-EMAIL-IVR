@@ -1,15 +1,15 @@
 {
-  "runAt": "2026-05-06T23:20:08.641Z",
+  "runAt": "2026-05-10T06:35:41.700Z",
   "summary": {
-    "contaboInstanceCount": 11,
-    "dbRecordCount": 9,
-    "healthyCost": 124.05000000000003,
+    "contaboInstanceCount": 12,
+    "dbRecordCount": 10,
+    "healthyCost": 109.65000000000002,
     "infraCost": 4.95,
     "orphanCost": 29.85,
     "ghostCost": 29.85,
     "pendingCost": 0,
     "expiredCost": 0,
-    "totalCost": 188.70000000000002,
+    "totalCost": 174.3,
     "leakedCost": 59.7
   },
   "buckets": {
@@ -45,6 +45,29 @@
     ],
     "ghosts": [
       {
+        "instanceId": 203220843,
+        "name": "vmi3220843",
+        "productId": "V94",
+        "region": "US-east",
+        "ip": "66.94.96.183",
+        "status": "running",
+        "cancelDate": "2026-06-09",
+        "createdDate": "2026-04-10T00:26:26.000Z",
+        "osType": "Windows",
+        "monthlyCostUsd": 29.85,
+        "dbRecord": {
+          "chatId": "404562920",
+          "label": "nomadly-404562920-1775780785132",
+          "status": "CANCELLED",
+          "end_time": "2026-05-10T00:26:26.000Z",
+          "autoRenewable": false,
+          "planPrice": 89.55,
+          "deletedAt": "2026-05-09T19:30:06.219Z",
+          "cancelledAt": "2026-05-09T19:30:06.224Z"
+        },
+        "_providerCancelled": true
+      },
+      {
         "instanceId": 203250431,
         "name": "nomadly-7163210105-1776860778161",
         "productId": "V95",
@@ -69,26 +92,6 @@
     "pendingCancellation": [],
     "expiredRunning": [],
     "healthy": [
-      {
-        "instanceId": 203220843,
-        "name": "vmi3220843",
-        "productId": "V94",
-        "region": "US-east",
-        "ip": "66.94.96.183",
-        "status": "running",
-        "cancelDate": null,
-        "createdDate": "2026-04-10T00:26:26.000Z",
-        "osType": "Windows",
-        "monthlyCostUsd": 29.85,
-        "dbRecord": {
-          "chatId": "404562920",
-          "label": "nomadly-404562920-1775780785132",
-          "status": "RUNNING",
-          "end_time": "2026-05-10T00:26:26.000Z",
-          "autoRenewable": false,
-          "planPrice": 89.55
-        }
-      },
       {
         "instanceId": 203228089,
         "name": "vmi3228089",
@@ -223,6 +226,26 @@
           "status": "RUNNING",
           "end_time": "2026-05-26T21:11:07.313Z",
           "planPrice": 18.45
+        }
+      },
+      {
+        "instanceId": 203283942,
+        "name": "vmi3283942",
+        "productId": "V92",
+        "region": "US-central",
+        "ip": "144.126.139.213",
+        "status": "running",
+        "cancelDate": null,
+        "createdDate": "2026-05-07T01:51:11.000Z",
+        "osType": "Windows",
+        "monthlyCostUsd": 15.45,
+        "dbRecord": {
+          "chatId": "8625434794",
+          "label": "nomadly-8625434794-1778118670648",
+          "status": "provisioning",
+          "end_time": "2026-06-07T01:51:14.675Z",
+          "autoRenewable": false,
+          "planPrice": 46.35
         }
       }
     ]
