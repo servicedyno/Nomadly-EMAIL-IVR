@@ -1075,7 +1075,9 @@ async function createPleskResetLink(telegramId, vpsData) {
 
 /**
  * OLD: changeVpsAutoRenewal(telegramId, vpsDetails) → toggles auto renewal
- * NEW: Toggles in MongoDB. Contabo billing is separate.
+ * NEW: Toggles in MongoDB AND immediately cancels on Contabo when disabling
+ *      so the user doesn't get billed for an extra month if Contabo's prepaid
+ *      billing has already triggered (root cause of past €30 leak charges).
  */
 async function changeVpsAutoRenewal(telegramId, vpsDetails) {
   try {
@@ -1083,13 +1085,55 @@ async function changeVpsAutoRenewal(telegramId, vpsDetails) {
 
     const vpsId = vpsDetails._id || vpsDetails.vpsId
     const newValue = !vpsDetails.autoRenewable
+    const contaboInstanceId = vpsDetails.contaboInstanceId
+
+    const update = { autoRenewable: newValue }
+
+    // ── BUG-B FIX: when DISABLING auto-renew, cancel on Contabo immediately ──
+    // This makes Contabo set cancelDate to the END of the CURRENT paid period
+    // (= our end_time). Waiting until the 5h-before-expiry pre-emptive cancel
+    // was too late: Contabo had already invoiced the next month, so cancelDate
+    // landed one period later and the user was billed an extra month.
+    if (newValue === false && contaboInstanceId) {
+      try {
+        const live = await contabo.getInstance(contaboInstanceId).catch(() => null)
+        if (live && !live.cancelDate) {
+          await contabo.cancelInstance(contaboInstanceId)
+          // Re-fetch to capture the cancelDate (Contabo can take a few seconds)
+          let confirmed = null
+          for (let attempt = 1; attempt <= 3; attempt++) {
+            await new Promise(r => setTimeout(r, 3000))
+            try {
+              const post = await contabo.getInstance(contaboInstanceId)
+              if (post?.cancelDate) { confirmed = post.cancelDate; break }
+            } catch (_) {}
+          }
+          if (confirmed) {
+            update._contaboCancelledEarly = true
+            update.contaboCancelDate = confirmed
+            update.cancelledAt = new Date()
+            update.cancelReason = 'auto_renew_disabled_by_user'
+            console.log(`[VPS] User ${telegramId} disabled auto-renew → Contabo cancelled. cancelDate=${confirmed}`)
+          } else {
+            console.log(`[VPS] User ${telegramId} disabled auto-renew → Contabo cancel call returned but cancelDate not yet visible; will retry from scheduler.`)
+          }
+        } else if (live?.cancelDate) {
+          // Already cancelled on Contabo (could happen if scheduler cancelled first)
+          update._contaboCancelledEarly = true
+          update.contaboCancelDate = live.cancelDate
+        }
+      } catch (cancelErr) {
+        console.log(`[VPS] Contabo cancel-on-disable failed for ${contaboInstanceId}: ${cancelErr.message}`)
+        // Don't fail the toggle — DB update still proceeds so scheduler can retry.
+      }
+    }
 
     await _vpsPlansOf.updateOne(
       { chatId: String(telegramId), vpsId: String(vpsId) },
-      { $set: { autoRenewable: newValue } }
+      { $set: update }
     )
 
-    return { autoRenewable: newValue }
+    return { autoRenewable: newValue, contaboCancelDate: update.contaboCancelDate || null }
   } catch (err) {
     console.log('Error in changeVpsAutoRenewal (contabo):', err.message || err)
     return false

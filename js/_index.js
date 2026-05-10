@@ -27433,8 +27433,25 @@ async function checkVPSPlansExpiryandPayment() {
       if (!autoRenewable) {
         // Auto-renew disabled — mark as pending cancellation, warn user
         await vpsPlansOf.updateOne({ _id }, { $set: { status: 'PENDING_CANCELLATION', _autoRenewAttempted: true } })
-        send(chatId, trans('t.util_1', displayName, expiryDate))
+        try { send(chatId, translation('t.util_1', lang, displayName, expiryDate)) } catch (notifErr) { log(`[VPS Scheduler] notify failed: ${notifErr.message}`) }
         log(`[VPS Scheduler] ${displayName} marked PENDING_CANCELLATION for ${chatId} — auto-renew disabled`)
+        // ── BUG-B FIX: cancel on Contabo IMMEDIATELY (24h before expiry) ──
+        // Contabo bills monthly contracts in advance; waiting until the 5h
+        // pre-emptive cancel (Phase 1.5) was too late and caused €30+ leak
+        // charges (cancelDate landed one period later instead of at end_time).
+        if (!vpsPlan._contaboCancelledEarly) {
+          try {
+            const cancelResult = await deleteVPSinstance(chatId, vpsId)
+            if (cancelResult && cancelResult.success) {
+              await vpsPlansOf.updateOne({ _id }, { $set: { _contaboCancelledEarly: true, status: 'CANCELLED', cancelledAt: new Date(), cancelReason: 'auto_renew_disabled', contaboCancelDate: cancelResult.cancelDate } })
+              log(`[VPS Scheduler] EARLY CANCEL on Contabo for ${displayName} (auto-renew off) — cancelDate=${cancelResult.cancelDate}`)
+            } else {
+              log(`[VPS Scheduler] EARLY CANCEL non-success for ${displayName}: ${(cancelResult && cancelResult.error) || 'unknown'}`)
+            }
+          } catch (cancelErr) {
+            log(`[VPS Scheduler] EARLY CANCEL crash for ${displayName}: ${cancelErr.message}`)
+          }
+        }
         continue
       }
 
@@ -27456,13 +27473,13 @@ async function checkVPSPlansExpiryandPayment() {
         set(payments, nanoid(), `Wallet,VPSAutoRenew,Monthly,$${planPrice},${chatId},${new Date()},${deductResult.currency}`)
 
         const { usdBal: usd } = await getBalance(walletOf, chatId)
-        send(chatId, trans('t.util_2', displayName, chargedDisplay, deductResult.currency.toUpperCase(), newEnd.toLocaleDateString(), usd.toFixed(2), ngn.toFixed(2)))
+        try { send(chatId, translation('t.util_2', lang, displayName, chargedDisplay, deductResult.currency.toUpperCase(), newEnd.toLocaleDateString(), usd.toFixed(2), '0.00')) } catch (notifErr) { log(`[VPS Scheduler] notify failed: ${notifErr.message}`) }
         log(`[VPS Scheduler] Auto-renewed ${displayName} for ${chatId}, charged ${deductResult.currency} $${planPrice}`)
       } else {
         // Both USD and NGN failed — mark pending cancellation
         await vpsPlansOf.updateOne({ _id }, { $set: { status: 'PENDING_CANCELLATION', _autoRenewAttempted: true } })
         const { usdBal } = deductResult
-        send(chatId, trans('t.util_3', displayName, (usdBal || 0).toFixed(2), planPrice, expiryDate))
+        try { send(chatId, translation('t.util_3', lang, displayName, (usdBal || 0).toFixed(2), planPrice, expiryDate)) } catch (notifErr) { log(`[VPS Scheduler] notify failed: ${notifErr.message}`) }
         send(TELEGRAM_ADMIN_CHAT_ID, `⚠️ <b>VPS Renewal Failed</b>\nUser: ${adminUserTag(await get(nameOf, chatId), chatId)}\nVPS: ${displayName}\nPrice: $${planPrice}\nBalance: $${(usdBal || 0).toFixed(2)}`, adminMsgOpts({ chatId }))
         log(`[VPS Scheduler] ${displayName} PENDING_CANCELLATION for ${chatId} — balance insufficient ($${usdBal || 0} < $${planPrice})`)
       }
@@ -27484,13 +27501,15 @@ async function checkVPSPlansExpiryandPayment() {
       const { chatId, _id, vpsId, label, contaboInstanceId, planPrice } = vpsPlan
       const displayName = label || vpsPlan.name || 'VPS'
       const hoursLeft = ((new Date(vpsPlan.end_time).getTime() - now.getTime()) / (1000 * 60 * 60)).toFixed(1)
+      const _info = await state.findOne({ _id: String(chatId) })
+      const lang = _info?.userLanguage || 'en'
 
       try {
         // Cancel on Contabo early to prevent their auto-renewal billing
         const cancelResult = await deleteVPSinstance(chatId, vpsId)
         if (cancelResult.success) {
           await vpsPlansOf.updateOne({ _id }, { $set: { _contaboCancelledEarly: true, status: 'CANCELLED', cancelledAt: new Date(), cancelReason: 'pre_emptive_no_payment' } })
-          send(chatId, trans('t.util_4', displayName))
+          try { send(chatId, translation('t.util_4', lang, displayName)) } catch (notifErr) { log(`[VPS Scheduler] notify failed: ${notifErr.message}`) }
           bot?.sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🛑 <b>VPS Pre-emptive Cancel</b>\nUser: ${adminUserTag(await get(nameOf, chatId), chatId)}\nVPS: ${displayName}\nContabo ID: ${contaboInstanceId || vpsId}\nHours before expiry: ${hoursLeft}h\nPrice: $${planPrice}/mo\n\n✅ Cancelled on Contabo to prevent their billing.`, adminMsgOpts({ chatId })).catch(() => {})
           log(`[VPS Scheduler] PRE-EMPTIVE CANCEL: ${displayName} for ${chatId} — ${hoursLeft}h before expiry`)
         } else {
@@ -27575,7 +27594,7 @@ async function checkVPSPlansExpiryandPayment() {
         const deleteResult = await deleteVPSinstance(chatId, vpsId)
         if (deleteResult.success) {
           await vpsPlansOf.updateOne({ _id }, { $set: { status: 'CANCELLED', cancelledAt: new Date(), cancelReason: 'auto_renewal_failed' } })
-          send(chatId, trans('t.util_5', displayName))
+          try { send(chatId, translation('t.util_5', lang, displayName)) } catch (notifErr) { log(`[VPS Scheduler] notify failed: ${notifErr.message}`) }
           send(TELEGRAM_ADMIN_CHAT_ID, `🗑️ <b>VPS Auto-Deleted</b>\nUser: ${adminUserTag(await get(nameOf, chatId), chatId)}\nVPS: ${displayName}\nReason: Renewal failed, deadline passed\nPrice was: $${planPrice}/mo`, adminMsgOpts({ chatId }))
           log(`[VPS Scheduler] DELETED ${displayName} on Contabo for ${chatId} — deadline passed`)
         } else {
@@ -27619,7 +27638,7 @@ async function checkVPSPlansExpiryandPayment() {
             : `$${planPrice}`
           set(payments, nanoid(), `Wallet,VPSAutoRenew,Monthly,$${planPrice},${chatId},${new Date()},${deductResult.currency}`)
           const { usdBal: usd } = await getBalance(walletOf, chatId)
-          send(chatId, trans('t.util_6', displayName, chargedDisplay, newEnd.toLocaleDateString(), usd.toFixed(2), ngn.toFixed(2)))
+          try { send(chatId, translation('t.util_6', lang, displayName, chargedDisplay, newEnd.toLocaleDateString(), usd.toFixed(2), '0.00')) } catch (notifErr) { log(`[VPS Scheduler] notify failed: ${notifErr.message}`) }
           log(`[VPS Scheduler] Late auto-renewed ${displayName} for ${chatId}`)
           continue
         }
@@ -27627,7 +27646,7 @@ async function checkVPSPlansExpiryandPayment() {
       // Failed or auto-renew off — mark pending cancellation (will be deleted next cycle)
       await vpsPlansOf.updateOne({ _id }, { $set: { status: 'PENDING_CANCELLATION', _autoRenewAttempted: true } })
       const { usdBal } = await getBalance(walletOf, chatId)
-      send(chatId, trans('t.util_7', displayName, (usdBal).toFixed(2)))
+      try { send(chatId, translation('t.util_7', lang, displayName, (usdBal).toFixed(2))) } catch (notifErr) { log(`[VPS Scheduler] notify failed: ${notifErr.message}`) }
       log(`[VPS Scheduler] ${displayName} marked PENDING_CANCELLATION (stale) for ${chatId}`)
     }
 
@@ -27645,13 +27664,15 @@ async function checkVPSPlansExpiryandPayment() {
       const msLeft = new Date(end_time).getTime() - now.getTime()
       const daysLeft = msLeft / (1000 * 60 * 60 * 24)
       const expiryDate = new Date(end_time).toLocaleDateString()
+      const _info = await state.findOne({ _id: String(chatId) })
+      const lang = _info?.userLanguage || 'en'
 
       // 3-day reminder
       if (daysLeft > 2.5 && daysLeft <= 3.1 && !vpsPlan._reminder3DaySent) {
         const { usdBal } = await getBalance(walletOf, chatId)
         const sufficient = usdBal >= planPrice
         const statusIcon = sufficient ? '✅' : '⚠️'
-        send(chatId, trans('t.util_8', displayName, expiryDate, planPrice, usdBal.toFixed(2), statusIcon, sufficient ? 'Auto-renewal will be attempted 1 day before expiry.' : 'Insufficient balance — top up or renew manually to keep your server!'))
+        try { send(chatId, translation('t.util_8', lang, displayName, expiryDate, planPrice, usdBal.toFixed(2), statusIcon, sufficient ? 'Auto-renewal will be attempted 1 day before expiry.' : 'Insufficient balance — top up or renew manually to keep your server!')) } catch (notifErr) { log(`[VPS Scheduler] notify failed: ${notifErr.message}`) }
         await vpsPlansOf.updateOne({ _id }, { $set: { _reminder3DaySent: true } })
         log(`[VPS Scheduler] 3-day reminder sent to ${chatId} for ${displayName}`)
       }

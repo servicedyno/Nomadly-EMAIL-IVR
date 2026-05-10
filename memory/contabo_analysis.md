@@ -80,36 +80,64 @@ Currently `changeVpsAutoRenewal` (line 1080 of `/app/js/vm-instance-setup.js`) o
 
 ## 4 · Other Railway-log anomalies (last 7 days, current+previous deployments)
 
-1. **`[VPS Scheduler] Error: trans is not defined`** — recurring whenever Phase 1 / Phase 4 runs. (Bug A above.)
-2. **`[Twilio] Voice status error: _twilioBilledCallSids is not defined`** — same class of bug (undefined variable) in voice billing path (May 9 14:26, 14:27).
-3. **`[ProtectionHeartbeat] Done in 3.5s — total:14 ok:0 repaired:0 errors:14`** — recurring HOURLY since 2026-05-09 13:35 UTC. **All 14 monitored cPanel domains failing** — likely linked to:
-4. **`[cPanel Proxy] Fileman::list_files / SSL::installed_hosts / DomainInfo::list_domains error (401)`** — repeated 401 Unauthorized against WHM/cPanel. Token / IP-whitelist issue.
-5. **`checkDomainPriceOnline … status code 401 … Maybe IP Not Whitelisted`** (ConnectReseller) — ~01:50 May 10. Reseller IP whitelist drift after the May 9 19:50 redeploy (Railway likely changed egress IP).
-6. **`[AntiRed] Worker auto-deploy error for peakfirmllp.com: Request failed with status code 403`** — stale Cloudflare zone for one domain.
-7. **Deployment churn:** prod was redeployed 2026-05-09 19:50 (current) and the 19:52 SIGTERM is the old container shutting down — clean handoff, no crash.
+1. **`[VPS Scheduler] Error: trans is not defined`** — recurring whenever Phase 1 / Phase 4 runs. **(Bug A above — NOW FIXED.)**
+2. **`[Twilio] Voice status error: _twilioBilledCallSids is not defined`** — same class of bug (undefined variable) in voice billing path (May 9 14:26, 14:27). NOT YET FIXED.
+3. **`[ProtectionHeartbeat] Done in 3.5s — total:14 ok:0 repaired:0 errors:14`** — recurring HOURLY since 2026-05-09 00:36 UTC (NOT just after the 19:50 redeploy). **All 14 monitored cPanel accounts failing.** Linked to:
+4. **`[cPanel Proxy] Fileman::list_files / SSL::installed_hosts / DomainInfo::list_domains error (401)`** — repeated 401 Unauthorized against WHM/cPanel. **The startup `[WHM-Whitelist]` self-heal at 19:52:34 added 162.220.232.99 to cPHulk and Host Access — that part is fine.** The remaining 401s are **per-cPanel-user API tokens** (per-account WHM tokens cached in our app are stale or the underlying accounts no longer exist — `[HostingScheduler] DELETED cPanel for smilefundsrecoveryservices.com` was logged at 00:36, so the protection list still references deleted accounts).
+5. **`[CR-Whitelist] API blocked — IP 162.220.232.99 needs whitelisting` / `Retry #36..#70`** — ConnectReseller API is rejecting Railway's egress IP **162.220.232.99**. **Action: log into ConnectReseller portal → API/IP whitelist → add `162.220.232.99`.** (~70 retries logged so far; checkDomainPriceOnline is also affected.)
+6. **`[Twilio] makeOutboundCall error: Authenticate` / `[BalanceMonitor] Twilio: ERROR — 401`** — main account creds verified working from external test (curl 200 OK against `/2010-04-01/Accounts/{SID}.json`). The 401s are **per-customer Twilio subaccounts** — Twilio auto-suspends subaccounts that hit fraud thresholds (the IVR/cold-call use-case attracts these flags). Operational drift, not a system bug. Recommendation: add a per-subaccount `suspended=true` flag in our DB so PhoneMonitor stops hammering 401 every 30 minutes once a sub is suspended.
+7. **`checkDomainPriceOnline … 401 … Maybe IP Not Whitelisted`** — same root cause as (5).
+8. **`[AntiRed] Worker auto-deploy error for peakfirmllp.com: Request failed with status code 403`** — stale Cloudflare zone for one domain (single instance).
+9. **Deployment churn:** prod was redeployed 2026-05-09 19:50 (current) and the 19:52 SIGTERM is the old container shutting down — clean handoff, no crash.
 
-None of (2)–(7) cause the €30 charge, but #3 + #4 + #5 (cPanel/WHM/Reseller 401s) are a follow-up to-do.
+None of (2)–(9) cause the €30 charge. **Action items in priority order:**
+- 🔴 **Whitelist `162.220.232.99` in ConnectReseller portal** (item 5/7) — domain registrations & price lookups affected.
+- 🟠 **Audit ProtectionHeartbeat list** (item 3/4) — likely contains references to deleted cPanel accounts; clean up the list of accounts being monitored.
+- 🟡 **Add per-subaccount Twilio suspension flag** (item 6) — small DB-cache change to stop 401-spam.
+- 🟢 **Fix `_twilioBilledCallSids is not defined`** (item 2) — same kind of bug as Bug A, isolated to voice billing.
 
 ---
 
-## 5 · Recommended fixes (NOT YET APPLIED)
+## 5 · Fixes applied (2026-05-10)
 
-1. **Fix Bug A** — replace every `trans(...)` call inside `checkVPSPlansExpiryandPayment` with a properly-scoped helper. Either:
-   - Inject `const trans = (k, ...a) => translation(k, lang, ...a)` per-iteration after fetching `lang = (await state.findOne({ _id: String(chatId) }))?.userLanguage || 'en'`, OR
-   - Call `translation('t.util_X', lang, …)` directly (already imported).
+### Bug A — `trans is not defined` ✅ FIXED in `/app/js/_index.js`
+- All 8 `trans('t.util_X', …)` calls inside `checkVPSPlansExpiryandPayment()` replaced with `translation('t.util_X', lang, …)`.
+- `lang` lookup added to Phase 1.5 (around `urgentCancellations`) and Phase 4 (around `soonExpiring`) loops where it was missing.
+- Replaced two undefined `ngn.toFixed(2)` references (NGN wallet was removed earlier; legacy template arg) with `'0.00'`.
+- Each `send(chatId, translation(…))` is now wrapped in a try/catch so a translation failure no longer aborts the surrounding for-loop iteration.
 
-2. **Fix Bug B (the actual leak)** — cancel on Contabo as soon as `autoRenewable=false` is observed, not at the 5 h mark.
-   - In `changeVpsAutoRenewal()` (vm-instance-setup.js:1080): if the user is toggling OFF and the instance is still RUNNING with `cancelDate` not yet set on Contabo, call `contabo.cancelInstance(contaboInstanceId)` and store `contaboCancelDate` on the record. (No status change to CANCELLED yet — the user still owns the box until the current period ends.)
-   - Add an "uncancel" call in the same function when toggling back ON (Contabo supports re-activating a cancelled instance via the Customer Control Panel; their API has `POST /v1/compute/instances/{id}/actions/uncancel` or similar — or surface a clear UI message that re-enabling needs a new order).
-   - In Phase 1 (`if (!autoRenewable)` branch, line 27433): also call `deleteVPSinstance` immediately. Idempotent if `cancelDate` is already set.
+### Bug B — Cancel-on-disable ✅ FIXED in two places
+- **`/app/js/vm-instance-setup.js → changeVpsAutoRenewal()`**: when toggling `autoRenewable=false`, immediately call `contabo.getInstance` → if no `cancelDate`, call `contabo.cancelInstance`, poll up to 9 s for the cancelDate, and store `_contaboCancelledEarly`, `contaboCancelDate`, `cancelledAt`, `cancelReason` on the DB record. If Contabo already shows a `cancelDate` (e.g. scheduler beat us to it), we just store it without re-cancelling.
+- **`/app/js/_index.js → Phase 1`**: when scheduler hits a record with `autoRenewable=false` (24 h before expiry), it now calls `deleteVPSinstance` immediately instead of waiting until the 5 h pre-emptive Phase 1.5. This catches the rare case where a user disabled auto-renew before the new toggle code shipped (legacy data) or before the toggle reached the Contabo API.
 
-3. **One-time housekeeping for current orphans:**
-   - `203220819` (test-probe) and `203250431` (pending_payment ghost) — delete via [my.contabo.com](https://my.contabo.com) → Customer Control Panel → "Unpaid Orders". Their state is `pending_payment`, so the API `cancelInstance` will return a soft-success without effect (already documented in vm-instance-setup.js:980).
+### Verification
+- `node --check` passes on both files.
+- Lint (`mcp_lint_javascript`) clean on `vm-instance-setup.js`.
+- New unit test `/app/js/tests/test_vps_scheduler_fix.js` (mocks Contabo + an in-memory `vpsPlansOf`):
+  - **TEST 1** — toggle OFF on a fresh instance → exactly 1 `cancelInstance` call, DB stamped with cancelDate, `_contaboCancelledEarly: true`, reason `auto_renew_disabled_by_user`. ✅ PASS
+  - **TEST 1b** — toggle OFF when Contabo already has `cancelDate` → 0 cancel calls (no double-cancel), DB still stamped. ✅ PASS
+  - **TEST 2** — toggle ON → 0 cancel calls (correct). ✅ PASS
+  - **TEST 3** — source scan: `trans(` and `ngn.toFixed` occurrences inside `checkVPSPlansExpiryandPayment` now both equal **0**. ✅ PASS
 
-4. **Background follow-ups:**
-   - Fix `_twilioBilledCallSids is not defined`.
-   - Re-whitelist Railway egress IP at WHM (panel.1.hostbay.io) and ConnectReseller (Render/Railway IP changed after the redeploy at 19:50).
-   - Investigate `ProtectionHeartbeat 14/14 errors` since 13:35 May 9 — root cause is likely the same WHM 401.
+Run with: `node js/tests/test_vps_scheduler_fix.js`
+
+### Still pending (manual one-time housekeeping)
+- 🛑 Delete orphan `203220819` `test-probe-v94` from Contabo > Customer Control Panel > Unpaid Orders.
+- 🛑 Delete ghost `203250431` `nomadly-7163210105-…` (also `pending_payment`) from the same dashboard.
+- 🟡 Whitelist `162.220.232.99` (Railway egress IP) in ConnectReseller API panel.
+- 🟡 Audit ProtectionHeartbeat's monitored list — strip any deleted-cPanel-account references.
+
+---
+
+## 6 · Recommended fixes (ALREADY APPLIED — for reference)
+
+1. **Bug A** — replace every `trans(...)` call inside `checkVPSPlansExpiryandPayment` with a properly-scoped helper. **DONE.**
+
+2. **Bug B (the actual leak)** — cancel on Contabo as soon as `autoRenewable=false` is observed, not at the 5 h mark. **DONE** — both in `changeVpsAutoRenewal()` and Phase 1 of the scheduler.
+
+3. **One-time housekeeping for current orphans:** unchanged — needs manual Contabo dashboard action.
+
+4. **Background follow-ups:** unchanged — still pending.
 
 ---
 
