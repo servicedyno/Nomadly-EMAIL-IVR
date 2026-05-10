@@ -27,17 +27,32 @@ async function checkTelnyxBalance() {
   const apiKey = process.env.TELNYX_API_KEY
   if (!apiKey) return null
 
-  try {
-    const res = await axios.get('https://api.telnyx.com/v2/balance', {
-      headers: { Authorization: `Bearer ${apiKey}` },
-      timeout: 15000,
-    })
-    const data = res.data?.data
-    const balance = parseFloat(data?.balance || data?.available_credit || '0')
-    return { provider: 'Telnyx', balance, currency: data?.currency || 'USD', raw: data }
-  } catch (e) {
-    log(`[BalanceMonitor] Telnyx check failed: ${e.message}`)
-    return { provider: 'Telnyx', error: e.message }
+  const url = 'https://api.telnyx.com/v2/balance'
+  const config = { headers: { Authorization: `Bearer ${apiKey}` }, timeout: 15000 }
+
+  let lastErr = null
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const res = await axios.get(url, config)
+      const data = res.data?.data
+      const balance = parseFloat(data?.balance || data?.available_credit || '0')
+      return { provider: 'Telnyx', balance, currency: data?.currency || 'USD', raw: data }
+    } catch (e) {
+      lastErr = e
+      const status = e.response?.status
+      const isTransient = !status || status >= 500 || ['ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN'].includes(e.code)
+      log(`[BalanceMonitor] Telnyx check attempt ${attempt}/3 failed: HTTP ${status || '-'} ${e.code || ''} ${e.message}${isTransient ? ' (transient)' : ''}`)
+      if (!isTransient) break
+      if (attempt < 3) await new Promise(r => setTimeout(r, 2000 * attempt))
+    }
+  }
+  const status = lastErr?.response?.status
+  const errorCategory = (!status || status >= 500) ? 'transient' : (status === 401 || status === 403) ? 'auth' : 'other'
+  return {
+    provider: 'Telnyx',
+    error: `HTTP ${status || '-'}: ${lastErr?.message || 'unknown'}`,
+    errorStatus: status,
+    errorCategory,
   }
 }
 
@@ -49,16 +64,35 @@ async function checkTwilioBalance() {
   const token = process.env.TWILIO_AUTH_TOKEN
   if (!sid || !token) return null
 
-  try {
-    const res = await axios.get(
-      `https://api.twilio.com/2010-04-01/Accounts/${sid}/Balance.json`,
-      { auth: { username: sid, password: token }, timeout: 15000 }
-    )
-    const balance = parseFloat(res.data?.balance || '0')
-    return { provider: 'Twilio', balance, currency: res.data?.currency || 'USD', raw: res.data }
-  } catch (e) {
-    log(`[BalanceMonitor] Twilio check failed: ${e.message}`)
-    return { provider: 'Twilio', error: e.message }
+  const url = `https://api.twilio.com/2010-04-01/Accounts/${sid}/Balance.json`
+  const auth = { username: sid, password: token }
+
+  // Retry transient 5xx / network errors up to 3 times with backoff. A 502 from
+  // Twilio's edge is unrelated to credentials (which are checked at L7) but the
+  // monitor previously interpreted any error as "auth/suspended" and spammed the
+  // admin chat. Retry first, classify properly second.
+  let lastErr = null
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const res = await axios.get(url, { auth, timeout: 15000 })
+      const balance = parseFloat(res.data?.balance || '0')
+      return { provider: 'Twilio', balance, currency: res.data?.currency || 'USD', raw: res.data }
+    } catch (e) {
+      lastErr = e
+      const status = e.response?.status
+      const isTransient = !status || status >= 500 || ['ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN'].includes(e.code)
+      log(`[BalanceMonitor] Twilio check attempt ${attempt}/3 failed: HTTP ${status || '-'} ${e.code || ''} ${e.message}${isTransient ? ' (transient)' : ''}`)
+      if (!isTransient) break  // 4xx — no point retrying
+      if (attempt < 3) await new Promise(r => setTimeout(r, 2000 * attempt))
+    }
+  }
+  const status = lastErr?.response?.status
+  const errorCategory = (!status || status >= 500) ? 'transient' : (status === 401 || status === 403) ? 'auth' : 'other'
+  return {
+    provider: 'Twilio',
+    error: `HTTP ${status || '-'}: ${lastErr?.message || 'unknown'}`,
+    errorStatus: status,
+    errorCategory,
   }
 }
 
@@ -119,6 +153,11 @@ async function sendAlert(result) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Main Check — runs all provider checks
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// State tracking for transient-error suppression. We only alert on a transient
+// 5xx / network error AFTER it's been observed on TWO consecutive checks —
+// otherwise a one-off Twilio / Telnyx edge blip would page the admin every time.
+let _consecutiveErrors = {}        // { provider: { count, lastStatus } }
+
 async function checkAllBalances() {
   log('[BalanceMonitor] Running provider balance checks...')
   const results = []
@@ -132,17 +171,47 @@ async function checkAllBalances() {
   for (const r of results) {
     if (r.error) {
       log(`[BalanceMonitor] ${r.provider}: ERROR — ${r.error}`)
-      // Send alert for API errors too (could indicate suspended account)
-      if (_bot && _adminChatId && shouldAlert(r.provider + '_error', 'critical')) {
-        try {
-          await _bot.sendMessage(_adminChatId,
-            `⚠️ <b>${r.provider} Balance Check FAILED</b>\n\nError: ${r.error}\n\nThis may indicate the account is suspended or credentials are invalid.`,
-            { parse_mode: 'HTML' }
-          )
-          recordAlert(r.provider + '_error', 'critical')
-        } catch (e) { /* ignore */ }
+
+      // Track consecutive errors
+      const prev = _consecutiveErrors[r.provider] || { count: 0 }
+      _consecutiveErrors[r.provider] = {
+        count: prev.count + 1,
+        lastStatus: r.errorStatus,
+        lastCategory: r.errorCategory,
+        lastError: r.error,
       }
+      const consecutive = _consecutiveErrors[r.provider].count
+
+      // Decide whether to alert
+      const isAuthError = r.errorCategory === 'auth'
+      const isPersistentTransient = r.errorCategory === 'transient' && consecutive >= 2
+      const shouldAlert_ = isAuthError || isPersistentTransient
+
+      if (!shouldAlert_) {
+        log(`[BalanceMonitor] ${r.provider}: suppressed alert (category=${r.errorCategory}, consecutive=${consecutive})`)
+        continue
+      }
+      if (!_bot || !_adminChatId) continue
+      if (!shouldAlert(r.provider + '_error_' + r.errorCategory, 'critical')) continue
+
+      const title = isAuthError
+        ? `🔒 <b>${r.provider} CREDENTIALS REJECTED (HTTP ${r.errorStatus})</b>`
+        : `🌐 <b>${r.provider} API unreachable (${consecutive} consecutive failures)</b>`
+      const body = isAuthError
+        ? `Auth token rejected by ${r.provider}. Check that the SID/Token in env are still valid and that the account is not suspended.\n\nError: <code>${r.error}</code>`
+        : `Last error: <code>${r.error}</code>\n\nLikely a transient ${r.provider} edge / network issue. If this clears on the next check, no action needed. If it persists for 30+ minutes, investigate Twilio/Telnyx status pages.`
+
+      try {
+        await _bot.sendMessage(_adminChatId, `${title}\n\n${body}`, { parse_mode: 'HTML' })
+        recordAlert(r.provider + '_error_' + r.errorCategory, 'critical')
+      } catch (e) { /* ignore */ }
       continue
+    }
+
+    // Successful balance read — clear consecutive error counter
+    if (_consecutiveErrors[r.provider]) {
+      log(`[BalanceMonitor] ${r.provider}: recovered after ${_consecutiveErrors[r.provider].count} consecutive errors`)
+      delete _consecutiveErrors[r.provider]
     }
 
     log(`[BalanceMonitor] ${r.provider}: $${r.balance.toFixed(2)} ${r.currency} [${getAlertLevel(r.balance)}]`)

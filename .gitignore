@@ -45,6 +45,18 @@ railway_*.json
 deployment_logs_*
 prod_logs_*
 
+# Production diagnostic dumps — contain customer chatIds, instance IDs, IPs,
+# Twilio Account SIDs, etc. Never commit these to the public repo.
+memory/twilio_audit.json
+memory/contabo_diagnostic_report.json
+memory/protection_heartbeat_audit.json
+memory/railway_*.json
+memory/railway_*.txt
+memory/railway_logs_*
+memory/*_audit.json
+memory/*_diagnostic*.json
+memory/contabo_analysis.md
+
 # System files
 .DS_Store
 
@@ -85,6 +97,78 @@ android-sdk/
 *token.json*
 *credentials.json*
 
+# Environment and credential files
+.env
+.env.*
+*.env
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+.env
+.env.*
+*.env
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+.env
+.env.*
+*.env
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+.env
+.env.*
+*.env
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+.env
+.env.*
+*.env
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+.env
+.env.*
+*.env
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+.env
+.env.*
+*.env
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
+# Environment and credential files
+.env
+.env.*
+*.env
+credentials.json
+*.pem
+*.key
+.credentials
+-e 
 # Environment and credential files
 .env
 .env.*
