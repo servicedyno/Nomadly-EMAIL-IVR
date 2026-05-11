@@ -1,0 +1,102 @@
+{
+  "planDoc": {
+    "_id": "69ecea52ba4726a69ab9e1bd",
+    "contaboInstanceId": 203220843,
+    "_autoRenewAttempted": true,
+    "_reminder1DaySent": false,
+    "_reminder3DaySent": true,
+    "adminProvisioned": true,
+    "adminProvisionedAt": "2026-04-25T16:22:42.558Z",
+    "autoRenewable": false,
+    "chatId": "404562920",
+    "createdAt": "2026-04-25T16:22:42.558Z",
+    "defaultUser": "admin",
+    "end_time": "2026-05-10T00:26:26.000Z",
+    "host": "66.94.96.183",
+    "imageId": "ef27e2fa-188f-4767-964b-7543fea74968",
+    "isRDP": true,
+    "label": "nomadly-404562920-1775780785132",
+    "name": "nomadly-404562920-1775780785132",
+    "osType": "Windows",
+    "plan": "Monthly",
+    "planPrice": 89.55,
+    "productId": "V94",
+    "region": "US-east",
+    "rootPasswordSecretId": 351912,
+    "sshKeySecretId": null,
+    "start_time": "2026-04-10T00:26:26.000Z",
+    "status": "CANCELLED",
+    "timestamp": "2026-04-10T00:26:26.000Z",
+    "vpsId": "203220843",
+    "lastPasswordReset": "2026-04-26T23:49:43.204Z",
+    "adminLastReinstallReason": "Restore Windows after resetPassword bug coerced OS to Ubuntu",
+    "adminLastReinstalledAt": "2026-04-25T16:57:35.180Z",
+    "sshPassword": "2k62sPMdp8cSgP5HxHMj",
+    "sshUser": "Administrator",
+    "_adminNotifyHistory": [
+      "24h",
+      "12h",
+      "6h"
+    ],
+    "contaboCancelDate": "2026-06-09",
+    "deletedAt": "2026-05-09T19:30:06.219Z",
+    "_contaboCancelledEarly": true,
+    "cancelReason": "pre_emptive_no_payment",
+    "cancelledAt": "2026-05-09T19:30:06.224Z"
+  },
+  "contaboSnapshot": {
+    "tenantId": "INT",
+    "customerId": "14615517",
+    "additionalIps": [],
+    "name": "vmi3220843",
+    "displayName": "nomadly-404562920-1775780785132",
+    "instanceId": 203220843,
+    "dataCenter": "United States (East) 1",
+    "region": "US-east",
+    "regionName": "United States (East)",
+    "productId": "V94",
+    "imageId": "ef27e2fa-188f-4767-964b-7543fea74968",
+    "ipConfig": {
+      "v4": {
+        "ip": "66.94.96.183",
+        "gateway": "66.94.96.1",
+        "netmaskCidr": 21
+      },
+      "v6": {
+        "ip": "2605:a144:2322:0843:0000:0000:0000:0001",
+        "gateway": "fe80::1",
+        "netmaskCidr": 64
+      }
+    },
+    "macAddress": "00:50:56:63:01:88",
+    "ramMb": 12288,
+    "cpuCores": 6,
+    "osType": "Windows",
+    "diskMb": 102400,
+    "createdDate": "2026-04-10T00:26:26.000Z",
+    "cancelDate": "2026-06-09",
+    "status": "running",
+    "vHostId": 14825,
+    "vHostNumber": 18444,
+    "vHostName": "m18444",
+    "addOns": [
+      {
+        "id": 1501,
+        "quantity": 1
+      },
+      {
+        "id": 1956,
+        "quantity": 1
+      },
+      {
+        "id": 2033,
+        "quantity": 1
+      }
+    ],
+    "productType": "nvme",
+    "productName": "Cloud VPS 20 NVMe (no setup)",
+    "defaultUser": "admin",
+    "applicationId": null
+  },
+  "capturedAt": "2026-05-11T06:29:24.392Z"
+}
