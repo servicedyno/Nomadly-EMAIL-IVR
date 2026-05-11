@@ -27354,6 +27354,19 @@ schedule.scheduleJob('0 9 * * 1', function() {
   reconcileContaboOrphans()
 })
 
+// ─── Self-heal: VPS renewed-after-cancel guard ──────────────────────────
+// Every 30 minutes. Detects the failure mode that caused the @davion419 €30
+// leak: DB plan is CANCELLED/DELETED but the matching Contabo instance is
+// STILL RUNNING (either because Contabo auto-renewed before our cancel
+// landed, leaving a future cancelDate beyond our end_time, or because the
+// cancel never propagated and cancelDate is null on a pending_payment
+// instance). In both cases the bot user retains access they didn't pay for.
+// Action: shutdown instance → rotate Administrator password → archive +
+// delete the vpsPlansOf doc → alert admin. Idempotent via vpsPlansOf_revoked.
+schedule.scheduleJob('*/30 * * * *', function() {
+  selfHealRenewedAfterCancelVPS()
+})
+
 async function reconcileContaboOrphans() {
   if (!vpsPlansOf || typeof vpsPlansOf.find !== 'function') {
     console.log('[Orphan Recon] Database not ready — skipping')
@@ -27398,6 +27411,180 @@ async function reconcileContaboOrphans() {
     log(`[Orphan Recon] ⚠️ ${orphans.length} orphan(s) detected`)
   } catch (err) {
     log('[Orphan Recon] error: ' + (err.message || err))
+  }
+}
+
+// ─── Self-heal: VPS renewed-after-cancel ────────────────────────────────────
+// Detects the failure mode that caused @davion419's leak (2026-05-10):
+//   • DB plan.status ∈ {CANCELLED, DELETED}
+//   • Contabo instance still RUNNING (consuming the seat we already paid for)
+//   • Either:
+//     (a) Contabo cancelDate is in the future AND > planEnd + grace → Contabo
+//         auto-renewed before our cancel landed (this is the @davion419 case),
+//         OR
+//     (b) Contabo cancelDate is null → our cancel never propagated (e.g.
+//         pending_payment instances that Contabo refuses to /cancel).
+// Action: shutdown + rotate password + archive+delete the vpsPlansOf doc.
+// The archive into vpsPlansOf_revoked acts as the idempotency marker — once a
+// plan is moved there, the main vpsPlansOf collection no longer contains it
+// so this sweep stops touching it.
+const SELF_HEAL_GRACE_DAYS = 2  // tolerance: Contabo cancelDate vs DB end_time
+async function selfHealRenewedAfterCancelVPS() {
+  if (!vpsPlansOf || typeof vpsPlansOf.find !== 'function') {
+    console.log('[VPS Self-heal] Database not ready — skipping')
+    return
+  }
+  let healed = 0
+  let alerted = 0
+  try {
+    const contabo = require('./contabo-service.js')
+    const cancelled = await vpsPlansOf.find({
+      status: { $in: ['CANCELLED', 'DELETED'] },
+      $or: [
+        { _selfHealAttemptedAt: { $exists: false } },
+        { _selfHealAttemptedAt: { $lt: new Date(Date.now() - 6 * 60 * 60 * 1000) } } // retry after 6h
+      ]
+    }).toArray()
+
+    if (cancelled.length === 0) return
+
+    const revoked = db.collection('vpsPlansOf_revoked')
+    const graceMs = SELF_HEAL_GRACE_DAYS * 24 * 60 * 60 * 1000
+
+    for (const plan of cancelled) {
+      const cid = plan.contaboInstanceId ?? plan.vpsId
+      if (!cid) continue
+
+      let live
+      try {
+        live = await contabo.getInstance(cid)
+      } catch (err) {
+        // 404 = already gone from Contabo; safe to skip
+        if (err?.status === 404) continue
+        log(`[VPS Self-heal] Could not fetch ${cid}: ${err.message || err}`)
+        continue
+      }
+
+      // Skip if Contabo already stopped/cancelled it — nothing to heal
+      if (live.status === 'stopped' || live.status === 'shutdown' || live.status === 'cancelled') {
+        continue
+      }
+
+      // pending_payment leak: Contabo refuses /cancel API on this state, so we
+      // can only alert the admin once to take manual action via my.contabo.com.
+      if (live.status === 'pending_payment' && !live.cancelDate) {
+        await vpsPlansOf.updateOne({ _id: plan._id }, { $set: { _selfHealAttemptedAt: new Date(), _selfHealReason: 'pending_payment_manual_required' } })
+        try {
+          const userTag = adminUserTag(await get(nameOf, plan.chatId), plan.chatId)
+          const msg = `⚠️ <b>VPS Self-heal — Manual action required</b>\n` +
+            `User: ${userTag}\nVPS: ${plan.label || plan.name || '-'}\nContabo ID: <code>${cid}</code>\n` +
+            `Status: <code>pending_payment</code> (Contabo API refuses /cancel for this state)\n` +
+            `Plan end_time: ${plan.end_time ? new Date(plan.end_time).toISOString() : '-'}\n\n` +
+            `🛠️ Please cancel manually via my.contabo.com → Unpaid Orders.`
+          if (typeof bot?.sendMessage === 'function' && TELEGRAM_ADMIN_CHAT_ID) {
+            bot.sendMessage(TELEGRAM_ADMIN_CHAT_ID, msg, { parse_mode: 'HTML' }).catch(() => {})
+          }
+          alerted++
+          log(`[VPS Self-heal] ALERT-ONLY ${cid} — pending_payment manual action required`)
+        } catch (err) { log(`[VPS Self-heal] alert fail: ${err.message}`) }
+        continue
+      }
+
+      if (live.status !== 'running' && live.status !== 'installing' && live.status !== 'provisioning') {
+        continue
+      }
+
+      const planEnd = plan.end_time ? new Date(plan.end_time).getTime() : null
+      const contaboCancelDate = live.cancelDate ? new Date(live.cancelDate).getTime() : null
+      const renewedAfterCancel = contaboCancelDate && planEnd && (contaboCancelDate - planEnd > graceMs)
+      const cancelNeverPropagated = !contaboCancelDate
+
+      if (!renewedAfterCancel && !cancelNeverPropagated) {
+        // CancelDate is set and reasonably close to end_time — normal cancellation in flight
+        continue
+      }
+
+      const reason = renewedAfterCancel ? 'renewed_after_cancel_bug' : 'cancel_never_propagated'
+      log(`[VPS Self-heal] DETECTED ${cid} (chatId=${plan.chatId}) — reason=${reason} cancelDate=${live.cancelDate || 'null'} planEnd=${plan.end_time}`)
+
+      // mark attempt early so concurrent runs don't double-act
+      await vpsPlansOf.updateOne({ _id: plan._id }, { $set: { _selfHealAttemptedAt: new Date(), _selfHealReason: reason } })
+
+      // Step 1: rotate password (locks user out even if VPS reboots)
+      let pwdSecretId = null
+      try {
+        const r = await contabo.resetPassword(cid, {
+          osType: live.osType,
+          isRDP: live.osType === 'Windows',
+          defaultUser: live.defaultUser
+        })
+        pwdSecretId = r.secretId
+        log(`[VPS Self-heal] ${cid} password rotated, secretId=${pwdSecretId}`)
+      } catch (err) {
+        log(`[VPS Self-heal] ${cid} resetPassword failed: ${err.message || err}`)
+      }
+
+      // Step 2: shutdown (give the reset reboot 45s to settle first)
+      let stopped = false
+      await new Promise(r => setTimeout(r, 45000))
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          await contabo.shutdownInstance(cid)
+          await new Promise(r => setTimeout(r, 10000))
+          const v = await contabo.getInstance(cid)
+          if (v.status === 'stopped' || v.status === 'shutdown') { stopped = true; break }
+        } catch (err) {
+          // 400 "Instance is already stopped" means it IS stopped — count as success
+          const msg = err?.message || ''
+          if (msg.includes('already stopped')) { stopped = true; break }
+          log(`[VPS Self-heal] ${cid} shutdown attempt ${attempt} failed: ${msg}`)
+          await new Promise(r => setTimeout(r, 15000))
+        }
+      }
+
+      // Step 3: archive then delete the DB doc
+      try {
+        await revoked.insertOne({
+          ...plan,
+          _archivedAt: new Date(),
+          _archivedReason: reason,
+          _archivedBy: 'selfHealRenewedAfterCancelVPS',
+          _contaboFinalStatus: stopped ? 'stopped' : live.status,
+          _passwordRotatedSecretId: pwdSecretId,
+          _originalId: plan._id,
+          _id: undefined
+        })
+        await vpsPlansOf.deleteOne({ _id: plan._id })
+        healed++
+        log(`[VPS Self-heal] HEALED ${cid} — archived + deleted from vpsPlansOf (stopped=${stopped})`)
+      } catch (err) {
+        log(`[VPS Self-heal] ${cid} archive/delete failed: ${err.message}`)
+      }
+
+      // Step 4: admin alert
+      try {
+        const userTag = adminUserTag(await get(nameOf, plan.chatId), plan.chatId)
+        const planEndStr = plan.end_time ? new Date(plan.end_time).toISOString() : '-'
+        const cancelDateStr = live.cancelDate || '-'
+        const msg = `🛠️ <b>VPS Self-heal — ${reason === 'renewed_after_cancel_bug' ? 'Renewed-after-cancel' : 'Cancel-never-propagated'}</b>\n` +
+          `User: ${userTag}\nVPS: ${plan.label || plan.name || '-'}\nContabo ID: <code>${cid}</code>\n` +
+          `Plan end_time: ${planEndStr}\nContabo cancelDate: ${cancelDateStr}\n` +
+          `${pwdSecretId ? '🔑 Password rotated (admin password file stored on Contabo as secretId ' + pwdSecretId + ')\n' : '⚠️ Password rotation FAILED\n'}` +
+          `${stopped ? '⏹️ Instance shutdown verified\n' : '⚠️ Shutdown could not be verified within 60s — may still be settling\n'}` +
+          `🗑️ DB record moved to <code>vpsPlansOf_revoked</code>` +
+          `${reason === 'cancel_never_propagated' ? '\n\n⚠️ <b>Cancel API never accepted</b> — please cancel manually via my.contabo.com to stop billing.' : ''}`
+        if (typeof bot?.sendMessage === 'function' && TELEGRAM_ADMIN_CHAT_ID) {
+          bot.sendMessage(TELEGRAM_ADMIN_CHAT_ID, msg, { parse_mode: 'HTML' }).catch(() => {})
+        }
+        alerted++
+      } catch (err) {
+        log(`[VPS Self-heal] admin notify fail: ${err.message}`)
+      }
+    }
+
+    if (healed || alerted) log(`[VPS Self-heal] cycle complete — healed=${healed}, alerted=${alerted}`)
+  } catch (err) {
+    log('[VPS Self-heal] cycle error: ' + (err.message || err))
   }
 }
 

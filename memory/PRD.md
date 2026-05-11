@@ -48,8 +48,13 @@
 ## Backlog / Pending action items
 
 ### P0 — Manual one-time housekeeping (user must do via my.contabo.com)
-- Delete orphan `203220819` `test-probe-v94` (pending_payment) from Customer Control Panel > Unpaid Orders.
-- Delete ghost `203250431` `nomadly-7163210105-…` (pending_payment) — same place.
+- Delete orphan `203220819` `test-probe-v94` (pending_payment) from Customer Control Panel > Unpaid Orders. (Contabo API returns HTTP 500 on `/cancel` for this state — confirmed 2026-05-11.)
+- Delete ghost `203250431` `nomadly-7163210105-…` (pending_payment) — same place. Self-heal guard will now nag admin via Telegram every 6h until resolved.
+
+### Done in 2026-05-11 follow-up session
+- **@davion419 (chatId 404562920) VPS 203220843 revoked.** Password rotated via Contabo `resetPassword`, instance shut down (`status=stopped` verified), DB doc archived to `vpsPlansOf_revoked` and removed from `vpsPlansOf`. Audit: `/app/memory/DAVION419_VPS_REVOCATION_REPORT.md`.
+- **Credential validation** — Contabo + Railway credentials confirmed working (`/app/memory/railway_prod_env.json`, 204 vars fetched, 12 Contabo instances listed).
+- **Self-healing guard added** (`selfHealRenewedAfterCancelVPS` in `_index.js`, cron `*/30 * * * *`). Auto-recovers from renewed-after-cancel + cancel-never-propagated bug classes. Alerts admin (no auto-action) for pending_payment leaks. Design: `/app/memory/SELF_HEAL_GUARD.md`.
 
 ### P1 — Production deploy & verify
 - Push the two file changes (`js/_index.js`, `js/vm-instance-setup.js`) to Railway.
