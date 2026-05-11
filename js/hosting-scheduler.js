@@ -319,8 +319,8 @@ function initScheduler(deps) {
                 { _id: account._id },
                 { $set: { expiryUserNotified: true } }
               )
+              log(`[HostingScheduler] Weekly plan expired: ${domain} (${plan}) for ${chatId} — no auto-renew (weekly plans never auto-renew)`)
             }
-            log(`[HostingScheduler] Weekly plan expired: ${domain} (${plan}) for ${chatId} — no auto-renew (weekly plans never auto-renew)`)
           }
 
           // ── Immediate suspension on expiry — website goes offline right away ──
