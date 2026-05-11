@@ -1,0 +1,86 @@
+{
+  "planDoc": {
+    "_id": "69ecea54ba4726a69ab9e1be",
+    "contaboInstanceId": 203228089,
+    "_autoRenewAttempted": false,
+    "_reminder1DaySent": false,
+    "_reminder3DaySent": true,
+    "adminProvisioned": true,
+    "adminProvisionedAt": "2026-04-25T16:22:44.184Z",
+    "autoRenewable": false,
+    "chatId": "404562920",
+    "createdAt": "2026-04-25T16:22:44.184Z",
+    "defaultUser": "admin",
+    "end_time": "2026-05-12T19:06:39.000Z",
+    "host": "147.93.4.242",
+    "imageId": "d64d5c6c-9dda-4e38-8174-0ee282474d8a",
+    "isRDP": false,
+    "label": "nomadly-404562920-1776020799057",
+    "name": "nomadly-404562920-1776020799057",
+    "osType": "Linux",
+    "plan": "Monthly",
+    "planPrice": 23.97,
+    "productId": "V93",
+    "region": "US-east",
+    "rootPasswordSecretId": null,
+    "sshKeySecretId": null,
+    "start_time": "2026-04-12T19:06:39.000Z",
+    "status": "RUNNING",
+    "timestamp": "2026-04-12T19:06:39.000Z",
+    "vpsId": "203228089"
+  },
+  "snap": {
+    "tenantId": "INT",
+    "customerId": "14615517",
+    "additionalIps": [],
+    "name": "vmi3228089",
+    "displayName": "nomadly-404562920-1776020799057",
+    "instanceId": 203228089,
+    "dataCenter": "United States (East) 1",
+    "region": "US-east",
+    "regionName": "United States (East)",
+    "productId": "V93",
+    "imageId": "d64d5c6c-9dda-4e38-8174-0ee282474d8a",
+    "ipConfig": {
+      "v4": {
+        "ip": "147.93.4.242",
+        "gateway": "147.93.0.1",
+        "netmaskCidr": 21
+      },
+      "v6": {
+        "ip": "2605:a144:2322:8089:0000:0000:0000:0001",
+        "gateway": "fe80::1",
+        "netmaskCidr": 64
+      }
+    },
+    "macAddress": "00:50:56:63:16:eb",
+    "ramMb": 4096,
+    "cpuCores": 2,
+    "osType": "Linux",
+    "diskMb": 307200,
+    "sshKeys": [
+      340733
+    ],
+    "createdDate": "2026-04-12T19:06:39.000Z",
+    "cancelDate": null,
+    "status": "running",
+    "vHostId": 12936,
+    "vHostNumber": 16668,
+    "vHostName": "m16668",
+    "addOns": [
+      {
+        "id": 1501,
+        "quantity": 1
+      },
+      {
+        "id": 1958,
+        "quantity": 1
+      }
+    ],
+    "productType": "storage",
+    "productName": "Storage VPS 10 (no setup)",
+    "defaultUser": "admin",
+    "applicationId": null
+  },
+  "capturedAt": "2026-05-11T06:58:30.301Z"
+}

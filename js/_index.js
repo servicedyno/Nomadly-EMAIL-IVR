@@ -27438,6 +27438,7 @@ async function selfHealRenewedAfterCancelVPS() {
   let alerted = 0
   try {
     const contabo = require('./contabo-service.js')
+    // Bucket A: DB cancelled/deleted (renewed-after-cancel + cancel-never-propagated)
     const cancelled = await vpsPlansOf.find({
       status: { $in: ['CANCELLED', 'DELETED'] },
       $or: [
@@ -27446,11 +27447,81 @@ async function selfHealRenewedAfterCancelVPS() {
       ]
     }).toArray()
 
-    if (cancelled.length === 0) return
+    // Bucket B: auto-renew turned OFF by user but Contabo cancel never propagated.
+    // Catches the pre-Bug-B-fix records where user disabled auto-renew before the
+    // cancel-on-toggle code shipped. Without this, Contabo's pre-renewal billing
+    // (~4 days before end_time) fires before our T-24h Phase 1 cancel call, and
+    // we eat the next month's invoice — the @davion419 V93 €7.26 leak (May 8).
+    const autoRenewOffNoCancel = await vpsPlansOf.find({
+      autoRenewable: false,
+      status: { $in: ['RUNNING', 'running', 'INSTALLING', 'installing', 'provisioning'] },
+      _contaboCancelledEarly: { $ne: true },
+      $or: [
+        { _selfHealAttemptedAt: { $exists: false } },
+        { _selfHealAttemptedAt: { $lt: new Date(Date.now() - 6 * 60 * 60 * 1000) } }
+      ]
+    }).toArray()
+
+    if (cancelled.length + autoRenewOffNoCancel.length === 0) return
 
     const revoked = db.collection('vpsPlansOf_revoked')
     const graceMs = SELF_HEAL_GRACE_DAYS * 24 * 60 * 60 * 1000
 
+    // First handle Bucket B: just call Contabo cancel (instance keeps running for
+    // the customer until end_time — they paid for the current month). Stamp the
+    // DB so future cycles don't repeat.
+    for (const plan of autoRenewOffNoCancel) {
+      const cid = plan.contaboInstanceId ?? plan.vpsId
+      if (!cid) continue
+      try {
+        const live = await contabo.getInstance(cid)
+        if (live.cancelDate || live.status === 'cancelled' || live.status === 'stopped') {
+          // already cancelled or stopped; just stamp DB so we stop checking
+          await vpsPlansOf.updateOne({ _id: plan._id }, { $set: { _contaboCancelledEarly: true, contaboCancelDate: live.cancelDate, _selfHealAttemptedAt: new Date(), _selfHealReason: 'autoRenewOff_already_cancelled_on_contabo' } })
+          continue
+        }
+        // Refuse if Contabo can't accept cancel (pending_payment)
+        if (live.status === 'pending_payment') {
+          await vpsPlansOf.updateOne({ _id: plan._id }, { $set: { _selfHealAttemptedAt: new Date(), _selfHealReason: 'pending_payment_manual_required' } })
+          continue
+        }
+        log(`[VPS Self-heal] BACKFILL-CANCEL ${cid} (chatId=${plan.chatId}) — autoRenew=false but Contabo had no cancelDate`)
+        await vpsPlansOf.updateOne({ _id: plan._id }, { $set: { _selfHealAttemptedAt: new Date(), _selfHealReason: 'autoRenewOff_backfill_cancel' } })
+        try {
+          await contabo.cancelInstance(cid)
+          await new Promise(r => setTimeout(r, 5000))
+          const v = await contabo.getInstance(cid)
+          if (v.cancelDate) {
+            await vpsPlansOf.updateOne({ _id: plan._id }, { $set: { _contaboCancelledEarly: true, contaboCancelDate: v.cancelDate, cancelReason: 'autoRenew_backfill' } })
+            log(`[VPS Self-heal] BACKFILL-CANCEL ${cid} ✓ cancelDate=${v.cancelDate}`)
+            healed++
+            try {
+              const userTag = adminUserTag(await get(nameOf, plan.chatId), plan.chatId)
+              if (typeof bot?.sendMessage === 'function' && TELEGRAM_ADMIN_CHAT_ID) {
+                bot.sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🛠️ <b>VPS Self-heal — Backfill cancel</b>\nUser: ${userTag}\nVPS: ${plan.label || plan.name || '-'}\nContabo ID: <code>${cid}</code>\nReason: autoRenew=off but Contabo cancel never propagated.\n✅ Contabo cancelDate = ${v.cancelDate}`, { parse_mode: 'HTML' }).catch(() => {})
+              }
+              alerted++
+            } catch {}
+          } else {
+            log(`[VPS Self-heal] BACKFILL-CANCEL ${cid} ⚠️ soft-success (no cancelDate)`)
+          }
+        } catch (err) {
+          log(`[VPS Self-heal] BACKFILL-CANCEL ${cid} failed: ${err.message || err}`)
+        }
+      } catch (err) {
+        if (err?.status === 404) {
+          // gone from Contabo — clear stamps
+          await vpsPlansOf.updateOne({ _id: plan._id }, { $set: { _contaboCancelledEarly: true, _selfHealAttemptedAt: new Date(), _selfHealReason: 'contabo_404_on_lookup' } })
+          continue
+        }
+        log(`[VPS Self-heal] BACKFILL fetch ${cid} failed: ${err.message || err}`)
+      }
+    }
+
+    if (cancelled.length === 0) {
+      if (healed || alerted) log(`[VPS Self-heal] cycle complete — healed=${healed}, alerted=${alerted}`)
+      return
+    }
     for (const plan of cancelled) {
       const cid = plan.contaboInstanceId ?? plan.vpsId
       if (!cid) continue

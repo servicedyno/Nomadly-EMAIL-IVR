@@ -1,0 +1,28 @@
+{
+  "runAt": "2026-05-11T06:58:28.046Z",
+  "chatId": "404562920",
+  "instanceId": 203228089,
+  "steps": {
+    "backup": {
+      "ok": true,
+      "backupPath": "/app/memory/revoke_backup_203228089_2026-05-11T06-58-30-301Z.json",
+      "planFound": true
+    },
+    "passwordReset": {
+      "ok": true,
+      "secretId": 363864,
+      "pwdPath": "/app/memory/revoke_NEW_PASSWORD_203228089_2026-05-11T06-58-32-663Z.json"
+    },
+    "cancel": {
+      "ok": true,
+      "cancelDate": "2026-06-11"
+    },
+    "shutdown": {
+      "ok": false
+    },
+    "dbClean": {
+      "ok": true,
+      "deletedCount": 1
+    }
+  }
+}
