@@ -15159,6 +15159,18 @@ ${message.replace(/\n/g, '<br>')}
         saveInfo('userVPSDetails', vpsDetails)
         const expiryDate = date(changeAutoRenewal.subscriptionEnd)
         send(chatId, message === vp.vpsDisableRenewalBtn ? vp.disabledAutoRenewal(vpsDetails, expiryDate) : vp.enabledAutoRenewal(vpsDetails, expiryDate))
+        // Background admin alert when user re-enabled auto-renew on an
+        // early-cancelled plan: Contabo has no un-cancel API so admin must
+        // click "Resume Subscription" on my.contabo.com. User UX unchanged.
+        if (changeAutoRenewal.needsContaboUncancel) {
+          try {
+            const userTag = adminUserTag(await get(nameOf, chatId), chatId)
+            bot?.sendMessage(TELEGRAM_ADMIN_CHAT_ID,
+              `🔄 <b>Contabo Resume Subscription needed</b>\nUser: ${userTag}\nInstance: <code>${changeAutoRenewal.contaboInstanceId}</code>\nAction: re-enabled auto-renew on an early-cancelled VPS.\n\nPlease open my.contabo.com → instance ${changeAutoRenewal.contaboInstanceId} → Resume Subscription so the next renewal can fire.`,
+              adminMsgOpts({ chatId })
+            ).catch(() => {})
+          } catch (_) {}
+        }
       } else {
         send(chatId, vp.failedDeletingVPS(vpsDetails.name))
       }
@@ -27367,6 +27379,17 @@ schedule.scheduleJob('*/30 * * * *', function() {
   selfHealRenewedAfterCancelVPS()
 })
 
+// ─── Daily Contabo state drift check ────────────────────────────────────
+// Once per day, walks all vpsPlansOf records and reconciles DB intent vs
+// Contabo state. Catches anything that slips through the per-event paths:
+//   • autoRenewable=false but Contabo cancelDate missing → call cancel
+//   • _uncancelPending=true (user re-enabled / paid manually) → nag admin
+//     until they hit "Resume Subscription" on the Contabo dashboard
+// Runs at 08:00 UTC daily — admin gets a single morning digest.
+schedule.scheduleJob('0 8 * * *', function() {
+  reconcileContaboBillingDrift()
+})
+
 async function reconcileContaboOrphans() {
   if (!vpsPlansOf || typeof vpsPlansOf.find !== 'function') {
     console.log('[Orphan Recon] Database not ready — skipping')
@@ -27659,6 +27682,86 @@ async function selfHealRenewedAfterCancelVPS() {
   }
 }
 
+// ─── Daily Contabo state drift check ────────────────────────────────────
+async function reconcileContaboBillingDrift() {
+  if (!vpsPlansOf || typeof vpsPlansOf.find !== 'function') {
+    console.log('[VPS Drift] Database not ready — skipping')
+    return
+  }
+  try {
+    const contabo = require('./contabo-service.js')
+
+    // Bucket 1: autoRenewable=false but Contabo cancelDate not yet set → cancel now
+    const candidatesA = await vpsPlansOf.find({
+      autoRenewable: false,
+      status: { $in: ['RUNNING', 'running', 'INSTALLING', 'installing', 'provisioning'] },
+      _contaboCancelledEarly: { $ne: true }
+    }).toArray()
+
+    let cancelled = 0
+    for (const plan of candidatesA) {
+      const cid = plan.contaboInstanceId ?? plan.vpsId
+      if (!cid) continue
+      try {
+        const live = await contabo.getInstance(cid)
+        if (live.cancelDate) {
+          await vpsPlansOf.updateOne({ _id: plan._id }, { $set: { _contaboCancelledEarly: true, contaboCancelDate: live.cancelDate } })
+          continue
+        }
+        if (live.status === 'pending_payment' || live.status === 'cancelled' || live.status === 'stopped') continue
+        await contabo.cancelInstance(cid)
+        await new Promise(r => setTimeout(r, 4000))
+        const v = await contabo.getInstance(cid)
+        if (v.cancelDate) {
+          await vpsPlansOf.updateOne({ _id: plan._id }, { $set: { _contaboCancelledEarly: true, contaboCancelDate: v.cancelDate, cancelReason: 'daily_drift_backfill' } })
+          cancelled++
+          log(`[VPS Drift] backfill-cancelled ${cid} chat=${plan.chatId} → cancelDate=${v.cancelDate}`)
+        }
+      } catch (err) {
+        if (err?.status === 404) {
+          await vpsPlansOf.updateOne({ _id: plan._id }, { $set: { _contaboCancelledEarly: true } })
+          continue
+        }
+        log(`[VPS Drift] ${cid} cancel attempt failed: ${err.message || err}`)
+      }
+    }
+
+    // Bucket 2: _uncancelPending=true → nag admin until Contabo cancelDate cleared
+    const candidatesB = await vpsPlansOf.find({ _uncancelPending: true }).toArray()
+    const stillPending = []
+    for (const plan of candidatesB) {
+      const cid = plan.contaboInstanceId ?? plan.vpsId
+      if (!cid) continue
+      try {
+        const live = await contabo.getInstance(cid)
+        if (!live.cancelDate) {
+          // Admin already hit "Resume Subscription" — clear our flag
+          await vpsPlansOf.updateOne({ _id: plan._id }, { $unset: { _uncancelPending: '', _uncancelPendingSince: '' } })
+          log(`[VPS Drift] _uncancelPending cleared for ${cid} (Contabo cancelDate gone)`)
+          continue
+        }
+        stillPending.push({ cid, chatId: plan.chatId, label: plan.label || plan.name, since: plan._uncancelPendingSince, cancelDate: live.cancelDate })
+      } catch (err) {
+        if (err?.status === 404) {
+          await vpsPlansOf.updateOne({ _id: plan._id }, { $unset: { _uncancelPending: '', _uncancelPendingSince: '' } })
+          continue
+        }
+        log(`[VPS Drift] _uncancelPending fetch ${cid} failed: ${err.message || err}`)
+      }
+    }
+
+    if (stillPending.length && typeof bot?.sendMessage === 'function' && TELEGRAM_ADMIN_CHAT_ID) {
+      const list = stillPending.map(p => `• <code>${p.cid}</code> | chat=${p.chatId} | ${p.label || '-'} | cancelDate=${p.cancelDate} | pending since ${p.since ? new Date(p.since).toISOString().slice(0,10) : '?'}`).join('\n')
+      const msg = `🔄 <b>Contabo dashboard action — Resume Subscription needed</b>\n\nThese plans were re-enabled by users or paid manually after an early cancel. Please open each in <a href="https://my.contabo.com">my.contabo.com</a> and tap <b>Resume Subscription</b> so next renewal can fire:\n\n${list}`
+      bot.sendMessage(TELEGRAM_ADMIN_CHAT_ID, msg, { parse_mode: 'HTML', disable_web_page_preview: true }).catch(() => {})
+    }
+
+    if (cancelled || stillPending.length) log(`[VPS Drift] daily reconcile — backfill_cancelled=${cancelled}, uncancel_pending=${stillPending.length}`)
+  } catch (err) {
+    log('[VPS Drift] error: ' + (err.message || err))
+  }
+}
+
 async function checkVPSPlansExpiryandPayment() {
   // Guard: Ensure database is initialized before proceeding
   if (!vpsPlansOf || typeof vpsPlansOf.find !== 'function') {
@@ -27740,6 +27843,24 @@ async function checkVPSPlansExpiryandPayment() {
         try { send(chatId, translation('t.util_3', lang, displayName, (usdBal || 0).toFixed(2), planPrice, expiryDate)) } catch (notifErr) { log(`[VPS Scheduler] notify failed: ${notifErr.message}`) }
         send(TELEGRAM_ADMIN_CHAT_ID, `⚠️ <b>VPS Renewal Failed</b>\nUser: ${adminUserTag(await get(nameOf, chatId), chatId)}\nVPS: ${displayName}\nPrice: $${planPrice}\nBalance: $${(usdBal || 0).toFixed(2)}`, adminMsgOpts({ chatId }))
         log(`[VPS Scheduler] ${displayName} PENDING_CANCELLATION for ${chatId} — balance insufficient ($${usdBal || 0} < $${planPrice})`)
+        // ── BUG-B FIX (extended): cancel on Contabo IMMEDIATELY at wallet-fail.
+        // Contabo pre-bills the next period ~4 days BEFORE end_time, which is
+        // earlier than the old Phase 1.5 trigger (T-5h) — so without this we
+        // get charged for the next month before the safety net fires.
+        // Phase 1.5 is kept as a redundant retry for any record this misses.
+        if (!vpsPlan._contaboCancelledEarly) {
+          try {
+            const cancelResult = await deleteVPSinstance(chatId, vpsId)
+            if (cancelResult && cancelResult.success) {
+              await vpsPlansOf.updateOne({ _id }, { $set: { _contaboCancelledEarly: true, status: 'CANCELLED', cancelledAt: new Date(), cancelReason: 'wallet_deduct_failed', contaboCancelDate: cancelResult.cancelDate } })
+              log(`[VPS Scheduler] EARLY CANCEL on Contabo for ${displayName} (wallet fail) — cancelDate=${cancelResult.cancelDate}`)
+            } else {
+              log(`[VPS Scheduler] EARLY CANCEL (wallet fail) non-success for ${displayName}: ${(cancelResult && cancelResult.error) || 'unknown'} — Phase 1.5 will retry`)
+            }
+          } catch (cancelErr) {
+            log(`[VPS Scheduler] EARLY CANCEL (wallet fail) crash for ${displayName}: ${cancelErr.message} — Phase 1.5 will retry`)
+          }
+        }
       }
     }
 
@@ -28122,6 +28243,19 @@ const upgradeVPSDetails = async (chatId, lang, vpsDetails) => {
           )
           const expiryDate = date(vmInstanceUpgrade.data.subscriptionEnd)
           message = translation('vp.vpsRenewPlanSuccess', lang, vmInstanceDetails, expiryDate)
+          // Background admin alert when the renewal was for a plan that had
+          // already been cancelled early on Contabo. The customer's UX is
+          // unchanged (they see the new expiry date); admin needs to click
+          // "Resume Subscription" on my.contabo.com so the next cycle bills.
+          if (vmInstanceUpgrade.needsContaboUncancel) {
+            try {
+              const userTag = adminUserTag(await get(nameOf, chatId), chatId)
+              bot?.sendMessage(TELEGRAM_ADMIN_CHAT_ID,
+                `🔄 <b>Contabo Resume Subscription needed</b>\nUser: ${userTag}\nInstance: <code>${vmInstanceUpgrade.contaboInstanceId}</code>\nAction: manual renewal received on an early-cancelled VPS.\n\nPlease open my.contabo.com → instance ${vmInstanceUpgrade.contaboInstanceId} → Resume Subscription so the next renewal can fire.`,
+                adminMsgOpts({ chatId })
+              ).catch(() => {})
+            } catch (_) {}
+          }
         }
         break;
       case 'vps-cPanel-renew':

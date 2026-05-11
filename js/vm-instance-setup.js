@@ -705,6 +705,42 @@ async function createVPSInstance(telegramId, vpsDetails) {
       })
     }
 
+    // ── Cancel-on-create: since autoRenewable defaults to false, schedule the
+    // Contabo cancel NOW so Contabo's ~T-4d pre-bill never fires. This is
+    // invisible to the user — instance still runs through the paid month.
+    // (User can flip auto-renew ON later via the toggle; that path clears
+    // these flags and pings admin to resume the subscription on the Contabo
+    // dashboard.)
+    try {
+      const cancelRes = await contabo.cancelInstance(instance.instanceId)
+      // Re-fetch to confirm cancelDate landed (Contabo can take a few seconds)
+      let confirmedCancelDate = null
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        await new Promise(r => setTimeout(r, 3000))
+        try {
+          const live = await contabo.getInstance(instance.instanceId)
+          if (live?.cancelDate) { confirmedCancelDate = live.cancelDate; break }
+        } catch (_) {}
+      }
+      if (confirmedCancelDate && _vpsPlansOf) {
+        await _vpsPlansOf.updateOne(
+          { contaboInstanceId: instance.instanceId },
+          { $set: {
+              _contaboCancelledEarly: true,
+              contaboCancelDate: confirmedCancelDate,
+              cancelReason: 'created_with_auto_renew_off',
+            }
+          }
+        )
+        console.log(`[Contabo] Cancel-on-create scheduled for ${instance.instanceId} — cancelDate=${confirmedCancelDate}`)
+      } else {
+        console.log(`[Contabo] Cancel-on-create call returned but cancelDate not yet visible for ${instance.instanceId} (scheduler/self-heal will retry)`)
+      }
+    } catch (cancelErr) {
+      console.log(`[Contabo] Cancel-on-create failed for ${instance.instanceId}: ${cancelErr.message || cancelErr} (scheduler/self-heal will retry)`)
+      // Don't fail the purchase — instance is created & DB has record.
+    }
+
     return { success: true, data: vpsData }
   } catch (err) {
     const errorMessage = `Error creating VPS instance: ${err.message || JSON.stringify(err)}`
@@ -1088,6 +1124,7 @@ async function changeVpsAutoRenewal(telegramId, vpsDetails) {
     const contaboInstanceId = vpsDetails.contaboInstanceId
 
     const update = { autoRenewable: newValue }
+    let needsContaboUncancel = false
 
     // ── BUG-B FIX: when DISABLING auto-renew, cancel on Contabo immediately ──
     // This makes Contabo set cancelDate to the END of the CURRENT paid period
@@ -1128,12 +1165,33 @@ async function changeVpsAutoRenewal(telegramId, vpsDetails) {
       }
     }
 
+    // ── NEW: when RE-ENABLING auto-renew after an early Contabo cancel,
+    // clear the cancel flags in our DB and flag the record so the daily
+    // drift check / immediate caller can ask admin to "Resume Subscription"
+    // on the Contabo dashboard (Contabo's API exposes no un-cancel endpoint).
+    // The user sees auto-renew as ON and the VPS keeps working normally —
+    // they don't need to know about the dashboard step.
+    if (newValue === true && vpsDetails._contaboCancelledEarly) {
+      update._contaboCancelledEarly = false
+      update._uncancelPending = true
+      update._uncancelPendingSince = new Date()
+      update.cancelledAt = null
+      update.cancelReason = null
+      needsContaboUncancel = true
+      console.log(`[VPS] User ${telegramId} re-enabled auto-renew on ${contaboInstanceId} — admin un-cancel needed on Contabo dashboard`)
+    }
+
     await _vpsPlansOf.updateOne(
       { chatId: String(telegramId), vpsId: String(vpsId) },
       { $set: update }
     )
 
-    return { autoRenewable: newValue, contaboCancelDate: update.contaboCancelDate || null }
+    return {
+      autoRenewable: newValue,
+      contaboCancelDate: update.contaboCancelDate || null,
+      needsContaboUncancel,
+      contaboInstanceId
+    }
   } catch (err) {
     console.log('Error in changeVpsAutoRenewal (contabo):', err.message || err)
     return false
@@ -1309,10 +1367,39 @@ async function renewVPSPlan(telegramId, subscriptionId) {
     const newEnd = new Date(currentEnd)
     newEnd.setMonth(newEnd.getMonth() + 1)
 
-    await _vpsPlansOf.updateOne(
-      { vpsId: String(subscriptionId) },
-      { $set: { end_time: newEnd, status: 'RUNNING', _autoRenewAttempted: false, _reminder3DaySent: false, _reminder1DaySent: false } }
-    )
+    const wasEarlyCancelled = !!record._contaboCancelledEarly
+    const update = {
+      end_time: newEnd,
+      status: 'RUNNING',
+      _autoRenewAttempted: false,
+      _reminder3DaySent: false,
+      _reminder1DaySent: false
+    }
+    const unset = {}
+
+    // If the plan was previously cancelled-early on Contabo (e.g. wallet
+    // deduct failed at T-24h and we proactively cancelled), this manual
+    // renewal means the customer is back in good standing. Clear our cancel
+    // flags so the next cycle proceeds normally. Contabo's API can't
+    // un-cancel — flag _uncancelPending so admin resumes the subscription
+    // from my.contabo.com. User-facing UX is unchanged: they just see the
+    // new expiry date.
+    let needsContaboUncancel = false
+    if (wasEarlyCancelled) {
+      unset._contaboCancelledEarly = ''
+      unset.cancelReason = ''
+      unset.cancelledAt = ''
+      unset._selfHealAttemptedAt = ''
+      unset._selfHealReason = ''
+      update._uncancelPending = true
+      update._uncancelPendingSince = new Date()
+      needsContaboUncancel = true
+      console.log(`[VPS] Manual renewal for ${subscriptionId} — admin un-cancel needed on Contabo dashboard (was early-cancelled)`)
+    }
+
+    const mongoUpdate = { $set: update }
+    if (Object.keys(unset).length) mongoUpdate.$unset = unset
+    await _vpsPlansOf.updateOne({ vpsId: String(subscriptionId) }, mongoUpdate)
 
     return {
       success: true,
@@ -1320,7 +1407,9 @@ async function renewVPSPlan(telegramId, subscriptionId) {
         subscriptionEnd: newEnd.toISOString(),
         plan: record.plan,
         planPrice: record.planPrice
-      }
+      },
+      needsContaboUncancel,
+      contaboInstanceId: record.contaboInstanceId
     }
   } catch (err) {
     const errorMessage = `Error renewing VPS plan: ${err.message || JSON.stringify(err)}`
