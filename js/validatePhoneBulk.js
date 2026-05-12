@@ -23,17 +23,28 @@ const showProgressEveryXTime = 60 // 30 iterations = 1 minute
 
 // ── Dynamic phoneGenTimeout configuration ──
 // Timeout scales with order size. Observed throughput on Railway:
-//   ~1.2 verified phones/sec (non-CNAM), ~0.8 phones/sec (CNAM-enabled)
+//   ~1.2 verified phones/sec (non-CNAM), ~0.5 phones/sec (CNAM-enabled)
 // We budget generously so orders almost always finish before the safety net.
-const PHONE_GEN_TIMEOUT_FLOOR_MS = 10 * 60 * 1000   // 10 min floor (small orders)
-const PHONE_GEN_TIMEOUT_CEILING_MS = 90 * 60 * 1000 // 90 min ceiling (runaway guard)
-const PHONE_GEN_BUDGET_PER_LEAD_MS = 1200           // 1.2s per lead (non-CNAM baseline)
-const PHONE_GEN_CNAM_MULTIPLIER = 1.5               // CNAM orders get 50% extra budget
+//
+// CNAM_MULTIPLIER raised from 1.5 → 2.0 after production telemetry showed
+//   3000-lead CNAM jobs averaging ~1.98s/lead (job f7c619a9: 1557 leads in
+//   51 min ≈ 30.3 leads/min). 1.5× was pinning the 90-min ceiling at exactly
+//   3000 CNAM leads with no safety margin.
+// CEILING raised 90 → 240 min so large orders (>3k) no longer clip the cap.
+// SAFETY_BUFFER adds 20% headroom on top of the raw budget to absorb provider
+//   latency spikes and CNAM retries.
+// All four constants are overridable via env vars for production tuning
+// without a redeploy of the constants themselves.
+const PHONE_GEN_TIMEOUT_FLOOR_MS = Number(process.env.PHONE_GEN_TIMEOUT_FLOOR_MS) || 10 * 60 * 1000   // 10 min floor (small orders)
+const PHONE_GEN_TIMEOUT_CEILING_MS = Number(process.env.PHONE_GEN_TIMEOUT_CEILING_MS) || 240 * 60 * 1000 // 240 min ceiling (runaway guard)
+const PHONE_GEN_BUDGET_PER_LEAD_MS = Number(process.env.PHONE_GEN_BUDGET_PER_LEAD_MS) || 1200          // 1.2s per lead (non-CNAM baseline)
+const PHONE_GEN_CNAM_MULTIPLIER = Number(process.env.PHONE_GEN_CNAM_MULTIPLIER) || 2.0                 // CNAM orders get 2x base budget
+const PHONE_GEN_SAFETY_BUFFER = Number(process.env.PHONE_GEN_SAFETY_BUFFER) || 1.2                     // 20% safety buffer on raw budget
 const computePhoneGenTimeout = (targetCount, cnamEnabled) => {
   const budgetPerLead = cnamEnabled
     ? Math.ceil(PHONE_GEN_BUDGET_PER_LEAD_MS * PHONE_GEN_CNAM_MULTIPLIER)
     : PHONE_GEN_BUDGET_PER_LEAD_MS
-  const raw = targetCount * budgetPerLead
+  const raw = Math.ceil(targetCount * budgetPerLead * PHONE_GEN_SAFETY_BUFFER)
   return Math.min(PHONE_GEN_TIMEOUT_CEILING_MS, Math.max(PHONE_GEN_TIMEOUT_FLOOR_MS, raw))
 }
 

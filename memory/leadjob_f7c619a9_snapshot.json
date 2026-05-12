@@ -1,0 +1,38 @@
+{
+  "found": true,
+  "db": "test",
+  "jobId": "f7c619a9-0d9e-42f4-8b5f-aa912049a98d",
+  "now": "2026-05-12T07:30:21.288Z",
+  "doc": {
+    "_id": "6a02ca7a07aa4915cdee98c2",
+    "jobId": "f7c619a9-0d9e-42f4-8b5f-aa912049a98d",
+    "chatId": "7080940684",
+    "carrier": "T-mobile",
+    "phonesToGenerate": 3000,
+    "countryCode": "1",
+    "areaCodes": [
+      "703",
+      "571",
+      "202",
+      "301",
+      "619",
+      "858",
+      "760",
+      "904"
+    ],
+    "cnam": true,
+    "requireRealName": false,
+    "target": "NavyFedCU",
+    "price": 75,
+    "lang": "en",
+    "walletDeducted": true,
+    "paymentCoin": "DYNOPAY",
+    "status": "running",
+    "results": "[truncated: 1619 entries] first=[\"+15712751133\",\"OMNIPOINT COMMUNICATIONS CAP OPERATIONS, LLC\",\"Sec: 0.165\",\"ZELAYA EDITH\"] last=[\"+12022006918\",\"METROPCS, INC.\",\"Sec: 0.075\",\"WASHINGTON Z DC\"]",
+    "realNameCount": 902,
+    "totalGenerated": 1619,
+    "createdAt": "2026-05-12T06:36:42.519Z",
+    "updatedAt": "2026-05-12T07:30:12.579Z",
+    "resultsCount": 1619
+  }
+}
