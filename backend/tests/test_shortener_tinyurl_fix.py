@@ -27,12 +27,14 @@ def test_default_provider_is_not_tinyurl():
     assert "tinyurl.com" not in src_no_comments.lower()
 
 
-def test_default_provider_is_url_shortener57():
+def test_default_provider_is_srtn_me():
     src = SRC.read_text()
-    assert "url-shortener57.p.rapidapi.com" in src
+    assert "srtn-me-url-shortener.p.rapidapi.com" in src
     # Endpoint + result field must match the provider's contract
-    assert "'/shorten'" in src
-    assert "'result_url'" in src
+    assert "'/api/shorten'" in src
+    assert "PROVIDER_RESULT_FIELD || 'url'" in src or "FIELD || 'url'" in src
+    # Description field must be sent (required by provider)
+    assert "description" in src
 
 
 def test_provider_overridable_via_env():

@@ -11,28 +11,31 @@ Commit `a3e68f31` (2026-05-02) switched the RapidAPI provider in
 its own non-tinyurl domain) to `tiny-url-shortner.p.rapidapi.com` (returns
 tinyurl.com URLs).
 
-## Fix (2026-05-12, second iteration)
-- **`js/cuttly.js`** — reverted provider host back to
-  `url-shortener57.p.rapidapi.com` (POST `/shorten` → `result_url`).
-- **`js/_index.js`** — restored the unconditional RapidAPI call in the
-  random-slug flow (lines 15568-15605). My earlier "SELF_URL self-host" patch
-  was the wrong fix per user feedback ("it should be through RapidAPI"); that
-  patch is now fully reverted.
-- **Provider is overridable via env** without a code change:
-    - `RAPIDAPI_SHORTENER_HOST` (default `url-shortener57.p.rapidapi.com`)
-    - `RAPIDAPI_SHORTENER_PATH` (default `/shorten`)
-    - `RAPIDAPI_SHORTENER_FIELD` (default `result_url`)
+## Fix (2026-05-12, third iteration — final)
+- **`js/cuttly.js`** — provider host switched to user-supplied
+  `srtn-me-url-shortener.p.rapidapi.com` (POST `/api/shorten` with
+  `description` + `url` form fields → `url` response field).
+- **`js/_index.js`** — random-slug flow unchanged (calls `createShortUrlApi`
+  unconditionally, same as before the 2026-05-02 tinyurl swap).
+- **Provider remains overridable via env** for future swaps:
+    - `RAPIDAPI_SHORTENER_HOST` (default `srtn-me-url-shortener.p.rapidapi.com`)
+    - `RAPIDAPI_SHORTENER_PATH` (default `/api/shorten`)
+    - `RAPIDAPI_SHORTENER_FIELD` (default `url`)
+    - `RAPIDAPI_SHORTENER_DESCRIPTION` (default `Shortit link`)
 
-## Live verification (just ran against the production-grade key)
+## Live verification
 ```
 $ node /app/scripts/test_rapidapi_shorten.js https://cnn.com
-Calling RapidAPI provider for: https://cnn.com
-
-Short URL : https://goolnk.com/2ry4eb
-Host      : goolnk.com
+Short URL : https://srtn.me/v5nbz5
+Host      : srtn.me
 Is tinyurl? false
 ```
-Confirms the reverted provider returns Shortit-compatible non-tinyurl URLs.
+
+## Provider history
+- url-shortener42 (deprecated)
+- url-shortener57 (returned goolnk.com)
+- tiny-url-shortner.p.rapidapi.com (returned tinyurl.com — brand leak that caused the original complaint)
+- **srtn-me-url-shortener.p.rapidapi.com → srtn.me** (current — matches user expectation)
 
 ## Other code paths (audited — already correct)
 - Bitly-paid flow (`_index.js:9433-9474`) — paid product, untouched.
