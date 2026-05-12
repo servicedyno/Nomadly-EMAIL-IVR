@@ -922,6 +922,7 @@ ${CHAT_BOT_NAME}`,
  planNotSubscriped: `Vous n'êtes actuellement abonné à aucun plan.`,
  noShortenedUrlLink: `Vous n'avez encore aucun lien raccourci.`,
  shortenedLinkText: linksText => `Voici vos liens raccourcis :\n${linksText}`,
+ analyticsNotAvailable: provider => `📊 statistiques indisponibles (${provider})`,
  qrCodeText: `Voici votre code QR !`,
  scanQrOrUseChat: chatId => `📱 <b>Nomadly SMS App</b>\n\nVotre code d'activation :\n<code>${chatId}</code>\n\n📲 Téléchargez : ${process.env.SMS_APP_LINK || 'Contactez le support'}`,
  domainPurchasedFailed: (domain) =>

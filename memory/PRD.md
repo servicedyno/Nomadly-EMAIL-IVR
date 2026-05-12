@@ -78,3 +78,50 @@
 - `/app/memory/railway_all_services_env.json` — production env vars for all 3 services in the Railway project
 - `/app/js/fetch_railway_env.js`, `js/fetch_railway_all_services.js`, `js/fetch_railway_logs.js` — re-runnable diagnostics
 - `/app/js/tests/test_vps_scheduler_fix.js` — new unit test for the fixes
+
+
+---
+
+## 2026-02 Session — srtn.me single-hop verification + analytics availability indicator
+
+### Context
+After migrating the free-tier URL shortener to `srtn-me-url-shortener.p.rapidapi.com`
+(returns `https://srtn.me/<slug>`), the user asked to (a) verify the local click
+handler at `app.get('/:id')` doesn't store or look up `srtn.me` URLs, and (b)
+indicate in "My Links" whether analytics is available for each link's provider.
+
+### Verification (no code change required)
+- **`app.get('/:id')` (`_index.js:31796`)** — only resolves keys built from
+  `SELF_URL_HOST/<id>` (and a fallback for custom domains). It never touches
+  `srtn.me`. Clicks on `srtn.me/<slug>` hit RapidAPI's edge and redirect
+  directly to the destination — bypassing our handler entirely. ✅
+- **`getShortLinks` (`_index.js:27061`)** — renders `maskUrl = maskOf[shorter]`,
+  which for free-tier links is the `https://srtn.me/<slug>` returned by RapidAPI
+  at creation time (`set(maskOf, shortUrl, _shortUrl)` at line 15609). So
+  "My Links" already displays the `srtn.me` URL correctly. ✅
+
+### What was implemented (dynamic analytics availability indicator)
+- **New file `/app/js/shortener-analytics.js`** — single source-of-truth that
+  classifies any shortener URL into `{ available, provider }`:
+  - WITH analytics: own SELF_URL host (tracked via `clicksOn`), `bit.ly|j.mp|bitly.is` (via Bitly API)
+  - WITHOUT analytics: `srtn.me`, legacy `ap1s.net`, and any unknown third-party host (conservative default)
+- **`getShortLinks`** now attaches `analytics: { available, provider }` to each link.
+- **`formatLinks`** now accepts the localized `t` object and renders
+  `📊 analytics not available (<provider>)` instead of `0 clicks` when stats can't be fetched.
+- **i18n** strings added for `analyticsNotAvailable(provider)` in `lang/{en,fr,zh,hi}.js`.
+- Call site `_index.js:25525` passes `t` so the indicator is localized per user language.
+
+### Verification
+- `node -c` passes on `_index.js` and the new module.
+- Local Node test against the new module validates all 6 provider classes (srtn.me, bit.ly, j.mp, self, ap1s.net, unknown) → expected results.
+- End-to-end `formatLinks` test against all 4 locales (en/fr/zh/hi) renders the localized indicator correctly.
+- `sudo supervisorctl restart nodejs` → clean startup, no errors in stderr.
+
+### Files touched
+- `/app/js/shortener-analytics.js` (new)
+- `/app/js/_index.js` (require, `getShortLinks`, `formatLinks`, single caller updated)
+- `/app/js/lang/en.js`, `fr.js`, `zh.js`, `hi.js` (added `analyticsNotAvailable`)
+
+### Backlog
+- Optional: add a one-time housekeeping pass to backfill `analytics` cache for stored links if performance becomes a concern (current implementation computes capability at render time — O(N) per "My Links" view, negligible).
+- Optional: introduce a stats-capable provider switch (e.g. Bitly for free tier) if losing click counts hurts engagement.

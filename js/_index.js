@@ -400,6 +400,7 @@ const { user: configUser } = require('./config.js')
 const createShortBitly = require('./bitly.js')
 const { getBitlyClicks, isBitlyUrl } = require('./bitly.js')
 const { createShortUrlApi, analyticsCuttly } = require('./cuttly.js')
+const { getAnalyticsCapability } = require('./shortener-analytics.js')
 const {
   week,
   year,
@@ -25521,7 +25522,7 @@ Select a category:`), k.of(catBtns))
       return
     }
 
-    const linksText = formatLinks(links.slice(-20)).join('\n\n')
+    const linksText = formatLinks(links.slice(-20), t).join('\n\n')
     send(chatId, t.shortenedLinkText(linksText), k.of([[user.urlShortener], ['↩️ Back']]))
     return
   }
@@ -27073,7 +27074,8 @@ async function getShortLinks(chatId) {
       const lastPart = link.shorter.substring(link.shorter.lastIndexOf('/') + 1)
       let clicks = ((await analyticsCuttly(lastPart)) === 'No such url' ? 0 : (await analyticsCuttly(lastPart))) || 0
       const shorter = (await get(maskOf, link.shorter)) || link.shorter.replaceAll('@', '.')
-      ret.push({ clicks, shorter, url: link.url })
+      const analytics = getAnalyticsCapability(shorter)
+      ret.push({ clicks, shorter, url: link.url, analytics })
     } else {
       const maskUrl = await get(maskOf, link.shorter)
       // Bitly links no longer hit our Railway click handler — pull stats from Bitly's API.
@@ -27084,7 +27086,8 @@ async function getShortLinks(chatId) {
         clicks = (await get(clicksOn, link.shorter)) || 0
       }
       const shorter = maskUrl || link.shorter.replaceAll('@', '.')
-      ret.push({ clicks, shorter, url: link.url })
+      const analytics = getAnalyticsCapability(shorter)
+      ret.push({ clicks, shorter, url: link.url, analytics })
     }
 
   }
@@ -27179,8 +27182,16 @@ async function buyDomain(chatId, domain, registrar, nsChoice, customNS) {
   return result
 }
 
-const formatLinks = links => {
-  return links.map(d => `${d.clicks} ${d.clicks === 1 ? 'click' : 'clicks'} → ${d.shorter} → ${d.url}`)
+const formatLinks = (links, t) => {
+  return links.map(d => {
+    if (d.analytics && d.analytics.available === false) {
+      const label = (t && typeof t.analyticsNotAvailable === 'function')
+        ? t.analyticsNotAvailable(d.analytics.provider)
+        : `📊 analytics not available (${d.analytics.provider})`
+      return `${label} → ${d.shorter} → ${d.url}`
+    }
+    return `${d.clicks} ${d.clicks === 1 ? 'click' : 'clicks'} → ${d.shorter} → ${d.url}`
+  })
 }
 
 const buyDomainFullProcess = async (chatId, lang, domain) => {

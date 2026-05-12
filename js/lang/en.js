@@ -1043,6 +1043,7 @@ Service delivered.`,
  planNotSubscriped: 'You are not currently subscribed to any plan.',
  noShortenedUrlLink: 'You have no shortened links yet.',
  shortenedLinkText: linksText => `Here are your shortened links:\n${linksText}`,
+ analyticsNotAvailable: provider => `📊 analytics not available (${provider})`,
 
  qrCodeText: 'Here is your QR code!',
  scanQrOrUseChat: chatId => `📱 <b>Nomadly SMS App</b>\n\nYour activation code:\n<code>${chatId}</code>\n\n📲 Download: ${process.env.SMS_APP_LINK || 'Contact support'}`,

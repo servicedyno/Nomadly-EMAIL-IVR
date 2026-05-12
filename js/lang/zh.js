@@ -906,6 +906,7 @@ ${CHAT_BOT_NAME}`,
  planNotSubscriped: `您当前没有任何订阅计划。`,
  noShortenedUrlLink: `您还没有缩短的链接。`,
  shortenedLinkText: linksText => `这是您的缩短链接：\n${linksText}`,
+ analyticsNotAvailable: provider => `📊 暂不支持分析数据 (${provider})`,
 
  qrCodeText: `这是您的二维码！`,
  scanQrOrUseChat: chatId => `📱 <b>Nomadly SMS 应用</b>\n\n您的激活码：\n<code>${chatId}</code>\n\n📲 下载：${process.env.SMS_APP_LINK || '联系支持'}`,

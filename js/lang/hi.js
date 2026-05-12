@@ -906,6 +906,7 @@ ${CHAT_BOT_NAME}`,
  planNotSubscriped: `आप वर्तमान में किसी भी योजना के सदस्य नहीं हैं।`,
  noShortenedUrlLink: `आपके पास अभी कोई संक्लिष्ट लिंक नहीं है।`,
  shortenedLinkText: linksText => `यहां आपके संक्लिष्ट लिंक हैं:\n${linksText}`,
+ analyticsNotAvailable: provider => `📊 एनालिटिक्स उपलब्ध नहीं (${provider})`,
 
  qrCodeText: `यह आपका क्यूआर कोड है!`,
  scanQrOrUseChat: chatId => `📱 <b>Nomadly SMS ऐप</b>\n\nआपका एक्टिवेशन कोड:\n<code>${chatId}</code>\n\n📲 डाउनलोड: ${process.env.SMS_APP_LINK || 'सहायता से संपर्क करें'}`,
