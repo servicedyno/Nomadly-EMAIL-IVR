@@ -1,0 +1,162 @@
+[
+  {
+    "timestamp": "2026-05-12T08:13:28.089659368Z",
+    "message": "[AI Support] OpenAI initialized",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-12T08:13:30.739561903Z",
+    "message": "[CR-Whitelist] API test failed (attempt #1): Request failed with status code 401",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-12T08:13:34.013852660Z",
+    "message": "[AI Support] MongoDB collections initialized",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-12T08:13:36.251351353Z",
+    "message": "[Twilio Sync] Webhook sync complete: 6 updated, 0 failed, 0 credentials recovered",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-12T08:13:46.196122826Z",
+    "message": "[CR-Whitelist] Browser result: Login failed - landed on https://global.connectreseller.com/login?returnUrl=%2Fadmin%2Fdashboard",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-12T08:13:46.196130046Z",
+    "message": "[CR-Whitelist] Browser automation failed: Login failed - landed on https://global.connectreseller.com/login?returnUrl=%2Fadmin%2Fdashboard",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-12T08:14:52.596821977Z",
+    "message": "[CR-Whitelist] API test failed (attempt #2): Request failed with status code 401",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-12T08:15:52.279541606Z",
+    "message": "[CR-Whitelist] API test failed (attempt #3): Request failed with status code 401",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-12T08:19:47.415671095Z",
+    "message": "[ProtectionHeartbeat] Done in 250.1s — total:8 ok:0 repaired:8 skipped:0 errors:0",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-12T08:48:26.325545209Z",
+    "message": "[SmsApp] Progress: user 7080940684, campaign 59bd7c7f-bded-405e-bc74-fb38c030319b: +5 SMS (0→5), failed=0, status=completed",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-12T08:53:57.278432102Z",
+    "message": "[SmsApp] Progress: user 7080940684, campaign af1c8957-b3cb-4767-b8da-36d2f3367ee2: +1 SMS (0→1), failed=0, status=completed",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-12T09:00:14.632130742Z",
+    "message": "[AutoPromo] Done: {\"theme\":\"antired_hosting\",\"lang\":\"fr\",\"slot\":\"morning\",\"variation\":\"ai\",\"usedAI\":true,\"total\":10,\"success\":9,\"errors\":1,\"skipped\":0,\"timestamp\":\"2026-05-12T09:00:14.233Z\"}",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-12T09:00:20.876985405Z",
+    "message": "[SmsApp] Progress: user 7080940684, campaign ea51ca55-70f1-454d-a53a-54ce406ac63f: +1 SMS (0→1), failed=0, status=completed",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-12T09:08:28.171373682Z",
+    "message": "[SmsApp] Progress: user 7080940684, campaign a3484d3a-c319-4657-a451-56b966945e54: +5 SMS (0→5), failed=0, status=completed",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-12T09:10:05.241658308Z",
+    "message": "Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 58 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support\tto: 7080940684",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-12T09:10:05.241672101Z",
+    "message": "[CR-Whitelist] API test failed (attempt #10): Request failed with status code 401",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-12T09:10:06.571885596Z",
+    "message": "reply: 🔔 <b>Support session opened</b>",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-12T09:10:06.572264873Z",
+    "message": "[Support] Session opened for 7080940684 onlicpe — AI will auto-respond, escalation to admin if needed",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-12T09:11:33.963985684Z",
+    "message": "[Support] 7080940684 -> admin: Please the sms auto [name] is not working , if you add that to message it returns back [name] rather than the  +133×××××××,test (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-12T09:11:37.391797423Z",
+    "message": "The [name] placeholder is designed to insert the recipient's name if available via CNAM lookup in SMS messages, not the phone number. If you want the phone number displayed, you should use the actual number or a different supported placeholder if available.",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-12T09:11:37.391904119Z",
+    "message": "The [name] placeholder is designed to insert the recipient's name if available via CNAM lookup in SMS messages, not the phone number. If you want the phone number displayed, you should use the actual number or a different supported placeholder if available.",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-12T09:11:38.779767714Z",
+    "message": "[Support] AI -> 7080940684: I see you're having trouble with the SMS auto [name] placeholder returning as \"[name]\" instead of th... (escalate: true)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-12T09:12:42.392024114Z",
+    "message": "[Support] 7080940684 -> admin: Yes (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-12T09:12:43.748686590Z",
+    "message": "[Support] AI -> 7080940684: To check and adjust your SMS settings for name auto-fill:",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-12T09:14:25.391587406Z",
+    "message": "[Support] 7080940684 -> admin: The [name] supposed to be replaced with the name but when I test to myself it [name] rather. John (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-12T09:14:26.367809427Z",
+    "message": "[Support] AI -> 7080940684: I understand that when you send SMS with the [name] placeholder, it stays as \"[name]\" instead of sho... (escalate: true)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-12T09:15:17.605638426Z",
+    "message": "[Support] 7080940684 -> admin: Please check (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-12T09:15:21.251778747Z",
+    "message": "[Support] AI -> 7080940684: I’ve checked your recent lead orders, and I see you purchased NavyFedCU leads with CNAM included. Th... (escalate: true)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-12T09:16:19.264267469Z",
+    "message": "[Support] 7080940684 -> admin: Bulksms am test with personal number (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-12T09:16:21.413543432Z",
+    "message": "[Support] AI -> 7080940684: Thanks for the info. Since you’re testing BulkSMS with your personal number and [name] stays as \"[na... (escalate: true)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-12T09:17:41.775347540Z",
+    "message": "[ProtectionHeartbeat] Done in 250.7s — total:8 ok:0 repaired:8 skipped:0 errors:0",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-12T09:18:20.951931987Z",
+    "message": "[Support] Admin replied to 7080940684: Hi, how can I help you? (targetLang: en, translated: false) — session re-opened, admin takeover ON",
+    "severity": "info"
+  }
+]
