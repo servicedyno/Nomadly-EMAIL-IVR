@@ -15566,52 +15566,44 @@ ${message.replace(/\n/g, '<br>')}
           return send(chatId, maskUrl, trans('o'))
         }
 
-        // 2026-05-12 fix: stop routing through RapidAPI's tinyurl.com white-label.
-        //   Old flow: RapidAPI created tinyurl.com/xxx → user saw a foreign brand,
-        //   click tracking was lost, monthly RapidAPI cost.
-        //   New flow: return SELF_URL/${slug} directly. The Express click handler
-        //   at `app.get('/:id')` (line ~31796) already looks up `fullUrlOf[shortUrl]`
-        //   and 302-redirects — click tracking comes back for free.
-        // We keep `createShortUrlApi` available behind a feature flag so ops can
-        // re-enable RapidAPI temporarily if our domain ever goes down for a long
-        // window (escape valve). Default = self-host (Shortit-branded URL).
+        // Always route through SELF_URL key for "My Links" listing,
+        // but shorten the DESTINATION URL directly via RapidAPI (single hop).
+        // Trade-off: click tracking is lost for these new links since clicks
+        // bypass the Railway click handler at app.get('/:id'). Per product
+        // decision: url-shortener57 has no stats endpoint, so accept loss.
         const slug = nanoid()
         const __shortUrl = `${SELF_URL}/${slug}`
         const shortUrl = __shortUrl.replaceAll('.', '@').replace('https://', '')
-        let _shortUrl = __shortUrl
-        if (process.env.SHORTLINK_PROVIDER === 'rapidapi') {
-          try {
-            _shortUrl = await createShortUrlApi(url)
-            log(`[Shortener] RapidAPI success: ${_shortUrl}`)
-          } catch (error) {
-            const errMsg = String(error?.message || error)
-            log(`[Shortener] RapidAPI failed: ${errMsg}`)
-            // S1 fix (2026-04-21): A "400 URL is invalid" from RapidAPI almost
-            // always means the user sent a typo we couldn't catch with
-            // sanitizeShortenerUrl (e.g. invalid TLD). Don't wake the admin —
-            // just give the user a clean, actionable hint. Only escalate real
-            // provider failures (5xx, 429, network, undefined).
-            const isUserInputError = /\b400\b/.test(errMsg) && /invalid/i.test(errMsg)
-            if (!isUserInputError) {
-              send(TELEGRAM_ADMIN_CHAT_ID, `⚠️ RapidAPI URL shortener failed:\n${errMsg}`)
-            } else {
-              log(`[Shortener] Suppressed admin ping for user-input 400 error: ${url}`)
-            }
-            recordUserError(chatId, 'rapidapi-shortlink', errMsg || 'URL shortening service unavailable')
-            await set(state, chatId, 'action', 'none')
-            if (isUserInputError) {
-              const hint = {
-                en: `❌ That URL doesn't look valid — please check for typos (e.g. stray dots, missing domain extension) and try again.\n\nExample: <code>https://example.com</code>`,
-                fr: `❌ Cette URL semble invalide — vérifiez les fautes (points mal placés, extension manquante) et réessayez.\n\nExemple : <code>https://example.com</code>`,
-                zh: `❌ 该 URL 似乎无效，请检查是否有拼写错误（如多余的点号或缺少域名后缀）后重试。\n\n示例：<code>https://example.com</code>`,
-                hi: `❌ यह URL सही नहीं लगता — कृपया टाइपिंग गलती (जैसे अतिरिक्त बिंदु या गायब डोमेन एक्सटेंशन) जांचें और पुनः प्रयास करें।\n\nउदाहरण: <code>https://example.com</code>`,
-              }
-              return send(chatId, hint[lang] || hint.en, { ...trans('o'), parse_mode: 'HTML' })
-            }
-            return send(chatId, t.redIssueUrlCuttly, trans('o'))
+        let _shortUrl
+        try {
+          _shortUrl = await createShortUrlApi(url)
+          log(`[Shortener] RapidAPI success: ${_shortUrl}`)
+        } catch (error) {
+          const errMsg = String(error?.message || error)
+          log(`[Shortener] RapidAPI failed: ${errMsg}`)
+          // S1 fix (2026-04-21): A "400 URL is invalid" from RapidAPI almost
+          // always means the user sent a typo we couldn't catch with
+          // sanitizeShortenerUrl (e.g. invalid TLD). Don't wake the admin —
+          // just give the user a clean, actionable hint. Only escalate real
+          // provider failures (5xx, 429, network, undefined).
+          const isUserInputError = /\b400\b/.test(errMsg) && /invalid/i.test(errMsg)
+          if (!isUserInputError) {
+            send(TELEGRAM_ADMIN_CHAT_ID, `⚠️ RapidAPI URL shortener failed:\n${errMsg}`)
+          } else {
+            log(`[Shortener] Suppressed admin ping for user-input 400 error: ${url}`)
           }
-        } else {
-          log(`[Shortener] Self-host: ${_shortUrl}`)
+          recordUserError(chatId, 'rapidapi-shortlink', errMsg || 'URL shortening service unavailable')
+          await set(state, chatId, 'action', 'none')
+          if (isUserInputError) {
+            const hint = {
+              en: `❌ That URL doesn't look valid — please check for typos (e.g. stray dots, missing domain extension) and try again.\n\nExample: <code>https://example.com</code>`,
+              fr: `❌ Cette URL semble invalide — vérifiez les fautes (points mal placés, extension manquante) et réessayez.\n\nExemple : <code>https://example.com</code>`,
+              zh: `❌ 该 URL 似乎无效，请检查是否有拼写错误（如多余的点号或缺少域名后缀）后重试。\n\n示例：<code>https://example.com</code>`,
+              hi: `❌ यह URL सही नहीं लगता — कृपया टाइपिंग गलती (जैसे अतिरिक्त बिंदु या गायब डोमेन एक्सटेंशन) जांचें और पुनः प्रयास करें।\n\nउदाहरण: <code>https://example.com</code>`,
+            }
+            return send(chatId, hint[lang] || hint.en, { ...trans('o'), parse_mode: 'HTML' })
+          }
+          return send(chatId, t.redIssueUrlCuttly, trans('o'))
         }
         increment(totalShortLinks, 'total')
         set(maskOf, shortUrl, _shortUrl)
