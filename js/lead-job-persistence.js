@@ -9,8 +9,14 @@ const { log } = require('console')
 
 let _db = null
 const COLLECTION = 'leadJobs'
-const SAVE_INTERVAL_MS = 10_000 // Save progress every 10 seconds
-const activeJobs = new Map()     // jobId → interval timer
+const SAVE_INTERVAL_MS = Number(process.env.LEAD_JOB_SAVE_INTERVAL_MS) || 10_000 // Save progress every 10 seconds
+// ── Silent-stall detector ──
+// If a job's results.length hasn't grown for STALL_THRESHOLD_MS, fire onStall
+// callback once (re-arms when progress resumes). Catches cases where the bot is
+// alive but provider APIs (Telnyx CNAM, Alcazar, etc.) are silently down — the
+// hard phoneGenTimeout would otherwise let the user wait the full 90+ min.
+const STALL_THRESHOLD_MS = Number(process.env.LEAD_JOB_STALL_THRESHOLD_MS) || 120_000 // 120 s
+const activeJobs = new Map()     // jobId → interval timer + stall state
 
 function initLeadJobPersistence(db) {
   _db = db
@@ -75,14 +81,59 @@ async function saveProgress(jobId, results, realNameCount) {
 
 /**
  * Start periodic saving for a job
+ * @param {string} jobId
+ * @param {() => {results: any[], realNameCount: number}} getState
+ * @param {(info: {jobId: string, stalledForSec: number, currentCount: number, targetCount: number, chatId?: any, target?: string}) => void} [onStall]
+ *        Optional callback fired ONCE when results.length stops growing for
+ *        STALL_THRESHOLD_MS. Re-arms when progress resumes.
+ * @param {{chatId?: any, target?: string, targetCount?: number}} [meta]
+ *        Optional metadata passed back to the onStall callback for richer alerts.
  */
-function startPeriodicSave(jobId, getState) {
+function startPeriodicSave(jobId, getState, onStall, meta = {}) {
   if (activeJobs.has(jobId)) return
+  const initial = getState() || { results: [] }
+  const state = {
+    lastProgressCount: (initial.results || []).length,
+    lastProgressAt: Date.now(),
+    stallAlerted: false,
+  }
   const timer = setInterval(async () => {
     const { results, realNameCount } = getState()
     await saveProgress(jobId, results, realNameCount)
+
+    // ── Stall detection ──
+    const currentCount = (results || []).length
+    if (currentCount > state.lastProgressCount) {
+      state.lastProgressCount = currentCount
+      state.lastProgressAt = Date.now()
+      if (state.stallAlerted) {
+        log(`[LeadJobs] Job ${jobId} resumed progress at ${currentCount} leads after stall`)
+        state.stallAlerted = false
+      }
+      return
+    }
+    const stalledMs = Date.now() - state.lastProgressAt
+    if (stalledMs >= STALL_THRESHOLD_MS && !state.stallAlerted) {
+      state.stallAlerted = true
+      const stalledForSec = Math.round(stalledMs / 1000)
+      log(`[LeadJobs] ⚠️ STALL DETECTED: job ${jobId} no progress for ${stalledForSec}s (stuck at ${currentCount}/${meta.targetCount || '?'} leads)`)
+      if (typeof onStall === 'function') {
+        try {
+          onStall({
+            jobId,
+            stalledForSec,
+            currentCount,
+            targetCount: meta.targetCount,
+            chatId: meta.chatId,
+            target: meta.target,
+          })
+        } catch (e) {
+          log(`[LeadJobs] onStall callback error: ${e.message}`)
+        }
+      }
+    }
   }, SAVE_INTERVAL_MS)
-  activeJobs.set(jobId, { timer, getState })
+  activeJobs.set(jobId, { timer, getState, state })
 }
 
 /**

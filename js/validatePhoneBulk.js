@@ -222,12 +222,27 @@ const validateBulkNumbers = async (carrier, phonesToGenerate, countryCode, areaC
   const res = resumeData ? [...(resumeData.results || [])] : []
   let realNameCount = resumeData ? (resumeData.realNameCount || 0) : 0
 
+  // ── Stall alert (silent-stall detector) ──
+  // Fired by lead-job-persistence when results.length hasn't grown for
+  // LEAD_JOB_STALL_THRESHOLD_MS (default 120 s). Notifies admin only — the
+  // customer keeps seeing the existing progress messages and we avoid spam.
+  const onStall = (info) => {
+    if (!bot || !TELEGRAM_ADMIN_CHAT_ID) return
+    const msg =
+      `🚨 [LeadJobs] STALL — job ${info.jobId.slice(0, 8)}… ` +
+      `(${info.target || 'unknown target'}, chat ${info.chatId || '?'}) ` +
+      `stuck at ${info.currentCount}/${info.targetCount || '?'} for ${info.stalledForSec}s. ` +
+      `Likely CNAM/validation provider degradation — investigate Telnyx/Alcazar/Signalwire.`
+    bot.sendMessage(TELEGRAM_ADMIN_CHAT_ID, msg).catch(() => {})
+  }
+  const stallMeta = { chatId, target: jobMeta.target, targetCount: phonesToGenerate }
+
   if (resumeData) {
     // ── Resuming interrupted job — reuse jobId and existing results ──
     jobId = resumeData.jobId
     log(`[LeadJobs] Resuming job ${jobId} — ${res.length} existing results, ${realNameCount} real names, target ${phonesToGenerate}`)
     if (jobId) {
-      startPeriodicSave(jobId, () => ({ results: res, realNameCount }))
+      startPeriodicSave(jobId, () => ({ results: res, realNameCount }), onStall, stallMeta)
     }
   } else {
     // ── Create persistent job ──
@@ -248,7 +263,7 @@ const validateBulkNumbers = async (carrier, phonesToGenerate, countryCode, areaC
 
     // ── Start periodic progress saves ──
     if (jobId) {
-      startPeriodicSave(jobId, () => ({ results: res, realNameCount }))
+      startPeriodicSave(jobId, () => ({ results: res, realNameCount }), onStall, stallMeta)
     }
   }
   let i = 0
