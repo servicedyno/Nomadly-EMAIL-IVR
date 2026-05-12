@@ -226,6 +226,8 @@ const validateBulkNumbers = async (carrier, phonesToGenerate, countryCode, areaC
   // Fired by lead-job-persistence when results.length hasn't grown for
   // LEAD_JOB_STALL_THRESHOLD_MS (default 120 s). Notifies admin only — the
   // customer keeps seeing the existing progress messages and we avoid spam.
+  // onRecover closes the loop: fires once when progress resumes after a stall
+  // alert so we know the upstream provider is healthy again.
   const onStall = (info) => {
     if (!bot || !TELEGRAM_ADMIN_CHAT_ID) return
     const msg =
@@ -235,7 +237,16 @@ const validateBulkNumbers = async (carrier, phonesToGenerate, countryCode, areaC
       `Likely CNAM/validation provider degradation — investigate Telnyx/Alcazar/Signalwire.`
     bot.sendMessage(TELEGRAM_ADMIN_CHAT_ID, msg).catch(() => {})
   }
-  const stallMeta = { chatId, target: jobMeta.target, targetCount: phonesToGenerate }
+  const onRecover = (info) => {
+    if (!bot || !TELEGRAM_ADMIN_CHAT_ID) return
+    const msg =
+      `✅ [LeadJobs] STALL RESOLVED — job ${info.jobId.slice(0, 8)}… ` +
+      `(${info.target || 'unknown target'}, chat ${info.chatId || '?'}) ` +
+      `resumed at ${info.currentCount}/${info.targetCount || '?'} after ${info.stalledForSec}s stall. ` +
+      `Upstream provider appears healthy again.`
+    bot.sendMessage(TELEGRAM_ADMIN_CHAT_ID, msg).catch(() => {})
+  }
+  const stallMeta = { chatId, target: jobMeta.target, targetCount: phonesToGenerate, onRecover }
 
   if (resumeData) {
     // ── Resuming interrupted job — reuse jobId and existing results ──

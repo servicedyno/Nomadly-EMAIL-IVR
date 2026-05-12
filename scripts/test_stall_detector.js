@@ -101,18 +101,24 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     }
   }
 
-  // Test 3: stall re-arms after progress resumes
+  // Test 3: stall re-arms after progress resumes + onRecover fires
   {
     const results = ['a'];
     let realNameCount = 0;
     const stalls = [];
+    const recovers = [];
     const jobId = 'test-rearm';
 
     fastPersistence.startPeriodicSave(
       jobId,
       () => ({ results, realNameCount }),
       (info) => stalls.push(info),
-      { chatId: 999, target: 'Rearm', targetCount: 100 },
+      {
+        chatId: 999,
+        target: 'Rearm',
+        targetCount: 100,
+        onRecover: (info) => recovers.push(info),
+      },
     );
 
     // Phase 1: stall for ~1s
@@ -128,7 +134,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       assert.strictEqual(stalls.length, 2, `Expected 2 stalls (re-arm), got ${stalls.length}`);
       assert.strictEqual(stalls[0].currentCount, 1);
       assert.strictEqual(stalls[1].currentCount, 4);
-      console.log('✓ Test 3 PASS: stall re-arms after progress resumes');
+      assert.strictEqual(recovers.length, 1, `Expected 1 recovery, got ${recovers.length}`);
+      assert.strictEqual(recovers[0].currentCount, 4);
+      assert.strictEqual(recovers[0].target, 'Rearm');
+      assert.ok(recovers[0].stalledForSec >= 1, 'recovery should report stall duration');
+      console.log('✓ Test 3 PASS: stall re-arms after progress resumes + onRecover fires once');
       pass++;
     } catch (e) {
       console.error('✗ Test 3 FAIL:', e.message);
@@ -144,12 +154,50 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     fastPersistence.startPeriodicSave(
       jobId,
       () => ({ results, realNameCount }),
-      // no onStall callback
+      // no onStall callback, no onRecover
     );
     await sleep(1100);
+    // Add progress to also exercise the recovery path with no onRecover
+    results.push('z');
+    await sleep(400);
     fastPersistence.stopPeriodicSave(jobId);
-    console.log('✓ Test 4 PASS: optional onStall does not crash');
+    console.log('✓ Test 4 PASS: optional onStall/onRecover do not crash');
     pass++;
+  }
+
+  // Test 5: onRecover does NOT fire if no stall ever occurred
+  {
+    const results = [];
+    let realNameCount = 0;
+    const recovers = [];
+    const jobId = 'test-no-stall-no-recover';
+
+    fastPersistence.startPeriodicSave(
+      jobId,
+      () => ({ results, realNameCount }),
+      () => {},
+      {
+        chatId: 999,
+        target: 'NoStall',
+        targetCount: 100,
+        onRecover: (info) => recovers.push(info),
+      },
+    );
+
+    // Always grow — never stalls
+    const grower = setInterval(() => results.push('q'), 150);
+    await sleep(1500);
+    clearInterval(grower);
+    fastPersistence.stopPeriodicSave(jobId);
+
+    try {
+      assert.strictEqual(recovers.length, 0, `onRecover should not fire without prior stall, got ${recovers.length}`);
+      console.log('✓ Test 5 PASS: onRecover does not fire without a prior stall');
+      pass++;
+    } catch (e) {
+      console.error('✗ Test 5 FAIL:', e.message);
+      fail++;
+    }
   }
 
   console.log(`\nResult: ${pass} pass, ${fail} fail`);

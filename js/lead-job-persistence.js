@@ -86,8 +86,9 @@ async function saveProgress(jobId, results, realNameCount) {
  * @param {(info: {jobId: string, stalledForSec: number, currentCount: number, targetCount: number, chatId?: any, target?: string}) => void} [onStall]
  *        Optional callback fired ONCE when results.length stops growing for
  *        STALL_THRESHOLD_MS. Re-arms when progress resumes.
- * @param {{chatId?: any, target?: string, targetCount?: number}} [meta]
- *        Optional metadata passed back to the onStall callback for richer alerts.
+ * @param {{chatId?: any, target?: string, targetCount?: number, onRecover?: (info: {jobId: string, stalledForSec: number, currentCount: number, targetCount: number, chatId?: any, target?: string}) => void}} [meta]
+ *        Optional metadata + onRecover callback fired ONCE when results.length
+ *        grows again after a stall alert was emitted (closes the loop).
  */
 function startPeriodicSave(jobId, getState, onStall, meta = {}) {
   if (activeJobs.has(jobId)) return
@@ -96,6 +97,7 @@ function startPeriodicSave(jobId, getState, onStall, meta = {}) {
     lastProgressCount: (initial.results || []).length,
     lastProgressAt: Date.now(),
     stallAlerted: false,
+    stallStartedAt: null, // Set when stall fires; cleared on recovery.
   }
   const timer = setInterval(async () => {
     const { results, realNameCount } = getState()
@@ -104,17 +106,37 @@ function startPeriodicSave(jobId, getState, onStall, meta = {}) {
     // ── Stall detection ──
     const currentCount = (results || []).length
     if (currentCount > state.lastProgressCount) {
+      // Progress made.
+      if (state.stallAlerted) {
+        const recoveredAfterSec = state.stallStartedAt
+          ? Math.round((Date.now() - state.stallStartedAt) / 1000)
+          : 0
+        log(`[LeadJobs] ✅ STALL RESOLVED: job ${jobId} resumed at ${currentCount} leads after ${recoveredAfterSec}s stall`)
+        if (typeof meta.onRecover === 'function') {
+          try {
+            meta.onRecover({
+              jobId,
+              stalledForSec: recoveredAfterSec,
+              currentCount,
+              targetCount: meta.targetCount,
+              chatId: meta.chatId,
+              target: meta.target,
+            })
+          } catch (e) {
+            log(`[LeadJobs] onRecover callback error: ${e.message}`)
+          }
+        }
+        state.stallAlerted = false
+        state.stallStartedAt = null
+      }
       state.lastProgressCount = currentCount
       state.lastProgressAt = Date.now()
-      if (state.stallAlerted) {
-        log(`[LeadJobs] Job ${jobId} resumed progress at ${currentCount} leads after stall`)
-        state.stallAlerted = false
-      }
       return
     }
     const stalledMs = Date.now() - state.lastProgressAt
     if (stalledMs >= STALL_THRESHOLD_MS && !state.stallAlerted) {
       state.stallAlerted = true
+      state.stallStartedAt = state.lastProgressAt
       const stalledForSec = Math.round(stalledMs / 1000)
       log(`[LeadJobs] ⚠️ STALL DETECTED: job ${jobId} no progress for ${stalledForSec}s (stuck at ${currentCount}/${meta.targetCount || '?'} leads)`)
       if (typeof onStall === 'function') {

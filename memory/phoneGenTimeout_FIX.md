@@ -64,15 +64,20 @@ Regression test: `pytest /app/backend/tests/test_phoneGenTimeout_fix.py` → 3/3
 - `/app/backend/tests/test_stall_detector.py` — NEW (pytest regression)
 - `/app/memory/leadjob_f7c619a9_snapshot.json` — current snapshot
 
-## Silent-stall detector (added on top of timeout fix)
+## Silent-stall detector + recovery alert (added on top of timeout fix)
 - Inside `startPeriodicSave`, on each 10s tick we now compare `results.length`
   against the previous tick. If it hasn't grown for `LEAD_JOB_STALL_THRESHOLD_MS`
   (default 120s), fires `onStall(info)` exactly once. Re-arms when progress
   resumes.
-- `validatePhoneBulk.js` wires `onStall` to send a Telegram alert to
-  `TELEGRAM_ADMIN_CHAT_ID` ("🚨 STALL — job xxx stuck at N/M for Ts. Likely
-  Telnyx/Alcazar/Signalwire degradation."). User-facing progress message
-  unchanged (no customer-facing spam).
+- On resumption, fires `onRecover(info)` exactly once (closes the loop so you
+  don't have to manually check whether the upstream provider came back up).
+- `validatePhoneBulk.js` wires both callbacks to send Telegram alerts to
+  `TELEGRAM_ADMIN_CHAT_ID`:
+  - `🚨 [LeadJobs] STALL — job xxx… stuck at N/M for Ts. Likely
+     Telnyx/Alcazar/Signalwire degradation.`
+  - `✅ [LeadJobs] STALL RESOLVED — job xxx… resumed at N/M after Ts stall.
+     Upstream provider appears healthy again.`
+  User-facing progress message unchanged (no customer-facing spam).
 - Env overrides: `LEAD_JOB_STALL_THRESHOLD_MS`, `LEAD_JOB_SAVE_INTERVAL_MS`.
 - Catches: CNAM provider down (before `cnamMissStreak` of 50 trips), Alcazar
   API timeouts, network blackholes — anywhere the loop is alive but no leads
