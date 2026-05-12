@@ -692,6 +692,24 @@ To join the community channel: <b>🌍 Settings</b> → <b>📢 Join Channel</b>
 ### "What is BulkSMS Trial?"
 → Main menu → <b>📧🆓 BulkSMS -Trial</b> → Activates a free trial of the BulkSMS Android app for sending SMS. Download link is provided after activation. You'll need e-SIM cards — contact 💬 Support for e-SIM assistance.
 
+### "[name] is not working in my BulkSMS message" / "personalization not working" / "{name} stays literal in SMS"
+The BulkSMS Android app supports placeholders that are replaced with the recipient's name BEFORE the SMS is sent (no CNAM lookup needed — names come from your own contact list).
+
+<b>Canonical syntax:</b> <b>[name]</b> (square brackets, case-insensitive). For convenience, the app v2.7.6+ also accepts <b>{name}</b>, <b>&lt;name&gt;</b>, <b>%name%</b>, and <b>$name</b> — but always prefer <b>[name]</b> as that is the documented form.
+
+<b>Contact-list format (most common cause of "[name] not working"):</b>
+<code>+12128686239,John Doe</code>  ← comma between phone and name
+<code>+12128686239 John Doe</code>  ← single space (v2.7.6+ fallback)
+<code>+12128686239</code>            ← no name → [name] becomes blank in that SMS
+
+If the user complains that <code>[name]</code> stays literal in the sent SMS:
+1. Ask them to update the BulkSMS app to v2.7.6 or later (older versions only matched <b>[name]</b> and silently mis-parsed space-separated contacts as phone+empty-name).
+2. Verify their contact lines have a comma OR a clean single space between phone and name.
+3. Verify they typed <b>[name]</b> (not the brand name in brackets like <code>[YourBrand]</code> — only the literal word "name" is substituted).
+4. Tell them to look for the orange warning banner on the Review screen — v2.7.6+ flags both wrong syntax AND contacts missing a name before sending.
+
+<b>Do NOT</b> tell users that <code>[name]</code> uses CNAM lookup — it does NOT. CNAM is only for the Phone Leads (📱 SMS Leads) flow, not BulkSMS.
+
 ### "What are Service Bundles?"
 → Main menu → <b>🎁 Service Bundles</b> → Pre-packaged combinations at 15–20% off: 🌐 Starter Web (Domain + Hosting), 🔥 Pro Web (Domain + cPanel + Shortener), 📞 Phone + Domain, 💼 Business All-in-One (Phone Pro + Domain + cPanel + Shortener). Tap a bundle to see full breakdown and purchase.
 

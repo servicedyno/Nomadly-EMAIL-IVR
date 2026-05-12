@@ -849,17 +849,67 @@ const App = {
     document.getElementById('contactCounter').textContent = `${contacts.length} contacts`
   },
 
+  // ─── Name-placeholder substitution ───
+  // Recognised tokens (case-insensitive): [name], {name}, <name>, %name%, $name, $$name.
+  // The single-syntax `[name]` is the canonical/documented form; the rest are
+  // accepted because users commonly try them by intuition.
+  // Returns substituted string. If `nameValue` is empty/falsy, replaces with ''.
+  _substituteName(template, nameValue) {
+    // Local regex with `g` flag — needed for replace-all. Recreated per call so
+    // there's no shared `lastIndex` state.
+    return String(template || '').replace(/(\[name\]|\{name\}|<name>|%name%|\$\$?name\b)/gi, String(nameValue || ''))
+  },
+  _templateHasPlaceholder(template) {
+    // Any of the supported syntaxes.
+    return /(\[name\]|\{name\}|<name>|%name%|\$\$?name\b)/i.test(String(template || ''))
+  },
+  _templateHasVariantOnly(template) {
+    // True when only NON-canonical variants are present (no [name]). Used to
+    // suggest "Did you mean [name]?" in the review screen.
+    const s = String(template || '')
+    return !/\[name\]/i.test(s) && /(\{name\}|<name>|%name%|\$\$?name\b)/i.test(s)
+  },
+
   // ─── Parse Contacts ───
+  // Accepted formats per line (whitespace-tolerant):
+  //   "+1234567890,John Doe"        (canonical: comma-separated)
+  //   "+1234567890\tJohn Doe"       (tab-separated)
+  //   "+1234567890 John Doe"        (space-separated — fallback)
+  //   "+1234567890"                 (no name)
+  //   "1234567890"                  (no leading +)
+  // Returns: [{ phoneNumber, name, raw, warning? }]
   parseContacts() {
     const raw = (document.getElementById('wzContacts').value || '').trim()
     if (!raw) return []
     const contacts = []
     const lines = raw.split('\n').filter(l => l.trim())
     for (const line of lines) {
-      const parts = line.split(',').map(p => p.trim())
-      const phone = (parts[0] || '').replace(/[^+\d]/g, '')
-      if (phone.length >= 7) {
-        contacts.push({ phoneNumber: parts[0].trim(), name: parts.slice(1).join(',').trim() || '' })
+      // 1. Prefer explicit delimiter (comma or tab) — splits cleanly.
+      let phoneRaw, nameRaw
+      const explicitMatch = line.match(/^\s*([^\t,]+)[\t,](.+)$/)
+      if (explicitMatch) {
+        phoneRaw = explicitMatch[1].trim()
+        nameRaw = explicitMatch[2].trim()
+      } else {
+        // 2. Fallback: split on first whitespace that follows a phone-like
+        //    sequence (digits, optional +, spaces/dashes/parens inside).
+        //    Examples: "+12138686239 Steve Edith" → phone="+12138686239" name="Steve Edith"
+        //              "+1 (213) 868-6239 Steve"  → phone="+1 (213) 868-6239" name="Steve"
+        //              "+12138686239"             → phone="+12138686239" name=""
+        const m = line.match(/^\s*(\+?[\d()\-\s]{7,})(?:\s+(.+))?$/)
+        if (m) {
+          phoneRaw = m[1].trim()
+          nameRaw = (m[2] || '').trim()
+        } else {
+          phoneRaw = line.trim()
+          nameRaw = ''
+        }
+      }
+      const phoneDigits = (phoneRaw || '').replace(/[^+\d]/g, '')
+      if (phoneDigits.length >= 7) {
+        // Use the cleaned digit-only phone (drop stray characters) to prevent
+        // sending to malformed numbers like "+12138686239 Steve Edith".
+        contacts.push({ phoneNumber: phoneDigits, name: nameRaw })
       }
     }
     return contacts
@@ -878,10 +928,34 @@ const App = {
     const gapTime = parseInt(document.getElementById('wzGapTime').value) || 5
 
     document.getElementById('rvName').textContent = name
-    // Preview with a sample name (use first message)
+    // Preview with a sample name (use first contact's name when available).
     const sampleName = contacts.length > 0 && contacts[0].name ? contacts[0].name : 'there'
     const firstMsg = contentMessages.length > 0 ? contentMessages[0] : content
-    document.getElementById('rvPreview').textContent = firstMsg.replace(/\[name\]/gi, sampleName)
+    document.getElementById('rvPreview').textContent = this._substituteName(firstMsg, sampleName)
+
+    // ─── Template / contact-name validation ───
+    // Build a single warning banner under the preview so users catch issues
+    // before sending — the most common AI-support complaint we get is
+    // "[name] not working". The two root causes are:
+    //   (1) using a variant syntax like {name} / <name> that wasn't substituted
+    //   (2) having [name] in the template but contacts without names
+    const templateHasName = this._templateHasPlaceholder(firstMsg)
+    const variantOnly = this._templateHasVariantOnly(firstMsg)
+    const contactsMissingName = contacts.filter(c => !c.name).length
+    const warningBanner = document.getElementById('rvNameWarning')
+    if (warningBanner) {
+      const warnings = []
+      if (variantOnly) {
+        warnings.push('⚠️ Your template uses <b>{name}</b>, <b>&lt;name&gt;</b>, or <b>%name%</b>. Use <b>[name]</b> (square brackets) — other syntaxes are still recognised but <b>[name]</b> is the canonical form shown in the hint.')
+      }
+      if (templateHasName && contacts.length > 0 && contactsMissingName === contacts.length) {
+        warnings.push(`⚠️ Your template uses <b>[name]</b> but <b>none</b> of your ${contacts.length} contacts have a name — <b>[name]</b> will be blank in every SMS. Add names using <code>+phone,Name</code> per line.`)
+      } else if (templateHasName && contactsMissingName > 0) {
+        warnings.push(`⚠️ ${contactsMissingName} of ${contacts.length} contacts have no name — <b>[name]</b> will be blank for those messages.`)
+      }
+      warningBanner.innerHTML = warnings.join('<br><br>')
+      warningBanner.style.display = warnings.length ? 'block' : 'none'
+    }
     const longestMsg = contentMessages.length > 0 ? contentMessages.reduce((a, b) => a.length > b.length ? a : b, '') : content
     const segments = longestMsg.length <= 160 ? 1 : Math.ceil(longestMsg.length / 153)
     const rotationNote = contentMessages.length > 1 ? ` · ${contentMessages.length} messages (rotation)` : ''
@@ -1519,7 +1593,7 @@ const App = {
 
     const contact = s.contacts[s.idx]
     const msgIdx = s.idx % s.content.length
-    const msg = s.content[msgIdx].replace(/\[name\]/gi, contact.name || '')
+    const msg = this._substituteName(s.content[msgIdx], contact.name)
 
     document.getElementById('sendingStatus').textContent = `Sending to ${contact.phoneNumber}${contact.name ? ' (' + contact.name + ')' : ''}`
 

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#0f0f23">
-  <meta name="app-version" content="2.7.5">
+  <meta name="app-version" content="2.7.6">
   <title>Nomadly SMS</title>
   <script>
     if (window.location.pathname.includes('/api/sms-app-web')) {
@@ -183,7 +183,7 @@
     <div class="wizard-page" id="wzStep3" style="display:none">
       <div class="wz-content">
         <h2>Add your contacts</h2>
-        <p class="wz-hint">Enter phone numbers, one per line. Add a name after a comma for personalization.</p>
+        <p class="wz-hint">Enter phone numbers, one per line. Add a name after a comma <i>(or just a space)</i> to personalize <b>[name]</b>.</p>
         <div class="input-group">
           <textarea id="wzContacts" placeholder="+1 818 927 9992, John&#10;+1 415 555 1234, Jane&#10;+1 212 555 9876"></textarea>
         </div>
@@ -216,6 +216,7 @@
           <div class="review-label">Message Preview</div>
           <div class="review-sms" id="rvPreview">-</div>
           <div class="review-meta" id="rvMsgMeta">-</div>
+          <div id="rvNameWarning" data-testid="review-name-warning" style="display:none;margin-top:10px;padding:10px 12px;background:#fff4e5;border-left:3px solid #ff9800;border-radius:6px;font-size:13px;color:#5d3a00;line-height:1.45"></div>
         </div>
         <div class="review-card">
           <div class="review-label">Recipients</div>
