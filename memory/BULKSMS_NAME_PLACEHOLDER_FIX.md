@@ -84,11 +84,26 @@ their phone.
 ## Railway deploy steps (your turn)
 1. Push via **Save to GitHub** in chat. Railway auto-deploys the bot (so the
    new AI support KB goes live immediately).
-2. For the **Android app fix** (Bugs A, B, D), the `sms-app/` web assets need
-   to be rebuilt into a new APK. Same Save-to-Github push will get the assets
-   into the repo; rebuild + publish APK out-of-band when convenient.
-3. Once new APK is published, users on older versions will see the
-   `versionsBehind ≥ 1` nag via `sms-app-service.js:878-895` (already wired).
+2. ✅ **APK rebuilt and deployed locally** (2026-05-12T09:41 UTC):
+   - APK: 3.82 MB (md5 `a4877161be1dd40afd142c4a504cd636`)
+   - Bundled version: `2.7.6` (verified inside `assets/public/index.html`)
+   - All 4 fixes confirmed inside the APK (`_substituteName` × 7,
+     `explicitMatch/phoneDigits` × 7, `rvNameWarning` in both HTML + JS)
+   - Served at `GET /api/sms-app/download` (FastAPI proxy) — verified e2e:
+     200 OK, 3 823 287 bytes streamed, md5 matches local file
+   - Locations: `/app/backend/static/nomadly-sms.apk` and
+     `/app/static/nomadly-sms.apk` (both updated)
+3. **Save to GitHub** also pushes the updated APK + source so Railway serves the
+   same file. Once new APK is live, users on older versions get the
+   `versionsBehind ≥ 1` nag via `sms-app-service.js:878-895`.
+
+### Build command (for future rebuilds)
+```bash
+bash /app/scripts/build_apk.sh
+# tail -f /tmp/apk_build.log
+```
+Idempotent — skips SDK/aapt2 install if already present. ~2 min on a clean
+pod, ~30 s if SDK is cached.
 
 ## Files touched
 - `sms-app/www/js/app.js` — new helpers (`_substituteName`,
