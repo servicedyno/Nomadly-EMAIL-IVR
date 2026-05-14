@@ -242,3 +242,70 @@ during the 14-day window — directly on the screens users already visit.
 - `/app/js/_index.js` (3 small in-place edits: `myHostingPlans`, `viewHostingPlanDetails`, router prefixes)
 - `/app/js/__tests__/hosting-upgrade-credit.test.js` (added gating + nudge sections)
 - `/app/js/__tests__/hosting-upgrade-credit.integration.test.js` (added case 4)
+
+
+---
+
+## 2026-02-15 — Proactive Hosting Upgrade Credit Nudge (daily DM scheduler)
+
+### Goal
+Capture the users who DON'T re-open the bot during their credit window by
+sending a one-time Telegram DM exactly 2 days before the window closes —
+mirroring the existing `sendDay12UpgradeCreditNudges` pattern used for phone plans.
+
+### Sweet-spot rule (per the corrected plan-specific windows)
+- **Weekly plan**  (window=3 days)  → fire on days **1.0–2.0** since anchor
+- **Premium monthly** (window=14 days) → fire on days **12.0–13.0** since anchor
+- **Golden**  → no upgrade path → no nudge
+
+### Implementation
+- **New module** `/app/js/hosting-upgrade-nudge.js`:
+  - `inSweetSpot(planDoc, now)` — returns `{ daysSince, windowDays, anchor }` or `null`.
+  - `alreadyNudgedThisCycle(planDoc)` — true iff `creditNudgeAt >= anchorDate`.
+    A renewal advances the anchor past the old stamp → nudge becomes re-eligible
+    automatically. No housekeeping job needed.
+  - `buildMessage(lang, args)` — localized en/fr/zh/hi DM bodies.
+    Headline rounds days up ("Last day"/"2 days left") with the credit amount.
+  - `runNudgeSweep({ bot, db, now? })` — scans `cpanelAccounts` filtered by
+    plan-name regex (`/week/i` OR `/premium.*30\s*days/i`) and `suspended != true`,
+    fires nudges for matches in the sweet spot, stamps `creditNudgeAt`
+    atomically. Returns `{ scanned, sent, errors }`.
+  - `init({ bot, db })` — registers a `node-schedule` cron at **14:15 UTC daily**
+    (15 minutes after the phone-plan nudge to spread Telegram API load).
+- **`/app/js/_index.js`** — single line added in the service-init block
+  right after `initHostingScheduler`:
+  ```
+  require('./hosting-upgrade-nudge').init({ bot, db })
+  ```
+
+### Idempotency & failure modes
+- A bot send failure does NOT stamp `creditNudgeAt` → next sweep retries.
+- A successful send DOES stamp `creditNudgeAt` → idempotent until the user's
+  next renewal advances the anchor past the stamp.
+- The cron job is safe to re-run any time (e.g. after a redeploy mid-day).
+
+### Verification
+- **Unit tests** `/app/js/__tests__/hosting-upgrade-nudge.test.js` —
+  **32/32 pass**: sweet-spot bounds for weekly & monthly, anchor preference
+  (lastRenewedAt over createdAt), idempotency math, localized bodies.
+- **Integration tests** `/app/js/__tests__/hosting-upgrade-nudge.integration.test.js`
+  — **20/20 pass** against real MongoDB with a captured fake bot:
+  - Weekly day 1.5 → sent (golden target, $15 credit)
+  - Premium-monthly day 12.5 → sent ($37.50 credit)
+  - Too-early / too-late / suspended → skipped
+  - Idempotency: second sweep on same data sends 0
+  - Renewal-driven re-fire: anchor advance unblocks the next sweep
+  - Bot failure: no stamp written → retryable
+- **End-to-end suite (all four files): 147 tests, 100% green.**
+- `supervisorctl restart nodejs` clean; log line confirmed:
+  `[HostingUpgradeNudge] Initialized — daily at 14:15 UTC`.
+
+### Files touched
+- `/app/js/hosting-upgrade-nudge.js` (new)
+- `/app/js/_index.js` (1 line added in init block)
+- `/app/js/__tests__/hosting-upgrade-nudge.test.js` (new — unit)
+- `/app/js/__tests__/hosting-upgrade-nudge.integration.test.js` (new — integration)
+
+### Backlog (remaining)
+- (P2) Apply the same prorated-credit pattern to VPS plan upgrades.
+- (P2) Wire credit explanation into AI-support quick replies ("why was I charged $85?").

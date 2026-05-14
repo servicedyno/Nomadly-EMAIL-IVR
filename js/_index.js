@@ -2262,6 +2262,9 @@ const loadData = async () => {
   initHostingScheduler({ bot, db, whmService: require('./whm-service.js') })
   log('[HostingScheduler] Initialized')
 
+  // Initialize Hosting Upgrade Credit Nudge (daily DM 2 days before window closes)
+  require('./hosting-upgrade-nudge').init({ bot, db })
+
   // Initialize Protection Enforcer — ensure all domains have anti-red worker protection
   const protectionEnforcer = require('./protection-enforcer')
   protectionEnforcer.init(db)
