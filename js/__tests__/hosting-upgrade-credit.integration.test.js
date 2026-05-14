@@ -20,7 +20,7 @@
 require('dotenv').config({ path: require('path').join(__dirname, '../../.env') })
 
 const { MongoClient } = require('mongodb')
-const { computeUpgradeQuote, CREDIT_WINDOW_DAYS } = require('../hosting-upgrade-credit')
+const { computeUpgradeQuote, getBestUpgradeQuote, CREDIT_WINDOW_DAYS } = require('../hosting-upgrade-credit')
 const { getPlanPrice } = require('../hosting-scheduler')
 
 const MONGO_URL = process.env.MONGO_URL || 'mongodb://localhost:27017'
@@ -184,6 +184,46 @@ async function main() {
   console.log('\n[case 3] Just inside 14-day boundary → still eligible')
   assert('eligible just inside 14 days', goldenOpt3.creditEligible === true)
 
+  // ─────────────────────────────────────────────────────────────
+  // CASE 4: 🎁 Credit-nudge surface on My Hosting Plans + Plan Details
+  // ─────────────────────────────────────────────────────────────
+  const fourDaysAgo = new Date(Date.now() - 4 * 24 * 60 * 60 * 1000)
+  await cpanelAccounts.updateOne(
+    { _id: `${TEST_DOMAIN}-case1` },
+    { $set: { createdAt: fourDaysAgo, lastRenewedAt: fourDaysAgo } }
+  )
+  plan = await cpanelAccounts.findOne({ chatId: TEST_CHAT_ID, domain: TEST_DOMAIN })
+
+  console.log('\n[case 4] Loyalty-credit nudge surface (weekly, day 4)')
+  const best = getBestUpgradeQuote({ planDoc: plan, oldPrice: PREMIUM_WEEKLY })
+  assert('getBestUpgradeQuote returns a nudge', best !== null)
+  assert('nudge target is Golden (higher tier wins ties)',
+    best.target.key === 'goldenCpanel', best.target.key)
+  assert('credit equals 50% of weekly price',
+    best.quote.creditApplied === PREMIUM_WEEKLY * 0.5,
+    `got $${best.quote.creditApplied}`)
+  assert('deadline is 14 days from anchor (±1 minute)',
+    Math.abs(best.deadlineDate.getTime() - (fourDaysAgo.getTime() + 14 * 24 * 60 * 60 * 1000)) < 60 * 1000)
+  assert('daysRemaining is ~10 (14 − 4)',
+    Math.abs(best.daysRemaining - 10) < 0.05,
+    `got ${best.daysRemaining}`)
+
+  // Build the EXACT CTA labels the bot will render
+  const deadlineStr = best.deadlineDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  const detailsCta = `🎁 Use $${best.quote.creditApplied.toFixed(2)} credit by ${deadlineStr}`
+  const listCta = `🎁 Use $${best.quote.creditApplied.toFixed(2)} credit on ${TEST_DOMAIN}`
+
+  // Verify the routing prefixes in _index.js will match these labels
+  assert('plan-details CTA matches the deep-link router prefix',
+    detailsCta.startsWith('🎁 Use $') && detailsCta.includes(' credit by '),
+    detailsCta)
+  assert('list CTA matches the deep-link router pattern',
+    /^🎁 Use \$[\d.]+ credit on (.+)$/.test(listCta),
+    listCta)
+  const listMatch = listCta.match(/^🎁 Use \$[\d.]+ credit on (.+)$/)
+  assert('list CTA captures the correct domain',
+    listMatch && listMatch[1] === TEST_DOMAIN, listMatch && listMatch[1])
+
   // Cleanup
   await cpanelAccounts.deleteMany({ chatId: TEST_CHAT_ID })
   await client.close()
@@ -195,9 +235,7 @@ async function main() {
     process.exit(1)
   }
   process.exit(0)
-}
-
-main().catch(err => {
+}main().catch(err => {
   console.error('Integration test crashed:', err)
   process.exit(2)
 })

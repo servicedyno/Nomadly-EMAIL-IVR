@@ -7929,19 +7929,37 @@ Enter new value:`), bc)
       if (!plans || plans.length === 0) {
         return send(chatId, trans('t.dom_2'), k.of([[user.hostingDomainsRedirect], ['↩️ Back']]))
       }
+      const { getPlanPrice } = require('./hosting-scheduler')
+      const { getBestUpgradeQuote } = require('./hosting-upgrade-credit')
       let text = trans('t.myHostingPlansHeader') + '\n\n'
       const planButtons = []
+      const creditCtas = [] // dedicated 🎁 deep-link buttons for plans with an active credit window
       for (const p of plans) {
         const expiry = p.expiryDate ? new Date(p.expiryDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
         const isExpired = p.expiryDate && new Date(p.expiryDate) < new Date()
         const status = p.suspended ? trans('t.statusSuspended') : isExpired ? trans('t.statusExpired') : trans('t.statusActive')
         const planIsWeekly = (p.plan || '').toLowerCase().includes('week')
         const autoRenew = (!planIsWeekly && p.autoRenew !== false) ? '🔁' : ''
-        text += `<b>${p.domain}</b> (${p.plan})\n   ${status} ${autoRenew} · ${trans('t.expiresLabel')} ${expiry}\n\n`
+        let row = `<b>${p.domain}</b> (${p.plan})\n   ${status} ${autoRenew} · ${trans('t.expiresLabel')} ${expiry}`
+
+        // Loyalty credit nudge — surface only when within 14 days of cycle start
+        try {
+          const oldPrice = getPlanPrice(p.plan)
+          const best = getBestUpgradeQuote({ planDoc: p, oldPrice })
+          if (best && best.quote.creditApplied > 0) {
+            const deadlineStr = best.deadlineDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+            const daysLeft = Math.max(1, Math.ceil(best.daysRemaining))
+            row += `\n   🎁 $${best.quote.creditApplied.toFixed(2)} upgrade credit — expires ${deadlineStr} (${daysLeft}d left)`
+            creditCtas.push([`🎁 Use $${best.quote.creditApplied.toFixed(2)} credit on ${p.domain}`])
+          }
+        } catch (_) { /* nudge is best-effort; never block the list */ }
+
+        text += row + '\n\n'
         planButtons.push([`🔍 ${p.domain}`])
       }
-      planButtons.push(['↩️ Back'])
-      send(chatId, text, k.of(planButtons))
+      // Surface credit CTAs at the TOP so they're the first thing thumbs reach
+      const buttons = [...creditCtas, ...planButtons, ['↩️ Back']]
+      send(chatId, text, k.of(buttons))
     },
 
     // 💳 My Plan / Billing — central place to renew & toggle auto-renew
@@ -8020,8 +8038,29 @@ Enter new value:`), bc)
         text += `\n\n` + trans('t.planViewMultiHostUpsell')
       }
 
+      // 🎁 Loyalty credit nudge — visible only inside the 14-day window
+      let creditCta = null
+      try {
+        const { getPlanPrice } = require('./hosting-scheduler')
+        const { getBestUpgradeQuote } = require('./hosting-upgrade-credit')
+        const oldPrice = getPlanPrice(plan.plan)
+        const best = getBestUpgradeQuote({ planDoc: plan, oldPrice })
+        if (best && best.quote.creditApplied > 0) {
+          const deadlineStr = best.deadlineDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+          const daysLeft = Math.max(1, Math.ceil(best.daysRemaining))
+          text += `\n\n🎁 <b>You have a $${best.quote.creditApplied.toFixed(2)} upgrade credit!</b>\n`
+            + `Apply it to <b>${best.target.name}</b> and pay just $${best.quote.chargeAmount.toFixed(2)} (list $${best.quote.originalPrice.toFixed(2)}).\n`
+            + `<i>Use it before ${deadlineStr} (${daysLeft}d left).</i>`
+          creditCta = `🎁 Use $${best.quote.creditApplied.toFixed(2)} credit by ${deadlineStr}`
+        }
+      } catch (_) { /* nudge is best-effort; never block plan view */ }
+
       const buttons = [[user.revealCredentials]]
-      if (isWeekly) buttons.push([user.upgradeHostingPlan])
+      // Show the credit-CTA first when active so it's the most tappable target
+      if (creditCta) buttons.push([creditCta])
+      const planLowercase = (plan.plan || '').toLowerCase()
+      const hasUpgradePath = planLowercase.includes('week') || (planLowercase.includes('premium') && !planLowercase.includes('week'))
+      if (hasUpgradePath && !creditCta) buttons.push([user.upgradeHostingPlan])
       // Visitor Captcha (Gold-only feature) — show locked button for non-Gold users
       const isGoldPlan = /Golden Anti-Red HostPanel/i.test(plan.plan || '')
       buttons.push([isGoldPlan ? user.manageVisitorCaptcha : user.manageVisitorCaptchaLocked])
@@ -10833,8 +10872,18 @@ All verified numbers generated during sourcing.`))
   // My Hosting Plans — select a plan to view
   if (action === a.myHostingPlans) {
     if (message === '↩️ Back' || isBackPress(message)) return goto.submenu3()
+    // 🎁 Loyalty-credit deep-link from the list — "🎁 Use $X.XX credit on <domain>"
+    if (typeof message === 'string' && message.startsWith('🎁 Use $')) {
+      const m = message.match(/^🎁 Use \$[\d.]+ credit on (.+)$/)
+      if (m) {
+        saveInfo('selectedHostingDomain', m[1])
+        await set(state, chatId, 'action', a.viewHostingPlan)
+        // Replay the standard upgrade trigger so the existing handler builds the menu
+        message = user.upgradeHostingPlan
+      }
+    }
     // Check if user tapped a plan button (format: "🔍 domain.com")
-    const domainMatch = message.match(/^🔍\s+(.+)$/)
+    const domainMatch = (typeof message === 'string') ? message.match(/^🔍\s+(.+)$/) : null
     if (domainMatch) {
       return goto.viewHostingPlanDetails(domainMatch[1])
     }
@@ -10848,6 +10897,10 @@ All verified numbers generated during sourcing.`))
     // One-tap "Upgrade to Gold" deep-link — triggers the existing upgrade flow
     if (typeof message === 'string' && message.startsWith('⬆️ Upgrade to Gold (')) {
       // Re-route through the standard upgrade handler below by replaying user.upgradeHostingPlan
+      message = user.upgradeHostingPlan
+    }
+    // 🎁 Loyalty-credit deep-link from plan details — "🎁 Use $X.XX credit by <date>"
+    if (typeof message === 'string' && message.startsWith('🎁 Use $') && message.includes(' credit by ')) {
       message = user.upgradeHostingPlan
     }
     // Visitor Captcha button (Gold-only) — locked variant shows upgrade prompt; active variant opens domain-action toggle flow

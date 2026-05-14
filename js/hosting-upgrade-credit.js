@@ -85,10 +85,74 @@ function computeUpgradeQuote({ planDoc, oldPrice, newPrice, now } = {}) {
   }
 }
 
+/**
+ * Enumerate the available upgrade targets for a plan, based on its current
+ * tier and the env-configured prices. Mirrors the gating in _index.js.
+ *
+ * @param {string} currentPlanName
+ * @returns {Array<{ key: string, name: string, price: number }>}
+ */
+function getUpgradeTargets(currentPlanName) {
+  const name = (currentPlanName || '').toLowerCase()
+  const premiumPrice = Number(process.env.PREMIUM_ANTIRED_CPANEL_PRICE || 75)
+  const goldenPrice = Number(process.env.GOLDEN_ANTIRED_CPANEL_PRICE || 100)
+  const targets = []
+  if (name.includes('week')) {
+    targets.push({ key: 'premiumCpanel', name: 'Premium Anti-Red HostPanel (30 Days)', price: premiumPrice })
+    targets.push({ key: 'goldenCpanel', name: 'Golden Anti-Red HostPanel (30 Days)', price: goldenPrice })
+  } else if (name.includes('premium') && !name.includes('week')) {
+    targets.push({ key: 'goldenCpanel', name: 'Golden Anti-Red HostPanel (30 Days)', price: goldenPrice })
+  }
+  return targets
+}
+
+/**
+ * Compute the most attractive upgrade quote for a given plan (used by the
+ * loyalty-credit nudge on the plan-details / hosting-plans screens).
+ *
+ * Returns null when the user has no upgrade path or is outside the credit window.
+ *
+ * @param {object} args
+ * @param {object} args.planDoc
+ * @param {number} args.oldPrice    - the user's current plan price
+ * @param {Date}   [args.now]
+ * @returns {(null|{
+ *   target: {key, name, price},
+ *   quote: ReturnType<typeof computeUpgradeQuote>,
+ *   deadlineDate: Date,
+ *   daysRemaining: number
+ * })}
+ */
+function getBestUpgradeQuote({ planDoc, oldPrice, now } = {}) {
+  const _now = now instanceof Date ? now : new Date()
+  const targets = getUpgradeTargets(planDoc?.plan)
+  if (!targets.length) return null
+  const anchor = getCycleAnchorDate(planDoc)
+  if (!anchor) return null
+  const deadlineDate = new Date(anchor.getTime() + CREDIT_WINDOW_DAYS * MS_PER_DAY)
+  if (_now.getTime() > deadlineDate.getTime()) return null
+  const daysRemaining = Math.max(0, round2((deadlineDate.getTime() - _now.getTime()) / MS_PER_DAY))
+
+  let best = null
+  for (const t of targets) {
+    const q = computeUpgradeQuote({ planDoc, oldPrice, newPrice: t.price, now: _now })
+    if (!q.eligible || q.creditApplied <= 0) continue
+    // Prefer higher credit; on ties prefer the higher-tier target (targets are
+    // listed in ascending tier order, so `>=` lets the later one win).
+    if (!best || q.creditApplied >= best.quote.creditApplied) {
+      best = { target: t, quote: q }
+    }
+  }
+  if (!best) return null
+  return { ...best, deadlineDate, daysRemaining }
+}
+
 module.exports = {
   CREDIT_WINDOW_DAYS,
   CREDIT_RATE,
   round2,
   getCycleAnchorDate,
   computeUpgradeQuote,
+  getUpgradeTargets,
+  getBestUpgradeQuote,
 }

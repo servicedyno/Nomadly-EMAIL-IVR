@@ -17,6 +17,8 @@ const {
   round2,
   getCycleAnchorDate,
   computeUpgradeQuote,
+  getUpgradeTargets,
+  getBestUpgradeQuote,
 } = require('../hosting-upgrade-credit')
 
 let passed = 0
@@ -177,6 +179,77 @@ q = computeUpgradeQuote({
 assert('eligible', q.eligible === true)
 approx('credit = $15', q.creditApplied, 15)
 approx('charge = $85', q.chargeAmount, 85)
+
+// 8. getUpgradeTargets — gating per current plan tier
+console.log('\n[getUpgradeTargets]')
+// Set deterministic env values for the test
+process.env.PREMIUM_ANTIRED_CPANEL_PRICE = '75'
+process.env.GOLDEN_ANTIRED_CPANEL_PRICE = '100'
+
+const weeklyTargets = getUpgradeTargets('Premium Anti-Red (1-Week)')
+eq('weekly plan has 2 targets', weeklyTargets.length, 2)
+eq('weekly plan can upgrade to premium-cpanel', weeklyTargets[0].key, 'premiumCpanel')
+eq('weekly plan can upgrade to golden', weeklyTargets[1].key, 'goldenCpanel')
+
+const premiumTargets = getUpgradeTargets('Premium Anti-Red HostPanel (30 Days)')
+eq('premium-monthly has 1 target', premiumTargets.length, 1)
+eq('premium-monthly can upgrade to golden only', premiumTargets[0].key, 'goldenCpanel')
+
+const goldenTargets = getUpgradeTargets('Golden Anti-Red HostPanel (30 Days)')
+eq('golden has no upgrade targets', goldenTargets.length, 0)
+
+// 9. getBestUpgradeQuote — nudge surface
+console.log('\n[getBestUpgradeQuote — credit nudge]')
+// Weekly user, day 3 → best should be golden ($15 credit on $100)
+let best = getBestUpgradeQuote({
+  planDoc: {
+    plan: 'Premium Anti-Red (1-Week)',
+    lastRenewedAt: new Date(NOW.getTime() - 3 * DAY),
+  },
+  oldPrice: 30,
+  now: NOW,
+})
+assert('weekly user gets a best quote', best !== null)
+eq('best target is golden (best savings/value)', best.target.key, 'goldenCpanel')
+approx('best credit = $15', best.quote.creditApplied, 15)
+assert('deadline is 14 days from anchor',
+  Math.abs(best.deadlineDate.getTime() - (NOW.getTime() - 3 * DAY + 14 * DAY)) < 1000)
+approx('daysRemaining ≈ 11', best.daysRemaining, 11, 0.01)
+
+// Weekly user, day 20 → no nudge
+best = getBestUpgradeQuote({
+  planDoc: {
+    plan: 'Premium Anti-Red (1-Week)',
+    lastRenewedAt: new Date(NOW.getTime() - 20 * DAY),
+  },
+  oldPrice: 30,
+  now: NOW,
+})
+eq('outside window → no nudge', best, null)
+
+// Golden user → no upgrade path → no nudge
+best = getBestUpgradeQuote({
+  planDoc: {
+    plan: 'Golden Anti-Red HostPanel (30 Days)',
+    lastRenewedAt: new Date(NOW.getTime() - 2 * DAY),
+  },
+  oldPrice: 100,
+  now: NOW,
+})
+eq('golden user → no nudge (no upgrade path)', best, null)
+
+// Premium-monthly user, day 5 → golden is the only target ($50 credit on $100)
+best = getBestUpgradeQuote({
+  planDoc: {
+    plan: 'Premium Anti-Red HostPanel (30 Days)',
+    lastRenewedAt: new Date(NOW.getTime() - 5 * DAY),
+  },
+  oldPrice: 75,
+  now: NOW,
+})
+assert('premium-monthly user gets nudge', best !== null)
+eq('target is golden', best.target.key, 'goldenCpanel')
+approx('credit = $37.50', best.quote.creditApplied, 37.5)
 
 // Summary
 console.log('\n────────────────────────────────────')

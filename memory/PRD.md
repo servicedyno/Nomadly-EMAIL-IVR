@@ -190,3 +190,49 @@ indicate in "My Links" whether analytics is available for each link's provider.
   the bot can answer "why was I charged $85?" autonomously.
 - (P2) Apply the same prorated-credit pattern to VPS plan upgrades (currently
   handled in `vps-upgrade-service` with its own pricing logic — separate task).
+
+---
+
+## 2026-02-15 — Loyalty Credit Nudge (revenue enhancement on top of upgrade-credit feature)
+
+### Goal
+Convert the 50% fairness fix into a measurable revenue lever by surfacing a
+one-tap "🎁 You have a $X.XX upgrade credit — use it before {date}" nudge
+during the 14-day window — directly on the screens users already visit.
+
+### Implementation
+- **`/app/js/hosting-upgrade-credit.js`** — extended with two new helpers:
+  - `getUpgradeTargets(currentPlanName)` — single source of truth for which
+    plan tiers a given plan can upgrade to (weekly → premium+golden,
+    premium-monthly → golden, golden → none).
+  - `getBestUpgradeQuote({ planDoc, oldPrice, now })` — returns the best
+    upgrade nudge `{ target, quote, deadlineDate, daysRemaining }` or `null`
+    when the user has no eligible upgrade. On tied credits the higher-tier
+    target wins (Gold beats Premium for the upsell).
+- **`/app/js/_index.js`**:
+  - **`goto.myHostingPlans`** — adds a one-line credit indicator under each
+    plan row (`🎁 $15.00 upgrade credit — expires Feb 22 (10d left)`) plus a
+    dedicated `🎁 Use $X.XX credit on <domain>` button at the TOP of the
+    keyboard for every plan with an active credit window.
+  - **`goto.viewHostingPlanDetails`** — adds a prominent banner with the
+    credit amount, the best target plan, the discounted price, the deadline
+    date, and a `🎁 Use $X.XX credit by <date>` deep-link CTA. The premium-
+    monthly upgrade button (which used to be hidden) is also now surfaced.
+  - **Action router** (`a.myHostingPlans` and `a.viewHostingPlan`) — adds
+    two new prefix matchers that decode the CTA labels and replay them as
+    `user.upgradeHostingPlan` so the existing upgrade flow handles them
+    with zero duplication.
+
+### Verification
+- Unit tests **44/44 pass** (`hosting-upgrade-credit.test.js`) — including
+  the new gating, tie-break-by-tier, deadline, and daysRemaining math.
+- Integration tests **23/23 pass** (`hosting-upgrade-credit.integration.test.js`)
+  — verifies the exact CTA label strings match the production deep-link
+  router regex so the live bot will route the taps correctly.
+- `node -c` clean; `supervisorctl restart nodejs` clean.
+
+### Files touched
+- `/app/js/hosting-upgrade-credit.js` (extended)
+- `/app/js/_index.js` (3 small in-place edits: `myHostingPlans`, `viewHostingPlanDetails`, router prefixes)
+- `/app/js/__tests__/hosting-upgrade-credit.test.js` (added gating + nudge sections)
+- `/app/js/__tests__/hosting-upgrade-credit.integration.test.js` (added case 4)
