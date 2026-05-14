@@ -38,7 +38,7 @@ const nanoid = customAlphabet('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVW
   const slug = nanoid();
   const _shortUrl = `${SELF_URL}/${slug}`;
   // Storage key matches what the Express click handler at app.get('/:id') builds:
-  //   selfUrlPath = SELF_URL without https://quick-start-203.preview.emergentagent.com/api"
+  //   selfUrlPath = SELF_URL without https://quick-setup-82.preview.emergentagent.com/api"
   //   selfKey = `${selfUrlPath}/${slug}`.replaceAll('.', '@')
   const shortUrl = _shortUrl.replaceAll('.', '@').replace('https://', '');
 
