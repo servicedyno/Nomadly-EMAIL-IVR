@@ -10993,7 +10993,7 @@ All verified numbers generated during sourcing.`))
 
       const currentPlan = (plan.plan || '').toLowerCase()
       const { getPlanPrice } = require('./hosting-scheduler')
-      const { computeUpgradeQuote, CREDIT_WINDOW_DAYS } = require('./hosting-upgrade-credit')
+      const { computeUpgradeQuote, getCreditWindowDays } = require('./hosting-upgrade-credit')
       const currentPrice = getPlanPrice(plan.plan)
       const { usdBal } = await getBalance(walletOf, chatId)
       const ngnTestRate = await usdToNgn(1)
@@ -11063,7 +11063,8 @@ All verified numbers generated during sourcing.`))
       // Surface credit banner if at least one option is eligible
       const anyEligible = upgradeOptions.some(o => o.creditEligible && o.creditApplied > 0)
       if (anyEligible) {
-        text += `🎁 <b>Loyalty Credit:</b> 50% of your current plan price ($${(currentPrice * 0.5).toFixed(2)}) is credited toward your upgrade — available within ${CREDIT_WINDOW_DAYS} days of your latest renewal.\n\n`
+        const windowDays = getCreditWindowDays(plan.plan)
+        text += `🎁 <b>Loyalty Credit:</b> 50% of your current plan price ($${(currentPrice * 0.5).toFixed(2)}) is credited toward your upgrade — available within ${windowDays} days of your latest renewal.\n\n`
       }
 
       const buttons = []

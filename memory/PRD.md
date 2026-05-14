@@ -130,27 +130,33 @@ indicate in "My Links" whether analytics is available for each link's provider.
 
 ---
 
-## 2026-02-15 — Hosting Plan Upgrade: 50% Prorated Credit (within 14 days)
+## 2026-02-15 — Hosting Plan Upgrade: 50% Prorated Credit (plan-specific window)
 
 ### Problem (user-reported)
 > @iMr_Brown upgraded from Premium Anti-Red Weekly to Golden Anti-Red Monthly
 > and was charged the full $100 — he should have received a 50% credit ($15)
 > from his still-active weekly plan.
 
-### Requirements
+### Requirements (final, after clarification)
 1. Apply 50% of the OLD plan's price as a credit toward the NEW plan when the
-   user upgrades within **14 days** of the current cycle's start/renewal.
-2. The Telegram inline-keyboard prices MUST reflect the deducted credit
-   **dynamically** — the button label shows the FINAL discounted price, not
-   the list price.
-3. The wallet must be charged the discounted price (not the list price).
+   user upgrades within the credit window.
+2. **Credit window is plan-specific** (because plan durations differ):
+   - **Weekly plan** → upgrade within **3 days** of latest renewal/creation.
+   - **Premium monthly plan** → upgrade within **14 days** of latest renewal/creation.
+   - **Golden** plan → no upgrade path → no credit.
+3. The Telegram inline-keyboard prices MUST reflect the deducted credit
+   **dynamically** — the button label shows the FINAL discounted price.
+4. The wallet must be charged the discounted price (not the list price).
 
 ### Implementation
 - **New module** `/app/js/hosting-upgrade-credit.js` — shared helper:
   - `getCycleAnchorDate(planDoc)` → most recent of `lastRenewedAt || createdAt`.
+  - `getCreditWindowDays(planName)` → returns 3 for weekly, 14 for premium-monthly, 0 otherwise.
   - `computeUpgradeQuote({ planDoc, oldPrice, newPrice, now? })` →
-    `{ eligible, anchorDate, daysSinceAnchor, creditApplied, originalPrice, chargeAmount }`.
-  - Constants: `CREDIT_WINDOW_DAYS = 14`, `CREDIT_RATE = 0.5`.
+    `{ eligible, anchorDate, daysSinceAnchor, windowDays, creditApplied, originalPrice, chargeAmount }`.
+  - `getUpgradeTargets(planName)` → single source of truth for which tier can upgrade to which.
+  - `getBestUpgradeQuote({ planDoc, oldPrice })` → returns the best nudge target (highest credit, tie-breaks by higher tier) plus deadlineDate + daysRemaining.
+  - Constants: `CREDIT_WINDOW_WEEKLY_DAYS = 3`, `CREDIT_WINDOW_PREMIUM_MONTHLY_DAYS = 14`, `CREDIT_RATE = 0.5`.
   - All currency values rounded to 2 decimals; charge floored at $0.
 - **`/app/js/_index.js`** (3 sites updated):
   1. **Upgrade menu builder** (~line 10935 → `a.upgradeHostingPlan`):

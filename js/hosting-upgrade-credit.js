@@ -12,9 +12,23 @@
  *   - tests under /app/tests
  */
 
-const CREDIT_WINDOW_DAYS = 14
+const CREDIT_WINDOW_WEEKLY_DAYS = 3
+const CREDIT_WINDOW_PREMIUM_MONTHLY_DAYS = 14
 const CREDIT_RATE = 0.5
 const MS_PER_DAY = 24 * 60 * 60 * 1000
+
+/**
+ * Resolve the credit window (in days) for a given plan name.
+ *   • Weekly plans → 3 days  (the plan itself is only 7 days)
+ *   • Premium monthly → 14 days  (upgrading to Golden Anti-Red)
+ *   • Golden / unknown → 0 (no upgrade path → no credit)
+ */
+function getCreditWindowDays(planName) {
+  const name = (planName || '').toLowerCase()
+  if (name.includes('week')) return CREDIT_WINDOW_WEEKLY_DAYS
+  if (name.includes('premium') && !name.includes('week')) return CREDIT_WINDOW_PREMIUM_MONTHLY_DAYS
+  return 0
+}
 
 /**
  * Round a number to 2 decimal places (banker-style not needed for currency here).
@@ -62,13 +76,18 @@ function computeUpgradeQuote({ planDoc, oldPrice, newPrice, now } = {}) {
   const _old = Number(oldPrice) || 0
   const _new = Number(newPrice) || 0
   const anchor = getCycleAnchorDate(planDoc)
+  const windowDays = getCreditWindowDays(planDoc?.plan)
 
   let daysSinceAnchor = Number.POSITIVE_INFINITY
   if (anchor) {
     daysSinceAnchor = (_now.getTime() - anchor.getTime()) / MS_PER_DAY
   }
 
-  const eligible = anchor !== null && daysSinceAnchor >= 0 && daysSinceAnchor <= CREDIT_WINDOW_DAYS && _old > 0
+  const eligible = anchor !== null
+    && windowDays > 0
+    && daysSinceAnchor >= 0
+    && daysSinceAnchor <= windowDays
+    && _old > 0
 
   const rawCredit = eligible ? _old * CREDIT_RATE : 0
   // Never let credit exceed the new price (we floor charge at 0).
@@ -79,6 +98,7 @@ function computeUpgradeQuote({ planDoc, oldPrice, newPrice, now } = {}) {
     eligible,
     anchorDate: anchor,
     daysSinceAnchor: anchor ? round2(daysSinceAnchor) : null,
+    windowDays,
     creditApplied,
     originalPrice: round2(_new),
     chargeAmount,
@@ -129,7 +149,9 @@ function getBestUpgradeQuote({ planDoc, oldPrice, now } = {}) {
   if (!targets.length) return null
   const anchor = getCycleAnchorDate(planDoc)
   if (!anchor) return null
-  const deadlineDate = new Date(anchor.getTime() + CREDIT_WINDOW_DAYS * MS_PER_DAY)
+  const windowDays = getCreditWindowDays(planDoc?.plan)
+  if (windowDays <= 0) return null
+  const deadlineDate = new Date(anchor.getTime() + windowDays * MS_PER_DAY)
   if (_now.getTime() > deadlineDate.getTime()) return null
   const daysRemaining = Math.max(0, round2((deadlineDate.getTime() - _now.getTime()) / MS_PER_DAY))
 
@@ -144,13 +166,15 @@ function getBestUpgradeQuote({ planDoc, oldPrice, now } = {}) {
     }
   }
   if (!best) return null
-  return { ...best, deadlineDate, daysRemaining }
+  return { ...best, deadlineDate, daysRemaining, windowDays }
 }
 
 module.exports = {
-  CREDIT_WINDOW_DAYS,
+  CREDIT_WINDOW_WEEKLY_DAYS,
+  CREDIT_WINDOW_PREMIUM_MONTHLY_DAYS,
   CREDIT_RATE,
   round2,
+  getCreditWindowDays,
   getCycleAnchorDate,
   computeUpgradeQuote,
   getUpgradeTargets,
