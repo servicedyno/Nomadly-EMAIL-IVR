@@ -125,3 +125,68 @@ indicate in "My Links" whether analytics is available for each link's provider.
 ### Backlog
 - Optional: add a one-time housekeeping pass to backfill `analytics` cache for stored links if performance becomes a concern (current implementation computes capability at render time — O(N) per "My Links" view, negligible).
 - Optional: introduce a stats-capable provider switch (e.g. Bitly for free tier) if losing click counts hurts engagement.
+
+
+
+---
+
+## 2026-02-15 — Hosting Plan Upgrade: 50% Prorated Credit (within 14 days)
+
+### Problem (user-reported)
+> @iMr_Brown upgraded from Premium Anti-Red Weekly to Golden Anti-Red Monthly
+> and was charged the full $100 — he should have received a 50% credit ($15)
+> from his still-active weekly plan.
+
+### Requirements
+1. Apply 50% of the OLD plan's price as a credit toward the NEW plan when the
+   user upgrades within **14 days** of the current cycle's start/renewal.
+2. The Telegram inline-keyboard prices MUST reflect the deducted credit
+   **dynamically** — the button label shows the FINAL discounted price, not
+   the list price.
+3. The wallet must be charged the discounted price (not the list price).
+
+### Implementation
+- **New module** `/app/js/hosting-upgrade-credit.js` — shared helper:
+  - `getCycleAnchorDate(planDoc)` → most recent of `lastRenewedAt || createdAt`.
+  - `computeUpgradeQuote({ planDoc, oldPrice, newPrice, now? })` →
+    `{ eligible, anchorDate, daysSinceAnchor, creditApplied, originalPrice, chargeAmount }`.
+  - Constants: `CREDIT_WINDOW_DAYS = 14`, `CREDIT_RATE = 0.5`.
+  - All currency values rounded to 2 decimals; charge floored at $0.
+- **`/app/js/_index.js`** (3 sites updated):
+  1. **Upgrade menu builder** (~line 10935 → `a.upgradeHostingPlan`):
+     - Calls `computeUpgradeQuote` per option.
+     - Modal shows a loyalty-credit banner + a "🎁 Credit: -$X.XX" line.
+     - Button label renders `($CHARGE_AMOUNT)` (dynamic, discounted).
+  2. **Confirm modal** (~line 11774 → `a.confirmUpgradeHosting`):
+     - Matches the dynamic button label.
+     - Displays List Price / Loyalty Credit / You Pay.
+     - "💵 Pay $X.XX USD" button uses the discounted amount.
+  3. **Wallet deduction** (~line 11815 → `a.confirmUpgradeHostingPay`):
+     - Charges `selected.chargeAmount` (not `selected.price`).
+     - Persists `upgradeOriginalPrice`, `upgradeCreditApplied`, `upgradeChargedAmount`
+       on `cpanelAccounts` for auditability.
+     - Admin DM + success summary show both list price and credit.
+
+### Verification
+- **Unit tests** `/app/js/__tests__/hosting-upgrade-credit.test.js` — 28/28 pass:
+  constants, rounding, anchor selection, eligibility window (within / boundary /
+  outside), edge cases (oldPrice=0, credit > newPrice), @iMr_Brown scenario.
+- **Integration test** `/app/js/__tests__/hosting-upgrade-credit.integration.test.js`
+  — 15/15 pass: seeds real `cpanelAccounts` docs in MongoDB, uses env-driven
+  prices, mirrors `_index.js` keyboard/modal builders. Confirms:
+  - Weekly user 6 days in → button shows `$85.00` (not `$100`), credit `$15.00` ✅
+  - Same user 30 days later → no credit, button shows `$100.00` ✅
+  - 14-day boundary → still eligible ✅
+- `node -c js/_index.js` passes; `supervisorctl restart nodejs` clean.
+
+### Files touched
+- `/app/js/hosting-upgrade-credit.js` (new)
+- `/app/js/_index.js` (3 in-place edits — no behavioural change to non-upgrade paths)
+- `/app/js/__tests__/hosting-upgrade-credit.test.js` (new — unit)
+- `/app/js/__tests__/hosting-upgrade-credit.integration.test.js` (new — integration)
+
+### Backlog
+- (P2) Surface the loyalty credit in the AI-support quick-reply suggestions so
+  the bot can answer "why was I charged $85?" autonomously.
+- (P2) Apply the same prorated-credit pattern to VPS plan upgrades (currently
+  handled in `vps-upgrade-service` with its own pricing logic — separate task).

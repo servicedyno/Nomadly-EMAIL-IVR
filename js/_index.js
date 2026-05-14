@@ -10940,6 +10940,7 @@ All verified numbers generated during sourcing.`))
 
       const currentPlan = (plan.plan || '').toLowerCase()
       const { getPlanPrice } = require('./hosting-scheduler')
+      const { computeUpgradeQuote, CREDIT_WINDOW_DAYS } = require('./hosting-upgrade-credit')
       const currentPrice = getPlanPrice(plan.plan)
       const { usdBal } = await getBalance(walletOf, chatId)
       const ngnTestRate = await usdToNgn(1)
@@ -10987,16 +10988,41 @@ All verified numbers generated during sourcing.`))
         return send(chatId, trans('t.host_25'), k.of([[user.backToMyHostingPlans]]))
       }
 
+      // Compute 50% prorated credit for each upgrade option (within 14-day window)
+      for (const opt of upgradeOptions) {
+        const quote = computeUpgradeQuote({
+          planDoc: plan,
+          oldPrice: currentPrice,
+          newPrice: opt.price,
+        })
+        opt.originalPrice = quote.originalPrice
+        opt.creditApplied = quote.creditApplied
+        opt.chargeAmount = quote.chargeAmount
+        opt.creditEligible = quote.eligible
+      }
+
       let text = trans('t.upgradeModalHeader') + '\n\n'
         + `<b>${trans('t.currentLabel')}</b> ${plan.plan} — $${currentPrice}\n`
         + `<b>${trans('t.domainLabel')}</b> ${domain}\n`
         + `<b>${trans('t.walletBalanceLabel')}</b> $${usdBal.toFixed(2)}\n\n`
         + trans('t.upgradeModalChooseHint') + '\n\n'
 
+      // Surface credit banner if at least one option is eligible
+      const anyEligible = upgradeOptions.some(o => o.creditEligible && o.creditApplied > 0)
+      if (anyEligible) {
+        text += `🎁 <b>Loyalty Credit:</b> 50% of your current plan price ($${(currentPrice * 0.5).toFixed(2)}) is credited toward your upgrade — available within ${CREDIT_WINDOW_DAYS} days of your latest renewal.\n\n`
+      }
+
       const buttons = []
       for (const opt of upgradeOptions) {
         const isGold = opt.key === 'goldenCpanel'
-        text += `<b>${opt.name} — $${opt.price}</b>\n`
+        // Header line: show original price struck-through-style + final price when credit applies
+        if (opt.creditEligible && opt.creditApplied > 0) {
+          text += `<b>${opt.name} — <s>$${opt.originalPrice.toFixed(2)}</s> $${opt.chargeAmount.toFixed(2)}</b>\n`
+          text += `🎁 <i>Credit: -$${opt.creditApplied.toFixed(2)}</i>\n`
+        } else {
+          text += `<b>${opt.name} — $${opt.originalPrice.toFixed(2)}</b>\n`
+        }
         if (isGold) {
           text += `• 📦 ${opt.storage}\n`
             + `• 🌐 ${opt.bandwidth}\n`
@@ -11007,7 +11033,8 @@ All verified numbers generated during sourcing.`))
         } else {
           text += `${opt.storage} · ${opt.bandwidth} · ${opt.domains}\n\n`
         }
-        buttons.push([`⬆️ ${opt.name} ($${opt.price})`])
+        // Button reflects the actual charge amount (dynamic)
+        buttons.push([`⬆️ ${opt.name} ($${opt.chargeAmount.toFixed(2)})`])
       }
       buttons.push([user.backToMyHostingPlans])
 
@@ -11776,19 +11803,28 @@ All verified numbers generated during sourcing.`))
     if (message === user.backToMyHostingPlans) return goto.myHostingPlans()
 
     const upgradeOptions = info?.upgradeOptions || []
-    const selected = upgradeOptions.find(opt => message === `⬆️ ${opt.name} ($${opt.price})`)
+    const selected = upgradeOptions.find(opt => {
+      const charge = (typeof opt.chargeAmount === 'number' ? opt.chargeAmount : opt.price)
+      return message === `⬆️ ${opt.name} ($${charge.toFixed ? charge.toFixed(2) : charge})`
+    })
     if (selected) {
       const domain = info?.selectedHostingDomain
       if (!domain) return goto.myHostingPlans()
 
-      const upgradePrice = selected.price
+      const originalPrice = (typeof selected.originalPrice === 'number') ? selected.originalPrice : selected.price
+      const creditApplied = (typeof selected.creditApplied === 'number') ? selected.creditApplied : 0
+      const upgradePrice = (typeof selected.chargeAmount === 'number') ? selected.chargeAmount : selected.price
       const { usdBal } = await getBalance(walletOf, chatId)
 
       const canPay = usdBal >= upgradePrice
 
       let text = `<b>⬆️ Confirm Upgrade</b>\n\n`
         + `<b>Upgrade to:</b> ${selected.name}\n`
-        + `<b>Price:</b> $${upgradePrice}\n`
+        + `<b>List Price:</b> $${originalPrice.toFixed(2)}\n`
+      if (creditApplied > 0) {
+        text += `<b>🎁 Loyalty Credit:</b> -$${creditApplied.toFixed(2)}\n`
+      }
+      text += `<b>You Pay:</b> $${upgradePrice.toFixed(2)}\n`
         + `<b>Wallet Balance:</b> $${usdBal.toFixed(2)}\n\n`
 
       if (canPay) {
@@ -11800,14 +11836,17 @@ All verified numbers generated during sourcing.`))
       saveInfo('selectedUpgrade', selected)
       await set(state, chatId, 'action', a.confirmUpgradeHostingPay)
       const buttons = []
-      if (canPay) buttons.push([`💵 Pay $${upgradePrice} USD`])
+      if (canPay) buttons.push([`💵 Pay $${upgradePrice.toFixed(2)} USD`])
       if (!canPay) buttons.push([trans('u.deposit')])
       buttons.push([user.backToMyHostingPlans])
       return send(chatId, text, k.of(buttons))
     }
 
     return send(chatId, trans('t.host_27'), k.of([
-      ...upgradeOptions.map(opt => [`⬆️ ${opt.name} ($${opt.price})`]),
+      ...upgradeOptions.map(opt => {
+        const charge = (typeof opt.chargeAmount === 'number' ? opt.chargeAmount : opt.price)
+        return [`⬆️ ${opt.name} ($${charge.toFixed ? charge.toFixed(2) : charge})`]
+      }),
       [user.backToMyHostingPlans]
     ]))
   }
@@ -11827,10 +11866,12 @@ All verified numbers generated during sourcing.`))
       const selected = info?.selectedUpgrade
       if (!selected) return goto.myHostingPlans()
 
-      const upgradePrice = selected.price
+      const originalPrice = (typeof selected.originalPrice === 'number') ? selected.originalPrice : selected.price
+      const creditApplied = (typeof selected.creditApplied === 'number') ? selected.creditApplied : 0
+      const upgradePrice = (typeof selected.chargeAmount === 'number') ? selected.chargeAmount : selected.price
       const { usdBal } = await getBalance(walletOf, chatId)
 
-      if (usdBal < upgradePrice) return send(chatId, trans('t.host_28', usdBal.toFixed(2), upgradePrice), k.of([[trans('u.deposit')], [user.backToMyHostingPlans]]))
+      if (usdBal < upgradePrice) return send(chatId, trans('t.host_28', usdBal.toFixed(2), upgradePrice.toFixed(2)), k.of([[trans('u.deposit')], [user.backToMyHostingPlans]]))
 
       try {
         await atomicIncrement(walletOf, chatId, 'usdOut', upgradePrice)
@@ -11853,13 +11894,17 @@ All verified numbers generated during sourcing.`))
             autoRenew: true,
             upgradedAt: new Date(),
             upgradedFrom: plan.plan,
+            upgradeOriginalPrice: originalPrice,
+            upgradeCreditApplied: creditApplied,
+            upgradeChargedAmount: upgradePrice,
           }}
         )
 
         const { usdBal: newUsdBal } = await getBalance(walletOf, chatId)
         const newExpiryStr = newExpiry.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 
-        log(`[Hosting] Plan upgraded for ${chatId}: ${plan.plan} → ${selected.name} ($${upgradePrice})`)
+        const creditNote = creditApplied > 0 ? ` (list $${originalPrice.toFixed(2)} − credit $${creditApplied.toFixed(2)})` : ''
+        log(`[Hosting] Plan upgraded for ${chatId}: ${plan.plan} → ${selected.name} ($${upgradePrice.toFixed(2)})${creditNote}`)
 
         try {
           const antiRedSvc = require('./anti-red-service')
@@ -11875,34 +11920,38 @@ All verified numbers generated during sourcing.`))
         } catch (_) {}
 
         const _upgName = await get(nameOf, chatId)
-        send(TELEGRAM_ADMIN_CHAT_ID, `⬆️ <b>Hosting Upgrade</b>\nUser: @${_upgName || chatId} (${chatId})\nDomain: ${domain}\n${plan.plan} → ${selected.name}\nCharged: $${upgradePrice}`, { parse_mode: 'HTML' })
+        const adminCreditLine = creditApplied > 0 ? `\nList: $${originalPrice.toFixed(2)} · Credit: -$${creditApplied.toFixed(2)}` : ''
+        send(TELEGRAM_ADMIN_CHAT_ID, `⬆️ <b>Hosting Upgrade</b>\nUser: @${_upgName || chatId} (${chatId})\nDomain: ${domain}\n${plan.plan} → ${selected.name}${adminCreditLine}\nCharged: $${upgradePrice.toFixed(2)}`, { parse_mode: 'HTML' })
 
-        set(payments, nanoid(), `Wallet,HostingUpgrade,${domain},$${upgradePrice},${chatId},${new Date()}`)
+        set(payments, nanoid(), `Wallet,HostingUpgrade,${domain},$${upgradePrice.toFixed(2)},${chatId},${new Date()}`)
 
-        await send(chatId,
-          `✅ <b>Plan Upgraded Successfully!</b>\n\n`
+        let summary = `✅ <b>Plan Upgraded Successfully!</b>\n\n`
           + `<b>Old Plan:</b> ${plan.plan}\n`
           + `<b>New Plan:</b> ${selected.name}\n`
           + `<b>Domain:</b> ${domain}\n`
-          + `<b>Charged:</b> $${upgradePrice}\n`
+          + `<b>List Price:</b> $${originalPrice.toFixed(2)}\n`
+        if (creditApplied > 0) {
+          summary += `<b>🎁 Loyalty Credit:</b> -$${creditApplied.toFixed(2)}\n`
+        }
+        summary += `<b>Charged:</b> $${upgradePrice.toFixed(2)}\n`
           + `<b>New Expiry:</b> ${newExpiryStr}\n`
           + `<b>Remaining Balance:</b> $${newUsdBal.toFixed(2)}\n\n`
           + `${selected.domains} now available. Anti-Red protection refreshed.`
-        )
+        await send(chatId, summary)
         return goto.viewHostingPlanDetails(domain)
       } catch (upgradeErr) {
         try {
           await atomicIncrement(walletOf, chatId, 'usdIn', upgradePrice)
-          log(`[Hosting] Upgrade refunded $${upgradePrice} for ${chatId} — upgrade failed`)
+          log(`[Hosting] Upgrade refunded $${upgradePrice.toFixed(2)} for ${chatId} — upgrade failed`)
         } catch (refundErr) {
-          log(`[Hosting] CRITICAL: Upgrade refund failed for ${chatId}, $${upgradePrice}: ${refundErr.message}`)
+          log(`[Hosting] CRITICAL: Upgrade refund failed for ${chatId}, $${upgradePrice.toFixed(2)}: ${refundErr.message}`)
           const _upgRefName = await get(nameOf, chatId)
-          send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>HOSTING UPGRADE REFUND FAILED</b>\nUser: @${_upgRefName || chatId} (${chatId})\nAmount: $${upgradePrice}\nDomain: ${domain}\nError: ${refundErr.message}`, { parse_mode: 'HTML' })
+          send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>HOSTING UPGRADE REFUND FAILED</b>\nUser: @${_upgRefName || chatId} (${chatId})\nAmount: $${upgradePrice.toFixed(2)}\nDomain: ${domain}\nError: ${refundErr.message}`, { parse_mode: 'HTML' })
         }
         log(`[Hosting] Upgrade crashed for ${chatId}: ${upgradeErr.message}`)
         send(chatId, trans('t.host_30'), trans('o'))
         const _upgCrName = await get(nameOf, chatId)
-        send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>Hosting upgrade crash</b>\nUser: @${_upgCrName || chatId} (${chatId})\nDomain: ${domain}\nAmount: $${upgradePrice}\nError: ${upgradeErr.message}`, { parse_mode: 'HTML' })
+        send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>Hosting upgrade crash</b>\nUser: @${_upgCrName || chatId} (${chatId})\nDomain: ${domain}\nAmount: $${upgradePrice.toFixed(2)}\nError: ${upgradeErr.message}`, { parse_mode: 'HTML' })
       }
     }
   }
