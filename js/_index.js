@@ -6694,7 +6694,13 @@ bot?.on('message', msg => {
         reply_markup: { keyboard: kbRows },
         disable_web_page_preview: true,
       }
-      send(chatId, t.viewDnsRecords(categorizedRecords, domain, nameserverType), dnsKeyboard)
+      let dnsMsg = t.viewDnsRecords(categorizedRecords, domain, nameserverType)
+      // Append shortener warning if active — user needs to know root domain is used by shortener
+      if (shortenerActive) {
+        dnsMsg += `\n⚠️ <b>URL Shortener is active on root domain (@).</b>\n`
+          + `To point <b>${domain}</b> to your own server, first deactivate the shortener below, then add an A record for @.\n`
+      }
+      send(chatId, dnsMsg, dnsKeyboard)
     },
 
     // ── Duplicated-zone records cleanup menu ──
@@ -17915,6 +17921,21 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     }
     // Map @ to empty string for root
     const hostToStore = hostname === '@' ? '' : hostname
+
+    // ── Shortener conflict warning ──
+    // When user adds A/AAAA for root (@) and shortener is active, warn about CNAME conflict
+    if (['A', 'AAAA'].includes(recordType) && (hostname === '@' || hostname === '') && info?.shortenerActive) {
+      await set(state, chatId, 'dnsAddHostname', hostToStore)
+      await set(state, chatId, 'action', 'dns-shortener-conflict-confirm')
+      return send(chatId,
+        `⚠️ <b>URL Shortener conflict</b>\n\n` +
+        `Your root domain (<b>${domainBeingManaged}</b>) currently has a CNAME record for the URL Shortener. ` +
+        `An ${recordType} record cannot coexist with a CNAME on the root domain.\n\n` +
+        `To add an ${recordType} record for <b>@</b>, the shortener must be deactivated first (the CNAME will be removed).\n\n` +
+        `<b>Deactivate shortener and continue?</b>`,
+        { parse_mode: 'HTML', reply_markup: { keyboard: [[trans('t.yes')], [trans('t.no')]], resize_keyboard: true } })
+    }
+
     await set(state, chatId, 'dnsAddHostname', hostToStore)
     info = await get(state, chatId)
     return goto['dns-add-value'](recordType)
@@ -17973,6 +17994,54 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     dnsAutoCheck(send, chatId, t, checkName, recordType, value)
     return goto['choose-dns-action']()
   }
+
+
+  // Handle shortener CNAME conflict when adding A/AAAA for root
+  if (action === 'dns-shortener-conflict-confirm') {
+    if (isNoPress(message) || isBackPress(message) || isCancelPress(message)) {
+      return goto['choose-dns-action']()
+    }
+    if (!isYesPress(message)) return send(chatId, t.what)
+
+    const domain = info?.domainToManage
+    if (!domain) return send(chatId, t.noDomainSelected)
+
+    send(chatId, `🔄 Deactivating shortener for <b>${domain}</b>...`, { parse_mode: 'HTML' })
+
+    try {
+      // 1. Remove domain from Railway
+      const { removeDomainFromRailway } = require('./rl-save-domain-in-server.js')
+      const removeResult = await removeDomainFromRailway(domain)
+      if (removeResult?.error) {
+        log(`[ShortenerConflict] Railway removal warning for ${domain}: ${removeResult.error}`)
+      }
+
+      // 2. Find and delete the CNAME record pointing to railway
+      const dnsResult = await domainService.viewDNSRecords(domain, db)
+      const records = dnsResult?.records || []
+      const railwayCname = records.find(r =>
+        r.recordType === 'CNAME' && r.recordContent && r.recordContent.includes('.up.railway.app')
+      )
+      if (railwayCname) {
+        const deleteResult = await domainService.deleteDNSRecord(domain, railwayCname, db)
+        if (deleteResult?.error) {
+          log(`[ShortenerConflict] DNS delete warning for ${domain}: ${deleteResult.error}`)
+        }
+      }
+
+      // Mark shortener as inactive in session state
+      await set(state, chatId, 'shortenerActive', false)
+
+      send(chatId, `✅ Shortener deactivated. Now enter the IP address for your ${info?.dnsAddRecordType || 'A'} record:`, { parse_mode: 'HTML' })
+      info = await get(state, chatId)
+      return goto['dns-add-value'](info?.dnsAddRecordType || 'A')
+    } catch (e) {
+      log(`[ShortenerConflict] Error deactivating for ${domain}: ${e.message}`)
+      send(chatId, `❌ Failed to deactivate shortener: ${e.message}\nPlease try deactivating manually from the DNS menu.`, { parse_mode: 'HTML' })
+      return goto['choose-dns-action']()
+    }
+  }
+
 
   // Handle CNAME/A conflict confirmation
   if (action === 'dns-confirm-conflict-replace') {

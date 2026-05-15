@@ -441,14 +441,12 @@ ${CHAT_BOT_NAME}`,
  for (const type of otherTypes) {
  let recs = records[type]
  if (!recs || !recs.length) continue
- if (type === 'CNAME') {
- recs = recs.filter(r => !r.recordContent || !r.recordContent.includes('.up.railway.app'))
- if (!recs.length) continue
- }
+ // Show Railway CNAME records with shortener label instead of hiding them
  msg += `\n<b>${typeLabels[type]}</b>\n`
  for (const r of recs) {
  const idx = `<b>${r.index}.</b>`
  const host = r.recordName && r.recordName !== domain ? r.recordName : '@'
+ const isShortenerCNAME = type === 'CNAME' && r.recordContent && r.recordContent.includes('.up.railway.app')
  if (type === 'MX') {
  const pri = r.priority !== undefined ? ` (pri:${r.priority})` : ''
  msg += `${idx} MX ${host}${pri} -> ${r.recordContent || 'AUCUN'}\n`
@@ -457,6 +455,8 @@ ${CHAT_BOT_NAME}`,
  msg += `${idx} TXT ${host} -> ${val}\n`
  } else if (type === 'SRV') {
  msg += `${idx} SRV ${r.recordName || ''} -> ${r.recordContent || 'AUCUN'}\n`
+ } else if (isShortenerCNAME) {
+ msg += `${idx} ${type} ${host} -> 🔗 Raccourcisseur URL <i>(${r.recordContent})</i>\n`
  } else {
  msg += `${idx} ${type} ${host} -> ${r.recordContent || 'AUCUN'}\n`
  }
