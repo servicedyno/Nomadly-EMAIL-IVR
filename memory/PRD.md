@@ -309,3 +309,82 @@ mirroring the existing `sendDay12UpgradeCreditNudges` pattern used for phone pla
 ### Backlog (remaining)
 - (P2) Apply the same prorated-credit pattern to VPS plan upgrades.
 - (P2) Wire credit explanation into AI-support quick replies ("why was I charged $85?").
+
+
+---
+
+## 2026-05-15 — DNS Hostname Normalizer + AI-Support DNS Context
+
+### Problem (user-reported via Railway log audit)
+@Night_ismine added an A record on `verify-navy.com` typing `www.verify-navy.com`
+as the hostname. Cloudflare appended the zone, producing `www.verify-navy.com.verify-navy.com`.
+The AI support then gave generic URL-shortener boilerplate because it had no
+visibility into the user's actual DNS records.
+
+### Implementation
+- **New module** `/app/js/dns-hostname-normalizer.js`:
+  - `normalizeHostname(raw, zone)` — auto-strips trailing `.{zone}` (FQDN
+    form), collapses zone-apex to `@`, rejects hostnames belonging to a
+    different domain (`foreign-domain`).
+  - `detectDuplicatedZone(recordName, zone)` — recovers the original
+    sub-label from already-broken records like `www.zone.zone`.
+- **`/app/js/_index.js`**:
+  - `dns-add-hostname` action now normalizes input through the helper. Logs
+    `[DNS] Normalized hostname for ...` when it strips a trailing zone.
+  - `choose-dns-action` scans the live DNS records for duplicated-zone names
+    and surfaces a **`🛠️ Fix N broken record(s)`** button.
+  - New `dns-fix-duplicated-menu` goto + action handler with two paths:
+    - **✅ Auto-fix all** — add the corrected record first, then delete the
+      broken one (safe order).
+    - **🗑️ Delete all** — straight delete.
+    - All ops are best-effort with per-record try/catch + counters.
+- **`/app/js/lang/{en,fr,zh,hi}.js`**: added the helpful "don't include
+  your full domain" hint to all `askDnsHostname` prompts (A/AAAA/CNAME/MX/TXT)
+  and added 6 new keys (`dnsHostnameForeignDomain`, `dnsFixDuplicatedBtn`,
+  `dnsFixDuplicatedHeader`, `dnsFixDuplicatedAutoFixBtn`,
+  `dnsFixDuplicatedDeleteBtn`, `dnsFixDuplicatedDone`) translated for all 4
+  languages.
+- **`/app/js/ai-support.js`** — `getUserContext(chatId, userMessage)`:
+  - When `userMessage` matches `/dns|a record|aaaa|cname|mx|txt|nameserver|subdomain|propagat|zone|cloudflare/i`,
+    the function now:
+    1. Loads up to 5 domains from `registeredDomains` for the user.
+    2. For up to 3 of them, fetches LIVE records via `domainService.viewDNSRecords`.
+    3. Lists each record (`TYPE name → value`) in the system prompt.
+    4. Runs `detectDuplicatedZone` on every record and, when broken records
+       are found, injects an explicit instruction telling the AI to point
+       the user to the new `🛠️ Fix N broken record(s)` button instead of
+       giving generic answers.
+  - `getAiResponse` updated to pass `userMessage` into `getUserContext`.
+
+### Verification
+- **Unit tests** `/app/js/__tests__/dns-hostname-normalizer.test.js` —
+  **31/31 pass**: pass-through, trailing-zone strip (FQDN with/without dot,
+  case insensitive, multi-label sub), foreign-domain rejection, underscore
+  labels (DKIM/DMARC), apex collapse, detect-duplicated round-trip and the
+  exact `@Night_ismine` scenario `www.verify-navy.com.verify-navy.com → www`.
+- Full regression suite (credit + nudge + DNS): **178 tests, 100% green**.
+- `node -c` clean for `_index.js`, `ai-support.js`, `dns-hostname-normalizer.js`.
+- `supervisorctl restart nodejs` clean; webhook verified.
+
+### Files touched
+- `/app/js/dns-hostname-normalizer.js` (new)
+- `/app/js/_index.js` (3 sites: dns-add-hostname normalization, choose-dns-action
+  detection + CTA, dns-fix-duplicated-menu goto + action handler)
+- `/app/js/lang/{en,fr,zh,hi}.js` (askDnsHostname hint + 6 new keys)
+- `/app/js/ai-support.js` (getUserContext signature + DNS context injection)
+- `/app/js/__tests__/dns-hostname-normalizer.test.js` (new — unit)
+- `/app/js/fetch_railway_24h_anomalies.js`,
+  `/app/js/fetch_night_ismine_thread.js` (audit utilities)
+
+### Recovery for @Night_ismine (7394693056)
+Next time he opens **🌍 Domains → verify-navy.com → DNS Records**, the bot
+will surface a `🛠️ Fix 1 broken record` button on his keyboard; one tap
+auto-renames the record to `www.verify-navy.com → 89.168.98.102` and removes
+the duplicated-zone copy. Or he can ask AI support again — the AI now has
+his real DNS records as context and will guide him correctly.
+
+### Backlog (remaining)
+- (P2) Apply the same prorated-credit pattern to VPS plan upgrades.
+- (P2) Wire credit explanation into AI-support quick replies.
+- (P2) Apply identical zone-strip normalization to SRV/CAA hostname inputs
+  (separate handlers; same fix pattern when needed).

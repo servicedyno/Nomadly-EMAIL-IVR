@@ -6658,6 +6658,19 @@ bot?.on('message', msg => {
       set(state, chatId, 'nameserverType', nameserverType)
       await set(state, chatId, 'action', 'choose-dns-action')
 
+      // Detect duplicated-zone records (e.g. `www.example.com.example.com`)
+      // and surface a one-tap "🛠️ Fix N broken record(s)" CTA.
+      const { detectDuplicatedZone } = require('./dns-hostname-normalizer')
+      const duplicatedRecords = []
+      for (let i = 0; i < records.length; i++) {
+        const r = records[i]
+        // NS records are managed separately and are never "duplicated-zone" in this sense
+        if (r.recordType === 'NS') continue
+        const fixed = detectDuplicatedZone(r.recordName || '', domain)
+        if (fixed !== null) duplicatedRecords.push({ ...r, originalIndex: i, fixedName: fixed })
+      }
+      set(state, chatId, 'duplicatedZoneRecords', duplicatedRecords)
+
       // Dynamic keyboard — custom NS domains only get Manage NS
       const shortenerBtn = shortenerActive ? t.deactivateShortener : t.activateShortener
       const _bc = ['↩️ Back']
@@ -6669,7 +6682,12 @@ bot?.on('message', msg => {
       } else {
         // Cloudflare or provider_default: full DNS management with NS management at top
         kbRows = [[t.manageNameservers], [t.quickActions, t.checkDns], [t.addDns, t.updateDns, t.deleteDns]]
-        kbRows.push([shortenerBtn], _bc)
+        kbRows.push([shortenerBtn])
+        // Insert the duplicated-zone cleanup CTA above Back when applicable.
+        if (duplicatedRecords.length > 0 && typeof t.dnsFixDuplicatedBtn === 'function') {
+          kbRows.push([t.dnsFixDuplicatedBtn(duplicatedRecords.length)])
+        }
+        kbRows.push(_bc)
       }
       const dnsKeyboard = {
         parse_mode: 'HTML',
@@ -6677,6 +6695,28 @@ bot?.on('message', msg => {
         disable_web_page_preview: true,
       }
       send(chatId, t.viewDnsRecords(categorizedRecords, domain, nameserverType), dnsKeyboard)
+    },
+
+    // ── Duplicated-zone records cleanup menu ──
+    'dns-fix-duplicated-menu': async () => {
+      const domain = info?.domainToManage
+      const dups = info?.duplicatedZoneRecords || []
+      if (!domain || !dups.length) return goto['choose-dns-action']()
+      await set(state, chatId, 'action', 'dns-fix-duplicated-menu')
+      // List the affected records in the prompt
+      let body = (typeof t.dnsFixDuplicatedHeader === 'function')
+        ? t.dnsFixDuplicatedHeader(domain) + '\n\n'
+        : `🛠️ Cleanup duplicated-zone records on ${domain}\n\n`
+      for (let i = 0; i < dups.length; i++) {
+        const r = dups[i]
+        body += `${i + 1}. <code>${r.recordName}</code> → <code>${r.recordContent || '—'}</code>\n   → fix: <code>${r.fixedName === '' ? '@' : r.fixedName}.${domain}</code>\n`
+      }
+      const kb = [
+        [t.dnsFixDuplicatedAutoFixBtn || '✅ Auto-fix all'],
+        [t.dnsFixDuplicatedDeleteBtn || '🗑️ Delete all'],
+        ['↩️ Back'],
+      ]
+      send(chatId, body, { parse_mode: 'HTML', reply_markup: { keyboard: kb } })
     },
 
     // ── Manage Nameservers submenu ──
@@ -16950,6 +16990,18 @@ ${message.replace(/\n/g, '<br>')}
   if (action === 'choose-dns-action') {
     if (isBackPress(message)) return goto['choose-domain-to-manage']()
 
+    // Duplicated-zone cleanup CTA: matches localized labels for any count.
+    if (typeof message === 'string' && message.startsWith('🛠️ Fix ')) {
+      return goto['dns-fix-duplicated-menu']()
+    }
+    // Fallback locale match using the lang generator (covers fr/zh/hi)
+    if (typeof t.dnsFixDuplicatedBtn === 'function') {
+      const dupRecords = info?.duplicatedZoneRecords || []
+      if (dupRecords.length > 0 && message === t.dnsFixDuplicatedBtn(dupRecords.length)) {
+        return goto['dns-fix-duplicated-menu']()
+      }
+    }
+
     if (![t.addDns, t.updateDns, t.deleteDns, t.activateShortener, t.deactivateShortener, t.quickActions, t.checkDns, t.switchToCf, t.switchToProviderDefault, t.manageNameservers].includes(message)) return send(chatId, t.selectValidOption)
 
     // Custom NS domains: only allow Manage Nameservers
@@ -17755,11 +17807,82 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     return goto['choose-dns-action']()
   }
 
+  // DNS Cleanup: handle duplicated-zone record menu taps
+  if (action === 'dns-fix-duplicated-menu') {
+    if (isBackPress(message)) return goto['choose-dns-action']()
+    const domain = info?.domainToManage
+    const dups = info?.duplicatedZoneRecords || []
+    if (!domain || !dups.length) return goto['choose-dns-action']()
+
+    const autoFixBtn = t.dnsFixDuplicatedAutoFixBtn || '✅ Auto-fix all'
+    const deleteBtn = t.dnsFixDuplicatedDeleteBtn || '🗑️ Delete all'
+    if (message !== autoFixBtn && message !== deleteBtn) return send(chatId, t.selectValidOption)
+
+    const mode = message === autoFixBtn ? 'autofix' : 'delete'
+    let fixed = 0, deleted = 0, failed = 0
+    for (const r of dups) {
+      try {
+        if (mode === 'autofix') {
+          // Determine the correct hostname sub-label. `addDNSRecord` takes
+          // the sub-label and prepends it to the zone — passing '' means root.
+          const targetHost = r.fixedName === '' ? '' : r.fixedName
+          // Add the corrected record first; only delete the broken one on success.
+          const addRes = await domainService.addDNSRecord(
+            domain, r.recordType, r.recordContent, targetHost, db,
+            r.priority ?? undefined
+          ).catch(e => ({ success: false, error: e.message }))
+          if (!addRes || addRes.success === false || addRes.error) {
+            log(`[DNS-Cleanup] Auto-fix ADD failed for ${chatId} ${domain}: ${addRes?.error || 'unknown'}`)
+            failed += 1
+            continue
+          }
+          const delRes = await domainService.deleteDNSRecord(domain, {
+            cfRecordId: r.cfRecordId,
+            DNSZoneID: r.dnszoneID,
+            DNSZoneRecordID: r.dnszoneRecordID,
+            recordType: r.recordType,
+            recordName: r.recordName,
+          }, db).catch(e => ({ success: false, error: e.message }))
+          if (!delRes || delRes.success === false || delRes.error) {
+            log(`[DNS-Cleanup] Auto-fix DELETE-old failed for ${chatId} ${domain}: ${delRes?.error || 'unknown'}`)
+            // The new (correct) record is in place but the broken one persists.
+            // Still count as fixed because the user's intended record now works.
+          }
+          fixed += 1
+        } else {
+          const delRes = await domainService.deleteDNSRecord(domain, {
+            cfRecordId: r.cfRecordId,
+            DNSZoneID: r.dnszoneID,
+            DNSZoneRecordID: r.dnszoneRecordID,
+            recordType: r.recordType,
+            recordName: r.recordName,
+          }, db).catch(e => ({ success: false, error: e.message }))
+          if (!delRes || delRes.success === false || delRes.error) {
+            log(`[DNS-Cleanup] Delete failed for ${chatId} ${domain}: ${delRes?.error || 'unknown'}`)
+            failed += 1
+            continue
+          }
+          deleted += 1
+        }
+      } catch (e) {
+        log(`[DNS-Cleanup] Exception for ${chatId} ${domain}: ${e.message}`)
+        failed += 1
+      }
+    }
+    log(`[DNS-Cleanup] ${chatId} ${domain} mode=${mode} fixed=${fixed} deleted=${deleted} failed=${failed}`)
+    const doneMsg = typeof t.dnsFixDuplicatedDone === 'function'
+      ? t.dnsFixDuplicatedDone(fixed, deleted, failed)
+      : `Done. Fixed: ${fixed}, Deleted: ${deleted}${failed ? `, Failed: ${failed}` : ''}.`
+    send(chatId, doneMsg, { parse_mode: 'HTML' })
+    return goto['choose-dns-action']()
+  }
+
   // DNS Wizard: Multi-step add record (MX, TXT)
   if (action === 'dns-add-hostname') {
     if (isBackPress(message) || isCancelPress(message)) return goto['select-dns-record-type-to-add']()
     const recordType = info?.dnsAddRecordType
     let hostname = message.trim()
+    const domainBeingManaged = info?.domainToManage || ''
     // NS doesn't need hostname step — skip
     if (recordType === 'NS') {
       hostname = ''
@@ -17770,6 +17893,20 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       const hostnameRegex = /^[a-zA-Z0-9_]([a-zA-Z0-9_.:-]*[a-zA-Z0-9_])?$/
       if (!hostnameRegex.test(hostname)) {
         return send(chatId, t.dnsInvalidHostname)
+      }
+      // Auto-strip trailing `.{zone}` so users can paste either `www` or
+      // `www.example.com` without producing a duplicated record name like
+      // `www.example.com.example.com` (see DNS_HOSTNAME_NORMALIZER fix).
+      const { normalizeHostname } = require('./dns-hostname-normalizer')
+      const norm = normalizeHostname(hostname, domainBeingManaged)
+      if (!norm.ok && norm.reason === 'foreign-domain') {
+        return send(chatId, t.dnsHostnameForeignDomain
+          ? t.dnsHostnameForeignDomain(domainBeingManaged)
+          : `That hostname belongs to a different domain. Just enter the sub-label for <b>${domainBeingManaged}</b> (e.g. <b>www</b>, <b>api</b>) or <b>@</b> for root.`)
+      }
+      hostname = norm.value
+      if (norm.stripped) {
+        log(`[DNS] Normalized hostname for ${chatId} on ${domainBeingManaged}: "${message.trim()}" → "${hostname}"`)
       }
       // CNAME can't be @ (root)
       if (recordType === 'CNAME' && hostname === '@') {

@@ -896,7 +896,9 @@ function needsEscalation(message, lang, aiResponse = null, chatId = null) {
 }
 
 // ── Get user context for AI — Enhanced with last action, errors, and more ──
-async function getUserContext(chatId) {
+// `userMessage` is optional — when provided we can fetch additional context
+// only when it's relevant (e.g. DNS records when the user mentions DNS).
+async function getUserContext(chatId, userMessage = '') {
   if (!_db) return ''
   try {
     const context = []
@@ -1033,6 +1035,58 @@ async function getUserContext(chatId) {
       }
     } catch (e) {}
 
+    // ── DNS context (only when user is asking about DNS) ──
+    // Industry-known pitfall: users paste full FQDN as DNS hostname and end up
+    // with `www.zone.zone` records. Injecting the actual records lets the AI
+    // diagnose this and respond specifically instead of giving generic answers.
+    try {
+      const dnsRegex = /\b(dns|a\s?record|aaaa|cname|mx|txt|nameserver|subdomain|propagat|zone|cloudflare)\b/i
+      if (userMessage && dnsRegex.test(userMessage)) {
+        const userDomains = await _db.collection('registeredDomains')
+          .find({ chatId: String(chatId) })
+          .project({ _id: 1, val: 1 })
+          .limit(5)
+          .toArray()
+        if (userDomains.length) {
+          context.push(`User has ${userDomains.length} registered domain(s): ${userDomains.map(d => d._id).join(', ')}`)
+          // Pull live DNS records for each domain and flag duplicated-zone bugs.
+          let domainService = null
+          let detectDuplicatedZone = null
+          try {
+            domainService = require('./domain-service')
+            detectDuplicatedZone = require('./dns-hostname-normalizer').detectDuplicatedZone
+          } catch (_) { /* modules may not be loaded yet */ }
+          if (domainService) {
+            for (const d of userDomains.slice(0, 3)) {
+              try {
+                const res = await domainService.viewDNSRecords(d._id, _db)
+                const recs = (res?.records || []).slice(0, 25)
+                if (!recs.length) continue
+                const broken = []
+                const lines = []
+                for (const r of recs) {
+                  const sub = detectDuplicatedZone ? detectDuplicatedZone(r.recordName || '', d._id) : null
+                  if (sub !== null) {
+                    broken.push({ name: r.recordName, fix: sub === '' ? '@' : sub, type: r.recordType, value: r.recordContent })
+                  }
+                  lines.push(`${r.recordType} ${r.recordName || '@'} → ${r.recordContent || '—'}`)
+                }
+                context.push(`📋 DNS records on ${d._id}:\n${lines.join('\n')}`)
+                if (broken.length) {
+                  const brokenLines = broken.map(b => `${b.type} ${b.name} → should be "${b.fix}" (currently has zone duplicated)`).join('; ')
+                  context.push(`⚠️ DUPLICATED-ZONE RECORDS DETECTED on ${d._id}: ${brokenLines}. Tell the user EXACTLY this: they accidentally typed the full domain as the hostname when adding the record. The bot now offers a one-tap "🛠️ Fix N broken record(s)" button on the DNS Records screen for the domain — instruct them to open 🌍 Domains → ${d._id} → DNS Records and tap that button. (Or they can delete + re-add the record using ONLY the sub-label like 'www' instead of '${d._id}'.)`)
+                }
+              } catch (e) {
+                // viewDNSRecords can throw for OpenProvider-managed zones; skip silently
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      log(`[AI Support] DNS context inject error: ${e.message}`)
+    }
+
     return context.length > 0 ? `\n\n[USER CONTEXT]\n${context.join('\n')}` : ''
   } catch (e) {
     log(`[AI Support] Context error: ${e.message}`)
@@ -1090,7 +1144,7 @@ async function getAiResponse(chatId, userMessage, lang = 'en') {
   try {
     // Get user context and conversation history
     const [userContext, history] = await Promise.all([
-      getUserContext(chatId),
+      getUserContext(chatId, userMessage),
       getConversationHistory(chatId),
     ])
 
