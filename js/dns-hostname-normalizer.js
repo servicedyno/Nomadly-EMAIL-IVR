@@ -68,16 +68,36 @@ function normalizeHostname(rawHostname, zone) {
   }
 
   // Case 3: it looks like a FQDN under a different domain.
-  // Heuristic: more than one dot AND ends with a known TLD-shaped tail.
-  // Be conservative — only flag when the hostname has at least 2 labels AND
-  // doesn't start with `_` (underscore-prefixed names like `_dmarc.foo` are
-  // legitimate sub-labels with dots inside the zone).
+  // The input didn't match the zone suffix (Cases 1-2), so if it looks like
+  // a full domain name (sub.other-domain.tld), flag it.
+  //
+  // Improved heuristic (avoids false positives on multi-label sub-labels
+  // like `api.v2`, `cdn.static`, `mail.old` which are legitimate DNS names):
+  //  - 3+ labels → likely a full FQDN (e.g. `www.other.com`) — always flag.
+  //  - 2 labels  → only flag when the last label is a well-known TLD.
+  //  - Skip underscore-prefixed inputs (DKIM, DMARC, ACME, etc.).
   if (h.includes('.') && !h.startsWith('_')) {
     const labels = h.split('.')
-    const last = labels[labels.length - 1]
-    // Last label looks like a TLD (2-63 chars, alphanumeric+hyphen, must have a letter).
-    if (/^[a-zA-Z0-9-]{2,63}$/.test(last) && /[a-zA-Z]/.test(last)) {
-      return { ok: false, reason: 'foreign-domain', value: h }
+    const last = labels[labels.length - 1].toLowerCase()
+
+    if (labels.length >= 3) {
+      // 3+ labels (e.g. www.other.com, blog.other.io) — almost certainly a FQDN.
+      if (/^[a-zA-Z]{2,63}$/.test(last)) {
+        return { ok: false, reason: 'foreign-domain', value: h }
+      }
+    } else if (labels.length === 2) {
+      // 2 labels (e.g. api.v2 vs blog.io) — only flag well-known TLDs.
+      const commonTLDs = new Set([
+        'com','net','org','io','co','me','info','biz','us','uk','de','fr',
+        'ru','cn','jp','br','in','au','ca','nl','eu','ch','se','no','fi',
+        'dk','es','it','pt','pl','cz','at','be','ie','nz','za','mx','ar',
+        'cl','tv','cc','ai','app','dev','xyz','online','site','store',
+        'tech','cloud','pro','live','shop','space','fun','top','icu',
+        'website','club','work','link','click','host','pw','mobi',
+      ])
+      if (commonTLDs.has(last)) {
+        return { ok: false, reason: 'foreign-domain', value: h }
+      }
     }
   }
 
