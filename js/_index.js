@@ -8688,9 +8688,34 @@ Enter new value:`), bc)
           const { usdBal: usd2 } = await getBalance(walletOf, chatId)
           send(chatId, t.showWallet(usd2), trans('o'))
           recordHostingTransaction(chatId, { domain: txDomain, plan: txPlan, priceUsd, paymentMethod: txPayMethod, currency: txCurrency, outcome: 'domain_only', hostingType: txHostingType, couponApplied: txCouponApplied, couponDiscount: txCouponDiscount, existingDomain: txExistingDomain })
+          // ── Admin alert on hosting failure (Wallet — new domain, domain-only charge) ──
+          try {
+            const failName = await get(nameOf, chatId)
+            sendMessage(TELEGRAM_ADMIN_CHAT_ID,
+              `🚨 <b>Hosting Setup Failed (Wallet)</b>\n` +
+              `👤 User: ${adminUserTag(failName, chatId)}\n` +
+              `🌐 Domain: ${adminDomainTag(info.domain)}\n` +
+              `📋 Plan: ${txPlan || 'N/A'}\n` +
+              `💵 Domain charged: <b>$${domainCost}</b> | Hosting: not charged\n` +
+              `❌ Error: ${hostingResult?.error || 'Unknown'}`,
+              adminMsgOpts({ chatId }))
+          } catch (e) { log('[Hosting] Admin alert error (wallet domain-only): ' + e.message) }
           return send(chatId, trans('t.dom_5', info.domain, domainCost, process.env.APP_SUPPORT_LINK), trans('o'))
         }
         recordHostingTransaction(chatId, { domain: txDomain, plan: txPlan, priceUsd, paymentMethod: txPayMethod, currency: txCurrency, outcome: 'failed', hostingType: txHostingType, couponApplied: txCouponApplied, couponDiscount: txCouponDiscount, existingDomain: txExistingDomain })
+        // ── Admin alert on hosting failure (Wallet — existing domain, not charged) ──
+        try {
+          const failName = await get(nameOf, chatId)
+          const failDomain = txDomain || info?.website_name
+          sendMessage(TELEGRAM_ADMIN_CHAT_ID,
+            `🚨 <b>Hosting Setup Failed (Wallet)</b>\n` +
+            `👤 User: ${adminUserTag(failName, chatId)}\n` +
+            `🌐 Domain: ${adminDomainTag(failDomain)}\n` +
+            `📋 Plan: ${txPlan || 'N/A'}\n` +
+            `💵 Wallet: <b>not charged</b> (existing domain)\n` +
+            `❌ Error: ${hostingResult?.error || 'Unknown'}`,
+            adminMsgOpts({ chatId }))
+        } catch (e) { log('[Hosting] Admin alert error (wallet existing): ' + e.message) }
         return send(chatId, hostingResult?.error || 'Hosting creation failed. Your wallet was not charged. Please try again or contact support.', trans('o'))
       }
 
@@ -30158,6 +30183,23 @@ app.get('/crypto-pay-hosting', auth, async (req, res) => {
       sendMessage(chatId, hostingResult?.error || 'Hosting creation failed. Full payment refunded to your USD wallet.')
       recordHostingTransaction(chatId, { ...txBase, outcome: 'full_refund', refundAmount: usdIn, refundCurrency: 'USD' })
     }
+    // ── Admin alert on hosting failure (Crypto BlockBee) ──
+    try {
+      const failName = await get(nameOf, chatId)
+      const failDomain = info?.domain || info?.website_name
+      const refundAmt = (!info?.existingDomain && !info?.connectExternalDomain && (info?.domainPrice || info?.price || 0) > 0)
+        ? (info?.hostingPrice || (price - (info?.domainPrice || info?.price || 0)))
+        : usdIn
+      sendMessage(TELEGRAM_ADMIN_CHAT_ID,
+        `🚨 <b>Hosting Setup Failed (Crypto BlockBee)</b>\n` +
+        `👤 User: ${adminUserTag(failName, chatId)}\n` +
+        `🌐 Domain: ${adminDomainTag(failDomain)}\n` +
+        `📋 Plan: ${info?.plan || 'N/A'}\n` +
+        `💵 Paid: <b>$${price}</b> (${coin})\n` +
+        `💰 Refunded: <b>$${Number(refundAmt).toFixed(2)}</b> → wallet\n` +
+        `❌ Error: ${hostingResult?.error || 'Unknown'}`,
+        adminMsgOpts({ chatId }))
+    } catch (e) { log('[Hosting] Admin alert error (BlockBee failure): ' + e.message) }
     return res.send(html(hostingResult?.error || 'Hosting creation failed'))
   }
 
@@ -30938,6 +30980,23 @@ app.post('/dynopay/crypto-pay-hosting', authDyno, async (req, res) => {
       sendMessage(chatId, hostingResult?.error || 'Hosting creation failed. Full payment refunded to your USD wallet.')
       recordHostingTransaction(chatId, { ...txBase, outcome: 'full_refund', refundAmount: usdIn, refundCurrency: 'USD' })
     }
+    // ── Admin alert on hosting failure (Crypto DynoPay) ──
+    try {
+      const failName = await get(nameOf, chatId)
+      const failDomain = info?.domain || info?.website_name
+      const refundAmt = (!info?.existingDomain && !info?.connectExternalDomain && (info?.domainPrice || info?.price || 0) > 0)
+        ? (info?.hostingPrice || (price - (info?.domainPrice || info?.price || 0)))
+        : usdIn
+      sendMessage(TELEGRAM_ADMIN_CHAT_ID,
+        `🚨 <b>Hosting Setup Failed (Crypto DynoPay)</b>\n` +
+        `👤 User: ${adminUserTag(failName, chatId)}\n` +
+        `🌐 Domain: ${adminDomainTag(failDomain)}\n` +
+        `📋 Plan: ${info?.plan || 'N/A'}\n` +
+        `💵 Paid: <b>$${price}</b> (${coin})\n` +
+        `💰 Refunded: <b>$${Number(refundAmt).toFixed(2)}</b> → wallet\n` +
+        `❌ Error: ${hostingResult?.error || 'Unknown'}`,
+        adminMsgOpts({ chatId }))
+    } catch (e) { log('[Hosting] Admin alert error (DynoPay failure): ' + e.message) }
     return res.send(html(hostingResult?.error || 'Hosting creation failed'))
   }
 
