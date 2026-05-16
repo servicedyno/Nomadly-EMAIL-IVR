@@ -1,0 +1,72 @@
+[
+  {
+    "timestamp": "2026-05-16T14:36:11.032182963Z",
+    "message": "[CR-Whitelist] Outbound IP: 162.220.232.99",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:36:11.032187503Z",
+    "message": "[CR-Whitelist] API blocked — IP 162.220.232.99 needs whitelisting",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:36:11.032190153Z",
+    "message": "[CR-Whitelist] Retry #6 scheduled in 600s",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:36:16.292164963Z",
+    "message": "📨 Telegram webhook received",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:36:16.440529117Z",
+    "message": "reply: 💬 <b>Quick Reply</b>",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:36:16.440531557Z",
+    "message": "Type your message to @LBHAND23 (1794625076).",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:36:16.440533717Z",
+    "message": "<i>Send /cancel to abort.</i> \tto: 5590563715",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:36:16.440536177Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:36:23.658334590Z",
+    "message": "📨 Telegram webhook received",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:36:23.725607801Z",
+    "message": "[AdminQuickReply] Deduped duplicate Reply press for target 1794625076 by admin 5590563715",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:36:27.678554269Z",
+    "message": "📨 Telegram webhook received",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:36:27.971983471Z",
+    "message": "[AdminQuickReply] Deduped duplicate Reply press for target 1794625076 by admin 5590563715",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:36:34.939226165Z",
+    "message": "📨 Telegram webhook received",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:36:35.078285439Z",
+    "message": "[AdminQuickReply] Deduped duplicate Reply press for target 1794625076 by admin 5590563715",
+    "severity": "info"
+  }
+]

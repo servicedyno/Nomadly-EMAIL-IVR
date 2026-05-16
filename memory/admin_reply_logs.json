@@ -1,0 +1,2512 @@
+[
+  {
+    "timestamp": "2026-05-16T14:12:46.801746798Z",
+    "message": "Starting Container",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:47.757869604Z",
+    "message": "npm warn config production Use `--omit=dev` instead.",
+    "severity": "error"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:47.757873163Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:47.757876163Z",
+    "message": "> tg-bot-link-shorten@1.0.0 start",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:47.757880413Z",
+    "message": "> node js/start-bot.js",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:47.757883413Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:47.757885883Z",
+    "message": "🔧 Loading configuration...",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:47.757888803Z",
+    "message": "🌐 Webhook base URL: https://nomadly-email-ivr-production.up.railway.app",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:47.757891873Z",
+    "message": "���� URL Source: SELF_URL_PROD",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:47.757891873Z",
+    "message": "📍 URL Source: SELF_URL_PROD",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:47.757894853Z",
+    "message": "📡 Webhook endpoint: https://nomadly-email-ivr-production.up.railway.app/telegram/webhook",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:47.757897723Z",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:47.757901183Z",
+    "message": "🤖 BOT ENVIRONMENT CONFIGURATION",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:47.757903653Z",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:47.757906263Z",
+    "message": "Environment: PRODUCTION",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:47.757908843Z",
+    "message": "Token Source: TELEGRAM_BOT_TOKEN_PROD",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:47.757911303Z",
+    "message": "Token Configured: YES ✅",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:47.757913733Z",
+    "message": "Detection basis: BOT_ENVIRONMENT=production, NODE_ENV=production",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:47.757916473Z",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:47.757919913Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:47.757922563Z",
+    "message": "🔧 Setting default for DAILY_PLAN_FREE_VALIDATIONS: 5000",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:47.757924933Z",
+    "message": "🔧 Setting default for WEEKLY_PLAN_FREE_VALIDATIONS: 10000",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:47.757927323Z",
+    "message": "🔧 Setting default for MONTHLY_PLAN_FREE_VALIDATIONS: 15000",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:47.757929913Z",
+    "message": "✅ All critical environment variables are set",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:47.757932383Z",
+    "message": "✅ Configuration setup completed",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:47.757935163Z",
+    "message": "[WHM-Whitelist] Detected outbound IP: 162.220.232.99",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:47.811131887Z",
+    "message": "[WHM-Whitelist] cPHulk: 162.220.232.99 whitelisted successfully",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:48.332162536Z",
+    "message": "[WHM-Whitelist] CSF not installed on server (skipped)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:48.875251948Z",
+    "message": "[WHM-Whitelist] Host Access: 162.220.232.99 added",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:48.875260317Z",
+    "message": "[WHM-Whitelist] Complete — IP: 162.220.232.99, cPHulk: true, CSF: not_installed",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:48.875265167Z",
+    "message": "Working, Fincra API",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:48.875269537Z",
+    "message": "Working, Railway API, now starting the bot",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.010137635Z",
+    "message": "[AI Support] OpenAI initialized",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.010142735Z",
+    "message": "TELEGRAM_BOT_ON: true",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.010145515Z",
+    "message": "Bot initialized with webhook support",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.010148585Z",
+    "message": "Bot ran away! Sat May 16 2026 14:12:48 GMT+0000 (Coordinated Universal Time)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.018917968Z",
+    "message": "[Honeypot] Express routes mounted: POST /honeypot/report, GET /honeypot/stats, GET /honeypot/check/:ip",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.018923048Z",
+    "message": "[Express] Panel domain guard active: panel.1.hostbay.io/panel",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.018926388Z",
+    "message": "[Express] Serving React frontend from build directory",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.018929498Z",
+    "message": "✅ Main application ready! Server already listening on port 8080",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.022249613Z",
+    "message": "🚀 Early health check server started on port 8080",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.040165012Z",
+    "message": "✅ MongoDB connection pool ready",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.075844733Z",
+    "message": "[BundleWebhook] Twilio bundle-status route registered",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.075858602Z",
+    "message": "DB Connected lala. May peace be with you and Lord's mercy and blessings.",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.075864522Z",
+    "message": "[cPanel Queue] worker started",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.075868792Z",
+    "message": "[cPanel Health] probe + queue worker initialised",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.075878452Z",
+    "message": "[AutoPromo] Scheduled morning for EN at local 10:00 (UTC 10:00)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.075882612Z",
+    "message": "[AutoPromo] Scheduled evening for EN at local 19:00 (UTC 19:00)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.075886402Z",
+    "message": "[AutoPromo] Scheduled morning for FR at local 10:00 (UTC 9:00)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.075890512Z",
+    "message": "[AutoPromo] Scheduled evening for FR at local 19:00 (UTC 18:00)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.075895802Z",
+    "message": "[AutoPromo] Scheduled morning for ZH at local 10:00 (UTC 2:00)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.075899472Z",
+    "message": "[AutoPromo] Scheduled evening for ZH at local 19:00 (UTC 11:00)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.075903262Z",
+    "message": "[AutoPromo] Scheduled morning for HI at local 10:00 (UTC 4:30)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.075907012Z",
+    "message": "[AutoPromo] Scheduled evening for HI at local 19:00 (UTC 13:30)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.075910802Z",
+    "message": "[AutoPromo] Initialized — 8 jobs (4 langs × 2 slots/day), 12 themes: cloudphone, antired_hosting, leads_validation, domains_shortener, digital_products, cards_bundles, email_validation, marketplace, vps_rdp, bulksms_app, email_blast, refer_earn",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.075915072Z",
+    "message": "[AutoPromo] Schedule: 🌅 Morning hero (10am) + 🌙 Evening cross-sell (7pm), 7 days/week",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.075918872Z",
+    "message": "[AutoPromo] Resurrection scan enabled — every 6h, 200 users/batch",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.075922592Z",
+    "message": "[AutoPromo] System loaded successfully",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.075926351Z",
+    "message": "[DailyCoupon] System initialized",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.075930641Z",
+    "message": "[DailyCoupon] System loaded successfully",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.075933821Z",
+    "message": "14:12:49 [CartRecovery] Initialized — nudge delay: 45min, cooldown: 24h, silent timeout: 20min, languages: en/fr/zh/hi",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.075937491Z",
+    "message": "14:12:49 [CartRecovery] Tracking 50 payment action states",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.075940661Z",
+    "message": "[CartRecovery] System loaded successfully",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.075944461Z",
+    "message": "14:12:49 [Conversion] New User Conversion Engine initialized — 5 features active",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.075947851Z",
+    "message": "14:12:49 [Conversion] First deposit bonus: $5 (min $20), Welcome offer: 25% (2h delay), Social proof: ×3",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.075951471Z",
+    "message": "[Conversion] System loaded successfully",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.075955081Z",
+    "message": "━━━ Initializing Telnyx Resources ━━━",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.075958761Z",
+    "message": "Voice webhook: https://nomadly-email-ivr-production.up.railway.app/telnyx/voice-webhook",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.075961801Z",
+    "message": "SMS webhook: https://nomadly-email-ivr-production.up.railway.app/telnyx/sms-webhook",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.093493125Z",
+    "message": "[DailyCoupon] Coupons already exist for 2026-05-16",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.096713002Z",
+    "message": "[CR-Whitelist] Outbound IP: 162.220.232.99",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.413970169Z",
+    "message": "[CR-Whitelist] API blocked — IP 162.220.232.99 needs whitelisting",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.413974899Z",
+    "message": "[CR-Whitelist] Running browser automation to whitelist 162.220.232.99...",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.414031208Z",
+    "message": "Updated SIP Connection webhook: 2898118323872990714",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.414033458Z",
+    "message": "[CR-Whitelist] API test failed (attempt #1): Request failed with status code 401",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.560035216Z",
+    "message": "🗑️  Deleted old webhook",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.693103048Z",
+    "message": "✅ Telegram webhook set successfully",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.693107278Z",
+    "message": "📡 Webhook URL: https://nomadly-email-ivr-production.up.railway.app/telegram/webhook",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.815676110Z",
+    "message": "📊 Webhook info: {",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.815679170Z",
+    "message": "  \"url\": \"https://nomadly-email-ivr-production.up.railway.app/telegram/webhook\",",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.815681690Z",
+    "message": "  \"has_custom_certificate\": false,",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.815684490Z",
+    "message": "  \"pending_update_count\": 0,",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.815687450Z",
+    "message": "  \"max_connections\": 40,",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.815689940Z",
+    "message": "  \"ip_address\": \"66.33.22.126\",",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.815692450Z",
+    "message": "  \"allowed_updates\": [",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.815694950Z",
+    "message": "    \"message\",",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.815697390Z",
+    "message": "    \"callback_query\",",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.815700160Z",
+    "message": "\"my_chat_member\"",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.815702600Z",
+    "message": "  ]",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.815704580Z",
+    "message": "}",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.815706910Z",
+    "message": "✅ Webhook verification passed",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.944183233Z",
+    "message": "Updated Messaging Profile webhook: 40019c71-59a6-497a-8246-49536bd08d87",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:49.996849276Z",
+    "message": "✅ Default bot commands registered",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:50.199835838Z",
+    "message": "✅ Admin bot commands registered for chat 5590563715",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:50.235480639Z",
+    "message": "[Telnyx] Outbound voice profile 2897375459551478845 whitelist OK (250 countries)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:50.498621283Z",
+    "message": "Updated Call Control App webhook: 2898117434361775526",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:50.498625283Z",
+    "message": "━━━ Telnyx Resources Ready ━━━",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:50.498629613Z",
+    "message": "SIP Connection ID: 2898118323872990714",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:50.498633593Z",
+    "message": "Messaging Profile ID: 40019c71-59a6-497a-8246-49536bd08d87",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:50.498637333Z",
+    "message": "Call Control App ID: 2898117434361775526",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:50.498640943Z",
+    "message": "[CloudPhone] Telnyx resources initialized",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:50.568596992Z",
+    "message": "[Telnyx] Migration complete: 0 migrated, 2 already correct, 6 external skipped, 0 external detached, 8 total",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:50.841145940Z",
+    "message": "[Telnyx] ANI override updated to +18778570205",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:50.841155750Z",
+    "message": "[CloudPhone] SIP connection ANI override set to TOLL-FREE number: +18778570205",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:50.841160959Z",
+    "message": "━━━ Initializing Twilio Resources ━━━",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.119944863Z",
+    "message": "[Twilio] Connected: Speechcue (active)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.254349267Z",
+    "message": "[Twilio] Updated SIP domain webhook: speechcue-7937a0.sip.twilio.com",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.457952201Z",
+    "message": "[Twilio] Credential mapping note: CLfe5ba0b48274412e6e953eb58901c9ce already associated with SDdb6525d35a1f09e4d1dfc19a2128ed96",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725237609Z",
+    "message": "[Twilio] IP ACL mapping note: AL9d507c8e92b81b62c224100679943c8d already associated with SDdb6525d35a1f09e4d1dfc19a2128ed96",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725239439Z",
+    "message": "[AI Support] MongoDB collections initialized",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725245379Z",
+    "message": "[CloudPhone] Twilio initialized — SIP: speechcue-7937a0.sip.twilio.com",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725251289Z",
+    "message": "[PhoneScheduler] Scheduled: expiry check (hourly), usage tracking (daily 3AM), monthly reset (daily 0:05AM)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725251449Z",
+    "message": "[ShortenerPersistence] Initialized",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725257349Z",
+    "message": "[CloudPhone] Scheduler initialized",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725259979Z",
+    "message": "[Honeypot] MongoDB collection initialized with indexes",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725262939Z",
+    "message": "[HostingScheduler] Initialized — checking every hour",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725266809Z",
+    "message": "[SmsApp] Service initialized",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725269109Z",
+    "message": "[HostingScheduler] Policy: weekly plans NEVER auto-renew, monthly plans auto-renew if enabled",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725272869Z",
+    "message": "[SmsApp] Stuck-campaign watchdog scheduled every 15min (threshold: 30min)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725275039Z",
+    "message": "[HostingScheduler] Scheduled: expiry check (every 60 min)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725280589Z",
+    "message": "[SmsApp] Routes registered",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725281299Z",
+    "message": "[HostingScheduler] Initialized",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725287589Z",
+    "message": "[EmailBlast] Service initialized with queue processor",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725288269Z",
+    "message": "[HostingUpgradeNudge] Initialized — daily at 14:15 UTC",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725293589Z",
+    "message": "[EmailValidation] Service initialized",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725294448Z",
+    "message": "[ProtectionEnforcer] Initialized",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725298398Z",
+    "message": "[ProtectionEnforcer] Scheduler started — runs every 6h",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725302278Z",
+    "message": "[BalanceMonitor] Initialized — checking every 120min (warn=$10, crit=$5)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725304348Z",
+    "message": "[ProtectionEnforcer] Initialized and scheduled",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725309988Z",
+    "message": "[UserWalletMonitor] Initialized — scanning every 6h (warn=$5, crit=$2, empty=$0)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725310148Z",
+    "message": "[ProtectionHeartbeat] Initialized",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725317908Z",
+    "message": "[ProtectionHeartbeat] Scheduler started — runs every 60m",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725318768Z",
+    "message": "[PhoneMonitor] Initialized — checking every 30 minutes",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725321388Z",
+    "message": "[ProtectionHeartbeat] Initialized and scheduled",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725323578Z",
+    "message": "[VoiceService] Initialized with IVR + Recording + Analytics + Limits + Overage billing + SIP Bridge + Twilio IVR + Loyalty Discounts + Pre-Dial Prevention",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725326158Z",
+    "message": "[CloudPhone] Voice Service initialized with IVR + Recording + Overage",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725329148Z",
+    "message": "[VoiceService] Twilio webhook routes registered",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725331958Z",
+    "message": "[VoiceService] Extra Twilio routes registered (verify-callerid, sip-voice, voice-status, sms-webhook)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725334548Z",
+    "message": "[PhoneTest] Routes initialized: /phone/test/verify-otp, /phone/test/prepare-call, /phone/test/caller-info",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725337398Z",
+    "message": "[TestMyNumber] initialized — POST /test-call/webhook ready (external: /api/test-call/webhook)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725340128Z",
+    "message": "[TestOutboundSip] initialized — hook-based (no HTTP route)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725343168Z",
+    "message": "[SmsService] Initialized with real-time limit enforcement + overage billing",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725346378Z",
+    "message": "[CloudPhone] SMS Service limits initialized with overage billing",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725349158Z",
+    "message": "[Telnyx] Webhook routes registered (sms / voice / fax)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725353008Z",
+    "message": "[CnamService] Initialized — priority: Telnyx → Multitel → SignalWire + MongoDB cache + circuit breaker",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725355838Z",
+    "message": "[CloudPhone] CNAM Service initialized",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725358748Z",
+    "message": "[LeadJobs] Persistence initialized",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725377387Z",
+    "message": "[WelcomeBonus] Initialized — $5 welcome gift for new users",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725382437Z",
+    "message": "[WinBack] Initialized — scans for 7-day inactive users daily at 10:00 UTC, 20% discount, 48h expiry",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725386387Z",
+    "message": "[Monetization] Engine initialized — Upsell + Welcome Bonus + Win-Back + Bundles",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725390377Z",
+    "message": "[RegulatoryFlow] Initialized",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725394227Z",
+    "message": "[Marketplace] Stale conversation cleanup scheduled (every 6h)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725397767Z",
+    "message": "[StateCleanup] Scheduled every 6h (stale threshold: 24h)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725401937Z",
+    "message": "[PaymentTimeout] Scheduled every 30min (timeout: 6h)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725405577Z",
+    "message": "[StaleOrderCleanup] Scheduled every 60min (timeout: 24h)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725408817Z",
+    "message": "[AbandonedCart] Scheduled every 30min (reminder delay: 2h)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725412847Z",
+    "message": "[BundleChecker] Scheduled every 30min",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725416387Z",
+    "message": "[FincraReconcile] Payment recovery scheduled every 5min",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.725419767Z",
+    "message": "[SmsApp] Version 2.7.5 already announced — skipping broadcast",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.733017405Z",
+    "message": "[UserWalletMonitor] Loaded 10 active notification histories from DB (125 total, 115 expired/skipped)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.733020645Z",
+    "message": "[AudioLibrary] Initialized",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.736353080Z",
+    "message": "[BulkCall] Service initialized (Speechcue mode)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.737208229Z",
+    "message": "[BulkCall] Twilio webhook routes registered",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.737211069Z",
+    "message": "[EmailWarming] Initialized with 8-stage schedule",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.746469594Z",
+    "message": "[EmailBlast] Service initialized — queue processor running every 30s",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.749821779Z",
+    "message": "[StateCleanup] Reset 3 stale user states (idle >24h)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.767627440Z",
+    "message": "[Marketplace] Initialized",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.926290907Z",
+    "message": "[Honeypot] Found existing KV namespace: 812aca1cbade413d9814bff1708e74db",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:51.926295637Z",
+    "message": "[Honeypot] KV namespace ready: 812aca1cbade413d9814bff1708e74db",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:52.096521410Z",
+    "message": "[Twilio] Updated webhooks for number PN9e2d59c7d2013af0e307e6b0f2603365 on sub-account AC01e40ee6bb868cc84290f122ae8b5d8c",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:52.408029635Z",
+    "message": "[Twilio] Updated webhooks for number PN6d15c073ecc85d603443d896dc949409 on sub-account AC01e40ee6bb868cc84290f122ae8b5d8c",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:52.783042845Z",
+    "message": "[Twilio] Updated webhooks for number PNe544131920be8f364e40838f23c41bb7 on sub-account AC23f043f142ce27f5ebada7a6b46d90dc",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:53.045850403Z",
+    "message": "[Twilio] Updated webhooks for number PNbe17b14cdf8967b539c1a5855e509616 on sub-account ACde9f00ea1b8586dbc9116f3e9dd37f31",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:53.424449405Z",
+    "message": "[Twilio] Updated webhooks for number PNb7aa745544e248cfe4af711eda278dad on sub-account ACf08d768ac5193fa9a203cb4f4ddbd480",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:53.763871374Z",
+    "message": "[Twilio] Updated webhooks for number PN3c988e554039c4b5f7f1caaf7e752b94 on sub-account ACa1626b52f0eaa4997c84b822b5c67799",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:53.763874604Z",
+    "message": "[Twilio Sync] Webhook sync complete: 6 updated, 0 failed, 0 credentials recovered",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:54.988205331Z",
+    "message": "[CF-Sync] Discovery Worker already in sync: https://nomadly-email-ivr-production.up.railway.app",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:56.734245748Z",
+    "message": "[Voice] PRE-DIAL: Loaded 3 blocked credential(s) from DB",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:59.161356402Z",
+    "message": "[Broadcast] Recovery: No interrupted broadcasts to resume",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:12:59.161359372Z",
+    "message": "14:12:59 [Conversion] Social proof refreshed: {\"hosting\":94,\"domains\":213,\"cloudphone\":81,\"digitalproducts\":75,\"vps\":69,\"virtualcard\":72,\"general\":124}",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:13:01.693952109Z",
+    "message": "[HostingScheduler] Startup enforcement: no expired accounts need action",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:13:01.693956479Z",
+    "message": "[PhoneMonitor] === Health check started ===",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:13:01.697385814Z",
+    "message": "[AntiRed] KV namespace for honeypot bans: 812aca1cbade413d9814bff1708e74db",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:13:01.706194275Z",
+    "message": "[PhoneMonitor] Checking 8 Twilio subaccounts",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:13:02.683133977Z",
+    "message": "[PhoneMonitor] Checking 2 Telnyx numbers",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:13:03.037047451Z",
+    "message": "[PhoneMonitor] === Health check complete: 10 checked, 0 newly suspended ===",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:13:04.039710727Z",
+    "message": "[CpanelMigration] All accounts already point to current WHM_HOST (209.38.241.9). No migration needed.",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:13:04.108760500Z",
+    "message": "[AntiRed] Shared worker upgraded: OK (KV: bound)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:13:04.108763020Z",
+    "message": "[AntiRed] Startup worker upgrade: OK (KV: true)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:13:07.155954242Z",
+    "message": "[BulkCall] Recovery: No running campaigns to recover",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:13:07.471149916Z",
+    "message": "[CR-Whitelist] Browser result: Login failed - landed on https://global.connectreseller.com/login?returnUrl=%2Fadmin%2Fdashboard",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:13:07.471154666Z",
+    "message": "[CR-Whitelist] Browser automation failed: Login failed - landed on https://global.connectreseller.com/login?returnUrl=%2Fadmin%2Fdashboard",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:13:07.471157566Z",
+    "message": "[CR-Whitelist] Retry #1 scheduled in 60s",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:13:07.471161046Z",
+    "message": "[CR-Whitelist] Startup check: IP 162.220.232.99 needs whitelisting — auto-retrying",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:13:27.444720826Z",
+    "message": "14:13:19 [CartRecovery] No pending nudges to recover",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:13:27.444724886Z",
+    "message": "[ProtectionEnforcer] ═══ Starting enforcement run ═══",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:13:27.444727896Z",
+    "message": "[BalanceMonitor] Running provider balance checks...",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:13:27.444731396Z",
+    "message": "[ProtectionEnforcer] registeredDomains: 49 entries",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:13:27.444734196Z",
+    "message": "[ProtectionEnforcer] domainsOf: 25 unique custom domains",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:13:27.444736636Z",
+    "message": "[ProtectionEnforcer] cpanelAccounts: 18 accounts",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:13:27.444739016Z",
+    "message": "[ProtectionEnforcer] Total unique domains: 75",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:13:27.444741636Z",
+    "message": "[BalanceMonitor] Telnyx: $18.79 USD [ok]",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:13:27.444744276Z",
+    "message": "[BalanceMonitor] Twilio: $25.74 USD [ok]",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:13:29.962869768Z",
+    "message": "[ProtectionEnforcer] SKIP: cap1online360.com — user disabled Anti-Red (antiRedOff=true)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:13:31.599918500Z",
+    "message": "[ProtectionEnforcer] SKIP: huntingtononlinebanking.it — user disabled Anti-Red (antiRedOff=true)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:13:32.715657138Z",
+    "message": "[ProtectionEnforcer] SKIP: hunt-verify.org — user disabled Anti-Red (antiRedOff=true)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:13:33.166958514Z",
+    "message": "[ProtectionEnforcer] SKIP: navyfed-verify.com — user disabled Anti-Red (antiRedOff=true)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:13:33.641669504Z",
+    "message": "[ProtectionEnforcer] SSL grace period active for onetime-resolvedesk.com — 19.4h remaining (first seen: 2026-05-16T09:40:22.266Z)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:13:35.017664264Z",
+    "message": "[ProtectionEnforcer] SSL grace period active for net06d.com — 22.4h remaining (first seen: 2026-05-16T12:40:21.217Z)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:13:35.565072478Z",
+    "message": "[ProtectionEnforcer] SKIP: everwise-secure.com — user disabled Anti-Red (antiRedOff=true)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:13:36.181410366Z",
+    "message": "[ProtectionEnforcer] SSL grace period active for 03seucre-auth.click — 1.0h remaining (first seen: 2026-05-15T15:14:29.332Z)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:13:42.144748084Z",
+    "message": "[ProtectionEnforcer] SSL grace period active for policychecker.xyz — 22.4h remaining (first seen: 2026-05-16T12:40:36.380Z)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:13:42.519810725Z",
+    "message": "[ProtectionEnforcer] ═══ Enforcement complete in 20.8s ═══",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:13:42.519814955Z",
+    "message": "[ProtectionEnforcer] Total: 75 | Protected: 54 | Fixed: 0 | No Zone: 21 | Errors: 0 | DNS Cached: 30 | Zone Skipped: 0",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:14:12.578348252Z",
+    "message": "[CR-Whitelist] Outbound IP: 162.220.232.99",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:14:12.578356132Z",
+    "message": "[CR-Whitelist] API test failed (attempt #2): Request failed with status code 401",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:14:12.578360901Z",
+    "message": "[CR-Whitelist] API blocked — IP 162.220.232.99 needs whitelisting",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:14:12.578365971Z",
+    "message": "[CR-Whitelist] Retry #2 scheduled in 60s",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:14:52.474349047Z",
+    "message": "[ProtectionHeartbeat] Checking 11 cPanel accounts (deleted excluded)...",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:14:52.474352377Z",
+    "message": "[UserWalletMonitor] Running periodic wallet scan (all users)...",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:14:52.474356037Z",
+    "message": "[UserWalletMonitor] Scan complete: 313 wallets checked, 0 low-balance warnings sent, 248 welcome-only users skipped",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:15:12.492124788Z",
+    "message": "[CR-Whitelist] Outbound IP: 162.220.232.99",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:15:12.492128998Z",
+    "message": "[CR-Whitelist] API test failed (attempt #3): Request failed with status code 401",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:15:12.492133018Z",
+    "message": "[CR-Whitelist] API blocked — IP 162.220.232.99 needs whitelisting",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:15:12.492136198Z",
+    "message": "[CR-Whitelist] Retry #3 scheduled in 60s",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:15:21.714602143Z",
+    "message": "[ProtectionHeartbeat] DIAG peakb09c: .user.ini=MISSING [(empty)] | .php=MISSING [(empty)]",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:15:22.770298239Z",
+    "message": "[AntiRed] CF IP Fix deployed for peakb09c (replaces JS challenge, Worker handles bot detection)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:15:22.770302829Z",
+    "message": "[ProtectionHeartbeat] REPAIRED peakb09c (.user.ini+.antired-challenge.php): OK",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:16:02.917913714Z",
+    "message": "[ProtectionHeartbeat] DIAG sech752f: .user.ini=MISSING [(empty)] | .php=MISSING [(empty)]",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:16:02.917917204Z",
+    "message": "[AntiRed] CF IP Fix deployed for sech752f (replaces JS challenge, Worker handles bot detection)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:16:02.917919694Z",
+    "message": "[ProtectionHeartbeat] REPAIRED sech752f (.user.ini+.antired-challenge.php): OK",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:16:08.479428601Z",
+    "message": "[CR-Whitelist] Outbound IP: 162.220.232.99",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:16:08.683019135Z",
+    "message": "[CR-Whitelist] API blocked — IP 162.220.232.99 needs whitelisting",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:16:08.683023835Z",
+    "message": "[CR-Whitelist] Retry #4 scheduled in 600s",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:16:28.555441046Z",
+    "message": "[AntiRed] CF IP Fix deployed for tdsee735 (replaces JS challenge, Worker handles bot detection)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:16:28.555447016Z",
+    "message": "[ProtectionHeartbeat] REPAIRED tdsee735 (.user.ini+.antired-challenge.php): OK",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:16:28.555476525Z",
+    "message": "[ProtectionHeartbeat] DIAG tdsee735: .user.ini=MISSING [(empty)] | .php=MISSING [(empty)]",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:16:31.649840070Z",
+    "message": "📨 Telegram webhook received",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:16:31.677066985Z",
+    "message": "message: Ok\tfrom: 1794625076 LBHAND23",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:16:31.811896973Z",
+    "message": "reply: 💬 <b>@LBHAND23</b> (1794625076):",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:16:31.811901733Z",
+    "message": "Ok",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:16:31.811905223Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:16:31.811907613Z",
+    "message": "🔒 <i>Admin takeover active — AI silenced</i>",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:16:31.811910003Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:16:31.811912453Z",
+    "message": "💬 User's bot language: EN",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:16:31.811914713Z",
+    "message": "📝 Detected message language: EN",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:16:31.811917233Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:16:31.811919583Z",
+    "message": "↩️ /reply 1794625076 <i>type response (auto-translates to EN)</i> \tto: 5590563715",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:16:31.811921822Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:16:31.811924632Z",
+    "message": "[Support] 1794625076 -> admin: Ok (botLang: en, msgLang: en, translated: false, adminTakeover: true, sessionOpen: true)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:16:31.811926892Z",
+    "message": "reply: ✉️ Message received! A support agent will respond shortly. /done\tto: 1794625076",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:16:31.811929512Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:16:32.075282035Z",
+    "message": "[CR-Whitelist] Outbound IP: 162.220.232.99",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:16:32.075284975Z",
+    "message": "[CR-Whitelist] API blocked — IP 162.220.232.99 needs whitelisting",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:17:02.085048760Z",
+    "message": "[ProtectionHeartbeat] DIAG cap1a612: .user.ini=MISSING [(empty)] | .php=MISSING [(empty)]",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:17:02.085051790Z",
+    "message": "📨 Telegram webhook received",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:17:02.085054900Z",
+    "message": "reply: 💬 <b>Quick Reply</b>",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:17:02.085057660Z",
+    "message": "Type your message to @LBHAND23 (1794625076).",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:17:02.085060510Z",
+    "message": "<i>Send /cancel to abort.</i> \tto: 5590563715",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:17:02.085063680Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:17:02.085066740Z",
+    "message": "[AntiRed] CF IP Fix deployed for cap1a612 (replaces JS challenge, Worker handles bot detection)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:17:02.085069420Z",
+    "message": "[ProtectionHeartbeat] REPAIRED cap1a612 (.user.ini+.antired-challenge.php): OK",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:17:03.184884914Z",
+    "message": "📨 Telegram webhook received",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:17:03.184889244Z",
+    "message": "[AdminAction] Quick-reply rewritten → /reply 1794625076 Please try again now…",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:17:03.184892094Z",
+    "message": "message: /reply 1794625076 Please try again now\tfrom: 5590563715 onarrival1",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:17:03.184894784Z",
+    "message": "reply: 💬 <b>Support:</b>",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:17:03.184897154Z",
+    "message": "Please try again now /done\tto: 1794625076",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:17:03.184899534Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:17:03.184901904Z",
+    "message": "reply: ✅ Reply sent to LBHAND23 (no translation needed) \tto: 5590563715",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:17:03.184904654Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:17:03.184907164Z",
+    "message": "[Support] Admin replied to 1794625076: Please try again now (targetLang: en, translated: false) — session re-opened, admin takeover ON",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:17:33.216681253Z",
+    "message": "[ProtectionHeartbeat] DIAG hunt9853: .user.ini=MISSING [(empty)] | .php=MISSING [(empty)]",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:17:33.216684103Z",
+    "message": "[AntiRed] CF IP Fix deployed for hunt9853 (replaces JS challenge, Worker handles bot detection)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:17:33.216686842Z",
+    "message": "[ProtectionHeartbeat] REPAIRED hunt9853 (.user.ini+.antired-challenge.php): OK",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:17:53.270838467Z",
+    "message": "[ResurrectionScan] No candidates to test",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:17:57.502972069Z",
+    "message": "[ProtectionHeartbeat] DIAG hunt724f: .user.ini=MISSING [(empty)] | .php=MISSING [(empty)]",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:17:58.483680463Z",
+    "message": "[AntiRed] CF IP Fix deployed for hunt724f (replaces JS challenge, Worker handles bot detection)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:17:58.483683733Z",
+    "message": "[ProtectionHeartbeat] REPAIRED hunt724f (.user.ini+.antired-challenge.php): OK",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:18:38.452416301Z",
+    "message": "[ProtectionHeartbeat] DIAG navy0d5d: .user.ini=MISSING [(empty)] | .php=MISSING [(empty)]",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:18:38.452419881Z",
+    "message": "[AntiRed] CF IP Fix deployed for navy0d5d (replaces JS challenge, Worker handles bot detection)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:18:38.452423701Z",
+    "message": "[ProtectionHeartbeat] REPAIRED navy0d5d (.user.ini+.antired-challenge.php): OK",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:08.431226487Z",
+    "message": "[ProtectionHeartbeat] DIAG onetcc73: .user.ini=MISSING [(empty)] | .php=MISSING [(empty)]",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:08.431230847Z",
+    "message": "[AntiRed] CF IP Fix deployed for onetcc73 (replaces JS challenge, Worker handles bot detection)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:08.431235427Z",
+    "message": "[ProtectionHeartbeat] REPAIRED onetcc73 (.user.ini+.antired-challenge.php): OK",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:38.464047155Z",
+    "message": "📨 Telegram webhook received",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:38.464051845Z",
+    "message": "message: Thank you I’ll try with 2 different #’s\tfrom: 1794625076 LBHAND23",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:38.464052535Z",
+    "message": "reply: 📝 <b>Quick feedback:</b> Was our support helpful? \tto: 1794625076",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:38.464056405Z",
+    "message": "[ProtectionHeartbeat] DIAG net0f4d9: .user.ini=MISSING [(empty)] | .php=MISSING [(empty)]",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:38.464059635Z",
+    "message": "reply: 💬 <b>@LBHAND23</b> (1794625076):",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:38.464063865Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:38.464066205Z",
+    "message": "Thank you I’ll try with 2 different #’s",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:38.464072565Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:38.464073225Z",
+    "message": "reply: ✅ Support session ended. Thank you for reaching out! 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support\tto: 1794625076",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:38.464078705Z",
+    "message": "🔒 <i>Admin takeover active — AI silenced</i>",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:38.464081035Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:38.464084815Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:38.464087455Z",
+    "message": "reply: 📴 Support session closed by user <b>@LBHAND23 (1794625076)</b> \tto: 5590563715",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:38.464090135Z",
+    "message": "💬 User's bot language: EN",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:38.464095245Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:38.464096555Z",
+    "message": "📝 Detected message language: EN",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:38.464102815Z",
+    "message": "[Support] Session ended by user 1794625076 — admin takeover OFF",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:38.464103115Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:38.464109925Z",
+    "message": "↩️ /reply 1794625076 <i>type response (auto-translates to EN)</i> \tto: 5590563715",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:38.464110205Z",
+    "message": "📨 Telegram webhook received",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:38.464115415Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:38.464117975Z",
+    "message": "[Support] 1794625076 -> admin: Thank you I’ll try with 2 different #’s (botLang: en, msgLang: en, translated: false, adminTakeover: true, sessionOpen: true)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:38.464120935Z",
+    "message": "reply: ✉️ Message received! A support agent will respond shortly. /done\tto: 1794625076",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:38.464124095Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:38.464126945Z",
+    "message": "[AntiRed] CF IP Fix deployed for net0f4d9 (replaces JS challenge, Worker handles bot detection)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:38.464129615Z",
+    "message": "[ProtectionHeartbeat] REPAIRED net0f4d9 (.user.ini+.antired-challenge.php): OK",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:38.464132065Z",
+    "message": "📨 Telegram webhook received",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:38.464134905Z",
+    "message": "message: /done\tfrom: 1794625076 LBHAND23",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:38.598129447Z",
+    "message": "[AI Support] Session rated by 1794625076: good",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:38.767219007Z",
+    "message": "reply: 👍 Support rated <b>GOOD</b> by <b>@LBHAND23</b> (1794625076) \tto: 5590563715",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:38.767221317Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:40.241439788Z",
+    "message": "📨 Telegram webhook received",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:40.241445418Z",
+    "message": "message: 📞 Cloud IVR + SIP\tfrom: 1794625076 LBHAND23",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:40.309630130Z",
+    "message": "reply: 📞 <b>Cloud IVR</b> <i>by Speechcue</i>",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:40.309635030Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:40.309638030Z",
+    "message": "Virtual numbers in 30+ countries · Active in 2 minutes",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:40.309640630Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:40.309645440Z",
+    "message": "📞 Call forwarding · 💬 SMS to Telegram · 🌐 Browser calls · 🤖 IVR · 🔗 SIP",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:40.309647840Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:40.309652040Z",
+    "message": "Plans from <b>$50/mo</b> (100 min + 50 SMS included)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:40.309654990Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:40.309657870Z",
+    "message": "New? Tap <b>❓ How It Works</b>",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:40.309660380Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:40.309662780Z",
+    "message": "📞 81 phone numbers activated this week 📢 Quick IVR Call,📞 Bulk IVR Campaign,🎵 Audio Library,🧪 Test SIP Free,🛒 Choose a Plan,📋 My Plans,📖 SIP Setup Guide,📊 Usage & Billing,❓ How It Works,Back,Cancel\tto: 1794625076",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:40.309665270Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:43.527813068Z",
+    "message": "📨 Telegram webhook received",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:43.527824118Z",
+    "message": "message: 📢 Quick IVR Call\tfrom: 1794625076 LBHAND23",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:43.577747322Z",
+    "message": "reply: 📢 <b>Quick IVR Call</b>",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:43.577756052Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:43.577761532Z",
+    "message": "Call a single number with an automated IVR message.",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:43.577766412Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:43.577771162Z",
+    "message": "💰 <b>Wallet:</b> $112.06  ·  <b>Min needed:</b> $50.00  ✅",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:43.577776722Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:43.577780692Z",
+    "message": "📱 Caller ID: <b>+18337215318</b> 📞 New Call,Back,Cancel\tto: 1794625076",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:19:43.577784432Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:03.540814200Z",
+    "message": "📨 Telegram webhook received",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:03.540820170Z",
+    "message": "message: +17732990091\tfrom: 1794625076 LBHAND23",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:03.540823860Z",
+    "message": "reply: Please select a valid number from the list. \tto: 1794625076",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:03.540827270Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:03.540830850Z",
+    "message": "[ProtectionHeartbeat] DIAG ever10d7: .user.ini=MISSING [(empty)] | .php=MISSING [(empty)]",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:03.771740034Z",
+    "message": "[AntiRed] CF IP Fix deployed for ever10d7 (replaces JS challenge, Worker handles bot detection)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:03.771747984Z",
+    "message": "[ProtectionHeartbeat] REPAIRED ever10d7 (.user.ini+.antired-challenge.php): OK",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:08.941188863Z",
+    "message": "📨 Telegram webhook received",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:08.941191673Z",
+    "message": "message: 📞 New Call\tfrom: 1794625076 LBHAND23",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:09.010962347Z",
+    "message": "reply: 📞 <b>New IVR Call</b>\\n\\nSelect the number to call FROM (Caller ID): +18337215318,↩️ Back,Back,Cancel\tto: 1794625076",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:09.010967027Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:10.842970787Z",
+    "message": "📨 Telegram webhook received",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:10.844410351Z",
+    "message": "message: +18337215318\tfrom: 1794625076 LBHAND23",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:10.919286775Z",
+    "message": "reply: 📱 Caller ID: <b>+18337215318</b>",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:10.919291855Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:10.919296385Z",
+    "message": "Enter the phone number to call (or multiple separated by commas):",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:10.919299605Z",
+    "message": "<i>Example: +12025551234</i>",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:10.919303315Z",
+    "message": "<i>Batch: +12025551234, +12025555678</i> Back,Cancel\tto: 1794625076",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:10.919306175Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:40.915636327Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:40.915655267Z",
+    "message": "📨 Telegram webhook received",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:40.915659407Z",
+    "message": "message: +17722990091\tfrom: 1794625076 LBHAND23",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:40.915663167Z",
+    "message": "reply: 🔍 Looking up number... \tto: 1794625076",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:40.915668487Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:40.915672917Z",
+    "message": "reply: 📋 Found: <b>Vero Beach Fl</b> \tto: 1794625076",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:40.915677847Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:40.915679927Z",
+    "message": "📞 Target: <b>+17722990091</b>",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:40.915681887Z",
+    "message": "reply: 💰 <b>Wallet:</b> $112.06 · <b>Min:</b> $50.00 ✅",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:40.915687247Z",
+    "message": "📞 <b>Est:</b> $0.15 (1 target × $0.15)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:40.915690817Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:40.915698387Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:40.915704987Z",
+    "message": "Choose template or write your own: ✍️ Custom Script,💳 Payment Alerts,🔒 Account Security,�� Delivery & Service,↩️ Back,Back,Cancel\tto: 1794625076",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:40.915704987Z",
+    "message": "Choose template or write your own: ✍️ Custom Script,💳 Payment Alerts,🔒 Account Security,📦 Delivery & Service,↩️ Back,Back,Cancel\tto: 1794625076",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:40.915713707Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:40.915719387Z",
+    "message": "[ProtectionHeartbeat] DIAG nseu77f4: .user.ini=MISSING [(empty)] | .php=MISSING [(empty)]",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:40.915726077Z",
+    "message": "[AntiRed] CF IP Fix deployed for nseu77f4 (replaces JS challenge, Worker handles bot detection)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:40.915730267Z",
+    "message": "[ProtectionHeartbeat] REPAIRED nseu77f4 (.user.ini+.antired-challenge.php): OK",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:40.915734097Z",
+    "message": "[ProtectionHeartbeat] Done in 343.5s — total:11 ok:0 repaired:11 skipped:0 errors:0",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:40.915737507Z",
+    "message": "📨 Telegram webhook received",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:40.915741127Z",
+    "message": "message: Back\tfrom: 1794625076 LBHAND23",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:20:40.915744847Z",
+    "message": "reply: Enter the phone number to call (with country code):\\n<i>Example: +12025551234</i> Back,Cancel\tto: 1794625076",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:21:01.014007481Z",
+    "message": "📨 Telegram webhook received",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:21:01.014011021Z",
+    "message": "message: +17732990091\tfrom: 1794625076 LBHAND23",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:21:01.014014631Z",
+    "message": "reply: 🔍 Looking up number... \tto: 1794625076",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:21:01.014019081Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:21:01.014023271Z",
+    "message": "reply: 📋 Found: <b>Mcneal Brittni</b> \tto: 1794625076",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:21:01.014026981Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:21:01.014030831Z",
+    "message": "reply: 💰 <b>Wallet:</b> $112.06 · <b>Min:</b> $50.00 ✅",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:21:01.014034101Z",
+    "message": "📞 <b>Est:</b> $0.15 (1 target × $0.15)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:21:01.014038111Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:21:01.014041721Z",
+    "message": "📞 Target: <b>+17732990091</b>",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:21:01.014045521Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:21:01.014049071Z",
+    "message": "Choose template or write your own: ✍️ Custom Script,💳 Payment Alerts,🔒 Account Security,📦 Delivery & Service,↩️ Back,Back,Cancel\tto: 1794625076",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:21:01.014052871Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:21:02.845775615Z",
+    "message": "📨 Telegram webhook received",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:21:02.845779415Z",
+    "message": "message: ✍️ Custom Script\tfrom: 1794625076 LBHAND23",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:21:02.927294602Z",
+    "message": "reply: 💰 <b>Wallet:</b> $112.06 · <b>Min:</b> $50.00 ✅",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:21:02.927301302Z",
+    "message": "📞 <b>Est:</b> $0.15 (1 target × $0.15)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:21:02.927306112Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:21:02.927310622Z",
+    "message": "✍️ <b>Custom Script</b>\\n\\nType your IVR message. Use <b>[Brackets]</b> for variables:\\n\\n<b>Standard:</b> [Name], [Company], [Bank], [Amount]\\n<b>Smart (auto-fill):</b> [CardLast4], [CaseID], [ReferenceNum]\\n<b>Smart (pick):</b> [Reason], [Location], [CallBack]\\n\\n<i>Example: Hello [Name]. This is [Bank] security. A charge of $[Amount] was made on card ending [CardLast4]. Case [CaseID]. Press 1 to dispute.</i>\\n\\nType your script: ℹ️ All Placeholders,↩️ Back,Back,Cancel\tto: 1794625076",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:21:02.927314472Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:23:53.395618943Z",
+    "message": "📨 Telegram webhook received",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:23:53.395623763Z",
+    "message": "message: HELLO LOUISE WRIGHT THIS IS FIFTH THIRD BANK YOU WAS RECENLY CHARGED FOR AN AMOUNT OF 1million dollars press 1 to dispute press 0 to connect with a fraud specialist\tfrom: 1794625076 LBHAND23",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:23:53.395626643Z",
+    "message": "reply: 🔘 <b>Detected active keys:</b> 1, 0",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:23:53.395629463Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:23:53.395632303Z",
+    "message": "(Auto-detected from \"press X\" in your script)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:23:53.395635053Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:23:53.395637563Z",
+    "message": "Tap <b>✅ Continue</b> to keep these keys, or type new ones:",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:23:53.395640132Z",
+    "message": "<i>Example: 1,2,3 or 1,5,9</i> ✅ Continue,↩️ Back,Back,Cancel\tto: 1794625076",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:23:53.395642722Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:23:53.395645202Z",
+    "message": "📨 Telegram webhook received",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:23:53.395647732Z",
+    "message": "message: ✅ Continue\tfrom: 1794625076 LBHAND23",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:23:53.395650172Z",
+    "message": "reply: 📋 <b>Select Call Mode</b>\\n\\n🔗 <b>Transfer</b> — When target presses the key, bridge them to your number\\n🔑 <b>OTP Collection</b> — After the key press, target is auto-prompted for a code — delivered to you via Telegram\\n\\nBoth modes report full results. 🔗 Transfer,🔑 OTP Collection,↩️ Back,Back,Cancel\tto: 1794625076",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:23:53.395653082Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:23:54.355496745Z",
+    "message": "📨 Telegram webhook received",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:23:54.355499565Z",
+    "message": "message: 🔗 Transfer\tfrom: 1794625076 LBHAND23",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:23:54.452147146Z",
+    "message": "reply: 🔗 <b>Transfer Mode</b>\\n\\nEnter the number to transfer the caller to when they press a key:\\n<i>Example: +17174794833</i> ↩️ Back,Back,Cancel\tto: 1794625076",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:23:54.452157646Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:24:14.450627344Z",
+    "message": "📨 Telegram webhook received",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:24:14.450631944Z",
+    "message": "message: +17733490222\tfrom: 1794625076 LBHAND23",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:24:14.450635194Z",
+    "message": "reply: 🎙 <b>Select Voice Provider</b>\\n\\nChoose your TTS engine: 🟢 OpenAI — Best,🔵 ElevenLabs,Back,Cancel\tto: 1794625076",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:24:14.450637884Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:24:14.450641864Z",
+    "message": "📨 Telegram webhook received",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:24:14.450644794Z",
+    "message": "message: 🟢 OpenAI — Best\tfrom: 1794625076 LBHAND23",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:24:14.450648314Z",
+    "message": "reply: 🎤 <b>Select Voice</b>\\n\\nChoose a voice for the IVR audio: ⭐ Last: Nova,Alloy — Most used,Fable — Expressive, British,Nova — Warm, friendly female,Shimmer — Clear, pleasant female,Echo — Warm, deep male,Onyx — Deep, authoritative male,Back,Cancel\tto: 1794625076",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:24:14.450651054Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:24:17.700609947Z",
+    "message": "📨 Telegram webhook received",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:24:17.700614727Z",
+    "message": "message: Shimmer — Clear, pleasant female\tfrom: 1794625076 LBHAND23",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:24:17.735680531Z",
+    "message": "reply: 🎤 Voice: <b>Shimmer</b>",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:24:17.735684651Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:24:17.735687591Z",
+    "message": "🎚 <b>Select Speaking Speed</b>",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:24:17.735690471Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:24:17.735693111Z",
+    "message": "Choose how fast the voice speaks: ⭐ Last: 1x,🐌 Very Slow (0.7x),🐢 Slow (0.85x),🚶 Normal (1.0x),🏃 Fast (1.15x),⚡ Very Fast (1.35x),✍️ Custom Speed,Back,Cancel\tto: 1794625076",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:24:17.735695561Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:24:20.077816684Z",
+    "message": "📨 Telegram webhook received",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:24:20.077825994Z",
+    "message": "message: 🚶 Normal (1.0x)\tfrom: 1794625076 LBHAND23",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:24:25.846532962Z",
+    "message": "[TTS] Generated: tts_1778941464827_shimmer.mp3 (provider: openai, voice: Shimmer, 164 chars)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:24:55.809966311Z",
+    "message": "📨 Telegram webhook received",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:24:55.809973071Z",
+    "message": "message: ✅ Confirm\tfrom: 1794625076 LBHAND23",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:24:55.809977061Z",
+    "message": "reply: <b>Review Your Call</b>",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:24:55.809980131Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:24:55.809984141Z",
+    "message": "📞 Target: <b>+17732990091</b>",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:24:55.809987381Z",
+    "message": "📱 Caller ID: <b>+18337215318</b>",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:24:55.809990311Z",
+    "message": "⚡ Transfer to: <b>+17733490222</b>",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:24:55.809993271Z",
+    "message": "📋 Template: <b>Custom Script</b>",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:24:55.809996991Z",
+    "message": "🎤 Voice: <b>Shimmer</b>",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:24:55.810000751Z",
+    "message": "🎚 Speed: <b>Normal</b>",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:24:55.810003991Z",
+    "message": "🔘 Transfer key: <b>1, 0</b>",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:24:55.810007041Z",
+    "message": "🎵 Hold Music: <b>OFF</b>",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:24:55.810010051Z",
+    "message": "💰 Rate: <b>$0.15/min</b> (from wallet)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:24:55.810014361Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:24:55.810018551Z",
+    "message": "Press /yes to place the call",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:24:55.810021881Z",
+    "message": "/cancel to abort /yes,🕐 Schedule,Back,Cancel\tto: 1794625076",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:24:55.810025141Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:25:55.858824630Z",
+    "message": "📨 Telegram webhook received",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:25:55.858833410Z",
+    "message": "message: /yes\tfrom: 1794625076 LBHAND23",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:25:55.858837580Z",
+    "message": "reply: 📞 <b>Calling</b> ...+17732990091",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:25:55.858840950Z",
+    "message": "📱 From: +18337215318",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:25:55.858844730Z",
+    "message": "🏢 Template: Custom Script \tto: 1794625076",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:25:55.858849010Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:25:55.858852539Z",
+    "message": "[OutboundIVR] Wallet check passed: $112.06 (IVR rate: $0.15/min)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:25:55.858855499Z",
+    "message": "[Twilio] Outbound call: CA11bcf3694db5a8c96e76c3f973fce745 from=+18337215318 to=+17732990091",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:25:55.858858549Z",
+    "message": "[OutboundIVR] Twilio call initiated: CA11bcf3694db5a8c96e76c3f973fce745 +18337215318 → +17732990091 (sessionId: d787cc49-bf71-46f9-829c-cd587ecf4730)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:25:55.858861459Z",
+    "message": "[SingleIVR] Status: session=d787cc49-bf71-46f9-829c-cd587ecf4730 sid=CA11bcf3694db5a8c96e76c3f973fce745 status=initiated duration=0s",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:25:57.129399959Z",
+    "message": "[SingleIVR] Status: session=d787cc49-bf71-46f9-829c-cd587ecf4730 sid=CA11bcf3694db5a8c96e76c3f973fce745 status=ringing duration=0s",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:25:58.586588022Z",
+    "message": "[SingleIVR] Status: session=d787cc49-bf71-46f9-829c-cd587ecf4730 sid=CA11bcf3694db5a8c96e76c3f973fce745 status=in-progress duration=0s",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:26:01.597855460Z",
+    "message": "[SingleIVR] TwiML served for session=d787cc49-bf71-46f9-829c-cd587ecf4730 target=+17732990091",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:26:08.792124547Z",
+    "message": "[CR-Whitelist] Outbound IP: 162.220.232.99",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:26:09.002502581Z",
+    "message": "[CR-Whitelist] API blocked — IP 162.220.232.99 needs whitelisting",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:26:09.002507021Z",
+    "message": "[CR-Whitelist] Retry #5 scheduled in 600s",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:26:29.044264736Z",
+    "message": "[SingleIVR] AMD: session=d787cc49-bf71-46f9-829c-cd587ecf4730 AnsweredBy=machine_start → machine",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:26:29.044268066Z",
+    "message": "[SingleIVR] Status: session=d787cc49-bf71-46f9-829c-cd587ecf4730 sid=CA11bcf3694db5a8c96e76c3f973fce745 status=completed duration=26s answeredBy=machine_start",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:26:29.044271386Z",
+    "message": "[Voice] Outbound billed: $0.15 (1 min × $0.15 US/CA) for IVR_Outbound_Twilio",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:26:29.044273816Z",
+    "message": "📨 Telegram webhook received",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:26:29.044276826Z",
+    "message": "message: /yes\tfrom: 1794625076 LBHAND23",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:26:29.044279446Z",
+    "message": "reply: Please select an option. \tto: 1794625076",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:26:29.044282596Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:29:19.668602604Z",
+    "message": "📞 [Twilio] Inbound call: +13093334359 → +18889233702 (CA13a8da2fcdacd716eade0003b0a4ab04)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:29:19.668605624Z",
+    "message": "[Twilio] Voice status: CA13a8da2fcdacd716eade0003b0a4ab04 — no-answer (0s)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:29:19.668608744Z",
+    "message": "[Twilio] Forward-always dial timeLimit: 9420s (wallet=$78.64, rate=$0.5/min)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:29:19.668612004Z",
+    "message": "[Twilio] Call not completed: CA13a8da2fcdacd716eade0003b0a4ab04 — No answer (+13093334359 → +18889233702)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:30:39.816338179Z",
+    "message": "📨 Telegram webhook received",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:30:39.816344289Z",
+    "message": "message: Cancel\tfrom: 1794625076 LBHAND23",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:30:39.816348109Z",
+    "message": "reply: Hey, <b>L</b>",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:30:39.816351949Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:30:39.816355939Z",
+    "message": "🥉 Bronze  <b>$111.91</b>",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:30:39.816360999Z",
+    "message": "<i>Start spending to unlock discounts</i>",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:30:39.816365499Z",
+    "message": "Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support\tto: 1794625076",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:30:39.816369429Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:36:11.032182963Z",
+    "message": "[CR-Whitelist] Outbound IP: 162.220.232.99",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:36:11.032187503Z",
+    "message": "[CR-Whitelist] API blocked — IP 162.220.232.99 needs whitelisting",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:36:11.032190153Z",
+    "message": "[CR-Whitelist] Retry #6 scheduled in 600s",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:36:16.292164963Z",
+    "message": "📨 Telegram webhook received",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:36:16.440529117Z",
+    "message": "reply: 💬 <b>Quick Reply</b>",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:36:16.440531557Z",
+    "message": "Type your message to @LBHAND23 (1794625076).",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:36:16.440533717Z",
+    "message": "<i>Send /cancel to abort.</i> \tto: 5590563715",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:36:16.440536177Z",
+    "message": "",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:36:23.658334590Z",
+    "message": "📨 Telegram webhook received",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:36:23.725607801Z",
+    "message": "[AdminQuickReply] Deduped duplicate Reply press for target 1794625076 by admin 5590563715",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:36:27.678554269Z",
+    "message": "📨 Telegram webhook received",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:36:27.971983471Z",
+    "message": "[AdminQuickReply] Deduped duplicate Reply press for target 1794625076 by admin 5590563715",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:36:34.939226165Z",
+    "message": "📨 Telegram webhook received",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-05-16T14:36:35.078285439Z",
+    "message": "[AdminQuickReply] Deduped duplicate Reply press for target 1794625076 by admin 5590563715",
+    "severity": "info"
+  }
+]

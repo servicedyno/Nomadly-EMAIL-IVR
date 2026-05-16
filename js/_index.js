@@ -4409,20 +4409,35 @@ bot?.on('callback_query', async (query) => {
       // Fix: (1) ack the callback IMMEDIATELY (non-blocking), (2) dedupe
       // presses of the same target within a 30s window using the existing
       // awaitingAdminAction.ts timestamp.
-      await ackPopup('Type your reply…')
-
+      //
+      // BUG FIX 2026-02 — admin reports "clicking Reply not responding":
+      // The original fix above acked + sent ONE prompt, then silently deduped
+      // subsequent presses. In a noisy admin chat (hundreds of bot notifs/min)
+      // the prompt scrolls 20+ messages up within seconds and the admin loses
+      // it. They re-tap Reply expecting a fresh prompt, get the toast popup
+      // ("Type your reply…") but no NEW chat message → "bot not responding".
+      // Fix: (a) on dedup, RE-EMIT the prompt at the bottom of chat (force_reply
+      // brings Telegram's keyboard up immediately on the latest copy), and
+      // (b) attach force_reply: { selective: false } so the admin's text
+      // input auto-focuses with the prompt as a reply quote — drastically
+      // more discoverable than a plain message.
       const existing = await get(state, adminId)
       const aw = existing?.awaitingAdminAction
-      if (aw && aw.type === 'reply' && String(aw.target) === String(target) && (Date.now() - (aw.ts || 0)) < 30000) {
-        // Already prompted within the last 30s for THIS target — ignore dupe press.
-        log(`[AdminQuickReply] Deduped duplicate Reply press for target ${target} by admin ${adminId}`)
-        return
-      }
+      const isDupe = !!(aw && aw.type === 'reply' && String(aw.target) === String(target) && (Date.now() - (aw.ts || 0)) < 30000)
 
+      await ackPopup(isDupe ? 'Re-sending prompt…' : 'Type your reply…')
+
+      // Refresh the ts so the dedup window slides forward on every press.
       await set(state, adminId, 'awaitingAdminAction', { type: 'reply', target, ts: Date.now() })
+      if (isDupe) {
+        log(`[AdminQuickReply] Re-emitting prompt (admin re-pressed Reply within 30s) target=${target} admin=${adminId}`)
+      }
       const tName = await get(nameOf, target)
       const label = tName ? `@${tName} (${target})` : `User ${target}`
-      send(adminId, `💬 <b>Quick Reply</b>\nType your message to ${label}.\n<i>Send /cancel to abort.</i>`, { parse_mode: 'HTML' })
+      send(adminId, `💬 <b>Quick Reply</b>\nType your message to ${label}.\n<i>Send /cancel to abort.</i>`, {
+        parse_mode: 'HTML',
+        reply_markup: { force_reply: true, selective: false, input_field_placeholder: `Reply to ${label}…` },
+      })
       return
     }
 
