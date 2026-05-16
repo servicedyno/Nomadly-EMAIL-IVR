@@ -24058,11 +24058,11 @@ Professional templates for voicemail, customer support, financial institutions, 
       return send(chatId, trans('t.cp_294', usedKeys2), k.of([['0','1','2','3','4','5','6','7','8','9']]))
     }
     const ivrMenuHint = {
-      en: `⚠️ Please use the <b>menu buttons</b> below to navigate:\n\n🎤 <b>Set Greeting</b> — Record/type the welcome message\n➕ <b>Add Menu Option</b> — Assign a key (0-9) to an action\n➖ <b>Remove Option</b> — Delete an existing key\n📊 <b>View Options</b> — See current IVR setup`,
-      fr: `⚠️ Veuillez utiliser les <b>boutons du menu</b> ci-dessous.`,
-      zh: `⚠️ 请使用下方的<b>菜单按钮</b>进行操作。`,
-      hi: `⚠️ कृपया नीचे दिए गए <b>मेनू बटन</b> का उपयोग करें।`,
-    }[lang] || `⚠️ Please use the <b>menu buttons</b> below to navigate.`
+      en: `⚠️ Use the <b>buttons below</b> to navigate.`,
+      fr: `⚠️ Utilisez les <b>boutons ci-dessous</b>.`,
+      zh: `⚠️ 请使用下方<b>按钮</b>操作。`,
+      hi: `⚠️ नीचे <b>बटन</b> का उपयोग करें।`,
+    }[lang] || `⚠️ Use the <b>buttons below</b> to navigate.`
     return send(chatId, ivrMenuHint, k.of([
       [pc.ivrGreeting], [pc.ivrAddOption], [pc.ivrRemoveOption], [pc.ivrViewOptions], [pc.ivrAnalytics], [pc.disableIvr]
     ]))
