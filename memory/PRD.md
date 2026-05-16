@@ -388,3 +388,58 @@ his real DNS records as context and will guide him correctly.
 - (P2) Wire credit explanation into AI-support quick replies.
 - (P2) Apply identical zone-strip normalization to SRV/CAA hostname inputs
   (separate handlers; same fix pattern when needed).
+
+
+---
+
+## 2026-02 — IVR "📞 New Call" Auto-Loading Previous Template (@LBHAND23)
+
+### Problem (user-reported via Railway AI-support logs)
+@LBHAND23 repeatedly complained that tapping **📞 New Call** in the Cloud
+IVR menu launched the bot's template/voice flow pre-filled with the
+**previous** call's template (e.g. Navy Federal), skipping the template
+and mode-selection wizard entirely. He couldn't make a fresh call against
+a different bank IVR.
+
+### Root cause
+In `_index.js` the IVR-Outbound entry block (≈line 18671) intentionally
+preserves `ivrObData` across menu opens so a half-finished draft survives
+Cancel. Combined with the "📞 New Call" handler at ≈line 18827 — which
+just rendered the caller-ID keyboard without resetting state — the prior
+call's `fromPreset=true`, `templateText`, `audioUrl`, `placeholderValues`,
+`scriptText`, `activeKeys`, `ivrMode`, `voiceName`, `holdMusic`, `otp*`
+fields lingered in state. Then at `ivrObEnterTarget` (≈line 19031 & 19099)
+the preset-shortcut branch fired and short-circuited the wizard:
+
+  if (ivrObData.fromPreset && ivrObData.audioUrl) { … skip template+voice }
+  if (ivrObData.fromPreset && ivrObData.templateText && !audioUrl) { … }
+
+### Fix
+- **`/app/js/_index.js` (line 18826-18839)** — In the `📞 New Call`
+  handler, reset `ivrObData` to a clean `{ isTrial: false }` BEFORE
+  prompting for caller-ID selection. All per-call leak-prone fields
+  (templateName, templateText, placeholderValues, audioUrl, fromPreset,
+  voiceKey, holdMusic, otp*, etc.) are wiped. The Saved-Preset (`💾 …`)
+  and Recent-call (`📋 …`) paths still populate `ivrObData` explicitly
+  and are unaffected. The legitimate `ivr_redial:` callback handler
+  (≈line 3952) is untouched — Redial *should* reuse last call params.
+
+### Verification
+- **New regression test** `/app/js/__tests__/ivr-new-call-reset.test.js`
+  — **7/7 pass**: handler exists, reset is present, reset runs BEFORE
+  the caller-ID prompt, reset object carries none of the 24 leak-prone
+  fields, redial handler still uses `lastIvrCallParams`, menu-entry
+  draft-preservation still intact.
+- Full regression suite (dns + credit + nudge + ivr-reset):
+  **135 tests, 100% green**.
+- `node -c js/_index.js` passes.
+- `sudo supervisorctl restart nodejs` clean; production-token bot booted
+  with no errors.
+
+### Files touched
+- `/app/js/_index.js` (1 site, +9/-1 LOC at the `📞 New Call` handler)
+- `/app/js/__tests__/ivr-new-call-reset.test.js` (new)
+
+### Backlog
+- **P1** — Push the `_index.js` change to Railway production after user
+  confirmation (awaiting approval).

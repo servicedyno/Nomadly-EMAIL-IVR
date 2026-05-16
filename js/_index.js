@@ -18825,6 +18825,15 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
     // ── Handle "New Call" → show caller ID selection ──
     if (message === '📞 New Call') {
+      // BUG FIX (@LBHAND23 2026-02): tapping "New Call" was auto-loading the
+      // previous call's template/audio because the prior ivrObData (carrying
+      // fromPreset=true, templateText, audioUrl, placeholderValues, etc.) was
+      // preserved across calls. The downstream preset-shortcut at
+      // ivrObEnterTarget (≈line 19031 & 19099) then short-circuited the
+      // template/mode wizard. Wipe all per-call fields so "New Call" always
+      // starts a fresh wizard. (Saved Presets / Recent paths populate
+      // ivrObData explicitly and are unaffected.)
+      await saveInfo('ivrObData', { isTrial: false })
       const rows = eligibleNumbers.map(n => [n.phoneNumber])
       return send(chatId, trans('t.cp_15'), k.of([...rows, ['↩️ Back']]))
     }
