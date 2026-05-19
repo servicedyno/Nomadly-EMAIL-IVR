@@ -597,6 +597,43 @@ From main menu → tap <b>💼 Become A Reseller</b>
 ### "How do I access my hosting panel?" / "Where do I log in to cPanel?" / "What is my hosting panel URL?"
 → Your hosting panel login URL is: <b>${HOSTING_PANEL_URL || 'available in your hosting credentials'}</b>. To get your login credentials: <b>🛡️🔥 Anti-Red Hosting</b> → <b>📋 My Hosting Plans</b> → Select your domain → <b>🔑 Reveal Credentials</b>. Use the username and PIN shown to log in at the panel URL.
 
+### "Where do I upload my website files?" / "Where is public_html?" / "I can't find the public folder" / "Where is the public folder?" / "Which folder do my site files go in?"
+→ Your website files MUST go inside the <b><code>public_html</code></b> folder (sometimes called the "public folder" or "web root"). Anything outside <code>public_html</code> is NOT served on your domain.
+
+<b>Step-by-step (cPanel File Manager):</b>
+1. Log in to your hosting panel: <b>${HOSTING_PANEL_URL || 'use the URL from 🔑 Reveal Credentials'}</b>
+2. On the cPanel home screen, open <b>File Manager</b> (under the "Files" section).
+3. In the left sidebar, click the <b><code>public_html</code></b> folder to open it. If you don't see it in the sidebar, double-click the <code>public_html</code> row in the main file list. It's the folder right under your home directory (<code>/home/&lt;username&gt;/public_html</code>).
+4. Click <b>Upload</b> (top toolbar) → drag/drop or browse your files (HTML, CSS, JS, PHP, images, or a single <code>.zip</code>).
+5. After upload, go <b>Back to /home/&lt;username&gt;/public_html</b>. If you uploaded a <code>.zip</code>, right-click it → <b>Extract</b> → confirm.
+6. Make sure your entry file is named exactly <code>index.html</code> or <code>index.php</code> (lowercase, at the root of <code>public_html</code> — not inside a subfolder).
+
+<b>Tip:</b> FTP/SFTP also lands in the same <code>public_html</code> directory — use the same cPanel username + password.
+
+### "I uploaded my files but my domain still doesn't show them" / "My website is blank / shows default page / shows 'Index of /' / Apache default page"
+→ This is almost always one of these 4 fixable causes — go through them in order:
+
+1. <b>Files are in the wrong folder.</b> Open <b>File Manager</b> → make sure your files are <i>inside</i> <code>public_html</code>, not in the home directory (<code>/home/&lt;username&gt;/</code>) and not inside a subfolder like <code>public_html/mysite/</code>. If they're in a subfolder, either move them up to <code>public_html</code> or visit <code>yourdomain.com/mysite/</code>.
+
+2. <b>Entry file is missing or misnamed.</b> Your home page must be named <b><code>index.html</code></b> or <b><code>index.php</code></b> (all lowercase, no spaces). <code>Index.html</code>, <code>home.html</code>, or <code>main.html</code> will NOT load automatically — rename it to <code>index.html</code> (right-click → Rename in File Manager).
+
+3. <b>You uploaded a <code>.zip</code> but never extracted it.</b> In File Manager, right-click your <code>.zip</code> → <b>Extract</b> → confirm the destination is <code>public_html</code>. Then delete the leftover <code>.zip</code>.
+
+4. <b>For addon domains:</b> files for an addon domain go in <code>public_html/&lt;addon-domain&gt;/</code> — NOT in <code>public_html</code> itself. Only your <i>primary</i> domain uses <code>public_html</code> directly. Check the welcome message you received when you attached the addon — it shows the exact folder path.
+
+After fixing, do a <b>hard refresh</b> in your browser (Ctrl+F5 / Cmd+Shift+R) and wait up to 1–2 minutes for our Anti-Red CDN cache to clear. If the domain is brand new, DNS can take a few extra minutes to propagate.
+
+If you've checked all 4 and it still doesn't show, I'll connect you with our technical team — please tell me your domain name and which folder you uploaded to.
+
+### "Where do I upload files for my addon domain?" / "My addon domain shows the main domain's site"
+→ Each addon domain has its own folder inside <code>public_html</code>. The path is <b><code>public_html/&lt;your-addon-domain&gt;/</code></b> (e.g. for <code>shop.example.com</code> it's typically <code>public_html/shop.example.com/</code>).
+
+In File Manager, open <code>public_html</code> → open the folder named after your addon domain → Upload your files there. Make sure the entry file is <code>index.html</code> or <code>index.php</code> inside that folder.
+
+If you accidentally uploaded the addon site to <code>public_html</code> directly, it will show on your <i>primary</i> domain instead of the addon — move the files into <code>public_html/&lt;addon-domain&gt;/</code> using <b>Move</b> in File Manager.
+
+The welcome message you received when the addon was attached shows the exact "document root" path — that's the folder to use.
+
 ### "How do I take my website offline?" / "Can I temporarily disable my site?" / "Maintenance mode"
 → Yes — two ways: (1) Bot: <b>🛡️🔥 Anti-Red Hosting</b> → <b>📋 My Hosting Plans</b> → select your domain → <b>🔌 Take Site Offline</b>. (2) Web HostPanel: log in → <b>Account</b> tab → <b>Take site offline</b>. You can choose <b>🛠️ Maintenance Mode</b> (recommended — visitors see a "We'll be back soon" page; email/FTP/databases keep working) or <b>🚫 Full Suspend</b> (HTTP/FTP/email/DB all stopped; visitors see "Account Suspended"). <b>IMPORTANT:</b> taking your site offline does NOT pause your expiry countdown or auto-renewal billing. The plan keeps ticking — this is a visibility toggle only.
 

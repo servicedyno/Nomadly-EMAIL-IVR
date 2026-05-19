@@ -39,4 +39,21 @@ console.log('— Test: web HostPanel parity is documented —')
 assert.ok(/web.*HostPanel|web hostpanel|account tab/i.test(src), 'should mention web panel parity')
 console.log('  ✓ web panel parity mentioned')
 
+console.log('— Test: AI answers "where do I upload my files / where is public_html" —')
+assert.ok(/where do i upload|where is public_html|can.?t find the public|public folder/i.test(src), 'should mention where to upload files / public_html / public folder')
+assert.ok(/file manager/i.test(src), 'should mention cPanel File Manager')
+assert.ok(/index\.html|index\.php/i.test(src), 'should call out index.html / index.php entry file')
+console.log('  ✓ upload-location coverage')
+
+console.log('— Test: AI answers "uploaded files but domain still doesn\'t show them" —')
+assert.ok(/uploaded.*but.*domain|domain still doesn.?t show|website is blank|default page/i.test(src), 'should diagnose the "files uploaded but site not showing" case')
+assert.ok(/wrong folder|subfolder/i.test(src), 'should call out wrong-folder cause')
+assert.ok(/extract.*zip|right.?click.*extract/i.test(src), 'should call out un-extracted .zip cause')
+assert.ok(/hard refresh|ctrl.?\+?f5|cmd.?\+?shift/i.test(src), 'should mention hard refresh / cache')
+console.log('  ✓ "site not showing" diagnostic coverage')
+
+console.log('— Test: AI answers addon-domain upload path —')
+assert.ok(/addon domain.*public_html|public_html\/.*addon|each addon domain has its own folder/i.test(src), 'should explain addon-domain folder layout')
+console.log('  ✓ addon-domain upload path coverage')
+
 console.log('\n✅ AI support knowledge base is up-to-date with all new self-serve hosting flows.')

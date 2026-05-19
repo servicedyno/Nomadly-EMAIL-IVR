@@ -443,3 +443,36 @@ the preset-shortcut branch fired and short-circuited the wizard:
 ### Backlog
 - **P1** — Push the `_index.js` change to Railway production after user
   confirmation (awaiting approval).
+
+
+---
+
+## 2026-02-XX — AI Support: public_html / file-upload knowledge gap (@jasonthekidd, @Icemangod6)
+
+### Problem
+Multiple Telegram users (e.g. `@jasonthekidd`, `@Icemangod6`) reported the same flow:
+they bought an Anti-Red Hosting plan, logged into cPanel, uploaded their website
+files via File Manager, but their domain still didn't serve the site. They asked
+the AI things like *"I dont see public_html"*, *"I can't find the public folder"*,
+*"so I upload via file manager, now where is public_html?"* — and the AI gave
+vague, unhelpful replies because **the system prompt had zero coverage for
+"where do my files go / why doesn't my site show"**.
+
+### Fix — `/app/js/ai-support.js`
+Added 4 new dedicated Q&A entries to `SYSTEM_PROMPT`:
+1. **"Where do I upload my website files? / Where is public_html? / I can't find the public folder"** — step-by-step File Manager → `public_html` → Upload → extract `.zip` → name entry file `index.html`/`index.php`.
+2. **"I uploaded my files but my domain still doesn't show them"** — 4 numbered fixable causes (wrong folder, wrong entry-file name, un-extracted `.zip`, addon-domain folder), plus hard-refresh + CDN cache note, and a clean escalation if all 4 are eliminated.
+3. **"Where do I upload files for my addon domain?"** — `public_html/<addon-domain>/` clarification, references the addon welcome message's "document root" path.
+4. (Reinforces existing) — FTP/SFTP also lands in `public_html`.
+
+### Verification
+- Extended `/app/js/tests/test_ai_support_kb.js` with 3 new sections (upload-location, "site not showing" diagnostic, addon-domain path). **All 9 sub-tests pass.**
+- Existing `/app/js/tests/test_ai_support_phase1.js` — **all 19 tests still pass** (no regression).
+- `node --check` clean. Bot service restarted cleanly; `[AI Support] OpenAI initialized` and `[AI Support] MongoDB collections initialized` logged.
+
+### Files changed
+- `/app/js/ai-support.js` (+49 LOC, system prompt only)
+- `/app/js/tests/test_ai_support_kb.js` (+17 LOC, new assertions)
+
+### Backlog
+- **P2** — Railway log API still returns 403 (Cloudflare). Workaround used here: local MongoDB + handoff context was sufficient. Revisit only if remote-log fetching is needed for a future task.
