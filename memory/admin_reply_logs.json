@@ -2311,22 +2311,22 @@
   },
   {
     "timestamp": "2026-05-16T14:25:55.858861459Z",
-    "message": "[SingleIVR] Status: session=d787cc49-bf71-46f9-829c-cd587ecf4730 sid=CA11bcf3694db5a8c96e76c3f973fce745 status=initiated duration=0s",
+    "message": "[SingleIVR] Status: session=quickstart-guide-7 sid=CA11bcf3694db5a8c96e76c3f973fce745 status=initiated duration=0s",
     "severity": "info"
   },
   {
     "timestamp": "2026-05-16T14:25:57.129399959Z",
-    "message": "[SingleIVR] Status: session=d787cc49-bf71-46f9-829c-cd587ecf4730 sid=CA11bcf3694db5a8c96e76c3f973fce745 status=ringing duration=0s",
+    "message": "[SingleIVR] Status: session=quickstart-guide-7 sid=CA11bcf3694db5a8c96e76c3f973fce745 status=ringing duration=0s",
     "severity": "info"
   },
   {
     "timestamp": "2026-05-16T14:25:58.586588022Z",
-    "message": "[SingleIVR] Status: session=d787cc49-bf71-46f9-829c-cd587ecf4730 sid=CA11bcf3694db5a8c96e76c3f973fce745 status=in-progress duration=0s",
+    "message": "[SingleIVR] Status: session=quickstart-guide-7 sid=CA11bcf3694db5a8c96e76c3f973fce745 status=in-progress duration=0s",
     "severity": "info"
   },
   {
     "timestamp": "2026-05-16T14:26:01.597855460Z",
-    "message": "[SingleIVR] TwiML served for session=d787cc49-bf71-46f9-829c-cd587ecf4730 target=+17732990091",
+    "message": "[SingleIVR] TwiML served for session=quickstart-guide-7 target=+17732990091",
     "severity": "info"
   },
   {
@@ -2346,12 +2346,12 @@
   },
   {
     "timestamp": "2026-05-16T14:26:29.044264736Z",
-    "message": "[SingleIVR] AMD: session=d787cc49-bf71-46f9-829c-cd587ecf4730 AnsweredBy=machine_start → machine",
+    "message": "[SingleIVR] AMD: session=quickstart-guide-7 AnsweredBy=machine_start → machine",
     "severity": "info"
   },
   {
     "timestamp": "2026-05-16T14:26:29.044268066Z",
-    "message": "[SingleIVR] Status: session=d787cc49-bf71-46f9-829c-cd587ecf4730 sid=CA11bcf3694db5a8c96e76c3f973fce745 status=completed duration=26s answeredBy=machine_start",
+    "message": "[SingleIVR] Status: session=quickstart-guide-7 sid=CA11bcf3694db5a8c96e76c3f973fce745 status=completed duration=26s answeredBy=machine_start",
     "severity": "info"
   },
   {
