@@ -2984,17 +2984,21 @@ ${CHAT_BOT_NAME}`,
  ? `\n⚠️ <strong>महत्वपूर्ण - अभी अपना पासवर्ड सहेजें!</strong>\n• सुरक्षा कारणों से हम इसे बाद में पुनः प्राप्त नहीं कर सकते\n• यदि खो जाता है, तो VPS प्रबंधन से "पासवर्ड रीसेट करें" का उपयोग करें (डेटा संरक्षित रहेगा)\n• पासवर्ड को प्रकट करने और कॉपी करने के लिए ऊपर क्लिक करें\n`
  : `\n⚠️ <strong>अपने क्रेडेंशियल सुरक्षित रूप से सहेजें!</strong>\n`
  
+ const readinessNote = isRDP
+ ? `\n⏱ <strong>पहली बार सेटअप:</strong> Windows सक्रिय होने के बाद इनिशियलाइज़ होने में <b>5–10 मिनट</b> लेता है। यदि RDP तुरंत "क्रेडेंशियल गलत" कहता है, तो कुछ मिनट प्रतीक्षा करें और पुनः प्रयास करें — पासवर्ड सही है।\n`
+ : `\n⏱ <strong>पहली बार सेटअप:</strong> आपका सर्वर पहली बार बूट होने पर एक सेटअप स्क्रिप्ट चलाता है (पासवर्ड लॉगिन सक्षम करता है, root पासवर्ड सिंक करता है)। पहले SSH प्रयास से पहले <b>2–5 मिनट</b> प्रतीक्षा करें। यदि डिलीवरी के तुरंत बाद <i>"Permission denied"</i> या <i>"पासवर्ड गलत"</i> दिखे, तो 2–3 मिनट और प्रतीक्षा करें और पुनः प्रयास करें — पासवर्ड सही है, सर्वर ने अभी प्रोविजनिंग पूरी नहीं की है।\n`
+
  return `<strong>🎉 ${isRDP ? 'RDP' : 'VPS'} [${response.label}] सक्रिय हो गया!</strong>
 
 <strong>🔑 लॉगिन विवरण:</strong>
- <strong>• IP:</strong> ${response.host}
+ <strong>• IP:</strong> <code>${response.host}</code>
  <strong>• OS:</strong> ${vpsDetails.os ? vpsDetails.os.name : (isRDP ? 'Windows Server' : 'Linux')}
- <strong>• उपयोगकर्ता नाम:</strong> ${credentials.username}
- <strong>• पासवर्ड:</strong> <tg-spoiler>${credentials.password}</tg-spoiler> (तुरंत बदलें)
+ <strong>• उपयोगकर्ता नाम:</strong> <code>${credentials.username}</code>
+ <strong>• पासवर्ड:</strong> <tg-spoiler><code>${credentials.password}</code></tg-spoiler> (दिखाने के लिए टैप करें, फिर कॉपी के लिए फिर टैप करें — तुरंत बदलें)
 
 <strong>🔗 कनेक्शन:</strong>
 ${connectInfo}
-${passwordWarning}
+${readinessNote}${passwordWarning}
 📧 यह विवरण आपके पंजीकृत ईमेल पर भी भेजे गए हैं। कृपया इन्हें सुरक्षित रखें।
 
 हमारी सेवा चुनने के लिए धन्यवाद

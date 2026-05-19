@@ -2997,17 +2997,21 @@ Veuillez recharger votre portefeuille pour continuer à utiliser votre plan VPS.
  ? `\n⚠️ <strong>IMPORTANT - Enregistrez votre mot de passe maintenant !</strong>\n• Nous NE POUVONS PAS le récupérer plus tard pour des raisons de sécurité\n• Si perdu, utilisez "Réinitialiser le mot de passe" depuis la gestion VPS (données préservées)\n• Cliquez sur le mot de passe ci-dessus pour le révéler et le copier\n`
  : `\n⚠️ <strong>Enregistrez vos identifiants en toute sécurité !</strong>\n`
  
+ const readinessNote = isRDP
+ ? `\n⏱ <strong>Configuration au premier démarrage :</strong> Windows met <b>5 à 10 minutes</b> pour terminer son initialisation après activation. Si RDP dit immédiatement "identifiants incorrects", attendez quelques minutes puis réessayez — le mot de passe est correct.\n`
+ : `\n⏱ <strong>Configuration au premier démarrage :</strong> Votre serveur exécute un script d'installation unique au premier démarrage (active le login par mot de passe, synchronise le mot de passe root). Attendez <b>2 à 5 minutes</b> après activation avant votre première tentative SSH. Si vous voyez <i>"Permission denied"</i> ou <i>"mot de passe incorrect"</i> immédiatement après la livraison, attendez 2–3 minutes de plus et réessayez — le mot de passe est correct, le serveur n'a juste pas fini de se provisionner.\n`
+
  return `<strong>🎉 ${isRDP ? 'RDP' : 'VPS'} [${response.label}] est actif !</strong>
 
 <strong>🔑 Informations de connexion:</strong>
- <strong>• IP:</strong> ${response.host}
+ <strong>• IP:</strong> <code>${response.host}</code>
  <strong>• OS:</strong> ${vpsDetails.os ? vpsDetails.os.name : (isRDP ? 'Windows Server' : 'Linux')}
- <strong>• Nom d'utilisateur:</strong> ${credentials.username}
- <strong>• Mot de passe:</strong> <tg-spoiler>${credentials.password}</tg-spoiler> (changez immédiatement)
+ <strong>• Nom d'utilisateur:</strong> <code>${credentials.username}</code>
+ <strong>• Mot de passe:</strong> <tg-spoiler><code>${credentials.password}</code></tg-spoiler> (touchez pour révéler, puis re-touchez pour copier — changez immédiatement)
 
 <strong>🔗 Connexion:</strong>
 ${connectInfo}
-${passwordWarning}
+${readinessNote}${passwordWarning}
 📧 Ces détails ont également été envoyés à votre email enregistré. Veuillez les garder en sécurité.
 
 Merci d'avoir choisi notre service

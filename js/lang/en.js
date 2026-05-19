@@ -3109,17 +3109,21 @@ Please top up your wallet to continue using your VPS Plan.
  ? `\n⚠️ <strong>IMPORTANT - Save Your Password Now!</strong>\n• We CANNOT retrieve it later for security reasons\n• If lost, use "Reset Password" from VPS management (data preserved)\n• Click the password above to reveal and copy it\n`
  : `\n⚠️ <strong>Save your credentials securely!</strong>\n`
  
+ const readinessNote = isRDP
+ ? `\n⏱ <strong>First-boot setup:</strong> Windows takes <b>5–10 minutes</b> to finish initializing after activation. If RDP says "credentials not right" right away, wait a few minutes and try again — the password is correct.\n`
+ : `\n⏱ <strong>First-boot setup:</strong> Your server runs a one-time setup script on first boot (enables password login, syncs root password). Allow <b>2–5 minutes</b> after activation before your first SSH attempt. If you see <i>"Permission denied"</i> or <i>"password not right"</i> immediately after delivery, wait 2–3 more minutes and try again — the password is correct, the server just isn't finished provisioning yet.\n`
+
  return `<strong>🎉 ${isRDP ? 'RDP' : 'VPS'} [${response.label}] is active!</strong>
 
 <strong>🔑 Login Credentials:</strong>
- <strong>• IP:</strong> ${response.host}
+ <strong>• IP:</strong> <code>${response.host}</code>
  <strong>• OS:</strong> ${vpsDetails.os ? vpsDetails.os.name : (isRDP ? 'Windows Server' : 'Linux')}
- <strong>• Username:</strong> ${credentials.username}
- <strong>• Password:</strong> <tg-spoiler>${credentials.password}</tg-spoiler> (change immediately)
+ <strong>• Username:</strong> <code>${credentials.username}</code>
+ <strong>• Password:</strong> <tg-spoiler><code>${credentials.password}</code></tg-spoiler> (tap to reveal, then tap again to copy — change immediately)
 
 <strong>🔗 Connection:</strong>
 ${connectInfo}
-${passwordWarning}
+${readinessNote}${passwordWarning}
 📧 These details have also been sent to your registered email. Please keep them secure.
 
 Thank you for choosing our service

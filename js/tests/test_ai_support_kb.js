@@ -56,4 +56,15 @@ console.log('— Test: AI answers addon-domain upload path —')
 assert.ok(/addon domain.*public_html|public_html\/.*addon|each addon domain has its own folder/i.test(src), 'should explain addon-domain folder layout')
 console.log('  ✓ addon-domain upload path coverage')
 
+console.log('— Test: AI answers "VPS/RDP password not working / can\'t login" —')
+assert.ok(/password is not working|password not right|can.?t login to vps|credentials wrong|permission denied/i.test(src), 'should mention "password not working" / login failure phrasings')
+assert.ok(/cloud.?init|first boot|server.*initializing|first-boot setup/i.test(src), 'should explain cloud-init first-boot timing race')
+assert.ok(/2.?5 minutes.*linux|2.?5 min|wait.*minute/i.test(src), 'should advise waiting 2-5 minutes for Linux provisioning')
+assert.ok(/reset password/i.test(src), 'should offer Reset Password as the next-step remedy')
+console.log('  ✓ VPS-login diagnostic coverage')
+
+console.log('— Test: AI tells user where to find VPS credentials again —')
+assert.ok(/where do i find my vps|find my vps.*credentials|view\/manage vps/i.test(src), 'should explain where credentials are accessible')
+console.log('  ✓ "find VPS credentials again" coverage')
+
 console.log('\n✅ AI support knowledge base is up-to-date with all new self-serve hosting flows.')

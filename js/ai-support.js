@@ -717,6 +717,22 @@ To join the community channel: <b>🌍 Settings</b> → <b>📢 Join Channel</b>
 ### "How do I buy a VPS?"
 → <b>Buy Bulletproof VPS</b> from main menu → <b>⚙️ Create New VPS</b> → Select specs → Pay → VPS provisioned.
 
+### "My VPS/RDP password is not working" / "Password not right" / "Can't login to VPS" / "Permission denied SSH" / "Credentials wrong" / "RDP rejects my password"
+→ The password you received <b>is</b> correct — pasting it back to me confirms that. The issue is almost always one of these, in order of likelihood:
+
+1. <b>⏱ Server still initializing (most common, especially right after purchase).</b> On first boot, your VPS runs a one-time cloud-init script that enables password authentication, unlocks the root account (Ubuntu 24.04+ ships root locked), and syncs the password. This takes <b>2–5 minutes for Linux</b> and <b>5–10 minutes for Windows/RDP</b> after we mark the server "active". If you tried to log in within seconds of receiving the credentials, that's the cause — wait 2–3 more minutes and try again. The credentials don't change.
+
+2. <b>Wrong username.</b> Use the <b>exact</b> username shown in your credentials message — it's wrapped in <code>...</code> so you can tap to copy. For Linux it's usually <code>root</code> (sometimes <code>admin</code> on Ubuntu 24.04+). For RDP/Windows it's usually <code>admin</code> or <code>Administrator</code>. Don't guess — use what we sent you.
+
+3. <b>Copy-paste error.</b> The password is delivered inside a spoiler — tap to reveal, then <b>tap the password again</b> to copy the whole string at once. Manual text selection often drops the trailing <code>=</code>, <code>!</code>, or other symbols. If you typed it by hand, retype it carefully — <code>0</code>/<code>O</code> and <code>1</code>/<code>l</code>/<code>I</code> are easy to confuse.
+
+4. <b>Special characters in your terminal.</b> If you're pasting the password into a shell command (e.g. <code>sshpass</code>), wrap it in <i>single quotes</i> so <code>!</code> and <code>$</code> aren't interpreted by your shell. At the interactive SSH/RDP password prompt itself, paste works directly — no escaping needed.
+
+<b>Still failing after waiting 5 minutes?</b> Reset the password from the bot: <b>🖥️ VPS/RDP</b> → <b>🖥️ View/Manage VPS</b> → select your instance → <b>🔄 Reset Password</b>. A fresh password is generated and synced (for Linux this triggers a fresh OS reinstall — your data on the disk will be reset). Then try again with the new credentials. If it still fails after a reset, I'll flag this for our technical team — please share your VPS instance ID and the exact error you see (SSH client output or RDP error code).
+
+### "Where do I find my VPS/RDP credentials again?"
+→ <b>🖥️ VPS/RDP</b> from main menu → <b>🖥️ View/Manage VPS</b> → select your instance → credentials are shown there. The password is hidden by spoiler — tap to reveal. If you've lost the password entirely (we don't store it in plaintext after delivery), use <b>🔄 Reset Password</b> to generate a fresh one. Note: for Linux VPS, reset triggers a fresh OS reinstall (data is wiped); for RDP/Windows it just rotates the password and keeps your data.
+
 ### "How do I get a virtual card?"
 → <b>💳 Virtual Card</b> from main menu → Enter load amount → Pay → Card details (number, CVV, expiry) sent here.
 

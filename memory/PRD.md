@@ -476,3 +476,44 @@ Added 4 new dedicated Q&A entries to `SYSTEM_PROMPT`:
 
 ### Backlog
 - **P2** — Railway log API still returns 403 (Cloudflare). Workaround used here: local MongoDB + handoff context was sufficient. Revisit only if remote-log fetching is needed for a future task.
+
+---
+
+## 2026-02-XX — VPS credentials "password not right" report (@spoofed, chat 6996287179)
+
+### Problem
+A bot user (@spoofed) reported "password not right" immediately after purchasing a VPS, pasting back the exact generated password (`wKuwMo8rA=R#R0!J7Vh=`) — proving the credentials were delivered correctly but login was failing. Root causes identified:
+
+1. **Cloud-init timing race (P0)** — `vm-instance-setup.js` lines 591–633 injects a cloud-init script that, on first boot, enables `PasswordAuthentication`, unlocks the root account (Ubuntu 24.04+ ships it locked), and syncs the password to the default user. The bot delivers credentials the moment Contabo's API returns `status=running`, but cloud-init can take 2–5 min (Linux) or 5–10 min (Windows/RDP) to finish. Users who SSH within seconds get "Permission denied" / "password not right".
+2. **Credentials-message copy UX (P1)** — `vpsBoughtSuccess` in all 4 lang files wrapped the password in `<tg-spoiler>` but not `<code>`, breaking Telegram's tap-to-copy. Manual selection often drops trailing `=`, `!`, etc. IP and username were also plain text.
+3. **AI Support KB gap (P1)** — `ai-support.js` had no entry for "VPS password not working / can't login", so the AI gave generic vague replies.
+
+### Fix
+**`/app/js/lang/{en,fr,zh,hi}.js → vpsBoughtSuccess`**
+- Wrapped password in `<tg-spoiler><code>${credentials.password}</code></tg-spoiler>` → reliable tap-to-reveal-then-tap-to-copy on every Telegram client.
+- Wrapped IP and username in `<code>...</code>` → one-tap copy.
+- Added a new `readinessNote` block prepended to the warning section, telling users:
+  - Linux: wait **2–5 minutes** after activation before first SSH attempt; explains cloud-init runs once on first boot.
+  - RDP/Windows: wait **5–10 minutes** for Windows to finish initializing.
+  - Reassurance: "the password is correct, the server just isn't finished provisioning yet."
+
+**`/app/js/ai-support.js → SYSTEM_PROMPT`**
+Added 2 new dedicated Q&A entries:
+1. "My VPS/RDP password is not working / Password not right / Can't login to VPS / Permission denied / Credentials wrong / RDP rejects my password" — 4 numbered fixable causes (cloud-init timing → wait, wrong username, copy-paste error dropping trailing symbols, shell escaping for `!`/`$`) + Reset Password remedy + clean escalation with VPS instance ID.
+2. "Where do I find my VPS/RDP credentials again?" — points to 🖥️ VPS/RDP → View/Manage VPS, explains Reset Password caveats (Linux = OS reinstall, RDP = just password rotation).
+
+### Verification
+- New test: `/app/js/tests/test_vps_credentials_message.js` — verifies all 4 lang files have password wrapped in `<code>` inside `<tg-spoiler>`, IP+username in `<code>`, and the readinessNote block with correct timing for both RDP (5–10 min) and Linux (2–5 min). **All 28 sub-tests pass (7 per language × 4 langs).**
+- Extended `/app/js/tests/test_ai_support_kb.js` with 2 new sections (VPS-login diagnostic, find-credentials-again). **All 11 sub-tests pass.**
+- Existing `/app/js/tests/test_ai_support_phase1.js` — **all 19 tests still pass** (no regression).
+- `node --check` clean on all 5 modified files. Bot service restarted cleanly; `[AI Support] OpenAI initialized` and webhook re-registered.
+
+### Files changed
+- `/app/js/ai-support.js` (+27 LOC)
+- `/app/js/lang/en.js` (+5 LOC, modified credentials template)
+- `/app/js/lang/fr.js` (+5 LOC, modified credentials template)
+- `/app/js/lang/zh.js` (+5 LOC, modified credentials template)
+- `/app/js/lang/hi.js` (+5 LOC, modified credentials template)
+- `/app/js/tests/test_ai_support_kb.js` (+11 LOC, new assertions)
+- `/app/js/tests/test_vps_credentials_message.js` (new, 86 LOC)
+

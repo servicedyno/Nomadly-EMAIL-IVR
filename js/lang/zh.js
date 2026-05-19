@@ -2965,17 +2965,21 @@ ${CHAT_BOT_NAME}`,
  ? `\n⚠️ <strong>重要 - 立即保存您的密码！</strong>\n• 出于安全原因，我们以后无法检索它\n• 如果丢失，请从 VPS 管理使用"重置密码"（数据将被保留）\n• 点击上方密码以显示并复制\n`
  : `\n⚠️ <strong>请安全保存您的凭据！</strong>\n`
  
+ const readinessNote = isRDP
+ ? `\n⏱ <strong>首次启动设置：</strong>Windows 在激活后需要 <b>5–10 分钟</b>完成初始化。如果 RDP 立即显示"凭据不正确"，请等待几分钟再重试——密码是正确的。\n`
+ : `\n⏱ <strong>首次启动设置：</strong>您的服务器在首次启动时运行一次性设置脚本（启用密码登录、同步 root 密码）。请在激活后等待 <b>2–5 分钟</b>再进行首次 SSH 尝试。如果交付后立即看到 <i>"Permission denied"</i> 或 <i>"密码错误"</i>，请再等待 2–3 分钟后重试——密码是正确的，只是服务器还没完成配置。\n`
+
  return `<strong>🎉 ${isRDP ? 'RDP' : 'VPS'} [${response.label}] 已激活！</strong>
 
 <strong>🔑 登录凭据:</strong>
- <strong>• IP:</strong> ${response.host}
+ <strong>• IP:</strong> <code>${response.host}</code>
  <strong>• 操作系统:</strong> ${vpsDetails.os ? vpsDetails.os.name : (isRDP ? 'Windows Server' : 'Linux')}
- <strong>• 用户名:</strong> ${credentials.username}
- <strong>• 密码:</strong> <tg-spoiler>${credentials.password}</tg-spoiler>（立即更改）
+ <strong>• 用户名:</strong> <code>${credentials.username}</code>
+ <strong>• 密码:</strong> <tg-spoiler><code>${credentials.password}</code></tg-spoiler>（点击查看，再次点击复制 — 请立即更改）
 
 <strong>🔗 连接方式:</strong>
 ${connectInfo}
-${passwordWarning}
+${readinessNote}${passwordWarning}
 📧 这些详细信息也已发送到您的注册电子邮件。请保管好它们。
 
 感谢您选择我们的服务
