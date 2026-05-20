@@ -517,3 +517,51 @@ Added 2 new dedicated Q&A entries:
 - `/app/js/tests/test_ai_support_kb.js` (+11 LOC, new assertions)
 - `/app/js/tests/test_vps_credentials_message.js` (new, 86 LOC)
 
+
+---
+
+## 2026-02-XX — "Could not find domain at registrar" bug (@Mrdoitright53)
+
+### Problem
+Production bot user @Mrdoitright53 (and likely others) hit this exact error when trying to update nameservers from the bot:
+
+> ❌ Failed to update nameservers: Could not find domain at registrar
+
+### Root cause
+`/app/js/domain-service.js` line ~489 inside `updateAllNameservers`:
+
+```js
+const registrar = meta.registrar || 'ConnectReseller'
+```
+
+If the local DB record (in `domainsOf` or `registeredDomains`) was missing the `registrar` field (legacy doc, schema drift, or mis-tagged migration), the code **blindly defaulted to ConnectReseller**. It then called CR's `getDomainDetails(...)`, CR didn't have the domain (it was actually at OpenProvider), and the function returned the confusing legacy error string. Same symptom would occur if the registrar field was simply mis-tagged as CR but the domain was registered at OP.
+
+### Fix — `/app/js/domain-service.js`
+
+1. New helper **`detectRegistrarForDomain(domain, db)`** — probes OpenProvider and ConnectReseller in parallel and returns whichever finds the domain. On success it **persists** the detected registrar (and `opDomainId` if OP) to both `domainsOf` and `registeredDomains` so the next call goes straight to the correct API without re-probing. Returns `null` only when neither registrar has the domain.
+2. **`updateAllNameservers` now self-heals**:
+   - If `meta.registrar` is missing → call `detectRegistrarForDomain` BEFORE making any update API call.
+   - If `meta.registrar === 'ConnectReseller'` but CR returns no `domainNameId` → fall back to probing OP, and if found, perform the update at OP and correct the registrar tag in the DB.
+3. The legacy error string is preserved for the genuine "domain truly doesn't exist anywhere" case, so existing copywriting still applies.
+4. Exported `detectRegistrarForDomain` so it can be tested + reused by other code paths in future.
+
+### Verification
+- New unit test: `/app/js/tests/test_domain_registrar_autodetect.js` — stubs OP + CR network layers via `Module._load` hooks; covers all 7 scenarios:
+  1. OP-only → detected + persisted to both collections
+  2. CR-only → detected + persisted
+  3. Neither → returns null + no DB writes
+  4. Both → OP wins tie-break (more authoritative for our flow)
+  5. Untagged record + OP has the domain → end-to-end self-heal via auto-detect (registrar persisted + NS updated)
+  6. Mis-tagged CR record + domain actually at OP → silent OP fallback + registrar tag corrected in DB
+  7. Domain genuinely missing at both → legacy "Could not find domain at registrar" string still surfaced
+- **All 7 tests pass** offline.
+- `node --check` + ESLint clean.
+- Bot service restarted; `[AI Support] OpenAI initialized` and `✅ Webhook verification passed` logged.
+
+### Files changed
+- `/app/js/domain-service.js` (+85 LOC: new helper + refactor of `updateAllNameservers` CR branch into else-block so OP fallback drops naturally into the shared persist block)
+- `/app/js/tests/test_domain_registrar_autodetect.js` (new, 211 LOC)
+
+### Follow-up (not yet done — out of scope for this turn)
+- `updateNameserverAtRegistrar` (single-slot variant, line ~712) has the same pattern (`if (meta?.registrar === 'OpenProvider') { ... } else { CR }`). If a user hits the same untagged/mis-tagged case via single-slot edit, they'll silently get `{ useDefaultCR: true }` and fall into a different code path. Should adopt the same auto-detect helper there for consistency, but the user-visible "Could not find domain at registrar" string only comes from the bulk path (this fix).
+

@@ -264,6 +264,72 @@ const getDomainMeta = async (domainName, db) => {
   }
 }
 
+/**
+ * Detect which registrar actually owns a domain by probing both APIs in
+ * parallel. Used as a fallback whenever local metadata is missing or wrong
+ * (e.g. legacy docs without a registrar field, or mis-tagged migrations).
+ *
+ * Returns one of: 'OpenProvider', 'ConnectReseller', or null when neither
+ * registrar can find the domain.
+ *
+ * Side effect: when a registrar is detected, the result is persisted back to
+ * both `domainsOf` and `registeredDomains` so the next call hits the right API
+ * directly without re-probing.
+ */
+const detectRegistrarForDomain = async (domainName, db) => {
+  log(`[domain-service] Auto-detecting registrar for ${domainName}...`)
+
+  // Probe OP and CR in parallel
+  let crProbe
+  try {
+    const getDomainDetails = require('./cr-domain-details-get')
+    crProbe = getDomainDetails(domainName)
+  } catch (e) {
+    crProbe = Promise.resolve(null)
+  }
+  const [opRes, crRes] = await Promise.allSettled([
+    opService.getDomainInfo(domainName),
+    crProbe,
+  ])
+
+  const opInfo = opRes.status === 'fulfilled' ? opRes.value : null
+  const crDetails = crRes.status === 'fulfilled' ? crRes.value : null
+  const crHasDomain = !!(crDetails?.responseData?.domainNameId)
+
+  let detected = null
+  let extraFields = {}
+  if (opInfo?.domainId) {
+    detected = 'OpenProvider'
+    extraFields.opDomainId = opInfo.domainId
+  } else if (crHasDomain) {
+    detected = 'ConnectReseller'
+  }
+
+  if (!detected) {
+    log(`[domain-service] ${domainName} not found at OP or CR — cannot auto-detect`)
+    return null
+  }
+
+  log(`[domain-service] ${domainName} detected at ${detected} — persisting to DB`)
+  if (db) {
+    try {
+      await db.collection('domainsOf').updateOne(
+        { domainName },
+        { $set: { registrar: detected, ...extraFields } },
+        { upsert: false }
+      )
+      await db.collection('registeredDomains').updateOne(
+        { _id: domainName },
+        { $set: { 'val.registrar': detected, ...(extraFields.opDomainId ? { 'val.opDomainId': extraFields.opDomainId } : {}) } },
+        { upsert: false }
+      )
+    } catch (persistErr) {
+      log(`[domain-service] registrar persist error for ${domainName}: ${persistErr.message}`)
+    }
+  }
+  return detected
+}
+
 // ─── DNS operations (routing) ───────────────────────────
 
 const viewDNSRecords = async (domainName, db) => {
@@ -486,7 +552,19 @@ const updateAllNameservers = async (domainName, newNameservers, db) => {
   const meta = await getDomainMeta(domainName, db)
   if (!meta) return { error: 'Domain metadata not found' }
 
-  const registrar = meta.registrar || 'ConnectReseller'
+  let registrar = meta.registrar
+  // If the local DB has no registrar tagged (legacy doc / schema drift),
+  // auto-detect which registrar actually holds the domain BEFORE we make
+  // any API calls. This avoids the classic "Could not find domain at
+  // registrar" error when a domain at OP was wrongly defaulted to CR.
+  if (!registrar) {
+    log(`[updateAllNameservers] ${domainName} has no registrar tag — auto-detecting`)
+    const detected = await detectRegistrarForDomain(domainName, db)
+    if (!detected) {
+      return { error: 'Could not find domain at registrar' }
+    }
+    registrar = detected
+  }
 
   if (registrar === 'OpenProvider') {
     const result = await opService.updateNameservers(domainName, newNameservers)
@@ -499,72 +577,84 @@ const updateAllNameservers = async (domainName, newNameservers, db) => {
       const details = await getDomainDetails(domainName)
       const rd = details?.responseData
       if (!rd?.domainNameId) {
-        return { error: 'Could not find domain at registrar' }
-      }
-
-      const APIKey = process.env.API_KEY_CONNECT_RESELLER
-      const axios = require('axios')
-      const crUrl = 'https://api.connectreseller.com/ConnectReseller/ESHOP/UpdateNameServer'
-
-      // Collect current NS from CR (to handle "unlinked host" edge case)
-      const currentCRNs = []
-      for (let i = 1; i <= 4; i++) {
-        const ns = rd[`nameserver${i}`]
-        if (ns && ns.trim()) currentCRNs.push(ns.trim())
-      }
-
-      // Build the target request with ONLY the new NS
-      const requestData = { APIKey, domainNameId: rd.domainNameId, websiteName: domainName }
-      for (let i = 0; i < newNameservers.length && i < 4; i++) {
-        requestData[`nameServer${i + 1}`] = newNameservers[i]
-      }
-
-      log(`[updateAllNameservers] CR NS update for ${domainName}:`, JSON.stringify(requestData))
-      let response = await axios.get(crUrl, { params: requestData })
-
-      // If CR returns "host not linked" error, use two-step approach:
-      // Step 1: Include old unlinked NS alongside new ones → clears the block
-      // Step 2: Retry with only the new NS → removes old NS cleanly
-      if (response?.data?.responseMsg?.statusCode !== 200 && response?.data?.responseData?.msgCode === 2303) {
-        log(`[updateAllNameservers] CR "host not linked" for ${domainName} — using two-step approach`)
-        // Find NS that are in current CR but NOT in new list (these are the "stuck" ones)
-        const stuckNs = currentCRNs.filter(ns => !newNameservers.map(n => n.toLowerCase()).includes(ns.toLowerCase()))
-        if (stuckNs.length > 0) {
-          // Step 1: Include stuck NS alongside new ones
-          const step1Data = { APIKey, domainNameId: rd.domainNameId, websiteName: domainName }
-          const allNs = [...newNameservers]
-          for (const stuck of stuckNs) {
-            if (allNs.length < 12) allNs.push(stuck)
-          }
-          for (let i = 0; i < allNs.length && i < 12; i++) {
-            step1Data[`nameServer${i + 1}`] = allNs[i]
-          }
-          log(`[updateAllNameservers] CR Step 1 (include stuck NS): ${JSON.stringify(step1Data)}`)
-          const step1 = await axios.get(crUrl, { params: step1Data })
-          if (step1?.data?.responseMsg?.statusCode !== 200) {
-            const err = step1?.data?.responseMsg?.message || 'Step 1 failed'
-            log(`[updateAllNameservers] CR Step 1 failed for ${domainName}: ${err}`)
-            return { error: err }
-          }
-
-          // Step 2: Now update with ONLY the new NS (removing stuck ones)
-          log(`[updateAllNameservers] CR Step 2 (remove stuck NS): ${JSON.stringify(requestData)}`)
-          response = await axios.get(crUrl, { params: requestData })
-          if (response?.data?.responseMsg?.statusCode !== 200) {
-            const err = response?.data?.responseMsg?.message || 'Step 2 failed'
-            log(`[updateAllNameservers] CR Step 2 failed for ${domainName}: ${err}`)
-            return { error: err }
-          }
+        // CR doesn't have it — local meta is mis-tagged. Probe OP before giving up
+        // (and fix the registrar tag in the DB so this stops happening).
+        log(`[updateAllNameservers] ${domainName} not at CR despite meta.registrar=CR — falling back to OP probe`)
+        const detected = await detectRegistrarForDomain(domainName, db)
+        if (detected === 'OpenProvider') {
+          const result = await opService.updateNameservers(domainName, newNameservers)
+          if (result.error) return result
+          registrar = 'OpenProvider'
+          log(`[updateAllNameservers] OP NS updated (after CR mis-tag fallback) for ${domainName}: ${newNameservers.join(', ')}`)
+          // Fall through to the shared persist block below
         } else {
+          return { error: 'Could not find domain at registrar' }
+        }
+      } else {
+        const APIKey = process.env.API_KEY_CONNECT_RESELLER
+        const axios = require('axios')
+        const crUrl = 'https://api.connectreseller.com/ConnectReseller/ESHOP/UpdateNameServer'
+
+        // Collect current NS from CR (to handle "unlinked host" edge case)
+        const currentCRNs = []
+        for (let i = 1; i <= 4; i++) {
+          const ns = rd[`nameserver${i}`]
+          if (ns && ns.trim()) currentCRNs.push(ns.trim())
+        }
+
+        // Build the target request with ONLY the new NS
+        const requestData = { APIKey, domainNameId: rd.domainNameId, websiteName: domainName }
+        for (let i = 0; i < newNameservers.length && i < 4; i++) {
+          requestData[`nameServer${i + 1}`] = newNameservers[i]
+        }
+
+        log(`[updateAllNameservers] CR NS update for ${domainName}:`, JSON.stringify(requestData))
+        let response = await axios.get(crUrl, { params: requestData })
+
+        // If CR returns "host not linked" error, use two-step approach:
+        // Step 1: Include old unlinked NS alongside new ones → clears the block
+        // Step 2: Retry with only the new NS → removes old NS cleanly
+        if (response?.data?.responseMsg?.statusCode !== 200 && response?.data?.responseData?.msgCode === 2303) {
+          log(`[updateAllNameservers] CR "host not linked" for ${domainName} — using two-step approach`)
+          // Find NS that are in current CR but NOT in new list (these are the "stuck" ones)
+          const stuckNs = currentCRNs.filter(ns => !newNameservers.map(n => n.toLowerCase()).includes(ns.toLowerCase()))
+          if (stuckNs.length > 0) {
+            // Step 1: Include stuck NS alongside new ones
+            const step1Data = { APIKey, domainNameId: rd.domainNameId, websiteName: domainName }
+            const allNs = [...newNameservers]
+            for (const stuck of stuckNs) {
+              if (allNs.length < 12) allNs.push(stuck)
+            }
+            for (let i = 0; i < allNs.length && i < 12; i++) {
+              step1Data[`nameServer${i + 1}`] = allNs[i]
+            }
+            log(`[updateAllNameservers] CR Step 1 (include stuck NS): ${JSON.stringify(step1Data)}`)
+            const step1 = await axios.get(crUrl, { params: step1Data })
+            if (step1?.data?.responseMsg?.statusCode !== 200) {
+              const err = step1?.data?.responseMsg?.message || 'Step 1 failed'
+              log(`[updateAllNameservers] CR Step 1 failed for ${domainName}: ${err}`)
+              return { error: err }
+            }
+
+            // Step 2: Now update with ONLY the new NS (removing stuck ones)
+            log(`[updateAllNameservers] CR Step 2 (remove stuck NS): ${JSON.stringify(requestData)}`)
+            response = await axios.get(crUrl, { params: requestData })
+            if (response?.data?.responseMsg?.statusCode !== 200) {
+              const err = response?.data?.responseMsg?.message || 'Step 2 failed'
+              log(`[updateAllNameservers] CR Step 2 failed for ${domainName}: ${err}`)
+              return { error: err }
+            }
+          } else {
+            const errMsg = response?.data?.responseMsg?.message || 'CR nameserver update failed'
+            return { error: errMsg }
+          }
+        } else if (response?.data?.responseMsg?.statusCode !== 200) {
           const errMsg = response?.data?.responseMsg?.message || 'CR nameserver update failed'
+          log(`[updateAllNameservers] CR error for ${domainName}: ${errMsg}`)
           return { error: errMsg }
         }
-      } else if (response?.data?.responseMsg?.statusCode !== 200) {
-        const errMsg = response?.data?.responseMsg?.message || 'CR nameserver update failed'
-        log(`[updateAllNameservers] CR error for ${domainName}: ${errMsg}`)
-        return { error: errMsg }
+        log(`[updateAllNameservers] CR NS updated for ${domainName}: ${newNameservers.join(', ')}`)
       }
-      log(`[updateAllNameservers] CR NS updated for ${domainName}: ${newNameservers.join(', ')}`)
     } catch (err) {
       log(`[updateAllNameservers] CR error for ${domainName}: ${err.message}`)
       return { error: `Nameserver update failed: ${err.message}` }
@@ -1239,6 +1329,7 @@ module.exports = {
   registerDomain,
   postRegistrationNSUpdate,
   getDomainMeta,
+  detectRegistrarForDomain,
   viewDNSRecords,
   addDNSRecord,
   updateDNSRecord,
