@@ -649,6 +649,40 @@ async function createVPSInstance(telegramId, vpsDetails) {
       console.log(`[Contabo] Image fallback used: requested=${imageId}, actual=${actualImageId}`)
     }
 
+    // Resolve `defaultUser` reliably BEFORE we build the credentials message.
+    // The createInstance response usually returns `defaultUser: undefined`
+    // because Contabo only populates it after the OS finishes provisioning.
+    // If we trust that empty value we'd hand the user `Username: root` for
+    // modern Ubuntu images that actually default to `admin` — root is locked,
+    // login fails, user complains "password not right". (See @spoofed,
+    // chatId 6996287179, 2026-05-19.)
+    //
+    // Poll a few times (5×3s = 15s max) until defaultUser is populated.
+    // If it never populates, fall back to the legacy guess.
+    let resolvedDefaultUser = instance.defaultUser
+    if (!resolvedDefaultUser && !isRDP) {
+      for (let attempt = 1; attempt <= 5; attempt++) {
+        try {
+          const live = await contabo.getInstance(instance.instanceId)
+          if (live?.defaultUser) {
+            resolvedDefaultUser = live.defaultUser
+            console.log(`[Contabo] defaultUser resolved on attempt ${attempt}: ${resolvedDefaultUser}`)
+            // Keep the freshest instance snapshot for downstream fields
+            if (live.ipConfig?.v4?.ip) instance.ipConfig = live.ipConfig
+            if (live.status) instance.status = live.status
+            break
+          }
+        } catch (e) {
+          console.log(`[Contabo] getInstance poll ${attempt} error: ${e.message}`)
+        }
+        await new Promise((r) => setTimeout(r, 3000))
+      }
+      if (!resolvedDefaultUser) {
+        console.log(`[Contabo] defaultUser still unresolved after 5 polls — falling back to 'root'`)
+      }
+    }
+    const defaultUser = resolvedDefaultUser || (isRDP ? 'admin' : 'root')
+
     // Calculate expiry (monthly billing)
     const now = new Date()
     const expiresAt = new Date(now)
@@ -670,7 +704,7 @@ async function createVPSInstance(telegramId, vpsDetails) {
         subscriptionEnd: expiresAt.toISOString()
       },
       credentials: {
-        username: instance.defaultUser || (isRDP ? 'admin' : 'root'),
+        username: defaultUser,
         password: rootPassword
       }
     }
@@ -689,7 +723,7 @@ async function createVPSInstance(telegramId, vpsDetails) {
         osType: vpsData.osType,
         isRDP: isRDP,
         imageId: actualImageId,
-        defaultUser: instance.defaultUser || (isRDP ? 'admin' : 'root'),
+        defaultUser: defaultUser,
         start_time: now,
         end_time: expiresAt,
         plan: 'Monthly',

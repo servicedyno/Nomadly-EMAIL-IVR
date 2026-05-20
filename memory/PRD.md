@@ -565,3 +565,75 @@ If the local DB record (in `domainsOf` or `registeredDomains`) was missing the `
 ### Follow-up (not yet done — out of scope for this turn)
 - `updateNameserverAtRegistrar` (single-slot variant, line ~712) has the same pattern (`if (meta?.registrar === 'OpenProvider') { ... } else { CR }`). If a user hits the same untagged/mis-tagged case via single-slot edit, they'll silently get `{ useDefaultCR: true }` and fall into a different code path. Should adopt the same auto-detect helper there for consistency, but the user-visible "Could not find domain at registrar" string only comes from the bulk path (this fix).
 
+
+---
+
+## 2026-02-XX — VPS "password not right" — REAL root cause (@spoofed, chat 6996287179)
+
+### Background
+Earlier in this session we shipped a "cloud-init timing race" fix for @spoofed's complaint (added a 2-5 min wait note + `<code>`-wrapped password + AI KB entry). The user pushed back: that theory doesn't explain why the **initial password never worked even after waiting**, yet the **password reset (reinstall) worked immediately**. They were right — that was a partial fix. Today's Railway log analysis nailed the real bug.
+
+### Investigation (Railway logs, 2026-05-19)
+Reconstructed the full incident from `HostingBotNew` deployment logs:
+
+- 18:42:00 — @spoofed (6996287179) opens bot
+- 18:42:23 — Selects: Linux VPS / India / Cloud VPS 10 SSD / **Ubuntu 22.04** / password login (skipped SSH key)
+- 18:45:35 — Crypto (ETH) payment confirmed
+- 18:51:22 — `[Contabo] Creating instance: productId=V92, imageId=afecbb85-... (Ubuntu 22.04), rootPassword=370656 (secret-ID number, not the password)`
+- **18:51:46 — Bot sends "🎉 VPS active!" with credentials**
+- 18:58:39 — `"password not right?? wKuwMo8rA=R#R0!J7Vh="` ← 7 min later
+- 19:09:23 — `[VPS] Password reset successful (reinstall) - ChatId: 6996287179, Instance: 203310799`
+- No further complaints
+
+Then live-queried `contabo.getInstance(203310799)` from this fork and got:
+```json
+{ "defaultUser": "admin", "osType": "Linux", "imageId": "d64d5c6c..." (Ubuntu 24.04 — reset switched the OS!) }
+```
+
+### Root cause
+**`/app/js/vm-instance-setup.js:673`** had:
+```js
+credentials: {
+  username: instance.defaultUser || (isRDP ? 'admin' : 'root'),
+  password: rootPassword
+}
+```
+
+`POST /compute/instances` returns `defaultUser: undefined` (the OS hasn't finished provisioning yet — Contabo only reports `defaultUser` after install completes). So the code's `||` fallback fires and the user is told `Username: root`.
+
+But Contabo provisioned the box with `defaultUser=admin` (modern Ubuntu cloud images have **root locked by default**; the rootPassword from the secret gets applied to the `admin` user, not root). So:
+
+- User typed `ssh root@host` with the correct password → **permission denied** (root is locked)
+- User retried for 7+ minutes → **still denied** (root never gets unlocked / no password ever applies to it; cloud-init's bi-directional sync was supposed to copy admin's hash to root but didn't work reliably for this user)
+- User clicked Reset Password → reset path uses `userVPSDetails.defaultUser` (which was correctly stored as `admin` at line 692, ironically using the same broken `||` pattern but Contabo's API had populated `defaultUser` by the time of reset) → reset success message correctly shows `Username: admin` → user types `ssh admin@host` → ✅ works
+
+So the earlier "cloud-init timing" fix was wrong — the real issue is the bot was telling users the wrong username from the start. Waiting wouldn't help because root is permanently locked on these images.
+
+### Fix — `/app/js/vm-instance-setup.js`
+
+After `createInstance` returns, **poll `getInstance(instanceId)` up to 5×3s** until `defaultUser` populates. Use the resolved value in BOTH the credentials message AND the persisted `_vpsPlansOf` record. Skip the poll for RDP (Windows always uses `admin`).
+
+Bonus: when the polled snapshot has fresher data (e.g., real IP instead of `provisioning...`), update `instance.ipConfig` / `instance.status` so the credentials message has the final IP, not a stale placeholder.
+
+If `defaultUser` never populates within 15s (edge case), fall back to the legacy `'root'` default — same behaviour as before but now logged so we can detect it in Railway.
+
+### Verification
+- New unit test: `/app/js/tests/test_vps_credentials_default_user.js` — stubs Contabo via `Module._load` and covers 4 scenarios:
+  1. Contabo returns `defaultUser=admin` immediately → username=admin (direct, no polls wasted)
+  2. Contabo initially returns `undefined`, populates on 2nd poll → username=admin, host updated to refreshed IP
+  3. Contabo never returns `defaultUser` → falls back to `root` with a clear log line
+  4. RDP/Windows skips the Linux-specific poll branch, uses `admin`
+- **All 4 tests pass** offline.
+- `node --check` + ESLint clean.
+- Bot restarted; `[AI Support] OpenAI initialized` and `✅ Webhook verification passed` logged.
+
+### Files changed
+- `/app/js/vm-instance-setup.js` (+37 LOC: defaultUser-polling block before `vpsData` construction, single-source-of-truth `defaultUser` variable used by both the credentials message and the DB insert)
+- `/app/js/tests/test_vps_credentials_default_user.js` (new, 197 LOC)
+
+### Why the earlier "wait 2–5 min" fix was incomplete
+The wait-note IS still useful for the small minority of users on legacy images where root IS the default user and cloud-init genuinely needs a few minutes to enable PasswordAuthentication. We keep it. But for the ~majority on modern Ubuntu images, the username fix is what actually unblocks them.
+
+### Open follow-up (out of scope this turn)
+- The password reset at 19:09:23 silently switched @spoofed's OS from Ubuntu 22.04 to Ubuntu 24.04 (current `imageId=d64d5c6c... = Ubuntu 24.04`). Either Contabo's `PUT /compute/instances/{id}` reinstall doesn't accept all image UUIDs, or our reset-path code is silently using the Ubuntu 24.04 fallback when `opts.imageId` is technically passed but rejected. Worth investigating in a future turn — users ordering Ubuntu 22.04 shouldn't end up on 24.04 after a reset.
+
