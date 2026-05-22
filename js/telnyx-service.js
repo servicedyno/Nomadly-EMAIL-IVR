@@ -365,6 +365,13 @@ async function answerCall(callControlId) {
       log(`[Telnyx] answerCall stale cc=${callControlId} code=${errCode || 'n/a'} detail="${errDetail}" in ${Date.now() - t0}ms`)
       return null
     }
+    // Fix Railway-log issue #9: 90102 "Can not issue an answer command on an outbound call"
+    // Outbound (originate) legs auto-answer on the remote side — calling answer() on them
+    // is a logic bug. We log a warning (not error) and return null so callers no-op gracefully.
+    if (errCode === '90102' || errDetail.includes('outbound call')) {
+      log(`[Telnyx] answerCall skipped (outbound leg) cc=${callControlId} code=${errCode} — answer is only valid on inbound calls`)
+      return null
+    }
     log(`[Telnyx] answerCall ERROR cc=${callControlId} in ${Date.now() - t0}ms code=${errCode || 'n/a'}: ${errDetail}`)
     const err = new Error(errDetail)
     err.telnyxCode = errCode

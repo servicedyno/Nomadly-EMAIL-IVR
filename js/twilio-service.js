@@ -420,12 +420,29 @@ async function mapCredentialListToDomain(domainSid, credListSid, subSid, subToke
 
 async function makeOutboundCall(from, to, twimlUrl, subSid, subToken, options = {}) {
   try {
+    // ── Fix Railway-log issue #14: E.164 pre-validation ──
+    //   Reject obviously malformed numbers BEFORE hitting Twilio so we don't
+    //   waste an API call (and burn a "21211 Invalid 'To' Phone Number" error
+    //   in production logs). A US-style number like "+1208861989" (10 digits
+    //   after +1, but missing one) used to surface as a Twilio error; now we
+    //   surface a clean, user-actionable message synchronously.
+    const e164re = /^\+[1-9]\d{7,14}$/
+    const cleanTo = String(to || '').replace(/[\s\-()]/g, '')
+    if (!e164re.test(cleanTo)) {
+      log(`[Twilio] makeOutboundCall rejected — invalid E.164 destination: "${to}"`)
+      return { error: `Invalid phone number "${to}". Must be in E.164 format (e.g. +12085551212 — 11 digits total for US).` }
+    }
+    const cleanFrom = String(from || '').replace(/[\s\-()]/g, '')
+    if (!e164re.test(cleanFrom)) {
+      log(`[Twilio] makeOutboundCall rejected — invalid E.164 caller-id: "${from}"`)
+      return { error: `Invalid caller ID "${from}". Must be in E.164 format.` }
+    }
     // ━━━ SECURITY: Outbound calls MUST use sub-account — never main account ━━━
     const client = requireSubClient(subSid, subToken, 'makeOutboundCall')
     if (!client) return { error: 'Outbound calls require a sub-account. Cannot use main Twilio account.' }
     const callOpts = {
-      from,
-      to,
+      from: cleanFrom,
+      to: cleanTo,
       url: twimlUrl,
       method: 'POST',
     }

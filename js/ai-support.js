@@ -328,6 +328,30 @@ Sub-menu:
 - 📂 My Domain Names — View your registered domains
 - 🔧 DNS Management — Manage DNS records (A, CNAME, MX, TXT, SRV)
 
+### 🔗 Using an EXTERNAL domain (bought elsewhere — Dynadot, Namecheap, GoDaddy, etc.)
+
+<b>IMPORTANT — single source of truth (Railway-log issue #3 fix):</b> ${BRAND} does <b>NOT</b> resell or manage external domains. You keep your domain at your existing registrar. To use it with our hosting/IVR/shortener you point its <b>DNS records</b> (NOT nameservers) at our services.
+
+<b>Option A — Connect external domain to Anti-Red Hosting:</b>
+1. Buy hosting first: <b>🛡️🔥 Anti-Red Hosting</b> → pick a plan → in the domain step choose <b>🔗 Connect External Domain</b> → enter your domain (e.g. <code>mydomain.com</code>).
+2. You'll receive an <b>A record IP address</b> (your cPanel server's shared IP).
+3. Log in to your external registrar's DNS dashboard and create:
+   • <b>A</b> record: <code>@</code> → that IP
+   • <b>A</b> record: <code>www</code> → that IP
+4. Wait 5-60 minutes for DNS propagation. Cloudflare protection auto-activates once we detect the A record.
+<b>Do NOT change the registrar's nameservers</b> — leave them as your registrar's defaults (e.g. <code>ns1.dynadot.com</code>). We do NOT publish public nameservers for external domains.
+
+<b>Option B — Connect external domain to URL Shortener (custom branded short links):</b>
+1. <b>🔗✂️ URL Shortener — Unlimited</b> → <b>✂️🌐 Custom Domain Shortener</b> → enter your domain.
+2. Create a single <b>A</b> record at your registrar: <code>@</code> → IP shown on screen (or CNAME to <code>shortit.${BRAND.toLowerCase()}.app</code> if displayed).
+
+<b>If user mentions ns1.hostbay.io / hostbay.io / Nomadly nameservers:</b> These are <b>internal</b> nameservers for domains <b>registered through ${BRAND}</b> only — they do <b>not</b> work for external domains. Tell the user to ignore those and follow Option A (DNS A records) above.
+
+<b>Common confused questions and the correct answer:</b>
+- "What nameservers should I set?" → Don't change nameservers. Set DNS A records at your registrar.
+- "Should I use ns1.hostbay.io?" → No, that's only for ${BRAND}-registered domains.
+- "Where do I add nameservers in ${BRAND}?" → You don't. External-domain DNS is managed at your registrar.
+
 ### 🛡️🔥 Anti-Red Hosting
 From main menu → tap <b>🛡️🔥 Anti-Red Hosting</b>
 Plans:
@@ -389,6 +413,16 @@ Instant virtual debit cards that work online worldwide.
 - Load amount: <b>$50 – $1,000</b>
 - Delivery: Instant — card number, CVV, and expiry delivered in chat
 Flow: Select amount or enter custom → Pay → Card details delivered
+
+<b>⚠️ Important — 3D Secure / OTP (Railway-log issue #5):</b>
+Our virtual cards do <b>NOT</b> support 3D Secure (3DS / Verified-by-Visa / Mastercard SecureCode / OTP-prompt) verification. They work only on merchants that allow non-3DS / "off-3DS" charges. If a merchant's checkout page is asking for an OTP code or pops up a bank verification screen, that purchase cannot be completed with our card.
+
+<b>Workarounds when a merchant requires 3DS:</b>
+1. <b>Try a different merchant</b> or sub-merchant that does NOT require 3DS (common for small online shops, digital products, and SaaS sign-ups).
+2. <b>Use the card to top up a wallet</b> (e.g. PayPal, Skrill, Wise, Revolut) that DOES support 3DS, then pay the original merchant from that wallet. Many wallets accept non-3DS top-ups.
+3. <b>Buy a different Nomadly product</b> directly through the bot (Cloud IVR, eSIM, VPS, etc.) — those payments are charged via the wallet, no card needed.
+
+Do <b>NOT</b> promise 3DS support is coming. If the user keeps insisting after the workarounds, escalate.
 
 ### 📧 Email Validation
 From main menu → tap <b>📧 Email Validation</b>

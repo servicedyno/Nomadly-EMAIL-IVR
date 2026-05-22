@@ -4490,11 +4490,16 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
     const msgDelay = hasGif ? Math.max(DELAY_BETWEEN_MESSAGES, 200) : DELAY_BETWEEN_MESSAGES
     const batchDelay = hasGif ? Math.max(DELAY_BETWEEN_BATCHES, 3000) : DELAY_BETWEEN_BATCHES
 
+    // ── Fix Railway-log issue #17: collect per-chatId failure details so we
+    //    can investigate ~5% delivery error rate (was previously hidden).
+    const failedDetails = []      // [{chatId, error, code}]
+    const errorReasonCounts = {}  // { 'TIMEOUT': 3, '403': 2, ... }
     for (let i = 0; i < targetChatIds.length; i += batchSize) {
       const batch = targetChatIds.slice(i, i + batchSize)
       const results = await Promise.allSettled(batch.map(async (chatId, index) => {
         await sleep(index * msgDelay)
-        return sendPromoToUser(chatId, theme, variationIndex, lang, dynamicMessage, couponLine, isEvening)
+        const r = await sendPromoToUser(chatId, theme, variationIndex, lang, dynamicMessage, couponLine, isEvening)
+        return { chatId, ...r }
       }))
       let batchRateLimited = false
       for (const result of results) {
@@ -4504,16 +4509,35 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
           else {
             errorCount++
             if (result.value?.rateLimited) batchRateLimited = true
+            const errMsg = (result.value?.error || 'unknown').substring(0, 120)
+            // Bucket key: first token (e.g. "ETELEGRAM" / "EFATAL" / "TIMEOUT" / status code)
+            const bucket = (errMsg.match(/^[A-Z0-9_]+/) || ['other'])[0]
+            errorReasonCounts[bucket] = (errorReasonCounts[bucket] || 0) + 1
+            if (failedDetails.length < 50) failedDetails.push({ chatId: result.value?.chatId, error: errMsg })
           }
-        } else errorCount++
+        } else {
+          errorCount++
+          const errMsg = (result.reason?.message || String(result.reason || 'rejected')).substring(0, 120)
+          const bucket = (errMsg.match(/^[A-Z0-9_]+/) || ['rejected'])[0]
+          errorReasonCounts[bucket] = (errorReasonCounts[bucket] || 0) + 1
+          if (failedDetails.length < 50) failedDetails.push({ chatId: 'unknown', error: errMsg })
+        }
       }
       // If any send in this batch was rate-limited, add extra cooldown before next batch
       const nextDelay = batchRateLimited ? Math.max(batchDelay, 5000) : batchDelay
       if (i + batchSize < targetChatIds.length) await sleep(nextDelay)
     }
 
-    const stats = { theme, lang, slot: isEvening ? 'evening' : 'morning', variation: usedAI ? 'ai' : variationIndex + 1, usedAI, total: targetChatIds.length, success: successCount, errors: errorCount, skipped: skippedCount, timestamp: new Date().toISOString() }
+    const stats = { theme, lang, slot: isEvening ? 'evening' : 'morning', variation: usedAI ? 'ai' : variationIndex + 1, usedAI, total: targetChatIds.length, success: successCount, errors: errorCount, skipped: skippedCount, errorBreakdown: errorReasonCounts, timestamp: new Date().toISOString() }
     log(`[AutoPromo] Done:`, JSON.stringify(stats))
+    if (errorCount > 0) {
+      const breakdownStr = Object.entries(errorReasonCounts).map(([k,v]) => `${k}=${v}`).join(' ')
+      log(`[AutoPromo] Error breakdown for ${theme}/${lang}/${isEvening ? 'evening' : 'morning'}: ${breakdownStr}`)
+      // Log up to first 10 failed chatIds with their error so we can investigate.
+      for (const f of failedDetails.slice(0, 10)) {
+        log(`[AutoPromo]   ↳ failed chatId=${f.chatId} error="${f.error}"`)
+      }
+    }
     await db.collection('promoStats').insertOne(stats)
   }
 

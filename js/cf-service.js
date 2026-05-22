@@ -151,7 +151,18 @@ const listDNSRecords = async (zoneId, recordType) => {
     if (res.data?.success) return res.data.result || []
     return []
   } catch (err) {
-    log('CF listDNSRecords error:', err.message)
+    // ── Fix Railway-log issue #11: handle 403 gracefully (token scope missing
+    //    or zone not part of account) — return [] and warn-log instead of
+    //    error-log so it doesn't pollute the error stream.
+    const status = err.response?.status
+    const cfErr = err.response?.data?.errors?.[0]
+    if (status === 403) {
+      log(`[CF] listDNSRecords 403 forbidden for zone ${zoneId} (token missing Zone:DNS:Read or zone outside account) — returning empty list`)
+    } else if (status === 404) {
+      log(`[CF] listDNSRecords 404 zone ${zoneId} not found — returning empty list`)
+    } else {
+      log(`[CF] listDNSRecords error for zone ${zoneId}: ${err.message}${cfErr ? ` (${cfErr.code}: ${cfErr.message})` : ''}`)
+    }
     return []
   }
 }
@@ -1129,6 +1140,35 @@ const getAuthenticatedOriginPullsStatus = async (zoneId) => {
  */
 const generateOriginCACert = async (hostnames, validityDays = 5475) => {
   try {
+    // ── Fix Railway-log issue #10: pre-flight zone-membership check ─────────
+    //    Cloudflare's Origin CA API rejects hostnames whose APEX zone is not
+    //    part of the authenticated account with:
+    //      "zone-name <foo.com> is not part of your account"
+    //    Previously we caught the error only AFTER calling the API, polluting
+    //    the error stream. Now we check each hostname's zone exists in our
+    //    account first; if any is missing we abort with a clean warning.
+    // ───────────────────────────────────────────────────────────────────────
+    const apexOf = (h) => {
+      const clean = String(h || '').replace(/^\*\./, '').toLowerCase()
+      const parts = clean.split('.')
+      // naive apex: take last 2 labels (works for .com/.net/.org/etc.). For
+      // ccTLDs like .co.uk a real PSL would be needed but those are rare in
+      // our customer base; the API call will still surface those edge cases.
+      return parts.length <= 2 ? clean : parts.slice(-2).join('.')
+    }
+    const checkedApex = new Set()
+    for (const h of hostnames) {
+      const apex = apexOf(h)
+      if (checkedApex.has(apex)) continue
+      checkedApex.add(apex)
+      const zone = await getZoneByName(apex)
+      if (!zone) {
+        const errMsg = `zone-name "${apex}" not in Cloudflare account — cannot issue Origin CA cert`
+        log(`[CF] generateOriginCACert skipped (pre-flight) for ${hostnames.join(', ')}: ${errMsg}`)
+        return { success: false, error: errMsg, code: 'ZONE_NOT_IN_ACCOUNT', apex }
+      }
+    }
+
     // 1. Generate RSA private key and CSR using Node's crypto/forge
     const { execSync } = require('child_process')
     const os = require('os')
@@ -1193,6 +1233,13 @@ const generateOriginCACert = async (hostnames, validityDays = 5475) => {
     return { success: false, error: errMsg }
   } catch (err) {
     const errMsg = err.response?.data?.errors?.[0]?.message || err.message
+    // Fix #10 (defensive): if the API still tells us the zone isn't ours
+    // (e.g. apex was a multi-label TLD we couldn't detect), warn-log + return
+    // a structured no-success result instead of an ERROR-level log.
+    if (/not part of your account/i.test(errMsg) || /zone-name/i.test(errMsg)) {
+      log(`[CF] generateOriginCACert skipped (post-flight) for ${hostnames.join(', ')}: ${errMsg}`)
+      return { success: false, error: errMsg, code: 'ZONE_NOT_IN_ACCOUNT' }
+    }
     log(`[CF] generateOriginCACert error: ${errMsg}`)
     return { success: false, error: errMsg }
   }

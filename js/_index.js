@@ -4670,6 +4670,21 @@ bot?.on('message', msg => {
   _enqueue(chatId, async () => {
   let message = msg?.text || ''
 
+  // ─── FIX (Railway log issue #15): TDZ crash on `trans` ────────────────────
+  // The rich `trans` closure was originally declared further down (~line 5763)
+  // but several early code paths (admin /reply media, lead admin handlers, etc.)
+  // referenced `trans(...)` BEFORE that declaration → ReferenceError:
+  //   "Cannot access 'trans' before initialization"
+  // Observed for chatId 698123469 on 2026-05-21. We declare a safe fallback
+  // here and rebind it later with the richer version (menu label remapping).
+  // ────────────────────────────────────────────────────────────────────────
+  let _earlyInfo = null
+  try { _earlyInfo = await get(state, chatId) } catch (e) { /* non-fatal */ }
+  let trans = (key, ...args) => {
+    const lang = _earlyInfo?.userLanguage || 'en'
+    return translation(key, lang, ...args)
+  }
+
   // ═══════════════════════════════════════════════════
   // Admin one-tap action follow-up — transparently rewrite admin's free-text
   // reply into the corresponding /reply or /deliver command after they tapped
@@ -5760,7 +5775,8 @@ bot?.on('message', msg => {
     autoPromo.trackPromoResponse(chatId).catch(() => {})
   }
 
-  const trans = (key, ...args) => {
+  // ── Rebind `trans` with the richer menu-label-aware version (#15 fix above) ──
+  trans = (key, ...args) => {
     const lang = info?.userLanguage || 'en';
     const result = translation(key, lang, ...args)
     if (key === 'o' && result?.reply_markup?.keyboard) {
@@ -10080,23 +10096,41 @@ All verified numbers generated during sourcing.`))
 
     const isEscapeTap = menuEscapeLabels.has(message) || /^\/(start|menu|home)\b/.test(message)
     if (isEscapeTap) {
-      // Mirror /done behavior silently, then fall through to normal menu handling
-      await set(supportSessions, chatId, 0)
+      // ── Fix Railway-log issue #6: distinguish "user navigated away" from
+      //    "user tapped an AI-suggested action button". For AI-suggested
+      //    buttons we PAUSE the session (so they can resume by tapping 💬 Support)
+      //    instead of fully ending it. AI history is kept for 10 minutes.
+      const userKey = AI_BUTTON_TO_USER_KEY[message]
+      const isAiSuggestedButton = !!userKey
+      const SESSION_PAUSE_TTL_MS = 10 * 60 * 1000 // resumable for 10 min
+      if (isAiSuggestedButton) {
+        // Pause: mark session as paused-by-ai-button so the user can resume.
+        await set(supportSessions, chatId, Date.now() - 3600000 + SESSION_PAUSE_TTL_MS - 1)
+        // ^ trick: leave a "ghost" expiry so isSupportSessionOpen evaluates false now,
+        //   but we keep AI history so resumed session restores context.
+      } else {
+        await set(supportSessions, chatId, 0)
+        clearAiHistory(chatId)
+      }
       await set(state, chatId, 'action', 'none')
       await set(state, chatId, 'adminTakeover', false)
       action = 'none'  // update local var so downstream logic doesn't still think we're in support
-      clearAiHistory(chatId)
       // If the tap was on an AI action button (short label that doesn't equal
       // the canonical menu label), rewrite `message` to the user-dict menu
       // label so the existing downstream menu handlers route correctly.
-      const userKey = AI_BUTTON_TO_USER_KEY[message]
       if (userKey && user && typeof user[userKey] === 'string' && user[userKey] && user[userKey] !== message) {
         log(`[Support] Rewriting AI button "${message}" → canonical menu label "${user[userKey]}" for ${chatId}`)
         message = user[userKey]
       }
       const escName = await get(nameOf, chatId)
-      send(TELEGRAM_ADMIN_CHAT_ID, `📴 Support session auto-closed — <b>@${escName || chatId}</b> (${chatId}) tapped main-menu button: ${message}`, adminMsgOpts({ chatId, supportSession: true }))
-      log(`[Support] Session auto-ended by menu tap "${message}" from ${chatId} — admin takeover OFF`)
+      if (isAiSuggestedButton) {
+        // Soft pause notification to admin only — user gets seamless navigation
+        send(TELEGRAM_ADMIN_CHAT_ID, `⏸️ Support session paused — <b>@${escName || chatId}</b> (${chatId}) tapped AI-suggested action: ${message} (resumable for 10 min)`, adminMsgOpts({ chatId, supportSession: true }))
+        log(`[Support] Session paused by AI-suggested tap "${message}" from ${chatId} — resumable, AI history kept`)
+      } else {
+        send(TELEGRAM_ADMIN_CHAT_ID, `📴 Support session auto-closed — <b>@${escName || chatId}</b> (${chatId}) tapped main-menu button: ${message}`, adminMsgOpts({ chatId, supportSession: true }))
+        log(`[Support] Session auto-ended by menu tap "${message}" from ${chatId} — admin takeover OFF`)
+      }
       // Do NOT return — let the message fall through to normal menu handlers below
     } else {
 
@@ -25264,11 +25298,19 @@ Select a category:`), k.of(catBtns))
       upgradeMsg += `💰 <b>Upgrade cost: $${chargeAmount.toFixed(2)}</b>\n`
       upgradeMsg += `   ├ New plan: $${newPrice}/mo\n`
       if (eligibleForCredit && credit > 0) {
-        upgradeMsg += `   └ Credit (25% of ${oldPlan}, plan only ${ageDays}d old): -$${credit.toFixed(2)}\n`
+        // ── #4 fix: time-based proration message ──
+        const basis = quote.prorationBasis || ''
+        if (basis === 'expiry_date' || basis === 'purchase_date') {
+          const rDays = Number.isFinite(quote.remainingDays) ? quote.remainingDays : null
+          const cycle = quote.billingCycleDays || 30
+          upgradeMsg += `   └ Prorated credit (${rDays}/${cycle} days unused on ${oldPlan}): -$${credit.toFixed(2)}\n`
+        } else {
+          upgradeMsg += `   └ Credit (${oldPlan}): -$${credit.toFixed(2)}\n`
+        }
       } else {
-        const ageNote = ageDays === null
+        const ageNote = ageDays === null || ageDays === Infinity
           ? `plan age unknown`
-          : `plan ${ageDays}d old, past 14-day window`
+          : `plan ${ageDays}d old, no remaining days to prorate`
         upgradeMsg += `   └ <i>No credit applied — ${ageNote}</i>\n`
       }
       upgradeMsg += `👛 Wallet: $${walletBal.toFixed(2)}\n\n`

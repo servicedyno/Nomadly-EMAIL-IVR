@@ -454,7 +454,7 @@ async function autoWhitelistIP() {
           list_name: 'white',
           comment: `Auto-whitelisted by Nomadly at ${new Date().toISOString()}`,
         },
-        timeout: 20000,
+        timeout: 30000,
       }))
       if (whitelistRes.data?.metadata?.result === 1) {
         results.cphulk = true
@@ -483,7 +483,7 @@ async function autoWhitelistIP() {
           ip,
           comment: `Nomadly auto-whitelist ${new Date().toISOString().split('T')[0]}`,
         },
-        timeout: 20000,
+        timeout: 30000,
       }))
       if (csfRes.data?.metadata?.result === 1 || csfRes.data?.result === 1) {
         results.csf = true
@@ -520,7 +520,7 @@ async function autoWhitelistIP() {
           host: ip,
           comment: 'Nomadly auto-whitelist',
         },
-        timeout: 20000,
+        timeout: 30000,
       }))
       log(`[WHM-Whitelist] Host Access: ${ip} added`)
     } catch (err) {

@@ -463,17 +463,28 @@ const upgradeMessage = (feature, currentPlan, lang) => {
 // ── One-tap plan upgrades ──
 // Maps the natural next-tier upgrade. Business has no next tier (top plan).
 const NEXT_PLAN = { starter: 'pro', pro: 'business' }
-const PLAN_UPGRADE_CREDIT_PCT = 0.25
-const PLAN_UPGRADE_CREDIT_AGE_DAYS = 14 // Credit only granted within first 2 weeks of current plan
+const PLAN_UPGRADE_CREDIT_PCT = 0.25      // (legacy) cap used as a fallback if dates are missing
+const PLAN_UPGRADE_CREDIT_AGE_DAYS = 14   // (legacy) max age for the legacy flat-25% credit
+const PLAN_BILLING_CYCLE_DAYS = 30        // assumed plan billing cycle for proration
 
 // computeUpgradeQuote — pure helper used by both the Manage-screen one-tap
 // button label AND the upgrade-preview confirmation screen so the two never
-// disagree. Applies the 25% credit-from-old-plan rule, but ONLY if the
-// number's current plan has been active for ≤14 days (purchaseDate within
-// last 2 weeks). After that, the user pays the full new-plan price.
+// disagree.
 //
-// Returns null if the new plan is not a real plan or the upgrade is not a
-// strict upgrade (downgrades / same tier go through the warning flow).
+// FIX (Railway log issue #4 — EIN_5050 / 8541381736 abandoned upgrade because
+//      they were charged the full $120 instead of $120 - prorated_unused_starter)
+//
+// Proration rule:
+//   credit = oldPrice × (remainingDays / PLAN_BILLING_CYCLE_DAYS)
+//   chargeAmount = max(0, newPrice - credit)
+//
+// `remainingDays` is derived from the most reliable of (in order):
+//   1. num.expiryDate / num.planEndingTime
+//   2. PLAN_BILLING_CYCLE_DAYS - ageDays(num.purchaseDate)
+// If neither is available we fall back to the legacy 25% / 14-day rule so we
+// never over-credit users who lack timestamps.
+//
+// Returns null if either plan key is unknown.
 function computeUpgradeQuote(num, newPlanKey) {
   if (!num || !newPlanKey) return null
   const oldPlanKey = num.plan
@@ -482,22 +493,59 @@ function computeUpgradeQuote(num, newPlanKey) {
   if (!oldPlanObj || !newPlanObj) return null
   const oldPrice = Number(oldPlanObj.price) || Number(num.planPrice) || 0
   const newPrice = Number(newPlanObj.price) || 0
+
   const purchaseDate = num.purchaseDate ? new Date(num.purchaseDate) : null
+  const expiryDate = num.expiryDate
+    ? new Date(num.expiryDate)
+    : (num.planEndingTime ? new Date(num.planEndingTime) : null)
+  const now = Date.now()
+
   const ageDays = (purchaseDate && !isNaN(purchaseDate.getTime()))
-    ? Math.floor((Date.now() - purchaseDate.getTime()) / 86400000)
-    : Infinity
-  const eligibleForCredit = ageDays <= PLAN_UPGRADE_CREDIT_AGE_DAYS
-  const credit = eligibleForCredit
-    ? parseFloat((oldPrice * PLAN_UPGRADE_CREDIT_PCT).toFixed(2))
-    : 0
+    ? Math.floor((now - purchaseDate.getTime()) / 86400000)
+    : null
+
+  let remainingDays = null
+  if (expiryDate && !isNaN(expiryDate.getTime())) {
+    remainingDays = Math.max(0, Math.ceil((expiryDate.getTime() - now) / 86400000))
+  } else if (ageDays !== null) {
+    remainingDays = Math.max(0, PLAN_BILLING_CYCLE_DAYS - ageDays)
+  }
+
+  // ── PRIMARY: time-based proration ──
+  let credit = 0
+  let prorationBasis = 'legacy_25pct'
+  if (remainingDays !== null && remainingDays > 0) {
+    credit = parseFloat(((oldPrice * remainingDays) / PLAN_BILLING_CYCLE_DAYS).toFixed(2))
+    prorationBasis = expiryDate ? 'expiry_date' : 'purchase_date'
+  } else if (ageDays !== null && ageDays <= PLAN_UPGRADE_CREDIT_AGE_DAYS) {
+    // ── FALLBACK 1: legacy flat 25% within first 14 days when we couldn't
+    //                compute a per-day proration (shouldn't normally happen).
+    credit = parseFloat((oldPrice * PLAN_UPGRADE_CREDIT_PCT).toFixed(2))
+    prorationBasis = 'legacy_25pct_fallback'
+  } else if (ageDays === null) {
+    // ── FALLBACK 2: no timestamps at all → give the user the benefit of the
+    //                doubt and apply the legacy 25% credit once.
+    credit = parseFloat((oldPrice * PLAN_UPGRADE_CREDIT_PCT).toFixed(2))
+    prorationBasis = 'no_timestamps'
+  }
+
+  // Safety: credit can never exceed the old plan's price.
+  if (credit > oldPrice) credit = oldPrice
+
+  const eligibleForCredit = credit > 0
   const chargeAmount = Math.max(0, parseFloat((newPrice - credit).toFixed(2)))
+
   return {
     oldPlanKey, newPlanKey,
     oldPrice, newPrice,
-    ageDays, eligibleForCredit,
+    ageDays: ageDays === null ? Infinity : ageDays,
+    remainingDays,
+    eligibleForCredit,
     credit, chargeAmount,
     creditAgeLimitDays: PLAN_UPGRADE_CREDIT_AGE_DAYS,
     creditPct: PLAN_UPGRADE_CREDIT_PCT,
+    billingCycleDays: PLAN_BILLING_CYCLE_DAYS,
+    prorationBasis,
   }
 }
 

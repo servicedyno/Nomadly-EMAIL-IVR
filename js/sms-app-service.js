@@ -385,12 +385,12 @@ async function maybeNudgeImsUser(strChatId, simCarrier, appVersion) {
   if (!isLikelyImsCarrier(simCarrier)) return
   if (!isPreImsFixVersion(appVersion)) return // user already on the fixed APK
 
-  // Count recent send_timeout events for THIS user in the last 2 hours
+  // Count recent send_timeout / multipart_timeout events for THIS user in the last 2 hours
   const recentCutoff = new Date(Date.now() - 2 * 60 * 60 * 1000)
   const recentFails = await db.collection('testSmsLogs').countDocuments({
     chatId: strChatId,
     success: false,
-    errorReason: 'send_timeout',
+    errorReason: { $in: ['send_timeout', 'multipart_timeout'] },
     simCarrier: { $exists: true, $ne: null },
     ts: { $gte: recentCutoff }
   })
@@ -1033,7 +1033,11 @@ ${versionsBehind >= 2 ? `⚠️ You are <b>${versionsBehind} versions behind</b>
       // Heuristic: SMS on T-Mobile Wi-Fi Calling (and some other IMS carriers) fails
       // with `send_timeout` on older APKs because Android's sentIntent broadcast
       // doesn't fire through the IMS path. Detect the pattern and help the user.
-      if (!success && errorReason === 'send_timeout' && isLikelyImsCarrier(simCarrier)) {
+      //
+      // Fix Railway-log issue #16: also nudge on `multipart_timeout` — same
+      // root cause for long (>160 char) SMS where the per-segment delivery
+      // ack times out under IMS, even though the parts were actually sent.
+      if (!success && (errorReason === 'send_timeout' || errorReason === 'multipart_timeout') && isLikelyImsCarrier(simCarrier)) {
         try { await maybeNudgeImsUser(strChatId, simCarrier, appVersion) } catch (e) {
           console.warn('[SmsApp][IMS-Nudge] error:', e.message)
         }
