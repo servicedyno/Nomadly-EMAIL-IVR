@@ -1550,6 +1550,186 @@ const adminMsgOpts = (args = {}) => {
   return opts
 }
 
+// ── Railway-log issue #2 fix: escalation pipeline ─────────────────────────
+//   AI sets `escalate: true` but historically the only signal was a small
+//   "🚨 NEEDS HUMAN ATTENTION" tag appended to the regular AI message — easy
+//   to miss in a busy admin chat. LBHAND23 (1794625076) waited >24 hours on a
+//   missing eSIM QR code despite multiple escalations firing.
+//
+//   This helper:
+//     1. Persists the escalation to `escalations` collection (DB-queryable)
+//     2. Sends a SEPARATE, prominent 🚨 alert message with inline Reply / Close
+//     3. Dedupes within 5 minutes per chatId (no spam if user pings 5×)
+//     4. Returns the escalation _id so callers can attach more context
+// ───────────────────────────────────────────────────────────────────────────
+const ESCALATION_DEDUP_MS = 5 * 60 * 1000          // 5 min per chatId
+const ESCALATION_REMINDER_AFTER_MS = 10 * 60 * 1000 // re-ping after 10 min
+const _recentEscalations = new Map() // chatId → { ts, escalationId }
+
+async function recordEscalation({ chatId, displayName, userMessage, aiResponse, reason, lang }) {
+  try {
+    if (!chatId) return null
+    const cidStr = String(chatId)
+    const now = Date.now()
+
+    // Dedup: if we already raised an open escalation for this chatId in the
+    // last 5 min, just update it (don't spam admin with a second alert).
+    const recent = _recentEscalations.get(cidStr)
+    if (recent && (now - recent.ts) < ESCALATION_DEDUP_MS) {
+      try {
+        await escalations.updateOne(
+          { _id: recent.escalationId },
+          { $push: { followups: { userMessage: String(userMessage || '').substring(0, 500), aiResponse: String(aiResponse || '').substring(0, 800), at: new Date() } } }
+        )
+      } catch (e) { /* non-fatal */ }
+      log(`[Escalation] DEDUP — follow-up for ${cidStr} (id=${recent.escalationId})`)
+      return recent.escalationId
+    }
+
+    const escId = nanoid()
+    const doc = {
+      _id: escId,
+      chatId: cidStr,
+      username: displayName || null,
+      userMessage: String(userMessage || '').substring(0, 1000),
+      aiResponse: String(aiResponse || '').substring(0, 1500),
+      reason: reason || 'ai_flagged',
+      lang: lang || 'en',
+      status: 'open', // open → acknowledged → resolved
+      createdAt: new Date(),
+      acknowledgedAt: null,
+      acknowledgedBy: null,
+      resolvedAt: null,
+      lastReminderAt: null,
+      reminderCount: 0,
+      followups: [],
+    }
+    await escalations.insertOne(doc)
+    _recentEscalations.set(cidStr, { ts: now, escalationId: escId })
+
+    // Send the SEPARATE prominent admin alert — distinct from the AI-reply mirror.
+    if (TELEGRAM_ADMIN_CHAT_ID && bot?.sendMessage) {
+      const alertMsg =
+        `🚨 <b>ESCALATION — HUMAN ATTENTION NEEDED</b>\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `👤 User: <b>${displayName || cidStr}</b> (${cidStr})\n` +
+        `🌐 Lang: ${lang || 'en'}\n` +
+        `📝 Reason: ${reason || 'ai_flagged'}\n` +
+        `🆔 Esc: <code>${escId}</code>\n\n` +
+        `💬 <b>User said:</b>\n<i>${String(userMessage || '').substring(0, 400)}${(userMessage || '').length > 400 ? '...' : ''}</i>\n\n` +
+        `🤖 <b>AI's reply:</b>\n<i>${String(aiResponse || '').substring(0, 400)}${(aiResponse || '').length > 400 ? '...' : ''}</i>\n\n` +
+        `⏰ Reply within 10 min to avoid auto-reminder.`
+      const opts = {
+        parse_mode: 'HTML',
+        reply_markup: { inline_keyboard: [
+          [
+            { text: '💬 Reply User', callback_data: `aR:${cidStr}` },
+            { text: '✅ Ack & Take Over', callback_data: `eAck:${escId}` },
+          ],
+          [
+            { text: '✔️ Resolve', callback_data: `eResolve:${escId}` },
+            { text: '✖️ Close Session', callback_data: `aCS:${cidStr}` },
+          ],
+        ]},
+      }
+      bot.sendMessage(TELEGRAM_ADMIN_CHAT_ID, alertMsg, opts).catch(e => {
+        log(`[Escalation] admin alert send failed for ${cidStr}: ${e.message}`)
+      })
+    }
+    log(`[Escalation] OPENED id=${escId} chatId=${cidStr} reason="${reason || 'ai_flagged'}"`)
+    return escId
+  } catch (e) {
+    log(`[Escalation] recordEscalation error: ${e.message}`)
+    return null
+  }
+}
+
+// Acknowledge an open escalation for a given chatId (called from /reply admin
+// handler and the eAck callback). Marks the MOST RECENT open escalation for
+// the chat as acknowledged.
+async function acknowledgeEscalationForChat(chatId, adminId) {
+  try {
+    if (!chatId || !escalations?.findOneAndUpdate) return null
+    const cidStr = String(chatId)
+    const res = await escalations.findOneAndUpdate(
+      { chatId: cidStr, status: 'open' },
+      { $set: { status: 'acknowledged', acknowledgedAt: new Date(), acknowledgedBy: String(adminId || 'unknown') } },
+      { sort: { createdAt: -1 }, returnDocument: 'after' }
+    )
+    const doc = res?.value || res
+    if (doc?._id) {
+      log(`[Escalation] ACK id=${doc._id} chatId=${cidStr} by=${adminId || 'unknown'}`)
+      _recentEscalations.delete(cidStr) // allow new escalations to alert again
+    }
+    return doc?._id || null
+  } catch (e) {
+    log(`[Escalation] acknowledgeEscalationForChat error: ${e.message}`)
+    return null
+  }
+}
+
+async function resolveEscalation(escId, adminId) {
+  try {
+    if (!escId || !escalations?.updateOne) return false
+    await escalations.updateOne(
+      { _id: escId },
+      { $set: { status: 'resolved', resolvedAt: new Date(), resolvedBy: String(adminId || 'unknown') } }
+    )
+    log(`[Escalation] RESOLVED id=${escId} by=${adminId || 'unknown'}`)
+    return true
+  } catch (e) {
+    log(`[Escalation] resolveEscalation error: ${e.message}`)
+    return false
+  }
+}
+
+// Periodic reminder: re-ping admin about OPEN escalations >10 min old that
+// haven't been acknowledged. Runs every 5 min. Caps at 3 reminders per
+// escalation to avoid alert fatigue.
+async function escalationReminderTick() {
+  try {
+    if (!escalations?.find) return
+    const cutoff = new Date(Date.now() - ESCALATION_REMINDER_AFTER_MS)
+    const overdue = await escalations.find({
+      status: 'open',
+      createdAt: { $lt: cutoff },
+      reminderCount: { $lt: 3 },
+    }).limit(20).toArray()
+    for (const esc of overdue) {
+      const ageMin = Math.floor((Date.now() - new Date(esc.createdAt).getTime()) / 60000)
+      const reminderMsg =
+        `🔔 <b>ESCALATION REMINDER (#${(esc.reminderCount || 0) + 1}/3)</b>\n` +
+        `Open for <b>${ageMin} min</b> — still no reply.\n\n` +
+        `👤 ${esc.username || esc.chatId} (${esc.chatId})\n` +
+        `🆔 <code>${esc._id}</code>\n` +
+        `💬 <i>${String(esc.userMessage || '').substring(0, 300)}</i>`
+      const opts = {
+        parse_mode: 'HTML',
+        reply_markup: { inline_keyboard: [[
+          { text: '💬 Reply User', callback_data: `aR:${esc.chatId}` },
+          { text: '✅ Ack', callback_data: `eAck:${esc._id}` },
+          { text: '✔️ Resolve', callback_data: `eResolve:${esc._id}` },
+        ]]},
+      }
+      try {
+        if (bot?.sendMessage && TELEGRAM_ADMIN_CHAT_ID) {
+          await bot.sendMessage(TELEGRAM_ADMIN_CHAT_ID, reminderMsg, opts)
+        }
+      } catch (e) { log(`[Escalation] reminder send error: ${e.message}`) }
+      await escalations.updateOne(
+        { _id: esc._id },
+        { $set: { lastReminderAt: new Date() }, $inc: { reminderCount: 1 } }
+      )
+    }
+    if (overdue.length > 0) log(`[Escalation] sent ${overdue.length} overdue reminder(s)`)
+  } catch (e) {
+    log(`[Escalation] reminder tick error: ${e.message}`)
+  }
+}
+
+// Schedule reminder tick every 5 min once bot is up.
+setInterval(() => { escalationReminderTick().catch(() => {}) }, 5 * 60 * 1000)
+
 // Send admin-only notification (private, not to groups)
 const notifyAdmin = (message) => {
   try {
@@ -1649,7 +1829,9 @@ let supportSessions = {},
   leadRequests = {},
   cpanelAccounts = {},
   pendingBundles = {},
-  referrals = {}
+  referrals = {},
+  // Railway-log issue #2 fix: persistent escalations tracking
+  escalations = {}
 
 // Daily coupon system reference
 let dailyCouponSystem = null
@@ -1934,6 +2116,13 @@ const loadData = async () => {
   // Defer-register Twilio bundle-status route ONLY after the collection is bound
   registerBundleStatusRoute()
   referrals = db.collection('referrals')
+  // ── Railway-log issue #2 fix: persistent AI-support escalations ──
+  escalations = db.collection('escalations')
+  // Index for finding open / overdue escalations quickly
+  try {
+    await escalations.createIndex({ status: 1, createdAt: 1 })
+    await escalations.createIndex({ chatId: 1, status: 1 })
+  } catch (e) { log(`[Escalations] index create failed (non-fatal): ${e.message}`) }
 
   // variables to view system information
   nameOf = db.collection('nameOf')
@@ -4438,6 +4627,52 @@ bot?.on('callback_query', async (query) => {
         parse_mode: 'HTML',
         reply_markup: { force_reply: true, selective: false, input_field_placeholder: `Reply to ${label}…` },
       })
+      // ── Issue #2 fix: auto-acknowledge any open escalation for this chat
+      //   the moment admin taps Reply (they've seen it, they're acting on it).
+      //   Prevents the reminder loop from firing once admin is actively replying.
+      acknowledgeEscalationForChat(target, adminId).catch(() => {})
+      return
+    }
+
+    // ── ✅ Acknowledge Escalation ── eAck:<escId> (Railway-log issue #2 fix)
+    if (data.startsWith('eAck:')) {
+      const escId = data.slice(5)
+      if (!escId) { await ackPopup('Invalid escalation'); return }
+      await ackPopup('Acknowledged')
+      try {
+        const res = await escalations.findOneAndUpdate(
+          { _id: escId, status: 'open' },
+          { $set: { status: 'acknowledged', acknowledgedAt: new Date(), acknowledgedBy: String(adminId) } },
+          { returnDocument: 'after' }
+        )
+        const doc = res?.value || res
+        if (doc) {
+          _recentEscalations.delete(String(doc.chatId))
+          send(adminId, `✅ Escalation <code>${escId.substring(0, 8)}</code> acknowledged. Use 💬 Reply User to message the customer.`, { parse_mode: 'HTML' })
+          log(`[Escalation] ACK via callback id=${escId} by=${adminId}`)
+        } else {
+          send(adminId, `⚠️ Escalation <code>${escId.substring(0, 8)}</code> not found or already acknowledged.`, { parse_mode: 'HTML' })
+        }
+      } catch (e) {
+        log(`[Escalation] eAck error: ${e.message}`)
+        send(adminId, `⚠️ Acknowledge failed: ${e.message}`)
+      }
+      return
+    }
+
+    // ── ✔️ Resolve Escalation ── eResolve:<escId>
+    if (data.startsWith('eResolve:')) {
+      const escId = data.slice(9)
+      if (!escId) { await ackPopup('Invalid escalation'); return }
+      await ackPopup('Resolved')
+      const ok = await resolveEscalation(escId, adminId)
+      if (ok) {
+        const doc = await escalations.findOne({ _id: escId })
+        if (doc?.chatId) _recentEscalations.delete(String(doc.chatId))
+        send(adminId, `✔️ Escalation <code>${escId.substring(0, 8)}</code> marked resolved.`, { parse_mode: 'HTML' })
+      } else {
+        send(adminId, `⚠️ Resolve failed for <code>${escId.substring(0, 8)}</code>.`, { parse_mode: 'HTML' })
+      }
       return
     }
 
@@ -5005,6 +5240,9 @@ bot?.on('message', msg => {
     await set(state, targetChatId, 'adminTakeover', true)
     log(`[Support] Admin replied to ${targetChatId}: ${replyText} (targetLang: ${targetLang}, translated: ${translation.needsTranslation}) — session re-opened, admin takeover ON`)
 
+    // ── Issue #2 fix: also acknowledge any open escalation for this chat ──
+    acknowledgeEscalationForChat(targetChatId, chatId).catch(() => {})
+
     // ══════════════════════════════════════════════════════════════════
     // Auto-deliver pending virtual card orders when admin sends card details
     // Detects: 16-digit card number (with optional spaces/dashes) + MM/YY + 3-4 digit CVV
@@ -5368,6 +5606,33 @@ bot?.on('message', msg => {
       return send(chatId, msg, { parse_mode: 'HTML' })
     } catch (err) {
       return send(chatId, `Error fetching requests: ${err.message}`)
+    }
+  }
+
+  // ── Admin: /escalations — list OPEN AI-support escalations (Issue #2 fix) ──
+  if (isAdmin(chatId) && (message === '/escalations' || message === '/escalations open' || message === '/escalations all')) {
+    try {
+      const showAll = message === '/escalations all'
+      const query = showAll ? {} : { status: { $in: ['open', 'acknowledged'] } }
+      const items = await escalations.find(query).sort({ createdAt: -1 }).limit(20).toArray()
+      if (items.length === 0) {
+        return send(chatId, showAll ? '📭 No escalations on record.' : '✅ No open escalations.', { parse_mode: 'HTML' })
+      }
+      const statusEmoji = { open: '🔴', acknowledged: '🟡', resolved: '✅' }
+      let msg = `📋 <b>Escalations${showAll ? ' (all, last 20)' : ' (open + acknowledged)'}: ${items.length}</b>\n\n`
+      items.forEach((esc, i) => {
+        const age = Math.floor((Date.now() - new Date(esc.createdAt).getTime()) / 60000)
+        const ageStr = age < 60 ? `${age}m` : age < 1440 ? `${Math.floor(age/60)}h${age%60}m` : `${Math.floor(age/1440)}d`
+        msg += `${i + 1}. ${statusEmoji[esc.status] || '⚪'} <b>${esc.username || esc.chatId}</b> (${esc.chatId})\n`
+        msg += `   ⏱ ${ageStr} ago | reminders: ${esc.reminderCount || 0}\n`
+        msg += `   📝 ${esc.reason || 'ai_flagged'}\n`
+        msg += `   💬 <i>${String(esc.userMessage || '').substring(0, 120)}${(esc.userMessage || '').length > 120 ? '…' : ''}</i>\n`
+        msg += `   🆔 <code>${esc._id}</code>\n\n`
+      })
+      msg += `<i>Tip: /reply &lt;chatId&gt; &lt;msg&gt; auto-acknowledges. /escalations all to see resolved.</i>`
+      return send(chatId, msg, { parse_mode: 'HTML' })
+    } catch (err) {
+      return send(chatId, `Error fetching escalations: ${err.message}`)
     }
   }
 
@@ -10229,10 +10494,43 @@ All verified numbers generated during sourcing.`))
             `🤖 <b>AI replied to ${displayName}</b> (${chatId}):\n<i>${safeHtml.substring(0, 500)}${safeHtml.length > 500 ? '...' : ''}</i>${escalateTag}`,
             adminMsgOpts({ chatId, supportSession: true }))
           log(`[Support] AI -> ${chatId}: ${aiResponse.substring(0, 100)}... (escalate: ${escalate})`)
+
+          // ── Railway-log issue #2 fix: fire a proper escalation pipeline ──
+          if (escalate) {
+            recordEscalation({
+              chatId,
+              displayName,
+              userMessage: message,
+              aiResponse: safeHtml,
+              reason: 'ai_flagged',
+              lang: userLang || lang,
+            }).then(escId => {
+              if (escId) {
+                // Tell the USER explicitly that help is on the way — closes
+                // the "AI promised escalation but never followed up" gap.
+                const reassureMsg = {
+                  en: `\n\n📣 <i>I've flagged this for our human support team. Expect a reply within ~10 minutes during business hours. Ref: <code>${escId.substring(0, 8)}</code></i>`,
+                  fr: `\n\n📣 <i>J'ai signalé ce cas à notre équipe humaine. Réponse attendue sous ~10 minutes. Réf : <code>${escId.substring(0, 8)}</code></i>`,
+                  zh: `\n\n📣 <i>我已将此问题上报给人工客服团队。预计 ~10 分钟内回复。编号: <code>${escId.substring(0, 8)}</code></i>`,
+                  hi: `\n\n📣 <i>मैंने इसे हमारी मानव सहायता टीम को भेज दिया है। ~10 मिनट में जवाब अपेक्षित। संदर्भ: <code>${escId.substring(0, 8)}</code></i>`,
+                }
+                const userLangSafe = (userLang || lang || 'en')
+                send(chatId, reassureMsg[userLangSafe] || reassureMsg.en, { parse_mode: 'HTML' })
+              }
+            }).catch(e => log(`[Escalation] inline error: ${e.message}`))
+          }
         } else {
           // AI failed — tell user support will follow up, alert admin
           send(chatId, t.supportMsgReceived, { reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
           send(TELEGRAM_ADMIN_CHAT_ID, `⚠️ <b>AI failed for ${displayName}</b> (${chatId}) — needs manual reply\nError: ${error || 'unknown'}`, adminMsgOpts({ chatId, supportSession: true }))
+          // ── Railway-log issue #2 fix: also escalate on AI failure so user
+          //    queries never get silently dropped when the AI errors out.
+          recordEscalation({
+            chatId, displayName,
+            userMessage: message, aiResponse: '(AI failed to respond)',
+            reason: `ai_error:${error || 'unknown'}`,
+            lang: userLang || lang,
+          }).catch(() => {})
         }
       } catch (e) {
         // Fallback to manual
@@ -22251,9 +22549,19 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       upgradeMsg += `💰 <b>Upgrade cost: $${chargeAmount.toFixed(2)}</b>\n`
       upgradeMsg += `   ├ New plan: $${newPrice}/mo\n`
       if (eligibleForCredit && credit > 0) {
-        upgradeMsg += `   └ Credit (25% of ${oldPlan}, plan only ${ageDays}d old): -$${credit.toFixed(2)}\n`
+        // ── #4 fix: time-based proration message ──
+        const basis = quote.prorationBasis || ''
+        if (basis === 'expiry_date' || basis === 'purchase_date') {
+          const rDays = Number.isFinite(quote.remainingDays) ? quote.remainingDays : null
+          const cycle = quote.billingCycleDays || 30
+          upgradeMsg += `   └ Prorated credit (${rDays}/${cycle} days unused on ${oldPlan}): -$${credit.toFixed(2)}\n`
+        } else {
+          upgradeMsg += `   └ Credit (${oldPlan}): -$${credit.toFixed(2)}\n`
+        }
       } else {
-        const ageNote = ageDays === null ? `plan age unknown` : `plan ${ageDays}d old, past 14-day window`
+        const ageNote = ageDays === null || ageDays === Infinity
+          ? `plan age unknown`
+          : `plan ${ageDays}d old, no remaining days to prorate`
         upgradeMsg += `   └ <i>No credit applied — ${ageNote}</i>\n`
       }
       upgradeMsg += `👛 Wallet: $${walletBal.toFixed(2)}\n\n`
@@ -22261,7 +22569,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     upgradeMsg += `Select payment method:`
 
     await saveInfo('cpPendingPlan', newPlan)
-    await saveInfo('cpUpgradeData', { chargeAmount, newPlan, oldPlan, newPrice, phoneNumber: num.phoneNumber, credit, eligibleForCredit, ageDays })
+    await saveInfo('cpUpgradeData', { chargeAmount, newPlan, oldPlan, newPrice, phoneNumber: num.phoneNumber, credit, eligibleForCredit, ageDays, prorationBasis: quote.prorationBasis, remainingDays: quote.remainingDays })
     const _pcBtn = phoneConfig.getBtn(lang || 'en')
     const payBtns = [[payIn.wallet]]
     payBtns.push([payIn.crypto])
@@ -27210,9 +27518,38 @@ Tap a button below to change. Changes sync to your phone on next app open.`
           const escalateTag = escalate ? '\n\n🚨 <b>NEEDS HUMAN ATTENTION</b>' : ''
           send(TELEGRAM_ADMIN_CHAT_ID, `🤖 <b>AI replied to ${displayName}</b> (${chatId}):\n<i>${safeHtml.substring(0, 500)}${safeHtml.length > 500 ? '...' : ''}</i>${escalateTag}`, { parse_mode: 'HTML' })
           log(`[Support] Fallback AI -> ${chatId}: ${aiResponse.substring(0, 100)}... (escalate: ${escalate})`)
+
+          // ── Railway-log issue #2 fix (fallback path): same escalation pipeline ──
+          if (escalate) {
+            recordEscalation({
+              chatId,
+              displayName,
+              userMessage: message,
+              aiResponse: safeHtml,
+              reason: 'ai_flagged_fallback',
+              lang,
+            }).then(escId => {
+              if (escId) {
+                const reassureMsg = {
+                  en: `\n\n📣 <i>I've flagged this for our human support team. Expect a reply within ~10 minutes. Ref: <code>${escId.substring(0, 8)}</code></i>`,
+                  fr: `\n\n📣 <i>J'ai signalé ce cas à notre équipe humaine. Réponse attendue sous ~10 minutes. Réf : <code>${escId.substring(0, 8)}</code></i>`,
+                  zh: `\n\n📣 <i>我已将此问题上报给人工客服团队。预计 ~10 分钟内回复。编号: <code>${escId.substring(0, 8)}</code></i>`,
+                  hi: `\n\n📣 <i>मैंने इसे हमारी मानव सहायता टीम को भेज दिया है। ~10 मिनट में जवाब अपेक्षित। संदर्भ: <code>${escId.substring(0, 8)}</code></i>`,
+                }
+                send(chatId, reassureMsg[lang] || reassureMsg.en, { parse_mode: 'HTML' })
+              }
+            }).catch(e => log(`[Escalation] fallback inline error: ${e.message}`))
+          }
         } else {
           send(chatId, trans('t.supportMsgReceived'), { reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
           send(TELEGRAM_ADMIN_CHAT_ID, `⚠️ <b>AI failed for ${displayName}</b> (${chatId}) — needs manual reply\nError: ${error || 'unknown'}`, { parse_mode: 'HTML' })
+          // Also raise an escalation so the AI-failure doesn't get silently dropped.
+          recordEscalation({
+            chatId, displayName,
+            userMessage: message, aiResponse: '(AI failed to respond)',
+            reason: `ai_error:${error || 'unknown'}`,
+            lang,
+          }).catch(() => {})
         }
       } catch (e) {
         send(chatId, t.supportMsgSent, { reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
@@ -34647,6 +34984,7 @@ const setupTelegramWebhook = async () => {
         { command: 'deliver', description: 'Deliver order — /deliver <orderId> <details>' },
         { command: 'monetization', description: 'Monetization stats — bonuses, win-back, conversions' },
         { command: 'winback', description: 'Trigger win-back campaign for inactive users' },
+        { command: 'escalations', description: 'List open AI-support escalations needing reply' },
       ], {
         scope: JSON.stringify({ type: 'chat', chat_id: adminChatId }),
       })
