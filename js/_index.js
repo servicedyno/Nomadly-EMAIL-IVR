@@ -1566,7 +1566,7 @@ const ESCALATION_DEDUP_MS = 5 * 60 * 1000          // 5 min per chatId
 const ESCALATION_REMINDER_AFTER_MS = 10 * 60 * 1000 // re-ping after 10 min
 const _recentEscalations = new Map() // chatId → { ts, escalationId }
 
-async function recordEscalation({ chatId, displayName, userMessage, aiResponse, reason, lang }) {
+async function recordEscalation({ chatId, displayName, userMessage, aiResponse, reason, lang, media }) {
   try {
     if (!chatId) return null
     const cidStr = String(chatId)
@@ -1577,9 +1577,15 @@ async function recordEscalation({ chatId, displayName, userMessage, aiResponse, 
     const recent = _recentEscalations.get(cidStr)
     if (recent && (now - recent.ts) < ESCALATION_DEDUP_MS) {
       try {
+        const followup = {
+          userMessage: String(userMessage || '').substring(0, 500),
+          aiResponse: String(aiResponse || '').substring(0, 800),
+          at: new Date(),
+        }
+        if (media && media.fileId) followup.media = media
         await escalations.updateOne(
           { _id: recent.escalationId },
-          { $push: { followups: { userMessage: String(userMessage || '').substring(0, 500), aiResponse: String(aiResponse || '').substring(0, 800), at: new Date() } } }
+          { $push: { followups: followup }, ...(media && media.fileId ? { $set: { latestMedia: media } } : {}) }
         )
       } catch (e) { /* non-fatal */ }
       log(`[Escalation] DEDUP — follow-up for ${cidStr} (id=${recent.escalationId})`)
@@ -1603,6 +1609,9 @@ async function recordEscalation({ chatId, displayName, userMessage, aiResponse, 
       lastReminderAt: null,
       reminderCount: 0,
       followups: [],
+      // (a) Persist initial media reference for preview in /escalations
+      media: media && media.fileId ? media : null,
+      latestMedia: media && media.fileId ? media : null,
     }
     await escalations.insertOne(doc)
     _recentEscalations.set(cidStr, { ts: now, escalationId: escId })
@@ -5075,9 +5084,31 @@ bot?.on('message', msg => {
         if (captionText) {
           translated = await translationService.translateAdminReplyForUser(captionText, targetLang)
         }
+        // ── Translated admin→user media headers (b) ─────────────────────────
+        //   Replaces the hardcoded English "💬 Support:" / "💬 Support sent
+        //   you a file:" so the recipient sees the header in their own bot
+        //   language. Falls back to English if their lang isn't in the map.
+        const supportLabelByLang = {
+          en: 'Support', fr: 'Support', es: 'Soporte', de: 'Support', it: 'Supporto',
+          pt: 'Suporte', nl: 'Ondersteuning', ru: 'Поддержка', tr: 'Destek',
+          zh: '客服', 'zh-cn': '客服', 'zh-tw': '客服', ja: 'サポート', ko: '고객지원',
+          hi: 'सहायता', ar: 'الدعم', he: 'תמיכה', id: 'Dukungan', vi: 'Hỗ trợ', th: 'ฝ่ายสนับสนุน',
+        }
+        const sentFileLineByLang = {
+          en: 'sent you a file:', fr: 'vous a envoyé un fichier :', es: 'te ha enviado un archivo:',
+          de: 'hat dir eine Datei gesendet:', it: 'ti ha inviato un file:', pt: 'enviou-lhe um ficheiro:',
+          nl: 'heeft je een bestand gestuurd:', ru: 'отправил(а) вам файл:', tr: 'size bir dosya gönderdi:',
+          zh: '给您发送了一个文件：', 'zh-cn': '给您发送了一个文件：', 'zh-tw': '給您發送了一個檔案：',
+          ja: 'ファイルが届きました:', ko: '파일을 보냈습니다:', hi: 'ने आपको एक फ़ाइल भेजी है:',
+          ar: 'أرسل لك ملفاً:', he: 'שלח לך קובץ:', id: 'mengirimi Anda berkas:', vi: 'đã gửi bạn một tệp:',
+          th: 'ส่งไฟล์ให้คุณ:',
+        }
+        const langKey = (translated.detectedLang || targetLang || userBotLang || 'en').toLowerCase()
+        const localizedSupport = supportLabelByLang[langKey] || supportLabelByLang[langKey.split('-')[0]] || supportLabelByLang.en
+        const localizedSentFile = sentFileLineByLang[langKey] || sentFileLineByLang[langKey.split('-')[0]] || sentFileLineByLang.en
         const userCaption = translated.translated
-          ? `💬 <b>Support:</b>\n${translated.translated}`
-          : '💬 <b>Support sent you a file:</b>'
+          ? `💬 <b>${localizedSupport}:</b>\n${translated.translated}`
+          : `💬 <b>${localizedSupport} ${localizedSentFile}</b>`
 
         // Dispatch media to user
         if (supportsCaption) {
@@ -5298,6 +5329,33 @@ bot?.on('message', msg => {
           // Auto-escalate — media in support almost always means a real issue
           // (screenshots of errors, voice descriptions of problems, etc.).
           try {
+            // Build media descriptor for escalation record (preview support).
+            // For videos/animations, also capture the thumbnail if available.
+            const thumbFileId = (msg.video?.thumbnail?.file_id)
+              || (msg.video?.thumb?.file_id)
+              || (msg.animation?.thumbnail?.file_id)
+              || (msg.animation?.thumb?.file_id)
+              || (msg.document?.thumbnail?.file_id)
+              || (msg.document?.thumb?.file_id)
+              || null
+            const mediaDescriptor = {
+              fileId,
+              type: msg.photo ? 'photo'
+                  : msg.video ? 'video'
+                  : msg.voice ? 'voice'
+                  : msg.audio ? 'audio'
+                  : msg.animation ? 'animation'
+                  : msg.video_note ? 'video_note'
+                  : msg.sticker ? 'sticker'
+                  : msg.document ? 'document'
+                  : 'unknown',
+              kindLabel: mediaKind,
+              fileName: fileName || null,
+              fileSize: fileSize || null,
+              thumbFileId,
+              caption: captionRaw ? captionRaw.substring(0, 200) : null,
+              at: new Date(),
+            }
             await recordEscalation({
               chatId,
               displayName: userLabel,
@@ -5307,6 +5365,7 @@ bot?.on('message', msg => {
               aiResponse: '(media sent — AI cannot view; auto-escalated to human)',
               reason: `media:${mediaKind.replace(/[^a-z]/gi, '_')}`,
               lang: userLang,
+              media: mediaDescriptor,
             })
           } catch (e) { log(`[Support] auto-escalate on media failed: ${e.message}`) }
 
@@ -5793,18 +5852,90 @@ bot?.on('message', msg => {
         return send(chatId, showAll ? '📭 No escalations on record.' : '✅ No open escalations.', { parse_mode: 'HTML' })
       }
       const statusEmoji = { open: '🔴', acknowledged: '🟡', resolved: '✅' }
-      let msg = `📋 <b>Escalations${showAll ? ' (all, last 20)' : ' (open + acknowledged)'}: ${items.length}</b>\n\n`
+      // ── Text summary first ──
+      let summary = `📋 <b>Escalations${showAll ? ' (all, last 20)' : ' (open + acknowledged)'}: ${items.length}</b>\n\n`
       items.forEach((esc, i) => {
         const age = Math.floor((Date.now() - new Date(esc.createdAt).getTime()) / 60000)
         const ageStr = age < 60 ? `${age}m` : age < 1440 ? `${Math.floor(age/60)}h${age%60}m` : `${Math.floor(age/1440)}d`
-        msg += `${i + 1}. ${statusEmoji[esc.status] || '⚪'} <b>${esc.username || esc.chatId}</b> (${esc.chatId})\n`
-        msg += `   ⏱ ${ageStr} ago | reminders: ${esc.reminderCount || 0}\n`
-        msg += `   📝 ${esc.reason || 'ai_flagged'}\n`
-        msg += `   💬 <i>${String(esc.userMessage || '').substring(0, 120)}${(esc.userMessage || '').length > 120 ? '…' : ''}</i>\n`
-        msg += `   🆔 <code>${esc._id}</code>\n\n`
+        const mediaIcon = esc.media?.fileId
+          ? ({ photo: '📷', video: '🎥', voice: '🎤', audio: '🎵', animation: '🎞', video_note: '⏺', document: '📄', sticker: '⭐' }[esc.media.type] || '📎')
+          : ''
+        summary += `${i + 1}. ${statusEmoji[esc.status] || '⚪'} ${mediaIcon} <b>${esc.username || esc.chatId}</b> (${esc.chatId})\n`
+        summary += `   ⏱ ${ageStr} ago | reminders: ${esc.reminderCount || 0}\n`
+        summary += `   📝 ${esc.reason || 'ai_flagged'}\n`
+        summary += `   💬 <i>${String(esc.userMessage || '').substring(0, 120)}${(esc.userMessage || '').length > 120 ? '…' : ''}</i>\n`
+        summary += `   🆔 <code>${esc._id}</code>\n\n`
       })
-      msg += `<i>Tip: /reply &lt;chatId&gt; &lt;msg&gt; auto-acknowledges. /escalations all to see resolved.</i>`
-      return send(chatId, msg, { parse_mode: 'HTML' })
+      summary += `<i>Tip: /reply &lt;chatId&gt; &lt;msg&gt; auto-acknowledges. /escalations all to see resolved.</i>`
+      await send(chatId, summary, { parse_mode: 'HTML' })
+
+      // ── (a) Inline media previews — send each escalation that has media as
+      //    a separate message with the photo/video/etc. embedded as preview.
+      //    Capped at first 10 with media to avoid Telegram rate-limit/spam.
+      const withMedia = items.filter(e => e.media?.fileId).slice(0, 10)
+      for (const esc of withMedia) {
+        try {
+          const age = Math.floor((Date.now() - new Date(esc.createdAt).getTime()) / 60000)
+          const ageStr = age < 60 ? `${age}m` : age < 1440 ? `${Math.floor(age/60)}h${age%60}m` : `${Math.floor(age/1440)}d`
+          const cap = (
+            `${statusEmoji[esc.status] || '⚪'} <b>${esc.username || esc.chatId}</b> (${esc.chatId}) — ${esc.media.kindLabel || esc.media.type}\n` +
+            `⏱ ${ageStr} ago • reminders: ${esc.reminderCount || 0}\n` +
+            `📝 ${esc.reason}\n` +
+            (esc.media.caption ? `💬 <i>${esc.media.caption.substring(0, 200)}</i>\n` : '') +
+            `🆔 <code>${esc._id}</code>`
+          ).substring(0, 1020)
+          const replyKb = { inline_keyboard: [[
+            { text: '💬 Reply', callback_data: `aR:${esc.chatId}` },
+            { text: '✅ Ack', callback_data: `eAck:${esc._id}` },
+            { text: '✔️ Resolve', callback_data: `eResolve:${esc._id}` },
+          ]]}
+          const { type, fileId, thumbFileId, fileName } = esc.media
+          const sendOpts = { caption: cap, parse_mode: 'HTML', reply_markup: replyKb }
+          if (type === 'photo') {
+            await bot.sendPhoto(chatId, fileId, sendOpts)
+          } else if (type === 'animation') {
+            await bot.sendAnimation(chatId, fileId, sendOpts)
+          } else if (type === 'sticker') {
+            // Stickers don't support captions; send sticker first, then text
+            await bot.sendSticker(chatId, fileId)
+            await bot.sendMessage(chatId, cap, { parse_mode: 'HTML', reply_markup: replyKb })
+          } else if (type === 'video' && thumbFileId) {
+            // Render thumbnail as a photo so admin gets an instant visual preview;
+            // mention how to fetch the full video.
+            await bot.sendPhoto(chatId, thumbFileId, {
+              caption: `🎥 <b>VIDEO thumbnail</b> — open the original message for full video\n\n${cap}`,
+              parse_mode: 'HTML', reply_markup: replyKb,
+            })
+          } else if (type === 'video') {
+            // No thumb — just forward the actual video (small enough to inline)
+            await bot.sendVideo(chatId, fileId, sendOpts)
+          } else if (type === 'document' && thumbFileId) {
+            // PDF/log files often carry a thumb (e.g. PDF first page)
+            await bot.sendPhoto(chatId, thumbFileId, {
+              caption: `📄 <b>${fileName || 'document'}</b> — thumbnail preview\n\n${cap}`,
+              parse_mode: 'HTML', reply_markup: replyKb,
+            })
+          } else {
+            // voice / audio / document-without-thumb / video_note / unknown:
+            // no native inline preview — send a compact text card with the
+            // jump-to-original buttons. Admin can scroll back to the original
+            // forwarded message for the full media.
+            const icons = { voice: '🎤', audio: '🎵', video_note: '⏺', document: '📄' }
+            const icon = icons[type] || '📎'
+            const noPreview = `${icon} <b>${(type || 'media').toUpperCase()}</b> — no inline preview${fileName ? ` (${fileName})` : ''}\n\n${cap}`
+            await bot.sendMessage(chatId, noPreview, { parse_mode: 'HTML', reply_markup: replyKb })
+          }
+          // Light throttle to avoid Telegram global rate limit (30 msgs/sec)
+          await new Promise(r => setTimeout(r, 80))
+        } catch (e) {
+          log(`[Escalation] preview send error for ${esc._id}: ${e.message}`)
+        }
+      }
+      const skippedMediaCount = items.filter(e => e.media?.fileId).length - withMedia.length
+      if (skippedMediaCount > 0) {
+        await send(chatId, `<i>… and ${skippedMediaCount} more escalation(s) with media (capped previews at 10).</i>`, { parse_mode: 'HTML' })
+      }
+      return
     } catch (err) {
       return send(chatId, `Error fetching escalations: ${err.message}`)
     }
