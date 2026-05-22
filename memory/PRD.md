@@ -637,3 +637,53 @@ The wait-note IS still useful for the small minority of users on legacy images w
 ### Open follow-up (out of scope this turn)
 - The password reset at 19:09:23 silently switched @spoofed's OS from Ubuntu 22.04 to Ubuntu 24.04 (current `imageId=d64d5c6c... = Ubuntu 24.04`). Either Contabo's `PUT /compute/instances/{id}` reinstall doesn't accept all image UUIDs, or our reset-path code is silently using the Ubuntu 24.04 fallback when `opts.imageId` is technically passed but rejected. Worth investigating in a future turn — users ordering Ubuntu 22.04 shouldn't end up on 24.04 after a reset.
 
+
+---
+
+## 2026-05-22 — Shortener Deactivation Race Fix + Reconciler
+
+### Trigger
+User `Thugnificent_0018` (chatId 5515344236) couldn't reach `https://nymcub.com/review`. Investigation traced to a **half-deactivated state**: the bot's Deactivate flow deleted the Cloudflare CNAME, but the upstream (Railway) `removeDomainFromRailway` call returned HTTP 503. The handler ignored the upstream failure, deleted the CF CNAME anyway, and told the user "✅ Shortener deactivated." The Cloudflare zone served the apex via CNAME flattening was now empty (only TXT remained), so Cloudflare returned HTTP 530 for every request.
+
+### Root cause (single line)
+`/app/js/_index.js` deactivation handler ignored `removeDomainFromRailway` errors and proceeded to delete the Cloudflare CNAME + report success.
+
+### Changes (4 commits worth of work, all landed)
+
+1. **`/app/js/rl-save-domain-in-server.js`** — `removeDomainFromRailway` now classifies errors (`transient: true` for 5xx / network / timeout) and returns the HTTP status code. Added `listRailwayCustomDomains()` helper for the reconciler's orphan check.
+
+2. **`/app/js/_index.js`** — All 3 deactivation handlers patched (main deactivate, switch-to-provider deactivate, shortener-conflict resolver):
+   - Transient error → enqueue retry, show `dns_3_busy` message ("⏳ Our shortener service is briefly busy…"), **do NOT touch CF CNAME**
+   - Hard error → show generic `dns_3` failure, do NOT touch CF CNAME
+   - Success → proceed with CF CNAME cleanup + success message
+   - No "Railway" mentions in any user-facing string — copy uses "shortener service"
+
+3. **`/app/js/shortener-activation-persistence.js`** — Added deactivation queue (`shortenerDeactivations` collection) with `enqueueDeactivation`, `incrementDeactivationRetry`, `markDeactivationDone`, `markDeactivationFailed`, `findPendingDeactivations`. `MAX_DEACTIVATION_RETRIES = 5`.
+
+4. **`/app/js/shortener-reconciler.js`** (new, 222 LOC) — periodic tick (5 min after a 30 s warm-up) does two things:
+   - **Drain pending deactivations** — retry `removeDomainFromRailway` for queued tasks; on success, finish the CF cleanup the handler skipped and DM the user a success message; after 5 transient retries or any hard error, mark `failed` and DM the user to retry manually.
+   - **Heal orphans** — for each `completed` activation, if upstream still claims the domain but CF has no shortener CNAME, fully remove the upstream claim, mark activation `needs_reactivation`, and DM the user once with a "tap Activate URL Shortener" guidance.
+
+5. **Admin command** `/repairshortener <domain>` — runs the full repair flow (drain queue + orphan check + final state snapshot) on demand. Available to `TELEGRAM_ADMIN_CHAT_ID`. Idempotent. Inserted next to `/hostingstatus` in `_index.js`.
+
+6. **i18n strings** — Added `dns_3_busy` for `en` / `fr` / `hi` / `zh`.
+
+### Tests
+`/app/js/tests/test_shortener_reconciler.js` — 4 behavioural unit tests with in-memory mocks (no live DB). All pass:
+1. Transient upstream error → handler does NOT delete CF, retry task is queued ✓
+2. Reconciler tick on healthy upstream → deactivation completes, user notified, CF CNAME removed ✓
+3. After 5 transient retries → task marked `failed`, user notified with escalation message ✓
+4. Orphan heal (upstream claims, CF empty) → upstream cleared, activation marked `needs_reactivation`, user notified once, second pass is no-op ✓
+
+End-to-end against live Railway + Cloudflare APIs: `repairDomain('nymcub.com', …)` returns clean state `healthy / no upstream claim / no CNAME` — confirming the manual recovery earlier in this session.
+
+### Files changed / added
+- `/app/js/rl-save-domain-in-server.js`  (modified)
+- `/app/js/_index.js`                     (modified — 3 handlers + boot wiring + admin cmd)
+- `/app/js/shortener-activation-persistence.js`  (modified — deactivation queue)
+- `/app/js/lang/{en,fr,hi,zh}.js`         (modified — dns_3_busy string)
+- `/app/js/shortener-reconciler.js`       (new)
+- `/app/js/tests/test_shortener_reconciler.js`  (new)
+
+### Bot boot confirms
+`[ShortenerReconciler] Scheduled every 5min` printed at startup.

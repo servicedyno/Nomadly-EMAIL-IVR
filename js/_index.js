@@ -558,7 +558,7 @@ const { initTestOutboundSip, startTest: startTestOutboundSip } = require('./test
 const antiRedService = require('./anti-red-service.js')
 const { initLeadJobPersistence, flushAllJobs, findInterruptedJobs, resumeJob } = require('./lead-job-persistence.js')
 const { initAiSupport, getAiResponse, getMarketplaceAiResponse, moderateMarketplaceChat, clearHistory: clearAiHistory, isAiEnabled, recordUserError, extractActionButtons, rateSupportSession } = require('./ai-support.js')
-const { initShortenerPersistence, createActivationTask, markRailwayLinked, markDnsAdded, markCompleted, markFailed, markSkipped, findIncompleteTasks } = require('./shortener-activation-persistence.js')
+const { initShortenerPersistence, createActivationTask, markRailwayLinked, markDnsAdded, markCompleted, markFailed, markSkipped, findIncompleteTasks, enqueueDeactivation, incrementDeactivationRetry, markDeactivationDone, markDeactivationFailed, findPendingDeactivations, MAX_DEACTIVATION_RETRIES } = require('./shortener-activation-persistence.js')
 const honeypotService = require('./honeypot-service.js')
 const audioLibraryService = require('./audio-library-service.js')
 const bulkCallService = require('./bulk-call-service.js')
@@ -2553,6 +2553,33 @@ const loadData = async () => {
   initLeadJobPersistence(db)
   initAiSupport(db)
   initShortenerPersistence(db)
+
+  // Initialize Shortener Reconciler — heals half-deactivated state and
+  // drains the deactivation retry queue. See /app/js/shortener-reconciler.js.
+  try {
+    const { initShortenerReconciler } = require('./shortener-reconciler.js')
+    const { removeDomainFromRailway: _rdfr, listRailwayCustomDomains } = require('./rl-save-domain-in-server.js')
+    initShortenerReconciler({
+      db,
+      removeDomainFromRailway: _rdfr,
+      listRailwayDomains: listRailwayCustomDomains,
+      domainService,
+      persistence: {
+        findPendingDeactivations,
+        incrementDeactivationRetry,
+        markDeactivationDone,
+        markDeactivationFailed,
+        MAX_DEACTIVATION_RETRIES,
+      },
+      notifyUser: async (chatId, html) => {
+        try { await bot.sendMessage(chatId, html, { parse_mode: 'HTML' }) } catch (e) {
+          log(`[ShortenerReconciler] notifyUser ${chatId} failed: ${e.message}`)
+        }
+      },
+    })
+  } catch (e) {
+    log(`[ShortenerReconciler] init failed: ${e.message}`)
+  }
 
   // Initialize Honeypot Service (MongoDB tracking + KV setup)
   honeypotService.initHoneypot(db)
@@ -5642,6 +5669,43 @@ bot?.on('message', msg => {
       return
     } catch (e) {
       return send(chatId, `❌ /hostingstatus error: ${e.message}`)
+    }
+  }
+
+
+  // ── Admin: /repairshortener <domain> — heal half-deactivated shortener state ──
+  // Use case: a user's short link is broken because the previous deactivate
+  // hit a transient upstream 5xx (CF CNAME deleted, upstream still claims
+  // domain). This command drains any pending deactivation queue entry, runs
+  // the orphan-check + heal, and prints the final state. Idempotent.
+  if (isAdmin(chatId) && message.startsWith('/repairshortener')) {
+    const parts = message.trim().split(/\s+/)
+    const targetDomain = (parts[1] || '').toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').trim()
+    if (!targetDomain || !/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(targetDomain)) {
+      return send(chatId, `Usage: <code>/repairshortener &lt;domain.com&gt;</code>`, { parse_mode: 'HTML' })
+    }
+    try {
+      const { repairDomain } = require('./shortener-reconciler.js')
+      const { removeDomainFromRailway: _rdfr, listRailwayCustomDomains } = require('./rl-save-domain-in-server.js')
+      const report = await repairDomain(targetDomain, {
+        db,
+        removeDomainFromRailway: _rdfr,
+        listRailwayDomains: listRailwayCustomDomains,
+        domainService,
+        persistence: {
+          findPendingDeactivations,
+          incrementDeactivationRetry,
+          markDeactivationDone,
+          markDeactivationFailed,
+          MAX_DEACTIVATION_RETRIES,
+        },
+        notifyUser: async (cid, html) => {
+          try { await bot.sendMessage(cid, html, { parse_mode: 'HTML' }) } catch (_) {}
+        },
+      })
+      return send(chatId, report, { parse_mode: 'HTML', disable_web_page_preview: true })
+    } catch (e) {
+      return send(chatId, `❌ /repairshortener error: ${e.message}`)
     }
   }
 
@@ -17799,14 +17863,27 @@ ${message.replace(/\n/g, '<br>')}
       send(chatId, trans('t.dns_1', domain), { parse_mode: 'HTML' })
 
       try {
-        // 1. Remove domain from Railway
+        // 1. Remove domain from upstream provider.
+        // Critical: do NOT touch the Cloudflare CNAME until upstream confirms
+        // removal. A half-completed deactivation (CF CNAME gone, upstream still
+        // claims the domain) leaves the user with a broken short link AND a
+        // misleading "successfully deactivated" message.
         const { removeDomainFromRailway } = require('./rl-save-domain-in-server.js')
         const removeResult = await removeDomainFromRailway(domain)
+
+        if (removeResult?.error && removeResult?.transient) {
+          log(`[DeactivateShortener] Transient upstream error for ${domain} (status=${removeResult.statusCode || 'n/a'}): ${removeResult.error} — queuing retry`)
+          await enqueueDeactivation(domain, chatId, lang)
+          send(chatId, trans('t.dns_3_busy'), { parse_mode: 'HTML' })
+          return goto['choose-dns-action']()
+        }
         if (removeResult?.error) {
-          log(`[DeactivateShortener] Railway removal warning for ${domain}: ${removeResult.error}`)
+          log(`[DeactivateShortener] Hard upstream error for ${domain} (status=${removeResult.statusCode || 'n/a'}): ${removeResult.error}`)
+          send(chatId, trans('t.dns_3'), { parse_mode: 'HTML' })
+          return goto['choose-dns-action']()
         }
 
-        // 2. Find and delete the CNAME record pointing to railway
+        // 2. Upstream confirmed removed (or "not found"). Safe to clean DNS.
         const dnsResult = await domainService.viewDNSRecords(domain, db)
         const records = dnsResult?.records || []
         const railwayCname = records.find(r =>
@@ -17891,7 +17968,15 @@ ${message.replace(/\n/g, '<br>')}
         log(`[SwitchToProvider] Deactivating shortener for ${domain} (CF CNAME flattening required)`)
         const { removeDomainFromRailway } = require('./rl-save-domain-in-server.js')
         const removeResult = await removeDomainFromRailway(domain)
-        if (removeResult?.error) {
+        if (removeResult?.error && removeResult?.transient) {
+          // Transient upstream error during a multi-step provider switch.
+          // Queue retry so the reconciler completes the deactivation in the
+          // background; the user-facing switch can proceed (this path migrates
+          // records away from CF anyway, so a stale upstream claim won't be
+          // user-visible — the reconciler will clean it up).
+          log(`[SwitchToProvider] Transient upstream error for ${domain} (status=${removeResult.statusCode || 'n/a'}): ${removeResult.error} — queuing retry`)
+          await enqueueDeactivation(domain, chatId, lang)
+        } else if (removeResult?.error) {
           log(`[SwitchToProvider] Warning: Railway remove failed for ${domain}: ${removeResult.error}`)
         } else {
           log(`[SwitchToProvider] Railway domain removed for ${domain}`)
@@ -18686,14 +18771,25 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     send(chatId, `🔄 Deactivating shortener for <b>${domain}</b>...`, { parse_mode: 'HTML' })
 
     try {
-      // 1. Remove domain from Railway
+      // 1. Remove domain from upstream provider. Same invariant as the main
+      // deactivate handler: do not touch the Cloudflare CNAME unless upstream
+      // confirms removal, to avoid the half-deactivated state.
       const { removeDomainFromRailway } = require('./rl-save-domain-in-server.js')
       const removeResult = await removeDomainFromRailway(domain)
+
+      if (removeResult?.error && removeResult?.transient) {
+        log(`[ShortenerConflict] Transient upstream error for ${domain} (status=${removeResult.statusCode || 'n/a'}): ${removeResult.error} — queuing retry`)
+        await enqueueDeactivation(domain, chatId, lang)
+        send(chatId, trans('t.dns_3_busy'), { parse_mode: 'HTML' })
+        return goto['choose-dns-action']()
+      }
       if (removeResult?.error) {
-        log(`[ShortenerConflict] Railway removal warning for ${domain}: ${removeResult.error}`)
+        log(`[ShortenerConflict] Hard upstream error for ${domain}: ${removeResult.error}`)
+        send(chatId, `❌ Failed to deactivate shortener. Please try again or contact support.`, { parse_mode: 'HTML' })
+        return goto['choose-dns-action']()
       }
 
-      // 2. Find and delete the CNAME record pointing to railway
+      // 2. Find and delete the CNAME record pointing to the shortener service
       const dnsResult = await domainService.viewDNSRecords(domain, db)
       const records = dnsResult?.records || []
       const railwayCname = records.find(r =>

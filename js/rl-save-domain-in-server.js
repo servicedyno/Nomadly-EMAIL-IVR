@@ -195,6 +195,44 @@ async function isRailwayAPIWorking() {
 // saveDomainInServerRailway('blockbee.com').then(log);
 // saveDomainInServerRender('ehtesham.sbs').then(log);
 
+// Classify an axios/network error as transient (caller-safe to retry).
+// Transient = 5xx, network errors, timeouts. Anything else is treated as
+// a hard failure that the caller should surface explicitly.
+function _classifyRailwayError(err) {
+  const statusCode = err?.response?.status
+  const code = err?.code // ECONNRESET, ETIMEDOUT, ENOTFOUND…
+  const transientCodes = new Set(['ECONNRESET', 'ETIMEDOUT', 'ECONNABORTED', 'ENOTFOUND', 'EAI_AGAIN'])
+  if (statusCode && statusCode >= 500 && statusCode < 600) return { transient: true, statusCode }
+  if (!statusCode && (transientCodes.has(code) || /timeout|network/i.test(err?.message || ''))) {
+    return { transient: true, statusCode: null }
+  }
+  return { transient: false, statusCode: statusCode || null }
+}
+
+// List all custom domains currently claimed by this Railway service.
+// Used by the reconciler to detect "orphan" state where the upstream
+// still has the domain but the Cloudflare CNAME has been deleted.
+// Returns Promise<string[]> on success, or [] on any error (fail-safe).
+async function listRailwayCustomDomains() {
+  try {
+    const query = `query {
+      domains(projectId: "${PROJECT_ID}", serviceId: "${SERVICE_ID}", environmentId: "${ENVIRONMENT_ID}") {
+        customDomains { domain }
+      }
+    }`
+    const resp = await axios.post(
+      GRAPHQL_ENDPOINT,
+      { query },
+      { headers: railwayHeaders(), timeout: 15000 },
+    )
+    const customDomains = resp?.data?.data?.domains?.customDomains || []
+    return customDomains.map(d => d.domain).filter(Boolean)
+  } catch (err) {
+    log(`[Railway] listRailwayCustomDomains failed: ${err.message}`)
+    return []
+  }
+}
+
 async function removeDomainFromRailway(domain) {
   try {
     // Step 1: Look up the domain's Railway ID
@@ -225,14 +263,16 @@ async function removeDomainFromRailway(domain) {
     const error = deleteResp?.data?.errors?.[0]?.message
     if (error) {
       log(`[Railway] Error deleting domain ${domain} (id=${match.id}):`, error)
-      return { error }
+      // GraphQL-level errors are application errors → not transient
+      return { error, transient: false, statusCode: null }
     }
     log(`[Railway] Domain ${domain} removed successfully (id=${match.id})`)
     return { success: true }
   } catch (err) {
-    log('Error removeDomainFromRailway', err.message)
-    return { error: err.message }
+    const cls = _classifyRailwayError(err)
+    log(`Error removeDomainFromRailway ${err.message} (transient=${cls.transient}, status=${cls.statusCode || 'n/a'})`)
+    return { error: err.message, transient: cls.transient, statusCode: cls.statusCode }
   }
 }
 
-module.exports = { saveDomainInServerRailway, isRailwayAPIWorking, saveDomainInServerRender, removeDomainFromRailway, getExistingRailwayDNS }
+module.exports = { saveDomainInServerRailway, isRailwayAPIWorking, saveDomainInServerRender, removeDomainFromRailway, getExistingRailwayDNS, listRailwayCustomDomains }

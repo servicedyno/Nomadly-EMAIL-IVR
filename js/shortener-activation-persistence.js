@@ -114,6 +114,70 @@ async function findIncompleteTasks() {
   }).toArray()
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Deactivation queue — separate collection so it doesn't collide with the
+// activation lifecycle above. Used by the reconciler tick to retry shortener
+// deactivations that hit a transient upstream failure (e.g. provider 5xx)
+// during the user-driven Deactivate flow.
+// ─────────────────────────────────────────────────────────────────────────────
+const DEACTIVATION_COLLECTION = 'shortenerDeactivations'
+const MAX_DEACTIVATION_RETRIES = 5
+
+async function enqueueDeactivation(domain, chatId, lang) {
+  if (!_db) return
+  await _db.collection(DEACTIVATION_COLLECTION).updateOne(
+    { _id: domain },
+    {
+      $set: {
+        _id: domain,
+        chatId: String(chatId),
+        domain,
+        lang: lang || 'en',
+        status: 'pending_deactivation',
+        updatedAt: new Date(),
+      },
+      $setOnInsert: { createdAt: new Date(), retryCount: 0 },
+    },
+    { upsert: true }
+  )
+  log(`[ShortenerPersistence] Deactivation queued for ${domain} (chatId: ${chatId})`)
+}
+
+async function incrementDeactivationRetry(domain, lastError) {
+  if (!_db) return null
+  const res = await _db.collection(DEACTIVATION_COLLECTION).findOneAndUpdate(
+    { _id: domain },
+    { $inc: { retryCount: 1 }, $set: { lastError: lastError || null, updatedAt: new Date() } },
+    { returnDocument: 'after' }
+  )
+  return res?.value || null
+}
+
+async function markDeactivationDone(domain) {
+  if (!_db) return
+  await _db.collection(DEACTIVATION_COLLECTION).updateOne(
+    { _id: domain },
+    { $set: { status: 'done', completedAt: new Date(), updatedAt: new Date() } }
+  )
+  log(`[ShortenerPersistence] Deactivation done for ${domain}`)
+}
+
+async function markDeactivationFailed(domain, error) {
+  if (!_db) return
+  await _db.collection(DEACTIVATION_COLLECTION).updateOne(
+    { _id: domain },
+    { $set: { status: 'failed', lastError: error || null, updatedAt: new Date() } }
+  )
+  log(`[ShortenerPersistence] Deactivation FAILED (retries exhausted) for ${domain}: ${error}`)
+}
+
+async function findPendingDeactivations() {
+  if (!_db) return []
+  return _db.collection(DEACTIVATION_COLLECTION)
+    .find({ status: 'pending_deactivation', retryCount: { $lt: MAX_DEACTIVATION_RETRIES } })
+    .toArray()
+}
+
 module.exports = {
   initShortenerPersistence,
   createActivationTask,
@@ -123,4 +187,11 @@ module.exports = {
   markFailed,
   markSkipped,
   findIncompleteTasks,
+  // Deactivation queue
+  enqueueDeactivation,
+  incrementDeactivationRetry,
+  markDeactivationDone,
+  markDeactivationFailed,
+  findPendingDeactivations,
+  MAX_DEACTIVATION_RETRIES,
 }
