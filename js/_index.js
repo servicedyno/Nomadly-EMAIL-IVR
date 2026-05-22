@@ -5162,6 +5162,180 @@ bot?.on('message', msg => {
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // USER → ADMIN MEDIA RELAY DURING SUPPORT SESSION (Issue #2-bis)
+  // Forward screenshots, videos, voice notes, documents, GIFs, etc. that a
+  // user sends while in a support session. Without this, photos sent during
+  // support were silently dropped (only msg.text was being routed).
+  // ═══════════════════════════════════════════════════════════════════════
+  if (chatId && !isAdmin(chatId) && (
+        msg?.photo || msg?.video || msg?.voice || msg?.audio ||
+        msg?.video_note || msg?.animation || msg?.document ||
+        msg?.sticker
+      )) {
+    try {
+      const userInfo = await get(state, chatId)
+      const _sessionTs = await get(supportSessions, chatId)
+      const isSupportSessionOpen = !!_sessionTs && _sessionTs > 0 && (Date.now() - _sessionTs) < 3600000
+      const inSupport = userInfo?.action === 'supportChat' || isSupportSessionOpen
+
+      // Skip if user is NOT in support (let downstream handlers like
+      // mpChat/mpNewImage/cpDocCollect/SMS-app uploads claim the media first
+      // — they all have explicit handlers above this block).
+      if (!inSupport) {
+        // not in support → continue normal flow (don't return)
+      } else {
+        // Detect media type + file_id (mirror admin /reply media detection)
+        let mediaKind, fileId, sendFn, supportsCaption = true, fileSize = 0, fileName = ''
+        if (msg.photo) {
+          mediaKind = 'screenshot/photo'
+          const ph = msg.photo[msg.photo.length - 1]
+          fileId = ph.file_id; fileSize = ph.file_size || 0
+          sendFn = (o) => bot.sendPhoto(TELEGRAM_ADMIN_CHAT_ID, fileId, o)
+        } else if (msg.document) {
+          mediaKind = 'document'
+          fileId = msg.document.file_id; fileSize = msg.document.file_size || 0; fileName = msg.document.file_name || ''
+          sendFn = (o) => bot.sendDocument(TELEGRAM_ADMIN_CHAT_ID, fileId, o)
+        } else if (msg.video) {
+          mediaKind = 'video'
+          fileId = msg.video.file_id; fileSize = msg.video.file_size || 0
+          sendFn = (o) => bot.sendVideo(TELEGRAM_ADMIN_CHAT_ID, fileId, o)
+        } else if (msg.voice) {
+          mediaKind = 'voice note'
+          fileId = msg.voice.file_id; fileSize = msg.voice.file_size || 0
+          sendFn = (o) => bot.sendVoice(TELEGRAM_ADMIN_CHAT_ID, fileId, o)
+        } else if (msg.audio) {
+          mediaKind = 'audio'
+          fileId = msg.audio.file_id; fileSize = msg.audio.file_size || 0
+          sendFn = (o) => bot.sendAudio(TELEGRAM_ADMIN_CHAT_ID, fileId, o)
+        } else if (msg.animation) {
+          mediaKind = 'GIF/animation'
+          fileId = msg.animation.file_id; fileSize = msg.animation.file_size || 0
+          sendFn = (o) => bot.sendAnimation(TELEGRAM_ADMIN_CHAT_ID, fileId, o)
+        } else if (msg.video_note) {
+          mediaKind = 'video note'
+          fileId = msg.video_note.file_id; fileSize = msg.video_note.file_size || 0
+          sendFn = () => bot.sendVideoNote(TELEGRAM_ADMIN_CHAT_ID, fileId)
+          supportsCaption = false
+        } else if (msg.sticker) {
+          mediaKind = 'sticker'
+          fileId = msg.sticker.file_id; fileSize = msg.sticker.file_size || 0
+          sendFn = () => bot.sendSticker(TELEGRAM_ADMIN_CHAT_ID, fileId)
+          supportsCaption = false
+        }
+
+        if (fileId && sendFn) {
+          // Size guard — Telegram's bot send limit is 50 MB. Reject larger.
+          const MAX_RELAY_BYTES = 50 * 1024 * 1024
+          if (fileSize && fileSize > MAX_RELAY_BYTES) {
+            const userLang = userInfo?.userLanguage || 'en'
+            const tooBigMsg = {
+              en: `⚠️ File too large to relay to support (max 50 MB). Please compress or upload to a file-sharing service and paste the link.`,
+              fr: `⚠️ Fichier trop volumineux pour être transmis (max 50 Mo). Veuillez le compresser ou utiliser un service de partage et coller le lien.`,
+              zh: `⚠️ 文件太大，无法转发给客服（最大 50 MB）。请压缩或上传到文件分享服务后粘贴链接。`,
+              hi: `⚠️ फ़ाइल बहुत बड़ी है (अधिकतम 50 MB)। कृपया कंप्रेस करें या फ़ाइल-शेयरिंग सेवा पर अपलोड कर लिंक पेस्ट करें।`,
+            }
+            send(chatId, tooBigMsg[userLang] || tooBigMsg.en)
+            log(`[Support] Media relay rejected for ${chatId} — ${mediaKind} ${(fileSize/1024/1024).toFixed(1)}MB exceeds 50MB`)
+            return
+          }
+
+          const userLang = userInfo?.userLanguage || 'en'
+          const captionRaw = msg.caption || ''
+          const displayName = await get(nameOf, chatId)
+          const userLabel = displayName ? `@${displayName}` : (msg?.from?.username ? `@${msg.from.username}` : String(chatId))
+
+          // Translate caption to English for admin
+          let translatedCaption = { translated: captionRaw, needsTranslation: false, langName: userLang, detectedLang: userLang, original: captionRaw }
+          if (captionRaw) {
+            try {
+              translatedCaption = await translationService.translateUserMessageForAdmin(captionRaw, null)
+            } catch (e) { /* fall back to raw caption */ }
+          }
+
+          // Build admin-side caption with full context
+          let adminCaption = `📎 <b>${userLabel}</b> (${chatId}) sent ${mediaKind}`
+          if (fileSize) adminCaption += ` (${(fileSize / 1024 / 1024).toFixed(2)} MB)`
+          if (fileName) adminCaption += `\n📄 <code>${fileName}</code>`
+          if (captionRaw) {
+            if (translatedCaption.needsTranslation) {
+              adminCaption += `\n\n🌐 <i>${translatedCaption.langName}:</i> ${translatedCaption.original}`
+              adminCaption += `\n🇺🇸 <i>English:</i> ${translatedCaption.translated}`
+            } else {
+              adminCaption += `\n\n💬 ${captionRaw}`
+            }
+          }
+          adminCaption += `\n\n↩️ /reply ${chatId} <i>type response</i>`
+
+          // Telegram caption limit is 1024 chars — truncate gracefully
+          if (adminCaption.length > 1020) adminCaption = adminCaption.substring(0, 1017) + '…'
+
+          // Dispatch to admin
+          const adminOpts = {
+            parse_mode: 'HTML',
+            reply_markup: { inline_keyboard: buildAdminButtons({ chatId, supportSession: true }) || [] },
+          }
+          try {
+            if (supportsCaption) {
+              await sendFn({ ...adminOpts, caption: adminCaption })
+            } else {
+              await sendFn()
+              await bot.sendMessage(TELEGRAM_ADMIN_CHAT_ID, adminCaption, adminOpts)
+            }
+          } catch (e) {
+            // Fallback: if direct forward fails (e.g. webp sticker), at least notify admin via text
+            log(`[Support] Media relay send error for ${chatId}: ${e.message}`)
+            await bot.sendMessage(TELEGRAM_ADMIN_CHAT_ID,
+              `⚠️ Failed to relay ${mediaKind} from ${userLabel} (${chatId}): ${e.message}\n${adminCaption}`,
+              { parse_mode: 'HTML', ...adminOpts })
+          }
+
+          // Mark support session as active so AI doesn't try to handle next text
+          await set(supportSessions, chatId, Date.now())
+          await set(state, chatId, 'action', 'supportChat')
+          await set(state, chatId, 'lastMessageLanguage', translatedCaption.detectedLang || userLang)
+
+          // Auto-escalate — media in support almost always means a real issue
+          // (screenshots of errors, voice descriptions of problems, etc.).
+          try {
+            await recordEscalation({
+              chatId,
+              displayName: userLabel,
+              userMessage: captionRaw
+                ? `[${mediaKind} attached] ${captionRaw}`
+                : `[${mediaKind} attached — see message above]`,
+              aiResponse: '(media sent — AI cannot view; auto-escalated to human)',
+              reason: `media:${mediaKind.replace(/[^a-z]/gi, '_')}`,
+              lang: userLang,
+            })
+          } catch (e) { log(`[Support] auto-escalate on media failed: ${e.message}`) }
+
+          // Confirm to user — translated to their language
+          const ackMsg = {
+            en: `✅ Your ${mediaKind} was sent to our support team. They'll review it and reply shortly.`,
+            fr: `✅ Votre ${mediaKind} a été envoyé à notre équipe support. Elle l'examinera et répondra sous peu.`,
+            zh: `✅ 您的${mediaKind}已发送给客服团队，他们将尽快查看并回复。`,
+            hi: `✅ आपका ${mediaKind} हमारी सहायता टीम को भेज दिया गया है। वे जल्द ही जवाब देंगे।`,
+            es: `✅ Tu ${mediaKind} fue enviado a nuestro equipo de soporte. Lo revisarán y responderán pronto.`,
+            ru: `✅ Ваш ${mediaKind} отправлен в службу поддержки. Они скоро ответят.`,
+            ar: `✅ تم إرسال ${mediaKind} إلى فريق الدعم. سيراجعونه ويردون قريبًا.`,
+          }
+          const ackLang = ackMsg[userLang] ? userLang : 'en'
+          send(chatId, ackMsg[ackLang], {
+            parse_mode: 'HTML',
+            reply_markup: { keyboard: [['/done']], resize_keyboard: true },
+          })
+
+          log(`[Support] Media relayed ${chatId} → admin: ${mediaKind}${fileName ? ` (${fileName})` : ''}${fileSize ? ` ${(fileSize/1024/1024).toFixed(2)}MB` : ''} caption="${captionRaw.substring(0, 60)}"`)
+          return
+        }
+      }
+    } catch (e) {
+      log(`[Support] User→admin media relay outer error: ${e.message}`)
+      // fall through — don't break the message handler
+    }
+  }
+
   log('message: ' + message + '\tfrom: ' + chatId + ' ' + msg?.from?.username)
 
   // ═══════════════════════════════════════════════════
