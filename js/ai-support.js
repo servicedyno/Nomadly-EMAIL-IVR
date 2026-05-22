@@ -1076,10 +1076,47 @@ async function getUserContext(chatId, userMessage = '') {
       if (testCred) {
         context.push(`Test SIP: ${testCred.callsMade || 0}/${testCred.maxCalls || 2} test calls used, credential: ${testCred.expired ? 'expired' : 'active'}`)
       }
-      const phoneNumbers = await _db.collection('phoneNumbersOf').find({ 'val.chatId': chatId }).project({ '_id': 1, 'val.phoneNumber': 1, 'val.plan': 1 }).limit(5).toArray()
-      if (phoneNumbers.length > 0) {
-        const phones = phoneNumbers.map(p => `${p.val?.phoneNumber || p._id} (${p.val?.plan || 'unknown'} plan)`).join(', ')
-        context.push(`Cloud phones: ${phones}`)
+      // ── Detailed Cloud IVR plan facts ──
+      // Document shape: phoneNumbersOf[chatId] = { val: { numbers: [{ phoneNumber, plan, planPrice, purchaseDate, expiresAt, status }, …] } }
+      // We surface plan + price + age + remaining days for EACH active number so the AI can
+      // quote exact upgrade math instead of inventing it (root-cause of the EIN_5050 bad-rated session).
+      const phoneDoc = await _db.collection('phoneNumbersOf').findOne({ _id: chatId })
+      const phoneNumbers = phoneDoc?.val?.numbers || []
+      const PHONE_PLAN_PRICES = {
+        starter: Number(process.env.PHONE_STARTER_PRICE || 50),
+        pro: Number(process.env.PHONE_PRO_PRICE || 75),
+        business: Number(process.env.PHONE_BUSINESS_PRICE || 120),
+      }
+      const fmtDate = (iso) => {
+        try { return new Date(iso).toISOString().slice(0, 10) } catch (_) { return 'unknown' }
+      }
+      const phoneSummaries = []
+      for (const num of phoneNumbers.slice(0, 5)) {
+        if (!num || num.status === 'deleted' || num.status === 'expired') continue
+        const planKey = (num.plan || '').toLowerCase()
+        const paidPrice = Number(num.planPrice || PHONE_PLAN_PRICES[planKey] || 0)
+        const purchaseISO = num.purchaseDate || num.activatedAt || null
+        const expiresISO = num.expiresAt || null
+        const ageDays = purchaseISO ? Math.max(0, Math.floor((Date.now() - new Date(purchaseISO).getTime()) / 86400000)) : null
+        const remainingDays = expiresISO ? Math.max(0, Math.floor((new Date(expiresISO).getTime() - Date.now()) / 86400000)) : null
+        // Daily value of what they paid (most plans are monthly, billed for ~30 days)
+        const cycleDays = (ageDays != null && remainingDays != null) ? (ageDays + remainingDays) : 30
+        const dailyValue = cycleDays > 0 ? paidPrice / cycleDays : 0
+        const remainingValue = remainingDays != null ? Math.round(dailyValue * remainingDays * 100) / 100 : null
+        const parts = [
+          `${num.phoneNumber || num._id || 'number'}`,
+          `${num.plan || 'unknown'} plan ($${paidPrice}/cycle)`,
+        ]
+        if (purchaseISO) parts.push(`purchased ${fmtDate(purchaseISO)}${ageDays != null ? ` (${ageDays}d ago)` : ''}`)
+        if (expiresISO)  parts.push(`expires ${fmtDate(expiresISO)}${remainingDays != null ? ` (${remainingDays}d left)` : ''}`)
+        if (remainingValue != null && paidPrice > 0) parts.push(`unused credit ~$${remainingValue.toFixed(2)}`)
+        phoneSummaries.push(parts.join(' · '))
+      }
+      if (phoneSummaries.length > 0) {
+        context.push(`Cloud IVR numbers:\n  • ${phoneSummaries.join('\n  • ')}`)
+        // Hand the model concrete tier prices so it stops guessing.
+        context.push(`Plan tier prices: Starter $${PHONE_PLAN_PRICES.starter}/mo, Pro $${PHONE_PLAN_PRICES.pro}/mo, Business $${PHONE_PLAN_PRICES.business}/mo.`)
+        context.push(`UPGRADE MATH RULE: when a user asks about upgrading from one plan to another, the prorated upgrade cost = (new_plan_price − unused_credit_of_current_plan). Use the "unused credit" value listed above for each number — do NOT invent figures. If a user mentions a price the system did not compute, do NOT confirm it; restate the math from these numbers and escalate if they disagree.`)
       }
     } catch (e) { /* phone collections may not exist */ }
 
@@ -1627,4 +1664,7 @@ module.exports = {
   recordUserError,
   extractActionButtons,
   rateSupportSession,
+  // Test-only hook: lets unit tests stub the OpenAI client without exporting
+  // the real instance for general consumption.
+  __setOpenAIForTest: (fake) => { openai = fake },
 }

@@ -687,3 +687,49 @@ End-to-end against live Railway + Cloudflare APIs: `repairDomain('nymcub.com', �
 
 ### Bot boot confirms
 `[ShortenerReconciler] Scheduled every 5min` printed at startup.
+
+---
+
+## 2026-05-22 — AI Support context + crash trail + KB navigation fix
+
+### 1. AI Support hallucination fix (P0)
+The `EIN_5050` bad-rated session traced to the AI not knowing the user's actual phone plan facts. AI literally told the user *"I don't have direct access to your purchase dates or plan age"* and then invented 4 different upgrade quotes.
+
+**Fix** — `/app/js/ai-support.js` `getUserContext()`:
+- Replaced the 3-line "Cloud phones: N (plan)" summary with a rich per-number block that includes:
+  - `phoneNumber · {plan} plan ($X/cycle) · purchased YYYY-MM-DD (Nd ago) · expires YYYY-MM-DD (Nd left) · unused credit ~$X.XX`
+- Injected concrete tier prices from env: `Starter $50/mo, Pro $75/mo, Business $120/mo`
+- Added an explicit **UPGRADE MATH RULE** to the prompt: prorated upgrade = `new_plan_price − unused_credit_of_current_plan`; do NOT invent figures; if user mentions a price the system didn't compute, restate the math instead of confirming
+- Computes `unused credit` as `(planPrice / cycleDays) * remainingDays`
+
+**Verification**: `/app/js/tests/test_ai_support_plan_context.js` — 2 tests pass:
+1. With a seeded Starter ($50, 10d ago, 20d left) phone record, the system prompt contains plan facts, tier prices, upgrade rule, and a $33 unused credit (mathematically correct).
+2. With no phone records, the upgrade-math rule is absent (no prompt pollution).
+
+### 2. Crash trail + memory-tick logging (P1)
+Three SIGTERMs in 33 min on May 22 with no stack trace. The early handlers in `start-bot.js` were too thin.
+
+**Fix** — `/app/js/_index.js` near the SIGTERM handlers:
+- `[Memory] rss=… heap=…/… external=… heapPct=…%` ticker: prints every 60s, or immediately if heap utilization ≥ 80% (already caught the bot at 95% heap right after boot — confirmed root cause direction is OOM territory)
+- Rich `uncaughtException` + `unhandledRejection` handlers that:
+  - Log a memory snapshot at the moment of the crash
+  - Persist the crash to `botCrashes` MongoDB collection (kind, message, stack, memory, uptime, pid, createdAt) for postmortem
+  - DM admin via Telegram with a `<pre>` formatted stack (throttled to once per 30 s to avoid storms)
+- `SIGTERM` now also logs memory at signal-receive time, so we can correlate kills with memory state in Railway logs
+
+### 3. KB navigation rewrite fix (P1)
+The "🔗✂️ URL Shortener — Unlimited" → `urlShortener` mapping in `_index.js` AI_BUTTON_TO_USER_KEY rerouted users to the *inner* `✂️🌐 Custom Domain Shortener` submenu instead of the main shortener landing.
+
+**Fix** — line ~10696:
+- Changed mapping from `'urlShortener'` (inner submenu) to `'urlShortenerMain'` ("🔗 URL Shortener", the actual top-level button)
+- Also added FR/ZH/HI variants of the same AI label so the pause-session-on-AI-button-tap behaviour works in all 4 languages, not just EN
+
+### Files changed
+- `/app/js/ai-support.js`         (context builder + `__setOpenAIForTest` hook)
+- `/app/js/_index.js`             (memory ticker + crash handlers + AI_BUTTON map fix)
+- `/app/js/tests/test_ai_support_plan_context.js`  (new — 2 tests, both pass)
+
+### Bot boot confirms
+- `[AI Support] OpenAI initialized` ✓
+- `[ShortenerReconciler] Scheduled every 5min` ✓
+- `[Memory] rss=110.3MB heap=45.7MB/48.1MB external=20.7MB heapPct=95% ⚠️ HIGH` ← already actionable signal

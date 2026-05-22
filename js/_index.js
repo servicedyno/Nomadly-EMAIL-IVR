@@ -10694,7 +10694,16 @@ All verified numbers generated during sourcing.`))
     // suggested-actions keyboard alongside /done. Must match exactly.
     // Each entry maps the AI label → canonical user-dict key for re-routing.
     const AI_BUTTON_TO_USER_KEY = {
-      '🔗✂️ URL Shortener — Unlimited': 'urlShortener',
+      // URL Shortener — AI suggests the top-level service button. The user-dict
+      // key must be `urlShortenerMain` (the main menu entry, e.g. "🔗 URL Shortener"),
+      // NOT `urlShortener` which is the *inner* submenu ("✂️🌐 Custom Domain Shortener").
+      // Mapping to the inner submenu used to make users skip the main shortener flow
+      // and land directly on the custom-domain step, leaving the runtime to "rewrite"
+      // the button to a label users hadn't actually seen on screen yet.
+      '🔗✂️ URL Shortener — Unlimited':         'urlShortenerMain',
+      '🔗✂️ Raccourcisseur URL — Illimité':    'urlShortenerMain',
+      '🔗✂️ URL 缩短器 — 无限':                 'urlShortenerMain',
+      '🔗✂️ URL छोटा करें — असीमित':            'urlShortenerMain',
       '📞 Cloud IVR + SIP':              'cloudPhone',
       '👛 Wallet':                       'wallet',
       '🏪 Marketplace':                  'marketplace',
@@ -35410,6 +35419,95 @@ async function handleShutdown(signal) {
 }
 process.on('SIGTERM', () => handleShutdown('SIGTERM'))
 process.on('SIGINT', () => handleShutdown('SIGINT'))
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Crash-trail + memory-tick logging
+// ─────────────────────────────────────────────────────────────────────────────
+// Context: three SIGTERMs in 33 minutes on May 22 left no stack trace —
+// the early handlers in start-bot.js swallowed errors without surfacing
+// any fingerprint. These richer handlers DM the admin, persist the crash
+// to Mongo for postmortem, and snapshot memory every minute so the next
+// silent kill leaves a visible trail in Railway logs.
+
+function _formatMem() {
+  const m = process.memoryUsage()
+  const mb = (n) => (n / 1024 / 1024).toFixed(1) + 'MB'
+  return `rss=${mb(m.rss)} heap=${mb(m.heapUsed)}/${mb(m.heapTotal)} external=${mb(m.external)} arrayBuffers=${mb(m.arrayBuffers || 0)}`
+}
+
+let _lastMemLog = 0
+setInterval(() => {
+  const now = Date.now()
+  // Log every 60s normally; if heap > 80% of total, log immediately
+  const m = process.memoryUsage()
+  const heapPct = m.heapTotal > 0 ? (m.heapUsed / m.heapTotal) : 0
+  const due = (now - _lastMemLog) >= 60_000
+  if (due || heapPct >= 0.8) {
+    log(`[Memory] ${_formatMem()} heapPct=${(heapPct * 100).toFixed(0)}%${heapPct >= 0.8 ? ' ⚠️ HIGH' : ''}`)
+    _lastMemLog = now
+  }
+}, 10_000)
+
+async function _persistCrash(kind, err) {
+  try {
+    if (db?.collection) {
+      await db.collection('botCrashes').insertOne({
+        kind, // 'uncaughtException' | 'unhandledRejection'
+        message: err?.message || String(err),
+        stack: err?.stack || null,
+        memory: _formatMem(),
+        nodeVersion: process.version,
+        uptimeSec: Math.round(process.uptime()),
+        pid: process.pid,
+        createdAt: new Date(),
+      })
+    }
+  } catch (_) { /* best-effort */ }
+}
+
+async function _notifyAdminCrash(kind, err) {
+  try {
+    if (!bot || !TELEGRAM_ADMIN_CHAT_ID) return
+    const trimmedStack = (err?.stack || '').split('\n').slice(0, 8).join('\n')
+    const msg =
+      `🚨 <b>${kind}</b>\n` +
+      `<b>Message:</b> <code>${(err?.message || String(err)).slice(0, 400)}</code>\n` +
+      `<b>Memory:</b> ${_formatMem()}\n` +
+      `<b>Uptime:</b> ${Math.round(process.uptime())}s · pid ${process.pid}\n` +
+      (trimmedStack ? `<b>Stack:</b>\n<pre>${trimmedStack.slice(0, 1800)}</pre>` : '')
+    await bot.sendMessage(TELEGRAM_ADMIN_CHAT_ID, msg, { parse_mode: 'HTML' })
+  } catch (_) { /* best-effort — don't recurse on errors here */ }
+}
+
+// Throttle: don't spam admin if a crash storm starts
+let _lastCrashNotify = 0
+const _crashNotifyMinIntervalMs = 30_000
+
+process.on('uncaughtException', (err) => {
+  log(`❌ uncaughtException: ${err?.message} | ${_formatMem()}`)
+  if (err?.stack) log(err.stack)
+  const now = Date.now()
+  if (now - _lastCrashNotify > _crashNotifyMinIntervalMs) {
+    _lastCrashNotify = now
+    _persistCrash('uncaughtException', err).catch(() => {})
+    _notifyAdminCrash('uncaughtException', err).catch(() => {})
+  }
+})
+
+process.on('unhandledRejection', (reason) => {
+  const err = reason instanceof Error ? reason : new Error(String(reason))
+  log(`❌ unhandledRejection: ${err.message} | ${_formatMem()}`)
+  if (err.stack) log(err.stack)
+  const now = Date.now()
+  if (now - _lastCrashNotify > _crashNotifyMinIntervalMs) {
+    _lastCrashNotify = now
+    _persistCrash('unhandledRejection', err).catch(() => {})
+    _notifyAdminCrash('unhandledRejection', err).catch(() => {})
+  }
+})
+
+// Log memory at SIGTERM moment so we can see if it correlates with OOM
+process.on('SIGTERM', () => log(`[SIGTERM] Memory at signal: ${_formatMem()} · uptime=${Math.round(process.uptime())}s`))
 
 // ── Resume interrupted lead jobs from previous deployment ──
 async function resumeInterruptedLeadJobs() {
