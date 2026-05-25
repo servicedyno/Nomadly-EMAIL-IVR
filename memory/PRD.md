@@ -759,3 +759,99 @@ User `@kathyserious` discovered Nomadly uses Twilio under the hood, breaking whi
 - P2: Domain DNS self-diagnosis (WHOIS + DNS propagation auto-check) before "domain not working" escalations.
 - P2: Auto-ping admins on media-attached escalations.
 - Refactoring: `_index.js` (~36k lines) — gradually split callback handlers into modules.
+
+
+---
+
+## 2026-02 — Registrar auto-resolution for mis-tagged "external" domains (@Mrdoitright53)
+
+### Problem
+@Mrdoitright53 could not manage `itsonlytravel.com` from the bot. Prior agent
+traced it: the domain was tagged `val.registrar = 'external'` in
+`registeredDomains`, but it's actually in our OpenProvider account. Downstream
+code paths (`updateAllNameservers`, single-slot NS edit, etc.) only auto-detect
+the registrar when the tag is **missing/null** — sentinel string values like
+`'external'`, `'unknown'`, `'manual'` were trusted as-is, then defaulted to
+ConnectReseller via the `meta.registrar || 'ConnectReseller'` pattern, then
+failed with "Could not find domain at registrar".
+
+Root cause of the mis-tag: the **Connect External Domain** hosting flow at
+`js/cr-register-domain-&-create-cpanel.js:464` historically wrote only
+`cfZoneId / nameservers / nameserverType` to `registeredDomains` and **never
+verified whether the supposedly-external domain was actually in our own
+OP/CR account**.
+
+### Fix
+- **New helpers** in `js/domain-service.js`:
+  - `REGISTRAR_SENTINELS` constant — explicit list of legacy tag values
+    that are NOT definitive: `'', 'external', 'unknown', 'manual', 'none',
+    'null', 'undefined'`.
+  - `DEFINITIVE_REGISTRARS` constant — values we trust without re-probing:
+    `'openprovider', 'connectreseller', 'external_unmanaged'`.
+  - `isRegistrarUnclear(value)` — returns true when callers must auto-detect.
+  - `resolveRegistrar(domainName, db, meta?)` — wraps `detectRegistrarForDomain`.
+    On miss, returns null (untagged) OR upgrades the tag to `'external_unmanaged'`
+    (only when the original value was a declarative sentinel like `'external'`,
+    so genuinely external domains skip future probes). Returns
+    `{ registrar, meta, healed }` to callers.
+- **Refactored** `updateAllNameservers` and `updateNameserverAtRegistrar` to
+  use `resolveRegistrar` (replaces the previous inline auto-detect that only
+  fired on null/missing). Both functions now also short-circuit with
+  `error: 'externally_managed'` when the resolved value is
+  `'external_unmanaged'` — no wasted API call.
+- **Hardened** the Connect-External-Domain write site in
+  `cr-register-domain-&-create-cpanel.js:464`: before the upsert it now calls
+  `detectRegistrarForDomain` and writes one of `'OpenProvider'` /
+  `'ConnectReseller'` / `'external_unmanaged'` to `val.registrar`. The
+  upsert is non-blocking — detection failure logs and continues with the
+  legacy behaviour.
+- **Exports**: `resolveRegistrar`, `isRegistrarUnclear`,
+  `detectRegistrarForDomain` (already exported) so downstream callers and
+  tests can consume the helper.
+
+### Self-heal behaviour for the existing broken fleet
+As users interact with mis-tagged domains, the first NS-related operation
+silently re-probes OP/CR, persists the correct tag (or upgrades to
+`external_unmanaged`), and the second interaction is a no-op. No manual
+admin script needed — the fleet self-heals over time.
+
+### Verification
+- **New unit test** `/app/js/tests/test_resolve_registrar.js` — **19/19 pass**:
+  - `isRegistrarUnclear` against 10 representative input shapes
+  - `resolveRegistrar` happy paths (OpenProvider / ConnectReseller /
+    `external_unmanaged` — no API call when definitive)
+  - `resolveRegistrar` heal path: `'external'` → probes OP → upgrades tag +
+    persists `opDomainId` (the `itsonlytravel.com` scenario)
+  - `resolveRegistrar` heal path: missing tag → CR detection works
+  - `resolveRegistrar`: declared-external + not-in-OP-or-CR → upgrades to
+    `'external_unmanaged'` AND second pass does NOT re-probe
+  - `updateAllNameservers` end-to-end: mis-tagged `'external'` doc → OP
+    update succeeds and DB tag is corrected
+  - `updateAllNameservers`: `'external_unmanaged'` → returns
+    `'externally_managed'` error, no wasted API call
+- **Existing regression test** `test_domain_registrar_autodetect.js` —
+  **7/7 still pass** after refactor (preserves the legacy "Could not find
+  domain at registrar" error for genuinely missing tags + no OP/CR match,
+  to avoid hiding real bugs).
+- `node -c` clean on both modified files.
+- `sudo supervisorctl restart nodejs` clean — webhook re-verified, all
+  subsystems re-initialised (CR whitelist, HostingScheduler, PhoneMonitor,
+  AntiRed, ShortenerReconciler), HTTP 200 on root.
+
+### Files touched
+- `/app/js/domain-service.js` — new helpers (`REGISTRAR_SENTINELS`,
+  `DEFINITIVE_REGISTRARS`, `isRegistrarUnclear`, `resolveRegistrar`) +
+  refactored `updateAllNameservers` + refactored `updateNameserverAtRegistrar`
+  + new exports.
+- `/app/js/cr-register-domain-&-create-cpanel.js` — external-domain
+  provisioning write site now persists a verified `val.registrar`.
+- `/app/js/tests/test_resolve_registrar.js` (new — 19 tests).
+
+### Backlog (still pending)
+- (P2) Apply `resolveRegistrar` to remaining registrar branches:
+  `switchToCloudflare / _createZoneAndUpdateNS` (L996), `migrateRecordsToCF`
+  (L840), other `meta.registrar || 'ConnectReseller'` sites at L1131 / L1268.
+  Current fix covers the user-visible NS-update path; remaining paths still
+  use the legacy default-to-CR fallback which is safe but suboptimal.
+- (P2) Optional admin command `/repairregistrar [domain]` for one-tap fleet
+  audit (skipped this round per user direction).

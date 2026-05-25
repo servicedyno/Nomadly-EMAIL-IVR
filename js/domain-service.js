@@ -330,6 +330,104 @@ const detectRegistrarForDomain = async (domainName, db) => {
   return detected
 }
 
+// ─── Registrar resolution (auto-heal mis-tagged / missing) ──
+//
+// Some domains in the DB have `val.registrar` set to one of these sentinel
+// values instead of the canonical 'OpenProvider' / 'ConnectReseller' or the
+// verified-external 'external_unmanaged'. The most common offender is the
+// legacy literal `'external'` written by older "Connect External Domain"
+// flows (which historically forgot to verify whether the domain was
+// actually in our OP/CR account before tagging). null / undefined / '' /
+// 'unknown' / 'manual' / 'none' come from various older migrations.
+//
+// When any downstream registrar-routing path (NS update, renewal, transfer,
+// DNSSEC fix) reads one of these values, it MUST first probe both APIs
+// to learn the true registrar — otherwise the code paths that do
+// `meta.registrar || 'ConnectReseller'` silently route to CR and then fail
+// with "Could not find domain at registrar" even though the domain is at OP.
+//
+// Once a probe confirms the domain is NOT in our OP/CR account, the tag is
+// upgraded to 'external_unmanaged' which is treated as definitive (no
+// re-probe) — so truly external domains don't pay the API-call tax on every
+// management read.
+const REGISTRAR_SENTINELS = new Set([
+  '', 'external', 'unknown', 'manual', 'none', 'null', 'undefined',
+])
+const DEFINITIVE_REGISTRARS = new Set([
+  'openprovider', 'connectreseller', 'external_unmanaged',
+])
+
+/**
+ * Returns true when the given registrar value is NOT definitive — i.e.
+ * callers should auto-detect. A value of 'external_unmanaged' is treated
+ * as definitive (we already probed and confirmed it's not in our account).
+ */
+const isRegistrarUnclear = (value) => {
+  if (value === null || value === undefined) return true
+  if (typeof value !== 'string') return true
+  const v = value.trim().toLowerCase()
+  if (!v) return true
+  if (DEFINITIVE_REGISTRARS.has(v)) return false
+  return REGISTRAR_SENTINELS.has(v)
+}
+
+/**
+ * Resolve a definitive registrar for a domain. If the stored value is
+ * missing or one of the sentinel values listed above, this calls
+ * `detectRegistrarForDomain` (which probes OP + CR and persists the
+ * result). When the probe finds nothing, the tag is upgraded to
+ * 'external_unmanaged' so the next read is a no-op.
+ *
+ * @param {string} domainName
+ * @param {object} db          — MongoDB client
+ * @param {object} [meta]      — pre-fetched meta from getDomainMeta (optional)
+ * @returns {Promise<{registrar:string|null, meta:object|null, healed:boolean}>}
+ */
+const resolveRegistrar = async (domainName, db, meta) => {
+  if (!meta) meta = await getDomainMeta(domainName, db)
+  const current = meta?.registrar
+  if (!isRegistrarUnclear(current)) {
+    return { registrar: current, meta, healed: false }
+  }
+  log(`[domain-service] resolveRegistrar: ${domainName} has unclear registrar="${current}" — probing OP/CR`)
+  const detected = await detectRegistrarForDomain(domainName, db)
+  if (!detected) {
+    // Two distinct sub-cases here:
+    //   1. User declared this domain as 'external' (or one of the explicit
+    //      sentinels meaning "user-supplied, not ours") → upgrade tag to
+    //      'external_unmanaged' so future reads skip the probe.
+    //   2. Tag was simply missing (null/undefined/'') → return null and let
+    //      the caller surface the legacy "Could not find domain at registrar"
+    //      error. We do NOT upgrade in this case because the missing tag may
+    //      reflect a transient race during registration; tagging it
+    //      'external_unmanaged' would hide a real bug.
+    const wasDeclaredExternal = typeof current === 'string'
+      && ['external', 'unknown', 'manual', 'none'].includes(current.trim().toLowerCase())
+    if (wasDeclaredExternal && db) {
+      try {
+        await db.collection('domainsOf').updateOne(
+          { domainName },
+          { $set: { registrar: 'external_unmanaged' } },
+          { upsert: false }
+        )
+        await db.collection('registeredDomains').updateOne(
+          { _id: domainName },
+          { $set: { 'val.registrar': 'external_unmanaged' } },
+          { upsert: false }
+        )
+        log(`[domain-service] resolveRegistrar: ${domainName} not at OP/CR — upgraded tag to 'external_unmanaged'`)
+      } catch (persistErr) {
+        log(`[domain-service] resolveRegistrar persist error for ${domainName}: ${persistErr.message}`)
+      }
+      return { registrar: 'external_unmanaged', meta, healed: false }
+    }
+    return { registrar: null, meta, healed: false }
+  }
+  // Re-read so opDomainId etc. are populated for the caller
+  const freshMeta = (await getDomainMeta(domainName, db)) || meta
+  return { registrar: detected, meta: freshMeta, healed: true }
+}
+
 // ─── DNS operations (routing) ───────────────────────────
 
 const viewDNSRecords = async (domainName, db) => {
@@ -549,21 +647,20 @@ const deleteDNSRecord = async (domainName, recordData, db) => {
  * Updates DB (both collections) with new NS array.
  */
 const updateAllNameservers = async (domainName, newNameservers, db) => {
-  const meta = await getDomainMeta(domainName, db)
-  if (!meta) return { error: 'Domain metadata not found' }
+  const initialMeta = await getDomainMeta(domainName, db)
+  if (!initialMeta) return { error: 'Domain metadata not found' }
 
-  let registrar = meta.registrar
-  // If the local DB has no registrar tagged (legacy doc / schema drift),
-  // auto-detect which registrar actually holds the domain BEFORE we make
-  // any API calls. This avoids the classic "Could not find domain at
-  // registrar" error when a domain at OP was wrongly defaulted to CR.
+  // Resolve the registrar — heals records that have missing/sentinel values
+  // (e.g. legacy "Connect External Domain" docs with no registrar tag).
+  const { registrar: resolved, meta } = await resolveRegistrar(domainName, db, initialMeta)
+  let registrar = resolved
   if (!registrar) {
-    log(`[updateAllNameservers] ${domainName} has no registrar tag — auto-detecting`)
-    const detected = await detectRegistrarForDomain(domainName, db)
-    if (!detected) {
-      return { error: 'Could not find domain at registrar' }
-    }
-    registrar = detected
+    return { error: 'Could not find domain at registrar' }
+  }
+  if (registrar === 'external_unmanaged') {
+    // Domain is not in our OP/CR account — user must update NS at their own
+    // registrar's panel. The bot has no API path to do this on their behalf.
+    return { error: 'externally_managed' }
   }
 
   if (registrar === 'OpenProvider') {
@@ -736,9 +833,18 @@ const updateAllNameservers = async (domainName, newNameservers, db) => {
  * For CR: calls the CR UpdateNameServer API.
  */
 const updateNameserverAtRegistrar = async (domainName, nsSlot, newValue, db) => {
-  const meta = await getDomainMeta(domainName, db)
+  const initialMeta = await getDomainMeta(domainName, db)
 
-  if (meta?.registrar === 'OpenProvider') {
+  // Heal sentinel/missing registrar so single-slot NS updates also pick the
+  // correct API even when the doc came from the legacy "external" flow.
+  const { registrar: resolved, meta } = await resolveRegistrar(domainName, db, initialMeta)
+
+  if (resolved === 'external_unmanaged') {
+    // Not in our OP/CR account — user must update NS at their own registrar.
+    return { error: 'externally_managed' }
+  }
+
+  if (resolved === 'OpenProvider') {
     // OP: fetch current NS, replace slot, push all
     const info = await opService.getDomainInfo(domainName)
     if (!info) return { error: 'Domain not found at registrar' }
@@ -1356,6 +1462,8 @@ module.exports = {
   postRegistrationNSUpdate,
   getDomainMeta,
   detectRegistrarForDomain,
+  resolveRegistrar,
+  isRegistrarUnclear,
   viewDNSRecords,
   addDNSRecord,
   updateDNSRecord,

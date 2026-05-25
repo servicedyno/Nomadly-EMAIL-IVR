@@ -461,9 +461,38 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state,
             const nsClient = new MongoClient(process.env.MONGO_URL)
             await nsClient.connect()
             const nsDb = nsClient.db(process.env.DB_NAME || 'test')
+
+            // For external-flow domains: also detect & persist the real registrar
+            // (OP / CR). Historically this code path only wrote cfZoneId + nameservers
+            // and left `val.registrar` blank — which then broke NS-update, renewal,
+            // and DNSSEC ops downstream because callers default to ConnectReseller
+            // when the tag is missing. See @Mrdoitright53 / itsonlytravel.com bug.
+            const setFields = {
+              'val.cfZoneId': cfZoneId,
+              'val.nameservers': cfNameservers,
+              'val.nameserverType': 'cloudflare',
+            }
+            if (isExternal) {
+              try {
+                const detected = await domainService.detectRegistrarForDomain(domain, nsDb)
+                if (detected) {
+                  setFields['val.registrar'] = detected
+                  log(`[Hosting] External domain ${domain} registrar resolved to ${detected} — persisting tag`)
+                } else {
+                  // Truly external (not in our OP/CR account) — tag as
+                  // 'external_unmanaged' so downstream resolveRegistrar()
+                  // treats this as a definitive value and skips re-probing.
+                  setFields['val.registrar'] = 'external_unmanaged'
+                  log(`[Hosting] External domain ${domain} not in OP/CR — tagging as 'external_unmanaged'`)
+                }
+              } catch (detectErr) {
+                log(`[Hosting] registrar auto-detect failed for ${domain} (non-blocking): ${detectErr.message}`)
+              }
+            }
+
             await nsDb.collection('registeredDomains').updateOne(
               { _id: domain },
-              { $set: { 'val.cfZoneId': cfZoneId, 'val.nameservers': cfNameservers, 'val.nameserverType': 'cloudflare' } },
+              { $set: setFields },
               { upsert: true }
             )
             await nsClient.close()
