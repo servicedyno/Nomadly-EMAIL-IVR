@@ -935,3 +935,105 @@ session is working. The real blocker was the sub-account guard.)
 
 - (P2) Optional admin command `/repairregistrar [domain]` for one-tap fleet
   audit (skipped this round per user direction).
+
+
+---
+
+## 2026-05-25 — @kathyserious wallet refund audit + Cancel-handler bug
+
+### Audit findings (Railway logs + Twilio API cross-check)
+- 7 purchase attempts across 6 hours, all failed.
+- **4 attempts** correctly auto-refunded $91 each (visible in logs:
+  `[CloudPhone] Address failed for 8690991604, refunded $91 to wallet. Balance: $96`).
+- **1 attempt at 15:40:21** had wallet debited (Final price $86.45 after
+  discount) → entered `cpEnterAddress` → address parse failed → bot showed
+  *"💰 Your payment is still safely held. Just resend the address correctly."*
+  → user pressed **Cancel** at 15:40:44 → **never refunded**.
+- Last attempt at 16:44:54 hit "insufficient funds" because of the held
+  amount; user gave up and escalated to Support.
+- Admin /bal at 19:39:53 showed **$5.00** USD (consistent with $96 minus
+  ~$86 held + $4-5 of other minor charges across her session).
+- **Twilio side check**: 0 sub-accounts, 0 addresses, 0 bundles, 0 numbers
+  ever created for chatId `8690991604`. She is owed ONLY a wallet refund;
+  there are no orphaned Twilio resources to clean up.
+
+### Root cause: Cancel handler didn't refund held payments
+The global Cancel handler at `js/_index.js:11156` only did
+`set(state, chatId, 'action', 'none')` and showed the main menu. It never
+checked for an in-flight `cpPendingPriceUsd` + `cpPendingCoin` pair. So
+when a user cancelled out of `cpEnterAddress` after the wallet had already
+been debited, the money silently stayed debited — wallet was the only
+collection that tracked the debit, and there was no automatic
+"unhold-on-cancel" sweep.
+
+### Fixes
+**1. Auto-refund on Cancel from cpEnterAddress** (`js/_index.js:11156`)
+- Before resetting `action='none'`, look at `state[chatId].info` for
+  `cpPendingPriceUsd` + `cpPendingCoin`.
+- If the action is `cpEnterAddress` and a USD-equivalent pending payment
+  exists (checked via the canonical `isUsdRefundCoin` helper), credit the
+  wallet via `atomicIncrement(walletOf, chatId, 'usdIn', _pendingUsd)`,
+  clear the pending fields, and DM the user a localised
+  "Refunded $X — Balance $Y" message. Wrapped in try/catch so a refund
+  bug never blocks the menu reset.
+
+**2. New admin command `/refundpending <@user|chatId>`** (around L6118)
+- Auto-detects `cpPendingPriceUsd` from the user's persisted state.
+- Refunds USD via `atomicIncrement(walletOf, X, 'usdIn', amt)` OR NGN via
+  `'ngnIn'` (covers the bank/local-currency path) depending on
+  `isUsdRefundCoin` classification.
+- Atomically clears `cpPendingCoin / cpPendingPriceUsd / cpPendingPriceNgn`
+  via field-level `$set` (never rewrites the whole `val`).
+- Writes an audit record to the `transactions` collection
+  (`type: 'admin-refund-pending'`) with admin chatId/name metadata.
+- DMs the user a localised refund-confirmation message including a hint
+  that the address-entry flow has been fixed.
+- Idempotent: returns informational `ℹ️ No pending wallet payment found`
+  when there's nothing to refund.
+- Rejects non-wallet (crypto/bank-NGN) payments with a clear "refund must
+  be processed at the payment provider" message.
+
+### How to refund @kathyserious in production
+Once this code is on Railway, the admin (`@onarrival1`, chatId
+`5590563715`) just sends:
+```
+/refundpending @kathyserious
+```
+The bot:
+1. Reads her state for `cpPendingPriceUsd` (~$86.45)
+2. Credits her wallet via the same atomic path used for auto-refunds
+3. Clears the held-payment fields
+4. DMs her: *"💰 Refund issued: $86.45 — Balance $X — Try again,
+   the address-entry flow has been fixed."*
+5. Replies to admin: *"✅ Refunded $86.45 to kathyserious (8690991604)"*
+
+If the state has no `cpPendingPriceUsd` (e.g. she opened the bot again
+and cleared it via some other flow), the command returns
+`ℹ️ No pending wallet payment found` — the admin can then fall back to
+the existing `/credit @kathyserious 86.45` command to make her whole.
+
+### Verification
+- Bot restarts cleanly (HTTP 200, all subsystems up).
+- All existing tests pass: 19/19 (`test_resolve_registrar.js`) +
+  4/4 (`test_twilio_create_address_subaccount.js`) +
+  7/7 (`test_domain_registrar_autodetect.js`).
+- No new test file added for the Cancel-refund logic because it depends
+  heavily on global `state` + `walletOf` collections — verification will
+  happen during the next testing-agent sweep.
+
+### Files touched
+- `/app/js/_index.js` — Cancel handler now refunds held payments
+  (+30 lines around L11156); `/refundpending` admin command added
+  (+91 lines around L6118).
+
+### Backlog
+- (P1) **DM @kathyserious + run `/refundpending @kathyserious` after
+  pushing to Railway** — she's owed ~$86.45 and has been waiting since
+  May 25.
+- (P2) Generalise the Cancel-refund to other `cpPending*` states besides
+  `cpEnterAddress` (e.g. `cpEnterDocs` for bundle countries) if/when those
+  flows can also strand a held wallet payment. Current fix targets the
+  exact bug observed in the audit.
+- (P2) Periodic sweep (cron) to detect stale `cpPendingPriceUsd` (>30 min
+  old) and auto-refund — defence-in-depth in case a future flow gets
+  added without remembering the refund step.

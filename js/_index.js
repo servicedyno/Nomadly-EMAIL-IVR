@@ -6135,6 +6135,110 @@ bot?.on('message', msg => {
     return
   }
 
+  // Admin: /refundpending <@username|chatId> — auto-detect and refund any
+  // held wallet payment stuck in a user's state (cpPendingPriceUsd). Safe to
+  // run repeatedly: clears `cpPending*` fields, idempotent if nothing pending.
+  // Added after the @kathyserious AU purchase audit (2026-05-25): users who
+  // cancelled out of cpEnterAddress while wallet was already debited had no
+  // refund path. This command + the Cancel-handler fix close that gap.
+  if (isAdmin(chatId) && message.startsWith('/refundpending ')) {
+    const userRef = message.substring('/refundpending '.length).trim().replace('@', '')
+    if (!userRef) {
+      return send(chatId, '⚠️ Usage: <code>/refundpending @username</code> or <code>/refundpending &lt;chatId&gt;</code>', { parse_mode: 'HTML' })
+    }
+    try {
+      let targetChatId = null
+      let targetName = null
+      if (/^\d+$/.test(userRef)) {
+        targetChatId = String(userRef)
+        targetName = await get(nameOf, targetChatId)
+      } else {
+        const allNames = await nameOf.find({}).toArray()
+        const m = allNames.find(n => typeof n.val === 'string' && n.val.toLowerCase() === userRef.toLowerCase())
+        if (m) { targetChatId = String(m._id); targetName = m.val }
+      }
+      if (!targetChatId) return send(chatId, `⚠️ User <b>${userRef}</b> not found.`, { parse_mode: 'HTML' })
+
+      const st = await get(state, targetChatId)
+      const pendingUsd = Number(st?.info?.cpPendingPriceUsd || 0)
+      const pendingCoin = st?.info?.cpPendingCoin
+      const pendingNgn = Number(st?.info?.cpPendingPriceNgn || 0)
+
+      if (!pendingUsd || pendingUsd <= 0) {
+        return send(chatId, `ℹ️ No pending wallet payment found for <b>${targetName || userRef}</b> (${targetChatId}).\n\nstate.info.cpPendingPriceUsd = ${String(st?.info?.cpPendingPriceUsd)}\nstate.info.cpPendingCoin = ${String(pendingCoin)}\nstate.info.cpPendingPriceNgn = ${String(pendingNgn)}`, { parse_mode: 'HTML' })
+      }
+      const isUsd = isUsdRefundCoin(pendingCoin, u)
+      if (!isUsd) {
+        // NGN refund path
+        if (pendingNgn > 0) {
+          await atomicIncrement(walletOf, targetChatId, 'ngnIn', pendingNgn)
+          await state.updateOne(
+            { _id: targetChatId },
+            { $set: { 'val.info.cpPendingCoin': null, 'val.info.cpPendingPriceUsd': null, 'val.info.cpPendingPriceNgn': null } },
+            { upsert: false }
+          )
+          const w = await get(walletOf, targetChatId)
+          const ngnBal = (w?.ngnIn || 0) - (w?.ngnOut || 0)
+          return send(chatId, `✅ Refunded <b>₦${pendingNgn.toLocaleString()}</b> to <b>${targetName || 'Unknown'}</b> (${targetChatId})\n💳 Balance: <b>₦${ngnBal.toLocaleString()}</b>\n🧹 Cleared cpPending* state fields.`, { parse_mode: 'HTML' })
+        }
+        return send(chatId, `⚠️ Pending payment for <b>${targetName || userRef}</b> is via <b>${pendingCoin}</b> (non-wallet). Refund must be processed at the payment provider, not here.`, { parse_mode: 'HTML' })
+      }
+
+      // Refund + clear pending
+      await atomicIncrement(walletOf, targetChatId, 'usdIn', pendingUsd)
+      // Clear from the persisted state too
+      await state.updateOne(
+        { _id: targetChatId },
+        { $set: {
+          'val.info.cpPendingCoin': null,
+          'val.info.cpPendingPriceUsd': null,
+          'val.info.cpPendingPriceNgn': null,
+        } },
+        { upsert: false }
+      )
+      const { usdBal: refBal } = await getBalance(walletOf, targetChatId)
+
+      // Audit trail in transactions
+      try {
+        const txnId = `TXN-${new Date().toISOString().split('T')[0].replace(/-/g, '')}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`
+        await db.collection('transactions').insertOne({
+          _id: txnId,
+          chatId: String(targetChatId),
+          type: 'admin-refund-pending',
+          amount: pendingUsd,
+          currency: 'USD',
+          status: 'completed',
+          metadata: {
+            adminChatId: String(chatId),
+            adminName: await get(nameOf, chatId) || 'Admin',
+            note: 'Manual refund of held cpPendingPriceUsd (cpEnterAddress cancel-without-refund bug)',
+          },
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        })
+        log(`[Admin] /refundpending Transaction logged: ${txnId} - $${pendingUsd} → ${targetChatId}`)
+      } catch (txnErr) {
+        log(`[Admin] /refundpending: failed to log transaction: ${txnErr.message}`)
+      }
+
+      // Notify user
+      try {
+        const lang = st?.info?.userLanguage || 'en'
+        await sendMessage(targetChatId, ({
+          en: `💰 <b>Refund issued: $${pendingUsd.toFixed(2)}</b>\n\nYour previous phone purchase didn't complete. We've returned the held amount to your wallet.\n\n💳 Balance: <b>$${refBal.toFixed(2)} USD</b>\n\nFeel free to try the purchase again — the address-entry flow has been fixed.`,
+          fr: `💰 <b>Remboursement: $${pendingUsd.toFixed(2)}</b>\n\nVotre achat précédent n'a pas abouti. Nous avons remis le montant retenu sur votre portefeuille.\n\n💳 Solde: <b>$${refBal.toFixed(2)} USD</b>`,
+          zh: `💰 <b>退款: $${pendingUsd.toFixed(2)}</b>\n\n您之前的电话购买未完成。我们已将持有的金额退还到您的钱包。\n\n💳 余额: <b>$${refBal.toFixed(2)} USD</b>`,
+          hi: `💰 <b>रिफंड: $${pendingUsd.toFixed(2)}</b>\n\nआपकी पिछली फ़ोन खरीद पूरी नहीं हुई। हमने रोकी गई राशि आपके वॉलेट में वापस कर दी है।\n\n💳 शेष: <b>$${refBal.toFixed(2)} USD</b>`,
+        }[lang] || `💰 <b>Refund issued: $${pendingUsd.toFixed(2)}</b>\n\nYour previous phone purchase didn't complete. We've returned the held amount to your wallet.\n\n💳 Balance: <b>$${refBal.toFixed(2)} USD</b>`), { parse_mode: 'HTML' })
+      } catch (_) {}
+
+      return send(chatId, `✅ Refunded <b>$${pendingUsd.toFixed(2)}</b> to <b>${targetName || 'Unknown'}</b> (${targetChatId})\n💳 Their balance: <b>$${refBal.toFixed(2)} USD</b>\n🧹 Cleared cpPending* state fields.`, { parse_mode: 'HTML' })
+    } catch (e) {
+      log(`[Admin] /refundpending error: ${e.message}`)
+      return send(chatId, `❌ Refund failed: ${e.message}`)
+    }
+  }
+
   // Admin: /bal <username|chatId> — check user wallet balance and recent lead jobs
   if (isAdmin(chatId) && message.startsWith('/bal ')) {
     const userRef = message.substring(5).trim().replace('@', '')
@@ -11154,6 +11258,37 @@ All verified numbers generated during sourcing.`))
   }
   //
   if (isCancelPress(message) || message === '🏠 Main Menu' || (firstSteps.includes(action) && isBackPress(message))) {
+    // ━━━ HELD-PAYMENT REFUND on cancel from address-collection state ━━━
+    // When user paid via Wallet then enters cpEnterAddress, the wallet is
+    // already debited and `cpPendingPriceUsd` is set. The bot tells them
+    // "💰 Your payment is still safely held. Just resend the address correctly."
+    // — but if they hit Cancel instead of resending, the held payment was
+    // historically NEVER returned. Caught via @kathyserious 2026-05-25 audit:
+    // her wallet went from $96 → $5 with no number purchased.
+    try {
+      const _info = await get(state, chatId)
+      const _pendingUsd = Number(_info?.info?.cpPendingPriceUsd || 0)
+      const _pendingCoin = _info?.info?.cpPendingCoin
+      if (action === a.cpEnterAddress && _pendingUsd > 0 && isUsdRefundCoin(_pendingCoin, u)) {
+        await atomicIncrement(walletOf, chatId, 'usdIn', _pendingUsd)
+        await saveInfo('cpPendingCoin', null)
+        await saveInfo('cpPendingPriceUsd', null)
+        await saveInfo('cpPendingPriceNgn', null)
+        const { usdBal: _refBal } = await getBalance(walletOf, chatId)
+        log(`[CloudPhone] User ${chatId} cancelled from cpEnterAddress with held payment — refunded $${_pendingUsd}. Balance: $${_refBal}`)
+        const _lang = _info?.info?.userLanguage || 'en'
+        try {
+          await send(chatId, ({
+            en: `💰 <b>Refunded $${Number(_pendingUsd).toFixed(2)}</b> to your wallet (purchase cancelled).\n💳 Balance: <b>$${Number(_refBal).toFixed(2)}</b>`,
+            fr: `💰 <b>$${Number(_pendingUsd).toFixed(2)} remboursé</b> sur votre portefeuille (achat annulé).\n💳 Solde: <b>$${Number(_refBal).toFixed(2)}</b>`,
+            zh: `💰 <b>$${Number(_pendingUsd).toFixed(2)} 已退还</b> 到您的钱包（购买已取消）。\n💳 余额: <b>$${Number(_refBal).toFixed(2)}</b>`,
+            hi: `💰 आपके वॉलेट में <b>$${Number(_pendingUsd).toFixed(2)} वापस</b> किया गया (खरीद रद्द)।\n💳 शेष: <b>$${Number(_refBal).toFixed(2)}</b>`,
+          }[_lang] || `💰 <b>Refunded $${Number(_pendingUsd).toFixed(2)}</b> to your wallet (purchase cancelled).\n💳 Balance: <b>$${Number(_refBal).toFixed(2)}</b>`), { parse_mode: 'HTML' })
+        } catch (_) {}
+      }
+    } catch (cancelRefundErr) {
+      log(`[CloudPhone] Cancel-refund handler error for ${chatId}: ${cancelRefundErr.message}`)
+    }
     await set(state, chatId, 'action', 'none')
     if (action === a.supportChat) {
       // Cancel from support should end support session
