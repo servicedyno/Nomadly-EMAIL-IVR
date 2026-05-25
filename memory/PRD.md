@@ -1125,3 +1125,99 @@ the existing `/credit @kathyserious 86.45` command to make her whole.
 - (P2 carry-over): periodic stale-`cpPendingPriceUsd` sweep,
   `resolveRegistrar` for remaining branches, Compare Plans screen.
 
+
+---
+
+## 2026-05-25 21:14 — AU Toll-Free regulatory bundle failure (@kathyserious retry)
+
+### Symptom (from Railway production logs)
+After being refunded and retrying, kathyserious's purchase progressed
+further than ever before but still failed:
+```
+[21:14:55] [Twilio] Created sub-account: AC***[REDACTED]*** — Nomadly-8690991604-kathyserious
+[21:14:55] [CloudPhone] Sub-account minted for chatId=8690991604 from cpEnterAddress
+[21:14:55] [Twilio] Created address: AD***[REDACTED]*** — kathyserious, Tarneit, AU
+[21:14:55] [CloudPhone] Country AU requires regulatory bundle — creating for chatId=8690991604
+[21:14:57] [Twilio] getRegulationSid error: Invalid number type: toll_free
+[21:14:57] [CloudPhone] getRegulationSid failed: Invalid number type: toll_free
+[21:14:57] ❌ Regulatory setup failed for 🇦🇺 Australia.
+[21:14:57] 💰 $91.00 refunded.
+```
+
+(The fact that this log line exists confirms the prior session's
+cpEnterAddress sub-account fix already shipped to Railway and is working
+end-to-end — the sub-account, the address, and the bundle-trigger all
+fired correctly.)
+
+### Root cause
+The bot's number-purchase state stores `cpNumberType = 'toll_free'`
+(underscored) — matching Twilio's *Available-Numbers search* shape.
+But Twilio's *regulatory compliance* API
+(`numbers.v2.regulatoryCompliance.regulations.list`) uses a different
+casing convention: it expects single-token `'tollfree'` (no separator).
+Twilio rejects the underscored value with
+`Invalid number type: toll_free` — verified by direct API probe:
+- `numberType: 'tollfree'` → 1 match: `Australia: Toll-Free - Individual`
+  (Regulation SID redacted)
+- `numberType: 'toll-free'` → 1 match (same SID)
+- `numberType: 'toll_free'` → API error `Invalid number type: toll_free`
+
+This bug would affect **every bundle-required country × toll-free
+combination** — AU, GB, IE, NZ, HK, EE, CZ, KE, MY, PL, ZA, TH —
+whenever the user picks Toll-Free instead of Local/Mobile.
+
+### Fix
+- `js/twilio-service.js` — new `normalizeRegNumberType()` helper that
+  collapses `'toll_free'` / `'toll-free'` / `'tollfree'` → `'tollfree'`
+  (case-insensitive). Other types (`local`, `mobile`, `national`) and
+  null/undefined/`''` (→ `'local'`) pass through unchanged.
+- `getRegulationSid` now normalizes once at the API boundary, so callers
+  in `_index.js` (lines 9802 and 22862) can keep passing the internal
+  `cpNumberType` value without knowing this API has a different vocab.
+
+### kathyserious's wallet status
+**No additional refund needed.** Production logs confirm the
+bundle-failure refund path correctly returned her money:
+- 21:14:48 balance: $91.45 (from my earlier admin credit)
+- 21:14:52 wallet debited $86.45 → $5.00
+- 21:14:57 bundle setup failed → bot refunded $86.45 → $91.45
+- 21:35:12 admin /bal probe confirmed: **$91.45 USD** ✓
+  ```
+  💵 USD Balance: $91.45 | In: $637.45 | Out: $546.00
+  [Admin] Checked balance for kathyserious (8690991604): $91.45 USD
+  ```
+She's whole. Once this fix is on Railway, her next attempt should
+complete the bundle → buy → port-to-sub-account flow end-to-end.
+
+### Verification
+- **New unit test** `/app/js/tests/test_regulation_sid_normalization.js`
+  — **9/9 pass**:
+  - Verifies Twilio's stub fidelity (rejects `'toll_free'` with the exact
+    error the production logs showed)
+  - `'toll_free'` → normalized to `'tollfree'`
+  - `'toll-free'` → normalized to `'tollfree'`
+  - `'tollfree'` passes through
+  - `'local'` / `'mobile'` / `'national'` pass through
+  - null/undefined/`''` default to `'local'`
+  - Case-insensitive (`'Toll_Free'`, `'TOLL-FREE'`)
+  - Empty Twilio response → propagates "No regulation found" error
+- **All previous test suites still pass**: 19 (`test_resolve_registrar`) +
+  4 (`test_twilio_create_address_subaccount`) + 7
+  (`test_domain_registrar_autodetect`) = **39 tests total, 0 failures.**
+- `node -c js/twilio-service.js` clean.
+
+### Files touched
+- `/app/js/twilio-service.js` — `normalizeRegNumberType` helper +
+  `getRegulationSid` normalizes inputs (+19 lines).
+- `/app/js/tests/test_regulation_sid_normalization.js` (new — 9 tests).
+
+### Backlog
+- (P0) Push to Railway alongside the other pending preview-pod changes
+  (Cancel-auto-refund, `/refundpending`, cpEnterAddress sub-account fix,
+  `resolveRegistrar`). After push, DM kathyserious to retry.
+- (P2) Audit other Twilio API surfaces for vocab mismatches. The
+  Available-Numbers vs. Regulatory-Compliance split caught us once;
+  the Bundle creation flow and Address-Sid-attach flow may have
+  similar gotchas. Add a `TWILIO_API_NUMBER_TYPE_MAP` constant if more
+  such pairs surface.
+

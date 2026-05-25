@@ -777,23 +777,39 @@ async function updateSubAccountNumberWebhooks(subSid, numberSid, webhookBaseUrl)
 /**
  * Fetch the Regulation SID for a given country + number type + end-user type.
  * Twilio requires this when creating a regulatory bundle.
+ *
+ * NB: Twilio's `regulations.list` API uses single-token `numberType` values:
+ *   - 'local', 'mobile', 'national', 'tollfree'
+ * The rest of this codebase uses `'toll_free'` (underscored) for `cpNumberType`
+ * to match Twilio's *Available-Numbers* search shape. We normalize at this
+ * boundary so callers can pass either form without having to know. This is
+ * the @kathyserious AU Toll-Free purchase regression (2026-05-25 21:14:57):
+ *   `[Twilio] getRegulationSid error: Invalid number type: toll_free`
  */
+function normalizeRegNumberType(t) {
+  if (!t) return 'local'
+  const v = String(t).toLowerCase().trim()
+  if (v === 'toll_free' || v === 'toll-free' || v === 'tollfree') return 'tollfree'
+  return v
+}
+
 async function getRegulationSid(isoCountry, numberType, endUserType) {
   try {
     const client = getClient()
     if (!client) throw new Error('Twilio client not initialized')
+    const apiNumberType = normalizeRegNumberType(numberType)
     const regulations = await client.numbers.v2.regulatoryCompliance.regulations.list({
       isoCountry,
-      numberType: numberType || 'local',
+      numberType: apiNumberType,
       endUserType: endUserType || 'individual',
       limit: 5,
     })
     if (regulations.length === 0) {
-      log(`[Twilio] No regulation found for ${isoCountry}/${numberType}/${endUserType}`)
+      log(`[Twilio] No regulation found for ${isoCountry}/${apiNumberType}/${endUserType}`)
       return { error: `No regulation found for ${isoCountry}` }
     }
     const reg = regulations[0]
-    log(`[Twilio] Regulation SID for ${isoCountry}: ${reg.sid} (${reg.friendlyName})`)
+    log(`[Twilio] Regulation SID for ${isoCountry}/${apiNumberType}: ${reg.sid} (${reg.friendlyName})`)
     return { sid: reg.sid, friendlyName: reg.friendlyName }
   } catch (e) {
     log(`[Twilio] getRegulationSid error: ${e.message}`)
