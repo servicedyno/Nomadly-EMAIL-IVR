@@ -25,10 +25,13 @@ all_docs = list(db.phoneNumbersOf.find({}))
 n_nums = 0
 for d in all_docs:
     cid = d.get('_id')
-    nums = d.get('numbers') or (d.get('val',{}).get('numbers') if isinstance(d.get('val'),dict) else None) or []
+    nums = (d.get('val',{}).get('numbers') if isinstance(d.get('val'),dict) else None) or []
     for n in nums:
         if not isinstance(n, dict): continue
         n_nums += 1
+        # Skip released / cancelled / grandfathered — mirrors phone-scheduler reconciler
+        if n.get('status') and n.get('status') not in ('active','suspended'): continue
+        if n.get('grandfathered') is True: continue
         plan = (n.get('plan') or '').lower()
         price = n.get('planPrice')
         is_sub = bool(n.get('isSubNumber'))
@@ -86,7 +89,7 @@ print("\n"+"="*72); print("Active numbers with NO phoneTransactions row (legacy)
 chat_with_txn = set(t.get('chatId') for t in db.phoneTransactions.find({}, {'chatId':1}))
 for d in all_docs:
     cid = d.get('_id')
-    nums = d.get('numbers') or (d.get('val',{}).get('numbers') if isinstance(d.get('val'),dict) else None) or []
+    nums = (d.get('val',{}).get('numbers') if isinstance(d.get('val'),dict) else None) or []
     for n in nums:
         if not isinstance(n,dict) or (n.get('status') and n.get('status') != 'active'):
             continue

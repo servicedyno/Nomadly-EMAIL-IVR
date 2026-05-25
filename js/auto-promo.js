@@ -4319,7 +4319,15 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
             }
           } catch (gifErr) {
             if (isUnreachableError(gifErr)) throw gifErr
-            log(`[AutoPromo] GIF failed for ${chatId}, text fallback: ${gifErr.message}`)
+            // 429 here is recoverable — the text fallback below works.
+            // Only log non-rate-limit GIF failures to keep the top-of-hour
+            // log readable; rate-limit metrics are reported in the batch
+            // digest at the end of broadcastPromoForLang().
+            const _code = gifErr.response?.statusCode
+            const _is429 = _code === 429 || /too many requests/i.test(gifErr.message || '')
+            if (!_is429) {
+              log(`[AutoPromo] GIF failed for ${chatId}, text fallback: ${gifErr.message}`)
+            }
           }
         }
 

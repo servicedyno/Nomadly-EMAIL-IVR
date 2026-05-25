@@ -63,7 +63,16 @@ function initPhoneScheduler(deps) {
     await runMonthlyReset()
   })
 
-  log('[PhoneScheduler] Scheduled: expiry check (hourly), usage tracking (daily 3AM), monthly reset (daily 0:05AM)')
+  // ── Daily at 0:30 AM UTC: Pricing reconciliation ──
+  // Scans phoneNumbersOf for plan/price drift (mismatched planPrice for the
+  // stored plan tier) and pings admin. Catches Apr-30-style audit-trail
+  // holes and silent grandfathered prices within 24h instead of weeks.
+  schedule.scheduleJob('30 0 * * *', async () => {
+    log('[PhoneScheduler] Running daily pricing reconciliation...')
+    await runPricingReconciler()
+  })
+
+  log('[PhoneScheduler] Scheduled: expiry check (hourly), usage tracking (daily 3AM), monthly reset (daily 0:05AM), pricing reconciler (daily 0:30AM)')
 }
 
 async function _getUserLang(chatId) {
@@ -231,7 +240,72 @@ async function releaseFromProvider(num, userData) {
 
 async function attemptAutoRenew(chatId, num, index, numbers) {
   try {
-    const price = num.planPrice
+    // ━━━ Pricing guard (added 2026-05-25) ━━━
+    // Root-cause fix for the @johngambino incident: auto-renew used to read
+    // `num.planPrice` verbatim. When an admin "restoration" or legacy import
+    // left a parent number with planPrice=$15 on a Pro tier, every renewal
+    // silently charged $15 instead of $75 — for months. We now compute the
+    // canonical price from phoneConfig and self-heal the doc on mismatch,
+    // unless the number is explicitly grandfathered.
+    const storedPrice = Number(num.planPrice)
+    const planTier = (num.plan || '').toLowerCase()
+    const canonicalPlanPrice = phoneConfig.plans?.[planTier]?.price
+    const isSub = !!num.isSubNumber
+    const isGrandfathered = num.grandfathered === true
+    let price = storedPrice
+
+    if (isSub) {
+      // Sub-numbers vary by Twilio cost (base $25 + 50% markup). Enforce min
+      // to catch corrupt zeros / nulls.
+      if (!Number.isFinite(storedPrice) || storedPrice < phoneConfig.SUB_NUMBER_BASE_PRICE) {
+        const fixed = phoneConfig.SUB_NUMBER_BASE_PRICE
+        _notifyGroup?.(
+          `⚠️ <b>Sub-number planPrice anomaly</b>\n` +
+          `👤 chat=<code>${chatId}</code>\n` +
+          `📞 ${num.phoneNumber}\n` +
+          `💰 stored=$${storedPrice} → using min $${fixed} for renewal\n` +
+          `<i>Verify the parent provisioning. Auto-renew continues.</i>`
+        )
+        price = fixed
+      }
+    } else if (Number.isFinite(canonicalPlanPrice) && storedPrice !== canonicalPlanPrice && !isGrandfathered) {
+      // Parent number with mismatched price — alert + self-heal + charge canonical
+      const name = await get(_nameOf, chatId).catch(() => null)
+      _notifyGroup?.(
+        `🚨 <b>PlanPrice MISMATCH — corrected at renewal</b>\n` +
+        `👤 ${_maskName?.(name) || ''} <code>${chatId}</code>\n` +
+        `📞 ${num.phoneNumber} · plan=<b>${planTier}</b>\n` +
+        `💰 stored=$${storedPrice} → charged canonical <b>$${canonicalPlanPrice}</b>\n` +
+        `<i>phoneNumbersOf.planPrice has been self-healed. If this was an intentional grandfather, set <code>grandfathered:true</code> on the number doc.</i>`
+      )
+      try {
+        await _phoneNumbersOf.updateOne(
+          { _id: chatId, 'val.numbers.phoneNumber': num.phoneNumber },
+          { $set: {
+            'val.numbers.$.planPrice': canonicalPlanPrice,
+            'val.numbers.$._priceHealedAt': new Date().toISOString(),
+            'val.numbers.$._priceHealedFrom': storedPrice,
+          } }
+        )
+        log(`[PhoneScheduler] Self-healed planPrice for ${chatId}/${num.phoneNumber}: $${storedPrice} → $${canonicalPlanPrice}`)
+      } catch (healErr) {
+        log(`[PhoneScheduler] planPrice self-heal failed for ${num.phoneNumber}: ${healErr.message}`)
+      }
+      price = canonicalPlanPrice
+      num.planPrice = canonicalPlanPrice
+    } else if (!Number.isFinite(storedPrice) || storedPrice <= 0) {
+      // No canonical match and stored is broken — alert and abort
+      _notifyGroup?.(
+        `🚨 <b>Auto-renew ABORTED — invalid planPrice</b>\n` +
+        `👤 chat=<code>${chatId}</code>\n` +
+        `📞 ${num.phoneNumber} · plan=<b>${planTier}</b>\n` +
+        `💰 stored=<code>${storedPrice}</code> · canonical=<code>${canonicalPlanPrice}</code>\n` +
+        `<i>Renewal blocked. Manual admin action required.</i>`
+      )
+      log(`[PhoneScheduler] Auto-renew aborted for ${num.phoneNumber}: invalid planPrice=${storedPrice} plan=${planTier}`)
+      return false
+    }
+    // (else: storedPrice matches canonical or grandfathered — use stored)
 
     // ━━━ LAYER 1: Fresh-read idempotency guard ━━━
     // Re-read from DB to catch renewals completed by another pod (Railway vs preview)
@@ -617,9 +691,74 @@ function sendToUser(chatId, text) {
   })
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// PRICING RECONCILER — daily integrity check
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Walks every active phoneNumbersOf entry and verifies that the stored
+// planPrice matches the canonical price for the stored plan tier. Any
+// drift is reported to the admin group as a single digest message.
+//
+// Recognised exceptions:
+//   - isSubNumber:true      → variable pricing (≥ SUB_NUMBER_BASE_PRICE)
+//   - grandfathered:true    → explicit admin opt-out (e.g. comped customer)
+//
+// Output: one notifyGroup() digest per run, with up to 30 anomalies inline
+// and a count of any overflow. Runs daily at 0:30 UTC.
+async function runPricingReconciler() {
+  try {
+    if (!_phoneNumbersOf?.find) return
+    const all = await _phoneNumbersOf.find({}).toArray()
+    const anomalies = []
+    let scanned = 0
+    for (const doc of all) {
+      const chatId = doc._id
+      const nums = doc?.val?.numbers || []
+      for (const n of nums) {
+        if (!n || typeof n !== 'object') continue
+        if (n.status && n.status !== 'active' && n.status !== 'suspended') continue
+        scanned++
+        const planTier = (n.plan || '').toLowerCase()
+        const stored = Number(n.planPrice)
+        const canonical = phoneConfig.plans?.[planTier]?.price
+        const isSub = !!n.isSubNumber
+        const grandfathered = n.grandfathered === true
+        if (grandfathered) continue
+        if (isSub) {
+          if (!Number.isFinite(stored) || stored < phoneConfig.SUB_NUMBER_BASE_PRICE) {
+            anomalies.push({ chatId, phone: n.phoneNumber, plan: planTier, isSub, stored, canonical: phoneConfig.SUB_NUMBER_BASE_PRICE, reason: 'sub below floor' })
+          }
+        } else if (Number.isFinite(canonical) && stored !== canonical) {
+          anomalies.push({ chatId, phone: n.phoneNumber, plan: planTier, isSub, stored, canonical, reason: 'parent price mismatch' })
+        } else if (!Number.isFinite(stored) || stored <= 0) {
+          anomalies.push({ chatId, phone: n.phoneNumber, plan: planTier, isSub, stored, canonical, reason: 'invalid stored price' })
+        }
+      }
+    }
+    log(`[PhoneScheduler] Pricing reconciler scanned=${scanned} anomalies=${anomalies.length}`)
+    if (anomalies.length === 0) {
+      // Quiet success — only ping admin when there's something to see.
+      return
+    }
+    const lines = anomalies.slice(0, 30).map(a =>
+      `• <code>${a.chatId}</code> ${a.phone} · ${a.plan}${a.isSub ? ' (sub)' : ''} · stored=$${a.stored} → canonical=$${a.canonical} <i>(${a.reason})</i>`
+    )
+    const overflow = anomalies.length > 30 ? `\n…and ${anomalies.length - 30} more` : ''
+    _notifyGroup?.(
+      `🧾 <b>Daily pricing reconciler</b>\n` +
+      `Scanned: <b>${scanned}</b> active number(s)\n` +
+      `Anomalies: <b>${anomalies.length}</b>\n\n` +
+      lines.join('\n') + overflow + `\n\n` +
+      `<i>Numbers above will be self-healed at next auto-renew (canonical price charged + alert). To grandfather a customer at a custom price, set <code>grandfathered:true</code> on the number doc.</i>`
+    )
+  } catch (e) {
+    log(`[PhoneScheduler] runPricingReconciler error: ${e.message}`)
+  }
+}
+
 module.exports = {
   initPhoneScheduler,
   runExpiryCheck,
   runUsageTracking,
   runMonthlyReset,
+  runPricingReconciler,
 }

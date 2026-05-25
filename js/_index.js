@@ -1692,6 +1692,37 @@ async function resolveEscalation(escId, adminId) {
   }
 }
 
+// ── Resolve every OPEN / ACKNOWLEDGED escalation for a chat ──
+// Called when an admin closes a support session (via aCS button or /close
+// command). Previously, admins clicked "Close Session" and the escalation
+// stayed `acknowledged` forever — the entire history had `resolvedAt: null`.
+// This makes session-close the canonical "ticket closed" action so the
+// open-ticket metric is trustworthy.
+async function resolveOpenEscalationsForChat(chatId, adminId) {
+  try {
+    if (!chatId || !escalations?.updateMany) return 0
+    const cidStr = String(chatId)
+    const res = await escalations.updateMany(
+      { chatId: cidStr, status: { $in: ['open', 'acknowledged'] } },
+      { $set: {
+        status: 'resolved',
+        resolvedAt: new Date(),
+        resolvedBy: String(adminId || 'unknown'),
+        resolvedVia: 'session_close',
+      } }
+    )
+    const n = res?.modifiedCount || 0
+    if (n > 0) {
+      log(`[Escalation] Auto-resolved ${n} escalation(s) for chatId=${cidStr} on session close by ${adminId}`)
+      _recentEscalations.delete(cidStr) // free dedup so future complaints alert again
+    }
+    return n
+  } catch (e) {
+    log(`[Escalation] resolveOpenEscalationsForChat error: ${e.message}`)
+    return 0
+  }
+}
+
 // Periodic reminder: re-ping admin about OPEN escalations >10 min old that
 // haven't been acknowledged. Runs every 5 min. Caps at 3 reminders per
 // escalation to avoid alert fatigue.
@@ -4735,6 +4766,10 @@ bot?.on('callback_query', async (query) => {
         send(adminId, `✅ Session closed for ${targetName || target} (${target})`)
         clearAiHistory(target)
         await set(state, target, 'adminTakeover', false)
+        // Auto-resolve any open/acknowledged escalations for this chat —
+        // session close == ticket closed (added 2026-05-25 to fix the
+        // "every escalation still has resolvedAt=null" metric bug).
+        await resolveOpenEscalationsForChat(target, adminId)
         log(`[Support] Admin tapped ✖️ Close for ${target} — admin takeover OFF`)
       } catch (e) {
         log(`[Support] aCS close failed for ${target}: ${e.message}`)
@@ -5568,6 +5603,9 @@ bot?.on('message', msg => {
     clearAiHistory(targetChatId) // Clear AI conversation history
     // Clear admin takeover flag on session close
     await set(state, targetChatId, 'adminTakeover', false)
+    // Auto-resolve open/acknowledged escalations for this chat — see
+    // resolveOpenEscalationsForChat() comment for context.
+    await resolveOpenEscalationsForChat(targetChatId, chatId)
     log(`[Support] Admin closed session for ${targetChatId} — admin takeover OFF`)
     return
   }
@@ -29557,6 +29595,26 @@ async function applyPhonePlanUpgrade(chatId, num, newPlan, newPrice, lang, payme
     })
   } catch (e) {
     log(`[CloudPhone] phoneTransactions.insertOne failed for upgrade ${chatId}/${num.phoneNumber}: ${e.message}`)
+    // ── Audit-trail-failure alert (added 2026-05-25) ──
+    // The Apr-30-2026 incident (@fuckthisapp) happened because this insert
+    // failure was silent. Now we ping the admin group so we can backfill
+    // within hours instead of weeks. Keep this notification synchronous-safe
+    // (best-effort, swallows its own errors) so the upgrade still completes.
+    try {
+      const _name = await get(nameOf, chatId).catch(() => null)
+      notifyGroup(
+        `🚨 <b>Audit-trail FAILURE — manual backfill needed</b>\n` +
+        `👤 ${adminUserTag(_name, chatId)}\n` +
+        `📞 Number: <code>${num.phoneNumber}</code>\n` +
+        `📦 ${oldPlan} → <b>${newPlan}</b>\n` +
+        `💵 Charged: <b>$${chargeAmount.toFixed(2)}</b>${credit > 0 ? ` (credit -$${credit.toFixed(2)})` : ''}\n` +
+        `💳 Payment: ${paymentMethod}\n` +
+        `❌ phoneTransactions.insertOne failed: <code>${(e.message || '').substring(0, 200)}</code>\n` +
+        `<i>Plan + price were applied to phoneNumbersOf — only the audit row is missing.</i>`
+      )
+    } catch (notifyErr) {
+      log(`[CloudPhone] could not notify admin of phoneTransactions failure: ${notifyErr.message}`)
+    }
   }
 
   const m = phoneConfig.getMsg(lang)
