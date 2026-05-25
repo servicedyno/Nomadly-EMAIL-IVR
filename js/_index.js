@@ -22529,16 +22529,20 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   if (action === a.cpEnterAddress) {
     const lang = info?.userLanguage ?? 'en'
     const addressInput = message.trim()
+    const countryCode = info?.cpCountryCode || 'US'
 
-    // Parse: "Street, City, Postal Code, Country"  (Twilio AU/UK/EU require postal_code)
-    const parts = addressInput.split(',').map(p => p.trim()).filter(Boolean)
-    // Stricter validation (added 2026-05-25 after @kathyserious incident):
-    // Twilio's createAddress requires postal_code for AU/FI/UK/EU. Before this
-    // change we silently sent empty postal_code → Twilio rejected → user got
-    // refunded but ALSO a ReferenceError crash (see refNgn fix below) so the
-    // error message never reached them. Now we validate up-front and keep the
-    // user's pending purchase intact so they can retry without re-paying.
-    if (parts.length < 4) {
+    // ── Try heuristic auto-parsing first ──
+    // The strict 4-comma format ("Street, City, Postal Code, Country") is
+    // unforgiving — users routinely send multi-line addresses like
+    //   "9 Cobram Street\nTarneit VIC 3029"
+    // which used to be rejected outright. The auto-parser handles this and
+    // 10+ other common shapes (newlines, pipes, state-code interleaving,
+    // already-strict format). Country is always known from cpCountryCode,
+    // so the 4th comma is just a courtesy field.
+    const { autoParseAddress } = require('./address-autoparse')
+    const parsed = autoParseAddress(addressInput, countryCode)
+
+    if (!parsed.ok) {
       const fmtMsg = ({
         en: `❌ <b>Address format incorrect.</b>\n\n` +
             `Please send your address as <b>4 comma-separated parts</b>:\n` +
@@ -22561,17 +22565,52 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
             `<i>उदाहरण: 42 George St, Sydney, 2000, Australia</i>\n\n` +
             `💰 आपका भुगतान सुरक्षित है। बस सही पता दोबारा भेजें।`,
       })[lang] || ({
-        en: `❌ <b>Address format incorrect.</b>\n\nPlease send: <code>Street, City, Postal Code, Country</code>\n<i>Example: 42 George St, Sydney, 2000, Australia</i>\n\n💰 Your payment is safe — just resend correctly.`
+        en: `❌ <b>Couldn't parse that address.</b>\n\nPlease send: <code>Street, City, Postal Code, Country</code>\n<i>Example: 42 George St, Sydney, 2000, Australia</i>\n\n💰 Your payment is safe — just resend correctly.`
       }).en
+      log(`[CloudPhone] Address parse failed for chatId=${chatId} cc=${countryCode} input=${JSON.stringify(addressInput).slice(0,120)} reason="${parsed.reason}"`)
       return send(chatId, fmtMsg, { parse_mode: 'HTML' })
     }
 
-    const street = parts[0]
-    const city = parts[1]
-    const postalCode = parts[parts.length - 2]   // second-to-last
-    const region = parts.length >= 5 ? parts[2] : ''  // optional state/region if user adds it
-    const countryCode = info?.cpCountryCode || 'US'
+    const street = parsed.street
+    const city = parsed.city
+    const postalCode = parsed.postalCode
+    const region = parsed.region || ''
     const customerName = await get(nameOf, chatId) || `User-${chatId}`
+
+    // If we auto-corrected from a non-strict input, echo the parsed components
+    // so the user can spot a wrong city/postcode BEFORE Twilio charges its
+    // address-creation fee. Flow continues immediately afterwards — any
+    // rejection still triggers the existing refund path.
+    if (!parsed._wasStrict) {
+      const cmsg = ({
+        en: `📝 <b>Parsed your address as:</b>\n` +
+            `   • Street: <code>${street}</code>\n` +
+            `   • City: <code>${city}</code>\n` +
+            (region ? `   • State/Region: <code>${region}</code>\n` : '') +
+            (postalCode ? `   • Postal Code: <code>${postalCode}</code>\n` : '') +
+            `   • Country: <code>${countryCode}</code>\n\n` +
+            `<i>Submitting to carrier… if anything is wrong, you'll get a full refund automatically.</i>`,
+        fr: `📝 <b>Adresse interprétée :</b>\n` +
+            `   • Rue: <code>${street}</code>\n` +
+            `   • Ville: <code>${city}</code>\n` +
+            (region ? `   • Région: <code>${region}</code>\n` : '') +
+            (postalCode ? `   • Code Postal: <code>${postalCode}</code>\n` : '') +
+            `   • Pays: <code>${countryCode}</code>\n`,
+        zh: `📝 <b>已解析地址：</b>\n` +
+            `   • 街道: <code>${street}</code>\n` +
+            `   • 城市: <code>${city}</code>\n` +
+            (region ? `   • 州/区: <code>${region}</code>\n` : '') +
+            (postalCode ? `   • 邮编: <code>${postalCode}</code>\n` : '') +
+            `   • 国家: <code>${countryCode}</code>\n`,
+        hi: `📝 <b>आपका पता:</b>\n` +
+            `   • सड़क: <code>${street}</code>\n` +
+            `   • शहर: <code>${city}</code>\n` +
+            (region ? `   • राज्य: <code>${region}</code>\n` : '') +
+            (postalCode ? `   • पिन: <code>${postalCode}</code>\n` : '') +
+            `   • देश: <code>${countryCode}</code>\n`,
+      })[lang] || `📝 Parsed: ${street}, ${city}, ${postalCode}, ${countryCode}`
+      try { await send(chatId, cmsg, { parse_mode: 'HTML' }) } catch (_) {}
+    }
 
     send(chatId, phoneConfig.getMsg(lang).purchasingNumber)
 
