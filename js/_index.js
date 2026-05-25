@@ -22614,8 +22614,78 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
     send(chatId, phoneConfig.getMsg(lang).purchasingNumber)
 
-    // Create Twilio Address
-    const addrResult = await twilioService.createAddress(customerName, street, city, region, postalCode, countryCode, null, null)
+    // ━━━ Twilio sub-account get-or-create — MUST happen BEFORE createAddress ━━━
+    // The Twilio security guard (twilio-service.js:requireSubClient) rejects any
+    // createAddress call that doesn't supply sub-account credentials. Without
+    // this block, every first-time address-required purchase (AU / FI / NZ / HK /
+    // MX / etc.) would fail with "Address creation requires sub-account
+    // credentials" — the bot would refund the wallet and the user would be
+    // stuck retrying with no path forward. See @kathyserious / itsonlytravel
+    // Australia toll-free regression (2026-05-25).
+    let _userData = await get(phoneNumbersOf, chatId)
+    let subSidForAddr = _userData?.twilioSubAccountSid || null
+    let subTokenForAddr = _userData?.twilioSubAccountToken || null
+    // If a stored sub-account exists but is suspended/closed, drop it so we
+    // mint a fresh one (mirrors the suspended-recovery logic in executeTwilioPurchase).
+    if (subSidForAddr) {
+      try {
+        const subInfo = await twilioService.getSubAccount(subSidForAddr)
+        if (subInfo && !subInfo.error && subInfo.status && subInfo.status !== 'active') {
+          log(`[CloudPhone] Sub-account ${subSidForAddr} status="${subInfo.status}" for chatId=${chatId} (cpEnterAddress) — minting new one`)
+          subSidForAddr = null
+          subTokenForAddr = null
+        }
+      } catch (subCheckErr) {
+        log(`[CloudPhone] Sub-account check failed for ${subSidForAddr} (cpEnterAddress): ${subCheckErr.message} — minting new one`)
+        subSidForAddr = null
+        subTokenForAddr = null
+      }
+    }
+    if (!subSidForAddr || !subTokenForAddr) {
+      const _displayName = await get(nameOf, chatId)
+      const newSub = await twilioService.createSubAccount(`Nomadly-${chatId}-${_displayName || 'user'}`)
+      if (newSub.error) {
+        log(`[CloudPhone] createSubAccount FAILED for chatId=${chatId} (cpEnterAddress): ${newSub.error}`)
+        // Refund and exit — same protection block used by createAddress failure path.
+        const coin = info?.cpPendingCoin
+        const priceUsd = info?.cpPendingPriceUsd
+        if (coin && priceUsd) {
+          if (isUsdRefundCoin(coin, u)) await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
+          await saveInfo('cpPendingCoin', null)
+          await saveInfo('cpPendingPriceUsd', null)
+          await saveInfo('cpPendingPriceNgn', null)
+          const { usdBal: refUsd } = await getBalance(walletOf, chatId)
+          log(`[CloudPhone] Sub-account creation failed for ${chatId}, refunded $${priceUsd}. Balance: $${refUsd}`)
+          await set(state, chatId, 'action', 'none')
+          return send(chatId, ({
+            en: `❌ Couldn't initialise your phone account.\n\n💰 <b>$${Number(priceUsd).toFixed(2)}</b> has been refunded to your wallet.\n${t.showWallet(refUsd)}`,
+            fr: `❌ Impossible d'initialiser votre compte téléphonique.\n\n💰 <b>$${Number(priceUsd).toFixed(2)}</b> remboursé.\n${t.showWallet(refUsd)}`,
+            zh: `❌ 无法初始化您的电话账户。\n\n💰 <b>$${Number(priceUsd).toFixed(2)}</b> 已退还。\n${t.showWallet(refUsd)}`,
+            hi: `❌ फ़ोन खाता आरंभ नहीं हो सका।\n\n💰 <b>$${Number(priceUsd).toFixed(2)}</b> वापस।\n${t.showWallet(refUsd)}`,
+          }[lang]), { parse_mode: 'HTML' })
+        }
+        await set(state, chatId, 'action', 'none')
+        return send(chatId, sanitizeProviderError(newSub.error, 'voice'))
+      }
+      subSidForAddr = newSub.accountSid
+      subTokenForAddr = newSub.authToken
+      // Persist atomically so executeTwilioPurchase finds the same credentials.
+      if (_userData) {
+        _userData.twilioSubAccountSid = subSidForAddr
+        _userData.twilioSubAccountToken = subTokenForAddr
+        await phoneNumbersOf.updateOne(
+          { _id: chatId },
+          { $set: { 'val.twilioSubAccountSid': subSidForAddr, 'val.twilioSubAccountToken': subTokenForAddr } },
+          { upsert: true }
+        )
+      } else {
+        await set(phoneNumbersOf, chatId, { numbers: [], twilioSubAccountSid: subSidForAddr, twilioSubAccountToken: subTokenForAddr })
+      }
+      log(`[CloudPhone] Sub-account minted for chatId=${chatId} from cpEnterAddress: ${subSidForAddr}`)
+    }
+
+    // Create Twilio Address — now using the resolved sub-account credentials.
+    const addrResult = await twilioService.createAddress(customerName, street, city, region, postalCode, countryCode, subSidForAddr, subTokenForAddr)
     if (addrResult.error) {
       log(`[CloudPhone] Address creation failed: ${addrResult.error}`)
       // Refund to wallet with duplicate protection

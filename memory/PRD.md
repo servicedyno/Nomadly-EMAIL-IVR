@@ -853,5 +853,85 @@ admin script needed — the fleet self-heals over time.
   (L840), other `meta.registrar || 'ConnectReseller'` sites at L1131 / L1268.
   Current fix covers the user-visible NS-update path; remaining paths still
   use the legacy default-to-CR fallback which is safe but suboptimal.
+
+---
+
+## 2026-05-25 — Australian phone purchase failure (@kathyserious)
+
+### Problem
+@kathyserious (chatId `8690991604`) tried 7 times across ~6 hours to buy an
+Australian Toll-Free number from the bot. Each attempt followed the same
+pattern: country picker → AU → Toll-Free → number selection → wallet
+confirm → address input → silently failed → wallet refunded → retry. She
+eventually escalated to Support thinking it was her address format.
+
+### Root cause (from Railway logs)
+The bot's `cpEnterAddress` handler at `js/_index.js:22618` was calling
+`twilioService.createAddress(..., null, null)` with **null sub-account
+credentials**. The Twilio security guard (`twilio-service.js:requireSubClient`,
+added in a previous hardening pass to force all user-facing ops onto
+sub-accounts) immediately rejected the call:
+
+```
+[Twilio] SECURITY BLOCK: createAddress rejected — missing sub-account credentials (subSid=false, subToken=false)
+[CloudPhone] Address creation failed: Address creation requires sub-account credentials. Cannot use main Twilio account.
+[CloudPhone] Address failed for 8690991604, refunded $91 to wallet. Balance: $96
+```
+
+The sub-account get-or-create logic existed only inside
+`executeTwilioPurchase` (line 1918+) — which runs **after** `createAddress`.
+So the sub-account never existed when the address creation tried to use it.
+This affected **every first-time address-required purchase**: AU, FI, NZ, HK,
+MX, and all other `addrReq=['any']` / `addrReq=['local']` countries.
+
+(For all of @kathyserious's 7 attempts, the auto-parser successfully parsed
+4 of the 7 submissions — confirming the address-parser fix from the prior
+session is working. The real blocker was the sub-account guard.)
+
+### Fix
+- **`js/_index.js` cpEnterAddress** (just before line 22618 createAddress
+  call): load the user's existing Twilio sub-account from `phoneNumbersOf`,
+  verify it's active (auto-replace if suspended/closed — mirrors the
+  recovery logic in `executeTwilioPurchase`), or mint a fresh one via
+  `twilioService.createSubAccount`. Persist `subSid`+`subToken` atomically
+  to `phoneNumbersOf.val.twilioSubAccountSid/Token` so the later
+  `executeTwilioPurchase` reuses the same credentials. Pass the resolved
+  pair into `createAddress` instead of `null, null`.
+- Sub-account-creation failure has its own refund + user-facing message so
+  the user never sees a silent failure or a stuck "Purchasing..." state.
+
+### Verification
+- **New unit test** `/app/js/tests/test_twilio_create_address_subaccount.js`
+  — **4/4 pass**:
+  - null/null creds → rejected with sub-account error (the regression
+    reproduction)
+  - empty-string creds → rejected
+  - subSid matching main-account SID → rejected (security)
+  - valid sub-account pair → succeeds and instantiates a Twilio client
+    bound to the sub-account (not main)
+- `node -c js/_index.js` clean
+- `sudo supervisorctl restart nodejs` clean — HTTP 200 on root, webhook
+  re-verified, all subsystems (CR whitelist, HostingScheduler,
+  PhoneMonitor, AntiRed, ShortenerReconciler, BulkCall, CpanelMigration)
+  re-initialised.
+
+### Files touched
+- `/app/js/_index.js` cpEnterAddress — get-or-create sub-account before
+  `createAddress` (+72 lines).
+- `/app/js/tests/test_twilio_create_address_subaccount.js` (new — 4 tests).
+
+### Backlog (still pending)
+- Push to Railway and DM @kathyserious to retry — should now complete
+  end-to-end on her first try.
+- (P2) Audit other `twilioService.createAddress(..., null, null)` call
+  sites — grep shows only one (just fixed). The cached-address read paths
+  at L9679 / L30334 / L31314 use `getCachedTwilioAddress`, which returns
+  the SID of an address already created with valid sub-account creds — so
+  no further changes needed there.
+- (P2) Long-term: extract `getOrCreateTwilioSubAccount(chatId)` into a
+  shared helper to avoid the duplicated get-or-create logic between
+  `cpEnterAddress` and `executeTwilioPurchase`. Current fix copies the
+  block inline (~70 lines) but the de-dup is cosmetic, not behavioural.
+
 - (P2) Optional admin command `/repairregistrar [domain]` for one-tap fleet
   audit (skipped this round per user direction).
