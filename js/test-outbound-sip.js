@@ -179,6 +179,14 @@ async function matchPendingTest(chatId, num, sipUsername, context = {}) {
   const provider = context.provider || num?.provider || 'unknown'
   const callControlId = context.callControlId
 
+  // ── White-label sanitization (2026-05-26) ──
+  // Never expose the underlying carrier brand ('twilio'/'telnyx') to end users.
+  // Map both to the Nomadly-branded gateway name shown in SIP credentials (sip.speechcue.com).
+  // Internal logs keep the raw provider for debugging.
+  const userVisibleProvider = (provider === 'twilio' || provider === 'telnyx' || provider === 'Twilio' || provider === 'Telnyx')
+    ? 'Speechcue'
+    : provider
+
   _log(`[TestOutboundSip] ✅ Matched test for chatId=${chatIdStr} sipUser=${sipUsername} dest=${destination} provider=${provider} elapsed=${elapsedMs}ms`)
 
   // Hang up the call quietly (prefer Telnyx API; if not available, caller's own hangup)
@@ -198,8 +206,8 @@ async function matchPendingTest(chatId, num, sipUsername, context = {}) {
     return typeof v === 'function' ? v(...args) : v
   }
   const elapsedSec = (elapsedMs / 1000).toFixed(1)
-  const msg = M('success', session.num.phoneNumber, sipUsername, provider, destination, elapsedSec)
-    || `✅ <b>Outbound SIP verified</b>\n\nYour softphone successfully placed a call.\n\n📞 Number: <code>${session.num.phoneNumber}</code>\n🔑 SIP user: <code>${sipUsername}</code>\n🌐 Provider: <code>${provider}</code>\n📍 Dialed: <code>${destination}</code>\n⏱️ Latency: ${elapsedSec}s\n\n💡 The call was intercepted safely — no wallet charges, no PSTN leg.`
+  const msg = M('success', session.num.phoneNumber, sipUsername, userVisibleProvider, destination, elapsedSec)
+    || `✅ <b>Outbound SIP verified</b>\n\nYour softphone successfully placed a call.\n\n📞 Number: <code>${session.num.phoneNumber}</code>\n🔑 SIP user: <code>${sipUsername}</code>\n🌐 Provider: <code>${userVisibleProvider}</code>\n📍 Dialed: <code>${destination}</code>\n⏱️ Latency: ${elapsedSec}s\n\n💡 The call was intercepted safely — no wallet charges, no PSTN leg.`
 
   try {
     await _bot?.sendMessage(session.chatId, msg, { parse_mode: 'HTML', disable_web_page_preview: true })

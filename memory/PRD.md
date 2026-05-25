@@ -733,3 +733,29 @@ The "🔗✂️ URL Shortener — Unlimited" → `urlShortener` mapping in `_ind
 - `[AI Support] OpenAI initialized` ✓
 - `[ShortenerReconciler] Scheduled every 5min` ✓
 - `[Memory] rss=110.3MB heap=45.7MB/48.1MB external=20.7MB heapPct=95% ⚠️ HIGH` ← already actionable signal
+
+
+---
+
+## 2026-05-26 — Twilio white-label brand leak fix (P0)
+
+### Issue
+User `@kathyserious` discovered Nomadly uses Twilio under the hood, breaking white-label promise. Root-caused to the **"📤 Test Outbound SIP"** success message, which printed `🌐 Provider: twilio` (the raw `num.provider` value) directly into the user-facing localized template (en/fr/zh/hi) and into the English fallback hardcoded message in `js/test-outbound-sip.js:202`.
+
+### Fix
+- `js/test-outbound-sip.js` — added `userVisibleProvider` sanitizer in `matchPendingTest()` that maps `twilio`/`telnyx` (both cases) → `Speechcue` BEFORE the value flows into any user-visible template. Internal `_log` still keeps raw provider for debugging. Single source of truth — fixes all 4 locales at once with one edit.
+- Verified: `js/tests/test_twilio_brand_leak_fix.js` (new — 66 assertions, all pass) + existing `js/tests/test_test_outbound_sip.js` (68 assertions, all pass).
+- Restarted nodejs supervisor — bot is live with fix.
+- Documentation: `/app/memory/TWILIO_LEAK_FIX_2026-05-26.md`.
+
+### Other Twilio mentions audited (intentional — NOT leaks)
+- `js/auto-promo.js`, `js/lang/*.js`, `js/ai-support.js` Digital Products sections — Twilio accounts are an actual product SKU (sold to users). Brand mention is intentional.
+- `js/twilio-service.js` + `js/_index.js cpEnterAddress` errors — already sanitized via `sanitizeProviderError()` helper.
+- `js/phone-monitor.js`, `js/balance-monitor.js` — admin-only logs, user-facing notifications already use provider-neutral `phoneCallerIdFlaggedBody` template.
+
+### Backlog (carried over from previous session — still P1)
+- 📊 **Compare Plans screen** before "🛒 Choose a Plan" menu (estimated to deflect ~25% of AI support traffic about plan differences).
+- Improve **first-time-user upgrade UX** — current flow dead-ends/loops when user has 0 phone numbers.
+- P2: Domain DNS self-diagnosis (WHOIS + DNS propagation auto-check) before "domain not working" escalations.
+- P2: Auto-ping admins on media-attached escalations.
+- Refactoring: `_index.js` (~36k lines) — gradually split callback handlers into modules.
