@@ -22530,22 +22530,53 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     const lang = info?.userLanguage ?? 'en'
     const addressInput = message.trim()
 
-    // Parse: "Street, City, Country"
+    // Parse: "Street, City, Postal Code, Country"  (Twilio AU/UK/EU require postal_code)
     const parts = addressInput.split(',').map(p => p.trim()).filter(Boolean)
-    if (parts.length < 2) {
-      return send(chatId, trans('t.cp_244'), { parse_mode: 'HTML' })
+    // Stricter validation (added 2026-05-25 after @kathyserious incident):
+    // Twilio's createAddress requires postal_code for AU/FI/UK/EU. Before this
+    // change we silently sent empty postal_code → Twilio rejected → user got
+    // refunded but ALSO a ReferenceError crash (see refNgn fix below) so the
+    // error message never reached them. Now we validate up-front and keep the
+    // user's pending purchase intact so they can retry without re-paying.
+    if (parts.length < 4) {
+      const fmtMsg = ({
+        en: `❌ <b>Address format incorrect.</b>\n\n` +
+            `Please send your address as <b>4 comma-separated parts</b>:\n` +
+            `<code>Street, City, Postal Code, Country</code>\n\n` +
+            `<i>Example: 42 George St, Sydney, 2000, Australia</i>\n\n` +
+            `💰 Your payment is still safely held. Just resend the address correctly.`,
+        fr: `❌ <b>Format d'adresse incorrect.</b>\n\n` +
+            `Envoyez votre adresse en <b>4 parties séparées par des virgules</b> :\n` +
+            `<code>Rue, Ville, Code Postal, Pays</code>\n\n` +
+            `<i>Exemple : 42 George St, Sydney, 2000, Australia</i>\n\n` +
+            `💰 Votre paiement est conservé. Renvoyez simplement l'adresse correctement.`,
+        zh: `❌ <b>地址格式错误。</b>\n\n` +
+            `请使用<b>4个用逗号分隔的部分</b>发送地址：\n` +
+            `<code>街道, 城市, 邮编, 国家</code>\n\n` +
+            `<i>示例：42 George St, Sydney, 2000, Australia</i>\n\n` +
+            `💰 您的付款仍然安全。请重新发送正确的地址。`,
+        hi: `❌ <b>पता प्रारूप गलत है।</b>\n\n` +
+            `कृपया अपना पता <b>4 अल्पविराम-वियोजित भागों</b> में भेजें:\n` +
+            `<code>सड़क, शहर, पिन कोड, देश</code>\n\n` +
+            `<i>उदाहरण: 42 George St, Sydney, 2000, Australia</i>\n\n` +
+            `💰 आपका भुगतान सुरक्षित है। बस सही पता दोबारा भेजें।`,
+      })[lang] || ({
+        en: `❌ <b>Address format incorrect.</b>\n\nPlease send: <code>Street, City, Postal Code, Country</code>\n<i>Example: 42 George St, Sydney, 2000, Australia</i>\n\n💰 Your payment is safe — just resend correctly.`
+      }).en
+      return send(chatId, fmtMsg, { parse_mode: 'HTML' })
     }
 
     const street = parts[0]
     const city = parts[1]
-    const region = parts.length >= 4 ? parts[2] : ''
+    const postalCode = parts[parts.length - 2]   // second-to-last
+    const region = parts.length >= 5 ? parts[2] : ''  // optional state/region if user adds it
     const countryCode = info?.cpCountryCode || 'US'
     const customerName = await get(nameOf, chatId) || `User-${chatId}`
 
     send(chatId, phoneConfig.getMsg(lang).purchasingNumber)
 
     // Create Twilio Address
-    const addrResult = await twilioService.createAddress(customerName, street, city, region, '', countryCode, null, null)
+    const addrResult = await twilioService.createAddress(customerName, street, city, region, postalCode, countryCode, null, null)
     if (addrResult.error) {
       log(`[CloudPhone] Address creation failed: ${addrResult.error}`)
       // Refund to wallet with duplicate protection
@@ -22561,7 +22592,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
         const { usdBal: refUsd } = await getBalance(walletOf, chatId)
         log(`[CloudPhone] Address failed for ${chatId}, refunded $${priceUsd} to wallet. Balance: $${refUsd}`)
         await set(state, chatId, 'action', 'none')
-        return send(chatId, ({ en: `❌ Address creation failed.\n\n💰 <b>$${Number(priceUsd).toFixed(2)}</b> has been refunded to your wallet.\n${t.showWallet(refUsd, refNgn)}`, fr: `❌ Échec de la création de l'adresse.\n\n💰 <b>$${Number(priceUsd).toFixed(2)}</b> a été remboursé sur votre portefeuille.\n${t.showWallet(refUsd, refNgn)}`, zh: `❌ 地址创建失败。\n\n💰 <b>$${Number(priceUsd).toFixed(2)}</b> 已退还到您的钱包。\n${t.showWallet(refUsd, refNgn)}`, hi: `❌ पता बनाना विफल।\n\n💰 <b>$${Number(priceUsd).toFixed(2)}</b> आपके वॉलेट में वापस किया गया।\n${t.showWallet(refUsd, refNgn)}` }[lang] || `❌ Address creation failed.\n\n💰 <b>$${Number(priceUsd).toFixed(2)}</b> has been refunded to your wallet.\n${t.showWallet(refUsd, refNgn)}`), { parse_mode: 'HTML' })
+        return send(chatId, ({ en: `❌ Address creation failed.\n\n💰 <b>$${Number(priceUsd).toFixed(2)}</b> has been refunded to your wallet.\n${t.showWallet(refUsd)}`, fr: `❌ Échec de la création de l'adresse.\n\n💰 <b>$${Number(priceUsd).toFixed(2)}</b> a été remboursé sur votre portefeuille.\n${t.showWallet(refUsd)}`, zh: `❌ 地址创建失败。\n\n💰 <b>$${Number(priceUsd).toFixed(2)}</b> 已退还到您的钱包。\n${t.showWallet(refUsd)}`, hi: `❌ पता बनाना विफल।\n\n💰 <b>$${Number(priceUsd).toFixed(2)}</b> आपके वॉलेट में वापस किया गया।\n${t.showWallet(refUsd)}` }[lang] || `❌ Address creation failed.\n\n💰 <b>$${Number(priceUsd).toFixed(2)}</b> has been refunded to your wallet.\n${t.showWallet(refUsd)}`), { parse_mode: 'HTML' })
       }
       await set(state, chatId, 'action', 'none')
       return send(chatId, ({ en: `❌ Address creation failed: ${sanitizeProviderError(addrResult.error, 'voice')}\nYour wallet has been refunded.`, fr: `❌ Échec de la création de l'adresse : ${sanitizeProviderError(addrResult.error, 'voice')}\nVotre portefeuille a été remboursé.`, zh: `❌ 地址创建失败：${sanitizeProviderError(addrResult.error, 'voice')}\n您的钱包已退款。`, hi: `❌ पता बनाना विफल: ${sanitizeProviderError(addrResult.error, 'voice')}\nआपके वॉलेट में रिफंड किया गया।` }[lang] || `❌ Address creation failed: ${sanitizeProviderError(addrResult.error, 'voice')}\nYour wallet has been refunded.`), { parse_mode: 'HTML' })
@@ -22598,7 +22629,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
           }
           const { usdBal: refUsd } = await getBalance(walletOf, chatId)
           await set(state, chatId, 'action', 'none')
-          send(chatId, trans('t.cp_245', countryName, Number(priceUsd || price).toFixed(2), t.showWallet(refUsd, refNgn)), { parse_mode: 'HTML' })
+          send(chatId, trans('t.cp_245', countryName, Number(priceUsd || price).toFixed(2), t.showWallet(refUsd)), { parse_mode: 'HTML' })
           return notifyAdmin(`⚠️ [Bundle] getRegulationSid failed\nchatId: ${chatId}\ncountry: ${countryCode}\nerror: ${regResult.error}`)
         }
 
@@ -22618,7 +22649,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
           }
           const { usdBal: refUsd } = await getBalance(walletOf, chatId)
           await set(state, chatId, 'action', 'none')
-          send(chatId, trans('t.cp_246', Number(priceUsd || price).toFixed(2), t.showWallet(refUsd, refNgn)), { parse_mode: 'HTML' })
+          send(chatId, trans('t.cp_246', Number(priceUsd || price).toFixed(2), t.showWallet(refUsd)), { parse_mode: 'HTML' })
           return notifyAdmin(`⚠️ [Bundle] createEndUser failed\nchatId: ${chatId}\nerror: ${endUserResult.error}`)
         }
 
@@ -22640,7 +22671,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
           }
           const { usdBal: refUsd } = await getBalance(walletOf, chatId)
           await set(state, chatId, 'action', 'none')
-          send(chatId, trans('t.cp_247', Number(priceUsd || price).toFixed(2), t.showWallet(refUsd, refNgn)), { parse_mode: 'HTML' })
+          send(chatId, trans('t.cp_247', Number(priceUsd || price).toFixed(2), t.showWallet(refUsd)), { parse_mode: 'HTML' })
           return notifyAdmin(`⚠️ [Bundle] createBundle failed\nchatId: ${chatId}\nerror: ${bundleResult.error}`)
         }
 
@@ -22722,7 +22753,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
         }
         const { usdBal: refUsd } = await getBalance(walletOf, chatId)
         await set(state, chatId, 'action', 'none')
-        send(chatId, trans('t.cp_248', t.showWallet(refUsd, refNgn)), { parse_mode: 'HTML' })
+        send(chatId, trans('t.cp_248', t.showWallet(refUsd)), { parse_mode: 'HTML' })
         return notifyAdmin(`⚠️ [Bundle] Exception\nchatId: ${chatId}\nerror: ${bundleErr.message}`)
       }
     }
@@ -22744,7 +22775,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
         const { usdBal: refUsd } = await getBalance(walletOf, chatId)
         log(`[CloudPhone] Twilio purchase failed for ${chatId}, refunded $${priceUsd} to wallet. Balance: $${refUsd}`)
         await set(state, chatId, 'action', 'none')
-        send(chatId, phoneConfig.getMsg(lang).purchaseFailed + `\n\n💰 <b>$${Number(priceUsd).toFixed(2)}</b> has been refunded to your wallet.\n${t.showWallet(refUsd, refNgn)}`, trans('o'))
+        send(chatId, phoneConfig.getMsg(lang).purchaseFailed + `\n\n💰 <b>$${Number(priceUsd).toFixed(2)}</b> has been refunded to your wallet.\n${t.showWallet(refUsd)}`, trans('o'))
       } else {
         await set(state, chatId, 'action', 'none')
         send(chatId, phoneConfig.getMsg(lang).purchaseFailed + `\n${sanitizeProviderError(result.error, 'voice')}`, trans('o'))
