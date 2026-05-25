@@ -209,6 +209,11 @@ async function checkReferralReward(walletOf, chatId, amountUsd) {
     const ref = await referralsCol.findOne({ _id: chatId })
     if (!ref || ref.rewardPaid) return  // No referrer or already paid
 
+    // Skip self-referrals — happens when a user joins without `?start=ref_*`
+    // and the join code seeds `referrerChatId = chatId`. Paying a self-reward
+    // would be free money / abuse vector.
+    if (String(ref.referrerChatId) === String(chatId)) return
+
     // Update cumulative spend
     const newSpend = (ref.cumulativeSpend || 0) + amountUsd
     await referralsCol.updateOne({ _id: chatId }, { $set: { cumulativeSpend: newSpend } })

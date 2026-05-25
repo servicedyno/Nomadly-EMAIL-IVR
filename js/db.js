@@ -99,6 +99,17 @@ const atomicIncrement = async (c, key, field, amount) => {
         console.log(`[atomicIncrement] ⛔ Wallet deduction BLOCKED: chatId=${key} ${field} += ${amount} — balance $${bal} insufficient`)
         return false
       }
+      // ── Referral spend hook ──
+      // Central choke-point for every USD wallet deduction (manual purchases AND
+      // auto-renewal). Fires the referral cumulativeSpend / reward check so the
+      // referrer's $5 bonus actually gets credited once their referee has spent $30.
+      // Best-effort, non-blocking — never breaks the deduction.
+      if (field === 'usdOut' && amount > 0) {
+        try {
+          const { checkReferralReward } = require('./utils')
+          checkReferralReward(c, key, amount).catch(() => {})
+        } catch (_) {}
+      }
       return true
     }
 
