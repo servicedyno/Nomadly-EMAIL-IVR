@@ -666,11 +666,30 @@ const updateAllNameservers = async (domainName, newNameservers, db) => {
   const isCRDefault = newNameservers.some(ns => ns.toLowerCase().includes('managedns.org'))
   const isOPDefault = newNameservers.some(ns => ns.toLowerCase().includes('openprovider'))
   let newNsType = 'custom'
-  // Only mark as 'cloudflare' if we already manage the CF zone (cfZoneId exists).
-  // If user sets their own CF nameservers (no cfZoneId), treat as 'custom'
-  // to prevent auto-creating a conflicting zone under the bot's CF account.
-  if (isCloudflare && meta.cfZoneId) newNsType = 'cloudflare'
-  else if ((registrar === 'ConnectReseller' && isCRDefault) || (registrar === 'OpenProvider' && isOPDefault)) newNsType = 'provider_default'
+  let resolvedCfZoneId = meta.cfZoneId || null
+
+  // Mark as 'cloudflare' whenever the user moves NS to Cloudflare AND we already
+  // manage a CF zone for this domain (whether or not `meta.cfZoneId` was
+  // populated on this Mongo record yet — addon-domain flows historically left
+  // it blank). If we DON'T have a CF zone for the name, leave as 'custom' so we
+  // don't create a conflicting zone in our CF account.
+  if (isCloudflare) {
+    if (!resolvedCfZoneId) {
+      try {
+        const cfService = require('./cf-service')
+        const z = await cfService.getZoneByName(domainName)
+        if (z?.id) {
+          resolvedCfZoneId = z.id
+          log(`[updateAllNameservers] ${domainName}: resolved missing cfZoneId via CF API = ${resolvedCfZoneId}`)
+        }
+      } catch (e) {
+        log(`[updateAllNameservers] ${domainName}: CF zone lookup failed: ${e.message}`)
+      }
+    }
+    if (resolvedCfZoneId) newNsType = 'cloudflare'
+  } else if ((registrar === 'ConnectReseller' && isCRDefault) || (registrar === 'OpenProvider' && isOPDefault)) {
+    newNsType = 'provider_default'
+  }
 
   // Update DB
   if (db) {
@@ -688,14 +707,21 @@ const updateAllNameservers = async (domainName, newNameservers, db) => {
         { upsert: false }
       )
     } else {
+      // Stamp cfZoneId when we just (re)confirmed cloudflare ownership.
+      const rdSet = { 'val.nameservers': newNameservers, 'val.nameserverType': newNsType }
+      const doSet = { ...updateFields }
+      if (newNsType === 'cloudflare' && resolvedCfZoneId) {
+        rdSet['val.cfZoneId'] = resolvedCfZoneId
+        doSet.cfZoneId = resolvedCfZoneId
+      }
       await db.collection('domainsOf').updateOne(
         { domainName },
-        { $set: updateFields },
+        { $set: doSet },
         { upsert: false }
       )
       await db.collection('registeredDomains').updateOne(
         { _id: domainName },
-        { $set: { 'val.nameservers': newNameservers, 'val.nameserverType': newNsType } },
+        { $set: rdSet },
         { upsert: false }
       )
     }

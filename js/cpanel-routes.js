@@ -28,6 +28,41 @@ async function getUserLang(account) {
   } catch (_) { return 'en' }
 }
 
+/**
+ * Robust ownership check for a domain against a chatId.
+ *
+ * `domainsOf` is keyed by `{ _id: <chatId>, "<domain@com>": true }` (legacy schema).
+ * The old check that compared `domOf.chatId === chatId` always returned false because
+ * the doc is *keyed* by chatId rather than carrying a `chatId` field.
+ * `registeredDomains.val.chatId` is also frequently missing on older records.
+ *
+ * This helper accepts any of the historical shapes:
+ *   1. `domainsOf` doc keyed by chatId with `<dom@tld>: true`
+ *   2. `domainsOf` doc keyed by domain with explicit chatId field (newer code)
+ *   3. `registeredDomains.val.chatId === chatId`
+ */
+async function isDomainOwnedByChat(db, domain, chatId) {
+  if (!db || !domain || !chatId) return false
+  const cid = String(chatId)
+  try {
+    // Newer schema: per-domain doc keyed by domain in either collection
+    const [regDom, domOfByDomain] = await Promise.all([
+      db.collection('registeredDomains').findOne({ _id: domain }),
+      db.collection('domainsOf').findOne({ _id: domain }),
+    ])
+    if (regDom?.val?.chatId && String(regDom.val.chatId) === cid) return true
+    if (domOfByDomain?.chatId && String(domOfByDomain.chatId) === cid) return true
+
+    // Legacy schema: per-user doc keyed by chatId with `domain@tld: true` fields
+    const legacyKey = domain.replace(/\./g, '@')
+    const domOfByUser = await db.collection('domainsOf').findOne({ _id: cid })
+    if (domOfByUser && domOfByUser[legacyKey] === true) return true
+  } catch (_) {}
+  return false
+}
+
+
+
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } })
 
 function createCpanelRoutes(getCpanelCol, opts = {}) {
@@ -911,13 +946,9 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
       if (db) {
         domainMeta = await domainService.getDomainMeta(domain, db)
         if (domainMeta) {
-          // Domain is in our DB — check if it belongs to this user or is one of our registered domains
-          const regDom = await db.collection('registeredDomains').findOne({ _id: domain })
-          const domOf = await db.collection('domainsOf').findOne({ _id: domain })
-          const isChatIdMatch = chatId && (
-            String(regDom?.val?.chatId) === String(chatId) ||
-            String(domOf?.chatId) === String(chatId)
-          )
+          // Domain is in our DB — check if it belongs to this user (any of the
+          // legacy/current ownership shapes — see isDomainOwnedByChat helper).
+          const isChatIdMatch = await isDomainOwnedByChat(db, domain, chatId)
           // Domain is auto-managed if it's in our registrar (has registrar info) and belongs to this user
           autoManaged = !!(isChatIdMatch && domainMeta.registrar)
         }
@@ -1072,16 +1103,8 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
 
       // 2. Check if domain is on user's account (registeredDomains or domainsOf)
       const chatId = req.cpChatId || req.chatId
-      let isOwnDomain = false
-      if (chatId) {
-        const cpCol = getCpanelCol()
-        const db = cpCol?.s?.db
-        if (db) {
-          const regDom = await db.collection('registeredDomains').findOne({ _id: domain })
-          const domOf = await db.collection('domainsOf').findOne({ _id: domain })
-          isOwnDomain = !!(regDom?.val?.chatId === String(chatId) || domOf?.chatId === String(chatId))
-        }
-      }
+      const db = getCpanelCol()?.s?.db
+      let isOwnDomain = await isDomainOwnedByChat(db, domain, chatId)
 
       // 3. Check if domain already has a Cloudflare zone
       let nsInfo = { status: 'external', nameservers: [], autoUpdated: false }
@@ -1167,9 +1190,7 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
         if (isOwnDomain) {
           const domainService = require('./domain-service')
           const opService = require('./op-service')
-          const cpCol3 = getCpanelCol()
-          const db3 = cpCol3?.s?.db
-          const meta = db3 ? await domainService.getDomainMeta(domain, db3) : null
+          const meta = db ? await domainService.getDomainMeta(domain, db) : null
           if (meta && meta.nameserverType !== 'cloudflare') {
             try {
               const status0 = await cfService.checkZoneNSStatus(zone.id)
@@ -1179,20 +1200,9 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
                 if (registrar === 'OpenProvider') {
                   await opService.updateNameservers(domain, cfNS)
                 } else if (registrar === 'ConnectReseller') {
-                  await domainService.postRegistrationNSUpdate(domain, 'ConnectReseller', 'cloudflare', cfNS, db3)
+                  await domainService.postRegistrationNSUpdate(domain, 'ConnectReseller', 'cloudflare', cfNS, db)
                 }
                 log(`[Panel] add-enhanced: Auto-updated NS at ${registrar} for existing zone ${domain}`)
-              }
-              if (db3) {
-                await db3.collection('registeredDomains').updateOne(
-                  { _id: domain },
-                  { $set: { 'val.cfZoneId': zone.id, 'val.nameservers': cfNS, 'val.nameserverType': 'cloudflare' } }
-                )
-                await db3.collection('domainsOf').updateOne(
-                  { domainName: domain },
-                  { $set: { nameservers: cfNS, nameserverType: 'cloudflare', cfZoneId: zone.id } },
-                  { upsert: false }
-                )
               }
             } catch (err) {
               log(`[Panel] add-enhanced: NS auto-update for existing zone ${domain} failed: ${err.message}`)
@@ -1240,29 +1250,13 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
             const opService = require('./op-service')
             let nsResult = null
             try {
-              const cpCol2 = getCpanelCol()
-              const db2 = cpCol2?.s?.db
-              // Determine registrar from domain metadata
-              const meta = db2 ? await domainService.getDomainMeta(domain, db2) : null
+              const meta = db ? await domainService.getDomainMeta(domain, db) : null
               const registrar = meta?.registrar || 'OpenProvider'
 
               if (registrar === 'OpenProvider') {
                 nsResult = await opService.updateNameservers(domain, newZone.nameservers)
               } else if (registrar === 'ConnectReseller') {
-                nsResult = await domainService.postRegistrationNSUpdate(domain, 'ConnectReseller', 'cloudflare', newZone.nameservers, db2)
-              }
-
-              // Update DB with cfZoneId
-              if (db2) {
-                await db2.collection('registeredDomains').updateOne(
-                  { _id: domain },
-                  { $set: { 'val.cfZoneId': newZone.zoneId, 'val.nameservers': newZone.nameservers, 'val.nameserverType': 'cloudflare' } }
-                )
-                await db2.collection('domainsOf').updateOne(
-                  { domainName: domain },
-                  { $set: { nameservers: newZone.nameservers, nameserverType: 'cloudflare', cfZoneId: newZone.zoneId } },
-                  { upsert: false }
-                )
+                nsResult = await domainService.postRegistrationNSUpdate(domain, 'ConnectReseller', 'cloudflare', newZone.nameservers, db)
               }
 
               log(`[Panel] Auto NS update for ${domain}: registrar=${registrar}, success=${!!nsResult?.success}`)
@@ -1298,6 +1292,43 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
         healthCheck.scheduleHealthCheck(domain, req.cpUser, chatIdForHealth)
         log(`[Panel] add-enhanced: health check scheduled for addon ${domain}`)
       } catch (_) {}
+
+      // ── Persist CF state in registeredDomains (always, not just isOwnDomain) ──
+      // Once the addon domain is linked to this user's cPanel and a CF zone exists,
+      // the panel UI must be able to see `cfZoneId` + `nameserverType: cloudflare`
+      // to enable AntiRed captcha controls. We also stamp `chatId` so future
+      // ownership checks via `isDomainOwnedByChat` succeed reliably.
+      try {
+        const finalZone = await cfService.getZoneByName(domain)
+        if (finalZone && db) {
+          const cfNS = nsInfo?.nameservers?.length
+            ? nsInfo.nameservers
+            : (await cfService.checkZoneNSStatus(finalZone.id))?.nameservers || []
+          const setFields = {
+            'val.cfZoneId':       finalZone.id,
+            'val.nameserverType': 'cloudflare',
+          }
+          if (cfNS.length) setFields['val.nameservers'] = cfNS
+          if (chatId)       setFields['val.chatId']     = String(chatId)
+          await db.collection('registeredDomains').updateOne(
+            { _id: domain },
+            { $set: setFields },
+            { upsert: true }
+          )
+          // Also stamp the legacy domainsOf doc so isDomainOwnedByChat can find it later
+          if (chatId) {
+            const legacyKey = domain.replace(/\./g, '@')
+            await db.collection('domainsOf').updateOne(
+              { _id: String(chatId) },
+              { $set: { [legacyKey]: true } },
+              { upsert: true }
+            )
+          }
+          log(`[Panel] add-enhanced: persisted cfZoneId/nameserverType=cloudflare for ${domain} (chatId=${chatId})`)
+        }
+      } catch (persistErr) {
+        log(`[Panel] add-enhanced: registeredDomains persist warning for ${domain}: ${persistErr.message}`)
+      }
 
       // ── Origin Hardening: Auth Origin Pulls + Origin CA cert ──
       // Runs async after response to avoid slowing down the addon domain flow

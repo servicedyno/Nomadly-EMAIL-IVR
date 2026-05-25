@@ -614,7 +614,29 @@ const updateNameservers = async (domainName, nameservers, _dnssecRetried = false
 
     const res = await _sendNsUpdate(info.domainId, domainName, nsPayload, headers)
 
-    if (res.data?.code === 0) return { success: true }
+    if (res.data?.code === 0) {
+      // ── Post-success DNSSEC cleanup ──
+      // OP enables DNSSEC ("signedDelegation") on some new registrations by default.
+      // When the user moves NS off OP (e.g. to Cloudflare) the OP-published DS at the
+      // TLD becomes stale → public resolvers return SERVFAIL because the new NS
+      // doesn't sign with the old key. OP does NOT auto-clear DNSSEC on NS change,
+      // so we must do it ourselves whenever the new NS are not OP nameservers.
+      try {
+        const isOpNs = nameservers.some(ns => /\.openprovider\.(nl|be|eu)$/i.test(ns || ''))
+        const dnssecOn = info.domainData?.is_dnssec_enabled || (info.domainData?.dnssec_keys || []).length > 0
+        if (!isOpNs && dnssecOn) {
+          log(`[DNSSEC-PostNS] ${domainName}: NS moved off OP — clearing stale DNSSEC delegation`)
+          const r = await disableDnssec(domainName)
+          if (!r.success) {
+            log(`[DNSSEC-PostNS] ${domainName}: failed to disable DNSSEC: ${r.error}`)
+          }
+        }
+      } catch (dsErr) {
+        // Best-effort — never break NS-update success because of DNSSEC cleanup
+        log(`[DNSSEC-PostNS] ${domainName}: cleanup error (non-fatal): ${dsErr.message}`)
+      }
+      return { success: true }
+    }
     return { error: res.data?.desc || 'Failed to update nameservers' }
   } catch (err) {
     // Extract the actual error from OP API response (e.g. DENIC rejection for .de domains)
