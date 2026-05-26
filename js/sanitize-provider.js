@@ -53,6 +53,11 @@ function sanitizeProviderError(msg, context = 'generic') {
   sanitized = sanitized.replace(/\[\s*(?:see|visit|check|more\s+(?:info|details)|details?|docs?|help)?\s*\]/gi, '')
   // Also strip "see <empty>" / "visit <empty>" trailing fragments
   sanitized = sanitized.replace(/\b(?:see|visit|check|read\s+more\s+at|details?\s+at|docs?\s+at|more\s+at)[\s:]*(?=[.;,!?]|$)/gi, '')
+  // Strip "For more information please [check|visit|see] <stripped-url>" / "For more details ..." dangling fragments
+  // Real prod: OpenProvider returns "...registry message below. For more information please check https://support.openprovider.eu/..."
+  // After URL scrub the trailing "For more information please " is meaningless to the user.
+  sanitized = sanitized.replace(/\bFor\s+more\s+(?:information|details|info)\s+please(?:\s+(?:check|visit|see|refer\s+to))?\s*[.,;:]?\s*$/gi, '')
+  sanitized = sanitized.replace(/\bplease\s+(?:check|visit|see|refer\s+to)\s*[.,;:]?\s*$/gi, '')
 
   // ── Scrub bare provider-nameserver hostnames BEFORE name substitution ──
   // e.g. "ns1.openprovider.nl unreachable" — must run before the OpenProvider→registrar

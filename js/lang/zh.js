@@ -585,7 +585,7 @@ ${CHAT_BOT_NAME}`,
  nsRecords.forEach((ns, i) => { msg += ` NS${i + 1}: <code>${ns.recordContent || '—'}</code>\n` })
  msg += '\n'
  }
- msg += `输入新的域名服务器（每行一个，最少2个，最多4个）：\n\n<i>示例：\nns1.example.com\nns2.example.com</i>`
+ msg += `输入新的域名服务器（每行一个，最少2个，最多4个）：\n\n<i>示例：\nns1.example.com\nns2.example.com</i>\n\n<i>⚠️ Cloudflare：请<b>原样</b>复制控制台显示的名称（例如 <code>leanna.ns.cloudflare.com</code>），<b>不要</b>额外添加 <code>ns1./ns2.</code> 前缀。</i>`
  return msg
  },
  switchToCf: '☁️ Switch to Cloudflare',
@@ -3485,7 +3485,7 @@ module.exports = {
  })
  msg += '\n'
  }
- msg += `输入新的名称服务器（每行一个，最少2个，最多4个）:\n\n<i>示例:\nns1.example.com\nns2.example.com</i>`
+ msg += `输入新的名称服务器（每行一个，最少2个，最多4个）:\n\n<i>示例:\nns1.example.com\nns2.example.com</i>\n\n<i>⚠️ Cloudflare：请<b>原样</b>复制控制台显示的名称（例如 <code>leanna.ns.cloudflare.com</code>），<b>不要</b>额外添加 <code>ns1./ns2.</code> 前缀。</i>`
  return msg
  },
  Hosting: '托管',

@@ -7699,7 +7699,7 @@ Enter new value:`), bc)
       nsRecords.forEach((r, i) => {
         msg += `  NS${i + 1}: <code>${r.recordContent || '—'}</code>\n`
       })
-      msg += `\nEnter all new nameservers (one per line, min 2, max 4):\n\n<i>Example:\nns1.example.com\nns2.example.com\nns3.example.com</i>`
+      msg += `\nEnter all new nameservers (one per line, min 2, max 4):\n\n<i>Example:\nns1.example.com\nns2.example.com\nns3.example.com</i>\n\n<i>⚠️ Cloudflare: copy the names as shown in your dashboard (e.g. <code>leanna.ns.cloudflare.com</code>). Do not add an extra <code>ns1./ns2.</code> prefix.</i>`
       send(chatId, msg, { parse_mode: 'HTML', reply_markup: { keyboard: [['↩️ Back', t.cancel]] } })
     },
 
@@ -18424,7 +18424,7 @@ ${message.replace(/\n/g, '<br>')}
       await set(state, chatId, 'action', 'dns-update-all-ns')
       const msg = t.setCustomNsPrompt
         ? t.setCustomNsPrompt(domain, nsRecords)
-        : `<b>✏️ Set Custom Nameservers for ${domain}</b>\n\nEnter new nameservers (one per line, min 2, max 4):\n\n<i>Example:\nns1.example.com\nns2.example.com</i>`
+        : `<b>✏️ Set Custom Nameservers for ${domain}</b>\n\nEnter new nameservers (one per line, min 2, max 4):\n\n<i>Example:\nns1.example.com\nns2.example.com</i>\n\n<i>⚠️ Cloudflare: copy the names as shown in your dashboard (e.g. <code>leanna.ns.cloudflare.com</code>). Do not add an extra <code>ns1./ns2.</code> prefix.</i>`
       send(chatId, msg, { parse_mode: 'HTML', reply_markup: { keyboard: [['↩️ Back', t.cancel]] } })
       return
     }
@@ -18768,6 +18768,55 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
           }[lang] || `⚠️ Possible typo detected: <code>${ns}</code>\n\nDid you mean <b>${correct}</b> instead of <b>${typo}</b>?\n\nPlease re-enter the correct nameservers.`), { parse_mode: 'HTML' })
         }
       }
+    }
+
+    // ── Pre-validate: detect "double-NS" Cloudflare typo (Mrdoitright53 / itsonlytravel.com case) ──
+    // Some users see the "ns1.example.com" hint and concatenate it with their Cloudflare
+    // assigned nameserver, producing "ns1.leland.ns.cloudflare.com" which DOES NOT EXIST
+    // and the registry rejects with a generic 500 (unhelpful) error.
+    // We catch the pattern `ns\d+.<word>.ns.cloudflare.com` and offer the corrected form.
+    const doubleNsRe = /^ns\d+\.([a-z0-9-]+)\.ns\.cloudflare\.com$/i
+    for (const ns of newNS) {
+      const m = ns.match(doubleNsRe)
+      if (m) {
+        const corrected = `${m[1]}.ns.cloudflare.com`
+        return send(chatId, ({
+          en: `⚠️ Invalid Cloudflare nameserver: <code>${ns}</code>\n\nCloudflare nameservers are <b>already</b> in <code>name.ns.cloudflare.com</code> format — no <code>ns1./ns2.</code> prefix needed.\n\nDid you mean:\n<code>${corrected}</code>\n\nCopy the exact nameservers from your Cloudflare dashboard (they look like <code>leanna.ns.cloudflare.com</code> / <code>anderson.ns.cloudflare.com</code>) and try again.`,
+          fr: `⚠️ Serveur Cloudflare invalide : <code>${ns}</code>\n\nLes serveurs Cloudflare sont déjà au format <code>nom.ns.cloudflare.com</code> — pas besoin du préfixe <code>ns1./ns2.</code>.\n\nVouliez-vous dire :\n<code>${corrected}</code>\n\nCopiez les serveurs exacts depuis votre tableau de bord Cloudflare et réessayez.`,
+          zh: `⚠️ 无效的 Cloudflare 域名服务器：<code>${ns}</code>\n\nCloudflare 域名服务器已是 <code>name.ns.cloudflare.com</code> 格式，无需添加 <code>ns1./ns2.</code> 前缀。\n\n您是不是想输入：\n<code>${corrected}</code>\n\n请从 Cloudflare 控制台复制完整的域名服务器并重试。`,
+          hi: `⚠️ अमान्य Cloudflare नेमसर्वर: <code>${ns}</code>\n\nCloudflare नेमसर्वर पहले से <code>name.ns.cloudflare.com</code> प्रारूप में हैं — <code>ns1./ns2.</code> उपसर्ग की आवश्यकता नहीं।\n\nक्या आपका मतलब था:\n<code>${corrected}</code>\n\nCloudflare डैशबोर्ड से सटीक नेमसर्वर कॉपी करें और पुनः प्रयास करें।`,
+        }[lang] || `⚠️ Invalid Cloudflare nameserver: <code>${ns}</code>\n\nCloudflare nameservers are <b>already</b> in <code>name.ns.cloudflare.com</code> format — no <code>ns1./ns2.</code> prefix needed.\n\nDid you mean:\n<code>${corrected}</code>\n\nCopy the exact nameservers from your Cloudflare dashboard.`), { parse_mode: 'HTML' })
+      }
+    }
+
+    // ── Pre-validate: DNS-resolve each nameserver before sending to registrar ──
+    // OpenProvider's registry rejects unresolvable hostnames with a generic 500 +
+    // an "An error has occurred ... refer to the registry message below" wrapper.
+    // Catching unresolvable NS here gives the user a clear, specific error.
+    try {
+      const dns = require('dns').promises
+      const unresolved = []
+      await Promise.all(newNS.map(async (ns) => {
+        try {
+          // 4s budget per NS — try A then AAAA, accept either
+          const a = await Promise.race([
+            dns.resolve(ns, 'A').catch(() => null),
+            dns.resolve(ns, 'AAAA').catch(() => null),
+            new Promise(r => setTimeout(() => r(null), 4000)),
+          ])
+          if (!a || (Array.isArray(a) && a.length === 0)) unresolved.push(ns)
+        } catch (_) { unresolved.push(ns) }
+      }))
+      if (unresolved.length > 0) {
+        return send(chatId, ({
+          en: `❌ These nameservers do not resolve:\n${unresolved.map(n => `• <code>${n}</code>`).join('\n')}\n\nPlease verify the spelling and that they are active. The registry will reject unresolvable nameservers.`,
+          fr: `❌ Ces serveurs de noms ne résolvent pas :\n${unresolved.map(n => `• <code>${n}</code>`).join('\n')}\n\nVeuillez vérifier l'orthographe et qu'ils sont actifs. Le registre rejette les serveurs non résolvables.`,
+          zh: `❌ 以下域名服务器无法解析：\n${unresolved.map(n => `• <code>${n}</code>`).join('\n')}\n\n请检查拼写并确认它们处于活动状态。注册局会拒绝无法解析的域名服务器。`,
+          hi: `❌ ये नेमसर्वर हल नहीं हो रहे:\n${unresolved.map(n => `• <code>${n}</code>`).join('\n')}\n\nकृपया वर्तनी जाँचें और सक्रिय होने की पुष्टि करें। रजिस्ट्री अनसुलझे नेमसर्वर अस्वीकार करती है।`,
+        }[lang] || `❌ These nameservers do not resolve:\n${unresolved.map(n => `• <code>${n}</code>`).join('\n')}\n\nPlease verify the spelling and that they are active.`), { parse_mode: 'HTML' })
+      }
+    } catch (dnsErr) {
+      log(`[NS-PreResolve] dns check skipped: ${dnsErr.message}`) // non-fatal — let registrar handle it
     }
 
     send(chatId, ({ en: `⏳ Updating nameservers for <b>${domain}</b>...`, fr: `⏳ Mise à jour des serveurs de noms pour <b>${domain}</b>...`, zh: `⏳ 正在更新 <b>${domain}</b> 的域名服务器...`, hi: `⏳ <b>${domain}</b> के नेमसर्वर अपडेट कर रहे हैं...` }[lang] || `⏳ Updating nameservers for <b>${domain}</b>...`), { parse_mode: 'HTML' })

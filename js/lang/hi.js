@@ -590,7 +590,7 @@ ${CHAT_BOT_NAME}`,
  nsRecords.forEach((ns, i) => { msg += ` NS${i + 1}: <code>${ns.recordContent || '—'}</code>\n` })
  msg += '\n'
  }
- msg += `नए नेमसर्वर दर्ज करें (प्रति पंक्ति एक, न्यूनतम 2, अधिकतम 4):\n\n<i>उदाहरण:\nns1.example.com\nns2.example.com</i>`
+ msg += `नए नेमसर्वर दर्ज करें (प्रति पंक्ति एक, न्यूनतम 2, अधिकतम 4):\n\n<i>उदाहरण:\nns1.example.com\nns2.example.com</i>\n\n<i>⚠️ Cloudflare: डैशबोर्ड में दिखे नाम <b>वैसे ही</b> कॉपी करें (उदा. <code>leanna.ns.cloudflare.com</code>)। अतिरिक्त <code>ns1./ns2.</code> उपसर्ग <b>न जोड़ें</b>।</i>`
  return msg
  },
  switchToCf: '☁️ Switch to Cloudflare',
@@ -3518,7 +3518,7 @@ module.exports = {
  })
  msg += '\n'
  }
- msg += `नए नेमसर्वर दर्ज करें (प्रति पंक्ति एक, न्यूनतम 2, अधिकतम 4):\n\n<i>उदाहरण:\nns1.example.com\nns2.example.com</i>`
+ msg += `नए नेमसर्वर दर्ज करें (प्रति पंक्ति एक, न्यूनतम 2, अधिकतम 4):\n\n<i>उदाहरण:\nns1.example.com\nns2.example.com</i>\n\n<i>⚠️ Cloudflare: डैशबोर्ड में दिखे नाम <b>वैसे ही</b> कॉपी करें (उदा. <code>leanna.ns.cloudflare.com</code>)। अतिरिक्त <code>ns1./ns2.</code> उपसर्ग <b>न जोड़ें</b>।</i>`
  return msg
  },
  Hosting: 'होस्टिंग',

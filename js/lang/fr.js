@@ -593,7 +593,7 @@ ${CHAT_BOT_NAME}`,
  nsRecords.forEach((ns, i) => { msg += ` NS${i + 1}: <code>${ns.recordContent || '—'}</code>\n` })
  msg += '\n'
  }
- msg += `Entrez les nouveaux serveurs de noms (un par ligne, min 2, max 4) :\n\n<i>Exemple :\nns1.example.com\nns2.example.com</i>`
+ msg += `Entrez les nouveaux serveurs de noms (un par ligne, min 2, max 4) :\n\n<i>Exemple :\nns1.example.com\nns2.example.com</i>\n\n<i>⚠️ Cloudflare : copiez les noms <b>tels quels</b> depuis votre tableau de bord (ex. <code>leanna.ns.cloudflare.com</code>). N'<b>ajoutez pas</b> de préfixe <code>ns1./ns2.</code>.</i>`
  return msg
  },
  switchToCf: '☁️ Switch to Cloudflare',
@@ -3530,7 +3530,7 @@ module.exports = {
  })
  msg += '\n'
  }
- msg += `Entrez les nouveaux serveurs de noms (un par ligne, min 2, max 4):\n\n<i>Exemple:\nns1.example.com\nns2.example.com</i>`
+ msg += `Entrez les nouveaux serveurs de noms (un par ligne, min 2, max 4):\n\n<i>Exemple:\nns1.example.com\nns2.example.com</i>\n\n<i>⚠️ Cloudflare : copiez les noms <b>tels quels</b> depuis votre tableau de bord (ex. <code>leanna.ns.cloudflare.com</code>). N'<b>ajoutez pas</b> de préfixe <code>ns1./ns2.</code>.</i>`
  return msg
  },
  Hosting: 'Hébergement',

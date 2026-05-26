@@ -668,11 +668,14 @@ const updateNameservers = async (domainName, nameservers, _dnssecRetried = false
     const opCode = opData?.code ?? err.response?.status ?? ''
     const opFullData = opData?.data || ''
 
-    // Build detailed log for debugging
+    // Build detailed log for debugging — keep full payload (no 500-char clamp) so
+    // the actual registry message is visible for post-mortem (real prod hit:
+    // @Mrdoitright53 / itsonlytravel.com — the underlying registry rejection
+    // was truncated out of the 500-char window and we lost the root cause).
     log(`OP updateNameservers error for ${domainName}:`, err.message,
       opDesc ? `| desc: ${opDesc}` : '',
       opWarnings.length ? `| warnings: ${JSON.stringify(opWarnings)}` : '',
-      opData ? `| full: ${JSON.stringify(opData).substring(0, 500)}` : '')
+      opData ? `| full: ${JSON.stringify(opData).substring(0, 2000)}` : '')
 
     // ── DNSSEC auto-fix: detect DNSKEY / DNSSEC errors and retry after disabling ──
     // Common patterns:
@@ -703,7 +706,14 @@ const updateNameservers = async (domainName, nameservers, _dnssecRetried = false
 
     // Build user-friendly error
     let userMsg = ''
-    if (opDesc) {
+    // ── Detect OP's generic "An error has occurred / registry message below" pattern ──
+    // Real prod incident (@Mrdoitright53 / itsonlytravel.com): the URL inside this desc
+    // gets scrubbed by the provider-URL sanitizer, leaving a useless "For more information please "
+    // dangling at the end. When we see this template, replace it with an actionable message.
+    const isRegistryGenericReject = opDesc && /An\s+error\s+has\s+occurred[\s\S]*registry\s+message/i.test(opDesc)
+    if (isRegistryGenericReject) {
+      userMsg = 'The registry rejected these nameservers. Common causes: the hostnames are misspelled, not yet registered, or do not resolve to an IP address. Please double-check each nameserver against your DNS provider\'s control panel and try again.'
+    } else if (opDesc) {
       userMsg = opDesc
     } else if (opWarnings.length) {
       userMsg = opWarnings.map(w => w.message || w).join('; ')

@@ -759,7 +759,7 @@ Select below:`,
  })
  msg += '\n'
  }
- msg += `Enter new nameservers (one per line, min 2, max 4):\n\n<i>Example:\nns1.example.com\nns2.example.com</i>`
+ msg += `Enter new nameservers (one per line, min 2, max 4):\n\n<i>Example:\nns1.example.com\nns2.example.com</i>\n\n<i>⚠️ Cloudflare: copy the names <b>as shown</b> in your dashboard (e.g. <code>leanna.ns.cloudflare.com</code>). Do <b>not</b> add an extra <code>ns1./ns2.</code> prefix.</i>`
  return msg
  },
 

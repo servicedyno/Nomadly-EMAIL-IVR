@@ -72,6 +72,14 @@ const CASES = [
   'https://www.openprovider.de says nope',
   // Pre + post substitution forms
   'Please retry. Help: https://support.registrar.eu/abc and registrar.eu/x',
+  // ── @Mrdoitright53 / itsonlytravel.com regression (2026-Feb) ──
+  // OP returned: "An error has occurred; ... For more information please check
+  // https://support.openprovider.eu/hc/..." — after URL scrub, the trailing
+  // "For more information please " was leaking to users as a dangling fragment.
+  // Sanitizer must strip that trailing breadcrumb entirely.
+  'An error has occurred; for more details, please refer to the registry message below. For more information please check https://support.openprovider.eu/hc/en-us/articles/7265441900946',
+  'Request failed. Please visit https://support.openprovider.eu/x',
+  'Got 500. For more details please see https://api.openprovider.eu/docs/error',
   // Empty / undefined / non-string
   '',
   null,
