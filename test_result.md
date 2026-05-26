@@ -36,7 +36,32 @@ Nomadly - Telegram Bot + Cloud Phone Platform.
 
 ## Railway Log Analysis & Fixes (May 26, 2026)
 
-### Issues identified from production Railway logs (~9.5h window)
+### CRITICAL Re-investigation (Round 2)
+The "stale cached address" hypothesis from round 1 was a SYMPTOM, not the root cause. New Railway logs (08:43–08:46 UTC) showed @kathyserious tried again with my fix:
+1. Cached address invalidated ✓
+2. User entered NEW address `9 Cobram Street, Tarneit, VICtoria, 3029` → Twilio created **fresh** address `AD980e785e4b4d28d55b150c7b317e4711`
+3. Bot called `createSupportingDocument` referencing that brand-new address SID
+4. Twilio: **"Address AD980e785e4b4d28d55b150c7b317e4711 does not exist for account AC754fb3aedb907b12c79a7d31b67937a0"**
+
+### True Root Cause: Cross-account Twilio resource mismatch
+The CloudPhone purchase flow created the **Address on the user's Twilio sub-account** (via `requireSubClient(subSid, subToken)`) but then created the **Bundle / End-User / Supporting Document on the main account** (`getClient()` with no sub). Twilio resources are account-scoped — addresses in a sub-account are invisible from the main account, hence the perpetual "does not exist for account" error.
+
+### Fix Applied (Round 2)
+- **`js/twilio-service.js`** — added optional `subSid, subToken` params to:
+  - `createEndUser`, `createBundle`, `createSupportingDocument`, `addBundleItem`, `submitBundle`, `getBundleStatus`, `deleteBundle`
+  - When provided, uses `getSubClient(subSid, subToken)` matching the address's account scope
+- **`js/_index.js`** (CloudPhone fresh-address flow ~22950–23080):
+  - All regulatory ops now pass `subSidForAddr, subTokenForAddr` (sub-account creds collected at start of flow)
+- **`js/_index.js`** (CloudPhone cached-address flow ~9783–9920):
+  - Reads sub-account creds from `phoneNumbersOf` (twilioSubAccountSid/Token) before regulatory ops
+  - If no sub-creds found, refunds + clears cache + asks user to retry (no more silent loop)
+- **`js/_index.js`** (BundleChecker, PendingDetail, Refresh Status handlers):
+  - All `getBundleStatus` calls now fetch sub-account creds first and pass them through
+- **`js/_index.js`** (orphan cleanup in both catch blocks):
+  - `deleteBundle` calls now use the same sub-account creds the bundle was created with
+
+### Round 1 fixes (still active)
+
 1. **P0 — Twilio AU toll-free purchase failed 3× for @kathyserious (8690991604)** — stale cached Twilio Address SID (`AD17040132…`) didn't exist in Twilio account; refund worked but user got infinite-loop UX and 3 orphaned draft bundles.
 2. **P0 — Connect Reseller 17h+ outage** — API 401 + browser-automation login rejecting credentials; log noise + admin not re-paged.
 3. **P1 — Openprovider 500 on `itsonlytravel.com` nameservers** — single transient 5xx, no retry; user message contained broken `support.registrar.eu` URL.

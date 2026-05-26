@@ -3183,7 +3183,14 @@ async function checkPendingBundles() {
 
     for (const pb of pending) {
       try {
-        const result = await twilioService.getBundleStatus(pb.bundleSid)
+        // Bundle was created on a sub-account — fetch status from that same account
+        let _bsSubSid = null, _bsSubToken = null
+        try {
+          const ud = await get(phoneNumbersOf, pb.chatId)
+          _bsSubSid = ud?.twilioSubAccountSid || null
+          _bsSubToken = ud?.twilioSubAccountToken || null
+        } catch (_) { /* fall back to main account */ }
+        const result = await twilioService.getBundleStatus(pb.bundleSid, _bsSubSid, _bsSubToken)
         if (result.error) {
           log(`[BundleChecker] Error checking bundle ${pb.bundleSid}: ${result.error}`)
           continue
@@ -9839,6 +9846,38 @@ Enter new value:`), bc)
               // No approved bundle — create one using cached address
               log(`[CloudPhone] Cached address found for ${countryCode}, creating regulatory bundle for chatId=${chatId}`)
               send(chatId, ({ en: `✅ Payment received! Setting up regulatory approval...`, fr: `✅ Paiement reçu ! Configuration de l'approbation réglementaire...`, zh: `✅ 付款成功！正在设置监管审批...`, hi: `✅ भुगतान प्राप्त! नियामक अनुमोदन सेट अप हो रहा है...` }[lang] || `✅ Payment received! Setting up regulatory approval...`), { parse_mode: 'HTML' })
+
+              // ── Resolve sub-account credentials. The cached Address SID is
+              //    account-scoped — it lives in the sub-account it was created
+              //    in. ALL regulatory ops (bundle, end-user, supporting doc,
+              //    submit, delete) MUST use that same sub-account or Twilio
+              //    returns "Address ... does not exist for account ...".
+              const _ud = await get(phoneNumbersOf, chatId)
+              const _subSid = _ud?.twilioSubAccountSid || null
+              const _subToken = _ud?.twilioSubAccountToken || null
+              if (!_subSid || !_subToken) {
+                log(`[CloudPhone] No sub-account creds found for ${chatId} but cached address exists — clearing cache and prompting re-entry`)
+                await phoneNumbersOf.updateOne(
+                  { _id: chatId },
+                  { $unset: { [`val.twilioAddresses.${countryCode}`]: '' } }
+                )
+                try {
+                  await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
+                  await saveInfo('cpPendingCoin', null)
+                  await saveInfo('cpPendingPriceUsd', null)
+                  await saveInfo('cpPendingPriceNgn', null)
+                } catch (_) { /* non-fatal */ }
+                const { usdBal: refUsd2 } = await getBalance(walletOf, chatId)
+                await set(state, chatId, 'action', 'none')
+                send(chatId, ({
+                  en: `❌ Phone-account setup is incomplete.\n\n💰 <b>$${Number(priceUsd).toFixed(2)}</b> refunded. Please try again.\n${t.showWallet(refUsd2)}`,
+                  fr: `❌ Configuration du compte téléphonique incomplète.\n\n💰 <b>$${Number(priceUsd).toFixed(2)}</b> remboursé. Réessayez.\n${t.showWallet(refUsd2)}`,
+                  zh: `❌ 电话账户设置不完整。\n\n💰 <b>$${Number(priceUsd).toFixed(2)}</b> 已退款。请重试。\n${t.showWallet(refUsd2)}`,
+                  hi: `❌ फ़ोन खाता सेटअप अधूरा है।\n\n💰 <b>$${Number(priceUsd).toFixed(2)}</b> वापस किया गया। पुनः प्रयास करें।\n${t.showWallet(refUsd2)}`,
+                }[lang] || `❌ Phone-account setup is incomplete. $${Number(priceUsd).toFixed(2)} refunded. Please try again.`), { parse_mode: 'HTML', reply_markup: { remove_keyboard: true } })
+                return notifyAdmin(`⚠️ [Bundle] No sub-account creds but cached address present\nchatId: ${chatId}\ncountry: ${countryCode}`)
+              }
+
               // ── Scoped outside the try so the catch can clean up the orphan ──
               let _orphanBundleSid = null
               try {
@@ -9849,26 +9888,28 @@ Enter new value:`), bc)
                 const endUserResult = await twilioService.createEndUser(customerName, 'individual', {
                   first_name: customerName.split(' ')[0] || customerName,
                   last_name: customerName.split(' ').slice(1).join(' ') || 'User',
-                })
+                }, _subSid, _subToken)
                 if (endUserResult.error) throw new Error(`createEndUser: ${endUserResult.error}`)
                 const bundleCallbackUrl = SELF_URL ? `${SELF_URL}/twilio/bundle-status` : undefined
                 const bundleResult = await twilioService.createBundle(
                   `Nomadly-${chatId}-${countryCode}-${numType}`,
                   process.env.NOMADLY_SERVICE_EMAIL || 'support@nomadly.com',
-                  countryCode, numType, 'individual', regResult.sid, bundleCallbackUrl
+                  countryCode, numType, 'individual', regResult.sid, bundleCallbackUrl,
+                  _subSid, _subToken
                 )
                 if (bundleResult.error) throw new Error(`createBundle: ${bundleResult.error}`)
                 _orphanBundleSid = bundleResult.sid // track so catch can clean up if a later step fails
-                // Create supporting document from cached address (bundles don't accept raw Address SIDs)
+                // Create supporting document from cached address (same sub-account scope)
                 const addrDoc = await twilioService.createSupportingDocument(
-                  `Address-${chatId}-${countryCode}`, 'address', { address_sids: cachedAddr }
+                  `Address-${chatId}-${countryCode}`, 'address', { address_sids: cachedAddr },
+                  _subSid, _subToken
                 )
                 if (addrDoc.error) throw new Error(`createSupportingDocument: ${addrDoc.error}`)
-                const addEU = await twilioService.addBundleItem(bundleResult.sid, endUserResult.sid)
+                const addEU = await twilioService.addBundleItem(bundleResult.sid, endUserResult.sid, _subSid, _subToken)
                 if (addEU.error) throw new Error(`addBundleItem(endUser): ${addEU.error}`)
-                const addAddr = await twilioService.addBundleItem(bundleResult.sid, addrDoc.sid)
+                const addAddr = await twilioService.addBundleItem(bundleResult.sid, addrDoc.sid, _subSid, _subToken)
                 if (addAddr.error) throw new Error(`addBundleItem(address): ${addAddr.error}`)
-                const submitResult = await twilioService.submitBundle(bundleResult.sid)
+                const submitResult = await twilioService.submitBundle(bundleResult.sid, _subSid, _subToken)
                 if (submitResult.error) throw new Error(`submitBundle: ${submitResult.error}`)
                 const bundleStatus = submitResult.status || 'pending-review'
                 await pendingBundles.insertOne({
@@ -9911,9 +9952,12 @@ Enter new value:`), bc)
 
                 // ── Clean up the orphaned draft Twilio bundle (if any) ──
                 // The bundle was created before the failure — leaving it in
+                // ── Clean up the orphaned draft Twilio bundle (if any) ──
+                // The bundle was created before the failure — leaving it in
                 // 'draft' state pollutes the Twilio account forever. Best-effort.
+                // Must use the SAME sub-account creds the bundle was created with.
                 if (_orphanBundleSid) {
-                  twilioService.deleteBundle?.(_orphanBundleSid)
+                  twilioService.deleteBundle?.(_orphanBundleSid, _subSid, _subToken)
                     .then(() => log(`[CloudPhone] Cleaned up orphan bundle ${_orphanBundleSid}`))
                     .catch(e => log(`[CloudPhone] Orphan bundle cleanup failed (${_orphanBundleSid}): ${e.message}`))
                 }
@@ -23008,11 +23052,11 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
           return notifyAdmin(`⚠️ [Bundle] getRegulationSid failed\nchatId: ${chatId}\ncountry: ${countryCode}\nerror: ${regResult.error}`)
         }
 
-        // 2. Create end-user
+        // 2. Create end-user (on the SAME sub-account as the Address)
         const endUserResult = await twilioService.createEndUser(customerName, 'individual', {
           first_name: customerName.split(' ')[0] || customerName,
           last_name: customerName.split(' ').slice(1).join(' ') || 'User',
-        })
+        }, subSidForAddr, subTokenForAddr)
         if (endUserResult.error) {
           log(`[CloudPhone] createEndUser failed: ${endUserResult.error}`)
           const coin = info?.cpPendingCoin
@@ -23028,12 +23072,13 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
           return notifyAdmin(`⚠️ [Bundle] createEndUser failed\nchatId: ${chatId}\nerror: ${endUserResult.error}`)
         }
 
-        // 3. Create bundle
+        // 3. Create bundle (on the SAME sub-account as the Address)
         const bundleCallbackUrl = SELF_URL ? `${SELF_URL}/twilio/bundle-status` : undefined
         const bundleResult = await twilioService.createBundle(
           `Nomadly-${chatId}-${countryCode}-${numType}`,
           process.env.NOMADLY_SERVICE_EMAIL || 'support@nomadly.com',
-          countryCode, numType, 'individual', regResult.sid, bundleCallbackUrl
+          countryCode, numType, 'individual', regResult.sid, bundleCallbackUrl,
+          subSidForAddr, subTokenForAddr
         )
         if (bundleResult.error) {
           log(`[CloudPhone] createBundle failed: ${bundleResult.error}`)
@@ -23052,22 +23097,26 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
         _orphanBundleSid = bundleResult.sid // track so catch can clean up if a later step fails
 
         // 4. Create supporting document from address (bundles don't accept raw Address SIDs)
+        //    MUST use the same sub-account as the Address — Address SIDs are
+        //    account-scoped and Twilio returns "Address ... does not exist for
+        //    account ..." if we cross accounts.
         const addrDoc = await twilioService.createSupportingDocument(
-          `Address-${chatId}-${countryCode}`, 'address', { address_sids: addressSid }
+          `Address-${chatId}-${countryCode}`, 'address', { address_sids: addressSid },
+          subSidForAddr, subTokenForAddr
         )
         if (addrDoc.error) {
           log(`[CloudPhone] createSupportingDocument failed: ${addrDoc.error}`)
           throw new Error(`createSupportingDocument: ${addrDoc.error}`)
         }
 
-        // 5. Add end-user + supporting document as item assignments
-        const addEndUser = await twilioService.addBundleItem(bundleResult.sid, endUserResult.sid)
+        // 5. Add end-user + supporting document as item assignments (same sub-account)
+        const addEndUser = await twilioService.addBundleItem(bundleResult.sid, endUserResult.sid, subSidForAddr, subTokenForAddr)
         if (addEndUser.error) throw new Error(`addBundleItem(endUser): ${addEndUser.error}`)
-        const addAddress = await twilioService.addBundleItem(bundleResult.sid, addrDoc.sid)
+        const addAddress = await twilioService.addBundleItem(bundleResult.sid, addrDoc.sid, subSidForAddr, subTokenForAddr)
         if (addAddress.error) throw new Error(`addBundleItem(address): ${addAddress.error}`)
 
-        // 6. Submit for review
-        const submitResult = await twilioService.submitBundle(bundleResult.sid)
+        // 6. Submit for review (same sub-account)
+        const submitResult = await twilioService.submitBundle(bundleResult.sid, subSidForAddr, subTokenForAddr)
         if (submitResult.error) throw new Error(`submitBundle: ${submitResult.error}`)
         const bundleStatus = submitResult.status || 'pending-review'
 
@@ -23117,7 +23166,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
         // ── Cleanup orphan bundle if it was created before the failure ──
         if (_orphanBundleSid) {
-          twilioService.deleteBundle?.(_orphanBundleSid)
+          twilioService.deleteBundle?.(_orphanBundleSid, subSidForAddr, subTokenForAddr)
             .then(() => log(`[CloudPhone] Cleaned up orphan bundle ${_orphanBundleSid}`))
             .catch(e => log(`[CloudPhone] Orphan bundle cleanup failed (${_orphanBundleSid}): ${e.message}`))
         }
@@ -23597,11 +23646,17 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       const pb = pendingList[pIdx]
       await saveInfo('cpActivePendingBundle', pb)
 
-      // Live status check from Twilio
+      // Live status check from Twilio (bundle is on sub-account)
       let liveStatus = pb.status
       let statusLabel = 'Submitted'
       try {
-        const liveResult = await twilioService.getBundleStatus(pb.bundleSid)
+        let _liveSubSid = null, _liveSubToken = null
+        try {
+          const _ud = await get(phoneNumbersOf, pb.chatId || chatId)
+          _liveSubSid = _ud?.twilioSubAccountSid || null
+          _liveSubToken = _ud?.twilioSubAccountToken || null
+        } catch (_) { /* fall back to main */ }
+        const liveResult = await twilioService.getBundleStatus(pb.bundleSid, _liveSubSid, _liveSubToken)
         if (!liveResult.error) {
           liveStatus = liveResult.status
           // Update DB if status changed
@@ -23704,7 +23759,13 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     // ── Refresh Status ──
     if (message === '🔄 Refresh Status') {
       try {
-        const liveResult = await twilioService.getBundleStatus(pb.bundleSid)
+        let _refSubSid = null, _refSubToken = null
+        try {
+          const _ud = await get(phoneNumbersOf, pb.chatId || chatId)
+          _refSubSid = _ud?.twilioSubAccountSid || null
+          _refSubToken = _ud?.twilioSubAccountToken || null
+        } catch (_) { /* fall back to main */ }
+        const liveResult = await twilioService.getBundleStatus(pb.bundleSid, _refSubSid, _refSubToken)
         let liveStatus = pb.status
         if (!liveResult.error) {
           liveStatus = liveResult.status

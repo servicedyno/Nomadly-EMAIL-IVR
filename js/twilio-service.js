@@ -820,16 +820,19 @@ async function getRegulationSid(isoCountry, numberType, endUserType) {
 /**
  * Create an End-User entity (individual or business) for regulatory compliance.
  */
-async function createEndUser(friendlyName, type, attributes) {
+async function createEndUser(friendlyName, type, attributes, subSid, subToken) {
   try {
-    const client = getClient()
+    // ── Use sub-account client when provided so the end-user lives in the
+    //    same Twilio account as the Address/Bundle. Mixing main+sub causes
+    //    "End-user does not exist for account" failures.
+    const client = (subSid && subToken) ? getSubClient(subSid, subToken) : getClient()
     if (!client) throw new Error('Twilio client not initialized')
     const endUser = await client.numbers.v2.regulatoryCompliance.endUsers.create({
       friendlyName,
       type: type || 'individual',
       attributes: attributes || {},
     })
-    log(`[Twilio] Created end-user: ${endUser.sid} (${friendlyName}, ${type})`)
+    log(`[Twilio] Created end-user: ${endUser.sid} (${friendlyName}, ${type}, account=${subSid ? 'sub' : 'main'})`)
     return { sid: endUser.sid, type: endUser.type }
   } catch (e) {
     log(`[Twilio] createEndUser error: ${e.message}`)
@@ -839,10 +842,14 @@ async function createEndUser(friendlyName, type, attributes) {
 
 /**
  * Create a Regulatory Compliance Bundle for a specific country/number type.
+ *
+ * IMPORTANT: When the linked Address was created on a sub-account, the bundle
+ * MUST also be created on that same sub-account — Twilio doesn't share
+ * regulatory resources across accounts. Pass subSid+subToken to do this.
  */
-async function createBundle(friendlyName, email, isoCountry, numberType, endUserType, regulationSid, statusCallback) {
+async function createBundle(friendlyName, email, isoCountry, numberType, endUserType, regulationSid, statusCallback, subSid, subToken) {
   try {
-    const client = getClient()
+    const client = (subSid && subToken) ? getSubClient(subSid, subToken) : getClient()
     if (!client) throw new Error('Twilio client not initialized')
     const opts = {
       friendlyName,
@@ -859,7 +866,7 @@ async function createBundle(friendlyName, email, isoCountry, numberType, endUser
     }
     if (statusCallback) opts.statusCallback = statusCallback
     const bundle = await client.numbers.v2.regulatoryCompliance.bundles.create(opts)
-    log(`[Twilio] Created bundle: ${bundle.sid} (${friendlyName}, ${isoCountry}, status=${bundle.status})`)
+    log(`[Twilio] Created bundle: ${bundle.sid} (${friendlyName}, ${isoCountry}, status=${bundle.status}, account=${subSid ? 'sub' : 'main'})`)
     return { sid: bundle.sid, status: bundle.status }
   } catch (e) {
     log(`[Twilio] createBundle error: ${e.message}`)
@@ -872,10 +879,14 @@ async function createBundle(friendlyName, email, isoCountry, numberType, endUser
  * Twilio bundles only accept End-User SIDs and Supporting Document SIDs,
  * NOT raw Address SIDs. This wraps an Address SID into a Supporting Document.
  * For address proof, use type='tax_document' with attributes={address_sids: addressSid}.
+ *
+ * IMPORTANT: When the referenced address_sids belong to a sub-account, this
+ * supporting document MUST also be created on that same sub-account or Twilio
+ * returns "Address ... does not exist for account ...".
  */
-async function createSupportingDocument(friendlyName, type, attributes) {
+async function createSupportingDocument(friendlyName, type, attributes, subSid, subToken) {
   try {
-    const client = getClient()
+    const client = (subSid && subToken) ? getSubClient(subSid, subToken) : getClient()
     if (!client) throw new Error('Twilio client not initialized')
     // Ensure address_sids is always an array (Twilio requires array format)
     if (attributes && attributes.address_sids && !Array.isArray(attributes.address_sids)) {
@@ -886,7 +897,7 @@ async function createSupportingDocument(friendlyName, type, attributes) {
       type: type || 'tax_document',
       attributes: attributes || {},
     })
-    log(`[Twilio] Created supporting document: ${doc.sid} (${friendlyName}, type=${type})`)
+    log(`[Twilio] Created supporting document: ${doc.sid} (${friendlyName}, type=${type}, account=${subSid ? 'sub' : 'main'})`)
     return { sid: doc.sid, status: doc.status }
   } catch (e) {
     log(`[Twilio] createSupportingDocument error: ${e.message}`)
@@ -896,15 +907,17 @@ async function createSupportingDocument(friendlyName, type, attributes) {
 
 /**
  * Add an item (supporting document or end-user) to a regulatory bundle.
+ *
+ * IMPORTANT: bundle, item, and addr/end-user must all live on the same Twilio account.
  */
-async function addBundleItem(bundleSid, objectSid) {
+async function addBundleItem(bundleSid, objectSid, subSid, subToken) {
   try {
-    const client = getClient()
+    const client = (subSid && subToken) ? getSubClient(subSid, subToken) : getClient()
     if (!client) throw new Error('Twilio client not initialized')
     const item = await client.numbers.v2.regulatoryCompliance.bundles(bundleSid).itemAssignments.create({
       objectSid,
     })
-    log(`[Twilio] Added item ${objectSid} to bundle ${bundleSid}`)
+    log(`[Twilio] Added item ${objectSid} to bundle ${bundleSid} (account=${subSid ? 'sub' : 'main'})`)
     return { sid: item.sid }
   } catch (e) {
     log(`[Twilio] addBundleItem error: ${e.message}`)
@@ -915,9 +928,9 @@ async function addBundleItem(bundleSid, objectSid) {
 /**
  * Submit a bundle for review (changes status from 'draft' to 'pending-review').
  */
-async function submitBundle(bundleSid) {
+async function submitBundle(bundleSid, subSid, subToken) {
   try {
-    const client = getClient()
+    const client = (subSid && subToken) ? getSubClient(subSid, subToken) : getClient()
     if (!client) throw new Error('Twilio client not initialized')
     const bundle = await client.numbers.v2.regulatoryCompliance.bundles(bundleSid).update({
       status: 'pending-review',
@@ -933,10 +946,12 @@ async function submitBundle(bundleSid) {
 /**
  * Fetch the current status of a regulatory bundle.
  * Possible statuses: draft, pending-review, in-review, twilio-approved, twilio-rejected, provisionally-approved
+ *
+ * IMPORTANT: pass subSid/subToken when bundle was created on a sub-account.
  */
-async function getBundleStatus(bundleSid) {
+async function getBundleStatus(bundleSid, subSid, subToken) {
   try {
-    const client = getClient()
+    const client = (subSid && subToken) ? getSubClient(subSid, subToken) : getClient()
     if (!client) throw new Error('Twilio client not initialized')
     const bundle = await client.numbers.v2.regulatoryCompliance.bundles(bundleSid).fetch()
     log(`[Twilio] Bundle ${bundleSid} status: ${bundle.status}`)
@@ -956,13 +971,15 @@ async function getBundleStatus(bundleSid) {
  * Delete a regulatory bundle by SID. Only bundles in `draft` or
  * `pending-review` status are deletable. Used to clean up orphaned bundles
  * left behind by failed setup flows (e.g. stale cached address).
+ *
+ * IMPORTANT: pass subSid/subToken when bundle was created on a sub-account.
  */
-async function deleteBundle(bundleSid) {
+async function deleteBundle(bundleSid, subSid, subToken) {
   try {
-    const client = getClient()
+    const client = (subSid && subToken) ? getSubClient(subSid, subToken) : getClient()
     if (!client) throw new Error('Twilio client not initialized')
     await client.numbers.v2.regulatoryCompliance.bundles(bundleSid).remove()
-    log(`[Twilio] Deleted bundle ${bundleSid}`)
+    log(`[Twilio] Deleted bundle ${bundleSid} (account=${subSid ? 'sub' : 'main'})`)
     return { success: true }
   } catch (e) {
     log(`[Twilio] deleteBundle ${bundleSid} error: ${e.message}`)
