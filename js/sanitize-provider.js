@@ -23,6 +23,43 @@ function sanitizeProviderError(msg, context = 'generic') {
   sanitized = sanitized.replace(/</g, '&lt;')
   sanitized = sanitized.replace(/>/g, '&gt;')
 
+  // ── STRIP provider URLs FIRST (before name substitution) ──
+  // Real prod incident (2026-05-26): OpenProvider 500 error message contained
+  // "see https://support.openprovider.eu/hc/..." → after the OpenProvider→registrar
+  // substitution that ran on line below, the link became "https://support.registrar.eu/hc/..."
+  // which is a real domain that goes NOWHERE useful (and looks suspicious).
+  // We strip BEFORE substitution so we match the original URL patterns and we
+  // also defensively catch the post-substitution forms in case anything else
+  // injects them.
+  //
+  // Character class excludes URL terminators (whitespace, ), ], <, >, ", ', ;)
+  // so the closing paren / bracket of (see URL) is preserved for cleanup below.
+  const _PROVIDER_HOSTS = [
+    'openprovider', 'connectreseller', 'connect-reseller',
+    'registrar', // post-substitution defensive match
+    'twilio', 'telnyx', // voice providers
+  ]
+  const _PROVIDER_TLDS = '(?:eu|com|net|io|co|nl|be|de|uk|fr|us|ca|app)'
+  for (const host of _PROVIDER_HOSTS) {
+    // (?:[\w-]+\.)*  → any number of subdomains (api., support., www., etc.)
+    const re = new RegExp(
+      `https?:\\/\\/(?:[\\w-]+\\.)*${host}\\.${_PROVIDER_TLDS}[^\\s)\\]<>"';]*`,
+      'gi'
+    )
+    sanitized = sanitized.replace(re, '')
+  }
+  // Bracketed/parenthesized leftovers like "(see )", "[see ]", "( )" after URL removal
+  sanitized = sanitized.replace(/\(\s*(?:see|visit|check|cf\.?|cf|more\s+(?:info|details)|details?|docs?|help)?\s*\)/gi, '')
+  sanitized = sanitized.replace(/\[\s*(?:see|visit|check|more\s+(?:info|details)|details?|docs?|help)?\s*\]/gi, '')
+  // Also strip "see <empty>" / "visit <empty>" trailing fragments
+  sanitized = sanitized.replace(/\b(?:see|visit|check|read\s+more\s+at|details?\s+at|docs?\s+at|more\s+at)[\s:]*(?=[.;,!?]|$)/gi, '')
+
+  // ── Scrub bare provider-nameserver hostnames BEFORE name substitution ──
+  // e.g. "ns1.openprovider.nl unreachable" — must run before the OpenProvider→registrar
+  // rename below or it would morph into "ns1.registrar.nl" which is misleading.
+  sanitized = sanitized.replace(/\bns\d+\.openprovider\.(?:nl|be|eu|com|net|de)\b/gi, 'default nameserver')
+  sanitized = sanitized.replace(/\bns\d+\.connectreseller\.(?:com|net|eu)\b/gi, 'default nameserver')
+
   // ── Voice/Call provider names ──
   sanitized = sanitized.replace(/\bTwilio\b/gi, 'Speechcue')
   sanitized = sanitized.replace(/\bTelnyx\b/gi, 'Speechcue')
@@ -43,25 +80,36 @@ function sanitizeProviderError(msg, context = 'generic') {
   // Telnyx UUIDs in error messages
   sanitized = sanitized.replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, '[ref]')
 
+  // ── Strip provider hostnames that appear bare (no scheme) — e.g.
+  //    "api.openprovider.eu returned 500". We do this AFTER the URL strip
+  //    because bare hostnames must be matched without a scheme prefix.
+  for (const host of _PROVIDER_HOSTS) {
+    const re = new RegExp(`\\b(?:[\\w-]+\\.)*${host}\\.${_PROVIDER_TLDS}\\b`, 'gi')
+    sanitized = sanitized.replace(re, 'our provider')
+  }
+
   // ── Strip "purchased from Twilio/Telnyx" patterns ──
   sanitized = sanitized.replace(/you've verified or purchased from Speechcue/gi, 'you own or have verified')
   sanitized = sanitized.replace(/purchased from Speechcue/gi, 'purchased')
   sanitized = sanitized.replace(/verified for your account/gi, 'verified for your account')
 
-  // ── Strip provider support/help URLs that no longer route correctly after
-  //    the OpenProvider/ConnectReseller → "registrar" rename. Leaving a URL
-  //    like https://support.registrar.eu/... in a user message produces a
-  //    broken click (no such site). Strip it cleanly.
-  //    Character class excludes URL terminators (whitespace, ), ], <, >, ", ', ;)
-  //    so the closing paren / bracket of (see URL) is preserved for the cleanup below.
-  sanitized = sanitized.replace(/https?:\/\/(?:www\.)?support\.(?:registrar|openprovider|connectreseller)[^\s)\]<>"';]*/gi, '')
-  sanitized = sanitized.replace(/https?:\/\/(?:www\.)?(?:registrar|openprovider|connectreseller)\.eu[^\s)\]<>"';]*/gi, '')
-  // Bracketed/parenthesized leftovers like "(see )" or "[ ]" after URL removal
-  sanitized = sanitized.replace(/\(\s*(?:see|visit|check|cf\.?|cf)?\s*\)/gi, '')
-  sanitized = sanitized.replace(/\[\s*\]/g, '')
+  // ── Final scrub: catch any stray scheme-less hostnames that may have
+  //    been introduced after the name substitutions above (defense-in-depth). ──
+  sanitized = sanitized.replace(/\bns\d+\.(?:openprovider|registrar|connectreseller)\.(?:nl|be|eu|com|net|de)\b/gi, 'default nameserver')
 
-  // ── Clean up double spaces and trailing dots ──
+  // ── Clean up double spaces, orphan punctuation, and trailing dots ──
+  sanitized = sanitized.replace(/\s+([.,;!?])/g, '$1') // remove space before punctuation
+  sanitized = sanitized.replace(/([.,;!?])\1+/g, '$1') // collapse repeated punctuation
   sanitized = sanitized.replace(/\s{2,}/g, ' ').trim()
+
+  // If sanitization left us with empty / near-empty content, fall back to
+  // a friendly generic so we never show "" or "(.)" to the user.
+  if (!sanitized || sanitized.length < 3 || /^[.,;!?\s]*$/.test(sanitized)) {
+    sanitized = context === 'voice' ? 'Voice service temporarily unavailable'
+      : context === 'domain' ? 'Domain provider returned an error'
+      : context === 'sms' ? 'SMS service temporarily unavailable'
+      : 'Service temporarily unavailable'
+  }
 
   return sanitized
 }

@@ -56,7 +56,15 @@ Nomadly - Telegram Bot + Cloud Phone Platform.
 - **`js/_index.js`** (`recordEscalation` ~1620): auto-attach last 5 user-facing errors (30min window) to admin escalation alert
 - **`js/_index.js`** (loadData ~2900): added `[OrphanBundles]` sweeper — every 6h, deletes Twilio draft bundles >24h old
 - **`js/twilio-service.js`**: added `deleteBundle(sid)` + `cleanupOrphanDrafts(olderThanMs)`
-- **`js/sanitize-provider.js`**: strip broken `support.registrar.eu` / `*.registrar.eu` URL artifacts that resulted from openprovider→registrar string substitution; clean up leftover `(see )` parentheses
+- **`js/sanitize-provider.js`**: complete rewrite of URL/hostname/name scrubbing:
+  - All provider URLs stripped FIRST (before name substitution) — catches the original `support.openprovider.eu` so it can never morph into a broken `support.registrar.eu` link
+  - Handles all subdomains (`api.`, `support.`, `login.`, `docs.`, `www.`) and 13 TLDs (`.eu .com .net .io .co .nl .be .de .uk .fr .us .ca .app`)
+  - Bare hostnames (no scheme) like `api.openprovider.eu` → "our provider"
+  - Provider nameserver hostnames (`ns1.openprovider.nl`, `ns3.openprovider.eu`, etc.) → "default nameserver" — scrubbed BEFORE name substitution so they don't morph into `ns1.registrar.nl`
+  - Bracketed/parenthesized leftovers (`(see )`, `[ ]`, `visit:`) cleaned up
+  - Stray punctuation collapse + double-space cleanup
+  - Empty-output fallback ("Service temporarily unavailable")
+  - **Unit tests** added: `js/__tests__/sanitize-provider.test.js` — 29 cases, all pass. Run with: `node js/__tests__/sanitize-provider.test.js`
 - **`js/op-service.js`** (`_sendNsUpdate`): retry on transient 5xx with 1.5s + 4s exponential backoff (was only retrying on timeouts)
 - **`js/cr-auto-whitelist.js`**: suppress repeated "IP needs whitelisting" log spam after first retry; cap retry escalation — after 24 retries (~17h+) re-page admin and slow to 6h cadence
 
