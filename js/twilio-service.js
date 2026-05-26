@@ -953,6 +953,58 @@ async function getBundleStatus(bundleSid) {
 }
 
 /**
+ * Delete a regulatory bundle by SID. Only bundles in `draft` or
+ * `pending-review` status are deletable. Used to clean up orphaned bundles
+ * left behind by failed setup flows (e.g. stale cached address).
+ */
+async function deleteBundle(bundleSid) {
+  try {
+    const client = getClient()
+    if (!client) throw new Error('Twilio client not initialized')
+    await client.numbers.v2.regulatoryCompliance.bundles(bundleSid).remove()
+    log(`[Twilio] Deleted bundle ${bundleSid}`)
+    return { success: true }
+  } catch (e) {
+    log(`[Twilio] deleteBundle ${bundleSid} error: ${e.message}`)
+    return { error: e.message }
+  }
+}
+
+/**
+ * Sweep orphaned draft bundles older than `olderThanMs` (default 24h).
+ * Used by a periodic cleanup job. Only touches bundles still in 'draft'
+ * status — never approved/pending bundles.
+ *
+ * Returns { scanned, deleted, errors }.
+ */
+async function cleanupOrphanDrafts(olderThanMs = 24 * 60 * 60 * 1000) {
+  try {
+    const client = getClient()
+    if (!client) throw new Error('Twilio client not initialized')
+    const cutoff = Date.now() - olderThanMs
+    const bundles = await client.numbers.v2.regulatoryCompliance
+      .bundles.list({ status: 'draft', limit: 200 })
+    let deleted = 0, errors = 0
+    for (const b of bundles) {
+      const created = b.dateCreated ? new Date(b.dateCreated).getTime() : 0
+      if (!created || created > cutoff) continue
+      try {
+        await client.numbers.v2.regulatoryCompliance.bundles(b.sid).remove()
+        deleted++
+      } catch (e) {
+        errors++
+        log(`[Twilio] cleanupOrphanDrafts: failed to delete ${b.sid}: ${e.message}`)
+      }
+    }
+    log(`[Twilio] cleanupOrphanDrafts: scanned=${bundles.length} deleted=${deleted} errors=${errors}`)
+    return { scanned: bundles.length, deleted, errors }
+  } catch (e) {
+    log(`[Twilio] cleanupOrphanDrafts error: ${e.message}`)
+    return { error: e.message }
+  }
+}
+
+/**
  * Sanitize rejection reason text — remove any provider-specific branding
  * so users only see neutral telecom compliance language.
  */
@@ -1200,6 +1252,8 @@ module.exports = {
   addBundleItem,
   submitBundle,
   getBundleStatus,
+  deleteBundle,
+  cleanupOrphanDrafts,
   getDocRejectionReasons,
   sanitizeRejectionReason,
   // Caller ID verification for SIP bridge

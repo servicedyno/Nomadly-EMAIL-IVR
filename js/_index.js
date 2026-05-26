@@ -1618,6 +1618,25 @@ async function recordEscalation({ chatId, displayName, userMessage, aiResponse, 
 
     // Send the SEPARATE prominent admin alert — distinct from the AI-reply mirror.
     if (TELEGRAM_ADMIN_CHAT_ID && bot?.sendMessage) {
+      // ── Auto-attach last 30min of user-facing errors so admin has context ──
+      // (Real Railway log gap: when @kathyserious escalated about AU not working,
+      // admin had to scroll up to find the bundle failures. This bakes them in.)
+      let recentCtxLines = ''
+      try {
+        if (db) {
+          const recentErrs = await db.collection('userErrors')
+            .find({ chatId: cidStr, timestamp: { $gt: new Date(Date.now() - 30 * 60 * 1000) } })
+            .sort({ timestamp: -1 }).limit(5).toArray()
+          if (recentErrs.length > 0) {
+            const lines = recentErrs.map(e => {
+              const ago = Math.max(0, Math.round((Date.now() - new Date(e.timestamp).getTime()) / 60000))
+              return `  • <code>${e.feature}</code> (${ago}min ago): ${String(e.error || '').substring(0, 140)}`
+            }).join('\n')
+            recentCtxLines = `\n\n⚠️ <b>Recent errors hit by this user (last 30min):</b>\n${lines}\n`
+          }
+        }
+      } catch (_) { /* non-fatal */ }
+
       const alertMsg =
         `🚨 <b>ESCALATION — HUMAN ATTENTION NEEDED</b>\n` +
         `━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
@@ -1626,7 +1645,8 @@ async function recordEscalation({ chatId, displayName, userMessage, aiResponse, 
         `📝 Reason: ${reason || 'ai_flagged'}\n` +
         `🆔 Esc: <code>${escId}</code>\n\n` +
         `💬 <b>User said:</b>\n<i>${String(userMessage || '').substring(0, 400)}${(userMessage || '').length > 400 ? '...' : ''}</i>\n\n` +
-        `🤖 <b>AI's reply:</b>\n<i>${String(aiResponse || '').substring(0, 400)}${(aiResponse || '').length > 400 ? '...' : ''}</i>\n\n` +
+        `🤖 <b>AI's reply:</b>\n<i>${String(aiResponse || '').substring(0, 400)}${(aiResponse || '').length > 400 ? '...' : ''}</i>` +
+        recentCtxLines + `\n` +
         `⏰ Reply within 10 min to avoid auto-reminder.`
       const opts = {
         parse_mode: 'HTML',
@@ -2877,6 +2897,28 @@ const loadData = async () => {
   setTimeout(() => cleanupStalePendingOrders(), 15 * 60 * 1000)
   setInterval(cleanupStalePendingOrders, STALE_ORDER_CHECK_INTERVAL_MS)
   log(`[StaleOrderCleanup] Scheduled every ${STALE_ORDER_CHECK_INTERVAL_MS / 60000}min (timeout: ${STALE_ORDER_TIMEOUT_MS / 3600000}h)`)
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // Twilio orphan-bundle cleanup
+  // Failed regulatory-setup flows can leave 'draft' bundles in Twilio that
+  // never get cleaned up. We sweep bundles older than 24h every 6h.
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  const ORPHAN_BUNDLE_AGE_MS = 24 * 60 * 60 * 1000   // 24h
+  const ORPHAN_BUNDLE_INTERVAL_MS = 6 * 60 * 60 * 1000 // every 6h
+  async function _orphanBundleSweep() {
+    try {
+      if (!twilioService?.cleanupOrphanDrafts) return
+      const r = await twilioService.cleanupOrphanDrafts(ORPHAN_BUNDLE_AGE_MS)
+      if (r && (r.deleted || r.errors)) {
+        log(`[OrphanBundles] sweep done: scanned=${r.scanned} deleted=${r.deleted} errors=${r.errors}`)
+      }
+    } catch (e) {
+      log(`[OrphanBundles] sweep error: ${e.message}`)
+    }
+  }
+  setTimeout(_orphanBundleSweep, 20 * 60 * 1000) // first run 20min after boot
+  setInterval(_orphanBundleSweep, ORPHAN_BUNDLE_INTERVAL_MS)
+  log(`[OrphanBundles] Scheduled every ${ORPHAN_BUNDLE_INTERVAL_MS / 60000}min (age threshold: ${ORPHAN_BUNDLE_AGE_MS / 3600000}h)`)
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // Abandoned cart recovery for digital products
@@ -9797,6 +9839,8 @@ Enter new value:`), bc)
               // No approved bundle — create one using cached address
               log(`[CloudPhone] Cached address found for ${countryCode}, creating regulatory bundle for chatId=${chatId}`)
               send(chatId, ({ en: `✅ Payment received! Setting up regulatory approval...`, fr: `✅ Paiement reçu ! Configuration de l'approbation réglementaire...`, zh: `✅ 付款成功！正在设置监管审批...`, hi: `✅ भुगतान प्राप्त! नियामक अनुमोदन सेट अप हो रहा है...` }[lang] || `✅ Payment received! Setting up regulatory approval...`), { parse_mode: 'HTML' })
+              // ── Scoped outside the try so the catch can clean up the orphan ──
+              let _orphanBundleSid = null
               try {
                 const customerName = await get(nameOf, chatId) || `User-${chatId}`
                 const numType = info?.cpNumberType || 'local'
@@ -9814,6 +9858,7 @@ Enter new value:`), bc)
                   countryCode, numType, 'individual', regResult.sid, bundleCallbackUrl
                 )
                 if (bundleResult.error) throw new Error(`createBundle: ${bundleResult.error}`)
+                _orphanBundleSid = bundleResult.sid // track so catch can clean up if a later step fails
                 // Create supporting document from cached address (bundles don't accept raw Address SIDs)
                 const addrDoc = await twilioService.createSupportingDocument(
                   `Address-${chatId}-${countryCode}`, 'address', { address_sids: cachedAddr }
@@ -9844,6 +9889,35 @@ Enter new value:`), bc)
                 return
               } catch (bundleErr) {
                 log(`[CloudPhone] Bundle creation error (cached addr): ${bundleErr.message}`)
+
+                // ── Railway log fix #1: detect stale cached Twilio Address SID ──
+                // When Twilio returns "Address AD… does not exist", the cached
+                // SID in `phoneNumbersOf.val.twilioAddresses[countryCode]` is
+                // stale (the underlying Twilio address was deleted). We must
+                // INVALIDATE the cache so the next attempt re-collects the
+                // address — otherwise the user enters an infinite refund loop.
+                const isStaleAddr = /Address\s+[A-Z0-9]+\s+does\s+not\s+exist/i.test(bundleErr.message)
+                if (isStaleAddr) {
+                  try {
+                    await phoneNumbersOf.updateOne(
+                      { _id: chatId },
+                      { $unset: { [`val.twilioAddresses.${countryCode}`]: '' } }
+                    )
+                    log(`[CloudPhone] Invalidated stale cached Twilio Address for ${chatId}/${countryCode}`)
+                  } catch (invErr) {
+                    log(`[CloudPhone] Failed to invalidate stale cache: ${invErr.message}`)
+                  }
+                }
+
+                // ── Clean up the orphaned draft Twilio bundle (if any) ──
+                // The bundle was created before the failure — leaving it in
+                // 'draft' state pollutes the Twilio account forever. Best-effort.
+                if (_orphanBundleSid) {
+                  twilioService.deleteBundle?.(_orphanBundleSid)
+                    .then(() => log(`[CloudPhone] Cleaned up orphan bundle ${_orphanBundleSid}`))
+                    .catch(e => log(`[CloudPhone] Orphan bundle cleanup failed (${_orphanBundleSid}): ${e.message}`))
+                }
+
                 try {
                   await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
                   await saveInfo('cpPendingCoin', null)
@@ -9854,9 +9928,33 @@ Enter new value:`), bc)
                   notifyAdmin(`🚨 CRITICAL [Bundle] Refund failed\nchatId: ${chatId}\nprice: $${priceUsd}\nerror: ${refundErr.message}`)
                 }
                 const { usdBal: refUsd } = await getBalance(walletOf, chatId)
-                await set(state, chatId, 'action', 'none')
-                send(chatId, trans('t.dom_6', t.showWallet(refUsd)), { parse_mode: 'HTML' })
-                return notifyAdmin(`⚠️ [Bundle] Exception (cached addr)\nchatId: ${chatId}\nerror: ${bundleErr.message}`)
+
+                // Record so AI Support has context if the user opens a ticket
+                try {
+                  recordUserError(chatId, 'cloud-ivr-purchase',
+                    isStaleAddr
+                      ? `${countryCode} regulatory setup failed: cached address on file no longer exists in Twilio (auto-invalidated).`
+                      : `${countryCode} regulatory setup failed: ${bundleErr.message}`)
+                } catch (_) { /* non-fatal */ }
+
+                // ── User-facing message ──
+                // For stale-cache failures, tell the user clearly what happened
+                // and offer the recovery action (re-enter address) instead of
+                // the generic "Regulatory setup failed" that left users guessing.
+                if (isStaleAddr) {
+                  const staleMsg = {
+                    en: `❌ <b>Address on file is no longer valid</b>\n\nYour saved address was removed from our phone-number provider. <b>You have NOT been charged</b> — $${Number(priceUsd).toFixed(2)} was returned to your wallet.\n\n💡 Please try the purchase again and re-enter your address when prompted.\n${t.showWallet(refUsd)}`,
+                    fr: `❌ <b>Adresse enregistrée non valide</b>\n\nVotre adresse a été retirée par notre fournisseur de numéros. <b>Aucun débit</b> — $${Number(priceUsd).toFixed(2)} a été remboursé sur votre portefeuille.\n\n💡 Réessayez l'achat et saisissez à nouveau votre adresse.\n${t.showWallet(refUsd)}`,
+                    zh: `❌ <b>已保存的地址已失效</b>\n\n您的地址已从我们的号码提供商处被移除。<b>未扣款</b> — $${Number(priceUsd).toFixed(2)} 已退还到您的钱包。\n\n💡 请重新购买并按提示再次输入地址。\n${t.showWallet(refUsd)}`,
+                    hi: `❌ <b>आपका सहेजा गया पता अब मान्य नहीं है</b>\n\nहमारे फ़ोन-नंबर प्रदाता से आपका पता हटा दिया गया था। <b>शुल्क नहीं लगा</b> — $${Number(priceUsd).toFixed(2)} वॉलेट में वापस आ गया।\n\n💡 कृपया फिर से खरीदारी करें और संकेत मिलने पर पता दोबारा दर्ज करें।\n${t.showWallet(refUsd)}`,
+                  }
+                  await set(state, chatId, 'action', 'none')
+                  send(chatId, staleMsg[lang] || staleMsg.en, { parse_mode: 'HTML', reply_markup: { remove_keyboard: true } })
+                } else {
+                  await set(state, chatId, 'action', 'none')
+                  send(chatId, trans('t.dom_6', t.showWallet(refUsd)), { parse_mode: 'HTML', reply_markup: { remove_keyboard: true } })
+                }
+                return notifyAdmin(`⚠️ [Bundle] Exception (cached addr)\nchatId: ${chatId}\ncountry: ${countryCode}\nstaleAddr: ${isStaleAddr}\nerror: ${bundleErr.message}`)
               }
             }
           }
@@ -10977,6 +11075,37 @@ All verified numbers generated during sourcing.`))
     // talking to a real person. But if no admin takeover, AI auto-responds.
     if (isAdminTakeover) {
       send(chatId, trans('t.supportMsgReceived'), { reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
+      return
+    }
+
+    // ── Fix: user explicitly requested a HUMAN — stop AI auto-reply ──
+    // Real prod Railway log (kathyserious, 2026-05-26): user typed "human agent"
+    // immediately after opening support; AI auto-replied with a generic
+    // "I'm sorry to hear…" 17s later. When the user has explicitly asked for
+    // a human, we skip AI entirely, acknowledge, and escalate hard.
+    const _humanRequestPatterns = /\b(human\s*(agent|support|person)?|real\s*(human|person|agent)|live\s*(agent|person|support)|speak\s*to\s*(someone|a\s*person|a\s*human|an\s*agent)|talk\s*to\s*(someone|a\s*person|a\s*human|an\s*agent))\b/i
+    const _humanRequestPatternsLocal = /(agent\s*humain|personne\s*réelle|parler\s*à\s*quelqu['\u2019]?un|人工|真人|找人|किसी\s*से\s*बात|इंसान|असली\s*व्यक्ति|मानव\s*एजेंट)/i
+    if (_humanRequestPatterns.test(message) || _humanRequestPatternsLocal.test(message)) {
+      log(`[Support] ${chatId} explicitly requested a HUMAN — suppressing AI auto-reply`)
+      // Tell user help is coming
+      const humanAckMsg = {
+        en: `🧑‍💼 <i>Connecting you to a human support agent — please hold on.</i>\n\nYou can keep typing — your messages are being forwarded to a real person.`,
+        fr: `🧑‍💼 <i>Connexion à un agent humain — un instant.</i>\n\nVous pouvez continuer à écrire — vos messages sont transmis à un vrai conseiller.`,
+        zh: `🧑‍💼 <i>正在连接人工客服 — 请稍候。</i>\n\n您可以继续输入 — 您的消息会转发给真人。`,
+        hi: `🧑‍💼 <i>आपको मानव सहायता एजेंट से जोड़ा जा रहा है — कृपया प्रतीक्षा करें।</i>\n\nआप टाइप करते रह सकते हैं — आपके संदेश एक असली व्यक्ति को भेजे जा रहे हैं।`,
+      }
+      const _lang = userLang || 'en'
+      send(chatId, humanAckMsg[_lang] || humanAckMsg.en, { parse_mode: 'HTML', reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
+
+      // Fire a hard escalation with the human-requested reason so the admin
+      // alert is unmistakable.
+      recordEscalation({
+        chatId, displayName,
+        userMessage: message,
+        aiResponse: '(human requested — AI silenced)',
+        reason: 'human_requested',
+        lang: _lang,
+      }).catch(e => log(`[Escalation] human_requested error: ${e.message}`))
       return
     }
 
@@ -22857,6 +22986,8 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     // ── BUNDLE-REQUIRED COUNTRIES (e.g. ZA) → create regulatory bundle, defer purchase ──
     if (twilioService.needsBundle(countryCode)) {
       log(`[CloudPhone] Country ${countryCode} requires regulatory bundle — creating for chatId=${chatId}`)
+      // ── Scoped outside the try so the catch can clean up the orphan ──
+      let _orphanBundleSid = null
       try {
         // 1. Get regulation SID
         const numType = info?.cpNumberType || 'local'
@@ -22918,6 +23049,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
           send(chatId, trans('t.cp_247', Number(priceUsd || price).toFixed(2), t.showWallet(refUsd)), { parse_mode: 'HTML' })
           return notifyAdmin(`⚠️ [Bundle] createBundle failed\nchatId: ${chatId}\nerror: ${bundleResult.error}`)
         }
+        _orphanBundleSid = bundleResult.sid // track so catch can clean up if a later step fails
 
         // 4. Create supporting document from address (bundles don't accept raw Address SIDs)
         const addrDoc = await twilioService.createSupportingDocument(
@@ -22982,6 +23114,14 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
         return
       } catch (bundleErr) {
         log(`[CloudPhone] Bundle creation error: ${bundleErr.message}`)
+
+        // ── Cleanup orphan bundle if it was created before the failure ──
+        if (_orphanBundleSid) {
+          twilioService.deleteBundle?.(_orphanBundleSid)
+            .then(() => log(`[CloudPhone] Cleaned up orphan bundle ${_orphanBundleSid}`))
+            .catch(e => log(`[CloudPhone] Orphan bundle cleanup failed (${_orphanBundleSid}): ${e.message}`))
+        }
+
         // Refund on any unexpected error
         const coin = info?.cpPendingCoin
         const priceUsd = info?.cpPendingPriceUsd
@@ -22995,10 +23135,15 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
           log(`[CloudPhone] CRITICAL: Refund failed after bundle error: ${refundErr.message}`)
           notifyAdmin(`🚨 CRITICAL [Bundle] Refund failed\nchatId: ${chatId}\nprice: $${priceUsd || price}\nerror: ${refundErr.message}`)
         }
+        // Record error so AI Support has context
+        try {
+          recordUserError(chatId, 'cloud-ivr-purchase',
+            `${countryCode} regulatory setup failed: ${bundleErr.message}`)
+        } catch (_) { /* non-fatal */ }
         const { usdBal: refUsd } = await getBalance(walletOf, chatId)
         await set(state, chatId, 'action', 'none')
-        send(chatId, trans('t.cp_248', t.showWallet(refUsd)), { parse_mode: 'HTML' })
-        return notifyAdmin(`⚠️ [Bundle] Exception\nchatId: ${chatId}\nerror: ${bundleErr.message}`)
+        send(chatId, trans('t.cp_248', t.showWallet(refUsd)), { parse_mode: 'HTML', reply_markup: { remove_keyboard: true } })
+        return notifyAdmin(`⚠️ [Bundle] Exception\nchatId: ${chatId}\ncountry: ${countryCode}\nerror: ${bundleErr.message}`)
       }
     }
 
@@ -28385,6 +28530,28 @@ Tap a button below to change. Changes sync to your phone on next app open.`
   }
 
   log(`[reset] Unrecognized message from ${chatId}: "${message}" (was action: ${action || 'none'}).`)
+
+  // ── UX fix: silent swallow of stale Yes/No/Confirm/Cancel presses ──
+  // When a flow ends (success or failure), the user's screen often still
+  // shows the previous Yes/No keyboard. Tapping it after the flow ended
+  // hits this fallback and used to reset to main menu — confusing, and
+  // (worse) repeats during a wait-for-AI period. If the user is at base
+  // state (action 'none') and the press is a known Yes/No/Confirm/Cancel,
+  // send a short ack and clear the dangling keyboard.
+  if ((!action || action === 'none') && (isYesPress(message) || isNoPress(message) || isCancelPress(message))) {
+    log(`[reset] Silently acking stale Yes/No/Cancel press from ${chatId} (action=none)`)
+    const lang2 = info?.userLanguage || 'en'
+    const ackMsg = {
+      en: '✅ That action is already complete — tap a menu button below to continue.',
+      fr: '✅ Cette action est déjà terminée — touchez un bouton du menu ci-dessous pour continuer.',
+      zh: '✅ 该操作已完成 — 请点击下方菜单按钮继续。',
+      hi: '✅ वह कार्रवाई पूरी हो चुकी है — जारी रखने के लिए नीचे मेनू बटन टैप करें।',
+    }
+    // Restore the main menu keyboard at the same time we ack — replaces the
+    // stale Yes/No keyboard cleanly without flashing remove_keyboard then re-adding.
+    send(chatId, ackMsg[lang2] || ackMsg.en, isAdmin(chatId) ? aO : trans('o'))
+    return
+  }
 
   // B3 fix: Rate-limit menu resets — max 1 menu reset message per 5 seconds per user
   // Prevents flooding when stale cached buttons spam multiple unrecognized messages

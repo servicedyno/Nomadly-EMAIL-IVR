@@ -582,21 +582,43 @@ const disableDnssec = async (domainName) => {
 
 /**
  * Internal helper: send NS update to OpenProvider API.
- * Handles timeout + retry logic.
+ * Handles timeout + retry logic, including transient 5xx errors.
  */
 const _sendNsUpdate = async (domainId, domainName, nsPayload, headers) => {
   let res
+  const _put = (timeoutMs) => axios.put(`${OP_BASE_URL}/v1beta/domains/${domainId}`, {
+    name_servers: nsPayload,
+  }, { headers, timeout: timeoutMs })
+
   try {
-    res = await axios.put(`${OP_BASE_URL}/v1beta/domains/${domainId}`, {
-      name_servers: nsPayload,
-    }, { headers, timeout: 30000 })
+    res = await _put(30000)
   } catch (firstErr) {
-    // Retry once with 45s timeout on timeout/network errors
-    if (firstErr.code === 'ECONNABORTED' || firstErr.message?.includes('timeout') || firstErr.code === 'ETIMEDOUT') {
+    const isTimeout = firstErr.code === 'ECONNABORTED' || firstErr.message?.includes('timeout') || firstErr.code === 'ETIMEDOUT'
+    const status = firstErr.response?.status
+    const is5xx = status >= 500 && status <= 599
+
+    if (isTimeout) {
       log(`OP updateNameservers timeout for ${domainName}, retrying with 45s…`)
-      res = await axios.put(`${OP_BASE_URL}/v1beta/domains/${domainId}`, {
-        name_servers: nsPayload,
-      }, { headers, timeout: 45000 })
+      res = await _put(45000)
+    } else if (is5xx) {
+      // ── 5xx transient — back off and retry up to 2 more times (exponential) ──
+      // Real-prod Railway log: itsonlytravel.com got 500 once; retrying would
+      // have succeeded. We now retry with 1.5s then 4s backoff.
+      let lastErr = firstErr
+      for (const backoff of [1500, 4000]) {
+        log(`OP updateNameservers ${status} for ${domainName}, retrying in ${backoff}ms…`)
+        await new Promise(r => setTimeout(r, backoff))
+        try {
+          res = await _put(30000)
+          lastErr = null
+          break
+        } catch (retryErr) {
+          lastErr = retryErr
+          const retryStatus = retryErr.response?.status
+          if (!(retryStatus >= 500 && retryStatus <= 599)) break // non-5xx — stop retrying
+        }
+      }
+      if (lastErr) throw lastErr
     } else {
       throw firstErr
     }

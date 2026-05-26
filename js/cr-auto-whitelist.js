@@ -142,7 +142,11 @@ async function autoWhitelist(opts = {}) {
 
   // 3. API not working — try browser automation (once)
   isWhitelisted = false
-  log(`[CR-Whitelist] API blocked — IP ${ip} needs whitelisting`)
+  // Log "needs whitelisting" only once per session (avoid hourly spam after the
+  // first failed attempt — see Railway log: same message printed every retry).
+  if (retryCount === 0) {
+    log(`[CR-Whitelist] API blocked — IP ${ip} needs whitelisting`)
+  }
 
   if (!automationAttempted) {
     automationAttempted = true
@@ -201,7 +205,9 @@ async function autoWhitelist(opts = {}) {
  * Schedule a retry with escalating intervals:
  * - First 3 retries: every 60 seconds (3 minutes)
  * - Next 5 retries: every 10 minutes (50 minutes)
- * - After that: every 60 minutes
+ * - Retries 9–24: every 60 minutes (16 hours)
+ * - After 24 retries (~17h+ of failure): re-ping admin and slow to 6h apart
+ *   so we don't silently spin forever on a broken integration.
  */
 function scheduleRetry(opts) {
   if (retryTimer) return
@@ -212,8 +218,19 @@ function scheduleRetry(opts) {
     interval = 60 * 1000
   } else if (retryCount <= 8) {
     interval = 10 * 60 * 1000
-  } else {
+  } else if (retryCount <= 24) {
     interval = 60 * 60 * 1000
+  } else {
+    interval = 6 * 60 * 60 * 1000
+    // Re-page admin every 24h or so that this isn't forgotten
+    if (retryCount === 25 && opts.bot && opts.adminChatId) {
+      const msg =
+        `<b>Connect Reseller — Still NOT whitelisted after ${retryCount} attempts</b>\n\n` +
+        `IP: <code>${currentIP}</code>\n` +
+        `Action: Manually whitelist at https://global.connectreseller.com/tools/profile and verify CR_PANEL_EMAIL / CR_PANEL_PASSWORD are correct (browser automation login is rejecting credentials).\n\n` +
+        `<i>Auto-retry continuing every 6h.</i>`
+      opts.bot.sendMessage(opts.adminChatId, msg, { parse_mode: 'HTML', disable_web_page_preview: true }).catch(() => {})
+    }
   }
 
   log(`[CR-Whitelist] Retry #${retryCount} scheduled in ${interval / 1000}s`)

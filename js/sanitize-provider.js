@@ -48,6 +48,18 @@ function sanitizeProviderError(msg, context = 'generic') {
   sanitized = sanitized.replace(/purchased from Speechcue/gi, 'purchased')
   sanitized = sanitized.replace(/verified for your account/gi, 'verified for your account')
 
+  // ── Strip provider support/help URLs that no longer route correctly after
+  //    the OpenProvider/ConnectReseller → "registrar" rename. Leaving a URL
+  //    like https://support.registrar.eu/... in a user message produces a
+  //    broken click (no such site). Strip it cleanly.
+  //    Character class excludes URL terminators (whitespace, ), ], <, >, ", ', ;)
+  //    so the closing paren / bracket of (see URL) is preserved for the cleanup below.
+  sanitized = sanitized.replace(/https?:\/\/(?:www\.)?support\.(?:registrar|openprovider|connectreseller)[^\s)\]<>"';]*/gi, '')
+  sanitized = sanitized.replace(/https?:\/\/(?:www\.)?(?:registrar|openprovider|connectreseller)\.eu[^\s)\]<>"';]*/gi, '')
+  // Bracketed/parenthesized leftovers like "(see )" or "[ ]" after URL removal
+  sanitized = sanitized.replace(/\(\s*(?:see|visit|check|cf\.?|cf)?\s*\)/gi, '')
+  sanitized = sanitized.replace(/\[\s*\]/g, '')
+
   // ── Clean up double spaces and trailing dots ──
   sanitized = sanitized.replace(/\s{2,}/g, ' ').trim()
 
