@@ -1045,7 +1045,7 @@ the existing `/credit @kathyserious 86.45` command to make her whole.
 ### Completed actions
 1. **Discovered production webhook had been hijacked by this preview pod.**
    Telegram's `getWebhookInfo` showed
-   `url: https://quick-start-208.preview.emergentagent.com/api/telegram/webhook`
+   `url: https://setup-guide-107.preview.emergentagent.com/api/telegram/webhook`
    instead of the Railway URL. Root cause: this preview pod runs the same
    Node bot code, and on startup `setupTelegramWebhook` blindly re-registers
    the webhook to `SELF_URL`. Every supervisor restart of this preview pod
