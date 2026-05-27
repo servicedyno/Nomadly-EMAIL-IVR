@@ -285,6 +285,34 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state,
             }},
             { upsert: true }
           )
+
+          // ── B1: Inline delegation guard for pre-delegation TLDs ──
+          // For .de/.nl/.se/.fi/.be/.ch/.ie/.it/.eu/.at/.li/.dk/.cz/.no the
+          // registry pre-checks NS during/after registration. If that race
+          // fails, the OP API still returns success but the domain stays
+          // parked at the registry. Catch that here, heal once inline, and
+          // queue any remaining cases for the background DnsHealer.
+          if (regNsChoice === 'cloudflare' && Array.isArray(regResult.nameservers) && regResult.nameservers.length >= 2) {
+            try {
+              const dnsHealer = require('./dns-healer')
+              const guard = await dnsHealer.verifyDelegationOrQueue(
+                regDb2,
+                domain,
+                regResult.nameservers,
+                String(chatId)
+              )
+              if (!guard.healthy) {
+                info._delegationDeferred = true
+                info._delegationReason = guard.reason || 'pending'
+                log(`[Hosting] ${domain}: registry delegation not live yet (${guard.reason}). Queued for DnsHealer; hosting will continue.`)
+              } else if (guard.action === 'healed-now') {
+                log(`[Hosting] ${domain}: registry delegation required an inline NS re-push but is now live.`)
+              }
+            } catch (gErr) {
+              log(`[Hosting] B1 delegation guard failed (non-blocking): ${gErr.message}`)
+            }
+          }
+
           await regClient2.close()
 
           send(chatId, { en: `✅ Domain <b>${domain}</b> registered`, fr: `✅ Domaine <b>${domain}</b> enregistré`, zh: `✅ 域名 <b>${domain}</b> 已注册`, hi: `✅ डोमेन <b>${domain}</b> पंजीकृत` }[lang] || `✅ Domain <b>${domain}</b> registered`, rem)
@@ -713,10 +741,23 @@ NS2: <code>${cfNameservers[1]}</code>
       const panelUrl = panelDomain
         ? (panelDomain.startsWith('http') ? panelDomain : `https://${panelDomain}`)
         : `${process.env.SELF_URL_PROD?.replace('/api', '')}/panel`
-      const credentialsMsg = `🎉 <b>Your hosting is live!</b>
+
+      // If the registry hasn't published our nameservers yet (pre-delegation
+      // TLD race), the DnsHealer worker is already retrying in the background
+      // and will message the user the moment delegation goes live. Replace
+      // the "live!" headline with a calmer "almost ready" one so the user
+      // doesn't open the URL and see a parking page.
+      const dnsHeadline = info._delegationDeferred
+        ? `⏳ <b>Your hosting is almost ready!</b>\n\nWe're waiting on the domain registry to publish your DNS — usually within 30–60 min. You'll get a confirmation here automatically when <b>${domain}</b> goes live.`
+        : `🎉 <b>Your hosting is live!</b>`
+      const dnsLine = info._delegationDeferred
+        ? `DNS being configured at the registry — we'll auto-retry.`
+        : `DNS auto-configured via Cloudflare.`
+
+      const credentialsMsg = `${dnsHeadline}
 
 <b>Domain:</b> ${domain}
-${info.email ? `<b>Email:</b> ${info.email}\n` : ''}DNS auto-configured via Cloudflare.
+${info.email ? `<b>Email:</b> ${info.email}\n` : ''}${dnsLine}
 
 <b>HostPanel Login</b>
 Username: <code>${result.username}</code>

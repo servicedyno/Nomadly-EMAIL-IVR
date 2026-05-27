@@ -2527,6 +2527,16 @@ const loadData = async () => {
   protectionHeartbeat.startScheduler()
   log('[ProtectionHeartbeat] Initialized and scheduled')
 
+  // Initialize DNS Healer — self-heals registry-side delegation failures
+  // (e.g. .de domains parked at nx.denic.de because DENIC's pre-delegation
+  // NS check raced ahead of Cloudflare zone publication at registration time).
+  // Probes public DNS every DNS_HEAL_INTERVAL_MIN min; on failure, re-pushes
+  // CF nameservers via OpenProvider (with built-in DNSSEC autofix), and
+  // escalates to admin via notifyAdmin after 3 failed heal attempts.
+  const dnsHealer = require('./dns-healer')
+  dnsHealer.startScheduler(db, { bot, notifyAdmin, adminChatId: TELEGRAM_ADMIN_CHAT_ID })
+  log('[DnsHealer] Initialized and scheduled')
+
   // Initialize Voice Service (IVR, Recording, Call handling)
   if (process.env.PHONE_SERVICE_ON === 'true') {
     initVoiceService({
@@ -5855,6 +5865,52 @@ bot?.on('message', msg => {
       send(chatId, `✅ Win-back complete: ${result.sent} sent, ${result.errors} errors`)
     }).catch(e => send(chatId, `❌ Error: ${e.message}`))
     return
+  }
+
+  // ── Admin: DNS healer status / manual trigger ──
+  // /dnsheal                  → show recent state (unhealthy / healing / escalated)
+  // /dnsheal <domain>         → force a single heal pass for that domain
+  if (isAdmin(chatId) && message.startsWith('/dnsheal')) {
+    try {
+      const parts = message.trim().split(/\s+/)
+      const dnsHealer = require('./dns-healer')
+      if (parts.length === 1) {
+        const stateCol = db.collection('dnsHealState')
+        const rows = await stateCol
+          .find({ status: { $in: ['unhealthy', 'healing', 'escalated'] } })
+          .sort({ nextProbeAt: 1 })
+          .limit(30)
+          .toArray()
+        if (rows.length === 0) {
+          send(chatId, '✅ <b>DnsHealer:</b> no domains in unhealthy/healing/escalated state.', { parse_mode: 'HTML' })
+          return
+        }
+        const lines = rows.map((r) =>
+          `• <code>${r._id}</code> — <b>${r.status}</b> · attempts=${r.attempts || 0} · err=${(r.lastError || '-').slice(0, 60)} · nextProbe=${r.nextProbeAt ? new Date(r.nextProbeAt).toISOString().slice(11, 19) : '-'}`
+        )
+        send(chatId, `🩺 <b>DnsHealer state</b> (${rows.length} rows)\n\n${lines.join('\n')}\n\nForce-heal: <code>/dnsheal &lt;domain&gt;</code>`, { parse_mode: 'HTML' })
+        return
+      }
+      const domain = parts[1].toLowerCase().trim()
+      send(chatId, `🔧 Running manual heal for <code>${domain}</code>…`, { parse_mode: 'HTML' })
+      const r = await dnsHealer.manualHeal(db, domain)
+      if (!r.ok) {
+        send(chatId, `❌ <code>${domain}</code>: ${r.error}`, { parse_mode: 'HTML' })
+        return
+      }
+      const after = r.state || {}
+      send(chatId,
+        `🩺 <b>Manual heal: ${domain}</b>\n\n` +
+        `Status: <b>${after.status || '-'}</b>\n` +
+        `Attempts: ${after.attempts || 0}\n` +
+        `Public NS: <code>${(after.lastPublicNs || []).join(', ') || '∅'}</code>\n` +
+        `Public A: <code>${(after.lastPublicA || []).join(', ') || '∅'}</code>\n` +
+        `Last error: ${(after.lastError || '-').slice(0, 200)}\n` +
+        `Next probe: ${after.nextProbeAt ? new Date(after.nextProbeAt).toISOString() : '-'}`,
+        { parse_mode: 'HTML' }
+      )
+      return
+    } catch (e) { return send(chatId, '❌ /dnsheal error: ' + e.message) }
   }
 
   // ── Admin: Aggregate Test-SMS diagnostic logs (last 7d) ──

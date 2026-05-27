@@ -20,6 +20,7 @@ const path = require('path')
 require('dotenv').config({ path: path.join(__dirname, '..', '..', '.env') })
 
 const https = require('https')
+const { MongoClient } = require('mongodb')
 const opService = require('../op-service')
 const cfService = require('../cf-service')
 
@@ -100,7 +101,30 @@ const main = async () => {
   }
 
   log(`⚠️ NS update was accepted by OP but DENIC has not published delegation within 3.5 min.`)
-  log(`This usually clears within 30–60 min. The new DNS-heal worker (job B) will keep re-checking automatically.`)
+  log(`This usually clears within 30–60 min. Planting a dnsHealState row so the background DnsHealer takes over…`)
+
+  try {
+    const client = new MongoClient(process.env.MONGO_URL)
+    await client.connect()
+    const db = client.db(process.env.DB_NAME)
+    await db.collection('dnsHealState').updateOne(
+      { _id: domain },
+      { $set: {
+        status: 'healing',
+        attempts: 1,
+        consecutiveHealthy: 0,
+        lastHealAttemptAt: new Date(),
+        lastProbeAt: new Date(),
+        nextProbeAt: new Date(Date.now() + 5 * 60 * 1000),
+        lastError: 'rescue script: delegation not live yet, handing to background worker',
+      } },
+      { upsert: true }
+    )
+    await client.close()
+    log(`✅ dnsHealState row planted for ${domain}. The DnsHealer will probe every 5 min and re-heal as needed.`)
+  } catch (e) {
+    log(`⚠️ Could not write dnsHealState row: ${e.message}`)
+  }
   process.exit(0)
 }
 
