@@ -987,7 +987,12 @@ const cleanupConflictingDNS = async (zoneId, domainName) => {
     const conflicting = records.filter(r => {
       const isRootOrWww = r.name === domainName || r.name === `www.${domainName}`
       const isConflictType = ['A', 'AAAA', 'CNAME'].includes(r.type)
-      return isRootOrWww && isConflictType
+      if (isRootOrWww && isConflictType) return true
+      // Shortener leftover: Railway's custom-domain verification TXT must be
+      // removed when transitioning from shortener → hosting, otherwise the
+      // domain stays linked at Railway's edge.
+      if (r.type === 'TXT' && r.name === `_railway-verify.${domainName}`) return true
+      return false
     })
 
     for (const record of conflicting) {

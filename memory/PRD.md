@@ -1221,3 +1221,51 @@ complete the bundle → buy → port-to-sub-account flow end-to-end.
   similar gotchas. Add a `TWILIO_API_NUMBER_TYPE_MAP` constant if more
   such pairs surface.
 
+
+---
+
+## 2026-05-27 — `tuestbnk.org` broken state diagnosis + shortener/addon-domain mutual-exclusion fix
+
+### Original problem statement
+> "Check railway production logs, a user bought a domain and I need to know if he was linking it to an existing hosting plan and whether it succeeded and worked as expected."
+
+### Investigation (user `7513061815` NobadTools99, domain `tuestbnk.org`)
+- OpenProvider registration **succeeded** (id `29562535`, status ACT, NS = Cloudflare). Registry .org delegation is live. Handoff's NXDOMAIN claim was stale.
+- Cloudflare zone created (`9e354d9e19a8b4403ae70e50d4a07dcd`), hosting CNAMEs (root + www) intact.
+- `tuestbnk.org` was **also** added as an addon domain on cPanel `teus0d1a` (primary domain `teustbnk.de`, WHM `209.38.241.9`).
+- BUT `shortenerActivations.tuestbnk.org.status = "needs_reactivation"` and the Railway custom-domain registration was already orphaned — stuck hybrid state.
+
+### Root cause
+The bot offered URL-shortener activation right after domain registration. User accepted, so:
+1. `saveDomainInServerRailway('tuestbnk.org')` registered the domain on Railway,
+2. CNAMEs + `_railway-verify.tuestbnk.org` TXT were written to Cloudflare.
+
+The user (or bot flow) **then** added `tuestbnk.org` as an addon to the existing teustbnk.de cPanel. The addon flow ran `cleanupConflictingDNS` + `createHostingDNSRecords`, overwriting the shortener DNS but **never** unlinking the Railway side nor updating the `shortenerActivations` doc. Result: shortener silently broke, addon worked.
+
+### One-shot remediation (this user — already executed on prod)
+- Removed Railway custom-domain registration (`removeDomainFromRailway('tuestbnk.org')`).
+- Deleted stale `_railway-verify.tuestbnk.org` TXT on Cloudflare.
+- Marked `shortenerActivations.tuestbnk.org` → `status: "deactivated", deactivatedBy: "admin-fix"`.
+- Re-asserted CF `SSL=flexible` + `always_use_https=on`.
+- Verified `curl -sIL https://tuestbnk.org/` returns `HTTP/2 200` with `x-antired: cloaked` header (anti-red active). ✅
+
+### Code changes (mutual-exclusion guards)
+1. **`/app/js/_index.js`** — widened all three shortener-activation guards to detect addon domains too:
+   - QuickActivateShortener (line ~17075)
+   - Hosting-plan ActivateShortener (line ~18201)
+   - Domain action shortener (line ~27421)
+   - Plus DNS-management warning at line ~27391
+   - Query changed from `{ domain }` → `{ $or: [{ domain }, { addonDomains: domain }], deleted: { $ne: true } }`
+2. **`/app/js/addon-domain-flow.js`** — reverse guard: before WHM `addaddondomain`, detect any active `shortenerActivations` doc for the same domain and auto-deactivate (Railway unlink + mongo `status: "deactivated", deactivatedBy: "addon-attach"`).
+3. **`/app/js/cf-service.js → cleanupConflictingDNS`** — also removes leftover `_railway-verify.<domain>` TXT (was previously only A/AAAA/CNAME on root+www).
+
+### Test coverage
+- New file: `/app/js/__tests__/addon-shortener-deactivate.test.js` — 3 tests cover (a) active shortener auto-deactivates, (b) already-deactivated is a no-op, (c) no-shortener-doc is a no-op. **3/3 passed.**
+- All other existing tests still pass: 228 tests across 9 files, 0 failures.
+
+### Backlog
+- (P1) Surface addon domains in "📋 My Hosting Plans" view so users can see them under their parent plan (right now only primary domains show; the user thought their addon "wasn't showing").
+- (P2) Add a one-shot reconciler that scans `shortenerActivations` with `status` not in `['deactivated','failed']` and cross-checks against `cpanelAccounts.addonDomains[]` for orphan states like this one.
+- (P3) `cpanelAccounts.addonDomains` should be timestamped (`addonDomainsAddedAt: { [domain]: ISOString }`) so audit/diagnostics can attribute the order of operations.
+
+

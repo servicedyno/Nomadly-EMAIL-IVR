@@ -138,6 +138,43 @@ async function attachAddonDomain(opts) {
     log(`[AddonFlow] duplicate-domain check warning: ${e.message}`)
   }
 
+  // ── Shortener conflict: auto-deactivate so hosting DNS isn't fighting it ──
+  // Before this guard, attaching an addon whose domain was already linked to the
+  // URL shortener left the Railway custom-domain registration orphaned. The
+  // hosting DNS would overwrite the shortener CNAME, so the shortener silently
+  // broke ("needs_reactivation"). We now actively deactivate the shortener as
+  // part of the addon flow so the user ends up in a single, consistent state.
+  try {
+    const shortenerCol = opts.db.collection('shortenerActivations')
+    const activeShortener = await shortenerCol.findOne({
+      _id: domain,
+      status: { $nin: ['deactivated', 'failed'] },
+    })
+    if (activeShortener) {
+      log(`[AddonFlow] ${domain} has active shortener (status=${activeShortener.status}) — deactivating before addon attach`)
+      try {
+        const { removeDomainFromRailway } = require('./rl-save-domain-in-server.js')
+        const r = await removeDomainFromRailway(domain)
+        log(`[AddonFlow] Railway custom-domain removal: ${JSON.stringify(r)}`)
+      } catch (e) {
+        log(`[AddonFlow] Railway removal warning: ${e.message}`)
+      }
+      await shortenerCol.updateOne(
+        { _id: domain },
+        {
+          $set: {
+            status: 'deactivated',
+            deactivatedAt: new Date().toISOString(),
+            deactivatedBy: 'addon-attach',
+          },
+        }
+      )
+      log(`[AddonFlow] shortenerActivations.${domain} marked deactivated`)
+    }
+  } catch (e) {
+    log(`[AddonFlow] shortener auto-deactivate warning: ${e.message}`)
+  }
+
   // ── cPanel addaddondomain ──
   let result
   try {

@@ -17071,8 +17071,11 @@ ${message.replace(/\n/g, '<br>')}
 
     try {
 
-      // ── Check for hosting plan conflict ──
-      const existingHosting = await cpanelAccounts.findOne({ domain })
+      // ── Check for hosting plan conflict (primary OR addon domain) ──
+      const existingHosting = await cpanelAccounts.findOne({
+        $or: [{ domain }, { addonDomains: domain }],
+        deleted: { $ne: true },
+      })
       if (existingHosting) {
         return send(chatId, trans('t.vps_69', domain, existingHosting.plan || 'cPanel'), { parse_mode: 'HTML' })
       }
@@ -18197,8 +18200,11 @@ ${message.replace(/\n/g, '<br>')}
       send(chatId, ({ en: `🔗 Activating shortener for <b>${domain}</b>…`, fr: `🔗 Activation du raccourcisseur pour <b>${domain}</b>…`, zh: `🔗 正在为 <b>${domain}</b> 激活短链接…`, hi: `🔗 <b>${domain}</b> के लिए शॉर्टनर सक्रिय कर रहे हैं…` }[lang] || `🔗 Activating shortener for <b>${domain}</b>…`), { parse_mode: 'HTML' })
       
       try {
-        // ── Check for hosting plan conflict ──
-        const existingHosting = await cpanelAccounts.findOne({ domain })
+        // ── Check for hosting plan conflict (primary OR addon domain) ──
+        const existingHosting = await cpanelAccounts.findOne({
+          $or: [{ domain }, { addonDomains: domain }],
+          deleted: { $ne: true },
+        })
         if (existingHosting) {
           return send(chatId, trans('t.vps_94', domain, existingHosting.plan || 'cPanel'), { parse_mode: 'HTML' })
         }
@@ -27388,7 +27394,10 @@ Select a category:`), k.of(catBtns))
       const domain = info?.domainToManage
       if (!domain) return send(chatId, trans('t.noDomainSelected'))
       
-      const hostingPlan = await cpanelAccounts.findOne({ domain: domain })
+      const hostingPlan = await cpanelAccounts.findOne({
+        $or: [{ domain: domain }, { addonDomains: domain }],
+        deleted: { $ne: true },
+      })
       
       if (hostingPlan) {
         // Domain has hosting — show warning with confirmation
@@ -27417,8 +27426,11 @@ Select a category:`), k.of(catBtns))
       if (!domain) return send(chatId, trans('t.noDomainSelected'))
       send(chatId, ({ en: `🔗 Activating shortener for <b>${domain}</b>…`, fr: `🔗 Activation du raccourcisseur pour <b>${domain}</b>…`, zh: `🔗 正在为 <b>${domain}</b> 激活短链接…`, hi: `🔗 <b>${domain}</b> के लिए शॉर्टनर सक्रिय कर रहे हैं…` }[lang] || `🔗 Activating shortener for <b>${domain}</b>…`), { parse_mode: 'HTML' })
       try {
-        // ── Check for hosting plan conflict ──
-        const existingHosting = await cpanelAccounts.findOne({ domain })
+        // ── Check for hosting plan conflict (primary OR addon domain) ──
+        const existingHosting = await cpanelAccounts.findOne({
+          $or: [{ domain }, { addonDomains: domain }],
+          deleted: { $ne: true },
+        })
         if (existingHosting) {
           return send(chatId, trans('t.sms_4', domain, existingHosting.plan || 'cPanel'), { parse_mode: 'HTML' })
         }
