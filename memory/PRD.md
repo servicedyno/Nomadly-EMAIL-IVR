@@ -1,5 +1,41 @@
 # Nomadly — Multi-Service Platform PRD
 
+## Session 2026-02-XX — MySQL UI for Hosting Panel (cPanel-style, Phase 1 + 2)
+**Status: ✅ COMPLETE — 39/39 backend tests pass, frontend i18n verified for en/fr/zh/hi.**
+
+### User request
+> "Some bot users are asking for MySQL UI like in cPanel. Can we offer that?"
+> "Yes, let cPanel packages handle [database limits]. We also need Remote MySQL hosts UI."
+
+### Delivered
+- **Backend** (`/app/js/cpanel-routes.js` lines 864-1010, `cpanel-proxy.js` lines 693-768, `whm-service.js` line 427)
+  - 13 new `/api/panel/mysql/*` routes: databases (list/create/delete), users (list/create/delete/password), privileges (grant/revoke), remote-hosts (list/add/delete), phpmyadmin (WHM SSO URL)
+  - All routes JWT-gated. Privilege grant defaults to `ALL PRIVILEGES`. Remote-host validates 1-60 char strings.
+- **Frontend** (`/app/frontend/src/components/panel/MysqlManager.js`, `/app/frontend/src/pages/PanelDashboard.js`)
+  - New "Databases" tab in panel between Email & Security, with custom database SVG icon
+  - Two sub-tabs: "Databases & Users" (CRUD UI for both) and "Remote MySQL" (allowlist UI with `%` wildcards)
+  - cPanel-prefix UX: input shows `<cpuser>_` chip; user types only the suffix
+  - phpMyAdmin SSO button — opens session URL in new tab
+  - **Quota-exceeded upgrade banner**: when cPanel rejects with "maximum reached" pattern, shows a friendly purple banner with "Upgrade plan in the bot" CTA → `https://t.me/nomadlybot` (instead of raw UAPI error)
+  - Privilege modal with multi-select + "All privileges" toggle
+- **i18n** (`/app/frontend/src/locales/{en,fr,zh,hi}.json`)
+  - Added full `mysql.*` block (60+ keys) and `dashboard.tabs.mysql` in all 4 languages with native translations
+
+### Regression caught & fixed during smoke test
+- `MysqlManager` initially passed JSX into `<PanelToolbar actions={...}>` but the toolbar expects an **array** of action objects — refactored to use the array contract + `leftSlot` for the title (`PanelToolbar.jsx` contract).
+
+### Known limitations (acceptable / minor)
+- During the initial UAPI fetch (~30s in preview env, instant in prod) the global `Loading…` state hides BOTH sub-tabs. Per-tab skeletons would let users open the Remote MySQL sub-tab immediately. Filed as P2 polish.
+- `MysqlManager.js` is ~1200 lines. Future refactor: split into `DatabasesTab`, `UsersTable`, `HostsTab`, `Modal*` files.
+
+### Test artifacts
+- Pytest suite: `/app/backend/tests/test_mysql_panel.py` (39 cases, ~7 min runtime due to UAPI timeouts in preview)
+- Test report: `/app/test_reports/iteration_15.json`
+
+---
+
+## Nomadly — Multi-Service Platform PRD
+
 ## Original Problem Statement (latest user intent — 2026-05-10)
 > "I noticed that contabo charged me another 30 euros in the last few hours against my credit card. analyze whether the expired VPS or RDP for users on railway production database was canceled before renewal at contabo or whether there was a bug. Analyze the railway logs for any other anomalies. use railway credentials in .env"
 
