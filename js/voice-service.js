@@ -42,6 +42,7 @@ let _state = null
 let _twilioService = null
 let _loyalty = null
 let _testOutboundSipMatch = null
+let _notifyAdmin = null
 
 // In-memory store for active call sessions (callControlId → session data)
 const activeCalls = {}
@@ -1145,6 +1146,7 @@ function initVoiceService(deps) {
   _state = deps.state || null
   _loyalty = deps.loyalty || null
   _testOutboundSipMatch = deps.testOutboundSipMatch || null
+  _notifyAdmin = deps.notifyAdmin || null
 
   // FIX #9: Load persisted notification history from MongoDB to prevent mass-warning on deploy
   if (deps.db) {
@@ -1315,7 +1317,46 @@ async function billCallMinutesUnified(chatId, phoneNumber, minutesBilled, destin
           const msg = _trans('vs.callTypeCharge', lang, callType, minutesBilled, rate, chargedStr, region, discountLine)
           if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
         } else {
-          log(`[Voice] Outbound charge failed (insufficient funds): $${totalCharge.toFixed(2)} for ${callType}`)
+          // ── Hard-fail path: wallet did NOT cover this outbound call. ──
+          // Previously this was a silent log line, meaning the user got the
+          // service for free and the gap only surfaced in deep audits (see
+          // 2026-05-30 logsready audit). We now:
+          //   1) write a `billing_failed` walletLedger row so the loss is
+          //      visible in the same place as successful charges
+          //   2) DM the user that their wallet was insufficient + ask them
+          //      to top up before placing more calls
+          //   3) record a userError so AI Support has context if they ask
+          //   4) notify admin so the leak surfaces during operations review
+          log(`[Voice] ⛔ Outbound charge FAILED (insufficient funds): $${totalCharge.toFixed(2)} for ${callType} — service was provided but NOT billed`)
+          try {
+            const db = _walletOf.s?.db
+            if (db) {
+              const { v4: uuidv4 } = require('uuid')
+              db.collection('walletLedger').insertOne({
+                _id: uuidv4(),
+                chatId, type: 'billing_failed',
+                amount: 0, currency: 'usd',
+                balanceAfter: Math.max(0, (deductResult.usdBal || 0)),
+                description: `UNBILLED ${callType}: ${phoneNumber} → ${destinationNumber} (${minutesBilled} min × $${rate} = $${totalCharge.toFixed(2)} owed; balance $${deductResult.usdBal || 0})`,
+                callType, destination: destinationNumber, phoneNumber,
+                owedUsd: totalCharge,
+                timestamp: new Date(),
+              }).catch(() => {})
+            }
+          } catch (_) {}
+          try {
+            const lang = await _getUserLang(chatId)
+            const dmMsg = ({
+              en: `⚠️ <b>Outbound call NOT billed — wallet empty</b>\n\n📞 ${phoneNumber} → ${destinationNumber} (${minutesBilled} min, owed $${totalCharge.toFixed(2)})\n\nTop up your wallet to keep placing calls — further outbound attempts will be blocked while balance is below the call rate.`,
+              fr: `⚠️ <b>Appel sortant non facturé — solde vide</b>\n\n📞 ${phoneNumber} → ${destinationNumber} (${minutesBilled} min, dû $${totalCharge.toFixed(2)})\n\nRechargez votre portefeuille pour continuer.`,
+              zh: `⚠️ <b>未计费的拨出电话 — 钱包余额为零</b>\n\n📞 ${phoneNumber} → ${destinationNumber}（${minutesBilled} 分钟，欠 $${totalCharge.toFixed(2)}）\n\n请充值钱包以继续拨打。`,
+              hi: `⚠️ <b>आउटबाउंड कॉल बिल नहीं हुआ — वॉलेट खाली</b>\n\n📞 ${phoneNumber} → ${destinationNumber} (${minutesBilled} मिनट, बकाया $${totalCharge.toFixed(2)})\n\nकॉल जारी रखने के लिए वॉलेट टॉप-अप करें।`,
+            }[lang] || `⚠️ <b>Outbound call NOT billed — wallet empty</b>\n\n📞 ${phoneNumber} → ${destinationNumber} (${minutesBilled} min, owed $${totalCharge.toFixed(2)})\n\nTop up your wallet to keep placing calls.`)
+            _bot?.sendMessage(chatId, dmMsg, { parse_mode: 'HTML' }).catch(() => {})
+          } catch (_) {}
+          if (_notifyAdmin) {
+            _notifyAdmin(`💸 [BillingLeak] $${totalCharge.toFixed(2)} unbilled ${callType}\nchatId: <code>${chatId}</code>\n${phoneNumber} → ${destinationNumber}\nminutes: ${minutesBilled} · rate: $${rate}\nbalance: $${deductResult.usdBal || 0}`).catch(() => {})
+          }
         }
       }
     } catch (e) { log(`[Voice] Outbound charge error: ${e.message}`) }

@@ -1269,3 +1269,68 @@ The user (or bot flow) **then** added `tuestbnk.org` as an addon to the existing
 - (P3) `cpanelAccounts.addonDomains` should be timestamped (`addonDomainsAddedAt: { [domain]: ISOString }`) so audit/diagnostics can attribute the order of operations.
 
 
+
+---
+
+## 2026-05-30 — Hosting outage + auto-recovery + payments/IVR audit
+
+### A) WHM origin droplet hung (HostPanel "530" for user `cibc2f81`)
+
+**Investigation**
+- User `8414700715` reported HostPanel showing `Request failed with status code 530`. Cloudflare 530 = "tunnel origin unreachable".
+- DO droplet `557194941` (`209.38.241.9`) reported `status=active` via API, but SSH/22 + ICMP both timed out → **OS-level hang** (cloudflared, sshd, WHM all unresponsive).
+- Last `power_cycle` had been 2026-05-01 (~29d ago).
+
+**Fix delivered**
+- Issued one-shot `power_cycle` via DO API. Host back ~25s later; tunnel + WHM/cPanel verified end-to-end (`Fileman::list_files` returns 200 with 6 addon dirs).
+- Built `/app/js/cpanel-auto-recover.js` — auto-issues `power_cycle` when `cpHealth.onDown` fires AND SSH:22 also dead (= real OS hang vs. just WHM service). 30-minute cooldown prevents reboot loops; in-flight lock prevents concurrent attempts.
+- Wired into `_index.js` `onDown` listener, gated by `WHM_DROPLET_ID` env (now set to `557194941` on prod).
+- Tests: `js/__tests__/cpanel-auto-recover.test.js` (3/3 pass).
+
+### B) Twilio sub-purchase admin DM gap
+
+Telnyx branch fired `notifyGroup(cpTxt.adminSubPurchase / adminPurchase)`; Twilio branch silently skipped it. Result: admin saw 3 sub-DMs when user actually bought 4. Added missing `notifyGroup` calls to the Twilio branch in `_index.js` (sub-number AND regular-number paths).
+
+### C) Stale paymentIntents auto-expire sweeper
+
+Found 13 zombie `paymentIntents` in `pending` for 8-50 days (one user had 5). Added periodic sweeper in `_index.js` next to `StaleOrderCleanup`:
+- Runs every 6h, expires `status ∈ {pending, awaiting, processing}` older than 72h
+- Marks `status: 'expired'`, stamps `expiredAt` + `expireReason`
+- Money-safe: paymentIntents only hold a generated address, not actual funds; webhook completion writes to `transactions`, not paymentIntents
+- One-shot cleanup of existing 13 zombies executed against prod (all marked `expired` with `expireReason: 'no_payment_72h_oneshot_2026-05-30'`).
+
+### D) Outbound-call billing-leak visibility (`voice-service.js`)
+
+Discovered during user `890522022` audit: when `smartWalletDeduct` returned `success:false` for an outbound call, the call had already happened but the failure was a silent `log()` line — user got free service, ops team only saw the leak in deep audits.
+
+Now when wallet deduct fails on outbound:
+1. Writes a `walletLedger` row with `type: 'billing_failed'`, `amount: 0`, `owedUsd: <total>` for audit visibility
+2. DMs the user (en/fr/zh/hi) that the call wasn't billed + asks them to top up
+3. Calls `notifyAdmin` with a `[BillingLeak]` tag including chatId, route, minutes, rate, balance
+4. Wired `notifyAdmin` through `initVoiceService` (new dep)
+
+Tests: `js/__tests__/billing-leak-visibility.test.js` (4/4 pass).
+
+### E) Sub-number purchase audit — `890522022` (@logsready)
+
+Confirmed for the operator:
+- All 4 sub-numbers (`+18083749780`, `+18333552537`, `+18449061479`, `+18339629094`) under parent `+18336140410` are `active` in `phoneNumbersOf.val.numbers`, `isSubNumber=true`, $25 Pro plan each
+- Each has a `phoneTransactions` audit row with `action: 'sub-number-purchase'`, `amount: 25`, `paymentMethod: 'wallet_usd'`
+- Wallet: `usdIn=105` (welcome $5 + ETH topup $100), `usdOut=105` — net $0 balance, consistent with the four $25 subs + ~10 effective outbound calls × $0.50
+
+### Test suite total
+**235 tests across 11 files, 0 failures**, including 3 new suites:
+- `cpanel-auto-recover.test.js`
+- `addon-shortener-deactivate.test.js`
+- `billing-leak-visibility.test.js`
+
+### Files touched
+- New: `js/cpanel-auto-recover.js`, `js/__tests__/cpanel-auto-recover.test.js`, `js/__tests__/billing-leak-visibility.test.js`
+- Updated: `js/_index.js` (Twilio sub DM, paymentIntents sweeper, auto-recover hook, voice-service init pass-through), `js/voice-service.js` (billing-failed visibility + admin notify), `js/addon-domain-flow.js` (earlier on 2026-05-27)
+
+### Open backlog
+- (P1) ConnectReseller API blocked — outbound IP `162.220.232.99` no longer whitelisted; bot's puppeteer auto-fix is failing to log in (returns to login page each retry). Until fixed, any CR domain op (renew/transfer/NS update) silently fails. Action: refresh CR creds OR manually whitelist the IP.
+- (P2) `walletLedger.balanceAfter` is misleading (often `0` even when wallet had funds) — should be the post-deduction balance.
+- (P3) Make `walletLedger` entries idempotent on `callSid` so duplicate Telnyx webhooks for the same call don't write multiple rows.
+
+

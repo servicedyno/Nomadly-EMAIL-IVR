@@ -2572,6 +2572,7 @@ const loadData = async () => {
       loyalty,
       db, // FIX #9: Pass db for persisting balance notification history
       testOutboundSipMatch: require('./test-outbound-sip.js').matchPendingTest,
+      notifyAdmin, // 2026-05-30: surface billing-leak events in admin DMs
     })
     log('[CloudPhone] Voice Service initialized with IVR + Recording + Overage')
 
@@ -2923,6 +2924,48 @@ const loadData = async () => {
   setTimeout(() => cleanupStalePendingOrders(), 15 * 60 * 1000)
   setInterval(cleanupStalePendingOrders, STALE_ORDER_CHECK_INTERVAL_MS)
   log(`[StaleOrderCleanup] Scheduled every ${STALE_ORDER_CHECK_INTERVAL_MS / 60000}min (timeout: ${STALE_ORDER_TIMEOUT_MS / 3600000}h)`)
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // Stale paymentIntents cleanup
+  // PaymentIntents are generated when a user is shown a crypto/bank address;
+  // if they never pay, the doc sits in status='pending' forever. We sweep
+  // anything older than 72h to status='expired' so admin views stay clean
+  // and unused intents don't grow unbounded.
+  // Money safety: paymentIntents themselves never hold funds — they're just
+  // a generated address + amount. Marking them expired has zero financial
+  // impact. The webhook path (dynopay/blockbee) writes to `transactions`,
+  // not paymentIntents, so expired intents that are later paid are still
+  // honored via the normal payment-completion flow.
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  const PI_EXPIRE_TIMEOUT_MS = 72 * 60 * 60 * 1000 // 72 hours
+  const PI_EXPIRE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000 // every 6 hours
+  async function cleanupStalePaymentIntents() {
+    try {
+      const cutoff = new Date(Date.now() - PI_EXPIRE_TIMEOUT_MS)
+      const result = await paymentIntents.updateMany(
+        {
+          status: { $in: ['pending', 'awaiting', 'processing'] },
+          createdAt: { $lt: cutoff },
+        },
+        {
+          $set: {
+            status: 'expired',
+            expiredAt: new Date(),
+            expireReason: 'no_payment_72h',
+          },
+        }
+      )
+      if (result.modifiedCount > 0) {
+        log(`[PaymentIntentCleanup] Expired ${result.modifiedCount} stale paymentIntents (>72h old, status=pending/awaiting/processing)`)
+      }
+    } catch (err) {
+      log(`[PaymentIntentCleanup] Error: ${err.message}`)
+    }
+  }
+  setTimeout(() => cleanupStalePaymentIntents(), 5 * 60 * 1000)
+  setInterval(cleanupStalePaymentIntents, PI_EXPIRE_CHECK_INTERVAL_MS)
+  log(`[PaymentIntentCleanup] Scheduled every ${PI_EXPIRE_CHECK_INTERVAL_MS / 3600000}h (timeout: ${PI_EXPIRE_TIMEOUT_MS / 3600000}h)`)
+
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // Twilio orphan-bundle cleanup
@@ -10108,6 +10151,7 @@ Enter new value:`), bc)
         sipPassword = result.sipPassword
         const { usdBal: usd2 } = await getBalance(walletOf, chatId)
         send(chatId, t.showWallet(usd2))
+        const _twilioName = await get(nameOf, chatId)
         if (isSubNumber) {
           send(chatId, cpTxt.subActivated(
             selectedNumber, info?.cpSubParentNumber, price, sipUsername,
@@ -10115,6 +10159,13 @@ Enter new value:`), bc)
             phoneConfig.shortDate(result.expiresAt.toISOString())
           ), trans('o'))
           postActivationNudge(chatId, selectedNumber, planKey)
+          // Twilio sub-purchase was missing this admin notification — Telnyx branch
+          // had it but Twilio branch did not. Fixed 2026-05-30: admin DMs now fire
+          // for both providers and both purchase types (regular + sub).
+          notifyGroup(
+            cpTxt.adminSubPurchase(maskName(_twilioName), selectedNumber, info?.cpSubParentNumber, price, 'Wallet USD'),
+            cpTxt.adminSubPurchasePrivate(adminUserTag(_twilioName, chatId), selectedNumber, info?.cpSubParentNumber, price, 'Wallet USD')
+          )
         } else {
           send(chatId, cpTxt.activated(
             selectedNumber, result.plan?.name || planKey, price, sipUsername,
@@ -10122,6 +10173,10 @@ Enter new value:`), bc)
             phoneConfig.shortDate(result.expiresAt.toISOString())
           ), trans('o'))
           postActivationNudge(chatId, selectedNumber, result.plan?.name || planKey)
+          notifyGroup(
+            cpTxt.adminPurchase(maskName(_twilioName), selectedNumber, result.plan?.name || planKey, price, 'Wallet USD'),
+            cpTxt.adminPurchasePrivate(adminUserTag(_twilioName, chatId), selectedNumber, result.plan?.name || planKey, price, 'Wallet USD')
+          )
         }
       } else {
         // ── TELNYX PURCHASE FLOW ──
