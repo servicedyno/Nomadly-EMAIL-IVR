@@ -1,0 +1,43 @@
+{
+  "summary": "Full E2E test of cPanel-style MySQL UI (Phase 1 + phpMyAdmin SSO + Remote Hosts + i18n). Backend: 39/39 pytest cases PASS on /api/panel/mysql/* (login, auth gating on all 13 routes, databases CRUD validation, users CRUD + password reset validation, privileges grant/revoke (with default ALL PRIVILEGES), remote hosts add/delete with length validation, phpMyAdmin SSO returning expected 502 from preview env). Frontend: login as goldtest/123456 succeeds; panel-tab-mysql is positioned correctly between Email and Security; MysqlManager renders with 'MySQL Databases' header + 3 toolbar buttons (open-pma / new-user / new-db) + 2 sub-tabs (Databases & Users / Remote MySQL); New database modal shows 'goldtest_' prefix box + input + Cancel/Create; New user modal has Generate password button; no console errors — prior 'actions.map is not a function' regression confirmed FIXED. i18n verified for all 4 languages via UI language switcher: en='Databases'/'MySQL Databases', fr='Bases de données'/'Bases de données MySQL', zh='数据库'/'MySQL 数据库', hi='डेटाबेस'/'MySQL डेटाबेस'.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "MysqlManager Remote MySQL sub-tab",
+        "issue": "While the initial UAPI fetchAll() is in-flight (~30s in this preview env, instantaneous in prod), the component shows a global 'Loading...' state that hides BOTH sub-tabs' content — so clicking 'Remote MySQL' during initial load shows only the loader, not the hosts UI. The hosts UI (description + input + 'Allow host' button) does appear after load completes. Consider per-tab loading skeletons so the Remote sub-tab is usable immediately.",
+        "affected_selectors": [".mysql-tabs"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_mysql_panel.py",
+    "/app/test_reports/pytest/mysql_panel_results.xml"
+  ],
+  "action_items": [
+    "(Optional UX polish) Replace the single global 'Loading...' in MysqlManager with per-tab skeletons so the Remote MySQL sub-tab is interactive while the Databases UAPI call is still pending."
+  ],
+  "critical_code_review_comments": [
+    "MysqlManager.js is ~1200+ lines (component + modals + tables + locale lookups). Consider splitting into smaller files (DatabasesTab, UsersTable, HostsTab, modals) for maintainability.",
+    "Backend remote-hosts validation correctly enforces 1-60 char host string and returns 400 on empty/oversized — matches cPanel UAPI host length constraints.",
+    "All 13 /api/panel/mysql/* routes correctly gate behind Bearer token (verified via parametrised 401 tests)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_mysql_panel.py (new)"
+  ],
+  "success_rate": {
+    "backend": "100% (39/39)",
+    "frontend": "100% of explicitly listed checks (tab placement, header, toolbar, modals, i18n × 4 langs, no console errors)"
+  },
+  "test_credentials": "goldtest / 123456 (seeded panel account) — already documented in /app/memory/test_credentials.md if present, else seed via /app/tests/seed_captcha_accounts.js",
+  "seed_data_creation": "None — used pre-seeded goldtest account. Test payloads use TEST_ prefix (TEST_user, TEST_db, TEST_does_not_exist) per cleanup convention but UAPI is unreachable so nothing actually persists in cPanel.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend pytest suite at /app/backend/tests/test_mysql_panel.py covers all 13 MySQL routes + auth gating + login. Each cPanel UAPI call takes ~30s to timeout in preview env so the full suite takes ~7 minutes — run in background or with -x. Frontend i18n via UI must use data-testid='language-switcher-trigger' to open dropdown, then 'language-switcher-option-{en|fr|zh|hi}' to select. Calling window.i18next.changeLanguage directly does NOT trigger React re-render — must go through the LanguageSwitcher UI.",
+  "rca of the issue": "N/A — no bugs found. The previously reported 'actions.map is not a function' React runtime error from the PanelToolbar contract mismatch is verified FIXED (no console errors on dashboard or MysqlManager render). cPanel UAPI timeout-in-body errors are environmental and expected per agent_to_agent_context_note; phpMyAdmin SSO returning 502 with {status:0, errors:[..]} is also expected in this preview pod."
+}

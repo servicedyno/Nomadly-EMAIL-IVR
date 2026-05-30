@@ -4,6 +4,7 @@ import { useAuth } from '../components/panel/AuthContext';
 import FileManager from '../components/panel/FileManager';
 import DomainList from '../components/panel/DomainList';
 import EmailManager from '../components/panel/EmailManager';
+import MysqlManager from '../components/panel/MysqlManager';
 import GeoManager from '../components/panel/GeoManager';
 import Analytics from '../components/panel/Analytics';
 import SecurityPanel from '../components/panel/SecurityPanel';
@@ -15,6 +16,7 @@ const TABS = [
   { id: 'files', i18nKey: 'files', icon: 'folder' },
   { id: 'domains', i18nKey: 'domains', icon: 'globe' },
   { id: 'email', i18nKey: 'email', icon: 'mail' },
+  { id: 'mysql', i18nKey: 'mysql', icon: 'database' },
   { id: 'security', i18nKey: 'security', icon: 'shield' },
   { id: 'geo', i18nKey: 'geo', icon: 'lock' },
   { id: 'analytics', i18nKey: 'analytics', icon: 'chart' },
@@ -96,6 +98,7 @@ export default function PanelDashboard() {
         {activeTab === 'files' && <FileManager />}
         {activeTab === 'domains' && <DomainList />}
         {activeTab === 'email' && <EmailManager />}
+        {activeTab === 'mysql' && <MysqlManager />}
         {activeTab === 'security' && <SecurityPanel />}
         {activeTab === 'geo' && <GeoManager />}
         {activeTab === 'analytics' && <Analytics />}
@@ -110,6 +113,7 @@ function TabIcon({ name }) {
     folder: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>,
     globe: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10A15.3 15.3 0 0112 2z"/></svg>,
     mail: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>,
+    database: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v6c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 11v6c0 1.66 4 3 9 3s9-1.34 9-3v-6"/></svg>,
     shield: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
     lock: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>,
     chart: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,

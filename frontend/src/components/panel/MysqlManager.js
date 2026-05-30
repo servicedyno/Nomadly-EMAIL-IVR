@@ -59,6 +59,16 @@ function prefixed(prefix, name) {
   return name.startsWith(prefix + '_') ? name : `${prefix}_${name}`;
 }
 
+// Detect cPanel "you have reached your maximum allowed number of …" errors.
+// cPanel returns variants like "You have reached your maximum allowed number of MySQL databases."
+// or "...maximum allowed number of MySQL users." — both for plan-quota gating.
+function isQuotaError(msg) {
+  if (!msg || typeof msg !== 'string') return false;
+  return /reached.{0,40}max|maximum.{0,40}(allowed|number|limit)|exceed.{0,40}(limit|quota|maximum)|limit.{0,20}reach/i.test(msg);
+}
+
+const BOT_URL = 'https://t.me/nomadlybot';
+
 export default function MysqlManager() {
   const { t } = useTranslation();
   const { api, user } = useAuth();
@@ -68,6 +78,7 @@ export default function MysqlManager() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
+  const [quotaErr, setQuotaErr] = useState(''); // when cPanel rejects with "maximum reached"
 
   const [databases, setDatabases] = useState([]);
   const [dbUsers, setDbUsers] = useState([]);
@@ -133,7 +144,7 @@ export default function MysqlManager() {
   const handleCreateDb = async () => {
     const raw = dbName.trim();
     if (!raw) return;
-    setBusy(true); setError(''); setInfo('');
+    setBusy(true); setError(''); setInfo(''); setQuotaErr('');
     try {
       const full = prefixed(cpUser, raw);
       const res = await api('/mysql/databases/create', {
@@ -141,7 +152,8 @@ export default function MysqlManager() {
         body: JSON.stringify({ name: full }),
       });
       if (res.errors?.length) {
-        setError(res.errors[0]);
+        if (isQuotaError(res.errors[0])) setQuotaErr(res.errors[0]);
+        else setError(res.errors[0]);
       } else {
         setInfo(t('mysql.dbCreated', { name: full, defaultValue: `Database "${full}" created.` }));
         setDbName('');
@@ -170,14 +182,16 @@ export default function MysqlManager() {
     const raw = userName.trim();
     if (!raw || !userPass) return;
     if (userPass.length < 8) { setError(t('mysql.errPassShort', { defaultValue: 'Password must be at least 8 characters.' })); return; }
-    setBusy(true); setError(''); setInfo('');
+    setBusy(true); setError(''); setInfo(''); setQuotaErr('');
     try {
       const full = prefixed(cpUser, raw);
       const res = await api('/mysql/users/create', {
         method: 'POST', body: JSON.stringify({ name: full, password: userPass }),
       });
-      if (res.errors?.length) setError(res.errors[0]);
-      else {
+      if (res.errors?.length) {
+        if (isQuotaError(res.errors[0])) setQuotaErr(res.errors[0]);
+        else setError(res.errors[0]);
+      } else {
         setInfo(t('mysql.userCreated', { name: full, defaultValue: `User "${full}" created.` }));
         setUserName(''); setUserPass(''); setShowCreateUser(false);
         fetchAll();
@@ -321,41 +335,54 @@ export default function MysqlManager() {
   }, [databases]);
 
   // ─── Render ─────────────────────────────────────────────────
+  const toolbarActions = [
+    {
+      key: 'pma',
+      label: showPm
+        ? t('mysql.opening', { defaultValue: 'Opening…' })
+        : t('mysql.openPma', { defaultValue: 'Open phpMyAdmin' }),
+      icon: SvgExternal,
+      variant: 'ghost',
+      onClick: openPhpMyAdmin,
+      disabled: showPm,
+      title: t('mysql.pmaTip', { defaultValue: 'Browse tables and run SQL queries in phpMyAdmin.' }),
+      testid: 'mysql-open-pma',
+    },
+  ];
+  if (tab === 'databases') {
+    toolbarActions.push(
+      {
+        key: 'new-user',
+        label: t('mysql.newUser', { defaultValue: 'New user' }),
+        icon: SvgKey,
+        variant: 'ghost',
+        onClick: () => { setShowCreateUser(true); setUserPass(generatePassword()); },
+        testid: 'mysql-new-user-btn',
+      },
+      {
+        key: 'new-db',
+        label: t('mysql.newDb', { defaultValue: 'New database' }),
+        icon: SvgPlus,
+        variant: 'primary',
+        onClick: () => setShowCreateDb(true),
+        testid: 'mysql-new-db-btn',
+      },
+    );
+  }
+
   return (
-    <div className="email-manager mysql-manager">
+    <div className="email-manager mysql-manager" data-testid="mysql-manager">
       <PanelToolbar
-        title={t('mysql.title', { defaultValue: 'MySQL Databases' })}
-        subtitle={t('mysql.subtitle', { defaultValue: 'Manage your databases, users and remote access.' })}
-        actions={
-          <>
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={openPhpMyAdmin}
-              disabled={showPm}
-              title={t('mysql.pmaTip', { defaultValue: 'Browse tables and run SQL queries in phpMyAdmin.' })}
-            >
-              {SvgExternal}
-              <span style={{ marginLeft: 6 }}>
-                {showPm
-                  ? t('mysql.opening', { defaultValue: 'Opening…' })
-                  : t('mysql.openPma', { defaultValue: 'Open phpMyAdmin' })}
-              </span>
-            </button>
-            {tab === 'databases' && (
-              <>
-                <button type="button" className="btn-secondary" onClick={() => { setShowCreateUser(true); setUserPass(generatePassword()); }}>
-                  {SvgKey}
-                  <span style={{ marginLeft: 6 }}>{t('mysql.newUser', { defaultValue: 'New user' })}</span>
-                </button>
-                <button type="button" className="btn-primary" onClick={() => setShowCreateDb(true)}>
-                  {SvgPlus}
-                  <span style={{ marginLeft: 6 }}>{t('mysql.newDb', { defaultValue: 'New database' })}</span>
-                </button>
-              </>
-            )}
-          </>
+        testid="mysql-toolbar"
+        leftSlot={
+          <div className="panel-toolbar-title">
+            <h2>{t('mysql.title', { defaultValue: 'MySQL Databases' })}</h2>
+            <span className="panel-toolbar-title-meta">
+              {t('mysql.subtitle', { defaultValue: 'Manage your databases, users and remote access.' })}
+            </span>
+          </div>
         }
+        actions={toolbarActions}
       />
 
       {/* Tabs */}
@@ -378,6 +405,39 @@ export default function MysqlManager() {
         </button>
       </div>
 
+      {quotaErr && (
+        <div className="alert alert-quota" data-testid="mysql-quota-banner" style={quotaBannerStyle}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+            <div style={{ fontSize: 24, lineHeight: 1 }} aria-hidden>⬆️</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 700, marginBottom: 4 }}>
+                {t('mysql.quotaTitle', { defaultValue: 'Your plan limit was reached' })}
+              </div>
+              <div style={{ fontSize: 13, opacity: 0.9, marginBottom: 10 }}>
+                {t('mysql.quotaBody', { defaultValue: 'Your hosting plan caps how many MySQL databases and users you can create. Upgrade in the bot to unlock more — instant activation.' })}
+              </div>
+              <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 10, fontFamily: 'ui-monospace, monospace' }}>
+                cPanel: {quotaErr}
+              </div>
+              <a
+                href={BOT_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                data-testid="mysql-quota-upgrade-cta"
+                style={quotaCtaStyle}
+              >
+                {t('mysql.quotaCta', { defaultValue: 'Upgrade plan in the bot' })} →
+              </a>
+            </div>
+            <button
+              type="button"
+              onClick={() => setQuotaErr('')}
+              aria-label={t('common.close', { defaultValue: 'Close' })}
+              style={{ background: 'transparent', border: 'none', color: 'inherit', fontSize: 20, cursor: 'pointer', lineHeight: 1, opacity: 0.6 }}
+            >×</button>
+          </div>
+        </div>
+      )}
       {error && <div className="alert alert-error" style={alertStyle('#3a1f24', '#ff6b7a')}>{error}</div>}
       {info && <div className="alert alert-info" style={alertStyle('#1f3a2a', '#5fd897')}>{info}</div>}
 
@@ -804,3 +864,21 @@ const iconBtnStyle = { background: 'transparent', border: 'none', cursor: 'point
 const sectionTitleStyle = { fontSize: 14, fontWeight: 600, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 };
 const countStyle = { background: 'var(--bg-card, #1a1f2a)', padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 500, opacity: 0.75 };
 const emptyStyle = { padding: 24, textAlign: 'center', background: 'var(--bg-card, #1a1f2a)', border: '1px dashed var(--border, #2a2f3a)', borderRadius: 8, color: 'var(--text, #c7cdd6)' };
+const quotaBannerStyle = {
+  background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(168, 85, 247, 0.12))',
+  border: '1px solid rgba(168, 85, 247, 0.35)',
+  borderRadius: 10,
+  padding: '14px 16px',
+  marginBottom: 14,
+  color: 'var(--text, #e4e7ec)',
+};
+const quotaCtaStyle = {
+  display: 'inline-block',
+  background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+  color: '#fff',
+  padding: '8px 16px',
+  borderRadius: 6,
+  textDecoration: 'none',
+  fontWeight: 600,
+  fontSize: 13,
+};
