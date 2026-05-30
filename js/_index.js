@@ -2221,6 +2221,22 @@ const loadData = async () => {
           `<i>New users keep checking out (provisioning is queued). Mutations are queued. Check /hostingstatus.</i>`
         )
       } catch (_) {}
+
+      // Last-resort auto-recovery via DigitalOcean power_cycle.
+      // Only fires when WHM_DROPLET_ID + DIGITALOCEAN_API_TOKEN are set AND
+      // SSH:22 also times out (= true OS-level hang, not just WHM service down).
+      // Cooldown-throttled to one attempt per 30 min so a stuck box never
+      // gets stuck in a reboot loop.
+      try {
+        const autoRecover = require('./cpanel-auto-recover')
+        if (autoRecover._isConfigured()) {
+          autoRecover.attemptRecovery({ reason, notify: notifyAdmin })
+            .then(r => log(`[AutoRecover] result: ${JSON.stringify(r)}`))
+            .catch(e => log(`[AutoRecover] unexpected: ${e.message}`))
+        }
+      } catch (e) {
+        log(`[AutoRecover] init error (non-blocking): ${e.message}`)
+      }
     })
     cpHealth.onUp(() => {
       try {
