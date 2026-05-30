@@ -1387,3 +1387,54 @@ Effect:
 - IVR menu "upgrade button" discoverability (the original IMG_8046.jpeg question — still untouched)
 
 
+
+---
+
+## 2026-05-30 (cont'd) — P3: walletLedger idempotency on callRef
+
+### Why
+Telnyx and Twilio both retry webhooks up to ~8 times if the bot doesn't ACK within ~10s. With the existing in-memory dedup (`_twilioBilledCallSids` Set + `session._hangupProcessed` flag) only catching same-process duplicates, cross-pod or post-restart retries could fire `billCallMinutesUnified` again, double-deducting the wallet and writing a second ledger row. Now that the wrapper-bug fix above means insufficient-balance returns success:false, this matters more (we can't silently rely on the atomic check rejecting the duplicate either, because the wallet might still cover the second charge).
+
+### Implementation
+
+**Step 1 — `utils.js:smartWalletDeduct` accepts `metadata.callRef`**
+- Before deducting: `walletLedger.findOne({callRef, chatId})` → if found, return `{success: true, charged: 0, idempotent: true}` immediately
+- After deducting: include `callRef` in the inserted ledger row
+- E11000 duplicate-key handler on the insert: if a concurrent race beat us, refund the deduction so net effect is zero
+
+**Step 2 — Unique partial index** on `walletLedger {chatId: 1, callRef: 1}` with `partialFilterExpression: {callRef: {$type: "string"}}` so:
+  - Non-call ledger types (auto-renew, top-up, etc.) with `callRef: null` are unaffected (excluded from the index)
+  - Concurrent inserts that beat the pre-check still get caught at write time → triggers the refund path
+- Created in code at startup (`_index.js`) AND already created on prod via `oneshot_create_ledger_index.js`
+
+**Step 3 — `voice-service.js: billCallMinutesUnified` accepts a `callRef` parameter** and threads it through to `smartWalletDeduct`. On `idempotent: true` the function returns early and skips the user-facing "billed X min" DM.
+
+**Step 4 — All 9 production-path call sites updated** to pass `callRef`:
+- voice-service.js (Telnyx side): bridge-transfer hangup, main hangup (Telnyx_SIP_Leg + SIPOutbound/Inbound/Forwarding), AutoRoute deferred (call + connection fee), IVR outbound hangup, IVR transfer leg hangup → key = `telnyx_${callControlId}` (and `telnyx_${callControlId}_connfee` for the deferred connection fee so it has its own slot)
+- _index.js (Twilio side): SIP ring inbound, single IVR completed/unanswered, voice-dial-status (completed + sip_bridge/sip_outbound unanswered), voicemail complete, voice-status main + voice-status unanswered → key = `twilio_${CallSid}` (and `twilio_vm_${CallSid || RecordingSid}` for voicemail)
+
+### Tests
+- New: `js/__tests__/wallet-ledger-idempotency.test.js` — 5 cases:
+  1. first call with callRef deducts + writes row
+  2. duplicate callRef returns idempotent success without deduct
+  3. different callRef deducts independently
+  4. no callRef → plain deduct (no idempotency check)
+  5. concurrent dup insert triggers refund path
+- **All 13 suites green: 243 tests, 0 failures**
+
+### Files touched
+- `js/utils.js` (smartWalletDeduct: idempotency check + concurrent-dup refund)
+- `js/_index.js` (index creation + 7 Twilio call-site callRef passes)
+- `js/voice-service.js` (param added + 5 Telnyx call-site callRef passes)
+- New test file `js/__tests__/wallet-ledger-idempotency.test.js`
+- One-shot prod index migration executed (then script removed)
+
+### Net effect
+Even if Telnyx retries a hangup webhook 8 times across two pods after a deploy, the user is only billed once. The leak path I instrumented earlier today now also runs through the dedup, so a duplicate webhook for a call that already triggered a billing_failed DM/admin alert won't fire those notifications a second time.
+
+### Still open backlog
+- 🔴 ConnectReseller IP whitelist (`162.220.232.99`) — auto-fix puppeteer login still looping
+- (P3) `_index.js:13961`+`:14005` use `result.value` defensively but the find-pattern is inconsistent; clean up next time the file is touched
+- IVR upgrade-button discoverability (the IMG_8046.jpeg question — still untouched)
+
+

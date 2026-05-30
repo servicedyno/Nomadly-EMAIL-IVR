@@ -142,10 +142,40 @@ async function ngnToUsd(ngn) {
  * Smart wallet deduct — USD only.
  * Uses atomic findOneAndUpdate with balance condition to prevent TOCTOU race conditions.
  * Used by auto-renewal schedulers and overage billing where there's no user interaction.
- * @returns {{ success: boolean, currency: 'usd'|null, charged: number }}
+ *
+ * Idempotency (added 2026-05-30): when `metadata.callRef` is supplied, this function
+ * first checks for an existing `walletLedger` row with the same `callRef`. If found,
+ * it skips the deduction entirely and returns `{success: true, idempotent: true}`.
+ * This protects against duplicate Telnyx/Twilio webhook fires causing double-billing
+ * (each provider can retry up to 8 times if the bot doesn't ACK within ~10s).
+ *
+ * @returns {{ success: boolean, currency: 'usd'|null, charged: number, idempotent?: boolean, usdBal?: number }}
  */
 async function smartWalletDeduct(walletOf, chatId, amountUsd, metadata = {}) {
   const { atomicIncrement } = require('./db')
+  const db = walletOf.s?.db
+
+  // ── Idempotency guard ──
+  // If a unique callRef is supplied (call_control_id for Telnyx, CallSid for Twilio,
+  // or any other globally-unique handle), refuse to re-bill if we've already written
+  // a ledger row for it. This stops duplicate-webhook double-billing at the database
+  // level, surviving process restarts and multi-pod deploys (in-memory `Set`-based
+  // dedup like `_twilioBilledCallSids` only catches same-process duplicates).
+  if (metadata.callRef && db) {
+    try {
+      const existing = await db.collection('walletLedger').findOne(
+        { callRef: metadata.callRef, chatId },
+        { projection: { _id: 1, amount: 1, balanceAfter: 1 } }
+      )
+      if (existing) {
+        log(`[smartWalletDeduct] Idempotent skip — callRef=${metadata.callRef} already billed (ledger=${existing._id})`)
+        return { success: true, currency: 'usd', charged: 0, idempotent: true }
+      }
+    } catch (idemErr) {
+      // Don't block billing on idempotency-check failures — log and proceed
+      log(`[smartWalletDeduct] Idempotency check error (proceeding anyway): ${idemErr.message}`)
+    }
+  }
 
   // Atomic USD deduction: only deducts if current balance >= amountUsd
   try {
@@ -171,7 +201,6 @@ async function smartWalletDeduct(walletOf, chatId, amountUsd, metadata = {}) {
       // ── APPROACH B: Real-time wallet ledger entry ──
       // Every deduction is now traceable in walletLedger with full metadata
       try {
-        const db = walletOf.s?.db
         if (db) {
           const { v4: uuidv4 } = require('uuid')
           const newBal = (usdResult.usdIn || 0) - (usdResult.usdOut || 0)
@@ -186,10 +215,25 @@ async function smartWalletDeduct(walletOf, chatId, amountUsd, metadata = {}) {
             callType: metadata.callType || null,
             destination: metadata.destination || null,
             phoneNumber: metadata.phoneNumber || null,
+            callRef: metadata.callRef || null,
             timestamp: new Date(),
-          }).catch(e => log(`[walletLedger] Insert error: ${e.message}`))
+          }).catch(async (e) => {
+            // Duplicate-key (E11000) on callRef means another concurrent caller
+            // got there first — treat as benign (idempotent path).
+            if (e && e.code === 11000) {
+              log(`[walletLedger] callRef ${metadata.callRef} already inserted by concurrent caller — refunding $${amountUsd.toFixed(4)} to chatId ${chatId}`)
+              // Refund the just-deducted amount so net effect is zero.
+              try {
+                await walletOf.updateOne({ _id: chatId }, { $inc: { usdOut: -amountUsd } })
+              } catch (refundErr) {
+                log(`[walletLedger] Concurrent-dup refund FAILED for chatId=${chatId} amount=$${amountUsd}: ${refundErr.message}`)
+              }
+              return
+            }
+            log(`[walletLedger] Insert error: ${e.message}`)
+          })
         }
-      } catch (ledgerErr) { /* non-critical — don't break the deduction */ }
+      } catch (_ledgerErr) { /* non-critical — don't break the deduction */ }
 
       return { success: true, currency: 'usd', charged: amountUsd }
     }

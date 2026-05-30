@@ -1272,7 +1272,7 @@ const OUTBOUND_CALL_TYPES = [
   'Telnyx_SIP_Leg', 'AutoRoute_SIPOutbound',
 ]
 
-async function billCallMinutesUnified(chatId, phoneNumber, minutesBilled, destinationNumber, callType) {
+async function billCallMinutesUnified(chatId, phoneNumber, minutesBilled, destinationNumber, callType, callRef = null) {
   if (minutesBilled <= 0) return { planMinUsed: 0, overageMin: 0, overageCharge: 0, rate: 0, used: 0, limit: 0 }
 
   // IVR outbound calls use flat IVR rate; other calls use destination-based rate
@@ -1306,8 +1306,13 @@ async function billCallMinutesUnified(chatId, phoneNumber, minutesBilled, destin
           type: 'outbound_call', callType,
           description: `Outbound ${callType}: ${phoneNumber} → ${destinationNumber} (${minutesBilled} min × $${rate})`,
           destination: destinationNumber, phoneNumber,
+          callRef, // idempotency key — duplicate webhooks for same callRef will no-op
         })
         if (deductResult.success) {
+          if (deductResult.idempotent) {
+            log(`[Voice] Outbound idempotent: $${totalCharge.toFixed(2)} for ${callType} (${callRef}) already billed — skipping notifications`)
+            return { planMinUsed: 0, overageMin: minutesBilled, overageCharge: totalCharge, rate, used: 0, limit: 0, idempotent: true }
+          }
           const ref = _nanoid?.() || `out_${callType}_${Date.now()}`
           const chargedStr = deductResult.currency === 'ngn' ? `₦${deductResult.chargedNgn}` : `$${totalCharge.toFixed(2)}`
           if (_payments) set(_payments, ref, `Outbound,${callType},$${totalCharge.toFixed(2)},${chatId},${phoneNumber},${destinationNumber},${new Date()}${deductResult.currency === 'ngn' ? `,${deductResult.chargedNgn} NGN` : ''},loyaltyDiscount=${loyaltyDiscount}`)
@@ -1628,7 +1633,11 @@ async function handleBridgeTransferHangup(payload) {
         }
 
         if (ownerId && ownerNum) {
-          const billingInfo = await billCallMinutesUnified(ownerId, ownerNum.phoneNumber, transferMinutes, transfer.forwardTo, 'Bridge_Transfer')
+          const billingInfo = await billCallMinutesUnified(ownerId, ownerNum.phoneNumber, transferMinutes, transfer.forwardTo, 'Bridge_Transfer', `telnyx_${callControlId}`)
+          if (billingInfo.idempotent) {
+            log(`[Voice] Transfer leg billing idempotent for ${callControlId} — skipping user DM`)
+            return
+          }
           log(`[Voice] Billed transfer leg: ${transferMinutes} min to ${transfer.forwardTo} for ${ownerNum.phoneNumber}`)
 
           const remaining = billingInfo.limit > 0 ? Math.max(0, billingInfo.limit - billingInfo.used) : null
@@ -3804,8 +3813,9 @@ async function handleCallHangup(payload) {
               type: 'connection_fee', callType: 'AutoRoute_Deferred',
               description: `Deferred conn fee: ${num.phoneNumber} → ${pendingBill.destination}`,
               destination: pendingBill.destination, phoneNumber: num.phoneNumber,
+              callRef: `telnyx_${callControlId}_connfee`, // idempotent: separate from per-minute callRef
             })
-            if (feeResult.success) {
+            if (feeResult.success && !feeResult.idempotent) {
               const feeRef = _nanoid?.() || `connfee_autoroute_${Date.now()}`
               const feeStr = `$${CALL_CONNECTION_FEE.toFixed(2)}`
               if (_payments) set(_payments, feeRef, `ConnectionFee,AutoRoute_SIPOutbound,$${CALL_CONNECTION_FEE.toFixed(2)},${chatId},${num.phoneNumber},${pendingBill.destination},${new Date()}`)
@@ -3813,7 +3823,7 @@ async function handleCallHangup(payload) {
             }
           }
           // Charge per-minute billing
-          const billingInfo = await billCallMinutesUnified(chatId, num.phoneNumber, minutesBilled, pendingBill.destination, 'AutoRoute_SIPOutbound')
+          const billingInfo = await billCallMinutesUnified(chatId, num.phoneNumber, minutesBilled, pendingBill.destination, 'AutoRoute_SIPOutbound', `telnyx_${callControlId}`)
           log(`[Voice] Fix #4: Auto-routed call billed: ${num.phoneNumber} → ${pendingBill.destination}, ${minutesBilled} min @ $${billingInfo.rate}, reason=${pendingBill.reason}`)
           // Notify user
           const rate = billingInfo.rate || getCallRate(pendingBill.destination)
@@ -3891,15 +3901,18 @@ async function handleCallHangup(payload) {
 
   let billingInfo = { planMinUsed: 0, overageMin: 0, overageCharge: 0, rate: 0, used: 0, limit: 0 }
   if (minutesBilled > 0 && !session.isTestCall) {
+    // Use callControlId as idempotency key so duplicate Telnyx hangup webhooks
+    // (cross-pod or post-restart retries) cannot double-bill the same call.
+    const callRef = `telnyx_${callControlId}`
     if (isTwilioBridge) {
       // ── DUAL-LEG BILLING: Telnyx SIP leg charge (Twilio PSTN leg billed separately via /twilio/voice-dial-status) ──
       const callType = 'Telnyx_SIP_Leg'
-      billingInfo = await billCallMinutesUnified(chatId, num.phoneNumber, minutesBilled, destination, callType)
+      billingInfo = await billCallMinutesUnified(chatId, num.phoneNumber, minutesBilled, destination, callType, callRef)
       log(`[Voice] Telnyx SIP leg billed: ${minutesBilled} min @ $${billingInfo.rate} for bridge call ${num.phoneNumber} → ${destination}`)
     } else {
       // Standard single-carrier billing
       const callType = isForwarded ? 'Forwarding' : isOutbound ? 'SIPOutbound' : 'Inbound'
-      billingInfo = await billCallMinutesUnified(chatId, num.phoneNumber, minutesBilled, destination, callType)
+      billingInfo = await billCallMinutesUnified(chatId, num.phoneNumber, minutesBilled, destination, callType, callRef)
     }
   } else if (session.isTestCall) {
     log(`[Voice] Skipping billing for test call (${duration}s) — free test call`)
@@ -4601,7 +4614,7 @@ async function handleOutboundIvrHangup(payload) {
     try {
       const { chatId: ownerId, num } = await findNumberOwner(session.callerId)
       if (ownerId && num) {
-        billingInfo = await billCallMinutesUnified(ownerId, num.phoneNumber, minutesBilled, session.targetNumber, 'IVR_Outbound')
+        billingInfo = await billCallMinutesUnified(ownerId, num.phoneNumber, minutesBilled, session.targetNumber, 'IVR_Outbound', `telnyx_${callControlId}`)
       } else {
         log(`[OutboundIVR] Could not find owner for ${session.callerId} — skipping billing`)
       }
@@ -4854,7 +4867,7 @@ async function handleIvrTransferLegHangup(payload) {
     try {
       const { chatId: ownerId, num } = await findNumberOwner(transfer.callerId)
       if (ownerId && num) {
-        billingInfo = await billCallMinutesUnified(ownerId, num.phoneNumber, minutesBilled, transfer.ivrNumber, 'IVR_Transfer')
+        billingInfo = await billCallMinutesUnified(ownerId, num.phoneNumber, minutesBilled, transfer.ivrNumber, 'IVR_Transfer', `telnyx_${callControlId}`)
       } else {
         log(`[OutboundIVR] Could not find owner for ${transfer.callerId} — skipping transfer billing`)
       }

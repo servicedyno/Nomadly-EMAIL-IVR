@@ -2184,6 +2184,19 @@ const loadData = async () => {
     await escalations.createIndex({ chatId: 1, status: 1 })
   } catch (e) { log(`[Escalations] index create failed (non-fatal): ${e.message}`) }
 
+  // ── 2026-05-30: walletLedger idempotency on callRef ──
+  // Unique partial index on (chatId, callRef) prevents duplicate Telnyx/Twilio
+  // webhook fires from double-billing the same call leg even across pod restarts
+  // and concurrent inserts. The `callRef` field is null/missing for non-call
+  // ledger types (auto-renew, manual top-up, etc.) — those are unaffected.
+  try {
+    await db.collection('walletLedger').createIndex(
+      { chatId: 1, callRef: 1 },
+      { unique: true, partialFilterExpression: { callRef: { $type: 'string' } }, name: 'callRef_idempotency' }
+    )
+    log('[walletLedger] callRef idempotency index ready')
+  } catch (e) { log(`[walletLedger] index create failed (non-fatal): ${e.message}`) }
+
   // variables to view system information
   nameOf = db.collection('nameOf')
   planOf = db.collection('planOf')
@@ -34655,7 +34668,7 @@ app.post('/twilio/sip-ring-result', async (req, res) => {
           const numbers = userData?.numbers || []
           const num = numbers.find(n => n.phoneNumber === decodedTo && n.provider === 'twilio')
           if (num) {
-            const billingInfo = await voiceService.billCallMinutesUnified(chatId, num.phoneNumber, minutes, decodedFrom, 'Twilio_Inbound')
+            const billingInfo = await voiceService.billCallMinutesUnified(chatId, num.phoneNumber, minutes, decodedFrom, 'Twilio_Inbound', `twilio_${CallSid || ''}`)
             const remaining = billingInfo.limit > 0 ? Math.max(0, billingInfo.limit - billingInfo.used) : null
             const planLine = remaining !== null
               ? `${minutes} min · <b>${remaining}/${billingInfo.limit}</b> remaining`
@@ -35237,7 +35250,7 @@ app.post('/twilio/single-ivr-status', async (req, res) => {
       // Bill minutes using unified billing — min 1 min, always charged
       try {
         const minutes = Math.max(1, duration > 0 ? Math.ceil(duration / 60) : 1)
-        await voiceService.billCallMinutesUnified(session.chatId, session.callerId, minutes, session.targetNumber, 'IVR_Outbound_Twilio')
+        await voiceService.billCallMinutesUnified(session.chatId, session.callerId, minutes, session.targetNumber, 'IVR_Outbound_Twilio', `twilio_${CallSid || ''}`)
       } catch (e) { log(`[SingleIVR] Minutes billing error: ${e.message}`) }
 
       setTimeout(() => { delete voiceService.twilioIvrSessions[sessionId] }, 30000)
@@ -35251,7 +35264,7 @@ app.post('/twilio/single-ivr-status', async (req, res) => {
       ).catch(() => {})
 
       try {
-        await voiceService.billCallMinutesUnified(session.chatId, session.callerId, 1, session.targetNumber, 'IVR_Outbound_Twilio')
+        await voiceService.billCallMinutesUnified(session.chatId, session.callerId, 1, session.targetNumber, 'IVR_Outbound_Twilio', `twilio_${CallSid || ''}`)
       } catch (e) { log(`[SingleIVR] Unanswered billing error: ${e.message}`) }
 
       setTimeout(() => { delete voiceService.twilioIvrSessions[sessionId] }, 5000)
@@ -35297,7 +35310,7 @@ app.post('/twilio/voice-dial-status', async (req, res) => {
           if (num) {
             const fwdDest = destination || (num.features?.callForwarding?.forwardTo || decodeURIComponent(from || ''))
             const callType = type === 'sip_bridge' ? 'Twilio_SIP_Bridge' : type === 'sip_outbound' ? 'Twilio_SIP_Outbound' : 'Twilio_Forwarding'
-            const billingInfo = await voiceService.billCallMinutesUnified(chatId, num.phoneNumber, minutes, fwdDest, callType)
+            const billingInfo = await voiceService.billCallMinutesUnified(chatId, num.phoneNumber, minutes, fwdDest, callType, `twilio_${CallSid || ''}`)
             const remaining = billingInfo.limit > 0 ? Math.max(0, billingInfo.limit - billingInfo.used) : null
             const planLine = remaining !== null
               ? `${minutes} min · <b>${remaining}/${billingInfo.limit}</b> remaining`
@@ -35344,7 +35357,7 @@ app.post('/twilio/voice-dial-status', async (req, res) => {
           if (num) {
             const fwdDest = destination || (num.features?.callForwarding?.forwardTo || '')
             const callType = type === 'sip_bridge' ? 'Twilio_SIP_Bridge' : 'Twilio_SIP_Outbound'
-            const billingInfo = await voiceService.billCallMinutesUnified(chatId, num.phoneNumber, 1, fwdDest, callType)
+            const billingInfo = await voiceService.billCallMinutesUnified(chatId, num.phoneNumber, 1, fwdDest, callType, `twilio_${CallSid || ''}`)
             if (billingInfo.overageCharge > 0) {
               chargeLine = `\n💰 Charged: $${billingInfo.rate.toFixed(2)} (1 min minimum)`
             }
@@ -35552,7 +35565,7 @@ app.post('/twilio/voicemail-complete', async (req, res) => {
         const numbers = userData?.numbers || []
         const num = numbers.find(n => n.phoneNumber === decodedTo && n.provider === 'twilio')
         if (num) {
-          const billingInfo = await voiceService.billCallMinutesUnified(chatId, num.phoneNumber, minutesBilled, decodedFrom, 'Twilio_Voicemail')
+          const billingInfo = await voiceService.billCallMinutesUnified(chatId, num.phoneNumber, minutesBilled, decodedFrom, 'Twilio_Voicemail', `twilio_vm_${CallSid || RecordingSid || ''}`)
           const remaining = billingInfo.limit > 0 ? Math.max(0, billingInfo.limit - billingInfo.used) : null
           billingLine = remaining !== null
             ? `\n📊 ${minutesBilled} min · <b>${remaining}/${billingInfo.limit}</b> remaining`
@@ -35894,7 +35907,7 @@ app.post('/twilio/voice-status', async (req, res) => {
           const isOutboundCall = match.phoneNumber === From
           const callType = isOutboundCall ? 'Twilio_SIP_Outbound' : 'Twilio_Inbound'
           try {
-            const billingInfo = await voiceService.billCallMinutesUnified(chatId, match.phoneNumber, minutes, destination, callType)
+            const billingInfo = await voiceService.billCallMinutesUnified(chatId, match.phoneNumber, minutes, destination, callType, `twilio_${CallSid || ''}`)
             const remaining = billingInfo.limit > 0 ? Math.max(0, billingInfo.limit - billingInfo.used) : null
             const planLine = remaining !== null
               ? `📊 ${minutes} min · <b>${remaining}/${billingInfo.limit}</b> min remaining`
@@ -35930,7 +35943,7 @@ app.post('/twilio/voice-status', async (req, res) => {
           if (isOutboundCall) {
             // Charge 1-minute minimum for ALL outbound unanswered calls
             try {
-              const billingInfo = await voiceService.billCallMinutesUnified(chatId, match.phoneNumber, 1, destination, 'Twilio_SIP_Outbound')
+              const billingInfo = await voiceService.billCallMinutesUnified(chatId, match.phoneNumber, 1, destination, 'Twilio_SIP_Outbound', `twilio_${CallSid || ''}`)
               const chargeLine = billingInfo.rate > 0
                 ? `\n💰 Charged: $${billingInfo.rate.toFixed(2)} (1 min minimum)`
                 : ''
