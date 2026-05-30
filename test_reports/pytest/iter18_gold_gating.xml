@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="42" time="413.637" timestamp="2026-05-30T22:55:56.527289+00:00" hostname="agent-env-db5aa4b0-6cd2-442b-97e8-1d49408888d7"><testcase classname="backend.tests.test_mysql_gold_gating.TestLoginIncludesGoldFlags" name="test_gold_login_has_isgold_true" time="0.394" /><testcase classname="backend.tests.test_mysql_gold_gating.TestLoginIncludesGoldFlags" name="test_prem_login_has_isgold_false" time="0.123" /><testcase classname="backend.tests.test_mysql_gold_gating.TestSessionIncludesGoldFlags" name="test_gold_session" time="0.048" /><testcase classname="backend.tests.test_mysql_gold_gating.TestSessionIncludesGoldFlags" name="test_prem_session" time="0.051" /><testcase classname="backend.tests.test_mysql_gold_gating.TestPremGoldGate403" name="test_premium_user_blocked_with_403_contract[GET-/mysql/databases-None]" time="0.047" /><testcase classname="backend.tests.test_mysql_gold_gating.TestPremGoldGate403" name="test_premium_user_blocked_with_403_contract[POST-/mysql/databases/create-body1]" time="0.091" /><testcase classname="backend.tests.test_mysql_gold_gating.TestPremGoldGate403" name="test_premium_user_blocked_with_403_contract[POST-/mysql/databases/delete-body2]" time="0.047" /><testcase classname="backend.tests.test_mysql_gold_gating.TestPremGoldGate403" name="test_premium_user_blocked_with_403_contract[GET-/mysql/users-None]" time="0.050" /><testcase classname="backend.tests.test_mysql_gold_gating.TestPremGoldGate403" name="test_premium_user_blocked_with_403_contract[POST-/mysql/users/create-body4]" time="0.048" /><testcase classname="backend.tests.test_mysql_gold_gating.TestPremGoldGate403" name="test_premium_user_blocked_with_403_contract[POST-/mysql/users/delete-body5]" time="0.047" /><testcase classname="backend.tests.test_mysql_gold_gating.TestPremGoldGate403" name="test_premium_user_blocked_with_403_contract[POST-/mysql/users/password-body6]" time="0.047" /><testcase classname="backend.tests.test_mysql_gold_gating.TestPremGoldGate403" name="test_premium_user_blocked_with_403_contract[POST-/mysql/privileges/grant-body7]" time="0.048" /><testcase classname="backend.tests.test_mysql_gold_gating.TestPremGoldGate403" name="test_premium_user_blocked_with_403_contract[POST-/mysql/privileges/revoke-body8]" time="0.048" /><testcase classname="backend.tests.test_mysql_gold_gating.TestPremGoldGate403" name="test_premium_user_blocked_with_403_contract[GET-/mysql/remote-hosts-None]" time="0.046" /><testcase classname="backend.tests.test_mysql_gold_gating.TestPremGoldGate403" name="test_premium_user_blocked_with_403_contract[POST-/mysql/remote-hosts/add-body10]" time="0.047" /><testcase classname="backend.tests.test_mysql_gold_gating.TestPremGoldGate403" name="test_premium_user_blocked_with_403_contract[POST-/mysql/remote-hosts/delete-body11]" time="0.047" /><testcase classname="backend.tests.test_mysql_gold_gating.TestPremGoldGate403" name="test_premium_user_blocked_with_403_contract[GET-/mysql/phpmyadmin-None]" time="0.072" /><testcase classname="backend.tests.test_mysql_gold_gating.TestPremGoldGateCriticalRoutes" name="test_get_databases_403" time="0.045" /><testcase classname="backend.tests.test_mysql_gold_gating.TestPremGoldGateCriticalRoutes" name="test_post_databases_create_403" time="0.048" /><testcase classname="backend.tests.test_mysql_gold_gating.TestPremGoldGateCriticalRoutes" name="test_get_users_403" time="0.044" /><testcase classname="backend.tests.test_mysql_gold_gating.TestPremGoldGateCriticalRoutes" name="test_post_users_create_403" time="0.048" /><testcase classname="backend.tests.test_mysql_gold_gating.TestPremGoldGateCriticalRoutes" name="test_get_remote_hosts_403" time="0.048" /><testcase classname="backend.tests.test_mysql_gold_gating.TestPremGoldGateCriticalRoutes" name="test_post_remote_hosts_add_403" time="0.047" /><testcase classname="backend.tests.test_mysql_gold_gating.TestPremGoldGateCriticalRoutes" name="test_get_phpmyadmin_403" time="0.045" /><testcase classname="backend.tests.test_mysql_gold_gating.TestPremGoldGateCriticalRoutes" name="test_post_privileges_grant_403" time="0.047" /><testcase classname="backend.tests.test_mysql_gold_gating.TestGoldRoutesStillWork" name="test_gold_user_not_blocked[GET-/mysql/databases-None]" time="30.048" /><testcase classname="backend.tests.test_mysql_gold_gating.TestGoldRoutesStillWork" name="test_gold_user_not_blocked[POST-/mysql/databases/create-body1]" time="30.066" /><testcase classname="backend.tests.test_mysql_gold_gating.TestGoldRoutesStillWork" name="test_gold_user_not_blocked[POST-/mysql/databases/delete-body2]" time="30.152" /><testcase classname="backend.tests.test_mysql_gold_gating.TestGoldRoutesStillWork" name="test_gold_user_not_blocked[GET-/mysql/users-None]" time="30.091" /><testcase classname="backend.tests.test_mysql_gold_gating.TestGoldRoutesStillWork" name="test_gold_user_not_blocked[POST-/mysql/users/create-body4]" time="30.141" /><testcase classname="backend.tests.test_mysql_gold_gating.TestGoldRoutesStillWork" name="test_gold_user_not_blocked[POST-/mysql/users/delete-body5]" time="30.061" /><testcase classname="backend.tests.test_mysql_gold_gating.TestGoldRoutesStillWork" name="test_gold_user_not_blocked[POST-/mysql/users/password-body6]" time="30.183" /><testcase classname="backend.tests.test_mysql_gold_gating.TestGoldRoutesStillWork" name="test_gold_user_not_blocked[POST-/mysql/privileges/grant-body7]" time="30.059" /><testcase classname="backend.tests.test_mysql_gold_gating.TestGoldRoutesStillWork" name="test_gold_user_not_blocked[POST-/mysql/privileges/revoke-body8]" time="30.146" /><testcase classname="backend.tests.test_mysql_gold_gating.TestGoldRoutesStillWork" name="test_gold_user_not_blocked[GET-/mysql/remote-hosts-None]" time="30.067" /><testcase classname="backend.tests.test_mysql_gold_gating.TestGoldRoutesStillWork" name="test_gold_user_not_blocked[POST-/mysql/remote-hosts/add-body10]" time="30.161" /><testcase classname="backend.tests.test_mysql_gold_gating.TestGoldRoutesStillWork" name="test_gold_user_not_blocked[POST-/mysql/remote-hosts/delete-body11]" time="30.061" /><testcase classname="backend.tests.test_mysql_gold_gating.TestGoldRoutesStillWork" name="test_gold_user_not_blocked[GET-/mysql/phpmyadmin-None]" time="30.154" /><testcase classname="backend.tests.test_mysql_gold_gating.TestNonMysqlRoutesNotGated" name="test_files_works_for_prem" time="0.070" /><testcase classname="backend.tests.test_mysql_gold_gating.TestNonMysqlRoutesNotGated" name="test_domains_works_for_prem" time="20.021"><failure message="requests.exceptions.ReadTimeout: HTTPSConnectionPool(host='readme-setup-25.preview.emergentagent.com', port=443): Read timed out. (read timeout=20)">/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:534: in _make_request
+    response = conn.getresponse()
+               ^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/urllib3/connection.py:571: in getresponse
+    httplib_response = super().getresponse()
+                       ^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/http/client.py:1415: in getresponse
+    response.begin()
+/usr/local/lib/python3.11/http/client.py:330: in begin
+    version, status, reason = self._read_status()
+                              ^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/http/client.py:291: in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/socket.py:718: in readinto
+    return self._sock.recv_into(b)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/ssl.py:1314: in recv_into
+    return self.read(nbytes, buffer)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/ssl.py:1166: in read
+    return self._sslobj.read(len, buffer)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   TimeoutError: The read operation timed out
+
+The above exception was the direct cause of the following exception:
+/root/.venv/lib/python3.11/site-packages/requests/adapters.py:696: in send
+    resp = conn.urlopen(
+/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:842: in urlopen
+    retries = retries.increment(
+/root/.venv/lib/python3.11/site-packages/urllib3/util/retry.py:498: in increment
+    raise reraise(type(error), error, _stacktrace)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/urllib3/util/util.py:39: in reraise
+    raise value
+/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:788: in urlopen
+    response = self._make_request(
+/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:536: in _make_request
+    self._raise_timeout(err=e, url=url, timeout_value=read_timeout)
+/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:367: in _raise_timeout
+    raise ReadTimeoutError(
+E   urllib3.exceptions.ReadTimeoutError: HTTPSConnectionPool(host='readme-setup-25.preview.emergentagent.com', port=443): Read timed out. (read timeout=20)
+
+During handling of the above exception, another exception occurred:
+backend/tests/test_mysql_gold_gating.py:185: in test_domains_works_for_prem
+    r = session.get(f"{PANEL}/domains", headers=prem_headers, timeout=20)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/sessions.py:671: in get
+    return self.request("GET", url, params=params, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/sessions.py:651: in request
+    resp = self.send(prep, **send_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/sessions.py:784: in send
+    r = adapter.send(request, **kwargs)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/adapters.py:742: in send
+    raise ReadTimeout(e, request=request)
+E   requests.exceptions.ReadTimeout: HTTPSConnectionPool(host='readme-setup-25.preview.emergentagent.com', port=443): Read timed out. (read timeout=20)</failure></testcase><testcase classname="backend.tests.test_mysql_gold_gating.TestNonMysqlRoutesNotGated" name="test_email_accounts_works_for_prem" time="0.197" /><testcase classname="backend.tests.test_mysql_gold_gating.TestNonMysqlRoutesNotGated" name="test_quota_works_for_prem" time="0.050" /></testsuite></testsuites>

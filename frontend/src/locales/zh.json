@@ -629,6 +629,14 @@
     "confirmDeleteHost": "删除主机 \"{{host}}\"?",
     "quotaTitle": "已达到您的套餐限制",
     "quotaBody": "您的托管套餐限制了可创建的 MySQL 数据库和用户数量。请在机器人中升级以解锁更多 — 即时激活。",
-    "quotaCta": "在机器人中升级套餐"
+    "quotaCta": "在机器人中升级套餐",
+    "lockedTitle": "MySQL 是 Golden 计划的功能",
+    "lockedBody": "升级到 Golden Anti-Red HostPanel 计划以解锁 MySQL 数据库、用户、权限、远程 MySQL 访问和一键 phpMyAdmin。",
+    "lockedFeat1": "无限 MySQL 数据库和用户",
+    "lockedFeat2": "远程 MySQL 连接(将任何 IP 加入白名单)",
+    "lockedFeat3": "一键 phpMyAdmin SSO",
+    "lockedFeat4": "访客验证码、无限附加域名等",
+    "lockedCta": "升级到 Golden 计划",
+    "lockedCurrentPlan": "当前计划:{{plan}}"
   }
 }

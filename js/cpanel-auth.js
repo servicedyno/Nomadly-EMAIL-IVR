@@ -223,7 +223,7 @@ async function login(cpanelAccountsCol, username, pin) {
     { $set: { lastLogin: new Date() } }
   )
 
-  return { success: true, token, cpUser: account.cpUser, cpPass, domain: account.domain }
+  return { success: true, token, cpUser: account.cpUser, cpPass, domain: account.domain, plan: account.plan || '' }
 }
 
 /**

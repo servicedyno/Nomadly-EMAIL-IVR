@@ -80,18 +80,41 @@ export default function PanelDashboard() {
       </header>
 
       <nav className="panel-tabs" data-testid="panel-tabs">
-        {TABS.map(tab => (
-          <button
-            key={tab.id}
-            className={`panel-tab ${activeTab === tab.id ? 'panel-tab--active' : ''}`}
-            onClick={() => setActiveTab(tab.id)}
-            data-testid={`panel-tab-${tab.id}`}
-            title={t(`dashboard.tabs.${tab.i18nKey}`)}
-          >
-            <TabIcon name={tab.icon} />
-            <span>{t(`dashboard.tabs.${tab.i18nKey}`)}</span>
-          </button>
-        ))}
+        {TABS.map(tab => {
+          // Mark the Databases tab as locked for non-Gold users — they still see
+          // it (and can click through to the upgrade banner), but a small lock
+          // hint sets the expectation up-front.
+          const locked = tab.id === 'mysql' && !user?.isGold;
+          return (
+            <button
+              key={tab.id}
+              className={`panel-tab ${activeTab === tab.id ? 'panel-tab--active' : ''} ${locked ? 'panel-tab--locked' : ''}`}
+              onClick={() => setActiveTab(tab.id)}
+              data-testid={`panel-tab-${tab.id}`}
+              data-locked={locked ? 'true' : undefined}
+              title={t(`dashboard.tabs.${tab.i18nKey}`)}
+            >
+              <TabIcon name={tab.icon} />
+              <span>{t(`dashboard.tabs.${tab.i18nKey}`)}</span>
+              {locked && (
+                <svg
+                  width="11"
+                  height="11"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  aria-hidden="true"
+                  style={{ marginLeft: 4, opacity: 0.6 }}
+                  data-testid="panel-tab-mysql-lock"
+                >
+                  <rect x="3" y="11" width="18" height="11" rx="2" />
+                  <path d="M7 11V7a5 5 0 0110 0v4" />
+                </svg>
+              )}
+            </button>
+          );
+        })}
       </nav>
 
       <main className="panel-main" data-testid="panel-main">

@@ -733,6 +733,18 @@
   background: linear-gradient(to top, rgba(255, 107, 107, 0.06), transparent 60%);
 }
 
+/* Locked tab — Gold-gated features (e.g. MySQL). Still clickable, just
+   visually muted so the user knows it's a paid upgrade. */
+.panel-tab--locked {
+  opacity: 0.6;
+}
+.panel-tab--locked:hover {
+  opacity: 0.85;
+}
+.panel-tab--locked.panel-tab--active {
+  opacity: 1;
+}
+
 .panel-main {
   position: relative;
   z-index: 1;

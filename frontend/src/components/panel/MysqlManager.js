@@ -8,6 +8,7 @@ import PanelToolbar from './shared/PanelToolbar';
 import DatabasesTab from './mysql/DatabasesTab';
 import HostsTab from './mysql/HostsTab';
 import QuotaBanner from './mysql/QuotaBanner';
+import MysqlLockedView from './mysql/MysqlLockedView';
 import {
   CreateDbModal, CreateUserModal,
   ChangePasswordModal, AssignPrivilegesModal,
@@ -22,6 +23,7 @@ export default function MysqlManager() {
   const { t } = useTranslation();
   const { api, user } = useAuth();
   const cpUser = user?.username || '';
+  const isGold = !!user?.isGold;
 
   const [tab, setTab] = useState('databases'); // databases | hosts
 
@@ -92,11 +94,13 @@ export default function MysqlManager() {
 
   // Fire both fetchers in parallel on mount. Each has its own loading state
   // so the Hosts tab becomes interactive the moment its (faster) call returns,
-  // independent of the slower Databases call.
+  // independent of the slower Databases call. Skipped for non-Gold users —
+  // they only see the upgrade view and the backend would reject with 403.
   useEffect(() => {
+    if (!isGold) return;
     fetchDbsAndUsers();
     fetchHosts();
-  }, [fetchDbsAndUsers, fetchHosts]);
+  }, [isGold, fetchDbsAndUsers, fetchHosts]);
 
   // ─── Action handlers ────────────────────────────────────────
   const handleCreateDb = async () => {
@@ -334,6 +338,11 @@ export default function MysqlManager() {
       },
     );
   }
+
+  // Non-Gold users: skip the entire CRUD UI and show only the upgrade card.
+  // All hooks above are still called every render (rules-of-hooks compliant) —
+  // we just bail before rendering tabs/tables/modals.
+  if (!isGold) return <MysqlLockedView t={t} plan={user?.plan || ''} />;
 
   return (
     <div className="email-manager mysql-manager" data-testid="mysql-manager">

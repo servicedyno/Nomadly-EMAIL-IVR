@@ -629,6 +629,14 @@
     "confirmDeleteHost": "Remove host \"{{host}}\"?",
     "quotaTitle": "Your plan limit was reached",
     "quotaBody": "Your hosting plan caps how many MySQL databases and users you can create. Upgrade in the bot to unlock more — instant activation.",
-    "quotaCta": "Upgrade plan in the bot"
+    "quotaCta": "Upgrade plan in the bot",
+    "lockedTitle": "MySQL is a Golden Plan feature",
+    "lockedBody": "Upgrade to the Golden Anti-Red HostPanel plan to unlock MySQL databases, users, privileges, Remote MySQL access, and one-click phpMyAdmin.",
+    "lockedFeat1": "Unlimited MySQL databases & users",
+    "lockedFeat2": "Remote MySQL connections (whitelist any IP)",
+    "lockedFeat3": "One-click phpMyAdmin SSO",
+    "lockedFeat4": "Visitor captcha, unlimited addon domains & more",
+    "lockedCta": "Upgrade to Golden Plan",
+    "lockedCurrentPlan": "Current plan: {{plan}}"
   }
 }

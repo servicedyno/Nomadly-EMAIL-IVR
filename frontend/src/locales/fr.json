@@ -629,6 +629,14 @@
     "confirmDeleteHost": "Supprimer l'hôte \"{{host}}\" ?",
     "quotaTitle": "Limite du plan atteinte",
     "quotaBody": "Votre plan d'hébergement limite le nombre de bases MySQL et d'utilisateurs que vous pouvez créer. Mettez à niveau dans le bot pour en débloquer davantage — activation immédiate.",
-    "quotaCta": "Mettre à niveau dans le bot"
+    "quotaCta": "Mettre à niveau dans le bot",
+    "lockedTitle": "MySQL est une fonctionnalité du plan Golden",
+    "lockedBody": "Passez au plan Golden Anti-Red HostPanel pour débloquer les bases de données MySQL, utilisateurs, privilèges, accès MySQL distant et phpMyAdmin en un clic.",
+    "lockedFeat1": "Bases de données et utilisateurs MySQL illimités",
+    "lockedFeat2": "Connexions MySQL distantes (autoriser n'importe quelle IP)",
+    "lockedFeat3": "SSO phpMyAdmin en un clic",
+    "lockedFeat4": "Captcha visiteur, domaines addon illimités et plus",
+    "lockedCta": "Passer au plan Golden",
+    "lockedCurrentPlan": "Plan actuel : {{plan}}"
   }
 }

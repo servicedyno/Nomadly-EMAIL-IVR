@@ -50,7 +50,13 @@ export function AuthProvider({ children }) {
       }
       throw err;
     }
-    const session = { token: body.token, username: body.username, domain: body.domain };
+    const session = {
+      token: body.token,
+      username: body.username,
+      domain: body.domain,
+      isGold: !!body.isGold,
+      plan: body.plan || '',
+    };
     sessionStorage.setItem('panel_session', JSON.stringify(session));
     setUser(session);
     return session;
