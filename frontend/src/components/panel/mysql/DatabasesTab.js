@@ -10,19 +10,49 @@ import {
   sectionTitleStyle, countStyle,
 } from './shared';
 
-function SkeletonRows({ cols, rows = 4 }) {
+// Skeleton placeholder built with <div>s (NOT <table>/<tr>/<td>) — the
+// Emergent Visual Editor wraps every JSX element in a <span style="display:contents">,
+// which produces invalid <span><tr>/<td></span> nesting that React 19 flags.
+// Plain divs sidestep this entirely while still looking like loading rows.
+const skelRowStyle = {
+  display: 'flex',
+  gap: 16,
+  padding: '12px 16px',
+  borderBottom: '1px solid rgba(255,255,255,0.04)',
+  alignItems: 'center',
+};
+const skelHeadStyle = {
+  display: 'flex',
+  gap: 16,
+  padding: '10px 16px',
+  borderBottom: '1px solid var(--border, #2a2f3a)',
+  fontWeight: 600,
+  opacity: 0.75,
+  fontSize: 12,
+  textTransform: 'uppercase',
+  letterSpacing: 0.4,
+  color: 'var(--text, #c7cdd6)',
+};
+
+function SkeletonBars({ testid, headers, rows = 3, weights }) {
+  // weights: relative flex weights for each "column"
   return (
-    <tbody data-testid="mysql-databases-skeleton">
+    <div style={tableWrap} data-testid={testid}>
+      <div style={skelHeadStyle} aria-hidden="true">
+        {headers.map((h, i) => (
+          <div key={h + i} style={{ flex: weights[i] }}>{h}</div>
+        ))}
+      </div>
       {Array.from({ length: rows }).map((_, r) => (
-        <tr key={r}>
-          {Array.from({ length: cols }).map((__, c) => (
-            <td key={c} style={tdStyle}>
-              <Skeleton width={c === cols - 1 ? 80 : `${50 + (c * 15) % 40}%`} height={12} />
-            </td>
+        <div key={r} style={skelRowStyle}>
+          {headers.map((_, c) => (
+            <div key={c} style={{ flex: weights[c] }}>
+              <Skeleton width={`${40 + ((r + c) * 17) % 50}%`} height={12} />
+            </div>
           ))}
-        </tr>
+        </div>
       ))}
-    </tbody>
+    </div>
   );
 }
 
@@ -30,46 +60,40 @@ export default function DatabasesTab({
   loading, databases, dbUsers, dbUserMap, userDbMap,
   onDeleteDb, onDeleteUser, onAssign, onResetPwd, onRevoke, t,
 }) {
-  // While loading on first render, show skeleton tables (still themed).
+  // While loading on first render, show skeleton placeholders.
   if (loading) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} data-testid="mysql-databases-loading">
         <section>
           <h3 style={sectionTitleStyle}>
             {t('mysql.dbsHeader', { defaultValue: 'Databases' })}
-            <span style={countStyle}><Skeleton width={16} height={10} /></span>
           </h3>
-          <div style={tableWrap}>
-            <table style={tableStyle}>
-              <thead>
-                <tr>
-                  <th style={thStyle}>{t('mysql.colName', { defaultValue: 'Name' })}</th>
-                  <th style={thStyle}>{t('mysql.colSize', { defaultValue: 'Size' })}</th>
-                  <th style={thStyle}>{t('mysql.colUsers', { defaultValue: 'Users' })}</th>
-                  <th style={{ ...thStyle, textAlign: 'right' }}>{t('common.actions', { defaultValue: 'Actions' })}</th>
-                </tr>
-              </thead>
-              <SkeletonRows cols={4} rows={3} />
-            </table>
-          </div>
+          <SkeletonBars
+            testid="mysql-databases-skeleton"
+            rows={3}
+            headers={[
+              t('mysql.colName', { defaultValue: 'Name' }),
+              t('mysql.colSize', { defaultValue: 'Size' }),
+              t('mysql.colUsers', { defaultValue: 'Users' }),
+              t('common.actions', { defaultValue: 'Actions' }),
+            ]}
+            weights={[2.5, 1, 2.5, 1]}
+          />
         </section>
         <section>
           <h3 style={sectionTitleStyle}>
             {t('mysql.usersHeader', { defaultValue: 'Database users' })}
-            <span style={countStyle}><Skeleton width={16} height={10} /></span>
           </h3>
-          <div style={tableWrap}>
-            <table style={tableStyle}>
-              <thead>
-                <tr>
-                  <th style={thStyle}>{t('mysql.colUser', { defaultValue: 'User' })}</th>
-                  <th style={thStyle}>{t('mysql.colAccess', { defaultValue: 'Has access to' })}</th>
-                  <th style={{ ...thStyle, textAlign: 'right' }}>{t('common.actions', { defaultValue: 'Actions' })}</th>
-                </tr>
-              </thead>
-              <SkeletonRows cols={3} rows={2} />
-            </table>
-          </div>
+          <SkeletonBars
+            testid="mysql-users-skeleton"
+            rows={2}
+            headers={[
+              t('mysql.colUser', { defaultValue: 'User' }),
+              t('mysql.colAccess', { defaultValue: 'Has access to' }),
+              t('common.actions', { defaultValue: 'Actions' }),
+            ]}
+            weights={[2, 4, 1]}
+          />
         </section>
       </div>
     );

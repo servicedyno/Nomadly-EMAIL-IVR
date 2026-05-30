@@ -160,21 +160,19 @@ export const quotaCtaStyle = {
 };
 
 // ─── Skeleton bar (used by both tabs while data is loading) ──
-// Shimmer animation is injected once at module load; safe to call repeatedly.
-let _shimmerInjected = false;
-function ensureShimmer() {
-  if (_shimmerInjected || typeof document === 'undefined') return;
+// Shimmer keyframes are injected ONCE at module load (not during render)
+// to keep the component pure and satisfy React 19's strict-mode checks.
+if (typeof document !== 'undefined') {
   const id = 'mysql-skeleton-shimmer';
-  if (document.getElementById(id)) { _shimmerInjected = true; return; }
-  const style = document.createElement('style');
-  style.id = id;
-  style.textContent = `@keyframes mysql-shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}`;
-  document.head.appendChild(style);
-  _shimmerInjected = true;
+  if (!document.getElementById(id)) {
+    const styleEl = document.createElement('style');
+    styleEl.id = id;
+    styleEl.textContent = '@keyframes mysql-shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}';
+    document.head.appendChild(styleEl);
+  }
 }
 
 export function Skeleton({ width = '100%', height = 14, radius = 4, style = {} }) {
-  ensureShimmer();
   return (
     <span
       aria-hidden="true"

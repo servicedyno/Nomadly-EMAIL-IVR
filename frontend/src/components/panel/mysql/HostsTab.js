@@ -9,6 +9,29 @@ import {
   codeStyle, iconBtnStyle,
 } from './shared';
 
+// Same trick as DatabasesTab: use <div>s for the skeleton instead of
+// <table>/<tr>/<td> to dodge React 19 HTML-nesting warnings caused by the
+// platform's Visual Editor <span style="display:contents"> wrappers.
+const skelRow = {
+  display: 'flex',
+  gap: 16,
+  padding: '12px 16px',
+  borderBottom: '1px solid rgba(255,255,255,0.04)',
+  alignItems: 'center',
+};
+const skelHead = {
+  display: 'flex',
+  gap: 16,
+  padding: '10px 16px',
+  borderBottom: '1px solid var(--border, #2a2f3a)',
+  fontWeight: 600,
+  opacity: 0.75,
+  fontSize: 12,
+  textTransform: 'uppercase',
+  letterSpacing: 0.4,
+  color: 'var(--text, #c7cdd6)',
+};
+
 export default function HostsTab({
   loading, hosts, newHost, setNewHost, onAdd, onDelete, busy, t,
 }) {
@@ -56,22 +79,16 @@ export default function HostsTab({
 
       {loading ? (
         <div style={tableWrap} data-testid="mysql-hosts-skeleton">
-          <table style={tableStyle}>
-            <thead>
-              <tr>
-                <th style={thStyle}>{t('mysql.colHost', { defaultValue: 'Host' })}</th>
-                <th style={{ ...thStyle, textAlign: 'right' }}>{t('common.actions', { defaultValue: 'Actions' })}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Array.from({ length: 3 }).map((_, i) => (
-                <tr key={i}>
-                  <td style={tdStyle}><Skeleton width="55%" height={12} /></td>
-                  <td style={{ ...tdStyle, textAlign: 'right' }}><Skeleton width={20} height={12} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div style={skelHead} aria-hidden="true">
+            <div style={{ flex: 4 }}>{t('mysql.colHost', { defaultValue: 'Host' })}</div>
+            <div style={{ flex: 1, textAlign: 'right' }}>{t('common.actions', { defaultValue: 'Actions' })}</div>
+          </div>
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} style={skelRow}>
+              <div style={{ flex: 4 }}><Skeleton width={`${45 + (i * 17) % 30}%`} height={12} /></div>
+              <div style={{ flex: 1, textAlign: 'right' }}><Skeleton width={20} height={12} /></div>
+            </div>
+          ))}
         </div>
       ) : hosts.length === 0 ? (
         <div style={emptyStyle} data-testid="mysql-hosts-empty">

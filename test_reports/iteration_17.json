@@ -1,0 +1,33 @@
+{
+  "summary": "Iter 17 targeted verification of MySQL UI skeleton refactor from <table>/<tr>/<td> to <div>-based bars. Logged into panel as goldtest/123456, navigated to Databases panel-tab, toggled between Databases & Users <-> Remote MySQL sub-tabs multiple times (3x cycle plus initial switches). Captured console + pageerror handlers across the entire flow. RESULT: ZERO console errors, ZERO console warnings, ZERO page errors. The 4 React 19 HTML-nesting warnings reported in iter 16 ('<td> cannot be a child of <span>', '<tr> cannot be a child of <span>', etc.) are GONE. No 'skelHead is not defined' or any other ReferenceError. Skeleton testids all present and rendering correctly: mysql-databases-skeleton (3 rows) + mysql-users-skeleton (2 rows) with visible column headers (NAME / SIZE / USERS / ACTIONS) on the Databases sub-tab, and mysql-hosts-skeleton (3 rows) with HOST / ACTIONS headers on the Remote MySQL sub-tab. While Databases was still loading, clicking Remote MySQL immediately showed the description, mysql-add-host-input (accepted typing of '203.0.113.45'), and mysql-add-host-btn. Switching back to Databases mid-fetch re-showed the skeleton. New-database modal opened on click (mysql-create-db-modal). Header 'MySQL Databases' and panel tab visible. The single acceptance criterion for iter 17 is met.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_mysql_panel.py"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Skeleton refactor is correct: DatabasesTab.SkeletonBars and HostsTab inline skeleton both use <div> + flex layout instead of <table>/<thead>/<tr>/<td>. This dodges the Visual Editor's <span style='display:contents'> wrapper that produced the invalid <span><tr></span> nesting React 19 was flagging.",
+    "shared.js ensureShimmer is now executed at module load (top-level if-block guarded by typeof document) instead of inside the render function — keeps Skeleton component pure and avoids side-effects during render. Good fix.",
+    "Skeleton component itself still renders as <span> with display:inline-block, but it is now only ever placed inside <div>s in the loading branch, so the nesting is valid. No change needed.",
+    "The pre-existing real (non-skeleton) tables on the populated state still use <table>/<tr>/<td> — that's fine because Visual Editor wraps them at the JSX boundary, but the <tbody>/<tr> sequence comes from a single map() expression and so the wrapper sits at <table> level, not between <tr> and <td>. Confirmed no warnings during re-render."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "skipped per request",
+    "frontend": "100% — all iter 17 acceptance criteria met (zero nesting warnings, zero runtime errors, all skeleton testids + headers + interactivity verified)"
+  },
+  "test_credentials": "goldtest / 123456 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter 17 confirmed the 4 HTML-nesting warnings from iter 16 are eliminated by replacing the skeleton's <table> markup with <div> rows in both DatabasesTab.js and HostsTab.js. Console was completely clean across multi-toggle nav. Backend was deliberately skipped per the review_request (testing_type: frontend only). If future iters touch shared.js Skeleton or MysqlManager loading states, re-run a quick console-clean check by toggling Databases <-> Remote MySQL 3x.",
+  "rca of the issue": "Root cause (iter 16): the Emergent Visual Editor wraps every JSX element with <span style='display:contents' data-ve-...>. When a <table>-based skeleton was rendered, the wrappers ended up between <tr> and <td>, producing invalid HTML that React 19 dev mode flags as 'cannot be a child of'. Fix (iter 17): replace the skeleton markup with <div> + flex layout — div-in-div is always valid regardless of wrapper insertion, so React 19 stays silent. Verified by attaching console + pageerror listeners and toggling the affected tabs repeatedly."
+}
