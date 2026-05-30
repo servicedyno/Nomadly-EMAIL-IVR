@@ -149,13 +149,21 @@ async function smartWalletDeduct(walletOf, chatId, amountUsd, metadata = {}) {
 
   // Atomic USD deduction: only deducts if current balance >= amountUsd
   try {
+    // ── CRITICAL: pass `includeResultMetadata: false` (mongodb v5 default) ──
+    // Without it, findOneAndUpdate returns `{ value: null|<doc>, lastErrorObject,
+    // ok }` regardless of match. The wrapper is ALWAYS truthy, so a missing-match
+    // (insufficient balance) was misread as success, the function silently wrote
+    // a walletLedger row + returned success, and the call was effectively free.
+    // Worse: `usdResult.usdIn` reads from the wrapper (always undefined), so
+    // `balanceAfter` computed to `0 - 0 = 0` for every entry. Discovered during
+    // 2026-05-30 user 890522022 audit.
     const usdResult = await walletOf.findOneAndUpdate(
       {
         _id: chatId,
         $expr: { $gte: [{ $subtract: [{ $ifNull: ['$usdIn', 0] }, { $ifNull: ['$usdOut', 0] }] }, amountUsd] }
       },
       { $inc: { usdOut: amountUsd } },
-      { returnDocument: 'after' }
+      { returnDocument: 'after', includeResultMetadata: false }
     )
     if (usdResult) {
       checkReferralReward(walletOf, chatId, amountUsd).catch(() => {})  // async, non-blocking

@@ -1334,3 +1334,56 @@ Confirmed for the operator:
 - (P3) Make `walletLedger` entries idempotent on `callSid` so duplicate Telnyx webhooks for the same call don't write multiple rows.
 
 
+
+---
+
+## 2026-05-30 (cont'd) — Root cause of `walletLedger.balanceAfter` always being $0
+
+### The bug (much bigger than expected)
+
+`utils.js:smartWalletDeduct` and several other `findOneAndUpdate` call sites were missing **`includeResultMetadata: false`**. In mongodb driver v5 (in use: 5.9.2), without that flag `findOneAndUpdate` returns `{ value: <doc|null>, lastErrorObject, ok }` — a wrapper that is **always truthy**, even when no document matched.
+
+Effect:
+1. `if (usdResult)` evaluated true even when the atomic balance check rejected the deduction → ledger row written and caller told `{success: true}` despite no actual wallet decrement (= free service)
+2. `usdResult.usdIn` and `usdResult.usdOut` read from the wrapper (always `undefined`) → `balanceAfter` always computed to `0 - 0 = 0`
+
+### Production audit on 2026-05-30
+- **100% of 14,016 walletLedger rows had `balanceAfter: 0`** (out of 14,018 total)
+- Same misleading-but-harmless rendering across types: `outbound_call` 9,151 / `wallet_deduction` 3,160 / `connection_fee` 1,164 / `twilio_bridge_per_minute` 541
+- Spot-check user `890522022`: 27 outbound_call ledger rows but actual usdOut shows only $5 of call charges → ~17 of 27 entries were ghosts (atomic deduct rejected because wallet was empty, but ledger row got written anyway)
+- Same wrapper-bug pattern found and fixed in 3 more files (see Files Touched below)
+- **`new-user-conversion.js`'s first-deposit-bonus** was effectively broken — the post-check read `result.firstDepositAt` from the wrapper (always undefined), so the function always returned `null` ("already awarded") and **no user ever received the first-deposit bonus**
+
+### Fixes
+1. `utils.js → smartWalletDeduct` — pass `includeResultMetadata: false` + cleanup unused require
+2. `retroactive-ivr-billing.js:111` — same fix; without it the "force-charge as debt" branch never fired
+3. `hosting-scheduler.js:243` — same fix; without it the "DUPLICATE RENEWAL PREVENTED" branch never fired (silent double-extend possible)
+4. `phone-scheduler.js:336` — same fix; same duplicate-renewal-prevention semantics
+5. `new-user-conversion.js:363` — same fix + rewrote the post-check: `result` is now the doc on match / null on no-match, so the timestamp-fudge check is gone and the bonus actually awards
+
+### What the fix changes going forward
+- New `walletLedger` rows now have an accurate `balanceAfter` (post-deduction balance)
+- Outbound calls with insufficient balance now correctly fail. Combined with the billing-leak visibility wired in earlier today, the user gets a DM + admin gets `[BillingLeak]` alert + a `walletLedger.type='billing_failed'` row is written with `owedUsd` for audit
+- The 14k historical `balanceAfter: 0` rows are left as-is (rewriting them isn't possible — we'd need each user's complete tx history reconstructed; the data IS in the running totals)
+- First-deposit bonus is functional again for the next user who tops up ≥ `FIRST_DEPOSIT_MIN_USD`
+
+### Tests
+- New: `js/__tests__/wallet-deduct-wrapper-fix.test.js` — 3 tests pin the wrapper-fix semantics (success row + correct balanceAfter, insufficient → no ghost row, exact-balance edge)
+- Uses local mongo (skips if unreachable)
+- **All 12 test suites green: 238 tests, 0 failures**
+
+### Files touched
+- `js/utils.js` (smartWalletDeduct)
+- `js/retroactive-ivr-billing.js`
+- `js/hosting-scheduler.js`
+- `js/phone-scheduler.js`
+- `js/new-user-conversion.js`
+- New test file `js/__tests__/wallet-deduct-wrapper-fix.test.js`
+
+### Still in backlog
+- (P1) ConnectReseller API blocked — outbound IP `162.220.232.99` not whitelisted; auto-fix puppeteer login loops
+- (P3) `walletLedger` idempotency on `callSid` so duplicate Telnyx webhooks don't write multiple rows (root cause separate from the wrapper bug)
+- (P3) `_index.js:13961` & `:14005` use `result.value` defensively but pass no `includeResultMetadata` — works because the explicit `.value` read is right, just inconsistent. Leave as-is unless cleanup pass is requested
+- IVR menu "upgrade button" discoverability (the original IMG_8046.jpeg question — still untouched)
+
+

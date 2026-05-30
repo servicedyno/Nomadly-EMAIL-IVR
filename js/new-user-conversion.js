@@ -360,17 +360,23 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
 
       const cid = String(chatId)
       // Atomic check: only award if not already awarded
+      // NOTE: `includeResultMetadata: false` is critical — without it the mongo v5
+      // driver returns a wrapper `{value, lastErrorObject, ok}` that's truthy on
+      // BOTH match and no-match. Combined with `result.firstDepositAt` reading from
+      // the wrapper (always undefined), this code was effectively rejecting EVERY
+      // first-deposit bonus award. Discovered during 2026-05-30 walletLedger
+      // root-cause investigation.
       const result = await conversionCol.findOneAndUpdate(
         { chatId: cid, firstDepositBonusAwarded: { $ne: true } },
         {
           $set: { firstDepositBonusAwarded: true, firstDepositAt: new Date(), firstDepositAmount: depositAmountUsd },
         },
-        { returnDocument: 'after' }
+        { returnDocument: 'after', includeResultMetadata: false }
       )
 
-      // If firstDepositBonusAwarded was already true, result.value will still show true
-      // but the update won't match, so we check if the update actually happened
-      if (!result || !result.firstDepositAt || Math.abs(new Date(result.firstDepositAt).getTime() - Date.now()) > 5000) {
+      // result === null means "already awarded previously" (filter didn't match)
+      // result !== null means we just claimed the bonus — return success
+      if (!result) {
         return null // Already awarded previously
       }
 

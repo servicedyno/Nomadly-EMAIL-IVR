@@ -108,13 +108,18 @@ async function main() {
     }
 
     // Atomic wallet deduction
+    // CRITICAL: pass `includeResultMetadata: false` — without it, the v5 mongo
+    // driver returns `{ value, lastErrorObject, ok }` which is always truthy
+    // even on no-match, so the `if (deductResult)` branch ran for both success
+    // and "insufficient balance" cases (silent bug). See utils.js:smartWalletDeduct
+    // for the full explanation.
     const deductResult = await walletOf.findOneAndUpdate(
       {
         _id: call.chatId,
         $expr: { $gte: [{ $subtract: [{ $ifNull: ['$usdIn', 0] }, { $ifNull: ['$usdOut', 0] }] }, charge] }
       },
       { $inc: { usdOut: charge } },
-      { returnDocument: 'after' }
+      { returnDocument: 'after', includeResultMetadata: false }
     )
 
     if (deductResult) {

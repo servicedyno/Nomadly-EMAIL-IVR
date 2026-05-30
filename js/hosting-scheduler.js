@@ -240,6 +240,11 @@ function initScheduler(deps) {
               const newExpiry = new Date(now.getTime() + duration * 24 * 60 * 60 * 1000)
 
               // ━━━ LAYER 2: Atomic claim — only extend if still expired ━━━
+              // CRITICAL: `includeResultMetadata: false` — without it the v5 mongo
+              // driver returns the wrapper `{value, lastErrorObject, ok}` even on
+              // no-match (which is truthy), so the `if (!claimResult)` "duplicate
+              // renewal prevented" branch never fired. See utils.js:smartWalletDeduct
+              // for the full root-cause writeup (2026-05-30).
               const claimResult = await cpanelAccounts.findOneAndUpdate(
                 {
                   _id: account._id,
@@ -254,7 +259,7 @@ function initScheduler(deps) {
                     renewalCount: (account.renewalCount || 0) + 1,
                   },
                 },
-                { returnDocument: 'after' }
+                { returnDocument: 'after', includeResultMetadata: false }
               )
 
               if (!claimResult) {

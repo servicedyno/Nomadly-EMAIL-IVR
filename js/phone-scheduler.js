@@ -333,6 +333,10 @@ async function attemptAutoRenew(chatId, num, index, numbers) {
 
     // ━━━ LAYER 2: Atomic claim — only extend if expiresAt is still the old value ━━━
     // Prevents double-charge when two pods both pass Layer 1 within milliseconds
+    // NOTE: `includeResultMetadata: false` is required — without it the mongo v5
+    // driver returns a wrapper that is always truthy on no-match, so the
+    // "DUPLICATE RENEWAL PREVENTED" branch never fired. See utils.js:smartWalletDeduct
+    // for the root-cause writeup (2026-05-30).
     const claimResult = await _phoneNumbersOf.findOneAndUpdate(
       {
         _id: chatId,
@@ -353,7 +357,7 @@ async function attemptAutoRenew(chatId, num, index, numbers) {
           'val.numbers.$._reminder1Sent': false,
         }
       },
-      { returnDocument: 'after' }
+      { returnDocument: 'after', includeResultMetadata: false }
     )
 
     if (!claimResult) {
