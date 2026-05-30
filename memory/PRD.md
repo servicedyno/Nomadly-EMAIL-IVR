@@ -1438,3 +1438,42 @@ Even if Telnyx retries a hangup webhook 8 times across two pods after a deploy, 
 - IVR upgrade-button discoverability (the IMG_8046.jpeg question — still untouched)
 
 
+
+---
+
+## 2026-05-30 (cont'd) — firstDepositBonus retro-credit (executed on prod)
+
+### Discovery (worse than first thought)
+The pre-fix buggy `findOneAndUpdate` in `awardFirstDepositBonus` had a side effect I missed in the original write-up: the `$set: {firstDepositBonusAwarded: true}` mutation **did** apply (mongo's `$set` runs whether the caller reads the wrapper or the doc). But the post-check `result.firstDepositAt` read from the wrapper (always `undefined`), so the function returned `null` and the **caller never executed `atomicIncrement(walletOf, 'usdIn', 5)`**.
+
+Net effect: 29 users had `firstDepositBonusAwarded: true` in `userConversion` but **zero of them** ever received the $5. Cannot trust the flag as the canonical "credited" signal — must check the `transactions` collection.
+
+### Two-stage retro
+
+**Stage 1 — `retro_first_deposit_bonus.js`** (`/app/js/scripts/retro/`)
+- Aggregates `transactions` for `type='wallet-topup'`, `status='completed'`, `amount >= 20`
+- Grouped by chatId, earliest first
+- Filters out anyone with an existing `type IN ('first-deposit-bonus', 'first-deposit-bonus-retro')` txn
+- For each remaining user: inserts `transactions._id = TXN-RETRO-FDB-{chatId}` first (deterministic ID = E11000 idempotency), then `atomicIncrement(walletOf, 'usdIn', 5)`
+- Updates `userConversion` for completeness
+- Flags: `--apply`, `--silent`, `--limit=N`
+
+**Result on prod:** **30 of 30 users credited × $5 = $150**, 0 failures. Spans 2026-04-19 → 2026-05-29.
+
+**Stage 2 — `retro_first_deposit_bonus_dm.js`**
+- Stage 1 silently skipped DMs because the script tried `BOT_TOKEN_NOMADLY` / `BOT_TOKEN` / `TELEGRAM_BOT_TOKEN` — none of which exist on prod. Prod uses `TELEGRAM_BOT_TOKEN_PROD` (with a `BOT_ENVIRONMENT=production` switch). Discovered this only after credits had landed.
+- This second script reads the audit txns Stage 1 wrote, picks the right token from `BOT_ENVIRONMENT`, looks up each user's `state.userLanguage`, and DMs them the localised "surprise bonus" message.
+- Tracks `userConversion.firstDepositBonusDmSentAt` for idempotency; failed-403 DMs get `firstDepositBonusDmFailedAt` so re-runs don't keep hammering blocked accounts.
+
+**Result on prod:** **29 of 30 DMs delivered** (1 user has blocked the bot — still got the $5, just no notification).
+
+### Scripts archived
+Both scripts moved to `/app/js/scripts/retro/` for future re-use / reference.
+
+### Open backlog
+- 🔴 ConnectReseller IP whitelist (`162.220.232.99`) — auto-fix puppeteer login still looping
+- IVR upgrade-button discoverability (the IMG_8046.jpeg question — still untouched)
+- `/billingleaks` admin command for surfacing `walletLedger.type='billing_failed'` rows
+- Backfill historical `walletLedger.balanceAfter` (14k rows show $0 — would need per-user tx replay)
+
+
