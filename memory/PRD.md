@@ -1,36 +1,40 @@
 # Nomadly — Multi-Service Platform PRD
 
 ## Session 2026-02-XX — MySQL UI for Hosting Panel (cPanel-style, Phase 1 + 2)
-**Status: ✅ COMPLETE — 39/39 backend tests pass, frontend i18n verified for en/fr/zh/hi.**
+**Status: ✅ COMPLETE — verified across 3 testing iterations (39/39 backend, 100% frontend, zero console warnings).**
 
 ### User request
 > "Some bot users are asking for MySQL UI like in cPanel. Can we offer that?"
 > "Yes, let cPanel packages handle [database limits]. We also need Remote MySQL hosts UI."
+> P2 follow-up: "Per-tab loading skeletons; split MysqlManager.js into smaller files; manual prod verification once cPanel is reachable."
 
 ### Delivered
 - **Backend** (`/app/js/cpanel-routes.js` lines 864-1010, `cpanel-proxy.js` lines 693-768, `whm-service.js` line 427)
   - 13 new `/api/panel/mysql/*` routes: databases (list/create/delete), users (list/create/delete/password), privileges (grant/revoke), remote-hosts (list/add/delete), phpmyadmin (WHM SSO URL)
   - All routes JWT-gated. Privilege grant defaults to `ALL PRIVILEGES`. Remote-host validates 1-60 char strings.
-- **Frontend** (`/app/frontend/src/components/panel/MysqlManager.js`, `/app/frontend/src/pages/PanelDashboard.js`)
+- **Frontend** (`/app/frontend/src/components/panel/MysqlManager.js` + `/app/frontend/src/components/panel/mysql/{shared,DatabasesTab,HostsTab,Modals,QuotaBanner}.js`)
   - New "Databases" tab in panel between Email & Security, with custom database SVG icon
   - Two sub-tabs: "Databases & Users" (CRUD UI for both) and "Remote MySQL" (allowlist UI with `%` wildcards)
   - cPanel-prefix UX: input shows `<cpuser>_` chip; user types only the suffix
   - phpMyAdmin SSO button — opens session URL in new tab
-  - **Quota-exceeded upgrade banner**: when cPanel rejects with "maximum reached" pattern, shows a friendly purple banner with "Upgrade plan in the bot" CTA → `https://t.me/nomadlybot` (instead of raw UAPI error)
+  - **Quota-exceeded upgrade banner**: when cPanel rejects with "maximum reached" pattern, shows a friendly purple banner with "Upgrade plan in the bot" CTA → `https://t.me/nomadlybot`
   - Privilege modal with multi-select + "All privileges" toggle
+  - **Per-tab loading skeletons** (iter 16): Hosts sub-tab is interactive (description + input + button) the instant the user opens it, even while the slow Databases UAPI call is still pending. Each sub-tab gets its own shimmer placeholder.
+  - **Refactor** (iter 16): MysqlManager.js split from 885 LOC → 481 LOC slim controller + 5 sibling files under `/mysql/` (shared 193, DatabasesTab 250, HostsTab 110, Modals 226, QuotaBanner 55).
+  - **Console-clean skeleton** (iter 17): replaced `<table>/<tr>/<td>` skeleton with `<div>` flex rows to dodge Visual Editor's `<span style="display:contents">` wrappers that produced React 19 nesting warnings.
 - **i18n** (`/app/frontend/src/locales/{en,fr,zh,hi}.json`)
   - Added full `mysql.*` block (60+ keys) and `dashboard.tabs.mysql` in all 4 languages with native translations
 
-### Regression caught & fixed during smoke test
+### Regression caught & fixed during smoke test (iter 15)
 - `MysqlManager` initially passed JSX into `<PanelToolbar actions={...}>` but the toolbar expects an **array** of action objects — refactored to use the array contract + `leftSlot` for the title (`PanelToolbar.jsx` contract).
 
-### Known limitations (acceptable / minor)
-- During the initial UAPI fetch (~30s in preview env, instant in prod) the global `Loading…` state hides BOTH sub-tabs. Per-tab skeletons would let users open the Remote MySQL sub-tab immediately. Filed as P2 polish.
-- `MysqlManager.js` is ~1200 lines. Future refactor: split into `DatabasesTab`, `UsersTable`, `HostsTab`, `Modal*` files.
+### Production verification (P2 #3)
+- Cannot be executed from the preview pod (WHM `209.38.241.9` is firewalled). Comprehensive 9-section operator checklist created at `/app/memory/MYSQL_PROD_VERIFICATION.md` — covers DBs/users/privileges/remote-hosts/phpMyAdmin SSO/quota banner/i18n/regression in real cPanel.
 
 ### Test artifacts
-- Pytest suite: `/app/backend/tests/test_mysql_panel.py` (39 cases, ~7 min runtime due to UAPI timeouts in preview)
-- Test report: `/app/test_reports/iteration_15.json`
+- Pytest suite: `/app/backend/tests/test_mysql_panel.py` (39 cases, ~7 min in preview due to UAPI timeouts)
+- Test reports: `/app/test_reports/iteration_{15,16,17}.json`
+- Operator playbook: `/app/memory/MYSQL_PROD_VERIFICATION.md`
 
 ---
 
