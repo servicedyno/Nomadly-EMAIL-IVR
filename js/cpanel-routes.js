@@ -861,6 +861,154 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     res.json({ quota, bandwidth })
   })
 
+  // ─── MySQL ──────────────────────────────────────────────
+  //
+  // Mirrors cPanel's "MySQL Databases" + "Remote MySQL" UI. All operations
+  // go through UAPI's `Mysql` module via cpanel-proxy. Plan-level quotas are
+  // enforced by the cPanel package (DBs, DB users), so we surface UAPI's
+  // human-readable errors directly when the limit is hit.
+
+  // List databases. Returns `{ data: { databases: [...], users: [...] } }`.
+  router.get('/mysql/databases', ...auth, async (req, res) => {
+    const [databases, users] = await Promise.all([
+      cpProxy.listDatabases(req.cpUser, req.cpPass, req.whmHost),
+      cpProxy.listDatabaseUsers(req.cpUser, req.cpPass, req.whmHost),
+    ])
+    res.json({ databases, users })
+  })
+
+  router.post('/mysql/databases/create', ...auth, async (req, res) => {
+    const { name } = req.body
+    if (!name || typeof name !== 'string') return res.status(400).json({ error: 'name is required' })
+    const result = await cpProxy.createDatabase(req.cpUser, req.cpPass, name.trim(), req.whmHost)
+    res.json(result)
+  })
+
+  router.post('/mysql/databases/delete', ...auth, async (req, res) => {
+    const { name } = req.body
+    if (!name) return res.status(400).json({ error: 'name is required' })
+    const result = await cpProxy.deleteDatabase(req.cpUser, req.cpPass, name, req.whmHost)
+    res.json(result)
+  })
+
+  router.post('/mysql/databases/rename', ...auth, async (req, res) => {
+    const { oldname, newname } = req.body
+    if (!oldname || !newname) return res.status(400).json({ error: 'oldname and newname are required' })
+    const result = await cpProxy.renameDatabase(req.cpUser, req.cpPass, oldname, newname, req.whmHost)
+    res.json(result)
+  })
+
+  router.post('/mysql/databases/repair', ...auth, async (req, res) => {
+    const { name } = req.body
+    if (!name) return res.status(400).json({ error: 'name is required' })
+    const result = await cpProxy.repairDatabase(req.cpUser, req.cpPass, name, req.whmHost)
+    res.json(result)
+  })
+
+  router.post('/mysql/databases/check', ...auth, async (req, res) => {
+    const { name } = req.body
+    if (!name) return res.status(400).json({ error: 'name is required' })
+    const result = await cpProxy.checkDatabase(req.cpUser, req.cpPass, name, req.whmHost)
+    res.json(result)
+  })
+
+  // DB Users
+  router.get('/mysql/users', ...auth, async (req, res) => {
+    const result = await cpProxy.listDatabaseUsers(req.cpUser, req.cpPass, req.whmHost)
+    res.json(result)
+  })
+
+  router.post('/mysql/users/create', ...auth, async (req, res) => {
+    const { name, password } = req.body
+    if (!name || !password) return res.status(400).json({ error: 'name and password are required' })
+    if (String(password).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' })
+    const result = await cpProxy.createDatabaseUser(req.cpUser, req.cpPass, name.trim(), password, req.whmHost)
+    res.json(result)
+  })
+
+  router.post('/mysql/users/delete', ...auth, async (req, res) => {
+    const { name } = req.body
+    if (!name) return res.status(400).json({ error: 'name is required' })
+    const result = await cpProxy.deleteDatabaseUser(req.cpUser, req.cpPass, name, req.whmHost)
+    res.json(result)
+  })
+
+  router.post('/mysql/users/password', ...auth, async (req, res) => {
+    const { user, password } = req.body
+    if (!user || !password) return res.status(400).json({ error: 'user and password are required' })
+    if (String(password).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' })
+    const result = await cpProxy.setDatabaseUserPassword(req.cpUser, req.cpPass, user, password, req.whmHost)
+    res.json(result)
+  })
+
+  router.post('/mysql/users/rename', ...auth, async (req, res) => {
+    const { oldname, newname } = req.body
+    if (!oldname || !newname) return res.status(400).json({ error: 'oldname and newname are required' })
+    const result = await cpProxy.renameDatabaseUser(req.cpUser, req.cpPass, oldname, newname, req.whmHost)
+    res.json(result)
+  })
+
+  // Privileges
+  router.post('/mysql/privileges/grant', ...auth, async (req, res) => {
+    const { user, database, privileges } = req.body
+    if (!user || !database) return res.status(400).json({ error: 'user and database are required' })
+    // Default to ALL PRIVILEGES if caller omits — matches cPanel's "Add User to Database" default.
+    const privs = (Array.isArray(privileges) && privileges.length) ? privileges : ['ALL PRIVILEGES']
+    const result = await cpProxy.setUserPrivilegesOnDatabase(
+      req.cpUser, req.cpPass, user, database, privs, req.whmHost,
+    )
+    res.json(result)
+  })
+
+  router.post('/mysql/privileges/revoke', ...auth, async (req, res) => {
+    const { user, database } = req.body
+    if (!user || !database) return res.status(400).json({ error: 'user and database are required' })
+    const result = await cpProxy.revokeUserPrivilegesOnDatabase(
+      req.cpUser, req.cpPass, user, database, req.whmHost,
+    )
+    res.json(result)
+  })
+
+  // Remote MySQL access hosts
+  router.get('/mysql/remote-hosts', ...auth, async (req, res) => {
+    const result = await cpProxy.listMysqlRemoteHosts(req.cpUser, req.cpPass, req.whmHost)
+    res.json(result)
+  })
+
+  router.post('/mysql/remote-hosts/add', ...auth, async (req, res) => {
+    const { host } = req.body
+    if (!host || typeof host !== 'string') return res.status(400).json({ error: 'host is required' })
+    // Basic shape check: IPv4, IPv4 wildcard (%), hostname, or %.example.com.
+    // cPanel does its own validation server-side, this is just to catch obvious typos.
+    const cleaned = host.trim()
+    if (cleaned.length < 1 || cleaned.length > 60) {
+      return res.status(400).json({ error: 'host must be 1-60 characters' })
+    }
+    const result = await cpProxy.addMysqlRemoteHost(req.cpUser, req.cpPass, cleaned, req.whmHost)
+    res.json(result)
+  })
+
+  router.post('/mysql/remote-hosts/delete', ...auth, async (req, res) => {
+    const { host } = req.body
+    if (!host) return res.status(400).json({ error: 'host is required' })
+    const result = await cpProxy.deleteMysqlRemoteHost(req.cpUser, req.cpPass, host, req.whmHost)
+    res.json(result)
+  })
+
+  // phpMyAdmin SSO — returns a one-shot URL that lands the user inside
+  // phpMyAdmin without leaking the cPanel origin IP. The URL is rewritten to
+  // go through CPANEL_API_URL (CF tunnel). Frontend opens it in a new tab.
+  router.get('/mysql/phpmyadmin', ...auth, async (req, res) => {
+    const result = await whmService.createUserSession(req.cpUser, 'phpMyAdmin', 'cpaneld')
+    if (!result.success) {
+      return res.status(502).json({
+        status: 0,
+        errors: [result.error || 'Could not open phpMyAdmin. Please try again.'],
+      })
+    }
+    res.json({ status: 1, url: result.url, expires: result.expires })
+  })
+
   // ─── Subdomains ─────────────────────────────────────────
 
   router.get('/subdomains', ...auth, async (req, res) => {

@@ -681,6 +681,92 @@ async function getSSLStatus(cpUser, cpPass, host = null) {
   return uapi(cpUser, cpPass, 'SSL', 'installed_hosts', {}, 'GET', host)
 }
 
+// ─── MySQL ──────────────────────────────────────────────
+// All MySQL operations use UAPI's `Mysql` module. cPanel auto-prefixes DB
+// names and DB usernames with `<cpanel_user>_`. We pass names through
+// unchanged — the frontend handles displaying full prefixed names.
+//
+// Plan limits (max DBs / max DB users) are enforced server-side by the cPanel
+// package quota, so we don't need to count locally. UAPI will surface a
+// human-readable error if the user hits the limit.
+
+async function listDatabases(cpUser, cpPass, host = null) {
+  return uapi(cpUser, cpPass, 'Mysql', 'list_databases', {}, 'GET', host)
+}
+
+async function listDatabaseUsers(cpUser, cpPass, host = null) {
+  return uapi(cpUser, cpPass, 'Mysql', 'list_users', {}, 'GET', host)
+}
+
+async function createDatabase(cpUser, cpPass, name, host = null) {
+  return uapi(cpUser, cpPass, 'Mysql', 'create_database', { name }, 'POST', host)
+}
+
+async function deleteDatabase(cpUser, cpPass, name, host = null) {
+  return uapi(cpUser, cpPass, 'Mysql', 'delete_database', { name }, 'POST', host)
+}
+
+async function renameDatabase(cpUser, cpPass, oldname, newname, host = null) {
+  return uapi(cpUser, cpPass, 'Mysql', 'rename_database', { oldname, newname }, 'POST', host)
+}
+
+async function checkDatabase(cpUser, cpPass, name, host = null) {
+  return uapi(cpUser, cpPass, 'Mysql', 'check_database', { name }, 'POST', host)
+}
+
+async function repairDatabase(cpUser, cpPass, name, host = null) {
+  return uapi(cpUser, cpPass, 'Mysql', 'repair_database', { name }, 'POST', host)
+}
+
+async function createDatabaseUser(cpUser, cpPass, name, password, host = null) {
+  return uapi(cpUser, cpPass, 'Mysql', 'create_user', { name, password }, 'POST', host)
+}
+
+async function deleteDatabaseUser(cpUser, cpPass, name, host = null) {
+  return uapi(cpUser, cpPass, 'Mysql', 'delete_user', { name }, 'POST', host)
+}
+
+async function setDatabaseUserPassword(cpUser, cpPass, user, password, host = null) {
+  return uapi(cpUser, cpPass, 'Mysql', 'set_password', { user, password }, 'POST', host)
+}
+
+async function renameDatabaseUser(cpUser, cpPass, oldname, newname, host = null) {
+  return uapi(cpUser, cpPass, 'Mysql', 'rename_user', { oldname, newname }, 'POST', host)
+}
+
+// privileges is an array of MySQL privilege strings, e.g.
+// ['SELECT','INSERT','UPDATE','DELETE'] or ['ALL PRIVILEGES'].
+// cPanel expects them comma-separated.
+async function setUserPrivilegesOnDatabase(cpUser, cpPass, user, database, privileges, host = null) {
+  const privs = Array.isArray(privileges) ? privileges.join(',') : String(privileges || '')
+  return uapi(cpUser, cpPass, 'Mysql', 'set_privileges_on_database', {
+    user,
+    database,
+    privileges: privs,
+  }, 'POST', host)
+}
+
+async function revokeUserPrivilegesOnDatabase(cpUser, cpPass, user, database, host = null) {
+  return uapi(cpUser, cpPass, 'Mysql', 'revoke_privileges_on_database', {
+    user, database,
+  }, 'POST', host)
+}
+
+// Remote MySQL access — whitelist a host (IP, IP with %, or hostname) so it
+// can connect from outside the server. Used by power users who want to
+// connect their laptop/IDE to the cPanel DB.
+async function listMysqlRemoteHosts(cpUser, cpPass, host = null) {
+  return uapi(cpUser, cpPass, 'Mysql', 'get_remote_hosts', {}, 'GET', host)
+}
+
+async function addMysqlRemoteHost(cpUser, cpPass, remoteHost, host = null) {
+  return uapi(cpUser, cpPass, 'Mysql', 'add_host', { host: remoteHost }, 'POST', host)
+}
+
+async function deleteMysqlRemoteHost(cpUser, cpPass, remoteHost, host = null) {
+  return uapi(cpUser, cpPass, 'Mysql', 'delete_host', { host: remoteHost }, 'POST', host)
+}
+
 module.exports = {
   uapi,
   uploadFile,
@@ -715,6 +801,23 @@ module.exports = {
   getBandwidthData,
   // SSL
   getSSLStatus,
+  // MySQL
+  listDatabases,
+  listDatabaseUsers,
+  createDatabase,
+  deleteDatabase,
+  renameDatabase,
+  checkDatabase,
+  repairDatabase,
+  createDatabaseUser,
+  deleteDatabaseUser,
+  setDatabaseUserPassword,
+  renameDatabaseUser,
+  setUserPrivilegesOnDatabase,
+  revokeUserPrivilegesOnDatabase,
+  listMysqlRemoteHosts,
+  addMysqlRemoteHost,
+  deleteMysqlRemoteHost,
   // Health hooks
   setAdminNotifier,
   isControlPlaneDown,

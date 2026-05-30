@@ -414,6 +414,60 @@ async function getAccountInfo(username) {
   }
 }
 
+// ─── Single-Use User Session (SSO) ──────────────────────
+//
+// Used to launch internal cPanel apps (phpMyAdmin, RoundCube, etc.) on
+// behalf of a user without exposing their password. Returns a single-use
+// URL valid for ~3 minutes. We rewrite the returned URL so the user's
+// browser hits CPANEL_API_URL (CF tunnel) instead of the raw origin host,
+// keeping the server IP and port 2083 fully hidden.
+//
+// `app` examples: `phpMyAdmin`, `RoundCube`, `cpanel` (= dashboard).
+// If `app` is null, the URL lands on the main cPanel dashboard.
+async function createUserSession(username, app = null, service = 'cpaneld') {
+  try {
+    const params = {
+      'api.version': 1,
+      user: username,
+      service,
+    }
+    if (app) params.app = app
+
+    const res = await whmApi.get('/create_user_session', { params })
+    if (res.data?.metadata?.result !== 1) {
+      const reason = res.data?.metadata?.reason || 'Failed to create session'
+      log(`[WHM] createUserSession(${username}, ${app}) failed: ${reason}`)
+      return { success: false, error: reason }
+    }
+    const rawUrl = res.data?.data?.url
+    if (!rawUrl) return { success: false, error: 'No session URL returned' }
+
+    // Rewrite host so the browser hits our CF tunnel instead of the origin.
+    // CPANEL_API_URL is the public hostname mapped to port 2083 of the
+    // cPanel server via Cloudflare Tunnel (e.g. https://cpanel-api.hostbay.io).
+    const CPANEL_API_URL = (process.env.CPANEL_API_URL || '').replace(/\/+$/, '')
+    let safeUrl = rawUrl
+    if (CPANEL_API_URL) {
+      try {
+        const u = new URL(rawUrl)
+        safeUrl = `${CPANEL_API_URL}${u.pathname}${u.search}${u.hash}`
+      } catch (_) {
+        // If URL parsing fails, leave as-is — better to return SOMETHING
+        // than block the user from getting to phpMyAdmin.
+      }
+    }
+    return {
+      success: true,
+      url: safeUrl,
+      // expires is a unix timestamp; cPanel sessions are short-lived (~3m)
+      expires: res.data?.data?.expires || null,
+    }
+  } catch (err) {
+    log(`[WHM] createUserSession error: ${err.message}`)
+    return { success: false, error: err.message }
+  }
+}
+
 // ─── Auto-Whitelist IP ──────────────────────────────────
 
 /**
@@ -713,6 +767,7 @@ module.exports = {
   changePassword,
   changePackage,
   getAccountInfo,
+  createUserSession,
   generatePassword,
   ensureCloudflareTweaks,
   autoWhitelistIP,
