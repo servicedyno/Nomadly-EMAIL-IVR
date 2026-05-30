@@ -1,0 +1,44 @@
+{
+  "summary": "Verified iteration 16 P2 work on MySQL UI: (1) per-tab loading skeletons and (2) refactor of MysqlManager.js (885->481 lines) into 5 sibling files under /app/frontend/src/components/panel/mysql/. Backend spot-checked (no full re-run per agent_to_agent_context_note): auth gating 401 + Pydantic validation 400 verified on /api/panel/mysql/databases (GET), /api/panel/mysql/databases/create, /api/panel/mysql/remote-hosts/add, /api/panel/mysql/privileges/grant. Frontend: login as goldtest/123456 OK, MysqlManager renders with header 'MySQL Databases' and all 3 toolbar buttons (mysql-open-pma, mysql-new-user-btn, mysql-new-db-btn). KEY BUG-FIX VERIFIED: clicking Remote MySQL sub-tab IMMEDIATELY after entering Databases panel-tab (before the ~30s UAPI call finishes) -> input mysql-add-host-input is visible AND accepts typing ('203.0.113.45'), button mysql-add-host-btn is enabled, description 'Remote MySQL access' is visible, and mysql-hosts-skeleton (3 placeholder rows) is rendered below. Old global 'Loading…' overlay is GONE. Switching back to Databases sub-tab during pending fetch shows mysql-databases-skeleton (not global loader). After ~29s the skeleton was REPLACED by mysql-databases-empty (UAPI timed out per preview env as expected). New-database + new-user modals open/close correctly with all expected testids; password generator yields 16-char string. i18n verified via UI language switcher across en/fr/zh/hi -> Databases tab + 'MySQL Databases' header localize correctly (Bases de données / 数据库 / डेटाबेस). Repeated Databases<->Hosts tab switching does not throw runtime errors.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "MysqlManager Databases sub-tab (loading skeleton + table rendering)",
+        "issues": [
+          "React 19 dev console emits 4 HTML-nesting warnings while the skeleton tables are mounted: '<td> cannot be a child of <span>', '<span> cannot be a child of <tr>', '<tr> cannot be a child of <span>', '<span> cannot be a child of <tbody>'. Iteration 15 had ZERO console errors, so these were introduced by the refactor (most likely the <span> count-badge sitting next to <h3> + the new <Skeleton/> (which renders a <span>) being placed inside <td>/<tbody>, combined with the framework's x-instrumentation wrappers). Not a functional break — UI works — but should be cleaned up. Suggested fix: switch <Skeleton/> to render a <div role='presentation'> (or render block content) when used inside table cells, and review countStyle span placement."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_mysql_panel.py",
+    "/app/test_reports/pytest/mysql_panel_results.xml"
+  ],
+  "action_items": [
+    "Clean up the 4 React HTML-nesting console warnings introduced by the skeleton refactor (see frontend_issues.design_issues). Non-blocking but iter 15 was clean — this is a regression-by-warning."
+  ],
+  "critical_code_review_comments": [
+    "Refactor is clean: MysqlManager.js is now 481 lines (controller) + 5 focused sibling files (shared.js / DatabasesTab.js / HostsTab.js / Modals.js / QuotaBanner.js) all under 700 lines. Good separation of concerns.",
+    "Per-tab loading correctly uses two independent loading flags (loadingDbs / loadingHosts) wired to two parallel fetchers in a single useEffect — Hosts tab is interactive from frame 1.",
+    "HostsTab keeps the description + input + 'Allow host' button OUTSIDE the loading branch — only the table swaps to skeleton. This is exactly the contract the bug fix requires.",
+    "Skeleton component uses an inline <span> which causes React 19 to flag HTML-nesting validity inside table contexts (see design_issues). Consider switching to a block element or rendering it inline-block <div> when used in <td>.",
+    "Backend cpanel-routes.js was NOT touched per spec; 4-route spot-check confirms auth gating (401) and Pydantic input validation (400) still work as in iter 15."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100% (4/4 spot-check routes)",
+    "frontend": "100% of requested checks (per-tab loading, regression, modals, i18n × 4, multi-switch navigation). Console emits non-blocking HTML-nesting warnings — captured in design_issues."
+  },
+  "test_credentials": "goldtest / 123456 — present in /app/memory/test_credentials.md",
+  "seed_data_creation": "None — used pre-seeded goldtest account.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "iter 16 verified the per-tab loading fix + refactor. Skeleton-related React HTML-nesting warnings are the only nit. If iter 17 touches Skeleton, re-verify console-clean. Backend test suite at /app/backend/tests/test_mysql_panel.py was NOT re-run in full (per agent_to_agent_context_note: '~7 minutes for full 39 cases due to cPanel UAPI timeout' — spot check only).",
+  "rca of the issue": "N/A — feature work verified working. The 4 React HTML-nesting warnings appear to originate from the <Skeleton> component rendering an inline <span> being placed inside <td>/<tr>/<tbody> contexts in DatabasesTab.SkeletonRows + the count-badge <span> next to <h3>. React 19's stricter dev-time HTML validation flags these even though browsers render them fine. Mitigation: render <Skeleton> as <span style={{display:'block'}}> inside cells or wrap it differently. Not a runtime crash."
+}

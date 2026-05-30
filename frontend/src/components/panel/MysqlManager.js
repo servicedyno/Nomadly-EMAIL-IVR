@@ -1,73 +1,22 @@
-import React, { useState, useEffect, useMemo } from 'react';
+// MysqlManager — slim controller for the cPanel-style MySQL UI.
+// State, API calls and tab orchestration only. Presentational pieces are
+// in ./mysql/ — DatabasesTab, HostsTab, Modals, QuotaBanner, shared.
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from './AuthContext';
 import PanelToolbar from './shared/PanelToolbar';
-
-const SvgPlus = (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <line x1="12" y1="5" x2="12" y2="19" />
-    <line x1="5" y1="12" x2="19" y2="12" />
-  </svg>
-);
-
-const SvgTrash = (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <polyline points="3 6 5 6 21 6" />
-    <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
-  </svg>
-);
-
-const SvgExternal = (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />
-    <polyline points="15 3 21 3 21 9" />
-    <line x1="10" y1="14" x2="21" y2="3" />
-  </svg>
-);
-
-const SvgKey = (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
-  </svg>
-);
-
-const SvgLink = (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
-    <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
-  </svg>
-);
-
-// Common MySQL privileges — same set cPanel offers in "Manage User Privileges".
-const ALL_PRIVS = [
-  'ALTER', 'ALTER ROUTINE', 'CREATE', 'CREATE ROUTINE', 'CREATE TEMPORARY TABLES',
-  'CREATE VIEW', 'DELETE', 'DROP', 'EVENT', 'EXECUTE', 'INDEX', 'INSERT',
-  'LOCK TABLES', 'REFERENCES', 'SELECT', 'SHOW VIEW', 'TRIGGER', 'UPDATE',
-];
-
-function generatePassword(len = 16) {
-  const chars = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%';
-  let pw = '';
-  for (let i = 0; i < len; i++) pw += chars[Math.floor(Math.random() * chars.length)];
-  return pw;
-}
-
-// cPanel auto-prefixes DB names and users with `<cpuser>_`. We let the user
-// type ONLY the suffix and combine for them — matches cPanel's own UX.
-function prefixed(prefix, name) {
-  if (!prefix) return name;
-  return name.startsWith(prefix + '_') ? name : `${prefix}_${name}`;
-}
-
-// Detect cPanel "you have reached your maximum allowed number of …" errors.
-// cPanel returns variants like "You have reached your maximum allowed number of MySQL databases."
-// or "...maximum allowed number of MySQL users." — both for plan-quota gating.
-function isQuotaError(msg) {
-  if (!msg || typeof msg !== 'string') return false;
-  return /reached.{0,40}max|maximum.{0,40}(allowed|number|limit)|exceed.{0,40}(limit|quota|maximum)|limit.{0,20}reach/i.test(msg);
-}
-
-const BOT_URL = 'https://t.me/nomadlybot';
+import DatabasesTab from './mysql/DatabasesTab';
+import HostsTab from './mysql/HostsTab';
+import QuotaBanner from './mysql/QuotaBanner';
+import {
+  CreateDbModal, CreateUserModal,
+  ChangePasswordModal, AssignPrivilegesModal,
+} from './mysql/Modals';
+import {
+  SvgPlus, SvgKey, SvgExternal,
+  generatePassword, prefixed, isQuotaError,
+  tabBtnStyle, alertStyle,
+} from './mysql/shared';
 
 export default function MysqlManager() {
   const { t } = useTranslation();
@@ -75,7 +24,11 @@ export default function MysqlManager() {
   const cpUser = user?.username || '';
 
   const [tab, setTab] = useState('databases'); // databases | hosts
-  const [loading, setLoading] = useState(true);
+
+  // Per-tab loading — Hosts tab is interactive immediately while Databases is fetching.
+  const [loadingDbs, setLoadingDbs] = useState(true);
+  const [loadingHosts, setLoadingHosts] = useState(true);
+
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const [quotaErr, setQuotaErr] = useState(''); // when cPanel rejects with "maximum reached"
@@ -103,14 +56,12 @@ export default function MysqlManager() {
   const [showPm, setShowPm] = useState(false); // launching phpMyAdmin
 
   // ─── Fetchers ───────────────────────────────────────────────
-  const fetchAll = async () => {
-    setLoading(true);
+  const fetchDbsAndUsers = useCallback(async () => {
+    setLoadingDbs(true);
     setError('');
     try {
       const res = await api('/mysql/databases');
-      if (res.databases?.errors?.length) {
-        setError(res.databases.errors[0]);
-      }
+      if (res.databases?.errors?.length) setError(res.databases.errors[0]);
       const dbList = res.databases?.data || [];
       // UAPI returns either [{ database, users:[], disk_usage }] or { databases:[...] }
       const normalizedDbs = Array.isArray(dbList) ? dbList : (dbList.databases || []);
@@ -122,25 +73,32 @@ export default function MysqlManager() {
     } catch (err) {
       setError(err.message);
     } finally {
-      setLoading(false);
+      setLoadingDbs(false);
     }
-  };
+  }, [api]);
 
-  const fetchHosts = async () => {
+  const fetchHosts = useCallback(async () => {
+    setLoadingHosts(true);
     try {
       const res = await api('/mysql/remote-hosts');
       const list = res.data || [];
       setRemoteHosts(Array.isArray(list) ? list : (list.hosts || []));
-    } catch (_) {}
-  };
+    } catch (_) {
+      // Non-fatal — the hosts tab is still usable for adding new entries.
+    } finally {
+      setLoadingHosts(false);
+    }
+  }, [api]);
 
+  // Fire both fetchers in parallel on mount. Each has its own loading state
+  // so the Hosts tab becomes interactive the moment its (faster) call returns,
+  // independent of the slower Databases call.
   useEffect(() => {
-    fetchAll();
+    fetchDbsAndUsers();
     fetchHosts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fetchDbsAndUsers, fetchHosts]);
 
-  // ─── Database actions ───────────────────────────────────────
+  // ─── Action handlers ────────────────────────────────────────
   const handleCreateDb = async () => {
     const raw = dbName.trim();
     if (!raw) return;
@@ -158,7 +116,7 @@ export default function MysqlManager() {
         setInfo(t('mysql.dbCreated', { name: full, defaultValue: `Database "${full}" created.` }));
         setDbName('');
         setShowCreateDb(false);
-        fetchAll();
+        fetchDbsAndUsers();
       }
     } catch (err) { setError(err.message); }
     finally { setBusy(false); }
@@ -172,16 +130,18 @@ export default function MysqlManager() {
         method: 'POST', body: JSON.stringify({ name }),
       });
       if (res.errors?.length) setError(res.errors[0]);
-      else { setInfo(t('mysql.dbDeleted', { defaultValue: 'Database deleted.' })); fetchAll(); }
+      else { setInfo(t('mysql.dbDeleted', { defaultValue: 'Database deleted.' })); fetchDbsAndUsers(); }
     } catch (err) { setError(err.message); }
     finally { setBusy(false); }
   };
 
-  // ─── User actions ───────────────────────────────────────────
   const handleCreateUser = async () => {
     const raw = userName.trim();
     if (!raw || !userPass) return;
-    if (userPass.length < 8) { setError(t('mysql.errPassShort', { defaultValue: 'Password must be at least 8 characters.' })); return; }
+    if (userPass.length < 8) {
+      setError(t('mysql.errPassShort', { defaultValue: 'Password must be at least 8 characters.' }));
+      return;
+    }
     setBusy(true); setError(''); setInfo(''); setQuotaErr('');
     try {
       const full = prefixed(cpUser, raw);
@@ -194,7 +154,7 @@ export default function MysqlManager() {
       } else {
         setInfo(t('mysql.userCreated', { name: full, defaultValue: `User "${full}" created.` }));
         setUserName(''); setUserPass(''); setShowCreateUser(false);
-        fetchAll();
+        fetchDbsAndUsers();
       }
     } catch (err) { setError(err.message); }
     finally { setBusy(false); }
@@ -208,14 +168,17 @@ export default function MysqlManager() {
         method: 'POST', body: JSON.stringify({ name }),
       });
       if (res.errors?.length) setError(res.errors[0]);
-      else { setInfo(t('mysql.userDeleted', { defaultValue: 'User deleted.' })); fetchAll(); }
+      else { setInfo(t('mysql.userDeleted', { defaultValue: 'User deleted.' })); fetchDbsAndUsers(); }
     } catch (err) { setError(err.message); }
     finally { setBusy(false); }
   };
 
   const handleResetPassword = async () => {
     if (!pwdFor || !resetPass) return;
-    if (resetPass.length < 8) { setError(t('mysql.errPassShort', { defaultValue: 'Password must be at least 8 characters.' })); return; }
+    if (resetPass.length < 8) {
+      setError(t('mysql.errPassShort', { defaultValue: 'Password must be at least 8 characters.' }));
+      return;
+    }
     setBusy(true); setError(''); setInfo('');
     try {
       const res = await api('/mysql/users/password', {
@@ -235,7 +198,10 @@ export default function MysqlManager() {
     setBusy(true); setError(''); setInfo('');
     try {
       const privs = assignAllPriv ? ['ALL PRIVILEGES'] : Array.from(assignPrivs);
-      if (!privs.length) { setError(t('mysql.errNoPrivs', { defaultValue: 'Pick at least one privilege.' })); setBusy(false); return; }
+      if (!privs.length) {
+        setError(t('mysql.errNoPrivs', { defaultValue: 'Pick at least one privilege.' }));
+        setBusy(false); return;
+      }
       const res = await api('/mysql/privileges/grant', {
         method: 'POST',
         body: JSON.stringify({ user: assignFor.user, database: assignDb, privileges: privs }),
@@ -243,28 +209,28 @@ export default function MysqlManager() {
       if (res.errors?.length) setError(res.errors[0]);
       else {
         setInfo(t('mysql.privsGranted', { defaultValue: 'Privileges granted.' }));
-        setAssignFor(null); setAssignDb(''); setAssignPrivs(new Set(['ALL PRIVILEGES']));
+        setAssignFor(null); setAssignDb('');
+        setAssignPrivs(new Set(['ALL PRIVILEGES']));
         setAssignAllPriv(true);
-        fetchAll();
+        fetchDbsAndUsers();
       }
     } catch (err) { setError(err.message); }
     finally { setBusy(false); }
   };
 
-  const handleRevoke = async (userName, database) => {
-    if (!window.confirm(t('mysql.confirmRevoke', { user: userName, db: database, defaultValue: `Revoke "${userName}" from "${database}"?` }))) return;
+  const handleRevoke = async (userToRevoke, database) => {
+    if (!window.confirm(t('mysql.confirmRevoke', { user: userToRevoke, db: database, defaultValue: `Revoke "${userToRevoke}" from "${database}"?` }))) return;
     setBusy(true); setError(''); setInfo('');
     try {
       const res = await api('/mysql/privileges/revoke', {
-        method: 'POST', body: JSON.stringify({ user: userName, database }),
+        method: 'POST', body: JSON.stringify({ user: userToRevoke, database }),
       });
       if (res.errors?.length) setError(res.errors[0]);
-      else { setInfo(t('mysql.revoked', { defaultValue: 'Access revoked.' })); fetchAll(); }
+      else { setInfo(t('mysql.revoked', { defaultValue: 'Access revoked.' })); fetchDbsAndUsers(); }
     } catch (err) { setError(err.message); }
     finally { setBusy(false); }
   };
 
-  // ─── Remote hosts ───────────────────────────────────────────
   const handleAddHost = async () => {
     const h = newHost.trim();
     if (!h) return;
@@ -292,7 +258,6 @@ export default function MysqlManager() {
     finally { setBusy(false); }
   };
 
-  // ─── phpMyAdmin SSO ─────────────────────────────────────────
   const openPhpMyAdmin = async () => {
     setShowPm(true); setError('');
     try {
@@ -334,7 +299,7 @@ export default function MysqlManager() {
     return m;
   }, [databases]);
 
-  // ─── Render ─────────────────────────────────────────────────
+  // ─── Toolbar ────────────────────────────────────────────────
   const toolbarActions = [
     {
       key: 'pma',
@@ -386,12 +351,21 @@ export default function MysqlManager() {
       />
 
       {/* Tabs */}
-      <div className="mysql-tabs" style={{ display: 'flex', gap: 8, margin: '12px 0 16px', borderBottom: '1px solid var(--border, #2a2f3a)' }}>
+      <div
+        className="mysql-tabs"
+        style={{
+          display: 'flex',
+          gap: 8,
+          margin: '12px 0 16px',
+          borderBottom: '1px solid var(--border, #2a2f3a)',
+        }}
+      >
         <button
           type="button"
           className={`tab-btn ${tab === 'databases' ? 'active' : ''}`}
           onClick={() => setTab('databases')}
           style={tabBtnStyle(tab === 'databases')}
+          data-testid="mysql-subtab-databases"
         >
           {t('mysql.tabDatabases', { defaultValue: 'Databases & Users' })}
         </button>
@@ -400,65 +374,50 @@ export default function MysqlManager() {
           className={`tab-btn ${tab === 'hosts' ? 'active' : ''}`}
           onClick={() => setTab('hosts')}
           style={tabBtnStyle(tab === 'hosts')}
+          data-testid="mysql-subtab-hosts"
         >
           {t('mysql.tabHosts', { defaultValue: 'Remote MySQL' })}
         </button>
       </div>
 
       {quotaErr && (
-        <div className="alert alert-quota" data-testid="mysql-quota-banner" style={quotaBannerStyle}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-            <div style={{ fontSize: 24, lineHeight: 1 }} aria-hidden>⬆️</div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 700, marginBottom: 4 }}>
-                {t('mysql.quotaTitle', { defaultValue: 'Your plan limit was reached' })}
-              </div>
-              <div style={{ fontSize: 13, opacity: 0.9, marginBottom: 10 }}>
-                {t('mysql.quotaBody', { defaultValue: 'Your hosting plan caps how many MySQL databases and users you can create. Upgrade in the bot to unlock more — instant activation.' })}
-              </div>
-              <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 10, fontFamily: 'ui-monospace, monospace' }}>
-                cPanel: {quotaErr}
-              </div>
-              <a
-                href={BOT_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                data-testid="mysql-quota-upgrade-cta"
-                style={quotaCtaStyle}
-              >
-                {t('mysql.quotaCta', { defaultValue: 'Upgrade plan in the bot' })} →
-              </a>
-            </div>
-            <button
-              type="button"
-              onClick={() => setQuotaErr('')}
-              aria-label={t('common.close', { defaultValue: 'Close' })}
-              style={{ background: 'transparent', border: 'none', color: 'inherit', fontSize: 20, cursor: 'pointer', lineHeight: 1, opacity: 0.6 }}
-            >×</button>
-          </div>
+        <QuotaBanner
+          message={quotaErr}
+          onDismiss={() => setQuotaErr('')}
+          t={t}
+        />
+      )}
+      {error && (
+        <div className="alert alert-error" data-testid="mysql-error" style={alertStyle('#3a1f24', '#ff6b7a')}>
+          {error}
         </div>
       )}
-      {error && <div className="alert alert-error" style={alertStyle('#3a1f24', '#ff6b7a')}>{error}</div>}
-      {info && <div className="alert alert-info" style={alertStyle('#1f3a2a', '#5fd897')}>{info}</div>}
+      {info && (
+        <div className="alert alert-info" data-testid="mysql-info" style={alertStyle('#1f3a2a', '#5fd897')}>
+          {info}
+        </div>
+      )}
 
-      {loading ? (
-        <div className="loading" style={{ padding: 24, opacity: 0.7 }}>{t('common.loading', { defaultValue: 'Loading…' })}</div>
-      ) : tab === 'databases' ? (
+      {tab === 'databases' ? (
         <DatabasesTab
+          loading={loadingDbs}
           databases={databases}
           dbUsers={dbUsers}
           dbUserMap={dbUserMap}
           userDbMap={userDbMap}
           onDeleteDb={handleDeleteDb}
           onDeleteUser={handleDeleteUser}
-          onAssign={(u) => { setAssignFor({ user: u }); setAssignDb(databases[0]?.database || databases[0]?.name || ''); }}
+          onAssign={(u) => {
+            setAssignFor({ user: u });
+            setAssignDb(databases[0]?.database || databases[0]?.name || '');
+          }}
           onResetPwd={(u) => { setPwdFor({ user: u }); setResetPass(generatePassword()); }}
           onRevoke={handleRevoke}
-          cpUser={cpUser}
           t={t}
         />
       ) : (
         <HostsTab
+          loading={loadingHosts}
           hosts={remoteHosts}
           newHost={newHost}
           setNewHost={setNewHost}
@@ -469,416 +428,54 @@ export default function MysqlManager() {
         />
       )}
 
-      {/* ─── Create DB modal ─── */}
+      {/* Modals */}
       {showCreateDb && (
-        <Modal onClose={() => setShowCreateDb(false)} title={t('mysql.newDb', { defaultValue: 'New database' })}>
-          <label style={labelStyle}>{t('mysql.dbNameLabel', { defaultValue: 'Database name' })}</label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
-            <span style={prefixBoxStyle}>{cpUser}_</span>
-            <input
-              type="text"
-              value={dbName}
-              onChange={(e) => setDbName(e.target.value.replace(/[^a-zA-Z0-9_]/g, ''))}
-              placeholder={t('mysql.dbNamePlaceholder', { defaultValue: 'myblog' })}
-              style={{ ...inputStyle, borderTopLeftRadius: 0, borderBottomLeftRadius: 0, flex: 1 }}
-              autoFocus
-            />
-          </div>
-          <p style={hintStyle}>{t('mysql.dbNameHint', { defaultValue: 'Letters, numbers and underscores only. cPanel adds the prefix automatically.' })}</p>
-          <div style={modalActionsStyle}>
-            <button type="button" className="btn-secondary" onClick={() => setShowCreateDb(false)}>{t('common.cancel', { defaultValue: 'Cancel' })}</button>
-            <button type="button" className="btn-primary" disabled={busy || !dbName.trim()} onClick={handleCreateDb}>
-              {busy ? t('common.creating', { defaultValue: 'Creating…' }) : t('common.create', { defaultValue: 'Create' })}
-            </button>
-          </div>
-        </Modal>
-      )}
-
-      {/* ─── Create User modal ─── */}
-      {showCreateUser && (
-        <Modal onClose={() => setShowCreateUser(false)} title={t('mysql.newUser', { defaultValue: 'New user' })}>
-          <label style={labelStyle}>{t('mysql.userNameLabel', { defaultValue: 'Username' })}</label>
-          <div style={{ display: 'flex', alignItems: 'center' }}>
-            <span style={prefixBoxStyle}>{cpUser}_</span>
-            <input
-              type="text"
-              value={userName}
-              onChange={(e) => setUserName(e.target.value.replace(/[^a-zA-Z0-9_]/g, ''))}
-              placeholder={t('mysql.userNamePlaceholder', { defaultValue: 'app' })}
-              style={{ ...inputStyle, borderTopLeftRadius: 0, borderBottomLeftRadius: 0, flex: 1 }}
-              autoFocus
-            />
-          </div>
-          <label style={{ ...labelStyle, marginTop: 12 }}>{t('mysql.passwordLabel', { defaultValue: 'Password' })}</label>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <input
-              type="text"
-              value={userPass}
-              onChange={(e) => setUserPass(e.target.value)}
-              style={{ ...inputStyle, flex: 1 }}
-            />
-            <button type="button" className="btn-secondary" onClick={() => setUserPass(generatePassword())}>
-              {t('mysql.gen', { defaultValue: 'Generate' })}
-            </button>
-          </div>
-          <div style={modalActionsStyle}>
-            <button type="button" className="btn-secondary" onClick={() => setShowCreateUser(false)}>{t('common.cancel', { defaultValue: 'Cancel' })}</button>
-            <button type="button" className="btn-primary" disabled={busy || !userName.trim() || !userPass} onClick={handleCreateUser}>
-              {busy ? t('common.creating', { defaultValue: 'Creating…' }) : t('common.create', { defaultValue: 'Create' })}
-            </button>
-          </div>
-        </Modal>
-      )}
-
-      {/* ─── Reset password modal ─── */}
-      {pwdFor && (
-        <Modal onClose={() => setPwdFor(null)} title={t('mysql.changePwdFor', { user: pwdFor.user, defaultValue: `Change password for ${pwdFor.user}` })}>
-          <label style={labelStyle}>{t('mysql.newPassword', { defaultValue: 'New password' })}</label>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <input type="text" value={resetPass} onChange={(e) => setResetPass(e.target.value)} style={{ ...inputStyle, flex: 1 }} autoFocus />
-            <button type="button" className="btn-secondary" onClick={() => setResetPass(generatePassword())}>
-              {t('mysql.gen', { defaultValue: 'Generate' })}
-            </button>
-          </div>
-          <div style={modalActionsStyle}>
-            <button type="button" className="btn-secondary" onClick={() => setPwdFor(null)}>{t('common.cancel', { defaultValue: 'Cancel' })}</button>
-            <button type="button" className="btn-primary" disabled={busy || !resetPass} onClick={handleResetPassword}>
-              {busy ? t('common.saving', { defaultValue: 'Saving…' }) : t('common.save', { defaultValue: 'Save' })}
-            </button>
-          </div>
-        </Modal>
-      )}
-
-      {/* ─── Assign privileges modal ─── */}
-      {assignFor && (
-        <Modal onClose={() => setAssignFor(null)} title={t('mysql.assignTitle', { user: assignFor.user, defaultValue: `Grant access for ${assignFor.user}` })} wide>
-          <label style={labelStyle}>{t('mysql.pickDb', { defaultValue: 'Database' })}</label>
-          <select value={assignDb} onChange={(e) => setAssignDb(e.target.value)} style={inputStyle}>
-            <option value="">{t('mysql.pickDbPh', { defaultValue: '— select a database —' })}</option>
-            {databases.map((db, i) => {
-              const n = db.database || db.name;
-              return <option key={n + i} value={n}>{n}</option>;
-            })}
-          </select>
-
-          <label style={{ ...labelStyle, marginTop: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <input type="checkbox" checked={assignAllPriv} onChange={(e) => setAssignAllPriv(e.target.checked)} />
-            <span>{t('mysql.allPrivs', { defaultValue: 'All privileges' })}</span>
-          </label>
-
-          {!assignAllPriv && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, marginTop: 6, maxHeight: 240, overflow: 'auto', padding: 8, background: 'var(--bg-input, #11151c)', borderRadius: 6 }}>
-              {ALL_PRIVS.map(p => (
-                <label key={p} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
-                  <input
-                    type="checkbox"
-                    checked={assignPrivs.has(p)}
-                    onChange={(e) => {
-                      setAssignPrivs(prev => {
-                        const n = new Set(prev);
-                        if (e.target.checked) n.add(p); else n.delete(p);
-                        return n;
-                      });
-                    }}
-                  />
-                  <span>{p}</span>
-                </label>
-              ))}
-            </div>
-          )}
-
-          <div style={modalActionsStyle}>
-            <button type="button" className="btn-secondary" onClick={() => setAssignFor(null)}>{t('common.cancel', { defaultValue: 'Cancel' })}</button>
-            <button type="button" className="btn-primary" disabled={busy || !assignDb} onClick={handleAssign}>
-              {busy ? t('common.saving', { defaultValue: 'Saving…' }) : t('mysql.grant', { defaultValue: 'Grant access' })}
-            </button>
-          </div>
-        </Modal>
-      )}
-    </div>
-  );
-}
-
-// ─── Sub-components ──────────────────────────────────────────
-
-function DatabasesTab({ databases, dbUsers, dbUserMap, userDbMap, onDeleteDb, onDeleteUser, onAssign, onResetPwd, onRevoke, t }) {
-  if (!databases.length && !dbUsers.length) {
-    return (
-      <div style={emptyStyle}>
-        <h3 style={{ marginBottom: 8 }}>{t('mysql.emptyTitle', { defaultValue: 'No databases yet' })}</h3>
-        <p style={{ opacity: 0.7 }}>{t('mysql.emptyBody', { defaultValue: 'Create your first database to power a WordPress site, web app or custom project.' })}</p>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      {/* Databases table */}
-      <section>
-        <h3 style={sectionTitleStyle}>{t('mysql.dbsHeader', { defaultValue: 'Databases' })} <span style={countStyle}>{databases.length}</span></h3>
-        <div style={tableWrap}>
-          <table style={tableStyle}>
-            <thead>
-              <tr>
-                <th style={thStyle}>{t('mysql.colName', { defaultValue: 'Name' })}</th>
-                <th style={thStyle}>{t('mysql.colSize', { defaultValue: 'Size' })}</th>
-                <th style={thStyle}>{t('mysql.colUsers', { defaultValue: 'Users' })}</th>
-                <th style={{ ...thStyle, textAlign: 'right' }}>{t('common.actions', { defaultValue: 'Actions' })}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {databases.map((db, i) => {
-                const name = db.database || db.name;
-                const size = formatBytes(db.disk_usage || db.size_bytes || db.size);
-                const users = dbUserMap[name] || [];
-                return (
-                  <tr key={name + i}>
-                    <td style={tdStyle}><code style={codeStyle}>{name}</code></td>
-                    <td style={tdStyle}>{size}</td>
-                    <td style={tdStyle}>
-                      {users.length === 0 ? <span style={{ opacity: 0.5 }}>—</span> : (
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                          {users.map((u, idx) => {
-                            const uname = typeof u === 'string' ? u : (u.user || u.name);
-                            return (
-                              <span key={uname + idx} style={chipStyle} title={t('mysql.clickToRevoke', { defaultValue: 'Click to revoke' })} onClick={() => onRevoke(uname, name)}>
-                                {uname} <span style={{ marginLeft: 4, opacity: 0.6 }}>×</span>
-                              </span>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </td>
-                    <td style={{ ...tdStyle, textAlign: 'right' }}>
-                      <button type="button" className="btn-icon" onClick={() => onDeleteDb(name)} title={t('common.delete', { defaultValue: 'Delete' })} style={iconBtnStyle}>
-                        {SvgTrash}
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      {/* Users table */}
-      <section>
-        <h3 style={sectionTitleStyle}>{t('mysql.usersHeader', { defaultValue: 'Database users' })} <span style={countStyle}>{dbUsers.length}</span></h3>
-        {dbUsers.length === 0 ? (
-          <div style={{ ...emptyStyle, padding: 16 }}>{t('mysql.noUsers', { defaultValue: 'No database users yet. Create one to connect your app.' })}</div>
-        ) : (
-          <div style={tableWrap}>
-            <table style={tableStyle}>
-              <thead>
-                <tr>
-                  <th style={thStyle}>{t('mysql.colUser', { defaultValue: 'User' })}</th>
-                  <th style={thStyle}>{t('mysql.colAccess', { defaultValue: 'Has access to' })}</th>
-                  <th style={{ ...thStyle, textAlign: 'right' }}>{t('common.actions', { defaultValue: 'Actions' })}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dbUsers.map((u, i) => {
-                  const uname = typeof u === 'string' ? u : (u.user || u.name || u.User);
-                  if (!uname) return null;
-                  const dbs = userDbMap[uname] || [];
-                  return (
-                    <tr key={uname + i}>
-                      <td style={tdStyle}><code style={codeStyle}>{uname}</code></td>
-                      <td style={tdStyle}>
-                        {dbs.length === 0 ? <span style={{ opacity: 0.5 }}>{t('mysql.noAccess', { defaultValue: 'no databases' })}</span> : (
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                            {dbs.map(d => <span key={d} style={chipStyleStatic}>{d}</span>)}
-                          </div>
-                        )}
-                      </td>
-                      <td style={{ ...tdStyle, textAlign: 'right' }}>
-                        <button type="button" className="btn-icon" onClick={() => onAssign(uname)} title={t('mysql.grant', { defaultValue: 'Grant access' })} style={iconBtnStyle}>
-                          {SvgLink}
-                        </button>
-                        <button type="button" className="btn-icon" onClick={() => onResetPwd(uname)} title={t('mysql.changePwd', { defaultValue: 'Change password' })} style={iconBtnStyle}>
-                          {SvgKey}
-                        </button>
-                        <button type="button" className="btn-icon" onClick={() => onDeleteUser(uname)} title={t('common.delete', { defaultValue: 'Delete' })} style={iconBtnStyle}>
-                          {SvgTrash}
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      {/* Connection info hint */}
-      <section style={{ padding: 12, background: 'var(--bg-card, #1a1f2a)', border: '1px solid var(--border, #2a2f3a)', borderRadius: 8, fontSize: 13 }}>
-        <strong>{t('mysql.connTitle', { defaultValue: 'Connection details' })}</strong>
-        <ul style={{ margin: '8px 0 0 16px', padding: 0, opacity: 0.8 }}>
-          <li>{t('mysql.connHost', { defaultValue: 'Host:' })} <code style={codeStyle}>localhost</code> {t('mysql.connHostHint', { defaultValue: '(use from inside your hosting)' })}</li>
-          <li>{t('mysql.connPort', { defaultValue: 'Port:' })} <code style={codeStyle}>3306</code></li>
-          <li>{t('mysql.connTip', { defaultValue: 'For external apps, allow your IP in the Remote MySQL tab first.' })}</li>
-        </ul>
-      </section>
-    </div>
-  );
-}
-
-function HostsTab({ hosts, newHost, setNewHost, onAdd, onDelete, busy, t }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <section style={{ padding: 12, background: 'var(--bg-card, #1a1f2a)', border: '1px solid var(--border, #2a2f3a)', borderRadius: 8, fontSize: 13 }}>
-        <strong>{t('mysql.remoteIntro', { defaultValue: 'Remote MySQL access' })}</strong>
-        <p style={{ margin: '6px 0 0 0', opacity: 0.85 }}>
-          {t('mysql.remoteHint', { defaultValue: 'Allow specific IPs or hostnames to connect to your MySQL databases from outside the server. Use % for wildcards (e.g. 203.0.113.% or %.example.com).' })}
-        </p>
-      </section>
-
-      <div style={{ display: 'flex', gap: 8 }}>
-        <input
-          type="text"
-          value={newHost}
-          onChange={(e) => setNewHost(e.target.value)}
-          placeholder={t('mysql.remotePlaceholder', { defaultValue: '203.0.113.45  or  %.example.com' })}
-          style={{ ...inputStyle, flex: 1 }}
-          onKeyDown={(e) => { if (e.key === 'Enter') onAdd(); }}
+        <CreateDbModal
+          t={t}
+          cpUser={cpUser}
+          dbName={dbName}
+          setDbName={setDbName}
+          busy={busy}
+          onClose={() => setShowCreateDb(false)}
+          onSubmit={handleCreateDb}
         />
-        <button type="button" className="btn-primary" disabled={busy || !newHost.trim()} onClick={onAdd}>
-          {SvgPlus}<span style={{ marginLeft: 6 }}>{t('mysql.addHost', { defaultValue: 'Allow host' })}</span>
-        </button>
-      </div>
-
-      {hosts.length === 0 ? (
-        <div style={emptyStyle}>{t('mysql.noHosts', { defaultValue: 'No remote hosts allowed yet.' })}</div>
-      ) : (
-        <div style={tableWrap}>
-          <table style={tableStyle}>
-            <thead>
-              <tr>
-                <th style={thStyle}>{t('mysql.colHost', { defaultValue: 'Host' })}</th>
-                <th style={{ ...thStyle, textAlign: 'right' }}>{t('common.actions', { defaultValue: 'Actions' })}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {hosts.map((h, i) => {
-                const host = typeof h === 'string' ? h : (h.host || h.name);
-                return (
-                  <tr key={host + i}>
-                    <td style={tdStyle}><code style={codeStyle}>{host}</code></td>
-                    <td style={{ ...tdStyle, textAlign: 'right' }}>
-                      <button type="button" className="btn-icon" onClick={() => onDelete(host)} title={t('common.delete', { defaultValue: 'Delete' })} style={iconBtnStyle}>
-                        {SvgTrash}
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
       )}
+      {showCreateUser && (
+        <CreateUserModal
+          t={t}
+          cpUser={cpUser}
+          userName={userName}
+          setUserName={setUserName}
+          userPass={userPass}
+          setUserPass={setUserPass}
+          busy={busy}
+          onClose={() => setShowCreateUser(false)}
+          onSubmit={handleCreateUser}
+        />
+      )}
+      <ChangePasswordModal
+        t={t}
+        pwdFor={pwdFor}
+        resetPass={resetPass}
+        setResetPass={setResetPass}
+        busy={busy}
+        onClose={() => setPwdFor(null)}
+        onSubmit={handleResetPassword}
+      />
+      <AssignPrivilegesModal
+        t={t}
+        assignFor={assignFor}
+        databases={databases}
+        assignDb={assignDb}
+        setAssignDb={setAssignDb}
+        assignAllPriv={assignAllPriv}
+        setAssignAllPriv={setAssignAllPriv}
+        assignPrivs={assignPrivs}
+        setAssignPrivs={setAssignPrivs}
+        busy={busy}
+        onClose={() => setAssignFor(null)}
+        onSubmit={handleAssign}
+      />
     </div>
   );
 }
-
-function Modal({ onClose, title, children, wide }) {
-  return (
-    <div style={modalOverlay} onClick={onClose}>
-      <div style={{ ...modalBox, maxWidth: wide ? 600 : 460 }} onClick={(e) => e.stopPropagation()}>
-        <div style={modalHeader}>
-          <h3 style={{ margin: 0, fontSize: 16 }}>{title}</h3>
-          <button type="button" onClick={onClose} style={modalCloseBtn} aria-label="Close">×</button>
-        </div>
-        <div style={{ padding: 16 }}>{children}</div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Helpers ─────────────────────────────────────────────────
-function formatBytes(b) {
-  const n = Number(b);
-  if (!n || Number.isNaN(n)) return '—';
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
-  return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`;
-}
-
-// ─── Inline styles (matches existing panel look) ────────────
-const tabBtnStyle = (active) => ({
-  background: 'transparent',
-  color: active ? 'var(--accent, #6cb6ff)' : 'var(--text, #c7cdd6)',
-  border: 'none',
-  borderBottom: active ? '2px solid var(--accent, #6cb6ff)' : '2px solid transparent',
-  padding: '10px 14px',
-  cursor: 'pointer',
-  fontWeight: active ? 600 : 500,
-  fontSize: 14,
-});
-const inputStyle = {
-  background: 'var(--bg-input, #11151c)',
-  color: 'var(--text, #fff)',
-  border: '1px solid var(--border, #2a2f3a)',
-  borderRadius: 6,
-  padding: '8px 10px',
-  fontSize: 14,
-  outline: 'none',
-  width: '100%',
-};
-const labelStyle = { display: 'block', fontSize: 12, opacity: 0.75, marginBottom: 4 };
-const hintStyle = { fontSize: 11, opacity: 0.6, marginTop: 6 };
-const prefixBoxStyle = {
-  background: 'var(--bg-card, #1a1f2a)',
-  border: '1px solid var(--border, #2a2f3a)',
-  borderRight: 'none',
-  padding: '8px 10px',
-  borderTopLeftRadius: 6,
-  borderBottomLeftRadius: 6,
-  fontSize: 14,
-  opacity: 0.7,
-  fontFamily: 'ui-monospace, monospace',
-  whiteSpace: 'nowrap',
-};
-const modalOverlay = {
-  position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
-  display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
-};
-const modalBox = {
-  background: 'var(--bg, #0e1117)', borderRadius: 10, border: '1px solid var(--border, #2a2f3a)',
-  width: '100%', maxHeight: '90vh', overflow: 'auto',
-};
-const modalHeader = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid var(--border, #2a2f3a)' };
-const modalCloseBtn = { background: 'transparent', color: 'inherit', border: 'none', fontSize: 22, cursor: 'pointer', lineHeight: 1 };
-const modalActionsStyle = { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 };
-const alertStyle = (bg, fg) => ({ background: bg, color: fg, padding: '10px 12px', borderRadius: 6, marginBottom: 12, fontSize: 13 });
-const tableStyle = { width: '100%', borderCollapse: 'collapse', fontSize: 13 };
-const tableWrap = { background: 'var(--bg-card, #1a1f2a)', border: '1px solid var(--border, #2a2f3a)', borderRadius: 8, overflow: 'auto' };
-const thStyle = { textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid var(--border, #2a2f3a)', fontWeight: 600, opacity: 0.75, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.4 };
-const tdStyle = { padding: '10px 12px', borderBottom: '1px solid rgba(255,255,255,0.04)', verticalAlign: 'middle' };
-const codeStyle = { background: 'var(--bg, #0e1117)', padding: '2px 6px', borderRadius: 4, fontFamily: 'ui-monospace, monospace', fontSize: 12 };
-const chipStyle = { background: 'var(--bg, #0e1117)', border: '1px solid var(--border, #2a2f3a)', padding: '3px 8px', borderRadius: 12, fontSize: 11, cursor: 'pointer', fontFamily: 'ui-monospace, monospace' };
-const chipStyleStatic = { ...chipStyle, cursor: 'default' };
-const iconBtnStyle = { background: 'transparent', border: 'none', cursor: 'pointer', color: 'inherit', padding: 6, marginLeft: 4, opacity: 0.7 };
-const sectionTitleStyle = { fontSize: 14, fontWeight: 600, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 };
-const countStyle = { background: 'var(--bg-card, #1a1f2a)', padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 500, opacity: 0.75 };
-const emptyStyle = { padding: 24, textAlign: 'center', background: 'var(--bg-card, #1a1f2a)', border: '1px dashed var(--border, #2a2f3a)', borderRadius: 8, color: 'var(--text, #c7cdd6)' };
-const quotaBannerStyle = {
-  background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(168, 85, 247, 0.12))',
-  border: '1px solid rgba(168, 85, 247, 0.35)',
-  borderRadius: 10,
-  padding: '14px 16px',
-  marginBottom: 14,
-  color: 'var(--text, #e4e7ec)',
-};
-const quotaCtaStyle = {
-  display: 'inline-block',
-  background: 'linear-gradient(135deg, #6366f1, #a855f7)',
-  color: '#fff',
-  padding: '8px 16px',
-  borderRadius: 6,
-  textDecoration: 'none',
-  fontWeight: 600,
-  fontSize: 13,
-};
