@@ -30,17 +30,18 @@ const WHM_API_URL = (process.env.WHM_API_URL || '').replace(/\/+$/, '')
 const REACHABLE_TTL_UP_MS = 15 * 1000
 const REACHABLE_TTL_DOWN_MS = 5 * 1000
 const LICENSE_TTL_MS = 5 * 60 * 1000
-// HTTPS probe timeout — 6s comfortably covers the p99 round-trip through CF
+// HTTPS probe timeout — 10s comfortably covers the p99 round-trip through CF
 // Tunnel (normal 300-500ms, occasional TLS-session-ticket-expired spikes up
-// to 2-4s). Prev value was 2s which triggered false-positive DOWN alerts on
-// every minor edge reroute (@2026-05-03 15:26 UTC incident).
-const PROBE_TIMEOUT_MS = 6000
-// Require 2 consecutive failed probes before declaring DOWN. One missed
-// probe is noise (TLS handshake jitter, CF PoP reroute, DNS cache miss).
-// At the 20s probe interval this delays true outage detection by ~20s —
-// acceptable in exchange for eliminating false-positive admin alerts
-// and false-positive queue pauses.
-const DOWN_THRESHOLD_MISSES = 2
+// to 2-4s, and intermittent CF edge reroutes that can stretch to 6-8s).
+// Prev value was 6s which still produced false-positive DOWN alerts during
+// brief CF tunnel hiccups (see Railway log analysis 2026-02 incident).
+const PROBE_TIMEOUT_MS = 10000
+// Require 3 consecutive failed probes before declaring DOWN. Earlier value
+// of 2 still produced false positives during transient CF edge reroutes.
+// At the 20s probe interval this delays true outage detection by ~40s,
+// which is acceptable in exchange for eliminating the false-positive
+// admin alerts + queue pauses that paged us during routine CF jitter.
+const DOWN_THRESHOLD_MISSES = 3
 
 let _cache = {
   reachable: null,        // true | false | null (never probed)

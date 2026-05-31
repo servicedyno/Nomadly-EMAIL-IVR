@@ -4,8 +4,8 @@
   "description": "Telegram link shortener bot that sells domain names and phone number leads",
   "main": "js/_index.js",
   "scripts": {
-    "start": "node js/start-bot.js",
-    "start:dev": "nodemon js/start-bot.js",
+    "start": "node --max-old-space-size=2048 js/start-bot.js",
+    "start:dev": "nodemon --node-arg=--max-old-space-size=2048 js/start-bot.js",
     "lint:await": "node scripts/lint_async_in_if.js",
     "lint:lang": "node scripts/check_lang_parity.js && node scripts/check_panel_lang_parity.js",
     "lint:ci": "node scripts/lint_async_in_if.js && node scripts/check_lang_parity.js",

@@ -36191,21 +36191,31 @@ process.on('SIGINT', () => handleShutdown('SIGINT'))
 // to Mongo for postmortem, and snapshot memory every minute so the next
 // silent kill leaves a visible trail in Railway logs.
 
+const _v8 = require('v8')
+// V8 grows `heapTotal` lazily up to `heap_size_limit` (set by
+// --max-old-space-size). Comparing heapUsed against the current allocation
+// produces false-positive "HIGH" warnings even when there are gigabytes
+// of headroom. Compare against the real ceiling instead.
+const _HEAP_LIMIT = _v8.getHeapStatistics().heap_size_limit
+
 function _formatMem() {
   const m = process.memoryUsage()
   const mb = (n) => (n / 1024 / 1024).toFixed(1) + 'MB'
-  return `rss=${mb(m.rss)} heap=${mb(m.heapUsed)}/${mb(m.heapTotal)} external=${mb(m.external)} arrayBuffers=${mb(m.arrayBuffers || 0)}`
+  return `rss=${mb(m.rss)} heap=${mb(m.heapUsed)}/${mb(m.heapTotal)} limit=${mb(_HEAP_LIMIT)} external=${mb(m.external)} arrayBuffers=${mb(m.arrayBuffers || 0)}`
 }
 
 let _lastMemLog = 0
 setInterval(() => {
   const now = Date.now()
-  // Log every 60s normally; if heap > 80% of total, log immediately
+  // Log every 60s normally; if heap > 80% of the real V8 ceiling (set by
+  // --max-old-space-size), log immediately. Previously this used
+  // heapUsed/heapTotal which always reads ~95% because V8 grows heapTotal
+  // lazily — producing 6/min false-positive "HIGH" warnings.
   const m = process.memoryUsage()
-  const heapPct = m.heapTotal > 0 ? (m.heapUsed / m.heapTotal) : 0
+  const heapPct = _HEAP_LIMIT > 0 ? (m.heapUsed / _HEAP_LIMIT) : 0
   const due = (now - _lastMemLog) >= 60_000
   if (due || heapPct >= 0.8) {
-    log(`[Memory] ${_formatMem()} heapPct=${(heapPct * 100).toFixed(0)}%${heapPct >= 0.8 ? ' ⚠️ HIGH' : ''}`)
+    log(`[Memory] ${_formatMem()} heapPct=${(heapPct * 100).toFixed(1)}%${heapPct >= 0.8 ? ' ⚠️ HIGH' : ''}`)
     _lastMemLog = now
   }
 }, 10_000)

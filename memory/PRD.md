@@ -1,5 +1,11 @@
 # Nomadly — Multi-Service Platform PRD
 
+> 📋 **Recent changes are tracked in [`CHANGELOG.md`](./CHANGELOG.md)** (added 2026-02 for size).
+> Latest entry: **2026-02 — Railway log-analysis follow-up fixes (Issues 1–6)** — DnsHealer
+> infinite loop, ProtectionHeartbeat persisted counter, V8 heap cap raised to 2GB + memory
+> metric fix, AI Support → hosting panel for MySQL, cPanel Health timeout/threshold tuning,
+> MySQL manager smoke-test (74/74 tests passing).
+
 ## Session 2026-02-XX — MySQL UI for Hosting Panel (cPanel-style, Phase 1 + 2)
 **Status: ✅ COMPLETE — verified across 3 testing iterations (39/39 backend, 100% frontend, zero console warnings).**
 

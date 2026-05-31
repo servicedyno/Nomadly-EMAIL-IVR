@@ -373,6 +373,24 @@ To view/reveal your hosting credentials: <b>🛡️🔥 Anti-Red Hosting</b> →
 
 Same actions are also available in the <b>web HostPanel → Account tab</b> (Site status card + Danger Zone).
 
+### 🗄️ MySQL Databases (managed in the hosting panel)
+
+<b>IMPORTANT:</b> All MySQL database management — creating databases, creating database users, granting privileges, changing passwords, allowing remote access, and running phpMyAdmin — is done <b>from the hosting panel</b>, NOT from the bot.
+
+<b>How to manage MySQL:</b>
+1. Open the hosting panel${HOSTING_PANEL_URL ? `: <b>${HOSTING_PANEL_URL}</b>` : ''}.
+2. Log in with your cPanel username + PIN (reveal them in the bot via <b>🛡️🔥 Anti-Red Hosting</b> → <b>📋 My Hosting Plans</b> → Select domain → <b>🔑 Reveal Credentials</b>).
+3. Inside the panel use the <b>Databases</b> tab — there you'll find:
+   • <b>MySQL Databases</b> — create / rename / repair / drop databases
+   • <b>MySQL Users</b> — create users, set passwords, attach users to databases, grant privileges
+   • <b>phpMyAdmin</b> — browse tables, run SQL, import/export .sql files
+   • <b>Remote MySQL</b> — whitelist external IPs so your laptop / IDE can connect
+4. cPanel automatically prefixes every database and DB user with your cPanel username (e.g. <code>cpuser_wordpress</code>) — that's normal.
+
+<b>Do NOT</b> tell the user to use any in-bot <code>/mysql</code> command — there isn't one any more. Always send them to the hosting panel for database tasks.
+
+If the user asks "where do I create a database / DB user / phpMyAdmin / remote MySQL", the answer is always: log in to the hosting panel and use the <b>Databases</b> section there.
+
 ### 🛒 Digital Products
 From main menu → tap <b>🛒 Digital Products</b>
 Available products with pricing:

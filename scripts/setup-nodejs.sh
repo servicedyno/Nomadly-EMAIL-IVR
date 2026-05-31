@@ -71,7 +71,7 @@ NODEJS_CONF="/etc/supervisor/conf.d/supervisord_nodejs.conf"
 if [ ! -f "$NODEJS_CONF" ]; then
   cat > "$NODEJS_CONF" << 'SUPERVISOR_EOF'
 [program:nodejs]
-command=node js/start-bot.js
+command=node --max-old-space-size=2048 js/start-bot.js
 directory=/app
 autostart=true
 autorestart=true

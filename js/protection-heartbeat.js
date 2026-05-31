@@ -90,12 +90,49 @@ function isChallengePhpIntact(content) {
 // ─── Core heartbeat ──────────────────────────────────────
 
 // Track consecutive repairs per account to detect broken accounts
+// BUG FIX (2026-02): Counter is also persisted to `cpanelAccounts.protectionRepairCount`
+// so it survives container restarts. Previously the in-memory map reset every
+// boot, which meant the 3x-skip guard never actually triggered in production
+// for accounts that were being repaired every hour.
 const consecutiveRepairs = {}
 const MAX_CONSECUTIVE_REPAIRS = 3  // Skip after N consecutive repairs without sticking
 
+async function getRepairCount(cpUsername) {
+  // In-memory cache wins if set (latest within this process), otherwise
+  // fall back to the persisted DB value.
+  if (cpUsername in consecutiveRepairs) return consecutiveRepairs[cpUsername]
+  if (!db) return 0
+  try {
+    const doc = await db.collection('cpanelAccounts').findOne(
+      { _id: cpUsername },
+      { projection: { protectionRepairCount: 1 } }
+    )
+    const persisted = (doc && doc.protectionRepairCount) || 0
+    consecutiveRepairs[cpUsername] = persisted
+    return persisted
+  } catch (e) {
+    return 0
+  }
+}
+
+async function setRepairCount(cpUsername, count, extra = {}) {
+  consecutiveRepairs[cpUsername] = count
+  if (!db) return
+  try {
+    await db.collection('cpanelAccounts').updateOne(
+      { _id: cpUsername },
+      { $set: { protectionRepairCount: count, protectionRepairUpdatedAt: new Date(), ...extra } }
+    )
+  } catch (e) {
+    log(`[ProtectionHeartbeat] persist repair counter failed for ${cpUsername}: ${e.message}`)
+  }
+}
+
 async function checkAndRepair(cpUsername) {
-  // Skip accounts stuck in repair loop
-  if ((consecutiveRepairs[cpUsername] || 0) >= MAX_CONSECUTIVE_REPAIRS) {
+  // Skip accounts stuck in repair loop (counter is persisted in Mongo so it
+  // survives restarts — otherwise the guard never fires in production).
+  const currentCount = await getRepairCount(cpUsername)
+  if (currentCount >= MAX_CONSECUTIVE_REPAIRS) {
     return { cpUsername, ok: false, action: 'skipped', reason: 'stuck_repair_loop' }
   }
   const [iniRes, phpRes] = await Promise.all([
@@ -135,9 +172,9 @@ async function checkAndRepair(cpUsername) {
   const phpOk = isChallengePhpIntact(challenge)
 
   if (iniOk && phpOk) {
-    // Files are intact — reset consecutive repair counter
-    if (consecutiveRepairs[cpUsername]) {
-      consecutiveRepairs[cpUsername] = 0
+    // Files are intact — reset persisted consecutive repair counter
+    if ((await getRepairCount(cpUsername)) > 0) {
+      await setRepairCount(cpUsername, 0, { protectionLastSkipReason: null })
     }
     return { cpUsername, ok: true, action: 'none' }
   }
@@ -180,8 +217,12 @@ async function checkAndRepair(cpUsername) {
       !phpOk ? '.antired-challenge.php' : null,
     ].filter(Boolean).join('+')
     log(`[ProtectionHeartbeat] REPAIRED ${cpUsername} (${reason}): OK`)
-    consecutiveRepairs[cpUsername] = (consecutiveRepairs[cpUsername] || 0) + 1
-    if (consecutiveRepairs[cpUsername] >= MAX_CONSECUTIVE_REPAIRS) {
+    const newCount = (await getRepairCount(cpUsername)) + 1
+    const extra = newCount >= MAX_CONSECUTIVE_REPAIRS
+      ? { protectionLastSkipReason: 'stuck_repair_loop', protectionStuckAt: new Date() }
+      : {}
+    await setRepairCount(cpUsername, newCount, extra)
+    if (newCount >= MAX_CONSECUTIVE_REPAIRS) {
       log(`[ProtectionHeartbeat] ⚠️ ${cpUsername} repaired ${MAX_CONSECUTIVE_REPAIRS}x consecutively — files won't stick. Skipping future repairs. Account may be suspended/terminated.`)
     }
     return { cpUsername, ok: true, action: 'repaired', reason }
@@ -237,9 +278,18 @@ async function runHeartbeat() {
     // Only scan ACTIVE accounts. Deleted accounts can never be repaired
     // (cPanel user is gone) and waste WHM API calls + flood the log with
     // "errors:14" lines after the repair-loop counter pins them.
-    const accounts = await db.collection('cpanelAccounts').find({ deleted: { $ne: true } }).toArray()
+    // Also skip accounts already maxed out on the persisted repair counter —
+    // they will return 'skipped' from checkAndRepair anyway, so save 2 WHM
+    // round-trips per account per cycle.
+    const accounts = await db.collection('cpanelAccounts').find({
+      deleted: { $ne: true },
+      $or: [
+        { protectionRepairCount: { $exists: false } },
+        { protectionRepairCount: { $lt: MAX_CONSECUTIVE_REPAIRS } },
+      ],
+    }).toArray()
     summary.total = accounts.length
-    log(`[ProtectionHeartbeat] Checking ${accounts.length} cPanel accounts (deleted excluded)...`)
+    log(`[ProtectionHeartbeat] Checking ${accounts.length} cPanel accounts (deleted + stuck excluded)...`)
 
     for (const account of accounts) {
       const cpUsername = account._id || account.cpUser
@@ -295,4 +345,8 @@ module.exports = {
   runHeartbeat,
   startScheduler,
   stopScheduler,
+  // Exposed for admin/test
+  getRepairCount,
+  setRepairCount,
+  MAX_CONSECUTIVE_REPAIRS,
 }

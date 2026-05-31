@@ -224,18 +224,27 @@ async function processDomain(db, stateRow, regCol, stateCol) {
       }
     }
 
+    // BUG FIX (2026-02): Only reset `attempts` once the domain is truly
+    // "stable" (consecutiveHealthy >= STABLE_THRESHOLD). Previously a single
+    // healthy probe wiped attempts to 0, which meant a flapping domain
+    // (healthy → unhealthy → healthy → unhealthy …) would log "attempt 1/3"
+    // forever and never escalate. Keeping the counter across single-blip
+    // recoveries lets us reach MAX_ATTEMPTS and escalate properly.
+    const updateSet = {
+      status: nextStatus,
+      consecutiveHealthy,
+      lastProbeAt: now(),
+      nextProbeAt,
+      lastError: null,
+      lastPublicNs: probe.publicNs,
+      lastPublicA: probe.publicA,
+    }
+    if (isStable) {
+      updateSet.attempts = 0  // truly recovered — safe to clear
+    }
     await stateCol.updateOne(
       { _id: domain },
-      { $set: {
-        status: nextStatus,
-        consecutiveHealthy,
-        attempts: 0,
-        lastProbeAt: now(),
-        nextProbeAt,
-        lastError: null,
-        lastPublicNs: probe.publicNs,
-        lastPublicA: probe.publicA,
-      } },
+      { $set: updateSet },
       { upsert: true }
     )
     return { domain, status: nextStatus }
@@ -268,8 +277,8 @@ async function processDomain(db, stateRow, regCol, stateCol) {
   }
 
   // Heal attempt
-  const attempts = (stateRow.attempts || 0)
-  if (attempts >= MAX_ATTEMPTS) {
+  const attempts = Math.min(stateRow.attempts || 0, MAX_ATTEMPTS)
+  if (attempts >= MAX_ATTEMPTS || stateRow.status === 'escalated') {
     // Already escalated — keep probing at backoff cap, but don't call OP again
     // unless an operator runs /dnsheal manually.
     const nextProbeAt = addMin(BACKOFF_LADDER_MIN[BACKOFF_LADDER_MIN.length - 1])
