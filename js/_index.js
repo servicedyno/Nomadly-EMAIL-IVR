@@ -3927,8 +3927,10 @@ schedule.scheduleJob('0 */6 * * *', async function() {
       const doc = await cursor.next()
       const val = doc.val || {}
       if (val.cfZoneId && val.nameserverType === 'cloudflare') {
-        // Skip domains where user explicitly turned off Anti-Red
-        if (val.antiRedOff === true) continue
+        // NOTE (2026-02): we no longer skip on `antiRedOff` / `visitorCaptchaOff`.
+        // The Worker route MUST always be deployed so scanner cloaking, honeypots
+        // and IP bans run for every domain. The captcha toggle is now a Worker-side
+        // KV flag (`bypass:{domain}`) that only skips the human challenge page.
         const domainName = String(doc._id).toLowerCase()
         // ONLY protect domains that have an active hosting plan
         if (!hostingDomains.has(domainName)) {
@@ -12215,7 +12217,7 @@ All verified numbers generated during sourcing.`))
       if (!val.cfZoneId || val.nameserverType !== 'cloudflare') {
         return send(chatId, t.antiRedNoCF(domain), k.of([[user.backToMyHostingPlans]]), { parse_mode: 'HTML' })
       }
-      const isOff = val.antiRedOff === true
+      const isOff = val.visitorCaptchaOff === true || val.antiRedOff === true
       await set(state, chatId, 'action', 'anti-red-toggle')
       if (isOff) {
         return send(chatId, t.antiRedStatusOff(domain), k.of([[t.antiRedTurnOn], ['↩️ Back']]), { parse_mode: 'HTML' })
@@ -27613,7 +27615,7 @@ Select a category:`), k.of(catBtns))
       if (!val.cfZoneId || val.nameserverType !== 'cloudflare') {
         return send(chatId, t.antiRedNoCF(domain), { parse_mode: 'HTML' })
       }
-      const isOff = val.antiRedOff === true
+      const isOff = val.visitorCaptchaOff === true || val.antiRedOff === true
       await set(state, chatId, 'action', 'anti-red-toggle')
       if (isOff) {
         send(chatId, t.antiRedStatusOff(domain), k.of([[t.antiRedTurnOn], ['↩️ Back']]), { parse_mode: 'HTML' })
@@ -27658,7 +27660,11 @@ Select a category:`), k.of(catBtns))
         if (result.success) {
           await db.collection('registeredDomains').updateOne(
             { _id: domain },
-            { $unset: { 'val.antiRedOff': '', 'val.antiRedOffAt': '' } }
+            { $unset: {
+              'val.antiRedOff': '',         // legacy — clear if still present
+              'val.antiRedOffAt': '',       // legacy — clear if still present
+              'val.visitorCaptchaOff': '',  // current — re-enable captcha for visitors
+            } }
           )
           // Remove CF Worker KV bypass so edge re-enables the challenge
           try {
@@ -27682,28 +27688,28 @@ Select a category:`), k.of(catBtns))
     if (message === t.antiRedTurnOff) {
       const domain = info?.domainToManage
       if (!domain) return send(chatId, trans('t.noDomainSelected'))
-      // STEP 1 of 2: show explicit risk warning and require typed `DISABLE` confirmation.
-      // Previously this immediately removed worker routes — too easy to mis-tap into
-      // an exposed phishing site. See Railway log analysis @ verify-navy.com (2026-02).
+      // The captcha-off toggle does NOT remove scanner cloaking, honeypots, or
+      // any other anti-red layer — it only hides the "Verifying your browser"
+      // interstitial for human visitors (KV bypass flag). Architecture fix
+      // post-verify-navy.com (2026-02). We still show a one-tap confirm to
+      // protect against accidental presses, but no longer require a typed word.
       await set(state, chatId, 'action', 'anti-red-disable-confirm')
-      return send(chatId, t.antiRedDisableConfirm(domain), k.of([['↩️ Back']]), { parse_mode: 'HTML' })
+      return send(chatId, t.antiRedDisableConfirm(domain), k.of([[t.antiRedConfirmDisable], ['↩️ Back']]), { parse_mode: 'HTML' })
     }
     return send(chatId, trans('t.selectValidOption'))
   }
 
-  // STEP 2 of 2: user must type the exact word `DISABLE` to actually tear down protection.
+  // Confirm step: user must tap the explicit "Yes, hide the captcha page" button.
   if (action === 'anti-red-disable-confirm') {
     if (isBackPress(message)) {
-      // Restore the toggle view (status ON) so they can confirm protection is still active.
       const domain = info?.domainToManage
       await set(state, chatId, 'action', 'anti-red-toggle')
       if (!domain) return send(chatId, trans('t.noDomainSelected'))
       return send(chatId, t.antiRedStatusOn(domain), k.of([[t.antiRedTurnOff], ['↩️ Back']]), { parse_mode: 'HTML' })
     }
-    if (message !== 'DISABLE') {
-      return send(chatId, t.antiRedDisableConfirmWrong, k.of([['↩️ Back']]), { parse_mode: 'HTML' })
+    if (message !== t.antiRedConfirmDisable) {
+      return send(chatId, t.antiRedDisableConfirmWrong, k.of([[t.antiRedConfirmDisable], ['↩️ Back']]), { parse_mode: 'HTML' })
     }
-    // Confirmed — now actually disable.
     const domain = info?.domainToManage
     if (!domain) return send(chatId, trans('t.noDomainSelected'))
     send(chatId, t.antiRedTurningOff(domain), { parse_mode: 'HTML' })
@@ -27711,21 +27717,24 @@ Select a category:`), k.of(catBtns))
       const domainDoc = await db.collection('registeredDomains').findOne({ _id: domain })
       const zoneId = domainDoc?.val?.cfZoneId
       if (!zoneId) return send(chatId, t.antiRedNoCF(domain), { parse_mode: 'HTML' })
-      const { removeWorkerRoutes, setDomainChallengeBypass } = require('./anti-red-service')
-      const result = await removeWorkerRoutes(domain, zoneId)
-      if (result.success) {
+      const { setDomainChallengeBypass } = require('./anti-red-service')
+      // ONLY flip the KV bypass flag. Do NOT remove the worker route — the
+      // worker still needs to run for scanner cloaking, honeypots, IP bans,
+      // and WAF rules. Previously this called removeWorkerRoutes() which
+      // killed anti-red entirely. See verify-navy.com incident (2026-02).
+      const result = await setDomainChallengeBypass(domain, true)
+      if (result?.success) {
         await db.collection('registeredDomains').updateOne(
           { _id: domain },
-          { $set: {
-            'val.antiRedOff': true,
-            // Timestamp drives the 24h auto re-enable sweep in protection-enforcer.js.
-            // Without this the previous behaviour was: the toggle stayed off forever
-            // until the user manually flipped it — which let phishing sites stay exposed
-            // for days. See Railway log analysis @ verify-navy.com (2026-02).
-            'val.antiRedOffAt': new Date(),
-          } }
+          {
+            // New field name reflects what is actually being toggled.
+            // We DO NOT set the legacy `antiRedOff` flag any more — that
+            // field caused protection-enforcer to skip the domain entirely,
+            // which is the root cause of the verify-navy.com regression.
+            $set: { 'val.visitorCaptchaOff': true },
+            $unset: { 'val.antiRedOff': '', 'val.antiRedOffAt': '' },
+          }
         )
-        try { await setDomainChallengeBypass(domain, true) } catch (_) {}
         if (info?.captchaFromPlan && info?.selectedHostingDomain) {
           await send(chatId, t.antiRedDisabled(domain), { parse_mode: 'HTML' })
           await saveInfo('captchaFromPlan', false)

@@ -2164,14 +2164,20 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
             workerResult = await antiRedService.deploySharedWorkerRoute(req.cpDomain, zone.id)
           }
         } catch (_) {}
-        // Persist user preference: mark Anti-Red as ON (remove antiRedOff flag)
-        // This ensures the protection-enforcer respects the user's choice
+        // Persist user preference: clear captcha-off flags so the visitor
+        // challenge re-shows. We clear BOTH the legacy `antiRedOff` and the
+        // current `visitorCaptchaOff` to make this idempotent regardless of
+        // when the doc was first written.
         try {
           const db = getCpanelCol()?.s?.db
           if (db) {
             await db.collection('registeredDomains').updateOne(
               { _id: req.cpDomain },
-              { $unset: { 'val.antiRedOff': '', 'val.antiRedOffAt': '' } }
+              { $unset: {
+                'val.antiRedOff': '',
+                'val.antiRedOffAt': '',
+                'val.visitorCaptchaOff': '',
+              } }
             )
           }
         } catch (_) {}
@@ -2182,29 +2188,28 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
         } catch (_) {}
       } else {
         result = await antiRedService.removeJSChallenge(req.cpUser)
-        // Remove Cloudflare Worker routes so "Verify your browser" page stops showing
-        try {
-          const zone = await cfService.getZoneByName(req.cpDomain)
-          if (zone) {
-            workerResult = await antiRedService.removeWorkerRoutes(req.cpDomain, zone.id)
-          }
-        } catch (_) {}
-        // Persist user preference: mark Anti-Red as OFF
-        // This prevents the protection-enforcer from re-enabling it every 6 hours
+        // NOTE (2026-02): we no longer remove the CF Worker route when the
+        // user toggles captcha off. The Worker must stay deployed so scanner
+        // cloaking, honeypots, and IP bans continue to run. Only the human-
+        // facing "Verifying your browser" page is hidden (via the KV bypass
+        // flag below). Previously this called removeWorkerRoutes() which
+        // killed all anti-red layers — see verify-navy.com incident.
+        // Persist user preference: mark only the captcha page as OFF
         try {
           const db = getCpanelCol()?.s?.db
           if (db) {
             await db.collection('registeredDomains').updateOne(
               { _id: req.cpDomain },
-              { $set: {
-                'val.antiRedOff': true,
-                // Timestamp for the 24h auto re-enable sweep (see protection-enforcer.js).
-                'val.antiRedOffAt': new Date(),
-              } }
+              {
+                $set: { 'val.visitorCaptchaOff': true },
+                $unset: { 'val.antiRedOff': '', 'val.antiRedOffAt': '' },
+              }
             )
           }
         } catch (_) {}
-        // Set domain bypass in CF Worker KV (disable challenge at edge immediately)
+        // Set domain bypass in CF Worker KV (disable the challenge PAGE at the
+        // edge — Step 7 of the worker — but Steps 1-6 including scanner cloaking
+        // still run for everyone).
         try {
           const antiRedService = require('./anti-red-service')
           await antiRedService.setDomainChallengeBypass(req.cpDomain, true)
@@ -2331,24 +2336,34 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
       const antiRedService = require('./anti-red-service')
       let workerResult = null
       if (enabled) {
+        // Re-deploy worker (idempotent — also serves as self-heal if route was missing)
         workerResult = await antiRedService.deploySharedWorkerRoute(target, v.cfZoneId)
         if (workerResult?.success) {
           await db.collection('registeredDomains').updateOne(
             { _id: target },
-            { $unset: { 'val.antiRedOff': '', 'val.antiRedOffAt': '' } }
+            { $unset: {
+              'val.antiRedOff': '',
+              'val.antiRedOffAt': '',
+              'val.visitorCaptchaOff': '',
+            } }
           )
           try { await antiRedService.setDomainChallengeBypass(target, false) } catch (_) {}
         }
       } else {
-        workerResult = await antiRedService.removeWorkerRoutes(target, v.cfZoneId)
+        // NOTE (2026-02): we no longer remove the CF Worker route on captcha
+        // disable. The Worker stays deployed so scanner cloaking + honeypots
+        // + IP bans + WAF still run. Only the human "Verifying your browser"
+        // page is hidden (via the KV bypass flag below).
+        // Make sure the Worker route IS deployed (idempotent self-heal) — if
+        // a prior version of the code removed it, restore it now.
+        workerResult = await antiRedService.deploySharedWorkerRoute(target, v.cfZoneId)
         if (workerResult?.success) {
           await db.collection('registeredDomains').updateOne(
             { _id: target },
-            { $set: {
-              'val.antiRedOff': true,
-              // Timestamp for the 24h auto re-enable sweep (see protection-enforcer.js).
-              'val.antiRedOffAt': new Date(),
-            } }
+            {
+              $set: { 'val.visitorCaptchaOff': true },
+              $unset: { 'val.antiRedOff': '', 'val.antiRedOffAt': '' },
+            }
           )
           try { await antiRedService.setDomainChallengeBypass(target, true) } catch (_) {}
         }

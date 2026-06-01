@@ -1777,22 +1777,20 @@ async function handleRequest(request) {
     });
   }
 
-  // ── Step 0b: Check if domain has challenge BYPASSED (user disabled Anti-Red) ──
-  // The domain-level bypass is stored in KV as 'bypass:{domain}'
-  // When present, skip the challenge page entirely but keep IP bans + honeypot active
+  // ── Step 0b: Read challenge-bypass flag (does NOT short-circuit other layers) ──
+  // The domain-level bypass is stored in KV as 'bypass:{domain}'. When set, the
+  // user has chosen to skip the "Verifying your browser" interstitial for human
+  // visitors (UX preference). It does NOT disable scanner cloaking, honeypots,
+  // IP bans, or any other anti-red layer. Those continue to run for everyone.
+  // Bug history: previously the bypass branch did an early pass-through which
+  // killed Step 4 scanner cloaking too. See verify-navy.com incident 2026-02.
+  let challengeBypassed = false;
   try {
     if (typeof BANNED_IPS !== 'undefined') {
       const bypass = await BANNED_IPS.get('bypass:' + domain);
-      if (bypass) {
-        // User opted out of the challenge page — pass through directly
-        // IP bans (Step 0) and honeypot triggers (Step 1) still remain active
-        const response = await fetch(request, { redirect: 'manual' });
-        const newHeaders = new Headers(response.headers);
-        newHeaders.set('X-AntiRed', 'bypassed');
-        return new Response(response.body, { status: response.status, headers: newHeaders });
-      }
+      if (bypass) challengeBypassed = true;
     }
-  } catch (e) { /* KV read failed, continue with challenge */ }
+  } catch (e) { /* KV read failed, default to challenge ON */ }
 
   // ── Step 1: Handle honeypot triggers ──
   if (url.pathname.startsWith('/__honeypot/')) {
@@ -1894,9 +1892,33 @@ async function handleRequest(request) {
     return new Response(response.body, { status, headers: newHeaders });
   }
 
-  // ── Step 7: No valid cookie → EVERYONE gets challenged (this is the key security fix) ──
-  // Even "clean" looking requests must prove they are human via proof-of-interaction.
-  // This blocks Google Safe Browsing stealth scanners that use real Chrome + standard UAs.
+  // ── Step 7: No valid cookie ──
+  // Default: serve challenge page (proof-of-interaction blocks GSB stealth scanners).
+  // If user opted out of the visitor captcha (bypass flag), pass through to origin —
+  // but ONLY for unknown / human-looking traffic. Known scanners were already
+  // cloaked at Step 4 (botScore >= 100), honeypots ran at Step 1, IP bans at Step 0.
+  if (challengeBypassed) {
+    const response = await fetch(request, { redirect: 'manual' });
+    const status = response.status;
+    const contentType = response.headers.get('Content-Type') || '';
+    const newHeaders = new Headers(response.headers);
+    newHeaders.set('X-AntiRed', 'bypassed-challenge');
+    if (status >= 300 && status < 400) {
+      return new Response(response.body, { status, headers: newHeaders });
+    }
+    if (contentType.includes('text/html')) {
+      try {
+        let html = await response.text();
+        html = injectHoneypots(html, domain);
+        newHeaders.delete('content-length');
+        return new Response(html, { status, headers: newHeaders });
+      } catch (e) {
+        return new Response(response.body, { status, headers: newHeaders });
+      }
+    }
+    return new Response(response.body, { status, headers: newHeaders });
+  }
+
   // Compute PoI nonce (HMAC of IP + minute window) — embedded in challenge page
   const poiMinute = Math.floor(Date.now() / 1000 / 60);
   const poiNonce = (await hmac('poi_' + ip + '_' + poiMinute)).substring(0, 16);

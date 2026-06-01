@@ -1,19 +1,28 @@
-// Validates the 3 Visitor-Captcha hardening fixes shipped 2026-02 in response
-// to the Railway log analysis of verify-navy.com (user @Night_ismine).
+// Validates the Visitor-Captcha architectural fix shipped 2026-02 (Day 3).
 //
-//   Fix #1 — Honest toast text in lang/en|fr|hi|zh.js. Old text falsely
-//            claimed "Other security layers (IP cloaking, UA blocking) remain
-//            active" after disabling.
-//   Fix #2 — Typed `DISABLE` confirm. The "Turn OFF" button must NOT
-//            immediately tear down protection.
-//   Fix #3 — 24h auto re-enable sweep in protection-enforcer.js. Domains
-//            where `val.antiRedOff=true AND val.antiRedOffAt <= now-24h`
-//            must be auto-re-enabled.
+// Background: verify-navy.com (user @Night_ismine) was flagged by Google
+// SafeBrowsing. Initial analysis incorrectly concluded that disabling the
+// captcha was a per-user choice with security trade-off. Code re-audit
+// revealed the toggle was ALSO ripping out scanner cloaking, honeypots, IP
+// bans and WAF — a real architectural bug.
+//
+//   Fix #1 — Worker code (anti-red-service.js): the `bypass:{domain}` KV
+//            flag must NOT short-circuit Step 4 (scanner cloaking) or
+//            Steps 1-6 (honeypot, robots, static, scanner score, cookie
+//            verification). It only skips the Step 7 challenge page for
+//            unknown human traffic.
+//   Fix #2 — Bot toggle (_index.js): "Turn OFF Visitor Captcha" must NOT
+//            call removeWorkerRoutes(). Only flip the KV bypass and write
+//            `val.visitorCaptchaOff=true`.
+//   Fix #3 — Enforcer (protection-enforcer.js): remove the `antiRedOff`
+//            skip path. Worker route must always be deployed for hosting
+//            domains regardless of captcha preference.
+//   Fix #4 — One-time legacy migration: heal pre-existing
+//            `val.antiRedOff=true` docs by redeploying the worker route
+//            and renaming the flag to `visitorCaptchaOff`.
+//   Fix #5 — Honest lang text in all 4 locales.
 //
 // Run with:  node tests/test_visitor_captcha_hardening.js
-//
-// We don't boot the real bot. We stub anti-red-service so deploySharedWorkerRoute
-// is a no-op that just reports success.
 
 'use strict'
 
@@ -27,82 +36,121 @@ const assert = (cond, name) => {
   else { console.log(`  ❌ ${name}`); failed++ }
 }
 
-// ── Fix #1: honest toast text in all 4 languages ─────────────────────────
-console.log('\nTest A: honest toast text in lang/{en,fr,hi,zh}.js')
+// ── Fix #1: Worker bypass logic ───────────────────────────────────────────
+console.log('\nTest A: Worker bypass does NOT short-circuit scanner cloaking')
 
-const langs = ['en', 'fr', 'hi', 'zh']
-const oldFalseClaims = [
-  /Other security layers \(IP cloaking, UA blocking\) remain active/i,
-  /Les autres couches de sécurité.*restent actives/i,
-  /अन्य सुरक्षा परतें.*सक्रिय रहेंगी/,
-  /其他安全层.*仍然有效/,
-]
+const antiRedSrc = fs.readFileSync(path.join(__dirname, '..', 'js', 'anti-red-service.js'), 'utf8')
 
-for (const lang of langs) {
-  const src = fs.readFileSync(path.join(__dirname, '..', 'js', 'lang', `${lang}.js`), 'utf8')
-  // None of the old false claims should be present any more
-  const falsePresent = oldFalseClaims.find((rx) => rx.test(src))
-  assert(!falsePresent,
-    `A.${lang}: old "other security layers remain active" claim removed`)
-  // New strings present
-  assert(src.indexOf('antiRedDisableConfirm') >= 0,
-    `A.${lang}: antiRedDisableConfirm prompt added`)
-  assert(src.indexOf('antiRedDisableConfirmWrong') >= 0,
-    `A.${lang}: antiRedDisableConfirmWrong message added`)
-  assert(src.indexOf('antiRedAutoReenabled') >= 0,
-    `A.${lang}: antiRedAutoReenabled message added`)
-  assert(/24\s*h|24 घंटे|24 小时|24 heures/i.test(src),
-    `A.${lang}: 24h grace period mentioned`)
+// The old early-return pattern must be gone
+assert(!/if \(bypass\) \{\s*\/\/[^\n]*\n\s*\/\/[^\n]*\n\s*const response = await fetch\(request, \{ redirect: 'manual' \}\);\s*const newHeaders = new Headers\(response\.headers\);\s*newHeaders\.set\('X-AntiRed', 'bypassed'\);/.test(antiRedSrc),
+  'A.1 old early-return on bypass=true is removed')
+// New flag-based pattern must be present
+assert(/let challengeBypassed = false;/.test(antiRedSrc),
+  'A.2 new `challengeBypassed` flag declared at Step 0b')
+assert(/if \(bypass\) challengeBypassed = true;/.test(antiRedSrc),
+  'A.3 KV bypass read sets flag instead of returning')
+// Scanner cloaking still appears AFTER the bypass check (i.e. it runs even when bypassed)
+{
+  const bypassIdx = antiRedSrc.indexOf('let challengeBypassed = false;')
+  const cloakIdx  = antiRedSrc.indexOf("if (botScore >= 100)")
+  assert(bypassIdx > 0 && cloakIdx > bypassIdx,
+    `A.4 scanner cloaking (botScore>=100) appears AFTER bypass check (bypassIdx=${bypassIdx}, cloakIdx=${cloakIdx})`)
 }
+// Step 7 must check the flag
+assert(/if \(challengeBypassed\) \{/.test(antiRedSrc),
+  'A.5 Step 7 checks `challengeBypassed` flag to decide pass-through vs challenge')
+assert(/'X-AntiRed', 'bypassed-challenge'/.test(antiRedSrc),
+  'A.6 bypass pass-through tags response with `bypassed-challenge` header for observability')
 
-// ── Fix #2: typed-DISABLE confirm wiring in _index.js ────────────────────
-console.log('\nTest B: _index.js requires typed `DISABLE` to disable Visitor Captcha')
+// ── Fix #2: Bot toggle wiring ─────────────────────────────────────────────
+console.log('\nTest B: _index.js toggle no longer calls removeWorkerRoutes / sets antiRedOff')
 
 const idx = fs.readFileSync(path.join(__dirname, '..', 'js', '_index.js'), 'utf8')
 
-assert(idx.indexOf("'anti-red-disable-confirm'") >= 0,
-  'B.1 new state `anti-red-disable-confirm` added')
-assert(/if \(message !== 'DISABLE'\)/.test(idx),
-  'B.2 handler checks message !== \'DISABLE\' (capitals required)')
-assert(idx.indexOf("'val.antiRedOffAt': new Date()") >= 0,
-  'B.3 disable path writes `val.antiRedOffAt` timestamp')
-// Verify the OLD immediate-disable handler is gone (no `removeWorkerRoutes`
-// call directly under `if (message === t.antiRedTurnOff)`).
+// The disable handler must not call removeWorkerRoutes any more
 {
-  const idxOff = idx.indexOf('if (message === t.antiRedTurnOff)')
-  const slice = idx.slice(idxOff, idxOff + 600)
-  assert(!/removeWorkerRoutes/.test(slice),
-    'B.4 `Turn OFF` button no longer calls removeWorkerRoutes directly (goes via confirm step)')
-  assert(/anti-red-disable-confirm/.test(slice),
-    'B.5 `Turn OFF` button now routes to `anti-red-disable-confirm` state')
+  const idxConfirm = idx.indexOf("if (action === 'anti-red-disable-confirm')")
+  assert(idxConfirm > 0, 'B.0 anti-red-disable-confirm handler present')
+  const slice = idx.slice(idxConfirm, idxConfirm + 2500)
+  // Strip comments so we only inspect actual code calls (the explanatory
+  // comment mentions "Previously this called removeWorkerRoutes()" — fine).
+  const sliceCode = slice.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
+  assert(!/removeWorkerRoutes/.test(sliceCode),
+    'B.1 disable-confirm handler does NOT call removeWorkerRoutes')
+  assert(/setDomainChallengeBypass\(domain, true\)/.test(slice),
+    'B.2 disable-confirm handler sets KV bypass = true')
+  assert(/'val\.visitorCaptchaOff': true/.test(slice),
+    'B.3 disable-confirm handler writes new `visitorCaptchaOff` field')
+  assert(/'val\.antiRedOff':\s*''/.test(slice),
+    'B.4 disable-confirm handler ALSO clears legacy `antiRedOff` field')
+}
+// Old typed-DISABLE requirement must be gone
+assert(!/if \(message !== 'DISABLE'\)/.test(idx),
+  'B.5 typed-DISABLE confirm requirement removed (replaced by button confirm)')
+// New confirm button must exist
+assert(/antiRedConfirmDisable/.test(idx),
+  'B.6 _index.js uses `antiRedConfirmDisable` button label')
+
+// Status reads must accept both legacy and new field
+{
+  const m = idx.match(/const isOff = val\.visitorCaptchaOff === true \|\| val\.antiRedOff === true/g)
+  assert((m || []).length >= 2,
+    'B.7 isOff reads BOTH `visitorCaptchaOff` (current) and `antiRedOff` (legacy)')
+}
+// AntiRed-Cron loop must NOT skip on antiRedOff
+{
+  const cronIdx = idx.indexOf('[AntiRed-Cron]')
+  const slice = idx.slice(cronIdx - 200, cronIdx + 1500)
+  assert(!/if \(val\.antiRedOff === true\) continue/.test(slice),
+    'B.8 AntiRed-Cron loop no longer skips antiRedOff=true domains')
 }
 
-// ── Fix #2 alt: cpanel-routes.js also writes the timestamp ──────────────
+// ── Fix #3: cpanel-routes.js (HostPanel UI) ───────────────────────────────
+console.log('\nTest C: cpanel-routes.js HostPanel disable path stops removing worker routes')
+
 const routes = fs.readFileSync(path.join(__dirname, '..', 'js', 'cpanel-routes.js'), 'utf8')
-assert(routes.indexOf("'val.antiRedOffAt': new Date()") >= 0,
-  'B.6 cpanel-routes.js disable path also writes `val.antiRedOffAt`')
-assert(routes.indexOf("'val.antiRedOffAt': ''") >= 0,
-  'B.7 cpanel-routes.js enable path clears both `antiRedOff` AND `antiRedOffAt`')
 
-// ── Fix #3: 24h auto re-enable sweep ─────────────────────────────────────
-console.log('\nTest C: protection-enforcer.js exposes runAntiRedAutoReenable')
+// Find the captcha-toggle endpoint and check disable branch
+{
+  // disable branch should set visitorCaptchaOff and NOT call removeWorkerRoutes
+  const captchaBlock = routes.match(/\/\/ NOTE \(2026-02\): we no longer remove the CF Worker route[\s\S]{0,2500}?(?=router\.|app\.|module\.exports|$)/)
+  assert(captchaBlock && /'val\.visitorCaptchaOff': true/.test(captchaBlock[0]),
+    'C.1 cpanel-routes disable path sets `val.visitorCaptchaOff=true`')
+  if (captchaBlock) {
+    // Strip comments before checking — the comment legitimately mentions
+    // "Previously this called removeWorkerRoutes()" but the code does not.
+    const blockCode = captchaBlock[0].replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
+    assert(!/removeWorkerRoutes/.test(blockCode),
+      'C.2 cpanel-routes disable path does NOT call removeWorkerRoutes')
+  } else {
+    assert(false, 'C.2 disable block not located')
+  }
+}
+// Enable path must clear both old + new field
+assert(/'val\.visitorCaptchaOff':\s*''/.test(routes),
+  'C.3 cpanel-routes enable path clears `visitorCaptchaOff` field')
 
-const enforcer = require('../js/protection-enforcer')
-assert(typeof enforcer.runAntiRedAutoReenable === 'function',
-  'C.1 runAntiRedAutoReenable exported')
+// ── Fix #4: legacy migration in protection-enforcer ─────────────────────
+console.log('\nTest D: protection-enforcer exports runLegacyAntiRedOffMigration')
 
 // Stub anti-red-service so deploySharedWorkerRoute is a no-op
 const antiRedPath = require.resolve('../js/anti-red-service')
+const deployCalls = []
+const bypassCalls = []
 require.cache[antiRedPath] = {
   id: antiRedPath, filename: antiRedPath, loaded: true,
   exports: {
-    deploySharedWorkerRoute: async () => ({ success: true }),
-    setDomainChallengeBypass: async () => true,
+    deploySharedWorkerRoute: async (domain, zoneId) => { deployCalls.push({ domain, zoneId }); return { success: true } },
+    setDomainChallengeBypass: async (domain, b) => { bypassCalls.push({ domain, bypass: b }); return { success: true } },
   },
 }
-// Force the cached enforcer's `antiRed` require to pick up the stub
+
 delete require.cache[require.resolve('../js/protection-enforcer')]
-const enforcer2 = require('../js/protection-enforcer')
+const enforcer = require('../js/protection-enforcer')
+assert(typeof enforcer.runLegacyAntiRedOffMigration === 'function',
+  'D.1 runLegacyAntiRedOffMigration exported')
+assert(typeof enforcer.runAntiRedAutoReenable === 'undefined',
+  'D.2 old runAntiRedAutoReenable export removed')
 
 // In-memory Mongo with three test docs
 function makeDb(docs) {
@@ -113,26 +161,33 @@ function makeDb(docs) {
         toArray: async () => {
           const out = []
           for (const d of map.values()) {
-            // Naïve evaluator for the exact query used by runAntiRedAutoReenable
             if (n !== 'registeredDomains') continue
-            if (d.val?.antiRedOff !== true) continue
-            const cutoff = q['val.antiRedOffAt']?.$lte
-            if (cutoff && d.val?.antiRedOffAt && d.val.antiRedOffAt > cutoff) continue
+            if (q && q['val.antiRedOff'] === true && d.val?.antiRedOff !== true) continue
             out.push(d)
           }
           return out
         },
       }),
       findOne: async (q) => {
-        if (n === 'users') return null  // no telegram notify in test
+        if (n === 'users') return null
         return map.get(q._id) || null
       },
       updateOne: async (q, upd) => {
         const cur = map.get(q._id)
         if (!cur) return { acknowledged: true }
+        if (upd.$set) {
+          for (const k of Object.keys(upd.$set)) {
+            const parts = k.split('.')
+            let obj = cur
+            for (let i = 0; i < parts.length - 1; i++) {
+              if (!obj[parts[i]]) obj[parts[i]] = {}
+              obj = obj[parts[i]]
+            }
+            obj[parts[parts.length - 1]] = upd.$set[k]
+          }
+        }
         if (upd.$unset) {
           for (const k of Object.keys(upd.$unset)) {
-            // Support dotted path like 'val.antiRedOff'
             const parts = k.split('.')
             let obj = cur
             for (let i = 0; i < parts.length - 1; i++) obj = obj?.[parts[i]]
@@ -147,37 +202,70 @@ function makeDb(docs) {
 }
 
 ;(async () => {
-  // Build 3 docs:
-  //   A: antiRedOff=true, offAt = 30h ago → must be re-enabled
-  //   B: antiRedOff=true, offAt = 1h ago → MUST NOT be re-enabled (still in grace)
-  //   C: antiRedOff=false → never touched
-  const HOUR = 60 * 60 * 1000
+  // Build 2 legacy docs + 1 already-migrated
   const docs = [
-    { _id: 'old.com',    val: { antiRedOff: true,  antiRedOffAt: new Date(Date.now() - 30 * HOUR), cfZoneId: 'zoneA', ownerChatId: 111 } },
-    { _id: 'fresh.com',  val: { antiRedOff: true,  antiRedOffAt: new Date(Date.now() - 1  * HOUR), cfZoneId: 'zoneB', ownerChatId: 222 } },
-    { _id: 'never.com',  val: { antiRedOff: false, cfZoneId: 'zoneC', ownerChatId: 333 } },
+    { _id: 'legacy-with-zone.com',    val: { antiRedOff: true, antiRedOffAt: new Date(), cfZoneId: 'zoneA', ownerChatId: 111 } },
+    { _id: 'legacy-no-zone.com',      val: { antiRedOff: true } },
+    { _id: 'already-migrated.com',    val: { visitorCaptchaOff: true, cfZoneId: 'zoneC' } },
   ]
   const db = makeDb(docs)
-  enforcer2.init(db)
+  enforcer.init(db)
 
-  const r = await enforcer2.runAntiRedAutoReenable()
-  assert(r.processed === 1, `C.2 only 1 domain processed (old.com) — got ${r.processed}`)
-  assert(r.reenabled === 1, `C.3 1 domain re-enabled — got ${r.reenabled}`)
-  assert(r.errors === 0,    `C.4 no errors — got ${r.errors}`)
-  assert(r.domains.includes('old.com'), `C.5 old.com is in re-enabled list`)
-  assert(!r.domains.includes('fresh.com'), `C.6 fresh.com NOT re-enabled (still in grace)`)
+  const r = await enforcer.runLegacyAntiRedOffMigration()
+  assert(r.processed === 2, `D.3 processed 2 legacy docs — got ${r.processed}`)
+  assert(r.migrated === 2,  `D.4 migrated 2 docs — got ${r.migrated}`)
+  assert(r.errors === 0,    `D.5 no errors — got ${r.errors}`)
 
-  // After re-enable, old.com's antiRedOff/antiRedOffAt flags must be gone
-  const oldDoc = db._docs.get('old.com')
-  assert(oldDoc.val.antiRedOff === undefined, `C.7 old.com.val.antiRedOff cleared`)
-  assert(oldDoc.val.antiRedOffAt === undefined, `C.8 old.com.val.antiRedOffAt cleared`)
-  // fresh.com still has both
-  const freshDoc = db._docs.get('fresh.com')
-  assert(freshDoc.val.antiRedOff === true, `C.9 fresh.com still has antiRedOff=true`)
+  // Verify worker was redeployed for the one with a zone
+  assert(deployCalls.some((c) => c.domain === 'legacy-with-zone.com' && c.zoneId === 'zoneA'),
+    `D.6 deploySharedWorkerRoute called for legacy-with-zone.com`)
+  // Verify NOT called for no-zone doc
+  assert(!deployCalls.some((c) => c.domain === 'legacy-no-zone.com'),
+    `D.7 deploy NOT called for legacy-no-zone.com (no cfZoneId)`)
+  // Bypass preserved for the one with a zone
+  assert(bypassCalls.some((c) => c.domain === 'legacy-with-zone.com' && c.bypass === true),
+    `D.8 setDomainChallengeBypass(domain, true) called — user preference preserved`)
 
-  // Empty re-run should not throw and processed=0
-  const r2 = await enforcer2.runAntiRedAutoReenable()
-  assert(r2.processed === 0, `C.10 idempotent — second sweep finds 0 candidates`)
+  // Verify field migration
+  const d1 = db._docs.get('legacy-with-zone.com')
+  assert(d1.val.visitorCaptchaOff === true, `D.9  legacy-with-zone.com renamed to visitorCaptchaOff`)
+  assert(d1.val.antiRedOff   === undefined, `D.10 legacy-with-zone.com antiRedOff field cleared`)
+  assert(d1.val.antiRedOffAt === undefined, `D.11 legacy-with-zone.com antiRedOffAt field cleared`)
+
+  const d2 = db._docs.get('legacy-no-zone.com')
+  assert(d2.val.visitorCaptchaOff === true, `D.12 legacy-no-zone.com renamed to visitorCaptchaOff`)
+  assert(d2.val.antiRedOff   === undefined, `D.13 legacy-no-zone.com antiRedOff field cleared`)
+
+  // Re-run: idempotent
+  const r2 = await enforcer.runLegacyAntiRedOffMigration()
+  assert(r2.processed === 0, `D.14 second run finds no candidates (idempotent)`)
+
+  // ── Fix #5: honest lang text ────────────────────────────────────────────
+  console.log('\nTest E: honest lang text — no more "all scanner blocking is OFF" claims')
+
+  const langs = ['en', 'fr', 'hi', 'zh']
+  // Old scary text that falsely claimed everything was off
+  const oldFalseClaims = [
+    /All Cloudflare edge-level scanner blocking is currently OFF/i,
+    /Tout le blocage des scanners au niveau du bord Cloudflare est désactivé/i,
+    /सभी Cloudflare एज-स्तर स्कैनर ब्लॉकिंग बंद है/,
+    /此域名的所有 Cloudflare 边缘级扫描器拦截目前已关闭/,
+  ]
+  // New accurate text claiming scanner cloaking IS still active
+  const stillActiveClaims = [
+    /Anti-Red protection remains fully active/i,
+    /protection Anti-Red reste totalement active/i,
+    /Anti-Red सुरक्षा पूरी तरह सक्रिय/,
+    /Anti-Red 保护完全有效/,
+  ]
+  for (let i = 0; i < langs.length; i++) {
+    const lang = langs[i]
+    const src = fs.readFileSync(path.join(__dirname, '..', 'js', 'lang', `${lang}.js`), 'utf8')
+    assert(!oldFalseClaims[i].test(src), `E.${lang}.1 old "all scanner blocking is OFF" claim removed`)
+    assert(stillActiveClaims[i].test(src), `E.${lang}.2 new "Anti-Red remains active" disclosure present`)
+    assert(/antiRedConfirmDisable/.test(src), `E.${lang}.3 antiRedConfirmDisable button label added`)
+    assert(/antiRedRestoredNote/.test(src), `E.${lang}.4 antiRedRestoredNote present (migration notification)`)
+  }
 
   console.log(`\nResults: ${passed} passed, ${failed} failed`)
   process.exit(failed === 0 ? 0 : 1)

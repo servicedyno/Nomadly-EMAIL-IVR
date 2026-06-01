@@ -657,12 +657,11 @@ async function runEnforcement() {
       // Domain-only domains should NOT get anti-red Workers, even if their DNS
       // points to our server (could be leftover DNS or misconfiguration).
       if (entry.source === 'cpanelAccounts' || entry.source === 'cpanelAddon') {
-        // Respect user preference: skip domains where user explicitly disabled Anti-Red
-        if (entry.antiRedOff) {
-          log(`[ProtectionEnforcer] SKIP: ${domain} — user disabled Anti-Red (antiRedOff=true)`)
-          summary.protected++ // count as OK, user chose to disable
-          continue
-        }
+        // NOTE (2026-02): we no longer skip on `antiRedOff` here. The Worker
+        // route MUST always be deployed so scanner cloaking + honeypots + IP bans
+        // run for every hosting domain. The captcha toggle is now Worker-side
+        // (KV `bypass:{domain}`) and only skips the human challenge page.
+        // Legacy `antiRedOff=true` docs are cleaned up by runLegacyAntiRedOffMigration().
 
         // Enforce worker routes for hosting domains (main + addon)
         const result = await enforceWorkerRoutes(domain, zoneId)
@@ -791,92 +790,95 @@ async function runEnforcement() {
   return summary
 }
 
-// ─── Auto Re-Enable Sweeper (24h grace) ──────────────────
-// When a user toggles Visitor Captcha OFF, we record `antiRedOffAt` on the
-// domain doc. After ANTI_RED_AUTO_REENABLE_MS (default 24h), this sweeper
-// flips the protection back ON automatically — redeploying the CF Worker
-// route, clearing the KV bypass, and removing both flags from Mongo.
-// Notifies the owner via Telegram so they know it happened.
+// ─── Legacy Anti-Red OFF Migration ───────────────────────
+// Pre-2026-02 the "Turn OFF Visitor Captcha" toggle wrote `val.antiRedOff=true`
+// AND removed the CF Worker route. The new architecture keeps the Worker
+// deployed and only flips a Worker-side KV bypass flag.
 //
-// Background: Railway log analysis (2026-02 @ verify-navy.com) showed users
-// were leaving Anti-Red OFF for days, exposing static phishing pages to
-// Google Safe Browsing crawlers indefinitely. Auto re-enable caps the
-// exposure window to 24h regardless of user inaction.
+// This migration heals legacy docs:
+//   1. Find docs with `val.antiRedOff=true`
+//   2. Redeploy the shared Worker route (so scanner cloaking + honeypots
+//      + IP bans run again — the user only opted out of the captcha page,
+//      not the rest of anti-red)
+//   3. Set Worker KV bypass = true so the visitor captcha page stays hidden
+//      (respects the user's stated preference)
+//   4. Rename `val.antiRedOff` → `val.visitorCaptchaOff` and drop the obsolete
+//      `val.antiRedOffAt` timestamp
+//   5. Notify owner of the corrected state
+//
+// Runs once at boot and then once an hour (idempotent — does nothing if no
+// legacy docs remain).
 
-const ANTI_RED_AUTO_REENABLE_MS = parseInt(
-  process.env.ANTI_RED_AUTO_REENABLE_HOURS || '24', 10
-) * 60 * 60 * 1000
-
-async function runAntiRedAutoReenable() {
-  if (!db) return { processed: 0, reenabled: 0, errors: 0 }
-  const summary = { processed: 0, reenabled: 0, errors: 0, domains: [] }
+async function runLegacyAntiRedOffMigration() {
+  if (!db) return { processed: 0, migrated: 0, errors: 0 }
+  const summary = { processed: 0, migrated: 0, errors: 0, domains: [] }
   try {
-    const cutoff = new Date(Date.now() - ANTI_RED_AUTO_REENABLE_MS)
     const candidates = await db.collection('registeredDomains').find({
       'val.antiRedOff': true,
-      'val.antiRedOffAt': { $lte: cutoff },
     }).toArray()
 
     if (candidates.length === 0) return summary
-    log(`[AntiRedAutoReenable] Found ${candidates.length} domain(s) past 24h grace — re-enabling...`)
+    log(`[LegacyAntiRedMigration] Found ${candidates.length} legacy antiRedOff=true doc(s) — migrating to visitorCaptchaOff...`)
 
     const antiRed = require('./anti-red-service')
     for (const doc of candidates) {
       summary.processed++
       const domain = doc._id
       const zoneId = doc.val?.cfZoneId
-      if (!zoneId) {
-        // No CF zone → just clear the flags, nothing to redeploy
+
+      try {
+        if (zoneId) {
+          // Re-deploy worker route so scanner cloaking + honeypots come back.
+          // Idempotent — already-deployed routes are a no-op.
+          const result = await antiRed.deploySharedWorkerRoute(domain, zoneId)
+          if (!result?.success) {
+            summary.errors++
+            log(`[LegacyAntiRedMigration] ⚠️ ${domain}: worker redeploy failed: ${result?.error || 'unknown'}`)
+            // Continue with field migration anyway — KV bypass will still hide
+            // the challenge page even without the worker, and the enforcer's
+            // hourly sweep will retry the deploy.
+          }
+          // Preserve user's "no challenge page" preference via KV bypass.
+          try { await antiRed.setDomainChallengeBypass(domain, true) } catch (_) {}
+        }
+
         await db.collection('registeredDomains').updateOne(
           { _id: domain },
-          { $unset: { 'val.antiRedOff': '', 'val.antiRedOffAt': '' } }
-        )
-        log(`[AntiRedAutoReenable] ${domain}: no cfZoneId, cleared flags only`)
-        summary.reenabled++
-        summary.domains.push(domain)
-        continue
-      }
-      try {
-        const result = await antiRed.deploySharedWorkerRoute(domain, zoneId)
-        if (result?.success) {
-          await db.collection('registeredDomains').updateOne(
-            { _id: domain },
-            { $unset: { 'val.antiRedOff': '', 'val.antiRedOffAt': '' } }
-          )
-          try { await antiRed.setDomainChallengeBypass(domain, false) } catch (_) {}
-          summary.reenabled++
-          summary.domains.push(domain)
-          log(`[AntiRedAutoReenable] ✅ ${domain}: protection auto re-enabled after 24h`)
-          // Notify owner (non-blocking — failure of notify shouldn't roll back the re-enable)
-          try {
-            const ownerChatId = doc.val?.ownerChatId
-            if (ownerChatId && _bot && typeof _bot.sendMessage === 'function') {
-              const userDoc = await db.collection('users').findOne({ _id: String(ownerChatId) })
-              const userLang = userDoc?.lang || userDoc?.language || 'en'
-              const safeLang = ['en','fr','hi','zh'].includes(userLang) ? userLang : 'en'
-              const t = require(`./lang/${safeLang}`)
-              const msg = t.antiRedAutoReenabled
-                ? t.antiRedAutoReenabled(domain)
-                : `🛡️ Visitor Captcha auto re-enabled for ${domain} after 24h.`
-              await _bot.sendMessage(ownerChatId, msg, { parse_mode: 'HTML' }).catch(() => {})
-            }
-          } catch (notifyErr) {
-            log(`[AntiRedAutoReenable] Notify failed for ${domain}: ${notifyErr.message}`)
+          {
+            $set: { 'val.visitorCaptchaOff': true },
+            $unset: { 'val.antiRedOff': '', 'val.antiRedOffAt': '' },
           }
-        } else {
-          summary.errors++
-          log(`[AntiRedAutoReenable] ❌ ${domain}: deploySharedWorkerRoute failed: ${result?.error || 'unknown'}`)
+        )
+        summary.migrated++
+        summary.domains.push(domain)
+        log(`[LegacyAntiRedMigration] ✅ ${domain}: migrated (worker redeployed, captcha bypass preserved)`)
+
+        // Best-effort notification — failure must not roll back the migration.
+        try {
+          const ownerChatId = doc.val?.ownerChatId
+          if (ownerChatId && _bot && typeof _bot.sendMessage === 'function') {
+            const userDoc = await db.collection('users').findOne({ _id: String(ownerChatId) })
+            const userLang = userDoc?.lang || userDoc?.language || 'en'
+            const safeLang = ['en','fr','hi','zh'].includes(userLang) ? userLang : 'en'
+            const t = require(`./lang/${safeLang}`)
+            const msg = t.antiRedRestoredNote
+              ? t.antiRedRestoredNote(domain)
+              : `🛡️ Anti-Red protection restored for ${domain}. Scanner cloaking, honeypots and IP bans are now active again. Your "Visitor Captcha OFF" preference is preserved — humans still don't see the "Verifying your browser" page.`
+            await _bot.sendMessage(ownerChatId, msg, { parse_mode: 'HTML' }).catch(() => {})
+          }
+        } catch (notifyErr) {
+          log(`[LegacyAntiRedMigration] Notify failed for ${domain}: ${notifyErr.message}`)
         }
       } catch (e) {
         summary.errors++
-        log(`[AntiRedAutoReenable] ❌ ${domain}: ${e.message}`)
+        log(`[LegacyAntiRedMigration] ❌ ${domain}: ${e.message}`)
       }
     }
   } catch (err) {
-    log(`[AntiRedAutoReenable] Fatal: ${err.message}`)
+    log(`[LegacyAntiRedMigration] Fatal: ${err.message}`)
   }
   if (summary.processed > 0) {
-    log(`[AntiRedAutoReenable] Done — processed:${summary.processed} reenabled:${summary.reenabled} errors:${summary.errors}`)
+    log(`[LegacyAntiRedMigration] Done — processed:${summary.processed} migrated:${summary.migrated} errors:${summary.errors}`)
   }
   return summary
 }
@@ -906,14 +908,14 @@ function startScheduler(opts) {
     runEnforcement().catch(e => log(`[ProtectionEnforcer] Scheduled run error: ${e.message}`))
   }, ENFORCE_INTERVAL_MS)
 
-  // Auto-reenable sweep runs hourly (independent of full enforcement sweep) so
-  // domains past the 24h grace come back up quickly even if the slower
-  // enforcement cycle is busy.
+  // Legacy migration: run once at boot (45s after start to let CF clients warm
+  // up) and once an hour after that. Idempotent — does nothing once all
+  // legacy `antiRedOff=true` docs have been migrated.
   setTimeout(() => {
-    runAntiRedAutoReenable().catch(e => log(`[AntiRedAutoReenable] Scheduled run error: ${e.message}`))
+    runLegacyAntiRedOffMigration().catch(e => log(`[LegacyAntiRedMigration] Scheduled run error: ${e.message}`))
   }, 45000)
   setInterval(() => {
-    runAntiRedAutoReenable().catch(e => log(`[AntiRedAutoReenable] Scheduled run error: ${e.message}`))
+    runLegacyAntiRedOffMigration().catch(e => log(`[LegacyAntiRedMigration] Scheduled run error: ${e.message}`))
   }, 60 * 60 * 1000)
 }
 
@@ -932,7 +934,7 @@ module.exports = {
   collectAllDomains,
   enforceWorkerRoutes,
   runEnforcement,
-  runAntiRedAutoReenable,
+  runLegacyAntiRedOffMigration,
   startScheduler,
   stopScheduler,
 }
