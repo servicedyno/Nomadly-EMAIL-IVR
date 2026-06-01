@@ -1,5 +1,68 @@
 # CHANGELOG — Nomadly Bot
 
+## 2026-02 (Day 4) — @Lets_spam: double admin/group notifications on CloudIVR purchase
+
+### Customer report (Railway log 2026-06-01T16:30:40Z)
+> "I bought the CloudIVR plan but I got double notification to admin and to group."
+> — chatId 1506649532, @Lets_spam (United Dynasty)
+
+### Reproduction from Railway logs
+At 16:30:37 the user paid $120 (Wallet USD) for a Business CloudIVR plan with
+toll-free `+18773020504`. After the purchase succeeded, the logs show
+notifyGroup firing twice within the same millisecond block:
+```
+16:30:40 [NotifyGroup] Auto-registered groups found: 2 → ...
+16:30:40 [NotifyGroup] Dispatched to 3 target(s)        ← FIRST dispatch
+16:30:40 reply: 🎉 Your Cloud IVR is Active!
+16:30:40 [NotifyGroup] Auto-registered groups found: 2 → ...
+16:30:40 [NotifyGroup] Dispatched to 3 target(s)        ← SECOND (duplicate!)
+16:30:40 ✅ Sent to admin 5590563715 (unmasked)
+16:30:40 ✅ Sent to group Bagging The Bag 🎒🛅💰
+16:30:40 ✅ Sent to configured group -1001843794247
+16:30:40 ✅ Sent to admin 5590563715 (unmasked)         ← SECOND set
+16:30:40 ✅ Sent to configured group -1001843794247
+16:30:40 ✅ Sent to group Bagging The Bag 🎒🛅💰
+```
+
+### Root cause — `js/_index.js`
+- `executeTwilioPurchase()` (module scope, line ~2109) ALREADY calls
+  `notifyGroup(adminPurchase, adminPurchasePrivate)` for both regular and
+  sub-purchases via the `_adminTxt` helper.
+- A 2026-05-30 change *also* added `notifyGroup(...)` blocks at lines 10181
+  (sub) and 10192 (regular) inside the **Wallet-USD** CloudIVR action
+  handler, on the false assumption that the Twilio path had no inner call.
+- The result: every Twilio Wallet-USD CloudIVR purchase fired two admin DMs
+  and two group posts. The Telnyx flow was unaffected (different code path).
+  The Bank-NGN/Crypto flows were also unaffected (separate post-payment
+  handlers with their own `notifyGroup`).
+
+### Fix
+Removed the duplicate `notifyGroup` blocks at lines 10181-10184 and
+10192-10195 (plus the now-unused `_twilioName` declaration). Added a
+prominent NOTE comment so a future agent doesn't reintroduce the same
+2026-05-30-style regression.
+
+### Verification
+- New regression test `/app/tests/test_cloudivr_double_notification.js` —
+  **17 assertions, all pass**:
+  - A1-A3 executeTwilioPurchase still has exactly 2 notifyGroup calls
+    (sub-branch + regular-branch) — the single source of truth
+  - B0-B5 Wallet-USD action handler has 0 notifyGroup calls + the
+    rationale comment is present (regression guard)
+  - C0-C2 Telnyx flow untouched (still has its own notifyGroup for
+    sub + regular)
+  - D1 `'Wallet USD'` string-literal count stays at 8 (2 calls × 2 args
+    × 2 flows = executeTwilioPurchase + Telnyx)
+  - E1 `node --check js/_index.js`
+- Existing tests still pass: `test_captcha_status_endpoint.js` **18/18**,
+  `test_captcha_addon_domain_picker.js` **27/27**.
+
+### Files touched
+| File | Change |
+|------|--------|
+| `js/_index.js` | -11 LOC: removed 2 duplicate notifyGroup blocks + unused `_twilioName` |
+| `tests/test_cloudivr_double_notification.js` | new (17 assertions) |
+
 ## 2026-02 (Day 4) — @Night_ismine: captcha can now be toggled per addon-domain
 
 ### Customer complaint (Railway log 2026-06-01T13:58:56Z)

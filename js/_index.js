@@ -10167,7 +10167,6 @@ Enter new value:`), bc)
         sipPassword = result.sipPassword
         const { usdBal: usd2 } = await getBalance(walletOf, chatId)
         send(chatId, t.showWallet(usd2))
-        const _twilioName = await get(nameOf, chatId)
         if (isSubNumber) {
           send(chatId, cpTxt.subActivated(
             selectedNumber, info?.cpSubParentNumber, price, sipUsername,
@@ -10175,13 +10174,12 @@ Enter new value:`), bc)
             phoneConfig.shortDate(result.expiresAt.toISOString())
           ), trans('o'))
           postActivationNudge(chatId, selectedNumber, planKey)
-          // Twilio sub-purchase was missing this admin notification — Telnyx branch
-          // had it but Twilio branch did not. Fixed 2026-05-30: admin DMs now fire
-          // for both providers and both purchase types (regular + sub).
-          notifyGroup(
-            cpTxt.adminSubPurchase(maskName(_twilioName), selectedNumber, info?.cpSubParentNumber, price, 'Wallet USD'),
-            cpTxt.adminSubPurchasePrivate(adminUserTag(_twilioName, chatId), selectedNumber, info?.cpSubParentNumber, price, 'Wallet USD')
-          )
+          // NOTE: do NOT call notifyGroup here — executeTwilioPurchase()
+          // already fires the admin/group notification at module scope
+          // (see line ~2109). Calling it again here caused double admin
+          // DMs and double group posts (regression from the 2026-05-30
+          // change which assumed Twilio had no inner notifyGroup).
+          // Reported by customer 2026-06-01 (chatId 1506649532 / @Lets_spam).
         } else {
           send(chatId, cpTxt.activated(
             selectedNumber, result.plan?.name || planKey, price, sipUsername,
@@ -10189,10 +10187,7 @@ Enter new value:`), bc)
             phoneConfig.shortDate(result.expiresAt.toISOString())
           ), trans('o'))
           postActivationNudge(chatId, selectedNumber, result.plan?.name || planKey)
-          notifyGroup(
-            cpTxt.adminPurchase(maskName(_twilioName), selectedNumber, result.plan?.name || planKey, price, 'Wallet USD'),
-            cpTxt.adminPurchasePrivate(adminUserTag(_twilioName, chatId), selectedNumber, result.plan?.name || planKey, price, 'Wallet USD')
-          )
+          // (see comment above — single source of truth is executeTwilioPurchase)
         }
       } else {
         // ── TELNYX PURCHASE FLOW ──
