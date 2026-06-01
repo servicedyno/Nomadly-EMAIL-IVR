@@ -1,5 +1,90 @@
 # CHANGELOG — Nomadly Bot
 
+## 2026-02 (Day 4) — mccoyfcuportal.com: "no SSL" on standalone domains
+
+### Customer report
+> "Why is SSL not working on this domain? mccoyfcuportal.com"
+> — domain is registered but NOT linked to any hosting
+
+### Diagnosis (via curl + code review)
+```
+$ curl -I http://mccoyfcuportal.com/
+HTTP/1.1 200 OK            ← plaintext, no 301 to HTTPS
+Server: cloudflare
+
+$ curl -kI https://mccoyfcuportal.com/
+HTTP/2 200                 ← edge cert is valid (Google Trust Services WE1)
+```
+Cloudflare's Universal SSL was providing a valid edge cert, but
+**"Always Use HTTPS" was off** so visitors typing the bare domain (or
+following an old http:// link) stayed on plaintext. Browsers show
+"Not Secure" in the URL bar → customer perceives "no SSL".
+
+### Root cause — `js/domain-service.js`
+The standalone domain-registration flow at `registerDomain()` calls
+`cfService.createZone()` but **never follows up** with `setSSLMode` /
+`enforceHTTPS`. Three other zone-creation sites in the same file are
+also missing the calls. The addon-domain flow and hosting flow DID
+call them — only standalone-domain purchases skipped the step.
+
+### Fix (foundational + heal — Option B + Heal)
+
+1. **`js/cf-service.js`** — baked the HTTPS baseline into
+   `createZone()` itself via a new private `_applyHttpsDefaults(zoneId)`
+   helper that issues `setSSLMode(zoneId, 'flexible')` +
+   `enforceHTTPS(zoneId)`. Applied on all 3 return paths inside
+   `createZone` (fresh POST success, existing-zone fast-path, and the
+   1061-recovery path). Never throws — settings are non-fatal so a
+   transient CF API hiccup never blocks zone creation.
+
+   Future-proofs the codebase: every existing caller (`domain-service`,
+   `addon-domain-flow`, `cr-register-domain-&-create-cpanel`,
+   `cpanel-routes`) and every future caller now gets HTTPS enforced
+   automatically. Existing callers that already call these methods
+   manually still work — CF's settings PATCH is idempotent.
+
+2. **`scripts/heal_https_enforcement.js`** — one-shot backfill script
+   that scans `registeredDomains` for `cfZoneId` and calls
+   `enforceHTTPS` on each. Safety guards: `--dry-run`, `--limit=N`,
+   `--batch=N` concurrency (default 4), `--skip-already-healed`
+   (looks at `val.httpsEnforcementHealedAt` marker), 500ms pacing to
+   stay under CF's 1200 req / 5 min limit, error tracking separate
+   from healed count.
+
+### Verification
+- New regression test `/app/tests/test_https_enforcement_on_zone_creation.js`
+  — **28 assertions, all pass**:
+  - A1-A5 static guards (helper exists, called on all 3 paths, has
+    non-fatal error handling)
+  - B1-B8 behavioural test with mocked axios — verifies createZone
+    PATCHes the 4 right CF endpoints (`/settings/ssl`,
+    `/settings/always_use_https`, `/settings/security_header`,
+    `/settings/automatic_https_rewrites`) with values
+    `flexible` / `on` for the new-zone path
+  - B.alt1-B.alt2 existing-zone fast-path also applies the baseline
+  - C1-C10 heal script safety guards
+  - D `node --check` on both files
+- Previous tests still pass: captcha-status **18/18**, captcha-addon-picker
+  **27/27**, cloudivr-double-notification **17/17**.
+
+### Files touched
+| File | Change |
+|------|--------|
+| `js/cf-service.js` | +33 LOC: `_applyHttpsDefaults()` helper + 3 invocations in `createZone()` |
+| `scripts/heal_https_enforcement.js` | new (heal backfill for existing domains) |
+| `tests/test_https_enforcement_on_zone_creation.js` | new (28 assertions) |
+
+### Deploy + heal procedure
+1. Deploy `js/cf-service.js` to Railway — every NEW domain registration
+   now provisions HTTPS-enforced.
+2. SSH into Railway / run locally with prod env:
+   ```bash
+   node scripts/heal_https_enforcement.js --dry-run --limit=5
+   # review output → if it looks right, drop --dry-run
+   node scripts/heal_https_enforcement.js --batch=4
+   ```
+   Re-runs are safe (idempotent PATCH; healed docs are marked).
+
 ## 2026-02 (Day 4) — @Lets_spam: double admin/group notifications on CloudIVR purchase
 
 ### Customer report (Railway log 2026-06-01T16:30:40Z)

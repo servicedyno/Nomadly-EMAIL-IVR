@@ -66,6 +66,10 @@ const createZone = async (domainName) => {
     const existing = await getZoneByName(domainName)
     if (existing) {
       log(`CF zone already exists for ${domainName}`)
+      // Re-apply HTTPS defaults — covers the case where a previous run
+      // created the zone but the post-create setting calls were skipped
+      // (e.g. older code path or a partial failure). Idempotent at CF.
+      await _applyHttpsDefaults(existing.id, domainName)
       return {
         success: true,
         zoneId: existing.id,
@@ -81,6 +85,17 @@ const createZone = async (domainName) => {
     if (res.data?.success) {
       const zone = res.data.result
       log(`CF zone created for ${domainName}`)
+      // Always-on baseline for every freshly created zone:
+      //   • SSL mode = flexible (visitor↔CF encrypted; CF↔origin plain
+      //     — required because origin may not exist yet for standalone
+      //     domain registrations).
+      //   • Always Use HTTPS = on (301 redirects every http:// hit).
+      //   • HSTS + Auto HTTPS Rewrites.
+      // Without these defaults, http://<domain> answered 200 OK in
+      // plaintext and customers reported "no SSL" because browsers
+      // showed "Not Secure" in the address bar (regression observed
+      // for mccoyfcuportal.com — 2026-06-01).
+      await _applyHttpsDefaults(zone.id, domainName)
       return {
         success: true,
         zoneId: zone.id,
@@ -95,6 +110,7 @@ const createZone = async (domainName) => {
       if (err.code === 1061) {
         const existing2 = await getZoneByName(domainName)
         if (existing2) {
+          await _applyHttpsDefaults(existing2.id, domainName)
           return {
             success: true,
             zoneId: existing2.id,
@@ -109,6 +125,23 @@ const createZone = async (domainName) => {
   } catch (err) {
     log('CF createZone error:', err.message)
     return { success: false, errors: [{ message: err.message }] }
+  }
+}
+
+/**
+ * Apply the HTTPS-baseline settings to a freshly created (or re-discovered)
+ * zone: SSL mode = flexible, Always Use HTTPS = on, HSTS, Auto-Rewrites.
+ *
+ * Never throws — settings are non-fatal. The zone is the critical resource;
+ * settings can be repaired later via the heal script.
+ */
+const _applyHttpsDefaults = async (zoneId, domainName) => {
+  try {
+    await setSSLMode(zoneId, 'flexible')
+    const result = await enforceHTTPS(zoneId)
+    log(`[CF] HTTPS baseline applied for ${domainName} (${zoneId}):`, result)
+  } catch (e) {
+    log(`[CF] HTTPS baseline non-fatal error for ${domainName} (${zoneId}): ${e.message}`)
   }
 }
 
