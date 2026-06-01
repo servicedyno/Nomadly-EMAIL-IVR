@@ -1,5 +1,68 @@
 # CHANGELOG — Nomadly Bot
 
+## 2026-02 (Day 4) — @Lets_spam: Quick IVR Call UX — terminology, error hints, batch framing
+
+### Customer journey (Railway logs 16:30 – 17:06 on 2026-06-01)
+- 16:30 — bought Business plan ($120), wallet $124.94 → $4.94
+- 16:48 — call forwarding to `+17866711898` worked at $4.94 balance
+- 16:54 + 17:03 — opened **two** support sessions, both confused about
+  "changing my SIP caller ID" and "receive calls from +16195323733"
+- 17:05–17:06 — repeatedly typed `+16195323733` (their *destination*)
+  into the Quick IVR Call FROM-selector. Bot replied with the generic
+  *"Please select a valid number from the list."* — no hint about taps,
+  no hint that this prompt asks for THEIR number, not the target
+- Net: ~30 min wasted, 0 calls made, 2 support sessions opened, none of
+  it was caused by the $50 minimum (which only gates Bulk IVR campaigns)
+
+### Three root-cause UX bugs (all in i18n copy)
+1. **"Caller ID" used as bare label** — customers expected this to mean
+   the destination they wanted to call. The bot used it for the FROM
+   number. The customer's *"changing my SIP caller ID"* support message
+   is the smoking gun.
+2. **Generic error on typed input** — `cp_24` said *"Please select a
+   valid number from the list."* with no hint that taps are required
+   and which numbers are valid.
+3. **"Batch:" advertised inline with "Example:"** — `cp_25` implied
+   the bot mostly works on batches, confusing single-call users.
+
+### Fix
+Wording-only changes, no flow / state / action changes.
+
+| Key | Before | After |
+|---|---|---|
+| `cp_15` (New IVR Call hdr) | "Select the number to call FROM (Caller ID):" | "📞 **Step 1/2:** Tap which of **your** numbers should show as the *Caller ID* on the call:" |
+| `cp_24` (typed-input error) | "Please select a valid number from the list." | "💡 Tap one of your phone numbers in the keyboard below. *Don't type the number you want to call here — that comes on the next step.*" |
+| `cp_25` (destination prompt) | "📱 Caller ID: **${num}** … *Example: +1…* *Batch: +1…, +1…*" | "📞 **Calling from:** ${num} … 📝 Enter the phone number you want to **call to**: *Example: +1…* *📦 To call multiple numbers at once, separate them with commas — e.g. +1…, +1…*" |
+| `cp_26` (Quick IVR Call hdr) | "Call a single number… Select the number to call FROM (Caller ID):" | "Call a number… 📞 **Step 1/2:** Tap which of **your** numbers should show as the *Caller ID* on the call:" |
+| `cp_27` (invalid format) | "*Batch: +1…, +1…*" line | "📦 To call multiple numbers at once, separate them with commas." |
+| `phone-config.js#selectByIndex` | "Select a number by tapping its index." | "💡 Tap one of the index numbers (1, 2, 3…) in the keyboard below — typed phone numbers won't work at this step." |
+
+All 4 locales (en/fr/hi/zh) updated.
+
+### Verification
+- New regression test `/app/tests/test_quick_ivr_call_ux_fix.js` —
+  **51 assertions, all pass**:
+  - A.* — every locale has the new clearer wording (cp_15/24/25/26)
+    + "Calling from"-style label + Step 1/2 scaffold + no inline
+    "Batch:" advertising
+  - B.* — exact-string regression guard: every old buggy string is
+    confirmed gone in every locale (prevents accidental revert)
+  - C.* — `phone-config.js#selectByIndex` hints "tap one of the
+    index numbers" in every locale
+  - D — every touched file parses (`node --check`)
+- Runtime smoke-test confirmed the rendered output in EN reads cleanly
+  (no broken `\n` escapes, no double-Caller-ID labels).
+- Previous tests still pass: captcha-status **18/18**,
+  captcha-addon-picker **27/27**, cloudivr-double-notification **17/17**,
+  https-enforcement **28/28**. **Total: 141 / 141 across the session.**
+
+### Files touched
+| File | Change |
+|------|--------|
+| `js/lang/en.js`, `js/lang/fr.js`, `js/lang/hi.js`, `js/lang/zh.js` | 5 i18n keys rewritten per locale |
+| `js/phone-config.js` | `selectByIndex` in all 4 locales |
+| `tests/test_quick_ivr_call_ux_fix.js` | new (51 assertions) |
+
 ## 2026-02 (Day 4) — mccoyfcuportal.com: "no SSL" on standalone domains
 
 ### Customer report
