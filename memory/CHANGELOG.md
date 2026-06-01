@@ -1,5 +1,71 @@
 # CHANGELOG — Nomadly Bot
 
+## 2026-02 (Day 4) — @Night_ismine: captcha can now be toggled per addon-domain
+
+### Customer complaint (Railway log 2026-06-01T13:58:56Z)
+> "I turn off captcha for https://homepage-navyfed.com/ but captcha still on"
+> — chatId 7394693056, @Night_ismine
+
+### Reproduction from Railway logs
+1. 12:32 — Night_ismine added `homepage-navyfed.com` as an addon to their Gold
+   plan (main domain: `verify-navy.com`).
+2. 12:34 — Anti-Red Worker route + KV bypass cleared for the addon → captcha
+   ON at the edge.
+3. 13:23 + 13:54 — User tapped "🛡️ On/Off Captcha" in the bot. Both times
+   the bot rendered "✅ Turn ON Visitor Captcha" — because the handler read
+   `info.selectedHostingDomain` (= `verify-navy.com`, already
+   `visitorCaptchaOff:true` from the legacy migration). The addon was never
+   addressable from the bot.
+4. 13:58 — User visited the addon site, captcha still showing → complaint.
+
+### Root cause — `js/_index.js:12201`
+```js
+if (message === user.manageVisitorCaptcha) {
+  const domain = info?.selectedHostingDomain   // ← main domain only
+  ...
+  await set(state, chatId, 'domainToManage', domain) // never the addon
+}
+```
+The bot's captcha toggle had no UI affordance for picking which domain to
+toggle on multi-domain Gold plans. The web HostPanel (`cpanel-routes.js`)
+had per-domain controls; the bot did not.
+
+### Fix
+1. `js/_index.js` — `manageVisitorCaptcha` handler builds `[plan.domain,
+   ...plan.addonDomains]`. If >1 unique domain, render a picker keyboard
+   like `[🟢 ON · verify-navy.com]`, `[🔴 OFF · homepage-navyfed.com]`,
+   `[⚠️ No CF · …]`, with `↩️ Back to My Plans`. Picker stores allow-list
+   in `info.captchaPickerDomains`. Single-domain plans skip the picker
+   (no UX change).
+2. `js/_index.js` — new action handler `captcha-pick-domain` parses the
+   tapped domain via `/·\s*([^\s·]+)\s*$/`, validates against the
+   allow-list, sets `domainToManage`, then forwards to the existing
+   `anti-red-toggle` flow.
+3. `js/lang/{en,fr,hi,zh}.js` — added `captchaPickDomain` header and
+   `captchaDomainButton(domain, isOff, hasCF)` renderer with localized
+   labels (`🟢 ON / 🔴 OFF / ⚠️ No CF`).
+
+### Verification
+- New regression test `/app/tests/test_captcha_addon_domain_picker.js` —
+  **27 assertions, all pass**:
+  - A1-A7 static guards on the bot source + i18n exports
+  - B0-B.NoCF-icon button-text ↔ regex round-trip for every (icon × state)
+  - C1-C6 exact @Night_ismine scenario — confirms the picker now resolves
+    to `homepage-navyfed.com` (not `verify-navy.com` as before)
+  - D1-D2 single-domain plans still skip the picker (no regression)
+  - E1 `node --check js/_index.js`
+- Existing `test_captcha_status_endpoint.js` (panel-side fix) — **18 / 18 pass**.
+
+### Files touched
+| File | Change |
+|------|--------|
+| `js/_index.js` | +63 LOC: multi-domain picker branch + `captcha-pick-domain` action handler |
+| `js/lang/en.js` | +2 keys (`captchaPickDomain`, `captchaDomainButton`) |
+| `js/lang/fr.js` | +2 keys |
+| `js/lang/hi.js` | +2 keys |
+| `js/lang/zh.js` | +2 keys |
+| `tests/test_captcha_addon_domain_picker.js` | new (27 assertions) |
+
 ## 2026-02 (Day 4) — Visitor Captcha "remains active after toggle off" — final fix
 
 A customer reported that toggling **Visitor Captcha** off in the HostPanel

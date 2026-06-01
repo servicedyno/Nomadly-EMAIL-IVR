@@ -12209,9 +12209,40 @@ All verified numbers generated during sourcing.`))
         const upgradeBtn = t.upgradeToGoldButton ? t.upgradeToGoldButton(goldPrice) : `⬆️ Upgrade to Gold ($${goldPrice}/mo)`
         return send(chatId, t.visitorCaptchaGoldOnly ? t.visitorCaptchaGoldOnly(domain, goldPrice) : `🔒 Visitor Captcha is exclusive to Golden Anti-Red HostPanel ($${goldPrice}/mo).`, k.of([[upgradeBtn], [user.backToMyHostingPlans]]), { parse_mode: 'HTML' })
       }
-      // Open captcha toggle for the main hosting domain
-      await set(state, chatId, 'domainToManage', domain)
+
+      // Build the full set of toggle-eligible domains: main + every addon.
+      // Each addon was given its own per-domain anti-red Worker route when
+      // attached (see AddonFlow). The captcha toggle must therefore expose
+      // every addon as a distinct row so users can disable the captcha on
+      // any one of them. Single-domain plans keep the original one-tap UX.
+      const allPlanDomains = [plan.domain, ...(Array.isArray(plan.addonDomains) ? plan.addonDomains : [])]
+        .map(d => (d || '').toLowerCase())
+        .filter(Boolean)
+      const uniquePlanDomains = Array.from(new Set(allPlanDomains))
+
       await saveInfo('captchaFromPlan', true)
+
+      if (uniquePlanDomains.length > 1) {
+        // Multi-domain Gold plan → render picker so the user can choose which
+        // domain to toggle. Status is fetched per-domain from registeredDomains.
+        const docs = await db.collection('registeredDomains')
+          .find({ _id: { $in: uniquePlanDomains } })
+          .toArray()
+        const byDomain = Object.fromEntries(docs.map(d => [d._id, d]))
+        const rows = uniquePlanDomains.map(d => {
+          const v = byDomain[d]?.val || {}
+          const hasCF = !!(v.cfZoneId && v.nameserverType === 'cloudflare')
+          const isOff = v.visitorCaptchaOff === true || v.antiRedOff === true
+          return [t.captchaDomainButton(d, isOff, hasCF)]
+        })
+        rows.push([user.backToMyHostingPlans])
+        await saveInfo('captchaPickerDomains', uniquePlanDomains)
+        await set(state, chatId, 'action', 'captcha-pick-domain')
+        return send(chatId, t.captchaPickDomain, k.of(rows), { parse_mode: 'HTML' })
+      }
+
+      // Single-domain plan → preserve the legacy direct-to-toggle UX.
+      await set(state, chatId, 'domainToManage', domain)
       const domainDoc = await db.collection('registeredDomains').findOne({ _id: domain })
       const val = domainDoc?.val || {}
       if (!val.cfZoneId || val.nameserverType !== 'cloudflare') {
@@ -27626,6 +27657,40 @@ Select a category:`), k.of(catBtns))
     }
     return send(chatId, trans('t.selectValidOption'))
   }
+
+  // Captcha-domain picker (multi-domain Gold plans) — user taps a button like
+  // "🟢 ON · verify-navy.com" or "🔴 OFF · homepage-navyfed.com". We parse the
+  // domain back out, validate it against the list we saved, set
+  // `domainToManage`, then forward to the existing anti-red-toggle action.
+  if (action === 'captcha-pick-domain') {
+    if (isBackPress(message) || message === user.backToMyHostingPlans) {
+      await saveInfo('captchaFromPlan', false)
+      if (info?.selectedHostingDomain) return goto.viewHostingPlanDetails(info.selectedHostingDomain)
+      return goto.myHostingPlans()
+    }
+    const allowed = Array.isArray(info?.captchaPickerDomains) ? info.captchaPickerDomains : []
+    // Button format: "<icon> <STATE> · <domain>" or "⚠️ No CF · <domain>".
+    // Extract trailing token after " · " and match case-insensitively.
+    const m = typeof message === 'string' ? message.match(/·\s*([^\s·]+)\s*$/) : null
+    const picked = m ? m[1].toLowerCase() : ''
+    if (!picked || !allowed.includes(picked)) {
+      return send(chatId, trans('t.selectValidOption'))
+    }
+    await set(state, chatId, 'domainToManage', picked)
+    const domainDoc = await db.collection('registeredDomains').findOne({ _id: picked })
+    const val = domainDoc?.val || {}
+    if (!val.cfZoneId || val.nameserverType !== 'cloudflare') {
+      // Still let the user back to the picker; CF-less domains can't toggle.
+      return send(chatId, t.antiRedNoCF(picked), k.of([[user.backToMyHostingPlans]]), { parse_mode: 'HTML' })
+    }
+    const isOff = val.visitorCaptchaOff === true || val.antiRedOff === true
+    await set(state, chatId, 'action', 'anti-red-toggle')
+    if (isOff) {
+      return send(chatId, t.antiRedStatusOff(picked), k.of([[t.antiRedTurnOn], ['↩️ Back']]), { parse_mode: 'HTML' })
+    }
+    return send(chatId, t.antiRedStatusOn(picked), k.of([[t.antiRedTurnOff], ['↩️ Back']]), { parse_mode: 'HTML' })
+  }
+
   if (action === 'anti-red-toggle') {
     if (isBackPress(message)) {
       // If user entered captcha toggle from the hosting plan view, go back there.
