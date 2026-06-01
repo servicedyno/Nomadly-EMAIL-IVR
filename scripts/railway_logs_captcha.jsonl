@@ -1,4 +1,0 @@
-{"dep": "32b12059", "timestamp": "2026-06-01T14:39:28.957849179Z", "message": "[AntiRed] Startup worker upgrade: OK (KV: true)", "severity": "info"}
-{"dep": "32b12059", "timestamp": "2026-06-01T14:39:28.957846709Z", "message": "[AntiRed] Shared worker upgraded: OK (KV: bound)", "severity": "info"}
-{"dep": "32b12059", "timestamp": "2026-06-01T14:39:27.596521710Z", "message": "[AntiRed] KV namespace for honeypot bans: 812aca1cbade413d9814bff1708e74db", "severity": "info"}
-{"dep": "32b12059", "timestamp": "2026-06-01T14:39:15.216257875Z", "message": "[AutoPromo] Initialized \u2014 8 jobs (4 langs \u00d7 2 slots/day), 12 themes: cloudphone, antired_hosting, leads_validation, domains_shortener, digital_products, cards_bundles, email_validation, marketplace, vps_rdp, bulksms_app, email_blast, refer_earn", "severity": "info"}

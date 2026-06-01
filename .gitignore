@@ -1284,3 +1284,9 @@ credentials.json
 *.pem
 *.key
 .credentials
+
+# Railway log dumps (may contain Twilio SIDs and other secrets)
+railway_logs*
+scripts/*.jsonl
+scripts/railway_*.json
+scripts/railway_*.jsonl
