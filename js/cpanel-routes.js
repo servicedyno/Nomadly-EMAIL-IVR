@@ -2264,7 +2264,13 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
         const doc = docByDomain[d] || {}
         const v = doc.val || {}
         const hasCloudflare = !!(v.cfZoneId && v.nameserverType === 'cloudflare')
-        const enabled = hasCloudflare && v.antiRedOff !== true
+        // NOTE (2026-02 Day-3 architecture): the current "off" flag is
+        // `val.visitorCaptchaOff`; `val.antiRedOff` is the legacy field still
+        // present on pre-migration docs. Both must be considered or the panel
+        // will report `enabled:true` immediately after the user disabled the
+        // captcha (customer-reported regression — toggle "remained active").
+        const isOff = v.visitorCaptchaOff === true || v.antiRedOff === true
+        const enabled = hasCloudflare && !isOff
         return {
           domain: d,
           enabled,

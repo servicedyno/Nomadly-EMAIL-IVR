@@ -1,5 +1,55 @@
 # CHANGELOG — Nomadly Bot
 
+## 2026-02 (Day 4) — Visitor Captcha "remains active after toggle off" — final fix
+
+A customer reported that toggling **Visitor Captcha** off in the HostPanel
+left it visibly active. Root-caused to the `GET /security/captcha/status`
+endpoint in `js/cpanel-routes.js` (line 2267 before the fix):
+
+```js
+const enabled = hasCloudflare && v.antiRedOff !== true   // ❌ legacy-only
+```
+
+After the Day-3 architectural rework, the disable path correctly persists
+`val.visitorCaptchaOff: true` and sets the CF Worker KV bypass — so the
+captcha really IS off at the edge. But the status endpoint still computed
+the toggle state from the legacy `antiRedOff` field alone. So:
+
+1. User taps **Turn OFF** → POST `/security/captcha/toggle` sets
+   `visitorCaptchaOff:true` + KV `bypass:{domain}=true`. UI updates locally
+   to `enabled:false`. Captcha really is off.
+2. User reloads the panel (or comes back later) → frontend GETs
+   `/security/captcha/status` → response says `enabled:true` (because
+   `antiRedOff` is never written by the new toggle path) → UI flips the
+   row back to ON.
+3. User concludes "it didn't actually turn off" and complains to support.
+
+### Fix
+`js/cpanel-routes.js:2267` — read BOTH flags, matching the pattern already
+in `js/_index.js:12220` and `:27618`:
+
+```js
+const isOff = v.visitorCaptchaOff === true || v.antiRedOff === true
+const enabled = hasCloudflare && !isOff
+```
+
+### Verification
+- New regression test `/app/tests/test_captcha_status_endpoint.js` —
+  **18 assertions, all pass**:
+  - A1-A4 static-source guards (status block uses both flags, single-flag
+    pattern can never silently come back)
+  - B.1-B.6 behavioural mapping (fresh / `visitorCaptchaOff` / `antiRedOff`
+    / both / non-CF / `visitorCaptchaOff:false`)
+  - C1 `node --check js/cpanel-routes.js`
+- `git diff` confined to a 7-line change inside the status route — no
+  collateral edits.
+
+### Files touched
+| File | Change |
+|------|--------|
+| `js/cpanel-routes.js` | status endpoint now OR-checks both flags |
+| `tests/test_captcha_status_endpoint.js` | new (18 assertions) |
+
 ## 2026-02 — Railway log-analysis follow-up fixes (Issues 1–6)
 
 Source: `/app/RAILWAY_LOG_ANALYSIS_LATEST.md` + previous-job triage. The five
