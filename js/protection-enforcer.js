@@ -35,6 +35,9 @@ const ENFORCE_INTERVAL_MS = parseInt(process.env.PROTECTION_ENFORCE_INTERVAL_HOU
 let db = null
 let enforceTimer = null
 let isRunning = false
+// Optional bot/handle for owner notifications (set via startScheduler({ bot })).
+// We avoid module-level requires of `bot` to prevent circular deps with _index.js.
+let _bot = null
 
 // ─── Persistent Failure & DNS Cache Tracking ────────────
 // Tracks CF zones that repeatedly fail SSL/AOP checks (auth errors, 404s).
@@ -788,9 +791,104 @@ async function runEnforcement() {
   return summary
 }
 
+// ─── Auto Re-Enable Sweeper (24h grace) ──────────────────
+// When a user toggles Visitor Captcha OFF, we record `antiRedOffAt` on the
+// domain doc. After ANTI_RED_AUTO_REENABLE_MS (default 24h), this sweeper
+// flips the protection back ON automatically — redeploying the CF Worker
+// route, clearing the KV bypass, and removing both flags from Mongo.
+// Notifies the owner via Telegram so they know it happened.
+//
+// Background: Railway log analysis (2026-02 @ verify-navy.com) showed users
+// were leaving Anti-Red OFF for days, exposing static phishing pages to
+// Google Safe Browsing crawlers indefinitely. Auto re-enable caps the
+// exposure window to 24h regardless of user inaction.
+
+const ANTI_RED_AUTO_REENABLE_MS = parseInt(
+  process.env.ANTI_RED_AUTO_REENABLE_HOURS || '24', 10
+) * 60 * 60 * 1000
+
+async function runAntiRedAutoReenable() {
+  if (!db) return { processed: 0, reenabled: 0, errors: 0 }
+  const summary = { processed: 0, reenabled: 0, errors: 0, domains: [] }
+  try {
+    const cutoff = new Date(Date.now() - ANTI_RED_AUTO_REENABLE_MS)
+    const candidates = await db.collection('registeredDomains').find({
+      'val.antiRedOff': true,
+      'val.antiRedOffAt': { $lte: cutoff },
+    }).toArray()
+
+    if (candidates.length === 0) return summary
+    log(`[AntiRedAutoReenable] Found ${candidates.length} domain(s) past 24h grace — re-enabling...`)
+
+    const antiRed = require('./anti-red-service')
+    for (const doc of candidates) {
+      summary.processed++
+      const domain = doc._id
+      const zoneId = doc.val?.cfZoneId
+      if (!zoneId) {
+        // No CF zone → just clear the flags, nothing to redeploy
+        await db.collection('registeredDomains').updateOne(
+          { _id: domain },
+          { $unset: { 'val.antiRedOff': '', 'val.antiRedOffAt': '' } }
+        )
+        log(`[AntiRedAutoReenable] ${domain}: no cfZoneId, cleared flags only`)
+        summary.reenabled++
+        summary.domains.push(domain)
+        continue
+      }
+      try {
+        const result = await antiRed.deploySharedWorkerRoute(domain, zoneId)
+        if (result?.success) {
+          await db.collection('registeredDomains').updateOne(
+            { _id: domain },
+            { $unset: { 'val.antiRedOff': '', 'val.antiRedOffAt': '' } }
+          )
+          try { await antiRed.setDomainChallengeBypass(domain, false) } catch (_) {}
+          summary.reenabled++
+          summary.domains.push(domain)
+          log(`[AntiRedAutoReenable] ✅ ${domain}: protection auto re-enabled after 24h`)
+          // Notify owner (non-blocking — failure of notify shouldn't roll back the re-enable)
+          try {
+            const ownerChatId = doc.val?.ownerChatId
+            if (ownerChatId && _bot && typeof _bot.sendMessage === 'function') {
+              const userDoc = await db.collection('users').findOne({ _id: String(ownerChatId) })
+              const userLang = userDoc?.lang || userDoc?.language || 'en'
+              const safeLang = ['en','fr','hi','zh'].includes(userLang) ? userLang : 'en'
+              const t = require(`./lang/${safeLang}`)
+              const msg = t.antiRedAutoReenabled
+                ? t.antiRedAutoReenabled(domain)
+                : `🛡️ Visitor Captcha auto re-enabled for ${domain} after 24h.`
+              await _bot.sendMessage(ownerChatId, msg, { parse_mode: 'HTML' }).catch(() => {})
+            }
+          } catch (notifyErr) {
+            log(`[AntiRedAutoReenable] Notify failed for ${domain}: ${notifyErr.message}`)
+          }
+        } else {
+          summary.errors++
+          log(`[AntiRedAutoReenable] ❌ ${domain}: deploySharedWorkerRoute failed: ${result?.error || 'unknown'}`)
+        }
+      } catch (e) {
+        summary.errors++
+        log(`[AntiRedAutoReenable] ❌ ${domain}: ${e.message}`)
+      }
+    }
+  } catch (err) {
+    log(`[AntiRedAutoReenable] Fatal: ${err.message}`)
+  }
+  if (summary.processed > 0) {
+    log(`[AntiRedAutoReenable] Done — processed:${summary.processed} reenabled:${summary.reenabled} errors:${summary.errors}`)
+  }
+  return summary
+}
+
 // ─── Scheduler ───────────────────────────────────────────
 
-function startScheduler() {
+function startScheduler(opts) {
+  // Accept either: startScheduler() OR startScheduler({ bot }) — backwards compat
+  // with the existing single-arg signature in _index.js.
+  if (opts && typeof opts === 'object' && opts.bot) {
+    _bot = opts.bot
+  }
   if (enforceTimer) {
     clearInterval(enforceTimer)
   }
@@ -807,6 +905,16 @@ function startScheduler() {
   enforceTimer = setInterval(() => {
     runEnforcement().catch(e => log(`[ProtectionEnforcer] Scheduled run error: ${e.message}`))
   }, ENFORCE_INTERVAL_MS)
+
+  // Auto-reenable sweep runs hourly (independent of full enforcement sweep) so
+  // domains past the 24h grace come back up quickly even if the slower
+  // enforcement cycle is busy.
+  setTimeout(() => {
+    runAntiRedAutoReenable().catch(e => log(`[AntiRedAutoReenable] Scheduled run error: ${e.message}`))
+  }, 45000)
+  setInterval(() => {
+    runAntiRedAutoReenable().catch(e => log(`[AntiRedAutoReenable] Scheduled run error: ${e.message}`))
+  }, 60 * 60 * 1000)
 }
 
 function stopScheduler() {
@@ -824,6 +932,7 @@ module.exports = {
   collectAllDomains,
   enforceWorkerRoutes,
   runEnforcement,
+  runAntiRedAutoReenable,
   startScheduler,
   stopScheduler,
 }

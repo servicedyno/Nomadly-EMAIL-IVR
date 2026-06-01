@@ -2546,7 +2546,8 @@ const loadData = async () => {
   // Initialize Protection Enforcer — ensure all domains have anti-red worker protection
   const protectionEnforcer = require('./protection-enforcer')
   protectionEnforcer.init(db)
-  protectionEnforcer.startScheduler()
+  // Pass bot ref so the 24h auto re-enable sweeper can DM the owner.
+  protectionEnforcer.startScheduler({ bot })
   log('[ProtectionEnforcer] Initialized and scheduled')
 
   // Initialize Protection Heartbeat — hourly check that every cPanel account has
@@ -27657,7 +27658,7 @@ Select a category:`), k.of(catBtns))
         if (result.success) {
           await db.collection('registeredDomains').updateOne(
             { _id: domain },
-            { $unset: { 'val.antiRedOff': '' } }
+            { $unset: { 'val.antiRedOff': '', 'val.antiRedOffAt': '' } }
           )
           // Remove CF Worker KV bypass so edge re-enables the challenge
           try {
@@ -27681,35 +27682,63 @@ Select a category:`), k.of(catBtns))
     if (message === t.antiRedTurnOff) {
       const domain = info?.domainToManage
       if (!domain) return send(chatId, trans('t.noDomainSelected'))
-      send(chatId, t.antiRedTurningOff(domain), { parse_mode: 'HTML' })
-      try {
-        const domainDoc = await db.collection('registeredDomains').findOne({ _id: domain })
-        const zoneId = domainDoc?.val?.cfZoneId
-        if (!zoneId) return send(chatId, t.antiRedNoCF(domain), { parse_mode: 'HTML' })
-        const { removeWorkerRoutes, setDomainChallengeBypass } = require('./anti-red-service')
-        const result = await removeWorkerRoutes(domain, zoneId)
-        if (result.success) {
-          await db.collection('registeredDomains').updateOne(
-            { _id: domain },
-            { $set: { 'val.antiRedOff': true } }
-          )
-          // Also set CF Worker KV bypass so edge respects the toggle immediately
-          try { await setDomainChallengeBypass(domain, true) } catch (_) {}
-          if (info?.captchaFromPlan && info?.selectedHostingDomain) {
-            await send(chatId, t.antiRedDisabled(domain), { parse_mode: 'HTML' })
-            await saveInfo('captchaFromPlan', false)
-            return goto.viewHostingPlanDetails(info.selectedHostingDomain)
-          }
-          await set(state, chatId, 'action', 'view-domain-actions')
-          return send(chatId, t.antiRedDisabled(domain), k.of([['↩️ Back']]), { parse_mode: 'HTML' })
-        }
-        return send(chatId, t.antiRedError)
-      } catch (e) {
-        log(`[AntiRed-Bot] Error disabling for ${domain}: ${e.message}`)
-        return send(chatId, t.antiRedError)
-      }
+      // STEP 1 of 2: show explicit risk warning and require typed `DISABLE` confirmation.
+      // Previously this immediately removed worker routes — too easy to mis-tap into
+      // an exposed phishing site. See Railway log analysis @ verify-navy.com (2026-02).
+      await set(state, chatId, 'action', 'anti-red-disable-confirm')
+      return send(chatId, t.antiRedDisableConfirm(domain), k.of([['↩️ Back']]), { parse_mode: 'HTML' })
     }
     return send(chatId, trans('t.selectValidOption'))
+  }
+
+  // STEP 2 of 2: user must type the exact word `DISABLE` to actually tear down protection.
+  if (action === 'anti-red-disable-confirm') {
+    if (isBackPress(message)) {
+      // Restore the toggle view (status ON) so they can confirm protection is still active.
+      const domain = info?.domainToManage
+      await set(state, chatId, 'action', 'anti-red-toggle')
+      if (!domain) return send(chatId, trans('t.noDomainSelected'))
+      return send(chatId, t.antiRedStatusOn(domain), k.of([[t.antiRedTurnOff], ['↩️ Back']]), { parse_mode: 'HTML' })
+    }
+    if (message !== 'DISABLE') {
+      return send(chatId, t.antiRedDisableConfirmWrong, k.of([['↩️ Back']]), { parse_mode: 'HTML' })
+    }
+    // Confirmed — now actually disable.
+    const domain = info?.domainToManage
+    if (!domain) return send(chatId, trans('t.noDomainSelected'))
+    send(chatId, t.antiRedTurningOff(domain), { parse_mode: 'HTML' })
+    try {
+      const domainDoc = await db.collection('registeredDomains').findOne({ _id: domain })
+      const zoneId = domainDoc?.val?.cfZoneId
+      if (!zoneId) return send(chatId, t.antiRedNoCF(domain), { parse_mode: 'HTML' })
+      const { removeWorkerRoutes, setDomainChallengeBypass } = require('./anti-red-service')
+      const result = await removeWorkerRoutes(domain, zoneId)
+      if (result.success) {
+        await db.collection('registeredDomains').updateOne(
+          { _id: domain },
+          { $set: {
+            'val.antiRedOff': true,
+            // Timestamp drives the 24h auto re-enable sweep in protection-enforcer.js.
+            // Without this the previous behaviour was: the toggle stayed off forever
+            // until the user manually flipped it — which let phishing sites stay exposed
+            // for days. See Railway log analysis @ verify-navy.com (2026-02).
+            'val.antiRedOffAt': new Date(),
+          } }
+        )
+        try { await setDomainChallengeBypass(domain, true) } catch (_) {}
+        if (info?.captchaFromPlan && info?.selectedHostingDomain) {
+          await send(chatId, t.antiRedDisabled(domain), { parse_mode: 'HTML' })
+          await saveInfo('captchaFromPlan', false)
+          return goto.viewHostingPlanDetails(info.selectedHostingDomain)
+        }
+        await set(state, chatId, 'action', 'view-domain-actions')
+        return send(chatId, t.antiRedDisabled(domain), k.of([['↩️ Back']]), { parse_mode: 'HTML' })
+      }
+      return send(chatId, t.antiRedError)
+    } catch (e) {
+      log(`[AntiRed-Bot] Error disabling for ${domain}: ${e.message}`)
+      return send(chatId, t.antiRedError)
+    }
   }
   
   // DNS Management Confirmation for Hosting Domains

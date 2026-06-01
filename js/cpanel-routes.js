@@ -2171,7 +2171,7 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
           if (db) {
             await db.collection('registeredDomains').updateOne(
               { _id: req.cpDomain },
-              { $unset: { 'val.antiRedOff': '' } }
+              { $unset: { 'val.antiRedOff': '', 'val.antiRedOffAt': '' } }
             )
           }
         } catch (_) {}
@@ -2196,7 +2196,11 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
           if (db) {
             await db.collection('registeredDomains').updateOne(
               { _id: req.cpDomain },
-              { $set: { 'val.antiRedOff': true } }
+              { $set: {
+                'val.antiRedOff': true,
+                // Timestamp for the 24h auto re-enable sweep (see protection-enforcer.js).
+                'val.antiRedOffAt': new Date(),
+              } }
             )
           }
         } catch (_) {}
@@ -2331,7 +2335,7 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
         if (workerResult?.success) {
           await db.collection('registeredDomains').updateOne(
             { _id: target },
-            { $unset: { 'val.antiRedOff': '' } }
+            { $unset: { 'val.antiRedOff': '', 'val.antiRedOffAt': '' } }
           )
           try { await antiRedService.setDomainChallengeBypass(target, false) } catch (_) {}
         }
@@ -2340,7 +2344,11 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
         if (workerResult?.success) {
           await db.collection('registeredDomains').updateOne(
             { _id: target },
-            { $set: { 'val.antiRedOff': true } }
+            { $set: {
+              'val.antiRedOff': true,
+              // Timestamp for the 24h auto re-enable sweep (see protection-enforcer.js).
+              'val.antiRedOffAt': new Date(),
+            } }
           )
           try { await antiRedService.setDomainChallengeBypass(target, true) } catch (_) {}
         }

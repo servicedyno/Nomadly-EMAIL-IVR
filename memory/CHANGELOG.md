@@ -98,3 +98,72 @@ addressed and verified with a 74-test Node unit suite (`/app/tests/test_*_fixes.
 | `tests/test_protection_heartbeat_fixes.js` | new |
 | `tests/test_ai_support_and_health_fixes.js` | new |
 | `tests/test_mysql_manager_smoke.js` | new |
+
+## 2026-02 (Day 2) — Visitor Captcha hardening (verify-navy.com fallout)
+
+Source: Railway log analysis of user `@Night_ismine` who registered `verify-navy.com`
+(impersonating Navy Federal Credit Union) — flagged by Google Safe Browsing.
+Log audit additionally surfaced 6 phishing-pattern domains in active production with
+`antiRedOff=true` (bank-impersonation: `bankofamericaweb.com`, `cap1online360.com`,
+`everwise-secure.com`, `hunt-verify.org`, `huntingtononlinebanking.it`,
+`navyfed-verify.com`).
+
+The protection code itself wasn't weak — these users had **self-disabled** the
+Cloudflare edge protection via the in-bot "Turn OFF Visitor Captcha" button.
+That toggle was a single tap and the success toast falsely claimed "Other
+security layers (IP cloaking, UA blocking) remain active", giving users a
+false sense of safety.
+
+### Fix #1 — Honest toast text (all 4 languages)
+**Files:** `js/lang/{en,fr,hi,zh}.js`
+- Replaced the misleading "other security layers remain active" line in
+  `antiRedDisabled` with an explicit warning that ALL Cloudflare edge-level
+  scanner blocking goes dark when toggled off, and that static `.html` pages
+  are now served without any challenge.
+- Updated `antiRedStatusOff` with the same accurate disclosure + the 24h
+  auto re-enable timer.
+
+### Fix #2 — Typed `DISABLE` confirmation (2-step)
+**Files:** `js/_index.js`, `js/cpanel-routes.js`, all `js/lang/*.js`
+- Tapping "❌ Turn OFF Visitor Captcha" now routes to a new state
+  `anti-red-disable-confirm` showing a hard-stop warning listing every
+  protection layer that goes down, the 24h auto re-enable timer, and asking
+  the user to **type the word `DISABLE` (in capitals)** to proceed.
+- Mis-typing shows a clear error; ↩️ Back restores the protected state.
+- Both bot-side and HostPanel-side disable paths now write `val.antiRedOffAt`
+  timestamp to drive the auto re-enable sweep.
+
+### Fix #3 — 24h auto re-enable sweeper
+**File:** `js/protection-enforcer.js`
+- New `runAntiRedAutoReenable()` function that runs hourly (independent of
+  the slower 6-hourly enforcement sweep). Finds all domains with
+  `val.antiRedOff=true AND val.antiRedOffAt <= now-24h`, redeploys the
+  Cloudflare Worker route via `deploySharedWorkerRoute()`, clears both
+  flags, removes the KV bypass, and Telegrams the owner with the
+  localized `antiRedAutoReenabled` message.
+- Grace window configurable via `ANTI_RED_AUTO_REENABLE_HOURS` env
+  (default 24).
+- Sweep starts 45s after bot boot to let services initialize.
+- Bot reference passed via `startScheduler({ bot })` — no circular import.
+- Failure to notify the owner does NOT roll back the re-enable.
+
+### Verification
+- **Unit tests:** 37/37 new + 74/74 existing = **111/111 passing**.
+  ```
+  tests/test_visitor_captcha_hardening.js     37/37  (new)
+  ```
+- **Live boot check:** `nodejs` supervisor restart logs show
+  `[ProtectionEnforcer] Scheduler started — runs every 6h`, plus the
+  enforcement run completes cleanly, no err-log entries.
+
+### Files touched
+| File | Change |
+|------|--------|
+| `js/lang/en.js` | honest `antiRedDisabled`/`antiRedStatusOff`; new `antiRedDisableConfirm`/`antiRedDisableConfirmWrong`/`antiRedAutoReenabled` |
+| `js/lang/fr.js` | same updates (FR) |
+| `js/lang/hi.js` | same updates (HI) |
+| `js/lang/zh.js` | same updates (ZH) |
+| `js/_index.js` | 2-step typed-DISABLE confirm flow; writes `val.antiRedOffAt` |
+| `js/cpanel-routes.js` | writes/clears `val.antiRedOffAt` on disable/enable |
+| `js/protection-enforcer.js` | new `runAntiRedAutoReenable` sweep + hourly scheduler |
+| `tests/test_visitor_captcha_hardening.js` | new (37 assertions) |
