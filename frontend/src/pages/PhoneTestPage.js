@@ -218,7 +218,18 @@ const PhoneTestPage = () => {
       });
 
       client.on('telnyx.error', (err) => {
-        addLog(`Connection error: ${err.message || 'Unknown'}`, 'error');
+        // Surface auth failures clearly — the Telnyx gateway returns
+        // -32001 "Login Incorrect" when the SIP password is wrong/outdated.
+        // The raw SDK event often has an empty top-level message ("Unknown"),
+        // which left users guessing. Dig the real reason out of the payload.
+        const detail = err?.error?.message || err?.message || err?.reason || '';
+        const code = err?.error?.code ?? err?.code;
+        const isAuth = code === -32001 || /login incorrect|auth|forbidden|unauthor|credential/i.test(detail);
+        if (isAuth) {
+          addLog('Authentication failed — your SIP password is incorrect or outdated. In the bot, open 🔑 SIP Credentials → Reveal Password and paste the latest password, then Connect again.', 'error');
+        } else {
+          addLog(`Connection error: ${detail || 'Unknown'}`, 'error');
+        }
         setStatus('error');
       });
 
