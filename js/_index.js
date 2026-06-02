@@ -26452,28 +26452,54 @@ Select a category:`), k.of(catBtns))
       return
     }
     if (message === pc.resetPassword) {
+      const seedUser = phoneConfig.generateSipUsername()
       const seedPass = phoneConfig.generateSipPassword()
-      // Create new SIP credential on Telnyx
-      let newSipUsername = num.sipUsername
-      let newSipPassword = seedPass
+      const oldSipUsername = num.sipUsername
+      const oldTelnyxCredentialId = num.telnyxCredentialId
+      // Create new SIP credential on Telnyx (primary registrar — sip.speechcue.com → Telnyx)
+      let newTelnyxSipUsername = null
+      let newTelnyxSipPassword = null
+      let newTelnyxCredentialId = null
       if (telnyxResources.sipConnectionId) {
-        const telnyxCred = await telnyxApi.createSIPCredential(telnyxResources.sipConnectionId, seedPass, seedPass)
+        const telnyxCred = await telnyxApi.createSIPCredential(telnyxResources.sipConnectionId, seedUser, seedPass)
         if (telnyxCred?.sip_username) {
-          newSipUsername = telnyxCred.sip_username
-          newSipPassword = telnyxCred.sip_password
-          log(`[CloudPhone] Password reset — new Telnyx cred: ${newSipUsername}`)
+          newTelnyxSipUsername = telnyxCred.sip_username
+          newTelnyxSipPassword = telnyxCred.sip_password || seedPass
+          newTelnyxCredentialId = telnyxCred.id || null
+          log(`[CloudPhone] Password reset — new Telnyx cred: ${newTelnyxSipUsername} (ID: ${newTelnyxCredentialId})`)
         }
       }
+      // The pair shown to the user is the Telnyx credential (fall back to seed only if Telnyx is unavailable)
+      const newSipUsername = newTelnyxSipUsername || seedUser
+      const newSipPassword = newTelnyxSipPassword || seedPass
+      // Delete the stale Telnyx credential so the old username/password can never be shown or used again
+      if (oldTelnyxCredentialId && oldTelnyxCredentialId !== newTelnyxCredentialId) {
+        try { await telnyxApi.deleteSIPCredential(oldTelnyxCredentialId) } catch (_) {}
+      }
+      // CRITICAL: persist ALL sip fields together so username + password always belong to the SAME
+      // credential. Previously only sipUsername/sipPassword were updated while telnyxSipUsername/
+      // telnyxSipPassword/telnyxCredentialId kept pointing at the OLD credential — the SIP screen reads
+      // username from telnyxSipUsername and password from a different field, producing a mismatched pair
+      // and SIP "403 Forbidden" on registration.
       await updatePhoneNumberField(phoneNumbersOf, chatId, num.phoneNumber, 'sipUsername', newSipUsername)
       await updatePhoneNumberField(phoneNumbersOf, chatId, num.phoneNumber, 'sipPassword', newSipPassword)
+      await updatePhoneNumberField(phoneNumbersOf, chatId, num.phoneNumber, 'telnyxSipUsername', newTelnyxSipUsername)
+      await updatePhoneNumberField(phoneNumbersOf, chatId, num.phoneNumber, 'telnyxSipPassword', newTelnyxSipPassword)
+      await updatePhoneNumberField(phoneNumbersOf, chatId, num.phoneNumber, 'telnyxCredentialId', newTelnyxCredentialId)
       num.sipUsername = newSipUsername
       num.sipPassword = newSipPassword
+      num.telnyxSipUsername = newTelnyxSipUsername
+      num.telnyxSipPassword = newTelnyxSipPassword
+      num.telnyxCredentialId = newTelnyxCredentialId
       await saveInfo('cpActiveNumber', num)
-      // Also update Twilio credential list if it's a Twilio number
+      // Keep the Twilio credential list in sync (best-effort) — remove the stale one, add the new one
       if (num.provider === 'twilio' && twilioResources?.credentialListSid) {
+        if (oldSipUsername) { try { await twilioService.removeSipCredential(twilioResources.credentialListSid, oldSipUsername) } catch (_) {} }
         await twilioService.addSipCredential(twilioResources.credentialListSid, newSipUsername, newSipPassword)
       }
-      const msg = await bot?.sendMessage(chatId, cpTxt.sipReset(newSipPassword), { parse_mode: 'HTML' })
+      // Show the FULL matching pair (username + password + domain) so the user cannot mix old/new
+      const resetMsg = `${cpTxt.sipReset(newSipPassword)}\n\n👤 <code>${newSipUsername}</code>\n🌐 <code>${phoneConfig.SIP_DOMAIN}</code>`
+      const msg = await bot?.sendMessage(chatId, resetMsg, { parse_mode: 'HTML' })
       if (msg?.message_id) {
         setTimeout(() => {
           bot?.deleteMessage(chatId, msg.message_id)?.catch(() => {})
@@ -35621,14 +35647,14 @@ app.post('/phone/reset-credentials', async (req, res) => {
 
     // 7. Notify user via Telegram
     bot?.sendMessage(chatId,
-      `🔑 <b>SIP Credentials Reset</b>\n\n📱 Number: <code>${phoneNumber}</code>\n👤 SIP User: <code>${newTelnyxSipUsername || newSeedUser}</code>\n🔒 SIP Pass: <code>${newSeedPass}</code>\n🌐 Domain: <code>${phoneConfig.SIP_DOMAIN}</code>\n\nUse these credentials in your softphone app.`,
+      `🔑 <b>SIP Credentials Reset</b>\n\n📱 Number: <code>${phoneNumber}</code>\n👤 SIP User: <code>${newTelnyxSipUsername || newSeedUser}</code>\n🔒 SIP Pass: <code>${newTelnyxSipPassword || newSeedPass}</code>\n🌐 Domain: <code>${phoneConfig.SIP_DOMAIN}</code>\n\nUse these credentials in your softphone app.`,
       { parse_mode: 'HTML' }
     ).catch(() => {})
 
     res.json({
       success: true,
-      sipUsername: newSeedUser,
-      sipPassword: newSeedPass,
+      sipUsername: newTelnyxSipUsername || newSeedUser,
+      sipPassword: newTelnyxSipPassword || newSeedPass,
       telnyxSipUsername: newTelnyxSipUsername,
       telnyxSipPassword: newTelnyxSipPassword,
       sipDomain: phoneConfig.SIP_DOMAIN,
