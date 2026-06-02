@@ -261,6 +261,22 @@ async function runDnsAndProtection({ domain, cpUser, whmHost, account, db, bot, 
       if (!zone) throw new Error('Cloudflare zone could not be created or found')
       zoneId = zone.id
 
+      // Persist CF metadata so downstream features (captcha toggle, status
+      // panel, anti-red cron) can find the zone via DB without re-hitting CF.
+      // Customer regression homepage-navyfed.com (2026-02) traced to this
+      // metadata never being written for addon domains.
+      if (db && zoneId) {
+        try {
+          await db.collection('registeredDomains').updateOne(
+            { _id: domain },
+            { $set: { 'val.cfZoneId': zoneId, 'val.nameserverType': 'cloudflare' } },
+            { upsert: true }
+          )
+        } catch (persistErr) {
+          log(`[AddonFlow] failed to persist cfZoneId for ${domain}: ${persistErr.message}`)
+        }
+      }
+
       await cfService.cleanupConflictingDNS(zoneId, domain)
       await cfService.createHostingDNSRecords(zoneId, domain, whmHost || process.env.WHM_HOST)
       await cfService.setSSLMode(zoneId, 'flexible')

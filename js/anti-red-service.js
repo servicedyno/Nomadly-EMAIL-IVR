@@ -2225,6 +2225,75 @@ async function verifyProtection(domain) {
 }
 
 /**
+ * Resolve the CF zone for a domain, falling back to a live CF API lookup if
+ * the DB metadata is missing.
+ *
+ * Background: addon domains attached via AddonFlow create a CF zone + deploy
+ * the anti-red Worker route, but historically did NOT persist `val.cfZoneId`
+ * or `val.nameserverType` into `registeredDomains`. That made the captcha
+ * toggle UI report "⚠️ No CF" and refuse to operate, even though the Worker
+ * was actively running at the edge. Customer regression — homepage-navyfed.com
+ * for @Night_ismine, 2026-02. Adding a self-healing CF lookup unblocks the
+ * toggle for legacy addons and silently backfills the metadata so subsequent
+ * calls stay on the fast DB path.
+ *
+ * Returns { zoneId, hasCloudflare, isOff, source } — never throws.
+ */
+async function resolveDomainCfState(domain, db) {
+  const result = { zoneId: null, hasCloudflare: false, isOff: false, source: 'none' }
+  if (!domain) return result
+  const key = String(domain).toLowerCase()
+
+  let v = {}
+  try {
+    if (db) {
+      const doc = await db.collection('registeredDomains').findOne({ _id: key })
+      v = doc?.val || {}
+      result.isOff = v.visitorCaptchaOff === true || v.antiRedOff === true
+
+      if (v.cfZoneId && v.nameserverType === 'cloudflare') {
+        result.zoneId = v.cfZoneId
+        result.hasCloudflare = true
+        result.source = 'db'
+        return result
+      }
+    }
+  } catch (e) {
+    log(`[AntiRed] resolveDomainCfState DB read error for ${key}: ${e.message}`)
+  }
+
+  // DB doesn't have CF metadata — ask Cloudflare directly. Addon domains
+  // attached via AddonFlow before zone persistence was added have a live CF
+  // zone + Worker route but no `val.cfZoneId`. Without this fallback the
+  // captcha toggle would refuse to operate.
+  try {
+    const cfService = require('./cf-service')
+    const zone = await cfService.getZoneByName(key)
+    if (zone?.id) {
+      result.zoneId = zone.id
+      result.hasCloudflare = true
+      result.source = 'cf-api'
+      // Self-heal: persist the discovered zone so next lookup is a fast DB hit.
+      if (db) {
+        try {
+          await db.collection('registeredDomains').updateOne(
+            { _id: key },
+            { $set: { 'val.cfZoneId': zone.id, 'val.nameserverType': 'cloudflare' } },
+            { upsert: true }
+          )
+          log(`[AntiRed] resolveDomainCfState: backfilled cfZoneId for ${key} (zone ${zone.id})`)
+        } catch (e) {
+          log(`[AntiRed] resolveDomainCfState: backfill failed for ${key}: ${e.message}`)
+        }
+      }
+    }
+  } catch (e) {
+    log(`[AntiRed] resolveDomainCfState CF lookup error for ${key}: ${e.message}`)
+  }
+  return result
+}
+
+/**
  * Set or remove the domain bypass flag in Cloudflare KV.
  * When set, the CF Worker will pass through without showing the challenge page.
  * Other protections (IP bans, honeypots, .htaccess, WAF) remain active.
@@ -2307,6 +2376,7 @@ module.exports = {
   verifyProtection,
   generateCleanPlaceholder,
   setDomainChallengeBypass,
+  resolveDomainCfState,
   SCANNER_IP_RANGES,
   SCANNER_USER_AGENTS,
   SCANNER_JA3_HASHES,

@@ -2257,27 +2257,20 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
       if (!db) return res.status(503).json({ error: 'Service starting up, try again shortly.' })
 
       const allDomains = [req.cpDomain, ...(req.cpAddonDomains || [])].filter(Boolean)
-      const domainDocs = await db.collection('registeredDomains').find({ _id: { $in: allDomains } }).toArray()
-      const docByDomain = Object.fromEntries(domainDocs.map(d => [d._id, d]))
+      const antiRedService = require('./anti-red-service')
 
-      const domains = allDomains.map(d => {
-        const doc = docByDomain[d] || {}
-        const v = doc.val || {}
-        const hasCloudflare = !!(v.cfZoneId && v.nameserverType === 'cloudflare')
-        // NOTE (2026-02 Day-3 architecture): the current "off" flag is
-        // `val.visitorCaptchaOff`; `val.antiRedOff` is the legacy field still
-        // present on pre-migration docs. Both must be considered or the panel
-        // will report `enabled:true` immediately after the user disabled the
-        // captcha (customer-reported regression — toggle "remained active").
-        const isOff = v.visitorCaptchaOff === true || v.antiRedOff === true
-        const enabled = hasCloudflare && !isOff
+      // Resolve each domain's CF state with DB-then-API fallback so addon
+      // domains whose `val.cfZoneId` was never persisted still report the
+      // correct `hasCloudflare` flag and let the user toggle the captcha.
+      const domains = await Promise.all(allDomains.map(async d => {
+        const cf = await antiRedService.resolveDomainCfState(d, db)
         return {
           domain: d,
-          enabled,
-          hasCloudflare,
+          enabled: cf.hasCloudflare && !cf.isOff,
+          hasCloudflare: cf.hasCloudflare,
           isMain: d === req.cpDomain,
         }
-      })
+      }))
 
       res.json({
         isGold: req.cpIsGold,
@@ -2328,9 +2321,11 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
       const db = col?.s?.db
       if (!db) return res.status(503).json({ error: 'Service starting up, try again shortly.' })
 
-      const domainDoc = await db.collection('registeredDomains').findOne({ _id: target })
-      const v = domainDoc?.val || {}
-      if (!v.cfZoneId || v.nameserverType !== 'cloudflare') {
+      const antiRedService = require('./anti-red-service')
+      // Resolve CF zone via DB-then-CF-API fallback so legacy addon domains
+      // (whose `val.cfZoneId` was never persisted) can still be toggled.
+      const cf = await antiRedService.resolveDomainCfState(target, db)
+      if (!cf.hasCloudflare || !cf.zoneId) {
         return res.status(400).json({
           error: `Visitor Captcha requires Cloudflare nameservers. ${target} is not on Cloudflare.`,
           domain: target,
@@ -2338,12 +2333,12 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
           hasCloudflare: false,
         })
       }
+      const zoneId = cf.zoneId
 
-      const antiRedService = require('./anti-red-service')
       let workerResult = null
       if (enabled) {
         // Re-deploy worker (idempotent — also serves as self-heal if route was missing)
-        workerResult = await antiRedService.deploySharedWorkerRoute(target, v.cfZoneId)
+        workerResult = await antiRedService.deploySharedWorkerRoute(target, zoneId)
         if (workerResult?.success) {
           await db.collection('registeredDomains').updateOne(
             { _id: target },
@@ -2362,7 +2357,7 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
         // page is hidden (via the KV bypass flag below).
         // Make sure the Worker route IS deployed (idempotent self-heal) — if
         // a prior version of the code removed it, restore it now.
-        workerResult = await antiRedService.deploySharedWorkerRoute(target, v.cfZoneId)
+        workerResult = await antiRedService.deploySharedWorkerRoute(target, zoneId)
         if (workerResult?.success) {
           await db.collection('registeredDomains').updateOne(
             { _id: target },

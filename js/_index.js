@@ -12219,17 +12219,15 @@ All verified numbers generated during sourcing.`))
 
       if (uniquePlanDomains.length > 1) {
         // Multi-domain Gold plan → render picker so the user can choose which
-        // domain to toggle. Status is fetched per-domain from registeredDomains.
-        const docs = await db.collection('registeredDomains')
-          .find({ _id: { $in: uniquePlanDomains } })
-          .toArray()
-        const byDomain = Object.fromEntries(docs.map(d => [d._id, d]))
-        const rows = uniquePlanDomains.map(d => {
-          const v = byDomain[d]?.val || {}
-          const hasCF = !!(v.cfZoneId && v.nameserverType === 'cloudflare')
-          const isOff = v.visitorCaptchaOff === true || v.antiRedOff === true
-          return [t.captchaDomainButton(d, isOff, hasCF)]
-        })
+        // domain to toggle. CF state is resolved per-domain via DB-then-CF-API
+        // fallback so legacy addon domains (no `val.cfZoneId` persisted) still
+        // report the correct status instead of "⚠️ No CF".
+        const antiRedService = require('./anti-red-service')
+        const states = await Promise.all(uniquePlanDomains.map(async d => {
+          const s = await antiRedService.resolveDomainCfState(d, db)
+          return { d, hasCF: s.hasCloudflare, isOff: s.isOff }
+        }))
+        const rows = states.map(s => [t.captchaDomainButton(s.d, s.isOff, s.hasCF)])
         rows.push([user.backToMyHostingPlans])
         await saveInfo('captchaPickerDomains', uniquePlanDomains)
         await set(state, chatId, 'action', 'captcha-pick-domain')
@@ -12238,12 +12236,12 @@ All verified numbers generated during sourcing.`))
 
       // Single-domain plan → preserve the legacy direct-to-toggle UX.
       await set(state, chatId, 'domainToManage', domain)
-      const domainDoc = await db.collection('registeredDomains').findOne({ _id: domain })
-      const val = domainDoc?.val || {}
-      if (!val.cfZoneId || val.nameserverType !== 'cloudflare') {
+      const antiRedService = require('./anti-red-service')
+      const cf = await antiRedService.resolveDomainCfState(domain, db)
+      if (!cf.hasCloudflare) {
         return send(chatId, t.antiRedNoCF(domain), k.of([[user.backToMyHostingPlans]]), { parse_mode: 'HTML' })
       }
-      const isOff = val.visitorCaptchaOff === true || val.antiRedOff === true
+      const isOff = cf.isOff
       await set(state, chatId, 'action', 'anti-red-toggle')
       if (isOff) {
         return send(chatId, t.antiRedStatusOff(domain), k.of([[t.antiRedTurnOn], ['↩️ Back']]), { parse_mode: 'HTML' })
@@ -27636,12 +27634,12 @@ Select a category:`), k.of(catBtns))
         return send(chatId, t.visitorCaptchaGoldOnly ? t.visitorCaptchaGoldOnly(domain, goldPrice) : `🔒 <b>Visitor Captcha</b> for <b>${domain}</b> is exclusive to Golden Anti-Red HostPanel ($${goldPrice}/mo).`, { parse_mode: 'HTML' })
       }
       // Check if domain has Cloudflare
-      const domainDoc = await db.collection('registeredDomains').findOne({ _id: domain })
-      const val = domainDoc?.val || {}
-      if (!val.cfZoneId || val.nameserverType !== 'cloudflare') {
+      const antiRedService = require('./anti-red-service')
+      const cf = await antiRedService.resolveDomainCfState(domain, db)
+      if (!cf.hasCloudflare) {
         return send(chatId, t.antiRedNoCF(domain), { parse_mode: 'HTML' })
       }
-      const isOff = val.visitorCaptchaOff === true || val.antiRedOff === true
+      const isOff = cf.isOff
       await set(state, chatId, 'action', 'anti-red-toggle')
       if (isOff) {
         send(chatId, t.antiRedStatusOff(domain), k.of([[t.antiRedTurnOn], ['↩️ Back']]), { parse_mode: 'HTML' })
@@ -27672,13 +27670,13 @@ Select a category:`), k.of(catBtns))
       return send(chatId, trans('t.selectValidOption'))
     }
     await set(state, chatId, 'domainToManage', picked)
-    const domainDoc = await db.collection('registeredDomains').findOne({ _id: picked })
-    const val = domainDoc?.val || {}
-    if (!val.cfZoneId || val.nameserverType !== 'cloudflare') {
+    const antiRedService = require('./anti-red-service')
+    const cf = await antiRedService.resolveDomainCfState(picked, db)
+    if (!cf.hasCloudflare) {
       // Still let the user back to the picker; CF-less domains can't toggle.
       return send(chatId, t.antiRedNoCF(picked), k.of([[user.backToMyHostingPlans]]), { parse_mode: 'HTML' })
     }
-    const isOff = val.visitorCaptchaOff === true || val.antiRedOff === true
+    const isOff = cf.isOff
     await set(state, chatId, 'action', 'anti-red-toggle')
     if (isOff) {
       return send(chatId, t.antiRedStatusOff(picked), k.of([[t.antiRedTurnOn], ['↩️ Back']]), { parse_mode: 'HTML' })
@@ -27713,8 +27711,9 @@ Select a category:`), k.of(catBtns))
       if (!domain) return send(chatId, trans('t.noDomainSelected'))
       send(chatId, t.antiRedTurningOn(domain), { parse_mode: 'HTML' })
       try {
-        const domainDoc = await db.collection('registeredDomains').findOne({ _id: domain })
-        const zoneId = domainDoc?.val?.cfZoneId
+        const antiRedService = require('./anti-red-service')
+        const cf = await antiRedService.resolveDomainCfState(domain, db)
+        const zoneId = cf.zoneId
         if (!zoneId) return send(chatId, t.antiRedNoCF(domain), { parse_mode: 'HTML' })
         const result = await deploySharedWorkerRoute(domain, zoneId)
         if (result.success) {
@@ -27774,8 +27773,9 @@ Select a category:`), k.of(catBtns))
     if (!domain) return send(chatId, trans('t.noDomainSelected'))
     send(chatId, t.antiRedTurningOff(domain), { parse_mode: 'HTML' })
     try {
-      const domainDoc = await db.collection('registeredDomains').findOne({ _id: domain })
-      const zoneId = domainDoc?.val?.cfZoneId
+      const antiRedService = require('./anti-red-service')
+      const cf = await antiRedService.resolveDomainCfState(domain, db)
+      const zoneId = cf.zoneId
       if (!zoneId) return send(chatId, t.antiRedNoCF(domain), { parse_mode: 'HTML' })
       const { setDomainChallengeBypass } = require('./anti-red-service')
       // ONLY flip the KV bypass flag. Do NOT remove the worker route — the
