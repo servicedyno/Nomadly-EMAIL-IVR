@@ -110,6 +110,27 @@ Tried to upgrade/renew/cancel hosting for `docxsndr.com` — all operations fail
 - **`js/_index.js`** (renewal flow ~13075): added `$unset` for `suspendedAt`, `deleted`, `deletedAt`, `cancelledByUser`, `deletedBy`, `expiryUserNotified` on successful renewal
 - **Production data fix**: Reset `deleted`/`cancelledByUser`/`deletedBy`/`deletedAt` on `cpanelAccounts._id=docxabcc` so the user can retry the upgrade
 
+
+## Captcha Challenge Stuck Bug Fix (Jun 3, 2026) — All hosting domains affected
+
+### User Report
+All domains on hosting plans stuck at "Verifying your browser" captcha — the "Continue to site" button never appeared. `auth-blosecure.sbs` was one example.
+
+### Root Cause
+Stale Chrome version threshold in the anti-red Cloudflare Worker. The bot detection flagged `Chrome > 145` as suspicious, but Chrome stable reached **149** on June 2, 2026. This caused:
+1. **Server-side** (`calculateBotScore`): Chrome 149 → +35 points, causing legitimate users to be cloaked or aggressively challenged
+2. **Client-side** (challenge page JS): Chrome 149 → +25 points, combined with any other signal (plugins, RTT, timing) pushed legitimate users over the ≥35 "Verification failed" threshold
+
+### Fixes Applied
+- **`js/anti-red-service.js`** — `calculateBotScore()`: updated `ver > 145` → `ver > 165`, `ver > 142` → `ver > 160`
+- **`js/anti-red-service.js`** — client-side challenge page: updated `cv2 > 145` → `cv2 > 165`
+- **Cloudflare Worker redeployed** via `upgradeSharedWorker()` — confirmed `{success: true, kvBound: true}`
+
+### Verification
+- Desktop Chrome 149: `x-antired: challenge` (was `cloaked` — completely blocked)
+- Mobile Chrome 149: `x-antired: challenge` (was `cloaked` — completely blocked)
+- Deployed worker confirmed: `cv2>165` in client-side JS
+
 ## Testing Protocol
 
 **Communication protocol with testing sub-agent:**
