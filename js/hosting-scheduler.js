@@ -4,11 +4,9 @@
  *
  * Runs hourly checks on all cPanel hosting accounts:
  * 1. 24h advance notification — warns user their plan is about to expire
- * 2. Auto-renew — charges wallet and extends plan (MONTHLY plans only, if enabled & funds available)
+ * 2. Auto-renew — charges wallet and extends plan (all plans, if enabled & funds available)
  * 3. Immediate suspension — cPanel account suspended the moment plan expires (website goes offline)
  * 4. Delete — terminates cPanel account after 48h grace period if not renewed
- *
- * IMPORTANT: Weekly plans NEVER auto-renew. Only monthly plans auto-renew.
  *
  * Depends on: cpanelAccounts collection, users collection, WHM service, Telegram bot
  */
@@ -25,7 +23,7 @@ const ADVANCE_NOTIFY_HOURS = 24
 const CHECK_INTERVAL_MS = 60 * 60 * 1000 // 1 hour
 
 /**
- * Check if a plan is a weekly plan (should NOT auto-renew)
+ * Check if a plan is a weekly plan (determines renewal duration: 7 vs 30 days)
  */
 function isWeeklyPlan(planName) {
   const name = (planName || '').toLowerCase()
@@ -76,7 +74,7 @@ function initScheduler(deps) {
   const { translation } = require('./translation')
 
   log('[HostingScheduler] Initialized — checking every hour')
-  log('[HostingScheduler] Policy: weekly plans NEVER auto-renew, monthly plans auto-renew if enabled')
+  log('[HostingScheduler] Policy: all plans auto-renew if enabled by user')
 
   /**
    * Resolve the user's preferred language from the `state` collection.
@@ -185,8 +183,8 @@ function initScheduler(deps) {
         const plan = account.plan
         const weekly = isWeeklyPlan(plan)
 
-        // Weekly plans NEVER auto-renew — only monthly plans can auto-renew
-        const isAutoRenew = !weekly && account.autoRenew !== false
+        // All plans can auto-renew if the user has it enabled
+        const isAutoRenew = account.autoRenew !== false
 
         // ── Case 1: Expiring within 24h — send advance notification ──
         if (expiry > now && expiry <= in24h && !account.expiryNotified) {
@@ -195,9 +193,7 @@ function initScheduler(deps) {
           const tt = (key, ...args) => translation(`t.${key}`, lang, ...args)
 
           let renewText
-          if (weekly) {
-            renewText = tt('schedRenewTextWeekly')
-          } else if (isAutoRenew) {
+          if (isAutoRenew) {
             renewText = `Your wallet will be auto-charged <b>$${price}</b> on expiry.`
           } else {
             renewText = tt('schedRenewTextOff', GRACE_PERIOD_HOURS)
@@ -208,7 +204,7 @@ function initScheduler(deps) {
             + tt('schedExpiryWarningBody', plan, domain) + '\n\n'
             + `${renewText}\n\n`
             + tt('schedRenewTextWalletHint') + '\n'
-            + (weekly ? '' : tt('schedRenewTextToggleHint', domain))
+            + tt('schedRenewTextToggleHint', domain)
           )
 
           await cpanelAccounts.updateOne(
@@ -216,7 +212,7 @@ function initScheduler(deps) {
             { $set: { expiryNotified: true } }
           )
           notified++
-          log(`[HostingScheduler] Notified ${chatId} — ${domain} (${plan}) expiring soon${weekly ? ' [WEEKLY, no auto-renew]' : ''}`)
+          log(`[HostingScheduler] Notified ${chatId} — ${domain} (${plan}) expiring soon`)
         }
 
         // ── Case 2: Expired — attempt auto-renew (monthly only) or grace period ──
@@ -311,21 +307,6 @@ function initScheduler(deps) {
                 log(`[HostingScheduler] Auto-renew failed (low funds) for ${domain} — USD: $${(usdBal || 0).toFixed(2)}, needed: $${price}`)
               }
             }
-          } else if (weekly && expiry <= now) {
-            // Weekly plan expired — notify user (weekly plans never auto-renew)
-            if (!account.expiryUserNotified) {
-              const langC = await getUserLang(chatId)
-              const ttC = (key, ...args) => translation(`t.${key}`, langC, ...args)
-              notify(chatId,
-                ttC('schedWeeklyExpiredTitle') + '\n\n'
-                + ttC('schedWeeklyExpiredBody', plan, domain, GRACE_PERIOD_HOURS)
-              )
-              await cpanelAccounts.updateOne(
-                { _id: account._id },
-                { $set: { expiryUserNotified: true } }
-              )
-              log(`[HostingScheduler] Weekly plan expired: ${domain} (${plan}) for ${chatId} — no auto-renew (weekly plans never auto-renew)`)
-            }
           }
 
           // ── Immediate suspension on expiry — website goes offline right away ──
@@ -375,7 +356,9 @@ function initScheduler(deps) {
 
   /**
    * Startup enforcement — catch-up sweep for any accounts that expired while bot was offline.
-   * Suspends all expired-but-unsuspended accounts, deletes all past-grace-period accounts.
+   * 1. Tries auto-renew first (for all plans with auto-renew enabled and sufficient funds)
+   * 2. Suspends all expired-but-unsuspended accounts
+   * 3. Deletes all past-grace-period accounts that weren't auto-renewed
    */
   async function startupEnforcement() {
     try {
@@ -392,7 +375,7 @@ function initScheduler(deps) {
         return
       }
 
-      let enforcedSuspend = 0, enforcedDelete = 0
+      let enforcedSuspend = 0, enforcedDelete = 0, enforcedRenew = 0
 
       for (const account of expiredNotDeleted) {
         const expiry = new Date(account.expiryDate)
@@ -400,6 +383,63 @@ function initScheduler(deps) {
         const plan = account.plan
         const chatId = account.chatId
         const hoursExpired = ((now - expiry) / 3600000).toFixed(1)
+
+        // ── Step 0: Try auto-renew if enabled and user has funds ──
+        const isAutoRenew = account.autoRenew !== false
+        const price = getPlanPrice(plan)
+        const duration = getPlanDuration(plan)
+
+        if (isAutoRenew && price > 0) {
+          const result = await smartWalletDeduct(walletOf, chatId, price)
+          if (result.success) {
+            const newExpiry = new Date(now.getTime() + duration * 24 * 60 * 60 * 1000)
+            const claimResult = await cpanelAccounts.findOneAndUpdate(
+              { _id: account._id, expiryDate: { $lte: now } },
+              {
+                $set: {
+                  expiryDate: newExpiry,
+                  expiryNotified: false,
+                  lastRenewedAt: now,
+                  suspended: false,
+                  renewalCount: (account.renewalCount || 0) + 1,
+                },
+                $unset: {
+                  suspendedAt: '',
+                  expiryUserNotified: '',
+                },
+              },
+              { returnDocument: 'after', includeResultMetadata: false }
+            )
+
+            if (!claimResult) {
+              log(`[HostingScheduler] STARTUP: Duplicate renewal prevented for ${domain} — refunding $${price}`)
+              await walletOf.updateOne({ _id: chatId }, { $inc: { usdOut: -price } })
+              continue
+            }
+
+            // Unsuspend on WHM if it was suspended
+            if (account.suspended) {
+              await unsuspendAccount(account.cpUser)
+            }
+
+            if (antiRedService) {
+              try { await antiRedService.deployFullProtection(account.cpUser, domain, plan) } catch (_) {}
+            }
+
+            const { usdBal: remUsd } = await getBalance(walletOf, chatId)
+            const langR = await getUserLang(chatId)
+            const ttR = (key, ...args) => translation(`t.${key}`, langR, ...args)
+            notify(chatId,
+              ttR('schedAutoRenewedTitle') + '\n\n'
+              + ttR('schedAutoRenewedBody', plan, domain, price,
+                newExpiry.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                remUsd.toFixed(2))
+            )
+            enforcedRenew++
+            log(`[HostingScheduler] STARTUP ENFORCE: Auto-renewed ${domain} (${plan}) for ${chatId} — charged $${price}`)
+            continue // Successfully renewed — skip suspend/delete
+          }
+        }
 
         // ── Step 1: Suspend if not already suspended ──
         if (!account.suspended) {
@@ -452,7 +492,7 @@ function initScheduler(deps) {
         }
       }
 
-      log(`[HostingScheduler] Startup enforcement complete: ${enforcedSuspend} suspended, ${enforcedDelete} deleted (of ${expiredNotDeleted.length} expired accounts)`)
+      log(`[HostingScheduler] Startup enforcement complete: ${enforcedRenew} renewed, ${enforcedSuspend} suspended, ${enforcedDelete} deleted (of ${expiredNotDeleted.length} expired accounts)`)
     } catch (err) {
       log(`[HostingScheduler] Startup enforcement error: ${err.message}`)
     }

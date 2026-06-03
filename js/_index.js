@@ -8974,8 +8974,7 @@ Enter new value:`), bc)
         const expiry = p.expiryDate ? new Date(p.expiryDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
         const isExpired = p.expiryDate && new Date(p.expiryDate) < new Date()
         const status = p.suspended ? trans('t.statusSuspended') : isExpired ? trans('t.statusExpired') : trans('t.statusActive')
-        const planIsWeekly = (p.plan || '').toLowerCase().includes('week')
-        const autoRenew = (!planIsWeekly && p.autoRenew !== false) ? '🔁' : ''
+        const autoRenew = (p.autoRenew !== false) ? '🔁' : ''
         let row = `<b>${p.domain}</b> (${p.plan})\n   ${status} ${autoRenew} · ${trans('t.expiresLabel')} ${expiry}`
 
         // Loyalty credit nudge — surface only when within 14 days of cycle start
@@ -9010,17 +9009,12 @@ Enter new value:`), bc)
       for (const p of plans) {
         const expiry = p.expiryDate ? new Date(p.expiryDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
         const isExpired = p.expiryDate && new Date(p.expiryDate) < new Date()
-        const planIsWeekly = (p.plan || '').toLowerCase().includes('week')
-        const autoRenewLabel = planIsWeekly
-          ? trans('t.autoRenewWeeklyShort')
-          : (p.autoRenew !== false ? trans('t.autoRenewOn') : trans('t.autoRenewOff'))
+        const autoRenewLabel = p.autoRenew !== false ? trans('t.autoRenewOn') : trans('t.autoRenewOff')
         const status = p.suspended ? trans('t.statusSuspended') : isExpired ? trans('t.statusExpired') : trans('t.statusActive')
         text += `<b>${p.domain}</b> (${p.plan})\n   ${status} · ${trans('t.expiresLabel')} ${expiry}\n   ${trans('t.autoRenewFieldLabel')} ${autoRenewLabel}\n\n`
         // Per-domain billing actions
         billingButtons.push([trans('t.billingRenewBtn', p.domain)])
-        if (!planIsWeekly) {
-          billingButtons.push([trans('t.billingToggleAutoRenewBtn', p.domain)])
-        }
+        billingButtons.push([trans('t.billingToggleAutoRenewBtn', p.domain)])
       }
       billingButtons.push(['↩️ Back'])
       send(chatId, text, k.of(billingButtons))
@@ -9042,10 +9036,7 @@ Enter new value:`), bc)
         : (plan.maintenanceMode
           ? trans('t.statusMaintenance')
           : (isExpired ? trans('t.statusExpired') : trans('t.statusActiveOnline')))
-      const isWeekly = (plan.plan || '').toLowerCase().includes('week')
-      const autoRenewStatus = isWeekly
-        ? trans('t.autoRenewWeeklyOff')
-        : (plan.autoRenew !== false ? trans('t.autoRenewOn') : trans('t.autoRenewOff'))
+      const autoRenewStatus = plan.autoRenew !== false ? trans('t.autoRenewOn') : trans('t.autoRenewOff')
 
       // Check domain origin - is it registered with us or external?
       const registeredDomain = await db.collection('registeredDomains').findOne({ _id: domain })
@@ -9070,7 +9061,8 @@ Enter new value:`), bc)
         + trans('t.planViewCredentialsHint') + '\n'
         + trans('t.planViewBillingNudge')
 
-      if (isWeekly && atLimit) {
+      const weeklyPlan = (plan.plan || '').toLowerCase().includes('week')
+      if (weeklyPlan && atLimit) {
         text += `\n\n` + trans('t.planViewMultiHostUpsell')
       }
 
@@ -12134,11 +12126,6 @@ All verified numbers generated during sourcing.`))
 
       // 🔁 Toggle Auto-Renew flow
       if (isToggleBtn) {
-        const planIsWeekly = (plan.plan || '').toLowerCase().includes('week')
-        if (planIsWeekly) {
-          await send(chatId, trans('t.autoRenewNotForWeekly'))
-          return goto.billingMenu()
-        }
         const newAutoRenew = plan.autoRenew === false ? true : false
         await cpanelAccounts.updateOne({ _id: plan._id }, { $set: { autoRenew: newAutoRenew } })
         const statusText = newAutoRenew
