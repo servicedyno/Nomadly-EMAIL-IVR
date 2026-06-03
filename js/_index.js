@@ -12984,8 +12984,17 @@ All verified numbers generated during sourcing.`))
       const cfService = require('./cf-service')
       const antiRedService = require('./anti-red-service')
 
-      // 1. Terminate cPanel account on WHM
-      terminated = await whmService.terminateAccount(plan.cpUser)
+      // 1. Check if WHM account still exists
+      const acctCheck = await whmService.getAccountInfo(plan.cpUser)
+
+      if (acctCheck.success) {
+        // Account exists on WHM — terminate it
+        terminated = await whmService.terminateAccount(plan.cpUser)
+      } else {
+        // Account already terminated on WHM — just mark as deleted in DB
+        log(`[Hosting] cancelPlan: WHM account ${plan.cpUser} already terminated — marking deleted in DB`)
+        terminated = true // Consider it successfully cancelled since it's already gone
+      }
 
       // 2. Cloudflare cleanup for primary + every addon domain
       const allDomains = [plan.domain, ...(plan.addonDomains || [])].filter(Boolean)
@@ -13052,6 +13061,23 @@ All verified numbers generated during sourcing.`))
       if (usdBal < price) return send(chatId, trans('t.host_26', usdBal.toFixed(2), price), k.of([[trans('u.deposit')], [user.cancelRenewNow]]))
 
       try {
+        // Check if the WHM account still exists before charging
+        const whmService = require('./whm-service')
+        const acctCheck = await whmService.getAccountInfo(plan.cpUser)
+        if (!acctCheck.success) {
+          log(`[Hosting] Renew failed: WHM account ${plan.cpUser} no longer exists for ${chatId} — terminated.`)
+          await cpanelAccounts.updateOne(
+            { _id: plan._id },
+            { $set: { terminatedOnWhm: true, terminatedAt: new Date(), terminationNote: 'WHM account not found during renew attempt' } }
+          )
+          return send(chatId,
+            '❌ This hosting account has been <b>terminated</b> because it was not renewed within the grace period.\n\n'
+            + '🛒 To get your site back online, please purchase a <b>new hosting plan</b> from:\n'
+            + '<b>☁️ Hosting & Domains → Choose a plan</b>',
+            k.of([[user.backToMyHostingPlans]])
+          )
+        }
+
         await atomicIncrement(walletOf, chatId, 'usdOut', price)
 
         const now = new Date()
@@ -13239,8 +13265,26 @@ All verified numbers generated during sourcing.`))
 
         const whm = require('./whm-service')
 
+        // Check if the WHM account still exists (might have been terminated after grace period)
+        const acctInfo = await whm.getAccountInfo(plan.cpUser)
+        if (!acctInfo.success) {
+          await atomicIncrement(walletOf, chatId, 'usdIn', upgradePrice)
+          log(`[Hosting] Upgrade failed: WHM account ${plan.cpUser} no longer exists for ${chatId} — terminated. Refunded.`)
+          // Mark as terminated in DB so user doesn't keep trying
+          await cpanelAccounts.updateOne(
+            { _id: plan._id },
+            { $set: { terminatedOnWhm: true, terminatedAt: new Date(), terminationNote: 'WHM account not found during upgrade attempt' } }
+          )
+          return send(chatId,
+            '❌ This hosting account has been <b>terminated</b> because it was not renewed within the grace period.\n\n'
+            + '🛒 To get your site back online, please purchase a <b>new hosting plan</b> from:\n'
+            + '<b>☁️ Hosting & Domains → Choose a plan</b>',
+            k.of([[user.backToMyHostingPlans]])
+          )
+        }
+
         // Auto-unsuspend if the account is suspended (expired plans get suspended on WHM)
-        if (plan.suspended) {
+        if (plan.suspended || acctInfo.data?.suspended) {
           log(`[Hosting] Account ${plan.cpUser} is suspended — unsuspending before upgrade for ${chatId}`)
           const unsuspended = await whm.unsuspendAccount(plan.cpUser)
           if (!unsuspended) {
