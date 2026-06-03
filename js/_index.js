@@ -8961,7 +8961,7 @@ Enter new value:`), bc)
     // My Hosting Plans
     myHostingPlans: async () => {
       await set(state, chatId, 'action', a.myHostingPlans)
-      const plans = await cpanelAccounts.find({ chatId: String(chatId) }).toArray()
+      const plans = await cpanelAccounts.find({ chatId: String(chatId), terminatedOnWhm: { $ne: true } }).toArray()
       if (!plans || plans.length === 0) {
         return send(chatId, trans('t.dom_2'), k.of([[user.hostingDomainsRedirect], ['↩️ Back']]))
       }
@@ -9000,7 +9000,7 @@ Enter new value:`), bc)
     // 💳 My Plan / Billing — central place to renew & toggle auto-renew
     billingMenu: async () => {
       await set(state, chatId, 'action', a.billingMenu)
-      const plans = await cpanelAccounts.find({ chatId: String(chatId) }).toArray()
+      const plans = await cpanelAccounts.find({ chatId: String(chatId), terminatedOnWhm: { $ne: true } }).toArray()
       if (!plans || plans.length === 0) {
         return send(chatId, trans('t.billingMenuEmpty'), k.of([[user.hostingDomainsRedirect], ['↩️ Back']]))
       }
@@ -9024,7 +9024,7 @@ Enter new value:`), bc)
     viewHostingPlanDetails: async (domain) => {
       await set(state, chatId, 'action', a.viewHostingPlan)
       saveInfo('selectedHostingDomain', domain)
-      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain: domain })
+      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain: domain, deleted: { $ne: true } })
       if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
 
       const expiry = plan.expiryDate ? new Date(plan.expiryDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
@@ -9113,7 +9113,7 @@ Enter new value:`), bc)
     revealHostingCredentials: async () => {
       const domain = info?.selectedHostingDomain
       if (!domain) return goto.myHostingPlans()
-      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain: domain })
+      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain: domain, deleted: { $ne: true } })
       if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
 
       // Reset PIN so we can show it (PIN is bcrypt hashed, can't be reversed)
@@ -11951,8 +11951,9 @@ All verified numbers generated during sourcing.`))
       await saveInfo('website_name', message)
       await saveInfo('existingDomain', true)
       await saveInfo('nameserver', 'cloudflare')
-      // Check if domain is already used by a hosting plan
-      const existingPlan = await cpanelAccounts.findOne({ domain: message })
+      // Check if domain is already used by an ACTIVE hosting plan
+      // (deleted/terminated plans should NOT block domain reuse)
+      const existingPlan = await cpanelAccounts.findOne({ domain: message, deleted: { $ne: true } })
       if (existingPlan) {
         return send(chatId, trans('t.host_23', message, existingPlan.plan), k.of([['↩️ Back']]))
       }
@@ -11969,8 +11970,8 @@ All verified numbers generated during sourcing.`))
     if (!modifiedDomain || !modifiedDomain.includes('.')) {
       return send(chatId, ({ en: 'Please enter a valid domain name (e.g., example.com).', fr: 'Veuillez entrer un nom de domaine valide (ex : example.com).', zh: '请输入有效的域名（如 example.com）。', hi: 'कृपया एक मान्य डोमेन नाम दर्ज करें (जैसे example.com)।' }[lang] || 'Please enter a valid domain name (e.g., example.com).'), bc)
     }
-    // Check if domain is already used by a hosting plan
-    const existingPlan = await cpanelAccounts.findOne({ domain: modifiedDomain })
+    // Check if domain is already used by an ACTIVE hosting plan
+    const existingPlan = await cpanelAccounts.findOne({ domain: modifiedDomain, deleted: { $ne: true } })
     if (existingPlan) {
       return send(chatId, ({ en: `<b>${modifiedDomain}</b> is already on a hosting plan. Enter a different domain.`, fr: `<b>${modifiedDomain}</b> a déjà un plan d'hébergement. Entrez un autre domaine.`, zh: `<b>${modifiedDomain}</b> 已有托管计划。请输入其他域名。`, hi: `<b>${modifiedDomain}</b> पर पहले से होस्टिंग प्लान है। दूसरा डोमेन दर्ज करें।` }[lang] || `<b>${modifiedDomain}</b> is already on a hosting plan. Enter a different domain.`), bc)
     }
@@ -12081,7 +12082,7 @@ All verified numbers generated during sourcing.`))
     const isToggleBtn = typeof message === 'string' && message.startsWith('🔁 ') && message.includes(' — ')
     if (isRenewBtn || isToggleBtn) {
       const domain = message.split(' — ').pop().trim()
-      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
+      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain, deleted: { $ne: true } })
       if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToBillingMenu]]))
 
       // Verify the button text matches the expected localized template (defense against collisions)
@@ -12183,7 +12184,7 @@ All verified numbers generated during sourcing.`))
     if (message === user.manageVisitorCaptcha) {
       const domain = info?.selectedHostingDomain
       if (!domain) return goto.myHostingPlans()
-      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
+      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain, deleted: { $ne: true } })
       if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
       const isGoldPlan = /Golden Anti-Red HostPanel/i.test(plan.plan || '')
       if (!isGoldPlan) {
@@ -12238,7 +12239,7 @@ All verified numbers generated during sourcing.`))
     if (message === user.toggleAutoRenew) {
       const domain = info?.selectedHostingDomain
       if (!domain) return goto.myHostingPlans()
-      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
+      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain, deleted: { $ne: true } })
       if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
       const newAutoRenew = plan.autoRenew === false ? true : false
       await cpanelAccounts.updateOne({ _id: plan._id }, { $set: { autoRenew: newAutoRenew } })
@@ -12251,7 +12252,7 @@ All verified numbers generated during sourcing.`))
     if (message === user.renewHostingPlan) {
       const domain = info?.selectedHostingDomain
       if (!domain) return goto.myHostingPlans()
-      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
+      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain, deleted: { $ne: true } })
       if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
 
       const { getPlanPrice, getPlanDuration } = require('./hosting-scheduler')
@@ -12287,7 +12288,7 @@ All verified numbers generated during sourcing.`))
     if (message === user.upgradeHostingPlan) {
       const domain = info?.selectedHostingDomain
       if (!domain) return goto.myHostingPlans()
-      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
+      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain, deleted: { $ne: true } })
       if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
 
       const currentPlan = (plan.plan || '').toLowerCase()
@@ -12398,7 +12399,7 @@ All verified numbers generated during sourcing.`))
     if (message === user.takeSiteOffline) {
       const domain = info?.selectedHostingDomain
       if (!domain) return goto.myHostingPlans()
-      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
+      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain, deleted: { $ne: true } })
       if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
       if (plan.suspended || plan.maintenanceMode) {
         await send(chatId, trans('t.siteAlreadyOffline'), { parse_mode: 'HTML' })
@@ -12414,7 +12415,7 @@ All verified numbers generated during sourcing.`))
     if (message === user.bringSiteOnline) {
       const domain = info?.selectedHostingDomain
       if (!domain) return goto.myHostingPlans()
-      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
+      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain, deleted: { $ne: true } })
       if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
       if (!plan.suspended && !plan.maintenanceMode) {
         await send(chatId, trans('t.siteAlreadyOnline'), { parse_mode: 'HTML' })
@@ -12426,7 +12427,7 @@ All verified numbers generated during sourcing.`))
     if (message === user.addDomainToPlan) {
       const domain = info?.selectedHostingDomain
       if (!domain) return goto.myHostingPlans()
-      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
+      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain, deleted: { $ne: true } })
       if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
 
       // Plan-limit pre-check
@@ -12468,7 +12469,7 @@ All verified numbers generated during sourcing.`))
     if (message === user.unlinkDomain) {
       const domain = info?.selectedHostingDomain
       if (!domain) return goto.myHostingPlans()
-      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
+      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain, deleted: { $ne: true } })
       if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
       const addons = (plan.addonDomains || []).filter(d => d && d.toLowerCase() !== (domain || '').toLowerCase())
       if (!addons.length) {
@@ -12482,7 +12483,7 @@ All verified numbers generated during sourcing.`))
     if (message === user.cancelHostingPlan) {
       const domain = info?.selectedHostingDomain
       if (!domain) return goto.myHostingPlans()
-      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
+      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain, deleted: { $ne: true } })
       if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
       await set(state, chatId, 'action', a.confirmCancelHostingPlan)
       return send(chatId, t.confirmCancelHostingPlan(domain, plan.plan || 'Hosting'), k.of([[user.confirmCancelHostingBtn], [user.cancelGoBackBtn]]), { parse_mode: 'HTML' })
@@ -12516,7 +12517,7 @@ All verified numbers generated during sourcing.`))
     const domain = info?.selectedHostingDomain
     const mode = info?.siteOfflineMode === 'suspended' ? 'suspended' : 'maintenance'
     if (!domain) return goto.myHostingPlans()
-    const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
+    const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain, deleted: { $ne: true } })
     if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
 
     await send(chatId, t.takingSiteOffline(domain, mode), { parse_mode: 'HTML' })
@@ -12574,7 +12575,7 @@ All verified numbers generated during sourcing.`))
     }
     const domain = info?.selectedHostingDomain
     if (!domain) return goto.myHostingPlans()
-    const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
+    const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain, deleted: { $ne: true } })
     if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
 
     const wasMode = plan.suspended ? 'suspended' : (plan.maintenanceMode ? 'maintenance' : null)
@@ -12637,7 +12638,7 @@ All verified numbers generated during sourcing.`))
     if (message === user.backToMyHostingPlans) return goto.viewHostingPlanDetails(info?.selectedHostingDomain)
     const domain = info?.selectedHostingDomain
     if (!domain) return goto.myHostingPlans()
-    const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
+    const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain, deleted: { $ne: true } })
     if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
     const match = (message || '').match(/^🗑️\s+(.+)$/)
     if (!match) return goto.viewHostingPlanDetails(domain)
@@ -12663,7 +12664,7 @@ All verified numbers generated during sourcing.`))
     const domain = info?.selectedHostingDomain
     const addonDomain = info?.unlinkAddonDomain
     if (!domain || !addonDomain) return goto.myHostingPlans()
-    const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
+    const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain, deleted: { $ne: true } })
     if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
 
     await send(chatId, t.unlinkingDomain(addonDomain), { parse_mode: 'HTML' })
@@ -12772,7 +12773,7 @@ All verified numbers generated during sourcing.`))
     }
     const domain = info?.selectedHostingDomain
     if (!domain) return goto.myHostingPlans()
-    const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
+    const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain, deleted: { $ne: true } })
     if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
     const match = (message || '').match(/^➕\s+(.+)$/)
     if (!match) return goto.viewHostingPlanDetails(domain)
@@ -12814,7 +12815,7 @@ All verified numbers generated during sourcing.`))
     const domain = info?.selectedHostingDomain
     const candidate = info?.attachAddonDomain
     if (!domain || !candidate) return goto.myHostingPlans()
-    const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
+    const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain, deleted: { $ne: true } })
     if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
 
     // Re-verify pre-flight (defensive, handles race where another flow attached the domain)
@@ -12922,7 +12923,7 @@ All verified numbers generated during sourcing.`))
 
     const domain = info?.selectedHostingDomain
     if (!domain) return goto.myHostingPlans()
-    const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
+    const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain, deleted: { $ne: true } })
     if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
 
     await send(chatId, t.cancellingHostingPlan(domain), { parse_mode: 'HTML' })
@@ -13050,7 +13051,7 @@ All verified numbers generated during sourcing.`))
     if (isPayUsd || isLegacyConfirm) {
       const domain = info?.selectedHostingDomain
       if (!domain) return goto.myHostingPlans()
-      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
+      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain, deleted: { $ne: true } })
       if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
 
       const { getPlanPrice, getPlanDuration } = require('./hosting-scheduler')
@@ -13247,7 +13248,7 @@ All verified numbers generated during sourcing.`))
     if (isPayUsd) {
       const domain = info?.selectedHostingDomain
       if (!domain) return goto.myHostingPlans()
-      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
+      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain, deleted: { $ne: true } })
       if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
 
       const selected = info?.selectedUpgrade

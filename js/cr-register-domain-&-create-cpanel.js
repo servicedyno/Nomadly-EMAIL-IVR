@@ -85,6 +85,32 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state,
       send(chatId, { en: `⚠️ Hosting for <b>${domain}</b> is already provisioned. If this is unexpected, contact support.`, fr: `⚠️ L'hébergement pour <b>${domain}</b> est déjà provisionné. Si inattendu, contactez le support.`, zh: `⚠️ <b>${domain}</b> 的主机已经配置。如果这是意外，请联系支持。`, hi: `⚠️ <b>${domain}</b> के लिए होस्टिंग पहले से ही प्रावधान की गई है। यदि अप्रत्याशित है, तो समर्थन से संपर्क करें।` }[lang] || `⚠️ Hosting for <b>${domain}</b> is already provisioned.`, keyboardButtons)
       return { success: false, error: 'duplicate_provisioning_prevented', duplicate: true }
     }
+
+    // ── Archive old terminated records for this domain ──
+    // When a user re-purchases hosting for a domain that had a terminated plan,
+    // archive the old record(s) so they don't interfere with the new plan.
+    try {
+      const archiveClient = new MongoClient(process.env.MONGO_URL)
+      await archiveClient.connect()
+      const archiveDb = archiveClient.db(process.env.DB_NAME || 'test')
+      const oldTerminated = await archiveDb.collection('cpanelAccounts').find({
+        domain: domain,
+        chatId: String(chatId),
+        $or: [{ deleted: true }, { terminatedOnWhm: true }],
+      }).toArray()
+      if (oldTerminated.length > 0) {
+        log(`[Hosting] Found ${oldTerminated.length} old terminated record(s) for ${domain} — archiving`)
+        for (const old of oldTerminated) {
+          await archiveDb.collection('cpanelAccounts').updateOne(
+            { _id: old._id },
+            { $set: { archived: true, archivedAt: new Date(), archivedReason: 'domain_reuse_new_plan' } }
+          )
+        }
+      }
+      await archiveClient.close()
+    } catch (archiveErr) {
+      log(`[Hosting] Archive old records error (non-blocking): ${archiveErr.message}`)
+    }
   } catch (guardErr) {
     // Non-blocking — if guard fails, we continue but log loudly
     log(`[Hosting] IDEMPOTENCY guard error (non-blocking): ${guardErr.message}`)

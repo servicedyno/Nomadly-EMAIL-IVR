@@ -172,7 +172,7 @@ function initScheduler(deps) {
       const in24h = new Date(now.getTime() + ADVANCE_NOTIFY_HOURS * 60 * 60 * 1000)
       const gracePeriodAgo = new Date(now.getTime() - GRACE_PERIOD_HOURS * 60 * 60 * 1000)
 
-      const allAccounts = await cpanelAccounts.find({ expiryDate: { $exists: true } }).toArray()
+      const allAccounts = await cpanelAccounts.find({ expiryDate: { $exists: true }, terminatedOnWhm: { $ne: true }, archived: { $ne: true } }).toArray()
 
       let renewed = 0, notified = 0, suspended = 0, deleted = 0
 
@@ -368,6 +368,8 @@ function initScheduler(deps) {
       const expiredNotDeleted = await cpanelAccounts.find({
         expiryDate: { $lte: now },
         deleted: { $ne: true },
+        terminatedOnWhm: { $ne: true },
+        archived: { $ne: true },
       }).toArray()
 
       if (expiredNotDeleted.length === 0) {
