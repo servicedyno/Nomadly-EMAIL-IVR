@@ -39,7 +39,7 @@ bash /app/scripts/setup-nodejs.sh
 
 This script handles everything:
 - Detects current pod URL from `frontend/.env`
-- Updates `SELF_URL` / `SELF_URL_PROD` to `<pod_url>/api`
+- Updates `SELF_URL` / `SELF_URL_DEV` to `<pod_url>/api`
 - Creates `.env` symlink so Node.js reads `backend/.env`
 - Installs Node.js dependencies (`yarn install`)
 - Creates supervisor config for Node.js
@@ -47,16 +47,60 @@ This script handles everything:
 
 ---
 
+## Development vs Production Environment
+
+### Critical Safety Rules
+
+| Setting | Development | Production (Railway) |
+|---------|-------------|---------------------|
+| `BOT_ENVIRONMENT` | `development` | `production` |
+| Bot Token Used | `TELEGRAM_BOT_TOKEN_DEV` | `TELEGRAM_BOT_TOKEN_PROD` |
+| Webhook URL | `SELF_URL` / `SELF_URL_DEV` (pod URL) | `SELF_URL_PROD` (Railway URL) |
+| `SKIP_WEBHOOK_SYNC` | `true` | not set / `false` |
+| `MONGO_URL` | Railway remote DB (shared) | Railway remote DB |
+
+### How Token Selection Works (`js/config-setup.js`)
+
+1. `BOT_ENVIRONMENT` determines which bot token is active:
+   - `development` → uses `TELEGRAM_BOT_TOKEN_DEV`
+   - `production` → uses `TELEGRAM_BOT_TOKEN_PROD`
+2. **NEVER set `BOT_ENVIRONMENT=production` in development** — this would activate the production Telegram bot from the dev pod, causing duplicate message handling and webhook conflicts.
+
+### How Webhook URL Selection Works
+
+1. In `development` mode: uses `SELF_URL_DEV` → `SELF_URL` (fallback)
+2. In `production` mode: uses `SELF_URL_PROD` → `SELF_URL` (fallback)
+3. The `setup-nodejs.sh` script auto-detects the current pod URL and sets `SELF_URL` + `SELF_URL_DEV`.
+4. `SELF_URL_PROD` is stored in the .env for reference but is **NOT used** when `BOT_ENVIRONMENT=development`.
+
+### SKIP_WEBHOOK_SYNC=true (Development Safety Guard)
+
+This flag prevents the development instance from:
+- Overwriting production Telnyx/Twilio webhook URLs
+- Migrating phone numbers to a different Call Control App
+- Updating SIP connection ANI overrides
+
+**Always keep `SKIP_WEBHOOK_SYNC=true` in development.**
+
+### Production Telegram Bot — DO NOT USE in Development
+
+The production bot token (`TELEGRAM_BOT_TOKEN_PROD`) is stored in the .env for reference only. To use a Telegram bot in development:
+1. Set `BOT_ENVIRONMENT=development` (already configured)
+2. Provide a **separate development bot token** in `TELEGRAM_BOT_TOKEN_DEV`
+3. The current dev token is pre-configured; replace it if you need a different dev bot
+
+---
+
 ## Environment Variables
 
 ### Protected (NEVER modify)
 - `frontend/.env` → `REACT_APP_BACKEND_URL` (set by platform)
-- `backend/.env` → `MONGO_URL` (database connection)
 
 ### Webhook Configuration
-- `SELF_URL` and `SELF_URL_PROD` in `backend/.env` **MUST** use the current pod URL with `/api` suffix
+- `SELF_URL` and `SELF_URL_DEV` in `backend/.env` **MUST** use the current pod URL with `/api` suffix
 - The setup script auto-detects this from `REACT_APP_BACKEND_URL`
-- Example: `https://quick-start-212.preview.emergentagent.com/api`
+- Example: `https://24668541-3dc3-402f-ae29-67699c7d320c.preview.emergentagent.com/api`
+- `SELF_URL_PROD` points to the Railway production URL and is **NOT used in development**
 
 ### Key API Credentials (in backend/.env)
 | Variable | Service |
