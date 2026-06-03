@@ -93,6 +93,23 @@ The CloudPhone purchase flow created the **Address on the user's Twilio sub-acco
 - **`js/op-service.js`** (`_sendNsUpdate`): retry on transient 5xx with 1.5s + 4s exponential backoff (was only retrying on timeouts)
 - **`js/cr-auto-whitelist.js`**: suppress repeated "IP needs whitelisting" log spam after first retry; cap retry escalation — after 24 retries (~17h+) re-page admin and slow to 6h cadence
 
+
+## Hosting Upgrade Bug Fix (Jun 3, 2026) — @ft33n3tx (chatId 1130252395)
+
+### User Report
+Tried to upgrade/renew/cancel hosting for `docxsndr.com` — all operations failed with "Upgrade failed: undefined" or generic error.
+
+### Root Cause
+1. **`whm-service.js:changePackage()`** returned `{success: false, package: pkg}` without an `error` field when WHM API returned a non-success result (not an exception). Caller logged `changeResult.error` → `undefined`.
+2. **Upgrade flow** didn't handle suspended accounts — WHM rejects `changepackage` on suspended accounts. The user's 1-week plan expired May 26, WHM suspended the account, and every subsequent upgrade attempt failed silently.
+3. **Renewal/upgrade flows** didn't clear `deleted`/`cancelledByUser` flags after successful payment.
+
+### Fixes Applied
+- **`js/whm-service.js`** — `changePackage()` now extracts `metadata.reason` from WHM response and returns it as `error` field
+- **`js/_index.js`** (upgrade flow ~13242): auto-unsuspends the WHM account before calling `changePackage` if `plan.suspended === true`; after success, `$unset`s `suspendedAt`, `deleted`, `deletedAt`, `cancelledByUser`, `deletedBy`, `expiryNotified`, `expiryUserNotified`
+- **`js/_index.js`** (renewal flow ~13075): added `$unset` for `suspendedAt`, `deleted`, `deletedAt`, `cancelledByUser`, `deletedBy`, `expiryUserNotified` on successful renewal
+- **Production data fix**: Reset `deleted`/`cancelledByUser`/`deletedBy`/`deletedAt` on `cpanelAccounts._id=docxabcc` so the user can retry the upgrade
+
 ## Testing Protocol
 
 **Communication protocol with testing sub-agent:**

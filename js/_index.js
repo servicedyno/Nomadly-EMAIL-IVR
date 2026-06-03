@@ -13082,6 +13082,14 @@ All verified numbers generated during sourcing.`))
               suspended: false,
               renewalCount: (plan.renewalCount || 0) + 1,
             },
+            $unset: {
+              suspendedAt: '',
+              deleted: '',
+              deletedAt: '',
+              cancelledByUser: '',
+              deletedBy: '',
+              expiryUserNotified: '',
+            },
           }
         )
 
@@ -13243,6 +13251,19 @@ All verified numbers generated during sourcing.`))
         await atomicIncrement(walletOf, chatId, 'usdOut', upgradePrice)
 
         const whm = require('./whm-service')
+
+        // Auto-unsuspend if the account is suspended (expired plans get suspended on WHM)
+        if (plan.suspended) {
+          log(`[Hosting] Account ${plan.cpUser} is suspended — unsuspending before upgrade for ${chatId}`)
+          const unsuspended = await whm.unsuspendAccount(plan.cpUser)
+          if (!unsuspended) {
+            await atomicIncrement(walletOf, chatId, 'usdIn', upgradePrice)
+            log(`[Hosting] Upgrade failed: could not unsuspend ${plan.cpUser} for ${chatId} — refunded`)
+            return send(chatId, trans('t.host_29', 'Could not unsuspend account. Please contact support.'), k.of([[user.backToMyHostingPlans]]))
+          }
+          log(`[Hosting] Successfully unsuspended ${plan.cpUser} for ${chatId}`)
+        }
+
         const changeResult = await whm.changePackage(plan.cpUser, selected.name)
         if (!changeResult.success) {
           await atomicIncrement(walletOf, chatId, 'usdIn', upgradePrice)
@@ -13251,19 +13272,32 @@ All verified numbers generated during sourcing.`))
         }
 
         // 3. Update cpanelAccounts with new plan + new 30-day expiry
+        //    Also clear suspended/deleted flags so the account is fully active
         const newExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
         await cpanelAccounts.updateOne(
           { _id: plan._id },
-          { $set: {
-            plan: selected.name,
-            expiryDate: newExpiry,
-            autoRenew: true,
-            upgradedAt: new Date(),
-            upgradedFrom: plan.plan,
-            upgradeOriginalPrice: originalPrice,
-            upgradeCreditApplied: creditApplied,
-            upgradeChargedAmount: upgradePrice,
-          }}
+          {
+            $set: {
+              plan: selected.name,
+              expiryDate: newExpiry,
+              autoRenew: true,
+              suspended: false,
+              upgradedAt: new Date(),
+              upgradedFrom: plan.plan,
+              upgradeOriginalPrice: originalPrice,
+              upgradeCreditApplied: creditApplied,
+              upgradeChargedAmount: upgradePrice,
+            },
+            $unset: {
+              suspendedAt: '',
+              deleted: '',
+              deletedAt: '',
+              cancelledByUser: '',
+              deletedBy: '',
+              expiryNotified: '',
+              expiryUserNotified: '',
+            },
+          }
         )
 
         const { usdBal: newUsdBal } = await getBalance(walletOf, chatId)

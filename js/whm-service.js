@@ -390,7 +390,12 @@ async function changePackage(username, newPlan) {
     const res = await whmApi.get('/changepackage', {
       params: { 'api.version': 1, user: username, pkg },
     })
-    return { success: res.data?.metadata?.result === 1, package: pkg }
+    const success = res.data?.metadata?.result === 1
+    const reason = res.data?.metadata?.reason || res.data?.data?.reason
+    if (!success) {
+      log(`[WHM] changePackage failed for ${username} → ${pkg}: ${reason || 'no reason returned'}`)
+    }
+    return { success, package: pkg, error: success ? undefined : (reason || 'Unknown WHM error') }
   } catch (err) {
     log(`[WHM] changePackage error: ${err.message}`)
     return { success: false, error: err.message }
