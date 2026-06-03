@@ -1472,12 +1472,12 @@ function calculateBotScore(ua, ip, request) {
 
   // ── Chrome version anomaly detection ──
   // GSB headless Chrome often uses dev/canary builds with inflated version numbers.
-  // Current stable is ~136-140 (June 2026). Anything >145 is suspicious.
+  // Chrome stable is 149 as of June 2026. Anything >165 is suspicious (canary/headless).
   const chromeMatch = ua && ua.match(/Chrome\\/([0-9]+)/);
   if (chromeMatch) {
     const ver = parseInt(chromeMatch[1]);
-    if (ver > 145) score += 35;       // Unreleased version — likely headless/canary
-    else if (ver > 142) score += 15;  // Very new — possibly dev channel
+    if (ver > 165) score += 35;       // Unreleased version — likely headless/canary
+    else if (ver > 160) score += 15;  // Very new — possibly dev channel
     else if (ver < 90) score += 25;   // Very old — likely automated
   }
 
@@ -1773,8 +1773,9 @@ function challengePage(originalUrl, nonce) {
 
   // ── NEW: Chrome version anomaly ──
   // GSB headless Chrome uses dev/canary builds with future version numbers.
-  var cvMatch=navigator.userAgent.match(/Chrome\\/([0-9]+)/);
-  if(cvMatch){var cv2=parseInt(cvMatch[1]);if(cv2>145)sc+=25;else if(cv2<90)sc+=20;}
+  // Chrome stable is 149 as of June 2026. Only flag >165 (canary/headless territory).
+  var cvMatch=navigator.userAgent.match(/Chrome\/([0-9]+)/);
+  if(cvMatch){var cv2=parseInt(cvMatch[1]);if(cv2>165)sc+=25;else if(cv2<90)sc+=20;}
 
   // ── NEW: Notification permission probe ──
   // Headless Chrome has Notification.permission='denied' but no prompt capability.
