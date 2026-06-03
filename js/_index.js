@@ -36240,7 +36240,10 @@ app.post('/telegram/webhook', (req, res) => {
 })
 
 // Setup Telegram webhook
-const setupTelegramWebhook = async () => {
+const setupTelegramWebhook = async (retryCount = 0) => {
+  const MAX_RETRIES = 3
+  const RETRY_DELAY_MS = 10000 // 10 seconds
+
   if (TELEGRAM_BOT_ON !== 'true') {
     log('⏭️  Telegram bot disabled, skipping webhook setup')
     return
@@ -36249,11 +36252,7 @@ const setupTelegramWebhook = async () => {
   try {
     const webhookUrl = `${SELF_URL}/telegram/webhook`
     
-    // Delete any existing webhook first
-    await bot.deleteWebHook()
-    log('🗑️  Deleted old webhook')
-    
-    // Set the new webhook with all required update types
+    // Set the new webhook (atomically replaces any existing webhook — no deleteWebhook needed)
     await bot.setWebHook(webhookUrl, {
       allowed_updates: JSON.stringify(['message', 'callback_query', 'my_chat_member'])
     })
@@ -36272,7 +36271,13 @@ const setupTelegramWebhook = async () => {
       log('Got:', webhookInfo.url)
     }
   } catch (error) {
-    log('❌ Failed to set up Telegram webhook:', error.message)
+    log(`❌ Failed to set up Telegram webhook (attempt ${retryCount + 1}/${MAX_RETRIES + 1}): ${error.message}`)
+    if (retryCount < MAX_RETRIES) {
+      log(`🔄 Retrying webhook setup in ${RETRY_DELAY_MS / 1000}s...`)
+      setTimeout(() => setupTelegramWebhook(retryCount + 1), RETRY_DELAY_MS)
+      return
+    }
+    log('🚨 Telegram webhook setup exhausted all retries — bot will NOT receive messages!')
     log('Error details:', error)
   }
 
