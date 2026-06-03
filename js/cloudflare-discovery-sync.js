@@ -65,6 +65,13 @@ async function syncDiscoveryWorker() {
       console.log('[CF-Sync] Disabled via env — skipping')
       return
     }
+    // SAFETY: Never sync the Discovery Worker from a development environment
+    // This prevents dev pods from hijacking the shared Cloudflare worker
+    const botEnv = (process.env.BOT_ENVIRONMENT || '').toLowerCase().trim()
+    if (botEnv === 'development') {
+      console.log('[CF-Sync] Skipped — BOT_ENVIRONMENT=development (only production can sync the Discovery Worker)')
+      return
+    }
 
     const rawUrl = process.env.SELF_URL || ''
     const desiredUrl = String(rawUrl).trim().replace(/\/+$/, '')
