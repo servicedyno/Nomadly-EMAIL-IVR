@@ -209,7 +209,7 @@ function isLicensed({ force = false } = {}) {
       res.on('end', () => {
         let parsed = null
         if (/Not\s+licensed/i.test(body)) parsed = false
-        else if (/alert-success|License is currently active|Active license|Results:\s*Active/i.test(body)) parsed = true
+        else if (/alert-success|License is currently active|Active license|Results:\s*Active|<b>active|class="status1"/i.test(body)) parsed = true
         // unknown markup → keep as null so caller can ignore
         _cache.licensed = parsed
         _cache.licenseCheckedAt = now
