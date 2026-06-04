@@ -8961,7 +8961,9 @@ Enter new value:`), bc)
     // My Hosting Plans
     myHostingPlans: async () => {
       await set(state, chatId, 'action', a.myHostingPlans)
-      const plans = await cpanelAccounts.find({ chatId: String(chatId), terminatedOnWhm: { $ne: true } }).toArray()
+      // Filter `deleted: { $ne: true }` matches viewHostingPlanDetails so we don't
+      // surface dead-clickable rows that resolve to "Plan not found".
+      const plans = await cpanelAccounts.find({ chatId: String(chatId), terminatedOnWhm: { $ne: true }, deleted: { $ne: true } }).toArray()
       if (!plans || plans.length === 0) {
         return send(chatId, trans('t.dom_2'), k.of([[user.hostingDomainsRedirect], ['↩️ Back']]))
       }
@@ -8976,6 +8978,16 @@ Enter new value:`), bc)
         const status = p.suspended ? trans('t.statusSuspended') : isExpired ? trans('t.statusExpired') : trans('t.statusActive')
         const autoRenew = (p.autoRenew !== false) ? '🔁' : ''
         let row = `<b>${p.domain}</b> (${p.plan})\n   ${status} ${autoRenew} · ${trans('t.expiresLabel')} ${expiry}`
+
+        // Surface attached addon domains underneath the primary — eliminates
+        // "where is my other domain?" confusion (addons don't get their own row,
+        // they nest under the primary plan in My Hosting Plans).
+        if (Array.isArray(p.addonDomains) && p.addonDomains.length > 0) {
+          for (const a of p.addonDomains) {
+            const ad = typeof a === 'string' ? a : (a && a.domain) || ''
+            if (ad) row += `\n   ↳ <i>${ad}</i> <i>(addon)</i>`
+          }
+        }
 
         // Loyalty credit nudge — surface only when within 14 days of cycle start
         try {
@@ -9000,7 +9012,7 @@ Enter new value:`), bc)
     // 💳 My Plan / Billing — central place to renew & toggle auto-renew
     billingMenu: async () => {
       await set(state, chatId, 'action', a.billingMenu)
-      const plans = await cpanelAccounts.find({ chatId: String(chatId), terminatedOnWhm: { $ne: true } }).toArray()
+      const plans = await cpanelAccounts.find({ chatId: String(chatId), terminatedOnWhm: { $ne: true }, deleted: { $ne: true } }).toArray()
       if (!plans || plans.length === 0) {
         return send(chatId, trans('t.billingMenuEmpty'), k.of([[user.hostingDomainsRedirect], ['↩️ Back']]))
       }

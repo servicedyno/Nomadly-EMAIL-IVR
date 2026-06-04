@@ -1,5 +1,89 @@
 # CHANGELOG — Nomadly Bot
 
+## 2026-02 — "Where is my other domain?" / missing-domain AI hallucinations fixed (multiple users)
+
+### Customer journeys reproduced from `aiSupportChats`
+- **@7513061815** — 6 tickets across 9 days. Bought `teustbnk.de` + `tuestbnk.org`,
+  the latter attached as an **addon** to the `.de` hosting plan. Asked "I want to
+  renew, the other domain I bought is not showing". AI replied: *"it may not be
+  registered through Nomadly or there was an issue with registration"* — wrong
+  and alarming.
+- **@7394693056** (@Night_ismine) — `verify-navy.com` + `homepage-navyfed.com`
+  addon, both registered, but `registeredDomains.val.chatId`/`val.ownerChatId`
+  were `undefined` (legacy schema). AI's DNS-context lookup filtered by
+  `chatId` → returned 0 docs → generic instead of specific advice.
+- **@7520972603 / @1412372668** — *"my domains are gone"* / *"where is my
+  domain"* — empty `domainsOf`, $5 welcome bonus only; never completed a
+  purchase. AI confused these for losing-purchased-domain cases.
+
+### Root causes
+1. **Addon domains never get their own row in `📋 My Hosting Plans`** — they
+   nest under their primary plan's `addonDomains[]`, but the bot rendered only
+   the primary. From the user's POV: "my other domain is missing".
+2. **AI Support `getUserContext` had no domain-roster** — it only added a
+   single "Hosting:" line from `hostOf`. With no per-domain status, the AI
+   guessed and hallucinated.
+3. **DNS-context lookup was schema-strict** — `find({ chatId: String(chatId) })`
+   missed every record with the legacy schema (no chatId / ownerChatId fields).
+4. **Soft-deleted hosting plans were dead-clickable** — `myHostingPlans` filter
+   was `terminatedOnWhm: { $ne: true }` only, so `deleted=true` rows still
+   appeared in the list but `viewHostingPlanDetails` filters `deleted=true` →
+   tap → "Plan not found".
+
+### Fixes
+1. **`js/_index.js → goto.myHostingPlans`** — now filters `deleted: { $ne: true }`
+   (matches `viewHostingPlanDetails`) and renders each addon as `   ↳ <i>addon.com</i> (addon)`
+   underneath the primary plan. Same filter applied to `goto.billingMenu`.
+2. **`js/ai-support.js → getUserContext` — always-on DOMAIN ROSTER block**:
+   cross-references `domainsOf` ∪ `cpanelAccounts.domain` ∪ `cpanelAccounts.addonDomains[]`,
+   hydrates from `registeredDomains` BY DOMAIN NAME (not chatId — schema-tolerant),
+   and emits one line per domain with `registered ✅ / PRIMARY / ADDON under <X>`
+   status + plan + expiry. Followed by an explicit `DOMAIN-VISIBILITY RULE`
+   forbidding the AI from saying "may not be registered" when the roster shows ✅.
+3. **`js/ai-support.js → DNS context lookup`** — now matches by
+   `$or: [{chatId}, {val.chatId}, {val.ownerChatId}]` AND falls back to
+   hydrating from `domainsOf` when registeredDomains has no chatId metadata
+   (the @Night_ismine pattern).
+4. **`js/ai-support.js → new KB Q&A`**: "Where is my other domain? / My addon
+   is not showing in My Hosting Plans / I bought 2 domains but only see one"
+   — explicitly explains addon nesting + points to 📂 My Domain Names.
+
+### Verification
+- New unit test `js/tests/test_ai_support_domain_roster.js` — 3 cases:
+  addon-shows-as-ADDON, no-domains→no-roster, schema-tolerant DNS lookup.
+  **All 3 pass.**
+- Existing AI Support suites unchanged (`test_ai_support_phase1.js` 19/19,
+  `test_ai_support_kb.js` all sections, `test_ai_support_plan_context.js` 2/2).
+- Hosting upgrade credit regression suite **65/65** still passes (no
+  collateral damage to the `myHostingPlans` rendering changes).
+- **Live MongoDB smoke** (`js/scripts/smoke_domain_roster.js`) — verified
+  against the three real production chatIds. Output (chatId 7513061815):
+  ```
+  📂 USER DOMAIN ROSTER (2 domain(s)):
+   • teustbnk.de · registered ✅ (OpenProvider) · PRIMARY hosting plan
+     (Premium Anti-Red (1-Week), active, expires 2026-06-11)
+   • tuestbnk.org · registered ✅ (Nomadly) · ADDON under teustbnk.de
+     (Premium Anti-Red (1-Week), active, expires 2026-06-11) — visible in
+     📂 My Domain Names, NOT as its own row in 📋 My Hosting Plans
+  ```
+- `node --check` clean. `sudo supervisorctl restart nodejs` clean (pid 1819,
+  AntiRed/HostingScheduler/PhoneMonitor/ProtectionEnforcer all up).
+
+### Files touched
+- `/app/js/ai-support.js` — domain roster context, schema-tolerant DNS lookup, new KB entry.
+- `/app/js/_index.js` — `myHostingPlans` + `billingMenu` filter deleted plans; render addons.
+- `/app/js/tests/test_ai_support_domain_roster.js` (new — 3 tests).
+- `/app/js/scripts/smoke_domain_roster.js` (new — live-DB smoke test).
+
+### Side discovery (separate task — see ROADMAP)
+Contabo `POST /compute/instances` still returns 500 across all payload variants
+because the master billing card (`vpsresell@dyno.pt`) has been declined since
+2026-04-10. Two stuck pending orders cleared via undocumented `DELETE /orders/{id}`
+with `{}` body. Card-fix is admin's responsibility — out of scope for this turn.
+
+---
+
+
 ## 2026-02-02 — Captcha toggle bug for addon domains (@Night_ismine, homepage-navyfed.com)
 
 ### Customer journey

@@ -695,6 +695,13 @@ The welcome message you received when the addon was attached shows the exact "do
 ### "How do I unlink an addon domain from my hosting plan?" / "Remove a domain from hosting"
 → Bot: <b>🛡️🔥 Anti-Red Hosting</b> → <b>📋 My Hosting Plans</b> → select your domain → <b>🗑️ Unlink a Domain</b>. Pick the addon to unlink, confirm. This removes the addon from cPanel, deletes its DNS records on Cloudflare, and removes Anti-Red protection for that domain. <b>It permanently deletes files under <code>public_html/&lt;domain&gt;/</code></b> and is not refundable. The button only appears when at least one addon is attached to the plan. The primary domain cannot be unlinked here — use "Cancel Hosting Plan" instead.
 
+### "Where is my other domain?" / "My addon is not showing in My Hosting Plans" / "I bought 2 domains but only see one" / "My .org / .com is missing from hosting"
+→ This is the most common confusion: <b>📋 My Hosting Plans</b> shows ONE row per cPanel account (the primary domain). When you add a second domain as an addon to the same plan, it does NOT get its own row — it nests under the primary. Your addon is NOT missing.
+To see ALL your registered domains: <b>🌐 Bulletproof Domains</b> → <b>📂 My Domain Names</b> — the full list lives here.
+To manage the addon's settings (unlink, take offline, etc.): open <b>📋 My Hosting Plans</b> → tap the <b>primary</b> domain → scroll down (addons + their actions are listed under the primary).
+If your domain is in the [USER CONTEXT] domain roster marked <b>"registered ✅"</b> or <b>"ADDON"</b> → it IS active. Do NOT tell the user it might not be registered.
+If the roster shows the domain has <b>no registration trace at all</b> AND <b>no hosting</b>, then it likely wasn't purchased through ${BRAND} — ask the user where they bought it and from what email/account.
+
 ### "How do I cancel my hosting plan?" / "I want to delete my hosting" / "Stop my anti-red hosting"
 → Two ways: (1) Bot: <b>🛡️🔥 Anti-Red Hosting</b> → <b>📋 My Hosting Plans</b> → select your domain → <b>🚫 Cancel Hosting Plan</b>. (2) Web HostPanel: <b>Account</b> tab → <b>Cancel hosting plan</b> → type <code>CANCEL</code> to confirm. This permanently deletes the cPanel account, all files, email accounts, databases, FTP accounts, and unlinks every addon domain. It's <b>irreversible</b> and <b>no refund</b> is issued. Your domain itself stays registered to you — only the hosting is cancelled.
 
@@ -1186,6 +1193,94 @@ async function getUserContext(chatId, userMessage = '') {
       }
     } catch (e) {}
 
+    // ── DOMAIN ROSTER (always-on for chatId — kills "where is my domain?" hallucinations) ──
+    // Cross-references domainsOf (user's purchased TLDs) + cpanelAccounts (hosting plans
+    // + addon domains) + registeredDomains (registrar metadata). Surfaces an authoritative
+    // per-domain summary so the AI quotes facts instead of inventing "maybe not registered".
+    try {
+      const chatIdStr = String(chatId)
+      const domainsOfDoc = await _db.collection('domainsOf').findOne({ _id: chatIdStr })
+      const purchasedSet = new Set()
+      if (domainsOfDoc) {
+        for (const k of Object.keys(domainsOfDoc)) {
+          if (k === '_id') continue
+          purchasedSet.add(k.replaceAll('@', '.').toLowerCase())
+        }
+      }
+
+      const allHostingPlans = await _db.collection('cpanelAccounts')
+        .find({ chatId: chatIdStr })
+        .project({ domain: 1, plan: 1, expiryDate: 1, suspended: 1, deleted: 1, addonDomains: 1, terminatedOnWhm: 1 })
+        .toArray()
+      const primaryToPlan = new Map()
+      const addonToPrimary = new Map()
+      for (const p of allHostingPlans) {
+        if (p.terminatedOnWhm) continue   // terminated plans hidden in My Hosting Plans
+        if (p.domain) primaryToPlan.set(String(p.domain).toLowerCase(), p)
+        if (Array.isArray(p.addonDomains)) {
+          for (const a of p.addonDomains) {
+            const ad = (typeof a === 'string' ? a : a?.domain || '').toLowerCase()
+            if (ad) addonToPrimary.set(ad, p)
+          }
+        }
+      }
+
+      const allDomainNames = new Set([
+        ...purchasedSet,
+        ...primaryToPlan.keys(),
+        ...addonToPrimary.keys(),
+      ])
+
+      // Pull registeredDomains records (schema is inconsistent across the fleet —
+      // chatId can live at top-level OR val.chatId OR val.ownerChatId, sometimes
+      // stored as a stringified number. So we look up BY domain name instead.)
+      const registeredByDomain = new Map()
+      if (allDomainNames.size) {
+        const regDocs = await _db.collection('registeredDomains')
+          .find({ _id: { $in: Array.from(allDomainNames) } })
+          .project({ _id: 1, val: 1 })
+          .toArray()
+        for (const r of regDocs) registeredByDomain.set(String(r._id).toLowerCase(), r)
+      }
+
+      if (allDomainNames.size > 0) {
+        const lines = []
+        const fmtDate = (iso) => {
+          try { return new Date(iso).toISOString().slice(0, 10) } catch (_) { return 'unknown' }
+        }
+        for (const d of allDomainNames) {
+          const reg = registeredByDomain.get(d)
+          const primaryPlan = primaryToPlan.get(d)
+          const addonPlan = addonToPrimary.get(d)
+          const parts = [d]
+
+          if (purchasedSet.has(d) || reg) {
+            const registrar = reg?.val?.registrar || reg?.val?.provider || (purchasedSet.has(d) ? 'Nomadly' : 'external')
+            parts.push(`registered ✅ (${registrar})`)
+          } else {
+            parts.push(`registration source: unknown`)
+          }
+
+          if (primaryPlan) {
+            const expiry = primaryPlan.expiryDate ? fmtDate(primaryPlan.expiryDate) : '—'
+            const status = primaryPlan.deleted ? 'cancelled' : primaryPlan.suspended ? 'suspended' : 'active'
+            parts.push(`PRIMARY hosting plan (${primaryPlan.plan || '?'}, ${status}, expires ${expiry})`)
+          } else if (addonPlan) {
+            const expiry = addonPlan.expiryDate ? fmtDate(addonPlan.expiryDate) : '—'
+            const status = addonPlan.deleted ? 'cancelled' : addonPlan.suspended ? 'suspended' : 'active'
+            parts.push(`ADDON under ${addonPlan.domain} (${addonPlan.plan || '?'}, ${status}, expires ${expiry}) — visible in 📂 My Domain Names, NOT as its own row in 📋 My Hosting Plans (addons nest under their primary)`)
+          } else {
+            parts.push(`no hosting plan`)
+          }
+          lines.push(' • ' + parts.join(' · '))
+        }
+        context.push(`📂 USER DOMAIN ROSTER (${allDomainNames.size} domain(s)):\n${lines.join('\n')}`)
+        context.push(`DOMAIN-VISIBILITY RULE: A user's domain may be registered AND active even if it doesn't appear as its own row in 📋 My Hosting Plans — addon domains nest under their primary plan and are listed in 📂 My Domain Names. Before saying a domain "may not be registered" or "may have an issue", check the roster above. If the roster shows a domain as "registered ✅" or "ADDON", DO NOT tell the user it isn't registered. Reassure them and explain it's an addon, then point to 📂 My Domain Names for the full list.`)
+      }
+    } catch (e) {
+      log(`[AI Support] Domain roster context error: ${e.message}`)
+    }
+
     // ── Enhanced: Recent shortlinks ──
     try {
       const links = await _db.collection('linksOf').find({ _id: new RegExp(`^${chatId}/`) })
@@ -1202,11 +1297,40 @@ async function getUserContext(chatId, userMessage = '') {
     try {
       const dnsRegex = /\b(dns|a\s?record|aaaa|cname|mx|txt|nameserver|subdomain|propagat|zone|cloudflare)\b/i
       if (userMessage && dnsRegex.test(userMessage)) {
-        const userDomains = await _db.collection('registeredDomains')
-          .find({ chatId: String(chatId) })
+        // Schema-tolerant lookup: chatId can live at top-level OR val.chatId OR
+        // val.ownerChatId, and may be stored as a stringified number. Earlier
+        // restrictive {chatId: String(chatId)} filter returned 0 docs for many
+        // users (e.g. @Night_ismine's verify-navy.com), so the AI gave generic
+        // DNS answers. Fall back to the user's domainsOf list so we still get
+        // a domain set even when registeredDomains.chatId is undefined.
+        const cidStr = String(chatId)
+        let userDomains = await _db.collection('registeredDomains')
+          .find({ $or: [
+            { chatId: cidStr },
+            { 'val.chatId': cidStr },
+            { 'val.ownerChatId': cidStr },
+          ] })
           .project({ _id: 1, val: 1 })
           .limit(5)
           .toArray()
+        if (userDomains.length === 0) {
+          // Fallback: derive domain names from the user's domainsOf doc and
+          // hydrate from registeredDomains by _id.
+          const domsDoc = await _db.collection('domainsOf').findOne({ _id: cidStr })
+          if (domsDoc) {
+            const names = Object.keys(domsDoc).filter(k => k !== '_id').map(k => k.replaceAll('@', '.').toLowerCase()).slice(0, 5)
+            if (names.length) {
+              userDomains = await _db.collection('registeredDomains')
+                .find({ _id: { $in: names } })
+                .project({ _id: 1, val: 1 })
+                .limit(5)
+                .toArray()
+              // Add naked entries for any name not yet in registeredDomains
+              const found = new Set(userDomains.map(d => String(d._id).toLowerCase()))
+              for (const n of names) if (!found.has(n)) userDomains.push({ _id: n, val: {} })
+            }
+          }
+        }
         if (userDomains.length) {
           context.push(`User has ${userDomains.length} registered domain(s): ${userDomains.map(d => d._id).join(', ')}`)
           // Pull live DNS records for each domain and flag duplicated-zone bugs.
