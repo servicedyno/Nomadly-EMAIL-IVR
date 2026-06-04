@@ -8,8 +8,9 @@ const https = require('https')
 const fs = require('fs')
 
 const PROJECT_TOKEN = process.env.RAILWAY_PROJECT_TOKEN
-const PROJECT_ID = process.env.RAILWAY_PROJECT_ID
-const ENV_ID = process.env.RAILWAY_ENVIRONMENT_ID
+const ACCOUNT_TOKEN = process.env.API_KEY_RAILWAY
+const PROJECT_ID = process.env.RAILWAY_PROJECT_ID || '4f01d2a9-13fb-4321-b6d8-c1f4d5fc7e60'
+const ENV_ID = process.env.RAILWAY_ENVIRONMENT_ID || 'b9c87cda-ad3a-4d8e-add5-2a83bc4af3ad'
 
 const TARGET_CHAT_ID = process.argv[2] || '6996287179'
 const EXTRA_PATTERNS = (process.argv[3] || 'spoofed,VPS,vps,RDP,password,Contabo,contabo,vmInstanceSetup,vpsBoughtSuccess').split(',')
@@ -25,15 +26,17 @@ const LOG_LIMIT_PER_DEPLOY = 5000
 
 function gql(query, variables = {}) {
   const data = JSON.stringify({ query, variables })
+  const headers = {
+    'Content-Type': 'application/json',
+    'Content-Length': Buffer.byteLength(data),
+  }
+  if (PROJECT_TOKEN) headers['Project-Access-Token'] = PROJECT_TOKEN
+  else if (ACCOUNT_TOKEN) headers.Authorization = `Bearer ${ACCOUNT_TOKEN}`
   const opts = {
     hostname: 'backboard.railway.app',
     path: '/graphql/v2',
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Content-Length': Buffer.byteLength(data),
-      'Project-Access-Token': PROJECT_TOKEN,
-    },
+    headers,
   }
   return new Promise((resolve, reject) => {
     const req = https.request(opts, (res) => {
