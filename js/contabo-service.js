@@ -454,6 +454,41 @@ async function getCompatibleWindowsImage(imageId, targetProductId) {
   return await getDefaultWindowsImageId(targetProductId)
 }
 
+/**
+ * Get a compatible Linux image for a given product.
+ * Tries: Ubuntu 24.04 → Ubuntu 22.04 → Debian 13 → Debian 12 → any available Linux.
+ * @param {string} currentImageId - The image that failed
+ * @param {string} [productId] - Target product ID (for logging)
+ * @returns {Promise<string|null>} - Compatible Linux image ID, or null
+ */
+async function getCompatibleLinuxImage(currentImageId, productId) {
+  const images = await listImages('linux')
+  // Preference order: stable Ubuntu LTS → Debian stable → anything
+  const preferred = [
+    'ubuntu-24.04',
+    'ubuntu-22.04',
+    'debian-13',
+    'debian-12',
+    'ubuntu-26.04',
+    'almalinux-9',
+    'rockylinux-9',
+  ]
+  for (const name of preferred) {
+    const img = images.find(i => i.name === name && i.imageId !== currentImageId)
+    if (img) {
+      console.log(`[Contabo] Compatible Linux image: ${name} (${img.imageId}) for product ${productId || 'unknown'}`)
+      return img.imageId
+    }
+  }
+  // Last resort: any Linux image that isn't the broken one
+  const any = images.find(i => i.imageId !== currentImageId)
+  if (any) {
+    console.log(`[Contabo] Fallback Linux image: ${any.name} (${any.imageId})`)
+    return any.imageId
+  }
+  return null
+}
+
 // ─── Secrets (SSH Keys & Passwords) ───────────────────────────────────────
 
 /**
@@ -563,8 +598,22 @@ async function createInstance(opts) {
     // Fix #7b: If image is incompatible with product, try compatible image
     if (errMsg.includes('cannot use this image') || errMsg.includes('image')) {
       console.log(`[Contabo] Image incompatible — trying compatible image for product ${body.productId}`)
+      
+      // Detect if this is a Linux or Windows image to use the right fallback
+      const isWindowsImage = await (async () => {
+        try {
+          const winImages = await listImages('windows')
+          return winImages.some(i => i.imageId === opts.imageId)
+        } catch { return false }
+      })()
+      
       try {
-        const compatImage = await getCompatibleWindowsImage(opts.imageId, body.productId)
+        let compatImage
+        if (isWindowsImage) {
+          compatImage = await getCompatibleWindowsImage(opts.imageId, body.productId)
+        } else {
+          compatImage = await getCompatibleLinuxImage(opts.imageId, body.productId)
+        }
         if (compatImage && compatImage !== body.imageId) {
           console.log(`[Contabo] Retrying with compatible image: ${body.imageId} → ${compatImage}`)
           body.imageId = compatImage
@@ -584,7 +633,12 @@ async function createInstance(opts) {
         console.log(`[Contabo] All images rejected on ${body.productId} — trying product fallback ${fallbackId}`)
         body.productId = fallbackId
         try {
-          const fallbackImage = await getCompatibleWindowsImage(opts.imageId, fallbackId)
+          let fallbackImage
+          if (isWindowsImage) {
+            fallbackImage = await getCompatibleWindowsImage(opts.imageId, fallbackId)
+          } else {
+            fallbackImage = await getCompatibleLinuxImage(opts.imageId, fallbackId)
+          }
           if (fallbackImage) body.imageId = fallbackImage
           console.log(`[Contabo] Retrying with product=${fallbackId}, image=${body.imageId}`)
           const res = await apiRequest('POST', '/compute/instances', body)
@@ -922,6 +976,7 @@ module.exports = {
   listImages,
   getDefaultWindowsImageId,
   getCompatibleWindowsImage,
+  getCompatibleLinuxImage,
   DEFAULT_WINDOWS_IMAGE,
 
   // Secrets
