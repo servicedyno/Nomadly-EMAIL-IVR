@@ -38,6 +38,114 @@ const WINDOWS_LICENSE_BY_TIER = {
 let _tokenCache = { token: null, expiresAt: 0 }
 let _tokenInflight = null
 
+// ─── Provisioning circuit breaker (createInstance) ────────────────────────
+// 2026-06-08: Contabo started returning HTTP 500 in ~3ms on POST /compute/instances
+// for our account while every other endpoint (auth, READs, /secrets POST) keeps
+// returning 2xx. This is a vendor-side block we cannot fix in code.
+//
+// To stop the debit→500→refund loop the bot was creating, we trip a circuit
+// breaker after 2 consecutive 5xx from createInstance. While the breaker is
+// open, createInstance throws a typed `VPS_PROVISIONING_PAUSED` error WITHOUT
+// hitting Contabo, and the bot's vps-plan-pay handler checks isProvisioningHealthy()
+// before debiting the wallet (so the user is informed and not charged at all).
+//
+// The breaker auto-probes every PROBE_INTERVAL_MS (a lightweight READ via
+// listInstances). When that succeeds we don't auto-close — Contabo could still
+// reject CREATE. We only auto-close after a successful createInstance call
+// completes naturally (i.e. a real customer purchase succeeds), or via the
+// admin reset endpoint /admin/contabo-circuit-reset.
+const _circuit = {
+  open: false,
+  consecutive500: 0,
+  openedAt: null,
+  lastError: null,
+  lastErrorAt: null,
+  // How many consecutive 5xx from createInstance trip the breaker
+  threshold: 2,
+  // Probe interval — used by the bot scheduler to inform admin/users
+  probeIntervalMs: 5 * 60 * 1000,
+  // Callback fired exactly once when the breaker opens (set from bot init)
+  onOpen: null,
+}
+
+function _trackCreateResult(ok, err) {
+  if (ok) {
+    if (_circuit.consecutive500 > 0 || _circuit.open) {
+      console.log(`[Contabo] createInstance recovered after ${_circuit.consecutive500} failures — circuit closed`)
+    }
+    _circuit.consecutive500 = 0
+    _circuit.open = false
+    _circuit.openedAt = null
+    _circuit.lastError = null
+    _circuit.lastErrorAt = null
+    return
+  }
+  // Only 5xx counts toward breaker. 4xx are client-side (bad request, quota, etc.)
+  // and should not trip the breaker on legitimate edge cases (e.g., invalid image).
+  const status = err?.status || err?.response?.status || 0
+  if (status >= 500 && status < 600) {
+    _circuit.consecutive500 += 1
+    _circuit.lastError = err?.message || err?.raw?.message || 'Internal Server Error'
+    _circuit.lastErrorAt = new Date()
+    if (!_circuit.open && _circuit.consecutive500 >= _circuit.threshold) {
+      _circuit.open = true
+      _circuit.openedAt = new Date()
+      console.error(`[Contabo] 🔌 CIRCUIT OPEN — createInstance failed ${_circuit.consecutive500}× with 5xx. New VPS purchases paused.`)
+      try { _circuit.onOpen && _circuit.onOpen(getCircuitState()) } catch (_) { /* onOpen handler failures must not block circuit logic */ }
+    }
+  } else {
+    // 4xx — reset counter (the failure was likely user-input or product-specific, not vendor outage)
+    _circuit.consecutive500 = 0
+  }
+}
+
+/**
+ * Public: is Contabo CREATE currently healthy enough to accept purchases?
+ * Returns { healthy: boolean, reason: string|null, openedAt, lastError }.
+ *
+ * The bot calls this BEFORE debiting the wallet for a VPS purchase so users
+ * are never charged when the vendor is in a known-broken state.
+ */
+function isProvisioningHealthy() {
+  if (!_circuit.open) return { healthy: true, reason: null, openedAt: null, lastError: null }
+  return {
+    healthy: false,
+    reason: 'VPS_PROVISIONING_PAUSED',
+    openedAt: _circuit.openedAt,
+    lastError: _circuit.lastError,
+    minutesOpen: _circuit.openedAt ? Math.round((Date.now() - _circuit.openedAt.getTime()) / 60000) : 0,
+  }
+}
+
+/** Snapshot of current circuit state — for admin /status views */
+function getCircuitState() {
+  return {
+    open: _circuit.open,
+    consecutive500: _circuit.consecutive500,
+    openedAt: _circuit.openedAt,
+    lastError: _circuit.lastError,
+    lastErrorAt: _circuit.lastErrorAt,
+    threshold: _circuit.threshold,
+  }
+}
+
+/** Admin: force-close the breaker after Contabo support confirms fix */
+function resetProvisioningCircuit() {
+  const wasOpen = _circuit.open
+  _circuit.open = false
+  _circuit.consecutive500 = 0
+  _circuit.openedAt = null
+  _circuit.lastError = null
+  _circuit.lastErrorAt = null
+  console.log(`[Contabo] 🔌 Circuit manually reset (was ${wasOpen ? 'open' : 'closed'})`)
+  return { closed: true, wasOpen }
+}
+
+/** Register a one-shot "circuit opened" callback (bot uses this to alert admin) */
+function onProvisioningCircuitOpen(cb) {
+  _circuit.onOpen = cb
+}
+
 /**
  * Get a valid OAuth2 access token. Caches & auto-refreshes 60s before expiry.
  * - De-duplicates concurrent refreshes via _tokenInflight to avoid two
@@ -567,6 +675,18 @@ async function deleteSecret(secretId) {
  * @param {number} [opts.period]     - Billing period in months (1=monthly)
  */
 async function createInstance(opts) {
+  // Pre-flight: if the breaker is open, refuse without making the HTTP call.
+  // The bot is expected to check isProvisioningHealthy() BEFORE debiting,
+  // so this throw is the last-line defense for code paths that bypass that
+  // (admin tools, retries, race conditions during a probe).
+  if (_circuit.open) {
+    const minutes = _circuit.openedAt ? Math.round((Date.now() - _circuit.openedAt.getTime()) / 60000) : 0
+    const err = new Error(`VPS_PROVISIONING_PAUSED: vendor returning 5xx — paused ${minutes}m ago. Last error: ${_circuit.lastError || 'unknown'}`)
+    err.code = 'VPS_PROVISIONING_PAUSED'
+    err.circuit = getCircuitState()
+    throw err
+  }
+
   const body = {
     imageId:   opts.imageId,
     productId: opts.productId,
@@ -586,6 +706,7 @@ async function createInstance(opts) {
     console.log(`[Contabo] Instance created: id=${instance?.instanceId}, name=${instance?.name}`)
     instance._actualProductId = body.productId
     instance._actualImageId = body.imageId
+    _trackCreateResult(true)
     return instance
   } catch (err) {
     // Fix #4: If product is unavailable, try the fallback (NVMe ↔ SSD)
@@ -607,12 +728,18 @@ async function createInstance(opts) {
             console.log(`[Contabo] Image swap failed, keeping original: ${imgErr.message}`)
           }
         }
-        const res = await apiRequest('POST', '/compute/instances', body)
-        const instance = res.data?.[0] || res.data
-        console.log(`[Contabo] Instance created via fallback: id=${instance?.instanceId}, product=${fallbackId}`)
-        instance._actualProductId = body.productId
-        instance._actualImageId = body.imageId
-        return instance
+        try {
+          const res = await apiRequest('POST', '/compute/instances', body)
+          const instance = res.data?.[0] || res.data
+          console.log(`[Contabo] Instance created via fallback: id=${instance?.instanceId}, product=${fallbackId}`)
+          instance._actualProductId = body.productId
+          instance._actualImageId = body.imageId
+          _trackCreateResult(true)
+          return instance
+        } catch (fallbackErr) {
+          console.log(`[Contabo] Product fallback also failed: ${fallbackErr.message}`)
+          // fall through to outer rethrow with original error tracking
+        }
       }
     }
     // Fix #7b: If image is incompatible with product, try compatible image
@@ -642,6 +769,7 @@ async function createInstance(opts) {
           console.log(`[Contabo] Instance created with compatible image: id=${instance?.instanceId}`)
           instance._actualProductId = body.productId
           instance._actualImageId = body.imageId
+          _trackCreateResult(true)
           return instance
         }
       } catch (imgErr) {
@@ -666,12 +794,14 @@ async function createInstance(opts) {
           console.log(`[Contabo] Instance created via product+image fallback: id=${instance?.instanceId}, product=${fallbackId}`)
           instance._actualProductId = body.productId
           instance._actualImageId = body.imageId
+          _trackCreateResult(true)
           return instance
         } catch (fallbackErr) {
           console.log(`[Contabo] Product+image fallback also failed: ${fallbackErr.message}`)
         }
       }
     }
+    _trackCreateResult(false, err)
     throw err // Re-throw if no fallback available or fallback also failed
   }
 }
@@ -1033,6 +1163,12 @@ module.exports = {
   formatInstanceForDisplay,
   formatSpecs,
   healthCheck,
+
+  // Circuit breaker (provisioning health)
+  isProvisioningHealthy,
+  getCircuitState,
+  resetProvisioningCircuit,
+  onProvisioningCircuitOpen,
 
   // Low-level
   apiRequest

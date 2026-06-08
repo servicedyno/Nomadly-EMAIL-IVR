@@ -2150,6 +2150,37 @@ const loadData = async () => {
   paymentIntents = db.collection('paymentIntents') // P0: Payment intent persistence
   vpsPlansOf = db.collection('vpsPlansOf')
   initVpsDb(db) // Initialize VPS DB for Contabo service
+
+  // ── Register Contabo provisioning circuit-breaker admin alert ──
+  // When createInstance hits the 5xx threshold, fire a one-shot DM to the
+  // admin so they can open a vendor ticket. The bot meanwhile blocks all
+  // new VPS purchases via the pre-flight check in vps-plan-pay (no wallet
+  // deduction → no debit-refund storm).
+  try {
+    const _contaboSvc = require('./contabo-service.js')
+    _contaboSvc.onProvisioningCircuitOpen((state) => {
+      const msg =
+        `🔌 <b>Contabo CREATE circuit OPEN</b>\n\n` +
+        `<b>Auth / READs / other WRITEs work; only POST /compute/instances returns 5xx.</b>\n` +
+        `Consecutive failures: <b>${state.consecutive500}</b>\n` +
+        `Last error: <code>${(state.lastError || '').toString().slice(0, 200)}</code>\n` +
+        `Opened at: <code>${state.openedAt?.toISOString?.() || state.openedAt}</code>\n\n` +
+        `<b>Effect:</b> all VPS purchases are paused at the wallet-debit step — users see "VPS purchases temporarily paused" instead of being charged and refunded.\n\n` +
+        `<b>Action required:</b>\n` +
+        `1. Open Contabo support ticket — reference customer <code>14615517</code>, mention HTTP 500 in ~3ms on /compute/instances.\n` +
+        `2. Once support confirms fix, hit <code>/admin/contabo-circuit-reset?key=&lt;SESSION_SECRET[0..15]&gt;</code> or restart the bot.`
+      try {
+        if (bot?.sendMessage && TELEGRAM_ADMIN_CHAT_ID) {
+          bot.sendMessage(TELEGRAM_ADMIN_CHAT_ID, msg, { parse_mode: 'HTML' }).catch(e => log(`[Contabo Circuit] admin DM failed: ${e.message}`))
+        }
+        if (TELEGRAM_DEV_CHAT_ID && String(TELEGRAM_DEV_CHAT_ID) !== String(TELEGRAM_ADMIN_CHAT_ID || '')) {
+          bot?.sendMessage?.(TELEGRAM_DEV_CHAT_ID, msg, { parse_mode: 'HTML' })?.catch?.(() => {})
+        }
+      } catch (e) { log(`[Contabo Circuit] alert dispatch error: ${e.message}`) }
+    })
+  } catch (e) {
+    log(`[Contabo Circuit] failed to register alert: ${e.message}`)
+  }
   totalShortLinks = db.collection('totalShortLinks')
   freeShortLinksOf = db.collection('freeShortLinksOf')
   freeSmsCountOf = db.collection('freeSmsCountOf')
@@ -9790,9 +9821,31 @@ Enter new value:`), bc)
 
       const priceUsd = price
       if (usdBal < priceUsd) return send(chatId, t.walletBalanceLowAmount(priceUsd, usdBal), k.of([u.deposit]))
-      
+
       const lang = info?.userLanguage ?? 'en'
       const name = await get(nameOf, chatId)
+
+      // ── Pre-flight: skip the debit→refund loop entirely if Contabo provisioning
+      // is in a known-broken state (see js/contabo-service.js circuit breaker).
+      // No wallet deduction, no false hope — just a clear "try later" message.
+      try {
+        const contaboSvc = require('./contabo-service.js')
+        const health = contaboSvc.isProvisioningHealthy()
+        if (!health.healthy) {
+          const pauseMsg = ({
+            en: `⏸ <b>VPS purchases temporarily paused</b>\n\nOur upstream VPS provider is currently rejecting new orders. We've paused purchases for now so you're <b>not charged</b>.\n\n⏳ Please try again in 15–30 minutes. We'll resume automatically when service is back. <i>Your wallet has NOT been debited.</i>`,
+            fr: `⏸ <b>Achats VPS temporairement suspendus</b>\n\nNotre fournisseur VPS refuse actuellement les nouvelles commandes. Nous avons suspendu les achats pour ne <b>pas vous facturer</b>.\n\n⏳ Réessayez dans 15–30 min. Reprise automatique dès le retour du service. <i>Votre portefeuille n'a PAS été débité.</i>`,
+            zh: `⏸ <b>VPS 购买暂时暂停</b>\n\n上游 VPS 服务商目前拒绝新订单。我们已暂停购买流程以确保<b>不会扣款</b>。\n\n⏳ 请在 15–30 分钟后重试。服务恢复后会自动恢复。<i>您的钱包未被扣款。</i>`,
+            hi: `⏸ <b>VPS खरीद अस्थायी रूप से रोकी गई</b>\n\nहमारा VPS प्रदाता वर्तमान में नए ऑर्डर अस्वीकार कर रहा है। आपको <b>शुल्क न लगे</b> इसके लिए हमने खरीद रोकी है।\n\n⏳ कृपया 15–30 मिनट बाद पुनः प्रयास करें। सेवा बहाल होने पर स्वतः फिर चालू हो जाएगा। <i>आपके वॉलेट से कटौती नहीं हुई।</i>`,
+          }[lang]) || `⏸ <b>VPS purchases temporarily paused</b>\n\nOur upstream VPS provider is currently rejecting new orders. We've paused purchases for now so you're <b>not charged</b>.\n\n⏳ Please try again in 15–30 minutes. <i>Your wallet has NOT been debited.</i>`
+          send(chatId, pauseMsg, { parse_mode: 'HTML' })
+          log(`[VPS] Pre-flight blocked: provisioning paused (${health.minutesOpen}m). chatId=${chatId}, plan=${vpsDetails.plan}, price=$${priceUsd}`)
+          return
+        }
+      } catch (preflightErr) {
+        // Pre-flight failure must NOT block legitimate purchases — log and continue.
+        log(`[VPS] Pre-flight check error (continuing): ${preflightErr.message}`)
+      }
 
       let walletDeducted = false
 
@@ -33835,6 +33888,38 @@ app.get('/admin/payment-session', async (req, res) => {
     }
 
     return res.json({ success: true, ref, session: paySession })
+  } catch (error) {
+    return res.status(500).json({ error: error.message })
+  }
+})
+
+// ── Admin: Contabo provisioning circuit status ──
+// GET — view current breaker state (open/closed, consecutive failures, last error).
+app.get('/admin/contabo-circuit-status', (req, res) => {
+  const adminKey = req?.query?.key
+  if (adminKey !== process.env.SESSION_SECRET?.slice(0, 16)) {
+    return res.status(403).json({ error: 'Unauthorized' })
+  }
+  try {
+    const svc = require('./contabo-service.js')
+    return res.json({ success: true, health: svc.isProvisioningHealthy(), circuit: svc.getCircuitState() })
+  } catch (error) {
+    return res.status(500).json({ error: error.message })
+  }
+})
+
+// ── Admin: Reset the Contabo provisioning circuit breaker ──
+// POST — call after Contabo support confirms /compute/instances POST is back.
+app.post('/admin/contabo-circuit-reset', (req, res) => {
+  const adminKey = req?.query?.key
+  if (adminKey !== process.env.SESSION_SECRET?.slice(0, 16)) {
+    return res.status(403).json({ error: 'Unauthorized' })
+  }
+  try {
+    const svc = require('./contabo-service.js')
+    const result = svc.resetProvisioningCircuit()
+    log(`[admin] Contabo circuit reset via API — wasOpen=${result.wasOpen}`)
+    return res.json({ success: true, ...result, health: svc.isProvisioningHealthy() })
   } catch (error) {
     return res.status(500).json({ error: error.message })
   }

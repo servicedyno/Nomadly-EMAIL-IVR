@@ -1522,4 +1522,46 @@ Both scripts moved to `/app/js/scripts/retro/` for future re-use / reference.
 - `/billingleaks` admin command for surfacing `walletLedger.type='billing_failed'` rows
 - Backfill historical `walletLedger.balanceAfter` (14k rows show $0 — would need per-user tx replay)
 
+---
+
+## 2026-06-08 — Contabo CREATE 500 (P0 production fire) — Circuit Breaker Mitigation
+
+### Original problem
+> "see railway logs again, VPS provisioning failing"
+
+User `@funded235` triggered Contabo HTTP 500 ("Internal Server Error, retry or contact support") twice in 85 seconds on the Railway-deployed bot. Auto-refund flow worked but UX is terrible (charge → 500 → refund loop).
+
+### Diagnosis (see `/app/CONTABO_500_DIAGNOSIS_AND_FIX.md`)
+- `POST /compute/instances` returns HTTP 500 in **~3 ms** for **every** product/region/image combo — including their flagship V91 EU with a freshly looked-up image and an explicit Idempotency-Key.
+- **Every other endpoint** on the same OAuth token returns 2xx: auth, list instances, list images, GET /users (`enabled=true emailVerified=true owner=true`), and crucially **POST /secrets returns 201 CREATED**.
+- 9 active instances on the account; newest is from 2026-05-19 (20.2 days ago) — fits the pattern of a billing/anti-fraud silent block.
+- Diagnostic scripts: `scripts/diagnose_contabo.js`, `scripts/diagnose_contabo_deep.js`, `scripts/diagnose_contabo_final.js`, `scripts/contabo_profile_check.js`.
+
+### Conclusion
+This is a **vendor-side block** on the `POST /compute/instances` endpoint for customer `14615517` (Mercy Adebayo / vpsresell@dyno.pt). It is **not fixable in our code**. The user must open a Contabo support ticket. While that's pending, we shield users from the debit-refund loop.
+
+### Code changes shipped
+- **`js/contabo-service.js`** — Added circuit breaker (threshold = 2 consecutive 5xx). Public API: `isProvisioningHealthy()`, `getCircuitState()`, `resetProvisioningCircuit()`, `onProvisioningCircuitOpen()`. `createInstance()` now (a) bails synchronously with `VPS_PROVISIONING_PAUSED` when breaker open, (b) tracks success/failure on every code path including fallbacks.
+- **`js/_index.js`** — Pre-flight check in `vps-plan-pay` handler **skips wallet debit entirely** when breaker open and shows localised "VPS purchases temporarily paused" message (EN/FR/ZH/HI). Registered admin-alert callback at boot that DMs admin+dev exactly once when the breaker opens (with action plan + Contabo support tip). Added `GET /admin/contabo-circuit-status` and `POST /admin/contabo-circuit-reset` endpoints (gated by `SESSION_SECRET[0..15]`).
+
+### Verified
+- Unit tests in `/app/scripts/test_contabo_circuit.js` and `/app/scripts/test_vps_preflight.js` pass against the live (failing) Contabo endpoint.
+- Bot restarted locally — admin endpoints return correct JSON, auth gate (403 without key) works.
+
+### Required user actions
+1. **Open a Contabo support ticket** referencing customer `14615517`, including trace IDs from the diagnosis doc.
+2. **Deploy these local changes to Railway** (the prod bot still has the debit-refund loop until the new code lands there).
+3. After Contabo support confirms fix, hit `POST /admin/contabo-circuit-reset?key=<SESSION_SECRET[0..16]>` (or restart the bot) to allow the next purchase attempt to probe & auto-close the breaker.
+
+### Open follow-ups (deferred per user)
+- 🔴 P0 — Rotate Telegram bot token + silence `httpx` INFO logs (token leak in Railway logs). Skipped this session per user instruction.
+- 🟠 P1 — Resize WHM DigitalOcean droplet 1vCPU/2GB → 2vCPU/4GB. Deferred per user instruction.
+- 🟠 P1 — Reinstall `do-agent` on WHM droplet for metric visibility. Deferred.
+- 🟠 P1 — `teustbnk.de` NS delegation pending at registrar.
+- 🟡 P2 — Create CF zones for 4 cPanel domains (`03seucre-auth.click`, `49aa09c086.net`, `f2f4e41d85.org`, `huntingtononlinebanking.it`).
+- 🟡 P2 — Add `VPS7DAY` 7-day trial coupon flow.
+- 🟡 P2 — Investigate Autopromo 0% VPS conversion.
+- 🛠 Refactor — Split `js/_index.js` (37k+ lines) into `routes/`, `copy/`, `business/`.
+
+
 
