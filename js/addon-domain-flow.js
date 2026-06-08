@@ -283,6 +283,38 @@ async function runDnsAndProtection({ domain, cpUser, whmHost, account, db, bot, 
       await cfService.enforceHTTPS(zoneId)
       try { await cfService.enableAuthenticatedOriginPulls(zoneId) } catch (_) {}
 
+      // ── Origin Hardening (parity with cpanel-routes.js add-enhanced flow) ──
+      //    The bot's automated provisioning historically only ran AOP and left
+      //    SSL at Flexible mode (CF↔origin = plain HTTP). The full hardening
+      //    flow — already implemented in the panel UI's /domains/add-enhanced
+      //    route — generates a CF Origin CA cert, installs it on cPanel,
+      //    excludes the domain from AutoSSL (so LE can't overwrite it), and
+      //    upgrades SSL mode to Full (strict). Without these steps the
+      //    CF→origin leg is unencrypted and anyone with the origin IP can
+      //    bypass Cloudflare. Audit on 2026-06-08 found 0 of 13 in-CF cPanel
+      //    domains had Origin CA certs. This block closes that gap.
+      //    Runs after the retry loop succeeds; never throws (defensive).
+      try {
+        const whmServiceLocal = require('./whm-service')
+        const certResult = await cfService.generateOriginCACert([domain, `*.${domain}`])
+        if (certResult.success) {
+          const installRes = await whmServiceLocal.installDomainSSL(
+            cpUser, domain, certResult.certificate, certResult.privateKey
+          )
+          if (installRes.success) {
+            await whmServiceLocal.excludeDomainsFromAutoSSL(cpUser, [domain, `www.${domain}`])
+            await cfService.setSSLMode(zoneId, 'strict')
+            log(`[AddonFlow] origin hardened for ${domain} (Origin CA + AOP + AutoSSL exclude + Full(strict))`)
+          } else {
+            log(`[AddonFlow] origin CA generated but installssl failed for ${domain}: ${installRes.error}`)
+          }
+        } else {
+          log(`[AddonFlow] origin CA cert skipped for ${domain}: ${certResult.error || 'unknown'}`)
+        }
+      } catch (hardenErr) {
+        log(`[AddonFlow] origin hardening warning for ${domain}: ${hardenErr.message}`)
+      }
+
       await antiRedService.deployFullProtection(cpUser, domain, account.plan || '')
       log(`[AddonFlow] anti-red + DNS deployed for ${domain} (attempt ${attempt})`)
       break
