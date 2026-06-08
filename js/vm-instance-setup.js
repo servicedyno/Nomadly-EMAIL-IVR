@@ -1028,40 +1028,84 @@ async function deleteVPSinstance(chatId, vpsId) {
 
     const contaboId = localRecord?.contaboInstanceId || instanceId
 
+    // Helper: Contabo returns 404 when the instance was already deleted
+    // (manually via panel, prior-successful-but-undelivered-response, or
+    // expired billing cycle). Treat it as success and mark our DB record.
+    const isAlreadyGone = (e) =>
+      e?.status === 404 || /Entry Instances not found/i.test(e?.message || '')
+
     // Step 1: Call Contabo cancel
-    const result = await contabo.cancelInstance(contaboId)
+    let result
+    try {
+      result = await contabo.cancelInstance(contaboId)
+    } catch (cancelErr) {
+      if (isAlreadyGone(cancelErr)) {
+        console.log(`[VPS] Contabo says instance ${contaboId} already gone — marking DELETED locally`)
+        if (_vpsPlansOf) {
+          await _vpsPlansOf.updateOne(
+            { vpsId: String(vpsId) },
+            { $set: { status: 'DELETED', deletedAt: new Date(), cancelReason: 'contabo_404_already_gone' } }
+          )
+        }
+        return { success: true, alreadyGone: true, contaboId }
+      }
+      throw cancelErr
+    }
 
     // Step 2: VERIFY the cancellation actually took effect by re-fetching
     //         and checking that `cancelDate` is now set. Poll briefly
     //         because Contabo can take a few seconds to update.
     let verifiedCancelDate = null
+    let verifiedAlreadyGone = false
     for (let attempt = 1; attempt <= 3; attempt++) {
       await new Promise(r => setTimeout(r, 3000))
       try {
         const live = await contabo.getInstance(contaboId)
         if (live?.cancelDate) { verifiedCancelDate = live.cancelDate; break }
       } catch (fetchErr) {
+        if (isAlreadyGone(fetchErr)) {
+          console.log(`[VPS] verify says instance ${contaboId} already gone — treating as success`)
+          verifiedAlreadyGone = true
+          break
+        }
         console.log(`[VPS] verify fetch attempt ${attempt} failed: ${fetchErr.message}`)
       }
     }
 
-    if (!verifiedCancelDate) {
+    if (!verifiedCancelDate && !verifiedAlreadyGone) {
       // Contabo returned success but cancelDate never appeared — soft-success.
       const errorMessage = `Contabo cancel returned success but cancelDate was not set after 9s. Manual cancellation required via Contabo Control Panel > Unpaid Orders. Instance: ${contaboId}`
       console.error(`[VPS] ${errorMessage}`)
       return { error: errorMessage, softSuccess: true, contaboId }
     }
 
-    // Step 3: Mark as deleted in MongoDB only after verification
+    // Step 3: Mark as deleted in MongoDB only after verification (or 404)
     if (_vpsPlansOf) {
       await _vpsPlansOf.updateOne(
         { vpsId: String(vpsId) },
-        { $set: { status: 'DELETED', deletedAt: new Date(), contaboCancelDate: verifiedCancelDate } }
+        { $set: {
+            status: 'DELETED',
+            deletedAt: new Date(),
+            contaboCancelDate: verifiedCancelDate || null,
+            cancelReason: verifiedAlreadyGone ? 'contabo_404_during_verify' : 'verified',
+        } }
       )
     }
 
-    return { success: true, data: result, cancelDate: verifiedCancelDate }
+    return { success: true, data: result, cancelDate: verifiedCancelDate, alreadyGone: verifiedAlreadyGone }
   } catch (err) {
+    // Final safety net: if anything else surfaces as a 404 (e.g. axios
+    // wrapper), still treat as success rather than infinite-loop.
+    if (err?.status === 404 || /Entry Instances not found/i.test(err?.message || '')) {
+      console.log(`[VPS] caught 404 in outer handler — marking DELETED locally for ${vpsId}`)
+      if (_vpsPlansOf) {
+        await _vpsPlansOf.updateOne(
+          { vpsId: String(vpsId) },
+          { $set: { status: 'DELETED', deletedAt: new Date(), cancelReason: 'contabo_404_outer' } }
+        )
+      }
+      return { success: true, alreadyGone: true }
+    }
     const errorMessage = `Error deleting VPS instance: ${err.message || JSON.stringify(err)}`
     console.error(errorMessage)
     return { error: errorMessage }

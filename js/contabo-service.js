@@ -36,41 +36,61 @@ const WINDOWS_LICENSE_BY_TIER = {
 
 // ─── Token cache ──────────────────────────────────────────────────────────
 let _tokenCache = { token: null, expiresAt: 0 }
+let _tokenInflight = null
 
 /**
  * Get a valid OAuth2 access token. Caches & auto-refreshes 60s before expiry.
+ * - De-duplicates concurrent refreshes via _tokenInflight to avoid two
+ *   callers racing the same keycloak endpoint and invalidating each other.
+ * - Retries once on transient `invalid_grant` (Contabo's keycloak
+ *   occasionally 401s under load and a 1.5s-later retry succeeds).
  */
 async function getAccessToken() {
   const now = Date.now()
   if (_tokenCache.token && now < _tokenCache.expiresAt - 60000) {
     return _tokenCache.token
   }
+  if (_tokenInflight) return _tokenInflight
 
-  try {
-    const params = new URLSearchParams({
-      client_id:     CLIENT_ID,
-      client_secret: CLIENT_SECRET,
-      username:      API_USER,
-      password:      API_PASSWORD,
-      grant_type:    'password'
-    })
+  _tokenInflight = (async () => {
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const params = new URLSearchParams({
+          client_id:     CLIENT_ID,
+          client_secret: CLIENT_SECRET,
+          username:      API_USER,
+          password:      API_PASSWORD,
+          grant_type:    'password'
+        })
 
-    const res = await axios.post(AUTH_URL, params.toString(), {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      timeout: 15000
-    })
+        const res = await axios.post(AUTH_URL, params.toString(), {
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          timeout: 15000
+        })
 
-    _tokenCache = {
-      token:     res.data.access_token,
-      expiresAt: now + (res.data.expires_in * 1000)
+        _tokenCache = {
+          token:     res.data.access_token,
+          expiresAt: Date.now() + (res.data.expires_in * 1000)
+        }
+
+        console.log(`[Contabo] Token acquired (attempt ${attempt}), expires in ${res.data.expires_in}s`)
+        return _tokenCache.token
+      } catch (err) {
+        const grantErr = err?.response?.data?.error === 'invalid_grant'
+        console.error(
+          `[Contabo] Token fetch failed (attempt ${attempt}):`,
+          err?.response?.data || err.message
+        )
+        if (attempt === 2 || !grantErr) {
+          throw new Error('VPS provider authentication failed')
+        }
+        // brief backoff before the retry
+        await new Promise(r => setTimeout(r, 1500))
+      }
     }
+  })().finally(() => { _tokenInflight = null })
 
-    console.log(`[Contabo] Token acquired, expires in ${res.data.expires_in}s`)
-    return _tokenCache.token
-  } catch (err) {
-    console.error('[Contabo] Token fetch failed:', err?.response?.data || err.message)
-    throw new Error('VPS provider authentication failed')
-  }
+  return _tokenInflight
 }
 
 /**
