@@ -2991,14 +2991,35 @@ ${plans
  hourlyBillingMessage: '',
 
  // configs
- askVpsConfig: list => `⚙️ Pick a plan:
- 
-${list
- .map(
- config =>
- `<strong>• ${config.name}</strong> — ${config.specs.vCPU} vCPU · ${config.specs.RAM}GB RAM · ${config.specs.disk}GB ${config.specs.diskType}`,
- )
- .join('\n')}`,
+ askVpsConfig: (list, extras = {}) => {
+  const { walletUsd, cheapestName, socialProof } = extras
+  const plans = list.map(config => {
+   const star = config.name === cheapestName ? '🌟 ' : ''
+   const monthly = Number(config.monthlyPrice) || 0
+   const daily = monthly > 0 ? (monthly / 30).toFixed(2) : null
+   const dailyHint = daily ? ` <i>(~$${daily}/day)</i>` : ''
+   return `<strong>• ${star}${config.name}</strong> — ${config.specs.vCPU} vCPU · ${config.specs.RAM}GB RAM · ${config.specs.disk}GB ${config.specs.diskType} — $${config.monthlyPrice}/mo${dailyHint}`
+  }).join('\n')
+
+  // Affordability footer — picks the priciest plan the user can afford,
+  // or tells them how much more to top up for the cheapest option.
+  let walletLine = ''
+  if (typeof walletUsd === 'number') {
+   const sorted = [...list].sort((a, b) => Number(a.monthlyPrice) - Number(b.monthlyPrice))
+   const affordable = sorted.filter(p => Number(p.monthlyPrice) <= walletUsd)
+   if (affordable.length) {
+    const top = affordable[affordable.length - 1]
+    walletLine = `\n\n💰 <b>Your wallet:</b> $${walletUsd.toFixed(2)} — you can afford up to <b>${top.name}</b> ✅`
+   } else {
+    const cheapest = sorted[0]
+    const topUp = (Number(cheapest.monthlyPrice) - walletUsd).toFixed(2)
+    walletLine = `\n\n💰 <b>Your wallet:</b> $${walletUsd.toFixed(2)} — top up <b>$${topUp}</b> more to unlock <b>${cheapest.name}</b>`
+   }
+  }
+
+  const proofLine = socialProof ? `\n\n${socialProof}` : ''
+  return `⚙️ Pick a plan:\n\n${plans}${proofLine}${walletLine}`
+ },
  validVpsConfig: 'Please select a valid vps configuration:',
  configMenu: vpsOptionsOf(vpsConfigurationMenu),
 
