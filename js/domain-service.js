@@ -580,7 +580,49 @@ const addDNSRecord = async (domainName, recordType, recordValue, hostName, db, p
     // A and CNAME records should be proxied through Cloudflare for SSL & CDN
     // Other record types (MX, TXT, SRV, etc.) must be DNS-only
     const shouldProxy = ['A', 'AAAA', 'CNAME'].includes(recordType.toUpperCase())
-    return await cfService.createDNSRecord(meta.cfZoneId, recordType, name, recordValue, 300, shouldProxy, priority, extraData)
+    const result = await cfService.createDNSRecord(meta.cfZoneId, recordType, name, recordValue, 300, shouldProxy, priority, extraData)
+
+    // ── Stale / cross-account zone recovery ──
+    //    If CF rejects with out_of_account (token has no rights on this zone),
+    //    the stored cfZoneId is unusable. Two ways forward:
+    //    (1) try to re-resolve the zone by domain name — maybe a NEW zone was
+    //        created in our account since the stale id was cached;
+    //    (2) clear the stale id so the next request takes a clean path.
+    //    Either way return a clear message so the user knows what to do.
+    if (result?.out_of_account) {
+      log(`[domain-service] CF reports stale/cross-account zoneId for ${domainName}; attempting re-resolve`)
+      try {
+        const fresh = await cfService.getZoneByName(domainName)
+        if (fresh && fresh.id && fresh.id !== meta.cfZoneId) {
+          // Refresh DB with the real zoneId and retry once
+          if (db) {
+            await db.collection('registeredDomains').updateOne(
+              { _id: domainName },
+              { $set: { 'val.cfZoneId': fresh.id } }
+            )
+          }
+          log(`[domain-service] refreshed cfZoneId for ${domainName}: ${meta.cfZoneId} → ${fresh.id}`)
+          const retry = await cfService.createDNSRecord(fresh.id, recordType, name, recordValue, 300, shouldProxy, priority, extraData)
+          if (retry?.success) return retry
+        }
+      } catch (e) {
+        log(`[domain-service] zone re-resolve failed for ${domainName}: ${e.message}`)
+      }
+      // Clear the stale id so future calls bypass CF (will fall through to registrar DNS)
+      if (db) {
+        await db.collection('registeredDomains').updateOne(
+          { _id: domainName },
+          { $set: { 'val.cfZoneId': null, 'val._cfZoneIdStaleAt': new Date() } }
+        )
+      }
+      return {
+        error: `This domain's DNS zone (${meta.cfZoneId.slice(0,8)}…) is not in our Cloudflare account. ` +
+               `Either the zone was deleted or it lives in a different CF account. ` +
+               `Please re-add the domain via 🌐 Register Bulletproof Domain → 📂 My Domain Names → select domain → 🔧 DNS Management → 🔄 Manage Nameservers to recreate the CF zone.`,
+      }
+    }
+
+    return result
   }
 
   if (meta?.registrar === 'OpenProvider') {
