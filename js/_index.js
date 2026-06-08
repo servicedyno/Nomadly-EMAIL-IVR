@@ -29685,8 +29685,21 @@ async function selfHealRenewedAfterCancelVPS() {
       try {
         live = await contabo.getInstance(cid)
       } catch (err) {
-        // 404 = already gone from Contabo; safe to skip
-        if (err?.status === 404) continue
+        // 404 = already gone from Contabo; stamp _selfHealAttemptedAt so we
+        // don't re-select this doc on every 30-min cycle. (Bug observed in
+        // prod: instance 203250431 was 404-cycling for hours, see the
+        // 2026-06-08 anomaly report.)
+        if (err?.status === 404) {
+          await vpsPlansOf.updateOne(
+            { _id: plan._id },
+            { $set: {
+                _selfHealAttemptedAt: new Date(),
+                _selfHealReason: 'contabo_404_already_gone',
+                _contaboCancelledEarly: true,
+            } }
+          )
+          continue
+        }
         log(`[VPS Self-heal] Could not fetch ${cid}: ${err.message || err}`)
         continue
       }
