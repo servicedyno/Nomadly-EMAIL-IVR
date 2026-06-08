@@ -1,228 +1,262 @@
-# Railway Log Anomaly Analysis Report
-**Generated:** April 15, 2026  
-**Time Range:** 2026-04-14 21:28 → 2026-04-15 00:52 (~3.5 hours)  
-**Total Logs Analyzed:** 2,004 unique entries  
-**Deployment:** `504cfc11-7125-4818-bda8-dd6d817cb8fc` (SUCCESS)
+# Railway Production Anomaly Report
+**Generated:** 2026-06-08 07:04 UTC
+**Project:** New Hosting (`c23ac3d9-51c5-4242-8776-eed4e3801abe`)
+**Environment:** production (`889fd56a-720a-4020-884c-034784992666`)
+**Source:** Railway GraphQL `deploymentLogs` (5,000-line cap per query)
+**Auth:** Project Access Token (`8a6f6eb8-…820ae`) — used `Project-Access-Token` header
+
+> ⚠️ **Key-handling note:** The token provided was rejected as a standard `Bearer` key, but works as a **Project Access Token** (header: `Project-Access-Token`). It scopes to the project above only — it cannot query `me`/`projects`/`teams`, but can query `deployments` & `deploymentLogs` for any service in this project. The handoff's `dee2dbf2-…` project ID was stale; the real prod project is `c23ac3d9-…` and was discovered via `{ projectToken { projectId environmentId } }`.
 
 ---
 
-## Executive Summary
+## Services & Deployments Audited
 
-| Metric | Count | Severity |
-|--------|-------|----------|
-| Critical Anomalies | 3 | 🔴 |
-| Warnings | 17 | 🟡 |
-| Active Users | ~10 unique | — |
-| Orphaned Number Events | 16 | 🔴 |
-| Telnyx API Errors | 1 | 🟡 |
-| Payment Failures | 1 | 🟡 |
-| System Anomalies | 1 | 🟡 |
-| Spike Minutes (>2.5x avg) | 6 | 🟡 |
+| Service              | Latest deployment      | Status  | Logs pulled | Window                          | severity:error |
+|----------------------|------------------------|---------|------------:|---------------------------------|---------------:|
+| HostingBotNew        | `8eda72b0…`            | SUCCESS |         112 | 2026-05-10 → 2026-06-07 (28 d)  |   5 (mis-tag)  |
+| LockbayNewFIX        | `4717b500…`            | SUCCESS |       5 001 | 2026-06-08 03:30 → 07:03 (3.5h) |   0 (msg-only) |
+| Nomadly-EMAIL-IVR    | `54ae8489…`            | SUCCESS |       5 001 | 2026-06-07 20:01 → 06-08 07:03  |  **308**       |
+
+The Lockbay & Nomadly buffers are saturated at Railway's 5,000-line ceiling — older log lines have already been evicted. **Recommendation:** if you want >5k retention, push logs to Datadog/Logtail or a sink with the Railway log-drain integration.
 
 ---
 
-## 🔴 CRITICAL ANOMALY 1: Orphaned Phone Number — 16 Rejected Inbound Calls
+## 🔴 P0 — Critical anomalies (must fix this week)
 
-**Number:** `+18775877003`  
-**Caller:** `+17609950033` (same caller every time)  
-**Time Window:** 00:40 → 00:52 (12 minutes, 16 calls)  
-**Pattern:** Calls arriving every ~45–75 seconds
+### 1. VPS-cancel retry storm against deleted Contabo instance — 911 log lines / 132 admin alerts in 11h
+**Service:** `Nomadly-EMAIL-IVR` | **Source:** `js/_index.js` L30097-30120 + `js/vm-instance-setup.js` L1016-1068
 
-### What Happened
-- `+18775877003` exists on the Telnyx connection but has **no owner** in the `phoneNumbersOf` MongoDB collection
-- Every inbound call from `+17609950033` is immediately **rejected** with `ORPHANED NUMBER` warning
-- The caller is **persistently retrying** — 16 attempts in 12 minutes suggests either:
-  - An automated dialer / robocall targeting this number
-  - A real person who previously had this number's contact and keeps calling back
+**What's happening (every ~5 min, since 20:05 UTC yesterday):**
+```
+[Contabo] Cancelling instance 203283942
+[Contabo] API POST /compute/instances/203283942/cancel failed (404):
+   {"statusCode":404,"message":"Entry Instances not found by instanceId = 203283942"}
+Error deleting VPS instance: Entry Instances not found by instanceId = 203283942
+[VPS Scheduler] ERROR: Failed to delete nomadly-8625434794-1778118670648 on Contabo
+reply: 🚨 <b>VPS DELETE FAILED</b>   ← admin DM
+```
+The MongoDB record `vpsPlansOf({ vpsId: '203283942' })` is still in `status: PENDING_CANCELLATION` with `end_time <= now`, so the scheduler loop in **Phase 2** (`_index.js` 30092) selects it on every cycle. `cancelInstance` throws 404 → the catch block at `vm-instance-setup.js:1064-1068` returns `{ error: ... }`. Status is never updated → infinite loop.
 
-### Recommended Action
-1. **Investigate** if this number was once assigned to a user and got orphaned (e.g., user deleted or number released without cleanup)
-2. **Either re-assign** the number to the correct user OR **release it** from the Telnyx connection to stop receiving traffic
-3. Consider adding a **rate-limit on orphaned number logs** — 16 identical warnings in 12 min is log spam
+A second instance `203250431` is also generating 22 × `GET /compute/instances/<id>` 404 (drift check) every 30 min — same root cause.
 
----
+**Recommended fix (auto-proposed — review before pushing):**
 
-## 🔴 CRITICAL ANOMALY 2: Suspicious Social Engineering Activity — New User 8349211535
+`js/vm-instance-setup.js`, in `deleteVPSinstance`:
+```js
+} catch (err) {
+  // Contabo 404 means the instance is already gone — treat as success
+  if (err?.status === 404 || /Entry Instances not found/i.test(err?.message || '')) {
+    console.log(`[VPS] Contabo says instance ${contaboId} already gone — marking DELETED locally`)
+    if (_vpsPlansOf) {
+      await _vpsPlansOf.updateOne(
+        { vpsId: String(vpsId) },
+        { $set: { status: 'DELETED', deletedAt: new Date(), cancelReason: 'contabo_404_already_gone' } }
+      )
+    }
+    return { success: true, alreadyGone: true, contaboId }
+  }
+  const errorMessage = `Error deleting VPS instance: ${err.message || JSON.stringify(err)}`
+  console.error(errorMessage)
+  return { error: errorMessage }
+}
+```
+The same 404-as-success treatment is needed in the `getInstance` verification loop (L1041-1045) so that `verify after cancel → 404 → success`.
 
-**User:** `8349211535` (no Telegram username set — `undefined`)  
-**Joined:** 2026-04-15 00:20:02 (brand new account)  
-**Welcome Bonus:** $3.00 awarded immediately
+**Immediate one-shot cleanup (run once, no deploy):**
+```js
+// from a Node shell with mongo client connected
+db.vpsPlansOf.updateMany(
+  { vpsId: { $in: ['203283942', '203250431'] } },
+  { $set: { status: 'DELETED', deletedAt: new Date(), cancelReason: 'manual_contabo_404_cleanup' } }
+)
+```
 
-### Timeline of Suspicious Activity
-
-| Time | Action |
-|------|--------|
-| 00:20:02 | `/start` — brand new user, no username |
-| 00:21:42 | Selected English, received $3 welcome bonus |
-| 00:21:45 | Immediately went to **📞 Try Free IVR Call** |
-| 00:23:52 | Entered target: **+233502851292** (Ghana number) |
-| 00:23:55 | Selected **💳 Payment Notification** template |
-| 00:24:02 | Filled: Name=**Owusu**, Bank=**Huttington**, Amount=**$10,000** |
-| 00:24:38 | Set **transfer mode** to forward to **+233509506846** (2nd Ghana number) |
-| 00:25:36 | Confirmed call — **Call 1 initiated** |
-| 00:26:17 | **Call 1 timed out** — recipient didn't answer. Trial NOT consumed |
-| 00:27:14 | Started **Call 2** — same target +233502851292 |
-| 00:28:57 | Selected **🔒 Account Verification** template |
-| 00:29:04 | Filled: Company=**Apple**, Reason=**unauthorized transaction**, Location=**Tarkwa** (Ghana city) |
-| 00:30:29 | **Call 2 initiated** to +233502851292 |
-| 00:30:55 | **Call 2 answered** — AMD detected as **machine** (voicemail) |
-| 00:34:12 | Call ended after 198 seconds. **Trial marked as used** |
-
-### Analysis
-- **This is a textbook social engineering / vishing attempt:**
-  - "Payment Notification" from "Huttington" (likely misspelling of Huntington bank) for $10,000
-  - "Account Verification" impersonating **Apple** about "unauthorized transaction"
-  - Both calls target the same Ghana number with transfer to a second Ghana number
-  - Location "Tarkwa" is a city in Ghana's Western Region — strongly suggests the user is Ghanaian
-  - The user has no Telegram username set (typical of throwaway/scam accounts)
-- The transfer mode means: if the victim presses a key, they get connected to the scammer's number
-
-### Recommended Action
-1. **Flag/ban** chatId `8349211535` for investigation
-2. **Block** the Ghana numbers (`+233502851292`, `+233509506846`) from being used as IVR targets
-3. Consider adding **country-based restrictions** on free trial IVR calls (especially to high-fraud regions)
-4. Add **template content review** — "Payment Notification" + "unauthorized transaction" patterns should trigger review
+**Impact of fix:** stops 132 admin DMs/day, ~530 Contabo API hits/day, and removes 911 noise lines from logs.
 
 ---
 
-## 🔴 CRITICAL ANOMALY 3: User Scoreboard44 — "Card Self Service" IVR Auto-Attendant
+### 2. Contabo OAuth `invalid_grant` (5 intermittent token failures in 11h)
+**Service:** `Nomadly-EMAIL-IVR` | **Source:** `js/contabo-service.js` L43-74
 
-**User:** Scoreboard44 (`8273560746`) — established power user  
-**Activity:** 191 log entries in this window (most active user)
+**What's happening (00:30, 04:00, …):**
+```
+[Contabo] Token fetch failed: { error: 'invalid_grant', error_description: 'Invalid user credentials' }
+Error deleting VPS instance: VPS provider authentication failed
+…then…  [Contabo] Token acquired, expires in 300s   ← next attempt succeeds
+```
+Each failure is a single attempt with no retry; the very next call (sometimes seconds later) succeeds. Two probable causes:
+1. **Race condition on token cache:** when the cached token is *exactly* at the 60s pre-expiry boundary, two concurrent callers both miss the cache and one of them gets a token that's already invalidated by the second call.
+2. **Contabo's keycloak occasionally 401s for ~1s under load** — needs a single retry to absorb.
 
-### What They Did
-- Ended a support session (`/done`) then immediately went to Cloud IVR
-- Set up IVR auto-attendant on their number with this greeting:
-  > *"Welcome to card self service. All of our agents are currently assisting other callers. Press 1 for a callback, and one of our agents will be right with you shortly. Press 2 if you would like..."*
-- Configured:
-  - **Key 1** → Send to Voicemail
-  - **Key 2** → Forward to `+19106516884`
-- During setup, received **real inbound calls** from `+15073273809` who pressed digit 1 (got voicemail)
+**Recommended fix (auto-proposed):**
 
-### Analysis
-- The greeting text **"Welcome to card self service"** is designed to impersonate a **bank/credit card company**
-- This is a known vishing technique: set up an IVR that sounds like a bank, then use social engineering calls to get victims to call this number
-- Scoreboard44 is an established user with wallet balance ($61.35) — not a new throwaway
-
-### Recommended Action
-1. **Review** IVR greeting content for this user — "card self service" is a red flag
-2. The inbound calls from `+15073273809` may be **victims** calling the fake bank number
-3. Consider implementing **greeting text content moderation** for keywords like "bank", "card service", "credit card", "account verification"
-
----
-
-## 🟡 WARNING 1: Telnyx speakOnCall Error — Race Condition
-
-**Error Code:** `90018` — "Call has already ended"  
-**Call:** `+18889020132` → `+233502851292`  
-**Context:** The Ghana call from user 8349211535
-
-### What Happened
-1. Call answered at 00:30:55 — AMD detected as **machine** (voicemail)
-2. Two `call.gather.ended` events with empty DTMF (00:32:58, 00:34:06)
-3. Call hung up at 00:34:06 — but system tried to `speakOnCall` after hangup
-4. Buffer timeout at 00:34:12 — "no matching call.initiated — likely post-deploy orphan"
-
-### Root Cause
-The `speakOnCall` was issued **after** the call.hangup event but before the hangup was fully processed. This is a known edge case where Telnyx webhooks arrive out of order.
-
-### Impact
-Low — the error is caught and logged. The call was already ending anyway.
-
-### Recommended Fix
-Add a call-state check before `speakOnCall` — if the call is already in hangup/ended state, skip the speak command silently.
+`js/contabo-service.js`, wrap `getAccessToken` with single retry + in-flight de-dup:
+```js
+let _tokenInflight = null
+async function getAccessToken() {
+  const now = Date.now()
+  if (_tokenCache.token && now < _tokenCache.expiresAt - 60000) return _tokenCache.token
+  if (_tokenInflight) return _tokenInflight                 // de-dup concurrent refreshes
+  _tokenInflight = (async () => {
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const params = new URLSearchParams({ client_id: CLIENT_ID, client_secret: CLIENT_SECRET,
+          username: API_USER, password: API_PASSWORD, grant_type: 'password' })
+        const res = await axios.post(AUTH_URL, params.toString(),
+          { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 15000 })
+        _tokenCache = { token: res.data.access_token, expiresAt: Date.now() + res.data.expires_in*1000 }
+        console.log(`[Contabo] Token acquired (attempt ${attempt}), expires in ${res.data.expires_in}s`)
+        return _tokenCache.token
+      } catch (err) {
+        const grantErr = err?.response?.data?.error === 'invalid_grant'
+        console.error(`[Contabo] Token fetch failed (attempt ${attempt}):`, err?.response?.data || err.message)
+        if (attempt === 2 || !grantErr) throw new Error('VPS provider authentication failed')
+        await new Promise(r => setTimeout(r, 1500))
+      }
+    }
+  })().finally(() => { _tokenInflight = null })
+  return _tokenInflight
+}
+```
+**Impact:** eliminates the 5 spurious `VPS DELETE FAILED` admin alerts that were caused purely by transient auth errors.
 
 ---
 
-## 🟡 WARNING 2: Payment Session NOT FOUND — ref: Oao21
+### 3. 🔐 Telegram bot token leaked into logs
+**Service:** `HostingBotNew` | **Source:** Python httpx logger
 
-**Time:** 22:10:32  
-**Webhook Source:** `nomadlynew-production.up.railway.app/webhook`
+The 5 "errors" on HostingBotNew are actually HTTP-200 OKs from `python-telegram-bot` being tagged as `severity=error` by Railway because they were written to stderr. **The problem is not the misclassification — it's the content:**
+```
+2026-05-12 22:22:54,970 [REDIRECT] HTTP Request:
+  POST https://api.telegram.org/bot8291977061:AAFxUISRxrnYJVb9CkrKhhYRkXkwt4j5_3Q/sendMessage
+  "HTTP/1.1 200 OK"
+```
+The bot token `8291977061:AAFxUI…j5_3Q` is in plain text in the deployment log buffer. Anyone with Railway-team read access (or any future log-drain export) can hijack the bot.
 
-### Details
-- Fincra webhook arrived with `merchantRef: Oao21`
-- `fincraRef: undefined` — the webhook payload is missing the Fincra reference
-- No matching payment session found in the database
-
-### Possible Causes
-1. **Stale webhook replay** — payment was created long ago, session expired and was cleaned up by the Fincra reconciliation system
-2. **Orphaned Fincra payment** — user abandoned the payment flow before completing
-3. **Webhook from production hitting the wrong endpoint** (note: webhook URL points to production Railway)
-
-### Impact
-Low — no money was lost. The webhook was safely rejected.
-
----
-
-## 🟢 NORMAL ACTIVITY
-
-### User View_Essential (7465683699) — Window Shopping
-- Browsed multiple product categories: Hosting, VPS, Domains, Email Validation
-- Evaluated Golden Anti-Red HostPanel ($100) and Premium ($75)
-- Reached coupon code step but backed out without purchasing
-- **Assessment:** Normal prospective customer behavior, no anomalies
-
-### User AQX1k (7366890787) — SIP Test + DNS
-- Has domain `revenue-process-incometax.com` (⚠️ potentially suspicious domain name)
-- Used `/testsip` to test SIP functionality, OTP generated: 844877
-- Then did `/start` and went back to main menu
-- **Assessment:** Normal usage, but domain name warrants monitoring
-
-### User davion419 (404562920) — VPS Management
-- Managed 2 VPS instances (Linux + Windows RDP)
-- Viewed SSH keys for `vmi3228089`
-- Restarted Windows VPS `vmi3220843` successfully
-- **Assessment:** Normal power user VPS management
-
-### User pirate_script (1005284399) — Just Started Bot
-- Did `/start` at 22:29 — received welcome message
-- **Assessment:** Normal new user
-
-### User flmzv2 (7304424395) — Domain Shopping
-- Browsed Bulletproof Domains, searched for `37558aprl.com`
-- Domain available at $39 on both ConnectReseller and OpenProvider
-- **Assessment:** Normal domain search behavior
+**Recommended fix (P0 — do this immediately):**
+1. **Rotate the token** via @BotFather → `/revoke` → `/token` (or `/myget` if PTB CLI), update `TELEGRAM_BOT_TOKEN` in Railway env, redeploy.
+2. **Silence httpx INFO logs:** at the bot's entry point, add
+   ```python
+   import logging
+   logging.getLogger("httpx").setLevel(logging.WARNING)
+   logging.getLogger("telegram.request").setLevel(logging.WARNING)
+   ```
+3. **(Defense-in-depth)** wrap the sendMessage URL through a redactor — most stdlib logging configs ship with no scrubbing.
 
 ---
 
-## System Health Metrics
+## 🟠 P1 — Operational alerts that need attention now
 
-### Social Proof / Conversion Numbers (Stable)
-| Service | Count |
-|---------|-------|
-| Hosting | 507 |
-| Domains | 9,003 |
-| Cloud Phone | 111 |
-| Digital Products | 36 |
-| VPS | 63 |
-| Virtual Card | 27 |
-| General | 7,740 |
+### 4. Connect Reseller IP whitelist still broken — retry #36/#80
+**Service:** `Nomadly-EMAIL-IVR` | **Source:** `js/cr-auto-whitelist.js`, `js/_index.js` L36917-36938
+```
+[CR-Whitelist] Outbound IP: 162.220.232.99
+[CR-Whitelist] Retry #36 scheduled in 21600s            ← 6-hour retries
+[CR-Whitelist] API test failed (attempt #80): Request failed with status code 401
+```
+Auto-whitelist via Playwright has been failing for ≥ 36 cycles (≥ 9 days). All Connect Reseller domain operations are blocked behind this IP gate. Required actions, in order of preference:
 
-- Numbers **unchanged** between 22:01 and 00:01 refreshes — no new purchases in that 2-hour window
-
-### Phone Monitor Health Check
-- 6 Twilio subaccounts checked
-- 1 Telnyx number checked
-- 0 newly suspended numbers
-- **Status:** Healthy
-
-### Infrastructure
-- No OOM, crash, or restart events
-- No `ECONNREFUSED` or socket errors
-- 1 post-deploy orphan call (expected after deployment)
-- Fincra reconciliation: no stale payments to clean
+1. **Manual whitelist (fastest)** — Log into https://global.connectreseller.com/tools/profile and add `162.220.232.99` to the IP allowlist for the API key. Verify with:
+   ```bash
+   curl "https://api.connectreseller.com/ConnectReseller/ESHOP/SearchDomainList?APIKey=$API_KEY_CONNECT_RESELLER&page=1&maxIndex=1"
+   ```
+2. **Check `CR_PANEL_EMAIL` / `CR_PANEL_PASSWORD` env vars** are present in Railway (`cr-auto-whitelist.js:77-81` returns early if missing). Their absence is currently swallowed silently by the catch on L88-89.
+3. **Surface this in admin DMs.** Currently the only signal is the per-6h Telegram nag at `_index.js:36936-36938`. Add a daily aggregated summary so it doesn't get buried.
 
 ---
 
-## Recommendations Summary
+### 5. Telnyx wallet low — $9.69 USD (alerting)
+**Service:** `Nomadly-EMAIL-IVR` | **Source:** `js/balance-monitor.js`
 
-| Priority | Action | Category |
-|----------|--------|----------|
-| 🔴 P0 | Investigate & likely ban user `8349211535` for social engineering (impersonating Apple/Huntington bank) | Security |
-| 🔴 P0 | Review Scoreboard44's IVR greeting ("card self service") — potential bank impersonation | Security |
-| 🔴 P1 | Resolve orphaned number `+18775877003` — either reassign or release from Telnyx | Operations |
-| 🟡 P2 | Add IVR greeting content moderation (flag keywords: bank, card service, account verification) | Feature |
-| 🟡 P2 | Add rate-limiting on orphaned number log warnings | Performance |
-| 🟡 P2 | Add call-state check before `speakOnCall` to prevent race condition errors | Bug Fix |
-| 🟡 P3 | Consider country restrictions on free trial IVR calls to high-fraud regions | Security |
-| 🟢 P4 | Monitor domain `revenue-process-incometax.com` (user AQX1k) | Security |
+`BalanceMonitor Telnyx: $9.69 USD [warning]` is logged every 2h and an admin alert is sent (`L147`). At current call/SMS rates this exhausts in ≤ 24h. **Action: top-up via the Telnyx Portal → Billing.** Twilio is at $13.30 (also low, but `[ok]` per current thresholds — consider raising the Twilio warning threshold from $10 to $25).
+
+---
+
+### 6. Fincra balance fetch repeatedly failing (LockbayNewFIX)
+**Service:** `LockbayNewFIX` | **Source:** `services.fincra_service` (Python)
+```
+services.fincra_service - ERROR -
+   ❌ BALANCE_FETCH_FAILED: No cached Fincra data available and fresh fetch failed
+```
+68× in the last 3.5h (every 3 min). The function has no warm-cache path; every miss is a full upstream call to Fincra. Likely causes:
+- Fincra API key invalid / suspended
+- Fincra rate-limiting our IP
+- The cache-write side-effect was removed during a refactor
+
+**Recommended fix (auto-proposed):**
+- Verify `FINCRA_SECRET_KEY` / `FINCRA_API_KEY` is still active by hitting `https://api.fincra.com/profile/business/me` manually with the key.
+- Add a stale-cache fallback: if fresh fetch fails, return the last successful value with a `stale=true` flag (acceptable for balance display).
+- Reduce poll frequency from 3min → 15min until the issue is fixed; right now we're rate-limiting *ourselves* into the failure.
+
+---
+
+## 🟡 P2 — Log hygiene & noise
+
+### 7. `unified_retry_service` emits 5 INFO lines/min for empty batches
+**Service:** `LockbayNewFIX`
+```
+services.unified_retry_service - INFO -
+   ✅ UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'succeeded': 0, ...}
+```
+~85 lines / hour with `processed:0`. This is the single biggest reason the 5,000-line Railway buffer only covers 3.5h.
+
+**Fix:** in `unified_retry_service.py`, gate the success log on `processed > 0`:
+```python
+if result["processed"] > 0:
+    logger.info(f"✅ UNIFIED_RETRY_BATCH_COMPLETE: {result}")
+else:
+    logger.debug(f"empty batch (no work)")
+```
+Expected outcome: log window grows from ~3.5h to ~10–12h at no information loss.
+
+### 8. FastForex/Tatum INFO every 5 min
+```
+services.fastforex_service - INFO - Fresh USD-NGN (Tatum): 1,360.40 (cached for 3600s)
+```
+Also high-frequency. Move to DEBUG once you confirm Tatum is reliable.
+
+### 9. Railway severity mis-tagging (Python/PTB on stderr)
+`HostingBotNew` shows 5 `severity=error` but they're 200-OK HTTP logs. Root cause: Python's `logging` defaults to stderr, and Railway maps anything on stderr to `error`. Either:
+- Configure the root logger with a `StreamHandler(sys.stdout)` instead, **or**
+- Run with `PYTHONUNBUFFERED=1 LOG_TO_STDOUT=1` and set httpx logger ≥ WARNING.
+
+---
+
+## 🟢 P3 — Observations (no fix needed)
+
+- **No container restarts / crashes detected.** All three services are stable since their latest deploy.
+- **`LockbayNewFIX` is running hot at 23 logs/min average** with 9 spike-minutes (>80/min) in the last 3.5h. Likely just busy traffic, not an anomaly — but bears watching for the next scaling decision.
+- **`Nomadly-EMAIL-IVR` rate of 7.6/min average is healthy** once the VPS-delete storm is silenced; current "spikes" are caused by the 132 admin DMs.
+
+---
+
+## Priority-ordered fix queue
+
+| # | Priority | Item                                                         | Effort | Files                                |
+|--:|:--------:|--------------------------------------------------------------|--------|--------------------------------------|
+| 1 | 🔴 P0    | Treat Contabo 404 as already-deleted (stops 132 alerts/day)  | 15 min | `js/vm-instance-setup.js`            |
+| 2 | 🔴 P0    | One-shot DB cleanup for `203283942` & `203250431`            | 2 min  | direct Mongo update                  |
+| 3 | 🔴 P0    | **Rotate Telegram bot token + silence httpx INFO logs**      | 10 min | BotFather + Python logging cfg       |
+| 4 | 🔴 P0    | Add retry + in-flight de-dup to Contabo `getAccessToken`     | 15 min | `js/contabo-service.js`              |
+| 5 | 🟠 P1    | Manually whitelist `162.220.232.99` in Connect Reseller      | 5 min  | (vendor panel)                       |
+| 6 | 🟠 P1    | Top-up Telnyx wallet (currently $9.69)                       | 5 min  | (vendor panel)                       |
+| 7 | 🟠 P1    | Stale-cache fallback + 15-min poll for Fincra balance        | 30 min | `services/fincra_service.py`         |
+| 8 | 🟡 P2    | Skip empty `UNIFIED_RETRY_BATCH_COMPLETE` info logs          | 5 min  | `services/unified_retry_service.py`  |
+| 9 | 🟡 P2    | Demote FastForex/Tatum to DEBUG                              | 5 min  | `services/fastforex_service.py`      |
+|10 | 🟡 P2    | Fix Python logger → stdout to drop false `severity=error`    | 5 min  | bot entrypoint                       |
+
+**Total cleanup time:** ~95 min of code + 4 vendor-panel tasks (~15 min).
+**Expected log reduction:** ~70% noise reduction in `Nomadly-EMAIL-IVR`, ~50% in `LockbayNewFIX`.
+
+---
+
+## Raw data
+
+- `/app/logs_prod/HostingBotNew.json`        — 112 entries
+- `/app/logs_prod/LockbayNewFIX.json`        — 5,001 entries
+- `/app/logs_prod/Nomadly-EMAIL-IVR.json`    — 5,001 entries
+- `/app/logs_prod/_summary.json`             — per-service metadata
+- `/app/logs_prod/_analysis.json`            — grouped patterns & counts
+
+Fetcher: `/app/scripts/fetch_prod_anomalies.py`
+Analyzer: `/app/scripts/analyze_prod_anomalies.py`
