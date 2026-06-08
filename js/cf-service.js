@@ -283,6 +283,7 @@ const createDNSRecord = async (zoneId, recordType, name, content, ttl = 300, pro
     return { success: false, errors: res.data?.errors || [] }
   } catch (err) {
     const cfErrors = err.response?.data?.errors || []
+    const status = err.response?.status
     // 81057 = "Record already exists" — try to update it instead
     const alreadyExists = cfErrors.some(e => e.code === 81057)
     if (alreadyExists) {
@@ -300,6 +301,32 @@ const createDNSRecord = async (zoneId, recordType, name, content, ttl = 300, pro
         }
       } catch {}
       return { success: true, alreadyExists: true }
+    }
+    // ── CROSS-ACCOUNT / STALE-ZONE DETECTION ──
+    //    403 = token has no rights on this zone (zone is in a different CF
+    //          account than ours OR token's permissions don't cover it)
+    //    400/404 + code 7003/1003 = zone id is no longer valid
+    //    code 10000 = generic auth failure (often paired with 403)
+    //    In all of these cases the bot's stored cfZoneId is unusable.
+    //    Return a structured signal so the caller can:
+    //      (1) clear the stale zoneId from MongoDB
+    //      (2) show the user a meaningful explanation instead of "Failed".
+    const codes = cfErrors.map(e => Number(e.code))
+    const isOutOfAccount =
+      status === 403 ||
+      codes.includes(10000) ||
+      codes.includes(9109) ||      // "Unauthorized to access requested resource"
+      codes.includes(7003) ||      // "Could not route to /zones/<id>" (bad zone id)
+      codes.includes(1003)         // "Invalid or missing zone id"
+    if (isOutOfAccount) {
+      log(`[CF createDNSRecord] cross-account / stale zoneId: zone=${zoneId} status=${status} codes=${codes.join(',')} — caller should clear cfZoneId`)
+      return {
+        success: false,
+        out_of_account: true,
+        stale_zone_id: zoneId,
+        error: `zone ${zoneId.slice(0,8)} is outside this Cloudflare account`,
+        errors: cfErrors,
+      }
     }
     const errDetail = cfErrors.map(e => `${e.code}: ${e.message}`).join(', ') || err.message
     log(`CF createDNSRecord error: ${errDetail} (zone=${zoneId}, type=${recordType}, name=${name})`)

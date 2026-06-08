@@ -19358,6 +19358,14 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     const recordType = info?.dnsAddRecordType
     let hostname = message.trim()
     const domainBeingManaged = info?.domainToManage || ''
+    // CF-backed zones support CNAME flattening at the apex (`@`) AND
+    // wildcard hostnames (`*` or `*.foo`). Detect that capability so we can
+    // relax the legacy hostname checks for those domains.
+    // (Note: `cfZoneId` is intentionally NOT in session state — see comment
+    // at the DNS Management entry above — so we infer CF-backing from
+    // dnsSource/nameserverType which ARE stamped.)
+    const isCfBacked = info?.dnsSource === 'cloudflare' ||
+                       info?.nameserverType === 'cloudflare'
     // NS doesn't need hostname step — skip
     if (recordType === 'NS') {
       hostname = ''
@@ -19365,28 +19373,40 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       // Validate hostname — allows alphanumeric, hyphens, underscores, and dots
       // Underscores are valid for DKIM (_domainkey), DMARC (_dmarc), ACME (_acme-challenge), etc.
       // Dots are valid for multi-label subdomains (neo1._domainkey, mail._domainkey)
-      const hostnameRegex = /^[a-zA-Z0-9_]([a-zA-Z0-9_.:-]*[a-zA-Z0-9_])?$/
+      // Wildcards (`*`, `*.foo`) are valid for CF-backed zones; other providers
+      // vary, so we allow them at the validate-step and let the provider reject
+      // if unsupported (CF supports them; OpenProvider+CR may not).
+      const hostnameRegex = /^(?:\*|(?:\*\.)?[a-zA-Z0-9_](?:[a-zA-Z0-9_.:-]*[a-zA-Z0-9_])?)$/
       if (!hostnameRegex.test(hostname)) {
         return send(chatId, t.dnsInvalidHostname)
       }
       // Auto-strip trailing `.{zone}` so users can paste either `www` or
       // `www.example.com` without producing a duplicated record name like
       // `www.example.com.example.com` (see DNS_HOSTNAME_NORMALIZER fix).
-      const { normalizeHostname } = require('./dns-hostname-normalizer')
-      const norm = normalizeHostname(hostname, domainBeingManaged)
-      if (!norm.ok && norm.reason === 'foreign-domain') {
-        return send(chatId, t.dnsHostnameForeignDomain
-          ? t.dnsHostnameForeignDomain(domainBeingManaged)
-          : `That hostname belongs to a different domain. Just enter the sub-label for <b>${domainBeingManaged}</b> (e.g. <b>www</b>, <b>api</b>) or <b>@</b> for root.`)
+      // Skip normalizer for wildcard hostnames — they shouldn't be transformed.
+      if (!hostname.startsWith('*')) {
+        const { normalizeHostname } = require('./dns-hostname-normalizer')
+        const norm = normalizeHostname(hostname, domainBeingManaged)
+        if (!norm.ok && norm.reason === 'foreign-domain') {
+          return send(chatId, t.dnsHostnameForeignDomain
+            ? t.dnsHostnameForeignDomain(domainBeingManaged)
+            : `That hostname belongs to a different domain. Just enter the sub-label for <b>${domainBeingManaged}</b> (e.g. <b>www</b>, <b>api</b>) or <b>@</b> for root.`)
+        }
+        hostname = norm.value
+        if (norm.stripped) {
+          log(`[DNS] Normalized hostname for ${chatId} on ${domainBeingManaged}: "${message.trim()}" → "${hostname}"`)
+        }
       }
-      hostname = norm.value
-      if (norm.stripped) {
-        log(`[DNS] Normalized hostname for ${chatId} on ${domainBeingManaged}: "${message.trim()}" → "${hostname}"`)
-      }
-      // CNAME can't be @ (root)
-      if (recordType === 'CNAME' && hostname === '@') {
+      // CNAME at root (@) — only blocked on non-CF zones. CF supports CNAME
+      // flattening at the zone apex, so we allow `@` for CF-backed domains.
+      // For non-CF zones the registry will reject it, so we reject earlier
+      // with a friendlier message.
+      if (recordType === 'CNAME' && hostname === '@' && !isCfBacked) {
         return send(chatId, t.dnsInvalidHostname)
       }
+    } else if (recordType === 'CNAME' && !isCfBacked) {
+      // hostname is '@' but the zone isn't on CF → reject (registry will fail anyway)
+      return send(chatId, t.dnsInvalidHostname)
     }
     // Map @ to empty string for root
     const hostToStore = hostname === '@' ? '' : hostname
