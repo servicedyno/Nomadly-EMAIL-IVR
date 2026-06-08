@@ -1,0 +1,43 @@
+{
+  "fetched_at": "2026-06-08T07:03:47.541216Z",
+  "services": {
+    "HostingBotNew": {
+      "deployment_id": "8eda72b0-c127-479a-8eb1-a904b65b8f1f",
+      "status": "SUCCESS",
+      "log_count": 112,
+      "severity": {
+        "info": 107,
+        "error": 5
+      },
+      "time_range": [
+        "2026-05-10T01:47:14.583168440Z",
+        "2026-06-07T19:52:50.224979019Z"
+      ]
+    },
+    "LockbayNewFIX": {
+      "deployment_id": "4717b500-9db2-4f95-b755-b44d28a75304",
+      "status": "SUCCESS",
+      "log_count": 5001,
+      "severity": {
+        "info": 5001
+      },
+      "time_range": [
+        "2026-06-08T03:30:50.029618841Z",
+        "2026-06-08T07:03:25.032631740Z"
+      ]
+    },
+    "Nomadly-EMAIL-IVR": {
+      "deployment_id": "54ae8489-c045-47c2-b5d3-1fc4d8a44f3e",
+      "status": "SUCCESS",
+      "log_count": 5001,
+      "severity": {
+        "info": 4693,
+        "error": 308
+      },
+      "time_range": [
+        "2026-06-07T20:01:31.483423914Z",
+        "2026-06-08T07:03:45.125914379Z"
+      ]
+    }
+  }
+}

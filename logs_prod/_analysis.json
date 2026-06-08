@@ -1,0 +1,929 @@
+{
+  "generated_at": "2026-06-08T07:04:41.640035Z",
+  "services": {
+    "HostingBotNew": {
+      "service": "HostingBotNew",
+      "deployment_id": "8eda72b0-c127-479a-8eb1-a904b65b8f1f",
+      "deployment_status": "SUCCESS",
+      "log_count": 112,
+      "severity_breakdown": {
+        "info": 107,
+        "error": 5
+      },
+      "time_range": [
+        "2026-05-10T01:47:14.583168440Z",
+        "2026-06-07T19:52:50.224979019Z"
+      ],
+      "error_count": 5,
+      "error_groups": [
+        {
+          "pattern": "2026-05-12 22:22:54,970 [REDIRECT] HTTP Request: POST <url> \"HTTP/1.1 200 OK\"",
+          "count": 1,
+          "first_seen": "2026-05-12T22:23:05.660916418Z",
+          "last_seen": "2026-05-12T22:23:05.660916418Z",
+          "example": "2026-05-12 22:22:54,970 [REDIRECT] HTTP Request: POST https://api.telegram.org/bot8291977061:AAFxUISRxrnYJVb9CkrKhhYRkXkwt4j5_3Q/sendMessage \"HTTP/1.1 200 OK\""
+        },
+        {
+          "pattern": "2026-05-15 14:38:34,192 [REDIRECT] HTTP Request: POST <url> \"HTTP/1.1 200 OK\"",
+          "count": 1,
+          "first_seen": "2026-05-15T14:38:34.295777203Z",
+          "last_seen": "2026-05-15T14:38:34.295777203Z",
+          "example": "2026-05-15 14:38:34,192 [REDIRECT] HTTP Request: POST https://api.telegram.org/bot8291977061:AAFxUISRxrnYJVb9CkrKhhYRkXkwt4j5_3Q/sendMessage \"HTTP/1.1 200 OK\""
+        },
+        {
+          "pattern": "2026-05-17 03:13:24,789 [REDIRECT] HTTP Request: POST <url> \"HTTP/1.1 200 OK\"",
+          "count": 1,
+          "first_seen": "2026-05-17T03:13:32.055944053Z",
+          "last_seen": "2026-05-17T03:13:32.055944053Z",
+          "example": "2026-05-17 03:13:24,789 [REDIRECT] HTTP Request: POST https://api.telegram.org/bot8291977061:AAFxUISRxrnYJVb9CkrKhhYRkXkwt4j5_3Q/sendMessage \"HTTP/1.1 200 OK\""
+        },
+        {
+          "pattern": "2026-05-21 19:48:26,090 [REDIRECT] HTTP Request: POST <url> \"HTTP/1.1 200 OK\"",
+          "count": 1,
+          "first_seen": "2026-05-21T19:48:33.704154766Z",
+          "last_seen": "2026-05-21T19:48:33.704154766Z",
+          "example": "2026-05-21 19:48:26,090 [REDIRECT] HTTP Request: POST https://api.telegram.org/bot8291977061:AAFxUISRxrnYJVb9CkrKhhYRkXkwt4j5_3Q/sendMessage \"HTTP/1.1 200 OK\""
+        },
+        {
+          "pattern": "2026-05-28 23:33:00,859 [REDIRECT] HTTP Request: POST <url> \"HTTP/1.1 200 OK\"",
+          "count": 1,
+          "first_seen": "2026-05-28T23:33:09.416334035Z",
+          "last_seen": "2026-05-28T23:33:09.416334035Z",
+          "example": "2026-05-28 23:33:00,859 [REDIRECT] HTTP Request: POST https://api.telegram.org/bot8291977061:AAFxUISRxrnYJVb9CkrKhhYRkXkwt4j5_3Q/sendMessage \"HTTP/1.1 200 OK\""
+        }
+      ],
+      "warnings": [],
+      "restarts": [],
+      "slow_ops": [],
+      "top_repeated": [],
+      "rate": {
+        "per_min_avg": 1.2,
+        "per_min_median": 1,
+        "per_min_p95": 2,
+        "spike_minutes": [
+          [
+            "2026-05-25T03:45",
+            4
+          ]
+        ]
+      }
+    },
+    "LockbayNewFIX": {
+      "service": "LockbayNewFIX",
+      "deployment_id": "4717b500-9db2-4f95-b755-b44d28a75304",
+      "deployment_status": "SUCCESS",
+      "log_count": 5001,
+      "severity_breakdown": {
+        "info": 5001
+      },
+      "time_range": [
+        "2026-06-08T03:30:50.029618841Z",
+        "2026-06-08T07:03:25.032631740Z"
+      ],
+      "error_count": 174,
+      "error_groups": [
+        {
+          "pattern": "2026-06-08 03:32:15,018 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in <dur>",
+          "count": 1,
+          "first_seen": "2026-06-08T03:32:22.418376404Z",
+          "last_seen": "2026-06-08T03:32:22.418376404Z",
+          "example": "2026-06-08 03:32:15,018 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in 0.017s"
+        },
+        {
+          "pattern": "2026-06-08 03:34:15,017 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in <dur>",
+          "count": 1,
+          "first_seen": "2026-06-08T03:34:22.173217374Z",
+          "last_seen": "2026-06-08T03:34:22.173217374Z",
+          "example": "2026-06-08 03:34:15,017 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in 0.016s"
+        },
+        {
+          "pattern": "2026-06-08 03:35:25,004 - services.fincra_service - ERROR - \u274c BALANCE_FETCH_FAILED: No cached Fincra data available and fresh fetch failed",
+          "count": 1,
+          "first_seen": "2026-06-08T03:35:32.233509611Z",
+          "last_seen": "2026-06-08T03:35:32.233509611Z",
+          "example": "2026-06-08 03:35:25,004 - services.fincra_service - ERROR - \u274c BALANCE_FETCH_FAILED: No cached Fincra data available and fresh fetch failed"
+        },
+        {
+          "pattern": "2026-06-08 03:36:15,077 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in <dur>",
+          "count": 1,
+          "first_seen": "2026-06-08T03:36:15.080864535Z",
+          "last_seen": "2026-06-08T03:36:15.080864535Z",
+          "example": "2026-06-08 03:36:15,077 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in 0.076s"
+        },
+        {
+          "pattern": "2026-06-08 03:38:15,017 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in <dur>",
+          "count": 1,
+          "first_seen": "2026-06-08T03:38:15.037097127Z",
+          "last_seen": "2026-06-08T03:38:15.037097127Z",
+          "example": "2026-06-08 03:38:15,017 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in 0.017s"
+        },
+        {
+          "pattern": "2026-06-08 03:40:15,017 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in <dur>",
+          "count": 1,
+          "first_seen": "2026-06-08T03:40:23.441603870Z",
+          "last_seen": "2026-06-08T03:40:23.441603870Z",
+          "example": "2026-06-08 03:40:15,017 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in 0.016s"
+        },
+        {
+          "pattern": "2026-06-08 03:40:25,004 - services.fincra_service - ERROR - \u274c BALANCE_FETCH_FAILED: No cached Fincra data available and fresh fetch failed",
+          "count": 1,
+          "first_seen": "2026-06-08T03:40:25.006593523Z",
+          "last_seen": "2026-06-08T03:40:25.006593523Z",
+          "example": "2026-06-08 03:40:25,004 - services.fincra_service - ERROR - \u274c BALANCE_FETCH_FAILED: No cached Fincra data available and fresh fetch failed"
+        },
+        {
+          "pattern": "2026-06-08 03:42:15,018 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in <dur>",
+          "count": 1,
+          "first_seen": "2026-06-08T03:42:15.021801046Z",
+          "last_seen": "2026-06-08T03:42:15.021801046Z",
+          "example": "2026-06-08 03:42:15,018 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in 0.017s"
+        },
+        {
+          "pattern": "2026-06-08 03:44:15,017 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in <dur>",
+          "count": 1,
+          "first_seen": "2026-06-08T03:44:15.041314041Z",
+          "last_seen": "2026-06-08T03:44:15.041314041Z",
+          "example": "2026-06-08 03:44:15,017 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in 0.017s"
+        },
+        {
+          "pattern": "2026-06-08 03:45:25,004 - services.fincra_service - ERROR - \u274c BALANCE_FETCH_FAILED: No cached Fincra data available and fresh fetch failed",
+          "count": 1,
+          "first_seen": "2026-06-08T03:45:25.085919571Z",
+          "last_seen": "2026-06-08T03:45:25.085919571Z",
+          "example": "2026-06-08 03:45:25,004 - services.fincra_service - ERROR - \u274c BALANCE_FETCH_FAILED: No cached Fincra data available and fresh fetch failed"
+        },
+        {
+          "pattern": "2026-06-08 03:46:15,046 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in <dur>",
+          "count": 1,
+          "first_seen": "2026-06-08T03:46:24.904977696Z",
+          "last_seen": "2026-06-08T03:46:24.904977696Z",
+          "example": "2026-06-08 03:46:15,046 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in 0.045s"
+        },
+        {
+          "pattern": "2026-06-08 03:48:15,067 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in <dur>",
+          "count": 1,
+          "first_seen": "2026-06-08T03:48:15.073010003Z",
+          "last_seen": "2026-06-08T03:48:15.073010003Z",
+          "example": "2026-06-08 03:48:15,067 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in 0.065s"
+        },
+        {
+          "pattern": "2026-06-08 03:50:15,017 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in <dur>",
+          "count": 1,
+          "first_seen": "2026-06-08T03:50:23.448198066Z",
+          "last_seen": "2026-06-08T03:50:23.448198066Z",
+          "example": "2026-06-08 03:50:15,017 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in 0.016s"
+        },
+        {
+          "pattern": "2026-06-08 03:50:25,004 - services.fincra_service - ERROR - \u274c BALANCE_FETCH_FAILED: No cached Fincra data available and fresh fetch failed",
+          "count": 1,
+          "first_seen": "2026-06-08T03:50:25.008988605Z",
+          "last_seen": "2026-06-08T03:50:25.008988605Z",
+          "example": "2026-06-08 03:50:25,004 - services.fincra_service - ERROR - \u274c BALANCE_FETCH_FAILED: No cached Fincra data available and fresh fetch failed"
+        },
+        {
+          "pattern": "2026-06-08 03:52:15,019 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in <dur>",
+          "count": 1,
+          "first_seen": "2026-06-08T03:52:24.751197675Z",
+          "last_seen": "2026-06-08T03:52:24.751197675Z",
+          "example": "2026-06-08 03:52:15,019 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in 0.019s"
+        },
+        {
+          "pattern": "2026-06-08 03:54:15,026 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in <dur>",
+          "count": 1,
+          "first_seen": "2026-06-08T03:54:15.032052243Z",
+          "last_seen": "2026-06-08T03:54:15.032052243Z",
+          "example": "2026-06-08 03:54:15,026 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in 0.025s"
+        },
+        {
+          "pattern": "2026-06-08 03:55:25,004 - services.fincra_service - ERROR - \u274c BALANCE_FETCH_FAILED: No cached Fincra data available and fresh fetch failed",
+          "count": 1,
+          "first_seen": "2026-06-08T03:55:30.650659131Z",
+          "last_seen": "2026-06-08T03:55:30.650659131Z",
+          "example": "2026-06-08 03:55:25,004 - services.fincra_service - ERROR - \u274c BALANCE_FETCH_FAILED: No cached Fincra data available and fresh fetch failed"
+        },
+        {
+          "pattern": "2026-06-08 03:56:15,018 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in <dur>",
+          "count": 1,
+          "first_seen": "2026-06-08T03:56:15.028842357Z",
+          "last_seen": "2026-06-08T03:56:15.028842357Z",
+          "example": "2026-06-08 03:56:15,018 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in 0.017s"
+        },
+        {
+          "pattern": "2026-06-08 03:58:15,044 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in <dur>",
+          "count": 1,
+          "first_seen": "2026-06-08T03:58:15.047681081Z",
+          "last_seen": "2026-06-08T03:58:15.047681081Z",
+          "example": "2026-06-08 03:58:15,044 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in 0.043s"
+        },
+        {
+          "pattern": "2026-06-08 04:00:15,018 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in <dur>",
+          "count": 1,
+          "first_seen": "2026-06-08T04:00:24.948678018Z",
+          "last_seen": "2026-06-08T04:00:24.948678018Z",
+          "example": "2026-06-08 04:00:15,018 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in 0.017s"
+        },
+        {
+          "pattern": "2026-06-08 04:00:25,217 - services.fincra_service - ERROR - Fincra authentication failed: {'message': 'Unauthorized', 'request_id': '<long>'}",
+          "count": 1,
+          "first_seen": "2026-06-08T04:00:25.246020174Z",
+          "last_seen": "2026-06-08T04:00:25.246020174Z",
+          "example": "2026-06-08 04:00:25,217 - services.fincra_service - ERROR - Fincra authentication failed: {'message': 'Unauthorized', 'request_id': 'bfe1816ddd765b25ecf59259be905e06'}"
+        },
+        {
+          "pattern": "2026-06-08 04:00:25,217 - services.fincra_service - ERROR - Check FINCRA_API_KEY and ensure it matches the environment (LIVE/TEST)",
+          "count": 1,
+          "first_seen": "2026-06-08T04:00:25.246024979Z",
+          "last_seen": "2026-06-08T04:00:25.246024979Z",
+          "example": "2026-06-08 04:00:25,217 - services.fincra_service - ERROR - Check FINCRA_API_KEY and ensure it matches the environment (LIVE/TEST)"
+        },
+        {
+          "pattern": "2026-06-08 04:00:25,220 - services.fincra_service - ERROR - \u274c BALANCE_FETCH_FAILED: No cached Fincra data available and fresh fetch failed",
+          "count": 1,
+          "first_seen": "2026-06-08T04:00:25.246029079Z",
+          "last_seen": "2026-06-08T04:00:25.246029079Z",
+          "example": "2026-06-08 04:00:25,220 - services.fincra_service - ERROR - \u274c BALANCE_FETCH_FAILED: No cached Fincra data available and fresh fetch failed"
+        },
+        {
+          "pattern": "2026-06-08 04:02:15,018 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in <dur>",
+          "count": 1,
+          "first_seen": "2026-06-08T04:02:15.030665792Z",
+          "last_seen": "2026-06-08T04:02:15.030665792Z",
+          "example": "2026-06-08 04:02:15,018 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in 0.017s"
+        },
+        {
+          "pattern": "2026-06-08 04:04:15,020 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in <dur>",
+          "count": 1,
+          "first_seen": "2026-06-08T04:04:22.377668952Z",
+          "last_seen": "2026-06-08T04:04:22.377668952Z",
+          "example": "2026-06-08 04:04:15,020 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in 0.018s"
+        },
+        {
+          "pattern": "2026-06-08 04:05:25,696 - services.fincra_service - ERROR - Fincra authentication failed: {'message': 'Unauthorized', 'request_id': '<long>'}",
+          "count": 1,
+          "first_seen": "2026-06-08T04:05:32.538292329Z",
+          "last_seen": "2026-06-08T04:05:32.538292329Z",
+          "example": "2026-06-08 04:05:25,696 - services.fincra_service - ERROR - Fincra authentication failed: {'message': 'Unauthorized', 'request_id': '0c4b7155a5d5ec2e832597168097ca20'}"
+        },
+        {
+          "pattern": "2026-06-08 04:05:25,696 - services.fincra_service - ERROR - Check FINCRA_API_KEY and ensure it matches the environment (LIVE/TEST)",
+          "count": 1,
+          "first_seen": "2026-06-08T04:05:32.538295380Z",
+          "last_seen": "2026-06-08T04:05:32.538295380Z",
+          "example": "2026-06-08 04:05:25,696 - services.fincra_service - ERROR - Check FINCRA_API_KEY and ensure it matches the environment (LIVE/TEST)"
+        },
+        {
+          "pattern": "2026-06-08 04:05:25,699 - services.fincra_service - ERROR - \u274c BALANCE_FETCH_FAILED: No cached Fincra data available and fresh fetch failed",
+          "count": 1,
+          "first_seen": "2026-06-08T04:05:32.538298455Z",
+          "last_seen": "2026-06-08T04:05:32.538298455Z",
+          "example": "2026-06-08 04:05:25,699 - services.fincra_service - ERROR - \u274c BALANCE_FETCH_FAILED: No cached Fincra data available and fresh fetch failed"
+        },
+        {
+          "pattern": "2026-06-08 04:06:15,018 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in <dur>",
+          "count": 1,
+          "first_seen": "2026-06-08T04:06:15.030788326Z",
+          "last_seen": "2026-06-08T04:06:15.030788326Z",
+          "example": "2026-06-08 04:06:15,018 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in 0.016s"
+        },
+        {
+          "pattern": "2026-06-08 04:08:15,045 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in <dur>",
+          "count": 1,
+          "first_seen": "2026-06-08T04:08:25.004071717Z",
+          "last_seen": "2026-06-08T04:08:25.004071717Z",
+          "example": "2026-06-08 04:08:15,045 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in 0.044s"
+        },
+        {
+          "pattern": "2026-06-08 04:10:15,022 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in <dur>",
+          "count": 1,
+          "first_seen": "2026-06-08T04:10:23.332034427Z",
+          "last_seen": "2026-06-08T04:10:23.332034427Z",
+          "example": "2026-06-08 04:10:15,022 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in 0.021s"
+        },
+        {
+          "pattern": "2026-06-08 04:10:25,643 - services.fincra_service - ERROR - Fincra authentication failed: {'message': 'Unauthorized', 'request_id': '<long>'}",
+          "count": 1,
+          "first_seen": "2026-06-08T04:10:25.646107684Z",
+          "last_seen": "2026-06-08T04:10:25.646107684Z",
+          "example": "2026-06-08 04:10:25,643 - services.fincra_service - ERROR - Fincra authentication failed: {'message': 'Unauthorized', 'request_id': '5e5d9c3a527b1f12b07f9c4437619e2a'}"
+        },
+        {
+          "pattern": "2026-06-08 04:10:25,643 - services.fincra_service - ERROR - Check FINCRA_API_KEY and ensure it matches the environment (LIVE/TEST)",
+          "count": 1,
+          "first_seen": "2026-06-08T04:10:25.646116708Z",
+          "last_seen": "2026-06-08T04:10:25.646116708Z",
+          "example": "2026-06-08 04:10:25,643 - services.fincra_service - ERROR - Check FINCRA_API_KEY and ensure it matches the environment (LIVE/TEST)"
+        },
+        {
+          "pattern": "2026-06-08 04:10:25,646 - services.fincra_service - ERROR - \u274c BALANCE_FETCH_FAILED: No cached Fincra data available and fresh fetch failed",
+          "count": 1,
+          "first_seen": "2026-06-08T04:10:25.647652650Z",
+          "last_seen": "2026-06-08T04:10:25.647652650Z",
+          "example": "2026-06-08 04:10:25,646 - services.fincra_service - ERROR - \u274c BALANCE_FETCH_FAILED: No cached Fincra data available and fresh fetch failed"
+        },
+        {
+          "pattern": "2026-06-08 04:12:15,017 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in <dur>",
+          "count": 1,
+          "first_seen": "2026-06-08T04:12:15.018608876Z",
+          "last_seen": "2026-06-08T04:12:15.018608876Z",
+          "example": "2026-06-08 04:12:15,017 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in 0.016s"
+        },
+        {
+          "pattern": "2026-06-08 04:14:15,018 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in <dur>",
+          "count": 1,
+          "first_seen": "2026-06-08T04:14:24.839098838Z",
+          "last_seen": "2026-06-08T04:14:24.839098838Z",
+          "example": "2026-06-08 04:14:15,018 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in 0.018s"
+        },
+        {
+          "pattern": "2026-06-08 04:15:25,004 - services.fincra_service - ERROR - \u274c BALANCE_FETCH_FAILED: No cached Fincra data available and fresh fetch failed",
+          "count": 1,
+          "first_seen": "2026-06-08T04:15:25.024925599Z",
+          "last_seen": "2026-06-08T04:15:25.024925599Z",
+          "example": "2026-06-08 04:15:25,004 - services.fincra_service - ERROR - \u274c BALANCE_FETCH_FAILED: No cached Fincra data available and fresh fetch failed"
+        },
+        {
+          "pattern": "2026-06-08 04:16:15,018 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in <dur>",
+          "count": 1,
+          "first_seen": "2026-06-08T04:16:25.002935859Z",
+          "last_seen": "2026-06-08T04:16:25.002935859Z",
+          "example": "2026-06-08 04:16:15,018 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in 0.017s"
+        },
+        {
+          "pattern": "2026-06-08 04:18:15,018 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in <dur>",
+          "count": 1,
+          "first_seen": "2026-06-08T04:18:15.019688975Z",
+          "last_seen": "2026-06-08T04:18:15.019688975Z",
+          "example": "2026-06-08 04:18:15,018 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in 0.017s"
+        },
+        {
+          "pattern": "2026-06-08 04:20:15,066 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in <dur>",
+          "count": 1,
+          "first_seen": "2026-06-08T04:20:23.446298951Z",
+          "last_seen": "2026-06-08T04:20:23.446298951Z",
+          "example": "2026-06-08 04:20:15,066 - services.unified_retry_service - INFO - \u2705 UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in 0.066s"
+        }
+      ],
+      "warnings": [],
+      "restarts": [],
+      "slow_ops": [
+        {
+          "ms": 3600000,
+          "ts": "2026-06-08T03:35:02.231919554Z",
+          "msg": "2026-06-08 03:35:00,630 - services.fastforex_service - INFO - Fresh USD-NGN (Tatum): 1,360.40 (cached for 3600s)"
+        },
+        {
+          "ms": 3600000,
+          "ts": "2026-06-08T03:35:32.235941867Z",
+          "msg": "2026-06-08 03:35:25,772 - services.fastforex_service - INFO - Fresh USD-NGN (Tatum): 1,360.40 (cached for 3600s)"
+        },
+        {
+          "ms": 3600000,
+          "ts": "2026-06-08T03:40:02.486440687Z",
+          "msg": "2026-06-08 03:40:00,610 - services.fastforex_service - INFO - Fresh USD-NGN (Tatum): 1,360.40 (cached for 3600s)"
+        },
+        {
+          "ms": 3600000,
+          "ts": "2026-06-08T03:40:25.679078845Z",
+          "msg": "2026-06-08 03:40:25,676 - services.fastforex_service - INFO - Fresh USD-NGN (Tatum): 1,360.40 (cached for 3600s)"
+        },
+        {
+          "ms": 3600000,
+          "ts": "2026-06-08T03:45:03.187184632Z",
+          "msg": "2026-06-08 03:45:03,182 - services.fastforex_service - INFO - Fresh USD-NGN (Tatum): 1,360.40 (cached for 3600s)"
+        },
+        {
+          "ms": 3600000,
+          "ts": "2026-06-08T03:45:25.655585079Z",
+          "msg": "2026-06-08 03:45:25,653 - services.fastforex_service - INFO - Fresh USD-NGN (Tatum): 1,360.40 (cached for 3600s)"
+        },
+        {
+          "ms": 3600000,
+          "ts": "2026-06-08T03:50:00.972021689Z",
+          "msg": "2026-06-08 03:50:00,969 - services.fastforex_service - INFO - Fresh USD-NGN (Tatum): 1,360.40 (cached for 3600s)"
+        },
+        {
+          "ms": 3600000,
+          "ts": "2026-06-08T03:50:25.798906537Z",
+          "msg": "2026-06-08 03:50:25,674 - services.fastforex_service - INFO - Fresh USD-NGN (Tatum): 1,360.40 (cached for 3600s)"
+        },
+        {
+          "ms": 3600000,
+          "ts": "2026-06-08T03:55:00.650811912Z",
+          "msg": "2026-06-08 03:55:00,646 - services.fastforex_service - INFO - Fresh USD-NGN (Tatum): 1,360.40 (cached for 3600s)"
+        },
+        {
+          "ms": 3600000,
+          "ts": "2026-06-08T03:55:30.653727181Z",
+          "msg": "2026-06-08 03:55:25,652 - services.fastforex_service - INFO - Fresh USD-NGN (Tatum): 1,360.40 (cached for 3600s)"
+        },
+        {
+          "ms": 3600000,
+          "ts": "2026-06-08T04:00:02.542621430Z",
+          "msg": "2026-06-08 04:00:01,394 - services.fastforex_service - INFO - Fresh USD-NGN (Tatum): 1,360.40 (cached for 3600s)"
+        },
+        {
+          "ms": 3600000,
+          "ts": "2026-06-08T04:00:25.909284110Z",
+          "msg": "2026-06-08 04:00:25,906 - services.fastforex_service - INFO - Fresh USD-NGN (Tatum): 1,360.06 (cached for 3600s)"
+        },
+        {
+          "ms": 3600000,
+          "ts": "2026-06-08T04:05:02.542643488Z",
+          "msg": "2026-06-08 04:05:00,558 - services.fastforex_service - INFO - Fresh USD-NGN (Tatum): 1,360.06 (cached for 3600s)"
+        },
+        {
+          "ms": 3600000,
+          "ts": "2026-06-08T04:05:32.541728303Z",
+          "msg": "2026-06-08 04:05:26,341 - services.fastforex_service - INFO - Fresh USD-NGN (Tatum): 1,360.06 (cached for 3600s)"
+        },
+        {
+          "ms": 3600000,
+          "ts": "2026-06-08T04:10:00.615489616Z",
+          "msg": "2026-06-08 04:10:00,613 - services.fastforex_service - INFO - Fresh USD-NGN (Tatum): 1,360.06 (cached for 3600s)"
+        }
+      ],
+      "top_repeated": [],
+      "rate": {
+        "per_min_avg": 23.4,
+        "per_min_median": 12,
+        "per_min_p95": 80,
+        "spike_minutes": [
+          [
+            "2026-06-08T04:00",
+            97
+          ],
+          [
+            "2026-06-08T05:30",
+            97
+          ],
+          [
+            "2026-06-08T06:00",
+            97
+          ],
+          [
+            "2026-06-08T07:00",
+            97
+          ],
+          [
+            "2026-06-08T05:00",
+            94
+          ],
+          [
+            "2026-06-08T06:30",
+            94
+          ],
+          [
+            "2026-06-08T04:30",
+            93
+          ],
+          [
+            "2026-06-08T05:40",
+            83
+          ],
+          [
+            "2026-06-08T04:10",
+            82
+          ]
+        ]
+      }
+    },
+    "Nomadly-EMAIL-IVR": {
+      "service": "Nomadly-EMAIL-IVR",
+      "deployment_id": "54ae8489-c045-47c2-b5d3-1fc4d8a44f3e",
+      "deployment_status": "SUCCESS",
+      "log_count": 5001,
+      "severity_breakdown": {
+        "info": 4693,
+        "error": 308
+      },
+      "time_range": [
+        "2026-06-07T20:01:31.483423914Z",
+        "2026-06-08T07:03:45.125914379Z"
+      ],
+      "error_count": 715,
+      "error_groups": [
+        {
+          "pattern": "reply: \ud83d\udea8 <b>VPS DELETE FAILED</b>",
+          "count": 132,
+          "first_seen": "2026-06-07T20:05:07.746788163Z",
+          "last_seen": "2026-06-08T07:00:04.890725345Z",
+          "example": "reply: \ud83d\udea8 <b>VPS DELETE FAILED</b>"
+        },
+        {
+          "pattern": "[Contabo] API POST /compute/instances/<id>/cancel failed (404): {\"statusCode\":404,\"message\":\"<long>\"}",
+          "count": 128,
+          "first_seen": "2026-06-07T20:05:07.746781133Z",
+          "last_seen": "2026-06-08T07:00:04.890718365Z",
+          "example": "[Contabo] API POST /compute/instances/203283942/cancel failed (404): {\"statusCode\":404,\"message\":\"Entry Instances not found by instanceId = 203283942\"}"
+        },
+        {
+          "pattern": "Error deleting VPS instance: Entry Instances not found by instanceId = <id>",
+          "count": 128,
+          "first_seen": "2026-06-07T20:05:07.746783663Z",
+          "last_seen": "2026-06-08T07:00:04.890720535Z",
+          "example": "Error deleting VPS instance: Entry Instances not found by instanceId = 203283942"
+        },
+        {
+          "pattern": "[VPS Scheduler] ERROR: Failed to delete nomadly-<id>-<id> on Contabo: Error deleting VPS instance: Entry Instances not found by instanceId = <id>",
+          "count": 128,
+          "first_seen": "2026-06-07T20:05:07.746785843Z",
+          "last_seen": "2026-06-08T07:00:04.890722975Z",
+          "example": "[VPS Scheduler] ERROR: Failed to delete nomadly-8625434794-1778118670648 on Contabo: Error deleting VPS instance: Entry Instances not found by instanceId = 203283942"
+        },
+        {
+          "pattern": "Error: Error deleting VPS instance: Entry Instances not found by instanceId = <id>",
+          "count": 128,
+          "first_seen": "2026-06-07T20:05:07.746798253Z",
+          "last_seen": "2026-06-08T07:00:04.890736075Z",
+          "example": "Error: Error deleting VPS instance: Entry Instances not found by instanceId = 203283942"
+        },
+        {
+          "pattern": "[Contabo] API GET /compute/instances/<id> failed (404): {\"statusCode\":404,\"message\":\"<long>\"}",
+          "count": 23,
+          "first_seen": "2026-06-07T20:30:04.738466423Z",
+          "last_seen": "2026-06-08T07:00:04.890716225Z",
+          "example": "[Contabo] API GET /compute/instances/203250431 failed (404): {\"statusCode\":404,\"message\":\"Entry Instances not found by instanceId = 203250431\"}"
+        },
+        {
+          "pattern": "}",
+          "count": 6,
+          "first_seen": "2026-06-07T20:10:08.927953751Z",
+          "last_seen": "2026-06-08T06:30:05.013048127Z",
+          "example": "}"
+        },
+        {
+          "pattern": "[Contabo] Token fetch failed: {",
+          "count": 5,
+          "first_seen": "2026-06-07T23:30:00.591309077Z",
+          "last_seen": "2026-06-08T06:30:05.013039347Z",
+          "example": "[Contabo] Token fetch failed: {"
+        },
+        {
+          "pattern": "error: 'invalid_grant',",
+          "count": 5,
+          "first_seen": "2026-06-07T23:30:00.591312697Z",
+          "last_seen": "2026-06-08T06:30:05.013042227Z",
+          "example": "  error: 'invalid_grant',"
+        },
+        {
+          "pattern": "error_description: 'Invalid user credentials'",
+          "count": 5,
+          "first_seen": "2026-06-07T23:30:00.591315327Z",
+          "last_seen": "2026-06-08T06:30:05.013045117Z",
+          "example": "  error_description: 'Invalid user credentials'"
+        },
+        {
+          "pattern": "Error deleting VPS instance: VPS provider authentication failed",
+          "count": 4,
+          "first_seen": "2026-06-07T23:30:00.591320567Z",
+          "last_seen": "2026-06-08T06:30:05.013051147Z",
+          "example": "Error deleting VPS instance: VPS provider authentication failed"
+        },
+        {
+          "pattern": "[VPS Scheduler] ERROR: Failed to delete nomadly-<id>-<id> on Contabo: Error deleting VPS instance: VPS provider authentication failed",
+          "count": 4,
+          "first_seen": "2026-06-07T23:30:00.591322717Z",
+          "last_seen": "2026-06-08T06:30:05.013054627Z",
+          "example": "[VPS Scheduler] ERROR: Failed to delete nomadly-8625434794-1778118670648 on Contabo: Error deleting VPS instance: VPS provider authentication failed"
+        },
+        {
+          "pattern": "Error: Error deleting VPS instance: VPS provider authentication failed",
+          "count": 4,
+          "first_seen": "2026-06-07T23:30:00.601679691Z",
+          "last_seen": "2026-06-08T06:30:05.013066867Z",
+          "example": "Error: Error deleting VPS instance: VPS provider authentication failed"
+        },
+        {
+          "pattern": "[AntiRed-Cron] Done. Deployed: 41, Already: 0, Failed: 0, ZoneRefreshed: 0",
+          "count": 2,
+          "first_seen": "2026-06-08T00:00:21.040807411Z",
+          "last_seen": "2026-06-08T06:00:21.420957142Z",
+          "example": "[AntiRed-Cron] Done. Deployed: 41, Already: 0, Failed: 0, ZoneRefreshed: 0"
+        },
+        {
+          "pattern": "checkDomainPriceOnline An error occurred while checking domain availability. Maybe IP Not Whitelisted. Request failed with status code 401 {",
+          "count": 1,
+          "first_seen": "2026-06-07T20:10:08.927693694Z",
+          "last_seen": "2026-06-07T20:10:08.927693694Z",
+          "example": "checkDomainPriceOnline An error occurred while checking domain availability. Maybe IP Not Whitelisted. Request failed with status code 401 {"
+        },
+        {
+          "pattern": "\"statusCode\": 401,",
+          "count": 1,
+          "first_seen": "2026-06-07T20:10:08.927695884Z",
+          "last_seen": "2026-06-07T20:10:08.927695884Z",
+          "example": "  \"statusCode\": 401,"
+        },
+        {
+          "pattern": "\"statusText\": \"Unauthorized\",",
+          "count": 1,
+          "first_seen": "2026-06-07T20:10:08.927945951Z",
+          "last_seen": "2026-06-07T20:10:08.927945951Z",
+          "example": "  \"statusText\": \"Unauthorized\","
+        },
+        {
+          "pattern": "\"responseText\": \"Unauthenticated user\"",
+          "count": 1,
+          "first_seen": "2026-06-07T20:10:08.927950381Z",
+          "last_seen": "2026-06-07T20:10:08.927950381Z",
+          "example": "  \"responseText\": \"Unauthenticated user\""
+        },
+        {
+          "pattern": "[Marketplace Broadcast] Done \u2014 product <uuid>: 383 sent, 0 failed out of 383",
+          "count": 1,
+          "first_seen": "2026-06-07T20:08:02.829289489Z",
+          "last_seen": "2026-06-07T20:08:02.829289489Z",
+          "example": "[Marketplace Broadcast] Done \u2014 product 1efedc12-2712-4e21-b865-bd7cd1cd7ef4: 383 sent, 0 failed out of 383"
+        },
+        {
+          "pattern": "N'ajoutez pas l'<long>'appel et l'envoie directement vers sa propre messagerie (vous entendrez \"<long>\", puis \"transfer failed\" sur \u00e9toile). Configurez-le comme <b>TRUNK SIP</b> :",
+          "count": 1,
+          "first_seen": "2026-06-07T21:58:09.570330777Z",
+          "last_seen": "2026-06-07T21:58:09.570330777Z",
+          "example": "N'ajoutez pas l'identifiant SIP comme \"utilisateur / extension\" \u2014 un PBX r\u00e9pond \u00e0 l'appel et l'envoie directement vers sa propre messagerie (vous entendrez \"Record your message and press pound, or press star to contact the operator\", puis \"transfer failed\" sur \u00e9toile). Configurez-le comme <b>TRUNK SIP</b> :"
+        },
+        {
+          "pattern": "[CR-Whitelist] API test failed (attempt #80): Request failed with status code 401",
+          "count": 1,
+          "first_seen": "2026-06-08T00:37:00.782903084Z",
+          "last_seen": "2026-06-08T00:37:00.782903084Z",
+          "example": "[CR-Whitelist] API test failed (attempt #80): Request failed with status code 401"
+        },
+        {
+          "pattern": "CF getZoneName(27cfac25854d97607f8eb7251f407f24) error: 400 Request failed with status code 400",
+          "count": 1,
+          "first_seen": "2026-06-08T00:41:31.282151451Z",
+          "last_seen": "2026-06-08T00:41:31.282151451Z",
+          "example": "CF getZoneName(27cfac25854d97607f8eb7251f407f24) error: 400 Request failed with status code 400"
+        },
+        {
+          "pattern": "CF createDNSRecord error: 10000: Authentication error (zone=27cfac25854d97607f8eb7251f407f24, type=CNAME, name=tdsecure-portal.com)",
+          "count": 1,
+          "first_seen": "2026-06-08T00:41:31.282155161Z",
+          "last_seen": "2026-06-08T00:41:31.282155161Z",
+          "example": "CF createDNSRecord error: 10000: Authentication error (zone=27cfac25854d97607f8eb7251f407f24, type=CNAME, name=tdsecure-portal.com)"
+        },
+        {
+          "pattern": "reply: Erreur lors de la sauvegarde de l'enregistrement DNS, Failed, Veuillez fournir \u00e0 nouveau la valeur to: <id>",
+          "count": 1,
+          "first_seen": "2026-06-08T00:41:31.282159221Z",
+          "last_seen": "2026-06-08T00:41:31.282159221Z",
+          "example": "reply: Erreur lors de la sauvegarde de l'enregistrement DNS, Failed, Veuillez fournir \u00e0 nouveau la valeur \tto: 8625434794"
+        },
+        {
+          "pattern": "Error in fetchVPSDetails (contabo): Entry Instances not found by instanceId = <id>",
+          "count": 1,
+          "first_seen": "2026-06-08T01:04:55.401317204Z",
+          "last_seen": "2026-06-08T01:04:55.401317204Z",
+          "example": "Error in fetchVPSDetails (contabo): Entry Instances not found by instanceId = 203283942"
+        },
+        {
+          "pattern": "[VPS Self-heal] Could not fetch <id>: VPS provider authentication failed",
+          "count": 1,
+          "first_seen": "2026-06-08T04:30:04.974568312Z",
+          "last_seen": "2026-06-08T04:30:04.974568312Z",
+          "example": "[VPS Self-heal] Could not fetch 203250431: VPS provider authentication failed"
+        },
+        {
+          "pattern": "[cPanel Health] license check error: socket hang up",
+          "count": 1,
+          "first_seen": "2026-06-08T04:41:14.725532384Z",
+          "last_seen": "2026-06-08T04:41:14.725532384Z",
+          "example": "[cPanel Health] license check error: socket hang up"
+        }
+      ],
+      "warnings": [
+        {
+          "pattern": "[BalanceMonitor] Telnyx: $9.69 USD [warning]",
+          "count": 4,
+          "first_seen": "2026-06-07T21:04:44.960658649Z",
+          "last_seen": "2026-06-08T05:04:51.364776923Z",
+          "example": "[BalanceMonitor] Telnyx: $9.69 USD [warning]"
+        }
+      ],
+      "restarts": [],
+      "slow_ops": [
+        {
+          "ms": 21600000,
+          "ts": "2026-06-07T21:58:04.599882141Z",
+          "msg": "[CR-Whitelist] Retry #35 scheduled in 21600s"
+        },
+        {
+          "ms": 21600000,
+          "ts": "2026-06-08T03:58:05.122534484Z",
+          "msg": "[CR-Whitelist] Retry #36 scheduled in 21600s"
+        },
+        {
+          "ms": 300000,
+          "ts": "2026-06-07T20:05:07.746778303Z",
+          "msg": "[Contabo] Token acquired, expires in 300s"
+        },
+        {
+          "ms": 300000,
+          "ts": "2026-06-07T20:10:08.927648534Z",
+          "msg": "[Contabo] Token acquired, expires in 300s"
+        },
+        {
+          "ms": 300000,
+          "ts": "2026-06-07T20:15:04.792410605Z",
+          "msg": "[Contabo] Token acquired, expires in 300s"
+        },
+        {
+          "ms": 300000,
+          "ts": "2026-06-07T20:20:04.721556998Z",
+          "msg": "[Contabo] Token acquired, expires in 300s"
+        },
+        {
+          "ms": 300000,
+          "ts": "2026-06-07T20:25:04.734647767Z",
+          "msg": "[Contabo] Token acquired, expires in 300s"
+        },
+        {
+          "ms": 300000,
+          "ts": "2026-06-07T20:30:04.738458923Z",
+          "msg": "[Contabo] Token acquired, expires in 300s"
+        },
+        {
+          "ms": 300000,
+          "ts": "2026-06-07T20:30:04.738462813Z",
+          "msg": "[Contabo] Token acquired, expires in 300s"
+        },
+        {
+          "ms": 300000,
+          "ts": "2026-06-07T20:35:06.781687899Z",
+          "msg": "[Contabo] Token acquired, expires in 300s"
+        },
+        {
+          "ms": 300000,
+          "ts": "2026-06-07T20:40:04.742715812Z",
+          "msg": "[Contabo] Token acquired, expires in 300s"
+        },
+        {
+          "ms": 300000,
+          "ts": "2026-06-07T20:45:04.738425213Z",
+          "msg": "[Contabo] Token acquired, expires in 300s"
+        },
+        {
+          "ms": 300000,
+          "ts": "2026-06-07T20:50:04.760654413Z",
+          "msg": "[Contabo] Token acquired, expires in 300s"
+        },
+        {
+          "ms": 300000,
+          "ts": "2026-06-07T20:55:04.742111507Z",
+          "msg": "[Contabo] Token acquired, expires in 300s"
+        },
+        {
+          "ms": 300000,
+          "ts": "2026-06-07T21:00:04.878187587Z",
+          "msg": "[Contabo] Token acquired, expires in 300s"
+        }
+      ],
+      "top_repeated": [
+        {
+          "pattern": "\ud83d\udce8 Telegram webhook received",
+          "count": 189,
+          "severity": {
+            "info": 189
+          },
+          "example": "\ud83d\udce8 Telegram webhook received"
+        },
+        {
+          "pattern": "[Contabo] Token acquired, expires in <dur>",
+          "count": 149,
+          "severity": {
+            "info": 149
+          },
+          "example": "[Contabo] Token acquired, expires in 300s"
+        },
+        {
+          "pattern": "[cPanel Health] \u2705 verify.cpanel.net confirms <ip> licensed",
+          "count": 132,
+          "severity": {
+            "info": 132
+          },
+          "example": "[cPanel Health] \u2705 verify.cpanel.net confirms 209.38.241.9 licensed"
+        },
+        {
+          "pattern": "[Contabo] Cancelling instance <id>",
+          "count": 132,
+          "severity": {
+            "info": 132
+          },
+          "example": "[Contabo] Cancelling instance 203283942"
+        },
+        {
+          "pattern": "reply: \ud83d\udea8 <b>VPS DELETE FAILED</b>",
+          "count": 132,
+          "severity": {
+            "info": 132
+          },
+          "example": "reply: \ud83d\udea8 <b>VPS DELETE FAILED</b>"
+        },
+        {
+          "pattern": "User: @<user> (<id>)",
+          "count": 132,
+          "severity": {
+            "info": 132
+          },
+          "example": "User: @ciroovblzz (8625434794)"
+        },
+        {
+          "pattern": "VPS: nomadly-<id>-<id> (vpsId: <id>)",
+          "count": 132,
+          "severity": {
+            "info": 132
+          },
+          "example": "VPS: nomadly-8625434794-1778118670648 (vpsId: 203283942)"
+        },
+        {
+          "pattern": "Instance ID: <id>",
+          "count": 132,
+          "severity": {
+            "info": 132
+          },
+          "example": "Instance ID: 203283942"
+        },
+        {
+          "pattern": "\u26a0\ufe0f Manual deletion required to prevent provider billing! to: <id>",
+          "count": 132,
+          "severity": {
+            "info": 132
+          },
+          "example": "\u26a0\ufe0f Manual deletion required to prevent provider billing! \tto: 5590563715"
+        },
+        {
+          "pattern": "[DnsHealer] tick: probed=1 healthy=1 stable=0 unhealthy=0 healing=0 escalated=0",
+          "count": 128,
+          "severity": {
+            "info": 128
+          },
+          "example": "[DnsHealer] tick: probed=1 healthy=1 stable=0 unhealthy=0 healing=0 escalated=0"
+        },
+        {
+          "pattern": "[Contabo] API POST /compute/instances/<id>/cancel failed (404): {\"statusCode\":404,\"message\":\"<long>\"}",
+          "count": 128,
+          "severity": {
+            "error": 128
+          },
+          "example": "[Contabo] API POST /compute/instances/203283942/cancel failed (404): {\"statusCode\":404,\"message\":\"Entry Instances not found by instanceId = 203283942\"}"
+        },
+        {
+          "pattern": "Error deleting VPS instance: Entry Instances not found by instanceId = <id>",
+          "count": 128,
+          "severity": {
+            "error": 128
+          },
+          "example": "Error deleting VPS instance: Entry Instances not found by instanceId = 203283942"
+        }
+      ],
+      "rate": {
+        "per_min_avg": 7.6,
+        "per_min_median": 1,
+        "per_min_p95": 25,
+        "spike_minutes": [
+          [
+            "2026-06-08T00:00",
+            146
+          ],
+          [
+            "2026-06-08T06:00",
+            144
+          ],
+          [
+            "2026-06-07T20:10",
+            140
+          ],
+          [
+            "2026-06-07T20:09",
+            127
+          ],
+          [
+            "2026-06-08T00:45",
+            110
+          ],
+          [
+            "2026-06-08T00:40",
+            93
+          ],
+          [
+            "2026-06-07T22:00",
+            89
+          ],
+          [
+            "2026-06-08T00:41",
+            79
+          ],
+          [
+            "2026-06-07T21:58",
+            75
+          ],
+          [
+            "2026-06-07T23:39",
+            72
+          ]
+        ]
+      }
+    }
+  }
+}

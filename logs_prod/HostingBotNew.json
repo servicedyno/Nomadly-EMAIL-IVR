@@ -1,0 +1,578 @@
+{
+  "service": "HostingBotNew",
+  "service_id": "0a453645-4180-441b-8988-020807f4479a",
+  "deployment_id": "8eda72b0-c127-479a-8eb1-a904b65b8f1f",
+  "status": "SUCCESS",
+  "created_at": "2026-04-20T13:16:34.373Z",
+  "log_count": 112,
+  "severity_breakdown": {
+    "info": 107,
+    "error": 5
+  },
+  "time_range": [
+    "2026-05-10T01:47:14.583168440Z",
+    "2026-06-07T19:52:50.224979019Z"
+  ],
+  "logs": [
+    {
+      "message": "INFO:     100.64.0.21:48744 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-10T01:47:14.583168440Z"
+    },
+    {
+      "message": "INFO:     100.64.0.21:20492 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-10T01:47:19.431674312Z"
+    },
+    {
+      "message": "INFO:     100.64.0.16:13478 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-10T11:22:33.123079704Z"
+    },
+    {
+      "message": "INFO:     100.64.0.6:30264 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-10T14:08:04.616734330Z"
+    },
+    {
+      "message": "INFO:     100.64.0.22:31338 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-10T21:50:34.212678320Z"
+    },
+    {
+      "message": "INFO:     100.64.0.4:41204 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-11T08:27:15.009138614Z"
+    },
+    {
+      "message": "INFO:     100.64.0.10:18502 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-11T12:13:28.855732718Z"
+    },
+    {
+      "message": "INFO:     100.64.0.11:60816 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-11T18:48:08.345040069Z"
+    },
+    {
+      "message": "INFO:     100.64.0.11:43236 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-11T18:48:17.916307899Z"
+    },
+    {
+      "message": "INFO:     100.64.0.6:11570 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-11T23:00:23.748019307Z"
+    },
+    {
+      "message": "INFO:     100.64.0.21:42578 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-11T23:02:08.647702904Z"
+    },
+    {
+      "message": "INFO:     100.64.0.11:60570 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-11T23:23:44.175708450Z"
+    },
+    {
+      "message": "INFO:     100.64.0.21:29296 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-12T03:50:51.358287125Z"
+    },
+    {
+      "message": "INFO:     100.64.0.8:54240 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-12T04:09:03.957398344Z"
+    },
+    {
+      "message": "INFO:     100.64.0.4:53716 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-12T05:23:16.670629951Z"
+    },
+    {
+      "message": "INFO:     100.64.0.18:48124 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-12T05:28:14.428884795Z"
+    },
+    {
+      "message": "INFO:     100.64.0.5:12862 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-12T05:44:24.258376067Z"
+    },
+    {
+      "message": "INFO:     100.64.0.13:18812 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-12T06:14:37.740976162Z"
+    },
+    {
+      "message": "INFO:     100.64.0.14:20506 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-12T06:23:50.939679494Z"
+    },
+    {
+      "message": "INFO:     100.64.0.14:36694 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-12T06:23:58.200525979Z"
+    },
+    {
+      "message": "INFO:     100.64.0.7:48774 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-12T06:28:12.576119754Z"
+    },
+    {
+      "message": "INFO:     100.64.0.15:24434 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-12T06:34:36.927541281Z"
+    },
+    {
+      "message": "INFO:     100.64.0.15:20672 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-12T07:02:01.700770410Z"
+    },
+    {
+      "message": "INFO:     100.64.0.2:53942 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-12T09:18:35.149536208Z"
+    },
+    {
+      "message": "INFO:     100.64.0.10:58254 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-12T09:21:03.080437807Z"
+    },
+    {
+      "message": "INFO:     100.64.0.18:22546 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-12T11:50:47.528681281Z"
+    },
+    {
+      "message": "INFO:     100.64.0.5:46350 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-12T12:15:52.993634963Z"
+    },
+    {
+      "message": "INFO:     100.64.0.24:26656 - \"GET / HTTP/1.1\" 404 Not Found",
+      "severity": "info",
+      "timestamp": "2026-05-12T13:43:20.652355517Z"
+    },
+    {
+      "message": "INFO:     100.64.0.4:55186 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-12T14:45:28.009607751Z"
+    },
+    {
+      "message": "INFO:     100.64.0.21:11548 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-12T14:54:31.928629859Z"
+    },
+    {
+      "message": "INFO:     100.64.0.17:15906 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-12T16:45:46.648153724Z"
+    },
+    {
+      "message": "INFO:     100.64.0.21:62642 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-12T17:12:55.373770683Z"
+    },
+    {
+      "message": "INFO:     100.64.0.8:62148 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-12T17:52:26.915597362Z"
+    },
+    {
+      "message": "INFO:     100.64.0.15:61898 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-12T18:25:18.727584572Z"
+    },
+    {
+      "message": "INFO:     100.64.0.6:45042 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-12T20:31:15.818666767Z"
+    },
+    {
+      "message": "2026-05-12 22:22:54,970 [REDIRECT] HTTP Request: POST https://api.telegram.org/bot8291977061:AAFxUISRxrnYJVb9CkrKhhYRkXkwt4j5_3Q/sendMessage \"HTTP/1.1 200 OK\"",
+      "severity": "error",
+      "timestamp": "2026-05-12T22:23:05.660916418Z"
+    },
+    {
+      "message": "INFO:     100.64.0.13:37674 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-12T22:23:05.660926043Z"
+    },
+    {
+      "message": "INFO:     100.64.0.22:19758 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-13T13:32:29.653936412Z"
+    },
+    {
+      "message": "INFO:     100.64.0.22:39686 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-13T13:33:12.471145430Z"
+    },
+    {
+      "message": "INFO:     100.64.0.8:31016 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-13T14:37:25.347419483Z"
+    },
+    {
+      "message": "INFO:     100.64.0.14:30524 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-13T19:26:39.165108386Z"
+    },
+    {
+      "message": "INFO:     100.64.0.17:10256 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-15T07:23:02.017367853Z"
+    },
+    {
+      "message": "INFO:     100.64.0.16:39182 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-15T13:49:56.234608818Z"
+    },
+    {
+      "message": "2026-05-15 14:38:34,192 [REDIRECT] HTTP Request: POST https://api.telegram.org/bot8291977061:AAFxUISRxrnYJVb9CkrKhhYRkXkwt4j5_3Q/sendMessage \"HTTP/1.1 200 OK\"",
+      "severity": "error",
+      "timestamp": "2026-05-15T14:38:34.295777203Z"
+    },
+    {
+      "message": "INFO:     100.64.0.17:17702 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-15T14:38:34.295781338Z"
+    },
+    {
+      "message": "INFO:     100.64.0.22:57438 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-15T18:11:51.503080673Z"
+    },
+    {
+      "message": "INFO:     100.64.0.23:18668 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-15T22:11:51.511949882Z"
+    },
+    {
+      "message": "INFO:     100.64.0.23:18668 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-15T22:11:52.588480924Z"
+    },
+    {
+      "message": "INFO:     100.64.0.23:22884 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-16T07:03:23.868968312Z"
+    },
+    {
+      "message": "INFO:     100.64.0.11:45044 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-16T09:28:52.961523073Z"
+    },
+    {
+      "message": "2026-05-17 03:13:24,789 [REDIRECT] HTTP Request: POST https://api.telegram.org/bot8291977061:AAFxUISRxrnYJVb9CkrKhhYRkXkwt4j5_3Q/sendMessage \"HTTP/1.1 200 OK\"",
+      "severity": "error",
+      "timestamp": "2026-05-17T03:13:32.055944053Z"
+    },
+    {
+      "message": "INFO:     100.64.0.13:10966 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-17T03:13:32.055951621Z"
+    },
+    {
+      "message": "INFO:     100.64.0.10:44208 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-17T08:25:09.515568485Z"
+    },
+    {
+      "message": "INFO:     100.64.0.7:25156 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-17T14:29:02.134013801Z"
+    },
+    {
+      "message": "INFO:     100.64.0.14:36482 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-18T00:35:24.619901662Z"
+    },
+    {
+      "message": "INFO:     100.64.0.11:15190 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-18T08:44:43.839066665Z"
+    },
+    {
+      "message": "INFO:     100.64.0.11:10346 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-18T08:45:35.674937774Z"
+    },
+    {
+      "message": "INFO:     100.64.0.6:56664 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-18T09:02:17.213277715Z"
+    },
+    {
+      "message": "INFO:     100.64.0.16:46256 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-18T17:43:23.525589692Z"
+    },
+    {
+      "message": "INFO:     100.64.0.21:47432 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-18T17:45:41.756446254Z"
+    },
+    {
+      "message": "INFO:     100.64.0.21:31118 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-18T17:46:14.168384139Z"
+    },
+    {
+      "message": "INFO:     100.64.0.21:49318 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-18T17:47:05.833689117Z"
+    },
+    {
+      "message": "INFO:     100.64.0.14:56618 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-18T19:22:38.269220496Z"
+    },
+    {
+      "message": "INFO:     100.64.0.9:30290 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-18T19:38:06.977022899Z"
+    },
+    {
+      "message": "INFO:     100.64.0.13:14524 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-18T21:42:41.236290962Z"
+    },
+    {
+      "message": "INFO:     100.64.0.19:49430 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-18T21:53:56.982085822Z"
+    },
+    {
+      "message": "INFO:     100.64.0.19:10176 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-18T21:53:56.982092699Z"
+    },
+    {
+      "message": "INFO:     100.64.0.19:10176 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-18T21:53:59.951518187Z"
+    },
+    {
+      "message": "INFO:     100.64.0.9:18846 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-19T08:57:49.004090404Z"
+    },
+    {
+      "message": "INFO:     100.64.0.20:21530 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-19T19:30:30.774707074Z"
+    },
+    {
+      "message": "INFO:     100.64.0.13:24152 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-20T13:24:53.405622762Z"
+    },
+    {
+      "message": "INFO:     100.64.0.5:46286 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-20T14:35:31.529718233Z"
+    },
+    {
+      "message": "INFO:     100.64.0.22:12920 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-21T13:57:46.735137583Z"
+    },
+    {
+      "message": "2026-05-21 19:48:26,090 [REDIRECT] HTTP Request: POST https://api.telegram.org/bot8291977061:AAFxUISRxrnYJVb9CkrKhhYRkXkwt4j5_3Q/sendMessage \"HTTP/1.1 200 OK\"",
+      "severity": "error",
+      "timestamp": "2026-05-21T19:48:33.704154766Z"
+    },
+    {
+      "message": "INFO:     100.64.0.8:43478 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-21T19:48:33.704159872Z"
+    },
+    {
+      "message": "INFO:     100.64.0.17:34952 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-21T22:36:36.717599755Z"
+    },
+    {
+      "message": "INFO:     100.64.0.18:25734 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-24T11:39:05.006520025Z"
+    },
+    {
+      "message": "INFO:     100.64.0.8:31180 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-25T03:45:34.643050187Z"
+    },
+    {
+      "message": "INFO:     100.64.0.8:31180 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-25T03:45:35.636088739Z"
+    },
+    {
+      "message": "INFO:     100.64.0.8:53172 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-25T03:45:55.075057068Z"
+    },
+    {
+      "message": "INFO:     100.64.0.8:53172 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-25T03:45:55.075066077Z"
+    },
+    {
+      "message": "INFO:     100.64.0.8:31376 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-25T03:46:14.725143758Z"
+    },
+    {
+      "message": "INFO:     100.64.0.21:14284 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-26T04:59:17.974789599Z"
+    },
+    {
+      "message": "INFO:     100.64.0.8:62942 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-26T17:44:13.794234602Z"
+    },
+    {
+      "message": "INFO:     100.64.0.16:58456 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-27T12:12:21.477406955Z"
+    },
+    {
+      "message": "INFO:     100.64.0.12:17848 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-28T17:45:10.596042879Z"
+    },
+    {
+      "message": "2026-05-28 23:33:00,859 [REDIRECT] HTTP Request: POST https://api.telegram.org/bot8291977061:AAFxUISRxrnYJVb9CkrKhhYRkXkwt4j5_3Q/sendMessage \"HTTP/1.1 200 OK\"",
+      "severity": "error",
+      "timestamp": "2026-05-28T23:33:09.416334035Z"
+    },
+    {
+      "message": "INFO:     100.64.0.23:30912 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-28T23:33:09.416342318Z"
+    },
+    {
+      "message": "INFO:     100.64.0.20:52292 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-29T00:40:33.262201183Z"
+    },
+    {
+      "message": "INFO:     100.64.0.12:25322 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-29T05:25:08.161741341Z"
+    },
+    {
+      "message": "INFO:     100.64.0.13:20212 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-29T05:33:20.676046277Z"
+    },
+    {
+      "message": "INFO:     100.64.0.20:36980 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-29T06:55:03.932828726Z"
+    },
+    {
+      "message": "INFO:     100.64.0.8:49468 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-31T12:50:11.213305497Z"
+    },
+    {
+      "message": "INFO:     100.64.0.18:12534 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-05-31T20:07:45.276218958Z"
+    },
+    {
+      "message": "INFO:     100.64.0.23:45328 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-06-01T16:31:54.057018357Z"
+    },
+    {
+      "message": "INFO:     100.64.0.12:51390 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-06-03T18:16:13.955040661Z"
+    },
+    {
+      "message": "INFO:     100.64.0.4:37878 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-06-03T18:58:46.747696792Z"
+    },
+    {
+      "message": "INFO:     100.64.0.7:16856 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-06-03T18:59:27.739764831Z"
+    },
+    {
+      "message": "INFO:     100.64.0.15:29098 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-06-03T19:21:31.077961831Z"
+    },
+    {
+      "message": "INFO:     100.64.0.23:48078 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-06-03T20:22:35.423104830Z"
+    },
+    {
+      "message": "INFO:     100.64.0.2:61720 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-06-04T03:19:40.656740020Z"
+    },
+    {
+      "message": "INFO:     100.64.0.2:29892 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-06-04T03:19:59.944636641Z"
+    },
+    {
+      "message": "INFO:     100.64.0.6:20740 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-06-04T06:37:43.857663157Z"
+    },
+    {
+      "message": "INFO:     100.64.0.3:62862 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-06-04T13:34:18.941143988Z"
+    },
+    {
+      "message": "INFO:     100.64.0.3:62872 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-06-04T13:34:18.941164560Z"
+    },
+    {
+      "message": "INFO:     100.64.0.11:48718 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-06-04T15:30:05.249460403Z"
+    },
+    {
+      "message": "INFO:     100.64.0.22:13852 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-06-05T05:30:48.413755513Z"
+    },
+    {
+      "message": "INFO:     100.64.0.20:61358 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-06-06T15:12:45.965176762Z"
+    },
+    {
+      "message": "INFO:     100.64.0.14:31210 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-06-06T17:10:14.189978219Z"
+    },
+    {
+      "message": "INFO:     100.64.0.8:42610 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-06-07T07:28:47.688752991Z"
+    },
+    {
+      "message": "INFO:     100.64.0.9:49270 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-06-07T10:55:11.430080122Z"
+    },
+    {
+      "message": "INFO:     100.64.0.3:36126 - \"POST /api/webhook/telegram HTTP/1.1\" 200 OK",
+      "severity": "info",
+      "timestamp": "2026-06-07T19:52:50.224979019Z"
+    }
+  ]
+}
