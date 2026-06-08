@@ -1,5 +1,25 @@
 # CHANGELOG — Nomadly Bot
 
+## 2026-06-08 — Contabo CREATE 500: vendor block + circuit-breaker mitigation
+**P0 production fire** — `POST /v1/compute/instances` returning HTTP 500 in ~3 ms for every product/region/image combo on customer `14615517`. Every other endpoint (auth, READs, POST /secrets) on the same OAuth token returns 2xx — so this is a vendor-side block, not our code.
+
+### Mitigation shipped
+- **`js/contabo-service.js`** — circuit breaker around `createInstance()`. Opens after 2 consecutive 5xx; subsequent calls throw `VPS_PROVISIONING_PAUSED` synchronously without hitting Contabo. Exposes `isProvisioningHealthy()`, `getCircuitState()`, `resetProvisioningCircuit()`, `onProvisioningCircuitOpen()`.
+- **`js/_index.js` `vps-plan-pay` handler** — pre-flight `isProvisioningHealthy()` check. When breaker is open, the wallet is **NOT debited** — user sees a localised (EN/FR/ZH/HI) "VPS purchases temporarily paused" message instead of being charged-and-refunded.
+- **Admin alert** — one-shot DM to `TELEGRAM_ADMIN_CHAT_ID` and `TELEGRAM_DEV_CHAT_ID` the moment the breaker opens, with the Contabo support tip pre-filled.
+- **Admin endpoints** — `GET /admin/contabo-circuit-status` and `POST /admin/contabo-circuit-reset` (gated by `SESSION_SECRET[0:16]`).
+
+### Diagnostics
+- `scripts/diagnose_contabo.js`, `diagnose_contabo_deep.js`, `diagnose_contabo_final.js`, `contabo_profile_check.js`, `test_contabo_circuit.js`, `test_vps_preflight.js`.
+- Full forensic report: `/app/CONTABO_500_DIAGNOSIS_AND_FIX.md`.
+
+### User action required
+1. Open Contabo support ticket — reference customer `14615517` + trace IDs in `CONTABO_500_DIAGNOSIS_AND_FIX.md`.
+2. Deploy these changes to Railway.
+3. After Contabo confirms fix, hit `POST /admin/contabo-circuit-reset?key=<secret>` or restart.
+
+---
+
 ## 2026-02 — "Where is my other domain?" / missing-domain AI hallucinations fixed (multiple users)
 
 ### Customer journeys reproduced from `aiSupportChats`
