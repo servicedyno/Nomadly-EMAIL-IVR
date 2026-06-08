@@ -9232,9 +9232,55 @@ Enter new value:`), bc)
     askVpsConfig: async () => {
       await set(state, chatId, 'action', a.askVpsConfig)
       const configTypes = info?.vpsConfigTypes
-      // Keyboard buttons show name + price for clarity
-      const configList = configTypes.map((item) => `${item.name} — $${item.monthlyPrice}/mo`)
-      return send(chatId, vp.askVpsConfig(configTypes), vp.of(configList))  
+      if (!configTypes || !configTypes.length) return send(chatId, vp.failedFetchingData, trans('o'))
+
+      // ── Conversion fixes (see RAILWAY_LOG_ANALYSIS_LATEST.md, 2026-06-08):
+      //    In 79h of prod, 0 users completed VPS purchase. The single point of
+      //    drop-off was the plan-list screen (price shock, no wallet preview,
+      //    no popular-plan hint, no social proof). The four fixes below all
+      //    apply at THIS screen — leaving the rest of the funnel untouched.
+      //
+      //    Fix 1 (P0): show wallet balance + affordability so users with low
+      //                balance see "top up $11 more" instead of dropping off.
+      //    Fix 2 (P0): tag the cheapest plan with "🌟 Most popular" so users
+      //                facing decision paralysis have a clear entry.
+      //    Fix 3 (P1): inject the existing `getSocialProof('vps')` line into
+      //                the plan-list reply (it already shows on the menu —
+      //                we just re-surface it where the decision is made).
+      //    Fix 7 (P3): show daily-price anchor next to monthly price.
+      const lang = info?.userLanguage || 'en'
+
+      // Cheapest plan is the conventional "entry point" — flag it.
+      const sorted = [...configTypes].sort((a, b) => Number(a.monthlyPrice) - Number(b.monthlyPrice))
+      const cheapestName = sorted[0]?.name
+
+      // Wallet balance for affordability hint
+      let walletUsd = null
+      try {
+        const { usdBal } = await getBalance(walletOf, chatId)
+        walletUsd = Number(usdBal) || 0
+      } catch (e) {
+        console.log(`[VPS] askVpsConfig: getBalance failed for ${chatId}: ${e.message}`)
+      }
+
+      // Social proof reused from the VPS-menu screen
+      let socialProof = ''
+      try {
+        if (userConversion) {
+          const p = userConversion.getSocialProof('vps', lang)
+          if (p) socialProof = String(p)
+        }
+      } catch (e) {
+        console.log(`[VPS] askVpsConfig: social-proof failed for ${chatId}: ${e.message}`)
+      }
+
+      // Keyboard buttons show name + price, with a star on the cheapest.
+      const configList = configTypes.map((item) => {
+        const baseLabel = `${item.name} — $${item.monthlyPrice}/mo`
+        return item.name === cheapestName ? `🌟 ${baseLabel}` : baseLabel
+      })
+
+      return send(chatId, vp.askVpsConfig(configTypes, { walletUsd, cheapestName, socialProof, lang }), vp.of(configList))
     },
 
     askUserVpsPlan: async () => {
@@ -16085,10 +16131,16 @@ ${message.replace(/\n/g, '<br>')}
   if (action === a.askVpsConfig) {
     if (message === vp.back) return goto.askVpsDiskType()
     const vpsConfigurations = info?.vpsConfigTypes
-    // Match by button text "Cloud VPS 1 — $8.18/mo" OR by plain name "Cloud VPS 1"
+    // Match by button text "Cloud VPS 1 — $8.18/mo" OR by plain name "Cloud VPS 1".
+    // The cheapest plan button now ships with a "🌟 " prefix (see goto.askVpsConfig)
+    // so the message we receive can be "🌟 Cloud VPS 1 — $8.18/mo". Strip that
+    // prefix before comparing — otherwise users tapping the starred plan get
+    // sent the "please select a valid config" reply.
+    const stripBadge = (s) => (typeof s === 'string' ? s.replace(/^🌟\s+/, '') : s)
+    const normalizedMessage = stripBadge(message)
     const configButtonLabels = vpsConfigurations.map((item) => `${item.name} — $${item.monthlyPrice}/mo`)
     const selectedConfigType = vpsConfigurations.find((item) =>
-      message === `${item.name} — $${item.monthlyPrice}/mo` || message === item.name
+      normalizedMessage === `${item.name} — $${item.monthlyPrice}/mo` || normalizedMessage === item.name
     )
     if (!selectedConfigType) return send(chatId, vp.validVpsConfig, vp.of(configButtonLabels))
     let vpsDetails = info?.vpsDetails

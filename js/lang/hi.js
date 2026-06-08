@@ -2869,14 +2869,33 @@ ${plans
  // Billing (Monthly only)
  hourlyBillingMessage: '',
 
- askVpsConfig: list => `⚙️ एक योजना चुनें:
- 
-${list
- .map(
- config =>
- `<strong>• ${config.name}</strong> — ${config.specs.vCPU} vCPU · ${config.specs.RAM}GB RAM · ${config.specs.disk}GB ${config.specs.diskType}`,
- )
- .join('\n')}`,
+ askVpsConfig: (list, extras = {}) => {
+  const { walletUsd, cheapestName, socialProof } = extras
+  const plans = list.map(config => {
+   const star = config.name === cheapestName ? '🌟 ' : ''
+   const monthly = Number(config.monthlyPrice) || 0
+   const daily = monthly > 0 ? (monthly / 30).toFixed(2) : null
+   const dailyHint = daily ? ` <i>(~$${daily}/दिन)</i>` : ''
+   return `<strong>• ${star}${config.name}</strong> — ${config.specs.vCPU} vCPU · ${config.specs.RAM}GB RAM · ${config.specs.disk}GB ${config.specs.diskType} — $${config.monthlyPrice}/माह${dailyHint}`
+  }).join('\n')
+
+  let walletLine = ''
+  if (typeof walletUsd === 'number') {
+   const sorted = [...list].sort((a, b) => Number(a.monthlyPrice) - Number(b.monthlyPrice))
+   const affordable = sorted.filter(p => Number(p.monthlyPrice) <= walletUsd)
+   if (affordable.length) {
+    const top = affordable[affordable.length - 1]
+    walletLine = `\n\n💰 <b>आपका वॉलेट:</b> $${walletUsd.toFixed(2)} — आप <b>${top.name}</b> तक खरीद सकते हैं ✅`
+   } else {
+    const cheapest = sorted[0]
+    const topUp = (Number(cheapest.monthlyPrice) - walletUsd).toFixed(2)
+    walletLine = `\n\n💰 <b>आपका वॉलेट:</b> $${walletUsd.toFixed(2)} — <b>${cheapest.name}</b> अनलॉक करने के लिए <b>$${topUp}</b> और जोड़ें`
+   }
+  }
+
+  const proofLine = socialProof ? `\n\n${socialProof}` : ''
+  return `⚙️ एक योजना चुनें:\n\n${plans}${proofLine}${walletLine}`
+ },
 
  validVpsConfig: 'कृपया एक वैध VPS कॉन्फ़िगरेशन चुनें:',
 
