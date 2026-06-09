@@ -4055,7 +4055,7 @@
       "timestamp": "2026-06-08T23:27:13.178301188Z"
     },
     {
-      "message": "[Contabo] Creating instance: productId=V91, region=US-central, image=1a5471c8-06f6-40cd-aff1-e946f72235a8",
+      "message": "[Contabo] Creating instance: productId=V91, region=US-central, image=quickstart-48",
       "severity": "info",
       "timestamp": "2026-06-08T23:27:13.178301568Z"
     },
@@ -5415,7 +5415,7 @@
       "timestamp": "2026-06-08T23:28:38.183207214Z"
     },
     {
-      "message": "[Contabo] Creating instance: productId=V92, region=US-east, image=1a5471c8-06f6-40cd-aff1-e946f72235a8",
+      "message": "[Contabo] Creating instance: productId=V92, region=US-east, image=quickstart-48",
       "severity": "info",
       "timestamp": "2026-06-08T23:28:38.184446037Z"
     },
