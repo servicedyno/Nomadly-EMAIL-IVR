@@ -6,11 +6,14 @@
 - **Plan**: Expired (no active subscription)
 - **Free SMS**: 100 used / 100 limit
 
+## Current Pod URL (updated 2026-06-09)
+- Base: `https://51ab17d8-170d-47d9-a807-01fa6d4f6a91.preview.emergentagent.com`
+
 ## SMS App Web URL
-- Browser test: `https://quickstart-48.preview.emergentagent.com/api/sms-app-web`
+- Browser test: `https://51ab17d8-170d-47d9-a807-01fa6d4f6a91.preview.emergentagent.com/api/sms-app-web`
 
 ## Hosting Panel
-- **URL**: `https://quickstart-48.preview.emergentagent.com/panel`
+- **URL**: `https://51ab17d8-170d-47d9-a807-01fa6d4f6a91.preview.emergentagent.com/panel`
 - **Email**: `hello@ivrpod.com`
 - **Password**: `Onlygod1234@`
 - **Panel Domain**: `https://panel.1.hostbay.io/panel`
