@@ -1271,7 +1271,12 @@ function scheduleSupportSlaNudge(chatId, displayName, openedTs, delayMs = 10 * 6
 const ivrWalletHintPrefix = async (chatId, lang = 'en', ivrObData = null) => {
   try {
     const voiceService = require('./voice-service.js')
-    const IVR_MIN_WALLET = parseFloat(process.env.BULK_CALL_MIN_WALLET || '50')
+    // Single Quick IVR call → small per-call floor ($1, QUICK_IVR_MIN_WALLET).
+    // Batch (>1 targets) is effectively a bulk run → keep the bulk minimum ($50).
+    const _isBatch = Array.isArray(ivrObData?.batchTargets) && ivrObData.batchTargets.length > 1
+    const IVR_MIN_WALLET = _isBatch
+      ? parseFloat(process.env.BULK_CALL_MIN_WALLET || '50')
+      : parseFloat(process.env.QUICK_IVR_MIN_WALLET || '1')
     const IVR_RATE = voiceService.IVR_CALL_RATE || 0.15
     const wc = await smartWalletCheck(walletOf, chatId, IVR_MIN_WALLET)
     const bal = wc.usdBal.toFixed(2)
@@ -20148,7 +20153,9 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       // their wallet is short of the required minimum. Now we surface the
       // balance + required minimum at the entry point so they can top up
       // BEFORE the time investment. Skip for free-trial users (no charge).
-      const IVR_MIN_WALLET = parseFloat(process.env.BULK_CALL_MIN_WALLET || '50')
+      // Quick IVR entry = single call → small per-call floor ($1, QUICK_IVR_MIN_WALLET).
+      // (Bulk campaigns enforce BULK_CALL_MIN_WALLET separately in bulk-call-service.)
+      const IVR_MIN_WALLET = parseFloat(process.env.QUICK_IVR_MIN_WALLET || '1')
       let walletHint = ''
       try {
         const wc = await smartWalletCheck(walletOf, chatId, IVR_MIN_WALLET)
@@ -21561,9 +21568,14 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       const voiceService = require('./voice-service.js')
       const ivrOb = require('./ivr-outbound.js')
 
-      // ━━━ Wallet balance check — minimum $50 required (skip for free trial) ━━━
+      // ━━━ Wallet balance check (skip for free trial) ━━━
+      // Single Quick IVR call → small per-call floor ($1, QUICK_IVR_MIN_WALLET).
+      // Batch (>1 targets) is effectively a bulk run → keep the bulk minimum ($50).
       if (!ivrObData.isTrial) {
-        const IVR_MIN_WALLET = parseFloat(process.env.BULK_CALL_MIN_WALLET || '50')
+        const _isBatch = Array.isArray(ivrObData.batchTargets) && ivrObData.batchTargets.length > 1
+        const IVR_MIN_WALLET = _isBatch
+          ? parseFloat(process.env.BULK_CALL_MIN_WALLET || '50')
+          : parseFloat(process.env.QUICK_IVR_MIN_WALLET || '1')
         const walletCheck = await smartWalletCheck(walletOf, chatId, IVR_MIN_WALLET)
         if (!walletCheck.sufficient) {
           // Mark campaign as awaiting deposit so the deposit-confirmed hook
