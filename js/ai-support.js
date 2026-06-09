@@ -155,11 +155,14 @@ This opens the Cloud IVR hub with these buttons:
 📞 Cloud IVR + SIP → 🛒 Choose a Plan → Select plan (Starter/Pro/Business) → Select country → Select number type (Local/Toll-Free/Mobile) → Pick a number from the list → Confirm order → Choose payment method → ✅ Number activated
 
 #### Plans & Pricing:
-${process.env.PHONE_SERVICE_ON === 'true' ? `- <b>Starter — $${process.env.PHONE_STARTER_PRICE || '50'}/mo</b>: ${process.env.STARTER_MINUTES || '100'} min + ${process.env.STARTER_SMS || '50'} SMS. Features: Call forwarding, SMS to Telegram. Up to 3 extra numbers.
-- <b>Pro — $${process.env.PHONE_PRO_PRICE || '75'}/mo</b>: ${process.env.PRO_MINUTES || '400'} min + ${process.env.PRO_SMS || '200'} SMS. Features: All Starter + Voicemail, SIP Credentials, SMS to Email, Quick IVR, Bulk IVR, OTP Collection (basic — default prompts only). Up to 15 extra numbers.
-- <b>Business — $${process.env.PHONE_BUSINESS_PRICE || '120'}/mo</b>: ${process.env.BUSINESS_MINUTES || '600'} min + ${process.env.BUSINESS_SMS || '300'} SMS. Features: All Pro + Call Recording, IVR Auto-attendant, Custom OTP Messages & Goodbye, IVR Redial. Up to 30 extra numbers.
-- Call forwarding/outbound: $${process.env.CALL_FORWARDING_RATE_MIN || '0.50'}/min (charged from wallet)
-- Overage: SMS $${process.env.OVERAGE_RATE_SMS || '0.02'}/msg, Calls $${process.env.OVERAGE_RATE_MIN || '0.04'}/min` : '- Phone service currently unavailable'}
+${process.env.PHONE_SERVICE_ON === 'true' ? `- <b>Starter — $${process.env.PHONE_STARTER_PRICE || '50'}/mo</b>: ${process.env.STARTER_MINUTES || '100'} INBOUND min + ${process.env.STARTER_SMS || '50'} SMS included/month. Features: Call forwarding, SMS to Telegram. Up to 3 extra numbers.
+- <b>Pro — $${process.env.PHONE_PRO_PRICE || '75'}/mo</b>: ${process.env.PRO_MINUTES || '400'} INBOUND min + ${process.env.PRO_SMS || '200'} SMS included/month. Features: All Starter + Voicemail, SIP Credentials, SMS to Email, Quick IVR, Bulk IVR, OTP Collection (basic — default prompts only). Up to 15 extra numbers.
+- <b>Business — $${process.env.PHONE_BUSINESS_PRICE || '120'}/mo</b>: ${process.env.BUSINESS_MINUTES || '600'} INBOUND min + ${process.env.BUSINESS_SMS || '300'} SMS included/month. Features: All Pro + Call Recording, IVR Auto-attendant, Custom OTP Messages & Goodbye, IVR Redial. Up to 30 extra numbers.
+- <b>IMPORTANT — included plan minutes are for INBOUND (received) calls only.</b> Outbound calls do NOT draw from plan minutes and are ALWAYS pay-as-you-go from the wallet. A funded wallet is required to place ANY outbound call, on every plan (including Pro/Business):
+  • Outbound IVR / OTP / Bulk IVR calls: $${process.env.BULK_CALL_RATE_PER_MIN || '0.15'}/min + $${process.env.CALL_CONNECTION_FEE || '0.03'} connection fee per call
+  • Call forwarding: $${process.env.CALL_FORWARDING_RATE_MIN || '0.50'}/min
+- Inbound overage (beyond the included monthly minutes): $${process.env.OVERAGE_RATE_MIN || '0.15'}/min · SMS overage: $${process.env.OVERAGE_RATE_SMS || '0.02'}/msg
+- NEVER tell a user that outbound, IVR, or OTP calls/minutes are "free" or "included" — they are always billed from the wallet. The plan's monthly minutes are an INBOUND allowance only.` : '- Phone service currently unavailable'}
 
 <b>IMPORTANT — Business-only OTP enhancements vs Pro:</b>
 - <b>Pro plan OTP</b>: Uses default system messages. Caller hears standard "Please enter the verification code..." prompt and standard "Your code has been verified" / "Maximum attempts reached" messages. No customization.

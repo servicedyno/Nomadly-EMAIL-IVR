@@ -55,14 +55,14 @@ const isPlanAvailable = (planKey) => planAvailability[planKey] !== false
 
 const comingSoonFeatures = {
   starter: [
-    `${STARTER_MINUTES} minutes/mo + ${STARTER_SMS} SMS`,
+    `${STARTER_MINUTES} inbound minutes/mo + ${STARTER_SMS} SMS`,
     'Call forwarding to any number',
     'SMS forwarded to Telegram',
     'Dedicated local phone number',
     `➕ Add up to ${SUB_NUMBER_LIMITS.starter} extra numbers`,
   ],
   pro: [
-    `${PRO_MINUTES} minutes/mo + ${PRO_SMS} SMS`,
+    `${PRO_MINUTES} inbound minutes/mo + ${PRO_SMS} SMS`,
     'All Starter features',
     'Voicemail with custom greetings',
     'SIP credentials for softphones',
@@ -73,7 +73,7 @@ const comingSoonFeatures = {
     `➕ Add up to ${SUB_NUMBER_LIMITS.pro} extra numbers`,
   ],
   business: [
-    `${BUSINESS_MINUTES === 'Unlimited' ? 'Unlimited' : BUSINESS_MINUTES} minutes + ${BUSINESS_SMS} SMS`,
+    `${BUSINESS_MINUTES === 'Unlimited' ? 'Unlimited' : BUSINESS_MINUTES} inbound minutes + ${BUSINESS_SMS} SMS`,
     'All Pro features included',
     'IVR Auto-Attendant with AI voice',
     'Call Recording & Analytics',
@@ -574,7 +574,7 @@ Virtual numbers in 30+ countries · Active in 2 minutes
 
 📞 Call forwarding · 💬 SMS to Telegram · 🌐 Browser calls · 🤖 IVR · 🔗 SIP
 
-Plans from <b>$${PHONE_STARTER_PRICE}/mo</b> (${plans.starter.minutes} min + ${plans.starter.sms} SMS included)
+Plans from <b>$${PHONE_STARTER_PRICE}/mo</b> (${plans.starter.minutes} inbound min + ${plans.starter.sms} SMS included · outbound from wallet)
 
 New? Tap <b>❓ How It Works</b>`,
 
@@ -599,9 +599,9 @@ Virtual phone numbers in 30+ countries, managed from Telegram.
 Inbound calls/SMS included · Outbound charged from wallet
 
 <b>📋 Plans:</b>
-💡 Starter $${PHONE_STARTER_PRICE}/mo — ${plans.starter.minutes} min · Forwarding + SMS
-⭐ Pro $${PHONE_PRO_PRICE}/mo — ${plans.pro.minutes} min · + Voicemail, SIP, IVR
-👑 Business $${PHONE_BUSINESS_PRICE}/mo — ${BUSINESS_MINUTES} min · + Recording, Auto-attendant
+💡 Starter $${PHONE_STARTER_PRICE}/mo — ${plans.starter.minutes} inbound min · Forwarding + SMS
+⭐ Pro $${PHONE_PRO_PRICE}/mo — ${plans.pro.minutes} inbound min · + Voicemail, SIP, IVR
+👑 Business $${PHONE_BUSINESS_PRICE}/mo — ${BUSINESS_MINUTES} inbound min · + Recording, Auto-attendant
 
 🧪 Try SIP free — tap <b>🧪 Test SIP Free</b>`,
 
@@ -639,13 +639,13 @@ Inbound calls/SMS included · Outbound charged from wallet
   selectPlan: (number) => {
     let text = `✅ Selected: <b>${formatPhone(number)}</b>\n\n📋 Choose your plan:\n\n`
     if (PHONE_STARTER_ON) {
-      text += `<b>💡 Starter — $${PHONE_STARTER_PRICE}/mo</b>\n📞 ${plans.starter.minutes} min · 📩 ${plans.starter.sms} SMS · Forwarding · Up to ${SUB_NUMBER_LIMITS.starter} extra numbers\n<b>🎙 IVR / SIP softphone:</b> ❌ <i>not included</i>\n🛡️ <i>14-day upgrade credit — get 25% off Pro/Business if you upgrade within 14 days</i>\n\n`
+      text += `<b>💡 Starter — $${PHONE_STARTER_PRICE}/mo</b>\n📞 ${plans.starter.minutes} inbound min · 📩 ${plans.starter.sms} SMS · Forwarding · Up to ${SUB_NUMBER_LIMITS.starter} extra numbers\n<b>🎙 IVR / SIP softphone:</b> ❌ <i>not included</i>\n🛡️ <i>14-day upgrade credit — get 25% off Pro/Business if you upgrade within 14 days</i>\n\n`
     }
     if (PHONE_PRO_ON) {
-      text += `<b>⭐ Pro — $${PHONE_PRO_PRICE}/mo</b>\n📞 ${plans.pro.minutes} min · 📩 ${plans.pro.sms} SMS · All Starter + Voicemail · SIP · Webhooks · IVR\n<b>🎙 IVR / SIP softphone:</b> ✅ <i>Quick IVR + Bulk IVR + OTP</i>\n🛡️ <i>14-day upgrade credit — get 25% off Business if you upgrade within 14 days</i>\n\n`
+      text += `<b>⭐ Pro — $${PHONE_PRO_PRICE}/mo</b>\n📞 ${plans.pro.minutes} inbound min · 📩 ${plans.pro.sms} SMS · All Starter + Voicemail · SIP · Webhooks · IVR\n<b>🎙 IVR / SIP softphone:</b> ✅ <i>Quick IVR + Bulk IVR + OTP</i>\n🛡️ <i>14-day upgrade credit — get 25% off Business if you upgrade within 14 days</i>\n\n`
     }
     if (PHONE_BUSINESS_ON) {
-      text += `<b>👑 Business — $${PHONE_BUSINESS_PRICE}/mo</b>\n📞 ${plans.business.minutes} min · 📩 ${plans.business.sms} SMS · All Pro + Recording · Auto-Attendant · Priority Support\n<b>🎙 IVR / SIP softphone:</b> ✅ <i>Pro + Auto-Attendant + Recording</i>\n\n`
+      text += `<b>👑 Business — $${PHONE_BUSINESS_PRICE}/mo</b>\n📞 ${plans.business.minutes} inbound min · 📩 ${plans.business.sms} SMS · All Pro + Recording · Auto-Attendant · Priority Support\n<b>🎙 IVR / SIP softphone:</b> ✅ <i>Pro + Auto-Attendant + Recording</i>\n\n`
     }
     text += `<i>💳 Outbound calls charged from wallet</i>\n<i>⚠️ Need IVR (Quick IVR Call, Bulk IVR Campaign, OTP, Auto-Attendant)? Choose Pro or Business — Starter does <b>not</b> include IVR.</i>`
     return text
@@ -661,7 +661,7 @@ Inbound calls/SMS included · Outbound charged from wallet
       : planKey === 'pro'
       ? `\n<i>🛡️ 14-day upgrade credit — get 25% off if you upgrade to Business within 14 days</i>`
       : ''
-    return `📋 <b>Order Summary</b>\n\n📞 ${formatPhone(number)} · ${country}\n📦 ${plan.name} — $${price}/mo\n📩 ${plan.sms} SMS · 📞 ${plan.minutes} min\n\n💰 Total: <b>$${price}</b> (first month)\n\n<i>💳 Outbound calls charged from wallet</i>${creditLine}${ivrLine}`
+    return `📋 <b>Order Summary</b>\n\n📞 ${formatPhone(number)} · ${country}\n📦 ${plan.name} — $${price}/mo\n📩 ${plan.sms} SMS · 📞 ${plan.minutes} inbound min\n\n💰 Total: <b>$${price}</b> (first month)\n\n<i>💳 Outbound calls (incl. IVR/OTP) are pay-as-you-go from wallet — plan minutes are inbound only</i>${creditLine}${ivrLine}`
   },
 
   paymentPrompt: (price) => `Price: <b>$${price}</b>. Choose payment method:`,
