@@ -818,9 +818,17 @@ async function onCallStatusUpdate(callSid, campaignId, leadIndex, status, durati
       transferConnected: transferred, // Speechcue Dial handles this — if completed it connected
     })
 
-    // ━━━ BILLING: Charge $BULK_CALL_RATE/min from wallet — ALL calls billed (answered or not) ━━━
-    // Every call attempt incurs carrier cost — charge minimum 1 minute for all statuses
-    if (_walletOf && freshCampaign.chatId) {
+    // ━━━ BILLING: Charge $BULK_CALL_RATE/min from wallet — only for calls that connected ━━━
+    // A call with finalStatus 'failed' AND 0s duration never reached the carrier
+    // (e.g. provider auth/system rejection like Twilio "Authenticate", or an
+    // invalid number) — no carrier cost was incurred, so billing it overcharges
+    // the user. Fix 2026-06-10 after the Twilio sub-account auth outage billed
+    // ~196 never-connected calls. Answered / no-answer / busy keep prior behavior.
+    const _neverConnected = finalStatus === 'failed' && (duration || 0) === 0
+    if (_neverConnected) {
+      log(`[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=${campaignId} lead=${leadIndex}`)
+    }
+    if (!_neverConnected && _walletOf && freshCampaign.chatId) {
       try {
         const minutesBilled = Math.max(1, Math.ceil((duration || 0) / 60))  // minimum 1 minute always
         const charge = +(minutesBilled * BULK_CALL_RATE).toFixed(4)
