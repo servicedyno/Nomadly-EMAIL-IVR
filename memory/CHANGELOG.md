@@ -1,5 +1,54 @@
 # CHANGELOG — Nomadly Bot
 
+## 2026-02 — Category D auto-heal: DENIC Nsentry detection in daily sweep
+
+Following the @HHR2009/rsvpeviteopen.de root-cause, the bifurcation healer
+now detects + auto-fixes `.de` domains that get silently stuck in DENIC
+**Nsentry mode** (where the registry serves a stale parking A-record
+directly via the TLD zone instead of delegating to nameservers).
+
+### How it works
+- For every `.de` domain in `domainsOf` ∪ `registeredDomains`, the heal
+  script now runs a fast `whois <domain>` and parses `Nsentry:` vs
+  `Nserver:` lines.
+- If `Nsentry:` is present and `Nserver:` is missing → **Category D**.
+- Heal action: call `opService.updateNameservers(domain, intendedNs)`
+  using either the NS already recorded at OP or the live CF zone NS.
+  The upstream `_sendNsUpdate` fix includes `ns_group: ''` which forces
+  a fresh DENIC `domain:update` (chprov). Within ~5 minutes DENIC flips
+  from Nsentry → Nserver and the CF zone activates.
+
+### Priority
+Category D is checked **before** Category C (orphan CF zone). A stuck
+`.de` can have OP showing CF NS + DB intending CF + no live CF zone yet
+(because CF can't activate until DENIC delegates). Without D-before-C
+the daily sweep would mis-flag these as orphan zones and skip them.
+
+### Tests
+- `test_heal_bifurcated_domains_categorize.js` — **14/14 pass**
+  (4 new tests for D detection, D-over-C priority, NOT-D on Nserver,
+  NOT-D on whois errors)
+- `test_bifurcation_heal_cron.js` — **18/18 pass**
+  (admin DM now includes Nsentry/D-healed line, default apply=A,B,D)
+
+### Files touched
+| File | Change |
+|---|---|
+| `scripts/heal_bifurcated_domains.js` | `_denicWhois()` helper, `denic` field on inspection result, `D` branch in `detectCategory`, new `healCategoryD()`, `APPLY_D` flag |
+| `js/bifurcation-heal-cron.js` | Default apply mode `'A,B' → 'A,B,D'`, admin DM now lists Category D count |
+| `js/tests/test_heal_bifurcated_domains_categorize.js` | +4 D-mode tests |
+| `js/tests/test_bifurcation_heal_cron.js` | Updated for new apply=A,B,D default + Nsentry line in DM |
+| `scripts/scan_de_nsentry.js` | Standalone one-shot scanner (used to verify fleet was clean — `14/14 .de domains in Nserver mode`) |
+| `memory/de_nsentry_audit.json` | Audit report from the fleet scan |
+
+### Fleet audit result
+Running the standalone scanner against all 14 `.de` domains in the
+fleet: **0 Nsentry-stuck, 14 properly delegated** (Nserver mode).
+The bug-fix loop is closed: existing fleet is clean, daily cron
+continuously verifies, and any future occurrence auto-heals overnight.
+
+---
+
 ## 2026-02 — rsvpeviteopen.de DENIC Nsentry trap + .de chprov fix + bifurcation heal cron (P0 + P1)
 
 ### P0 — @HHR2009 / rsvpeviteopen.de root cause

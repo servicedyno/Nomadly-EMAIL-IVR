@@ -80,7 +80,6 @@ Module._load = function (req, parent, isMain) {
     assert('B.2 cron is daily 03:30 UTC', job.cron === '30 3 * * *', `got '${job.cron}'`)
     assert('B.3 fn is a function', typeof job.fn === 'function')
   }
-
   // ── C. init() is idempotent (calling twice should NOT double-schedule) ─
   console.log('\nC. init() idempotency')
   scheduledJobs.length = 0
@@ -93,12 +92,12 @@ Module._load = function (req, parent, isMain) {
   console.log('\nD. runOnce() invocation')
   healCallArgs = null
   sentMessages.length = 0
-  await cron.runOnce({ bot: fakeBot, db: fakeDb, admin: '12345', apply: 'A,B' })
+  await cron.runOnce({ bot: fakeBot, db: fakeDb, admin: '12345', apply: 'A,B,D' })
 
   assert('D.1 heal.runHealSweep was called', !!healCallArgs)
   if (healCallArgs) {
     assert('D.2 db passed through', healCallArgs.db === fakeDb)
-    assert('D.3 apply mode is A,B', healCallArgs.apply === 'A,B')
+    assert('D.3 apply mode is A,B,D', healCallArgs.apply === 'A,B,D')
   }
   assert('D.4 no admin DM when summary is all-OK', sentMessages.length === 0,
     `unexpectedly sent: ${JSON.stringify(sentMessages)}`)
@@ -106,14 +105,15 @@ Module._load = function (req, parent, isMain) {
   // ── E. runOnce() DMs admin when findings exist ────────────────────────
   console.log('\nE. runOnce() admin alert on findings')
   healReturnValue = {
-    summary: { OK: 100, A: 3, B: 1, C: 2, ERROR: 0 },
+    summary: { OK: 100, A: 3, B: 1, C: 2, D: 1, ERROR: 0 },
     results: [
       { category: 'C', domain: 'orphan1.com' },
       { category: 'C', domain: 'orphan2.net' },
+      { category: 'D', domain: 'stuck.de' },
     ],
   }
   sentMessages.length = 0
-  await cron.runOnce({ bot: fakeBot, db: fakeDb, admin: '12345', apply: 'A,B' })
+  await cron.runOnce({ bot: fakeBot, db: fakeDb, admin: '12345', apply: 'A,B,D' })
 
   assert('E.1 admin DM was sent', sentMessages.length === 1)
   if (sentMessages.length === 1) {
@@ -123,6 +123,7 @@ Module._load = function (req, parent, isMain) {
       `body: ${m.body.slice(0, 200)}`)
     assert('E.4 body lists C orphans', m.body.includes('orphan1.com') && m.body.includes('orphan2.net'))
     assert('E.5 HTML parse_mode', m.opts?.parse_mode === 'HTML')
+    assert('E.6 body mentions Nsentry / D-healed', /Nsentry|D\s*\(/.test(m.body), `body: ${m.body.slice(0, 300)}`)
   }
 
   // ── F. runOnce() handles heal exceptions ──────────────────────────────
@@ -131,7 +132,7 @@ Module._load = function (req, parent, isMain) {
   sentMessages.length = 0
   let crashed = false
   try {
-    await cron.runOnce({ bot: fakeBot, db: fakeDb, admin: '12345', apply: 'A,B' })
+    await cron.runOnce({ bot: fakeBot, db: fakeDb, admin: '12345', apply: 'A,B,D' })
   } catch {
     crashed = true
   }
