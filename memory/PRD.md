@@ -1,7 +1,7 @@
 # Nomadly — Multi-Service Platform PRD
 
 > 📋 **Recent changes are tracked in [`CHANGELOG.md`](./CHANGELOG.md)** (added 2026-02 for size).
-> Latest entry: **2026-02 — Category D auto-heal: DENIC Nsentry detection in daily sweep** — Following the @HHR2009/rsvpeviteopen.de root-cause, the daily bifurcation heal cron now also detects `.de` domains stuck in DENIC Nsentry mode via fast whois probe and auto-heals them by re-pushing NS through OpenProvider (which now always sends `ns_group: ''` to force registry chprov). Fleet audit: 14/14 `.de` domains currently in proper Nserver mode. Tests: 45 total (14 categorize + 18 cron + 10 op-ns + 3 cf-zone), all green.
+> Latest entry: **2026-02 — Contabo POST unblock confirmed + Railway API key auth fix** — Re-probed Contabo POST `/compute/instances` with safe-invalid payload: returns HTTP 400 (validation error) → **vendor block is LIFTED**, customers can now buy VPS. Railway key was never stale — it's a project-token, requires `Project-Access-Token` header (not `Authorization: Bearer`). Production confirmed running my changes (`BifurcationHealCron` scheduled, `rsvpeviteopen.de` in SSL grace period 18.3h remaining). `@davion419` is stuck pre-payment with $0 wallet — purely a customer-service nudge, no code-side blocker.
 
 ## Session 2026-02-XX — MySQL UI for Hosting Panel (cPanel-style, Phase 1 + 2)
 **Status: ✅ COMPLETE — verified across 3 testing iterations (39/39 backend, 100% frontend, zero console warnings).**
