@@ -123,14 +123,29 @@ const registerDomain = async (domainName, registrar, nsChoice, db, chatId, custo
   // Determine nameservers based on choice
   if (nsChoice === 'cloudflare') {
     log(`[domain-service] Creating Cloudflare zone for ${domainName}...`)
-    const cfResult = await cfService.createZone(domainName)
+    let cfResult = await cfService.createZone(domainName)
+    // ── Retry once on transient failure before downgrading to provider_default.
+    //    Previously a single transient CF error silently downgraded the user's
+    //    choice → produced the @HHR2009 / rsvpeviteopen.org broken state where
+    //    domainsOf had nameserverType=provider_default but a later shortener
+    //    activation created an orphan CF zone, with OP NS still on
+    //    ns*.openprovider.* — domain never reached Cloudflare. See
+    //    /app/scripts/heal_rsvpeviteopen_org.js for the user-level fix.
+    if (!cfResult.success) {
+      log(`[domain-service] Cloudflare zone creation failed (attempt 1), retrying once:`, cfResult.errors)
+      await new Promise(r => setTimeout(r, 1500))
+      cfResult = await cfService.createZone(domainName)
+    }
     if (cfResult.success) {
       nameservers = cfResult.nameservers || []
       cfZoneId = cfResult.zoneId
       log(`[domain-service] Cloudflare zone created. NS: ${nameservers.join(', ')}`)
     } else {
-      log(`[domain-service] Cloudflare zone creation failed:`, cfResult.errors)
-      nsChoice = 'provider_default'
+      // Hard failure after retry — abort registration instead of silently
+      // downgrading. Caller charges the user only on success, so user is not
+      // charged in this branch (buyResult.error path).
+      log(`[domain-service] Cloudflare zone creation FAILED after retry — aborting registration for ${domainName}:`, cfResult.errors)
+      return { error: 'Cloudflare zone could not be created. Your card was NOT charged. Please retry in a few minutes or pick a different nameserver option.' }
     }
   } else if (nsChoice === 'custom' && customNS && customNS.length >= 2) {
     nameservers = customNS

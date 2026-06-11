@@ -195,10 +195,17 @@ const syncSingleDomain = async (doc, db) => {
           }))
           result.cfRecordCount = cfRecords.length
 
-          // Update DB with recovered cfZoneId
+          // Update DB with recovered cfZoneId — write to BOTH collections to
+          // prevent the divergence we saw in @HHR2009's rsvpeviteopen.org
+          // (registeredDomains.val.cfZoneId set but domainsOf.cfZoneId=null).
           await db.collection('registeredDomains').updateOne(
             { _id: domain },
             { $set: { 'val.cfZoneId': zone.id } }
+          )
+          await db.collection('domainsOf').updateOne(
+            { domainName: domain },
+            { $set: { cfZoneId: zone.id, nameserverType: 'cloudflare' } },
+            { upsert: false }
           )
         } else {
           result.cfStatus = 'zone_missing'

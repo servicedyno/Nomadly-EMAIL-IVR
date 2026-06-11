@@ -1,4 +1,53 @@
 # CHANGELOG — Nomadly Bot
+## 2026-02 — @HHR2009 / rsvpeviteopen.org broken-state heal + silent-downgrade source fix
+**P0 customer-visible issue**: User reported the captcha page never appeared for the `.org` domain (purchased 2026-06-11). Sister domain `.de` (purchased 4 hours earlier on Cloudflare NS) worked fine.
+
+### Root cause
+Inconsistent metadata between `domainsOf` and `registeredDomains`:
+- `domainsOf` had `cfZoneId: null, nameserverType: 'provider_default'`
+- `registeredDomains` had a minimal orphan val with `cfZoneId: '2047e3...', nameserverType: 'cloudflare'`
+- CF zone `2047e3014…` actually existed (with proxy CNAME → tunnel)
+- BUT OpenProvider NS still pointed at `ns1.openprovider.nl, ns2.openprovider.be, ns3.openprovider.eu` — so traffic never reached Cloudflare → no captcha page
+
+Triggered by `domain-service.registerDomain` silently downgrading `nsChoice='cloudflare'` → `'provider_default'` on a single transient CF failure, then a downstream sync flow (shortener activation or `domain-sync.js`) creating a CF zone but failing to update the registrar NS, leaving the domain bifurcated.
+
+### Fixes shipped
+1. **`/app/scripts/heal_rsvpeviteopen_org.js`** (one-shot, ran in this session) — updated OpenProvider NS to `anderson.ns.cloudflare.com, leanna.ns.cloudflare.com` (auto-disabled DNSSEC since NS moved off OP), synced both `domainsOf` and `registeredDomains` records. Verified at source-of-truth: OP now reports `status=ACT, NS=anderson+leanna`. Captcha page will appear once TLD NS propagates (1–24 h).
+2. **`/app/js/domain-service.js`** — `registerDomain()`: when `nsChoice='cloudflare'` and `cfService.createZone` fails, the code now retries once after 1.5 s. If still failing, returns `{ error: ... }` and aborts registration (caller path does NOT debit the wallet on error). No more silent downgrade.
+3. **`/app/js/domain-sync.js`** — when the sync engine recovers a missing `cfZoneId` from CF, it now writes to BOTH `registeredDomains.val` AND `domainsOf` (was only `registeredDomains`), preventing future divergence.
+
+### Tests
+- `/app/js/tests/test_cf_zone_no_silent_downgrade.js` — **3/3 pass**: persistent CF failure → error + OP never invoked; transient failure → retry succeeds + OP called once; first-try success → no retry waste.
+- `node /app/js/tests/test_domain_registrar_autodetect.js` — **7/7 pass** (regression).
+- `node /app/js/tests/test_resolve_registrar.js` — **19/19 pass** (regression).
+- `sudo supervisorctl restart nodejs` clean — no syntax errors.
+
+### Audit findings — Contabo VPS orphan fleet (P1, surfaced this session)
+8 live Contabo instances on customer `INT-14615517`; **4 are orphans** with no `vpsPlansOf` record:
+- `#203072960` — running, IP 5.189.166.127 → matches `EV_WORKER_URL` ✅ internal infra (ignore).
+- `#203228089` — chatId 404562920 (@davion419), stopped, cancelDate **2026-06-11 (TODAY)**. State diverges (points to revoked 203220843). Will be auto-cancelled.
+- `#203251506` — chatId 1137258806, stopped, V91 NVMe Cloud VPS 10, cancelDate **2026-06-21**. Bot can't manage it; reminders not firing.
+- `#203259606` — chatId 6277663071, running, V91, cancelDate **2026-06-25**. Bot can't manage it.
+
+Diagnostic: `/app/scripts/audit_vps_orphans.js`.
+
+### Files touched
+- `/app/js/domain-service.js` (no-silent-downgrade + retry)
+- `/app/js/domain-sync.js` (dual-collection write on cfZoneId recovery)
+- `/app/scripts/heal_rsvpeviteopen_org.js` (new — one-shot user fix)
+- `/app/scripts/diagnose_rsvpeviteopen.js`, `diagnose_rsvpeviteopen_deep.js` (new — read-only diagnostics)
+- `/app/scripts/audit_vps_orphans.js` (new — read-only orphan map)
+- `/app/scripts/probe_contabo_status.js` (new — read-only Contabo health probe)
+- `/app/js/tests/test_cf_zone_no_silent_downgrade.js` (new — 3 regression tests)
+
+### Open items (need user input)
+- **Railway API key** (`8a6f6eb8-2ed6-…`) returns `Not Authorized` on both `me`/`projects` queries with both auth styles — confirmed stale. Need a fresh key to access prod logs.
+- **Contabo `POST /compute/instances` 500 block** — unchanged from prior session. User needs to confirm Contabo support unblocked the account before any new provisioning attempts (script `/app/scripts/provision_davion419.js` ready to fire).
+- **Orphan VPS backfills** — should the 3 customer-orphan records be reconstructed into `vpsPlansOf` so the bot can send renewal reminders / manage them via the menu? `#203251506` and `#203259606` will be auto-cancelled by Contabo within ~10–14 days if no action is taken.
+
+---
+
+
 
 ## 2026-06-08 — Contabo CREATE 500: vendor block + circuit-breaker mitigation
 **P0 production fire** — `POST /v1/compute/instances` returning HTTP 500 in ~3 ms for every product/region/image combo on customer `14615517`. Every other endpoint (auth, READs, POST /secrets) on the same OAuth token returns 2xx — so this is a vendor-side block, not our code.
