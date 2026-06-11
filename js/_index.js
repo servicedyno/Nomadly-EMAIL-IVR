@@ -35793,7 +35793,10 @@ app.post('/twilio/voice-dial-status', async (req, res) => {
         : DialCallStatus === 'failed' ? 'Call failed'
         : DialCallStatus === 'canceled' ? 'Cancelled'
         : DialCallStatus || 'Unknown'
-      bot?.sendMessage(chatId, `❌ <b>Forward Failed</b> — ${reason}\nFrom: ${decodedFrom}\n📲 ${fwdTarget} didn't answer`, { parse_mode: 'HTML' }).catch(() => {})
+      let _fwdIcon = '❌', _fwdTitle = 'Forward Failed'
+      if (DialCallStatus === 'no-answer') { _fwdIcon = '📞'; _fwdTitle = 'Forward — No Answer' }
+      else if (DialCallStatus === 'busy') { _fwdIcon = '📵'; _fwdTitle = 'Forward — Line Busy' }
+      bot?.sendMessage(chatId, `${_fwdIcon} <b>${_fwdTitle}</b>\nFrom: ${decodedFrom}\n📲 ${fwdTarget} — ${reason}`, { parse_mode: 'HTML' }).catch(() => {})
 
       if (vmConfig?.enabled) {
         if (vmConfig.greetingType === 'custom' && vmConfig.customAudioGreetingUrl) {

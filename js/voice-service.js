@@ -3946,7 +3946,7 @@ async function handleCallHangup(payload) {
       _bot.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
     } else {
       const lang2 = await _getUserLang(chatId)
-      const msg = _trans('t.vs_forwardFailed', lang2, formatPhone(to), formatPhone(forwardTo), formatPhone(from), time) || `❌ <b>Forward Failed</b>\n\n📞 ${formatPhone(to)} → 📲 ${formatPhone(forwardTo)}\n👤 ${formatPhone(from)}\n🕐 ${time}`
+      const msg = _trans('t.vs_forwardFailed', lang2, formatPhone(to), formatPhone(forwardTo), formatPhone(from), time) || `📞 <b>Forward — No Answer</b>\n\n📞 ${formatPhone(to)} → 📲 ${formatPhone(forwardTo)}\n👤 ${formatPhone(from)}\n🕐 ${time}`
       _bot.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
     }
     logEvent(to, from, transferConnected ? 'forwarded' : 'forward_failed', duration)
@@ -3956,7 +3956,7 @@ async function handleCallHangup(payload) {
     if (nativeTransfer) {
       if (nativeTransfer._timeout) clearTimeout(nativeTransfer._timeout)
       if (!nativeTransfer.connected) {
-        const msg = `❌ <b>SIP Call Failed — Transfer No Answer</b>\n\n📞 From: ${formatPhone(from)}\n📲 To: ${formatPhone(to)}\n📲 Transfer to ${formatPhone(nativeTransfer.forwardTo)} didn't connect\n🕐 ${time}`
+        const msg = `📞 <b>SIP Call — Transfer No Answer</b>\n\n📞 From: ${formatPhone(from)}\n📲 To: ${formatPhone(to)}\n📲 Transfer to ${formatPhone(nativeTransfer.forwardTo)} didn't connect\n🕐 ${time}`
         _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
       } else {
         const msg = `📞 <b>SIP Call Ended</b>\n\n📞 From: ${formatPhone(from)}\n📲 To: ${formatPhone(to)}\n⏱️ ${formatDuration(duration)}\n${planLine}\n🕐 ${time}`
@@ -4465,7 +4465,7 @@ async function handleOutboundIvrGatherEnded(payload) {
         session.otpStatus = 'max_attempts'
         await _telnyxApi.speakOnCall(callControlId, 'Maximum attempts reached. Goodbye.', getTelnyxVoice(session.voiceName))
         setTimeout(() => _telnyxApi.hangupCall(callControlId), 2000)
-        _bot?.sendMessage(session.chatId, `❌ <b>OTP Failed</b>\n📞 ${session.targetNumber}\n⚠️ Max attempts (${session.otpMaxAttempts}) reached without valid code.`, { parse_mode: 'HTML' }).catch(() => {})
+        _bot?.sendMessage(session.chatId, `⚠️ <b>OTP Not Collected</b>\n📞 ${session.targetNumber}\n⚠️ Max attempts (${session.otpMaxAttempts}) reached without valid code.`, { parse_mode: 'HTML' }).catch(() => {})
         return true
       }
     }
