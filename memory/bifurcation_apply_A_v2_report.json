@@ -1,0 +1,5420 @@
+{
+  "startedAt": "2026-06-11T18:36:13.561Z",
+  "finishedAt": "2026-06-11T18:38:33.469Z",
+  "summary": {
+    "OK": 34,
+    "A": 88,
+    "B": 0,
+    "C": 39,
+    "ERROR": 0
+  },
+  "mode": "apply=A",
+  "results": [
+    {
+      "domain": "03secure.click",
+      "chatId": null,
+      "registrar": null,
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "a7f7de2aa6c46e9164dc3963eb0ccadf",
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": {
+        "id": "a7f7de2aa6c46e9164dc3963eb0ccadf",
+        "status": "moved",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 0,
+      "cfHasTunnelCname": false,
+      "registrarNs": null,
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=a7f7de2aa6c46e9164dc3963eb0ccadf, nsT=cloudflare}",
+      "healActions": [
+        "(skipped domainsOf — no chatId attribution possible)",
+        "✓ registeredDomains synced (cfZoneId=a7f7de2aa6c46e9164dc3963eb0ccadf)"
+      ],
+      "healResult": null
+    },
+    {
+      "domain": "03seucre-auth.click",
+      "chatId": null,
+      "registrar": null,
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": null,
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": null,
+      "category": "C",
+      "reason": "CF flagged in DB but no live CF zone found",
+      "healActions": [],
+      "healResult": null
+    },
+    {
+      "domain": "07secure-recover.click",
+      "chatId": null,
+      "registrar": null,
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "6d3e31e338a3b56c4c956508db8856ed",
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": {
+        "id": "6d3e31e338a3b56c4c956508db8856ed",
+        "status": "active",
+        "nameservers": [
+          "jose.ns.cloudflare.com",
+          "joselyn.ns.cloudflare.com"
+        ],
+        "originalNs": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ]
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": null,
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=6d3e31e338a3b56c4c956508db8856ed, nsT=cloudflare}",
+      "healActions": [
+        "(skipped domainsOf — no chatId attribution possible)",
+        "✓ registeredDomains synced (cfZoneId=6d3e31e338a3b56c4c956508db8856ed)"
+      ],
+      "healResult": null
+    },
+    {
+      "domain": "1passvvord.org",
+      "chatId": "8355565115",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": null,
+        "nameserverType": "provider_default",
+        "opDomainId": 29469635,
+        "registrar": "OpenProvider",
+        "chatId": "8355565115"
+      },
+      "registeredDomains": null,
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "ns1.openprovider.nl",
+        "ns2.openprovider.be",
+        "ns3.openprovider.eu"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=provider_default} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "skipped: no live CF zone — refusing to stamp a stale cfZoneId on either side"
+      ],
+      "healResult": null,
+      "opDomainId": 29469635,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "1passwords.org",
+      "chatId": "8355565115",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": null,
+        "nameserverType": "provider_default",
+        "opDomainId": 29463974,
+        "registrar": "OpenProvider",
+        "chatId": "8355565115"
+      },
+      "registeredDomains": null,
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "ns1.openprovider.nl",
+        "ns2.openprovider.be",
+        "ns3.openprovider.eu"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=provider_default} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "skipped: no live CF zone — refusing to stamp a stale cfZoneId on either side"
+      ],
+      "healResult": null,
+      "opDomainId": 29463974,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "1psswd.org",
+      "chatId": "8355565115",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": null,
+        "nameserverType": "provider_default",
+        "opDomainId": 29464201,
+        "registrar": "OpenProvider",
+        "chatId": "8355565115"
+      },
+      "registeredDomains": null,
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "ns1.openprovider.nl",
+        "ns2.openprovider.be",
+        "ns3.openprovider.eu"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=provider_default} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "skipped: no live CF zone — refusing to stamp a stale cfZoneId on either side"
+      ],
+      "healResult": null,
+      "opDomainId": 29464201,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "account-verify.ca",
+      "chatId": "6331544767",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": null,
+        "nameserverType": "custom",
+        "opDomainId": 29313559,
+        "registrar": "OpenProvider",
+        "chatId": "6331544767"
+      },
+      "registeredDomains": {
+        "cfZoneId": "dc2238b141021c6f454f3130d9c5ea6e",
+        "nameserverType": "custom",
+        "opDomainId": 29313559,
+        "hasFullVal": true,
+        "ownerChatId": 6331544767
+      },
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "ns1.vercel-dns.com",
+        "ns2.vercel-dns.com"
+      ],
+      "category": "C",
+      "reason": "CF flagged in DB but no live CF zone found",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29313559,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "americafirstcu.click",
+      "chatId": null,
+      "registrar": null,
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "c178e6cf0188d2d34798219ac16fa6c5",
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": {
+        "id": "c178e6cf0188d2d34798219ac16fa6c5",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": null,
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=c178e6cf0188d2d34798219ac16fa6c5, nsT=cloudflare}",
+      "healActions": [
+        "(skipped domainsOf — no chatId attribution possible)",
+        "✓ registeredDomains synced (cfZoneId=c178e6cf0188d2d34798219ac16fa6c5)"
+      ],
+      "healResult": null
+    },
+    {
+      "domain": "americafirstgateway.com",
+      "chatId": "6395648769",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "062bfc4aa5e35de7eb8be08a9b63b5ee",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29383515,
+        "registrar": "OpenProvider",
+        "chatId": "6395648769"
+      },
+      "registeredDomains": null,
+      "cfZone": {
+        "id": "062bfc4aa5e35de7eb8be08a9b63b5ee",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=062bfc4aa5e35de7eb8be08a9b63b5ee, nsT=cloudflare} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "✓ domainsOf synced (cfZoneId=062bfc4aa5e35de7eb8be08a9b63b5ee)",
+        "✓ registeredDomains synced (cfZoneId=062bfc4aa5e35de7eb8be08a9b63b5ee)"
+      ],
+      "healResult": null,
+      "opDomainId": 29383515,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "americanrivieragateway.com",
+      "chatId": 6395648769,
+      "registrar": "OpenProvider",
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "1e0e14db6c7030c2ffbf8c7d1945b9fd",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29049054,
+        "hasFullVal": true,
+        "ownerChatId": 6395648769
+      },
+      "cfZone": {
+        "id": "1e0e14db6c7030c2ffbf8c7d1945b9fd",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=1e0e14db6c7030c2ffbf8c7d1945b9fd, nsT=cloudflare}",
+      "healActions": [
+        "✓ domainsOf inserted for chatId=6395648769 (cfZoneId=1e0e14db6c7030c2ffbf8c7d1945b9fd)",
+        "✓ registeredDomains synced (cfZoneId=1e0e14db6c7030c2ffbf8c7d1945b9fd)"
+      ],
+      "healResult": null,
+      "opDomainId": 29049054,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "auth-blosecure.sbs",
+      "chatId": null,
+      "registrar": "external_unmanaged",
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "fe3f282c455d5bdebd5e495086d5a608",
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": {
+        "id": "fe3f282c455d5bdebd5e495086d5a608",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": [
+          "ns1.dnsowl.com",
+          "ns2.dnsowl.com",
+          "ns3.dnsowl.com"
+        ]
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": null,
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=fe3f282c455d5bdebd5e495086d5a608, nsT=cloudflare}",
+      "healActions": [
+        "(skipped domainsOf — no chatId attribution possible)",
+        "✓ registeredDomains synced (cfZoneId=fe3f282c455d5bdebd5e495086d5a608)"
+      ],
+      "healResult": null
+    },
+    {
+      "domain": "auth3-boa.click",
+      "chatId": null,
+      "registrar": null,
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "8ac6115479c866470aea0169f914028d",
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": {
+        "id": "8ac6115479c866470aea0169f914028d",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": null,
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=8ac6115479c866470aea0169f914028d, nsT=cloudflare}",
+      "healActions": [
+        "(skipped domainsOf — no chatId attribution possible)",
+        "✓ registeredDomains synced (cfZoneId=8ac6115479c866470aea0169f914028d)"
+      ],
+      "healResult": null
+    },
+    {
+      "domain": "bankofamericaweb.click",
+      "chatId": null,
+      "registrar": null,
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "abe27fe6b9f901a8869f38e62d4af745",
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": {
+        "id": "abe27fe6b9f901a8869f38e62d4af745",
+        "status": "moved",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": null,
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=abe27fe6b9f901a8869f38e62d4af745, nsT=cloudflare}",
+      "healActions": [
+        "(skipped domainsOf — no chatId attribution possible)",
+        "✓ registeredDomains synced (cfZoneId=abe27fe6b9f901a8869f38e62d4af745)"
+      ],
+      "healResult": null
+    },
+    {
+      "domain": "bankofamericaweb.com",
+      "chatId": null,
+      "registrar": "external_unmanaged",
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "2b261112ebbc38d4e2f51e458147694c",
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": {
+        "id": "2b261112ebbc38d4e2f51e458147694c",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": null,
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=2b261112ebbc38d4e2f51e458147694c, nsT=cloudflare}",
+      "healActions": [
+        "(skipped domainsOf — no chatId attribution possible)",
+        "✓ registeredDomains synced (cfZoneId=2b261112ebbc38d4e2f51e458147694c)"
+      ],
+      "healResult": null
+    },
+    {
+      "domain": "bmoapigateway.com",
+      "chatId": 6395648769,
+      "registrar": "OpenProvider",
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "3ab33c8b385170a1e0b329c7e87e2a8a",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29049198,
+        "hasFullVal": true,
+        "ownerChatId": 6395648769
+      },
+      "cfZone": {
+        "id": "3ab33c8b385170a1e0b329c7e87e2a8a",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=3ab33c8b385170a1e0b329c7e87e2a8a, nsT=cloudflare}",
+      "healActions": [
+        "✓ domainsOf inserted for chatId=6395648769 (cfZoneId=3ab33c8b385170a1e0b329c7e87e2a8a)",
+        "✓ registeredDomains synced (cfZoneId=3ab33c8b385170a1e0b329c7e87e2a8a)"
+      ],
+      "healResult": null,
+      "opDomainId": 29049198,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "bmoonlinegateway.com",
+      "chatId": 6395648769,
+      "registrar": "OpenProvider",
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": null,
+        "nameserverType": "cloudflare",
+        "opDomainId": 28532840,
+        "hasFullVal": true,
+        "ownerChatId": 6395648769
+      },
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "C",
+      "reason": "CF flagged in DB but no live CF zone found",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 28532840,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "bncsecuregateway.com",
+      "chatId": 6395648769,
+      "registrar": "OpenProvider",
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "15ca80cff6ecbf3a8245bc4e656c054f",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29176786,
+        "hasFullVal": true,
+        "ownerChatId": 6395648769
+      },
+      "cfZone": {
+        "id": "15ca80cff6ecbf3a8245bc4e656c054f",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=15ca80cff6ecbf3a8245bc4e656c054f, nsT=cloudflare}",
+      "healActions": [
+        "✓ domainsOf inserted for chatId=6395648769 (cfZoneId=15ca80cff6ecbf3a8245bc4e656c054f)",
+        "✓ registeredDomains synced (cfZoneId=15ca80cff6ecbf3a8245bc4e656c054f)"
+      ],
+      "healResult": null,
+      "opDomainId": 29176786,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "boasecureprofile.com",
+      "chatId": "6395648769",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "b4932a6087b2816d18ab8e26c120fd24",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29542615,
+        "registrar": "OpenProvider",
+        "chatId": "6395648769"
+      },
+      "registeredDomains": null,
+      "cfZone": {
+        "id": "b4932a6087b2816d18ab8e26c120fd24",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 1,
+      "cfHasTunnelCname": false,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=b4932a6087b2816d18ab8e26c120fd24, nsT=cloudflare} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "✓ domainsOf synced (cfZoneId=b4932a6087b2816d18ab8e26c120fd24)",
+        "✓ registeredDomains synced (cfZoneId=b4932a6087b2816d18ab8e26c120fd24)"
+      ],
+      "healResult": null,
+      "opDomainId": 29542615,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "bofalivesupport.com",
+      "chatId": 6395648769,
+      "registrar": "OpenProvider",
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "2fe25d2b6a2e2995a00321792d66b622",
+        "nameserverType": "cloudflare",
+        "opDomainId": 28993375,
+        "hasFullVal": true,
+        "ownerChatId": 6395648769
+      },
+      "cfZone": {
+        "id": "2fe25d2b6a2e2995a00321792d66b622",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=2fe25d2b6a2e2995a00321792d66b622, nsT=cloudflare}",
+      "healActions": [
+        "✓ domainsOf inserted for chatId=6395648769 (cfZoneId=2fe25d2b6a2e2995a00321792d66b622)",
+        "✓ registeredDomains synced (cfZoneId=2fe25d2b6a2e2995a00321792d66b622)"
+      ],
+      "healResult": null,
+      "opDomainId": 28993375,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "bottomlinesavings.xyz",
+      "chatId": null,
+      "registrar": null,
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": null,
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": null,
+      "category": "C",
+      "reason": "CF flagged in DB but no live CF zone found",
+      "healActions": [],
+      "healResult": null
+    },
+    {
+      "domain": "canadatrust.live",
+      "chatId": "8352542716",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "36ea7a677c71ae22ab30f5fc80a74f5f",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29485371,
+        "registrar": "OpenProvider",
+        "chatId": "8352542716"
+      },
+      "registeredDomains": null,
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "ivan.ns.cloudflare.com",
+        "susan.ns.cloudflare.com"
+      ],
+      "category": "C",
+      "reason": "CF flagged in DB but no live CF zone found",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29485371,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "cap1online360.com",
+      "chatId": "7893016294",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "d1037a0f803c996c63d427e796688919",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29406728,
+        "registrar": "OpenProvider",
+        "chatId": "7893016294"
+      },
+      "registeredDomains": {
+        "cfZoneId": "d1037a0f803c996c63d427e796688919",
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": {
+        "id": "d1037a0f803c996c63d427e796688919",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 3,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "OK",
+      "reason": "consistent",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29406728,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "cardtoblisful.de",
+      "chatId": "1908391639",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "f985512caec0907c443501e7a101993c",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29639398,
+        "registrar": "OpenProvider",
+        "chatId": "1908391639"
+      },
+      "registeredDomains": {
+        "cfZoneId": "f985512caec0907c443501e7a101993c",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29639398,
+        "hasFullVal": true,
+        "ownerChatId": "1908391639"
+      },
+      "cfZone": {
+        "id": "f985512caec0907c443501e7a101993c",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "OK",
+      "reason": "consistent",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29639398,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "carrssafddpt.de",
+      "chatId": "7775130199",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "52533997c83603ffb0aa1dfc80e09db4",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29523636,
+        "registrar": "OpenProvider",
+        "chatId": "7775130199"
+      },
+      "registeredDomains": null,
+      "cfZone": {
+        "id": "52533997c83603ffb0aa1dfc80e09db4",
+        "status": "pending",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": false,
+      "registrarNs": [
+        "sandy.ns.cloudflare.com",
+        "vicente.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=52533997c83603ffb0aa1dfc80e09db4, nsT=cloudflare} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "✓ domainsOf synced (cfZoneId=52533997c83603ffb0aa1dfc80e09db4)",
+        "✓ registeredDomains synced (cfZoneId=52533997c83603ffb0aa1dfc80e09db4)"
+      ],
+      "healResult": null,
+      "opDomainId": 29523636,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "cashproauthentication.com",
+      "chatId": 6395648769,
+      "registrar": "OpenProvider",
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "03e81844aea55e8894c148f18f03aed0",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29258715,
+        "hasFullVal": true,
+        "ownerChatId": 6395648769
+      },
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "C",
+      "reason": "CF flagged in DB but no live CF zone found",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29258715,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "chasesecurescanner.com",
+      "chatId": 6395648769,
+      "registrar": "OpenProvider",
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "8f3d9c1cb6dfaf1e83649b205111b3e1",
+        "nameserverType": "cloudflare",
+        "opDomainId": 28680242,
+        "hasFullVal": true,
+        "ownerChatId": 6395648769
+      },
+      "cfZone": {
+        "id": "8f3d9c1cb6dfaf1e83649b205111b3e1",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=8f3d9c1cb6dfaf1e83649b205111b3e1, nsT=cloudflare}",
+      "healActions": [
+        "✓ domainsOf inserted for chatId=6395648769 (cfZoneId=8f3d9c1cb6dfaf1e83649b205111b3e1)",
+        "✓ registeredDomains synced (cfZoneId=8f3d9c1cb6dfaf1e83649b205111b3e1)"
+      ],
+      "healResult": null,
+      "opDomainId": 28680242,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "cibcbusness-digital.com",
+      "chatId": "8414700715",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "fd78f40707700fda72baaa0acaa8b2af",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29524054,
+        "registrar": "OpenProvider",
+        "chatId": "8414700715"
+      },
+      "registeredDomains": {
+        "cfZoneId": "fd78f40707700fda72baaa0acaa8b2af",
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": {
+        "id": "fd78f40707700fda72baaa0acaa8b2af",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 3,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "OK",
+      "reason": "consistent",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29524054,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "cibcclient-dashboard.com",
+      "chatId": "8625434794",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "d50574aadc1eec7f36bbb09f7b885c1e",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29514893,
+        "registrar": "OpenProvider",
+        "chatId": "8625434794"
+      },
+      "registeredDomains": null,
+      "cfZone": {
+        "id": "d50574aadc1eec7f36bbb09f7b885c1e",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 0,
+      "cfHasTunnelCname": false,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=d50574aadc1eec7f36bbb09f7b885c1e, nsT=cloudflare} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "✓ domainsOf synced (cfZoneId=d50574aadc1eec7f36bbb09f7b885c1e)",
+        "✓ registeredDomains synced (cfZoneId=d50574aadc1eec7f36bbb09f7b885c1e)"
+      ],
+      "healResult": null,
+      "opDomainId": 29514893,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "claim-interdeposit.com",
+      "chatId": null,
+      "registrar": null,
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": null,
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": null,
+      "category": "C",
+      "reason": "CF flagged in DB but no live CF zone found",
+      "healActions": [],
+      "healResult": null
+    },
+    {
+      "domain": "client-05sec.com",
+      "chatId": "5731435538",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "eda32d9663e9c921007d17a9852ba088",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29519359,
+        "registrar": "OpenProvider",
+        "chatId": "5731435538"
+      },
+      "registeredDomains": null,
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "C",
+      "reason": "CF flagged in DB but no live CF zone found",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29519359,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "client-ondash04.es",
+      "chatId": "5731435538",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "6eaec6638fa0899b10057ad701a2a95c",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29570254,
+        "registrar": "OpenProvider",
+        "chatId": "5731435538"
+      },
+      "registeredDomains": null,
+      "cfZone": {
+        "id": "6eaec6638fa0899b10057ad701a2a95c",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 1,
+      "cfHasTunnelCname": false,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=6eaec6638fa0899b10057ad701a2a95c, nsT=cloudflare} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "✓ domainsOf synced (cfZoneId=6eaec6638fa0899b10057ad701a2a95c)",
+        "✓ registeredDomains synced (cfZoneId=6eaec6638fa0899b10057ad701a2a95c)"
+      ],
+      "healResult": null,
+      "opDomainId": 29570254,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "client04-dashboard.com",
+      "chatId": "5731435538",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "fc68d09555b4d10b3cdc27f8dc367e8b",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29463205,
+        "registrar": "OpenProvider",
+        "chatId": "5731435538"
+      },
+      "registeredDomains": null,
+      "cfZone": {
+        "id": "fc68d09555b4d10b3cdc27f8dc367e8b",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 1,
+      "cfHasTunnelCname": false,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=fc68d09555b4d10b3cdc27f8dc367e8b, nsT=cloudflare} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "✓ domainsOf synced (cfZoneId=fc68d09555b4d10b3cdc27f8dc367e8b)",
+        "✓ registeredDomains synced (cfZoneId=fc68d09555b4d10b3cdc27f8dc367e8b)"
+      ],
+      "healResult": null,
+      "opDomainId": 29463205,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "client07-dashboard.com",
+      "chatId": "5731435538",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "77b8b6c1ab26797800321e8d68733875",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29503083,
+        "registrar": "OpenProvider",
+        "chatId": "5731435538"
+      },
+      "registeredDomains": null,
+      "cfZone": {
+        "id": "77b8b6c1ab26797800321e8d68733875",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 1,
+      "cfHasTunnelCname": false,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=77b8b6c1ab26797800321e8d68733875, nsT=cloudflare} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "✓ domainsOf synced (cfZoneId=77b8b6c1ab26797800321e8d68733875)",
+        "✓ registeredDomains synced (cfZoneId=77b8b6c1ab26797800321e8d68733875)"
+      ],
+      "healResult": null,
+      "opDomainId": 29503083,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "creditunion1portal.com",
+      "chatId": "6395648769",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "9517bff45de789f2e2f9f2b30c82c9a1",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29570331,
+        "registrar": "OpenProvider",
+        "chatId": "6395648769"
+      },
+      "registeredDomains": null,
+      "cfZone": {
+        "id": "9517bff45de789f2e2f9f2b30c82c9a1",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 1,
+      "cfHasTunnelCname": false,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=9517bff45de789f2e2f9f2b30c82c9a1, nsT=cloudflare} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "✓ domainsOf synced (cfZoneId=9517bff45de789f2e2f9f2b30c82c9a1)",
+        "✓ registeredDomains synced (cfZoneId=9517bff45de789f2e2f9f2b30c82c9a1)"
+      ],
+      "healResult": null,
+      "opDomainId": 29570331,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "customerprofileportal.com",
+      "chatId": "6395648769",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "bf2c43fec2cd6569bd3397483835fa1e",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29640632,
+        "registrar": "OpenProvider",
+        "chatId": "6395648769"
+      },
+      "registeredDomains": null,
+      "cfZone": {
+        "id": "bf2c43fec2cd6569bd3397483835fa1e",
+        "status": "moved",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 0,
+      "cfHasTunnelCname": false,
+      "registrarNs": [
+        "kia.ns.cloudflare.com",
+        "yew.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=bf2c43fec2cd6569bd3397483835fa1e, nsT=cloudflare} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "✓ domainsOf synced (cfZoneId=bf2c43fec2cd6569bd3397483835fa1e)",
+        "✓ registeredDomains synced (cfZoneId=bf2c43fec2cd6569bd3397483835fa1e)"
+      ],
+      "healResult": null,
+      "opDomainId": 29640632,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "dashboard-client03.com",
+      "chatId": "5731435538",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "0d0f82f66d13cb778276e24ac9a14ce6",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29451855,
+        "registrar": "OpenProvider",
+        "chatId": "5731435538"
+      },
+      "registeredDomains": null,
+      "cfZone": {
+        "id": "0d0f82f66d13cb778276e24ac9a14ce6",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": false,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=0d0f82f66d13cb778276e24ac9a14ce6, nsT=cloudflare} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "✓ domainsOf synced (cfZoneId=0d0f82f66d13cb778276e24ac9a14ce6)",
+        "✓ registeredDomains synced (cfZoneId=0d0f82f66d13cb778276e24ac9a14ce6)"
+      ],
+      "healResult": null,
+      "opDomainId": 29451855,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "dashboard-online04.com",
+      "chatId": "5731435538",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "9c6e7b8aedd2ef353918ec9b64a40301",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29364742,
+        "registrar": "OpenProvider",
+        "chatId": "5731435538"
+      },
+      "registeredDomains": null,
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "dina.ns.cloudflare.com",
+        "nero.ns.cloudflare.com"
+      ],
+      "category": "C",
+      "reason": "CF flagged in DB but no live CF zone found",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29364742,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "deviceonlinescan.com",
+      "chatId": "6395648769",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "7f524a630cc1e6c3b991ba92b78da86d",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29525151,
+        "registrar": "OpenProvider",
+        "chatId": "6395648769"
+      },
+      "registeredDomains": null,
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "katja.ns.cloudflare.com",
+        "tadeo.ns.cloudflare.com"
+      ],
+      "category": "C",
+      "reason": "CF flagged in DB but no live CF zone found",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29525151,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "devicescanportal.com",
+      "chatId": 6395648769,
+      "registrar": "OpenProvider",
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": null,
+        "nameserverType": "cloudflare",
+        "opDomainId": 29071446,
+        "hasFullVal": true,
+        "ownerChatId": 6395648769
+      },
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "arvind.ns.cloudflare.com",
+        "paityn.ns.cloudflare.com"
+      ],
+      "category": "C",
+      "reason": "CF flagged in DB but no live CF zone found",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29071446,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "devicesecurityscan.com",
+      "chatId": 6395648769,
+      "registrar": "OpenProvider",
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "2b4418e3099dcebbf77ee2a87bb20a59",
+        "nameserverType": "cloudflare",
+        "opDomainId": 28764080,
+        "hasFullVal": true,
+        "ownerChatId": 6395648769
+      },
+      "cfZone": {
+        "id": "2b4418e3099dcebbf77ee2a87bb20a59",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": [
+          "ns1.openprovider.nl",
+          "ns2.openprovider.be",
+          "ns3.openprovider.eu"
+        ]
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=2b4418e3099dcebbf77ee2a87bb20a59, nsT=cloudflare}",
+      "healActions": [
+        "✓ domainsOf inserted for chatId=6395648769 (cfZoneId=2b4418e3099dcebbf77ee2a87bb20a59)",
+        "✓ registeredDomains synced (cfZoneId=2b4418e3099dcebbf77ee2a87bb20a59)"
+      ],
+      "healResult": null,
+      "opDomainId": 28764080,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "devicesecurityshield.com",
+      "chatId": "6395648769",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "e06f3ac4b4996c564feddab180a15642",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29623996,
+        "registrar": "OpenProvider",
+        "chatId": "6395648769"
+      },
+      "registeredDomains": null,
+      "cfZone": {
+        "id": "e06f3ac4b4996c564feddab180a15642",
+        "status": "moved",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 0,
+      "cfHasTunnelCname": false,
+      "registrarNs": [
+        "karl.ns.cloudflare.com",
+        "laila.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=e06f3ac4b4996c564feddab180a15642, nsT=cloudflare} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "✓ domainsOf synced (cfZoneId=e06f3ac4b4996c564feddab180a15642)",
+        "✓ registeredDomains synced (cfZoneId=e06f3ac4b4996c564feddab180a15642)"
+      ],
+      "healResult": null,
+      "opDomainId": 29623996,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "dgpn-crypto.fr",
+      "chatId": "8355565115",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "c1a51052fb8fe1446e0d43c823b77c2c",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29493903,
+        "registrar": "OpenProvider",
+        "chatId": "8355565115"
+      },
+      "registeredDomains": null,
+      "cfZone": {
+        "id": "c1a51052fb8fe1446e0d43c823b77c2c",
+        "status": "moved",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 1,
+      "cfHasTunnelCname": false,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=c1a51052fb8fe1446e0d43c823b77c2c, nsT=cloudflare} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "✓ domainsOf synced (cfZoneId=c1a51052fb8fe1446e0d43c823b77c2c)",
+        "✓ registeredDomains synced (cfZoneId=c1a51052fb8fe1446e0d43c823b77c2c)"
+      ],
+      "healResult": null,
+      "opDomainId": 29493903,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "digital-business-cibc.com",
+      "chatId": null,
+      "registrar": null,
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "cccfbb2a1dad1f5b652340637633a7b1",
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": {
+        "id": "cccfbb2a1dad1f5b652340637633a7b1",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": [
+          "ns1.hostbay.io",
+          "ns2.hostbay.io"
+        ]
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": null,
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=cccfbb2a1dad1f5b652340637633a7b1, nsT=cloudflare}",
+      "healActions": [
+        "(skipped domainsOf — no chatId attribution possible)",
+        "✓ registeredDomains synced (cfZoneId=cccfbb2a1dad1f5b652340637633a7b1)"
+      ],
+      "healResult": null
+    },
+    {
+      "domain": "digital-businesscibc.com",
+      "chatId": "8414700715",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "d61a1f65b37f6f8ee77f099ad5178a5d",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29538579,
+        "registrar": "OpenProvider",
+        "chatId": "8414700715"
+      },
+      "registeredDomains": {
+        "cfZoneId": "d61a1f65b37f6f8ee77f099ad5178a5d",
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": {
+        "id": "d61a1f65b37f6f8ee77f099ad5178a5d",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": [
+          "ns1.openprovider.nl",
+          "ns2.openprovider.be",
+          "ns3.openprovider.eu"
+        ]
+      },
+      "cfDnsRecordsCount": 3,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "OK",
+      "reason": "consistent",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29538579,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "digitalbusiness-cibc.co",
+      "chatId": null,
+      "registrar": null,
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "d54a2824b723ff2cdcf78d6761267113",
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": {
+        "id": "d54a2824b723ff2cdcf78d6761267113",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": null,
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=d54a2824b723ff2cdcf78d6761267113, nsT=cloudflare}",
+      "healActions": [
+        "(skipped domainsOf — no chatId attribution possible)",
+        "✓ registeredDomains synced (cfZoneId=d54a2824b723ff2cdcf78d6761267113)"
+      ],
+      "healResult": null
+    },
+    {
+      "domain": "digitalbusiness-icbc.com",
+      "chatId": null,
+      "registrar": null,
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "50cf4161dd907cde8d5f6a9df6744020",
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": {
+        "id": "50cf4161dd907cde8d5f6a9df6744020",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": [
+          "ns1.hostbay.io",
+          "ns2.hostbay.io"
+        ]
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": null,
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=50cf4161dd907cde8d5f6a9df6744020, nsT=cloudflare}",
+      "healActions": [
+        "(skipped domainsOf — no chatId attribution possible)",
+        "✓ registeredDomains synced (cfZoneId=50cf4161dd907cde8d5f6a9df6744020)"
+      ],
+      "healResult": null
+    },
+    {
+      "domain": "digitalbusinesscibc.co",
+      "chatId": null,
+      "registrar": null,
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "aa4aeb0426fcc551f71174da08e4d449",
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": {
+        "id": "aa4aeb0426fcc551f71174da08e4d449",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": null,
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=aa4aeb0426fcc551f71174da08e4d449, nsT=cloudflare}",
+      "healActions": [
+        "(skipped domainsOf — no chatId attribution possible)",
+        "✓ registeredDomains synced (cfZoneId=aa4aeb0426fcc551f71174da08e4d449)"
+      ],
+      "healResult": null
+    },
+    {
+      "domain": "docxsndr.com",
+      "chatId": null,
+      "registrar": null,
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "6f7feafa6fb5736fcd4de49dcf816982",
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": {
+        "id": "6f7feafa6fb5736fcd4de49dcf816982",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": [
+          "1-you.njalla.no",
+          "2-can.njalla.in",
+          "3-get.njalla.fo"
+        ]
+      },
+      "cfDnsRecordsCount": 0,
+      "cfHasTunnelCname": false,
+      "registrarNs": null,
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=6f7feafa6fb5736fcd4de49dcf816982, nsT=cloudflare}",
+      "healActions": [
+        "(skipped domainsOf — no chatId attribution possible)",
+        "✓ registeredDomains synced (cfZoneId=6f7feafa6fb5736fcd4de49dcf816982)"
+      ],
+      "healResult": null
+    },
+    {
+      "domain": "docxsndrndvn.com",
+      "chatId": null,
+      "registrar": null,
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "96264626d905adb54b5a5c2120f75f33",
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": {
+        "id": "96264626d905adb54b5a5c2120f75f33",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": [
+          "1-you.njalla.no",
+          "2-can.njalla.in",
+          "3-get.njalla.fo"
+        ]
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": null,
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=96264626d905adb54b5a5c2120f75f33, nsT=cloudflare}",
+      "healActions": [
+        "(skipped domainsOf — no chatId attribution possible)",
+        "✓ registeredDomains synced (cfZoneId=96264626d905adb54b5a5c2120f75f33)"
+      ],
+      "healResult": null
+    },
+    {
+      "domain": "downloaddtranscripts.net",
+      "chatId": null,
+      "registrar": null,
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": null,
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": null,
+      "category": "C",
+      "reason": "CF flagged in DB but no live CF zone found",
+      "healActions": [],
+      "healResult": null
+    },
+    {
+      "domain": "easywebtd.live",
+      "chatId": "8352542716",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": null,
+        "nameserverType": "custom",
+        "opDomainId": 29548155,
+        "registrar": "OpenProvider",
+        "chatId": "8352542716"
+      },
+      "registeredDomains": null,
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "dolly.ns.cloudflare.com",
+        "zahir.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=custom} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "skipped: user explicitly chose nameserverType='custom' — preserving user intent"
+      ],
+      "healResult": null,
+      "opDomainId": 29548155,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "entsecurity.xyz",
+      "chatId": "6543817440",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "012b01eec572ce15869b032c17d31ee3",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29357353,
+        "registrar": "OpenProvider",
+        "chatId": "6543817440"
+      },
+      "registeredDomains": {
+        "cfZoneId": null,
+        "nameserverType": "cloudflare",
+        "opDomainId": 29357353,
+        "hasFullVal": true,
+        "ownerChatId": 6543817440
+      },
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "C",
+      "reason": "CF flagged in DB but no live CF zone found",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29357353,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "etradeonlinegateway.com",
+      "chatId": 6395648769,
+      "registrar": "OpenProvider",
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": null,
+        "nameserverType": "cloudflare",
+        "opDomainId": 28548225,
+        "hasFullVal": true,
+        "ownerChatId": 6395648769
+      },
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "ingrid.ns.cloudflare.com",
+        "tate.ns.cloudflare.com"
+      ],
+      "category": "C",
+      "reason": "CF flagged in DB but no live CF zone found",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 28548225,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "everwise-secure.com",
+      "chatId": "7893016294",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "28b5cd5d4f08705878de923dc0c3382a",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29500591,
+        "registrar": "OpenProvider",
+        "chatId": "7893016294"
+      },
+      "registeredDomains": {
+        "cfZoneId": "28b5cd5d4f08705878de923dc0c3382a",
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": {
+        "id": "28b5cd5d4f08705878de923dc0c3382a",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 3,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "OK",
+      "reason": "consistent",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29500591,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "fcbportal.com",
+      "chatId": "6395648769",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "4aefc7af3ad7a26f0ab0b9ca18abbfce",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29609077,
+        "registrar": "OpenProvider",
+        "chatId": "6395648769"
+      },
+      "registeredDomains": null,
+      "cfZone": {
+        "id": "4aefc7af3ad7a26f0ab0b9ca18abbfce",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 1,
+      "cfHasTunnelCname": false,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=4aefc7af3ad7a26f0ab0b9ca18abbfce, nsT=cloudflare} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "✓ domainsOf synced (cfZoneId=4aefc7af3ad7a26f0ab0b9ca18abbfce)",
+        "✓ registeredDomains synced (cfZoneId=4aefc7af3ad7a26f0ab0b9ca18abbfce)"
+      ],
+      "healResult": null,
+      "opDomainId": 29609077,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "fdicbtgateway.com",
+      "chatId": "6395648769",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "960ec146faecc617bd93a10bcf0c687c",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29406214,
+        "registrar": "OpenProvider",
+        "chatId": "6395648769"
+      },
+      "registeredDomains": null,
+      "cfZone": {
+        "id": "960ec146faecc617bd93a10bcf0c687c",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=960ec146faecc617bd93a10bcf0c687c, nsT=cloudflare} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "✓ domainsOf synced (cfZoneId=960ec146faecc617bd93a10bcf0c687c)",
+        "✓ registeredDomains synced (cfZoneId=960ec146faecc617bd93a10bcf0c687c)"
+      ],
+      "healResult": null,
+      "opDomainId": 29406214,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "fdicsecuretransport.com",
+      "chatId": 6395648769,
+      "registrar": "OpenProvider",
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "7f655647642283e6378cb5d2bb195680",
+        "nameserverType": "cloudflare",
+        "opDomainId": 28993503,
+        "hasFullVal": true,
+        "ownerChatId": 6395648769
+      },
+      "cfZone": {
+        "id": "7f655647642283e6378cb5d2bb195680",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=7f655647642283e6378cb5d2bb195680, nsT=cloudflare}",
+      "healActions": [
+        "✓ domainsOf inserted for chatId=6395648769 (cfZoneId=7f655647642283e6378cb5d2bb195680)",
+        "✓ registeredDomains synced (cfZoneId=7f655647642283e6378cb5d2bb195680)"
+      ],
+      "healResult": null,
+      "opDomainId": 28993503,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "fifththirdsecure.com",
+      "chatId": 6395648769,
+      "registrar": "OpenProvider",
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "d2c9fcd503eb6f3ca8f60a2f2d64397b",
+        "nameserverType": "cloudflare",
+        "opDomainId": 28754613,
+        "hasFullVal": true,
+        "ownerChatId": 6395648769
+      },
+      "cfZone": {
+        "id": "d2c9fcd503eb6f3ca8f60a2f2d64397b",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=d2c9fcd503eb6f3ca8f60a2f2d64397b, nsT=cloudflare}",
+      "healActions": [
+        "✓ domainsOf inserted for chatId=6395648769 (cfZoneId=d2c9fcd503eb6f3ca8f60a2f2d64397b)",
+        "✓ registeredDomains synced (cfZoneId=d2c9fcd503eb6f3ca8f60a2f2d64397b)"
+      ],
+      "healResult": null,
+      "opDomainId": 28754613,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "firstpacgateway.com",
+      "chatId": "6395648769",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "4fde0796d03f498c22551f747ef43323",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29389741,
+        "registrar": "OpenProvider",
+        "chatId": "6395648769"
+      },
+      "registeredDomains": null,
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "C",
+      "reason": "CF flagged in DB but no live CF zone found",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29389741,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "firstsecuregateway.com",
+      "chatId": 6395648769,
+      "registrar": "OpenProvider",
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "4948f8cd80ae485b9e23350383756577",
+        "nameserverType": "cloudflare",
+        "opDomainId": 28539621,
+        "hasFullVal": true,
+        "ownerChatId": 6395648769
+      },
+      "cfZone": {
+        "id": "4948f8cd80ae485b9e23350383756577",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=4948f8cd80ae485b9e23350383756577, nsT=cloudflare}",
+      "healActions": [
+        "✓ domainsOf inserted for chatId=6395648769 (cfZoneId=4948f8cd80ae485b9e23350383756577)",
+        "✓ registeredDomains synced (cfZoneId=4948f8cd80ae485b9e23350383756577)"
+      ],
+      "healResult": null,
+      "opDomainId": 28539621,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "gencofcuportal.com",
+      "chatId": "6395648769",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "393f5cf68cffaccd3bb1f53c7df2a3a4",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29576690,
+        "registrar": "OpenProvider",
+        "chatId": "6395648769"
+      },
+      "registeredDomains": null,
+      "cfZone": {
+        "id": "393f5cf68cffaccd3bb1f53c7df2a3a4",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 1,
+      "cfHasTunnelCname": false,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=393f5cf68cffaccd3bb1f53c7df2a3a4, nsT=cloudflare} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "✓ domainsOf synced (cfZoneId=393f5cf68cffaccd3bb1f53c7df2a3a4)",
+        "✓ registeredDomains synced (cfZoneId=393f5cf68cffaccd3bb1f53c7df2a3a4)"
+      ],
+      "healResult": null,
+      "opDomainId": 29576690,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "genusecuregateway.com",
+      "chatId": "6395648769",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "112ae20a41d5319ba2a6c8b5d1020e05",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29565552,
+        "registrar": "OpenProvider",
+        "chatId": "6395648769"
+      },
+      "registeredDomains": null,
+      "cfZone": {
+        "id": "112ae20a41d5319ba2a6c8b5d1020e05",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 1,
+      "cfHasTunnelCname": false,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=112ae20a41d5319ba2a6c8b5d1020e05, nsT=cloudflare} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "✓ domainsOf synced (cfZoneId=112ae20a41d5319ba2a6c8b5d1020e05)",
+        "✓ registeredDomains synced (cfZoneId=112ae20a41d5319ba2a6c8b5d1020e05)"
+      ],
+      "healResult": null,
+      "opDomainId": 29565552,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "gntysecure.com",
+      "chatId": 6395648769,
+      "registrar": "OpenProvider",
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "18af29c6a4ceaf667bdb80d40e86ae81",
+        "nameserverType": "cloudflare",
+        "opDomainId": 28829773,
+        "hasFullVal": true,
+        "ownerChatId": 6395648769
+      },
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "natasha.ns.cloudflare.com",
+        "rajeev.ns.cloudflare.com"
+      ],
+      "category": "C",
+      "reason": "CF flagged in DB but no live CF zone found",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 28829773,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "harmonyonlinegateway.com",
+      "chatId": 6395648769,
+      "registrar": "OpenProvider",
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "4bc176ecef901c73ffd19730dfaf4b40",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29299565,
+        "hasFullVal": true,
+        "ownerChatId": 6395648769
+      },
+      "cfZone": {
+        "id": "4bc176ecef901c73ffd19730dfaf4b40",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=4bc176ecef901c73ffd19730dfaf4b40, nsT=cloudflare}",
+      "healActions": [
+        "✓ domainsOf inserted for chatId=6395648769 (cfZoneId=4bc176ecef901c73ffd19730dfaf4b40)",
+        "✓ registeredDomains synced (cfZoneId=4bc176ecef901c73ffd19730dfaf4b40)"
+      ],
+      "healResult": null,
+      "opDomainId": 29299565,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "helpassistportal.com",
+      "chatId": 6395648769,
+      "registrar": "OpenProvider",
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": null,
+        "nameserverType": "cloudflare",
+        "opDomainId": 28997920,
+        "hasFullVal": true,
+        "ownerChatId": 6395648769
+      },
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "autumn.ns.cloudflare.com",
+        "harley.ns.cloudflare.com"
+      ],
+      "category": "C",
+      "reason": "CF flagged in DB but no live CF zone found",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 28997920,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "homepage-bankamerica.click",
+      "chatId": null,
+      "registrar": null,
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "bf185e39ecb7d981623bfeff51ea4509",
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": {
+        "id": "bf185e39ecb7d981623bfeff51ea4509",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": null,
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=bf185e39ecb7d981623bfeff51ea4509, nsT=cloudflare}",
+      "healActions": [
+        "(skipped domainsOf — no chatId attribution possible)",
+        "✓ registeredDomains synced (cfZoneId=bf185e39ecb7d981623bfeff51ea4509)"
+      ],
+      "healResult": null
+    },
+    {
+      "domain": "homepage-navyfed.com",
+      "chatId": "7394693056",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "3eba55e278ad01ed462868f09d3fd67b",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29588682,
+        "registrar": "OpenProvider",
+        "chatId": "7394693056"
+      },
+      "registeredDomains": {
+        "cfZoneId": "3eba55e278ad01ed462868f09d3fd67b",
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": {
+        "id": "3eba55e278ad01ed462868f09d3fd67b",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "OK",
+      "reason": "consistent",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29588682,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "hostinbox.co",
+      "chatId": "6331544767",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": null,
+        "nameserverType": "custom",
+        "opDomainId": 29495969,
+        "registrar": "OpenProvider",
+        "chatId": "6331544767"
+      },
+      "registeredDomains": null,
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": null,
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=custom} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "skipped: user explicitly chose nameserverType='custom' — preserving user intent"
+      ],
+      "healResult": null,
+      "opLookupError": "not_found_at_op"
+    },
+    {
+      "domain": "hunt-verify.org",
+      "chatId": "7893016294",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "545bcdaee05b9d075ad320c3d27d1f4f",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29438498,
+        "registrar": "OpenProvider",
+        "chatId": "7893016294"
+      },
+      "registeredDomains": {
+        "cfZoneId": "545bcdaee05b9d075ad320c3d27d1f4f",
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": {
+        "id": "545bcdaee05b9d075ad320c3d27d1f4f",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 4,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "OK",
+      "reason": "consistent",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29438498,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "huntingtononlinebanking.it",
+      "chatId": "7893016294",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "dc16f6b2eee40e5f2571cc9273f7c47b",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29420163,
+        "registrar": "OpenProvider",
+        "chatId": "7893016294"
+      },
+      "registeredDomains": {
+        "cfZoneId": null,
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "C",
+      "reason": "CF flagged in DB but no live CF zone found",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29420163,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "hvcuportal.com",
+      "chatId": "6395648769",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "d110ab4a605ecf6e571fa1aae239430b",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29608501,
+        "registrar": "OpenProvider",
+        "chatId": "6395648769"
+      },
+      "registeredDomains": null,
+      "cfZone": {
+        "id": "d110ab4a605ecf6e571fa1aae239430b",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 1,
+      "cfHasTunnelCname": false,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=d110ab4a605ecf6e571fa1aae239430b, nsT=cloudflare} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "✓ domainsOf synced (cfZoneId=d110ab4a605ecf6e571fa1aae239430b)",
+        "✓ registeredDomains synced (cfZoneId=d110ab4a605ecf6e571fa1aae239430b)"
+      ],
+      "healResult": null,
+      "opDomainId": 29608501,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "icloudsecurecare.com",
+      "chatId": 6395648769,
+      "registrar": "OpenProvider",
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "162c004305fb45fdbe8a9d1be03cf973",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29163632,
+        "hasFullVal": true,
+        "ownerChatId": 6395648769
+      },
+      "cfZone": {
+        "id": "162c004305fb45fdbe8a9d1be03cf973",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=162c004305fb45fdbe8a9d1be03cf973, nsT=cloudflare}",
+      "healActions": [
+        "✓ domainsOf inserted for chatId=6395648769 (cfZoneId=162c004305fb45fdbe8a9d1be03cf973)",
+        "✓ registeredDomains synced (cfZoneId=162c004305fb45fdbe8a9d1be03cf973)"
+      ],
+      "healResult": null,
+      "opDomainId": 29163632,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "inviowelcoparty.de",
+      "chatId": "1960615421",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "d98c5ea5d9f9fb15b922c76d27c8484e",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29624850,
+        "registrar": "OpenProvider",
+        "chatId": "1960615421"
+      },
+      "registeredDomains": {
+        "cfZoneId": "d98c5ea5d9f9fb15b922c76d27c8484e",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29624850,
+        "hasFullVal": true,
+        "ownerChatId": "1960615421"
+      },
+      "cfZone": {
+        "id": "d98c5ea5d9f9fb15b922c76d27c8484e",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "OK",
+      "reason": "consistent",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29624850,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "inviteessparty.de",
+      "chatId": "6546701702",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "a91bdcca13ba9cab516df7a5b7d96773",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29638998,
+        "registrar": "OpenProvider",
+        "chatId": "6546701702"
+      },
+      "registeredDomains": {
+        "cfZoneId": "a91bdcca13ba9cab516df7a5b7d96773",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29638998,
+        "hasFullVal": true,
+        "ownerChatId": "6546701702"
+      },
+      "cfZone": {
+        "id": "a91bdcca13ba9cab516df7a5b7d96773",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "OK",
+      "reason": "consistent",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29638998,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "invitegartparty.de",
+      "chatId": "1960615421",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "ff0117d969432c5b135768d15be80dcc",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29656596,
+        "registrar": "OpenProvider",
+        "chatId": "1960615421"
+      },
+      "registeredDomains": {
+        "cfZoneId": "ff0117d969432c5b135768d15be80dcc",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29656596,
+        "hasFullVal": true,
+        "ownerChatId": "1960615421"
+      },
+      "cfZone": {
+        "id": "ff0117d969432c5b135768d15be80dcc",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "OK",
+      "reason": "consistent",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29656596,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "invupdat2atode.com",
+      "chatId": "7793281862",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "5fd2e43ca4e6e2b2ffd7eb74fd6215b2",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29640232,
+        "registrar": "OpenProvider",
+        "chatId": "7793281862"
+      },
+      "registeredDomains": null,
+      "cfZone": {
+        "id": "5fd2e43ca4e6e2b2ffd7eb74fd6215b2",
+        "status": "moved",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": false,
+      "registrarNs": [
+        "sydney.ns.cloudflare.com",
+        "vern.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=5fd2e43ca4e6e2b2ffd7eb74fd6215b2, nsT=cloudflare} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "✓ domainsOf synced (cfZoneId=5fd2e43ca4e6e2b2ffd7eb74fd6215b2)",
+        "✓ registeredDomains synced (cfZoneId=5fd2e43ca4e6e2b2ffd7eb74fd6215b2)"
+      ],
+      "healResult": null,
+      "opDomainId": 29640232,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "itsonlytravel.com",
+      "chatId": "8737445617",
+      "registrar": "OpenProvider",
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "f82220447aef6dcfe72c59f4732e0ae4",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29279381,
+        "hasFullVal": true,
+        "ownerChatId": "8737445617"
+      },
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "leland.ns.cloudflare.com",
+        "megan.ns.cloudflare.com"
+      ],
+      "category": "C",
+      "reason": "CF flagged in DB but no live CF zone found",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29279381,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "jhkbwdiugeu.com",
+      "chatId": "5731435538",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "235dc6c0cf09cba1f00f8c59c312fc01",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29511647,
+        "registrar": "OpenProvider",
+        "chatId": "5731435538"
+      },
+      "registeredDomains": null,
+      "cfZone": {
+        "id": "235dc6c0cf09cba1f00f8c59c312fc01",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 1,
+      "cfHasTunnelCname": false,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=235dc6c0cf09cba1f00f8c59c312fc01, nsT=cloudflare} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "✓ domainsOf synced (cfZoneId=235dc6c0cf09cba1f00f8c59c312fc01)",
+        "✓ registeredDomains synced (cfZoneId=235dc6c0cf09cba1f00f8c59c312fc01)"
+      ],
+      "healResult": null,
+      "opDomainId": 29511647,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "jioriorgy0893u.com",
+      "chatId": "5731435538",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "3c8415b0c220d7d2c8fc839abdeaba2b",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29520931,
+        "registrar": "OpenProvider",
+        "chatId": "5731435538"
+      },
+      "registeredDomains": {
+        "cfZoneId": "3c8415b0c220d7d2c8fc839abdeaba2b",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29520931,
+        "hasFullVal": true,
+        "ownerChatId": "5731435538"
+      },
+      "cfZone": {
+        "id": "3c8415b0c220d7d2c8fc839abdeaba2b",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "OK",
+      "reason": "consistent",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29520931,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "ledger-recovery.org",
+      "chatId": "7520972603",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": null,
+        "nameserverType": "provider_default",
+        "opDomainId": 29158714,
+        "registrar": "OpenProvider",
+        "chatId": "7520972603"
+      },
+      "registeredDomains": {
+        "cfZoneId": null,
+        "nameserverType": "provider_default",
+        "opDomainId": 29158714,
+        "hasFullVal": true,
+        "ownerChatId": "7520972603"
+      },
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "ns1.openprovider.nl",
+        "ns2.openprovider.be",
+        "ns3.openprovider.eu"
+      ],
+      "category": "OK",
+      "reason": "consistent",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29158714,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "ledger-recuperation.com",
+      "chatId": "7520972603",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": null,
+        "nameserverType": "provider_default",
+        "opDomainId": 29037259,
+        "registrar": "OpenProvider",
+        "chatId": "7520972603"
+      },
+      "registeredDomains": {
+        "cfZoneId": null,
+        "nameserverType": "provider_default",
+        "opDomainId": 29037259,
+        "hasFullVal": true,
+        "ownerChatId": "7520972603"
+      },
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "ns1.openprovider.nl",
+        "ns2.openprovider.be",
+        "ns3.openprovider.eu"
+      ],
+      "category": "OK",
+      "reason": "consistent",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29037259,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "ledger-recuperation.fr",
+      "chatId": "7520972603",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "c4d117277d9c65b315087d3f718e0fa7",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29258225,
+        "registrar": "OpenProvider",
+        "chatId": "7520972603"
+      },
+      "registeredDomains": {
+        "cfZoneId": "c4d117277d9c65b315087d3f718e0fa7",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29258225,
+        "hasFullVal": true,
+        "ownerChatId": "7520972603"
+      },
+      "cfZone": {
+        "id": "c4d117277d9c65b315087d3f718e0fa7",
+        "status": "moved",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "OK",
+      "reason": "consistent",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29258225,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "libertynwgateway.com",
+      "chatId": "6395648769",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "9a6b540a15e8854ad37ede4df7d5f4c9",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29565578,
+        "registrar": "OpenProvider",
+        "chatId": "6395648769"
+      },
+      "registeredDomains": null,
+      "cfZone": {
+        "id": "9a6b540a15e8854ad37ede4df7d5f4c9",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 1,
+      "cfHasTunnelCname": false,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=9a6b540a15e8854ad37ede4df7d5f4c9, nsT=cloudflare} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "✓ domainsOf synced (cfZoneId=9a6b540a15e8854ad37ede4df7d5f4c9)",
+        "✓ registeredDomains synced (cfZoneId=9a6b540a15e8854ad37ede4df7d5f4c9)"
+      ],
+      "healResult": null,
+      "opDomainId": 29565578,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "livehelpportal.com",
+      "chatId": 6395648769,
+      "registrar": "OpenProvider",
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": null,
+        "nameserverType": "cloudflare",
+        "opDomainId": 28993428,
+        "hasFullVal": true,
+        "ownerChatId": 6395648769
+      },
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "byron.ns.cloudflare.com",
+        "kara.ns.cloudflare.com"
+      ],
+      "category": "C",
+      "reason": "CF flagged in DB but no live CF zone found",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 28993428,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "mccoyfcuportal.com",
+      "chatId": "6395648769",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "6cf18da460e1b9a23aa8fbbe3b272c12",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29590078,
+        "registrar": "OpenProvider",
+        "chatId": "6395648769"
+      },
+      "registeredDomains": null,
+      "cfZone": {
+        "id": "6cf18da460e1b9a23aa8fbbe3b272c12",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 1,
+      "cfHasTunnelCname": false,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=6cf18da460e1b9a23aa8fbbe3b272c12, nsT=cloudflare} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "✓ domainsOf synced (cfZoneId=6cf18da460e1b9a23aa8fbbe3b272c12)",
+        "✓ registeredDomains synced (cfZoneId=6cf18da460e1b9a23aa8fbbe3b272c12)"
+      ],
+      "healResult": null,
+      "opDomainId": 29590078,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "midfloridaportal.com",
+      "chatId": "6395648769",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": null,
+        "nameserverType": "provider_default",
+        "opDomainId": 29592181,
+        "registrar": "OpenProvider",
+        "chatId": "6395648769"
+      },
+      "registeredDomains": null,
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "ns1.openprovider.nl",
+        "ns2.openprovider.be",
+        "ns3.openprovider.eu"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=provider_default} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "skipped: no live CF zone — refusing to stamp a stale cfZoneId on either side"
+      ],
+      "healResult": null,
+      "opDomainId": 29592181,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "mssollution.com",
+      "chatId": "6344836722",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "2f8f71851827bd5e059668de305f832b",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29370544,
+        "registrar": "OpenProvider",
+        "chatId": "6344836722"
+      },
+      "registeredDomains": null,
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "iris.ns.cloudflare.com",
+        "tate.ns.cloudflare.com"
+      ],
+      "category": "C",
+      "reason": "CF flagged in DB but no live CF zone found",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29370544,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "myyxct.org",
+      "chatId": "6773929524",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "6a9a2b5645b49125adfcfa9a810d39b8",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29396156,
+        "registrar": "OpenProvider",
+        "chatId": "6773929524"
+      },
+      "registeredDomains": null,
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "ns1.cloudflare.com",
+        "ns2.cloudflare.com"
+      ],
+      "category": "C",
+      "reason": "CF flagged in DB but no live CF zone found",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29396156,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "nasafcugateway.com",
+      "chatId": "6395648769",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "d590437f24afb799607793577d9a42a1",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29367103,
+        "registrar": "OpenProvider",
+        "chatId": "6395648769"
+      },
+      "registeredDomains": null,
+      "cfZone": {
+        "id": "d590437f24afb799607793577d9a42a1",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=d590437f24afb799607793577d9a42a1, nsT=cloudflare} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "✓ domainsOf synced (cfZoneId=d590437f24afb799607793577d9a42a1)",
+        "✓ registeredDomains synced (cfZoneId=d590437f24afb799607793577d9a42a1)"
+      ],
+      "healResult": null,
+      "opDomainId": 29367103,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "navy-fed-verify.com",
+      "chatId": "7893016294",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "a961823d359a5c35cb2df40b83af6c33",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29544653,
+        "registrar": "OpenProvider",
+        "chatId": "7893016294"
+      },
+      "registeredDomains": {
+        "cfZoneId": "a961823d359a5c35cb2df40b83af6c33",
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": {
+        "id": "a961823d359a5c35cb2df40b83af6c33",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "OK",
+      "reason": "consistent",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29544653,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "navyfed-verify.com",
+      "chatId": "7893016294",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "f80d54190e4ef3bcc88d89370c6e823a",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29463581,
+        "registrar": "OpenProvider",
+        "chatId": "7893016294"
+      },
+      "registeredDomains": {
+        "cfZoneId": null,
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "C",
+      "reason": "CF flagged in DB but no live CF zone found",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29463581,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "ndaxdevice.com",
+      "chatId": null,
+      "registrar": null,
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "72394943a9b044a22a6d3b13d91901b5",
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": {
+        "id": "72394943a9b044a22a6d3b13d91901b5",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": null,
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=72394943a9b044a22a6d3b13d91901b5, nsT=cloudflare}",
+      "healActions": [
+        "(skipped domainsOf — no chatId attribution possible)",
+        "✓ registeredDomains synced (cfZoneId=72394943a9b044a22a6d3b13d91901b5)"
+      ],
+      "healResult": null
+    },
+    {
+      "domain": "net06d.com",
+      "chatId": null,
+      "registrar": null,
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": null,
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": null,
+      "category": "C",
+      "reason": "CF flagged in DB but no live CF zone found",
+      "healActions": [],
+      "healResult": null
+    },
+    {
+      "domain": "northamericangateway.com",
+      "chatId": 6395648769,
+      "registrar": "OpenProvider",
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "8a67dac35cee143a80f3de77dfa39e22",
+        "nameserverType": "cloudflare",
+        "opDomainId": 28510240,
+        "hasFullVal": true,
+        "ownerChatId": 6395648769
+      },
+      "cfZone": {
+        "id": "8a67dac35cee143a80f3de77dfa39e22",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=8a67dac35cee143a80f3de77dfa39e22, nsT=cloudflare}",
+      "healActions": [
+        "✓ domainsOf inserted for chatId=6395648769 (cfZoneId=8a67dac35cee143a80f3de77dfa39e22)",
+        "✓ registeredDomains synced (cfZoneId=8a67dac35cee143a80f3de77dfa39e22)"
+      ],
+      "healResult": null,
+      "opDomainId": 28510240,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "novelle.icu",
+      "chatId": "5822362224",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "80bf1033b477153d30c8e8703dacc66f",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29645486,
+        "registrar": "OpenProvider",
+        "chatId": "5822362224"
+      },
+      "registeredDomains": null,
+      "cfZone": {
+        "id": "80bf1033b477153d30c8e8703dacc66f",
+        "status": "pending",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": false,
+      "registrarNs": [
+        "bart.ns.cloudflare.com",
+        "tina.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=80bf1033b477153d30c8e8703dacc66f, nsT=cloudflare} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "✓ domainsOf synced (cfZoneId=80bf1033b477153d30c8e8703dacc66f)",
+        "✓ registeredDomains synced (cfZoneId=80bf1033b477153d30c8e8703dacc66f)"
+      ],
+      "healResult": null,
+      "opDomainId": 29645486,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "nymcub.com",
+      "chatId": "5515344236",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": null,
+        "nameserverType": "custom",
+        "opDomainId": 29538219,
+        "registrar": "OpenProvider",
+        "chatId": "5515344236"
+      },
+      "registeredDomains": null,
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "launch1.spaceship.net",
+        "launch2.spaceship.net"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=custom} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "skipped: user explicitly chose nameserverType='custom' — preserving user intent"
+      ],
+      "healResult": null,
+      "opDomainId": 29538219,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "official-secured-portal.com",
+      "chatId": "8414700715",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": null,
+        "nameserverType": "custom",
+        "opDomainId": 29543457,
+        "registrar": "OpenProvider",
+        "chatId": "8414700715"
+      },
+      "registeredDomains": {
+        "cfZoneId": "b0eb4145fdddcad1d078977f3c9b6442",
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": {
+        "id": "b0eb4145fdddcad1d078977f3c9b6442",
+        "status": "active",
+        "nameservers": [
+          "jose.ns.cloudflare.com",
+          "joselyn.ns.cloudflare.com"
+        ],
+        "originalNs": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ]
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "jose.ns.cloudflare.com",
+        "joselyn.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=custom} vs registeredDomains{cfZoneId=b0eb4145fdddcad1d078977f3c9b6442, nsT=cloudflare}",
+      "healActions": [
+        "skipped: user explicitly chose nameserverType='custom' — preserving user intent"
+      ],
+      "healResult": null,
+      "opDomainId": 29543457,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "onetime-resolvedesk.com",
+      "chatId": null,
+      "registrar": null,
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": null,
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": null,
+      "category": "C",
+      "reason": "CF flagged in DB but no live CF zone found",
+      "healActions": [],
+      "healResult": null
+    },
+    {
+      "domain": "onlineapigateway.com",
+      "chatId": "6395648769",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "b8a11afef6406eb69348f595cc4c8bdf",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29531344,
+        "registrar": "OpenProvider",
+        "chatId": "6395648769"
+      },
+      "registeredDomains": null,
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "arya.ns.cloudflare.com",
+        "lewis.ns.cloudflare.com"
+      ],
+      "category": "C",
+      "reason": "CF flagged in DB but no live CF zone found",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29531344,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "onlineportalverification.com",
+      "chatId": "6395648769",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "f567757efdd481ba9b6b652b8a64cb44",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29382755,
+        "registrar": "OpenProvider",
+        "chatId": "6395648769"
+      },
+      "registeredDomains": null,
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "ivan.ns.cloudflare.com",
+        "nucum.ns.cloudflare.com"
+      ],
+      "category": "C",
+      "reason": "CF flagged in DB but no live CF zone found",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29382755,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "onlineprofilegateway.com",
+      "chatId": "6395648769",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "9b4c79c6a9f5d6b381fa540b8140b399",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29607758,
+        "registrar": "OpenProvider",
+        "chatId": "6395648769"
+      },
+      "registeredDomains": null,
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "ace.ns.cloudflare.com",
+        "kristin.ns.cloudflare.com"
+      ],
+      "category": "C",
+      "reason": "CF flagged in DB but no live CF zone found",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29607758,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "onlinesecureapi.com",
+      "chatId": 6395648769,
+      "registrar": "OpenProvider",
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "e5f18527af5f087d1d63c2606bcc21a0",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29049040,
+        "hasFullVal": true,
+        "ownerChatId": 6395648769
+      },
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "chan.ns.cloudflare.com",
+        "renan.ns.cloudflare.com"
+      ],
+      "category": "C",
+      "reason": "CF flagged in DB but no live CF zone found",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29049040,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "onlinesecureauth.com",
+      "chatId": "6395648769",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "8e02b1af0f9eeaf80e0bca921021fa07",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29485019,
+        "registrar": "OpenProvider",
+        "chatId": "6395648769"
+      },
+      "registeredDomains": null,
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "dolly.ns.cloudflare.com",
+        "morgan.ns.cloudflare.com"
+      ],
+      "category": "C",
+      "reason": "CF flagged in DB but no live CF zone found",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29485019,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "onlinesecureconnection.com",
+      "chatId": 6395648769,
+      "registrar": "OpenProvider",
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": null,
+        "nameserverType": "cloudflare",
+        "opDomainId": 28998760,
+        "hasFullVal": true,
+        "ownerChatId": 6395648769
+      },
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "deborah.ns.cloudflare.com",
+        "joel.ns.cloudflare.com"
+      ],
+      "category": "C",
+      "reason": "CF flagged in DB but no live CF zone found",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 28998760,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "peakfirmllp.com",
+      "chatId": "7080940684",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "ae77ca10ed0db6850a5ec464672019de",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29376036,
+        "registrar": "OpenProvider",
+        "chatId": "7080940684"
+      },
+      "registeredDomains": {
+        "cfZoneId": null,
+        "nameserverType": "cloudflare",
+        "opDomainId": 29376036,
+        "hasFullVal": true,
+        "ownerChatId": "7080940684"
+      },
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "arely.ns.cloudflare.com",
+        "jasper.ns.cloudflare.com"
+      ],
+      "category": "C",
+      "reason": "CF flagged in DB but no live CF zone found",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29376036,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "protection-attwireless.help",
+      "chatId": null,
+      "registrar": "external_unmanaged",
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "b8ed112b7eb3b3a0f4cd94db95a2af62",
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": {
+        "id": "b8ed112b7eb3b3a0f4cd94db95a2af62",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": [
+          "ns1.dnsowl.com",
+          "ns2.dnsowl.com",
+          "ns3.dnsowl.com"
+        ]
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": null,
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=b8ed112b7eb3b3a0f4cd94db95a2af62, nsT=cloudflare}",
+      "healActions": [
+        "(skipped domainsOf — no chatId attribution possible)",
+        "✓ registeredDomains synced (cfZoneId=b8ed112b7eb3b3a0f4cd94db95a2af62)"
+      ],
+      "healResult": null
+    },
+    {
+      "domain": "qbreversegateway.com",
+      "chatId": 6395648769,
+      "registrar": "OpenProvider",
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": null,
+        "nameserverType": "cloudflare",
+        "opDomainId": 28965741,
+        "hasFullVal": true,
+        "ownerChatId": 6395648769
+      },
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "dayana.ns.cloudflare.com",
+        "jerry.ns.cloudflare.com"
+      ],
+      "category": "C",
+      "reason": "CF flagged in DB but no live CF zone found",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 28965741,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "quickbooking.ca",
+      "chatId": "6331544767",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": null,
+        "nameserverType": "custom",
+        "opDomainId": 29340014,
+        "registrar": "OpenProvider",
+        "chatId": "6331544767"
+      },
+      "registeredDomains": {
+        "cfZoneId": "0e5301e7335471302282744a1e3c88a2",
+        "nameserverType": "custom",
+        "opDomainId": 29340014,
+        "hasFullVal": true,
+        "ownerChatId": 6331544767
+      },
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "ns1.vercel-dns.com",
+        "ns2.vercel-dns.com"
+      ],
+      "category": "C",
+      "reason": "CF flagged in DB but no live CF zone found",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29340014,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "rbc-clientdashboard.com",
+      "chatId": "8625434794",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "b9f36ace732e9a17f4a86c3178c27c8e",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29659579,
+        "registrar": "OpenProvider",
+        "chatId": "8625434794"
+      },
+      "registeredDomains": {
+        "cfZoneId": "b9f36ace732e9a17f4a86c3178c27c8e",
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": {
+        "id": "b9f36ace732e9a17f4a86c3178c27c8e",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 0,
+      "cfHasTunnelCname": false,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "OK",
+      "reason": "consistent",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29659579,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "rbcsupport-client.com",
+      "chatId": "8625434794",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "1a7d0018cf226fb627694c0a33919d13",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29664723,
+        "registrar": "OpenProvider",
+        "chatId": "8625434794"
+      },
+      "registeredDomains": {
+        "cfZoneId": "1a7d0018cf226fb627694c0a33919d13",
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": {
+        "id": "1a7d0018cf226fb627694c0a33919d13",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "OK",
+      "reason": "consistent",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29664723,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "recover-ledger.co",
+      "chatId": "7520972603",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "6f0bb590bfa57fcfee93693e5d43c2ea",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29153603,
+        "registrar": "OpenProvider",
+        "chatId": "7520972603"
+      },
+      "registeredDomains": {
+        "cfZoneId": "6f0bb590bfa57fcfee93693e5d43c2ea",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29153603,
+        "hasFullVal": true,
+        "ownerChatId": "7520972603"
+      },
+      "cfZone": {
+        "id": "6f0bb590bfa57fcfee93693e5d43c2ea",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": false,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "OK",
+      "reason": "consistent",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29153603,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "recovery-ledger.fr",
+      "chatId": "7520972603",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": null,
+        "nameserverType": "cloudflare",
+        "opDomainId": 29158600,
+        "registrar": "OpenProvider",
+        "chatId": "7520972603"
+      },
+      "registeredDomains": {
+        "cfZoneId": null,
+        "nameserverType": "cloudflare",
+        "opDomainId": 29158600,
+        "hasFullVal": true,
+        "ownerChatId": "7520972603"
+      },
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "chin.ns.cloudflare.com",
+        "jake.ns.cloudflare.com"
+      ],
+      "category": "C",
+      "reason": "CF flagged in DB but no live CF zone found",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29158600,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "regionsonlineprofile.com",
+      "chatId": "6395648769",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "2a269d2a038449d931c9b4c4845ec31a",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29544969,
+        "registrar": "OpenProvider",
+        "chatId": "6395648769"
+      },
+      "registeredDomains": null,
+      "cfZone": {
+        "id": "2a269d2a038449d931c9b4c4845ec31a",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 1,
+      "cfHasTunnelCname": false,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=2a269d2a038449d931c9b4c4845ec31a, nsT=cloudflare} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "✓ domainsOf synced (cfZoneId=2a269d2a038449d931c9b4c4845ec31a)",
+        "✓ registeredDomains synced (cfZoneId=2a269d2a038449d931c9b4c4845ec31a)"
+      ],
+      "healResult": null,
+      "opDomainId": 29544969,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "resolvedesk-boa.click",
+      "chatId": null,
+      "registrar": null,
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "9365dd13a80f1c0847750f1a795b78a1",
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": {
+        "id": "9365dd13a80f1c0847750f1a795b78a1",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": null,
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=9365dd13a80f1c0847750f1a795b78a1, nsT=cloudflare}",
+      "healActions": [
+        "(skipped domainsOf — no chatId attribution possible)",
+        "✓ registeredDomains synced (cfZoneId=9365dd13a80f1c0847750f1a795b78a1)"
+      ],
+      "healResult": null
+    },
+    {
+      "domain": "retech.sbs",
+      "chatId": "8211383256",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "04f132df84a2aaa8084cab73ffcfe31c",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29520479,
+        "registrar": "OpenProvider",
+        "chatId": "8211383256"
+      },
+      "registeredDomains": null,
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "arely.ns.cloudflare.com",
+        "dilbert.ns.cloudflare.com"
+      ],
+      "category": "C",
+      "reason": "CF flagged in DB but no live CF zone found",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29520479,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "return-claim.com",
+      "chatId": "8585422151",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "df8a18d8acbb8568896e4c38b61f58ea",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29373966,
+        "registrar": "OpenProvider",
+        "chatId": "8585422151"
+      },
+      "registeredDomains": {
+        "cfZoneId": "df8a18d8acbb8568896e4c38b61f58ea",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29373966,
+        "hasFullVal": true,
+        "ownerChatId": 8585422151
+      },
+      "cfZone": {
+        "id": "df8a18d8acbb8568896e4c38b61f58ea",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "OK",
+      "reason": "consistent",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29373966,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "rspartopartydine.de",
+      "chatId": "1908391639",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "2663d6dcda3f9ff29b319af42e0adf56",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29657727,
+        "registrar": "OpenProvider",
+        "chatId": "1908391639"
+      },
+      "registeredDomains": {
+        "cfZoneId": "2663d6dcda3f9ff29b319af42e0adf56",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29657727,
+        "hasFullVal": true,
+        "ownerChatId": "1908391639"
+      },
+      "cfZone": {
+        "id": "2663d6dcda3f9ff29b319af42e0adf56",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "OK",
+      "reason": "consistent",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29657727,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "rsvpartygath.de",
+      "chatId": "1908391639",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "f2213814ea4a32eb7116ffef845a1895",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29616272,
+        "registrar": "OpenProvider",
+        "chatId": "1908391639"
+      },
+      "registeredDomains": {
+        "cfZoneId": "f2213814ea4a32eb7116ffef845a1895",
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": {
+        "id": "f2213814ea4a32eb7116ffef845a1895",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "OK",
+      "reason": "consistent",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29616272,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "rsvpeviteopen.de",
+      "chatId": "1960615421",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "5313ddc5042a9e1b1dde373202ec1e05",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29663624,
+        "registrar": "OpenProvider",
+        "chatId": "1960615421"
+      },
+      "registeredDomains": {
+        "cfZoneId": "5313ddc5042a9e1b1dde373202ec1e05",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29663624,
+        "hasFullVal": true,
+        "ownerChatId": "1960615421"
+      },
+      "cfZone": {
+        "id": "5313ddc5042a9e1b1dde373202ec1e05",
+        "status": "pending",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "OK",
+      "reason": "consistent",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29663624,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "rsvpeviteopen.org",
+      "chatId": "1960615421",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "2047e30143fb8c792301fcd4a5d340b6",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29665245,
+        "registrar": "OpenProvider",
+        "chatId": "1960615421"
+      },
+      "registeredDomains": {
+        "cfZoneId": "2047e30143fb8c792301fcd4a5d340b6",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29665245,
+        "hasFullVal": true,
+        "ownerChatId": "1960615421"
+      },
+      "cfZone": {
+        "id": "2047e30143fb8c792301fcd4a5d340b6",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": [
+          "ns1.openprovider.nl",
+          "ns2.openprovider.be",
+          "ns3.openprovider.eu"
+        ]
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "OK",
+      "reason": "consistent",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29665245,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "rsvpinvites.org",
+      "chatId": "6546701702",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "2bed3cc1b62f566cea725a1d47dfcd59",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29665752,
+        "registrar": "OpenProvider",
+        "chatId": "6546701702"
+      },
+      "registeredDomains": {
+        "cfZoneId": "2bed3cc1b62f566cea725a1d47dfcd59",
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": {
+        "id": "2bed3cc1b62f566cea725a1d47dfcd59",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "OK",
+      "reason": "consistent",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29665752,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "saza-oof-idd.com",
+      "chatId": "2110003903",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "79ed3925b3b9c765680b08cf98df01d6",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29360006,
+        "registrar": "OpenProvider",
+        "chatId": "2110003903"
+      },
+      "registeredDomains": null,
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "chris.ns.cloudflare.com",
+        "uma.ns.cloudflare.com"
+      ],
+      "category": "C",
+      "reason": "CF flagged in DB but no live CF zone found",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29360006,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "sbclient-dashboard.com",
+      "chatId": "8625434794",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "e18e343a6d418092f855402588224b67",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29497892,
+        "registrar": "OpenProvider",
+        "chatId": "8625434794"
+      },
+      "registeredDomains": null,
+      "cfZone": {
+        "id": "e18e343a6d418092f855402588224b67",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 0,
+      "cfHasTunnelCname": false,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=e18e343a6d418092f855402588224b67, nsT=cloudflare} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "✓ domainsOf synced (cfZoneId=e18e343a6d418092f855402588224b67)",
+        "✓ registeredDomains synced (cfZoneId=e18e343a6d418092f855402588224b67)"
+      ],
+      "healResult": null,
+      "opDomainId": 29497892,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "sbsecurity-portal.com",
+      "chatId": null,
+      "registrar": null,
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "b2d476eb6b5451e678a8da963b5e63ff",
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": {
+        "id": "b2d476eb6b5451e678a8da963b5e63ff",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": null,
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=b2d476eb6b5451e678a8da963b5e63ff, nsT=cloudflare}",
+      "healActions": [
+        "(skipped domainsOf — no chatId attribution possible)",
+        "✓ registeredDomains synced (cfZoneId=b2d476eb6b5451e678a8da963b5e63ff)"
+      ],
+      "healResult": null
+    },
+    {
+      "domain": "screnna.de",
+      "chatId": "7775130199",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": null,
+        "nameserverType": "custom",
+        "opDomainId": 29543864,
+        "registrar": "OpenProvider",
+        "chatId": "7775130199"
+      },
+      "registeredDomains": null,
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "adaline.ns.cloudflare.com",
+        "jaime.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=custom} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "skipped: user explicitly chose nameserverType='custom' — preserving user intent"
+      ],
+      "healResult": null,
+      "opDomainId": 29543864,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "secfedsecure.com",
+      "chatId": 6395648769,
+      "registrar": "OpenProvider",
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "c07eef24aa9637f3c516ee89bd440d48",
+        "nameserverType": "cloudflare",
+        "opDomainId": 28944419,
+        "hasFullVal": true,
+        "ownerChatId": 6395648769
+      },
+      "cfZone": {
+        "id": "c07eef24aa9637f3c516ee89bd440d48",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=c07eef24aa9637f3c516ee89bd440d48, nsT=cloudflare}",
+      "healActions": [
+        "✓ domainsOf inserted for chatId=6395648769 (cfZoneId=c07eef24aa9637f3c516ee89bd440d48)",
+        "✓ registeredDomains synced (cfZoneId=c07eef24aa9637f3c516ee89bd440d48)"
+      ],
+      "healResult": null,
+      "opDomainId": 28944419,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "sechtsft.de",
+      "chatId": "8373792461",
+      "registrar": "OpenProvider",
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "e1eb7da212b114fa41e5683f12e06b61",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29233628,
+        "hasFullVal": true,
+        "ownerChatId": "8373792461"
+      },
+      "cfZone": {
+        "id": "e1eb7da212b114fa41e5683f12e06b61",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=e1eb7da212b114fa41e5683f12e06b61, nsT=cloudflare}",
+      "healActions": [
+        "✓ domainsOf inserted for chatId=8373792461 (cfZoneId=e1eb7da212b114fa41e5683f12e06b61)",
+        "✓ registeredDomains synced (cfZoneId=e1eb7da212b114fa41e5683f12e06b61)"
+      ],
+      "healResult": null,
+      "opDomainId": 29233628,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "secure-bankofamerica.lat",
+      "chatId": null,
+      "registrar": null,
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "5945ff56dbd2c3935126716a6eef19ec",
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": {
+        "id": "5945ff56dbd2c3935126716a6eef19ec",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 3,
+      "cfHasTunnelCname": true,
+      "registrarNs": null,
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=5945ff56dbd2c3935126716a6eef19ec, nsT=cloudflare}",
+      "healActions": [
+        "(skipped domainsOf — no chatId attribution possible)",
+        "✓ registeredDomains synced (cfZoneId=5945ff56dbd2c3935126716a6eef19ec)"
+      ],
+      "healResult": null
+    },
+    {
+      "domain": "secure-resolvedesk.click",
+      "chatId": null,
+      "registrar": null,
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "57da07a2ca50ee472c00b9ee0742ca9f",
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": {
+        "id": "57da07a2ca50ee472c00b9ee0742ca9f",
+        "status": "moved",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": null,
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=57da07a2ca50ee472c00b9ee0742ca9f, nsT=cloudflare}",
+      "healActions": [
+        "(skipped domainsOf — no chatId attribution possible)",
+        "✓ registeredDomains synced (cfZoneId=57da07a2ca50ee472c00b9ee0742ca9f)"
+      ],
+      "healResult": null
+    },
+    {
+      "domain": "secure3-bankofamerica.click",
+      "chatId": null,
+      "registrar": null,
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "46e054e4e863a20846bf4195ff40ccfa",
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": {
+        "id": "46e054e4e863a20846bf4195ff40ccfa",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": null,
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=46e054e4e863a20846bf4195ff40ccfa, nsT=cloudflare}",
+      "healActions": [
+        "(skipped domainsOf — no chatId attribution possible)",
+        "✓ registeredDomains synced (cfZoneId=46e054e4e863a20846bf4195ff40ccfa)"
+      ],
+      "healResult": null
+    },
+    {
+      "domain": "secure3-boa.click",
+      "chatId": null,
+      "registrar": null,
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "f51ee6655f5d7d45b02750ca612b4247",
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": {
+        "id": "f51ee6655f5d7d45b02750ca612b4247",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": null,
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=f51ee6655f5d7d45b02750ca612b4247, nsT=cloudflare}",
+      "healActions": [
+        "(skipped domainsOf — no chatId attribution possible)",
+        "✓ registeredDomains synced (cfZoneId=f51ee6655f5d7d45b02750ca612b4247)"
+      ],
+      "healResult": null
+    },
+    {
+      "domain": "securedevicecheck.com",
+      "chatId": 6395648769,
+      "registrar": "OpenProvider",
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "e0e137776aa89767693ed60d379e7af8",
+        "nameserverType": "cloudflare",
+        "opDomainId": 28751861,
+        "hasFullVal": true,
+        "ownerChatId": 6395648769
+      },
+      "cfZone": {
+        "id": "e0e137776aa89767693ed60d379e7af8",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=e0e137776aa89767693ed60d379e7af8, nsT=cloudflare}",
+      "healActions": [
+        "✓ domainsOf inserted for chatId=6395648769 (cfZoneId=e0e137776aa89767693ed60d379e7af8)",
+        "✓ registeredDomains synced (cfZoneId=e0e137776aa89767693ed60d379e7af8)"
+      ],
+      "healResult": null,
+      "opDomainId": 28751861,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "secureonlinebanking.de",
+      "chatId": "817673476",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "6b9b33b89837a24ed9cc17099a0ea2a7",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29526115,
+        "registrar": "OpenProvider",
+        "chatId": "817673476"
+      },
+      "registeredDomains": null,
+      "cfZone": {
+        "id": "6b9b33b89837a24ed9cc17099a0ea2a7",
+        "status": "moved",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": [
+          "rex.ns.cloudflare.com",
+          "becky.ns.cloudflare.com"
+        ]
+      },
+      "cfDnsRecordsCount": 0,
+      "cfHasTunnelCname": false,
+      "registrarNs": [
+        "becky.ns.cloudflare.com",
+        "rex.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=6b9b33b89837a24ed9cc17099a0ea2a7, nsT=cloudflare} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "✓ domainsOf synced (cfZoneId=6b9b33b89837a24ed9cc17099a0ea2a7)",
+        "✓ registeredDomains synced (cfZoneId=6b9b33b89837a24ed9cc17099a0ea2a7)"
+      ],
+      "healResult": null,
+      "opDomainId": 29526115,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "secureonlinebanking.org",
+      "chatId": "817673476",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": null,
+        "nameserverType": "custom",
+        "opDomainId": 29497930,
+        "registrar": "OpenProvider",
+        "chatId": "817673476"
+      },
+      "registeredDomains": null,
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "delilah.ns.cloudflare.com",
+        "hunts.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=custom} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "skipped: user explicitly chose nameserverType='custom' — preserving user intent"
+      ],
+      "healResult": null,
+      "opDomainId": 29497930,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "secureonlineportal.com",
+      "chatId": "817673476",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": null,
+        "nameserverType": "custom",
+        "opDomainId": 29584744,
+        "registrar": "OpenProvider",
+        "chatId": "817673476"
+      },
+      "registeredDomains": null,
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "abdullah.ns.cloudflare.com",
+        "rosemary.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=custom} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "skipped: user explicitly chose nameserverType='custom' — preserving user intent"
+      ],
+      "healResult": null,
+      "opDomainId": 29584744,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "secureonlineportal.org",
+      "chatId": "817673476",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": null,
+        "nameserverType": "custom",
+        "opDomainId": 29623813,
+        "registrar": "OpenProvider",
+        "chatId": "817673476"
+      },
+      "registeredDomains": null,
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "autumn.ns.cloudflare.com",
+        "jake.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=custom} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "skipped: user explicitly chose nameserverType='custom' — preserving user intent"
+      ],
+      "healResult": null,
+      "opDomainId": 29623813,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "sfrclaim.com",
+      "chatId": "7080940684",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "d2e8fd8350806ceea0cbb8d1ceb8e9e7",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29375926,
+        "registrar": "OpenProvider",
+        "chatId": "7080940684"
+      },
+      "registeredDomains": null,
+      "cfZone": {
+        "id": "d2e8fd8350806ceea0cbb8d1ceb8e9e7",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 3,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=d2e8fd8350806ceea0cbb8d1ceb8e9e7, nsT=cloudflare} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "✓ domainsOf synced (cfZoneId=d2e8fd8350806ceea0cbb8d1ceb8e9e7)",
+        "✓ registeredDomains synced (cfZoneId=d2e8fd8350806ceea0cbb8d1ceb8e9e7)"
+      ],
+      "healResult": null,
+      "opDomainId": 29375926,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "sfrsclaim.com",
+      "chatId": "7080940684",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "3049d3d01b6fbc5ba6718b0fbacbea66",
+        "nameserverType": "cloudflare",
+        "opDomainId": null,
+        "registrar": "OpenProvider",
+        "chatId": "7080940684"
+      },
+      "registeredDomains": {
+        "cfZoneId": "3049d3d01b6fbc5ba6718b0fbacbea66",
+        "nameserverType": "cloudflare",
+        "hasFullVal": true,
+        "ownerChatId": "7080940684"
+      },
+      "cfZone": {
+        "id": "3049d3d01b6fbc5ba6718b0fbacbea66",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 3,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "OK",
+      "reason": "consistent",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29293965,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "shawclient-dashboard.com",
+      "chatId": "8625434794",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "2ef743b721c94fb39f3d1ecd774a1a78",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29532164,
+        "registrar": "OpenProvider",
+        "chatId": "8625434794"
+      },
+      "registeredDomains": null,
+      "cfZone": {
+        "id": "2ef743b721c94fb39f3d1ecd774a1a78",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 0,
+      "cfHasTunnelCname": false,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=2ef743b721c94fb39f3d1ecd774a1a78, nsT=cloudflare} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "✓ domainsOf synced (cfZoneId=2ef743b721c94fb39f3d1ecd774a1a78)",
+        "✓ registeredDomains synced (cfZoneId=2ef743b721c94fb39f3d1ecd774a1a78)"
+      ],
+      "healResult": null,
+      "opDomainId": 29532164,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "shawredirect.com",
+      "chatId": "8625434794",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "6ceab27c6d7d89d960d64094bc17f5f1",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29531662,
+        "registrar": "OpenProvider",
+        "chatId": "8625434794"
+      },
+      "registeredDomains": null,
+      "cfZone": {
+        "id": "6ceab27c6d7d89d960d64094bc17f5f1",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 0,
+      "cfHasTunnelCname": false,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=6ceab27c6d7d89d960d64094bc17f5f1, nsT=cloudflare} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "✓ domainsOf synced (cfZoneId=6ceab27c6d7d89d960d64094bc17f5f1)",
+        "✓ registeredDomains synced (cfZoneId=6ceab27c6d7d89d960d64094bc17f5f1)"
+      ],
+      "healResult": null,
+      "opDomainId": 29531662,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "simmonsonlineprofile.com",
+      "chatId": 6395648769,
+      "registrar": "OpenProvider",
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "b672f6fb60bfcd30f11256953fc924e2",
+        "nameserverType": "cloudflare",
+        "opDomainId": 28843377,
+        "hasFullVal": true,
+        "ownerChatId": 6395648769
+      },
+      "cfZone": {
+        "id": "b672f6fb60bfcd30f11256953fc924e2",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 3,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=b672f6fb60bfcd30f11256953fc924e2, nsT=cloudflare}",
+      "healActions": [
+        "✓ domainsOf inserted for chatId=6395648769 (cfZoneId=b672f6fb60bfcd30f11256953fc924e2)",
+        "✓ registeredDomains synced (cfZoneId=b672f6fb60bfcd30f11256953fc924e2)"
+      ],
+      "healResult": null,
+      "opDomainId": 28843377,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "smilefundsrecoveryservices.com",
+      "chatId": "7080940684",
+      "registrar": "OpenProvider",
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "8279ff31f5697174e181f4aa98e49c28",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29281114,
+        "hasFullVal": true,
+        "ownerChatId": "7080940684"
+      },
+      "cfZone": {
+        "id": "8279ff31f5697174e181f4aa98e49c28",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=8279ff31f5697174e181f4aa98e49c28, nsT=cloudflare}",
+      "healActions": [
+        "✓ domainsOf inserted for chatId=7080940684 (cfZoneId=8279ff31f5697174e181f4aa98e49c28)",
+        "✓ registeredDomains synced (cfZoneId=8279ff31f5697174e181f4aa98e49c28)"
+      ],
+      "healResult": null,
+      "opDomainId": 29281114,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "stocktonbusinessgateway.com",
+      "chatId": 6395648769,
+      "registrar": "OpenProvider",
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": "a489c448b792fc4e5a2990fb714ab0a6",
+        "nameserverType": "cloudflare",
+        "opDomainId": 28789141,
+        "hasFullVal": true,
+        "ownerChatId": 6395648769
+      },
+      "cfZone": {
+        "id": "a489c448b792fc4e5a2990fb714ab0a6",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=null} vs registeredDomains{cfZoneId=a489c448b792fc4e5a2990fb714ab0a6, nsT=cloudflare}",
+      "healActions": [
+        "✓ domainsOf inserted for chatId=6395648769 (cfZoneId=a489c448b792fc4e5a2990fb714ab0a6)",
+        "✓ registeredDomains synced (cfZoneId=a489c448b792fc4e5a2990fb714ab0a6)"
+      ],
+      "healResult": null,
+      "opDomainId": 28789141,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "systemscanportal.com",
+      "chatId": 6395648769,
+      "registrar": "OpenProvider",
+      "domainsOf": null,
+      "registeredDomains": {
+        "cfZoneId": null,
+        "nameserverType": "cloudflare",
+        "opDomainId": 28680309,
+        "hasFullVal": true,
+        "ownerChatId": 6395648769
+      },
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "stella.ns.cloudflare.com",
+        "viddy.ns.cloudflare.com"
+      ],
+      "category": "C",
+      "reason": "CF flagged in DB but no live CF zone found",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 28680309,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "tdapp.chat",
+      "chatId": "8718896463",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": null,
+        "nameserverType": "custom",
+        "opDomainId": 29642601,
+        "registrar": "OpenProvider",
+        "chatId": "8718896463"
+      },
+      "registeredDomains": null,
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "adaline.ns.cloudflare.com",
+        "robert.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=custom} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "skipped: user explicitly chose nameserverType='custom' — preserving user intent"
+      ],
+      "healResult": null,
+      "opDomainId": 29642601,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "tdclient-dashboard.com",
+      "chatId": "8625434794",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "fe4b9a4188fd1739b0117bfd6c80a975",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29468008,
+        "registrar": "OpenProvider",
+        "chatId": "8625434794"
+      },
+      "registeredDomains": null,
+      "cfZone": {
+        "id": "fe4b9a4188fd1739b0117bfd6c80a975",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 6,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=fe4b9a4188fd1739b0117bfd6c80a975, nsT=cloudflare} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "✓ domainsOf synced (cfZoneId=fe4b9a4188fd1739b0117bfd6c80a975)",
+        "✓ registeredDomains synced (cfZoneId=fe4b9a4188fd1739b0117bfd6c80a975)"
+      ],
+      "healResult": null,
+      "opDomainId": 29468008,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "tdsecure-portal.com",
+      "chatId": "8625434794",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "27cfac25854d97607f8eb7251f407f24",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29400536,
+        "registrar": "OpenProvider",
+        "chatId": "8625434794"
+      },
+      "registeredDomains": null,
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "C",
+      "reason": "CF flagged in DB but no live CF zone found",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29400536,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "tdsecurity-portal.com",
+      "chatId": "8625434794",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "70683fa058c8f5a4f1770a9587521f7c",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29384109,
+        "registrar": "OpenProvider",
+        "chatId": "8625434794"
+      },
+      "registeredDomains": {
+        "cfZoneId": "70683fa058c8f5a4f1770a9587521f7c",
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": {
+        "id": "70683fa058c8f5a4f1770a9587521f7c",
+        "status": "pending",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": [
+          "ina1.registrar.eu",
+          "ina2.registrar.eu",
+          "ina3.registrar.eu"
+        ]
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "OK",
+      "reason": "consistent",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29384109,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "testingpagebig.com",
+      "chatId": "6430808218",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "6f66248f9f1c77a04a0a2fcab156ea17",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29545045,
+        "registrar": "OpenProvider",
+        "chatId": "6430808218"
+      },
+      "registeredDomains": {
+        "cfZoneId": "6f66248f9f1c77a04a0a2fcab156ea17",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29545045,
+        "hasFullVal": true,
+        "ownerChatId": "6430808218"
+      },
+      "cfZone": {
+        "id": "6f66248f9f1c77a04a0a2fcab156ea17",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "OK",
+      "reason": "consistent",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29545045,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "teustbnk.de",
+      "chatId": "7513061815",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "4084fa2974d979670c550b5cbba7078d",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29558717,
+        "registrar": "OpenProvider",
+        "chatId": "7513061815"
+      },
+      "registeredDomains": {
+        "cfZoneId": "4084fa2974d979670c550b5cbba7078d",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29558717,
+        "hasFullVal": true,
+        "ownerChatId": "7513061815"
+      },
+      "cfZone": {
+        "id": "4084fa2974d979670c550b5cbba7078d",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "OK",
+      "reason": "consistent",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29558717,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "trssainusaa.de",
+      "chatId": "5115600485",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "50f81cecd1081b53d9f54896f2849c9d",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29639062,
+        "registrar": "OpenProvider",
+        "chatId": "5115600485"
+      },
+      "registeredDomains": null,
+      "cfZone": {
+        "id": "50f81cecd1081b53d9f54896f2849c9d",
+        "status": "moved",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 0,
+      "cfHasTunnelCname": false,
+      "registrarNs": [
+        "braden.ns.cloudflare.com",
+        "sasha.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=50f81cecd1081b53d9f54896f2849c9d, nsT=cloudflare} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "✓ domainsOf synced (cfZoneId=50f81cecd1081b53d9f54896f2849c9d)",
+        "✓ registeredDomains synced (cfZoneId=50f81cecd1081b53d9f54896f2849c9d)"
+      ],
+      "healResult": null,
+      "opDomainId": 29639062,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "tuestbnk.org",
+      "chatId": "7513061815",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "9e354d9e19a8b4403ae70e50d4a07dcd",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29562535,
+        "registrar": "OpenProvider",
+        "chatId": "7513061815"
+      },
+      "registeredDomains": {
+        "cfZoneId": "9e354d9e19a8b4403ae70e50d4a07dcd",
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": {
+        "id": "9e354d9e19a8b4403ae70e50d4a07dcd",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "OK",
+      "reason": "consistent",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29562535,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "usbsecuregateway.com",
+      "chatId": "6395648769",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "183e176bb8d3a013b5c365debfc9ba2c",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29532500,
+        "registrar": "OpenProvider",
+        "chatId": "6395648769"
+      },
+      "registeredDomains": null,
+      "cfZone": {
+        "id": "183e176bb8d3a013b5c365debfc9ba2c",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 1,
+      "cfHasTunnelCname": false,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=183e176bb8d3a013b5c365debfc9ba2c, nsT=cloudflare} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "✓ domainsOf synced (cfZoneId=183e176bb8d3a013b5c365debfc9ba2c)",
+        "✓ registeredDomains synced (cfZoneId=183e176bb8d3a013b5c365debfc9ba2c)"
+      ],
+      "healResult": null,
+      "opDomainId": 29532500,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "verify-google-account.com",
+      "chatId": "6430808218",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "4eb35310baf9b5102b0e24ee8858097c",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29559138,
+        "registrar": "OpenProvider",
+        "chatId": "6430808218"
+      },
+      "registeredDomains": {
+        "cfZoneId": "4eb35310baf9b5102b0e24ee8858097c",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29559138,
+        "hasFullVal": true,
+        "ownerChatId": "6430808218"
+      },
+      "cfZone": {
+        "id": "4eb35310baf9b5102b0e24ee8858097c",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "OK",
+      "reason": "consistent",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29559138,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "verify-navy.com",
+      "chatId": "7394693056",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "5d33743d1d4da22b213987b0b5a7346a",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29501726,
+        "registrar": "OpenProvider",
+        "chatId": "7394693056"
+      },
+      "registeredDomains": {
+        "cfZoneId": "5d33743d1d4da22b213987b0b5a7346a",
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": {
+        "id": "5d33743d1d4da22b213987b0b5a7346a",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "OK",
+      "reason": "consistent",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29501726,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "vppy.org",
+      "chatId": "5418998936",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "b25175016b26dc36601c4f33a33eb720",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29655695,
+        "registrar": "OpenProvider",
+        "chatId": "5418998936"
+      },
+      "registeredDomains": null,
+      "cfZone": {
+        "id": "b25175016b26dc36601c4f33a33eb720",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 0,
+      "cfHasTunnelCname": false,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=b25175016b26dc36601c4f33a33eb720, nsT=cloudflare} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "✓ domainsOf synced (cfZoneId=b25175016b26dc36601c4f33a33eb720)",
+        "✓ registeredDomains synced (cfZoneId=b25175016b26dc36601c4f33a33eb720)"
+      ],
+      "healResult": null,
+      "opDomainId": 29655695,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "wcbcardreplacement.com",
+      "chatId": "6395648769",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "e4e84cfe499849a3e55b98b1a554f533",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29520563,
+        "registrar": "OpenProvider",
+        "chatId": "6395648769"
+      },
+      "registeredDomains": null,
+      "cfZone": {
+        "id": "e4e84cfe499849a3e55b98b1a554f533",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": false,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=e4e84cfe499849a3e55b98b1a554f533, nsT=cloudflare} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "✓ domainsOf synced (cfZoneId=e4e84cfe499849a3e55b98b1a554f533)",
+        "✓ registeredDomains synced (cfZoneId=e4e84cfe499849a3e55b98b1a554f533)"
+      ],
+      "healResult": null,
+      "opDomainId": 29520563,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "welcoparttylive.de",
+      "chatId": "1960615421",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "ce02a48e84ba7172102ff2e50f6dbc37",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29659508,
+        "registrar": "OpenProvider",
+        "chatId": "1960615421"
+      },
+      "registeredDomains": {
+        "cfZoneId": "ce02a48e84ba7172102ff2e50f6dbc37",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29659508,
+        "hasFullVal": true,
+        "ownerChatId": "1960615421"
+      },
+      "cfZone": {
+        "id": "ce02a48e84ba7172102ff2e50f6dbc37",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "OK",
+      "reason": "consistent",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29659508,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "wellsfargo-secure.org",
+      "chatId": "7893016294",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "bf5718737f99e99fb7418f2f388b6e57",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29657889,
+        "registrar": "OpenProvider",
+        "chatId": "7893016294"
+      },
+      "registeredDomains": {
+        "cfZoneId": "bf5718737f99e99fb7418f2f388b6e57",
+        "nameserverType": "cloudflare",
+        "hasFullVal": false,
+        "ownerChatId": null
+      },
+      "cfZone": {
+        "id": "bf5718737f99e99fb7418f2f388b6e57",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 2,
+      "cfHasTunnelCname": true,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "OK",
+      "reason": "consistent",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29657889,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "weltoecardinvitee.org",
+      "chatId": "1908391639",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": "0bccbf238c914984ced139a31cb24db0",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29665296,
+        "registrar": "OpenProvider",
+        "chatId": "1908391639"
+      },
+      "registeredDomains": {
+        "cfZoneId": "0bccbf238c914984ced139a31cb24db0",
+        "nameserverType": "cloudflare",
+        "opDomainId": 29665296,
+        "hasFullVal": true,
+        "ownerChatId": "1908391639"
+      },
+      "cfZone": {
+        "id": "0bccbf238c914984ced139a31cb24db0",
+        "status": "active",
+        "nameservers": [
+          "anderson.ns.cloudflare.com",
+          "leanna.ns.cloudflare.com"
+        ],
+        "originalNs": null
+      },
+      "cfDnsRecordsCount": 0,
+      "cfHasTunnelCname": false,
+      "registrarNs": [
+        "anderson.ns.cloudflare.com",
+        "leanna.ns.cloudflare.com"
+      ],
+      "category": "OK",
+      "reason": "consistent",
+      "healActions": [],
+      "healResult": null,
+      "opDomainId": 29665296,
+      "opStatus": "ACT"
+    },
+    {
+      "domain": "zasa-aof-dd.com",
+      "chatId": "2110003903",
+      "registrar": "OpenProvider",
+      "domainsOf": {
+        "cfZoneId": null,
+        "nameserverType": "custom",
+        "opDomainId": 29518568,
+        "registrar": "OpenProvider",
+        "chatId": "2110003903"
+      },
+      "registeredDomains": null,
+      "cfZone": null,
+      "cfDnsRecordsCount": null,
+      "cfHasTunnelCname": null,
+      "registrarNs": [
+        "kenia.ns.cloudflare.com",
+        "yoxall.ns.cloudflare.com"
+      ],
+      "category": "A",
+      "reason": "DB diverged — domainsOf{cfZoneId=null, nsT=custom} vs registeredDomains{cfZoneId=null, nsT=null}",
+      "healActions": [
+        "skipped: user explicitly chose nameserverType='custom' — preserving user intent"
+      ],
+      "healResult": null,
+      "opDomainId": 29518568,
+      "opStatus": "ACT"
+    }
+  ]
+}
