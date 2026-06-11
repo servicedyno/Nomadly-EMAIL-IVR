@@ -206,14 +206,20 @@ async function getAccessToken() {
  */
 async function apiRequest(method, path, data = null, params = null) {
   const token = await getAccessToken()
+  const headers = {
+    'Authorization': `Bearer ${token}`,
+    'x-request-id':  uuidv4(),
+  }
+  // Only set Content-Type when actually sending a body. Contabo rejects
+  // bodyless DELETE/GET requests that still carry `Content-Type: application/json`
+  // with 400 "Body cannot be empty when content-type is set to 'application/json'".
+  if (data !== null && data !== undefined) {
+    headers['Content-Type'] = 'application/json'
+  }
   const config = {
     method,
     url: `${API_BASE}${path}`,
-    headers: {
-      'Authorization':  `Bearer ${token}`,
-      'x-request-id':   uuidv4(),
-      'Content-Type':   'application/json'
-    },
+    headers,
     timeout: 30000
   }
   if (data)   config.data   = data

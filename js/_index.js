@@ -16497,9 +16497,10 @@ ${message.replace(/\n/g, '<br>')}
   if (action === a.getUserAllVmIntances) {
     if (message === vp.back) return goto.submenu4()
     if (message === user.buyVpsPlan) return goto.createNewVpsFlow()
-    const list = info?.userVPSDetails?.map((item) => item?.name) || [];
-    if (!list?.includes(message)) return send(chatId, vp.selectCorrectOption, vp.of([...list, user.buyVpsPlan]))
-    const selectedVPS = info?.userVPSDetails?.find((item) => item.name ===  message)
+    const vpsList = Array.isArray(info?.userVPSDetails) ? info.userVPSDetails : []
+    const list = vpsList.map((item) => item?.name).filter(Boolean);
+    if (!list.includes(message)) return send(chatId, vp.selectCorrectOption, vp.of([...list, user.buyVpsPlan]))
+    const selectedVPS = vpsList.find((item) => item.name === message)
     info.vpsDetails = selectedVPS
     saveInfo('vpsDetails', selectedVPS)
     return goto.getVPSDetails()
