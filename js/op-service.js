@@ -583,11 +583,26 @@ const disableDnssec = async (domainName) => {
 /**
  * Internal helper: send NS update to OpenProvider API.
  * Handles timeout + retry logic, including transient 5xx errors.
+ *
+ * ── ns_group: '' (registry chprov force) ──
+ * For TLDs where OP holds a separate "nameserver group" (notably .de via DENIC),
+ * sending only `name_servers` updates OP's internal state but DOES NOT always
+ * trigger a registry re-publication. The domain can stay stuck on the old
+ * delegation (e.g. an Nsentry A-record for .de) even though OP shows the new
+ * NS. Sending `ns_group: ''` alongside `name_servers` resets the group binding
+ * and forces OP to push a fresh `domain:update` to the registry.
+ *
+ * Real prod incident: @HHR2009 / rsvpeviteopen.de — OP showed CF nameservers
+ * for hours, but DENIC kept `Nsentry: rsvpeviteopen.de IN A 93.180.69.101`
+ * until we sent `ns_group: ''` in the PUT payload. After the chprov push,
+ * DENIC immediately switched to `Nserver: anderson.ns.cloudflare.com /
+ * leanna.ns.cloudflare.com` and the CF zone activated.
  */
 const _sendNsUpdate = async (domainId, domainName, nsPayload, headers) => {
   let res
   const _put = (timeoutMs) => axios.put(`${OP_BASE_URL}/v1beta/domains/${domainId}`, {
     name_servers: nsPayload,
+    ns_group: '',
   }, { headers, timeout: timeoutMs })
 
   try {

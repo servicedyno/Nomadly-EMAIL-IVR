@@ -61,6 +61,7 @@ const SLEEP_BETWEEN_BATCHES_MS = 800
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 // ─── CLI flags ──────────────────────────────────────────
+// (only consumed when invoked directly via `node`; skipped when require()d as a module)
 const args = process.argv.slice(2)
 const flag = (name) => {
   const idx = args.findIndex((a) => a === `--${name}` || a.startsWith(`--${name}=`))
@@ -72,12 +73,15 @@ const flag = (name) => {
   if (next && !next.startsWith('--')) return next
   return true
 }
-const APPLY = flag('apply') // null, 'A', 'B', 'A,B', 'all'
-const ONLY_DOMAIN = flag('domain') // single-domain mode
-const REPORT_PATH = flag('report') // optional report file
-const APPLY_A = APPLY && (APPLY === 'all' || /\bA\b/i.test(APPLY))
-const APPLY_B = APPLY && (APPLY === 'all' || /\bB\b/i.test(APPLY))
-const DRY_RUN = !APPLY
+const cliApply = flag('apply') // null, 'A', 'B', 'A,B', 'all'
+const cliOnlyDomain = flag('domain') // single-domain mode
+const cliReportPath = flag('report') // optional report file
+let APPLY = cliApply
+let ONLY_DOMAIN = cliOnlyDomain
+let REPORT_PATH = cliReportPath
+let APPLY_A = APPLY && (APPLY === 'all' || /\bA\b/i.test(APPLY))
+let APPLY_B = APPLY && (APPLY === 'all' || /\bB\b/i.test(APPLY))
+let DRY_RUN = !APPLY
 
 // ─── Helpers ────────────────────────────────────────────
 
@@ -342,13 +346,42 @@ async function healCategoryB(db, r) {
 
 // ─── Main ───────────────────────────────────────────────
 
-async function main() {
+/**
+ * Programmatic entry point — can be called from a cron job inside the bot
+ * process. Reuses the running bot's MongoDB client when one is provided,
+ * otherwise opens its own connection.
+ *
+ * @param {Object} [opts]
+ * @param {Object} [opts.db]              — an already-open MongoDB `Db` instance
+ * @param {string} [opts.apply]           — null | 'A' | 'B' | 'A,B' | 'all'
+ * @param {string} [opts.onlyDomain]      — single-domain mode
+ * @param {string} [opts.reportPath]      — optional report file path
+ * @param {Function} [opts.onAdminAlert]  — invoked with a human-readable
+ *                                          summary line for admin DMs
+ * @returns {Promise<{summary: Object, results: Array, startedAt: string, finishedAt: string}>}
+ */
+async function runHealSweep(opts = {}) {
+  // Per-invocation flag overrides (preserves CLI semantics when called bare)
+  if (Object.prototype.hasOwnProperty.call(opts, 'apply')) {
+    APPLY = opts.apply || null
+    APPLY_A = APPLY && (APPLY === 'all' || /\bA\b/i.test(APPLY))
+    APPLY_B = APPLY && (APPLY === 'all' || /\bB\b/i.test(APPLY))
+    DRY_RUN = !APPLY
+  }
+  if (Object.prototype.hasOwnProperty.call(opts, 'onlyDomain')) ONLY_DOMAIN = opts.onlyDomain
+  if (Object.prototype.hasOwnProperty.call(opts, 'reportPath')) REPORT_PATH = opts.reportPath
+
   const startedAt = new Date().toISOString()
   console.log(`\n=== Bifurcated-domain heal scan — ${DRY_RUN ? 'DRY-RUN' : `APPLY=${APPLY}`} ===\n`)
 
-  const client = new MongoClient(process.env.MONGO_URL)
-  await client.connect()
-  const db = client.db(process.env.DB_NAME || 'test')
+  // Reuse caller's db when provided, else open our own
+  let client = null
+  let db = opts.db
+  if (!db) {
+    client = new MongoClient(process.env.MONGO_URL)
+    await client.connect()
+    db = client.db(process.env.DB_NAME || 'test')
+  }
 
   // Collect candidate domain names from both collections
   const candidateNames = new Set()
@@ -416,12 +449,21 @@ async function main() {
     console.log()
   }
 
+  const finishedAt = new Date().toISOString()
   if (REPORT_PATH) {
     const fs = require('fs')
-    fs.writeFileSync(REPORT_PATH, JSON.stringify({ startedAt, finishedAt: new Date().toISOString(), summary, mode: DRY_RUN ? 'dry-run' : `apply=${APPLY}`, results }, null, 2))
+    fs.writeFileSync(REPORT_PATH, JSON.stringify({ startedAt, finishedAt, summary, mode: DRY_RUN ? 'dry-run' : `apply=${APPLY}`, results }, null, 2))
     console.log(`Report written: ${REPORT_PATH}`)
   }
 
-  await client.close()
+  if (client) await client.close()
+
+  return { startedAt, finishedAt, summary, mode: DRY_RUN ? 'dry-run' : `apply=${APPLY}`, results }
 }
-main().catch((e) => { console.error('FATAL', e); process.exit(1) })
+
+// Run immediately when invoked as a CLI script; export when require()d
+if (require.main === module) {
+  runHealSweep().catch((e) => { console.error('FATAL', e); process.exit(1) })
+}
+
+module.exports = { runHealSweep, detectCategory, inspectDomain }

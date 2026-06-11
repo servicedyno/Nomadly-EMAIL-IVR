@@ -1,4 +1,107 @@
 # CHANGELOG — Nomadly Bot
+
+## 2026-02 — rsvpeviteopen.de DENIC Nsentry trap + .de chprov fix + bifurcation heal cron (P0 + P1)
+
+### P0 — @HHR2009 / rsvpeviteopen.de root cause
+Previous session healed `rsvpeviteopen.org` (the addon domain). `rsvpeviteopen.de`
+(the primary hosting domain) was still broken: live DNS returned
+`93.180.69.101` (OpenProvider parking IP), browser connections timed out,
+and the Cloudflare zone was stuck at `status: pending` despite OP showing
+`name_servers: [anderson.ns.cloudflare.com, leanna.ns.cloudflare.com]`.
+
+**Root cause discovered**: DENIC whois showed:
+```
+Nsentry: rsvpeviteopen.de IN A 93.180.69.101
+Status: connect
+```
+
+The `.de` TLD supports two delegation modes:
+1. **Nserver mode** — domain has nameservers (normal)
+2. **Nsentry mode** — domain's A record stored directly in the .de TLD zone
+
+OpenProvider had registered the domain in **Nsentry mode** (likely because
+the CF nameservers couldn't authoritatively answer for `rsvpeviteopen.de`
+at first-registration time). When the customer updated NS on OP, OP's
+internal state updated BUT did not push a `domain:update` to DENIC to
+switch from Nsentry to Nserver mode. Calling `opService.updateNameservers`
+multiple times returned `success: true` but DENIC stayed stuck.
+
+**Fix**: discovered that sending `ns_group: ''` alongside `name_servers`
+on `PUT /v1beta/domains/{id}` forces OP to push a fresh registry chprov.
+After applying it manually, DENIC immediately switched to:
+```
+Nserver: anderson.ns.cloudflare.com
+Nserver: leanna.ns.cloudflare.com
+Status: connect
+```
+CF activation check returned `Zone verified!` within seconds. Live DNS
+now returns `104.21.80.11 / 172.67.172.146` (CF edge IPs). Universal SSL
+provisioning was in flight at session close (CF typically 15-60 min).
+
+### Upstream fix — js/op-service.js
+- `_sendNsUpdate` PUT body now includes `ns_group: ''` on every NS update.
+  Empty string is safe for all TLDs (resets the optional group binding)
+  and is the ONLY way to trigger DENIC chprov for stuck `.de` domains.
+  Comment block on the helper documents the @HHR2009 incident.
+
+### Tests
+- `/app/js/tests/test_op_ns_update_registry_chprov.js` — **10/10 pass**:
+  - Static source guard: `_put` body contains both `name_servers` and `ns_group: ''`
+  - Behavioural test (mocked axios): `updateNameservers('rsvpeviteopen.de', [...])`
+    fires a PUT carrying both fields with correct seq_nr ordering
+
+### P1 — Bifurcation heal cron (daily auto-heal)
+The fork-handed-off `/app/scripts/heal_bifurcated_domains.js` (which had
+manually repaired 74 domains in the previous session) is now wired into
+the bot as a scheduled job.
+
+- **Refactor**: `heal_bifurcated_domains.js` now exports `runHealSweep({db, apply, onlyDomain, reportPath})`
+  while preserving CLI semantics (CLI flags + `node script.js` direct invocation
+  both still work).
+- **New module** `js/bifurcation-heal-cron.js`:
+  - `init({ bot, db })` schedules the daily heal at **03:30 UTC** with a
+    90s post-boot warm-up (lets MongoDB pool + OP auth + CF service settle).
+  - Default mode is `apply=A,B` (DB-divergence + registrar-NS-lagging).
+  - Telegrams a summary to `TELEGRAM_ADMIN_CHAT_ID` only when there are
+    findings (`A>0 || B>0 || C>0 || ERROR>0`). Lists sample Category C
+    orphan domains so the operator can review them.
+  - Idempotent — calling `init()` twice is a no-op.
+  - Exceptions during the sweep are caught and DM'd to admin (no crash).
+- **`js/_index.js`** — registers the cron after `/domain-sync/list` route,
+  along with an admin endpoint:
+  ```
+  GET /admin/bifurcation-heal/run?key=<SESSION_SECRET[0:16]>&apply=A,B&domain=...
+  ```
+  Used for on-demand spot-fixes (e.g. after a manual customer report).
+
+### Tests
+- `/app/js/tests/test_bifurcation_heal_cron.js` — **17/17 pass**:
+  - Module shape (`init`, `runOnce` exports)
+  - `init()` schedules `30 3 * * *` after boot delay
+  - `init()` is idempotent (second call is a no-op)
+  - `runOnce()` passes `db` + `apply` correctly to the heal sweep
+  - No admin DM when summary is all-OK
+  - Admin DM **is** sent when findings exist (lists Category C samples)
+  - Exception in heal does NOT crash; admin is DM'd with truncated stack
+- Existing suites still green: `test_cf_zone_no_silent_downgrade.js` (3/3),
+  `test_heal_bifurcated_domains_categorize.js` (10/10).
+
+### Files touched
+| File | Change |
+|---|---|
+| `js/op-service.js` | `_sendNsUpdate` PUT now includes `ns_group: ''` |
+| `scripts/heal_bifurcated_domains.js` | Refactored to export `runHealSweep`; CLI behavior preserved |
+| `js/bifurcation-heal-cron.js` | new — daily cron wrapper |
+| `js/_index.js` | requires + initializes the cron; new admin endpoint `/admin/bifurcation-heal/run` |
+| `js/tests/test_op_ns_update_registry_chprov.js` | new (10 tests) |
+| `js/tests/test_bifurcation_heal_cron.js` | new (17 tests) |
+| `scripts/check_rsvpeviteopen_de.js`, `recheck_de_cf.js`, `force_de_chprov.js`, `inspect_op_de_full.js`, `repush_de_ns.js`, `poke_de_cf.js`, `check_de_ssl.js`, `force_de_ssl.js` | new diagnostic helpers (read-only / one-shot) |
+
+### Boot confirmation
+`nodejs` supervisor restart: `[BifurcationHealCron] Scheduled — daily at 03:30 UTC (apply=A,B)` logged at T+90s. Admin endpoint returns proper JSON on the live preview pod (HTTP 403 with wrong key, HTTP 200 with correct key).
+
+---
+
 ## 2026-02 — Generalized bifurcation auto-heal (fleet-wide DB sync)
 **Follow-up to the @HHR2009 / rsvpeviteopen.org fix** — extended the one-shot heal recipe into a generalized scanner/healer that detects and fixes bifurcated `domainsOf` ↔ `registeredDomains` metadata across the **entire** domain fleet.
 
