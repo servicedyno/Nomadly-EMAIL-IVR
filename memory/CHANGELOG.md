@@ -1,5 +1,63 @@
 # CHANGELOG — Nomadly Bot
 
+## 2026-02 — Contabo POST unblock confirmed + Railway API key auth fix
+
+### Contabo
+Re-probed POST `/compute/instances` via the safe-invalid-payload pattern
+(invalid productId → forces Contabo's validation layer to respond before
+any billing event).
+
+**Result**: HTTP **400** `{"message":["imageId must be a UUID"],"statusCode":400}` →
+The endpoint is reaching Contabo's validation. **Vendor block is LIFTED.**
+Customers can now purchase VPS instances through the bot normally.
+
+The in-memory circuit breaker resets on every bot restart, and prod's
+`Nomadly-EMAIL-IVR` service was just redeployed at 2026-06-11 19:27 UTC,
+so the breaker is already in a clean (closed) state.
+
+Probe script: `/app/scripts/probe_contabo_post.js` (safe to re-run anytime
+without billing risk).
+
+### Railway API
+The previously-flagged "stale" Railway key was actually fine — it's a
+**project token** (UUID format), not an account token. The fix is in
+the request header:
+
+| Header | Works |
+|---|---|
+| `Authorization: Bearer <key>` (account-token style) | ❌ "Not Authorized" |
+| `Project-Access-Token: <key>` | ✅ Returns projectToken + logs |
+
+Project context now confirmed:
+- projectId: `c23ac3d9-51c5-4242-8776-eed4e3801abe`
+- environmentId: `889fd56a-720a-4020-884c-034784992666`
+- 3 services: HostingBotNew, LockbayNewFIX, Nomadly-EMAIL-IVR (the active node.js bot)
+
+Helper scripts:
+- `/app/scripts/probe_railway_logs.js` — whoami + projects (uses correct header)
+- `/app/scripts/railway_logs.js` — fetch logs from active deployment with filter
+
+### @davion419 status
+Investigated user `davion419` (chatId `404562920`):
+- Wallet balance: **$0** (welcome bonus $5 only, fully consumed)
+- `vpsPlansOf`: **0 active plans**
+- `state.action`: **askCountryForVPS** (stuck mid-flow — country selector)
+- `state.userVPSDetails`: null (no plan picked, no payment)
+
+The Contabo block was a red herring for this user — they never reached the
+purchase step. They got the welcome bonus, started the VPS flow, and stopped
+at country selection. Now that the vendor block is lifted, they can complete
+the flow IF they deposit funds. No code-side action is required; this is a
+customer-service nudge.
+
+### Production confirms code-side fixes are live
+Verified from `Nomadly-EMAIL-IVR` deployment `f18fa194` (2026-06-11 19:27):
+- `[BifurcationHealCron] Scheduled — daily at 03:30 UTC (apply=A,B,D)` ← my changes deployed
+- `[ProtectionEnforcer] SSL grace period active for rsvpeviteopen.de — 18.3h remaining` ← `.de` healed, awaiting CF Universal SSL provision
+- No Contabo errors, no circuit-open events
+
+---
+
 ## 2026-02 — Category D auto-heal: DENIC Nsentry detection in daily sweep
 
 Following the @HHR2009/rsvpeviteopen.de root-cause, the bifurcation healer
