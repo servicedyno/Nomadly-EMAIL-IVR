@@ -1,4 +1,44 @@
 # CHANGELOG — Nomadly Bot
+## 2026-02 — Generalized bifurcation auto-heal (fleet-wide DB sync)
+**Follow-up to the @HHR2009 / rsvpeviteopen.org fix** — extended the one-shot heal recipe into a generalized scanner/healer that detects and fixes bifurcated `domainsOf` ↔ `registeredDomains` metadata across the **entire** domain fleet.
+
+### Scanner — `/app/scripts/heal_bifurcated_domains.js`
+Detects four categories per domain (read-only by default, `--apply` to mutate):
+- **A** — DB diverged (one collection has cfZoneId, the other doesn't, or nameserverType mismatches). Healed by writing the live CF zone id to both sides + upserting the missing record. Honors user "custom" intent (skipped). Refuses to stamp a stale zoneId when no live CF zone is found.
+- **B** — registrar NS lagging (CF zone exists + DB indicates CF, but OP/CR still publishes non-CF nameservers). The exact @HHR2009 pattern. Healed by `opService.updateNameservers(domain, cfNs)` which auto-disables DNSSEC + syncs DB. Requires a successful OP probe — no false positives when probe fails.
+- **C** — orphan CF in DB (DB has cfZoneId but no live CF zone). Flagged only — human review needed (could be a deleted CF zone, an account move, or a CF auth issue).
+- **OK** — all consistent.
+
+### Production-scan result (2026-02-XX dry-run)
+Out of **161 unique domains** in the fleet:
+- 34 already OK
+- 88 Category A (DB diverged) — 74 confidently auto-healable, 14 correctly skipped (10 user-`custom`, 4 no-live-CF)
+- 0 Category B (no other rsvpeviteopen.org-pattern users — the source fix is working)
+- 39 Category C (CF flagged in DB but no live CF zone — flagged for human review)
+
+### Applied
+`node /app/scripts/heal_bifurcated_domains.js --apply=A` — **74 domains synced**, idempotent. Sample verification (post-heal DB):
+- `sfrclaim.com` (chatId 7080940684) — registeredDomains backfilled to match domainsOf. Re-scan shows OK. ✓
+- `03secure.click` — admin-imported zone, no chatId attribution — registeredDomains synced, domainsOf correctly NOT auto-created (no fake owner). ✓
+- `simmonsonlineprofile.com` (chatId 6395648769) — domainsOf inserted with `healInserted: true`, registeredDomains backfilled. ✓
+
+### Tests
+- **`/app/js/tests/test_heal_bifurcated_domains_categorize.js`** — **10/10 pass**: OK / A / B / C boundary cases, including the exact @HHR2009 pattern, the "no false positive on failed registrar probe" guard, and the "preserve user-custom intent" guard.
+- Categorize logic mirrored as a pure function in the test for in-process unit coverage.
+- Source file is also static-checked from the test (`includes()`) to ensure key guard clauses remain in place.
+
+### Files touched
+- `/app/scripts/heal_bifurcated_domains.js` (new — CLI: `--apply=A|B|all`, `--domain=<name>`, `--report=<path>`)
+- `/app/js/tests/test_heal_bifurcated_domains_categorize.js` (new — 10 unit tests)
+- `/app/memory/bifurcation_apply_A_v2_report.json` (artifact — full applied-heal record)
+
+### Remaining (P2)
+- **Category C — 39 orphan-CF cases**: these domains claim CF in DB but the CF zone is gone. Some have OP NS still pointing at the dead zone — those will 530-error in production until either a) the CF zone is recreated (e.g. via `switchToCloudflare`) or b) the NS is moved off CF. Recommend a follow-up scan grouped by chatId to send users a one-click "Reactivate Cloudflare" CTA.
+- **Schedule recurring**: this scanner could be wired into a daily cron in `_index.js` to keep the fleet self-healing going forward.
+
+---
+
+
 ## 2026-02 — @HHR2009 / rsvpeviteopen.org broken-state heal + silent-downgrade source fix
 **P0 customer-visible issue**: User reported the captcha page never appeared for the `.org` domain (purchased 2026-06-11). Sister domain `.de` (purchased 4 hours earlier on Cloudflare NS) worked fine.
 
