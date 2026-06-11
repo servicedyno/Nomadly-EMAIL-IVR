@@ -34161,6 +34161,38 @@ app.get('/domain-sync/list', async (req, res) => {
   }
 })
 
+// ─── Bifurcation heal cron + manual trigger ────────────────────────────────
+// Daily sweep that detects + auto-repairs domainsOf ↔ registeredDomains
+// divergences plus registrar-NS-lagging cases (Category A + B). See
+// /app/js/bifurcation-heal-cron.js and /app/scripts/heal_bifurcated_domains.js
+// for full details.
+try {
+  const bifurcationHealCron = require('./bifurcation-heal-cron')
+  bifurcationHealCron.init({ bot, db })
+
+  // Admin endpoint: manually trigger a heal sweep on demand (for spot-checks
+  // and post-incident validation). Gated by SESSION_SECRET prefix like the
+  // other admin endpoints in this file.
+  app.get('/admin/bifurcation-heal/run', async (req, res) => {
+    const adminKey = (process.env.SESSION_SECRET || '').slice(0, 16)
+    if (!adminKey || req.query.key !== adminKey) {
+      return res.status(403).json({ success: false, error: 'Forbidden' })
+    }
+    const apply = req.query.apply || null  // null = dry-run by default
+    const onlyDomain = req.query.domain || null
+    try {
+      const heal = require('/app/scripts/heal_bifurcated_domains')
+      const result = await heal.runHealSweep({ db, apply, onlyDomain })
+      res.json({ success: true, summary: result.summary, mode: result.mode, count: result.results.length })
+    } catch (e) {
+      log('[API] Bifurcation heal error:', e.message)
+      res.status(500).json({ success: false, error: e.message })
+    }
+  })
+} catch (e) {
+  log('[BifurcationHealCron] init error (non-fatal):', e.message)
+}
+
 //
 app.get('/:id', async (req, res) => {
   const id = req?.params?.id
