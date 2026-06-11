@@ -980,54 +980,54 @@ const setAntiBotProfile = async (zoneId, profile = 'medium') => {
  * Create anti-bot WAF rules (block known bad bots by user-agent)
  */
 const createAntiBotRules = async (zoneId) => {
-  // 3 separate rule batches for comprehensive bot coverage
-  const batches = [
-    // Batch 1: Major search engine crawlers
-    ['Googlebot', 'bingbot', 'Baiduspider', 'YandexBot', 'DuckDuckBot', 'Slurp', 'facebot', 'ia_archiver'],
-    // Batch 2: SEO / marketing bots
-    ['AhrefsBot', 'SemrushBot', 'MJ12bot', 'DotBot', 'PetalBot', 'linkfluence', 'BLEXBot', 'Screaming Frog'],
-    // Batch 3: AI / misc bots
-    ['serpstatbot', 'Bytespider', 'GPTBot', 'CCBot', 'DataForSeoBot', 'Applebot'],
+  // Consolidated into ONE rule. Previously this created 3 separate firewall
+  // rules which pushed some zones over Cloudflare's free-plan 5-custom-rule
+  // cap → 403 (seen ~9×/24h in prod logs 2026-06-10). A single combined
+  // user-agent expression covers all crawlers in one rule slot.
+  const botUAs = [
+    // Search engine crawlers
+    'Googlebot', 'bingbot', 'Baiduspider', 'YandexBot', 'DuckDuckBot', 'Slurp', 'facebot', 'ia_archiver',
+    // SEO / marketing bots
+    'AhrefsBot', 'SemrushBot', 'MJ12bot', 'DotBot', 'PetalBot', 'linkfluence', 'BLEXBot', 'Screaming Frog',
+    // AI / misc bots
+    'serpstatbot', 'Bytespider', 'GPTBot', 'CCBot', 'DataForSeoBot', 'Applebot',
   ]
+  const expression = '(' + botUAs.map(b => `http.user_agent contains "${b}"`).join(' or ') + ')'
+  const DESC = 'Anti-Bot: Block known bad crawlers'
 
-  // Check existing rules to avoid duplicates
-  let existingCount = 0
+  // Check existing rules to avoid duplicates (any prior Anti-Bot rule counts)
   try {
     const existingRes = await axios.get(`${CF_BASE_URL}/zones/${zoneId}/firewall/rules`, { headers: cfHeaders(), timeout: 15000 })
-    existingCount = (existingRes.data?.result || []).filter(r => r.description?.includes('Anti-Bot')).length
-  } catch (_) {}
-  if (existingCount >= 3) {
-    return { success: true, message: 'Anti-Bot rules already exist', existing: true, ruleCount: existingCount }
-  }
-
-  const results = []
-  for (let i = 0; i < batches.length; i++) {
-    const expression = batches[i].map(b => `http.user_agent contains "${b}"`).join(' or ')
-    try {
-      const filterRes = await axios.post(`${CF_BASE_URL}/zones/${zoneId}/filters`, [{
-        expression: `(${expression})`,
-        description: 'Anti-Bot: Block known bad crawlers',
-      }], { headers: cfHeaders(), timeout: 15000 })
-      if (!filterRes.data?.success) { results.push({ batch: i + 1, success: false }); continue }
-      const filterId = filterRes.data.result[0]?.id
-      if (!filterId) { results.push({ batch: i + 1, success: false }); continue }
-      const ruleRes = await axios.post(`${CF_BASE_URL}/zones/${zoneId}/firewall/rules`, [{
-        filter: { id: filterId },
-        action: 'block',
-        description: 'Anti-Bot: Block known bad crawlers',
-        priority: i + 2,
-      }], { headers: cfHeaders(), timeout: 15000 })
-      results.push({ batch: i + 1, success: ruleRes.data?.success || false })
-    } catch (err) {
-      if (err.response?.data?.errors?.some(e => e.message?.includes('already exists'))) {
-        results.push({ batch: i + 1, success: true, existing: true })
-      } else {
-        log('CF createAntiBotRules batch ' + (i + 1) + ' error:', err.message)
-        results.push({ batch: i + 1, success: false, error: err.message })
-      }
+    const existing = (existingRes.data?.result || []).filter(r => r.description?.includes('Anti-Bot'))
+    if (existing.length >= 1) {
+      return { success: true, message: 'Anti-Bot rule already exists', existing: true, ruleCount: existing.length }
     }
+  } catch (_) {}
+
+  try {
+    const filterRes = await axios.post(`${CF_BASE_URL}/zones/${zoneId}/filters`, [{
+      expression,
+      description: DESC,
+    }], { headers: cfHeaders(), timeout: 15000 })
+    const filterId = filterRes.data?.result?.[0]?.id
+    if (!filterId) return { success: false, error: 'filter creation returned no id' }
+    const ruleRes = await axios.post(`${CF_BASE_URL}/zones/${zoneId}/firewall/rules`, [{
+      filter: { id: filterId },
+      action: 'block',
+      description: DESC,
+      priority: 2,
+    }], { headers: cfHeaders(), timeout: 15000 })
+    return { success: ruleRes.data?.success || false }
+  } catch (err) {
+    if (err.response?.data?.errors?.some(e => e.message?.includes('already exists'))) {
+      return { success: true, existing: true }
+    }
+    // Surface the REAL Cloudflare error (was just "status code 403" before —
+    // now we capture the body so quota-vs-permission is diagnosable in logs).
+    const detail = err.response?.data ? JSON.stringify(err.response.data).slice(0, 300) : ''
+    log('CF createAntiBotRules error: ' + err.message + (detail ? ' :: ' + detail : ''))
+    return { success: false, error: err.message, detail }
   }
-  return { success: results.some(r => r.success), rules: results }
 }
 
 // ─── DNS Cleanup for Domain Transition ────────────────────
