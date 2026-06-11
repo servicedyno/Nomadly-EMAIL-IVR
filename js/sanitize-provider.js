@@ -77,6 +77,16 @@ function sanitizeProviderError(msg, context = 'generic') {
   sanitized = sanitized.replace(/\bOP\s+(API|service|error|domain)/gi, 'registrar $1')
   sanitized = sanitized.replace(/\bCR\s+(API|service|error|domain)/gi, 'registrar $1')
 
+  // ── Infrastructure / hosting provider names ──
+  // Railway / .up.railway.app URLs that may leak into error messages
+  sanitized = sanitized.replace(/https?:\/\/[\w-]+\.up\.railway\.app[^\s)\]<>"';]*/gi, '')
+  sanitized = sanitized.replace(/\b[\w-]+\.up\.railway\.app\b/gi, 'our infrastructure')
+  sanitized = sanitized.replace(/\bRailway\b/g, 'our infrastructure')
+  // Contabo (VPS provider) — never expose to end users
+  sanitized = sanitized.replace(/https?:\/\/(?:[\w-]+\.)*contabo\.com[^\s)\]<>"';]*/gi, '')
+  sanitized = sanitized.replace(/\b(?:[\w-]+\.)*contabo\.com\b/gi, 'our VPS provider')
+  sanitized = sanitized.replace(/\bContabo\b/gi, 'our VPS provider')
+
   // ── Strip internal API paths / account identifiers ──
   // Twilio account paths like /2010-04-01/Accounts/AC.../
   sanitized = sanitized.replace(/\/\d{4}-\d{2}-\d{2}\/Accounts\/AC[a-f0-9]+\/[^\s]*/gi, '[internal]')
@@ -164,7 +174,114 @@ function sanitizeHangupCause(cause) {
   return sanitizeProviderError(cause, 'voice')
 }
 
+/**
+ * Sanitize text for use in AI LLM CONTEXT (system prompt / user context blocks).
+ * - Strips third-party provider brand names so the AI never sees them and can't repeat them.
+ * - Does NOT HTML-escape (we don't want literal &lt;b&gt; appearing in user-context strings).
+ * - Maps registrar/voice-provider names to user-facing brand "Nomadly" / "Speechcue".
+ *
+ * Used before injecting any string sourced from DB (registrar, provider, error logs, etc.)
+ * into the LLM context for AI support, marketplace AI, etc.
+ */
+function sanitizeAiContext(text) {
+  if (text === null || text === undefined) return text
+  if (typeof text !== 'string') return text
+  let s = text
+
+  // Strip provider URLs first (api.openprovider.eu, support.openprovider.eu, etc.)
+  const _HOSTS = ['openprovider', 'connectreseller', 'connect-reseller', 'twilio', 'telnyx']
+  const _TLDS = '(?:eu|com|net|io|co|nl|be|de|uk|fr|us|ca|app)'
+  for (const host of _HOSTS) {
+    s = s.replace(new RegExp(`https?:\\/\\/(?:[\\w-]+\\.)*${host}\\.${_TLDS}[^\\s)\\]<>"';]*`, 'gi'), '')
+    s = s.replace(new RegExp(`\\b(?:[\\w-]+\\.)*${host}\\.${_TLDS}\\b`, 'gi'), 'our provider')
+  }
+
+  // Voice / SIP brand names → Speechcue (the consumer-facing voice brand)
+  s = s.replace(/\bTwilio\b/gi, 'Speechcue')
+  s = s.replace(/\bTelnyx\b/gi, 'Speechcue')
+
+  // Domain-registrar brand names → Nomadly (the consumer-facing brand for purchased domains)
+  s = s.replace(/\bOpenProvider\b/gi, 'Nomadly')
+  s = s.replace(/\bConnect\s?Reseller\b/gi, 'Nomadly')
+  // Strip lowercase forms that may come from DB source fields like source: 'openprovider'
+  s = s.replace(/\bopenprovider\b/gi, 'Nomadly')
+  s = s.replace(/\bconnectreseller\b/gi, 'Nomadly')
+
+  // Internal abbreviations
+  s = s.replace(/\bOP\s+(API|service|error|domain|account)/gi, 'registrar $1')
+  s = s.replace(/\bCR\s+(API|service|error|domain|account)/gi, 'registrar $1')
+
+  // Infrastructure / VPS providers
+  s = s.replace(/\b[\w-]+\.up\.railway\.app\b/gi, 'our infrastructure')
+  s = s.replace(/\bRailway\b/g, 'Nomadly infrastructure')
+  s = s.replace(/\b(?:[\w-]+\.)*contabo\.com\b/gi, 'our VPS provider')
+  s = s.replace(/\bContabo\b/gi, 'Nomadly VPS')
+
+  // Provider-default nameserver hostnames
+  s = s.replace(/\bns\d+\.(?:openprovider|nomadly)\.(?:nl|be|eu|com|net|de)\b/gi, 'default nameserver')
+  s = s.replace(/\bns\d+\.connectreseller\.(?:com|net|eu)\b/gi, 'default nameserver')
+
+  return s.replace(/\s{2,}/g, ' ').trim()
+}
+
+/**
+ * Sanitize a final user-facing AI response just before sending to Telegram.
+ * - Like sanitizeProviderError but does NOT HTML-escape, because the AI is instructed
+ *   to use <b>, <i>, <code> tags for formatting and Telegram needs them intact.
+ * - Defence-in-depth: even with system-prompt instructions, the LLM can still slip
+ *   in a brand name from training data. This is the last line of defence.
+ */
+function sanitizeUserText(text) {
+  if (text === null || text === undefined) return text
+  if (typeof text !== 'string') return text
+  let s = text
+
+  // Strip provider URLs (any subdomain of openprovider/connectreseller/twilio/telnyx)
+  const _HOSTS = ['openprovider', 'connectreseller', 'connect-reseller', 'twilio', 'telnyx']
+  const _TLDS = '(?:eu|com|net|io|co|nl|be|de|uk|fr|us|ca|app)'
+  for (const host of _HOSTS) {
+    s = s.replace(new RegExp(`https?:\\/\\/(?:[\\w-]+\\.)*${host}\\.${_TLDS}[^\\s)\\]<>"';]*`, 'gi'), '')
+  }
+
+  // Bare host references → "our provider"
+  for (const host of _HOSTS) {
+    s = s.replace(new RegExp(`\\b(?:[\\w-]+\\.)*${host}\\.${_TLDS}\\b`, 'gi'), 'our provider')
+  }
+
+  // Brand names → user-facing alternatives
+  s = s.replace(/\bTwilio\b/gi, 'Speechcue')
+  s = s.replace(/\bTelnyx\b/gi, 'Speechcue')
+  s = s.replace(/\bOpenProvider\b/gi, 'Nomadly')
+  s = s.replace(/\bopenprovider\b/gi, 'Nomadly')
+  s = s.replace(/\bConnect\s?Reseller\b/gi, 'Nomadly')
+  s = s.replace(/\bconnectreseller\b/gi, 'Nomadly')
+
+  // Infrastructure / VPS providers
+  s = s.replace(/https?:\/\/[\w-]+\.up\.railway\.app[^\s)\]<>"';]*/gi, '')
+  s = s.replace(/\b[\w-]+\.up\.railway\.app\b/gi, 'our infrastructure')
+  s = s.replace(/\bRailway\b/g, 'Nomadly infrastructure')
+  s = s.replace(/https?:\/\/(?:[\w-]+\.)*contabo\.com[^\s)\]<>"';]*/gi, '')
+  s = s.replace(/\b(?:[\w-]+\.)*contabo\.com\b/gi, 'our VPS provider')
+  s = s.replace(/\bContabo\b/gi, 'Nomadly VPS')
+
+  // Provider-default nameserver hostnames
+  s = s.replace(/\bns\d+\.(?:openprovider|connectreseller)\.(?:nl|be|eu|com|net|de)\b/gi, 'default nameserver')
+
+  // Clean up orphaned parens / "(see )" leftovers from URL strip
+  s = s.replace(/\(\s*(?:see|visit|check|more\s+(?:info|details)|details?|docs?|help)?\s*\)/gi, '')
+  s = s.replace(/\[\s*(?:see|visit|check|more\s+(?:info|details)|details?|docs?|help)?\s*\]/gi, '')
+  s = s.replace(/\bFor\s+more\s+(?:information|details|info)\s+please(?:\s+(?:check|visit|see|refer\s+to))?\s*[.,;:]?\s*$/gim, '')
+
+  // Tidy double spaces & space-before-punct
+  s = s.replace(/\s+([.,;!?])/g, '$1')
+  s = s.replace(/\s{2,}/g, ' ').trim()
+
+  return s
+}
+
 module.exports = {
   sanitizeProviderError,
   sanitizeHangupCause,
+  sanitizeAiContext,
+  sanitizeUserText,
 }

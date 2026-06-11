@@ -15021,7 +15021,7 @@ ${message.replace(/\n/g, '<br>')}
       }
     } catch (err) {
       console.log('[EmailBlast] Remove domain error:', err.message)
-      return send(chatId, trans('t.vps_17', err.message), { reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
+      return send(chatId, trans('t.vps_17', sanitizeProviderError(err.message)), { reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
     }
   }
 
@@ -18767,7 +18767,7 @@ ${message.replace(/\n/g, '<br>')}
       )
       let confirmMsg = t.switchToProviderConfirm(domain)
       if (hasShortener) {
-        confirmMsg += `\n\n⚠️ <b>Warning:</b> Your URL shortener is active on this domain. Provider DNS does not support root CNAME flattening like Cloudflare. <b>The shortener will be deactivated</b> and the domain removed from Railway.`
+        confirmMsg += `\n\n⚠️ <b>Warning:</b> Your URL shortener is active on this domain. The default DNS does not support root CNAME flattening like Cloudflare does. <b>The shortener will be deactivated</b> and the domain removed from our shortener infrastructure.`
       }
       send(chatId, confirmMsg, k.of([[t.yes, t.no], ['↩️ Back']]))
       if (hasShortener) {
@@ -22426,7 +22426,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       return
     } catch (err) {
       log(`[BulkTTS] TTS error: ${err.message}`)
-      return send(chatId, trans('t.cp_207', err.message), k.of([['🎤 Change Voice'], ['↩️ Back']]))
+      return send(chatId, trans('t.cp_207', sanitizeProviderError(err.message, 'voice')), k.of([['🎤 Change Voice'], ['↩️ Back']]))
     }
   }
 
@@ -28146,7 +28146,7 @@ Select a category:`), k.of(catBtns))
       send(chatId, trans('t.sms_22', result.gifted, result.skipped, result.failed, result.total), { parse_mode: 'HTML' })
       log(`[Admin] gift5all complete: gifted=${result.gifted}, skipped=${result.skipped}, failed=${result.failed}`)
     }).catch(err => {
-      send(chatId, trans('t.sms_23', err.message))
+      send(chatId, trans('t.sms_23', sanitizeProviderError(err.message)))
       log(`[Admin] gift5all error: ${err.message}`)
     })
     return
@@ -37190,3 +37190,4 @@ app.use((err, req, res, _next) => {
 
 // Start Express server after all functions are defined
 if (REST_APIS_ON === 'true') startServer()
+Server()

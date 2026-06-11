@@ -9,6 +9,7 @@
  */
 
 const OpenAI = require('openai')
+const { sanitizeAiContext, sanitizeUserText } = require('./sanitize-provider.js')
 const log = console.log
 
 // ── Initialize OpenAI ──
@@ -68,6 +69,13 @@ const SYSTEM_PROMPT = `You are the AI support assistant for ${BRAND}, a Telegram
 - If you cannot confidently answer, say so and let the user know a human agent will assist shortly
 - NEVER make up pricing, features, or policies — only state what's in the knowledge base
 - Format responses for Telegram (use <b>bold</b> and <i>italic</i> HTML tags, not markdown)
+
+## BRAND CONFIDENTIALITY — CRITICAL
+- NEVER mention third-party providers/vendors by name. The user must perceive ${BRAND} as the sole provider of everything.
+- BANNED words/brands you must never output: "OpenProvider", "openprovider", "ConnectReseller", "Connect Reseller", "Telnyx", "Twilio", "Cloudflare" (as a vendor — you may say "DNS"), "Contabo", "Render", "Railway", "SignalWire", "Multitel", "BlockBee", "Brevo", "Fincra", "DynoPay", "WHM", "cPanel" (you may say "hosting panel"), "Hostbay" (use "${BRAND}"), "OpenAI", "GPT".
+- If a registrar/provider/vendor name appears in the user context below (e.g. "registered ✅ (OpenProvider)"), DO NOT echo that name back. Refer to it as "${BRAND}" or "our registrar".
+- If a user asks WHO the registrar/provider is, answer: "Your domain is registered through ${BRAND}." Do NOT name the upstream provider.
+- This rule overrides everything else. If unsure whether a word is a vendor name, say "${BRAND}" instead.
 
 ## BOT SUBSCRIPTION PLANS — EXACT DETAILS
 
@@ -1258,7 +1266,11 @@ async function getUserContext(chatId, userMessage = '') {
           const parts = [d]
 
           if (purchasedSet.has(d) || reg) {
-            const registrar = reg?.val?.registrar || reg?.val?.provider || (purchasedSet.has(d) ? 'Nomadly' : 'external')
+            const rawRegistrar = reg?.val?.registrar || reg?.val?.provider || (purchasedSet.has(d) ? 'Nomadly' : 'external')
+            // Sanitize: never expose third-party registrar names (OpenProvider, ConnectReseller, etc.)
+            // to the LLM context — it will faithfully repeat them to the user. Map all known
+            // upstream registrars to the consumer-facing brand "Nomadly".
+            const registrar = sanitizeAiContext(String(rawRegistrar))
             parts.push(`registered ✅ (${registrar})`)
           } else {
             parts.push(`registration source: unknown`)
@@ -1478,7 +1490,11 @@ async function getAiResponse(chatId, userMessage, lang = 'en') {
       throw new Error('OpenAI returned no completion after retries')
     }
 
-    const aiResponse = completion.choices[0]?.message?.content || ''
+    const rawAiResponse = completion.choices[0]?.message?.content || ''
+    // Defence-in-depth: scrub any third-party provider/vendor names the LLM might
+    // have produced (despite the BRAND CONFIDENTIALITY rule) before showing to the user
+    // AND before persisting to chat history (so future turns don't re-leak them).
+    const aiResponse = sanitizeUserText(rawAiResponse)
 
     // Save both messages to history
     await saveMessage(chatId, 'user', userMessage)
@@ -1646,7 +1662,8 @@ async function getMarketplaceAiResponse(chatId, userMessage, lang = 'en') {
       temperature: 0.7,
     })
 
-    const aiResponse = completion.choices[0]?.message?.content || ''
+    const rawAiResponse = completion.choices[0]?.message?.content || ''
+    const aiResponse = sanitizeUserText(rawAiResponse)
     await saveMessage(chatId, 'user', userMessage)
     await saveMessage(chatId, 'assistant', aiResponse)
     return { response: aiResponse, error: null }
