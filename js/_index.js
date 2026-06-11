@@ -35767,7 +35767,13 @@ app.post('/twilio/voice-dial-status', async (req, res) => {
         } catch (e) { log(`[Twilio] ${label} unanswered billing error: ${e.message}`) }
       }
 
-      bot?.sendMessage(chatId, `❌ <b>${label} Failed</b>\n📲 ${decodedFrom} — ${reason}${chargeLine}`, { parse_mode: 'HTML' }).catch(() => {})
+      // Don't label a no-answer / busy as "Failed" — the call worked, the
+      // recipient just didn't pick up. Reserve ❌ Failed for genuine
+      // failed/canceled. Fix 2026-06-11 (Padrino_voodoo "SIP failed" report).
+      let _statusIcon = '❌', _statusTitle = `${label} Failed`, _statusHint = reason
+      if (DialCallStatus === 'no-answer') { _statusIcon = '📞'; _statusTitle = `${label} — No Answer`; _statusHint = 'The recipient did not pick up.' }
+      else if (DialCallStatus === 'busy') { _statusIcon = '📵'; _statusTitle = `${label} — Line Busy`; _statusHint = 'The line was busy.' }
+      bot?.sendMessage(chatId, `${_statusIcon} <b>${_statusTitle}</b>\n📲 ${decodedFrom}${chargeLine}\n<i>${_statusHint}</i>`, { parse_mode: 'HTML' }).catch(() => {})
       response.say(`The call could not be completed. ${reason}.`)
       response.hangup()
       return res.type('text/xml').send(response.toString())
