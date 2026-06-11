@@ -1,7 +1,7 @@
 # Nomadly — Multi-Service Platform PRD
 
 > 📋 **Recent changes are tracked in [`CHANGELOG.md`](./CHANGELOG.md)** (added 2026-02 for size).
-> Latest entry: **2026-02 — rsvpeviteopen.de DENIC Nsentry trap + .de chprov fix + bifurcation heal cron (P0 + P1)** — Root-caused `.de` domain stuck in DENIC Nsentry mode despite OpenProvider showing CF nameservers; the fix is to include `ns_group: ''` in OP NS-update PUTs to force a registry chprov. After applying it the DENIC delegation flipped to Nserver mode, CF zone activated, live DNS now returns CF edge IPs. Upstream fix added to `op-service.js`, regression test (10/10). Also: bifurcation healer (`/app/scripts/heal_bifurcated_domains.js`) wired as a daily cron at 03:30 UTC via `js/bifurcation-heal-cron.js`, admin trigger endpoint `/admin/bifurcation-heal/run`, cron tests (17/17).
+> Latest entry: **2026-02 — Category D auto-heal: DENIC Nsentry detection in daily sweep** — Following the @HHR2009/rsvpeviteopen.de root-cause, the daily bifurcation heal cron now also detects `.de` domains stuck in DENIC Nsentry mode via fast whois probe and auto-heals them by re-pushing NS through OpenProvider (which now always sends `ns_group: ''` to force registry chprov). Fleet audit: 14/14 `.de` domains currently in proper Nserver mode. Tests: 45 total (14 categorize + 18 cron + 10 op-ns + 3 cf-zone), all green.
 
 ## Session 2026-02-XX — MySQL UI for Hosting Panel (cPanel-style, Phase 1 + 2)
 **Status: ✅ COMPLETE — verified across 3 testing iterations (39/39 backend, 100% frontend, zero console warnings).**

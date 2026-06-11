@@ -49,6 +49,7 @@
 
 require('dotenv').config({ path: '/app/backend/.env' })
 const { MongoClient } = require('mongodb')
+const { execSync } = require('child_process')
 const cfService = require('/app/js/cf-service.js')
 const opService = require('/app/js/op-service.js')
 
@@ -57,8 +58,33 @@ const OP_DEFAULT_NS_PATTERNS = [/^ns\d?\.openprovider\.(nl|be|eu)$/i]
 const CR_DEFAULT_NS_PATTERNS = [/connectreseller\.com$/i, /\.ns\.connectreseller\.com$/i]
 const BATCH_SIZE = 4
 const SLEEP_BETWEEN_BATCHES_MS = 800
+const WHOIS_TIMEOUT_MS = 10000
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
+// ─── DENIC whois helper (.de only) ──────────────────────
+// Detects the "Nsentry trap" where OP shows CF nameservers but DENIC is
+// still serving the parking A-record directly via TLD-level Nsentry.
+// See @HHR2009/rsvpeviteopen.de incident (2026-02) — full root-cause in
+// /app/memory/CHANGELOG.md.
+function _denicWhois(domain) {
+  if (!/\.de$/i.test(domain)) return null
+  let out
+  try {
+    out = execSync(`whois ${domain}`, { timeout: WHOIS_TIMEOUT_MS, stdio: ['ignore', 'pipe', 'pipe'] }).toString('utf-8')
+  } catch (e) {
+    return { mode: 'ERROR', error: e.message }
+  }
+  const lines = out.split('\n')
+  const nserverLines = lines.filter((l) => /^Nserver:/i.test(l)).map((l) => l.split(':').slice(1).join(':').trim().toLowerCase())
+  const nsentryLines = lines.filter((l) => /^Nsentry:/i.test(l)).map((l) => l.split(':').slice(1).join(':').trim())
+  const statusLine = lines.find((l) => /^Status:/i.test(l))
+  const status = statusLine ? statusLine.split(':').slice(1).join(':').trim() : ''
+  if (nsentryLines.length > 0 && nserverLines.length === 0) return { mode: 'NSENTRY', status, nsentry: nsentryLines }
+  if (nserverLines.length > 0) return { mode: 'NSERVER', status, nserver: nserverLines }
+  if (/free|invalid/i.test(status)) return { mode: 'UNREGISTERED', status }
+  return { mode: 'UNKNOWN', status }
+}
 
 // ─── CLI flags ──────────────────────────────────────────
 // (only consumed when invoked directly via `node`; skipped when require()d as a module)
@@ -81,6 +107,7 @@ let ONLY_DOMAIN = cliOnlyDomain
 let REPORT_PATH = cliReportPath
 let APPLY_A = APPLY && (APPLY === 'all' || /\bA\b/i.test(APPLY))
 let APPLY_B = APPLY && (APPLY === 'all' || /\bB\b/i.test(APPLY))
+let APPLY_D = APPLY && (APPLY === 'all' || /\bD\b/i.test(APPLY))
 let DRY_RUN = !APPLY
 
 // ─── Helpers ────────────────────────────────────────────
@@ -95,7 +122,7 @@ function isCfNs(ns) {
   return /\.ns\.cloudflare\.com$/i.test(ns)
 }
 
-function detectCategory({ dofRec, regRec, cfZone, regNs, registrar }) {
+function detectCategory({ dofRec, regRec, cfZone, regNs, registrar, denic }) {
   const dofCfZ = dofRec?.cfZoneId || null
   const dofNsT = dofRec?.nameserverType || null
   const regCfZ = regRec?.val?.cfZoneId || null
@@ -104,6 +131,17 @@ function detectCategory({ dofRec, regRec, cfZone, regNs, registrar }) {
   const dbsAgreeOnCf = (dofCfZ === regCfZ) && (dofNsT === regNsT)
   const cfZoneExists = !!cfZone
   const intendsCloudflare = dofNsT === 'cloudflare' || regNsT === 'cloudflare' || !!dofCfZ || !!regCfZ
+
+  // Category D: DENIC has the .de domain stuck in Nsentry mode (OP shows
+  // CF nameservers but DENIC never received the chprov). Highest priority
+  // because it makes the customer's site unreachable — checked BEFORE C
+  // so a stuck domain isn't misreported as a missing CF zone.
+  if (denic?.mode === 'NSENTRY') {
+    return {
+      category: 'D',
+      reason: `DENIC stuck in Nsentry mode (${(denic.nsentry || []).join(', ')}) — registry chprov never fired`,
+    }
+  }
 
   // Category C: DB says CF (or cfZoneId stored) but no live CF zone — orphan tag
   if (intendsCloudflare && !cfZoneExists) {
@@ -184,6 +222,13 @@ async function inspectDomain(domain, dof, reg) {
     }
   }
 
+  // ── DENIC whois probe (.de only) ──
+  // Detects Nsentry-stuck domains — a known OP↔DENIC race documented in
+  // CHANGELOG.md. Cheap (single whois call) and only fires for .de.
+  if (/\.de$/i.test(domain)) {
+    result.denic = _denicWhois(domain)
+  }
+
   // ── Categorize ──
   const { category, reason } = detectCategory({
     dofRec: dof,
@@ -191,6 +236,7 @@ async function inspectDomain(domain, dof, reg) {
     cfZone: result.cfZone,
     regNs: result.registrarNs,
     registrar,
+    denic: result.denic,
   })
   result.category = category
   result.reason = reason
@@ -344,6 +390,42 @@ async function healCategoryB(db, r) {
   return { applied: true }
 }
 
+async function healCategoryD(db, r) {
+  // .de stuck in DENIC Nsentry mode. Auto-heal by re-pushing NS via OP
+  // (the upstream fix in op-service._sendNsUpdate now always sends
+  // `ns_group: ''` which forces a registry chprov).
+  const registrar = r.registrar
+  if (registrar !== 'OpenProvider' && registrar !== 'openprovider') {
+    r.healActions.push(`skipped: registrar=${registrar} — DENIC chprov only available via OP`)
+    return { skipped: true }
+  }
+
+  // Prefer the NS that OP currently records (so we don't accidentally
+  // overwrite a customer's custom NS). Fall back to CF zone NS if OP
+  // returned nothing.
+  let nsToPush = r.registrarNs && r.registrarNs.length >= 2 ? r.registrarNs : null
+  if (!nsToPush && r.cfZone?.nameservers && r.cfZone.nameservers.length >= 2) {
+    nsToPush = r.cfZone.nameservers
+  }
+  if (!nsToPush) {
+    r.healActions.push('skipped: no NS source available (OP NS empty + no CF zone)')
+    return { skipped: true }
+  }
+
+  if (DRY_RUN || !APPLY_D) {
+    r.healActions.push(`would: opService.updateNameservers('${r.domain}', [${nsToPush.join(', ')}]) — force chprov via ns_group:''`)
+    return { dryRun: true }
+  }
+
+  const nsResult = await opService.updateNameservers(r.domain, nsToPush)
+  if (!nsResult?.success) {
+    r.healActions.push(`✗ OP updateNameservers failed: ${nsResult?.error || JSON.stringify(nsResult)}`)
+    return { failed: true, error: nsResult?.error }
+  }
+  r.healActions.push(`✓ OP NS re-pushed (${nsToPush.join(', ')}) — DENIC chprov triggered, expect Nsentry→Nserver flip in <5min`)
+  return { applied: true }
+}
+
 // ─── Main ───────────────────────────────────────────────
 
 /**
@@ -366,6 +448,7 @@ async function runHealSweep(opts = {}) {
     APPLY = opts.apply || null
     APPLY_A = APPLY && (APPLY === 'all' || /\bA\b/i.test(APPLY))
     APPLY_B = APPLY && (APPLY === 'all' || /\bB\b/i.test(APPLY))
+    APPLY_D = APPLY && (APPLY === 'all' || /\bD\b/i.test(APPLY))
     DRY_RUN = !APPLY
   }
   if (Object.prototype.hasOwnProperty.call(opts, 'onlyDomain')) ONLY_DOMAIN = opts.onlyDomain
@@ -409,6 +492,7 @@ async function runHealSweep(opts = {}) {
 
         if (r.category === 'A') await healCategoryA(db, r)
         else if (r.category === 'B') await healCategoryB(db, r)
+        else if (r.category === 'D') await healCategoryD(db, r)
         // C and OK don't auto-heal
 
         return r
@@ -426,16 +510,17 @@ async function runHealSweep(opts = {}) {
   }
 
   // ── Report ──
-  const summary = { OK: 0, A: 0, B: 0, C: 0, ERROR: 0 }
+  const summary = { OK: 0, A: 0, B: 0, C: 0, D: 0, ERROR: 0 }
   for (const r of results) summary[r.category] = (summary[r.category] || 0) + 1
 
   console.log(`\n=== Summary ===`)
-  console.log(`  OK    (consistent)            : ${summary.OK}`)
-  console.log(`  A     (DB diverged)           : ${summary.A}`)
-  console.log(`  B     (registrar NS lagging)  : ${summary.B}`)
-  console.log(`  C     (orphan CF in DB)       : ${summary.C}`)
-  console.log(`  ERROR                         : ${summary.ERROR}`)
-  console.log(`  TOTAL                         : ${results.length}\n`)
+  console.log(`  OK    (consistent)                : ${summary.OK}`)
+  console.log(`  A     (DB diverged)               : ${summary.A}`)
+  console.log(`  B     (registrar NS lagging)      : ${summary.B}`)
+  console.log(`  C     (orphan CF in DB)           : ${summary.C}`)
+  console.log(`  D     (.de DENIC Nsentry stuck)   : ${summary.D}`)
+  console.log(`  ERROR                             : ${summary.ERROR}`)
+  console.log(`  TOTAL                             : ${results.length}\n`)
 
   // Detail lines for anything non-OK
   for (const r of results) {

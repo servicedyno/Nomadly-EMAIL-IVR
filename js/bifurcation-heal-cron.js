@@ -44,7 +44,7 @@ function init({ bot, db, adminChatId, applyMode }) {
   }
   initialised = true
 
-  const apply = applyMode || 'A,B'
+  const apply = applyMode || 'A,B,D'
   const admin = adminChatId || process.env.TELEGRAM_ADMIN_CHAT_ID
 
   setTimeout(() => {
@@ -59,11 +59,11 @@ async function runOnce({ bot, db, admin, apply }) {
   try {
     const result = await heal.runHealSweep({ db, apply })
     const { summary } = result
-    const summaryLine = `OK=${summary.OK || 0}, A-healed=${summary.A || 0}, B-healed=${summary.B || 0}, C-flagged=${summary.C || 0}, ERR=${summary.ERROR || 0}`
+    const summaryLine = `OK=${summary.OK || 0}, A-healed=${summary.A || 0}, B-healed=${summary.B || 0}, C-flagged=${summary.C || 0}, D-healed=${summary.D || 0}, ERR=${summary.ERROR || 0}`
     console.log(`[BifurcationHealCron] Tick done — ${summaryLine}`)
 
     // Admin alert only when something interesting happened
-    const hasFindings = (summary.A || 0) > 0 || (summary.B || 0) > 0 || (summary.C || 0) > 0 || (summary.ERROR || 0) > 0
+    const hasFindings = (summary.A || 0) > 0 || (summary.B || 0) > 0 || (summary.C || 0) > 0 || (summary.D || 0) > 0 || (summary.ERROR || 0) > 0
     if (hasFindings && bot && admin) {
       const lines = [
         `🩹 <b>Bifurcation heal — daily sweep</b>`,
@@ -73,6 +73,7 @@ async function runOnce({ bot, db, admin, apply }) {
         `A (DB diverged, auto-healed): ${summary.A || 0}`,
         `B (registrar NS lagging, auto-healed): ${summary.B || 0}`,
         `C (orphan CF zone, flagged for review): ${summary.C || 0}`,
+        `D (.de DENIC Nsentry stuck, auto-healed): ${summary.D || 0}`,
         `Errors: ${summary.ERROR || 0}`,
       ]
       if ((summary.C || 0) > 0) {
