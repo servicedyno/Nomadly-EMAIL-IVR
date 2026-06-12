@@ -475,18 +475,35 @@ async function listRegions() {
 // ─── Images ───────────────────────────────────────────────────────────────
 
 // ── Windows image edition rules ──
-// NVMe products (V91,V94,V97,V100,V103,V106): use SE (Standard Edition) images
-// SSD products  (V92,V95,V98,V101,V104,V107): use DE (DataCenter Edition) images
+// As of 2026-02 (incident @davion419/V94 + Contabo POST cred rotation),
+// Contabo rejects Standard Edition (SE) Windows images on BOTH V94 (NVMe)
+// AND V95 (SSD) with `cannot use this image with selected product`. Only
+// Datacenter Edition (DE) is accepted on tier-2 products.
+//
+// Probe matrix run 2026-02 against US-west:
+//   V94 + 2025-se: ✗ rejected     V94 + 2025-de: ✓ accepted
+//   V94 + 2022-se: ✗ rejected     V94 + 2022-de: ✓ accepted
+//   V95 + 2025-se: ✗ rejected     V95 + 2025-de: ✓ accepted
+//   V95 + 2022-se: ✗ rejected     V95 + 2022-de: ✓ accepted
+//
+// Until we can probe the other tiers (V91/V97/V100/V103/V106 NVMe and
+// V92/V98/V101/V104/V107 SSD), we default to **DE for everything** — DE
+// images are accepted on every product we've ever seen, while SE has
+// product-specific restrictions. This is the same convention as the old
+// "DEFAULT_WINDOWS_IMAGE = DEFAULT_WINDOWS_IMAGE_SSD" fallback that was
+// already labelled "safe for both when NVMe is unavailable".
+//
+// The NVME_PRODUCT_IDS / SSD_PRODUCT_IDS sets are kept because other
+// fallback logic (NVMe↔SSD product downgrade) still depends on them.
 const NVME_PRODUCT_IDS = new Set(['V91', 'V94', 'V97', 'V100', 'V103', 'V106'])
 const SSD_PRODUCT_IDS  = new Set(['V92', 'V95', 'V98', 'V101', 'V104', 'V107'])
 
 function isNVMeProduct(productId) { return NVME_PRODUCT_IDS.has(productId) }
 function isSSDProduct(productId)  { return SSD_PRODUCT_IDS.has(productId) }
 
-// Preferred Windows images per product type (no Plesk)
-const DEFAULT_WINDOWS_IMAGE_NVME = 'windows-server-2025-se'  // SE for NVMe
-const DEFAULT_WINDOWS_IMAGE_SSD  = 'windows-server-2025-de'  // DE for SSD
-const DEFAULT_WINDOWS_IMAGE = DEFAULT_WINDOWS_IMAGE_SSD       // default to SSD-safe
+// Preferred Windows image — DE works on all currently-tested products
+const DEFAULT_WINDOWS_IMAGE_DE = 'windows-server-2025-de'
+const DEFAULT_WINDOWS_IMAGE    = DEFAULT_WINDOWS_IMAGE_DE
 
 /**
  * List available OS images from Contabo API.
@@ -518,26 +535,24 @@ async function listImages(filter = 'all') {
 
 /**
  * Get the default Windows image ID for RDP deployments.
- * @param {string} [productId] - Product ID to determine SE vs DE edition
- *   NVMe products → SE (Standard Edition)
- *   SSD products  → DE (DataCenter Edition)
- *   If omitted, defaults to DE (safe for both when NVMe is unavailable)
+ * @param {string} [productId] - Product ID (informational only — see comment
+ *   on DEFAULT_WINDOWS_IMAGE_DE: Contabo currently rejects SE on tier-2
+ *   products, so we always select DE.)
  */
 async function getDefaultWindowsImageId(productId) {
   const images = await listImages('windows')
-  const useSSD = !productId || isSSDProduct(productId) || !isNVMeProduct(productId)
-  const edition = useSSD ? 'de' : 'se'
-  const preferredName = useSSD ? DEFAULT_WINDOWS_IMAGE_SSD : DEFAULT_WINDOWS_IMAGE_NVME
+  const preferredName = DEFAULT_WINDOWS_IMAGE_DE
 
-  console.log(`[Contabo] Selecting Windows image: product=${productId || 'unknown'}, edition=${edition}, preferred=${preferredName}`)
+  console.log(`[Contabo] Selecting Windows image: product=${productId || 'unknown'}, edition=de, preferred=${preferredName}`)
 
   // Prefer the exact preferred image
   const preferred = images.find(img => img.name === preferredName)
   if (preferred) return preferred.imageId
 
-  // Fallback: same edition in different year, then any non-plesk
-  const fallback = images.find(img => img.name.includes('2025') && img.name.endsWith(`-${edition}`)) ||
-                   images.find(img => img.name.includes('2022') && img.name.endsWith(`-${edition}`)) ||
+  // Fallback: older DE images, then any non-plesk
+  const fallback = images.find(img => img.name.includes('2025') && img.name.endsWith('-de')) ||
+                   images.find(img => img.name.includes('2022') && img.name.endsWith('-de')) ||
+                   images.find(img => img.name.includes('2019') && img.name.endsWith('-de')) ||
                    images.find(img => img.name.includes('2025') && !img.name.includes('plesk')) ||
                    images.find(img => img.name.includes('2022') && !img.name.includes('plesk')) ||
                    images[0]
@@ -545,42 +560,43 @@ async function getDefaultWindowsImageId(productId) {
 }
 
 /**
- * Swap a Windows image from SE↔DE when falling back between NVMe↔SSD products.
- * @param {string} imageId - Current image ID
+ * Swap a Windows image when falling back between products.
+ *
+ * As of 2026-02 (see comment on DEFAULT_WINDOWS_IMAGE_DE), Contabo rejects
+ * SE on V94/V95. We always target DE — both for the originally-selected
+ * product and any fallback product. The function then walks down older
+ * Windows years (2025 → 2022 → 2019 → 2016) until it finds an accepted
+ * image.
+ *
+ * @param {string} imageId - Current image ID (only used for logging)
  * @param {string} targetProductId - The fallback product we're switching to
  * @returns {Promise<string>} - Compatible image ID for the target product
  */
 async function getCompatibleWindowsImage(imageId, targetProductId) {
-  // If switching to SSD, we need DE edition; if switching to NVMe, we need SE edition
   const images = await listImages('windows')
   const currentImage = images.find(img => img.imageId === imageId)
-  if (!currentImage) return imageId // can't find it, return as-is
+  const currentName = currentImage?.name || imageId
 
-  const currentName = currentImage.name
-  const isSwitchingToSSD = isSSDProduct(targetProductId)
-  const targetEdition = isSwitchingToSSD ? 'de' : 'se'
-  const currentEdition = currentName.endsWith('-se') ? 'se' : currentName.endsWith('-de') ? 'de' : null
+  // Always target DE — SE is rejected on tier-2 products and DE is broadly
+  // accepted. If the current image is already a DE in a different year, try
+  // older DE images first; otherwise, swap straight to DE of the same year
+  // before walking down.
+  const yearOrder = ['2025', '2022', '2019', '2016']
+  const currentYear = yearOrder.find(y => currentName.includes(y))
 
-  // If edition needs swapping, try that first
-  if (currentEdition && currentEdition !== targetEdition) {
-    const swappedName = currentName.replace(`-${currentEdition}`, `-${targetEdition}`)
-    const swapped = images.find(img => img.name === swappedName)
-    if (swapped) {
-      console.log(`[Contabo] Swapped Windows image: ${currentName} → ${swappedName} for product ${targetProductId}`)
-      return swapped.imageId
-    }
-  }
+  // Reorder candidates: start from current year (if known), then walk down
+  const candidates = currentYear
+    ? [currentYear, ...yearOrder.filter(y => y !== currentYear)]
+    : yearOrder
 
-  // If same edition OR swap failed, try older Windows versions for the same edition
-  // Order: 2022 → 2019 → 2016 (progressively more compatible with smaller VPS tiers)
-  const olderVersions = ['2022', '2019', '2016']
-  for (const year of olderVersions) {
-    if (currentName.includes(year)) continue // skip if already this version
-    const olderName = `windows-server-${year}-${targetEdition}`
-    const older = images.find(img => img.name === olderName)
-    if (older) {
-      console.log(`[Contabo] Falling back to older Windows image: ${currentName} → ${olderName} for product ${targetProductId}`)
-      return older.imageId
+  for (const year of candidates) {
+    const targetName = `windows-server-${year}-de`
+    const candidate = images.find(img => img.name === targetName)
+    if (candidate) {
+      if (currentName !== targetName) {
+        console.log(`[Contabo] Swapped Windows image: ${currentName} → ${targetName} for product ${targetProductId}`)
+      }
+      return candidate.imageId
     }
   }
 
