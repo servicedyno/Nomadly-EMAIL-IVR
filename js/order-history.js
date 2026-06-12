@@ -132,7 +132,7 @@ async function handleOrderHistory(bot, chatId, db, lang = 'en') {
       const status = statusEmoji[txn.status] || '❓'
       const type = labels[txn.type] || txn.type
       
-      msg += `\n${dateStr} - $${txn.amount?.toFixed(2) || '0.00'}\n`
+      msg += `\n${dateStr} - $${(Number(txn.amount) || 0).toFixed(2)}\n`
       msg += `${status} ${type}`
       
       // Add details from metadata
