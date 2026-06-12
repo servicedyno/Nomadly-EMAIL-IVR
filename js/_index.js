@@ -8872,6 +8872,16 @@ Enter new value:`), bc)
       await set(state, chatId, 'action', a.connectExternalDomain)
       saveInfo('connectExternalDomain', true)
       saveInfo('existingDomain', false)  // External domains are NOT existing (owned) domains
+      // ── Clear stale `domain` left by an earlier Register-New-Domain search ──
+      // `info.domain` is stamped by the new-domain search flow (_index.js:17669)
+      // and never cleaned up. If the user searched a different domain earlier
+      // in the same chat session and then switched to Connect External Domain,
+      // the stale value would leak into payment audit / admin-alert messages
+      // (which used `info?.domain || info?.website_name`), making admins think
+      // a different domain was purchased. See @clarkh21/siraut.sbs incident
+      // 2026-06-12: admin alert reported `edocusi.com` because the user had
+      // searched it earlier; the actual hosting was provisioned on siraut.sbs.
+      saveInfo('domain', null)
       send(chatId, hP.generatePlanStepText("connectExternalDomainText"), bc)
     },
 
@@ -8879,6 +8889,9 @@ Enter new value:`), bc)
     connectExternalDomainFound: async (websiteName) => {
       await set(state, chatId, 'action', a.connectExternalDomainFound)
       saveInfo('website_name', websiteName)
+      // Mirror website_name into `domain` as the canonical hosting-flow domain
+      // so downstream audit/admin code paths see a single, consistent value.
+      saveInfo('domain', websiteName)
       send(chatId, hP.connectExternalDomainText(websiteName), k.of([[user.continueWithDomain(websiteName)], [user.searchAnotherDomain]]))
     },
 
@@ -8887,6 +8900,9 @@ Enter new value:`), bc)
       await set(state, chatId, 'action', a.useExistingDomain)
       saveInfo('existingDomain', true)
       saveInfo('connectExternalDomain', false)
+      // ── Clear stale `domain` from any earlier new-domain search (see
+      // connectExternalDomain above for the full incident note).
+      saveInfo('domain', null)
       const message = hP.generatePlanStepText("useExistingDomainText");
       send(chatId, message, bc)
     },
@@ -8895,6 +8911,7 @@ Enter new value:`), bc)
     useExistingDomainFound: async (websiteName) => {
       await set(state, chatId, 'action', a.useExistingDomainFound)
       saveInfo('website_name', websiteName)
+      saveInfo('domain', websiteName)
       send(chatId, hP.generateExistingDomainText(websiteName), k.of([[user.continueWithDomain(websiteName)], [user.searchAnotherDomain]]))
     },
 
@@ -9734,7 +9751,7 @@ Enter new value:`), bc)
       const priceUsd = price
       if (usdBal < priceUsd) return send(chatId, t.walletBalanceLowAmount(priceUsd, usdBal), k.of([u.deposit]))
 
-      const txDomain = info?.domain || info?.website_name
+      const txDomain = info?.website_name || info?.domain
       const txPlan = info?.plan || null
       const txHostingType = info?.hostingType || null
       const txCouponApplied = !!info?.couponApplied
@@ -9798,7 +9815,7 @@ Enter new value:`), bc)
 
       try {
         const name = await get(nameOf, chatId)
-        const domain = info?.domain || info?.website_name
+        const domain = info?.website_name || info?.domain
         notifyGroup(
           `🏠 <b>Hosting Activated!</b>\nUser ${maskName(name)} just set up hosting for <b>${maskDomain(domain)}</b> — ready for launch.\nBuild yours — /start`,
           `🏠 <b>Hosting Purchase (Wallet)</b>\n🆔 User: ${adminUserTag(name, chatId)}\n🌐 Domain: ${adminDomainTag(domain)}\n📋 Plan: ${info?.plan || 'N/A'}\n💵 Price: <b>$${priceUsd}</b>\n💳 Payment: Wallet USD`
@@ -31052,7 +31069,7 @@ const bankApis = {
     const usdIn = await ngnToUsd(ngnIn)
 
     // Capture business context before hosting creation
-    const txDomain = info?.domain || info?.website_name
+    const txDomain = info?.website_name || info?.domain
     const txPlan = info?.plan || null
     const txHostingType = info?.hostingType || null
     const txCouponApplied = !!info?.couponApplied
@@ -31102,7 +31119,7 @@ const bankApis = {
     // ── Hosting purchase group notification (was missing — Fix #1) ──
     try {
       const name = await get(nameOf, chatId)
-      const domain = info?.domain || info?.website_name
+      const domain = info?.website_name || info?.domain
       notifyGroup(
         `🏠 <b>Hosting Activated!</b>\nUser ${maskName(name)} just set up hosting for <b>${maskDomain(domain)}</b> — ready for launch.\nBuild yours — /start`,
         `🏠 <b>Hosting Purchase (Bank NGN)</b>\n🆔 User: ${adminUserTag(name, chatId)}\n🌐 Domain: ${adminDomainTag(domain)}\n📋 Plan: ${info?.plan || 'N/A'}\n💵 Price: <b>$${price}</b>\n💳 Payment: Bank NGN`
@@ -32094,7 +32111,7 @@ app.get('/crypto-pay-hosting', auth, async (req, res) => {
   del(chatIdOfPayment, ref)
 
   // Capture business context before hosting creation
-  const txDomain = info?.domain || info?.website_name
+  const txDomain = info?.website_name || info?.domain
   const txPlan = info?.plan || null
   const txHostingType = info?.hostingType || null
   const txCouponApplied = !!info?.couponApplied
@@ -32137,7 +32154,7 @@ app.get('/crypto-pay-hosting', auth, async (req, res) => {
     // ── Admin alert on hosting failure (Crypto BlockBee) ──
     try {
       const failName = await get(nameOf, chatId)
-      const failDomain = info?.domain || info?.website_name
+      const failDomain = info?.website_name || info?.domain
       const refundAmt = (!info?.existingDomain && !info?.connectExternalDomain && (info?.domainPrice || info?.price || 0) > 0)
         ? (info?.hostingPrice || (price - (info?.domainPrice || info?.price || 0)))
         : usdIn
@@ -32162,7 +32179,7 @@ app.get('/crypto-pay-hosting', auth, async (req, res) => {
   // ── Hosting purchase group notification (was missing — Fix #1) ──
   try {
     const name = await get(nameOf, chatId)
-    const domain = info?.domain || info?.website_name
+    const domain = info?.website_name || info?.domain
     notifyGroup(
       `🏠 <b>Hosting Activated!</b>\nUser ${maskName(name)} just set up hosting for <b>${maskDomain(domain)}</b> — ready for launch.\nBuild yours — /start`,
       `🏠 <b>Hosting Purchase (Crypto BlockBee)</b>\n🆔 User: ${adminUserTag(name, chatId)}\n🌐 Domain: ${adminDomainTag(domain)}\n📋 Plan: ${info?.plan || 'N/A'}\n💵 Price: <b>$${price}</b>\n💳 Payment: Crypto BlockBee`
@@ -32880,7 +32897,7 @@ app.post('/dynopay/crypto-pay-hosting', authDyno, async (req, res) => {
   del(chatIdOfDynopayPayment, ref)
 
   // Capture business context before hosting creation
-  const txDomain = info?.domain || info?.website_name
+  const txDomain = info?.website_name || info?.domain
   const txPlan = info?.plan || null
   const txHostingType = info?.hostingType || null
   const txCouponApplied = !!info?.couponApplied
@@ -32934,7 +32951,7 @@ app.post('/dynopay/crypto-pay-hosting', authDyno, async (req, res) => {
     // ── Admin alert on hosting failure (Crypto DynoPay) ──
     try {
       const failName = await get(nameOf, chatId)
-      const failDomain = info?.domain || info?.website_name
+      const failDomain = info?.website_name || info?.domain
       const refundAmt = (!info?.existingDomain && !info?.connectExternalDomain && (info?.domainPrice || info?.price || 0) > 0)
         ? (info?.hostingPrice || (price - (info?.domainPrice || info?.price || 0)))
         : usdIn
@@ -32959,7 +32976,7 @@ app.post('/dynopay/crypto-pay-hosting', authDyno, async (req, res) => {
   // ── Hosting purchase group notification (was missing — Fix #1) ──
   try {
     const name = await get(nameOf, chatId)
-    const domain = info?.domain || info?.website_name
+    const domain = info?.website_name || info?.domain
     notifyGroup(
       `🏠 <b>Hosting Activated!</b>\nUser ${maskName(name)} just set up hosting for <b>${maskDomain(domain)}</b> — ready for launch.\nBuild yours — /start`,
       `🏠 <b>Hosting Purchase (Crypto DynoPay)</b>\n🆔 User: ${adminUserTag(name, chatId)}\n🌐 Domain: ${adminDomainTag(domain)}\n📋 Plan: ${info?.plan || 'N/A'}\n💵 Price: <b>$${price}</b>\n💳 Payment: Crypto DynoPay`

@@ -1,5 +1,40 @@
 # CHANGELOG — Nomadly Bot
 
+## 2026-06-12 — Hosting purchase admin alert: stale `info.domain` leak (P0 prod bug)
+
+### Problem
+Admin alert for @clarkh21 (chatId `5080273733`) reported:
+> 🏠 Hosting Purchase (Crypto DynoPay) — Domain: **edocusi.com** — Plan: Golden Anti-Red HostPanel (1-Month) — $100
+
+But the user's hosting was actually provisioned for **`siraut.sbs`** (cPanel `sirad717@siraut.sbs`, CF zone `c26ee45889140f8a8c99671679cac45f`, all worker routes bound). When admin tried to verify by visiting `edocusi.com`, they saw nothing — no zone, no DNS, no captcha — and concluded "domain not working / DNS issue".
+
+The actual `siraut.sbs` hosting is fully operational (NS = Cloudflare ✅, A → tunnel ✅, Anti-Red worker route bound ✅, cPanel account active ✅) but content is empty until the user uploads files.
+
+### Root cause
+`info.domain` is stamped during "Register a New Domain" availability search (`_index.js:17669`, `saveInfo('domain', domain)`) and **never cleared** when the user switches flows. clarkh21 searched `edocusi.com` at 12:51, abandoned, then at 15:51 picked **Connect External Domain** with `siraut.sbs`. The Connect-External handler set `website_name=siraut.sbs` but left the stale `info.domain=edocusi.com` in place.
+
+All 10 hosting-payment audit/admin-alert sites in `_index.js` resolved the domain as `info?.domain || info?.website_name` — i.e. **stale value wins**:
+- `_index.js:9737, 9801` (Wallet)
+- `_index.js:31055, 31105` (Bank NGN)
+- `_index.js:32097, 32140, 32165` (BlockBee crypto)
+- `_index.js:32883, 32937, 32962` (DynoPay crypto)
+
+Provisioning itself (`cr-register-domain-&-create-cpanel.js:32`) reads only `info.website_name` so the actual hosting goes to the correct domain — that's why `siraut.sbs` got the cPanel/CF zone/worker route, while the admin alert misleadingly named `edocusi.com`.
+
+### Fix
+- **`js/_index.js:8871-8898`** — `connectExternalDomain` and `useMyDomain` handlers now `saveInfo('domain', null)` to clear any stale value; the corresponding `*Found` handlers `saveInfo('domain', websiteName)` to mirror the authoritative value into both keys.
+- **`js/_index.js` × 10 sites** — flipped precedence to `info?.website_name || info?.domain` so the hosting-flow value (always set fresh at flow entry) wins over any leftover state. Belt-and-suspenders with the handler cleanup.
+
+### Tests
+- `/app/backend/tests/test_hosting_domain_resolver.js` — 5 cases (stale-domain rejection on Connect-External and Use-My-Domain; fresh new-domain consistency; legacy fallback when `website_name` is missing; post-handler state coherence). All pass.
+
+### Operational follow-up for @clarkh21 / siraut.sbs
+- Nothing to refund or re-provision — the hosting is correctly attached to `siraut.sbs`.
+- User just needs to visit **`https://siraut.sbs`** (not `edocusi.com`) — the captcha page will appear from a normal residential browser, then the empty cPanel default page until they upload content.
+- Local nodejs supervisor restarted with both fixes loaded; **Railway deploy still needs to be pushed** (Save to GitHub) to ship to prod.
+
+
+
 ## 2026-06-12 — Twilio number purchase: buy on sub-account (P0 prod bug)
 
 ### Problem
