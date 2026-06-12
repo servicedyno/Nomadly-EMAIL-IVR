@@ -1,5 +1,66 @@
 # CHANGELOG — Nomadly Bot
 
+## 2026-02 — Admin comp-vps endpoint (gift VPS without wallet deduction)
+
+Added `POST /admin/comp-vps` for operator goodwill provisioning. Re-uses the
+user's saved `state.vpsDetails` (built up during their normal purchase flow)
+and runs the standard provisioning pipeline (`buyVPSPlanFullProcess` →
+Contabo create → vpsPlansOf insert → credentials DM/email/admin notify),
+but **skips the wallet deduction step**. Each provisioned record is tagged
+with `comp: true, compReason, compAt, compBy, compIndex, compOfTotal` so
+audits can distinguish gifted instances from paid purchases.
+
+### Why
+@davion419 (chatId 404562920) got stuck mid-purchase at `askCountryForVPS`
+during the Contabo vendor block (POST /compute/instances returning 5xx).
+The vendor block is now lifted, but the dev pod is IP-throttled by Contabo's
+auth endpoint after our probe activity. Building the endpoint in `_index.js`
+means the operator can push to GitHub → Railway auto-deploys → trigger from
+the live prod bot (which has working Contabo auth + Railway's allowlisted IP).
+
+### Safety rails
+- Auth-gated via `?key=<SESSION_SECRET[0:16]>` (same as other admin endpoints)
+- Required: `chatId` + `compReason` (≥3 chars for audit trail)
+- Count clamped to `[1, 10]` — hard cap prevents slip-of-the-finger billing storms
+- Per-instance failure isolation — instance #2 failing doesn't roll back instance #1
+- No wallet touch (statically guarded — see test)
+- Underlying `createVPSInstance` already does cancel-on-create with
+  `autoRenewable: false`, so comps don't auto-roll into month-2 charges
+
+### Operator workflow
+1. Push `js/_index.js` to GitHub → Railway auto-redeploys
+2. `curl -X POST 'https://nomadly-email-ivr-production.up.railway.app/admin/comp-vps?key=<adminKey>' -d '{"chatId":"404562920","count":2,"compReason":"vendor-block-2026-02"}'`
+3. User receives standard Telegram + email delivery with credentials
+4. Find all comps later: `db.vpsPlansOf.find({ comp: true })`
+
+Full guide: `/app/memory/COMP_VPS_OPERATOR_GUIDE.md`
+
+### Tests
+- `js/tests/test_admin_comp_vps_endpoint.js` — **19/19 static guards pass**:
+  - Endpoint registered + auth check
+  - All validation paths (missing chatId / compReason / vpsDetails)
+  - Count cap at 10, floor at 1
+  - Comp metadata fields (comp, compReason, compAt, compBy, compIndex)
+  - Failure isolation (per-instance errors collected, batch continues)
+  - Uses `buyVPSPlanFullProcess` (the standard pipeline)
+  - NO direct wallet-debit calls (regex guard)
+- Live curl validation on dev pod:
+  - HTTP 403 on wrong key ✓
+  - HTTP 400 on missing chatId ✓
+  - HTTP 400 on missing compReason ✓
+  - HTTP 400 on chatId with no `state.vpsDetails` ✓
+
+Total green test count: **64** (10 op-ns + 18 cron + 14 categorize + 3 cf-zone + 19 comp-vps).
+
+### Files touched
+| File | Change |
+|---|---|
+| `js/_index.js` | new `POST /admin/comp-vps` endpoint (~80 lines, next to /admin/provision-vps) |
+| `js/tests/test_admin_comp_vps_endpoint.js` | new — 19 static-source guards |
+| `memory/COMP_VPS_OPERATOR_GUIDE.md` | new — operator runbook with sample curl + response shape + audit query |
+
+---
+
 ## 2026-02 — Contabo POST unblock confirmed + Railway API key auth fix
 
 ### Contabo
