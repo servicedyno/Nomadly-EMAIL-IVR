@@ -1,0 +1,20 @@
+{
+  "success": false,
+  "chatId": "404562920",
+  "requested": 2,
+  "provisioned": [],
+  "errors": [
+    {
+      "index": 1,
+      "error": "buyVPSPlanFullProcess returned false"
+    },
+    {
+      "index": 2,
+      "error": "buyVPSPlanFullProcess returned false"
+    }
+  ],
+  "compReason": "vendor-block-2026-02 — Contabo POST was down when user attempted purchase",
+  "productId": "V94",
+  "region": "US-west",
+  "isRDP": true
+}
