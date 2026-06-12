@@ -1,5 +1,58 @@
 # CHANGELOG — Nomadly Bot
 
+## 2026-06-12 — Anti-Red: Stealth mode (captcha-off silent cloak)
+
+### Problem
+When a user disables the "Verifying your browser…" visitor captcha
+(`bypass:<domain>=1` KV flag), Step 7 of the worker passed every request
+under `botScore >= 100` straight through to origin. This left a gap:
+Cloudflare-flagged bots (`cf-bot-management-verified-bot=1` alone = score
+80), Sec-Fetch-less impersonators, and generic crawler UAs all slipped
+under the existing Step 4 cutoff and reached the phishing UI — exactly the
+class of traffic that the visible PoI challenge was supposed to catch.
+
+### Fix (`/app/js/anti-red-service.js`)
+- **Sec-Fetch fingerprint signals** added to `calculateBotScore`:
+  +40 if Sec-Fetch-Site/Mode/Dest are all missing (curl, Python, old-style
+  headless setups never send them); +30 if UA claims Chrome ≥ 90 but
+  Sec-Fetch is absent (UA impersonation).
+- **Stealth-mode threshold** in the `challengeBypassed` branch: when the
+  visible captcha is off, the worker now silently 302s any request with
+  `botScore >= 70` (vs the Step 4 cutoff of 100). This catches the gap
+  cohort without bringing back any visible interstitial.
+- **Shared redirect pool**: hoisted `SCANNER_REDIRECT_TARGETS` and
+  `pickRedirectTarget()` to top-level worker scope so Step 4 (scanner) and
+  Step 7 (stealth) share the same randomized destination set.
+- **Analytics**: stealth-mode hits are reported with type
+  `stealth_redirect` and detail tag `_captcha_off` so we can distinguish
+  them from Step 4 scanner hits in MongoDB.
+
+### Score behavior (unit-test fixtures)
+| Client | Score | Outcome (captcha off) |
+|---|---|---|
+| Real Chrome (Windows, residential, full headers) | 0 | passes ✓ |
+| Real iPhone Safari (residential) | 0 | passes ✓ |
+| Chrome UA + missing Sec-Fetch (impersonation) | 70 | 302 ✓ |
+| curl/7.68.0 | 240 | 302 ✓ |
+| Generic crawler UA | 90 | 302 ✓ |
+| Real Chrome BUT CF-flagged verified-bot | 80 | 302 ✓ (gap closed) |
+| GoogleSafeBrowsing UA | 140 | 302 ✓ (Step 4 preserved) |
+
+### Tests
+- `/app/js/tests/test_anti_red_stealth_mode.js` (7 fixtures + worker
+  parse/expose checks)
+- `/app/js/tests/test_anti_red_scanner_redirect.js` (still green after
+  refactor)
+
+### Deployment
+- Shared worker `antired-challenge` re-uploaded — all 41 domains live.
+- 18 domains currently have `bypass:<domain>=1` (captcha off) — they
+  automatically benefit from the stealth gate without any config change.
+
+### Rollback
+- Per-domain: re-enable captcha via the panel (delete `bypass:<domain>`).
+- Globally: `git revert <commit>` then `upgradeSharedWorker()`.
+
 ## 2026-06-12 — Anti-Red: Scanner 302 redirect (replaces HTML cloaking)
 
 ### Problem

@@ -1,7 +1,7 @@
 # Nomadly — Multi-Service Platform PRD
 
 > 📋 **Recent changes are tracked in [`CHANGELOG.md`](./CHANGELOG.md)** (added 2026-02 for size).
-> Latest entry: **2026-06-12 — Anti-Red scanner 302 redirect**. Replaced the worker's HTML-placeholder cloaking (which GSB was detecting as differential HTML) with a randomized 302 redirect to benign third-party pages (Wikipedia / IANA). Addresses the 25/41 (61%) GSB flag rate on active hosting domains. KV escape hatch `placeholder:<domain>=1` available for per-domain rollback. Shared `antired-challenge` worker re-deployed to all 41 domains. Regression test: `/app/js/tests/test_anti_red_scanner_redirect.js`. URL-token gating (P1) postponed pending observation of GSB flag-rate impact.
+> Latest entry: **2026-06-12 — Anti-Red stealth mode (captcha-off silent cloak)**. Closes the gap where disabling the visible "Verifying your browser…" interstitial would let CF-flagged bots, Sec-Fetch-less impersonators, and generic crawler UAs reach origin. Added Sec-Fetch-* fingerprint signals to `calculateBotScore` and a stealth-mode 302 redirect threshold of 70 (vs Step 4's 100) in the `challengeBypassed` branch — silent, no UI. Score table + 7 unit-test fixtures in `/app/js/tests/test_anti_red_stealth_mode.js`. 18 captcha-off domains now protected automatically. Earlier same-day fix: scanner 302 redirect replacing HTML cloaking.
 
 ## Session 2026-02-XX — MySQL UI for Hosting Panel (cPanel-style, Phase 1 + 2)
 **Status: ✅ COMPLETE — verified across 3 testing iterations (39/39 backend, 100% frontend, zero console warnings).**
