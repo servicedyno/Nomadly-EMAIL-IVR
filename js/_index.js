@@ -1982,29 +1982,25 @@ async function executeTwilioPurchase(chatId, selectedNumber, planKey, price, cou
     log(`[CloudPhone] New sub-account created for chatId=${chatId}: ${subSid}`)
   }
 
-  // 2. Buy number on main account with optional address + bundle
-  // ━━━ SECURITY: Number is bought on main account then IMMEDIATELY transferred to sub-account ━━━
-  // The number never stays on the main account — transfer is mandatory
-  const buyResult = await twilioService.buyNumber(selectedNumber, null, null, SELF_URL, addressSid || null, bundleSid || null)
+  // 2. Buy number DIRECTLY on the sub-account (not main + transfer).
+  //
+  // Why: Twilio AddressSid and BundleSid resources are scoped per-account.
+  // Twilio's createAddress() is already restricted to sub-accounts (security
+  // invariant in twilio-service.js), so an addressSid created for this chat
+  // lives on the SUB-account. Calling buyNumber on the MAIN account with that
+  // addressSid produces:
+  //   "Could not find Address with sid AD... for account AC<main>..."
+  // which broke 100% of regulatory-required purchases (GB, IE, AU, NZ, …).
+  //
+  // Buying directly on the sub-account keeps the address/bundle visible,
+  // sets the webhooks during creation, and removes the separate transfer hop.
+  if (!subSid || !subToken) {
+    log(`[CloudPhone] CRITICAL: missing sub-account credentials before buyNumber (chatId=${chatId})`)
+    return { error: 'Internal error: phone account not ready. Please retry.' }
+  }
+  const buyResult = await twilioService.buyNumber(selectedNumber, subSid, subToken, SELF_URL, addressSid || null, bundleSid || null)
   if (buyResult.error) return { error: buyResult.error }
-
-  // 3. Transfer to sub-account — MANDATORY, number must not stay on main account
-  if (!subSid) {
-    log(`[CloudPhone] CRITICAL: No sub-account SID for transfer after purchase — this should never happen`)
-    return { error: 'Internal error: no sub-account for number transfer.' }
-  }
-  if (buyResult.sid) {
-    const transferResult = await twilioService.transferNumberToSubAccount(buyResult.sid, subSid)
-    if (transferResult.success) {
-      log(`[CloudPhone] Number ${selectedNumber} transferred to sub-account ${subSid}`)
-      await twilioService.updateSubAccountNumberWebhooks(subSid, buyResult.sid, SELF_URL)
-    } else {
-      log(`[CloudPhone] CRITICAL: Transfer failed for ${selectedNumber} to ${subSid}: ${transferResult.error}`)
-      // Try to release the number from main account to avoid orphan
-      try { const _mc = twilioService.getClient(); if (_mc) await _mc.incomingPhoneNumbers(buyResult.sid).remove() } catch (_) {}
-      return { error: `Number purchased but transfer to your account failed: ${transferResult.error}` }
-    }
-  }
+  log(`[CloudPhone] Number ${selectedNumber} purchased directly on sub-account ${subSid}`)
 
   // 4. SIP credentials (Twilio + Telnyx)
   // Telnyx is the primary SIP provider (sip.speechcue.com), so the Telnyx username

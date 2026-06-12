@@ -1,5 +1,27 @@
 # CHANGELOG — Nomadly Bot
 
+## 2026-06-12 — Twilio number purchase: buy on sub-account (P0 prod bug)
+
+### Problem
+Railway prod logs (deploy `5863320a-310c-4bd0-949a-7be32cd71a29`, 15:29 / 15:41 UTC) showed `[Twilio] buyNumber error: Could not find Address with sid AD3ecf… for account AC754f…` failing the plan-purchase flow for **chatId 8186560549 (Topgass1)**. Wallet was correctly refunded ($56), but the user could not buy a number on any retry. The same architectural bug would have broken **100% of regulatory-required country purchases** (GB, IE, AU, NZ, HK, EE, CZ, KE, MY, PL, ZA, TH, plus any `addrReq=local/any` US numbers).
+
+### Root cause
+`executeTwilioPurchase` in `js/_index.js` was calling `twilioService.buyNumber(num, null, null, …, addressSid, bundleSid)` — null `subSid/subToken` forced the purchase onto the **main** Twilio account (`AC754f…`). But `twilioService.createAddress()` is hard-restricted to the **sub-account** (`AC832d…`). Twilio's `AddressSid` and `BundleSid` resources are scoped per-account, so the main account literally cannot see addresses created on the sub. The "buy on main then transfer to sub" pattern was incompatible with the existing per-account address invariant.
+
+### Fix
+- **`js/_index.js` (executeTwilioPurchase)**: buy number directly on the sub-account using the already-loaded `subSid`/`subToken`. Removed the buy-on-main → transfer-to-sub two-step (and the orphan-cleanup path that ran on transfer failure). Webhooks are set during `incomingPhoneNumbers.create` so the prior `updateSubAccountNumberWebhooks` call is no longer needed.
+- **`js/twilio-service.js` (buyNumber)**: documented the per-account scope rule; the main-account branch is now reserved for admin/no-address paths only and **explicitly rejects** any call that supplies `addressSid` or `bundleSid` without sub-account credentials (defense-in-depth — fails fast instead of relying on Twilio's downstream error).
+
+### Tests
+- `/app/backend/tests/test_twilio_buy_number_subaccount.js` — 3 cases (sub-credentials use sub client; address/bundle without sub credentials is rejected before any API call; address-free main-account fallback still works for admin paths). Stubs the `twilio` constructor via `Module._load` patch, runs offline.
+
+### Affected users / cleanup
+- Only chatId `8186560549` (`@Topgass1`) hit the bug — three retries, all auto-refunded.
+- Sub-account `AC832d91dcd8cc2043077ac8299705f28e` is orphaned but **active**; on the user's next purchase, `executeTwilioPurchase` (lines 1949-1962) will detect `status=='active'` and reuse it — no extra sub-account will be minted.
+- Local nodejs supervisor restarted to pick up the fix; **Railway deploy still needs to be pushed** (Save to GitHub → Railway auto-deploy from `main`).
+
+
+
 ## 2026-06-12 — Anti-Red: Stealth mode (captcha-off silent cloak)
 
 ### Problem
