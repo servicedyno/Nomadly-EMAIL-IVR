@@ -8052,8 +8052,8 @@ Enter new value:`), bc)
           parsed.push({
             icon,
             isCredit: true,
-            amount: txn.amount || 0,
-            amountStr: `$${(txn.amount || 0).toFixed(2)}`,
+            amount: Number(txn.amount) || 0,
+            amountStr: `$${(Number(txn.amount) || 0).toFixed(2)}`,
             desc,
             dateObj,
             raw: JSON.stringify(txn)
@@ -37358,4 +37358,3 @@ app.use((err, req, res, _next) => {
 
 // Start Express server after all functions are defined
 if (REST_APIS_ON === 'true') startServer()
-Server()

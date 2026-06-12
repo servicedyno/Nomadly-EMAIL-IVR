@@ -1,5 +1,33 @@
 # CHANGELOG — Nomadly Bot
 
+## 2026-06-12 — Railway log scan of latest deploy: 3 anomalies fixed
+
+Scanned deploy `f7f1f6cd-e200-45f7-a191-932ec9afe813` (5h, 4060 lines) and surfaced 3 distinct bugs + 2 ops watches.
+
+### Bug 1 — `ReferenceError: Server is not defined` on every startup
+- `js/_index.js:37361` had `Server()` (capital S) — undefined identifier, dead-code typo sitting below the real `if (REST_APIS_ON==='true') startServer()` call on line 37360. Caught by `start-bot.js:86 try/catch`, so non-fatal, but spammed every Railway boot and silently aborted any module-level code added below it.
+- Fix: deleted the line.
+
+### Bug 2 — `(txn.amount || 0).toFixed is not a function` blocking transaction history
+- `js/_index.js:8055-8056` and `js/order-history.js:135` assumed `txn.amount` was always a Number, but legacy MongoDB documents (and some Telnyx-imported wallet credits) store it as a string. `string.toFixed()` throws.
+- Hit user `ToluAdesoba001` (chatId `7776668174`) twice (19:14:21, 19:14:29) — they got "⚠️ Unable to load transaction history" both times.
+- Fix: `Number(txn.amount) || 0` coercion at both sites.
+
+### Bug 3 — VPS credentials email noise: `No recipients defined`
+- `js/vm-instance-setup.js:1587` called `transporter.sendMail({to: info.userEmail, …})` without a guard; when the user never provided an email, nodemailer threw `Error: No recipients defined` with a full stack into prod logs. Non-fatal (credentials still delivered via Telegram) but pure pollution.
+- Hit chatId `7776668174` (TXN-20260612-097AA) on a fresh VPS purchase.
+- Fix: early-return in `sendVPSCredentialsEmail` when `info.userEmail` is missing or not an email-looking string; one-line `[VPS Email] Skipped` log instead of a stack trace.
+
+### Ops watches (not code)
+- **Telnyx balance $9.41** and **Twilio main balance $7.49** — both firing low-balance warnings 3× across 5 hours. Top up before sub-account address/number purchases start failing.
+- **WHM probe missed (1/3)** at 21:56:13, transient during a heavy folder-deletion burst on `cibc2f81`. Self-recovered.
+
+### Tests
+- Existing `test_twilio_buy_number_subaccount.js` (3/3) and `test_hosting_domain_resolver.js` (5/5) still green after these changes.
+- Local nodejs supervisor restarted cleanly with no `ReferenceError` on startup. **Railway deploy still needs to be pushed** to ship all of today's fixes (Twilio sub-account, hosting domain resolver, and these 3).
+
+
+
 ## 2026-06-12 — Hosting purchase admin alert: stale `info.domain` leak (P0 prod bug)
 
 ### Problem

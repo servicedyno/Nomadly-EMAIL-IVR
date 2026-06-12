@@ -1520,6 +1520,15 @@ const transporter = nodemailer.createTransport({
  * Handles both Linux (SSH) and Windows (RDP) credentials.
  */
 async function sendVPSCredentialsEmail(info, response, vpsDetails, credentials) {
+  // Skip email entirely when the user never provided one. Credentials are
+  // delivered via Telegram regardless, so this is just supplementary.
+  // Without this guard, nodemailer throws "No recipients defined" which
+  // pollutes logs but is non-fatal (see Railway prod 2026-06-12 19:10:55
+  // for TXN-20260612-097AA / chatId 7776668174).
+  if (!info?.userEmail || typeof info.userEmail !== 'string' || !info.userEmail.includes('@')) {
+    console.log(`[VPS Email] Skipped — no valid email on file for chatId ${info?.chatId || 'unknown'}`)
+    return
+  }
   const isRDP = vpsDetails.isRDP || vpsDetails.os?.isRDP || response.osType === 'Windows'
   const plan = isRDP ? 'RDP Plan' : 'VPS Plan'
   const connectionInfo = isRDP
