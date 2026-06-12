@@ -227,14 +227,31 @@ async function searchNumbers(countryCode, numberType = 'local', limit = 5, areaC
 
 async function buyNumber(phoneNumber, subSid, subToken, webhookBaseUrl, addressSid, bundleSid) {
   try {
-    // ━━━ SECURITY: buyNumber on main account is ONLY allowed for buy-then-transfer flow ━━━
-    // When subSid is null, number MUST be immediately transferred to a sub-account after purchase
+    // ━━━ SECURITY: User number purchases MUST use sub-account credentials ━━━
+    //
+    // Sub-account is REQUIRED for normal user flows because:
+    //   1. Twilio AddressSid/BundleSid (regulatory) are scoped per-account; a
+    //      number requiring an address can ONLY be bought on the same account
+    //      where the address lives (sub-account, per createAddress()).
+    //   2. Buying on main + transferring leaves the address requirement
+    //      unsatisfied on main and produces "Could not find Address with sid…"
+    //      errors for every country in BUNDLE_REQUIRED_COUNTRIES or any
+    //      addrReq=local/any country.
+    //
+    // The main-account branch below is kept ONLY for admin tooling / batch
+    // re-purchases of US toll-free / addrReq=none numbers where no address
+    // is involved. Production code paths (executeTwilioPurchase) MUST pass
+    // subSid + subToken.
     let client
     if (subSid && subToken) {
       client = requireSubClient(subSid, subToken, 'buyNumber')
       if (!client) return { error: 'Number purchase requires valid sub-account credentials.' }
     } else {
-      log('[Twilio] NOTICE: buyNumber using main account — number MUST be transferred to sub-account immediately after purchase')
+      if (addressSid || bundleSid) {
+        log(`[Twilio] buyNumber rejected — addressSid/bundleSid require sub-account context (addressSid=${addressSid || 'none'}, bundleSid=${bundleSid || 'none'})`)
+        return { error: 'Address/bundle-required numbers must be purchased on a sub-account, not the main account.' }
+      }
+      log('[Twilio] NOTICE: buyNumber using main account (no address/bundle) — caller must transfer to sub-account immediately')
       client = getClient()
     }
     const voiceUrl = webhookBaseUrl ? `${webhookBaseUrl}/twilio/voice-webhook` : undefined
