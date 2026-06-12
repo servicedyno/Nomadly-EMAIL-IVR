@@ -33884,6 +33884,128 @@ app.post('/admin/provision-vps', async (req, res) => {
   }
 })
 
+// ─────────────────────────────────────────────────────────────────────────
+// /admin/comp-vps — provision N free VPS for a user WITHOUT wallet deduction
+// ─────────────────────────────────────────────────────────────────────────
+// Use case: operator goodwill comp (e.g. after a vendor outage where a user
+// got stuck mid-flow). Reads the user's saved `state.vpsDetails` (built up
+// during their interrupted purchase flow) and re-runs the bot's standard
+// provisioning pipeline — Contabo create, vpsPlansOf insert, credentials
+// email, Telegram delivery — but skips the wallet debit step.
+//
+// Each provisioned record is tagged with `comp: true` + `compReason` so
+// audit / reconciliation can distinguish gifted instances from paid ones.
+//
+// Request body (POST JSON):
+//   {
+//     "chatId":       "404562920",         // required — Telegram user id
+//     "count":        2,                   // required — number of instances
+//     "compReason":   "vendor-block-2026-02",  // required — audit trail
+//     "vpsDetails":   { ... }              // optional — override the user's
+//                                            saved state.vpsDetails
+//   }
+//
+// Returns:
+//   { success, provisioned: [{ instanceId, host, productId, isRDP }], errors: [...] }
+//
+// Failure semantics:
+//   - Each instance is attempted independently. A failure on instance #2 does
+//     NOT undo instance #1 (Contabo bills both per-second on creation). The
+//     response includes a `provisioned` list and an `errors` list so the
+//     operator can decide whether to comp another to make up the difference.
+app.post('/admin/comp-vps', async (req, res) => {
+  const adminKey = req?.query?.key
+  if (adminKey !== process.env.SESSION_SECRET?.slice(0, 16)) {
+    return res.status(403).json({ error: 'Unauthorized' })
+  }
+  const { chatId, count, compReason, vpsDetails: vpsDetailsOverride } = req.body || {}
+  if (!chatId) return res.status(400).json({ error: 'Missing chatId' })
+  const n = Math.max(1, Math.min(Number(count) || 1, 10))  // hard cap at 10 to prevent slip-of-the-finger billing storms
+  if (!compReason || typeof compReason !== 'string' || compReason.length < 3) {
+    return res.status(400).json({ error: 'compReason required (>=3 chars) for audit trail' })
+  }
+  const chatIdStr = String(chatId)
+
+  // Resolve the VPS spec: caller override > user's saved state
+  let vpsDetails = vpsDetailsOverride
+  if (!vpsDetails) {
+    const userState = await get(state, chatIdStr)
+    vpsDetails = userState?.vpsDetails
+  }
+  if (!vpsDetails || !vpsDetails.config?._id) {
+    return res.status(400).json({
+      error: 'No vpsDetails available — pass `vpsDetails` in body or have the user complete the purchase flow up to plan selection first',
+      hint: 'state.vpsDetails.config._id (productId) is required'
+    })
+  }
+
+  const lang = (await get(state, chatIdStr))?.userLanguage || 'en'
+  log(`[admin/comp-vps] chatId=${chatIdStr} count=${n} reason=${compReason} product=${vpsDetails.config?._id} region=${vpsDetails.region || vpsDetails.zone}`)
+
+  const provisioned = []
+  const errors = []
+  const compMeta = {
+    comp: true,
+    compReason,
+    compAt: new Date(),
+    compBy: 'admin/comp-vps',
+  }
+
+  for (let i = 0; i < n; i++) {
+    const label = `${i + 1}/${n}`
+    log(`[admin/comp-vps] ${label} — provisioning for chatId=${chatIdStr}`)
+    try {
+      // Per-instance vpsDetails clone so each gets a unique displayName via
+      // vmInstanceSetup.createVPSInstance (it uses Date.now() in the label,
+      // and we add a 25ms gap to avoid collisions when iteration is fast).
+      const perInstance = JSON.parse(JSON.stringify(vpsDetails))
+      const ok = await buyVPSPlanFullProcess(chatIdStr, lang, perInstance)
+      if (!ok) {
+        errors.push({ index: i + 1, error: 'buyVPSPlanFullProcess returned false' })
+        continue
+      }
+      // The vpsPlansOf insert happened inside createVPSInstance — find the
+      // newest record for this user and tag it. We tag by chatId + most
+      // recent timestamp to avoid clobbering an unrelated record.
+      const latest = await vpsPlansOf.find({ chatId: chatIdStr }).sort({ timestamp: -1 }).limit(1).next()
+      if (latest) {
+        await vpsPlansOf.updateOne(
+          { _id: latest._id },
+          { $set: { ...compMeta, compIndex: i + 1, compOfTotal: n } }
+        )
+        provisioned.push({
+          instanceId: latest.contaboInstanceId,
+          host: latest.host,
+          productId: latest.productId,
+          isRDP: latest.isRDP,
+          osType: latest.osType,
+          plan: latest.plan,
+          displayName: latest.name || latest.label,
+        })
+      } else {
+        errors.push({ index: i + 1, error: 'vpsPlansOf record not found after buyVPSPlanFullProcess success' })
+      }
+      // Slight stagger so per-instance displayName timestamps don't collide
+      await sleep(2000)
+    } catch (e) {
+      log(`[admin/comp-vps] ${label} error: ${e.message}`)
+      errors.push({ index: i + 1, error: e.message })
+    }
+  }
+
+  return res.json({
+    success: errors.length === 0,
+    chatId: chatIdStr,
+    requested: n,
+    provisioned,
+    errors,
+    compReason,
+    productId: vpsDetails.config?._id,
+    region: vpsDetails.region || vpsDetails.zone,
+    isRDP: vpsDetails.isRDP || vpsDetails.os?.isRDP,
+  })
+})
+
 // ── Admin: Check payment session details ──
 app.get('/admin/payment-session', async (req, res) => {
   const adminKey = req?.query?.key
