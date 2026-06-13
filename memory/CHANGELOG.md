@@ -1,5 +1,44 @@
 # CHANGELOG — Nomadly Bot
 
+## 2026-06-13 — Webhook isolation: dev pod can no longer hijack prod bot (P0)
+
+### Problem
+2026-06-12 ~17:00 → 2026-06-13 ~10:00 (16+ hours), all production Telegram traffic for `@NomadlyBot` was silently routed to the dev preview pod instead of Railway. Discovered when admin's `/credit @davion419 100` produced no entries in Railway logs and no visible feedback (the command actually succeeded — credit landed on prod Mongo because both pods share the same DB — but Railway had zero visibility).
+
+Telegram's getWebhookInfo confirmed:
+```
+url: https://9fbee901-…preview.emergentagent.com/api/telegram/webhook
+last_error: "Wrong response from the webhook: 404 Not Found"
+```
+
+### Root cause (chain of three issues)
+1. **`/app/backend/.env`** had `BOT_ENVIRONMENT=production` carried over from Railway's `.env` template, so the dev pod's `config-setup.js` picked the **production** Telegram bot token (`TELEGRAM_BOT_TOKEN_PROD`, `@NomadlyBot`) instead of the dev token (`@nomadly_dev_bot`).
+2. **`scripts/setup-nodejs.sh`** unconditionally rewrote `SELF_URL` and `SELF_URL_PROD` in `.env` to the dev pod's preview URL, with no check for which environment the pod was running as.
+3. **`js/_index.js:setupTelegramWebhook()`** unconditionally called `bot.setWebHook(${SELF_URL}/telegram/webhook)` on startup — no `SKIP_WEBHOOK_SYNC` guard despite the rest of the codebase respecting that flag for Telnyx / Twilio / Cloudflare-Discovery webhook sync. So the production Telegram bot's webhook got pointed at the dev pod every time the dev pod booted.
+
+### Fix (three interlocking guards)
+1. **`js/_index.js:36659-36717`** — `setupTelegramWebhook()` now checks `process.env.SKIP_WEBHOOK_SYNC === 'true'` BEFORE calling `bot.setWebHook(…)`. When set, logs `[Webhooks] SKIP_WEBHOOK_SYNC=true — preserving existing Telegram webhook (NOT overwriting)` and a one-line snapshot of the existing webhook, then falls through to bot-command registration (idempotent, per-token, safe).
+2. **`scripts/setup-nodejs.sh:32-77`** — reads `BOT_ENVIRONMENT` from `/app/backend/.env`; if it equals `production`, refuses to rewrite `SELF_URL`/`SELF_URL_PROD` and prints clear instructions on how to put the pod into dev mode. Dependency install and supervisor setup still run normally.
+3. **`/app/backend/.env`** — flipped to `BOT_ENVIRONMENT="development"` + added `SKIP_WEBHOOK_SYNC=true`, restored `SELF_URL`/`SELF_URL_PROD` to the Railway URL (`https://nomadly-email-ivr-production.up.railway.app`). The dev pod now uses the DEV bot token (`6597817067:…`), never touches the prod bot, and even Telnyx/Cloudflare/Twilio webhook sync calls are no-ops here.
+
+### Operational restoration
+- Called Telegram `setWebhook` to put the prod bot back on Railway:  
+  `https://nomadly-email-ivr-production.up.railway.app/telegram/webhook` — verified `last_error: none, pending_update_count: 0`.
+- Local nodejs restarted cleanly; logs show `[Webhooks] SKIP_WEBHOOK_SYNC=true — preserving existing Telegram webhook (NOT overwriting)` and `📡 Existing webhook (left untouched): https://readme-fast.preview.emergentagent.com/api/telegram/webhook` (the dev bot's webhook is preserved, even though it points at a dead preview pod — that's fine, we'll re-point it on demand if needed for dev testing).
+
+### Tests
+- `/app/backend/tests/test_webhook_isolation.js` — 3 cases (the SKIP_WEBHOOK_SYNC guard comes before `bot.setWebHook` in source order; the setup-nodejs.sh `SKIP_SELF_URL_UPDATE` gate is wired correctly and sits BEFORE the sed rewrite; `.env` is in dev mode with the safety flag set). All pass.
+- Existing test suites still green: `test_twilio_buy_number_subaccount.js` (3/3), `test_hosting_domain_resolver.js` (5/5).
+
+### Side note — the `/credit @davion419 100` itself
+Despite the prod hijack, the credit DID land correctly because both pods share the same MongoDB:
+- `walletOf._id=404562920` → `usdIn=105` (was $5, +$100)
+- `transactions` → `TXN-20260613-S1CYI`, type `admin-credit`, amount `100`, status `completed`, admin=`onarrival1`, timestamp `2026-06-13T09:53:44.567Z`
+
+Both Telegram messages were also delivered (admin confirmation + user notification), confirmed in the local supervisor logs. Admin presumably just missed the reply in their chat scroll.
+
+
+
 ## 2026-06-12 — Railway log scan of latest deploy: 3 anomalies fixed
 
 Scanned deploy `f7f1f6cd-e200-45f7-a191-932ec9afe813` (5h, 4060 lines) and surfaced 3 distinct bugs + 2 ops watches.

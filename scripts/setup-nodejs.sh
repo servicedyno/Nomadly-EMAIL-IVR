@@ -32,21 +32,47 @@ WEBHOOK_BASE="${POD_URL}/api"
 echo "📍 Detected pod URL: $POD_URL"
 echo "📡 Webhook base: $WEBHOOK_BASE"
 
-# ── Step 2: Update SELF_URL in backend/.env ──
-if grep -q '^SELF_URL=' /app/backend/.env; then
-  sed -i "s|^SELF_URL=.*|SELF_URL=${WEBHOOK_BASE}|" /app/backend/.env
-  echo "✅ Updated SELF_URL=${WEBHOOK_BASE}"
-else
-  echo "SELF_URL=${WEBHOOK_BASE}" >> /app/backend/.env
-  echo "✅ Added SELF_URL=${WEBHOOK_BASE}"
+# ── SAFETY: Detect if backend/.env is configured for PRODUCTION ──
+# A dev pod must NEVER overwrite production webhook URLs in .env. If we do,
+# the bot at startup calls Telegram setWebHook(devPodUrl) on the PROD bot,
+# hijacking real user traffic. See 2026-06-12 /credit @davion419 incident:
+# 404 errors on prod webhook every time this dev pod was supervisor-restarted.
+BOT_ENV=$(grep '^BOT_ENVIRONMENT=' /app/backend/.env 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'" | tr -d ' ')
+if [ "$BOT_ENV" = "production" ]; then
+  echo ""
+  echo "⛔ REFUSING to update SELF_URL / SELF_URL_PROD."
+  echo "   /app/backend/.env has BOT_ENVIRONMENT=production. From a dev pod this"
+  echo "   would hijack the production Telegram bot's webhook."
+  echo ""
+  echo "   To run THIS pod as a development sandbox, edit /app/backend/.env:"
+  echo "     BOT_ENVIRONMENT=development"
+  echo "     SKIP_WEBHOOK_SYNC=true"
+  echo "   then re-run this script."
+  echo ""
+  echo "   (Telnyx/Twilio honeypot, Cloudflare discovery sync, etc. will also"
+  echo "    keep pointing at the real production URLs, which is what you want.)"
+  echo ""
+  echo "✅ Leaving SELF_URL / SELF_URL_PROD untouched. Skipping to dependency install."
+  SKIP_SELF_URL_UPDATE=1
 fi
 
-if grep -q '^SELF_URL_PROD=' /app/backend/.env; then
-  sed -i "s|^SELF_URL_PROD=.*|SELF_URL_PROD=${WEBHOOK_BASE}|" /app/backend/.env
-  echo "✅ Updated SELF_URL_PROD=${WEBHOOK_BASE}"
-else
-  echo "SELF_URL_PROD=${WEBHOOK_BASE}" >> /app/backend/.env
-  echo "✅ Added SELF_URL_PROD=${WEBHOOK_BASE}"
+# ── Step 2: Update SELF_URL in backend/.env (dev mode only) ──
+if [ -z "$SKIP_SELF_URL_UPDATE" ]; then
+  if grep -q '^SELF_URL=' /app/backend/.env; then
+    sed -i "s|^SELF_URL=.*|SELF_URL=${WEBHOOK_BASE}|" /app/backend/.env
+    echo "✅ Updated SELF_URL=${WEBHOOK_BASE}"
+  else
+    echo "SELF_URL=${WEBHOOK_BASE}" >> /app/backend/.env
+    echo "✅ Added SELF_URL=${WEBHOOK_BASE}"
+  fi
+
+  if grep -q '^SELF_URL_PROD=' /app/backend/.env; then
+    sed -i "s|^SELF_URL_PROD=.*|SELF_URL_PROD=${WEBHOOK_BASE}|" /app/backend/.env
+    echo "✅ Updated SELF_URL_PROD=${WEBHOOK_BASE}"
+  else
+    echo "SELF_URL_PROD=${WEBHOOK_BASE}" >> /app/backend/.env
+    echo "✅ Added SELF_URL_PROD=${WEBHOOK_BASE}"
+  fi
 fi
 
 # ── Step 3: Create .env symlink for Node.js dotenv ──
