@@ -1,5 +1,33 @@
 # CHANGELOG — Nomadly Bot
 
+## 2026-06-13 — `/credit` admin command: bot-suffix tolerance + newline fix (P2)
+
+### Problems
+After the webhook-isolation fix, two latent UX bugs in the `/credit` admin command were called out by the user:
+
+1. **Literal `\\n\\n` escapes** in the usage message (`_index.js:6262`). The source double-escaped the newlines, so Telegram rendered the visible text `\n\n` between sentences instead of an actual line break. Only seen when admin typed `/credit` without args.
+2. **`startsWith('/credit ')` rejected the group-autocomplete form.** When a group / channel contains multiple bots, Telegram auto-completes commands as `/credit@NomadlyBot @user 100`. The trailing-space check silently dropped these, with no logs and no admin feedback.
+
+### Fix
+`_index.js:6258-6266` — replaced the `startsWith` test with a regex match that:
+- accepts both `/credit …` (DM form) and `/credit@NomadlyBot …` (group form, case-insensitive `@\w+` suffix)
+- captures the args group cleanly (no more `substring(8)` index drift if the suffix is present)
+- preserves the bare-command path so the handler still shows the usage hint
+- removes the double-backslash escapes in the usage string so newlines render correctly
+
+### Tests
+`/app/backend/tests/test_credit_command.js` — 11 cases:
+- 4 positive: plain DM, `@BotUsername` suffix, case-insensitive suffix, raw chatId target
+- 1 whitespace tolerance, 2 zero-arg-usage paths (bare `/credit` and bare `/credit@BotUsername`)
+- 3 false-positive guards (`/credits …`, `/refundpending …`, plain chat with the word "credit")
+- 1 source-level check that no `\\n` literals are left in the usage message
+All 11 pass. Full suite (Twilio sub-account 3/3, hosting domain resolver 5/5, webhook isolation 3/3, credit command 11/11) still green.
+
+### Note
+The bug had no audit-trail impact — when admins typed the working `/credit ` (with space) DM form, everything worked. The fix is purely defensive against the group-bot form and a UX polish.
+
+
+
 ## 2026-06-13 — Webhook isolation: dev pod can no longer hijack prod bot (P0)
 
 ### Problem

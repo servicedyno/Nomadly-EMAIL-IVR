@@ -6256,10 +6256,17 @@ bot?.on('message', msg => {
   }
 
   // Admin: /credit <username|chatId> <amount> — credit USD to a user's wallet
-  if (isAdmin(chatId) && message.startsWith('/credit ')) {
-    const parts = message.substring(8).trim().split(/\s+/)
+  //
+  // Accepts both the DM form `/credit @user 100` and the group-autocomplete form
+  // `/credit@NomadlyBot @user 100` that Telegram inserts when multiple bots are
+  // available in a chat. The previous `startsWith('/credit ')` check silently
+  // dropped the second form, leading to "no feedback" reports.
+  const creditMatch = isAdmin(chatId) && /^\/credit(?:@\w+)?(?:\s+(.*))?$/i.exec(message)
+  if (creditMatch) {
+    const argsStr = (creditMatch[1] || '').trim()
+    const parts = argsStr ? argsStr.split(/\s+/) : []
     if (parts.length < 2) {
-      return send(chatId, '⚠️ Usage: /credit <@username or chatId> <amount>\\n\\nExamples:\\n<code>/credit @john 50</code>\\n<code>/credit 5590563715 25.50</code>', { parse_mode: 'HTML' })
+      return send(chatId, '⚠️ Usage: /credit <@username or chatId> <amount>\n\nExamples:\n<code>/credit @john 50</code>\n<code>/credit 5590563715 25.50</code>', { parse_mode: 'HTML' })
     }
     const userRef = parts[0].replace('@', '')
     const amount = parseFloat(parts[1])
