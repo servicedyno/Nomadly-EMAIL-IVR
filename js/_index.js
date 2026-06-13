@@ -36665,36 +36665,55 @@ const setupTelegramWebhook = async (retryCount = 0) => {
     return
   }
 
-  try {
-    const webhookUrl = `${SELF_URL}/telegram/webhook`
-    
-    // Set the new webhook (atomically replaces any existing webhook — no deleteWebhook needed)
-    await bot.setWebHook(webhookUrl, {
-      allowed_updates: JSON.stringify(['message', 'callback_query', 'my_chat_member'])
-    })
-    log('✅ Telegram webhook set successfully')
-    log(`📡 Webhook URL: ${webhookUrl}`)
-    
-    // Verify webhook was set
-    const webhookInfo = await bot.getWebHookInfo()
-    log('📊 Webhook info:', JSON.stringify(webhookInfo, null, 2))
-    
-    if (webhookInfo.url === webhookUrl) {
-      log('✅ Webhook verification passed')
-    } else {
-      log('⚠️  Webhook URL mismatch!')
-      log('Expected:', webhookUrl)
-      log('Got:', webhookInfo.url)
+  // ── SAFETY: SKIP_WEBHOOK_SYNC prevents a dev pod from hijacking prod ──
+  // When the local dev pod runs with BOT_ENVIRONMENT=production it would
+  // otherwise call setWebHook(devPodUrl) on the production Telegram bot,
+  // routing all real user traffic to the dev pod (which is exactly the
+  // 2026-06-12 incident: `/credit @davion419` went to a dev pod, Railway
+  // had zero logs, and Telegram recorded "Wrong response from the webhook:
+  // 404 Not Found" during the dev pod's supervisor restarts).
+  //
+  // SKIP_WEBHOOK_SYNC=true means: preserve whatever webhook is already set
+  // at Telegram, just register the bot-command menu and bail.
+  if (process.env.SKIP_WEBHOOK_SYNC === 'true') {
+    log('[Webhooks] SKIP_WEBHOOK_SYNC=true — preserving existing Telegram webhook (NOT overwriting)')
+    try {
+      const info = await bot.getWebHookInfo()
+      log(`📡 Existing webhook (left untouched): ${info?.url || '(none)'}`)
+    } catch (_) {}
+    // Fall through to register bot commands (safe, idempotent, per-token)
+  } else {
+    try {
+      const webhookUrl = `${SELF_URL}/telegram/webhook`
+
+      // Set the new webhook (atomically replaces any existing webhook — no deleteWebhook needed)
+      await bot.setWebHook(webhookUrl, {
+        allowed_updates: JSON.stringify(['message', 'callback_query', 'my_chat_member'])
+      })
+      log('✅ Telegram webhook set successfully')
+      log(`📡 Webhook URL: ${webhookUrl}`)
+
+      // Verify webhook was set
+      const webhookInfo = await bot.getWebHookInfo()
+      log('📊 Webhook info:', JSON.stringify(webhookInfo, null, 2))
+
+      if (webhookInfo.url === webhookUrl) {
+        log('✅ Webhook verification passed')
+      } else {
+        log('⚠️  Webhook URL mismatch!')
+        log('Expected:', webhookUrl)
+        log('Got:', webhookInfo.url)
+      }
+    } catch (error) {
+      log(`❌ Failed to set up Telegram webhook (attempt ${retryCount + 1}/${MAX_RETRIES + 1}): ${error.message}`)
+      if (retryCount < MAX_RETRIES) {
+        log(`🔄 Retrying webhook setup in ${RETRY_DELAY_MS / 1000}s...`)
+        setTimeout(() => setupTelegramWebhook(retryCount + 1), RETRY_DELAY_MS)
+        return
+      }
+      log('🚨 Telegram webhook setup exhausted all retries — bot will NOT receive messages!')
+      log('Error details:', error)
     }
-  } catch (error) {
-    log(`❌ Failed to set up Telegram webhook (attempt ${retryCount + 1}/${MAX_RETRIES + 1}): ${error.message}`)
-    if (retryCount < MAX_RETRIES) {
-      log(`🔄 Retrying webhook setup in ${RETRY_DELAY_MS / 1000}s...`)
-      setTimeout(() => setupTelegramWebhook(retryCount + 1), RETRY_DELAY_MS)
-      return
-    }
-    log('🚨 Telegram webhook setup exhausted all retries — bot will NOT receive messages!')
-    log('Error details:', error)
   }
 
   // ── Register bot commands for the menu button ──
