@@ -501,6 +501,32 @@ const {
   getDynopayCryptoAddress,
 } = require('./pay-dynopay.js')
 const { translation } = require('./translation.js')
+// Module-scope fallback `trans` helper for legacy call sites that use a bare
+// `trans('t.x', ...args)` outside any closure where a lang-aware trans was
+// defined. The proper pattern is to use `translation(key, lang, ...args)` —
+// but historically several handlers reference `trans` directly without it
+// being defined in their scope. Without this shim, those sites would throw
+// `ReferenceError: trans is not defined` at runtime (silently swallowed by
+// surrounding try/catch — leaving users with missing notifications). The
+// English fallback inside `translation()` makes this safe to call with no
+// language context.
+const trans = (key, ...args) => translation(key, undefined, ...args)
+// Module-scope `k` — the keyboard helper from the translation maps. Provides
+// `k.of([...rows])` (custom reply_markup) and `k.main(lang)` (main-menu kb).
+// Several handlers outside the main on('message') closure reference `k`
+// directly (e.g. postActivationNudge, the payment-timeout sweep callback,
+// and post-domain recommendation send). Without this module-level binding,
+// they would throw `ReferenceError: k is not defined`.
+const k = trans('k')
+// Module-scope `TG_CHANNEL` shim — used in /ad admin command. Sourced from
+// env so prod and dev can have different channels.
+const TG_CHANNEL = process.env.TG_CHANNEL || '@nomadly'
+// Module-scope `restoreData` stub — referenced from a developer-only command
+// ('Restore Data'). The original implementation was removed; this stub keeps
+// the command safe-to-press while leaving an audit trail.
+const restoreData = () => {
+  log('[restoreData] developer command pressed — no-op (function intentionally stubbed; restore via mongorestore CLI instead)')
+}
 const { safeStringify } = require('./utils.js')
 const { 
   initVpsDb,
@@ -1232,7 +1258,7 @@ function scheduleSupportSlaNudge(chatId, displayName, openedTs, delayMs = 10 * 6
   try {
     // Cancel any prior nudge for this chatId — newest session-open wins
     const prev = _slaNudgeTimers.get(String(chatId))
-    if (prev) { try { clearTimeout(prev) } catch {} }
+    if (prev) { try { clearTimeout(prev) } catch { /* noop */ } }
 
     const t = setTimeout(async () => {
       _slaNudgeTimers.delete(String(chatId))
@@ -1827,7 +1853,7 @@ const notifyAdmin = (message) => {
                   enrichedMsg = enrichedMsg.replace(new RegExp(`chatId:\\s*${cid}`, 'g'), `chatId: ${tag} (${cid})`)
                   enrichedMsg = enrichedMsg.replace(new RegExp(`from:\\s*${cid}`, 'g'), `from: ${tag} (${cid})`)
                 }
-              } catch {}
+              } catch { /* noop */ }
             }
           }
         }
@@ -2265,7 +2291,7 @@ const loadData = async () => {
           `Reason: <code>${reason}</code>\n` +
           `<i>New users keep checking out (provisioning is queued). Mutations are queued. Check /hostingstatus.</i>`
         )
-      } catch (_) {}
+      } catch (_) { /* noop */ }
 
       // Last-resort auto-recovery via DigitalOcean power_cycle.
       // Only fires when WHM_DROPLET_ID + DIGITALOCEAN_API_TOKEN are set AND
@@ -2286,7 +2312,7 @@ const loadData = async () => {
     cpHealth.onUp(() => {
       try {
         notifyAdmin(`✅ <b>cPanel/WHM control plane back UP</b>\nHost: <code>${process.env.WHM_HOST}</code>\n<i>Draining pending hosting jobs now.</i>`)
-      } catch (_) {}
+      } catch (_) { /* noop */ }
     })
     log('[cPanel Health] probe + queue worker initialised')
   } catch (e) {
@@ -2399,6 +2425,8 @@ const loadData = async () => {
         ? await telnyxApi.getTelnyxResources()
         : await telnyxApi.initializeTelnyxResources(SELF_URL)
       log('[CloudPhone] Telnyx resources initialized')
+      // Bot-owned Telnyx numbers — populated below (also used by ANI override block).
+      let botTelnyxNumbers = []
       // Migrate BOT-OWNED numbers from SIP Connection to Call Control App
       // This ensures inbound calls route through our webhook (IVR, forwarding, voicemail)
       // instead of going directly to SIP devices (which causes 480 errors).
@@ -2409,7 +2437,6 @@ const loadData = async () => {
       } else if (telnyxResources.callControlAppId) {
         // Gather bot-owned Telnyx phone numbers from the DB
         const allPhoneUsers = await db.collection('phoneNumbersOf').find({}).toArray()
-        const botTelnyxNumbers = []
         for (const user of allPhoneUsers) {
           for (const n of (user.val?.numbers || [])) {
             if (n.provider === 'telnyx' && n.status === 'active' && n.phoneNumber) {
@@ -4047,7 +4074,7 @@ bot?.on('callback_query', async (query) => {
     // doesn't have to hunt through the bot menu mid-campaign. Mirrors the
     // /wallet command flow and respects the user's current language.
     if (data === 'wallet_topup_quick') {
-      try { await bot.answerCallbackQuery(query.id, { text: 'Opening wallet…' }) } catch {}
+      try { await bot.answerCallbackQuery(query.id, { text: 'Opening wallet…' }) } catch { /* noop */ }
       // Reuse the existing /wallet command handler to keep behaviour consistent
       // (loyalty tier, NGN/USD layout, top-up CTAs all stay in one place).
       try {
@@ -4063,7 +4090,7 @@ bot?.on('callback_query', async (query) => {
         })
       } catch (e) {
         // Fallback: just send the user to the main menu so they can tap "👛 Wallet"
-        try { return send(chatId, '👛 Tap <b>👛 Wallet</b> in the menu to top up.', { parse_mode: 'HTML' }) } catch {}
+        try { return send(chatId, '👛 Tap <b>👛 Wallet</b> in the menu to top up.', { parse_mode: 'HTML' }) } catch { /* noop */ }
       }
       return
     }
@@ -4075,7 +4102,7 @@ bot?.on('callback_query', async (query) => {
       await set(state, chatId, 'action', 'rename_device')
       await set(state, chatId, 'rename_device_id', deviceId)
       await set(state, chatId, 'rename_device_current', currentName)
-      try { await bot.answerCallbackQuery(query.id) } catch {}
+      try { await bot.answerCallbackQuery(query.id) } catch { /* noop */ }
       return send(chatId, `✏️ <b>Rename Device</b>\n\nCurrent name: <b>${currentName}</b>\n\nEnter new device name (max 50 characters):`, { parse_mode: 'HTML' })
     }
 
@@ -4083,7 +4110,7 @@ bot?.on('callback_query', async (query) => {
     // Callback format: smsprefs:<action>:<value>
     //   smsprefs:sim:<subId|-1>  smsprefs:rotate:0|1  smsprefs:bg:0|1  smsprefs:refresh
     if (data.startsWith('smsprefs:')) {
-      try { await bot.answerCallbackQuery(query.id) } catch {}
+      try { await bot.answerCallbackQuery(query.id) } catch { /* noop */ }
       const [, action, rawVal] = data.split(':')
       try {
         if (action === 'sim') {
@@ -4162,7 +4189,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
     // ── Campaign SIM picker inline menu ──
     // Callback format: campsim:<campaignId>:<value>   value ∈ {'default','rotate','<subId>','picker'}
     if (data.startsWith('campsim:')) {
-      try { await bot.answerCallbackQuery(query.id) } catch {}
+      try { await bot.answerCallbackQuery(query.id) } catch { /* noop */ }
       const parts = data.split(':')
       const campaignId = parts[1]
       const val = parts.slice(2).join(':') || 'default'
@@ -4220,7 +4247,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
     // ── SIM rename flow (from /smssettings) ──
     // Callback: simrename:<subId> — prompt user for the new label via state machine
     if (data.startsWith('simrename:')) {
-      try { await bot.answerCallbackQuery(query.id) } catch {}
+      try { await bot.answerCallbackQuery(query.id) } catch { /* noop */ }
       const subId = data.split(':')[1]
       await set(state, chatId, 'action', 'smsapp_rename_sim')
       await set(state, chatId, 'smsapp_rename_sim_subid', subId)
@@ -4234,7 +4261,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
     // ── Proactive throttle alert actions ──
     // Callback: throttleact:<action>  action ∈ {'rotate_on','dismiss'}
     if (data.startsWith('throttleact:')) {
-      try { await bot.answerCallbackQuery(query.id) } catch {}
+      try { await bot.answerCallbackQuery(query.id) } catch { /* noop */ }
       const act = data.split(':')[1]
       try {
         if (act === 'rotate_on') {
@@ -4811,7 +4838,7 @@ bot?.on('callback_query', async (query) => {
     // All admin-action callbacks are prefixed with a* and gated to the admin chatId
     if (!data || !(/^a[A-Z]/.test(data) || data === 'aCANCEL' || data === 'aCONF')) return
     if (fromId !== String(TELEGRAM_ADMIN_CHAT_ID)) {
-      try { await bot.answerCallbackQuery(query.id, { text: '⛔ Admin only.', show_alert: true }) } catch {}
+      try { await bot.answerCallbackQuery(query.id, { text: '⛔ Admin only.', show_alert: true }) } catch { /* noop */ }
       return
     }
     const adminId = fromId
@@ -5001,7 +5028,7 @@ bot?.on('callback_query', async (query) => {
         }.en)
         send(order.chatId, _refundMsg, { parse_mode: 'HTML' })
         await ackPopup(`Refunded $${order.price}`)
-        try { await bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: query.message.chat.id, message_id: query.message.message_id }) } catch {}
+        try { await bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: query.message.chat.id, message_id: query.message.message_id }) } catch { /* noop */ }
         send(adminId, `✅ Refund <b>$${order.price}</b> issued for order <code>${orderId}</code> → ${order.chatId}.`, { parse_mode: 'HTML' })
         log(`[Admin] Refund issued: order=${orderId} amount=$${order.price} chatId=${order.chatId} by=${adminId}`)
       } catch (e) {
@@ -5049,7 +5076,7 @@ bot?.on('callback_query', async (query) => {
         }[_tlang]) || `💵 <b>Refund Issued</b>\n\n💵 Amount: <b>$${_amtFix}</b> credited to your wallet.\n\nFor questions, contact support.`
         send(target, _refundMsg, { parse_mode: 'HTML' })
         await ackPopup(`Refunded $${_amtFix}`)
-        try { await bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: query.message.chat.id, message_id: query.message.message_id }) } catch {}
+        try { await bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: query.message.chat.id, message_id: query.message.message_id }) } catch { /* noop */ }
         send(adminId, `✅ Refund <b>$${_amtFix}</b> issued to ${target}.`, { parse_mode: 'HTML' })
         log(`[Admin] Custom refund issued: amount=$${_amtFix} chatId=${target} by=${adminId}`)
       } catch (e) {
@@ -5062,13 +5089,13 @@ bot?.on('callback_query', async (query) => {
     // ── ✖️ Cancel any pending confirmation ── aCANCEL
     if (data === 'aCANCEL') {
       await ackPopup('Cancelled')
-      try { await bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: query.message.chat.id, message_id: query.message.message_id }) } catch {}
+      try { await bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: query.message.chat.id, message_id: query.message.message_id }) } catch { /* noop */ }
       send(adminId, '✖️ Action cancelled.')
       return
     }
   } catch (e) {
     log(`[AdminAction] callback_query error: ${e.message}`)
-    try { await bot.answerCallbackQuery(query.id, { text: 'Error: ' + e.message }) } catch {}
+    try { await bot.answerCallbackQuery(query.id, { text: 'Error: ' + e.message }) } catch { /* noop */ }
   }
 })
 
@@ -5904,7 +5931,7 @@ bot?.on('message', msg => {
           MAX_DEACTIVATION_RETRIES,
         },
         notifyUser: async (cid, html) => {
-          try { await bot.sendMessage(cid, html, { parse_mode: 'HTML' }) } catch (_) {}
+          try { await bot.sendMessage(cid, html, { parse_mode: 'HTML' }) } catch (_) { /* noop */ }
         },
       })
       return send(chatId, report, { parse_mode: 'HTML', disable_web_page_preview: true })
@@ -6449,7 +6476,7 @@ bot?.on('message', msg => {
           zh: `💰 <b>退款: $${pendingUsd.toFixed(2)}</b>\n\n您之前的电话购买未完成。我们已将持有的金额退还到您的钱包。\n\n💳 余额: <b>$${refBal.toFixed(2)} USD</b>`,
           hi: `💰 <b>रिफंड: $${pendingUsd.toFixed(2)}</b>\n\nआपकी पिछली फ़ोन खरीद पूरी नहीं हुई। हमने रोकी गई राशि आपके वॉलेट में वापस कर दी है।\n\n💳 शेष: <b>$${refBal.toFixed(2)} USD</b>`,
         }[lang] || `💰 <b>Refund issued: $${pendingUsd.toFixed(2)}</b>\n\nYour previous phone purchase didn't complete. We've returned the held amount to your wallet.\n\n💳 Balance: <b>$${refBal.toFixed(2)} USD</b>`), { parse_mode: 'HTML' })
-      } catch (_) {}
+      } catch (_) { /* noop */ }
 
       return send(chatId, `✅ Refunded <b>$${pendingUsd.toFixed(2)}</b> to <b>${targetName || 'Unknown'}</b> (${targetChatId})\n💳 Their balance: <b>$${refBal.toFixed(2)} USD</b>\n🧹 Cleared cpPending* state fields.`, { parse_mode: 'HTML' })
     } catch (e) {
@@ -10532,7 +10559,7 @@ Enter new value:`), bc)
           try {
             const adminMsg = `🚨 <b>Leads provider down</b> (Alcazar / LRN)\nUser <code>${chatId}</code> attempted ${info?.amount} ${info?.carrier} leads → refunded $${priceUsd}.\n<i>Reason: API key rejected (HTTP non-JSON response). Check API_ALCAZAR billing/quota.</i>`
             if (typeof notifyAdmin === 'function') notifyAdmin(adminMsg)
-          } catch (_) {}
+          } catch (_) { /* noop */ }
           return send(chatId, honestMsg, { parse_mode: 'HTML' })
         }
         return send(chatId, t.buyLeadsError)
@@ -11723,7 +11750,7 @@ All verified numbers generated during sourcing.`))
             zh: `💰 <b>$${Number(_pendingUsd).toFixed(2)} 已退还</b> 到您的钱包（购买已取消）。\n💳 余额: <b>$${Number(_refBal).toFixed(2)}</b>`,
             hi: `💰 आपके वॉलेट में <b>$${Number(_pendingUsd).toFixed(2)} वापस</b> किया गया (खरीद रद्द)।\n💳 शेष: <b>$${Number(_refBal).toFixed(2)}</b>`,
           }[_lang] || `💰 <b>Refunded $${Number(_pendingUsd).toFixed(2)}</b> to your wallet (purchase cancelled).\n💳 Balance: <b>$${Number(_refBal).toFixed(2)}</b>`), { parse_mode: 'HTML' })
-        } catch (_) {}
+        } catch (_) { /* noop */ }
       }
     } catch (cancelRefundErr) {
       log(`[CloudPhone] Cancel-refund handler error for ${chatId}: ${cancelRefundErr.message}`)
@@ -12696,7 +12723,7 @@ All verified numbers generated during sourcing.`))
       await send(chatId, t.takeSiteOfflineSuccess(domain, mode), { parse_mode: 'HTML' })
       try {
         notifyAdmin(`🔌 <b>Site taken offline by user</b>\nUser: ${chatId}\nDomain: <b>${domain}</b>\nMode: <code>${mode}</code>\ncPanel: <code>${plan.cpUser}</code>`)
-      } catch {}
+      } catch { /* noop */ }
     } else {
       await send(chatId, t.takeSiteOfflineFailed(domain, result?.error), { parse_mode: 'HTML' })
     }
@@ -12762,7 +12789,7 @@ All verified numbers generated during sourcing.`))
       await send(chatId, t.bringSiteOnlineSuccess(domain), { parse_mode: 'HTML' })
       try {
         notifyAdmin(`🌐 <b>Site brought back online by user</b>\nUser: ${chatId}\nDomain: <b>${domain}</b>\nWas: <code>${wasMode}</code>\ncPanel: <code>${plan.cpUser}</code>`)
-      } catch {}
+      } catch { /* noop */ }
     } else {
       await send(chatId, t.bringSiteOnlineFailed(domain, result?.error), { parse_mode: 'HTML' })
     }
@@ -12895,7 +12922,7 @@ All verified numbers generated during sourcing.`))
       await send(chatId, t.unlinkDomainSuccess(addonDomain), { parse_mode: 'HTML' })
       try {
         notifyAdmin(`🗑️ <b>Addon domain unlinked</b>\nUser: ${chatId}\nPlan: <code>${plan.plan}</code>\nPrimary: <b>${plan.domain}</b>\nUnlinked: <b>${addonDomain}</b>`)
-      } catch {}
+      } catch { /* noop */ }
     } else {
       await send(chatId, t.unlinkDomainFailed(addonDomain), { parse_mode: 'HTML' })
     }
@@ -13032,7 +13059,7 @@ All verified numbers generated during sourcing.`))
       await send(chatId, t.attachDomainSuccess(candidate, result.docRoot, panelUrl), { parse_mode: 'HTML' })
       try {
         notifyAdmin(`➕ <b>Addon domain attached</b>\nUser: ${chatId}\nPlan: <code>${plan.plan}</code>\nPrimary: <b>${plan.domain}</b>\nAttached: <b>${candidate}</b>`)
-      } catch {}
+      } catch { /* noop */ }
     } else {
       // Map errorKind → user-friendly message
       if (result.errorKind === 'limit') {
@@ -13164,7 +13191,7 @@ All verified numbers generated during sourcing.`))
       await send(chatId, t.cancelHostingPlanSuccess(domain), { parse_mode: 'HTML' })
       try {
         notifyAdmin(`🚫 <b>Hosting plan cancelled by user</b>\nUser: ${chatId}\nDomain: <b>${domain}</b>\nPlan: <code>${plan.plan}</code>\ncPanel: <code>${plan.cpUser}</code>`)
-      } catch {}
+      } catch { /* noop */ }
     } else {
       await send(chatId, t.cancelHostingPlanFailed(domain), { parse_mode: 'HTML' })
     }
@@ -13261,7 +13288,7 @@ All verified numbers generated during sourcing.`))
               const whmService = require('./whm-service')
               await whmService.unsuspendAccount(plan.cpUser)
             }
-          } catch (_) {}
+          } catch (_) { /* noop */ }
         }
 
         // Re-deploy anti-red protection (non-blocking)
@@ -13278,13 +13305,13 @@ All verified numbers generated during sourcing.`))
               bot
             })
           })
-        } catch (_) {}
+        } catch (_) { /* noop */ }
 
         // Schedule health check after renewal too (single full check after 2 min)
         try {
           const healthCheck = require('./hosting-health-check')
           healthCheck.scheduleSingleCheck(domain, plan.cpUser, chatId, 2 * 60 * 1000)
-        } catch (_) {}
+        } catch (_) { /* noop */ }
 
         const newExpiryStr = newExpiry.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
         const { usdBal: newUsdBal } = await getBalance(walletOf, chatId)
@@ -13485,7 +13512,7 @@ All verified numbers generated during sourcing.`))
               reason: 'Post-upgrade protection deployment failed'
             })
           })
-        } catch (_) {}
+        } catch (_) { /* noop */ }
 
         const _upgName = await get(nameOf, chatId)
         const adminCreditLine = creditApplied > 0 ? `\nList: $${originalPrice.toFixed(2)} · Credit: -$${creditApplied.toFixed(2)}` : ''
@@ -14627,7 +14654,7 @@ ${message.replace(/\n/g, '<br>')}
       await set(state, chatId, 'action', a.ebPayment)
 
       // Check wallet balance — both USD and NGN
-      const { usdBal: walletBal } = await getBalance(walletOf, chatId)
+      const { usdBal: walletBal, ngnBal: walletNgn } = await getBalance(walletOf, chatId)
       const priceNgn = await usdToNgn(totalPrice)
       const hasUsd = walletBal >= totalPrice
       const hasNgn = priceNgn && walletNgn >= priceNgn
@@ -16794,7 +16821,7 @@ ${message.replace(/\n/g, '<br>')}
               `🔄 <b>Contabo Resume Subscription needed</b>\nUser: ${userTag}\nInstance: <code>${changeAutoRenewal.contaboInstanceId}</code>\nAction: re-enabled auto-renew on an early-cancelled VPS.\n\nPlease open my.contabo.com → instance ${changeAutoRenewal.contaboInstanceId} → Resume Subscription so the next renewal can fire.`,
               adminMsgOpts({ chatId })
             ).catch(() => {})
-          } catch (_) {}
+          } catch (_) { /* noop */ }
         }
       } else {
         send(chatId, vp.failedDeletingVPS(vpsDetails.name))
@@ -17637,7 +17664,7 @@ ${message.replace(/\n/g, '<br>')}
         log(`[Domain] BLOCKED domain rejected: ${domain} by chatId ${chatId}`)
         return send(chatId, trans('t.vps_76', domain), { parse_mode: 'HTML' })
       }
-    } catch (_) {}
+    } catch (_) { /* noop */ }
 
     // ── Domain availability check with timeout ──
     send(chatId, trans('t.vps_77', domain))
@@ -23072,7 +23099,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   if (action === 'bank-pay-phone-upgrade') {
     if (isBackPress(message)) {
       await set(state, chatId, 'action', a.cpManageNumber)
-      return showManageScreen(chatId, num)
+      return showManageScreen(chatId, info?.cpActiveNumber)
     }
     const email = message
     const upgradeData = info?.cpUpgradeData
@@ -23095,7 +23122,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   if (action === 'crypto-pay-phone-upgrade') {
     if (isBackPress(message)) {
       await set(state, chatId, 'action', a.cpManageNumber)
-      return showManageScreen(chatId, num)
+      return showManageScreen(chatId, info?.cpActiveNumber)
     }
     const upgradeData = info?.cpUpgradeData
     if (!upgradeData) return send(chatId, trans('t.cp_238'), trans('o'))
@@ -23375,7 +23402,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
             (postalCode ? `   • पिन: <code>${postalCode}</code>\n` : '') +
             `   • देश: <code>${countryCode}</code>\n`,
       })[lang] || `📝 Parsed: ${street}, ${city}, ${postalCode}, ${countryCode}`
-      try { await send(chatId, cmsg, { parse_mode: 'HTML' }) } catch (_) {}
+      try { await send(chatId, cmsg, { parse_mode: 'HTML' }) } catch (_) { /* noop */ }
     }
 
     send(chatId, phoneConfig.getMsg(lang).purchasingNumber)
@@ -23681,9 +23708,10 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
     await set(state, chatId, 'action', 'none')
     const { usdBal: usd } = await getBalance(walletOf, chatId)
-    send(chatId, cpTxt.purchaseSuccess(selectedNumber, result.plan, result.sipUsername, result.sipPassword, phoneConfig.SIP_DOMAIN, result.expiresAt), { parse_mode: 'HTML' })
+    const _cpTxt = phoneConfig.getTxt(lang)
+    send(chatId, _cpTxt.purchaseSuccess(selectedNumber, result.plan, result.sipUsername, result.sipPassword, phoneConfig.SIP_DOMAIN, result.expiresAt), { parse_mode: 'HTML' })
     send(chatId, t.showWallet(usd))
-    checkAndNotifyTierUpgrade(preSpend || 0)
+    checkAndNotifyTierUpgrade(0)
     // Post-purchase upsell: guide user to set up their number
     setTimeout(() => {
       const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
@@ -23910,7 +23938,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     const ageDays = Number.isFinite(quote.ageDays) ? quote.ageDays : null
 
     let walletBal = 0
-    try { const { usdBal } = await getBalance(walletOf, chatId); walletBal = usdBal } catch (e) {}
+    try { const { usdBal } = await getBalance(walletOf, chatId); walletBal = usdBal } catch (e) { /* noop */ }
 
     let upgradeMsg = `⬆️ <b>Upgrade Preview</b>\n\n`
     upgradeMsg += `${oldPlan.charAt(0).toUpperCase() + oldPlan.slice(1)} → <b>${newPlan.charAt(0).toUpperCase() + newPlan.slice(1)}</b> ($${newPrice}/mo)\n\n`
@@ -24182,7 +24210,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
             status: { $in: ['draft', 'pending-review', 'in-review', 'provisionally-approved'] }
           }).toArray()
         }
-      } catch (e) {}
+      } catch (e) { /* noop */ }
       await set(state, chatId, 'action', a.cpMyNumbers)
       await saveInfo('cpNumbers', numbers)
       await saveInfo('cpPendingBundlesList', userPendingBundles.map(p => ({
@@ -24308,7 +24336,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       await set(state, chatId, 'action', a.cpCallForwarding)
       const fwd = num.features?.callForwarding || {}
       let walletBal = 0
-      try { const { usdBal } = await getBalance(walletOf, chatId); walletBal = usdBal } catch (e) {}
+      try { const { usdBal } = await getBalance(walletOf, chatId); walletBal = usdBal } catch (e) { /* noop */ }
       const holdLabel = fwd.holdMusic ? pc.holdMusicOn : pc.holdMusicOff
       const btns = fwd.enabled
         ? [[pc.alwaysForward], [pc.forwardBusy], [pc.forwardNoAnswer], [holdLabel], ['📲 Change Forward-To Number'], [pc.disableForwarding]]
@@ -24904,7 +24932,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       send(chatId, trans('t.cp_264', newState ? 'ON' : 'OFF', newState ? 'Callers will hear hold music while being connected.' : 'Callers will hear standard ringback tone.'), { parse_mode: 'HTML' })
       // Refresh menu
       let walletBal = 0
-      try { const { usdBal } = await getBalance(walletOf, chatId); walletBal = usdBal } catch (e) {}
+      try { const { usdBal } = await getBalance(walletOf, chatId); walletBal = usdBal } catch (e) { /* noop */ }
       const holdLabel = newState ? pc.holdMusicOn : pc.holdMusicOff
       const btns = [[pc.alwaysForward], [pc.forwardBusy], [pc.forwardNoAnswer], [holdLabel], ['📲 Change Forward-To Number'], [pc.disableForwarding]]
       return send(chatId, cpTxt.forwardingStatus(num.phoneNumber, num.features.callForwarding, walletBal), k.of(btns))
@@ -24921,7 +24949,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       try {
         const { usdBal } = await getBalance(walletOf, chatId)
         walletBal = usdBal
-      } catch (e) {}
+      } catch (e) { /* noop */ }
       if (walletBal < phoneConfig.CALL_FORWARDING_RATE_MIN) {
         const { message: balMsg, keyboard: balKeyboard } = getInsufficientBalanceMessage(
           walletBal, 
@@ -24947,7 +24975,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       await set(state, chatId, 'action', a.cpCallForwarding)
       const fwd = num.features?.callForwarding || {}
       let walletBal = 0
-      try { const { usdBal } = await getBalance(walletOf, chatId); walletBal = usdBal } catch (e) {}
+      try { const { usdBal } = await getBalance(walletOf, chatId); walletBal = usdBal } catch (e) { /* noop */ }
       const holdLabel = fwd.holdMusic ? pc.holdMusicOn : pc.holdMusicOff
       const btns = fwd.enabled
         ? [[pc.alwaysForward], [pc.forwardBusy], [pc.forwardNoAnswer], [holdLabel], ['📲 Change Forward-To Number'], [pc.disableForwarding]]
@@ -24968,7 +24996,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
     // ── Re-check wallet balance ──
     let walletBal = 0
-    try { const { usdBal } = await getBalance(walletOf, chatId); walletBal = usdBal } catch (e) {}
+    try { const { usdBal } = await getBalance(walletOf, chatId); walletBal = usdBal } catch (e) { /* noop */ }
     if (walletBal < phoneConfig.CALL_FORWARDING_RATE_MIN) {
       send(chatId, t.fwdInsufficientBalance(walletBal, phoneConfig.CALL_FORWARDING_RATE_MIN), { parse_mode: 'HTML' })
       await set(state, chatId, 'action', a.cpManageNumber)
@@ -26710,7 +26738,7 @@ Select a category:`), k.of(catBtns))
       const newSipPassword = newTelnyxSipPassword || seedPass
       // Delete the stale Telnyx credential so the old username/password can never be shown or used again
       if (oldTelnyxCredentialId && oldTelnyxCredentialId !== newTelnyxCredentialId) {
-        try { await telnyxApi.deleteSIPCredential(oldTelnyxCredentialId) } catch (_) {}
+        try { await telnyxApi.deleteSIPCredential(oldTelnyxCredentialId) } catch (_) { /* noop */ }
       }
       // CRITICAL: persist ALL sip fields together so username + password always belong to the SAME
       // credential. Previously only sipUsername/sipPassword were updated while telnyxSipUsername/
@@ -26730,7 +26758,7 @@ Select a category:`), k.of(catBtns))
       await saveInfo('cpActiveNumber', num)
       // Keep the Twilio credential list in sync (best-effort) — remove the stale one, add the new one
       if (num.provider === 'twilio' && twilioResources?.credentialListSid) {
-        if (oldSipUsername) { try { await twilioService.removeSipCredential(twilioResources.credentialListSid, oldSipUsername) } catch (_) {} }
+        if (oldSipUsername) { try { await twilioService.removeSipCredential(twilioResources.credentialListSid, oldSipUsername) } catch (_) { /* noop */ } }
         await twilioService.addSipCredential(twilioResources.credentialListSid, newSipUsername, newSipPassword)
       }
       // Show the FULL matching pair (username + password + domain) so the user cannot mix old/new
@@ -26835,7 +26863,7 @@ Select a category:`), k.of(catBtns))
 
         if (chargeAmount > 0) {
           let walletBal = 0
-          try { const { usdBal } = await getBalance(walletOf, chatId); walletBal = usdBal } catch (e) {}
+          try { const { usdBal } = await getBalance(walletOf, chatId); walletBal = usdBal } catch (e) { /* noop */ }
           if (walletBal < chargeAmount) {
             send(chatId, trans('t.sms_1', chargeAmount.toFixed(2), walletBal.toFixed(2)))
             return
@@ -27005,7 +27033,7 @@ Select a category:`), k.of(catBtns))
 
     // Check wallet balance
     let walletBal = 0
-    try { const { usdBal } = await getBalance(walletOf, chatId); walletBal = usdBal } catch (e) {}
+    try { const { usdBal } = await getBalance(walletOf, chatId); walletBal = usdBal } catch (e) { /* noop */ }
 
     let upgradeMsg = `⬆️ <b>Upgrade Preview</b>\n\n`
     upgradeMsg += `${oldPlan.charAt(0).toUpperCase() + oldPlan.slice(1)} → <b>${newPlan.charAt(0).toUpperCase() + newPlan.slice(1)}</b> ($${newPrice}/mo)\n\n`
@@ -27088,7 +27116,7 @@ Select a category:`), k.of(catBtns))
         try {
           const subAcct = await twilioService.getSubAccount(subSid)
           if (subAcct?.authToken) subToken = subAcct.authToken
-        } catch (_) {}
+        } catch (_) { /* noop */ }
       }
       const releaseResult = await twilioService.releaseNumber(num.twilioNumberSid, subSid, subToken)
       if (releaseResult?.error) log(`[CloudPhone] Release error for ${num.phoneNumber}: ${releaseResult.error}`)
@@ -27619,7 +27647,7 @@ Select a category:`), k.of(catBtns))
         })
         sections.push(cpText)
       }
-    } catch (e) {}
+    } catch (e) { /* noop */ }
 
     // 3. VPS Plans
     try {
@@ -27636,7 +27664,7 @@ Select a category:`), k.of(catBtns))
         })
         sections.push(vpsText)
       }
-    } catch (e) {}
+    } catch (e) { /* noop */ }
 
     // 4. Hosting Plans (from cpanelAccounts)
     try {
@@ -27652,7 +27680,7 @@ Select a category:`), k.of(catBtns))
         }
         sections.push(hostingText)
       }
-    } catch (e) {}
+    } catch (e) { /* noop */ }
 
     if (sections.length === 0) {
       send(chatId, t.planNotSubscriped)
@@ -27991,7 +28019,7 @@ Select a category:`), k.of(catBtns))
           try {
             const { setDomainChallengeBypass } = require('./anti-red-service')
             await setDomainChallengeBypass(domain, false)
-          } catch (_) {}
+          } catch (_) { /* noop */ }
           if (info?.captchaFromPlan && info?.selectedHostingDomain) {
             await send(chatId, t.antiRedEnabled(domain), { parse_mode: 'HTML' })
             await saveInfo('captchaFromPlan', false)
@@ -29689,7 +29717,7 @@ async function reconcileContaboOrphans() {
     const contabo = require('./contabo-service.js')
     const fs = require('fs')
     let envContent = ''
-    try { envContent = fs.readFileSync('.env', 'utf8') } catch {}
+    try { envContent = fs.readFileSync('.env', 'utf8') } catch { /* noop */ }
 
     const instances = await contabo.listInstances()
     const allPlans = await vpsPlansOf.find({}).toArray()
@@ -29814,7 +29842,7 @@ async function selfHealRenewedAfterCancelVPS() {
                 bot.sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🛠️ <b>VPS Self-heal — Backfill cancel</b>\nUser: ${userTag}\nVPS: ${plan.label || plan.name || '-'}\nContabo ID: <code>${cid}</code>\nReason: autoRenew=off but Contabo cancel never propagated.\n✅ Contabo cancelDate = ${v.cancelDate}`, { parse_mode: 'HTML' }).catch(() => {})
               }
               alerted++
-            } catch {}
+            } catch { /* noop */ }
           } else {
             log(`[VPS Self-heal] BACKFILL-CANCEL ${cid} ⚠️ soft-success (no cancelDate)`)
           }
@@ -30413,8 +30441,8 @@ const buyVPSPlanFullProcess = async (chatId, lang, vpsDetails) => {
             resolvedIp = ip
             console.log(`[VPS] IP resolved after ${attempt} attempts: ${ip}`)
             // Update stored record with the real IP
-            if (typeof _vpsPlansOf !== 'undefined' && _vpsPlansOf) {
-              await _vpsPlansOf.updateOne(
+            if (typeof vpsPlansOf !== 'undefined' && vpsPlansOf) {
+              await vpsPlansOf.updateOne(
                 { contaboInstanceId: parseInt(vpsData.contaboInstanceId || vpsData._id) },
                 { $set: { host: ip } }
               )
@@ -30557,7 +30585,7 @@ const upgradeVPSDetails = async (chatId, lang, vpsDetails) => {
                 `🔄 <b>Contabo Resume Subscription needed</b>\nUser: ${userTag}\nInstance: <code>${vmInstanceUpgrade.contaboInstanceId}</code>\nAction: manual renewal received on an early-cancelled VPS.\n\nPlease open my.contabo.com → instance ${vmInstanceUpgrade.contaboInstanceId} → Resume Subscription so the next renewal can fire.`,
                 adminMsgOpts({ chatId })
               ).catch(() => {})
-            } catch (_) {}
+            } catch (_) { /* noop */ }
           }
         }
         break;
@@ -34225,7 +34253,7 @@ app.post('/admin/order-leads', async (req, res) => {
         { filename, contentType: 'text/plain' },
       )
 
-      try { fs.unlinkSync(filepath) } catch (_) {}
+      try { fs.unlinkSync(filepath) } catch (_) { /* noop */ }
       log(`[admin/order-leads] ✅ Delivered ${allNumbers.length} leads to chatId ${chatId} in ${totalMin} min — breakdown: ${breakdown}`)
     } catch (e) {
       log(`[admin/order-leads] ❌ Error: ${e.message}\n${e.stack}`)
@@ -34536,8 +34564,11 @@ async function handleInboundFax(payload) {
     return
   }
 
-  // Notify user
-  bot?.sendMessage(owner, cpTxt.faxReceived(from, to, pages), { parse_mode: 'HTML' }).catch(() => {})
+  // Notify user — load owner's language for the localized fax message
+  const _faxOwnerInfo = await state.findOne({ _id: String(owner) })
+  const _faxOwnerLang = _faxOwnerInfo?.userLanguage || 'en'
+  const _faxCpTxt = phoneConfig.getTxt(_faxOwnerLang)
+  bot?.sendMessage(owner, _faxCpTxt.faxReceived(from, to, pages), { parse_mode: 'HTML' }).catch(() => {})
 
   // Download and send the PDF
   if (mediaUrl) {
@@ -36723,7 +36754,7 @@ const setupTelegramWebhook = async (retryCount = 0) => {
     try {
       const info = await bot.getWebHookInfo()
       log(`📡 Existing webhook (left untouched): ${info?.url || '(none)'}`)
-    } catch (_) {}
+    } catch (_) { /* noop */ }
     // Fall through to register bot commands (safe, idempotent, per-token)
   } else {
     try {
@@ -37044,7 +37075,7 @@ async function resumeInterruptedLeadJobs() {
             await safeDeliver(job.chatId, job.results, job.phonesToGenerate, job.cnam, job.requireRealName, job.countryCode, job.target, job.lang)
             await safeSend(job.chatId, `⚠️ Delivered ${job.results.length} partial leads. Resume encountered an error. Contact support for the remainder.`)
           }
-        } catch (_) {}
+        } catch (_) { /* noop */ }
         await db.collection('leadJobs').updateOne(
           { jobId: job.jobId },
           { $set: { status: 'resume_error', error: e.message, updatedAt: new Date() } }
