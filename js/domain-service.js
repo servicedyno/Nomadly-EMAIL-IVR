@@ -207,6 +207,12 @@ const registerDomain = async (domainName, registrar, nsChoice, db, chatId, custo
             cfZoneId: cfZoneId || null,
             opDomainId: result.domainId || null,
             customNS: nsChoice === 'custom' ? nameservers : null,
+            // Persist the nameservers chosen at registration so the
+            // Manage-Nameservers UI can show them immediately (without this
+            // field, getDomainMeta().nameservers is [] and viewDNSRecords
+            // can't prepend NS rows → user sees "No nameserver records found"
+            // and thinks NS management is broken — see Leprechaun00 incident).
+            nameservers: Array.isArray(nameservers) && nameservers.length ? nameservers : [],
             registeredAt: new Date(),
           },
         },
@@ -463,7 +469,28 @@ const viewDNSRecords = async (domainName, db) => {
       priority: r.priority ?? null,
     }))
     // Prepend nameservers as NS records (zone-level, not deletable via record API)
-    const nameservers = meta.nameservers || []
+    let nameservers = meta.nameservers || []
+    // Self-heal: if nameservers list is empty but we have a cfZoneId, fetch
+    // the actual NS from Cloudflare and backfill the DB. This fixes the
+    // "No nameserver records found" bug for domains that were registered
+    // before the registration flow started persisting the nameservers field
+    // into domainsOf.
+    if ((!nameservers || nameservers.length === 0) && db) {
+      try {
+        const zone = await cfService.getZoneByName(domainName)
+        if (zone?.name_servers?.length) {
+          nameservers = zone.name_servers
+          log(`[domain-service] Self-heal: backfilling ${domainName} nameservers ← CF (${nameservers.join(', ')})`)
+          await db.collection('domainsOf').updateOne(
+            { domainName },
+            { $set: { nameservers } },
+            { upsert: false }
+          )
+        }
+      } catch (e) {
+        log(`[domain-service] Self-heal NS lookup failed for ${domainName}: ${e.message}`)
+      }
+    }
     for (const ns of nameservers) {
       records.unshift({ recordType: 'NS', recordContent: ns, recordName: domainName, isNameserver: true })
     }

@@ -30427,11 +30427,16 @@ const buyVPSPlanFullProcess = async (chatId, lang, vpsDetails) => {
     // Just wait for the instance to provision and get an IP.
     await progress.startStep(2)
 
-    // Poll for the real IP address (Contabo takes ~30-60s to assign one)
+    // Poll for the real IP address. Contabo Linux ≈ 30-60s; Windows can take 10-25 min.
     let resolvedIp = vpsData.host
+    let ipResolvedInForeground = false
     if (!resolvedIp || resolvedIp === 'provisioning...' || resolvedIp === 'pending') {
       const contaboService = require('./contabo-service.js')
-      const maxAttempts = 6
+      // Windows install is slow → poll up to 25 min foreground; Linux only 90s.
+      // After foreground timeout, ALWAYS schedule a background catch-up so the
+      // DB record is updated and the user can be notified when ready.
+      const isWindows = !!vpsData.isRDP
+      const maxAttempts = isWindows ? 100 : 6     // 100×15s=25min for Windows, 6×15s=90s for Linux
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         await sleep(15000) // wait 15s between each poll
         try {
@@ -30439,6 +30444,7 @@ const buyVPSPlanFullProcess = async (chatId, lang, vpsDetails) => {
           const ip = details?.ipConfig?.v4?.ip || details?.ipv4 || null
           if (ip && ip !== 'provisioning...' && ip !== 'pending' && ip !== '0.0.0.0') {
             resolvedIp = ip
+            ipResolvedInForeground = true
             console.log(`[VPS] IP resolved after ${attempt} attempts: ${ip}`)
             // Update stored record with the real IP
             if (typeof vpsPlansOf !== 'undefined' && vpsPlansOf) {
@@ -30456,6 +30462,55 @@ const buyVPSPlanFullProcess = async (chatId, lang, vpsDetails) => {
       }
       vpsData.host = resolvedIp
       await progress.completeStep(2)
+
+      // ── Background catch-up: if foreground polling timed out, keep polling
+      // in the background up to 60 more minutes. Update DB and DM the user
+      // when IP finally lands. Fixes the case where Contabo takes longer
+      // than expected and the bot otherwise gives up with a placeholder IP,
+      // making subsequent actions return 409.
+      if (!ipResolvedInForeground) {
+        const cInstId = parseInt(vpsData.contaboInstanceId || vpsData._id)
+        const cChat   = chatId
+        const cLang   = lang
+        ;(async () => {
+          try {
+            for (let a = 1; a <= 240; a++) {            // 240×15s = 60 min
+              await sleep(15000)
+              try {
+                const d = await contaboService.getInstance(cInstId)
+                const ip = d?.ipConfig?.v4?.ip || d?.ipv4 || null
+                if (ip && ip !== 'provisioning...' && ip !== 'pending' && ip !== '0.0.0.0') {
+                  if (typeof vpsPlansOf !== 'undefined' && vpsPlansOf) {
+                    await vpsPlansOf.updateOne(
+                      { contaboInstanceId: cInstId },
+                      { $set: { host: ip, _backgroundIpResolvedAt: new Date() } }
+                    )
+                  }
+                  console.log(`[VPS bg-IP] ${cInstId} resolved after ${a} bg attempts: ${ip}`)
+                  // Notify the user the VPS is now reachable
+                  try {
+                    const note = (cLang === 'fr')
+                      ? `🎉 Votre VPS est maintenant prêt ! Adresse IP : <code>${ip}</code>`
+                      : (cLang === 'zh')
+                        ? `🎉 您的 VPS 已就绪！IP 地址：<code>${ip}</code>`
+                        : (cLang === 'hi')
+                          ? `🎉 आपका VPS अब तैयार है! IP पता: <code>${ip}</code>`
+                          : `🎉 Your VPS is now ready! IP address: <code>${ip}</code>\nYou can now connect: <code>${vpsData.isRDP ? 'RDP' : 'ssh'} ${ip}</code>`
+                    sendMessage(cChat, note, { parse_mode: 'HTML' })
+                  } catch (_) { /* noop */ }
+                  return
+                }
+              } catch (e) {
+                console.log(`[VPS bg-IP] ${cInstId} attempt ${a} error: ${e.message}`)
+              }
+            }
+            console.log(`[VPS bg-IP] ${cInstId} gave up after 60 min — IP still unresolved`)
+            sendMessage(TELEGRAM_ADMIN_CHAT_ID, `⚠️ VPS bg-IP timeout for instance ${cInstId} (chatId ${cChat}) — Contabo didn't assign an IP within 60 min. Manual inspection needed.`)
+          } catch (e) {
+            console.log(`[VPS bg-IP] ${cInstId} fatal: ${e.message}`)
+          }
+        })()
+      }
     } else {
       await sleep(15000)
       await progress.completeStep(2)
