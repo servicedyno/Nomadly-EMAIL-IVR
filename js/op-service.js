@@ -217,6 +217,12 @@ const TLD_CONTACT_COUNTRY = {
   eu: ['FR', 'IT', 'DE', 'NL'],
   sg: ['SG'],
   us: ['US'],  // .us requires US-based contact with extension_additional_data (nexus)
+  // .au-family TLDs require an Australian local-presence contact with company_name set
+  // (OP code 160 "Empty companyname field" otherwise).
+  au:       ['AU'],
+  'com.au': ['AU'],
+  'net.au': ['AU'],
+  'id.au':  ['AU'],
 }
 
 // Known working contact handles (verified in OpenProvider account)
@@ -225,6 +231,7 @@ const PREFERRED_HANDLES = {
   IT: 'MR971932-IT',
   CA: 'BK921363-CA',
   US: 'JC961841-US',  // John CloakHost — has .us extension_additional_data (nexus_category: C21, applicant_purpose: P1)
+  AU: 'AP1015591-AU', // APPLE PTY LTD — created 2026-02 for .au-family registrations (company_name + country=AU)
 }
 
 // Handles that must NEVER be used for domain registration
@@ -271,6 +278,15 @@ const EU_CONTACT_TEMPLATES = {
       city: 'Singapore', state: 'SG', country: 'SG',
     },
     organization: process.env.SINGAPORE_COMPANY_NAME || 'Hostbay PLC',
+  },
+  AU: {
+    name: { first_name: 'Apple', last_name: 'Pty Ltd' },
+    phone: { country_code: '+61', area_code: '1300', subscriber_number: '321456' },
+    address: {
+      street: '20 Martin Place', number: '20', zipcode: '2000',
+      city: 'Sydney', state: 'NSW', country: 'AU',
+    },
+    organization: process.env.AU_REGISTRANT_NAME || 'APPLE PTY LTD',
   },
 }
 
