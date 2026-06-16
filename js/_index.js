@@ -32035,11 +32035,19 @@ app.get('/crypto-pay-domain', auth, async (req, res) => {
   if (usdIn < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
     addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
+    logTransaction(db, {
+      chatId, type: 'domain-underpayment-credit', amount: usdIn, currency: 'USD', status: 'completed',
+      metadata: { domain, expectedUsd: price, paidUsd: usdIn, coin, value, ref, source: 'blockbee' },
+    }).catch(e => log(`[tx-log] blockbee-domain underpayment log failed: ${e.message}`))
     return res.send(html(translation('t.lowPrice')))
   }
   if (usdIn > price) {
     addFundsTo(walletOf, chatId, 'usd', usdIn - price, lang)
     sendMessage(chatId, translation('t.sentMoreMoney', lang, `$${price}`, `$${usdIn}`))
+    logTransaction(db, {
+      chatId, type: 'domain-overpayment-credit', amount: usdIn - price, currency: 'USD', status: 'completed',
+      metadata: { domain, expectedUsd: price, paidUsd: usdIn, coin, value, ref, source: 'blockbee' },
+    }).catch(e => log(`[tx-log] blockbee-domain overpayment log failed: ${e.message}`))
   }
 
   // Buy Domain
@@ -32051,6 +32059,10 @@ app.get('/crypto-pay-domain', auth, async (req, res) => {
       sendMessage(chatId, trans('t.wh_2', domain, price))
       sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🔄 <b>Auto-Refund (BlockBee Crypto→Domain)</b>\nUser: ${adminUserTag(await get(nameOf, chatId), chatId)}\nDomain: ${domain}\nAmount: $${price}\nReason: buyDomainFullProcess failed`, adminMsgOpts({ chatId }))
       log(`[Domain] BlockBee crypto refund issued: ${chatId} | ${domain} | $${price}`)
+      logTransaction(db, {
+        chatId, type: 'domain-refund', amount: price, currency: 'USD', status: 'refunded',
+        metadata: { domain, coin, value, ref, source: 'blockbee', reason: 'buyDomainFullProcess failed', error: String(error).substring(0, 200) },
+      }).catch(e => log(`[tx-log] blockbee-domain refund log failed: ${e.message}`))
     } catch (refundErr) {
       log(`[Domain] CRITICAL: BlockBee crypto refund failed for ${chatId}: ${refundErr.message}`)
       sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🚨 CRITICAL: BlockBee crypto domain refund FAILED\nUser: ${adminUserTag(await get(nameOf, chatId), chatId)}\nDomain: ${domain}\nAmount: $${price}\nError: ${refundErr.message}`, adminMsgOpts({ chatId }))
@@ -32067,6 +32079,10 @@ app.get('/crypto-pay-domain', auth, async (req, res) => {
     addFundsTo(walletOf, chatId, 'usd', savingsUsd, lang)
     sendMessage(chatId, trans('t.wh_3', savingsUsd, domain, cheaperPrice, price, savingsUsd), { parse_mode: 'HTML' })
     sendMessage(TELEGRAM_ADMIN_CHAT_ID, `💰 <b>Domain savings (BlockBee Crypto)</b>\nUser: ${adminUserTag(await get(nameOf, chatId), chatId)}\nDomain: ${domain}\nShown: $${price} | Actual: $${cheaperPrice} | Saved: $${savingsUsd}\nRegistrar: ${updatedInfo?.actualRegistrar || 'unknown'}`, adminMsgOpts({ chatId }))
+    logTransaction(db, {
+      chatId, type: 'domain-savings-credit', amount: savingsUsd, currency: 'USD', status: 'completed',
+      metadata: { domain, shownUsd: price, actualUsd: cheaperPrice, registrar: updatedInfo?.actualRegistrar, source: 'blockbee' },
+    }).catch(e => log(`[tx-log] blockbee-domain savings log failed: ${e.message}`))
   }
 
   // Clean up pricing state
@@ -32835,11 +32851,21 @@ app.post('/dynopay/crypto-pay-domain', authDyno, async (req, res) => {
   if (usdIn < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
     addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
+    // ── tx-log: under-payment auto-credit (money landed but order didn't proceed)
+    logTransaction(db, {
+      chatId, type: 'domain-underpayment-credit', amount: usdIn, currency: 'USD', status: 'completed',
+      metadata: { domain, expectedUsd: price, paidUsd: usdIn, coin, value, ref, paymentId: id, source: 'dynopay' },
+    }).catch(e => log(`[tx-log] dynopay-domain underpayment log failed: ${e.message}`))
     return res.send(html(translation('t.lowPrice')))
   }
   if (usdIn > price) {
     addFundsTo(walletOf, chatId, 'usd', usdIn - price, lang)
     sendMessage(chatId, translation('t.sentMoreMoney', lang, `$${price}`, `$${usdIn}`))
+    // ── tx-log: over-payment excess credited back to wallet
+    logTransaction(db, {
+      chatId, type: 'domain-overpayment-credit', amount: usdIn - price, currency: 'USD', status: 'completed',
+      metadata: { domain, expectedUsd: price, paidUsd: usdIn, coin, value, ref, paymentId: id, source: 'dynopay' },
+    }).catch(e => log(`[tx-log] dynopay-domain overpayment log failed: ${e.message}`))
   }
 
   // Buy Domain
@@ -32851,6 +32877,11 @@ app.post('/dynopay/crypto-pay-domain', authDyno, async (req, res) => {
       sendMessage(chatId, translation('t.wh_14', lang, domain, price))
       sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🔄 <b>Auto-Refund (DynoPay Crypto→Domain)</b>\nUser: ${chatId}\nDomain: ${domain}\nAmount: $${price}\nReason: buyDomainFullProcess failed`, { parse_mode: 'HTML' })
       log(`[Domain] DynoPay crypto refund issued: ${chatId} | ${domain} | $${price}`)
+      // ── tx-log: refund record so user can see in /history (fixes the @leprechaun00 missing-tx bug)
+      logTransaction(db, {
+        chatId, type: 'domain-refund', amount: price, currency: 'USD', status: 'refunded',
+        metadata: { domain, coin, value, ref, paymentId: id, source: 'dynopay', reason: 'buyDomainFullProcess failed', error: String(error).substring(0, 200) },
+      }).catch(e => log(`[tx-log] dynopay-domain refund log failed: ${e.message}`))
     } catch (refundErr) {
       log(`[Domain] CRITICAL: DynoPay crypto refund failed for ${chatId}: ${refundErr.message}`)
       sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🚨 CRITICAL: DynoPay crypto domain refund FAILED\nUser: ${chatId}\nDomain: ${domain}\nAmount: $${price}\nError: ${refundErr.message}`, { parse_mode: 'HTML' })
@@ -32867,6 +32898,11 @@ app.post('/dynopay/crypto-pay-domain', authDyno, async (req, res) => {
     addFundsTo(walletOf, chatId, 'usd', savingsUsd, lang)
     sendMessage(chatId, translation('t.wh_15', lang, savingsUsd, domain, cheaperPrice, price, savingsUsd), { parse_mode: 'HTML' })
     sendMessage(TELEGRAM_ADMIN_CHAT_ID, `💰 <b>Domain savings (DynoPay Crypto)</b>\nUser: ${chatId}\nDomain: ${domain}\nShown: $${price} | Actual: $${cheaperPrice} | Saved: $${savingsUsd}\nRegistrar: ${updatedInfo?.actualRegistrar || 'unknown'}`, { parse_mode: 'HTML' })
+    // ── tx-log: savings credit so the wallet-up event has an audit row
+    logTransaction(db, {
+      chatId, type: 'domain-savings-credit', amount: savingsUsd, currency: 'USD', status: 'completed',
+      metadata: { domain, shownUsd: price, actualUsd: cheaperPrice, registrar: updatedInfo?.actualRegistrar, source: 'dynopay' },
+    }).catch(e => log(`[tx-log] dynopay-domain savings log failed: ${e.message}`))
   }
 
   // Clean up pricing state

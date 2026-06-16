@@ -34,10 +34,18 @@ async function handleOrderHistory(bot, chatId, db, lang = 'en') {
     // Calculate stats
     const now = new Date()
     const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-    
-    const thisMonthTxns = transactions.filter(t => new Date(t.createdAt) >= thisMonthStart)
-    const thisMonthTotal = thisMonthTxns.reduce((sum, t) => sum + (t.amount || 0), 0)
-    const totalSpent = transactions.reduce((sum, t) => sum + (t.amount || 0), 0)
+
+    // Refund/credit types reverse a debit and must NOT count toward spend.
+    // Welcome/admin/savings credits are inbound money, not spend either.
+    const isRefundOrCredit = (t) =>
+      t.status === 'refunded' || t.status === 'failed' ||
+      /^(.+-refund|.+-overpayment-credit|.+-underpayment-credit|.+-savings-credit|wallet-topup|welcome-bonus|admin-credit|admin-refund-pending)$/.test(String(t.type || ''))
+
+    const spendOnly = transactions.filter(t => t.status === 'completed' && !isRefundOrCredit(t))
+    const thisMonthTxns  = transactions.filter(t => new Date(t.createdAt) >= thisMonthStart)
+    const thisMonthSpend = spendOnly.filter(t => new Date(t.createdAt) >= thisMonthStart)
+    const thisMonthTotal = thisMonthSpend.reduce((sum, t) => sum + (t.amount || 0), 0)
+    const totalSpent     = spendOnly.reduce((sum, t) => sum + (t.amount || 0), 0)
     
     // Status emojis
     const statusEmoji = {
@@ -47,43 +55,91 @@ async function handleOrderHistory(bot, chatId, db, lang = 'en') {
       'refunded': '↩️'
     }
     
-    // Type labels
+    // Type labels — includes credit / refund variants so users see clear text
     const typeLabels = {
       en: {
         'domain': 'Domain',
         'hosting': 'Hosting',
         'phone': 'Phone Number',
+        'phone-number': 'Phone Number',
         'wallet-topup': 'Wallet Top-up',
         'vps': 'VPS',
         'leads': 'Leads',
-        'sms': 'SMS Service'
+        'sms': 'SMS Service',
+        'welcome-bonus': 'Welcome Bonus',
+        'admin-credit': 'Admin Credit',
+        'admin-refund-pending': 'Admin Refund',
+        'domain-refund': 'Domain Refund',
+        'domain-overpayment-credit': 'Domain Overpayment Credit',
+        'domain-underpayment-credit': 'Domain Underpayment Credit',
+        'domain-savings-credit': 'Domain Savings Credit',
+        'hosting-refund': 'Hosting Refund',
+        'phone-refund': 'Phone Refund',
+        'vps-refund': 'VPS Refund',
+        'leads-refund': 'Leads Refund',
       },
       fr: {
         'domain': 'Domaine',
         'hosting': 'Hébergement',
         'phone': 'Numéro de téléphone',
+        'phone-number': 'Numéro de téléphone',
         'wallet-topup': 'Recharge portefeuille',
         'vps': 'VPS',
         'leads': 'Leads',
-        'sms': 'Service SMS'
+        'sms': 'Service SMS',
+        'welcome-bonus': 'Bonus de bienvenue',
+        'admin-credit': 'Crédit administrateur',
+        'admin-refund-pending': 'Remboursement administrateur',
+        'domain-refund': 'Remboursement domaine',
+        'domain-overpayment-credit': 'Crédit trop-perçu domaine',
+        'domain-underpayment-credit': 'Crédit sous-paiement domaine',
+        'domain-savings-credit': 'Crédit économies domaine',
+        'hosting-refund': 'Remboursement hébergement',
+        'phone-refund': 'Remboursement téléphone',
+        'vps-refund': 'Remboursement VPS',
+        'leads-refund': 'Remboursement Leads',
       },
       zh: {
         'domain': '域名',
         'hosting': '主机',
         'phone': '电话号码',
+        'phone-number': '电话号码',
         'wallet-topup': '钱包充值',
         'vps': 'VPS',
         'leads': '潜在客户',
-        'sms': '短信服务'
+        'sms': '短信服务',
+        'welcome-bonus': '欢迎奖金',
+        'admin-credit': '管理员充值',
+        'admin-refund-pending': '管理员退款',
+        'domain-refund': '域名退款',
+        'domain-overpayment-credit': '域名多付退款',
+        'domain-underpayment-credit': '域名少付退款',
+        'domain-savings-credit': '域名节省退款',
+        'hosting-refund': '主机退款',
+        'phone-refund': '电话退款',
+        'vps-refund': 'VPS退款',
+        'leads-refund': '潜在客户退款',
       },
       hi: {
         'domain': 'डोमेन',
         'hosting': 'होस्टिंग',
         'phone': 'फोन नंबर',
+        'phone-number': 'फोन नंबर',
         'wallet-topup': 'वॉलेट टॉप-अप',
         'vps': 'VPS',
         'leads': 'लीड्स',
-        'sms': 'एसएमएस सेवा'
+        'sms': 'एसएमएस सेवा',
+        'welcome-bonus': 'स्वागत बोनस',
+        'admin-credit': 'एडमिन क्रेडिट',
+        'admin-refund-pending': 'एडमिन रिफंड',
+        'domain-refund': 'डोमेन रिफंड',
+        'domain-overpayment-credit': 'डोमेन अधिक-भुगतान क्रेडिट',
+        'domain-underpayment-credit': 'डोमेन कम-भुगतान क्रेडिट',
+        'domain-savings-credit': 'डोमेन बचत क्रेडिट',
+        'hosting-refund': 'होस्टिंग रिफंड',
+        'phone-refund': 'फोन रिफंड',
+        'vps-refund': 'VPS रिफंड',
+        'leads-refund': 'लीड्स रिफंड',
       }
     }
     
@@ -131,8 +187,11 @@ async function handleOrderHistory(bot, chatId, db, lang = 'en') {
       const dateStr = date.toLocaleDateString(lang === 'en' ? 'en-US' : lang === 'fr' ? 'fr-FR' : lang === 'zh' ? 'zh-CN' : 'hi-IN')
       const status = statusEmoji[txn.status] || '❓'
       const type = labels[txn.type] || txn.type
-      
-      msg += `\n${dateStr} - $${(Number(txn.amount) || 0).toFixed(2)}\n`
+      const amt = Number(txn.amount) || 0
+      // Sign the amount: refunds & credits show as +$x.xx (money in), spends as -$x.xx
+      const sign = isRefundOrCredit(txn) ? '+' : '−'
+
+      msg += `\n${dateStr} - ${sign}$${amt.toFixed(2)}\n`
       msg += `${status} ${type}`
       
       // Add details from metadata
