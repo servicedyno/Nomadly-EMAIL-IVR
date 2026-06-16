@@ -62,39 +62,59 @@ const parseDomain = (domainName) => {
 }
 
 /**
- * Country-specific TLD additional_data for registration.
+ * Country-specific TLD additional_data for .au-family registrations.
  *
- * For .au-family TLDs the OpenProvider v1beta API requires 8 fields
- * (eligibility_name, eligibility_id_type, eligibility_id, eligibility_type,
- *  registrant_name, registrant_id_type, registrant_id, policy_reason).
- * These are sourced from env vars so they are never hard-coded:
- *   AU_REGISTRANT_NAME       e.g. "APPLE PTY LTD"
- *   AU_REGISTRANT_ID_TYPE    "ABN" (default) or "ACN"
- *   AU_REGISTRANT_ABN        11-digit ABN, no spaces  (used when ID_TYPE=ABN)
- *   AU_REGISTRANT_ACN        9-digit ACN, no spaces   (used when ID_TYPE=ACN)
- *   AU_POLICY_REASON         "name_connected_firmly" (default) or "name_matches_acronym"
- *   AU_ELIGIBILITY_TYPE      "Company" (default) | "Sole Trader" | "Charity" | etc.
+ * The CORRECT schema per OpenProvider's own wiki
+ * (https://doc.openprovider.eu/API_Format_Additional_Data) is just 4 fields,
+ * not the 8 fields a previous web search hallucinated. Source of truth:
+ *   eligibility_type              (e.g. "Company", "SoleTrader", "Charity", …)
+ *   eligibility_type_relationship ("1" = exact-match/acronym/trademark,
+ *                                  "2" = closely & substantially connected)
+ *   id_type                       "ABN" | "ACN" | "ARBN" | "OTHER" | "TM" | …
+ *   id_number                     the actual ID, digits only
  *
- * If the AU credentials are not configured, returns null for any .au-family
- * TLD so the caller can fail fast instead of sending a malformed request.
+ * .id.au does NOT require id_type / id_number ("Required for all .AU
+ * registrations except .ID.AU") — only the eligibility_* pair.
+ *
+ * Per OpenProvider's KB common-errors note, for `eligibility_type=Company`
+ * the registry blocks ABN values and expects ACN. Hence we default to ACN
+ * for Company and fall back to ABN for anything else (override with
+ * AU_REGISTRANT_ID_TYPE if needed).
+ *
+ * Env vars (set in /app/backend/.env):
+ *   AU_REGISTRANT_NAME       e.g. "APPLE PTY LTD"   (only used for logging,
+ *                                                    OP infers from owner handle)
+ *   AU_REGISTRANT_ABN        11-digit ABN, digits only
+ *   AU_REGISTRANT_ACN        9-digit ACN, digits only
+ *   AU_REGISTRANT_ID_TYPE    "ACN" (default for Company) | "ABN" | "TM" | "OTHER"
+ *   AU_ELIGIBILITY_TYPE      "Company" (default) | "SoleTrader" | "TrademarkOwner" | …
+ *   AU_ELIGIBILITY_RELATIONSHIP   "1" (exact match) | "2" (closely connected, default)
+ *
+ * Returns null when credentials are missing → caller fails fast.
  */
-const _buildAuAdditionalData = () => {
-  const idType = (process.env.AU_REGISTRANT_ID_TYPE || 'ABN').toUpperCase()
+const _buildAuAdditionalData = (tld) => {
+  const eligibilityType         = process.env.AU_ELIGIBILITY_TYPE || 'Company'
+  const eligibilityRelationship = process.env.AU_ELIGIBILITY_RELATIONSHIP || '2'
+  // For .id.au only the eligibility pair is needed.
+  if ((tld || '').toLowerCase() === 'id.au') {
+    return {
+      eligibility_type:              eligibilityType,
+      eligibility_type_relationship: eligibilityRelationship,
+    }
+  }
+  // For Company, OP's registry blocks ABN and requires ACN — switch the default.
+  const defaultIdType = eligibilityType.toLowerCase() === 'company' ? 'ACN' : 'ABN'
+  const idType = (process.env.AU_REGISTRANT_ID_TYPE || defaultIdType).toUpperCase()
   const rawId  = idType === 'ACN'
     ? (process.env.AU_REGISTRANT_ACN || '')
     : (process.env.AU_REGISTRANT_ABN || '')
-  const id     = String(rawId).replace(/\D+/g, '')   // strip any spaces / "ABN " prefix
-  const name   = process.env.AU_REGISTRANT_NAME || ''
-  if (!id || !name) return null                       // credentials missing → caller fails fast
+  const id     = String(rawId).replace(/\D+/g, '')   // strip any spaces / prefixes
+  if (!id) return null                                // credentials missing → caller fails fast
   return {
-    eligibility_name:    name,
-    eligibility_id_type: idType,
-    eligibility_id:      id,
-    eligibility_type:    process.env.AU_ELIGIBILITY_TYPE || 'Company',
-    registrant_name:     name,
-    registrant_id_type:  idType,
-    registrant_id:       id,
-    policy_reason:       process.env.AU_POLICY_REASON || 'name_connected_firmly',
+    eligibility_type:              eligibilityType,
+    eligibility_type_relationship: eligibilityRelationship,
+    id_type:                       idType,
+    id_number:                     id,
   }
 }
 
@@ -126,8 +146,8 @@ const getCountryTLDData = (tld) => {
     mx: {},
   }
   if (map[tld] !== undefined) return map[tld]
-  // .au family — all share the same registrant additional_data schema
-  if (AU_TLDS.has(tld)) return _buildAuAdditionalData()
+  // .au family — all share the same registrant additional_data schema (with .id.au exception)
+  if (AU_TLDS.has(tld)) return _buildAuAdditionalData(tld)
   return null
 }
 
@@ -138,12 +158,12 @@ const checkDomainAvailability = async (domainName) => {
     const headers = await authHeaders()
     const { name, extension } = parseDomain(domainName)
 
-    // Pre-purchase guard — refuse .au-family TLDs when registrant ABN/name is unset.
+    // Pre-purchase guard — refuse .au-family TLDs when registrant ABN/ACN is unset.
     // Without this we would let the user pay and then fail at registration with
     // OpenProvider error 374 (Domain `additionalData` parameter is missing).
     const tldLower = extension.toLowerCase()
-    if (AU_TLDS.has(tldLower) && !_buildAuAdditionalData()) {
-      log(`[OP] Skipping ${domainName} — AU_REGISTRANT_ABN / AU_REGISTRANT_NAME not configured`)
+    if (AU_TLDS.has(tldLower) && !_buildAuAdditionalData(tldLower)) {
+      log(`[OP] Skipping ${domainName} — AU_REGISTRANT_ABN / AU_REGISTRANT_ACN not configured`)
       return { available: false, message: 'AU domains temporarily unavailable. Contact support.' }
     }
 
@@ -415,8 +435,8 @@ const registerDomain = async (domainName, nameservers = []) => {
     // Fail-fast for .au-family if registrant credentials are not configured.
     // (checkDomainAvailability already filters these out, but the bot's CR-fallback
     // path can still reach here; we must never POST a malformed registration.)
-    if (AU_TLDS.has(tld) && !_buildAuAdditionalData()) {
-      log(`[OP] Refusing to register ${domainName} — AU_REGISTRANT_ABN / AU_REGISTRANT_NAME not set`)
+    if (AU_TLDS.has(tld) && !_buildAuAdditionalData(tld)) {
+      log(`[OP] Refusing to register ${domainName} — AU_REGISTRANT_ABN / AU_REGISTRANT_ACN not set`)
       return { error: 'AU domain registration is not configured. Please contact support.' }
     }
 
