@@ -48,6 +48,12 @@ const authHeaders = async () => {
 
 // ─── Helpers ────────────────────────────────────────────
 
+// .au-family TLDs that follow the auDA registry's registrant-eligibility rules.
+// .org.au is intentionally excluded — it requires a non-profit registrant
+// (Charity / Club / Non-profit Organisation) and a different policy_reason,
+// which the generic _buildAuAdditionalData() helper does not encode.
+const AU_TLDS = new Set(['au', 'com.au', 'net.au', 'id.au'])
+
 const parseDomain = (domainName) => {
   const parts = domainName.split('.')
   const name = parts[0]
@@ -56,8 +62,42 @@ const parseDomain = (domainName) => {
 }
 
 /**
- * Country-specific TLD additional_data for registration
+ * Country-specific TLD additional_data for registration.
+ *
+ * For .au-family TLDs the OpenProvider v1beta API requires 8 fields
+ * (eligibility_name, eligibility_id_type, eligibility_id, eligibility_type,
+ *  registrant_name, registrant_id_type, registrant_id, policy_reason).
+ * These are sourced from env vars so they are never hard-coded:
+ *   AU_REGISTRANT_NAME       e.g. "APPLE PTY LTD"
+ *   AU_REGISTRANT_ID_TYPE    "ABN" (default) or "ACN"
+ *   AU_REGISTRANT_ABN        11-digit ABN, no spaces  (used when ID_TYPE=ABN)
+ *   AU_REGISTRANT_ACN        9-digit ACN, no spaces   (used when ID_TYPE=ACN)
+ *   AU_POLICY_REASON         "name_connected_firmly" (default) or "name_matches_acronym"
+ *   AU_ELIGIBILITY_TYPE      "Company" (default) | "Sole Trader" | "Charity" | etc.
+ *
+ * If the AU credentials are not configured, returns null for any .au-family
+ * TLD so the caller can fail fast instead of sending a malformed request.
  */
+const _buildAuAdditionalData = () => {
+  const idType = (process.env.AU_REGISTRANT_ID_TYPE || 'ABN').toUpperCase()
+  const rawId  = idType === 'ACN'
+    ? (process.env.AU_REGISTRANT_ACN || '')
+    : (process.env.AU_REGISTRANT_ABN || '')
+  const id     = String(rawId).replace(/\D+/g, '')   // strip any spaces / "ABN " prefix
+  const name   = process.env.AU_REGISTRANT_NAME || ''
+  if (!id || !name) return null                       // credentials missing → caller fails fast
+  return {
+    eligibility_name:    name,
+    eligibility_id_type: idType,
+    eligibility_id:      id,
+    eligibility_type:    process.env.AU_ELIGIBILITY_TYPE || 'Company',
+    registrant_name:     name,
+    registrant_id_type:  idType,
+    registrant_id:       id,
+    policy_reason:       process.env.AU_POLICY_REASON || 'name_connected_firmly',
+  }
+}
+
 const getCountryTLDData = (tld) => {
   // IMPORTANT: OpenProvider v1beta REST API expects additional_data as a FLAT object
   // e.g. { legal_type: 'CCT' } — NOT nested under TLD key like { ca: { legal_type: 'CCT' } }
@@ -79,14 +119,16 @@ const getCountryTLDData = (tld) => {
     be: { registrant_lang: 'en' },
     uk: { registrant_type: 'IND' },
     'co.uk': { registrant_type: 'IND' },
-    au: { registrant_id: 'ABN 12345678901', registrant_id_type: 'ABN', eligibility_type: 'Company' },
     nz: {},
     in: {},
     br: { registrant_type: 'individual', cpf: '000.000.000-00' },
     cl: {},
     mx: {},
   }
-  return map[tld] || null
+  if (map[tld] !== undefined) return map[tld]
+  // .au family — all share the same registrant additional_data schema
+  if (AU_TLDS.has(tld)) return _buildAuAdditionalData()
+  return null
 }
 
 // ─── Domain availability & pricing ──────────────────────
@@ -95,6 +137,15 @@ const checkDomainAvailability = async (domainName) => {
   try {
     const headers = await authHeaders()
     const { name, extension } = parseDomain(domainName)
+
+    // Pre-purchase guard — refuse .au-family TLDs when registrant ABN/name is unset.
+    // Without this we would let the user pay and then fail at registration with
+    // OpenProvider error 374 (Domain `additionalData` parameter is missing).
+    const tldLower = extension.toLowerCase()
+    if (AU_TLDS.has(tldLower) && !_buildAuAdditionalData()) {
+      log(`[OP] Skipping ${domainName} — AU_REGISTRANT_ABN / AU_REGISTRANT_NAME not configured`)
+      return { available: false, message: 'AU domains temporarily unavailable. Contact support.' }
+    }
 
     const res = await axios.post(`${OP_BASE_URL}/v1beta/domains/check`, {
       domains: [{ name, extension }],
@@ -360,6 +411,14 @@ const registerDomain = async (domainName, nameservers = []) => {
     const headers = await authHeaders()
     const { name, extension } = parseDomain(domainName)
     const tld = extension.toLowerCase()
+
+    // Fail-fast for .au-family if registrant credentials are not configured.
+    // (checkDomainAvailability already filters these out, but the bot's CR-fallback
+    // path can still reach here; we must never POST a malformed registration.)
+    if (AU_TLDS.has(tld) && !_buildAuAdditionalData()) {
+      log(`[OP] Refusing to register ${domainName} — AU_REGISTRANT_ABN / AU_REGISTRANT_NAME not set`)
+      return { error: 'AU domain registration is not configured. Please contact support.' }
+    }
 
     // Use TLD-specific contact handle (IT for .fr/.it, CA for .ca, EU for .eu, default US for others)
     let contactHandle = await getContactHandleForTLD(tld)
@@ -1007,6 +1066,7 @@ module.exports = {
   getContactHandleForTLD,
   parseDomain,
   getCountryTLDData,
+  AU_TLDS,
   ensureDnsZone,
   listDNSRecords,
   addDNSRecord,
