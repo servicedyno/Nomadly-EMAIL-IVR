@@ -28,6 +28,20 @@
 - `cpanel_droplet_id` = 578369745
 - `new_root_pw` = `Godisgood123@` (set by user, applies to both OS root + WHM root)
 
+## Post-migration hotfix (2026-06-17 17:55 UTC)
+**Issue**: Users opening File Manager in `panel.1.hostbay.io/panel` got `Request failed with status code 404`.
+**Cause**: When the new CF tunnel `b395cebc-…` was recreated, the ingress rule for `cpanel-api.hostbay.io → https://localhost:2083` was lost. Only `whm-api.hostbay.io → :2087` and the catch-all `:80` were present. Requests for `cpanel-api.hostbay.io` fell through to Apache:80, where cPanel's vhost handler returned a themed 404 for `/execute/Fileman/list_files`.
+**Fix**: PUT to `/accounts/{acct}/cfd_tunnel/{tunnel}/configurations` adding the missing rule:
+```json
+{ "hostname": "cpanel-api.hostbay.io", "service": "https://localhost:2083",
+  "originRequest": { "noTLSVerify": true } }
+```
+**Final ingress** (3 rules in order):
+1. `whm-api.hostbay.io`  → `https://localhost:2087` (`noTLSVerify`)
+2. `cpanel-api.hostbay.io` → `https://localhost:2083` (`noTLSVerify`)   ← *added*
+3. `*` (catch-all)       → `http://68.183.77.106:80`
+**Verified**: UAPI `Fileman::list_files` returns HTTP 200 for `sirad717`, `bank6058`, `rsvp1d0f`. All 19 accounts unblocked.
+
 ## Outstanding items (P1 / P2)
 - ~~**P1 — AutoSSL**~~ → **NOT needed**: Cloudflare offers SSL between user and CF edge. cloudflared → Apache:80 is intra-tunnel, no SSL required.
 - ~~**P1 — Bot's `whm-service.js` plan-name mapping**~~ → **RESOLVED**: Reconciled WHM packages to match bot's `PLAN_MAP` exactly. Final 3 packages (matching bot's expectations):
