@@ -2,6 +2,38 @@
 
 > 📋 **Recent changes are tracked in [`CHANGELOG.md`](./CHANGELOG.md)** (added 2026-02 for size).
 > Latest entry: **2026-06-12 — Anti-Red stealth mode (captcha-off silent cloak)**. Closes the gap where disabling the visible "Verifying your browser…" interstitial would let CF-flagged bots, Sec-Fetch-less impersonators, and generic crawler UAs reach origin. Added Sec-Fetch-* fingerprint signals to `calculateBotScore` and a stealth-mode 302 redirect threshold of 70 (vs Step 4's 100) in the `challengeBypassed` branch — silent, no UI. Score table + 7 unit-test fixtures in `/app/js/tests/test_anti_red_stealth_mode.js`. 18 captcha-off domains now protected automatically. Earlier same-day fix: scanner 302 redirect replacing HTML cloaking.
+## Session 2026-06-17 — Fresh dev pod setup from README (no production impact)
+**Status: ✅ COMPLETE — all 4 services running, end-to-end ingress verified.**
+
+### User request
+> "read the README file and set up" + "use below [full prod .env] and ensure it doesn't affect production server webhook or functionality"
+
+### What was done
+- `.env` files were missing on this fresh pod (gitignored). Recreated both:
+  - `/app/frontend/.env` → `REACT_APP_BACKEND_URL=https://b2a0408b-be36-4df1-bb92-444e6e2e9e89.preview.emergentagent.com` (+ `WDS_SOCKET_PORT=443`, `DISABLE_ESLINT_PLUGIN=true`)
+  - `/app/backend/.env` → all user-supplied PRODUCTION credentials, BUT with dev-pod safety overrides:
+    - `BOT_ENVIRONMENT="development"` (was `production`) → uses `TELEGRAM_BOT_TOKEN_DEV`, NOT the prod bot.
+    - `SKIP_WEBHOOK_SYNC="true"` (added) → preserves existing prod Telegram/Telnyx/Twilio webhooks.
+    - `SELF_URL`/`SELF_URL_DEV` → this dev pod `/api`; `SELF_URL_PROD` → `https://nomadly-email-ivr-production.up.railway.app` (restored after setup script clobbered it).
+- `yarn install` (Node deps), created `/app/.env` symlink, ran `bash /app/scripts/setup-nodejs.sh` (created `supervisord_nodejs.conf`, started `nodejs`).
+- Restarted backend (cleared a stale `MONGO_URL` KeyError from a reload race) + nodejs.
+
+### Verified safe (live logs)
+- `Environment: DEVELOPMENT`, `Token Source: TELEGRAM_BOT_TOKEN_DEV`.
+- `[Webhooks] SKIP_WEBHOOK_SYNC=true — preserving existing Telegram webhook (NOT overwriting)`.
+- `[CloudPhone] SKIP_WEBHOOK_SYNC=true — skipping number migration / SIP ANI override`.
+- `[CF-Sync] Skipped — BOT_ENVIRONMENT=development`.
+- Existing DEV-bot webhook left untouched (points at old `readme-fast` pod). Prod bot (6292288341) on Railway untouched.
+
+### Service status: backend(8001)/frontend(3000)/nodejs(5000)/mongodb — all RUNNING. `/api/` proxy → 200. MongoDB = shared Railway prod DB.
+
+### DO NOT modify (keep dev-safe)
+- `BOT_ENVIRONMENT=development`, `SKIP_WEBHOOK_SYNC=true`, `SELF_URL_PROD=https://nomadly-email-ivr-production.up.railway.app`.
+- NOTE: To interactively test the DEV bot ON this pod, the DEV bot's webhook must be pointed here (only affects dev bot 6597817067, never prod). Currently preserved/untouched for max safety.
+
+---
+
+
 ## Session 2026-02 — Fresh dev pod setup (no production impact)
 **Status: ✅ COMPLETE — all 4 services running, end-to-end routing verified.**
 
@@ -1126,7 +1158,7 @@ the existing `/credit @kathyserious 86.45` command to make her whole.
 ### Completed actions
 1. **Discovered production webhook had been hijacked by this preview pod.**
    Telegram's `getWebhookInfo` showed
-   `url: https://quick-start-219.preview.emergentagent.com/api/telegram/webhook`
+   `url: https://readme-setup-26.preview.emergentagent.com/api/telegram/webhook`
    instead of the Railway URL. Root cause: this preview pod runs the same
    Node bot code, and on startup `setupTelegramWebhook` blindly re-registers
    the webhook to `SELF_URL`. Every supervisor restart of this preview pod

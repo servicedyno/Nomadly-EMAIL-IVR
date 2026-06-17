@@ -10,7 +10,7 @@ import sys
 from datetime import datetime
 
 # Backend URL from environment
-BACKEND_URL = "https://quick-start-219.preview.emergentagent.com/api"
+BACKEND_URL = "https://readme-setup-26.preview.emergentagent.com/api"
 
 def test_health_check():
     """Test the main health check endpoint"""
