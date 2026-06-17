@@ -2,6 +2,49 @@
 
 > 📋 **Recent changes are tracked in [`CHANGELOG.md`](./CHANGELOG.md)** (added 2026-02 for size).
 > Latest entry: **2026-06-12 — Anti-Red stealth mode (captcha-off silent cloak)**. Closes the gap where disabling the visible "Verifying your browser…" interstitial would let CF-flagged bots, Sec-Fetch-less impersonators, and generic crawler UAs reach origin. Added Sec-Fetch-* fingerprint signals to `calculateBotScore` and a stealth-mode 302 redirect threshold of 70 (vs Step 4's 100) in the `challengeBypassed` branch — silent, no UI. Score table + 7 unit-test fixtures in `/app/js/tests/test_anti_red_stealth_mode.js`. 18 captcha-off domains now protected automatically. Earlier same-day fix: scanner 302 redirect replacing HTML cloaking.
+
+## Session 2026-06-17 (later) — Railway prod env sync after WHM migration
+**Status: ✅ COMPLETE — `WHM_TOKEN` updated, auto-redeploy SUCCESS, live bot authenticates against new WHM.**
+
+### Request
+"before this, can you make sure railway .env has all the latest WHM API key info and server API etc"
+
+### What was found / done
+Audited all WHM / cPanel / CF-tunnel env vars on the **Nomadly-EMAIL-IVR** Railway service
+(`b9c4ad64-7667-4dd3-8b9a-3867ede47885`) via the Railway GraphQL API using `API_KEY_RAILWAY`
+as `Project-Access-Token`.
+
+| Var | Pre-update value | Action | Post-update value |
+|-----|------------------|--------|-------------------|
+| `WHM_TOKEN`        | `YVXJ6O70…QPQZ` (stale, old droplet) | **UPSERTED** | `FOBFEHSBTFBIJNYYDB7UFO4V2LTZJHNC` (new droplet token) |
+| `WHM_HOST`         | `68.183.77.106` (already correct)    | no change    | `68.183.77.106` |
+| `WHM_DROPLET_ID`   | `578369745` (already correct)        | no change    | `578369745` |
+| `WHM_API_URL`      | `https://whm-api.hostbay.io`         | no change    | `https://whm-api.hostbay.io` |
+| `CPANEL_API_URL`   | `https://cpanel-api.hostbay.io`      | no change    | `https://cpanel-api.hostbay.io` |
+| `CF_TUNNEL_CNAME`  | `b395cebc-…cfargotunnel.com` (new)   | no change    | `b395cebc-…cfargotunnel.com` |
+| `PANEL_DOMAIN`     | `panel.1.hostbay.io/panel`           | no change    | `panel.1.hostbay.io/panel` |
+
+Other Railway services were inspected but not touched:
+- `HostingBotNew` (`0a453645-…`) — has its own unrelated WHM creds pointing to `193-143-1-147.cprapid.com` (separate hostbay service, untouched).
+- `LockbayNewFIX` (`96ee768e-…`) — no WHM vars present.
+
+### Verification (live, post-deploy)
+- Pre-flight: `curl -H "Authorization: whm root:<new-token>" https://whm-api.hostbay.io/json-api/version` → **HTTP 200**, WHM 11.136.0.23.
+- `listaccts` via new token → **19 accounts** ✓ (matches expected count after migration).
+- Old token via tunnel → 308 / unauthenticated (correctly rejected).
+- Railway redeploy auto-triggered → SUCCESS at 17:48 UTC (deployment `99074002-bebc-4c01-971a-4ea79a65f3b0`).
+- Live prod logs show successful authenticated WHM API mutations against new host:
+  - `[WHM-Whitelist] Detected outbound IP: 162.220.232.99`
+  - `cPHulk: 162.220.232.99 whitelisted successfully`
+  - `Host Access: 162.220.232.99 added`
+  - `[CpanelMigration] New WHM server has 19 account(s).`
+
+### Outcome
+Production bot can now create/suspend/unsuspend/modify cPanel accounts on the new AlmaLinux 9 WHM
+without auth failures. Last working item in handoff fully resolved.
+
+---
+
 ## Session 2026-06-17 — OVH VPS/RDP management parity with Contabo
 **Status: ✅ COMPLETE — routing/lang/surface verified (45/45 test). Live cloud ops not triggered (would mutate real OVH).**
 
