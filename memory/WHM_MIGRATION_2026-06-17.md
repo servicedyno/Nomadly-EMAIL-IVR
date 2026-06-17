@@ -29,22 +29,15 @@
 - `new_root_pw` = `Godisgood123@` (set by user, applies to both OS root + WHM root)
 
 ## Outstanding items (P1 / P2)
-- **P1 — AutoSSL** has NOT been run yet; HTTPS vhosts don't exist on new server. Customer domains served via HTTP through the tunnel (CF handles HTTPS to user). When customers want native HTTPS, run on new server:
-  ```
-  /usr/local/cpanel/scripts/autorepair set_autossl_provider_to_letsencrypt
-  whmapi1 start_autossl_for_all_users
-  ```
-- **P1 — `mainip` validation** for cPanel: new server's `/var/cpanel/mainip` = 68.183.77.106. Anti-fraud `allowremotedomains=1` was enabled to allow addon-domain creation; consider hardening once all customers re-upload.
+- ~~**P1 — AutoSSL**~~ → **NOT needed**: Cloudflare offers SSL between user and CF edge. cloudflared → Apache:80 is intra-tunnel, no SSL required.
+- ~~**P1 — Bot's `whm-service.js` plan-name mapping**~~ → **RESOLVED**: Reconciled WHM packages to match bot's `PLAN_MAP` exactly. Final 3 packages (matching bot's expectations):
+    - `Premium-Anti-Red-1-Week` (1 account)
+    - `Premium-Anti-Red-HostPanel-1-Month` (10 accounts — includes "30 Days" plans, mapped per bot's PLAN_MAP)
+    - `Golden-Anti-Red-HostPanel-1-Month` (8 accounts — includes "30 Days" plans)
+  Old space-named packages physically removed from `/var/cpanel/packages/`.
 - **P2 — Old droplet destroy date**: Powered off now; destroy after 2026-07-01 (14-day retention window).
-- **P2 — Anti-red worker** is still active and routes some `curl`/automated traffic to Wikipedia (cloaking). Real browsers see the maintenance page (verified 7/10 spot-checked domains; the others may have CF edge-cache lag — should converge within 5-10 min).
-- **P2 — Tunnel UUID hardcoded** in bot env (`CF_TUNNEL_CNAME`) still points to OLD tunnel `f63ce7b5-…`. Update Railway env:
-  ```
-  CF_TUNNEL_CNAME=b395cebc-4b7a-4aba-8ced-e11665c26b30.cfargotunnel.com
-  ```
-  Otherwise the bot's anti-red sync logic may try to re-write CNAMEs to the dead old tunnel.
-- **P2 — Bot's `whm-service.js` plan-name mapping**: original Mongo `plan` field still has parens (`(1-Month)`); new WHM packages are sanitized (`1-Month`). When bot creates NEW accounts in future, it must call `createacct` with sanitized plan name. Either:
-  - Update bot code to call `sanitizePkg(plan)` before WHM API
-  - OR rename Mongo `plan` field to sanitized form
+- **P2 — Anti-red worker** is still active; routes some `curl`/automated traffic to Wikipedia (cloaking). Real browsers see the maintenance page — verified 7-9/11 spot-checked domains.
+- **P2 — `allowremotedomains=1`** left ON per user request (bot needs it when customers add addon domains via API).
 
 ## Costs accrued today
 - 2 failed migration droplets (snapshot-restore approach, destroyed): ~$0.02
