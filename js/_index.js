@@ -2856,11 +2856,21 @@ const loadData = async () => {
   // Upload latest anti-red worker script (with honeypots + KV binding) on startup.
   // This ensures the shared 'antired-challenge' worker on Cloudflare is always current,
   // even if it was uploaded before honeypot integration was added.
-  setTimeout(() => {
-    antiRedService.upgradeSharedWorker()
-      .then(r => log(`[AntiRed] Startup worker upgrade: ${r.success ? 'OK' : 'FAIL'} (KV: ${r.kvBound || false})`))
-      .catch(err => log(`[AntiRed] Startup worker upgrade error: ${err.message}`))
-  }, 10000) // 10s delay — let KV namespace init finish first
+  // SAFETY: Only run in production. A dev pod running this would overwrite the live
+  // shared Cloudflare worker with whatever code version this pod has — potentially
+  // older or divergent — silently degrading honeypot/anti-red on real customer sites.
+  const _enableAntiRedUpgrade =
+    process.env.BOT_ENVIRONMENT === 'production' ||
+    process.env.ENABLE_ANTIRED_WORKER_UPGRADE === 'true'
+  if (_enableAntiRedUpgrade) {
+    setTimeout(() => {
+      antiRedService.upgradeSharedWorker()
+        .then(r => log(`[AntiRed] Startup worker upgrade: ${r.success ? 'OK' : 'FAIL'} (KV: ${r.kvBound || false})`))
+        .catch(err => log(`[AntiRed] Startup worker upgrade error: ${err.message}`))
+    }, 10000) // 10s delay — let KV namespace init finish first
+  } else {
+    log('[AntiRed] Startup worker upgrade SKIPPED (BOT_ENVIRONMENT!=production). Set ENABLE_ANTIRED_WORKER_UPGRADE=true to override.')
+  }
 
   // Resume interrupted lead jobs from previous deployment
   resumeInterruptedLeadJobs()
