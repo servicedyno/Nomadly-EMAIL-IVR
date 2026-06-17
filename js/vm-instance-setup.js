@@ -17,7 +17,22 @@
 require('dotenv').config()
 const crypto = require('crypto')
 const nodemailer = require('nodemailer')
-const contabo = require('./contabo-service')
+
+// ─── Provider abstraction (2026-02 OVH migration) ─────────────────────────
+// `contabo` was originally a direct require of contabo-service.js. As of
+// the OVH migration it is now a smart-routing proxy from vps-provider.js:
+//
+//  • Catalog/list/region ops      → default provider (OVH by default)
+//  • Per-record ops (createInstance, getInstance, cancelInstance, …)
+//    are dispatched by the instanceId format:
+//        numeric    (e.g. "203228089")          → contabo-service.js
+//        "vps-..."  (e.g. "vps-12abc.vps.ovh")  → ovh-service.js
+//
+// This lets us preserve `contabo.X(...)` call sites throughout this file
+// without any per-line rewrites — legacy Contabo records keep working,
+// and new orders ship via OVH automatically.
+const vpsProvider = require('./vps-provider')
+const contabo = vpsProvider.buildSmartProxy()
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN
 
@@ -138,16 +153,25 @@ async function fetchAvailableZones(region) {
 
 /**
  * OLD: fetchAvailableDiskTpes(zone) → [disk type objects]
- * NEW: Returns NVMe and SSD as options. Disk is part of the product in Contabo.
+ * NEW (OVH): returns only NVMe (OVH does not split NVMe/SSD).
+ * NEW (Contabo): returns NVMe + SSD as before.
  */
 async function fetchAvailableDiskTpes(zone) {
   try {
+    const active = vpsProvider.getProvider()
+    if (active.PROVIDER === 'ovh') {
+      // OVH catalog is NVMe-only. Show a single button so the existing flow
+      // (which always requires a disk-type pick) keeps working.
+      return [
+        { id: 'nvme', _id: 'nvme', name: 'NVMe', value: 'nvme', label: '⚡ NVMe SSD', type: 'nvme', description: '⚡ <b>NVMe SSD</b>\n   └ High-performance enterprise storage' },
+      ]
+    }
     return [
       { id: 'nvme', _id: 'nvme', name: 'NVMe', value: 'nvme', label: '⚡ NVMe — Faster Speed', type: 'nvme', description: '⚡ <b>NVMe — Faster Speed</b>\n   └ Best for databases, apps & heavy I/O\n   └ Up to 10× faster read/write vs SSD' },
       { id: 'ssd',  _id: 'ssd',  name: 'SSD',  value: 'ssd',  label: '💾 SSD — 2× More Storage', type: 'ssd', description: '💾 <b>SSD — 2× More Storage</b>\n   └ Same price, double the disk space\n   └ Great for file hosting & backups' }
     ]
   } catch (err) {
-    console.log('Error in fetchAvailableDiskTpes (contabo):', err.message || err)
+    console.log('Error in fetchAvailableDiskTpes:', err.message || err)
     return false
   }
 }
@@ -711,6 +735,9 @@ async function createVPSInstance(telegramId, vpsDetails) {
 
     // Store in MongoDB for tracking
     if (_vpsPlansOf) {
+      // Detect which provider just shipped this instance (OVH vs Contabo) so
+      // future lookups can route per-record without sniffing the ID format.
+      const provider = (vpsProvider.detectProviderByInstanceId(instance.instanceId) || vpsProvider.DEFAULT_PROVIDER)
       await _vpsPlansOf.insertOne({
         chatId: String(telegramId),
         contaboInstanceId: instance.instanceId,
@@ -735,26 +762,36 @@ async function createVPSInstance(telegramId, vpsDetails) {
         autoRenewable: false,
         rootPasswordSecretId: passwordSecret.secretId,
         sshKeySecretId: vpsDetails.sshKeySecretId || null,
+        // 2026-02 OVH migration: record which provider owns this instance so
+        // the per-record dispatcher in vps-provider.js routes future ops to
+        // the right backend even after we add more providers later.
+        provider: provider,
         timestamp: new Date()
       })
     }
 
     // ── Cancel-on-create: since autoRenewable defaults to false, schedule the
-    // Contabo cancel NOW so Contabo's ~T-4d pre-bill never fires. This is
+    // provider cancel NOW so the next renewal pre-bill never fires. This is
     // invisible to the user — instance still runs through the paid month.
     // (User can flip auto-renew ON later via the toggle; that path clears
-    // these flags and pings admin to resume the subscription on the Contabo
+    // these flags and pings admin to resume the subscription on the provider
     // dashboard.)
+    //
+    // Skip for dry-run instanceIds (start with "dryrun-") — there's nothing
+    // to cancel and we'd just log noise from a guaranteed 404.
+    if (String(instance.instanceId).startsWith('dryrun-')) {
+      console.log(`[VPS] Skipping cancel-on-create for dry-run instance ${instance.instanceId}`)
+    } else {
     try {
       const cancelRes = await contabo.cancelInstance(instance.instanceId)
-      // Re-fetch to confirm cancelDate landed (Contabo can take a few seconds)
+      // Re-fetch to confirm cancelDate landed (provider may take a few seconds)
       let confirmedCancelDate = null
       for (let attempt = 1; attempt <= 3; attempt++) {
         await new Promise(r => setTimeout(r, 3000))
         try {
           const live = await contabo.getInstance(instance.instanceId)
           if (live?.cancelDate) { confirmedCancelDate = live.cancelDate; break }
-        } catch (_) {}
+        } catch (_) { /* getInstance can briefly 404 right after creation — keep polling */ }
       }
       if (confirmedCancelDate && _vpsPlansOf) {
         await _vpsPlansOf.updateOne(
@@ -766,13 +803,14 @@ async function createVPSInstance(telegramId, vpsDetails) {
             }
           }
         )
-        console.log(`[Contabo] Cancel-on-create scheduled for ${instance.instanceId} — cancelDate=${confirmedCancelDate}`)
+        console.log(`[VPS] Cancel-on-create scheduled for ${instance.instanceId} — cancelDate=${confirmedCancelDate}`)
       } else {
-        console.log(`[Contabo] Cancel-on-create call returned but cancelDate not yet visible for ${instance.instanceId} (scheduler/self-heal will retry)`)
+        console.log(`[VPS] Cancel-on-create call returned but cancelDate not yet visible for ${instance.instanceId} (scheduler/self-heal will retry)`)
       }
     } catch (cancelErr) {
-      console.log(`[Contabo] Cancel-on-create failed for ${instance.instanceId}: ${cancelErr.message || cancelErr} (scheduler/self-heal will retry)`)
+      console.log(`[VPS] Cancel-on-create failed for ${instance.instanceId}: ${cancelErr.message || cancelErr} (scheduler/self-heal will retry)`)
       // Don't fail the purchase — instance is created & DB has record.
+    }
     }
 
     return { success: true, data: vpsData }
@@ -1221,7 +1259,7 @@ async function changeVpsAutoRenewal(telegramId, vpsDetails) {
             try {
               const post = await contabo.getInstance(contaboInstanceId)
               if (post?.cancelDate) { confirmed = post.cancelDate; break }
-            } catch (_) {}
+            } catch (_) { /* getInstance can briefly 404 during cancel-propagation — keep polling */ }
           }
           if (confirmed) {
             update._contaboCancelledEarly = true

@@ -1,5 +1,39 @@
 # CHANGELOG — Nomadly Bot
 
+
+## 2026-02-XX — OVHcloud migration (default VPS provider swap)
+
+### Why
+Contabo account ran out of funds — new VPS purchases stalled in `pending_payment`. Migrated default VPS backend to OVHcloud while keeping Contabo as an optional fallback for legacy records.
+
+### Delivered
+- **`/app/js/ovh-service.js`** — full OVH API wrapper with 6 product tiers, cart-based order flow, signed-request helper, circuit breaker. Mirrors `contabo-service.js` exports so callers don't change.
+- **`/app/js/vps-provider.js`** — multi-provider abstraction. `buildSmartProxy()` returns a drop-in replacement for `contabo-service` that auto-routes per-instance ops by ID format (OVH = `^vps-`, Contabo = numeric).
+- **`/app/js/vm-instance-setup.js`** — one-line import swap; 50+ existing `contabo.X(...)` call sites untouched. Disk-type screen now NVMe-only when OVH is active. Cancel-on-create skips dry-run instanceIds. New `vpsPlansOf` docs explicitly store `provider: 'ovh' | 'contabo'`.
+- **`/app/backend/.env`** — added `OVH_APP_KEY`, `OVH_APP_SECRET`, `OVH_CONSUMER_KEY`, `OVH_ENDPOINT`, `OVH_SUBSIDIARY`, `OVH_DEFAULT_DATACENTER`, `VPS_DEFAULT_PROVIDER=ovh`, `VPS_CONTABO_FALLBACK_ENABLED=false`, `OVH_DRY_RUN=true` (dev safety).
+
+### New plan ladder (Option C — Tier 1 Linux-only)
+| Tier | OVH planCode | Specs | Linux | RDP |
+|---|---|---|---|---|
+| 1 (Nano)     | vps-starter-1-2-20    | 1c/2G/20G        | $12.60 | n/a |
+| 2 (Micro)    | vps-value-1-4-20      | 1c/4G/20G        | $27.60 | $47.10 |
+| 3 (Starter)  | vps-le-4-4-80         | 4c/4G/80G        | $33.00 | $102.00 |
+| 4 (Standard) | vps-essential-2-8-40  | 2c/8G/40G        | $56.40 | $104.40 |
+| 5 (Plus)     | vps-essential-2-8-160 | 2c/8G/160G       | $75.00 | $166.50 |
+| 6 (Power)    | vps-le-16-16-160      | 16c/16G/160G     | $135.00| $375.00 |
+
+User picks one of 9 OVH datacenters: BHS / GRA / SBG / WAW / DE / UK / SGP / SYD / YNM.
+
+### Tests
+`/app/js/tests/test_ovh_service.js` (16 assertions) + `/app/js/tests/test_ovh_flow_e2e.js` (full bot flow). All passing against live OVH (dry-run mode — no real orders placed).
+
+### Known UX gaps (Phase 2)
+1. **Password push** — OVH doesn't accept root password/cloud-init at provisioning. Linux users with SSH key work immediately; otherwise OVH emails credentials.
+2. **VPS upgrade flow** — stubbed (throws); users must cancel + reorder.
+
+See `/app/memory/OVH_MIGRATION_2026-02.md` for full details + rollback plan.
+
+
 ## 2026-06-13 — `/credit` admin command: bot-suffix tolerance + newline fix (P2)
 
 ### Problems

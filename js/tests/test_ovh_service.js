@@ -36,15 +36,20 @@ function assert(cond, label) {
   }
   assert(linux.length === 6, 'Six Linux tiers')
   // Production VPS_MARKUP_PERCENT = 200, so price = base × 3
-  assert(linux[0].pricing.totalWithMarkup === 16.50, 'Tier 1 Linux markup (200%) = $16.50')
+  // Tier 1 = vps-starter-1-2-20 (Linux-only) — $4.20 × 3 = $12.60
+  assert(linux[0].pricing.totalWithMarkup === 12.60, 'Tier 1 Linux (starter) markup = $12.60')
 
   console.log('\n━━━ 2b. listProducts (Windows / RDP)')
   const win = ovh.listProducts('BHS', true)
   for (const p of win) {
     console.log(`  Tier ${p.tier} (${p.productId}) RDP ${p.name}: customer=$${p.pricing.totalWithMarkup} (base $${p.basePriceUsd} + win $${p.windowsPriceUsd})`)
   }
-  assert(win[0].pricing.totalWithMarkup === 51.00, 'Tier 1 RDP markup (200%) = $51.00')
-  assert(win[5].pricing.totalWithMarkup === 375.00, 'Tier 6 RDP markup (200%) = $375.00')
+  // RDP starts at Tier 2 because Tier 1 (vps-starter) is Linux-only
+  assert(win.length === 5, 'Five RDP tiers (Tier 1 is Linux-only)')
+  // Tier 2 RDP = vps-value-1-4-20 ($9.20 + $6.50 = $15.70) × 3 = $47.10
+  assert(win[0].pricing.totalWithMarkup === 47.10, 'First RDP tier markup = $47.10')
+  // Last tier = Tier 6 vps-le-16-16-160 ($45 + $80 = $125) × 3 = $375
+  assert(win[win.length - 1].pricing.totalWithMarkup === 375.00, 'Tier 6 RDP markup = $375.00')
 
   console.log('\n━━━ 3. listRegions')
   const regions = await ovh.listRegions()
@@ -67,14 +72,14 @@ function assert(cond, label) {
   let cartId = null
   try {
     const cart = await ovh._buildCart({
-      productId: 'VLE2',
+      productId: 'VST1',
       region:    'BHS',
       imageId:   'ubuntu-24.04',
       isWindows: false,
     })
     cartId = cart.cartId
     console.log(`  Cart built: cartId=${cart.cartId} itemId=${cart.itemId} total=$${cart.total.toFixed(2)}`)
-    assert(cart.total === 5.50, 'Linux Nano cart total = $5.50')
+    assert(cart.total === 4.20, 'Tier 1 Linux (vps-starter) cart total = $4.20')
   } catch (e) {
     console.log(`  ✗ Cart build failed: ${e.message}`)
     process.exitCode = 1
@@ -82,18 +87,18 @@ function assert(cond, label) {
     if (cartId) await ovh._deleteCart(cartId)
   }
 
-  console.log('\n━━━ 6b. _buildCart with Windows option')
+  console.log('\n━━━ 6b. _buildCart with Windows option (Tier 2 RDP — Tier 1 is Linux-only)')
   let cartIdW = null
   try {
     const cart = await ovh._buildCart({
-      productId: 'VLE2',
+      productId: 'VVL4',
       region:    'BHS',
       imageId:   'windows-2025',
       isWindows: true,
     })
     cartIdW = cart.cartId
     console.log(`  Cart built: cartId=${cart.cartId} itemId=${cart.itemId} total=$${cart.total.toFixed(2)}`)
-    assert(cart.total === 17.00, 'RDP Nano cart total = $17.00 (5.50 base + 11.50 windows)')
+    assert(cart.total === 15.70, 'Tier 2 RDP (vps-value-1-4-20 + windows) cart total = $15.70')
   } catch (e) {
     console.log(`  ✗ Cart build failed: ${e.message}`)
     process.exitCode = 1
@@ -101,18 +106,32 @@ function assert(cond, label) {
     if (cartIdW) await ovh._deleteCart(cartIdW)
   }
 
+  console.log('\n━━━ 6c. RDP on Linux-only Tier 1 must throw')
+  try {
+    await ovh._buildCart({ productId: 'VST1', region: 'BHS', imageId: 'windows-2025', isWindows: true })
+    console.log('  ✗ Should have thrown')
+    process.exitCode = 1
+  } catch (e) {
+    if (/does not support Windows|linuxOnly/i.test(e.message)) {
+      console.log(`  ✓ Tier 1 RDP guard works: ${e.message}`)
+    } else {
+      console.log(`  ✗ Wrong error: ${e.message}`)
+      process.exitCode = 1
+    }
+  }
+
   console.log('\n━━━ 7. Dry-run createInstance (OVH_DRY_RUN=true)')
   process.env.OVH_DRY_RUN = 'true'
   try {
     const inst = await ovh.createInstance({
-      productId:   'VLE2',
+      productId:   'VST1',
       region:      'BHS',
       imageId:     'ubuntu-24.04',
       displayName: 'smoke-test',
     })
     console.log(`  Dry-run instance: id=${inst.instanceId} status=${inst.status} total=$${inst._ovhTotal?.toFixed(2)}`)
     assert(inst.status === 'dry_run', 'Dry-run returned status=dry_run')
-    assert(inst._ovhTotal === 5.50, 'Dry-run total = $5.50')
+    assert(inst._ovhTotal === 4.20, 'Dry-run total = $4.20 (Tier 1 starter)')
   } catch (e) {
     console.log(`  ✗ Dry-run createInstance failed: ${e.message}`)
     process.exitCode = 1

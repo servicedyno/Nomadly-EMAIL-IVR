@@ -155,16 +155,21 @@ function resetProvisioningCircuit() {
 function onProvisioningCircuitOpen(cb) { _circuit.onOpen = cb }
 
 // ─── Product catalog (synced from /order/catalog/public/vps, 2026-02) ────
-// We resell 6 tiers, each backed by a specific OVH planCode. Linux is free
-// (option-linux=$0), Windows adds option-windows-<plan> at the per-plan cost.
-// Tier numbers match the previous Contabo numbering so existing wallet logic
-// keeps working unchanged.
+// We resell 6 tiers, each backed by a specific OVH planCode.
+//
+// Tier 1 is **Linux-only** (vps-starter-1-2-20 has no Windows option). When
+// a customer needs RDP they must start at Tier 2.
+//
+// For Tier 2+, the same planCode backs both Linux ($0 OS option) and RDP
+// (with the matching option-windows-* addon on top).
+//
+// Tier numbers stay 1–6 to keep parity with the previous Contabo catalogue.
 const PRODUCT_CATALOG = [
-  { productId: 'VLE2',  planCode: 'vps-le-2-2-40',         name: 'Nano',     tier: 1, cpuCores: 2,  ramMb: 2048,  diskMb: 40960,  diskType: 'nvme', bandwidthTb: 1, portSpeedMbps: 500,  basePriceUsd: 5.50,  windowsOption: 'option-windows-le-2-2-40',         windowsPriceUsd: 11.50 },
-  { productId: 'VVL2',  planCode: 'vps-value-1-2-80',      name: 'Micro',    tier: 2, cpuCores: 1,  ramMb: 2048,  diskMb: 81920,  diskType: 'nvme', bandwidthTb: 1, portSpeedMbps: 500,  basePriceUsd: 10.40, windowsOption: 'option-windows-value-1-2-80',      windowsPriceUsd: 15.00 },
+  { productId: 'VST1',  planCode: 'vps-starter-1-2-20',    name: 'Nano',     tier: 1, cpuCores: 1,  ramMb: 2048,  diskMb: 20480,  diskType: 'nvme', bandwidthTb: 1, portSpeedMbps: 100,  basePriceUsd: 4.20,  windowsOption: null,                            windowsPriceUsd: null, linuxOnly: true },
+  { productId: 'VVL4',  planCode: 'vps-value-1-4-20',      name: 'Micro',    tier: 2, cpuCores: 1,  ramMb: 4096,  diskMb: 20480,  diskType: 'nvme', bandwidthTb: 1, portSpeedMbps: 500,  basePriceUsd: 9.20,  windowsOption: 'option-windows-value-1-4-20',      windowsPriceUsd: 6.50 },
   { productId: 'VLE4',  planCode: 'vps-le-4-4-80',         name: 'Starter',  tier: 3, cpuCores: 4,  ramMb: 4096,  diskMb: 81920,  diskType: 'nvme', bandwidthTb: 2, portSpeedMbps: 1000, basePriceUsd: 11.00, windowsOption: 'option-windows-le-4-4-80',         windowsPriceUsd: 23.00 },
-  { productId: 'VCM4',  planCode: 'vps-comfort-4-8-80',    name: 'Standard', tier: 4, cpuCores: 4,  ramMb: 8192,  diskMb: 81920,  diskType: 'nvme', bandwidthTb: 2, portSpeedMbps: 1000, basePriceUsd: 20.00, windowsOption: 'option-windows-comfort-4-8-80',    windowsPriceUsd: 23.00 },
-  { productId: 'VES8',  planCode: 'vps-essential-2-8-160', name: 'Plus',     tier: 5, cpuCores: 2,  ramMb: 8192,  diskMb: 163840, diskType: 'nvme', bandwidthTb: 2, portSpeedMbps: 1000, basePriceUsd: 25.00, windowsOption: 'option-windows-essential-2-8-160', windowsPriceUsd: 30.50 },
+  { productId: 'VES8a', planCode: 'vps-essential-2-8-40',  name: 'Standard', tier: 4, cpuCores: 2,  ramMb: 8192,  diskMb: 40960,  diskType: 'nvme', bandwidthTb: 2, portSpeedMbps: 1000, basePriceUsd: 18.80, windowsOption: 'option-windows-essential-2-8-40',  windowsPriceUsd: 16.00 },
+  { productId: 'VES8b', planCode: 'vps-essential-2-8-160', name: 'Plus',     tier: 5, cpuCores: 2,  ramMb: 8192,  diskMb: 163840, diskType: 'nvme', bandwidthTb: 2, portSpeedMbps: 1000, basePriceUsd: 25.00, windowsOption: 'option-windows-essential-2-8-160', windowsPriceUsd: 30.50 },
   { productId: 'VLE16', planCode: 'vps-le-16-16-160',      name: 'Power',    tier: 6, cpuCores: 16, ramMb: 16384, diskMb: 163840, diskType: 'nvme', bandwidthTb: 2, portSpeedMbps: 2000, basePriceUsd: 45.00, windowsOption: 'option-windows-le-16-16-160',      windowsPriceUsd: 80.00 },
 ]
 
@@ -225,15 +230,18 @@ function calculatePrice(product, regionSlug, isWindows = false) {
  * @param {string} _diskPreference - Ignored (OVH doesn't distinguish NVMe/SSD in our catalog).
  */
 function listProducts(regionSlug = DEFAULT_DC, isWindows = false, _diskPreference = 'nvme') {
-  return PRODUCT_CATALOG.map(p => {
-    const pricing = calculatePrice(p, regionSlug, isWindows)
-    return {
-      ...p,
-      ramGb:  Math.round(p.ramMb / 1024),
-      diskGb: Math.round(p.diskMb / 1024),
-      pricing,
-    }
-  })
+  return PRODUCT_CATALOG
+    // Filter out Linux-only plans when caller wants Windows
+    .filter(p => !(isWindows && p.linuxOnly))
+    .map(p => {
+      const pricing = calculatePrice(p, regionSlug, isWindows)
+      return {
+        ...p,
+        ramGb:  Math.round(p.ramMb / 1024),
+        diskGb: Math.round(p.diskMb / 1024),
+        pricing,
+      }
+    })
 }
 
 function getProduct(productId) {
@@ -345,6 +353,9 @@ async function deleteSecret(secretId) {
 async function _buildCart({ productId, region, imageId, isWindows }) {
   const product = getProduct(productId)
   if (!product) throw new Error(`Unknown product ${productId}`)
+  if (isWindows && product.linuxOnly) {
+    throw new Error(`${product.name} (${product.planCode}) does not support Windows/RDP — pick a higher tier`)
+  }
   const dcCode = region || DEFAULT_DC
   if (!REGION_DISPLAY[dcCode]) throw new Error(`Unknown datacenter ${dcCode}`)
 
@@ -711,6 +722,14 @@ async function healthCheck() {
 }
 
 // ─── Exports (mirror contabo-service.js) ──────────────────────────────────
+// Build a WINDOWS_LICENSE_BY_TIER stub for legacy callers that expect Contabo's
+// schema. Pulls per-tier price from the product's windowsPriceUsd. Tiers
+// without RDP support (Linux-only Tier 1) get 0.
+const WINDOWS_LICENSE_BY_TIER = PRODUCT_CATALOG.reduce((m, p) => {
+  m[p.tier] = p.windowsPriceUsd || 0
+  return m
+}, {})
+
 module.exports = {
   // Provider identity
   PROVIDER: 'ovh',
@@ -722,8 +741,16 @@ module.exports = {
   calculatePrice,
   applyMarkup,
   PRODUCT_CATALOG,
+  // OVH does not split NVMe/SSD — alias for legacy Contabo-shaped callers.
+  PRODUCT_CATALOG_SSD: PRODUCT_CATALOG,
   REGION_DISPLAY,
+  // Surcharges are flat on OVH (all $0). Provide an empty stub for callers
+  // that read per-region surcharge arrays.
+  REGION_SURCHARGE: {},
   MARKUP_PERCENT,
+  WINDOWS_LICENSE_BY_TIER,
+  // Constant for default Windows image (legacy Contabo callers reference this)
+  DEFAULT_WINDOWS_IMAGE: 'windows-2025',
 
   // Regions
   listRegions,
