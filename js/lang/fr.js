@@ -3195,6 +3195,28 @@ Voulez-vous réinstaller Windows sur <strong>${name}</strong> ?`,
 
 💡 Cliquez sur le mot de passe pour le copier.`,
 
+ passwordResetEmailed: (name, ip, username, note) => `✅ <strong>Réinitialisation du mot de passe lancée !</strong>
+
+🖥️ <strong>Serveur :</strong> ${name}
+🌐 <strong>IP :</strong> ${ip}
+👤 <strong>Utilisateur :</strong> ${username}
+
+📧 ${note || 'Un nouveau mot de passe a été envoyé à l’e-mail du compte par le fournisseur (~5 min).'}
+
+🔑 <strong>Pour un accès immédiat, utilisez votre clé SSH.</strong>
+
+⚠️ <i>Remarque : avec ce fournisseur, nous ne pouvons pas afficher le mot de passe ici — il est envoyé par e-mail ou vous vous connectez avec votre clé SSH.</i>`,
+
+ windowsReinstallEmailed: (name, ip, username, note) => `🎉 <strong>Réinstallation de Windows démarrée !</strong>
+
+🖥️ <strong>RDP :</strong> ${name}
+🌐 <strong>IP :</strong> ${ip}
+👤 <strong>Utilisateur :</strong> ${username}
+
+⏱️ Cela prend 5 à 10 minutes. ${note || 'Le nouveau mot de passe Administrateur sera envoyé par e-mail au compte par le fournisseur.'}
+
+⚠️ Toutes les données précédentes ont été effacées — il s’agit d’une nouvelle installation de Windows.`,
+
  windowsReinstallInProgress: name => `🔄 Réinstallation de Windows sur <strong>${name}</strong>...
 
 ⏱️ Ce processus prend 5 à 10 minutes.

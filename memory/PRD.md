@@ -2,7 +2,34 @@
 
 > 📋 **Recent changes are tracked in [`CHANGELOG.md`](./CHANGELOG.md)** (added 2026-02 for size).
 > Latest entry: **2026-06-12 — Anti-Red stealth mode (captcha-off silent cloak)**. Closes the gap where disabling the visible "Verifying your browser…" interstitial would let CF-flagged bots, Sec-Fetch-less impersonators, and generic crawler UAs reach origin. Added Sec-Fetch-* fingerprint signals to `calculateBotScore` and a stealth-mode 302 redirect threshold of 70 (vs Step 4's 100) in the `challengeBypassed` branch — silent, no UI. Score table + 7 unit-test fixtures in `/app/js/tests/test_anti_red_stealth_mode.js`. 18 captcha-off domains now protected automatically. Earlier same-day fix: scanner 302 redirect replacing HTML cloaking.
-## Session 2026-06-17 — Fresh dev pod setup from README (no production impact)
+## Session 2026-06-17 — OVH VPS/RDP management parity with Contabo
+**Status: ✅ COMPLETE — routing/lang/surface verified (45/45 test). Live cloud ops not triggered (would mutate real OVH).**
+
+### Request
+"Analyze whether OVH VPS/RDP can be managed like Contabo (start/restart/shutdown/etc.)" → "fix all".
+
+### Findings
+The `vps-provider.js` smart proxy already routes start/stop/restart/shutdown/rename/upgrade/snapshots to OVH for `vps-*` records. Gaps found & fixed:
+1. **Reset Password & Reinstall Windows** in `_index.js` were hard-wired to `require('./contabo-service')` → broken for OVH. Now use `getProviderForRecord()`; OVH-aware messaging added (OVH emails the password, returns none inline).
+2. **`deleteVPSinstance`** verified cancellation via Contabo's `cancelDate`, which OVH's `getInstance` doesn't return → always soft-failed for OVH. Added OVH branch (synchronous `serviceInfos` delete-at-expiration = confirmation).
+3. **Self-heal/drift jobs** (`selfHealRenewedAfterCancelVPS`, `reconcileContaboBillingDrift`) called Contabo API on OVH IDs and could mis-mark OVH records → now skip OVH records (per-event smart-proxy cancel covers OVH).
+4. `OVH_DRY_RUN="true"` added to dev `.env`.
+
+### Files touched
+- `js/_index.js` (reset handler, reinstall handler, 3 self-heal guards + 2 requires)
+- `js/vm-instance-setup.js` (`deleteVPSinstance` OVH branch)
+- `js/lang/{en,fr,zh,hi}.js` (`passwordResetEmailed`, `windowsReinstallEmailed`)
+- `js/tests/test_ovh_mgmt_parity.js` (new, 45 checks, all pass)
+- `backend/.env` (`OVH_DRY_RUN="true"`)
+
+### Behavioral diffs that remain by design (provider limitations, not bugs)
+- OVH reset password / Windows reinstall: password is **emailed by OVH** (can't be shown in-chat) — SSH-key access is instant.
+- OVH "shutdown" maps to stop; snapshots limited to 1 per VPS; tags unsupported (stubbed).
+- OVH cancel = delete-at-expiration (VPS runs until period end), vs Contabo immediate cancel.
+
+---
+
+
 **Status: ✅ COMPLETE — all 4 services running, end-to-end ingress verified.**
 
 ### User request

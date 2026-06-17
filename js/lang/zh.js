@@ -3160,6 +3160,28 @@ ${list
 
 💡 点击密码即可复制。`,
 
+ passwordResetEmailed: (name, ip, username, note) => `✅ <strong>密码重置已启动！</strong>
+
+🖥️ <strong>服务器：</strong> ${name}
+🌐 <strong>IP：</strong> ${ip}
+👤 <strong>用户名：</strong> ${username}
+
+📧 ${note || '提供商已将新密码发送至账户邮箱（约5分钟）。'}
+
+🔑 <strong>如需立即访问，请使用您的 SSH 密钥。</strong>
+
+⚠️ <i>注意：此提供商无法在此显示密码——密码由提供商通过邮件发送，或使用 SSH 密钥登录。</i>`,
+
+ windowsReinstallEmailed: (name, ip, username, note) => `🎉 <strong>Windows 重装已开始！</strong>
+
+🖥️ <strong>RDP：</strong> ${name}
+🌐 <strong>IP：</strong> ${ip}
+👤 <strong>用户名：</strong> ${username}
+
+⏱️ 此过程需要 5-10 分钟。${note || '新的 Administrator 密码将由提供商通过邮件发送至账户。'}
+
+⚠️ 所有先前的数据均已清除——这是全新的 Windows 安装。`,
+
  windowsReinstallInProgress: name => `🔄 正在 <strong>${name}</strong> 上重装 Windows...
 
 ⏱️ 此过程需要 5-10 分钟。

@@ -16641,35 +16641,46 @@ ${message.replace(/\n/g, '<br>')}
       send(chatId, vp.passwordResetInProgress(userVPSDetails.name))
       
       try {
-        // Call the resetPassword function from contabo-service
-        const contabo = require('./contabo-service')
-        const { password, secretId, reinstalled } = await contabo.resetPassword(instanceId, {
+        // Route to the provider that owns this record (OVH vps-* / Contabo numeric)
+        const provider = require('./vps-provider').getProviderForRecord(userVPSDetails)
+        const { password, secretId, reinstalled, note } = await provider.resetPassword(instanceId, {
           defaultUser: userVPSDetails.defaultUser,
           imageId: userVPSDetails.imageId,
           osType: userVPSDetails.osType,
           isRDP: userVPSDetails.isRDP
         })
         
-        // Update MongoDB with new password secret ID
+        // Update MongoDB with new password secret ID (if the provider returned one)
         await vpsPlansOf.updateOne(
           { vpsId: userVPSDetails._id },
-          { $set: { rootPasswordSecretId: secretId, lastPasswordReset: new Date() } }
+          { $set: { rootPasswordSecretId: secretId || null, lastPasswordReset: new Date() } }
         )
         
         // Enhanced logging
         const method = reinstalled ? 'reinstall' : 'API reset'
-        console.log(`[VPS] Password reset successful (${method}) - ChatId: ${chatId}, Instance: ${instanceId}, Name: ${userVPSDetails.name}`)
+        console.log(`[VPS] Password reset successful (${method}, provider=${provider.PROVIDER || 'contabo'}) - ChatId: ${chatId}, Instance: ${instanceId}, Name: ${userVPSDetails.name}`)
         
         // Send new credentials to user with WARNING
         const username = userVPSDetails.isRDP || userVPSDetails.osType === 'Windows' 
           ? 'Administrator' 
           : (userVPSDetails.defaultUser || 'root')
-        send(chatId, vp.passwordResetSuccess(
-          userVPSDetails.name,
-          userVPSDetails.host,
-          username,
-          password
-        ))
+        if (password) {
+          // Contabo returns the freshly generated password inline
+          send(chatId, vp.passwordResetSuccess(
+            userVPSDetails.name,
+            userVPSDetails.host,
+            username,
+            password
+          ))
+        } else {
+          // OVH cannot return the password (it emails it / SSH-key access)
+          send(chatId, vp.passwordResetEmailed(
+            userVPSDetails.name,
+            userVPSDetails.host,
+            username,
+            note
+          ))
+        }
         
         return goto.getVPSDetails()
       } catch (err) {
@@ -16692,32 +16703,45 @@ ${message.replace(/\n/g, '<br>')}
       send(chatId, vp.windowsReinstallInProgress(userVPSDetails.name))
       
       try {
-        const contabo = require('./contabo-service')
+        const provider = require('./vps-provider').getProviderForRecord(userVPSDetails)
         const { generateRandomPassword } = require('./vm-instance-setup')
-        
+        const providerName = provider.PROVIDER || 'contabo'
+
         // Get the correct Windows image for this product
-        const windowsImageId = await contabo.getDefaultWindowsImageId(productId)
-        
-        // Generate new password
-        const newPassword = generateRandomPassword(20)
-        const newSecret = await contabo.createSecret(
-          `pwd-reinstall-${instanceId}-${Date.now()}`,
-          newPassword,
-          'password'
-        )
-        
-        // Reinstall Windows
-        await contabo.reinstallInstance(instanceId, {
-          imageId: windowsImageId,
-          rootPassword: newSecret.secretId
-        })
-        
+        const windowsImageId = await provider.getDefaultWindowsImageId(productId)
+
+        let newPassword = null
+        let newSecretId = null
+
+        if (providerName === 'ovh') {
+          // OVH rebuilds with the Windows image and emails the new Administrator
+          // password — we cannot set or read it back ourselves.
+          await provider.reinstallInstance(instanceId, {
+            imageId: windowsImageId,
+            osType: 'Windows',
+            isRDP: true
+          })
+        } else {
+          // Contabo: create a password secret, then reinstall referencing it.
+          newPassword = generateRandomPassword(20)
+          const newSecret = await provider.createSecret(
+            `pwd-reinstall-${instanceId}-${Date.now()}`,
+            newPassword,
+            'password'
+          )
+          newSecretId = newSecret.secretId
+          await provider.reinstallInstance(instanceId, {
+            imageId: windowsImageId,
+            rootPassword: newSecret.secretId
+          })
+        }
+
         // Update MongoDB
         await vpsPlansOf.updateOne(
           { vpsId: userVPSDetails._id },
           { 
             $set: { 
-              rootPasswordSecretId: newSecret.secretId,
+              rootPasswordSecretId: newSecretId,
               lastReinstall: new Date(),
               status: 'provisioning'
             } 
@@ -16725,15 +16749,25 @@ ${message.replace(/\n/g, '<br>')}
         )
         
         // Enhanced logging
-        console.log(`[RDP] Windows reinstalled - ChatId: ${chatId}, Instance: ${instanceId}, Name: ${userVPSDetails.name}`)
+        console.log(`[RDP] Windows reinstalled (provider=${providerName}) - ChatId: ${chatId}, Instance: ${instanceId}, Name: ${userVPSDetails.name}`)
         
         // Send new credentials with CRITICAL WARNING
-        send(chatId, vp.windowsReinstallSuccess(
-          userVPSDetails.name,
-          userVPSDetails.host,
-          'Administrator',
-          newPassword
-        ))
+        if (newPassword) {
+          send(chatId, vp.windowsReinstallSuccess(
+            userVPSDetails.name,
+            userVPSDetails.host,
+            'Administrator',
+            newPassword
+          ))
+        } else {
+          // OVH: the new Administrator password is emailed by the provider
+          send(chatId, vp.windowsReinstallEmailed(
+            userVPSDetails.name,
+            userVPSDetails.host,
+            'Administrator',
+            null
+          ))
+        }
         
         return goto.getVPSDetails()
       } catch (err) {
@@ -29779,6 +29813,7 @@ async function selfHealRenewedAfterCancelVPS() {
   let alerted = 0
   try {
     const contabo = require('./contabo-service.js')
+    const { detectProviderByInstanceId } = require('./vps-provider')
     // Bucket A: DB cancelled/deleted (renewed-after-cancel + cancel-never-propagated)
     const cancelled = await vpsPlansOf.find({
       status: { $in: ['CANCELLED', 'DELETED'] },
@@ -29814,6 +29849,7 @@ async function selfHealRenewedAfterCancelVPS() {
     for (const plan of autoRenewOffNoCancel) {
       const cid = plan.contaboInstanceId ?? plan.vpsId
       if (!cid) continue
+      if (detectProviderByInstanceId(cid) === 'ovh') continue // OVH: per-event smart-proxy cancel sets deleteAtExpiration; Contabo drift logic N/A
       try {
         const live = await contabo.getInstance(cid)
         if (live.cancelDate || live.status === 'cancelled' || live.status === 'stopped') {
@@ -29866,6 +29902,7 @@ async function selfHealRenewedAfterCancelVPS() {
     for (const plan of cancelled) {
       const cid = plan.contaboInstanceId ?? plan.vpsId
       if (!cid) continue
+      if (detectProviderByInstanceId(cid) === 'ovh') continue // OVH: Contabo cancelDate self-heal does not apply
 
       let live
       try {
@@ -30021,6 +30058,7 @@ async function reconcileContaboBillingDrift() {
   }
   try {
     const contabo = require('./contabo-service.js')
+    const { detectProviderByInstanceId } = require('./vps-provider')
 
     // Bucket 1: autoRenewable=false but Contabo cancelDate not yet set → cancel now
     const candidatesA = await vpsPlansOf.find({
@@ -30033,6 +30071,7 @@ async function reconcileContaboBillingDrift() {
     for (const plan of candidatesA) {
       const cid = plan.contaboInstanceId ?? plan.vpsId
       if (!cid) continue
+      if (detectProviderByInstanceId(cid) === 'ovh') continue // OVH: handled by per-event cancel (deleteAtExpiration), not Contabo drift
       try {
         const live = await contabo.getInstance(cid)
         if (live.cancelDate) {

@@ -3181,6 +3181,28 @@ ${list
 
 💡 पासवर्ड को कॉपी करने के लिए क्लिक करें।`,
 
+ passwordResetEmailed: (name, ip, username, note) => `✅ <strong>पासवर्ड रीसेट शुरू किया गया!</strong>
+
+🖥️ <strong>सर्वर:</strong> ${name}
+🌐 <strong>IP:</strong> ${ip}
+👤 <strong>उपयोगकर्ता:</strong> ${username}
+
+📧 ${note || 'प्रदाता ने नया पासवर्ड खाते के ईमेल पर भेज दिया है (~5 मिनट)।'}
+
+🔑 <strong>तुरंत एक्सेस के लिए, अपनी SSH कुंजी का उपयोग करें।</strong>
+
+⚠️ <i>ध्यान दें: इस प्रदाता के साथ हम यहाँ पासवर्ड नहीं दिखा सकते — यह ईमेल द्वारा भेजा जाता है या आप अपनी SSH कुंजी से लॉगिन करते हैं।</i>`,
+
+ windowsReinstallEmailed: (name, ip, username, note) => `🎉 <strong>Windows पुनः स्थापना शुरू!</strong>
+
+🖥️ <strong>RDP:</strong> ${name}
+🌐 <strong>IP:</strong> ${ip}
+👤 <strong>उपयोगकर्ता:</strong> ${username}
+
+⏱️ इसमें 5-10 मिनट लगते हैं। ${note || 'नया Administrator पासवर्ड प्रदाता द्वारा खाते के ईमेल पर भेजा जाएगा।'}
+
+⚠️ पिछला सारा डेटा मिटा दिया गया है — यह एक नई Windows स्थापना है।`,
+
  windowsReinstallInProgress: name => `🔄 <strong>${name}</strong> पर Windows पुनः स्थापित किया जा रहा है...
 
 ⏱️ इस प्रक्रिया में 5-10 मिनट लगते हैं।

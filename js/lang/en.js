@@ -3313,6 +3313,28 @@ Do you want to reinstall Windows on <strong>${name}</strong>?`,
 
 💡 Click the password to copy it.`,
 
+ passwordResetEmailed: (name, ip, username, note) => `✅ <strong>Password Reset Initiated!</strong>
+
+🖥️ <strong>Server:</strong> ${name}
+🌐 <strong>IP:</strong> ${ip}
+👤 <strong>Username:</strong> ${username}
+
+📧 ${note || 'A new password has been sent to the account email by the provider (~5 min).'}
+
+🔑 <strong>For instant access, use your SSH key.</strong>
+
+⚠️ <i>Note: with this provider we can't display the password here for security — it is emailed by the provider or you authenticate with your SSH key.</i>`,
+
+ windowsReinstallEmailed: (name, ip, username, note) => `🎉 <strong>Windows Reinstall Started!</strong>
+
+🖥️ <strong>RDP:</strong> ${name}
+🌐 <strong>IP:</strong> ${ip}
+👤 <strong>Username:</strong> ${username}
+
+⏱️ This takes 5-10 minutes. ${note || 'The new Administrator password will be emailed to the account by the provider.'}
+
+⚠️ All previous data has been erased — this is a fresh Windows installation.`,
+
  windowsReinstallInProgress: name => `🔄 Reinstalling Windows on <strong>${name}</strong>...
 
 ⏱️ This process takes 5-10 minutes. 

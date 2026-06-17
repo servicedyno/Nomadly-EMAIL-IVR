@@ -1090,6 +1090,30 @@ async function deleteVPSinstance(chatId, vpsId) {
       throw cancelErr
     }
 
+    // Step 1b: Provider-aware verification.
+    // OVH cancellation is synchronous: cancelInstance awaits
+    // PUT /vps/{sn}/serviceInfos (renew.deleteAtExpiration=true). A non-throwing
+    // return IS the confirmation — OVH has no Contabo-style `cancelDate` to poll,
+    // so skip the cancelDate verification loop below (which would always fail for OVH).
+    const _providerName = vpsProvider.detectProviderByInstanceId(contaboId)
+      || (localRecord?.provider || '').toLowerCase()
+      || 'contabo'
+    if (_providerName === 'ovh') {
+      console.log(`[VPS] OVH cancel confirmed for ${contaboId} (delete-at-expiration set)`)
+      if (_vpsPlansOf) {
+        await _vpsPlansOf.updateOne(
+          { vpsId: String(vpsId) },
+          { $set: {
+              status: 'DELETED',
+              deletedAt: new Date(),
+              cancelReason: 'ovh_delete_at_expiration',
+              ovhCancelMethod: result?.method || 'auto-renew-off',
+          } }
+        )
+      }
+      return { success: true, data: result, method: 'ovh-serviceInfos' }
+    }
+
     // Step 2: VERIFY the cancellation actually took effect by re-fetching
     //         and checking that `cancelDate` is now set. Poll briefly
     //         because Contabo can take a few seconds to update.

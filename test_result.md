@@ -131,6 +131,28 @@ Stale Chrome version threshold in the anti-red Cloudflare Worker. The bot detect
 - Mobile Chrome 149: `x-antired: challenge` (was `cloaked` — completely blocked)
 - Deployed worker confirmed: `cv2>165` in client-side JS
 
+## OVH VPS/RDP Management Parity Fixes (2026-06-17)
+
+### Request
+> "analyze whether VPS or RDP created through ovhcloud can also be managed similarly to Contabo (start, restart, shutdown, etc.)" → then "fix all".
+
+### Fixes applied (Node.js / bot layer)
+- **`js/_index.js` Reset Password handler** — was hard-wired to `require('./contabo-service')`; now routes via `vpsProvider.getProviderForRecord()`. Handles OVH's no-inline-password case (OVH emails it) with a new `vp.passwordResetEmailed` message.
+- **`js/_index.js` Reinstall Windows handler** — same hard-wire fixed; provider-aware: Contabo keeps the password-secret + reinstall flow, OVH rebuilds with the Windows image (password emailed) → new `vp.windowsReinstallEmailed` message.
+- **`js/vm-instance-setup.js` `deleteVPSinstance`** — added OVH branch: OVH cancel is synchronous (`PUT /vps/{sn}/serviceInfos` delete-at-expiration); a non-throwing return is the confirmation, so it skips the Contabo `cancelDate` poll (which always failed for OVH) and marks the record DELETED.
+- **`js/_index.js` self-heal/drift jobs** (`selfHealRenewedAfterCancelVPS`, `reconcileContaboBillingDrift`) — now skip OVH `vps-*` records (`detectProviderByInstanceId(cid)==='ovh'`) so the Contabo-specific cancelDate logic no longer mis-marks OVH records as `_contaboCancelledEarly` without actually cancelling.
+- **`js/lang/{en,fr,zh,hi}.js`** — added `passwordResetEmailed` + `windowsReinstallEmailed` keys (all 4 locales).
+- **`backend/.env`** — added `OVH_DRY_RUN="true"` (dev-pod safety: blocks real OVH order checkout).
+
+### Already-working (no change needed)
+Start / Stop / Restart / Shutdown route correctly to OVH via `vm-instance-setup.changeVpsInstanceStatus` → `buildSmartProxy()`. Upgrade/rename/snapshots also implemented on OVH.
+
+### Verification
+- `node --check` clean on all modified files.
+- New test `js/tests/test_ovh_mgmt_parity.js` — **45/45 pass** (routing, ovh-service lifecycle surface, new lang keys render in 4 locales, no regression on existing keys).
+- `nodejs` restarted clean; dev safety guards still confirmed (DEVELOPMENT token, SKIP_WEBHOOK_SYNC, CF-Sync skipped).
+- **NOT tested live:** reset/reinstall/cancel were intentionally NOT triggered end-to-end — they hit real OVH resources (not dry-run-gated) in the shared prod account. Routing verified statically instead.
+
 ## Testing Protocol
 
 **Communication protocol with testing sub-agent:**
