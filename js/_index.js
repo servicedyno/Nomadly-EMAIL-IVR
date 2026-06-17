@@ -6883,6 +6883,7 @@ bot?.on('message', msg => {
     useAsIs:          ({en: '✅ Use As-Is',             fr: '✅ Utiliser tel quel',       zh: '✅ 直接使用',             hi: '✅ जैसा है उपयोग'}[lang]          || '✅ Use As-Is'),
     saveGreeting:     ({en: '✅ Save Greeting',         fr: '✅ Enregistrer le message',  zh: '✅ 保存问候语',           hi: '✅ ग्रीटिंग सेव करें'}[lang]      || '✅ Save Greeting'),
     tryDiffVoice:     ({en: '🔄 Try Different Voice',   fr: '🔄 Essayer une autre voix', zh: '🔄 换个声音',             hi: '🔄 अलग आवाज़ आज़माएं'}[lang]     || '🔄 Try Different Voice'),
+    pickFromLibrary:  ({en: '🎵 Use From My Library',    fr: '🎵 Depuis ma bibliothèque', zh: '🎵 从我的音频库选择',     hi: '🎵 मेरी लाइब्रेरी से चुनें'}[lang] || '🎵 Use From My Library'),
     changeLang:       ({en: '🌐 Change Language',       fr: '🌐 Changer la langue',      zh: '🌐 更换语言',             hi: '🌐 भाषा बदलें'}[lang]            || '🌐 Change Language'),
     retypeText:       ({en: '📝 Re-type Text',          fr: '📝 Retaper le texte',       zh: '📝 重新输入',             hi: '📝 टेक्स्ट फिर से टाइप'}[lang]   || '📝 Re-type Text'),
     applyCoupon:      ({en: '🎟️ Apply Coupon',          fr: '🎟️ Appliquer un Coupon',   zh: '🎟️ 使用优惠券',          hi: '🎟️ कूपन लागू करें'}[lang]        || '🎟️ Apply Coupon'),
@@ -7151,6 +7152,7 @@ bot?.on('message', msg => {
     cpIvrGreetingVoice: 'cpIvrGreetingVoice',
     cpIvrGreetingProvider: 'cpIvrGreetingProvider',
     cpIvrGreetingPreview: 'cpIvrGreetingPreview',
+    cpIvrGreetingLibrary: 'cpIvrGreetingLibrary',
     cpIvrAddOption: 'cpIvrAddOption',
     cpIvrOptionKey: 'cpIvrOptionKey',
     cpIvrOptionAction: 'cpIvrOptionAction',
@@ -25922,7 +25924,89 @@ Professional templates for voicemail, customer support, financial institutions, 
       const catBtns = ttsService.getTemplateCategoryButtons().map(b => [b])
       return send(chatId, trans('t.cp_297'), k.of(catBtns))
     }
-    return send(chatId, trans('t.cp_298'), k.of([[btn.useTemplate], [btn.typeText], [btn.uploadAudio]]))
+    if (message === btn.pickFromLibrary) {
+      const audios = await audioLibraryService.listAudios(chatId)
+      if (!audios || !audios.length) {
+        return send(chatId,
+          ({en: '📭 Your audio library is empty. Create a greeting first via Type Text or Upload — it will be saved automatically and reusable next time.',
+            fr: '📭 Votre bibliothèque audio est vide. Créez d\'abord un message via Saisir Texte ou Téléverser — il sera enregistré automatiquement pour une réutilisation future.',
+            zh: '📭 您的音频库为空。请先通过"输入文字"或"上传音频"创建一段问候语，它将被自动保存并可在下次复用。',
+            hi: '📭 आपकी ऑडियो लाइब्रेरी खाली है। पहले "टेक्स्ट टाइप करें" या "अपलोड" से एक ग्रीटिंग बनाएं — यह स्वचालित रूप से सेव हो जाएगी और अगली बार पुन: उपयोग योग्य होगी।'}[lang] ||
+            '📭 Your audio library is empty. Create a greeting first via Type Text or Upload — it will be saved automatically and reusable next time.'),
+          k.of([[btn.useTemplate], [btn.typeText], [btn.uploadAudio]]))
+      }
+      await set(state, chatId, 'action', a.cpIvrGreetingLibrary)
+      const rows = audios.slice(0, 24).map(au => [`🎵 ${au.name.length > 38 ? au.name.slice(0, 35) + '…' : au.name}`])
+      rows.push(['↩️ Back'])
+      return send(chatId,
+        ({en: `🎵 Pick a saved audio (${audios.length} total):`,
+          fr: `🎵 Choisissez un audio enregistré (${audios.length} au total) :`,
+          zh: `🎵 选择一个已保存的音频（共 ${audios.length} 个）：`,
+          hi: `🎵 सेव किया गया ऑडियो चुनें (कुल ${audios.length}):`}[lang] ||
+          `🎵 Pick a saved audio (${audios.length} total):`),
+        k.of(rows))
+    }
+    const _libCount = await audioLibraryService.listAudios(chatId).then(a => a.length).catch(() => 0)
+    const _menuRows = []
+    if (_libCount > 0) _menuRows.push([btn.pickFromLibrary])
+    _menuRows.push([btn.useTemplate], [btn.typeText], [btn.uploadAudio])
+    return send(chatId, trans('t.cp_298'), k.of(_menuRows))
+  }
+
+  // ── IVR Greeting: Pick from saved audio library ──
+  if (action === a.cpIvrGreetingLibrary) {
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
+    const num = info?.cpActiveNumber
+    if (!num) return goto.submenu5()
+    if (isBackPress(message) || message === pc.back || isCancelPress(message)) {
+      await set(state, chatId, 'action', a.cpIvrGreeting)
+      const _c = await audioLibraryService.listAudios(chatId).then(a => a.length).catch(() => 0)
+      const _r = []
+      if (_c > 0) _r.push([btn.pickFromLibrary])
+      _r.push([btn.useTemplate], [btn.typeText], [btn.uploadAudio])
+      return send(chatId, trans('t.cp_298'), k.of(_r))
+    }
+    // Match the audio by name (button text format: "🎵 <name>" possibly truncated with …)
+    const audios = await audioLibraryService.listAudios(chatId)
+    const cleaned = (message || '').replace(/^🎵\s*/, '').replace(/…$/, '')
+    const picked = audios.find(au => au.name === cleaned || au.name.startsWith(cleaned))
+    if (!picked) {
+      const rows = audios.slice(0, 24).map(au => [`🎵 ${au.name.length > 38 ? au.name.slice(0, 35) + '…' : au.name}`])
+      rows.push(['↩️ Back'])
+      return send(chatId,
+        ({en: '❌ Audio not found — pick from the list:',
+          fr: '❌ Audio introuvable — choisissez dans la liste :',
+          zh: '❌ 未找到音频 — 请从列表选择：',
+          hi: '❌ ऑडियो नहीं मिला — सूची से चुनें:'}[lang] || '❌ Audio not found — pick from the list:'),
+        k.of(rows))
+    }
+    // Apply directly: set IVR greeting on phone + persist binary to ivrAudioStore
+    const ivrConf = num.features?.ivr || { enabled: true, options: {} }
+    ivrConf.greetingType = 'audio'
+    ivrConf.greetingAudioPath = picked.localPath || null
+    ivrConf.greetingAudioUrl = picked.audioUrl || null
+    ivrConf.greeting = picked.name
+    ivrConf.greetingFromLibrary = picked.id
+    try {
+      if (picked.localPath && require('fs').existsSync(picked.localPath)) {
+        const audioBuffer = require('fs').readFileSync(picked.localPath)
+        const filename = require('path').basename(picked.localPath)
+        await ivrAudioStore.updateOne(
+          { _id: num.phoneNumber + ':greeting' },
+          { $set: { buffer: audioBuffer.toString('base64'), filename, audioUrl: picked.audioUrl, updatedAt: new Date() } },
+          { upsert: true }
+        )
+      }
+    } catch (e) { log(`[IVR] Library audio persist failed (non-blocking): ${e.message}`) }
+    await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'ivr', ivrConf)
+    num.features.ivr = ivrConf
+    await saveInfo('cpActiveNumber', num)
+    await saveInfo('cpTtsDraft', null)
+    send(chatId, trans('t.cp_324'))
+    await set(state, chatId, 'action', a.cpIvr)
+    return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
+      [pc.ivrGreeting], [pc.ivrAddOption], [pc.ivrRemoveOption], [pc.ivrViewOptions], [pc.ivrAnalytics], [pc.disableIvr]
+    ]))
   }
 
   // ── IVR Template: Select category → select template → edit → proceed ──
@@ -25933,7 +26017,11 @@ Professional templates for voicemail, customer support, financial institutions, 
     if (!num) return goto.submenu5()
     if (isBackPress(message) || message === pc.back || isCancelPress(message)) {
       await set(state, chatId, 'action', a.cpIvrGreeting)
-      return send(chatId, trans('t.cp_299'), k.of([[btn.useTemplate], [btn.typeText], [btn.uploadAudio]]))
+      const _c = await audioLibraryService.listAudios(chatId).then(a => a.length).catch(() => 0)
+      const _r = []
+      if (_c > 0) _r.push([btn.pickFromLibrary])
+      _r.push([btn.useTemplate], [btn.typeText], [btn.uploadAudio])
+      return send(chatId, trans('t.cp_299'), k.of(_r))
     }
     const draft = info?.cpTtsDraft || {}
     // Step 1: User selects a category
@@ -26179,6 +26267,31 @@ Professional templates for voicemail, customer support, financial institutions, 
             { upsert: true }
           )
         } catch (e) { log(`[IVR] Audio persist to MongoDB failed (non-blocking): ${e.message}`) }
+        // ── Seamlessly save to the audio library for reuse next time ──
+        // Skipped when audio came from library (no duplicate); always tagged so we can backfill.
+        if (!draft.fromLibrary && !draft.libraryAudioId) {
+          try {
+            const _shortText = (draft.text || '').replace(/\s+/g, ' ').trim().slice(0, 35)
+            const _autoName = _shortText && _shortText.length > 4
+              ? `📞 IVR · ${_shortText}${(draft.text || '').length > 35 ? '…' : ''}`
+              : `📞 IVR · ${num.phoneNumber} · ${new Date().toISOString().slice(0, 10)}`
+            const _stat = require('fs').statSync(draft.audioPath)
+            const _saved = await audioLibraryService.saveAudio({
+              chatId, name: _autoName,
+              filename: require('path').basename(draft.audioPath),
+              originalName: require('path').basename(draft.audioPath),
+              duration: draft.duration || null,
+              mimeType: draft.mimeType || (/\.mp3$/i.test(draft.audioPath) ? 'audio/mpeg' : 'audio/ogg'),
+              size: _stat.size,
+              audioUrl: draft.audioUrl || null,
+              localPath: draft.audioPath,
+            })
+            ivrConf.greetingFromLibrary = _saved.id
+            log(`[IVR] Greeting auto-saved to library as "${_autoName}" (id=${_saved.id})`)
+          } catch (e) { log(`[IVR] Auto-save to library failed (non-blocking): ${e.message}`) }
+        } else if (draft.libraryAudioId) {
+          ivrConf.greetingFromLibrary = draft.libraryAudioId
+        }
       } else {
         ivrConf.greeting = draft.text || ivrConf.greeting
       }
