@@ -1,6 +1,60 @@
 # CHANGELOG — Nomadly Bot
 
 
+## 2026-02-XX — OVH Phase-2 polish (post-deploy + upgrade + dedicated)
+
+### Phase-2 item 1 — Cloud-init / SSH-key auto-push to OVH instances
+**Problem**: OVH's cart-checkout flow does not accept `rootPassword` or `userData`. New Linux VPSes deliver with an OVH-emailed random password and no SSH key — broken first-login UX vs Contabo where cloud-init runs on first boot.
+
+**Fix**: After OVH delivers the instance (status=delivered), call `POST /vps/{sn}/rebuild` with:
+- `sshKey: <name>` — the customer's SSH key from `/me/sshKey`
+- `postInstallScript: <bash>` — the same cloud-init script the Contabo flow uses (unlock root, set PasswordAuthentication=yes, etc.)
+- `doNotSendPassword: true` — when SSH key is set, suppresses OVH's credentials email
+
+Implementation in `/app/js/ovh-service.js`:
+- New `_applyPostDeployConfig(serviceName, opts)` helper. Looks up the per-VPS image-id from `/vps/{sn}/images/available` (rebuild requires the numeric id, not the OS name), then POSTs `/rebuild`.
+- `createInstance()` now calls `_applyPostDeployConfig()` after order delivery whenever the caller passes `sshKeys` or `userData`. The rebuild task runs async (~5 min); we don't block on it.
+- `osImageHint()` helper maps our internal `imageId` (e.g. `'ubuntu-24.04'`) → OVH-side image name string.
+
+### Phase-2 item 2 — upgradeInstance via OVH upgradeOffer
+**Problem**: `upgradeInstance` was stubbed (throws "not implemented"); users had to cancel + reorder to move up a tier.
+
+**Fix**: Full implementation:
+1. `GET /vps/{sn}/availableUpgrade` → verify target planCode is offered
+2. Create cart, assign, `POST /order/cart/{cartId}/vps/upgrade` with `{ serviceName, planCode }`
+3. Honor `OVH_DRY_RUN` (build cart + delete, no checkout)
+4. Otherwise `POST /checkout`, poll order status, return `{ action, newProductId, newPlanCode, ovhOrderId }`
+
+`resetPassword()` also rewritten to use the same `_applyPostDeployConfig` helper so reset-password & reinstall share one code path (no more bug-fork risk).
+
+### Phase-2 item 3 — Dedicated server catalog (Tier-7+, admin-only)
+**Problem**: OVH VPS catalog tops at 16 GB RAM. Users who previously bought Contabo Tier 4-6 (48-96 GB RAM) need a path.
+
+**Fix**: Added `DEDICATED_CATALOG` constant with 4 hand-picked OVH Kimsufi/SoYouStart SKUs (all 32 GB RAM):
+- KS-1 (Xeon-D 1520) — $18.80/mo
+- KS-5 (Xeon-E3 1270 v6) — $19.90/mo
+- SYS-1 (Xeon-E 2136) — $33.20/mo
+- SYS-3 (Xeon-E 2288G) — $46.50/mo
+
+New `listDedicatedPlans({ live })` function:
+- `{live: false}` (default) — returns cached catalog instantly
+- `{live: true}` — probes `/order/catalog/public/eco` and refreshes prices
+
+⚠️ Dedicated servers have one-time setup fees and HOURS-long delivery → not auto-integrated into the customer-facing 6-tier menu. Exposed for admin tools / future custom-quote flow.
+
+### Tests
+`/app/js/tests/test_ovh_phase2.js` — 12 assertions: dedicated catalog (cached + live), upgrade dry-run rejection on fake VPS, resetPassword 404 handling, exports surface check. All passing.
+
+Previous test suites (`test_ovh_service.js` 16 assertions, `test_ovh_flow_e2e.js` 11 assertions) still green — **39 total assertions passing**.
+
+### Files touched
+- `/app/js/ovh-service.js` — added `_applyPostDeployConfig`, `osImageHint`, `listDedicatedPlans`, `DEDICATED_CATALOG`; rewrote `resetPassword`, `reinstallInstance`, `upgradeInstance`; modified `createInstance` to call post-deploy push after order delivery
+- `/app/js/tests/test_ovh_phase2.js` (new)
+- `/app/scripts/probe_ovh_phase2.js`, `/app/scripts/probe_ovh_dedicated.js` (new)
+- `/app/memory/CHANGELOG.md` (this entry)
+
+
+
 ## 2026-02-XX — OVHcloud migration (default VPS provider swap)
 
 ### Why

@@ -186,6 +186,25 @@ const REGION_DISPLAY = {
   'YNM': { emoji: '🇮🇳', label: 'Mumbai (India)',        region: 'apac'   },
 }
 
+// ─── Dedicated server catalog (Phase-2 #3 — Tier-7+ for >16 GB RAM customers)
+//
+// OVH VPS catalog tops out at 16 GB RAM (vps-le-16-16-160). Customers needing
+// more memory must order a physical dedicated server from OVH's Kimsufi /
+// SoYouStart line. These have ONE-TIME setup fees (usually $50–$100) AND
+// take HOURS to deliver — they cannot be auto-provisioned alongside VPS in
+// the same bot flow.
+//
+// We expose them here for admin tools / future "Tier 7" custom-quote flow.
+// The customer-facing 6-tier menu in the bot stays VPS-only.
+//
+// Synced 2026-02 from /order/catalog/public/eco?ovhSubsidiary=WE.
+const DEDICATED_CATALOG = [
+  { productId: 'KS1',  planCode: '24sk102',        family: 'Kimsufi',    name: 'KS-1 (Xeon-D 1520)',      cpu: '4c/8t @ 2.2GHz',  ramGb: 32,  diskGb: 2000, diskType: 'HDD',  basePriceUsd: 18.80, datacenters: ['BHS','GRA','SBG'] },
+  { productId: 'KS5',  planCode: '24sk502',        family: 'Kimsufi',    name: 'KS-5 (Xeon-E3 1270 v6)',  cpu: '4c/8t @ 3.8GHz',  ramGb: 32,  diskGb: 2000, diskType: 'HDD',  basePriceUsd: 19.90, datacenters: ['BHS','GRA','SBG','SYD'] },
+  { productId: 'SYS1', planCode: '24sys012',       family: 'SoYouStart', name: 'SYS-1 (Xeon-E 2136)',     cpu: '6c/12t @ 3.3GHz', ramGb: 32,  diskGb: 4000, diskType: 'HDD',  basePriceUsd: 33.20, datacenters: ['BHS','GRA','SBG','SGP','SYD'] },
+  { productId: 'SYS3', planCode: '24sys032',       family: 'SoYouStart', name: 'SYS-3 (Xeon-E 2288G)',    cpu: '8c/16t @ 3.7GHz', ramGb: 32,  diskGb: 2000, diskType: 'SSD',  basePriceUsd: 46.50, datacenters: ['BHS','GRA'] },
+]
+
 // OS-name → vps_os value (must match exactly what OVH lists in requiredConfiguration)
 // Common names users will pick.
 const OS_CATALOG = [
@@ -276,6 +295,33 @@ async function listImages(filter = 'all') {
     isWindows: o.osType === 'Windows',
     ovhName:   o.ovhName,
   }))
+}
+
+// ─── Dedicated server discovery (Phase-2 #3, admin-only) ─────────────────
+
+/**
+ * Return our curated list of dedicated-server SKUs available for >16 GB RAM
+ * deployments. Pricing in DEDICATED_CATALOG is OVH wholesale — markup is
+ * NOT applied (these are admin-facing, customer pricing is custom-quoted
+ * because of one-time setup fees + hours-long provisioning).
+ *
+ * If `live=true`, also probes /order/catalog/public/eco to refresh the
+ * monthly price from OVH's catalog (slow — round-trip per planCode).
+ */
+async function listDedicatedPlans({ live = false } = {}) {
+  if (!live) return DEDICATED_CATALOG.map(p => ({ ...p, source: 'cached' }))
+  const r = await ovhRequest('GET', `/order/catalog/public/eco`, null, `?ovhSubsidiary=${SUBSIDIARY}`)
+  const plans = r?.plans || []
+  return DEDICATED_CATALOG.map(p => {
+    const live = plans.find(x => x.planCode === p.planCode)
+    const monthly = (live?.pricings || []).find(x => x.mode === 'default' && x.intervalUnit === 'month')
+    return {
+      ...p,
+      basePriceUsd:    monthly ? monthly.price / 100000000 : p.basePriceUsd,
+      liveInvoiceName: live?.invoiceName || null,
+      source:          live ? 'live' : 'cached',
+    }
+  })
 }
 
 async function getDefaultWindowsImageId(_productId) {
@@ -481,6 +527,31 @@ async function createInstance(opts) {
     // Look up VPS details
     const detail = await ovhRequest('GET', `/vps/${deliveredService}`)
 
+    // ── Phase-2 post-deploy: push SSH key + cloud-init via /vps/{sn}/rebuild ──
+    // OVH does not accept rootPassword/userData at cart-checkout time, so the
+    // first-login UX after delivery is broken unless we trigger a rebuild with
+    // sshKey + postInstallScript. This brings parity with Contabo where the
+    // bot's cloud-init runs on first boot.
+    //
+    // Skip if no SSH key AND no userData (nothing to push).
+    const sshKeyName = Array.isArray(opts.sshKeys) && opts.sshKeys[0] ? opts.sshKeys[0] : null
+    const cloudInit  = opts.userData ? Buffer.from(opts.userData, 'base64').toString('utf-8') : null
+    let postDeployStatus = null
+    if (sshKeyName || cloudInit) {
+      try {
+        postDeployStatus = await _applyPostDeployConfig(deliveredService, {
+          imageHint:        osImageHint(opts.imageId, isWindows),
+          sshKeyName:       sshKeyName,
+          postInstallScript: cloudInit,
+          isWindows:        isWindows,
+        })
+        console.log(`[OVH] Post-deploy config applied: ${JSON.stringify(postDeployStatus)}`)
+      } catch (e) {
+        // Don't fail the order — the VPS is live, post-config can be retried by admin.
+        console.error(`[OVH] Post-deploy config FAILED for ${deliveredService}: ${e.message}. Order succeeded; admin can rerun /admin/ovh-rebuild.`)
+      }
+    }
+
     const result = {
       instanceId:       deliveredService,
       name:             detail.name || deliveredService,
@@ -492,6 +563,7 @@ async function createInstance(opts) {
       _actualImageId:   opts.imageId,
       _ovhOrderId:      orderId,
       _ovhServiceName:  deliveredService,
+      _postDeploy:      postDeployStatus,
     }
     _trackCreateResult(true)
     return result
@@ -499,6 +571,73 @@ async function createInstance(opts) {
     _trackCreateResult(false, err)
     if (cartId) await _deleteCart(cartId)
     throw err
+  }
+}
+
+/**
+ * Map our internal image id (e.g. 'ubuntu-24.04') to the OVH-side image
+ * name string we need to pass to /vps/{sn}/rebuild. For Windows we pick the
+ * Windows Server year that the catalogue accepts; for Linux we honour the
+ * user's choice and fall back to Ubuntu 24.04.
+ */
+function osImageHint(imageId, isWindows) {
+  const found = OS_CATALOG.find(o => o.id === imageId || o.name === imageId)
+  if (found) return found.ovhName
+  return isWindows ? 'Windows Server 2025 Standard (Desktop)' : 'Ubuntu 24.04'
+}
+
+/**
+ * Post-deploy config push.
+ *
+ * After OVH delivers a fresh VPS it has a random root password (emailed by
+ * OVH) and no SSH key. We rebuild the same OS while attaching:
+ *   • the customer's SSH key  (so they can ssh-key into root/ubuntu)
+ *   • our bash post-install script (cloud-init equivalent; runs on first boot)
+ *   • doNotSendPassword=true   (when SSH key is set — suppresses the OVH email)
+ *
+ * Notes:
+ *   - imageId for /rebuild MUST be the `id` field from /vps/{sn}/images/available,
+ *     NOT the friendly name. We do the name → id lookup here.
+ *   - /rebuild returns an async task — we don't wait for it (would add ~5 min
+ *     to provisioning UX). The task progresses in the background.
+ *
+ * @returns { taskId, imageId, sshKey } describing what we asked OVH to do.
+ */
+async function _applyPostDeployConfig(serviceName, { imageHint, sshKeyName, postInstallScript, isWindows }) {
+  // 1. Find the image-id by name in /vps/{sn}/images/available
+  const available = await ovhRequest('GET', `/vps/${serviceName}/images/available`)
+  let imageId = null
+  for (const id of (available || [])) {
+    try {
+      const img = await ovhRequest('GET', `/vps/${serviceName}/images/available/${id}`)
+      if (img.name === imageHint) { imageId = id; break }
+    } catch (_) { /* skip 404s */ }
+  }
+  if (!imageId) {
+    // Fallback: pick any Ubuntu or Windows image that we have
+    for (const id of (available || [])) {
+      try {
+        const img = await ovhRequest('GET', `/vps/${serviceName}/images/available/${id}`)
+        const wantWin = !!isWindows
+        const looksWin = /Windows/i.test(img.name)
+        if (wantWin === looksWin) { imageId = id; break }
+      } catch (_) { /* skip */ }
+    }
+  }
+  if (!imageId) throw new Error(`No matching image-id for "${imageHint}" on ${serviceName}`)
+
+  // 2. POST /vps/{sn}/rebuild
+  const body = { imageId }
+  if (sshKeyName)        body.sshKey            = sshKeyName
+  if (sshKeyName)        body.doNotSendPassword = true   // only valid when sshKey is set
+  if (postInstallScript) body.postInstallScript = postInstallScript
+  const task = await ovhRequest('POST', `/vps/${serviceName}/rebuild`, body)
+  return {
+    taskId:  task?.id || task?.taskId || null,
+    imageId,
+    sshKey:  sshKeyName,
+    cloudInitChars: postInstallScript ? postInstallScript.length : 0,
+    asyncStatus: task?.state || 'queued',
   }
 }
 
@@ -603,37 +742,44 @@ async function shutdownInstance(serviceName) {
 }
 
 async function resetPassword(serviceName, opts = {}) {
-  // OVH does not have a direct "reset password" endpoint. Two options:
-  //  (a) POST /vps/{sn}/rebuild with same OS → new credentials sent by email
-  //  (b) POST /vps/{sn}/reboot with rescue → user resets manually
-  // We use (a) — it works for both Linux and Windows and OVH emails the
-  // new credentials to the account holder.
+  // OVH has no direct "reset password" endpoint. The accepted pattern is to
+  // rebuild with the SAME OS image, which:
+  //  • generates a fresh root/Administrator password
+  //  • emails it to the account holder (unless doNotSendPassword=true + sshKey set)
+  //  • runs our postInstallScript on first boot (parity with Contabo cloud-init)
   const detail = await ovhRequest('GET', `/vps/${serviceName}`)
-  const imageName = opts.osType === 'Windows' || opts.isRDP
-    ? 'Windows Server 2025 Standard (Desktop)'
-    : 'Ubuntu 24.04'
-  await ovhRequest('POST', `/vps/${serviceName}/rebuild`, {
-    imageId: imageName,
-    sshKey:  opts.sshKeyName || undefined,
+  const imageHint = opts.imageId
+    ? (OS_CATALOG.find(o => o.id === opts.imageId || o.name === opts.imageId)?.ovhName)
+    : (opts.osType === 'Windows' || opts.isRDP
+        ? 'Windows Server 2025 Standard (Desktop)'
+        : (detail.displayName?.match(/Ubuntu \d+\.\d+/)?.[0] || 'Ubuntu 24.04'))
+
+  const status = await _applyPostDeployConfig(serviceName, {
+    imageHint,
+    sshKeyName:       opts.sshKeyName || opts.sshKey || null,
+    postInstallScript: opts.postInstallScript || null,
+    isWindows:        opts.osType === 'Windows' || opts.isRDP,
   })
-  // OVH generates a new password and emails it; we can't return it here
   return {
-    password:    null,  // not available via API — user gets it by email
+    password:    null,       // OVH generates and emails it; we can't read it back
     secretId:    null,
     reinstalled: true,
     method:      'rebuild',
-    note:        'New credentials sent to account email by OVH',
+    taskId:      status.taskId,
+    note:        opts.sshKeyName
+      ? 'SSH key attached; new password suppressed (doNotSendPassword=true). Use SSH-key auth.'
+      : 'New password sent to account email by OVH (~5 min). Use SSH key auth for instant access.',
   }
 }
 
 async function reinstallInstance(serviceName, opts) {
-  const osImage = OS_CATALOG.find(o => o.id === opts.imageId || o.name === opts.imageId)
-  const imageName = osImage?.ovhName || 'Ubuntu 24.04'
-  await ovhRequest('POST', `/vps/${serviceName}/rebuild`, {
-    imageId: imageName,
-    sshKey:  opts.sshKeyName || undefined,
+  const status = await _applyPostDeployConfig(serviceName, {
+    imageHint:        osImageHint(opts.imageId, opts.osType === 'Windows' || opts.isRDP),
+    sshKeyName:       opts.sshKeyName || opts.sshKey || null,
+    postInstallScript: opts.postInstallScript || null,
+    isWindows:        opts.osType === 'Windows' || opts.isRDP,
   })
-  return { instanceId: serviceName, action: 'reinstall', image: imageName }
+  return { instanceId: serviceName, action: 'reinstall', taskId: status.taskId, imageId: status.imageId }
 }
 
 async function cancelInstance(serviceName, _opts = {}) {
@@ -645,9 +791,82 @@ async function cancelInstance(serviceName, _opts = {}) {
   return { instanceId: serviceName, action: 'cancel', method: 'auto-renew-off' }
 }
 
-async function upgradeInstance(_serviceName, _opts) {
-  // OVH upgrades are a separate order — we don't auto-implement them in v1.
-  throw new Error('OVH upgrade flow not yet implemented — please cancel + reorder')
+/**
+ * Upgrade an existing OVH VPS to a higher tier.
+ *
+ * Flow:
+ *   1. GET /vps/{sn}/availableUpgrade  → list planCodes we can move to
+ *   2. POST /order/cart                → fresh cart
+ *   3. POST /order/cart/{cartId}/assign
+ *   4. POST /order/cart/{cartId}/vps/upgrade  → add upgrade to cart, body
+ *       { serviceName, planCode }
+ *   5. POST /order/cart/{cartId}/checkout (autoPay)
+ *   6. Poll /me/order/{id}/status → delivered
+ *
+ * Same dry-run behaviour as createInstance — set OVH_DRY_RUN=true to
+ * build+delete the cart and skip checkout.
+ *
+ * @param {string} serviceName     - OVH VPS serviceName (e.g. vps-12abc.vps.ovh.net)
+ * @param {Object} opts            - { productId } target tier from PRODUCT_CATALOG
+ */
+async function upgradeInstance(serviceName, opts = {}) {
+  if (!serviceName || !opts?.productId) {
+    throw new Error('upgradeInstance requires serviceName + opts.productId')
+  }
+  const target = getProduct(opts.productId)
+  if (!target) throw new Error(`Unknown target productId ${opts.productId}`)
+
+  // 1. Verify the target plan is in the VPS's availableUpgrade list
+  const available = await ovhRequest('GET', `/vps/${serviceName}/availableUpgrade`).catch(() => [])
+  const offered = (available || []).map(x => x?.planCode || x).filter(Boolean)
+  if (offered.length && !offered.includes(target.planCode)) {
+    throw new Error(`OVH does not offer planCode=${target.planCode} as an upgrade for ${serviceName}. Available: ${offered.join(', ') || '(none)'}`)
+  }
+
+  // 2. Cart-based upgrade order
+  let cartId = null
+  try {
+    const cart = await ovhRequest('POST', '/order/cart', {
+      ovhSubsidiary: SUBSIDIARY,
+      description:   `nomadly-upgrade-${serviceName}-${Date.now()}`,
+    })
+    cartId = cart.cartId
+    await ovhRequest('POST', `/order/cart/${cartId}/assign`)
+    const item = await ovhRequest('POST', `/order/cart/${cartId}/vps/upgrade`, {
+      planCode:    target.planCode,
+      pricingMode: 'default',
+      duration:    'P1M',
+      quantity:    1,
+      serviceName: serviceName,
+    })
+    const total = (item.prices || []).find(p => p.label === 'TOTAL')?.price?.value || 0
+    console.log(`[OVH] Upgrade cart built: cartId=${cartId} planCode=${target.planCode} delta=$${total.toFixed(2)}`)
+
+    if (String(process.env.OVH_DRY_RUN || '').toLowerCase() === 'true') {
+      await _deleteCart(cartId)
+      return { action: 'upgrade', status: 'dry_run', serviceName, newProductId: target.productId, newPlanCode: target.planCode, deltaUsd: total }
+    }
+
+    const checkout = await ovhRequest('POST', `/order/cart/${cartId}/checkout`, {
+      autoPayWithPreferredPaymentMethod: true,
+      waiveRetractationPeriod:           true,
+    })
+    const orderId = checkout.orderId
+    console.log(`[OVH] Upgrade order placed: orderId=${orderId}`)
+    // Wait for delivery — upgrade orders deliver fast (~1 min)
+    await _pollOrderUntilDelivered(orderId, 180)
+    return {
+      action:       'upgrade',
+      status:       'delivered',
+      serviceName,
+      newProductId: target.productId,
+      newPlanCode:  target.planCode,
+      ovhOrderId:   orderId,
+    }
+  } catch (err) {
+    if (cartId) await _deleteCart(cartId)
+    throw err
+  }
 }
 
 async function updateInstanceName(serviceName, newName) {
@@ -752,6 +971,10 @@ module.exports = {
   // Constant for default Windows image (legacy Contabo callers reference this)
   DEFAULT_WINDOWS_IMAGE: 'windows-2025',
 
+  // Dedicated catalog (Phase-2 #3 — admin-only, >16 GB RAM tier)
+  DEDICATED_CATALOG,
+  listDedicatedPlans,
+
   // Regions
   listRegions,
 
@@ -806,4 +1029,5 @@ module.exports = {
   ovhRequest,
   _buildCart,
   _deleteCart,
+  _applyPostDeployConfig,  // Phase-2: admin retry helper for post-deploy push
 }
