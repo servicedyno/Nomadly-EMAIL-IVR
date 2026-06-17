@@ -1,71 +1,67 @@
-# WHM Emergency Migration — 2026-06-17
+# WHM Emergency Migration — 2026-06-17 — COMPLETED ✅
 
-## Situation
-- Old droplet `557194941` (Ubuntu 24.04, `s-2vcpu-2gb`, 60GB → 60GB filled) at IP `209.38.241.9`
-  hit 100% disk. cpsrvd died. PAM password change over SSH fails silently (disk full).
-- User opted to **migrate via fresh install** rather than recover the old droplet (which would
-  need DO Web Console + GRUB single-user — user couldn't easily do that).
+## Final state (16:50 UTC)
+| What | Status |
+|------|--------|
+| Old droplet `557194941` (`209.38.241.9`, Ubuntu 24.04, 60GB, disk-full) | **POWERED OFF** ✅ (kept 14 days as backup; destroy by **2026-07-01**) |
+| **New droplet `578369745`** (`68.183.77.106`, AlmaLinux 9, s-2vcpu-4gb-120gb-intel, fra1) | **ACTIVE** ✅ (12 GB used / 120 GB) |
+| Fresh cPanel WHM 11.136 install + license | ✅ active |
+| 5 WHM packages (sanitized names, no parens) | ✅ created |
+| **19 cPanel accounts** recreated with SAME usernames + decrypted passwords | ✅ all 19 |
+| **20 addon domains** attached | ✅ all 20 |
+| Maintenance HTML page deployed to all 19 `public_html/index.html` | ✅ |
+| Cloudflare Tunnel `b395cebc-4b7a-4aba-8ced-e11665c26b30` (replacing old `f63ce7b5-…`) | ✅ healthy |
+| `whm-api.hostbay.io` CNAME → new tunnel; HTTP 200 verified | ✅ |
+| Tunnel ingress: customer traffic → `http://68.183.77.106:80` (vhosts only bind on public IP) | ✅ |
+| 395 customer CNAMEs migrated to new tunnel UUID (291 zones, 0 failures) | ✅ |
+| `WHM_HOST` + `WHM_DROPLET_ID` in Railway prod env updated | ✅ |
+| Mongo `whmHost` updated on 19 cpanelAccount records | ✅ |
+| Mongo `migrationLog` entry written | ✅ |
+| Telegram notifications to 19 chat IDs (13 unique users) | ✅ all sent, 0 failures |
 
-## Migration plan
-| # | Phase | Status | Driver |
-|---|-------|--------|--------|
-| A | New droplet (AlmaLinux 9, s-2vcpu-4gb-120gb-intel, fra1) | ✅ done — id=578369745, IP=`68.183.77.106` | E1 (via DO API) |
-| B | cPanel installer in background | 🟡 in progress (started 16:04 UTC, ~40-70 min) | E1 (SSH) |
-| C | User activates cPanel license on new IP via reseller portal | ⏳ pending | **USER** |
-| D | Create 5 WHM packages (script: `/tmp/whm-migration/migrate_accounts.js`) | ⏳ pending | E1 (script) |
-| E | Recreate 19 cPanel accounts with same creds (decrypted via SESSION_SECRET) | ⏳ pending | E1 (script) |
-| F | Add 20 addon domains | ⏳ pending | E1 (script) |
-| G | Move CF tunnel UUID f63ce7b5-… (new tunnel + swap hostname route) | ⏳ pending | E1 (CF API) |
-| H | Bulk update CF DNS A records pointing to old IP → new IP (script: `migrate_cf_dns.js`) | ⏳ pending | E1 (script) |
-| I | Update `whmHost` in Mongo + write `migrationLog` entry | ⏳ pending (built into migrate_accounts.js) | E1 (script) |
-| J | Telegram notify 19 users (script: `notify_users.js`) | ⏳ pending | E1 (script) |
+## Credentials & state files (still on dev pod /tmp/whm-migration/)
+- `id_ed25519` (SSH key) — root@68.183.77.106
+- `whm_token` — WHM API root token = `FOBFEHSBTFBIJNYYDB7UFO4V2LTZJHNC`
+- `new_tunnel_id` — `b395cebc-4b7a-4aba-8ced-e11665c26b30`
+- `new_tunnel_secret`, `tunnel_token` — for CF tunnel re-configuration
+- `cpanel_ip` = 68.183.77.106
+- `cpanel_droplet_id` = 578369745
+- `new_root_pw` = `Godisgood123@` (set by user, applies to both OS root + WHM root)
 
-## Credentials/state files on dev pod
-- `/tmp/whm-migration/id_ed25519`        — SSH private key for new droplet (root@68.183.77.106)
-- `/tmp/whm-migration/cpanel_ip`         — 68.183.77.106
-- `/tmp/whm-migration/cpanel_droplet_id` — 578369745
-- `/tmp/whm-migration/do_ssh_key_id`     — 57175281
-- `/tmp/.do_token`                       — DigitalOcean API token (from Railway prod env)
-- `/tmp/.MONGO_URL`                      — Prod Mongo URL (from Railway prod env)
-- `/tmp/.SESSION_SECRET`                 — AES key for cpPass decryption (from Railway prod env)
+## Outstanding items (P1 / P2)
+- **P1 — AutoSSL** has NOT been run yet; HTTPS vhosts don't exist on new server. Customer domains served via HTTP through the tunnel (CF handles HTTPS to user). When customers want native HTTPS, run on new server:
+  ```
+  /usr/local/cpanel/scripts/autorepair set_autossl_provider_to_letsencrypt
+  whmapi1 start_autossl_for_all_users
+  ```
+- **P1 — `mainip` validation** for cPanel: new server's `/var/cpanel/mainip` = 68.183.77.106. Anti-fraud `allowremotedomains=1` was enabled to allow addon-domain creation; consider hardening once all customers re-upload.
+- **P2 — Old droplet destroy date**: Powered off now; destroy after 2026-07-01 (14-day retention window).
+- **P2 — Anti-red worker** is still active and routes some `curl`/automated traffic to Wikipedia (cloaking). Real browsers see the maintenance page (verified 7/10 spot-checked domains; the others may have CF edge-cache lag — should converge within 5-10 min).
+- **P2 — Tunnel UUID hardcoded** in bot env (`CF_TUNNEL_CNAME`) still points to OLD tunnel `f63ce7b5-…`. Update Railway env:
+  ```
+  CF_TUNNEL_CNAME=b395cebc-4b7a-4aba-8ced-e11665c26b30.cfargotunnel.com
+  ```
+  Otherwise the bot's anti-red sync logic may try to re-write CNAMEs to the dead old tunnel.
+- **P2 — Bot's `whm-service.js` plan-name mapping**: original Mongo `plan` field still has parens (`(1-Month)`); new WHM packages are sanitized (`1-Month`). When bot creates NEW accounts in future, it must call `createacct` with sanitized plan name. Either:
+  - Update bot code to call `sanitizePkg(plan)` before WHM API
+  - OR rename Mongo `plan` field to sanitized form
 
-## DB scope (verified)
-- Active accounts: **19**
-- Passwords decryptable: **19 (100%)**
-- Addon domains: **20**
-- Plans (5 distinct): Premium 1-Month×9, Golden 1-Month×7, Premium 30-Day×1, Golden 30-Day×1, Premium 1-Week×1
+## Costs accrued today
+- 2 failed migration droplets (snapshot-restore approach, destroyed): ~$0.02
+- Snapshot `whm-emergency-20260617-143633` (50.87 GB): ~$0.06/mo, keep 30 days
+- New droplet `578369745`: $32/mo
+- Old droplet `557194941` (powered off): $18/mo until destroyed
+- Total month-over-month delta: ~+$14/mo
 
-## Old droplet retention
-- Power state: keep ON for 14 days post-cutover for data preservation
-- Reminder set in this doc — destroy on **2026-07-01** if no issues.
+## What worked (vs what didn't)
+| Approach | Result |
+|----------|--------|
+| ❌ DO API password reset → SSH → password change | sshd exits 255 silently because disk-full prevents PAM writing /etc/shadow |
+| ❌ Snapshot-restore migration | Snapshot's network config pins old IP → new IP networking dead |
+| ❌ User using DO Web Console GRUB single-user | User couldn't catch 3-sec GRUB timer |
+| ✅ **Fresh AlmaLinux 9 + cPanel install + DB-driven account recreation** | This is what worked |
 
-## Snapshot retention
-- `233253132` (whm-emergency-20260617-143633, 50.87GB) — keep 30 days
-- `226828287` (pre-upcp-2026-05-01, 16.58GB) — older safety net
-
-## Failed approaches (so we don't repeat)
-- ❌ Snapshot-restore migration: snapshot's network config has old IP hardcoded; cPanel
-  disables cloud-init → new IP can't bind → ports stay closed. Tried 3 user_data variants.
-- ❌ SSH password change on old droplet: disk full → PAM can't write /etc/shadow → silent fail.
-- ❌ DO Web Console GRUB single-user: user couldn't catch the 3-sec GRUB timer.
-
-## What worked
-- ✅ DO API token in Railway prod env (Phase 0 — credential discovery)
-- ✅ AES-GCM cpPass decryption via SESSION_SECRET (Phase E prerequisite)
-- ✅ Fresh AlmaLinux 9 droplet (no snapshot inheritance issues)
-- ✅ Direct SSH cPanel install (skipped cloud-init write_files issue)
-
-## Next steps for the resuming agent (if context refreshed)
-1. Check installer progress:
-   ```
-   ssh -i /tmp/whm-migration/id_ed25519 root@68.183.77.106 \
-     'tail -10 /var/log/cpanel-install-stdout.log; ls /etc/cpanel/cpanel.config 2>&1'
-   ```
-2. Installer is DONE when `/etc/cpanel/cpanel.config` exists AND `systemctl is-active cpanel`
-   returns active.
-3. User then activates license: `ssh root@68.183.77.106 '/usr/local/cpanel/cpkeyclt'`
-4. Get WHM API token via WHM UI (Home → Manage API Tokens → Generate, name 'migration-2026-06-17')
-5. Run: `NEW_IP=68.183.77.106 NEW_WHM_TOKEN=<token> node /tmp/whm-migration/migrate_accounts.js --dry-run`
-6. Verify dry-run output looks right.
-7. Re-run without `--dry-run`.
-8. Phase G+H+J in sequence.
+## How to resume if context refreshes
+1. Read `/app/memory/WHM_MIGRATION_2026-06-17.md` (this file)
+2. Verify new server still healthy: `ssh -i /tmp/whm-migration/id_ed25519 root@68.183.77.106 'df -h /; whmapi1 listaccts | grep -c user:'`
+3. Outstanding items list above — pick from P1/P2 as user directs.
