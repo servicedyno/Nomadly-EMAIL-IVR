@@ -783,12 +783,46 @@ async function reinstallInstance(serviceName, opts) {
 }
 
 async function cancelInstance(serviceName, _opts = {}) {
-  // OVH cancellation: PUT /vps/{sn}/serviceInfos with renew.automatic=false +
-  // renew.deleteAtExpiration=true. Returns when the resource is fully terminated.
-  await ovhRequest('PUT', `/vps/${serviceName}/serviceInfos`, {
-    renew: { automatic: false, deleteAtExpiration: true, period: 1 },
+  // Cancel auto-renewal for an OVH VPS so it expires at the end of the
+  // current billing period (no early refund — OVH terminates on the next
+  // billing date). Caller can read `nextBillingDate` from the return shape
+  // to tell the customer exactly when service ends.
+  //
+  // ── CRITICAL: the legacy PUT /vps/{sn}/serviceInfos endpoint *silently
+  // no-ops* the `automatic`, `forced`, and `deleteAtExpiration` fields on
+  // ca.api.ovh.com — confirmed live 2026-06-18. Only `period` is mutable
+  // via that path. So we use the modern unified-services endpoint
+  // (`PUT /services/{numericServiceId}`) which is what the customer console
+  // itself uses now. The numeric serviceId comes from
+  // /vps/{sn}/serviceInfos.serviceId — it is a `long`, not the IAM UUID.
+  const info = await ovhRequest('GET', `/vps/${serviceName}/serviceInfos`)
+  if (!info?.serviceId) {
+    throw new Error(`OVH ${serviceName}: no numeric serviceId on /serviceInfos (cannot toggle auto-renew)`)
+  }
+
+  await ovhRequest('PUT', `/services/${info.serviceId}`, {
+    renew: { mode: 'manual', period: 'P1M' },
   })
-  return { instanceId: serviceName, action: 'cancel', method: 'auto-renew-off' }
+
+  // Re-read the unified service object so we can return live, post-mutation
+  // confirmation values to the caller (UI can show "your service ends on …").
+  let after = null
+  try {
+    after = await ovhRequest('GET', `/services/${info.serviceId}`)
+  } catch (_) {
+    // best-effort read; the PUT already succeeded so we don't fail the cancel
+  }
+
+  return {
+    instanceId:      serviceName,
+    serviceId:       info.serviceId,
+    action:          'cancel',
+    method:          'renew-mode-manual',
+    currentMode:     after?.billing?.renew?.current?.mode || 'manual',
+    nextBillingDate: after?.billing?.nextBillingDate || info.expiration || null,
+    expirationDate:  after?.billing?.expirationDate || info.expiration || null,
+    refundAmount:    0,
+  }
 }
 
 /**

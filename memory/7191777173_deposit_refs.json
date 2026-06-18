@@ -1,0 +1,42 @@
+[
+  {
+    "timestamp": "2026-06-18T03:52:44.863111801Z",
+    "message": "[DynoPay] Stored payment_id → refId mapping: 2fd3c05b-0654-48b1-a201-f165e587dcb8 → z02SZ",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:52:44.863125692Z",
+    "message": "Extracted refId: z02SZ",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:52:44.863128660Z",
+    "message": "Payment data found for ref: z02SZ = YES",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:52:44.863149079Z",
+    "message": "Extracted data - ref: z02SZ chatId: 7191777173 coin: BTC value: 0.00093443 transaction_id: 2fd3c05b-0654-48b1-a201-f165e587dcb8",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:14:59.680134545Z",
+    "message": "Extracted data - ref: drKee chatId: 7191777173 coin: BTC value: 0.00031227 transaction_id: a2b3a5a8-c103-4d63-bf89-8df4e5c1aadd",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:14:59.680222564Z",
+    "message": "[DynoPay] Stored payment_id → refId mapping: a2b3a5a8-c103-4d63-bf89-8df4e5c1aadd → drKee",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:14:59.680242704Z",
+    "message": "Extracted refId: drKee",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:14:59.680245894Z",
+    "message": "Payment data found for ref: drKee = YES",
+    "severity": "info"
+  }
+]

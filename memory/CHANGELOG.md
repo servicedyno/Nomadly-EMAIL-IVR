@@ -1,6 +1,37 @@
 # CHANGELOG — Nomadly Bot
 
 
+## 2026-06-18 — TRC20 $20 min-deposit bypass (string-comparison bug) + $60-vs-$30 dispute closed
+
+### Bug 1 — TRC20 floor never enforced (P0)
+`/app/js/_index.js` line 19973 (pre-fix) compared `ticker === 'trc20_usdt'` but the variable `ticker` actually held the **display key** (`'USDT (TRC20)'`) — `supportedCryptoView[tickerView]` returns the display key, not the internal ticker. The conditional was always false → every sub-$20 USDT-TRC20 wallet top-up bypassed the intercept.
+
+**Forensic audit** (last 14d, `audit_trc20_under_20.js`): 5 sub-$20 TRC20 top-ups found — refs `utC7I $15` (2026-06-18 11:22, after the "fix" was deployed), `J5bUy $10`, `iYdgp $15`, `3MDOK $11`, `u0PR3 $10`.
+
+**Fix**:
+1. Compare via the canonical `tickerOf` map: `tickerOf[ticker] === 'trc20_usdt'` (line 19991).
+2. Defense in depth at the address-generation gate (`showDepositCryptoInfo`, line 8346) — any future deep-link / admin shortcut / quick-button that bypasses the menu still gets caught.
+
+**Regression test**: `/app/js/__tests__/trc20-min-deposit-intercept.test.js` (9 assertions, reproduces the bug + verifies the fix). Run via `node /app/js/__tests__/trc20-min-deposit-intercept.test.js`.
+
+**Memo**: `/app/memory/TRC20_MIN_DEPOSIT_BYPASS_FIX_2026-06-18.md`.
+
+### Bug 2 — $60-vs-$30 deposit dispute (user 7191777173, Versace438) — CLOSED
+
+User claimed they "loaded $60 but only got $30." Full forensic from Mongo (`forensic_7191777173.js` + `forensic_7191777173_v2.js`) shows:
+
+- Welcome bonus: +$5 (TXN-…S754D)
+- Deposit #1 (z02SZ): 0.00093443 BTC → **+$30** (TXN-…5FCA6)
+- First-deposit bonus (auto): +$5 (no separate txn row; `$inc usdIn`)
+- Deposit #2 (drKee): 0.00031227 BTC → **+$20** (TXN-…AFCAE)
+- Domain `onlinechaseportal.com`: −$30 (TXN-…775E7)
+- Hosting Premium Anti-Red 1-Week: −$30 (hostingTransactions `6a33d525…`)
+- Prior agent's `+$30` "correction" → properly **reversed** (TXN-…6G7WT, status=reversed)
+
+`walletOf.usdIn` = $60, `usdOut` = $60, balance $0. All transactions reconcile. **No funds missing.** Memo: `/app/memory/DEPOSIT_DISPUTE_7191777173_RESOLUTION.md`.
+
+---
+
 ## 2026-02-XX — OVH Phase-2 polish (post-deploy + upgrade + dedicated)
 
 ### Phase-2 item 1 — Cloud-init / SSH-key auto-push to OVH instances

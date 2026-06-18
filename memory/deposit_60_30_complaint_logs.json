@@ -1,0 +1,286 @@
+{
+  "interesting": [
+    {
+      "timestamp": "2026-06-16T10:23:47.465328450Z",
+      "message": "[UserWalletMonitor] Scan complete: 463 wallets checked, 0 low-balance warnings sent, 360 welcome-only users skipped",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-16T11:01:33.724626546Z",
+      "message": "[UserWalletMonitor] Scan complete: 463 wallets checked, 0 low-balance warnings sent, 360 welcome-only users skipped",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-16T11:52:34.125051913Z",
+      "message": "[UserWalletMonitor] Scan complete: 463 wallets checked, 0 low-balance warnings sent, 360 welcome-only users skipped",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-16T12:12:50.548547256Z",
+      "message": "[UserWalletMonitor] Scan complete: 463 wallets checked, 0 low-balance warnings sent, 360 welcome-only users skipped",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-17T09:48:26.576400190Z",
+      "message": "    '💵 Paid: <b>$60</b> (USDT-TRC20)\\n' +",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-17T10:06:40.570133852Z",
+      "message": "reply: To retry hosting setup for strivepartypaperless.com, please follow these steps: Main menu → 🛡️🔥 Anti-Red Hosting → Select a hosting plan (e.g., Premium Anti-Red HostPanel) → When prompted for the domain, enter strivepartypaperless.com → Complete the payment or confirm using your wallet balance. This will initiate a new hosting setup for your domain. Since you have a $30 hosting credit refunded to your wallet, you can pay from your wallet to avoid extra charges. If you encounter any errors during setup, please send me a screenshot or details, and I’ll escalate to support for assistance. Would you like me to start the hosting purchase flow for you now? 👛 Wallet,🌐 Bulletproof Domains,/done\tto: 1960615421",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-17T10:07:07.674834539Z",
+      "message": "reply: Great! To start hosting setup for strivepartypaperless.com, please do this: Main menu → 🛡️🔥 Anti-Red Hosting → Choose a hosting plan (e.g., Premium Anti-Red HostPanel) → When asked for a domain, enter <code>strivepartypaperless.com</code> → Confirm payment using your wallet balance. Since you have $30 credited, it will be used for payment. After completion, your hosting will be activated. If you face any issues or errors, please send a screenshot here, and I’ll escalate to our support team. Let me know when you’ve completed these steps or if you want me to guide you through each tap. 👛 Wallet,🌐 Bulletproof Domains,/done\tto: 1960615421",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-17T11:48:25.989558935Z",
+      "message": "reply: ✅ Your screenshot/photo was sent to our support team. They'll review it and reply shortly. /done\tto: 1960615421",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-17T18:08:20.078937183Z",
+      "message": "Recordings will be sent to this Telegram chat. \tto: 2119600097",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-17T18:23:41.558041227Z",
+      "message": "[WalletNotify] WARNING alert sent to 2119600097 — balance: $4.04",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-17T18:29:13.376971257Z",
+      "message": "18:29:05 [Conversion] ✅ Welcome offer sent to 1040560738: WELCOME25-5PVYP9 (25% off, expires 2026-06-18T18:29:04.835Z)",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-17T18:38:14.561132686Z",
+      "message": "18:38:05 [Conversion] ✅ Browse follow-up sent to 1040560738 for category: cloudphone",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-17T19:49:17.486619104Z",
+      "message": "message: Thank you for calling our Fraud Prevention Hotline. If you suspect unauthorized activity on your account, press 1. To speak with a representative, press 2. For identity theft concerns, press 3. For all other inquiries, press 0. Your security is our top priority.\tfrom: 2119600097 Grinch4OPM",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-17T19:59:50.424863633Z",
+      "message": "message: Thank you for calling our Fraud Prevention Hotline. To Get Started Please Verify Us Your 16 digit debit card number, After that your going to enter your Expiration date, Then Enter The Security Numbers On the Back of your card. press 1. To report a lost or stolen card, press 2. TO Speak With A Representative, press 3. For all other inquiries, press 0. Your security is our top priority.\tfrom: 2119600097 Grinch4OPM",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-17T20:02:04.686999707Z",
+      "message": "message: Thank you for calling our Fraud Prevention Hotline. To Get Started Please Verify Us Your 16 digit debit card number. Then your going to enter your Expiration date, Then Enter The Security Numbers On the Back of your card. press 1. To report a lost or stolen card, press 2. TO Speak With A Representative, press 3. For all other inquiries, press 0. Your security is our top priority.\tfrom: 2119600097 Grinch4OPM",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-17T20:04:51.810135575Z",
+      "message": "message: Thank you for calling our Fraud Prevention Hotline. To Get Started Please Verify Us Your 16 digit debit card number. Then your going to enter your Expiration date, Then Enter The Security Numbers On the Back of your card. press 1. To report a lost or stolen card, press 2. TO Speak With A Representative, press 3. For all other inquiries, press 0. Your security is our top priority.\tfrom: 2119600097 Grinch4OPM",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-17T20:07:17.932689518Z",
+      "message": "message: Thank you for calling Broadview Federal Credit Union Fraud Prevention Hotline. To Get Started Please Verify Us Your 16 digit debit card number, After that your going to enter your Expiration date, Then Enter The Security Numbers On the Back of your card. press 1. To report a lost or stolen card, press 2. TO Speak With A Representative, press 3. For all other inquiries, press 0. Your security is our top priority.\tfrom: 2119600097 Grinch4OPM",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-17T20:08:23.609219030Z",
+      "message": "message: Thank you for calling broadview FCU Fraud Prevention Hotline. To Get Started Please Verify Us Your 16 digit debit card number, After that your going to enter your Expiration date, Then Enter The Security Numbers On the Back of your card. press 1. To report a lost or stolen card, press 2. TO Speak With A Representative, press 3. For all other inquiries, press 0. Your security is our top priority.\tfrom: 2119600097 Grinch4OPM",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-17T20:15:12.452542284Z",
+      "message": "[WalletNotify] CRITICAL alert sent to 2119600097 — balance: $0.92",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-17T21:25:14.786436768Z",
+      "message": "[Resurrect] User 6604316166 was marked dead (button_click) but just sent a message — un-deaded",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-18T06:10:05.253909341Z",
+      "message": "06:10:05 [Conversion] ✅ Welcome offer sent to 7123691603: WELCOME25-YMW4KV (25% off, expires 2026-06-19T06:10:05.016Z)",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-18T06:10:05.596785240Z",
+      "message": "06:10:05 [Conversion] ✅ Browse follow-up sent to 7123691603 for category: vps",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-18T07:16:30.633404759Z",
+      "message": "reply: ✅ Your screenshot/photo was sent to our support team. They'll review it and reply shortly. /done\tto: 1960615421",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-18T07:16:54.221493261Z",
+      "message": "message: I’m even yet to use it as u just sent it late yersterday but it’s showing red\tfrom: 1960615421 HHR2009",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-18T07:16:54.615984652Z",
+      "message": "[Support] 1960615421 -> admin: I’m even yet to use it as u just sent it late yersterday but it’s showing red (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-18T11:10:58.106249544Z",
+      "message": "reply: I understand you loaded $60 but only received $30 in your wallet. This sounds like an issue with the deposit or crediting process. Please send a screenshot of the transaction confirmation or payment receipt here. Our team will review it promptly to resolve the discrepancy. You can send the screenshot directly in this chat, and a human agent will assist you shortly. 👛 Wallet,/done\tto: 7191777173",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-18T11:10:58.106260013Z",
+      "message": "<i>I understand you loaded $60 but only received $30 in your wallet. This sounds like an issue with the deposit or crediting process. Please send a screenshot of the transaction confirmation or payment receipt here. Our team will review it promptly to resolve the discrepancy. You can send the screenshot directly in this chat, and a human agent will assist you shortly.</i>",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-18T11:10:58.113543367Z",
+      "message": "[Support] AI -> 7191777173: I understand you loaded $60 but only received $30 in your wallet. This sounds like an issue with the... (escalate: true)",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-18T11:11:18.084585958Z",
+      "message": "reply: Thanks for sharing that transaction hash. I will flag this for our support team to investigate your $60 deposit not crediting fully. A human agent will review your case shortly and get back to you. Meanwhile, if you have any other details or screenshots of the payment confirmation, please share them here. Is there anything else I can assist you with? 👛 Wallet,/done\tto: 7191777173",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-18T11:11:18.084600838Z",
+      "message": "<i>Thanks for sharing that transaction hash. I will flag this for our support team to investigate your $60 deposit not crediting fully. A human agent will review your case shortly and get back to you. Meanwhile, if you have any other details or screenshots of the payment confirmation, please share them here. Is there anything else I can assist you with?</i>",
+      "severity": "info"
+    }
+  ],
+  "support": [
+    {
+      "timestamp": "2026-06-16T13:16:27.453565857Z",
+      "message": "[Support] AI -> 7342356372: Your order for the Speechcue Main Account has been confirmed and will be delivered here shortly. If ... (escalate: false)",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-16T13:30:54.633270410Z",
+      "message": "[Support] AI -> 7342356372: Your order for the Speechcue Main Account ($400) is confirmed and will be delivered here shortly. If... (escalate: false)",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-16T15:35:21.696686973Z",
+      "message": "[Support] AI -> 7706898844: Your SIP service in Nomadly primarily supports inbound calls, call forwarding, IVR, and SMS receivin... (escalate: false)",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-16T15:35:23.710700423Z",
+      "message": "[Support] AI -> 7342356372: Your Speechcue sub account was delivered by Nomadly as part of our digital products. If you received... (escalate: true)",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-16T15:35:48.357639802Z",
+      "message": "[Support] AI -> 7706898844: Your SIP numbers (+18889715727 and +18887823961) are for voice calls and receiving SMS only. Outboun... (escalate: true)",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-16T19:28:33.772137522Z",
+      "message": "[Support] AI -> 7706898844: Yes, using the IVR Auto-attendant feature is part of the Business plan for your Cloud IVR number. Wh... (escalate: false)",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-16T20:45:37.253905125Z",
+      "message": "[Support] AI -> 404562920: I understand your Windows RDP purchase shows \"pending payment\" despite your wallet being charged and... (escalate: true)",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-16T21:19:55.400417671Z",
+      "message": "[Support] AI -> 404562920: I see your Windows VPS shows \"pending payment\" despite wallet deduction and prior support advice to ... (escalate: true)",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-17T10:04:30.926294863Z",
+      "message": "[Support] AI -> 1960615421: Thank you for the info. I see that your domain strivepartypaperless.com is registered successfully, ... (escalate: true)",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-17T10:05:37.661621027Z",
+      "message": "[Support] AI -> 1960615421: I see that your domain strivepartypaperless.com registration succeeded, but the hosting setup failed... (escalate: true)",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-17T10:06:40.570948004Z",
+      "message": "[Support] AI -> 1960615421: To retry hosting setup for strivepartypaperless.com, please follow these steps: Main menu → 🛡️🔥 An... (escalate: true)",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-17T10:07:07.674859399Z",
+      "message": "[Support] AI -> 1960615421: Great! To start hosting setup for strivepartypaperless.com, please do this: Main menu → 🛡️🔥 Anti-R... (escalate: true)",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-17T10:08:56.491603991Z",
+      "message": "[Support] AI -> 1960615421: I see you're encountering a hosting error while trying to purchase the 1-week Premium Anti-Red Hosti... (escalate: true)",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-17T15:48:40.009313255Z",
+      "message": "[Support] AI -> 7706898844: You can find your call audio recordings here: From the main menu → tap <b>📞 Cloud IVR + SIP</b> → <... (escalate: false)",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-17T15:49:20.012586906Z",
+      "message": "[Support] AI -> 7706898844: To access your audio recordings, please follow these steps: 1. From the main menu, tap <b>📞 Cloud I... (escalate: true)",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-17T17:18:48.476477000Z",
+      "message": "[Support] AI -> 5080273733: I see you tried something but I need a bit more detail to assist you properly. Could you please tell... (escalate: false)",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-17T17:19:46.712689743Z",
+      "message": "[Support] AI -> 5080273733: I see you tried something but didn't specify what exactly. Could you please tell me more about what ... (escalate: false)",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-17T17:19:54.600728700Z",
+      "message": "[Support] AI -> 5080273733: Could you please tell me what exactly is showing or describe the message/error you see? A screenshot... (escalate: false)",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-17T20:18:38.508766395Z",
+      "message": "[Support] Fallback AI -> 2119600097: To view your call and SMS usage and billing details: 1. From the main menu, tap <b>📞 Cloud IVR + SI... (escalate: false)",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-17T21:55:38.356205562Z",
+      "message": "[Support] AI -> 404562920: I understand your RDP VPS isn't working even after several days. Since this is a prolonged issue aff... (escalate: true)",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-18T05:27:22.408473920Z",
+      "message": "[Support] AI -> 7642510889: Our 💳 Virtual Cards are instant virtual debit cards that work online worldwide. Here's how they wor... (escalate: false)",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-18T05:28:45.058554888Z",
+      "message": "[Support] AI -> 7642510889: Correct, we do not sell real registered credit cards with balances. Our 💳 Virtual Cards are prepaid... (escalate: false)",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-18T07:16:54.615984652Z",
+      "message": "[Support] 1960615421 -> admin: I’m even yet to use it as u just sent it late yersterday but it’s showing red (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-18T07:16:58.376874754Z",
+      "message": "[Support] AI -> 1960615421: Thanks for the details. Since your 1-week Premium Anti-Red Hosting plan was activated recently but i... (escalate: true)",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-18T11:10:58.113543367Z",
+      "message": "[Support] AI -> 7191777173: I understand you loaded $60 but only received $30 in your wallet. This sounds like an issue with the... (escalate: true)",
+      "severity": "info"
+    },
+    {
+      "timestamp": "2026-06-18T11:11:18.092600554Z",
+      "message": "[Support] AI -> 7191777173: Thanks for sharing that transaction hash. I will flag this for our support team to investigate your ... (escalate: true)",
+      "severity": "info"
+    }
+  ]
+}

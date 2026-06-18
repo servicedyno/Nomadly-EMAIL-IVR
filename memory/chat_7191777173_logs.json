@@ -1,0 +1,1302 @@
+[
+  {
+    "timestamp": "2026-06-18T02:39:34.405028573Z",
+    "message": "message: /start\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T02:39:34.405037066Z",
+    "message": "You can always change your language later in the settings. 🇬🇧 English,🇫🇷 French,🇨🇳 Chinese,🇮🇳 Hindi\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:13:14.842686233Z",
+    "message": "message: 🇬🇧 English\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:13:14.842703213Z",
+    "message": "[WelcomeBonus] Transaction logged: TXN-20260618-S754D - $5 to 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:13:14.842705968Z",
+    "message": "[WelcomeBonus] Awarded $5 to chatId=7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:13:14.842725771Z",
+    "message": "Thank you for joining Nomadly! 🚀 \tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:13:14.842731099Z",
+    "message": "[WelcomeBonus] Awarded $5 to new user chatId=7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:13:14.842733917Z",
+    "message": "03:13:08 [Conversion] Onboarding tracked for 7191777173 (lang: en, no guided message)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:13:14.842736742Z",
+    "message": "03:13:08 [Conversion] Welcome offer scheduled for 7191777173 in 120 min",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:13:14.844135547Z",
+    "message": "Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:13:23.393892409Z",
+    "message": "message: 🌐 Bulletproof Domains\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:13:23.447773847Z",
+    "message": "🌐 182 domains registered this week 🛒🌐 Buy Domain Names,📂 My Domain Names,🔧 DNS Management,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:13:27.822535681Z",
+    "message": "message: 🛒🌐 Buy Domain Names\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:13:27.910030886Z",
+    "message": "💰 Pricing from $30/year \tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:16:34.138335244Z",
+    "message": "message: Chase-portal.com\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:16:34.217109171Z",
+    "message": "reply: 🔍 Searching availability for chase-portal.com ... \tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:16:36.417012636Z",
+    "message": "reply: ❌ <b>chase-portal.com</b> is not available. \tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:16:36.417021147Z",
+    "message": "reply: 🔍 Searching alternatives for <b>chase-portal</b> ... \tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:16:37.980400896Z",
+    "message": "Type any domain name to check: \tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:36:34.208925813Z",
+    "message": "03:36:34 [CartRecovery] Silent abandonment detected for 7191777173 at action: choose-domain-to-buy",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:36:34.235149798Z",
+    "message": "03:36:34 [CartRecovery] User 7191777173 abandoned domain (action: choose-domain-to-buy). Scheduling nudge in 45 min",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:41:04.006423195Z",
+    "message": "message: Onlinechaseportal.com\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:41:04.006426862Z",
+    "message": "reply: 🔍 Searching availability for onlinechaseportal.com ... \tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:41:04.265001614Z",
+    "message": "<b>No</b> — Register only. Enable shortener anytime from Manage Domains. ✅ Yes,❌ No,↩️ Back,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:41:48.002613568Z",
+    "message": "message: ✅ Yes\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:41:48.002617356Z",
+    "message": "reply: Price of onlinechaseportal.com is 30 USD. Choose payment method. Crypto,👛 Wallet,🎟️ Apply Coupon,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:41:48.002626430Z",
+    "message": "message: 👛 Wallet\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:41:48.002641537Z",
+    "message": "Confirm? ✅ Yes,❌ No,↩️ Back,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:42:08.003526410Z",
+    "message": "message: ➕💵 Deposit\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:42:08.003529573Z",
+    "message": "message: ✅ Yes\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:42:08.003533776Z",
+    "message": "reply: 💵 Deposit Amount (min. $10): \tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:42:08.003536164Z",
+    "message": "03:41:58 [CartRecovery] Payment completed for 7191777173 — cart cleared",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:42:08.003556927Z",
+    "message": "Tap Deposit ⬇️ ➕💵 Deposit,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:42:28.005714490Z",
+    "message": "message: 30\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:42:28.005726294Z",
+    "message": "Select payment method: ₿ Crypto,↩️ Back,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:42:28.198278057Z",
+    "message": "message: ₿ Crypto\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:42:28.258545175Z",
+    "message": "reply: Please choose a crypto currency: ₿ Bitcoin (BTC),Ł Litecoin (LTC),Ð Dogecoin (DOGE),Ƀ Bitcoin Cash (BCH),Ξ Ethereum (ETH),🌐 Tron (TRX),₮ Tether (USDT - TRC20),₮ Tether (USDT - ERC20),Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:42:32.469259343Z",
+    "message": "message: ₿ Bitcoin (BTC)\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:42:36.802455425Z",
+    "message": "Nomadly Bot 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP �� Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:52:44.863134185Z",
+    "message": "  chatId: '7191777173',",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:52:44.863149079Z",
+    "message": "Extracted data - ref: z02SZ chatId: 7191777173 coin: BTC value: 0.00093443 transaction_id: 2fd3c05b-0654-48b1-a201-f165e587dcb8",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:52:44.863163346Z",
+    "message": "Crediting wallet for chatId: 7191777173 amount: $30",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:52:44.865052927Z",
+    "message": "  chatId: '7191777173'",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:52:44.865055344Z",
+    "message": "{ message: 'Wallet Balance:\\n\\n$35.00', chatId: '7191777173' }",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:52:44.865097734Z",
+    "message": "  chatId: '7191777173'",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:52:44.865108597Z",
+    "message": "03:52:36 [Conversion] First deposit bonus: $5 for chatId=7191777173 (deposited $30)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:52:44.866859614Z",
+    "message": "[Conversion] First deposit bonus $5 awarded to 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T03:52:44.866863902Z",
+    "message": "03:52:36 [CartRecovery] Payment completed for 7191777173 — cart cleared",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T10:55:37.919332391Z",
+    "message": "message: /start\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T10:55:37.919362340Z",
+    "message": "Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T10:55:39.523546486Z",
+    "message": "message: 👛 Wallet\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T10:55:39.648565452Z",
+    "message": "🏆 Spend <b>$100</b> more → <b>Silver 🥈</b> (5% off everything) ➕💵 Deposit,📜 Transactions,🏆 My Tier,↩️ Back,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T10:55:59.589389152Z",
+    "message": "message: 📜 Transactions\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T10:55:59.589396932Z",
+    "message": "reply: ⏳ Loading transactions... \tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T10:55:59.599270101Z",
+    "message": "Showing last 3 transactions ➕💵 Deposit,↩️ Back,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T10:56:27.768553574Z",
+    "message": "message: ↩️ Back\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T10:56:27.768591023Z",
+    "message": "Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T10:57:58.307361307Z",
+    "message": "message: /start\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T10:57:58.307387657Z",
+    "message": "Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T10:57:58.307395157Z",
+    "message": "message: 🌐 Bulletproof Domains\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T10:57:58.307545915Z",
+    "message": "🌐 182 domains registered this week 🛒🌐 Buy Domain Names,📂 My Domain Names,🔧 DNS Management,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T10:57:58.307554145Z",
+    "message": "message: 📂 My Domain Names\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T10:57:58.307556565Z",
+    "message": "reply: You have no purchased domains yet. 🛒🌐 Buy Domain Names,↩️ Back,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T10:57:58.571721113Z",
+    "message": "message: 🛒🌐 Buy Domain Names\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T10:57:58.593697020Z",
+    "message": "💰 Pricing from $30/year Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T10:58:58.484775088Z",
+    "message": "message: onlinechaseportal.com\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T10:58:58.484882537Z",
+    "message": "reply: 🔍 Searching availability for onlinechaseportal.com ... \tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T10:59:00.643830749Z",
+    "message": "<b>No</b> — Register only. Enable shortener anytime from Manage Domains. ✅ Yes,❌ No,↩️ Back,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T10:59:38.136914062Z",
+    "message": "message: ✅ Yes\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T10:59:38.136920611Z",
+    "message": "reply: Price of onlinechaseportal.com is 30 USD. Choose payment method. Crypto,👛 Wallet,🎟️ Apply Coupon,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T10:59:43.775656889Z",
+    "message": "message: Crypto\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T10:59:43.912918180Z",
+    "message": "<i>ℹ️ USDT (TRC20) requires a minimum deposit of $20.</i> ₿ Bitcoin (BTC),Ł Litecoin (LTC),Ð Dogecoin (DOGE),Ƀ Bitcoin Cash (BCH),Ξ Ethereum (ETH),🌐 Tron (TRX),₮ Tether (USDT - TRC20),₮ Tether (USDT - ERC20),Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T10:59:48.573413312Z",
+    "message": "message: ₿ Bitcoin (BTC)\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T10:59:52.638154121Z",
+    "message": "Nomadly Bot 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:00:31.426094623Z",
+    "message": "message: 🌐 Bulletproof Domains\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:00:31.426106202Z",
+    "message": "🌐 182 domains registered this week 🛒🌐 Buy Domain Names,📂 My Domain Names,🔧 DNS Management,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:00:51.477109724Z",
+    "message": "message: onlinechaseportal.com\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:00:51.477113554Z",
+    "message": "[reset] Unrecognized message from 7191777173: \"onlinechaseportal.com\" (was action: submenu2).",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:00:51.477120944Z",
+    "message": "Thank you for choosing Nomadly Bot! Please choose an option below: 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:00:56.391741635Z",
+    "message": "message: 👛 Wallet\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:00:56.422573581Z",
+    "message": "🏆 Spend <b>$100</b> more → <b>Silver 🥈</b> (5% off everything) ➕💵 Deposit,📜 Transactions,🏆 My Tier,↩️ Back,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:01:16.428465756Z",
+    "message": "message: 📜 Transactions\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:01:16.428469946Z",
+    "message": "reply: ⏳ Loading transactions... \tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:01:16.429648556Z",
+    "message": "Showing last 3 transactions ➕💵 Deposit,↩️ Back,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:01:23.753092165Z",
+    "message": "message: ↩️ Back\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:01:23.865125168Z",
+    "message": "Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:01:27.557032093Z",
+    "message": "message: 🌐 Bulletproof Domains\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:01:27.675149131Z",
+    "message": "🌐 182 domains registered this week 🛒🌐 Buy Domain Names,📂 My Domain Names,🔧 DNS Management,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:01:33.048360775Z",
+    "message": "message: 🛒🌐 Buy Domain Names\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:01:33.048372955Z",
+    "message": "💰 Pricing from $30/year \tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:01:37.534584793Z",
+    "message": "message: onlinechaseportal.com\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:01:37.706580493Z",
+    "message": "reply: 🔍 Searching availability for onlinechaseportal.com ... \tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:01:39.289538422Z",
+    "message": "<b>No</b> — Register only. Enable shortener anytime from Manage Domains. ✅ Yes,❌ No,↩️ Back,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:01:42.175462830Z",
+    "message": "message: ✅ Yes\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:01:42.202533070Z",
+    "message": "reply: Price of onlinechaseportal.com is 30 USD. Choose payment method. Crypto,👛 Wallet,🎟️ Apply Coupon,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:01:44.291763126Z",
+    "message": "message: 👛 Wallet\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:01:44.334391272Z",
+    "message": "Confirm? ✅ Yes,❌ No,↩️ Back,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:01:48.653461984Z",
+    "message": "message: ✅ Yes\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:01:48.723691964Z",
+    "message": "11:01:48 [CartRecovery] Payment completed for 7191777173 — cart cleared",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:01:48.781854727Z",
+    "message": "  chatId: '7191777173'",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:02:03.838257683Z",
+    "message": "<i>Quote this ID when contacting support</i> 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧 BulkSMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗 URL Shortener,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:02:03.847441498Z",
+    "message": "<b>Total:</b> $7.98 ✅ Add Recommended,🏠 Add Hosting Only,⏭️ Skip for Now,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:02:03.847459187Z",
+    "message": "[ShortenerPersistence] Task created for onlinechaseportal.com (chatId: 7191777173)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:02:04.890801127Z",
+    "message": "  chatId: '7191777173'",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:02:10.514514899Z",
+    "message": "  chatId: '7191777173'",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:02:10.619749316Z",
+    "message": "$10.00 \tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:02:12.404420008Z",
+    "message": "Tap one of the options below to continue. 🔗 Activate Domain for Shortener,🛡️🔥 Anti-Red Hosting,↩️ Back,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:02:32.568136731Z",
+    "message": "message: 🛡️🔥 Anti-Red Hosting\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:02:32.568148311Z",
+    "message": "🔥 72 users bought hosting this week ⚡ Premium Anti-Red (1-Week),🔷 Premium Anti-Red HostPanel (30 Days),👑 Golden Anti-Red HostPanel (30 Days),📋 My Hosting Plans,💳 My Plan / Billing,📞 Contact Support,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:02:52.356618176Z",
+    "message": "message: ⚡ Premium Anti-Red (1-Week)\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:02:52.356636396Z",
+    "message": "HostPanel — file, DB & email management 🛒 Buy Premium Anti-Red (1-Week),🔷 View Premium HostPanel,👑 View Golden HostPanel,⬅️ Back To Hosting Plans\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:03:32.257449282Z",
+    "message": "message: 🛒 Buy Premium Anti-Red (1-Week)\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:03:32.257465382Z",
+    "message": "🔗 <b>Connect External Domain</b> — Use a domain you own 🌐 Register a New Domain,📂 Use My Domain,🔗 Connect External Domain,⬅️ Back to Premium Weekly Details\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:03:38.565596450Z",
+    "message": "message: 📂 Use My Domain\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:03:38.565599750Z",
+    "message": "reply: Select a domain from your registered domains: onlinechaseportal.com,↩️ Back,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:03:41.411607079Z",
+    "message": "message: onlinechaseportal.com\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:03:41.443364175Z",
+    "message": "Tap \"Skip\" to continue without one. Skip (no email),Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:05:17.763403774Z",
+    "message": "message: Markmiller438@icloud.com\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:05:17.892162312Z",
+    "message": "reply: Use <b>Markmiller438@icloud.com</b> for this account? Proceed with Markmiller438@icloud.com,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:05:26.298237684Z",
+    "message": "message: Proceed with Markmiller438@icloud.com\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:05:26.332371517Z",
+    "message": "Pay within 1 hr to activate. Your hosting will be provisioned automatically. Crypto,👛 Wallet,🎟️ Apply Coupon,↩️ Back,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:05:46.519819340Z",
+    "message": "message: 👛 Wallet\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:05:46.519839770Z",
+    "message": "Confirm? ✅ Yes,❌ No,↩️ Back,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:05:47.590580531Z",
+    "message": "message: ↩️ Back\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:05:47.635602344Z",
+    "message": "11:05:47 [CartRecovery] User 7191777173 abandoned hosting (action: hosting-pay). Scheduling nudge in 45 min",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:05:47.635606054Z",
+    "message": "reply: ⏳ Payment already in progress. Please wait... \tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:06:22.113078717Z",
+    "message": "message: 👛 Wallet\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:06:22.113120237Z",
+    "message": "🏆 Spend <b>$70</b> more → <b>Silver 🥈</b> (5% off everything) ➕💵 Deposit,📜 Transactions,🏆 My Tier,↩️ Back,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:06:28.510845717Z",
+    "message": "message: 📜 Transactions\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:06:28.555145317Z",
+    "message": "reply: ⏳ Loading transactions... \tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:06:28.555444724Z",
+    "message": "Showing last 5 transactions ➕💵 Deposit,↩️ Back,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:06:48.438457303Z",
+    "message": "message: ↩️ Back\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:06:48.438501212Z",
+    "message": "Select an option below \tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:07:18.295668159Z",
+    "message": "message: 👛 Wallet\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:07:18.399972794Z",
+    "message": "🏆 Spend <b>$70</b> more → <b>Silver 🥈</b> (5% off everything) ➕💵 Deposit,📜 Transactions,🏆 My Tier,↩️ Back,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:07:22.104379196Z",
+    "message": "message: ➕💵 Deposit\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:07:22.220328123Z",
+    "message": "reply: 💵 Deposit Amount (min. $10): \tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:07:42.249820092Z",
+    "message": "message: 20\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:07:42.249833622Z",
+    "message": "Select payment method: ₿ Crypto,↩️ Back,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:07:43.470682472Z",
+    "message": "message: ₿ Crypto\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:07:43.544887415Z",
+    "message": "<i>ℹ️ USDT (TRC20) requires a minimum deposit of $20.</i> ₿ Bitcoin (BTC),Ł Litecoin (LTC),Ð Dogecoin (DOGE),Ƀ Bitcoin Cash (BCH),Ξ Ethereum (ETH),🌐 Tron (TRX),₮ Tether (USDT - TRC20),₮ Tether (USDT - ERC20),Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:07:45.669232832Z",
+    "message": "message: ₿ Bitcoin (BTC)\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:07:49.727600697Z",
+    "message": "Nomadly Bot \tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:09:29.811876838Z",
+    "message": "message: 📢 Join Channel\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:09:29.811879178Z",
+    "message": "reply: Please Join Channel https://t.me/Hostbay \tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:10:28.053524416Z",
+    "message": "Reply with: /reply 7191777173 <i>your message</i>",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:10:28.053530276Z",
+    "message": "📎 Or attach a photo/file with caption: <code>/reply 7191777173 your caption</code>",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:10:28.053531346Z",
+    "message": "message: 💬 Support\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:10:28.053534676Z",
+    "message": "Close with: /close 7191777173 \tto: 5590563715",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:10:28.053554866Z",
+    "message": "[Support] Session opened for 7191777173 Versace438 — AI will auto-respond, escalation to admin if needed",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:10:28.053576215Z",
+    "message": "When done, send /done to close the chat. /done\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:10:28.053592085Z",
+    "message": "User: <b>@Versace438</b> (7191777173)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:10:58.106168454Z",
+    "message": "message: I loaded 60 only gave me 30\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:10:58.106174184Z",
+    "message": "reply: 💬 <b>@Versace438</b> (7191777173):",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:10:58.106210034Z",
+    "message": "↩️ /reply 7191777173 <i>type response (auto-translates to EN)</i> \tto: 5590563715",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:10:58.106246154Z",
+    "message": "[Support] 7191777173 -> admin: I loaded 60 only gave me 30 (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:10:58.106249544Z",
+    "message": "reply: I understand you loaded $60 but only received $30 in your wallet. This sounds like an issue with the deposit or crediting process. Please send a screenshot of the transaction confirmation or payment receipt here. Our team will review it promptly to resolve the discrepancy. You can send the screenshot directly in this chat, and a human agent will assist you shortly. 👛 Wallet,/done\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:10:58.106256413Z",
+    "message": "reply: 🤖 <b>AI replied to @Versace438</b> (7191777173):",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:10:58.113543367Z",
+    "message": "[Support] AI -> 7191777173: I understand you loaded $60 but only received $30 in your wallet. This sounds like an issue with the... (escalate: true)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:10:58.113545777Z",
+    "message": "[Escalation] OPENED id=EKjiu chatId=7191777173 reason=\"ai_flagged\"",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:10:58.114187961Z",
+    "message": "📣 <i>I've flagged this for our human support team. Expect a reply within ~10 minutes during business hours. Ref: <code>EKjiu</code></i> \tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:11:18.084528648Z",
+    "message": "message: 01abbd84bf3934831a9513886fb1843b7a1886eab6702ae45de586082df228c1\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:11:18.084533368Z",
+    "message": "reply: 💬 <b>@Versace438</b> (7191777173):",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:11:18.084572718Z",
+    "message": "↩️ /reply 7191777173 <i>type response (auto-translates to EN)</i> \tto: 5590563715",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:11:18.084581278Z",
+    "message": "[Support] 7191777173 -> admin: 01abbd84bf3934831a9513886fb1843b7a1886eab6702ae45de586082df228c1 (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:11:18.084585958Z",
+    "message": "reply: Thanks for sharing that transaction hash. I will flag this for our support team to investigate your $60 deposit not crediting fully. A human agent will review your case shortly and get back to you. Meanwhile, if you have any other details or screenshots of the payment confirmation, please share them here. Is there anything else I can assist you with? 👛 Wallet,/done\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:11:18.084595798Z",
+    "message": "reply: 🤖 <b>AI replied to @Versace438</b> (7191777173):",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:11:18.092600554Z",
+    "message": "[Support] AI -> 7191777173: Thanks for sharing that transaction hash. I will flag this for our support team to investigate your ... (escalate: true)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:11:18.092606044Z",
+    "message": "[Escalation] DEDUP — follow-up for 7191777173 (id=EKjiu)",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:11:18.092622064Z",
+    "message": "📣 <i>I've flagged this for our human support team. Expect a reply within ~10 minutes during business hours. Ref: <code>EKjiu</code></i> \tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:14:59.680134545Z",
+    "message": "Extracted data - ref: drKee chatId: 7191777173 coin: BTC value: 0.00031227 transaction_id: a2b3a5a8-c103-4d63-bf89-8df4e5c1aadd",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:14:59.680156255Z",
+    "message": "Crediting wallet for chatId: 7191777173 amount: $20",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:14:59.680252924Z",
+    "message": "  chatId: '7191777173',",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:14:59.687586296Z",
+    "message": "{ message: 'Wallet Balance:\\n\\n$30.00', chatId: '7191777173' }",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:14:59.687623065Z",
+    "message": "  chatId: '7191777173'",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:14:59.687648456Z",
+    "message": "11:14:55 [CartRecovery] Payment completed for 7191777173 — cart cleared",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:18:12.308792068Z",
+    "message": "message: /done\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:18:12.308796897Z",
+    "message": "reply: No active support session. \tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:18:52.553551721Z",
+    "message": "message: 🛡️🔥 Anti-Red Hosting\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:18:52.553563421Z",
+    "message": "🔥 72 users bought hosting this week ⚡ Premium Anti-Red (1-Week),🔷 Premium Anti-Red HostPanel (30 Days),👑 Golden Anti-Red HostPanel (30 Days),📋 My Hosting Plans,💳 My Plan / Billing,📞 Contact Support,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:18:52.856224218Z",
+    "message": "message: 📋 My Hosting Plans\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:18:52.901236851Z",
+    "message": "reply: 📋 <b>My Hosting Plans</b>\\n\\nYou have no active hosting plans. Purchase a plan to get started! 🛡️🔥 Anti-Red Hosting,↩️ Back,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:18:56.604400635Z",
+    "message": "message: ↩️ Back\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:18:56.711219537Z",
+    "message": "🔥 72 users bought hosting this week ⚡ Premium Anti-Red (1-Week),🔷 Premium Anti-Red HostPanel (30 Days),👑 Golden Anti-Red HostPanel (30 Days),📋 My Hosting Plans,💳 My Plan / Billing,📞 Contact Support,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:19:01.115927464Z",
+    "message": "message: ⚡ Premium Anti-Red (1-Week)\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:19:01.133160845Z",
+    "message": "HostPanel — file, DB & email management 🛒 Buy Premium Anti-Red (1-Week),🔷 View Premium HostPanel,👑 View Golden HostPanel,⬅️ Back To Hosting Plans\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:19:27.955451303Z",
+    "message": "message: 🔷 View Premium HostPanel\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:19:27.955470503Z",
+    "message": "HostPanel — backups, migration & advanced tools 🛒 Buy Premium Anti-Red HostPanel,⚡ View Premium Weekly,👑 View Golden HostPanel,⬅️ Back To Hosting Plans\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:19:27.955481433Z",
+    "message": "message: 🛒 Buy Premium Anti-Red HostPanel\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:19:27.955502803Z",
+    "message": "🔗 <b>Connect External Domain</b> — Use a domain you own 🌐 Register a New Domain,📂 Use My Domain,🔗 Connect External Domain,⬅️ Back to Premium HostPanel Details\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:19:28.130606524Z",
+    "message": "message: 📂 Use My Domain\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:19:28.288847804Z",
+    "message": "reply: Select a domain from your registered domains: onlinechaseportal.com,↩️ Back,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:19:30.544948687Z",
+    "message": "message: onlinechaseportal.com\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:19:30.701304212Z",
+    "message": "Tap \"Skip\" to continue without one. Skip (no email),Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:20:06.897868210Z",
+    "message": "message: Markmiller438@icloud.com\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:20:06.897872280Z",
+    "message": "reply: Use <b>Markmiller438@icloud.com</b> for this account? Proceed with Markmiller438@icloud.com,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:20:10.088718369Z",
+    "message": "message: Proceed with Markmiller438@icloud.com\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:20:10.124368372Z",
+    "message": "Pay within 1 hr to activate. Your hosting will be provisioned automatically. Crypto,👛 Wallet,🎟️ Apply Coupon,↩️ Back,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:21:12.018747953Z",
+    "message": "message: /start\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:21:12.018756573Z",
+    "message": "11:21:04 [CartRecovery] User 7191777173 abandoned hosting (action: hosting-pay). Scheduling nudge in 45 min",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:21:12.018791512Z",
+    "message": "Select an option below \tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:21:13.816465362Z",
+    "message": "message: 👛 Wallet\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:21:13.816491382Z",
+    "message": "🏆 Spend <b>$70</b> more → <b>Silver 🥈</b> (5% off everything) ➕💵 Deposit,📜 Transactions,🏆 My Tier,↩️ Back,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:21:16.213813256Z",
+    "message": "message: 📜 Transactions\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:21:16.317031055Z",
+    "message": "reply: ⏳ Loading transactions... \tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:21:16.378993941Z",
+    "message": "Showing last 7 transactions ➕💵 Deposit,↩️ Back,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:21:36.130163831Z",
+    "message": "message: ↩️ Back\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:21:36.130316020Z",
+    "message": "message: 🛡️🔥 Anti-Red Hosting\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:21:36.130338099Z",
+    "message": "Select an option below \tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:21:36.130364789Z",
+    "message": "🔥 72 users bought hosting this week ⚡ Premium Anti-Red (1-Week),🔷 Premium Anti-Red HostPanel (30 Days),👑 Golden Anti-Red HostPanel (30 Days),📋 My Hosting Plans,💳 My Plan / Billing,📞 Contact Support,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:21:40.051733814Z",
+    "message": "message: ⚡ Premium Anti-Red (1-Week)\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:21:40.073282981Z",
+    "message": "HostPanel — file, DB & email management 🛒 Buy Premium Anti-Red (1-Week),🔷 View Premium HostPanel,👑 View Golden HostPanel,⬅️ Back To Hosting Plans\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:22:30.282741948Z",
+    "message": "message: /start\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:22:30.282778878Z",
+    "message": "Select an option below \tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:22:30.282790588Z",
+    "message": "message: 🛡️🔥 Anti-Red Hosting\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:22:30.283253184Z",
+    "message": "🔥 72 users bought hosting this week ⚡ Premium Anti-Red (1-Week),🔷 Premium Anti-Red HostPanel (30 Days),👑 Golden Anti-Red HostPanel (30 Days),📋 My Hosting Plans,💳 My Plan / Billing,📞 Contact Support,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:22:32.379173915Z",
+    "message": "message: ⚡ Premium Anti-Red (1-Week)\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:22:32.379194335Z",
+    "message": "HostPanel — file, DB & email management 🛒 Buy Premium Anti-Red (1-Week),🔷 View Premium HostPanel,👑 View Golden HostPanel,⬅️ Back To Hosting Plans\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:22:38.456328018Z",
+    "message": "message: 🛒 Buy Premium Anti-Red (1-Week)\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:22:38.541142703Z",
+    "message": "🔗 <b>Connect External Domain</b> — Use a domain you own 🌐 Register a New Domain,📂 Use My Domain,🔗 Connect External Domain,⬅️ Back to Premium Weekly Details\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:22:46.570812255Z",
+    "message": "message: 📂 Use My Domain\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:22:46.612203491Z",
+    "message": "reply: Select a domain from your registered domains: onlinechaseportal.com,↩️ Back,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:22:48.737817078Z",
+    "message": "message: onlinechaseportal.com\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:22:48.849410352Z",
+    "message": "Tap \"Skip\" to continue without one. Skip (no email),Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:22:52.737882857Z",
+    "message": "message: Skip (no email)\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:22:52.746723441Z",
+    "message": "Pay within 1 hr to activate. Your hosting will be provisioned automatically. Crypto,👛 Wallet,🎟️ Apply Coupon,↩️ Back,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:22:59.431279733Z",
+    "message": "message: 👛 Wallet\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:22:59.577409931Z",
+    "message": "Confirm? ✅ Yes,❌ No,↩️ Back,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:23:01.804129699Z",
+    "message": "message: ✅ Yes\tfrom: 7191777173 Versace438",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:23:01.954259922Z",
+    "message": "11:23:01 [CartRecovery] Payment completed for 7191777173 — cart cleared",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:23:02.028379206Z",
+    "message": "Provisioning your hosting now... \tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:23:02.282864783Z",
+    "message": "reply: 🔗 Linking <b>onlinechaseportal.com</b> to your hosting... \tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:23:02.282871373Z",
+    "message": "reply: ⚙️ Creating hosting account... \tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:23:06.035163437Z",
+    "message": "reply: ✅ Hosting account created \tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:23:17.142654258Z",
+    "message": "reply: �� Domain configured · DNS auto-set via Cloudflare \tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:23:17.142669518Z",
+    "message": "reply: 🛡️ Activating Anti-Red protection... \tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:23:17.176040161Z",
+    "message": "[Hosting] AUDIT provisioning onlinechaseportal.com cpUser=onli9677 chatId=7191777173 plan=\"Premium Anti-Red (1-Week)\" durationDays=7 expiryDate=2026-06-25T11:23:17.010Z",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:23:17.312942245Z",
+    "message": "reply: ✅ Anti-Red protection active \tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:23:17.449103584Z",
+    "message": "$0.00 \tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:23:17.449158244Z",
+    "message": "<i>Quote this ID when contacting support</i> \tto: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:23:17.449165314Z",
+    "message": "Premium Anti-Red (1-Week) package set for user: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:23:17.455172122Z",
+    "message": "Successfully removed key: plan from document with chatId: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:23:17.469184802Z",
+    "message": "Successfully removed key: existingDomain from document with chatId: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:23:17.483362610Z",
+    "message": "Successfully removed key: connectExternalDomain from document with chatId: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:23:17.483368540Z",
+    "message": "Successfully removed key: price from document with chatId: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:23:17.502677034Z",
+    "message": "Successfully removed key: domain from document with chatId: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:23:17.514675711Z",
+    "message": "Successfully removed key: website_name from document with chatId: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:23:17.526687058Z",
+    "message": "Successfully removed key: nameserver from document with chatId: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:23:17.538949792Z",
+    "message": "Successfully removed key: originalPrice from document with chatId: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:23:17.545136300Z",
+    "message": "Successfully removed key: continue_domain_last_state from document with chatId: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:23:17.557640332Z",
+    "message": "Successfully removed key: email from document with chatId: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:23:17.563935328Z",
+    "message": "Successfully removed key: couponDiscount from document with chatId: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:23:17.577314683Z",
+    "message": "Successfully removed key: hostingPrice from document with chatId: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:23:17.590893966Z",
+    "message": "Successfully removed key: couponApplied from document with chatId: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:23:17.597409490Z",
+    "message": "Successfully removed key: totalPrice from document with chatId: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:23:17.617196011Z",
+    "message": "Successfully removed key: newPrice from document with chatId: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:23:17.643742812Z",
+    "message": "Successfully removed key: planName from document with chatId: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:23:17.652259799Z",
+    "message": "Successfully removed key: duration from document with chatId: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:23:17.652264279Z",
+    "message": "Successfully removed keys: plan, existingDomain, connectExternalDomain, price, domain, website_name, nameserver, originalPrice, continue_domain_last_state, email, couponDiscount, hostingPrice, couponApplied, totalPrice, newPrice, hostingType, planName, duration from document with chatId: 7191777173",
+    "severity": "info"
+  },
+  {
+    "timestamp": "2026-06-18T11:23:19.334791600Z",
+    "message": "Tap an option below. 🌐 Bulletproof Domains,📞 Cloud IVR + SIP,✂️🌐 Custom Domain Shortener,↩️ Back,Back,Cancel\tto: 7191777173",
+    "severity": "info"
+  }
+]

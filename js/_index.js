@@ -8337,6 +8337,15 @@ Enter new value:`), bc)
       const ref = nanoid()
       const { amount, tickerView, userLanguage } = info
       const ticker = tickerOf[tickerView]
+      // ── Defense in depth: enforce TRC20 min-deposit at the address-generation
+      // gate too. The primary intercept lives in the selectCryptoToDeposit
+      // action handler, but any future shortcut (deep-link, admin command,
+      // quick-deposit button, etc.) that reaches this function directly with
+      // ticker=trc20_usdt and depositAmountUsd<$20 would otherwise silently
+      // mint a TRC20 address. Always route back to the correction screen.
+      if (ticker === 'trc20_usdt' && Number(info?.depositAmountUsd || 0) < TRC20_MIN_DEPOSIT_USD) {
+        return goto[a.confirmTrc20MinDeposit]()
+      }
       if (BLOCKBEE_CRYTPO_PAYMENT_ON === 'true') {
         const bbResult = await getCryptoDepositAddress(ticker, chatId, SELF_URL, `/crypto-wallet?a=b&ref=${ref}&`)
         if (bbResult?.address) {
@@ -19970,7 +19979,16 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     // $20 deposit, replace address generation with a one-tap correction screen
     // (top up to $20 / switch crypto / re-enter amount / cancel) so they don't
     // have to restart the whole deposit flow.
-    if (ticker === 'trc20_usdt' && Number(info?.depositAmountUsd || 0) < TRC20_MIN_DEPOSIT_USD) {
+    //
+    // NOTE: `ticker` here is the display key from supportedCryptoView (e.g.
+    // 'USDT (TRC20)'), NOT the internal ticker (e.g. 'trc20_usdt'). The
+    // previous comparison `ticker === 'trc20_usdt'` was therefore always
+    // false and silently allowed sub-$20 TRC20 deposits to slip through —
+    // confirmed empirically against the payments collection (refs utC7I,
+    // J5bUy, iYdgp — all $10–$15 TRC20 wallet top-ups). Compare against the
+    // internal ticker via the canonical tickerOf map so this gate stays
+    // robust if the display-key string is ever rebranded.
+    if (tickerOf[ticker] === 'trc20_usdt' && Number(info?.depositAmountUsd || 0) < TRC20_MIN_DEPOSIT_USD) {
       return goto[a.confirmTrc20MinDeposit]()
     }
 
