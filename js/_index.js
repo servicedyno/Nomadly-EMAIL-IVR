@@ -8328,6 +8328,7 @@ Enter new value:`), bc)
         [t.trc20TopUpBtn(min)],
         [t.trc20SwitchCryptoBtn],
         [t.trc20EditAmountBtn],
+        [t.trc20WhyMinBtn],
         [t.trc20CancelBtn],
       ]
       send(chatId, t.trc20MinDepositPrompt(current, min), k.of(buttons))
@@ -19992,6 +19993,15 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     if (message === t.trc20EditAmountBtn) {
       // Drop back to the amount-entry prompt.
       return goto[a.selectCurrencyToDeposit]()
+    }
+    if (message === t.trc20WhyMinBtn) {
+      // Soft-education: explain the network-energy-fee reason in 2-3 short
+      // paragraphs. The 5-button reply keyboard persists from the prior
+      // message (Telegram custom-keyboards stay until replaced/cleared), so
+      // the user can read this and immediately tap an action without us
+      // re-rendering the prompt + buttons noise.
+      send(chatId, t.trc20WhyMinExplanation(min))
+      return
     }
     if (message === t.trc20CancelBtn || isBackPress(message)) {
       return goto[user.wallet]()

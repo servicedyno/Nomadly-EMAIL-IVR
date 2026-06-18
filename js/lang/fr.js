@@ -729,7 +729,14 @@ ${CHAT_BOT_NAME}`,
  trc20TopUpBtn: (minAmount) => `✅ Augmenter à ${minAmount} $`,
  trc20SwitchCryptoBtn: '🔄 Choisir une autre crypto',
  trc20EditAmountBtn: '✏️ Saisir un autre montant',
+ trc20WhyMinBtn: '💡 Pourquoi ce minimum ?',
  trc20CancelBtn: '❌ Annuler',
+
+ trc20WhyMinExplanation: (minAmount) =>
+  `💡 <b>Pourquoi TRC20 nécessite un minimum de ${minAmount} $ ?</b>\n\n` +
+  `Chaque transfert USDT TRC20 brûle ~5–15 TRX en frais d'"énergie" réseau côté destinataire. Sur les petits dépôts, ces frais peuvent consommer 30–50 % de ce que vous envoyez — maintenir un seuil de ${minAmount} $ garantit que presque tout votre dépôt arrive dans votre portefeuille.\n\n` +
+  `Les autres cryptos (BTC, LTC, ETH) ont moins de frais par transfert, donc aucun minimum ne s'applique.\n\n` +
+  `Besoin d'aide ? Contactez le support : ${APP_SUPPORT_LINK}`,
  'bank-pay-plan': (priceNGN, plan) =>
  `Veuillez envoyer ${priceNGN} NGN en cliquant sur "Faire le paiement" ci-dessous. Une fois la transaction confirmée, vous serez notifié immédiatement et votre plan ${plan} sera activé sans encombre.
 

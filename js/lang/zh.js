@@ -721,7 +721,14 @@ ${CHAT_BOT_NAME}`,
  trc20TopUpBtn: (minAmount) => `✅ 充值到 $${minAmount}`,
  trc20SwitchCryptoBtn: '🔄 选择其他加密货币',
  trc20EditAmountBtn: '✏️ 输入其他金额',
+ trc20WhyMinBtn: '💡 为什么需要这个最低额？',
  trc20CancelBtn: '❌ 取消',
+
+ trc20WhyMinExplanation: (minAmount) =>
+  `💡 <b>为什么 TRC20 需要 $${minAmount} 最低额？</b>\n\n` +
+  `每笔 TRC20 USDT 转账在接收方需要消耗约 5–15 TRX 的网络"能量"费。对于小额存款，这些费用可能会吃掉您发送金额的 30–50%——保持 $${minAmount} 的下限可确保您的存款几乎全部到达您的钱包，到账也更快。\n\n` +
+  `其他币种（BTC、LTC、ETH）每笔转账开销较低，因此没有最低限额。\n\n` +
+  `还需要帮助？联系客服：${APP_SUPPORT_LINK}`,
  'bank-pay-plan': (priceNGN, plan) =>
  `请点击“付款”按钮，发送 ${priceNGN} NGN。一旦交易确认，您将立即收到通知，您的 ${plan} 计划将顺利激活。
 

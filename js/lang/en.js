@@ -814,7 +814,14 @@ Auto-converts to USD at current rate.`,
  trc20TopUpBtn: (minAmount) => `✅ Top up to $${minAmount}`,
  trc20SwitchCryptoBtn: '🔄 Choose different crypto',
  trc20EditAmountBtn: '✏️ Enter different amount',
+ trc20WhyMinBtn: '💡 Why this minimum?',
  trc20CancelBtn: '❌ Cancel',
+
+ trc20WhyMinExplanation: (minAmount) =>
+  `💡 <b>Why does TRC20 need a $${minAmount} minimum?</b>\n\n` +
+  `Every TRC20 USDT transfer burns ~5–15 TRX in network "energy" fees on the receiving side. On small deposits, fees can eat 30–50% of what you send — keeping a $${minAmount} floor ensures almost all your deposit lands in your wallet, and the credit is faster too.\n\n` +
+  `Other coins (BTC, LTC, ETH) have lower per-transfer overhead, so no minimum applies there.\n\n` +
+  `Still need help? Reach support: ${APP_SUPPORT_LINK}`,
 
  'bank-pay-plan': (
  priceNGN,
