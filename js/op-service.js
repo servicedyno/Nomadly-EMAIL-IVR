@@ -736,6 +736,54 @@ const _sendNsUpdate = async (domainId, domainName, nsPayload, headers) => {
   return res
 }
 
+/**
+ * Probe Cloudflare's DoH resolver to verify the registry has published the
+ * given nameservers for `domainName`. Polls up to `maxWaitMs` with linear
+ * backoff. Returns { verified, matched, lastNs, attempts, elapsedMs, reason }.
+ *
+ * Verified = at least 2 of the target nameservers appear in the public NS
+ *            RRset (matches the same "≥2 NS" threshold the DnsHealer uses).
+ *
+ * Note: this queries a recursive resolver, not the authoritative TLD NS
+ * directly, so a small fraction of "not verified" results are simply the
+ * resolver still serving its cached parent-zone NS hint. The 30 s budget is
+ * chosen to balance catching genuine silent rejections fast vs. avoiding
+ * false alarms from resolver caching — anything that doesn't propagate in
+ * 30 s is either a silent registry rejection or a TLD with a strict pre-
+ * delegation policy, both of which the DnsHealer should pick up next.
+ */
+const _verifyRegistryPropagation = async (domainName, expectedNs, maxWaitMs = 30000) => {
+  const dnsChecker = require('./dns-checker')
+  const wantSet = new Set(expectedNs.map(n => String(n).toLowerCase().replace(/\.$/, '')))
+  const start = Date.now()
+  // Linear-ish schedule: 3s, 6s, 9s, 12s → 30s total
+  const sleepSchedule = [3000, 6000, 9000, 12000]
+  let lastNs = []
+  let attempts = 0
+
+  for (const sleepMs of sleepSchedule) {
+    if (Date.now() - start > maxWaitMs) break
+    await new Promise(r => setTimeout(r, sleepMs))
+    attempts++
+    try {
+      const r = await dnsChecker.resolve(domainName, 'NS')
+      lastNs = (r.answers || []).map(a => String(a.data || '').toLowerCase().replace(/\.$/, ''))
+      const matched = lastNs.filter(n => wantSet.has(n)).length
+      if (matched >= 2) {
+        return { verified: true, matched, lastNs, attempts, elapsedMs: Date.now() - start, reason: 'ok' }
+      }
+    } catch (e) {
+      // swallow; next loop iteration retries
+    }
+  }
+  const matched = lastNs.filter(n => wantSet.has(n)).length
+  let reason = 'timeout'
+  if (lastNs.length === 0) reason = 'no NS in public DNS yet'
+  else if (matched === 0) reason = `registry still serving stale NS: ${lastNs.join(', ')}`
+  else reason = `only ${matched}/${expectedNs.length} target NS visible (need ≥2): ${lastNs.join(', ')}`
+  return { verified: false, matched, lastNs, attempts, elapsedMs: Date.now() - start, reason }
+}
+
 const updateNameservers = async (domainName, nameservers, _dnssecRetried = false) => {
   try {
     const info = await getDomainInfo(domainName)
@@ -767,7 +815,35 @@ const updateNameservers = async (domainName, nameservers, _dnssecRetried = false
         // Best-effort — never break NS-update success because of DNSSEC cleanup
         log(`[DNSSEC-PostNS] ${domainName}: cleanup error (non-fatal): ${dsErr.message}`)
       }
-      return { success: true }
+
+      // ── Post-write registry-propagation probe (≤30 s) ──────────────────────
+      // OP returning code:0 means OP **accepted** the NS update, NOT that the
+      // registry has published it. Historically there have been silent
+      // registry-side rejections / queue drops where OP's DB shows the new NS
+      // but the registry keeps the old delegation — only surfaced 24 h+ later
+      // when a customer noticed their domain showing "red" (see 2026-06-17
+      // HHR2009 / strivepartypaperless.com incident).
+      //
+      // The probe queries Cloudflare's DoH for the domain's NS RRset and
+      // confirms ≥2 of the submitted nameservers appear. Polls 4 times over
+      // ~30 s with linear backoff (3 s, 6 s, 9 s, 12 s).
+      //
+      // Important nuance: a `verified: false` result is reliable for FRESH
+      // registrations (no cached parent-zone NS hint) but can be a false
+      // positive when re-pushing on an *existing* domain, because recursive
+      // resolvers cache the parent NS RRset for the TLD's NS TTL
+      // (typically 24-48 h for .com / .de). Either way the right reaction is
+      // the same: hand off to DnsHealer, which has the patience to wait out
+      // legitimate propagation and only escalates on persistent failures.
+      //
+      // Returns informational fields on `propagation`; never breaks success.
+      const propagation = await _verifyRegistryPropagation(domainName, nameservers, 30000)
+      if (!propagation.verified) {
+        log(`[NS-Verify] ${domainName}: not yet confirmed at recursive resolver after ${propagation.elapsedMs}ms (${propagation.reason}). Could be registry-side silent failure OR normal parent-zone cache — DnsHealer will resolve.`)
+      } else {
+        log(`[NS-Verify] ${domainName}: registry confirmed ${propagation.matched} of ${nameservers.length} target NS in ${propagation.elapsedMs}ms (attempt ${propagation.attempts}).`)
+      }
+      return { success: true, propagation }
     }
     return { error: res.data?.desc || 'Failed to update nameservers' }
   } catch (err) {

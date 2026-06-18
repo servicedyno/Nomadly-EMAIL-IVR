@@ -59,6 +59,21 @@ Patched `/app/js/cr-register-domain-&-create-cpanel.js:281` — inserted a 14-li
 - ✅ `/app/scripts/push_hhr2009_cf_ns_to_op.js` (new) — one-shot user fix, executed
 - ✅ `/app/scripts/recover_hhr2009_hosting.js` (patched lines 213–250) — recovery script now has NS push
 - ✅ `/app/js/cpanel-migration.js` (patched line 158) — startup migration now clears stuck flags + stamps schema fields
+- ✅ `/app/scripts/unstick_migrated_cpanel_accounts.js` (new) — one-shot unstick for the 19 already-pinned accounts (executed 2026-06-18, 19/19 modified, 0 remaining)
+- ✅ `/app/js/cr-register-domain-&-create-cpanel.js` (patched ~line 287) — normal-flow forced `updateNameservers` follow-up after OP+CF registration
+- ✅ `/app/js/op-service.js` (added `_verifyRegistryPropagation` helper + integrated post-write registry-propagation probe into `updateNameservers`) — 4 polls / ~30 s budget; returns `{ success, propagation: { verified, matched, lastNs, attempts, elapsedMs, reason } }`; informational, never breaks `.success`; log line `[NS-Verify] <domain>: ...` either confirms in <30s or notes "DnsHealer will resolve" without false-alarming on recursive-resolver parent-zone cache.
+
+## Post-write registry-propagation probe — design notes
+| Aspect | Detail |
+|---|---|
+| Polls | 4 over ~30 s (linear: 3 s, 6 s, 9 s, 12 s) |
+| Resolver | Cloudflare DoH (reuses existing `js/dns-checker.js`) |
+| Success threshold | ≥ 2 of submitted nameservers present in NS RRset (matches DnsHealer's `cfNsCount >= 2` threshold) |
+| Return shape | `{ success: true, propagation: { verified, matched, lastNs, attempts, elapsedMs, reason } }` — backward compatible (`.success` unchanged) |
+| Side-effects | None — pure read against DoH; no DB writes, no escalation calls |
+| Caveat | For *update-NS-on-existing-domain* the recursive resolver may serve cached parent-zone NS for up to the TLD's NS TTL (24-48 h). The probe treats this as "not yet confirmed" without alarming; DnsHealer's scheduled tick resolves it. Reliable for fresh registrations (no cache). |
+| Live-tested | ✅ Against just-pushed `strivepartypaperless.com` (correctly reports `verified: false` + stale NS list); ✅ DoH query for `paperlesseviteinvio.com` correctly returns both CF NS (would be `verified: true`). |
+
 
 ## Monitoring
 ```bash
