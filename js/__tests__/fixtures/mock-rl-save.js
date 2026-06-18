@@ -1,0 +1,1 @@
+module.exports = { removeDomainFromRailway: async () => ({ ok: true }) }

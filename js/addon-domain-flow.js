@@ -250,16 +250,20 @@ async function runDnsAndProtection({ domain, cpUser, whmHost, account, db, bot, 
   const RETRY_DELAYS = [5000, 15000, 45000]
 
   let zoneId = null
+  let cfNameservers = []
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
       let zone = await cfService.getZoneByName(domain)
       if (!zone) {
         const newZone = await cfService.createZone(domain)
-        if (newZone.success) zone = { id: newZone.zoneId }
+        if (newZone.success) {
+          zone = { id: newZone.zoneId, name_servers: newZone.nameservers || [] }
+        }
       }
       if (!zone) throw new Error('Cloudflare zone could not be created or found')
       zoneId = zone.id
+      cfNameservers = (zone.name_servers || []).filter(Boolean)
 
       // Persist CF metadata so downstream features (captcha toggle, status
       // panel, anti-red cron) can find the zone via DB without re-hitting CF.
@@ -274,6 +278,76 @@ async function runDnsAndProtection({ domain, cpUser, whmHost, account, db, bot, 
           )
         } catch (persistErr) {
           log(`[AddonFlow] failed to persist cfZoneId for ${domain}: ${persistErr.message}`)
+        }
+      }
+
+      // ── Delegate addon domain at the registrar to Cloudflare ──
+      // Without this the registrar keeps its default NS (e.g. OpenProvider's
+      // ns1/ns2/ns3.openprovider.{nl,be,eu}) and the CF zone — even though
+      // created + populated with hosting CNAMEs — stays in `pending`
+      // status (`activation_failure_reason: ns_delegated_from_provider`)
+      // forever. Live DNS queries hit the registrar's empty NS, the cPanel
+      // addon page reports "domain not pointed to this server", SSL can't
+      // issue, and the user files a support ticket.
+      //
+      // Real incident: HHR2009 (chatId 1960615421) bought
+      // `inviolivepaperless.com` as an addon at 2026-06-18 11:30 UTC. CF zone
+      // was created with anderson/leanna.ns.cloudflare.com but OP delegation
+      // was never updated → hosting panel error → manual rescue via
+      // /app/js/scripts/fix_inviolivepaperless_ns.js. The same gap was
+      // observed earlier for `rsvpeviteopen.org` (rescued by
+      // `heal_rsvpeviteopen_org_2026-02`). Closing the gap permanently here.
+      //
+      // We only attempt the NS update if (a) the domain registrar is
+      // OpenProvider in our records, and (b) CF returned ≥2 nameservers.
+      // updateNameservers() already handles DNSSEC cleanup + a ≤30s
+      // registry-propagation probe; we log the probe result for audit.
+      if (db && cfNameservers.length >= 2) {
+        try {
+          const regRow = await db.collection('registeredDomains').findOne({ _id: domain })
+          const registrar = (regRow?.val?.registrar || regRow?.val?.provider || '').toLowerCase()
+          const currentNs = (regRow?.val?.nameservers || []).map(n => String(n).toLowerCase())
+          const targetNs = cfNameservers.map(n => String(n).toLowerCase())
+          const alreadyDelegated = targetNs.every(t => currentNs.includes(t))
+
+          if (registrar === 'openprovider' && !alreadyDelegated) {
+            const opService = require('./op-service')
+            log(`[AddonFlow] ${domain}: registrar=OpenProvider, delegating NS to CF (${cfNameservers.join(', ')})`)
+            const nsRes = await opService.updateNameservers(domain, cfNameservers)
+            if (nsRes?.success) {
+              log(`[AddonFlow] ${domain}: NS delegation OK (propagation: ${JSON.stringify(nsRes.propagation)})`)
+              await db.collection('registeredDomains').updateOne(
+                { _id: domain },
+                { $set: { 'val.nameservers': cfNameservers, 'val.nameserverType': 'cloudflare' } }
+              ).catch(() => {})
+              try {
+                await db.collection('nsAuditLog').insertOne({
+                  domain,
+                  chatId: account.chatId || null,
+                  action: 'addon_ns_delegation',
+                  before: currentNs,
+                  after: cfNameservers,
+                  propagationProbe: nsRes.propagation,
+                  ts: new Date().toISOString(),
+                  appliedBy: 'addon-domain-flow',
+                })
+              } catch (_) {
+                // audit-log row is best-effort; never block the NS delegation success path
+              }
+            } else {
+              log(`[AddonFlow] ${domain}: OP NS update failed: ${nsRes?.error || 'unknown'}`)
+            }
+          } else if (registrar && registrar !== 'openprovider') {
+            // Other registrars: only log — caller is responsible.
+            log(`[AddonFlow] ${domain}: skipping NS delegation (registrar=${registrar})`)
+          } else if (!registrar) {
+            log(`[AddonFlow] ${domain}: registrar unknown in registeredDomains — skipping NS delegation (safe default)`)
+          }
+        } catch (nsErr) {
+          // NS delegation failure must not abort the addon attach — the
+          // domain is still owned by the user; the protection pipeline
+          // continues. DnsHealer will retry on its next cron pass.
+          log(`[AddonFlow] ${domain}: NS delegation warning (non-fatal): ${nsErr.message}`)
         }
       }
 

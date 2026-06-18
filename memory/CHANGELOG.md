@@ -1,6 +1,44 @@
 # CHANGELOG — Nomadly Bot
 
 
+## 2026-06-18 (cont.) — Addon-domain NS delegation + DynoPay forensic persistence
+
+### Bug — Every OpenProvider addon-domain produced a broken hosting panel (P0)
+
+Live failure: HHR2009 (chatId 1960615421) bought `inviolivepaperless.com` as addon on 2026-06-18 11:30 — DNS never resolved, cPanel addon page showed error.
+
+Root cause: `addon-domain-flow.js:attachAddonDomain` created the Cloudflare zone + DNS records but **never updated the registrar's nameservers** to delegate to CF. Live NS stayed at `ns1/2/3.openprovider.{nl,be,eu}`, CF zone stayed `pending` (`activation_failure_reason: ns_delegated_from_provider`), hosting panel couldn't validate domain ownership.
+
+Same gap had been observed earlier for `rsvpeviteopen.org` (same user, 2026-06-11) and rescued via the ad-hoc `heal_rsvpeviteopen_org_2026-02` script.
+
+**Immediate fix** (live): `/app/js/scripts/fix_inviolivepaperless_ns.js` ran `opService.updateNameservers(...)` → DNSSEC auto-disabled → registry propagation confirmed 2/2 NS in 3 s → CF activation_check triggered → zone flipped to `active`, A record now resolves to CF edge IPs (`104.21.83.100, 172.67.221.156`).
+
+**Code fix**: `addon-domain-flow.js` now captures CF nameservers from `createZone()` and, when the domain's registrar is OpenProvider and current NS isn't already CF, calls `opService.updateNameservers(domain, cfNs)` after CF zone creation but before the protection pipeline runs. Non-fatal — DnsHealer retries if it fails. Logs into `nsAuditLog`.
+
+**Regression test**: `/app/js/__tests__/addon-domain-ns-delegation.test.js` — 9/9 assertions pass. Covers OP delegation, idempotency (already-delegated skip), non-OP skip, unknown-registrar safe-default skip.
+
+Memo: `/app/memory/ADDON_DOMAIN_NS_DELEGATION_FIX_2026-06-18.md`.
+
+### Hardening — DynoPay forensic persistence (P2)
+
+Triggered by the 2026-06-18 user-7191777173 deposit dispute: the bot was erasing every BTC/USDT address it ever generated immediately after the webhook ack (`del(chatIdOfDynopayPayment, ref)` inside 12 webhook handlers). When users disputed deposits hours later, the only record was `payments[ref].val` — a 10-column CSV with no address column. DynoPay's API rejects our stored `payment_id` ("valid transaction_id required"), making post-hoc reconciliation guesswork.
+
+**Patch**:
+- `/app/js/dynopay-forensic.js` (new) — three helpers:
+  - `captureWebhook(db, req)` — persists full payload into `dynopayWebhooks` (TTL 365 d, indexed by refId + paymentId)
+  - `archiveDepositAddress(db, ref, pay, body)` — freezes `{address, coin, chatId, action, expectedAmountUsd, generatedAt, webhookBody}` into `cryptoDepositAddresses` keyed by ref (no TTL, indexed by chatId/address/paymentId)
+  - `ensureIndexes(db)` — idempotent
+- `_index.js` `authDyno` middleware calls both helpers (capture at top, archive right before `next()`). Wallet-top-up handler appends the address as column 11 of the `payments[ref].val` CSV (backwards-compatible).
+- `startServer()` calls `ensureIndexes` at boot.
+
+Both helpers are non-fatal: a DB error never breaks the webhook flow.
+
+**Regression test**: `/app/js/__tests__/dynopay-forensic.test.js` — 36/36 assertions.
+
+Memo: `/app/memory/DYNOPAY_FORENSIC_PERSISTENCE_2026-06-18.md`.
+
+---
+
 ## 2026-06-18 — TRC20 $20 min-deposit bypass (string-comparison bug) + $60-vs-$30 dispute closed
 
 ### Bug 1 — TRC20 floor never enforced (P0)

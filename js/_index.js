@@ -31112,9 +31112,18 @@ const processedFincraRefs = new Set()
 // Map payment_id → refId from pending events, so confirmed/failed events (which lack meta_data) can find the session
 const dynopayPaymentIdToRef = new Map()
 
+const dynopayForensic = require('./dynopay-forensic')
+
 const authDyno = async (req, res, next) => {
   log('=== DYNOPAY WEBHOOK RECEIVED ===')
   log('URL:', req.hostname + req.originalUrl)
+  // ── Forensic capture: every webhook event (pending/underpaid/failed/confirmed) ──
+  // Persists the full payload into `dynopayWebhooks` so post-hoc disputes can
+  // be resolved without going back to DynoPay's API. Non-blocking — never
+  // breaks the webhook flow on persistence errors. See dynopay-forensic.js
+  // and the 2026-06-18 user-7191777173 dispute for context.
+  dynopayForensic.captureWebhook(db, req).catch(() => {})
+
   // Security: Only log non-sensitive fields from webhook payload
   const safeFields = { event: req.body?.event, status: req.body?.status, payment_id: req.body?.payment_id, currency: req.body?.currency }
   log('Webhook summary:', JSON.stringify(safeFields))
@@ -31204,6 +31213,12 @@ const authDyno = async (req, res, next) => {
   
   log('Payment session authenticated successfully:', pay)
   req.pay = { ...pay, ref }
+  // ── Forensic archive: snapshot the address + session BEFORE the
+  // downstream handler runs `del(chatIdOfDynopayPayment, ref)`. This is
+  // the only point where we still have both the address (from `pay`) and
+  // the confirming webhook payload in scope. Non-blocking — never breaks
+  // the webhook flow on persistence errors.
+  dynopayForensic.archiveDepositAddress(db, ref, pay, req.body).catch(() => {})
   next()
 }
 
@@ -33990,7 +34005,12 @@ app.post('/dynopay/crypto-wallet', authDyno, async (req, res) => {
   res.send(html())
   del(chatIdOfDynopayPayment, ref)
   const name = await get(nameOf, chatId)
-  set(payments, ref, `Crypto,Wallet,wallet,$${usdIn},${chatId},${name},${new Date()},${value} ${coin},transaction,${id}`)
+  // payments[ref].val: backwards-compatible CSV. Column 11 (address) added
+  // 2026-06-18 — see dynopay-forensic.js. Older rows have 10 cols; readers
+  // must tolerate both lengths. The address comes from the pay session
+  // captured by authDyno (req.pay was set in middleware).
+  const depositAddress = req.pay?.address || req.body?.address || ''
+  set(payments, ref, `Crypto,Wallet,wallet,$${usdIn},${chatId},${name},${new Date()},${value} ${coin},transaction,${id},${depositAddress}`)
   notifyGroup(
     `💰 <b>Wallet Top-Up!</b>\nUser ${maskName(name)} just topped up via <b>💎 Crypto (DynoPay)</b>\nFund yours in seconds — /start`,
     `💰 <b>Wallet Top-Up (DynoPay)</b>\n👤 User: ${adminUserTag(name, chatId)}\n💵 Credited: <b>$${usdIn}</b> USD\n🪙 Received: <b>${value} ${coin}</b>\n🔖 Ref: <code>${ref}</code>\n🆔 Txn: <code>${txnId}</code>`,
@@ -37558,7 +37578,12 @@ const startServer = async () => {
   // Just mark app as ready and set up webhook
   appReady = true
   log(`✅ Main application ready! Server already listening on port ${PORT}`)
-  
+
+  // ── DynoPay forensic indexes (idempotent — runs once at boot) ──
+  // Ensures TTL on webhook log + lookup indexes on cryptoDepositAddresses.
+  // Non-blocking on errors.
+  try { await dynopayForensic.ensureIndexes(db) } catch (e) { log('[DynopayForensic] index init warn:', e.message) }
+
   // Set up Telegram webhook
   await setupTelegramWebhook()
 
