@@ -1,6 +1,32 @@
 # CHANGELOG — Nomadly Bot
 
 
+## 2026-06-18 (cont.) — DynoPay overpayment under-credit P0 + $30.10 refund to @Versace438
+
+### Bug — overpaid wallet deposits silently kept by the house (P0)
+
+Reported by user @Versace438 (chatId 7191777173) — "I loaded 60 only gave me 30". After the operator pulled the DynoPay portal payload (incoming TX `01abbd84…28c1`, settlement TX `776667a0…6c0349`, payment_id `2fd3c05b-…7dcb8`), it confirmed the customer paid **$60.10 USD worth of BTC** for a $30 invoice — bot only credited **$30**.
+
+**Root cause**: `/dynopay/crypto-wallet` handler (`_index.js:33963–33976`) credited `parseFloat(base_amount)` when `fee_payer === 'company'`. `base_amount` is the *invoice* USD (what we told the customer to send), not the *actual* received USD. The guard was originally added to protect *under*-payment scenarios (network fees shaving the converted value); the symmetric overpayment case was never considered.
+
+**Refund**: $30.10 credited to user via `/app/js/scripts/refund_versace438_z02sz.js`. `walletOf.7191777173`: `usdIn $60 → $90.10`, `usdOut $60`, balance `$0 → $30.10`. Audit row `TXN-20260618-N5D91` (type=wallet-correction) with full provenance: dynopayPaymentId, onchainTxHash, settlementTxHash, actualPaidUsd=60.10, botCreditedUsd=30.00, underCreditUsd=30.10.
+
+**Code fix**: credit-decision now does `usdIn = Math.max(invoice, convertedValue)`:
+- underpaid → still credited at invoice (legacy network-fee protection preserved)
+- overpaid → credited at actual market value of received crypto
+- exact → credited at invoice
+Three log paths (`OVERPAYMENT`, `underpayment`, normal) for operator visibility.
+
+**Regression test**: `/app/js/__tests__/dynopay-overpayment-credit.test.js` — 11/11 assertions including an exact replay of the Versace438 z02SZ payload.
+
+Memo: `/app/memory/DYNOPAY_OVERPAYMENT_BUG_FIX_2026-06-18.md`.
+
+### Follow-up flagged
+- drKee deposit (0.00031227 BTC → $20) may also have been under-credited if it was an overpay. Pending DynoPay portal payload to confirm.
+- Retrospective audit recommended: any wallet-topup since the `base_amount` logic was introduced could have under-credited overpayers. Suggest one-shot DynoPay-portal export reconciliation.
+
+---
+
 ## 2026-06-18 (cont.) — Addon-domain NS delegation + DynoPay forensic persistence
 
 ### Bug — Every OpenProvider addon-domain produced a broken hosting panel (P0)

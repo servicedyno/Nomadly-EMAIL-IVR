@@ -33960,18 +33960,41 @@ app.post('/dynopay/crypto-wallet', authDyno, async (req, res) => {
     return res.send(html('Currency not supported: ' + coin))
   }
   
-  // Use base_amount (confirmed USD) from DynoPay when fee_payer is company
-  // This prevents users losing money due to fee deduction + re-conversion variance
+  // ── DynoPay credit decision ──
+  // DynoPay sends two USD-relevant fields:
+  //   • `base_amount`  → the *invoiced* USD value at the time of address
+  //                      generation (i.e. what the customer was told to send)
+  //   • `amount`       → the *actual* on-chain quantity of `currency` received
+  // Earlier this handler did `usdIn = base_amount` to protect against
+  // *under*-payment scenarios where a TRC20-energy fee or BTC mempool fee
+  // shaved a few cents off the converted value (`convert(amount, ticker, usd)`
+  // could come in $0.20 short of the invoice). That guard worked, but it
+  // silently kept *over*-payment to the house: customer 7191777173 (Versace438)
+  // sent 0.00093443 BTC for a $30 invoice on 2026-06-18 — DynoPay's portal
+  // logged actual receipt of $60.10 (he overpaid 2×), bot only credited $30.
+  // Customer was made whole via /app/js/scripts/refund_versace438_z02sz.js;
+  // the structural fix is here: credit max(invoice, converted-actual) so
+  //   • underpaid → user still gets the invoiced amount (legacy protection)
+  //   • overpaid  → user gets the actual market value of the BTC they sent
+  // Regression test: /app/js/__tests__/dynopay-overpayment-credit.test.js
   const baseAmount = req.body.base_amount
   const feePayer = req.body.fee_payer
+  const convertedValue = await convert(value, ticker, 'usd')
   let usdIn
 
   if (baseAmount && feePayer === 'company') {
-    usdIn = parseFloat(baseAmount)
-    log('Using DynoPay base_amount (fee_payer=company):', baseAmount, 'USD')
+    const invoice = parseFloat(baseAmount)
+    usdIn = Math.max(invoice, convertedValue)
+    if (convertedValue > invoice * 1.05) {
+      log('[Wallet] OVERPAYMENT detected: invoice=$' + invoice + ' actual=$' + convertedValue + ' — crediting actual $' + usdIn)
+    } else if (convertedValue < invoice * 0.95) {
+      log('[Wallet] underpayment detected: invoice=$' + invoice + ' actual=$' + convertedValue + ' — crediting invoice $' + usdIn + ' (legacy protection)')
+    } else {
+      log('[Wallet] credit: invoice=$' + invoice + ' actual=$' + convertedValue + ' → crediting $' + usdIn)
+    }
   } else {
-    log('Converting', value, ticker, 'to USD (no base_amount or fee_payer != company)...')
-    usdIn = await convert(value, ticker , 'usd')
+    log('Crediting raw converted value (no base_amount or fee_payer != company)')
+    usdIn = convertedValue
     log('Conversion result:', value, ticker, '= $' + usdIn, 'USD')
   }
   
