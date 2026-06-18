@@ -716,7 +716,17 @@ ${CHAT_BOT_NAME}`,
  depositNGN: `कृपया एनजीएन राशि दर्ज करें (न्यूनतम ≈ $10 USD)।\nआपका नाइरा मौजूदा विनिमय दर पर USD में बदला जाएगा:`,
  askEmailForNGN: `कृपया भुगतान की पुष्टि के लिए ईमेल प्रदान करें`,
  depositUSD: `कृपया USD राशि दर्ज करें, ध्यान दें कि न्यूनतम मूल्य $10 है:`,
- selectCryptoToDeposit: `कृपया एक क्रिप्टो मुद्रा चुनें:`,
+ selectCryptoToDeposit: `कृपया एक क्रिप्टो मुद्रा चुनें:\n\n<i>ℹ️ USDT (TRC20) के लिए न्यूनतम जमा $20 आवश्यक है।</i>`,
+
+ trc20MinDepositPrompt: (currentAmount, minAmount) =>
+  `⚠️ <b>USDT (TRC20) के लिए न्यूनतम $${minAmount} आवश्यक है</b>\n\n` +
+  `आपने दर्ज किया: <b>$${currentAmount}</b>\n` +
+  `TRC20 ट्रांसफर के लिए प्राप्तकर्ता पक्ष पर TRX-ऊर्जा शुल्क को आराम से कवर करने के लिए ~$${minAmount}+ की आवश्यकता होती है।\n\n` +
+  `आप क्या करना चाहेंगे?`,
+ trc20TopUpBtn: (minAmount) => `✅ $${minAmount} तक टॉप अप करें`,
+ trc20SwitchCryptoBtn: '🔄 अलग क्रिप्टो चुनें',
+ trc20EditAmountBtn: '✏️ अलग राशि दर्ज करें',
+ trc20CancelBtn: '❌ रद्द करें',
  'bank-pay-plan': (priceNGN, plan) =>
  `कृपया "भुगतान करें" पर क्लिक करके ${priceNGN} NGN भेजें। एक बार जब लेनदेन की पुष्टि हो जाती है, तो आप स्वचालित रूप से सूचित किए जाएंगे और आपका ${plan} योजना सुचारू रूप से सक्रिय हो जाएगा।
 

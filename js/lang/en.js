@@ -802,7 +802,19 @@ Select below:`,
 Auto-converts to USD at current rate.`,
 
  depositUSD: `Please enter USD Amount, note that minimum value is $10:`,
- selectCryptoToDeposit: `Please choose a crypto currency:`,
+ selectCryptoToDeposit: `Please choose a crypto currency:\n\n<i>ℹ️ USDT (TRC20) requires a minimum deposit of $20.</i>`,
+
+ // Shown when user picks USDT-TRC20 with deposit < $20. Lets them top up in
+ // one tap, switch crypto, edit the amount, or cancel — no re-typing.
+ trc20MinDepositPrompt: (currentAmount, minAmount) =>
+  `⚠️ <b>USDT (TRC20) requires a minimum of $${minAmount}</b>\n\n` +
+  `You entered: <b>$${currentAmount}</b>\n` +
+  `TRC20 transfers need ~$${minAmount}+ to comfortably cover the TRX-energy fees on the receiving side.\n\n` +
+  `What would you like to do?`,
+ trc20TopUpBtn: (minAmount) => `✅ Top up to $${minAmount}`,
+ trc20SwitchCryptoBtn: '🔄 Choose different crypto',
+ trc20EditAmountBtn: '✏️ Enter different amount',
+ trc20CancelBtn: '❌ Cancel',
 
  'bank-pay-plan': (
  priceNGN,

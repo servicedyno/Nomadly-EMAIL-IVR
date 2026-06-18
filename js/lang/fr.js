@@ -719,7 +719,17 @@ ${CHAT_BOT_NAME}`,
  depositNGN: `Veuillez entrer le montant NGN (minimum ≈ 10 USD).\nVotre Naira sera converti en USD au taux de change actuel :`,
  askEmailForNGN: `Veuillez fournir un email pour la confirmation du paiement`,
  depositUSD: `Veuillez entrer le montant USD, notez que la valeur minimum est de 10 USD :`,
- selectCryptoToDeposit: `Veuillez choisir une cryptomonnaie :`,
+ selectCryptoToDeposit: `Veuillez choisir une cryptomonnaie :\n\n<i>ℹ️ USDT (TRC20) nécessite un dépôt minimum de 20 $.</i>`,
+
+ trc20MinDepositPrompt: (currentAmount, minAmount) =>
+  `⚠️ <b>USDT (TRC20) nécessite un minimum de ${minAmount} $</b>\n\n` +
+  `Vous avez saisi : <b>${currentAmount} $</b>\n` +
+  `Les transferts TRC20 nécessitent ~${minAmount} $+ pour couvrir confortablement les frais d'énergie TRX du côté du destinataire.\n\n` +
+  `Que souhaitez-vous faire ?`,
+ trc20TopUpBtn: (minAmount) => `✅ Augmenter à ${minAmount} $`,
+ trc20SwitchCryptoBtn: '🔄 Choisir une autre crypto',
+ trc20EditAmountBtn: '✏️ Saisir un autre montant',
+ trc20CancelBtn: '❌ Annuler',
  'bank-pay-plan': (priceNGN, plan) =>
  `Veuillez envoyer ${priceNGN} NGN en cliquant sur "Faire le paiement" ci-dessous. Une fois la transaction confirmée, vous serez notifié immédiatement et votre plan ${plan} sera activé sans encombre.
 

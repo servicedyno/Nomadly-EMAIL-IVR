@@ -711,7 +711,17 @@ ${CHAT_BOT_NAME}`,
  depositNGN: `请输入 NGN 金额（最低 ≈ 10 美元）。\n您的奈拉将按当前汇率转换为美元：`,
  askEmailForNGN: `请输入支付确认邮件`,
  depositUSD: `请输入 USD 金额，注意最小值为 $10：`,
- selectCryptoToDeposit: `请选择加密货币：`,
+ selectCryptoToDeposit: `请选择加密货币：\n\n<i>ℹ️ USDT (TRC20) 最低存款额为 $20。</i>`,
+
+ trc20MinDepositPrompt: (currentAmount, minAmount) =>
+  `⚠️ <b>USDT (TRC20) 最低需要 $${minAmount}</b>\n\n` +
+  `您输入的金额：<b>$${currentAmount}</b>\n` +
+  `TRC20 转账需要约 $${minAmount}+ 以舒适地覆盖接收方的 TRX 能量费用。\n\n` +
+  `您想怎么做？`,
+ trc20TopUpBtn: (minAmount) => `✅ 充值到 $${minAmount}`,
+ trc20SwitchCryptoBtn: '🔄 选择其他加密货币',
+ trc20EditAmountBtn: '✏️ 输入其他金额',
+ trc20CancelBtn: '❌ 取消',
  'bank-pay-plan': (priceNGN, plan) =>
  `请点击“付款”按钮，发送 ${priceNGN} NGN。一旦交易确认，您将立即收到通知，您的 ${plan} 计划将顺利激活。
 

@@ -11,6 +11,13 @@ const FREE_LINKS = Number(process.env.FREE_LINKS)
 const SUPPORT_USERNAME = process.env.SUPPORT_USERNAME
 const PRICE_BITLY_LINK = Number(process.env.PRICE_BITLY_LINK) || 0.1
 
+// USDT (TRC20) requires a higher minimum to comfortably cover the network's
+// TRX-energy fees the customer pays on the receiving side. Below this floor a
+// meaningful chunk of the deposit is consumed by network fees alone — so we
+// intercept the wallet-deposit flow and offer a one-tap top-up to this value.
+// Applies ONLY to wallet deposits (not direct-product TRC20 payments).
+const TRC20_MIN_DEPOSIT_USD = 20
+
 const HIDE_SMS_APP = process.env.HIDE_SMS_APP
 const HIDE_BECOME_RESELLER = process.env.HIDE_BECOME_RESELLER
 const TG_HANDLE = process.env.TG_HANDLE
@@ -1094,4 +1101,5 @@ module.exports = {
   DP_PRICE_AIRVOICE_3M,
   DP_PRICE_AIRVOICE_6M,
   DP_PRICE_AIRVOICE_1Y,
+  TRC20_MIN_DEPOSIT_USD,
 }

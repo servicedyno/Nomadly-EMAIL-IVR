@@ -395,6 +395,7 @@ const {
   DP_PRICE_AIRVOICE_3M,
   DP_PRICE_AIRVOICE_6M,
   DP_PRICE_AIRVOICE_1Y,
+  TRC20_MIN_DEPOSIT_USD,
 } = require('./config.js')
 const { user: configUser } = require('./config.js')
 const createShortBitly = require('./bitly.js')
@@ -7012,6 +7013,7 @@ bot?.on('message', msg => {
 
     depositUSD: 'depositUSD',
     selectCryptoToDeposit: 'selectCryptoToDeposit',
+    confirmTrc20MinDeposit: 'confirmTrc20MinDeposit',
     showDepositCryptoInfo: 'showDepositCryptoInfo',
 
     walletSelectCurrency: 'walletSelectCurrency',
@@ -8317,6 +8319,18 @@ Enter new value:`), bc)
     [a.selectCryptoToDeposit]: async () => {
       await set(state, chatId, 'action', a.selectCryptoToDeposit)
       send(chatId, t.selectCryptoToDeposit, trans('k.of', trans('supportedCryptoViewOf')))
+    },
+    [a.confirmTrc20MinDeposit]: async () => {
+      await set(state, chatId, 'action', a.confirmTrc20MinDeposit)
+      const current = Number(info?.depositAmountUsd || 0)
+      const min = TRC20_MIN_DEPOSIT_USD
+      const buttons = [
+        [t.trc20TopUpBtn(min)],
+        [t.trc20SwitchCryptoBtn],
+        [t.trc20EditAmountBtn],
+        [t.trc20CancelBtn],
+      ]
+      send(chatId, t.trc20MinDepositPrompt(current, min), k.of(buttons))
     },
     showDepositCryptoInfo: async () => {
       const ref = nanoid()
@@ -19948,7 +19962,42 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     const ticker = supportedCryptoView[tickerView]
     if (!ticker) return send(chatId, t.askValidCrypto)
     await saveInfo('tickerView', ticker)
+
+    // ── TRC20 min-deposit intercept (wallet deposit only) ──
+    // USDT-TRC20 requires ~$20+ to leave a worthwhile balance after the
+    // receiver's TRX-energy fee. If the user picked USDT (TRC20) with a sub-
+    // $20 deposit, replace address generation with a one-tap correction screen
+    // (top up to $20 / switch crypto / re-enter amount / cancel) so they don't
+    // have to restart the whole deposit flow.
+    if (ticker === 'trc20_usdt' && Number(info?.depositAmountUsd || 0) < TRC20_MIN_DEPOSIT_USD) {
+      return goto[a.confirmTrc20MinDeposit]()
+    }
+
     return goto.showDepositCryptoInfo()
+  }
+  if (action === a.confirmTrc20MinDeposit) {
+    const current = Number(info?.depositAmountUsd || 0)
+    const min = TRC20_MIN_DEPOSIT_USD
+    if (isBackPress(message)) return goto[a.selectCryptoToDeposit]()
+    if (message === t.trc20TopUpBtn(min)) {
+      // Seamless: bump amount to the floor and proceed straight to the address.
+      await saveInfo('depositAmountUsd', min)
+      await saveInfo('amount', min)
+      return goto.showDepositCryptoInfo()
+    }
+    if (message === t.trc20SwitchCryptoBtn) {
+      // Keep the existing amount; just re-show the coin menu.
+      return goto[a.selectCryptoToDeposit]()
+    }
+    if (message === t.trc20EditAmountBtn) {
+      // Drop back to the amount-entry prompt.
+      return goto[a.selectCurrencyToDeposit]()
+    }
+    if (message === t.trc20CancelBtn || isBackPress(message)) {
+      return goto[user.wallet]()
+    }
+    // Fallback: re-show the prompt.
+    return goto[a.confirmTrc20MinDeposit]()
   }
   //
   //
