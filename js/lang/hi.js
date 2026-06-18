@@ -799,6 +799,9 @@ ${CHAT_BOT_NAME}`,
 
 बिल्कुल <b>${priceCrypto} ${tickerView}</b> भेजें:\n\n<code>${address}</code>\n\nक्रिप्टो भुगतान तेज़ी से पुष्टि होते हैं — आमतौर पर कुछ ही मिनटों में। पुष्टि होने पर आपको तुरंत सूचना दी जाएगी और आपके वॉलेट को अपडेट किया जाएगा।\n\nसादर,\n${CHAT_BOT_NAME}`,
 
+ showDepositCryptoInfoOpenEnded: (minUsd, tickerView, address) =>
+ `💎 <b>कोई भी राशि का ${tickerView} भेजें</b> जिसकी कीमत कम से कम <b>$${Number(minUsd).toFixed(0)} USD</b> हो:\n\n<code>${address}</code>\n\nहम आपके भेजे गए की पूरी बाज़ार-कीमत क्रेडिट करेंगे।\n\n⚠️ <b>$${Number(minUsd).toFixed(0)} USD से कम जमा ज़ब्त हो जाएगी</b> — उन्हें स्वीप करने का नेटवर्क शुल्क जमा से अधिक होता है।\n\nक्रिप्टो भुगतान आमतौर पर कुछ ही मिनटों में पुष्टि होते हैं।\n\nसादर,\n${CHAT_BOT_NAME}`,
+
  confirmationDepositMoney: (amount, usd) =>
  `आपकी ${amount} ($${view(usd)}) की राशि संसाधित हो गई है। हमें चुनने के लिए धन्यवाद।\nसादर,\n${CHAT_BOT_NAME}`,
 

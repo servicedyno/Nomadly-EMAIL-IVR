@@ -18,6 +18,32 @@ const PRICE_BITLY_LINK = Number(process.env.PRICE_BITLY_LINK) || 0.1
 // Applies ONLY to wallet deposits (not direct-product TRC20 payments).
 const TRC20_MIN_DEPOSIT_USD = 20
 
+// Per-coin minimum wallet-deposit floor (USD). 2026-06-18 open-ended deposit
+// flow: user no longer types an amount — they just send whatever they want.
+// We enforce these minimums at WEBHOOK RECEIPT time:
+//   • receivedUsd >= floor → credit at actual market value (full amount)
+//   • receivedUsd <  floor → FORFEIT (logged to `dustDeposits`, no wallet
+//                              credit, no user notification). Operator can
+//                              elect to refund manually if desired.
+//
+// Keys are the internal ticker strings (see lang/en.js tickerOf values).
+// Anything not in the map falls back to `WALLET_DEPOSIT_MIN_DEFAULT_USD`.
+const WALLET_DEPOSIT_MIN_DEFAULT_USD = 10
+const WALLET_DEPOSIT_MIN_PER_COIN = {
+  btc:         10,
+  ltc:         10,
+  doge:        10,
+  bch:         10,
+  eth:         10,
+  trx:         10,
+  trc20_usdt:  TRC20_MIN_DEPOSIT_USD,  // $20 — TRX-energy fee
+  erc20_usdt:  10,
+}
+
+const walletDepositMinFor = (internalTicker) => {
+  return WALLET_DEPOSIT_MIN_PER_COIN[internalTicker] || WALLET_DEPOSIT_MIN_DEFAULT_USD
+}
+
 const HIDE_SMS_APP = process.env.HIDE_SMS_APP
 const HIDE_BECOME_RESELLER = process.env.HIDE_BECOME_RESELLER
 const TG_HANDLE = process.env.TG_HANDLE
@@ -1102,4 +1128,7 @@ module.exports = {
   DP_PRICE_AIRVOICE_6M,
   DP_PRICE_AIRVOICE_1Y,
   TRC20_MIN_DEPOSIT_USD,
+  WALLET_DEPOSIT_MIN_DEFAULT_USD,
+  WALLET_DEPOSIT_MIN_PER_COIN,
+  walletDepositMinFor,
 }

@@ -911,6 +911,20 @@ Crypto payments are confirmed quickly — usually within a few minutes. Once con
 Best regards,
 ${CHAT_BOT_NAME}`,
 
+ showDepositCryptoInfoOpenEnded: (minUsd, tickerView, address) =>
+ `💎 <b>Send any amount of ${tickerView}</b> worth at least <b>$${Number(minUsd).toFixed(0)} USD</b> to:
+
+<code>${address}</code>
+
+We'll credit the full market-value of whatever you send.
+
+⚠️ <b>Deposits below $${Number(minUsd).toFixed(0)} USD are forfeit</b> — the network fee to sweep them costs more than the deposit itself.
+
+Crypto payments are confirmed quickly — usually within a few minutes. Once confirmed, you will be promptly notified, and your wallet will be updated.
+
+Best regards,
+${CHAT_BOT_NAME}`,
+
  confirmationDepositMoney: (
  amount,
  usd,

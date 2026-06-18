@@ -809,6 +809,9 @@ ${CHAT_BOT_NAME}`,
  showDepositCryptoInfo: (priceUsd, priceCrypto, tickerView, address) =>
  `💰 <b>Montant du paiement : $${Number(priceUsd).toFixed(2)} USD</b>\n\nEnvoyez exactement <b>${priceCrypto} ${tickerView}</b> à :\n\n<code>${address}</code>\n\nLes paiements crypto sont confirmés rapidement — généralement en quelques minutes. Une fois confirmé, vous serez notifié rapidement et votre portefeuille sera mis à jour.\n\nCordialement,\n${CHAT_BOT_NAME}`,
 
+ showDepositCryptoInfoOpenEnded: (minUsd, tickerView, address) =>
+ `💎 <b>Envoyez n'importe quel montant de ${tickerView}</b> d'une valeur minimale de <b>$${Number(minUsd).toFixed(0)} USD</b> à :\n\n<code>${address}</code>\n\nNous créditerons la valeur marchande complète de ce que vous envoyez.\n\n⚠️ <b>Les dépôts inférieurs à $${Number(minUsd).toFixed(0)} USD sont perdus</b> — les frais réseau pour les balayer coûtent plus que le dépôt lui-même.\n\nLes paiements crypto sont confirmés rapidement — généralement en quelques minutes.\n\nCordialement,\n${CHAT_BOT_NAME}`,
+
  confirmationDepositMoney: (amount, usd) =>
  `Votre paiement de ${amount} ($${view(usd)}) a été traité. Merci de nous avoir choisi.\nCordialement,\n${CHAT_BOT_NAME}`,
 

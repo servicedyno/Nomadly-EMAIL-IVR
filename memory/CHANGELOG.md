@@ -1,6 +1,34 @@
 # CHANGELOG — Nomadly Bot
 
 
+## 2026-06-18 (cont.) — Open-ended wallet deposit flow
+
+### UX upgrade — no more amount typing (P1)
+
+Old flow: tap Deposit → type USD → pick method → pick coin → fixed-amount invoice (4 inputs).
+New flow: tap Deposit → pick coin → open-ended address (2 taps). Address message reads *"Send any amount of BTC worth at least $10 USD — anything less is forfeit"*. QR encodes the address only (no amount).
+
+**Per-coin floors** (config.js):
+- BTC, LTC, DOGE, BCH, ETH, TRX, USDT-ERC20 → **$10**
+- USDT-TRC20 → **$20** (TRX-energy fee)
+- Unknown ticker → $10 default
+- Helper: `walletDepositMinFor(internalTicker)`
+
+**Webhook semantics** (`/dynopay/crypto-wallet`):
+- `req.pay.openEnded === true` (new default) → credit raw `convertedValue`; placeholder invoice ignored
+- `req.pay.openEnded` falsy (legacy fixed-amount) → `max(invoice, convertedValue)` (Versace438 overpayment fix preserved)
+- After credit decision, **uniform per-coin floor check** — sub-min deposits forfeited to a new `dustDeposits` collection with full provenance (chatId, ref, coin, value, receivedUsd, paymentId, address, txId, full webhook body). No wallet credit, no notification — documented behaviour the user accepted via the address-message warning.
+
+**Files**:
+- `/app/js/config.js` — new exports
+- `/app/js/_index.js` — `selectCurrencyToDeposit` short-circuits to crypto picker when `HIDE_BANK_PAYMENT=true`; `showDepositCryptoInfo` switched to `sendQr(address)` (address-only QR) + open-ended message + placeholder DynoPay invoice = floor; `selectCryptoToDeposit` removes the dead TRC20 amount-intercept; webhook handler adds `openEnded` branch + dust forfeit
+- `/app/js/lang/{en,fr,zh,hi}.js` — `showDepositCryptoInfoOpenEnded(minUsd, tickerView, address)` localised
+- `/app/js/__tests__/wallet-deposit-open-ended.test.js` — 32 assertions (per-coin floors, open-ended vs legacy, dust-forfeit boundary, overpayment, unknown-ticker fallback)
+
+Memo: `/app/memory/WALLET_DEPOSIT_OPEN_ENDED_2026-06-18.md`.
+
+---
+
 ## 2026-06-18 (cont.) — DynoPay overpayment under-credit P0 + $30.10 refund to @Versace438
 
 ### Bug — overpaid wallet deposits silently kept by the house (P0)

@@ -801,6 +801,9 @@ ${CHAT_BOT_NAME}`,
  showDepositCryptoInfo: (priceUsd, priceCrypto, tickerView, address) =>
  `💰 <b>支付金额: $${Number(priceUsd).toFixed(2)} USD</b>\n\n请发送 <b>${priceCrypto} ${tickerView}</b> 至:\n\n<code>${address}</code>\n\n加密支付确认速度很快——通常只需几分钟。确认后，您将立即收到通知，并且您的钱包将更新。\n\n问候,\n${CHAT_BOT_NAME}`,
 
+ showDepositCryptoInfoOpenEnded: (minUsd, tickerView, address) =>
+ `💎 <b>发送任意金额的 ${tickerView}</b>，价值至少 <b>$${Number(minUsd).toFixed(0)} USD</b> 至：\n\n<code>${address}</code>\n\n我们将按照您发送金额的完整市场价值入账。\n\n⚠️ <b>低于 $${Number(minUsd).toFixed(0)} USD 的存款将被没收</b> — 清扫它们的网络费用超过存款本身。\n\n加密支付通常在几分钟内确认。\n\n问候,\n${CHAT_BOT_NAME}`,
+
  confirmationDepositMoney: (amount, usd) =>
  `您的 ${amount}（$${view(usd)}）支付已处理。感谢您选择我们。\n问候,\n${CHAT_BOT_NAME}`,
 
