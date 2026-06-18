@@ -3,6 +3,56 @@
 > 📋 **Recent changes are tracked in [`CHANGELOG.md`](./CHANGELOG.md)** (added 2026-02 for size).
 > Latest entry: **2026-06-12 — Anti-Red stealth mode (captcha-off silent cloak)**. Closes the gap where disabling the visible "Verifying your browser…" interstitial would let CF-flagged bots, Sec-Fetch-less impersonators, and generic crawler UAs reach origin. Added Sec-Fetch-* fingerprint signals to `calculateBotScore` and a stealth-mode 302 redirect threshold of 70 (vs Step 4's 100) in the `challengeBypassed` branch — silent, no UI. Score table + 7 unit-test fixtures in `/app/js/tests/test_anti_red_stealth_mode.js`. 18 captcha-off domains now protected automatically. Earlier same-day fix: scanner 302 redirect replacing HTML cloaking.
 
+## Session 2026-06-18 — Fresh dev pod setup (no production impact)
+**Status: ✅ COMPLETE — all 5 services running (`backend`, `frontend`, `nodejs`, `mongodb`, `nginx-code-proxy`), e2e ingress verified, every production-mutation guard firing in live logs.**
+
+### User request
+> "read the README file and set up. use below .env and ensure it doesn't affect production bot or it's webhook or CF"
+
+### Pod URL
+`https://cb6834a5-c2c0-45f4-a432-01b3f753d594.preview.emergentagent.com`
+
+### What was done
+- Created `/app/frontend/.env` (`REACT_APP_BACKEND_URL` = pod URL, `WDS_SOCKET_PORT=443`, `DISABLE_ESLINT_PLUGIN=true`).
+- Created `/app/backend/.env` with the user-supplied full prod credentials, applying these **dev-pod safety overrides** before write:
+  - `BOT_ENVIRONMENT="development"` (was `production` in user input) → forces use of `TELEGRAM_BOT_TOKEN_DEV` (6597817067), NOT prod token (6292288341).
+  - `CF_DISCOVERY_SYNC="false"` (was `true` in user input) → Cloudflare Discovery Sync disabled.
+  - `SKIP_WEBHOOK_SYNC="true"` (added) → blocks Telnyx number migration, SIP ANI override, Twilio webhook updates, Telegram setWebhook.
+  - `OVH_DRY_RUN="true"` (added) → no real OVH provisioning.
+  - `SELF_URL` / `SELF_URL_DEV` → this pod's URL + `/api`.
+  - `SELF_URL_PROD` → restored to `https://nomadly-email-ivr-production.up.railway.app` after the `setup-nodejs.sh` script overwrote it (script bug: when `BOT_ENVIRONMENT=development` it overwrites SELF_URL_PROD too).
+- Ran `bash /app/scripts/setup-nodejs.sh`: yarn install, created `/app/.env` symlink → `/app/backend/.env`, wrote `/etc/supervisor/conf.d/supervisord_nodejs.conf`, started nodejs under supervisor.
+- Restarted backend + nodejs after restoring `SELF_URL_PROD`.
+
+### Live-log verification (every production-mutation point is guarded)
+```
+Token Source: TELEGRAM_BOT_TOKEN_DEV                                            ✅
+[Webhooks] SKIP_WEBHOOK_SYNC=true — preserving existing Telegram webhook        ✅
+[Webhooks] SKIP_WEBHOOK_SYNC=true — will NOT overwrite production webhook URLs  ✅
+📡 Existing webhook (left untouched): (none)                                    ✅
+[CloudPhone] SKIP_WEBHOOK_SYNC=true — skipping number migration                 ✅
+[CloudPhone] SKIP_WEBHOOK_SYNC=true — skipping SIP connection ANI override      ✅
+━━━ Reading Twilio Resources (READ-ONLY — no webhook updates) ━━━              ✅
+[AntiRed] Startup worker upgrade SKIPPED (BOT_ENVIRONMENT!=production)          ✅
+[CF-Sync] Disabled (CF_DISCOVERY_SYNC!=true) — skipping                         ✅
+```
+
+### End-to-end smoke
+| Endpoint | HTTP |
+|---|---|
+| `https://<pod>/` (frontend) | 200 |
+| `https://<pod>/api/` (FastAPI → Node.js proxy) | 200 |
+| `https://<pod>/api/health` | 200 |
+
+### DO NOT MODIFY (keep dev-safe)
+- `/app/backend/.env::BOT_ENVIRONMENT` — keep `development`.
+- `/app/backend/.env::SKIP_WEBHOOK_SYNC` — keep `true`.
+- `/app/backend/.env::CF_DISCOVERY_SYNC` — keep `false`.
+- `/app/backend/.env::OVH_DRY_RUN` — keep `true`.
+- `/app/backend/.env::SELF_URL_PROD` — keep `https://nomadly-email-ivr-production.up.railway.app`.
+
+---
+
 ## Session 2026-06-17 (later) — Railway prod env sync after WHM migration
 **Status: ✅ COMPLETE — `WHM_TOKEN` updated, auto-redeploy SUCCESS, live bot authenticates against new WHM.**
 
