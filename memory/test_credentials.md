@@ -7,13 +7,13 @@
 - **Free SMS**: 100 used / 100 limit
 
 ## Current Pod URL (updated 2026-06-17)
-- Base: `https://onboard-docs-5.preview.emergentagent.com`
+- Base: `https://env-sandbox-1.preview.emergentagent.com`
 
 ## SMS App Web URL
-- Browser test: `https://onboard-docs-5.preview.emergentagent.com/api/sms-app-web`
+- Browser test: `https://env-sandbox-1.preview.emergentagent.com/api/sms-app-web`
 
 ## Hosting Panel
-- **URL**: `https://onboard-docs-5.preview.emergentagent.com/panel`
+- **URL**: `https://env-sandbox-1.preview.emergentagent.com/panel`
 - **Email**: `hello@ivrpod.com`
 - **Password**: `Onlygod1234@`
 - **Panel Domain**: `https://panel.1.hostbay.io/panel`
