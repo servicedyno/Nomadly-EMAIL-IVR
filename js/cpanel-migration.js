@@ -155,7 +155,26 @@ async function runMigration(getCpanelCol) {
     }
 
     // Update whmHost in MongoDB
-    await col.updateOne({ _id: acct._id }, { $set: { whmHost: WHM_HOST } })
+    // CRITICAL: also clear the protection-heartbeat "stuck" flags inherited
+    // from the old WHM. Without this, every account migrated here stays
+    // permanently excluded from ProtectionHeartbeat — re: 2026-06-18 audit,
+    // 19/20 accounts on the new server were silently skipped because their
+    // protectionRepairCount was already 3 (pinned on the dead OLD WHM).
+    // Stamp migratedAt + prevWhmHost so the heartbeat can also confirm the
+    // pin predates the migration (and to keep parity with the ad-hoc
+    // /app/memory/WHM_MIGRATION_2026-06-17.md migration's schema).
+    await col.updateOne(
+      { _id: acct._id },
+      {
+        $set: { whmHost: WHM_HOST, prevWhmHost: acct.whmHost || null, migratedAt: new Date() },
+        $unset: {
+          protectionRepairCount: '',
+          protectionLastSkipReason: '',
+          protectionStuckAt: '',
+          protectionRepairUpdatedAt: '',
+        },
+      },
+    )
     log(`[CpanelMigration] ${cpUser}: ✅ Migrated to ${WHM_HOST} (was ${acct.whmHost || 'unset'}).`)
     migrated++
 

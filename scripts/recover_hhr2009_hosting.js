@@ -231,6 +231,25 @@ async function main() {
       await cfService.enableAuthenticatedOriginPulls(zoneId).catch(() => {})
       console.log('   ✅ SSL=flexible, HTTPS enforced, AOP enabled')
 
+      // ── 5b. Force OpenProvider to push CF NS to the registry ──
+      // This is the step that was missing in the original recovery — without it,
+      // OP's internal DB shows CF NS but the .com / .de registry still returns
+      // the OP parking NS (ina*.registrar.eu), so AntiRed worker never sees
+      // any traffic and Chrome flags the domain red.
+      // Bug class doc'd at op-service.js:683 (ns_group reset quirk).
+      try {
+        const cfNs = (regDom?.val?.nameservers || []).filter(Boolean)
+        if (cfNs.length >= 2) {
+          const opService = require('/app/js/op-service.js')
+          const nsRes = await opService.updateNameservers(DOMAIN, cfNs)
+          console.log(`   ${nsRes.success ? '✅' : '⚠️'} OP→registry NS re-push: ${JSON.stringify(nsRes)}`)
+        } else {
+          console.log(`   ⚠️ No CF NS in registeredDomains.val.nameservers — skipped OP re-push`)
+        }
+      } catch (nsErr) {
+        console.log(`   ⚠️ OP NS re-push error (non-blocking): ${nsErr.message}`)
+      }
+
       // Trigger AutoSSL on cPanel
       try {
         const sslRes = await whmService.startAutoSSL(whmResult.username)
