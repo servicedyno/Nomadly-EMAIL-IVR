@@ -43,25 +43,17 @@ Old code only set `whmHost`. New code also:
 
 ## Remaining work (NOT executed — pending user approval)
 
-### One-shot unstick for the 19 already-migrated accounts
-The cpanel-migration.js patch above will only help **future** migrations. The 19 accounts migrated on 2026-06-17 16:18 still carry their stale pin flags. To restore heartbeat coverage immediately, run from a Node REPL connected to prod Mongo:
-```javascript
-db.cpanelAccounts.updateMany(
-  { whmHost: '68.183.77.106', protectionRepairCount: { $gte: 3 } },
-  {
-    $unset: {
-      protectionRepairCount: '',
-      protectionLastSkipReason: '',
-      protectionStuckAt: '',
-      protectionRepairUpdatedAt: '',
-    },
-  },
-)
-// expected: 19 modified
-```
+### ~~One-shot unstick for the 19 already-migrated accounts~~ ✅ EXECUTED 2026-06-18
+Ran `/app/scripts/unstick_migrated_cpanel_accounts.js`. Modified 19/19 matched accounts. Verify count: 0 remaining. Affected customers (heads-up if any contact support):
+- chatId `7893016294` (3 domains: cap1online360.com, huntingtononlinebanking.it, wellsfargo-secure.org)
+- chatId `1960615421` (@HHR2009 — 4 domains: invitegartparty.de, welcoparttylive.de, rsvpeviteopen.de, paperlesseviteinvio.com)
+- chatId `1908391639` (4 domains: rsvpartygath.de, cardtoblisful.de, rspartopartydine.de, weltoecardinvitee.org)
+- Plus 8 single-domain customers (full list in run log).
 
-### Deeper fix in the NORMAL flow (optional)
-The same registry-push gap exists at registration time in `cr-register-domain-&-create-cpanel.js:250-281`. For new domains it relies entirely on OP propagating the NS at registration time. To make that bulletproof, add a forced `op.updateNameservers(domain, regResult.nameservers)` follow-up after a successful `domainService.registerDomain()` whenever `nsChoice === 'cloudflare'`. This would cost one extra API call per registration but eliminate this entire bug class.
+Next `[ProtectionHeartbeat]` tick (every 60 min) will re-evaluate all 19. Watch `/var/log/supervisor/nodejs.out.log` for `Checking 20 cPanel accounts` (was `Checking 1`).
+
+### ~~Deeper fix in the NORMAL flow~~ ✅ EXECUTED 2026-06-18
+Patched `/app/js/cr-register-domain-&-create-cpanel.js:281` — inserted a 14-line block immediately after CF zone capture that calls `opService.updateNameservers(domain, regResult.nameservers)` whenever `regResult.registrar === 'OpenProvider'` AND `nsChoice === 'cloudflare'` AND `nameservers.length >= 2`. Non-blocking on failure. Eliminates the entire registry-push silently-dropped bug class for future CF-NS purchases via OpenProvider — no more relying on DnsHealer to detect+heal post-hoc.
 
 ## Files touched
 - ✅ `/app/scripts/push_hhr2009_cf_ns_to_op.js` (new) — one-shot user fix, executed

@@ -280,6 +280,31 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state,
             log(`[Hosting] CF zone captured from registration: ${cfZoneId} NS: ${cfNameservers.join(', ')}`)
           }
 
+          // ── Belt-and-suspenders: force OP→registry NS re-push ──
+          // op.registerDomain() stores the CF NS in OP's internal DB and *should*
+          // push them to the registry at registration time, but for some TLD/state
+          // combinations (notably .com under load, and DENIC's ns_group binding —
+          // see op-service.js:683) OP silently keeps the registry on its parking NS
+          // (ina*.registrar.eu). Calling updateNameservers() here sends the
+          // `ns_group: ''` reset and forces a fresh `domain:update` to the registry.
+          // Real prod incident 2026-06-17 (@HHR2009 / strivepartypaperless.com)
+          // confirmed this gap — fixing here eliminates the entire bug class for
+          // future purchases without waiting for the DnsHealer to detect & heal it.
+          if (
+            regResult.registrar === 'OpenProvider' &&
+            regNsChoice === 'cloudflare' &&
+            Array.isArray(regResult.nameservers) &&
+            regResult.nameservers.length >= 2
+          ) {
+            try {
+              const opService = require('./op-service')
+              const nsRes = await opService.updateNameservers(domain, regResult.nameservers)
+              log(`[Hosting] ${domain}: OP→registry NS re-push ${nsRes.success ? 'ok' : 'failed'} ${nsRes.error || ''}`)
+            } catch (nsErr) {
+              log(`[Hosting] ${domain}: OP NS re-push error (non-blocking): ${nsErr.message}`)
+            }
+          }
+
           // Store in user's domainsOf + registeredDomains
           const regClient2 = new MongoClient(process.env.MONGO_URL)
           await regClient2.connect()
