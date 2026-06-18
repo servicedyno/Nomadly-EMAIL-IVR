@@ -804,6 +804,9 @@ ${CHAT_BOT_NAME}`,
  showDepositCryptoInfoOpenEnded: (minUsd, tickerView, address) =>
  `💎 <b>发送任意金额的 ${tickerView}</b>，价值至少 <b>$${Number(minUsd).toFixed(0)} USD</b> 至：\n\n<code>${address}</code>\n\n我们将按照您发送金额的完整市场价值入账。\n\n⚠️ <b>低于 $${Number(minUsd).toFixed(0)} USD 的存款将被没收</b> — 清扫它们的网络费用超过存款本身。\n\n加密支付通常在几分钟内确认。\n\n问候,\n${CHAT_BOT_NAME}`,
 
+ dustDepositNotice: (receivedUsd, minUsd, tickerView) =>
+ `⚠️ <b>存款低于最低限额 — 未入账</b>\n\n我们收到了您 <b>≈ $${Number(receivedUsd).toFixed(2)} USD</b> 等值的 ${tickerView}，但该币种的钱包充值最低限额是 <b>$${Number(minUsd).toFixed(0)} USD</b>。\n\n清扫如此小额存款的网络费用超过存款本身，因此您的资金未入账。\n\n如需帮助，请点击 💬 Support，我们的团队将为您提供协助。\n\n— ${CHAT_BOT_NAME}`,
+
  confirmationDepositMoney: (amount, usd) =>
  `您的 ${amount}（$${view(usd)}）支付已处理。感谢您选择我们。\n问候,\n${CHAT_BOT_NAME}`,
 

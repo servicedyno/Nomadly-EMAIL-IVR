@@ -34019,10 +34019,10 @@ app.post('/dynopay/crypto-wallet', authDyno, async (req, res) => {
   // Users no longer type a USD amount; they send whatever they want. We
   // enforce the per-coin minimum at receipt time. If a customer sends less
   // than the floor (e.g. <$10 BTC, <$20 USDT-TRC20), the deposit is
-  // FORFEITED — no wallet credit, no Telegram notification. We log it to
-  // `dustDeposits` so operators can elect to refund manually if desired.
-  // This is the documented behaviour the customer agreed to via the
-  // open-ended address message (showDepositCryptoInfoOpenEnded).
+  // FORFEITED — no wallet credit. We log it to `dustDeposits` and notify
+  // the user via Telegram so they know the funds did not land and can
+  // contact support if needed. Documented behaviour the customer agreed to
+  // via the open-ended address message (showDepositCryptoInfoOpenEnded).
   const minUsd = walletDepositMinFor(ticker)
   if (usdIn < minUsd) {
     log('[Wallet] FORFEIT (below min): chatId=' + chatId + ' received=$' + usdIn + ' min=$' + minUsd + ' coin=' + coin + ' ref=' + ref)
@@ -34042,15 +34042,27 @@ app.post('/dynopay/crypto-wallet', authDyno, async (req, res) => {
         address: req.pay?.address || req.body?.address || null,
         txId: req.body?.txId || req.body?.transaction_reference || null,
         createdAt: new Date(),
+        userNotified: false,
         body: req.body,
       })
     } catch (e) {
       log('[Wallet] dustDeposits log warn (non-fatal):', e.message)
     }
+    // Notify the user. The bot's `sendMessage` helper is fire-and-forget;
+    // wrap in try so any Telegram-side hiccup doesn't break the webhook
+    // response (DynoPay would otherwise retry). Mark the dust row as
+    // notified so a future "/dispute" or sweep job can tell the user has
+    // been informed once.
+    try {
+      sendMessage(chatId, translation('t.dustDepositNotice', lang, usdIn, minUsd, coin))
+      await db.collection('dustDeposits').updateOne({ ref }, { $set: { userNotified: true, userNotifiedAt: new Date() } })
+    } catch (e) {
+      log('[Wallet] dust notify warn (non-fatal):', e.message)
+    }
     del(chatIdOfDynopayPayment, ref)
     // 200 OK so DynoPay doesn't retry the webhook indefinitely. We've
     // recorded the receipt in dynopayWebhooks + dustDeposits.
-    return res.send(html('Below minimum — forfeit (logged)'))
+    return res.send(html('Below minimum — forfeit (logged + user notified)'))
   }
 
   log('Crediting wallet for chatId:', chatId, 'amount: $' + usdIn)

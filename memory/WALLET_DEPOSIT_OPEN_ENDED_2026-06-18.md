@@ -112,4 +112,4 @@ The legacy fixed-amount code paths (and the deprecated `confirmTrc20MinDeposit` 
 
 1. **`/dispute <chatId>` admin command**: surface `dynopayWebhooks` + `cryptoDepositAddresses` + `dustDeposits` for one chatId, formatted as a reconciled timeline. Resolve any future complaint in 2 seconds.
 2. **Retrospective sweep**: query historical `payments` collection for any wallet-topup where `base_amount` may have under-credited overpayers. Make whole if found.
-3. **Telegram notification when dust is forfeited**: optionally tell the user *"You sent $X but the minimum is $Y — funds were not credited. Reply if you need help."* — friendlier UX, but more support load.
+3. **(SHIPPED 2026-06-18) Telegram notification on dust forfeit**: when a deposit is below the floor, the bot now sends the user a localised message explaining the situation and directing them to 💬 Support if they need help. Localised in en/fr/zh/hi. Test coverage: 252 assertions in `__tests__/dust-deposit-notification.test.js`. The `dustDeposits` row carries `userNotified: true` + `userNotifiedAt` once the message is dispatched. No auto-combine / upsell logic — kept simple per operator decision.

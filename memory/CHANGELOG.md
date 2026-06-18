@@ -1,6 +1,18 @@
 # CHANGELOG — Nomadly Bot
 
 
+## 2026-06-18 (cont.) — Dust-deposit user notification
+
+Closes the silent-loss UX gap from the open-ended deposit flow. When a deposit lands below the per-coin floor (e.g. < $10 BTC, < $20 USDT-TRC20):
+- Already shipped: forfeit + `dustDeposits` audit row.
+- **Now**: bot also sends the user a localised Telegram message explaining received USD vs. minimum, and directs them to 💬 Support if they need help. Localised in en/fr/zh/hi (`t.dustDepositNotice`). The `dustDeposits` row gains `userNotified: true` + `userNotifiedAt` once the message dispatches.
+
+Deliberately simple — no auto-combine / upsell / "send the rest" buttons. Per operator decision: a clear notice + support pointer is enough; complex recovery flows can come later if support load demands it.
+
+**Test**: `/app/js/__tests__/dust-deposit-notification.test.js` — 252 assertions across en/fr/zh/hi × 3 tickers × 4 boundary cases × 5 invariants per case.
+
+---
+
 ## 2026-06-18 (cont.) — Open-ended wallet deposit flow
 
 ### UX upgrade — no more amount typing (P1)

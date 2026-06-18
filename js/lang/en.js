@@ -925,6 +925,17 @@ Crypto payments are confirmed quickly — usually within a few minutes. Once con
 Best regards,
 ${CHAT_BOT_NAME}`,
 
+ dustDepositNotice: (receivedUsd, minUsd, tickerView) =>
+ `⚠️ <b>Deposit below minimum — not credited</b>
+
+We received <b>≈ $${Number(receivedUsd).toFixed(2)} USD</b> in ${tickerView} from you, but the wallet-deposit minimum for this coin is <b>$${Number(minUsd).toFixed(0)} USD</b>.
+
+The network fee to sweep deposits this small is higher than the deposit itself, so your funds were not credited.
+
+If you need help, please tap 💬 Support and our team will assist you.
+
+— ${CHAT_BOT_NAME}`,
+
  confirmationDepositMoney: (
  amount,
  usd,

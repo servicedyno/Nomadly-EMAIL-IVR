@@ -802,6 +802,9 @@ ${CHAT_BOT_NAME}`,
  showDepositCryptoInfoOpenEnded: (minUsd, tickerView, address) =>
  `💎 <b>कोई भी राशि का ${tickerView} भेजें</b> जिसकी कीमत कम से कम <b>$${Number(minUsd).toFixed(0)} USD</b> हो:\n\n<code>${address}</code>\n\nहम आपके भेजे गए की पूरी बाज़ार-कीमत क्रेडिट करेंगे।\n\n⚠️ <b>$${Number(minUsd).toFixed(0)} USD से कम जमा ज़ब्त हो जाएगी</b> — उन्हें स्वीप करने का नेटवर्क शुल्क जमा से अधिक होता है।\n\nक्रिप्टो भुगतान आमतौर पर कुछ ही मिनटों में पुष्टि होते हैं।\n\nसादर,\n${CHAT_BOT_NAME}`,
 
+ dustDepositNotice: (receivedUsd, minUsd, tickerView) =>
+ `⚠️ <b>जमा न्यूनतम से कम — क्रेडिट नहीं हुआ</b>\n\nहमने आपसे ${tickerView} में <b>≈ $${Number(receivedUsd).toFixed(2)} USD</b> प्राप्त किया, लेकिन इस सिक्के के लिए वॉलेट जमा की न्यूनतम राशि <b>$${Number(minUsd).toFixed(0)} USD</b> है।\n\nइतनी छोटी जमा राशि को स्वीप करने का नेटवर्क शुल्क जमा से अधिक है, इसलिए आपके धन को क्रेडिट नहीं किया गया।\n\nयदि सहायता चाहिए, तो 💬 Support पर टैप करें — हमारी टीम आपकी सहायता करेगी।\n\n— ${CHAT_BOT_NAME}`,
+
  confirmationDepositMoney: (amount, usd) =>
  `आपकी ${amount} ($${view(usd)}) की राशि संसाधित हो गई है। हमें चुनने के लिए धन्यवाद।\nसादर,\n${CHAT_BOT_NAME}`,
 
