@@ -67,6 +67,18 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
+  // Merge updates into the active session (e.g. after a primary-domain swap
+  // the backend returns a fresh token + new domain). Keeps sessionStorage and
+  // React state in sync so subsequent API calls carry the new token/domain.
+  const updateSession = useCallback((partial) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, ...partial };
+      sessionStorage.setItem('panel_session', JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
   const api = useCallback(async (path, options = {}) => {
     if (!user?.token) throw new Error('Not authenticated');
     const res = await fetch(`${BACKEND_URL}/api/panel${path}`, {
@@ -101,7 +113,7 @@ export function AuthProvider({ children }) {
   }, [user, logout]);
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, api }}>
+    <AuthContext.Provider value={{ user, login, logout, api, updateSession }}>
       {children}
     </AuthContext.Provider>
   );

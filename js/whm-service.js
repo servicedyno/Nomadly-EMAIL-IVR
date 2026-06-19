@@ -762,6 +762,37 @@ async function excludeDomainsFromAutoSSL(cpUser, domains) {
   }
 }
 
+/**
+ * Change the PRIMARY (main) domain of an existing cPanel account.
+ * WHM API 1 `modifyacct` with user + domain. The account username is unchanged,
+ * so the user keeps logging in with the same username/PIN. cPanel keeps the
+ * docroot at public_html, so the new primary serves the account's existing site.
+ *
+ * NOTE: cPanel removes the OLD primary domain from the account entirely when the
+ * primary changes. If the new domain is currently an addon on the SAME account,
+ * the caller MUST remove it as an addon first (a domain can't be both).
+ *
+ * @param {string} username   current cPanel account username
+ * @param {string} newDomain  the domain to make primary (lowercased by caller)
+ * @returns {{ success: boolean, error?: string }}
+ */
+async function changePrimaryDomain(username, newDomain) {
+  try {
+    const res = await whmApi.get('/modifyacct', {
+      params: { 'api.version': 1, user: username, domain: newDomain },
+    })
+    const success = res.data?.metadata?.result === 1
+    const reason = res.data?.metadata?.reason || res.data?.data?.reason
+    if (!success) {
+      log(`[WHM] changePrimaryDomain failed for ${username} → ${newDomain}: ${reason || 'no reason returned'}`)
+    }
+    return { success, error: success ? undefined : (reason || 'Unknown WHM error') }
+  } catch (err) {
+    log(`[WHM] changePrimaryDomain error: ${err.message}`)
+    return { success: false, error: err.message }
+  }
+}
+
 module.exports = {
   createAccount,
   domainExists,
@@ -771,6 +802,7 @@ module.exports = {
   terminateAccount,
   changePassword,
   changePackage,
+  changePrimaryDomain,
   getAccountInfo,
   createUserSession,
   generatePassword,

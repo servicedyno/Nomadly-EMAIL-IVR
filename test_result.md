@@ -153,6 +153,88 @@ Start / Stop / Restart / Shutdown route correctly to OVH via `vm-instance-setup.
 - `nodejs` restarted clean; dev safety guards still confirmed (DEVELOPMENT token, SKIP_WEBHOOK_SYNC, CF-Sync skipped).
 - **NOT tested live:** reset/reinstall/cancel were intentionally NOT triggered end-to-end — they hit real OVH resources (not dry-run-gated) in the shared prod account. Routing verified statically instead.
 
+## Hosting Panel — Domain Mode + Set-Primary Feature (NEW, this session)
+
+### What was built
+Two new HostPanel capabilities on the Domains tab (`js/cpanel-routes.js`, `frontend/.../panel/DomainList.js`):
+1. **Addon document-root mode** — an addon domain can serve the SAME website as the
+   primary (docroot=`public_html`, "mirror") or its OWN folder (`public_html/<domain>`, "own").
+   Chosen at add-time and toggleable later.
+2. **Set / Replace Primary domain** — promote an existing addon to be the account's
+   primary via WHM `modifyacct`; old primary removed; CF zone + anti-red re-deployed
+   for the new primary; fresh session token returned.
+
+### New backend endpoints (all under `/api/panel`, require Bearer token)
+- `GET  /domains/docroot-modes` → `{ modes: { <addon>: 'mirror'|'own' }, primary }`
+- `POST /domains/docroot-mode` `{ domain, mode:'mirror'|'own' }`
+- `POST /domains/set-primary` `{ domain }` → `{ success, oldDomain, newDomain, token }`
+- `POST /domains/add-enhanced` now also accepts `{ mode:'mirror'|'own' }`
+
+### New service functions
+- `js/cpanel-proxy.js`: `getDomainsData`, `changeDomainDocRoot` (API2 SubDomain::changedocroot)
+- `js/whm-service.js`: `changePrimaryDomain` (WHM API1 modifyacct)
+- `js/addon-domain-flow.js`: exported `runDnsAndProtection` (reused for new primary)
+
+### Testing scenarios (backend) — seeded throwaway account
+Seed: `node /tmp/seed_paneltest.js` → account `pnldoctest` / PIN `123456`,
+primary `primary-doctest.example`, addon `addon-doctest.example` (mode `own`).
+
+VALIDATION/WIRING tests (these return BEFORE touching cPanel/WHM, so safe to run here):
+- Login `POST /api/panel/login {username:"pnldoctest", pin:"123456"}` → 200 + token
+- `GET /api/panel/domains/docroot-modes` (Bearer) → 200, modes `{ "addon-doctest.example":"own" }`, primary `primary-doctest.example`
+- `GET /api/panel/domains/docroot-modes` (NO token) → 401
+- `POST /api/panel/domains/docroot-mode {domain:"primary-doctest.example", mode:"mirror"}` → 400 (primary cannot change)
+- `POST /api/panel/domains/docroot-mode {domain:"notmine.example", mode:"mirror"}` → 404 (not an addon)
+- `POST /api/panel/domains/docroot-mode {domain:"addon-doctest.example"}` (no mode) → 400
+- `POST /api/panel/domains/set-primary {domain:"primary-doctest.example"}` → 400 (already primary)
+- `POST /api/panel/domains/set-primary {domain:"notanaddon.example"}` → 400 with `needsAttach:true`
+- `POST /api/panel/domains/set-primary {}` → 400 (domain required)
+
+NOT testable on this sandbox (document for prod smoke-test):
+- The actual cPanel `changedocroot` and WHM `modifyacct` happy-paths require reachable
+  cPanel/WHM. cPanel tunnel works here, but the **WHM tunnel returns 403 (Cloudflare
+  Access — CF_ACCESS_CLIENT_ID/SECRET not in this .env)**, so account-level WHM ops
+  (and thus set-primary's modifyacct, and creating a throwaway real account) cannot run.
+  Verify these happy-paths on Railway/production where CF Access tokens are present.
+
+### Backend Testing Results (2026-06-19)
+**Tested by:** Testing Sub-Agent (deep_testing_backend_v2)
+**Test Date:** 2026-06-19 13:19 UTC
+**Test Account:** pnldoctest / PIN 123456
+**Base URL:** https://29d3c091-9d5a-4284-8613-f494eb486bba.preview.emergentagent.com/api/panel
+
+**ALL 10 VALIDATION/WIRING TEST CASES PASSED ✅**
+
+| Test # | Endpoint | Method | Auth | Expected | Actual | Status |
+|--------|----------|--------|------|----------|--------|--------|
+| 1 | /login | POST | No | 200 + token + domain + isGold | 200, token present, domain=primary-doctest.example, isGold=true, plan=Golden | ✅ PASS |
+| 2 | /domains/docroot-modes | GET | No | 401 Unauthorized | 401, error: "Unauthorized" | ✅ PASS |
+| 3 | /domains/docroot-modes | GET | Yes | 200 + modes + primary | 200, modes={addon-doctest.example:'own'}, primary=primary-doctest.example | ✅ PASS |
+| 4 | /domains/docroot-mode | POST | Yes | 400 (cannot change primary) | 400, error: "The primary domain always serves your main site (public_html) and cannot be changed here." | ✅ PASS |
+| 5 | /domains/docroot-mode | POST | Yes | 404 (not an addon) | 404, error: "That domain is not an addon on this hosting plan." | ✅ PASS |
+| 6 | /domains/docroot-mode | POST | Yes | 400 (mode required) | 400, error: "domain and mode are required" | ✅ PASS |
+| 7 | /domains/set-primary | POST | Yes | 400 (already primary) | 400, error: "That domain is already your primary domain." | ✅ PASS |
+| 8 | /domains/set-primary | POST | Yes | 400 + needsAttach=true | 400, error: "Add this domain to your plan first (Add Domain), then set it as primary.", needsAttach=true | ✅ PASS |
+| 9 | /domains/set-primary | POST | Yes | 400 (domain required) | 400, error: "domain is required" | ✅ PASS |
+| 10 | /domains/docroot-mode | POST | No | 401 Unauthorized | 401, error: "Unauthorized" | ✅ PASS |
+
+**Test Details:**
+- All endpoints respond correctly with expected HTTP status codes
+- Authentication/authorization working properly (401 for missing/invalid tokens)
+- Input validation working correctly (400 for missing/invalid parameters)
+- Business logic validation working correctly (primary domain checks, addon existence checks)
+- Error messages are clear and user-friendly
+- Response times: All requests completed within 1-2 seconds
+- No timeouts, no crashes, no 500 errors
+
+**Test Method:**
+- Used curl to test all endpoints from within the container
+- Python test script encountered timeout issues when accessing external URL from inside container (network routing issue), but curl confirmed all endpoints working correctly
+- Backend logs confirm all requests processed successfully
+
+**Conclusion:**
+All NEW hosting panel backend endpoints for domain-mode and set-primary features are **FULLY FUNCTIONAL** for validation/wiring/auth scenarios. The endpoints correctly reject invalid inputs, enforce authentication, and return appropriate error messages BEFORE attempting any cPanel/WHM operations (as designed for this DB-only test account).
+
 ## Testing Protocol
 
 **Communication protocol with testing sub-agent:**

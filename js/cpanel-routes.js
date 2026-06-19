@@ -677,6 +677,227 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     res.json(result)
   })
 
+  // ─── Domain Document-Root Mode (mirror primary vs own folder) ───
+  // GET  /domains/docroot-modes → { modes: { <addonDomain>: 'mirror'|'own' }, primary }
+  //   'mirror' = addon serves the SAME website as the primary (docroot=public_html)
+  //   'own'    = addon serves its own folder (docroot=public_html/<domain>)
+  router.get('/domains/docroot-modes', ...auth, async (req, res) => {
+    try {
+      const col = getCpanelCol()
+      const account = col ? await col.findOne({ _id: req.cpUser.toLowerCase() }) : null
+      const stored = (account && account.docrootModes) || {}
+      const modes = {}
+      for (const d of (req.cpAddonDomains || [])) {
+        const key = (d || '').toLowerCase()
+        if (!key) continue
+        modes[key] = stored[key] === 'mirror' ? 'mirror' : 'own'
+      }
+      res.json({ modes, primary: req.cpDomain })
+    } catch (err) {
+      log(`[Panel] docroot-modes list error: ${err.message}`)
+      res.status(500).json({ error: 'Failed to fetch domain modes' })
+    }
+  })
+
+  // POST /domains/docroot-mode { domain, mode: 'mirror'|'own' }
+  // Switches an ADDON domain between mirroring the primary site and serving
+  // its own folder. The primary domain itself cannot be changed here.
+  router.post('/domains/docroot-mode', ...auth, async (req, res) => {
+    const { domain, mode } = req.body || {}
+    if (!domain || !mode) return res.status(400).json({ error: 'domain and mode are required' })
+    const dom = String(domain).toLowerCase().trim()
+    const wantMode = mode === 'mirror' ? 'mirror' : 'own'
+
+    if (dom === (req.cpDomain || '').toLowerCase()) {
+      return res.status(400).json({ error: 'The primary domain always serves your main site (public_html) and cannot be changed here.' })
+    }
+    const addons = (req.cpAddonDomains || []).map(d => (d || '').toLowerCase())
+    if (!addons.includes(dom)) {
+      return res.status(404).json({ error: 'That domain is not an addon on this hosting plan.' })
+    }
+
+    const subdomainLabel = dom.replace(/\./g, '')
+    const rootdomain = req.cpDomain
+    const dir = wantMode === 'mirror' ? 'public_html' : `public_html/${dom}`
+
+    try {
+      // For 'own' mode, make sure the target folder exists (it may not if the
+      // domain was originally added in mirror mode). Idempotent — ignore
+      // "already exists" style failures.
+      if (wantMode === 'own') {
+        try {
+          await cpProxy.createDirectory(req.cpUser, req.cpPass, 'public_html', dom, req.whmHost)
+        } catch (mkErr) {
+          log(`[Panel] docroot-mode: mkdir public_html/${dom} note: ${mkErr.message}`)
+        }
+      }
+
+      const result = await cpProxy.changeDomainDocRoot(req.cpUser, req.cpPass, subdomainLabel, rootdomain, dir, req.whmHost)
+      if (result.code === 'CPANEL_DOWN') {
+        return res.status(503).json({ error: 'WHM control plane unreachable. Please retry shortly.', code: 'CPANEL_DOWN' })
+      }
+      if (result.status !== 1) {
+        return res.status(400).json({ error: (result.errors && result.errors[0]) || 'Failed to update domain mode' })
+      }
+
+      // Persist the mode for display
+      try {
+        const col = getCpanelCol()
+        if (col) {
+          await col.updateOne(
+            { _id: req.cpUser.toLowerCase() },
+            { $set: { [`docrootModes.${dom}`]: wantMode } }
+          )
+        }
+      } catch (dbErr) {
+        log(`[Panel] docroot-mode: persist warning for ${dom}: ${dbErr.message}`)
+      }
+
+      log(`[Panel] docroot-mode: ${dom} → ${wantMode} (dir=${dir}) for ${req.cpUser}`)
+      return res.json({ success: true, domain: dom, mode: wantMode, docRoot: dir })
+    } catch (err) {
+      log(`[Panel] docroot-mode error for ${dom}: ${err.message}`)
+      return res.status(500).json({ error: 'Failed to update domain mode' })
+    }
+  })
+
+  // ─── Set / Replace Primary Domain ───────────────────────
+  // POST /domains/set-primary { domain }
+  // Promotes an existing ADDON domain to be the account's PRIMARY domain via
+  // WHM modifyacct. The old primary is removed from the account by cPanel; the
+  // account keeps the same username/PIN and the same public_html site content
+  // (the new primary now serves it). Cloudflare zone + anti-red protection are
+  // (re)deployed for the new primary in the background, and the old primary's
+  // CF records/worker routes are cleaned up. Returns a fresh session token
+  // carrying the new primary domain.
+  router.post('/domains/set-primary', ...auth, async (req, res) => {
+    const { domain } = req.body || {}
+    if (!domain) return res.status(400).json({ error: 'domain is required' })
+    const newDomain = String(domain).toLowerCase().trim()
+    if (!newDomain.includes('.')) return res.status(400).json({ error: 'invalid domain' })
+
+    const oldDomain = (req.cpDomain || '').toLowerCase()
+    if (newDomain === oldDomain) {
+      return res.status(400).json({ error: 'That domain is already your primary domain.' })
+    }
+
+    const col = getCpanelCol()
+    if (!col) return res.status(503).json({ error: 'Service starting up, try again shortly.' })
+    const account = await col.findOne({ _id: req.cpUser.toLowerCase() })
+    if (!account) return res.status(404).json({ error: 'Account not found' })
+
+    // Eligibility: the new domain must already be an addon on THIS plan.
+    const addons = (req.cpAddonDomains || []).map(d => (d || '').toLowerCase())
+    if (!addons.includes(newDomain)) {
+      return res.status(400).json({
+        error: 'Add this domain to your plan first (Add Domain), then set it as primary.',
+        needsAttach: true,
+      })
+    }
+
+    // Blocklist guard
+    try {
+      const db = getCpanelCol()?.s?.db
+      if (db) {
+        const blocked = await db.collection('blockedDomains').findOne({ domain: newDomain })
+        if (blocked) {
+          return res.status(403).json({ error: `This domain (${newDomain}) is blocked and cannot be used.`, blocked: true })
+        }
+      }
+    } catch (e) {
+      log(`[Panel] set-primary: blocklist check warning: ${e.message}`)
+    }
+
+    log(`[Panel] set-primary request — cpUser=${req.cpUser}, ${oldDomain} → ${newDomain}`)
+
+    // 1. Remove the new domain as an addon (a domain can't be both addon + primary).
+    let removedAddon = false
+    try {
+      const rm = await cpProxy.removeAddonDomain(req.cpUser, req.cpPass, newDomain, undefined, oldDomain, req.whmHost)
+      if (rm.code === 'CPANEL_DOWN') {
+        return res.status(503).json({ error: 'WHM control plane unreachable. Please retry shortly.', code: 'CPANEL_DOWN' })
+      }
+      removedAddon = rm.status === 1
+      // Even if cPanel reports a soft failure, continue — modifyacct will fail
+      // loudly if the domain is still bound, and we roll back below.
+    } catch (e) {
+      log(`[Panel] set-primary: removeAddon warning for ${newDomain}: ${e.message}`)
+    }
+
+    // 2. Swap the primary domain on WHM.
+    const swap = await whmService.changePrimaryDomain(req.cpUser, newDomain)
+    if (!swap.success) {
+      // Roll back: re-attach the domain as an addon so the user isn't left worse off.
+      if (removedAddon) {
+        try {
+          await cpProxy.addAddonDomain(req.cpUser, req.cpPass, newDomain, newDomain.replace(/\./g, ''), `public_html/${newDomain}`, req.whmHost)
+          log(`[Panel] set-primary: rolled back — re-attached ${newDomain} as addon after modifyacct failure`)
+        } catch (rbErr) {
+          log(`[Panel] set-primary: ROLLBACK FAILED for ${newDomain}: ${rbErr.message}`)
+        }
+      }
+      return res.status(500).json({ error: swap.error || 'Failed to change primary domain. Please try again or contact support.' })
+    }
+
+    // 3. Update DB: new primary, drop it from addonDomains + docrootModes.
+    try {
+      await col.updateOne(
+        { _id: account._id },
+        {
+          $set: { domain: newDomain },
+          $pull: { addonDomains: newDomain },
+          $unset: { [`docrootModes.${newDomain}`]: '', [`docrootModes.${oldDomain}`]: '' },
+        }
+      )
+    } catch (dbErr) {
+      log(`[Panel] set-primary: DB update warning: ${dbErr.message}`)
+    }
+
+    // 4. Fresh session token carrying the new primary domain.
+    const token = cpAuth.createToken({ cpUser: req.cpUser, domain: newDomain, chatId: req.cpChatId })
+
+    // 5. Background: (re)deploy CF zone + anti-red for the new primary, and
+    //    clean up the old primary's CF records/worker routes. Fire-and-forget.
+    ;(async () => {
+      try {
+        const addonFlow = require('./addon-domain-flow')
+        const freshAccount = await col.findOne({ _id: account._id }) || account
+        const lang = await getUserLang(freshAccount)
+        const bot = require('./_index')?._bot || null
+        await addonFlow.runDnsAndProtection({
+          domain: newDomain,
+          cpUser: req.cpUser,
+          whmHost: req.whmHost,
+          account: freshAccount,
+          db: getCpanelCol()?.s?.db,
+          bot,
+          lang,
+        })
+      } catch (e) {
+        log(`[Panel] set-primary: new-primary protection pipeline error: ${e.message}`)
+      }
+      // Old primary cleanup (best-effort)
+      try {
+        const antiRedService = require('./anti-red-service')
+        const zone = await cfService.getZoneByName(oldDomain)
+        if (zone) {
+          await antiRedService.removeWorkerRoutes(oldDomain, zone.id).catch(() => {})
+          await cfService.cleanupAllHostingRecords(zone.id, oldDomain).catch(() => {})
+          log(`[Panel] set-primary: cleaned up CF resources for old primary ${oldDomain}`)
+        }
+      } catch (e) {
+        log(`[Panel] set-primary: old-primary CF cleanup warning: ${e.message}`)
+      }
+    })()
+
+    try {
+      notifier(`🔄 <b>Primary domain changed (via web HostPanel)</b>\nUser: ${account.chatId}\ncPanel: <code>${req.cpUser}</code>\nOld: <b>${oldDomain}</b>\nNew: <b>${newDomain}</b>`)
+    } catch {}
+
+    log(`[Panel] set-primary SUCCESS — ${req.cpUser}: ${oldDomain} → ${newDomain}`)
+    return res.json({ success: true, oldDomain, newDomain, token, domain: newDomain })
+  })
+
   // ─── Account: Cancel Hosting Plan ───────────────────────
   // Mirrors the Telegram bot's confirmCancelHostingPlan flow.
   // Body: { confirm: 'CANCEL' } — must be the literal string to prevent accidents.
@@ -1217,8 +1438,15 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
   // ─── Add Domain Enhanced (auto-NS for platform domains) ─
 
   router.post('/domains/add-enhanced', ...auth, async (req, res) => {
-    const { domain, subDomain, dir } = req.body
+    const { domain, subDomain, dir, mode } = req.body
     if (!domain) return res.status(400).json({ error: 'domain is required' })
+    // Document-root mode chosen at add time:
+    //   'mirror' → serve the SAME site as the primary (docroot = public_html)
+    //   'own' (default) → its own folder (public_html/<domain>)
+    const docMode = mode === 'mirror' ? 'mirror' : 'own'
+    const effectiveDir = docMode === 'mirror'
+      ? 'public_html'
+      : (dir || `public_html/${String(domain).toLowerCase()}`)
 
     try {
       // ── Blocked domain check (phishing/abuse) ──
@@ -1261,7 +1489,7 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
         log(`[Panel] add-enhanced: limit check error (non-blocking): ${limitErr.message}`)
       }
       // 1. Add addon domain in cPanel
-      const cpResult = await cpProxy.addAddonDomain(req.cpUser, req.cpPass, domain, subDomain, dir, req.whmHost)
+      const cpResult = await cpProxy.addAddonDomain(req.cpUser, req.cpPass, domain, subDomain, effectiveDir, req.whmHost)
       if (cpResult.errors?.length) {
         return res.json(cpResult)
       }
@@ -1272,9 +1500,12 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
         if (colPersist) {
           await colPersist.updateOne(
             { _id: req.cpUser.toLowerCase() },
-            { $addToSet: { addonDomains: domain.toLowerCase() } }
+            {
+              $addToSet: { addonDomains: domain.toLowerCase() },
+              $set: { [`docrootModes.${domain.toLowerCase()}`]: docMode },
+            }
           )
-          log(`[Panel] add-enhanced: stored addon ${domain} in cpanelAccounts for ${req.cpUser}`)
+          log(`[Panel] add-enhanced: stored addon ${domain} (mode=${docMode}) in cpanelAccounts for ${req.cpUser}`)
         }
       } catch (dbErr) {
         log(`[Panel] add-enhanced: failed to persist addon ${domain}: ${dbErr.message}`)

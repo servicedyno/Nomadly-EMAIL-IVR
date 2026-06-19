@@ -441,4 +441,5 @@ async function runDnsAndProtection({ domain, cpUser, whmHost, account, db, bot, 
 module.exports = {
   attachAddonDomain,
   getAddonDocRoot,
+  runDnsAndProtection,
 }

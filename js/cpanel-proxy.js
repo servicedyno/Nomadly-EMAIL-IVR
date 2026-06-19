@@ -540,6 +540,29 @@ async function removeAddonDomain(cpUser, cpPass, domain, subDomain, mainDomain, 
   }
 }
 
+// DOMAIN DOCUMENT ROOTS (mirror primary vs own folder)
+
+// Full per-vhost data including documentroot. Used to derive whether an addon
+// domain currently mirrors the primary site (docroot === public_html) or
+// serves its own folder (docroot === public_html/<domain>).
+async function getDomainsData(cpUser, cpPass, host = null) {
+  return uapi(cpUser, cpPass, 'DomainInfo', 'domains_data', { format: 'hash' }, 'GET', host)
+}
+
+// Change the document root of an addon domain's underlying subdomain.
+// cPanel exposes this ONLY via API2 SubDomain::changedocroot (no UAPI equiv).
+//   subdomain  = addon's subdomain label (we create addons as <domainNoDots>)
+//   rootdomain = the account's primary domain
+//   dir        = new docroot relative to home, e.g. 'public_html' (mirror)
+//                or 'public_html/<domain>' (own folder)
+async function changeDomainDocRoot(cpUser, cpPass, subdomain, rootdomain, dir, host = null) {
+  return api2(cpUser, cpPass, 'SubDomain', 'changedocroot', {
+    subdomain,
+    rootdomain,
+    dir,
+  }, host)
+}
+
 // EMAIL
 
 async function listEmailAccounts(cpUser, cpPass, host = null) {
@@ -785,6 +808,8 @@ module.exports = {
   listDomains,
   addAddonDomain,
   removeAddonDomain,
+  getDomainsData,
+  changeDomainDocRoot,
   // Subdomains
   listSubdomains,
   createSubdomain,

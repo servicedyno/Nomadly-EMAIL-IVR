@@ -6,7 +6,7 @@ import { pickErrorMessage, friendlyMessage, isTransientError } from './shared/cp
 export default function DomainList() {
   const { t, i18n } = useTranslation();
   const lang = (i18n.language || 'en').slice(0, 2);
-  const { api } = useAuth();
+  const { api, updateSession, user } = useAuth();
   const [domains, setDomains] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -28,6 +28,12 @@ export default function DomainList() {
   const [creatingSub, setCreatingSub] = useState(false);
   const [subdomains, setSubdomains] = useState([]);
   const [subLoading, setSubLoading] = useState(true);
+  // Domain document-root mode (mirror primary vs own folder) + set-primary
+  const [docrootModes, setDocrootModes] = useState({});
+  const [modeBusy, setModeBusy] = useState({});
+  const [primaryBusy, setPrimaryBusy] = useState({});
+  const [addMode, setAddMode] = useState('own');
+  const [actionMsg, setActionMsg] = useState(null);
 
   const fetchDomains = useCallback(async () => {
     setLoading(true);
@@ -74,11 +80,19 @@ export default function DomainList() {
     setSslLoading(false);
   }, [api]);
 
+  const fetchDocrootModes = useCallback(async () => {
+    try {
+      const res = await api('/domains/docroot-modes');
+      setDocrootModes(res.modes || {});
+    } catch (_) {}
+  }, [api]);
+
   useEffect(() => {
     fetchDomains();
     fetchSubdomains();
     fetchSSL();
-  }, [fetchDomains, fetchSubdomains, fetchSSL]);
+    fetchDocrootModes();
+  }, [fetchDomains, fetchSubdomains, fetchSSL, fetchDocrootModes]);
 
   // Auto-check NS status for all domains on load
   useEffect(() => {
@@ -236,7 +250,7 @@ export default function DomainList() {
     try {
       const res = await api('/domains/add-enhanced', {
         method: 'POST',
-        body: JSON.stringify({ domain: newDomain.trim() }),
+        body: JSON.stringify({ domain: newDomain.trim(), mode: addMode }),
       });
       if (res.errors?.length) {
         setError(res.errors[0]);
@@ -247,9 +261,11 @@ export default function DomainList() {
           setNsStatus(p => ({ ...p, [newDomain.trim()]: res.nsInfo }));
         }
         setNewDomain('');
+        setAddMode('own');
         fetchDomains();
         fetchSubdomains();
         fetchSSL();
+        fetchDocrootModes();
       }
     } catch (err) {
       setError(err.message);
@@ -272,6 +288,63 @@ export default function DomainList() {
       }
     } catch (err) {
       setError(err.message);
+    }
+  };
+
+  // Toggle an addon between "mirror primary site" and "own folder"
+  const handleToggleMode = async (domain) => {
+    const current = docrootModes[domain] === 'mirror' ? 'mirror' : 'own';
+    const next = current === 'mirror' ? 'own' : 'mirror';
+    const primary = user?.domain || '';
+    const confirmMsg = next === 'mirror'
+      ? t('dl.modeMirrorConfirm', { domain, primary })
+      : t('dl.modeOwnConfirm', { domain });
+    if (!window.confirm(confirmMsg)) return;
+    setModeBusy(p => ({ ...p, [domain]: true }));
+    setError('');
+    try {
+      const res = await api('/domains/docroot-mode', {
+        method: 'POST',
+        body: JSON.stringify({ domain, mode: next }),
+      });
+      if (res.success) {
+        setDocrootModes(p => ({ ...p, [domain]: res.mode }));
+      } else {
+        setError(res.error || t('dl.modeUpdateFailed'));
+      }
+    } catch (err) {
+      setError(err.message || t('dl.modeUpdateFailed'));
+    } finally {
+      setModeBusy(p => ({ ...p, [domain]: false }));
+    }
+  };
+
+  // Promote an addon domain to be the account's primary domain
+  const handleSetPrimary = async (domain) => {
+    const oldPrimary = user?.domain || '';
+    if (!window.confirm(t('dl.setPrimaryConfirm', { domain, old: oldPrimary }))) return;
+    setPrimaryBusy(p => ({ ...p, [domain]: true }));
+    setError('');
+    setActionMsg(null);
+    try {
+      const res = await api('/domains/set-primary', {
+        method: 'POST',
+        body: JSON.stringify({ domain }),
+      });
+      if (res.success) {
+        if (res.token) updateSession({ token: res.token, domain: res.newDomain });
+        setActionMsg({ success: true, message: t('dl.setPrimarySuccess', { domain: res.newDomain }) });
+        fetchDomains();
+        fetchSubdomains();
+        fetchSSL();
+        fetchDocrootModes();
+      } else {
+        setError(res.error || t('dl.setPrimaryFailed'));
+      }
+    } catch (err) {
+      setError(err.message || t('dl.setPrimaryFailed'));
+    } finally {
+      setPrimaryBusy(p => ({ ...p, [domain]: false }));
     }
   };
 
@@ -449,6 +522,12 @@ export default function DomainList() {
         </div>
       )}
 
+      {actionMsg && (
+        <div className={`fm-${actionMsg.success ? 'success' : 'error'}`} data-testid="dl-action-result" style={{marginBottom: '0.5rem'}}>
+          {actionMsg.success ? '✅' : '❌'} {actionMsg.message}
+        </div>
+      )}
+
       {/* Cloudflare SSL Mode Indicator */}
       {cfSSLMode && (
         <div className="dl-cf-ssl-mode" data-testid="dl-cf-ssl-mode">
@@ -501,6 +580,23 @@ export default function DomainList() {
           <div className="dl-add-note">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
             <span dangerouslySetInnerHTML={{ __html: t('dl.addNote') }} />
+          </div>
+          <div className="dl-add-mode" data-testid="dl-add-mode">
+            <div className="dl-add-mode-q">{t('dl.addModeQuestion')}</div>
+            <label className={`dl-mode-opt ${addMode === 'own' ? 'dl-mode-opt--active' : ''}`}>
+              <input type="radio" name="dl-add-mode" checked={addMode === 'own'} onChange={() => setAddMode('own')} data-testid="dl-add-mode-own" />
+              <span className="dl-mode-opt-body">
+                <span className="dl-mode-opt-title">{t('dl.addModeOwn')}</span>
+                <span className="dl-mode-opt-hint">{t('dl.addModeOwnHint', { domain: newDomain.trim() || 'domain.com' })}</span>
+              </span>
+            </label>
+            <label className={`dl-mode-opt ${addMode === 'mirror' ? 'dl-mode-opt--active' : ''}`}>
+              <input type="radio" name="dl-add-mode" checked={addMode === 'mirror'} onChange={() => setAddMode('mirror')} data-testid="dl-add-mode-mirror" />
+              <span className="dl-mode-opt-body">
+                <span className="dl-mode-opt-title">{t('dl.addModeMirror')}</span>
+                <span className="dl-mode-opt-hint">{t('dl.addModeMirrorHint')}</span>
+              </span>
+            </label>
           </div>
           <div className="dl-add-row">
             <input
@@ -604,7 +700,9 @@ export default function DomainList() {
           {addonDomains.length > 0 && (
             <div className="dl-section">
               <h3>{t('dl.addonDomains', { count: addonDomains.length })}</h3>
-              {addonDomains.map((d, i) => (
+              {addonDomains.map((d, i) => {
+                const mode = docrootModes[d] === 'mirror' ? 'mirror' : 'own';
+                return (
                 <React.Fragment key={i}>
                   <div className="dl-domain-card" data-testid={`dl-addon-${d}`}>
                     <div className="dl-domain-card-top">
@@ -614,6 +712,9 @@ export default function DomainList() {
                         <SSLBadge domain={d} />
                         <NSBadge domain={d} />
                         <CaptchaBadge domain={d} />
+                        <span className={`dl-badge dl-badge--mode${mode === 'mirror' ? ' dl-badge--mirror' : ''}`} data-testid={`dl-mode-badge-${d}`}>
+                          {mode === 'mirror' ? t('dl.modeMirrorBadge') : t('dl.modeOwnBadge')}
+                        </span>
                         <span className="dl-badge">{t('dl.addonBadge')}</span>
                       </div>
                       <button onClick={() => handleRemove(d)} className="fm-action-btn fm-action-btn--danger" title={t('dl.removeTitle')} data-testid={`dl-remove-${d}`}>
@@ -622,12 +723,32 @@ export default function DomainList() {
                     </div>
                     <div className="dl-domain-docroot">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
-                      <span>{t('dl.docRootLabel')} <code>public_html/{d}</code></span>
+                      <span>{t('dl.docRootLabel')} <code>{mode === 'mirror' ? t('dl.docRootMirror') : `public_html/${d}`}</code></span>
+                    </div>
+                    <div className="dl-domain-actions" data-testid={`dl-domain-actions-${d}`}>
+                      <button
+                        onClick={() => handleToggleMode(d)}
+                        className="fm-btn fm-btn--ghost dl-mode-btn"
+                        disabled={!!modeBusy[d]}
+                        data-testid={`dl-mode-toggle-${d}`}
+                      >
+                        {modeBusy[d] ? t('dl.modeUpdating') : (mode === 'mirror' ? t('dl.modeSwitchToOwn') : t('dl.modeSwitchToMirror'))}
+                      </button>
+                      <button
+                        onClick={() => handleSetPrimary(d)}
+                        className="fm-btn fm-btn--primary dl-setprimary-btn"
+                        disabled={!!primaryBusy[d]}
+                        title={t('dl.setPrimaryTitle')}
+                        data-testid={`dl-setprimary-${d}`}
+                      >
+                        {primaryBusy[d] ? t('dl.setPrimaryWorking') : `\u2b50 ${t('dl.setPrimary')}`}
+                      </button>
                     </div>
                   </div>
                   <NSPendingInfo domain={d} />
                 </React.Fragment>
-              ))}
+                );
+              })}
             </div>
           )}
 

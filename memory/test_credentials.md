@@ -27,6 +27,16 @@
 ## Bot
 - Username: @NomadlyBot
 
+## Panel — Throwaway Test Account (domain-mode / set-primary feature, this session)
+- Username: `pnldoctest`
+- PIN: `123456`
+- Primary domain: `primary-doctest.example`
+- Addon domain: `addon-doctest.example` (docroot mode: `own`)
+- Plan: `Golden Anti-Red HostPanel (1-month)` (Gold)
+- NOTE: DB-only seed (NOT a real cPanel account). Seed: `node /tmp/seed_paneltest.js`.
+  Cleanup: `node /tmp/cleanup_paneltest.js`. Use ONLY for validation/wiring tests —
+  cPanel/WHM-mutating happy paths won't work against it.
+
 ## Panel Local Test Account
 - Username: `testuser`
 - PIN: `123456`
