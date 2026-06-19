@@ -2,6 +2,122 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { StoreProvider, useStore } from '../components/store/StoreContext';
 
 const money = (n) => `$${Number(n || 0).toFixed(2)}`;
+const BACKEND = process.env.REACT_APP_BACKEND_URL || '';
+const COIN_OPTS = [
+  ['USDT-TRC20', 'USDT (TRC20)'], ['BTC', 'Bitcoin'], ['ETH', 'Ethereum'], ['LTC', 'Litecoin'],
+  ['DOGE', 'Dogecoin'], ['USDT-ERC20', 'USDT (ERC20)'], ['BCH', 'Bitcoin Cash'], ['TRX', 'TRON'],
+];
+
+/* Shared crypto payment box — polls the public order endpoint until provisioned */
+function CryptoPayBox({ order, onProvisioned }) {
+  const [status, setStatus] = useState('pending');
+  const [creds, setCreds] = useState(null);
+  useEffect(() => {
+    let iv; let done = false;
+    const poll = async () => {
+      try {
+        const r = await fetch(`${BACKEND}/api/store/order/${order.orderId}`).then(x => x.json());
+        if (done || !r) return;
+        setStatus(r.status);
+        if (r.status === 'provisioned') { done = true; clearInterval(iv); setCreds(r); onProvisioned && onProvisioned(r); }
+        if (r.status === 'failed') { done = true; clearInterval(iv); setStatus('failed'); }
+      } catch { /* keep polling */ }
+    };
+    poll(); iv = setInterval(() => { if (!done) poll(); }, 6000);
+    return () => { done = true; clearInterval(iv); };
+  }, [order.orderId, onProvisioned]);
+
+  if (creds) {
+    return (
+      <div className="store-success" data-testid="store-crypto-provisioned">
+        <h2>🎉 Payment received — your hosting is ready!</h2>
+        <p>Domain: <b>{creds.domain}</b></p>
+        <div className="store-creds">
+          <div><span>HostPanel Username</span><code data-testid="store-cred-user">{creds.username}</code></div>
+          <div><span>HostPanel PIN</span><code data-testid="store-cred-pin">{creds.pin}</code></div>
+        </div>
+        <p className="store-muted">These were also emailed to you. Log in anytime with your username + PIN.</p>
+        {creds.nameservers?.length > 0 && <p className="store-muted">Point your domain nameservers to: {creds.nameservers.join(', ')}</p>}
+        <a className="store-btn store-btn--primary" href="/panel" data-testid="store-crypto-open-panel">Go to HostPanel →</a>
+      </div>
+    );
+  }
+  return (
+    <div className="store-topup-box" data-testid="store-crypto-pending">
+      <p>Send <b>{order.coin}</b> worth <b>{money(order.amountUsd)}</b> to this address:</p>
+      <code className="store-addr" data-testid="store-crypto-address">{order.address}</code>
+      <p className="store-muted">{status === 'failed' ? '⚠️ Payment issue — contact support.' : 'Waiting for blockchain confirmation… this updates automatically. Keep this page open.'}</p>
+    </div>
+  );
+}
+
+/* Guest "Buy now" modal — no account needed */
+function GuestBuyModal({ plan, onClose }) {
+  const [email, setEmail] = useState('');
+  const [domain, setDomain] = useState('');
+  const [domainMode, setDomainMode] = useState('byo');
+  const [coin, setCoin] = useState('USDT-TRC20');
+  const [search, setSearch] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [order, setOrder] = useState(null);
+
+  const doSearch = async () => {
+    if (!domain.trim()) return;
+    setSearch(null); setError('');
+    try { setSearch(await fetch(`${BACKEND}/api/store/domain/search?domain=${encodeURIComponent(domain.trim())}`).then(r => r.json())); }
+    catch (e) { setError(e.message); }
+  };
+  const total = plan.priceUsd + (domainMode === 'buy' && search?.available ? Number(search.priceUsd) : 0);
+
+  const submit = async () => {
+    setBusy(true); setError('');
+    try {
+      const r = await fetch(`${BACKEND}/api/store/guest/checkout`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planId: plan.id, domain: domain.trim().toLowerCase(), domainMode, email: email.trim().toLowerCase(), coin }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Checkout failed');
+      setOrder(d);
+    } catch (e) { setError(e.message); } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="store-modal-overlay" onClick={onClose} data-testid="store-guest-modal">
+      <div className="store-modal" onClick={e => e.stopPropagation()}>
+        <button className="store-modal-x" onClick={onClose} data-testid="store-guest-close">×</button>
+        <h2>Buy {plan.name}</h2>
+        <div className="store-total" data-testid="store-guest-total">Total: <b>{money(total)}</b></div>
+        {order ? <CryptoPayBox order={order} /> : (
+          <>
+            {error && <div className="store-error" data-testid="store-guest-error">{error}</div>}
+            <label className="store-label">Your email (for login details)</label>
+            <input type="email" placeholder="you@email.com" value={email} onChange={e => setEmail(e.target.value)} data-testid="store-guest-email" />
+            <label className="store-label">Domain</label>
+            <div className="store-domain-mode">
+              <label><input type="radio" checked={domainMode === 'byo'} onChange={() => { setDomainMode('byo'); setSearch(null); }} data-testid="store-guest-byo" /> I own a domain</label>
+              <label><input type="radio" checked={domainMode === 'buy'} onChange={() => setDomainMode('buy')} data-testid="store-guest-buy" /> Buy a new domain</label>
+            </div>
+            <div className="store-domain-row">
+              <input type="text" placeholder="mysite.com" value={domain} onChange={e => setDomain(e.target.value)} data-testid="store-guest-domain" />
+              {domainMode === 'buy' && <button className="store-btn" onClick={doSearch} data-testid="store-guest-check">Check</button>}
+            </div>
+            {domainMode === 'buy' && search && <div className={`store-domain-result ${search.available ? 'ok' : 'no'}`}>{search.available ? `✓ ${search.domain} — ${money(search.priceUsd)}` : `✕ ${search.message || 'Not available'}`}</div>}
+            <label className="store-label">Pay with</label>
+            <select value={coin} onChange={e => setCoin(e.target.value)} data-testid="store-guest-coin">
+              {COIN_OPTS.map(([c, n]) => <option key={c} value={c}>{n}</option>)}
+            </select>
+            <button className="store-btn store-btn--primary" disabled={busy || !email.trim() || !domain.trim() || (domainMode === 'buy' && !search?.available)} onClick={submit} data-testid="store-guest-submit">
+              {busy ? 'Creating order…' : `Pay ${money(total)} with crypto →`}
+            </button>
+            <p className="store-muted">No account needed — your login details are shown here & emailed after payment.</p>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function Storefront() {
   return (
@@ -35,6 +151,7 @@ function AuthGate({ plans }) {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [buyPlan, setBuyPlan] = useState(null);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -63,9 +180,12 @@ function AuthGate({ plans }) {
             <div className="store-plan-name">{p.name}</div>
             <div className="store-plan-price">{money(p.priceUsd)}<span>/{p.durationDays === 7 ? 'wk' : 'mo'}</span></div>
             <ul className="store-plan-feats">{(p.features || []).map((f, i) => <li key={i}>✓ {f}</li>)}</ul>
+            <button className="store-btn store-btn--primary" onClick={() => setBuyPlan(p)} data-testid={`store-buynow-${p.id}`}>Buy now →</button>
           </div>
         ))}
       </section>
+
+      {buyPlan && <GuestBuyModal plan={buyPlan} onClose={() => setBuyPlan(null)} />}
 
       <section className="store-auth-card" data-testid="store-auth-card">
         <div className="store-auth-tabs">
@@ -139,6 +259,9 @@ function BuyTab({ plans, goWallet, goPlans }) {
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
   const [openBusy, setOpenBusy] = useState(false);
+  const [payMethod, setPayMethod] = useState('wallet');
+  const [coin, setCoin] = useState('USDT-TRC20');
+  const [cryptoOrder, setCryptoOrder] = useState(null);
 
   useEffect(() => { if (!planId && plans[0]) setPlanId(plans[0].id); }, [plans, planId]);
   const plan = plans.find(p => p.id === planId);
@@ -155,13 +278,28 @@ function BuyTab({ plans, goWallet, goPlans }) {
   const buy = async () => {
     setBusy(true); setError(''); setResult(null);
     try {
-      const r = await api('/hosting/purchase', { method: 'POST', body: JSON.stringify({ planId, domain: domain.trim().toLowerCase(), domainMode }) });
-      if (r.success) { setResult(r); if (typeof r.balanceUsd === 'number') setWallet(r.balanceUsd); }
+      if (payMethod === 'crypto') {
+        const r = await api('/hosting/pay-crypto', { method: 'POST', body: JSON.stringify({ planId, domain: domain.trim().toLowerCase(), domainMode, coin }) });
+        setCryptoOrder(r);
+      } else {
+        const r = await api('/hosting/purchase', { method: 'POST', body: JSON.stringify({ planId, domain: domain.trim().toLowerCase(), domainMode }) });
+        if (r.success) { setResult(r); if (typeof r.balanceUsd === 'number') setWallet(r.balanceUsd); }
+      }
     } catch (err) {
       if (err.status === 402) setError(`${err.message}`);
       else setError(err.message);
     } finally { setBusy(false); }
   };
+
+  if (cryptoOrder) {
+    return (
+      <div className="store-card" data-testid="store-buy-crypto">
+        <h2>Pay with crypto</h2>
+        <p className="store-muted">Plan: <b>{cryptoOrder.plan}</b> · Domain: <b>{cryptoOrder.domain}</b></p>
+        <CryptoPayBox order={cryptoOrder} onProvisioned={() => {}} />
+      </div>
+    );
+  }
 
   if (result) {
     return (
@@ -220,13 +358,24 @@ function BuyTab({ plans, goWallet, goPlans }) {
 
       <div className="store-total" data-testid="store-total">Total: <b>{money(total)}</b> {domainMode === 'buy' && search?.available ? `(plan ${money(plan?.priceUsd)} + domain ${money(search.priceUsd)})` : ''}</div>
 
+      <label className="store-label">Payment method</label>
+      <div className="store-domain-mode">
+        <label><input type="radio" checked={payMethod === 'wallet'} onChange={() => setPayMethod('wallet')} data-testid="store-pay-wallet" /> Pay from wallet</label>
+        <label><input type="radio" checked={payMethod === 'crypto'} onChange={() => setPayMethod('crypto')} data-testid="store-pay-crypto" /> Pay with crypto directly</label>
+      </div>
+      {payMethod === 'crypto' && (
+        <select value={coin} onChange={e => setCoin(e.target.value)} data-testid="store-pay-coin" style={{ marginBottom: 8 }}>
+          {COIN_OPTS.map(([c, n]) => <option key={c} value={c}>{n}</option>)}
+        </select>
+      )}
+
       <button
         className="store-btn store-btn--primary"
         onClick={buy}
         disabled={busy || !planId || !domain.trim() || (domainMode === 'buy' && !search?.available)}
         data-testid="store-buy-submit"
       >
-        {busy ? 'Processing…' : `Pay ${money(total)} from wallet →`}
+        {busy ? 'Processing…' : (payMethod === 'crypto' ? `Pay ${money(total)} with crypto →` : `Pay ${money(total)} from wallet →`)}
       </button>
     </div>
   );

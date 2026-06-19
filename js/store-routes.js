@@ -94,6 +94,13 @@ function createStoreRoutes(deps = {}) {
       const passwordHash = await bcrypt.hash(password, 10)
       const doc = { _id: uuid(), email, passwordHash, walletUsd: 0, createdAt: now(), lastLogin: now() }
       await col('webUsers').insertOne(doc)
+      // Link any prior GUEST purchases made with this email so they show under "My Plans".
+      try {
+        await col('cpanelAccounts').updateMany(
+          { ownerEmail: email, deleted: { $ne: true }, $or: [{ webUserId: { $exists: false } }, { webUserId: null }, { webUserId: { $regex: '^guest_' } }] },
+          { $set: { webUserId: doc._id } }
+        )
+      } catch (e) { log(`[Store] signup guest-link warning: ${e.message}`) }
       const token = signToken({ webUserId: doc._id, email })
       log(`[Store] signup ${email} (${doc._id})`)
       return res.json({ token, user: { id: doc._id, email, walletUsd: 0 } })
@@ -270,6 +277,103 @@ function createStoreRoutes(deps = {}) {
     return true
   }
 
+  // ── Shared hosting provisioner (used by wallet purchase AND direct-crypto purchase) ──
+  async function provisionHosting({ webUserId, email, planName, hostingPrice, total, domain, domainMode, registrar }) {
+    const stateCol = col('state')
+    const info = {
+      _id: webUserId, website_name: domain, plan: planName, email: email || null,
+      userLanguage: 'en', price: total, hostingPrice, registrar: registrar || null, source: 'web',
+    }
+    if (domainMode === 'byo') { info.existingDomain = true; info.connectExternalDomain = true }
+    let result
+    try {
+      const { registerDomainAndCreateCpanel } = require('./cr-register-domain-&-create-cpanel.js')
+      result = await registerDomainAndCreateCpanel(() => {}, info, [], stateCol, null)
+    } catch (e) {
+      log(`[Store] provisionHosting threw: ${e.message}`)
+      result = { success: false, error: e.message }
+    }
+    if (result?.success) {
+      try {
+        await col('cpanelAccounts').updateOne(
+          { _id: String(result.username).toLowerCase() },
+          { $set: { webUserId, source: 'web', ownerEmail: email || null } }
+        )
+      } catch (e) { log(`[Store] link cpanelAccount warning: ${e.message}`) }
+    }
+    return result
+  }
+
+  // ── Fulfil a DIRECT-CRYPTO hosting order on payment confirmation (idempotent). ──
+  // Handles BOTH guest orders (no webUserId) and logged-in orders.
+  async function fulfillHostingOrder(order, baseAmount, feePayer, paymentId, source) {
+    const claim = await col('webOrders').findOneAndUpdate(
+      { _id: order._id, status: 'pending' },
+      { $set: { status: 'fulfilling', paymentId: paymentId || order.paymentId, updatedAt: now() } },
+      { returnDocument: 'after' }
+    )
+    const claimed = claim && (claim.value || claim)
+    if (!claimed || (claimed.status && claimed.status !== 'fulfilling')) {
+      log(`[Store] fulfillHostingOrder ${order._id}: already processed (${source})`); return false
+    }
+
+    const isGuest = !order.webUserId
+    let usdIn
+    if (baseAmount && (feePayer === 'company' || feePayer == null)) usdIn = parseFloat(baseAmount)
+    if (!Number.isFinite(usdIn) || usdIn <= 0) usdIn = Number(order.amountUsd)
+    usdIn = Math.round(usdIn * 100) / 100
+    const total = Number(order.amountUsd)
+
+    const creditWallet = async (amt, type, note) => {
+      if (isGuest) return
+      await col('webUsers').updateOne({ _id: order.webUserId }, { $inc: { walletUsd: amt } })
+      const u = await publicUser(order.webUserId)
+      await col('webWalletTxns').insertOne({ _id: uuid(), webUserId: order.webUserId, type, amountUsd: amt, balanceAfter: u?.walletUsd || 0, coin: order.coin, provider: order.provider, orderId: order._id, status: 'done', note, createdAt: now() })
+    }
+
+    // Underpaid → don't provision.
+    if (usdIn + 0.01 < total) {
+      if (isGuest) {
+        await col('webOrders').updateOne({ _id: order._id }, { $set: { status: 'failed', note: 'underpaid', usdCredited: usdIn, updatedAt: now() } })
+        try { notifyAdmin(`⚠️ <b>Guest hosting UNDERPAID</b>\nOrder: ${order._id}\nGot $${usdIn} / $${total}\nEmail: ${order.email}\nDomain: ${order.domain}\n→ manual refund needed`) } catch {}
+      } else {
+        await creditWallet(usdIn, 'topup', `Underpaid hosting order → credited to wallet (${source})`)
+        await col('webOrders').updateOne({ _id: order._id }, { $set: { status: 'failed', usdCredited: usdIn, note: 'underpaid', updatedAt: now() } })
+      }
+      log(`[Store] hosting order ${order._id} UNDERPAID ($${usdIn}<$${total})`)
+      return false
+    }
+
+    const ownerId = order.webUserId || ('guest_' + order._id)
+    const result = await provisionHosting({
+      webUserId: ownerId, email: order.email, planName: order.plan,
+      hostingPrice: order.hostingPrice, total, domain: order.domain, domainMode: order.domainMode, registrar: order.registrar,
+    })
+
+    if (!result?.success) {
+      if (isGuest) {
+        await col('webOrders').updateOne({ _id: order._id }, { $set: { status: 'failed', usdCredited: usdIn, updatedAt: now() } })
+        try { notifyAdmin(`❌ <b>Guest hosting provision FAILED</b>\nOrder: ${order._id}\nEmail: ${order.email}\nDomain: ${order.domain}\nPaid $${usdIn} → manual refund needed`) } catch {}
+      } else {
+        await creditWallet(usdIn, 'refund', `Refund — provisioning failed (${order.domain})`)
+        await col('webOrders').updateOne({ _id: order._id }, { $set: { status: 'failed', usdCredited: usdIn, updatedAt: now() } })
+      }
+      log(`[Store] hosting order ${order._id} provision FAILED (guest=${isGuest})`)
+      return false
+    }
+
+    // Success — store creds on the order; for logged-in, credit overpayment + log purchase.
+    if (!isGuest) {
+      const overpay = Math.round((usdIn - total) * 100) / 100
+      if (overpay >= 0.01) await creditWallet(overpay, 'topup', `Overpayment credited to wallet (${order.domain})`)
+      await creditWallet(-total, 'purchase', `Hosting (crypto): ${order.plan} — ${order.domain}`)
+    }
+    await col('webOrders').updateOne({ _id: order._id }, { $set: { status: 'provisioned', username: result.username, pin: result.pin, nameservers: result.nameservers || [], usdCredited: usdIn, updatedAt: now() } })
+    log(`[Store] hosting order ${order._id} PROVISIONED → ${result.username}@${order.domain} (guest=${isGuest})`)
+    try { notifyAdmin(`🆕 <b>Web hosting purchase (crypto)</b>\n${isGuest ? 'GUEST' : order.webUserId}\nPlan: ${order.plan}\nDomain: ${order.domain}\ncpUser: ${result.username}`) } catch {}
+    return true
+  }
+
   // ── DynoPay webhook (durable, DB-backed) ──
   router.post('/crypto-webhook', async (req, res) => {
     try {
@@ -295,7 +399,7 @@ function createStoreRoutes(deps = {}) {
       if (!order && paymentId) order = await col('webOrders').findOne({ paymentId })
       if (!order) { log(`[Store] webhook: no matching order (ref=${refId}, pid=${paymentId})`); return res.send('OK') }
 
-      if (order.status === 'credited') { log(`[Store] webhook dup for ${order._id}`); return res.send('OK') }
+      if (order.status === 'credited' || order.status === 'provisioned') { log(`[Store] webhook dup for ${order._id}`); return res.send('OK') }
 
       // ── SECURITY: re-verify with DynoPay before crediting ──
       // The webhook is necessarily unauthenticated, so never trust the body's
@@ -311,7 +415,11 @@ function createStoreRoutes(deps = {}) {
         if (!ok) { log(`[Store] webhook: DynoPay re-verify failed for ${order._id} — NOT crediting`); return res.send('OK') }
       }
 
-      await creditTopup(order, req.body?.base_amount, req.body?.fee_payer, paymentId, `dynopay:${event}`)
+      if (order.kind === 'hosting') {
+        await fulfillHostingOrder(order, req.body?.base_amount, req.body?.fee_payer, paymentId, `dynopay:${event}`)
+      } else {
+        await creditTopup(order, req.body?.base_amount, req.body?.fee_payer, paymentId, `dynopay:${event}`)
+      }
       return res.send('OK')
     } catch (err) {
       log(`[Store] crypto-webhook error: ${err.message}`)
@@ -334,7 +442,11 @@ function createStoreRoutes(deps = {}) {
       // Convert received coin value → USD
       let usd = order.amountUsd
       try { const c = await convert(valueCoin, coinByCode(order.coin)?.bbTicker || 'btc', 'usd'); if (Number.isFinite(c) && c > 0) usd = c } catch (_) {}
-      await creditTopup({ ...order, amountUsd: usd }, usd, 'company', `bb_${orderId}`, 'blockbee')
+      if (order.kind === 'hosting') {
+        await fulfillHostingOrder(order, usd, 'company', `bb_${orderId}`, 'blockbee')
+      } else {
+        await creditTopup({ ...order, amountUsd: usd }, usd, 'company', `bb_${orderId}`, 'blockbee')
+      }
       return res.send('*ok*')
     } catch (err) {
       log(`[Store] blockbee-webhook error: ${err.message}`)
@@ -360,7 +472,7 @@ function createStoreRoutes(deps = {}) {
       {
         id: 'premium-monthly', name: 'Premium Anti-Red HostPanel (1-Month)', tier: 'premium',
         priceUsd: num(process.env.PREMIUM_ANTIRED_CPANEL_PRICE, 75), durationDays: 30, addons: 5,
-        features: ['Anti-Red protection', '5 addon domains', 'Email + MySQL', '30 days'],
+        features: ['Anti-Red protection', '5 addon domains', 'MySQL databases', '30 days'],
       },
       {
         id: 'golden-monthly', name: 'Golden Anti-Red HostPanel (1-Month)', tier: 'gold',
@@ -374,8 +486,8 @@ function createStoreRoutes(deps = {}) {
 
   router.get('/plans', (req, res) => res.json({ plans: plansCatalog() }))
 
-  // Domain availability + price (for "buy a domain" at checkout)
-  router.get('/domain/search', webAuth, async (req, res) => {
+  // Domain availability + price (public — guests can price domains at checkout)
+  router.get('/domain/search', async (req, res) => {
     try {
       const domain = String(req.query.domain || '').trim().toLowerCase()
       if (!domainOk(domain)) return res.status(400).json({ error: 'Enter a valid domain (e.g. mysite.com).' })
@@ -528,6 +640,96 @@ function createStoreRoutes(deps = {}) {
     } catch (err) {
       log(`[Store] open-panel error: ${err.message}`)
       res.status(500).json({ error: 'Could not open panel.' })
+    }
+  })
+
+  // ── Direct crypto payment for a plan (logged-in OR guest) ──
+  async function createHostingCryptoOrder({ webUserId, email, planId, domain, domainMode, coin }) {
+    const plan = planById(planId)
+    if (!plan) return { error: 'Unknown plan.', code: 400 }
+    if (!domainOk(domain)) return { error: 'Enter a valid domain (e.g. mysite.com).', code: 400 }
+    const c = coinByCode(coin)
+    if (!c) return { error: 'Unsupported coin.', code: 400 }
+    const dup = await col('cpanelAccounts').findOne({ domain, deleted: { $ne: true } })
+    if (dup) return { error: 'That domain already has an active hosting plan.', code: 409 }
+
+    let domainPrice = 0, registrar = null
+    if (domainMode === 'buy') {
+      const ds = require('./domain-service')
+      const dp = await ds.checkDomainPrice(domain, getDb && getDb())
+      if (!dp.available) return { error: dp.message || 'That domain is not available — try another.', code: 409 }
+      domainPrice = Number(dp.price) || 0; registrar = dp.registrar || null
+    }
+    const total = Math.round((Number(plan.priceUsd) + domainPrice) * 100) / 100
+    const orderId = uuid()
+    const webhookUrl = `${SELF_URL}/store/crypto-webhook`
+    const order = {
+      _id: orderId, webUserId: webUserId || null, email, kind: 'hosting',
+      planId, plan: plan.name, hostingPrice: plan.priceUsd, domainPrice,
+      domain, domainMode, registrar, amountUsd: total, coin: c.code, provider: 'dynopay',
+      status: 'pending', payAddress: null, paymentId: null, createdAt: now(), updatedAt: now(),
+    }
+
+    let address = null
+    try {
+      const dyno = await getDynopayCryptoAddress(total, c.code, webhookUrl, { product_name: 'hosting', refId: orderId, kind: 'hosting', webUserId: webUserId || 'guest' })
+      if (dyno && !dyno.error && (dyno.address || dyno.wallet_address)) { address = dyno.address || dyno.wallet_address; order.paymentId = dyno.payment_id || dyno.id || null }
+    } catch (e) { log(`[Store] hosting pay-crypto DynoPay threw: ${e.message}`) }
+    if (!address) {
+      try { const bb = await getCryptoDepositAddress(c.bbTicker, orderId, SELF_URL, `/store/blockbee-webhook?order=${orderId}&`); if (bb?.address) { address = bb.address; order.provider = 'blockbee' } } catch (_) {}
+    }
+    if (!address) return { error: 'Payment provider unavailable right now. Please try again shortly.', code: 502 }
+
+    order.payAddress = address
+    await col('webOrders').insertOne(order)
+    log(`[Store] hosting crypto order ${orderId} ${plan.name} ${domain} $${total} ${c.code} via ${order.provider} (${webUserId ? 'user' : 'GUEST'})`)
+    return { orderId, address, coin: c.code, amountUsd: total, plan: plan.name, domain }
+  }
+
+  router.post('/hosting/pay-crypto', webAuth, async (req, res) => {
+    const r = await createHostingCryptoOrder({
+      webUserId: req.webUserId, email: req.webEmail, planId: req.body?.planId,
+      domain: String(req.body?.domain || '').toLowerCase().trim(),
+      domainMode: req.body?.domainMode === 'buy' ? 'buy' : 'byo', coin: req.body?.coin,
+    })
+    if (r.error) return res.status(r.code || 400).json({ error: r.error })
+    res.json(r)
+  })
+
+  // GUEST checkout — no account needed. Email required (credentials are emailed + shown).
+  router.post('/guest/checkout', async (req, res) => {
+    const email = String(req.body?.email || '').trim().toLowerCase()
+    if (!emailOk(email)) return res.status(400).json({ error: 'A valid email is required to receive your login details.' })
+    const r = await createHostingCryptoOrder({
+      webUserId: null, email, planId: req.body?.planId,
+      domain: String(req.body?.domain || '').toLowerCase().trim(),
+      domainMode: req.body?.domainMode === 'buy' ? 'buy' : 'byo', coin: req.body?.coin,
+    })
+    if (r.error) return res.status(r.code || 400).json({ error: r.error })
+    res.json(r)
+  })
+
+  // Public order status (the unguessable orderId is the access token). Reveals
+  // credentials once provisioned — used by both guest + logged-in crypto checkout.
+  router.get('/order/:orderId', async (req, res) => {
+    try {
+      const o = await col('webOrders').findOne({ _id: req.params.orderId })
+      if (!o || o.kind !== 'hosting') return res.status(404).json({ error: 'Order not found' })
+      if (o.status === 'pending' && o.provider === 'dynopay' && o.payAddress) {
+        try {
+          const st = await getDynopayCryptoPaymentStatus(o.payAddress)
+          if (st && ['completed', 'confirmed', 'settled', 'paid'].includes(String(st.status || '').toLowerCase())) {
+            await fulfillHostingOrder(o, st.base_amount, st.fee_payer, o.paymentId || st.payment_id, 'poll')
+          }
+        } catch (_) {}
+      }
+      const f = await col('webOrders').findOne({ _id: req.params.orderId })
+      const resp = { orderId: f._id, status: f.status, domain: f.domain, plan: f.plan, amountUsd: f.amountUsd, coin: f.coin, address: f.payAddress }
+      if (f.status === 'provisioned') { resp.username = f.username; resp.pin = f.pin; resp.nameservers = f.nameservers || [] }
+      res.json(resp)
+    } catch (err) {
+      log(`[Store] order status error: ${err.message}`)
+      res.status(500).json({ error: 'Could not fetch order.' })
     }
   })
 

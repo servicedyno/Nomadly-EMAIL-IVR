@@ -395,6 +395,23 @@ WEBHOOK CREDIT (deterministic, uses seeded order; STORE_DEV_TRUST_WEBHOOK=true s
 
 **Conclusion:** Web Storefront Phase-2 backend is **FULLY FUNCTIONAL**. All 10 test cases passed including the critical refund integrity test. No issues found. Ready for production.
 
+## Web Storefront — Phase 5: direct crypto for plans + GUEST buy-now (NEW)
+
+### Endpoints (under `/api/store`)
+- `POST /hosting/pay-crypto` (Bearer) {planId,domain,domainMode,coin} → creates crypto hosting order → {orderId,address,coin,amountUsd}
+- `POST /guest/checkout` (NO auth) {planId,domain,domainMode,email,coin} → guest crypto order (email required) → {orderId,address,...}
+- `GET /order/:orderId` (NO auth; orderId is the access token) → {status, domain, plan, amountUsd, address}; when status=='provisioned' also {username, pin, nameservers}
+- `GET /domain/search` is now PUBLIC (guests can price domains)
+- Webhook now routes `kind:'hosting'` orders to provisioning (fulfillHostingOrder); guest orders provision with owner `guest_<orderId>`; signup links prior guest purchases by email.
+
+### Phase-5 test scenarios (buyer fixture re-seeded: storebuyer@example.com/password1234)
+- `POST /api/store/guest/checkout` {"planId":"premium-weekly","domain":"guesttest-<rand>.example","domainMode":"byo"} WITHOUT email → 400 (email required)
+- `POST /api/store/guest/checkout` {"planId":"premium-weekly","domain":"guesttest-<rand>.example","domainMode":"byo","email":"guest_<rand>@example.com","coin":"USDT-TRC20"} → 200 with orderId + address (hits live DynoPay; 502 acceptable if provider down)
+- `GET /api/store/order/<that orderId>` (no auth) → 200 status "pending", domain matches
+- WEBHOOK ROUTING: `POST /api/store/crypto-webhook` {"event":"payment.confirmed","payment_id":"GTEST1","base_amount":30,"fee_payer":"company","meta_data":{"refId":"<that orderId>"}} → 200. Then `GET /api/store/order/<orderId>` → status "failed" (provisioning fails: WHM 403 from sandbox — EXPECTED; the provisioned+creds path only works on Railway). The key check: webhook routed to hosting fulfilment (not wallet credit) and ended in a terminal state without crashing.
+- `GET /api/store/plans` → premium-monthly features must NOT contain "Email" (now "MySQL databases")
+- login storebuyer@example.com/password1234, `POST /api/store/hosting/pay-crypto` (Bearer) {"planId":"golden-monthly","domain":"cryptotest-<rand>.example","domainMode":"byo","coin":"BTC"} → 200 with orderId + address (or 502 if provider down)
+
 ## Testing Protocol
 
 **Communication protocol with testing sub-agent:**
