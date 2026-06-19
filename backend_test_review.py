@@ -2,7 +2,7 @@
 """
 Nomadly Backend Review Request Verification Test
 Test Date: January 2025
-Backend URL: https://env-sandbox-1.preview.emergentagent.com
+Backend URL: https://bot-sandbox-safe.preview.emergentagent.com
 Test User: 6687923716
 
 Review Request Tests:
@@ -19,7 +19,7 @@ import os
 from datetime import datetime
 
 # Backend URL from environment
-BACKEND_URL = "https://env-sandbox-1.preview.emergentagent.com"
+BACKEND_URL = "https://bot-sandbox-safe.preview.emergentagent.com"
 TEST_USER = "6687923716"
 
 class ReviewRequestTester:

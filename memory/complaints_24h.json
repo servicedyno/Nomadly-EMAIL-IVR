@@ -356,7 +356,7 @@
   },
   {
     "timestamp": "2026-06-17T18:16:22.630879863Z",
-    "message": "[SingleIVR] Status: session=20a145c2-688a-4316-a71c-cc91253724fe sid=CAad97e204317c86caa8d42aaaecd2714b status=completed duration=8s answeredBy=machine_start",
+    "message": "[SingleIVR] Status: session=bot-sandbox-safe sid=CAad97e204317c86caa8d42aaaecd2714b status=completed duration=8s answeredBy=machine_start",
     "severity": "info"
   },
   {
@@ -406,7 +406,7 @@
   },
   {
     "timestamp": "2026-06-17T18:16:47.452624742Z",
-    "message": "[SingleIVR] Status: session=9920292d-5e09-45e7-9e28-b663b335d537 sid=CAe5c10a7acd0e66355b0e2e936e683c72 status=completed duration=67s answeredBy=machine_start",
+    "message": "[SingleIVR] Status: session=bot-sandbox-safe sid=CAe5c10a7acd0e66355b0e2e936e683c72 status=completed duration=67s answeredBy=machine_start",
     "severity": "info"
   },
   {
@@ -426,12 +426,12 @@
   },
   {
     "timestamp": "2026-06-17T18:17:06.374651785Z",
-    "message": "[SingleIVR] Status: session=6f70976a-8cb5-4baf-bb72-349513f51b87 sid=CAf21e3ce2c9824c2c5a43b1840a5a4baa status=completed duration=7s answeredBy=machine_start",
+    "message": "[SingleIVR] Status: session=bot-sandbox-safe sid=CAf21e3ce2c9824c2c5a43b1840a5a4baa status=completed duration=7s answeredBy=machine_start",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-17T18:17:06.374677723Z",
-    "message": "[SingleIVR] AMD: session=6f70976a-8cb5-4baf-bb72-349513f51b87 AnsweredBy=machine_start → machine",
+    "message": "[SingleIVR] AMD: session=bot-sandbox-safe AnsweredBy=machine_start → machine",
     "severity": "info"
   },
   {
@@ -526,12 +526,12 @@
   },
   {
     "timestamp": "2026-06-17T18:18:06.202587195Z",
-    "message": "[SingleIVR] AMD: session=41e6e8eb-c171-4af3-9931-2dcf09dbe11e AnsweredBy=machine_start → machine",
+    "message": "[SingleIVR] AMD: session=bot-sandbox-safe AnsweredBy=machine_start → machine",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-17T18:18:06.202590262Z",
-    "message": "[SingleIVR] Status: session=41e6e8eb-c171-4af3-9931-2dcf09dbe11e sid=CA17aa5aa8e9b3730bdf1e9b8494b1ed88 status=completed duration=18s answeredBy=machine_start",
+    "message": "[SingleIVR] Status: session=bot-sandbox-safe sid=CA17aa5aa8e9b3730bdf1e9b8494b1ed88 status=completed duration=18s answeredBy=machine_start",
     "severity": "info"
   },
   {
@@ -656,12 +656,12 @@
   },
   {
     "timestamp": "2026-06-17T18:20:03.362053736Z",
-    "message": "[SingleIVR] AMD: session=918fdde9-9310-4100-8ed1-6f9f761b89ab AnsweredBy=human → human",
+    "message": "[SingleIVR] AMD: session=bot-sandbox-safe AnsweredBy=human → human",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-17T18:20:03.362059695Z",
-    "message": "[SingleIVR] Status: session=918fdde9-9310-4100-8ed1-6f9f761b89ab sid=CAfc0c75777a84f86ae00fe6e04eced4fb status=completed duration=36s answeredBy=human",
+    "message": "[SingleIVR] Status: session=bot-sandbox-safe sid=CAfc0c75777a84f86ae00fe6e04eced4fb status=completed duration=36s answeredBy=human",
     "severity": "info"
   },
   {
@@ -711,12 +711,12 @@
   },
   {
     "timestamp": "2026-06-17T18:22:00.484959653Z",
-    "message": "[SingleIVR] AMD: session=eb3ee5b1-9d23-44f6-a00a-a242c807c0e3 AnsweredBy=machine_start → machine",
+    "message": "[SingleIVR] AMD: session=bot-sandbox-safe AnsweredBy=machine_start → machine",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-17T18:22:00.484963994Z",
-    "message": "[SingleIVR] Status: session=eb3ee5b1-9d23-44f6-a00a-a242c807c0e3 sid=CA469658bb78df410260a625e7567bdf30 status=completed duration=71s answeredBy=machine_start",
+    "message": "[SingleIVR] Status: session=bot-sandbox-safe sid=CA469658bb78df410260a625e7567bdf30 status=completed duration=71s answeredBy=machine_start",
     "severity": "info"
   },
   {
@@ -736,7 +736,7 @@
   },
   {
     "timestamp": "2026-06-17T18:23:33.702894835Z",
-    "message": "[Voice] PAYLOAD DUMP: direction=incoming, from=+16072062558, to=gencredFcRVhCjPOMKsUibeq0Y5BPB4NKgMicJIczKplZgJum, connection_id=2898118323872990714, call_control_id=v3:aJfJNHCIsjb_np8YiWsjeZk-AeeEQV-jt8LQG08f_pSuebsGKIHKGw, call_leg_id=a61a1800-6a79-11f1-bce4-02420aef8aa1, hangup_cause=N/A, hangup_source=N/A, sip_hangup_cause=N/A, state=bridging",
+    "message": "[Voice] PAYLOAD DUMP: direction=incoming, from=+16072062558, to=gencredFcRVhCjPOMKsUibeq0Y5BPB4NKgMicJIczKplZgJum, connection_id=2898118323872990714, call_control_id=v3:aJfJNHCIsjb_np8YiWsjeZk-AeeEQV-jt8LQG08f_pSuebsGKIHKGw, call_leg_id=bot-sandbox-safe, hangup_cause=N/A, hangup_source=N/A, sip_hangup_cause=N/A, state=bridging",
     "severity": "info"
   },
   {
@@ -746,7 +746,7 @@
   },
   {
     "timestamp": "2026-06-17T18:23:34.187809827Z",
-    "message": "[Voice] PAYLOAD DUMP: direction=undefined, from=+16072062558, to=gencredFcRVhCjPOMKsUibeq0Y5BPB4NKgMicJIczKplZgJum, connection_id=2898118323872990714, call_control_id=v3:aJfJNHCIsjb_np8YiWsjeZk-AeeEQV-jt8LQG08f_pSuebsGKIHKGw, call_leg_id=a61a1800-6a79-11f1-bce4-02420aef8aa1, hangup_cause=unspecified, hangup_source=unknown, sip_hangup_cause=480, state=undefined",
+    "message": "[Voice] PAYLOAD DUMP: direction=undefined, from=+16072062558, to=gencredFcRVhCjPOMKsUibeq0Y5BPB4NKgMicJIczKplZgJum, connection_id=2898118323872990714, call_control_id=v3:aJfJNHCIsjb_np8YiWsjeZk-AeeEQV-jt8LQG08f_pSuebsGKIHKGw, call_leg_id=bot-sandbox-safe, hangup_cause=unspecified, hangup_source=unknown, sip_hangup_cause=480, state=undefined",
     "severity": "info"
   },
   {
@@ -771,12 +771,12 @@
   },
   {
     "timestamp": "2026-06-17T18:24:21.794463068Z",
-    "message": "[SingleIVR] AMD: session=1b31bb74-5a0e-4729-9e97-6e6dfb0be5cc AnsweredBy=machine_start → machine",
+    "message": "[SingleIVR] AMD: session=bot-sandbox-safe AnsweredBy=machine_start → machine",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-17T18:24:21.794467679Z",
-    "message": "[SingleIVR] Status: session=1b31bb74-5a0e-4729-9e97-6e6dfb0be5cc sid=CA9facde5dc27deec6f15b6773ae9128af status=completed duration=49s answeredBy=machine_start",
+    "message": "[SingleIVR] Status: session=bot-sandbox-safe sid=CA9facde5dc27deec6f15b6773ae9128af status=completed duration=49s answeredBy=machine_start",
     "severity": "info"
   },
   {
@@ -796,12 +796,12 @@
   },
   {
     "timestamp": "2026-06-17T18:25:42.836851562Z",
-    "message": "[SingleIVR] AMD: session=b65c832c-a934-4c01-a3cd-7b5d378e029a AnsweredBy=human → human",
+    "message": "[SingleIVR] AMD: session=bot-sandbox-safe AnsweredBy=human → human",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-17T18:25:42.836855601Z",
-    "message": "[SingleIVR] Status: session=b65c832c-a934-4c01-a3cd-7b5d378e029a sid=CA6b9502c52dc0ba8374fc868d819f04bf status=completed duration=35s answeredBy=human",
+    "message": "[SingleIVR] Status: session=bot-sandbox-safe sid=CA6b9502c52dc0ba8374fc868d819f04bf status=completed duration=35s answeredBy=human",
     "severity": "info"
   },
   {
@@ -831,12 +831,12 @@
   },
   {
     "timestamp": "2026-06-17T18:29:44.637979080Z",
-    "message": "[SingleIVR] AMD: session=313934ec-94c5-4b15-9e1e-a019fd48c281 AnsweredBy=unknown → unknown",
+    "message": "[SingleIVR] AMD: session=bot-sandbox-safe AnsweredBy=unknown → unknown",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-17T18:29:44.637984324Z",
-    "message": "[SingleIVR] Status: session=313934ec-94c5-4b15-9e1e-a019fd48c281 sid=CAf10dca3a886a294dc82ec5d841042f3b status=completed duration=74s answeredBy=unknown",
+    "message": "[SingleIVR] Status: session=bot-sandbox-safe sid=CAf10dca3a886a294dc82ec5d841042f3b status=completed duration=74s answeredBy=unknown",
     "severity": "info"
   },
   {
@@ -1561,7 +1561,7 @@
   },
   {
     "timestamp": "2026-06-17T19:15:38.024735541Z",
-    "message": "[Voice] PAYLOAD DUMP: direction=incoming, from=+17079320064, to=gencredJ99CHn7vPWQ5vmtcXZSumn9G07ZgWYBXsKgHVEVV6z, connection_id=2898118323872990714, call_control_id=v3:JoKE380iYZ4oMGUqFAnc28pZO6j_ySQvv34df9nksv7I13bF921ZkQ, call_leg_id=eb98bfba-6a80-11f1-bfcc-02420aef8c20, hangup_cause=N/A, hangup_source=N/A, sip_hangup_cause=N/A, state=bridging",
+    "message": "[Voice] PAYLOAD DUMP: direction=incoming, from=+17079320064, to=gencredJ99CHn7vPWQ5vmtcXZSumn9G07ZgWYBXsKgHVEVV6z, connection_id=2898118323872990714, call_control_id=v3:JoKE380iYZ4oMGUqFAnc28pZO6j_ySQvv34df9nksv7I13bF921ZkQ, call_leg_id=bot-sandbox-safe, hangup_cause=N/A, hangup_source=N/A, sip_hangup_cause=N/A, state=bridging",
     "severity": "info"
   },
   {
@@ -1571,7 +1571,7 @@
   },
   {
     "timestamp": "2026-06-17T19:15:38.024747304Z",
-    "message": "[Voice] PAYLOAD DUMP: direction=undefined, from=+17079320064, to=gencredJ99CHn7vPWQ5vmtcXZSumn9G07ZgWYBXsKgHVEVV6z, connection_id=2898118323872990714, call_control_id=v3:JoKE380iYZ4oMGUqFAnc28pZO6j_ySQvv34df9nksv7I13bF921ZkQ, call_leg_id=eb98bfba-6a80-11f1-bfcc-02420aef8c20, hangup_cause=unspecified, hangup_source=unknown, sip_hangup_cause=480, state=undefined",
+    "message": "[Voice] PAYLOAD DUMP: direction=undefined, from=+17079320064, to=gencredJ99CHn7vPWQ5vmtcXZSumn9G07ZgWYBXsKgHVEVV6z, connection_id=2898118323872990714, call_control_id=v3:JoKE380iYZ4oMGUqFAnc28pZO6j_ySQvv34df9nksv7I13bF921ZkQ, call_leg_id=bot-sandbox-safe, hangup_cause=unspecified, hangup_source=unknown, sip_hangup_cause=480, state=undefined",
     "severity": "info"
   },
   {
@@ -1776,7 +1776,7 @@
   },
   {
     "timestamp": "2026-06-17T19:18:25.212678657Z",
-    "message": "[Voice] PAYLOAD DUMP: direction=incoming, from=+16614337344, to=gencredJ99CHn7vPWQ5vmtcXZSumn9G07ZgWYBXsKgHVEVV6z, connection_id=2898118323872990714, call_control_id=v3:tDPFCz7ai5oKC5A7bXLG_IjPuaID8TD3A4MjX3-apaf8VeqGusi3wQ, call_leg_id=50003b2c-6a81-11f1-89a1-02420aef8e20, hangup_cause=N/A, hangup_source=N/A, sip_hangup_cause=N/A, state=bridging",
+    "message": "[Voice] PAYLOAD DUMP: direction=incoming, from=+16614337344, to=gencredJ99CHn7vPWQ5vmtcXZSumn9G07ZgWYBXsKgHVEVV6z, connection_id=2898118323872990714, call_control_id=v3:tDPFCz7ai5oKC5A7bXLG_IjPuaID8TD3A4MjX3-apaf8VeqGusi3wQ, call_leg_id=bot-sandbox-safe, hangup_cause=N/A, hangup_source=N/A, sip_hangup_cause=N/A, state=bridging",
     "severity": "info"
   },
   {
@@ -1786,7 +1786,7 @@
   },
   {
     "timestamp": "2026-06-17T19:18:25.427239589Z",
-    "message": "[Voice] PAYLOAD DUMP: direction=undefined, from=+16614337344, to=gencredJ99CHn7vPWQ5vmtcXZSumn9G07ZgWYBXsKgHVEVV6z, connection_id=2898118323872990714, call_control_id=v3:tDPFCz7ai5oKC5A7bXLG_IjPuaID8TD3A4MjX3-apaf8VeqGusi3wQ, call_leg_id=50003b2c-6a81-11f1-89a1-02420aef8e20, hangup_cause=unspecified, hangup_source=unknown, sip_hangup_cause=480, state=undefined",
+    "message": "[Voice] PAYLOAD DUMP: direction=undefined, from=+16614337344, to=gencredJ99CHn7vPWQ5vmtcXZSumn9G07ZgWYBXsKgHVEVV6z, connection_id=2898118323872990714, call_control_id=v3:tDPFCz7ai5oKC5A7bXLG_IjPuaID8TD3A4MjX3-apaf8VeqGusi3wQ, call_leg_id=bot-sandbox-safe, hangup_cause=unspecified, hangup_source=unknown, sip_hangup_cause=480, state=undefined",
     "severity": "info"
   },
   {
@@ -2456,7 +2456,7 @@
   },
   {
     "timestamp": "2026-06-17T20:14:22.648732677Z",
-    "message": "[Voice] PAYLOAD DUMP: direction=incoming, from=+16072356511, to=gencredFcRVhCjPOMKsUibeq0Y5BPB4NKgMicJIczKplZgJum, connection_id=2898118323872990714, call_control_id=v3:8tadUHqwbFKBaw9K8YwfGcJm5XX57A2NrubDO3sGWnY66F5TazM7Zw, call_leg_id=21080d2e-6a89-11f1-a79b-02420a0dd820, hangup_cause=N/A, hangup_source=N/A, sip_hangup_cause=N/A, state=bridging",
+    "message": "[Voice] PAYLOAD DUMP: direction=incoming, from=+16072356511, to=gencredFcRVhCjPOMKsUibeq0Y5BPB4NKgMicJIczKplZgJum, connection_id=2898118323872990714, call_control_id=v3:8tadUHqwbFKBaw9K8YwfGcJm5XX57A2NrubDO3sGWnY66F5TazM7Zw, call_leg_id=bot-sandbox-safe, hangup_cause=N/A, hangup_source=N/A, sip_hangup_cause=N/A, state=bridging",
     "severity": "info"
   },
   {
@@ -2466,7 +2466,7 @@
   },
   {
     "timestamp": "2026-06-17T20:14:32.252141902Z",
-    "message": "[Voice] PAYLOAD DUMP: direction=undefined, from=+16072356511, to=gencredFcRVhCjPOMKsUibeq0Y5BPB4NKgMicJIczKplZgJum, connection_id=2898118323872990714, call_control_id=v3:8tadUHqwbFKBaw9K8YwfGcJm5XX57A2NrubDO3sGWnY66F5TazM7Zw, call_leg_id=21080d2e-6a89-11f1-a79b-02420a0dd820, hangup_cause=unspecified, hangup_source=unknown, sip_hangup_cause=408, state=undefined",
+    "message": "[Voice] PAYLOAD DUMP: direction=undefined, from=+16072356511, to=gencredFcRVhCjPOMKsUibeq0Y5BPB4NKgMicJIczKplZgJum, connection_id=2898118323872990714, call_control_id=v3:8tadUHqwbFKBaw9K8YwfGcJm5XX57A2NrubDO3sGWnY66F5TazM7Zw, call_leg_id=bot-sandbox-safe, hangup_cause=unspecified, hangup_source=unknown, sip_hangup_cause=408, state=undefined",
     "severity": "info"
   },
   {
@@ -2481,7 +2481,7 @@
   },
   {
     "timestamp": "2026-06-17T20:15:44.703897238Z",
-    "message": "[Voice] PAYLOAD DUMP: direction=incoming, from=+16072356511, to=gencredFcRVhCjPOMKsUibeq0Y5BPB4NKgMicJIczKplZgJum, connection_id=2898118323872990714, call_control_id=v3:qiS1nR2eEbFQE-PPwfg6JFiiCp0MVVtBFZsLvDHkA9AT9BgyZR54ug, call_leg_id=4dd4d792-6a89-11f1-97b1-02420a0dd820, hangup_cause=N/A, hangup_source=N/A, sip_hangup_cause=N/A, state=bridging",
+    "message": "[Voice] PAYLOAD DUMP: direction=incoming, from=+16072356511, to=gencredFcRVhCjPOMKsUibeq0Y5BPB4NKgMicJIczKplZgJum, connection_id=2898118323872990714, call_control_id=v3:qiS1nR2eEbFQE-PPwfg6JFiiCp0MVVtBFZsLvDHkA9AT9BgyZR54ug, call_leg_id=bot-sandbox-safe, hangup_cause=N/A, hangup_source=N/A, sip_hangup_cause=N/A, state=bridging",
     "severity": "info"
   },
   {
@@ -2491,7 +2491,7 @@
   },
   {
     "timestamp": "2026-06-17T20:15:47.374732108Z",
-    "message": "[Voice] PAYLOAD DUMP: direction=undefined, from=+16072356511, to=gencredFcRVhCjPOMKsUibeq0Y5BPB4NKgMicJIczKplZgJum, connection_id=2898118323872990714, call_control_id=v3:qiS1nR2eEbFQE-PPwfg6JFiiCp0MVVtBFZsLvDHkA9AT9BgyZR54ug, call_leg_id=4dd4d792-6a89-11f1-97b1-02420a0dd820, hangup_cause=unspecified, hangup_source=unknown, sip_hangup_cause=408, state=undefined",
+    "message": "[Voice] PAYLOAD DUMP: direction=undefined, from=+16072356511, to=gencredFcRVhCjPOMKsUibeq0Y5BPB4NKgMicJIczKplZgJum, connection_id=2898118323872990714, call_control_id=v3:qiS1nR2eEbFQE-PPwfg6JFiiCp0MVVtBFZsLvDHkA9AT9BgyZR54ug, call_leg_id=bot-sandbox-safe, hangup_cause=unspecified, hangup_source=unknown, sip_hangup_cause=408, state=undefined",
     "severity": "info"
   },
   {

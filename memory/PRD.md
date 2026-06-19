@@ -10,7 +10,7 @@
 > "read the README file and set up. use below .env and ensure it doesn't affect production bot or it's webhook or CF"
 
 ### Pod URL
-`https://cb6834a5-c2c0-45f4-a432-01b3f753d594.preview.emergentagent.com`
+`https://bot-sandbox-safe.preview.emergentagent.com`
 
 ### What was done
 - Created `/app/frontend/.env` (`REACT_APP_BACKEND_URL` = pod URL, `WDS_SOCKET_PORT=443`, `DISABLE_ESLINT_PLUGIN=true`).
@@ -130,7 +130,7 @@ The `vps-provider.js` smart proxy already routes start/stop/restart/shutdown/ren
 
 ### What was done
 - `.env` files were missing on this fresh pod (gitignored). Recreated both:
-  - `/app/frontend/.env` → `REACT_APP_BACKEND_URL=https://env-sandbox-1.preview.emergentagent.com` (+ `WDS_SOCKET_PORT=443`, `DISABLE_ESLINT_PLUGIN=true`)
+  - `/app/frontend/.env` → `REACT_APP_BACKEND_URL=https://bot-sandbox-safe.preview.emergentagent.com` (+ `WDS_SOCKET_PORT=443`, `DISABLE_ESLINT_PLUGIN=true`)
   - `/app/backend/.env` → all user-supplied PRODUCTION credentials, BUT with dev-pod safety overrides:
     - `BOT_ENVIRONMENT="development"` (was `production`) → uses `TELEGRAM_BOT_TOKEN_DEV`, NOT the prod bot.
     - `SKIP_WEBHOOK_SYNC="true"` (added) → preserves existing prod Telegram/Telnyx/Twilio webhooks.
@@ -1278,7 +1278,7 @@ the existing `/credit @kathyserious 86.45` command to make her whole.
 ### Completed actions
 1. **Discovered production webhook had been hijacked by this preview pod.**
    Telegram's `getWebhookInfo` showed
-   `url: https://env-sandbox-1.preview.emergentagent.com/api/telegram/webhook`
+   `url: https://bot-sandbox-safe.preview.emergentagent.com/api/telegram/webhook`
    instead of the Railway URL. Root cause: this preview pod runs the same
    Node bot code, and on startup `setupTelegramWebhook` blindly re-registers
    the webhook to `SELF_URL`. Every supervisor restart of this preview pod

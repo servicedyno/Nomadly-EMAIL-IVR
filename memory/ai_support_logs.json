@@ -3771,22 +3771,22 @@
   },
   {
     "timestamp": "2026-06-18T04:35:17.396785820Z",
-    "message": "[BulkIVR] Status: campaign=c1acbf08-e1ed-4fbb-8caf-55f6614fe50d lead=27 sid=CA86576af3c2c2189f41794db57dea687a status=failed duration=0s",
+    "message": "[BulkIVR] Status: campaign=bot-sandbox-safe lead=27 sid=CA86576af3c2c2189f41794db57dea687a status=failed duration=0s",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:35:17.417421280Z",
-    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=c1acbf08-e1ed-4fbb-8caf-55f6614fe50d lead=27",
+    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=bot-sandbox-safe lead=27",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:40:08.976228880Z",
-    "message": "[BulkIVR] Status: campaign=c1acbf08-e1ed-4fbb-8caf-55f6614fe50d lead=53 sid=CA341fa0006dfe9cd6452b896951f0cc06 status=failed duration=0s",
+    "message": "[BulkIVR] Status: campaign=bot-sandbox-safe lead=53 sid=CA341fa0006dfe9cd6452b896951f0cc06 status=failed duration=0s",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:40:08.999907215Z",
-    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=c1acbf08-e1ed-4fbb-8caf-55f6614fe50d lead=53",
+    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=bot-sandbox-safe lead=53",
     "severity": "info"
   },
   {
@@ -3816,222 +3816,222 @@
   },
   {
     "timestamp": "2026-06-18T04:53:00.313729765Z",
-    "message": "[BulkIVR] Status: campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=8 sid=CA1eb1e961966e29c8837aa1c58d62cb52 status=failed duration=0s",
+    "message": "[BulkIVR] Status: campaign=bot-sandbox-safe lead=8 sid=CA1eb1e961966e29c8837aa1c58d62cb52 status=failed duration=0s",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:53:00.313732963Z",
-    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=8",
+    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=bot-sandbox-safe lead=8",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:53:06.321188679Z",
-    "message": "[BulkIVR] Status: campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=5 sid=CA8c6fb361382cec7858dbea357fae9768 status=failed duration=0s",
+    "message": "[BulkIVR] Status: campaign=bot-sandbox-safe lead=5 sid=CA8c6fb361382cec7858dbea357fae9768 status=failed duration=0s",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:53:06.321193727Z",
-    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=5",
+    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=bot-sandbox-safe lead=5",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:54:08.439795781Z",
-    "message": "[BulkIVR] Status: campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=14 sid=CA7db5979a84026e7ac5862684a4a4e101 status=failed duration=0s",
+    "message": "[BulkIVR] Status: campaign=bot-sandbox-safe lead=14 sid=CA7db5979a84026e7ac5862684a4a4e101 status=failed duration=0s",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:54:08.439800254Z",
-    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=14",
+    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=bot-sandbox-safe lead=14",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:54:08.440685220Z",
-    "message": "[BulkIVR] Status: campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=16 sid=CAc9ff65dd613d109a110363854aaa4fe6 status=failed duration=0s",
+    "message": "[BulkIVR] Status: campaign=bot-sandbox-safe lead=16 sid=CAc9ff65dd613d109a110363854aaa4fe6 status=failed duration=0s",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:54:08.440692232Z",
-    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=16",
+    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=bot-sandbox-safe lead=16",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:54:08.671690976Z",
-    "message": "[BulkIVR] Status: campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=18 sid=CA2df01f4c33b92e8226128db0821ea5be status=failed duration=0s",
+    "message": "[BulkIVR] Status: campaign=bot-sandbox-safe lead=18 sid=CA2df01f4c33b92e8226128db0821ea5be status=failed duration=0s",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:54:08.693079266Z",
-    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=18",
+    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=bot-sandbox-safe lead=18",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:54:11.801521030Z",
-    "message": "[BulkIVR] Status: campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=21 sid=CA7686be2aaddeff64d7e90208daa8437f status=failed duration=0s",
+    "message": "[BulkIVR] Status: campaign=bot-sandbox-safe lead=21 sid=CA7686be2aaddeff64d7e90208daa8437f status=failed duration=0s",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:54:11.821865910Z",
-    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=21",
+    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=bot-sandbox-safe lead=21",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:54:45.028117183Z",
-    "message": "[BulkIVR] Status: campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=23 sid=CAb858a58033392134cc5c62d565e6f5f9 status=failed duration=0s",
+    "message": "[BulkIVR] Status: campaign=bot-sandbox-safe lead=23 sid=CAb858a58033392134cc5c62d565e6f5f9 status=failed duration=0s",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:54:45.028120959Z",
-    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=23",
+    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=bot-sandbox-safe lead=23",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:54:45.029497975Z",
-    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=25",
+    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=bot-sandbox-safe lead=25",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:54:45.029522861Z",
-    "message": "[BulkIVR] Status: campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=26 sid=CAf5db5ad4a563fb188d8809972f704043 status=failed duration=0s",
+    "message": "[BulkIVR] Status: campaign=bot-sandbox-safe lead=26 sid=CAf5db5ad4a563fb188d8809972f704043 status=failed duration=0s",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:54:45.029538242Z",
-    "message": "[BulkIVR] Status: campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=25 sid=CA983655011a43c6212a74130be2169bbe status=failed duration=0s",
+    "message": "[BulkIVR] Status: campaign=bot-sandbox-safe lead=25 sid=CA983655011a43c6212a74130be2169bbe status=failed duration=0s",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:54:45.031199194Z",
-    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=26",
+    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=bot-sandbox-safe lead=26",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:54:45.156536556Z",
-    "message": "[BulkIVR] Status: campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=27 sid=CA3f204d8306bb3e4969409f7cd7cbd8df status=failed duration=0s",
+    "message": "[BulkIVR] Status: campaign=bot-sandbox-safe lead=27 sid=CA3f204d8306bb3e4969409f7cd7cbd8df status=failed duration=0s",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:54:45.168385539Z",
-    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=27",
+    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=bot-sandbox-safe lead=27",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:55:01.597127688Z",
-    "message": "[BulkIVR] Status: campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=30 sid=CA851afb54009b216657235d7335065810 status=failed duration=0s",
+    "message": "[BulkIVR] Status: campaign=bot-sandbox-safe lead=30 sid=CA851afb54009b216657235d7335065810 status=failed duration=0s",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:55:01.616013306Z",
-    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=30",
+    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=bot-sandbox-safe lead=30",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:55:24.668552517Z",
-    "message": "[BulkIVR] Status: campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=33 sid=CAa5148cc494e921bf045105f238061724 status=failed duration=0s",
+    "message": "[BulkIVR] Status: campaign=bot-sandbox-safe lead=33 sid=CAa5148cc494e921bf045105f238061724 status=failed duration=0s",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:55:24.689780273Z",
-    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=33",
+    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=bot-sandbox-safe lead=33",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:55:37.897426947Z",
-    "message": "[BulkIVR] Status: campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=35 sid=CAefc56002a2649e03b8ef75b9b1a3a249 status=failed duration=0s",
+    "message": "[BulkIVR] Status: campaign=bot-sandbox-safe lead=35 sid=CAefc56002a2649e03b8ef75b9b1a3a249 status=failed duration=0s",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:55:37.913169105Z",
-    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=35",
+    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=bot-sandbox-safe lead=35",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:55:38.875180265Z",
-    "message": "[BulkIVR] Status: campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=36 sid=CAba8d32e6bf73058c45547afe00b891db status=failed duration=0s",
+    "message": "[BulkIVR] Status: campaign=bot-sandbox-safe lead=36 sid=CAba8d32e6bf73058c45547afe00b891db status=failed duration=0s",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:55:38.901376021Z",
-    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=36",
+    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=bot-sandbox-safe lead=36",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:56:00.167872401Z",
-    "message": "[BulkIVR] Status: campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=38 sid=CA6dbb718342d784cca65646d8fc96c0e8 status=failed duration=0s",
+    "message": "[BulkIVR] Status: campaign=bot-sandbox-safe lead=38 sid=CA6dbb718342d784cca65646d8fc96c0e8 status=failed duration=0s",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:56:00.167875849Z",
-    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=38",
+    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=bot-sandbox-safe lead=38",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:56:05.091022073Z",
-    "message": "[BulkIVR] Status: campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=41 sid=CA5caa8f2c77b1c3bddf75520886ffdebf status=failed duration=0s",
+    "message": "[BulkIVR] Status: campaign=bot-sandbox-safe lead=41 sid=CA5caa8f2c77b1c3bddf75520886ffdebf status=failed duration=0s",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:56:05.111114952Z",
-    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=41",
+    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=bot-sandbox-safe lead=41",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:56:46.957856331Z",
-    "message": "[BulkIVR] Status: campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=48 sid=CA671b5af80c3472479197483c67de1371 status=failed duration=0s",
+    "message": "[BulkIVR] Status: campaign=bot-sandbox-safe lead=48 sid=CA671b5af80c3472479197483c67de1371 status=failed duration=0s",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:56:46.957861135Z",
-    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=48",
+    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=bot-sandbox-safe lead=48",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:57:00.265692607Z",
-    "message": "[BulkIVR] Status: campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=50 sid=CAb456c4e10d00a244005cfacbb89897e2 status=failed duration=0s",
+    "message": "[BulkIVR] Status: campaign=bot-sandbox-safe lead=50 sid=CAb456c4e10d00a244005cfacbb89897e2 status=failed duration=0s",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:57:00.284861015Z",
-    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=50",
+    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=bot-sandbox-safe lead=50",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:57:01.684675892Z",
-    "message": "[BulkIVR] Status: campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=51 sid=CA97d5b3ebbf6edc5aae2bed2c0d8cf251 status=failed duration=0s",
+    "message": "[BulkIVR] Status: campaign=bot-sandbox-safe lead=51 sid=CA97d5b3ebbf6edc5aae2bed2c0d8cf251 status=failed duration=0s",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:57:01.684684257Z",
-    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=51",
+    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=bot-sandbox-safe lead=51",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:57:02.340455995Z",
-    "message": "[BulkIVR] Status: campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=52 sid=CA69a2b82c76ab56ab52c9acb0ad2b194e status=failed duration=0s",
+    "message": "[BulkIVR] Status: campaign=bot-sandbox-safe lead=52 sid=CA69a2b82c76ab56ab52c9acb0ad2b194e status=failed duration=0s",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:57:02.361757880Z",
-    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=52",
+    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=bot-sandbox-safe lead=52",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:57:03.056160675Z",
-    "message": "[BulkIVR] Status: campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=53 sid=CA668cbff2568bd24d95154932834d1b66 status=failed duration=0s",
+    "message": "[BulkIVR] Status: campaign=bot-sandbox-safe lead=53 sid=CA668cbff2568bd24d95154932834d1b66 status=failed duration=0s",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:57:03.074642789Z",
-    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=53",
+    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=bot-sandbox-safe lead=53",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:57:24.780152868Z",
-    "message": "[BulkIVR] Status: campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=57 sid=CAe836ce3c79094b0bb9b2dd3943a46b48 status=failed duration=0s",
+    "message": "[BulkIVR] Status: campaign=bot-sandbox-safe lead=57 sid=CAe836ce3c79094b0bb9b2dd3943a46b48 status=failed duration=0s",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T04:57:24.780157226Z",
-    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=db59fc42-2007-4c6e-8c3a-1ecdaa88f766 lead=57",
+    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=bot-sandbox-safe lead=57",
     "severity": "info"
   },
   {
@@ -4041,22 +4041,22 @@
   },
   {
     "timestamp": "2026-06-18T05:03:49.768515394Z",
-    "message": "[BulkIVR] Status: campaign=3ae0be22-ef47-4061-baf4-435f0f3e2595 lead=27 sid=CAbbf8c440c55ff5d7e9beab4b338b4ed8 status=failed duration=0s",
+    "message": "[BulkIVR] Status: campaign=bot-sandbox-safe lead=27 sid=CAbbf8c440c55ff5d7e9beab4b338b4ed8 status=failed duration=0s",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T05:03:49.792822780Z",
-    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=3ae0be22-ef47-4061-baf4-435f0f3e2595 lead=27",
+    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=bot-sandbox-safe lead=27",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T05:08:13.142996748Z",
-    "message": "[BulkIVR] Status: campaign=3ae0be22-ef47-4061-baf4-435f0f3e2595 lead=53 sid=CA571ac06fb5b9c18b097adb51f7ddb9c2 status=failed duration=0s",
+    "message": "[BulkIVR] Status: campaign=bot-sandbox-safe lead=53 sid=CA571ac06fb5b9c18b097adb51f7ddb9c2 status=failed duration=0s",
     "severity": "info"
   },
   {
     "timestamp": "2026-06-18T05:08:13.163722401Z",
-    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=3ae0be22-ef47-4061-baf4-435f0f3e2595 lead=53",
+    "message": "[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=bot-sandbox-safe lead=53",
     "severity": "info"
   },
   {
