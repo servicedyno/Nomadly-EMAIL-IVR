@@ -13,6 +13,7 @@ const COIN_OPTS = [
 
 /* Shared crypto payment box — polls the public order endpoint until provisioned */
 function CryptoPayBox({ order, onProvisioned }) {
+  const { t } = useTranslation();
   const [status, setStatus] = useState('pending');
   const [creds, setCreds] = useState(null);
   useEffect(() => {
@@ -33,24 +34,24 @@ function CryptoPayBox({ order, onProvisioned }) {
   if (creds) {
     return (
       <div className="store-success" data-testid="store-crypto-provisioned">
-        <h2>🎉 Payment received — your hosting is ready!</h2>
+        <h2>{t('store.readyTitle')}</h2>
         <p>Domain: <b>{creds.domain}</b></p>
         <div className="store-creds">
-          <div><span>HostPanel Username</span><code data-testid="store-cred-user">{creds.username}</code></div>
-          <div><span>HostPanel PIN</span><code data-testid="store-cred-pin">{creds.pin}</code></div>
+          <div><span>{t('store.username')}</span><code data-testid="store-cred-user">{creds.username}</code></div>
+          <div><span>{t('store.pin')}</span><code data-testid="store-cred-pin">{creds.pin}</code></div>
         </div>
-        <p className="store-muted">These were also emailed to you. Log in anytime with your username + PIN.</p>
+        <p className="store-muted">{t('store.credsEmailed')}</p>
         {creds.nameservers?.length > 0 && <p className="store-muted">Point your domain nameservers to: {creds.nameservers.join(', ')}</p>}
-        <a className="store-btn store-btn--primary" href="/panel" data-testid="store-crypto-open-panel">Go to HostPanel →</a>
+        <a className="store-btn store-btn--primary" href="/panel" data-testid="store-crypto-open-panel">{t('store.goPanel')}</a>
       </div>
     );
   }
   return (
     <div className="store-topup-box" data-testid="store-crypto-pending">
-      <p>Send <b>{order.coin}</b> worth <b>{money(order.amountUsd)}</b> to this address:</p>
+      <p>{t('store.sendToAddr', { coin: order.coin, amount: money(order.amountUsd) })}</p>
       <div className="store-qr" data-testid="store-crypto-qr"><QRCode value={String(order.address || '')} size={148} bgColor="#ffffff" fgColor="#0b0e14" /></div>
       <code className="store-addr" data-testid="store-crypto-address">{order.address}</code>
-      <p className="store-muted">{status === 'failed' ? '⚠️ Payment issue — contact support.' : 'Waiting for blockchain confirmation… this updates automatically. Keep this page open.'}</p>
+      <p className="store-muted">{status === 'failed' ? t('store.paymentIssue') : t('store.waitingChain')}</p>
     </div>
   );
 }
@@ -392,6 +393,7 @@ function BuyTab({ plans, goWallet, goPlans }) {
 /* ── Wallet + crypto top-up ── */
 function WalletTab() {
   const { api, setWallet } = useStore();
+  const { t } = useTranslation();
   const [wallet, setW] = useState(null);
   const [coin, setCoin] = useState('USDT-TRC20');
   const [amount, setAmount] = useState('25');
@@ -431,19 +433,19 @@ function WalletTab() {
   return (
     <div className="store-card" data-testid="store-wallet">
       <div className="store-wallet-head">
-        <div>Balance</div>
+        <div>{t('store.balanceLabel')}</div>
         <div className="store-bigbal" data-testid="store-wallet-bigbal">{money(wallet?.balanceUsd)}</div>
       </div>
       {error && <div className="store-error">{error}</div>}
 
-      <h3>Top up with crypto</h3>
+      <h3>{t('store.topupTitle')}</h3>
       <div className="store-topup-row">
         <select value={coin} onChange={e => setCoin(e.target.value)} data-testid="store-topup-coin">
           {(wallet?.coins || []).map(c => <option key={c.code} value={c.code}>{c.name} (min ${c.min})</option>)}
         </select>
         <input type="number" min={minFor(coin)} value={amount} onChange={e => setAmount(e.target.value)} data-testid="store-topup-amount" />
         <button className="store-btn store-btn--primary" onClick={startTopup} disabled={busy} data-testid="store-topup-submit">
-          {busy ? 'Creating…' : 'Get deposit address'}
+          {busy ? t('store.pleaseWait') : t('store.getAddress')}
         </button>
       </div>
       <div className="store-muted">Minimum {money(minFor(coin))} for {coin}.</div>
@@ -463,9 +465,9 @@ function WalletTab() {
         </div>
       )}
 
-      <h3>Recent activity</h3>
+      <h3>{t('store.recentActivity')}</h3>
       <div className="store-txns" data-testid="store-txns">
-        {(wallet?.txns || []).length === 0 && <div className="store-muted">No transactions yet.</div>}
+        {(wallet?.txns || []).length === 0 && <div className="store-muted">{t('store.noTxns')}</div>}
         {(wallet?.txns || []).map(t => (
           <div key={t.id} className="store-txn">
             <span>{t.note || t.type}</span>
@@ -480,6 +482,7 @@ function WalletTab() {
 /* ── My Plans ── */
 function PlansTab() {
   const { api } = useStore();
+  const { t } = useTranslation();
   const [plans, setPlans] = useState(null);
   const [error, setError] = useState('');
   const [openBusy, setOpenBusy] = useState('');
@@ -488,10 +491,10 @@ function PlansTab() {
 
   return (
     <div className="store-card" data-testid="store-myplans">
-      <h2>My Hosting Plans</h2>
+      <h2>{t('store.myPlansTitle')}</h2>
       {error && <div className="store-error">{error}</div>}
-      {plans === null ? <div className="store-muted">Loading…</div> :
-        plans.length === 0 ? <div className="store-muted">No plans yet — buy one from the “Buy Hosting” tab.</div> :
+      {plans === null ? <div className="store-muted">{t('store.loading')}</div> :
+        plans.length === 0 ? <div className="store-muted">{t('store.noPlans')}</div> :
         plans.map(p => (
           <div key={p.cpUser} className="store-myplan" data-testid={`store-myplan-${p.domain}`}>
             <div>
@@ -504,7 +507,7 @@ function PlansTab() {
               onClick={() => { setOpenBusy(p.cpUser); openPanel(api, p.cpUser, () => {}, setError); }}
               data-testid={`store-open-${p.domain}`}
             >
-              {openBusy === p.cpUser ? 'Opening…' : 'Open Panel →'}
+              {openBusy === p.cpUser ? t('store.opening') : t('store.openPanel')}
             </button>
           </div>
         ))}

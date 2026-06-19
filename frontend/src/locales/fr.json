@@ -27,7 +27,21 @@
     "openPanel": "Ouvrir le panneau →",
     "guestEmailLabel": "Votre email (pour les identifiants)",
     "payWith": "Payer avec",
-    "guestNote": "Aucun compte requis — vos identifiants s'affichent ici et sont envoyés par email après paiement."
+    "guestNote": "Aucun compte requis — vos identifiants s'affichent ici et sont envoyés par email après paiement.",
+    "readyTitle": "🎉 Paiement reçu — votre hébergement est prêt !",
+    "username": "Identifiant HostPanel",
+    "pin": "PIN HostPanel",
+    "credsEmailed": "Ils vous ont aussi été envoyés par email. Connectez-vous avec votre identifiant + PIN.",
+    "goPanel": "Ouvrir le HostPanel →",
+    "sendToAddr": "Envoyez {{coin}} pour un montant de {{amount}} à cette adresse :",
+    "waitingChain": "En attente de la confirmation blockchain… mise à jour automatique. Gardez cette page ouverte.",
+    "paymentIssue": "⚠️ Problème de paiement — contactez le support.",
+    "loading": "Chargement…",
+    "noPlans": "Aucun forfait — achetez-en un dans l'onglet Acheter un hébergement.",
+    "opening": "Ouverture…",
+    "balanceLabel": "Solde",
+    "recentActivity": "Activité récente",
+    "noTxns": "Aucune transaction pour le moment."
   },
   "common": {
     "appName": "Panneau d'hébergement",

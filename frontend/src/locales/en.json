@@ -27,7 +27,21 @@
     "openPanel": "Open Panel →",
     "guestEmailLabel": "Your email (for login details)",
     "payWith": "Pay with",
-    "guestNote": "No account needed — your login details are shown here & emailed after payment."
+    "guestNote": "No account needed — your login details are shown here & emailed after payment.",
+    "readyTitle": "🎉 Payment received — your hosting is ready!",
+    "username": "HostPanel Username",
+    "pin": "HostPanel PIN",
+    "credsEmailed": "These were also emailed to you. Log in anytime with your username + PIN.",
+    "goPanel": "Go to HostPanel →",
+    "sendToAddr": "Send {{coin}} worth {{amount}} to this address:",
+    "waitingChain": "Waiting for blockchain confirmation… this updates automatically. Keep this page open.",
+    "paymentIssue": "⚠️ Payment issue — contact support.",
+    "loading": "Loading…",
+    "noPlans": "No plans yet — buy one from the Buy Hosting tab.",
+    "opening": "Opening…",
+    "balanceLabel": "Balance",
+    "recentActivity": "Recent activity",
+    "noTxns": "No transactions yet."
   },
   "common": {
     "appName": "Hosting Panel",

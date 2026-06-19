@@ -27,7 +27,21 @@
     "openPanel": "打开面板 →",
     "guestEmailLabel": "您的邮箱（用于接收登录信息）",
     "payWith": "支付方式",
-    "guestNote": "无需账户 — 付款后您的登录信息将在此显示并通过邮件发送。"
+    "guestNote": "无需账户 — 付款后您的登录信息将在此显示并通过邮件发送。",
+    "readyTitle": "🎉 已收到付款 — 您的主机已就绪！",
+    "username": "HostPanel 用户名",
+    "pin": "HostPanel PIN",
+    "credsEmailed": "这些信息也已通过邮件发送给您。随时用用户名 + PIN 登录。",
+    "goPanel": "打开 HostPanel →",
+    "sendToAddr": "请向此地址发送价值 {{amount}} 的 {{coin}}：",
+    "waitingChain": "等待区块链确认… 自动更新，请保持此页面打开。",
+    "paymentIssue": "⚠️ 付款问题 — 请联系客服。",
+    "loading": "加载中…",
+    "noPlans": "暂无套餐 — 请在“购买主机”标签购买。",
+    "opening": "正在打开…",
+    "balanceLabel": "余额",
+    "recentActivity": "近期活动",
+    "noTxns": "暂无交易。"
   },
   "common": {
     "appName": "主机面板",
