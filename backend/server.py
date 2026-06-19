@@ -62,27 +62,42 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(f"[Scheduler] Health check failed: {e}")
 
-    scheduler.add_job(
-        scheduled_health_check,
-        "interval",
-        minutes=30,
-        id="phone_number_health_check",
-        replace_existing=True,
-    )
-    # Also run once at startup after a short delay
-    scheduler.add_job(
-        scheduled_health_check,
-        "date",
-        run_date=datetime.now(timezone.utc),
-        id="phone_number_health_check_startup",
-    )
-    scheduler.start()
-    logger.info("[Scheduler] Phone number health monitor started (every 30 min)")
+    # ── DEV-SAFETY GUARD ──────────────────────────────────────────────
+    # The health monitor sends Telegram messages via TELEGRAM_BOT_TOKEN_PROD
+    # to REAL production users and writes "suspended" status to the (shared)
+    # production DB. On a dev/sandbox pod (SKIP_WEBHOOK_SYNC=true) we must NOT
+    # run it, otherwise this pod could notify live users from the production
+    # bot and mutate production data. Production (Railway) leaves the flag
+    # unset/false so the monitor runs there as normal.
+    skip_monitor = os.environ.get("SKIP_WEBHOOK_SYNC", "").lower() == "true"
+    if skip_monitor:
+        logger.info(
+            "[Scheduler] SKIP_WEBHOOK_SYNC=true — phone health monitor DISABLED "
+            "(dev sandbox: will not notify production users or mutate prod data)"
+        )
+    else:
+        scheduler.add_job(
+            scheduled_health_check,
+            "interval",
+            minutes=30,
+            id="phone_number_health_check",
+            replace_existing=True,
+        )
+        # Also run once at startup after a short delay
+        scheduler.add_job(
+            scheduled_health_check,
+            "date",
+            run_date=datetime.now(timezone.utc),
+            id="phone_number_health_check_startup",
+        )
+        scheduler.start()
+        logger.info("[Scheduler] Phone number health monitor started (every 30 min)")
 
     yield
 
     # Shutdown
-    scheduler.shutdown(wait=False)
+    if scheduler.running:
+        scheduler.shutdown(wait=False)
     await monitor_http_client.aclose()
     logger.info("[Scheduler] Subaccount monitor stopped")
 
