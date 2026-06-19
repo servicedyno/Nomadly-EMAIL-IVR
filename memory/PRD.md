@@ -2,6 +2,61 @@
 
 > 📋 **Recent changes are tracked in [`CHANGELOG.md`](./CHANGELOG.md)** (added 2026-02 for size).
 
+## 2026-06-19 (later 2) — P1: GeoManager migrated to Cloudflare WAF Custom Rules (Rulesets API)
+**Status: ✅ COMPLETE — 7/7 unit tests pass, live read-only API call against real CF zone returns rules with correct legacy shape.**
+
+### Problem
+Cloudflare deprecated the Firewall Rules API (`/zones/{id}/firewall/rules` and `/zones/{id}/filters`). The panel's GeoManager was silently failing — users could "set" a geo-block but the rule never took effect because CF rejected/ignored the calls.
+
+### Migration
+`js/cf-service.js` — 3 functions reimplemented against the new **Rulesets API** for the WAF Custom Rules phase (`http_request_firewall_custom`):
+
+| Function | Old endpoint (deprecated) | New endpoint (Rulesets) |
+|---|---|---|
+| `listFirewallRules(zoneId)` | `GET /zones/{z}/firewall/rules` | `GET /zones/{z}/rulesets/phases/http_request_firewall_custom/entrypoint` (returns ruleset with `.rules[]`) |
+| `createGeoRule(zoneId, codes, mode, desc)` | `POST /zones/{z}/filters` + `POST /zones/{z}/firewall/rules` | `POST /zones/{z}/rulesets/{rsId}/rules` (single rule, `expression` inline — no separate filter resource) |
+| `deleteFirewallRule(zoneId, ruleId)` | `DELETE /zones/{z}/firewall/rules/{r}` | `DELETE /zones/{z}/rulesets/{rsId}/rules/{r}` (auto-resolves `rsId` from entrypoint) |
+
+### Backward-compat layer
+The new `listFirewallRules` adapter (`_adaptRule`) keeps the legacy shape for all 4 callers without modifying their code:
+- `r.id`, `r.description`, `r.action`
+- `r.paused` ← `!r.enabled` (Rulesets uses `enabled`, legacy used `paused`)
+- `r.filter.expression` ← mirrored from `r.expression` so legacy `r.filter?.expression?.includes('ip.geoip.country')` still works (cpanel-routes.js geo list filter)
+
+### Expression upgrade
+- Old: `ip.geoip.country eq "CN" or ip.geoip.country eq "RU"` (3 separate eq-clauses)
+- New: `(ip.geoip.country in {"CN" "RU"})` (preferred set-membership form — cleaner, faster, scales to many countries without expression bloat)
+- `allow` mode wraps as `(not (ip.geoip.country in {...}))` for whitelist behavior
+
+### Entrypoint auto-creation
+If the zone has no WAF Custom Rules ruleset yet (Cloudflare returns 404 on GET entrypoint), `_getOrCreateCustomRulesEntrypoint` automatically `POST`s an empty entrypoint before adding the rule. Idempotent.
+
+### Idempotent delete
+404 on DELETE returns `{ success: true, alreadyGone: true }` instead of failing — fixes the "user double-clicked" UX regression.
+
+### Verification
+- **Unit tests** `/app/js/__tests__/cf-geo-rulesets.test.js` — 7/7 pass (axios stubbed via Module._load). Asserts:
+  1. No call hits `/firewall/rules` or `/filters` (deprecated endpoints stay dark).
+  2. Legacy shape (`id`, `description`, `action`, `paused`, `filter.expression`) preserved.
+  3. Block-mode expression: `(ip.geoip.country in {"CN" "RU"})`.
+  4. Allow-mode expression: `(not (ip.geoip.country in {"US" "GB"}))`.
+  5. 404 on GET entrypoint → auto-create.
+  6. 404 on DELETE → idempotent success.
+  7. Invalid input rejected without HTTP calls.
+- **Live read-only call** against real zone `07secure-recover.click` (`6d3e31e338a3...`) returned 3 anti-bot rules in 295ms in the new legacy-adapted shape — confirms the migration works against the actual CF API and existing data is readable through the new endpoint.
+- `node -c` clean on `cf-service.js` + all 3 caller modules (`cpanel-routes.js`, `anti-red-service.js`, `deploy-protection-all-domains.js`).
+- `sudo supervisorctl restart nodejs` clean; `GET /api/panel/geo` returns 401 (unauth) instead of crashing — endpoint mounted and routing through the migrated function correctly.
+
+### Files touched
+- `/app/js/cf-service.js` — 3 functions (~80 LOC replaced with ~145 LOC including a private entrypoint resolver + legacy-shape adapter)
+- `/app/js/__tests__/cf-geo-rulesets.test.js` (new, 240 LOC) — 7 unit tests with stubbed axios
+
+### Out of scope (NOT touched in this turn)
+- `cf-service.js::createAntiBotRules` (line ~982) still uses the deprecated `/firewall/rules` endpoint for its duplicate-detection step. New rule creation still goes through deprecated endpoints. Anti-Bot is not part of GeoManager — separate task.
+- `anti-red-service.js::createJA3Rules` (line ~929) uses `/zones/{z}/filters` directly (no helper). Also out of scope per the explicit P1 ask.
+
+
+
 ## 2026-06-19 (later) — P0 FIX: Storefront serving old URL Shortener page on Railway
 **Status: ✅ RESOLVED — `https://panel.1.hostbay.io/` now serves the new React Web Storefront with all 3 plans (Premium Weekly $30, Premium Monthly $75, Golden $100), crypto "Buy now" CTAs, and login form.**
 

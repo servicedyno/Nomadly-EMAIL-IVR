@@ -549,82 +549,151 @@ const enforceHTTPS = async (zoneId) => {
 }
 
 // ─── Firewall / Geo-blocking ────────────────────────────
+//
+// Migrated 2026-06-19 from the deprecated Firewall Rules API
+// (/zones/{id}/firewall/rules + /zones/{id}/filters) to the
+// Rulesets API for WAF Custom Rules (phase: http_request_firewall_custom).
+//
+// The 3 exported functions below preserve their original return contracts
+// so existing callers (cpanel-routes.js Geo CRUD, anti-red-service.js
+// anti-phishing cleanup, deploy-protection-all-domains.js) keep working
+// without code changes outside this file.
+
+const CF_CUSTOM_RULES_PHASE = 'http_request_firewall_custom'
 
 /**
- * List all firewall rules for a zone
+ * Get (or create) the zone entrypoint ruleset for the WAF Custom Rules phase.
+ * Returns the ruleset object with its `rules` array, or null on hard error.
+ */
+const _getOrCreateCustomRulesEntrypoint = async (zoneId) => {
+  try {
+    const res = await axios.get(
+      `${CF_BASE_URL}/zones/${zoneId}/rulesets/phases/${CF_CUSTOM_RULES_PHASE}/entrypoint`,
+      { headers: cfHeaders(), timeout: 15000 }
+    )
+    if (res.data?.success && res.data.result) return res.data.result
+  } catch (err) {
+    // 404 = entrypoint doesn't exist yet → create it
+    if (err.response?.status !== 404) {
+      log(`CF _getOrCreateCustomRulesEntrypoint GET error: ${err.message}`)
+      return null
+    }
+  }
+  // Create empty entrypoint
+  try {
+    const createRes = await axios.post(
+      `${CF_BASE_URL}/zones/${zoneId}/rulesets`,
+      {
+        name: 'HostBay WAF Custom Rules',
+        description: 'Auto-managed by HostBay (geo, anti-phishing, JA3, anti-bot)',
+        kind: 'zone',
+        phase: CF_CUSTOM_RULES_PHASE,
+        rules: [],
+      },
+      { headers: cfHeaders(), timeout: 15000 }
+    )
+    if (createRes.data?.success) return createRes.data.result
+    log(`CF entrypoint create failed: ${JSON.stringify(createRes.data?.errors || [])}`)
+    return null
+  } catch (err) {
+    log(`CF entrypoint create error: ${err.message}`)
+    return null
+  }
+}
+
+/**
+ * Adapt a Rulesets-API rule to the legacy Firewall-Rules shape so existing
+ * callers that read `r.filter.expression` and `r.paused` keep working.
+ */
+const _adaptRule = (r) => ({
+  id: r.id,
+  description: r.description || '',
+  action: r.action,
+  paused: r.enabled === false,
+  // Legacy callers read r.filter.expression — mirror both for compatibility.
+  expression: r.expression || '',
+  filter: { id: r.ref || r.id, expression: r.expression || '' },
+  ref: r.ref,
+  enabled: r.enabled !== false,
+  last_updated: r.last_updated,
+  version: r.version,
+})
+
+/**
+ * List all WAF Custom Rules for a zone (legacy name: listFirewallRules).
+ * Returns rules in the legacy Firewall-Rules shape for backward compatibility.
  */
 const listFirewallRules = async (zoneId) => {
   try {
-    const res = await axios.get(`${CF_BASE_URL}/zones/${zoneId}/firewall/rules`, {
-      headers: cfHeaders(), timeout: 10000,
-    })
-    if (res.data?.success) return res.data.result || []
-    return []
+    const ep = await _getOrCreateCustomRulesEntrypoint(zoneId)
+    if (!ep) return []
+    return (ep.rules || []).map(_adaptRule)
   } catch (err) {
-    log('CF listFirewallRules error:', err.message)
+    log(`CF listFirewallRules error: ${err.message}`)
     return []
   }
 }
 
 /**
- * Create a geo-blocking firewall rule
+ * Create a geo-blocking WAF Custom Rule.
  * @param {string} zoneId
- * @param {string[]} countryCodes - ISO 3166-1 alpha-2 codes (e.g. ['US','GB'])
- * @param {'block'|'allow'} mode - 'block' = block listed countries, 'allow' = allow only listed countries
+ * @param {string[]} countryCodes - ISO 3166-1 alpha-2 (e.g. ['US','GB'])
+ * @param {'block'|'allow'} mode - 'block' = block listed countries, 'allow' = whitelist-only
  * @param {string} description
  */
 const createGeoRule = async (zoneId, countryCodes, mode = 'block', description = '') => {
   try {
-    const codes = countryCodes.map(c => `ip.geoip.country eq "${c.toUpperCase()}"`).join(' or ')
-    // block mode: if country in list → block
-    // allow mode: if country NOT in list → block (whitelist)
-    const expression = mode === 'allow'
-      ? `not (${codes})`
-      : `(${codes})`
-    const action = 'block'
-
-    // First create the filter
-    const filterRes = await axios.post(`${CF_BASE_URL}/zones/${zoneId}/filters`, [{
-      expression,
-      description: description || `Geo-${mode}: ${countryCodes.join(', ')}`,
-    }], { headers: cfHeaders(), timeout: 15000 })
-
-    if (!filterRes.data?.success) {
-      return { success: false, errors: filterRes.data?.errors || [] }
+    if (!Array.isArray(countryCodes) || countryCodes.length === 0) {
+      return { success: false, errors: [{ message: 'countryCodes must be a non-empty array' }] }
     }
-    const filterId = filterRes.data.result[0]?.id
-    if (!filterId) return { success: false, errors: [{ message: 'Failed to create filter' }] }
+    // Build a single `ip.geoip.country in {"US" "GB"}` expression (preferred form).
+    const codes = countryCodes.map(c => `"${String(c).toUpperCase()}"`).join(' ')
+    const inExpr = `(ip.geoip.country in {${codes}})`
+    // block mode: traffic from these countries is blocked
+    // allow mode: traffic NOT from these countries is blocked (whitelist)
+    const expression = mode === 'allow' ? `(not ${inExpr})` : inExpr
+    const desc = description || `Geo-${mode}: ${countryCodes.join(', ')}`
 
-    // Then create the firewall rule referencing the filter
-    const ruleRes = await axios.post(`${CF_BASE_URL}/zones/${zoneId}/firewall/rules`, [{
-      filter: { id: filterId },
-      action,
-      description: description || `Geo-${mode}: ${countryCodes.join(', ')}`,
-      priority: 1,
-    }], { headers: cfHeaders(), timeout: 15000 })
+    const ep = await _getOrCreateCustomRulesEntrypoint(zoneId)
+    if (!ep) return { success: false, errors: [{ message: 'Could not access WAF Custom Rules ruleset' }] }
 
+    const ruleRes = await axios.post(
+      `${CF_BASE_URL}/zones/${zoneId}/rulesets/${ep.id}/rules`,
+      { expression, action: 'block', description: desc, enabled: true },
+      { headers: cfHeaders(), timeout: 15000 }
+    )
     if (ruleRes.data?.success) {
-      return { success: true, rule: ruleRes.data.result[0] }
+      // Response result is the FULL updated ruleset; find the rule we just added by description.
+      const added = (ruleRes.data.result?.rules || []).find(r => r.description === desc) || null
+      return { success: true, rule: added ? _adaptRule(added) : null }
     }
     return { success: false, errors: ruleRes.data?.errors || [] }
   } catch (err) {
-    log('CF createGeoRule error:', err.message)
+    const detail = err.response?.data ? JSON.stringify(err.response.data).slice(0, 300) : ''
+    log(`CF createGeoRule error: ${err.message}${detail ? ' :: ' + detail : ''}`)
     return { success: false, errors: [{ message: err.message }] }
   }
 }
 
 /**
- * Delete a firewall rule (and its associated filter)
+ * Delete a WAF Custom Rule (legacy name: deleteFirewallRule).
+ * The rule is identified by zone + rule id; we resolve the ruleset id from
+ * the zone entrypoint.
  */
 const deleteFirewallRule = async (zoneId, ruleId) => {
   try {
-    const res = await axios.delete(`${CF_BASE_URL}/zones/${zoneId}/firewall/rules/${ruleId}`, {
-      headers: cfHeaders(), timeout: 10000,
-    })
+    const ep = await _getOrCreateCustomRulesEntrypoint(zoneId)
+    if (!ep) return { success: false, errors: [{ message: 'Could not access WAF Custom Rules ruleset' }] }
+    const res = await axios.delete(
+      `${CF_BASE_URL}/zones/${zoneId}/rulesets/${ep.id}/rules/${ruleId}`,
+      { headers: cfHeaders(), timeout: 15000 }
+    )
     if (res.data?.success) return { success: true }
     return { success: false, errors: res.data?.errors || [] }
   } catch (err) {
-    log('CF deleteFirewallRule error:', err.message)
+    // 404 = rule already gone → idempotent success
+    if (err.response?.status === 404) return { success: true, alreadyGone: true }
+    log(`CF deleteFirewallRule error: ${err.message}`)
     return { success: false, errors: [{ message: err.message }] }
   }
 }
