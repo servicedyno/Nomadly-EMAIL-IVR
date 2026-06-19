@@ -19,7 +19,7 @@ import json
 from datetime import datetime
 
 # Base URL from frontend/.env
-BASE_URL = "https://29d3c091-9d5a-4284-8613-f494eb486bba.preview.emergentagent.com"
+BASE_URL = "https://storefront-debug-1.preview.emergentagent.com"
 PANEL_API = f"{BASE_URL}/api/panel"
 
 # Test credentials
