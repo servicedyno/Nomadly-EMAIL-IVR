@@ -258,8 +258,70 @@ async function test_ja3_missing_cf_config() {
   console.log('  PASS: createJA3Rules guards on missing CF env vars')
 }
 
+async function test_antiphish_creates_when_no_existing() {
+  reset()
+  let postedBody = null
+  stubResponder = ({ method, url, body }) => {
+    if (method === 'GET' && url.includes('/entrypoint')) {
+      return { data: { success: true, result: { id: RULESET_ID, rules: [] } } }
+    }
+    if (method === 'POST' && url === `https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/rulesets/${RULESET_ID}/rules`) {
+      postedBody = body
+      return { data: { success: true, result: { rules: [{ id: 'r-phish', ...body }] } } }
+    }
+    throw new Error('unexpected: ' + method + ' ' + url)
+  }
+  const r = await antiRed.createAntiPhishingScannerRules(ZONE_ID)
+  assert.strictEqual(r.success, true)
+  assert.strictEqual(r.scannerCount, 19, 'must report 19 phishing scanner UAs')
+  assert.ok(postedBody)
+  assert.strictEqual(postedBody.action, 'block')
+  assert.strictEqual(postedBody.enabled, true)
+  assert.ok(postedBody.description.includes('Anti-Red: Block anti-phishing'))
+  assert.ok(/http\.user_agent contains "GoogleSafeBrowsing"/.test(postedBody.expression))
+  assert.ok(/http\.user_agent contains "VirusTotal"/.test(postedBody.expression))
+  assertNoDeprecated()
+  console.log('  PASS: createAntiPhishingScannerRules creates rule with all 19 scanners')
+}
+
+async function test_antiphish_skips_when_existing() {
+  reset()
+  stubResponder = ({ method, url }) => {
+    if (method === 'GET' && url.includes('/entrypoint')) {
+      return {
+        data: { success: true, result: { id: RULESET_ID, rules: [
+          { id: 'old-phish', description: 'Anti-Red: Block anti-phishing scanners', expression: '(...)', action: 'block', enabled: true },
+        ] } },
+      }
+    }
+    throw new Error('unexpected: ' + method + ' ' + url)
+  }
+  const r = await antiRed.createAntiPhishingScannerRules(ZONE_ID)
+  assert.strictEqual(r.success, true)
+  assert.strictEqual(r.existing, true)
+  const posts = calls.filter(c => c.method === 'POST')
+  assert.strictEqual(posts.length, 0, 'must not POST when phishing rule already exists')
+  assertNoDeprecated()
+  console.log('  PASS: createAntiPhishingScannerRules skips duplicate via entrypoint.rules[]')
+}
+
+async function test_antiphish_missing_cf_config() {
+  reset()
+  const savedKey = process.env.CLOUDFLARE_API_KEY
+  const savedEmail = process.env.CLOUDFLARE_EMAIL
+  delete process.env.CLOUDFLARE_API_KEY
+  delete process.env.CLOUDFLARE_EMAIL
+  const r = await antiRed.createAntiPhishingScannerRules(ZONE_ID)
+  assert.strictEqual(r.success, false)
+  assert.ok(r.error?.includes('Cloudflare not configured'))
+  assert.strictEqual(calls.length, 0, 'no HTTP when CF env vars missing')
+  process.env.CLOUDFLARE_API_KEY = savedKey
+  process.env.CLOUDFLARE_EMAIL = savedEmail
+  console.log('  PASS: createAntiPhishingScannerRules guards on missing CF env vars')
+}
+
 async function main() {
-  console.log('━━━ Anti-Bot + JA3 WAF Custom Rules migration tests ━━━')
+  console.log('━━━ Anti-Bot + JA3 + Anti-Phishing WAF Custom Rules tests ━━━')
   await test_antibot_creates_when_no_existing()
   await test_antibot_skips_when_existing()
   await test_antibot_autocreates_entrypoint()
@@ -268,6 +330,9 @@ async function main() {
   await test_ja3_graceful_on_400()
   await test_ja3_graceful_on_403()
   await test_ja3_missing_cf_config()
-  console.log('\n✅ ALL 8 TESTS PASS')
+  await test_antiphish_creates_when_no_existing()
+  await test_antiphish_skips_when_existing()
+  await test_antiphish_missing_cf_config()
+  console.log('\n✅ ALL 11 TESTS PASS')
 }
 main().catch(e => { console.error('❌ TEST FAILURE:', e); process.exit(1) })

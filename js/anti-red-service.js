@@ -991,9 +991,14 @@ async function createJA3Rules(zoneId) {
 }
 
 /**
- * Create Cloudflare WAF rule to block anti-phishing scanner user-agents at the edge.
- * This is critical when the origin is behind CF — .htaccess UA rules only see CF's IP,
- * but Cloudflare preserves the original User-Agent header for WAF matching.
+ * Create Cloudflare WAF Custom Rule to block anti-phishing scanner UAs at the
+ * edge — migrated 2026-06-19 from the deprecated Firewall Rules API to the
+ * Rulesets API (phase: http_request_firewall_custom). Same entrypoint as
+ * Geo + Anti-Bot + JA3 rules so all auto-managed rules live in one ruleset.
+ *
+ * This is critical when the origin is behind CF — .htaccess UA rules only see
+ * CF's IP, but Cloudflare preserves the original User-Agent header for WAF
+ * matching.
  */
 async function createAntiPhishingScannerRules(zoneId) {
   const CF_API_KEY = process.env.CLOUDFLARE_API_KEY
@@ -1016,57 +1021,37 @@ async function createAntiPhishingScannerRules(zoneId) {
     'Avast', 'Bitdefender', 'FortiGuard', 'Comodo',
     'MalwareBytes', 'ClamAV', 'Sophos',
   ]
-
-  const expression = phishingScanners
-    .map(ua => `http.user_agent contains "${ua}"`)
-    .join(' or ')
+  const expression = '(' + phishingScanners.map(ua => `http.user_agent contains "${ua}"`).join(' or ') + ')'
+  const DESC = 'Anti-Red: Block anti-phishing scanners'
 
   try {
-    // Check if rule already exists
-    const existingRules = await axios.get(
-      `https://api.cloudflare.com/client/v4/zones/${zoneId}/firewall/rules`,
-      { headers, timeout: 15000 }
-    )
-    const hasAntiPhishing = (existingRules.data?.result || []).some(
-      r => r.description?.includes('Anti-Red: Block anti-phishing scanners')
-    )
-    if (hasAntiPhishing) {
-      return { success: true, message: 'Anti-phishing scanner rules already exist', existing: true }
+    const ep = await getOrCreateCustomRulesEntrypoint(zoneId)
+    if (!ep) return { success: false, error: 'Could not access WAF Custom Rules ruleset' }
+
+    // De-dupe via the entrypoint's rules array (replaces the deprecated
+    // GET /firewall/rules duplicate check that was silently failing).
+    const dup = (ep.rules || []).some(r => r.description?.includes('Block anti-phishing scanners'))
+    if (dup) {
+      return { success: true, message: 'Anti-phishing scanner rules already exist', existing: true, scannerCount: phishingScanners.length }
     }
-
-    const filterRes = await axios.post(
-      `https://api.cloudflare.com/client/v4/zones/${zoneId}/filters`,
-      [{ expression: `(${expression})`, description: 'Anti-Red: Block anti-phishing scanners' }],
-      { headers, timeout: 15000 }
-    )
-
-    if (!filterRes.data?.success) {
-      return { success: false, error: 'Failed to create anti-phishing scanner filter', detail: filterRes.data }
-    }
-
-    const filterId = filterRes.data.result[0]?.id
-    if (!filterId) return { success: false, error: 'No filter ID returned' }
 
     const ruleRes = await axios.post(
-      `https://api.cloudflare.com/client/v4/zones/${zoneId}/firewall/rules`,
-      [{
-        filter: { id: filterId },
-        action: 'block',
-        description: 'Anti-Red: Block anti-phishing scanners',
-        priority: 1,
-      }],
+      `https://api.cloudflare.com/client/v4/zones/${zoneId}/rulesets/${ep.id}/rules`,
+      { expression, action: 'block', description: DESC, enabled: true },
       { headers, timeout: 15000 }
     )
 
     const ok = ruleRes.data?.success || false
     log(`[AntiRed] Anti-phishing scanner CF rule created for zone ${zoneId}: ${ok ? 'OK' : 'FAIL'} (${phishingScanners.length} UAs)`)
-    return { success: ok, scannerCount: phishingScanners.length }
+    const added = (ruleRes.data?.result?.rules || []).find(r => r.description === DESC) || null
+    return { success: ok, rule: added, scannerCount: phishingScanners.length }
   } catch (err) {
     if (err.response?.data?.errors?.some(e => e.message?.includes('already exists'))) {
       return { success: true, message: 'Rule already exists', existing: true }
     }
-    log(`[AntiRed] Anti-phishing scanner CF rule error: ${err.message}`)
-    return { success: false, error: err.message }
+    const detail = err.response?.data ? JSON.stringify(err.response.data).slice(0, 300) : ''
+    log(`[AntiRed] Anti-phishing scanner CF rule error: ${err.message}${detail ? ' :: ' + detail : ''}`)
+    return { success: false, error: err.message, detail }
   }
 }
 
