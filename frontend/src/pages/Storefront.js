@@ -153,7 +153,7 @@ function StoreInner() {
 function AuthGate({ plans }) {
   const { login, signup } = useStore();
   const { t } = useTranslation();
-  const [mode, setMode] = useState('signup');
+  const [mode] = useState('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -196,8 +196,7 @@ function AuthGate({ plans }) {
 
       <section className="store-auth-card" data-testid="store-auth-card">
         <div className="store-auth-tabs">
-          <button className={mode === 'signup' ? 'active' : ''} onClick={() => setMode('signup')} data-testid="store-tab-signup">{t('store.createAccount')}</button>
-          <button className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')} data-testid="store-tab-login">{t('store.login')}</button>
+          <button className="active" data-testid="store-tab-login">{t('store.login')}</button>
         </div>
         <form onSubmit={submit}>
           {error && <div className="store-error" data-testid="store-auth-error">{error}</div>}
