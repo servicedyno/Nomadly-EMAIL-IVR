@@ -49,20 +49,20 @@ export default function MysqlLockedView({ t, plan }) {
         {lockIcon}
       </div>
       <h2 style={{ margin: '0 0 8px 0', fontSize: 22, fontWeight: 700 }}>
-        {t('mysql.lockedTitle', { defaultValue: 'MySQL is a Golden Plan feature' })}
+        {t('mysql.lockedTitle', { defaultValue: 'MySQL is included on Premium Monthly & Golden plans' })}
       </h2>
       <p style={{ margin: '0 0 24px 0', opacity: 0.85, fontSize: 14, lineHeight: 1.5 }}>
         {t('mysql.lockedBody', {
           defaultValue:
-            'Upgrade to the Golden Anti-Red HostPanel plan to unlock MySQL databases, users, privileges, Remote MySQL access, and one-click phpMyAdmin.',
+            'Your current weekly trial does not include MySQL. Upgrade to Premium Anti-Red HostPanel (1-Month) for 5 databases — or to Golden for unlimited databases, Remote MySQL access, and one-click phpMyAdmin.',
         })}
       </p>
 
       <div style={{ textAlign: 'left', maxWidth: 360, margin: '0 auto 28px' }}>
-        <div style={featureItemStyle}>{checkIcon}<span>{t('mysql.lockedFeat1', { defaultValue: 'Unlimited MySQL databases & users' })}</span></div>
+        <div style={featureItemStyle}>{checkIcon}<span>{t('mysql.lockedFeat1', { defaultValue: 'MySQL databases & users (5 on Premium, unlimited on Gold)' })}</span></div>
         <div style={featureItemStyle}>{checkIcon}<span>{t('mysql.lockedFeat2', { defaultValue: 'Remote MySQL connections (whitelist any IP)' })}</span></div>
         <div style={featureItemStyle}>{checkIcon}<span>{t('mysql.lockedFeat3', { defaultValue: 'One-click phpMyAdmin SSO' })}</span></div>
-        <div style={featureItemStyle}>{checkIcon}<span>{t('mysql.lockedFeat4', { defaultValue: 'Visitor captcha, unlimited addon domains & more' })}</span></div>
+        <div style={featureItemStyle}>{checkIcon}<span>{t('mysql.lockedFeat4', { defaultValue: '30-day duration, 5+ addon domains, full HostPanel access' })}</span></div>
       </div>
 
       <a
@@ -72,7 +72,7 @@ export default function MysqlLockedView({ t, plan }) {
         data-testid="mysql-locked-upgrade-cta"
         style={{ ...quotaCtaStyle, padding: '12px 24px', fontSize: 14 }}
       >
-        {t('mysql.lockedCta', { defaultValue: 'Upgrade to Golden Plan' })} →
+        {t('mysql.lockedCta', { defaultValue: 'Upgrade to Premium Monthly or Gold' })} →
       </a>
 
       {plan && (

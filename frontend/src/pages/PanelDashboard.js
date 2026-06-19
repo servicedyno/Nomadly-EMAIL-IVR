@@ -85,10 +85,15 @@ export default function PanelDashboard() {
 
       <nav className="panel-tabs" data-testid="panel-tabs">
         {TABS.map(tab => {
-          // Mark the Databases tab as locked for non-Gold users — they still see
-          // it (and can click through to the upgrade banner), but a small lock
-          // hint sets the expectation up-front.
-          const locked = tab.id === 'mysql' && !user?.isGold;
+          // Tab-level lock badges (small lock icon next to tab label):
+          //   - mysql: locked for the 1-Week trial only (Premium Monthly + Gold OK)
+          //   - geo:   locked for everyone except Gold (matches storefront card)
+          const planLc = String(user?.plan || '').toLowerCase();
+          const isWeeklyTrial = /1-week|\bweek\b|\(7 days\)/.test(planLc) && !/month/.test(planLc);
+          const isGold = !!user?.isGold;
+          let locked = false;
+          if (tab.id === 'mysql') locked = isWeeklyTrial;
+          else if (tab.id === 'geo') locked = !isGold;
           return (
             <button
               key={tab.id}
@@ -110,7 +115,7 @@ export default function PanelDashboard() {
                   strokeWidth="2.5"
                   aria-hidden="true"
                   style={{ marginLeft: 4, opacity: 0.6 }}
-                  data-testid="panel-tab-mysql-lock"
+                  data-testid={`panel-tab-${tab.id}-lock`}
                 >
                   <rect x="3" y="11" width="18" height="11" rx="2" />
                   <path d="M7 11V7a5 5 0 0110 0v4" />

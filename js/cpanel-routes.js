@@ -1109,16 +1109,41 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
   // frontend can render the upgrade banner. The WHM package itself ALSO
   // enforces this via MAXSQL=0 on Premium/Weekly packages — this middleware
   // is defense-in-depth so direct API curls also fail cleanly.
+  // ─── Plan-tier gates ───────────────────────────────────────────────
+  //
+  // requireGold:     Golden plan only (used by: Visitor Captcha, Geo blocking).
+  // requireMysqlEligible: Premium Monthly OR Golden (NOT the 1-week trial).
+  //                  MySQL was previously gated as gold-only, but the storefront
+  //                  card for Premium Monthly explicitly advertises MySQL — so
+  //                  the gate was widened to match the customer-facing promise.
+  //                  ⚠️ Operator note: the underlying WHM packages still need
+  //                  MAXSQL raised on the "Premium-Anti-Red-HostPanel-1-Month"
+  //                  package (was MAXSQL=0). Until then, calls will succeed at
+  //                  this gate but the WHM API will reject them at the cPanel
+  //                  layer. Edit the package via WHM dashboard or via API:
+  //                  `whmapi1 modifypkg name=Premium-Anti-Red-HostPanel-1-Month MAXSQL=unlimited`
   function requireGold(req, res, next) {
     if (req.cpIsGold) return next()
     return res.status(403).json({
-      error: 'MySQL is available on the Golden Anti-Red HostPanel plan only.',
+      error: 'This feature is available on the Golden Anti-Red HostPanel plan only.',
       goldOnly: true,
       isGold: false,
       plan: req.cpPlan || '',
     })
   }
-  const mysqlAuth = [...auth, requireGold]
+  function requireMysqlEligible(req, res, next) {
+    const planLc = (req.cpPlan || '').toLowerCase()
+    // Reject the 7-day trial only. Anything else (Premium Monthly, Gold, future tiers) is allowed.
+    const isWeeklyTrial = /1-week|\bweek\b|\(7 days\)/.test(planLc) && !/month/.test(planLc)
+    if (!isWeeklyTrial) return next()
+    return res.status(403).json({
+      error: 'MySQL databases require Premium Anti-Red HostPanel (1-Month) or Golden — upgrade to enable.',
+      mysqlRequiresMonthly: true,
+      currentPlan: req.cpPlan || '',
+    })
+  }
+  const mysqlAuth = [...auth, requireMysqlEligible]
+  const goldAuth = [...auth, requireGold]
 
   // List databases. Returns `{ data: { databases: [...], users: [...] } }`.
   router.get('/mysql/databases', ...mysqlAuth, async (req, res) => {
@@ -1953,7 +1978,10 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
 
   // ─── Geo-blocking ──────────────────────────────────────
 
-  router.get('/geo', ...auth, async (req, res) => {
+  // ─── Geo blocking ───────────────────────────────────────
+  // Gold-only feature. Storefront's Golden card promises "Visitor Captcha + Geo"
+  // — keeping the marketing honest by gating Geo to Gold here too.
+  router.get('/geo', ...goldAuth, async (req, res) => {
     try {
       const zone = await cfService.getZoneByName(req.cpDomain)
       if (!zone) return res.json({ rules: [], error: 'Domain not in Cloudflare' })
@@ -1975,7 +2003,7 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     }
   })
 
-  router.post('/geo/create', ...auth, async (req, res) => {
+  router.post('/geo/create', ...goldAuth, async (req, res) => {
     const { countries, mode, description } = req.body
     if (!countries?.length || !mode) {
       return res.status(400).json({ error: 'countries array and mode (block/allow) are required' })
@@ -1991,7 +2019,7 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     }
   })
 
-  router.post('/geo/delete', ...auth, async (req, res) => {
+  router.post('/geo/delete', ...goldAuth, async (req, res) => {
     const { ruleId } = req.body
     if (!ruleId) return res.status(400).json({ error: 'ruleId is required' })
     try {
@@ -2148,6 +2176,7 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
         plan: req.cpPlan,
         isGold: req.cpIsGold,
         captchaGoldOnly: true,
+        geoGoldOnly: true,
         goldPrice: Number(process.env.GOLDEN_ANTIRED_CPANEL_PRICE || 100),
         protectionLayers: {
           htaccessCloaking: true,

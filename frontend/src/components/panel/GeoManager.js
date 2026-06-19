@@ -23,7 +23,8 @@ const COUNTRIES = [
 
 export default function GeoManager() {
   const { t } = useTranslation();
-  const { api } = useAuth();
+  const { api, user } = useAuth();
+  const isGold = !!user?.isGold;
   const [rules, setRules] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -35,6 +36,7 @@ export default function GeoManager() {
   const [deleting, setDeleting] = useState('');
 
   const fetchRules = useCallback(async () => {
+    if (!isGold) { setLoading(false); return; }
     setLoading(true);
     setError('');
     try {
@@ -46,9 +48,50 @@ export default function GeoManager() {
     } finally {
       setLoading(false);
     }
-  }, [api]);
+  }, [api, isGold]);
 
   useEffect(() => { fetchRules(); }, [fetchRules]);
+
+  // Non-Gold users: render the upgrade prompt instead of the CRUD UI.
+  // Storefront's Gold card promises "Visitor Captcha + Geo" — so non-Gold
+  // hitting this panel sees a friendly upsell, not a raw 403 error.
+  if (!isGold) {
+    return (
+      <div data-testid="geo-locked-view" style={{
+        textAlign: 'center', padding: '48px 24px', maxWidth: 560, margin: '0 auto',
+        background: 'rgba(168, 85, 247, 0.06)', border: '1px solid rgba(168, 85, 247, 0.18)',
+        borderRadius: 16,
+      }}>
+        <div style={{ fontSize: 44, marginBottom: 12 }}>🌍</div>
+        <h2 style={{ margin: '0 0 8px', fontSize: 22, fontWeight: 700 }}>
+          {t('geo.lockedTitle', { defaultValue: 'Geo blocking is a Golden Plan feature' })}
+        </h2>
+        <p style={{ margin: '0 0 24px', opacity: 0.85, fontSize: 14, lineHeight: 1.5 }}>
+          {t('geo.lockedBody', {
+            defaultValue: 'Upgrade to Golden Anti-Red HostPanel to block traffic from specific countries (block-list) — or whitelist only the countries you want (allow-list). Includes Visitor Captcha and unlimited addon domains.',
+          })}
+        </p>
+        <a
+          href="https://t.me/nomadlybot"
+          target="_blank"
+          rel="noopener noreferrer"
+          data-testid="geo-locked-upgrade-cta"
+          style={{
+            display: 'inline-block', padding: '12px 24px', fontSize: 14, fontWeight: 600,
+            background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: '#fff',
+            borderRadius: 10, textDecoration: 'none', boxShadow: '0 6px 18px rgba(245, 158, 11, 0.3)',
+          }}
+        >
+          {t('geo.lockedCta', { defaultValue: 'Upgrade to Golden Plan' })} →
+        </a>
+        {user?.plan && (
+          <div style={{ marginTop: 18, fontSize: 11, opacity: 0.5 }} data-testid="geo-locked-current-plan">
+            {t('geo.lockedCurrentPlan', { plan: user.plan, defaultValue: `Current plan: ${user.plan}` })}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   const toggleCountry = (code) => {
     setSelected(p => p.includes(code) ? p.filter(c => c !== code) : [...p, code]);

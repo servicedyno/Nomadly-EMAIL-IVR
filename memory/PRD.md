@@ -2,6 +2,65 @@
 
 > 📋 **Recent changes are tracked in [`CHANGELOG.md`](./CHANGELOG.md)** (added 2026-02 for size).
 
+## 2026-06-19 (later 8) — Plan-feature consistency: MySQL widened to Premium Monthly, Geo restricted to Gold
+**Status: ✅ COMPLETE — 8/8 backend gate tests + live UI screenshot confirm. Storefront plan cards now match code reality.**
+
+### Why
+Audit found two mismatches between the storefront plan cards and the backend gating:
+1. **Storefront's Premium Monthly card** advertised **"MySQL databases"**, but `/mysql/*` required `req.cpIsGold` → Premium customers paid $75 and got 403s (refund risk).
+2. **Storefront's Gold card** said **"Visitor Captcha + Geo"**, but `/geo*` used plain `auth` → Premium users got Geo for free, diluting Gold's value prop.
+
+User chose: **(1b) unlock MySQL for Premium Monthly** + **(2e) make Geo Gold-only**.
+
+### Backend changes
+- `js/cpanel-routes.js`
+  - Renamed `requireGold`'s error message to be feature-generic ("This feature is available on the Golden Anti-Red HostPanel plan only").
+  - Added `requireMysqlEligible(req, res, next)` — rejects only the 1-week trial; Premium Monthly + Gold pass.
+  - Added shared `mysqlAuth` + `goldAuth` arrays.
+  - `/mysql/*` → was `requireGold`, now `requireMysqlEligible` (Premium Monthly + Gold).
+  - `/geo`, `/geo/create`, `/geo/delete` → was plain `auth`, now `goldAuth` (Gold only).
+  - `/security/status` now surfaces `geoGoldOnly: true` so the frontend can render the locked state symmetrically with `captchaGoldOnly`.
+- `js/whm-service.js`
+  - Added `PLAN_MYSQL_LIMITS` constant: Weekly=0, Premium Monthly=5, Gold=unlimited.
+  - `createAccount()` passes `maxsql` to WHM `createacct` so new accounts get the right quota even if the WHM package's MAXSQL is still 0.
+  - `changePackage()` follows up `/changepackage` with `/modifyacct MAXSQL=...` to raise the per-account MySQL quota on plan upgrades (best-effort — never blocks the upgrade success).
+  - Exported `PLAN_MYSQL_LIMITS`.
+
+### Frontend changes
+- `frontend/src/components/panel/MysqlManager.js` — eligibility check switched from `isGold` to `mysqlEligible` (`!isWeeklyTrial`). Premium Monthly users now see the full CRUD UI.
+- `frontend/src/components/panel/mysql/MysqlLockedView.js` — updated copy ("MySQL is included on Premium Monthly & Golden plans" / "Upgrade to Premium Monthly or Gold"). Only Weekly trial sees this now.
+- `frontend/src/components/panel/GeoManager.js` — added a Gold-only locked view (gradient-amber upgrade card with bot-deep-link CTA) so non-Gold users see a friendly upsell instead of raw 403.
+- `frontend/src/pages/PanelDashboard.js` — tab nav lock badges now show:
+  - **Databases (mysql)**: locked only for Weekly trial (was: locked for non-Gold)
+  - **Geo Cloak (geo)**: locked for all non-Gold (NEW)
+  - Lock testid renamed from hard-coded `panel-tab-mysql-lock` → `panel-tab-${tab.id}-lock` so geo tab can have its own.
+
+### Verification
+
+**Live integration tests** (`/app/js/__tests__/plan-feature-gates.integration.test.js`):
+| Test | Result |
+|---|---|
+| `/mysql/databases` (Weekly) | 403 with `mysqlRequiresMonthly:true` ✅ |
+| `/mysql/databases` (Premium Monthly) | 200 (gate passes) ✅ |
+| `/mysql/databases` (Gold) | 200 (gate passes) ✅ |
+| `/geo` (Weekly) | 403 `goldOnly:true` ✅ |
+| `/geo` (Premium Monthly) | 403 `goldOnly:true` ✅ |
+| `/geo` (Gold) | 200 (gate passes) ✅ |
+| `/geo/create` + `/geo/delete` (non-Gold) | 403 ✅ |
+| `/security/status` surfaces `geoGoldOnly:true` + `captchaGoldOnly:true` | ✅ |
+
+**Live UI screenshot** (Premium Monthly user logged in): Tab nav shows **Databases** with NO lock badge + **Geo Cloak** with lock badge. MySQL Databases tab opens to the full CRUD UI ("New database", "Open phpMyAdmin", "New user" buttons), not the locked upgrade card.
+
+### Operator note (one-time WHM action — out of code scope)
+The underlying WHM package definitions may still have `MAXSQL=0` on the Premium-Anti-Red-HostPanel-1-Month package. The code now overrides this per-account via `createacct maxsql=5` and `modifyacct MAXSQL=5` on upgrade — but for any EXISTING Premium Monthly accounts (provisioned before this change), run once via WHM:
+```
+whmapi1 modifypkg name=Premium-Anti-Red-HostPanel-1-Month MAXSQL=5
+whmapi1 modifyacct user=<each-existing-cpUser> MAXSQL=5    # for each affected acct
+```
+Or, easier: in the WHM dashboard → "Edit a Package" → set MAXSQL to 5. After this, all existing Premium Monthly accounts (and any future ones) will have the database quota.
+
+
+
 ## 2026-06-19 (later 7) — P2: Anti-Phishing scanner WAF migration (LAST deprecated function)
 **Status: ✅ COMPLETE — 11/11 tests pass. ZERO remaining usages of the deprecated CF Firewall Rules endpoints in production code.**
 

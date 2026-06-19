@@ -36,6 +36,20 @@ const PLAN_ADDON_LIMITS = {
   'Golden-Anti-Red-HostPanel-1-Month': -1,   // Golden Monthly: unlimited
 }
 
+// MySQL database limits per WHM package (-1 = unlimited, 0 = blocked).
+// Mirrored to the cpanel-routes /mysql gate (requireMysqlEligible) so the
+// storefront's "MySQL databases" promise on Premium Monthly is actually
+// deliverable. Operator note: the underlying WHM package definitions may
+// still have MAXSQL=0 — passed here as createacct override so new accounts
+// get the right quota. For pre-existing accounts run:
+//   whmapi1 modifyacct user=<cpUser> MAXSQL=5
+// or upgrade the package once via WHM UI.
+const PLAN_MYSQL_LIMITS = {
+  'Premium-Anti-Red-1-Week': 0,              // Weekly: no MySQL
+  'Premium-Anti-Red-HostPanel-1-Month': 5,   // Premium Monthly: 5 databases
+  'Golden-Anti-Red-HostPanel-1-Month': -1,   // Golden: unlimited
+}
+
 /**
  * Get the addon domain limit for a given plan (by WHM package name or bot plan name)
  * Returns -1 for unlimited, or a positive number for the max allowed addon domains
@@ -206,6 +220,7 @@ async function createAccount(domain, plan, email, customUsername, opts = {}) {
     const password = generatePassword()
 
     try {
+      const sqlLimit = PLAN_MYSQL_LIMITS[pkg]
       const params = {
         'api.version': 1,
         username,
@@ -215,6 +230,9 @@ async function createAccount(domain, plan, email, customUsername, opts = {}) {
         password,
         maxpark: 'unlimited',
         maxaddon: PLAN_ADDON_LIMITS[pkg] === -1 ? 'unlimited' : PLAN_ADDON_LIMITS[pkg],
+        // Override WHM package's MAXSQL so new Premium Monthly accounts have
+        // database quota (matches the storefront's plan feature card).
+        ...(sqlLimit !== undefined ? { maxsql: sqlLimit === -1 ? 'unlimited' : sqlLimit } : {}),
       }
 
       // Skip DNS check for Cloudflare-pointed domains (domain won't resolve to WHM yet)
@@ -394,8 +412,23 @@ async function changePackage(username, newPlan) {
     const reason = res.data?.metadata?.reason || res.data?.data?.reason
     if (!success) {
       log(`[WHM] changePackage failed for ${username} → ${pkg}: ${reason || 'no reason returned'}`)
+      return { success, package: pkg, error: reason || 'Unknown WHM error' }
     }
-    return { success, package: pkg, error: success ? undefined : (reason || 'Unknown WHM error') }
+    // Ensure the per-account MAXSQL quota matches the new plan tier even when
+    // the WHM package definition still has MAXSQL=0 (legacy). Best-effort —
+    // no-op on failure (the changepackage itself already succeeded).
+    const sqlLimit = PLAN_MYSQL_LIMITS[pkg]
+    if (sqlLimit !== undefined) {
+      try {
+        await whmApi.get('/modifyacct', {
+          params: { 'api.version': 1, user: username, MAXSQL: sqlLimit === -1 ? 'unlimited' : sqlLimit },
+        })
+        log(`[WHM] post-upgrade MAXSQL set for ${username} → ${sqlLimit === -1 ? 'unlimited' : sqlLimit}`)
+      } catch (e) {
+        log(`[WHM] post-upgrade MAXSQL override warning for ${username}: ${e.message}`)
+      }
+    }
+    return { success, package: pkg }
   } catch (err) {
     log(`[WHM] changePackage error: ${err.message}`)
     return { success: false, error: err.message }
@@ -812,6 +845,7 @@ module.exports = {
   checkSSLCert,
   PLAN_MAP,
   PLAN_ADDON_LIMITS,
+  PLAN_MYSQL_LIMITS,
   getAddonLimit,
   // Origin Hardening
   installDomainSSL,

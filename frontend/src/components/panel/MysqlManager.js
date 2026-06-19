@@ -24,6 +24,11 @@ export default function MysqlManager() {
   const { api, user } = useAuth();
   const cpUser = user?.username || '';
   const isGold = !!user?.isGold;
+  // MySQL is available on Premium Monthly + Gold, blocked only on the 1-Week trial.
+  // Matches the backend's requireMysqlEligible gate in cpanel-routes.js.
+  const planLc = String(user?.plan || '').toLowerCase();
+  const isWeeklyTrial = /1-week|\bweek\b|\(7 days\)/.test(planLc) && !/month/.test(planLc);
+  const mysqlEligible = !isWeeklyTrial;
 
   const [tab, setTab] = useState('databases'); // databases | hosts
 
@@ -97,10 +102,10 @@ export default function MysqlManager() {
   // independent of the slower Databases call. Skipped for non-Gold users —
   // they only see the upgrade view and the backend would reject with 403.
   useEffect(() => {
-    if (!isGold) return;
+    if (!mysqlEligible) return;
     fetchDbsAndUsers();
     fetchHosts();
-  }, [isGold, fetchDbsAndUsers, fetchHosts]);
+  }, [mysqlEligible, fetchDbsAndUsers, fetchHosts]);
 
   // ─── Action handlers ────────────────────────────────────────
   const handleCreateDb = async () => {
@@ -339,10 +344,10 @@ export default function MysqlManager() {
     );
   }
 
-  // Non-Gold users: skip the entire CRUD UI and show only the upgrade card.
-  // All hooks above are still called every render (rules-of-hooks compliant) —
-  // we just bail before rendering tabs/tables/modals.
-  if (!isGold) return <MysqlLockedView t={t} plan={user?.plan || ''} />;
+  // Weekly-trial users: skip the entire CRUD UI and show only the upgrade card.
+  // Premium Monthly + Gold see the full UI. All hooks above are still called
+  // every render (rules-of-hooks compliant) — we just bail before rendering.
+  if (!mysqlEligible) return <MysqlLockedView t={t} plan={user?.plan || ''} />;
 
   return (
     <div className="email-manager mysql-manager" data-testid="mysql-manager">
