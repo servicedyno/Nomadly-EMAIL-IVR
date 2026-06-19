@@ -41,7 +41,16 @@
     "opening": "正在打开…",
     "balanceLabel": "余额",
     "recentActivity": "近期活动",
-    "noTxns": "暂无交易。"
+    "noTxns": "暂无交易。",
+    "loginTitle": "登录",
+    "loginSub": "一个登录入口 — 适用于网店购物者和 HostPanel 用户。",
+    "userOrEmail": "电子邮件或 HostPanel 用户名",
+    "userOrEmailPh": "you@email.com 或 您的用户名",
+    "passOrPin": "密码或 PIN",
+    "passOrPinPh": "您的密码或 6 位 PIN",
+    "signInBtn": "登录 →",
+    "noAcct": "还没有账户？在上方选择套餐并用加密货币付款 — 凭据即时送达。",
+    "themeToggle": "切换深色 / 浅色模式"
   },
   "common": {
     "appName": "主机面板",

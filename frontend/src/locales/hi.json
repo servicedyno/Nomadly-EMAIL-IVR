@@ -41,7 +41,16 @@
     "opening": "खोल रहे हैं…",
     "balanceLabel": "बैलेंस",
     "recentActivity": "हाल की गतिविधि",
-    "noTxns": "अभी कोई लेन-देन नहीं।"
+    "noTxns": "अभी कोई लेन-देन नहीं।",
+    "loginTitle": "साइन इन करें",
+    "loginSub": "एक ही लॉगिन — वेब ग्राहक और HostPanel उपयोगकर्ता दोनों के लिए।",
+    "userOrEmail": "ईमेल या HostPanel उपयोगकर्ता नाम",
+    "userOrEmailPh": "you@email.com या आपका नाम",
+    "passOrPin": "पासवर्ड या PIN",
+    "passOrPinPh": "आपका पासवर्ड या 6-अंकीय PIN",
+    "signInBtn": "साइन इन करें →",
+    "noAcct": "अभी तक खाता नहीं? ऊपर से एक प्लान चुनें और क्रिप्टो से चेकआउट करें — आपकी लॉगिन जानकारी तुरंत आ जाएगी।",
+    "themeToggle": "डार्क / लाइट मोड बदलें"
   },
   "common": {
     "appName": "हॉस्टिंग पैनल",

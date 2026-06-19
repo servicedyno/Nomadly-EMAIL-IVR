@@ -1,0 +1,70 @@
+{
+  "summary": "Full E2E validation of the rewritten Storefront unified-login + responsive + dark/light theme overhaul. Backend regression (panel/login, store/auth/login, store/plans, store/health) passes. Frontend tested at mobile 375x667, tablet 768x1024, desktop 1440x800 — all 14 acceptance criteria in the review request PASS.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_results": {
+    "mobile_375x667": {
+      "login_input_y_coord": 213.5,
+      "above_fold_threshold_466.9": true,
+      "existing_login_link_removed": true,
+      "theme_toggle_present": true
+    },
+    "tablet_768x1024": {
+      "login_input_y_coord": 209.06,
+      "above_fold_threshold_716.8": true
+    },
+    "desktop_1440x800": {
+      "auth_card_x": 952,
+      "plans_x": 108,
+      "login_on_right_plans_on_left": true,
+      "existing_login_link_removed": true
+    },
+    "theme": {
+      "toggle_changes_html_dark_class": true,
+      "localStorage_panel-theme-pref": "dark",
+      "persists_after_reload": true
+    },
+    "language_switcher_dropdown_works": true,
+    "auth_flows": {
+      "invalid_email_shows_store-auth-error": "Invalid email or password.",
+      "invalid_panel_shows_store-auth-error": "Invalid username or PIN.",
+      "web_user_login_lands_on_dashboard": true,
+      "web_user_wallet_balance_visible": true,
+      "panel_user_login_navigates_to_/panel": true,
+      "panel_session_storage": {"username": "pnldoctest", "domain": "primary-doctest.example", "isGold": true}
+    },
+    "backend_regression": {
+      "POST /api/panel/login (valid)": "200 + token+domain+isGold=true",
+      "POST /api/panel/login (wrong pin)": "401",
+      "POST /api/store/auth/login (valid)": "200 + token+user",
+      "POST /api/store/auth/login (wrong)": "401",
+      "GET /api/store/plans": "3 plans returned",
+      "GET /api/store/health": "ok=true, coins=[8 codes]"
+    }
+  },
+  "test_report_links": [
+    "/app/scripts/seed_paneltest_account.js (re-seeded pnldoctest)",
+    "/app/scripts/seed_storetest.js (re-seeded storetest@example.com)"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Storefront.js line 206 calls /api/panel/login via direct fetch instead of going through panel AuthContext — acceptable per agent-to-agent note, but means the panel-side AuthContext is left out-of-sync until /panel page loads. Currently fine because /panel reads sessionStorage on mount, but worth flagging for future refactor.",
+    "store.css has minor cosmetic note: on desktop sticky right column uses top:88px; if the header height grows in future this would need re-tuning. Non-blocking.",
+    "useTheme.js defaults to dark when no system preference & no localStorage key — minor inconsistency vs typical 'follow system' behaviour but matches existing panel convention; not a bug."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Web: storetest@example.com / password1234 — Panel: pnldoctest / 123456 (both re-seeded this session)",
+  "seed_data_creation": "Re-ran /app/scripts/seed_storetest.js and /app/scripts/seed_paneltest_account.js to ensure both accounts exist for tests.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Storefront /store landing page now has a single unified auth card. Mobile/tablet: login appears first (above hero+plans) with input y~210px — well above 0.7×viewport. Desktop ≥1024px: 2-col grid with plans LEFT (x=108) and login RIGHT (x=952, sticky). Theme toggle (Moon/Sun icon) at top right works and persists via localStorage key 'panel-theme-pref'. Form auto-routes by '@' presence in the identifier: email → /api/store/auth/login, username → /api/panel/login. Element data-testid='store-existing-login' is confirmed NOT present. All 14 review criteria pass.",
+  "rca of the issue": "N/A — no defects found. The UI overhaul meets the user's request: login is visible without scrolling on all three breakpoints, the dual-form / top-right link is gone, dark/light toggle is functional and persistent, and both web-user and panel-user auth flows work end-to-end."
+}

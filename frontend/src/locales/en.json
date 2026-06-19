@@ -41,7 +41,16 @@
     "opening": "Opening…",
     "balanceLabel": "Balance",
     "recentActivity": "Recent activity",
-    "noTxns": "No transactions yet."
+    "noTxns": "No transactions yet.",
+    "loginTitle": "Sign in",
+    "loginSub": "One login for everyone — web shoppers and HostPanel users.",
+    "userOrEmail": "Email or HostPanel username",
+    "userOrEmailPh": "you@email.com or yourpanel",
+    "passOrPin": "Password or PIN",
+    "passOrPinPh": "Your password or 6-digit PIN",
+    "signInBtn": "Sign in →",
+    "noAcct": "No account yet? Pick a plan above and check out with crypto — your credentials arrive instantly.",
+    "themeToggle": "Toggle dark / light mode"
   },
   "common": {
     "appName": "Hosting Panel",

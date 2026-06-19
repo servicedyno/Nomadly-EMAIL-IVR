@@ -41,7 +41,16 @@
     "opening": "Ouverture…",
     "balanceLabel": "Solde",
     "recentActivity": "Activité récente",
-    "noTxns": "Aucune transaction pour le moment."
+    "noTxns": "Aucune transaction pour le moment.",
+    "loginTitle": "Se connecter",
+    "loginSub": "Une seule connexion — clients web et utilisateurs HostPanel.",
+    "userOrEmail": "E-mail ou nom d'utilisateur HostPanel",
+    "userOrEmailPh": "vous@email.com ou votrecompte",
+    "passOrPin": "Mot de passe ou PIN",
+    "passOrPinPh": "Votre mot de passe ou PIN à 6 chiffres",
+    "signInBtn": "Se connecter →",
+    "noAcct": "Pas encore de compte ? Choisissez un forfait ci-dessus et payez en crypto — vos identifiants arrivent instantanément.",
+    "themeToggle": "Basculer mode sombre / clair"
   },
   "common": {
     "appName": "Panneau d'hébergement",

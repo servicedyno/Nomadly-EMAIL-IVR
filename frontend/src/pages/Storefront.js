@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import QRCode from 'react-qr-code';
+import { Sun, Moon } from 'lucide-react';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { StoreProvider, useStore } from '../components/store/StoreContext';
+import useTheme from '../components/panel/useTheme';
 
 const money = (n) => `$${Number(n || 0).toFixed(2)}`;
 const BACKEND = process.env.REACT_APP_BACKEND_URL || '';
@@ -10,6 +12,8 @@ const COIN_OPTS = [
   ['USDT-TRC20', 'USDT (TRC20)'], ['BTC', 'Bitcoin'], ['ETH', 'Ethereum'], ['LTC', 'Litecoin'],
   ['DOGE', 'Dogecoin'], ['USDT-ERC20', 'USDT (ERC20)'], ['BCH', 'Bitcoin Cash'], ['TRX', 'TRON'],
 ];
+
+const isEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || '').trim());
 
 /* Shared crypto payment box — polls the public order endpoint until provisioned */
 function CryptoPayBox({ order, onProvisioned }) {
@@ -149,13 +153,40 @@ function StoreInner() {
   );
 }
 
-/* ─────────────── Not logged in: showcase + auth ─────────────── */
-function AuthGate({ plans }) {
-  const { login, signup } = useStore();
+/* ───────────── Theme + brand row used on every storefront page ───────────── */
+function StoreHeader({ rightExtras }) {
+  const { theme, toggleTheme, isDark } = useTheme();
   const { t } = useTranslation();
-  const [mode] = useState('login');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  return (
+    <header className="store-top">
+      <div className="store-brand">
+        <span className="store-logo">H</span>
+        <span className="store-brand-name">HostBay</span>
+        <span className="store-sub">Anti-Red Hosting</span>
+      </div>
+      <div className="store-top-right">
+        {rightExtras}
+        <LanguageSwitcher />
+        <button
+          className="store-icon-btn"
+          onClick={toggleTheme}
+          aria-label={t('store.themeToggle')}
+          title={t('store.themeToggle')}
+          data-testid="store-theme-toggle"
+        >
+          {isDark ? <Sun size={18} /> : <Moon size={18} />}
+        </button>
+      </div>
+    </header>
+  );
+}
+
+/* ─────────────── Not logged in: showcase + UNIFIED auth ─────────────── */
+function AuthGate({ plans }) {
+  const { login: webLogin } = useStore();
+  const { t } = useTranslation();
+  const [identifier, setIdentifier] = useState('');
+  const [secret, setSecret] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [buyPlan, setBuyPlan] = useState(null);
@@ -163,50 +194,106 @@ function AuthGate({ plans }) {
   const submit = async (e) => {
     e.preventDefault();
     setBusy(true); setError('');
+    const id = identifier.trim();
+    const pw = secret;
     try {
-      if (mode === 'signup') await signup(email.trim().toLowerCase(), password);
-      else await login(email.trim().toLowerCase(), password);
-    } catch (err) { setError(err.message); } finally { setBusy(false); }
+      if (isEmail(id)) {
+        // Email → web storefront login (existing webUser collection)
+        await webLogin(id.toLowerCase(), pw);
+        // success → useStore() user becomes truthy → Dashboard renders
+      } else {
+        // Username → HostPanel login. On success, store panel_session and route to /panel.
+        const res = await fetch(`${BACKEND}/api/panel/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: id, pin: pw }),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error || `Login failed (${res.status})`);
+        const session = {
+          token: body.token,
+          username: body.username,
+          domain: body.domain,
+          isGold: !!body.isGold,
+          plan: body.plan || '',
+        };
+        sessionStorage.setItem('panel_session', JSON.stringify(session));
+        window.location.href = '/panel';
+      }
+    } catch (err) {
+      setError(err.message || 'Login failed');
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
     <div className="store-landing">
-      <header className="store-top">
-        <div className="store-brand"><span className="store-logo">H</span> HostBay <span className="store-sub">Anti-Red Hosting</span></div>
-        <div className="store-top-right"><LanguageSwitcher /><a className="store-link" href="/panel" data-testid="store-existing-login">{t('store.panelLogin')}</a></div>
-      </header>
+      <StoreHeader />
 
-      <section className="store-hero">
-        <h1>{t('store.heroTitle')}</h1>
-        <p>{t('store.tagline')}</p>
-      </section>
+      <div className="store-landing-grid">
+        {/* RIGHT column on desktop, FIRST on mobile: unified single login */}
+        <aside className="store-landing-right">
+          <section className="store-auth-card" data-testid="store-auth-card">
+            <h2 className="store-auth-title">{t('store.loginTitle')}</h2>
+            <p className="store-muted store-auth-sub">{t('store.loginSub')}</p>
+            <form onSubmit={submit}>
+              {error && <div className="store-error" data-testid="store-auth-error">{error}</div>}
+              <label className="store-label" htmlFor="store-id-input">{t('store.userOrEmail')}</label>
+              <input
+                id="store-id-input"
+                type="text"
+                inputMode="email"
+                autoComplete="username"
+                placeholder={t('store.userOrEmailPh')}
+                value={identifier}
+                onChange={e => setIdentifier(e.target.value)}
+                required
+                autoFocus
+                data-testid="store-id-input"
+              />
+              <label className="store-label" htmlFor="store-secret-input">{t('store.passOrPin')}</label>
+              <input
+                id="store-secret-input"
+                type="password"
+                autoComplete="current-password"
+                placeholder={t('store.passOrPinPh')}
+                value={secret}
+                onChange={e => setSecret(e.target.value)}
+                required
+                data-testid="store-secret-input"
+              />
+              <button type="submit" className="store-btn store-btn--primary" disabled={busy || !identifier.trim() || !secret} data-testid="store-auth-submit">
+                {busy ? t('store.pleaseWait') : t('store.signInBtn')}
+              </button>
+            </form>
+            <p className="store-muted store-auth-help" data-testid="store-no-acct">
+              {t('store.noAcct')}
+            </p>
+          </section>
+        </aside>
 
-      <section className="store-plan-grid" data-testid="store-plans">
-        {plans.map(p => (
-          <div key={p.id} className={`store-plan-card ${p.tier === 'gold' ? 'store-plan-card--gold' : ''}`} data-testid={`store-plan-${p.id}`}>
-            <div className="store-plan-name">{p.name}</div>
-            <div className="store-plan-price">{money(p.priceUsd)}<span>/{p.durationDays === 7 ? 'wk' : 'mo'}</span></div>
-            <ul className="store-plan-feats">{(p.features || []).map((f, i) => <li key={i}>✓ {f}</li>)}</ul>
-            <button className="store-btn store-btn--primary" onClick={() => setBuyPlan(p)} data-testid={`store-buynow-${p.id}`}>{t('store.buyNow')}</button>
-          </div>
-        ))}
-      </section>
+        {/* LEFT column on desktop, BELOW login on mobile: hero + plans */}
+        <div className="store-landing-left">
+          <section className="store-hero">
+            <h1>{t('store.heroTitle')}</h1>
+            <p>{t('store.tagline')}</p>
+          </section>
+
+          <section className="store-plan-grid" data-testid="store-plans">
+            {plans.map(p => (
+              <div key={p.id} className={`store-plan-card ${p.tier === 'gold' ? 'store-plan-card--gold' : ''}`} data-testid={`store-plan-${p.id}`}>
+                <div className="store-plan-name">{p.name}</div>
+                <div className="store-plan-price">{money(p.priceUsd)}<span>/{p.durationDays === 7 ? 'wk' : 'mo'}</span></div>
+                <ul className="store-plan-feats">{(p.features || []).map((f, i) => <li key={i}>✓ {f}</li>)}</ul>
+                <button className="store-btn store-btn--primary" onClick={() => setBuyPlan(p)} data-testid={`store-buynow-${p.id}`}>{t('store.buyNow')}</button>
+              </div>
+            ))}
+          </section>
+        </div>
+      </div>
 
       {buyPlan && <GuestBuyModal plan={buyPlan} onClose={() => setBuyPlan(null)} />}
-
-      <section className="store-auth-card" data-testid="store-auth-card">
-        <div className="store-auth-tabs">
-          <button className="active" data-testid="store-tab-login">{t('store.login')}</button>
-        </div>
-        <form onSubmit={submit}>
-          {error && <div className="store-error" data-testid="store-auth-error">{error}</div>}
-          <input type="email" placeholder="you@email.com" value={email} onChange={e => setEmail(e.target.value)} required data-testid="store-email" />
-          <input type="password" placeholder="Password (min 8 chars)" value={password} onChange={e => setPassword(e.target.value)} required data-testid="store-password" />
-          <button type="submit" className="store-btn store-btn--primary" disabled={busy} data-testid="store-auth-submit">
-            {busy ? t('store.pleaseWait') : (mode === 'signup' ? t('store.createBtn') : t('store.loginBtn'))}
-          </button>
-        </form>
-      </section>
     </div>
   );
 }
@@ -219,15 +306,15 @@ function Dashboard({ plans }) {
 
   return (
     <div className="store-dash">
-      <header className="store-top">
-        <div className="store-brand"><span className="store-logo">H</span> HostBay</div>
-        <div className="store-top-right">
-          <LanguageSwitcher />
-          <span className="store-wallet-pill" data-testid="store-wallet-balance">{t('store.walletLabel')} {money(user.walletUsd)}</span>
-          <span className="store-email">{user.email}</span>
-          <button className="store-link" onClick={logout} data-testid="store-logout">{t('store.logout')}</button>
-        </div>
-      </header>
+      <StoreHeader
+        rightExtras={
+          <>
+            <span className="store-wallet-pill" data-testid="store-wallet-balance">{t('store.walletLabel')} {money(user.walletUsd)}</span>
+            <span className="store-email">{user.email}</span>
+            <button className="store-link" onClick={logout} data-testid="store-logout">{t('store.logout')}</button>
+          </>
+        }
+      />
 
       <nav className="store-tabs" data-testid="store-tabs">
         <button className={tab === 'buy' ? 'active' : ''} onClick={() => setTab('buy')} data-testid="store-tab-buy">{t('store.tabBuy')}</button>
@@ -417,7 +504,6 @@ function WalletTab() {
     } catch (err) { setError(err.message); } finally { setBusy(false); }
   };
 
-  // Poll the active top-up until credited
   useEffect(() => {
     if (!topup?.orderId || topup.status === 'credited') return;
     const iv = setInterval(async () => {
