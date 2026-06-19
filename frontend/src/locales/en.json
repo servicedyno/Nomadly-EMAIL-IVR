@@ -50,7 +50,10 @@
     "passOrPinPh": "Your password or 6-digit PIN",
     "signInBtn": "Sign in →",
     "noAcct": "No account yet? Pick a plan above and check out with crypto — your credentials arrive instantly.",
-    "themeToggle": "Toggle dark / light mode"
+    "themeToggle": "Toggle dark / light mode",
+    "orDivider": "OR",
+    "tgButton": "Continue with Telegram",
+    "tgScanCap": "Scan with your phone to log in via the Telegram bot."
   },
   "common": {
     "appName": "Hosting Panel",

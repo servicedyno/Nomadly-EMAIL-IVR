@@ -43,6 +43,44 @@ const now = () => new Date()
 function signToken(payload) { return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRY }) }
 function verifyToken(token) { try { return jwt.verify(token, JWT_SECRET) } catch { return null } }
 
+// ─── Bot → Web auto-login token (HMAC, short-lived, single-use) ───
+// Used by the Telegram bot to issue a deep-link that auto-signs the user
+// into the web storefront without typing credentials. Token format:
+//   base64url(JSON{c:chatId, e:expUnix, n:nonce}) + "." + hex(hmac-sha256(payload, key))
+// The single-use guarantee is enforced at /auth/bot-login by tracking the
+// nonce in MongoDB collection `webBotLoginConsumed`.
+const BOT_LINK_KEY = crypto.createHmac('sha256', JWT_SECRET).update('store-bot-link-v1').digest()
+const BOT_LINK_TTL_SEC = 5 * 60   // 5 minutes
+const b64u = (buf) => Buffer.from(buf).toString('base64')
+  .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+const b64uDecode = (s) => Buffer.from(String(s || '').replace(/-/g, '+').replace(/_/g, '/'), 'base64')
+
+function mintBotLoginToken(chatId) {
+  const cid = String(chatId || '').trim()
+  if (!cid) throw new Error('chatId required')
+  const payload = { c: cid, e: Math.floor(Date.now() / 1000) + BOT_LINK_TTL_SEC, n: crypto.randomBytes(8).toString('hex') }
+  const body = b64u(JSON.stringify(payload))
+  const sig = crypto.createHmac('sha256', BOT_LINK_KEY).update(body).digest('hex')
+  return `${body}.${sig}`
+}
+
+function verifyBotLoginToken(token) {
+  const parts = String(token || '').split('.')
+  if (parts.length !== 2) return { ok: false, error: 'malformed' }
+  const [body, sig] = parts
+  const expected = crypto.createHmac('sha256', BOT_LINK_KEY).update(body).digest('hex')
+  // Timing-safe compare
+  if (sig.length !== expected.length) return { ok: false, error: 'bad_signature' }
+  if (!crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expected, 'hex'))) {
+    return { ok: false, error: 'bad_signature' }
+  }
+  let payload
+  try { payload = JSON.parse(b64uDecode(body).toString('utf8')) } catch { return { ok: false, error: 'bad_payload' } }
+  if (!payload?.c || !payload?.e || !payload?.n) return { ok: false, error: 'bad_payload' }
+  if (Math.floor(Date.now() / 1000) > Number(payload.e)) return { ok: false, error: 'expired' }
+  return { ok: true, chatId: String(payload.c), nonce: payload.n, exp: payload.e }
+}
+
 /**
  * @param {object} deps
  * @param {Function} deps.getDb  - returns the connected Mongo db handle
@@ -132,6 +170,84 @@ function createStoreRoutes(deps = {}) {
     const u = await publicUser(req.webUserId)
     if (!u) return res.status(404).json({ error: 'Account not found' })
     res.json({ user: u })
+  })
+
+  // Bot → Web auto-login: exchange a one-time HMAC token (?bt=…) for a web JWT.
+  // The bot mints these via mintBotLoginToken(chatId) and DMs the user a link
+  // like {storefrontUrl}?bt=<token>. Token is valid 5 min, single-use.
+  router.post('/auth/bot-login', async (req, res) => {
+    try {
+      const bt = String(req.body?.bt || req.query?.bt || '').trim()
+      if (!bt) return res.status(400).json({ error: 'bt is required' })
+      const v = verifyBotLoginToken(bt)
+      if (!v.ok) return res.status(401).json({ error: v.error === 'expired' ? 'This link has expired. Please request a new one from the bot.' : 'Invalid login link.' })
+
+      // Single-use enforcement (idempotent insert keyed by nonce).
+      try {
+        await col('webBotLoginConsumed').insertOne({ _id: v.nonce, chatId: v.chatId, consumedAt: now(), exp: new Date(v.exp * 1000) })
+      } catch (err) {
+        if (err.code === 11000) {
+          return res.status(401).json({ error: 'This login link has already been used. Please request a new one from the bot.' })
+        }
+        throw err
+      }
+
+      // Find or create a web user keyed by tgChatId. Email is synthetic for storage —
+      // we never deliver to it; the bot itself is the comms channel.
+      let u = await col('webUsers').findOne({ tgChatId: v.chatId })
+      if (!u) {
+        // Pull the Telegram display name (if available) to make the dashboard prettier
+        let display = ''
+        try {
+          const nm = await col('nameOf').findOne({ _id: Number(v.chatId) }) || await col('nameOf').findOne({ _id: v.chatId })
+          if (nm?.val) display = String(nm.val)
+        } catch { /* nameOf collection may not exist in this DB */ }
+        const synthEmail = `tg-${v.chatId}@bot.local`
+        const doc = {
+          _id: uuid(),
+          email: synthEmail,
+          tgChatId: v.chatId,
+          tgDisplay: display,
+          // No passwordHash — bot-link auth only. The /auth/login email+password
+          // path will reject because compare(any, undefined) returns false.
+          passwordHash: '',
+          walletUsd: 0,
+          createdAt: now(),
+          lastLogin: now(),
+          authSource: 'telegram',
+        }
+        await col('webUsers').insertOne(doc)
+        u = doc
+        // Link any existing hosting accounts owned by this chatId so they appear under "My Plans".
+        try {
+          await col('cpanelAccounts').updateMany(
+            { chatId: Number(v.chatId), deleted: { $ne: true }, $or: [{ webUserId: { $exists: false } }, { webUserId: null }] },
+            { $set: { webUserId: doc._id } }
+          )
+        } catch (e) { log(`[Store] bot-login cpanel-link warning: ${e.message}`) }
+        log(`[Store] bot-login created webUser for tgChatId=${v.chatId} (${doc._id})`)
+      } else {
+        await col('webUsers').updateOne({ _id: u._id }, { $set: { lastLogin: now() } })
+      }
+
+      const token = signToken({ webUserId: u._id, email: u.email })
+      return res.json({
+        token,
+        user: { id: u._id, email: u.email, walletUsd: Number(u.walletUsd || 0), tgDisplay: u.tgDisplay || '' },
+      })
+    } catch (err) {
+      log(`[Store] bot-login error: ${err.message}`)
+      return res.status(500).json({ error: 'Could not sign you in. Please try again.' })
+    }
+  })
+
+  // Public storefront config — exposes the Telegram bot username so the
+  // landing page can render the "Continue with Telegram" QR / deep-link.
+  router.get('/config', (req, res) => {
+    res.json({
+      botUsername: process.env.TELEGRAM_BOT_USERNAME || 'NomadlyBot',
+      botStartPayload: 'web-login',
+    })
   })
 
   // ─────────────────────────── WALLET ───────────────────────────
@@ -736,4 +852,4 @@ function createStoreRoutes(deps = {}) {
   return router
 }
 
-module.exports = { createStoreRoutes }
+module.exports = { createStoreRoutes, mintBotLoginToken, verifyBotLoginToken }

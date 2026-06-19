@@ -505,6 +505,55 @@ html.dark .store-plan-card--gold {
 }
 .store-modal-x:hover { background: var(--st-bg-inset); color: var(--st-text); }
 
+/* ─── Continue with Telegram (bot one-tap login) ─── */
+.store-tg-section { margin-top: 18px; }
+.store-tg-divider {
+  display: flex; align-items: center; gap: 10px;
+  color: var(--st-text-muted); font-size: 11px; text-transform: uppercase;
+  letter-spacing: .08em; font-weight: 700;
+  margin: 8px 0 14px;
+}
+.store-tg-divider::before, .store-tg-divider::after {
+  content: ""; flex: 1; height: 1px; background: var(--st-border);
+}
+.store-btn--telegram {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  background: linear-gradient(135deg, #229ED9, #1B89C1);
+  color: #fff; border-color: transparent;
+  width: 100%; text-decoration: none;
+  box-shadow: 0 6px 16px rgba(34, 158, 217, .28);
+}
+.store-btn--telegram:hover {
+  background: linear-gradient(135deg, #1B89C1, #229ED9);
+  box-shadow: 0 10px 22px rgba(34, 158, 217, .38);
+  color: #fff;
+}
+.store-tg-qr-wrap {
+  margin-top: 14px; display: flex; flex-direction: column;
+  align-items: center; gap: 8px;
+}
+.store-tg-qr {
+  background: #fff; padding: 10px; border-radius: var(--st-radius-sm);
+  display: inline-block;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .12);
+}
+.store-tg-qr-cap { font-size: 12px; text-align: center; margin: 0; }
+
+/* Auto-login toast */
+.store-bot-toast {
+  position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+  background: var(--st-accent); color: #fff;
+  padding: 10px 18px; border-radius: 999px;
+  font-size: 13px; font-weight: 600;
+  box-shadow: 0 8px 24px rgba(255, 86, 112, .35);
+  z-index: 2000;
+  animation: store-bot-toast-in .2s ease-out;
+}
+@keyframes store-bot-toast-in {
+  from { opacity: 0; transform: translate(-50%, -10px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+
 /* ─── Small-screen tweaks ─── */
 @media (max-width: 480px) {
   .store-brand { font-size: 16px; }

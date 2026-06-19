@@ -50,7 +50,10 @@
     "passOrPinPh": "Votre mot de passe ou PIN à 6 chiffres",
     "signInBtn": "Se connecter →",
     "noAcct": "Pas encore de compte ? Choisissez un forfait ci-dessus et payez en crypto — vos identifiants arrivent instantanément.",
-    "themeToggle": "Basculer mode sombre / clair"
+    "themeToggle": "Basculer mode sombre / clair",
+    "orDivider": "OU",
+    "tgButton": "Continuer avec Telegram",
+    "tgScanCap": "Scannez avec votre téléphone pour vous connecter via le bot Telegram."
   },
   "common": {
     "appName": "Panneau d'hébergement",

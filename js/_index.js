@@ -11052,6 +11052,44 @@ All verified numbers generated during sourcing.`))
     }
   }
 
+  // Handle /start web-login deep link AND /web command — issue a one-time
+  // signed token and DM the user an auto-login URL for the web storefront.
+  // The QR on the storefront landing page points at `t.me/<bot>?start=web-login`
+  // so scanning it on mobile lands the user here.
+  if (message === '/start web-login' || message === '/start weblogin' || message === '/web' || message === '/store') {
+    bot?.sendChatAction?.(chatId, 'typing').catch(() => {})
+    try {
+      const token = mintBotLoginToken(chatId)
+      // Build the storefront URL. PANEL_DOMAIN is the production landing
+      // host (panel.1.hostbay.io). In dev where PANEL_DOMAIN isn't a
+      // user-facing host, fall back to STORE_URL → SELF_URL/store.
+      const panelDom = (process.env.PANEL_DOMAIN || '')
+        .toLowerCase().trim()
+        .replace(/^https?:\/\//, '')
+        .split('/')[0]
+        .split(':')[0]
+      const explicit = process.env.STORE_URL && process.env.STORE_URL.trim()
+      const base = explicit
+        ? explicit.replace(/\/+$/, '')
+        : (panelDom ? `https://${panelDom}` : (process.env.SELF_URL || '').replace(/\/api\/?$/, '') + '/store')
+      const url = `${base}${base.includes('/store') ? '' : '/store'}?bt=${token}`
+      const ttlMin = 5
+      const lang = info?.userLanguage || 'en'
+      const msgs = {
+        en: `🌐 <b>Web Storefront — One-Tap Login</b>\n\nTap the link below to open the web storefront signed in as you:\n\n<a href="${url}">Open Web Storefront →</a>\n\n⏱️ Link valid for <b>${ttlMin} minutes</b>, single-use.\n💡 You can buy hosting, top up your wallet, and manage plans without leaving Telegram.`,
+        fr: `🌐 <b>Boutique Web — Connexion en un clic</b>\n\nAppuyez sur le lien ci-dessous pour ouvrir la boutique connectée :\n\n<a href="${url}">Ouvrir la boutique Web →</a>\n\n⏱️ Lien valide <b>${ttlMin} minutes</b>, à usage unique.`,
+        zh: `🌐 <b>网店 — 一键登录</b>\n\n点击下方链接打开已登录的网店：\n\n<a href="${url}">打开网店 →</a>\n\n⏱️ 链接有效期 <b>${ttlMin} 分钟</b>，单次使用。`,
+        hi: `🌐 <b>वेब स्टोर — एक-टैप लॉगिन</b>\n\nवेब स्टोर खोलने के लिए नीचे दिए गए लिंक पर टैप करें:\n\n<a href="${url}">वेब स्टोर खोलें →</a>\n\n⏱️ लिंक <b>${ttlMin} मिनट</b> के लिए वैध, एक बार उपयोग।`,
+      }
+      const text = msgs[lang] || msgs.en
+      log(`[BotLink] ${chatId} requested web-login token (ttl=${ttlMin}m)`)
+      return bot.sendMessage(chatId, text, { parse_mode: 'HTML', disable_web_page_preview: true })
+    } catch (err) {
+      log(`[BotLink] web-login mint failed for ${chatId}: ${err.message}`)
+      try { return bot.sendMessage(chatId, '❌ Could not generate a login link. Please try again in a moment.') } catch { /* ignore */ }
+    }
+  }
+
   if (message === '/start' || message.startsWith('/start ref_') || message === '/start pinreset' || message === '/start resetpin') {
     // Bug 7: Immediate typing indicator — gives instant visual feedback so users
     // don't tap /start multiple times while waiting for the first reply.
@@ -31253,7 +31291,7 @@ const { createCpanelRoutes } = require('./cpanel-routes')
 app.use('/panel', createCpanelRoutes(() => cpanelAccounts, { notifyAdmin }))
 
 // ── Public Web Storefront Routes (account + wallet + crypto top-up) ──
-const { createStoreRoutes } = require('./store-routes')
+const { createStoreRoutes, mintBotLoginToken } = require('./store-routes')
 app.use('/store', createStoreRoutes({
   getDb: () => (cpanelAccounts && cpanelAccounts.s && cpanelAccounts.s.db) || null,
   selfUrl: SELF_URL,

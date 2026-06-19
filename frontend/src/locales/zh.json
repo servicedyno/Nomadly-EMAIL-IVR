@@ -50,7 +50,10 @@
     "passOrPinPh": "您的密码或 6 位 PIN",
     "signInBtn": "登录 →",
     "noAcct": "还没有账户？在上方选择套餐并用加密货币付款 — 凭据即时送达。",
-    "themeToggle": "切换深色 / 浅色模式"
+    "themeToggle": "切换深色 / 浅色模式",
+    "orDivider": "或",
+    "tgButton": "使用 Telegram 继续",
+    "tgScanCap": "用手机扫描以通过 Telegram 机器人登录。"
   },
   "common": {
     "appName": "主机面板",

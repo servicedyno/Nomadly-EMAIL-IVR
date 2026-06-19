@@ -15,6 +15,11 @@ const COIN_OPTS = [
 
 const isEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || '').trim());
 
+// Tokens already consumed in this page session. We track them at module scope
+// (not in component state / ref) so React 18 StrictMode's double-mount in dev
+// AND any spurious re-renders cannot replay a single-use bot-login token.
+const BT_CONSUMED = new Set();
+
 /* Shared crypto payment box — polls the public order endpoint until provisioned */
 function CryptoPayBox({ order, onProvisioned }) {
   const { t } = useTranslation();
@@ -138,17 +143,49 @@ export default function Storefront() {
 }
 
 function StoreInner() {
-  const { user } = useStore();
+  const { user, botLogin } = useStore();
   const [plans, setPlans] = useState([]);
+  const [config, setConfig] = useState({ botUsername: 'NomadlyBot', botStartPayload: 'web-login' });
+  const [botLoginStatus, setBotLoginStatus] = useState('idle'); // idle | exchanging | failed
+  const [botLoginError, setBotLoginError] = useState('');
   const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
 
   useEffect(() => {
     fetch(`${BACKEND_URL}/api/store/plans`).then(r => r.json()).then(d => setPlans(d.plans || [])).catch(() => {});
+    fetch(`${BACKEND_URL}/api/store/config`).then(r => r.json()).then(d => setConfig(c => ({ ...c, ...d }))).catch(() => {});
   }, [BACKEND_URL]);
+
+  // Auto-exchange ?bt=<token> for a web session (bot-issued one-tap login).
+  // Use a module-level Set (not a ref) so React 18 StrictMode's double-mount
+  // in dev cannot consume the single-use token twice.
+  useEffect(() => {
+    if (user) return;
+    const params = new URLSearchParams(window.location.search);
+    const bt = params.get('bt');
+    if (!bt) return;
+    if (BT_CONSUMED.has(bt)) return;
+    BT_CONSUMED.add(bt);
+    setBotLoginStatus('exchanging');
+    botLogin(bt)
+      .then(() => {
+        // Scrub the token from URL so a reload doesn't 401 (single-use).
+        params.delete('bt');
+        const qs = params.toString();
+        window.history.replaceState({}, '', window.location.pathname + (qs ? `?${qs}` : ''));
+        setBotLoginStatus('idle');
+      })
+      .catch((err) => {
+        setBotLoginStatus('failed');
+        setBotLoginError(err.message || 'Auto-login failed.');
+      });
+  }, [user, botLogin]);
 
   return (
     <div className="store-root" data-testid="storefront">
-      {user ? <Dashboard plans={plans} /> : <AuthGate plans={plans} />}
+      {botLoginStatus === 'exchanging' && (
+        <div className="store-bot-toast" data-testid="store-bot-toast">Signing you in via Telegram…</div>
+      )}
+      {user ? <Dashboard plans={plans} /> : <AuthGate plans={plans} config={config} botLoginError={botLoginStatus === 'failed' ? botLoginError : ''} />}
     </div>
   );
 }
@@ -182,14 +219,22 @@ function StoreHeader({ rightExtras }) {
 }
 
 /* ─────────────── Not logged in: showcase + UNIFIED auth ─────────────── */
-function AuthGate({ plans }) {
+function AuthGate({ plans, config, botLoginError }) {
   const { login: webLogin } = useStore();
   const { t } = useTranslation();
   const [identifier, setIdentifier] = useState('');
   const [secret, setSecret] = useState('');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(botLoginError || '');
   const [buyPlan, setBuyPlan] = useState(null);
+
+  // Surface bot-login failure as a regular form error so it's visible.
+  useEffect(() => { if (botLoginError) setError(botLoginError); }, [botLoginError]);
+
+  // Build the Telegram deep-link used by the QR + "Open Telegram" button.
+  const botUsername = (config?.botUsername || 'NomadlyBot').replace(/^@/, '');
+  const startPayload = config?.botStartPayload || 'web-login';
+  const tgDeepLink = `https://t.me/${botUsername}?start=${encodeURIComponent(startPayload)}`;
 
   const submit = async (e) => {
     e.preventDefault();
@@ -270,6 +315,27 @@ function AuthGate({ plans }) {
             <p className="store-muted store-auth-help" data-testid="store-no-acct">
               {t('store.noAcct')}
             </p>
+
+            {/* ── Continue with Telegram: one-tap login via the bot ── */}
+            <div className="store-tg-section" data-testid="store-tg-section">
+              <div className="store-tg-divider"><span>{t('store.orDivider')}</span></div>
+              <a
+                href={tgDeepLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="store-btn store-btn--telegram"
+                data-testid="store-tg-button"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.022c.24-.213-.054-.334-.373-.121l-6.871 4.326-2.96-.924c-.643-.204-.66-.643.135-.953l11.566-4.458c.532-.196.998.128.832.938z"/></svg>
+                {t('store.tgButton')}
+              </a>
+              <div className="store-tg-qr-wrap">
+                <div className="store-tg-qr" data-testid="store-tg-qr">
+                  <QRCode value={tgDeepLink} size={132} bgColor="#ffffff" fgColor="#0b0e14" />
+                </div>
+                <p className="store-muted store-tg-qr-cap">{t('store.tgScanCap')}</p>
+              </div>
+            </div>
           </section>
         </aside>
 

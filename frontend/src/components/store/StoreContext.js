@@ -54,6 +54,18 @@ export function StoreProvider({ children }) {
     return r;
   }, [api, persist]);
 
+  // Exchange a bot-issued auto-login token (?bt=…) for a web session.
+  const botLogin = useCallback(async (bt) => {
+    const r = await api('/auth/bot-login', { method: 'POST', body: JSON.stringify({ bt }) });
+    persist({
+      token: r.token,
+      email: r.user.email,
+      walletUsd: r.user.walletUsd,
+      tgDisplay: r.user.tgDisplay || '',
+    });
+    return r;
+  }, [api, persist]);
+
   const logout = useCallback(() => persist(null), [persist]);
 
   const setWallet = useCallback((walletUsd) => {
@@ -66,7 +78,7 @@ export function StoreProvider({ children }) {
   }, []);
 
   return (
-    <StoreContext.Provider value={{ user, api, signup, login, logout, setWallet }}>
+    <StoreContext.Provider value={{ user, api, signup, login, botLogin, logout, setWallet }}>
       {children}
     </StoreContext.Provider>
   );
