@@ -856,7 +856,7 @@ Login: ${panelUrl}
       'planName',
       'duration',
     ])
-    return { success: true }
+    return { success: true, username: result.username, pin, url: result.url, nameservers: result.nameservers }
   } catch (err) {
     log('err registerDomain&CreateCPanel via WHM', err.message)
     send(chatId, `❌ Setup failed. Tap 💬 Get Support for help.\n\nError: ${err.message}`, keyboardButtons)

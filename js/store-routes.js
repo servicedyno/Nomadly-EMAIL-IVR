@@ -347,6 +347,190 @@ function createStoreRoutes(deps = {}) {
   // health/info
   router.get('/health', (req, res) => res.json({ ok: true, coins: COINS.map(c => c.code) }))
 
+  // ═══════════════════════ PHASE 2: STOREFRONT (plans + buy hosting from wallet) ═══════════════════════
+
+  const num = (v, d) => { const n = parseFloat(v); return Number.isFinite(n) ? n : d }
+  function plansCatalog() {
+    return [
+      {
+        id: 'premium-weekly', name: 'Premium Anti-Red (1-Week)', tier: 'premium',
+        priceUsd: num(process.env.PREMIUM_ANTIRED_WEEKLY_PRICE, 30), durationDays: 7, addons: 1,
+        features: ['Anti-Red protection', '1 addon domain', 'HostPanel + File Manager', '7 days'],
+      },
+      {
+        id: 'premium-monthly', name: 'Premium Anti-Red HostPanel (1-Month)', tier: 'premium',
+        priceUsd: num(process.env.PREMIUM_ANTIRED_CPANEL_PRICE, 75), durationDays: 30, addons: 5,
+        features: ['Anti-Red protection', '5 addon domains', 'Email + MySQL', '30 days'],
+      },
+      {
+        id: 'golden-monthly', name: 'Golden Anti-Red HostPanel (1-Month)', tier: 'gold',
+        priceUsd: num(process.env.GOLDEN_ANTIRED_CPANEL_PRICE, 100), durationDays: 30, addons: 'unlimited',
+        features: ['Anti-Red protection', 'Unlimited addon domains', 'Visitor Captcha + Geo', '30 days'],
+      },
+    ]
+  }
+  const planById = (id) => plansCatalog().find(p => p.id === id)
+  const domainOk = (d) => /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(String(d || '').trim())
+
+  router.get('/plans', (req, res) => res.json({ plans: plansCatalog() }))
+
+  // Domain availability + price (for "buy a domain" at checkout)
+  router.get('/domain/search', webAuth, async (req, res) => {
+    try {
+      const domain = String(req.query.domain || '').trim().toLowerCase()
+      if (!domainOk(domain)) return res.status(400).json({ error: 'Enter a valid domain (e.g. mysite.com).' })
+      const ds = require('./domain-service')
+      const r = await ds.checkDomainPrice(domain, getDb && getDb())
+      return res.json({ domain, available: !!r.available, priceUsd: r.available ? Number(r.price) : 0, registrar: r.registrar || null, message: r.message || '' })
+    } catch (err) {
+      log(`[Store] domain search error: ${err.message}`)
+      return res.status(500).json({ error: 'Domain lookup failed. Try again shortly.' })
+    }
+  })
+
+  // Buy a hosting plan, paid from wallet. domainMode: 'byo' (bring your own) | 'buy' (register new).
+  router.post('/hosting/purchase', webAuth, async (req, res) => {
+    const planId = req.body?.planId
+    const domain = String(req.body?.domain || '').trim().toLowerCase()
+    const domainMode = req.body?.domainMode === 'buy' ? 'buy' : 'byo'
+    const plan = planById(planId)
+    if (!plan) return res.status(400).json({ error: 'Unknown plan.' })
+    if (!domainOk(domain)) return res.status(400).json({ error: 'Enter a valid domain (e.g. mysite.com).' })
+
+    try {
+      // One active hosting account per domain (mirrors provisioning idempotency guard)
+      const dup = await col('cpanelAccounts').findOne({ domain, deleted: { $ne: true } })
+      if (dup) return res.status(409).json({ error: 'That domain already has an active hosting plan.' })
+
+      // Price the order
+      let domainPrice = 0
+      let registrar = null
+      if (domainMode === 'buy') {
+        const ds = require('./domain-service')
+        const dp = await ds.checkDomainPrice(domain, getDb && getDb())
+        if (!dp.available) return res.status(409).json({ error: dp.message || 'That domain is not available — try another.' })
+        domainPrice = Number(dp.price) || 0
+        registrar = dp.registrar || null
+      }
+      const total = Math.round((Number(plan.priceUsd) + domainPrice) * 100) / 100
+
+      // Atomically debit the wallet ONLY if balance is sufficient (prevents races/overspend)
+      const debit = await col('webUsers').findOneAndUpdate(
+        { _id: req.webUserId, walletUsd: { $gte: total } },
+        { $inc: { walletUsd: -total } },
+        { returnDocument: 'after' }
+      )
+      const debited = debit && (debit.value || debit)
+      if (!debited || typeof debited.walletUsd !== 'number') {
+        const u = await publicUser(req.webUserId)
+        return res.status(402).json({
+          error: `Insufficient wallet balance. This order is $${total}; your balance is $${u?.walletUsd || 0}. Please top up.`,
+          needTopup: true, required: total, balanceUsd: u?.walletUsd || 0,
+        })
+      }
+      const balanceAfter = Number(debited.walletUsd)
+      await col('webWalletTxns').insertOne({
+        _id: uuid(), webUserId: req.webUserId, type: 'purchase', amountUsd: -total, balanceAfter,
+        coin: null, provider: 'wallet', orderId: null, status: 'done',
+        note: `Hosting: ${plan.name} — ${domain}${domainMode === 'buy' ? ' (+domain)' : ''}`, createdAt: now(),
+      })
+
+      // Provision via the proven pipeline (registers domain when domainMode='buy', else BYO)
+      const user = await col('webUsers').findOne({ _id: req.webUserId })
+      const stateCol = col('state')
+      const noop = () => {}
+      const info = {
+        _id: req.webUserId,            // acts as the owner id (chatId slot)
+        website_name: domain,
+        plan: plan.name,
+        email: user?.email || null,
+        userLanguage: 'en',
+        price: total,
+        hostingPrice: plan.priceUsd,
+        domainPrice,
+        registrar,
+        source: 'web',
+      }
+      if (domainMode === 'byo') { info.existingDomain = true; info.connectExternalDomain = true }
+
+      let result
+      try {
+        const { registerDomainAndCreateCpanel } = require('./cr-register-domain-&-create-cpanel.js')
+        result = await registerDomainAndCreateCpanel(noop, info, [], stateCol, null)
+      } catch (e) {
+        log(`[Store] provision threw: ${e.message}`)
+        result = { success: false, error: e.message }
+      }
+
+      if (!result?.success) {
+        // Refund the wallet — provisioning failed, user keeps their funds.
+        const ref = await col('webUsers').findOneAndUpdate(
+          { _id: req.webUserId }, { $inc: { walletUsd: total } }, { returnDocument: 'after' }
+        )
+        const refDoc = ref && (ref.value || ref)
+        await col('webWalletTxns').insertOne({
+          _id: uuid(), webUserId: req.webUserId, type: 'refund', amountUsd: total,
+          balanceAfter: Number(refDoc?.walletUsd || balanceAfter + total), coin: null, provider: 'wallet',
+          orderId: null, status: 'done', note: `Refund — provisioning failed (${domain})`, createdAt: now(),
+        })
+        log(`[Store] purchase provision FAILED for ${domain} — refunded $${total} to ${req.webUserId}`)
+        return res.status(502).json({ error: 'We could not set up your hosting right now and have refunded your wallet. Please try again shortly.' })
+      }
+
+      // Link the new cPanel account to this web identity so it shows under "My Plans".
+      try {
+        await col('cpanelAccounts').updateOne(
+          { _id: String(result.username).toLowerCase() },
+          { $set: { webUserId: req.webUserId, source: 'web', ownerEmail: user?.email || null } }
+        )
+      } catch (e) { log(`[Store] link cpanelAccount warning: ${e.message}`) }
+
+      log(`[Store] PURCHASE ok — ${req.webUserId} bought ${plan.name} on ${domain} (cpUser=${result.username})`)
+      return res.json({
+        success: true, username: result.username, pin: result.pin, domain, plan: plan.name,
+        balanceUsd: balanceAfter, nameservers: result.nameservers || [],
+      })
+    } catch (err) {
+      log(`[Store] purchase error: ${err.message}`)
+      return res.status(500).json({ error: 'Purchase failed. If your wallet was charged it will be auto-refunded — contact support if not.' })
+    }
+  })
+
+  // List the hosting plans owned by this web account.
+  router.get('/my-plans', webAuth, async (req, res) => {
+    try {
+      const accts = await col('cpanelAccounts').find({ webUserId: req.webUserId, deleted: { $ne: true } })
+        .project({ cpUser: 1, domain: 1, plan: 1, expiryDate: 1, addonDomains: 1, suspended: 1 }).toArray()
+      res.json({
+        plans: accts.map(a => ({
+          cpUser: a.cpUser || a._id, domain: a.domain, plan: a.plan,
+          expiryDate: a.expiryDate || null, addonCount: (a.addonDomains || []).length,
+          suspended: !!a.suspended,
+        })),
+      })
+    } catch (err) {
+      log(`[Store] my-plans error: ${err.message}`)
+      res.status(500).json({ error: 'Could not load your plans.' })
+    }
+  })
+
+  // Bridge: mint a HostPanel JWT for a plan this web user owns (no PIN needed —
+  // they're already authenticated as the owner). The existing panel uses this token.
+  router.post('/open-panel', webAuth, async (req, res) => {
+    try {
+      const cpUser = String(req.body?.cpUser || '').toLowerCase()
+      if (!cpUser) return res.status(400).json({ error: 'cpUser is required' })
+      const acct = await col('cpanelAccounts').findOne({ _id: cpUser, webUserId: req.webUserId, deleted: { $ne: true } })
+      if (!acct) return res.status(404).json({ error: 'Plan not found for your account.' })
+      const cpAuth = require('./cpanel-auth')
+      const token = cpAuth.createToken({ cpUser: acct.cpUser, domain: acct.domain, chatId: acct.chatId })
+      return res.json({ token, cpUser: acct.cpUser, domain: acct.domain })
+    } catch (err) {
+      log(`[Store] open-panel error: ${err.message}`)
+      res.status(500).json({ error: 'Could not open panel.' })
+    }
+  })
+
   return router
 }
 

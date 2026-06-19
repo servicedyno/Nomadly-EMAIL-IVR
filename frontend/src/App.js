@@ -6,8 +6,10 @@ import { AuthProvider, useAuth } from './components/panel/AuthContext';
 import PanelLogin from './pages/PanelLogin';
 import PanelDashboard from './pages/PanelDashboard';
 import PhoneTestPage from './pages/PhoneTestPage';
+import Storefront from './pages/Storefront';
 import './App.css';
 import './panel-v2.css';
+import './store.css';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
 const PANEL_DOMAIN = (process.env.REACT_APP_PANEL_DOMAIN || 'panel.hostbay.io').toLowerCase();
@@ -186,12 +188,16 @@ export default function App() {
             <>
               {/* On panel.hostbay.io — panel is the root app */}
               <Route path="/" element={<PanelRoute />} />
+              <Route path="/store" element={<Storefront />} />
+              <Route path="/store/*" element={<Storefront />} />
               <Route path="/*" element={<PanelRoute />} />
             </>
           ) : (
             <>
               <Route path="/panel" element={<PanelRoute />} />
               <Route path="/panel/*" element={<PanelRoute />} />
+              <Route path="/store" element={<Storefront />} />
+              <Route path="/store/*" element={<Storefront />} />
               <Route path="/phone/test" element={<PhoneTestPage />} />
               <Route path="/call" element={<PhoneTestPage />} />
               <Route path="/*" element={<MainApp />} />
