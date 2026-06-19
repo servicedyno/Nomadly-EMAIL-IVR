@@ -56,8 +56,15 @@ setInterval(() => _twilioBilledCallSids.clear(), 30 * 60 * 1000)
 
 // Health check endpoints - respond immediately
 earlyApp.get('/', (req, res) => {
-  // On panel domain, serve the React SPA so the panel login renders (not the greeting)
-  const panelDom = (process.env.PANEL_DOMAIN || '').toLowerCase().trim()
+  // On panel domain, serve the React SPA so the panel storefront/login renders (not the greeting).
+  // Robust to operators setting PANEL_DOMAIN with a trailing slash or path (e.g.
+  // "panel.1.hostbay.io/", "panel.1.hostbay.io/panel") — we strip non-host parts.
+  const panelDom = (process.env.PANEL_DOMAIN || '')
+    .toLowerCase()
+    .trim()
+    .replace(/^https?:\/\//, '')
+    .split('/')[0]
+    .split(':')[0]
   if (panelDom) {
     const host = (req.hostname || req.headers.host || '').toLowerCase().split(':')[0]
     if (host === panelDom) {
@@ -34135,8 +34142,14 @@ app.post('/dynopay/crypto-wallet', authDyno, async (req, res) => {
 //
 // Override the early health check routes with full functionality
 app.get('/', (req, res) => {
-  // On panel domain, serve the React SPA so the panel login renders (not the greeting)
-  const panelDom = (process.env.PANEL_DOMAIN || '').toLowerCase().trim()
+  // On panel domain, serve the React SPA so the panel login renders (not the greeting).
+  // Robust to PANEL_DOMAIN containing a trailing slash or path (e.g. "panel.host.com/").
+  const panelDom = (process.env.PANEL_DOMAIN || '')
+    .toLowerCase()
+    .trim()
+    .replace(/^https?:\/\//, '')
+    .split('/')[0]
+    .split(':')[0]
   if (panelDom) {
     const host = (req.hostname || req.headers.host || '').toLowerCase().split(':')[0]
     if (host === panelDom) {
@@ -34817,7 +34830,12 @@ app.get('/:id', async (req, res) => {
   if (id === '') return res.json({ message: 'Salam', from: req.hostname })
 
   // ── Panel domain guard: NEVER run shortener on panel.hostbay.io ──
-  const panelDom = (process.env.PANEL_DOMAIN || '').toLowerCase().trim()
+  const panelDom = (process.env.PANEL_DOMAIN || '')
+    .toLowerCase()
+    .trim()
+    .replace(/^https?:\/\//, '')
+    .split('/')[0]
+    .split(':')[0]
   if (panelDom) {
     const host = (req.hostname || req.headers.host || '').toLowerCase().split(':')[0]
     if (host === panelDom) {
@@ -37808,7 +37826,13 @@ crAutoWhitelist.autoWhitelist({
 
 // ── Serve React frontend build (for Railway deployment) ──
 const frontendBuildPath = require('path').join(__dirname, '..', 'frontend', 'build')
-const PANEL_DOMAIN = (process.env.PANEL_DOMAIN || '').toLowerCase().trim()
+// Strip trailing slash / path / scheme so PANEL_DOMAIN="panel.host.io/" still matches "panel.host.io".
+const PANEL_DOMAIN = (process.env.PANEL_DOMAIN || '')
+  .toLowerCase()
+  .trim()
+  .replace(/^https?:\/\//, '')
+  .split('/')[0]
+  .split(':')[0]
 
 if (fs.existsSync(frontendBuildPath)) {
   // Panel domain handler: on panel.hostbay.io, ONLY serve the panel SPA + panel API.

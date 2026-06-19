@@ -1,6 +1,49 @@
 # Nomadly — Multi-Service Platform PRD
 
 > 📋 **Recent changes are tracked in [`CHANGELOG.md`](./CHANGELOG.md)** (added 2026-02 for size).
+
+## 2026-06-19 (later) — P0 FIX: Storefront serving old URL Shortener page on Railway
+**Status: ✅ RESOLVED — `https://panel.1.hostbay.io/` now serves the new React Web Storefront with all 3 plans (Premium Weekly $30, Premium Monthly $75, Golden $100), crypto "Buy now" CTAs, and login form.**
+
+### Root cause
+The Railway production `PANEL_DOMAIN` env var was set to `panel.1.hostbay.io/` **with a trailing slash**. The Express handler at `js/_index.js` `earlyApp.get('/')` compares `req.hostname` (which returns `panel.1.hostbay.io` without slash) to `PANEL_DOMAIN`. The equality check `host === panelDom` returned **false**, so the request fell through to the legacy URL Shortener landing template (line 82, hardcoded HTML).
+
+### Fix (two-pronged)
+1. **Immediate (no deploy needed)** — Updated Railway env var via GraphQL API: `PANEL_DOMAIN: "panel.1.hostbay.io/"` → `"panel.1.hostbay.io"`. Railway auto-redeployed (`d0e15500`, 3 min build, SUCCESS). Within ~3 minutes the storefront went live.
+2. **Defense-in-depth (code change in `js/_index.js`)** — Normalized PANEL_DOMAIN in all 4 usage sites to strip scheme/path/port:
+   ```js
+   const panelDom = (process.env.PANEL_DOMAIN || '')
+     .toLowerCase().trim()
+     .replace(/^https?:\/\//, '')
+     .split('/')[0]
+     .split(':')[0]
+   ```
+   Locations patched: `earlyApp.get('/')` ~line 60, `app.get('/')` ~line 34146, `app.get('/:id')` ~line 34829, module-level `PANEL_DOMAIN` ~line 37820.
+
+### Verification
+| Check | Result |
+|---|---|
+| `curl https://panel.1.hostbay.io/` | 200 — React SPA `<title>HostBay \| Hosting Panel</title>`, NOT old shortener |
+| `curl https://panel.1.hostbay.io/api/store/plans` | 200 — 3 plans returned |
+| `curl https://panel.1.hostbay.io/api/store/health` | 200 — `{ok:true, coins:[8]}` |
+| `curl https://panel.1.hostbay.io/panel` | 200 — Panel SPA route still works |
+| `curl POST /api/panel/login` (empty) | 400 — backend route intact |
+| Visual screenshot | ✅ "Bulletproof Anti-Red Hosting", 3 plan cards, "Buy now" CTAs, login form, language switcher |
+
+### Files touched
+- `/app/js/_index.js` (4 sites normalized — no behavioural change when PANEL_DOMAIN is already clean)
+- `/app/scripts/check_railway_storefront_deploy.js` (new — read-only Railway diagnostic)
+- `/app/scripts/fix_panel_domain_railway.js` (new — one-shot env-var corrector)
+- `/app/memory/railway_storefront_diag.json` (diagnostic snapshot)
+- `/app/memory/railway_storefront_build_logs.txt` (231-line build log dump)
+- `/app/memory/railway_storefront_runtime_logs.txt` (runtime log dump)
+
+### Note for user
+The Railway env var is now correct. The code defense-in-depth change is local (in this dev pod's `_index.js`). To land it in prod permanently, push via Emergent's "Save to GitHub" feature (Railway will auto-redeploy on push). This is optional — the env var fix already solves the production issue.
+
+---
+
+
 > Latest entry: **2026-06-18 (cont.) — Open-ended wallet deposit flow (P1 UX upgrade)**. Removed the amount-typing step from crypto wallet top-ups — flow is now 2 taps (Deposit → coin → open-ended address). Per-coin floors enforced at webhook receipt time ($10 default, $20 for USDT-TRC20). Dust deposits forfeited to a new `dustDeposits` collection with full provenance. QR encodes address only. Open-ended vs legacy fixed-amount modes distinguished by `req.pay.openEnded`, both feed into the same forfeit gate. 32-assertion regression test (97 total across 5 suites).
 
 ## Session 2026-06-18 — Fresh dev pod setup (no production impact)
