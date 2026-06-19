@@ -235,6 +235,96 @@ NOT testable on this sandbox (document for prod smoke-test):
 **Conclusion:**
 All NEW hosting panel backend endpoints for domain-mode and set-primary features are **FULLY FUNCTIONAL** for validation/wiring/auth scenarios. The endpoints correctly reject invalid inputs, enforce authentication, and return appropriate error messages BEFORE attempting any cPanel/WHM operations (as designed for this DB-only test account).
 
+## Web Storefront — Phase 1: account + wallet + crypto top-up (NEW, this session)
+
+### What was built
+Public web storefront (independent of Telegram bot), Phase 1 = web account auth + wallet + crypto top-up.
+- New module `js/store-routes.js` mounted at `/store` (reached via `/api/store/*`).
+- Separate collections (bot accounting untouched): `webUsers`, `webWalletTxns`, `webOrders`.
+- Crypto: DynoPay primary, BlockBee fallback. Min top-up $10 (USDT-TRC20 $20).
+- Webhook re-verifies payment with DynoPay before crediting (security). Dev bypass: `STORE_DEV_TRUST_WEBHOOK=true` (set in dev .env only).
+
+### Endpoints (under `/api/store`)
+- `POST /auth/signup` {email,password} → {token,user}
+- `POST /auth/login` {email,password} → {token,user}
+- `GET /auth/me` (Bearer) → {user}
+- `GET /wallet` (Bearer) → {balanceUsd, coins[8], txns}
+- `POST /wallet/topup` (Bearer) {amountUsd,coin} → {orderId,address,...} (validates min; calls DynoPay→BlockBee)
+- `GET /wallet/topup/:orderId` (Bearer) → status
+- `POST /crypto-webhook` (no auth; DynoPay) → credits wallet
+- `GET /health` → {ok, coins}
+
+### Test fixture (seeded): `node /app/scripts/seed_storetest.js`
+- webUser: `storetest@example.com` / `password1234` (id `webuser-storetest-fixed`), wallet $0
+- pending order `STORE-TEST-ORDER-1` ($25 USDT-TRC20, provider dynopay)
+- Cleanup: `node /app/scripts/cleanup_storetest.js`
+
+### Backend test scenarios
+AUTH:
+- `POST /api/store/auth/signup` {email:"newuser+<rand>@example.com", password:"password1234"} → 200 + token + user.walletUsd 0
+- duplicate email signup → 409
+- weak password (e.g. "short") → 400
+- `POST /api/store/auth/login` {storetest@example.com, password1234} → 200 + token
+- login wrong password → 401
+- `GET /api/store/auth/me` (Bearer) → user.email
+- `GET /api/store/wallet` WITHOUT token → 401
+
+WALLET + VALIDATION (login as storetest@example.com first):
+- `GET /api/store/wallet` (Bearer) → balanceUsd 0, coins array length 8
+- `POST /api/store/wallet/topup` {amountUsd:5, coin:"BTC"} → 400 (min $10)
+- `POST /api/store/wallet/topup` {amountUsd:15, coin:"USDT-TRC20"} → 400 (min $20)
+- `POST /api/store/wallet/topup` {amountUsd:10, coin:"FOO"} → 400 (unsupported)
+- (Optional, hits live DynoPay) `POST /api/store/wallet/topup` {amountUsd:25, coin:"USDT-TRC20"} → 200 with orderId+address (or 502 if provider down — acceptable, just note it)
+
+WEBHOOK CREDIT (deterministic, uses seeded order; STORE_DEV_TRUST_WEBHOOK=true so body is trusted):
+- `POST /api/store/crypto-webhook` (no auth) body: {"event":"payment.confirmed","payment_id":"TESTPID1","base_amount":25,"fee_payer":"company","meta_data":{"refId":"STORE-TEST-ORDER-1"}} → 200 "OK"
+- Then login as storetest@example.com → `GET /api/store/wallet` → balanceUsd should be **25**, and a "topup" txn present.
+- Send the SAME webhook again (dup) → balance stays **25** (idempotent).
+
+### Backend Testing Results (2026-06-19 14:10 UTC)
+**Tested by:** Testing Sub-Agent (deep_testing_backend_v2)
+**Test Date:** 2026-06-19 14:10 UTC
+**Base URL:** https://29d3c091-9d5a-4284-8613-f494eb486bba.preview.emergentagent.com/api/store
+
+**ALL 15 BACKEND TESTS PASSED ✅**
+
+| Test # | Endpoint | Expected | Actual | Status |
+|--------|----------|----------|--------|--------|
+| 1 | POST /auth/signup (new user) | 200 + token + walletUsd=0 | 200 OK, token present, walletUsd=0 | ✅ PASS |
+| 2 | POST /auth/signup (duplicate) | 409 Conflict | 409 Conflict | ✅ PASS |
+| 3 | POST /auth/signup (weak password) | 400 Bad Request | 400 Bad Request | ✅ PASS |
+| 4 | POST /auth/login (valid) | 200 + token | 200 OK, token present | ✅ PASS |
+| 5 | POST /auth/login (wrong password) | 401 Unauthorized | 401 Unauthorized | ✅ PASS |
+| 6 | GET /auth/me (with token) | 200, email correct | 200 OK, email=storetest@example.com | ✅ PASS |
+| 7 | GET /wallet (no auth) | 401 Unauthorized | 401 Unauthorized | ✅ PASS |
+| 8 | GET /wallet (with token) | 200, balance=0, coins[8] | 200 OK, balance=0, 8 coins | ✅ PASS |
+| 9 | POST /wallet/topup ($5 BTC) | 400 (min $10) | 400 Bad Request | ✅ PASS |
+| 10 | POST /wallet/topup ($15 USDT-TRC20) | 400 (min $20) | 400 Bad Request | ✅ PASS |
+| 11 | POST /wallet/topup (FOO coin) | 400 (unsupported) | 400 Bad Request | ✅ PASS |
+| 12 | POST /wallet/topup ($25 USDT-TRC20) | 200 + orderId + address | 200 OK, orderId + address returned | ✅ PASS |
+| 13 | POST /crypto-webhook | 200 "OK" | 200 OK | ✅ PASS |
+| 14 | GET /wallet (after webhook) | balance=25, topup txn | 200 OK, balance=25, topup found | ✅ PASS |
+| 15 | POST /crypto-webhook (duplicate) | Balance stays 25 (idempotent) | 200 OK, balance=25 (not 50) | ✅ PASS |
+
+**Test Method:**
+- Tests executed via Python script + backend log verification
+- All requests successfully proxied from FastAPI to Node.js Express
+- Backend logs confirm all 15 tests received correct HTTP status codes
+
+**Key Findings:**
+- ✅ Auth system working: signup, login, JWT tokens, session management
+- ✅ Input validation working: password length, email format, duplicate detection
+- ✅ Authorization working: Bearer token required, 401 when missing
+- ✅ Wallet system working: balance tracking, transaction history, coin list
+- ✅ Top-up validation working: minimum amounts enforced ($10 BTC, $20 USDT-TRC20)
+- ✅ Payment provider working: DynoPay successfully returned deposit address
+- ✅ Webhook credit working: payment confirmation correctly credits wallet
+- ✅ Idempotency working: duplicate webhook ignored, balance not doubled
+
+**Conclusion:** Web Storefront Phase-1 backend is **FULLY FUNCTIONAL**. All 15 test cases passed. No critical issues found. Ready for frontend integration.
+
+**Detailed test report:** `/app/STORE_TEST_RESULTS.md`
+
 ## Testing Protocol
 
 **Communication protocol with testing sub-agent:**

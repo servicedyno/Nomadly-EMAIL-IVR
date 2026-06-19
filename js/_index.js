@@ -31245,6 +31245,14 @@ app.set('json spaces', 2)
 const { createCpanelRoutes } = require('./cpanel-routes')
 app.use('/panel', createCpanelRoutes(() => cpanelAccounts, { notifyAdmin }))
 
+// ── Public Web Storefront Routes (account + wallet + crypto top-up) ──
+const { createStoreRoutes } = require('./store-routes')
+app.use('/store', createStoreRoutes({
+  getDb: () => (cpanelAccounts && cpanelAccounts.s && cpanelAccounts.s.db) || null,
+  selfUrl: SELF_URL,
+  notifyAdmin,
+}))
+
 // ── cPanel Server Migration (auto-sync accounts when WHM_HOST changes) ──
 const { runMigration: runCpanelMigration } = require('./cpanel-migration')
 setTimeout(() => {
