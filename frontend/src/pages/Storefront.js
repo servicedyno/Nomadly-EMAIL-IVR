@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
+import QRCode from 'react-qr-code';
+import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { StoreProvider, useStore } from '../components/store/StoreContext';
 
 const money = (n) => `$${Number(n || 0).toFixed(2)}`;
@@ -45,6 +48,7 @@ function CryptoPayBox({ order, onProvisioned }) {
   return (
     <div className="store-topup-box" data-testid="store-crypto-pending">
       <p>Send <b>{order.coin}</b> worth <b>{money(order.amountUsd)}</b> to this address:</p>
+      <div className="store-qr" data-testid="store-crypto-qr"><QRCode value={String(order.address || '')} size={148} bgColor="#ffffff" fgColor="#0b0e14" /></div>
       <code className="store-addr" data-testid="store-crypto-address">{order.address}</code>
       <p className="store-muted">{status === 'failed' ? '⚠️ Payment issue — contact support.' : 'Waiting for blockchain confirmation… this updates automatically. Keep this page open.'}</p>
     </div>
@@ -53,6 +57,7 @@ function CryptoPayBox({ order, onProvisioned }) {
 
 /* Guest "Buy now" modal — no account needed */
 function GuestBuyModal({ plan, onClose }) {
+  const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [domain, setDomain] = useState('');
   const [domainMode, setDomainMode] = useState('byo');
@@ -92,26 +97,26 @@ function GuestBuyModal({ plan, onClose }) {
         {order ? <CryptoPayBox order={order} /> : (
           <>
             {error && <div className="store-error" data-testid="store-guest-error">{error}</div>}
-            <label className="store-label">Your email (for login details)</label>
+            <label className="store-label">{t('store.guestEmailLabel')}</label>
             <input type="email" placeholder="you@email.com" value={email} onChange={e => setEmail(e.target.value)} data-testid="store-guest-email" />
             <label className="store-label">Domain</label>
             <div className="store-domain-mode">
-              <label><input type="radio" checked={domainMode === 'byo'} onChange={() => { setDomainMode('byo'); setSearch(null); }} data-testid="store-guest-byo" /> I own a domain</label>
-              <label><input type="radio" checked={domainMode === 'buy'} onChange={() => setDomainMode('buy')} data-testid="store-guest-buy" /> Buy a new domain</label>
+              <label><input type="radio" checked={domainMode === 'byo'} onChange={() => { setDomainMode('byo'); setSearch(null); }} data-testid="store-guest-byo" /> {t('store.ownDomain')}</label>
+              <label><input type="radio" checked={domainMode === 'buy'} onChange={() => setDomainMode('buy')} data-testid="store-guest-buy" /> {t('store.buyDomain')}</label>
             </div>
             <div className="store-domain-row">
               <input type="text" placeholder="mysite.com" value={domain} onChange={e => setDomain(e.target.value)} data-testid="store-guest-domain" />
               {domainMode === 'buy' && <button className="store-btn" onClick={doSearch} data-testid="store-guest-check">Check</button>}
             </div>
             {domainMode === 'buy' && search && <div className={`store-domain-result ${search.available ? 'ok' : 'no'}`}>{search.available ? `✓ ${search.domain} — ${money(search.priceUsd)}` : `✕ ${search.message || 'Not available'}`}</div>}
-            <label className="store-label">Pay with</label>
+            <label className="store-label">{t('store.payWith')}</label>
             <select value={coin} onChange={e => setCoin(e.target.value)} data-testid="store-guest-coin">
               {COIN_OPTS.map(([c, n]) => <option key={c} value={c}>{n}</option>)}
             </select>
             <button className="store-btn store-btn--primary" disabled={busy || !email.trim() || !domain.trim() || (domainMode === 'buy' && !search?.available)} onClick={submit} data-testid="store-guest-submit">
               {busy ? 'Creating order…' : `Pay ${money(total)} with crypto →`}
             </button>
-            <p className="store-muted">No account needed — your login details are shown here & emailed after payment.</p>
+            <p className="store-muted">{t('store.guestNote')}</p>
           </>
         )}
       </div>
@@ -146,6 +151,7 @@ function StoreInner() {
 /* ─────────────── Not logged in: showcase + auth ─────────────── */
 function AuthGate({ plans }) {
   const { login, signup } = useStore();
+  const { t } = useTranslation();
   const [mode, setMode] = useState('signup');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -166,12 +172,12 @@ function AuthGate({ plans }) {
     <div className="store-landing">
       <header className="store-top">
         <div className="store-brand"><span className="store-logo">H</span> HostBay <span className="store-sub">Anti-Red Hosting</span></div>
-        <a className="store-link" href="/panel" data-testid="store-existing-login">Have a PIN? Panel login →</a>
+        <div className="store-top-right"><LanguageSwitcher /><a className="store-link" href="/panel" data-testid="store-existing-login">{t('store.panelLogin')}</a></div>
       </header>
 
       <section className="store-hero">
-        <h1>Bulletproof Anti-Red Hosting</h1>
-        <p>Buy hosting, pay with crypto, get instant access — no Telegram needed.</p>
+        <h1>{t('store.heroTitle')}</h1>
+        <p>{t('store.tagline')}</p>
       </section>
 
       <section className="store-plan-grid" data-testid="store-plans">
@@ -180,7 +186,7 @@ function AuthGate({ plans }) {
             <div className="store-plan-name">{p.name}</div>
             <div className="store-plan-price">{money(p.priceUsd)}<span>/{p.durationDays === 7 ? 'wk' : 'mo'}</span></div>
             <ul className="store-plan-feats">{(p.features || []).map((f, i) => <li key={i}>✓ {f}</li>)}</ul>
-            <button className="store-btn store-btn--primary" onClick={() => setBuyPlan(p)} data-testid={`store-buynow-${p.id}`}>Buy now →</button>
+            <button className="store-btn store-btn--primary" onClick={() => setBuyPlan(p)} data-testid={`store-buynow-${p.id}`}>{t('store.buyNow')}</button>
           </div>
         ))}
       </section>
@@ -189,15 +195,15 @@ function AuthGate({ plans }) {
 
       <section className="store-auth-card" data-testid="store-auth-card">
         <div className="store-auth-tabs">
-          <button className={mode === 'signup' ? 'active' : ''} onClick={() => setMode('signup')} data-testid="store-tab-signup">Create account</button>
-          <button className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')} data-testid="store-tab-login">Log in</button>
+          <button className={mode === 'signup' ? 'active' : ''} onClick={() => setMode('signup')} data-testid="store-tab-signup">{t('store.createAccount')}</button>
+          <button className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')} data-testid="store-tab-login">{t('store.login')}</button>
         </div>
         <form onSubmit={submit}>
           {error && <div className="store-error" data-testid="store-auth-error">{error}</div>}
           <input type="email" placeholder="you@email.com" value={email} onChange={e => setEmail(e.target.value)} required data-testid="store-email" />
           <input type="password" placeholder="Password (min 8 chars)" value={password} onChange={e => setPassword(e.target.value)} required data-testid="store-password" />
           <button type="submit" className="store-btn store-btn--primary" disabled={busy} data-testid="store-auth-submit">
-            {busy ? 'Please wait…' : (mode === 'signup' ? 'Create account →' : 'Log in →')}
+            {busy ? t('store.pleaseWait') : (mode === 'signup' ? t('store.createBtn') : t('store.loginBtn'))}
           </button>
         </form>
       </section>
@@ -208,6 +214,7 @@ function AuthGate({ plans }) {
 /* ─────────────── Logged in: dashboard ─────────────── */
 function Dashboard({ plans }) {
   const { user, logout } = useStore();
+  const { t } = useTranslation();
   const [tab, setTab] = useState('buy');
 
   return (
@@ -215,16 +222,17 @@ function Dashboard({ plans }) {
       <header className="store-top">
         <div className="store-brand"><span className="store-logo">H</span> HostBay</div>
         <div className="store-top-right">
-          <span className="store-wallet-pill" data-testid="store-wallet-balance">Wallet: {money(user.walletUsd)}</span>
+          <LanguageSwitcher />
+          <span className="store-wallet-pill" data-testid="store-wallet-balance">{t('store.walletLabel')} {money(user.walletUsd)}</span>
           <span className="store-email">{user.email}</span>
-          <button className="store-link" onClick={logout} data-testid="store-logout">Log out</button>
+          <button className="store-link" onClick={logout} data-testid="store-logout">{t('store.logout')}</button>
         </div>
       </header>
 
       <nav className="store-tabs" data-testid="store-tabs">
-        <button className={tab === 'buy' ? 'active' : ''} onClick={() => setTab('buy')} data-testid="store-tab-buy">Buy Hosting</button>
-        <button className={tab === 'wallet' ? 'active' : ''} onClick={() => setTab('wallet')} data-testid="store-tab-wallet">Wallet</button>
-        <button className={tab === 'plans' ? 'active' : ''} onClick={() => setTab('plans')} data-testid="store-tab-plans">My Plans</button>
+        <button className={tab === 'buy' ? 'active' : ''} onClick={() => setTab('buy')} data-testid="store-tab-buy">{t('store.tabBuy')}</button>
+        <button className={tab === 'wallet' ? 'active' : ''} onClick={() => setTab('wallet')} data-testid="store-tab-wallet">{t('store.tabWallet')}</button>
+        <button className={tab === 'plans' ? 'active' : ''} onClick={() => setTab('plans')} data-testid="store-tab-plans">{t('store.tabPlans')}</button>
       </nav>
 
       <main className="store-main">
@@ -447,6 +455,7 @@ function WalletTab() {
           ) : (
             <>
               <p>Send <b>{coin}</b> worth <b>{money(topup.amountUsd)}</b> to:</p>
+              <div className="store-qr" data-testid="store-topup-qr"><QRCode value={String(topup.address || '')} size={148} bgColor="#ffffff" fgColor="#0b0e14" /></div>
               <code className="store-addr" data-testid="store-topup-address">{topup.address}</code>
               <p className="store-muted">Waiting for payment confirmation… this updates automatically.</p>
             </>
