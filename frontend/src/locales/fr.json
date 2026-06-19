@@ -53,7 +53,8 @@
     "themeToggle": "Basculer mode sombre / clair",
     "orDivider": "OU",
     "tgButton": "Continuer avec Telegram",
-    "tgScanCap": "Scannez avec votre téléphone pour vous connecter via le bot Telegram."
+    "tgScanCap": "Scannez avec votre téléphone pour vous connecter via le bot Telegram.",
+    "tgLinked": "Telegram lié"
   },
   "common": {
     "appName": "Panneau d'hébergement",

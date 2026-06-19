@@ -115,7 +115,92 @@ function createStoreRoutes(deps = {}) {
   async function publicUser(uId) {
     const u = await col('webUsers').findOne({ _id: uId })
     if (!u) return null
-    return { id: u._id, email: u.email, walletUsd: Number(u.walletUsd || 0) }
+    return {
+      id: u._id,
+      email: u.email,
+      walletUsd: Number(u.walletUsd || 0),
+      tgChatId: u.tgChatId ? String(u.tgChatId) : null,
+      tgDisplay: u.tgDisplay || '',
+      tgLinked: !!u.tgChatId,
+    }
+  }
+
+  // ─── Account linking helpers ────────────────────────────────────────
+  // The bot and the web storefront can both create user records; users may
+  // hop between channels (signed up on web, later opens the Telegram bot,
+  // or vice-versa). We use `cpanelAccounts.email` as the shared fingerprint
+  // — it's set whenever a user buys hosting on either channel — to auto-link
+  // the two records without prompting.
+
+  // Find distinct chatIds that have ever purchased hosting under `email`.
+  async function chatIdsKnownByEmail(email) {
+    if (!email) return []
+    const rows = await col('cpanelAccounts').aggregate([
+      { $match: {
+        email: String(email).trim().toLowerCase(),
+        chatId: { $exists: true, $ne: null },
+        deleted: { $ne: true },
+      } },
+      { $group: { _id: '$chatId' } },
+    ]).toArray()
+    return rows.map(r => String(r._id)).filter(Boolean)
+  }
+
+  // Find distinct emails that this chatId has ever used to buy hosting.
+  async function emailsKnownByChatId(chatId) {
+    if (!chatId) return []
+    const rows = await col('cpanelAccounts').aggregate([
+      { $match: {
+        chatId: Number(chatId),
+        email: { $exists: true, $nin: [null, ''] },
+        deleted: { $ne: true },
+      } },
+      { $group: { _id: '$email' } },
+    ]).toArray()
+    return rows.map(r => String(r._id).trim().toLowerCase()).filter(emailOk)
+  }
+
+  // Idempotent: set tgChatId on a webUser (if not already set) AND reverse-link
+  // any orphaned cpanelAccounts to that webUser. Safe to call multiple times.
+  async function linkWebUserToChatId(webUserId, chatId, displayName) {
+    if (!webUserId || !chatId) return { linked: false }
+    const cid = String(chatId)
+    const update = { lastLinkedAt: now() }
+    const u = await col('webUsers').findOne({ _id: webUserId })
+    if (!u) return { linked: false }
+    if (!u.tgChatId) {
+      update.tgChatId = cid
+      update.linkedAt = now()
+      if (displayName && !u.tgDisplay) update.tgDisplay = displayName
+    } else if (String(u.tgChatId) !== cid) {
+      // Refuse to overwrite an existing different link — protects against
+      // shared-device hijack where someone with a different chatId tries to
+      // claim an already-linked email.
+      return { linked: false, conflict: true, currentChatId: String(u.tgChatId) }
+    }
+    await col('webUsers').updateOne({ _id: webUserId }, { $set: update })
+    // Reverse-link orphaned cpanel accounts (this chatId, no webUserId yet)
+    let cpLinked = 0
+    try {
+      const r = await col('cpanelAccounts').updateMany(
+        { chatId: Number(cid), deleted: { $ne: true }, $or: [{ webUserId: { $exists: false } }, { webUserId: null }] },
+        { $set: { webUserId } }
+      )
+      cpLinked = r.modifiedCount || 0
+    } catch (e) { log(`[Store] cpanel reverse-link warning: ${e.message}`) }
+    log(`[Store] linked webUser=${webUserId} ↔ tgChatId=${cid} (cpanel rows linked: ${cpLinked})`)
+    return { linked: true, cpanelLinked: cpLinked }
+  }
+
+  // Best-effort: after web email-login or signup, attempt to auto-link to a
+  // chatId — only if exactly ONE chatId matches (ambiguous matches are skipped).
+  async function autoLinkByEmail(webUser) {
+    if (!webUser || webUser.tgChatId) return { attempted: false, alreadyLinked: !!webUser.tgChatId }
+    const chatIds = await chatIdsKnownByEmail(webUser.email)
+    if (chatIds.length === 0) return { attempted: false, reason: 'no_cpanel_email_match' }
+    if (chatIds.length > 1) return { attempted: false, reason: 'ambiguous', candidates: chatIds.length }
+    const r = await linkWebUserToChatId(webUser._id, chatIds[0])
+    return { attempted: true, ...r, chatId: chatIds[0] }
   }
 
   // ─────────────────────────── AUTH ───────────────────────────
@@ -139,9 +224,13 @@ function createStoreRoutes(deps = {}) {
           { $set: { webUserId: doc._id } }
         )
       } catch (e) { log(`[Store] signup guest-link warning: ${e.message}`) }
+      // Seamless link to a Telegram chatId if any bot-purchased cpanelAccount
+      // shares this email (single chatId match → auto-link).
+      const linkRes = await autoLinkByEmail(doc)
+      const fresh = await publicUser(doc._id)
       const token = signToken({ webUserId: doc._id, email })
-      log(`[Store] signup ${email} (${doc._id})`)
-      return res.json({ token, user: { id: doc._id, email, walletUsd: 0 } })
+      log(`[Store] signup ${email} (${doc._id})${linkRes.linked ? ` ↔ chatId=${linkRes.chatId}` : ''}`)
+      return res.json({ token, user: fresh, link: linkRes })
     } catch (err) {
       log(`[Store] signup error: ${err.message}`)
       return res.status(500).json({ error: 'Could not create account. Try again shortly.' })
@@ -158,8 +247,13 @@ function createStoreRoutes(deps = {}) {
         return res.status(401).json({ error: 'Invalid email or password.' })
       }
       await col('webUsers').updateOne({ _id: u._id }, { $set: { lastLogin: now() } })
+      // Seamless account linking: if this email is also known to the bot
+      // (via any cpanelAccount with the same email), auto-link to that chatId
+      // so future bot↔web hops don't create a second user record.
+      const linkRes = await autoLinkByEmail(u)
+      const fresh = await publicUser(u._id)
       const token = signToken({ webUserId: u._id, email })
-      return res.json({ token, user: { id: u._id, email: u.email, walletUsd: Number(u.walletUsd || 0) } })
+      return res.json({ token, user: fresh, link: linkRes })
     } catch (err) {
       log(`[Store] login error: ${err.message}`)
       return res.status(500).json({ error: 'Login failed. Try again shortly.' })
@@ -192,16 +286,36 @@ function createStoreRoutes(deps = {}) {
         throw err
       }
 
-      // Find or create a web user keyed by tgChatId. Email is synthetic for storage —
-      // we never deliver to it; the bot itself is the comms channel.
+      // Pull the Telegram display name (if available) to make the dashboard prettier
+      let display = ''
+      try {
+        const nm = await col('nameOf').findOne({ _id: Number(v.chatId) }) || await col('nameOf').findOne({ _id: v.chatId })
+        if (nm?.val) display = String(nm.val)
+      } catch { /* nameOf collection may not exist in this DB */ }
+
+      // 1) Already-linked webUser?
       let u = await col('webUsers').findOne({ tgChatId: v.chatId })
+
+      // 2) Seamless link: find any webUser whose email matches a cpanelAccount
+      //    owned by this chatId. Preferred over creating a duplicate synthetic
+      //    account when the same person signed up on the web first.
       if (!u) {
-        // Pull the Telegram display name (if available) to make the dashboard prettier
-        let display = ''
-        try {
-          const nm = await col('nameOf').findOne({ _id: Number(v.chatId) }) || await col('nameOf').findOne({ _id: v.chatId })
-          if (nm?.val) display = String(nm.val)
-        } catch { /* nameOf collection may not exist in this DB */ }
+        const emails = await emailsKnownByChatId(v.chatId)
+        for (const em of emails) {
+          const existing = await col('webUsers').findOne({ email: em })
+          if (existing) {
+            const link = await linkWebUserToChatId(existing._id, v.chatId, display)
+            if (link.linked) {
+              u = await col('webUsers').findOne({ _id: existing._id })
+              log(`[Store] bot-login linked existing webUser ${existing._id} (${em}) ↔ tgChatId=${v.chatId} (cpanel: ${link.cpanelLinked || 0})`)
+              break
+            }
+          }
+        }
+      }
+
+      // 3) No existing record found → create a synthetic user.
+      if (!u) {
         const synthEmail = `tg-${v.chatId}@bot.local`
         const doc = {
           _id: uuid(),
@@ -218,7 +332,7 @@ function createStoreRoutes(deps = {}) {
         }
         await col('webUsers').insertOne(doc)
         u = doc
-        // Link any existing hosting accounts owned by this chatId so they appear under "My Plans".
+        // Link any existing hosting accounts owned by this chatId.
         try {
           await col('cpanelAccounts').updateMany(
             { chatId: Number(v.chatId), deleted: { $ne: true }, $or: [{ webUserId: { $exists: false } }, { webUserId: null }] },
@@ -233,7 +347,7 @@ function createStoreRoutes(deps = {}) {
       const token = signToken({ webUserId: u._id, email: u.email })
       return res.json({
         token,
-        user: { id: u._id, email: u.email, walletUsd: Number(u.walletUsd || 0), tgDisplay: u.tgDisplay || '' },
+        user: await publicUser(u._id),
       })
     } catch (err) {
       log(`[Store] bot-login error: ${err.message}`)

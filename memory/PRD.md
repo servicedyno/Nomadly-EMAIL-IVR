@@ -2,6 +2,59 @@
 
 > 📋 **Recent changes are tracked in [`CHANGELOG.md`](./CHANGELOG.md)** (added 2026-02 for size).
 
+## 2026-06-19 (later 6) — FEATURE: Seamless web ↔ bot account linking
+**Status: ✅ COMPLETE — 4/4 integration scenarios pass against the live dev pod API. Live UI screenshot confirms "Telegram linked" badge appears after email-login auto-link.**
+
+### User's two questions answered
+
+**Q1: Will storefront pricing respect the Railway env vars?**
+✅ YES — already does. `/api/store/plans` reads `PREMIUM_ANTIRED_WEEKLY_PRICE` (30), `PREMIUM_ANTIRED_CPANEL_PRICE` (75), `GOLDEN_ANTIRED_CPANEL_PRICE` (100) from `process.env`. Change any on Railway → both the storefront and the bot reflect the new price on next service restart (Railway auto-restarts on env-var change).
+
+**Q2: How is a web-signed-up user seamlessly linked when they later use the bot (and vice versa)?**
+Implemented this turn. The bot already stores customer email on `cpanelAccounts.email` whenever a user buys hosting. Used that as the shared fingerprint to auto-link with zero user friction.
+
+### Linking strategy
+
+The system now auto-links on **three trigger points** — all using `cpanelAccounts.email` as the shared signal:
+
+1. **Bot-login (`/auth/bot-login`):** before falling back to creating a synthetic `tg-<chatId>@bot.local` user, look up `cpanelAccounts` where `chatId == X` to find emails. For each email, look up existing `webUsers`. If a match exists, link the existing webUser to the chatId. Single bot-login auto-merges accounts.
+2. **Web email-login (`/auth/login`):** after successful auth, if the webUser doesn't yet have `tgChatId`, look up `cpanelAccounts.chatId WHERE email = webUser.email`. If **exactly one** chatId matches → auto-link. (If 2+ chatIds match — ambiguous — skip to be safe.)
+3. **Web signup (`/auth/signup`):** same as #2 (covers the "bought hosting via bot, now creating web account with same email" flow).
+
+In all three cases:
+- `webUsers.tgChatId` and `webUsers.linkedAt` are set atomically.
+- Reverse-link: orphaned `cpanelAccounts` (chatId match, no webUserId) get `webUserId` populated so they appear under "My Plans" instantly.
+- `publicUser()` exposes `tgChatId`, `tgDisplay`, `tgLinked` so the frontend can show the link state.
+- Conflict guard: if `webUser.tgChatId` is already set to a different value, link is refused (`conflict: true`) — prevents shared-device hijack.
+
+### Files touched
+- `/app/js/store-routes.js`
+  - Added helpers: `chatIdsKnownByEmail(email)`, `emailsKnownByChatId(chatId)`, `linkWebUserToChatId(uId, chatId, displayName)`, `autoLinkByEmail(webUser)` (all use MongoDB aggregation, not `distinct` — strict-API safe).
+  - Updated `publicUser(uId)` to return `tgChatId`, `tgDisplay`, `tgLinked`.
+  - Wired auto-link into `/auth/login`, `/auth/signup`, and `/auth/bot-login`.
+- `/app/frontend/src/components/store/StoreContext.js` — `persist()` now carries `tgChatId`, `tgDisplay`, `tgLinked` from all three auth paths.
+- `/app/frontend/src/pages/Storefront.js` — Dashboard header shows a blue "Telegram linked" pill (`data-testid="store-tg-linked"`) when `user.tgLinked` is true.
+- `/app/frontend/src/store.css` — `.store-tg-pill` blue 12-px rounded badge with Telegram icon.
+- `/app/frontend/src/locales/{en,fr,zh,hi}.json` — added `store.tgLinked`.
+- `/app/js/__tests__/web-bot-linking.integration.test.js` (new, 200 LOC) — 4 end-to-end integration tests run against the live dev pod API.
+
+### Verification
+
+| Scenario | Result |
+|---|---|
+| (A) Web-first signup → later bot-login with shared email | ✅ Auto-links to existing webUser. NO duplicate created. Returns original email (not `tg-...@bot.local`). cpanelAccount reverse-linked. |
+| (B) Bot-first cpanel purchase → later web signup with same email | ✅ Signup response: `tgLinked:true`, `tgChatId` set, cpanelAccount.webUserId populated. |
+| (C) Bot-first cpanel purchase → later web email+password login | ✅ Login auto-links on the way out. Idempotent on re-login. |
+| (D) Ambiguous (2 chatIds share an email) | ✅ Skipped safely, `link.reason: "ambiguous"` returned. No accidental wrong-link. |
+| Live UI E2E: seeded web user + cpanel with matching email → login → screenshot | ✅ Header shows wallet pill ($100.00) + **blue "Telegram linked" badge**. Email is the original web email. |
+
+### Out of scope / future polish
+- **Reverse trigger on cpanelAccount creation:** if a new cpanelAccount is created with `chatId+email` and there's a webUser for that email (no tgChatId), auto-link the webUser too. Currently linking only fires on the 3 auth paths. This would catch users who created the webUser, opened the bot but never used /web, and then bought hosting via the bot.
+- **Manual link UI:** for users who haven't bought hosting yet on either side (no shared signal), expose a "Link my Telegram" button on the web dashboard that DMs them an OTP. Out of scope this turn.
+- **Synthetic-account merger:** if a synthetic `tg-<chatId>@bot.local` exists and the same person later signs up on web with their real email, the synthetic and the real account remain separate. Adding a merge step would require careful wallet-balance + cpanel-ownership transfer logic.
+
+
+
 ## 2026-06-19 (later 5) — P2: Anti-Bot + JA3 WAF rules migrated to CF Rulesets API
 **Status: ✅ COMPLETE — 8/8 unit tests pass; previous geo migration (7/7) still passes. No regressions.**
 

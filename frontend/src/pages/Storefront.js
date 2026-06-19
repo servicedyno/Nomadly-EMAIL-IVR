@@ -376,6 +376,12 @@ function Dashboard({ plans }) {
         rightExtras={
           <>
             <span className="store-wallet-pill" data-testid="store-wallet-balance">{t('store.walletLabel')} {money(user.walletUsd)}</span>
+            {user.tgLinked && (
+              <span className="store-tg-pill" title={`Telegram chatId ${user.tgChatId}${user.tgDisplay ? ` — ${user.tgDisplay}` : ''}`} data-testid="store-tg-linked">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.022c.24-.213-.054-.334-.373-.121l-6.871 4.326-2.96-.924c-.643-.204-.66-.643.135-.953l11.566-4.458c.532-.196.998.128.832.938z"/></svg>
+                {t('store.tgLinked')}
+              </span>
+            )}
             <span className="store-email">{user.email}</span>
             <button className="store-link" onClick={logout} data-testid="store-logout">{t('store.logout')}</button>
           </>

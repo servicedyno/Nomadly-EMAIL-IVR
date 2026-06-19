@@ -44,13 +44,19 @@ export function StoreProvider({ children }) {
 
   const signup = useCallback(async (email, password) => {
     const r = await api('/auth/signup', { method: 'POST', body: JSON.stringify({ email, password }) });
-    persist({ token: r.token, email: r.user.email, walletUsd: r.user.walletUsd });
+    persist({
+      token: r.token, email: r.user.email, walletUsd: r.user.walletUsd,
+      tgChatId: r.user.tgChatId || null, tgDisplay: r.user.tgDisplay || '', tgLinked: !!r.user.tgLinked,
+    });
     return r;
   }, [api, persist]);
 
   const login = useCallback(async (email, password) => {
     const r = await api('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
-    persist({ token: r.token, email: r.user.email, walletUsd: r.user.walletUsd });
+    persist({
+      token: r.token, email: r.user.email, walletUsd: r.user.walletUsd,
+      tgChatId: r.user.tgChatId || null, tgDisplay: r.user.tgDisplay || '', tgLinked: !!r.user.tgLinked,
+    });
     return r;
   }, [api, persist]);
 
@@ -61,7 +67,9 @@ export function StoreProvider({ children }) {
       token: r.token,
       email: r.user.email,
       walletUsd: r.user.walletUsd,
+      tgChatId: r.user.tgChatId || null,
       tgDisplay: r.user.tgDisplay || '',
+      tgLinked: !!r.user.tgLinked,
     });
     return r;
   }, [api, persist]);

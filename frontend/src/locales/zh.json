@@ -53,7 +53,8 @@
     "themeToggle": "切换深色 / 浅色模式",
     "orDivider": "或",
     "tgButton": "使用 Telegram 继续",
-    "tgScanCap": "用手机扫描以通过 Telegram 机器人登录。"
+    "tgScanCap": "用手机扫描以通过 Telegram 机器人登录。",
+    "tgLinked": "已连接 Telegram"
   },
   "common": {
     "appName": "主机面板",

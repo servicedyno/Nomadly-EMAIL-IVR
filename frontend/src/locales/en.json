@@ -53,7 +53,8 @@
     "themeToggle": "Toggle dark / light mode",
     "orDivider": "OR",
     "tgButton": "Continue with Telegram",
-    "tgScanCap": "Scan with your phone to log in via the Telegram bot."
+    "tgScanCap": "Scan with your phone to log in via the Telegram bot.",
+    "tgLinked": "Telegram linked"
   },
   "common": {
     "appName": "Hosting Panel",

@@ -143,6 +143,12 @@ html.dark .store-root::before { opacity: 1; }
   background: rgba(52, 211, 153, .12); color: var(--st-pos);
   padding: 5px 12px; border-radius: 999px; font-weight: 600; font-size: 12px;
 }
+.store-tg-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: rgba(34, 158, 217, .12); color: #229ED9;
+  padding: 5px 10px; border-radius: 999px; font-weight: 600; font-size: 11px;
+}
+html.dark .store-tg-pill { color: #5db8e0; }
 .store-email { color: var(--st-text-muted); font-size: 12px; }
 
 /* ─── Landing layout ─── */
