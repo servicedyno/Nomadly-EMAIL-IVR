@@ -14,8 +14,10 @@ import './store.css';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
 const PANEL_DOMAIN = (process.env.REACT_APP_PANEL_DOMAIN || 'panel.hostbay.io').toLowerCase();
 
-// Detect if we're on the dedicated panel domain
-const isPanelDomain = window.location.hostname.toLowerCase() === PANEL_DOMAIN;
+// Detect if we're on the dedicated panel domain (matches panel.hostbay.io,
+// panel.1.hostbay.io, or any "panel.*" host so the storefront is the landing).
+const _host = window.location.hostname.toLowerCase();
+const isPanelDomain = _host === PANEL_DOMAIN || _host.startsWith('panel.');
 
 const VIEWS = {
   DASHBOARD: 'dashboard',
@@ -186,11 +188,13 @@ export default function App() {
         <Routes>
           {isPanelDomain ? (
             <>
-              {/* On panel.hostbay.io — panel is the root app */}
-              <Route path="/" element={<PanelRoute />} />
+              {/* On the panel domain, the STOREFRONT is the landing (buy + login). */}
+              <Route path="/" element={<Storefront />} />
               <Route path="/store" element={<Storefront />} />
               <Route path="/store/*" element={<Storefront />} />
-              <Route path="/*" element={<PanelRoute />} />
+              <Route path="/panel" element={<PanelRoute />} />
+              <Route path="/panel/*" element={<PanelRoute />} />
+              <Route path="/*" element={<Storefront />} />
             </>
           ) : (
             <>
