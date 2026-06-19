@@ -1046,7 +1046,10 @@ const setAntiBotProfile = async (zoneId, profile = 'medium') => {
 }
 
 /**
- * Create anti-bot WAF rules (block known bad bots by user-agent)
+ * Create anti-bot WAF rule (block known bad bots by user-agent) — migrated
+ * 2026-06-19 from the deprecated Firewall Rules API to the Rulesets API
+ * (phase: http_request_firewall_custom). Uses the same WAF Custom Rules
+ * entrypoint as the Geo migration so all auto-created rules live together.
  */
 const createAntiBotRules = async (zoneId) => {
   // Consolidated into ONE rule. Previously this created 3 separate firewall
@@ -1064,35 +1067,27 @@ const createAntiBotRules = async (zoneId) => {
   const expression = '(' + botUAs.map(b => `http.user_agent contains "${b}"`).join(' or ') + ')'
   const DESC = 'Anti-Bot: Block known bad crawlers'
 
-  // Check existing rules to avoid duplicates (any prior Anti-Bot rule counts)
   try {
-    const existingRes = await axios.get(`${CF_BASE_URL}/zones/${zoneId}/firewall/rules`, { headers: cfHeaders(), timeout: 15000 })
-    const existing = (existingRes.data?.result || []).filter(r => r.description?.includes('Anti-Bot'))
+    const ep = await _getOrCreateCustomRulesEntrypoint(zoneId)
+    if (!ep) return { success: false, error: 'Could not access WAF Custom Rules ruleset' }
+
+    // De-dupe via the entrypoint's own rules array (replaces the deprecated
+    // GET /firewall/rules duplicate check that was silently failing).
+    const existing = (ep.rules || []).filter(r => r.description?.includes('Anti-Bot'))
     if (existing.length >= 1) {
       return { success: true, message: 'Anti-Bot rule already exists', existing: true, ruleCount: existing.length }
     }
-  } catch (_) {}
 
-  try {
-    const filterRes = await axios.post(`${CF_BASE_URL}/zones/${zoneId}/filters`, [{
-      expression,
-      description: DESC,
-    }], { headers: cfHeaders(), timeout: 15000 })
-    const filterId = filterRes.data?.result?.[0]?.id
-    if (!filterId) return { success: false, error: 'filter creation returned no id' }
-    const ruleRes = await axios.post(`${CF_BASE_URL}/zones/${zoneId}/firewall/rules`, [{
-      filter: { id: filterId },
-      action: 'block',
-      description: DESC,
-      priority: 2,
-    }], { headers: cfHeaders(), timeout: 15000 })
+    const ruleRes = await axios.post(
+      `${CF_BASE_URL}/zones/${zoneId}/rulesets/${ep.id}/rules`,
+      { expression, action: 'block', description: DESC, enabled: true },
+      { headers: cfHeaders(), timeout: 15000 }
+    )
     return { success: ruleRes.data?.success || false }
   } catch (err) {
     if (err.response?.data?.errors?.some(e => e.message?.includes('already exists'))) {
       return { success: true, existing: true }
     }
-    // Surface the REAL Cloudflare error (was just "status code 403" before —
-    // now we capture the body so quota-vs-permission is diagnosable in logs).
     const detail = err.response?.data ? JSON.stringify(err.response.data).slice(0, 300) : ''
     log('CF createAntiBotRules error: ' + err.message + (detail ? ' :: ' + detail : ''))
     return { success: false, error: err.message, detail }
@@ -1525,6 +1520,11 @@ module.exports = {
   listFirewallRules,
   createGeoRule,
   deleteFirewallRule,
+  // Public alias of _getOrCreateCustomRulesEntrypoint — used by anti-red-service.js
+  // to mint additional WAF Custom Rules (JA3, anti-phishing) on the same
+  // zone entrypoint as the geo / anti-bot rules created here.
+  getOrCreateCustomRulesEntrypoint: _getOrCreateCustomRulesEntrypoint,
+  CF_CUSTOM_RULES_PHASE,
   getZoneAnalytics,
   getDetailedZoneAnalytics,
   checkZoneNSStatus,

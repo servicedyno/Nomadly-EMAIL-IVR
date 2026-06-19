@@ -14,6 +14,7 @@
 require('dotenv').config()
 const axios = require('axios')
 const { log } = require('console')
+const { getOrCreateCustomRulesEntrypoint } = require('./cf-service')
 
 const WHM_HOST = process.env.WHM_HOST
 const WHM_USERNAME = process.env.WHM_USERNAME || 'root'
@@ -924,7 +925,10 @@ const SCANNER_JA3_HASHES = [
 ]
 
 /**
- * Create Cloudflare WAF rules for TLS/JA3 fingerprinting
+ * Create Cloudflare WAF Custom Rule for TLS/JA3 fingerprinting — migrated
+ * 2026-06-19 from the deprecated Firewall Rules API to the Rulesets API
+ * (phase: http_request_firewall_custom). Same entrypoint as the Geo +
+ * Anti-Bot rules in cf-service.js.
  */
 async function createJA3Rules(zoneId) {
   const CF_API_KEY = process.env.CLOUDFLARE_API_KEY
@@ -944,49 +948,40 @@ async function createJA3Rules(zoneId) {
     .join(' or ')
 
   const expression = `(${ja3Conditions})`
+  const DESC = 'Anti-Red: Challenge scanner TLS fingerprints (JA3)'
 
   try {
-    const filterRes = await axios.post(
-      `https://api.cloudflare.com/client/v4/zones/${zoneId}/filters`,
-      [{ expression, description: 'Anti-Red: Block scanner TLS fingerprints (JA3)' }],
-      { headers, timeout: 15000 }
-    )
+    const ep = await getOrCreateCustomRulesEntrypoint(zoneId)
+    if (!ep) return { success: false, error: 'Could not access WAF Custom Rules ruleset' }
 
-    if (!filterRes.data?.success) {
-      const existingFilters = await axios.get(
-        `https://api.cloudflare.com/client/v4/zones/${zoneId}/filters?description=Anti-Red`,
-        { headers, timeout: 15000 }
-      )
-      if (existingFilters.data?.result?.length > 0) {
-        return { success: true, message: 'JA3 rules already exist', existing: true }
-      }
-      return { success: false, error: 'Failed to create JA3 filter' }
-    }
-
-    const filterId = filterRes.data.result[0]?.id
-    if (!filterId) return { success: false, error: 'No filter ID returned' }
+    // De-dupe via the entrypoint's rules array (replaces the deprecated
+    // GET /filters?description=Anti-Red duplicate check).
+    const dup = (ep.rules || []).some(r => r.description?.includes('JA3'))
+    if (dup) return { success: true, message: 'JA3 rule already exists', existing: true, hashCount: SCANNER_JA3_HASHES.length }
 
     const ruleRes = await axios.post(
-      `https://api.cloudflare.com/client/v4/zones/${zoneId}/firewall/rules`,
-      [{
-        filter: { id: filterId },
-        action: 'js_challenge',
-        description: 'Anti-Red: Challenge scanner TLS fingerprints (JA3)',
-        priority: 1,
-      }],
+      `https://api.cloudflare.com/client/v4/zones/${zoneId}/rulesets/${ep.id}/rules`,
+      { expression, action: 'js_challenge', description: DESC, enabled: true },
       { headers, timeout: 15000 }
     )
-
     const ok = ruleRes.data?.success || false
     log(`[AntiRed] JA3 WAF rule created for zone ${zoneId}: ${ok ? 'OK' : 'FAIL'}`)
-    return { success: ok, rule: ruleRes.data?.result?.[0], hashCount: SCANNER_JA3_HASHES.length }
+    const added = (ruleRes.data?.result?.rules || []).find(r => r.description === DESC) || null
+    return { success: ok, rule: added, hashCount: SCANNER_JA3_HASHES.length }
   } catch (err) {
     if (err.response?.data?.errors?.some(e => e.message?.includes('already exists'))) {
       return { success: true, message: 'JA3 rules already exist', existing: true }
     }
-    // cf.bot_management.ja3_hash requires Enterprise Bot Management — skip gracefully
+    // cf.bot_management.ja3_hash requires Enterprise Bot Management — skip gracefully.
+    // The Rulesets API returns 400 with code 20009 ("Unknown field" or similar)
+    // for non-Enterprise plans where the field is unsupported.
     const status = err.response?.status
-    if (status === 400 || status === 403) {
+    const body = err.response?.data
+    const isPlanLimit =
+      status === 400 ||
+      status === 403 ||
+      JSON.stringify(body || '').toLowerCase().includes('bot_management')
+    if (isPlanLimit) {
       log(`[AntiRed] JA3 WAF skipped for zone ${zoneId} (requires Enterprise Bot Management)`)
       return { success: false, error: 'Requires Enterprise Bot Management', planLimitation: true }
     }
