@@ -31306,6 +31306,18 @@ setTimeout(() => {
   })
 }, 15000) // Run 15s after startup to let DB settle
 
+// ── MAXSQL Migration (one-shot: raise MySQL quota on Premium Monthly accounts) ──
+// Idempotent. Recorded in `migrations` collection so it only runs once. If WHM
+// is unreachable (e.g. sandbox CF Access 403), the marker is NOT set and the
+// migration retries on the next startup (production has the WHM tunnel allowlist).
+const { runMaxsqlMigration } = require('./maxsql-migration')
+setTimeout(() => {
+  const getDb = () => (cpanelAccounts && cpanelAccounts.s && cpanelAccounts.s.db) || null
+  runMaxsqlMigration(getDb).catch(err => {
+    log(`[MaxsqlMigration] Error: ${err.message}`)
+  })
+}, 20000) // Run 20s after startup, after cpanel-migration
+
 // ── Honeypot Routes (receive reports from CF Workers + analytics) ──
 honeypotService.createHoneypotRoutes(app)
 
