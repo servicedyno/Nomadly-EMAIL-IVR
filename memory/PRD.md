@@ -2,6 +2,48 @@
 
 > 📋 **Recent changes are tracked in [`CHANGELOG.md`](./CHANGELOG.md)** (added 2026-02 for size).
 
+## 2026-06-19 (later 3) — UX: Unified responsive login + dark/light theme on Storefront
+**Status: ✅ COMPLETE — testing agent verified all 14 acceptance criteria across mobile (375×667), tablet (768×1024) and desktop (1440×800).**
+
+### User request
+> "the login should be for mobile, desktop, tablet... right now it's not well pixeled or appearing correctly without scrolling. also bot and web user should be able to login on front page without clicking on top right link. thats not needed. one login is fine and should work for whether web user provided email and PIN or other username and PIN. landing page can be more better looking with dark or light mode."
+
+### What changed
+1. **Single unified login form** — auto-routes by `@` presence in the identifier:
+   - Contains `@` → POST `/api/store/auth/login` (web user, email+password)
+   - No `@` → POST `/api/panel/login` (HostPanel user, username+PIN) → stores `panel_session` in sessionStorage → `window.location.href = '/panel'`
+   - Removed the `<a data-testid="store-existing-login">` "Have a PIN? Panel login →" link from the top-right.
+2. **Above-the-fold on every viewport**:
+   - Mobile/tablet: Login card is the FIRST element (DOM order) after the header — input top y ≈ 210px (well within fold).
+   - Desktop ≥1024px: 2-col grid with plans on the LEFT and login card sticky on the RIGHT (CSS `order` reverses the DOM order).
+3. **Dark / light theme toggle** — re-uses the existing `useTheme()` hook from `/app/frontend/src/components/panel/useTheme.js` (key `panel-theme-pref`). Moon/Sun icon button in the header (`data-testid="store-theme-toggle"`), respects system preference if not overridden, persists across reloads.
+4. **Visual polish** — CSS variables for both themes, gradient accent buttons with hover/active states, soft shadows, glass-blur sticky header, ambient gradient glow visible only in dark mode, plan-card hover lift, accent-soft focus rings on inputs, responsive 1/2/3-column plan grid.
+
+### Files changed
+- `/app/frontend/src/pages/Storefront.js` (~530 LOC) — rewrote `AuthGate` to be a single unified form; added `StoreHeader` shared component with theme toggle; removed `mode` state, removed `signup` call, simplified `submit` to auto-route by `isEmail(id)`.
+- `/app/frontend/src/store.css` (~430 LOC) — full rewrite to CSS-variable driven theme system; mobile-first responsive grid; sticky header with backdrop blur; gradient buttons; hover/focus states; CSS `order` to flip login left/right between mobile and desktop.
+- `/app/frontend/src/locales/{en,fr,zh,hi}.json` — 9 new `store.*` keys translated for all 4 languages: `loginTitle`, `loginSub`, `userOrEmail`, `userOrEmailPh`, `passOrPin`, `passOrPinPh`, `signInBtn`, `noAcct`, `themeToggle`.
+
+### Verification (testing agent iter 19 — 100% pass, 0 issues)
+| Viewport | Login y-coord | Above-fold | Layout |
+|---|---|---|---|
+| Mobile 375×667 | 213.5px | ✓ (0.32 × vh) | login → hero → plans (single column) |
+| Tablet 768×1024 | 209.0px | ✓ (0.20 × vh) | login → hero → plans (2-col plans) |
+| Desktop 1440×800 | sticky right (x=952) | ✓ | plans (x=108) on left, login on right (3-col plans) |
+
+- ✅ `data-testid="store-existing-login"` confirmed REMOVED from DOM.
+- ✅ Theme toggle adds/removes `html.dark` class; persists via `localStorage["panel-theme-pref"]`; survives reload.
+- ✅ Web-user E2E: email `storetest@example.com` + `password1234` → Dashboard rendered (tabs + wallet pill visible).
+- ✅ Panel-user E2E: username `pnldoctest` + PIN `123456` → redirects to `/panel`, sessionStorage `panel_session` populated with `{username, domain, isGold:true}`, HostPanel SPA loads.
+- ✅ Invalid credentials in both modes show `data-testid="store-auth-error"` and no navigation.
+- ✅ Language switcher dropdown still works; all 4 locales include the new keys.
+- ✅ Backend regression: `/api/store/plans` (3 plans), `/api/store/health` (8 coins), `/api/panel/login`, `/api/store/auth/login` all 200 with correct payloads; wrong creds → 401.
+
+### Note for user
+The frontend changes are in the dev pod. To land them on Railway production (`panel.1.hostbay.io`), use Emergent's **Save to GitHub** feature — Railway will auto-redeploy and the new unified login + dark/light theme will be live within ~3 min.
+
+
+
 ## 2026-06-19 (later 2) — P1: GeoManager migrated to Cloudflare WAF Custom Rules (Rulesets API)
 **Status: ✅ COMPLETE — 7/7 unit tests pass, live read-only API call against real CF zone returns rules with correct legacy shape.**
 
