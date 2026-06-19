@@ -2,6 +2,67 @@
 
 > 📋 **Recent changes are tracked in [`CHANGELOG.md`](./CHANGELOG.md)** (added 2026-02 for size).
 
+## 2026-06-19 (later 4) — FEATURE: Telegram bot → Web one-tap auto-login
+**Status: ✅ COMPLETE — testing agent iter 20 passed 100% (9/9 pytest + 7/7 node unit tests + all frontend flows). Zero issues.**
+
+### What was built
+A QR-code shortcut on the storefront landing page that lets Telegram bot users sign into the web storefront with a single tap — no password, no email needed. Converts the bot's existing user base into instant web-checkout traffic.
+
+### Flow
+1. **Web → bot:** User on storefront landing sees a QR + "Continue with Telegram" button. Tap (mobile) or scan (desktop) → opens `https://t.me/NomadlyBot?start=web-login`.
+2. **Bot mints token:** Bot receives `/start web-login` (or `/web` or `/store`), calls `mintBotLoginToken(chatId)` to mint a 5-min single-use HMAC token, DMs the user a translated message with `<base>/store?bt=<token>` link.
+3. **Web auto-exchange:** Storefront sees `?bt=` on mount, POSTs `/api/store/auth/bot-login`, backend verifies HMAC + expiry + single-use (via `webBotLoginConsumed` collection), finds/creates `webUsers` doc keyed by `tgChatId` with synthetic email `tg-<chatId>@bot.local`, auto-links any `cpanelAccounts` they own. Returns standard `{token, user}`.
+4. **Done:** Frontend scrubs `?bt=` from URL via `history.replaceState`, persists session to localStorage, renders Dashboard. Reload survives session, no re-exchange happens.
+
+### Token design (HMAC, no DB roundtrip to verify)
+```
+token = base64url(JSON{c:chatId, e:expUnix, n:nonce}) + "." + hex(HMAC-SHA256(payload, key))
+key = HMAC-SHA256(JWT_SECRET, "store-bot-link-v1")
+TTL = 5 minutes
+```
+Derived from existing `JWT_SECRET` so no new env vars to manage. Single-use enforced by inserting `nonce` into `webBotLoginConsumed` with `_id: nonce` (unique-key collision → 401 "already used").
+
+### Files touched
+- `/app/js/store-routes.js` — added `mintBotLoginToken()`, `verifyBotLoginToken()`, `POST /auth/bot-login`, `GET /config`. Exported both helpers.
+- `/app/js/_index.js` — added `/start web-login`, `/start weblogin`, `/web`, `/store` deep-link handler (line ~11055) that mints a token, picks the right storefront base URL (PANEL_DOMAIN > STORE_URL > SELF_URL/store), and DMs a 4-language HTML message.
+- `/app/frontend/src/components/store/StoreContext.js` — added `botLogin(bt)` action.
+- `/app/frontend/src/pages/Storefront.js` — module-level `BT_CONSUMED` Set (StrictMode-safe), `StoreInner` auto-exchange useEffect on `?bt=`, "Continue with Telegram" QR + button section in AuthGate (telegram-blue gradient button + react-qr-code 132px QR encoding `https://t.me/<botUsername>?start=web-login`), `store-bot-toast` "Signing you in via Telegram…" toast.
+- `/app/frontend/src/store.css` — `.store-tg-section`, `.store-tg-divider` (with hairline before/after), `.store-btn--telegram`, `.store-tg-qr`, `.store-bot-toast` keyframe animation.
+- `/app/frontend/src/locales/{en,fr,zh,hi}.json` — added `store.orDivider`, `store.tgButton`, `store.tgScanCap`.
+- `/app/backend/.env` — added `TELEGRAM_BOT_USERNAME="NomadlyBot"`.
+- `/app/js/__tests__/store-bot-login.test.js` (new, 105 LOC) — 7 unit tests: roundtrip, unique nonce, tampered payload, tampered sig, expired, malformed, numeric chatId.
+- `/app/backend/tests/test_store_bot_login.py` (new, created by testing agent) — 9 pytest E2E tests.
+
+### Verification (iter 20)
+| Test | Result |
+|---|---|
+| Node unit tests | 7/7 pass |
+| Pytest E2E | 9/9 pass |
+| `GET /api/store/config` (public) | `{botUsername:"NomadlyBot", botStartPayload:"web-login"}` |
+| `POST /auth/bot-login` empty body | 400 |
+| `POST /auth/bot-login` garbage token | 401 "Invalid login link." |
+| `POST /auth/bot-login` fresh valid token | 200, user `tg-5346193142@bot.local`, walletUsd=0 |
+| `POST /auth/bot-login` replay | 401 "already been used" |
+| Token expired (past `e`) | 401 |
+| Landing page QR + button | href = `https://t.me/NomadlyBot?start=web-login` |
+| Auto-exchange happy path (single nav) | Dashboard renders, URL scrubbed, session persisted |
+| Auto-exchange invalid | "Invalid login link." inline error |
+| Auto-exchange replay | "This login link has already been used." inline error |
+| Mobile 375×667 | TG section + QR + button all visible |
+| Chinese locale | "使用 Telegram 继续" |
+| Regression: storetest@example.com + pnldoctest | both still work |
+
+### Security notes
+- HMAC key is **derived** from `JWT_SECRET`, so rotating JWT_SECRET invalidates all outstanding bot-login tokens (good).
+- Single-use enforcement is **atomic** via MongoDB unique-key insert (no race condition window — `insertOne` with `_id: nonce` fails fast on duplicate).
+- 5-minute TTL limits replay-attack window.
+- React `BT_CONSUMED` module-level Set prevents StrictMode double-consume in dev (the React 18 useEffect setup-cleanup-setup pattern). Doesn't affect production behavior.
+
+### User-facing note
+The bot-side handler `/start web-login`, `/web`, and `/store` are all live in the dev pod's bot. Once pushed to Railway production, users on Telegram can simply type `/web` (or scan the landing QR) and get a one-tap login link DMed to them. The bot DMs are translated to en/fr/zh/hi based on the user's bot language preference.
+
+
+
 ## 2026-06-19 (later 3) — UX: Unified responsive login + dark/light theme on Storefront
 **Status: ✅ COMPLETE — testing agent verified all 14 acceptance criteria across mobile (375×667), tablet (768×1024) and desktop (1440×800).**
 
