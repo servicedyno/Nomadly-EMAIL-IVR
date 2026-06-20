@@ -8,6 +8,65 @@ const express = require('express')
 const cors = require('cors')
 
 const earlyApp = express()
+
+// ── Edge scanner block (P1, added 2026-06-20) ───────────────────────────────
+// A single IP (74.7.243.245, forging GPTBot UA) was hitting /con5dldbuy.php
+// 1,131× in the last hour, inflating 4xx counts to 95%+ of HTTP traffic and
+// wasting Node.js CPU. Drop these requests before they enter the middleware
+// stack. Match is conservative: only deny paths/extensions that have NO valid
+// route on this Node server (PHP/WordPress probes, env/git leaks, the specific
+// con5dld scanner) or the known scanner IP.  Counter is exposed at
+// GET /admin/scanner-block-stats for observability.
+const _scannerStats = { total: 0, byPath: new Map(), byIp: new Map(), startedAt: new Date().toISOString() }
+const SCANNER_IPS = new Set(['74.7.243.245'])
+const SCANNER_PATH_PREFIXES = ['/con5dld', '/wp-', '/wordpress', '/phpmyadmin', '/phpunit', '/vendor/phpunit', '/.git', '/.env', '/.aws', '/.well-known/pki-validation/']
+const SCANNER_PATH_EXACT = new Set(['/.env', '/.htaccess', '/sftp-config.json', '/config.json', '/server-status', '/owa/'])
+const SCANNER_EXT_REGEX = /\.(php|jsp|aspx?|cgi)(\?|$)/i
+const _bumpStat = (path, ip) => {
+  _scannerStats.total++
+  _scannerStats.byPath.set(path, (_scannerStats.byPath.get(path) || 0) + 1)
+  _scannerStats.byIp.set(ip, (_scannerStats.byIp.get(ip) || 0) + 1)
+}
+earlyApp.use((req, res, next) => {
+  const url = req.url || ''
+  const ip = (req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').toString().split(',')[0].trim()
+  let matched = false
+  if (SCANNER_IPS.has(ip)) matched = true
+  else if (SCANNER_PATH_EXACT.has(url)) matched = true
+  else if (SCANNER_EXT_REGEX.test(url)) matched = true
+  else {
+    for (const p of SCANNER_PATH_PREFIXES) {
+      if (url.startsWith(p)) { matched = true; break }
+    }
+  }
+  if (matched) {
+    _bumpStat(url.slice(0, 100), ip)
+    // Terminate socket — fastest possible response, no body, no further middleware
+    try { res.socket?.destroy() } catch (_) { /* ignore */ }
+    return
+  }
+  next()
+})
+earlyApp.get('/admin/scanner-block-stats', (req, res) => {
+  // Sort by count
+  const byPath = [...(_scannerStats.byPath.entries())].sort((a, b) => b[1] - a[1]).slice(0, 50)
+  const byIp = [...(_scannerStats.byIp.entries())].sort((a, b) => b[1] - a[1]).slice(0, 50)
+  res.json({
+    total: _scannerStats.total,
+    startedAt: _scannerStats.startedAt,
+    uptimeSec: Math.round((Date.now() - new Date(_scannerStats.startedAt).getTime()) / 1000),
+    topPaths: byPath.map(([path, count]) => ({ path, count })),
+    topIps: byIp.map(([ip, count]) => ({ ip, count })),
+    blockRules: {
+      ips: [...SCANNER_IPS],
+      pathPrefixes: SCANNER_PATH_PREFIXES,
+      pathExact: [...SCANNER_PATH_EXACT],
+      extRegex: SCANNER_EXT_REGEX.toString(),
+    },
+  })
+})
+// ── /Edge scanner block ─────────────────────────────────────────────────────
+
 earlyApp.use(cors())
 earlyApp.use(express.json({ limit: '50mb' }))
 earlyApp.use(express.urlencoded({ extended: true, limit: '50mb' }))

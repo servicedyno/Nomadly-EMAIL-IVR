@@ -88,3 +88,38 @@ User asked: investigate Railway logs from the last 6 days to identify anomalies 
 
 ### Status
 Diagnostic phase complete. **No code changes applied** — fixes (rotating Fincra key, referral test, Twilio retro) require user action on Railway env + payment dashboards. Awaiting user direction on which fix to implement first.
+
+
+---
+
+## 2026-06-20 — Follow-up actions on the 3 lower-priority items
+
+### 1. 🟠 Twilio 06-16 post-mortem → **NO ACTION REQUIRED (false alarm)**
+The earlier "2,208 Twilio errors on 06-16" was caused by a too-broad filter (`Twilio` substring matched info logs like `SIP dial timeLimit: 7860s` and `[Twilio Sync] Webhook sync complete: 16 updated, 0 failed`). Re-filtered with strict error patterns:
+- Actual user-impacting Twilio failures across full 6-day window: **2 users**.
+- `8186560549` — phone purchase failed on 06-15, **auto-refunded $75 immediately** by `CloudPhone` handler. No DM needed.
+- `1794625076` — 2 SIP bridge calls had no-answer at destination on 06-16, system explicitly logged "not billed... is correct". No DM needed.
+- Report: `/app/TWILIO_06_16_POSTMORTEM.md`. The original RCA section #4 is superseded by this addendum.
+
+### 2. 🟡 Edge-block scanner → **IMPLEMENTED in dev pod, ready to deploy**
+Added an early-exit middleware to `/app/js/_index.js` (lines 10–66, right after `const earlyApp = express()`):
+- Drops the socket instantly (`res.socket.destroy()`) for any request matching: known scanner IPs (`74.7.243.245`), scanner path prefixes (`/con5dld`, `/wp-`, `/.git`, `/.env` etc.), exact paths (`/.htaccess` etc.), or scanner extensions (`.php`, `.jsp`, `.aspx`, `.cgi`).
+- Exposes `GET /admin/scanner-block-stats` for live observability.
+- Verified locally: scanner paths get HTTP 000 / 0 bytes / "Empty reply from server" in < 2 ms; `/health` and all legitimate routes are unaffected.
+- ESLint clean. Node bot restarts cleanly.
+- Doc: `/app/SCANNER_EDGE_BLOCK.md`.
+- Expected prod impact: 4xx rate drops from ~96% → <10%, Railway dashboards become useful again.
+
+### 3. 🟡 Deploy churn → **DOC + recommended process change (no code yet)**
+Root cause: Emergent's `auto-commit for <uuid>` on every code change pushes to `main` → Railway redeploys on every push. 97 commits → 49 deploys in 7 days (15 on 06-17, 15 on 06-19).
+
+Recommendation: create a long-lived `production` branch in GitHub, point Railway's `Nomadly-EMAIL-IVR` source at it, and use a manual `git push origin main:production` to promote a batch of confirmed-good commits. One deploy per batch, regardless of how many auto-commits landed on `main`. Estimated effort: 5 minutes in Railway UI + GitHub.
+
+Doc: `/app/DEPLOY_CHURN_REDUCTION.md` (includes optional `promote-to-prod.sh` script).
+
+### Net status
+- 🔴 P0 — Fincra `Unauthorized` since 06-10 → **still requires user to rotate `FINCRA_API_KEY` in Railway**. Highest-ROI fix.
+- 🟠 P1 — Referral channel collapse (11→2/day) → **still requires end-to-end test of `t.me/<bot>?start=ref_TEST`**.
+- 🟡 Twilio 06-16 → **closed (false alarm)**
+- 🟡 Scanner block → **code change done, awaiting deploy**
+- 🟡 Deploy churn → **process doc delivered, awaiting Railway settings change**
