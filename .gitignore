@@ -1290,3 +1290,6 @@ railway_logs*
 scripts/*.jsonl
 scripts/railway_*.json
 scripts/railway_*.jsonl
+
+# Local Railway log dumps & diagnostic snapshots (may contain Twilio SIDs, phone numbers, IPs)
+logs_prod/
