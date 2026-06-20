@@ -3,7 +3,7 @@
 Web Storefront PHASE 2 Backend Testing
 Tests: buy hosting from wallet + my-plans + panel bridge + refund integrity
 
-Base URL: https://prod-isolation-env.preview.emergentagent.com/api/store
+Base URL: https://test-bot-deploy.preview.emergentagent.com/api/store
 
 Test Accounts (seeded):
 - BUYER: storebuyer@example.com / password1234 (wallet $200, owns webtest01/weblinked-test.example)
@@ -17,7 +17,7 @@ import random
 import string
 from datetime import datetime
 
-BASE_URL = "https://prod-isolation-env.preview.emergentagent.com/api/store"
+BASE_URL = "https://test-bot-deploy.preview.emergentagent.com/api/store"
 
 class StorefrontPhase2Tester:
     def __init__(self):

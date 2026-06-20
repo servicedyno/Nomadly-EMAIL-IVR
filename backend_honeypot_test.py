@@ -12,7 +12,7 @@ import sys
 import time
 from pathlib import Path
 
-BACKEND_URL = "https://prod-isolation-env.preview.emergentagent.com"
+BACKEND_URL = "https://test-bot-deploy.preview.emergentagent.com"
 
 def run_test(test_name, test_func):
     """Run a test and return results"""
