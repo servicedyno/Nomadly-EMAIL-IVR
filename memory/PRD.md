@@ -52,3 +52,39 @@ bash /app/scripts/setup-nodejs.sh
 sudo supervisorctl restart backend
 ```
 The script auto-detects the new pod URL from `frontend/.env` and updates `SELF_URL` accordingly. The hard-coded safety check in the script refuses to touch `SELF_URL` if `BOT_ENVIRONMENT=production` (extra defence against accidental hijack).
+
+---
+
+## 2026-06-20 — Railway 6-day sales drop-off RCA (current session)
+
+User asked: investigate Railway logs from the last 6 days to identify anomalies / sales drop-off.
+
+### Findings (full report at `/app/RAILWAY_6DAY_RCA_REPORT.md`)
+
+1. 🔴 **P0 — Fincra (NGN fiat) auth broken since 2026-06-10** (10 days).
+   `services.fincra_service - ERROR - Fincra authentication failed: {'message': 'Unauthorized'}` — 1,102 occurrences over 10 days. Kills all NGN deposits. **Fix: rotate `FINCRA_API_KEY` in Railway → verify LIVE env → redeploy.**
+
+2. 🔴 **`payment confirmed` down 77%** (53/day 06-10 → 12/day 06-20). **`deposit confirmed` down 73%**.
+
+3. 🟠 **Referral channel collapsed** — `/start ref_…` peak 11/day → 2/day (-82%).
+
+4. 🟠 **`/start` rate down 65%** (156 → 54).
+
+5. 🟠 **Twilio errors spike on 06-16** (2,208 errors that day; resolved to 200/day by 06-20). Some users likely lost their numbers that day.
+
+6. 🟡 **Deploy churn**: 49 deploys in 7 days (15 deploys on 06-17, 15 on 06-19). Each one = 30-90s webhook downtime.
+
+7. 🟡 **4xx flood is a vulnerability scanner** hitting `/con5dldbuy.php` (~95% of 4xx). Not customer traffic. Recommend edge-blocking it.
+
+8. 🟢 **Telegram webhook itself is healthy** — `getWebhookInfo` reports 0 pending updates, no `last_error_message`.
+
+### Investigation artifacts created
+- `/app/RAILWAY_6DAY_RCA_REPORT.md` — full markdown report
+- `/app/scripts/analyze_railway_6day.py` — fixed (added Mozilla UA header)
+- `/app/scripts/dig_http_logs.py` — per-deployment httpLogs analyzer
+- `/app/scripts/dig_real_traffic.py` — scanner-filtered traffic breakdown
+- `/app/scripts/dig_events_v2.py` — environmentLogs business events (anchorDate paginated)
+- `/app/logs_prod/_6day_summary.json`, `_6day_business_events.json`, `_real_traffic.json`, `_http_dig_output.txt` etc.
+
+### Status
+Diagnostic phase complete. **No code changes applied** — fixes (rotating Fincra key, referral test, Twilio retro) require user action on Railway env + payment dashboards. Awaiting user direction on which fix to implement first.

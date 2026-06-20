@@ -8,6 +8,7 @@ import os
 import sys
 import time
 import urllib.request
+import urllib.error
 from collections import defaultdict, Counter
 from datetime import datetime, timedelta, timezone
 
@@ -24,17 +25,23 @@ SERVICES = {
 ENDPOINT = "https://backboard.railway.app/graphql/v2"
 
 
+UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+
 def gql(query, variables):
     req = urllib.request.Request(
         ENDPOINT,
         data=json.dumps({"query": query, "variables": variables}).encode("utf-8"),
         headers={
             "Content-Type": "application/json",
+            "User-Agent": UA,
             "Project-Access-Token": TOKEN,
         },
     )
-    with urllib.request.urlopen(req, timeout=60) as r:
-        return json.load(r)
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            return json.load(r)
+    except urllib.error.HTTPError as e:
+        return {"errors": [{"http_status": e.code, "body": e.read().decode()[:300]}]}
 
 
 # ---------- 1. HTTP status metrics per service per day ----------
@@ -64,7 +71,7 @@ def fetch_logs(after_iso, before_iso, filter_str, page_limit=500, max_pages=20):
     query Q($e:String!, $a:String!, $b:String, $f:String, $lim:Int) {
       environmentLogs(environmentId:$e, afterDate:$a, beforeDate:$b,
                       filter:$f, afterLimit:$lim) {
-        timestamp message severity tags { serviceName deploymentInstanceId }
+        timestamp message severity tags { serviceId deploymentInstanceId }
       }
     }"""
     out = []
@@ -96,8 +103,10 @@ def count_per_day(logs):
 
 def count_per_day_per_service(logs):
     c = defaultdict(Counter)
+    SVC_BY_ID = {v: k for k, v in SERVICES.items()}
     for l in logs:
-        svc = (l.get("tags") or {}).get("serviceName") or "?"
+        sid = (l.get("tags") or {}).get("serviceId") or "?"
+        svc = SVC_BY_ID.get(sid, sid[:8])
         c[svc][l["timestamp"][:10]] += 1
     return c
 
