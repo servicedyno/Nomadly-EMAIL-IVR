@@ -44,11 +44,23 @@ const BOGUS_HOSTS = ['test', 'test.host', 'localhost', '127.0.0.1', 'TEST']
     }
 
     const newHost = process.env.WHM_HOST || null
+    // CRITICAL: when repointing an account to a new whmHost, also clear the
+    // protection-heartbeat "stuck" flags inherited from the old/bogus host.
+    // Otherwise the heartbeat will silently skip every repointed account
+    // forever (see /app/memory/ANTI_RED_AUDIT_AND_FIX_2026-02-20.md fix #1).
     const r = await col.updateMany(
       { whmHost: { $in: BOGUS_HOSTS } },
-      { $set: { whmHost: newHost } }
+      {
+        $set: { whmHost: newHost },
+        $unset: {
+          protectionRepairCount: '',
+          protectionLastSkipReason: '',
+          protectionStuckAt: '',
+          protectionRepairUpdatedAt: '',
+        },
+      }
     )
-    console.log(`✅ Updated ${r.modifiedCount} account(s) → whmHost=${newHost === null ? 'null (will fall back to env WHM_HOST)' : newHost}`)
+    console.log(`✅ Updated ${r.modifiedCount} account(s) → whmHost=${newHost === null ? 'null (will fall back to env WHM_HOST)' : newHost} (heartbeat pin flags also cleared)`)
   } finally {
     await client.close()
   }

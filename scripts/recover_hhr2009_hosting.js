@@ -204,9 +204,19 @@ async function main() {
   })
   // The bot also stamps whmHost into the doc — storeCredentials already does it
   // from process.env.WHM_HOST, but we explicitly set it for safety.
+  // ALSO clear any stale protection-heartbeat pin flags inherited from a
+  // previous incarnation of this cpUser (see ANTI_RED_AUDIT_AND_FIX_2026-02-20.md).
   await cpanelAccounts.updateOne(
     { _id: whmResult.username.toLowerCase() },
-    { $set: { whmHost: process.env.WHM_HOST, autoRenew: false } }
+    {
+      $set: { whmHost: process.env.WHM_HOST, autoRenew: false },
+      $unset: {
+        protectionRepairCount: '',
+        protectionLastSkipReason: '',
+        protectionStuckAt: '',
+        protectionRepairUpdatedAt: '',
+      },
+    }
   )
   console.log(`   ✅ Credentials stored. PIN generated.  expiry=${expiryDate.toISOString()}`)
 
