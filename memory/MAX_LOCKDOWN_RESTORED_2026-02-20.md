@@ -109,7 +109,8 @@ moxx.co  → HTTP 200  ✅
 | OS | AlmaLinux 9 |
 | CF tunnel ID | `b395cebc-4b7a-4aba-8ced-e11665c26b30` (replaces the historical `f63ce7b5-...`) |
 | CF account | `ed6035ebf6bd3d85f5b26c60189a21e2` (`expressdrop247@gmail.com`) |
-| DO API token | stored in `/app/backend/.env` as `DIGITALOCEAN_API_TOKEN` |
+| DO API token | stored in `/app/backend/.env` as `DIGITALOCEAN_API_TOKEN`; **also pushed to Railway prod** for the `Nomadly-EMAIL-IVR` service on 2026-02-20 (replaced previous token `dop_v1_…d4cc` → new `dop_v1_…8fea`) |
+| WHM root SSH password | stored in `/app/backend/.env` and Railway prod as `WHM_ROOT_PASSWORD` (`Godisgood123@` — set during 2026-06-17 migration but was never persisted to Railway until 2026-02-20) |
 
 ## Outstanding / P2
 
