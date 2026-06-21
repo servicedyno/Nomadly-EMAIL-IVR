@@ -259,3 +259,70 @@ Code changes ready. `logs_prod/` is gitignored from yesterday's cleanup so this 
 - 🟡 Referral incentive redesign (lower $30 threshold, double-rewards promo, surface link in more places) — product decisions
 - 🟡 Deploy churn protection (branch protection / staging) — still unaddressed
 
+---
+
+## 2026-06-21 — UX P-Funnel batch (#3, #4, #5, #11, #12)
+
+User selected 6 UX recommendations (3, 4, 5, 7, 11, 12) for implementation.  #7 (always-on wallet balance) was already implemented (line 7030 of `_index.js` — `getMainMenuGreeting` shows `${tierBadge} ${tierName} <b>${usdStr}</b>`), so we skipped it.
+
+### What shipped
+
+#### #4 — Split referral bonus + automatic payout pipeline (`applyReferralCredit`)
+- New `applyReferralCredit(refereeChatId, amountUsd, source)` helper in `_index.js` line 4067
+- Wired into DynoPay deposit success (line 34669) — fires on every confirmed deposit
+- Pays the **referrer**:
+  - **$1 instant** on referee's first deposit ≥ $5 (was missing entirely)
+  - **$5 reward** at $30 cumulative spend (existing reward — but `cumulativeSpend` was never actually being incremented; now it is)
+- Idempotent via `firstDepositBonusPaid` / `rewardPaid` flags on the `referrals` doc
+- Sends Telegram DM to referrer for each payout: "🎉 +$1 referral bonus!" / "🚀 +$5 referral reward!"
+- Live-data context: only 5 of 19 referees ever qualified (26%); first-deposit bonus cuts time-to-payout from "median never" to minutes
+
+#### #3 — Post-purchase referral nudge (after domain registration)
+- Added in `buyDomainFullProcess` (line ~30330) — 16-second delay after `t.domainBought`
+- Surfaces **only** to users with **zero existing referees** (`referrals.countDocuments({referrerChatId})`) so we don't nag regulars
+- Localized in en/fr/zh/hi with the new $1 + $5 bonus copy + tappable share link
+- Sits on the post-purchase dopamine moment — highest-leverage share window
+
+#### #12 — Domain → hosting + VPS cross-sell
+- Same hook in `buyDomainFullProcess` — 8-second delay (before the ref nudge)
+- Localized cross-sell card: "🚀 Pair {domain} with hosting + VPS?" → cPanel from $3.99/mo, VPS from $5/mo
+- Existing audience, zero acquisition cost
+
+#### #5 — Self-referral friendly redirect
+- In the `outcome=self_referral` branch (line ~11155), now sends:
+  - "💡 You can't refer yourself — but here's YOUR share link, send it to a friend instead"
+  - Includes the user's actual `t.me/...?start=ref_<chatId>` link as a tap-to-copy `<code>` block
+- Mentions the new $1 instant / $5 lifetime bonus to motivate sharing
+- Previously: silently dropped (no message at all)
+
+#### #11 — Daily low-balance proactive alert (`sendLowBalanceNudges`)
+- New scheduled job at 11:00 UTC daily (line 4220)
+- Pulls `funnelEvents` for `insufficient_balance_wall` in last 7d
+- Excludes users who have a `deposit_confirmed` after that wall hit (already recovered)
+- Excludes users alerted in last 7d (deduped via `lowBalanceAlerts` collection, upsert pattern)
+- Sends localized DM (en/fr/zh/hi) with current balance + deposit hint
+- **Production-only** guard (`process.env.BOT_ENVIRONMENT !== 'production'` → skip) so dev pod never DMs prod users with a different bot token
+
+#### #7 — Already present (no change)
+- `getMainMenuGreeting()` at line 7030 already shows `${tierBadge} ${tierName} <b>${usdStr}</b>` as the first content line below the welcome — wallet balance is always-on on the main menu
+
+### UI copy update
+"Refer & Earn" page (line 13912) — restated the new bonus structure: instant $1 at $5 deposit + $5 at $30 cumulative. `totalEarned` calculation now includes first-deposit bonuses ($1 per `firstDepositBonusPaid: true`) on top of qualified payouts ($5 each).
+
+### Verified
+- ESLint clean
+- Jest: 20 passed, 1 skipped (4 suites, same as before)
+- Nodejs restart clean, schedulers register without error
+- `/api/admin/referral-stats?key=...` returns expected JSON
+- `/api/con5dldbuy.php` → 403 (cosmetic fix from earlier round still working)
+
+### Files touched
+- `/app/js/_index.js` — 5 edits: applyReferralCredit helper, low-balance scheduler, DynoPay hook, self-ref redirect, post-purchase nudges, Refer&Earn copy
+- `/app/memory/PRD.md` — this entry
+
+### Still pending
+- 🔴 **P0 Fincra 401 fix** — still the highest-leverage revenue lever; needs key rotation in Railway env (user-side) + verify-token call
+- 🟡 Set `BOT_USERNAME=NomadlyBot` in Railway (works via case-insensitive t.me but it's tech debt)
+- 🟡 Deploy churn protection (branch protection / staging)
+- 🟡 Other Tier 2/3 UX (#1 smart insufficient-balance wall, #2 dead-rail banner, #6 recoverable cart, #8 FX equivalents, #9 /deposit slash, #10 wizard)
+

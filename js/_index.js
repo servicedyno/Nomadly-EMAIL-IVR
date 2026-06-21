@@ -4055,6 +4055,170 @@ async function sendDay12UpgradeCreditNudges() {
 // existing schedulers (node-schedule + cron string).
 schedule.scheduleJob('0 14 * * *', sendDay12UpgradeCreditNudges)
 
+// ─── Referral payout applicator (UX P-Funnel #4, 2026-06-21) ─────────
+// Idempotent helper.  Call after every wallet credit (deposit confirmed).
+// Pays the REFERRER (not the referee):
+//   • $1 on the referee's FIRST deposit ≥ $5   (instant gratification, was missing)
+//   • $5 once the referee's cumulativeSpend hits $30   (existing reward — also
+//     was never actually triggered because nothing was updating cumulativeSpend)
+// Both payouts go to walletOf via atomicIncrement(..., 'usdIn', amt).
+// Live-data context: only 5 of 19 referrals ever qualified (26%). The first-
+// deposit bonus lowers the time-to-payout from "median never" to "minutes".
+async function applyReferralCredit(refereeChatId, amountUsd, source) {
+  try {
+    if (!refereeChatId || !amountUsd || amountUsd <= 0) return
+    if (!referrals || typeof referrals.findOne !== 'function') return
+    const refereeId = parseInt(refereeChatId)
+    if (isNaN(refereeId)) return
+
+    const refDoc = await referrals.findOne({ _id: refereeId })
+    if (!refDoc || !refDoc.referrerChatId) return // not a referred user
+
+    const newSpend = (refDoc.cumulativeSpend || 0) + Number(amountUsd)
+    const updates = { cumulativeSpend: newSpend }
+    const payouts = []
+
+    // First-deposit bonus: $1 one-time, gated on amount ≥ $5
+    if (!refDoc.firstDepositBonusPaid && Number(amountUsd) >= 5) {
+      updates.firstDepositBonusPaid = true
+      updates.firstDepositBonusPaidAt = new Date()
+      await atomicIncrement(walletOf, refDoc.referrerChatId, 'usdIn', 1)
+      payouts.push({ type: 'first-deposit-bonus', amount: 1 })
+    }
+    // Threshold reward: $5 one-time, gated on cumulative spend ≥ $30
+    if (!refDoc.rewardPaid && newSpend >= 30) {
+      updates.rewardPaid = true
+      updates.rewardPaidAt = new Date()
+      await atomicIncrement(walletOf, refDoc.referrerChatId, 'usdIn', 5)
+      payouts.push({ type: 'threshold-reward', amount: 5 })
+    }
+    await referrals.updateOne({ _id: refereeId }, { $set: updates })
+
+    for (const p of payouts) {
+      log(`[Referral] payout type=${p.type} amount=$${p.amount} referrer=${refDoc.referrerChatId} referee=${refereeId} cumulative=$${newSpend.toFixed(2)} source=${source}`)
+      try {
+        const refereeNameDoc = await nameOf.findOne({ _id: refereeId })
+        const refereeName = refereeNameDoc?.val || `user ${refereeId}`
+        const msg = p.type === 'first-deposit-bonus'
+          ? `🎉 <b>+$${p.amount} referral bonus!</b>\n\nYour friend <b>${refereeName}</b> just made their first deposit — instant $${p.amount} credited to your wallet.\n\nKeep them spending — you'll earn another <b>$5</b> when their lifetime spend hits $30.`
+          : `🚀 <b>+$${p.amount} referral reward!</b>\n\n<b>${refereeName}</b> just crossed the $30 spend threshold. Your <b>$${p.amount}</b> bonus is in your wallet.`
+        if (bot && typeof bot.sendMessage === 'function') {
+          bot.sendMessage(refDoc.referrerChatId, msg, { parse_mode: 'HTML' })
+            .catch(e => log(`[Referral] notify failed (non-fatal): ${e.message}`))
+        }
+      } catch (e) { log(`[Referral] notify error (non-fatal): ${e.message}`) }
+    }
+  } catch (e) {
+    log(`[Referral] applyReferralCredit error: ${e.message}`)
+  }
+}
+
+// ─── Low-balance proactive nudge (UX P-Funnel #11, 2026-06-21) ───────
+// Runs daily at 11:00 UTC. Finds users who:
+//   1. Hit an insufficient_balance_wall in the last 7 days
+//   2. Have NOT made a deposit since that wall hit
+//   3. Were NOT already nudged in the last 7 days
+// Sends them a single soft DM with a deposit shortcut.
+// Guarded to production: dev pod uses a different bot token, so messages
+// would all 400-error against users it has never DM'd. Skip on dev.
+async function sendLowBalanceNudges() {
+  if (process.env.BOT_ENVIRONMENT !== 'production') {
+    log('[LowBalanceNudge] Skipped (BOT_ENVIRONMENT != production)')
+    return
+  }
+  if (!db || typeof db.collection !== 'function') return
+  const funnelEvents = db.collection('funnelEvents')
+  const lowBalanceAlerts = db.collection('lowBalanceAlerts')
+  const now = Date.now()
+  const sevenDaysAgo = new Date(now - 7 * 86400_000)
+
+  let sent = 0, scanned = 0, skipped = 0, errors = 0
+  try {
+    // 1. Get unique chatIds that hit the wall in the last 7d
+    const walls = await funnelEvents.find({
+      ts: { $gte: sevenDaysAgo },
+      event: 'insufficient_balance_wall',
+    }).project({ chatId: 1, ts: 1 }).toArray()
+    const lastWallByChat = new Map()
+    for (const w of walls) {
+      const cid = String(w.chatId)
+      if (!lastWallByChat.has(cid) || lastWallByChat.get(cid) < w.ts) {
+        lastWallByChat.set(cid, w.ts)
+      }
+    }
+    scanned = lastWallByChat.size
+    if (scanned === 0) { log('[LowBalanceNudge] No wall-hits in last 7d — skipping cycle'); return }
+
+    // 2. For each, check if a deposit came AFTER the wall
+    const depositsAfter = await funnelEvents.find({
+      ts: { $gte: sevenDaysAgo },
+      event: 'deposit_confirmed',
+      chatId: { $in: [...lastWallByChat.keys()] },
+    }).project({ chatId: 1, ts: 1 }).toArray()
+    const lastDepositByChat = new Map()
+    for (const d of depositsAfter) {
+      const cid = String(d.chatId)
+      if (!lastDepositByChat.has(cid) || lastDepositByChat.get(cid) < d.ts) {
+        lastDepositByChat.set(cid, d.ts)
+      }
+    }
+
+    // 3. Filter: candidates = wall + no deposit after
+    const candidates = []
+    for (const [cid, wallTs] of lastWallByChat.entries()) {
+      const depTs = lastDepositByChat.get(cid)
+      if (depTs && depTs >= wallTs) continue // already recovered
+      candidates.push({ chatId: cid, wallTs })
+    }
+
+    // 4. Skip if alerted in last 7d
+    const recentAlerts = await lowBalanceAlerts.find({
+      sentAt: { $gte: sevenDaysAgo },
+      chatId: { $in: candidates.map(c => c.chatId) },
+    }).project({ chatId: 1 }).toArray()
+    const recentAlertSet = new Set(recentAlerts.map(a => a.chatId))
+
+    // 5. Send DMs
+    for (const c of candidates) {
+      if (recentAlertSet.has(c.chatId)) { skipped++; continue }
+      try {
+        const lang = ((await get(state, c.chatId)) || {}).userLanguage || 'en'
+        const balDoc = await walletOf.findOne({ _id: parseInt(c.chatId) })
+        const wallet = balDoc?.val || balDoc || { usdIn: 0, usdOut: 0 }
+        const usdBal = Math.max(0, (wallet.usdIn || 0) - (wallet.usdOut || 0))
+        const bodyByLang = {
+          en: `💼 <b>Your wallet is running low</b>\n\nCurrent balance: <b>$${usdBal.toFixed(2)}</b>\n\nTop up now and pick up where you left off — crypto deposits land in your wallet in seconds.\n\n<i>Tap 💰 Wallet in the menu, or send /deposit to top up.</i>`,
+          fr: `💼 <b>Votre solde est faible</b>\n\nSolde actuel : <b>$${usdBal.toFixed(2)}</b>\n\nRechargez maintenant et reprenez là où vous vous étiez arrêté — les dépôts crypto arrivent en quelques secondes.\n\n<i>Touchez 💰 Portefeuille dans le menu, ou tapez /deposit pour recharger.</i>`,
+          zh: `💼 <b>您的钱包余额不足</b>\n\n当前余额：<b>$${usdBal.toFixed(2)}</b>\n\n立即充值，继续完成订单 — 加密充值数秒到账。\n\n<i>点击菜单中的 💰 钱包，或发送 /deposit 进行充值。</i>`,
+          hi: `💼 <b>आपका वॉलेट कम है</b>\n\nवर्तमान शेष: <b>$${usdBal.toFixed(2)}</b>\n\nअभी टॉप-अप करें और अपना ऑर्डर पूरा करें — क्रिप्टो जमा सेकंडों में आपके वॉलेट में पहुँचता है।\n\n<i>मेनू में 💰 वॉलेट टैप करें, या टॉप-अप के लिए /deposit भेजें।</i>`,
+        }
+        await bot.sendMessage(c.chatId, bodyByLang[lang] || bodyByLang.en, { parse_mode: 'HTML' })
+        await lowBalanceAlerts.updateOne(
+          { chatId: c.chatId },
+          { $set: { chatId: c.chatId, sentAt: new Date(), walletBalance: usdBal, wallTs: c.wallTs } },
+          { upsert: true }
+        )
+        sent++
+        log(`[LowBalanceNudge] Sent to ${c.chatId} bal=$${usdBal.toFixed(2)}`)
+      } catch (e) {
+        errors++
+        // Telegram 403 (user blocked bot) or 400 (chat not found) — common,
+        // not actionable, downgrade to single-line warn.
+        log(`[LowBalanceNudge] Send failed for ${c.chatId}: ${e.message?.slice(0, 100)}`)
+      }
+    }
+  } catch (e) {
+    errors++
+    log(`[LowBalanceNudge] Scan error: ${e.message}`)
+  }
+
+  if (sent > 0 || errors > 0 || skipped > 0) {
+    log(`[LowBalanceNudge] Cycle complete — scanned:${scanned} sent:${sent} skipped:${skipped} errors:${errors}`)
+  }
+}
+
+schedule.scheduleJob('0 11 * * *', sendLowBalanceNudges)
+
 // ─── Periodic Anti-Red Worker deployment (fail-safe) ────
 // Runs every 6 hours to catch any CF-proxied domains missing the Worker route
 const { deploySharedWorkerRoute } = require('./anti-red-service')
@@ -11162,6 +11326,15 @@ All verified numbers generated during sourcing.`))
           } else if (referrerChatId === chatId) {
             outcome = 'self_referral'
             log(`[Referral] outcome=self_referral chatId=${chatId} refCode=${refCode}`)
+            // UX P-Funnel #5 (2026-06-21): show the user *their own* share link
+            // instead of silently dropping. Common after they tap their own
+            // link in a preview / test — give them a useful next step.
+            try {
+              const botUsername = process.env.BOT_USERNAME || 'Nomadlybot'
+              const ownLink = `https://t.me/${botUsername}?start=ref_${chatId}`
+              const selfMsg = `💡 <b>You can't refer yourself</b>\n\nBut here's <b>your</b> share link — send it to a friend instead:\n\n🔗 <code>${ownLink}</code>\n\n<i>When they spend $5, you instantly earn $1. At $30 cumulative, you earn another $5.</i>`
+              send(chatId, selfMsg, { parse_mode: 'HTML' })
+            } catch (_) { /* non-fatal */ }
           } else {
             await referrals.updateOne({ _id: chatId }, { $set: {
               _id: chatId,
@@ -13895,8 +14068,10 @@ All verified numbers generated during sourcing.`))
       const myReferrals = await referrals.find({ referrerChatId: chatId }).toArray()
       const totalReferred = myReferrals.length
       const qualified = myReferrals.filter(r => r.rewardPaid).length
+      const firstDepositBonuses = myReferrals.filter(r => r.firstDepositBonusPaid).length
       const pending = myReferrals.filter(r => !r.rewardPaid).length
-      const totalEarned = qualified * 5
+      // Earnings: $5 threshold reward per qualified referee + $1 first-deposit bonus
+      const totalEarned = qualified * 5 + firstDepositBonuses * 1
 
       // Get pending referrals' progress
       let pendingLines = ''
@@ -13909,14 +14084,14 @@ All verified numbers generated during sourcing.`))
         pendingLines += `\n  ${name}: $${ref.cumulativeSpend.toFixed(2)}/$30 [${bar}] ${progress}%`
       }
 
-      const msg = `🤝 <b>Refer a Friend, Earn $5</b>\n\n` +
-        `Invite friends to Nomadly. When they spend $30, you get <b>$5</b> — simple.\n\n` +
+      const msg = `🤝 <b>Refer & Earn — now with instant bonus</b>\n\n` +
+        `Invite friends to Nomadly. When they deposit <b>$5</b>, you get <b>$1</b> instantly. When their total spend hits <b>$30</b>, you get another <b>$5</b>.\n\n` +
         `🔗 <a href="${referralLink}">Tap to copy your invite link</a>\n\n` +
         `${'─'.repeat(22)}\n` +
         `👥  <b>${totalReferred}</b> referred   ✅  <b>${qualified}</b> qualified   💰  <b>$${totalEarned.toFixed(2)}</b> earned` +
         (pendingLines ? `\n${'─'.repeat(22)}\n📈 <b>In Progress</b>${pendingLines}` : '') +
         `\n${'─'.repeat(22)}\n` +
-        `<i>Reward unlocks when your referral's total spending hits $30.</i>`
+        `<i>Bonuses land in your wallet automatically.</i>`
 
       return send(chatId, msg, { parse_mode: 'HTML', ...k.of([['↩️ Back']]) })
     } catch (e) {
@@ -30153,6 +30328,70 @@ const buyDomainFullProcess = async (chatId, lang, domain) => {
     // ── Persist fully completed ──
     await markCompleted(domain)
 
+    // ── UX P-Funnel #3 + #12 (2026-06-21): post-purchase nudge ────────
+    // Two small, time-decoupled cards (8s delay each so they land after
+    // `t.domainBought` and the DNS-check stamp):
+    //   1. Hosting + VPS bundle cross-sell (existing audience, zero CAC)
+    //   2. Referral share-card — surfaced ONLY for users with zero existing
+    //      referees, so we don't nag regulars.  Capitalizes on the
+    //      post-purchase dopamine moment.
+    // Both are best-effort: any error is non-fatal and shouldn't block the
+    // confirmation message above (which is the user's source of truth).
+    try {
+      setTimeout(() => {
+        try {
+          const crossSellByLang = {
+            en: `🚀 <b>Pair ${domain} with hosting + VPS?</b>\n\n` +
+                `Get your domain live in minutes — cPanel hosting + free SSL from <b>$3.99/mo</b>, or a full Linux VPS from <b>$5/mo</b>.\n\n` +
+                `<i>Tap 🌐 Hosting or 🖥️ VPS in the menu to see bundles.</i>`,
+            fr: `🚀 <b>Associez ${domain} à un hébergement + VPS ?</b>\n\n` +
+                `Mettez votre domaine en ligne en quelques minutes — hébergement cPanel + SSL gratuit dès <b>3,99 $/mois</b>, ou un VPS Linux complet dès <b>5 $/mois</b>.\n\n` +
+                `<i>Touchez 🌐 Hébergement ou 🖥️ VPS dans le menu.</i>`,
+            zh: `🚀 <b>为 ${domain} 配置主机 + VPS？</b>\n\n` +
+                `几分钟内即可上线 — cPanel 主机含免费 SSL，<b>$3.99/月起</b>；或全功能 Linux VPS，<b>$5/月起</b>。\n\n` +
+                `<i>点击菜单中的 🌐 主机 或 🖥️ VPS 查看套餐。</i>`,
+            hi: `🚀 <b>${domain} के साथ होस्टिंग + VPS जोड़ें?</b>\n\n` +
+                `मिनटों में अपना डोमेन लाइव करें — cPanel होस्टिंग + मुफ्त SSL केवल <b>$3.99/माह</b> से, या पूरा Linux VPS <b>$5/माह</b> से।\n\n` +
+                `<i>मेनू में 🌐 होस्टिंग या 🖥️ VPS टैप करें।</i>`,
+          }
+          sendMessage(chatId, crossSellByLang[lang] || crossSellByLang.en, { parse_mode: 'HTML' })
+        } catch (e) { log(`[PostPurchase] cross-sell card non-fatal err: ${e.message}`) }
+      }, 8000)
+    } catch (_) { /* setTimeout failure is non-fatal */ }
+
+    try {
+      setTimeout(async () => {
+        try {
+          // Only surface to users with zero existing referees so we don't
+          // re-nag people who already know about the program.
+          if (!referrals || typeof referrals.countDocuments !== 'function') return
+          const existingRefereeCount = await referrals.countDocuments({ referrerChatId: chatId })
+          if (existingRefereeCount > 0) return
+          const botUsername = process.env.BOT_USERNAME || 'Nomadlybot'
+          const refLink = `https://t.me/${botUsername}?start=ref_${chatId}`
+          const refByLang = {
+            en: `🎁 <b>Earn $1 instantly, $5 more later</b>\n\n` +
+                `Share your link → friend deposits $5 = <b>+$1</b> to your wallet on the spot.\n` +
+                `They spend $30 lifetime = another <b>+$5</b> for you.\n\n` +
+                `🔗 <code>${refLink}</code>\n<i>Tap to copy.</i>`,
+            fr: `🎁 <b>Gagnez 1 $ instantanément, 5 $ de plus ensuite</b>\n\n` +
+                `Partagez votre lien → un ami dépose 5 $ = <b>+1 $</b> immédiat dans votre portefeuille.\n` +
+                `Il dépense 30 $ au total = encore <b>+5 $</b> pour vous.\n\n` +
+                `🔗 <code>${refLink}</code>\n<i>Touchez pour copier.</i>`,
+            zh: `🎁 <b>立即赚 $1，再赚 $5</b>\n\n` +
+                `分享您的链接 → 朋友充值 $5 = <b>立即 +$1</b> 到您的钱包。\n` +
+                `朋友累计消费 $30 = 再赚 <b>+$5</b>。\n\n` +
+                `🔗 <code>${refLink}</code>\n<i>点击复制。</i>`,
+            hi: `🎁 <b>$1 तुरंत कमाएं, बाद में और $5</b>\n\n` +
+                `अपना लिंक शेयर करें → दोस्त $5 जमा करे = <b>तुरंत +$1</b> आपके वॉलेट में।\n` +
+                `वो कुल $30 खर्च करे = और <b>+$5</b> आपको।\n\n` +
+                `🔗 <code>${refLink}</code>\n<i>कॉपी करने के लिए टैप करें।</i>`,
+          }
+          sendMessage(chatId, refByLang[lang] || refByLang.en, { parse_mode: 'HTML' })
+        } catch (e) { log(`[PostPurchase] referral nudge non-fatal err: ${e.message}`) }
+      }, 16000)
+    } catch (_) { /* non-fatal */ }
+
     return false // error = false
   } catch (error) {
     const errorMessage = `err buyDomainFullProcess ${error?.message} ${safeStringify(error?.response?.data)}`
@@ -34423,6 +34662,13 @@ app.post('/dynopay/crypto-wallet', authDyno, async (req, res) => {
   }
   if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
+  // ── Referral payout hook (UX P-Funnel #4, 2026-06-21) ──
+  // If this user was referred, credit their referrer ($1 first-deposit bonus +
+  // $5 threshold reward when applicable). Idempotent — safe to call on every
+  // deposit. Tracked via referrals.firstDepositBonusPaid / rewardPaid flags.
+  try { await applyReferralCredit(chatId, usdIn, 'dynopay-deposit') } catch (e) {
+    log(`[Referral] applyReferralCredit (dynopay) non-fatal err: ${e.message}`)
+  }
   await set(state, chatId, 'action', 'none') // Reset action after crypto wallet deposit
   
   log('=== DYNOPAY WALLET WEBHOOK PROCESSING COMPLETE ===')
