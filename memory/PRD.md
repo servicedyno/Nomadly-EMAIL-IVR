@@ -354,6 +354,29 @@ User-selected three domain-purchase improvements after the previous batch.  All 
   - Localized button labels in en/fr/zh/hi
   - Soft fallback if `processUpdate` fails: tells the user which menu key to tap
 
+#### #4 extension — Same pattern for VPS + Phone purchase (2026-06-21 same session)
+
+**VPS post-purchase card** (`_index.js` ~31474, fires 10s after `vpsSuccessMsg`):
+- 🌐 Add a domain     → `callback_data: pv:domain`
+- 🛡️ Add hosting     → `callback_data: pv:hosting`
+- 📞 Add cloud number → `callback_data: pv:phone`
+
+**Phone post-purchase card** (`_index.js` `postActivationNudge` ~1500, fires 10s after the SIP-creds reply keyboard — doesn't compete with that primary nudge):
+- 📧 Try BulkSMS       → `callback_data: pp:sms`
+- 🌐 Add a domain     → `callback_data: pp:domain`
+- 🖥️ Add a VPS        → `callback_data: pp:vps`
+
+**Unified callback handler** (`bot.on('callback_query')` ~line 4373) now routes `pd:*`, `pv:*`, and `pp:*` prefixes to the matching menu trigger word with the same `processUpdate` pattern. All 9 trigger words verified to have matching handlers in the message dispatcher. No callback_data prefix collisions with existing inline keyboards.
+
+#### Advanced NS button renamed
+"⚙️ Advanced (custom NS)" → **"🔧 I have my own nameservers"** in all 4 locales. More discoverable wording — describes what the user has, not what's hiding behind the button.
+
+#### Domain-pay back-button — path-aware
+Added a `cameViaAdvancedNS: true` state flag on the Advanced opt-in path. The `domain-pay` back-button now checks this flag:
+- If user took Advanced path → back returns to NS picker (preserves their selection context)
+- If standard fast-path → back returns to shortener question (the existing simplified behaviour)
+Flag is also explicitly cleared on the fast-path Yes/No branch so a previous Advanced choice doesn't bleed across new searches.
+
 ### #9 — Step indicator + ETA in domain-link status
 - `/app/js/lang/en.js` lines 462 / 465
 - **`t.domainLinking`** (sent after domain registration, before DNS records add) now reads:

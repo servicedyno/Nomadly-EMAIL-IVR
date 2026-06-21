@@ -1487,11 +1487,45 @@ const postActivationNudge = async (chatId, phoneNumber, planName) => {
 
     // Reply keyboard puts SIP Credentials as the top button — one tap away.
     // Include Test My Number and Back so the user has the common quick actions.
-    return sendMessage(chatId, body, k.of([
+    await sendMessage(chatId, body, k.of([
       [pc.sipCredentials],
       [pc.testMyNumber, pc.callForwarding],
       [pc.back],
     ]))
+
+    // ── UX P-Phone post-purchase cross-sell card (2026-06-21) ─────────
+    // Lands ~10s after the SIP-creds nudge so it doesn't compete with the
+    // primary "grab your SIP creds" call-to-action. Inline buttons surface
+    // the three highest-value cross-sells for users who just bought a
+    // number. Best-effort, non-fatal on error.
+    setTimeout(() => {
+      try {
+        const titleByLang = {
+          en: `🎯 <b>Your number is live — what's next?</b>\n\nPick a next step:`,
+          fr: `🎯 <b>Votre numéro est actif — et maintenant ?</b>\n\nChoisissez la prochaine étape :`,
+          zh: `🎯 <b>您的号码已激活 — 接下来呢？</b>\n\n选择下一步：`,
+          hi: `🎯 <b>आपका नंबर लाइव है — आगे क्या?</b>\n\nअगला कदम चुनें:`,
+        }
+        const btnByLang = {
+          en: { sms: '📧 Try BulkSMS', domain: '🌐 Add a domain', vps: '🖥️ Add a VPS' },
+          fr: { sms: '📧 Essayer BulkSMS', domain: '🌐 Ajouter un domaine', vps: '🖥️ Ajouter un VPS' },
+          zh: { sms: '📧 试用 BulkSMS', domain: '🌐 添加域名', vps: '🖥️ 添加 VPS' },
+          hi: { sms: '📧 BulkSMS आज़माएं', domain: '🌐 डोमेन जोड़ें', vps: '🖥️ VPS जोड़ें' },
+        }
+        const labels = btnByLang[lang] || btnByLang.en
+        sendMessage(chatId, titleByLang[lang] || titleByLang.en, {
+          parse_mode: 'HTML',
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: labels.sms, callback_data: 'pp:sms' }],
+              [{ text: labels.domain, callback_data: 'pp:domain' }],
+              [{ text: labels.vps, callback_data: 'pp:vps' }],
+            ],
+          },
+        })
+      } catch (e) { log(`[PostPhone] card non-fatal err: ${e.message}`) }
+    }, 10000)
+    return
   } catch (err) {
     // Non-fatal — failure here must never break the activation flow itself.
     log(`[postActivationNudge] failed for ${chatId}/${phoneNumber}: ${err.message}`)
@@ -4331,27 +4365,50 @@ bot?.on('callback_query', async (query) => {
     const data = query?.data || ''
     const chatId = String(query?.message?.chat?.id) // Always convert to string for DB consistency
 
-    // ── Post-domain action shortcuts (UX P-Domain #4, 2026-06-21) ──
-    // Inline-button shortcuts sent right after a successful domain
-    // registration. Lets the user single-tap into the most likely next step
-    // (hosting, DNS management, shortener activation) without hunting
-    // through the menu. We reuse the existing menu trigger words via
+    // ── Post-purchase action shortcuts (UX P-Domain/VPS/Phone #4, 2026-06-21) ──
+    // Inline-button shortcuts sent right after a successful purchase. Lets the
+    // user single-tap into the most likely next step without hunting through
+    // the menu. We reuse the existing menu trigger words via
     // `bot.processUpdate` so the navigation behaviour stays in sync with
     // the rest of the bot (no duplicate state machines).
-    if (data.startsWith('pd:')) {
+    //   pd:* → after domain registration  (host / dns / short)
+    //   pv:* → after VPS deployment      (domain / hosting / phone)
+    //   pp:* → after phone activation    (sms / domain / vps)
+    if (data.startsWith('pd:') || data.startsWith('pv:') || data.startsWith('pp:')) {
       try { await bot.answerCallbackQuery(query.id) } catch { /* noop */ }
-      const [, kind, dom] = data.split(':')
+      const [prefix, kind, dom] = data.split(':')
       // Resolve the menu trigger word from the bound i18n module
       let triggerText = null
       try {
         const u = require('./lang/en.js').en?.user || {}
-        if (kind === 'host')  triggerText = u.hostingDomainsRedirect || '🛡️🔥 Anti-Red Hosting'
-        if (kind === 'dns')   triggerText = u.dnsManagement          || '🔧 DNS Management'
-        if (kind === 'short') triggerText = u.activateDomainShortener || '🔗 Activate Domain for Shortener'
+        if (prefix === 'pd') {
+          if (kind === 'host')  triggerText = u.hostingDomainsRedirect || '🛡️🔥 Anti-Red Hosting'
+          if (kind === 'dns')   triggerText = u.dnsManagement          || '🔧 DNS Management'
+          if (kind === 'short') triggerText = u.activateDomainShortener || '🔗 Activate Domain for Shortener'
+        } else if (prefix === 'pv') {
+          if (kind === 'domain')  triggerText = u.domainNames            || '🌐 Bulletproof Domains'
+          if (kind === 'hosting') triggerText = u.hostingDomainsRedirect || '🛡️🔥 Anti-Red Hosting'
+          if (kind === 'phone')   triggerText = u.cloudPhone             || '📞 Cloud IVR + SIP'
+        } else if (prefix === 'pp') {
+          if (kind === 'sms')    triggerText = u.smsAppMain  || '📧 BulkSMS'
+          if (kind === 'domain') triggerText = u.domainNames || '🌐 Bulletproof Domains'
+          if (kind === 'vps')    triggerText = u.vpsPlans    || '🖥️ VPS/RDP — Port 25 Open🛡️'
+        }
       } catch (_) {
-        if (kind === 'host')  triggerText = '🛡️🔥 Anti-Red Hosting'
-        if (kind === 'dns')   triggerText = '🔧 DNS Management'
-        if (kind === 'short') triggerText = '🔗 Activate Domain for Shortener'
+        // Hard-coded fallback labels match the en.js defaults above
+        if (prefix === 'pd') {
+          if (kind === 'host')  triggerText = '🛡️🔥 Anti-Red Hosting'
+          if (kind === 'dns')   triggerText = '🔧 DNS Management'
+          if (kind === 'short') triggerText = '🔗 Activate Domain for Shortener'
+        } else if (prefix === 'pv') {
+          if (kind === 'domain')  triggerText = '🌐 Bulletproof Domains'
+          if (kind === 'hosting') triggerText = '🛡️🔥 Anti-Red Hosting'
+          if (kind === 'phone')   triggerText = '📞 Cloud IVR + SIP'
+        } else if (prefix === 'pp') {
+          if (kind === 'sms')    triggerText = '📧 BulkSMS'
+          if (kind === 'domain') triggerText = '🌐 Bulletproof Domains'
+          if (kind === 'vps')    triggerText = '🖥️ VPS/RDP — Port 25 Open🛡️'
+        }
       }
       if (!triggerText) return
 
@@ -4367,9 +4424,10 @@ bot?.on('callback_query', async (query) => {
             text: triggerText,
           },
         })
-        // For shortener, the user lands on a domain picker. If we have the
-        // domain name, fire it immediately so they skip the picker.
-        if (kind === 'short' && dom) {
+        // For pd:short (post-domain shortener), the user lands on a domain
+        // picker. If we have the domain name in the callback_data, fire it
+        // automatically so they skip the picker.
+        if (prefix === 'pd' && kind === 'short' && dom) {
           setTimeout(async () => {
             try {
               await bot.processUpdate({
@@ -4382,11 +4440,11 @@ bot?.on('callback_query', async (query) => {
                   text: dom,
                 },
               })
-            } catch (e) { log(`[PostDomain] short auto-pick non-fatal err: ${e.message}`) }
+            } catch (e) { log(`[PostPurchase] short auto-pick non-fatal err: ${e.message}`) }
           }, 1500)
         }
       } catch (e) {
-        log(`[PostDomain] callback ${kind} err: ${e.message}`)
+        log(`[PostPurchase] callback ${prefix}:${kind} err: ${e.message}`)
         // Soft fallback: tell the user which menu key to tap
         try { return send(chatId, `Tap <b>${triggerText}</b> in the menu below.`, { parse_mode: 'HTML' }) } catch { /* noop */ }
       }
@@ -7893,7 +7951,7 @@ bot?.on('message', msg => {
       // opt-in so power users can still set custom nameservers at
       // registration time (1 extra tap), while keeping the simplified path
       // (Yes / No → auto-Cloudflare) for the 95%+ majority.
-      const advLabels = { en: '⚙️ Advanced (custom NS)', fr: '⚙️ Avancé (NS personnalisés)', zh: '⚙️ 高级（自定义 NS）', hi: '⚙️ उन्नत (कस्टम NS)' }
+      const advLabels = { en: '🔧 I have my own nameservers', fr: '🔧 J\'ai mes propres serveurs de noms', zh: '🔧 我有自己的域名服务器', hi: '🔧 मेरे पास अपने नेमसर्वर हैं' }
       const advLabel = advLabels[lang] || advLabels.en
       send(chatId, trans('t.wlt_3', priceText, t.askDomainToUseWithShortener), k.of([[t.yes, t.no], [advLabel], ['↩️ Back']]))
     },
@@ -18321,12 +18379,21 @@ ${message.replace(/\n/g, '<br>')}
   }
   if (action === a.askDomainToUseWithShortener) {
     if (isBackPress(message)) return goto['choose-domain-to-buy']()
-    // UX P-Domain #3 (2026-06-21): "⚙️ Advanced (custom NS)" opt-in routes
-    // power users into the existing NS picker so they can still set custom
-    // nameservers at registration time. All 4 locales handled.
-    const advancedLabels = ['⚙️ Advanced (custom NS)', '⚙️ Avancé (NS personnalisés)', '⚙️ 高级（自定义 NS）', '⚙️ उन्नत (कस्टम NS)']
+    // UX P-Domain #3 (2026-06-21): "🔧 I have my own nameservers" opt-in
+    // routes power users into the existing NS picker so they can still set
+    // custom nameservers at registration time. All 4 locales handled.
+    const advancedLabels = [
+      '🔧 I have my own nameservers',
+      '🔧 J\'ai mes propres serveurs de noms',
+      '🔧 我有自己的域名服务器',
+      '🔧 मेरे पास अपने नेमसर्वर हैं',
+    ]
     if (advancedLabels.includes(String(message))) {
       saveInfo('askDomainToUseWithShortener', false)
+      // UX P-Domain #3 (2026-06-21): explicit marker so `domain-pay` back-button
+      // can route back to the NS picker instead of the shortener-Q for users
+      // who deliberately took the Advanced path.
+      saveInfo('cameViaAdvancedNS', true)
       return goto.domainNsSelect()
     }
     const yesPressed = isYesPress(message)
@@ -18348,6 +18415,9 @@ ${message.replace(/\n/g, '<br>')}
     // menu, so this drops the picker from the new-purchase flow entirely.
     saveInfo('nsChoice', 'cloudflare')
     saveInfo('nameserver', 'cloudflare')
+    // Clear any stale advanced-path flag in case user previously took Advanced
+    // then backed out and is now on the fast path.
+    saveInfo('cameViaAdvancedNS', false)
     return goto['domain-pay']()
   }
   if (action === a.domainNsSelect) {
@@ -18427,9 +18497,11 @@ ${message.replace(/\n/g, '<br>')}
   }
   if (action === 'domain-pay') {
     if (isBackPress(message)) {
-      // UX P-Domain #3 (2026-06-21): NS picker removed from the new-purchase
-      // flow (auto-Cloudflare), so back-button always returns to the
-      // shortener question regardless of shortener=Yes/No state.
+      // UX P-Domain #3 (2026-06-21): if user took the Advanced path
+      // (custom NS), back returns to the NS picker so they don't lose
+      // their selection. Otherwise (standard fast-path) back returns
+      // to the shortener question.
+      if (info?.cameViaAdvancedNS) return goto.domainNsSelect()
       return goto.askDomainToUseWithShortener()
     }
 
@@ -31387,6 +31459,41 @@ const buyVPSPlanFullProcess = async (chatId, lang, vpsDetails) => {
       `\n\n<b>Transaction ID:</b> <code>${txnId}</code>\n<i>Quote this ID when contacting support</i>`
     send(chatId, vpsSuccessMsg, translation('o', lang))
     await progress.complete({ en: '🎉 VPS ready!', fr: '🎉 VPS prêt !', zh: '🎉 VPS 就绪！', hi: '🎉 VPS तैयार!' }[lang] || '🎉 VPS ready!')
+
+    // ── UX P-VPS post-purchase cross-sell card (2026-06-21) ─────────
+    // Same pattern as the domain post-purchase card — 3 single-tap
+    // inline buttons that route into existing menus via processUpdate.
+    // Delivered after a short delay so it lands AFTER the success message +
+    // the credentials email confirmation. Best-effort, non-fatal on error.
+    try {
+      setTimeout(() => {
+        try {
+          const titleByLang = {
+            en: `🚀 <b>Your VPS is live — keep building?</b>\n\nPick a next step:`,
+            fr: `🚀 <b>Votre VPS est en ligne — continuez la construction ?</b>\n\nChoisissez la prochaine étape :`,
+            zh: `🚀 <b>您的 VPS 已上线 — 继续搭建吗？</b>\n\n选择下一步：`,
+            hi: `🚀 <b>आपका VPS लाइव है — आगे क्या?</b>\n\nअगला कदम चुनें:`,
+          }
+          const btnByLang = {
+            en: { domain: '🌐 Add a domain', hosting: '🛡️ Add hosting', phone: '📞 Add cloud number' },
+            fr: { domain: '🌐 Ajouter un domaine', hosting: '🛡️ Ajouter hébergement', phone: '📞 Ajouter numéro cloud' },
+            zh: { domain: '🌐 添加域名', hosting: '🛡️ 添加主机', phone: '📞 添加云号码' },
+            hi: { domain: '🌐 डोमेन जोड़ें', hosting: '🛡️ होस्टिंग जोड़ें', phone: '📞 क्लाउड नंबर जोड़ें' },
+          }
+          const labels = btnByLang[lang] || btnByLang.en
+          sendMessage(chatId, titleByLang[lang] || titleByLang.en, {
+            parse_mode: 'HTML',
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: labels.domain, callback_data: 'pv:domain' }],
+                [{ text: labels.hosting, callback_data: 'pv:hosting' }],
+                [{ text: labels.phone, callback_data: 'pv:phone' }],
+              ],
+            },
+          })
+        } catch (e) { log(`[PostVPS] card non-fatal err: ${e.message}`) }
+      }, 10000)
+    } catch (_) { /* setTimeout failure is non-fatal */ }
     try {
       await sendVPSCredentialsEmail(info, vpsData, vpsDetails, credentials)
     } catch (error) {
