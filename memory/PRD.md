@@ -160,3 +160,50 @@ User asked: access Railway logs and determine if there are any anomalies or UX i
 ### Status
 Diagnostic phase complete. No code changes applied to fix UX issues yet (waiting for user direction). The earlier 🔴 P0 (Fincra `Unauthorized`) is still pending user action in Railway dashboard.
 
+
+
+---
+
+## 2026-06-21 (later same day) — UX fixes implemented per user direction
+
+User asked to fix #2 (with paid-customer audit first) and items #3, #4, #5, #7, #8 from yesterday's UX scan list.
+
+### #2 Twilio sub-account 401 — paid-customer audit + code change DONE
+- **Paid-customer audit**: 7 paid customers with 8 actively-subscribed phone lines confirmed affected. 2 have auto-renew in just 2 days (`+18889233702` chat 817673476, `+18886043141` chat 6604316166). Lifetime phone-line spend: $1,318.75.
+- **Code fix**: `phone-monitor.js` now detects HTTP 401 specifically, collects them into `authFailedSubs[]`, and sends a once-per-day **admin Telegram digest** listing every affected sub-account + customer line. User-facing notification is deliberately skipped for 401s (vs `'suspended'` which still triggers user notification).
+- Manual remaining: admin must rotate each sub-account auth token in Twilio Console.
+
+### #3 VPS Start root cause — DONE
+- `vm-instance-setup.js` returns `{ error, status, providerMessage }`. `_index.js` branches on status code: 404 → orphan-VPS message; 423 → "locked, retry in 2 min"; 409 → "conflicting state"; 5xx → "provider unreachable".
+
+### #4 Insufficient-balance UX wall — DONE
+- Prepended wallet-balance banner on Custom-Leads catalog (`targetSelectTarget`).
+- Reframed wall message to "Just $X short — tap Deposit below" with reassurance order is saved + crypto suggestion.
+
+### #5 /start debounce — DONE
+- Tracks last /start per chat. < 3 sec re-tap gets a small reminder instead of full menu re-render.
+
+### #7 Soften copy + mute opt-out — DONE
+- Rewrote EN `BROWSE_FOLLOWUP_MESSAGES` to feel helpful, dropped pressure, added mute hint.
+- Added `mute` / `unmute` keyword handler wired to existing `promoOptOut` collection.
+
+### #8 Funnel metric — DONE
+- Emits `insufficient_balance_wall` + `deposit_confirmed` events to `funnelEvents` collection.
+- New `GET /admin/funnel-stats?key=…&days=7` endpoint returns recovery-rate percentage and bounced-user list.
+
+### Smoke tests passed
+- ESLint clean across all 4 modified files
+- Node bot restarts clean, 70+ services initialise
+- `/admin/funnel-stats` returns valid JSON, 403 without key
+- MongoDB writes verified for promoOptOut + funnelEvents
+
+### Full report: `/app/UX_FIXES_IMPLEMENTATION_REPORT.md`
+
+### Files modified
+- `/app/js/phone-monitor.js` (Twilio 401 handler + admin digest)
+- `/app/js/_index.js` (5 separate fixes)
+- `/app/js/vm-instance-setup.js` (preserve provider status code)
+- `/app/js/new-user-conversion.js` (softer EN copy)
+
+### Status
+Code changes ready. `logs_prod/` is gitignored from yesterday's cleanup so this round of changes is push-safe.

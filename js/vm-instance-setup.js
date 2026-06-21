@@ -1033,9 +1033,11 @@ async function changeVpsInstanceStatus(vpsDetails, changeStatus) {
 
     return { success: true, data: result }
   } catch (err) {
+    // err shape from contabo-service apiRequest: { status, message, raw }
     const errorMessage = `Error changing VPS status to ${changeStatus}: ${err.message || JSON.stringify(err)}`
     console.error(errorMessage)
-    return { error: errorMessage }
+    // Preserve provider status code so the caller can show specific UX messages.
+    return { error: errorMessage, status: err?.status || 'unknown', providerMessage: err?.message || '' }
   }
 }
 

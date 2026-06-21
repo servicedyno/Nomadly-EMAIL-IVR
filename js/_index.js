@@ -8601,6 +8601,17 @@ Enter new value:`), bc)
       if (!userSubscribed && t.subscriptionLeadsHint) {
         send(chatId, t.subscriptionLeadsHint)
       }
+      // UX P1 fix (2026-06-21): show wallet balance upfront so users know
+      // before committing to the catalog flow whether they'll hit the
+      // insufficient-balance wall.  Plans start at $20 — if wallet < $20
+      // we suggest depositing first to avoid wasted steps.
+      try {
+        const { usdBal: _bal } = await getBalance(walletOf, chatId)
+        const bar = _bal >= 20
+          ? `💳 <b>Wallet:</b> $${view(_bal)} — ready to buy`
+          : `💳 <b>Wallet:</b> $${view(_bal)} — plans start at <b>$20</b>; top up first to skip the deposit step at checkout.`
+        send(chatId, bar, { parse_mode: 'HTML' })
+      } catch { /* non-fatal */ }
       // Build 2-per-row keyboard for targets
       const rows = []
       for (let i = 0; i < targetLeadsTargets.length; i += 2) {
@@ -8651,7 +8662,30 @@ Enter new value:`), bc)
       const shortBy = insufficient ? (finalPrice - usdBal) : 0
       let summary = `📋 <b>Order Summary</b>\n\n🏦 Institution: <b>${targetName}</b>\n📍 Area: <b>${targetCity}</b>\n📞 Carrier: <b>${carrier}</b>\n📊 Leads: <b>${amount}</b>\n📄 Format: <b>International</b>\n📇 Includes: <b>Phone owner's name</b>${couponValid ? `\n💰 Price: <s>$${price}</s> <b>$${view(finalPrice)}</b>` : `\n💰 Price: <b>$${finalPrice}</b>`}\n\n💳 Wallet: <b>$${view(usdBal)}</b>`
       if (insufficient) {
-        summary += `\n\n⚠️ <b>Insufficient balance</b> — deposit at least <b>$${shortBy.toFixed(2)}</b> to proceed.`
+        // UX P0 fix (2026-06-21): Custom-Leads checkout had a 100% bounce rate
+        // from this wall (see /app/UX_ANOMALY_REPORT.md §1).  Rewrite the message
+        // so the user knows (a) we saved their selection, (b) crypto works
+        // instantly, (c) they don't have to repeat the catalog flow after
+        // depositing.
+        summary +=
+          `\n\n⚠️ <b>Just $${shortBy.toFixed(2)} short</b> — tap <b>💵 Deposit Funds</b> below.\n` +
+          `<i>Your order (${targetName} · ${targetCity} · ${amount} leads · $${view(finalPrice)}) is saved — you'll come straight back here after depositing.</i>\n\n` +
+          `Fastest: crypto (USDT-TRC20, no fees, ~2 min confirm).`
+        // UX P2 fix (2026-06-21): emit a funnel event so we can measure the
+        // recovery rate later (see funnel_metrics doc).  Best-effort, never
+        // blocks the user flow.
+        try {
+          await db.collection('funnelEvents').insertOne({
+            ts: new Date(),
+            chatId: String(chatId),
+            event: 'insufficient_balance_wall',
+            funnel: 'custom_leads',
+            shortBy: Number(shortBy.toFixed(2)),
+            walletBalance: Number(usdBal.toFixed(2)),
+            finalPrice,
+            metadata: { targetName, targetCity, amount, carrier },
+          })
+        } catch { /* non-fatal */ }
       }
       const payBtn = ({ en: `✅ Pay ${view(finalPrice)} USD`, fr: `✅ Payer ${view(finalPrice)} USD`, zh: `✅ 支付 ${view(finalPrice)} USD`, hi: `✅ ${view(finalPrice)} USD भुगतान करें` }[lang] || `✅ Pay ${view(finalPrice)} USD`)
       const depositBtn = ({ en: `💵 Deposit Funds`, fr: `💵 Déposer des fonds`, zh: `💵 充值`, hi: `💵 राशि जमा करें` }[lang] || `💵 Deposit Funds`)
@@ -11149,10 +11183,66 @@ All verified numbers generated during sourcing.`))
     }
   }
 
+  // UX P2 fix (2026-06-21): "mute" / "stop promos" opt-out keyword.
+  // Cart-recovery and new-user-conversion nudges now suggest replying with `mute`
+  // to stop them.  Honour that with a one-liner write to the `promoOptOut`
+  // collection (same key used by isOptedOut() in new-user-conversion.js).
+  {
+    const t = String(message || '').trim().toLowerCase()
+    if (t === 'mute' || t === 'mute promos' || t === 'stop promos' || t === 'unsubscribe promos') {
+      try {
+        const col = db.collection('promoOptOut')
+        await col.updateOne(
+          { _id: String(chatId) },
+          { $set: { _id: String(chatId), optedOut: true, optedOutAt: new Date(), source: 'user_reply_mute' } },
+          { upsert: true },
+        )
+        try { await bot.sendMessage(chatId, '🔕 Got it — we\'ll stop sending you promotional nudges. Order confirmations and account notices still come through. Reply <code>unmute</code> any time to re-enable promos.', { parse_mode: 'HTML' }) } catch { /* ignore */ }
+        return
+      } catch (err) {
+        log(`[OptOut] mute write failed for ${chatId}: ${err.message}`)
+      }
+    }
+    if (t === 'unmute' || t === 'unmute promos' || t === 'resubscribe') {
+      try {
+        await db.collection('promoOptOut').updateOne(
+          { _id: String(chatId) },
+          { $set: { optedOut: false, reactivatedAt: new Date() } },
+        )
+        try { await bot.sendMessage(chatId, '🔔 Promos re-enabled. We\'ll only send you helpful ones — promise.') } catch { /* ignore */ }
+        return
+      } catch (err) {
+        log(`[OptOut] unmute write failed for ${chatId}: ${err.message}`)
+      }
+    }
+  }
+
   if (message === '/start' || message.startsWith('/start ref_') || message === '/start pinreset' || message === '/start resetpin') {
     // Bug 7: Immediate typing indicator — gives instant visual feedback so users
     // don't tap /start multiple times while waiting for the first reply.
     bot?.sendChatAction?.(chatId, 'typing').catch(() => {})
+
+    // UX P1 fix (2026-06-21): debounce /start spam.  Logs show users tapping
+    // /start 3-5× in a row, each re-rendering the full main menu.  If the same
+    // chat hit /start < 3 sec ago, send a tiny reminder instead of redoing the
+    // expensive main-menu render.  Skip the debounce for ref_ deep-links and
+    // pinreset/resetpin tokens — those need their full flow.
+    if (message === '/start') {
+      const _now = Date.now()
+      globalThis.__startDebounce ||= new Map()
+      const last = globalThis.__startDebounce.get(chatId)
+      if (last && _now - last < 3000) {
+        try { await bot.sendMessage(chatId, '👆 You\'re already on the main menu — tap a button above.') } catch { /* ignore */ }
+        globalThis.__startDebounce.set(chatId, _now)
+        return
+      }
+      globalThis.__startDebounce.set(chatId, _now)
+      // light cleanup so the Map doesn't grow forever
+      if (globalThis.__startDebounce.size > 2000) {
+        const cutoff = _now - 60_000
+        for (const [k, v] of globalThis.__startDebounce) if (v < cutoff) globalThis.__startDebounce.delete(k)
+      }
+    }
 
     // U1 fix: Record cart abandonment when user presses /start from a payment screen
     // The cart-abandonment system only tracked Back/Cancel buttons — /start bypassed it entirely
@@ -16730,7 +16820,19 @@ ${message.replace(/\n/g, '<br>')}
         )
         send(chatId, vp.vpsStarted(userVPSDetails.name))
       } else {
-        send(chatId, vp.failedStartedVPS(userVPSDetails.name))
+        // UX P0 fix (2026-06-21): surface the actual reason instead of a
+        // generic "Failed to start VPS".  Users were retrying 5× with no
+        // signal of what was wrong (see /app/UX_ANOMALY_REPORT.md §3).
+        const s = changeVpsStatus.status
+        const friendly =
+          s === 404 ? `❌ This VPS (${userVPSDetails.name}) no longer exists on the provider.  It may have been cancelled or never finished provisioning.  Tap <b>Delete VPS</b> to clear it from your list, then create a new one — or contact support.`
+          : s === 423 ? `⏳ Your VPS (${userVPSDetails.name}) is locked — provisioning or an earlier action is still in progress.  Please try again in 2 minutes.`
+          : s === 409 ? `⚠️ VPS (${userVPSDetails.name}) is in a conflicting state for this action.  It may already be running, or another start/stop is in progress.  Refresh the menu to see current state.`
+          : (s === 502 || s === 503 || s === 504) ? `⚠️ The VPS provider is temporarily unreachable.  Please try again in a few minutes.`
+          : s === 500 ? `⚠️ The VPS provider returned an internal error for ${userVPSDetails.name}.  We've been notified — please retry in a minute, or contact support if it persists.`
+          : vp.failedStartedVPS(userVPSDetails.name)
+        try { await bot.sendMessage(chatId, friendly, { parse_mode: 'HTML' }) }
+        catch { send(chatId, vp.failedStartedVPS(userVPSDetails.name)) }
       }
       return goto.getVPSDetails()
     }
@@ -34192,7 +34294,20 @@ app.post('/dynopay/crypto-wallet', authDyno, async (req, res) => {
   log('Crediting wallet for chatId:', chatId, 'amount: $' + usdIn)
   await addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
   log('Wallet credited successfully!')
-  
+
+  // UX P2 fix (2026-06-21): emit funnel event for deposit_confirmed.  Pairs
+  // with insufficient_balance_wall to compute recovery / abandonment rate.
+  try {
+    await db.collection('funnelEvents').insertOne({
+      ts: new Date(),
+      chatId: String(chatId),
+      event: 'deposit_confirmed',
+      amountUsd: usdIn,
+      coin,
+      psp: 'dynopay',
+    })
+  } catch { /* non-fatal */ }
+
   // Generate transaction ID for wallet top-up
   const txnId = generateTransactionId()
   try {
@@ -34439,6 +34554,71 @@ app.get('/admin/cnam-circuit', async (req, res) => {
     res.json({ success: true, circuitBreakers: status })
   } catch (error) {
     log('[admin/cnam-circuit] Error:', error.message)
+    res.status(500).json({ error: 'Internal server error' })  }
+})
+
+// ── Admin: Funnel metrics (insufficient_balance_wall → deposit_confirmed)
+// UX P2 (2026-06-21): pair funnel events emitted from the Custom-Leads checkout
+// and the wallet-credit handler to surface a daily conversion-rate digest.
+app.get('/admin/funnel-stats', async (req, res) => {
+  const adminKey = req?.query?.key
+  if (adminKey !== process.env.SESSION_SECRET?.slice(0, 16)) {
+    return res.status(403).json({ error: 'Unauthorized' })
+  }
+  try {
+    const days = Math.max(1, Math.min(30, parseInt(req.query.days, 10) || 7))
+    const since = new Date(Date.now() - days * 86400_000)
+    const col = db.collection('funnelEvents')
+    const events = await col.find({ ts: { $gte: since } }).toArray()
+
+    // Per-chat journey: did each user who hit the wall later confirm a deposit?
+    const byChat = new Map()
+    for (const e of events) {
+      if (!byChat.has(e.chatId)) byChat.set(e.chatId, { walls: [], deposits: [] })
+      if (e.event === 'insufficient_balance_wall') byChat.get(e.chatId).walls.push(e)
+      else if (e.event === 'deposit_confirmed') byChat.get(e.chatId).deposits.push(e)
+    }
+
+    const stats = {
+      windowDays: days,
+      since,
+      totalWallEvents: events.filter(e => e.event === 'insufficient_balance_wall').length,
+      totalDepositConfirmed: events.filter(e => e.event === 'deposit_confirmed').length,
+      distinctUsersHitWall: 0,
+      distinctUsersRecovered: 0,
+      stillBounced: 0,
+      avgShortBy: 0,
+      bouncedUsers: [],
+    }
+    let shortSum = 0
+    let shortN = 0
+    for (const [chatId, j] of byChat) {
+      if (j.walls.length === 0) continue
+      stats.distinctUsersHitWall++
+      // recovered if any deposit after the FIRST wall event
+      const firstWallTs = j.walls[0].ts
+      const recovered = j.deposits.some(d => d.ts >= firstWallTs)
+      if (recovered) stats.distinctUsersRecovered++
+      else stats.bouncedUsers.push({
+        chatId,
+        wallHits: j.walls.length,
+        lastShortBy: j.walls[j.walls.length - 1].shortBy,
+        lastFunnel: j.walls[j.walls.length - 1].funnel,
+        lastWallAt: j.walls[j.walls.length - 1].ts,
+      })
+      for (const w of j.walls) {
+        if (typeof w.shortBy === 'number') { shortSum += w.shortBy; shortN++ }
+      }
+    }
+    stats.stillBounced = stats.distinctUsersHitWall - stats.distinctUsersRecovered
+    stats.avgShortBy = shortN ? Number((shortSum / shortN).toFixed(2)) : 0
+    stats.recoveryRatePct = stats.distinctUsersHitWall
+      ? Number(((stats.distinctUsersRecovered / stats.distinctUsersHitWall) * 100).toFixed(1))
+      : null
+
+    res.json({ success: true, ...stats })
+  } catch (error) {
+    log('[admin/funnel-stats] Error:', error.message)
     res.status(500).json({ error: 'Internal server error' })
   }
 })

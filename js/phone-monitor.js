@@ -37,6 +37,14 @@ async function checkTwilioSubaccount(subAccountSid) {
       status: resp.data.status,
     };
   } catch (err) {
+    // HTTP 401 on a sub-account means Twilio is refusing parent-auth against it —
+    // typically because Twilio CLOSED/SUSPENDED that sub-account.  Surface it as
+    // 'auth_failed' so the suspension flow kicks in instead of looping forever
+    // (this matters for paid customers — see /app/UX_ANOMALY_REPORT.md).
+    if (err.response?.status === 401) {
+      console.error(`[PhoneMonitor] AUTH_FAILED (likely sub-account suspended by provider): ${subAccountSid}`);
+      return { sid: subAccountSid, status: 'auth_failed', error: '401 Unauthorized' };
+    }
     console.error(`[PhoneMonitor] Error checking subaccount ${subAccountSid}:`, err.message);
     return { sid: subAccountSid, status: 'error', error: err.message };
   }
@@ -108,6 +116,7 @@ async function runHealthCheck(bot, db) {
 
   let totalChecked = 0;
   let totalSuspended = 0;
+  const authFailedSubs = [];  // sub-accounts returning 401 on parent-auth — needs admin investigation
 
   // Get all phone number records
   const allDocs = await phoneNumbersOf.find({}).toArray();
@@ -155,6 +164,11 @@ async function runHealthCheck(bot, db) {
         'val.numbers.$.status',
       );
       if (isNew) totalSuspended++;
+    } else if (statusInfo.status === 'auth_failed') {
+      // 401 on the sub-account fetch — DO NOT alarm the user (number may still work
+      // for live traffic; this could be a credentials / Twilio-side issue we need
+      // to investigate first).  Track once + alert admin.
+      authFailedSubs.push({ subAccountSid: sid, chatId, phoneNumber });
     } else if (statusInfo.status === 'active') {
       await handleReactivation(
         suspensionEvents, phoneNumbersOf, phoneNumber, 'twilio', chatId,
@@ -216,8 +230,46 @@ async function runHealthCheck(bot, db) {
     }
   }
 
-  console.log(`[PhoneMonitor] === Health check complete: ${totalChecked} checked, ${totalSuspended} newly suspended ===`);
-  return { checked: totalChecked, suspended: totalSuspended };
+  console.log(`[PhoneMonitor] === Health check complete: ${totalChecked} checked, ${totalSuspended} newly suspended, ${authFailedSubs.length} auth-failed ===`);
+
+  // Send a once-per-day admin digest about auth-failed sub-accounts (deduped per sub).
+  // These are paid customers' lines we can no longer poll; admin needs to rotate
+  // the sub-account auth token in Twilio console or open a ticket with Twilio.
+  if (authFailedSubs.length > 0 && ADMIN_CHAT_ID) {
+    try {
+      const authFailedEvents = db.collection('phoneMonitorAuthFailed');
+      const today = new Date().toISOString().slice(0, 10);
+      const fresh = [];
+      for (const entry of authFailedSubs) {
+        const key = `${today}:${entry.subAccountSid}`;
+        const existing = await authFailedEvents.findOne({ _id: key });
+        if (existing) continue;
+        await authFailedEvents.insertOne({
+          _id: key,
+          subAccountSid: entry.subAccountSid,
+          chatId: entry.chatId,
+          phoneNumber: entry.phoneNumber,
+          notifiedAt: new Date(),
+        });
+        fresh.push(entry);
+      }
+      if (fresh.length > 0) {
+        const lines = fresh.map(e => `• <code>${e.subAccountSid}</code>  →  ${e.phoneNumber}  (chat ${e.chatId})`);
+        const msg =
+          `🔧 <b>Twilio sub-account auth check failed (401)</b>\n\n` +
+          `${fresh.length} sub-account(s) returning <b>401 Unauthorized</b> against parent-auth poll.\n` +
+          `These are <i>paid customer lines</i> we cannot manage via API right now.\n\n` +
+          lines.join('\n') +
+          `\n\n<b>Action:</b> rotate each sub-account's auth token in the Twilio console, or open a Twilio support ticket for the closed sub-accounts.`;
+        await bot.sendMessage(ADMIN_CHAT_ID, msg, { parse_mode: 'HTML', disable_web_page_preview: true });
+        console.log(`[PhoneMonitor] Admin digest sent for ${fresh.length} auth-failed sub-account(s)`);
+      }
+    } catch (err) {
+      console.error(`[PhoneMonitor] Auth-failed admin digest error:`, err.message);
+    }
+  }
+
+  return { checked: totalChecked, suspended: totalSuspended, authFailed: authFailedSubs.length };
 }
 
 /**
