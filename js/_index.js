@@ -49,8 +49,18 @@ earlyApp.use((req, res, next) => {
   }
   if (matched) {
     _bumpStat(url.slice(0, 100), ip)
-    // Terminate socket — fastest possible response, no body, no further middleware
-    try { res.socket?.destroy() } catch (_) { /* ignore */ }
+    // Respond with 403 (or 444-style empty close) — same effective outcome
+    // (zero work for scanner, no body, immediate close) but Railway gateway
+    // will log this as a 4xx instead of "Retried single replica" 502, keeping
+    // the 5xx dashboard clean for *real* errors. Previously this was
+    // res.socket?.destroy() with no headers, which Railway counted as a
+    // failed upstream → false 502 (~600/day during scanner bursts).
+    try {
+      res.set('Connection', 'close')
+      res.status(403).end()
+    } catch (_) {
+      try { res.socket?.destroy() } catch (_) { /* last resort */ }
+    }
     return
   }
   next()
@@ -11111,17 +11121,30 @@ All verified numbers generated during sourcing.`))
   }
 
   // Handle /start with referral deep link: /start ref_XXXX
+  // P-Funnel (2026-06-21): full instrumentation so we can actually measure the
+  // referral funnel.  Prior code only emitted `[Referral] joined via referral`
+  // for 8-char SIP-test codes (trackReferral path), and `[Referral] Wallet
+  // referral saved` for chatId/username refs that weren't self-refs.  Every
+  // other outcome — self-ref, referrer-not-found, already-referred — was
+  // silently dropped, leaving us blind to the funnel.  Now we always emit one
+  // structured `[Referral]` line per /start ref_X event with the outcome.
   if (message.startsWith('/start ref_')) {
     const refCode = message.split('ref_')[1]?.trim()
+    log(`[Referral] /start ref_${refCode || '(empty)'} from chatId=${chatId}`)
     if (refCode) {
+      let outcome = 'unknown'
       const tracked = await trackReferral(chatId, refCode)
       if (tracked && tracked.credited) {
-        log(`[Referral] ${chatId} joined via referral ${refCode}, referrer credited`)
+        outcome = 'sip_test_credited'
+        log(`[Referral] outcome=sip_test_credited chatId=${chatId} refCode=${refCode} referrerChatId=${tracked.referrerChatId}`)
       }
       // Save wallet referral relationship (for $5 reward when cumulative spend >= $30)
       try {
         const existing = await referrals.findOne({ _id: chatId })
-        if (!existing) {
+        if (existing) {
+          outcome = 'already_referred'
+          log(`[Referral] outcome=already_referred chatId=${chatId} existingReferrerChatId=${existing.referrerChatId}`)
+        } else {
           // refCode can be a chatId or username — resolve to chatId
           let referrerChatId = parseInt(refCode)
           let referrerUsername = refCode
@@ -11133,7 +11156,13 @@ All verified numbers generated during sourcing.`))
             const nameDoc = await nameOf.findOne({ _id: referrerChatId })
             if (nameDoc) referrerUsername = nameDoc.val
           }
-          if (referrerChatId && referrerChatId !== chatId) {
+          if (!referrerChatId || isNaN(referrerChatId)) {
+            outcome = 'referrer_not_found'
+            log(`[Referral] outcome=referrer_not_found chatId=${chatId} refCode=${refCode}`)
+          } else if (referrerChatId === chatId) {
+            outcome = 'self_referral'
+            log(`[Referral] outcome=self_referral chatId=${chatId} refCode=${refCode}`)
+          } else {
             await referrals.updateOne({ _id: chatId }, { $set: {
               _id: chatId,
               referrerChatId,
@@ -11142,10 +11171,16 @@ All verified numbers generated during sourcing.`))
               cumulativeSpend: 0,
               rewardPaid: false
             } }, { upsert: true })
-            log(`[Referral] Wallet referral saved: ${chatId} referred by ${referrerChatId} (${referrerUsername})`)
+            outcome = 'wallet_referral_saved'
+            log(`[Referral] outcome=wallet_referral_saved chatId=${chatId} referrerChatId=${referrerChatId} referrerUsername=${referrerUsername}`)
           }
         }
-      } catch (e) { log(`[Referral] Error saving wallet referral: ${e.message}`) }
+      } catch (e) {
+        outcome = 'error'
+        log(`[Referral] outcome=error chatId=${chatId} refCode=${refCode} err=${e.message}`)
+      }
+    } else {
+      log(`[Referral] outcome=empty_refcode chatId=${chatId} message=${message}`)
     }
     // Continue with normal /start flow below
   }

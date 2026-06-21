@@ -207,3 +207,55 @@ User asked to fix #2 (with paid-customer audit first) and items #3, #4, #5, #7, 
 
 ### Status
 Code changes ready. `logs_prod/` is gitignored from yesterday's cleanup so this round of changes is push-safe.
+
+---
+
+## 2026-06-21 — Fresh Railway 6-day RCA + Referral funnel fixes
+
+### Step 1 — Dev setup refreshed
+- `SELF_URL` + `SELF_URL_DEV` updated to current pod `https://test-bot-deploy.preview.emergentagent.com/api`
+- `SELF_URL_PROD` left intact (still points to real Railway prod URL)
+- Production isolation reconfirmed: `BOT_ENVIRONMENT=development`, `SKIP_WEBHOOK_SYNC=true`, dev bot token in use
+- Nodejs restarted clean, all `/api/*` routes reachable
+
+### Step 2 — Railway 6-day RCA v2 (`/app/RAILWAY_6DAY_RCA_REPORT_v2.md`)
+- Fixed broken v1 analyzer — Railway changed GraphQL to require `anchorDate` + `beforeLimit` (was `afterDate/afterLimit`)
+- **🔴 P0 confirmed**: Fincra auth failing 96/day for 11+ days — unchanged from yesterday's RCA, still not fixed
+- **🔴 P0**: Wallet credits 06-21 = **0** (was 10/day peak)
+- **🟠 P1**: Domain registrations down 45%, `/start` halved
+- **🟡 Cosmetic**: 595 5xx in 32h were 100% scanner traffic mis-classified as 5xx (edge block was destroying sockets without headers)
+- **🟡 Marketing**: Referral funnel collapsed — only 6 `/start ref_` in 8 days, **all self-referrals**
+
+### Step 3 — Code fixes shipped
+- **Edge-block 5xx → 4xx cosmetic fix** (`/app/js/_index.js`):
+  - Replaced `res.socket?.destroy()` with `res.status(403).end()` + `Connection: close`
+  - Scanner paths now reported as 4xx (deny) instead of inflating 5xx in Railway dashboards
+  - Verified live: `GET /api/con5dldbuy.php` → 403, `/api/.env` → 403
+- **Referral funnel instrumentation** (`/app/js/_index.js` lines 11123-11187):
+  - Every `/start ref_X` now emits structured `[Referral] outcome=<bucket>` log line
+  - 7 outcome buckets: `sip_test_credited`, `wallet_referral_saved`, `already_referred`, `self_referral`, `referrer_not_found`, `empty_refcode`, `error`
+  - Previous code silently dropped 5/7 of these — Railway logs had **zero `[Referral]` lines for 8 days**
+- **New `/admin/referral-stats` endpoint** (`/app/js/routes/admin.js`):
+  - Auth: `?key=<SESSION_SECRET[:16]>`
+  - Returns all-time and window-bound counts: refs, qualified, pending, payout, top referrers, web-click conversion
+  - Live test against prod DB: 19 lifetime refs, **5 qualified ($25 paid out)**, 14 pending, 26% qualification rate
+
+### Verification
+- Lint clean (`mcp_lint_javascript`) on both files
+- All 4 Jest suites pass (`jest --silent`): 20 passed, 1 skipped
+- Curl smoke tests against dev pod confirmed both edge-block and admin endpoints behave as expected
+
+### Artifacts
+- `/app/RAILWAY_6DAY_RCA_REPORT_v2.md` — fresh full RCA
+- `/app/REFERRAL_FUNNEL_FIX.md` — referral investigation + action recommendations
+- `/app/scripts/analyze_railway_6day_v2.py` — fixed analyzer
+- `/app/scripts/dig_5xx_spike.py` — 5xx drilldown
+- `/app/scripts/dig_sales_pulse.py` — sales pulse pulse
+- `/app/scripts/dig_referral_funnel.py` — referral funnel scraper
+
+### Pending (not picked up this round)
+- 🔴 **P0 Fincra 401 fix** — still the highest-leverage revenue lever; needs key rotation in Railway env (user-side action) + a verify-token call from code
+- 🟡 Set `BOT_USERNAME=NomadlyBot` in Railway (currently unset; works because t.me is case-insensitive but it's tech debt)
+- 🟡 Referral incentive redesign (lower $30 threshold, double-rewards promo, surface link in more places) — product decisions
+- 🟡 Deploy churn protection (branch protection / staging) — still unaddressed
+

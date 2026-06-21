@@ -112,6 +112,80 @@ function install(app, deps) {
       res.status(500).json({ error: 'Internal server error' })
     }
   })
+
+  // ── /admin/referral-stats ─────────────────────────────────────────────────
+  // Surfaces real referral-funnel health:
+  //   - Total wallet referrals in window
+  //   - Qualified (cumulativeSpend >= $30)
+  //   - Pending (cumulativeSpend < $30)
+  //   - Total $ paid out
+  //   - Top 10 referrers by referee count
+  //   - Recent web clicks (referralClicks) and conversion rate
+  // Query: ?days=7 (1-90).
+  app.get('/admin/referral-stats', async (req, res) => {
+    if (!authOk(req)) return res.status(403).json({ error: 'Unauthorized' })
+    try {
+      const db = getDb()
+      const days = Math.max(1, Math.min(90, parseInt(req.query.days, 10) || 7))
+      const since = new Date(Date.now() - days * 86400_000)
+
+      const referrals = db.collection('referrals')
+      const referralClicks = db.collection('referralClicks')
+
+      const allRefs = await referrals.find({}).toArray()
+      const inWindow = allRefs.filter(r => r.joinedAt && new Date(r.joinedAt) >= since)
+      const qualified = allRefs.filter(r => r.rewardPaid)
+      const pending = allRefs.filter(r => !r.rewardPaid)
+
+      // Top referrers
+      const referrerCounts = new Map()
+      for (const r of allRefs) {
+        if (!r.referrerChatId) continue
+        const k = r.referrerChatId
+        referrerCounts.set(k, (referrerCounts.get(k) || 0) + 1)
+      }
+      const topReferrers = [...referrerCounts.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([referrerChatId, count]) => ({ referrerChatId, refereeCount: count }))
+
+      // Web clicks
+      let clickStats = null
+      try {
+        const clicks = await referralClicks.find({ clickedAt: { $gte: since } }).toArray()
+        clickStats = {
+          totalClicks: clicks.length,
+          converted: clicks.filter(c => c.converted).length,
+          conversionRatePct: clicks.length
+            ? Number(((clicks.filter(c => c.converted).length / clicks.length) * 100).toFixed(1))
+            : 0,
+        }
+      } catch (_) {
+        clickStats = { totalClicks: 0, converted: 0, conversionRatePct: 0, note: 'referralClicks collection unavailable' }
+      }
+
+      res.json({
+        success: true,
+        windowDays: days,
+        since,
+        totals: {
+          allTimeRefs: allRefs.length,
+          inWindowRefs: inWindow.length,
+          qualified: qualified.length,
+          pending: pending.length,
+          totalPayoutUSD: qualified.length * 5,
+          totalCumulativeSpendPending: Number(
+            pending.reduce((s, r) => s + (Number(r.cumulativeSpend) || 0), 0).toFixed(2)
+          ),
+        },
+        topReferrers,
+        webClicks: clickStats,
+      })
+    } catch (err) {
+      log('[admin/referral-stats] Error:', err.message)
+      res.status(500).json({ error: 'Internal server error' })
+    }
+  })
 }
 
 module.exports = { install }
