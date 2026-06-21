@@ -1293,3 +1293,14 @@ scripts/railway_*.jsonl
 
 # Local Railway log dumps & diagnostic snapshots (may contain Twilio SIDs, phone numbers, IPs)
 logs_prod/
+
+# P14 (2026-06-21) — repo hygiene additions
+*.backup
+*.bak
+*.old
+*.orig
+*.swp
+railway_logs_*.json
+rail_env_scoreboard44_*.txt
+scripts/ATT_*.txt
+scripts/data/

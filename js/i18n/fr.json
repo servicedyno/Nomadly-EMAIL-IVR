@@ -1,0 +1,20 @@
+{
+  "opt_out": {
+    "muted": "🔕 D'accord — nous arrêterons d'envoyer des relances promotionnelles. Les confirmations de commande et les notifications de compte continueront. Répondez <code>unmute</code> à tout moment pour réactiver les promos.",
+    "unmuted": "🔔 Promos réactivées. Nous n'enverrons que les utiles — promis."
+  },
+  "start": {
+    "already_on_menu": "👆 Vous êtes déjà sur le menu principal — appuyez sur un bouton ci-dessus."
+  },
+  "vps": {
+    "start_404": "❌ Ce VPS ({name}) n'existe plus chez le fournisseur. Il a peut-être été annulé ou n'a jamais terminé son provisionnement. Tapez <b>Supprimer VPS</b> pour le retirer de votre liste, puis créez-en un nouveau — ou contactez le support.",
+    "start_423": "⏳ Votre VPS ({name}) est verrouillé — provisionnement ou action précédente toujours en cours. Réessayez dans 2 minutes.",
+    "start_409": "⚠️ VPS ({name}) est dans un état conflictuel. Il est peut-être déjà en cours d'exécution, ou un autre start/stop est en cours.",
+    "start_5xx_provider": "⚠️ Le fournisseur VPS est temporairement injoignable. Réessayez dans quelques minutes.",
+    "start_500": "⚠️ Le fournisseur VPS a renvoyé une erreur interne pour {name}. Nous avons été notifiés — réessayez dans une minute, ou contactez le support si cela persiste."
+  },
+  "wallet": {
+    "balance_ready": "💳 <b>Portefeuille :</b> ${balance} — prêt à acheter",
+    "balance_short": "💳 <b>Portefeuille :</b> ${balance} — les forfaits démarrent à <b>$20</b> ; rechargez d'abord pour éviter l'étape de dépôt au paiement."
+  }
+}

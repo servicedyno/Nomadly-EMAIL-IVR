@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Pre-commit guard against committing secrets that GitHub push-protection will reject.
+# This file is symlinked into .git/hooks/pre-commit by `bash scripts/install-git-hooks.sh`.
+exec bash "$(git rev-parse --show-toplevel)/scripts/check-secrets.sh" --staged

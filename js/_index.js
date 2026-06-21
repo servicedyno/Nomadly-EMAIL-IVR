@@ -7,6 +7,14 @@ require('dotenv').config()
 const express = require('express')
 const cors = require('cors')
 
+// P3+P15 (2026-06-21): structured logging + global error handlers.
+// Replaces the prior "silent catches lose every error" pattern.
+require('./logger.js').bindGlobalHandlers()
+
+// P12 (2026-06-21): i18n loader — replaces the inline `{en,fr,zh,hi}[lang]`
+// pattern.  See /app/js/i18n/<lang>.json for the strings.
+const i18n = require('./i18n.js')
+
 const earlyApp = express()
 
 // ── Edge scanner block (P1, added 2026-06-20) ───────────────────────────────
@@ -88,8 +96,9 @@ earlyApp.use('/assets/user-audio', async (req, res, next) => {
     const stored = await db.collection('ivrAudioStore').findOne({ filename })
     if (stored && stored.buffer) {
       const dir = path.dirname(localPath)
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-      fs.writeFileSync(localPath, Buffer.from(stored.buffer, 'base64'))
+      // P11 (2026-06-21): async fs to not block the event loop on a hot route.
+      await fs.promises.mkdir(dir, { recursive: true }).catch(() => {})
+      await fs.promises.writeFile(localPath, Buffer.from(stored.buffer, 'base64'))
       log(`[AudioRestore] Restored ${filename} from MongoDB to disk`)
       res.set('Content-Type', 'audio/mpeg')
       res.set('Cache-Control', 'public, max-age=3600')
@@ -6389,8 +6398,10 @@ bot?.on('message', msg => {
         targetName = await get(nameOf, targetChatId)
       } else {
         // Lookup by username in nameOf collection
-        const allNames = await nameOf.find({}).toArray()
-        const match = allNames.find(n => typeof n.val === 'string' && n.val.toLowerCase() === userRef.toLowerCase())
+        // P9 (2026-06-21): replaced full-scan + JS filter with case-insensitive
+        // regex findOne — stops scanning at first match instead of loading all docs.
+        const _escUserRef = userRef.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        const match = await nameOf.findOne({ val: { $regex: `^${_escUserRef}$`, $options: 'i' } })
         if (match) {
           targetChatId = String(match._id) // Always use string for DB consistency
           targetName = match.val
@@ -6478,8 +6489,9 @@ bot?.on('message', msg => {
         targetChatId = String(userRef)
         targetName = await get(nameOf, targetChatId)
       } else {
-        const allNames = await nameOf.find({}).toArray()
-        const m = allNames.find(n => typeof n.val === 'string' && n.val.toLowerCase() === userRef.toLowerCase())
+        // P9 (2026-06-21): replaced full-scan + JS filter with regex findOne
+        const _esc = userRef.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        const m = await nameOf.findOne({ val: { $regex: `^${_esc}$`, $options: 'i' } })
         if (m) { targetChatId = String(m._id); targetName = m.val }
       }
       if (!targetChatId) return send(chatId, `⚠️ User <b>${userRef}</b> not found.`, { parse_mode: 'HTML' })
@@ -6578,8 +6590,9 @@ bot?.on('message', msg => {
         targetChatId = Number(userRef)
         targetName = await get(nameOf, targetChatId)
       } else {
-        const allNames = await nameOf.find({}).toArray()
-        const match = allNames.find(n => typeof n.val === 'string' && n.val.toLowerCase() === userRef.toLowerCase())
+        // P9 (2026-06-21): replaced full-scan + JS filter with regex findOne
+        const _esc = userRef.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        const match = await nameOf.findOne({ val: { $regex: `^${_esc}$`, $options: 'i' } })
         if (match) {
           targetChatId = match._id
           targetName = match.val
@@ -6635,8 +6648,9 @@ bot?.on('message', msg => {
         targetChatId = Number(userRef)
         targetName = await get(nameOf, targetChatId)
       } else {
-        const allNames = await nameOf.find({}).toArray()
-        const match = allNames.find(n => typeof n.val === 'string' && n.val.toLowerCase() === userRef.toLowerCase())
+        // P9 (2026-06-21): replaced full-scan + JS filter with regex findOne
+        const _esc = userRef.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        const match = await nameOf.findOne({ val: { $regex: `^${_esc}$`, $options: 'i' } })
         if (match) { targetChatId = match._id; targetName = match.val }
       }
       if (!targetChatId) return send(chatId, trans('t.adm_35', userRef), { parse_mode: 'HTML' })
@@ -6661,8 +6675,9 @@ bot?.on('message', msg => {
         targetChatId = Number(userRef)
         targetName = await get(nameOf, targetChatId)
       } else {
-        const allNames = await nameOf.find({}).toArray()
-        const match = allNames.find(n => typeof n.val === 'string' && n.val.toLowerCase() === userRef.toLowerCase())
+        // P9 (2026-06-21): replaced full-scan + JS filter with regex findOne
+        const _esc = userRef.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        const match = await nameOf.findOne({ val: { $regex: `^${_esc}$`, $options: 'i' } })
         if (match) { targetChatId = match._id; targetName = match.val }
       }
       if (!targetChatId) return send(chatId, `⚠️ User <b>${userRef}</b> not found.`, { parse_mode: 'HTML' })
@@ -17257,10 +17272,10 @@ ${message.replace(/\n/g, '<br>')}
     const response = await downloadSSHKeyFile(chatId, message)
     if (response) {
       const filename = `${message}.ppk`
-      fs.writeFileSync(filename, response)
+      await fs.promises.writeFile(filename, response)
       bot
         ?.sendDocument(chatId, filename)
-        ?.then(() => fs.unlinkSync(filename))
+        ?.then(() => fs.promises.unlink(filename).catch(() => {}))
         ?.catch(log)
     }
     return goto.vpsLinkedSSHkeys()
@@ -29910,7 +29925,7 @@ async function backupTheData() {
     planOf: await getAll(planOf),
   }
   const backupJSON = JSON.stringify(backupData, null, 2)
-  fs.writeFileSync('backup.json', backupJSON, 'utf-8')
+  await fs.promises.writeFile('backup.json', backupJSON, 'utf-8')
 }
 
 async function backupPayments() {
@@ -29918,7 +29933,7 @@ async function backupPayments() {
 
   const head = 'Mode, Product, Name, Price, ChatId, User Name, Time,Currency\n'
   const backup = data.map(a => a.val).join('\n')
-  fs.writeFileSync('payments.csv', head + backup, 'utf-8')
+  await fs.promises.writeFile('payments.csv', head + backup, 'utf-8')
 }
 
 async function buyDomain(chatId, domain, registrar, nsChoice, customNS) {
@@ -30163,9 +30178,8 @@ async function reconcileContaboOrphans() {
   }
   try {
     const contabo = require('./contabo-service.js')
-    const fs = require('fs')
     let envContent = ''
-    try { envContent = fs.readFileSync('.env', 'utf8') } catch { /* noop */ }
+    try { envContent = await fs.promises.readFile('.env', 'utf8') } catch { /* noop */ }
 
     const instances = await contabo.listInstances()
     const allPlans = await vpsPlansOf.find({}).toArray()
@@ -31447,6 +31461,22 @@ app.use((req, res, next) => {
 })
 app.set('json spaces', 2)
 
+// P1+P13 (2026-06-21): Phase-1 admin-routes extraction.  Mounts the newer
+// admin endpoints (scheduler-stats, funnel-stats, scanner-block-stats) from
+// /app/js/routes/admin.js.  The older admin endpoints still live inline in
+// _index.js — they'll be moved out in subsequent passes.
+require('./routes/admin.js').install(app, {
+  getDb: () => db,
+  log,
+  scannerStats: _scannerStats,
+  scannerBlockRules: {
+    ips: [...SCANNER_IPS],
+    pathPrefixes: SCANNER_PATH_PREFIXES,
+    pathExact: [...SCANNER_PATH_EXACT],
+    extRegex: SCANNER_EXT_REGEX.toString(),
+  },
+})
+
 // ── cPanel Panel Routes ──
 const { createCpanelRoutes } = require('./cpanel-routes')
 app.use('/panel', createCpanelRoutes(() => cpanelAccounts, { notifyAdmin }))
@@ -32461,7 +32491,7 @@ app.get('/analytics-of-all-sms', async (req, res) => {
   const analyticsData = await getAnalyticsOfAllSms()
   const analyticsText = `chat id, name, date, sms sent\n${analyticsData.join('\n')}`
   const fileName = 'analytics.csv'
-  fs.writeFileSync(fileName, analyticsText, 'utf-8')
+  await fs.promises.writeFile(fileName, analyticsText, 'utf-8')
   res.setHeader('Content-Disposition', `attachment; filename=${fileName}`)
   res.setHeader('Content-Type', 'application/json')
   fs.createReadStream(fileName).pipe(res)
@@ -34477,7 +34507,8 @@ app.get('/admin/reset-keyboards', async (req, res) => {
     log(`[reset-keyboards] Reset ${resetResult.modifiedCount} user states to 'none'`)
 
     // Step 2: Get all user chatIds from nameOf collection
-    const allUsers = await nameOf.find({}).toArray()
+    // P9 (2026-06-21): projection-only fetch — we don't need the val field here.
+    const allUsers = await nameOf.find({}, { projection: { _id: 1 } }).toArray()
     const chatIds = allUsers.map(u => u._id).filter(id => typeof id === 'number')
 
     // Step 3: Send fresh keyboard to all users in batches
@@ -34555,72 +34586,6 @@ app.get('/admin/cnam-circuit', async (req, res) => {
   } catch (error) {
     log('[admin/cnam-circuit] Error:', error.message)
     res.status(500).json({ error: 'Internal server error' })  }
-})
-
-// ── Admin: Funnel metrics (insufficient_balance_wall → deposit_confirmed)
-// UX P2 (2026-06-21): pair funnel events emitted from the Custom-Leads checkout
-// and the wallet-credit handler to surface a daily conversion-rate digest.
-app.get('/admin/funnel-stats', async (req, res) => {
-  const adminKey = req?.query?.key
-  if (adminKey !== process.env.SESSION_SECRET?.slice(0, 16)) {
-    return res.status(403).json({ error: 'Unauthorized' })
-  }
-  try {
-    const days = Math.max(1, Math.min(30, parseInt(req.query.days, 10) || 7))
-    const since = new Date(Date.now() - days * 86400_000)
-    const col = db.collection('funnelEvents')
-    const events = await col.find({ ts: { $gte: since } }).toArray()
-
-    // Per-chat journey: did each user who hit the wall later confirm a deposit?
-    const byChat = new Map()
-    for (const e of events) {
-      if (!byChat.has(e.chatId)) byChat.set(e.chatId, { walls: [], deposits: [] })
-      if (e.event === 'insufficient_balance_wall') byChat.get(e.chatId).walls.push(e)
-      else if (e.event === 'deposit_confirmed') byChat.get(e.chatId).deposits.push(e)
-    }
-
-    const stats = {
-      windowDays: days,
-      since,
-      totalWallEvents: events.filter(e => e.event === 'insufficient_balance_wall').length,
-      totalDepositConfirmed: events.filter(e => e.event === 'deposit_confirmed').length,
-      distinctUsersHitWall: 0,
-      distinctUsersRecovered: 0,
-      stillBounced: 0,
-      avgShortBy: 0,
-      bouncedUsers: [],
-    }
-    let shortSum = 0
-    let shortN = 0
-    for (const [chatId, j] of byChat) {
-      if (j.walls.length === 0) continue
-      stats.distinctUsersHitWall++
-      // recovered if any deposit after the FIRST wall event
-      const firstWallTs = j.walls[0].ts
-      const recovered = j.deposits.some(d => d.ts >= firstWallTs)
-      if (recovered) stats.distinctUsersRecovered++
-      else stats.bouncedUsers.push({
-        chatId,
-        wallHits: j.walls.length,
-        lastShortBy: j.walls[j.walls.length - 1].shortBy,
-        lastFunnel: j.walls[j.walls.length - 1].funnel,
-        lastWallAt: j.walls[j.walls.length - 1].ts,
-      })
-      for (const w of j.walls) {
-        if (typeof w.shortBy === 'number') { shortSum += w.shortBy; shortN++ }
-      }
-    }
-    stats.stillBounced = stats.distinctUsersHitWall - stats.distinctUsersRecovered
-    stats.avgShortBy = shortN ? Number((shortSum / shortN).toFixed(2)) : 0
-    stats.recoveryRatePct = stats.distinctUsersHitWall
-      ? Number(((stats.distinctUsersRecovered / stats.distinctUsersHitWall) * 100).toFixed(1))
-      : null
-
-    res.json({ success: true, ...stats })
-  } catch (error) {
-    log('[admin/funnel-stats] Error:', error.message)
-    res.status(500).json({ error: 'Internal server error' })
-  }
 })
 
 // ── Admin: Manually provision a VPS from an existing payment session ──
@@ -34951,8 +34916,7 @@ app.post('/admin/order-leads', async (req, res) => {
       const ts = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19)
       const filename = `admin_leads_${areaCodes.join('_')}_${allNumbers.length}_${ts}.txt`
       const filepath = `/tmp/${filename}`
-      const fs = require('fs')
-      fs.writeFileSync(filepath, allNumbers.join('\n'))
+      await fs.promises.writeFile(filepath, allNumbers.join('\n'))
 
       const totalMin = ((Date.now() - startedAt) / 60000).toFixed(1)
       const breakdown = Object.entries(perAreaResults).map(([ac, n]) => `${ac}: ${n.toLocaleString()}`).join(' | ')
@@ -34967,7 +34931,7 @@ app.post('/admin/order-leads', async (req, res) => {
         { filename, contentType: 'text/plain' },
       )
 
-      try { fs.unlinkSync(filepath) } catch (_) { /* noop */ }
+      await fs.promises.unlink(filepath).catch(() => { /* noop */ })
       log(`[admin/order-leads] ✅ Delivered ${allNumbers.length} leads to chatId ${chatId} in ${totalMin} min — breakdown: ${breakdown}`)
     } catch (e) {
       log(`[admin/order-leads] ❌ Error: ${e.message}\n${e.stack}`)

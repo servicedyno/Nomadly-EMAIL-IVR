@@ -1,0 +1,20 @@
+{
+  "opt_out": {
+    "muted": "🔕 Got it — we'll stop sending you promotional nudges. Order confirmations and account notices still come through. Reply <code>unmute</code> any time to re-enable promos.",
+    "unmuted": "🔔 Promos re-enabled. We'll only send you helpful ones — promise."
+  },
+  "start": {
+    "already_on_menu": "👆 You're already on the main menu — tap a button above."
+  },
+  "vps": {
+    "start_404": "❌ This VPS ({name}) no longer exists on the provider.  It may have been cancelled or never finished provisioning.  Tap <b>Delete VPS</b> to clear it from your list, then create a new one — or contact support.",
+    "start_423": "⏳ Your VPS ({name}) is locked — provisioning or an earlier action is still in progress.  Please try again in 2 minutes.",
+    "start_409": "⚠️ VPS ({name}) is in a conflicting state for this action.  It may already be running, or another start/stop is in progress.  Refresh the menu to see current state.",
+    "start_5xx_provider": "⚠️ The VPS provider is temporarily unreachable.  Please try again in a few minutes.",
+    "start_500": "⚠️ The VPS provider returned an internal error for {name}.  We've been notified — please retry in a minute, or contact support if it persists."
+  },
+  "wallet": {
+    "balance_ready": "💳 <b>Wallet:</b> ${balance} — ready to buy",
+    "balance_short": "💳 <b>Wallet:</b> ${balance} — plans start at <b>$20</b>; top up first to skip the deposit step at checkout."
+  }
+}

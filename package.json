@@ -9,7 +9,8 @@
     "lint:await": "node scripts/lint_async_in_if.js",
     "lint:lang": "node scripts/check_lang_parity.js && node scripts/check_panel_lang_parity.js",
     "lint:ci": "node scripts/lint_async_in_if.js && node scripts/check_lang_parity.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest --testPathPattern=tests/ --testPathIgnorePatterns=node_modules tests/legacy",
+    "test:watch": "jest --watch"
   },
   "keywords": [],
   "author": "",
@@ -49,7 +50,8 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "es-abstract": "1.23.9",
-    "eslint": "^10.0.1"
+    "eslint": "^10.0.1",
+    "jest": "29"
   },
   "engines": {
     "node": ">=22.0.0"

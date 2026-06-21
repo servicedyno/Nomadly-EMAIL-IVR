@@ -172,11 +172,21 @@ async function listNumbers() {
 // ── Create SIP Connection (credential-based) ──
 async function createSIPConnection(name, webhookUrl) {
   try {
+    // SECURITY (2026-06-21): credentials must come from env vars.
+    // Hardcoded password was a real security hole — anyone knowing the
+    // convention could register a softphone to the Telnyx number.
+    // Existing SIP connections need their password rotated in Telnyx console.
+    const sipUser = process.env.TELNYX_SIP_USERNAME || `nomadly-${name.slice(0, 16)}`
+    const sipPass = process.env.TELNYX_SIP_PASSWORD
+    if (!sipPass) {
+      log('[Telnyx] TELNYX_SIP_PASSWORD env var not set — refusing to create SIP connection.')
+      return null
+    }
     const body = {
       active: true,
       connection_name: name,
-      user_name: 'nomadlySipMain01',
-      password: 'NomadlySIP2026Secure',
+      user_name: sipUser,
+      password: sipPass,
       webhook_event_url: webhookUrl,
       webhook_api_version: '2',
     }
