@@ -123,3 +123,40 @@ Doc: `/app/DEPLOY_CHURN_REDUCTION.md` (includes optional `promote-to-prod.sh` sc
 - 🟡 Twilio 06-16 → **closed (false alarm)**
 - 🟡 Scanner block → **code change done, awaiting deploy**
 - 🟡 Deploy churn → **process doc delivered, awaiting Railway settings change**
+
+---
+
+## 2026-06-21 — Bot UX Anomaly Scan (current session)
+
+User asked: access Railway logs and determine if there are any anomalies or UX issues for bot users.
+
+### Top findings (full report: `/app/UX_ANOMALY_REPORT.md`)
+
+1. 🔴 **P0 — Insufficient-balance wall has a 100 % bounce rate.** 6 distinct users hit the wall (8 events). **0 of them** deposited and recovered. The bounced users showed strong intent (multi-day return visits) but the deposit CTA from the wall isn't compelling enough. Every wall-event traced back to the "Custom Leads → Select institution → pay" funnel.
+
+2. 🔴 **P0 — 12 Twilio sub-accounts permanently failing 401.** Each is checked every 30 min by PhoneMonitor; all 48 checks in 6 days returned 401. Each = at least one customer's phone number now unmanageable. Sub-accounts: `AC98bdf45…`, `AC01e40ee…`, `AC649e0f1…`, `AC28b0850…`, `AC23f043f…`, `ACde9f00e…`, `ACf08d768…`, `ACa1626b5…`, `AC50fe935… (toll-free +18886146831)`, `ACf65175b…` + 2 more. Fix: rotate Auth Tokens per sub-account.
+
+3. 🔴 **P0 — VPS Start button silently fails.** 108 Contabo API errors across 8 VPS in 6 days (91 × HTTP 404 = orphans; 6 × 423 = locked). Users see `❌ Failed to start VPS` with no explanation; specific user `davion419` retried 5×.
+
+4. 🟠 **P1 — `/start` spam not debounced.** Users tap `/start` 3-5× in a row; bot re-renders the full main menu each time. Wastes Telegram API calls + suggests laggy bot.
+
+5. 🟠 **P1 — "Custom Leads" is the deposit-wall trap.** Every insufficient-balance event came from this single funnel.
+
+6. 🟡 **P2 — CartRecovery nudges feel pushy.** Auto-nudges within 1-2 hours of abandonment (`"Tap /start → 📦 Digital Products"`).
+
+7. 🟡 **P2 — 1 explicit 👎 BAD support rating** from user `shallowxx` on 06-21 00:49.
+
+### What's NOT broken (clearing earlier hypotheses)
+- AutoPromo correctly skips blocked users (0 distinct blocked targets)
+- TTS timeouts: 0 in window
+- Telegram callback "query is too old": 0
+- Auto-refund on failed phone purchase: working
+
+### Artifacts created
+- `/app/UX_ANOMALY_REPORT.md` — full report
+- `/app/scripts/dig_ux_signals.py`, `dig_user_replies.py`, `dig_ux_journey.py` — analyzers
+- `/app/logs_prod/_ux_signals.json`, `_ux_replies.json`, `_ux_user_journey.json` — data
+
+### Status
+Diagnostic phase complete. No code changes applied to fix UX issues yet (waiting for user direction). The earlier 🔴 P0 (Fincra `Unauthorized`) is still pending user action in Railway dashboard.
+
