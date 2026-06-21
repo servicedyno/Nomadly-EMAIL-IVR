@@ -338,6 +338,7 @@ User-selected three domain-purchase improvements after the previous batch.  All 
 - Now: **both Yes and No paths auto-default to Cloudflare** and go straight to `domain-pay`
 - The NS picker (`domainNsSelect`) is still in the codebase as a safety net but no longer reachable from the new-purchase flow; power users can still change NS post-purchase via "🔧 DNS Management"
 - Also fixed the `domain-pay` back-button — previously sent users to the now-unreachable NS picker when `shortener=false`; now always returns to the shortener question
+- **Follow-up (same session, after user-raised concern)**: power users were temporarily losing the ability to set custom NS at registration. Re-added access via an opt-in **⚙️ Advanced (custom NS)** button on the shortener-question screen — 1 extra tap, routes to the existing NS picker. Localized en/fr/zh/hi.  95% majority still gets the simplified Yes/No → auto-Cloudflare path; power users who want custom NS at registration tap Advanced.
 
 ### #4 — Action buttons in post-purchase card
 - `/app/js/_index.js` post-purchase cross-sell timer (line ~30400)

@@ -7889,7 +7889,13 @@ bot?.on('message', msg => {
       const domain = info?.domain || ''
       const price = info?.price || ''
       const priceText = domain && price ? `✅ <b>${domain}</b> — <b>$${price}</b>\n\n` : ''
-      send(chatId, trans('t.wlt_3', priceText, t.askDomainToUseWithShortener), k.of([[t.yes, t.no], ['↩️ Back']]))
+      // UX P-Domain #3 (2026-06-21): added the "⚙️ Advanced (custom NS)"
+      // opt-in so power users can still set custom nameservers at
+      // registration time (1 extra tap), while keeping the simplified path
+      // (Yes / No → auto-Cloudflare) for the 95%+ majority.
+      const advLabels = { en: '⚙️ Advanced (custom NS)', fr: '⚙️ Avancé (NS personnalisés)', zh: '⚙️ 高级（自定义 NS）', hi: '⚙️ उन्नत (कस्टम NS)' }
+      const advLabel = advLabels[lang] || advLabels.en
+      send(chatId, trans('t.wlt_3', priceText, t.askDomainToUseWithShortener), k.of([[t.yes, t.no], [advLabel], ['↩️ Back']]))
     },
     domainNsSelect: async () => {
       await set(state, chatId, 'action', a.domainNsSelect)
@@ -18315,6 +18321,14 @@ ${message.replace(/\n/g, '<br>')}
   }
   if (action === a.askDomainToUseWithShortener) {
     if (isBackPress(message)) return goto['choose-domain-to-buy']()
+    // UX P-Domain #3 (2026-06-21): "⚙️ Advanced (custom NS)" opt-in routes
+    // power users into the existing NS picker so they can still set custom
+    // nameservers at registration time. All 4 locales handled.
+    const advancedLabels = ['⚙️ Advanced (custom NS)', '⚙️ Avancé (NS personnalisés)', '⚙️ 高级（自定义 NS）', '⚙️ उन्नत (कस्टम NS)']
+    if (advancedLabels.includes(String(message))) {
+      saveInfo('askDomainToUseWithShortener', false)
+      return goto.domainNsSelect()
+    }
     const yesPressed = isYesPress(message)
     const noPressed = isNoPress(message)
     if (!yesPressed && !noPressed) {
