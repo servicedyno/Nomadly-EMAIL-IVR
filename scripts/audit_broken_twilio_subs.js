@@ -6,18 +6,17 @@
 require('dotenv').config({ path: '/app/backend/.env' })
 const { MongoClient } = require('mongodb')
 
-const BROKEN_SUBS = [
-  'AC[REDACTED]',
-  'AC[REDACTED]',
-  'AC[REDACTED]',
-  'AC[REDACTED]',
-  'AC[REDACTED]',
-  'AC[REDACTED]',
-  'AC[REDACTED]',
-  'AC[REDACTED]',
-  'AC[REDACTED]',
-  'AC[REDACTED]',
-]
+// Sub-account SIDs to audit are loaded from the env var BROKEN_SUBS (comma-
+// separated) so we don't commit identifiers to the repo.  Run with:
+//   BROKEN_SUBS="ACxxx...,ACxxx..." node scripts/audit_broken_twilio_subs.js
+const BROKEN_SUBS = (process.env.BROKEN_SUBS || '')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean)
+if (BROKEN_SUBS.length === 0) {
+  console.error('Set BROKEN_SUBS env var (comma-separated AC...). Aborting.')
+  process.exit(1)
+}
 // Plus the 2 that were truncated in our earlier scan – wider sweep
 // We'll query for ANY sub-account that's currently failing 401 in logs
 
