@@ -326,3 +326,60 @@ User selected 6 UX recommendations (3, 4, 5, 7, 11, 12) for implementation.  #7 
 - 🟡 Deploy churn protection (branch protection / staging)
 - 🟡 Other Tier 2/3 UX (#1 smart insufficient-balance wall, #2 dead-rail banner, #6 recoverable cart, #8 FX equivalents, #9 /deposit slash, #10 wizard)
 
+---
+
+## 2026-06-21 — Domain purchase flow UX (Tier 1 #3 + #4, Tier 3 #9)
+
+User-selected three domain-purchase improvements after the previous batch.  All shipped + verified.
+
+### #3 — Auto-default NS (drop NS picker from new-purchase flow)
+- `/app/js/_index.js` `askDomainToUseWithShortener` handler (line ~18254)
+- Previously: Yes-on-shortener → auto-Cloudflare; **No-on-shortener → showed a Default/Cloudflare/Custom NS picker** that 99% of users found confusing
+- Now: **both Yes and No paths auto-default to Cloudflare** and go straight to `domain-pay`
+- The NS picker (`domainNsSelect`) is still in the codebase as a safety net but no longer reachable from the new-purchase flow; power users can still change NS post-purchase via "🔧 DNS Management"
+- Also fixed the `domain-pay` back-button — previously sent users to the now-unreachable NS picker when `shortener=false`; now always returns to the shortener question
+
+### #4 — Action buttons in post-purchase card
+- `/app/js/_index.js` post-purchase cross-sell timer (line ~30400)
+- Replaced the **text-only** cross-sell card from the previous batch with an **inline-keyboard** card carrying 3 single-tap shortcuts:
+  - 🌐 Add hosting          → `callback_data: pd:host`
+  - 🔧 Manage DNS           → `callback_data: pd:dns:<domain>`
+  - 🔗 Launch shortener     → `callback_data: pd:short:<domain>`
+- "Set up email" intentionally **omitted** per user request
+- New callback handler added to the existing `bot.on('callback_query')` block (line ~4341)
+  - Acks the callback
+  - Reuses existing menu trigger words (`hostingDomainsRedirect`, `dnsManagement`, `activateDomainShortener`) via `bot.processUpdate({...message: {text: ...}})` to navigate
+  - For shortener: auto-picks the just-purchased domain after a 1.5s delay so the user skips the domain-picker step
+  - Localized button labels in en/fr/zh/hi
+  - Soft fallback if `processUpdate` fails: tells the user which menu key to tap
+
+### #9 — Step indicator + ETA in domain-link status
+- `/app/js/lang/en.js` lines 462 / 465
+- **`t.domainLinking`** (sent after domain registration, before DNS records add) now reads:
+  > ✅ Step 1 of 3 — Registered.
+  > 🔄 Step 2 of 3 — Linking DNS now… *typically <60 seconds*
+  > Full propagation can take up to 30 min in rare cases.
+  > Live status: https://www.whatsmydns.net/#A/{domain}
+- **`t.domainBought`** (final success message) now reads:
+  > ✅ Step 3 of 3 — Done!
+  > Your domain **{{domain}}** is fully registered and linked to your account.
+  > *DNS propagation completes automatically — usually within 5 minutes, max 30. You can start using it now.* 🚀
+- en updated; fr/zh/hi keep their existing copy (fallback works correctly)
+
+### Verified
+- ESLint clean on `_index.js` and `lang/en.js`
+- Jest: 20 passed, 1 skipped (4 suites)
+- Nodejs restart clean
+- Edge-block (403), health (200), `/admin/referral-stats` (200) all still working
+- Callback handler `pd:*` wired into existing `bot.on('callback_query')` flow
+
+### Files touched
+- `/app/js/_index.js` — 4 edits: shortener-Q auto-Cloudflare, callback handler, post-purchase inline keyboard, domain-pay back-button fix
+- `/app/js/lang/en.js` — copy update for `t.domainLinking` + `t.domainBought`
+
+### Net flow impact
+Before: search → found card → shortener Q → **NS picker** → pay screen → wait (no step indicator) → success (plain text)
+After: search → found card → shortener Q → pay screen → **3-step progress with ETA** → success with **3 single-tap action buttons**
+
+Removed one screen, added decision-shortcuts at the end, made the wait feel shorter.
+

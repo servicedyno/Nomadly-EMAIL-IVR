@@ -4331,6 +4331,68 @@ bot?.on('callback_query', async (query) => {
     const data = query?.data || ''
     const chatId = String(query?.message?.chat?.id) // Always convert to string for DB consistency
 
+    // ── Post-domain action shortcuts (UX P-Domain #4, 2026-06-21) ──
+    // Inline-button shortcuts sent right after a successful domain
+    // registration. Lets the user single-tap into the most likely next step
+    // (hosting, DNS management, shortener activation) without hunting
+    // through the menu. We reuse the existing menu trigger words via
+    // `bot.processUpdate` so the navigation behaviour stays in sync with
+    // the rest of the bot (no duplicate state machines).
+    if (data.startsWith('pd:')) {
+      try { await bot.answerCallbackQuery(query.id) } catch { /* noop */ }
+      const [, kind, dom] = data.split(':')
+      // Resolve the menu trigger word from the bound i18n module
+      let triggerText = null
+      try {
+        const u = require('./lang/en.js').en?.user || {}
+        if (kind === 'host')  triggerText = u.hostingDomainsRedirect || '🛡️🔥 Anti-Red Hosting'
+        if (kind === 'dns')   triggerText = u.dnsManagement          || '🔧 DNS Management'
+        if (kind === 'short') triggerText = u.activateDomainShortener || '🔗 Activate Domain for Shortener'
+      } catch (_) {
+        if (kind === 'host')  triggerText = '🛡️🔥 Anti-Red Hosting'
+        if (kind === 'dns')   triggerText = '🔧 DNS Management'
+        if (kind === 'short') triggerText = '🔗 Activate Domain for Shortener'
+      }
+      if (!triggerText) return
+
+      // Synthesize a user message so the existing handler picks it up
+      try {
+        await bot.processUpdate({
+          update_id: Date.now(),
+          message: {
+            message_id: query.message.message_id,
+            from: query.from,
+            chat: query.message.chat,
+            date: Math.floor(Date.now() / 1000),
+            text: triggerText,
+          },
+        })
+        // For shortener, the user lands on a domain picker. If we have the
+        // domain name, fire it immediately so they skip the picker.
+        if (kind === 'short' && dom) {
+          setTimeout(async () => {
+            try {
+              await bot.processUpdate({
+                update_id: Date.now() + 1,
+                message: {
+                  message_id: query.message.message_id + 1,
+                  from: query.from,
+                  chat: query.message.chat,
+                  date: Math.floor(Date.now() / 1000),
+                  text: dom,
+                },
+              })
+            } catch (e) { log(`[PostDomain] short auto-pick non-fatal err: ${e.message}`) }
+          }, 1500)
+        }
+      } catch (e) {
+        log(`[PostDomain] callback ${kind} err: ${e.message}`)
+        // Soft fallback: tell the user which menu key to tap
+        try { return send(chatId, `Tap <b>${triggerText}</b> in the menu below.`, { parse_mode: 'HTML' }) } catch { /* noop */ }
+      }
+      return
+    }
+
     // ── Wallet quick-topup (from CRITICAL low-balance alert) ──
     // Single-tap from the wallet alert opens the wallet menu so the user
     // doesn't have to hunt through the bot menu mid-campaign. Mirrors the
@@ -18264,16 +18326,15 @@ ${message.replace(/\n/g, '<br>')}
       return send(chatId, t.what)
     }
     saveInfo('askDomainToUseWithShortener', yesPressed)
-
-    // Yes = shortener: skip NS selection, use Cloudflare for DNS management
-    if (yesPressed) {
-      saveInfo('nsChoice', 'cloudflare')
-
-      return goto['domain-pay']()
-    }
-
-    // No = no shortener: show NS selection
-    return goto.domainNsSelect()
+    // UX P-Domain #3 (2026-06-21): auto-default to Cloudflare NS for *both*
+    // shortener=Yes and shortener=No paths. The previous No-branch sent the
+    // user to a NS picker (Default/Cloudflare/Custom) which 99% of users
+    // didn't understand — confusing extra screen with tech-jargon options.
+    // Power users can change NS post-purchase from the "🔧 DNS Management"
+    // menu, so this drops the picker from the new-purchase flow entirely.
+    saveInfo('nsChoice', 'cloudflare')
+    saveInfo('nameserver', 'cloudflare')
+    return goto['domain-pay']()
   }
   if (action === a.domainNsSelect) {
     if (isBackPress(message)) return goto.askDomainToUseWithShortener()
@@ -18352,8 +18413,9 @@ ${message.replace(/\n/g, '<br>')}
   }
   if (action === 'domain-pay') {
     if (isBackPress(message)) {
-      // Go back to NS selection if shortener=No, otherwise to shortener question
-      if (info?.askDomainToUseWithShortener === false) return goto.domainNsSelect()
+      // UX P-Domain #3 (2026-06-21): NS picker removed from the new-purchase
+      // flow (auto-Cloudflare), so back-button always returns to the
+      // shortener question regardless of shortener=Yes/No state.
       return goto.askDomainToUseWithShortener()
     }
 
@@ -30331,7 +30393,7 @@ const buyDomainFullProcess = async (chatId, lang, domain) => {
     // ── UX P-Funnel #3 + #12 (2026-06-21): post-purchase nudge ────────
     // Two small, time-decoupled cards (8s delay each so they land after
     // `t.domainBought` and the DNS-check stamp):
-    //   1. Hosting + VPS bundle cross-sell (existing audience, zero CAC)
+    //   1. Hosting + DNS + Shortener inline-button card  (#4, action-oriented)
     //   2. Referral share-card — surfaced ONLY for users with zero existing
     //      referees, so we don't nag regulars.  Capitalizes on the
     //      post-purchase dopamine moment.
@@ -30340,21 +30402,40 @@ const buyDomainFullProcess = async (chatId, lang, domain) => {
     try {
       setTimeout(() => {
         try {
+          // UX P-Domain #4 (2026-06-21): inline action buttons — single-tap
+          // shortcuts to the most common next-steps after registering a
+          // domain.  Buttons are stable callback IDs so re-clicking is safe
+          // (handler is idempotent).  Domain is embedded in callback_data so
+          // the shortener path can pre-select it without re-prompting.
           const crossSellByLang = {
-            en: `🚀 <b>Pair ${domain} with hosting + VPS?</b>\n\n` +
-                `Get your domain live in minutes — cPanel hosting + free SSL from <b>$3.99/mo</b>, or a full Linux VPS from <b>$5/mo</b>.\n\n` +
-                `<i>Tap 🌐 Hosting or 🖥️ VPS in the menu to see bundles.</i>`,
-            fr: `🚀 <b>Associez ${domain} à un hébergement + VPS ?</b>\n\n` +
-                `Mettez votre domaine en ligne en quelques minutes — hébergement cPanel + SSL gratuit dès <b>3,99 $/mois</b>, ou un VPS Linux complet dès <b>5 $/mois</b>.\n\n` +
-                `<i>Touchez 🌐 Hébergement ou 🖥️ VPS dans le menu.</i>`,
-            zh: `🚀 <b>为 ${domain} 配置主机 + VPS？</b>\n\n` +
-                `几分钟内即可上线 — cPanel 主机含免费 SSL，<b>$3.99/月起</b>；或全功能 Linux VPS，<b>$5/月起</b>。\n\n` +
-                `<i>点击菜单中的 🌐 主机 或 🖥️ VPS 查看套餐。</i>`,
-            hi: `🚀 <b>${domain} के साथ होस्टिंग + VPS जोड़ें?</b>\n\n` +
-                `मिनटों में अपना डोमेन लाइव करें — cPanel होस्टिंग + मुफ्त SSL केवल <b>$3.99/माह</b> से, या पूरा Linux VPS <b>$5/माह</b> से।\n\n` +
-                `<i>मेनू में 🌐 होस्टिंग या 🖥️ VPS टैप करें।</i>`,
+            en: `🚀 <b>${domain} is yours — what's next?</b>\n\n` +
+                `Pick one to keep building:`,
+            fr: `🚀 <b>${domain} vous appartient — et maintenant ?</b>\n\n` +
+                `Choisissez la prochaine étape :`,
+            zh: `🚀 <b>${domain} 已属于您 — 接下来呢？</b>\n\n` +
+                `选择下一步：`,
+            hi: `🚀 <b>${domain} अब आपका है — आगे क्या?</b>\n\n` +
+                `अगला कदम चुनें:`,
           }
-          sendMessage(chatId, crossSellByLang[lang] || crossSellByLang.en, { parse_mode: 'HTML' })
+          const btnByLang = {
+            en: { host: '🌐 Add hosting', dns: '🔧 Manage DNS', short: '🔗 Launch shortener' },
+            fr: { host: '🌐 Ajouter hébergement', dns: '🔧 Gérer DNS', short: '🔗 Activer shortener' },
+            zh: { host: '🌐 添加主机', dns: '🔧 管理 DNS', short: '🔗 启动短链接' },
+            hi: { host: '🌐 होस्टिंग जोड़ें', dns: '🔧 DNS प्रबंधन', short: '🔗 शॉर्टनर शुरू करें' },
+          }
+          const labels = btnByLang[lang] || btnByLang.en
+          // Trim domain to keep callback_data well under Telegram's 64-byte cap
+          const dShort = domain.slice(0, 50)
+          sendMessage(chatId, crossSellByLang[lang] || crossSellByLang.en, {
+            parse_mode: 'HTML',
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: labels.host, callback_data: 'pd:host' }],
+                [{ text: labels.dns, callback_data: `pd:dns:${dShort}` }],
+                [{ text: labels.short, callback_data: `pd:short:${dShort}` }],
+              ],
+            },
+          })
         } catch (e) { log(`[PostPurchase] cross-sell card non-fatal err: ${e.message}`) }
       }, 8000)
     } catch (_) { /* setTimeout failure is non-fatal */ }

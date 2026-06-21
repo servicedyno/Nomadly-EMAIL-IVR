@@ -459,10 +459,10 @@ Tap below to get started! ⬇️`,
 Best,
 ${CHAT_BOT_NAME}`,
 
- domainBought: `Your domain {{domain}} is now linked to your account while DNS propagates. You will be updated automatically about the status momentarily.🚀`,
+ domainBought: `✅ <b>Step 3 of 3 — Done!</b>\n\nYour domain <b>{{domain}}</b> is fully registered and linked to your account.\n\n<i>DNS propagation completes automatically — usually within 5 minutes, max 30. You can start using it now.</i> 🚀`,
 
  domainLinking: domain =>
- `Linking domain with your account. Please note that DNS updates can take up to 30 minutes. You can check your DNS update status here: https://www.whatsmydns.net/#A/${domain}`,
+ `✅ <b>Step 1 of 3 — Registered.</b>\n\n🔄 <b>Step 2 of 3 — Linking DNS now…</b> <i>typically &lt;60 seconds</i>\n\nFull propagation can take up to 30 min in rare cases.\nLive status: https://www.whatsmydns.net/#A/${domain}`,
 
  errorSavingDomain: `Error saving domain in server, tap 💬 Get Support. Discover more ${TG_HANDLE}.`,
 
