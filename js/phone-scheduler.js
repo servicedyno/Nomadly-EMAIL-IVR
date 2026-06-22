@@ -135,24 +135,59 @@ async function runExpiryCheck() {
         // ── Expired — attempt auto-renew or release immediately ──
         if (msUntilExpiry <= 0 && num.status === 'active') {
           if (num.autoRenew) {
-            const renewed = await attemptAutoRenew(chatId, num, i, numbers)
-            if (renewed) {
+            const result = await attemptAutoRenew(chatId, num, i, numbers)
+            const outcome = (result && typeof result === 'object') ? result.outcome : (result === true ? 'renewed' : 'error')
+
+            if (outcome === 'renewed') {
               autoRenewed++
               modified = true
+            } else if (outcome === 'already_renewed_elsewhere' || outcome === 'duplicate_prevented') {
+              // Another pod successfully renewed this number — leave it alone.
+              // Reload the fresh DB state into our local copy so we don't
+              // accidentally overwrite it with stale data in the final set().
+              try {
+                const fresh = await _phoneNumbersOf.findOne({ _id: chatId })
+                const f = fresh?.val?.numbers?.find(n => n.phoneNumber === num.phoneNumber)
+                if (f) {
+                  numbers[i] = f
+                }
+              } catch (_) { /* best-effort refresh */ }
+              log(`[PhoneScheduler] Skipped release for ${num.phoneNumber}: another pod already renewed (outcome=${outcome})`)
+            } else if (outcome === 'insufficient_funds') {
+              // ━━━ FINAL SAFETY: re-fetch and verify before releasing ━━━
+              // Even after returning 'insufficient_funds', another pod might
+              // have funded+renewed in the gap. Never delete a number whose
+              // freshly-fetched expiresAt is in the future.
+              const freshDoc = await _phoneNumbersOf.findOne({ _id: chatId })
+              const freshN = freshDoc?.val?.numbers?.find(n => n.phoneNumber === num.phoneNumber)
+              if (freshN && new Date(freshN.expiresAt) > new Date()) {
+                log(`[PhoneScheduler] ABORT release for ${num.phoneNumber}: fresh DB shows expiresAt in future (${freshN.expiresAt}, status ${freshN.status})`)
+                const name = await get(_nameOf, chatId).catch(() => null)
+                _notifyGroup?.(`🛡️ <b>Release ABORTED (safety):</b> ${_maskName?.(name) || ''} <code>${chatId}</code> ${formatPhone(num.phoneNumber)} appeared expired locally but DB shows future expiresAt (${freshN.expiresAt}). Likely race with another pod — kept the number.`)
+                numbers[i] = freshN
+                modified = true
+              } else {
+                // Genuine insufficient funds — release from provider to stop billing
+                numbers[i].status = 'released'
+                numbers[i]._reminder3Sent = false
+                numbers[i]._reminder1Sent = false
+                numbers[i]._released = true
+                modified = true
+                suspended++
+                await releaseFromProvider(num, user.val)
+                const userLang = await _getUserLang(chatId)
+                sendToUser(chatId, buildAutoRenewFailedMsg(num, userLang))
+                const name = await get(_nameOf, chatId)
+                _notifyGroup?.(`❌ <b>Auto-Renew Failed + Released:</b> ${_maskName?.(name)} lost ${formatPhone(num.phoneNumber)} (insufficient balance)`)
+                log(`[PhoneScheduler] Auto-renew failed, released from provider: ${chatId} ${num.phoneNumber}`)
+              }
             } else {
-              // Auto-renew failed — release from provider immediately to stop billing
-              numbers[i].status = 'released'
-              numbers[i]._reminder3Sent = false
-              numbers[i]._reminder1Sent = false
-              numbers[i]._released = true
-              modified = true
-              suspended++
-              await releaseFromProvider(num, user.val)
-              const userLang = await _getUserLang(chatId)
-              sendToUser(chatId, buildAutoRenewFailedMsg(num, userLang))
-              const name = await get(_nameOf, chatId)
-              _notifyGroup?.(`❌ <b>Auto-Renew Failed + Released:</b> ${_maskName?.(name)} lost ${formatPhone(num.phoneNumber)} (insufficient balance)`)
-              log(`[PhoneScheduler] Auto-renew failed, released from provider: ${chatId} ${num.phoneNumber}`)
+              // outcome ∈ { 'invalid_price', 'not_found', 'error' }
+              // Do NOT release the number — the issue is operational, not
+              // a payment failure. Alert admin and leave the number active.
+              const name = await get(_nameOf, chatId).catch(() => null)
+              _notifyGroup?.(`⚠️ <b>Auto-Renew Deferred (no release):</b> ${_maskName?.(name) || ''} <code>${chatId}</code> ${formatPhone(num.phoneNumber)} — outcome=<code>${outcome}</code>. Number kept active for manual review.`)
+              log(`[PhoneScheduler] Auto-renew deferred for ${num.phoneNumber}: outcome=${outcome} — number NOT released`)
             }
           } else {
             // No auto-renew — release from provider immediately
@@ -303,7 +338,7 @@ async function attemptAutoRenew(chatId, num, index, numbers) {
         `<i>Renewal blocked. Manual admin action required.</i>`
       )
       log(`[PhoneScheduler] Auto-renew aborted for ${num.phoneNumber}: invalid planPrice=${storedPrice} plan=${planTier}`)
-      return false
+      return { outcome: 'invalid_price', storedPrice, canonical: canonicalPlanPrice }
     }
     // (else: storedPrice matches canonical or grandfathered — use stored)
 
@@ -313,18 +348,18 @@ async function attemptAutoRenew(chatId, num, index, numbers) {
     const freshNum = freshDoc?.val?.numbers?.find(n => n.phoneNumber === num.phoneNumber)
     if (!freshNum) {
       log(`[PhoneScheduler] Skipped ${num.phoneNumber} — number no longer exists in DB`)
-      return false
+      return { outcome: 'not_found' }
     }
     if (new Date(freshNum.expiresAt) > new Date()) {
       log(`[PhoneScheduler] Skipped ${num.phoneNumber} — already renewed by another process (expires ${freshNum.expiresAt})`)
-      return false
+      return { outcome: 'already_renewed_elsewhere', expiresAt: freshNum.expiresAt }
     }
 
     const result = await smartWalletDeduct(_walletOf, chatId, price)
 
     if (!result.success) {
       log(`[PhoneScheduler] Auto-renew failed for ${num.phoneNumber}: insufficient funds (USD: $${(result.usdBal || 0).toFixed(2)}, needed: $${price})`)
-      return false
+      return { outcome: 'insufficient_funds', usdBal: result.usdBal || 0, needed: price }
     }
 
     // Wallet charged — extend expiry
@@ -363,7 +398,7 @@ async function attemptAutoRenew(chatId, num, index, numbers) {
     if (!claimResult) {
       log(`[PhoneScheduler] ⚠️ DUPLICATE RENEWAL PREVENTED: ${num.phoneNumber} already renewed by another pod — refunding $${price} to chatId ${chatId}`)
       await _walletOf.updateOne({ _id: chatId }, { $inc: { usdOut: -price } })
-      return false
+      return { outcome: 'duplicate_prevented', refunded: price }
     }
 
     numbers[index].expiresAt = newExpiry.toISOString()
@@ -393,10 +428,10 @@ async function attemptAutoRenew(chatId, num, index, numbers) {
     _notifyGroup?.(`✅ <b>Auto-Renewed:</b> ${_maskName?.(name)} → ${formatPhone(num.phoneNumber)} ($${price})`)
 
     log(`[PhoneScheduler] Auto-renewed: ${chatId} ${num.phoneNumber} until ${newExpiry.toISOString()} — charged $${price}`)
-    return true
+    return { outcome: 'renewed', newExpiry: newExpiry.toISOString(), charged: price }
   } catch (e) {
     log(`[PhoneScheduler] Auto-renew error: ${e.message}`)
-    return false
+    return { outcome: 'error', error: e.message }
   }
 }
 
