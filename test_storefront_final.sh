@@ -2,7 +2,7 @@
 # Web Storefront Phase 2 Backend Testing using curl + jq
 # More reliable from inside container
 
-BASE_URL="https://config-deployment-1.preview.emergentagent.com/api/store"
+BASE_URL="https://api-config-setup-7.preview.emergentagent.com/api/store"
 
 echo "================================================================================"
 echo "WEB STOREFRONT PHASE 2 BACKEND TESTING"
