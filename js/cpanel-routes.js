@@ -28,6 +28,46 @@ async function getUserLang(account) {
   } catch (_) { return 'en' }
 }
 
+// ── Debounced anti-red protection restore after destructive File-Manager ops ──
+// Panel deletes / folder-removals / zip extracts can wipe the root protection
+// files (.user.ini + .antired-challenge.php). CONFIRMED on secuec3b
+// (securitedesjardins.com) 2026-06-21: repeated folder deletes + zip re-extracts
+// left both files MISSING (heartbeat DIAG), the hourly heartbeat fell behind, then
+// gave up (stuck_repair_loop) → site served the cloak 404 to its owner.
+// Only `/files/extract` re-deployed protection before; `/files/delete` did NOT.
+// We now restore within seconds of the user's LAST destructive op (debounced so a
+// burst of ops coalesces into one WHM redeploy).
+const _protectionRestoreTimers = new Map()
+const PROTECTION_RESTORE_DEBOUNCE_MS = parseInt(process.env.PANEL_PROTECTION_RESTORE_DEBOUNCE_MS || '15000', 10)
+let _restoreRunner = null // test hook (see __setRestoreRunnerForTest)
+
+function isPublicHtmlPath(p) {
+  return typeof p === 'string' && p.includes('public_html')
+}
+
+function scheduleProtectionRestore(cpUser, reason) {
+  if (!cpUser) return
+  const existing = _protectionRestoreTimers.get(cpUser)
+  if (existing) clearTimeout(existing)
+  const timer = setTimeout(async () => {
+    _protectionRestoreTimers.delete(cpUser)
+    try {
+      if (_restoreRunner) { await _restoreRunner(cpUser, reason); return }
+      const antiRed = require('./anti-red-service')
+      await antiRed.deployCFIPFix(cpUser)
+      log(`[Panel] Auto-restored anti-red protection after ${reason} (user: ${cpUser})`)
+    } catch (e) {
+      log(`[Panel] Auto-restore anti-red failed for ${cpUser} after ${reason}: ${e.message}`)
+    }
+  }, PROTECTION_RESTORE_DEBOUNCE_MS)
+  if (typeof timer.unref === 'function') timer.unref()
+  _protectionRestoreTimers.set(cpUser, timer)
+}
+
+// Test-only: inject a fake restore runner so the debounce can be unit-tested
+// without hitting WHM. Returns a disposer that restores the real runner.
+function __setRestoreRunnerForTest(fn) { _restoreRunner = fn; return () => { _restoreRunner = null } }
+
 /**
  * Robust ownership check for a domain against a chatId.
  *
@@ -402,6 +442,9 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
       const result = await cpProxy.deleteFile(req.cpUser, req.cpPass, dir, file, req.whmHost, !!isDirectory)
       if (result?.status === 1) {
         log(`[Panel] Deleted ${isDirectory ? 'folder' : 'file'}: ${file} in ${dir} (user: ${req.cpUser})`)
+        // A delete in public_html may have removed the root protection files
+        // (.user.ini / .antired-challenge.php) — restore them shortly after.
+        if (isPublicHtmlPath(dir)) scheduleProtectionRestore(req.cpUser, `delete:${isDirectory ? 'folder' : 'file'}`)
         return res.json(result)
       }
 
@@ -494,6 +537,7 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
         const opEventOk = opResult.event?.result === 1 && opData.length === 0
         if ((opOk || opEventOk) && gone !== false) {
           log(`[Panel] Deleted via WHM fallback: ${file} in ${dir} (user: ${req.cpUser}, ops_tried: [${attempted.join(', ')}], verified: ${gone === true})`)
+          if (isPublicHtmlPath(dir)) scheduleProtectionRestore(req.cpUser, 'delete:whm-fallback')
           return res.json({ status: 1, data: opData, errors: null, via: 'whm-fallback', attempted_ops: attempted })
         }
 
@@ -2649,4 +2693,10 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
   return router
 }
 
-module.exports = { createCpanelRoutes }
+module.exports = {
+  createCpanelRoutes,
+  // Exposed for unit tests (debounced protection restore)
+  scheduleProtectionRestore,
+  isPublicHtmlPath,
+  __setRestoreRunnerForTest,
+}
