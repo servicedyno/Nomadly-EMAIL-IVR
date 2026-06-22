@@ -7,14 +7,14 @@
 - **Free SMS**: 100 used / 100 limit
 
 ## Current Pod URL (updated 2026-06-21 — env restored)
-- Base: `https://api-config-setup-7.preview.emergentagent.com`
+- Base: `https://api-keys-setup-3.preview.emergentagent.com`
 - Bot mode: DEVELOPMENT (BOT_ENVIRONMENT=development, SKIP_WEBHOOK_SYNC=true, OVH_DRY_RUN=true) — dev bot token in use; prod bot/webhooks untouched.
 
 ## SMS App Web URL
-- Browser test: `https://api-config-setup-7.preview.emergentagent.com/api/sms-app-web`
+- Browser test: `https://api-keys-setup-3.preview.emergentagent.com/api/sms-app-web`
 
 ## Hosting Panel
-- **URL**: `https://api-config-setup-7.preview.emergentagent.com/panel`
+- **URL**: `https://api-keys-setup-3.preview.emergentagent.com/panel`
 - **Email**: `hello@ivrpod.com`
 - **Password**: `Onlygod1234@`
 - **Panel Domain**: `https://panel.1.hostbay.io/panel`
