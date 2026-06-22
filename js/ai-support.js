@@ -438,10 +438,11 @@ Flow: Choose Linux/RDP → Select disk type (NVMe/SSD) → Select region → Sel
 
 ### 💳 Virtual Card
 From main menu → tap <b>💳 Virtual Card</b>
-Instant virtual debit cards that work online worldwide.
+Virtual debit cards that work online worldwide.
 - Load amount: <b>$50 – $1,000</b>
-- Delivery: Instant — card number, CVV, and expiry delivered in chat
-Flow: Select amount or enter custom → Pay → Card details delivered
+- Delivery: card number, CVV, and expiry are <b>issued manually by our team</b> after your payment is confirmed (shortly, during business hours) — they are <b>NOT</b> auto-delivered the instant you pay. You receive them right here in chat.
+- <b>Crypto payments (BTC/LTC/USDT/etc.) are confirmed on-chain and do NOT appear in your wallet balance.</b> A $0 wallet is normal for a crypto card purchase and does NOT mean the payment failed.
+Flow: Select amount or enter custom → Pay → payment confirmed → our team issues the card → details delivered in chat
 
 <b>⚠️ Important — 3D Secure / OTP (Railway-log issue #5):</b>
 Our virtual cards do <b>NOT</b> support 3D Secure (3DS / Verified-by-Visa / Mastercard SecureCode / OTP-prompt) verification. They work only on merchants that allow non-3DS / "off-3DS" charges. If a merchant's checkout page is asking for an OTP code or pops up a bank verification screen, that purchase cannot be completed with our card.
@@ -522,7 +523,7 @@ All marketplace payments MUST go through @Lockbaybot escrow for safety.
 
 ### 💳 Virtual Card
 From main menu → tap <b>💳 Virtual Card</b>
-Flow: Enter card load amount ($10-$500) → Pay → Card details (number, CVV, expiry) delivered in chat
+Flow: Enter card load amount ($10-$500) → Pay → payment confirmed → team issues the card → details (number, CVV, expiry) delivered in chat (issued manually, not auto-instant; crypto payments do not show in wallet balance)
 
 ### Buy Bulletproof VPS
 From main menu → tap <b>Buy Bulletproof VPS</b>
@@ -806,6 +807,14 @@ To join the community channel: <b>🌍 Settings</b> → <b>📢 Join Channel</b>
 ### "How do I get a virtual card?"
 → <b>💳 Virtual Card</b> from main menu → Enter load amount → Pay → Card details (number, CVV, expiry) sent here.
 
+### "I paid for my virtual card but haven't received it" / "where is my card" / "I deposited $X for a card and got nothing" / "I'm waiting for my virtual card"
+Virtual cards are <b>issued MANUALLY by our team</b> after the payment confirms — they are NOT delivered automatically the instant you pay. If the user paid by crypto, the funds are confirmed on-chain and will <b>NOT</b> appear in their wallet balance, so a $0 wallet is completely normal and is NOT evidence the payment failed.
+1. <b>Read the USER CONTEXT first.</b> If you see a virtual-card order marked "PAYMENT CONFIRMED … status: PENDING" or a "🚨 PAID-BUT-UNDELIVERED" flag, the payment is confirmed and the card is simply awaiting manual issuance.
+2. <b>NEVER</b> tell a paid user "your payment may not have completed", "the payment might not have gone through", or "check your wallet balance" — this is FALSE for confirmed crypto orders and has caused real complaints/chargebacks. 
+3. Acknowledge the exact order: "I can see your order <code>{orderId}</code> for {product} — your payment is <b>confirmed</b>. Your card is being issued by our team and will be delivered here shortly."
+4. ALWAYS escalate (set needsEscalation: true) so a human issues/delivers the card. Do NOT send the user in a loop or just repeat menu steps.
+5. If the context shows NO confirmed order, do not assert the payment failed — ask for their order ID and escalate for the team to verify on-chain.
+
 ### "How do I validate emails?"
 → Main menu → <b>📧 Email Validation</b> → Upload a .txt or .csv file containing email addresses → Choose validation options → Pay → Results returned as downloadable file with status (valid/invalid/risky/catch-all) and phone owner names where available.
 
@@ -846,6 +855,7 @@ If the user complains that <code>[name]</code> stays literal in the sent SMS:
 You MUST escalate to a human agent (set needsEscalation: true) for:
 - Refund requests
 - Payment disputes
+- Paid-but-undelivered orders — any virtual card or digital product that USER CONTEXT shows as PAID/PAYMENT CONFIRMED but still PENDING / not delivered (a human must issue/deliver it)
 - Technical issues you cannot diagnose
 - Account access problems
 - Complaints about service quality
@@ -1052,6 +1062,37 @@ async function getUserContext(chatId, userMessage = '') {
     } else {
       context.push('Wallet: No deposits yet')
     }
+
+    // ── Digital product / Virtual Card orders (these are issued MANUALLY by the team) ──
+    // Without this, the AI was blind to confirmed-but-pending card orders and wrongly told
+    // paid users "your wallet is $0, the payment may not have completed" (real complaints).
+    try {
+      const cidVariants = [chatId, String(chatId)]
+      const nChat = Number(chatId)
+      if (!Number.isNaN(nChat)) cidVariants.push(nChat)
+      const fmtTs = (d) => { try { return new Date(d).toISOString().slice(0, 16).replace('T', ' ') + ' UTC' } catch (_) { return 'unknown' } }
+      const orders = await _db.collection('digitalOrders')
+        .find({ chatId: { $in: cidVariants } })
+        .sort({ createdAt: -1 }).limit(5).toArray()
+      if (orders.length) {
+        const stuck = []
+        const lines = orders.map(o => {
+          const status = String(o.status || 'unknown').toLowerCase()
+          const paid = !!o.paymentConfirmedAt || (o.paymentMethod === 'wallet_usd' && status !== 'pending_payment')
+          const undelivered = paid && !o.deliveredAt && ['pending', 'paid', 'processing', 'confirmed'].includes(status)
+          if (undelivered) stuck.push(o.orderId)
+          let s = `• Order ${o.orderId} — ${o.product} — $${o.price} via ${o.paymentMethod || 'unknown'} — status: ${status.toUpperCase()}`
+          s += paid ? ` — PAYMENT CONFIRMED${o.paymentConfirmedAt ? ' ' + fmtTs(o.paymentConfirmedAt) : ' (wallet)'}` : ` — payment NOT yet confirmed`
+          if (o.deliveredAt) s += ` — DELIVERED ${fmtTs(o.deliveredAt)}`
+          s += ` (ordered ${fmtTs(o.createdAt)})`
+          return s
+        }).join('\n')
+        context.push(`DIGITAL PRODUCT / VIRTUAL CARD ORDERS (most recent first):\n${lines}`)
+        if (stuck.length) {
+          context.push(`🚨 PAID-BUT-UNDELIVERED: order(s) ${stuck.join(', ')} are PAID/CONFIRMED but NOT yet delivered. Virtual cards & digital products are issued MANUALLY by the team — this is NORMAL and does NOT mean the payment failed. Do NOT tell the user the payment didn't go through or to "check your wallet" (crypto payments never show in the wallet balance). Acknowledge the specific order ID + amount, confirm the payment IS received, and ESCALATE so a human issues/delivers it.`)
+        }
+      }
+    } catch (e) { /* digitalOrders collection may not exist */ }
 
     // Active subscription/plan
     try {
@@ -1817,6 +1858,7 @@ async function rateSupportSession(chatId, rating) {
 module.exports = {
   initAiSupport,
   getAiResponse,
+  getUserContext,
   getMarketplaceAiResponse,
   moderateMarketplaceChat,
   clearHistory,
