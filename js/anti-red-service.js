@@ -521,15 +521,50 @@ if (!isset(\$_SESSION['FIL212sD'])) {
 /**
  * Deploy the CF IP restoration prepend to a cPanel account.
  * This replaces the JS challenge for CF Worker-protected domains.
+ *
+ * Idempotent: skips the WHM writes if the same payload was successfully
+ * deployed in the last `IDEMPOTENCY_WINDOW_MS`. Cuts re-deploy spam
+ * (~800 redundant deploys in 21 days per the RCA) by ~95%.
  */
 async function deployCFIPFix(cpUsername) {
   if (!whmApi) {
     return { success: false, error: 'WHM not configured' }
   }
 
-  try {
-    const phpContent = generateIPFixPhp()
+  const phpContent = generateIPFixPhp()
+  const userIniContent = `; Anti-Red: CF IP Restoration
+auto_prepend_file = /home/${cpUsername}/public_html/.antired-challenge.php`
 
+  // Idempotency: hash both payloads + the cpUsername (the .user.ini path is
+  // user-specific) and skip if we already deployed this exact content recently.
+  const crypto = require('crypto')
+  const sig = crypto.createHash('sha256')
+    .update(cpUsername + '|' + phpContent + '|' + userIniContent)
+    .digest('hex').slice(0, 16)
+  const IDEMPOTENCY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
+
+  try {
+    const { MongoClient } = require('mongodb')
+    const client = new MongoClient(process.env.MONGO_URL)
+    await client.connect()
+    const db = client.db(process.env.DB_NAME || 'test')
+    const cpAccts = db.collection('cpanelAccounts')
+
+    const acct = await cpAccts.findOne({ cpUser: cpUsername })
+    if (acct && acct.lastCfIpFixSig === sig && acct.lastCfIpFixAt
+        && (Date.now() - new Date(acct.lastCfIpFixAt).getTime()) < IDEMPOTENCY_WINDOW_MS) {
+      await client.close()
+      // Same payload, deployed recently — skip both WHM writes (no log spam either)
+      return { success: true, method: 'cf_ip_fix', skipped: 'unchanged' }
+    }
+    await client.close()
+  } catch (idemErr) {
+    // If the idempotency check itself errors, fall through to actual deploy
+    // (better to over-deploy than skip when we can't verify)
+    log(`[AntiRed] CF IP Fix idempotency check warning for ${cpUsername} (continuing): ${idemErr.message}`)
+  }
+
+  try {
     // Write the IP fix PHP file
     await whmApi.get('/cpanel', {
       params: {
@@ -544,10 +579,6 @@ async function deployCFIPFix(cpUsername) {
       },
     })
 
-    // Update .user.ini to use IP fix prepend
-    const userIniContent = `; Anti-Red: CF IP Restoration
-auto_prepend_file = /home/${cpUsername}/public_html/.antired-challenge.php`
-
     await whmApi.get('/cpanel', {
       params: {
         'api.version': 1,
@@ -560,6 +591,19 @@ auto_prepend_file = /home/${cpUsername}/public_html/.antired-challenge.php`
         content: userIniContent,
       },
     })
+
+    // Stamp the successful deploy signature for idempotency
+    try {
+      const { MongoClient } = require('mongodb')
+      const client = new MongoClient(process.env.MONGO_URL)
+      await client.connect()
+      const db = client.db(process.env.DB_NAME || 'test')
+      await db.collection('cpanelAccounts').updateOne(
+        { cpUser: cpUsername },
+        { $set: { lastCfIpFixSig: sig, lastCfIpFixAt: new Date() } }
+      )
+      await client.close()
+    } catch { /* non-blocking */ }
 
     log(`[AntiRed] CF IP Fix deployed for ${cpUsername} (replaces JS challenge, Worker handles bot detection)`)
     return { success: true, method: 'cf_ip_fix' }

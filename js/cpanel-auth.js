@@ -147,6 +147,15 @@ async function storeCredentials(cpanelAccountsCol, data) {
     expiryDate: data.expiryDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     createdAt: new Date(),
     lastLogin: null,
+    // Price-lock fields — auto-renew uses these so a customer who bought at a
+    // promo price isn't billed the higher list price at renewal (the bug that
+    // suspended 12 accounts in the 21-day RCA window). See HOSTING_3WEEK_RCA.md
+    // and hosting-scheduler.js:getPlanPrice for the consumer side.
+    ...(typeof data.priceUsd === 'number' ? {
+      priceUsd: data.priceUsd,
+      renewalPriceUsd: data.priceUsd,
+      priceLockedAt: new Date(),
+    } : {}),
   }
 
   await cpanelAccountsCol.updateOne(

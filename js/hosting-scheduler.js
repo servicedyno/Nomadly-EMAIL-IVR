@@ -31,10 +31,26 @@ function isWeeklyPlan(planName) {
 }
 
 /**
- * Get renewal price for a plan
+ * Get renewal price for an account.
+ * Prefers the price-locked `renewalPriceUsd` field on the account (snapshotted
+ * at purchase time so promo/discount customers don't get billed the higher
+ * list price at renewal — see HOSTING_3WEEK_RCA.md for the bug background).
+ * Falls back to the plan-name → env-driven map for legacy accounts that
+ * haven't been back-filled yet.
+ *
+ * @param {string|object} planOrAccount - Either a plan-name string (legacy
+ *   call sites) or a full cpanelAccount document (preferred).
  */
-function getPlanPrice(planName) {
-  const name = (planName || '').toLowerCase()
+function getPlanPrice(planOrAccount) {
+  // Account-object call: use locked renewal price if present.
+  if (planOrAccount && typeof planOrAccount === 'object') {
+    if (typeof planOrAccount.renewalPriceUsd === 'number' && planOrAccount.renewalPriceUsd > 0) {
+      return planOrAccount.renewalPriceUsd
+    }
+    // No locked price — fall through to plan-name lookup
+    planOrAccount = planOrAccount.plan
+  }
+  const name = (planOrAccount || '').toLowerCase()
   if (name.includes('golden')) return GOLDEN_ANTIRED_CPANEL_PRICE
   if (name.includes('premium') && name.includes('hostpanel')) return PREMIUM_ANTIRED_CPANEL_PRICE
   if (name.includes('premium') && name.includes('week')) return PREMIUM_ANTIRED_WEEKLY_PRICE
@@ -188,7 +204,7 @@ function initScheduler(deps) {
 
         // ── Case 1: Expiring within 24h — send advance notification ──
         if (expiry > now && expiry <= in24h && !account.expiryNotified) {
-          const price = getPlanPrice(plan)
+          const price = getPlanPrice(account)
           const lang = await getUserLang(chatId)
           const tt = (key, ...args) => translation(`t.${key}`, lang, ...args)
 
@@ -217,7 +233,7 @@ function initScheduler(deps) {
 
         // ── Case 2: Expired — attempt auto-renew (monthly only) or grace period ──
         if (expiry <= now && !account.deleted) {
-          const price = getPlanPrice(plan)
+          const price = getPlanPrice(account)
           const duration = getPlanDuration(plan)
 
           // Only attempt auto-renew for monthly plans with auto-renew enabled
@@ -388,7 +404,7 @@ function initScheduler(deps) {
 
         // ── Step 0: Try auto-renew if enabled and user has funds ──
         const isAutoRenew = account.autoRenew !== false
-        const price = getPlanPrice(plan)
+        const price = getPlanPrice(account)
         const duration = getPlanDuration(plan)
 
         if (isAutoRenew && price > 0) {

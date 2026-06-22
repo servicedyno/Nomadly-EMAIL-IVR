@@ -2721,6 +2721,15 @@ const loadData = async () => {
   initHostingScheduler({ bot, db, whmService: require('./whm-service.js') })
   log('[HostingScheduler] Initialized')
 
+  // Initialize WHM Disk/Health Monitor — every 6h probes WHM API health
+  // and DMs admin if 5xx, disk-full, or account count nears capacity.
+  // No-op in dev pod (BOT_ENVIRONMENT != production).
+  try {
+    require('./whm-disk-monitor').initMonitor({ bot, whmService: require('./whm-service.js') })
+  } catch (e) {
+    log(`[WhmDiskMonitor] init error (non-blocking): ${e.message}`)
+  }
+
   // Initialize Hosting Upgrade Credit Nudge (daily DM 2 days before window closes)
   require('./hosting-upgrade-nudge').init({ bot, db })
 
@@ -9542,7 +9551,7 @@ Enter new value:`), bc)
 
         // Loyalty credit nudge — surface only when within 14 days of cycle start
         try {
-          const oldPrice = getPlanPrice(p.plan)
+          const oldPrice = getPlanPrice(p)
           const best = getBestUpgradeQuote({ planDoc: p, oldPrice })
           if (best && best.quote.creditApplied > 0) {
             const deadlineStr = best.deadlineDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
@@ -9634,7 +9643,7 @@ Enter new value:`), bc)
       try {
         const { getPlanPrice } = require('./hosting-scheduler')
         const { getBestUpgradeQuote } = require('./hosting-upgrade-credit')
-        const oldPrice = getPlanPrice(plan.plan)
+        const oldPrice = getPlanPrice(plan)
         const best = getBestUpgradeQuote({ planDoc: plan, oldPrice })
         if (best && best.quote.creditApplied > 0) {
           const deadlineStr = best.deadlineDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -12860,7 +12869,7 @@ All verified numbers generated during sourcing.`))
         saveInfo('billingFlow', true)
 
         const { getPlanPrice, getPlanDuration } = require('./hosting-scheduler')
-        const price = getPlanPrice(plan.plan)
+        const price = getPlanPrice(plan)
         const duration = getPlanDuration(plan.plan)
         const { usdBal } = await getBalance(walletOf, chatId)
         const expiry = plan.expiryDate ? new Date(plan.expiryDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
@@ -13015,7 +13024,7 @@ All verified numbers generated during sourcing.`))
       if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
 
       const { getPlanPrice, getPlanDuration } = require('./hosting-scheduler')
-      const price = getPlanPrice(plan.plan)
+      const price = getPlanPrice(plan)
       const duration = getPlanDuration(plan.plan)
       const { usdBal } = await getBalance(walletOf, chatId)
       const expiry = plan.expiryDate ? new Date(plan.expiryDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
@@ -13053,7 +13062,7 @@ All verified numbers generated during sourcing.`))
       const currentPlan = (plan.plan || '').toLowerCase()
       const { getPlanPrice } = require('./hosting-scheduler')
       const { computeUpgradeQuote, getCreditWindowDays } = require('./hosting-upgrade-credit')
-      const currentPrice = getPlanPrice(plan.plan)
+      const currentPrice = getPlanPrice(plan)
       const { usdBal } = await getBalance(walletOf, chatId)
       const ngnTestRate = await usdToNgn(1)
 
@@ -13739,6 +13748,7 @@ All verified numbers generated during sourcing.`))
     }
 
     let terminated = false
+    let softDeleteFallback = false
     try {
       const whmService = require('./whm-service')
       const cfService = require('./cf-service')
@@ -13748,8 +13758,17 @@ All verified numbers generated during sourcing.`))
       const acctCheck = await whmService.getAccountInfo(plan.cpUser)
 
       if (acctCheck.success) {
-        // Account exists on WHM — terminate it
+        // Account exists on WHM — try to terminate
         terminated = await whmService.terminateAccount(plan.cpUser)
+        if (!terminated) {
+          // WHM /removeacct returned non-success (suspended-with-error, frozen account,
+          // license issue, etc.). Don't strand the user — soft-delete in DB and queue
+          // an admin verification. This is the bug that left chat 1130252395 stuck on
+          // docxsndr.com in the 21-day RCA.
+          log(`[Hosting] cancelPlan: WHM terminateAccount returned false for ${plan.cpUser} — falling back to soft-delete + admin notify`)
+          softDeleteFallback = true
+          terminated = true // surface success to user; admin will verify on WHM
+        }
       } else {
         // Account already terminated on WHM — just mark as deleted in DB
         log(`[Hosting] cancelPlan: WHM account ${plan.cpUser} already terminated — marking deleted in DB`)
@@ -13777,7 +13796,7 @@ All verified numbers generated during sourcing.`))
       // 3. Mark cpanelAccounts as deleted (soft delete — keeps audit trail)
       await cpanelAccounts.updateOne(
         { _id: plan._id },
-        { $set: { deleted: true, deletedAt: new Date(), deletedBy: 'user', cancelledByUser: true, autoRenew: false } }
+        { $set: { deleted: true, deletedAt: new Date(), deletedBy: 'user', cancelledByUser: true, autoRenew: false, ...(softDeleteFallback ? { whmTerminatePending: true } : {}) } }
       )
     } catch (e) {
       log(`[Hosting] cancelPlan fatal: ${e.message}`)
@@ -13786,7 +13805,11 @@ All verified numbers generated during sourcing.`))
     if (terminated) {
       await send(chatId, t.cancelHostingPlanSuccess(domain), { parse_mode: 'HTML' })
       try {
-        notifyAdmin(`🚫 <b>Hosting plan cancelled by user</b>\nUser: ${chatId}\nDomain: <b>${domain}</b>\nPlan: <code>${plan.plan}</code>\ncPanel: <code>${plan.cpUser}</code>`)
+        if (softDeleteFallback) {
+          notifyAdmin(`⚠️ <b>Hosting cancellation — WHM terminate FAILED, soft-deleted in DB</b>\nUser: ${chatId}\nDomain: <b>${domain}</b>\nPlan: <code>${plan.plan}</code>\ncPanel: <code>${plan.cpUser}</code>\n\n<i>Please verify on WHM and manually /removeacct if the account still exists.</i>`)
+        } else {
+          notifyAdmin(`🚫 <b>Hosting plan cancelled by user</b>\nUser: ${chatId}\nDomain: <b>${domain}</b>\nPlan: <code>${plan.plan}</code>\ncPanel: <code>${plan.cpUser}</code>`)
+        }
       } catch { /* noop */ }
     } else {
       await send(chatId, t.cancelHostingPlanFailed(domain), { parse_mode: 'HTML' })
@@ -13814,7 +13837,7 @@ All verified numbers generated during sourcing.`))
       if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
 
       const { getPlanPrice, getPlanDuration } = require('./hosting-scheduler')
-      const price = getPlanPrice(plan.plan)
+      const price = getPlanPrice(plan)
       const duration = getPlanDuration(plan.plan)
       const { usdBal } = await getBalance(walletOf, chatId)
 
@@ -14049,8 +14072,16 @@ All verified numbers generated during sourcing.`))
           const unsuspended = await whm.unsuspendAccount(plan.cpUser)
           if (!unsuspended) {
             await atomicIncrement(walletOf, chatId, 'usdIn', upgradePrice)
-            log(`[Hosting] Upgrade failed: could not unsuspend ${plan.cpUser} for ${chatId} — refunded`)
-            return send(chatId, trans('t.host_29', 'Could not unsuspend account. Please contact support.'), k.of([[user.backToMyHostingPlans]]))
+            log(`[Hosting] Upgrade failed: could not unsuspend ${plan.cpUser} for ${chatId} — refunded $${upgradePrice.toFixed(2)}`)
+            try {
+              if (typeof notifyAdmin === 'function') {
+                notifyAdmin(`⚠️ <b>Hosting upgrade blocked — unsuspend failed</b>\nUser: ${chatId}\nDomain: <b>${domain}</b>\ncPanel: <code>${plan.cpUser}</code>\nRefunded: $${upgradePrice.toFixed(2)}\n\nWHM returned false on /unsuspendacct — please verify the account state on the WHM control panel.`)
+              }
+            } catch { /* noop */ }
+            return send(chatId,
+              `❌ <b>Upgrade not completed</b>\n\nWe couldn't reactivate your hosting account on the server. Your wallet has been refunded <b>$${upgradePrice.toFixed(2)}</b>.\n\nOur admin has been notified — please tap 💬 Get Support to follow up.`,
+              k.of([[user.backToMyHostingPlans]])
+            )
           }
           log(`[Hosting] Successfully unsuspended ${plan.cpUser} for ${chatId}`)
         }
@@ -14058,8 +14089,17 @@ All verified numbers generated during sourcing.`))
         const changeResult = await whm.changePackage(plan.cpUser, selected.name)
         if (!changeResult.success) {
           await atomicIncrement(walletOf, chatId, 'usdIn', upgradePrice)
-          log(`[Hosting] Upgrade WHM changePackage failed for ${chatId}: ${changeResult.error} — refunded`)
-          return send(chatId, trans('t.host_29', changeResult.error), k.of([[user.backToMyHostingPlans]]))
+          const whmErrText = changeResult.error || 'WHM returned no error message'
+          log(`[Hosting] Upgrade WHM changePackage failed for ${chatId}: ${whmErrText} — refunded $${upgradePrice.toFixed(2)} (full result: ${JSON.stringify(changeResult)})`)
+          try {
+            if (typeof notifyAdmin === 'function') {
+              notifyAdmin(`⚠️ <b>Hosting upgrade blocked — changePackage failed</b>\nUser: ${chatId}\nDomain: <b>${domain}</b>\ncPanel: <code>${plan.cpUser}</code>\nTarget plan: <code>${selected.name}</code>\nWHM error: <code>${whmErrText}</code>\nRefunded: $${upgradePrice.toFixed(2)}`)
+            }
+          } catch { /* noop */ }
+          return send(chatId,
+            `❌ <b>Upgrade not completed</b>\n\nOur hosting server didn't accept the plan change (<i>${whmErrText}</i>). Your wallet has been refunded <b>$${upgradePrice.toFixed(2)}</b>.\n\nOur admin has been notified — please tap 💬 Get Support to follow up.`,
+            k.of([[user.backToMyHostingPlans]])
+          )
         }
 
         // 3. Update cpanelAccounts with new plan + new 30-day expiry

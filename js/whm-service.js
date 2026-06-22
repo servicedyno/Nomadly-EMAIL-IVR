@@ -276,16 +276,41 @@ async function createAccount(domain, plan, email, customUsername, opts = {}) {
     } catch (err) {
       const errMsg = err.response?.data?.metadata?.reason || err.message
       const errCode = err.code || ''
+      const httpStatus = err.response?.status || 0
       const isDown = !err.response && /ECONNREFUSED|ETIMEDOUT|ECONNRESET|ENOTFOUND|EAI_AGAIN|socket hang up/i.test(errCode + ' ' + errMsg)
+      // Treat HTTP 5xx the same as "down" — the WHM control plane is unhealthy
+      // (disk-full, license issue, mid-restart, etc). Queueing the job lets it
+      // be retried automatically once the box is healthy again, instead of
+      // returning the user a "Hosting setup failed: Request failed with status
+      // code 500" message and losing the customer. This was the 06-05 RCA
+      // smoking gun on the OLD WHM droplet (preceded the 06-17 disk-full crisis).
+      const isHttp5xx = httpStatus >= 500 && httpStatus < 600
 
       // If WHM control plane is down (host refusing / timing out), do NOT
       // burn through retries — bubble up immediately so the caller can queue
       // the provisioning job. The pending-jobs worker re-runs createAccount()
       // when the probe sees WHM come back. Burning retries here just delays
       // the user's "your hosting is being prepared" message.
-      if (isDown) {
-        log(`[WHM] createAccount CPANEL_DOWN (${errCode || errMsg}) — caller will queue`)
-        return { success: false, error: errMsg, code: 'CPANEL_DOWN' }
+      if (isDown || isHttp5xx) {
+        const fatal = /No space left on device|disk.{0,4}full/i.test(errMsg)
+        log(`[WHM] createAccount CPANEL_DOWN (${httpStatus || errCode || errMsg})${fatal ? ' — DISK-FULL DETECTED' : ''} — caller will queue`)
+        // Fire-and-forget admin alert for disk-full so we catch the next 06-17
+        // before customers do. Best-effort only; never blocks the queue path.
+        if (fatal) {
+          try {
+            const TELEGRAM_ADMIN_CHAT_ID = process.env.TELEGRAM_ADMIN_CHAT_ID
+            const adminBotToken = process.env.TELEGRAM_BOT_TOKEN_PROD || process.env.TELEGRAM_BOT_TOKEN
+            if (TELEGRAM_ADMIN_CHAT_ID && adminBotToken && process.env.BOT_ENVIRONMENT === 'production') {
+              const axios = require('axios')
+              axios.post(`https://api.telegram.org/bot${adminBotToken}/sendMessage`, {
+                chat_id: TELEGRAM_ADMIN_CHAT_ID,
+                text: `🚨 <b>WHM DISK-FULL DETECTED</b>\n\nHost: <code>${process.env.WHM_HOST || 'unknown'}</code>\nFailing call: <code>/createacct</code>\nDomain: <code>${domain}</code>\nMessage: <code>${errMsg.slice(0, 240)}</code>\n\n<i>Customer's createAccount queued for retry — clean up disk ASAP. See /app/memory/WHM_DROPLET_RECOVERY_2026-06-17.md.</i>`,
+                parse_mode: 'HTML',
+              }).catch(() => {})
+            }
+          } catch { /* never block on alert */ }
+        }
+        return { success: false, error: errMsg, code: 'CPANEL_DOWN', httpStatus }
       }
 
       // If the error is retryable, try again with a new username
@@ -850,4 +875,6 @@ module.exports = {
   // Origin Hardening
   installDomainSSL,
   excludeDomainsFromAutoSSL,
+  // Internal — exposed for the WHM disk-monitor only
+  _whmApi: whmApi,
 }

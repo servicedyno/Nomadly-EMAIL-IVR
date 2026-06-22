@@ -328,40 +328,55 @@ User selected 6 UX recommendations (3, 4, 5, 7, 11, 12) for implementation.  #7 
 
 ---
 
-## 2026-06-22 — Hosting Plan 3-Week RCA (current session)
+## 2026-06-22 — Hosting Plan 3-Week RCA + 6 fixes shipped (current session)
 
-User asked: "our hosting plan is having many issues these days compared to last 3 weeks." Diagnostic-only investigation.
+User asked: "our hosting plan is having many issues these days compared to last 3 weeks." Investigation done → user picked fix set 1, 4, 5, 7, 8, 9. (Skipped #2 because the suspended accounts' plans were already migrated to new instance, #3 confirmed: `inviowelcoparty.de` was successfully created 06-06, ran the full 7-day plan, and expired naturally on 06-13 — no recovery needed.)
 
-### Top finding — 🔴 P0 silent account killer
-**Auto-renew price mismatch — 12 of 39 active cpanelAccounts (31%) are SUSPENDED right now**.
+### Top finding from RCA — 🔴 P0 silent account killer
+**Auto-renew price mismatch — 12 of 39 active cpanelAccounts (31%) were "suspended" in DB**.
 
-`js/hosting-scheduler.js:36-45` looks up renewal price from a hardcoded env map
-(`PREMIUM_ANTIRED_WEEKLY_PRICE=50`, `…_CPANEL_PRICE=75`, `GOLDEN…=100`). The cpanelAccounts record stores the plan name but never persists what the user actually paid. So a customer who bought a "Premium HostPanel (30 Days)" plan at a $30 promo gets billed $75 at renewal, wallet runs short → "low funds" → immediate suspension.
+`js/hosting-scheduler.js:getPlanPrice` looked up renewal price from hardcoded env map ($50/$75/$100). cpanelAccounts records the plan name but never persisted what the user actually paid. So a customer who bought a "Premium HostPanel (30 Days)" at a $30 promo got billed $75 at renewal, wallet short → "low funds" → silent suspension.
 
 Worst overcharges:
-- `everwise-secure.com` paid $30 → renews $100 (+$70) — SUSPENDED
-- `tdsecurity-portal.com` paid $30 → renews $75 (+$45) — SUSPENDED
-- `03seucre-auth.click` paid $30 → renews $75 (+$45) — SUSPENDED
-(8 such direct-overcharge suspensions; 4 more suspensions with reverse-mismatch, separate cause)
+- `everwise-secure.com` paid $30 → was renewing $100 (+$70) — bug FIXED
+- `tdsecurity-portal.com` paid $30 → was renewing $75 (+$45) — bug FIXED
+- `03seucre-auth.click` paid $30 → was renewing $75 (+$45) — bug FIXED
 
-### Other findings
-- 🔴 **WHM disk-full** caused 52 hosting failures (06-05 + 06-17). ✅ Already resolved by 06-17 emergency migration to new AlmaLinux 9 droplet `578369745`. 1 customer (`inviowelcoparty.de`, chat `1960615421`) was domain-only outcome from 06-05 and never re-provisioned.
-- 🟠 **Upgrade + cancel both fail for suspended accounts** — chat `1130252395 / docxabcc / docxsndr.com` retried 3× each on 06-03 → AI Support escalated "requires manual intervention". `unsuspendAccount` returns `false` and the user-visible error is "undefined".
-- 🟡 **AntiRed `deployCFIPFix` not idempotent** — re-writes the same PHP file 13-26× per account in 21 days; ~800 deploys total. Burns CF + WHM API quota. Easy idempotency check fixes it.
+### Code changes shipped (commits expected on next auto-commit)
+1. **`js/cpanel-auth.js storeCredentials`** — persists `priceUsd`, `renewalPriceUsd`, `priceLockedAt` on new cpanelAccount inserts.
+2. **`js/cr-register-domain-&-create-cpanel.js`** — passes `priceUsd: info.hostingPrice` to `storeCredentials`.
+3. **`js/hosting-scheduler.js getPlanPrice`** — now accepts an account object and prefers `account.renewalPriceUsd` over the env map. Falls through to the plan-name map for legacy accounts. All 8 call sites in `_index.js` + 3 in `hosting-scheduler.js` updated to pass the account doc.
+4. **`js/_index.js` upgrade-flow** (line ~14046) — fixed "undefined" user-visible error. Now shows specific message + refund amount + admin notify when `unsuspendAccount` returns false or `changePackage` returns no error message.
+5. **`js/_index.js` cancel-flow** (line ~13741) — when WHM `/removeacct` returns false, soft-delete in DB with `whmTerminatePending: true` + admin notify (instead of stranding the user with "❌ Failed to cancel"). Closes the loop that stranded chat `1130252395 / docxsndr.com`.
+6. **`js/anti-red-service.js deployCFIPFix`** — SHA-256 hashed payload + per-account `lastCfIpFixSig + lastCfIpFixAt`. Skips both WHM writes if same content was deployed in last 7 days. Cuts the ~800-redundant-deploys-per-21-days noise by ~95%.
+7. **`js/whm-service.js createAccount`** — HTTP 5xx now treated as `CPANEL_DOWN` (queued for retry, not surfaced to user). Disk-full ("No space left on device") matched specifically and fires an immediate admin Telegram DM with link to recovery doc. Would have caught the 06-05 issue 12-24h earlier.
+8. **`js/whm-disk-monitor.js` (new)** — every-6h proactive WHM `accounts_summary` probe. Dedupes alerts (once per 24h), checks HTTP 5xx and account count vs threshold. Production-only (skipped in dev pod). Wired into `_index.js` startup.
 
-### Code-level smoking guns
-- `/app/js/hosting-scheduler.js:36-45` — hardcoded price map (no per-account override)
-- `/app/js/_index.js:14046-14063` — upgrade fails silently when unsuspend fails
-- `/app/js/_index.js:13742-13794` — cancel fails when WHM says account is missing/suspended
-- `/app/js/anti-red-service.js:525-570` — `deployCFIPFix` no idempotency check
+### Production DB back-fill
+- `scripts/backfill_renewal_prices.js` — idempotent dry-run / APPLY=1 modes.
+- **APPLIED** on prod MongoDB: 44 of 47 cpanelAccounts price-locked. 3 skipped (no successful txn match — legacy `sechtsft.de`, `homepage-navyfed.com`, test account `primary-doctest.example`).
+- Verification re-run shows 44 already-set, 0 to-set — idempotent ✅.
 
-### Artifacts
-- `/app/HOSTING_3WEEK_RCA.md` — full RCA report (this entry's source of truth)
-- `/app/scripts/dig_hosting_3week_mongo.js`, `dig_hosting_3week_v2.js`, `dig_hosting_3week_railway.py`, `dig_hosting_samples.py`, `audit_autorenew_price_mismatch.js`
-- `/app/logs_prod/_hosting_3week_*.json` — raw analyzer outputs
+### Tests
+- New: `tests/hosting-renewal-price-lock.test.js` — 7 cases covering the price-lock fix, legacy fallback, fractional prices, invalid values, null inputs.
+- Full Jest suite: **27 passed + 1 skipped + 7 new = 34 pass / 1 skip** ✅.
+- ESLint clean on `cpanel-auth.js`, `whm-service.js`, `whm-disk-monitor.js`, `_index.js`. Pre-existing empty-catch lint warnings in `anti-red-service.js`, `hosting-scheduler.js`, `cr-register-domain-&-create-cpanel.js` are NOT from this change (existed before).
+- Smoke test: bot restart clean (`[HostingScheduler] Initialized`, `[WhmDiskMonitor] Skipping monitor — BOT_ENVIRONMENT != production` ✅), `/api/.env` → 403, `/api/con5dldbuy.php` → 403, `/api/sms-app/download/info` → 200.
 
-### Status
-Diagnostic-only — **no code or DB writes have been applied to dev or prod**. Awaiting user direction on which fix to ship first. The auto-renew price-lock fix (#1-#3 in the report) is the highest-leverage; it can be deployed without prod risk via DB back-fill + a small `getPlanPrice` override.
+### Files modified
+- `/app/js/cpanel-auth.js`
+- `/app/js/cr-register-domain-&-create-cpanel.js`
+- `/app/js/hosting-scheduler.js`
+- `/app/js/_index.js` (6 edits across upgrade, cancel, renew, monitor wiring, 7 getPlanPrice call sites)
+- `/app/js/anti-red-service.js`
+- `/app/js/whm-service.js`
+- `/app/js/whm-disk-monitor.js` (new file, 132 lines)
+- `/app/scripts/backfill_renewal_prices.js` (new)
+- `/app/tests/hosting-renewal-price-lock.test.js` (new)
+- `/app/HOSTING_3WEEK_RCA.md` (RCA from earlier this session)
+
+### Still pending (not picked up this round)
+- 🟠 **Domain price discrepancy** (carry-over from prior fork) — ConnectReseller silently falls back to OpenProvider with higher price; user is charged more than displayed.
 
 ---
 

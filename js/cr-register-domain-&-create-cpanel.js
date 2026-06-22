@@ -732,6 +732,9 @@ NS2: <code>${cfNameservers[1]}</code>
         plan: info.plan,
         expiryDate,
         autoRenew: durationDays >= 30,
+        // Lock the renewal price to what the user actually paid (see HOSTING_3WEEK_RCA.md
+        // — auto-renew was charging hardcoded list prices, suspending 31% of accounts)
+        priceUsd: typeof info.hostingPrice === 'number' ? info.hostingPrice : undefined,
       })
       pin = stored.pin
 
