@@ -174,7 +174,7 @@ async function runExpiryCheck() {
                 numbers[i]._released = true
                 modified = true
                 suspended++
-                await releaseFromProvider(num, user.val)
+                await releaseFromProvider(num, user.val, chatId)
                 const userLang = await _getUserLang(chatId)
                 sendToUser(chatId, buildAutoRenewFailedMsg(num, userLang))
                 const name = await get(_nameOf, chatId)
@@ -197,7 +197,7 @@ async function runExpiryCheck() {
             numbers[i]._released = true
             modified = true
             suspended++
-            await releaseFromProvider(num, user.val)
+            await releaseFromProvider(num, user.val, chatId)
             const userLang = await _getUserLang(chatId)
             sendToUser(chatId, buildSuspendedMsg(num, userLang))
             const name = await get(_nameOf, chatId)
@@ -218,8 +218,10 @@ async function runExpiryCheck() {
   }
 }
 
-// Release number from provider (Telnyx or Twilio) to stop billing
-async function releaseFromProvider(num, userData) {
+// Release number from provider (Telnyx or Twilio) to stop billing.
+// `chatId` is optional and only used for self-heal persistence of a rotated
+// Twilio sub-account token.
+async function releaseFromProvider(num, userData, chatId) {
   const phoneNumber = num.phoneNumber || num
   const provider = num.provider || 'telnyx'
 
@@ -243,7 +245,24 @@ async function releaseFromProvider(num, userData) {
 
       if (twilioNumberSid && subSid && subToken) {
         const result = await twilioService.releaseNumber(twilioNumberSid, subSid, subToken)
-        if (result?.success) return log(`[PhoneScheduler] Released Twilio number: ${phoneNumber} (sid=${twilioNumberSid})`)
+        // ━━━ Persist rotated token if self-heal kicked in ━━━
+        if (result?.tokenRotated && result?.liveToken && chatId && _phoneNumbersOf) {
+          try {
+            await _phoneNumbersOf.updateOne(
+              { _id: chatId },
+              { $set: {
+                'val.twilioSubAccountToken': result.liveToken,
+                'val._twilioSubTokenRefreshedAt': new Date().toISOString(),
+                'val._twilioSubTokenRefreshedBy': 'phone-scheduler.releaseFromProvider self-heal',
+              } }
+            )
+            log(`[PhoneScheduler] Persisted rotated sub-account token for chatId ${chatId} sub ${subSid}`)
+            _notifyGroup?.(`🔑 <b>Twilio sub-token rotated</b> for <code>${chatId}</code> sub <code>${subSid}</code> — auto-refreshed in DB on release path.`)
+          } catch (persistErr) {
+            log(`[PhoneScheduler] FAILED to persist rotated token for ${chatId}: ${persistErr.message}`)
+          }
+        }
+        if (result?.success) return log(`[PhoneScheduler] Released Twilio number: ${phoneNumber} (sid=${twilioNumberSid})${result.tokenRotated ? ' [self-healed]' : ''}`)
         log(`[PhoneScheduler] Twilio release by SID failed for ${phoneNumber}: ${result?.error || 'unknown error'}`)
       } else if (twilioNumberSid && subSid) {
         // ━━━ SECURITY: Try release via parent account's sub-account API (no main-account fallback) ━━━

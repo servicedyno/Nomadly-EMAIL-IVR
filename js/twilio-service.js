@@ -45,6 +45,80 @@ function requireSubClient(subSid, subToken, operation) {
 
 function getMainAccountSid() { return MAIN_ACCOUNT_SID }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// TOKEN-ROTATION SELF-HEAL (added 2026-02)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Wraps a Twilio sub-account operation so that, when the stored sub-token
+// has been rotated since we last cached it, we transparently:
+//   1. catch the auth error,
+//   2. fetch the *current* sub-token from the main account API,
+//   3. retry the operation with the live token,
+//   4. surface the new token to the caller via the return value so they
+//      can persist it (we never write DB from here — keeps this file lean
+//      and side-effect-free for callsites that don't store tokens).
+//
+// Twilio reports auth failures as either HTTP 401 or its own code 20003.
+function _isTwilioAuthError(e) {
+  if (!e) return false
+  return e.status === 401 || e.statusCode === 401 || e.code === 20003 ||
+    (typeof e.message === 'string' && /authenticate|authentication/i.test(e.message))
+}
+
+/**
+ * Run a Twilio sub-account operation with stored credentials. If the stored
+ * token has been rotated, transparently fetch the live token, retry, and
+ * report the rotation so the caller can update its DB cache.
+ *
+ * @param {string} subSid     Sub-account SID (AC…)
+ * @param {string} subToken   Stored sub-account auth token
+ * @param {string} label      Short tag for logs (e.g. 'releaseNumber')
+ * @param {(client: any) => Promise<any>} fn  Operation receiving a Twilio sub-client
+ * @returns {Promise<{ ok: boolean, result?: any, error?: string, tokenRotated: boolean, liveToken: string|null }>}
+ */
+async function withSubAccountSelfHeal(subSid, subToken, label, fn) {
+  if (!subSid) {
+    return { ok: false, error: 'missing subSid', tokenRotated: false, liveToken: null }
+  }
+  if (subSid === MAIN_ACCOUNT_SID) {
+    log(`[Twilio] SECURITY BLOCK: ${label} rejected — sub SID matches main`)
+    return { ok: false, error: 'main account SID not permitted', tokenRotated: false, liveToken: null }
+  }
+
+  // Attempt 1: stored token (skip if absent)
+  if (subToken) {
+    try {
+      const result = await fn(getSubClient(subSid, subToken))
+      return { ok: true, result, tokenRotated: false, liveToken: subToken }
+    } catch (e) {
+      if (!_isTwilioAuthError(e)) {
+        log(`[Twilio] ${label} non-auth error: ${e.message}`)
+        return { ok: false, error: e.message, tokenRotated: false, liveToken: subToken }
+      }
+      log(`[Twilio] ${label} auth error with stored token — attempting self-heal via main account`)
+    }
+  } else {
+    log(`[Twilio] ${label}: no stored token — fetching live via self-heal path`)
+  }
+
+  // Attempt 2: live token from main account
+  const live = await getSubAccount(subSid)
+  if (live.error || !live.authToken) {
+    return { ok: false, error: `self-heal failed: ${live.error || 'no live token'}`, tokenRotated: false, liveToken: null }
+  }
+  if (live.authToken === subToken) {
+    // Live token matches stored — auth error wasn't a rotation. Surface it.
+    return { ok: false, error: 'auth error but token matches live (not rotated)', tokenRotated: false, liveToken: subToken }
+  }
+  try {
+    const result = await fn(getSubClient(subSid, live.authToken))
+    log(`[Twilio] ${label} ✓ self-healed with rotated token for sub ${subSid}`)
+    return { ok: true, result, tokenRotated: true, liveToken: live.authToken }
+  } catch (e2) {
+    log(`[Twilio] ${label} still failing after self-heal: ${e2.message}`)
+    return { ok: false, error: e2.message, tokenRotated: true, liveToken: live.authToken }
+  }
+}
+
 // ── Countries that require a full Regulatory Bundle (not just an address) ──
 // Twilio requires a submitted+approved bundle before number purchase
 // Countries requiring Twilio Regulatory Compliance bundles (Tier 2+)
@@ -306,17 +380,18 @@ async function createAddress(customerName, street, city, region, postalCode, iso
 }
 
 async function releaseNumber(numberSid, subSid, subToken) {
-  try {
-    // ━━━ SECURITY: Release MUST use sub-account — never main account ━━━
-    const client = requireSubClient(subSid, subToken, 'releaseNumber')
-    if (!client) return { error: 'Number release requires sub-account credentials. Cannot use main Twilio account.' }
-    await client.incomingPhoneNumbers(numberSid).remove()
-    log(`[Twilio] Released number: ${numberSid}`)
-    return { success: true }
-  } catch (e) {
-    log(`[Twilio] releaseNumber error: ${e.message}`)
-    return { error: e.message }
+  // ━━━ SECURITY: Release MUST use sub-account — never main account ━━━
+  // Self-heals if the stored sub-token has been rotated since we cached it.
+  // On rotation, the caller (e.g. phone-scheduler.js) should persist
+  // `liveToken` back to phoneNumbersOf so the next operation uses it directly.
+  const r = await withSubAccountSelfHeal(subSid, subToken, 'releaseNumber',
+    client => client.incomingPhoneNumbers(numberSid).remove())
+  if (r.ok) {
+    log(`[Twilio] Released number: ${numberSid}${r.tokenRotated ? ' (after token self-heal)' : ''}`)
+    return { success: true, tokenRotated: r.tokenRotated, liveToken: r.liveToken }
   }
+  log(`[Twilio] releaseNumber error: ${r.error}`)
+  return { error: r.error, tokenRotated: r.tokenRotated, liveToken: r.liveToken }
 }
 
 async function updateNumberWebhooks(numberSid, webhookBaseUrl, subSid, subToken) {
@@ -1249,6 +1324,7 @@ module.exports = {
   getClient,
   getSubClient,
   requireSubClient,
+  withSubAccountSelfHeal,
   getMainAccountSid,
   createSubAccount,
   getSubAccount,
