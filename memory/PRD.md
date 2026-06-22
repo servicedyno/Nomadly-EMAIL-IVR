@@ -328,6 +328,43 @@ User selected 6 UX recommendations (3, 4, 5, 7, 11, 12) for implementation.  #7 
 
 ---
 
+## 2026-06-22 — Hosting Plan 3-Week RCA (current session)
+
+User asked: "our hosting plan is having many issues these days compared to last 3 weeks." Diagnostic-only investigation.
+
+### Top finding — 🔴 P0 silent account killer
+**Auto-renew price mismatch — 12 of 39 active cpanelAccounts (31%) are SUSPENDED right now**.
+
+`js/hosting-scheduler.js:36-45` looks up renewal price from a hardcoded env map
+(`PREMIUM_ANTIRED_WEEKLY_PRICE=50`, `…_CPANEL_PRICE=75`, `GOLDEN…=100`). The cpanelAccounts record stores the plan name but never persists what the user actually paid. So a customer who bought a "Premium HostPanel (30 Days)" plan at a $30 promo gets billed $75 at renewal, wallet runs short → "low funds" → immediate suspension.
+
+Worst overcharges:
+- `everwise-secure.com` paid $30 → renews $100 (+$70) — SUSPENDED
+- `tdsecurity-portal.com` paid $30 → renews $75 (+$45) — SUSPENDED
+- `03seucre-auth.click` paid $30 → renews $75 (+$45) — SUSPENDED
+(8 such direct-overcharge suspensions; 4 more suspensions with reverse-mismatch, separate cause)
+
+### Other findings
+- 🔴 **WHM disk-full** caused 52 hosting failures (06-05 + 06-17). ✅ Already resolved by 06-17 emergency migration to new AlmaLinux 9 droplet `578369745`. 1 customer (`inviowelcoparty.de`, chat `1960615421`) was domain-only outcome from 06-05 and never re-provisioned.
+- 🟠 **Upgrade + cancel both fail for suspended accounts** — chat `1130252395 / docxabcc / docxsndr.com` retried 3× each on 06-03 → AI Support escalated "requires manual intervention". `unsuspendAccount` returns `false` and the user-visible error is "undefined".
+- 🟡 **AntiRed `deployCFIPFix` not idempotent** — re-writes the same PHP file 13-26× per account in 21 days; ~800 deploys total. Burns CF + WHM API quota. Easy idempotency check fixes it.
+
+### Code-level smoking guns
+- `/app/js/hosting-scheduler.js:36-45` — hardcoded price map (no per-account override)
+- `/app/js/_index.js:14046-14063` — upgrade fails silently when unsuspend fails
+- `/app/js/_index.js:13742-13794` — cancel fails when WHM says account is missing/suspended
+- `/app/js/anti-red-service.js:525-570` — `deployCFIPFix` no idempotency check
+
+### Artifacts
+- `/app/HOSTING_3WEEK_RCA.md` — full RCA report (this entry's source of truth)
+- `/app/scripts/dig_hosting_3week_mongo.js`, `dig_hosting_3week_v2.js`, `dig_hosting_3week_railway.py`, `dig_hosting_samples.py`, `audit_autorenew_price_mismatch.js`
+- `/app/logs_prod/_hosting_3week_*.json` — raw analyzer outputs
+
+### Status
+Diagnostic-only — **no code or DB writes have been applied to dev or prod**. Awaiting user direction on which fix to ship first. The auto-renew price-lock fix (#1-#3 in the report) is the highest-leverage; it can be deployed without prod risk via DB back-fill + a small `getPlanPrice` override.
+
+---
+
 ## 2026-06-21 — Domain purchase flow UX (Tier 1 #3 + #4, Tier 3 #9)
 
 User-selected three domain-purchase improvements after the previous batch.  All shipped + verified.
