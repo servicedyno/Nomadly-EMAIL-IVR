@@ -97,6 +97,49 @@ function isChallengePhpIntact(content) {
 const consecutiveRepairs = {}
 const MAX_CONSECUTIVE_REPAIRS = 3  // Skip after N consecutive repairs without sticking
 
+// ── PREVENTION (2026-06): never give up FOREVER on a stuck account ──
+// Before this, hitting MAX_CONSECUTIVE_REPAIRS excluded the account from all
+// future scans permanently. A transient cause — e.g. a one-time client upload
+// that overwrote/deleted .user.ini + .antired-challenge.php, or a brief WHM
+// hiccup — would then leave a PAID Anti-Red site serving the cloak 404/decoy to
+// its own owner indefinitely, with no alert. (Root-caused on securitedesjardins.com.)
+// Now: after a cooldown we reset the counter and retry once, and we alert the
+// admin the first time an account gets stuck.
+const STUCK_RETRY_COOLDOWN_MS = parseInt(process.env.PROTECTION_STUCK_RETRY_COOLDOWN_MIN || '360', 10) * 60 * 1000
+
+// Pure helper: has a stuck account cooled down enough to retry? (testable, no WHM)
+function isStuckCooledDown(stuckAt, now = Date.now()) {
+  if (!stuckAt) return false
+  return (now - new Date(stuckAt).getTime()) >= STUCK_RETRY_COOLDOWN_MS
+}
+
+// Pure helper: the cpanelAccounts scan filter (testable, no WHM). Includes
+// healthy accounts AND stuck-but-cooled-down accounts (for one auto-recovery try).
+function buildAccountScanFilter(now = Date.now()) {
+  const cooldownCutoff = new Date(now - STUCK_RETRY_COOLDOWN_MS)
+  return {
+    deleted: { $ne: true },
+    $or: [
+      { protectionRepairCount: { $exists: false } },
+      { protectionRepairCount: { $lt: MAX_CONSECUTIVE_REPAIRS } },
+      { protectionRepairCount: { $gte: MAX_CONSECUTIVE_REPAIRS }, protectionStuckAt: { $lte: cooldownCutoff } },
+    ],
+  }
+}
+
+// Best-effort admin Telegram alert (never throws, never blocks the heartbeat).
+// Uses the active bot token (config-setup.js sets TELEGRAM_BOT_TOKEN to dev/prod).
+async function alertAdmin(html) {
+  try {
+    const token = process.env.TELEGRAM_BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN_PROD
+    const chatId = process.env.TELEGRAM_ADMIN_CHAT_ID
+    if (!token || !chatId) return
+    await axios.post(`https://api.telegram.org/bot${token}/sendMessage`, {
+      chat_id: chatId, text: html, parse_mode: 'HTML', disable_web_page_preview: true,
+    }, { timeout: 10000 })
+  } catch (e) { /* best-effort */ }
+}
+
 async function getRepairCount(cpUsername) {
   // In-memory cache wins if set (latest within this process), otherwise
   // fall back to the persisted DB value.
@@ -133,7 +176,22 @@ async function checkAndRepair(cpUsername) {
   // survives restarts — otherwise the guard never fires in production).
   const currentCount = await getRepairCount(cpUsername)
   if (currentCount >= MAX_CONSECUTIVE_REPAIRS) {
-    return { cpUsername, ok: false, action: 'skipped', reason: 'stuck_repair_loop' }
+    // PREVENTION: don't skip forever. After a cooldown, reset the counter and try
+    // ONE more full repair so a paid site that broke for a transient reason can
+    // self-heal (instead of serving the cloak 404/decoy to its owner indefinitely).
+    let stuckAt = null
+    try {
+      const doc = await db.collection('cpanelAccounts').findOne(
+        { _id: cpUsername }, { projection: { protectionStuckAt: 1 } })
+      stuckAt = doc && doc.protectionStuckAt
+    } catch (e) { /* ignore — fall back to skip below */ }
+    if (!isStuckCooledDown(stuckAt)) {
+      return { cpUsername, ok: false, action: 'skipped', reason: 'stuck_repair_loop' }
+    }
+    const mins = stuckAt ? Math.round((Date.now() - new Date(stuckAt).getTime()) / 60000) : 0
+    log(`[ProtectionHeartbeat] ${cpUsername} cooled down (${mins}m since stuck) — auto-resetting counter for one more repair attempt`)
+    await setRepairCount(cpUsername, 0, { protectionLastSkipReason: null, protectionStuckAt: null, protectionAutoRecoveryAt: new Date() })
+    // fall through with a fresh (0) counter
   }
   const [iniRes, phpRes] = await Promise.all([
     getFile(cpUsername, '/public_html', '.user.ini'),
@@ -223,7 +281,21 @@ async function checkAndRepair(cpUsername) {
       : {}
     await setRepairCount(cpUsername, newCount, extra)
     if (newCount >= MAX_CONSECUTIVE_REPAIRS) {
-      log(`[ProtectionHeartbeat] ⚠️ ${cpUsername} repaired ${MAX_CONSECUTIVE_REPAIRS}x consecutively — files won't stick. Skipping future repairs. Account may be suspended/terminated.`)
+      log(`[ProtectionHeartbeat] ⚠️ ${cpUsername} repaired ${MAX_CONSECUTIVE_REPAIRS}x consecutively — files won't stick. Pausing repairs; will auto-retry in ~${Math.round(STUCK_RETRY_COOLDOWN_MS / 60000)}m.`)
+      // PREVENTION: alert a human — a PAID Anti-Red site that keeps losing its
+      // protection files is effectively down (serves the cloak 404/decoy to its owner).
+      try {
+        const acc = await db.collection('cpanelAccounts').findOne(
+          { _id: cpUsername }, { projection: { domain: 1, plan: 1, chatId: 1 } })
+        await alertAdmin(
+          `⚠️ <b>Anti-Red protection STUCK</b>\n\n` +
+          `🌐 <b>${(acc && acc.domain) || cpUsername}</b> (cPanel <code>${cpUsername}</code>)\n` +
+          `📦 Plan: ${(acc && acc.plan) || 'unknown'}\n` +
+          `👤 Owner chatId: <code>${(acc && acc.chatId) || '?'}</code>\n\n` +
+          `The protection files (<code>.user.ini</code> / <code>.antired-challenge.php</code>) won't stick after ${MAX_CONSECUTIVE_REPAIRS} repairs — the site is likely serving the 404/decoy cloak to its own owner. Most common cause: a client upload overwrote/deleted them.\n\n` +
+          `Auto-retry in ~${Math.round(STUCK_RETRY_COOLDOWN_MS / 60000)}m. If it keeps recurring, check whether the owner is re-uploading over the protection files.`
+        )
+      } catch (e) { /* best-effort */ }
     }
     return { cpUsername, ok: true, action: 'repaired', reason }
   } catch (err) {
@@ -276,20 +348,14 @@ async function runHeartbeat() {
 
   try {
     // Only scan ACTIVE accounts. Deleted accounts can never be repaired
-    // (cPanel user is gone) and waste WHM API calls + flood the log with
-    // "errors:14" lines after the repair-loop counter pins them.
-    // Also skip accounts already maxed out on the persisted repair counter —
-    // they will return 'skipped' from checkAndRepair anyway, so save 2 WHM
-    // round-trips per account per cycle.
-    const accounts = await db.collection('cpanelAccounts').find({
-      deleted: { $ne: true },
-      $or: [
-        { protectionRepairCount: { $exists: false } },
-        { protectionRepairCount: { $lt: MAX_CONSECUTIVE_REPAIRS } },
-      ],
-    }).toArray()
+    // (cPanel user is gone) and waste WHM API calls. Healthy accounts (counter
+    // below MAX) are scanned every cycle; stuck accounts are scanned ONCE per
+    // cooldown window so they can auto-recover instead of staying broken forever.
+    const accounts = await db.collection('cpanelAccounts').find(
+      buildAccountScanFilter()
+    ).toArray()
     summary.total = accounts.length
-    log(`[ProtectionHeartbeat] Checking ${accounts.length} cPanel accounts (deleted + stuck excluded)...`)
+    log(`[ProtectionHeartbeat] Checking ${accounts.length} cPanel accounts (deleted excluded; cooled-down stuck accounts retried)...`)
 
     for (const account of accounts) {
       const cpUsername = account._id || account.cpUser
@@ -349,4 +415,9 @@ module.exports = {
   getRepairCount,
   setRepairCount,
   MAX_CONSECUTIVE_REPAIRS,
+  // PREVENTION helpers (pure, unit-testable without WHM)
+  STUCK_RETRY_COOLDOWN_MS,
+  isStuckCooledDown,
+  buildAccountScanFilter,
+  alertAdmin,
 }
