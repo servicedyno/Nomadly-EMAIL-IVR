@@ -107,59 +107,54 @@ async function apiRequest(method, path, data = null, params = null) {
   }
 }
 
-// ─── Product Catalog (mapped to Vultr plan IDs, 6 tiers) ─────────────────
-// Spec-equivalent to Contabo's 6-tier ladder. Prices are Vultr's flat
-// monthly USD (Vultr does not charge regional surcharges).
+// ─── Product Catalog (Option A — price-matched, RDP-viable from tier 1) ──
+// Customer-facing names use neutral "Premium Cloud VPS" branding so the
+// provider identity stays hidden — same UX policy as Contabo's "Cloud VPS".
 //
-// Comparison vs Contabo at the same tier (informational):
-//   Tier 1: Contabo $4.95   vs Vultr $40   (8×)
-//   Tier 2: Contabo $7.95   vs Vultr $80   (10×)
-//   Tier 3: Contabo $15     vs Vultr $160  (10×)
-//   Tier 4: Contabo $26     vs Vultr $256  (10×)
-//   Tier 5: Contabo $46     vs Vultr $320  (7×)
-//   Tier 6: Contabo $59     vs Vultr $640  (11×)
+// Vultr is flat-priced across all 9 regions (no surcharge). Windows licence
+// is bundled in the plan price (no extra fee).
 const PRODUCT_CATALOG = [
   {
-    productId: 'vc2-4c-8gb',
-    name: 'Vultr Cloud VPS 10',
-    cpuCores: 4, ramMb: 8192, diskMb: 160 * 1024,
-    diskType: 'nvme', bandwidthTb: 4,
-    portSpeedMbps: 10000, basePriceUsd: 40.0, tier: 1,
+    productId:   'vc2-1c-2gb',
+    name:        'Premium Cloud VPS 10',
+    cpuCores:    1, ramMb: 2048, diskMb: 55 * 1024,
+    diskType:    'nvme', bandwidthTb: 2,
+    portSpeedMbps: 10000, basePriceUsd: 10.0, tier: 1,
   },
   {
-    productId: 'vc2-6c-16gb',
-    name: 'Vultr Cloud VPS 20',
-    cpuCores: 6, ramMb: 16384, diskMb: 320 * 1024,
-    diskType: 'nvme', bandwidthTb: 5,
-    portSpeedMbps: 10000, basePriceUsd: 80.0, tier: 2,
+    productId:   'vc2-2c-2gb',
+    name:        'Premium Cloud VPS 20',
+    cpuCores:    2, ramMb: 2048, diskMb: 65 * 1024,
+    diskType:    'nvme', bandwidthTb: 3,
+    portSpeedMbps: 10000, basePriceUsd: 15.0, tier: 2,
   },
   {
-    productId: 'vc2-8c-32gb',
-    name: 'Vultr Cloud VPS 30',
-    cpuCores: 8, ramMb: 32768, diskMb: 640 * 1024,
-    diskType: 'nvme', bandwidthTb: 6,
-    portSpeedMbps: 10000, basePriceUsd: 160.0, tier: 3,
+    productId:   'vc2-2c-4gb',
+    name:        'Premium Cloud VPS 30',
+    cpuCores:    2, ramMb: 4096, diskMb: 80 * 1024,
+    diskType:    'nvme', bandwidthTb: 3,
+    portSpeedMbps: 10000, basePriceUsd: 24.0, tier: 3,
   },
   {
-    productId: 'vhf-12c-48gb',
-    name: 'Vultr Cloud VPS 40 (High Frequency)',
-    cpuCores: 12, ramMb: 49152, diskMb: 768 * 1024,
-    diskType: 'nvme', bandwidthTb: 8,
-    portSpeedMbps: 10000, basePriceUsd: 256.0, tier: 4,
+    productId:   'vc2-4c-8gb',
+    name:        'Premium Cloud VPS 40',
+    cpuCores:    4, ramMb: 8192, diskMb: 160 * 1024,
+    diskType:    'nvme', bandwidthTb: 4,
+    portSpeedMbps: 10000, basePriceUsd: 40.0, tier: 4,
   },
   {
-    productId: 'vc2-16c-64gb',
-    name: 'Vultr Cloud VPS 50',
-    cpuCores: 16, ramMb: 65536, diskMb: 1280 * 1024,
-    diskType: 'nvme', bandwidthTb: 10,
-    portSpeedMbps: 10000, basePriceUsd: 320.0, tier: 5,
+    productId:   'vc2-6c-16gb',
+    name:        'Premium Cloud VPS 50',
+    cpuCores:    6, ramMb: 16384, diskMb: 320 * 1024,
+    diskType:    'nvme', bandwidthTb: 5,
+    portSpeedMbps: 10000, basePriceUsd: 80.0, tier: 5,
   },
   {
-    productId: 'vc2-24c-96gb',
-    name: 'Vultr Cloud VPS 60',
-    cpuCores: 24, ramMb: 98304, diskMb: 1600 * 1024,
-    diskType: 'nvme', bandwidthTb: 15,
-    portSpeedMbps: 10000, basePriceUsd: 640.0, tier: 6,
+    productId:   'vc2-8c-32gb',
+    name:        'Premium Cloud VPS 60',
+    cpuCores:    8, ramMb: 32768, diskMb: 640 * 1024,
+    diskType:    'nvme', bandwidthTb: 6,
+    portSpeedMbps: 10000, basePriceUsd: 160.0, tier: 6,
   },
 ]
 
@@ -228,7 +223,14 @@ function calculatePrice(product, regionSlug, isWindows = false) {
 }
 
 // ─── Products / catalog ──────────────────────────────────────────────────
-function listProducts(regionSlug = 'EU', isWindows = false) {
+// Vultr has no SSD-vs-NVMe choice (all plans are NVMe), so the catalog
+// is exposed BOTH as PRODUCT_CATALOG and as PRODUCT_CATALOG_SSD (alias)
+// to satisfy vm-instance-setup.js which sometimes branches on disk type.
+const PRODUCT_CATALOG_SSD = PRODUCT_CATALOG
+
+function listProducts(regionSlug = 'EU', isWindows = false, _diskPreference = 'nvme') {
+  // _diskPreference is accepted for API parity with contabo-service but
+  // ignored — every Vultr plan is NVMe.
   return PRODUCT_CATALOG
     .map(p => {
       const pricing = calculatePrice(p, regionSlug, isWindows)
@@ -460,6 +462,7 @@ module.exports = {
   calculatePrice,
   // Products
   PRODUCT_CATALOG,
+  PRODUCT_CATALOG_SSD,
   listProducts,
   getProduct,
   isNVMeProduct,

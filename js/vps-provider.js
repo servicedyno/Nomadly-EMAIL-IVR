@@ -62,9 +62,12 @@ function getFallbackProvider() {
  * an existing instance (getInstance, deleteInstance, etc.).
  *
  * Detection order (most specific → least specific):
- *   1. record.provider === 'ovh' | 'contabo'  → use it
+ *   1. record.provider === 'ovh' | 'contabo' | 'vultr'  → use it
  *   2. record._ovhServiceName starts with 'vps-' → 'ovh'
- *   3. record.contaboInstanceId is set (numeric)  → 'contabo'
+ *   3. record.contaboInstanceId is set
+ *        - UUID format (8-4-4-4-12 hex) → 'vultr'
+ *        - numeric                       → 'contabo'
+ *        - starts with 'vps-'            → 'ovh'
  *   4. Fall back to DEFAULT_PROVIDER
  *
  * @param {Object} vpsRecord - The vpsPlansOf document (or null for "current default")
@@ -72,13 +75,15 @@ function getFallbackProvider() {
 function getProviderForRecord(vpsRecord) {
   if (!vpsRecord) return getProvider()
   const explicit = (vpsRecord.provider || '').toLowerCase()
-  if (explicit === 'ovh' || explicit === 'contabo') return _loadProvider(explicit)
+  if (explicit === 'ovh' || explicit === 'contabo' || explicit === 'vultr') return _loadProvider(explicit)
   if (vpsRecord._ovhServiceName || (typeof vpsRecord.contaboInstanceId === 'string' && /^vps-/.test(vpsRecord.contaboInstanceId))) {
     return _loadProvider('ovh')
   }
   if (vpsRecord.contaboInstanceId != null) {
-    // Legacy records: Contabo used numeric instanceIds. If contaboInstanceId is
-    // a number (or a numeric string), this is a Contabo record.
+    const s = String(vpsRecord.contaboInstanceId)
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)) {
+      return _loadProvider('vultr')
+    }
     return _loadProvider('contabo')
   }
   return getProvider()
@@ -96,13 +101,15 @@ function listAllProviders() {
 /**
  * Detect which provider owns an instanceId based on format:
  *  - OVH service names look like 'vps-12abc34.vps.ovh.net' (or any string starting with 'vps-')
+ *  - Vultr instance IDs are UUIDs (8-4-4-4-12 hex segments)
  *  - Contabo instance IDs are numeric strings (e.g., '203228089')
- * Returns 'ovh' | 'contabo' | null (unknown).
+ * Returns 'ovh' | 'contabo' | 'vultr' | null (unknown).
  */
 function detectProviderByInstanceId(instanceId) {
   if (instanceId == null) return null
   const s = String(instanceId)
   if (/^vps-/.test(s)) return 'ovh'
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)) return 'vultr'
   if (/^\d+$/.test(s)) return 'contabo'
   return null
 }
@@ -113,7 +120,7 @@ function detectProviderByInstanceId(instanceId) {
  */
 function dispatchByInstanceId(instanceId) {
   const name = detectProviderByInstanceId(instanceId)
-  if (name === 'ovh' || name === 'contabo') return _loadProvider(name)
+  if (name === 'ovh' || name === 'contabo' || name === 'vultr') return _loadProvider(name)
   return getProvider()
 }
 

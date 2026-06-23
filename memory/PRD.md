@@ -328,6 +328,58 @@ User selected 6 UX recommendations (3, 4, 5, 7, 11, 12) for implementation.  #7 
 
 ---
 
+## 2026-06-23 — Vultr VPS provider integration (per-provider switching via .env)
+
+User shared Vultr API key + asked how to use it for VPS + RDP. Built a complete 3rd-provider implementation alongside the existing Contabo/OVH abstraction.
+
+### Choices locked in
+- **One provider at a time** — switch via `VPS_DEFAULT_PROVIDER` in `.env` (no mixed-provider customer UX). Existing per-record routing means legacy Contabo records still get managed via Contabo even when default is Vultr.
+- **Catalog**: 6-tier "Premium Cloud VPS 10/20/30/40/50/60" (Option A — price-matched, RDP-viable from tier 1, $10–$160 Vultr cost / $30–$480 customer sell price at 200% markup).
+- **Customer NEVER sees provider names** — Contabo plans = "Cloud VPS", Vultr plans = "Premium Cloud VPS". Same UX policy as today.
+- **Single SKU serves both VPS and RDP flows** — Linux OS selection triggers VPS, Windows OS selection triggers RDP. No separate SKUs needed because Vultr bundles Windows licence.
+- **Margin** = same `VPS_MARKUP_PERCENT=200` env var that Contabo uses.
+- **9 customer-facing regions** mapped to Vultr region IDs: EU→fra, US-east→ewr, US-west→lax, US-central→ord, UK→lhr, SG→sgp, JP→nrt, AU→syd, IN→bom.
+
+### Files added/modified
+- `/app/js/vultr-service.js` (NEW, ~370 lines) — full provider implementation with:
+  - 6-tier PRODUCT_CATALOG + PRODUCT_CATALOG_SSD alias (Vultr is all-NVMe so SSD = NVMe)
+  - createInstance / getInstance / start / stop / restart / shutdown / resetPassword / reinstallInstance / cancelInstance / upgradeInstance / updateInstanceName / createSnapshot / listSnapshots / deleteSnapshot / createSecret / listSecrets / deleteSecret
+  - Circuit breaker (5 consecutive failures → opens for 5 min)
+  - applyMarkup / calculatePrice / listProducts (Contabo-compatible 3-arg signature)
+- `/app/js/vps-provider.js` — extended:
+  - `_loadProvider('vultr')` added to switch
+  - `getProviderForRecord` now detects Vultr UUIDs in `provider` field or legacy `contaboInstanceId` field
+  - `detectProviderByInstanceId` regex check for UUID v4 pattern (8-4-4-4-12 hex)
+- `/app/backend/.env` — added `VULTR_API_KEY=…` (the key user provided)
+- `/app/tests/vultr-provider.test.js` (NEW) — 28 tests covering catalog naming policy, 200% markup math, Windows-bundle pricing, 9-region routing, UUID/numeric/`vps-` instanceId dispatch.
+
+### Validation
+- ✅ Vultr API key verified live (`GET /v2/account` → 200, account `hosting@dyno.pt`)
+- ✅ Provider switch demonstrated: `VPS_DEFAULT_PROVIDER=contabo` → "Cloud VPS 10-60"; `VPS_DEFAULT_PROVIDER=vultr` → "Premium Cloud VPS 10-60". Customer never sees "Vultr"/"Contabo".
+- ✅ Per-record routing locked in: legacy Contabo numeric IDs route to Contabo, OVH `vps-…` to OVH, new Vultr UUIDs to Vultr — regardless of default.
+- ✅ 28 new Jest tests pass. Full suite: **96/97 pass, 1 skipped, 0 failed** (was 68, +28 today).
+- ✅ ESLint clean on both new/modified files.
+- ✅ Bot restart clean.
+
+### Pricing reality
+- Vultr is **flat-priced** across all 9 regions (no surcharge) and **bundles the Windows licence** (no extra RDP fee).
+- Cheapest RDP-capable plan = $10/mo Vultr → $30/mo customer ($20 gross margin).
+- Highest tier = $160/mo Vultr → $480/mo customer ($320 gross margin).
+- **Vultr is ~7-11× more expensive than Contabo at comparable specs** at higher tiers — treat as the PREMIUM offering.
+
+### To enable in production
+1. Top up the Vultr account balance ($0 right now)
+2. Set `VPS_DEFAULT_PROVIDER=vultr` in prod env
+3. Deploy
+
+### Files
+- `/app/js/vultr-service.js` (new)
+- `/app/js/vps-provider.js` (extended)
+- `/app/backend/.env` (1 new env var)
+- `/app/tests/vultr-provider.test.js` (new, 28 cases)
+
+---
+
 ## 2026-06-23 (later) — Restore Anti-Red Protection button (P1 — shipped)
 
 User asked for a manual restore button to handle the 3-5% of cases the auto-restore + heartbeat can't cover: FTP/SFTP uploads, STUCK cooldown override, failed auto-restore retry, CMS-overwritten protection files.
