@@ -29,7 +29,13 @@ const _scannerStats = { total: 0, byPath: new Map(), byIp: new Map(), startedAt:
 const SCANNER_IPS = new Set(['74.7.243.245'])
 const SCANNER_PATH_PREFIXES = ['/con5dld', '/wp-', '/wordpress', '/phpmyadmin', '/phpunit', '/vendor/phpunit', '/.git', '/.env', '/.aws', '/.well-known/pki-validation/']
 const SCANNER_PATH_EXACT = new Set(['/.env', '/.htaccess', '/sftp-config.json', '/config.json', '/server-status', '/owa/'])
-const SCANNER_EXT_REGEX = /\.(php|jsp|aspx?|cgi)(\?|$)/i
+const SCANNER_EXT_REGEX = /\.(php|jsp|aspx?|cgi)$/i
+// Real product API paths that MUST never be scanner-blocked, even though
+// they may legitimately carry filenames ending in `.php`/`.cgi`/etc. inside
+// a query parameter (the bug that 403-blocked customer welc4757 35 times
+// while he tried to edit his own files via the hosting panel — see RCA in
+// /app/HOSTING_3WEEK_RCA.md).
+const SCANNER_SAFE_PREFIXES = ['/api/']
 const _bumpStat = (path, ip) => {
   _scannerStats.total++
   _scannerStats.byPath.set(path, (_scannerStats.byPath.get(path) || 0) + 1)
@@ -37,14 +43,23 @@ const _bumpStat = (path, ip) => {
 }
 earlyApp.use((req, res, next) => {
   const url = req.url || ''
+  // Path-only (no query string) — the extension regex must NOT match a
+  // `?file=index.php` query value. Real scanner traffic targets URLs whose
+  // PATH ends with `.php`/`.cgi`/etc; legit panel API calls have a clean
+  // path like `/api/panel/files/content` and put the filename in the query.
+  const urlPath = url.split('?', 1)[0]
   const ip = (req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').toString().split(',')[0].trim()
+  // Fast-pass our own product APIs — no scanner heuristics on them.
+  for (const safe of SCANNER_SAFE_PREFIXES) {
+    if (urlPath.startsWith(safe)) return next()
+  }
   let matched = false
   if (SCANNER_IPS.has(ip)) matched = true
-  else if (SCANNER_PATH_EXACT.has(url)) matched = true
-  else if (SCANNER_EXT_REGEX.test(url)) matched = true
+  else if (SCANNER_PATH_EXACT.has(urlPath)) matched = true
+  else if (SCANNER_EXT_REGEX.test(urlPath)) matched = true
   else {
     for (const p of SCANNER_PATH_PREFIXES) {
-      if (url.startsWith(p)) { matched = true; break }
+      if (urlPath.startsWith(p)) { matched = true; break }
     }
   }
   if (matched) {
