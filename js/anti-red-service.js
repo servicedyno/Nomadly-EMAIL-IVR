@@ -525,12 +525,20 @@ if (!isset(\$_SESSION['FIL212sD'])) {
  * Idempotent: skips the WHM writes if the same payload was successfully
  * deployed in the last `IDEMPOTENCY_WINDOW_MS`. Cuts re-deploy spam
  * (~800 redundant deploys in 21 days per the RCA) by ~95%.
+ *
+ * @param {string} cpUsername
+ * @param {object} [opts]
+ * @param {boolean} [opts.force=false] - Bypass the idempotency cache and
+ *   always write to WHM. The protection-heartbeat MUST set this to true
+ *   because it only calls us AFTER verifying the files are missing or
+ *   corrupted on WHM — skipping there would create a stuck-repair loop.
  */
-async function deployCFIPFix(cpUsername) {
+async function deployCFIPFix(cpUsername, opts = {}) {
   if (!whmApi) {
     return { success: false, error: 'WHM not configured' }
   }
 
+  const force = opts && opts.force === true
   const phpContent = generateIPFixPhp()
   const userIniContent = `; Anti-Red: CF IP Restoration
 auto_prepend_file = /home/${cpUsername}/public_html/.antired-challenge.php`
@@ -551,7 +559,7 @@ auto_prepend_file = /home/${cpUsername}/public_html/.antired-challenge.php`
     const cpAccts = db.collection('cpanelAccounts')
 
     const acct = await cpAccts.findOne({ cpUser: cpUsername })
-    if (acct && acct.lastCfIpFixSig === sig && acct.lastCfIpFixAt
+    if (!force && acct && acct.lastCfIpFixSig === sig && acct.lastCfIpFixAt
         && (Date.now() - new Date(acct.lastCfIpFixAt).getTime()) < IDEMPOTENCY_WINDOW_MS) {
       await client.close()
       // Same payload, deployed recently — skip both WHM writes (no log spam either)

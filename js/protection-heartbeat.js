@@ -259,7 +259,11 @@ async function checkAndRepair(cpUsername) {
 
     // For the challenge PHP and missing .user.ini, use the standard deployCFIPFix
     if (!userIni || !phpOk) {
-      const result = await antiRed.deployCFIPFix(cpUsername)
+      // `force: true` — bypass the deployCFIPFix idempotency cache. We've
+      // already verified on WHM that the files are missing/corrupted, so the
+      // cache MUST NOT skip the write or we'd be stuck in a repair loop
+      // (3 fake repairs → STUCK alert → 6h pause while the site stays down).
+      const result = await antiRed.deployCFIPFix(cpUsername, { force: true })
       // If we already merged .user.ini above, re-merge to restore our directives
       // (deployCFIPFix overwrites .user.ini)
       if (userIni && !iniOk) {

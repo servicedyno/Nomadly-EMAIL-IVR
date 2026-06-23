@@ -583,7 +583,9 @@ async function fixInfraIssues(results) {
   if (checks.prepend?.hasJsChallenge) {
     try {
       const antiRedService = require('./anti-red-service')
-      await antiRedService.deployCFIPFix(cpUsername)
+      // force: health-check just verified the prepend is the JS challenge
+      // (not the IP-fix) — we MUST overwrite, bypass the idempotency cache.
+      await antiRedService.deployCFIPFix(cpUsername, { force: true })
       results.autoFixes.push('Replaced JS challenge with IP-fix prepend (CF Worker handles bot detection)')
     } catch (err) {
       results.issues.push(`Failed to replace JS challenge: ${err.message}`)
@@ -594,7 +596,9 @@ async function fixInfraIssues(results) {
   if (!checks.prepend?.hasIPFix && !checks.prepend?.hasJsChallenge) {
     try {
       const antiRedService = require('./anti-red-service')
-      await antiRedService.deployCFIPFix(cpUsername)
+      // force: health-check confirmed the IP-fix prepend is MISSING on WHM —
+      // the idempotency cache must NOT skip the write here.
+      await antiRedService.deployCFIPFix(cpUsername, { force: true })
       results.autoFixes.push('Deployed IP-fix prepend (was missing)')
     } catch (err) {
       results.issues.push(`Failed to deploy IP fix: ${err.message}`)

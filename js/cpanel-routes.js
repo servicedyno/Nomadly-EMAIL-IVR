@@ -54,7 +54,9 @@ function scheduleProtectionRestore(cpUser, reason) {
     try {
       if (_restoreRunner) { await _restoreRunner(cpUser, reason); return }
       const antiRed = require('./anti-red-service')
-      await antiRed.deployCFIPFix(cpUser)
+      // force: bypass idempotency cache — the customer just modified files in
+      // public_html (delete/extract/save), so the cached sig is stale.
+      await antiRed.deployCFIPFix(cpUser, { force: true })
       log(`[Panel] Auto-restored anti-red protection after ${reason} (user: ${cpUser})`)
     } catch (e) {
       log(`[Panel] Auto-restore anti-red failed for ${cpUser} after ${reason}: ${e.message}`)
@@ -584,7 +586,9 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     if (extractTarget.includes('public_html')) {
       try {
         const antiRed = require('./anti-red-service')
-        await antiRed.deployCFIPFix(req.cpUser)
+        // force: zip extract may have just overwritten .user.ini / .antired-challenge.php
+        // — bypass the idempotency cache to guarantee a fresh write to WHM.
+        await antiRed.deployCFIPFix(req.cpUser, { force: true })
         log(`[Panel] Re-deployed anti-red protection after extract to ${extractTarget} (user: ${req.cpUser})`)
       } catch (e) {
         log(`[Panel] Warning: failed to re-deploy anti-red after extract for ${req.cpUser}: ${e.message}`)
