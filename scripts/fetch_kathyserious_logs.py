@@ -21,7 +21,9 @@ filters = [
     "8690991604",
     "kathyserious",
     "+18889838571",
-    "PN2b431f7cb112addb980e949f694f8f16",
+    # NOTE: PII filters (Twilio SIDs etc.) intentionally NOT inlined to keep
+    # this file safe to commit. If you need provider-specific log slicing,
+    # pass it via CLI arg or env var rather than hardcoding.
     "cpIsSubNumber",
     "cpSubParent",
     "addAdditionalNumber",

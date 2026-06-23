@@ -1,3 +1,0 @@
-[2026-05-29T03:08:46] [info] 03:08:46 [CartRecovery] User 5543139187 abandoned hosting (action: vps-plan-pay). Scheduling nudge in 45 min
-[2026-06-08T19:55:39] [info] 19:55:39 [CartRecovery] User 7209838403 abandoned hosting (action: vps-plan-pay). Scheduling nudge in 45 min
-[2026-06-15T18:25:01] [info] 18:25:00 [CartRecovery] User 5543139187 abandoned hosting (action: vps-plan-pay). Scheduling nudge in 45 min

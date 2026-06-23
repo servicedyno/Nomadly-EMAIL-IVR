@@ -1304,3 +1304,8 @@ railway_logs_*.json
 rail_env_scoreboard44_*.txt
 scripts/ATT_*.txt
 scripts/data/
+
+# 2026-06-23 — diagnostic Railway log dumps (always contain Twilio AC… SIDs,
+# phone numbers, IPs, and other secrets). Never commit.
+rail_*.txt
+
