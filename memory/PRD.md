@@ -413,6 +413,15 @@ Bot startup clean (`[HostingScheduler] Initialized`, all subsystems boot).
 ### Status
 ✅ Shipped + tested + production-impact validated (35 active false-positive blocks identified, will go to 0 on next deploy). Customer should be able to edit `.php` files immediately after the prod deploy picks up the change.
 
+### End-to-end validation (added 2026-06-23 after user prompt "have you tested file upload or edit etc")
+- Seeded `premtest` (PIN 123456) with `cpAuth.hashPin` so the panel auth chain works
+- New test file `/app/tests/panel-403-e2e.test.js` — **19 cases passing**:
+  - 12 unauth: every endpoint that accepts a filename (`/files/content` with index.php/config.php/telegram.php/login.php/submit.php/login.aspx/script.cgi/test.jsp/portal.asp/.htaccess; `/files/save`, `/files/delete`, `/files/upload`, `/files/extract`) returns `401 {"error":"Unauthorized"}` JSON instead of empty 403
+  - 7 authenticated: with a real Bearer token, every `.php` filename request reaches the cPanel proxy layer (returns `HTTP=200 {"status":0,"errors":[...],"data":null}` — the proxy correctly wraps the WHM error)
+- Curl smoke: 5 authenticated requests with `?file=index.php`, `?file=config.php`, list-dir, `POST /files/save` with PHP content → all `HTTP=200` reaching the proxy (was empty 403 before)
+- Seed accounts cleaned up post-test
+- Full Jest suite: **60/61 pass, 1 skipped, 0 failed** (was 36, +24 with combined fixes today)
+
 ---
 
 ## 2026-06-22 — Hosting Plan 3-Week RCA + 6 fixes shipped (previous session)
