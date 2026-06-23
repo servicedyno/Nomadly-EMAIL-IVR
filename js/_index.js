@@ -28487,6 +28487,13 @@ Select a category:`), k.of(catBtns))
     // ── Aggregate all subscriptions ──
     let sections = []
     let hasAnySub = false
+    // Hoisted so we can render an interactive keyboard at the end when the
+    // user has active Cloud IVR numbers (so tapping "1" routes to the manage
+    // menu where "➕ Add Number to Plan" lives — was the @kathyserious bug
+    // 2026-06-23 where she tapped "1" on the read-only summary and got
+    // kicked back to main menu).
+    let activeCpNumbers = []
+    let cpPendingBundlesData = []
 
     // 1. Bot Subscription (Daily/Weekly/Monthly plan)
     const subscribedPlan = await get(planOf, chatId)
@@ -28511,18 +28518,41 @@ Select a category:`), k.of(catBtns))
     try {
       const phoneData = await get(phoneNumbersOf, chatId)
       const numbers = phoneData?.numbers || []
-      const activeNums = numbers.filter(n => n.status === 'active')
+      // Match the cpMyNumbers handler (line 20856) — include suspended so
+      // every number the user can manage is selectable here.
+      const activeNums = numbers.filter(n => n.status === 'active' || n.status === 'suspended')
       if (activeNums.length > 0) {
         hasAnySub = true
+        activeCpNumbers = activeNums  // hoisted for the interactive keyboard below
         let cpText = `📞 <b>Cloud IVR:</b> ${activeNums.length} number${activeNums.length > 1 ? 's' : ''}`
-        activeNums.forEach(n => {
+        activeNums.forEach((n, i) => {
           const plan = n.plan ? n.plan.charAt(0).toUpperCase() + n.plan.slice(1) : '—'
           const exp = n.expiresAt ? new Date(n.expiresAt).toLocaleDateString() : '—'
           const dLeft = n.expiresAt ? Math.ceil((new Date(n.expiresAt) - Date.now()) / 86400000) : 0
-          cpText += `\n   ${phoneConfig.formatPhone(n.phoneNumber)} · ${plan} · ${exp}${dLeft > 0 ? ` (${dLeft}d)` : ''}`
+          cpText += `\n   <b>${i + 1}.</b> ${phoneConfig.formatPhone(n.phoneNumber)} · ${plan} · ${exp}${dLeft > 0 ? ` (${dLeft}d)` : ''}`
         })
         sections.push(cpText)
       }
+      // Capture pending bundles too so the cpMyNumbers handler at line 24837
+      // can drive P1/P2 taps the same way it does inside the Cloud IVR submenu.
+      try {
+        if (pendingBundles?.find) {
+          const userPendingBundles = await pendingBundles.find({
+            chatId: String(chatId),
+            status: { $in: ['draft', 'pending-review', 'in-review', 'provisionally-approved'] }
+          }).toArray()
+          cpPendingBundlesData = userPendingBundles.map(pb => ({
+            _id: pb._id?.toString(),
+            bundleSid: pb.bundleSid,
+            selectedNumber: pb.selectedNumber,
+            countryName: pb.countryName || pb.countryCode,
+            planKey: pb.planKey,
+            price: pb.price,
+            status: pb.status,
+            createdAt: pb.createdAt,
+          }))
+        }
+      } catch (_) { /* non-blocking — pending bundles are best-effort */ }
     } catch (e) { /* noop */ }
 
     // 3. VPS Plans
@@ -28564,6 +28594,35 @@ Select a category:`), k.of(catBtns))
     }
 
     const header = hasAnySub ? '📋 <b>My Subscriptions</b>\n' : '📋 <b>My Subscriptions</b>\n\n<i>No active subscriptions.</i>\n'
+
+    // ── Interactive: render the same number-selector buttons the Cloud IVR
+    // submenu's "📋 My Plans" shows, so users can tap a number to manage it
+    // (where "➕ Add Number to Plan" lives) or 🛒 Buy Another Number directly.
+    // Without this, the global "📋 My Plans" view (Settings entry point) was
+    // a dead-end — users tapped "1" expecting it to manage their plan and
+    // got "Unrecognized message" with the bot kicking them to main menu.
+    if (activeCpNumbers.length > 0) {
+      const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
+      // Stash state so cpMyNumbers handler (line 24837) drives the "1" tap
+      await saveInfo('cpNumbers', activeCpNumbers)
+      await saveInfo('cpPendingBundlesList', cpPendingBundlesData)
+      await set(state, chatId, 'action', a.cpMyNumbers)
+      const numBtns = activeCpNumbers.map((_, i) => String(i + 1))
+      const pendingBtns = cpPendingBundlesData.map((_, i) => `P${i + 1}`)
+      const allBtns = []
+      if (numBtns.length) allBtns.push(numBtns)
+      if (pendingBtns.length) allBtns.push(pendingBtns)
+      allBtns.push([pc.buyAnother])
+      const tip = ({
+        en: '\n\n<i>📞 Tap a number above to manage it · or 🛒 Buy Another Number to add one to your plan.</i>',
+        fr: '\n\n<i>📞 Touchez un numéro ci-dessus pour le gérer · ou 🛒 Acheter un Autre Numéro pour en ajouter un à votre forfait.</i>',
+        zh: '\n\n<i>📞 点击上方的号码进行管理 · 或点击 🛒 购买另一个号码 添加到您的套餐。</i>',
+        hi: '\n\n<i>📞 ऊपर के किसी नंबर पर टैप करें · या 🛒 और एक नंबर खरीदें अपने प्लान में जोड़ने के लिए।</i>',
+      })[info?.userLanguage || 'en'] || ''
+      send(chatId, header + '\n' + sections.join('\n\n') + tip, k.of(allBtns))
+      return
+    }
+
     send(chatId, header + '\n' + sections.join('\n\n'), { parse_mode: 'HTML' })
     return
   }

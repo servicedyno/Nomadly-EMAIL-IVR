@@ -1,0 +1,13 @@
+[2026-06-18T15:04:16] [info] 4. <code>+18889838571</code> ☎️ Bulk IVR
+[2026-06-18T15:04:29] [info] [Twilio] Purchased number: +18889838571 (sid=PN2b431f7cb112addb980e949f694f8f16)
+[2026-06-18T15:04:29] [info] [CloudPhone] Number +18889838571 purchased directly on sub-account ACd207ac3d6d115b782a3f8910b767b736
+[2026-06-18T15:04:30] [info] [CloudPhone] Verifying caller ID +18889838571 on main account for SIP bridge...
+[2026-06-18T15:04:30] [info] [Twilio] Caller ID verification started for +18889838571 (code: 865232)
+[2026-06-18T15:04:51] [info] [Twilio] ✅ Caller ID +18889838571 verified on main account (SID: PN3e2de64bf4d9a08ca30ce0396c9974d0)
+[2026-06-18T15:04:52] [info] [CloudPhone] Caller ID verification for +18889838571: ✅
+[2026-06-18T15:04:59] [info] [Voice] Billed Twilio_Inbound: 1 min (1 plan + 0 overage @ $0.1275) for +18889838571
+[2026-06-23T14:24:41] [info] reply: 📞 <b>Bulk IVR Campaign</b>\n\nCall multiple numbers with an automated IVR message.\nUpload a CSV of leads and launch a campaign.\n\n☎️ = Bulk IVR capable numbers\n\n📱 Select the Caller ID: +18889838571 ☎️,↩️ Back,Back,Cancel	to: 8690991604
+[2026-06-23T14:24:55] [info] reply: 📞 <b>Bulk IVR Campaign</b>\n\nCall multiple numbers with an automated IVR message.\nUpload a CSV of leads and launch a campaign.\n\n☎️ = Bulk IVR capable numbers\n\n📱 Select the Caller ID: +18889838571 ☎️,↩️ Back,Back,Cancel	to: 8690991604
+[2026-06-23T14:25:01] [info] reply: 📞 <b>Bulk IVR Campaign</b>\n\nCall multiple numbers with an automated IVR message.\nUpload a CSV of leads and launch a campaign.\n\n☎️ = Bulk IVR capable numbers\n\n📱 Select the Caller ID: +18889838571 ☎️,↩️ Back,Back,Cancel	to: 8690991604
+[2026-06-23T14:25:09] [info] reply: 📞 <b>Bulk IVR Campaign</b>\n\nCall multiple numbers with an automated IVR message.\nUpload a CSV of leads and launch a campaign.\n\n☎️ = Bulk IVR capable numbers\n\n📱 Select the Caller ID: +18889838571 ☎️,↩️ Back,Back,Cancel	to: 8690991604
+[2026-06-23T14:56:22] [info] reply: 📞 <b>Bulk IVR Campaign</b>\n\nCall multiple numbers with an automated IVR message.\nUpload a CSV of leads and launch a campaign.\n\n☎️ = Bulk IVR capable numbers\n\n📱 Select the Caller ID: +18889838571 ☎️,↩️ Back,Back,Cancel	to: 8690991604
