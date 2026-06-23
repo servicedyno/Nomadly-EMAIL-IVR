@@ -369,8 +369,12 @@ User shared Vultr API key + asked how to use it for VPS + RDP. Built a complete 
 
 ### To enable in production
 1. Top up the Vultr account balance ($0 right now)
-2. Set `VPS_DEFAULT_PROVIDER=vultr` in prod env
-3. Deploy
+2. ~~Set `VPS_DEFAULT_PROVIDER=vultr` in prod env~~ — DONE 2026-06-23 via `scripts/set_railway_vultr_vars.py`
+3. Deploy / restart service to pick up new env
+
+### Production deployment (2026-06-23)
+- Wrote `VULTR_API_KEY` and `VPS_DEFAULT_PROVIDER=vultr` to Railway prod env for `Nomadly-EMAIL-IVR` service (project `c23ac3d9-…`, env `889fd56a-…`) via `variableUpsert` GraphQL mutation. Verified both readable in subsequent `variables` query. Vultr will be the active provider on the next prod restart/deploy.
+- ⚠️ **Vultr account balance is still $0** — until top-up, every new VPS/RDP purchase attempt will fail at the `POST /v2/instances` step with a billing error. The Vultr service's circuit breaker will open after 5 consecutive failures (configurable via `_CIRCUIT_THRESHOLD`), and admins should monitor for `[Vultr] Circuit opened` log lines.
 
 ### Files
 - `/app/js/vultr-service.js` (new)
