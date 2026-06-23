@@ -31394,7 +31394,25 @@ const buyVPSPlanFullProcess = async (chatId, lang, vpsDetails) => {
     let resolvedIp = vpsData.host
     let ipResolvedInForeground = false
     if (!resolvedIp || resolvedIp === 'provisioning...' || resolvedIp === 'pending') {
-      const contaboService = require('./contabo-service.js')
+      // ── Provider-agnostic IP polling ──────────────────────────────────
+      // The bot used to call `contabo-service.js` directly, which broke
+      // every Vultr provisioning (Vultr instance IDs are UUIDs, not ints).
+      // Use the smart proxy — it dispatches getInstance to whichever
+      // provider owns the instance based on the ID format.
+      const vpsProvider = require('./vps-provider')
+      const proxyService = vpsProvider.buildSmartProxy()
+      // String IDs work for both providers (Contabo numeric, Vultr UUID).
+      const pollId = String(vpsData.contaboInstanceId || vpsData._id)
+      const dbMatchKey = (() => {
+        // Pre-Vultr the DB stored contaboInstanceId as a Number. New code
+        // stores Vultr UUIDs as strings. Build a forgiving DB matcher.
+        const asInt = parseInt(pollId, 10)
+        return Number.isFinite(asInt) && String(asInt) === pollId
+          ? { contaboInstanceId: asInt }
+          : { contaboInstanceId: pollId }
+      })()
+      // Cross-provider IP extraction — Vultr returns mainIp, Contabo nests at ipConfig.v4.ip.
+      const extractIp = d => d?.ipConfig?.v4?.ip || d?.mainIp || d?.ipv4 || null
       // Windows install is slow → poll up to 25 min foreground; Linux only 90s.
       // After foreground timeout, ALWAYS schedule a background catch-up so the
       // DB record is updated and the user can be notified when ready.
@@ -31403,18 +31421,15 @@ const buyVPSPlanFullProcess = async (chatId, lang, vpsDetails) => {
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         await sleep(15000) // wait 15s between each poll
         try {
-          const details = await contaboService.getInstance(vpsData.contaboInstanceId || vpsData._id)
-          const ip = details?.ipConfig?.v4?.ip || details?.ipv4 || null
+          const details = await proxyService.getInstance(pollId)
+          const ip = extractIp(details)
           if (ip && ip !== 'provisioning...' && ip !== 'pending' && ip !== '0.0.0.0') {
             resolvedIp = ip
             ipResolvedInForeground = true
             console.log(`[VPS] IP resolved after ${attempt} attempts: ${ip}`)
             // Update stored record with the real IP
             if (typeof vpsPlansOf !== 'undefined' && vpsPlansOf) {
-              await vpsPlansOf.updateOne(
-                { contaboInstanceId: parseInt(vpsData.contaboInstanceId || vpsData._id) },
-                { $set: { host: ip } }
-              )
+              await vpsPlansOf.updateOne(dbMatchKey, { $set: { host: ip } })
             }
             break
           }
@@ -31432,7 +31447,8 @@ const buyVPSPlanFullProcess = async (chatId, lang, vpsDetails) => {
       // than expected and the bot otherwise gives up with a placeholder IP,
       // making subsequent actions return 409.
       if (!ipResolvedInForeground) {
-        const cInstId = parseInt(vpsData.contaboInstanceId || vpsData._id)
+        const cInstId = pollId
+        const cMatch  = dbMatchKey
         const cChat   = chatId
         const cLang   = lang
         ;(async () => {
@@ -31440,12 +31456,12 @@ const buyVPSPlanFullProcess = async (chatId, lang, vpsDetails) => {
             for (let a = 1; a <= 240; a++) {            // 240×15s = 60 min
               await sleep(15000)
               try {
-                const d = await contaboService.getInstance(cInstId)
-                const ip = d?.ipConfig?.v4?.ip || d?.ipv4 || null
+                const d = await proxyService.getInstance(cInstId)
+                const ip = extractIp(d)
                 if (ip && ip !== 'provisioning...' && ip !== 'pending' && ip !== '0.0.0.0') {
                   if (typeof vpsPlansOf !== 'undefined' && vpsPlansOf) {
                     await vpsPlansOf.updateOne(
-                      { contaboInstanceId: cInstId },
+                      cMatch,
                       { $set: { host: ip, _backgroundIpResolvedAt: new Date() } }
                     )
                   }
@@ -31468,7 +31484,7 @@ const buyVPSPlanFullProcess = async (chatId, lang, vpsDetails) => {
               }
             }
             console.log(`[VPS bg-IP] ${cInstId} gave up after 60 min — IP still unresolved`)
-            sendMessage(TELEGRAM_ADMIN_CHAT_ID, `⚠️ VPS bg-IP timeout for instance ${cInstId} (chatId ${cChat}) — Contabo didn't assign an IP within 60 min. Manual inspection needed.`)
+            sendMessage(TELEGRAM_ADMIN_CHAT_ID, `⚠️ VPS bg-IP timeout for instance ${cInstId} (chatId ${cChat}) — provider didn't assign an IP within 60 min. Manual inspection needed.`)
           } catch (e) {
             console.log(`[VPS bg-IP] ${cInstId} fatal: ${e.message}`)
           }

@@ -313,41 +313,114 @@ async function getCompatibleLinuxImage(currentImageId, _productId) {
 }
 
 // ─── Instances ───────────────────────────────────────────────────────────
+//
+// Vultr's API has a different mental model than Contabo's:
+//   • Contabo separates `createSecret('password', value)` (returns secretId)
+//     from `createInstance({ rootPassword: secretId })`. The bot is hard-wired
+//     to that 2-step pattern.
+//   • Vultr just generates `default_password` automatically on createInstance,
+//     OR accepts a plain `password` string.
+//
+// To make Vultr a drop-in replacement, we simulate the secret-id pattern: the
+// bot calls `createSecret(name, value, 'password')` → we cache the password
+// in-memory keyed by a fake `secretId` and return that id. When the bot later
+// calls `createInstance({ rootPassword: <secretId> })` or
+// `reinstallInstance({ rootPassword: <secretId> })`, we look the password up
+// from the cache and forward it inline to Vultr's API.
+//
+// Cache lives only in-process — same lifecycle as Contabo's secrets in
+// practice, since the bot creates → consumes secrets within the same async
+// function (vm-instance-setup.js:587-660 / _index.js:17392-17401).
+const _passwordSecrets = new Map()  // fakeSecretId → { password, name, createdAt }
+
+function _isFakePasswordSecretId(id) {
+  return typeof id === 'string' && id.startsWith('vultr-pwd-')
+}
+
+/**
+ * Helper: accept either a fake-secret-id (from createSecret('password',…))
+ * or a raw password string. Returns the raw password to pass to Vultr's API.
+ */
+function _resolvePasswordSecret(secretIdOrPassword) {
+  if (!secretIdOrPassword) return null
+  if (_isFakePasswordSecretId(secretIdOrPassword)) {
+    const cached = _passwordSecrets.get(secretIdOrPassword)
+    if (cached?.password) return cached.password
+  }
+  // Treat as raw password
+  return String(secretIdOrPassword)
+}
+
+/**
+ * Helper: detect whether a string is already-base64. We can't be 100% sure,
+ * but a string that decodes cleanly back to printable text is almost
+ * certainly already encoded. The bot pre-base64s userData scripts before
+ * calling createInstance (matching Contabo's convention).
+ */
+function _isLikelyBase64(s) {
+  if (typeof s !== 'string' || !s) return false
+  // Base64 alphabet only + length is multiple of 4
+  if (!/^[A-Za-z0-9+/=\r\n]+$/.test(s)) return false
+  if (s.replace(/[\r\n]/g, '').length % 4 !== 0) return false
+  try {
+    const decoded = Buffer.from(s, 'base64').toString('utf-8')
+    // Round-trip must reconstruct (allowing for line-break differences)
+    const reEncoded = Buffer.from(decoded, 'utf-8').toString('base64')
+    return reEncoded.replace(/[\r\n]/g, '') === s.replace(/[\r\n]/g, '')
+  } catch { return false }
+}
+
 /**
  * Create a Vultr VPS instance.
- * @param {Object} opts
- *   - productId     (string) plan id like 'vc2-4c-8gb'
- *   - regionSlug    (string) one of the keys in REGION_TO_VULTR_ID
- *   - osId          (number) Vultr OS id (e.g. 501 for Win Srv 2022 Std)
- *   - label         (string) human-friendly label
- *   - tag           (string|null) optional tag
- *   - sshKeyIds     (array|null) optional Vultr SSH key IDs (Linux only)
- *   - userData      (string|null) optional cloud-init / user-data
- * @returns {Promise<{instanceId, mainIp, defaultPassword, status, raw}>}
+ *
+ * Accepts BOTH the native Vultr param names AND the bot's existing
+ * Contabo-style names so the same `vm-instance-setup.js createVPSInstance`
+ * call works on either provider. Aliases:
+ *   regionSlug   ← region
+ *   osId         ← imageId
+ *   label        ← displayName
+ *   sshKeyIds    ← sshKeys
+ *   password     ← rootPassword (resolved from fake-secret-id if needed)
  */
 async function createInstance(opts) {
-  const {
-    productId, regionSlug, osId, label = null, tag = null,
-    sshKeyIds = null, userData = null,
-  } = opts || {}
+  const o = opts || {}
+  // Accept legacy Contabo-style aliases for cross-provider compatibility.
+  const productId   = o.productId
+  const regionSlug  = o.regionSlug || o.region
+  const osId        = o.osId       || o.imageId
+  const label       = o.label      || o.displayName || `vps-${Date.now().toString(36)}`
+  const tag         = o.tag        || null
+  const sshKeyIds   = o.sshKeyIds  || o.sshKeys || null
+  const userDataIn  = o.userData   || null
+  const password    = _resolvePasswordSecret(o.password || o.rootPassword)
 
   if (!productId || !regionSlug || !osId) {
-    throw new Error('createInstance requires { productId, regionSlug, osId }')
+    throw new Error(`createInstance requires { productId, regionSlug, osId } — got productId=${productId} regionSlug=${regionSlug} osId=${osId}`)
   }
   const region = REGION_TO_VULTR_ID[regionSlug]
   if (!region) throw new Error(`Unknown region slug: ${regionSlug}`)
 
+  // userData: bot pre-base64s scripts (matches Contabo convention). If we
+  // detect already-base64, pass it through verbatim. Otherwise encode here.
+  let userDataB64 = null
+  if (userDataIn) {
+    userDataB64 = _isLikelyBase64(userDataIn)
+      ? userDataIn
+      : Buffer.from(userDataIn, 'utf-8').toString('base64')
+  }
+
   const body = {
     region,
     plan:  productId,
-    os_id: osId,
-    label: label || `vps-${Date.now().toString(36)}`,
+    os_id: typeof osId === 'string' && /^\d+$/.test(osId) ? parseInt(osId, 10) : osId,
+    label,
     enable_ipv6: false,
     backups: 'disabled',
   }
   if (tag) body.tag = tag
   if (Array.isArray(sshKeyIds) && sshKeyIds.length) body.sshkey_id = sshKeyIds
-  if (userData) body.user_data = Buffer.from(userData, 'utf-8').toString('base64')
+  if (userDataB64) body.user_data = userDataB64
+  if (password) body.password = password // Vultr accepts a raw `password` field
 
   try {
     const data = await apiRequest('POST', '/instances', body)
@@ -356,7 +429,7 @@ async function createInstance(opts) {
     return {
       instanceId:      inst.id,
       mainIp:          inst.main_ip || null,
-      defaultPassword: inst.default_password || null,
+      defaultPassword: inst.default_password || password || null,
       status:          inst.status,
       raw:             inst,
     }
@@ -383,6 +456,10 @@ async function getInstance(instanceId) {
     label:           inst.label,
     tag:             inst.tag,
     dateCreated:     inst.date_created,
+    // Cross-provider compatibility shims so consumers reading Contabo-style
+    // fields (`ipConfig.v4.ip`, `ipv4`) get the right value on Vultr too.
+    ipConfig:        { v4: { ip: inst.main_ip || null }, v6: { ip: inst.v6_main_ip || null } },
+    ipv4:            inst.main_ip || null,
     raw:             inst,
   }
 }
@@ -404,21 +481,109 @@ async function stopInstance(instanceId)    { return apiRequest('POST', `/instanc
 async function restartInstance(instanceId) { return apiRequest('POST', `/instances/${instanceId}/reboot`) }
 async function shutdownInstance(instanceId){ return apiRequest('POST', `/instances/${instanceId}/halt`) }
 
-async function resetPassword(instanceId) {
-  // Vultr re-installs the OS to generate a new admin password — destructive,
-  // matches Contabo's behaviour where resetPassword is also destructive.
+/**
+ * Reset the root/admin password for a Vultr instance.
+ *
+ * Cross-provider contract (matches Contabo / OVH return shape):
+ *   → { password, secretId, reinstalled, note }
+ *
+ * Vultr has no in-place password change endpoint — we have to /reinstall to
+ * get a new admin password. That destroys data, but matches Contabo's
+ * resetPassword semantics for non-root Linux + Windows.
+ */
+async function resetPassword(instanceId, opts = {}) {
   const data = await apiRequest('POST', `/instances/${instanceId}/reinstall`, {})
   const inst = data.instance || {}
-  return { newPassword: inst.default_password || null, raw: inst }
+  const newPassword = inst.default_password || null
+
+  // Cache as a fake secret so the caller can store the secretId for tracking
+  // (matches Contabo's flow where resetPassword returns a real secretId).
+  let secretId = null
+  if (newPassword) {
+    secretId = `vultr-pwd-${instanceId}-${Date.now().toString(36)}`
+    _passwordSecrets.set(secretId, { password: newPassword, name: secretId, createdAt: Date.now() })
+  }
+
+  const isRDP = opts.isRDP || opts.osType === 'Windows'
+  return {
+    password:    newPassword,         // bot UX shape (not `newPassword`)
+    newPassword: newPassword,         // legacy alias kept for direct callers
+    secretId,
+    reinstalled: true,                // Vultr always reinstalls on password reset
+    note:        isRDP
+      ? 'Vultr reinstalled the Windows image to apply a new Administrator password.'
+      : 'Vultr reinstalled the OS to apply a new root password. SSH keys still attached.',
+    raw: inst,
+  }
 }
 
+/**
+ * Reinstall an instance.
+ *
+ * Cross-provider contract — accepts the bot's existing call signature:
+ *   { imageId, rootPassword, sshKeys, userData, osType, isRDP }
+ *
+ * `imageId` = OS id (Vultr uses `os_id`). Password is resolved from the
+ * fake-secret cache if needed. SSH keys + userData are best-effort: Vultr's
+ * /reinstall doesn't accept them at the same call (the new instance gets the
+ * same SSH keys it was originally created with), so we accept them silently
+ * for interface parity.
+ */
 async function reinstallInstance(instanceId, opts = {}) {
   const body = {}
-  if (opts.osId) body.image_id = opts.osId  // Vultr uses image_id for app/iso, os_id for OS
-  return apiRequest('POST', `/instances/${instanceId}/reinstall`, body)
+  const osId = opts.osId || opts.imageId
+  if (osId) {
+    body.os_id = typeof osId === 'string' && /^\d+$/.test(osId)
+      ? parseInt(osId, 10)
+      : osId
+  }
+  // hostname / label changes can be supplied at reinstall time too
+  if (opts.hostname) body.hostname = opts.hostname
+
+  // Note: Vultr does NOT accept password / user_data / sshkey_id on reinstall.
+  // The new password is regenerated automatically. The bot expects to be able
+  // to set the password — so AFTER the reinstall we extract the new
+  // default_password and cache it under the bot-provided secret id (if any).
+  const data = await apiRequest('POST', `/instances/${instanceId}/reinstall`, body)
+  const inst = data.instance || {}
+  const newPassword = inst.default_password || null
+  const cached = _resolvePasswordSecret(opts.password || opts.rootPassword)
+  if (newPassword && opts.rootPassword && _isFakePasswordSecretId(opts.rootPassword)) {
+    // Update cache so subsequent reads of this secretId reflect the new password
+    _passwordSecrets.set(opts.rootPassword, {
+      password: newPassword, name: opts.rootPassword, createdAt: Date.now(),
+    })
+  }
+  return {
+    instanceId,
+    password: newPassword || cached || null,
+    raw: inst,
+  }
 }
 
-async function cancelInstance(instanceId) {
+/**
+ * Cancel/delete a Vultr instance.
+ *
+ * IMPORTANT: Vultr has only IMMEDIATE delete (DELETE /instances/{id}). It
+ * does NOT support Contabo's "cancel-on-end-of-period" model.
+ *
+ * The bot uses `cancelInstance` in two distinct contexts:
+ *   1. End-of-life: user clicked "Delete VPS" or scheduler cleanup → we
+ *      DO want a real DELETE. (default behaviour)
+ *   2. Cancel-on-create: right after createInstance to disable provider
+ *      auto-renew while keeping the box running. On Vultr this would
+ *      DESTROY the just-created VPS — must be a no-op.
+ *
+ * Pass `opts.scheduleOnly: true` (cancel-on-create) → no API call, returns
+ * { success: true, scheduleOnly: true, note: ... }.
+ *
+ * Default: real DELETE.
+ */
+async function cancelInstance(instanceId, opts = {}) {
+  if (opts.scheduleOnly) {
+    log(`scheduleOnly cancel requested for ${instanceId} — no-op (Vultr has no scheduled cancel; track via vpsPlansOf.autoRenewable=false instead)`)
+    return { success: true, scheduleOnly: true, note: 'Vultr has no scheduled cancellation; instance keeps running until DB-driven scheduler decides to expire it.' }
+  }
   return apiRequest('DELETE', `/instances/${instanceId}`)
 }
 
@@ -461,23 +626,53 @@ async function listTags() {
 }
 
 // ─── Secrets / SSH keys ──────────────────────────────────────────────────
+//
+// Cross-provider parity: Contabo has a unified /secrets endpoint that accepts
+// both 'password' and 'ssh' types. Vultr only has /ssh-keys. To make Vultr
+// look like Contabo to the bot, we:
+//   • type='ssh'      → real /ssh-keys API call (returns { secretId, name })
+//   • type='password' → cache locally and return a fake `vultr-pwd-...` id
+//                       so callers can pass it as `rootPassword`/`password`
+//                       to createInstance/reinstallInstance/resetPassword
+//                       and we transparently resolve it at use time.
 async function createSecret(name, value, type = 'ssh') {
-  if (type !== 'ssh') throw new Error('Vultr only supports SSH keys via /ssh-keys')
+  if (type === 'password') {
+    // Simulate Contabo's password-secret model in-process.
+    const secretId = `vultr-pwd-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+    _passwordSecrets.set(secretId, { password: value, name, createdAt: Date.now() })
+    return { secretId, id: secretId, name, type: 'password' }
+  }
+  if (type !== 'ssh') throw new Error(`Vultr createSecret: unsupported type "${type}" (only 'ssh' and 'password')`)
   const data = await apiRequest('POST', '/ssh-keys', { name, ssh_key: value })
-  return { id: data.ssh_key?.id, name: data.ssh_key?.name }
+  // Match Contabo's `secretId` field name so vm-instance-setup.js works
+  // unchanged — `passwordSecret.secretId` access points at line 763.
+  return {
+    secretId: data.ssh_key?.id,
+    id:       data.ssh_key?.id,
+    name:     data.ssh_key?.name,
+    type:     'ssh',
+  }
 }
 
 async function listSecrets(_type = null) {
   const data = await apiRequest('GET', '/ssh-keys')
-  return (data.ssh_keys || []).map(k => ({ id: k.id, name: k.name }))
+  return (data.ssh_keys || []).map(k => ({ id: k.id, secretId: k.id, name: k.name }))
 }
 
 async function getSecret(secretId) {
+  if (_isFakePasswordSecretId(secretId)) {
+    const cached = _passwordSecrets.get(secretId)
+    return cached ? { id: secretId, name: cached.name, type: 'password' } : null
+  }
   const data = await apiRequest('GET', `/ssh-keys/${secretId}`)
   return data.ssh_key || null
 }
 
 async function deleteSecret(secretId) {
+  if (_isFakePasswordSecretId(secretId)) {
+    _passwordSecrets.delete(secretId)
+    return { success: true }
+  }
   return apiRequest('DELETE', `/ssh-keys/${secretId}`)
 }
 

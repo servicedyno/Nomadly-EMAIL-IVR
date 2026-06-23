@@ -713,11 +713,14 @@ async function createVPSInstance(telegramId, vpsDetails) {
     expiresAt.setMonth(expiresAt.getMonth() + 1)
 
     // Adapt to old return format expected by _index.js
+    // Cross-provider IP extraction: Contabo nests at ipConfig.v4.ip,
+    // Vultr/OVH expose mainIp at top level.
+    const initialIp = instance.ipConfig?.v4?.ip || instance.mainIp || instance.ipv4 || 'provisioning...'
     const vpsData = {
       _id: String(instance.instanceId),
       vps_name: instance.name || instance.displayName || createOpts.displayName,
       label: createOpts.displayName,
-      host: instance.ipConfig?.v4?.ip || 'provisioning...',
+      host: initialIp,
       status: instance.status || 'provisioning',
       contaboInstanceId: instance.instanceId,
       region: region,
@@ -781,9 +784,26 @@ async function createVPSInstance(telegramId, vpsDetails) {
     // to cancel and we'd just log noise from a guaranteed 404.
     if (String(instance.instanceId).startsWith('dryrun-')) {
       console.log(`[VPS] Skipping cancel-on-create for dry-run instance ${instance.instanceId}`)
+    } else if (vpsProvider.detectProviderByInstanceId(instance.instanceId) === 'vultr') {
+      // ── Vultr has no scheduled cancel — DELETE is destructive. ──
+      // Calling cancelInstance on Vultr without scheduleOnly=true would
+      // destroy the just-created VPS instantly. autoRenewable=false in our DB
+      // is sufficient — the renewal scheduler skips Vultr instances when
+      // autoRenewable is false (see hosting-scheduler.js / contabo cleanup).
+      console.log(`[VPS] Skipping cancel-on-create for Vultr instance ${instance.instanceId} — provider has no scheduled cancel; autoRenewable=false in DB controls renewal.`)
+      if (_vpsPlansOf) {
+        await _vpsPlansOf.updateOne(
+          { contaboInstanceId: instance.instanceId },
+          { $set: {
+              _contaboCancelledEarly: false,
+              cancelReason: 'vultr_no_scheduled_cancel_db_only',
+            }
+          }
+        )
+      }
     } else {
     try {
-      const cancelRes = await contabo.cancelInstance(instance.instanceId)
+      await contabo.cancelInstance(instance.instanceId)
       // Re-fetch to confirm cancelDate landed (provider may take a few seconds)
       let confirmedCancelDate = null
       for (let attempt = 1; attempt <= 3; attempt++) {
