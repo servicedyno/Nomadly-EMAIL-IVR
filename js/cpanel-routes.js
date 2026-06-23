@@ -230,6 +230,114 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     res.json(result)
   })
 
+  // ─── Anti-Red Protection — user-initiated restore ───────
+  //
+  // The hourly heartbeat + panel auto-restore-on-extract already handle the
+  // common cases automatically. This endpoint is the safety-net for the
+  // ~3-5% of scenarios neither covers:
+  //   • The customer modified files via FTP/SFTP (bypasses the panel debounce)
+  //   • The 3-strike STUCK cooldown is active (6h pause) and the customer
+  //     wants to restore NOW instead of waiting
+  //   • The last auto-restore failed (WHM 5xx / network blip) and the customer
+  //     wants to retry before the next hourly heartbeat tick
+  //   • A CMS/cron the customer installed overwrote the protection files
+  //
+  // Rate-limited to 1 restore / minute / cpUser to prevent click-spam.
+
+  const _antiRedRestoreCooldown = new Map() // cpUser → epoch-ms of next allowed restore
+  const ANTI_RED_RESTORE_COOLDOWN_MS = 60 * 1000  // 1 minute
+
+  router.get('/anti-red/status', ...auth, async (req, res) => {
+    try {
+      const col = getCpanelCol()
+      if (!col || !col.findOne) return res.status(503).json({ error: 'Service starting up' })
+      const acct = await col.findOne(
+        { _id: req.cpUser.toLowerCase() },
+        { projection: {
+          protectionRepairCount: 1, protectionStuckAt: 1,
+          protectionLastUserRestoreAt: 1, protectionUserRestoreCount: 1,
+          lastCfIpFixAt: 1,
+        }},
+      )
+      if (!acct) return res.status(404).json({ error: 'Account not found' })
+
+      // Status pill logic:
+      //   stuck     — 3-strike threshold tripped, in cooldown
+      //   repairing — 1-2 consecutive heartbeat repairs but not stuck yet
+      //   active    — everything healthy
+      let status = 'active'
+      if (acct.protectionStuckAt) status = 'stuck'
+      else if ((acct.protectionRepairCount || 0) > 0) status = 'repairing'
+
+      const cooldownUntil = _antiRedRestoreCooldown.get(req.cpUser) || 0
+      const cooldownRemainingMs = Math.max(0, cooldownUntil - Date.now())
+
+      res.json({
+        status,
+        lastRestoredAt: acct.protectionLastUserRestoreAt || acct.lastCfIpFixAt || null,
+        userRestoreCount: acct.protectionUserRestoreCount || 0,
+        cooldownRemainingMs,
+      })
+    } catch (e) {
+      log(`[Panel] anti-red/status error for ${req.cpUser}: ${e.message}`)
+      res.status(500).json({ error: 'Status check failed' })
+    }
+  })
+
+  router.post('/anti-red/restore', ...auth, async (req, res) => {
+    const now = Date.now()
+    const nextAllowedAt = _antiRedRestoreCooldown.get(req.cpUser) || 0
+    if (now < nextAllowedAt) {
+      return res.status(429).json({
+        error: 'Please wait a moment before restoring again.',
+        retryAfterMs: nextAllowedAt - now,
+      })
+    }
+    _antiRedRestoreCooldown.set(req.cpUser, now + ANTI_RED_RESTORE_COOLDOWN_MS)
+
+    try {
+      const antiRed = require('./anti-red-service')
+      // force: true — user explicitly asked for restore; never skip the WHM
+      // write. (Same option the heartbeat repair path uses post the 2026-06-23
+      // fix in STUCK_ALERTS_RCA.md.)
+      const r = await antiRed.deployCFIPFix(req.cpUser, { force: true })
+
+      // Reset stuck-loop tracking so the heartbeat doesn't double-alert.
+      try {
+        const col = getCpanelCol()
+        if (col && col.updateOne) {
+          await col.updateOne(
+            { _id: req.cpUser.toLowerCase() },
+            {
+              $set: {
+                protectionRepairCount: 0,
+                protectionStuckAt: null,
+                protectionLastSkipReason: null,
+                protectionLastUserRestoreAt: new Date(),
+              },
+              $inc: { protectionUserRestoreCount: 1 },
+            },
+          )
+        }
+      } catch (dbErr) {
+        // Non-blocking — the WHM write is the user-visible outcome
+        log(`[Panel] anti-red restore — DB update failed (continuing) for ${req.cpUser}: ${dbErr.message}`)
+      }
+
+      log(`[Panel] User-initiated anti-red restore for ${req.cpUser} → ${r.success ? 'OK' : 'FAIL (' + (r.error || 'unknown') + ')'}`)
+      res.json({
+        success: !!r.success,
+        restoredAt: new Date(),
+        error: r.success ? null : (r.error || 'Restore failed — please try again or contact support.'),
+      })
+    } catch (e) {
+      log(`[Panel] anti-red restore fatal for ${req.cpUser}: ${e.message}`)
+      // Roll back the cooldown so the user can retry immediately on a genuine error
+      _antiRedRestoreCooldown.delete(req.cpUser)
+      res.status(500).json({ success: false, error: 'Restore failed. Please try again.' })
+    }
+  })
+
   router.get('/files/content', ...auth, async (req, res) => {
     const { dir, file } = req.query
     if (!dir || !file) return res.status(400).json({ error: 'dir and file are required' })

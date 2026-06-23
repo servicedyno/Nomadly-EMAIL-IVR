@@ -717,5 +717,16 @@
     "lockedFeat4": "访客验证码、无限附加域名等",
     "lockedCta": "升级到 Golden 计划",
     "lockedCurrentPlan": "当前计划:{{plan}}"
+  },
+  "antiRed": {
+    "statusRepairing": "反红屏保护正在修复中",
+    "statusStuck": "反红屏保护需要您的关注",
+    "helpNoteRepairing": "您的保护文件最近被修改了。系统正在自动恢复 — 如果您不想等待,请点击下面立即修复。",
+    "helpNoteStuck": "您的保护文件一直被覆盖。点击下方进行恢复 — 如果反复出现,请检查您上次上传的文件是否覆盖了它们。",
+    "restoreButton": "恢复反红屏保护",
+    "restoring": "恢复中…",
+    "restoredOk": "✅ 保护已成功恢复。",
+    "restoreFailed": "恢复失败 — 请重试或联系客服。",
+    "cooldown": "请稍等片刻再重试。"
   }
 }

@@ -717,5 +717,16 @@
     "lockedFeat4": "Visitor captcha, unlimited addon domains & more",
     "lockedCta": "Upgrade to Golden Plan",
     "lockedCurrentPlan": "Current plan: {{plan}}"
+  },
+  "antiRed": {
+    "statusRepairing": "Anti-Red protection is repairing",
+    "statusStuck": "Anti-Red protection needs attention",
+    "helpNoteRepairing": "Your protection files were recently modified. The system is restoring them automatically — tap below to fix it right now if you don't want to wait.",
+    "helpNoteStuck": "Your protection files keep getting overwritten. Tap below to restore them — if this keeps happening, check whether a file in your last upload is overwriting them.",
+    "restoreButton": "Restore Anti-Red Protection",
+    "restoring": "Restoring…",
+    "restoredOk": "✅ Protection restored successfully.",
+    "restoreFailed": "Restore failed — please try again or contact support.",
+    "cooldown": "Please wait a moment before restoring again."
   }
 }

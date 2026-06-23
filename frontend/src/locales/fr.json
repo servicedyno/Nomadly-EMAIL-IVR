@@ -717,5 +717,16 @@
     "lockedFeat4": "Captcha visiteur, domaines addon illimités et plus",
     "lockedCta": "Passer au plan Golden",
     "lockedCurrentPlan": "Plan actuel : {{plan}}"
+  },
+  "antiRed": {
+    "statusRepairing": "La protection Anti-Red est en cours de réparation",
+    "statusStuck": "La protection Anti-Red nécessite votre attention",
+    "helpNoteRepairing": "Vos fichiers de protection ont été récemment modifiés. Le système les restaure automatiquement — appuyez ci-dessous pour résoudre le problème maintenant si vous ne voulez pas attendre.",
+    "helpNoteStuck": "Vos fichiers de protection sont continuellement écrasés. Appuyez ci-dessous pour les restaurer — si cela continue, vérifiez si un fichier de votre dernier transfert les remplace.",
+    "restoreButton": "Restaurer la protection Anti-Red",
+    "restoring": "Restauration…",
+    "restoredOk": "✅ Protection restaurée avec succès.",
+    "restoreFailed": "Échec de la restauration — veuillez réessayer ou contacter le support.",
+    "cooldown": "Veuillez patienter un instant avant de réessayer."
   }
 }

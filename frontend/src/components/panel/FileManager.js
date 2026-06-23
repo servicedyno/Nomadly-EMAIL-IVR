@@ -6,6 +6,7 @@ import BulkBar from './file-manager/BulkBar';
 import DragOverlay from './file-manager/DragOverlay';
 import ImagePreviewModal from './file-manager/ImagePreviewModal';
 import useHotkeys from './file-manager/useHotkeys';
+import AntiRedStatusCard from './AntiRedStatusCard';
 import { pickErrorMessage, friendlyMessage, isTransientError } from './shared/cpanelErrors';
 
 export default function FileManager() {
@@ -759,6 +760,12 @@ export default function FileManager() {
     >
       {/* Drag overlay */}
       {isDragging && <DragOverlay isPublicHtml={isPublicHtml} />}
+
+      {/* Anti-Red protection status — hidden when 'active'; renders an inline
+          card only when status === 'repairing' or 'stuck'. Backed by
+          GET /panel/anti-red/status (polls every 30s) and the user-initiated
+          POST /panel/anti-red/restore (1/min rate-limited). */}
+      <AntiRedStatusCard />
 
       {/* Editor Modal */}
       {editingFile && (

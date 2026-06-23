@@ -328,6 +328,56 @@ User selected 6 UX recommendations (3, 4, 5, 7, 11, 12) for implementation.  #7 
 
 ---
 
+## 2026-06-23 (later) — Restore Anti-Red Protection button (P1 — shipped)
+
+User asked for a manual restore button to handle the 3-5% of cases the auto-restore + heartbeat can't cover: FTP/SFTP uploads, STUCK cooldown override, failed auto-restore retry, CMS-overwritten protection files.
+
+### Design choices (locked with user)
+- Name: **"Restore Anti-Red Protection"** (matches existing product term)
+- Short helpful copy
+- Top of File Manager (auto-mounted)
+- Rate limit: 1 restore/minute (returns 429 with `retryAfterMs`)
+- **Dynamically hidden when status === 'active'** — only renders when `repairing` or `stuck`
+- 4 languages (EN/FR/ZH/HI)
+
+### Backend (cpanel-routes.js)
+- New `GET /api/panel/anti-red/status` — returns `{status, lastRestoredAt, userRestoreCount, cooldownRemainingMs}`. Status pill:
+  - `active`: both check-ins clean (no `protectionStuckAt`, `protectionRepairCount === 0`)
+  - `repairing`: 1-2 consecutive heartbeat repairs but not stuck yet
+  - `stuck`: 3-strike threshold tripped (`protectionStuckAt` set)
+- New `POST /api/panel/anti-red/restore` — calls `deployCFIPFix(cpUser, {force: true})`, resets `protectionRepairCount=0` + clears `protectionStuckAt`, increments `protectionUserRestoreCount`, stamps `protectionLastUserRestoreAt`. Rate-limited via in-memory Map (1 / 60s / cpUser); cooldown rolls back on a genuine 500 error so retry isn't blocked.
+
+### Frontend
+- New `/app/frontend/src/components/panel/AntiRedStatusCard.js` — React component, polls `/anti-red/status` every 30s, mounted at top of FileManager. Renders ONLY when `status !== 'active'`. Variants: amber for `repairing`, red for `stuck`. Includes restoration button with loading state + success/error feedback.
+- `FileManager.js` updated to import + mount `<AntiRedStatusCard />` above the editor modal.
+- 4 i18n locale files updated (`en.json`, `fr.json`, `zh.json`, `hi.json`) — 9 new `antiRed.*` keys each. `/app/scripts/add_antired_i18n.py` idempotently merges.
+
+### Validation
+- Backend: 8 new Jest cases (`tests/anti-red-restore-endpoint.test.js`) covering auth required, all 3 status states, restore success path resets counters, rate limit returns 429 with retryAfterMs.
+- Frontend: Playwright screenshot tests confirm:
+  - Card renders red ("Anti-Red protection needs attention" + restore button) when `protectionStuckAt` is set
+  - Card DISAPPEARS completely when status returns to `active`
+- E2E curl smoke: status returns 200, restore returns 200 + JSON, rate-limit returns 429 + retryAfterMs (58.7s remaining), unauth returns 401.
+- Full Jest suite: **68 pass, 1 skipped, 0 failed** (was 60, +8 today).
+- ESLint clean on new files (`AntiRedStatusCard.js`, scripts, tests). Pre-existing `cpanel-routes.js` empty-catch + `db is not defined` warnings are NOT from this change.
+
+### Files added/modified
+- `/app/js/cpanel-routes.js` — 2 new routes (`/anti-red/status` + `/anti-red/restore`) with rate-limit Map
+- `/app/frontend/src/components/panel/AntiRedStatusCard.js` (new, 115 lines)
+- `/app/frontend/src/components/panel/FileManager.js` — 1 import + 1 line to mount the card
+- `/app/frontend/src/locales/{en,fr,zh,hi}.json` — added `antiRed` namespace with 9 strings each
+- `/app/scripts/add_antired_i18n.py` (new, idempotent translation merger)
+- `/app/tests/anti-red-restore-endpoint.test.js` (new, 8 cases)
+- `/app/memory/PRD.md` updated
+
+### Production-ready
+Yes — dev pod runs clean, all tests green, screenshots verified both states. Customer-visible behaviour after deploy:
+- Healthy accounts: NO change (card hidden)
+- Repairing accounts: amber card with "fix now instead of waiting" CTA
+- Stuck accounts: red card with "tap to restore" CTA + admin-level urgency hint
+
+---
+
 ## 2026-06-23 — "Anti-Red protection STUCK" admin alerts investigation (P0 — fixed)
 
 User asked: "why am I getting several Anti-Red protection STUCK alerts to admin bot". Pulled 7d Railway logs (1,541 ProtectionHeartbeat lines) + cross-referenced MongoDB `cpanelAccounts` for `protectionStuckAt`.
