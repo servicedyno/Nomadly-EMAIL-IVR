@@ -250,20 +250,52 @@ function getProduct(productId) {
 }
 
 async function listRegions() {
-  // Static — the customer-facing region slugs that Vultr supports.
+  // Shape-compatible with contabo-service.js + ovh-service.js so the consumer
+  // (vm-instance-setup.js) can use the same `r.display.{emoji,label}` and
+  // `r.regionSlug` properties regardless of provider. Don't change the shape
+  // without updating BOTH this file AND fetchAvailableCountries /
+  // fetchAvailableRegionsOfCountry in vm-instance-setup.js — the consumer
+  // crash there (Cannot read .display.emoji) was the prod blocker on
+  // 2026-06-23 that killed every RDP purchase after VPS_DEFAULT_PROVIDER=vultr.
   return Object.entries(REGION_DISPLAY).map(([slug, info]) => ({
-    slug, ...info, vultrId: REGION_TO_VULTR_ID[slug],
+    regionSlug:   slug,
+    regionName:   info.label,
+    dataCenters:  [{ name: info.label, slug }],
+    surchargeUsd: REGION_SURCHARGE[slug] || [0, 0, 0, 0, 0, 0],
+    display:      info,
+    vultrId:      REGION_TO_VULTR_ID[slug],
+    // Legacy flat fields preserved for any existing consumer that read them
+    slug,
+    emoji:        info.emoji,
+    label:        info.label,
   }))
 }
 
 // ─── Images / OS ─────────────────────────────────────────────────────────
+// Shape-compatible with contabo-service.js + ovh-service.js. The consumer
+// (vm-instance-setup.js fetchAvailableOS) expects `imageId`, `name`, `osType`,
+// `version`, `isWindows` — Vultr's /os endpoint returns `id`, `name`, `family`,
+// `arch` so we normalize here.
 async function listImages(filter = 'all') {
   // Filter: 'all' | 'linux' | 'windows'
   const d = await apiRequest('GET', '/os')
-  const list = d.os || []
-  if (filter === 'windows') return list.filter(o => /windows/i.test(o.family || o.name || ''))
-  if (filter === 'linux')   return list.filter(o => !/windows/i.test(o.family || o.name || ''))
-  return list
+  let list = d.os || []
+  if (filter === 'windows') list = list.filter(o => /windows/i.test(o.family || o.name || ''))
+  else if (filter === 'linux') list = list.filter(o => !/windows/i.test(o.family || o.name || ''))
+  return list.map(o => {
+    const isWindows = /windows/i.test(o.family || o.name || '')
+    return {
+      imageId:   o.id,
+      name:      o.name,
+      osType:    isWindows ? 'Windows' : 'Linux',
+      version:   o.name,
+      isWindows,
+      // legacy flat fields preserved
+      id:        o.id,
+      family:    o.family,
+      arch:      o.arch,
+    }
+  })
 }
 
 // Sensible Windows default for a tier — Vultr ships Server 2022 STD on every tier.
@@ -453,6 +485,66 @@ async function deleteSecret(secretId) {
 function isNVMeProduct(_productId) { return true }  // Every Vultr plan is NVMe
 function isSSDProduct(_productId)  { return false }
 
+/**
+ * Format specs for display message — shape-compatible with contabo-service.js
+ * + ovh-service.js. Consumer: vm-instance-setup.js fetchAvailableVPSConfigs().
+ */
+function formatSpecs(product) {
+  const ramGb  = product.ramGb  || Math.round((product.ramMb  || 0) / 1024)
+  const diskGb = product.diskGb || Math.round((product.diskMb || 0) / 1024)
+  const dt     = (product.diskType || 'nvme').toUpperCase()
+  return `${product.cpuCores} vCPU | ${ramGb} GB RAM | ${diskGb} GB ${dt}`
+}
+
+/**
+ * Format instance data for display in the Telegram bot.
+ * Shape-compatible with contabo-service.js + ovh-service.js. Vultr instances
+ * come back from /instances/{id} with snake_case fields, so we adapt here.
+ */
+function formatInstanceForDisplay(instance) {
+  const ip     = instance.mainIp || instance.main_ip || instance.ip || 'Provisioning...'
+  const ipv6   = instance.v6_main_ip || instance.ipv6 || ''
+  const ramMb  = instance.ramMb  || instance.ram     || 0
+  const diskMb = instance.diskMb || instance.disk    || 0
+  const ramGb  = Math.round(ramMb / 1024)
+  const diskGb = Math.round(diskMb / 1024)
+  const osType = instance.osType || (/windows/i.test(instance.os || '') ? 'Windows' : 'Linux')
+  const region = instance.region || ''
+  const product = getProduct(instance.productId || instance.plan)
+  const statusEmoji = {
+    running:      '🟢',
+    active:       '🟢',
+    stopped:      '🔴',
+    halted:       '🔴',
+    provisioning: '🟡',
+    pending:      '🟡',
+    installing:   '🟡',
+    error:        '❌',
+    unknown:      '⚪',
+  }
+  const status = (instance.status || instance.power_status || 'unknown').toLowerCase()
+  return {
+    instanceId:   instance.instanceId || instance.id,
+    name:         instance.displayName || instance.label || instance.name,
+    status,
+    statusEmoji:  statusEmoji[status] || '⚪',
+    ip,
+    ipv6,
+    region,
+    regionName:   REGION_DISPLAY[region]?.label || region,
+    productId:    instance.productId || instance.plan,
+    productName:  product?.name || instance.productName || instance.plan,
+    cpuCores:     instance.cpuCores || instance.vcpu_count,
+    ramGb,
+    diskGb,
+    osType,
+    isWindows:    osType === 'Windows',
+    createdDate:  instance.createdDate || instance.date_created,
+    cancelDate:   instance.cancelDate || null,
+    defaultUser:  instance.defaultUser || (osType === 'Windows' ? 'Administrator' : 'root'),
+  }
+}
+
 // ─── Public surface ──────────────────────────────────────────────────────
 module.exports = {
   PROVIDER,
@@ -470,12 +562,17 @@ module.exports = {
   // Regions
   REGION_DISPLAY,
   REGION_TO_VULTR_ID,
+  REGION_SURCHARGE,
   listRegions,
   // Images / OS
   listImages,
   getDefaultWindowsImageId,
   getCompatibleWindowsImage,
   getCompatibleLinuxImage,
+  WINDOWS_LICENSE_BY_TIER,
+  // Display helpers (parity with contabo/ovh)
+  formatSpecs,
+  formatInstanceForDisplay,
   // Instances
   createInstance,
   getInstance,

@@ -1,0 +1,101 @@
+[2026-06-22T17:12:36] [info] Confirmer ? ✅ Oui,❌ Non,↩️ Back,Retour,Annuler	to: 8625434794
+[2026-06-22T17:12:37] [info] message: ✅ Oui	from: 8625434794 ciroovblzz
+[2026-06-22T17:12:37] [info] 17:12:37 [CartRecovery] Payment completed for 8625434794 — cart cleared
+[2026-06-22T17:12:37] [info]   chatId: '8625434794'
+[2026-06-22T17:12:38] [info] [Contabo] Creating instance for user 8625434794: {"productId":"V91","region":"US-central","imageId":"ef27e2fa-188f-4767-964b-7543fea74968","displayName":"nomadly-8625434794-1782148358861","rootPassword":398278,"period":1}
+[2026-06-22T17:12:39] [info]   chatId: '8625434794'
+[2026-06-22T17:12:39] [info] [VPS] Provisioning failed for 8625434794: VPS provisioning failed
+[2026-06-22T17:12:39] [info] [VPS] Refunded 46.35 USD to 8625434794
+[2026-06-22T17:12:39] [info] Contactez le support si le problème persiste. 	to: 8625434794
+[2026-06-23T00:32:31] [info] [Dedup] Skipping duplicate message "/start..." from 8625434794 (718ms since last)
+[2026-06-23T00:32:31] [info] message: /start	from: 8625434794 ciroovblzz
+[2026-06-23T00:32:31] [info] message: 🖥️ VPS/RDP — Port 25 Ouvert🛡️	from: 8625434794 ciroovblzz
+[2026-06-23T00:32:31] [info] 🖥️ 60 serveurs VPS déployés cette semaine 🖥️ Afficher/Gérer le VPS,⚙️ Créer un nouveau VPS,Retour,Annuler	to: 8625434794
+[2026-06-23T00:32:31] [info] Choisissez une option 📞 Cloud IVR + SIP,🤝 Parrainez & Gagnez,🏪 Marché,🛒 Produits numériques,🌐 Domaines Blindés,🛡️🔥 Hébergement Anti-Red,🖥️ VPS/RDP — Port 25 Ouvert🛡️,📧🆓 SMS en masse — 100 SMS gratuits,📧 Validation d'Email,💳 Carte Virtuelle,👛 Portefeuille,📱 SMS Leads,🔗✂️ Raccourcisseur d'URL — 5 Essais,⚡ Améliorer le plan,🎁 Packs de Services,📢 Rejoindre le canal,💼 Revendeur,🌍 Paramètres,💬 Support	to: 8625434794
+[2026-06-23T00:32:31] [info] message: ⚙️ Créer un nouveau VPS	from: 8625434794 ciroovblzz
+[2026-06-23T00:32:31] [info] <strong>🪟 Windows RDP</strong> — Bureau à distance · apps & outils Windows 🐧 Linux VPS (SSH),🪟 Windows RDP,🔙 Retour,Annuler	to: 8625434794
+[2026-06-23T00:32:33] [info] message: 🪟 Windows RDP	from: 8625434794 ciroovblzz
+[2026-06-23T00:32:34] [info] reply: 🌍 Sélectionnez une région proche de vos utilisateurs : 🇪🇺 Europe (EU),🇺🇸 US Central,🇺🇸 US East,🇺🇸 US West,🌍 Asia (Singapore),🇬🇧 United Kingdom,🌍 Australia (Sydney),🌍 Asia (Japan),🌍 Asia (India),🔙 Retour,Annuler	to: 8625434794
+[2026-06-23T00:32:38] [info] message: 🇺🇸 US Central	from: 8625434794 ciroovblzz
+[2026-06-23T00:32:38] [info] reply: ⚙️ Récupération des détails... Cela ne prendra qu'un instant. 	to: 8625434794
+[2026-06-23T00:32:38] [info] 👇 Appuyez sur votre choix : ⚡ NVMe — Faster Speed,💾 SSD — 2× More Storage,🔙 Retour,Annuler	to: 8625434794
+[2026-06-23T00:32:40] [info] message: ⚡ NVMe — Faster Speed	from: 8625434794 ciroovblzz
+[2026-06-23T00:32:40] [info] reply: ⚙️ Récupération des détails... Cela ne prendra qu'un instant. 	to: 8625434794
+[2026-06-23T00:32:40] [info] 💰 <b>Votre portefeuille :</b> $50.73 — vous pouvez choisir jusqu'à <b>Cloud VPS 10</b> ✅ 🌟 Cloud VPS 10 — $46.35/mo,Cloud VPS 20 — $82.5/mo,Cloud VPS 30 — $143.76/mo,Cloud VPS 40 — $181.8/mo,Cloud VPS 50 — $248.4/mo,Cloud VPS 60 — $295.86/mo,🔙 Retour,Annuler	to: 8625434794
+[2026-06-23T00:32:41] [info] message: 🌟 Cloud VPS 10 — $46.35/mo	from: 8625434794 ciroovblzz
+[2026-06-23T00:32:41] [info] reply: 🎟️ Vous avez un code promo ? Entrez-le pour une réduction supplémentaire si applicable, ou passez cette étape. Les réductions du cycle de facturation sont déjà incluses. ❌ Passer,🔙 Retour,Annuler	to: 8625434794
+[2026-06-23T00:32:43] [info] message: ❌ Passer	from: 8625434794 ciroovblzz
+[2026-06-23T00:32:43] [info] <strong>✅ Procéder à la commande ?</strong> ✅ Confirmer la commande,❌ Annuler la commande,🔙 Retour,Annuler	to: 8625434794
+[2026-06-23T00:32:44] [info] message: ✅ Confirmer la commande	from: 8625434794 ciroovblzz
+[2026-06-23T00:32:44] [info] $50.73 	to: 8625434794
+[2026-06-23T00:32:44] [info] reply: Choisissez une méthode de paiement : Crypto,👛 Portefeuille,Retour,Annuler	to: 8625434794
+[2026-06-23T00:32:46] [info] Confirmer ? ✅ Oui,❌ Non,↩️ Back,Retour,Annuler	to: 8625434794
+[2026-06-23T00:32:46] [info] message: 👛 Portefeuille	from: 8625434794 ciroovblzz
+[2026-06-23T00:32:46] [info] Prix final: <b>$10.46</b> 	to: 8625434794
+[2026-06-23T00:32:47] [info] message: ✅ Oui	from: 8625434794 ciroovblzz
+[2026-06-23T00:32:47] [info] 00:32:47 [CartRecovery] Payment completed for 8625434794 — cart cleared
+[2026-06-23T00:32:47] [info]   chatId: '8625434794'
+[2026-06-23T00:32:49] [info] [Contabo] Creating instance for user 8625434794: {"productId":"V91","region":"US-central","imageId":"ef27e2fa-188f-4767-964b-7543fea74968","displayName":"nomadly-8625434794-1782174769138","rootPassword":398538,"period":1}
+[2026-06-23T00:32:49] [info]   chatId: '8625434794'
+[2026-06-23T00:32:49] [info] [VPS] Provisioning failed for 8625434794: VPS provisioning failed
+[2026-06-23T00:32:49] [info] [VPS] Refunded 46.35 USD to 8625434794
+[2026-06-23T00:32:49] [info] Contactez le support si le problème persiste. 	to: 8625434794
+[2026-06-23T03:32:01] [info] [C] tdsecure-portal.com (chatId=8625434794, registrar=OpenProvider)
+[2026-06-23T03:53:42] [info] [Marketplace] Conversation created: 0725cb20-33a4-46ca-9b3c-25b3c1fad0a4 (buyer: 7064048360, seller: 8625434794)
+[2026-06-23T03:54:04] [info] 2026-06-23 03:53:55,124 - handlers.start - INFO - ⏱️ PERF: START HANDLER ENTRY - User: 8625434794 at 1782186835.1247854
+[2026-06-23T03:54:04] [info] 2026-06-23 03:53:55,051 - audit.user_interaction - INFO - {"ts":"17821868","user":8625434794,"action":"telegram_command","result":"intercepted","chat":8625434794,"trace":"5c5b5b6b","meta":{"message_length":6,"command":"/start"}}
+[2026-06-23T03:54:04] [info] 2026-06-23 03:53:55,051 - utils.update_interceptor - INFO - 📡 INTERCEPTED: command from user 8625434794 (trace: 5c5b5b6b, session: 4_495051)
+[2026-06-23T03:54:04] [info] 2026-06-23 03:53:55,124 - utils.conversation_protection - INFO - ✅ HANDLER_EXECUTION_ALLOWED: Starting start_handler for user 8625434794
+[2026-06-23T03:54:04] [info] 2026-06-23 03:53:55,124 - handlers.start - INFO - 🔍 START HANDLER - User 8625434794 proceeding with handler logic
+[2026-06-23T03:54:04] [info] 2026-06-23 03:53:55,124 - handlers.start - INFO - ⏱️ PERF: Looking for user with telegram_id: 8625434794
+[2026-06-23T03:54:04] [info] 2026-06-23 03:53:55,124 - handlers.start - INFO - ⚡ ONBOARDING_PREFETCH: Starting context prefetch for user 8625434794
+[2026-06-23T03:54:04] [info] 2026-06-23 03:53:55,160 - utils.onboarding_prefetch - INFO - 💳 ONBOARDING_PREFETCH: Creating NGN wallet for user 8625434794 (telegram_id=8625434794)
+[2026-06-23T03:54:04] [info] 2026-06-23 03:53:55,173 - utils.onboarding_prefetch - INFO - ⏱️ ONBOARDING_BATCH_OPTIMIZATION: Prefetched onboarding context in 48.9ms (target: <200ms) ✅ - User 8625434794 (telegram_id=8625434794), Email verified: False, Onboarding complete: True, Wallets: 2
+[2026-06-23T03:54:04] [info] 2026-06-23 03:53:55,174 - utils.onboarding_prefetch - INFO - ✅ ONBOARDING_CACHE: Stored prefetch data for telegram_id 8625434794
+[2026-06-23T03:54:04] [info] 2026-06-23 03:53:55,180 - handlers.start - INFO - 👤 EXISTING USER (from prefetch cache) - User ID: 8625434794
+[2026-06-23T03:54:04] [info] 2026-06-23 03:53:55,181 - handlers.start - INFO - ✅ Skipping email verification check (OTP removed from onboarding) for user 8625434794
+[2026-06-23T03:54:04] [info] 2026-06-23 03:53:57,722 - audit.user_interaction - INFO - {"ts":"17821868","user":8625434794,"action":"telegram_callback_query","result":"intercepted","chat":8625434794,"trace":"3b4e8752"}
+[2026-06-23T03:54:04] [info] 2026-06-23 03:53:57,722 - utils.update_interceptor - INFO - 📡 INTERCEPTED: callback_query from user 8625434794 (trace: 3b4e8752, session: 4_495051)
+[2026-06-23T03:54:04] [info] 2026-06-23 03:53:58,701 - services.admin_trade_notifications - INFO - ✅ Admin email sent for trade creation initiated: 8625434794
+[2026-06-23T03:54:04] [info] 2026-06-23 03:53:58,727 - utils.escrow_prefetch - INFO - ⏱️ BATCH_OPTIMIZATION: Prefetched escrow context in 572.1ms (target: <100ms) ✅ - User 8625434794, Balance $0.00
+[2026-06-23T03:54:04] [info] 2026-06-23 03:53:58,727 - utils.escrow_prefetch - INFO - ✅ CACHE: Stored prefetch data for user 8625434794
+[2026-06-23T03:54:04] [info] 2026-06-23 03:53:59,351 - handlers.escrow - INFO - ✅ Escrow flow started (no ID generated yet) for user 8625434794
+[2026-06-23T03:54:04] [info] 2026-06-23 03:53:59,781 - services.admin_trade_notifications - INFO - ✅ Admin email sent for trade creation initiated: 8625434794
+[2026-06-23T03:54:04] [info] 2026-06-23 03:53:59,798 - utils.escrow_prefetch - INFO - ⏱️ BATCH_OPTIMIZATION: Prefetched escrow context in 217.3ms (target: <100ms) ✅ - User 8625434794, Balance $0.00
+[2026-06-23T03:54:04] [info] 2026-06-23 03:53:59,426 - utils.conversation_protection - INFO - ✅ HANDLER_EXECUTION_ALLOWED: Starting start_secure_trade for user 8625434794
+[2026-06-23T03:54:04] [info] 2026-06-23 03:53:59,798 - utils.escrow_prefetch - INFO - ✅ CACHE: Stored prefetch data for user 8625434794
+[2026-06-23T03:54:04] [info] 2026-06-23 03:53:59,802 - handlers.escrow - INFO - ✅ Escrow flow started (no ID generated yet) for user 8625434794
+[2026-06-23T03:54:38] [info] ⚠️ Ne payez JAMAIS en dehors de l'escrow ou via le bot du vendeur 	to: 8625434794
+[2026-06-23T03:54:38] [info] message: /escrow	from: 8625434794 ciroovblzz
+[2026-06-23T03:54:38] [info] Seller: @ciroovblzz (8625434794)
+[2026-06-23T03:54:54] [info] 2026-06-23 03:54:48,763 - audit.user_interaction - INFO - {"ts":"17821868","user":8625434794,"action":"telegram_text_message","result":"intercepted","chat":8625434794,"trace":"d39a695c","meta":{"message_length":11}}
+[2026-06-23T03:54:54] [info] 2026-06-23 03:54:48,764 - utils.update_interceptor - INFO - 📡 INTERCEPTED: text_message from user 8625434794 (trace: d39a695c, session: 4_495051)
+[2026-06-23T03:54:54] [info] 2026-06-23 03:54:48,882 - audit.audit - INFO - {"ts":"03:54:48","user":8625434794,"action":"unified_text_routing_start","result":"handler_entry","chat":8625434794,"trace":"d39a695c","meta":{"message_length":11}}
+[2026-06-23T03:54:54] [info] 2026-06-23 03:54:48,910 - handlers.text_router - INFO - 🎯 UNIFIED ROUTER: Processing text '@ciroovblzz...' from user 8625434794
+[2026-06-23T03:54:54] [info] 2026-06-23 03:54:48,910 - handlers.text_router - INFO - 🔍 TEXT ROUTER: About to call RouteGuard.get_routing_decision for user 8625434794
+[2026-06-23T03:54:54] [info] 2026-06-23 03:54:48,934 - utils.route_guard - INFO - 🔍 DB CHECK: user 8625434794 found=True, conversation_state='seller_input' (cached)
+[2026-06-23T03:54:54] [info] 2026-06-23 03:54:48,974 - utils.route_guard - INFO - 🎯 ROUTE DECISION: user 8625434794 → escrow (active escrow flow state: seller_input)
+[2026-06-23T03:54:54] [info] 2026-06-23 03:54:48,974 - handlers.text_router - INFO - 🔍 TEXT ROUTER: Got route_decision='escrow' for user 8625434794
+[2026-06-23T03:54:54] [info] 2026-06-23 03:54:48,974 - handlers.text_router - INFO - 🏪 ROUTE: user 8625434794 → escrow direct handler
+[2026-06-23T03:54:54] [info] 2026-06-23 03:54:48,994 - handlers.escrow_direct - INFO - 🔄 ROUTING: User 8625434794 text '@ciroovblzz' - DB state: 'seller_input', Context: {'status': 'creating', 'created_at': 1782186839.802708}
+[2026-06-23T03:54:54] [info] 2026-06-23 03:54:48,994 - handlers.escrow_direct - INFO - 📝 ROUTING: Directing to seller input handler for user 8625434794
+[2026-06-23T03:54:54] [info] 2026-06-23 03:54:48,994 - handlers.escrow - INFO - ✅ ESCROW HANDLER: handle_seller_input ENTRY for user 8625434794
+[2026-06-23T03:54:54] [info] 2026-06-23 03:54:49,598 - handlers.escrow - INFO - 📝 ESCROW HANDLER: Processing seller input for user 8625434794
+[2026-06-23T03:54:54] [info] 2026-06-23 03:54:49,995 - services.fast_seller_lookup_service - INFO - ⏱️ ASYNC_LOOKUP: Seller lookup completed in 46.7ms (5 sequential queries on shared session - SQLAlchemy requirement) ✅ - User 8625434794, 0 ratings, badge ⭐
+[2026-06-23T03:54:54] [info] 2026-06-23 03:54:50,169 - audit.audit - INFO - {"ts":"03:54:50","user":8625434794,"action":"unified_text_routing_end","result":"success","latency":"1387ms","chat":8625434794,"trace":"d39a695c","meta":{"message_length":11}}
+[2026-06-23T03:55:08] [info] message: /price 120	from: 8625434794 ciroovblzz
+[2026-06-23T03:55:08] [info] reply: 💰 <b>Vendeur</b> propose : <b>$120.00</b> 	to: 8625434794
+[2026-06-23T13:40:33] [info] message: /start	from: 8625434794 ciroovblzz
+[2026-06-23T13:40:33] [info] Choisissez une option 📞 Cloud IVR + SIP,🤝 Parrainez & Gagnez,🏪 Marché,🛒 Produits numériques,🌐 Domaines Blindés,🛡️🔥 Hébergement Anti-Red,🖥️ VPS/RDP — Port 25 Ouvert🛡️,📧🆓 SMS en masse — 100 SMS gratuits,📧 Validation d'Email,💳 Carte Virtuelle,👛 Portefeuille,📱 SMS Leads,🔗✂️ Raccourcisseur d'URL — 5 Essais,⚡ Améliorer le plan,🎁 Packs de Services,📢 Rejoindre le canal,💼 Revendeur,🌍 Paramètres,💬 Support	to: 8625434794
+[2026-06-23T13:40:35] [info] message: 🖥️ VPS/RDP — Port 25 Ouvert🛡️	from: 8625434794 ciroovblzz
+[2026-06-23T13:40:35] [info] 🖥️ 60 serveurs VPS déployés cette semaine 🖥️ Afficher/Gérer le VPS,⚙️ Créer un nouveau VPS,Retour,Annuler	to: 8625434794
+[2026-06-23T13:40:36] [info] message: ⚙️ Créer un nouveau VPS	from: 8625434794 ciroovblzz
+[2026-06-23T13:40:36] [info] <strong>🪟 Windows RDP</strong> — Bureau à distance · apps & outils Windows 🐧 Linux VPS (SSH),🪟 Windows RDP,🔙 Retour,Annuler	to: 8625434794
+[2026-06-23T13:40:38] [info] message: 🪟 Windows RDP	from: 8625434794 ciroovblzz
+[2026-06-23T13:40:38] [info] reply: Erreur lors de la récupération, veuillez réessayer dans quelques instants. 📞 Cloud IVR + SIP,🤝 Parrainez & Gagnez,🏪 Marché,🛒 Produits numériques,🌐 Domaines Blindés,🛡️🔥 Hébergement Anti-Red,🖥️ VPS/RDP — Port 25 Ouvert🛡️,📧🆓 SMS en masse — 100 SMS gratuits,📧 Validation d'Email,💳 Carte Virtuelle,👛 Portefeuille,📱 SMS Leads,🔗✂️ Raccourcisseur d'URL — 5 Essais,⚡ Améliorer le plan,🎁 Packs de Services,📢 Rejoindre le canal,💼 Revendeur,🌍 Paramètres,💬 Support	to: 8625434794
+[2026-06-23T13:47:39] [info] message: 🖥️ VPS/RDP — Port 25 Ouvert🛡️	from: 8625434794 ciroovblzz
+[2026-06-23T13:47:39] [info] 🖥️ 60 serveurs VPS déployés cette semaine 🖥️ Afficher/Gérer le VPS,⚙️ Créer un nouveau VPS,Retour,Annuler	to: 8625434794
+[2026-06-23T13:47:39] [info] message: ⚙️ Créer un nouveau VPS	from: 8625434794 ciroovblzz
+[2026-06-23T13:47:39] [info] <strong>🪟 Windows RDP</strong> — Bureau à distance · apps & outils Windows 🐧 Linux VPS (SSH),🪟 Windows RDP,🔙 Retour,Annuler	to: 8625434794
+[2026-06-23T13:47:40] [info] message: 🪟 Windows RDP	from: 8625434794 ciroovblzz
+[2026-06-23T13:47:41] [info] reply: Erreur lors de la récupération, veuillez réessayer dans quelques instants. 📞 Cloud IVR + SIP,🤝 Parrainez & Gagnez,🏪 Marché,🛒 Produits numériques,🌐 Domaines Blindés,🛡️🔥 Hébergement Anti-Red,🖥️ VPS/RDP — Port 25 Ouvert🛡️,📧🆓 SMS en masse — 100 SMS gratuits,📧 Validation d'Email,💳 Carte Virtuelle,👛 Portefeuille,📱 SMS Leads,🔗✂️ Raccourcisseur d'URL — 5 Essais,⚡ Améliorer le plan,🎁 Packs de Services,📢 Rejoindre le canal,💼 Revendeur,🌍 Paramètres,💬 Support	to: 8625434794
