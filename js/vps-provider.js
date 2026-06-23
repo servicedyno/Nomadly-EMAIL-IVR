@@ -2,12 +2,12 @@
  * vps-provider.js — Multi-provider VPS abstraction layer.
  *
  * Reads env vars to decide which VPS backend to use:
- *   VPS_DEFAULT_PROVIDER       = "ovh" | "contabo"   (default: "ovh" as of 2026-02)
+ *   VPS_DEFAULT_PROVIDER       = "ovh" | "contabo" | "vultr"  (default: "ovh" as of 2026-02)
  *   VPS_CONTABO_FALLBACK_ENABLED = "true" | "false"  (default: "false")
  *
- * Both services export identical method signatures (see ovh-service.js and
- * contabo-service.js), so callers like vm-instance-setup.js only need to
- * call `getProvider()` and forget which one is active.
+ * All three services export identical method signatures (see ovh-service.js,
+ * contabo-service.js, vultr-service.js), so callers like vm-instance-setup.js
+ * only need to call `getProvider()` and forget which one is active.
  *
  * Fallback semantics:
  * - When CONTABO_FALLBACK is enabled AND the primary provider trips its
@@ -18,6 +18,13 @@
  * Each per-record op (getInstance, deleteInstance, etc.) should be routed
  * by the `provider` field on the vpsPlansOf record, so the *DB record* is
  * authoritative; this abstraction layer is only for the create-time choice.
+ *
+ * Vultr notes (added 2026-06-23):
+ *   • Instance IDs are UUIDs (8-4-4-4-12 hex), distinct from OVH (`vps-…`)
+ *     and Contabo (numeric).
+ *   • Windows licence is bundled — no separate fee.
+ *   • Prices are flat across regions but ~7-11× higher than Contabo at
+ *     comparable specs — treat as PREMIUM tier in customer UX.
  */
 
 'use strict'
@@ -32,6 +39,7 @@ let _fallback = null
 function _loadProvider(name) {
   if (name === 'ovh')     return require('./ovh-service')
   if (name === 'contabo') return require('./contabo-service')
+  if (name === 'vultr')   return require('./vultr-service')
   throw new Error(`Unknown VPS provider: ${name}`)
 }
 
