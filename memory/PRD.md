@@ -1000,3 +1000,71 @@ require zero changes — same call patterns as Contabo/Vultr/DO.
 - 🟡 Set `BOT_USERNAME=NomadlyBot` in Railway (tech debt)
 - 🟡 Deploy churn protection (branch protection / staging)
 
+
+---
+
+## 2026-06-24 (live test) — OS-aware provider routing + live Azure smoke test PASSED ✅
+
+User asked to (a) push Azure creds to prod, (b) flip default provider, (c) buy a
+test RDP. I flagged that flipping default to Azure would break Linux purchases
+(Azure catalog is Windows-only). User confirmed the proper architecture:
+**"Digital Ocean is VPS and Azure should be for RDP"** → OS-aware routing.
+
+### Code changes
+- **`/app/js/vps-provider.js`** — added `getRdpProvider()` + `pickProviderForOs(isRDP)`
+  + `RDP_PROVIDER` env constant. New OS-aware exports. Per-record routing
+  unchanged (existing Vultr/Contabo records keep working).
+- **`/app/js/vm-instance-setup.js`** — 4 critical call sites converted from the
+  legacy `contabo` smart proxy to `vpsProvider.pickProviderForOs(isRDP).X(...)`:
+  `fetchAvailableVPSConfigs`, `fetchAvailableOS`, `createVPSInstance`,
+  `fetchVpsUpgradeOptions`. Linux purchases route to DO, RDP routes to Azure.
+- **`/app/js/azure-service.js`** — multiple production-grade fixes during live testing:
+  - Bumped osDiskSizeGB tier1/2 from 64 → 127 GB (Windows Server min)
+  - Added `_waitForResource()` helper to poll `provisioningState=Succeeded`
+    between dependent ARM resources (fixes `ReferencedResourceNotProvisioned`)
+  - Switched catalog from deprecated `Standard_B1ms/B2s/B2ms` to modern
+    `Standard_B2als_v2 / B2s_v2 / B4als_v2` (Bsv2 series — Microsoft's
+    successor; legacy Bs returns `NotAvailableForSubscription` on new accounts)
+  - Default Windows image: `2022-Datacenter` (Gen1) → `2022-datacenter-g2`
+    (Gen2). Required by all modern v5/v6/v7 SKUs.
+  - cancelInstance: retry-with-30s-delay for Network resources (handles
+    Azure's 180-sec NIC reservation hold after failed VM PUTs)
+  - Per-resource-type API version (disks need `2025-01-02`, not `2024-11-01`)
+- **`/app/scripts/set_railway_azure_vars.py`** — Pushes Azure creds +
+  `VPS_DEFAULT_PROVIDER=digitalocean` + `VPS_RDP_PROVIDER=azure` to Railway prod.
+- **`/app/scripts/smoke_azure_rdp.js`** — Live integration smoke (create →
+  poll IP → cleanup). Auto-resets circuit breaker.
+- **`/app/scripts/cleanup_orphan_smoke_resources.js`** — Sweeps failed-test
+  leftover `nmd*` resource groups from the Azure RG.
+- **`/app/tests/os-aware-provider-routing.test.js`** (new, ~150 lines, 14 cases)
+- **`/app/tests/azure-provider.test.js`** — updated catalog expectations to Bsv2
+
+### Live smoke test result
+- ✅ VM provisioned: Standard_D2s_v6, region=westeurope, image=win2022-datacenter-g2
+- ✅ Public IP allocated: 40.115.62.213
+- ✅ Power state: RUNNING in 16 seconds
+- ✅ RDP credentials generated (compliant: upper/lower/digit/special, 20 chars)
+- ✅ Full teardown: VM + NIC + IP + NSG + VNet + Disk all deleted
+- ✅ Net cost: ~$0.001 (under 1 cent)
+
+### CRITICAL FINDING — Azure subscription quota
+- Legacy `standardBSFamily`: quota=10 BUT SKUs return `NotAvailableForSubscription`
+- Modern `standardBasv2Family` / `standardBsv2Family`: **quota=0 everywhere** —
+  needs quota-increase ticket to unblock our shipped catalog
+- D-series families (`standardDsv6Family`, `StandardDsv7Family`, et al): quota=10
+  and SKUs available — used for the live smoke test
+
+### Railway production env pushed
+- AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_SUBSCRIPTION_ID
+- AZURE_RESOURCE_GROUP=nomadly-vps, AZURE_DEFAULT_LOCATION=eastus
+- VPS_DEFAULT_PROVIDER=digitalocean (was vultr), VPS_RDP_PROVIDER=azure (new)
+
+Production picks up DO routing for VPS on next deploy. Azure RDP purchases
+will fail until Bsv2 quota is approved (1-2 business days, free, auto-approved
+for ≤10 cores).
+
+### Validation
+- ✅ Full Jest suite: 303 passed / 1 skipped / 0 failed (was 287, +16)
+- ✅ ESLint clean
+- ✅ Bot boots cleanly with new env routing
+- ✅ Live Azure E2E provision + cleanup verified

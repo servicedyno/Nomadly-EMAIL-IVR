@@ -189,7 +189,10 @@ async function fetchAvailableVPSConfigs(telegramId, vpsDetails) {
     const diskType = vpsDetails.diskType || 'nvme'
     const isRDP = vpsDetails.isRDP || false
 
-    const products = contabo.listProducts(region, isRDP, diskType)
+    // OS-aware: Linux purchases use the default provider (DigitalOcean),
+    // RDP purchases route to the dedicated RDP provider (Azure) when configured.
+    const providerForOs = vpsProvider.pickProviderForOs(isRDP)
+    const products = providerForOs.listProducts(region, isRDP, diskType)
     
     // Adapt to old format expected by _index.js
     return products.map(p => ({
@@ -219,7 +222,7 @@ async function fetchAvailableVPSConfigs(telegramId, vpsDetails) {
       ],
       // Spec display (object for templates, string for fallback)
       specs: { vCPU: p.cpuCores, RAM: p.ramGb, disk: p.diskGb, diskType: p.diskType?.toUpperCase() || 'NVMe' },
-      specsStr: contabo.formatSpecs(p),
+      specsStr: providerForOs.formatSpecs(p),
       // Flag for display
       isRDP: isRDP
     }))
@@ -243,7 +246,14 @@ async function fetchAvailableOS(cpanel) {
       return []
     }
 
-    const linuxImages = await contabo.listImages('linux')
+    // OS-aware split: Linux images come from the default provider (DigitalOcean),
+    // Windows defaults come from the RDP provider (Azure) when configured. This
+    // ensures the catalogued image IDs are valid on the provider that will
+    // actually create the instance later.
+    const linuxProvider = vpsProvider.pickProviderForOs(false)
+    const rdpProvider   = vpsProvider.pickProviderForOs(true)
+
+    const linuxImages = await linuxProvider.listImages('linux')
     const osOptions = linuxImages.map(img => ({
       id: img.imageId,
       name: img.name,
@@ -254,7 +264,7 @@ async function fetchAvailableOS(cpanel) {
     }))
 
     // Add RDP as a special option at the top
-    const windowsImageId = await contabo.getDefaultWindowsImageId()
+    const windowsImageId = await rdpProvider.getDefaultWindowsImageId()
     osOptions.unshift({
       id: windowsImageId || 'rdp',
       value: 'win',
@@ -262,7 +272,7 @@ async function fetchAvailableOS(cpanel) {
       os_name: 'Windows Server 2025',
       osType: 'Windows',
       isRDP: true,
-      price: contabo.WINDOWS_LICENSE_BY_TIER[2] || 19.10  // display price (tier 2 as default); actual price computed per-tier by pricing engine
+      price: (rdpProvider.WINDOWS_LICENSE_BY_TIER && rdpProvider.WINDOWS_LICENSE_BY_TIER[2]) || 19.10  // display price (tier 2 as default); actual price computed per-tier by pricing engine
     })
 
     return osOptions
@@ -568,12 +578,18 @@ async function createVPSInstance(telegramId, vpsDetails) {
     let imageId = vpsDetails.os?.id
     let isRDP = vpsDetails.os?.isRDP || vpsDetails.isRDP || false
 
+    // OS-aware provider: Linux → DEFAULT_PROVIDER (DigitalOcean),
+    // RDP → VPS_RDP_PROVIDER (Azure). All createInstance / createSecret calls
+    // below MUST go through this provider, not the legacy `contabo` proxy,
+    // so the Azure-specific Windows licensing + VM provisioning fires.
+    const newProvider = vpsProvider.pickProviderForOs(isRDP)
+
     // Build create request (determine product first so we can pick the right image)
     const productId = vpsDetails.config?._id || vpsDetails.productId
     
     if (isRDP && (!imageId || imageId === 'rdp')) {
       // Pass productId so the correct Windows edition (SE for NVMe, DE for SSD) is selected
-      imageId = await contabo.getDefaultWindowsImageId(productId)
+      imageId = await newProvider.getDefaultWindowsImageId(productId)
     }
 
     if (!imageId) {
@@ -585,7 +601,7 @@ async function createVPSInstance(telegramId, vpsDetails) {
     // Generate a root password for the instance
     // Fix #6: Ensure minimum 20 chars (Contabo requires at least 8)
     const rootPassword = generateRandomPassword(Math.max(20, 20))
-    const passwordSecret = await contabo.createSecret(
+    const passwordSecret = await newProvider.createSecret(
       `pwd-${telegramId}-${Date.now()}`,
       rootPassword,
       'password'
@@ -656,8 +672,8 @@ async function createVPSInstance(telegramId, vpsDetails) {
       console.log(`[Contabo] Added cloud-init for Linux VPS: enable password auth + unlock root`)
     }
 
-    console.log(`[Contabo] Creating instance for user ${telegramId}:`, JSON.stringify(createOpts))
-    const instance = await contabo.createInstance(createOpts)
+    console.log(`[VPS] Creating instance for user ${telegramId} via ${newProvider.PROVIDER || 'default'}:`, JSON.stringify(createOpts))
+    const instance = await newProvider.createInstance(createOpts)
 
     if (!instance || !instance.instanceId) {
       return { error: 'Failed to create instance — no instanceId returned' }
@@ -1405,15 +1421,21 @@ async function fetchVpsUpgradeOptions(telegramId, vpsId, upgradeType = 'vps') {
     const vpsDetails = await fetchVPSDetails(telegramId, vpsId)
     if (!vpsDetails) return false
 
-    const currentProduct = contabo.getProduct(vpsDetails.productId)
-    if (!currentProduct) return false
-
     const isRDP = vpsDetails.isRDP || false
     const region = vpsDetails.region || 'EU'
 
+    // OS-aware: pricing/catalog must come from the SAME provider that runs
+    // the instance (e.g. Azure has B1ms/B2s/B2ms; DO has s-1vcpu-1gb/...).
+    // Per-instance ops still flow via dispatchByInstanceId for the actual
+    // resize; this only picks the catalog used to render the upgrade menu.
+    const upgradeProvider = vpsProvider.pickProviderForOs(isRDP)
+
+    const currentProduct = upgradeProvider.getProduct(vpsDetails.productId)
+    if (!currentProduct) return false
+
     if (upgradeType === 'vps' || upgradeType === 'plan') {
       // Return higher-tier products of the same disk type
-      const allProducts = contabo.listProducts(region, isRDP, currentProduct.diskType)
+      const allProducts = upgradeProvider.listProducts(region, isRDP, currentProduct.diskType)
       const upgrades = allProducts.filter(p => p.tier > currentProduct.tier)
 
       return upgrades.map(p => ({
@@ -1422,10 +1444,10 @@ async function fetchVpsUpgradeOptions(telegramId, vpsId, upgradeType = 'vps') {
         to: p.name,
         fromTier: currentProduct.tier,
         toTier: p.tier,
-        currentPrice: contabo.calculatePrice(currentProduct, region, isRDP).totalWithMarkup,
+        currentPrice: upgradeProvider.calculatePrice(currentProduct, region, isRDP).totalWithMarkup,
         monthlyPrice: p.pricing.totalWithMarkup,
-        priceDifference: Math.round((p.pricing.totalWithMarkup - contabo.calculatePrice(currentProduct, region, isRDP).totalWithMarkup) * 100) / 100,
-        specs: contabo.formatSpecs(p),
+        priceDifference: Math.round((p.pricing.totalWithMarkup - upgradeProvider.calculatePrice(currentProduct, region, isRDP).totalWithMarkup) * 100) / 100,
+        specs: upgradeProvider.formatSpecs(p),
         cpuCores: p.cpuCores,
         ramGb: p.ramGb,
         diskGb: p.diskGb,
@@ -1435,18 +1457,18 @@ async function fetchVpsUpgradeOptions(telegramId, vpsId, upgradeType = 'vps') {
     } else if (upgradeType === 'disk') {
       // Switch disk type: NVMe ↔ SSD
       const otherDiskType = currentProduct.diskType === 'nvme' ? 'ssd' : 'nvme'
-      const sametierProduct = (otherDiskType === 'ssd' ? contabo.PRODUCT_CATALOG_SSD : contabo.PRODUCT_CATALOG)
+      const sametierProduct = (otherDiskType === 'ssd' ? upgradeProvider.PRODUCT_CATALOG_SSD : upgradeProvider.PRODUCT_CATALOG)
         .find(p => p.tier === currentProduct.tier)
 
       if (!sametierProduct) return []
 
-      const pricing = contabo.calculatePrice(sametierProduct, region, isRDP)
+      const pricing = upgradeProvider.calculatePrice(sametierProduct, region, isRDP)
       return [{
         _id: sametierProduct.productId,
         from: currentProduct.name,
         to: sametierProduct.name,
         monthlyPrice: pricing.totalWithMarkup,
-        specs: contabo.formatSpecs(sametierProduct),
+        specs: upgradeProvider.formatSpecs(sametierProduct),
         diskType: otherDiskType
       }]
     }

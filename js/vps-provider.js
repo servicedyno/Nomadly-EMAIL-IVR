@@ -53,9 +53,11 @@
 require('dotenv').config()
 
 const DEFAULT_PROVIDER  = String(process.env.VPS_DEFAULT_PROVIDER || 'ovh').toLowerCase()
+const RDP_PROVIDER      = String(process.env.VPS_RDP_PROVIDER || '').toLowerCase() // optional override for Windows/RDP
 const FALLBACK_ENABLED  = String(process.env.VPS_CONTABO_FALLBACK_ENABLED || 'false').toLowerCase() === 'true'
 
 let _primary  = null
+let _rdp      = null
 let _fallback = null
 
 function _loadProvider(name) {
@@ -70,6 +72,38 @@ function _loadProvider(name) {
 function getProvider() {
   if (!_primary) _primary = _loadProvider(DEFAULT_PROVIDER)
   return _primary
+}
+
+/**
+ * Optional dedicated provider for Windows / RDP purchases. When
+ * `VPS_RDP_PROVIDER` is set (e.g. "azure"), every new RDP order is routed
+ * here instead of the Linux default. Per-record / per-instanceId ops still
+ * route by the ID prefix on the record so lifecycle continues to work.
+ *
+ * Returns `null` when no RDP override is configured.
+ */
+function getRdpProvider() {
+  if (!RDP_PROVIDER) return null
+  if (!_rdp) _rdp = _loadProvider(RDP_PROVIDER)
+  return _rdp
+}
+
+/**
+ * Pick the right provider for a new purchase based on the OS:
+ *   isRDP=true  → VPS_RDP_PROVIDER (e.g. Azure) if set, else default
+ *   isRDP=false → VPS_DEFAULT_PROVIDER (e.g. DigitalOcean)
+ *
+ * This is intentionally separate from the smart proxy and per-record
+ * routing — it only applies to NEW orders. Existing instances keep
+ * routing through dispatchByInstanceId/getProviderForRecord regardless
+ * of how the OS flags are set today.
+ */
+function pickProviderForOs(isRDP) {
+  if (isRDP) {
+    const rdp = getRdpProvider()
+    if (rdp) return rdp
+  }
+  return getProvider()
 }
 
 function getFallbackProvider() {
@@ -198,6 +232,8 @@ function buildSmartProxy() {
 
 module.exports = {
   getProvider,
+  getRdpProvider,
+  pickProviderForOs,
   getFallbackProvider,
   getProviderForRecord,
   listAllProviders,
@@ -205,5 +241,6 @@ module.exports = {
   dispatchByInstanceId,
   buildSmartProxy,
   DEFAULT_PROVIDER,
+  RDP_PROVIDER,
   FALLBACK_ENABLED,
 }

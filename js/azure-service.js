@@ -116,6 +116,38 @@ async function apiRequest(method, path, { body = null, apiVersion = '2024-11-01'
   }
 }
 
+/**
+ * Poll a network/compute resource until `properties.provisioningState === 'Succeeded'`.
+ *
+ * Azure ARM PUTs return as soon as the request is accepted; dependent resources
+ * can hit HTTP 429 `ReferencedResourceNotProvisioned` if we create them too
+ * early. This helper covers the gap by GET-polling for a short window
+ * (default 30s, every 2s).
+ */
+async function _waitForResource(armPath, { apiVersion = '2023-09-01', maxAttempts = 15, intervalMs = 2000 } = {}) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const d = await apiRequest('GET', armPath, { apiVersion })
+      const state = d?.properties?.provisioningState
+      if (state === 'Succeeded') return d
+      if (state === 'Failed' || state === 'Canceled') {
+        const e = new Error(`Azure resource ${armPath.split('/').pop()} provisioning ${state}`)
+        e.responseBody = d
+        throw e
+      }
+      // still Creating / Updating — wait and retry
+    } catch (e) {
+      // GET 404 means the resource hasn't yet appeared in ARM's read store
+      if (e.status !== 404) throw e
+    }
+    await new Promise(r => setTimeout(r, intervalMs))
+  }
+  // Last-ditch: return whatever the final GET shows even if not Succeeded;
+  // caller will hit the same race anyway. Logging happens at caller.
+  log(`  ⚠️  _waitForResource: ${armPath.split('/').pop()} did not reach Succeeded after ${maxAttempts * intervalMs / 1000}s — continuing`)
+  return null
+}
+
 // ─── ID helpers ──────────────────────────────────────────────────────────
 function _stripIdPrefix(id) {
   if (id == null) return null
@@ -179,30 +211,42 @@ function onProvisioningCircuitOpen(cb) {
 // We treat pricing as FLAT across regions; Azure does vary slightly (US is
 // cheapest, Australia/Japan ~10-20% premium) but the differences are small
 // enough that single-price-everywhere keeps the catalog simple.
-const _B_TIERS = [
+// ─── Catalog ─────────────────────────────────────────────────────────────
+// 2026-06-24 update: Microsoft has deprecated the original Bs-series (B1ms /
+// B2s / B2ms) for new subscriptions — they return `NotAvailableForSubscription`
+// when provisioned. We use **Bsv2-series** instead, which is the modern
+// equivalent (same burstable model, AMD EPYC hardware) and is broadly
+// available to standard PAYG subscriptions.
+//
+// All Bsv2 SKUs are SSD-only (Premium SSD or Standard SSD managed disks).
+//
+// Region note: Bsv2 has spotty availability. WEU has the full lineup; eastus
+// uses the `_p` (Ampere ARM) variants or D-series. We surface the SKU at the
+// region level via REGION_SKU_OVERRIDES below.
+const _BV2_TIERS = [
   {
-    productId:   'Standard_B1ms',
+    productId:   'Standard_B2als_v2',
     name:        'Cloud VPS 10',
-    cpuCores:    1, ramMb: 2048, diskMb: 64 * 1024,
+    cpuCores:    2, ramMb: 4096, diskMb: 127 * 1024,
     diskType:    'ssd', bandwidthTb: 0.1, portSpeedMbps: 1000,
     basePriceUsd: 30, tier: 1,
-    azureSku:    'Standard_B1ms', osDiskSizeGB: 64,
+    azureSku:    'Standard_B2als_v2', osDiskSizeGB: 127,
   },
   {
-    productId:   'Standard_B2s',
+    productId:   'Standard_B2s_v2',
     name:        'Cloud VPS 20',
-    cpuCores:    2, ramMb: 4096, diskMb: 64 * 1024,
+    cpuCores:    2, ramMb: 8192, diskMb: 127 * 1024,
     diskType:    'ssd', bandwidthTb: 0.1, portSpeedMbps: 1000,
     basePriceUsd: 52, tier: 2,
-    azureSku:    'Standard_B2s', osDiskSizeGB: 64,
+    azureSku:    'Standard_B2s_v2', osDiskSizeGB: 127,
   },
   {
-    productId:   'Standard_B2ms',
+    productId:   'Standard_B4als_v2',
     name:        'Cloud VPS 30',
-    cpuCores:    2, ramMb: 8192, diskMb: 128 * 1024,
+    cpuCores:    4, ramMb: 8192, diskMb: 128 * 1024,
     diskType:    'ssd', bandwidthTb: 0.2, portSpeedMbps: 1000,
     basePriceUsd: 96, tier: 3,
-    azureSku:    'Standard_B2ms', osDiskSizeGB: 128,
+    azureSku:    'Standard_B4als_v2', osDiskSizeGB: 128,
   },
 ]
 const _D_TIERS = [
@@ -224,8 +268,23 @@ const _D_TIERS = [
   },
 ]
 // Final catalog = B-tier always + D-tier when env flag enabled
-const PRODUCT_CATALOG = DSV5_ENABLED ? [..._B_TIERS, ..._D_TIERS] : _B_TIERS
+const PRODUCT_CATALOG = DSV5_ENABLED ? [..._BV2_TIERS, ..._D_TIERS] : _BV2_TIERS
 const PRODUCT_CATALOG_SSD = PRODUCT_CATALOG // alias for cross-provider compat
+
+// ── Smoke-test only SKU ─────────────────────────────────────────────────
+// Standard_D2s_v6 is the cheapest "actually provisionable" D-series SKU
+// available in westeurope for newer subscriptions whose `standardBSFamily`
+// quota is denied but `StandardDsv6Family` has cores. We expose it via
+// getProduct() (NOT listProducts() — it's never shown to customers) so the
+// smoke test can verify the live createInstance/cancelInstance integration.
+const _SMOKE_TEST_TIER = {
+  productId:   'Standard_D2s_v6',
+  name:        'Smoke Test (Cloud VPS 25)',
+  cpuCores:    2, ramMb: 8192, diskMb: 127 * 1024,
+  diskType:    'ssd', bandwidthTb: 0.1, portSpeedMbps: 1000,
+  basePriceUsd: 75, tier: 99,
+  azureSku:    'Standard_D2s_v6', osDiskSizeGB: 127,
+}
 
 // Customer-facing region → Azure region slug
 const REGION_TO_AZURE = {
@@ -302,7 +361,8 @@ function listProducts(regionSlug = 'EU', isWindows = true, _diskPreference = 'ss
 }
 
 function getProduct(productId) {
-  return PRODUCT_CATALOG.find(p => p.productId === productId) || null
+  return PRODUCT_CATALOG.find(p => p.productId === productId)
+    || (productId === _SMOKE_TEST_TIER.productId ? _SMOKE_TEST_TIER : null)
 }
 
 async function listRegions() {
@@ -318,16 +378,30 @@ async function listRegions() {
 }
 
 // ─── Images (Windows-only for MVP) ───────────────────────────────────────
+// Default = Windows Server 2022 Datacenter Gen2 (compatible with all modern
+// Azure VM SKUs — Bsv2, Dsv5, Dsv6, Dsv7 etc. require Gen2). Gen1 image
+// `2022-Datacenter` is kept as a fallback for legacy B-series (B1ms/B2s/B2ms)
+// that are Gen1-only.
 const WINDOWS_IMAGES = [
   {
-    imageId:   'win2022-datacenter',
+    imageId:   'win2022-datacenter-g2',
     name:      'Windows Server 2022 Datacenter',
+    family:    'Windows Server',
+    publisher: 'MicrosoftWindowsServer',
+    offer:     'WindowsServer',
+    sku:       '2022-datacenter-g2',
+    version:   'latest',
+    isDefault: true,
+    isWindows: true,
+  },
+  {
+    imageId:   'win2022-datacenter',
+    name:      'Windows Server 2022 Datacenter (Gen1 legacy)',
     family:    'Windows Server',
     publisher: 'MicrosoftWindowsServer',
     offer:     'WindowsServer',
     sku:       '2022-Datacenter',
     version:   'latest',
-    isDefault: true,
     isWindows: true,
   },
   {
@@ -341,12 +415,12 @@ const WINDOWS_IMAGES = [
     isWindows: true,
   },
   {
-    imageId:   'win2019-datacenter',
+    imageId:   'win2019-datacenter-g2',
     name:      'Windows Server 2019 Datacenter',
     family:    'Windows Server',
     publisher: 'MicrosoftWindowsServer',
     offer:     'WindowsServer',
-    sku:       '2019-Datacenter',
+    sku:       '2019-datacenter-g2',
     version:   'latest',
     isWindows: true,
   },
@@ -367,10 +441,10 @@ async function listImages(filter = 'all') {
 }
 
 async function getDefaultWindowsImageId(_productId) {
-  return 'win2022-datacenter'
+  return 'win2022-datacenter-g2'
 }
 async function getCompatibleWindowsImage(currentImageId, _productId) {
-  return currentImageId || 'win2022-datacenter'
+  return currentImageId || 'win2022-datacenter-g2'
 }
 async function getCompatibleLinuxImage(_currentImageId, _productId) {
   return null // Azure tier is Windows-only
@@ -462,7 +536,7 @@ function _generateVmName(prefix = 'nmd') {
  * Cross-provider opts:
  *   productId      — required (e.g. 'Standard_B2s')
  *   regionSlug     — required (e.g. 'EU', 'US-east')
- *   osId           — optional, defaults to 'win2022-datacenter'
+ *   osId           — optional, defaults to 'win2022-datacenter-g2'
  *   label          — optional display name, sanitised into VM name
  *   tag            — optional Azure tag (string applied as `tag:` value)
  *   password       — optional explicit password OR a fake-secret-id
@@ -475,7 +549,7 @@ async function createInstance(opts) {
   const o = opts || {}
   const productId  = o.productId
   const regionSlug = o.regionSlug || o.region
-  const osId       = o.osId || o.imageId || 'win2022-datacenter'
+  const osId       = o.osId || o.imageId || 'win2022-datacenter-g2'
   const labelHint  = o.label || o.displayName || ''
   const customer   = o.tag || (o.chatId ? `chat-${o.chatId}` : 'nomadly-customer')
 
@@ -511,9 +585,10 @@ async function createInstance(opts) {
   try {
     // ── 1. Public IP (Standard SKU, static) ─────────────────────────────
     log(`  [1/5] Public IP ${ipName}`)
-    const ip = await apiRequest(
+    const ipPath = `/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers/Microsoft.Network/publicIPAddresses/${ipName}`
+    let ip = await apiRequest(
       'PUT',
-      `/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers/Microsoft.Network/publicIPAddresses/${ipName}`,
+      ipPath,
       {
         apiVersion: '2023-09-01',
         body: {
@@ -527,9 +602,10 @@ async function createInstance(opts) {
 
     // ── 2. NSG with RDP rule ────────────────────────────────────────────
     log(`  [2/5] NSG ${nsgName} (RDP/3389 open)`)
+    const nsgPath = `/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers/Microsoft.Network/networkSecurityGroups/${nsgName}`
     await apiRequest(
       'PUT',
-      `/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers/Microsoft.Network/networkSecurityGroups/${nsgName}`,
+      nsgPath,
       {
         apiVersion: '2023-09-01',
         body: {
@@ -556,9 +632,10 @@ async function createInstance(opts) {
 
     // ── 3. VNet + Subnet ────────────────────────────────────────────────
     log(`  [3/5] VNet ${vnetName}`)
+    const vnetPath = `/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers/Microsoft.Network/virtualNetworks/${vnetName}`
     await apiRequest(
       'PUT',
-      `/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers/Microsoft.Network/virtualNetworks/${vnetName}`,
+      vnetPath,
       {
         apiVersion: '2023-09-01',
         body: {
@@ -571,13 +648,27 @@ async function createInstance(opts) {
         },
       }
     )
-    const subnetId = `/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers/Microsoft.Network/virtualNetworks/${vnetName}/subnets/${subnetName}`
+    const subnetId = `${vnetPath}/subnets/${subnetName}`
+
+    // Wait for the 3 network prerequisites to finish provisioning before
+    // creating the NIC (which references all three). Without this, Azure ARM
+    // returns HTTP 429 `ReferencedResourceNotProvisioned`.
+    log(`  [3.5/5] Waiting for IP, NSG, VNet to reach Succeeded…`)
+    await Promise.all([
+      _waitForResource(ipPath,   { apiVersion: '2023-09-01' }),
+      _waitForResource(nsgPath,  { apiVersion: '2023-09-01' }),
+      _waitForResource(vnetPath, { apiVersion: '2023-09-01' }),
+    ])
+    // Refresh the IP doc so we have the final allocated address (Standard
+    // static IPs are assigned during the Succeeded transition).
+    ip = await apiRequest('GET', ipPath, { apiVersion: '2023-09-01' })
 
     // ── 4. NIC ──────────────────────────────────────────────────────────
     log(`  [4/5] NIC ${nicName}`)
+    const nicPath = `/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers/Microsoft.Network/networkInterfaces/${nicName}`
     await apiRequest(
       'PUT',
-      `/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers/Microsoft.Network/networkInterfaces/${nicName}`,
+      nicPath,
       {
         apiVersion: '2023-09-01',
         body: {
@@ -591,14 +682,14 @@ async function createInstance(opts) {
                 privateIPAllocationMethod: 'Dynamic',
               },
             }],
-            networkSecurityGroup: {
-              id: `/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers/Microsoft.Network/networkSecurityGroups/${nsgName}`,
-            },
+            networkSecurityGroup: { id: nsgPath },
           },
           tags,
         },
       }
     )
+    // Wait for the NIC too before attaching it to the VM
+    await _waitForResource(nicPath, { apiVersion: '2023-09-01' })
 
     // ── 5. VM ───────────────────────────────────────────────────────────
     log(`  [5/5] VM ${vmName} (${productId} Windows Server)`)
@@ -713,7 +804,7 @@ async function getInstance(instanceId) {
     serverStatus:    provState,
     region:          vm.location,
     plan:            vm.properties?.hardwareProfile?.vmSize,
-    osId:            'win2022-datacenter',
+    osId:            'win2022-datacenter-g2',
     label:           vm.name,
     tag:             vm.tags?.customer || null,
     dateCreated:     vm.properties?.timeCreated || null,
@@ -806,7 +897,7 @@ async function reinstallInstance(instanceId, opts = {}) {
   const tags      = vm.tags || {}
   const osDisk    = vm.properties?.storageProfile?.osDisk?.name
   const diskSize  = vm.properties?.storageProfile?.osDisk?.diskSizeGB || 64
-  const imgRef    = _imageReference(opts.osId || opts.imageId || 'win2022-datacenter')
+  const imgRef    = _imageReference(opts.osId || opts.imageId || 'win2022-datacenter-g2')
   const product   = getProduct(sku) || { osDiskSizeGB: diskSize }
   const adminPwd  = _resolvePasswordSecret(opts.password || opts.rootPassword) || _generateAzurePassword(20, adminUser)
 
@@ -873,15 +964,38 @@ async function cancelInstance(instanceId, opts = {}) {
   ]
   const results = []
   for (const [type, name] of targets) {
-    try {
-      await apiRequest('DELETE', `/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers/${type}/${name}`,
-        { apiVersion: type.startsWith('Microsoft.Compute') ? '2024-11-01' : '2023-09-01' })
+    let lastErr = null
+    let deleted = false
+    // For Network resources we may need to retry: when VM provisioning fails
+    // partway through, Azure holds the NIC "reserved" for up to ~180s, which
+    // also blocks NSG / IP / VNet deletion. Up to 4 retries × 30s = 2 min.
+    const maxRetries = type.startsWith('Microsoft.Network') ? 4 : 1
+    // Per-resource API version. Disks accept 2025-01-02 (not 2024-11-01).
+    const apiVersion = type === 'Microsoft.Compute/disks' ? '2025-01-02'
+                     : type.startsWith('Microsoft.Compute') ? '2024-11-01'
+                     : '2023-09-01'
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        await apiRequest('DELETE', `/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers/${type}/${name}`,
+          { apiVersion })
+        deleted = true
+        break
+      } catch (e) {
+        lastErr = e
+        if (e.status === 404) { deleted = true; break } // already gone
+        // Only retry on transient conflicts; bail immediately for auth/other errors
+        if (e.status !== 400 && e.status !== 409) break
+        if (attempt < maxRetries) {
+          log(`  retry [${attempt}/${maxRetries - 1}] deleting ${type}/${name} in 30s (status=${e.status})`)
+          await new Promise(r => setTimeout(r, 30_000))
+        }
+      }
+    }
+    if (deleted) {
       results.push({ type, name, deleted: true })
-    } catch (e) {
-      // 404 is fine (already gone). Other errors logged but don't abort the
-      // remaining deletes — best-effort teardown.
-      if (e.status !== 404) log(`  warn deleting ${type}/${name}: ${e.message}`)
-      results.push({ type, name, deleted: false, err: e.status })
+    } else {
+      log(`  warn deleting ${type}/${name}: ${lastErr?.message}`)
+      results.push({ type, name, deleted: false, err: lastErr?.status })
     }
   }
   return { success: true, results }

@@ -32,10 +32,10 @@ const path = require('path')
 const azure = require(path.join(__dirname, '..', 'js', 'azure-service.js'))
 
 describe('Azure — Cloud VPS catalog (Windows / RDP-only, B-tier MVP)', () => {
-  test('MVP launches with exactly 3 B-tier SKUs (D-tier gated off)', () => {
+  test('MVP launches with exactly 3 Bsv2-tier SKUs (D-tier gated off)', () => {
     expect(azure.PRODUCT_CATALOG).toHaveLength(3)
     expect(azure.PRODUCT_CATALOG.map(p => p.productId)).toEqual([
-      'Standard_B1ms', 'Standard_B2s', 'Standard_B2ms',
+      'Standard_B2als_v2', 'Standard_B2s_v2', 'Standard_B4als_v2',
     ])
   })
 
@@ -50,6 +50,7 @@ describe('Azure — Cloud VPS catalog (Windows / RDP-only, B-tier MVP)', () => {
       expect(p.name).not.toMatch(/azure/i)
       expect(p.name).not.toMatch(/microsoft/i)
       expect(p.name).not.toMatch(/standard_b/i)
+      expect(p.name).not.toMatch(/_v2/i)
       expect(p.name).not.toMatch(/vultr/i)
       expect(p.name).not.toMatch(/contabo/i)
       expect(p.name).not.toMatch(/digital\s*ocean/i)
@@ -57,11 +58,11 @@ describe('Azure — Cloud VPS catalog (Windows / RDP-only, B-tier MVP)', () => {
     }
   })
 
-  test('Tier 1 = B1ms (1 vCPU / 2 GB) sold at $30/mo (200% markup over $10)', () => {
+  test('Tier 1 = B2als_v2 (2 vCPU / 4 GB) sold at $30/mo (200% markup over $10)', () => {
     const tier1 = azure.PRODUCT_CATALOG[0]
-    expect(tier1.productId).toBe('Standard_B1ms')
-    expect(tier1.cpuCores).toBe(1)
-    expect(tier1.ramMb).toBe(2048)
+    expect(tier1.productId).toBe('Standard_B2als_v2')
+    expect(tier1.cpuCores).toBe(2)
+    expect(tier1.ramMb).toBe(4096)
     expect(tier1.basePriceUsd).toBe(30)
   })
 
@@ -75,7 +76,7 @@ describe('Azure — Cloud VPS catalog (Windows / RDP-only, B-tier MVP)', () => {
     const azureWithD = require(path.join(__dirname, '..', 'js', 'azure-service.js'))
     expect(azureWithD.PRODUCT_CATALOG).toHaveLength(5)
     expect(azureWithD.PRODUCT_CATALOG.map(p => p.productId)).toEqual([
-      'Standard_B1ms', 'Standard_B2s', 'Standard_B2ms',
+      'Standard_B2als_v2', 'Standard_B2s_v2', 'Standard_B4als_v2',
       'Standard_D2s_v5', 'Standard_D4s_v5',
     ])
     // restore
@@ -86,9 +87,9 @@ describe('Azure — Cloud VPS catalog (Windows / RDP-only, B-tier MVP)', () => {
 
 describe('Azure — pricing with 200% markup', () => {
   test.each([
-    ['Standard_B1ms',  30,  90],
-    ['Standard_B2s',   52, 156],
-    ['Standard_B2ms',  96, 288],
+    ['Standard_B2als_v2',  30,  90],
+    ['Standard_B2s_v2',    52, 156],
+    ['Standard_B4als_v2',  96, 288],
   ])('%s costs $%i × 3 = $%i sell price', (id, base, sell) => {
     const p = azure.getProduct(id)
     const price = azure.calculatePrice(p, 'EU', true)
@@ -97,13 +98,13 @@ describe('Azure — pricing with 200% markup', () => {
   })
 
   test('Windows licence is bundled — windowsLicense reports 0 (cross-provider compat)', () => {
-    const p = azure.getProduct('Standard_B1ms')
+    const p = azure.getProduct('Standard_B2als_v2')
     const price = azure.calculatePrice(p, 'EU', true)
     expect(price.windowsLicense).toBe(0)
   })
 
   test('Region surcharge is zero across all 9 supported regions (flat pricing)', () => {
-    const p = azure.getProduct('Standard_B1ms')
+    const p = azure.getProduct('Standard_B2als_v2')
     for (const region of Object.keys(azure.REGION_TO_AZURE)) {
       const price = azure.calculatePrice(p, region, true)
       expect(price).not.toBeNull()
@@ -112,7 +113,7 @@ describe('Azure — pricing with 200% markup', () => {
   })
 
   test('Unknown region returns null pricing', () => {
-    const p = azure.getProduct('Standard_B1ms')
+    const p = azure.getProduct('Standard_B2als_v2')
     expect(azure.calculatePrice(p, 'MARS', true)).toBeNull()
   })
 
@@ -179,20 +180,25 @@ describe('Azure — images: Windows-ONLY, no Linux on this tier', () => {
     }
   })
 
-  test('Default image is Windows Server 2022 Datacenter', async () => {
-    expect(await azure.getDefaultWindowsImageId('Standard_B1ms')).toBe('win2022-datacenter')
+  test('Default image is Windows Server 2022 Datacenter (Gen2)', async () => {
+    expect(await azure.getDefaultWindowsImageId('Standard_B2als_v2')).toBe('win2022-datacenter-g2')
   })
 
-  test('_imageReference resolves to Microsoft publisher + valid SKU', () => {
-    const ref = azure._imageReference('win2022-datacenter')
+  test('_imageReference resolves to Microsoft publisher + valid Gen2 SKU', () => {
+    const ref = azure._imageReference('win2022-datacenter-g2')
     expect(ref.publisher).toBe('MicrosoftWindowsServer')
     expect(ref.offer).toBe('WindowsServer')
-    expect(ref.sku).toBe('2022-Datacenter')
+    expect(ref.sku).toBe('2022-datacenter-g2')
     expect(ref.version).toBe('latest')
   })
 
-  test('Unknown imageId falls back to default Windows Server 2022', () => {
+  test('Unknown imageId falls back to default Gen2 Windows Server 2022', () => {
     const ref = azure._imageReference('does-not-exist')
+    expect(ref.sku).toBe('2022-datacenter-g2')
+  })
+
+  test('Legacy Gen1 image still resolvable for legacy B-series', () => {
+    const ref = azure._imageReference('win2022-datacenter')
     expect(ref.sku).toBe('2022-Datacenter')
   })
 })
@@ -364,10 +370,10 @@ describe('Azure — formatInstanceForDisplay (cross-provider parity)', () => {
       mainIp:      '20.85.123.45',
       status:      'running',
       region:      'westeurope',
-      plan:        'Standard_B1ms',
-      ramMb:       2048,
-      diskMb:      64 * 1024,
-      cpuCores:    1,
+      plan:        'Standard_B2als_v2',
+      ramMb:       4096,
+      diskMb:      127 * 1024,
+      cpuCores:    2,
       label:       'demo',
       createdDate: '2026-06-24T00:00:00Z',
       defaultUser: 'nomadly',
@@ -379,25 +385,25 @@ describe('Azure — formatInstanceForDisplay (cross-provider parity)', () => {
     expect(fmt.isWindows).toBe(true)
     expect(fmt.defaultUser).toBe('nomadly')
     expect(fmt.regionName).toBe('Europe (West)')
-    expect(fmt.ramGb).toBe(2)
-    expect(fmt.diskGb).toBe(64)
+    expect(fmt.ramGb).toBe(4)
+    expect(fmt.diskGb).toBe(127)
     expect(fmt.productName).toBe('Cloud VPS 10')
   })
 
   test('Deallocated / stopped status shows 🔴', () => {
     const fmt1 = azure.formatInstanceForDisplay({
-      instanceId: 'az-x', status: 'deallocated', region: 'westeurope', plan: 'Standard_B1ms',
+      instanceId: 'az-x', status: 'deallocated', region: 'westeurope', plan: 'Standard_B2als_v2',
     })
     expect(fmt1.statusEmoji).toBe('🔴')
     const fmt2 = azure.formatInstanceForDisplay({
-      instanceId: 'az-y', status: 'stopped', region: 'westeurope', plan: 'Standard_B1ms',
+      instanceId: 'az-y', status: 'stopped', region: 'westeurope', plan: 'Standard_B2als_v2',
     })
     expect(fmt2.statusEmoji).toBe('🔴')
   })
 
   test('Creating / updating status shows 🟡', () => {
     const fmt = azure.formatInstanceForDisplay({
-      instanceId: 'az-z', status: 'Creating', region: 'eastus', plan: 'Standard_B2s',
+      instanceId: 'az-z', status: 'Creating', region: 'eastus', plan: 'Standard_B2s_v2',
     })
     expect(fmt.statusEmoji).toBe('🟡')
   })
