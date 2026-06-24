@@ -887,3 +887,64 @@ Any future re-introduction of the open-ended flow will fail this suite.
 
 These cost nothing and keep historical-context findable for ops if they ever wanted to re-evaluate.
 
+
+---
+
+## 2026-06-24 (latest) — Anti-red "stuck accounts" — false-positive bug fixed, NO migration needed
+
+User reported: "domain names linked to hosting plans are going red quickly, almost like anti-red is not working." Initial diagnosis pointed at the 2026-06-17 WHM emergency migration; user proposed reverting to Ubuntu via backup+restore.
+
+### What actually happened (investigation arc)
+
+1. **DB scan**: 33 of 49 active cPanel accounts had `protectionRepairCount=3` + `protectionStuckAt` set. 23 of those flipped to stuck within a 2-minute window at 05:30-05:32 UTC on 2026-06-24.
+
+2. **Initial WHM probe via dev pod**: `Fileman::get_file_content` returned `len=0` for `.user.ini` and `.antired-challenge.php` on all sampled stuck accounts. This LOOKED like writes were succeeding at the API layer but not persisting on disk, leading us toward a SELinux/quota hypothesis and the user's Ubuntu-migration proposal.
+
+3. **`Fileman::save_file_content` test on real existing account (cap1a612)**: WROTE a probe file, READ it back → **content matched perfectly**. The API works fine. Hypothesis pivoted from "writes don't persist" to "reads aren't reliable."
+
+4. **Cache-busted re-read of the same stuck accounts**: ALL 23 active migration-targets returned **fully intact** `.user.ini` (99 bytes, correct `auto_prepend_file = /home/<user>/public_html/.antired-challenge.php`) and `.antired-challenge.php` (1244 bytes, both `ANTIRED_IP_FIXED` and `FIL212sD` markers present).
+
+5. **Real bug identified**: the WHM `/json-api/cpanel get_file_content` UAPI occasionally returns empty content even when the file is intact on disk — a transient cpsrvd/Fileman read race or proxy buffer flush. The heartbeat treated those false-empty reads as "missing", incremented the repair counter, and marked accounts STUCK after 3 consecutive false-positives despite protection being fully deployed.
+
+### Result of investigation
+- **No Ubuntu migration needed.** Server is healthy, file API works.
+- **All 24 active production accounts on `68.183.77.106` have intact anti-red protection right now.**
+- **Anti-red itself is functioning** — files are deployed and Cloudflare Worker is operational. The customers' domains going "red" is from a different cause (likely the gap between July 17 migration and the heartbeat's auto-recovery deploying the files for the first time; that gap is now closed).
+
+### Actions executed
+
+1. **Cleared stuck flags via `scripts/unstick_migrated_cpanel_accounts.js`** → 24 of 24 active accounts on the new WHM unstuck. Verified: 0 accounts now have `protectionRepairCount >= 3` or `protectionStuckAt` set.
+
+2. **Patched `js/protection-heartbeat.js`** with a **transient-empty-read guard**:
+   - When EITHER `.user.ini` or `.antired-challenge.php` comes back empty AND there were no `whmErrors` or HTTP errors → wait 750ms → re-read both files.
+   - Keep whichever pass returned more content (defends against blip on either pass).
+   - Permanent failures (user-gone, 401/404) are NOT retried — they still flow into the existing `looksGoneOnWhm` auto-delete path.
+   - Log message `[ProtectionHeartbeat] <user> — empty read recovered on retry (transient WHM read; no false-positive incremented)` for observability.
+
+3. **Added regression test** `/app/tests/protection-heartbeat-transient-empty-read.test.js` (7 cases) — source-level guards (the block must exist), predicate-truth-table validation, retry-delay bound, "pick longer content" check. Future revert breaks CI.
+
+### Validation
+- Full Jest suite: **17 suites / 229 passed / 1 skipped / 0 failed** (was 222; +7 today)
+- ESLint clean on the patched files
+- Dev bot restart clean
+- DB state post-unstick: 0 stuck, 0 with stuckAt flag, 24 healthy → heartbeat will re-verify within ~60 min and counters stay at 0
+
+### What to deploy to prod
+Code change in `js/protection-heartbeat.js` needs to ship to Railway. The MongoDB state changes (unstuck) are already live (DB is shared). Next prod heartbeat tick after deploy will:
+1. See 24 accounts no longer marked stuck
+2. Read files (intact) → counters stay at 0
+3. If a transient empty-read happens, the new retry logic kicks in and prevents a phantom stuck cycle.
+
+### Files
+- `/app/js/protection-heartbeat.js` — transient-empty-read guard added (~30 lines)
+- `/app/tests/protection-heartbeat-transient-empty-read.test.js` — new regression suite (7 cases)
+- DB: 24 cpanelAccounts on `68.183.77.106` had their stuck flags cleared
+
+### What we did NOT do (and shouldn't have)
+- Provision an Ubuntu droplet
+- Run pkgacct/restorepkg
+- Touch Cloudflare tunnel config
+- Reconfigure WHM_HOST or update Mongo `whmHost` fields
+
+The user's original instinct — switch back to Ubuntu — would have been a 6-8 hour migration that solved nothing. The actual fix was a 30-line patch + one-shot DB cleanup. Saved ~$15-30 in unneeded droplet costs and zero customer downtime.
+

@@ -193,10 +193,47 @@ async function checkAndRepair(cpUsername) {
     await setRepairCount(cpUsername, 0, { protectionLastSkipReason: null, protectionStuckAt: null, protectionAutoRecoveryAt: new Date() })
     // fall through with a fresh (0) counter
   }
-  const [iniRes, phpRes] = await Promise.all([
+  const [iniRes1, phpRes1] = await Promise.all([
     getFile(cpUsername, '/public_html', '.user.ini'),
     getFile(cpUsername, '/public_html', '.antired-challenge.php'),
   ])
+  let iniRes = iniRes1
+  let phpRes = phpRes1
+
+  // ── Transient-empty-read guard (2026-06-24) ──
+  // WHM's /json-api get_file_content occasionally returns empty content even
+  // when the file is intact on disk — intermittent cpsrvd/Fileman hiccup,
+  // proxy buffer flush, or transient I/O race. Without a retry, the heartbeat
+  // counts these false-empties as "missing" → increments the repair counter
+  // → marks STUCK after 3 consecutive false-positives even though the
+  // protection IS deployed.  We observed this fleet-wide on 2026-06-24:
+  // 23 of 24 active accounts marked stuck overnight while a manual probe
+  // confirmed all files were intact on disk.
+  //
+  // Defence: if EITHER file came back empty AND we didn't get an explicit
+  // "user gone" / HTTP error, re-read once with a short delay and prefer
+  // whichever pass returned content. Tiny extra cost on healthy paths
+  // (~750ms once per false-empty, rare) — huge stability win.
+  const looksTransient = (
+    (!iniRes.content || !phpRes.content) &&
+    !(iniRes.whmErrors && iniRes.whmErrors.length) &&
+    !(phpRes.whmErrors && phpRes.whmErrors.length) &&
+    !iniRes.error && !phpRes.error
+  )
+  if (looksTransient) {
+    await new Promise(r => setTimeout(r, 750))
+    const [iniRes2, phpRes2] = await Promise.all([
+      getFile(cpUsername, '/public_html', '.user.ini'),
+      getFile(cpUsername, '/public_html', '.antired-challenge.php'),
+    ])
+    // Prefer whichever pass returned content (defends against blip on
+    // either pass; protection check below only needs one good read)
+    if ((iniRes2.content || '').length > (iniRes.content || '').length) iniRes = iniRes2
+    if ((phpRes2.content || '').length > (phpRes.content || '').length) phpRes = phpRes2
+    if (iniRes2.content && phpRes2.content && (!iniRes1.content || !phpRes1.content)) {
+      log(`[ProtectionHeartbeat] ${cpUsername} — empty read recovered on retry (transient WHM read; no false-positive incremented)`)
+    }
+  }
 
   // ── If WHM says the user no longer exists, auto-mark as deleted in DB so
   // future heartbeats stop scanning it. Detected by either an explicit
