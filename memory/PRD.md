@@ -782,3 +782,51 @@ The bot's existing handler `changeVpsInstanceStatus(vpsDetails, 'start'|'stop'|'
 - `/app/tests/digitalocean-provider.test.js` (new, 52 cases)
 - `/app/scripts/smoke_digitalocean.js` (new — live read-only DO API smoke test)
 
+
+---
+
+## 2026-06-24 (later) — DigitalOcean bot-side lifecycle integration patches
+
+User asked: "management of the instance is integrated also?" — a sharp question that prompted a precise audit of every bot lifecycle path. Found 2 destructive-cancel traps that needed patching before DO could safely go live, plus 1 UX speedup.
+
+### Findings
+
+| Bot action | Code path | DO status BEFORE | Fix |
+|---|---|---|---|
+| Start/Stop/Restart/Shutdown | `changeVpsInstanceStatus` → smart proxy → DO via `do-` prefix | ✅ Already worked | — |
+| Change password | `getProviderForRecord(record)` → DO `resetPassword` | ✅ Already worked | — |
+| Reinstall OS | `getProviderForRecord(record)` → DO `reinstallInstance` | ✅ Already worked | — |
+| Snapshots / Upgrade | smart proxy → DO | ✅ Already worked | — |
+| **Cancel-on-create** | only guarded Vultr; called `cancelInstance` on DO → would IMMEDIATELY DELETE the just-purchased droplet | ❌ **destructive** | Extended guard to `['vultr','digitalocean']` |
+| **Toggle auto-renew → OFF** | called `cancelInstance` on DO → would destroy the running VPS the moment user toggled off | ❌ **destructive** | Added DO+Vultr guard; skip provider call, just set DB flag |
+| **Delete VPS** | smart proxy → DO DELETE; verification loop polled `getInstance` for 9-12s expecting `cancelDate` that DO never returns; succeeded only via 404-fallback | ⚠️ worked but slow | Added DO+Vultr short-circuit (synchronous-delete shortcut, mirrors OVH branch) |
+
+### Patches shipped (`vm-instance-setup.js`)
+1. **Line ~787 cancel-on-create guard** — `else if (vpsProvider.detectProviderByInstanceId(...) === 'vultr')` → `else if (['vultr','digitalocean'].includes(...))`. Now also marks the DB record with `cancelReason: digitalocean_no_scheduled_cancel_db_only` for audit visibility.
+2. **Line ~1297 changeVpsAutoRenewal toggle** — Added top-level provider guard: if instance is Vultr or DO, skip the `getInstance` + `cancelInstance` provider call entirely (would destroy a running VPS). DB-side `autoRenewable=false` is sufficient — renewal scheduler honours it.
+3. **Line ~1140 deleteVPSinstance** — Added a Vultr+DO short-circuit branch mirroring the OVH one. `cancelInstance` returning non-throwing IS the confirmation (DELETE is synchronous on both providers). Saves the user 9-12s of wasted polling for a `cancelDate` that will never appear, AND avoids a hard-error path if the verification loop fails to catch the 404.
+
+### Tests added
+`/app/tests/digitalocean-bot-lifecycle.test.js` — 12 new cases:
+- Smart proxy dispatches every lifecycle method (start/stop/restart/shutdown/resetPassword/reinstallInstance/cancelInstance/upgradeInstance/updateInstanceName/createSnapshot/listSnapshots/deleteSnapshot) for `do-` IDs by spying on the DO service
+- Numeric IDs still dispatch to Contabo (legacy preserved)
+- `getProviderForRecord` picks DO when `contaboInstanceId` starts with `do-` even WITHOUT an explicit `provider` field
+- Source-level guard checks ensure the destructive-cancel patches stay in place (would catch regression if anyone reverts the guards)
+- DB record shape compatibility test asserts the field set the bot UI expects
+
+Full Jest suite: **211 pass + 1 skipped + 0 failed** across 15 suites (was 199; +12 today).
+ESLint clean across all touched files. Bot restart clean — no init errors.
+
+### Net effect
+Every existing bot UI button now works correctly on DO instances:
+- 🟢 **Start / Stop / Restart / Shutdown** — flow through smart proxy → DO power actions
+- 🔑 **Change Password / Reinstall** — `getProviderForRecord` → DO rebuild + cloud-init
+- 🗑️ **Delete** — immediate DO DELETE, no false wait for non-existent cancelDate
+- ⚙️ **Auto-renew toggle** — DB-only flag for DO/Vultr (provider doesn't support scheduled cancel)
+- 📸 **Snapshots / Upgrade / Rename** — all route correctly via smart proxy
+- 🛡️ **Cancel-on-create** — silent DB no-op for DO/Vultr instead of destroying the box
+
+### Files
+- `/app/js/vm-instance-setup.js` (3 patches: 2 destructive-cancel guards + 1 UX speedup)
+- `/app/tests/digitalocean-bot-lifecycle.test.js` (new, 12 cases)
+

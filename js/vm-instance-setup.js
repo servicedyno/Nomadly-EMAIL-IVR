@@ -784,19 +784,20 @@ async function createVPSInstance(telegramId, vpsDetails) {
     // to cancel and we'd just log noise from a guaranteed 404.
     if (String(instance.instanceId).startsWith('dryrun-')) {
       console.log(`[VPS] Skipping cancel-on-create for dry-run instance ${instance.instanceId}`)
-    } else if (vpsProvider.detectProviderByInstanceId(instance.instanceId) === 'vultr') {
-      // ── Vultr has no scheduled cancel — DELETE is destructive. ──
-      // Calling cancelInstance on Vultr without scheduleOnly=true would
+    } else if (['vultr', 'digitalocean'].includes(vpsProvider.detectProviderByInstanceId(instance.instanceId))) {
+      // ── Vultr & DigitalOcean have no scheduled cancel — DELETE is destructive. ──
+      // Calling cancelInstance on these providers without scheduleOnly=true would
       // destroy the just-created VPS instantly. autoRenewable=false in our DB
-      // is sufficient — the renewal scheduler skips Vultr instances when
+      // is sufficient — the renewal scheduler skips these instances when
       // autoRenewable is false (see hosting-scheduler.js / contabo cleanup).
-      console.log(`[VPS] Skipping cancel-on-create for Vultr instance ${instance.instanceId} — provider has no scheduled cancel; autoRenewable=false in DB controls renewal.`)
+      const _provName = vpsProvider.detectProviderByInstanceId(instance.instanceId)
+      console.log(`[VPS] Skipping cancel-on-create for ${_provName} instance ${instance.instanceId} — provider has no scheduled cancel; autoRenewable=false in DB controls renewal.`)
       if (_vpsPlansOf) {
         await _vpsPlansOf.updateOne(
           { contaboInstanceId: instance.instanceId },
           { $set: {
               _contaboCancelledEarly: false,
-              cancelReason: 'vultr_no_scheduled_cancel_db_only',
+              cancelReason: `${_provName}_no_scheduled_cancel_db_only`,
             }
           }
         )
@@ -1117,6 +1118,11 @@ async function deleteVPSinstance(chatId, vpsId) {
     // PUT /vps/{sn}/serviceInfos (renew.deleteAtExpiration=true). A non-throwing
     // return IS the confirmation — OVH has no Contabo-style `cancelDate` to poll,
     // so skip the cancelDate verification loop below (which would always fail for OVH).
+    //
+    // Vultr & DigitalOcean: `cancelInstance` performs an IMMEDIATE DELETE
+    // (no scheduled cancellation). A non-throwing return IS the confirmation;
+    // the droplet/instance is already destroyed. Skip the verification poll
+    // (it would spend 9-12s waiting for a cancelDate that will never exist).
     const _providerName = vpsProvider.detectProviderByInstanceId(contaboId)
       || (localRecord?.provider || '').toLowerCase()
       || 'contabo'
@@ -1134,6 +1140,20 @@ async function deleteVPSinstance(chatId, vpsId) {
         )
       }
       return { success: true, data: result, method: 'ovh-serviceInfos' }
+    }
+    if (_providerName === 'vultr' || _providerName === 'digitalocean') {
+      console.log(`[VPS] ${_providerName} cancel confirmed for ${contaboId} (immediate delete — droplet/instance destroyed)`)
+      if (_vpsPlansOf) {
+        await _vpsPlansOf.updateOne(
+          { vpsId: String(vpsId) },
+          { $set: {
+              status: 'DELETED',
+              deletedAt: new Date(),
+              cancelReason: `${_providerName}_immediate_delete`,
+          } }
+        )
+      }
+      return { success: true, data: result, method: `${_providerName}-immediate-delete` }
     }
 
     // Step 2: VERIFY the cancellation actually took effect by re-fetching
@@ -1294,36 +1314,49 @@ async function changeVpsAutoRenewal(telegramId, vpsDetails) {
     // was too late: Contabo had already invoiced the next month, so cancelDate
     // landed one period later and the user was billed an extra month.
     if (newValue === false && contaboInstanceId) {
-      try {
-        const live = await contabo.getInstance(contaboInstanceId).catch(() => null)
-        if (live && !live.cancelDate) {
-          await contabo.cancelInstance(contaboInstanceId)
-          // Re-fetch to capture the cancelDate (Contabo can take a few seconds)
-          let confirmed = null
-          for (let attempt = 1; attempt <= 3; attempt++) {
-            await new Promise(r => setTimeout(r, 3000))
-            try {
-              const post = await contabo.getInstance(contaboInstanceId)
-              if (post?.cancelDate) { confirmed = post.cancelDate; break }
-            } catch (_) { /* getInstance can briefly 404 during cancel-propagation — keep polling */ }
-          }
-          if (confirmed) {
+      // ── Provider-aware guard ──
+      // Vultr & DigitalOcean have no scheduled cancel — `cancelInstance`
+      // would IMMEDIATELY DESTROY the running VPS the moment the user
+      // toggles auto-renew OFF. For these providers we skip the provider
+      // call entirely and rely on the DB-side `autoRenewable=false` flag
+      // (the renewal scheduler already honours it).
+      const _provName = vpsProvider.detectProviderByInstanceId(contaboInstanceId)
+        || (vpsDetails.provider || '').toLowerCase()
+      if (_provName === 'vultr' || _provName === 'digitalocean') {
+        console.log(`[VPS] auto-renew OFF for ${_provName} instance ${contaboInstanceId} — skipping provider cancelInstance (would be destructive); DB flag is sufficient`)
+        update.cancelReason = `auto_renew_disabled_by_user_${_provName}_db_only`
+      } else {
+        try {
+          const live = await contabo.getInstance(contaboInstanceId).catch(() => null)
+          if (live && !live.cancelDate) {
+            await contabo.cancelInstance(contaboInstanceId)
+            // Re-fetch to capture the cancelDate (Contabo can take a few seconds)
+            let confirmed = null
+            for (let attempt = 1; attempt <= 3; attempt++) {
+              await new Promise(r => setTimeout(r, 3000))
+              try {
+                const post = await contabo.getInstance(contaboInstanceId)
+                if (post?.cancelDate) { confirmed = post.cancelDate; break }
+              } catch (_) { /* getInstance can briefly 404 during cancel-propagation — keep polling */ }
+            }
+            if (confirmed) {
+              update._contaboCancelledEarly = true
+              update.contaboCancelDate = confirmed
+              update.cancelledAt = new Date()
+              update.cancelReason = 'auto_renew_disabled_by_user'
+              console.log(`[VPS] User ${telegramId} disabled auto-renew → Contabo cancelled. cancelDate=${confirmed}`)
+            } else {
+              console.log(`[VPS] User ${telegramId} disabled auto-renew → Contabo cancel call returned but cancelDate not yet visible; will retry from scheduler.`)
+            }
+          } else if (live?.cancelDate) {
+            // Already cancelled on Contabo (could happen if scheduler cancelled first)
             update._contaboCancelledEarly = true
-            update.contaboCancelDate = confirmed
-            update.cancelledAt = new Date()
-            update.cancelReason = 'auto_renew_disabled_by_user'
-            console.log(`[VPS] User ${telegramId} disabled auto-renew → Contabo cancelled. cancelDate=${confirmed}`)
-          } else {
-            console.log(`[VPS] User ${telegramId} disabled auto-renew → Contabo cancel call returned but cancelDate not yet visible; will retry from scheduler.`)
+            update.contaboCancelDate = live.cancelDate
           }
-        } else if (live?.cancelDate) {
-          // Already cancelled on Contabo (could happen if scheduler cancelled first)
-          update._contaboCancelledEarly = true
-          update.contaboCancelDate = live.cancelDate
+        } catch (cancelErr) {
+          console.log(`[VPS] Contabo cancel-on-disable failed for ${contaboInstanceId}: ${cancelErr.message}`)
+          // Don't fail the toggle — DB update still proceeds so scheduler can retry.
         }
-      } catch (cancelErr) {
-        console.log(`[VPS] Contabo cancel-on-disable failed for ${contaboInstanceId}: ${cancelErr.message}`)
-        // Don't fail the toggle — DB update still proceeds so scheduler can retry.
       }
     }
 
