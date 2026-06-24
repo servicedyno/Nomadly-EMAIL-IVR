@@ -8673,19 +8673,12 @@ Enter new value:`), bc)
     },
     //
     [a.selectCurrencyToDeposit]: async () => {
-      // ── Open-ended wallet deposit (2026-06-18) ──
-      // Old flow: prompt user to type a USD amount, then method, then coin,
-      // then generate a fixed-amount invoice → friction + overpayment bugs.
-      // New flow: tap-only. Skip amount + method, go straight to the crypto
-      // picker. Per-coin minimums enforced at webhook receipt time
-      // (config.walletDepositMinFor). If bank/NGN is ever re-enabled, give
-      // it a dedicated entry button rather than re-introducing the global
-      // amount prompt.
-      if (process.env.HIDE_BANK_PAYMENT === 'true') {
-        return goto[a.selectCryptoToDeposit]()
-      }
-      // Bank payment still enabled → keep legacy method picker (it needs an
-      // amount for NGN). Fall through to the legacy prompt for that path.
+      // ── Revert to pre-2026-06-18 amount-first flow (2026-06-24) ──
+      // The "open-ended" UX (tap Deposit → skip amount → straight to coin
+      // picker) was reverted per operator decision. We're back to the
+      // 4-step flow: Deposit → enter USD amount → pick method → pick coin
+      // → fixed-amount invoice. Reverted along with the dust-forfeit /
+      // per-coin floor safety nets; over-payment fix kept intact.
       await set(state, chatId, 'action', a.selectCurrencyToDeposit)
       send(chatId, t.selectCurrencyToDeposit, bc)
     },
@@ -8757,38 +8750,37 @@ Enter new value:`), bc)
       const ref = nanoid()
       const { tickerView, userLanguage } = info
       const ticker = tickerOf[tickerView]
-      // ── Open-ended wallet deposit (2026-06-18) ──
-      // The user no longer types a USD amount. We pass the per-coin minimum
-      // to DynoPay as a placeholder invoice (just to satisfy their API).
-      // The fix shipped earlier in this commit makes the webhook credit
-      // `Math.max(invoice, convertedValue)`, so the real credit is always
-      // the actual market value of whatever the user sends (no money left
-      // on the table). Below-min deposits are forfeited at webhook receipt
-      // time (see /dynopay/crypto-wallet handler + dustDeposits collection).
-      //
-      // Option A QR rendering: the QR encodes the ADDRESS ONLY (no amount).
-      // DynoPay's qr_code embeds the placeholder amount, which would be
-      // misleading on an open-ended deposit. Use sendQr(address) instead.
-      const minUsd = walletDepositMinFor(ticker)
-      const invoicePlaceholderUsd = minUsd
-      const qrCaption = translation('t.qrCodeText', userLanguage ?? 'en')
+      // ── Revert to pre-2026-06-18 fixed-amount deposit flow (2026-06-24) ──
+      // The user typed a USD amount in [a.selectCurrencyToDeposit]
+      // (validated min $10). We pass that as the actual invoice to DynoPay /
+      // BlockBee and render the amount-embedded QR + the legacy
+      // t.showDepositCryptoInfo("send exactly X coin to ...") message.
+      // The Versace438 overpayment fix is kept in the webhook handler
+      // (max(invoice, convertedValue) for fee_payer==='company').
+      const priceUsd = Number(info?.depositAmountUsd || info?.amount || 0)
+      if (!(priceUsd >= 10)) {
+        // Defensive: shouldn't happen because the upstream handler validates,
+        // but if state was reset we just send them back to the prompt.
+        return goto[a.selectCurrencyToDeposit]()
+      }
+      const priceCrypto = await convert(priceUsd, 'usd', ticker)
       if (BLOCKBEE_CRYTPO_PAYMENT_ON === 'true') {
         const bbResult = await getCryptoDepositAddress(ticker, chatId, SELF_URL, `/crypto-wallet?a=b&ref=${ref}&`)
         if (bbResult?.address) {
           log({ ref })
-          await sendQr(bot, chatId, bbResult.address, qrCaption)
+          await sendQrCode(bot, chatId, bbResult.bb, userLanguage ?? 'en')
           set(chatIdOfPayment, ref, { chatId })
           await set(state, chatId, 'action', 'none')
-          send(chatId, t.showDepositCryptoInfoOpenEnded(minUsd, tickerView, bbResult.address), trans('o'))
+          send(chatId, t.showDepositCryptoInfo(priceUsd, priceCrypto, tickerView, bbResult.address), trans('o'))
         } else {
           log('[CryptoFallback] BlockBee unavailable for wallet, falling back to DynoPay')
           const dynoCoin = tickerOfDyno[tickerView]
-          const dynoResult = await getDynopayCryptoAddress(invoicePlaceholderUsd, dynoCoin, `${SELF_URL}/dynopay/crypto-wallet`, { "product_name": dynopayActions.walletFund, "refId": ref })
+          const dynoResult = await getDynopayCryptoAddress(priceUsd, dynoCoin, `${SELF_URL}/dynopay/crypto-wallet`, { "product_name": dynopayActions.walletFund, "refId": ref })
           if (!dynoResult?.address) return send(chatId, t.errorFetchingCryptoAddress, trans('o'))
-          await sendQr(bot, chatId, dynoResult.address, qrCaption)
-          set(chatIdOfDynopayPayment, ref, { chatId, action: dynopayActions.walletFund, address: dynoResult.address, minUsd, openEnded: true, _createdAt: new Date().toISOString() })
+          await generateQr(bot, chatId, dynoResult.qr_code, userLanguage ?? 'en')
+          set(chatIdOfDynopayPayment, ref, { chatId, action: dynopayActions.walletFund, address: dynoResult.address, _createdAt: new Date().toISOString() })
           await set(state, chatId, 'action', 'none')
-          send(chatId, t.showDepositCryptoInfoOpenEnded(minUsd, tickerView, dynoResult.address), trans('o'))
+          send(chatId, t.showDepositCryptoInfo(priceUsd, priceCrypto, tickerView, dynoResult.address), trans('o'))
         }
       } else {
         const tickerDyno = tickerOfDyno[tickerView]
@@ -8797,20 +8789,20 @@ Enter new value:`), bc)
           "product_name": dynopayActions.walletFund,
           "refId" : ref
         }
-        const dynoResult = await getDynopayCryptoAddress(invoicePlaceholderUsd, tickerDyno, redirect_url, meta_data)
+        const dynoResult = await getDynopayCryptoAddress(priceUsd, tickerDyno, redirect_url, meta_data)
         if (dynoResult?.address) {
-          await sendQr(bot, chatId, dynoResult.address, qrCaption)
-          set(chatIdOfDynopayPayment, ref, { chatId, action: dynopayActions.walletFund, address: dynoResult.address, minUsd, openEnded: true, _createdAt: new Date().toISOString() })
+          await generateQr(bot, chatId, dynoResult.qr_code, userLanguage ?? 'en')
+          set(chatIdOfDynopayPayment, ref, { chatId, action: dynopayActions.walletFund, address: dynoResult.address, _createdAt: new Date().toISOString() })
           await set(state, chatId, 'action', 'none')
-          send(chatId, t.showDepositCryptoInfoOpenEnded(minUsd, tickerView, dynoResult.address), trans('o'))
+          send(chatId, t.showDepositCryptoInfo(priceUsd, priceCrypto, tickerView, dynoResult.address), trans('o'))
         } else {
           log('[CryptoFallback] DynoPay unavailable for wallet, falling back to BlockBee')
-          const { address: bbAddr } = await getCryptoDepositAddress(ticker, chatId, SELF_URL, `/crypto-wallet?a=b&ref=${ref}&`)
+          const { address: bbAddr, bb } = await getCryptoDepositAddress(ticker, chatId, SELF_URL, `/crypto-wallet?a=b&ref=${ref}&`)
           if (!bbAddr) return send(chatId, t.errorFetchingCryptoAddress, trans('o'))
-          await sendQr(bot, chatId, bbAddr, qrCaption)
+          await sendQrCode(bot, chatId, bb, userLanguage ?? 'en')
           set(chatIdOfPayment, ref, { chatId })
           await set(state, chatId, 'action', 'none')
-          send(chatId, t.showDepositCryptoInfoOpenEnded(minUsd, tickerView, bbAddr), trans('o'))
+          send(chatId, t.showDepositCryptoInfo(priceUsd, priceCrypto, tickerView, bbAddr), trans('o'))
         }
       }
     },
@@ -20624,15 +20616,17 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     if (!ticker) return send(chatId, t.askValidCrypto)
     await saveInfo('tickerView', ticker)
 
-    // ── TRC20 min-deposit (open-ended flow, 2026-06-18) ──
-    // The amount-prompt step was removed — users no longer type a USD
-    // amount. Per-coin minimums (incl. USDT-TRC20's $20 floor) are now
-    // enforced at WEBHOOK RECEIPT time in /dynopay/crypto-wallet, with
-    // below-min deposits forfeited to `dustDeposits`. The address message
-    // itself prominently displays the per-coin minimum (see
-    // t.showDepositCryptoInfoOpenEnded). The legacy `confirmTrc20MinDeposit`
-    // correction screen is unreachable now and kept only as a dead-code
-    // safety net in case some other future flow re-introduces amount input.
+    // ── TRC20 min-deposit intercept (restored 2026-06-24 with the amount-
+    //    first flow). If the user picked USDT-TRC20 with an amount below
+    //    the $20 floor, route them to confirmTrc20MinDeposit so they can
+    //    bump to the floor, switch coin, edit the amount, or see why the
+    //    minimum exists.  This restores the pre-2026-06-18 behaviour. ──
+    if (ticker === 'USDT (TRC20)') {
+      const current = Number(info?.depositAmountUsd || 0)
+      if (current < TRC20_MIN_DEPOSIT_USD) {
+        return goto[a.confirmTrc20MinDeposit]()
+      }
+    }
 
     return goto.showDepositCryptoInfo()
   }
@@ -34836,32 +34830,24 @@ app.post('/dynopay/crypto-wallet', authDyno, async (req, res) => {
   //                      generation (i.e. what the customer was told to send)
   //   • `amount`       → the *actual* on-chain quantity of `currency` received
   //
-  // Two flow modes:
+  // Apply the Versace438 overpayment fix: when fee_payer === 'company' and
+  // we have an invoice value, credit max(invoice, convertedValue) so:
+  //   • underpaid (network fee shaved value) → credit invoice
+  //   • overpaid (customer sent extra)       → credit actual
+  // (Without this fix, overpayments are silently swallowed; see
+  // DYNOPAY_OVERPAYMENT_BUG_FIX_2026-06-18.md.)
   //
-  //   (A) Open-ended deposit (2026-06-18 default flow): `req.pay.openEnded`
-  //       is true. Customer was NOT given a specific USD amount to send —
-  //       the placeholder invoice in `base_amount` only existed to satisfy
-  //       DynoPay's API. Credit the raw market value of what was received.
-  //
-  //   (B) Legacy fixed-amount deposit: `req.pay.openEnded` is falsy. The
-  //       customer was told "send exactly $X". Apply the
-  //       max(invoice, convertedValue) guard so:
-  //         • underpaid (network fee shaved value) → credit invoice
-  //         • overpaid (customer sent extra)       → credit actual
-  //       (This was the Versace438 fix — without it, overpayments were
-  //       silently swallowed; see DYNOPAY_OVERPAYMENT_BUG_FIX_2026-06-18.md.)
-  //
-  // After credit decision, the per-coin minimum floor is enforced uniformly
-  // for both modes — sub-min deposits are forfeited.
+  // NB: The 2026-06-18 "open-ended" branch (which credited raw convertedValue
+  // and forfeited sub-floor deposits to dustDeposits) was reverted on
+  // 2026-06-24 along with the amount-first UX. The amount-first flow makes
+  // sub-floor receipts so rare that the dust-forfeit machinery isn't worth
+  // the complexity.
   const baseAmount = req.body.base_amount
   const feePayer = req.body.fee_payer
   const convertedValue = await convert(value, ticker, 'usd')
   let usdIn
 
-  if (req.pay?.openEnded) {
-    usdIn = convertedValue
-    log('[Wallet] open-ended credit: actual=$' + convertedValue + ' (placeholder invoice=$' + (baseAmount || 'n/a') + ' ignored)')
-  } else if (baseAmount && feePayer === 'company') {
+  if (baseAmount && feePayer === 'company') {
     const invoice = parseFloat(baseAmount)
     usdIn = Math.max(invoice, convertedValue)
     if (convertedValue > invoice * 1.05) {
@@ -34875,56 +34861,6 @@ app.post('/dynopay/crypto-wallet', authDyno, async (req, res) => {
     log('Crediting raw converted value (no base_amount or fee_payer != company)')
     usdIn = convertedValue
     log('Conversion result:', value, ticker, '= $' + usdIn, 'USD')
-  }
-
-  // ── FORFEIT below per-coin minimum (open-ended deposit flow, 2026-06-18) ──
-  // Users no longer type a USD amount; they send whatever they want. We
-  // enforce the per-coin minimum at receipt time. If a customer sends less
-  // than the floor (e.g. <$10 BTC, <$20 USDT-TRC20), the deposit is
-  // FORFEITED — no wallet credit. We log it to `dustDeposits` and notify
-  // the user via Telegram so they know the funds did not land and can
-  // contact support if needed. Documented behaviour the customer agreed to
-  // via the open-ended address message (showDepositCryptoInfoOpenEnded).
-  const minUsd = walletDepositMinFor(ticker)
-  if (usdIn < minUsd) {
-    log('[Wallet] FORFEIT (below min): chatId=' + chatId + ' received=$' + usdIn + ' min=$' + minUsd + ' coin=' + coin + ' ref=' + ref)
-    try {
-      await db.collection('dustDeposits').insertOne({
-        chatId: String(chatId),
-        ref,
-        coin,
-        ticker,
-        value,
-        receivedUsd: usdIn,
-        baseAmount: baseAmount ? parseFloat(baseAmount) : null,
-        convertedValue,
-        feePayer,
-        minUsd,
-        paymentId: id,
-        address: req.pay?.address || req.body?.address || null,
-        txId: req.body?.txId || req.body?.transaction_reference || null,
-        createdAt: new Date(),
-        userNotified: false,
-        body: req.body,
-      })
-    } catch (e) {
-      log('[Wallet] dustDeposits log warn (non-fatal):', e.message)
-    }
-    // Notify the user. The bot's `sendMessage` helper is fire-and-forget;
-    // wrap in try so any Telegram-side hiccup doesn't break the webhook
-    // response (DynoPay would otherwise retry). Mark the dust row as
-    // notified so a future "/dispute" or sweep job can tell the user has
-    // been informed once.
-    try {
-      sendMessage(chatId, translation('t.dustDepositNotice', lang, usdIn, minUsd, coin))
-      await db.collection('dustDeposits').updateOne({ ref }, { $set: { userNotified: true, userNotifiedAt: new Date() } })
-    } catch (e) {
-      log('[Wallet] dust notify warn (non-fatal):', e.message)
-    }
-    del(chatIdOfDynopayPayment, ref)
-    // 200 OK so DynoPay doesn't retry the webhook indefinitely. We've
-    // recorded the receipt in dynopayWebhooks + dustDeposits.
-    return res.send(html('Below minimum — forfeit (logged + user notified)'))
   }
 
   log('Crediting wallet for chatId:', chatId, 'amount: $' + usdIn)

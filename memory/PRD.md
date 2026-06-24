@@ -830,3 +830,60 @@ Every existing bot UI button now works correctly on DO instances:
 - `/app/js/vm-instance-setup.js` (3 patches: 2 destructive-cancel guards + 1 UX speedup)
 - `/app/tests/digitalocean-bot-lifecycle.test.js` (new, 12 cases)
 
+
+---
+
+## 2026-06-24 (later) — Wallet deposit: revert to pre-2026-06-18 amount-first flow
+
+User asked: "we made some changes recently to how user add funds to their wallet balance without entering amount. I want this reversed to how it was previously." Confirmed scope = **full clean revert of (a)+(b)+(c)** from the 2026-06-18 open-ended deposit PR, **keep** the Versace438 overpayment fix, route everything through `selectCurrencyToDeposit` (don't re-introduce the separate `depositUSD` action).
+
+### What the 2026-06-18 PR did (now reverted)
+- (a) UX: removed amount prompt → tap Deposit → straight to coin picker → open-ended address ("send any amount ≥ $10")
+- (b) Per-coin floor enforcement at webhook receipt time (`walletDepositMinFor`)
+- (c) Dust-deposit forfeit + `dustDeposits` log + user notification for sub-floor receipts
+
+### What's live again as of 2026-06-24
+- Tap Deposit → bot asks **"Enter USD amount"** (min $10)
+- → pick method (Bank Naira / Crypto) — Bank still hidden via `HIDE_BANK_PAYMENT`
+- → pick coin
+- → **TRC20 < $20 intercept restored** — routes to `confirmTrc20MinDeposit` correction screen (bump / switch coin / edit amount / why-min)
+- → **fixed-amount invoice** with amount-embedded QR ("Send exactly 0.0004662 BTC = $30 to bc1q…")
+- Webhook: NO open-ended branch, NO dust-forfeit, NO `dustDeposits` writes
+- Webhook: **overpayment fix kept** — `max(invoice, convertedValue)` for `fee_payer==='company'`
+
+### Files modified (`js/_index.js`)
+1. **`[a.selectCurrencyToDeposit]` goto** (~line 8675) — removed `if (HIDE_BANK_PAYMENT === 'true') return goto[a.selectCryptoToDeposit]()` shortcut. Always shows amount prompt.
+2. **`showDepositCryptoInfo` goto** (~line 8756) — replaced `invoicePlaceholderUsd = minUsd` with `priceUsd = info.depositAmountUsd`; restored `sendQrCode` / `generateQr` (amount-embedded QR) instead of `sendQr` (address-only); renders legacy `t.showDepositCryptoInfo(priceUsd, priceCrypto, tickerView, address)` instead of `...OpenEnded`; stops setting `openEnded: true` in session.
+3. **`[a.selectCryptoToDeposit]` action handler** (~line 20618) — re-armed `if (ticker === 'USDT (TRC20)' && current < TRC20_MIN_DEPOSIT_USD) return goto[a.confirmTrc20MinDeposit]()` intercept.
+4. **DynoPay webhook handler** (~line 34860) — removed `if (req.pay?.openEnded)` branch; removed the entire `if (usdIn < minUsd)` forfeit block + `dustDeposits` writes + user notification. Kept the `max(invoice, convertedValue)` overpayment fix.
+
+### Tests refreshed
+- **Deleted** `/app/js/__tests__/wallet-deposit-open-ended.test.js` — asserted that open-ended IS the default; obsolete.
+- **Added** `/app/tests/wallet-deposit-reverted-to-amount-first.test.js` — 11 source-level regression assertions locking in the reverted behaviour:
+  - No `HIDE_BANK_PAYMENT` short-circuit in `selectCurrencyToDeposit`
+  - Amount validation (≥ $10) before continuing
+  - TRC20 < $20 intercept armed in `selectCryptoToDeposit`
+  - `showDepositCryptoInfo` uses `depositAmountUsd` (not placeholder)
+  - No `openEnded: true` flag in session writes
+  - Uses amount-embedded QR, not address-only QR
+  - No `req.pay?.openEnded` branch in webhook
+  - No `dustDeposits.insertOne` / `updateOne`
+  - No "FORFEIT (below min)" log line
+  - No active `walletDepositMinFor(...)` calls in handlers
+  - **OVERPAYMENT fix preserved** — `Math.max(invoice, convertedValue)` + "OVERPAYMENT detected" log line both present
+
+Any future re-introduction of the open-ended flow will fail this suite.
+
+### Validation
+- ESLint clean on `js/_index.js` and the new test file
+- Full Jest suite: **16 suites pass / 222 tests pass / 1 skipped / 0 failed** (was 211; +11 today)
+- Bot restart clean — no init errors
+
+### Defensive code left in place (intentionally)
+- `t.showDepositCryptoInfoOpenEnded` translation string in lang/{en,fr,zh,hi}.js (unreachable now)
+- `walletDepositMinFor` import at top of `_index.js` (unused but harmless)
+- `confirmTrc20MinDeposit` goto + action handler (already there pre-revert; now reachable again via the re-armed intercept)
+- `dustDepositNotice` translation string + `js/__tests__/dust-deposit-notification.test.js` (standalone Node script, not picked up by Jest config which matches `tests/*.test.js` only)
+
+These cost nothing and keep historical-context findable for ops if they ever wanted to re-evaluate.
+
