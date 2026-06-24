@@ -22,7 +22,11 @@ import json, os, sys, urllib.request, urllib.error
 TOKEN      = "8a6f6eb8-2ed6-4560-92c0-aab7947820ae"
 PROJECT_ID = "c23ac3d9-51c5-4242-8776-eed4e3801abe"
 ENV_ID     = "889fd56a-720a-4020-884c-034784992666"  # production environment
-SERVICE_ID = "b9c4ad64-7667-4dd3-8b9a-3867ede47885"  # Nomadly-EMAIL-IVR
+# The Telegram bot runs on Nomadly-EMAIL-IVR (user-confirmed 2026-06-24).
+# Do NOT push to HostingBotNew / LockbayNewFIX — those are unrelated services.
+SERVICE_TARGETS = [
+    ("Nomadly-EMAIL-IVR", "b9c4ad64-7667-4dd3-8b9a-3867ede47885"),
+]
 ENDPOINT   = "https://backboard.railway.app/graphql/v2"
 
 # Pull current Azure creds from /app/backend/.env so we don't risk a typo
@@ -78,48 +82,52 @@ def gql(query, variables):
         return {"http_error": e.code, "body": e.read().decode(errors="ignore")}
 
 print("─── Pushing Azure + OS-aware routing to Railway prod ───")
-for name, value in VARS_TO_SET.items():
-    r = gql(UPSERT_MUTATION, {"input": {
-        "projectId":     PROJECT_ID,
-        "environmentId": ENV_ID,
-        "serviceId":     SERVICE_ID,
-        "name":          name,
-        "value":         value,
-    }})
-    if "errors" in r:
-        print(f"  ❌ {name}: {r['errors']}")
-        sys.exit(1)
-    elif "http_error" in r:
-        print(f"  ❌ {name}: HTTP {r['http_error']}: {r['body'][:200]}")
-        sys.exit(1)
-    else:
-        # Mask secret-looking values
-        masked = value if name in ("VPS_DEFAULT_PROVIDER", "VPS_RDP_PROVIDER",
-                                   "AZURE_RESOURCE_GROUP", "AZURE_DEFAULT_LOCATION") \
-                       else (value[:6] + "…" + value[-4:])
-        print(f"  ✅ {name} = {masked}")
+for service_name, service_id in SERVICE_TARGETS:
+    print(f"\n──── Service: {service_name} ────")
+    for name, value in VARS_TO_SET.items():
+        r = gql(UPSERT_MUTATION, {"input": {
+            "projectId":     PROJECT_ID,
+            "environmentId": ENV_ID,
+            "serviceId":     service_id,
+            "name":          name,
+            "value":         value,
+        }})
+        if "errors" in r:
+            print(f"  ❌ {name}: {r['errors']}")
+            sys.exit(1)
+        elif "http_error" in r:
+            print(f"  ❌ {name}: HTTP {r['http_error']}: {r['body'][:200]}")
+            sys.exit(1)
+        else:
+            # Mask secret-looking values
+            masked = value if name in ("VPS_DEFAULT_PROVIDER", "VPS_RDP_PROVIDER",
+                                       "AZURE_RESOURCE_GROUP", "AZURE_DEFAULT_LOCATION") \
+                           else (value[:6] + "…" + value[-4:])
+            print(f"  ✅ {name} = {masked}")
 
-# Verify by reading back
+# Verify by reading back from each service
 print("\n─── Verification: reading back via variables query ───")
 READ_QUERY = """
 query Vars($projectId:String!,$environmentId:String!,$serviceId:String) {
   variables(projectId:$projectId,environmentId:$environmentId,serviceId:$serviceId)
 }
 """
-r = gql(READ_QUERY, {"projectId": PROJECT_ID, "environmentId": ENV_ID, "serviceId": SERVICE_ID})
-vars_now = r.get("data", {}).get("variables", {})
 all_ok = True
-for name, expected in VARS_TO_SET.items():
-    v = vars_now.get(name)
-    if v == expected:
-        masked = v if name in ("VPS_DEFAULT_PROVIDER", "VPS_RDP_PROVIDER",
-                               "AZURE_RESOURCE_GROUP", "AZURE_DEFAULT_LOCATION") \
-                   else (v[:6] + "…" + v[-4:])
-        print(f"  ✅ {name} = {masked}")
-    else:
-        print(f"  ❌ {name} mismatch (got {v!r}, expected {expected!r})")
-        all_ok = False
+for service_name, service_id in SERVICE_TARGETS:
+    print(f"\n──── {service_name} ────")
+    r = gql(READ_QUERY, {"projectId": PROJECT_ID, "environmentId": ENV_ID, "serviceId": service_id})
+    vars_now = r.get("data", {}).get("variables", {})
+    for name, expected in VARS_TO_SET.items():
+        v = vars_now.get(name)
+        if v == expected:
+            masked = v if name in ("VPS_DEFAULT_PROVIDER", "VPS_RDP_PROVIDER",
+                                   "AZURE_RESOURCE_GROUP", "AZURE_DEFAULT_LOCATION") \
+                       else (v[:6] + "…" + v[-4:])
+            print(f"  ✅ {name} = {masked}")
+        else:
+            print(f"  ❌ {name} mismatch (got {v!r}, expected {expected!r})")
+            all_ok = False
 
 if not all_ok:
     sys.exit(1)
-print("\n✅ All Railway prod vars set. Service will pick them up on next deploy/restart.")
+print("\n✅ All Railway prod vars set on both services. Service will pick them up on next deploy/restart.")
