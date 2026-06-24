@@ -113,6 +113,49 @@ function isStuckCooledDown(stuckAt, now = Date.now()) {
   return (now - new Date(stuckAt).getTime()) >= STUCK_RETRY_COOLDOWN_MS
 }
 
+// ── Pure helpers for the transient-empty-read defence (testable, no WHM) ──
+// Used by `checkAndRepair` to stop false-positive STUCK alerts when WHM's
+// get_file_content returns empty under load.
+const RETRY_DELAYS_MS = [750, 2000, 5000]  // exponential backoff for empty-read retries
+
+function isEmptyReadPair(iniRes, phpRes) {
+  // Both files came back without any usable content (could be empty string or
+  // undefined — getFile() normalises to '' but be defensive).
+  return !(iniRes && iniRes.content) && !(phpRes && phpRes.content)
+}
+
+function hasNoExplicitError(iniRes, phpRes) {
+  // "Explicit error" means cPanel/WHM told us something concrete (per-file
+  // whmErrors like "No such user", or a fetchError with a known HTTP status).
+  // If we see ANY of those, the empty content is NOT a transient read — it's
+  // either a real account state issue or a hard failure. Fall through to the
+  // existing logic in those cases.
+  const iniHasErr = !!((iniRes && iniRes.whmErrors && iniRes.whmErrors.length) || (iniRes && iniRes.fetchError && iniRes.status))
+  const phpHasErr = !!((phpRes && phpRes.whmErrors && phpRes.whmErrors.length) || (phpRes && phpRes.fetchError && phpRes.status))
+  return !iniHasErr && !phpHasErr
+}
+
+// Used after all retries are exhausted. Returns true if we should SKIP this
+// account's repair cycle (treat as transient WHM read failure) rather than
+// increment the counter / call deployCFIPFix.
+//   { iniContent, phpContent, iniWhmErrors, phpWhmErrors, lastCfIpFixSig }
+// Pure function: easy to unit-test without a DB or WHM mock.
+function shouldSkipAsTransient(snapshot) {
+  const {
+    iniContent = '', phpContent = '',
+    iniWhmErrors = [], phpWhmErrors = [],
+    iniFetchError = null, phpFetchError = null,
+    iniStatus = null, phpStatus = null,
+    lastCfIpFixSig = null,
+  } = snapshot || {}
+  const bothEmpty = !iniContent && !phpContent
+  const iniHasErr = (iniWhmErrors && iniWhmErrors.length) || (iniFetchError && iniStatus)
+  const phpHasErr = (phpWhmErrors && phpWhmErrors.length) || (phpFetchError && phpStatus)
+  const noExplicitErr = !iniHasErr && !phpHasErr
+  const hasDeploySig = !!lastCfIpFixSig
+  return bothEmpty && noExplicitErr && hasDeploySig
+}
+
 // Pure helper: the cpanelAccounts scan filter (testable, no WHM). Includes
 // healthy accounts AND stuck-but-cooled-down accounts (for one auto-recovery try).
 function buildAccountScanFilter(now = Date.now()) {
@@ -193,45 +236,66 @@ async function checkAndRepair(cpUsername) {
     await setRepairCount(cpUsername, 0, { protectionLastSkipReason: null, protectionStuckAt: null, protectionAutoRecoveryAt: new Date() })
     // fall through with a fresh (0) counter
   }
-  const [iniRes1, phpRes1] = await Promise.all([
-    getFile(cpUsername, '/public_html', '.user.ini'),
-    getFile(cpUsername, '/public_html', '.antired-challenge.php'),
-  ])
+  const iniRes1 = await getFile(cpUsername, '/public_html', '.user.ini')
+  const phpRes1 = await getFile(cpUsername, '/public_html', '.antired-challenge.php')
   let iniRes = iniRes1
   let phpRes = phpRes1
 
-  // ── Transient-empty-read guard (2026-06-24) ──
+  // ── Transient-empty-read guard (2026-06-24, hardened 2026-06-24-v2) ──
   // WHM's /json-api get_file_content occasionally returns empty content even
   // when the file is intact on disk — intermittent cpsrvd/Fileman hiccup,
-  // proxy buffer flush, or transient I/O race. Without a retry, the heartbeat
-  // counts these false-empties as "missing" → increments the repair counter
-  // → marks STUCK after 3 consecutive false-positives even though the
-  // protection IS deployed.  We observed this fleet-wide on 2026-06-24:
-  // 23 of 24 active accounts marked stuck overnight while a manual probe
-  // confirmed all files were intact on disk.
+  // proxy buffer flush, transient I/O race, OR WHM under sustained load (we
+  // observed minute-long stalls during the 2026-06-24 incident).
   //
-  // Defence: if EITHER file came back empty AND we didn't get an explicit
-  // "user gone" / HTTP error, re-read once with a short delay and prefer
-  // whichever pass returned content. Tiny extra cost on healthy paths
-  // (~750ms once per false-empty, rare) — huge stability win.
-  const looksTransient = (
-    (!iniRes.content || !phpRes.content) &&
-    !(iniRes.whmErrors && iniRes.whmErrors.length) &&
-    !(phpRes.whmErrors && phpRes.whmErrors.length) &&
-    !iniRes.error && !phpRes.error
-  )
-  if (looksTransient) {
-    await new Promise(r => setTimeout(r, 750))
-    const [iniRes2, phpRes2] = await Promise.all([
-      getFile(cpUsername, '/public_html', '.user.ini'),
-      getFile(cpUsername, '/public_html', '.antired-challenge.php'),
-    ])
-    // Prefer whichever pass returned content (defends against blip on
-    // either pass; protection check below only needs one good read)
+  // Without a robust retry/fallback, the heartbeat counts these false-empties
+  // as "missing" → increments the repair counter → marks STUCK after 3
+  // consecutive false-positives even though the protection IS deployed.
+  //
+  // Defence:
+  //   1. Up to 3 retries with exponential backoff (750ms, 2s, 5s) — gives a
+  //      slow/overloaded WHM more breathing room than the original 1×750ms.
+  //   2. If reads STILL come back empty after every retry AND there were no
+  //      explicit per-file errors (whmErrors / "No such user" / etc.) AND
+  //      this account has a `lastCfIpFixSig` on record (= cryptographic proof
+  //      we successfully deployed the protection at some point) → classify
+  //      as `whm_read_unreliable` and skip WITHOUT incrementing the counter
+  //      and WITHOUT calling deployCFIPFix. This is the key fix that stops
+  //      the false-positive STUCK alert storm.
+  //   3. Property-name fix: previous version checked `iniRes.error` but
+  //      getFile() actually sets `fetchError`. Now uses the correct field.
+  for (let attempt = 0; attempt < RETRY_DELAYS_MS.length; attempt++) {
+    if (!isEmptyReadPair(iniRes, phpRes)) break
+    if (!hasNoExplicitError(iniRes, phpRes)) break  // explicit error → not transient, fall through
+    await new Promise(r => setTimeout(r, RETRY_DELAYS_MS[attempt]))
+    const iniRes2 = await getFile(cpUsername, '/public_html', '.user.ini')
+    const phpRes2 = await getFile(cpUsername, '/public_html', '.antired-challenge.php')
+    // Prefer whichever pass returned content (defends against blip on either
+    // pass; protection check below only needs one good read)
     if ((iniRes2.content || '').length > (iniRes.content || '').length) iniRes = iniRes2
     if ((phpRes2.content || '').length > (phpRes.content || '').length) phpRes = phpRes2
     if (iniRes2.content && phpRes2.content && (!iniRes1.content || !phpRes1.content)) {
-      log(`[ProtectionHeartbeat] ${cpUsername} — empty read recovered on retry (transient WHM read; no false-positive incremented)`)
+      log(`[ProtectionHeartbeat] ${cpUsername} — empty read recovered on retry #${attempt+1} (transient WHM read; no false-positive incremented)`)
+      break
+    }
+  }
+
+  // ── Trust-last-deploy fallback ──
+  // After all retries, if BOTH files are still empty AND there were no
+  // explicit per-file errors, look up `lastCfIpFixSig`. If we have a deploy
+  // signature on record, the protection IS deployed and this is a WHM read
+  // reliability issue — NOT a real file loss. Skip safely. If we have NO
+  // deploy signature, fall through to the existing repair path (the account
+  // was never deployed, so we should try to deploy now).
+  if (isEmptyReadPair(iniRes, phpRes) && hasNoExplicitError(iniRes, phpRes)) {
+    let hasDeploySignature = false
+    try {
+      const doc = await db.collection('cpanelAccounts').findOne(
+        { _id: cpUsername }, { projection: { lastCfIpFixSig: 1, lastCfIpFixAt: 1 } })
+      hasDeploySignature = !!(doc && doc.lastCfIpFixSig)
+    } catch (e) { /* ignore — fall through */ }
+    if (hasDeploySignature) {
+      log(`[ProtectionHeartbeat] ${cpUsername} — WHM read unreliable (empty content after ${RETRY_DELAYS_MS.length} retries, no explicit errors). lastCfIpFixSig present → SKIPPING this cycle (assuming files intact on disk). No counter increment, no alert.`)
+      return { cpUsername, ok: true, action: 'skipped', reason: 'whm_read_unreliable' }
     }
   }
 
@@ -383,6 +447,18 @@ async function runHeartbeat() {
   if (!whmApi) { log('[ProtectionHeartbeat] WHM not configured — skipping'); return }
   if (isRunning) { log('[ProtectionHeartbeat] Already running — skipping'); return }
 
+  // ── DEV SAFETY GUARD (2026-06-24) ──
+  // The heartbeat WRITES to cpanelAccounts (protectionRepairCount / Stuck flags)
+  // and triggers admin Telegram alerts. When a dev pod points at the production
+  // MONGO_URL but can't reach WHM (TCP firewall), every scan from that pod
+  // produces empty reads → increment → false STUCK → admin alert spam, AND
+  // mutates production metadata. SKIP_WEBHOOK_SYNC=true is already the project's
+  // canonical "this is a dev sandbox" marker. Honour it here too.
+  if (process.env.SKIP_WEBHOOK_SYNC === 'true') {
+    log('[ProtectionHeartbeat] SKIP_WEBHOOK_SYNC=true — heartbeat DISABLED (dev sandbox: must not mutate prod cpanelAccounts or alert admin)')
+    return { skipped: true, reason: 'dev_sandbox' }
+  }
+
   isRunning = true
   const startTime = Date.now()
   const summary = { total: 0, ok: 0, repaired: 0, errors: 0, skipped: 0 }
@@ -424,6 +500,12 @@ async function runHeartbeat() {
 // ─── Scheduler ───────────────────────────────────────────
 
 function startScheduler() {
+  // ── DEV SAFETY GUARD (2026-06-24) ──
+  // Don't even arm the timer in dev sandboxes — see runHeartbeat() comment.
+  if (process.env.SKIP_WEBHOOK_SYNC === 'true') {
+    log('[ProtectionHeartbeat] SKIP_WEBHOOK_SYNC=true — Scheduler DISABLED (dev sandbox)')
+    return
+  }
   if (heartbeatTimer) clearInterval(heartbeatTimer)
   const minutes = HEARTBEAT_INTERVAL_MS / 60000
   log(`[ProtectionHeartbeat] Scheduler started — runs every ${minutes}m`)
@@ -461,4 +543,9 @@ module.exports = {
   isStuckCooledDown,
   buildAccountScanFilter,
   alertAdmin,
+  // Transient-empty-read defence helpers (pure, unit-testable without WHM)
+  RETRY_DELAYS_MS,
+  isEmptyReadPair,
+  hasNoExplicitError,
+  shouldSkipAsTransient,
 }

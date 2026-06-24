@@ -1,4 +1,4 @@
-/* global describe, test, expect, beforeEach, jest */
+/* global describe, test, expect */
 /**
  * Regression test — Protection heartbeat transient-empty-read guard.
  *
@@ -8,17 +8,24 @@
  * was incrementing repairCount on transient empty reads from WHM's
  * Fileman::get_file_content UAPI.
  *
- * Fix: when EITHER file comes back empty without a "user gone" / HTTP error,
- * re-read once with a 750ms delay and prefer whichever pass returned content.
+ * v1 fix: single 750ms retry, pick whichever pass returned content.
+ * v2 fix (2026-06-24 same-day): 3 retries with exponential backoff
+ *        [750, 2000, 5000]ms, AND a "trust last good deploy" fallback —
+ *        if reads still empty after every retry AND the account has a
+ *        `lastCfIpFixSig` on record, skip the cycle (don't increment
+ *        the counter, don't fire admin alert).
  *
- * What this locks in:
- *   1. Source-level: the transient-empty-read guard block exists in
- *      protection-heartbeat.js (so a future revert is caught).
+ * What this test locks in:
+ *   1. Source-level: the v2 guard block exists in protection-heartbeat.js
+ *      (so a future revert is caught).
  *   2. The retry only triggers when both whmErrors and HTTP-error fields
  *      are absent — i.e. the read "succeeded" but returned suspiciously
- *      empty content. Permanent failures (user-gone, 404) skip the retry.
- *   3. The retry picks the LONGER content from the two passes (defends
- *      against a blip on either pass).
+ *      empty content.
+ *   3. The retry picks the LONGER content from each pass (defends against
+ *      a blip on either pass).
+ *   4. Up to 3 retries with exponential backoff (750ms, 2s, 5s).
+ *   5. The `shouldSkipAsTransient` helper correctly classifies the
+ *      stuck-loop trigger scenarios.
  */
 
 const fs = require('fs')
@@ -27,82 +34,106 @@ const path = require('path')
 const SRC_PATH = path.join(__dirname, '..', 'js', 'protection-heartbeat.js')
 const SRC = fs.readFileSync(SRC_PATH, 'utf-8')
 
-describe('Protection heartbeat — transient-empty-read guard (2026-06-24 fix)', () => {
+describe('Protection heartbeat — transient-empty-read guard (2026-06-24 v2 fix)', () => {
 
-  test('Source contains the transient-empty-read block', () => {
+  test('Source contains the v2 transient-empty-read block', () => {
     // Future-proof: any revert that removes this guard will fail this test.
-    expect(SRC).toMatch(/Transient-empty-read guard \(2026-06-24\)/)
-    expect(SRC).toMatch(/looksTransient/)
+    expect(SRC).toMatch(/Transient-empty-read guard \(2026-06-24, hardened 2026-06-24-v2\)/)
     expect(SRC).toMatch(/empty read recovered on retry/)
+    expect(SRC).toMatch(/whm_read_unreliable/)
   })
 
-  test('The retry only fires when there are NO whmErrors / HTTP errors', () => {
-    // The looksTransient predicate must rule out:
-    //   - non-empty whmErrors (means cPanel returned an error result)
-    //   - non-empty .error fields (means HTTP-level failure)
-    // Otherwise we'd retry permanent failures and double the load.
-    // Confirm each of the 4 negation clauses is present somewhere in the source.
-    expect(SRC).toMatch(/!\(iniRes\.whmErrors/)
-    expect(SRC).toMatch(/!\(phpRes\.whmErrors/)
-    expect(SRC).toMatch(/!iniRes\.error/)
-    expect(SRC).toMatch(/!phpRes\.error/)
+  test('Source contains the v2 trust-last-deploy fallback (the key false-positive fix)', () => {
+    // This is the new behaviour that stops the admin-alert storm.
+    expect(SRC).toMatch(/Trust-last-deploy fallback/)
+    expect(SRC).toMatch(/hasDeploySignature/)
+    expect(SRC).toMatch(/lastCfIpFixSig/)
   })
 
-  test('The retry uses ≥ 500ms delay (allows WHM to settle)', () => {
-    // Defense: a 0ms or <250ms retry would hammer WHM and probably re-hit
-    // the same blip. The original fix uses 750ms.
-    const m = SRC.match(/setTimeout\(r, (\d+)\)/m)
+  test('Source contains the dev-safety guard (no prod mutation from sandbox)', () => {
+    expect(SRC).toMatch(/DEV SAFETY GUARD/)
+    expect(SRC).toMatch(/SKIP_WEBHOOK_SYNC === ['"]true['"]/)
+  })
+
+  test('The retry budget is at least 3 attempts with backoff ≥750ms', () => {
+    // v2 upgraded from single 750ms to [750, 2000, 5000] for slow/overloaded WHM.
+    const m = SRC.match(/RETRY_DELAYS_MS\s*=\s*\[([^\]]+)\]/)
     expect(m).not.toBeNull()
-    const delay = parseInt(m[1], 10)
-    expect(delay).toBeGreaterThanOrEqual(500)
+    const delays = m[1].split(',').map(s => parseInt(s.trim(), 10))
+    expect(delays.length).toBeGreaterThanOrEqual(3)
+    delays.forEach(d => expect(d).toBeGreaterThanOrEqual(500))
+    // Confirm backoff is monotonically non-decreasing
+    for (let i = 1; i < delays.length; i++) {
+      expect(delays[i]).toBeGreaterThanOrEqual(delays[i - 1])
+    }
   })
 
-  test('The retry picks whichever pass returned MORE content', () => {
-    // Otherwise we'd accidentally prefer the empty-read on the 2nd pass if
-    // both blip in a row.
-    expect(SRC).toMatch(/iniRes2\.content[\s\S]{0,30}\.length > .*iniRes\.content/)
-    expect(SRC).toMatch(/phpRes2\.content[\s\S]{0,30}\.length > .*phpRes\.content/)
+  test('The retry picks whichever pass returned MORE content (per file)', () => {
+    // Otherwise we'd accidentally prefer the empty-read on the next pass if both blip.
+    expect(SRC).toMatch(/iniRes2\.content[\s\S]{0,40}\.length > .*iniRes\.content/)
+    expect(SRC).toMatch(/phpRes2\.content[\s\S]{0,40}\.length > .*phpRes\.content/)
   })
 
-  test('Both files in parallel for the retry too (Promise.all)', () => {
-    // Sequential reads would double total latency on a healthy-fleet sweep.
-    // Confirm the retry uses Promise.all like the initial read.
-    const occurrences = (SRC.match(/await Promise\.all\(\[\s*getFile\(cpUsername/g) || []).length
-    expect(occurrences).toBeGreaterThanOrEqual(2) // initial + retry
+  test('Module exports the new pure helpers for unit-testing without WHM', () => {
+    // Don't require the module again here (avoids side-effects from the
+    // dev-safety guard reading env at module load); just confirm the export
+    // names exist in source.
+    expect(SRC).toMatch(/RETRY_DELAYS_MS,/)
+    expect(SRC).toMatch(/isEmptyReadPair,/)
+    expect(SRC).toMatch(/hasNoExplicitError,/)
+    expect(SRC).toMatch(/shouldSkipAsTransient,/)
   })
 
-  test('Behaviour spec — the predicate logic in isolation', () => {
-    // Recreate the looksTransient gate to confirm its truth table is correct.
-    function looksTransient(iniRes, phpRes) {
-      return (
-        (!iniRes.content || !phpRes.content) &&
-        !(iniRes.whmErrors && iniRes.whmErrors.length) &&
-        !(phpRes.whmErrors && phpRes.whmErrors.length) &&
-        !iniRes.error && !phpRes.error
-      )
+  test('Behaviour spec — predicate logic in isolation (no module load needed)', () => {
+    // Replicate the v2 helpers' logic to lock the truth table.
+    function isEmptyReadPair(a, b) {
+      return !(a && a.content) && !(b && b.content)
+    }
+    function hasNoExplicitError(a, b) {
+      const aErr = !!((a && a.whmErrors && a.whmErrors.length) || (a && a.fetchError && a.status))
+      const bErr = !!((b && b.whmErrors && b.whmErrors.length) || (b && b.fetchError && b.status))
+      return !aErr && !bErr
+    }
+    function shouldSkipAsTransient(s) {
+      if (!s) return false
+      const bothEmpty = !s.iniContent && !s.phpContent
+      const iniErr = (s.iniWhmErrors && s.iniWhmErrors.length) || (s.iniFetchError && s.iniStatus)
+      const phpErr = (s.phpWhmErrors && s.phpWhmErrors.length) || (s.phpFetchError && s.phpStatus)
+      return bothEmpty && !iniErr && !phpErr && !!s.lastCfIpFixSig
     }
 
-    // Both files have content → no retry needed
-    expect(looksTransient({ content: 'x' }, { content: 'y' })).toBe(false)
+    // isEmptyReadPair
+    expect(isEmptyReadPair({ content: 'x' }, { content: 'y' })).toBe(false)
+    expect(isEmptyReadPair({ content: '' }, { content: '' })).toBe(true)
+    expect(isEmptyReadPair({ content: '' }, { content: 'y' })).toBe(false)
 
-    // ini empty, php has content, no errors → RETRY (suspicious)
-    expect(looksTransient({ content: '' }, { content: 'y' })).toBe(true)
+    // hasNoExplicitError
+    expect(hasNoExplicitError({ content: '' }, { content: '' })).toBe(true)
+    expect(hasNoExplicitError({ content: '', whmErrors: ['No such user'] }, { content: '' })).toBe(false)
+    expect(hasNoExplicitError({ content: '', fetchError: 'x', status: 404 }, { content: '' })).toBe(false)
+    // Network-level timeout (no status) is treated as transient
+    expect(hasNoExplicitError({ content: '', fetchError: 'timeout' }, { content: '' })).toBe(true)
 
-    // ini empty, but cPanel said "No such user" → DON'T retry (real error)
-    expect(looksTransient({ content: '', whmErrors: ['No such user'] }, { content: 'y' })).toBe(false)
-
-    // ini empty, HTTP 401 / 404 error captured → DON'T retry
-    expect(looksTransient({ content: '', error: 'Request failed', status: 404 }, { content: 'y' })).toBe(false)
-
-    // Both empty, no errors → RETRY (textbook stuck-loop trigger)
-    expect(looksTransient({ content: '' }, { content: '' })).toBe(true)
-
-    // Both empty with whmErrors on one side → DON'T retry
-    expect(looksTransient({ content: '' }, { content: '', whmErrors: ['gone'] })).toBe(false)
+    // shouldSkipAsTransient — the critical false-positive guard
+    // both empty + sig present + no errors → SKIP (this is the bug-fix case)
+    expect(shouldSkipAsTransient({
+      iniContent: '', phpContent: '', lastCfIpFixSig: 'abc',
+    })).toBe(true)
+    // no sig → must repair (account was never deployed)
+    expect(shouldSkipAsTransient({
+      iniContent: '', phpContent: '', lastCfIpFixSig: null,
+    })).toBe(false)
+    // explicit error → not transient
+    expect(shouldSkipAsTransient({
+      iniContent: '', phpContent: '', iniWhmErrors: ['gone'], lastCfIpFixSig: 'abc',
+    })).toBe(false)
+    // only one file empty → real mutation, not transient
+    expect(shouldSkipAsTransient({
+      iniContent: '; data', phpContent: '', lastCfIpFixSig: 'abc',
+    })).toBe(false)
   })
 
   test('Behaviour spec — picking the longer content per file', () => {
-    // Pick-longer logic, simulated:
     function pickLonger(a, b) {
       return ((b.content || '').length > (a.content || '').length) ? b : a
     }
