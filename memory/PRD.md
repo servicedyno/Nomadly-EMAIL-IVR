@@ -948,3 +948,55 @@ Code change in `js/protection-heartbeat.js` needs to ship to Railway. The MongoD
 
 The user's original instinct — switch back to Ubuntu — would have been a 6-8 hour migration that solved nothing. The actual fix was a 30-line patch + one-shot DB cleanup. Saved ~$15-30 in unneeded droplet costs and zero customer downtime.
 
+
+---
+
+## 2026-06-24 (later) — Azure VPS provider wired into the abstraction (B-tier MVP)
+
+User confirmed P0 priority to finish the Azure integration started earlier in this session.
+`js/azure-service.js` was already ~1,100 lines complete; this round wired it into the
+multi-provider abstraction and shipped destructive-cancel guards + a 58-case test suite.
+
+### Files modified
+- `/app/js/vps-provider.js` — added Azure to `_loadProvider`, `getProviderForRecord`,
+  `detectProviderByInstanceId`, `dispatchByInstanceId`. The `az-` ID prefix is now
+  recognised case-insensitively alongside `do-` / `vps-` / UUID / numeric.
+- `/app/js/vm-instance-setup.js` — extended 3 destructive-cancel guards to include `azure`:
+  - Line ~787 cancel-on-create guard (`['vultr', 'digitalocean', 'azure']`)
+  - Line ~1144 deleteVPSinstance short-circuit (immediate delete, no cancelDate polling)
+  - Line ~1325 changeVpsAutoRenewal toggle (DB-flag only — provider cancel would destroy VPS)
+- `/app/tests/azure-provider.test.js` (new, ~360 lines, 58 test cases) covering:
+  catalog naming, 200% markup, AZURE_DSV5_ENABLED gating, 9-region mapping,
+  Windows-only filters, `az-` prefix wrap/strip, Azure-compliant password generation,
+  reserved-username rejection, smart-proxy lifecycle dispatch, source-level destructive-cancel guards.
+- `/app/tests/digitalocean-bot-lifecycle.test.js` — loosened one source-match regex
+  to accept `['vultr', 'digitalocean', 'azure']` ordering (test was over-strict).
+
+### Validation
+- ✅ Full Jest suite: **287 passed, 1 skipped, 0 failed** across 18 suites (was 229; +58)
+- ✅ ESLint clean on all 4 touched files
+- ✅ Bot restart clean — all subsystems initialise without errors
+- ✅ External API health: `/api/sms-app/download/info` → 200
+
+### To enable in production
+1. Confirm Azure subscription quota — currently `7eefc36f-…` has 10 cores for B-series
+   per region, 0 cores for D-series. B-tier is sufficient for MVP.
+2. Set `VPS_DEFAULT_PROVIDER=azure` in Railway env when ready to default new purchases
+   to Azure (currently stays on `vultr`). Per-record routing already works for any
+   existing `az-` records regardless of default.
+3. Deploy / restart service to pick up the new code.
+4. Once Azure approves a quota increase ticket for D-series, set
+   `AZURE_DSV5_ENABLED=true` in Railway to surface D2s_v5/D4s_v5 in the catalog.
+
+### Lifecycle proof — "user can manage it fully from the bot"
+All 12 lifecycle methods (start/stop/restart/shutdown/resetPassword/reinstall/cancel/
+upgrade/updateName/snapshots) route through the smart proxy to azure-service when the
+instanceId starts with `az-`. Verified via Jest + source-level guards. The bot UI buttons
+require zero changes — same call patterns as Contabo/Vultr/DO.
+
+### Still pending
+- 🔴 **P0 Fincra 401 fix** — still the highest-leverage revenue lever (user-side Railway key rotation)
+- 🟠 **P1 D-series expansion** — gated behind `AZURE_DSV5_ENABLED`, awaiting Azure quota approval
+- 🟡 Set `BOT_USERNAME=NomadlyBot` in Railway (tech debt)
+- 🟡 Deploy churn protection (branch protection / staging)
+

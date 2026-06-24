@@ -784,8 +784,8 @@ async function createVPSInstance(telegramId, vpsDetails) {
     // to cancel and we'd just log noise from a guaranteed 404.
     if (String(instance.instanceId).startsWith('dryrun-')) {
       console.log(`[VPS] Skipping cancel-on-create for dry-run instance ${instance.instanceId}`)
-    } else if (['vultr', 'digitalocean'].includes(vpsProvider.detectProviderByInstanceId(instance.instanceId))) {
-      // ── Vultr & DigitalOcean have no scheduled cancel — DELETE is destructive. ──
+    } else if (['vultr', 'digitalocean', 'azure'].includes(vpsProvider.detectProviderByInstanceId(instance.instanceId))) {
+      // ── Vultr, DigitalOcean & Azure have no scheduled cancel — DELETE is destructive. ──
       // Calling cancelInstance on these providers without scheduleOnly=true would
       // destroy the just-created VPS instantly. autoRenewable=false in our DB
       // is sufficient — the renewal scheduler skips these instances when
@@ -1141,8 +1141,8 @@ async function deleteVPSinstance(chatId, vpsId) {
       }
       return { success: true, data: result, method: 'ovh-serviceInfos' }
     }
-    if (_providerName === 'vultr' || _providerName === 'digitalocean') {
-      console.log(`[VPS] ${_providerName} cancel confirmed for ${contaboId} (immediate delete — droplet/instance destroyed)`)
+    if (_providerName === 'vultr' || _providerName === 'digitalocean' || _providerName === 'azure') {
+      console.log(`[VPS] ${_providerName} cancel confirmed for ${contaboId} (immediate delete — VPS resources destroyed)`)
       if (_vpsPlansOf) {
         await _vpsPlansOf.updateOne(
           { vpsId: String(vpsId) },
@@ -1315,14 +1315,14 @@ async function changeVpsAutoRenewal(telegramId, vpsDetails) {
     // landed one period later and the user was billed an extra month.
     if (newValue === false && contaboInstanceId) {
       // ── Provider-aware guard ──
-      // Vultr & DigitalOcean have no scheduled cancel — `cancelInstance`
+      // Vultr, DigitalOcean & Azure have no scheduled cancel — `cancelInstance`
       // would IMMEDIATELY DESTROY the running VPS the moment the user
       // toggles auto-renew OFF. For these providers we skip the provider
       // call entirely and rely on the DB-side `autoRenewable=false` flag
       // (the renewal scheduler already honours it).
       const _provName = vpsProvider.detectProviderByInstanceId(contaboInstanceId)
         || (vpsDetails.provider || '').toLowerCase()
-      if (_provName === 'vultr' || _provName === 'digitalocean') {
+      if (_provName === 'vultr' || _provName === 'digitalocean' || _provName === 'azure') {
         console.log(`[VPS] auto-renew OFF for ${_provName} instance ${contaboInstanceId} — skipping provider cancelInstance (would be destructive); DB flag is sufficient`)
         update.cancelReason = `auto_renew_disabled_by_user_${_provName}_db_only`
       } else {

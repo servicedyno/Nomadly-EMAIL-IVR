@@ -154,8 +154,9 @@ describe('DigitalOcean — destructive-cancel guard (Vultr parity)', () => {
     const fs = require('fs')
     const src = fs.readFileSync(path.join(__dirname, '..', 'js', 'vm-instance-setup.js'), 'utf-8')
     // The cancel-on-create guard MUST include 'digitalocean' so DO purchases
-    // don't self-destruct seconds after creation.
-    expect(src).toMatch(/\['vultr',\s*'digitalocean'\]\.includes\(\s*vpsProvider\.detectProviderByInstanceId/)
+    // don't self-destruct seconds after creation. (Azure was later added to
+    // the same guard list — we accept any ordering / extra providers.)
+    expect(src).toMatch(/\[\s*('[a-z]+'\s*,\s*)*'digitalocean'(\s*,\s*'[a-z]+')*\s*\]\.includes\(\s*vpsProvider\.detectProviderByInstanceId/)
   })
 
   test('Source check: changeVpsAutoRenewal branch guards both vultr and digitalocean', () => {

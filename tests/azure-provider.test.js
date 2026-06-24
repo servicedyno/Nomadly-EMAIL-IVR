@@ -1,0 +1,426 @@
+/* global describe, test, expect, beforeEach, jest */
+/**
+ * Azure provider — integration with the vps-provider abstraction.
+ *
+ * Confirms:
+ *   - 3-tier B-series catalog at MVP launch ("Cloud VPS 10/20/30")
+ *   - AZURE_DSV5_ENABLED gates D-series expansion (D2s_v5 / D4s_v5)
+ *   - Pricing applies 200% markup (matches VPS_MARKUP_PERCENT)
+ *   - listProducts accepts the 3-arg signature (parity with contabo)
+ *   - 9 customer-facing regions resolve to an Azure region slug
+ *   - vps-provider routes by record + by instanceId correctly:
+ *       `az-<name>` IDs → Azure
+ *       `do-<num>` → DigitalOcean
+ *       UUIDs → Vultr
+ *       Bare numeric → Contabo
+ *       `vps-…` → OVH
+ *   - Customer-facing names never mention "Azure" / "Microsoft" / other providers
+ *   - Windows-ONLY: listImages('linux') is empty, getCompatibleLinuxImage is null
+ *   - VM name generation respects Azure's 1-15 char alphanumeric+hyphen rule
+ *   - Azure password generator yields rule-compliant credentials
+ *   - Per-instance dispatch via smart proxy honours `az-` prefix for start/stop/etc.
+ */
+process.env.VPS_MARKUP_PERCENT = '200'
+process.env.AZURE_TENANT_ID = 'test-tenant'
+process.env.AZURE_CLIENT_ID = 'test-client'
+process.env.AZURE_CLIENT_SECRET = 'test-secret'
+process.env.AZURE_SUBSCRIPTION_ID = 'test-sub'
+process.env.AZURE_RESOURCE_GROUP = 'nomadly-vps'
+delete process.env.AZURE_DSV5_ENABLED // ensure MVP default = B-tier only
+
+const path = require('path')
+const azure = require(path.join(__dirname, '..', 'js', 'azure-service.js'))
+
+describe('Azure — Cloud VPS catalog (Windows / RDP-only, B-tier MVP)', () => {
+  test('MVP launches with exactly 3 B-tier SKUs (D-tier gated off)', () => {
+    expect(azure.PRODUCT_CATALOG).toHaveLength(3)
+    expect(azure.PRODUCT_CATALOG.map(p => p.productId)).toEqual([
+      'Standard_B1ms', 'Standard_B2s', 'Standard_B2ms',
+    ])
+  })
+
+  test('Customer-facing names match Contabo/DO convention "Cloud VPS X0"', () => {
+    expect(azure.PRODUCT_CATALOG.map(p => p.name)).toEqual([
+      'Cloud VPS 10', 'Cloud VPS 20', 'Cloud VPS 30',
+    ])
+  })
+
+  test('Customer-facing names never mention provider', () => {
+    for (const p of azure.PRODUCT_CATALOG) {
+      expect(p.name).not.toMatch(/azure/i)
+      expect(p.name).not.toMatch(/microsoft/i)
+      expect(p.name).not.toMatch(/standard_b/i)
+      expect(p.name).not.toMatch(/vultr/i)
+      expect(p.name).not.toMatch(/contabo/i)
+      expect(p.name).not.toMatch(/digital\s*ocean/i)
+      expect(p.name).not.toMatch(/ovh/i)
+    }
+  })
+
+  test('Tier 1 = B1ms (1 vCPU / 2 GB) sold at $30/mo (200% markup over $10)', () => {
+    const tier1 = azure.PRODUCT_CATALOG[0]
+    expect(tier1.productId).toBe('Standard_B1ms')
+    expect(tier1.cpuCores).toBe(1)
+    expect(tier1.ramMb).toBe(2048)
+    expect(tier1.basePriceUsd).toBe(30)
+  })
+
+  test('PRODUCT_CATALOG_SSD is an alias of PRODUCT_CATALOG (Azure managed disks are SSD)', () => {
+    expect(azure.PRODUCT_CATALOG_SSD).toBe(azure.PRODUCT_CATALOG)
+  })
+
+  test('AZURE_DSV5_ENABLED=true unlocks D-tier expansion (5 SKUs total)', () => {
+    process.env.AZURE_DSV5_ENABLED = 'true'
+    jest.resetModules()
+    const azureWithD = require(path.join(__dirname, '..', 'js', 'azure-service.js'))
+    expect(azureWithD.PRODUCT_CATALOG).toHaveLength(5)
+    expect(azureWithD.PRODUCT_CATALOG.map(p => p.productId)).toEqual([
+      'Standard_B1ms', 'Standard_B2s', 'Standard_B2ms',
+      'Standard_D2s_v5', 'Standard_D4s_v5',
+    ])
+    // restore
+    delete process.env.AZURE_DSV5_ENABLED
+    jest.resetModules()
+  })
+})
+
+describe('Azure — pricing with 200% markup', () => {
+  test.each([
+    ['Standard_B1ms',  30,  90],
+    ['Standard_B2s',   52, 156],
+    ['Standard_B2ms',  96, 288],
+  ])('%s costs $%i × 3 = $%i sell price', (id, base, sell) => {
+    const p = azure.getProduct(id)
+    const price = azure.calculatePrice(p, 'EU', true)
+    expect(price.basePriceUsd).toBe(base)
+    expect(price.totalWithMarkup).toBe(sell)
+  })
+
+  test('Windows licence is bundled — windowsLicense reports 0 (cross-provider compat)', () => {
+    const p = azure.getProduct('Standard_B1ms')
+    const price = azure.calculatePrice(p, 'EU', true)
+    expect(price.windowsLicense).toBe(0)
+  })
+
+  test('Region surcharge is zero across all 9 supported regions (flat pricing)', () => {
+    const p = azure.getProduct('Standard_B1ms')
+    for (const region of Object.keys(azure.REGION_TO_AZURE)) {
+      const price = azure.calculatePrice(p, region, true)
+      expect(price).not.toBeNull()
+      expect(price.regionSurcharge).toBe(0)
+    }
+  })
+
+  test('Unknown region returns null pricing', () => {
+    const p = azure.getProduct('Standard_B1ms')
+    expect(azure.calculatePrice(p, 'MARS', true)).toBeNull()
+  })
+
+  test('listProducts accepts (region, isWindows, diskPreference) — Contabo signature parity', () => {
+    const ssd = azure.listProducts('EU', true, 'ssd')
+    const nvme = azure.listProducts('EU', true, 'nvme')
+    expect(ssd).toHaveLength(3)
+    expect(nvme).toHaveLength(3)
+    expect(ssd.map(p => p.productId)).toEqual(nvme.map(p => p.productId))
+  })
+
+  test('listProducts with isWindows=false returns empty (Azure tier is Windows-only)', () => {
+    expect(azure.listProducts('EU', false)).toEqual([])
+  })
+})
+
+describe('Azure — regions: 9 customer-facing slugs map to Azure slugs', () => {
+  test.each([
+    ['EU',         'westeurope'],
+    ['US-east',    'eastus'],
+    ['US-west',    'westus3'],
+    ['US-central', 'eastus2'],
+    ['UK',         'uksouth'],
+    ['SG',         'southeastasia'],
+    ['AU',         'australiaeast'],
+    ['IN',         'centralindia'],
+    ['JP',         'japaneast'],
+  ])('%s → %s', (slug, azureSlug) => {
+    expect(azure.REGION_TO_AZURE[slug]).toBe(azureSlug)
+  })
+
+  test('listRegions returns 9 regions', async () => {
+    const regions = await azure.listRegions()
+    expect(regions).toHaveLength(9)
+    expect(regions.map(r => r.regionSlug).sort()).toEqual(
+      ['AU', 'EU', 'IN', 'JP', 'SG', 'UK', 'US-central', 'US-east', 'US-west']
+    )
+  })
+
+  test('Each region exposes a display label that NEVER mentions Azure', async () => {
+    const regions = await azure.listRegions()
+    for (const r of regions) {
+      expect(r.regionName).not.toMatch(/azure/i)
+      expect(r.regionName).not.toMatch(/microsoft/i)
+    }
+  })
+})
+
+describe('Azure — images: Windows-ONLY, no Linux on this tier', () => {
+  test('getCompatibleLinuxImage returns null (Azure is RDP-only here)', async () => {
+    expect(await azure.getCompatibleLinuxImage(null, 'Standard_B1ms')).toBeNull()
+  })
+
+  test('listImages("linux") returns empty array', async () => {
+    expect(await azure.listImages('linux')).toEqual([])
+  })
+
+  test('listImages("windows") returns Windows Server SKUs', async () => {
+    const imgs = await azure.listImages('windows')
+    expect(imgs.length).toBeGreaterThan(0)
+    for (const i of imgs) {
+      expect(i.isWindows).toBe(true)
+      expect(i.osType).toBe('Windows')
+    }
+  })
+
+  test('Default image is Windows Server 2022 Datacenter', async () => {
+    expect(await azure.getDefaultWindowsImageId('Standard_B1ms')).toBe('win2022-datacenter')
+  })
+
+  test('_imageReference resolves to Microsoft publisher + valid SKU', () => {
+    const ref = azure._imageReference('win2022-datacenter')
+    expect(ref.publisher).toBe('MicrosoftWindowsServer')
+    expect(ref.offer).toBe('WindowsServer')
+    expect(ref.sku).toBe('2022-Datacenter')
+    expect(ref.version).toBe('latest')
+  })
+
+  test('Unknown imageId falls back to default Windows Server 2022', () => {
+    const ref = azure._imageReference('does-not-exist')
+    expect(ref.sku).toBe('2022-Datacenter')
+  })
+})
+
+describe('Azure — ID prefix routing (disambiguation from other providers)', () => {
+  test('_wrapId adds az- prefix to bare VM name', () => {
+    expect(azure._wrapId('nmd1a2b3c4')).toBe('az-nmd1a2b3c4')
+  })
+
+  test('_wrapId is idempotent (already-prefixed stays prefixed)', () => {
+    expect(azure._wrapId('az-nmd1a2b3c4')).toBe('az-nmd1a2b3c4')
+  })
+
+  test('_stripIdPrefix removes az- prefix', () => {
+    expect(azure._stripIdPrefix('az-nmd1a2b3c4')).toBe('nmd1a2b3c4')
+  })
+
+  test('_stripIdPrefix passes through bare names unchanged', () => {
+    expect(azure._stripIdPrefix('nmd1a2b3c4')).toBe('nmd1a2b3c4')
+  })
+
+  test('_generateVmName respects Azure 15-char Windows VM name limit', () => {
+    for (let i = 0; i < 20; i++) {
+      const n = azure._generateVmName('nmd')
+      expect(n.length).toBeLessThanOrEqual(15)
+      expect(n).toMatch(/^nmd[0-9a-f]+$/)
+    }
+  })
+})
+
+describe('Azure — password generator', () => {
+  test('Yields 20-char strings by default', () => {
+    const pwd = azure._generateAzurePassword()
+    expect(pwd.length).toBe(20)
+  })
+
+  test('Always contains upper, lower, digit, and special chars', () => {
+    for (let i = 0; i < 20; i++) {
+      const pwd = azure._generateAzurePassword()
+      expect(pwd).toMatch(/[A-Z]/)
+      expect(pwd).toMatch(/[a-z]/)
+      expect(pwd).toMatch(/[0-9]/)
+      expect(pwd).toMatch(/[!@#$%^&*()\-_=+[\]{}]/)
+    }
+  })
+
+  test('Never embeds the admin username (Azure forbids this)', () => {
+    for (let i = 0; i < 10; i++) {
+      const pwd = azure._generateAzurePassword(20, 'nomadly')
+      expect(pwd.toLowerCase()).not.toContain('nomadly')
+    }
+  })
+
+  test('_safeUsername rejects reserved usernames and falls back to "nomadly"', () => {
+    expect(azure._safeUsername('admin')).toBe('nomadly')
+    expect(azure._safeUsername('root')).toBe('nomadly')
+    expect(azure._safeUsername('administrator')).toBe('nomadly')
+    expect(azure._safeUsername('test')).toBe('nomadly')
+    // Allowed: alphanumeric, 3-20 chars
+    expect(azure._safeUsername('customlabel')).toBe('customlabel')
+  })
+
+  test('_safeUsername strips special chars + lowercases', () => {
+    expect(azure._safeUsername('My-User_42!')).toBe('myuser42')
+  })
+
+  test('_safeUsername falls back when too short / too long', () => {
+    expect(azure._safeUsername('ab')).toBe('nomadly')
+    expect(azure._safeUsername('a'.repeat(30))).toBe('nomadly')
+  })
+})
+
+describe('vps-provider — per-record + per-instanceId routing for Azure', () => {
+  beforeEach(() => {
+    jest.resetModules()
+  })
+
+  test('VPS_DEFAULT_PROVIDER=azure → getProvider returns Azure', () => {
+    process.env.VPS_DEFAULT_PROVIDER = 'azure'
+    jest.resetModules()
+    const vp = require(path.join(__dirname, '..', 'js', 'vps-provider'))
+    expect(vp.getProvider().PROVIDER).toBe('azure')
+  })
+
+  test('az-prefixed instanceId → routed to Azure regardless of default', () => {
+    process.env.VPS_DEFAULT_PROVIDER = 'contabo'
+    jest.resetModules()
+    const vp = require(path.join(__dirname, '..', 'js', 'vps-provider'))
+    const svc = vp.dispatchByInstanceId('az-nmd1a2b3c4')
+    expect(svc.PROVIDER).toBe('azure')
+  })
+
+  test('detectProviderByInstanceId recognises `az-` prefix', () => {
+    jest.resetModules()
+    const vp = require(path.join(__dirname, '..', 'js', 'vps-provider'))
+    expect(vp.detectProviderByInstanceId('az-nmd1a2b3c4')).toBe('azure')
+    expect(vp.detectProviderByInstanceId('AZ-NMD1A2B3C4')).toBe('azure') // case-insensitive
+  })
+
+  test('Existing instanceId formats still route correctly (no regression)', () => {
+    jest.resetModules()
+    const vp = require(path.join(__dirname, '..', 'js', 'vps-provider'))
+    expect(vp.detectProviderByInstanceId('203228089')).toBe('contabo')
+    expect(vp.detectProviderByInstanceId('do-487393245')).toBe('digitalocean')
+    expect(vp.detectProviderByInstanceId('cb676a83-3b48-4b6a-9f88-d62e1c9aac1f')).toBe('vultr')
+    expect(vp.detectProviderByInstanceId('vps-12abc34.vps.ovh.net')).toBe('ovh')
+  })
+
+  test('getProviderForRecord({provider: "azure"}) routes to Azure', () => {
+    jest.resetModules()
+    const vp = require(path.join(__dirname, '..', 'js', 'vps-provider'))
+    expect(vp.getProviderForRecord({ provider: 'azure' }).PROVIDER).toBe('azure')
+  })
+
+  test('getProviderForRecord({contaboInstanceId: "az-..."}) routes to Azure', () => {
+    jest.resetModules()
+    const vp = require(path.join(__dirname, '..', 'js', 'vps-provider'))
+    const svc = vp.getProviderForRecord({ contaboInstanceId: 'az-nmd1a2b3c4' })
+    expect(svc.PROVIDER).toBe('azure')
+  })
+
+  test('Smart proxy: contabo.startInstance("az-...") routes to Azure (lifecycle compat)', () => {
+    process.env.VPS_DEFAULT_PROVIDER = 'contabo'
+    jest.resetModules()
+    const vp = require(path.join(__dirname, '..', 'js', 'vps-provider'))
+    const proxy = vp.buildSmartProxy()
+    expect(typeof proxy.startInstance).toBe('function')
+    const dispatched = vp.dispatchByInstanceId('az-nmd1a2b3c4')
+    expect(dispatched.PROVIDER).toBe('azure')
+    for (const m of [
+      'startInstance', 'stopInstance', 'restartInstance', 'shutdownInstance',
+      'resetPassword', 'reinstallInstance', 'cancelInstance',
+      'upgradeInstance', 'updateInstanceName',
+      'createSnapshot', 'listSnapshots', 'deleteSnapshot',
+    ]) {
+      expect(typeof dispatched[m]).toBe('function')
+    }
+  })
+})
+
+describe('Azure — circuit breaker & password secrets', () => {
+  test('Circuit starts healthy', () => {
+    azure.resetProvisioningCircuit()
+    const s = azure.getCircuitState()
+    expect(s.healthy).toBe(true)
+    expect(s.failures).toBe(0)
+  })
+
+  test('Password secrets cache: create → resolve via secretId', async () => {
+    const secret = await azure.createSecret('test-pwd', 'MyPassword42', 'password')
+    expect(secret.secretId).toMatch(/^az-pwd-/)
+    const fetched = await azure.getSecret(secret.secretId)
+    expect(fetched).not.toBeNull()
+    expect(fetched.type).toBe('password')
+    // Cleanup
+    await azure.deleteSecret(secret.secretId)
+    expect(await azure.getSecret(secret.secretId)).toBeNull()
+  })
+
+  test('createSecret rejects unsupported type', async () => {
+    await expect(azure.createSecret('x', 'y', 'oauth')).rejects.toThrow(/unsupported type/)
+  })
+})
+
+describe('Azure — formatInstanceForDisplay (cross-provider parity)', () => {
+  test('Returns Contabo-shape output for the bot UX renderer', () => {
+    const fmt = azure.formatInstanceForDisplay({
+      instanceId:  'az-nmd1a2b3c4',
+      mainIp:      '20.85.123.45',
+      status:      'running',
+      region:      'westeurope',
+      plan:        'Standard_B1ms',
+      ramMb:       2048,
+      diskMb:      64 * 1024,
+      cpuCores:    1,
+      label:       'demo',
+      createdDate: '2026-06-24T00:00:00Z',
+      defaultUser: 'nomadly',
+    })
+    expect(fmt.instanceId).toBe('az-nmd1a2b3c4')
+    expect(fmt.ip).toBe('20.85.123.45')
+    expect(fmt.statusEmoji).toBe('🟢')
+    expect(fmt.osType).toBe('Windows')
+    expect(fmt.isWindows).toBe(true)
+    expect(fmt.defaultUser).toBe('nomadly')
+    expect(fmt.regionName).toBe('Europe (West)')
+    expect(fmt.ramGb).toBe(2)
+    expect(fmt.diskGb).toBe(64)
+    expect(fmt.productName).toBe('Cloud VPS 10')
+  })
+
+  test('Deallocated / stopped status shows 🔴', () => {
+    const fmt1 = azure.formatInstanceForDisplay({
+      instanceId: 'az-x', status: 'deallocated', region: 'westeurope', plan: 'Standard_B1ms',
+    })
+    expect(fmt1.statusEmoji).toBe('🔴')
+    const fmt2 = azure.formatInstanceForDisplay({
+      instanceId: 'az-y', status: 'stopped', region: 'westeurope', plan: 'Standard_B1ms',
+    })
+    expect(fmt2.statusEmoji).toBe('🔴')
+  })
+
+  test('Creating / updating status shows 🟡', () => {
+    const fmt = azure.formatInstanceForDisplay({
+      instanceId: 'az-z', status: 'Creating', region: 'eastus', plan: 'Standard_B2s',
+    })
+    expect(fmt.statusEmoji).toBe('🟡')
+  })
+})
+
+describe('Azure — destructive-cancel guards in vm-instance-setup.js', () => {
+  // Source-level assertions that catch regressions if anyone trims `azure`
+  // out of the destructive-cancel guards. Mirrors the digitalocean / vultr
+  // strategy from digitalocean-bot-lifecycle.test.js.
+  const fs = require('fs')
+  const vmSetupPath = path.join(__dirname, '..', 'js', 'vm-instance-setup.js')
+  let src
+  beforeEach(() => { src = fs.readFileSync(vmSetupPath, 'utf8') })
+
+  test('Cancel-on-create guard includes "azure" alongside vultr/digitalocean', () => {
+    expect(src).toMatch(/\[\s*'vultr'\s*,\s*'digitalocean'\s*,\s*'azure'\s*\]\.includes\(vpsProvider\.detectProviderByInstanceId/)
+  })
+
+  test('changeVpsAutoRenewal toggle guards against destructive cancel on Azure', () => {
+    expect(src).toMatch(/_provName === 'vultr' \|\| _provName === 'digitalocean' \|\| _provName === 'azure'/)
+  })
+
+  test('deleteVPSinstance short-circuit recognises Azure as immediate-delete', () => {
+    expect(src).toMatch(/_providerName === 'vultr' \|\| _providerName === 'digitalocean' \|\| _providerName === 'azure'/)
+  })
+})

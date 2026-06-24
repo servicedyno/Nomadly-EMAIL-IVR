@@ -2,13 +2,13 @@
  * vps-provider.js — Multi-provider VPS abstraction layer.
  *
  * Reads env vars to decide which VPS backend to use:
- *   VPS_DEFAULT_PROVIDER       = "ovh" | "contabo" | "vultr" | "digitalocean"  (default: "ovh" as of 2026-02)
+ *   VPS_DEFAULT_PROVIDER       = "ovh" | "contabo" | "vultr" | "digitalocean" | "azure"  (default: "ovh" as of 2026-02)
  *   VPS_CONTABO_FALLBACK_ENABLED = "true" | "false"  (default: "false")
  *
- * All four services export identical method signatures (see ovh-service.js,
- * contabo-service.js, vultr-service.js, digitalocean-service.js), so callers
- * like vm-instance-setup.js only need to call `getProvider()` and forget
- * which one is active.
+ * All five services export identical method signatures (see ovh-service.js,
+ * contabo-service.js, vultr-service.js, digitalocean-service.js, azure-service.js),
+ * so callers like vm-instance-setup.js only need to call `getProvider()` and
+ * forget which one is active.
  *
  * Fallback semantics:
  * - When CONTABO_FALLBACK is enabled AND the primary provider trips its
@@ -35,6 +35,18 @@
  *     the bot (e.g. `do-487393245`). All per-record routing keys off this
  *     prefix — same trick OVH uses with `vps-...`.
  *   • Flat pricing across all 8 regions; no Japan datacenter.
+ *
+ * Azure notes (added 2026-06-24):
+ *   • Windows / RDP tier — B-series MVP (B1ms / B2s / B2ms). D-series gated
+ *     behind `AZURE_DSV5_ENABLED=true` (needs quota increase).
+ *   • Azure VM names are alphanumeric (no provider-specific format) and
+ *     would COLLIDE with other providers in `dispatchByInstanceId()`. The
+ *     azure service WRAPS every VM name with an `az-` prefix when returning
+ *     to the bot (e.g. `az-nmd1a2b3c4`). Same disambiguation trick as DO.
+ *   • Azure has NO scheduled cancel — `cancelInstance` is destructive. The
+ *     vm-instance-setup.js destructive-cancel guards must list `azure`
+ *     alongside `vultr`/`digitalocean`.
+ *   • Windows licence bundled in the basePriceUsd (no separate RDP fee).
  */
 
 'use strict'
@@ -51,6 +63,7 @@ function _loadProvider(name) {
   if (name === 'contabo')      return require('./contabo-service')
   if (name === 'vultr')        return require('./vultr-service')
   if (name === 'digitalocean') return require('./digitalocean-service')
+  if (name === 'azure')        return require('./azure-service')
   throw new Error(`Unknown VPS provider: ${name}`)
 }
 
@@ -73,9 +86,10 @@ function getFallbackProvider() {
  * an existing instance (getInstance, deleteInstance, etc.).
  *
  * Detection order (most specific → least specific):
- *   1. record.provider === 'ovh' | 'contabo' | 'vultr' | 'digitalocean'  → use it
+ *   1. record.provider === 'ovh' | 'contabo' | 'vultr' | 'digitalocean' | 'azure'  → use it
  *   2. record._ovhServiceName starts with 'vps-' → 'ovh'
  *   3. record.contaboInstanceId is set
+ *        - starts with 'az-'              → 'azure'
  *        - starts with 'do-'              → 'digitalocean'
  *        - UUID format (8-4-4-4-12 hex)   → 'vultr'
  *        - numeric                        → 'contabo'
@@ -87,12 +101,15 @@ function getFallbackProvider() {
 function getProviderForRecord(vpsRecord) {
   if (!vpsRecord) return getProvider()
   const explicit = (vpsRecord.provider || '').toLowerCase()
-  if (explicit === 'ovh' || explicit === 'contabo' || explicit === 'vultr' || explicit === 'digitalocean') return _loadProvider(explicit)
+  if (explicit === 'ovh' || explicit === 'contabo' || explicit === 'vultr' || explicit === 'digitalocean' || explicit === 'azure') return _loadProvider(explicit)
   if (vpsRecord._ovhServiceName || (typeof vpsRecord.contaboInstanceId === 'string' && /^vps-/.test(vpsRecord.contaboInstanceId))) {
     return _loadProvider('ovh')
   }
   if (vpsRecord.contaboInstanceId != null) {
     const s = String(vpsRecord.contaboInstanceId)
+    if (/^az-/i.test(s)) {
+      return _loadProvider('azure')
+    }
     if (/^do-/i.test(s)) {
       return _loadProvider('digitalocean')
     }
@@ -116,15 +133,17 @@ function listAllProviders() {
 /**
  * Detect which provider owns an instanceId based on format:
  *  - OVH service names look like 'vps-12abc34.vps.ovh.net' (or any string starting with 'vps-')
+ *  - Azure instance IDs are prefixed `az-<vmname>` (disambiguates from alphanumeric collisions)
  *  - DigitalOcean instance IDs are prefixed `do-<numeric>` to disambiguate from Contabo (which is also numeric)
  *  - Vultr instance IDs are UUIDs (8-4-4-4-12 hex segments)
  *  - Contabo instance IDs are numeric strings (e.g., '203228089')
- * Returns 'ovh' | 'contabo' | 'vultr' | 'digitalocean' | null (unknown).
+ * Returns 'ovh' | 'contabo' | 'vultr' | 'digitalocean' | 'azure' | null (unknown).
  */
 function detectProviderByInstanceId(instanceId) {
   if (instanceId == null) return null
   const s = String(instanceId)
   if (/^vps-/.test(s)) return 'ovh'
+  if (/^az-/i.test(s)) return 'azure'
   if (/^do-/i.test(s)) return 'digitalocean'
   if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)) return 'vultr'
   if (/^\d+$/.test(s)) return 'contabo'
@@ -137,7 +156,7 @@ function detectProviderByInstanceId(instanceId) {
  */
 function dispatchByInstanceId(instanceId) {
   const name = detectProviderByInstanceId(instanceId)
-  if (name === 'ovh' || name === 'contabo' || name === 'vultr' || name === 'digitalocean') return _loadProvider(name)
+  if (name === 'ovh' || name === 'contabo' || name === 'vultr' || name === 'digitalocean' || name === 'azure') return _loadProvider(name)
   return getProvider()
 }
 
