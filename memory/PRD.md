@@ -1111,3 +1111,65 @@ Spun up persistent test VMs and exercised every bot-exposed lifecycle op against
 - DO VPS: ~$0.21/day (`s-1vcpu-1gb`)
 - Azure RDP: ~$3.96/day (`D2s_v6` — higher because Bsv2 quota is still 0)
 - Combined: ~$4.17/day → please remember to deprovision when done testing
+
+---
+
+## 2026-06-24 (deep audit) — SSH / deletion / renewal flows verified across providers
+
+User asked: "how about SSH and deletion and renewal logics we had". Audited each flow
+and surfaced + fixed a real bug in the renewal scheduler.
+
+### SSH key management — ✅ working
+- `generateNewSSHkey` calls `provider.createSecret(name, pubkey, 'ssh')` via the
+  smart proxy → for DigitalOcean (current default), this hits `/account/keys`
+  and returns a numeric DO key ID
+- Verified live: real RSA key uploaded to DO, listed via `listSecrets`, deleted
+  cleanly (key id `57345350` round-trip)
+- Azure RDP correctly NO-OPs SSH keys (Windows uses password — docstring confirms)
+
+### Renewal logic — ✅ working, no changes needed
+- Manual `renewVPSPlan(telegramId, vpsId)` extends `end_time` by 1 month in DB
+- Auto-renew scheduler (`_index.js` Phase 1) deducts wallet → extends DB
+- DO / Azure are PAYG so no provider-side renewal API call needed — `end_time` in
+  our DB is the source of truth for customer-facing expiry
+- Existing Jest coverage at `tests/test_cancellation_flows.js` (cancel/renew paths)
+- `changeVpsAutoRenewal` toggle correctly skips destructive cancel for PAYG
+  providers (already patched in earlier session)
+
+### Deletion / cancellation — 🔴 BUG FOUND + FIXED
+Discovered the auto-renew scheduler at T-24h (Phase 1) and T-5h (Phase 1.5)
+unconditionally called `deleteVPSinstance` even for PAYG providers, which
+**immediately destroys DO/Vultr/Azure VMs**, costing customers up to 24h of
+paid uptime they already paid for.
+
+### Fix
+Added `_isPAYGProvider(vpsPlan)` helper at the top of
+`checkVPSPlansExpiryandPayment`:
+```
+function _isPAYGProvider(vpsPlan) {
+  const name = _detectByPrefix(vpsPlan.contaboInstanceId)
+    || (vpsPlan.provider || '').toLowerCase()
+  return name === 'vultr' || name === 'digitalocean' || name === 'azure'
+}
+```
+Gated 3 destructive call sites:
+- Phase 1, auto-renew-off branch: `!_contaboCancelledEarly && !_isPAYGProvider`
+- Phase 1, wallet-deduct-failed branch: same guard
+- Phase 1.5, T-5h pre-emptive: `if (_isPAYGProvider) continue`
+
+Phase 2 (at end_time) is untouched — that's where PAYG providers get destroyed
+correctly, after the customer's paid period ends.
+
+### Validation
+- ✅ Full Jest suite: 310 passed / 1 skipped / 0 failed (was 304, +6 new tests)
+- ✅ New test file `tests/vps-scheduler-payg-skip.test.js` — source-level
+  regression guards for the 3 PAYG skip sites + Phase 2 preservation
+- ✅ Bot boots cleanly after restart
+- ✅ Live SSH key flow validated end-to-end (RSA key uploaded to DO and deleted)
+
+### Operational impact
+- Future DO/Azure customers who disable auto-renew, OR have insufficient
+  balance at T-24h, now keep their VPS running until their actual expiry.
+- The PAYG cost we eat for that extra 24h is small (≤$0.20/day DO, ≤$4/day Azure).
+- Customer experience: matches the "Linux VPS expires on Aug 24th" promise
+  they saw at purchase.

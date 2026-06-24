@@ -31116,6 +31116,20 @@ async function checkVPSPlansExpiryandPayment() {
     return
   }
 
+  // ── PAYG provider helper ──────────────────────────────────────────────
+  // DigitalOcean / Vultr / Azure bill us per-hour and have NO "scheduled
+  // cancel" — calling cancelInstance destroys the VM instantly. For these,
+  // we MUST wait until end_time (Phase 2) to destroy, otherwise customers
+  // lose 24h of paid time. For Contabo, the T-24h / T-5h pre-emptive
+  // cancels are still needed because Contabo pre-bills the next period
+  // ~4 days before expiry.
+  const { detectProviderByInstanceId: _detectByPrefix } = require('./vps-provider')
+  function _isPAYGProvider(vpsPlan) {
+    const name = _detectByPrefix(vpsPlan.contaboInstanceId)
+      || (vpsPlan.provider || '').toLowerCase()
+    return name === 'vultr' || name === 'digitalocean' || name === 'azure'
+  }
+
   const now = new Date()
   const oneDayFromNow = new Date(now.getTime() + 1 * 24 * 60 * 60 * 1000)
   const threeDaysFromNow = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000)
@@ -31147,7 +31161,12 @@ async function checkVPSPlansExpiryandPayment() {
         // Contabo bills monthly contracts in advance; waiting until the 5h
         // pre-emptive cancel (Phase 1.5) was too late and caused €30+ leak
         // charges (cancelDate landed one period later instead of at end_time).
-        if (!vpsPlan._contaboCancelledEarly) {
+        //
+        // PAYG providers (DO / Vultr / Azure) bill hourly and `cancelInstance`
+        // is destructive — skip the early-cancel here. Phase 2 (at end_time)
+        // performs the actual destroy. This preserves the customer's full
+        // paid period; the PAYG cost we eat is ≤24h ($0.20-$4).
+        if (!vpsPlan._contaboCancelledEarly && !_isPAYGProvider(vpsPlan)) {
           try {
             const cancelResult = await deleteVPSinstance(chatId, vpsId)
             if (cancelResult && cancelResult.success) {
@@ -31195,7 +31214,10 @@ async function checkVPSPlansExpiryandPayment() {
         // earlier than the old Phase 1.5 trigger (T-5h) — so without this we
         // get charged for the next month before the safety net fires.
         // Phase 1.5 is kept as a redundant retry for any record this misses.
-        if (!vpsPlan._contaboCancelledEarly) {
+        //
+        // PAYG providers (DO / Vultr / Azure): skip here too — Phase 2 will
+        // destroy at end_time, honouring the customer's paid period.
+        if (!vpsPlan._contaboCancelledEarly && !_isPAYGProvider(vpsPlan)) {
           try {
             const cancelResult = await deleteVPSinstance(chatId, vpsId)
             if (cancelResult && cancelResult.success) {
@@ -31214,7 +31236,10 @@ async function checkVPSPlansExpiryandPayment() {
     // ═══════════════════════════════════════════════════════════════
     // Phase 1.5: PRE-EMPTIVE CONTABO CANCELLATION — 5 hours before expiry
     // If auto-renew failed (PENDING_CANCELLATION) and expiry is within 5 hours,
-    // cancel on Contabo NOW to prevent their auto-billing/renewal
+    // cancel on Contabo NOW to prevent their auto-billing/renewal.
+    //
+    // PAYG providers (DO / Vultr / Azure) are excluded — their cancel is
+    // destructive and Phase 2 (at end_time) handles them safely.
     // ═══════════════════════════════════════════════════════════════
     const fiveHoursFromNow = new Date(now.getTime() + 5 * 60 * 60 * 1000)
     const urgentCancellations = await vpsPlansOf.find({
@@ -31224,6 +31249,7 @@ async function checkVPSPlansExpiryandPayment() {
     }).toArray()
 
     for (const vpsPlan of urgentCancellations) {
+      if (_isPAYGProvider(vpsPlan)) continue // Phase 2 handles these at end_time
       const { chatId, _id, vpsId, label, contaboInstanceId, planPrice } = vpsPlan
       const displayName = label || vpsPlan.name || 'VPS'
       const hoursLeft = ((new Date(vpsPlan.end_time).getTime() - now.getTime()) / (1000 * 60 * 60)).toFixed(1)
