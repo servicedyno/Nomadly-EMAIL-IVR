@@ -700,3 +700,85 @@ All RUNNING: `backend`, `frontend`, `mongodb`, `nodejs`. Logs confirm:
 Pod is initialised and idle, ready for development work.
 
 
+
+---
+
+## 2026-06-24 — DigitalOcean VPS provider integration (4th provider, Linux-only)
+
+User asked: "lets set DO up for VPS only and ensure user can manage it fully from the bot like off, restart, on, etc."
+
+Built a complete 4th-provider implementation alongside Contabo / OVH / Vultr, following the same pattern Vultr was added with on 2026-06-23.
+
+### Choices locked in
+- **Linux-only** — DO has no Windows/RDP support. Vultr stays the RDP provider; DO competes with Contabo/OVH on Linux only.
+- **6-tier catalog** "Cloud VPS 10/20/30/40/50/60" (same naming as Contabo to keep customer UX consistent — provider identity never surfaces).
+- **8 customer regions** (DO has no Japan datacenter; JP returns null pricing). EU→fra1, US-central→nyc3, US-east→nyc1, US-west→sfo3, UK→lon1, SG→sgp1, AU→syd1, IN→blr1.
+- **200% markup** same as Contabo/Vultr — uses existing `VPS_MARKUP_PERCENT` env var.
+- **DO does NOT become default** — `VPS_DEFAULT_PROVIDER=vultr` stays. Flip to `digitalocean` via Railway env when ready.
+
+### The disambiguation trick: `do-` prefix on instance IDs
+DO Droplet IDs are numeric integers (e.g. `487393245`) — **same format as Contabo**. The smart proxy at `js/vps-provider.js:dispatchByInstanceId()` uses regex-based routing (`/^vps-/` → OVH, UUID → Vultr, numeric → Contabo). A raw DO id would mis-route to Contabo.
+
+**Solution**: `digitalocean-service.js` WRAPS every droplet id with `do-` prefix when returning to the bot (e.g. `do-487393245`). The DO service strips the prefix before hitting DO's API. `detectProviderByInstanceId()` now recognises the `do-` prefix → 'digitalocean'. Same trick OVH uses with `vps-...`.
+
+This means the bot's existing lifecycle handler at `vm-instance-setup.js:1027` (`contabo.startInstance(instanceId)`) works on DO instances unchanged — the smart proxy routes correctly based on the prefixed id stored in `vpsPlansOf.contaboInstanceId`.
+
+### Files added/modified
+- `/app/js/digitalocean-service.js` (NEW, ~570 lines) — full provider implementation:
+  - 6-tier PRODUCT_CATALOG + PRODUCT_CATALOG_SSD alias
+  - createInstance / getInstance / listInstances / startInstance / stopInstance / restartInstance / shutdownInstance / resetPassword / reinstallInstance / cancelInstance / upgradeInstance / updateInstanceName / createSnapshot / listSnapshots / deleteSnapshot / createSecret / listSecrets / getSecret / deleteSecret
+  - Circuit breaker (5 consecutive failures opens for 5 min) — same pattern as Vultr
+  - Cloud-init `user_data` builder that sets root password on first boot (DO has no native password param on Create)
+  - `_wrapId` / `_stripIdPrefix` helpers exported for tests + the `do-` prefix convention
+  - `resetPassword` uses DO's `rebuild` action with cloud-init (DO's native `password_reset` emails the admin, useless for bot UX)
+  - `cancelInstance({scheduleOnly: true})` is a no-op (DO has no scheduled cancellation) — track via `vpsPlansOf.autoRenewable=false` instead, same as Vultr
+- `/app/js/vps-provider.js` — extended:
+  - `_loadProvider('digitalocean')` added to switch
+  - `getProviderForRecord` now checks `provider === 'digitalocean'` explicitly, and recognises `contaboInstanceId` starting with `do-`
+  - `detectProviderByInstanceId` recognises `do-` prefix → 'digitalocean'
+  - `dispatchByInstanceId` accepts 'digitalocean' as a routable provider
+- `/app/tests/digitalocean-provider.test.js` (NEW) — 52 tests covering: catalog naming, 200% markup math, 8-region routing (JP excluded), `do-` prefix wrap/strip, cloud-init builder, smart-proxy lifecycle dispatch, password secret cache, formatInstanceForDisplay parity
+- `/app/scripts/smoke_digitalocean.js` (NEW) — live read-only smoke test against the real DO API
+
+### Validation
+- ✅ DO API token verified live: `GET /v2/account` → 200, account `moxxcompany@gmail.com`, droplet_limit=10
+- ✅ Live `listInstances` returned 1 existing droplet (the WHM box)
+- ✅ All 12 required lifecycle methods exported (start/stop/restart/shutdown/resetPassword/reinstall/cancel/upgrade/get/create/snapshot/listSnapshots)
+- ✅ Smart proxy correctly routes `do-` IDs → DO; numeric → Contabo (legacy preserved); UUID → Vultr; vps- → OVH
+- ✅ 52 new Jest tests pass. Full Jest suite: **199 pass + 1 skipped + 0 failed** (was 147; +52 today)
+- ✅ `vps-provider-contract.test.js` (pre-existing cross-provider contract suite) now PASSES with DO — DO satisfies the same method contract as Contabo/OVH/Vultr
+- ✅ ESLint clean on all 4 new/modified files
+- ✅ Bot restart clean — all subsystems initialise without errors
+
+### Pricing reality
+| Tier | Slug | Specs | DO cost | Customer (200%) |
+|---|---|---|---|---|
+| 1 | s-1vcpu-1gb | 1 vCPU / 1 GB / 25 GB SSD | $6 | **$18** |
+| 2 | s-1vcpu-2gb | 1 vCPU / 2 GB / 50 GB SSD | $12 | **$36** |
+| 3 | s-2vcpu-2gb | 2 vCPU / 2 GB / 60 GB SSD | $18 | **$54** |
+| 4 | s-2vcpu-4gb | 2 vCPU / 4 GB / 80 GB SSD | $24 | **$72** |
+| 5 | s-4vcpu-8gb | 4 vCPU / 8 GB / 160 GB SSD | $48 | **$144** |
+| 6 | s-8vcpu-16gb | 8 vCPU / 16 GB / 320 GB SSD | $96 | **$288** |
+
+Sits cleanly between Contabo (cheapest, $15+) and Vultr (premium, $30+). Better SLA + 14 global regions vs Contabo.
+
+### To enable in production
+1. **Request DO droplet-limit increase** — currently capped at 10 (DO's default). Submit a ticket via DO dashboard → "Request limit increase" — usually granted same day. Aim for 50-100 initially.
+2. Confirm DO Terms of Service allow reselling for your business model (their MSA permits it; Cloudways/RunCloud do this commercially).
+3. Set `VPS_DEFAULT_PROVIDER=digitalocean` in Railway prod env when ready (currently `vultr`).
+4. Deploy / restart service to pick up new default.
+
+### Lifecycle control proof — "user can manage it fully from the bot"
+The bot's existing handler `changeVpsInstanceStatus(vpsDetails, 'start'|'stop'|'restart'|'shutdown')` at `vm-instance-setup.js:1020` calls `contabo.startInstance(instanceId)` where `contabo` is the vps-provider smart proxy. Verified via Jest + live smoke test that:
+- For a DO record (`contaboInstanceId='do-487393245'`), the smart proxy dispatches to `digitalocean-service.startInstance('do-487393245')`
+- DO service strips the `do-` prefix internally and calls `POST /v2/droplets/487393245/actions {type:'power_on'}`
+- Same flow for `power_off`, `reboot`, `shutdown`, `password_reset`, `rebuild`, `delete`
+
+**No changes to `vm-instance-setup.js` or `_index.js` required** — the existing bot UI buttons (Start / Stop / Restart / Shutdown / Reinstall / Delete / Change Password / Snapshot) automatically work on DO instances because they all flow through the smart proxy.
+
+### Files
+- `/app/js/digitalocean-service.js` (new)
+- `/app/js/vps-provider.js` (extended — explicit 'digitalocean' check + `do-` ID prefix recognition)
+- `/app/tests/digitalocean-provider.test.js` (new, 52 cases)
+- `/app/scripts/smoke_digitalocean.js` (new — live read-only DO API smoke test)
+
