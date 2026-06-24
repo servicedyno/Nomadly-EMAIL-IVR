@@ -1026,16 +1026,20 @@ async function updateInstanceName(instanceId, displayName) {
 }
 
 // ─── Snapshots ───────────────────────────────────────────────────────────
+// Azure ARM uses a different api-version namespace for snapshots vs VMs.
+// Snapshots accept up to `2025-01-02` (2024-11-01 returns NoRegisteredProviderFound).
+const _SNAPSHOT_API_VERSION = '2025-01-02'
+
 async function createSnapshot(instanceId, name, description = '') {
   const vmName = _stripIdPrefix(instanceId)
   const vm = await apiRequest('GET', _vmPath(vmName), { apiVersion: '2024-11-01' })
   const osDisk = vm.properties?.storageProfile?.osDisk?.managedDisk?.id
   if (!osDisk) throw new Error('VM has no managed OS disk')
   const snapName = String(name || `${vmName}-snap-${Date.now()}`).replace(/[^a-zA-Z0-9-]/g, '-').slice(0, 80)
-  return apiRequest('PUT',
+  const result = await apiRequest('PUT',
     `/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers/Microsoft.Compute/snapshots/${snapName}`,
     {
-      apiVersion: '2024-11-01',
+      apiVersion: _SNAPSHOT_API_VERSION,
       body: {
         location: vm.location,
         properties: { creationData: { createOption: 'Copy', sourceResourceId: osDisk } },
@@ -1043,16 +1047,23 @@ async function createSnapshot(instanceId, name, description = '') {
       },
     }
   )
+  return { ...result, snapshotId: snapName, name: snapName }
 }
 
 async function listSnapshots(instanceId) {
   const d = await apiRequest('GET',
     `/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers/Microsoft.Compute/snapshots`,
-    { apiVersion: '2024-11-01' })
+    { apiVersion: _SNAPSHOT_API_VERSION })
   const all = d.value || []
-  if (!instanceId) return all
+  // Normalise to cross-provider shape (snapshotId + name).
+  const normalised = all.map(s => ({
+    ...s,
+    snapshotId:   s.name,
+    snapshotName: s.name,
+  }))
+  if (!instanceId) return normalised
   const vmName = _stripIdPrefix(instanceId)
-  return all.filter(s => s.tags?.['snapshot-of'] === vmName)
+  return normalised.filter(s => s.tags?.['snapshot-of'] === vmName)
 }
 
 async function deleteSnapshot(_instanceId, snapshotId) {
@@ -1060,7 +1071,7 @@ async function deleteSnapshot(_instanceId, snapshotId) {
   const path = snapshotId.startsWith('/subscriptions/')
     ? snapshotId
     : `/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers/Microsoft.Compute/snapshots/${snapshotId}`
-  return apiRequest('DELETE', path, { apiVersion: '2024-11-01' })
+  return apiRequest('DELETE', path, { apiVersion: _SNAPSHOT_API_VERSION })
 }
 
 // ─── Tags ────────────────────────────────────────────────────────────────

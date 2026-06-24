@@ -361,6 +361,18 @@ describe('Azure — circuit breaker & password secrets', () => {
   test('createSecret rejects unsupported type', async () => {
     await expect(azure.createSecret('x', 'y', 'oauth')).rejects.toThrow(/unsupported type/)
   })
+
+  test('Snapshot ops use the 2025-01-02 api-version (not 2024-11-01)', () => {
+    // Regression guard: Azure ARM rejects snapshots with 2024-11-01.
+    // Source-level check catches accidental reverts.
+    const fs = require('fs')
+    const src = fs.readFileSync(require('path').join(__dirname, '..', 'js', 'azure-service.js'), 'utf-8')
+    // The snapshot api-version constant must be present and used by all 3 ops
+    expect(src).toMatch(/const _SNAPSHOT_API_VERSION\s*=\s*'2025-01-02'/)
+    // Helper to count occurrences of a substring
+    const count = (s, needle) => s.split(needle).length - 1
+    expect(count(src, '_SNAPSHOT_API_VERSION')).toBeGreaterThanOrEqual(4) // 1 const + 3 usages
+  })
 })
 
 describe('Azure — formatInstanceForDisplay (cross-provider parity)', () => {

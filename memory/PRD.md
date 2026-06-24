@@ -1068,3 +1068,46 @@ for ≤10 cores).
 - ✅ ESLint clean
 - ✅ Bot boots cleanly with new env routing
 - ✅ Live Azure E2E provision + cleanup verified
+
+---
+
+## 2026-06-24 (lifecycle verification) — DO + Azure lifecycle ops 100% verified ✅
+
+User asked to "ensure management of the RDP and VPS are working on both providers".
+Spun up persistent test VMs and exercised every bot-exposed lifecycle op against both.
+
+### What was provisioned (LIVE — still running at hand-off)
+- 🟢 **DO Linux VPS** (Cloud VPS 10 / s-1vcpu-1gb): `do-579957871` @ `104.248.38.55`
+- 🟢 **Azure Windows RDP** (Standard_D2s_v6): `az-nmda6ebb8575` @ `20.73.174.102`
+- Credentials saved to `/app/memory/test_credentials.md`
+
+### Lifecycle ops verified on both providers (100% pass)
+- ✅ getInstance, stopInstance, startInstance, restartInstance
+- ✅ resetPassword, updateInstanceName
+- ✅ createSnapshot, listSnapshots, deleteSnapshot
+- ✅ listRegions, listProducts
+
+### Bug fix discovered + fixed during testing
+- Azure ARM `Microsoft.Compute/snapshots` requires api-version `2025-01-02` (not
+  `2024-11-01`). All 3 snapshot ops (`createSnapshot`, `listSnapshots`,
+  `deleteSnapshot`) updated to use a shared `_SNAPSHOT_API_VERSION` constant.
+  Verified live: create → list → delete cycle now passes.
+- Regression test added: `tests/azure-provider.test.js` asserts the constant
+  exists and is referenced ≥4 times (1 const + 3 op usages).
+
+### New scripts
+- **`/app/scripts/persistent_e2e_test.js`** — provisions DO Linux VPS + Azure
+  Windows RDP and prints SSH/RDP credentials. Leaves both running.
+- **`/app/scripts/test_lifecycle_ops.js`** — exercises 9 lifecycle ops against
+  any persistent VM (DO + Azure auto-routed by instanceId prefix).
+
+### Validation
+- ✅ Full Jest suite: 304 passed / 1 skipped / 0 failed (was 303, +1)
+- ✅ Both VMs respond to all bot management ops via the smart proxy
+- ✅ Per-instance dispatch (`dispatchByInstanceId`) correctly routes `do-` →
+  DigitalOcean and `az-` → Azure
+
+### Cost while VMs run
+- DO VPS: ~$0.21/day (`s-1vcpu-1gb`)
+- Azure RDP: ~$3.96/day (`D2s_v6` — higher because Bsv2 quota is still 0)
+- Combined: ~$4.17/day → please remember to deprovision when done testing
