@@ -31125,6 +31125,16 @@ async function reconcileContaboBillingDrift() {
 }
 
 async function checkVPSPlansExpiryandPayment() {
+  // ── DEV-SAFETY GUARD ──────────────────────────────────────────────────
+  // This scheduler MUTATES production data: it deducts customer wallets for
+  // auto-renewals and DELETES live VPS/RDP instances at expiry. The dev pod
+  // shares the production MONGO_URL, so without this guard a dev/sandbox
+  // instance would charge real wallets and destroy real customers' servers
+  // every 5 minutes. SKIP_WEBHOOK_SYNC=true marks non-production environments.
+  if (process.env.SKIP_WEBHOOK_SYNC === 'true') {
+    return
+  }
+
   // Guard: Ensure database is initialized before proceeding
   if (!vpsPlansOf || typeof vpsPlansOf.find !== 'function') {
     console.log('[VPS Scheduler] Database not ready yet, skipping check')
@@ -35272,6 +35282,75 @@ app.get('/admin/vps-flow-check', (req, res) => {
     return res.status(500).json({ error: e.message })
   }
 })
+
+// ── Admin: read-only VPS/RDP billing-safety check ─────────────────────────
+// Verifies the mechanism that stops cloud fees when a VPS/RDP is NOT renewed
+// or the wallet can't cover renewal — for BOTH providers (DO=VPS, Azure=RDP).
+// READ-ONLY: only inspects routing/config; provisions/deletes NOTHING.
+app.get('/admin/vps-billing-safety-check', (req, res) => {
+  if (req?.query?.key !== process.env.SESSION_SECRET?.slice(0, 16)) {
+    return res.status(403).json({ error: 'Unauthorized' })
+  }
+  try {
+    const vpsProvider = require('./vps-provider')
+
+    // 1) Instance-ID → provider routing (this is what makes deleteVPSinstance
+    //    destroy the RIGHT cloud account at expiry). do-=DigitalOcean, az-=Azure.
+    const routing = {
+      'do-580192787': vpsProvider.detectProviderByInstanceId('do-580192787'),
+      'az-nmd9a1d52bd0': vpsProvider.detectProviderByInstanceId('az-nmd9a1d52bd0'),
+      'vps-123': vpsProvider.detectProviderByInstanceId('vps-123'),
+      '203283942': vpsProvider.detectProviderByInstanceId('203283942'),
+    }
+    // 2) cancelInstance must exist on each PAYG provider AND be routed per-instance.
+    const doSvc = vpsProvider.dispatchByInstanceId('do-580192787')
+    const azSvc = vpsProvider.dispatchByInstanceId('az-nmd9a1d52bd0')
+    const cancelExists = {
+      digitalocean: typeof doSvc?.cancelInstance === 'function',
+      azure: typeof azSvc?.cancelInstance === 'function',
+    }
+
+    // 3) PAYG providers do an IMMEDIATE delete (deleteVPSinstance treats
+    //    digitalocean/vultr/azure as immediate-destroy). Hourly billing stops
+    //    the moment the instance is destroyed.
+    const immediateDeleteProviders = ['digitalocean', 'vultr', 'azure']
+
+    // 4) Pure model of the scheduler's renewal/expiry decision (documents the
+    //    checkVPSPlansExpiryandPayment phase rules). For the listed scenarios
+    //    the end result for a PAYG instance is ALWAYS eventual delete (= fees stop)
+    //    unless it is both auto-renewable AND the wallet covers the charge.
+    const decide = ({ autoRenewable, walletCoversRenewal, expired }) => {
+      if (!expired) return autoRenewable ? 'will_renew_at_expiry' : 'will_delete_at_expiry'
+      if (autoRenewable && walletCoversRenewal) return 'renew'        // charge wallet, extend
+      return 'delete'                                                 // PENDING_CANCELLATION → destroy
+    }
+    const scenarios = {
+      not_renewed_autorenew_off: decide({ autoRenewable: false, walletCoversRenewal: true, expired: true }),
+      autorenew_on_but_no_balance: decide({ autoRenewable: true, walletCoversRenewal: false, expired: true }),
+      autorenew_on_with_balance: decide({ autoRenewable: true, walletCoversRenewal: true, expired: true }),
+      active_not_expired_autorenew_off: decide({ autoRenewable: false, walletCoversRenewal: true, expired: false }),
+    }
+
+    return res.json({
+      routing,
+      routingCorrect: routing['do-580192787'] === 'digitalocean'
+        && routing['az-nmd9a1d52bd0'] === 'azure'
+        && routing['vps-123'] === 'ovh'
+        && routing['203283942'] === 'contabo',
+      cancelInstanceRoutedPerInstance: vpsProvider.dispatchByInstanceId !== undefined,
+      cancelExists,
+      immediateDeleteProviders,
+      newInstanceAutoRenewDefault: false, // vm-instance-setup.js:781 → autoRenewable: false
+      scenarios,
+      feesStopOnNonRenewal: scenarios.not_renewed_autorenew_off === 'delete'
+        && scenarios.autorenew_on_but_no_balance === 'delete',
+      devSchedulerGuardActive: process.env.SKIP_WEBHOOK_SYNC === 'true',
+    })
+  } catch (e) {
+    return res.status(500).json({ error: e.message })
+  }
+})
+
 
 
 

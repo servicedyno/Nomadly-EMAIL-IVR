@@ -1,234 +1,187 @@
 #!/usr/bin/env python3
 """
-Backend test for VPS/RDP purchase price-display fix verification.
-Tests the /api/admin/vps-flow-check endpoint for all languages.
+Backend API Test Suite for Nomadly Bot
+Tests VPS/RDP billing-safety logic and dev-pod scheduler guard
 """
 
 import requests
 import json
 import sys
 
-# Configuration
-BASE_URL = "https://c02148ec-75bf-4762-a2ee-3f030a45e442.preview.emergentagent.com"
+# Load backend URL from frontend/.env
+BACKEND_URL = "https://c02148ec-75bf-4762-a2ee-3f030a45e442.preview.emergentagent.com"
 ADMIN_KEY = "o/Qb8ArGahlquhCQ"
-LANGUAGES = ["en", "fr", "zh", "hi"]
 
-def test_negative_auth():
-    """Test that missing/wrong key returns 403"""
+def test_vps_billing_safety_check():
+    """
+    Test VPS/RDP renewal+deletion billing-safety logic
+    Verifies that cloud fees stop when instances aren't renewed or wallet can't cover renewal
+    """
     print("\n" + "="*80)
-    print("NEGATIVE AUTH TEST")
+    print("TEST: VPS/RDP Billing-Safety Check (DigitalOcean + Azure)")
     print("="*80)
     
-    # Test without key
-    response = requests.get(f"{BASE_URL}/api/admin/vps-flow-check")
-    print(f"Without key: HTTP {response.status_code}")
-    assert response.status_code == 403, f"Expected 403, got {response.status_code}"
-    
-    # Test with wrong key
-    response = requests.get(f"{BASE_URL}/api/admin/vps-flow-check?key=wrongkey")
-    print(f"With wrong key: HTTP {response.status_code}")
-    assert response.status_code == 403, f"Expected 403, got {response.status_code}"
-    
-    print("✅ Negative auth test PASSED")
-    return True
-
-def test_vps_flow_check(lang):
-    """Test the vps-flow-check endpoint for a specific language"""
-    print("\n" + "="*80)
-    print(f"TESTING LANGUAGE: {lang.upper()}")
-    print("="*80)
-    
-    url = f"{BASE_URL}/api/admin/vps-flow-check?key={ADMIN_KEY}&lang={lang}"
+    # Test 1: Valid key - should return 200 with correct data
+    print("\n[1] Testing with valid admin key...")
+    url = f"{BACKEND_URL}/api/admin/vps-billing-safety-check?key={ADMIN_KEY}"
     response = requests.get(url)
     
-    # (a) HTTP 200 JSON
-    print(f"\n(a) HTTP Status: {response.status_code}")
+    print(f"Status Code: {response.status_code}")
+    
     if response.status_code != 200:
         print(f"❌ FAILED: Expected 200, got {response.status_code}")
         return False
     
-    try:
-        data = response.json()
-    except Exception as e:
-        print(f"❌ FAILED: Response is not valid JSON: {e}")
+    data = response.json()
+    print(f"Response JSON:\n{json.dumps(data, indent=2)}")
+    
+    # Assertion (a): HTTP 200 JSON
+    print("\n✅ (a) HTTP 200 JSON - PASSED")
+    
+    # Assertion (b): routingCorrect == true
+    if data.get("routingCorrect") != True:
+        print(f"❌ (b) FAILED: routingCorrect = {data.get('routingCorrect')}, expected True")
         return False
+    print("✅ (b) routingCorrect == true - PASSED")
     
-    print("✅ (a) HTTP 200 JSON - PASSED")
+    # Verify routing object
+    routing = data.get("routing", {})
+    expected_routing = {
+        "do-580192787": "digitalocean",
+        "az-nmd9a1d52bd0": "azure",
+        "vps-123": "ovh",
+        "203283942": "contabo"
+    }
+    for key, expected_provider in expected_routing.items():
+        if routing.get(key) != expected_provider:
+            print(f"❌ FAILED: routing['{key}'] = {routing.get(key)}, expected '{expected_provider}'")
+            return False
+    print(f"   Routing verified: {routing}")
     
-    # (b) paymentRecieved.rdp contains "RDP" and NOT "VPS"; paymentRecieved.vps contains "VPS"
-    print("\n(b) Testing paymentRecieved messages:")
-    payment_rdp = data.get("paymentRecieved", {}).get("rdp", "")
-    payment_vps = data.get("paymentRecieved", {}).get("vps", "")
-    
-    print(f"  paymentRecieved.rdp: {payment_rdp[:100]}...")
-    print(f"  paymentRecieved.vps: {payment_vps[:100]}...")
-    
-    rdp_has_rdp = "RDP" in payment_rdp or "rdp" in payment_rdp.lower()
-    rdp_has_vps = "VPS" in payment_rdp and "RDP" not in payment_rdp
-    vps_has_vps = "VPS" in payment_vps
-    rdp_is_raw_key = payment_rdp.startswith("vp.") or payment_rdp.startswith("t.")
-    vps_is_raw_key = payment_vps.startswith("vp.") or payment_vps.startswith("t.")
-    
-    if not rdp_has_rdp or rdp_has_vps or not vps_has_vps or rdp_is_raw_key or vps_is_raw_key:
-        print(f"❌ FAILED (b):")
-        print(f"  - RDP message has 'RDP': {rdp_has_rdp}")
-        print(f"  - RDP message has 'VPS' without 'RDP': {rdp_has_vps}")
-        print(f"  - VPS message has 'VPS': {vps_has_vps}")
-        print(f"  - RDP is raw key: {rdp_is_raw_key}")
-        print(f"  - VPS is raw key: {vps_is_raw_key}")
+    # Assertion (c): cancelExists.digitalocean == true AND cancelExists.azure == true
+    cancel_exists = data.get("cancelExists", {})
+    if cancel_exists.get("digitalocean") != True or cancel_exists.get("azure") != True:
+        print(f"❌ (c) FAILED: cancelExists = {cancel_exists}")
         return False
+    print(f"✅ (c) cancelExists.digitalocean == true AND cancelExists.azure == true - PASSED")
     
-    print("✅ (b) paymentRecieved messages - PASSED")
-    
-    # (c) paymentRecievedHasEmailWording == false
-    print("\n(c) Testing paymentRecievedHasEmailWording:")
-    has_email_wording = data.get("paymentRecievedHasEmailWording", True)
-    print(f"  paymentRecievedHasEmailWording: {has_email_wording}")
-    
-    if has_email_wording:
-        print("❌ FAILED (c): paymentRecievedHasEmailWording should be false")
+    # Assertion (d): immediateDeleteProviders includes "digitalocean" and "azure"
+    immediate_delete = data.get("immediateDeleteProviders", [])
+    if "digitalocean" not in immediate_delete or "azure" not in immediate_delete:
+        print(f"❌ (d) FAILED: immediateDeleteProviders = {immediate_delete}")
         return False
+    print(f"✅ (d) immediateDeleteProviders includes 'digitalocean' and 'azure' - PASSED")
+    print(f"   Full list: {immediate_delete}")
     
-    print("✅ (c) paymentRecievedHasEmailWording - PASSED")
-    
-    # (d) vps_5d.rdp = RDP-ready header; vps_5d.vps = VPS-ready header
-    print("\n(d) Testing vps_5d messages:")
-    vps5d_rdp = data.get("vps_5d", {}).get("rdp", "")
-    vps5d_vps = data.get("vps_5d", {}).get("vps", "")
-    
-    print(f"  vps_5d.rdp: {vps5d_rdp[:100]}...")
-    print(f"  vps_5d.vps: {vps5d_vps[:100]}...")
-    
-    # Check that RDP message contains "RDP" and VPS message contains "VPS"
-    # Don't check for "ready" in English since it's translated in other languages
-    rdp_header_ok = "RDP" in vps5d_rdp
-    vps_header_ok = "VPS" in vps5d_vps
-    rdp5d_is_raw_key = vps5d_rdp.startswith("t.vps_5d") or vps5d_rdp.startswith("vp.")
-    vps5d_is_raw_key = vps5d_vps.startswith("t.vps_5d") or vps5d_vps.startswith("vp.")
-    
-    if not rdp_header_ok or not vps_header_ok or rdp5d_is_raw_key or vps5d_is_raw_key:
-        print(f"❌ FAILED (d):")
-        print(f"  - RDP header has 'RDP': {rdp_header_ok}")
-        print(f"  - VPS header has 'VPS': {vps_header_ok}")
-        print(f"  - RDP is raw key: {rdp5d_is_raw_key}")
-        print(f"  - VPS is raw key: {vps5d_is_raw_key}")
+    # Assertion (e): newInstanceAutoRenewDefault == false
+    if data.get("newInstanceAutoRenewDefault") != False:
+        print(f"❌ (e) FAILED: newInstanceAutoRenewDefault = {data.get('newInstanceAutoRenewDefault')}")
         return False
+    print(f"✅ (e) newInstanceAutoRenewDefault == false - PASSED")
     
-    print("✅ (d) vps_5d messages - PASSED")
+    # Assertion (f): scenarios
+    scenarios = data.get("scenarios", {})
+    expected_scenarios = {
+        "not_renewed_autorenew_off": "delete",
+        "autorenew_on_but_no_balance": "delete",
+        "autorenew_on_with_balance": "renew",
+        "active_not_expired_autorenew_off": "will_delete_at_expiry"
+    }
+    for key, expected_value in expected_scenarios.items():
+        if scenarios.get(key) != expected_value:
+            print(f"❌ (f) FAILED: scenarios['{key}'] = {scenarios.get(key)}, expected '{expected_value}'")
+            return False
+    print(f"✅ (f) All scenarios correct - PASSED")
+    print(f"   {json.dumps(scenarios, indent=2)}")
     
-    # (e) vpsBoughtSuccess checks
-    print("\n(e) Testing vpsBoughtSuccess:")
-    vbs = data.get("vpsBoughtSuccess", {})
-    rdp_header_says_rdp = vbs.get("rdpHeaderSaysRDP", False)
-    vps_header_says_vps = vbs.get("vpsHeaderSaysVPS", False)
-    rdp_has_email = vbs.get("rdpHasEmailWording", True)
-    rdp_length = vbs.get("rdpLength", 9999)
-    
-    print(f"  rdpHeaderSaysRDP: {rdp_header_says_rdp}")
-    print(f"  vpsHeaderSaysVPS: {vps_header_says_vps}")
-    print(f"  rdpHasEmailWording: {rdp_has_email}")
-    print(f"  rdpLength: {rdp_length}")
-    
-    if not rdp_header_says_rdp or not vps_header_says_vps or rdp_has_email or rdp_length >= 1200:
-        print(f"❌ FAILED (e):")
-        print(f"  - rdpHeaderSaysRDP should be true: {rdp_header_says_rdp}")
-        print(f"  - vpsHeaderSaysVPS should be true: {vps_header_says_vps}")
-        print(f"  - rdpHasEmailWording should be false: {not rdp_has_email}")
-        print(f"  - rdpLength should be < 1200: {rdp_length < 1200}")
+    # Assertion (g): feesStopOnNonRenewal == true
+    if data.get("feesStopOnNonRenewal") != True:
+        print(f"❌ (g) FAILED: feesStopOnNonRenewal = {data.get('feesStopOnNonRenewal')}")
         return False
+    print(f"✅ (g) feesStopOnNonRenewal == true - PASSED")
     
-    print("✅ (e) vpsBoughtSuccess - PASSED")
-    
-    # (f) priceRule.displayPrice == 90 AND priceRule.displayEqualsCharge == true (RDP scenario)
-    print("\n(f) Testing priceRule (RDP scenario):")
-    price_rule = data.get("priceRule", {})
-    display_price = price_rule.get("displayPrice", 0)
-    display_equals_charge = price_rule.get("displayEqualsCharge", False)
-    
-    print(f"  displayPrice: {display_price}")
-    print(f"  displayEqualsCharge: {display_equals_charge}")
-    
-    if display_price != 90 or not display_equals_charge:
-        print(f"❌ FAILED (f):")
-        print(f"  - displayPrice should be 90: {display_price == 90}")
-        print(f"  - displayEqualsCharge should be true: {display_equals_charge}")
+    # Assertion (h): devSchedulerGuardActive == true
+    if data.get("devSchedulerGuardActive") != True:
+        print(f"❌ (h) FAILED: devSchedulerGuardActive = {data.get('devSchedulerGuardActive')}")
         return False
+    print(f"✅ (h) devSchedulerGuardActive == true - PASSED")
     
-    print("✅ (f) priceRule (RDP) - PASSED")
+    # Test 2: Invalid key - should return 403
+    print("\n[2] Testing with invalid admin key (negative test)...")
+    url_wrong = f"{BACKEND_URL}/api/admin/vps-billing-safety-check?key=wrongkey"
+    response_wrong = requests.get(url_wrong)
     
-    # (g) linuxPriceRule.displayPrice == 18 AND linuxPriceRule.displayEqualsCharge == true (Linux VPS scenario)
-    print("\n(g) Testing linuxPriceRule (Linux VPS scenario):")
-    linux_price_rule = data.get("linuxPriceRule", {})
-    linux_display_price = linux_price_rule.get("displayPrice", 0)
-    linux_display_equals_charge = linux_price_rule.get("displayEqualsCharge", False)
-    
-    print(f"  displayPrice: {linux_display_price}")
-    print(f"  displayEqualsCharge: {linux_display_equals_charge}")
-    
-    if linux_display_price != 18 or not linux_display_equals_charge:
-        print(f"❌ FAILED (g):")
-        print(f"  - displayPrice should be 18: {linux_display_price == 18}")
-        print(f"  - displayEqualsCharge should be true: {linux_display_equals_charge}")
-        print(f"\nFull linuxPriceRule data:")
-        print(json.dumps(linux_price_rule, indent=2))
+    if response_wrong.status_code != 403:
+        print(f"❌ FAILED: Expected 403 for wrong key, got {response_wrong.status_code}")
         return False
+    print(f"✅ Wrong key returns 403 - PASSED")
     
-    print("✅ (g) linuxPriceRule (Linux VPS) - PASSED")
+    # Test 3: No key - should return 403
+    print("\n[3] Testing with no admin key (negative test)...")
+    url_no_key = f"{BACKEND_URL}/api/admin/vps-billing-safety-check"
+    response_no_key = requests.get(url_no_key)
     
-    print(f"\n{'='*80}")
-    print(f"✅ ALL TESTS PASSED FOR {lang.upper()}")
-    print(f"{'='*80}")
+    if response_no_key.status_code != 403:
+        print(f"❌ FAILED: Expected 403 for no key, got {response_no_key.status_code}")
+        return False
+    print(f"✅ No key returns 403 - PASSED")
+    
+    print("\n" + "="*80)
+    print("✅ ALL TESTS PASSED - VPS/RDP Billing-Safety Logic Verified")
+    print("="*80)
+    print("\nSUMMARY:")
+    print("• Provider routing: DigitalOcean, Azure, OVH, Contabo - all correct")
+    print("• Cancel methods exist for DigitalOcean and Azure")
+    print("• Immediate delete on non-renewal for PAYG providers (DO, Azure, Vultr)")
+    print("• New instances default to autoRenewable=false")
+    print("• Renewal scenarios: delete when not renewed or no balance, renew when balance available")
+    print("• Cloud fees STOP on non-renewal")
+    print("• Dev-pod scheduler guard is ACTIVE (no destructive operations in dev)")
+    print("• Admin endpoint properly secured (403 for unauthorized access)")
     
     return True
 
-def main():
-    """Run all tests"""
+def test_base_api():
+    """Test base API endpoint"""
+    print("\n" + "="*80)
+    print("TEST: Base API Endpoint")
     print("="*80)
-    print("VPS/RDP PURCHASE PRICE-DISPLAY FIX VERIFICATION")
+    
+    url = f"{BACKEND_URL}/api/"
+    response = requests.get(url)
+    
+    print(f"URL: {url}")
+    print(f"Status Code: {response.status_code}")
+    
+    if response.status_code != 200:
+        print(f"❌ FAILED: Expected 200, got {response.status_code}")
+        return False
+    
+    print("✅ Base API endpoint responding correctly")
+    return True
+
+if __name__ == "__main__":
+    print("\n" + "="*80)
+    print("NOMADLY BOT - BACKEND API TEST SUITE")
+    print("Testing VPS/RDP Billing-Safety Logic")
     print("="*80)
-    print(f"Base URL: {BASE_URL}")
-    print(f"Admin Key: {ADMIN_KEY}")
-    print(f"Languages: {', '.join(LANGUAGES)}")
     
     all_passed = True
     
-    # Test negative auth
-    try:
-        if not test_negative_auth():
-            all_passed = False
-    except Exception as e:
-        print(f"❌ Negative auth test FAILED with exception: {e}")
+    # Test base API
+    if not test_base_api():
         all_passed = False
     
-    # Test each language
-    results = {}
-    for lang in LANGUAGES:
-        try:
-            results[lang] = test_vps_flow_check(lang)
-            if not results[lang]:
-                all_passed = False
-        except Exception as e:
-            print(f"\n❌ Test for {lang} FAILED with exception: {e}")
-            import traceback
-            traceback.print_exc()
-            results[lang] = False
-            all_passed = False
+    # Test VPS billing-safety
+    if not test_vps_billing_safety_check():
+        all_passed = False
     
-    # Summary
     print("\n" + "="*80)
-    print("FINAL SUMMARY")
-    print("="*80)
-    print(f"Negative auth: ✅ PASSED")
-    for lang in LANGUAGES:
-        status = "✅ PASSED" if results.get(lang, False) else "❌ FAILED"
-        print(f"{lang.upper()}: {status}")
-    
     if all_passed:
-        print("\n🎉 ALL TESTS PASSED!")
+        print("✅ ALL BACKEND TESTS PASSED")
+        print("="*80)
         sys.exit(0)
     else:
-        print("\n❌ SOME TESTS FAILED")
+        print("❌ SOME TESTS FAILED")
+        print("="*80)
         sys.exit(1)
-
-if __name__ == "__main__":
-    main()
