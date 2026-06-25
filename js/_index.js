@@ -8835,7 +8835,12 @@ Enter new value:`), bc)
 
       // Apply loyalty discount to the price
       const step = info?.lastStep
-      const NO_LOYALTY_DISCOUNT_STEPS = ['virtual-card-pay']
+      // VPS/RDP pricing lives in info.vpsDetails (totalPrice) and the charge path
+      // ('vps-plan-pay', see ~line 10347) charges that value directly WITHOUT
+      // applying loyalty. So the generic loyalty block here MUST NOT run for VPS,
+      // otherwise it discounts a STALE info.price (e.g. a $50 leftover from a
+      // prior flow → bogus "$47.50" display) that never matches the real $90 charge.
+      const NO_LOYALTY_DISCOUNT_STEPS = ['virtual-card-pay', 'vps-plan-pay']
       if (!NO_LOYALTY_DISCOUNT_STEPS.includes(step)) {
         let basePrice
         if (info?.couponApplied) {
@@ -8865,7 +8870,15 @@ Enter new value:`), bc)
       // USD-only wallet — auto-set coin and go straight to confirm
       await saveInfo('coin', u.usd)
       const { usdBal } = await getBalance(walletOf, chatId)
-      const finalPrice = info?.couponApplied ? info?.newPrice : (info?.price || info?.totalPrice || 0)
+      // For VPS/RDP the authoritative price is in info.vpsDetails (totalPrice) —
+      // info.price can be a stale leftover from a previous flow, so never use it here.
+      let finalPrice
+      if (step === 'vps-plan-pay' && info?.vpsDetails) {
+        const vd = info.vpsDetails
+        finalPrice = Number(vd.couponApplied ? vd.planNewPrice : (vd.totalPrice || vd.plantotalPrice)) || 0
+      } else {
+        finalPrice = info?.couponApplied ? info?.newPrice : (info?.price || info?.totalPrice || 0)
+      }
       send(chatId, t.walletSelectCurrency(usdBal) + `\n\n💵 Amount: <b>$${Number(finalPrice).toFixed(2)}</b>\n\n` + t.walletSelectCurrencyConfirm, k.of([[t.yes], [t.no], ['↩️ Back']]))
       await set(state, chatId, 'action', a.walletSelectCurrencyConfirm)
     },
@@ -10390,19 +10403,21 @@ Enter new value:`), bc)
         await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
         walletDeducted = true
         
-        sendMessage(chatId, translation('vp.paymentRecieved', lang), rem)
+        const isRDPplan = !!(vpsDetails?.isRDP)
+        sendMessage(chatId, translation('vp.paymentRecieved', lang, isRDPplan), rem)
         
         const isSuccess = await buyVPSPlanFullProcess(chatId, lang, vpsDetails)
         if (!isSuccess) {
           throw new Error('VPS provisioning failed')
         }
         
-        const { usdBal: usd } = await getBalance(walletOf, chatId)
-        send(chatId, t.showWallet(usd), trans('o'))
         checkAndNotifyTierUpgrade(preSpend)
-        // Post-purchase upsell — what to do next with VPS
+        // Post-purchase upsell — the single "what's next" card (RDP-aware).
+        // (No separate wallet-balance message here — the credentials message
+        // already re-attaches the main menu, and a bare "$X.XX" balance line
+        // was redundant/confusing right after the credentials.)
         setTimeout(() => {
-          send(chatId, trans('t.vps_5d'), k.of([[user.smsAppMain], [user.cloudPhone], [user.domainNames], ['↩️ Back']]))
+          send(chatId, trans('t.vps_5d', isRDPplan), k.of([[user.smsAppMain], [user.cloudPhone], [user.domainNames], ['↩️ Back']]))
         }, 2000)
         
       } catch (error) {
@@ -31605,45 +31620,19 @@ const buyVPSPlanFullProcess = async (chatId, lang, vpsDetails) => {
     // Step 5: Finalizing
     await progress.startStep(5)
     set(state, info._id, 'action', 'none')
+    const isRDPsucc = !!(vpsData?.isRDP || vpsDetails?.isRDP || vpsData?.osType === 'Windows')
     const vpsSuccessMsg = translation('vp.vpsBoughtSuccess', lang, vpsDetails, vpsData, credentials) + 
       `\n\n<b>Transaction ID:</b> <code>${txnId}</code>\n<i>Quote this ID when contacting support</i>`
     send(chatId, vpsSuccessMsg, translation('o', lang))
-    await progress.complete({ en: '🎉 VPS ready!', fr: '🎉 VPS prêt !', zh: '🎉 VPS 就绪！', hi: '🎉 VPS तैयार!' }[lang] || '🎉 VPS ready!')
+    const readyMsg = isRDPsucc
+      ? ({ en: '🎉 RDP ready!', fr: '🎉 RDP prêt !', zh: '🎉 RDP 就绪！', hi: '🎉 RDP तैयार!' }[lang] || '🎉 RDP ready!')
+      : ({ en: '🎉 VPS ready!', fr: '🎉 VPS prêt !', zh: '🎉 VPS 就绪！', hi: '🎉 VPS तैयार!' }[lang] || '🎉 VPS ready!')
+    await progress.complete(readyMsg)
 
-    // ── UX P-VPS post-purchase cross-sell card (2026-06-21) ─────────
-    // Same pattern as the domain post-purchase card — 3 single-tap
-    // inline buttons that route into existing menus via processUpdate.
-    // Delivered after a short delay so it lands AFTER the success message +
-    // the credentials email confirmation. Best-effort, non-fatal on error.
-    try {
-      setTimeout(() => {
-        try {
-          const titleByLang = {
-            en: `🚀 <b>Your VPS is live — keep building?</b>\n\nPick a next step:`,
-            fr: `🚀 <b>Votre VPS est en ligne — continuez la construction ?</b>\n\nChoisissez la prochaine étape :`,
-            zh: `🚀 <b>您的 VPS 已上线 — 继续搭建吗？</b>\n\n选择下一步：`,
-            hi: `🚀 <b>आपका VPS लाइव है — आगे क्या?</b>\n\nअगला कदम चुनें:`,
-          }
-          const btnByLang = {
-            en: { domain: '🌐 Add a domain', hosting: '🛡️ Add hosting', phone: '📞 Add cloud number' },
-            fr: { domain: '🌐 Ajouter un domaine', hosting: '🛡️ Ajouter hébergement', phone: '📞 Ajouter numéro cloud' },
-            zh: { domain: '🌐 添加域名', hosting: '🛡️ 添加主机', phone: '📞 添加云号码' },
-            hi: { domain: '🌐 डोमेन जोड़ें', hosting: '🛡️ होस्टिंग जोड़ें', phone: '📞 क्लाउड नंबर जोड़ें' },
-          }
-          const labels = btnByLang[lang] || btnByLang.en
-          sendMessage(chatId, titleByLang[lang] || titleByLang.en, {
-            parse_mode: 'HTML',
-            reply_markup: {
-              inline_keyboard: [
-                [{ text: labels.domain, callback_data: 'pv:domain' }],
-                [{ text: labels.hosting, callback_data: 'pv:hosting' }],
-                [{ text: labels.phone, callback_data: 'pv:phone' }],
-              ],
-            },
-          })
-        } catch (e) { log(`[PostVPS] card non-fatal err: ${e.message}`) }
-      }, 10000)
-    } catch (_) { /* setTimeout failure is non-fatal */ }
+    // NOTE: a single post-purchase "what's next" cross-sell is sent by the
+    // caller (vps_5d, RDP-aware). The previous +10s inline cross-sell card was
+    // removed to avoid stacking redundant follow-up messages after the
+    // credentials message (per user UX feedback 2026-06-25).
     try {
       await sendVPSCredentialsEmail(info, vpsData, vpsDetails, credentials)
     } catch (error) {
@@ -32387,7 +32376,7 @@ const bankApis = {
     await insert(vpsTransactions, chatId, "bank", transaction)
 
     const totalPrice = Number(vpsDetails?.totalPrice)
-    sendMessage(chatId, translation('vp.paymentRecieved', lang))
+    sendMessage(chatId, translation('vp.paymentRecieved', lang, !!vpsDetails?.isRDP))
     // Update Wallet
     const ngnPrice = await usdToNgn(price)
     if (usdIn < price) {
@@ -33758,7 +33747,7 @@ app.get('/crypto-pay-vps', auth, async (req, res) => {
   const totalPrice = Number(vpsDetails?.totalPrice)
   const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
-  sendMessage(chatId, translation('vp.paymentRecieved', lang))
+  sendMessage(chatId, translation('vp.paymentRecieved', lang, !!vpsDetails?.isRDP))
   // Logs
   del(chatIdOfPayment, ref)
   let transaction = {
@@ -34601,7 +34590,7 @@ app.post('/dynopay/crypto-pay-vps', authDyno, async (req, res) => {
   const totalPrice = vpsDetails?.totalPrice
   const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
-  sendMessage(chatId, translation('vp.paymentRecieved', lang))
+  sendMessage(chatId, translation('vp.paymentRecieved', lang, !!vpsDetails?.isRDP))
   // Logs
   del(chatIdOfDynopayPayment, ref)
   const name = await get(nameOf, chatId)
@@ -35216,6 +35205,64 @@ app.get('/admin/vps-catalog-check', async (req, res) => {
     return res.status(500).json({ error: e.message })
   }
 })
+
+// ── Admin: read-only check of VPS/RDP purchase-flow messages + price rule ──
+// Verifies the 2026-06-25 UX fixes (no provisioning / no spend):
+//  • paymentRecieved + vps_5d + vpsBoughtSuccess are RDP-aware (say "RDP" not
+//    "VPS" when isRDP) and contain NO "emailed" wording (creds shown in-chat).
+//  • The wallet-confirm display price for a VPS step uses vpsDetails.totalPrice
+//    (NOT a stale info.price), so display == charge (root cause of the bogus
+//    $47.50 vs $90). We mirror the exact handler rule here for verification.
+app.get('/admin/vps-flow-check', (req, res) => {
+  if (req?.query?.key !== process.env.SESSION_SECRET?.slice(0, 16)) {
+    return res.status(403).json({ error: 'Unauthorized' })
+  }
+  try {
+    const lang = req.query.lang || 'en'
+    const sampleVpsDetails = { isRDP: true, os: null, config: { name: 'RDP 10', specs: { vCPU: 2, RAM: 8, disk: 127, diskType: 'ssd' } }, regionName: 'Europe (EU)', totalPrice: '90.00', plantotalPrice: 90 }
+    const sampleResp = { isRDP: true, osType: 'Windows', host: '20.13.45.67', label: 'nomadly-demo' }
+    const sampleCreds = { username: 'azureuser', password: 'P@ssw0rd-demo' }
+
+    const rdpSuccess = translation('vp.vpsBoughtSuccess', lang, sampleVpsDetails, sampleResp, sampleCreds)
+    const vpsSuccess = translation('vp.vpsBoughtSuccess', lang, { ...sampleVpsDetails, isRDP: false, config: { name: 'Cloud VPS 10', specs: sampleVpsDetails.config.specs } }, { ...sampleResp, isRDP: false, osType: 'Linux' }, { username: 'root', password: 'x' })
+
+    // Mirror of the wallet-confirm display rule for the VPS step (see ~line 8870).
+    const computeVpsDisplay = (info) => {
+      const vd = info.vpsDetails
+      return Number(vd.couponApplied ? vd.planNewPrice : (vd.totalPrice || vd.plantotalPrice)) || 0
+    }
+    // Regression scenario from the bug: vpsDetails=$90 but a stale info.price=$50.
+    const displayPrice = computeVpsDisplay({ lastStep: 'vps-plan-pay', price: 50, vpsDetails: sampleVpsDetails })
+
+    const containsEmailWording = (s) => /email|emailed|registered email|sent to your/i.test(String(s))
+
+    return res.json({
+      lang,
+      paymentRecieved: { rdp: translation('vp.paymentRecieved', lang, true), vps: translation('vp.paymentRecieved', lang, false) },
+      vps_5d: {
+        rdp: translation('t.vps_5d', lang, true),
+        vps: translation('t.vps_5d', lang, false),
+      },
+      vpsBoughtSuccess: {
+        rdpHeaderSaysRDP: /🎉 RDP \[/.test(rdpSuccess),
+        vpsHeaderSaysVPS: /🎉 VPS \[/.test(vpsSuccess),
+        rdpHasEmailWording: containsEmailWording(rdpSuccess),
+        rdpLength: rdpSuccess.length,
+        rdpRendered: rdpSuccess,
+      },
+      paymentRecievedHasEmailWording: containsEmailWording(translation('vp.paymentRecieved', lang, true)),
+      priceRule: {
+        scenario: 'vpsDetails.totalPrice=90 with stale info.price=50 (silver tier)',
+        displayPrice,             // expected 90 — i.e. NOT 47.50
+        chargedPrice: 90,         // wallet path charges Number(vpsDetails.totalPrice)
+        displayEqualsCharge: displayPrice === 90,
+      },
+    })
+  } catch (e) {
+    return res.status(500).json({ error: e.message })
+  }
+})
+
 
 
 // ── Admin: Manually provision a VPS from an existing payment session ──

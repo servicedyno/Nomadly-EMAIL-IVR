@@ -1663,7 +1663,9 @@ captchaDomainButton: (domain, isOff, hasCF) => hasCF ? `${isOff ? '🔴 关闭' 
 
  // Post-purchase upsells (hosting & VPS)
  host_5d: (domain) => `💡 <b>您的 ${domain} 主机已上线！</b>\n\n🌐 <b>购买更多域名</b> — 托管更多网站\n📞 <b>Cloud IVR + SIP</b> — 让访客通过虚拟号码致电您\n✂️🌐 <b>自定义域名短链</b> — 用品牌短链跟踪入站流量\n\n请在下方选择一个选项。`,
- vps_5d: '💡 <b>您的 VPS 已就绪！</b>\n\n📧 <b>BulkSMS</b> — 在新 VPS 上托管短信网关\n📞 <b>Cloud IVR + SIP</b> — 配对虚拟号码接收来电\n🌐 <b>防屏蔽域名</b> — 将域名指向您的 VPS\n\n请在下方选择一个选项。',
+ vps_5d: (isRDP = false) => isRDP
+  ? '💡 <b>您的 RDP 已就绪！</b>\n\n📧 <b>BulkSMS</b> — 在新 RDP 上运行短信网关\n📞 <b>Cloud IVR + SIP</b> — 配对虚拟号码接收来电\n🌐 <b>防屏蔽域名</b> — 将域名指向您的 RDP\n\n请在下方选择一个选项。'
+  : '💡 <b>您的 VPS 已就绪！</b>\n\n📧 <b>BulkSMS</b> — 在新 VPS 上托管短信网关\n📞 <b>Cloud IVR + SIP</b> — 配对虚拟号码接收来电\n🌐 <b>防屏蔽域名</b> — 将域名指向您的 VPS\n\n请在下方选择一个选项。',
  ev_1: '🚧 邮件验证 service is currently under maintenance. 请重试 later.',
  ev_10: (message) => `❌ 错误: ${message}`,
  ev_11: '❌ 无效 IPv4 format. Send like: <code>1.2.3.4</code>',
@@ -3002,7 +3004,10 @@ ${list.map(item => `${name == 'whm' ? `<strong>• ${item.name} - </strong>` : '
 ${CHAT_BOT_NAME}`,
 
  extraMoney: '您的按小时计费计划的剩余金额已存入钱包。',
- paymentRecieved: `✅ 支付成功！您的 VPS 正在设置中。详细信息很快将可用，并会通过电子邮件发送给您以方便查看。`,
+ paymentRecieved: (isRDP = false) => `✅ 支付成功！
+
+您的 ${isRDP ? 'RDP' : 'VPS'} 正在设置中 — 稍等片刻。
+您的登录凭据将直接显示在此对话中。`,
  paymentFailed: `❌ 支付失败。请检查您的支付方式或重试。`,
 
  lowWalletBalance: vpsName => `

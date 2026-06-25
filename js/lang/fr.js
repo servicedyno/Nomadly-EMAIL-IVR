@@ -1680,7 +1680,9 @@ captchaDomainButton: (domain, isOff, hasCF) => hasCF ? `${isOff ? '🔴 OFF' : '
 
  // Post-purchase upsells (hosting & VPS)
  host_5d: (domain) => `💡 <b>Votre hébergement pour ${domain} est en ligne !</b>\n\n🌐 <b>Achetez plus de domaines</b> — hébergez d'autres sites\n📞 <b>Cloud IVR + SIP</b> — laissez vos visiteurs vous appeler avec un numéro virtuel\n✂️🌐 <b>Raccourcisseur de domaine personnalisé</b> — suivez le trafic entrant avec des liens courts personnalisés\n\nTouchez une option ci-dessous.`,
- vps_5d: '💡 <b>Votre VPS est prêt !</b>\n\n📧 <b>BulkSMS</b> — hébergez la passerelle SMS sur votre nouveau VPS\n📞 <b>Cloud IVR + SIP</b> — associez avec un numéro virtuel pour les appels entrants\n🌐 <b>Domaines anti-blocage</b> — pointez un domaine vers votre VPS\n\nTouchez une option ci-dessous.',
+ vps_5d: (isRDP = false) => isRDP
+  ? '💡 <b>Votre RDP est prêt !</b>\n\n📧 <b>BulkSMS</b> — exécutez la passerelle SMS sur votre nouveau RDP\n📞 <b>Cloud IVR + SIP</b> — associez avec un numéro virtuel pour les appels entrants\n🌐 <b>Domaines anti-blocage</b> — pointez un domaine vers votre RDP\n\nTouchez une option ci-dessous.'
+  : '💡 <b>Votre VPS est prêt !</b>\n\n📧 <b>BulkSMS</b> — hébergez la passerelle SMS sur votre nouveau VPS\n📞 <b>Cloud IVR + SIP</b> — associez avec un numéro virtuel pour les appels entrants\n🌐 <b>Domaines anti-blocage</b> — pointez un domaine vers votre VPS\n\nTouchez une option ci-dessous.',
  ev_1: '🚧 Validation d\'email service is currently under maintenance. Veuillez réessayer plus tard.',
  ev_10: (message) => `❌ Erreur: ${message}`,
  ev_11: '❌ Invalide IPv4 format. Envoyer like: <code>1.2.3.4</code>',
@@ -3034,7 +3036,10 @@ Cordialement,
 ${CHAT_BOT_NAME}`,
 
  extraMoney: 'Le montant restant pour votre plan horaire a été déposé dans votre portefeuille.',
- paymentRecieved: `✅ Paiement réussi ! Votre VPS est en cours de configuration. Les détails seront bientôt disponibles et envoyés à votre adresse email pour votre commodité.`,
+ paymentRecieved: (isRDP = false) => `✅ Paiement réussi !
+
+Votre ${isRDP ? 'RDP' : 'VPS'} est en cours de configuration — cela prend un instant.
+Vos identifiants de connexion s'afficheront ici même dans le chat.`,
  paymentFailed: `❌ Échec du paiement. Veuillez vérifier votre méthode de paiement ou réessayer.`,
 
  lowWalletBalance: vpsName => `

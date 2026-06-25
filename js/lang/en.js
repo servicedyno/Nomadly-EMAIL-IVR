@@ -2128,7 +2128,9 @@ host_4: (safeHtml) => `${safeHtml}`,
 
  // Post-purchase upsells (hosting & VPS)
  host_5d: (domain) => `💡 <b>Your hosting for ${domain} is live!</b>\n\n🌐 <b>Buy more domains</b> — host additional sites\n📞 <b>Cloud IVR + SIP</b> — let visitors call you with a virtual number\n✂️🌐 <b>Custom Domain Shortener</b> — track inbound traffic with branded short links\n\nTap an option below.`,
- vps_5d: '💡 <b>Your VPS is ready!</b>\n\n📧 <b>BulkSMS</b> — host the SMS gateway on your new VPS\n📞 <b>Cloud IVR + SIP</b> — pair with a virtual number for inbound calls\n🌐 <b>Bulletproof Domains</b> — point a domain to your VPS\n\nTap an option below.',
+ vps_5d: (isRDP = false) => isRDP
+  ? '💡 <b>Your RDP is ready!</b>\n\n📧 <b>BulkSMS</b> — run the SMS gateway on your new RDP\n📞 <b>Cloud IVR + SIP</b> — pair with a virtual number for inbound calls\n🌐 <b>Bulletproof Domains</b> — point a domain to your RDP\n\nTap an option below.'
+  : '💡 <b>Your VPS is ready!</b>\n\n📧 <b>BulkSMS</b> — host the SMS gateway on your new VPS\n📞 <b>Cloud IVR + SIP</b> — pair with a virtual number for inbound calls\n🌐 <b>Bulletproof Domains</b> — point a domain to your VPS\n\nTap an option below.',
 
  // === Leads ===
  ld_1: (toFixed) => `💵 $${toFixed} — `,
@@ -3165,10 +3167,10 @@ Best regards,
 ${CHAT_BOT_NAME}`,
 
  extraMoney: 'The remaining amount for your hourly plan has been deposited to wallet.',
- paymentRecieved: `✅ Payment successful!
+ paymentRecieved: (isRDP = false) => `✅ Payment successful!
 
-Your VPS is being set up.
-Details will be sent to your email shortly.`,
+Your ${isRDP ? 'RDP' : 'VPS'} is being set up — this takes a moment.
+Your login details will appear right here in the chat.`,
  paymentFailed: `❌ Payment failed. Please check your payment method or try again.`,
 
  lowWalletBalance: vpsName => `
@@ -3184,12 +3186,12 @@ Please top up your wallet to continue using your VPS Plan.
  : ` <strong>• Connect:</strong> 💻 <code>ssh ${credentials.username}@${response.host}</code>`
  
  const passwordWarning = isRDP
- ? `\n⚠️ <strong>IMPORTANT - Save Your Password Now!</strong>\n• We CANNOT retrieve it later for security reasons\n• If lost, use "Reset Password" from VPS management (data preserved)\n• Click the password above to reveal and copy it\n`
- : `\n⚠️ <strong>Save your credentials securely!</strong>\n`
+ ? `\n⚠️ <b>Save your password now</b> — it can't be retrieved later. If lost, use "Reset Password" in VPS management (your data is preserved).`
+ : `\n⚠️ <b>Save your credentials securely.</b>`
  
  const readinessNote = isRDP
- ? `\n⏱ <strong>First-boot setup:</strong> Windows takes <b>5–10 minutes</b> to finish initializing after activation. If RDP says "credentials not right" right away, wait a few minutes and try again — the password is correct.\n`
- : `\n⏱ <strong>First-boot setup:</strong> Your server runs a one-time setup script on first boot (enables password login, syncs root password). Allow <b>2–5 minutes</b> after activation before your first SSH attempt. If you see <i>"Permission denied"</i> or <i>"password not right"</i> immediately after delivery, wait 2–3 more minutes and try again — the password is correct, the server just isn't finished provisioning yet.\n`
+ ? `\n⏱ <b>Allow 5–10 min</b> for Windows first-boot. If RDP rejects the password right after delivery, wait a couple of minutes and retry — the password is correct.`
+ : `\n⏱ <b>Allow 2–5 min</b> for first-boot setup. If SSH says "permission denied" right after delivery, wait a couple of minutes and retry — the password is correct.`
 
  return `<strong>🎉 ${isRDP ? 'RDP' : 'VPS'} [${response.label}] is active!</strong>
 
@@ -3197,16 +3199,13 @@ Please top up your wallet to continue using your VPS Plan.
  <strong>• IP:</strong> <code>${response.host}</code>
  <strong>• OS:</strong> ${vpsDetails.os ? vpsDetails.os.name : (isRDP ? 'Windows Server' : 'Linux')}
  <strong>• Username:</strong> <code>${credentials.username}</code>
- <strong>• Password:</strong> <tg-spoiler><code>${credentials.password}</code></tg-spoiler> (tap to reveal, then tap again to copy — change immediately)
+ <strong>• Password:</strong> <tg-spoiler><code>${credentials.password}</code></tg-spoiler> (tap to reveal & copy)
 
 <strong>🔗 Connection:</strong>
 ${connectInfo}
 ${readinessNote}${passwordWarning}
-📧 These details have also been sent to your registered email. Please keep them secure.
 
-Thank you for choosing our service
-${CHAT_BOT_NAME}
-`
+${CHAT_BOT_NAME}`
  },
  vpsHourlyPlanRenewed: (vpsName, price) => `
 Your VPS Plan for instance ${vpsName} has been renewed successfully.
