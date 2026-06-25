@@ -2929,7 +2929,10 @@ ${plans
   }
 
   const proofLine = socialProof ? `\n\n${socialProof}` : ''
-  return `⚙️ Choisissez un plan :\n\n${plans}${proofLine}${walletLine}`
+  const header = (Array.isArray(list) && list.some(c => c.isRDP))
+   ? '🪟 Choisissez un plan Windows RDP <i>(Windows Server + Bureau à distance, licence incluse)</i> :'
+   : '⚙️ Choisissez un plan VPS Linux :'
+  return `${header}\n\n${plans}${proofLine}${walletLine}`
  },
 
  validVpsConfig: 'Veuillez sélectionner une configuration VPS valide :',
@@ -2992,10 +2995,12 @@ Découvrez-en plus sur ${TG_HANDLE}.`,
  const total = vpsDetails.totalPrice || Number(planPrice).toFixed(2)
  const isRDP = vpsDetails.isRDP
  const osLabel = isRDP ? '🪟 Windows Server (RDP)' : (vpsDetails.os?.name || 'Ubuntu')
+ const planEmoji = isRDP ? '🪟' : '🖥️'
+ const planKind = isRDP ? ' <i>(Windows RDP)</i>' : ''
  
  let summary = `<strong>📋 Résumé de commande :</strong>
 
-<strong>🖥️ ${vpsDetails.config.name}</strong> — ${vpsDetails.config.specs.vCPU} vCPU · ${vpsDetails.config.specs.RAM}GB RAM · ${vpsDetails.config.specs.disk}GB ${vpsDetails.config.specs.diskType}
+<strong>${planEmoji} ${vpsDetails.config.name}</strong>${planKind} — ${vpsDetails.config.specs.vCPU} vCPU · ${vpsDetails.config.specs.RAM}GB RAM · ${vpsDetails.config.specs.disk}GB ${vpsDetails.config.specs.diskType}
 <strong>📍 Région :</strong> ${vpsDetails.regionName || vpsDetails.country}
 <strong>💻 OS :</strong> ${osLabel}`
 

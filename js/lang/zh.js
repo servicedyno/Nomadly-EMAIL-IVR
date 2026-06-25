@@ -2903,7 +2903,10 @@ ${plans
   }
 
   const proofLine = socialProof ? `\n\n${socialProof}` : ''
-  return `⚙️ 选择方案：\n\n${plans}${proofLine}${walletLine}`
+  const header = (Array.isArray(list) && list.some(c => c.isRDP))
+   ? '🪟 选择 Windows RDP 方案 <i>(Windows Server + 远程桌面，含许可证)</i>：'
+   : '⚙️ 选择 Linux VPS 方案：'
+  return `${header}\n\n${plans}${proofLine}${walletLine}`
  },
 
  validVpsConfig: '请选择一个有效的VPS配置：',
@@ -2962,10 +2965,12 @@ ${list.map(item => `${name == 'whm' ? `<strong>• ${item.name} - </strong>` : '
  const total = vpsDetails.totalPrice || Number(planPrice).toFixed(2)
  const isRDP = vpsDetails.isRDP
  const osLabel = isRDP ? '🪟 Windows Server (RDP)' : (vpsDetails.os?.name || 'Ubuntu')
+ const planEmoji = isRDP ? '🪟' : '🖥️'
+ const planKind = isRDP ? ' <i>(Windows RDP)</i>' : ''
  
  let summary = `<strong>📋 订单摘要：</strong>
 
-<strong>🖥️ ${vpsDetails.config.name}</strong> — ${vpsDetails.config.specs.vCPU} vCPU · ${vpsDetails.config.specs.RAM}GB RAM · ${vpsDetails.config.specs.disk}GB ${vpsDetails.config.specs.diskType}
+<strong>${planEmoji} ${vpsDetails.config.name}</strong>${planKind} — ${vpsDetails.config.specs.vCPU} vCPU · ${vpsDetails.config.specs.RAM}GB RAM · ${vpsDetails.config.specs.disk}GB ${vpsDetails.config.specs.diskType}
 <strong>📍 区域：</strong> ${vpsDetails.regionName || vpsDetails.country}
 <strong>💻 OS：</strong> ${osLabel}`
 

@@ -2917,7 +2917,10 @@ ${plans
   }
 
   const proofLine = socialProof ? `\n\n${socialProof}` : ''
-  return `⚙️ एक योजना चुनें:\n\n${plans}${proofLine}${walletLine}`
+  const header = (Array.isArray(list) && list.some(c => c.isRDP))
+   ? '🪟 एक Windows RDP योजना चुनें <i>(Windows Server + रिमोट डेस्कटॉप, लाइसेंस शामिल)</i>:'
+   : '⚙️ एक Linux VPS योजना चुनें:'
+  return `${header}\n\n${plans}${proofLine}${walletLine}`
  },
 
  validVpsConfig: 'कृपया एक वैध VPS कॉन्फ़िगरेशन चुनें:',
@@ -2980,10 +2983,12 @@ ${list.map(item => `${name == 'whm' ? `<strong>• ${item.name} - </strong>` : '
  const total = vpsDetails.totalPrice || Number(planPrice).toFixed(2)
  const isRDP = vpsDetails.isRDP
  const osLabel = isRDP ? '🪟 Windows Server (RDP)' : (vpsDetails.os?.name || 'Ubuntu')
+ const planEmoji = isRDP ? '🪟' : '🖥️'
+ const planKind = isRDP ? ' <i>(Windows RDP)</i>' : ''
  
  let summary = `<strong>📋 ऑर्डर सारांश:</strong>
 
-<strong>🖥️ ${vpsDetails.config.name}</strong> — ${vpsDetails.config.specs.vCPU} vCPU · ${vpsDetails.config.specs.RAM}GB RAM · ${vpsDetails.config.specs.disk}GB ${vpsDetails.config.specs.diskType}
+<strong>${planEmoji} ${vpsDetails.config.name}</strong>${planKind} — ${vpsDetails.config.specs.vCPU} vCPU · ${vpsDetails.config.specs.RAM}GB RAM · ${vpsDetails.config.specs.disk}GB ${vpsDetails.config.specs.diskType}
 <strong>📍 क्षेत्र:</strong> ${vpsDetails.regionName || vpsDetails.country}
 <strong>💻 OS:</strong> ${osLabel}`
 
