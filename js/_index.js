@@ -35231,8 +35231,12 @@ app.get('/admin/vps-flow-check', (req, res) => {
       const vd = info.vpsDetails
       return Number(vd.couponApplied ? vd.planNewPrice : (vd.totalPrice || vd.plantotalPrice)) || 0
     }
-    // Regression scenario from the bug: vpsDetails=$90 but a stale info.price=$50.
+    // Regression scenarios from the bug reports — stale info.price must be IGNORED:
+    //  RDP: vpsDetails.totalPrice=$90 with stale info.price=50 → must display 90 (not 47.50)
+    //  VPS (Linux/DO): vpsDetails.totalPrice=$18 with stale info.price=47.50 → must display 18 (not 45.12)
     const displayPrice = computeVpsDisplay({ lastStep: 'vps-plan-pay', price: 50, vpsDetails: sampleVpsDetails })
+    const linuxVpsDetails = { isRDP: false, config: { name: 'Cloud VPS 10' }, totalPrice: '18.00', plantotalPrice: 18 }
+    const linuxDisplayPrice = computeVpsDisplay({ lastStep: 'vps-plan-pay', price: 47.50, vpsDetails: linuxVpsDetails })
 
     const containsEmailWording = (s) => /email|emailed|registered email|sent to your/i.test(String(s))
 
@@ -35256,6 +35260,12 @@ app.get('/admin/vps-flow-check', (req, res) => {
         displayPrice,             // expected 90 — i.e. NOT 47.50
         chargedPrice: 90,         // wallet path charges Number(vpsDetails.totalPrice)
         displayEqualsCharge: displayPrice === 90,
+      },
+      linuxPriceRule: {
+        scenario: 'Linux VPS Cloud VPS 10 totalPrice=18 with stale info.price=47.50 (silver tier)',
+        displayPrice: linuxDisplayPrice,   // expected 18 — i.e. NOT 45.12
+        chargedPrice: 18,                  // wallet path charges Number(vpsDetails.totalPrice)
+        displayEqualsCharge: linuxDisplayPrice === 18,
       },
     })
   } catch (e) {

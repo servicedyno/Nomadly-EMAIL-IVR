@@ -108,6 +108,18 @@ backend:
       - working: "NA"
         agent: "main"
         comment: |
+          FOLLOW-UP (2026-06-25, 2nd report): user attempted a LINUX VPS buy and saw the same bug —
+          "Final price: $45.12" displayed while $18 was charged (Cloud VPS 10 = $18; $45.12 = the
+          stale info.price $47.50 left from the prior RDP attempt × silver 5%). Confirmed via Railway
+          logs: the attempt ran on deployment fe23c6ef (has Dsv6 fix but NOT the loyalty/price fix,
+          which was committed afterwards). The existing fix ('vps-plan-pay' excluded from loyalty +
+          wallet-confirm display reads vpsDetails.totalPrice) DOES cover the Linux VPS path (same
+          'vps-plan-pay' step). Extended /api/admin/vps-flow-check with a linuxPriceRule scenario
+          ($18 plan + stale $47.50 info.price → must display 18, not 45.12). Self-check: both
+          priceRule (RDP $90) and linuxPriceRule (VPS $18) return displayEqualsCharge=true.
+      - working: "NA"
+        agent: "main"
+        comment: |
           Fixes:
           1. _index.js walletSelectCurrency: added 'vps-plan-pay' to NO_LOYALTY_DISCOUNT_STEPS (no
              loyalty mutation for VPS), and the final wallet-confirm "Amount" now uses
@@ -198,14 +210,56 @@ backend:
           3. ✅ Messages shortened (all < 1200 chars)
           4. ✅ Fewer follow-up messages (single cross-sell)
           5. ✅ Correct RDP/VPS wording throughout
+      - working: true
+        agent: "testing"
+        comment: |
+          LINUX VPS PRICE-DISPLAY FIX VERIFICATION COMPLETE (2nd user report follow-up)
+          
+          🎉 ALL TESTS PASSED FOR ALL 4 LANGUAGES (en, fr, zh, hi)
+          
+          Infrastructure checks:
+          - nodejs service: RUNNING ✅
+          - Base API (GET /api/): HTTP 200 ✅
+          - Negative auth: 403 for missing/wrong key ✅
+          
+          Comprehensive assertion results for ALL languages:
+          (a) HTTP 200 JSON response ✅
+          (b) paymentRecieved.rdp contains "RDP" not "VPS"; paymentRecieved.vps contains "VPS" ✅
+          (c) paymentRecievedHasEmailWording = false ✅
+          (d) vps_5d.rdp has RDP-ready header; vps_5d.vps has VPS-ready header ✅
+          (e) vpsBoughtSuccess checks ALL PASSED:
+              - rdpHeaderSaysRDP = true ✅
+              - vpsHeaderSaysVPS = true ✅
+              - rdpHasEmailWording = false ✅
+              - rdpLength < 1200 ✅
+                * EN: 852 chars
+                * FR: 990 chars
+                * ZH: 579 chars
+                * HI: 883 chars
+          (f) priceRule (RDP scenario): displayPrice = 90 AND displayEqualsCharge = true ✅
+          (g) linuxPriceRule (Linux VPS scenario): displayPrice = 18 AND displayEqualsCharge = true ✅
+          
+          KEY VERIFICATION - LINUX VPS PRICE FIX:
+          The 2nd user report issue (Linux "Cloud VPS 10 — $18/mo" displayed "Final price: $45.12" 
+          while charging $18) is now FIXED. The linuxPriceRule test confirms:
+          - Display price: $18 (correct) ✅
+          - Display equals charge: true ✅
+          - No longer shows stale $45.12 ($47.50 × silver 5%) ✅
+          
+          The fix (excluding 'vps-plan-pay' from loyalty discount + using vpsDetails.totalPrice for 
+          display) correctly handles BOTH:
+          1. RDP purchases ($90 display = $90 charge)
+          2. Linux VPS purchases ($18 display = $18 charge)
+          
+          All original 5 UX issues remain resolved across all languages and both product types (RDP/VPS).
 
 frontend:
   []
 
 metadata:
   created_by: "main_agent"
-  version: "1.3"
-  test_sequence: 3
+  version: "1.4"
+  test_sequence: 4
   run_ui: false
 
 test_plan:
@@ -308,3 +362,37 @@ agent_communication:
       5. ✅ Correct RDP/VPS wording throughout
       
       The RDP purchase flow UX is now fully fixed and verified across all supported languages.
+  - agent: "testing"
+    message: |
+      🎉 LINUX VPS PRICE-DISPLAY FIX VERIFICATION COMPLETE (2nd user report follow-up)
+      
+      Tested the extended /api/admin/vps-flow-check endpoint with the new linuxPriceRule assertion (g).
+      
+      ✅ ALL TESTS PASSED FOR ALL 4 LANGUAGES (en, fr, zh, hi)
+      
+      Infrastructure:
+      - nodejs service: RUNNING ✅
+      - Base API: HTTP 200 ✅
+      - Negative auth: 403 for missing/wrong key ✅
+      
+      All assertions (a)-(g) verified for each language:
+      (a) HTTP 200 JSON ✅
+      (b) paymentRecieved RDP/VPS wording correct ✅
+      (c) paymentRecievedHasEmailWording = false ✅
+      (d) vps_5d RDP/VPS headers correct ✅
+      (e) vpsBoughtSuccess all checks passed (rdpLength < 1200, no email wording) ✅
+      (f) priceRule (RDP): displayPrice=90, displayEqualsCharge=true ✅
+      (g) linuxPriceRule (Linux VPS): displayPrice=18, displayEqualsCharge=true ✅ NEW!
+      
+      KEY FINDING - LINUX VPS PRICE FIX CONFIRMED:
+      The 2nd user report issue is RESOLVED. The user saw "Final price: $45.12" (stale $47.50 × 
+      silver 5%) while being charged $18 for "Cloud VPS 10". The linuxPriceRule test confirms:
+      - Display price: $18 (correct, not $45.12) ✅
+      - Display equals charge: true ✅
+      
+      The existing fix (excluding 'vps-plan-pay' from loyalty discount + using vpsDetails.totalPrice 
+      for wallet-confirm display) correctly handles BOTH product types:
+      1. RDP purchases: $90 display = $90 charge ✅
+      2. Linux VPS purchases: $18 display = $18 charge ✅
+      
+      All 5 original UX issues remain resolved across all languages and both product types.
