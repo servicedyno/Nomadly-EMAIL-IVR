@@ -35163,6 +35163,61 @@ app.get('/admin/cnam-circuit', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' })  }
 })
 
+// ── Admin: read-only VPS/RDP catalog + Azure capacity diagnostic ──────────
+// Verifies the provider split (DO = Linux/VPS, Azure = Windows/RDP), that the
+// two catalogs use DISTINCT plan names, and that the Azure RDP SKUs have live
+// cores quota. Root cause of the @Hostbay_support RDP failures was the Azure
+// catalog using Bsv2 SKUs whose quota = 0 on this subscription; it now uses
+// Dsv6 which has cores. This endpoint is READ-ONLY (no provisioning / no spend).
+app.get('/admin/vps-catalog-check', async (req, res) => {
+  if (req?.query?.key !== process.env.SESSION_SECRET?.slice(0, 16)) {
+    return res.status(403).json({ error: 'Unauthorized' })
+  }
+  try {
+    const region = req.query.region || 'EU'
+    const vpsProvider = require('./vps-provider')
+    const linux = vpsProvider.pickProviderForOs(false)   // DigitalOcean (Linux/VPS)
+    const rdp   = vpsProvider.pickProviderForOs(true)     // Azure (Windows/RDP)
+
+    const mapPlan = (p) => ({
+      productId: p.productId,
+      name:      p.name,
+      vCPU:      p.cpuCores,
+      ramGb:     p.ramGb != null ? p.ramGb : Math.round((p.ramMb || 0) / 1024),
+      priceUsd:  p.pricing ? p.pricing.totalWithMarkup : p.monthlyPrice,
+    })
+    const vpsCatalog = (linux.listProducts(region, false) || []).map(mapPlan)
+    const rdpCatalog = (rdp.listProducts(region, true) || []).map(mapPlan)
+
+    // Live Azure capacity per RDP SKU (read-only ARM usages call)
+    let capacity = []
+    if (typeof rdp.checkCapacity === 'function') {
+      capacity = await Promise.all(rdpCatalog.map(async (p) => ({
+        productId: p.productId,
+        ...(await rdp.checkCapacity(p.productId, region)),
+      })))
+    }
+
+    const vpsNames = new Set(vpsCatalog.map(p => p.name))
+    const namesDistinct = rdpCatalog.length > 0 && rdpCatalog.every(p => !vpsNames.has(p.name))
+
+    return res.json({
+      region,
+      providers: {
+        vps: { name: vpsProvider.DEFAULT_PROVIDER, catalog: vpsCatalog },
+        rdp: { name: vpsProvider.RDP_PROVIDER, catalog: rdpCatalog },
+      },
+      namesDistinct,
+      rdpSkusAreDsv6: rdpCatalog.length > 0 && rdpCatalog.every(p => /_D\d+l?s_v6$/i.test(p.productId)),
+      capacity,
+      rdpProvisionable: capacity.length > 0 && capacity.every(c => c.ok),
+    })
+  } catch (e) {
+    return res.status(500).json({ error: e.message })
+  }
+})
+
+
 // ── Admin: Manually provision a VPS from an existing payment session ──
 app.post('/admin/provision-vps', async (req, res) => {
   const adminKey = req?.query?.key

@@ -3037,6 +3037,7 @@ ${plans
  // configs
  askVpsConfig: (list, extras = {}) => {
   const { walletUsd, cheapestName, socialProof } = extras
+  const isRDP = Array.isArray(list) && list.some(c => c.isRDP)
   const plans = list.map(config => {
    const star = config.name === cheapestName ? '🌟 ' : ''
    const monthly = Number(config.monthlyPrice) || 0
@@ -3062,7 +3063,10 @@ ${plans
   }
 
   const proofLine = socialProof ? `\n\n${socialProof}` : ''
-  return `⚙️ Pick a plan:\n\n${plans}${proofLine}${walletLine}`
+  const header = isRDP
+   ? '🪟 Pick a Windows RDP plan <i>(Windows Server + Remote Desktop, licence included)</i>:'
+   : '⚙️ Pick a Linux VPS plan:'
+  return `${header}\n\n${plans}${proofLine}${walletLine}`
  },
  validVpsConfig: 'Please select a valid vps configuration:',
  configMenu: vpsOptionsOf(vpsConfigurationMenu),
@@ -3122,10 +3126,12 @@ ${list.map(item => `${name == 'whm' ? `<strong>• ${item.name} - </strong>` : '
  const total = vpsDetails.totalPrice || Number(planPrice).toFixed(2)
  const isRDP = vpsDetails.isRDP
  const osLabel = isRDP ? '🪟 Windows Server (RDP)' : (vpsDetails.os?.name || 'Ubuntu')
- 
+ const planEmoji = isRDP ? '🪟' : '🖥️'
+ const planKind = isRDP ? ' <i>(Windows RDP)</i>' : ''
+
  let summary = `<strong>📋 Order Summary:</strong>
 
-<strong>🖥️ ${vpsDetails.config.name}</strong> — ${vpsDetails.config.specs.vCPU} vCPU · ${vpsDetails.config.specs.RAM}GB RAM · ${vpsDetails.config.specs.disk}GB ${vpsDetails.config.specs.diskType}
+<strong>${planEmoji} ${vpsDetails.config.name}</strong>${planKind} — ${vpsDetails.config.specs.vCPU} vCPU · ${vpsDetails.config.specs.RAM}GB RAM · ${vpsDetails.config.specs.disk}GB ${vpsDetails.config.specs.diskType}
 <strong>📍 Region:</strong> ${vpsDetails.regionName || vpsDetails.country}
 <strong>💻 OS:</strong> ${osLabel}`
 

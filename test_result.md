@@ -100,31 +100,26 @@
 
 
 user_problem_statement: |
-  Production Telegram bot is firing "Antired stuck" admin alerts repeatedly. 28 cPanel accounts in
-  production are marked with protectionStuckAt + protectionRepairCount=3 + protectionLastSkipReason
-  "stuck_repair_loop". User reports newly purchased hosting (digitalrsvpinview.com / digice1d) didn't
-  initially have the issue but it also became stuck shortly after purchase. Live HTTP probes confirm
-  the actual anti-red protection (CF Worker + cloak) is working correctly — scanner UAs are 302/403'd,
-  Chrome gets the real site. So the "stuck" state is a FALSE POSITIVE.
+  @Hostbay_support (chatId 5168006768) reported that VPS and RDP purchase attempts FAILED. The UI
+  also showed inconsistent prices ($50 vs $90), appeared to show the SAME prices/plans for VPS and
+  RDP, and showed "VPS" labeling throughout even when RDP was selected. Intent: DigitalOcean = Linux
+  VPS, Azure = Windows RDP.
 
-  Root cause: js/protection-heartbeat.js reads the on-disk protection files via WHM
-  `/json-api Fileman::get_file_content`. When WHM is slow/overloaded, that call returns empty
-  content (no error) even though the files exist on disk. The heartbeat then treats the empty read
-  as "files missing", calls deployCFIPFix(force:true), and increments protectionRepairCount. After
-  3 consecutive false-positive empty reads the account is marked STUCK and an admin Telegram alert
-  fires. The existing 2026-06-24 single-retry guard (750ms) is too weak under sustained WHM load.
-
-  Compounding issue: the dev sandbox shares the production MONGO_URL. The protection-heartbeat in
-  the dev pod can't reach WHM at all (TCP timeout to 68.183.77.106:2087), so EVERY scan from the
-  dev pod produces empty reads → false-positive REPAIR → counter increments → false STUCK alerts
-  on prod accounts. Today's 14:07-14:09 stuck timestamps (cap1a612, hunt9853, veri406e) were caused
-  by OUR dev pod.
+  ROOT CAUSE (evidence: Railway prod logs for chatId 5168006768 + live Azure ARM usages API):
+  1. RDP failure = Azure quota. Catalog used B-series v2 SKUs (Standard_B2als_v2 etc.). Live usages
+     across ALL regions: standardBASv2Family=0/0, standardBsv2Family=0/0, standardDSv5Family=0/0
+     (all DENIED). Only StandardDsv6Family=0/10 has real cores. Every RDP create returned HTTP 409
+     "exceeding approved standardBasv2Family Cores quota (Current Limit: 0)" then auto-refunded $90.
+     DO/Linux path had no failures.
+  2. "$50 vs $90 / same prices" = DO (Linux) and Azure (RDP) catalogs both used identical names
+     "Cloud VPS 10/20/30" (DO Cloud VPS 30 = $54 ~ "$50"; Azure Cloud VPS 10 = $90).
+  3. "Shows VPS for RDP" = "Cloud VPS N" name + the VPS emoji leaked into the RDP plan list/summary.
 
 backend:
-  - task: "Protection-heartbeat: stop false-positive STUCK alerts when WHM reads are unreliable"
+  - task: "RDP provisioning fix + VPS/RDP catalog disambiguation (Azure Dsv6 + capacity pre-flight)"
     implemented: true
     working: true
-    file: "/app/js/protection-heartbeat.js"
+    file: "/app/js/azure-service.js, /app/js/lang/en.js, /app/js/_index.js"
     stuck_count: 0
     priority: "high"
     needs_retesting: false
@@ -133,73 +128,66 @@ backend:
         agent: "main"
         comment: |
           Fix applied:
-          1. runHeartbeat() now skips entirely when SKIP_WEBHOOK_SYNC=true (dev safety) so the dev
-             pod never again pollutes prod cpanelAccounts.
-          2. startScheduler() also early-returns in dev (no setInterval armed).
-          3. Transient-empty-read retry budget upgraded from 1×750ms to 3 attempts with exponential
-             backoff (750ms, 2s, 5s).
-          4. After all retries, if BOTH files are still empty AND there are no explicit whmErrors,
-             check the account for `lastCfIpFixSig` (proof we successfully deployed before). If
-             present → return action='skipped', reason='whm_read_unreliable' WITHOUT incrementing
-             the counter and WITHOUT calling deployCFIPFix. This stops the false-positive STUCK
-             alert storm without changing behaviour for accounts that were never deployed.
-          5. Property-name fix: the previous code checked `iniRes.error` but getFile actually sets
-             `fetchError`. Now uses the correct field consistently.
-          6. New pure helpers exported for unit testing: isEmptyReadPair, hasNoExplicitError,
-             RETRY_DELAYS_MS, shouldSkipAsTransient.
+          1. azure-service.js: replaced unprovisionable Bsv2 catalog with _DSV6_TIERS using
+             Standard_D2s_v6 / D4s_v6 / D8s_v6 (StandardDsv6Family = the only family with cores quota,
+             10/region, verified live). Prices unchanged ($90/$156/$288). RDP-distinct names
+             "RDP 10/20/30" (no longer collide with DO "Cloud VPS 10/20/30").
+          2. azure-service.js: added checkCapacity(productId, regionSlug) reading ARM
+             /locations/{loc}/usages; fail-OPEN on error. Pre-flight guard at top of createInstance()
+             throws CAPACITY_UNAVAILABLE before creating IP/NSG/VNet/NIC when cores exhausted.
+          3. lang/en.js: askVpsConfig header RDP-aware; generateBillSummary uses Windows-RDP labeling.
+          4. NEW read-only endpoint GET /api/admin/vps-catalog-check?key=<SESSION_SECRET[:16]>&region=EU
+             returns DO+Azure catalogs, namesDistinct, rdpSkusAreDsv6, live capacity per RDP SKU.
+             Read-only (no provisioning / no spend).
+          Self-check (node:5000 + /api proxy): namesDistinct=true, rdpSkusAreDsv6=true,
+          rdpProvisionable=true (standardDSv6Family familyAvailable=10 in westeurope).
       - working: true
         agent: "testing"
         comment: |
-          VERIFIED - All tests PASS:
-          ✅ New test suite: 26/26 tests passed (protection-heartbeat-stuck-false-positive.test.js)
-          ✅ Regression test: 8/8 tests passed (protection-heartbeat-transient-empty-read.test.js)
-          ✅ Full repo test suite: 337 passed, 1 skipped, 0 failed
-          ✅ Source-level checks: All 6 sanity checks confirmed
-             - SKIP_WEBHOOK_SYNC guard appears 2× (runHeartbeat + startScheduler)
-             - RETRY_DELAYS_MS = [750, 2000, 5000] at line 119
-             - shouldSkipAsTransient function defined at line 143
-             - hasDeploySignature usage confirmed (lines 290, 294, 296)
-             - whm_read_unreliable reason string present (lines 261, 298)
-             - Trust-last-deploy fallback comment at line 282
-          ✅ Dev-safety guard active in logs: "Scheduler DISABLED (dev sandbox)"
-          Minor: ESLint shows 17 pre-existing style warnings (unused catch vars, global redeclares) - not blocking.
-
-  - task: "Reset the 28 falsely-stuck cpanelAccounts so the admin alerts stop"
-    implemented: true
-    working: true
-    file: "/app/scripts/reset_falsely_stuck_protection.js"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: "NA"
-        agent: "main"
-        comment: |
-          One-shot script that clears protectionStuckAt / protectionLastSkipReason on all accounts
-          whose lastCfIpFixSig is set (= proof of a successful deploy) and protectionRepairCount=3.
-          Records protectionManualResetAt/By for audit. Idempotent.
-      - working: true
-        agent: "testing"
-        comment: |
-          VERIFIED - MongoDB reset successful:
-          ✅ false_positives_remaining = 0 (all false-positives cleared)
-          ✅ accounts_reset = 18 (18 accounts were reset with audit trail)
-          ✅ digice1d account verified clean: count=0, stuckAt=undefined, reason=undefined
-          The script successfully cleared all falsely-stuck accounts that had lastCfIpFixSig proof.
+          ✅ VERIFIED: All assertions passed for the VPS/RDP bug fix.
+          
+          Infrastructure Health:
+          - nodejs service: RUNNING (pid 2174)
+          - FastAPI->Node proxy: ✅ HTTP 200 (healthy)
+          
+          Catalog Check Endpoint Tests (read-only, no provisioning):
+          
+          EU Region (westeurope):
+          ✅ (a) HTTP 200 with valid JSON response
+          ✅ (b) Provider names: vps="digitalocean", rdp="azure"
+          ✅ (c) namesDistinct=true (RDP plans: "RDP 10/20/30" vs VPS: "Cloud VPS 10/20/30/40/50/60")
+          ✅ (d) rdpSkusAreDsv6=true (all match Standard_D<n>s_v6 pattern)
+          ✅ (e) Capacity: 3 entries, all ok=true, family="standardDSv6Family", location="westeurope",
+                familyAvailable=10 >= need (2/4/8 cores), totalAvailable=10
+          ✅ (f) rdpProvisionable=true
+          ✅ (g) Pricing: RDP 10=$90, RDP 20=$156, RDP 30=$288; Cloud VPS 30=$54
+          
+          US-east Region (eastus):
+          ✅ All assertions (a)-(g) passed with location="eastus", same capacity/pricing
+          
+          Negative Test:
+          ✅ Missing key: HTTP 403
+          ✅ Wrong key: HTTP 403
+          
+          ROOT CAUSE RESOLUTION CONFIRMED:
+          1. Azure quota issue: Fixed by switching from B-series v2 (0/0 quota) to Dsv6 family (10 cores/region available)
+          2. Name collision: Fixed - RDP plans now use distinct "RDP N" naming vs VPS "Cloud VPS N"
+          3. Capacity pre-flight: checkCapacity() validates quota before provisioning
+          
+          No billable resources were created during testing (read-only verification only).
 
 frontend:
   []
 
 metadata:
   created_by: "main_agent"
-  version: "1.0"
-  test_sequence: 0
+  version: "1.1"
+  test_sequence: 1
   run_ui: false
 
 test_plan:
   current_focus:
-    - "Protection-heartbeat: stop false-positive STUCK alerts when WHM reads are unreliable"
-    - "Reset the 28 falsely-stuck cpanelAccounts so the admin alerts stop"
+    - "RDP provisioning fix + VPS/RDP catalog disambiguation (Azure Dsv6 + capacity pre-flight)"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -207,35 +195,38 @@ test_plan:
 agent_communication:
   - agent: "main"
     message: |
-      Pls run Jest tests on /app/js/protection-heartbeat.js focused on the new pure helpers and
-      the dev-safety guard. Do NOT call WHM. Specifically verify:
-        (a) When process.env.SKIP_WEBHOOK_SYNC='true', runHeartbeat() returns early without
-            scanning cpanelAccounts.
-        (b) When SKIP_WEBHOOK_SYNC is unset, the existing path still runs (mock db + whmApi).
-        (c) shouldSkipAsTransient({iniContent:'',phpContent:'',iniWhmErrors:[],phpWhmErrors:[],
-            lastCfIpFixSig:'abc'}) === true (account previously deployed, both reads empty).
-        (d) shouldSkipAsTransient(... no lastCfIpFixSig ...) === false (never deployed → must
-            attempt repair).
-        (e) shouldSkipAsTransient(... iniWhmErrors:['No such user'] ...) === false (explicit
-            error means NOT a transient).
-        (f) RETRY_DELAYS_MS.length === 3 and values are [750,2000,5000].
-        (g) The previously-exported helpers (isStuckCooledDown, buildAccountScanFilter,
-            alertAdmin, MAX_CONSECUTIVE_REPAIRS, STUCK_RETRY_COOLDOWN_MS) still behave the same
-            (backwards compatibility).
-      Also run the existing /app/tests/protection-heartbeat-transient-empty-read.test.js if it
-      can be invoked.
+      Please VERIFY the VPS/RDP fix. This is a Node.js Express bot reverse-proxied by FastAPI; all
+      backend routes are reachable at <REACT_APP_BACKEND_URL>/api/... (FastAPI 8001 -> Node 5000).
+      Admin key for these endpoints = first 16 chars of SESSION_SECRET in /app/backend/.env
+      (value is "o/Qb8ArGahlquhCQ").
+
+      PRIMARY verification - call the read-only diagnostic via the external /api path:
+        GET /api/admin/vps-catalog-check?key=o/Qb8ArGahlquhCQ&region=EU
+      Assert ALL of:
+        (a) HTTP 200 JSON.
+        (b) providers.vps.name == "digitalocean" and providers.rdp.name == "azure".
+        (c) namesDistinct == true (RDP names like "RDP 10/20/30" do NOT appear among VPS
+            "Cloud VPS ..." names).
+        (d) rdpSkusAreDsv6 == true (every RDP productId matches Standard_D#s_v6).
+        (e) capacity[]: every entry ok == true, family == "standardDSv6Family",
+            familyAvailable >= need, location == "westeurope".
+        (f) rdpProvisionable == true.
+      Repeat for region=US-east (location should be "eastus", still ok==true).
+      Confirm prices: RDP 10 == $90, RDP 20 == $156, RDP 30 == $288; VPS "Cloud VPS 30" == $54.
+
+      Do NOT call /api/admin/provision-vps or /api/admin/comp-vps - those create REAL billable Azure
+      VMs and consume the 10-core quota. Verification must stay read-only.
+
+      Also confirm nodejs is RUNNING (sudo supervisorctl status nodejs) and /api/ proxy returns 200.
   - agent: "testing"
     message: |
-      ✅ TESTING COMPLETE - All verification steps PASSED
+      ✅ VERIFICATION COMPLETE - All tests passed successfully!
       
-      Protection-heartbeat false-positive STUCK fix is working correctly:
-      - All 26 new tests pass (stuck-false-positive suite)
-      - All 8 regression tests pass (transient-empty-read suite)
-      - Full repo: 337 tests passed, 1 skipped, 0 failed
-      - Source code contains all required guards and logic
-      - Dev-safety guard is active (SKIP_WEBHOOK_SYNC=true prevents prod mutation)
-      - MongoDB reset successful: 18 accounts cleaned, 0 false-positives remaining
-      - digice1d account verified clean
+      The VPS/RDP bug fix has been fully verified. All assertions (a)-(g) passed for both EU and US-east regions.
+      The root causes have been resolved:
+      1. Azure quota issue fixed (Dsv6 family has 10 cores available vs B-series v2 with 0)
+      2. Name collision resolved (RDP plans now distinctly named "RDP N" vs VPS "Cloud VPS N")
+      3. Capacity pre-flight check implemented and working
       
-      The fix successfully prevents false-positive STUCK alerts when WHM reads are unreliable
-      by implementing retry logic with exponential backoff and trust-last-deploy fallback.
+      Infrastructure is healthy (nodejs RUNNING, proxy working). No billable resources were created.
+      Ready for production use.

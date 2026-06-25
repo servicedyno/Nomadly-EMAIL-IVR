@@ -212,41 +212,52 @@ function onProvisioningCircuitOpen(cb) {
 // cheapest, Australia/Japan ~10-20% premium) but the differences are small
 // enough that single-price-everywhere keeps the catalog simple.
 // ─── Catalog ─────────────────────────────────────────────────────────────
-// 2026-06-24 update: Microsoft has deprecated the original Bs-series (B1ms /
-// B2s / B2ms) for new subscriptions — they return `NotAvailableForSubscription`
-// when provisioned. We use **Bsv2-series** instead, which is the modern
-// equivalent (same burstable model, AMD EPYC hardware) and is broadly
-// available to standard PAYG subscriptions.
+// 2026-06-25 update (RCA: @Hostbay_support RDP failures):
+// The Bsv2-series catalog we previously shipped is UNPROVISIONABLE on this
+// subscription. Live ARM usage check across ALL regions shows:
+//     standardBASv2Family = 0/0   standardBsv2Family = 0/0   (limit 0 = denied)
+//     standardDSv5Family  = 0/0   (also denied)
+//     StandardDsv6Family  = 0/10  ← the ONLY family with real cores
+// So every RDP order on Bsv2 returned HTTP 409 "exceeding approved
+// standardBasv2Family Cores quota (Current Limit: 0)" → provisioning failed →
+// the bot auto-refunded $90 and showed "VPS provisioning failed".
 //
-// All Bsv2 SKUs are SSD-only (Premium SSD or Standard SSD managed disks).
+// Fix: move the customer-facing RDP catalog onto the **Dsv6-series**, which is
+// the family this subscription actually has quota for (the smoke-test tier
+// already validated Standard_D2s_v6 provisions cleanly). Dsv6 is a Gen2 /
+// Trusted-Launch capable SSD-only family — the win2022-datacenter-g2 image and
+// the existing createInstance() body work unchanged.
 //
-// Region note: Bsv2 has spotty availability. WEU has the full lineup; eastus
-// uses the `_p` (Ampere ARM) variants or D-series. We surface the SKU at the
-// region level via REGION_SKU_OVERRIDES below.
-const _BV2_TIERS = [
+// Names are RDP-distinct ("RDP 10/20/30") so they no longer collide with the
+// DigitalOcean Linux catalog ("Cloud VPS 10/20/30") — this is what made VPS &
+// RDP look like "the same plans at different prices" in the UI.
+//
+// Prices are unchanged for the business ($90 / $156 / $288 = base × markup 200%);
+// customers simply get more RAM/cores at the same price on Dsv6.
+const _DSV6_TIERS = [
   {
-    productId:   'Standard_B2als_v2',
-    name:        'Cloud VPS 10',
-    cpuCores:    2, ramMb: 4096, diskMb: 127 * 1024,
-    diskType:    'ssd', bandwidthTb: 0.1, portSpeedMbps: 1000,
-    basePriceUsd: 30, tier: 1,
-    azureSku:    'Standard_B2als_v2', osDiskSizeGB: 127,
-  },
-  {
-    productId:   'Standard_B2s_v2',
-    name:        'Cloud VPS 20',
+    productId:   'Standard_D2s_v6',
+    name:        'RDP 10',
     cpuCores:    2, ramMb: 8192, diskMb: 127 * 1024,
     diskType:    'ssd', bandwidthTb: 0.1, portSpeedMbps: 1000,
-    basePriceUsd: 52, tier: 2,
-    azureSku:    'Standard_B2s_v2', osDiskSizeGB: 127,
+    basePriceUsd: 30, tier: 1,
+    azureSku:    'Standard_D2s_v6', osDiskSizeGB: 127,
   },
   {
-    productId:   'Standard_B4als_v2',
-    name:        'Cloud VPS 30',
-    cpuCores:    4, ramMb: 8192, diskMb: 128 * 1024,
+    productId:   'Standard_D4s_v6',
+    name:        'RDP 20',
+    cpuCores:    4, ramMb: 16384, diskMb: 128 * 1024,
     diskType:    'ssd', bandwidthTb: 0.2, portSpeedMbps: 1000,
+    basePriceUsd: 52, tier: 2,
+    azureSku:    'Standard_D4s_v6', osDiskSizeGB: 128,
+  },
+  {
+    productId:   'Standard_D8s_v6',
+    name:        'RDP 30',
+    cpuCores:    8, ramMb: 32768, diskMb: 256 * 1024,
+    diskType:    'ssd', bandwidthTb: 0.4, portSpeedMbps: 1000,
     basePriceUsd: 96, tier: 3,
-    azureSku:    'Standard_B4als_v2', osDiskSizeGB: 128,
+    azureSku:    'Standard_D8s_v6', osDiskSizeGB: 256,
   },
 ]
 const _D_TIERS = [
@@ -267,8 +278,8 @@ const _D_TIERS = [
     azureSku:    'Standard_D4s_v5', osDiskSizeGB: 256,
   },
 ]
-// Final catalog = B-tier always + D-tier when env flag enabled
-const PRODUCT_CATALOG = DSV5_ENABLED ? [..._BV2_TIERS, ..._D_TIERS] : _BV2_TIERS
+// Final catalog = Dsv6 tier always + D-series (v5) when env flag enabled
+const PRODUCT_CATALOG = DSV5_ENABLED ? [..._DSV6_TIERS, ..._D_TIERS] : _DSV6_TIERS
 const PRODUCT_CATALOG_SSD = PRODUCT_CATALOG // alias for cross-provider compat
 
 // ── Smoke-test only SKU ─────────────────────────────────────────────────
@@ -363,6 +374,59 @@ function listProducts(regionSlug = 'EU', isWindows = true, _diskPreference = 'ss
 function getProduct(productId) {
   return PRODUCT_CATALOG.find(p => p.productId === productId)
     || (productId === _SMOKE_TEST_TIER.productId ? _SMOKE_TEST_TIER : null)
+}
+
+// ─── Capacity / quota pre-flight ─────────────────────────────────────────
+// Maps an Azure VM SKU to the compute-usage "family" name reported by the ARM
+// usages API (case-insensitive match). Used to verify we actually have cores
+// quota BEFORE attempting a create (Bsv2/Dsv5 are denied = 0 on this sub;
+// only Dsv6 has cores — see _DSV6_TIERS RCA note).
+function _skuFamily(productId) {
+  const s = String(productId || '')
+  if (/_D\d+l?s_v6$/i.test(s)) return 'standardDSv6Family'
+  if (/_D\d+l?s_v5$/i.test(s)) return 'standardDSv5Family'
+  if (/_B\d+als_v2$/i.test(s)) return 'standardBASv2Family'
+  if (/_B\d+s_v2$/i.test(s))   return 'standardBSv2Family'
+  return 'cores'
+}
+
+/**
+ * Check whether the subscription has enough free cores to provision `productId`
+ * in `regionSlug`. Returns { ok, family, location, need, familyAvailable,
+ * familyLimit, totalAvailable }. On any ARM error we FAIL-OPEN (ok:true,
+ * degraded:true) so a transient usages-API hiccup never blocks a sale — the
+ * real create call still surfaces a hard error if capacity is genuinely gone.
+ */
+async function checkCapacity(productId, regionSlug) {
+  const product = getProduct(productId)
+  const location = REGION_TO_AZURE[regionSlug] || regionSlug || DEFAULT_LOC
+  const family = _skuFamily(productId)
+  const need = product?.cpuCores || 2
+  if (!SUB_ID) return { ok: true, degraded: true, reason: 'no_subscription', family, location, need }
+  try {
+    const data = await apiRequest(
+      'GET',
+      `/subscriptions/${SUB_ID}/providers/Microsoft.Compute/locations/${location}/usages`,
+      { apiVersion: '2023-07-01' }
+    )
+    const rows = data?.value || []
+    const norm = (r) => String(r?.name?.value || '').toLowerCase()
+    const fam = rows.find(r => norm(r) === family.toLowerCase())
+    const tot = rows.find(r => norm(r) === 'cores')
+    const familyAvailable = fam ? (fam.limit - fam.currentValue) : null
+    const totalAvailable  = tot ? (tot.limit - tot.currentValue) : null
+    const famOk = familyAvailable == null ? false : familyAvailable >= need
+    const totOk = totalAvailable == null ? true : totalAvailable >= need
+    return {
+      ok: famOk && totOk,
+      family, location, need,
+      familyAvailable, familyLimit: fam ? fam.limit : null,
+      totalAvailable,
+    }
+  } catch (e) {
+    log(`checkCapacity error for ${productId}@${location}: ${e.message}`)
+    return { ok: true, degraded: true, error: e.message, family, location, need }
+  }
 }
 
 async function listRegions() {
@@ -561,6 +625,23 @@ async function createInstance(opts) {
   const location = REGION_TO_AZURE[regionSlug]
   if (!location) throw new Error(`Unknown regionSlug: ${regionSlug}`)
   const imgRef = _imageReference(osId)
+
+  // ── Pre-flight capacity check ──────────────────────────────────────────
+  // Verify the subscription has cores quota for this SKU family in this region
+  // BEFORE we create any IP/NSG/VNet/NIC (which would otherwise be orphaned by
+  // a 409 on the VM step). Throws a typed CAPACITY_UNAVAILABLE error so callers
+  // can show a clean "temporarily out of capacity" message and refund.
+  const cap = await checkCapacity(productId, regionSlug)
+  if (!cap.ok && !cap.degraded) {
+    const e = new Error(
+      `Azure capacity unavailable: ${cap.family} in ${cap.location} has ` +
+      `${cap.familyAvailable}/${cap.familyLimit} cores free (need ${cap.need}).`
+    )
+    e.code = 'CAPACITY_UNAVAILABLE'
+    e.capacity = cap
+    log(`  ⛔ Pre-flight capacity check failed: ${e.message}`)
+    throw e
+  }
 
   const vmName     = _generateVmName('nmd')
   const ipName     = `${vmName}-ip`
@@ -1177,6 +1258,7 @@ module.exports = {
   PRODUCT_CATALOG_SSD,
   listProducts,
   getProduct,
+  checkCapacity,
   isNVMeProduct,
   isSSDProduct,
   // Regions
