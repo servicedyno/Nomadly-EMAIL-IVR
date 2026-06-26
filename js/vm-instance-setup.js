@@ -673,7 +673,14 @@ async function createVPSInstance(telegramId, vpsDetails) {
     }
 
     console.log(`[VPS] Creating instance for user ${telegramId} via ${newProvider.PROVIDER || 'default'}:`, JSON.stringify(createOpts))
-    const instance = await newProvider.createInstance(createOpts)
+    // Use cross-region fallback when the provider supports it (Azure). Azure
+    // capacity for a SKU flips minute-to-minute per region, so a single-region
+    // attempt fails far too often — the fallback tries the requested region
+    // first then rotates through currently-available regions (live SKUs API),
+    // fully cleaning up each failed attempt.
+    const instance = (typeof newProvider.createInstanceWithFallback === 'function')
+      ? await newProvider.createInstanceWithFallback(createOpts)
+      : await newProvider.createInstance(createOpts)
 
     if (!instance || !instance.instanceId) {
       return { error: 'Failed to create instance — no instanceId returned' }
@@ -687,6 +694,13 @@ async function createVPSInstance(telegramId, vpsDetails) {
     }
     if (actualImageId !== imageId) {
       console.log(`[Contabo] Image fallback used: requested=${imageId}, actual=${actualImageId}`)
+    }
+    // Region may differ from request when cross-region capacity fallback kicked
+    // in (Azure). Persist what actually got provisioned so management/IP lookups
+    // hit the right region.
+    const actualRegion = instance._actualRegion || region
+    if (actualRegion !== region) {
+      console.log(`[VPS] Region fallback used: requested=${region}, actual=${actualRegion} (attempts: ${(instance._regionAttempts || []).join(', ')})`)
     }
 
     // Resolve `defaultUser` reliably BEFORE we build the credentials message.
@@ -739,7 +753,7 @@ async function createVPSInstance(telegramId, vpsDetails) {
       host: initialIp,
       status: instance.status || 'provisioning',
       contaboInstanceId: instance.instanceId,
-      region: region,
+      region: actualRegion,
       productId: actualProductId,
       osType: isRDP ? 'Windows' : 'Linux',
       isRDP: isRDP,
@@ -764,7 +778,7 @@ async function createVPSInstance(telegramId, vpsDetails) {
         label: vpsData.label,
         vpsId: String(instance.instanceId),
         host: vpsData.host,
-        region: region,
+        region: actualRegion,
         productId: actualProductId,
         osType: vpsData.osType,
         isRDP: isRDP,
@@ -971,9 +985,17 @@ async function fetchVPSDetails(telegramId, vpsId) {
 
     if (!live) return false
 
-    const ip = live.ipConfig?.v4?.ip || localRecord?.host || 'provisioning...'
-    const product = contabo.getProduct(live.productId)
-    const isRDP = live.osType === 'Windows'
+    const ip = live.ipConfig?.v4?.ip || live.mainIp || live.ipv4 || localRecord?.host || 'provisioning...'
+    // Resolve the product/specs from the record's OWN provider catalog. The
+    // smart proxy's getProduct() routes to the DEFAULT provider, so an Azure/
+    // Vultr product id would miss and specs would render as "?". Also, several
+    // providers' getInstance() don't echo osType/specs, so isRDP/osType must
+    // come from the stored record first (otherwise an Azure RDP shows as Linux
+    // and loses the Reinstall-Windows button + correct username). (2026-06 fix)
+    let recSvc = contabo
+    try { recSvc = localRecord ? require('./vps-provider').getProviderForRecord(localRecord) : contabo } catch (_) { /* fall back to smart proxy */ }
+    const product = recSvc.getProduct(live.productId || localRecord?.productId) || contabo.getProduct(live.productId)
+    const isRDP = (localRecord?.isRDP === true) || (localRecord?.osType === 'Windows') || (live.osType === 'Windows')
     const diskType = (product?.diskType || localRecord?.productId || '').includes('nvme') ? 'nvme' : 'ssd'
 
     return {
@@ -984,13 +1006,13 @@ async function fetchVPSDetails(telegramId, vpsId) {
       host: ip,
       ipv6: live.ipConfig?.v6?.ip || '',
       status: live.status?.toUpperCase() || 'UNKNOWN',
-      region: live.region,
-      productId: live.productId,
-      productName: product?.name || live.productId,
-      cpuCores: live.cpuCores,
-      ramMb: live.ramMb,
-      diskMb: live.diskMb,
-      osType: live.osType,
+      region: live.region || localRecord?.region,
+      productId: live.productId || localRecord?.productId,
+      productName: product?.name || live.productId || localRecord?.productId,
+      cpuCores: live.cpuCores || product?.cpuCores,
+      ramMb: live.ramMb || product?.ramMb,
+      diskMb: live.diskMb || product?.diskMb,
+      osType: localRecord?.osType || live.osType,
       isRDP: isRDP,
       plan: localRecord?.plan || 'Monthly',
       planPrice: localRecord?.planPrice,
@@ -1003,7 +1025,7 @@ async function fetchVPSDetails(telegramId, vpsId) {
         subscriptionEnd: localRecord?.end_time || new Date(),
         osId: { os_name: isRDP ? 'Windows Server' : (live.imageId || 'Ubuntu') }
       },
-      defaultUser: live.defaultUser || (isRDP ? 'admin' : 'root'),
+      defaultUser: localRecord?.defaultUser || live.defaultUser || (isRDP ? 'Administrator' : 'root'),
 
       // ── Compat fields required by lang/en.js selectedVpsData template ──
       planDetails: {

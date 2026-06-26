@@ -11,20 +11,27 @@
 
 
 user_problem_statement: |
-  Verify that the existing VPS (DigitalOcean) and RDP (Azure) renewal + deletion logic correctly
-  STOPS cloud fees when an instance is NOT renewed, or when there's no wallet balance for renewal.
+  PROD bug: existing users could not MANAGE their Contabo VPS, and @davion419 (chatId 404562920)
+  paid for a Windows RDP that never provisioned. RCA: the Contabo account (hosting@dyno.pt) was
+  reset during the 2026-06 vendor-block, so 10 of 15 Contabo VPS records now 404 (instances gone).
+  Remediation chosen by operator: re-provision @davion419 ONE Windows RDP on Azure (the new RDP
+  provider) — cheapest tested tier D2s_v6 (RDP 10, ~$30/mo our cost) — and make sure he can manage
+  it from the bot. Also harden Azure provisioning (capacity fluctuates per-region).
 
-  FINDINGS (code review of checkVPSPlansExpiryandPayment in _index.js + vps-provider routing):
-  - The renewal/expiry scheduler runs every 5 min and is provider-agnostic. At 24h pre-expiry it
-    auto-renews (smartWalletDeduct) only if autoRenewable=true AND wallet covers it; otherwise the
-    record is marked PENDING_CANCELLATION. At end_time, PENDING_CANCELLATION records are destroyed
-    via deleteVPSinstance → vpsProvider smart-proxy → the owning provider's cancelInstance (an
-    IMMEDIATE destroy for DO/Vultr/Azure PAYG hourly billing) → fees stop. New PAYG instances
-    default to autoRenewable=false, so they are deleted at expiry unless the user opts in + funds.
-  - CRITICAL dev-safety gap found: the scheduler had NO SKIP_WEBHOOK_SYNC guard, so the dev pod
-    (which shares the production MONGO_URL) was running it every 5 min and could charge real
-    customer wallets and delete real customers' VPS/RDP. (Same class of bug as the prior
-    protection-heartbeat issue.)
+  WORK DONE (this run):
+  - Provisioned @davion419 an Azure RDP (az-nmdcbaec20f3, US-west/westus3, 20.125.117.70, RUNNING,
+    RDP/3389 open) via the bot's own createVPSInstance pipeline; tagged comp (no wallet charge).
+    Hid his 3 dead RDP records so he now sees exactly ONE RDP + his working Linux VPS.
+  - Azure robustness: createInstanceWithFallback() tries the requested region first then rotates
+    through currently-available regions (live SKUs API restriction check), skipping restricted
+    regions and retrying capacity 409s; full orphan-free cleanup on every failed attempt (the old
+    cleanup used a Compute api-version for Network resources + no ordering → left 15 orphan IPs/
+    NICs/NSGs/VNets billing silently; those were deleted).
+  - Fixed fetchVPSDetails to be provider-aware (was Contabo-shaped: Azure RDP showed isRDP=false,
+    no specs); fixed the reset-password screen to show the ACTUAL Azure admin user ("nomadly")
+    instead of hardcoded "Administrator" (Azure disables the built-in Administrator → login failed).
+  - Added read-only diagnostic GET /api/admin/vps-manageability-check?key=<SESSION_SECRET[:16]>&chatId=
+    that routes each VPS record to its OWN provider and reports manageable vs orphaned.
 
 backend:
   - task: "VPS/RDP renewal+deletion billing-safety (DO + Azure) + dev-pod scheduler guard"
@@ -79,15 +86,100 @@ backend:
 
 frontend: []
 
+  - task: "Contabo orphan RCA + @davion419 Azure RDP remediation + robust Azure provisioning"
+    implemented: true
+    working: true
+    file: "/app/js/azure-service.js, /app/js/vm-instance-setup.js, /app/js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          Provisioned @davion419 (404562920) an Azure RDP (az-nmdcbaec20f3) via createInstanceWithFallback
+          (US-east restricted → fell back to US-west). VM running, RDP/3389 open. Hid his 3 dead RDP
+          records. Added GET /admin/vps-manageability-check. Also fixed provider-aware fetchVPSDetails +
+          Azure admin-username display. Needs testing-agent verification via the external proxy.
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFIED - All VPS manageability assertions passed via GET /api/admin/vps-manageability-check:
+          
+          TEST 1 - @davion419 (chatId=404562920) specific check:
+            (a) HTTP 200 JSON, success == true ✓
+            (b) total == 2, manageable == 2, orphaned == 0 ✓
+            (c) Azure RDP entry verified:
+                • provider == "azure" ✓
+                • isRDP == true ✓
+                • manageable == true ✓
+                • displayUsername == "nomadly" ✓
+                • liveStatus == "active" ✓
+                • ip == "20.125.117.70" ✓
+            (d) Linux VPS (instanceId "203378302") with manageable == true ✓
+          
+          Exact JSON for davion419:
+          {
+            "success": true,
+            "chatId": "404562920",
+            "total": 2,
+            "manageable": 2,
+            "orphaned": 0,
+            "results": [
+              {
+                "chatId": "404562920",
+                "instanceId": "203378302",
+                "provider": "unknown",
+                "isRDP": false,
+                "recordStatus": "provisioning",
+                "liveStatus": "running",
+                "ip": "212.56.32.183",
+                "manageable": true,
+                "displayUsername": "admin",
+                "error": null
+              },
+              {
+                "chatId": "404562920",
+                "instanceId": "az-nmdcbaec20f3",
+                "provider": "azure",
+                "isRDP": true,
+                "recordStatus": "RUNNING",
+                "liveStatus": "active",
+                "ip": "20.125.117.70",
+                "manageable": true,
+                "displayUsername": "nomadly",
+                "error": null
+              }
+            ]
+          }
+          
+          TEST 2 - All users check (no chatId):
+            • HTTP 200, success == true ✓
+            • total == 13, manageable == 5, orphaned == 8 ✓
+            • Per-record manageable booleans present ✓
+            • orphaned == 8 is EXPECTED (legacy Contabo records, informational) ✓
+          
+          TEST 3 - Negative auth tests:
+            • Wrong key → HTTP 403 ✓
+            • No key → HTTP 403 ✓
+          
+          TEST 4 - Infrastructure:
+            • nodejs service RUNNING (pid 2071, uptime 0:04:33) ✓
+            • Base API /api/ returns HTTP 200 ✓
+          
+          CONCLUSION: @davion419's Azure RDP remediation is fully functional. The VPS manageability
+          diagnostic correctly identifies manageable vs orphaned instances across all providers. Azure
+          RDP shows correct provider detection, isRDP flag, displayUsername ("nomadly"), and live status.
+          Both of davion419's VPS instances (Azure RDP + Linux VPS) are manageable from the bot.
+
 metadata:
   created_by: "main_agent"
-  version: "1.3"
-  test_sequence: 3
+  version: "1.5"
+  test_sequence: 5
   run_ui: false
 
 test_plan:
-  current_focus:
-    - "VPS/RDP renewal+deletion billing-safety (DO + Azure) + dev-pod scheduler guard"
+  current_focus: []
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -95,7 +187,23 @@ test_plan:
 agent_communication:
   - agent: "main"
     message: |
-      Verify the VPS/RDP billing-safety logic. Node.js Express behind FastAPI; use external
+      NEW TASK (test_sequence 4). Verify @davion419's Azure RDP remediation + the manageability
+      diagnostic. Node.js Express behind FastAPI — use external <REACT_APP_BACKEND_URL>/api/...
+      (from /app/frontend/.env), NOT localhost. Admin key = "o/Qb8ArGahlquhCQ" (first 16 chars of
+      SESSION_SECRET). READ-ONLY: do NOT call /api/admin/provision-vps or /api/admin/comp-vps.
+
+      1) GET /api/admin/vps-manageability-check?key=o/Qb8ArGahlquhCQ&chatId=404562920 — assert:
+         (a) HTTP 200 JSON, success==true.
+         (b) total==2, manageable==2, orphaned==0.
+         (c) results contains an entry with provider=="azure", isRDP==true, manageable==true,
+             displayUsername=="nomadly", liveStatus in ["active","running"], ip=="20.125.117.70".
+         (d) results contains the Linux VPS (instanceId "203378302") with manageable==true.
+      2) GET .../vps-manageability-check?key=o/Qb8ArGahlquhCQ  (no chatId, ALL users) — assert
+         HTTP 200, success==true, and that the response lists per-record manageable/orphaned booleans
+         (orphaned>0 expected from legacy Contabo records — that's informational, NOT a failure).
+      3) Negative: missing/wrong key → HTTP 403.
+      4) Infra: `sudo supervisorctl status nodejs` RUNNING; GET <REACT_APP_BACKEND_URL>/api/ == 200.
+      Report exact JSON for davion419 and pass/fail per (a)-(d). Update test_result.md.
       <REACT_APP_BACKEND_URL>/api/... (from /app/frontend/.env), NOT localhost. Admin key =
       "o/Qb8ArGahlquhCQ" (first 16 chars of SESSION_SECRET).
 
@@ -140,3 +248,24 @@ agent_communication:
       
       Created /app/backend_test.py with comprehensive test suite for future regression testing.
       The billing-safety implementation is production-ready.
+  - agent: "testing"
+    message: |
+      ✅ TESTING COMPLETE (test_sequence 5) - All VPS manageability assertions PASSED.
+      
+      Verified @davion419's Azure RDP remediation + VPS manageability diagnostic:
+      • Test 1 (davion419 specific): All 4 assertions (a-d) PASSED
+      • Test 2 (all users): HTTP 200, success==true, per-record booleans present, orphaned==8 (expected)
+      • Test 3 (negative auth): Wrong/missing key → HTTP 403 PASSED
+      • Test 4 (infrastructure): nodejs RUNNING, base API 200 PASSED
+      
+      VERIFIED BEHAVIOR:
+      1. @davion419 (chatId 404562920) has exactly 2 manageable VPS instances (0 orphaned)
+      2. Azure RDP (az-nmdcbaec20f3) correctly identified:
+         - provider: "azure", isRDP: true, manageable: true
+         - displayUsername: "nomadly" (correct Azure admin user, not hardcoded "Administrator")
+         - liveStatus: "active", ip: "20.125.117.70"
+      3. Linux VPS (instanceId 203378302) is manageable
+      4. All-users check shows 13 total VPS records: 5 manageable, 8 orphaned (legacy Contabo)
+      5. Admin endpoint properly secured with key authentication
+      
+      The Azure RDP remediation is fully functional and davion419 can manage both VPS instances from the bot.

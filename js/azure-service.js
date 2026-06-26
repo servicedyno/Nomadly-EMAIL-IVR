@@ -832,23 +832,121 @@ async function createInstance(opts) {
     }
   } catch (err) {
     _trackCreateResult(false, err)
-    // Best-effort cleanup so a partial provision doesn't leave orphan resources
-    log(`  ❌ createInstance failed: ${err.message} — attempting cleanup`)
-    for (const [kind, name] of [
-      ['virtualMachines', vmName],
-      ['networkInterfaces', nicName],
-      ['networkSecurityGroups', nsgName],
-      ['virtualNetworks', vnetName],
-      ['publicIPAddresses', ipName],
-    ]) {
-      try {
-        const provider = (kind === 'virtualMachines') ? 'Microsoft.Compute' : 'Microsoft.Network'
-        await apiRequest('DELETE', `/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers/${provider}/${kind}/${name}`,
-          { apiVersion: '2024-11-01' })
-      } catch (_) { /* ignore — resource may not have been created */ }
-    }
+    // Full cleanup so a partial/failed provision never leaves orphan resources.
+    // Orphan Public IPs / NICs / NSGs / VNets bill silently. The OLD loop used a
+    // Compute api-version for NETWORK resources AND fired all deletes at once
+    // with no ordering, so IP/VNet deletes 400'd ("in use" by the still-present
+    // NIC) and were swallowed → orphans accumulated (2026-06 RCA: 15 orphans
+    // found across 4 failed attempts). Now we delete in dependency order with
+    // the correct api-version and wait for each to fully disappear.
+    log(`  ❌ createInstance failed: ${err.message} — cleaning up`)
+    try { await _cleanupVmResources({ vmName, nicName, nsgName, vnetName, ipName }) }
+    catch (ce) { log(`  cleanup error (manual check may be needed): ${ce.message}`) }
     throw err
   }
+}
+
+// ─── Cleanup helpers (delete partial/failed provisions with no orphans) ──────
+async function _deleteAndWait(provider, kind, name, apiVersion, { maxAttempts = 30, intervalMs = 3000 } = {}) {
+  if (!name) return true
+  const path = `/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers/${provider}/${kind}/${name}`
+  try { await apiRequest('DELETE', path, { apiVersion }) }
+  catch (e) { if (e.status !== 404) log(`  cleanup DELETE ${kind}/${name} → ${e.message}`) }
+  // Poll GET until 404 (fully gone) so dependent deletes don't 400 "in use".
+  for (let i = 0; i < maxAttempts; i++) {
+    try { await apiRequest('GET', path, { apiVersion }) }
+    catch (e) { if (e.status === 404) return true }
+    await new Promise(r => setTimeout(r, intervalMs))
+  }
+  return false
+}
+
+async function _cleanupVmResources({ vmName, nicName, nsgName, vnetName, ipName }) {
+  const NET = '2023-09-01'
+  // Order matters: VM releases the NIC; NIC releases the IP + subnet.
+  if (vmName)  await _deleteAndWait('Microsoft.Compute', 'virtualMachines', vmName, '2024-11-01')
+  if (nicName) await _deleteAndWait('Microsoft.Network', 'networkInterfaces', nicName, NET)
+  // Managed OS disk left behind by VM delete (bills too).
+  if (vmName)  { try { await _deleteAndWait('Microsoft.Compute', 'disks', `${vmName}-osdisk`, '2023-04-02', { maxAttempts: 12 }) } catch (_) {} }
+  await Promise.all([
+    ipName   ? _deleteAndWait('Microsoft.Network', 'publicIPAddresses', ipName, NET)     : null,
+    nsgName  ? _deleteAndWait('Microsoft.Network', 'networkSecurityGroups', nsgName, NET) : null,
+    vnetName ? _deleteAndWait('Microsoft.Network', 'virtualNetworks', vnetName, NET)      : null,
+  ].filter(Boolean))
+  log(`  🧹 cleanup complete for ${vmName || nicName || ipName}`)
+}
+
+// ─── Live SKU availability + multi-region fallback ───────────────────────────
+// Azure quota (usages API) only says how many cores you MAY use — NOT whether a
+// region currently has hardware for a SKU. The SKUs API exposes per-region
+// `restrictions` (NotAvailableForSubscription / location / zone) which flips
+// minute-to-minute. We use it to SKIP regions that can't serve the SKU right
+// now and to drive cross-region fallback so a single capacity blip never fails
+// the whole purchase.
+async function isSkuAvailableInRegion(productId, regionSlug) {
+  const location = REGION_TO_AZURE[regionSlug] || regionSlug
+  if (!location || !SUB_ID) return true // fail-open
+  try {
+    const data = await apiRequest('GET',
+      `/subscriptions/${SUB_ID}/providers/Microsoft.Compute/skus`,
+      { apiVersion: '2021-07-01', query: { '$filter': `location eq '${location}'` } })
+    const sku = (data?.value || []).find(s => s.name === productId && s.resourceType === 'virtualMachines')
+    if (!sku) return false                       // not offered in this region
+    return (sku.restrictions || []).length === 0 // no restriction = available now
+  } catch (e) {
+    log(`isSkuAvailableInRegion(${productId}@${location}) error: ${e.message} — fail-open`)
+    return true
+  }
+}
+
+// Sensible default rotation (requested region is always tried first).
+const DEFAULT_REGION_FALLBACK = ['US-east', 'US-west', 'US-central', 'EU', 'UK', 'AU', 'SG', 'IN', 'JP']
+
+function _isCapacityError(err) {
+  if (!err) return false
+  const code = String(err.code || '')
+  if (['CAPACITY_UNAVAILABLE', 'SkuNotAvailable', 'AllocationFailed', 'OverconstrainedAllocationRequest', 'ZonalAllocationFailed', 'NO_CAPACITY_ANY_REGION'].includes(code)) return true
+  const msg = String(err.message || '')
+  return err.status === 409 && /not available|capacity|allocation|sku/i.test(msg)
+}
+
+/**
+ * createInstance with automatic cross-region fallback. Tries the requested
+ * region first, then rotates through DEFAULT_REGION_FALLBACK, skipping any
+ * region where the SKU is currently restricted (live SKUs API check) and
+ * retrying the next region on a capacity 409. Each failed attempt is fully
+ * cleaned up by createInstance's own catch. Returns the createInstance result
+ * augmented with `_actualRegion` (the region that actually succeeded).
+ */
+async function createInstanceWithFallback(opts) {
+  const o = opts || {}
+  const productId = o.productId
+  const requested = o.regionSlug || o.region
+  const candidates = [requested, ...DEFAULT_REGION_FALLBACK].filter((r, i, a) => r && a.indexOf(r) === i)
+  const attempts = []
+  let lastErr = null
+  for (const region of candidates) {
+    const avail = await isSkuAvailableInRegion(productId, region)
+    if (!avail) { attempts.push(`${region}:restricted`); log(`[fallback] ${productId} restricted in ${region} — skip`); continue }
+    try {
+      log(`[fallback] attempting ${productId} in ${region}`)
+      const res = await createInstance({ ...o, region, regionSlug: region })
+      res._actualRegion = region
+      res._regionAttempts = attempts.concat(`${region}:OK`)
+      if (region !== requested) log(`[fallback] ✅ ${productId} provisioned in ${region} (requested ${requested} was unavailable)`)
+      return res
+    } catch (e) {
+      attempts.push(`${region}:${e.code || e.status || 'err'}`)
+      lastErr = e
+      if (_isCapacityError(e)) { log(`[fallback] capacity miss in ${region}: ${e.message} — next region`); continue }
+      log(`[fallback] non-capacity error in ${region}: ${e.message} — aborting`)
+      throw e
+    }
+  }
+  const err = new Error(`Azure: no capacity for ${productId} in any candidate region. Attempts: ${attempts.join(', ')}`)
+  err.code = 'NO_CAPACITY_ANY_REGION'
+  err.cause = lastErr
+  throw err
 }
 
 // ─── getInstance / listInstances ─────────────────────────────────────────
@@ -1277,6 +1375,8 @@ module.exports = {
   formatInstanceForDisplay,
   // Instances
   createInstance,
+  createInstanceWithFallback,
+  isSkuAvailableInRegion,
   getInstance,
   listInstances,
   startInstance,

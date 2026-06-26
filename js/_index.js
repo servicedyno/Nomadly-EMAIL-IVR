@@ -17315,7 +17315,7 @@ ${message.replace(/\n/g, '<br>')}
       try {
         // Route to the provider that owns this record (OVH vps-* / Contabo numeric)
         const provider = require('./vps-provider').getProviderForRecord(userVPSDetails)
-        const { password, secretId, reinstalled, note } = await provider.resetPassword(instanceId, {
+        const { password, secretId, reinstalled, note, raw } = await provider.resetPassword(instanceId, {
           defaultUser: userVPSDetails.defaultUser,
           imageId: userVPSDetails.imageId,
           osType: userVPSDetails.osType,
@@ -17332,10 +17332,15 @@ ${message.replace(/\n/g, '<br>')}
         const method = reinstalled ? 'reinstall' : 'API reset'
         console.log(`[VPS] Password reset successful (${method}, provider=${provider.PROVIDER || 'contabo'}) - ChatId: ${chatId}, Instance: ${instanceId}, Name: ${userVPSDetails.name}`)
         
-        // Send new credentials to user with WARNING
-        const username = userVPSDetails.isRDP || userVPSDetails.osType === 'Windows' 
-          ? 'Administrator' 
-          : (userVPSDetails.defaultUser || 'root')
+        // Send new credentials to user with WARNING.
+        // Username must reflect the ACTUAL provider admin account: Azure VMs use
+        // a derived admin user (e.g. 'nomadly'), NOT the Windows built-in
+        // 'Administrator' (which is disabled on Azure images). Prefer the
+        // username the provider actually reset (raw.adminUser), then the stored
+        // record defaultUser, then a provider-appropriate fallback.
+        const username = (userVPSDetails.isRDP || userVPSDetails.osType === 'Windows')
+          ? (raw?.adminUser || userVPSDetails.defaultUser || 'Administrator')
+          : (raw?.adminUser || userVPSDetails.defaultUser || 'root')
         if (password) {
           // Contabo returns the freshly generated password inline
           send(chatId, vp.passwordResetSuccess(
@@ -35412,6 +35417,56 @@ app.post('/admin/provision-vps', async (req, res) => {
     return res.status(500).json({ error: error.message })
   }
 })
+
+// ── Admin: VPS manageability check (diagnose orphaned vs manageable VPS) ──
+// Routes each VPS record to its OWN provider (getProviderForRecord) and reports
+// whether the instance is currently manageable (live getInstance succeeds) vs
+// orphaned (provider 404 — e.g. instances lost when the old Contabo account was
+// blocked in the 2026-06 vendor-block). Used to verify remediation and surface
+// which users still can't manage their VPS. GET ?key=<SESSION_SECRET[:16]>&chatId=<optional>
+app.get('/admin/vps-manageability-check', async (req, res) => {
+  if (req?.query?.key !== process.env.SESSION_SECRET?.slice(0, 16)) {
+    return res.status(403).json({ error: 'Unauthorized' })
+  }
+  try {
+    const { getProviderForRecord } = require('./vps-provider')
+    const chatId = req?.query?.chatId ? String(req.query.chatId) : null
+    const query = { status: { $ne: 'DELETED' } }
+    if (chatId) query.chatId = chatId
+    const records = await vpsPlansOf.find(query).toArray()
+    const results = []
+    let manageable = 0, orphaned = 0
+    for (const r of records) {
+      const instanceId = r.contaboInstanceId || r.vpsId
+      const isRDP = (r.isRDP === true) || (r.osType === 'Windows')
+      let provider = 'unknown', live = null, ok = false, err = null
+      try {
+        const svc = getProviderForRecord(r)
+        provider = svc.PROVIDER || 'unknown'
+        live = await svc.getInstance(instanceId)
+        ok = !!live
+      } catch (e) { err = e.message }
+      if (ok) manageable++; else orphaned++
+      results.push({
+        chatId: r.chatId,
+        instanceId: String(instanceId),
+        provider,
+        isRDP,
+        recordStatus: r.status,
+        liveStatus: live?.status || null,
+        ip: live?.ipConfig?.v4?.ip || live?.mainIp || r.host || null,
+        manageable: ok,
+        displayUsername: isRDP ? (r.defaultUser || 'Administrator') : (r.defaultUser || 'root'),
+        error: err,
+      })
+    }
+    return res.json({ success: true, chatId: chatId || 'ALL', total: records.length, manageable, orphaned, results })
+  } catch (error) {
+    log(`[admin/vps-manageability-check] Error: ${error.message}`)
+    return res.status(500).json({ error: error.message })
+  }
+})
+
 
 // ─────────────────────────────────────────────────────────────────────────
 // /admin/comp-vps — provision N free VPS for a user WITHOUT wallet deduction
