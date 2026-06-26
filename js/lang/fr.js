@@ -158,8 +158,13 @@ const user = {
  contactSupport: '📞 Contacter le support',
 
  // Sub Menu 4: VPS Plans
- buyVpsPlan: '⚙️ Créer un nouveau VPS',
- manageVpsPlan: '🖥️ Afficher/Gérer le VPS',
+ buyVpsPlan: '⚙️ Créer VPS / RDP',
+ manageVpsPlan: '🖥️ Afficher/Gérer VPS / RDP',
+ vpsRdpMenuPrompt: `🖥️ <b>VPS Cloud / RDP Windows</b>
+
+🐧 VPS Linux (SSH) ou 🪟 RDP Windows (Bureau à distance) — Port 25 ouvert, hébergement blindé.
+
+Veuillez choisir une option :`,
  manageVpsSSH: '🔑 Clés SSH',
 
  // Free Trial

@@ -159,8 +159,13 @@ const user = {
  contactSupport: '📞 Contact Support',
 
  // Sub Menu 4: VPS Plans
- buyVpsPlan: '⚙️ Create New VPS',
- manageVpsPlan: '🖥️ View/Manage VPS',
+ buyVpsPlan: '⚙️ Create VPS / RDP',
+ manageVpsPlan: '🖥️ View/Manage VPS / RDP',
+ vpsRdpMenuPrompt: `🖥️ <b>Cloud VPS / Windows RDP</b>
+
+🐧 Linux VPS (SSH) or 🪟 Windows RDP (Remote Desktop) — Port 25 open, bulletproof hosting.
+
+Please choose an option:`,
  manageVpsSSH: '🔑 SSH Keys',
 
  // Free Trial

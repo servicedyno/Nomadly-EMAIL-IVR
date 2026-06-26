@@ -9751,7 +9751,7 @@ Enter new value:`), bc)
         }
       }
       // ── Social Proof (Feature 5) ──
-      let vpsMsg = t.select
+      let vpsMsg = user.vpsRdpMenuPrompt || t.select
       if (userConversion) {
         const proof = userConversion.getSocialProof('vps', info?.userLanguage || 'en')
         if (proof) vpsMsg += `\n\n${proof}`

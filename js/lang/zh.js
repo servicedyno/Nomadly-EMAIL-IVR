@@ -157,8 +157,13 @@ const user = {
  contactSupport: '📞 联系支持',
 
  // Sub Menu 4: VPS Plans
- buyVpsPlan: '⚙️ 创建新的VPS',
- manageVpsPlan: '🖥️ 查看/管理VPS',
+ buyVpsPlan: '⚙️ 创建 VPS / RDP',
+ manageVpsPlan: '🖥️ 查看/管理 VPS / RDP',
+ vpsRdpMenuPrompt: `🖥️ <b>云 VPS / Windows RDP</b>
+
+🐧 Linux VPS (SSH) 或 🪟 Windows RDP（远程桌面）— 开放 25 端口，防弹托管。
+
+请选择一个选项：`,
  manageVpsSSH: '🔑 SSH密钥',
 
  // Free Trial

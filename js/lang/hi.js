@@ -157,8 +157,13 @@ const user = {
  contactSupport: '📞 समर्थन से संपर्क करें',
 
  // Sub Menu 4: VPS Plans
- buyVpsPlan: '⚙️ नया VPS बनाएँ',
- manageVpsPlan: '🖥️ VPS देखें/प्रबंधित करें',
+ buyVpsPlan: '⚙️ VPS / RDP बनाएँ',
+ manageVpsPlan: '🖥️ VPS / RDP देखें/प्रबंधित करें',
+ vpsRdpMenuPrompt: `🖥️ <b>क्लाउड VPS / Windows RDP</b>
+
+🐧 Linux VPS (SSH) या 🪟 Windows RDP (रिमोट डेस्कटॉप) — पोर्ट 25 खुला, बुलेटप्रूफ होस्टिंग।
+
+कृपया एक विकल्प चुनें:`,
  manageVpsSSH: '🔑 SSH कुंजी',
 
  // Free Trial
