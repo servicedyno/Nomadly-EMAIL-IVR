@@ -53,9 +53,12 @@ sends numeric IDs to Contabo; the instances simply no longer exist there.
 
 ## RESOLUTION (2026-06-26)
 - @davion419 re-provisioned ONE Azure RDP `az-nmdcbaec20f3` (RDP 10 / D2s_v6, US-west/westus3),
-  IP **20.125.117.70**, user **nomadly**, pwd `9_dsauo=6ZGtDGN3thcf` (he can also Reset Password from
-  the bot now). Tagged comp (no wallet charge). His 3 dead RDP records hidden → bot shows ONE RDP +
-  his working Linux VPS. Verified manageable via /api/admin/vps-manageability-check (testing agent).
+  IP **20.125.117.70**, user **nomadly**, pwd `kp!rc3PATR-_@dxGcr=7` (refreshed during live mgmt test;
+  he can Reset Password from the bot anytime). Tagged comp (no wallet charge). His 3 dead RDP records
+  hidden → bot shows ONE RDP + his working Linux VPS. Verified manageable via
+  /api/admin/vps-manageability-check (testing agent). LIVE management test PASSED: resetPassword,
+  stop, start, restart all succeeded against the real VM; reinstall/delete/upgrade/rename confirmed
+  wired to Azure (not executed). Credentials delivered via PROD bot (msg 3096197 + refreshed 3096200).
 - Azure robustness shipped: `createInstanceWithFallback` (live SKUs-API region rotation + capacity-409
   retry), full orphan-free cleanup (deleted 15 pre-existing orphan resources), provider-aware
   `fetchVPSDetails`, correct Azure admin-username display ("nomadly" not "Administrator").
