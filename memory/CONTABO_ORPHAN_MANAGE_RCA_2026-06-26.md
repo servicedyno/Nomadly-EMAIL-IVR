@@ -50,3 +50,15 @@ sends numeric IDs to Contabo; the instances simply no longer exist there.
 ## Notes
 - RDP→Azure, VPS→DigitalOcean, Contabo fallback disabled (live prod env confirmed). New buys avoid Contabo.
 - Old Contabo account creds are NOT available (account was blocked) → old instances unrecoverable.
+
+## RESOLUTION (2026-06-26)
+- @davion419 re-provisioned ONE Azure RDP `az-nmdcbaec20f3` (RDP 10 / D2s_v6, US-west/westus3),
+  IP **20.125.117.70**, user **nomadly**, pwd `9_dsauo=6ZGtDGN3thcf` (he can also Reset Password from
+  the bot now). Tagged comp (no wallet charge). His 3 dead RDP records hidden → bot shows ONE RDP +
+  his working Linux VPS. Verified manageable via /api/admin/vps-manageability-check (testing agent).
+- Azure robustness shipped: `createInstanceWithFallback` (live SKUs-API region rotation + capacity-409
+  retry), full orphan-free cleanup (deleted 15 pre-existing orphan resources), provider-aware
+  `fetchVPSDetails`, correct Azure admin-username display ("nomadly" not "Administrator").
+- STILL OPEN (operator approved Option A re-provision, pending go-ahead): 5 paid users with orphaned
+  Contabo VPS — 6996287179 (V92 Linux), 8737445617 (V97 Linux), 6980445843 (V92 RDP),
+  6773929524 (V92 Linux), 7163210105 (V95 RDP ×2). All-users scan: manageable=5, orphaned=8.
