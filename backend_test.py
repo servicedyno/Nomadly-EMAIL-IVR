@@ -9,7 +9,7 @@ import json
 import sys
 
 # Load backend URL from frontend/.env
-BACKEND_URL = "https://c02148ec-75bf-4762-a2ee-3f030a45e442.preview.emergentagent.com"
+BACKEND_URL = "https://api-config-setup-8.preview.emergentagent.com"
 ADMIN_KEY = "o/Qb8ArGahlquhCQ"
 
 def test_vps_billing_safety_check():
