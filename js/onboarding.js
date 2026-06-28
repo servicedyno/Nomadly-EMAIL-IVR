@@ -52,10 +52,10 @@ function getOnboardingMessage(botName, lang = 'en') {
       services: [
         '🌐 Domains — $30/year',
         '🏠 Anti-Red Hosting — $30/week',
-        '📱 Cloud Phones',
+        '📱 Cloud Phones — <b>/testsip</b> for a free test call',
         '🔗 URL Shortener — 5 free links',
       ],
-      popular: '\n✨ <b>Start free:</b> Get 5 short links',
+      popular: '\n✨ <b>Start free:</b> Get 5 short links or try /testsip',
       buttons: {
         claim: '✨ Claim Free Links',
         tour: '🎬 Watch Tour',
@@ -69,10 +69,10 @@ function getOnboardingMessage(botName, lang = 'en') {
       services: [
         '🌐 Domaines — 30$/an',
         '🏠 Hébergement Anti-Red — 30$/semaine',
-        '📱 Téléphones Cloud',
+        '📱 Téléphones Cloud — <b>/testsip</b> appel gratuit',
         '🔗 Raccourcisseur URL — 5 liens gratuits',
       ],
-      popular: '\n✨ <b>Commencer gratuitement:</b> Obtenez 5 liens courts',
+      popular: '\n✨ <b>Commencer gratuitement:</b> 5 liens courts ou essayez /testsip',
       buttons: {
         claim: '✨ Réclamer des liens gratuits',
         tour: '🎬 Regarder la visite',
@@ -86,10 +86,10 @@ function getOnboardingMessage(botName, lang = 'en') {
       services: [
         '🌐 域名 — 每年 $30',
         '🏠 Anti-Red主机 — 每周 $30',
-        '📱 云电话',
+        '📱 云电话 — <b>/testsip</b> 免费试用',
         '🔗 URL短链接 — 5个免费',
       ],
-      popular: '\n✨ <b>免费开始:</b> 获取5个短链接',
+      popular: '\n✨ <b>免费开始:</b> 5个短链接或试用 /testsip',
       buttons: {
         claim: '✨ 领取免费链接',
         tour: '🎬 观看导览',
@@ -103,10 +103,10 @@ function getOnboardingMessage(botName, lang = 'en') {
       services: [
         '🌐 डोमेन — $30/वर्ष',
         '🏠 Anti-Red होस्टिंग — $30/सप्ताह',
-        '📱 क्लाउड फोन',
+        '📱 क्लाउड फोन — <b>/testsip</b> मुफ्त कॉल',
         '🔗 URL शॉर्टनर — 5 मुफ्त',
       ],
-      popular: '\n✨ <b>मुफ्त शुरू करें:</b> 5 शॉर्ट लिंक प्राप्त करें',
+      popular: '\n✨ <b>मुफ्त शुरू करें:</b> 5 लिंक या /testsip आज़माएं',
       buttons: {
         claim: '✨ मुफ्त लिंक का दावा करें',
         tour: '🎬 टूर देखें',

@@ -7834,11 +7834,11 @@ bot?.on('message', msg => {
         if (proof) cpWelcome += `\n\n${proof}`
       }
       send(chatId, cpWelcome, k.of([
+        [pc.testSipFree],
         [pc.ivrOutboundCall],
+        [pc.buyPhoneNumber],
         [pc.bulkCallCampaign],
         [pc.audioLibrary],
-        [pc.testSipFree],
-        [pc.buyPhoneNumber],
         [pc.myNumbers],
         [pc.sipSettings],
         [pc.usageBilling],
@@ -20771,11 +20771,11 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   if (action === a.submenu5 && phoneConfig.isBtnMatch(message, 'howItWorks')) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     return send(chatId, cpTxt.howItWorks, k.of([
+      [pc.testSipFree],
       [pc.ivrOutboundCall],
+      [pc.buyPhoneNumber],
       [pc.bulkCallCampaign],
       [pc.audioLibrary],
-      [pc.testSipFree],
-      [pc.buyPhoneNumber],
       [pc.myNumbers],
       [pc.sipSettings],
       [pc.usageBilling],
@@ -20784,7 +20784,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   // 🧪 Test SIP Free button — trigger /testsip flow
-  if (message === user.testSip || message === '🧪 Test SIP Free' || message === '🧪 SIP मुफ्त टेस्ट' || message === '🧪 Tester SIP Gratuit' || message === '🧪 免费测试 SIP') {
+  if (message === user.testSip || message === '🆓 Try SIP Call Free' || message === '🧪 Test SIP Free' || message === '🆓 SIP कॉल मुफ्त आज़माएं' || message === '🧪 SIP मुफ्त टेस्ट' || message === '🆓 Essayer SIP Gratuit' || message === '🧪 Tester SIP Gratuit' || message === '🆓 免费试用SIP通话' || message === '🧪 免费测试 SIP') {
     const pMsg = phoneConfig.getMsg(info?.userLanguage || 'en')
     const result = await generateTestOtp(chatId)
     if (!result) {
@@ -20845,6 +20845,19 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     const buyLabel = pc.buyPhoneNumber
     if (isBackPress(message) || message === pc.back || isCancelPress(message) || message === pc.cancel) return send(chatId, t.userPressedBtn(message), trans('o'))
     if (phoneConfig.btnKeyOf(message) === 'buyPhoneNumber') {
+      // ── "Try before you buy" nudge ──────────────────────────
+      // If the user hasn't tried a free test call yet, gently suggest it.
+      const trialKey = `ivrTrialUsed_${chatId}`
+      const ivrTrialUsed = await get(state, trialKey).catch(() => null)
+      const sipTestCreds = await db.collection('testCredentials').find({ chatId: String(chatId) }).toArray().catch(() => [])
+      const hasSipTested = sipTestCreds.length > 0
+      if (!ivrTrialUsed && !hasSipTested) {
+        const pMsg = phoneConfig.getMsg(info?.userLanguage || 'en')
+        const tryFirstMsg = pMsg.tryBeforeYouBuy || `💡 <b>Did you know?</b> You can try a <b>free SIP test call</b> and a <b>free IVR trial call</b> before choosing a plan!\n\n🆓 Tap <b>${pc.testSipFree}</b> to test SIP calling in your browser\n📢 Tap <b>${pc.ivrOutboundCall}</b> for a free IVR demo call\n\nOr continue below to pick a plan 👇`
+        await send(chatId, tryFirstMsg, { parse_mode: 'HTML' })
+        // Small delay so the nudge is visible before the plan list
+        await new Promise(r => setTimeout(r, 600))
+      }
       // Step 1: Select Plan FIRST — reset stale phone purchase state
       saveInfo('cpIsSubNumber', false)
       saveInfo('cpSubParentNumber', null)

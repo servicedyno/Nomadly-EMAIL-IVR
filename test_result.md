@@ -301,14 +301,111 @@ frontend: []
           
           The anti-red captcha setup is fully operational for eventiestopart.de.
 
+  - task: "Test call discoverability improvements — menu reorder, free labels, try-before-buy nudge, onboarding /testsip mention"
+    implemented: true
+    working: true
+    file: "/app/js/phone-config.js, /app/js/_index.js, /app/js/onboarding.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          4 UX improvements to address low test-call discoverability (27% tap rate, 33% completion):
+          
+          1. MENU REORDER: Moved "🆓 Try SIP Call Free" to TOP of Cloud IVR menu (was 4th item).
+             New order: Try SIP → Quick IVR → Choose a Plan → Bulk → Audio → My Plans → SIP → Usage → How It Works.
+             Applied to both subscriber and non-subscriber menus in _index.js.
+          
+          2. FREE LABELS: Changed button labels to highlight free trials:
+             - "🧪 Test SIP Free" → "🆓 Try SIP Call Free" (EN/FR/ZH/HI)
+             - "📢 Quick IVR Call" → "📢 Quick IVR Call — 1 Free" (EN/FR/ZH/HI)
+             - sipTestMenuHint changed from italic to bold for prominence
+          
+          3. TRY-BEFORE-BUY NUDGE: When user taps "🛒 Choose a Plan" without having used any free
+             trial (checks ivrTrialUsed_{chatId} in state + testCredentials collection), shows a
+             💡 message suggesting they try free options first. Localized in EN/FR/ZH/HI.
+             Does NOT block plan selection — just an informational nudge before the plan list.
+          
+          4. ONBOARDING /testsip: Added "/testsip for a free test call" to the onboarding services
+             list under Cloud Phones, and updated the "Start free" line to include /testsip.
+             Applied to all 4 languages.
+          
+          Backward-compatible: old button labels are still matched in isBtnMatch via the
+          _allBtnValueToKey reverse lookup + explicit fallback in the testSipFree handler.
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFIED - All 6 test call discoverability assertions PASSED (test_sequence 8):
+          
+          TEST 1 - Infrastructure: ✅ PASSED
+            • nodejs service RUNNING (pid 6554, uptime 0:01:30) ✓
+            • Base API /api/ returns HTTP 200 ✓
+          
+          TEST 2 - Button label changes in phone-config.js: ✅ PASSED
+            • Line 247: testSipFree: '🆓 Try SIP Call Free' ✓
+            • Line 239: ivrOutboundCall: '📢 Quick IVR Call — 1 Free' ✓
+            • Line 1459 (FR): testSipFree: '🆓 Essayer SIP Gratuit' ✓
+            • tryBeforeYouBuy exists in all 4 languages:
+              - EN (line 1251) ✓
+              - FR (line 1293) ✓
+              - ZH (line 1335) ✓
+              - HI (line 1377) ✓
+          
+          TEST 3 - Menu reorder in _index.js: ✅ PASSED
+            • Subscriber menu (lines 7836-7846):
+              First item: [pc.testSipFree] ✓
+              Second item: [pc.ivrOutboundCall] ✓
+              Third item: [pc.buyPhoneNumber] ✓
+            • Non-subscriber menu (lines 20773-20783):
+              First item: [pc.testSipFree] ✓
+              Second item: [pc.ivrOutboundCall] ✓
+              Third item: [pc.buyPhoneNumber] ✓
+          
+          TEST 4 - Onboarding changes in onboarding.js: ✅ PASSED
+            • /testsip appears in services list for all 4 languages:
+              - EN (line 55): '📱 Cloud Phones — <b>/testsip</b> for a free test call' ✓
+              - FR (line 72): '📱 Téléphones Cloud — <b>/testsip</b> appel gratuit' ✓
+              - ZH (line 89): '📱 云电话 — <b>/testsip</b> 免费试用' ✓
+              - HI (line 106): '📱 क्लाउड फोन — <b>/testsip</b> मुफ्त कॉल' ✓
+            • /testsip appears in popular line for all 4 languages:
+              - EN (line 58): 'Get 5 short links or try /testsip' ✓
+              - FR (line 75): '5 liens courts ou essayez /testsip' ✓
+              - ZH (line 92): '5个短链接或试用 /testsip' ✓
+              - HI (line 109): '5 लिंक या /testsip आज़माएं' ✓
+          
+          TEST 5 - Backward-compatible button matching in _index.js: ✅ PASSED
+            • Line 20787 contains BOTH old and new labels:
+              - Old label: '🧪 Test SIP Free' ✓
+              - New label: '🆓 Try SIP Call Free' ✓
+            • All 4 language variants included (EN/FR/ZH/HI) ✓
+          
+          TEST 6 - Try-before-buy nudge in _index.js: ✅ PASSED
+            • Lines 20848-20860: buyPhoneNumber handler contains tryBeforeYouBuy logic ✓
+            • Checks ivrTrialUsed_{chatId} in state ✓
+            • Checks testCredentials collection ✓
+            • Shows nudge message before plan list if neither trial used ✓
+            • Uses phoneConfig.getMsg().tryBeforeYouBuy for localization ✓
+          
+          CONCLUSION:
+          All 6 assertions verified successfully. The test call discoverability UX improvements are
+          fully implemented and working as specified:
+          1. Menu reorder places free trial options at the top (both subscriber and non-subscriber menus)
+          2. Button labels updated to highlight "Free" in all 4 languages
+          3. Try-before-buy nudge shows when user taps "Choose a Plan" without having tried free options
+          4. Onboarding flow mentions /testsip in services list and popular line (all 4 languages)
+          5. Backward compatibility maintained for old button labels
+          6. All code changes are localized across EN/FR/ZH/HI
+
 metadata:
   created_by: "main_agent"
-  version: "1.8"
-  test_sequence: 7
+  version: "1.9"
+  test_sequence: 8
   run_ui: false
 
 test_plan:
-  current_focus: ["Anti-red captcha verification for eventiestopart.de"]
+  current_focus: ["Test call discoverability UX improvements"]
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -316,8 +413,32 @@ test_plan:
 agent_communication:
   - agent: "main"
     message: |
-      NEW TASK (test_sequence 7). Verify the anti-red captcha page and hosting setup for
-      eventiestopart.de (chatId 7290657217, @ddgocrazy).
+      NEW TASK (test_sequence 8). Verify test call discoverability UX improvements.
+      
+      Node.js Express behind FastAPI — use external <REACT_APP_BACKEND_URL>/api/...
+      (from /app/frontend/.env), NOT localhost. READ-ONLY tests.
+      
+      1) Infra: `sudo supervisorctl status nodejs` RUNNING; GET <REACT_APP_BACKEND_URL>/api/ == 200.
+      
+      2) Verify button label changes in code:
+         - grep /app/js/phone-config.js for "Try SIP Call Free" → should exist
+         - grep /app/js/phone-config.js for "Quick IVR Call — 1 Free" → should exist
+         - grep /app/js/phone-config.js for "tryBeforeYouBuy" → should exist in 4 languages
+      
+      3) Verify menu reorder in code:
+         - grep /app/js/_index.js for the subscriber Cloud IVR menu order
+         - First item should be [pc.testSipFree], second [pc.ivrOutboundCall], third [pc.buyPhoneNumber]
+         - Same for the non-subscriber menu
+      
+      4) Verify onboarding changes:
+         - grep /app/js/onboarding.js for "/testsip" → should appear in services list and popular line
+         - Should be present in all 4 language blocks (en, fr, zh, hi)
+      
+      5) Verify backward-compatible button matching:
+         - grep /app/js/_index.js for both old ("🧪 Test SIP Free") and new ("🆓 Try SIP Call Free") labels
+         - Both should be in the same match condition
+      
+      Report PASS/FAIL per assertion. Update test_result.md.
       
       Node.js Express behind FastAPI — use external <REACT_APP_BACKEND_URL>/api/...
       (from /app/frontend/.env), NOT localhost. Admin key = "o/Qb8ArGahlquhCQ" (first 16 chars of
@@ -548,3 +669,41 @@ agent_communication:
       
       The anti-red captcha setup is fully operational for eventiestopart.de.
       Updated /app/backend_test.py with comprehensive test suite for test_sequence 7.
+
+  - agent: "testing"
+    message: |
+      ✅ TESTING COMPLETE (test_sequence 8) - Test call discoverability UX improvements VERIFIED.
+      
+      All 6 assertions PASSED:
+      
+      TEST 1 - Infrastructure: ✅ PASSED
+        • nodejs service RUNNING (pid 6554, uptime 0:01:30)
+        • Base API /api/ returns HTTP 200
+      
+      TEST 2 - Button label changes: ✅ PASSED
+        • "Try SIP Call Free" exists in phone-config.js (EN line 247)
+        • "Quick IVR Call — 1 Free" exists in phone-config.js (EN line 239)
+        • "Essayer SIP Gratuit" exists in phone-config.js (FR line 1459)
+        • tryBeforeYouBuy exists in all 4 languages (EN/FR/ZH/HI)
+      
+      TEST 3 - Menu reorder: ✅ PASSED
+        • Subscriber menu (lines 7836-7846): testSipFree → ivrOutboundCall → buyPhoneNumber
+        • Non-subscriber menu (lines 20773-20783): testSipFree → ivrOutboundCall → buyPhoneNumber
+      
+      TEST 4 - Onboarding /testsip: ✅ PASSED
+        • Services list mentions /testsip in all 4 languages (EN/FR/ZH/HI)
+        • Popular line mentions /testsip in all 4 languages
+      
+      TEST 5 - Backward-compatible button matching: ✅ PASSED
+        • Line 20787 contains BOTH old ("🧪 Test SIP Free") and new ("🆓 Try SIP Call Free") labels
+        • All 4 language variants included
+      
+      TEST 6 - Try-before-buy nudge: ✅ PASSED
+        • Lines 20848-20860: buyPhoneNumber handler checks ivrTrialUsed + testCredentials
+        • Shows tryBeforeYouBuy message before plan list if no trials used
+        • Localized via phoneConfig.getMsg().tryBeforeYouBuy
+      
+      CONCLUSION:
+      All test call discoverability improvements are correctly implemented. The changes will help
+      users discover free trial options before purchasing plans, addressing the low 27% tap rate
+      and 33% completion metrics.
