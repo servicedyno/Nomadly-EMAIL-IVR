@@ -2,7 +2,7 @@
 # Web Storefront Phase 2 Backend Testing using curl
 # More reliable from inside container than Python requests
 
-BASE_URL="https://api-config-setup-8.preview.emergentagent.com/api/store"
+BASE_URL="https://env-integration-demo.preview.emergentagent.com/api/store"
 
 echo "================================================================================"
 echo "WEB STOREFRONT PHASE 2 BACKEND TESTING (curl)"
