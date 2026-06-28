@@ -1901,6 +1901,28 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
           }
           if (cfNS.length) setFields['val.nameservers'] = cfNS
           if (chatId)       setFields['val.chatId']     = String(chatId)
+
+          // ── Carry registrar/provider from domainsOf into registeredDomains ──
+          // The addon-domain-flow NS-delegation step requires val.registrar to
+          // decide whether to call opService.updateNameservers(). Without it,
+          // new addon domains get "registrar unknown — skipping NS delegation"
+          // → DENIC never delegates to CF. See eventiestopart.de incident 2026-06-28.
+          if (chatId && db) {
+            try {
+              const domOfDoc = await db.collection('domainsOf').findOne(
+                { domainName: domain, chatId: String(chatId) }
+              )
+              const reg = domOfDoc?.registrar
+              if (reg) {
+                setFields['val.registrar'] = reg
+                setFields['val.provider']  = reg
+              }
+              if (domOfDoc?.opDomainId) {
+                setFields['val.opDomainId'] = domOfDoc.opDomainId
+              }
+            } catch (_) { /* best-effort — NS delegation cron will heal later */ }
+          }
+
           await db.collection('registeredDomains').updateOne(
             { _id: domain },
             { $set: setFields },

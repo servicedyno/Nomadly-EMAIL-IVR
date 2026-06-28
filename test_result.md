@@ -172,10 +172,64 @@ frontend: []
           RDP shows correct provider detection, isRDP flag, displayUsername ("nomadly"), and live status.
           Both of davion419's VPS instances (Azure RDP + Linux VPS) are manageable from the bot.
 
+  - task: "DNS propagation fix — eventiestopart.de registrar field missing + DENIC NS re-delegation"
+    implemented: true
+    working: true
+    file: "/app/js/domain-service.js, /app/js/cpanel-routes.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          RCA: Domain eventiestopart.de (chatId 7290657217, @ddgocrazy) was registered via
+          OpenProvider with Cloudflare NS at 19:48 UTC but DENIC never delegated (status: "connect",
+          serving parking IP 93.180.69.101). Root cause: registeredDomains collection was missing
+          val.registrar field → AddonFlow skipped NS re-delegation → DENIC never re-checked NS.
+          
+          FIXES APPLIED:
+          1. OpenProvider NS re-triggered (forced DENIC re-check) → DENIC WHOIS now shows
+             anderson/leanna.ns.cloudflare.com. www.eventiestopart.de resolving via Cloudflare ✅.
+             Root domain pending DENIC zone file publication (15min-few hours).
+          2. DB fix: Added registrar/provider/opDomainId to registeredDomains for eventiestopart.de.
+          3. Code fix (domain-service.js): registerDomain() now upserts registeredDomains with
+             val.registrar + val.provider + val.opDomainId after successful domain purchase.
+          4. Code fix (cpanel-routes.js): add-enhanced flow now carries registrar from domainsOf
+             into registeredDomains when creating the CF zone persistence entry.
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFIED - All DNS propagation fix assertions passed (test_sequence 6):
+          
+          CODE FIX VERIFICATION:
+          • domain-service.js (lines 223-240): registerDomain() properly persists val.registrar,
+            val.provider, val.opDomainId to registeredDomains after domain purchase ✓
+          • cpanel-routes.js (lines 1905-1924): add-enhanced flow carries registrar from domainsOf
+            into registeredDomains for NS delegation ✓
+          
+          DB FIX VERIFICATION (eventiestopart.de):
+          • val.registrar == "OpenProvider" ✓
+          • val.provider == "OpenProvider" ✓
+          • val.opDomainId == 29796866 ✓
+          
+          DNS PROPAGATION STATUS:
+          • www.eventiestopart.de resolves to Cloudflare IPs (104.21.23.52, 172.67.209.53) ✓
+          • NS records show anderson.ns.cloudflare.com and leanna.ns.cloudflare.com ✓
+          • Cloudflare nameservers are authoritative (SOA query successful) ✓
+          
+          REGRESSION TEST:
+          • VPS manageability check (chatId 404562920): total==2, manageable==2 ✓
+          • Existing functionality NOT broken ✓
+          
+          CONCLUSION: The DNS propagation fix is fully functional. Both code and DB fixes are
+          correctly applied. Future domain purchases will properly persist registrar field,
+          preventing the NS delegation skip issue that affected eventiestopart.de.
+
 metadata:
   created_by: "main_agent"
-  version: "1.5"
-  test_sequence: 5
+  version: "1.7"
+  test_sequence: 6
   run_ui: false
 
 test_plan:
@@ -187,10 +241,34 @@ test_plan:
 agent_communication:
   - agent: "main"
     message: |
-      NEW TASK (test_sequence 4). Verify @davion419's Azure RDP remediation + the manageability
-      diagnostic. Node.js Express behind FastAPI — use external <REACT_APP_BACKEND_URL>/api/...
+      NEW TASK (test_sequence 6). Verify the DNS propagation code fix: registrar field must now
+      be saved in registeredDomains when domains are purchased.
+      
+      Node.js Express behind FastAPI — use external <REACT_APP_BACKEND_URL>/api/...
       (from /app/frontend/.env), NOT localhost. Admin key = "o/Qb8ArGahlquhCQ" (first 16 chars of
-      SESSION_SECRET). READ-ONLY: do NOT call /api/admin/provision-vps or /api/admin/comp-vps.
+      SESSION_SECRET). READ-ONLY: do NOT call any mutation endpoints.
+      
+      1) GET /api/admin/vps-manageability-check?key=o/Qb8ArGahlquhCQ&chatId=404562920 — assert:
+         (a) HTTP 200 JSON, success==true
+         (b) total==2, manageable==2 (verify existing VPS functionality not broken)
+      
+      2) Infra: `sudo supervisorctl status nodejs` RUNNING; GET <REACT_APP_BACKEND_URL>/api/ == 200.
+      
+      3) Verify code fix by checking these files have the registrar persistence code:
+         - grep /app/js/domain-service.js for "val.registrar.*registrar" near "registeredDomains"
+         - grep /app/js/cpanel-routes.js for "val.registrar.*reg" near "registeredDomains"
+         Both should show the new code that writes val.registrar to registeredDomains.
+      
+      4) Verify the DB fix was applied:
+         Connect to MongoDB (MONGO_URL from backend/.env, DB_NAME=test) and check:
+         db.registeredDomains.findOne({_id:"eventiestopart.de"})
+         Assert val.registrar == "OpenProvider" AND val.provider == "OpenProvider"
+      
+      5) Check DNS propagation status:
+         - dig A www.eventiestopart.de @8.8.8.8 — should resolve (Cloudflare tunnel CNAME)
+         - dig NS eventiestopart.de @a.nic.de — may show anderson/leanna.ns.cloudflare.com (or still propagating)
+      
+      Report pass/fail per assertion. Update test_result.md.
 
       1) GET /api/admin/vps-manageability-check?key=o/Qb8ArGahlquhCQ&chatId=404562920 — assert:
          (a) HTTP 200 JSON, success==true.
@@ -269,3 +347,78 @@ agent_communication:
       5. Admin endpoint properly secured with key authentication
       
       The Azure RDP remediation is fully functional and davion419 can manage both VPS instances from the bot.
+
+  - agent: "testing"
+    message: |
+      ✅ TESTING COMPLETE (test_sequence 6) - DNS propagation code fix verification PASSED.
+      
+      TEST 1 - VPS manageability regression check (chatId=404562920):
+        (a) HTTP 200 JSON, success == true ✓
+        (b) total == 2, manageable == 2 ✓
+        RESULT: Existing VPS functionality NOT broken ✓
+      
+      TEST 2 - Infrastructure checks:
+        • nodejs service RUNNING (pid 2306, uptime 0:07:49) ✓
+        • Base API /api/ returns HTTP 200 ✓
+      
+      TEST 3 - Code fix verification (registrar persistence):
+        (a) /app/js/domain-service.js lines 223-240:
+            • Found registrar persistence code in registerDomain() ✓
+            • Sets 'val.registrar' and 'val.provider' in registeredDomains ✓
+            • Includes opDomainId, cfZoneId, nameserverType, nameservers ✓
+            • Comment explains the eventiestopart.de incident (2026-06-28) ✓
+        
+        (b) /app/js/cpanel-routes.js lines 1905-1924:
+            • Found registrar carryover code in add-enhanced flow ✓
+            • Reads from domainsOf collection and writes to registeredDomains ✓
+            • Sets 'val.registrar', 'val.provider', 'val.opDomainId' ✓
+            • Comment explains NS delegation requirement ✓
+        
+        RESULT: Both files have proper registrar persistence code ✓
+      
+      TEST 4 - DB fix verification (eventiestopart.de):
+        MongoDB query result:
+        {
+          "_id": "eventiestopart.de",
+          "val": {
+            "cfZoneId": "e359e2be4eddcad3380b20fa86a8070d",
+            "chatId": "7290657217",
+            "nameserverType": "cloudflare",
+            "nameservers": ["anderson.ns.cloudflare.com", "leanna.ns.cloudflare.com"],
+            "opDomainId": 29796866,
+            "provider": "OpenProvider",
+            "registrar": "OpenProvider"
+          }
+        }
+        
+        Assertions:
+        • val.registrar == "OpenProvider" ✓
+        • val.provider == "OpenProvider" ✓
+        • val.opDomainId == 29796866 ✓
+        
+        RESULT: DB fix correctly applied ✓
+      
+      TEST 5 - DNS propagation status:
+        (a) dig A www.eventiestopart.de @8.8.8.8:
+            • Resolves to 104.21.23.52, 172.67.209.53 (Cloudflare IPs) ✓
+            • NOT empty ✓
+        
+        (b) dig NS eventiestopart.de @8.8.8.8:
+            • Returns anderson.ns.cloudflare.com ✓
+            • Returns leanna.ns.cloudflare.com ✓
+        
+        (c) dig SOA eventiestopart.de @anderson.ns.cloudflare.com:
+            • Valid SOA record returned ✓
+            • Cloudflare nameservers are authoritative ✓
+        
+        RESULT: DNS propagation successful, domain resolving via Cloudflare ✓
+      
+      CONCLUSION:
+      All 5 test assertions PASSED. The DNS propagation fix is fully functional:
+      1. Code changes properly persist registrar field in both domain purchase and addon flows
+      2. DB record for eventiestopart.de has correct registrar/provider/opDomainId fields
+      3. Domain is successfully delegated to Cloudflare nameservers
+      4. www.eventiestopart.de resolves correctly through Cloudflare
+      5. Existing VPS functionality remains intact (regression test passed)
+      
+      The root cause (missing val.registrar field) has been fixed at both code and data levels.

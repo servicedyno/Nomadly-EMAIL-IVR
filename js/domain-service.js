@@ -219,6 +219,31 @@ const registerDomain = async (domainName, registrar, nsChoice, db, chatId, custo
         { upsert: true }
       )
       log(`[domain-service] Stored metadata for ${domainName} in DB`)
+
+      // ── Also persist registrar + provider in registeredDomains ──
+      // The addon-domain-flow.js NS-delegation step reads
+      // registeredDomains.val.registrar to decide whether to call
+      // opService.updateNameservers(). Without this field, new domains
+      // get "registrar unknown — skipping NS delegation" and DENIC
+      // never delegates to Cloudflare. Bug first observed with
+      // eventiestopart.de (chatId 7290657217, 2026-06-28).
+      const regDomFields = {
+        'val.registrar':  registrar,
+        'val.provider':   registrar,
+        'val.chatId':     String(chatId),
+      }
+      if (cfZoneId)          regDomFields['val.cfZoneId']        = cfZoneId
+      if (result.domainId)   regDomFields['val.opDomainId']      = result.domainId
+      if (nsChoice)          regDomFields['val.nameserverType']   = nsChoice
+      if (Array.isArray(nameservers) && nameservers.length) {
+        regDomFields['val.nameservers'] = nameservers
+      }
+      await db.collection('registeredDomains').updateOne(
+        { _id: domainName },
+        { $set: regDomFields },
+        { upsert: true }
+      ).catch(regErr => log(`[domain-service] registeredDomains upsert warning for ${domainName}: ${regErr.message}`))
+
     } catch (err) {
       log(`[domain-service] DB update error:`, err.message)
     }
