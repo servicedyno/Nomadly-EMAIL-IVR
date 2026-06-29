@@ -1389,6 +1389,22 @@ async function sendAndReact(chatId, text, emoji, opts = {}) {
   }
 }
 
+// Compact, consistent post-purchase closing line. Replaces the old bare
+// "Wallet Balance:\n\n$X" trailing bubble (which read like an afterthought and
+// added a second message) with a single clean success summary that also
+// restores the main menu via the caller's `trans('o')` options.
+function purchaseDoneLine(lang, usd) {
+  const L = lang || 'en'
+  const head = ({
+    en: '✅ <b>Purchase complete!</b>',
+    fr: '✅ <b>Achat terminé !</b>',
+    zh: '✅ <b>购买完成！</b>',
+    hi: '✅ <b>खरीद पूरी!</b>',
+  })[L] || '✅ <b>Purchase complete!</b>'
+  const balLabel = ({ en: 'New balance', fr: 'Nouveau solde', zh: '新余额', hi: 'नया शेष' })[L] || 'New balance'
+  return `${head}\n\n👛 ${balLabel}: <b>$${Number(Math.max(0, usd || 0)).toFixed(2)}</b>`
+}
+
 // ════════════════════════════════════════════════════════════════════
 // UX FEATURE #7 — Streaming AI support replies
 // Shared markdown→Telegram-HTML converter (was duplicated at both AI call
@@ -1659,7 +1675,9 @@ const postActivationNudge = async (chatId, phoneNumber, planName) => {
 
     // Reply keyboard puts SIP Credentials as the top button — one tap away.
     // Include Test My Number and Back so the user has the common quick actions.
-    await sendMessage(chatId, body, k.of([
+    // UX #3: 🎉 reaction marks the genuine activation success (this routine runs
+    // only AFTER a number is fully activated, on every payment path).
+    await sendAndReact(chatId, body, '🎉', k.of([
       [pc.sipCredentials],
       [pc.testMyNumber, pc.callForwarding],
       [pc.back],
@@ -10356,7 +10374,7 @@ Enter new value:`), bc)
       checkAndNotifyTierUpgrade(preSpend)
 
       const { usdBal: usd } = await getBalance(walletOf, chatId)
-      send(chatId, t.showWallet(usd), trans('o'))
+      sendAndReact(chatId, purchaseDoneLine(info?.userLanguage || 'en', usd), '🎉', trans('o'))
       subscribePlan(planEndingTime, freeDomainNamesAvailableFor, planOf, chatId, plan, bot, lang, freeValidationsAvailableFor)
       notifyGroup(
         `💎 <b>New Subscription!</b>\nUser ${maskName(name)} just upgraded to the <b>${plan} Plan</b> — unlocking unlimited URL shortening + ${(freeValidationsOf[plan] || 0).toLocaleString()} phone validations with owner names.\nDon't miss out — /start`,
@@ -10410,7 +10428,7 @@ Enter new value:`), bc)
         await set(state, chatId, 'registrarFallback', null)
 
         const { usdBal: usd } = await getBalance(walletOf, chatId)
-        send(chatId, t.showWallet(usd), trans('o'))
+        sendAndReact(chatId, purchaseDoneLine(lang, usd), '🎉', trans('o'))
         notifyGroup(
           `🌐 <b>Domain Registered!</b>\nUser ${maskName(name)} just claimed <b>${maskDomain(domain)}</b> — your dream domain could be next.\nGrab yours before it's taken — /start`,
           `🌐 <b>Domain Registered (Wallet)</b>\n👤 User: ${adminUserTag(name, chatId)}\n🌍 Domain: <b>${adminDomainTag(domain)}</b>\n💵 Charged: <b>$${chargeUsd}</b>${savings > 0 ? ` (saved $${savings})` : ''}\n💳 Payment: Wallet USD`
@@ -10496,7 +10514,7 @@ Enter new value:`), bc)
       set(payments, nanoid(), `Wallet,Hosting,${info.domain},$${priceUsd},${chatId},${new Date()}`)
       await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
       const { usdBal: usd } = await getBalance(walletOf, chatId)
-      send(chatId, t.showWallet(usd), trans('o'))
+      sendAndReact(chatId, purchaseDoneLine(info?.userLanguage || 'en', usd), '🎉', trans('o'))
       checkAndNotifyTierUpgrade(preSpend)
 
       recordHostingTransaction(chatId, { domain: txDomain, plan: txPlan, priceUsd, paymentMethod: txPayMethod, currency: txCurrency, outcome: 'success', hostingType: txHostingType, couponApplied: txCouponApplied, couponDiscount: txCouponDiscount, existingDomain: txExistingDomain })
@@ -10609,7 +10627,7 @@ Enter new value:`), bc)
       if (!isSuccess) return
 
       const { usdBal: usd } = await getBalance(walletOf, chatId)
-      send(chatId, t.showWallet(usd), trans('o'))
+      sendAndReact(chatId, purchaseDoneLine(lang, usd), '🎉', trans('o'))
       checkAndNotifyTierUpgrade(preSpend)
     },
     'digital-product-pay': async coin => {
@@ -10649,8 +10667,7 @@ Enter new value:`), bc)
       })
 
       const { usdBal: usd } = await getBalance(walletOf, chatId)
-      send(chatId, t.showWallet(usd))
-      sendAndReact(chatId, t.dpOrderConfirmed(product, priceUsd, orderId), '🎉', trans('o'))
+      sendAndReact(chatId, t.dpOrderConfirmed(product, priceUsd, orderId) + `\n\n👛 ${t.showWallet(usd).replace(/\n+/g, ' ')}`, '🎉', trans('o'))
       checkAndNotifyTierUpgrade(preSpend)
 
       // Clear abandoned cart reminder flag (user completed purchase)
@@ -10695,8 +10712,7 @@ Enter new value:`), bc)
       })
 
       const { usdBal: usd } = await getBalance(walletOf, chatId)
-      send(chatId, t.showWallet(usd))
-      sendAndReact(chatId, t.vcOrderConfirmed(vcAmount, priceUsd, orderId), '🎉', trans('o'))
+      sendAndReact(chatId, t.vcOrderConfirmed(vcAmount, priceUsd, orderId) + `\n\n👛 ${t.showWallet(usd).replace(/\n+/g, ' ')}`, '🎉', trans('o'))
       checkAndNotifyTierUpgrade(preSpend)
 
       notifyGroup(
@@ -11298,7 +11314,7 @@ All verified numbers generated during sourcing.`))
         const _successMsg = isTargetLeads
           ? `🎯 Your <b>${info.targetName}</b> leads are ready!\n\n✅ <b>${withRealNames.length}</b> leads with verified real person names\n📱 <b>${allNumbers.length}</b> total verified phone numbers\n\nTwo files are being sent.`
           : t.buyLeadsSuccess(info?.amount)
-        send(chatId, _successMsg)
+        sendAndReact(chatId, _successMsg, '🎯')
       } else {
         // Non-CNAM flow — just send numbers
         const file1 = 'leads.txt'
@@ -34695,7 +34711,7 @@ app.post('/dynopay/crypto-pay-leads', authDyno, async (req, res) => {
         }
       }
       const _successMsg = ld.targetName ? `🎯 Your ${ld.amount} targeted leads are ready — including phone owner names where matched.` : translation('t.buyLeadsSuccess', lang, ld.amount)
-      sendMessage(chatId, _successMsg)
+      sendAndReact(chatId, _successMsg, '🎯')
       cc = '+' + cc; const re = cc === '+1' ? '' : '0'
       const isTargetLeads = !!ld.targetName
       if (result.length > 0) {

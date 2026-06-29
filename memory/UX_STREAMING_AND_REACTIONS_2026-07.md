@@ -32,16 +32,29 @@ Two modern Telegram Bot API UX features added to the support experience.
   - `/done` support session close → 🙏.
   - Welcome-bonus awarded on `/start` → 🎉 (is_big).
 
-### #3b — Deposit & purchase reactions (added after follow-up)
-- New helper `sendAndReact(chatId, text, emoji, opts)` in `_index.js`: sends via the
-  real `bot.sendMessage` (so we get a message_id back) then reacts to that same message.
-  Used for async/confirmation events that have NO originating user message. Bots can
-  react to their own messages in private chats (verified).
+### #3b — Deposit & purchase reactions + post-purchase UI cleanup
+- New helper `sendAndReact(chatId, text, emoji, opts)`: sends via real `bot.sendMessage`
+  (returns message_id) then reacts to that same message. For async/confirmation events
+  with no originating user message. Bots can self-react in private chats (verified).
+- New helper `purchaseDoneLine(lang, usd)`: compact localized "✅ Purchase complete! ·
+  👛 New balance: $X" — replaces the old bare "Wallet Balance:\n\n$X" trailing bubble.
 - **Deposit confirmed → 💰** on the confirmation message, all 3 PSP paths:
-  Fincra/NGN (`~32986`), BlockBee crypto (`~34075`), DynoPay crypto (`~35055`).
-- **Purchase order placed → 🎉** on the order-confirmation message:
-  Digital Product (`dpOrderConfirmed`) and Virtual Card (`vcOrderConfirmed`).
-  NOT yet added to: Cloud Phone, Domains, Hosting, VPS/RDP, Lead orders (can extend).
+  Fincra/NGN, BlockBee crypto, DynoPay crypto.
+- **Purchase order → 🎉** on a SINGLE clean confirmation message (success path only):
+  - plan-pay, domain-pay, hosting-pay, vps-upgrade-plan-pay → bare balance bubble
+    replaced by `purchaseDoneLine()` (one tidy message, reacted).
+  - digital-product, virtual-card → previously sent TWO bubbles (bare balance +
+    OrderConfirmed); now CONSOLIDATED into one message (balance appended as a single
+    `👛 Wallet Balance: $X` line via `.replace(/\n+/g,' ')`), reacted.
+- **Cloud Phone activation → 🎉** at the TRUE success point: inside the shared
+  `postActivationNudge()` (runs only AFTER a number is fully activated, on EVERY payment
+  path — wallet/crypto/bundle/address-verified). The "next step — grab your SIP
+  credentials" message is sent via `sendAndReact(..., '🎉', ...)`.
+- **Leads order delivered → 🎯** at both delivery sites (`_successMsg` "leads are ready"):
+  wallet path and crypto/DynoPay path. Fires on actual delivery, not at payment time
+  (fully-failed orders never reach `_successMsg`; partial-but-delivered still counts).
+- Still NOT reacted (intentional): vps-plan-pay (credentials are the success anchor;
+  refunds on failure), and the rare resumed-job crash-recovery leads path (`safeSend`).
 
 ## Verified
 - `node --check` on both files: OK. Node bot boots clean.
