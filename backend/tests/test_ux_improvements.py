@@ -107,7 +107,7 @@ console.log(JSON.stringify({
         assert exports['handleError'] == 'function'
         assert exports['safeExecute'] == 'function'
         assert exports['safeRefund'] == 'function'
-        assert exports['hasCriticalOps'] == True
+        assert exports['hasCriticalOps'] is True
     
     def test_order_history_module(self):
         """Test order-history.js imports and exports correctly"""
@@ -237,9 +237,9 @@ console.log(JSON.stringify({
         assert exports['TIMEOUTS'] == 'object'
         assert exports['getTimeoutWithWarning'] == 'function'
         assert exports['getTimeoutErrorMessage'] == 'function'
-        assert exports['hasFastTimeout'] == True
-        assert exports['hasMediumTimeout'] == True
-        assert exports['hasSlowTimeout'] == True
+        assert exports['hasFastTimeout'] is True
+        assert exports['hasMediumTimeout'] is True
+        assert exports['hasSlowTimeout'] is True
     
     def test_retry_logic_module(self):
         """Test retry-logic.js imports and exports correctly"""

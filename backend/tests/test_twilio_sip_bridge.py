@@ -128,7 +128,7 @@ class TestTwilioSipVoiceWebhook:
         # Should return TwiML (200) even if credentials not recognized
         assert response.status_code == 200, f"Expected 200, got {response.status_code}"
         assert 'xml' in response.headers.get('content-type', '').lower() or 'text' in response.headers.get('content-type', '').lower()
-        print(f"✅ /twilio/sip-voice endpoint responds with TwiML")
+        print("✅ /twilio/sip-voice endpoint responds with TwiML")
     
     def test_bridge_call_expired_session(self):
         """Test bridge call with expired/invalid bridge ID"""
@@ -145,7 +145,7 @@ class TestTwilioSipVoiceWebhook:
         # Should contain "expired" message in TwiML
         content = response.text.lower()
         assert 'expired' in content or 'try again' in content, "Should indicate session expired"
-        print(f"✅ Bridge call with invalid ID returns expired message")
+        print("✅ Bridge call with invalid ID returns expired message")
 
 
 class TestTwilioVoiceWebhook:
@@ -165,7 +165,7 @@ class TestTwilioVoiceWebhook:
         )
         # Should return TwiML response
         assert response.status_code == 200
-        print(f"✅ /twilio/voice-webhook endpoint responds")
+        print("✅ /twilio/voice-webhook endpoint responds")
 
 
 class TestCodeReview:
@@ -220,7 +220,7 @@ class TestCodeReview:
         for ip in EXPECTED_TELNYX_IPS:
             assert ip in content, f"Telnyx IP {ip} missing from IP ACL configuration"
         
-        print(f"✅ IP ACL configuration code verified with all 8 Telnyx IPs")
+        print("✅ IP ACL configuration code verified with all 8 Telnyx IPs")
     
     def test_credential_recovery_in_voice_service(self):
         """Verify credential recovery code exists"""
@@ -233,7 +233,7 @@ class TestCodeReview:
         assert 'getSubAccount' in content, "getSubAccount call missing for token recovery"
         assert 'twilioSubAccountToken' in content, "twilioSubAccountToken persistence missing"
         
-        print(f"✅ Credential recovery code verified")
+        print("✅ Credential recovery code verified")
     
     def test_ani_restore_in_voice_service(self):
         """Verify ANI restore code exists after transfer"""
@@ -245,7 +245,7 @@ class TestCodeReview:
         assert 'updateAniOverride' in content, "updateAniOverride call missing"
         assert 'Restore connection ANI' in content or 'restore' in content.lower(), "ANI restore comment/logic missing"
         
-        print(f"✅ ANI restore code verified")
+        print("✅ ANI restore code verified")
 
 
 class TestTelnyxConfiguration:

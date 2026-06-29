@@ -1173,3 +1173,49 @@ correctly, after the customer's paid period ends.
 - The PAYG cost we eat for that extra 24h is small (≤$0.20/day DO, ≤$4/day Azure).
 - Customer experience: matches the "Linux VPS expires on Aug 24th" promise
   they saw at purchase.
+
+
+---
+
+## 2026-06-29 — Railway Log Anomaly Analysis + PhoneScheduler Grace Period (P0)
+
+### Railway Log Analysis (48h window: Jun 27–29)
+User requested analysis of production Railway logs for anomalies and UX frictions.
+
+**Key findings:**
+1. 🔴 **Fincra Auth STILL broken** — 98 failures/24h (ongoing since Jun 10). `OPERATIONS_BLOCKED: fincra_NGN, kraken_USD` fires 101 times in 48h. All NGN deposits dead. Fix: rotate `FINCRA_PRIVATE_KEY` in Railway (user-side action).
+2. 🔴 **USDT-TRC20 settlement_failed** — Payment `08fc2d53` (ref: kiika) confirmed + wallet credited, then `settlement_failed` webhook fired. DynoPay's internal issue — user was already credited so no code fix needed (user confirmed).
+3. 🔴 **Phone number lost** — User 7946200829 lost +18888499956 at 21:00 UTC Jun 28. Wallet $80.15 short of $120 renewal. Number immediately released from Twilio with no grace period.
+4. 🟠 SSL deferred on 11 domains (origin probe timeouts).
+5. 🟠 WHM intermittently unreachable (663 "read unreliable" events).
+6. 🟡 Only 3 wallet credits in 48h (low revenue — connected to Fincra outage).
+
+### Grace Period Fix (P0 — shipped)
+Implemented 24-hour grace period before phone number release when auto-renew fails due to insufficient funds.
+
+**Before:** Number expired + insufficient funds → immediately released from Twilio (permanent, unrecoverable).
+**After:** Number expired + insufficient funds → 24h grace period → user gets urgent DM → hourly re-checks → release only after grace expires AND still insufficient.
+
+#### How it works
+1. **First insufficient-funds hit**: Sets `_graceUntil = now + 24h`, sends localized DM (en/fr/zh/hi) with shortfall amount + deposit CTA, number stays `active`
+2. **Subsequent hourly checks during grace**: Re-attempts `attemptAutoRenew()`. If user deposited → auto-renews normally, clears `_graceUntil`
+3. **Grace expired + still insufficient**: Releases from provider, sets `_releasedAfterGrace: true` for audit trail
+4. **Admin notifications**: `Grace Period Started` on first hit, `Grace Expired + Released` on final release
+
+#### Files modified
+- `/app/js/phone-scheduler.js` — Grace period logic in `runExpiryCheck()`, `_graceUntil` cleared in `attemptAutoRenew()`, new `buildGracePeriodMsg()` with 4 languages
+- `/app/tests/phone-scheduler-grace-period.test.js` (new, 13 tests)
+
+#### Validation
+- ✅ 13/13 Jest tests pass
+- ✅ Full suite: 339 passed, 1 skipped, 11 failed (pre-existing azure/os-routing failures)
+- ✅ ESLint clean
+- ✅ Node.js boots clean, API healthy
+- ✅ Testing agent verified (iteration_21): 100% backend pass
+
+### Still pending
+- 🔴 **Fincra key rotation** — user-side action on Railway dashboard (highest-ROI revenue fix)
+- 🟠 WHM/SSL deferred investigation — 11 domains stuck on 'flexible' SSL
+- 🟡 Set `BOT_USERNAME=NomadlyBot` in Railway
+- 🟡 Deploy churn protection
+- 🟡 Remaining Tier 2/3 UX items
