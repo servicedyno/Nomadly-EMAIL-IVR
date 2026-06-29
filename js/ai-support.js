@@ -1243,7 +1243,7 @@ async function getUserContext(chatId, userMessage = '') {
       if (hosting?.val) {
         context.push(`Hosting: ${hosting.val.plan || 'active'}${hosting.val.domain ? `, domain: ${hosting.val.domain}` : ''}`)
       }
-    } catch (e) {}
+    } catch { /* non-critical context enrichment — skip on error */ }
 
     // ── DOMAIN ROSTER (always-on for chatId — kills "where is my domain?" hallucinations) ──
     // Cross-references domainsOf (user's purchased TLDs) + cpanelAccounts (hosting plans
@@ -1344,7 +1344,7 @@ async function getUserContext(chatId, userMessage = '') {
       if (links.length > 0) {
         context.push(`Recent short links: ${links.length} created`)
       }
-    } catch (e) {}
+    } catch { /* non-critical context enrichment — skip on error */ }
 
     // ── DNS context (only when user is asking about DNS) ──
     // Industry-known pitfall: users paste full FQDN as DNS hostname and end up
