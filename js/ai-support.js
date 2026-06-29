@@ -1476,30 +1476,36 @@ const LANG_NAMES = {
 }
 
 // ── Main AI response function ──
+// Builds the OpenAI `messages` array (system prompt + language instruction +
+// user context + conversation history + the new user message). Shared by both
+// getAiResponse (non-streaming) and getAiResponseStreaming so the prompt
+// construction lives in exactly one place.
+async function buildAiMessages(chatId, userMessage, lang = 'en') {
+  const [userContext, history] = await Promise.all([
+    getUserContext(chatId, userMessage),
+    getConversationHistory(chatId),
+  ])
+
+  const langName = LANG_NAMES[lang] || LANG_NAMES.en
+  const langInstruction = lang !== 'en'
+    ? `\n\n## LANGUAGE REQUIREMENT\n**CRITICAL**: The user's preferred language is ${langName}. You MUST:\n1. Respond entirely in ${langName}. Do NOT respond in English.\n2. Use the TRANSLATED BUTTON LABELS from the "BUTTON LABELS BY LANGUAGE" table above for the "${langName}" column. For example, instead of "📋 My Plans" use the ${langName} version from the table.\n3. Use HTML tags (<b>, <i>, <code>) for formatting, not markdown.`
+    : ''
+
+  return [
+    { role: 'system', content: SYSTEM_PROMPT + langInstruction + userContext },
+    ...history,
+    { role: 'user', content: userMessage },
+  ]
+}
+
 async function getAiResponse(chatId, userMessage, lang = 'en') {
   if (!openai) {
     return { response: null, escalate: needsEscalation(userMessage, lang, null, chatId), error: 'OpenAI not initialized' }
   }
 
   try {
-    // Get user context and conversation history
-    const [userContext, history] = await Promise.all([
-      getUserContext(chatId, userMessage),
-      getConversationHistory(chatId),
-    ])
-
-    // Build language instruction
-    const langName = LANG_NAMES[lang] || LANG_NAMES.en
-    const langInstruction = lang !== 'en'
-      ? `\n\n## LANGUAGE REQUIREMENT\n**CRITICAL**: The user's preferred language is ${langName}. You MUST:\n1. Respond entirely in ${langName}. Do NOT respond in English.\n2. Use the TRANSLATED BUTTON LABELS from the "BUTTON LABELS BY LANGUAGE" table above for the "${langName}" column. For example, instead of "📋 My Plans" use the ${langName} version from the table.\n3. Use HTML tags (<b>, <i>, <code>) for formatting, not markdown.`
-      : ''
-
-    // Build messages array
-    const messages = [
-      { role: 'system', content: SYSTEM_PROMPT + langInstruction + userContext },
-      ...history,
-      { role: 'user', content: userMessage },
-    ]
+    // Build messages array (system + context + history + user message)
+    const messages = await buildAiMessages(chatId, userMessage, lang)
 
     // Call OpenAI with retry for 429 rate-limit errors
     let completion = null
@@ -1580,21 +1586,7 @@ async function getAiResponseStreaming(chatId, userMessage, lang = 'en', onDelta 
   }
 
   try {
-    const [userContext, history] = await Promise.all([
-      getUserContext(chatId, userMessage),
-      getConversationHistory(chatId),
-    ])
-
-    const langName = LANG_NAMES[lang] || LANG_NAMES.en
-    const langInstruction = lang !== 'en'
-      ? `\n\n## LANGUAGE REQUIREMENT\n**CRITICAL**: The user's preferred language is ${langName}. You MUST:\n1. Respond entirely in ${langName}. Do NOT respond in English.\n2. Use the TRANSLATED BUTTON LABELS from the "BUTTON LABELS BY LANGUAGE" table above for the "${langName}" column. For example, instead of "📋 My Plans" use the ${langName} version from the table.\n3. Use HTML tags (<b>, <i>, <code>) for formatting, not markdown.`
-      : ''
-
-    const messages = [
-      { role: 'system', content: SYSTEM_PROMPT + langInstruction + userContext },
-      ...history,
-      { role: 'user', content: userMessage },
-    ]
+    const messages = await buildAiMessages(chatId, userMessage, lang)
 
     // Open the stream with the same 429-retry behaviour as getAiResponse
     let stream = null

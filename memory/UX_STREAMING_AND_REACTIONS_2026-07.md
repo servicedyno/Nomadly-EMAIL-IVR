@@ -71,3 +71,16 @@ Two modern Telegram Bot API UX features added to the support experience.
 ## Notes / library
 - `node-telegram-bot-api@0.67.0` already exposes `setMessageReaction` and `editMessageText`.
 - No library upgrade required.
+
+## Code cleanups (2026-07)
+- Centralized markdown→Telegram-HTML into a single `aiMarkdownToHtml()` in `_index.js`
+  (removed the two duplicated inline regex blocks that lived at each AI call site).
+- Extracted `buildAiMessages(chatId, userMessage, lang)` in `ai-support.js` — the system
+  prompt + language instruction + context + history construction now lives in ONE place,
+  shared by `getAiResponse` and `getAiResponseStreaming` (~16 lines of dup removed).
+- Verified both AI call sites have no orphaned vars (`suggestedButtons`/`keyboardRows`/
+  `safeHtml` are now owned by `streamAiReply`).
+- Verified: `node --check` on both files, bot boots clean, and an offline test confirms
+  both the streaming and non-streaming paths still work + sanitize after the refactor.
+- Pre-existing (NOT from this work): 2 ESLint `no-empty` warnings in ai-support.js
+  (~lines 1246, 1347) in the original getUserContext/getConversationHistory region.
