@@ -167,19 +167,45 @@ async function runExpiryCheck() {
                 numbers[i] = freshN
                 modified = true
               } else {
-                // Genuine insufficient funds — release from provider to stop billing
-                numbers[i].status = 'released'
-                numbers[i]._reminder3Sent = false
-                numbers[i]._reminder1Sent = false
-                numbers[i]._released = true
-                modified = true
-                suspended++
-                await releaseFromProvider(num, user.val, chatId)
-                const userLang = await _getUserLang(chatId)
-                sendToUser(chatId, buildAutoRenewFailedMsg(num, userLang))
-                const name = await get(_nameOf, chatId)
-                _notifyGroup?.(`❌ <b>Auto-Renew Failed + Released:</b> ${_maskName?.(name)} lost ${formatPhone(num.phoneNumber)} (insufficient balance)`)
-                log(`[PhoneScheduler] Auto-renew failed, released from provider: ${chatId} ${num.phoneNumber}`)
+                // ━━━ 24-HOUR GRACE PERIOD before releasing ━━━
+                // Instead of immediately destroying the number, give the user
+                // 24h to top up their wallet. The next hourly check will
+                // auto-renew if funds appear, or release once grace expires.
+                const graceUntil = num._graceUntil ? new Date(num._graceUntil) : null
+                const graceExpired = graceUntil && graceUntil <= new Date()
+                const shortfall = (result.needed || num.planPrice) - (result.usdBal || 0)
+
+                if (!graceUntil) {
+                  // ── First insufficient-funds hit: START grace period ──
+                  const graceDeadline = new Date(Date.now() + 24 * 60 * 60 * 1000)
+                  numbers[i]._graceUntil = graceDeadline.toISOString()
+                  numbers[i].status = 'active' // keep active during grace
+                  modified = true
+                  const userLang = await _getUserLang(chatId)
+                  sendToUser(chatId, buildGracePeriodMsg(num, shortfall, graceDeadline, userLang))
+                  const name = await get(_nameOf, chatId).catch(() => null)
+                  _notifyGroup?.(`⏳ <b>Grace Period Started:</b> ${_maskName?.(name) || ''} <code>${chatId}</code> ${formatPhone(num.phoneNumber)} — insufficient funds ($${(result.usdBal || 0).toFixed(2)} / $${result.needed || num.planPrice} needed). 24h grace until ${graceDeadline.toISOString().slice(0, 16)} UTC.`)
+                  log(`[PhoneScheduler] Grace period started for ${num.phoneNumber}: deposit $${shortfall.toFixed(2)} by ${graceDeadline.toISOString()}`)
+                } else if (!graceExpired) {
+                  // ── Still within grace period — skip, wait for next check ──
+                  log(`[PhoneScheduler] ${num.phoneNumber} still in grace period (until ${graceUntil.toISOString()}), skipping release`)
+                } else {
+                  // ── Grace period expired — release from provider ──
+                  numbers[i].status = 'released'
+                  numbers[i]._reminder3Sent = false
+                  numbers[i]._reminder1Sent = false
+                  numbers[i]._released = true
+                  numbers[i]._graceUntil = null
+                  numbers[i]._releasedAfterGrace = true
+                  modified = true
+                  suspended++
+                  await releaseFromProvider(num, user.val, chatId)
+                  const userLang = await _getUserLang(chatId)
+                  sendToUser(chatId, buildAutoRenewFailedMsg(num, userLang))
+                  const name = await get(_nameOf, chatId)
+                  _notifyGroup?.(`❌ <b>Grace Expired + Released:</b> ${_maskName?.(name)} lost ${formatPhone(num.phoneNumber)} (grace period ended, still insufficient balance)`)
+                  log(`[PhoneScheduler] Grace expired, released from provider: ${chatId} ${num.phoneNumber}`)
+                }
               }
             } else {
               // outcome ∈ { 'invalid_price', 'not_found', 'error' }
@@ -409,6 +435,7 @@ async function attemptAutoRenew(chatId, num, index, numbers) {
           'val.numbers.$.minutesUsed': 0,
           'val.numbers.$._reminder3Sent': false,
           'val.numbers.$._reminder1Sent': false,
+          'val.numbers.$._graceUntil': null,
         }
       },
       { returnDocument: 'after', includeResultMetadata: false }
@@ -426,6 +453,7 @@ async function attemptAutoRenew(chatId, num, index, numbers) {
     numbers[index].minutesUsed = 0
     numbers[index]._reminder3Sent = false
     numbers[index]._reminder1Sent = false
+    numbers[index]._graceUntil = null
 
     const name = await get(_nameOf, chatId)
     const ref = _nanoid?.() || `ar_${Date.now()}`
@@ -678,6 +706,56 @@ If not renewed, your number will be:
 
 Wallet: $${balance.toFixed(2)} | Need: $${price}`
 }
+
+function buildGracePeriodMsg(num, shortfall, graceDeadline, lang) {
+  const plan = plans[num.plan] || { name: num.plan }
+  const deadlineStr = graceDeadline.toISOString().replace('T', ' ').slice(0, 16) + ' UTC'
+  const msgs = {
+    en: `⏳ <b>URGENT: Your number is about to be released</b>
+
+📞 ${formatPhone(num.phoneNumber)} (${plan.name} Plan)
+
+Auto-renewal failed — your wallet is <b>$${shortfall.toFixed(2)} short</b>.
+
+You have <b>24 hours</b> (until ${deadlineStr}) to deposit funds. After that, the number will be <b>permanently released</b> and cannot be recovered.
+
+👉 Tap /start → 💰 Deposit to add funds now.
+
+Your number stays active during this grace period — calls and SMS continue working.`,
+
+    fr: `⏳ <b>URGENT : Votre numéro va être libéré</b>
+
+📞 ${formatPhone(num.phoneNumber)} (Forfait ${plan.name})
+
+Le renouvellement automatique a échoué — il manque <b>$${shortfall.toFixed(2)}</b> dans votre portefeuille.
+
+Vous avez <b>24 heures</b> (jusqu'au ${deadlineStr}) pour déposer des fonds. Après quoi, le numéro sera <b>définitivement libéré</b>.
+
+👉 Tapez /start → 💰 Dépôt pour recharger maintenant.`,
+
+    zh: `⏳ <b>紧急：您的号码即将被释放</b>
+
+📞 ${formatPhone(num.phoneNumber)} (${plan.name} 套餐)
+
+自动续费失败 — 钱包余额不足 <b>$${shortfall.toFixed(2)}</b>。
+
+您有 <b>24小时</b>（截止 ${deadlineStr}）充值。逾期号码将被<b>永久释放</b>，无法恢复。
+
+👉 点击 /start → 💰 充值 立即充值。`,
+
+    hi: `⏳ <b>अर्जेंट: आपका नंबर रिलीज़ होने वाला है</b>
+
+📞 ${formatPhone(num.phoneNumber)} (${plan.name} प्लान)
+
+ऑटो-रिन्यूअल विफल — वॉलेट में <b>$${shortfall.toFixed(2)}</b> कम है।
+
+फंड जमा करने के लिए <b>24 घंटे</b> (${deadlineStr} तक) हैं। उसके बाद नंबर <b>स्थायी रूप से रिलीज़</b> हो जाएगा।
+
+👉 /start → 💰 जमा करें पर टैप करें।`,
+  }
+  return msgs[lang] || msgs.en
+}
+
 
 function buildAutoRenewSuccessMsg(num, newExpiry, oldBal, newBal) {
   const plan = plans[num.plan] || { name: num.plan }
