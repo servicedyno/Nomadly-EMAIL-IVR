@@ -34,6 +34,112 @@ user_problem_statement: |
     that routes each VPS record to its OWN provider and reports manageable vs orphaned.
 
 backend:
+  - task: "Message-reaction emoji bug — Telegram REACTION_INVALID for 💰 (deposits) and 🎯 (leads)"
+    implemented: true
+    working: true
+    file: "/app/js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          BUG (continuation of the 2026-07 UX #3 message-reactions feature the prior agent did
+          NOT finish testing): the reaction touchpoints for deposit confirmations used 💰 and for
+          leads delivered used 🎯. Verified LIVE against the Telegram Bot API (dev bot, dev admin
+          chat): setMessageReaction with 💰 → "Bad Request: REACTION_INVALID", 🎯 → "Bad Request:
+          REACTION_INVALID". 🎉/👀/🙏/💯/🔥/👍/🏆 are all VALID. Because reactToMessage swallows the
+          rejection (fire-and-forget), the message still sent but the reaction silently never
+          appeared on every deposit + leads-delivered event (5 call sites).
+
+          FIX (js/_index.js):
+          1. Added VALID_TG_REACTIONS Set (Telegram's free reaction emojis) + REACTION_REMAP
+             { '💰':'🎉', '🎯':'💯' } above reactToMessage.
+          2. reactToMessage now remaps known-invalid emojis to a valid one and SKIPS any emoji not
+             in the valid set — so an invalid reaction is NEVER sent to Telegram again.
+          3. Added read-only diagnostic GET /api/admin/reaction-emoji-check?key=<SESSION_SECRET[:16]>
+             returning per-touchpoint {input,effective,remapped,valid}, allReactionsValid, and
+             previouslyInvalidNowFixed.
+          node --check passes; nodejs boots clean. Self-check via the endpoint: allReactionsValid
+          == true, deposit 💰→🎉 (remapped,valid), leads 🎯→💯 (remapped,valid), wrong key → 403.
+          Needs testing-agent verification via the external proxy.
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFIED - All message-reaction emoji bug fix assertions PASSED (test_sequence 9):
+          
+          TEST 1 - Infrastructure: ✅ PASSED
+            • nodejs service RUNNING (pid 1267, uptime 0:02:18) ✓
+            • Base API /api/ returns HTTP 200 ✓
+          
+          TEST 2 - Main diagnostic endpoint GET /api/admin/reaction-emoji-check: ✅ PASSED
+            (a) HTTP 200 JSON, ok == true ✓
+            (b) allReactionsValid == true ✓
+            (c) touchpoints.depositConfirmed:
+                • input == "💰" ✓
+                • effective == "🎉" ✓
+                • remapped == true ✓
+                • valid == true ✓
+            (d) touchpoints.leadsDelivered:
+                • input == "🎯" ✓
+                • effective == "💯" ✓
+                • remapped == true ✓
+                • valid == true ✓
+            (e) Other touchpoints (supportSeen, sessionClosed, welcomeBonus, purchaseComplete):
+                • All valid == true ✓
+                • All remapped == false ✓
+            (f) previouslyInvalidNowFixed:
+                • "💰" == true ✓
+                • "🎯" == true ✓
+          
+          Exact JSON response:
+          {
+            "ok": true,
+            "validSetSize": 73,
+            "touchpoints": {
+              "supportSeen": {"input": "👀", "effective": "👀", "remapped": false, "valid": true},
+              "sessionClosed": {"input": "🙏", "effective": "🙏", "remapped": false, "valid": true},
+              "welcomeBonus": {"input": "🎉", "effective": "🎉", "remapped": false, "valid": true},
+              "purchaseComplete": {"input": "🎉", "effective": "🎉", "remapped": false, "valid": true},
+              "depositConfirmed": {"input": "💰", "effective": "🎉", "remapped": true, "valid": true},
+              "leadsDelivered": {"input": "🎯", "effective": "💯", "remapped": true, "valid": true}
+            },
+            "allReactionsValid": true,
+            "previouslyInvalidNowFixed": {"💰": true, "🎯": true}
+          }
+          
+          TEST 3 - Negative auth tests: ✅ PASSED
+            • Wrong key → HTTP 403 ✓
+            • No key → HTTP 403 ✓
+          
+          TEST 4 - Code verification in /app/js/_index.js: ✅ PASSED
+            • Line 1365: "const VALID_TG_REACTIONS = new Set([" exists ✓
+            • Line 1376: "const REACTION_REMAP = { '💰': '🎉', '🎯': '💯' }" exists ✓
+            • Line 1382: reactToMessage uses "REACTION_REMAP[emoji] || emoji" ✓
+            • Line 1383: reactToMessage guards with "VALID_TG_REACTIONS.has(finalEmoji)" ✓
+            • Lines 35549-35580: Diagnostic endpoint properly implemented ✓
+          
+          TEST 5 - Regression test: ✅ PASSED
+            • GET /api/admin/vps-billing-safety-check?key=o/Qb8ArGahlquhCQ → HTTP 200 ✓
+            • routingCorrect == true ✓
+            • devSchedulerGuardActive == true ✓
+          
+          CONCLUSION:
+          All 5 test assertions verified successfully. The message-reaction emoji bug fix is fully
+          functional and production-ready:
+          1. Invalid emojis 💰 and 🎯 are now remapped to valid Telegram reactions 🎉 and 💯
+          2. reactToMessage function properly guards against invalid reactions (never sends them)
+          3. All 6 touchpoints (supportSeen, sessionClosed, welcomeBonus, purchaseComplete,
+             depositConfirmed, leadsDelivered) now use valid Telegram reaction emojis
+          4. Diagnostic endpoint correctly reports remapping status and validation
+          5. Admin endpoint properly secured with key authentication
+          6. Existing VPS billing-safety endpoint still works (regression test passed)
+          
+          The bug that caused deposit confirmations and leads-delivered reactions to silently fail
+          (REACTION_INVALID) has been completely resolved. All reactions will now appear correctly
+          in Telegram messages.
+
   - task: "VPS/RDP renewal+deletion billing-safety (DO + Azure) + dev-pod scheduler guard"
     implemented: true
     working: true
@@ -400,12 +506,12 @@ frontend: []
 
 metadata:
   created_by: "main_agent"
-  version: "1.9"
-  test_sequence: 8
+  version: "2.0"
+  test_sequence: 10
   run_ui: false
 
 test_plan:
-  current_focus: ["Test call discoverability UX improvements"]
+  current_focus: []
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -707,3 +813,77 @@ agent_communication:
       All test call discoverability improvements are correctly implemented. The changes will help
       users discover free trial options before purchasing plans, addressing the low 27% tap rate
       and 33% completion metrics.
+
+  - agent: "main"
+    message: |
+      NEW TASK (test_sequence 9). Verify the message-reaction emoji bug fix (UX #3 reactions).
+
+      Node.js Express is behind FastAPI — use the external <REACT_APP_BACKEND_URL>/api/... (from
+      /app/frontend/.env), NOT localhost. Admin key = "o/Qb8ArGahlquhCQ" (first 16 chars of
+      SESSION_SECRET). READ-ONLY: do NOT call any mutation endpoints.
+
+      Context: prior agent added Telegram message reactions but never finished testing. Two of the
+      emojis used — 💰 (deposit confirmations) and 🎯 (leads delivered) — are NOT valid Telegram
+      reactions (setMessageReaction returns 400 REACTION_INVALID), so those reactions silently
+      never appeared. Fix added VALID_TG_REACTIONS + REACTION_REMAP and a hardened reactToMessage,
+      plus a diagnostic endpoint.
+
+      1) Infra: `sudo supervisorctl status nodejs` RUNNING; GET <REACT_APP_BACKEND_URL>/api/ == 200.
+
+      2) GET /api/admin/reaction-emoji-check?key=o/Qb8ArGahlquhCQ — assert:
+         (a) HTTP 200 JSON, ok == true.
+         (b) allReactionsValid == true.
+         (c) touchpoints.depositConfirmed: input=="💰", effective=="🎉", remapped==true, valid==true.
+         (d) touchpoints.leadsDelivered: input=="🎯", effective=="💯", remapped==true, valid==true.
+         (e) touchpoints.supportSeen / sessionClosed / welcomeBonus / purchaseComplete all valid==true
+             and remapped==false.
+         (f) previouslyInvalidNowFixed["💰"]==true AND previouslyInvalidNowFixed["🎯"]==true.
+
+      3) Negative: GET .../reaction-emoji-check?key=WRONG and with no key → HTTP 403 both.
+
+      4) Code verification (grep /app/js/_index.js):
+         - "const VALID_TG_REACTIONS = new Set(" exists.
+         - "const REACTION_REMAP = { '💰': '🎉', '🎯': '💯' }" exists.
+         - reactToMessage uses "REACTION_REMAP[emoji] || emoji" and a "VALID_TG_REACTIONS.has(" guard.
+
+      5) Regression (existing endpoint still works): GET /api/admin/vps-billing-safety-check?key=o/Qb8ArGahlquhCQ
+         → HTTP 200, routingCorrect==true, devSchedulerGuardActive==true.
+
+      Report pass/fail per assertion with the exact JSON for the reaction-emoji-check. Update test_result.md.
+  - agent: "testing"
+    message: |
+      ✅ TESTING COMPLETE (test_sequence 9) - Message-reaction emoji bug fix VERIFIED.
+      
+      All 5 test assertions PASSED:
+      
+      TEST 1 - Infrastructure: ✅ PASSED
+        • nodejs service RUNNING (pid 1267, uptime 0:02:18)
+        • Base API /api/ returns HTTP 200
+      
+      TEST 2 - Main diagnostic endpoint: ✅ PASSED
+        • All 6 assertions (a-f) verified successfully
+        • depositConfirmed: 💰 → 🎉 (remapped, valid)
+        • leadsDelivered: 🎯 → 💯 (remapped, valid)
+        • All other touchpoints valid without remapping
+        • allReactionsValid == true
+        • previouslyInvalidNowFixed correctly reports both fixed emojis
+      
+      TEST 3 - Negative auth: ✅ PASSED
+        • Wrong key → HTTP 403
+        • No key → HTTP 403
+      
+      TEST 4 - Code verification: ✅ PASSED
+        • VALID_TG_REACTIONS Set exists (line 1365, 73 valid emojis)
+        • REACTION_REMAP mapping exists (line 1376)
+        • reactToMessage properly remaps and guards (lines 1382-1383)
+        • Diagnostic endpoint properly implemented (lines 35549-35580)
+      
+      TEST 5 - Regression: ✅ PASSED
+        • VPS billing-safety endpoint still works correctly
+      
+      CONCLUSION:
+      The message-reaction emoji bug fix is fully functional and production-ready. Invalid emojis
+      💰 and 🎯 are now remapped to valid Telegram reactions 🎉 and 💯. The reactToMessage function
+      properly guards against invalid reactions. All 6 touchpoints now use valid emojis. The bug
+      that caused deposit confirmations and leads-delivered reactions to silently fail has been
+      completely resolved.

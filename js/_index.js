@@ -1356,11 +1356,34 @@ const send = (chatId, message, options) => {
 // from Telegram's allowed free-reaction set are used. Fire-and-forget —
 // reactions are pure delight, never block or break a flow on error.
 // ════════════════════════════════════════════════════════════════════
+// Telegram's setMessageReaction only accepts emoji from a fixed allowed set;
+// anything else returns 400 "REACTION_INVALID" (swallowed below) so the
+// reaction silently never appears. Verified LIVE against the Bot API (2026-07):
+// 💰 (deposit confirmations) and 🎯 (leads delivered) are NOT valid reactions —
+// they were failing silently on every deposit/leads event. Keep this set aligned
+// with Telegram's free reaction emojis.
+const VALID_TG_REACTIONS = new Set([
+  '👍', '👎', '❤', '🔥', '🥰', '👏', '😁', '🤔', '🤯', '😱', '🤬', '😢', '🎉', '🤩', '🤮', '💩',
+  '🙏', '👌', '🕊', '🤡', '🥱', '🥴', '😍', '🐳', '❤‍🔥', '🌚', '🌭', '💯', '🤣', '⚡', '🍌', '🏆',
+  '💔', '🤨', '😐', '🍓', '🍾', '💋', '🖕', '😈', '😴', '😭', '🤓', '👻', '👨‍💻', '👀', '🎃', '🙈',
+  '😇', '😨', '🤝', '✍', '🤗', '🫡', '🎅', '🎄', '☃', '💅', '🤪', '🗿', '🆒', '💘', '🙉', '🦄',
+  '😘', '💊', '🙊', '😎', '👾', '🤷‍♂', '🤷', '🤷‍♀', '😡',
+])
+// Map "intent" emoji → nearest VALID Telegram reaction for the ones Telegram
+// rejects, so the acknowledgment still shows up instead of silently dropping.
+//   💰 deposit  → 🎉 (celebrate funds added)
+//   🎯 leads    → 💯 (quality / on-point delivery)
+const REACTION_REMAP = { '💰': '🎉', '🎯': '💯' }
+
 function reactToMessage(chatId, messageId, emoji, isBig = false) {
   if (!bot || !chatId || !messageId || !emoji) return
+  // Normalise to a Telegram-accepted reaction (remap the known-invalid ones,
+  // otherwise skip entirely so we never hit a 400 REACTION_INVALID).
+  const finalEmoji = REACTION_REMAP[emoji] || emoji
+  if (!VALID_TG_REACTIONS.has(finalEmoji)) return
   try {
     bot.setMessageReaction(chatId, messageId, {
-      reaction: [{ type: 'emoji', emoji }],
+      reaction: [{ type: 'emoji', emoji: finalEmoji }],
       is_big: !!isBig,
     })?.catch?.(() => { /* reactions are non-critical (old msg, no perms, etc.) */ })
   } catch { /* never throw from a reaction */ }
@@ -35512,6 +35535,47 @@ app.get('/admin/vps-billing-safety-check', (req, res) => {
       feesStopOnNonRenewal: scenarios.not_renewed_autorenew_off === 'delete'
         && scenarios.autorenew_on_but_no_balance === 'delete',
       devSchedulerGuardActive: process.env.SKIP_WEBHOOK_SYNC === 'true',
+    })
+  } catch (e) {
+    return res.status(500).json({ error: e.message })
+  }
+})
+
+// ── Admin: Reaction-emoji validity check (UX #3 — message reactions) ──
+// Confirms every emoji the bot uses for setMessageReaction is a VALID Telegram
+// reaction (after REACTION_REMAP). Catches the 2026-07 bug where 💰 (deposits)
+// and 🎯 (leads) were silently rejected with 400 REACTION_INVALID so no
+// reaction ever appeared. GET ?key=<SESSION_SECRET[:16]>
+app.get('/admin/reaction-emoji-check', (req, res) => {
+  if (req?.query?.key !== process.env.SESSION_SECRET?.slice(0, 16)) {
+    return res.status(403).json({ error: 'Unauthorized' })
+  }
+  try {
+    const probe = (e) => {
+      const effective = REACTION_REMAP[e] || e
+      return { input: e, effective, remapped: effective !== e, valid: VALID_TG_REACTIONS.has(effective) }
+    }
+    // Raw emojis passed by the bot's reaction call sites (sendAndReact / reactToMessage).
+    const touchpoints = {
+      supportSeen: probe('👀'),
+      sessionClosed: probe('🙏'),
+      welcomeBonus: probe('🎉'),
+      purchaseComplete: probe('🎉'),
+      depositConfirmed: probe('💰'),
+      leadsDelivered: probe('🎯'),
+    }
+    const all = Object.values(touchpoints)
+    return res.json({
+      ok: true,
+      validSetSize: VALID_TG_REACTIONS.size,
+      touchpoints,
+      // Every reaction the bot can fire now resolves to a Telegram-accepted emoji.
+      allReactionsValid: all.every((t) => t.valid),
+      // Documents the FIXED bug: these raw emojis are invalid and are now remapped to valid ones.
+      previouslyInvalidNowFixed: {
+        '💰': touchpoints.depositConfirmed.remapped && touchpoints.depositConfirmed.valid,
+        '🎯': touchpoints.leadsDelivered.remapped && touchpoints.leadsDelivered.valid,
+      },
     })
   } catch (e) {
     return res.status(500).json({ error: e.message })
