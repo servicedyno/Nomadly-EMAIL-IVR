@@ -12,7 +12,7 @@ from pymongo import MongoClient
 import subprocess
 
 # Configuration
-BACKEND_URL = "https://creds-config-test.preview.emergentagent.com/api"
+BACKEND_URL = "https://env-preview-4.preview.emergentagent.com/api"
 ADMIN_KEY = "o/Qb8ArGahlquhCQ"
 MONGO_URL = "mongodb://mongo:UCPkknTGVOBzrnOiXoIYyVhampeslSIR@roundhouse.proxy.rlwy.net:52715"
 DB_NAME = "test"
