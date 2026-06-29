@@ -1567,6 +1567,100 @@ async function getAiResponse(chatId, userMessage, lang = 'en') {
   }
 }
 
+// ── Streaming AI response (#7) ──
+// Same as getAiResponse but streams tokens. `onDelta(sanitizedPartialText)` is
+// invoked progressively as the model generates, so the caller can edit the
+// Telegram message in place for a "typing live" UX. Returns the same shape as
+// getAiResponse once the stream completes (fully sanitized + history saved +
+// escalation detected). Brand-confidentiality scrubbing is applied to BOTH the
+// streamed partials and the final text so vendor names never flash on screen.
+async function getAiResponseStreaming(chatId, userMessage, lang = 'en', onDelta = null) {
+  if (!openai) {
+    return { response: null, escalate: needsEscalation(userMessage, lang, null, chatId), error: 'OpenAI not initialized' }
+  }
+
+  try {
+    const [userContext, history] = await Promise.all([
+      getUserContext(chatId, userMessage),
+      getConversationHistory(chatId),
+    ])
+
+    const langName = LANG_NAMES[lang] || LANG_NAMES.en
+    const langInstruction = lang !== 'en'
+      ? `\n\n## LANGUAGE REQUIREMENT\n**CRITICAL**: The user's preferred language is ${langName}. You MUST:\n1. Respond entirely in ${langName}. Do NOT respond in English.\n2. Use the TRANSLATED BUTTON LABELS from the "BUTTON LABELS BY LANGUAGE" table above for the "${langName}" column. For example, instead of "📋 My Plans" use the ${langName} version from the table.\n3. Use HTML tags (<b>, <i>, <code>) for formatting, not markdown.`
+      : ''
+
+    const messages = [
+      { role: 'system', content: SYSTEM_PROMPT + langInstruction + userContext },
+      ...history,
+      { role: 'user', content: userMessage },
+    ]
+
+    // Open the stream with the same 429-retry behaviour as getAiResponse
+    let stream = null
+    const MAX_RETRIES = 2
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        stream = await openai.chat.completions.create({
+          model: 'gpt-4.1-mini',
+          messages,
+          max_tokens: 1200,
+          temperature: 0.7,
+          stream: true,
+        })
+        break
+      } catch (retryErr) {
+        const is429 = retryErr?.status === 429 || retryErr?.error?.code === 'insufficient_quota' ||
+          (retryErr.message && retryErr.message.includes('429'))
+        if (is429 && attempt < MAX_RETRIES) {
+          const backoff = (attempt + 1) * 3000
+          log(`[AI Support] OpenAI 429 (stream) — retrying in ${backoff}ms (attempt ${attempt + 1}/${MAX_RETRIES})`)
+          await new Promise(r => setTimeout(r, backoff))
+          continue
+        }
+        throw retryErr
+      }
+    }
+    if (!stream) throw new Error('OpenAI returned no stream after retries')
+
+    let raw = ''
+    for await (const chunk of stream) {
+      const delta = chunk?.choices?.[0]?.delta?.content || ''
+      if (!delta) continue
+      raw += delta
+      if (typeof onDelta === 'function') {
+        // Sanitize the partial so banned vendor names never flash mid-stream.
+        try { await onDelta(sanitizeUserText(raw)) } catch { /* edit throttling decides */ }
+      }
+    }
+
+    const aiResponse = sanitizeUserText(raw)
+
+    await saveMessage(chatId, 'user', userMessage)
+    await saveMessage(chatId, 'assistant', aiResponse)
+
+    const escalate = needsEscalation(userMessage, lang, aiResponse, chatId) ||
+      aiResponse.toLowerCase().includes('human agent') ||
+      aiResponse.toLowerCase().includes('support team') ||
+      aiResponse.toLowerCase().includes('escalat') ||
+      (lang === 'fr' && (aiResponse.toLowerCase().includes('agent humain') || aiResponse.toLowerCase().includes('équipe de support'))) ||
+      (lang === 'zh' && (aiResponse.includes('人工客服') || aiResponse.includes('支持团队'))) ||
+      (lang === 'hi' && (aiResponse.includes('सहायता टीम') || aiResponse.includes('मानव एजेंट')))
+
+    return { response: aiResponse, escalate, error: null }
+  } catch (e) {
+    const is429 = e?.status === 429 || e?.error?.code === 'insufficient_quota' ||
+      (e.message && e.message.includes('429'))
+    if (is429) {
+      log(`[AI Support] OpenAI quota exceeded (stream) for ${chatId} — escalating to human agent`)
+    } else {
+      log(`[AI Support] OpenAI stream error: ${e.message}`)
+    }
+    await saveMessage(chatId, 'user', userMessage).catch(() => {})
+    return { response: null, escalate: true, error: e.message }
+  }
+}
+
 // ── Clear conversation history (when support session ends) ──
 async function clearHistory(chatId) {
   // Reset in-memory escalation dedup so the next session starts clean.
@@ -1858,6 +1952,7 @@ async function rateSupportSession(chatId, rating) {
 module.exports = {
   initAiSupport,
   getAiResponse,
+  getAiResponseStreaming,
   getUserContext,
   getMarketplaceAiResponse,
   moderateMarketplaceChat,

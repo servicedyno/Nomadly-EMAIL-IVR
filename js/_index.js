@@ -686,7 +686,7 @@ const { initTestMyNumber, placeTestCall: placeTestMyNumberCall } = require('./te
 const { initTestOutboundSip, startTest: startTestOutboundSip } = require('./test-outbound-sip.js')
 const antiRedService = require('./anti-red-service.js')
 const { initLeadJobPersistence, flushAllJobs, findInterruptedJobs, resumeJob } = require('./lead-job-persistence.js')
-const { initAiSupport, getAiResponse, getMarketplaceAiResponse, moderateMarketplaceChat, clearHistory: clearAiHistory, isAiEnabled, recordUserError, extractActionButtons, rateSupportSession } = require('./ai-support.js')
+const { initAiSupport, getAiResponse, getAiResponseStreaming, getMarketplaceAiResponse, moderateMarketplaceChat, clearHistory: clearAiHistory, isAiEnabled, recordUserError, extractActionButtons, rateSupportSession } = require('./ai-support.js')
 const { initShortenerPersistence, createActivationTask, markRailwayLinked, markDnsAdded, markCompleted, markFailed, markSkipped, findIncompleteTasks, enqueueDeactivation, incrementDeactivationRetry, markDeactivationDone, markDeactivationFailed, findPendingDeactivations, MAX_DEACTIVATION_RETRIES } = require('./shortener-activation-persistence.js')
 const honeypotService = require('./honeypot-service.js')
 const audioLibraryService = require('./audio-library-service.js')
@@ -1347,6 +1347,140 @@ const send = (chatId, message, options) => {
   }
   log('reply: ' + message + ' ' + (opts?.reply_markup?.keyboard?.map(i => i) || '') + '\tto: ' + chatId + '\n')
   bot?.sendMessage(chatId, message, opts)?.catch(e => log(e.message + ': ' + chatId))
+}
+
+// ════════════════════════════════════════════════════════════════════
+// UX FEATURE #3 — Message Reactions
+// Lightweight, native acknowledgment of key events by reacting to the
+// user's own message (e.g. 👀 "seen", 🎉 welcome, 🔥 success). Only emoji
+// from Telegram's allowed free-reaction set are used. Fire-and-forget —
+// reactions are pure delight, never block or break a flow on error.
+// ════════════════════════════════════════════════════════════════════
+function reactToMessage(chatId, messageId, emoji, isBig = false) {
+  if (!bot || !chatId || !messageId || !emoji) return
+  try {
+    bot.setMessageReaction(chatId, messageId, {
+      reaction: [{ type: 'emoji', emoji }],
+      is_big: !!isBig,
+    })?.catch?.(() => { /* reactions are non-critical (old msg, no perms, etc.) */ })
+  } catch { /* never throw from a reaction */ }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// UX FEATURE #7 — Streaming AI support replies
+// Shared markdown→Telegram-HTML converter (was duplicated at both AI call
+// sites). Safe for PARTIAL text: unbalanced **/`/_ are left as literals and
+// stray <,& are escaped, so a half-streamed message never breaks the HTML
+// parser.
+// ════════════════════════════════════════════════════════════════════
+function aiMarkdownToHtml(text) {
+  return String(text || '')
+    .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')      // **bold**
+    .replace(/\*(.+?)\*/g, '<i>$1</i>')           // *italic*
+    .replace(/__(.+?)__/g, '<u>$1</u>')           // __underline__
+    .replace(/`([^`]+)`/g, '<code>$1</code>')     // `code`
+    .replace(/&(?!amp;|lt;|gt;|quot;|#\d+;)/g, '&amp;')           // escape stray &
+    .replace(/<(?!\/?(?:b|i|u|s|code|pre|a)\b)/g, '&lt;')         // escape non-tag <
+}
+
+// "Typing…" indicator shown before the first token arrives.
+const _aiStreamIndicator = {
+  en: '💬 <i>Typing…</i>',
+  fr: '💬 <i>En train d\'écrire…</i>',
+  zh: '💬 <i>正在输入…</i>',
+  hi: '💬 <i>टाइप कर रहा है…</i>',
+}
+const _aiQuickActionsLabel = {
+  en: '👇 <i>Quick actions</i>',
+  fr: '👇 <i>Actions rapides</i>',
+  zh: '👇 <i>快捷操作</i>',
+  hi: '👇 <i>त्वरित कार्रवाई</i>',
+}
+
+// Streams an AI support reply into a single message that is edited in place,
+// then (if the AI suggested follow-up actions) updates the reply keyboard.
+// Returns { response, safeHtml, escalate, error } so the caller keeps its
+// existing admin-notify + escalation pipeline unchanged.
+async function streamAiReply(chatId, message, lang = 'en') {
+  const L = (lang && _aiStreamIndicator[lang]) ? lang : 'en'
+
+  // Native "typing" status while we wait for the first token.
+  try { bot?.sendChatAction(chatId, 'typing')?.catch?.(() => {}) } catch { /* noop */ }
+
+  // Placeholder message — carries the persistent /done keyboard. Editing this
+  // message's text later does NOT clear the reply keyboard (Telegram keeps it).
+  let placeholder
+  try {
+    placeholder = await bot.sendMessage(chatId, _aiStreamIndicator[L], {
+      parse_mode: 'HTML',
+      reply_markup: { keyboard: [['/done']], resize_keyboard: true },
+    })
+  } catch (e) {
+    log(`[Support] stream placeholder send failed: ${e.message}`)
+    placeholder = null
+  }
+  const mid = placeholder?.message_id
+
+  let lastRendered = ''
+  let lastEditAt = 0
+
+  const doEdit = async (rawText) => {
+    if (!mid) return
+    const html = aiMarkdownToHtml(rawText)
+    if (!html.trim() || html === lastRendered) return
+    lastRendered = html
+    try {
+      await bot.editMessageText(html, {
+        chat_id: chatId, message_id: mid,
+        parse_mode: 'HTML', disable_web_page_preview: true,
+      })
+    } catch (e) {
+      if (e && /not modified/i.test(e.message)) return
+      // HTML parse hiccup on a partial — fall back to a plain-text edit.
+      try { await bot.editMessageText(rawText, { chat_id: chatId, message_id: mid, disable_web_page_preview: true }) } catch { /* skip this frame */ }
+    }
+  }
+
+  // Throttle live edits to ~1/sec to stay well under Telegram's edit limits.
+  const onDelta = async (partial) => {
+    const now = Date.now()
+    if (now - lastEditAt < 1100) return
+    lastEditAt = now
+    await doEdit(partial)
+  }
+
+  const { response: aiResponse, escalate, error } = await getAiResponseStreaming(chatId, message, L, onDelta)
+
+  if (!aiResponse) {
+    // Failure path — remove the placeholder so the caller's fallback message is clean.
+    if (mid) { try { await bot.deleteMessage(chatId, mid) } catch { /* noop */ } }
+    return { response: null, safeHtml: null, escalate, error }
+  }
+
+  const safeHtml = aiMarkdownToHtml(aiResponse)
+
+  // Final render (forced — bypasses the time throttle).
+  if (mid) {
+    await doEdit(aiResponse)
+  } else {
+    // Placeholder never sent — deliver as a normal message.
+    send(chatId, safeHtml, { parse_mode: 'HTML', reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
+  }
+
+  // If the AI suggested actions, surface them on the reply keyboard.
+  try {
+    const suggestedButtons = extractActionButtons(aiResponse, L)
+    if (suggestedButtons.length > 0) {
+      const keyboardRows = suggestedButtons.map(b => [b])
+      keyboardRows.push(['/done'])
+      send(chatId, _aiQuickActionsLabel[L], {
+        parse_mode: 'HTML',
+        reply_markup: { keyboard: keyboardRows, resize_keyboard: true },
+      })
+    }
+  } catch (e) { log(`[Support] quick-actions keyboard error: ${e.message}`) }
+
+  return { response: aiResponse, safeHtml, escalate, error: null }
 }
 
 // ── Support SLA nudge ──
@@ -11831,6 +11965,7 @@ All verified numbers generated during sourcing.`))
 
   // /done — exit support chat (only if in support chat mode)
   if (message === '/done' && action === a.supportChat) {
+    reactToMessage(chatId, msg?.message_id, '🙏') // UX #3: thank-you on session close
     await set(supportSessions, chatId, 0)
     await set(state, chatId, 'action', 'none')
     // Clear admin takeover flag on session close
@@ -12075,31 +12210,15 @@ All verified numbers generated during sourcing.`))
 
     // AI auto-response (when admin has NOT taken over)
     if (isAiEnabled()) {
+      reactToMessage(chatId, msg?.message_id, '👀') // UX #3: instant "seen" acknowledgment
       try {
-        const { response: aiResponse, escalate, error } = await getAiResponse(chatId, message, lang)
+        const { response: aiResponse, safeHtml, escalate, error } = await streamAiReply(chatId, message, lang)
 
         if (aiResponse) {
-          // Convert markdown formatting from AI to Telegram-safe HTML
-          // GPT often returns **bold**, *italic*, `code` which Telegram HTML parser can't handle
-          const safeHtml = aiResponse
-            .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')     // **bold** → <b>bold</b>
-            .replace(/\*(.+?)\*/g, '<i>$1</i>')          // *italic* → <i>italic</i>
-            .replace(/__(.+?)__/g, '<u>$1</u>')          // __underline__ → <u>underline</u>
-            .replace(/`([^`]+)`/g, '<code>$1</code>')    // `code` → <code>code</code>
-            .replace(/&(?!amp;|lt;|gt;|quot;|#\d+;)/g, '&amp;')  // escape unescaped &
-            .replace(/<(?!\/?(?:b|i|u|s|code|pre|a)\b)/g, '&lt;')  // escape < that aren't valid TG HTML tags
-
-          // Tier 1 Feature 3: Extract suggested action buttons from AI response
-          const suggestedButtons = extractActionButtons(aiResponse, lang)
-          const keyboardRows = []
-          if (suggestedButtons.length > 0) {
-            // Add suggested actions as keyboard rows
-            suggestedButtons.forEach(btn => keyboardRows.push([btn]))
-          }
-          keyboardRows.push(['/done'])
-
-          // Send AI response to user with action buttons
-          send(chatId, trans('t.host_4', safeHtml), { parse_mode: 'HTML', reply_markup: { keyboard: keyboardRows, resize_keyboard: true } })
+          // Response has already been streamed live into the chat by
+          // streamAiReply (typing → progressive edits → suggested quick-action
+          // keys). `safeHtml` is returned only for the admin mirror + the
+          // escalation pipeline below.
 
           // Show AI response to admin with escalation flag
           const escalateTag = escalate ? '\n\n🚨 <b>NEEDS HUMAN ATTENTION</b>' : ''
@@ -12500,6 +12619,7 @@ All verified numbers generated during sourcing.`))
     try {
       const bonus = await monetization.checkAndAwardWelcomeBonus(chatId, validLanguage || 'en')
       if (bonus?.awarded) {
+        reactToMessage(chatId, msg?.message_id, '🎉', true) // UX #3: celebrate the welcome gift
         send(chatId, bonus.message, { parse_mode: 'HTML' })
         log(`[WelcomeBonus] Awarded $${bonus.amount} to new user chatId=${chatId}`)
       }
@@ -29981,20 +30101,10 @@ Tap a button below to change. Changes sync to your phone on next app open.`
       send(chatId, trans('t.supportMsgReceived'), { reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
     } else if (isAiEnabled()) {
       try {
-        const { response: aiResponse, escalate, error } = await getAiResponse(chatId, message, lang)
+        const { response: aiResponse, safeHtml, escalate, error } = await streamAiReply(chatId, message, lang)
         if (aiResponse) {
-          const safeHtml = aiResponse
-            .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
-            .replace(/\*(.+?)\*/g, '<i>$1</i>')
-            .replace(/__(.+?)__/g, '<u>$1</u>')
-            .replace(/`([^`]+)`/g, '<code>$1</code>')
-            .replace(/&(?!amp;|lt;|gt;|quot;|#\d+;)/g, '&amp;')
-            .replace(/<(?!\/?(?:b|i|u|s|code|pre|a)\b)/g, '&lt;')
-          const suggestedButtons = extractActionButtons(aiResponse, lang)
-          const keyboardRows = []
-          if (suggestedButtons.length > 0) suggestedButtons.forEach(btn => keyboardRows.push([btn]))
-          keyboardRows.push(['/done'])
-          send(chatId, safeHtml, { parse_mode: 'HTML', reply_markup: { keyboard: keyboardRows, resize_keyboard: true } })
+          // Streamed live into chat by streamAiReply; safeHtml used for the
+          // admin mirror + escalation pipeline below.
           const escalateTag = escalate ? '\n\n🚨 <b>NEEDS HUMAN ATTENTION</b>' : ''
           send(TELEGRAM_ADMIN_CHAT_ID, `🤖 <b>AI replied to ${displayName}</b> (${chatId}):\n<i>${safeHtml.substring(0, 500)}${safeHtml.length > 500 ? '...' : ''}</i>${escalateTag}`, { parse_mode: 'HTML' })
           log(`[Support] Fallback AI -> ${chatId}: ${aiResponse.substring(0, 100)}... (escalate: ${escalate})`)
