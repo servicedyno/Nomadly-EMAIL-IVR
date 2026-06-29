@@ -32,6 +32,17 @@ Two modern Telegram Bot API UX features added to the support experience.
   - `/done` support session close → 🙏.
   - Welcome-bonus awarded on `/start` → 🎉 (is_big).
 
+### #3b — Deposit & purchase reactions (added after follow-up)
+- New helper `sendAndReact(chatId, text, emoji, opts)` in `_index.js`: sends via the
+  real `bot.sendMessage` (so we get a message_id back) then reacts to that same message.
+  Used for async/confirmation events that have NO originating user message. Bots can
+  react to their own messages in private chats (verified).
+- **Deposit confirmed → 💰** on the confirmation message, all 3 PSP paths:
+  Fincra/NGN (`~32986`), BlockBee crypto (`~34075`), DynoPay crypto (`~35055`).
+- **Purchase order placed → 🎉** on the order-confirmation message:
+  Digital Product (`dpOrderConfirmed`) and Virtual Card (`vcOrderConfirmed`).
+  NOT yet added to: Cloud Phone, Domains, Hosting, VPS/RDP, Lead orders (can extend).
+
 ## Verified
 - `node --check` on both files: OK. Node bot boots clean.
 - Offline test (stubbed OpenAI stream + real prod DB, throwaway chatId, cleaned up):

@@ -1366,6 +1366,29 @@ function reactToMessage(chatId, messageId, emoji, isBig = false) {
   } catch { /* never throw from a reaction */ }
 }
 
+// Sends a message via the real bot (so we get the message_id back) and then
+// reacts to that very message. Used for async/confirmation events that have no
+// originating user message to react to — e.g. a deposit credited by a payment
+// webhook, or an order-placed confirmation. Bots CAN react to their own
+// messages in private chats. Falls back gracefully to a plain send on error.
+async function sendAndReact(chatId, text, emoji, opts = {}) {
+  try {
+    const o = { ...(opts || {}) }
+    if (typeof text === 'string' && !o.parse_mode && /<\/?(?:b|i|u|s|code|pre|a)\b/.test(text)) {
+      o.parse_mode = 'HTML'
+    }
+    if (o?.reply_markup?.keyboard && !o.reply_markup.resize_keyboard) {
+      o.reply_markup.resize_keyboard = true
+    }
+    const sent = await bot.sendMessage(chatId, text, o)
+    if (sent?.message_id && emoji) reactToMessage(chatId, sent.message_id, emoji)
+    return sent
+  } catch (e) {
+    log(`[sendAndReact] ${e.message}: ${chatId}`)
+    return null
+  }
+}
+
 // ════════════════════════════════════════════════════════════════════
 // UX FEATURE #7 — Streaming AI support replies
 // Shared markdown→Telegram-HTML converter (was duplicated at both AI call
@@ -10627,7 +10650,7 @@ Enter new value:`), bc)
 
       const { usdBal: usd } = await getBalance(walletOf, chatId)
       send(chatId, t.showWallet(usd))
-      send(chatId, t.dpOrderConfirmed(product, priceUsd, orderId), trans('o'))
+      sendAndReact(chatId, t.dpOrderConfirmed(product, priceUsd, orderId), '🎉', trans('o'))
       checkAndNotifyTierUpgrade(preSpend)
 
       // Clear abandoned cart reminder flag (user completed purchase)
@@ -10673,7 +10696,7 @@ Enter new value:`), bc)
 
       const { usdBal: usd } = await getBalance(walletOf, chatId)
       send(chatId, t.showWallet(usd))
-      send(chatId, t.vcOrderConfirmed(vcAmount, priceUsd, orderId), trans('o'))
+      sendAndReact(chatId, t.vcOrderConfirmed(vcAmount, priceUsd, orderId), '🎉', trans('o'))
       checkAndNotifyTierUpgrade(preSpend)
 
       notifyGroup(
@@ -32983,7 +33006,7 @@ const bankApis = {
     // Update Wallet
     const usdIn = await ngnToUsd(ngnIn)
     addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
-    sendMessage(chatId, translation('t.confirmationDepositMoney', lang, `${ngnIn} NGN`, usdIn))
+    sendAndReact(chatId, translation('t.confirmationDepositMoney', lang, `${ngnIn} NGN`, usdIn), '💰')
 
     // Logs
     res.send(html())
@@ -34072,7 +34095,7 @@ app.get('/crypto-wallet', auth, async (req, res) => {
   // Update Wallet
   const usdIn = await convert(value, coin, 'usd')
   addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
-  sendMessage(chatId, translation('t.confirmationDepositMoney', lang, value + ' ' + tickerViewOf[coin], usdIn))
+  sendAndReact(chatId, translation('t.confirmationDepositMoney', lang, value + ' ' + tickerViewOf[coin], usdIn), '💰')
 
   // ── Universal-ledger audit (Apr-30-2026 sweep) ──
   // Parity with /dynopay/crypto-wallet — every wallet top-up path must write
@@ -35052,7 +35075,7 @@ app.post('/dynopay/crypto-wallet', authDyno, async (req, res) => {
   log('Sending confirmation message to user...')
   const confirmMsg = translation('t.confirmationDepositMoney', lang, value + ' ' + coin, usdIn) + 
     `\n\n<b>Transaction ID:</b> <code>${txnId}</code>\n<i>Quote this ID when contacting support</i>`
-  sendMessage(chatId, confirmMsg)
+  sendAndReact(chatId, confirmMsg, '💰')
   log('Confirmation message sent')
 
   // Logs
