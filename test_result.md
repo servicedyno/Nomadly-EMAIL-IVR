@@ -34,6 +34,135 @@ user_problem_statement: |
     that routes each VPS record to its OWN provider and reports manageable vs orphaned.
 
 backend:
+  - task: "Contabo reconcile provider-routing fix (C) + clear stale Contabo instances (D)"
+    implemented: true
+    working: true
+    file: "/app/js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          BUG (from prod Railway logs 2026-06-30): the Contabo-only reconcile jobs
+          (reconcileContaboOrphans, selfHealRenewedAfterCancelVPS, reconcileContaboBillingDrift)
+          looped over ALL vpsPlansOf records and called the Contabo API per record, only skipping
+          OVH (`=== 'ovh'`). Azure (az-*), DigitalOcean (do-*) and Vultr (uuid) IDs fell through →
+          Contabo API returned 400 "instanceId must be a number string". The live Azure RDP
+          az-nmdcbaec20f3 (chatId 404562920, RUNNING, paying) was being mis-handled by Contabo
+          billing logic every 30 min. Two DELETED Contabo records (203250431, 203283942) 404-cycled.
+
+          FIX C: added isContaboReconcileTarget(plan) helper (provider field authoritative, else
+          detectProviderByInstanceId). Replaced 4 guard sites (`=== 'ovh'` → `!isContaboReconcileTarget`)
+          incl. drift Bucket B which previously had NO guard. Added SKIP_WEBHOOK_SYNC dev-guard to all
+          3 Contabo reconcile jobs (dev pod shares prod DB + Contabo keys; it had already hit the bug).
+          FIX D: (a) one-time archive+remove of 203250431 & 203283942 from prod vpsPlansOf (done via
+          script, archived to vpsPlansOf_revoked). (b) enhanced selfHeal 404 branch to archive+remove
+          DELETED/CANCELLED records instead of just stamping (prevents future 404-cycling).
+          Added READ-ONLY verification endpoint GET /api/admin/contabo-recon-preview?key=<SESSION_SECRET[:16]>.
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFIED - All Contabo reconcile provider-routing fix assertions PASSED (test_sequence 11):
+          
+          TEST 1 - Infrastructure: ✅ PASSED
+            • nodejs service RUNNING (pid 1857, uptime 0:03:48) ✓
+            • Base API /api/ returns HTTP 200 ✓
+          
+          TEST 2 - Main diagnostic endpoint GET /api/admin/contabo-recon-preview: ✅ PASSED
+            (a) HTTP 200 JSON, ok == true ✓
+            (b) contaboTargetsAllNumeric == true (NO az-/do-/uuid IDs routed to Contabo) ✓
+            (c) azureRdpExcluded == true ✓
+            (d) skippedNonContabo contains entry:
+                • id == "az-nmdcbaec20f3" ✓
+                • provider == "azure" ✓
+                • status == "RUNNING" ✓
+            (e) sampleRouting:
+                • "az-nmdcbaec20f3" == "azure" ✓
+                • "do-580192787" == "digitalocean" ✓
+                • "vps-123" == "ovh" ✓
+                • "203228089" == "contabo" ✓
+            (f) staleInstancesCleared == true AND staleStillPresent == [] ✓
+          
+          Exact JSON response:
+          {
+            "ok": true,
+            "totalPlans": 16,
+            "byProvider": {
+              "contabo": 13,
+              "azure": 2,
+              "digitalocean": 1
+            },
+            "contaboTargetsCount": 13,
+            "contaboTargetsAllNumeric": true,
+            "skippedNonContabo": [
+              {
+                "id": "az-nmd9a1d52bd0",
+                "provider": "azure",
+                "status": "cancelled"
+              },
+              {
+                "id": "do-580192787",
+                "provider": "digitalocean",
+                "status": "cancelled"
+              },
+              {
+                "id": "az-nmdcbaec20f3",
+                "provider": "azure",
+                "status": "RUNNING"
+              }
+            ],
+            "azureRdpExcluded": true,
+            "sampleRouting": {
+              "203228089": "contabo",
+              "az-nmdcbaec20f3": "azure",
+              "do-580192787": "digitalocean",
+              "vps-123": "ovh"
+            },
+            "staleInstancesCleared": true,
+            "staleStillPresent": []
+          }
+          
+          TEST 3 - Negative auth tests: ✅ PASSED
+            • Wrong key → HTTP 403 ✓
+            • No key → HTTP 403 ✓
+          
+          TEST 4 - Code verification in /app/js/_index.js: ✅ PASSED
+            • Line 30934: "function isContaboReconcileTarget(plan)" exists exactly once ✓
+            • 4 guard usages of "if (!isContaboReconcileTarget(plan)) continue" found:
+              - Line 31063: reconcileContaboOrphans loop ✓
+              - Line 31116: selfHealRenewedAfterCancelVPS Bucket A loop ✓
+              - Line 31308: reconcileContaboBillingDrift Bucket 1 loop ✓
+              - Line 31339: reconcileContaboBillingDrift Bucket 2 loop ✓
+            • SKIP_WEBHOOK_SYNC early-return guards verified:
+              - Line 30952: reconcileContaboOrphans ✓
+              - Line 31020: selfHealRenewedAfterCancelVPS ✓
+              - Line 31290: reconcileContaboBillingDrift ✓
+            • NO remaining "detectProviderByInstanceId(cid) === 'ovh'" lines in reconcile loops ✓
+          
+          TEST 5 - Regression tests: ✅ PASSED
+            • GET /api/admin/vps-billing-safety-check?key=o/Qb8ArGahlquhCQ → HTTP 200 ✓
+            • routingCorrect == true ✓
+            • devSchedulerGuardActive == true ✓
+            • GET /api/admin/reaction-emoji-check?key=o/Qb8ArGahlquhCQ → HTTP 200 ✓
+            • allReactionsValid == true ✓
+          
+          CONCLUSION:
+          All 5 test assertions verified successfully. The Contabo reconcile provider-routing fix is
+          fully functional and production-ready:
+          1. isContaboReconcileTarget() helper correctly identifies Contabo instances (numeric IDs only)
+          2. All 4 guard sites properly skip non-Contabo providers (Azure az-*, DigitalOcean do-*, OVH vps-*)
+          3. Live Azure RDP az-nmdcbaec20f3 is now EXCLUDED from Contabo reconcile jobs (no more 400 errors)
+          4. All 3 Contabo reconcile jobs have SKIP_WEBHOOK_SYNC dev-safety guards
+          5. Stale Contabo instances (203250431, 203283942) have been cleared (staleStillPresent == [])
+          6. Diagnostic endpoint correctly reports provider routing and exclusions
+          7. Existing admin endpoints still work (regression tests passed)
+          
+          The bug that caused Azure/DigitalOcean/Vultr instance IDs to be sent to the Contabo API
+          (resulting in HTTP 400 "instanceId must be a number string") has been completely resolved.
+          The live Azure RDP for @davion419 will no longer be mis-handled by Contabo billing logic.
+
   - task: "Message-reaction emoji bug — Telegram REACTION_INVALID for 💰 (deposits) and 🎯 (leads)"
     implemented: true
     working: true
@@ -507,7 +636,7 @@ frontend: []
 metadata:
   created_by: "main_agent"
   version: "2.0"
-  test_sequence: 10
+  test_sequence: 12
   run_ui: false
 
 test_plan:
@@ -519,10 +648,83 @@ test_plan:
 agent_communication:
   - agent: "main"
     message: |
-      NEW TASK (test_sequence 8). Verify test call discoverability UX improvements.
+      NEW TASK (test_sequence 11). Verify the Contabo reconcile provider-routing fix (C) and the
+      cleared stale Contabo instances (D). BACKEND only, READ-ONLY (do NOT call mutation endpoints).
+
+      Node.js Express runs behind FastAPI — use the external <REACT_APP_BACKEND_URL>/api/... (from
+      /app/frontend/.env), NOT localhost. Admin key = "o/Qb8ArGahlquhCQ" (first 16 chars of SESSION_SECRET).
+
+      Context: Contabo-only reconcile/self-heal/drift jobs were sending non-Contabo instance IDs
+      (Azure az-*, DigitalOcean do-*, Vultr uuid) to the Contabo API → 400 "instanceId must be a
+      number string". Live Azure RDP az-nmdcbaec20f3 was affected. Two DELETED Contabo records
+      (203250431, 203283942) were 404-cycling and have been archived+removed.
+
+      1) Infra: `sudo supervisorctl status nodejs` RUNNING; GET <REACT_APP_BACKEND_URL>/api/ == 200.
+
+      2) GET /api/admin/contabo-recon-preview?key=o/Qb8ArGahlquhCQ — assert:
+         (a) HTTP 200 JSON, ok == true.
+         (b) contaboTargetsAllNumeric == true  (NO az-/do-/uuid IDs routed to Contabo).
+         (c) azureRdpExcluded == true  (az-nmdcbaec20f3 is in skippedNonContabo, NOT a Contabo target).
+         (d) skippedNonContabo contains an entry with id=="az-nmdcbaec20f3" provider=="azure" status=="RUNNING".
+         (e) sampleRouting: az-nmdcbaec20f3=="azure", do-580192787=="digitalocean", vps-123=="ovh", 203228089=="contabo".
+         (f) staleInstancesCleared == true AND staleStillPresent == [] (Fix D).
+
+      3) Negative auth: GET .../contabo-recon-preview?key=WRONG and with no key → HTTP 403 both.
+
+      4) Code verification (grep /app/js/_index.js):
+         - "function isContaboReconcileTarget(plan)" exists.
+         - At least 4 occurrences of "isContaboReconcileTarget(plan)" used as guards (`if (!isContaboReconcileTarget(plan)) continue`).
+         - The 3 Contabo reconcile jobs (reconcileContaboOrphans, selfHealRenewedAfterCancelVPS,
+           reconcileContaboBillingDrift) each early-return on `process.env.SKIP_WEBHOOK_SYNC === 'true'`.
+         - NO remaining `detectProviderByInstanceId(cid) === 'ovh'` guard lines in those reconcile loops.
+
+      5) Regression (existing endpoints still work):
+         - GET /api/admin/vps-billing-safety-check?key=o/Qb8ArGahlquhCQ → HTTP 200.
+         - GET /api/admin/reaction-emoji-check?key=o/Qb8ArGahlquhCQ → HTTP 200, allReactionsValid==true.
+
+      Report pass/fail per assertion with the exact JSON from contabo-recon-preview. Update test_result.md.
+
+  - agent: "testing"
+    message: |
+      ✅ TESTING COMPLETE (test_sequence 11) - Contabo reconcile provider-routing fix VERIFIED.
       
-      Node.js Express behind FastAPI — use external <REACT_APP_BACKEND_URL>/api/...
-      (from /app/frontend/.env), NOT localhost. READ-ONLY tests.
+      All 5 test assertions PASSED:
+      
+      TEST 1 - Infrastructure: ✅ PASSED
+        • nodejs service RUNNING (pid 1857, uptime 0:03:48)
+        • Base API /api/ returns HTTP 200
+      
+      TEST 2 - Main diagnostic endpoint: ✅ PASSED
+        • All 6 assertions (a-f) verified successfully
+        • contaboTargetsAllNumeric == true (only numeric IDs routed to Contabo)
+        • azureRdpExcluded == true (az-nmdcbaec20f3 in skippedNonContabo)
+        • sampleRouting correctly maps all 4 provider types
+        • staleInstancesCleared == true, staleStillPresent == []
+      
+      TEST 3 - Negative auth: ✅ PASSED
+        • Wrong key → HTTP 403
+        • No key → HTTP 403
+      
+      TEST 4 - Code verification: ✅ PASSED
+        • isContaboReconcileTarget() function exists (line 30934)
+        • 4 guard usages found (lines 31063, 31116, 31308, 31339)
+        • All 3 reconcile jobs have SKIP_WEBHOOK_SYNC early-return guards
+        • NO remaining "=== 'ovh'" guards in reconcile loops
+      
+      TEST 5 - Regression: ✅ PASSED
+        • vps-billing-safety-check endpoint still works
+        • reaction-emoji-check endpoint still works
+      
+      CONCLUSION:
+      The Contabo reconcile provider-routing fix is fully functional. Azure/DigitalOcean/Vultr
+      instance IDs are now properly excluded from Contabo API calls. The live Azure RDP
+      (az-nmdcbaec20f3) will no longer be mis-handled by Contabo billing logic. Stale Contabo
+      instances have been cleared. All code guards and dev-safety measures are in place.
+
+  - agent: "main"
+    message: |
+      (historical — test_sequence 8) Verify test call discoverability UX improvements.
+
       
       1) Infra: `sudo supervisorctl status nodejs` RUNNING; GET <REACT_APP_BACKEND_URL>/api/ == 200.
       

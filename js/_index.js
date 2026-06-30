@@ -30925,9 +30925,32 @@ schedule.scheduleJob('0 8 * * *', function() {
   reconcileContaboBillingDrift()
 })
 
+// ── Provider guard for the Contabo-specific reconcile / self-heal / drift paths ──
+// Returns true ONLY when this vpsPlansOf record is a Contabo instance. Azure
+// (az-*), DigitalOcean (do-*), Vultr (uuid) and OVH (vps-*) records MUST be
+// skipped — passing their IDs to the Contabo API throws 400 "instanceId must be
+// a number string" (the az-* RDP leak seen in the 2026-06-30 prod logs) or 404s.
+// The DB `provider` field is authoritative; fall back to instanceId-format detect.
+function isContaboReconcileTarget(plan) {
+  try {
+    const { detectProviderByInstanceId } = require('./vps-provider')
+    const cid = plan?.contaboInstanceId ?? plan?.vpsId
+    if (cid == null) return false
+    const prov = (plan.provider || '').toLowerCase() || detectProviderByInstanceId(cid)
+    return prov === 'contabo'
+  } catch { return false }
+}
+
 async function reconcileContaboOrphans() {
   if (!vpsPlansOf || typeof vpsPlansOf.find !== 'function') {
     console.log('[Orphan Recon] Database not ready — skipping')
+    return
+  }
+  // Dev-safety: never run Contabo reconcile from a dev/sandbox pod (it shares the
+  // production MONGO_URL + production Contabo API keys). Production leaves
+  // SKIP_WEBHOOK_SYNC unset/false so this runs normally there.
+  if (process.env.SKIP_WEBHOOK_SYNC === 'true') {
+    log('[Orphan Recon] SKIP_WEBHOOK_SYNC=true — skipping (dev sandbox)')
     return
   }
   try {
@@ -30991,11 +31014,17 @@ async function selfHealRenewedAfterCancelVPS() {
     console.log('[VPS Self-heal] Database not ready — skipping')
     return
   }
+  // Dev-safety: this job rotates passwords, shuts down and DELETES live Contabo
+  // instances. The dev/sandbox pod shares the production DB + Contabo keys, so
+  // it must NOT run here. Production leaves SKIP_WEBHOOK_SYNC unset.
+  if (process.env.SKIP_WEBHOOK_SYNC === 'true') {
+    log('[VPS Self-heal] SKIP_WEBHOOK_SYNC=true — skipping (dev sandbox)')
+    return
+  }
   let healed = 0
   let alerted = 0
   try {
     const contabo = require('./contabo-service.js')
-    const { detectProviderByInstanceId } = require('./vps-provider')
     // Bucket A: DB cancelled/deleted (renewed-after-cancel + cancel-never-propagated)
     const cancelled = await vpsPlansOf.find({
       status: { $in: ['CANCELLED', 'DELETED'] },
@@ -31031,7 +31060,7 @@ async function selfHealRenewedAfterCancelVPS() {
     for (const plan of autoRenewOffNoCancel) {
       const cid = plan.contaboInstanceId ?? plan.vpsId
       if (!cid) continue
-      if (detectProviderByInstanceId(cid) === 'ovh') continue // OVH: per-event smart-proxy cancel sets deleteAtExpiration; Contabo drift logic N/A
+      if (!isContaboReconcileTarget(plan)) continue // Contabo-only path — skip OVH/Azure/DO/Vultr (else Contabo API 400 "instanceId must be a number string")
       try {
         const live = await contabo.getInstance(cid)
         if (live.cancelDate || live.status === 'cancelled' || live.status === 'stopped') {
@@ -31084,7 +31113,7 @@ async function selfHealRenewedAfterCancelVPS() {
     for (const plan of cancelled) {
       const cid = plan.contaboInstanceId ?? plan.vpsId
       if (!cid) continue
-      if (detectProviderByInstanceId(cid) === 'ovh') continue // OVH: Contabo cancelDate self-heal does not apply
+      if (!isContaboReconcileTarget(plan)) continue // Contabo-only path — skip OVH/Azure/DO/Vultr
 
       let live
       try {
@@ -31095,14 +31124,33 @@ async function selfHealRenewedAfterCancelVPS() {
         // prod: instance 203250431 was 404-cycling for hours, see the
         // 2026-06-08 anomaly report.)
         if (err?.status === 404) {
-          await vpsPlansOf.updateOne(
-            { _id: plan._id },
-            { $set: {
-                _selfHealAttemptedAt: new Date(),
-                _selfHealReason: 'contabo_404_already_gone',
-                _contaboCancelledEarly: true,
-            } }
-          )
+          // Instance is gone from Contabo AND the DB plan is already
+          // CANCELLED/DELETED → archive + remove so it stops 404-cycling
+          // forever (prod: 203250431 / 203283942 cycled for hours). The
+          // archive into vpsPlansOf_revoked preserves billing history.
+          try {
+            await revoked.insertOne({
+              ...plan,
+              _archivedAt: new Date(),
+              _archivedReason: 'contabo_404_already_gone',
+              _archivedBy: 'selfHealRenewedAfterCancelVPS',
+              _originalId: plan._id,
+              _id: undefined,
+            })
+            await vpsPlansOf.deleteOne({ _id: plan._id })
+            log(`[VPS Self-heal] CLEARED ${cid} — 404 on Contabo + DB ${plan.status}; archived + removed from vpsPlansOf`)
+          } catch (archErr) {
+            // Fallback: at least stamp so we don't hammer Contabo every cycle
+            await vpsPlansOf.updateOne(
+              { _id: plan._id },
+              { $set: {
+                  _selfHealAttemptedAt: new Date(),
+                  _selfHealReason: 'contabo_404_already_gone',
+                  _contaboCancelledEarly: true,
+              } }
+            )
+            log(`[VPS Self-heal] ${cid} 404 archive failed (${archErr.message}); stamped instead`)
+          }
           continue
         }
         log(`[VPS Self-heal] Could not fetch ${cid}: ${err.message || err}`)
@@ -31238,9 +31286,13 @@ async function reconcileContaboBillingDrift() {
     console.log('[VPS Drift] Database not ready — skipping')
     return
   }
+  // Dev-safety: mutates Contabo cancel state on the shared production account.
+  if (process.env.SKIP_WEBHOOK_SYNC === 'true') {
+    log('[VPS Drift] SKIP_WEBHOOK_SYNC=true — skipping (dev sandbox)')
+    return
+  }
   try {
     const contabo = require('./contabo-service.js')
-    const { detectProviderByInstanceId } = require('./vps-provider')
 
     // Bucket 1: autoRenewable=false but Contabo cancelDate not yet set → cancel now
     const candidatesA = await vpsPlansOf.find({
@@ -31253,7 +31305,7 @@ async function reconcileContaboBillingDrift() {
     for (const plan of candidatesA) {
       const cid = plan.contaboInstanceId ?? plan.vpsId
       if (!cid) continue
-      if (detectProviderByInstanceId(cid) === 'ovh') continue // OVH: handled by per-event cancel (deleteAtExpiration), not Contabo drift
+      if (!isContaboReconcileTarget(plan)) continue // Contabo-only path — skip OVH/Azure/DO/Vultr
       try {
         const live = await contabo.getInstance(cid)
         if (live.cancelDate) {
@@ -31284,6 +31336,7 @@ async function reconcileContaboBillingDrift() {
     for (const plan of candidatesB) {
       const cid = plan.contaboInstanceId ?? plan.vpsId
       if (!cid) continue
+      if (!isContaboReconcileTarget(plan)) continue // Contabo-only path — skip OVH/Azure/DO/Vultr
       try {
         const live = await contabo.getInstance(cid)
         if (!live.cancelDate) {
@@ -35467,6 +35520,56 @@ app.get('/admin/vps-flow-check', (req, res) => {
         chargedPrice: 18,                  // wallet path charges Number(vpsDetails.totalPrice)
         displayEqualsCharge: linuxDisplayPrice === 18,
       },
+    })
+  } catch (e) {
+    return res.status(500).json({ error: e.message })
+  }
+})
+
+// ── Admin: read-only Contabo-reconcile routing preview (verification) ─────
+// Confirms the provider guard (added 2026-06-30) excludes non-Contabo
+// instances — Azure (az-*), DigitalOcean (do-*), Vultr (uuid), OVH (vps-*) —
+// from the Contabo-only reconcile/self-heal/drift paths, and that the cleared
+// stale instances (203250431 / 203283942) are gone. READ-ONLY.
+app.get('/admin/contabo-recon-preview', async (req, res) => {
+  if (req?.query?.key !== process.env.SESSION_SECRET?.slice(0, 16)) {
+    return res.status(403).json({ error: 'Unauthorized' })
+  }
+  try {
+    const { detectProviderByInstanceId } = require('./vps-provider')
+    const plans = (vpsPlansOf && typeof vpsPlansOf.find === 'function')
+      ? await vpsPlansOf.find({}).toArray() : []
+    const contaboTargets = []
+    const skippedNonContabo = []
+    const byProvider = {}
+    for (const p of plans) {
+      const cid = p.contaboInstanceId ?? p.vpsId
+      const prov = (p.provider || '').toLowerCase() || detectProviderByInstanceId(cid) || 'unknown'
+      byProvider[prov] = (byProvider[prov] || 0) + 1
+      if (isContaboReconcileTarget(p)) contaboTargets.push(String(cid))
+      else skippedNonContabo.push({ id: String(cid), provider: prov, status: p.status })
+    }
+    const staleIds = ['203250431', '203283942']
+    const presentIds = new Set(plans.map(p => String(p.contaboInstanceId ?? p.vpsId)))
+    const staleStillPresent = staleIds.filter(id => presentIds.has(id))
+    return res.json({
+      ok: true,
+      totalPlans: plans.length,
+      byProvider,
+      contaboTargetsCount: contaboTargets.length,
+      contaboTargetsAllNumeric: contaboTargets.every(id => /^\d+$/.test(id)),
+      skippedNonContabo,
+      // The live Azure RDP that was 400-erroring must now be SKIPPED:
+      azureRdpExcluded: !contaboTargets.includes('az-nmdcbaec20f3') &&
+        !!skippedNonContabo.find(s => s.id === 'az-nmdcbaec20f3'),
+      sampleRouting: {
+        'az-nmdcbaec20f3': detectProviderByInstanceId('az-nmdcbaec20f3'),
+        'do-580192787': detectProviderByInstanceId('do-580192787'),
+        'vps-123': detectProviderByInstanceId('vps-123'),
+        '203228089': detectProviderByInstanceId('203228089'),
+      },
+      staleInstancesCleared: staleStillPresent.length === 0,
+      staleStillPresent,
     })
   } catch (e) {
     return res.status(500).json({ error: e.message })
