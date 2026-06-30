@@ -48,6 +48,7 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env') })
 
 const dnsChecker = require('./dns-checker')
 const opService = require('./op-service')
+const cfService = require('./cf-service')
 
 // ── Config ──────────────────────────────────────────────────────────────────
 const INTERVAL_MIN = parseInt(process.env.DNS_HEAL_INTERVAL_MIN || '5', 10)
@@ -125,6 +126,36 @@ async function attemptHeal(domain, cfNameservers) {
     return { ok: false, action: 'noop', error: 'missing CF nameservers for domain' }
   }
 
+  // 0) CF-zone pre-check (Fix 1, 2026-06-30). Pre-delegation registries (DENIC
+  //    et al.) run a nameserver test and only publish our CF NS once the CF zone
+  //    exists and is serving the domain. Re-pushing NS to the registry while the
+  //    CF zone is MISSING is futile — that is why rsvpcrumelbell.de /
+  //    rsvpeviteguestview.de looped forever. Ensure the zone exists first
+  //    (createZone is idempotent) and surface its status for escalation.
+  //    Best-effort: only hard-block when the zone is missing AND can't be created.
+  let cfZoneStatus = null
+  if (PRE_DELEGATION_TLDS.has(tldOf(domain))) {
+    try {
+      const zone = await cfService.getZoneByName(domain)
+      if (!zone) {
+        log(`${domain}: CF zone missing — creating before registry NS push (pre-delegation requirement)`)
+        const created = await cfService.createZone(domain)
+        cfZoneStatus = created?.status || (created?.success ? 'created' : 'create-failed')
+        if (!created?.success) {
+          return { ok: false, action: 'cf-zone-create-failed', cfZoneStatus,
+            error: `CF zone missing and could not be created: ${JSON.stringify(created?.errors || created)}` }
+        }
+      } else {
+        cfZoneStatus = zone.status
+      }
+      if (cfZoneStatus && cfZoneStatus !== 'active') {
+        log(`${domain}: CF zone status='${cfZoneStatus}' (not yet active) — pushing NS anyway so the registry can confirm CF delegation`)
+      }
+    } catch (e) {
+      log(`${domain}: CF zone pre-check soft-failed: ${e.message} — proceeding with NS push`)
+    }
+  }
+
   // 1) Best-effort DNSSEC disable. Most domains never had DNSSEC set; this is
   //    a no-op for them but cheap. If it fails, log + continue — the real
   //    work is updateNameservers, which has its own DNSSEC autofix.
@@ -139,11 +170,11 @@ async function attemptHeal(domain, cfNameservers) {
   try {
     const upd = await opService.updateNameservers(domain, cfNameservers)
     if (upd && upd.error) {
-      return { ok: false, action: 'updateNameservers', error: upd.error }
+      return { ok: false, action: 'updateNameservers', error: upd.error, cfZoneStatus }
     }
-    return { ok: true, action: 'updateNameservers', error: null }
+    return { ok: true, action: 'updateNameservers', error: null, cfZoneStatus }
   } catch (e) {
-    return { ok: false, action: 'updateNameservers', error: e.message }
+    return { ok: false, action: 'updateNameservers', error: e.message, cfZoneStatus }
   }
 }
 
@@ -179,8 +210,22 @@ async function pickBatch(db) {
     .limit(200)
     .toArray()
 
+  // FIX (2026-06-30): exclude domains that ALREADY have a dnsHealState row of
+  // ANY status (not just the currently-due ones). Previously `existingIds` only
+  // held the *due* rows, so a domain in 'escalated'/'healing' with a future
+  // nextProbeAt got re-injected here as a fresh {attempts:0} candidate every
+  // tick — resetting the escalation ladder and logging "attempt 1/3" forever.
+  const newRegIds = newReg.map((r) => r._id)
+  const tracked = newRegIds.length
+    ? new Set(
+        (await stateCol
+          .find({ _id: { $in: newRegIds } }, { projection: { _id: 1 } })
+          .toArray()).map((s) => s._id)
+      )
+    : new Set()
+
   const newCandidates = newReg
-    .filter((r) => !existingIds.has(r._id))
+    .filter((r) => !existingIds.has(r._id) && !tracked.has(r._id))
     .map((r) => ({ _id: r._id, status: 'unknown', attempts: 0, consecutiveHealthy: 0 }))
 
   return [...dueExisting, ...newCandidates]
@@ -301,12 +346,22 @@ async function processDomain(db, stateRow, regCol, stateCol) {
   log(`${domain}: unhealthy (${probe.reason}) — heal attempt ${attempts + 1}/${MAX_ATTEMPTS}, CF NS=${cfNs.join(',')}`)
   const heal = await attemptHeal(domain, cfNs)
   const nextAttempts = attempts + 1
-  const escalateNow = !heal.ok && nextAttempts >= MAX_ATTEMPTS
+  // FIX (2026-06-30): escalate once we've tried MAX_ATTEMPTS, REGARDLESS of
+  // whether OpenProvider's API "accepted" the push. For .de / pre-delegation
+  // TLDs, OP routinely returns ok=true while DENIC silently keeps the old NS —
+  // the previous `!heal.ok` guard meant those NEVER escalated and the admin was
+  // never alerted (they just re-pushed every cycle forever).
+  const escalateNow = nextAttempts >= MAX_ATTEMPTS
   const status = escalateNow ? 'escalated' : 'healing'
 
   const backoffMin = escalateNow
     ? BACKOFF_LADDER_MIN[BACKOFF_LADDER_MIN.length - 1]
     : nextBackoffMin(attempts)
+
+  // Quick 5m recheck only for non-pre-delegation TLDs after a successful push.
+  // Pre-delegation TLDs (.de etc.) need real registry-propagation time, so use
+  // the backoff ladder even when OP accepted the push.
+  const nextProbeMin = (heal.ok && !preDelegationTld) ? HEAL_RECHECK_MIN : backoffMin
 
   await stateCol.updateOne(
     { _id: domain },
@@ -316,29 +371,35 @@ async function processDomain(db, stateRow, regCol, stateCol) {
       attempts: nextAttempts,
       lastHealAttemptAt: now(),
       lastProbeAt: now(),
-      nextProbeAt: addMin(heal.ok ? HEAL_RECHECK_MIN : backoffMin),
+      nextProbeAt: addMin(nextProbeMin),
       lastError: heal.error || probe.reason,
       lastHealAction: heal.action,
+      lastCfZoneStatus: heal.cfZoneStatus || null,
       lastPublicNs: probe.publicNs,
       lastPublicA: probe.publicA,
     } },
     { upsert: true }
   )
 
-  log(`${domain}: heal action=${heal.action} ok=${heal.ok} err=${heal.error || '-'} → status=${status}, nextProbe=+${heal.ok ? HEAL_RECHECK_MIN : backoffMin}m`)
+  log(`${domain}: heal action=${heal.action} ok=${heal.ok} cfZone=${heal.cfZoneStatus || '-'} err=${heal.error || '-'} → status=${status}, nextProbe=+${nextProbeMin}m`)
 
   // Escalation notice (sent once, when crossing into escalated)
   if (escalateNow && notifyAdmin) {
+    const registryHint = preDelegationTld
+      ? `\n\n⚠️ <i>.${tld} is a pre-delegation TLD. OpenProvider accepted the push (ok=${heal.ok}) but the registry (e.g. DENIC) has not published our CF NS. If CF zone status is not 'active', fix/await CF activation; otherwise open an OpenProvider support ticket to manually reset the .${tld} pre-delegation.</i>`
+      : ''
     notifyAdmin(
       `🚨 <b>[DnsHealer] ESCALATED</b>\n` +
       `Domain: <code>${domain}</code> (TLD .${tld})\n` +
       `Owner: <code>${ownerChatId || 'unknown'}</code>\n` +
       `Attempts: ${nextAttempts}/${MAX_ATTEMPTS}\n` +
+      `CF zone status: <code>${heal.cfZoneStatus || 'unknown'}</code>\n` +
       `Last reason: ${probe.reason}\n` +
-      `Last heal error: ${heal.error || '-'}\n` +
+      `Last heal: action=${heal.action} ok=${heal.ok} err=${heal.error || '-'}\n` +
       `Public NS: <code>${(probe.publicNs.join(', ') || '∅')}</code>\n` +
       `Public A: <code>${(probe.publicA.join(', ') || '∅')}</code>\n` +
-      `CF NS expected: <code>${cfNs.join(', ')}</code>\n\n` +
+      `CF NS expected: <code>${cfNs.join(', ')}</code>` +
+      registryHint + `\n\n` +
       `Manual retry: <code>/dnsheal ${domain}</code>`
     )
   }

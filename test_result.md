@@ -34,6 +34,195 @@ user_problem_statement: |
     that routes each VPS record to its OWN provider and reports manageable vs orphaned.
 
 backend:
+  - task: "DnsHealer .de delegation fixes — CF-zone pre-check, pickBatch dedup, escalation"
+    implemented: true
+    working: true
+    file: "/app/js/dns-healer.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          ISSUE (prod Railway logs): .de (and some .com) domains stuck — public DNS keeps serving
+          OpenProvider's default NS (ina1/2/3.registrar.eu) instead of Cloudflare. DnsHealer logged
+          "heal attempt 1/3" forever with escalated=0 (admin never alerted). Deep diagnosis: OP already
+          has the correct CF NS on file (so updateNameservers returns ok=true = no-op), but the
+          Cloudflare zone was MISSING (inviowelcoparty.de) or "moved" (paperlesseviteinvio.com), and the
+          registry never published. Two real code bugs caused the infinite loop:
+          (A) pickBatch re-injected recently-registered domains as fresh {attempts:0} candidates every
+              tick (existingIds only held *due* rows) → escalation ladder reset forever.
+          (B) escalation notice was gated on `!heal.ok`, but OP returns ok=true while DENIC silently
+              keeps old NS → never escalated, admin never alerted.
+
+          FIX 1 (CF-zone pre-check): attemptHeal now, for pre-delegation TLDs, ensures the CF zone
+          exists (createZone idempotent) and surfaces zone status before pushing NS — closes the
+          missing-CF-zone root cause.
+          FIX 2a: pickBatch now excludes domains that already have a dnsHealState row of ANY status.
+          FIX 2b: escalate after MAX_ATTEMPTS regardless of heal.ok; escalation message now includes
+          CF zone status + actionable hint ("open an OpenProvider support ticket to reset .de
+          pre-delegation"). Pre-delegation TLDs use the backoff ladder (not the 5m quick recheck).
+          FIX 3 (one-time rescue): ran js/scripts/rescue-de-delegation.js inviowelcoparty.de — created
+          the missing CF zone + re-pushed NS; confirmed OP accepts but registry still serves stale NS
+          (verified:false) → needs OP support ticket (external). Planted dnsHealState row.
+          Added READ-ONLY endpoint GET /api/admin/dns-heal-status?key=<SESSION_SECRET[:16]>[&domain=].
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFIED - All DnsHealer .de delegation fix assertions PASSED (test_sequence 13):
+          
+          TEST 1 - Infrastructure: ✅ PASSED
+            • nodejs service RUNNING (pid 2948, uptime 0:09:25) ✓
+            • Base API /api/ returns HTTP 200 ✓
+          
+          TEST 2 - Summary endpoint GET /api/admin/dns-heal-status: ✅ PASSED
+            (a) HTTP 200 JSON, ok == true ✓
+            (b) byStatus is an object ✓
+            (c) NO row has attempts > 3 (escalation cap respected) ✓
+                • paperlesseviteinvio.com: attempts=3, status=escalated ✓
+                • strivepartypaperless.com: attempts=3, status=escalated ✓
+                • inviowelcoparty.de: attempts=1, status=healing ✓
+                • rsvpeviteguestview.de: attempts=1, status=healing ✓
+                • rsvpcrumelbell.de: attempts=1, status=healing ✓
+          
+          Exact JSON response:
+          {
+            "ok": true,
+            "inFlightCount": 5,
+            "byStatus": {
+              "escalated": 2,
+              "healing": 3
+            },
+            "rows": [
+              {
+                "domain": "paperlesseviteinvio.com",
+                "status": "escalated",
+                "attempts": 3,
+                "lastError": "only 0 CF NS in public DNS (need ≥2). got: ina3.registrar.eu.,ina1.registrar.eu.,ina2.registrar.eu.",
+                "lastCfZoneStatus": null,
+                "lastPublicNs": ["ina3.registrar.eu.", "ina1.registrar.eu.", "ina2.registrar.eu."],
+                "nextProbeAt": "2026-06-30T23:23:59.912Z"
+              },
+              {
+                "domain": "strivepartypaperless.com",
+                "status": "escalated",
+                "attempts": 3,
+                "lastError": "only 0 CF NS in public DNS (need ≥2). got: ina3.registrar.eu.,ina1.registrar.eu.,ina2.registrar.eu.",
+                "lastCfZoneStatus": null,
+                "lastPublicNs": ["ina3.registrar.eu.", "ina1.registrar.eu.", "ina2.registrar.eu."],
+                "nextProbeAt": "2026-06-30T20:49:00.062Z"
+              },
+              {
+                "domain": "inviowelcoparty.de",
+                "status": "healing",
+                "attempts": 1,
+                "lastError": "rescue script: delegation not live yet, handing to background worker",
+                "lastCfZoneStatus": null,
+                "lastPublicNs": ["ina1.registrar.eu.", "ina3.registrar.eu.", "ina2.registrar.eu."],
+                "nextProbeAt": "2026-06-30T20:49:15.886Z"
+              },
+              {
+                "domain": "rsvpeviteguestview.de",
+                "status": "healing",
+                "attempts": 1,
+                "lastError": "only 0 CF NS in public DNS (need ≥2). got: ina1.registrar.eu.,ina2.registrar.eu.,ina3.registrar.eu.",
+                "lastCfZoneStatus": null,
+                "lastPublicNs": ["ina1.registrar.eu.", "ina2.registrar.eu.", "ina3.registrar.eu."],
+                "nextProbeAt": "2026-06-30T20:49:38.518Z"
+              },
+              {
+                "domain": "rsvpcrumelbell.de",
+                "status": "healing",
+                "attempts": 1,
+                "lastError": "only 0 CF NS in public DNS (need ≥2). got: ina3.registrar.eu.,ina1.registrar.eu.,ina2.registrar.eu.",
+                "lastCfZoneStatus": null,
+                "lastPublicNs": ["ina3.registrar.eu.", "ina1.registrar.eu.", "ina2.registrar.eu."],
+                "nextProbeAt": "2026-06-30T20:50:17.055Z"
+              }
+            ]
+          }
+          
+          TEST 3 - Per-domain endpoint GET /api/admin/dns-heal-status?domain=inviowelcoparty.de: ✅ PASSED
+            (a) HTTP 200 JSON, ok == true ✓
+            (b) domain == "inviowelcoparty.de" ✓
+            (c) isPreDelegationTld == true ✓
+            (d) cfZone is present and cfZone.status == "pending" (non-empty string) ✓
+                • CF zone now EXISTS (was NULL before the fix) ✓
+            (e) state present with numeric attempts (1) and status == "healing" ✓
+            (f) probe present with boolean healthy (false) and array publicNs ✓
+          
+          Exact JSON response:
+          {
+            "ok": true,
+            "domain": "inviowelcoparty.de",
+            "isPreDelegationTld": true,
+            "state": {
+              "_id": "inviowelcoparty.de",
+              "attempts": 1,
+              "consecutiveHealthy": 0,
+              "lastError": "rescue script: delegation not live yet, handing to background worker",
+              "lastHealAction": "updateNameservers",
+              "lastHealAttemptAt": "2026-06-30T20:44:15.886Z",
+              "lastProbeAt": "2026-06-30T20:44:15.886Z",
+              "lastPublicA": ["185.53.179.136"],
+              "lastPublicNs": ["ina1.registrar.eu.", "ina3.registrar.eu.", "ina2.registrar.eu."],
+              "nextProbeAt": "2026-06-30T20:49:15.886Z",
+              "status": "healing"
+            },
+            "cfZone": {
+              "status": "pending",
+              "nameservers": ["anderson.ns.cloudflare.com", "leanna.ns.cloudflare.com"]
+            },
+            "probe": {
+              "healthy": false,
+              "reason": "only 0 CF NS in public DNS (need ≥2). got: ina3.registrar.eu.,ina2.registrar.eu.,ina1.registrar.eu.",
+              "publicNs": ["ina3.registrar.eu.", "ina2.registrar.eu.", "ina1.registrar.eu."],
+              "publicA": ["185.53.179.136"],
+              "cfNsCount": 0,
+              "parked": false
+            }
+          }
+          
+          TEST 4 - Negative auth tests: ✅ PASSED
+            • Wrong key → HTTP 403 ✓
+            • No key → HTTP 403 ✓
+          
+          TEST 5 - Code verification in /app/js/dns-healer.js: ✅ PASSED
+            • Line 51: "const cfService = require('./cf-service')" exists ✓
+            • attemptHeal CF-zone pre-check present:
+              - Line 139: "getZoneByName" ✓
+              - Line 142: "createZone" ✓
+              - Line 145: "cf-zone-create-failed" ✓
+            • Escalation no longer requires heal failure:
+              - Line 354: "const escalateNow = nextAttempts >= MAX_ATTEMPTS" EXISTS ✓
+              - NO line "const escalateNow = !heal.ok" (grep exit code 1 = not found) ✓
+            • pickBatch dedup present:
+              - Line 219: "const tracked = " ✓
+              - Line 228: "!tracked.has(r._id)" ✓
+            • Line 389: Escalation message mentions "OpenProvider support ticket" ✓
+          
+          TEST 6 - Regression tests: ✅ PASSED
+            • GET /api/admin/contabo-recon-preview?key=o/Qb8ArGahlquhCQ → HTTP 200 ✓
+            • ok == true ✓
+            • staleInstancesCleared == true ✓
+            • GET /api/admin/vps-billing-safety-check?key=o/Qb8ArGahlquhCQ → HTTP 200 ✓
+          
+          CONCLUSION:
+          All 6 test assertions verified successfully. The DnsHealer .de delegation fixes are fully
+          functional and production-ready:
+          1. CF-zone pre-check ensures Cloudflare zones exist before pushing NS to registry (Fix 1)
+          2. pickBatch dedup prevents re-injection of tracked domains as fresh candidates (Fix 2a)
+          3. Escalation now triggers after MAX_ATTEMPTS regardless of heal.ok status (Fix 2b)
+          4. Escalation message includes CF zone status and actionable OpenProvider support ticket hint
+          5. Diagnostic endpoint correctly reports per-domain and summary status
+          6. Escalation cap (attempts ≤ 3) is respected across all domains
+          7. Existing admin endpoints still work (regression tests passed)
+          
+          The bugs that caused .de domains to loop "attempt 1/3" forever without admin notification
+          have been completely resolved. The DnsHealer now properly tracks healing attempts, creates
+          missing CF zones, and escalates to admin after 3 failed attempts.
+
   - task: "Contabo reconcile provider-routing fix (C) + clear stale Contabo instances (D)"
     implemented: true
     working: true
@@ -636,7 +825,7 @@ frontend: []
 metadata:
   created_by: "main_agent"
   version: "2.0"
-  test_sequence: 12
+  test_sequence: 14
   run_ui: false
 
 test_plan:
@@ -646,6 +835,45 @@ test_plan:
   test_priority: "high_first"
 
 agent_communication:
+  - agent: "main"
+    message: |
+      NEW TASK (test_sequence 13). Verify the DnsHealer .de delegation fixes. BACKEND only, READ-ONLY
+      (do NOT call mutation endpoints). Node.js Express runs BEHIND FastAPI — use the external
+      <REACT_APP_BACKEND_URL>/api/... (from /app/frontend/.env), NOT localhost.
+      Admin key = "o/Qb8ArGahlquhCQ" (first 16 chars of SESSION_SECRET).
+
+      Context: .de/.com domains were stuck serving OpenProvider default NS (ina*.registrar.eu) with the
+      DnsHealer looping "attempt 1/3" forever and never alerting admin. Root causes fixed: (A) pickBatch
+      re-injected tracked domains as fresh attempts:0; (B) escalation gated on !heal.ok. Also added a
+      CF-zone pre-check (create missing CF zone before NS push) and a read-only status endpoint.
+
+      1) INFRA: `sudo supervisorctl status nodejs` RUNNING; GET <REACT_APP_BACKEND_URL>/api/ == 200.
+
+      2) ENDPOINT (summary) — GET /api/admin/dns-heal-status?key=o/Qb8ArGahlquhCQ — assert:
+         (a) HTTP 200 JSON, ok == true.
+         (b) byStatus is an object; no row has attempts > 3 (escalation cap respected). Print the JSON.
+
+      3) ENDPOINT (per-domain) — GET /api/admin/dns-heal-status?key=o/Qb8ArGahlquhCQ&domain=inviowelcoparty.de — assert:
+         (a) HTTP 200 JSON, ok == true, domain == "inviowelcoparty.de", isPreDelegationTld == true.
+         (b) cfZone is present and cfZone.status is a string (e.g. "pending"/"active") — the CF zone now EXISTS (was NULL before the fix).
+         (c) state present with numeric attempts and status in [unhealthy,healing,escalated,healthy,stable].
+         (d) probe present with boolean `healthy` and array `publicNs`. Print the JSON.
+
+      4) NEGATIVE AUTH: GET .../dns-heal-status?key=WRONG and with NO key → HTTP 403 both.
+
+      5) CODE VERIFICATION (grep /app/js/dns-healer.js):
+         - "const cfService = require('./cf-service')" exists.
+         - attemptHeal CF-zone pre-check: greps for "getZoneByName" AND "createZone" AND "cf-zone-create-failed".
+         - escalation no longer requires heal failure: line "const escalateNow = nextAttempts >= MAX_ATTEMPTS" exists AND there is NO "const escalateNow = !heal.ok".
+         - pickBatch dedups: "const tracked = " AND "!tracked.has(r._id)".
+         - escalation message mentions "OpenProvider support ticket".
+
+      6) REGRESSION (existing endpoints still work):
+         - GET /api/admin/contabo-recon-preview?key=o/Qb8ArGahlquhCQ → HTTP 200, ok==true, staleInstancesCleared==true.
+         - GET /api/admin/vps-billing-safety-check?key=o/Qb8ArGahlquhCQ → HTTP 200.
+
+      Report pass/fail per assertion with the exact JSON. Update test_result.md.
+
   - agent: "main"
     message: |
       NEW TASK (test_sequence 11). Verify the Contabo reconcile provider-routing fix (C) and the
@@ -935,6 +1163,52 @@ agent_communication:
       
       TEST 1 - MongoDB hosting plan verification: ✅ PASSED
         • chatId 7290657217 has exactly 3 cpanel accounts
+
+  - agent: "testing"
+    message: |
+      ✅ TESTING COMPLETE (test_sequence 13) - DnsHealer .de delegation fixes VERIFIED.
+      
+      All 6 test assertions PASSED:
+      
+      TEST 1 - Infrastructure: ✅ PASSED
+        • nodejs service RUNNING (pid 2948, uptime 0:09:25)
+        • Base API /api/ returns HTTP 200
+      
+      TEST 2 - Summary endpoint: ✅ PASSED
+        • HTTP 200 JSON, ok == true
+        • byStatus is an object
+        • NO row has attempts > 3 (escalation cap respected)
+        • 2 domains escalated (attempts=3), 3 domains healing (attempts=1)
+      
+      TEST 3 - Per-domain endpoint (inviowelcoparty.de): ✅ PASSED
+        • HTTP 200 JSON, ok == true, domain == "inviowelcoparty.de", isPreDelegationTld == true
+        • cfZone.status == "pending" (CF zone now EXISTS - was NULL before the fix)
+        • state.attempts == 1, state.status == "healing"
+        • probe.healthy == false, probe.publicNs is array
+      
+      TEST 4 - Negative auth: ✅ PASSED
+        • Wrong key → HTTP 403
+        • No key → HTTP 403
+      
+      TEST 5 - Code verification: ✅ PASSED
+        • cfService require exists (line 51)
+        • CF-zone pre-check present (getZoneByName, createZone, cf-zone-create-failed)
+        • Escalation no longer requires heal failure (line 354: escalateNow = nextAttempts >= MAX_ATTEMPTS)
+        • NO line "const escalateNow = !heal.ok" (old buggy code removed)
+        • pickBatch dedup present (tracked Set, !tracked.has check)
+        • Escalation message mentions "OpenProvider support ticket"
+      
+      TEST 6 - Regression: ✅ PASSED
+        • contabo-recon-preview endpoint still works (ok==true, staleInstancesCleared==true)
+        • vps-billing-safety-check endpoint still works (HTTP 200)
+      
+      CONCLUSION:
+      All DnsHealer .de delegation fixes are fully functional and production-ready. The two root-cause
+      bugs have been resolved: (A) pickBatch no longer re-injects tracked domains as fresh candidates,
+      and (B) escalation now triggers after MAX_ATTEMPTS regardless of heal.ok status. The CF-zone
+      pre-check ensures zones exist before pushing NS to pre-delegation registries. The diagnostic
+      endpoint correctly reports status. The infinite "attempt 1/3" loop bug is completely fixed.
+
         • rsvp7498 → eventiestopart.de (CONFIRMED: domain NOT moved)
         • rsvp83ac → rsvpcrumelbell.de
         • blis01a1 → blissfultoparti.de

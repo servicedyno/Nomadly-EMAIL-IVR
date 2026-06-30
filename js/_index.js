@@ -35576,6 +35576,56 @@ app.get('/admin/contabo-recon-preview', async (req, res) => {
   }
 })
 
+// ── Admin: read-only DnsHealer status (verification for .de delegation fixes) ──
+// ?domain=<d> → detailed state + live CF zone status + fresh delegation probe.
+// no domain   → summary of in-flight (unhealthy/healing/escalated) rows. READ-ONLY.
+app.get('/admin/dns-heal-status', async (req, res) => {
+  if (req?.query?.key !== process.env.SESSION_SECRET?.slice(0, 16)) {
+    return res.status(403).json({ error: 'Unauthorized' })
+  }
+  try {
+    const dnsHealer = require('./dns-healer')
+    const cf = require('./cf-service')
+    const stateCol = db.collection('dnsHealState')
+    const domain = String(req.query.domain || '').trim().toLowerCase()
+    if (domain) {
+      const state = await stateCol.findOne({ _id: domain })
+      let probe = null
+      let zone = null
+      try { probe = await dnsHealer.probeDelegation(domain) } catch (e) { probe = { error: e.message } }
+      try {
+        const z = await cf.getZoneByName(domain)
+        zone = z ? { status: z.status, nameservers: z.name_servers || [] } : null
+      } catch (e) { zone = { error: e.message } }
+      const tld = domain.split('.').pop()
+      return res.json({
+        ok: true,
+        domain,
+        isPreDelegationTld: dnsHealer.PRE_DELEGATION_TLDS.has(tld),
+        state: state || null,
+        cfZone: zone,
+        probe,
+      })
+    }
+    const rows = await stateCol.find({ status: { $in: ['unhealthy', 'healing', 'escalated'] } })
+      .sort({ status: 1 }).limit(100).toArray()
+    const byStatus = {}
+    for (const r of rows) byStatus[r.status] = (byStatus[r.status] || 0) + 1
+    return res.json({
+      ok: true,
+      inFlightCount: rows.length,
+      byStatus,
+      rows: rows.map((r) => ({
+        domain: r._id, status: r.status, attempts: r.attempts,
+        lastError: r.lastError, lastCfZoneStatus: r.lastCfZoneStatus || null,
+        lastPublicNs: r.lastPublicNs, nextProbeAt: r.nextProbeAt,
+      })),
+    })
+  } catch (e) {
+    return res.status(500).json({ error: e.message })
+  }
+})
+
 // ── Admin: read-only VPS/RDP billing-safety check ─────────────────────────
 // Verifies the mechanism that stops cloud fees when a VPS/RDP is NOT renewed
 // or the wallet can't cover renewal — for BOTH providers (DO=VPS, Azure=RDP).
