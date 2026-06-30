@@ -3,6 +3,86 @@
 ## Original problem statement
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
+## 2026-07-01 — Marketplace one-time $50 access fee (current session — pt 3)
+
+### Feature
+Both existing AND new users must pay a one-time access fee before using the marketplace
+(browse, list, chat, escrow). Configurable via `MARKETPLACE_ACCESS_FEE_USD` env var (default $50).
+
+### Implementation
+- **New env**: `MARKETPLACE_ACCESS_FEE_USD="50"` in `backend/.env`. Graceful fallback to $50 for
+  garbage/negative values.
+- **New MongoDB collection**: `marketplaceAccess` — one doc per paid user
+  (`_id` = chatId, `paid: true`, `paidAt`, `amountUsd`, `mode`, `txnId`, `walletBalAfter`).
+  Cross-type (number/string) chatId lookups supported for compat with the rest of the bot.
+- **`marketplace-service.js`** exports:
+  - `hasMarketplaceAccess(chatId)` — returns paid doc or null; admins (TELEGRAM_ADMIN_CHAT_ID +
+    TELEGRAM_DEV_CHAT_ID + `MARKETPLACE_ACCESS_ADMIN_IDS` CSV) auto-bypass with mode='admin'.
+  - `grantMarketplaceAccess(chatId, {amountUsd, mode, txnId, walletBalAfter})` — idempotent
+    upsert (second call returns the existing doc unchanged).
+  - `revokeMarketplaceAccess(chatId)` — admin tool for refund flows.
+- **Gate #1 — `goto.marketplace()`**: front-door check. If no access, sends the paywall
+  message + inline buttons `[Pay $50 from wallet] [👛 Top up wallet] [❌ Cancel]` instead of
+  marketplace home.
+- **Gate #2 — `bot.on('callback_query')` MP handler**: gates ALL `mp:*` callback actions (browse,
+  chat, escrow, page) so stale deep-link buttons from before this feature shipped cannot bypass.
+- **Payment flow**: `mp:pay_access:<fee>` callback → wallet balance check →
+  `smartWalletDeduct` (atomic, with idempotency via callRef) → `grantMarketplaceAccess` → write
+  payments-ledger row → notify admin/group with masked/full split (following recent privacy fix)
+  → send success message → open marketplace home.
+- **Translations** — `mpPaywall(fee, balance)`, `mpPaywallPayBtn(fee)`, `mpPaywallTopupBtn`,
+  `mpPaywallCancelBtn`, `mpPaywallInsufficient(fee, balance)`, `mpPaywallSuccess(fee, balance)`
+  in all 4 locales (en/fr/hi/zh).
+
+### Verified by testing agent
+**61/61 assertions PASS**:
+- `test_marketplace_access_fee.js` 20/20 (DB integration — fresh user, grant, idempotency,
+  revoke, admin bypass, cross-type lookup)
+- `test_marketplace_fee_env.js` 6/6 (env reading — default, custom 25/100/0, garbage/negative
+  fallback)
+- `test_marketplace_gate_wiring.js` 35/35 (static-source guard — env, exports, gates, translations)
+- Regressions: maskPhone 9/9 + no-leak 12/12 + NAST 11/11 + admin endpoint 200/ok
+
+### Files changed
+- `backend/.env` (+1: `MARKETPLACE_ACCESS_FEE_USD="50"`)
+- `js/marketplace-service.js` (+95 lines: 3 new functions + constant + collection init)
+- `js/_index.js` (+115 lines: paywall in `goto.marketplace` + MP callback gate + `mp:pay_access`
+  handler + `mp:pay_access_cancel` handler)
+- `js/lang/en.js, fr.js, hi.js, zh.js` (+6 keys each: full paywall i18n)
+- `js/tests/test_marketplace_access_fee.js` (new, 20 tests)
+- `js/tests/test_marketplace_fee_env.js` (new, 6 tests)
+- `js/tests/test_marketplace_gate_wiring.js` (new, 35 tests)
+
+### How to operate
+```bash
+# Change the fee (then restart node)
+sed -i 's/^MARKETPLACE_ACCESS_FEE_USD=.*/MARKETPLACE_ACCESS_FEE_USD="75"/' /app/backend/.env
+sudo supervisorctl restart nodejs
+
+# Add additional admin bypass chatIds (CSV)
+# Add to backend/.env: MARKETPLACE_ACCESS_ADMIN_IDS="123,456,789"
+
+# Grant access manually (e.g. for a giveaway)
+node -e "
+  const {MongoClient} = require('mongodb')
+  require('dotenv').config({path:'/app/backend/.env'})
+  ;(async () => {
+    const c = new MongoClient(process.env.MONGO_URL); await c.connect()
+    const ms = require('/app/js/marketplace-service')
+    await ms.initMarketplace(c.db(process.env.DB_NAME))
+    await ms.grantMarketplaceAccess(<chatId>, {amountUsd:0, mode:'admin_grant', txnId:'free'})
+    await c.close()
+  })()
+"
+
+# Revoke (e.g. refund)
+# Same pattern, call ms.revokeMarketplaceAccess(<chatId>) instead.
+```
+
+---
+
+
+
 ## 2026-07-01 — Phone-number privacy fix + NAST pre-flight UX (current session — pt 2)
 
 ### Phone-scheduler privacy fix (BUG)
