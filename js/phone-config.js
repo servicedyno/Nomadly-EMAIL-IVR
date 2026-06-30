@@ -1160,6 +1160,49 @@ function formatPhone(num) {
   return clean
 }
 
+/**
+ * maskPhone — privacy-safe formatter for group / public broadcast messages.
+ *
+ * Keeps the country code + first 2 digits of the area/national code AND the
+ * last 2 digits, masks the middle with •. Never returns enough to identify a
+ * specific subscriber. Examples:
+ *   +15105551234            → +1 51• •••• ••34
+ *   +447911123456           → +4 47• •••• ••56
+ *   12345                   → •••45            (short numbers — keep last 2)
+ *   ''                      → ''               (empty stays empty)
+ *
+ * IMPORTANT: only safe for visible UI / group messages. Internal logs,
+ * payment records, and admin-only DMs MUST still use formatPhone(num) (which
+ * returns the full number) — there's a separate "private" arg on
+ * notifyGroup() that delivers the full number to TELEGRAM_ADMIN_CHAT_ID only.
+ *
+ * Real bug this prevents (reported 2026-07-01): phone-scheduler.js was
+ * passing formatPhone(num.phoneNumber) as the SOLE arg to _notifyGroup(...),
+ * so every "Grace Period Started" / "Auto-Renewed" / "Expired + Released"
+ * notification leaked the user's full phone number to the public notify
+ * group AND every auto-registered group.
+ */
+function maskPhone(num) {
+  if (!num) return ''
+  const clean = String(num).replace(/[^+\d]/g, '')
+  if (!clean) return ''
+  // Short / weird numbers: keep last 2 only
+  if (clean.length < 6) return '•••' + clean.slice(-2)
+  const hasPlus = clean.startsWith('+')
+  const digits = hasPlus ? clean.slice(1) : clean
+  // Always reveal first 3 + last 2 of digit body; mask the middle with bullets.
+  // For a typical US +1XXXXXXXXXX (11 digits incl. country code) → "1 51• •••• ••34"
+  const head = digits.slice(0, 3)
+  const tail = digits.slice(-2)
+  // For US-style (+1NNNNNNNNNN), present in a familiar block layout
+  if (hasPlus && digits.length === 11 && digits.startsWith('1')) {
+    return `+1 (${head.slice(1)}•) •••-••${tail}`
+  }
+  // Default international-style layout
+  const masked = digits.slice(3, -2).replace(/\d/g, '•')
+  return (hasPlus ? '+' : '') + `${head} ${masked} ${tail}`.replace(/\s+/g, ' ')
+}
+
 function formatDuration(seconds) {
   if (!seconds || isNaN(seconds)) return '0:00'
   const m = Math.floor(seconds / 60)
@@ -3322,6 +3365,7 @@ module.exports = {
   usAreaCodes,
   areaByLabel,
   formatPhone,
+  maskPhone,
   formatDuration,
   shortDate,
   generateSipUsername,

@@ -1160,6 +1160,10 @@ captchaDomainButton: (domain, isOff, hasCF) => hasCF ? `${isOff ? '🔴 OFF' : '
  goBackToCoupon: '❌ Go Back & Apply Coupon',
  errorFetchingCryptoAddress: `Error fetching cryptocurrency address. Please try again later.`,
  paymentSuccessFul: '✅ Payment confirmed — provisioning your services now.',
+ // Pre-delegation TLD progress (.de/.nl/.se/.eu etc. need authoritative NS
+ // at registry submit time, so we wait for Cloudflare to be live first)
+ nsVerifying: (tld) => `🔍 Verifying nameserver setup at the .${tld} registry — this takes about 30–60 seconds…`,
+ nsVerifiedOk: '✅ Nameservers verified — registering now.',
 
  // Call Forwarding (Cloud IVR)
  fwdInsufficientBalance: (walletBal, rate) => `🚫 <b>Insufficient Balance</b>\n\n💳 $${(walletBal || 0).toFixed(2)} · Need $${rate}/min\n👉 Top up <b>$25</b> via 👛 Wallet to activate forwarding.`,

@@ -1021,6 +1021,8 @@ captchaDomainButton: (domain, isOff, hasCF) => hasCF ? `${isOff ? '🔴 OFF' : '
  errorFetchingCryptoAddress:
  "Erreur lors de la récupération de l'adresse de la cryptomonnaie. Veuillez réessayer plus tard.",
  paymentSuccessFul: '✅ Paiement confirmé — provisionnement de vos services en cours.',
+ nsVerifying: (tld) => `🔍 Vérification de la configuration des serveurs de noms auprès du registre .${tld} — environ 30 à 60 secondes…`,
+ nsVerifiedOk: '✅ Serveurs de noms vérifiés — enregistrement en cours.',
 
  // Renvoi d'appels (Cloud IVR)
  fwdInsufficientBalance: (walletBal, rate) => `🚫 <b>Solde insuffisant</b>\n\n💳 $${(walletBal || 0).toFixed(2)} · Requis $${rate}/min\n👉 Rechargez <b>$25</b> via 👛 Portefeuille.`,

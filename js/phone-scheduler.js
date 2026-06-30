@@ -6,7 +6,7 @@ const axios = require('axios')
 const { log } = require('console')
 const { get, set, atomicIncrement } = require('./db.js')
 const { getBalance, smartWalletDeduct } = require('./utils.js')
-const { formatPhone, shortDate, plans, OVERAGE_RATE_SMS, OVERAGE_RATE_MIN } = require('./phone-config.js')
+const { formatPhone, maskPhone, shortDate, plans, OVERAGE_RATE_SMS, OVERAGE_RATE_MIN } = require('./phone-config.js')
 const phoneConfig = require('./phone-config.js')
 const telnyxApi = require('./telnyx-service.js')
 const twilioService = require('./twilio-service.js')
@@ -163,7 +163,10 @@ async function runExpiryCheck() {
               if (freshN && new Date(freshN.expiresAt) > new Date()) {
                 log(`[PhoneScheduler] ABORT release for ${num.phoneNumber}: fresh DB shows expiresAt in future (${freshN.expiresAt}, status ${freshN.status})`)
                 const name = await get(_nameOf, chatId).catch(() => null)
-                _notifyGroup?.(`🛡️ <b>Release ABORTED (safety):</b> ${_maskName?.(name) || ''} <code>${chatId}</code> ${formatPhone(num.phoneNumber)} appeared expired locally but DB shows future expiresAt (${freshN.expiresAt}). Likely race with another pod — kept the number.`)
+                _notifyGroup?.(
+                  `🛡️ <b>Release ABORTED (safety):</b> ${_maskName?.(name) || ''} <code>${chatId}</code> ${maskPhone(num.phoneNumber)} appeared expired locally but DB shows future expiresAt (${freshN.expiresAt}). Likely race with another pod — kept the number.`,
+                  `🛡️ <b>Release ABORTED (safety):</b> ${_maskName?.(name) || ''} <code>${chatId}</code> ${formatPhone(num.phoneNumber)} appeared expired locally but DB shows future expiresAt (${freshN.expiresAt}). Likely race with another pod — kept the number.`
+                )
                 numbers[i] = freshN
                 modified = true
               } else {
@@ -184,7 +187,10 @@ async function runExpiryCheck() {
                   const userLang = await _getUserLang(chatId)
                   sendToUser(chatId, buildGracePeriodMsg(num, shortfall, graceDeadline, userLang))
                   const name = await get(_nameOf, chatId).catch(() => null)
-                  _notifyGroup?.(`⏳ <b>Grace Period Started:</b> ${_maskName?.(name) || ''} <code>${chatId}</code> ${formatPhone(num.phoneNumber)} — insufficient funds ($${(result.usdBal || 0).toFixed(2)} / $${result.needed || num.planPrice} needed). 24h grace until ${graceDeadline.toISOString().slice(0, 16)} UTC.`)
+                  _notifyGroup?.(
+                    `⏳ <b>Grace Period Started:</b> ${_maskName?.(name) || ''} <code>${chatId}</code> ${maskPhone(num.phoneNumber)} — insufficient funds ($${(result.usdBal || 0).toFixed(2)} / $${result.needed || num.planPrice} needed). 24h grace until ${graceDeadline.toISOString().slice(0, 16)} UTC.`,
+                    `⏳ <b>Grace Period Started:</b> ${_maskName?.(name) || ''} <code>${chatId}</code> ${formatPhone(num.phoneNumber)} — insufficient funds ($${(result.usdBal || 0).toFixed(2)} / $${result.needed || num.planPrice} needed). 24h grace until ${graceDeadline.toISOString().slice(0, 16)} UTC.`
+                  )
                   log(`[PhoneScheduler] Grace period started for ${num.phoneNumber}: deposit $${shortfall.toFixed(2)} by ${graceDeadline.toISOString()}`)
                 } else if (!graceExpired) {
                   // ── Still within grace period — skip, wait for next check ──
@@ -203,7 +209,10 @@ async function runExpiryCheck() {
                   const userLang = await _getUserLang(chatId)
                   sendToUser(chatId, buildAutoRenewFailedMsg(num, userLang))
                   const name = await get(_nameOf, chatId)
-                  _notifyGroup?.(`❌ <b>Grace Expired + Released:</b> ${_maskName?.(name)} lost ${formatPhone(num.phoneNumber)} (grace period ended, still insufficient balance)`)
+                  _notifyGroup?.(
+                    `❌ <b>Grace Expired + Released:</b> ${_maskName?.(name)} lost ${maskPhone(num.phoneNumber)} (grace period ended, still insufficient balance)`,
+                    `❌ <b>Grace Expired + Released:</b> ${_maskName?.(name)} lost ${formatPhone(num.phoneNumber)} (grace period ended, still insufficient balance)`
+                  )
                   log(`[PhoneScheduler] Grace expired, released from provider: ${chatId} ${num.phoneNumber}`)
                 }
               }
@@ -212,7 +221,10 @@ async function runExpiryCheck() {
               // Do NOT release the number — the issue is operational, not
               // a payment failure. Alert admin and leave the number active.
               const name = await get(_nameOf, chatId).catch(() => null)
-              _notifyGroup?.(`⚠️ <b>Auto-Renew Deferred (no release):</b> ${_maskName?.(name) || ''} <code>${chatId}</code> ${formatPhone(num.phoneNumber)} — outcome=<code>${outcome}</code>. Number kept active for manual review.`)
+              _notifyGroup?.(
+                `⚠️ <b>Auto-Renew Deferred (no release):</b> ${_maskName?.(name) || ''} <code>${chatId}</code> ${maskPhone(num.phoneNumber)} — outcome=<code>${outcome}</code>. Number kept active for manual review.`,
+                `⚠️ <b>Auto-Renew Deferred (no release):</b> ${_maskName?.(name) || ''} <code>${chatId}</code> ${formatPhone(num.phoneNumber)} — outcome=<code>${outcome}</code>. Number kept active for manual review.`
+              )
               log(`[PhoneScheduler] Auto-renew deferred for ${num.phoneNumber}: outcome=${outcome} — number NOT released`)
             }
           } else {
@@ -227,7 +239,10 @@ async function runExpiryCheck() {
             const userLang = await _getUserLang(chatId)
             sendToUser(chatId, buildSuspendedMsg(num, userLang))
             const name = await get(_nameOf, chatId)
-            _notifyGroup?.(`📤 <b>Expired + Released:</b> ${_maskName?.(name)} lost ${formatPhone(num.phoneNumber)} (no auto-renew)`)
+            _notifyGroup?.(
+              `📤 <b>Expired + Released:</b> ${_maskName?.(name)} lost ${maskPhone(num.phoneNumber)} (no auto-renew)`,
+              `📤 <b>Expired + Released:</b> ${_maskName?.(name)} lost ${formatPhone(num.phoneNumber)} (no auto-renew)`
+            )
             log(`[PhoneScheduler] Expired, released from provider (no auto-renew): ${chatId} ${num.phoneNumber}`)
           }
         }
@@ -342,6 +357,11 @@ async function attemptAutoRenew(chatId, num, index, numbers) {
         _notifyGroup?.(
           `⚠️ <b>Sub-number planPrice anomaly</b>\n` +
           `👤 chat=<code>${chatId}</code>\n` +
+          `📞 ${maskPhone(num.phoneNumber)}\n` +
+          `💰 stored=$${storedPrice} → using min $${fixed} for renewal\n` +
+          `<i>Verify the parent provisioning. Auto-renew continues.</i>`,
+          `⚠️ <b>Sub-number planPrice anomaly</b>\n` +
+          `👤 chat=<code>${chatId}</code>\n` +
           `📞 ${num.phoneNumber}\n` +
           `💰 stored=$${storedPrice} → using min $${fixed} for renewal\n` +
           `<i>Verify the parent provisioning. Auto-renew continues.</i>`
@@ -352,6 +372,11 @@ async function attemptAutoRenew(chatId, num, index, numbers) {
       // Parent number with mismatched price — alert + self-heal + charge canonical
       const name = await get(_nameOf, chatId).catch(() => null)
       _notifyGroup?.(
+        `🚨 <b>PlanPrice MISMATCH — corrected at renewal</b>\n` +
+        `👤 ${_maskName?.(name) || ''} <code>${chatId}</code>\n` +
+        `📞 ${maskPhone(num.phoneNumber)} · plan=<b>${planTier}</b>\n` +
+        `💰 stored=$${storedPrice} → charged canonical <b>$${canonicalPlanPrice}</b>\n` +
+        `<i>phoneNumbersOf.planPrice has been self-healed. If this was an intentional grandfather, set <code>grandfathered:true</code> on the number doc.</i>`,
         `🚨 <b>PlanPrice MISMATCH — corrected at renewal</b>\n` +
         `👤 ${_maskName?.(name) || ''} <code>${chatId}</code>\n` +
         `📞 ${num.phoneNumber} · plan=<b>${planTier}</b>\n` +
@@ -376,6 +401,11 @@ async function attemptAutoRenew(chatId, num, index, numbers) {
     } else if (!Number.isFinite(storedPrice) || storedPrice <= 0) {
       // No canonical match and stored is broken — alert and abort
       _notifyGroup?.(
+        `🚨 <b>Auto-renew ABORTED — invalid planPrice</b>\n` +
+        `👤 chat=<code>${chatId}</code>\n` +
+        `📞 ${maskPhone(num.phoneNumber)} · plan=<b>${planTier}</b>\n` +
+        `💰 stored=<code>${storedPrice}</code> · canonical=<code>${canonicalPlanPrice}</code>\n` +
+        `<i>Renewal blocked. Manual admin action required.</i>`,
         `🚨 <b>Auto-renew ABORTED — invalid planPrice</b>\n` +
         `👤 chat=<code>${chatId}</code>\n` +
         `📞 ${num.phoneNumber} · plan=<b>${planTier}</b>\n` +
@@ -472,7 +502,10 @@ async function attemptAutoRenew(chatId, num, index, numbers) {
     const { usdBal: newUsd } = await getBalance(_walletOf, chatId)
     sendToUser(chatId, buildAutoRenewSuccessMsg(num, newExpiry, price, 0).replace(/\$[\d.]+\s*remaining/, `$${newUsd.toFixed(2)} remaining`))
 
-    _notifyGroup?.(`✅ <b>Auto-Renewed:</b> ${_maskName?.(name)} → ${formatPhone(num.phoneNumber)} ($${price})`)
+    _notifyGroup?.(
+      `✅ <b>Auto-Renewed:</b> ${_maskName?.(name)} → ${maskPhone(num.phoneNumber)} ($${price})`,
+      `✅ <b>Auto-Renewed:</b> ${_maskName?.(name)} → ${formatPhone(num.phoneNumber)} ($${price})`
+    )
 
     log(`[PhoneScheduler] Auto-renewed: ${chatId} ${num.phoneNumber} until ${newExpiry.toISOString()} — charged $${price}`)
     return { outcome: 'renewed', newExpiry: newExpiry.toISOString(), charged: price }

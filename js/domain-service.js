@@ -113,7 +113,7 @@ const checkAlternativeTLDs = async (baseName, db) => {
  * @param {string} nsChoice - 'provider_default', 'cloudflare', or 'custom'
  * @param {string[]} customNS - custom nameservers (only when nsChoice === 'custom')
  */
-const registerDomain = async (domainName, registrar, nsChoice, db, chatId, customNS) => {
+const registerDomain = async (domainName, registrar, nsChoice, db, chatId, customNS, onProgress) => {
   let result
   let nameservers = []
   let cfZoneId = null
@@ -172,6 +172,9 @@ const registerDomain = async (domainName, registrar, nsChoice, db, chatId, custo
   const tld = (domainName.split('.').pop() || '').toLowerCase()
   if (PRE_DELEGATION_TLDS.has(tld) && nameservers.length >= 2) {
     log(`[domain-service] .${tld} is a pre-delegation TLD — running NAST pre-flight check on [${nameservers.join(', ')}]`)
+    // UX: tell the user we're waiting on the registry pre-check — otherwise
+    // they sit watching a "processing…" message for up to 90s without context.
+    try { onProgress?.('verifying', { tld }) } catch (_) { /* progress callback is best-effort */ }
     const nast = await opService.checkNsAuthoritative(domainName, nameservers, 90000)
     log(`[domain-service] NAST: ready=${nast.ready} authoritativeCount=${nast.authoritativeCount}/${nameservers.length} elapsed=${nast.elapsedMs}ms`)
     if (!nast.ready) {
@@ -182,6 +185,7 @@ const registerDomain = async (domainName, registrar, nsChoice, db, chatId, custo
       }
     }
     log(`[domain-service] ✅ NAST pre-flight passed for ${domainName} in ${nast.elapsedMs}ms`)
+    try { onProgress?.('verified', { tld, elapsedMs: nast.elapsedMs }) } catch (_) { /* best-effort */ }
   }
 
   if (registrar === 'ConnectReseller') {

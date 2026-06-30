@@ -1004,6 +1004,8 @@ captchaDomainButton: (domain, isOff, hasCF) => hasCF ? `${isOff ? '🔴 关闭' 
  goBackToCoupon: '❌ 返回并应用优惠券',
  errorFetchingCryptoAddress: '获取加密货币地址时出错。请稍后再试。',
  paymentSuccessFul: '✅ 付款已确认 — 正在配置您的服务。',
+ nsVerifying: (tld) => `🔍 正在向 .${tld} 注册局验证域名服务器配置 — 大约需要 30–60 秒…`,
+ nsVerifiedOk: '✅ 域名服务器验证通过 — 正在注册。',
 
  // 呼叫转移 (Cloud IVR)
  fwdInsufficientBalance: (walletBal, rate) => `🚫 <b>余额不足</b>\n\n💳 $${(walletBal || 0).toFixed(2)} · 需要 $${rate}/分钟\n👉 通过 👛 钱包 充值 <b>$25</b>。`,

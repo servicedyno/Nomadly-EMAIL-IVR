@@ -30615,7 +30615,42 @@ async function buyDomain(chatId, domain, registrar, nsChoice, customNS) {
   registrar = registrar || 'ConnectReseller'
   nsChoice = nsChoice || 'provider_default'
 
-  const result = await domainService.registerDomain(domain, registrar, nsChoice, db, chatId, customNS)
+  // Pre-delegation TLD progress messages (e.g. .de waits up to 90s for the
+  // registry NAST pre-check). Without this the user just sees "processing…"
+  // for ~60s and assumes the bot froze. Auto-edits the placeholder when
+  // the next step ("verified") comes through so it doesn't clutter the chat.
+  let _nsProgressMsgId = null
+  const onProgress = async (stage, ctx = {}) => {
+    try {
+      const _info = await get(state, chatId)
+      const lang = _info?.userLanguage || 'en'
+      if (stage === 'verifying') {
+        const text = translation('t.nsVerifying', lang, ctx.tld || '')
+        const sent = await sendMessage(chatId, text)
+        if (sent && sent.message_id) {
+          _nsProgressMsgId = sent.message_id
+        } else if (sent && typeof sent.then === 'function') {
+          const r = await sent
+          if (r && r.message_id) _nsProgressMsgId = r.message_id
+        }
+      } else if (stage === 'verified' && _nsProgressMsgId) {
+        // Replace the "verifying" message with the success line — cleaner
+        // than leaving a stale spinner in the chat.
+        try {
+          await bot.editMessageText(translation('t.nsVerifiedOk', lang), {
+            chat_id: chatId,
+            message_id: _nsProgressMsgId,
+            parse_mode: 'HTML',
+          })
+        } catch (_) { /* edit may fail if user blocked bot, etc. — non-fatal */ }
+      }
+    } catch (e) {
+      // Progress UI must never break the registration flow
+      log(`[buyDomain] onProgress(${stage}) failed (non-fatal): ${e.message}`)
+    }
+  }
+
+  const result = await domainService.registerDomain(domain, registrar, nsChoice, db, chatId, customNS, onProgress)
   if (result.success) {
     set(domainsOf, chatId, domainSanitizedForDb, true)
   }

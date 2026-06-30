@@ -34,6 +34,248 @@ user_problem_statement: |
     that routes each VPS record to its OWN provider and reports manageable vs orphaned.
 
 backend:
+  - task: "Phone-scheduler privacy fix — mask phone numbers in group notifications (2026-07-01)"
+    implemented: true
+    working: true
+    file: "/app/js/phone-config.js, /app/js/phone-scheduler.js, /app/js/tests/test_maskPhone.js, /app/js/tests/test_phone_scheduler_no_leak.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          ISSUE (user-reported): "phone number expiry or renewal to group is showing the full number,
+          it shouldn't". Audit confirmed 9 leak sites in phone-scheduler.js where _notifyGroup?.(...)
+          was called with a SINGLE arg containing the full phone number from `formatPhone(num.phoneNumber)`
+          or raw `${num.phoneNumber}`. That single arg goes to BOTH the public notification group AND
+          every auto-registered group (notifyGroup's 1st arg is public, 2nd is admin-only DM).
+
+          ROOT CAUSE: formatPhone(num) returns the full formatted number (e.g. "+1 (510) 555-1234").
+          phone-scheduler.js's renewal/expiry/grace/release/anomaly notifications were passing this
+          to the public arg of _notifyGroup, exposing every user's number to anyone in the group.
+
+          FIX:
+          - New maskPhone() helper in phone-config.js: preserves country code + first area-code
+            digit + last 2 digits; masks the middle with •. Examples:
+              "+15105551234"     → "+1 (51•) •••-••34"
+              "+447911123456"    → "+447 ••••••• 56"
+              "12345"            → "•••45"
+              ""                 → ""
+          - Updated ALL 9 _notifyGroup call sites in phone-scheduler.js to use the 2-arg form:
+              _notifyGroup?.(messageWithMaskedPhone, messageWithFullPhone)
+            so the group gets the masked version while the admin DM (TELEGRAM_ADMIN_CHAT_ID) still
+            gets the full number for support correlation.
+          - Affected notifications:
+              1. Release ABORTED (safety)
+              2. Grace Period Started
+              3. Grace Expired + Released
+              4. Auto-Renew Deferred (no release)
+              5. Expired + Released
+              6. Sub-number planPrice anomaly
+              7. PlanPrice MISMATCH — corrected at renewal
+              8. Auto-renew ABORTED — invalid planPrice
+              9. Auto-Renewed (success)
+
+          VERIFIED LOCALLY:
+          - test_maskPhone.js: 9/9 pass (unit coverage incl. US/UK/raw/short/empty/regex middle-bullets).
+          - test_phone_scheduler_no_leak.js: 12/12 pass (static-source guard — fails if any future
+            commit re-introduces a raw phoneNumber in the public arg of _notifyGroup).
+          - Node.js bot restarted cleanly with no startup errors.
+
+          ASKS FOR TESTING AGENT:
+          1. Run `node /app/js/tests/test_maskPhone.js` — expect "9 passed, 0 failed".
+          2. Run `node /app/js/tests/test_phone_scheduler_no_leak.js` — expect "12 passed, 0 failed".
+          3. Verify `maskPhone` is exported from phone-config.js:
+             `node -e "console.log(Object.keys(require('/app/js/phone-config.js')).includes('maskPhone'))"` → true
+          4. Static-source grep negative tests on /app/js/phone-scheduler.js:
+             - `grep -c "formatPhone(num.phoneNumber)" /app/js/phone-scheduler.js` — count is OK as
+               long as test_phone_scheduler_no_leak.js passes (formatPhone is allowed in the PRIVATE
+               (2nd) arg of _notifyGroup; the guard test checks public-arg only).
+             - Verify EVERY occurrence of _notifyGroup that has phoneNumber-related content is using
+               maskPhone in its first (public) arg.
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFIED - All phone-scheduler privacy fix assertions PASSED (test_sequence 15):
+          
+          TEST 1.1 - Unit tests (test_maskPhone.js): ✅ PASSED
+            • Exit code: 0 ✓
+            • Result: "9 passed, 0 failed" ✓
+            • US +15105551234 → "+1 (51•) •••-••34" (masked, keeps last 2 + first area-code digit) ✓
+            • UK +447911123456 → "+447 ••••••• 56" (masked international) ✓
+            • Number without + prefix: "15105551234" → "151 •••••• 34" ✓
+            • Short input (5 digits): "12345" → "•••45" ✓
+            • Empty / null handled correctly ✓
+            • Formatted input normalized first ✓
+            • Middle is bullets (•), not digits ✓
+            • formatPhone() still returns full number for admin DMs ✓
+            • maskPhone vs formatPhone for same input — masked must NOT equal full ✓
+          
+          TEST 1.2 - Static-source guard (test_phone_scheduler_no_leak.js): ✅ PASSED
+            • Exit code: 0 ✓
+            • Result: "12 passed, 0 failed" ✓
+            • Found ≥9 _notifyGroup calls (got 11) ✓
+            • Zero leaks in _notifyGroup public args (found 0) ✓
+            • maskPhone is imported from ./phone-config.js ✓
+            • All 9 affected notifications verified:
+              1. Release ABORTED (safety) uses maskPhone in public arg ✓
+              2. Grace Period Started uses maskPhone in public arg ✓
+              3. Grace Expired + Released uses maskPhone in public arg ✓
+              4. Auto-Renew Deferred (no release) uses maskPhone in public arg ✓
+              5. Expired + Released uses maskPhone in public arg ✓
+              6. Sub-number planPrice anomaly uses maskPhone in public arg ✓
+              7. PlanPrice MISMATCH uses maskPhone in public arg ✓
+              8. Auto-renew ABORTED — invalid planPrice uses maskPhone in public arg ✓
+              9. Auto-Renewed uses maskPhone in public arg ✓
+          
+          TEST 1.3 - maskPhone export verification: ✅ PASSED
+            • Command: `node -e "console.log(Object.keys(require('./js/phone-config.js')).includes('maskPhone'))"`
+            • Expected output: true
+            • Actual output: true ✓
+          
+          TEST 1.4 - maskPhone behavior verification: ✅ PASSED
+            • Command: `node -e "const {maskPhone, formatPhone} = require('./js/phone-config.js'); console.log(JSON.stringify({us: maskPhone('+15105551234'), uk: maskPhone('+447911123456'), empty: maskPhone(''), short: maskPhone('12345'), full: formatPhone('+15105551234')}))"`
+            • Output: {"us":"+1 (51•) •••-••34","uk":"+447 ••••••• 56","empty":"","short":"•••45","full":"+1 (510) 555-1234"}
+            • Assertions:
+              - us output must NOT contain "5551234" (full subscriber digits) ✓
+              - us output must end with "34" (last 2) ✓
+              - us output must start with "+1" ✓
+              - uk output must NOT contain "7911123456" ✓
+              - uk output must end with "56" ✓
+              - empty must equal "" ✓
+              - short must end with "45" ✓
+              - full must equal "+1 (510) 555-1234" (formatPhone unchanged — still full number for admin DMs) ✓
+          
+          TEST 1.5 - Node service status: ✅ PASSED
+            • Command: `sudo supervisorctl status nodejs`
+            • Expected: RUNNING
+            • Actual: "nodejs RUNNING pid 3879, uptime 0:03:57" ✓
+          
+          CONCLUSION:
+          All 5 test assertions for phone-scheduler privacy fix verified successfully. The implementation
+          is fully functional and production-ready:
+          1. maskPhone() helper correctly masks phone numbers (preserves country code + first area-code digit + last 2 digits)
+          2. All 9 _notifyGroup call sites in phone-scheduler.js use the 2-arg form (masked for public, full for admin DM)
+          3. Static-source guard test ensures no future commits re-introduce phone number leaks
+          4. formatPhone() still returns full number for admin DMs (no regression)
+          5. Node.js service running cleanly with no startup errors
+          
+          The privacy issue where full phone numbers were exposed to public notification groups has been
+          completely resolved. Group notifications now show masked phone numbers (e.g. "+1 (51•) •••-••34")
+          while admin DMs still receive full numbers for support correlation.
+
+  - task: "NAST pre-flight UX progress message (2026-07-01)"
+    implemented: true
+    working: true
+    file: "/app/js/domain-service.js, /app/js/_index.js, /app/js/lang/en.js, /app/js/lang/fr.js, /app/js/lang/hi.js, /app/js/lang/zh.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          ENHANCEMENT: surface the NAST pre-flight wait to the bot user. Previously the .de/.nl/.eu/...
+          registration flow would block the bot for up to 90s while polling CF NS authoritative status,
+          with no progress feedback — the user would see a "Payment confirmed — provisioning..."
+          message then a 60-second silence, often thinking the bot froze.
+
+          FIX:
+          - registerDomain() now accepts an optional `onProgress(stage, ctx)` 7th arg.
+          - For pre-delegation TLDs, calls onProgress('verifying', { tld }) before NAST poll AND
+            onProgress('verified', { tld, elapsedMs }) after NAST passes.
+          - buyDomain() in _index.js implements onProgress: sends "🔍 Verifying nameserver setup at
+            the .de registry — this takes about 30–60 seconds…" then edits that same message to
+            "✅ Nameservers verified — registering now." when NAST completes.
+          - All 4 locales updated: t.nsVerifying (function taking tld), t.nsVerifiedOk (string).
+          - Callback errors are swallowed (best-effort) — UI never breaks registration flow.
+
+          VERIFIED LOCALLY:
+          - test_nast_progress_ux.js: 16/16 pass — translation keys exist in all 4 langs; onProgress
+            fires exactly 2x for .de, 0x for .com; throwing onProgress does not break registration.
+          - test_op_de_dns_preflight.js: 11/11 still pass (no regression).
+          - test_op_ns_update_registry_chprov.js: 10/10 still pass (no regression).
+
+          ASKS FOR TESTING AGENT:
+          1. Run `node /app/js/tests/test_nast_progress_ux.js` — expect "16 passed, 0 failed".
+          2. Verify translation keys exist:
+             `node -e "console.log(require('/app/js/translation').translation('t.nsVerifying','en','de'))"`
+             — should return a string starting with "🔍" containing ".de".
+             Same for 'fr', 'hi', 'zh'.
+          3. Verify the onProgress wiring in _index.js:
+             `grep -c "onProgress" /app/js/_index.js` → at least 2 (1 declaration + 1 call site).
+             `grep -c "nsVerifying\|nsVerifiedOk" /app/js/_index.js` → at least 2.
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFIED - All NAST pre-flight UX progress message assertions PASSED (test_sequence 15):
+          
+          TEST 2.1 - Integration test (test_nast_progress_ux.js): ✅ PASSED
+            • Exit code: 0 ✓
+            • Result: "16 passed, 0 failed" ✓
+            • Translation keys exist in all 4 languages (en, fr, hi, zh):
+              - [en] nsVerifying(de) returns non-empty string ✓
+              - [en] nsVerifiedOk returns non-empty string ✓
+              - [fr] nsVerifying(de) returns non-empty string ✓
+              - [fr] nsVerifiedOk returns non-empty string ✓
+              - [hi] nsVerifying(de) returns non-empty string ✓
+              - [hi] nsVerifiedOk returns non-empty string ✓
+              - [zh] nsVerifying(de) returns non-empty string ✓
+              - [zh] nsVerifiedOk returns non-empty string ✓
+            • .de registration behavior:
+              - Returns success ✓
+              - onProgress called exactly 2x (verifying + verified) ✓
+              - First stage is "verifying" ✓
+              - Second stage is "verified" ✓
+              - Verifying ctx includes tld="de" ✓
+            • .com registration behavior:
+              - Returns success ✓
+              - onProgress NOT called at NAST stage (no pre-delegation check for .com) ✓
+            • Error handling:
+              - Throwing onProgress does NOT break .de registration ✓
+          
+          TEST 2.2 - Translation keys verification: ✅ PASSED
+            • Command: `node -e "const {translation}=require('./js/translation'); for(const l of ['en','fr','hi','zh']){console.log(l, '|', translation('t.nsVerifying',l,'de'), '|', translation('t.nsVerifiedOk',l))}"`
+            • Output:
+              - en | 🔍 Verifying nameserver setup at the .de registry — this takes about 30–60 seconds… | ✅ Nameservers verified — registering now. ✓
+              - fr | 🔍 Vérification de la configuration des serveurs de noms auprès du registre .de — environ 30 à 60 secondes… | ✅ Serveurs de noms vérifiés — enregistrement en cours. ✓
+              - hi | 🔍 .de रजिस्ट्री पर नेमसर्वर सेटअप सत्यापित किया जा रहा है — लगभग 30–60 सेकंड… | ✅ नेमसर्वर सत्यापित — अब पंजीकरण कर रहे हैं। ✓
+              - zh | 🔍 正在向 .de 注册局验证域名服务器配置 — 大约需要 30–60 秒… | ✅ 域名服务器验证通过 — 正在注册。 ✓
+            • Assertions:
+              - Each line contains non-empty string containing ".de" (verifying) ✓
+              - Each line contains checkmark (verified) ✓
+              - Raw key strings "t.nsVerifying" / "t.nsVerifiedOk" do NOT appear in any output line ✓
+          
+          TEST 2.3 - Wiring in _index.js: ✅ PASSED
+            • `grep -c "onProgress" /app/js/_index.js` → Expected: ≥ 2, Actual: 3 ✓
+            • `grep -c "nsVerifying" /app/js/_index.js` → Expected: ≥ 1, Actual: 1 ✓
+            • `grep -c "nsVerifiedOk" /app/js/_index.js` → Expected: ≥ 1, Actual: 1 ✓
+          
+          TEST 2.4 - Wiring in domain-service.js: ✅ PASSED
+            • `grep -c "onProgress" /app/js/domain-service.js` → Expected: ≥ 3, Actual: 3 ✓
+            • Signature check: `grep "const registerDomain = async" /app/js/domain-service.js`
+              - Expected: (domainName, registrar, nsChoice, db, chatId, customNS, onProgress)
+              - Actual: "const registerDomain = async (domainName, registrar, nsChoice, db, chatId, customNS, onProgress) => {" ✓
+          
+          CONCLUSION:
+          All 4 test assertions for NAST pre-flight UX progress message verified successfully. The
+          implementation is fully functional and production-ready:
+          1. registerDomain() accepts optional onProgress callback (7th arg)
+          2. For pre-delegation TLDs (.de/.nl/.eu/etc.), onProgress fires exactly 2x:
+             - Stage "verifying" before NAST poll (with tld context)
+             - Stage "verified" after NAST passes (with tld + elapsedMs context)
+          3. buyDomain() in _index.js wires onProgress to sendMessage()/editMessageText():
+             - User sees "🔍 Verifying nameserver setup at the .de registry — this takes about 30–60 seconds…"
+             - Then "✅ Nameservers verified — registering now." when NAST completes
+          4. All 4 locales (en, fr, hi, zh) have translation keys t.nsVerifying and t.nsVerifiedOk
+          5. Callback errors are swallowed (best-effort) — UI never breaks registration flow
+          6. No regression: .com domains (non-pre-delegation) do NOT trigger onProgress at NAST stage
+          
+          The UX enhancement successfully addresses the 60-90 second silence during .de/.nl/.eu domain
+          registration. Users now see real-time progress feedback during the NAST pre-flight check,
+          preventing confusion about whether the bot has frozen.
+
   - task: "OpenProvider .de NAST pre-flight + syncDomain + healer auto-sync (2026-07-01)"
     implemented: true
     working: true
@@ -1042,7 +1284,7 @@ frontend: []
 metadata:
   created_by: "main_agent"
   version: "2.0"
-  test_sequence: 14
+  test_sequence: 15
   run_ui: false
 
 test_plan:
@@ -1052,6 +1294,120 @@ test_plan:
   test_priority: "high_first"
 
 agent_communication:
+  - agent: "testing"
+    message: |
+      ✅ TESTING COMPLETE (test_sequence 15) - Phone-scheduler privacy fix + NAST pre-flight UX progress message VERIFIED.
+      
+      All test assertions for both 2026-07-01 backend tasks PASSED:
+      
+      ═══════════════════════════════════════════════════════════════════════════════════════════════
+      TASK 1: Phone-scheduler privacy fix — mask phone numbers in group notifications
+      ═══════════════════════════════════════════════════════════════════════════════════════════════
+      
+      TEST 1.1 - Unit tests (test_maskPhone.js): ✅ PASSED
+        • Result: "9 passed, 0 failed", exit code 0
+        • All masking behaviors verified (US/UK/short/empty/formatted input)
+      
+      TEST 1.2 - Static-source guard (test_phone_scheduler_no_leak.js): ✅ PASSED
+        • Result: "12 passed, 0 failed", exit code 0
+        • Zero leaks in _notifyGroup public args
+        • All 9 affected notifications use maskPhone in public arg
+      
+      TEST 1.3 - maskPhone export verification: ✅ PASSED
+        • Output: true (maskPhone is exported from phone-config.js)
+      
+      TEST 1.4 - maskPhone behavior verification: ✅ PASSED
+        • Output: {"us":"+1 (51•) •••-••34","uk":"+447 ••••••• 56","empty":"","short":"•••45","full":"+1 (510) 555-1234"}
+        • All 8 assertions pass:
+          - us output does NOT contain "5551234" ✓
+          - us output ends with "34" ✓
+          - us output starts with "+1" ✓
+          - uk output does NOT contain "7911123456" ✓
+          - uk output ends with "56" ✓
+          - empty equals "" ✓
+          - short ends with "45" ✓
+          - full equals "+1 (510) 555-1234" ✓
+      
+      TEST 1.5 - Node service status: ✅ PASSED
+        • nodejs service RUNNING (pid 3879, uptime 0:03:57)
+      
+      ═══════════════════════════════════════════════════════════════════════════════════════════════
+      TASK 2: NAST pre-flight UX progress message
+      ═══════════════════════════════════════════════════════════════════════════════════════════════
+      
+      TEST 2.1 - Integration test (test_nast_progress_ux.js): ✅ PASSED
+        • Result: "16 passed, 0 failed", exit code 0
+        • Translation keys exist in all 4 languages (en, fr, hi, zh)
+        • .de registration: onProgress called exactly 2x (verifying + verified)
+        • .com registration: onProgress NOT called at NAST stage
+        • Throwing onProgress does NOT break registration
+      
+      TEST 2.2 - Translation keys verification: ✅ PASSED
+        • All 4 locales return non-empty strings containing ".de" and checkmark
+        • Raw key strings "t.nsVerifying" / "t.nsVerifiedOk" do NOT appear in output
+        • Output:
+          - en | 🔍 Verifying nameserver setup at the .de registry — this takes about 30–60 seconds… | ✅ Nameservers verified — registering now.
+          - fr | 🔍 Vérification de la configuration des serveurs de noms auprès du registre .de — environ 30 à 60 secondes… | ✅ Serveurs de noms vérifiés — enregistrement en cours.
+          - hi | 🔍 .de रजिस्ट्री पर नेमसर्वर सेटअप सत्यापित किया जा रहा है — लगभग 30–60 सेकंड… | ✅ नेमसर्वर सत्यापित — अब पंजीकरण कर रहे हैं।
+          - zh | 🔍 正在向 .de 注册局验证域名服务器配置 — 大约需要 30–60 秒… | ✅ 域名服务器验证通过 — 正在注册。
+      
+      TEST 2.3 - Wiring in _index.js: ✅ PASSED
+        • grep -c "onProgress" → 3 (≥ 2 required) ✓
+        • grep -c "nsVerifying" → 1 (≥ 1 required) ✓
+        • grep -c "nsVerifiedOk" → 1 (≥ 1 required) ✓
+      
+      TEST 2.4 - Wiring in domain-service.js: ✅ PASSED
+        • grep -c "onProgress" → 3 (≥ 3 required) ✓
+        • Signature: "const registerDomain = async (domainName, registrar, nsChoice, db, chatId, customNS, onProgress) => {" ✓
+      
+      ═══════════════════════════════════════════════════════════════════════════════════════════════
+      REGRESSION CHECKS (must still pass — no new failures)
+      ═══════════════════════════════════════════════════════════════════════════════════════════════
+      
+      R1) test_op_de_dns_preflight.js: ✅ PASSED
+        • Result: "11 passed, 0 failed", exit code 0
+        • NAST pre-flight on rsvpcrumelbell.de: ready=true, both NS authoritative, elapsed 109ms
+        • syncDomain on rsvpcrumelbell.de: success=true, opStatus="ACT"
+      
+      R2) test_op_ns_update_registry_chprov.js: ✅ PASSED
+        • Result: "10 passed, 0 failed", exit code 0
+        • All static source guards verified (A.1-A.4)
+        • All behavioral tests passed (B.1-B.6)
+      
+      R3) test_cf_zone_no_silent_downgrade.js: ✅ PASSED
+        • Result: "All 3 tests passed", exit code 0
+        • CF persistent fail → error returned, OP never invoked
+        • CF transient fail → retry succeeds → OP registered with CF NS
+        • CF first-try success → OP registered (no wasted retry)
+      
+      R4) GET /api/admin/dns-heal-status?key=o/Qb8ArGahlquhCQ: ✅ PASSED
+        • HTTP 200, ok=true, inFlightCount=5
+      
+      R5) GET /api/admin/vps-billing-safety-check?key=o/Qb8ArGahlquhCQ: ✅ PASSED
+        • HTTP 200, routingCorrect=true, feesStopOnNonRenewal=true
+      
+      ═══════════════════════════════════════════════════════════════════════════════════════════════
+      CONCLUSION
+      ═══════════════════════════════════════════════════════════════════════════════════════════════
+      
+      Both 2026-07-01 backend tasks are fully functional and production-ready:
+      
+      1. PHONE-SCHEDULER PRIVACY FIX:
+         - maskPhone() helper correctly masks phone numbers (preserves country code + first area-code digit + last 2 digits)
+         - All 9 _notifyGroup call sites use 2-arg form (masked for public, full for admin DM)
+         - Static-source guard ensures no future commits re-introduce phone number leaks
+         - Privacy issue where full phone numbers were exposed to public groups is completely resolved
+      
+      2. NAST PRE-FLIGHT UX PROGRESS MESSAGE:
+         - registerDomain() accepts optional onProgress callback (7th arg)
+         - For pre-delegation TLDs, onProgress fires 2x: "verifying" before NAST poll, "verified" after NAST passes
+         - buyDomain() wires onProgress to sendMessage()/editMessageText() for real-time user feedback
+         - All 4 locales (en, fr, hi, zh) have translation keys
+         - Callback errors are swallowed (best-effort) — UI never breaks registration flow
+         - UX enhancement addresses 60-90 second silence during .de/.nl/.eu domain registration
+      
+      All regression tests pass — no existing functionality broken.
+
   - agent: "testing"
     message: |
       ✅ TESTING COMPLETE (test_sequence 14) - OpenProvider .de NAST pre-flight + syncDomain + healer auto-sync VERIFIED.
