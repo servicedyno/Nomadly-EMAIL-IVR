@@ -1006,6 +1006,26 @@ captchaDomainButton: (domain, isOff, hasCF) => hasCF ? `${isOff ? '🔴 关闭' 
  paymentSuccessFul: '✅ 付款已确认 — 正在配置您的服务。',
  nsVerifying: (tld) => `🔍 正在向 .${tld} 注册局验证域名服务器配置 — 大约需要 30–60 秒…`,
  nsVerifiedOk: '✅ 域名服务器验证通过 — 正在注册。',
+ mpPaywall: (fee, balance) =>
+   `🛒 <b>市场访问权限</b>\n\n` +
+   `一次性激活费用: <b>$${fee}</b>\n` +
+   `支付一次 — 永久访问 (浏览、上架、聊天、托管)。\n\n` +
+   `💳 钱包余额: <b>$${balance.toFixed(2)}</b>\n\n` +
+   (balance >= fee
+     ? `点击下方激活。`
+     : `⚠️ <i>请至少充值 $${(fee - balance).toFixed(2)} 以激活。</i>`),
+ mpPaywallPayBtn: (fee) => `✅ 用钱包支付 $${fee}`,
+ mpPaywallTopupBtn: '👛 充值钱包',
+ mpPaywallCancelBtn: '❌ 取消',
+ mpPaywallInsufficient: (fee, balance) =>
+   `🚫 <b>钱包余额不足</b>\n\n` +
+   `需要: <b>$${fee}</b> · 现有: <b>$${balance.toFixed(2)}</b>\n\n` +
+   `请通过 👛 <b>钱包</b> 充值 <b>$${Math.max(fee - balance, 25).toFixed(2)}</b> 或更多，然后重试。`,
+ mpPaywallSuccess: (fee, balance) =>
+   `🎉 <b>市场已激活！</b>\n\n` +
+   `💵 已扣款: <b>$${fee}</b>\n` +
+   `💳 新余额: <b>$${balance.toFixed(2)}</b>\n\n` +
+   `欢迎 — 正在打开市场…`,
 
  // 呼叫转移 (Cloud IVR)
  fwdInsufficientBalance: (walletBal, rate) => `🚫 <b>余额不足</b>\n\n💳 $${(walletBal || 0).toFixed(2)} · 需要 $${rate}/分钟\n👉 通过 👛 钱包 充值 <b>$25</b>。`,

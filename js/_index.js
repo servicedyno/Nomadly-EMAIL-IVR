@@ -5249,6 +5249,90 @@ Tap a button below to change. Changes sync to your phone on next app open.`
     const parts = data.split(':')
     const action = parts[1]
 
+    // ── One-time access-fee gate ────────────────────────────────────────
+    // Allow the user to ACQUIRE access (mp:pay_access*) without being
+    // gated by the absence of access. Everything else (browse, chat,
+    // escrow, …) requires paid access.
+    if (action !== 'pay_access' && action !== 'pay_access_cancel' && action !== 'noop') {
+      const hasAccess = await marketplaceService.hasMarketplaceAccess(chatId)
+      if (!hasAccess) {
+        const fee = marketplaceService.MARKETPLACE_ACCESS_FEE_USD
+        const { usdBal } = await getBalance(walletOf, chatId)
+        const canAfford = usdBal >= fee
+        const inlineRows = [
+          ...(canAfford ? [[{ text: t.mpPaywallPayBtn(fee), callback_data: `mp:pay_access:${fee}` }]] : []),
+          [{ text: t.mpPaywallTopupBtn, callback_data: 'wallet_topup_quick' }],
+          [{ text: t.mpPaywallCancelBtn, callback_data: 'mp:pay_access_cancel' }],
+        ]
+        return sendMsg(chatId, t.mpPaywall(fee, usdBal), { reply_markup: { inline_keyboard: inlineRows } })
+      }
+    }
+
+    // mp:pay_access:<fee> — user clicked "Pay $X from wallet" on paywall
+    if (action === 'pay_access') {
+      const declaredFee = Number(parts[2])
+      const fee = marketplaceService.MARKETPLACE_ACCESS_FEE_USD
+      // Defensive: the button always carries the current fee from .env.
+      // If env was changed between paywall display and the click, charge the
+      // CURRENT env fee (not whatever was in the stale button).
+      if (Number.isFinite(declaredFee) && Math.abs(declaredFee - fee) > 0.01) {
+        log(`[Marketplace] pay_access: button fee ($${declaredFee}) ≠ current env fee ($${fee}); charging current fee.`)
+      }
+      // Already paid? (race: user double-tapped)
+      const existing = await marketplaceService.hasMarketplaceAccess(chatId)
+      if (existing) {
+        sendMsg(chatId, '✅ You already have marketplace access — opening now.')
+        await set(state, chatId, 'action', 'mpHome')
+        return sendMsg(chatId, t.mpHome, { reply_markup: { keyboard: [[{ text: t.mpBrowse }], [{ text: t.mpListProduct }], [{ text: t.mpMyConversations }], [{ text: t.mpMyListings }], [{ text: t.mpAiHelper }], [{ text: '↩️ Back' }, { text: '🏠 Main Menu' }]], resize_keyboard: true } })
+      }
+      // Wallet check + atomic deduction
+      const { usdBal } = await getBalance(walletOf, chatId)
+      if (usdBal < fee) {
+        return sendMsg(chatId, t.mpPaywallInsufficient(fee, usdBal))
+      }
+      const txnId = generateTransactionId()
+      const deduct = await smartWalletDeduct(walletOf, chatId, fee, {
+        type: 'marketplace_access',
+        description: `Marketplace one-time access fee ($${fee})`,
+        callRef: txnId,
+      })
+      if (!deduct?.success) {
+        log(`[Marketplace] pay_access: smartWalletDeduct FAILED for ${chatId}: ${JSON.stringify(deduct)}`)
+        return sendMsg(chatId, t.mpPaywallInsufficient(fee, usdBal))
+      }
+      // Mark paid
+      const { usdBal: newBal } = await getBalance(walletOf, chatId)
+      await marketplaceService.grantMarketplaceAccess(chatId, {
+        amountUsd: fee, mode: 'wallet', txnId, walletBalAfter: newBal,
+      })
+      // Log a payment row for audit
+      try {
+        await db.collection('payments').updateOne(
+          { _id: txnId },
+          { $set: { val: `Marketplace,AccessFee,$${fee},${chatId},${(info?.userName || '').replace(/,/g, ';')},Marketplace one-time access fee,${new Date().toISOString()},usd` } },
+          { upsert: true }
+        )
+      } catch (e) { log(`[Marketplace] pay_access: payments-row write failed (non-fatal): ${e.message}`) }
+      // Admin notification
+      try {
+        const userName = await get(nameOf, chatId)
+        notifyGroup?.(
+          `🛒 <b>Marketplace Access Purchased</b>\n👤 ${maskName?.(userName) || ''}\n💵 $${fee} (wallet)\n💳 Balance: $${newBal.toFixed(2)}`,
+          `🛒 <b>Marketplace Access Purchased</b>\n👤 ${adminUserTag?.(userName, chatId) || chatId}\n💵 $${fee} (wallet)\n🆔 Txn: <code>${txnId}</code>\n💳 Balance: $${newBal.toFixed(2)}`,
+        )
+      } catch (e) { /* notification best-effort */ }
+      sendMsg(chatId, t.mpPaywallSuccess(fee, newBal))
+      // Open marketplace home
+      await set(state, chatId, 'action', 'mpHome')
+      return sendMsg(chatId, t.mpHome, { reply_markup: { keyboard: [[{ text: t.mpBrowse }], [{ text: t.mpListProduct }], [{ text: t.mpMyConversations }], [{ text: t.mpMyListings }], [{ text: t.mpAiHelper }], [{ text: '↩️ Back' }, { text: '🏠 Main Menu' }]], resize_keyboard: true } })
+    }
+
+    // mp:pay_access_cancel — user cancelled the paywall
+    if (action === 'pay_access_cancel') {
+      try { await bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: chatId, message_id: query.message?.message_id }) } catch (_) { /* edit may fail */ }
+      return sendMsg(chatId, 'Marketplace access not activated. You can come back anytime.')
+    }
+
     // mp:noop — do nothing (pagination page indicator)
     if (action === 'noop') return
 
@@ -8131,6 +8215,25 @@ bot?.on('message', msg => {
       const mpBan = await marketplaceService.isUserBanned(chatId)
       if (mpBan) {
         return send(chatId, trans('t.wlt_2', mpBan.reason || 'Policy violation'), { parse_mode: 'HTML' })
+      }
+      // One-time access fee gate (existing + new users; configurable via
+      // MARKETPLACE_ACCESS_FEE_USD; admin chat IDs bypass automatically).
+      const mpAccess = await marketplaceService.hasMarketplaceAccess(chatId)
+      if (!mpAccess) {
+        const fee = marketplaceService.MARKETPLACE_ACCESS_FEE_USD
+        const { usdBal } = await getBalance(walletOf, chatId)
+        const canAfford = usdBal >= fee
+        const inlineRows = [
+          ...(canAfford ? [[{ text: t.mpPaywallPayBtn(fee), callback_data: `mp:pay_access:${fee}` }]] : []),
+          [{ text: t.mpPaywallTopupBtn, callback_data: 'wallet_topup_quick' }],
+          [{ text: t.mpPaywallCancelBtn, callback_data: 'mp:pay_access_cancel' }],
+        ]
+        await set(state, chatId, 'action', a.mpHome)
+        await set(state, chatId, 'mpPaywallShown', true)
+        return send(chatId, t.mpPaywall(fee, usdBal), {
+          parse_mode: 'HTML',
+          reply_markup: { inline_keyboard: inlineRows },
+        })
       }
       await set(state, chatId, 'action', a.mpHome)
       send(chatId, t.mpHome, k.of([

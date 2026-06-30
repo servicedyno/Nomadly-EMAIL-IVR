@@ -1023,6 +1023,26 @@ captchaDomainButton: (domain, isOff, hasCF) => hasCF ? `${isOff ? '🔴 OFF' : '
  paymentSuccessFul: '✅ Paiement confirmé — provisionnement de vos services en cours.',
  nsVerifying: (tld) => `🔍 Vérification de la configuration des serveurs de noms auprès du registre .${tld} — environ 30 à 60 secondes…`,
  nsVerifiedOk: '✅ Serveurs de noms vérifiés — enregistrement en cours.',
+ mpPaywall: (fee, balance) =>
+   `🛒 <b>Accès Marketplace</b>\n\n` +
+   `Frais d'activation unique : <b>$${fee}</b>\n` +
+   `Payez une fois — accès permanent (parcourir, vendre, discuter, séquestre).\n\n` +
+   `💳 Solde du portefeuille : <b>$${balance.toFixed(2)}</b>\n\n` +
+   (balance >= fee
+     ? `Touchez ci-dessous pour activer.`
+     : `⚠️ <i>Rechargez d'au moins $${(fee - balance).toFixed(2)} de plus pour activer.</i>`),
+ mpPaywallPayBtn: (fee) => `✅ Payer $${fee} via portefeuille`,
+ mpPaywallTopupBtn: '👛 Recharger le portefeuille',
+ mpPaywallCancelBtn: '❌ Annuler',
+ mpPaywallInsufficient: (fee, balance) =>
+   `🚫 <b>Solde insuffisant</b>\n\n` +
+   `Besoin : <b>$${fee}</b> · Disponible : <b>$${balance.toFixed(2)}</b>\n\n` +
+   `Rechargez <b>$${Math.max(fee - balance, 25).toFixed(2)}</b> ou plus via 👛 <b>Portefeuille</b>, puis réessayez.`,
+ mpPaywallSuccess: (fee, balance) =>
+   `🎉 <b>Marketplace activé !</b>\n\n` +
+   `💵 Débité : <b>$${fee}</b>\n` +
+   `💳 Nouveau solde : <b>$${balance.toFixed(2)}</b>\n\n` +
+   `Bienvenue — ouverture du marketplace…`,
 
  // Renvoi d'appels (Cloud IVR)
  fwdInsufficientBalance: (walletBal, rate) => `🚫 <b>Solde insuffisant</b>\n\n💳 $${(walletBal || 0).toFixed(2)} · Requis $${rate}/min\n👉 Rechargez <b>$25</b> via 👛 Portefeuille.`,

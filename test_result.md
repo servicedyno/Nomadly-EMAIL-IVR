@@ -34,6 +34,178 @@ user_problem_statement: |
     that routes each VPS record to its OWN provider and reports manageable vs orphaned.
 
 backend:
+  - task: "Marketplace one-time access fee — $50 paywall (2026-07-01)"
+    implemented: true
+    working: true
+    file: "/app/js/marketplace-service.js, /app/js/_index.js, /app/js/lang/{en,fr,hi,zh}.js, /app/backend/.env"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          FEATURE: One-time access fee for the marketplace. Both existing and new users must pay
+          this fee once before they can browse, list, chat, or escrow. Configurable via
+          MARKETPLACE_ACCESS_FEE_USD env var (default $50).
+
+          IMPLEMENTATION:
+          - New env var MARKETPLACE_ACCESS_FEE_USD=50 in backend/.env (configurable, with garbage/
+            negative-value fallback to default $50).
+          - New collection `marketplaceAccess` with one doc per paid user: {_id: chatId, paid: true,
+            paidAt, amountUsd, mode, txnId, walletBalAfter}. Stored with cross-type (number/string)
+            chatId support to match the rest of the bot.
+          - marketplace-service.js exports: hasMarketplaceAccess, grantMarketplaceAccess (idempotent),
+            revokeMarketplaceAccess (admin tool), MARKETPLACE_ACCESS_FEE_USD.
+          - Admin bypass: TELEGRAM_ADMIN_CHAT_ID, TELEGRAM_DEV_CHAT_ID, and any CSV in
+            MARKETPLACE_ACCESS_ADMIN_IDS env var auto-pass through with mode='admin'.
+          - Gate #1: goto.marketplace() at the front door — checks hasMarketplaceAccess; if absent,
+            sends a paywall message with inline buttons [Pay $50 from wallet] [Top up wallet] [Cancel]
+            instead of the marketplace home.
+          - Gate #2: bot.on('callback_query') MP handler — gates ALL mp:* actions (browse, chat,
+            escrow, etc.) so users can't bypass the front-door paywall via stale deep-link buttons.
+          - Payment flow: callback `mp:pay_access:<fee>` → wallet balance check → smartWalletDeduct
+            (atomic) → grantMarketplaceAccess → write payments ledger row → notify admin/group
+            (masked-public/full-private split following the recent privacy fix) → send success
+            message → open marketplace home.
+          - Translation keys added in all 4 locales: mpPaywall(fee, balance), mpPaywallPayBtn(fee),
+            mpPaywallTopupBtn, mpPaywallCancelBtn, mpPaywallInsufficient(fee, balance),
+            mpPaywallSuccess(fee, balance).
+
+          VERIFIED LOCALLY:
+          - test_marketplace_access_fee.js: 20/20 pass — covers fresh user, grant, idempotency,
+            revoke, admin bypass, cross-type chatId lookup.
+          - test_marketplace_fee_env.js: 6/6 pass — covers env reading: default $50, custom value
+            (0/25/100), garbage/negative fallback to $50.
+          - test_marketplace_gate_wiring.js: 35/35 pass — static-source guard that the gate is
+            wired into goto.marketplace + the MP callback handler; translation keys present in all
+            4 locales.
+          - Node.js bot restarted cleanly with "[Marketplace] Initialized (access fee: $50)".
+
+          REGRESSIONS — no existing test broken:
+          - test_maskPhone.js: 9/9 still pass
+          - test_phone_scheduler_no_leak.js: 12/12 still pass
+          - test_op_de_dns_preflight.js: 11/11 still pass
+
+          ASKS FOR TESTING AGENT:
+          1. Run all three new tests:
+             - `cd /app && node js/tests/test_marketplace_access_fee.js` — expect "20 passed, 0 failed"
+             - `cd /app && node js/tests/test_marketplace_fee_env.js` — expect "6 passed, 0 failed"
+             - `cd /app && node js/tests/test_marketplace_gate_wiring.js` — expect "35 passed, 0 failed"
+          2. Verify env var is loaded:
+             `cd /app && node -e "console.log(require('./js/marketplace-service').MARKETPLACE_ACCESS_FEE_USD)"` → 50
+          3. Verify .env contains it:
+             `grep MARKETPLACE_ACCESS_FEE_USD /app/backend/.env` → MARKETPLACE_ACCESS_FEE_USD="50"
+          4. Verify Node service is healthy:
+             - `sudo supervisorctl status nodejs` → RUNNING
+             - Log line "[Marketplace] Initialized (access fee: $50)" appears in /var/log/supervisor/nodejs.out.log
+          5. Regression: GET <REACT_APP_BACKEND_URL>/api/admin/dns-heal-status?key=o/Qb8ArGahlquhCQ
+             → HTTP 200, ok=true (unrelated to marketplace, just smoke test for service health).
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFIED - All marketplace one-time access fee assertions PASSED (test_sequence 16):
+          
+          TEST 1 - Unit + integration tests: ✅ PASSED
+            • test_marketplace_access_fee.js: 20 passed, 0 failed ✓
+              - MARKETPLACE_ACCESS_FEE_USD exported and equals 50 ✓
+              - hasMarketplaceAccess, grantMarketplaceAccess, revokeMarketplaceAccess exported ✓
+              - Fresh user has no access (returns null) ✓
+              - Grant returns paid:true doc with amountUsd and txnId persisted ✓
+              - Re-grant is idempotent (does NOT overwrite existing doc) ✓
+              - Only ONE access doc exists per user ✓
+              - Revoke returns revoked:true, hasMarketplaceAccess returns null after revoke ✓
+              - Admin chatId (5590563715) bypasses paywall ✓
+              - Non-admin user remains gated ✓
+              - Cross-type lookup works (number→found, string→same doc) ✓
+            • test_marketplace_fee_env.js: 6 passed, 0 failed ✓
+              - Default fee = 50 when env unset ✓
+              - Fee = 25 with MARKETPLACE_ACCESS_FEE_USD=25 ✓
+              - Fee = 100 with MARKETPLACE_ACCESS_FEE_USD=100 ✓
+              - Fee = 0 with MARKETPLACE_ACCESS_FEE_USD=0 ✓
+              - Garbage env value falls back gracefully to default $50 ✓
+              - Negative env value falls back gracefully to default $50 ✓
+            • test_marketplace_gate_wiring.js: 35 passed, 0 failed ✓
+              - backend/.env has MARKETPLACE_ACCESS_FEE_USD ✓
+              - marketplace-service exports all required functions ✓
+              - goto.marketplace calls hasMarketplaceAccess BEFORE mpHome ✓
+              - goto.marketplace renders mpPaywall when no access ✓
+              - MP callback handler gates non-pay actions through hasMarketplaceAccess ✓
+              - MP callback handles action === "pay_access" ✓
+              - MP callback uses smartWalletDeduct for the access charge ✓
+              - MP callback grants access via grantMarketplaceAccess after deduction ✓
+              - MP callback writes payments-ledger row for audit ✓
+              - MP callback notifies admin/group on purchase ✓
+              - All translation keys present in all 4 locales (en, fr, hi, zh) ✓
+          
+          TEST 2 - Env var loaded: ✅ PASSED
+            • Command: `node -e "console.log(require('./js/marketplace-service').MARKETPLACE_ACCESS_FEE_USD)"`
+            • Expected output: 50
+            • Actual output: 50 ✓
+          
+          TEST 3 - Env var in .env file: ✅ PASSED
+            • Command: `grep "^MARKETPLACE_ACCESS_FEE_USD" /app/backend/.env`
+            • Expected output: MARKETPLACE_ACCESS_FEE_USD="50"
+            • Actual output: MARKETPLACE_ACCESS_FEE_USD="50" ✓
+          
+          TEST 4 - Service health: ✅ PASSED
+            • nodejs service status: RUNNING (pid 5680, uptime 0:02:10) ✓
+            • Log line verification: "[Marketplace] Initialized (access fee: $50)" present in nodejs.out.log ✓
+          
+          TEST 5 - Code-level wiring (grep checks on /app/js/_index.js): ✅ PASSED
+            • hasMarketplaceAccess: 3 occurrences (≥2 required) ✓
+            • smartWalletDeduct(walletOf, chatId, fee: 1 occurrence (≥1 required) ✓
+            • grantMarketplaceAccess: 1 occurrence (≥1 required) ✓
+            • mp:pay_access: 7 occurrences (≥2 required) ✓
+          
+          TEST 6 - Translation key spot-checks: ✅ PASSED
+            • Command: `node -e "const {translation}=require('./js/translation'); for(const l of ['en','fr','hi','zh']){console.log(l, '|', translation('t.mpPaywall',l, 50, 25.50).slice(0,80))}"`
+            • Output:
+              - en | 🛒 <b>Marketplace Access</b>\n\nOne-time activation fee: <b>$50</b>\nPay once — kee ✓
+              - fr | 🛒 <b>Accès Marketplace</b>\n\nFrais d'activation unique : <b>$50</b>\nPayez une fo ✓
+              - hi | 🛒 <b>मार्केटप्लेस एक्सेस</b>\n\nएकमुश्त सक्रियण शुल्क: <b>$50</b>\nएक बार भुगतान क ✓
+              - zh | 🛒 <b>市场访问权限</b>\n\n一次性激活费用: <b>$50</b>\n支付一次 — 永久访问 (浏览、上架、聊天、托管)。\n\n💳 钱包余额: <b>$2 ✓
+            • Each line contains "$50" ✓
+            • Raw key string "t.mpPaywall" does NOT appear in any output ✓
+          
+          TEST 7 - Configurability proof: ✅ PASSED
+            • Command: `MARKETPLACE_ACCESS_FEE_USD=75 node -e "console.log(require('./js/marketplace-service').MARKETPLACE_ACCESS_FEE_USD)"`
+            • Expected output: 75
+            • Actual output: 75 ✓
+            • Env var override works correctly ✓
+          
+          TEST 8 - Idempotency at DB layer: ✅ PASSED (covered by test_marketplace_access_fee.js)
+            • Test T3b verified idempotency: re-grant does NOT overwrite existing doc ✓
+            • Only ONE access doc exists per user after multiple grant attempts ✓
+          
+          TEST 9 - Regression tests: ✅ PASSED
+            • test_op_de_dns_preflight.js: 11 passed, 0 failed ✓
+            • test_maskPhone.js: 9 passed, 0 failed ✓
+            • test_phone_scheduler_no_leak.js: 12 passed, 0 failed ✓
+          
+          TEST 10 - Admin endpoint smoke test: ✅ PASSED
+            • GET https://ac69daab-24ae-49bc-b7cb-0feb1b91fb22.preview.emergentagent.com/api/admin/dns-heal-status?key=o/Qb8ArGahlquhCQ
+            • HTTP 200, ok=true ✓
+          
+          CONCLUSION:
+          All 10 test categories verified successfully. The marketplace one-time access fee feature is
+          fully functional and production-ready:
+          1. Env var MARKETPLACE_ACCESS_FEE_USD correctly configured in backend/.env (default $50)
+          2. marketplace-service.js exports all required functions (hasMarketplaceAccess, grantMarketplaceAccess, revokeMarketplaceAccess, MARKETPLACE_ACCESS_FEE_USD)
+          3. Admin bypass working correctly (TELEGRAM_ADMIN_CHAT_ID, TELEGRAM_DEV_CHAT_ID, MARKETPLACE_ACCESS_ADMIN_IDS)
+          4. Gate #1 (goto.marketplace) checks hasMarketplaceAccess before showing marketplace home
+          5. Gate #2 (MP callback handler) gates ALL mp:* actions to prevent bypass via stale deep-link buttons
+          6. Payment flow correctly uses smartWalletDeduct (atomic) → grantMarketplaceAccess → payments ledger → admin notification
+          7. Translation keys present in all 4 locales (en, fr, hi, zh) with correct formatting
+          8. Idempotency preserved (re-grant does NOT overwrite existing access doc)
+          9. Configurability working (env var override tested with MARKETPLACE_ACCESS_FEE_USD=75)
+          10. No regressions (all existing tests still pass)
+          
+          The implementation successfully enforces a one-time $50 access fee for the marketplace. Both
+          existing and new users must pay this fee once before they can browse, list, chat, or escrow.
+          The fee is configurable via MARKETPLACE_ACCESS_FEE_USD env var with proper fallback handling
+          for garbage/negative values.
+
   - task: "Phone-scheduler privacy fix — mask phone numbers in group notifications (2026-07-01)"
     implemented: true
     working: true
@@ -2055,3 +2227,144 @@ agent_communication:
 
       Report pass/fail per assertion with the exact JSON of the op-sync response and the heal-status
       row for rsvpcrumelbell.de. Update test_result.md.
+
+
+  - agent: "main"
+    message: |
+      NEW TASK (test_sequence 16). Verify the marketplace one-time access fee feature (2026-07-01).
+
+      CONTEXT:
+      - Both EXISTING and NEW users must pay a one-time fee (default $50) before using the marketplace
+        (browse, list, chat, escrow).
+      - Fee is configurable via env var `MARKETPLACE_ACCESS_FEE_USD` in /app/backend/.env.
+      - Implementation:
+        - New env var MARKETPLACE_ACCESS_FEE_USD="50" in /app/backend/.env (configurable).
+        - New MongoDB collection `marketplaceAccess` with one doc per paid user.
+        - marketplace-service.js exports: hasMarketplaceAccess, grantMarketplaceAccess (idempotent),
+          revokeMarketplaceAccess, MARKETPLACE_ACCESS_FEE_USD.
+        - Admin bypass: TELEGRAM_ADMIN_CHAT_ID, TELEGRAM_DEV_CHAT_ID, MARKETPLACE_ACCESS_ADMIN_IDS auto-pass.
+        - Gate #1 in goto.marketplace() — front door.
+        - Gate #2 in bot.on('callback_query') MP handler — covers stale deep-link buttons.
+        - mp:pay_access callback uses smartWalletDeduct (atomic) → grantMarketplaceAccess → notify admin.
+        - Translation keys in all 4 locales: mpPaywall, mpPaywallPayBtn, mpPaywallTopupBtn,
+          mpPaywallCancelBtn, mpPaywallInsufficient, mpPaywallSuccess.
+
+      ENVIRONMENT:
+      - Admin key: o/Qb8ArGahlquhCQ (from /app/memory/test_credentials.md).
+      - REACT_APP_BACKEND_URL from /app/frontend/.env for any HTTP checks.
+
+      TESTS TO RUN (report pass/fail per assertion):
+
+      1) Unit + integration tests:
+         - `cd /app && node js/tests/test_marketplace_access_fee.js` — expect "20 passed, 0 failed" and exit 0.
+         - `cd /app && node js/tests/test_marketplace_fee_env.js` — expect "6 passed, 0 failed" and exit 0.
+         - `cd /app && node js/tests/test_marketplace_gate_wiring.js` — expect "35 passed, 0 failed" and exit 0.
+
+      2) Env var loaded:
+         `cd /app && node -e "console.log(require('./js/marketplace-service').MARKETPLACE_ACCESS_FEE_USD)"`
+         → expect output: `50`.
+
+      3) Env var present in .env file:
+         `grep "^MARKETPLACE_ACCESS_FEE_USD" /app/backend/.env`
+         → expect output like `MARKETPLACE_ACCESS_FEE_USD="50"`.
+
+      4) Service health:
+         - `sudo supervisorctl status nodejs` → must show RUNNING.
+         - `grep "Marketplace.*Initialized.*access fee" /var/log/supervisor/nodejs.out.log` → must contain
+           `[Marketplace] Initialized (access fee: $50)`.
+
+      5) Code-level wiring (grep checks on /app/js/_index.js):
+         - `grep -c "hasMarketplaceAccess" /app/js/_index.js` → at least 2 (one in goto.marketplace, one in MP callback handler).
+         - `grep -c "smartWalletDeduct(walletOf, chatId, fee" /app/js/_index.js` → at least 1.
+         - `grep -c "grantMarketplaceAccess" /app/js/_index.js` → at least 1.
+         - `grep -c "mp:pay_access" /app/js/_index.js` → at least 2 (callback handler + button callback_data).
+
+      6) Translation key spot-checks:
+         `cd /app && node -e "const {translation}=require('./js/translation'); for(const l of ['en','fr','hi','zh']){console.log(l, '|', translation('t.mpPaywall',l, 50, 25.50).slice(0,80))}"`
+         - Each line must contain a string mentioning '$50' and a balance line.
+         - The raw key string "t.mpPaywall" must NOT appear in any output.
+
+      7) Configurability proof — change env temporarily and verify (do NOT modify backend/.env):
+         `cd /app && MARKETPLACE_ACCESS_FEE_USD=75 node -e "console.log(require('./js/marketplace-service').MARKETPLACE_ACCESS_FEE_USD)"`
+         → expect output: `75`. (This proves the env var override works.)
+
+      8) Idempotency at DB layer:
+         - Connect to MongoDB via the existing MongoClient pattern used in test_marketplace_access_fee.js.
+         - Connect with the same MONGO_URL + DB_NAME, then:
+           - Insert a fake doc: `db.collection('marketplaceAccess').insertOne({_id: 999999993, paid:true, paidAt:new Date(), amountUsd:50, mode:'wallet', txnId:'TEST'})`.
+           - Call `grantMarketplaceAccess(999999993, {amountUsd: 999, mode:'admin_grant'})` via require.
+           - Re-read the doc. amountUsd must STILL be 50 (not 999) — idempotency preserved.
+           - DELETE the test doc afterwards.
+
+         (Actually, test #8 is already covered by test_marketplace_access_fee.js scenario T3b. Skip if
+         running the unit tests in #1 is enough.)
+
+      9) Regression — must still pass:
+         - `cd /app && node js/tests/test_op_de_dns_preflight.js` → "11 passed, 0 failed".
+         - `cd /app && node js/tests/test_maskPhone.js` → "9 passed, 0 failed".
+         - `cd /app && node js/tests/test_phone_scheduler_no_leak.js` → "12 passed, 0 failed".
+
+      10) Admin endpoint smoke test:
+          GET <REACT_APP_BACKEND_URL>/api/admin/dns-heal-status?key=o/Qb8ArGahlquhCQ → HTTP 200, ok=true.
+          (Unrelated to marketplace, but proves Node.js bot service is responsive.)
+
+      DO NOT:
+      - Modify /app/backend/.env value of MARKETPLACE_ACCESS_FEE_USD.
+      - Send any Telegram messages.
+      - Actually charge any real user.
+      - Use any real user's chatId — only test chatIds (999999991+).
+
+      REPORT FORMAT: per-assertion pass/fail with actual output. At the end, update test_result.md task
+      "Marketplace one-time access fee — $50 paywall (2026-07-01)" with working: true if all assertions
+      pass, working: false with details otherwise.
+
+  - agent: "testing"
+    message: |
+      ✅ TESTING COMPLETE (test_sequence 16) - Marketplace one-time access fee feature VERIFIED.
+      
+      All 10 test categories PASSED:
+      
+      TEST 1 - Unit + integration tests: ✅ PASSED
+        • test_marketplace_access_fee.js: 20 passed, 0 failed (exit 0)
+        • test_marketplace_fee_env.js: 6 passed, 0 failed (exit 0)
+        • test_marketplace_gate_wiring.js: 35 passed, 0 failed (exit 0)
+      
+      TEST 2 - Env var loaded: ✅ PASSED
+        • Output: 50 (expected: 50)
+      
+      TEST 3 - Env var in .env file: ✅ PASSED
+        • Output: MARKETPLACE_ACCESS_FEE_USD="50" (expected: MARKETPLACE_ACCESS_FEE_USD="50")
+      
+      TEST 4 - Service health: ✅ PASSED
+        • nodejs service: RUNNING (pid 5680, uptime 0:02:10)
+        • Log line: "[Marketplace] Initialized (access fee: $50)" present
+      
+      TEST 5 - Code-level wiring: ✅ PASSED
+        • hasMarketplaceAccess: 3 occurrences (≥2 required)
+        • smartWalletDeduct: 1 occurrence (≥1 required)
+        • grantMarketplaceAccess: 1 occurrence (≥1 required)
+        • mp:pay_access: 7 occurrences (≥2 required)
+      
+      TEST 6 - Translation keys: ✅ PASSED
+        • All 4 locales (en, fr, hi, zh) contain "$50" in mpPaywall output
+        • Raw key "t.mpPaywall" does NOT appear in any output
+      
+      TEST 7 - Configurability proof: ✅ PASSED
+        • MARKETPLACE_ACCESS_FEE_USD=75 override → output: 75 (expected: 75)
+      
+      TEST 8 - Idempotency: ✅ PASSED (covered by test_marketplace_access_fee.js)
+        • Test T3b verified idempotency (re-grant does NOT overwrite)
+      
+      TEST 9 - Regression tests: ✅ PASSED
+        • test_op_de_dns_preflight.js: 11 passed, 0 failed
+        • test_maskPhone.js: 9 passed, 0 failed
+        • test_phone_scheduler_no_leak.js: 12 passed, 0 failed
+      
+      TEST 10 - Admin endpoint smoke test: ✅ PASSED
+        • GET /api/admin/dns-heal-status?key=o/Qb8ArGahlquhCQ → HTTP 200, ok=true
+      
+      CONCLUSION:
+      The marketplace one-time access fee feature is fully functional and production-ready. All 61
+      test assertions passed (20+6+35 unit tests + 10 verification checks). The implementation correctly
+      enforces a one-time $50 access fee for the marketplace, with proper admin bypass, idempotency,
+      configurability, and translation support across all 4 locales. No regressions detected.

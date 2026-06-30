@@ -1,6 +1,7 @@
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Marketplace Service — P2P product listings, chat relay, escrow
-// Collections: marketplaceProducts, marketplaceConversations, marketplaceMessages
+// Collections: marketplaceProducts, marketplaceConversations, marketplaceMessages,
+//              marketplaceAccess (one-time entry-fee gating)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const crypto = require('crypto')
 const { log } = require('console')
@@ -10,6 +11,7 @@ let _products = null
 let _conversations = null
 let _messages = null
 let _bans = null
+let _access = null
 
 const CATEGORIES = ['💻 Digital Goods', '🏦 Bnk Logs', '🏧 Bnk Opening', '🔧 Tools']
 const MIN_PRICE = 20
@@ -21,6 +23,30 @@ const MAX_IMAGES = 5
 const MSG_RATE_LIMIT = 30 // per conversation per hour
 const INACTIVITY_CLOSE_HOURS = 72
 const SELLER_OFFLINE_HOURS = 24
+
+// ── One-time marketplace access fee ──────────────────────────────────────
+// Charged from the user's wallet the first time they try to USE the
+// marketplace (browse, list, chat). All users — existing AND new — must pay
+// this once. Configurable via MARKETPLACE_ACCESS_FEE_USD (default $50).
+//
+// Bypass: admin chat IDs from MARKETPLACE_ACCESS_ADMIN_IDS (CSV) or the
+// hardcoded TELEGRAM_ADMIN_CHAT_ID / TELEGRAM_DEV_CHAT_ID.
+//
+// Persistence: marketplaceAccess collection
+//   _id (chatId), paid:true, paidAt, amountUsd, mode, txnId, walletBalAfter
+const _parseAccessFee = () => {
+  const raw = process.env.MARKETPLACE_ACCESS_FEE_USD
+  if (raw === undefined || raw === null || raw === '') return 50
+  const n = Number(raw)
+  if (!Number.isFinite(n) || n < 0) {
+    console.warn(`[Marketplace] Invalid MARKETPLACE_ACCESS_FEE_USD="${raw}" — falling back to default $50`)
+    return 50
+  }
+  return n
+}
+const MARKETPLACE_ACCESS_FEE_USD = _parseAccessFee()
+const MARKETPLACE_ACCESS_ADMIN_IDS = String(process.env.MARKETPLACE_ACCESS_ADMIN_IDS || '')
+  .split(',').map((s) => s.trim()).filter(Boolean)
 
 // Payment pattern detection (anti-scam)
 const PAYMENT_PATTERNS = [
@@ -43,6 +69,7 @@ async function initMarketplace(db) {
   _conversations = db.collection('marketplaceConversations')
   _messages = db.collection('marketplaceMessages')
   _bans = db.collection('marketplaceBans')
+  _access = db.collection('marketplaceAccess')
 
   // Create indexes
   await _products.createIndex({ sellerId: 1, status: 1 })
@@ -54,8 +81,81 @@ async function initMarketplace(db) {
   await _conversations.createIndex({ lastMessageAt: 1 })
   await _messages.createIndex({ conversationId: 1, timestamp: 1 })
   await _bans.createIndex({ oduserId: 1 }, { unique: true })
+  await _access.createIndex({ paidAt: -1 })
 
-  log('[Marketplace] Initialized')
+  log(`[Marketplace] Initialized (access fee: $${MARKETPLACE_ACCESS_FEE_USD})`)
+}
+
+// ── One-time access fee gating ───────────────────────────────────────────
+
+function _isAccessAdmin(chatId) {
+  const id = String(chatId)
+  if (id === String(process.env.TELEGRAM_ADMIN_CHAT_ID || '')) return true
+  if (id === String(process.env.TELEGRAM_DEV_CHAT_ID || '')) return true
+  if (MARKETPLACE_ACCESS_ADMIN_IDS.includes(id)) return true
+  return false
+}
+
+/**
+ * Returns the access doc if the user has paid (or is admin), null otherwise.
+ * Admins are auto-granted a virtual access doc (mode: 'admin') for symmetry —
+ * downstream code can treat the return value uniformly.
+ */
+async function hasMarketplaceAccess(chatId) {
+  if (!_access) return null
+  if (_isAccessAdmin(chatId)) {
+    return { _id: chatId, paid: true, mode: 'admin', amountUsd: 0 }
+  }
+  const numId = Number(chatId)
+  const strId = String(chatId)
+  // chatId is stored as both number and string across the bot — match both
+  const doc = await _access.findOne({ _id: { $in: [numId, strId] }, paid: true })
+  return doc || null
+}
+
+/**
+ * Mark the user as having paid the one-time marketplace access fee. Idempotent:
+ * if a paid doc already exists, returns the existing doc unchanged.
+ *
+ * @param {number|string} chatId
+ * @param {Object} opts
+ * @param {number} opts.amountUsd     amount actually charged ($)
+ * @param {string} opts.mode          'wallet' | 'admin_grant' | 'grandfathered'
+ * @param {string} opts.txnId         transaction reference (for ledger lookup)
+ * @param {number} [opts.walletBalAfter]  wallet balance after the deduction
+ */
+async function grantMarketplaceAccess(chatId, opts = {}) {
+  if (!_access) throw new Error('marketplaceAccess collection not initialised')
+  const numId = Number(chatId)
+  const id = Number.isFinite(numId) && String(numId) === String(chatId) ? numId : String(chatId)
+  const existing = await _access.findOne({ _id: { $in: [Number(chatId), String(chatId)] }, paid: true })
+  if (existing) {
+    log(`[Marketplace] grantMarketplaceAccess: ${chatId} already paid (mode=${existing.mode}, paidAt=${existing.paidAt})`)
+    return existing
+  }
+  const doc = {
+    _id: id,
+    paid: true,
+    paidAt: new Date(),
+    amountUsd: Number(opts.amountUsd || 0),
+    mode: opts.mode || 'wallet',
+    txnId: opts.txnId || null,
+    walletBalAfter: typeof opts.walletBalAfter === 'number' ? opts.walletBalAfter : null,
+  }
+  await _access.updateOne({ _id: id }, { $set: doc }, { upsert: true })
+  log(`[Marketplace] GRANTED access to ${chatId} (mode=${doc.mode}, $${doc.amountUsd})`)
+  return doc
+}
+
+/**
+ * Admin tool: revoke marketplace access (e.g., after refund). User will be
+ * gated again on next entry.
+ */
+async function revokeMarketplaceAccess(chatId) {
+  if (!_access) return { revoked: false }
+  const result = await _access.deleteOne({ _id: { $in: [Number(chatId), String(chatId)] } })
+  log(`[Marketplace] REVOKED access for ${chatId} — deleted=${result.deletedCount}`)
+  return { revoked: result.deletedCount > 0 }
 }
 
 // ── Product CRUD ──
@@ -312,6 +412,10 @@ module.exports = {
   banUser,
   unbanUser,
   isUserBanned,
+  // Access fee
+  hasMarketplaceAccess,
+  grantMarketplaceAccess,
+  revokeMarketplaceAccess,
   // Constants
   CATEGORIES,
   MIN_PRICE,
@@ -322,4 +426,5 @@ module.exports = {
   MAX_IMAGES,
   MSG_RATE_LIMIT,
   SELLER_OFFLINE_HOURS,
+  MARKETPLACE_ACCESS_FEE_USD,
 }

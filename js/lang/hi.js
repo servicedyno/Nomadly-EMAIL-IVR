@@ -1007,6 +1007,26 @@ captchaDomainButton: (domain, isOff, hasCF) => hasCF ? `${isOff ? '🔴 OFF' : '
  paymentSuccessFul: '✅ भुगतान पुष्टि — अभी आपकी सेवाएं तैयार हो रही हैं।',
  nsVerifying: (tld) => `🔍 .${tld} रजिस्ट्री पर नेमसर्वर सेटअप सत्यापित किया जा रहा है — लगभग 30–60 सेकंड…`,
  nsVerifiedOk: '✅ नेमसर्वर सत्यापित — अब पंजीकरण कर रहे हैं।',
+ mpPaywall: (fee, balance) =>
+   `🛒 <b>मार्केटप्लेस एक्सेस</b>\n\n` +
+   `एकमुश्त सक्रियण शुल्क: <b>$${fee}</b>\n` +
+   `एक बार भुगतान करें — हमेशा के लिए एक्सेस रखें (ब्राउज़, लिस्ट, चैट, एस्क्रो)।\n\n` +
+   `💳 वॉलेट बैलेंस: <b>$${balance.toFixed(2)}</b>\n\n` +
+   (balance >= fee
+     ? `सक्रिय करने के लिए नीचे टैप करें।`
+     : `⚠️ <i>सक्रिय करने के लिए कम से कम $${(fee - balance).toFixed(2)} और टॉप अप करें।</i>`),
+ mpPaywallPayBtn: (fee) => `✅ वॉलेट से $${fee} भुगतान करें`,
+ mpPaywallTopupBtn: '👛 वॉलेट टॉप अप करें',
+ mpPaywallCancelBtn: '❌ रद्द करें',
+ mpPaywallInsufficient: (fee, balance) =>
+   `🚫 <b>अपर्याप्त वॉलेट बैलेंस</b>\n\n` +
+   `आवश्यक: <b>$${fee}</b> · उपलब्ध: <b>$${balance.toFixed(2)}</b>\n\n` +
+   `कृपया <b>$${Math.max(fee - balance, 25).toFixed(2)}</b> या अधिक 👛 <b>वॉलेट</b> के माध्यम से टॉप अप करें, फिर पुनः प्रयास करें।`,
+ mpPaywallSuccess: (fee, balance) =>
+   `🎉 <b>मार्केटप्लेस सक्रिय हो गया!</b>\n\n` +
+   `💵 शुल्क: <b>$${fee}</b>\n` +
+   `💳 नया बैलेंस: <b>$${balance.toFixed(2)}</b>\n\n` +
+   `स्वागत है — मार्केटप्लेस खोला जा रहा है…`,
 
  // कॉल फॉरवर्डिंग (Cloud IVR)
  fwdInsufficientBalance: (walletBal, rate) => `🚫 <b>अपर्याप्त बैलेंस</b>\n\n💳 $${(walletBal || 0).toFixed(2)} · $${rate}/मिनट आवश्यक\n👉 👛 वॉलेट से <b>$25</b> रिचार्ज करें।`,

@@ -1164,6 +1164,27 @@ captchaDomainButton: (domain, isOff, hasCF) => hasCF ? `${isOff ? '🔴 OFF' : '
  // at registry submit time, so we wait for Cloudflare to be live first)
  nsVerifying: (tld) => `🔍 Verifying nameserver setup at the .${tld} registry — this takes about 30–60 seconds…`,
  nsVerifiedOk: '✅ Nameservers verified — registering now.',
+ // ── Marketplace one-time access fee ───────────────────────────────────
+ mpPaywall: (fee, balance) =>
+   `🛒 <b>Marketplace Access</b>\n\n` +
+   `One-time activation fee: <b>$${fee}</b>\n` +
+   `Pay once — keep access forever (browse, list, chat, escrow).\n\n` +
+   `💳 Wallet balance: <b>$${balance.toFixed(2)}</b>\n\n` +
+   (balance >= fee
+     ? `Tap below to activate.`
+     : `⚠️ <i>Top up at least $${(fee - balance).toFixed(2)} more to activate.</i>`),
+ mpPaywallPayBtn: (fee) => `✅ Pay $${fee} from wallet`,
+ mpPaywallTopupBtn: '👛 Top up wallet',
+ mpPaywallCancelBtn: '❌ Cancel',
+ mpPaywallInsufficient: (fee, balance) =>
+   `🚫 <b>Insufficient wallet balance</b>\n\n` +
+   `Need: <b>$${fee}</b> · Have: <b>$${balance.toFixed(2)}</b>\n\n` +
+   `Top up <b>$${Math.max(fee - balance, 25).toFixed(2)}</b> or more via 👛 <b>Wallet</b>, then try again.`,
+ mpPaywallSuccess: (fee, balance) =>
+   `🎉 <b>Marketplace activated!</b>\n\n` +
+   `💵 Charged: <b>$${fee}</b>\n` +
+   `💳 New balance: <b>$${balance.toFixed(2)}</b>\n\n` +
+   `Welcome — opening marketplace…`,
 
  // Call Forwarding (Cloud IVR)
  fwdInsufficientBalance: (walletBal, rate) => `🚫 <b>Insufficient Balance</b>\n\n💳 $${(walletBal || 0).toFixed(2)} · Need $${rate}/min\n👉 Top up <b>$25</b> via 👛 Wallet to activate forwarding.`,
