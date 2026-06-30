@@ -2,7 +2,7 @@
 # Web Storefront Phase 2 Backend Testing using curl + jq
 # More reliable from inside container
 
-BASE_URL="https://de-dns-setup.preview.emergentagent.com/api/store"
+BASE_URL="https://crypto-wallet-pay-5.preview.emergentagent.com/api/store"
 
 echo "================================================================================"
 echo "WEB STOREFRONT PHASE 2 BACKEND TESTING"
