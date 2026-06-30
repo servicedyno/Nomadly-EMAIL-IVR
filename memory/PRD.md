@@ -3,6 +3,58 @@
 ## Original problem statement
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
+## 2026-07-01 — Phone-number privacy fix + NAST pre-flight UX (current session — pt 2)
+
+### Phone-scheduler privacy fix (BUG)
+**User report:** "phone number expiry or renewal to group is showing the full number, it shouldn't"
+
+**Root cause:** `phone-scheduler.js` had 9 `_notifyGroup?.(...)` call sites passing the full
+`formatPhone(num.phoneNumber)` as the SOLE arg. Since `notifyGroup`'s 1st arg goes to the public
+group AND auto-registered groups, this leaked every user's full phone number on every renewal /
+grace / expiry / release / anomaly notification.
+
+**Fix:**
+- Added `maskPhone()` helper in `phone-config.js`: preserves country code + first 2 digits + last
+  2 digits, masks the middle. Example: `+15105551234 → +1 (51•) •••-••34`.
+- Exported from `phone-config.js`; imported in `phone-scheduler.js`.
+- Updated ALL 9 leak sites to use the 2-arg form: `_notifyGroup(maskedMsg, fullMsg)` — group
+  gets masked, admin DM still gets full number for support correlation.
+- Added regression guards: `test_maskPhone.js` (9 unit tests) + `test_phone_scheduler_no_leak.js`
+  (12 static-source tests that will fail if any future commit re-introduces a leak).
+
+### NAST pre-flight UX (ENHANCEMENT)
+**Problem:** The new .de NAST pre-flight gate can wait up to 90s before calling OP. Previously
+the user just saw "Payment confirmed — provisioning..." then a long silence and assumed the bot
+froze.
+
+**Fix:**
+- `domain-service.js registerDomain()` now accepts optional `onProgress(stage, ctx)` 7th arg.
+  Fires `onProgress('verifying', {tld})` before NAST poll, `onProgress('verified', {tld, elapsedMs})`
+  on success.
+- `_index.js buyDomain()` wires the callback: sends "🔍 Verifying nameserver setup at the .de
+  registry — this takes about 30-60 seconds…" then `editMessageText` to "✅ Nameservers verified
+  — registering now." when complete.
+- New translation keys `t.nsVerifying(tld)` + `t.nsVerifiedOk` in all 4 locales (en/fr/hi/zh).
+- Callback errors are swallowed (best-effort) — UX bug NEVER breaks registration flow.
+
+### Verified
+Backend testing agent: **9 task assertions + 5 regression checks ALL PASS** (Task 1: 9 + 12
+tests; Task 2: 16 tests; regressions: 11 + 10 + 3 + 2 endpoint hits).
+
+### Files changed
+- `js/phone-config.js` (+50 lines: `maskPhone()` helper + export)
+- `js/phone-scheduler.js` (+25 lines net: 9 leak sites fixed)
+- `js/domain-service.js` (+3 lines: `onProgress` param + 2 invocations)
+- `js/_index.js` (+38 lines: `onProgress` wiring in `buyDomain`)
+- `js/lang/en.js, fr.js, hi.js, zh.js` (+2 keys each: `nsVerifying`, `nsVerifiedOk`)
+- `js/tests/test_maskPhone.js` (new, 9 tests)
+- `js/tests/test_phone_scheduler_no_leak.js` (new, 12 static guards)
+- `js/tests/test_nast_progress_ux.js` (new, 16 tests)
+
+---
+
+
+
 ## 2026-07-01 — OpenProvider .de DNS investigation + auto-sync fix (current session)
 
 ### Problem
