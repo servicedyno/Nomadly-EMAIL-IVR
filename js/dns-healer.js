@@ -58,6 +58,14 @@ const STABLE_PROBE_HOURS = parseInt(process.env.DNS_HEAL_STABLE_PROBE_HOURS || '
 const STABLE_THRESHOLD = parseInt(process.env.DNS_HEAL_STABLE_THRESHOLD || '3', 10)
 const BACKOFF_LADDER_MIN = [5, 10, 30, 60, 120, 240]       // minutes between heal attempts
 const HEAL_RECHECK_MIN = 5                                  // probe quickly after a heal call
+// Auto-sync gate (Fix 2026-07-01): once a domain has been ESCALATED for at
+// least N hours, the healer makes ONE attempt at opService.syncDomain() (a
+// no-op PUT to /v1beta/domains/{id} that re-pushes ns_group:'' +
+// name_servers — equivalent to RCP's "Synchronize" button). Cap at
+// MAX_SYNC_ATTEMPTS total auto-syncs per domain so a permanently broken row
+// doesn't bombard OP.
+const ESCALATION_SYNC_AFTER_HRS = parseFloat(process.env.DNS_HEAL_AUTO_SYNC_AFTER_HRS || '24')
+const MAX_SYNC_ATTEMPTS = parseInt(process.env.DNS_HEAL_MAX_SYNC_ATTEMPTS || '3', 10)
 
 // TLDs that require/perform pre-delegation NS checks at the registry.
 // These are the ones most prone to silent delegation failure on initial
@@ -326,6 +334,66 @@ async function processDomain(db, stateRow, regCol, stateCol) {
   if (attempts >= MAX_ATTEMPTS || stateRow.status === 'escalated') {
     // Already escalated — keep probing at backoff cap, but don't call OP again
     // unless an operator runs /dnsheal manually.
+    //
+    // EXCEPTION (Fix 2026-07-01): for pre-delegation TLDs, once the row has
+    // been escalated for ≥ESCALATION_SYNC_AFTER_HRS (default 24h) AND we
+    // haven't tried opService.syncDomain() yet (or last sync was >24h ago),
+    // auto-trigger ONE sync attempt. The sync PUT is what RCP's "Synchronize"
+    // button does — re-pushes ns_group:'' + name_servers to force OP→DENIC
+    // chprov. This catches the stuck-binding case where the NS update was
+    // accepted by OP but the registry never republished.
+    const escalationAgeHrs = stateRow.lastHealAttemptAt
+      ? (Date.now() - new Date(stateRow.lastHealAttemptAt).getTime()) / 3600000
+      : 0
+    const lastSyncAgeHrs = stateRow.lastSyncAt
+      ? (Date.now() - new Date(stateRow.lastSyncAt).getTime()) / 3600000
+      : Infinity
+    const shouldAutoSync = preDelegationTld
+      && escalationAgeHrs >= ESCALATION_SYNC_AFTER_HRS
+      && lastSyncAgeHrs >= 24
+      && (stateRow.syncAttempts || 0) < MAX_SYNC_ATTEMPTS
+
+    if (shouldAutoSync) {
+      log(`${domain}: escalated ${escalationAgeHrs.toFixed(1)}h, lastSyncAge=${lastSyncAgeHrs === Infinity ? 'never' : lastSyncAgeHrs.toFixed(1) + 'h'} — auto-triggering opService.syncDomain()`)
+      let syncResult
+      try {
+        syncResult = await opService.syncDomain(domain)
+      } catch (e) {
+        syncResult = { error: e.message }
+      }
+      const syncOk = !!syncResult?.success
+      log(`${domain}: auto-sync result: ${JSON.stringify(syncResult)}`)
+      // Give it 5 min for the registry to publish, then re-engage healing
+      await stateCol.updateOne(
+        { _id: domain },
+        { $set: {
+          status: syncOk ? 'healing' : 'escalated',
+          attempts: syncOk ? 0 : attempts,                 // reset attempts if sync OK
+          syncAttempts: (stateRow.syncAttempts || 0) + 1,
+          lastSyncAt: now(),
+          lastSyncResult: syncOk ? 'ok' : (syncResult?.error || 'unknown'),
+          consecutiveHealthy: 0,
+          lastProbeAt: now(),
+          nextProbeAt: addMin(syncOk ? HEAL_RECHECK_MIN : BACKOFF_LADDER_MIN[BACKOFF_LADDER_MIN.length - 1]),
+          lastError: syncOk ? 'auto-sync triggered, awaiting registry publish' : (syncResult?.error || probe.reason),
+          lastPublicNs: probe.publicNs,
+          lastPublicA: probe.publicA,
+        } },
+        { upsert: true }
+      )
+      if (notifyAdmin) {
+        const tag = syncOk ? '🔄 [DnsHealer] AUTO-SYNC' : '⚠️ [DnsHealer] AUTO-SYNC FAILED'
+        notifyAdmin(
+          `${tag}\n` +
+          `Domain: <code>${domain}</code> (TLD .${tld})\n` +
+          `Was escalated ${escalationAgeHrs.toFixed(1)}h. Sync attempt ${(stateRow.syncAttempts || 0) + 1}/${MAX_SYNC_ATTEMPTS}.\n` +
+          `OP sync: ${syncOk ? '✅ accepted' : '❌ ' + (syncResult?.error || 'unknown')}\n` +
+          (syncOk ? 'Re-probing in 5min. Will escalate again if registry still does not publish.' : 'Open OpenProvider support ticket.')
+        )
+      }
+      return { domain, status: syncOk ? 'healing' : 'escalated' }
+    }
+
     const nextProbeAt = addMin(BACKOFF_LADDER_MIN[BACKOFF_LADDER_MIN.length - 1])
     await stateCol.updateOne(
       { _id: domain },
@@ -386,7 +454,7 @@ async function processDomain(db, stateRow, regCol, stateCol) {
   // Escalation notice (sent once, when crossing into escalated)
   if (escalateNow && notifyAdmin) {
     const registryHint = preDelegationTld
-      ? `\n\n⚠️ <i>.${tld} is a pre-delegation TLD. OpenProvider accepted the push (ok=${heal.ok}) but the registry (e.g. DENIC) has not published our CF NS. If CF zone status is not 'active', fix/await CF activation; otherwise open an OpenProvider support ticket to manually reset the .${tld} pre-delegation.</i>`
+      ? `\n\n⚠️ <i>.${tld} is a pre-delegation TLD. OpenProvider accepted the push (ok=${heal.ok}) but the registry (e.g. DENIC) has not published our CF NS. If CF zone status is not 'active', fix/await CF activation; otherwise open an OpenProvider support ticket to manually reset the .${tld} pre-delegation. Auto-sync will retry in ${ESCALATION_SYNC_AFTER_HRS}h before final escalation.</i>`
       : ''
     notifyAdmin(
       `🚨 <b>[DnsHealer] ESCALATED</b>\n` +

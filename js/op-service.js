@@ -1167,6 +1167,170 @@ const deleteDNSRecord = async (domainName, record) => {
   }
 }
 
+// ─── Registry-sync helper (no-op PUT to force re-push) ─────────────────
+//
+// Why this exists: OP's RCP "Synchronize" button is internally just a PUT to
+// /v1beta/domains/{id} that re-pushes the current ns_group + name_servers to
+// the registry. There's no dedicated REST sync endpoint. This helper makes
+// that same call programmatically so the bot can rescue stuck domains where
+// OP's API code:0 NS-update accepted the change but the registry never
+// republished (real prod case: rsvpcrumelbell.de, rsvpeviteguestview.de,
+// inviowelcoparty.de — DENIC kept serving ina*.registrar.eu while OP showed
+// Cloudflare NS on the domain record).
+//
+// Returns { success: true } | { error }. Best-effort: does NOT verify
+// registry propagation here — the caller (rescue script / DnsHealer) probes
+// public DNS afterwards.
+const syncDomain = async (domainName) => {
+  try {
+    const info = await getDomainInfo(domainName)
+    if (!info || !info.domainId) return { error: 'Domain not found at registrar' }
+
+    const headers = await authHeaders()
+    // Re-send the CURRENT NS list with ns_group:'' to force OP→registry chprov.
+    // Without ns_group:'' the registry binding can stay stuck on whatever the
+    // domain was last registered with (commonly the OP parking ns_group for
+    // pre-delegation TLDs whose NAST check failed at registration time).
+    const nsPayload = (info.nameservers || []).map((n, i) => ({ name: n, seq_nr: i + 1 }))
+    const body = { ns_group: '' }
+    if (nsPayload.length >= 2) body.name_servers = nsPayload
+
+    log(`[OP-Sync] ${domainName} (id=${info.domainId}, status=${info.domainData?.status}): PUT with current NS=[${(info.nameservers || []).join(', ')}] + ns_group:''`)
+    const res = await axios.put(`${OP_BASE_URL}/v1beta/domains/${info.domainId}`, body, {
+      headers, timeout: 45000,
+    })
+
+    if (res.data?.code === 0) {
+      log(`[OP-Sync] ${domainName}: OP accepted (code:0). Registry chprov queued.`)
+      return { success: true, domainId: info.domainId, opStatus: info.domainData?.status }
+    }
+    return { error: res.data?.desc || `OP sync returned code ${res.data?.code}` }
+  } catch (err) {
+    const opData = err.response?.data
+    const opDesc = opData?.desc || opData?.data?.desc || ''
+    const status = err.response?.status
+    log(`[OP-Sync] ${domainName} error: HTTP ${status} | ${err.message} | desc: ${opDesc}`)
+    return { error: opDesc || err.message || `HTTP ${status}` }
+  }
+}
+
+/**
+ * NAST-style pre-flight check — verifies the given nameservers actually serve
+ * an authoritative response for `domainName` BEFORE we send it to OP for
+ * registration / NS-update on a pre-delegation TLD (.de, .nl, .se, .fi, .be,
+ * .ch, .ie, .it, .eu, .at, .li, .dk, .cz, .no). DENIC's NAST and equivalent
+ * registries reject delegations whose NS don't return AA=1 with answers.
+ *
+ * Polls direct UDP/53 SOA queries against each NS (resolved by getaddrinfo).
+ * Returns { ready, perNs:[{ns, ip, aa, ancount, error}], reason, elapsedMs }.
+ *
+ * ready = true iff ≥2 distinct NS each return Authoritative=1 with ≥1 answer.
+ *
+ * Defensive: catches all errors so this is safe to call in the registration
+ * hot path. timeoutMs is the total wall-clock budget (not per-NS).
+ */
+const checkNsAuthoritative = async (domainName, nsList, timeoutMs = 60000) => {
+  const dns = require('dns').promises
+  const dgram = require('dgram')
+
+  const start = Date.now()
+
+  // Build a DNS SOA query packet for the domain (type=6)
+  const buildSoaQuery = (qname) => {
+    const tid = Math.floor(Math.random() * 0xffff)
+    const flags = 0x0000 // standard query, recursion DESIRED off
+    const head = Buffer.alloc(12)
+    head.writeUInt16BE(tid, 0); head.writeUInt16BE(flags, 2)
+    head.writeUInt16BE(1, 4); head.writeUInt16BE(0, 6)
+    head.writeUInt16BE(0, 8); head.writeUInt16BE(0, 10)
+    const labels = qname.split('.').filter(Boolean)
+    let q = Buffer.alloc(0)
+    for (const lab of labels) {
+      const b = Buffer.from(lab, 'ascii')
+      q = Buffer.concat([q, Buffer.from([b.length]), b])
+    }
+    q = Buffer.concat([q, Buffer.from([0]), Buffer.from([0, 6, 0, 1])])
+    return Buffer.concat([head, q])
+  }
+
+  const queryUdp = (ip, qname, perNsTimeoutMs = 5000) => new Promise((resolve) => {
+    const sock = dgram.createSocket('udp4')
+    const pkt = buildSoaQuery(qname)
+    const timer = setTimeout(() => {
+      try { sock.close() } catch (_) { /* ignore */ }
+      resolve({ aa: false, ancount: 0, error: 'timeout' })
+    }, perNsTimeoutMs)
+    sock.on('message', (msg) => {
+      clearTimeout(timer)
+      try { sock.close() } catch (_) { /* ignore */ }
+      try {
+        const flags = msg.readUInt16BE(2)
+        const aa = (flags >> 10) & 1
+        const rcode = flags & 0xf
+        const ancount = msg.readUInt16BE(6)
+        resolve({ aa: !!aa, ancount, rcode, error: rcode === 0 ? null : `rcode=${rcode}` })
+      } catch (e) {
+        resolve({ aa: false, ancount: 0, error: `parse: ${e.message}` })
+      }
+    })
+    sock.on('error', (e) => {
+      clearTimeout(timer)
+      try { sock.close() } catch (_) { /* ignore */ }
+      resolve({ aa: false, ancount: 0, error: e.message })
+    })
+    try { sock.send(pkt, 53, ip) } catch (e) {
+      clearTimeout(timer); try { sock.close() } catch (_) {}
+      resolve({ aa: false, ancount: 0, error: e.message })
+    }
+  })
+
+  const checkOnce = async () => {
+    const perNs = []
+    for (const ns of nsList) {
+      const nsClean = String(ns || '').replace(/\.$/, '').toLowerCase()
+      let ip = null
+      try {
+        const rec = await dns.lookup(nsClean, { family: 4 })
+        ip = rec.address
+      } catch (e) {
+        perNs.push({ ns: nsClean, ip: null, aa: false, ancount: 0, error: `resolve: ${e.message}` })
+        continue
+      }
+      const r = await queryUdp(ip, domainName)
+      perNs.push({ ns: nsClean, ip, aa: r.aa, ancount: r.ancount, error: r.error || null })
+    }
+    const authoritative = perNs.filter((x) => x.aa && x.ancount > 0)
+    return { perNs, authoritativeCount: authoritative.length }
+  }
+
+  let last = { perNs: [], authoritativeCount: 0 }
+  while (Date.now() - start < timeoutMs) {
+    try {
+      last = await checkOnce()
+    } catch (e) {
+      log(`[NAST] ${domainName}: probe error (non-fatal): ${e.message}`)
+    }
+    if (last.authoritativeCount >= 2) {
+      return {
+        ready: true,
+        perNs: last.perNs,
+        authoritativeCount: last.authoritativeCount,
+        reason: 'ok',
+        elapsedMs: Date.now() - start,
+      }
+    }
+    // Polling backoff: 4s
+    await new Promise((r) => setTimeout(r, 4000))
+  }
+  return {
+    ready: false,
+    perNs: last.perNs,
+    authoritativeCount: last.authoritativeCount,
+    reason: `only ${last.authoritativeCount}/${nsList.length} NS returned AA=1 with answers within ${timeoutMs}ms`,
+    elapsedMs: Date.now() - start,
+  }
+}
+
 module.exports = {
   authenticate,
   checkDomainAvailability,
@@ -1174,6 +1338,8 @@ module.exports = {
   getDomainInfo,
   updateNameservers,
   disableDnssec,
+  syncDomain,
+  checkNsAuthoritative,
   getContactHandle,
   getContactHandleForTLD,
   parseDomain,

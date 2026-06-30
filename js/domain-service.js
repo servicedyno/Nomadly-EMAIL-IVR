@@ -152,6 +152,38 @@ const registerDomain = async (domainName, registrar, nsChoice, db, chatId, custo
     log(`[domain-service] Using custom NS: ${nameservers.join(', ')}`)
   }
 
+  // ── Pre-delegation NAST gate (.de, .nl, .se, .fi, .be, .ch, .ie, .it, .eu,
+  //    .at, .li, .dk, .cz, .no) ────────────────────────────────────────────
+  // DENIC and similar registries run a Nameserver Pre-Delegation Check (NAST)
+  // before publishing the delegation. The NS sent in our register API call
+  // MUST already respond authoritatively (AA=1) for the domain at submit
+  // time. If they don't, OP silently keeps the parking ns_group binding and
+  // the registry never publishes our CF NS — which is the exact root cause
+  // of the 5 prod-stuck domains (inviowelcoparty.de, rsvpcrumelbell.de,
+  // rsvpeviteguestview.de + 2 .com that had moved CF zones).
+  //
+  // Cloudflare's zone normally answers authoritatively within ~30-60s of
+  // createZone() returning. We poll up to 90s here; if it doesn't come
+  // online we abort the whole registration (no charge) instead of registering
+  // a known-broken delegation.
+  const PRE_DELEGATION_TLDS = new Set([
+    'de','nl','se','fi','be','ch','ie','it','eu','at','li','dk','cz','no'
+  ])
+  const tld = (domainName.split('.').pop() || '').toLowerCase()
+  if (PRE_DELEGATION_TLDS.has(tld) && nameservers.length >= 2) {
+    log(`[domain-service] .${tld} is a pre-delegation TLD — running NAST pre-flight check on [${nameservers.join(', ')}]`)
+    const nast = await opService.checkNsAuthoritative(domainName, nameservers, 90000)
+    log(`[domain-service] NAST: ready=${nast.ready} authoritativeCount=${nast.authoritativeCount}/${nameservers.length} elapsed=${nast.elapsedMs}ms`)
+    if (!nast.ready) {
+      const detail = nast.perNs.map((n) => `${n.ns}=${n.aa ? 'AA' : 'noAA'}(${n.error || 'ok'})`).join(', ')
+      log(`[domain-service] ❌ NAST pre-flight FAILED for ${domainName}: ${detail}`)
+      return {
+        error: `Nameserver pre-check failed for .${tld}. ${nast.authoritativeCount}/${nameservers.length} nameservers are authoritative. The registry would reject this delegation. Your card was NOT charged — please retry in a couple of minutes.`,
+      }
+    }
+    log(`[domain-service] ✅ NAST pre-flight passed for ${domainName} in ${nast.elapsedMs}ms`)
+  }
+
   if (registrar === 'ConnectReseller') {
     const ns1 = nameservers.length >= 1 ? nameservers[0] : undefined
     const ns2 = nameservers.length >= 2 ? nameservers[1] : undefined

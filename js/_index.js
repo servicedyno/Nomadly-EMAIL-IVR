@@ -35619,12 +35619,91 @@ app.get('/admin/dns-heal-status', async (req, res) => {
         domain: r._id, status: r.status, attempts: r.attempts,
         lastError: r.lastError, lastCfZoneStatus: r.lastCfZoneStatus || null,
         lastPublicNs: r.lastPublicNs, nextProbeAt: r.nextProbeAt,
+        syncAttempts: r.syncAttempts || 0,
+        lastSyncAt: r.lastSyncAt || null,
+        lastSyncResult: r.lastSyncResult || null,
       })),
     })
   } catch (e) {
     return res.status(500).json({ error: e.message })
   }
 })
+
+// ── Admin: manual OP "sync" (no-op PUT) + post-sync probe ─────────────────
+// What it does:
+//   1. Calls opService.checkNsAuthoritative() pre-flight on the domain's
+//      Cloudflare NS — confirms ≥2 NS answer authoritatively. Aborts if not.
+//   2. Calls opService.syncDomain() which PUTs /v1beta/domains/{id} with
+//      ns_group:'' + current name_servers — forces an OP→registry chprov
+//      push. This is what RCP's "Synchronize" button does internally.
+//   3. Resets the dnsHealState row so the background DnsHealer re-engages.
+// Use this when a .de (or other pre-delegation TLD) is stuck on OpenProvider
+// parking NS even though OP shows our Cloudflare NS on the domain record.
+//
+// Auth: ?key=<SESSION_SECRET[:16]>
+// Usage: POST or GET /api/admin/op-sync?domain=foo.de&key=<key>
+const _adminOpSyncHandler = async (req, res) => {
+  if (req?.query?.key !== process.env.SESSION_SECRET?.slice(0, 16)) {
+    return res.status(403).json({ error: 'Unauthorized' })
+  }
+  const domain = String(req.query.domain || '').trim().toLowerCase()
+  if (!domain || !domain.includes('.')) {
+    return res.status(400).json({ error: 'domain query param required (e.g. foo.de)' })
+  }
+  try {
+    const opService = require('./op-service')
+    const cfService = require('./cf-service')
+
+    // Step 1: confirm CF zone + NS
+    const zone = await cfService.getZoneByName(domain)
+    if (!zone) return res.status(400).json({ error: 'CF zone not found for domain — create one first' })
+    const cfNs = (zone.name_servers || []).map((n) => String(n).toLowerCase())
+    if (cfNs.length < 2) return res.status(400).json({ error: 'CF zone has <2 nameservers' })
+
+    // Step 2: NAST pre-flight
+    const nast = await opService.checkNsAuthoritative(domain, cfNs, 30000)
+    if (!nast.ready) {
+      return res.status(409).json({
+        error: 'NAST pre-flight failed — CF NS not authoritative yet',
+        nast,
+      })
+    }
+
+    // Step 3: trigger sync
+    const sync = await opService.syncDomain(domain)
+    if (!sync.success) return res.status(502).json({ error: 'OP sync failed', detail: sync.error })
+
+    // Step 4: clear dnsHealState escalation so healer re-engages
+    await db.collection('dnsHealState').updateOne(
+      { _id: domain },
+      { $set: {
+        status: 'healing',
+        attempts: 1,
+        consecutiveHealthy: 0,
+        syncAttempts: 1,
+        lastSyncAt: new Date(),
+        lastSyncResult: 'ok (admin-triggered)',
+        lastProbeAt: new Date(),
+        nextProbeAt: new Date(Date.now() + 5 * 60 * 1000),
+        lastError: 'admin op-sync triggered, awaiting registry publish',
+      } },
+      { upsert: true }
+    )
+
+    return res.json({
+      ok: true,
+      domain,
+      cfNs,
+      nast: { ready: nast.ready, authoritativeCount: nast.authoritativeCount, elapsedMs: nast.elapsedMs },
+      sync,
+      message: 'OP sync accepted. Re-probe via /api/admin/dns-heal-status?domain=' + domain + ' in ~5min.',
+    })
+  } catch (e) {
+    return res.status(500).json({ error: e.message })
+  }
+}
+app.post('/admin/op-sync', _adminOpSyncHandler)
+app.get('/admin/op-sync', _adminOpSyncHandler)
 
 // ── Admin: read-only VPS/RDP billing-safety check ─────────────────────────
 // Verifies the mechanism that stops cloud fees when a VPS/RDP is NOT renewed

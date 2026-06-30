@@ -3,6 +3,57 @@
 ## Original problem statement
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
+## 2026-07-01 — OpenProvider .de DNS investigation + auto-sync fix (current session)
+
+### Problem
+5 prod domains stuck in `escalated` state for ≥3 healing attempts each:
+- `inviowelcoparty.de`, `rsvpeviteguestview.de`, `rsvpcrumelbell.de` (.de)
+- `paperlesseviteinvio.com`, `strivepartypaperless.com` (.com with `moved` CF zones)
+
+Public DNS for all 5 showed OpenProvider parking NS (`ina1/2/3.registrar.eu`) + IP `185.53.179.136`, even though OP record had correct CF NS (`anderson/leanna.ns.cloudflare.com`).
+
+### Root cause
+Two-layer issue:
+1. **NAST pre-flight gap at REGISTRATION**: For pre-delegation TLDs (.de etc.), DENIC's Nameserver Pre-Delegation Check requires the NS to ALREADY respond authoritatively for the domain at the moment OP forwards the registration to the registry. If CF zone isn't yet active (typical 30-60s gap after `createZone`), DENIC silently rejects the delegation and OP keeps the parking `nsgroup_id` binding. The bot never knew NAST failed.
+2. **No auto-sync escalation**: Existing healer kept calling `updateNameservers(ns_group:'')` 3x and escalated. But for pre-delegation TLDs, OP returning `code:0` doesn't mean the registry chprov fired. After escalation it just sat there forever.
+
+### Fix (this session)
+**A. Prevention for FUTURE registrations** — `/app/js/op-service.js` + `/app/js/domain-service.js`:
+- New `opService.checkNsAuthoritative(domain, nsList, timeoutMs)` — sends real UDP/53 SOA queries directly to each NS, polls until ≥2 return AA=1 with ≥1 answer.
+- New gate in `domain-service.js registerDomain()`: for `.de/.nl/.se/.fi/.be/.ch/.ie/.it/.eu/.at/.li/.dk/.cz/.no`, waits up to 90s for NAST-style readiness BEFORE calling OP. Hard-aborts (no charge) if not ready.
+
+**B. Auto-rescue for STUCK domains** — `/app/js/op-service.js` + `/app/js/dns-healer.js`:
+- New `opService.syncDomain(domain)` — RCP "Synchronize" equivalent: PUT `/v1beta/domains/{id}` with `ns_group:''` + current name_servers.
+- `dns-healer.js` now auto-triggers `syncDomain()` once per 24h for any pre-delegation row escalated ≥24h (capped at `DNS_HEAL_MAX_SYNC_ATTEMPTS=3`). New fields: `syncAttempts`, `lastSyncAt`, `lastSyncResult`.
+- New admin endpoint `POST/GET /api/admin/op-sync?domain=…&key=…` runs NAST pre-flight + syncDomain + state reset.
+- `/api/admin/dns-heal-status` now exposes the new sync fields.
+
+**C. Rescue script** — `/app/js/scripts/sync_stuck_domains.js`:
+- One-shot CLI: NAST pre-flight + syncDomain + post-sync probe + dnsHealState reset.
+- Usage: `node js/scripts/sync_stuck_domains.js` (all escalated) or `node js/scripts/sync_stuck_domains.js domain1 domain2 …`.
+
+### Verified
+- New test `js/tests/test_op_de_dns_preflight.js` — 11/11 pass (NAST live against rsvpcrumelbell.de in 98ms; bogus NS fail; syncDomain ACT success).
+- Existing tests `test_op_ns_update_registry_chprov.js` (10/10), `test_cf_zone_no_silent_downgrade.js` (3/3), `test_heal_bifurcated_domains_categorize.js` (14/14) — no regressions.
+- All 5 stuck prod domains: NAST passed (2/2 NS authoritative in <200ms), OP sync accepted (`code:0`, `opStatus=ACT`), dnsHealState reset from `escalated` → `healing` with `syncAttempts=1`.
+
+### Known limitation
+For the 5 currently-stuck domains the OP REST sync DID succeed (`code:0`), but DENIC's published NS still showed `ina*.registrar.eu` after 3 minutes — confirming the registry chprov is jammed at OP's internal pipeline (the `nsgroup_id: 17202914` binding persists despite `ns_group:''`). The REST API cannot force-resync this. **Manual OP support ticket required** for those 5 domains. The new code prevents this from happening to any future .de registration.
+
+### Files changed
+- `js/op-service.js` (+166 lines: `syncDomain`, `checkNsAuthoritative`)
+- `js/domain-service.js` (+32 lines: NAST pre-flight gate)
+- `js/dns-healer.js` (+147 lines: auto-sync escalation branch + config consts)
+- `js/_index.js` (+129 lines: new admin op-sync endpoint, expanded heal-status fields)
+- `js/scripts/sync_stuck_domains.js` (new file, 195 lines)
+- `js/scripts/probe_op_full_record.js` (new file, diagnostic)
+- `js/scripts/investigate_de_stuck.js` (new file, diagnostic)
+- `js/tests/test_op_de_dns_preflight.js` (new file, 11 tests)
+
+---
+
+
+
 ## Architecture (per /app/README.md)
 - React frontend (port 3000)
 - FastAPI backend (port 8001) — reverse-proxies `/api/*` to Node.js
@@ -20,7 +71,7 @@ Read the README file and set up using the provided `.env` variables, ensuring th
 
 ## Current pod state (2026-02-20)
 - `/app/frontend/.env` — `REACT_APP_BACKEND_URL` set to current dev pod URL
-- `/app/backend/.env` — full user-provided env list + safety overrides (`BOT_ENVIRONMENT=development`, `SKIP_WEBHOOK_SYNC=true`); `SELF_URL`/`SELF_URL_PROD` rewritten by setup script to `https://credential-onboard.preview.emergentagent.com/api`
+- `/app/backend/.env` — full user-provided env list + safety overrides (`BOT_ENVIRONMENT=development`, `SKIP_WEBHOOK_SYNC=true`); `SELF_URL`/`SELF_URL_PROD` rewritten by setup script to `https://de-dns-setup.preview.emergentagent.com/api`
 - `/app/.env` — symlink → `/app/backend/.env` (Node.js dotenv root)
 - Supervisor: `backend`, `frontend`, `mongodb`, `nodejs` all RUNNING
 - Node.js logs confirm: AntiRed worker upgrade SKIPPED, CF-Sync skipped (dev mode), health monitor DISABLED on backend
@@ -213,7 +264,7 @@ Code changes ready. `logs_prod/` is gitignored from yesterday's cleanup so this 
 ## 2026-06-21 — Fresh Railway 6-day RCA + Referral funnel fixes
 
 ### Step 1 — Dev setup refreshed
-- `SELF_URL` + `SELF_URL_DEV` updated to current pod `https://credential-onboard.preview.emergentagent.com/api`
+- `SELF_URL` + `SELF_URL_DEV` updated to current pod `https://de-dns-setup.preview.emergentagent.com/api`
 - `SELF_URL_PROD` left intact (still points to real Railway prod URL)
 - Production isolation reconfirmed: `BOT_ENVIRONMENT=development`, `SKIP_WEBHOOK_SYNC=true`, dev bot token in use
 - Nodejs restarted clean, all `/api/*` routes reachable
@@ -668,7 +719,7 @@ Removed one screen, added decision-shortcuts at the end, made the wait feel shor
 User asked: "read the README file and set up using below credentials" and supplied the full production .env list.
 
 ### What was done
-- Created `/app/frontend/.env` with `REACT_APP_BACKEND_URL=https://credential-onboard.preview.emergentagent.com`
+- Created `/app/frontend/.env` with `REACT_APP_BACKEND_URL=https://de-dns-setup.preview.emergentagent.com`
 - Created `/app/backend/.env` from the user-provided list with critical dev-pod safety overrides:
   - `BOT_ENVIRONMENT="production"` → `"development"` (CRITICAL — prevents prod bot hijack)
   - Added `SKIP_WEBHOOK_SYNC="true"` (CRITICAL — blocks Telnyx/Twilio/CF mutations)
@@ -695,7 +746,7 @@ All RUNNING: `backend`, `frontend`, `mongodb`, `nodejs`. Logs confirm:
 - `[PhoneMonitor] === Health check complete: 23 checked, 0 newly suspended, 0 auth-failed ===`
 
 ### Updated docs
-- `/app/memory/test_credentials.md` — current pod URL updated to `https://credential-onboard.preview.emergentagent.com`
+- `/app/memory/test_credentials.md` — current pod URL updated to `https://de-dns-setup.preview.emergentagent.com`
 
 Pod is initialised and idle, ready for development work.
 
