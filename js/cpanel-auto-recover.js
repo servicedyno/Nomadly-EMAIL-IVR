@@ -63,6 +63,10 @@ function _tcpProbe(host, port, timeoutMs) {
   })
 }
 
+// Cloudflare error statuses that mean the origin (behind the tunnel) is
+// unreachable — see comment in cpanel-health.js for full list.
+const CF_ORIGIN_ERROR_STATUSES = new Set([520, 521, 522, 523, 524, 525, 526, 527, 530])
+
 function _httpsProbe(url, timeoutMs) {
   return new Promise(resolve => {
     let done = false
@@ -74,7 +78,15 @@ function _httpsProbe(url, timeoutMs) {
     try {
       const req = https.request(url + '/login/', {
         method: 'HEAD', timeout: timeoutMs, rejectUnauthorized: true,
-      }, res => { finish(true, `http_${res.statusCode}`); try { res.resume() } catch (_) {} })
+      }, res => {
+        const code = res.statusCode
+        try { res.resume() } catch (_) {}
+        // A CF-origin-error status means the edge answered but the tunnel is
+        // still down (cloudflared hasn't reconnected yet). Report ok=false so
+        // _waitForHostBack keeps polling instead of falsely declaring "healed".
+        if (CF_ORIGIN_ERROR_STATUSES.has(code)) finish(false, `cf_origin_${code}`)
+        else finish(true, `http_${code}`)
+      })
       req.on('timeout', () => { try { req.destroy() } catch (_) {}; finish(false, 'TIMEOUT') })
       req.on('error', e => finish(false, e.code || e.message))
       req.end()
@@ -164,55 +176,77 @@ async function attemptRecovery({ reason = 'unknown', notify } = {}) {
     return { attempted: false, recovered: false, reason: 'cooldown' }
   }
 
-  // Sanity check 1: is SSH actually down? If SSH answers, the OS is fine and
-  // the issue is the tunnel/WHM service — a reboot would be excessive.
+  // Sanity check 1: SSH-alive semantics vary by outage type
+  // ─────────────────────────────────────────────────────────
+  // Case A — reason=TIMEOUT/ECONNREFUSED (OS-level hard hang):
+  //   SSH is definitionally part of that hang. If SSH answers, the OS is
+  //   fine and something WHM-service-level is the issue — do NOT reboot.
   //
-  // Special case: when the health-probe DOWN reason is `cf_origin_5xx`, the
-  // Cloudflare Tunnel connector on the origin is offline but the box itself
-  // is up. Historically we'd just `return { reason: 'ssh_alive' }` and
-  // silently do nothing, hoping the operator would notice — which meant
-  // multi-hour outages like @ciroovblzz 2026-07-01 (tunnel died 22:48, no
-  // proactive alert, only caught by manual log grep 3h later). Now we page
-  // the admin with the exact remediation command so they can fix it in <1min.
+  // Case B — reason=cf_origin_5xx (Cloudflare Tunnel connector dead):
+  //   The OS is up (SSH answers), but cloudflared has crashed and we can't
+  //   restart it remotely (password SSH is disabled; no key deployed here).
+  //   The ONLY automated remediation available is a droplet power_cycle,
+  //   which bounces the box for ~75s but restores cloudflared via its
+  //   systemd unit's Restart= policy. This is default-on because the
+  //   alternative — silent multi-hour outage until a human notices — is
+  //   strictly worse. See @ciroovblzz 2026-07-01 incident: tunnel died at
+  //   22:48 UTC and stayed dead for 3+ hours before manual diagnosis.
   //
-  // Operator opt-in: setting WHM_ALLOW_REBOOT_ON_TUNNEL_DOWN=true lets this
-  // module power_cycle the droplet even when SSH is alive — useful for
-  // fully unattended operation. Off by default because a reboot bounces
-  // ALL customer sites for ~60s.
+  //   Safety net: 3× consecutive health-probe misses (~60s hysteresis) are
+  //   required before onDown fires, and this module has a 30-min cooldown
+  //   between reboots, so false positives can't cause a reboot loop.
+  //
+  //   Emergency opt-out: set WHM_DISABLE_AUTO_REBOOT=true in the env to
+  //   force manual-only recovery (e.g., during scheduled maintenance).
   const isCfTunnelDown = /^cf_origin_/i.test(String(reason || ''))
-  const allowRebootOnTunnel = String(process.env.WHM_ALLOW_REBOOT_ON_TUNNEL_DOWN || '').toLowerCase() === 'true'
+  const autoRebootDisabled = String(process.env.WHM_DISABLE_AUTO_REBOOT || '').toLowerCase() === 'true'
   const ssh = await _tcpProbe(WHM_HOST, 22, 5000)
   if (ssh.ok) {
-    if (isCfTunnelDown && !allowRebootOnTunnel) {
+    if (!isCfTunnelDown) {
+      // Case A: not a tunnel error, SSH alive → WHM service-level issue.
+      // Reboot won't help faster than a human can diagnose.
+      log('[AutoRecover] SSH:22 still answers — OS is alive, not rebooting (reason was probably cloudflared/WHM-level)')
+      return { attempted: false, recovered: false, reason: 'ssh_alive' }
+    }
+    // Case B: cf_origin_5xx AND SSH alive → cloudflared is dead.
+    if (autoRebootDisabled) {
       const msg =
         `🛠️ <b>cloudflared connector down on WHM origin</b>\n` +
         `Host: <code>${WHM_HOST}</code>  droplet: <code>${DROPLET_ID}</code>\n` +
         `Reason: <code>${reason}</code>  (Cloudflare Tunnel returned ${reason.replace('cf_origin_', '')} to health probe)\n` +
-        `SSH:22 <b>is still answering</b> — the OS is alive, not power-cycling.\n\n` +
-        `<b>To fix manually:</b>\n` +
+        `SSH:22 <b>is still answering</b> — the OS is alive.\n\n` +
+        `⚠️ <b>Auto-reboot is DISABLED</b> (<code>WHM_DISABLE_AUTO_REBOOT=true</code>). Manual fix:\n` +
         `<code>ssh root@${WHM_HOST}\n` +
         `sudo systemctl status cloudflared\n` +
         `sudo journalctl -u cloudflared -n 100 --no-pager\n` +
-        `sudo systemctl restart cloudflared</code>\n\n` +
-        `Or set <code>WHM_ALLOW_REBOOT_ON_TUNNEL_DOWN=true</code> to let auto-recover reboot the droplet on the next tunnel outage.`
-      log(`[AutoRecover] tunnel-down (${reason}) but SSH:22 alive — paging admin with manual fix instructions`)
+        `sudo systemctl restart cloudflared</code>`
+      log(`[AutoRecover] tunnel-down (${reason}) but WHM_DISABLE_AUTO_REBOOT=true — paging admin with manual fix`)
       if (notify) notify(msg)
-      return { attempted: false, recovered: false, reason: 'tunnel_down_ssh_alive' }
+      return { attempted: false, recovered: false, reason: 'tunnel_down_reboot_disabled' }
     }
-    if (!isCfTunnelDown) {
-      log('[AutoRecover] SSH:22 still answers — OS is alive, not rebooting (reason was probably cloudflared/WHM-level)')
-      return { attempted: false, recovered: false, reason: 'ssh_alive' }
-    }
-    // isCfTunnelDown && allowRebootOnTunnel → fall through to power_cycle
-    log(`[AutoRecover] tunnel-down (${reason}) + SSH alive, but WHM_ALLOW_REBOOT_ON_TUNNEL_DOWN=true → power_cycling anyway`)
-    if (notify) notify(`🛠️ <b>auto-recover</b>: cloudflared appears down (${reason}); WHM_ALLOW_REBOOT_ON_TUNNEL_DOWN=true → power_cycling droplet <code>${DROPLET_ID}</code>.`)
+    // Default path: self-heal by power-cycling the droplet.
+    log(`[AutoRecover] tunnel-down (${reason}) + SSH alive → SELF-HEAL: power_cycling droplet ${DROPLET_ID} to restart cloudflared`)
+    if (notify) notify(
+      `🚨 <b>Cloudflare Tunnel connector down — SELF-HEALING</b>\n` +
+      `Host: <code>${WHM_HOST}</code>  droplet: <code>${DROPLET_ID}</code>\n` +
+      `Reason: <code>${reason}</code>  (Cloudflare edge returned ${reason.replace('cf_origin_', '')} to health probe for ~60s)\n` +
+      `SSH:22 is alive but cloudflared can't be remotely restarted from here.\n` +
+      `<b>Power-cycling droplet now</b> — expect ~75s downtime, then cloudflared should auto-start via systemd.\n\n` +
+      `<i>To opt out of this behavior: set <code>WHM_DISABLE_AUTO_REBOOT=true</code> in Railway env.</i>`
+    )
   }
 
   _inFlight = true
   _lastRebootAt = now
   try {
-    log(`[AutoRecover] WHM host hard-hung (downReason=${reason}, ssh=TIMEOUT) — issuing DO power_cycle on droplet ${DROPLET_ID}`)
-    if (notify) notify(`🛠️ <b>auto-recover</b>: WHM origin <code>${WHM_HOST}</code> hard-hung (no SSH). Issuing DO power_cycle…`)
+    const modeTag = ssh.ok ? 'cloudflared-dead-ssh-alive' : 'hard-hung-no-ssh'
+    log(`[AutoRecover] WHM ${modeTag} (downReason=${reason}, ssh=${ssh.ok ? 'ALIVE' : 'TIMEOUT'}) — issuing DO power_cycle on droplet ${DROPLET_ID}`)
+    if (notify && !ssh.ok) {
+      // Fresh alert only for hard-hang. Tunnel-down case already sent its
+      // detailed SELF-HEALING alert a few lines above; sending another
+      // "issuing power_cycle" here would spam the admin chat.
+      notify(`🛠️ <b>auto-recover</b>: WHM origin <code>${WHM_HOST}</code> hard-hung (no SSH). Issuing DO power_cycle…`)
+    }
 
     const { status, body } = await _doApi('POST', `/v2/droplets/${DROPLET_ID}/actions`, { type: 'power_cycle' })
     if (status >= 400 || !body?.action?.id) {
