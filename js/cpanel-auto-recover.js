@@ -166,10 +166,46 @@ async function attemptRecovery({ reason = 'unknown', notify } = {}) {
 
   // Sanity check 1: is SSH actually down? If SSH answers, the OS is fine and
   // the issue is the tunnel/WHM service — a reboot would be excessive.
+  //
+  // Special case: when the health-probe DOWN reason is `cf_origin_5xx`, the
+  // Cloudflare Tunnel connector on the origin is offline but the box itself
+  // is up. Historically we'd just `return { reason: 'ssh_alive' }` and
+  // silently do nothing, hoping the operator would notice — which meant
+  // multi-hour outages like @ciroovblzz 2026-07-01 (tunnel died 22:48, no
+  // proactive alert, only caught by manual log grep 3h later). Now we page
+  // the admin with the exact remediation command so they can fix it in <1min.
+  //
+  // Operator opt-in: setting WHM_ALLOW_REBOOT_ON_TUNNEL_DOWN=true lets this
+  // module power_cycle the droplet even when SSH is alive — useful for
+  // fully unattended operation. Off by default because a reboot bounces
+  // ALL customer sites for ~60s.
+  const isCfTunnelDown = /^cf_origin_/i.test(String(reason || ''))
+  const allowRebootOnTunnel = String(process.env.WHM_ALLOW_REBOOT_ON_TUNNEL_DOWN || '').toLowerCase() === 'true'
   const ssh = await _tcpProbe(WHM_HOST, 22, 5000)
   if (ssh.ok) {
-    log('[AutoRecover] SSH:22 still answers — OS is alive, not rebooting (reason was probably cloudflared/WHM-level)')
-    return { attempted: false, recovered: false, reason: 'ssh_alive' }
+    if (isCfTunnelDown && !allowRebootOnTunnel) {
+      const msg =
+        `🛠️ <b>cloudflared connector down on WHM origin</b>\n` +
+        `Host: <code>${WHM_HOST}</code>  droplet: <code>${DROPLET_ID}</code>\n` +
+        `Reason: <code>${reason}</code>  (Cloudflare Tunnel returned ${reason.replace('cf_origin_', '')} to health probe)\n` +
+        `SSH:22 <b>is still answering</b> — the OS is alive, not power-cycling.\n\n` +
+        `<b>To fix manually:</b>\n` +
+        `<code>ssh root@${WHM_HOST}\n` +
+        `sudo systemctl status cloudflared\n` +
+        `sudo journalctl -u cloudflared -n 100 --no-pager\n` +
+        `sudo systemctl restart cloudflared</code>\n\n` +
+        `Or set <code>WHM_ALLOW_REBOOT_ON_TUNNEL_DOWN=true</code> to let auto-recover reboot the droplet on the next tunnel outage.`
+      log(`[AutoRecover] tunnel-down (${reason}) but SSH:22 alive — paging admin with manual fix instructions`)
+      if (notify) notify(msg)
+      return { attempted: false, recovered: false, reason: 'tunnel_down_ssh_alive' }
+    }
+    if (!isCfTunnelDown) {
+      log('[AutoRecover] SSH:22 still answers — OS is alive, not rebooting (reason was probably cloudflared/WHM-level)')
+      return { attempted: false, recovered: false, reason: 'ssh_alive' }
+    }
+    // isCfTunnelDown && allowRebootOnTunnel → fall through to power_cycle
+    log(`[AutoRecover] tunnel-down (${reason}) + SSH alive, but WHM_ALLOW_REBOOT_ON_TUNNEL_DOWN=true → power_cycling anyway`)
+    if (notify) notify(`🛠️ <b>auto-recover</b>: cloudflared appears down (${reason}); WHM_ALLOW_REBOOT_ON_TUNNEL_DOWN=true → power_cycling droplet <code>${DROPLET_ID}</code>.`)
   }
 
   _inFlight = true

@@ -42,13 +42,56 @@ const httpsAgent = new https.Agent({ rejectUnauthorized: false })
 // connections, license invalid → cpsrvd not running, network drop), the user
 // should NEVER see raw "ECONNREFUSED" or server IPs. We tag the response with
 // code: 'CPANEL_DOWN' so callers can switch to friendly UX + queue the action.
+//
+// We also treat Cloudflare-tunnel-origin errors as "down": when the CF tunnel
+// serving `cpanel-api.hostbay.io` / `whm-api.hostbay.io` has no active
+// connector, Cloudflare returns an HTTP 530 with body "error code: 1033" (or
+// 520-527 for other origin failures). Prior to this fix, isControlPlaneDown()
+// short-circuited on any HTTP response and let the raw 530 bubble up as a
+// generic 503 in the panel UI, so admins were never paged and users saw no
+// friendly message. See @ciroovblzz 2026-07-01 22:48 incident — the tunnel
+// died at 22:48 and stayed down 2+ hours before we caught it in Railway logs.
 
 const WHM_CONNECT_ERR_RX = /ECONNREFUSED|ETIMEDOUT|ECONNRESET|ENOTFOUND|EAI_AGAIN|socket hang up|connect ETIMEDOUT|connect ECONN/i
+
+// Cloudflare-specific status codes returned when the ORIGIN (not the edge) is
+// the problem. See https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-5xx-errors/
+//   520 — Web server returned an unknown error
+//   521 — Web server is down
+//   522 — Connection timed out (to origin)
+//   523 — Origin is unreachable
+//   524 — A timeout occurred
+//   525 — SSL handshake failed
+//   526 — Invalid SSL certificate
+//   527 — Railgun error (deprecated)
+//   530 — Argo Tunnel: origin unreachable / no active tunnel connector (1033)
+const CF_ORIGIN_DOWN_STATUSES = new Set([520, 521, 522, 523, 524, 525, 526, 527, 530])
+
+// CF-tunnel-specific error codes embedded in the response body (Cloudflare
+// returns "error code: 1033" etc. as plain text or in HTML for tunnel failures).
+const CF_TUNNEL_ERR_BODY_RX = /error code:\s*10(33|34|35|36)/i
+
 function isControlPlaneDown(err) {
   if (!err) return false
-  if (err.response) return false // got an HTTP response — server up
   if (err.code && WHM_CONNECT_ERR_RX.test(err.code)) return true
   if (err.message && WHM_CONNECT_ERR_RX.test(err.message)) return true
+  // Cloudflare edge returned an HTTP status telling us the origin is down.
+  if (err.response) {
+    const status = err.response.status
+    if (CF_ORIGIN_DOWN_STATUSES.has(status)) {
+      // Sanity check: CF error bodies are tiny plain-text or HTML pages, never
+      // the JSON envelope a healthy cPanel/WHM would send. If the response
+      // deserialized to an object with an `errors` array (cPanel's standard
+      // shape), the origin IS up and just returned an in-band error — leave
+      // that alone. Only treat as tunnel-down when the body is a raw CF page.
+      const body = err.response.data
+      const looksLikeCfPage = typeof body === 'string'
+        ? (CF_TUNNEL_ERR_BODY_RX.test(body) || /cloudflare/i.test(body) || body.length < 4096)
+        : true // non-string body from a 520-530 = certainly not cPanel JSON
+      if (looksLikeCfPage) return true
+    }
+    return false // any other HTTP response — origin control plane is up
+  }
   return false
 }
 

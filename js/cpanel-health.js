@@ -79,10 +79,22 @@ function _tcpProbe(host, port, timeoutMs) {
 /**
  * HTTPS reachability probe via the Cloudflare Tunnel hostname.
  * Used when WHM_API_URL is set (production lockdown — direct TCP to :2087 is
- * blocked at the firewall). Any HTTP response (including 401) means the
- * cloudflared daemon is connected and the WHM server is responding to
- * requests from the tunnel side.
+ * blocked at the firewall).
+ *
+ * A successful probe means: Cloudflare's edge answered AND the response was
+ * NOT a Cloudflare-origin-error page. Any 2xx/3xx/4xx from the origin means
+ * cloudflared is connected and WHM is responding. A 5xx in the
+ * CF_ORIGIN_ERROR_STATUSES set means the CF edge returned an "origin down"
+ * page — the tunnel connector on the WHM box is offline, so we must treat
+ * that as DOWN (previously we treated ANY HTTP response as UP, which let a
+ * 2+ hour tunnel outage pass silently — see @ciroovblzz 2026-07-01 incident).
  */
+// Cloudflare status codes returned when the origin (not the CF edge) is the
+// problem. See https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-5xx-errors/
+//   520-527 — origin unknown-error / timeout / SSL failure
+//   530     — Argo Tunnel: no active tunnel connector for hostname (error 1033)
+const CF_ORIGIN_ERROR_STATUSES = new Set([520, 521, 522, 523, 524, 525, 526, 527, 530])
+
 function _tunnelHttpsProbe(url, timeoutMs) {
   return new Promise(resolve => {
     let resolved = false
@@ -100,12 +112,20 @@ function _tunnelHttpsProbe(url, timeoutMs) {
         method: 'HEAD',
         timeout: timeoutMs,
         headers: accessHeaders,
-        // The cert at this hostname is Cloudflare's, served by CF edge
         rejectUnauthorized: true,
       }, res => {
-        // Any HTTP response = control plane reachable end-to-end
-        finish(true, `http_${res.statusCode}`)
+        const code = res.statusCode
         try { res.resume() } catch (_) {}
+        if (CF_ORIGIN_ERROR_STATUSES.has(code)) {
+          // CF edge answered but the origin behind the tunnel is unreachable.
+          // Report DOWN with the CF status embedded in the reason so operators
+          // (and the auto-recover module) can distinguish tunnel-down (530)
+          // from host-hard-hang (TCP timeout on /22).
+          finish(false, `cf_origin_${code}`)
+        } else {
+          // 2xx/3xx/4xx = origin responded through the tunnel → healthy
+          finish(true, `http_${code}`)
+        }
       })
       req.on('timeout', () => { try { req.destroy() } catch (_) {}; finish(false, 'TIMEOUT') })
       req.on('error', err => finish(false, err.code || err.message || 'ERR'))
