@@ -1,6 +1,23 @@
 # CHANGELOG — Nomadly Bot
 
 
+## 2026-06-30 — Marketplace access fee: direct Crypto & NGN payments + strict access gate
+
+Sellers can now pay the one-time Marketplace access fee ($50, `MARKETPLACE_ACCESS_FEE_USD`) three ways: **Wallet** (existing), **direct Crypto** (BlockBee/DynoPay), and **NGN bank transfer** (Fincra) — mirroring the digital-product payment flows.
+
+Changes in `/app/js/_index.js`:
+- Paywall inline keyboard (both `goto.marketplace()` and the `mp:` callback gate) now shows `mp:pay_crypto` and `mp:pay_ngn` buttons. NGN button respects `HIDE_BANK_PAYMENT` (currently `true`, so hidden in UI; the webhook/bankApis path still works when driven directly).
+- Callback `mp:pay_crypto` → sets action `crypto-pay-marketplace-access` + coin picker. `mp:pay_ngn` → generates a Fincra checkout using `DEPOSIT_EMAIL` (no user email step).
+- New message action `crypto-pay-marketplace-access` generates a crypto deposit address/QR tagged `dynopayActions.payMarketplaceAccess`.
+- New webhook handlers: `GET /crypto-pay-marketplace-access` (BlockBee), `POST /dynopay/crypto-pay-marketplace-access` (DynoPay), and bankApis `'/bank-pay-marketplace-access'` (Fincra `/webhook`). Added to FincraReconcile serviceMap.
+- Shared helper `fulfillMarketplaceAccessPayment()`: grants access on exact/over payment (credits surplus), credits wallet + no access on underpayment, and credits wallet if the user already had access (idempotent). Sends `t.mpAccessActivated` confirmation ("you can now list goods/services & chat with buyers") and opens the marketplace home keyboard.
+- **Strict access gate**: the `a.mpHome` message handler now re-checks `hasMarketplaceAccess` and re-shows the paywall — closing a bypass where a non-paying user could type a menu button's text to list/browse/chat.
+
+Testing: `node /app/scripts/test_marketplace_payments.js` (6/6) and `/app/scripts/test_marketplace_payments_extended.js` (12/12) — 18/18 backend assertions pass (grant, underpay→no access+wallet credit, overpay→grant+surplus, NGN grant, idempotency, route registration). Verified independently by testing_agent (iteration_22.json).
+
+
+
+
 ## 2026-06-18 (cont.) — Dust-deposit user notification
 
 Closes the silent-loss UX gap from the open-ended deposit flow. When a deposit lands below the per-coin floor (e.g. < $10 BTC, < $20 USDT-TRC20):
