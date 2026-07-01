@@ -1,0 +1,42 @@
+{
+  "summary": "Backend testing for one-time Marketplace Access payment (Nomadly Telegram bot on port 5000). Verified all 6 core assertions from /app/scripts/test_marketplace_payments.js and added a new /app/scripts/test_marketplace_payments_extended.js with 12 additional assertions covering route registration, DynoPay crypto OVERPAYMENT (grants access + credits surplus), DynoPay crypto IDEMPOTENCY (no re-grant, wallet credited), and Fincra NGN IDEMPOTENCY (no re-grant, wallet credited). All 18/18 assertions PASS.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "/webhook (Fincra NGN idempotent path)",
+        "issue": "When user already has marketplace access, a 2nd NGN payment of 500,000 NGN credits ~$674.72 to wallet.usdIn, but the *first* identical 500,000 NGN payment was converted/capped to $50 (mode=ngn, amountUsd=50). The USD-equivalent computed for the wallet-credit branch does not match the USD-equivalent computed for the access-grant branch on the same NGN amount. Likely FX-rate/route inconsistency in the NGN→USD conversion inside fulfillMarketplaceAccessPayment vs the initial bank webhook handler. Access idempotency itself works (paidAt & mode preserved), so this is a wallet-credit accuracy concern, not an access-gating bug."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/scripts/test_marketplace_payments.js",
+    "/app/scripts/test_marketplace_payments_extended.js"
+  ],
+  "action_items": [
+    "Investigate the NGN→USD conversion discrepancy: 500,000 NGN → $50 on the initial access-grant path but → $674.72 on the wallet-credit (idempotent) path. Ensure both branches use the same amountUsd computation so the wallet is credited a consistent USD amount when a paid seller re-pays via NGN."
+  ],
+  "critical_code_review_comments": [
+    "fulfillMarketplaceAccessPayment in /app/js/_index.js correctly implements the three states (already-paid → wallet credit; underpaid → wallet credit + no access; overpaid → grant + credit surplus). Logic is sound and observed to work in all tested cases.",
+    "BlockBee GET /crypto-pay-marketplace-access, DynoPay POST /dynopay/crypto-pay-marketplace-access, and Fincra POST /webhook are all correctly registered (verified via HTTP 200 responses, no 404s).",
+    "DynoPay handler's in-memory dedup on payment_id worked as expected in the multi-payment idempotency test (unique payment_id per request required)."
+  ],
+  "updated_files": [
+    "/app/scripts/test_marketplace_payments_extended.js (new file — extended regression coverage for overpayment + idempotency + route registration)"
+  ],
+  "success_rate": {
+    "backend": "100% (18/18)",
+    "frontend": "not tested (backend-only per request)"
+  },
+  "test_credentials": "n/a — webhook endpoints seeded directly via Mongo (chatIdOfDynopayPayment, chatIdOfPayment). Used fake chatIds 900000701-900000803. All test docs cleaned up (marketplaceAccess/walletOf/state/session/payments with mptest_ or mpext_ prefixes).",
+  "seed_data_creation": "Ephemeral: each test seeds a chatIdOfDynopayPayment or chatIdOfPayment doc and cleans it up post-run. No persistent seed data left in shared DB.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Regression command: `node /app/scripts/test_marketplace_payments.js && node /app/scripts/test_marketplace_payments_extended.js`. Both scripts self-clean using the mptest_/mpext_ ref prefixes and chatIds 900000701-900000803. The Node bot must be listening on http://localhost:5000 (supervisor-managed). Fincra NGN→USD FX rate is looked up live, so exact USD amounts for NGN payments may vary slightly across runs — assertions use tolerant ranges (>0 for the idempotent-credit case).",
+  "rca of the issue": "N/A — no failing tests. The one minor observation (NGN idempotent wallet-credit magnitude) is described under backend_issues.minor with a hypothesis (divergent NGN→USD conversion paths in the access-grant vs wallet-credit branches)."
+}

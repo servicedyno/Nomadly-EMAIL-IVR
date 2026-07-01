@@ -3616,6 +3616,7 @@ const loadData = async () => {
                   '/bank-pay-email-blast': '📧 Email Blast',
                   '/bank-pay-phone-upgrade': '⬆️ Phone Plan Upgrade',
                   '/bank-pay-digital-product': '🛒 Digital Product',
+                  '/bank-pay-marketplace-access': '🛒 Marketplace Access',
                   '/bank-pay-virtual-card': '💳 Virtual Card',
                   '/bank-pay-plan': '📦 Service Plan',
                   '/bank-pay-vps': '🖥️ VPS',
@@ -5253,7 +5254,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
     // Allow the user to ACQUIRE access (mp:pay_access*) without being
     // gated by the absence of access. Everything else (browse, chat,
     // escrow, …) requires paid access.
-    if (action !== 'pay_access' && action !== 'pay_access_cancel' && action !== 'noop') {
+    if (action !== 'pay_access' && action !== 'pay_crypto' && action !== 'pay_ngn' && action !== 'pay_access_cancel' && action !== 'noop') {
       const hasAccess = await marketplaceService.hasMarketplaceAccess(chatId)
       if (!hasAccess) {
         const fee = marketplaceService.MARKETPLACE_ACCESS_FEE_USD
@@ -5261,6 +5262,8 @@ Tap a button below to change. Changes sync to your phone on next app open.`
         const canAfford = usdBal >= fee
         const inlineRows = [
           ...(canAfford ? [[{ text: t.mpPaywallPayBtn(fee), callback_data: `mp:pay_access:${fee}` }]] : []),
+          [{ text: t.mpPaywallCryptoBtn, callback_data: 'mp:pay_crypto' }],
+          ...(process.env.HIDE_BANK_PAYMENT !== 'true' ? [[{ text: t.mpPaywallNgnBtn, callback_data: 'mp:pay_ngn' }]] : []),
           [{ text: t.mpPaywallTopupBtn, callback_data: 'wallet_topup_quick' }],
           [{ text: t.mpPaywallCancelBtn, callback_data: 'mp:pay_access_cancel' }],
         ]
@@ -5325,6 +5328,42 @@ Tap a button below to change. Changes sync to your phone on next app open.`
       // Open marketplace home
       await set(state, chatId, 'action', 'mpHome')
       return sendMsg(chatId, t.mpHome, { reply_markup: { keyboard: [[{ text: t.mpBrowse }], [{ text: t.mpListProduct }], [{ text: t.mpMyConversations }], [{ text: t.mpMyListings }], [{ text: t.mpAiHelper }], [{ text: '↩️ Back' }, { text: '🏠 Main Menu' }]], resize_keyboard: true } })
+    }
+
+    // mp:pay_crypto — user chose to pay the one-time access fee directly with crypto
+    if (action === 'pay_crypto') {
+      const already = await marketplaceService.hasMarketplaceAccess(chatId)
+      if (already) {
+        await set(state, chatId, 'action', 'mpHome')
+        return sendMsg(chatId, '✅ You already have marketplace access — opening now.', { reply_markup: { keyboard: [[{ text: t.mpBrowse }], [{ text: t.mpListProduct }], [{ text: t.mpMyConversations }], [{ text: t.mpMyListings }], [{ text: t.mpAiHelper }], [{ text: '↩️ Back' }, { text: '🏠 Main Menu' }]], resize_keyboard: true } })
+      }
+      const fee = marketplaceService.MARKETPLACE_ACCESS_FEE_USD
+      await set(state, chatId, 'action', 'crypto-pay-marketplace-access')
+      return sendMsg(chatId, t.mpPayChooseCrypto(fee), trans('k.of', trans('supportedCryptoViewOf')))
+    }
+
+    // mp:pay_ngn — user chose to pay the one-time access fee directly via NGN bank transfer
+    if (action === 'pay_ngn') {
+      if (process.env.HIDE_BANK_PAYMENT === 'true') {
+        return sendMsg(chatId, 'NGN bank payment is currently unavailable. Please use wallet or crypto.')
+      }
+      const already = await marketplaceService.hasMarketplaceAccess(chatId)
+      if (already) {
+        await set(state, chatId, 'action', 'mpHome')
+        return sendMsg(chatId, '✅ You already have marketplace access — opening now.', { reply_markup: { keyboard: [[{ text: t.mpBrowse }], [{ text: t.mpListProduct }], [{ text: t.mpMyConversations }], [{ text: t.mpMyListings }], [{ text: t.mpAiHelper }], [{ text: '↩️ Back' }, { text: '🏠 Main Menu' }]], resize_keyboard: true } })
+      }
+      const fee = marketplaceService.MARKETPLACE_ACCESS_FEE_USD
+      const ngn = await usdToNgn(fee)
+      if (!ngn || isNaN(ngn) || ngn <= 0) return sendMsg(chatId, t.errorFetchingCryptoAddress)
+      const ref = nanoid()
+      const email = process.env.DEPOSIT_EMAIL || process.env.SINGAPORE_ADMIN_EMAIL || 'deposits@nomadly.app'
+      set(chatIdOfPayment, ref, { chatId, price: fee, product: 'Marketplace Access', endpoint: '/bank-pay-marketplace-access', _createdAt: new Date().toISOString() })
+      log({ mpPayNgnRef: ref })
+      await sendMsg(chatId, t.mpPayNgnStarting(fee))
+      const { url, error } = await createCheckout(ngn, `/ok?a=b&ref=${ref}&`, email, info?.userName || '', ref)
+      if (error) return sendMsg(chatId, error)
+      const ngnStr = Number(ngn).toLocaleString()
+      return sendMsg(chatId, ({ en: `<a href="${url}">Click here to pay ₦${ngnStr}</a>`, fr: `<a href="${url}">Cliquez ici pour payer ₦${ngnStr}</a>`, zh: `<a href="${url}">点击此处支付 ₦${ngnStr}</a>`, hi: `<a href="${url}">₦${ngnStr} भुगतान करने के लिए यहाँ क्लिक करें</a>` }[lang] || `<a href="${url}">Click here to pay ₦${ngnStr}</a>`), { disable_web_page_preview: true })
     }
 
     // mp:pay_access_cancel — user cancelled the paywall
@@ -8225,6 +8264,8 @@ bot?.on('message', msg => {
         const canAfford = usdBal >= fee
         const inlineRows = [
           ...(canAfford ? [[{ text: t.mpPaywallPayBtn(fee), callback_data: `mp:pay_access:${fee}` }]] : []),
+          [{ text: t.mpPaywallCryptoBtn, callback_data: 'mp:pay_crypto' }],
+          ...(process.env.HIDE_BANK_PAYMENT !== 'true' ? [[{ text: t.mpPaywallNgnBtn, callback_data: 'mp:pay_ngn' }]] : []),
           [{ text: t.mpPaywallTopupBtn, callback_data: 'wallet_topup_quick' }],
           [{ text: t.mpPaywallCancelBtn, callback_data: 'mp:pay_access_cancel' }],
         ]
@@ -16419,6 +16460,71 @@ ${message.replace(/\n/g, '<br>')}
     return
   }
 
+  // Marketplace access: crypto payment (coin selection → deposit address)
+  if (action === 'crypto-pay-marketplace-access') {
+    if (isBackPress(message)) return goto.marketplace()
+    const already = await marketplaceService.hasMarketplaceAccess(chatId)
+    if (already) { await set(state, chatId, 'action', 'none'); return goto.marketplace() }
+    const supportedCryptoView = trans('supportedCryptoView')
+    const tickerKey = supportedCryptoView[message]
+    if (!tickerKey) return send(chatId, t.askValidCrypto)
+    const ticker = tickerOf[tickerKey]
+    const price = marketplaceService.MARKETPLACE_ACCESS_FEE_USD
+    const product = 'Marketplace Access'
+    const name = await get(nameOf, chatId)
+    const ref = nanoid()
+    await set(state, chatId, 'action', 'none')
+
+    if (BLOCKBEE_CRYTPO_PAYMENT_ON === 'true') {
+      const bbResult = await getCryptoDepositAddress(ticker, chatId, SELF_URL, `/crypto-pay-marketplace-access?a=b&ref=${ref}&`)
+      if (bbResult?.address) {
+        set(chatIdOfPayment, ref, { chatId, price, product, _createdAt: new Date().toISOString() })
+        log({ mpCryptoRef: ref })
+        await sendQrCode(bot, chatId, bbResult.bb, info?.userLanguage ?? 'en')
+        const priceCrypto = await convert(price, 'usd', ticker)
+        send(chatId, t.showDepositCryptoInfoDigitalProduct(price, priceCrypto, tickerKey, bbResult.address, product), trans('o'))
+      } else {
+        log('[CryptoFallback] BlockBee unavailable for marketplace access, falling back to DynoPay')
+        const dynoCoin = tickerOfDyno[tickerKey]
+        const dynoResult = await getDynopayCryptoAddress(price, dynoCoin, `${SELF_URL}/dynopay/crypto-pay-marketplace-access`, { "product_name": dynopayActions.payMarketplaceAccess, "refId": ref })
+        if (!dynoResult?.address) return send(chatId, t.errorFetchingCryptoAddress, trans('o'))
+        set(chatIdOfDynopayPayment, ref, { chatId, price, product, action: dynopayActions.payMarketplaceAccess, address: dynoResult.address, _createdAt: new Date().toISOString() })
+        log({ mpCryptoRef: ref })
+        await generateQr(bot, chatId, dynoResult.qr_code, info?.userLanguage ?? 'en')
+        const priceCrypto = await convert(price, 'usd', ticker)
+        send(chatId, t.showDepositCryptoInfoDigitalProduct(price, priceCrypto, tickerKey, dynoResult.address, product), trans('o'))
+      }
+    } else {
+      const coin = tickerOfDyno[tickerKey]
+      const redirect_url = `${SELF_URL}/dynopay/crypto-pay-marketplace-access`
+      const meta_data = { "product_name": dynopayActions.payMarketplaceAccess, "refId": ref }
+      const dynoResult = await getDynopayCryptoAddress(price, coin, redirect_url, meta_data)
+      if (dynoResult?.address) {
+        set(chatIdOfDynopayPayment, ref, { chatId, price, product, action: dynopayActions.payMarketplaceAccess, address: dynoResult.address, _createdAt: new Date().toISOString() })
+        log({ mpCryptoRef: ref })
+        await generateQr(bot, chatId, dynoResult.qr_code, info?.userLanguage ?? 'en')
+        const priceCrypto = await convert(price, 'usd', ticker)
+        send(chatId, t.showDepositCryptoInfoDigitalProduct(price, priceCrypto, tickerKey, dynoResult.address, product), trans('o'))
+      } else {
+        log('[CryptoFallback] DynoPay unavailable for marketplace access, falling back to BlockBee')
+        const { address: bbAddr, bb } = await getCryptoDepositAddress(ticker, chatId, SELF_URL, `/crypto-pay-marketplace-access?a=b&ref=${ref}&`)
+        if (!bbAddr) return send(chatId, t.errorFetchingCryptoAddress, trans('o'))
+        set(chatIdOfPayment, ref, { chatId, price, product, _createdAt: new Date().toISOString() })
+        log({ mpCryptoRef: ref })
+        await sendQrCode(bot, chatId, bb, info?.userLanguage ?? 'en')
+        const priceCrypto = await convert(price, 'usd', ticker)
+        send(chatId, t.showDepositCryptoInfoDigitalProduct(price, priceCrypto, tickerKey, bbAddr, product), trans('o'))
+      }
+    }
+
+    notifyGroup(
+      `🛒 <b>Marketplace Access — Crypto</b>\n\n👤 User: ${maskName(name)}\n💵 Fee: <b>$${price}</b> (Crypto)\n⏳ Awaiting crypto payment`,
+      `🛒 <b>Marketplace Access — Crypto</b>\n\n👤 User: ${adminUserTag(name, chatId)}\n💵 Fee: <b>$${price}</b> (Crypto: ${tickerKey})\n🔖 Ref: <code>${ref}</code>\n⏳ Awaiting crypto payment`,
+      buildAdminButtons({ chatId })
+    )
+    return
+  }
+
   // ━━━ Virtual Card Flow ━━━
 
   // Virtual Card: enter amount
@@ -16769,6 +16875,13 @@ ${message.replace(/\n/g, '<br>')}
   // ── Marketplace Home ──
   if (action === a.mpHome) {
     if (isBackPress(message) || message === '↩️ Back') return goto.displayMainMenuButtons()
+    if (message === '🏠 Main Menu') return goto.displayMainMenuButtons()
+    // Strict access gate: no listing, browsing, chat or escrow until the
+    // one-time marketplace fee is paid. Re-checked here (not just on the inline
+    // paywall) so a user cannot bypass by typing a menu button's text.
+    if (!(await marketplaceService.hasMarketplaceAccess(chatId))) {
+      return goto.marketplace()
+    }
 
     if (message === t.mpBrowse) {
       await set(state, chatId, 'action', a.mpBrowseCategory)
@@ -33181,6 +33294,17 @@ const bankApis = {
     await set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
   },
+  '/bank-pay-marketplace-access': async (req, res, ngnIn) => {
+    const { ref, chatId, price } = req.pay || {}
+    if (!ref || !chatId || !price) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
+    del(chatIdOfPayment, ref)
+    const fee = Number(price)
+    const usdIn = await ngnToUsd(ngnIn)
+    const name = await get(nameOf, chatId)
+    set(payments, ref, `Bank,MarketplaceAccess,Marketplace Access,$${usdIn},${chatId},${name},${new Date()},${ngnIn} NGN`)
+    await fulfillMarketplaceAccessPayment({ chatId, ref, fee, usdIn, mode: 'ngn', methodTag: '🏦 NGN (Bank)', coinLine: `₦${ngnIn}` })
+    res.send(html())
+  },
   '/bank-pay-virtual-card': async (req, res, ngnIn) => {
     const { ref, chatId, price, product, orderId } = req.pay || {}
     if (!ref || !chatId || !price || !product || !orderId) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
@@ -34274,6 +34398,76 @@ app.get('/crypto-pay-digital-product', auth, async (req, res) => {
 })
 
 
+// ── Shared fulfillment for a confirmed direct Marketplace-access payment ──
+// Grants one-time marketplace access, or (if already paid) credits the amount
+// to the wallet. Handles under/over-payment like the digital-product flow, logs
+// a payments row, sends the state-transition confirmation, and opens the
+// marketplace home keyboard so the seller can immediately list & chat.
+async function fulfillMarketplaceAccessPayment({ chatId, ref, fee, usdIn, mode, methodTag, coinLine }) {
+  const info = await state.findOne({ _id: String(chatId) })
+  const lang = info?.userLanguage ?? 'en'
+  const t = translation('t', lang)
+  const name = await get(nameOf, chatId)
+
+  // Idempotency: already have access → credit the payment to wallet instead.
+  const existing = await marketplaceService.hasMarketplaceAccess(chatId)
+  if (existing) {
+    if (usdIn > 0) addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
+    sendMessage(chatId, t.mpAccessAlreadyCredited(usdIn))
+    return true
+  }
+  // Underpaid → credit wallet, do NOT grant access (mirror digital-product flow).
+  if (usdIn < fee) {
+    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${fee}`, `$${usdIn}`))
+    addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
+    return false
+  }
+  // Overpaid → credit the surplus.
+  if (usdIn > fee) {
+    addFundsTo(walletOf, chatId, 'usd', usdIn - fee, lang)
+    sendMessage(chatId, translation('t.sentMoreMoney', lang, `$${fee}`, `$${usdIn}`))
+  }
+
+  await marketplaceService.grantMarketplaceAccess(chatId, { amountUsd: fee, mode, txnId: ref })
+  try {
+    await db.collection('payments').updateOne(
+      { _id: ref },
+      { $set: { val: `${methodTag},MarketplaceAccess,$${fee},${chatId},${(name || '').replace(/,/g, ';')},Marketplace one-time access fee,${new Date().toISOString()},${mode}` } },
+      { upsert: true }
+    )
+  } catch (e) { log(`[Marketplace] payments-row write failed (non-fatal): ${e.message}`) }
+
+  await set(state, chatId, 'action', 'mpHome')
+  send(chatId, t.mpAccessActivated(methodTag), {
+    parse_mode: 'HTML',
+    reply_markup: { keyboard: [[{ text: t.mpBrowse }], [{ text: t.mpListProduct }], [{ text: t.mpMyConversations }], [{ text: t.mpMyListings }], [{ text: t.mpAiHelper }], [{ text: '↩️ Back' }, { text: '🏠 Main Menu' }]], resize_keyboard: true },
+  })
+  try {
+    notifyGroup(
+      `🛒 <b>Marketplace Access Purchased</b>\n👤 ${maskName(name)}\n💵 $${fee} (${methodTag})`,
+      `🛒 <b>Marketplace Access Purchased (${methodTag})</b>\n👤 ${adminUserTag(name, chatId)}\n💵 $${fee}${coinLine ? `\n🪙 ${coinLine}` : ''}\n🔖 Ref: <code>${ref}</code>`,
+      buildAdminButtons({ chatId })
+    )
+  } catch (e) { /* notification best-effort */ }
+  return true
+}
+
+// BlockBee crypto callback — one-time Marketplace access fee
+app.get('/crypto-pay-marketplace-access', auth, async (req, res) => {
+  const { ref, chatId, price } = req.pay
+  const coin = req?.query?.coin
+  const value = req?.query?.value_coin
+  if (!ref || !chatId || !price || !coin || !value) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
+  log({ method: 'crypto-pay-marketplace-access', ref, chatId, price, coin, value })
+  del(chatIdOfPayment, ref)
+  const fee = Number(price)
+  const usdIn = await convert(value, coin, 'usd')
+  const name = await get(nameOf, chatId)
+  set(payments, ref, `Crypto,MarketplaceAccess,Marketplace Access,$${usdIn},${chatId},${name},${new Date()},${value} ${coin}`)
+  await fulfillMarketplaceAccessPayment({ chatId, ref, fee, usdIn, mode: 'crypto', methodTag: '₿ Crypto (BlockBee)', coinLine: `${value} ${coin}` })
+  res.send(html())
+})
+
 app.get('/crypto-pay-virtual-card', auth, async (req, res) => {
   const { ref, chatId, price, product, orderId } = req.pay
   const coin = req?.query?.coin
@@ -35150,6 +35344,29 @@ app.post('/dynopay/crypto-pay-digital-product', authDyno, async (req, res) => {
   if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
   await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
+  res.send(html())
+})
+
+// DynoPay crypto callback — one-time Marketplace access fee
+app.post('/dynopay/crypto-pay-marketplace-access', authDyno, async (req, res) => {
+  const { ref, chatId, price } = req.pay
+  const { amount: value, currency: coin, payment_id: id } = req.body
+  log({ method: 'dynopay/crypto-pay-marketplace-access', ref, chatId, price, coin, value })
+  if (!ref || !chatId || !price || !coin || !value) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
+  del(chatIdOfDynopayPayment, ref)
+  const fee = Number(price)
+  const name = await get(nameOf, chatId)
+  set(payments, ref, `Crypto,MarketplaceAccess,Marketplace Access,$${fee},${chatId},${name},${new Date()},${value} ${coin},transaction,${id}`)
+  const ticker = tickerViewOfDyno[coin]
+  const baseAmount = req.body.base_amount
+  const feePayer = req.body.fee_payer
+  let usdIn
+  if (baseAmount && feePayer === 'company') {
+    usdIn = parseFloat(baseAmount)
+  } else {
+    usdIn = await convert(value, ticker, 'usd')
+  }
+  await fulfillMarketplaceAccessPayment({ chatId, ref, fee, usdIn, mode: 'crypto', methodTag: '₿ Crypto (DynoPay)', coinLine: `${value} ${coin}` })
   res.send(html())
 })
 
