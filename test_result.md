@@ -444,7 +444,7 @@ backend:
             • test_phone_scheduler_no_leak.js: 12 passed, 0 failed ✓
           
           TEST 10 - Admin endpoint smoke test: ✅ PASSED
-            • GET https://env-config-hub-1.preview.emergentagent.com/api/admin/dns-heal-status?key=o/Qb8ArGahlquhCQ
+            • GET https://readme-setup-28.preview.emergentagent.com/api/admin/dns-heal-status?key=o/Qb8ArGahlquhCQ
             • HTTP 200, ok=true ✓
           
           CONCLUSION:
