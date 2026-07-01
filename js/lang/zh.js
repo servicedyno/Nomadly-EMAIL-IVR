@@ -2374,9 +2374,9 @@ const userKeyboard = {
  [user.wallet, user.leadsValidation],
  [user.urlShortenerMain, user.buyPlan],
  ...(EMAIL_BLAST_ON === 'true' ? [[user.emailBlast]] : []),
- ...(HIDE_BUNDLES !== 'true'
- ? [[user.serviceBundles, user.joinChannel]]
- : [[user.joinChannel]]),
+ // Service Bundles removed from the main menu to save space (still reachable
+ // via contextual upsell prompts). Join Channel remains on its own row.
+ [user.joinChannel],
  HIDE_BECOME_RESELLER === 'true'
  ? [user.changeSetting, user.getSupport]
  : [user.becomeReseller, user.changeSetting, user.getSupport],
