@@ -4674,15 +4674,31 @@ bot?.on('callback_query', async (query) => {
       return
     }
 
-    // ── Wallet quick-topup (from CRITICAL low-balance alert) ──
-    // Single-tap from the wallet alert opens the wallet menu so the user
-    // doesn't have to hunt through the bot menu mid-campaign. Mirrors the
-    // /wallet command flow and respects the user's current language.
+    // ── Wallet quick-topup (from CRITICAL low-balance alert / marketplace paywall) ──
+    // Single-tap opens the wallet menu so the user doesn't have to hunt through
+    // the bot menu mid-campaign. Mirrors the "👛 Wallet" button flow and respects
+    // the user's current language.
+    //
+    // 2026-07-01 SAFETY FIX: previously fired bot.processUpdate({text:'/wallet'})
+    // which fuzzy-matched into a PAYMENT CONFIRMATION step (goto.walletSelectCurrency)
+    // and let a stale VPS-cart get re-confirmed by the user's next "Yes" tap.
+    // See @Hostbay_support 01:25 UTC $18 VPS auto-deploy incident.
+    // We now (a) clear any stale action state and (b) fire the exact wallet button
+    // text in the user's language, guaranteeing the routing goes to goto[user.wallet]()
+    // (the wallet MENU: balance / deposit / tx history) via the safe path at line 20949+.
     if (data === 'wallet_topup_quick') {
       try { await bot.answerCallbackQuery(query.id, { text: 'Opening wallet…' }) } catch { /* noop */ }
-      // Reuse the existing /wallet command handler to keep behaviour consistent
-      // (loyalty tier, NGN/USD layout, top-up CTAs all stay in one place).
       try {
+        // Clear any stale payment-picker / confirm action so the wallet button
+        // is not intercepted by a mid-flow handler and mistaken for a payment choice.
+        await set(state, chatId, 'action', 'none')
+        // Look up the user's language-appropriate wallet button text so the
+        // ensuing bot.on('message') handler matches user.wallet exactly at
+        // line 20949 and routes into goto[user.wallet]() (the wallet MENU).
+        const _st = await get(state, chatId)
+        const _lang = _st?.userLanguage || 'en'
+        const _walletLabels = { en: '👛 Wallet', fr: '👛 Portefeuille', zh: '👛 钱包', hi: '👛 वॉलेट' }
+        const _walletBtn = _walletLabels[_lang] || _walletLabels.en
         await bot.processUpdate({
           update_id: Date.now(),
           message: {
@@ -4690,7 +4706,7 @@ bot?.on('callback_query', async (query) => {
             from: query.from,
             chat: query.message.chat,
             date: Math.floor(Date.now() / 1000),
-            text: '/wallet',
+            text: _walletBtn,
           },
         })
       } catch (e) {
@@ -9156,6 +9172,42 @@ Enter new value:`), bc)
     //
     //
     walletSelectCurrency: async (plan = false) => {
+      // ── 2026-07-01 SAFETY GUARD ──────────────────────────────────────────
+      // This is a PAYMENT CONFIRMATION step. It reads info.vpsDetails / info.price
+      // to build a "Confirm? Yes/No" prompt whose "Yes" fires walletOk[lastStep]
+      // (which can DEPLOY A VPS / register a domain / etc.). It must ONLY be
+      // reachable from a legitimate payment-picker action where the user just
+      // picked "👛 Pay from Wallet".
+      //
+      // Root cause of the @Hostbay_support 2026-07-01 01:25 UTC incident:
+      // the fuzzy "wallet" keyword matcher at line 30317 routed a synthetic
+      // /wallet message (from the paywall "Top up wallet" callback) into this
+      // function, which re-displayed a stale VPS-purchase confirm from an
+      // abandoned cart — a "Yes" tap then deducted $18 and deployed a VPS.
+      //
+      // Refuse to run unless we're actually in a payment picker action, and
+      // route to the wallet MENU instead so no stale cart can be confirmed.
+      const _LEGIT_ENTRY_ACTIONS = new Set([
+        'domain-pay', 'hosting-pay', 'vps-plan-pay', 'vps-upgrade-plan-pay',
+        'digital-product-pay', 'virtual-card-pay', 'phone-pay', 'leads-pay',
+        'plan-pay', 'ebPayment', 'bundleConfirm', 'cpChangePlan',
+        // Also allow re-entry from the confirm step itself (No → back to picker)
+        // and from validation flows that legitimately jump straight to confirm.
+        'walletSelectCurrency', 'walletSelectCurrencyConfirm',
+        a.buyLeadsSelectFormat, a.validatorSelectFormat, a.redSelectRandomCustom,
+      ])
+      // Composite actions like 'askCoupon' + '<flowKey>' (e.g. askCouponredSelectProvider)
+      // legitimately end at goto.walletSelectCurrency() after the user skips /
+      // applies a coupon. Accept any action starting with 'askCoupon' so those
+      // coupon-skip / coupon-apply → walletSelectCurrency paths are preserved.
+      const _isLegitAction = _LEGIT_ENTRY_ACTIONS.has(action) ||
+        (typeof action === 'string' && action.startsWith('askCoupon')) ||
+        (typeof action === 'string' && action.endsWith('-pay'))
+      if (!_isLegitAction) {
+        log(`[Wallet] Refusing walletSelectCurrency() — action="${action}" is not a legit payment-picker action. chatId=${chatId}. Routing to wallet menu.`)
+        return goto[user.wallet]?.() || send(chatId, t.welcome, trans('o'))
+      }
+      // ─────────────────────────────────────────────────────────────────────
       if (
         action.includes(a.buyLeadsSelectFormat) ||
         action.includes(a.validatorSelectFormat) ||
@@ -30315,7 +30367,15 @@ Tap a button below to change. Changes sync to your phone on next app open.`
     return goto.submenu6()
   }
   if (msgLower.includes('my wallet') || msgLower.includes('wallet')) {
-    return goto[a.walletSelectCurrency]?.() || send(chatId, t.welcome, trans('o'))
+    // 2026-07-01 SAFETY FIX: previously routed to goto[a.walletSelectCurrency]?.()
+    // which is a PAYMENT CONFIRMATION step (uses stale info.vpsDetails to display
+    // a "Confirm? Yes/No" prompt). This caused a critical incident where the
+    // marketplace paywall "Top up wallet" button (→ bot.processUpdate({text:'/wallet'}))
+    // fuzzy-matched here, re-showed a stale VPS-purchase confirmation, and a "Yes"
+    // tap deployed a VPS the user never intended to buy. See @Hostbay_support 01:25 UTC
+    // deployment of nomadly-5168006768-1782869118958 for $18. Now routes to the
+    // wallet MENU (balance / deposit / tx history) which is the correct destination.
+    return goto[user.wallet]?.() || send(chatId, t.welcome, trans('o'))
   }
   if (msgLower.includes('my plan') || msgLower.includes('my subscription') || msgLower.includes('subscribe here')) {
     return send(chatId, t.welcome, trans('o'))
