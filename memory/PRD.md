@@ -1443,3 +1443,36 @@ entering the marketplace now overwrites any stale `proceedWithVpsPayment` action
 ### Env note
 Dev pod configured safely: `BOT_ENVIRONMENT=development`, `SKIP_WEBHOOK_SYNC=true` (dev bot token;
 does not touch the live production Telegram bot / Telnyx / Twilio).
+
+---
+
+## 2026-07-01 — Sales-drop investigation → deposit friction reduction + funnel instrumentation
+
+### Investigation (data-driven, prod DB + Railway logs)
+Wallet deposits (main revenue driver) fell ~50–64% over ~2 weeks (~$2,700/wk peak → $992 last week;
+42→18 deposits/wk), sharpest after ~Jun 26 with two $0-deposit days. New-user signups stayed steady
+(~26–34/wk) → it's a CONVERSION problem, not traffic. Payment CODE verified working (crypto top-up
+initiation + wallet-payment guard tested green); prod logs show the deposit webhook credits fine and
+bad days had few/no attempts (not failures). Leading correlation: heavy deposit-flow churn (DynoPay
+overpayment fix 2026-06-18 → reverted 2026-06-24, incl. re-introducing the USDT-TRC20 $20 intercept)
+at the start of the decline, plus ~5 unlabeled auto-deploys/day (no QA gate).
+
+### Shipped fixes
+- **Friction reduction (crypto top-up):** (1) skip the single-button method picker when NGN/bank is
+  hidden (prod default) → straight to coin selection; (2) one-tap amount presets $20/$50/$100/$200;
+  (3) trimmed the USDT-TRC20 minimum interstitial from 5 buttons to 3.
+- **Funnel instrumentation:** new `js/deposit-funnel.js` + `depositFunnel` collection records the
+  missing ATTEMPT stage (`address_generated`) and `completed` (both deposit webhooks), keyed by ref.
+  Report: `node scripts/deposit_funnel_report.js [days]` → attempts / completed / conv% by day + coin.
+
+### Files
+- `/app/js/_index.js` (deposit flow + webhook hooks), `/app/js/deposit-funnel.js` (new),
+  `/app/scripts/deposit_funnel_report.js` (new).
+
+### Validation
+- ✅ Testing agent (test_sequence 18): 5/5 reference + 12/12 independent + 19/19 regression. ESLint &
+  `node --check` clean; nodejs boots clean.
+
+### Not done / go-forward
+- Only crypto deposit path instrumented/streamlined (NGN excluded per user). Recommend a deploy-time
+  smoke test (deposit + 1 checkout) to catch silent conversion regressions given the ~5 deploys/day.
