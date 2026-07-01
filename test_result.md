@@ -1633,6 +1633,37 @@ test_plan:
 agent_communication:
   - agent: "main"
     message: |
+      VERIFY PAYMENT FLOWS (test_sequence 17, sales-drop investigation). Production wallet deposits
+      fell ~50% over ~2 weeks with STEADY new-user signups → CONVERSION issue. Deposit webhook works
+      in prod logs; need independent confirmation the CURRENT code lets users (a) top up via CRYPTO
+      and (b) reach the wallet-payment step for a purchase — to rule IN/OUT a code regression. NGN/bank
+      flow is OUT OF SCOPE.
+
+      Endpoint: POST http://127.0.0.1:5000/telegram/webhook (Node bot.processUpdate). Assert in Mongo
+      (MONGO_URL/DB_NAME from /app/backend/.env). Reference already passing:
+      node /app/scripts/_deposit_flow_test.js  (crypto top-up initiation → address generation; 4/4).
+
+      TESTS (use ONLY test chatIds 888800xxx and clean up):
+      1) CRYPTO TOP-UP INITIATION: seed state {action:'selectCurrencyToDeposit'}, send "50" → action
+         must become 'depositMethodSelect' & depositAmountUsd=50; send "₿ Crypto" → 'selectCryptoToDeposit';
+         send "Ξ Ethereum (ETH)" → address generated & action resets to 'none'. (A Telegram
+         "chat not found" send error for the fake chatId is EXPECTED/harmless.)
+      2) DEPOSIT WEBHOOK CREDIT (optional): after step 1 creates the deposit intent
+         (chatIdOfDynopayPayment[ref], action=walletFund), POST a confirmed DynoPay webhook to
+         /dynopay/crypto-wallet mirroring the pending→confirmed payment_id→refId mapping; assert
+         walletOf.usdIn increases. If forging the mapping is too complex, SKIP & note.
+      3) WALLET-PAYMENT GUARD regression check: the 2026-07-01 guard in goto.walletSelectCurrency
+         refuses unless current `action` is a legit payment picker (allow-list + endsWith '-pay' +
+         startsWith 'askCoupon'). Seed {action:'domain-pay', price:5, lastStep:'domain-pay'} and trigger
+         "👛 Pay from Wallet" → must reach walletSelectCurrencyConfirm and NOT log "Refusing
+         walletSelectCurrency". Repeat for 'hosting-pay'. DO NOT confirm/tap Yes.
+
+      HARD CONSTRAINTS: no real purchase (no domain registration, no VPS/RDP deploy, no real charges),
+      no messaging/charging real users, no NGN test, no /app/backend/.env changes. Report per-assertion
+      pass/fail with actual DB values.
+
+  - agent: "main"
+    message: |
       PLEASE VERIFY (test_sequence 16) — Marketplace SELLER-fee redesign + VPS auto-deploy bug fix.
       This is a Telegram-bot backend (Node.js Express on :5000, fronted by FastAPI proxy). The bot
       receives updates at POST {REACT_APP_BACKEND_URL}/api/telegram/webhook  (proxied to Node's
