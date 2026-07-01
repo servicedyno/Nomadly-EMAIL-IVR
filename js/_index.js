@@ -692,6 +692,7 @@ const honeypotService = require('./honeypot-service.js')
 const audioLibraryService = require('./audio-library-service.js')
 const bulkCallService = require('./bulk-call-service.js')
 const marketplaceService = require('./marketplace-service.js')
+const depositFunnel = require('./deposit-funnel.js')
 const regulatoryFlow = require('./regulatory-flow.js')
 const { needsDocUpload } = require('./regulatory-config.js')
 const smsAppService = require('./sms-app-service.js')
@@ -3091,6 +3092,7 @@ const loadData = async () => {
   bulkCallService.initBulkCallService(db, bot, require('./twilio-service.js'), walletOf, app)
     .catch(e => log(`[BulkCall] init failed: ${e.message}`))
   marketplaceService.initMarketplace(db)
+  depositFunnel.initDepositFunnel(db)
 
   // Initialize SMS App Service (Bulk SMS campaigns from mobile app)
   smsAppService.initSmsAppService(db, nameOf, planEndingTime, freeSmsCountOf, loginCountOf, planOf, bot)
@@ -9089,7 +9091,10 @@ Enter new value:`), bc)
       // → fixed-amount invoice. Reverted along with the dust-forfeit /
       // per-coin floor safety nets; over-payment fix kept intact.
       await set(state, chatId, 'action', a.selectCurrencyToDeposit)
-      send(chatId, t.selectCurrencyToDeposit, bc)
+      // ── Friction reduction (2026-07-01): offer one-tap amount presets to cut
+      //    typing (a custom typed amount still works — the handler strips "$"). ──
+      const depositPresetKb = k.of([['$20', '$50'], ['$100', '$200'], ['↩️ Back']])
+      send(chatId, t.selectCurrencyToDeposit, depositPresetKb)
     },
     [a.depositMethodSelect]: async () => {
       await set(state, chatId, 'action', a.depositMethodSelect)
@@ -9146,11 +9151,14 @@ Enter new value:`), bc)
       await set(state, chatId, 'action', a.confirmTrc20MinDeposit)
       const current = Number(info?.depositAmountUsd || 0)
       const min = TRC20_MIN_DEPOSIT_USD
+      // ── Friction reduction (2026-07-01): trimmed the USDT-TRC20 minimum
+      //    interstitial from 5 buttons to the 2 primary choices (+Cancel). The
+      //    prompt text already explains the network-fee reason, so the "Why?"
+      //    and separate "Edit amount" buttons were removed to reduce decision
+      //    friction on the single most popular deposit coin. ──
       const buttons = [
         [t.trc20TopUpBtn(min)],
         [t.trc20SwitchCryptoBtn],
-        [t.trc20EditAmountBtn],
-        [t.trc20WhyMinBtn],
         [t.trc20CancelBtn],
       ]
       send(chatId, t.trc20MinDepositPrompt(current, min), k.of(buttons))
@@ -9173,6 +9181,8 @@ Enter new value:`), bc)
         return goto[a.selectCurrencyToDeposit]()
       }
       const priceCrypto = await convert(priceUsd, 'usd', ticker)
+      // ── Deposit funnel: record the attempt (address-generation stage). ──
+      depositFunnel.recordDepositIntent({ chatId, ref, amountUsd: priceUsd, coin: tickerView, provider: BLOCKBEE_CRYTPO_PAYMENT_ON === 'true' ? 'blockbee' : 'dynopay' })
       if (BLOCKBEE_CRYTPO_PAYMENT_ON === 'true') {
         const bbResult = await getCryptoDepositAddress(ticker, chatId, SELF_URL, `/crypto-wallet?a=b&ref=${ref}&`)
         if (bbResult?.address) {
@@ -21187,6 +21197,10 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     if (isNaN(amount) || amount < 10) return send(chatId, trans('t.dns_6'))
     await saveInfo('depositAmountUsd', amount)
     await saveInfo('amount', amount) // also save as 'amount' for crypto flow
+    // ── Friction reduction (2026-07-01): when NGN/bank is hidden, the method
+    //    picker only offers a single "₿ Crypto" button — a wasted tap. Skip
+    //    straight to the coin picker in that case. ──
+    if (process.env.HIDE_BANK_PAYMENT === 'true') return goto[a.selectCryptoToDeposit]()
     return goto[a.depositMethodSelect]()
   }
 
@@ -34739,6 +34753,7 @@ app.get('/crypto-wallet', auth, async (req, res) => {
   // Update Wallet
   const usdIn = await convert(value, coin, 'usd')
   addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
+  depositFunnel.recordDepositCompleted({ chatId, ref, amountUsd: usdIn, provider: 'blockbee' })
   sendAndReact(chatId, translation('t.confirmationDepositMoney', lang, value + ' ' + tickerViewOf[coin], usdIn), '💰')
 
   // ── Universal-ledger audit (Apr-30-2026 sweep) ──
@@ -35709,6 +35724,7 @@ app.post('/dynopay/crypto-wallet', authDyno, async (req, res) => {
   log('Crediting wallet for chatId:', chatId, 'amount: $' + usdIn)
   await addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
   log('Wallet credited successfully!')
+  depositFunnel.recordDepositCompleted({ chatId, ref, amountUsd: usdIn, provider: 'dynopay' })
 
   // UX P2 fix (2026-06-21): emit funnel event for deposit_confirmed.  Pairs
   // with insufficient_balance_wall to compute recovery / abandonment rate.

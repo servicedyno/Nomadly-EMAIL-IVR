@@ -34,6 +34,102 @@ user_problem_statement: |
     that routes each VPS record to its OWN provider and reports manageable vs orphaned.
 
 backend:
+  - task: "Deposit-flow friction reduction + deposit funnel instrumentation (2026-07-01)"
+    implemented: true
+    working: true
+    file: "/app/js/_index.js, /app/js/deposit-funnel.js, /app/scripts/deposit_funnel_report.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          Follow-up to the sales-drop investigation (deposits down ~50%, conversion-side).
+          FRICTION REDUCTION (crypto wallet top-up):
+          1) When NGN/bank is hidden (HIDE_BANK_PAYMENT=true, prod default), the amount step now
+             skips the pointless single-button method picker and goes straight to coin selection
+             (selectCurrencyToDeposit → selectCryptoToDeposit). One fewer tap for every deposit.
+          2) Added one-tap amount PRESETS ($20/$50/$100/$200) to the deposit amount prompt (custom
+             typed amounts still work — handler strips "$").
+          3) Trimmed the USDT-TRC20 minimum interstitial from 5 buttons to 3 (Pay $min / Switch coin /
+             Cancel); the "Why?" + separate "Edit amount" buttons removed (prompt already explains).
+          INSTRUMENTATION (new js/deposit-funnel.js + depositFunnel collection):
+          - recordDepositIntent() at address-generation (showDepositCryptoInfo) → status
+            'address_generated' keyed by deposit ref {chatId, amountUsd, coin, provider}.
+          - recordDepositCompleted() in BOTH deposit webhooks (/dynopay/crypto-wallet and BlockBee
+            GET /crypto-wallet) → status 'completed' + creditedUsd. This adds the missing ATTEMPT
+            stage (the existing funnelEvents only logged completions), enabling attempt→paid
+            conversion measurement. Report: node scripts/deposit_funnel_report.js [days].
+          VERIFIED LOCALLY (scripts/_deposit_flow_test.js, 5/5): preset "$50" parses; bank-hidden
+          skips method step; ETH → address generated; funnel intent recorded {amount:50,
+          status:address_generated}. All writes best-effort (never throw into deposit path).
+          NOTE: a DynoPay address 404 appears in THIS dev pod only (prod logs show none; prod credits
+          via DynoPay fine); BlockBee fallback still produces an address, so graceful.
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFIED - All deposit-flow friction reduction + funnel instrumentation assertions PASSED (test_sequence 18):
+          
+          REFERENCE SCRIPT (scripts/_deposit_flow_test.js): ✅ 5 passed, 0 failed
+            • Preset "$50" parsed → depositAmountUsd=50 ✓
+            • Bank hidden(true) → action=selectCryptoToDeposit (skips method picker) ✓
+            • ETH → address generated (action reset to none) ✓
+            • Deposit funnel INTENT recorded ✓
+            • Funnel doc has amount=50 & status=address_generated ✓
+          
+          INDEPENDENT VERIFICATION (backend_test.py): ✅ 12 passed, 0 failed
+          
+          TEST 1 - Preset amount parsing + bank-hidden flow: ✅ PASSED
+            • POST $50 accepted (HTTP 200) ✓
+            • depositAmountUsd = 50 ✓
+            • Bank hidden=True → action=selectCryptoToDeposit (skips depositMethodSelect) ✓
+          
+          TEST 2 - ETH selection → address + funnel instrumentation: ✅ PASSED
+            • POST ETH selection accepted (HTTP 200) ✓
+            • Action reset to 'none' after address generation ✓
+            • Deposit funnel doc created (before=0, after=1) ✓
+            • Funnel doc has amountUsd=50 ✓
+            • Funnel doc has status='address_generated' ✓
+            • Funnel doc has coin='ETH' ✓
+          
+          TEST 3 - TRC20 minimum interstitial verification: ✅ PASSED
+            • TRC20 interstitial has 3 buttons (Pay min / Switch / Cancel) ✓
+            • Button array does NOT include Why/Edit (friction reduced from 5 to 3 buttons) ✓
+          
+          TEST 4 - Preset buttons verification: ✅ PASSED
+            • Preset buttons $20/$50/$100/$200 exist in code ✓
+          
+          REGRESSION TESTS: ✅ ALL PASSED
+            • scripts/_mp_sanity.js: 7 passed, 0 failed ✓
+            • scripts/_mp_sanity2.js: 7 passed, 0 failed ✓
+            • scripts/_vps_bug_sanity.js: 5 passed, 0 failed ✓
+          
+          SERVICE HEALTH: ✅ PASSED
+            • nodejs service: RUNNING (pid 2469, uptime 0:07:45) ✓
+          
+          CONCLUSION:
+          All deposit-flow friction reduction + funnel instrumentation features are fully functional and production-ready:
+          
+          1. FRICTION REDUCTION:
+             - Preset buttons ($20/$50/$100/$200) work correctly, parsing "$" prefix
+             - Bank-hidden flow (HIDE_BANK_PAYMENT=true) skips method picker, goes straight to coin selection
+             - TRC20 minimum interstitial reduced from 5 buttons to 3 (removed "Why?" and "Edit amount")
+          
+          2. FUNNEL INSTRUMENTATION:
+             - recordDepositIntent() creates depositFunnel doc at address generation
+             - Doc contains: chatId, amountUsd, coin, provider, status='address_generated', generatedAt
+             - All writes are best-effort (never throw into deposit path)
+             - Report available via: node scripts/deposit_funnel_report.js [days]
+          
+          3. REGRESSION:
+             - Marketplace SELLER-fee redesign still works (19/19 assertions)
+             - VPS auto-deploy bug fix still works (5/5 assertions)
+          
+          The implementation successfully reduces deposit friction (one fewer tap when bank hidden, one-tap presets,
+          simplified TRC20 interstitial) and adds critical instrumentation to measure attempt→paid conversion for
+          the most important revenue funnel.
+
   - task: "Marketplace redesign — free browsing + $50 SELLER fee (reply-keyboard) + VPS auto-deploy bug fix (2026-07-01)"
     implemented: true
     working: true
@@ -1633,6 +1729,30 @@ test_plan:
 agent_communication:
   - agent: "main"
     message: |
+      VERIFY (test_sequence 18) — Deposit-flow friction reduction + deposit funnel instrumentation.
+      Bot webhook: POST http://127.0.0.1:5000/telegram/webhook (bot.processUpdate). Assert in Mongo
+      (MONGO_URL/DB_NAME from /app/backend/.env): collections state, depositFunnel.
+      Reference (passing 5/5): node /app/scripts/_deposit_flow_test.js
+      Report tool: node /app/scripts/deposit_funnel_report.js [days]
+
+      CONFIRM (use ONLY test chatIds 888800xxx, clean up; a Telegram "chat not found" send-error for
+      the fake chatId is EXPECTED/harmless):
+      1) Amount PRESET parses: seed state {action:'selectCurrencyToDeposit'}; send "$50" →
+         depositAmountUsd=50.
+      2) Bank-hidden skip: since HIDE_BANK_PAYMENT=true, after "$50" action must be
+         'selectCryptoToDeposit' (NOT 'depositMethodSelect').
+      3) Address + funnel: send "Ξ Ethereum (ETH)" → action resets to 'none' AND a depositFunnel doc
+         is created for the chatId with amountUsd=50, status='address_generated', coin='ETH'.
+      4) TRC20 intercept trimmed: with a USDT-TRC20 selection below the min, the interstitial should
+         present 3 options (Pay $min / Switch coin / Cancel), not 5.
+      5) Regression guard: the earlier marketplace + wallet-payment-guard behavior must still pass
+         (re-run scripts/_mp_sanity.js, _mp_sanity2.js, _vps_bug_sanity.js if convenient).
+
+      HARD CONSTRAINTS: no real purchases/deposits/charges, no messaging real users, no NGN test, no
+      /app/backend/.env edits. Report per-assertion pass/fail with actual DB values.
+
+  - agent: "main"
+    message: |
       VERIFY PAYMENT FLOWS (test_sequence 17, sales-drop investigation). Production wallet deposits
       fell ~50% over ~2 weeks with STEADY new-user signups → CONVERSION issue. Deposit webhook works
       in prod logs; need independent confirmation the CURRENT code lets users (a) top up via CRYPTO
@@ -2666,3 +2786,73 @@ agent_communication:
       for everyone. $50 is a one-time SELLER fee, charged only when listing or replying to buyers.
       Buyer identity is MASKED from unpaid sellers. VPS auto-deploy bug fixed: wallet_topup_quick
       clears stale VPS confirm action.
+
+
+  - agent: "main"
+    message: |
+      NEW TASK (test_sequence 18). Verify deposit-flow friction reduction + deposit funnel instrumentation.
+
+      CONTEXT:
+      - Follow-up to sales-drop investigation (deposits down ~50%, conversion-side)
+      - FRICTION REDUCTION: (1) Bank-hidden skips method picker (selectCurrencyToDeposit → selectCryptoToDeposit),
+        (2) One-tap amount presets ($20/$50/$100/$200), (3) TRC20 minimum interstitial reduced from 5 to 3 buttons
+      - INSTRUMENTATION: New depositFunnel collection tracks address_generated → completed conversion
+      - Reference script: /app/scripts/_deposit_flow_test.js (already passing 5/5)
+
+      ENVIRONMENT:
+      - Node.js Express on :5000, fronted by FastAPI proxy
+      - Bot webhook: POST http://127.0.0.1:5000/telegram/webhook
+      - MongoDB: MONGO_URL + DB_NAME from /app/backend/.env
+      - Collections: state, depositFunnel
+      - HIDE_BANK_PAYMENT=true (prod default)
+
+      TESTS TO RUN:
+      1) Run node /app/scripts/_deposit_flow_test.js and report output
+      2) Independently confirm using ONLY test chatIds 888800xxx:
+         a) Seed state {action:'selectCurrencyToDeposit'}; send "$50" → state.depositAmountUsd === 50
+         b) Because HIDE_BANK_PAYMENT=true, after "$50" action must be 'selectCryptoToDeposit' (skip method picker)
+         c) Send "Ξ Ethereum (ETH)" → action resets to 'none' AND depositFunnel doc exists with amountUsd=50,
+            status='address_generated', coin='ETH'
+         d) TRC20 minimum interstitial: verify code shows 3 options (Pay $min / Switch coin / Cancel), not 5
+         e) Regression: re-run scripts/_mp_sanity.js, scripts/_mp_sanity2.js, scripts/_vps_bug_sanity.js
+
+      HARD CONSTRAINTS:
+      - Do NOT complete any real deposit/purchase/charge
+      - Do NOT message/charge real users
+      - Do NOT test NGN/bank
+      - Do NOT modify /app/backend/.env
+      - Clean up test data after testing
+      - Telegram "chat not found" send-error for fake chatId is EXPECTED and NOT a failure
+
+  - agent: "testing"
+    message: |
+      ✅ TESTING COMPLETE (test_sequence 18) - Deposit-flow friction reduction + funnel instrumentation VERIFIED.
+
+      All assertions PASSED: reference script (5/5) + independent verification (12/12) + regression tests (19/19).
+
+      REFERENCE SCRIPT (scripts/_deposit_flow_test.js): ✅ 5 passed, 0 failed
+        • Preset "$50" parsed → depositAmountUsd=50
+        • Bank hidden(true) → action=selectCryptoToDeposit (skips method picker)
+        • ETH → address generated (action reset to none)
+        • Deposit funnel INTENT recorded
+        • Funnel doc has amount=50 & status=address_generated
+
+      INDEPENDENT VERIFICATION (backend_test.py): ✅ 12 passed, 0 failed
+        • TEST 1 - Preset amount parsing + bank-hidden flow (3 assertions)
+        • TEST 2 - ETH selection → address + funnel instrumentation (6 assertions)
+        • TEST 3 - TRC20 minimum interstitial verification (2 assertions)
+        • TEST 4 - Preset buttons verification (1 assertion)
+
+      REGRESSION TESTS: ✅ ALL PASSED
+        • scripts/_mp_sanity.js: 7 passed, 0 failed
+        • scripts/_mp_sanity2.js: 7 passed, 0 failed
+        • scripts/_vps_bug_sanity.js: 5 passed, 0 failed
+
+      SERVICE HEALTH: ✅ PASSED
+        • nodejs service: RUNNING (pid 2469, uptime 0:07:45)
+
+      CONCLUSION:
+      The deposit-flow friction reduction + funnel instrumentation is fully functional and production-ready.
+      All 3 friction reduction features work correctly (bank-hidden skip, preset buttons, TRC20 3-button
+      interstitial). Funnel instrumentation successfully records deposit attempts at address generation.
+      No regressions detected in marketplace or VPS features.
