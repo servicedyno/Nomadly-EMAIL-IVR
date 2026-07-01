@@ -1402,3 +1402,44 @@ Implemented 24-hour grace period before phone number release when auto-renew fai
 - 🟡 Set `BOT_USERNAME=NomadlyBot` in Railway
 - 🟡 Deploy churn protection
 - 🟡 Remaining Tier 2/3 UX items
+
+---
+
+## 2026-07-01 — Marketplace: free browsing + $50 SELLER fee (reply-keyboard) & VPS auto-deploy bug fix
+
+### Product change
+Marketplace changed from "pay $50 just to enter" → **browse is FREE for every bot user**; the
+one-time **$50 is now a SELLER fee** that unlocks: (1) listing goods/services, (2) replying to
+buyers, (3) seeing the buyer. Buyers never pay. When a buyer contacts an unpaid seller, the seller
+gets a **masked alert** (no buyer @username) with a "🔓 Pay $50 to reply" button and is NOT
+auto-entered into chat.
+
+### Payment UX
+Fee is paid via a **reply keyboard** (not inline): 👛 Pay from Wallet / ₿ Pay with Crypto / 🏦 Pay
+with ₦aira. If wallet balance < fee, a "💰 Top up Wallet" button is shown **instead** of the wallet
+button. Wallet pay = atomic `smartWalletDeduct` → `grantMarketplaceAccess` → ledger row → admin
+notify → success → resume the original intent (list upload / enter chat). Crypto & NGN reuse the
+existing `crypto-pay-marketplace-access` and `/bank-pay-marketplace-access` rails.
+
+### VPS auto-deploy bug (reported by @Hostbay_support, chatId 5168006768)
+RCA from Railway prod logs (deployment d32e268b): the old paywall "Top up wallet" button fired
+`bot.processUpdate({text:'/wallet'})`, which fuzzy-matched into a payment-confirm step while a stale
+VPS cart (`vpsDetails` + `action=proceedWithVpsPayment`) was still in state; the user's next "✅ Yes"
+confirmed that leftover VPS order → VPS deployed + wallet charged. Fix: the `wallet_topup_quick`
+callback clears `action` to `none` and opens the wallet MENU via the exact localized button label
+(no processUpdate fuzzy match); the new reply-keyboard paywall no longer uses that inline button, and
+entering the marketplace now overwrites any stale `proceedWithVpsPayment` action.
+
+### Files modified
+- `/app/js/_index.js` — goto.marketplace (free entry), mpHome/mpMyListings list gate, new
+  goto.mpSellerPaywall + `a.mpSellerPaywall` message handler, `_mpPaywallLabels()`, mp:chat masked
+  seller alert, mp:reply seller-fee gate, removed blanket callback access gate.
+
+### Validation
+- ✅ 19/19 live-webhook + DB sanity assertions (scripts/_mp_sanity.js, _mp_sanity2.js, _vps_bug_sanity.js)
+- ✅ Testing agent (test_sequence 16): 38/38 assertions pass (19 sanity + 11 code + 8 independent)
+- ✅ ESLint clean, `node --check` clean, nodejs boots clean
+
+### Env note
+Dev pod configured safely: `BOT_ENVIRONMENT=development`, `SKIP_WEBHOOK_SYNC=true` (dev bot token;
+does not touch the live production Telegram bot / Telnyx / Twilio).
