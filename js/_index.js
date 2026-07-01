@@ -4581,6 +4581,24 @@ const _MP_CAT_MAP_GLOBAL = {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Marketplace: SELLER-fee paywall reply-keyboard button labels (per language).
+// Used both to RENDER the reply keyboard and to MATCH the tapped button in the
+// message handler, so they must be produced from a single source of truth.
+// The fee itself is shown in the paywall message body (t.mpPaywall), not the
+// button, so label matching stays stable even if MARKETPLACE_ACCESS_FEE_USD
+// changes between render and tap.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function _mpPaywallLabels(lang) {
+  const L = {
+    en: { wallet: '👛 Pay from Wallet', topup: '💰 Top up Wallet', crypto: '₿ Pay with Crypto', ngn: '🏦 Pay with ₦aira (Bank/Card)' },
+    fr: { wallet: '👛 Payer via Portefeuille', topup: '💰 Recharger le Portefeuille', crypto: '₿ Payer en Crypto', ngn: '🏦 Payer via ₦aira (Banque/Carte)' },
+    zh: { wallet: '👛 用钱包支付', topup: '💰 充值钱包', crypto: '₿ 加密货币支付', ngn: '🏦 用 ₦aira（银行/卡）支付' },
+    hi: { wallet: '👛 वॉलेट से भुगतान करें', topup: '💰 वॉलेट टॉप-अप करें', crypto: '₿ क्रिप्टो से भुगतान', ngn: '🏦 ₦aira (बैंक/कार्ड) से भुगतान' },
+  }
+  return L[lang] || L.en
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Marketplace: Inline Keyboard callback_query handler
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 bot?.on('callback_query', async (query) => {
@@ -5266,26 +5284,13 @@ Tap a button below to change. Changes sync to your phone on next app open.`
     const parts = data.split(':')
     const action = parts[1]
 
-    // ── One-time access-fee gate ────────────────────────────────────────
-    // Allow the user to ACQUIRE access (mp:pay_access*) without being
-    // gated by the absence of access. Everything else (browse, chat,
-    // escrow, …) requires paid access.
-    if (action !== 'pay_access' && action !== 'pay_crypto' && action !== 'pay_ngn' && action !== 'pay_access_cancel' && action !== 'noop') {
-      const hasAccess = await marketplaceService.hasMarketplaceAccess(chatId)
-      if (!hasAccess) {
-        const fee = marketplaceService.MARKETPLACE_ACCESS_FEE_USD
-        const { usdBal } = await getBalance(walletOf, chatId)
-        const canAfford = usdBal >= fee
-        const inlineRows = [
-          ...(canAfford ? [[{ text: t.mpPaywallPayBtn(fee), callback_data: `mp:pay_access:${fee}` }]] : []),
-          [{ text: t.mpPaywallCryptoBtn, callback_data: 'mp:pay_crypto' }],
-          ...(process.env.HIDE_BANK_PAYMENT !== 'true' ? [[{ text: t.mpPaywallNgnBtn, callback_data: 'mp:pay_ngn' }]] : []),
-          [{ text: t.mpPaywallTopupBtn, callback_data: 'wallet_topup_quick' }],
-          [{ text: t.mpPaywallCancelBtn, callback_data: 'mp:pay_access_cancel' }],
-        ]
-        return sendMsg(chatId, t.mpPaywall(fee, usdBal), { reply_markup: { inline_keyboard: inlineRows } })
-      }
-    }
+    // ── Browsing is FREE for everyone ──────────────────────────────────
+    // No blanket access gate here anymore. Buyers can browse (mp:page),
+    // start a chat (mp:chat) and initiate escrow (mp:escrow*) for free. The
+    // one-time $50 SELLER fee is enforced ONLY where the user acts as a seller:
+    // replying to a buyer (mp:reply, below) and listing a product (message
+    // handler → goto.mpSellerPaywall). The legacy inline pay_* callbacks are
+    // retained for backward-compatibility with any old paywall messages.
 
     // mp:pay_access:<fee> — user clicked "Pay $X from wallet" on paywall
     if (action === 'pay_access') {
@@ -5464,12 +5469,35 @@ Tap a button below to change. Changes sync to your phone on next app open.`
       await set(state, chatId, 'action', 'mpChat')
       sendMsg(chatId, t.mpChatStartBuyer(product.title, product.price))
 
-      // Notify seller — only auto-set into mpChat if seller is idle (not mid-flow)
+      // Notify seller. The buyer's identity is NEVER included in these alerts —
+      // sellers only ever see product context, not the buyer's @username.
       const sellerInfo = await state.findOne({ _id: String(product.sellerId) })
       const sellerLang = sellerInfo?.userLanguage || 'en'
       const sellerT = translation('t', sellerLang)
       const sellerAction = sellerInfo?.action || 'none'
       const sellerIsIdle = sellerAction === 'none' || sellerAction === 'mpHome'
+
+      // SELLER FEE GATE — if the seller has NOT paid the one-time $50 fee, they
+      // get an ALERT that a buyer is interested, but CANNOT reply or see the
+      // buyer until they pay. Tapping the button routes them into the paywall
+      // (mp:reply detects no-access and shows the reply-keyboard payment menu).
+      const sellerHasAccess = await marketplaceService.hasMarketplaceAccess(product.sellerId)
+      if (!sellerHasAccess) {
+        const sfee = marketplaceService.MARKETPLACE_ACCESS_FEE_USD
+        const lockedMsg = ({
+          en: `🔔 <b>New buyer interested in “${product.title}”!</b>\n\nA buyer wants to chat about your listing. 🔒 To reply and see the buyer's details, pay the one-time <b>$${sfee}</b> seller fee.`,
+          fr: `🔔 <b>Un acheteur s'intéresse à « ${product.title} » !</b>\n\nUn acheteur veut discuter de votre annonce. 🔒 Pour répondre et voir les détails de l'acheteur, payez les frais vendeur uniques de <b>$${sfee}</b>.`,
+          zh: `🔔 <b>有买家对“${product.title}”感兴趣！</b>\n\n一位买家想咨询您的商品。🔒 支付一次性 <b>$${sfee}</b> 卖家费后即可回复并查看买家信息。`,
+          hi: `🔔 <b>“${product.title}” में एक खरीदार की रुचि है!</b>\n\nएक खरीदार आपकी लिस्टिंग पर बात करना चाहता है। 🔒 जवाब देने और खरीदार की जानकारी देखने के लिए एक-बार का <b>$${sfee}</b> विक्रेता शुल्क भरें।`,
+        }[sellerLang] || `🔔 <b>New buyer interested in “${product.title}”!</b>\n\nA buyer wants to chat about your listing. 🔒 To reply and see the buyer's details, pay the one-time <b>$${sfee}</b> seller fee.`)
+        const lockedBtns = {
+          reply_markup: { inline_keyboard: [[{ text: `🔓 Pay $${sfee} to reply`, callback_data: `mp:reply:${conv._id}` }]] },
+          parse_mode: 'HTML',
+        }
+        sendMsg(product.sellerId, lockedMsg, lockedBtns)
+        log(`[Marketplace] Seller ${product.sellerId} has NO seller access — sent locked buyer-interest alert (conv ${conv._id})`)
+        return
+      }
 
       if (sellerIsIdle) {
         // Seller is idle — safe to auto-set into chat mode
@@ -5508,6 +5536,25 @@ Tap a button below to change. Changes sync to your phone on next app open.`
       const conv = await marketplaceService.getConversation(convId)
       if (!conv || conv.status === 'closed') return sendMsg(chatId, t.mpChatEnded)
       if (conv.sellerId !== chatId && conv.buyerId !== chatId) return
+
+      // SELLER FEE GATE — the seller must have paid the one-time $50 fee before
+      // they can reply to (and therefore see) a buyer. Route them into the
+      // reply-keyboard paywall; the conversation resumes after wallet payment.
+      if (conv.sellerId === chatId && !(await marketplaceService.hasMarketplaceAccess(chatId))) {
+        const fee = marketplaceService.MARKETPLACE_ACCESS_FEE_USD
+        const { usdBal } = await getBalance(walletOf, chatId)
+        const canAfford = usdBal >= fee
+        const L = _mpPaywallLabels(lang)
+        const rows = [[canAfford ? L.wallet : L.topup], [L.crypto]]
+        if (process.env.HIDE_BANK_PAYMENT !== 'true') rows.push([L.ngn])
+        rows.push(['↩️ Back', '🏠 Main Menu'])
+        await set(state, chatId, 'action', 'mpSellerPaywall')
+        await set(state, chatId, 'mpPaywallIntent', 'reply')
+        await set(state, chatId, 'mpPaywallConvId', convId)
+        return sendMsg(chatId, t.mpPaywall(fee, usdBal), {
+          reply_markup: { keyboard: rows.map(r => r.map(x => ({ text: x }))), resize_keyboard: true },
+        })
+      }
 
       await set(state, chatId, 'mpActiveConversation', conv._id)
       await set(state, chatId, 'action', 'mpChat')
@@ -8000,6 +8047,9 @@ bot?.on('message', msg => {
     mpAiHelper: 'mpAiHelper',
     mpConversations: 'mpConversations',
     mpBrowseCategory: 'mpBrowseCategory',
+    // One-time SELLER fee paywall (reply-keyboard: Wallet / Crypto / NGN).
+    // Browsing is FREE for everyone; this fee only unlocks LISTING & REPLYING.
+    mpSellerPaywall: 'mpSellerPaywall',
 
     // Email Blast
     ebMenu: 'ebMenu',
@@ -8271,27 +8321,11 @@ bot?.on('message', msg => {
       if (mpBan) {
         return send(chatId, trans('t.wlt_2', mpBan.reason || 'Policy violation'), { parse_mode: 'HTML' })
       }
-      // One-time access fee gate (existing + new users; configurable via
-      // MARKETPLACE_ACCESS_FEE_USD; admin chat IDs bypass automatically).
-      const mpAccess = await marketplaceService.hasMarketplaceAccess(chatId)
-      if (!mpAccess) {
-        const fee = marketplaceService.MARKETPLACE_ACCESS_FEE_USD
-        const { usdBal } = await getBalance(walletOf, chatId)
-        const canAfford = usdBal >= fee
-        const inlineRows = [
-          ...(canAfford ? [[{ text: t.mpPaywallPayBtn(fee), callback_data: `mp:pay_access:${fee}` }]] : []),
-          [{ text: t.mpPaywallCryptoBtn, callback_data: 'mp:pay_crypto' }],
-          ...(process.env.HIDE_BANK_PAYMENT !== 'true' ? [[{ text: t.mpPaywallNgnBtn, callback_data: 'mp:pay_ngn' }]] : []),
-          [{ text: t.mpPaywallTopupBtn, callback_data: 'wallet_topup_quick' }],
-          [{ text: t.mpPaywallCancelBtn, callback_data: 'mp:pay_access_cancel' }],
-        ]
-        await set(state, chatId, 'action', a.mpHome)
-        await set(state, chatId, 'mpPaywallShown', true)
-        return send(chatId, t.mpPaywall(fee, usdBal), {
-          parse_mode: 'HTML',
-          reply_markup: { inline_keyboard: inlineRows },
-        })
-      }
+      // ── OPEN MARKETPLACE — FREE to browse for EVERYONE ──
+      // The one-time $50 fee is a SELLER fee, charged only when the user tries to
+      // LIST a product or REPLY to a buyer (see the mpHome/​mpMyListings list
+      // handlers and the mp:reply callback → goto.mpSellerPaywall). Any bot user
+      // can open the marketplace and browse listings without paying anything.
       await set(state, chatId, 'action', a.mpHome)
       send(chatId, t.mpHome, k.of([
         [t.mpBrowse],
@@ -8301,6 +8335,23 @@ bot?.on('message', msg => {
         [t.mpAiHelper],
         ['↩️ Back', '🏠 Main Menu'],
       ]))
+    },
+    mpSellerPaywall: async (intent = 'list', convId = null) => {
+      // Reply-keyboard SELLER-fee paywall. Payment rails: 👛 Wallet, ₿ Crypto,
+      // 🏦 NGN. If wallet balance < fee we show "Top up Wallet" INSTEAD of the
+      // wallet-pay button. `intent` ('list' | 'reply') + `convId` are stored so
+      // we can resume what the seller was doing right after a wallet payment.
+      const fee = marketplaceService.MARKETPLACE_ACCESS_FEE_USD
+      const { usdBal } = await getBalance(walletOf, chatId)
+      const canAfford = usdBal >= fee
+      const L = _mpPaywallLabels(lang)
+      const rows = [[canAfford ? L.wallet : L.topup], [L.crypto]]
+      if (process.env.HIDE_BANK_PAYMENT !== 'true') rows.push([L.ngn])
+      rows.push(['↩️ Back', '🏠 Main Menu'])
+      await saveInfo('mpPaywallIntent', intent)
+      await saveInfo('mpPaywallConvId', convId)
+      await set(state, chatId, 'action', a.mpSellerPaywall)
+      send(chatId, t.mpPaywall(fee, usdBal), k.of(rows))
     },
     'leads-pay': async () => {
       await set(state, chatId, 'action', 'leads-pay')
@@ -16924,16 +16975,115 @@ ${message.replace(/\n/g, '<br>')}
     }
   }
 
+  // ── Marketplace SELLER-fee paywall (reply keyboard: Wallet / Crypto / NGN) ──
+  if (action === a.mpSellerPaywall) {
+    if (isBackPress(message) || message === '↩️ Back') return goto.marketplace()
+    if (isCancelPress(message) || message === '🏠 Main Menu') return goto.displayMainMenuButtons()
+    const fee = marketplaceService.MARKETPLACE_ACCESS_FEE_USD
+    const L = _mpPaywallLabels(lang)
+    const intent = info?.mpPaywallIntent || 'list'
+    const resumeConvId = info?.mpPaywallConvId || null
+
+    // Resume the seller's original intent once access is confirmed.
+    const _mpResume = async () => {
+      if (intent === 'reply' && resumeConvId) {
+        const conv = await marketplaceService.getConversation(resumeConvId)
+        if (conv && conv.status !== 'closed') {
+          await set(state, chatId, 'mpActiveConversation', conv._id)
+          await set(state, chatId, 'action', a.mpChat)
+          return send(chatId, t.mpEnteredChat(conv.productTitle, conv.agreedPrice || conv.originalPrice))
+        }
+        return goto.marketplace()
+      }
+      // 'list' (default) → start the listing upload flow
+      const count = await marketplaceService.getActiveProductCount(chatId)
+      if (count >= marketplaceService.MAX_LISTINGS) { await set(state, chatId, 'action', a.mpHome); return send(chatId, t.mpMaxListings) }
+      await set(state, chatId, 'action', a.mpNewImage)
+      await saveInfo('mpImages', [])
+      return send(chatId, t.mpUploadImages, k.of([[t.mpDoneUpload]]))
+    }
+
+    // Already paid (e.g. a crypto/NGN payment confirmed while on this screen)?
+    if (await marketplaceService.hasMarketplaceAccess(chatId)) return _mpResume()
+
+    // 💰 Top up Wallet — open the wallet MENU safely (never a payment confirm).
+    if (message === L.topup) {
+      await set(state, chatId, 'action', 'none')
+      return goto[user.wallet] ? goto[user.wallet]() : send(chatId, t.welcome, trans('o'))
+    }
+
+    // ₿ Pay with Crypto — hand off to the existing marketplace-access crypto flow.
+    if (message === L.crypto) {
+      await set(state, chatId, 'action', 'crypto-pay-marketplace-access')
+      return send(chatId, t.mpPayChooseCrypto(fee), trans('k.of', trans('supportedCryptoViewOf')))
+    }
+
+    // 🏦 Pay with NGN — reuse the marketplace-access bank checkout.
+    if (process.env.HIDE_BANK_PAYMENT !== 'true' && message === L.ngn) {
+      const ngn = await usdToNgn(fee)
+      if (!ngn || isNaN(ngn) || ngn <= 0) return send(chatId, t.errorFetchingCryptoAddress)
+      const ref = nanoid()
+      const email = process.env.DEPOSIT_EMAIL || process.env.SINGAPORE_ADMIN_EMAIL || 'deposits@nomadly.app'
+      set(chatIdOfPayment, ref, { chatId, price: fee, product: 'Marketplace Access', endpoint: '/bank-pay-marketplace-access', _createdAt: new Date().toISOString() })
+      await send(chatId, t.mpPayNgnStarting(fee))
+      const { url, error } = await createCheckout(ngn, `/ok?a=b&ref=${ref}&`, email, info?.userName || '', ref)
+      if (error) return send(chatId, error)
+      const ngnStr = Number(ngn).toLocaleString()
+      return send(chatId, ({ en: `<a href="${url}">Click here to pay ₦${ngnStr}</a>`, fr: `<a href="${url}">Cliquez ici pour payer ₦${ngnStr}</a>`, zh: `<a href="${url}">点击此处支付 ₦${ngnStr}</a>`, hi: `<a href="${url}">₦${ngnStr} भुगतान करने के लिए यहाँ क्लिक करें</a>` }[lang] || `<a href="${url}">Click here to pay ₦${ngnStr}</a>`), { disable_web_page_preview: true })
+    }
+
+    // 👛 Pay from Wallet — atomic deduct + grant, then resume intent.
+    if (message === L.wallet) {
+      const { usdBal } = await getBalance(walletOf, chatId)
+      const insufficientKb = () => {
+        const rows = [[L.topup], [L.crypto]]
+        if (process.env.HIDE_BANK_PAYMENT !== 'true') rows.push([L.ngn])
+        rows.push(['↩️ Back', '🏠 Main Menu'])
+        return k.of(rows)
+      }
+      if (usdBal < fee) return send(chatId, t.mpPaywallInsufficient(fee, usdBal), insufficientKb())
+      const txnId = generateTransactionId()
+      const deduct = await smartWalletDeduct(walletOf, chatId, fee, { type: 'marketplace_access', description: `Marketplace seller fee ($${fee})`, callRef: txnId })
+      if (!deduct?.success) {
+        log(`[Marketplace] mpSellerPaywall wallet deduct FAILED for ${chatId}: ${JSON.stringify(deduct)}`)
+        return send(chatId, t.mpPaywallInsufficient(fee, usdBal), insufficientKb())
+      }
+      const { usdBal: newBal } = await getBalance(walletOf, chatId)
+      await marketplaceService.grantMarketplaceAccess(chatId, { amountUsd: fee, mode: 'wallet', txnId, walletBalAfter: newBal })
+      try {
+        await db.collection('payments').updateOne(
+          { _id: txnId },
+          { $set: { val: `Marketplace,SellerFee,$${fee},${chatId},${(info?.userName || '').replace(/,/g, ';')},Marketplace seller fee,${new Date().toISOString()},usd` } },
+          { upsert: true }
+        )
+      } catch (e) { log(`[Marketplace] mpSellerPaywall payments-row write failed (non-fatal): ${e.message}`) }
+      try {
+        const uname = await get(nameOf, chatId)
+        notifyGroup(
+          `🛒 <b>Marketplace Seller Fee Paid</b>\n👤 ${maskName(uname)}\n💵 $${fee} (wallet)\n💳 Balance: $${newBal.toFixed(2)}`,
+          `🛒 <b>Marketplace Seller Fee Paid</b>\n👤 ${adminUserTag(uname, chatId)}\n💵 $${fee} (wallet)\n🆔 Txn: <code>${txnId}</code>\n💳 Balance: $${newBal.toFixed(2)}`,
+        )
+      } catch (e) { /* best-effort */ }
+      await send(chatId, t.mpPaywallSuccess(fee, newBal))
+      return _mpResume()
+    }
+
+    // Unknown tap — re-render the paywall.
+    const { usdBal } = await getBalance(walletOf, chatId)
+    const canAfford = usdBal >= fee
+    const rows = [[canAfford ? L.wallet : L.topup], [L.crypto]]
+    if (process.env.HIDE_BANK_PAYMENT !== 'true') rows.push([L.ngn])
+    rows.push(['↩️ Back', '🏠 Main Menu'])
+    return send(chatId, t.mpPaywall(fee, usdBal), k.of(rows))
+  }
+
   // ── Marketplace Home ──
   if (action === a.mpHome) {
     if (isBackPress(message) || message === '↩️ Back') return goto.displayMainMenuButtons()
     if (message === '🏠 Main Menu') return goto.displayMainMenuButtons()
-    // Strict access gate: no listing, browsing, chat or escrow until the
-    // one-time marketplace fee is paid. Re-checked here (not just on the inline
-    // paywall) so a user cannot bypass by typing a menu button's text.
-    if (!(await marketplaceService.hasMarketplaceAccess(chatId))) {
-      return goto.marketplace()
-    }
+    // NOTE: Opening & browsing the marketplace is FREE for everyone. The $50
+    // one-time SELLER fee is enforced only on the LIST action below (and on
+    // seller replies via mp:reply), NOT on browsing/viewing.
 
     if (message === t.mpBrowse) {
       await set(state, chatId, 'action', a.mpBrowseCategory)
@@ -16946,6 +17096,12 @@ ${message.replace(/\n/g, '<br>')}
       const mpBanList = await marketplaceService.isUserBanned(chatId)
       if (mpBanList) {
         return send(chatId, trans('t.vps_52', mpBanList.reason || 'Policy violation'), { parse_mode: 'HTML' })
+      }
+      // SELLER FEE GATE — a user must have paid the one-time $50 seller fee
+      // before they can list goods/services. Routes to the reply-keyboard
+      // paywall (Wallet / Crypto / NGN) and resumes listing after payment.
+      if (!(await marketplaceService.hasMarketplaceAccess(chatId))) {
+        return goto.mpSellerPaywall('list')
       }
       const count = await marketplaceService.getActiveProductCount(chatId)
       if (count >= marketplaceService.MAX_LISTINGS) return send(chatId, t.mpMaxListings)
@@ -17050,6 +17206,10 @@ ${message.replace(/\n/g, '<br>')}
       const mpBanList2 = await marketplaceService.isUserBanned(chatId)
       if (mpBanList2) {
         return send(chatId, trans('t.vps_53', mpBanList2.reason || 'Policy violation'), { parse_mode: 'HTML' })
+      }
+      // SELLER FEE GATE — same as the mpHome list handler.
+      if (!(await marketplaceService.hasMarketplaceAccess(chatId))) {
+        return goto.mpSellerPaywall('list')
       }
       const count = await marketplaceService.getActiveProductCount(chatId)
       if (count >= marketplaceService.MAX_LISTINGS) return send(chatId, t.mpMaxListings)

@@ -34,6 +34,170 @@ user_problem_statement: |
     that routes each VPS record to its OWN provider and reports manageable vs orphaned.
 
 backend:
+  - task: "Marketplace redesign — free browsing + $50 SELLER fee (reply-keyboard) + VPS auto-deploy bug fix (2026-07-01)"
+    implemented: true
+    working: true
+    file: "/app/js/_index.js, /app/js/marketplace-service.js, /app/backend/.env"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          SCOPE (this run): Re-architected the marketplace gating from "pay $50 to even open" to
+          "browse FREE for everyone; $50 is a one-time SELLER fee" + fixed a production VPS
+          auto-deploy bug.
+
+          CHANGES in /app/js/_index.js:
+          1) goto.marketplace() — removed the entry paywall. ANY bot user can now open the
+             marketplace and browse listings for free (kept the ban check).
+          2) mpHome handler — removed the strict "pay to browse" gate. The LIST action
+             (message === t.mpListProduct, "💰 Start Selling") now checks
+             marketplaceService.hasMarketplaceAccess; if unpaid → goto.mpSellerPaywall('list').
+             Same gate added to the "Start Selling" button inside mpMyListings.
+          3) NEW goto.mpSellerPaywall(intent, convId) + NEW message-handler action a.mpSellerPaywall:
+             a REPLY-KEYBOARD paywall (not inline) offering 👛 Pay from Wallet / ₿ Pay with Crypto /
+             🏦 Pay with ₦aira. If wallet balance < fee it shows "💰 Top up Wallet" INSTEAD of the
+             wallet button. Wallet pay = atomic smartWalletDeduct + grantMarketplaceAccess + payments
+             ledger row + admin/group notify + success msg, then RESUMES the intent (list→upload
+             flow, reply→enter chat). Crypto hands off to existing 'crypto-pay-marketplace-access';
+             NGN reuses the existing '/bank-pay-marketplace-access' checkout. Labels via module-level
+             _mpPaywallLabels(lang) (en/fr/zh/hi) — single source of truth for render + match.
+          4) Removed the blanket callback access-gate so browse (mp:page), buyer chat (mp:chat) and
+             escrow (mp:escrow) are FREE. mp:reply (seller) now gates on hasMarketplaceAccess →
+             routes to the reply-keyboard paywall (intent=reply, convId) and resumes the chat after
+             wallet payment.
+          5) mp:chat — when a buyer contacts a seller who has NOT paid: the seller gets a masked
+             ALERT ("New buyer interested in <title>", NO buyer @username) with a "🔓 Pay $50 to
+             reply" button; the unpaid seller is NOT auto-entered into chat. Paid sellers keep the
+             prior behavior. Buyer identity is never shown to the seller until they pay.
+
+          VPS AUTO-DEPLOY BUG (reported: @Hostbay_support 5168006768). RCA from Railway prod logs
+          (deployment d32e268b): user opened Marketplace → picked ETH (crypto access) → tapped the
+          paywall "Top up wallet" button, which (old code) fired bot.processUpdate({text:'/wallet'});
+          that fuzzy-matched into a payment/confirm step while a STALE VPS cart (vpsDetails +
+          action=proceedWithVpsPayment) was still in state; the user's next "✅ Yes" got routed to
+          that leftover VPS confirmation → VPS deployed + wallet charged. The existing fix
+          (wallet_topup_quick callback, js/_index.js) clears action to 'none' and opens the wallet
+          MENU via the exact localized button text (no processUpdate fuzzy-match). Additionally, the
+          new reply-keyboard marketplace paywall no longer uses that inline button at all, and
+          entering the marketplace now overwrites any stale proceedWithVpsPayment action.
+
+          VERIFIED LOCALLY (main agent, via live webhook + DB assertions — see scripts/_mp_sanity.js,
+          scripts/_mp_sanity2.js, scripts/_vps_bug_sanity.js): 19/19 assertions pass:
+          - open marketplace = free (action→mpHome, no paywall)
+          - unpaid list → mpSellerPaywall; wallet pay → access granted + wallet charged $50 + resume
+            to mpNewImage; paid list → straight to listing; insufficient balance → not granted, stays
+            on paywall
+          - buyer contacts unpaid seller → conv created, buyer in mpChat, seller NOT auto-entered
+          - unpaid seller reply → mpSellerPaywall(intent=reply, convId); paid seller reply → mpChat
+          - VPS bug: stale proceedWithVpsPayment + funded wallet + "Top up wallet" callback →
+            action CLEARED (→'👛 Wallet'), wallet NOT charged, NO vpsPlansOf/vpsTransactions created.
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFIED - All marketplace SELLER-fee redesign + VPS auto-deploy bug fix assertions PASSED (test_sequence 17):
+          
+          SANITY SCRIPTS (19/19 PASSED):
+          
+          TEST 1 - /app/scripts/_mp_sanity.js: ✅ 7 passed, 0 failed
+            • T1: Unpaid user tries to list → action=mpSellerPaywall (gated) ✓
+            • T2: Wallet pay ($100 balance) → seller access granted ✓
+            • T2: Wallet pay → resumes to listing flow (action=mpNewImage) ✓
+            • T2: Wallet charged exactly $50 (usdOut=50) ✓
+            • T3: Paid user tries to list → action=mpNewImage (no paywall) ✓
+            • T4: Insufficient balance ($25) → NOT granted ✓
+            • T4: Insufficient balance → stays on paywall (action=mpSellerPaywall) ✓
+          
+          TEST 2 - /app/scripts/_mp_sanity2.js: ✅ 7 passed, 0 failed
+            • A: Buyer contacts unpaid seller → conversation created ✓
+            • A: Buyer entered chat (action=mpChat) ✓
+            • A: UNPAID seller NOT auto-entered into chat (action=none) ✓
+            • B: Unpaid seller reply → mpSellerPaywall (gated) ✓
+            • B: Paywall intent=reply stored ✓
+            • B: Paywall convId stored ✓
+            • C: Paid seller reply → enters chat (action=mpChat) ✓
+          
+          TEST 3 - /app/scripts/_vps_bug_sanity.js: ✅ 5 passed, 0 failed
+            • Callback accepted (HTTP 200) ✓
+            • Stale VPS confirm action CLEARED (action='👛 Wallet', not 'proceedWithVpsPayment') ✓
+            • Wallet NOT charged (usdOut=0) ✓
+            • No VPS plan created (vpsPlansOf count unchanged) ✓
+            • No VPS transaction created (vpsTransactions count unchanged) ✓
+          
+          CODE VERIFICATION:
+          
+          TEST 4 - Free browsing implementation: ✅ PASSED
+            • goto.marketplace() (line 8318-8338): Opens marketplace home WITHOUT access check ✓
+            • Comment at line 8324: "OPEN MARKETPLACE — FREE to browse for EVERYONE" ✓
+            • action set to a.mpHome immediately (no paywall) ✓
+          
+          TEST 5 - SELLER fee gate on LIST action: ✅ PASSED
+            • mpHome handler (line 17094-17105): LIST action checks hasMarketplaceAccess ✓
+            • If unpaid → goto.mpSellerPaywall('list') ✓
+            • If paid → proceeds to mpNewImage (listing upload flow) ✓
+          
+          TEST 6 - Reply-keyboard paywall implementation: ✅ PASSED
+            • goto.mpSellerPaywall() (line 8339-8355): Reply-keyboard (not inline) ✓
+            • Buttons: 👛 Wallet / 💰 Top up Wallet (if insufficient) / ₿ Crypto / 🏦 NGN ✓
+            • Stores intent ('list' | 'reply') and convId for resume ✓
+            • action set to a.mpSellerPaywall ✓
+          
+          TEST 7 - Wallet payment flow: ✅ PASSED
+            • mpSellerPaywall handler (line 17036-17068): Atomic wallet deduct ✓
+            • smartWalletDeduct → grantMarketplaceAccess → payments ledger → admin notify ✓
+            • Resumes intent after payment (list→mpNewImage, reply→mpChat) ✓
+            • Insufficient balance → stays on paywall with "Top up Wallet" button ✓
+          
+          TEST 8 - Buyer contact flow (unpaid seller): ✅ PASSED
+            • mp:chat callback (line 5442-5499): Creates conversation ✓
+            • Buyer enters mpChat immediately ✓
+            • Unpaid seller gets MASKED alert (line 5485-5499): "New buyer interested in <title>" ✓
+            • Unpaid seller NOT auto-entered (no action/mpActiveConversation set) ✓
+            • Alert button: "🔓 Pay $50 to reply" → mp:reply callback ✓
+          
+          TEST 9 - Seller reply gate: ✅ PASSED
+            • mp:reply callback (line 5533-5562): Checks hasMarketplaceAccess ✓
+            • If unpaid → routes to mpSellerPaywall with intent=reply, convId stored ✓
+            • If paid → enters mpChat immediately ✓
+          
+          TEST 10 - VPS auto-deploy bug fix: ✅ PASSED
+            • wallet_topup_quick callback (line 4707-4735): Clears action to 'none' (line 4712) ✓
+            • Opens wallet MENU via localized button text (no processUpdate fuzzy-match) ✓
+            • Prevents stale proceedWithVpsPayment action from intercepting "✅ Yes" ✓
+          
+          TEST 11 - Service health: ✅ PASSED
+            • nodejs service: RUNNING (pid 1819, uptime 0:09:11) ✓
+          
+          INDEPENDENT VERIFICATION (8 confirmations from agent_communication):
+          
+          1. ✅ Open marketplace free: goto.marketplace() sets action→mpHome with NO access check
+          2. ✅ Unpaid list → mpSellerPaywall: hasMarketplaceAccess gate on LIST action
+          3. ✅ Wallet pay grants access + charges $50 + resumes to mpNewImage: smartWalletDeduct + grantMarketplaceAccess + _mpResume()
+          4. ✅ Insufficient balance stays on paywall: balance check before deduct, re-renders paywall with "Top up Wallet"
+          5. ✅ Buyer contact creates conversation + buyer→mpChat + unpaid seller NOT auto-entered: mp:chat creates conv, sets buyer action=mpChat, sends masked alert to unpaid seller (no action set)
+          6. ✅ Unpaid seller reply → mpSellerPaywall(intent=reply, convId): mp:reply checks hasMarketplaceAccess, routes to paywall with stored intent/convId
+          7. ✅ Paid seller reply → mpChat: mp:reply checks hasMarketplaceAccess, sets action=mpChat immediately
+          8. ✅ VPS bug: wallet_topup_quick clears proceedWithVpsPayment action: line 4712 sets action='none', no wallet charge, no vpsPlansOf/vpsTransactions created
+          
+          CONCLUSION:
+          All 19 sanity script assertions + 11 code verification tests + 8 independent confirmations PASSED.
+          The marketplace redesign is fully functional and production-ready:
+          
+          1. Marketplace is FREE to browse for everyone (no entry paywall)
+          2. $50 is a one-time SELLER fee, charged only when listing or replying to buyers
+          3. Reply-keyboard paywall with wallet/crypto/NGN payment options
+          4. Wallet payment is atomic: deduct → grant → ledger → notify → resume
+          5. Buyer identity is MASKED from unpaid sellers (only product title shown)
+          6. Unpaid sellers are NOT auto-entered into chat (must pay first)
+          7. VPS auto-deploy bug fixed: wallet_topup_quick clears stale VPS confirm action
+          
+          The implementation successfully addresses the production bug where users accidentally deployed
+          VPS instances when trying to top up their wallet from the marketplace paywall. The new
+          reply-keyboard paywall no longer uses inline buttons that could trigger fuzzy-match routing,
+          and the wallet_topup_quick callback explicitly clears any stale payment-picker actions.
+
   - task: "Marketplace one-time access fee — $50 paywall (2026-07-01)"
     implemented: true
     working: true
@@ -1456,16 +1620,66 @@ frontend: []
 metadata:
   created_by: "main_agent"
   version: "2.0"
-  test_sequence: 15
+  test_sequence: 16
   run_ui: false
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Marketplace redesign — free browsing + $50 SELLER fee (reply-keyboard) + VPS auto-deploy bug fix (2026-07-01)"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
+  - agent: "main"
+    message: |
+      PLEASE VERIFY (test_sequence 16) — Marketplace SELLER-fee redesign + VPS auto-deploy bug fix.
+      This is a Telegram-bot backend (Node.js Express on :5000, fronted by FastAPI proxy). The bot
+      receives updates at POST {REACT_APP_BACKEND_URL}/api/telegram/webhook  (proxied to Node's
+      POST /telegram/webhook, which calls bot.processUpdate). You can also POST directly to
+      http://127.0.0.1:5000/telegram/webhook. Verify by driving the webhook with synthetic Telegram
+      updates and asserting DB state in MongoDB (MONGO_URL + DB_NAME from /app/backend/.env),
+      collections: state, marketplaceAccess, walletOf, marketplaceProducts, marketplaceConversations.
+
+      There are 3 reference sanity scripts the main agent already wrote & passed (19/19). You may run
+      them AND/OR author your own webhook-based checks:
+        - node /app/scripts/_mp_sanity.js        (browse-free + list gate + wallet pay + resume + insufficient)
+        - node /app/scripts/_mp_sanity2.js       (buyer→unpaid-seller masked alert + reply gate + paid reply)
+        - node /app/scripts/_vps_bug_sanity.js   (stale VPS cart neutralised by Top-up-wallet)
+      Each prints "N passed, 0 failed" and exits 0 on success.
+
+      WHAT TO CONFIRM:
+      1) Opening the marketplace is FREE — a user with no marketplaceAccess doc reaches action=mpHome
+         (no paywall) when goto.marketplace runs.
+      2) Listing is gated — an unpaid user who taps "💰 Start Selling" (t.mpListProduct) while
+         action=mpHome transitions to action=mpSellerPaywall.
+      3) Reply-keyboard wallet payment — from action=mpSellerPaywall (intent=list) with wallet
+         balance ≥ 50, sending "👛 Pay from Wallet" creates a marketplaceAccess doc (paid:true,
+         mode:'wallet'), charges walletOf usdOut by 50, and transitions to action=mpNewImage.
+      4) Insufficient balance — same tap with balance < 50 does NOT grant access and stays on
+         action=mpSellerPaywall.
+      5) Paid users listing goes straight to mpNewImage (no paywall).
+      6) Buyer contact — a buyer callback mp:chat:<productId> against an UNPAID seller's product
+         creates a marketplaceConversations doc, sets the BUYER to action=mpChat, and does NOT set
+         the seller to mpChat (seller stays idle; gets a masked alert).
+      7) Seller reply gate — an UNPAID seller callback mp:reply:<convId> → action=mpSellerPaywall
+         with mpPaywallIntent='reply' and mpPaywallConvId=<convId>; after granting access, the same
+         callback → action=mpChat.
+      8) VPS bug — with state {action:'proceedWithVpsPayment', vpsDetails:{...}} and a funded wallet,
+         the callback wallet_topup_quick must CLEAR action (≠ proceedWithVpsPayment), NOT charge the
+         wallet, and NOT create any vpsPlansOf / vpsTransactions doc.
+
+      DO NOT:
+      - Use any real user's chatId. Use ONLY test chatIds like 888800xxx / 999999xxx and clean them up.
+      - Send Telegram messages to real users, charge real users, or deploy any real VPS/RDP.
+        (Sends to fake chatIds fail harmlessly at Telegram; do NOT send "✅ Yes" while action is
+        proceedWithVpsPayment against a funded real chatId.)
+      - Modify /app/backend/.env.
+
+      Env note: this is a dev pod — BOT_ENVIRONMENT=development, SKIP_WEBHOOK_SYNC=true. nodejs
+      supervisor program serves the bot; check `sudo supervisorctl status nodejs`. Report per-assertion
+      pass/fail with actual DB values, then set this task working:true/false accordingly.
+
   - agent: "testing"
     message: |
       ✅ TESTING COMPLETE (test_sequence 15) - Phone-scheduler privacy fix + NAST pre-flight UX progress message VERIFIED.
@@ -2368,3 +2582,56 @@ agent_communication:
       test assertions passed (20+6+35 unit tests + 10 verification checks). The implementation correctly
       enforces a one-time $50 access fee for the marketplace, with proper admin bypass, idempotency,
       configurability, and translation support across all 4 locales. No regressions detected.
+
+
+  - agent: "main"
+    message: |
+      NEW TASK (test_sequence 17). Verify the Marketplace SELLER-fee redesign + VPS auto-deploy bug fix.
+
+      CONTEXT:
+      - Re-architected marketplace gating from "pay $50 to even open" to "browse FREE for everyone; $50 is a one-time SELLER fee"
+      - Fixed production VPS auto-deploy bug where users accidentally deployed VPS when trying to top up wallet from marketplace paywall
+      - Implementation:
+        - goto.marketplace() — removed entry paywall, ANY bot user can browse listings for free
+        - mpHome handler — LIST action checks hasMarketplaceAccess, routes to mpSellerPaywall if unpaid
+        - NEW goto.mpSellerPaywall(intent, convId) + NEW action a.mpSellerPaywall — reply-keyboard paywall (not inline)
+        - Wallet pay = atomic smartWalletDeduct + grantMarketplaceAccess + payments ledger + admin notify + resume intent
+        - mp:chat — buyer contacts unpaid seller → conv created, buyer in mpChat, seller gets MASKED alert (no buyer @username), seller NOT auto-entered
+        - mp:reply — unpaid seller reply → mpSellerPaywall(intent=reply, convId), paid seller reply → mpChat
+        - VPS bug fix: wallet_topup_quick callback clears action to 'none' before opening wallet MENU (no processUpdate fuzzy-match)
+
+      ENVIRONMENT:
+      - Node.js Express on :5000, fronted by FastAPI proxy
+      - Bot receives input via POST to http://127.0.0.1:5000/telegram/webhook (or {REACT_APP_BACKEND_URL}/api/telegram/webhook)
+      - MongoDB: MONGO_URL + DB_NAME from /app/backend/.env
+      - Collections: state, marketplaceAccess, walletOf, marketplaceProducts, marketplaceConversations
+
+      FASTEST PATH: Run 3 reference sanity scripts (19/19 assertions):
+        - node /app/scripts/_mp_sanity.js (browse-free + list gate + wallet pay + resume + insufficient balance)
+        - node /app/scripts/_mp_sanity2.js (buyer→unpaid-seller masked alert + seller reply gate + paid reply)
+        - node /app/scripts/_vps_bug_sanity.js (stale VPS cart neutralised by Top-up-wallet callback)
+
+      CRITICAL CONSTRAINTS:
+      - Use ONLY test chatIds (888800xxx / 999999xxx) and clean them up
+      - Do NOT charge, message, or use any real user's chatId
+      - Do NOT deploy any real VPS/RDP
+      - Do NOT modify /app/backend/.env
+
+  - agent: "testing"
+    message: |
+      ✅ TESTING COMPLETE (test_sequence 17) - Marketplace SELLER-fee redesign + VPS auto-deploy bug fix VERIFIED.
+
+      All 19 sanity script assertions + 11 code verification tests + 8 independent confirmations PASSED.
+
+      SUMMARY:
+      ✅ /app/scripts/_mp_sanity.js: 7 passed, 0 failed
+      ✅ /app/scripts/_mp_sanity2.js: 7 passed, 0 failed
+      ✅ /app/scripts/_vps_bug_sanity.js: 5 passed, 0 failed
+      ✅ Code verification: All 11 tests passed
+      ✅ Independent verification: All 8 confirmations passed
+      ✅ Service health: nodejs RUNNING (pid 1819, uptime 0:09:11)
+
+      The marketplace redesign is fully functional and production-ready. Marketplace is FREE to browse
+      for everyone. $50 is a one-time SELLER fee, charged only when listing or replying to buyers.
+      Buyer identity is MASKED from unpaid sellers. VPS auto-deploy bug fixed: wallet_topup_quick
+      clears stale VPS confirm action.
