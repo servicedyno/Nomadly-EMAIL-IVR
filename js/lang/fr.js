@@ -1034,6 +1034,13 @@ captchaDomainButton: (domain, isOff, hasCF) => hasCF ? `${isOff ? '🔴 OFF' : '
  mpPaywallPayBtn: (fee) => `✅ Payer $${fee} via portefeuille`,
  mpPaywallTopupBtn: '👛 Recharger le portefeuille',
  mpPaywallCancelBtn: '❌ Annuler',
+ mpPaywallCryptoBtn: '₿ Payer en crypto',
+ mpPaywallNgnBtn: '🏦 Payer en NGN (banque)',
+ mpPayChooseCrypto: (fee) => `₿ <b>Payer les frais Marketplace de $${fee} en crypto</b>\n\nChoisissez une pièce — vous recevrez une adresse pour envoyer exactement les frais. L'accès s'active automatiquement dès la confirmation du paiement.`,
+ mpPayNgnStarting: (fee) => `🏦 <b>Préparation de votre paiement NGN pour les frais Marketplace de $${fee}…</b>`,
+ mpAccessActivated: (method) => `🎉 <b>Accès Marketplace activé !</b>\n\n✅ Payé via ${method}.\n\nVous pouvez maintenant :\n• 🛍️ <b>Lister</b> vos biens et services\n• 💬 Discuter avec les acheteurs\n• 🔒 Utiliser l'escrow pour des transactions sûres\n\nAppuyez ci-dessous pour ouvrir le marché.`,
+ mpAccessAlreadyCredited: (usd) => `ℹ️ Vous avez déjà accès au marché, donc votre paiement de <b>$${Number(usd).toFixed(2)}</b> a été crédité sur votre portefeuille.`,
+ mpOpenMarketplaceBtn: '🏪 Ouvrir le marché',
  mpPaywallInsufficient: (fee, balance) =>
    `🚫 <b>Solde insuffisant</b>\n\n` +
    `Besoin : <b>$${fee}</b> · Disponible : <b>$${balance.toFixed(2)}</b>\n\n` +

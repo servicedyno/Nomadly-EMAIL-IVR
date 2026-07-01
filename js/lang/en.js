@@ -1176,6 +1176,13 @@ captchaDomainButton: (domain, isOff, hasCF) => hasCF ? `${isOff ? '🔴 OFF' : '
  mpPaywallPayBtn: (fee) => `✅ Pay $${fee} from wallet`,
  mpPaywallTopupBtn: '👛 Top up wallet',
  mpPaywallCancelBtn: '❌ Cancel',
+ mpPaywallCryptoBtn: '₿ Pay with crypto',
+ mpPaywallNgnBtn: '🏦 Pay with NGN (bank)',
+ mpPayChooseCrypto: (fee) => `₿ <b>Pay the $${fee} marketplace fee with crypto</b>\n\nChoose a coin — you'll get a wallet address to send exactly the fee. Access unlocks automatically once the payment confirms.`,
+ mpPayNgnStarting: (fee) => `🏦 <b>Preparing your NGN payment for the $${fee} marketplace fee…</b>`,
+ mpAccessActivated: (method) => `🎉 <b>Marketplace access activated!</b>\n\n✅ Paid via ${method}.\n\nYou can now:\n• 🛍️ <b>List</b> your goods & services\n• 💬 Chat with buyers\n• 🔒 Use escrow for safe deals\n\nTap below to open the marketplace.`,
+ mpAccessAlreadyCredited: (usd) => `ℹ️ You already have marketplace access, so your <b>$${Number(usd).toFixed(2)}</b> payment was credited to your wallet instead.`,
+ mpOpenMarketplaceBtn: '🏪 Open Marketplace',
  mpPaywallInsufficient: (fee, balance) =>
    `🚫 <b>Insufficient wallet balance</b>\n\n` +
    `Need: <b>$${fee}</b> · Have: <b>$${balance.toFixed(2)}</b>\n\n` +

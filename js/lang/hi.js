@@ -1018,6 +1018,13 @@ captchaDomainButton: (domain, isOff, hasCF) => hasCF ? `${isOff ? '🔴 OFF' : '
  mpPaywallPayBtn: (fee) => `✅ वॉलेट से $${fee} भुगतान करें`,
  mpPaywallTopupBtn: '👛 वॉलेट टॉप अप करें',
  mpPaywallCancelBtn: '❌ रद्द करें',
+ mpPaywallCryptoBtn: '₿ क्रिप्टो से भुगतान करें',
+ mpPaywallNgnBtn: '🏦 NGN (बैंक) से भुगतान करें',
+ mpPayChooseCrypto: (fee) => `₿ <b>$${fee} मार्केटप्लेस शुल्क क्रिप्टो से भुगतान करें</b>\n\nएक सिक्का चुनें — आपको बिल्कुल शुल्क भेजने के लिए एक पता मिलेगा। भुगतान की पुष्टि होते ही एक्सेस स्वतः सक्रिय हो जाएगा।`,
+ mpPayNgnStarting: (fee) => `🏦 <b>$${fee} मार्केटप्लेस शुल्क के लिए आपका NGN भुगतान तैयार किया जा रहा है…</b>`,
+ mpAccessActivated: (method) => `🎉 <b>मार्केटप्लेस एक्सेस सक्रिय!</b>\n\n✅ ${method} से भुगतान हुआ।\n\nअब आप कर सकते हैं:\n• 🛍️ अपने सामान और सेवाएं <b>सूचीबद्ध</b> करें\n• 💬 खरीदारों से चैट करें\n• 🔒 सुरक्षित सौदों के लिए एस्क्रो का उपयोग करें\n\nमार्केटप्लेस खोलने के लिए नीचे टैप करें।`,
+ mpAccessAlreadyCredited: (usd) => `ℹ️ आपके पास पहले से मार्केटप्लेस एक्सेस है, इसलिए आपका <b>$${Number(usd).toFixed(2)}</b> भुगतान आपके वॉलेट में जमा कर दिया गया।`,
+ mpOpenMarketplaceBtn: '🏪 मार्केटप्लेस खोलें',
  mpPaywallInsufficient: (fee, balance) =>
    `🚫 <b>अपर्याप्त वॉलेट बैलेंस</b>\n\n` +
    `आवश्यक: <b>$${fee}</b> · उपलब्ध: <b>$${balance.toFixed(2)}</b>\n\n` +

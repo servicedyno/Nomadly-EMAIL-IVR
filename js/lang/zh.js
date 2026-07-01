@@ -1017,6 +1017,13 @@ captchaDomainButton: (domain, isOff, hasCF) => hasCF ? `${isOff ? '🔴 关闭' 
  mpPaywallPayBtn: (fee) => `✅ 用钱包支付 $${fee}`,
  mpPaywallTopupBtn: '👛 充值钱包',
  mpPaywallCancelBtn: '❌ 取消',
+ mpPaywallCryptoBtn: '₿ 加密货币支付',
+ mpPaywallNgnBtn: '🏦 NGN（银行）支付',
+ mpPayChooseCrypto: (fee) => `₿ <b>用加密货币支付 $${fee} 市场费用</b>\n\n请选择一种币种 — 您将获得一个钱包地址以发送准确的费用。付款确认后将自动解锁访问权限。`,
+ mpPayNgnStarting: (fee) => `🏦 <b>正在为 $${fee} 市场费用准备您的 NGN 付款…</b>`,
+ mpAccessActivated: (method) => `🎉 <b>市场访问权限已激活！</b>\n\n✅ 通过 ${method} 支付。\n\n您现在可以：\n• 🛍️ <b>上架</b>您的商品和服务\n• 💬 与买家聊天\n• 🔒 使用托管进行安全交易\n\n点击下方打开市场。`,
+ mpAccessAlreadyCredited: (usd) => `ℹ️ 您已拥有市场访问权限，因此您的 <b>$${Number(usd).toFixed(2)}</b> 付款已存入您的钱包。`,
+ mpOpenMarketplaceBtn: '🏪 打开市场',
  mpPaywallInsufficient: (fee, balance) =>
    `🚫 <b>钱包余额不足</b>\n\n` +
    `需要: <b>$${fee}</b> · 现有: <b>$${balance.toFixed(2)}</b>\n\n` +
