@@ -77,15 +77,16 @@ it('mpNewConfirm has defense-in-depth gate before createProduct',
 it('mpNewConfirm gate routes to goto.mpSellerPaywall("list")',
   /goto\.mpSellerPaywall\(\s*['"]list['"]\s*\)/.test(publishSlice))
 
-// ── 6) mpManageListing edit/mark-sold gate + FREE remove ────────────────
+// ── 6) mpManageListing edit gate + FREE remove + FREE mark-sold ─────────
 const manageIdx = INDEX.indexOf('// ── Manage Listing')
 it('mpManageListing handler exists', manageIdx > 0)
 const manageSlice = INDEX.slice(manageIdx, manageIdx + 3200)
 it('mpManageListing has SELLER FEE GATE comment', manageSlice.includes('SELLER FEE GATE'))
 it('mpManageListing gate is AFTER mpRemoveProduct branch (remove stays free)',
   manageSlice.indexOf('mpRemoveProduct') < manageSlice.indexOf('hasMarketplaceAccess'))
-it('mpManageListing gate is BEFORE mpMarkSold branch',
-  manageSlice.indexOf('hasMarketplaceAccess') < manageSlice.indexOf('mpMarkSold'))
+// Bug #3 fix (2026-07-06): mark-sold is now FREE (before the gate) like remove
+it('mpManageListing gate is AFTER mpMarkSold branch (mark-sold stays free — Bug #3 fix)',
+  manageSlice.indexOf('mpMarkSold') < manageSlice.indexOf('hasMarketplaceAccess'))
 it('mpManageListing gate is BEFORE mpEditProduct branch',
   manageSlice.indexOf('hasMarketplaceAccess') < manageSlice.indexOf('mpEditProduct'))
 

@@ -16914,7 +16914,12 @@ ${message.replace(/\n/g, '<br>')}
     if (!convId) return goto.marketplace()
 
     // /done — end conversation
-    if (message === '/done' || isBackPress(message) || message === '↩️ Back') {
+    // Bug #1 fix (2026-07-06): '🏠 Main Menu' was previously falling through
+    // to the seller-fee gate → the literal button text got relayed to the
+    // other party as a chat message (and unpaid sellers even hit the
+    // paywall). Add it to this escape-hatch alongside /done + ↩️ Back so
+    // the button ALWAYS returns to the marketplace home instead.
+    if (message === '/done' || isBackPress(message) || message === '↩️ Back' || message === '🏠 Main Menu') {
       await marketplaceService.closeConversation(convId)
       const conv = await marketplaceService.getConversation(convId)
       const otherParty = conv?.buyerId === chatId ? conv?.sellerId : conv?.buyerId
@@ -16932,6 +16937,9 @@ ${message.replace(/\n/g, '<br>')}
         }
       }
       send(chatId, t.mpChatEnded, { parse_mode: 'HTML' })
+      // 🏠 Main Menu should take the user all the way home, not just to
+      // marketplace(). ↩️ Back and /done still return to marketplace().
+      if (message === '🏠 Main Menu') return goto.displayMainMenuButtons ? goto.displayMainMenuButtons() : goto.marketplace()
       return goto.marketplace()
     }
 
@@ -16940,22 +16948,26 @@ ${message.replace(/\n/g, '<br>')}
     // this user is the SELLER in the conversation AND has NOT paid the
     // one-time $50 marketplace access fee. Route them into the paywall so
     // they can pay & resume. Buyers are never gated (they are the buyerId,
-    // never the sellerId). Escape hatches above (/done, ↩️ Back) always
-    // work so an unpaid seller can leave without paying.
+    // never the sellerId). Escape hatches above (/done, ↩️ Back,
+    // 🏠 Main Menu) always work so an unpaid seller can leave without paying.
     //
     // Why here: sellers whose action state was already 'mpChat' when the
     // seller fee shipped on 2026-07-01 skipped both the mp:reply callback
     // gate AND the mpListProduct entry gate. Prod audit found 25 open
     // conversations owned by 10 unpaid sellers.
-    const _mpConvForGate = await marketplaceService.getConversation(convId)
-    if (await _isSellerUnpaid(chatId, _mpConvForGate)) {
+    //
+    // Bug #2 fix (2026-07-06): This fetch is now the SINGLE source of truth
+    // for `conv` in the whole mpChat handler. Previously /price, /report,
+    // and the text-relay path each did their own getConversation(convId)
+    // → 2 DB round-trips per message. `conv` is now reused throughout.
+    const conv = await marketplaceService.getConversation(convId)
+    if (await _isSellerUnpaid(chatId, conv)) {
       log(`[Marketplace] Blocked mpChat message from unpaid seller ${chatId} (conv ${convId}) — routing to paywall`)
       return goto.mpSellerPaywall('reply', convId)
     }
 
     // /escrow — start escrow
     if (message === '/escrow') {
-      const conv = await marketplaceService.getConversation(convId)
       if (!conv) return goto.marketplace()
       await marketplaceService.markEscrowStarted(convId)
       const product = await marketplaceService.getProduct(conv.productId)
@@ -16977,7 +16989,6 @@ ${message.replace(/\n/g, '<br>')}
       if (isNaN(suggestedPrice) || suggestedPrice < marketplaceService.MIN_PRICE || suggestedPrice > marketplaceService.MAX_PRICE) {
         return send(chatId, t.mpPriceInvalid)
       }
-      const conv = await marketplaceService.getConversation(convId)
       if (!conv) return goto.marketplace()
       await marketplaceService.updateConversation(convId, { agreedPrice: suggestedPrice })
       const role = conv.buyerId === chatId ? ({ en: 'Buyer', fr: 'Acheteur', zh: '买家', hi: 'खरीदार' }[lang] || 'Buyer') : ({ en: 'Seller', fr: 'Vendeur', zh: '卖家', hi: 'विक्रेता' }[lang] || 'Seller')
@@ -16990,7 +17001,6 @@ ${message.replace(/\n/g, '<br>')}
 
     // /report — flag conversation
     if (message === '/report') {
-      const conv = await marketplaceService.getConversation(convId)
       if (conv && TELEGRAM_ADMIN_CHAT_ID) {
         send(TELEGRAM_ADMIN_CHAT_ID, `🚨 [Marketplace] Report\nConv: ${convId}\nProduct: ${conv.productTitle}\nBuyer: ${await resolveUserTag(conv.buyerId)}\nSeller: ${await resolveUserTag(conv.sellerId)}\nReporter: ${await resolveUserTag(chatId)}`, { parse_mode: 'HTML' })
       }
@@ -17000,8 +17010,8 @@ ${message.replace(/\n/g, '<br>')}
     // Empty message
     if (!message || message.trim() === '') return
 
-    // Rate limit check
-    const conv = await marketplaceService.getConversation(convId)
+    // Rate limit check — reuse `conv` fetched by the seller-fee gate above
+    // (Bug #2 fix: no duplicate DB round-trip per message).
     if (!conv || conv.status === 'closed') return goto.marketplace()
     const msgCount = await marketplaceService.getRecentMessageCount(convId, 1)
     if (msgCount >= marketplaceService.MSG_RATE_LIMIT) return send(chatId, t.mpRateLimit)
@@ -17337,28 +17347,35 @@ ${message.replace(/\n/g, '<br>')}
     if (message === t.mpRemoveProduct) {
       // Removing your own listing does NOT require the seller fee (user-
       // friendly: an unpaid seller can always take their pre-fee listing
-      // down without paying). Only ACTIVE seller actions (edit / mark sold)
-      // and re-listing are gated below.
+      // down without paying). Only ACTIVE seller actions (edit) and
+      // re-listing are gated below.
       await marketplaceService.deleteProduct(pid)
       send(chatId, t.mpProductRemoved)
       return goto.marketplace()
     }
 
-    // ── SELLER FEE GATE (edit / mark-sold) ──
-    // Any modification to a pre-fee listing (edit title/desc/price, mark
-    // sold) now requires the seller to have paid the $50 access fee. This
-    // stops old sellers from silently keeping listings alive & tweaking
-    // them post-rollout.
-    if (!(await marketplaceService.hasMarketplaceAccess(chatId))) {
-      log(`[Marketplace] Blocked mpManageListing action "${message}" by unpaid seller ${chatId} (pid ${pid}) — routing to paywall`)
-      return goto.mpSellerPaywall('list')
-    }
-
+    // Bug #3 fix (2026-07-06): Marking a listing SOLD is now also free for
+    // unpaid sellers — same rationale as Remove. Both actions terminate the
+    // listing; the $50 fee gates active revenue actions (create, reply,
+    // edit-to-keep-alive), not cleanup of a completed transaction. Keeping
+    // mark-sold free preserves the seller's sales-count reputation signal
+    // (used by t.mpSellerStats) instead of forcing them to Remove.
     if (message === t.mpMarkSold) {
       await marketplaceService.markProductSold(pid)
       send(chatId, t.mpProductSold)
       return goto.marketplace()
     }
+
+    // ── SELLER FEE GATE (edit only) ──
+    // Any modification to a pre-fee listing (edit title/desc/price) now
+    // requires the seller to have paid the $50 access fee. This stops old
+    // sellers from silently keeping listings alive & tweaking them
+    // post-rollout. Remove + mark-sold above are always free (cleanup).
+    if (!(await marketplaceService.hasMarketplaceAccess(chatId))) {
+      log(`[Marketplace] Blocked mpManageListing action "${message}" by unpaid seller ${chatId} (pid ${pid}) — routing to paywall`)
+      return goto.mpSellerPaywall('list')
+    }
+
     if (message === t.mpEditProduct) {
       await set(state, chatId, 'action', a.mpManageListing)
       return send(chatId, t.mpEditWhat, k.of([[t.mpEditTitle], [t.mpEditDesc], [t.mpEditPrice]]))

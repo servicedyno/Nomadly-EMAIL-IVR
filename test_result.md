@@ -49,6 +49,146 @@ user_problem_statement: |
   intent='list').
 
 backend:
+  - task: "mpChat bugfix trio — Main Menu escape, dedupe getConversation, mark-sold free (2026-07-06)"
+    implemented: true
+    working: false
+    file: "/app/js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: false
+        agent: "testing"
+        comment: |
+          ⚠️ PARTIAL PASS - BUG #1 has implementation issue (test_sequence 20):
+          
+          PRE-FLIGHT TESTS: ✅ ALL PASSED
+            • test_mpchat_bugfixes_20260706.js: 21/21 passed ✓
+            • test_marketplace_old_seller_gates.js: 44/44 passed (regression) ✓
+            • nodejs service: RUNNING, startup log shows "[Marketplace] Initialized (access fee: $50)" ✓
+          
+          BEHAVIORAL TESTS: ⚠️ 17/20 passed, 3 CRITICAL failures
+          
+          BUG #1 - 🏠 Main Menu escape hatch: ❌ PARTIAL FAILURE (3/6 assertions failed)
+            Test 1a (UNPAID seller):
+              ✅ NOT sent to paywall (escape hatch works)
+              ❌ Conversation NOT closed in DB (status still 'active')
+              ✅ No message relay of "🏠 Main Menu" text
+            Test 1b (PAID seller):
+              ❌ Conversation NOT closed in DB
+              ✅ No message relay
+            Test 1c (BUYER):
+              ❌ Conversation NOT closed in DB
+              ✅ No message relay
+          
+          BUG #2 - Text relay regression: ✅ ALL PASSED (6/6 assertions)
+            Test 2a (PAID seller normal text):
+              ✅ Message created in marketplaceMessages
+              ✅ Message type='text'
+              ✅ Message text matches
+              ✅ Seller still in mpChat (not paywall)
+            Test 2b (/price command):
+              ✅ agreedPrice updated to 75
+            Test 2c (/report command):
+              ✅ Executed without crash
+          
+          BUG #3 - mpMarkSold free: ✅ ALL PASSED (8/8 assertions)
+            Test 3a (UNPAID seller marks sold):
+              ✅ Product status='sold'
+              ✅ NO paywall shown
+            Test 3b (UNPAID seller edit):
+              ✅ Paywall shown
+              ✅ Paywall intent='list'
+            Test 3c (UNPAID seller remove):
+              ✅ Product status='removed'
+              ✅ NO paywall
+            Test 3d (PAID seller marks sold):
+              ✅ Product status='sold'
+          
+          ROOT CAUSE ANALYSIS (BUG #1 failure):
+          The mpChat handler at line 16922 DOES have the correct code to close conversations
+          when "🏠 Main Menu" is pressed. However, there is a GLOBAL cancel handler at line
+          12853 that runs BEFORE the mpChat handler:
+          
+          ```javascript
+          if (isCancelPress(message) || message === '🏠 Main Menu' || ...) {
+            await set(state, chatId, 'action', 'none')
+            ...
+            return send(chatId, greeting, trans('o'))
+          }
+          ```
+          
+          This global handler intercepts ALL "🏠 Main Menu" presses and returns to the main
+          menu WITHOUT closing the conversation. The mpChat-specific handler (which includes
+          conversation closure logic) is never reached.
+          
+          IMPACT:
+          • PRIMARY goal achieved: "🏠 Main Menu" text is NOT relayed as a chat message ✓
+          • PRIMARY goal achieved: Unpaid sellers do NOT hit paywall ✓
+          • SECONDARY issue: Conversations remain open in DB when user exits via "🏠 Main Menu" ✗
+          
+          The user-facing behavior is correct (returns to main menu, no message relay, no
+          paywall), but the database state is inconsistent (conversation not closed, other
+          party not notified).
+          
+          RECOMMENDED FIX:
+          Option 1: Add conversation closure logic to the global cancel handler for mpChat users
+          Option 2: Make global handler skip mpChat users (check action === 'mpChat' before handling)
+          Option 3: Move mpChat handler BEFORE the global cancel handler
+          
+          Setting working=false due to the conversation closure bug, which could lead to:
+          - Stale conversations accumulating in DB
+          - Other party not being notified when conversation ends
+          - Potential confusion if user re-enters marketplace
+      
+      - working: "NA"
+        agent: "main"
+        comment: |
+          FOLLOW-UP TO THE 2026-07-06 SELLER-FEE GATES — 3 bugs surfaced by that gate:
+
+          BUG #1 (user-visible, blocking): `🏠 Main Menu` in mpChat gets relayed as a
+          chat message. `isBackPress()` only matches Back-button variants, so
+          `🏠 Main Menu` fell through to the seller-fee gate → paywall for unpaid
+          sellers, text-relay for paid ones. Fix: added `message === '🏠 Main Menu'`
+          to the escape-hatch conditional at the top of the mpChat handler
+          (js/_index.js:16922). When the user taps 🏠 Main Menu inside mpChat, we
+          close the conversation, notify the other party, and route to
+          `goto.displayMainMenuButtons()` (goes fully home, not just to marketplace()).
+
+          BUG #2 (perf): duplicate `getConversation(convId)` DB round-trips per
+          mpChat message. The seller-fee gate fetched conv at line 16950 as
+          `_mpConvForGate`, then /price (16980), /report (16993), and the text-
+          relay path (17004) each did their own fetch → 2 round-trips per message.
+          Fix: renamed the gate's fetch to a scoped `const conv = ...` and removed
+          the 3 duplicate fetches. All downstream branches (/escrow, /price,
+          /report, rate-limit, relay, AI moderation) now reuse the same `conv`.
+          Halves DB load on the mpChat hot path.
+
+          BUG #3 (design call): unpaid seller couldn't mark a pre-fee listing sold.
+          Chose to make mark-sold FREE (like remove) — same rationale:
+          - Both actions terminate the listing
+          - The $50 fee gates active revenue actions (create / reply / edit-to-keep-
+            alive), not cleanup of a completed transaction
+          - Preserves the seller's sales-count reputation signal
+            (t.mpSellerStats) instead of forcing them to Remove
+          Moved the `mpMarkSold` branch above the seller-fee gate in mpManageListing,
+          next to `mpRemoveProduct`. Gate comment updated to "SELLER FEE GATE
+          (edit only)". Edit-title/desc/price stays gated (unchanged).
+
+          Files:
+          - /app/js/_index.js (mpChat handler + mpManageListing handler)
+          - /app/js/tests/test_marketplace_old_seller_gates.js (updated 1 assertion
+            for the new mpMarkSold ordering)
+          - /app/js/tests/test_mpchat_bugfixes_20260706.js (NEW — 21 static-source
+            assertions covering all 3 fixes)
+
+          Verified locally:
+          - `node -c js/_index.js` OK
+          - New test file: 21/21 passed
+          - Existing test_marketplace_old_seller_gates.js: 44/44 still passing
+          - nodejs supervisor restart clean; startup log shows
+            `[Marketplace] Initialized (access fee: $50)` with no errors
+
   - task: "Marketplace seller-fee gates for OLD sellers (defense-in-depth, 2026-07-06)"
     implemented: true
     working: true
@@ -1904,18 +2044,69 @@ frontend: []
 
 metadata:
   created_by: "main_agent"
-  version: "2.0"
-  test_sequence: 19
+  version: "2.1"
+  test_sequence: 20
   run_ui: false
 
 test_plan:
   current_focus:
-    - "Marketplace seller-fee gates for OLD sellers (defense-in-depth, 2026-07-06)"
+    - "mpChat bugfix trio — Main Menu escape, dedupe getConversation, mark-sold free (2026-07-06)"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
+  - agent: "main"
+    message: |
+      VERIFY (test_sequence 20) — mpChat BUGFIX TRIO (follow-up to seller-fee gates).
+
+      SCOPE — 3 discrete fixes in /app/js/_index.js:
+
+      BUG #1: '🏠 Main Menu' in mpChat is relayed as a chat message.
+        - FIX: added `message === '🏠 Main Menu'` to escape-hatch conditional
+          (js/_index.js:16922). 🏠 Main Menu now returns to
+          goto.displayMainMenuButtons(), NOT marketplace().
+        - VERIFY:
+          (a) Unpaid seller in action=mpChat sends '🏠 Main Menu' → NO paywall,
+              NO relay to buyer, conversation closed, seller action=none (main menu).
+          (b) Paid seller in action=mpChat sends '🏠 Main Menu' → conversation
+              closed, message NOT relayed to buyer, seller returned to main menu.
+          (c) Buyer in action=mpChat sends '🏠 Main Menu' → conversation closed,
+              message NOT relayed to seller.
+          (d) In all cases: check no marketplaceMessages doc was created with
+              text='🏠 Main Menu'.
+
+      BUG #2: duplicate getConversation(convId) DB round-trips per mpChat message.
+        - FIX: renamed gate's fetch to `const conv` (line 16961), removed 3
+          duplicate fetches at /price, /report, and text-relay paths.
+        - VERIFY (static-source is fine since the change is a refactor):
+          Run `node js/tests/test_mpchat_bugfixes_20260706.js` → expect 21/21.
+          Also run `node js/tests/test_marketplace_old_seller_gates.js` →
+          expect 44/44 (regression).
+        - BEHAVIORAL: send a valid text message from a PAID seller in mpChat and
+          confirm relay still works (message appears in marketplaceMessages,
+          buyer gets the "seller says…" send).
+
+      BUG #3: mpMarkSold is now FREE for unpaid sellers (moved above gate).
+        - FIX: mpMarkSold branch moved above the seller-fee gate in
+          mpManageListing (js/_index.js:17363). Comment updated to
+          "SELLER FEE GATE (edit only)".
+        - VERIFY:
+          (a) Unpaid seller in action=mpManageListing sends t.mpMarkSold →
+              product.status='sold', action=mpHome, NO paywall.
+          (b) Unpaid seller sends t.mpEditProduct → paywall (action=mpSellerPaywall,
+              intent=list) — edit still gated.
+          (c) Paid seller sends t.mpMarkSold → product.status='sold' (unchanged).
+          (d) Unpaid seller sends t.mpRemoveProduct → product removed, no paywall
+              (unchanged).
+
+      Same webhook harness as test_sequence 19: POST to
+      http://127.0.0.1:5000/telegram/webhook, use test chatIds 888800xxx, clean
+      up all created state / conv / product / access docs at the end.
+
+      Node.js supervisor RESTARTED after the fix; startup log shows
+      "[Marketplace] Initialized (access fee: $50)" with no errors.
+
   - agent: "main"
     message: |
       VERIFY (test_sequence 19) — Marketplace SELLER-FEE gates for OLD sellers whose
