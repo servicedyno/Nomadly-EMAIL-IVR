@@ -3,6 +3,17 @@
 ## Original problem statement
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
+## 2026-07-06 — Fresh pod bootstrap (current session)
+- Created `/app/frontend/.env` with `REACT_APP_BACKEND_URL=https://3900c451-f55b-4790-a190-9dbb33cdaac5.preview.emergentagent.com` (from supervisor `APP_URL` env).
+- Created `/app/backend/.env` with all user-supplied credentials **plus mandatory README safety overrides**:
+  - `BOT_ENVIRONMENT="development"` (user supplied `production`; would hijack prod bot webhook)
+  - `SKIP_WEBHOOK_SYNC="true"` (blocks Telnyx/Twilio webhook + Call Control migration + SIP ANI overrides from this pod)
+  - `SELF_URL` / `SELF_URL_DEV` = `<pod>/api`; `SELF_URL_PROD` preserved as Railway URL for reference only
+- Ran `bash /app/scripts/setup-nodejs.sh` — created `/app/.env → backend/.env` symlink, ran `yarn install`, registered `nodejs` supervisor program.
+- All 4 services RUNNING: `backend`, `frontend`, `mongodb`, `nodejs`.
+- Node.js boot log confirms safety guards active: `[CF-Sync] Skipped — BOT_ENVIRONMENT=development`, `[AntiRed] Startup worker upgrade SKIPPED (BOT_ENVIRONMENT!=production)`, FastAPI lifespan `phone health monitor DISABLED (SKIP_WEBHOOK_SYNC=true)`.
+- Verified endpoint: external `https://…/api/sms-app/download/info` → HTTP 200 JSON.
+
 ## 2026-07-01 — Marketplace one-time $50 access fee (current session — pt 3)
 
 ### Feature
@@ -203,7 +214,7 @@ For the 5 currently-stuck domains the OP REST sync DID succeed (`code:0`), but D
 
 ## Current pod state (2026-02-20)
 - `/app/frontend/.env` — `REACT_APP_BACKEND_URL` set to current dev pod URL
-- `/app/backend/.env` — full user-provided env list + safety overrides (`BOT_ENVIRONMENT=development`, `SKIP_WEBHOOK_SYNC=true`); `SELF_URL`/`SELF_URL_PROD` rewritten by setup script to `https://readme-setup-28.preview.emergentagent.com/api`
+- `/app/backend/.env` — full user-provided env list + safety overrides (`BOT_ENVIRONMENT=development`, `SKIP_WEBHOOK_SYNC=true`); `SELF_URL`/`SELF_URL_PROD` rewritten by setup script to `https://integration-preview-3.preview.emergentagent.com/api`
 - `/app/.env` — symlink → `/app/backend/.env` (Node.js dotenv root)
 - Supervisor: `backend`, `frontend`, `mongodb`, `nodejs` all RUNNING
 - Node.js logs confirm: AntiRed worker upgrade SKIPPED, CF-Sync skipped (dev mode), health monitor DISABLED on backend
@@ -396,7 +407,7 @@ Code changes ready. `logs_prod/` is gitignored from yesterday's cleanup so this 
 ## 2026-06-21 — Fresh Railway 6-day RCA + Referral funnel fixes
 
 ### Step 1 — Dev setup refreshed
-- `SELF_URL` + `SELF_URL_DEV` updated to current pod `https://readme-setup-28.preview.emergentagent.com/api`
+- `SELF_URL` + `SELF_URL_DEV` updated to current pod `https://integration-preview-3.preview.emergentagent.com/api`
 - `SELF_URL_PROD` left intact (still points to real Railway prod URL)
 - Production isolation reconfirmed: `BOT_ENVIRONMENT=development`, `SKIP_WEBHOOK_SYNC=true`, dev bot token in use
 - Nodejs restarted clean, all `/api/*` routes reachable
@@ -851,7 +862,7 @@ Removed one screen, added decision-shortcuts at the end, made the wait feel shor
 User asked: "read the README file and set up using below credentials" and supplied the full production .env list.
 
 ### What was done
-- Created `/app/frontend/.env` with `REACT_APP_BACKEND_URL=https://readme-setup-28.preview.emergentagent.com`
+- Created `/app/frontend/.env` with `REACT_APP_BACKEND_URL=https://integration-preview-3.preview.emergentagent.com`
 - Created `/app/backend/.env` from the user-provided list with critical dev-pod safety overrides:
   - `BOT_ENVIRONMENT="production"` → `"development"` (CRITICAL — prevents prod bot hijack)
   - Added `SKIP_WEBHOOK_SYNC="true"` (CRITICAL — blocks Telnyx/Twilio/CF mutations)
@@ -878,7 +889,7 @@ All RUNNING: `backend`, `frontend`, `mongodb`, `nodejs`. Logs confirm:
 - `[PhoneMonitor] === Health check complete: 23 checked, 0 newly suspended, 0 auth-failed ===`
 
 ### Updated docs
-- `/app/memory/test_credentials.md` — current pod URL updated to `https://readme-setup-28.preview.emergentagent.com`
+- `/app/memory/test_credentials.md` — current pod URL updated to `https://integration-preview-3.preview.emergentagent.com`
 
 Pod is initialised and idle, ready for development work.
 
