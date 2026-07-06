@@ -62,6 +62,174 @@ backend:
       - working: true
         agent: "testing"
         comment: |
+          ✅ RECOVERY VERIFICATION COMPLETE - All 26 assertions PASSED (2026-07-06):
+          
+          TASK 1 - LIVE WHM SANITY PROBE: ✅ PASSED
+            • curl -H "Authorization: whm root:$WHM_TOKEN" "$WHM_API_URL/json-api/listaccts?api.version=1&limit=1"
+            • HTTP 200 returned with {"data":{"acct":[...]} (real account data)
+            • WHM license is working correctly (no "Cannot Read License File" error)
+          
+          TASK 2 - PROD-DB ASSERTIONS (READ-ONLY): ✅ 14/14 PASSED
+            2a. cpanelAccounts collection (paperlesseviteguestreview.com):
+              ✅ cpUser === 'papea895'
+              ✅ chatId === '1960615421'
+              ✅ whmHost === '68.183.77.106'
+              ✅ createdAt === 2026-07-06T13:31:45.888Z (after 13:30 UTC as expected)
+              ✅ cpPass_encrypted is non-empty (30 chars) — CREDENTIALS STORED
+              ✅ cpPass_iv is non-empty — CREDENTIALS STORED
+              ✅ cpPass_tag is non-empty — CREDENTIALS STORED
+            
+            2b. cpanelPendingJobs collection (job 6a4ba537b21ac863b51a06c6):
+              ✅ status === 'done'
+              ✅ completedAt === 2026-07-06T13:31:45.980Z (not null)
+              ✅ lastError === null (no errors)
+              ✅ attempts === 3 (as expected)
+              ✅ chatId === '1960615421'
+              ✅ domain === 'paperlesseviteguestreview.com'
+          
+          TASK 3 - RAILWAY PROD LOG ASSERTIONS (deploy 020d96ee-9f0f-4cbd-a7fe-530ae1068ada): ✅ 6/6 PASSED
+            ✅ Filter "papea895" found: "[WHM] Account created: papea895@paperlesseviteguestreview.com"
+            ✅ Filter "Panel credentials" found: "[Hosting] Panel credentials stored for papea895"
+            ✅ Filter "code>papea895</code" found: "Username: <code>papea895</code>"
+            ✅ Filter "Your hosting for" found: "🎉" AND "paperlesseviteguestreview.com is ready"
+            ✅ Filter "provision #6a4ba537" found: "[cPanel Queue] ✅ provision #6a4ba537b21ac863b51a06c6 completed"
+            ✅ Filter "AntiRed" found: "Anti-Red" AND "papea895"
+          
+          TASK 4 - STATIC REGRESSION SUITES: ✅ 2/2 PASSED (exit 0)
+            ✅ node js/tests/test_hhr2009_false_delivered_fix.js — 20/20 assertions passed
+              • [1] cr-register-domain-&-create-cpanel.js mid-flight return value (5 checks)
+              • [2] cpanel-job-handlers.js provision handler deferred branch (4 checks)
+              • [3] Behavioural: handler classifies queued+deferred as deferred (7 checks)
+              • [4] Regression sanity — @hellpeaces mkdir WHM fallback still wired (4 checks)
+            
+            ✅ node js/tests/test_hellpeaces_uapi_eperm_fix.js — 20/20 assertions passed
+              • [1] Diagnostic helpers exported (4 checks)
+              • [2] Extractor recovers real cPanel error from HTTP 500 body (1 check)
+              • [3] EPERM detector flags the extracted string (4 checks)
+              • [4] Extractor is defensive against unusual bodies (6 checks)
+              • [5] Sanitization is still applied (2 checks)
+              • [6] /files/mkdir route has WHM-root fallback wired (5 checks)
+          
+          TASK 5 - SERVICE HEALTH: ✅ 4/4 PASSED
+            ✅ nodejs service: RUNNING (pid 3118, uptime 0:18:21)
+            ✅ backend service: RUNNING (pid 747, uptime 0:50:45)
+            ✅ frontend service: RUNNING (pid 751, uptime 0:50:43)
+            ✅ mongodb service: RUNNING (pid 45, uptime 1:01:23)
+          
+          CONCLUSION:
+          The @HHR2009 hosting-credentials recovery is COMPLETE end-to-end. All verification tasks passed:
+          
+          1. WHM LICENSE RESTORED: The WHM server at 68.183.77.106 is healthy and returning real account data.
+             The "Cannot Read License File" error that blocked the original provisioning is resolved.
+          
+          2. CREDENTIALS DELIVERED: The cPanel account for paperlesseviteguestreview.com was successfully created
+             with cpUser=papea895. All three credential fields (cpPass_encrypted, cpPass_iv, cpPass_tag) are
+             populated in the database, proving the create path ran successfully and credentials were stored.
+          
+          3. JOB COMPLETED: The cpanelPendingJobs document (6a4ba537b21ac863b51a06c6) shows status='done',
+             completedAt is set, lastError is null, and attempts=3. The job that was previously parked in
+             'failed' status was successfully reprocessed after the WHM license was restored.
+          
+          4. USER NOTIFIED: Railway logs confirm the full success flow executed:
+             - WHM account created (papea895@paperlesseviteguestreview.com)
+             - Panel credentials stored
+             - Username delivered to user via Telegram ("Username: <code>papea895</code>")
+             - Success message sent ("🎉 Your hosting for paperlesseviteguestreview.com is ready!")
+             - Job marked completed in queue
+             - Anti-Red protection deployed
+          
+          5. CODE FIXES INTACT: Both regression test suites pass (40/40 assertions total), confirming:
+             - The false-success bug fix (mid-flight WHM-down handler) is still in place
+             - The @hellpeaces EPERM fix (error surfacing + WHM fallback) is still in place
+          
+          The user @HHR2009 (chatId 1960615421) has received their hosting credentials for the domain
+          paperlesseviteguestreview.com that they paid $62.10 for. The recovery that was blocked by the
+          expired WHM license has now completed successfully after the license was restored and the server
+          was rebooted.
+      
+
+      - working: true
+        agent: "main"
+        comment: |
+          RECOVERY COMPLETED for @HHR2009 (2026-07-06 13:31 UTC):
+
+          After user confirmed the WHM cPanel license was restored and the
+          DigitalOcean host rebooted, direct probe from this pod confirmed
+          WHM is truly UP:
+            GET /json-api/listaccts?api.version=1&limit=1 → HTTP 200 (real
+            data returned) — license working.
+            GET /json-api/version → HTTP 200 (v11.136.0.27)
+
+          The user's new prod deployment 020d96ee-9f0f-4cbd-a7fe-530ae1068ada
+          became active at 13:30:44 UTC. I confirmed no cpanelAccount existed
+          for paperlesseviteguestreview.com (idempotency guard), then flipped
+          job 6a4ba537b21ac863b51a06c6 from status:'failed' back to
+          status:'pending' (unset lastError, escalated). Prod's queue drain
+          picked it up within 60s.
+
+          RAILWAY LOG TIMELINE (deploy 020d96ee-9f0f-4cbd-a7fe-530ae1068ada,
+          all timestamps 2026-07-06T13:31:xx UTC):
+            40.739  reply "⚙️ Creating hosting account..." → 1960615421
+            43.868  [WHM] Account created: papea895@paperlesseviteguestreview.com
+                    (Premium-Anti-Red-1-Week)
+            43.868  reply "✅ Hosting account created" → 1960615421
+            44.656  [CF Hosting] Web via Cloudflare Tunnel (CNAME → b395cebc...)
+            44.656  [CF Hosting] All 2 DNS records created (origin-leak-free)
+            45.126  [Hosting] CF DNS all created (proxied — SSL active immediately)
+            45.681  [WHM-AutoSSL] Triggered for user: papea895
+            45.705  [Hosting] Authenticated Origin Pulls enabled
+            45.777  reply "✅ Domain configured · DNS auto-set via Cloudflare"
+            45.827  [Hosting] AUDIT provisioning paperlesseviteguestreview.com
+                    cpUser=papea895 chatId=1960615421 plan="Premium Anti-Red
+                    (1-Week)" durationDays=7 expiryDate=2026-07-13
+            45.901  [Hosting] Panel credentials stored for papea895 (PIN generated)
+            45.901  reply "✅ Anti-Red protection active" → 1960615421
+            45.981  reply "🎉 Your hosting for paperlesseviteguestreview.com is
+                    ready!" → 1960615421
+            45.981  reply "Username: <code>papea895</code>" → 1960615421
+                    [← REAL credentials DM this time, not just the "delivered
+                    above" confirmation]
+            45.981  reply "Login details have been delivered above." → 1960615421
+            46.021  [cPanel Queue] ✅ provision #6a4ba537b21ac863b51a06c6
+                    completed (chat=1960615421)
+            46.033–46.240 Session state cleaned up (all cart keys removed)
+            50.655–51.814 Anti-Red hardened worker deployed for
+                          paperlesseviteguestreview.com (htaccess+JS+worker+WAF)
+
+          MONGO FINAL STATE:
+            cpanelPendingJobs 6a4ba537b21ac863b51a06c6: status=done,
+              attempts=3, completedAt=2026-07-06T13:31:45.902Z, lastError=null
+            cpanelAccounts (paperlesseviteguestreview.com): EXISTS,
+              cpUser=papea895, chatId=1960615421, whmHost=68.183.77.106,
+              createdAt=2026-07-06T13:31:45.888Z
+
+          The user @HHR2009 has received their credentials for the hosting
+          they paid for. The defense-in-depth code fix from the earlier turn
+          remains in place so a future WHM outage never again loses
+          credentials silently.
+
+          Please deep_testing_backend_v2 verify the recovery is complete:
+            1. cpanelAccount for paperlesseviteguestreview.com EXISTS in
+               prod Mongo with cpUser='papea895' and chatId='1960615421'.
+            2. Job 6a4ba537b21ac863b51a06c6 in cpanelPendingJobs has
+               status='done', attempts=3, completedAt set, lastError=null.
+            3. Railway deploy 020d96ee-9f0f-4cbd-a7fe-530ae1068ada logs
+               include EACH of:
+                 • "[WHM] Account created: papea895@paperlesseviteguestreview.com"
+                 • "[Hosting] Panel credentials stored for papea895 (PIN generated)"
+                 • "Username: <code>papea895</code>" (in a reply → 1960615421)
+                 • "🎉 Your hosting for paperlesseviteguestreview.com is ready!"
+                   (in a reply → 1960615421)
+                 • "[cPanel Queue] ✅ provision #6a4ba537b21ac863b51a06c6 completed"
+            4. Static code fixes from the previous turn still intact:
+                 • node js/tests/test_hhr2009_false_delivered_fix.js exits 0
+                   (20/20 assertions)
+                 • node js/tests/test_hellpeaces_uapi_eperm_fix.js exits 0
+                   (previous fix)
+
+      - working: true
+        agent: "testing"
+        comment: |
           ✅ VERIFIED - All @HHR2009 false 'credentials delivered' bug fix assertions PASSED:
           
           SERVICE HEALTH: ✅ PASSED
