@@ -77,6 +77,24 @@ queue.registerHandler('provision', async ({ job, deps }) => {
 
   try {
     const result = await registerDomainAndCreateCpanel(send, info, keyboardButtons, state, deps.bot || null)
+    // BUG FIX (@HHR2009, 2026-07-06): registerDomainAndCreateCpanel's
+    // preflight path historically returned `{ success: true, queued: true }`
+    // even when the actual cPanel account was NOT created (mid-flight WHM
+    // outage → re-enqueue). If we accepted that as ok:true we would (a)
+    // mark the job DONE forever and (b) DM the user
+    // "🎉 Your hosting for X is ready! Login details have been delivered
+    //  above." — a lie, since no credentials were ever sent.
+    //
+    // New contract: whenever registerDomainAndCreateCpanel signals
+    // `queued: true` (regardless of `success` — belt-and-suspenders for any
+    // legacy path that still returns the historic success:true shape), the
+    // job is NOT complete. Classify as deferred so the queue keeps it
+    // pending and the next drain tick (once WHM/license is truly back up)
+    // can finish provisioning AND actually deliver the credentials.
+    if (result?.queued === true) {
+      log(`[cPanel Handlers] provision deferred (queued=true) for chat=${job.chatId} domain=${job.domain} — WHM still not ready`)
+      return { ok: false, deferred: true, reason: result.code || 'CPANEL_DOWN' }
+    }
     if (result?.success) {
       // Provisioning function already DM'd credentials. Just confirm done.
       try { send(job.chatId, msg(COPY.provisionDone, job.lang, job.domain || info.website_name)) } catch (_) {}

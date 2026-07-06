@@ -158,6 +158,12 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state,
         }
         const queuedMsg = (QUEUED_PROVISIONING_MSG[lang] || QUEUED_PROVISIONING_MSG.en)(domain)
         send(chatId, queuedMsg, keyboardButtons)
+        // Preflight-only path: interactive purchase saw WHM already down BEFORE
+        // any work started. The caller (payment path in _index.js) treats
+        // `queued: true` as "background provisioning kicked off, don't fail the
+        // purchase UX" — but the queue worker itself never invokes this branch
+        // because it always sets `_fromQueue = true`. So this success:true is
+        // safe (it's caller-side, not queue-side).
         return { success: true, queued: true }
       }
     } catch (hErr) {
@@ -440,9 +446,25 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state,
       } catch (qErr) {
         log(`[Hosting] failed to enqueue mid-flight provisioning (non-blocking): ${qErr.message}`)
       }
-      const queuedMsg = (QUEUED_PROVISIONING_MSG[lang] || QUEUED_PROVISIONING_MSG.en)(domain)
-      send(chatId, queuedMsg, keyboardButtons)
-      return { success: true, queued: true }
+      // Only surface the "your hosting is being prepared" reassurance to the
+      // customer on the FIRST time we defer (i.e. the interactive purchase
+      // path). When we're already re-running from the queue worker, the user
+      // was already told this earlier — sending it again just adds noise.
+      if (!info._fromQueue) {
+        const queuedMsg = (QUEUED_PROVISIONING_MSG[lang] || QUEUED_PROVISIONING_MSG.en)(domain)
+        send(chatId, queuedMsg, keyboardButtons)
+      }
+      // BUG FIX (@HHR2009, 2026-07-06): The previous return value was
+      // `{ success: true, queued: true }`, which fooled the queue handler in
+      // cpanel-job-handlers.js into (a) marking the job DONE forever and
+      // (b) DM'ing the user "🎉 Login details have been delivered above" —
+      // even though NO cPanel account was created and NO credentials were
+      // sent. That is the exact chain of events @HHR2009 hit on the
+      // 2026-07-06 outage. Return `success:false` so the handler correctly
+      // classifies this as a DEFERRED retry and leaves the job pending for
+      // the next drain tick. We also tag `code: 'CPANEL_DOWN'` and
+      // `deferred: true` so the handler can match on those explicitly.
+      return { success: false, queued: true, deferred: true, code: 'CPANEL_DOWN', domainRegistered }
     }
 
     if (!result.success) {

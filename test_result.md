@@ -51,6 +51,212 @@ user_problem_statement: |
        reason surfaced so support sees "uapi EPERM" not "500".
 
 backend:
+  - task: "@HHR2009 hosting purchase — false 'credentials delivered' when WHM license expired mid-flight (2026-07-06)"
+    implemented: true
+    working: true
+    file: "/app/js/cr-register-domain-&-create-cpanel.js, /app/js/cpanel-job-handlers.js, /app/js/tests/test_hhr2009_false_delivered_fix.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFIED - All @HHR2009 false 'credentials delivered' bug fix assertions PASSED:
+          
+          SERVICE HEALTH: ✅ PASSED
+            • nodejs service: RUNNING (pid 3118, uptime 0:01:57) ✓
+            • backend service: RUNNING (pid 747, uptime 0:34:21) ✓
+            • frontend service: RUNNING (pid 751, uptime 0:34:19) ✓
+            • mongodb service: RUNNING (pid 45, uptime 0:44:59) ✓
+          
+          REGRESSION SUITE: ✅ 20/20 PASSED (exit 0)
+            • node js/tests/test_hhr2009_false_delivered_fix.js ✓
+            • [1] cr-register-domain-&-create-cpanel.js mid-flight return value ✓
+            • [2] cpanel-job-handlers.js provision handler deferred branch ✓
+            • [3] Behavioural: handler classifies queued+deferred as deferred ✓
+            • [4] Regression sanity — @hellpeaces mkdir WHM fallback still wired ✓
+          
+          GREP ASSERTS (cr-register-domain-&-create-cpanel.js): ✅ ALL PASSED
+            • OLD buggy pattern `return { success: true, queued: true }` NOT present in mid-flight block ✓
+            • NEW shape present at line 467: `return { success: false, queued: true, deferred: true, code: 'CPANEL_DOWN', domainRegistered }` ✓
+            • @HHR2009 attribution present (lines 35, 308, 389, 457, 462) ✓
+            • !info._fromQueue guard wraps QUEUED_PROVISIONING_MSG at line 453 ✓
+            • Preflight branch unchanged at line 167 (still returns { success: true, queued: true }) ✓
+          
+          GREP ASSERTS (cpanel-job-handlers.js): ✅ ALL PASSED
+            • result?.queued === true classifier present at line 94 ✓
+            • Returns { ok: false, deferred: true, reason: result.code || 'CPANEL_DOWN' } at line 96 ✓
+            • @HHR2009 attribution present at line 80 ✓
+            • Classifier appears BEFORE provisionDone DM (line 94 < line 100) ✓
+          
+          BEHAVIORAL CHECK: ✅ 4/4 PASSED
+            • NEW-shape defer (success:false, queued:true, deferred:true, code:CPANEL_DOWN) → handler returns { ok:false, deferred:true, reason:CPANEL_DOWN } ✓
+            • LEGACY buggy shape (success:true, queued:true) → handler STILL returns { ok:false, deferred:true } (belt-and-braces) ✓
+            • TRUE success (success:true, no queued) → handler returns { ok:true } ✓
+            • TRUE success (success:true, queued:false) → handler returns { ok:true } ✓
+          
+          REGRESSION SANITY (@hellpeaces fix): ✅ 20/20 PASSED
+            • node js/tests/test_hellpeaces_uapi_eperm_fix.js exits 0 ✓
+            • extractCpanelErrorFromResponse still exported ✓
+            • looksLikeUapiPermFailure still exported ✓
+            • /files/mkdir WHM fallback still wired (via:'whm-fallback') ✓
+          
+          PROD-DB SAFETY CHECK (READ-ONLY): ✅ PASSED
+            • Job 6a4ba537b21ac863b51a06c6 found in cpanelPendingJobs ✓
+            • status === 'failed' ✓
+            • escalated === true ✓
+            • lastError starts with 'PAUSED_MANUAL_RECOVERY' ✓
+            • Parked job state preserved correctly — old prod code will NOT fire false "delivered" messages ✓
+          
+          CONCLUSION:
+          All verification tasks completed successfully. The @HHR2009 false 'credentials delivered' bug fix is
+          fully functional and production-ready:
+          
+          1. MID-FLIGHT WHM OUTAGE FIX (cr-register-domain-&-create-cpanel.js):
+             - Mid-flight WHM-down handler now returns { success: false, queued: true, deferred: true, code: 'CPANEL_DOWN', domainRegistered }
+             - OLD buggy pattern { success: true, queued: true } is completely removed from mid-flight block
+             - "Your hosting is being prepared" DM is gated behind !info._fromQueue to prevent spam on retries
+             - Preflight branch (line 167) correctly still returns { success: true, queued: true } for interactive purchases
+          
+          2. QUEUE HANDLER FIX (cpanel-job-handlers.js):
+             - Provision handler short-circuits on result?.queued === true REGARDLESS of success value
+             - Classifies as { ok: false, deferred: true, reason: CPANEL_DOWN } to keep job pending
+             - "🎉 Login details have been delivered above" DM only fires on TRUE success (result.success && !result.queued)
+             - Belt-and-braces defense: even if legacy code returns { success: true, queued: true }, handler treats it as deferred
+          
+          3. BEHAVIORAL VERIFICATION:
+             - Handler correctly classifies NEW-shape defer as deferred (no false DM)
+             - Handler correctly classifies LEGACY buggy shape as deferred (belt-and-braces protection)
+             - Handler correctly sends "delivered above" DM ONLY on true success
+          
+          4. PROD-DB MITIGATION:
+             - Job 6a4ba537b21ac863b51a06c6 is parked in 'failed' status with escalated=true
+             - Old prod code will NOT fire false "delivered" messages at @HHR2009
+             - Once WHM license is restored AND this fix is deployed, ops can flip job back to 'pending'
+          
+          The implementation successfully prevents the bug class where users received false "🎉 Your hosting is ready!
+          Login details have been delivered above" messages when WHM was down mid-flight and no cPanel account was
+          actually created. The fix is defense-in-depth with both the provisioning function AND the queue handler
+          correctly handling the deferred state.
+      
+      - working: "NA"
+        agent: "main"
+        comment: |
+          Production incident traced via Railway GraphQL (latest active deploy
+          e548e95d-c933-437b-9b3d-884ecdd8097a, service Nomadly-EMAIL-IVR):
+
+          Timeline for @HHR2009 (chatId 1960615421, domain paperlesseviteguestreview.com):
+            12:52:38  Wallet-paid $62.10 (Premium Anti-Red 1-Week)
+            12:53:01  Domain registered at OpenProvider (ID 29837445), CF NS pushed
+            12:53:11  [WHM] createAccount CPANEL_DOWN (500) — license expired
+            12:53:11  [cPanel Queue] job 6a4ba537b21ac863b51a06c6 enqueued for retry
+            12:53:13  Job marked "done" in only 2s, attempts=1, no error — but
+                      NO cpanelAccount was ever created and NO credentials were
+                      DM'd. Bot sent "🎉 Login details have been delivered above"
+                      to the user anyway.
+            13:01:30  @HHR2009 opens /support: "says my hosting login details
+                      have been delivered but I d..." (with screenshot).
+
+          Direct probe of prod WHM from this pod (2026-07-06 ~13:20 UTC):
+            GET /login/                       → HTTP 401 (probe says UP ✓)
+            GET /json-api/version             → HTTP 200 (no license needed)
+            GET /json-api/listaccts?limit=1   → HTTP 500 "Cannot Read License File"
+          → WHM tunnel is fine, but the cPanel LICENSE is still broken. The
+            health probe (which only checks /login/) reports UP, so the queue
+            drain keeps firing, and the createacct API keeps failing 500.
+
+          Root cause (code, not infra):
+            cr-register-domain-&-create-cpanel.js, mid-flight WHM-down path,
+            historically returned `{ success: true, queued: true }`. The
+            queue handler in cpanel-job-handlers.js saw `result.success ===
+            true` → returned `{ ok: true }` → queue marked the job DONE and
+            fired the "🎉 ready / delivered above" DM. Since the underlying
+            call had been RE-ENQUEUED (dedupe-hit → same job) not COMPLETED,
+            no cPanel account was ever created and no credentials were sent.
+            Reset attempts re-triggered the exact same false-success chain
+            (verified live at 13:14:13 — see prod log).
+
+          FIX (this run):
+            (a) /app/js/cr-register-domain-&-create-cpanel.js — mid-flight
+                WHM-down handler now returns
+                  { success: false, queued: true, deferred: true,
+                    code: 'CPANEL_DOWN', domainRegistered }
+                instead of the buggy { success: true, queued: true }. Also
+                gates the "your hosting is being prepared" DM behind
+                `!info._fromQueue` so re-runs from the queue worker don't
+                spam the user with the same reassurance every 30s.
+            (b) /app/js/cpanel-job-handlers.js — provision handler now
+                short-circuits on `result.queued === true` REGARDLESS of
+                success (defense-in-depth for any legacy caller still
+                emitting the old shape), classifies as
+                `{ ok: false, deferred: true, reason: CPANEL_DOWN }`, and
+                does NOT fire the "delivered above" confirmation DM. That
+                DM now only fires on true success.
+
+          Manual mitigation applied to production DB:
+            Job 6a4ba537b21ac863b51a06c6 parked in status 'failed' with
+            lastError='PAUSED_MANUAL_RECOVERY: WHM license still returns
+            HTTP 500 Cannot Read License File...' + escalated=true so the
+            buggy OLD-code drain in prod stops firing false "delivered"
+            messages at @HHR2009. Once (1) the WHM license is actually
+            restored (verify via /json-api/listaccts returning HTTP 200)
+            AND (2) this fix is deployed to prod, ops can flip that job
+            back to status:'pending' and the corrected code path will
+            complete provisioning + deliver credentials for real.
+
+          Local regression suite js/tests/test_hhr2009_false_delivered_fix.js
+          — ALL 20 ASSERTIONS PASSED locally, exit 0:
+            [1] cr-register-domain-&-create-cpanel.js mid-flight return value
+                • OLD buggy `return { success: true, queued: true }` is gone
+                • NEW return has success:false + queued:true + deferred:true
+                  + code:'CPANEL_DOWN'
+                • @HHR2009 attribution anchor present
+                • Preflight enqueue still guarded by !info._fromQueue
+                • Mid-flight suppresses the "preparing" DM on re-entry
+            [2] cpanel-job-handlers.js provision handler deferred branch
+                • Explicit `result.queued === true` classifier present
+                • Classifies as { ok:false, deferred:true, reason }
+                • @HHR2009 attribution present
+                • Deferred check runs BEFORE the provisionDone DM
+            [3] Behavioural (via mock of registerDomainAndCreateCpanel):
+                • Handler returns { ok:false, deferred:true } on
+                  queued+deferred shape
+                • Handler does NOT DM "delivered above" on defer
+                • Handler still classifies the LEGACY buggy shape
+                  { success:true, queued:true } as deferred (belt-and-braces)
+                • Handler DOES DM "🎉 ready / delivered above" on TRUE success
+                • Handler returns { ok:true } on true success
+            [4] Regression sanity — @hellpeaces mkdir fix from prior task
+                still exported + wired (extractCpanelErrorFromResponse,
+                looksLikeUapiPermFailure, via:'whm-fallback' tag).
+
+          Please deep_testing_backend_v2 verify:
+            • node.js service RUNNING under supervisor
+            • node js/tests/test_hhr2009_false_delivered_fix.js exits 0
+              with all 20 checks green
+            • Grep js/cr-register-domain-&-create-cpanel.js:
+                - NO occurrence of the buggy literal
+                  `return { success: true, queued: true }` INSIDE the
+                  `if (!result.success && result.code === 'CPANEL_DOWN')`
+                  block
+                - NEW shape (success:false, queued:true, deferred:true,
+                  code:'CPANEL_DOWN') IS present inside that same block
+                - @HHR2009 attribution comment present
+            • Grep js/cpanel-job-handlers.js:
+                - `result?.queued === true` classifier present
+                - Return `{ ok: false, deferred: true, reason: result.code`
+                  present
+                - Attribution comment referencing @HHR2009 present
+            • Behavioural check by loading the module + mocking the register
+              function (three cases: new-shape defer, legacy buggy shape,
+              true-success). No "delivered above" DM must fire on the two
+              defer cases; it MUST fire on the true-success case.
+            • Regression sanity: previous @hellpeaces fix (mkdir WHM
+              fallback) still intact — grep still finds
+              `extractCpanelErrorFromResponse` in cpanel-proxy.js and
+              `via: 'whm-fallback'` in cpanel-routes.js.
+
   - task: "@hellpeaces cPanel mkdir EPERM — proxy error surfacing + /files/mkdir WHM fallback (2026-07-06)"
     implemented: true
     working: true
