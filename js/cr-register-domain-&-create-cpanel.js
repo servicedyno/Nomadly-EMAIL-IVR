@@ -31,6 +31,18 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state,
   const chatId = info._id
   const domain = info.website_name
 
+  // ── domainRegistered tracker (2026-07-06 defense-in-depth) ──
+  // Prevents the @HHR2009 bug class where callers charged the user for a
+  // "domain-only" outcome even when domain registration ITSELF failed (i.e.
+  // nothing was actually registered). This flag is the single source of truth
+  // for callers deciding whether to charge the domain portion on failure.
+  //   • false = new domain not yet registered in this run
+  //   • true  = existing/external domain OR re-run of already-registered domain
+  //             OR new domain registered successfully in this run
+  let domainRegistered = !!(
+    info.skipDomainRegistration || info.existingDomain || info.connectExternalDomain
+  )
+
   // ── IDEMPOTENCY GUARD — prevent double-provisioning ──
   // A single hosting purchase must produce ONE cpanelAccount record. Without this
   // guard, a webhook retry, user double-tap, or race between payment callbacks
@@ -366,16 +378,22 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state,
 
           await regClient2.close()
 
+          // ✅ Domain is now registered in DB + registry — set the flag so
+          // downstream callers know it's safe to charge for the domain even
+          // if the subsequent WHM step fails (defense-in-depth for @HHR2009
+          // 2026-07-06 bug class).
+          domainRegistered = true
+
           send(chatId, { en: `✅ Domain <b>${domain}</b> registered`, fr: `✅ Domaine <b>${domain}</b> enregistré`, zh: `✅ 域名 <b>${domain}</b> 已注册`, hi: `✅ डोमेन <b>${domain}</b> पंजीकृत` }[lang] || `✅ Domain <b>${domain}</b> registered`, rem)
         } else {
           log(`[Hosting] Domain registration failed for ${domain}: ${regResult.error}`)
           send(chatId, `❌ Domain registration failed: ${regResult.error}\n\nTap 💬 Get Support for help.`, keyboardButtons)
-          return { success: false, error: `Domain registration failed: ${regResult.error}` }
+          return { success: false, error: `Domain registration failed: ${regResult.error}`, domainRegistered }
         }
       } catch (regErr) {
         log(`[Hosting] Domain registration error: ${regErr.message}`)
         send(chatId, `❌ Domain registration failed. Tap 💬 Get Support for help.\n\nError: ${regErr.message}`, keyboardButtons)
-        return { success: false, error: `Domain registration error: ${regErr.message}` }
+        return { success: false, error: `Domain registration error: ${regErr.message}`, domainRegistered }
       }
     } else if (isExisting) {
       send(chatId, { en: `🔗 Linking <b>${domain}</b> to your hosting...`, fr: `🔗 Liaison de <b>${domain}</b> à votre hébergement...`, zh: `🔗 正在将 <b>${domain}</b> 链接到您的主机...`, hi: `🔗 <b>${domain}</b> को आपकी होस्टिंग से जोड़ रहे हैं...` }[lang] || `🔗 Linking <b>${domain}</b> to your hosting...`, rem)
@@ -430,7 +448,7 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state,
     if (!result.success) {
       log(`[Hosting] WHM createAccount failed: ${result.error}`)
       send(chatId, `❌ Hosting setup failed. Tap 💬 Get Support for help.`, keyboardButtons)
-      return { success: false, error: `Hosting setup failed: ${result.error}` }
+      return { success: false, error: `Hosting setup failed: ${result.error}`, domainRegistered }
     }
 
     send(chatId, { en: '✅ Hosting account created', fr: '✅ Compte d\'hébergement créé', zh: '✅ 主机账户已创建', hi: '✅ होस्टिंग खाता बनाया गया' }[lang] || '✅ Hosting account created', rem)
@@ -852,6 +870,7 @@ Login: ${panelUrl}
       'email',
       'couponDiscount',
       'hostingPrice',
+      'domainPrice',
       'couponApplied',
       'totalPrice',
       'newPrice',
@@ -859,11 +878,11 @@ Login: ${panelUrl}
       'planName',
       'duration',
     ])
-    return { success: true, username: result.username, pin, url: result.url, nameservers: result.nameservers }
+    return { success: true, username: result.username, pin, url: result.url, nameservers: result.nameservers, domainRegistered: true }
   } catch (err) {
     log('err registerDomain&CreateCPanel via WHM', err.message)
     send(chatId, `❌ Setup failed. Tap 💬 Get Support for help.\n\nError: ${err.message}`, keyboardButtons)
-    return { success: false, error: `HostPanel creation error: ${err.message}` }
+    return { success: false, error: `HostPanel creation error: ${err.message}`, domainRegistered }
   }
 }
 

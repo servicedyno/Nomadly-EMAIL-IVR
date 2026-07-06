@@ -10011,6 +10011,13 @@ Enter new value:`), bc)
       // Save to DB
       saveInfo("couponApplied", false);
       saveInfo("couponDiscount", 0);
+      // Bug fix (2026-07-06 — @HHR2009 incident): explicitly persist domainPrice
+      // so the post-payment failure branches (wallet / bank-ngn / blockbee /
+      // dynopay in _index.js) don't fall back to `info.price` (which by the time
+      // the wallet flow runs = totalPrice, causing the user to be charged the
+      // FULL total for a "domain-only" outcome). Without this, @HHR2009 was
+      // charged $35.10 for a domain that never got registered.
+      saveInfo("domainPrice", domainPrice);
       saveInfo("hostingPrice", hostingPrice);
       saveInfo("totalPrice", totalPrice);
       saveInfo("planName", info.plan);
@@ -10019,6 +10026,7 @@ Enter new value:`), bc)
       // Also update local info snapshot so goto['hosting-pay'] can read them immediately
       info.couponApplied = false
       info.couponDiscount = 0
+      info.domainPrice = domainPrice
       info.hostingPrice = hostingPrice
       info.totalPrice = totalPrice
       info.planName = info.plan
@@ -10814,8 +10822,19 @@ Enter new value:`), bc)
         return
       }
       if (!hostingResult?.success) {
-        const domainPrice = info?.domainPrice || info?.price || 0
-        if (!info?.existingDomain && !info?.connectExternalDomain && domainPrice > 0) {
+        // Bug fix (2026-07-06 — @HHR2009 incident): domainPrice fallback of
+        // `info.price` used to resolve to the TOTAL price (see proceedWithEmail
+        // above, which now saves info.domainPrice explicitly). We ALSO now gate
+        // this "domain_only" charge on hostingResult.domainRegistered — if the
+        // failure happened BEFORE the domain was actually registered, the user
+        // is entitled to a full refund, not a partial "domain-only" charge.
+        const domainPrice = info?.domainPrice ??
+          (info?.totalPrice && info?.hostingPrice ? Math.max(0, info.totalPrice - info.hostingPrice) : 0)
+        if (
+          !info?.existingDomain && !info?.connectExternalDomain &&
+          domainPrice > 0 &&
+          hostingResult?.domainRegistered === true
+        ) {
           const domainCost = domainPrice
           set(payments, nanoid(), `Wallet,Domain,${info.domain},$${domainCost},${chatId},${new Date()}`)
           await atomicIncrement(walletOf, chatId, 'usdOut', domainCost)
@@ -10836,6 +10855,8 @@ Enter new value:`), bc)
           } catch (e) { log('[Hosting] Admin alert error (wallet domain-only): ' + e.message) }
           return send(chatId, trans('t.dom_5', info.domain, domainCost, process.env.APP_SUPPORT_LINK), trans('o'))
         }
+        // Full-refund branch: existing domain OR external OR domain was never
+        // registered (defense-in-depth). No wallet debit — user pays nothing.
         recordHostingTransaction(chatId, { domain: txDomain, plan: txPlan, priceUsd, paymentMethod: txPayMethod, currency: txCurrency, outcome: 'failed', hostingType: txHostingType, couponApplied: txCouponApplied, couponDiscount: txCouponDiscount, existingDomain: txExistingDomain })
         // ── Admin alert on hosting failure (Wallet — existing domain, not charged) ──
         try {
@@ -10846,7 +10867,7 @@ Enter new value:`), bc)
             `👤 User: ${adminUserTag(failName, chatId)}\n` +
             `🌐 Domain: ${adminDomainTag(failDomain)}\n` +
             `📋 Plan: ${txPlan || 'N/A'}\n` +
-            `💵 Wallet: <b>not charged</b> (existing domain)\n` +
+            `💵 Wallet: <b>not charged</b> (${hostingResult?.domainRegistered === true ? 'existing domain' : 'domain registration also failed'})\n` +
             `❌ Error: ${hostingResult?.error || 'Unknown'}`,
             adminMsgOpts({ chatId }))
         } catch (e) { log('[Hosting] Admin alert error (wallet existing): ' + e.message) }
@@ -33240,9 +33261,17 @@ const bankApis = {
       return res.send(html('ok'))
     }
     if (!hostingResult?.success) {
-      // If new domain was registered, refund only hosting portion (domain is consumed)
-      const domainPrice = info?.domainPrice || info?.price || 0
-      if (!info?.existingDomain && !info?.connectExternalDomain && domainPrice > 0) {
+      // Bug fix (2026-07-06): use safer domainPrice derivation + gate on
+      // hostingResult.domainRegistered so we never charge a "domain-only" fee
+      // when domain registration itself failed. If new domain was registered,
+      // refund only hosting portion (domain is consumed).
+      const domainPrice = info?.domainPrice ??
+        (info?.totalPrice && info?.hostingPrice ? Math.max(0, info.totalPrice - info.hostingPrice) : (info?.price || 0))
+      if (
+        !info?.existingDomain && !info?.connectExternalDomain &&
+        domainPrice > 0 &&
+        hostingResult?.domainRegistered === true
+      ) {
         // FIX: Use hostingPrice directly instead of ngnIn - domainNgn to avoid double-refund when overpaid
         const hostingRefundNgn = await usdToNgn(info?.hostingPrice || (price - domainPrice))
         if (hostingRefundNgn > 0) addFundsTo(walletOf, chatId, 'ngn', hostingRefundNgn, lang)
@@ -34308,9 +34337,16 @@ app.get('/crypto-pay-hosting', auth, async (req, res) => {
     return res.send(html('ok'))
   }
   if (!hostingResult?.success) {
-    // If new domain was registered, refund only hosting portion (domain is consumed)
-    if (!info?.existingDomain && !info?.connectExternalDomain && (info?.domainPrice || info?.price || 0) > 0) {
-      const domainPrice = info?.domainPrice || info?.price || 0
+    // Bug fix (2026-07-06 — @HHR2009): use safer domainPrice derivation +
+    // gate on domainRegistered so we never charge a "domain-only" fee when
+    // domain registration itself failed.
+    const domainPrice = info?.domainPrice ??
+      (info?.totalPrice && info?.hostingPrice ? Math.max(0, info.totalPrice - info.hostingPrice) : (info?.price || 0))
+    if (
+      !info?.existingDomain && !info?.connectExternalDomain &&
+      domainPrice > 0 &&
+      hostingResult?.domainRegistered === true
+    ) {
       // FIX: Use hostingPrice directly instead of usdIn - domainPrice to avoid over-refund when overpaid
       const hostingRefund = info?.hostingPrice || (price - domainPrice)
       if (hostingRefund > 0) addFundsTo(walletOf, chatId, 'usd', hostingRefund, lang)
@@ -34325,8 +34361,10 @@ app.get('/crypto-pay-hosting', auth, async (req, res) => {
     try {
       const failName = await get(nameOf, chatId)
       const failDomain = info?.website_name || info?.domain
-      const refundAmt = (!info?.existingDomain && !info?.connectExternalDomain && (info?.domainPrice || info?.price || 0) > 0)
-        ? (info?.hostingPrice || (price - (info?.domainPrice || info?.price || 0)))
+      const _dPriceForAlert = info?.domainPrice ??
+        (info?.totalPrice && info?.hostingPrice ? Math.max(0, info.totalPrice - info.hostingPrice) : (info?.price || 0))
+      const refundAmt = (!info?.existingDomain && !info?.connectExternalDomain && _dPriceForAlert > 0 && hostingResult?.domainRegistered === true)
+        ? (info?.hostingPrice || (price - _dPriceForAlert))
         : usdIn
       sendMessage(TELEGRAM_ADMIN_CHAT_ID,
         `🚨 <b>Hosting Setup Failed (Crypto BlockBee)</b>\n` +
@@ -35196,9 +35234,16 @@ app.post('/dynopay/crypto-pay-hosting', authDyno, async (req, res) => {
     return res.send(html('ok'))
   }
   if (!hostingResult?.success) {
-    // If new domain was registered, refund only hosting portion (domain is consumed)
-    if (!info?.existingDomain && !info?.connectExternalDomain && (info?.domainPrice || info?.price || 0) > 0) {
-      const domainPrice = info?.domainPrice || info?.price || 0
+    // Bug fix (2026-07-06 — @HHR2009): use safer domainPrice derivation +
+    // gate on domainRegistered so we never charge a "domain-only" fee when
+    // domain registration itself failed.
+    const domainPrice = info?.domainPrice ??
+      (info?.totalPrice && info?.hostingPrice ? Math.max(0, info.totalPrice - info.hostingPrice) : (info?.price || 0))
+    if (
+      !info?.existingDomain && !info?.connectExternalDomain &&
+      domainPrice > 0 &&
+      hostingResult?.domainRegistered === true
+    ) {
       // FIX: Use hostingPrice directly instead of usdIn - domainPrice to avoid over-refund when overpaid
       const hostingRefund = info?.hostingPrice || (price - domainPrice)
       if (hostingRefund > 0) addFundsTo(walletOf, chatId, 'usd', hostingRefund, lang)
@@ -35213,8 +35258,10 @@ app.post('/dynopay/crypto-pay-hosting', authDyno, async (req, res) => {
     try {
       const failName = await get(nameOf, chatId)
       const failDomain = info?.website_name || info?.domain
-      const refundAmt = (!info?.existingDomain && !info?.connectExternalDomain && (info?.domainPrice || info?.price || 0) > 0)
-        ? (info?.hostingPrice || (price - (info?.domainPrice || info?.price || 0)))
+      const _dPriceForAlert = info?.domainPrice ??
+        (info?.totalPrice && info?.hostingPrice ? Math.max(0, info.totalPrice - info.hostingPrice) : (info?.price || 0))
+      const refundAmt = (!info?.existingDomain && !info?.connectExternalDomain && _dPriceForAlert > 0 && hostingResult?.domainRegistered === true)
+        ? (info?.hostingPrice || (price - _dPriceForAlert))
         : usdIn
       sendMessage(TELEGRAM_ADMIN_CHAT_ID,
         `🚨 <b>Hosting Setup Failed (Crypto DynoPay)</b>\n` +
