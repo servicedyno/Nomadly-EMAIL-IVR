@@ -645,7 +645,7 @@ const viewDNSRecords = async (domainName, db) => {
   return { ...(await viewCRDNS(domainName)), source: 'connectreseller' }
 }
 
-const addDNSRecord = async (domainName, recordType, recordValue, hostName, db, priority, extraData) => {
+const addDNSRecord = async (domainName, recordType, recordValue, hostName, db, priority, extraData, opts = {}) => {
   const meta = await getDomainMeta(domainName, db)
 
   // NS records on Cloudflare-managed domains → update nameservers at registrar instead
@@ -680,9 +680,21 @@ const addDNSRecord = async (domainName, recordType, recordValue, hostName, db, p
 
   if ((meta?.nameserverType === 'cloudflare' || meta?.cfZoneId) && meta?.cfZoneId) {
     const name = hostName ? `${hostName}.${domainName}` : domainName
-    // A and CNAME records should be proxied through Cloudflare for SSL & CDN
-    // Other record types (MX, TXT, SRV, etc.) must be DNS-only
-    const shouldProxy = ['A', 'AAAA', 'CNAME'].includes(recordType.toUpperCase())
+    // Proxied (orange-cloud) vs DNS-only (grey-cloud) decision.
+    //
+    // BUG FIX (@LevelupwithME assist-user04.com, 2026-07-06):
+    // The DNS-Management "Add Record" user flow is on a register-only
+    // domain where the user is pointing the domain at their OWN origin
+    // server. Force-proxying it hides the origin — `dig` returns CF edge
+    // IPs, not the user's IP — which reads as "the A record didn't
+    // update". Callers can now opt out of proxying via `opts.proxied:
+    // false` for that use case.
+    //
+    // Historic default preserved (proxied=true for A/AAAA/CNAME on CF
+    // zones) so shortener CNAME + www-CNAME paths that rely on CF SSL
+    // termination keep working unchanged. Explicit opt-out required.
+    const isProxiable = ['A', 'AAAA', 'CNAME'].includes(recordType.toUpperCase())
+    const shouldProxy = isProxiable && opts.proxied !== false
     const result = await cfService.createDNSRecord(meta.cfZoneId, recordType, name, recordValue, 300, shouldProxy, priority, extraData)
 
     // ── Stale / cross-account zone recovery ──
@@ -1342,7 +1354,7 @@ const checkDNSConflict = async (domainName, recordType, hostname, db) => {
 /**
  * resolveConflictAndAdd — delete conflicting records, then add the new one.
  */
-const resolveConflictAndAdd = async (domainName, recordType, recordValue, hostname, conflictingRecords, db, priority) => {
+const resolveConflictAndAdd = async (domainName, recordType, recordValue, hostname, conflictingRecords, db, priority, opts) => {
   const meta = await getDomainMeta(domainName, db)
   if (!meta?.cfZoneId) return { error: 'No Cloudflare zone' }
 
@@ -1356,8 +1368,9 @@ const resolveConflictAndAdd = async (domainName, recordType, recordValue, hostna
     }
   }
 
-  // Add the new record
-  return await addDNSRecord(domainName, recordType, recordValue, hostname, db, priority)
+  // Add the new record — forward `opts` so callers can request DNS-only
+  // (grey cloud) for user-driven Add-Record conflict-resolution paths.
+  return await addDNSRecord(domainName, recordType, recordValue, hostname, db, priority, undefined, opts)
 }
 
 // ─── Auto-create CF zone in viewDNSRecords also triggers worker ─────

@@ -20927,7 +20927,9 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     }
     const domain = info?.domainToManage
     const subName = info?.dnsSubdomainName
-    const result = await domainService.addDNSRecord(domain, 'A', message.trim(), subName, db)
+    // Quick-setup subdomain "point to my IP" — user's own origin, DNS-only.
+    // See @LevelupwithME 2026-07-06 fix note in the main dns-add-value path.
+    const result = await domainService.addDNSRecord(domain, 'A', message.trim(), subName, db, undefined, undefined, { proxied: false })
     if (!result.success) return send(chatId, t.dnsQuickSetupError(`A ${subName}`))
     send(chatId, t.dnsQuickSubdomainDone(`${subName}.${domain}`, message.trim(), 'A'))
     return goto['choose-dns-action']()
@@ -20938,7 +20940,9 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     const domain = info?.domainToManage
     const subName = info?.dnsSubdomainName
     const target = message.trim()
-    const result = await domainService.addDNSRecord(domain, 'CNAME', target, subName, db)
+    // Quick-setup subdomain "point to another domain" (CNAME) — user's own
+    // external target, DNS-only. Same rationale as above.
+    const result = await domainService.addDNSRecord(domain, 'CNAME', target, subName, db, undefined, undefined, { proxied: false })
     if (!result.success) return send(chatId, t.dnsQuickSetupError(`CNAME ${subName}`))
     send(chatId, t.dnsQuickSubdomainDone(`${subName}.${domain}`, target, 'CNAME'))
     return goto['choose-dns-action']()
@@ -21136,7 +21140,15 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
     // For A, CNAME, TXT — create record immediately
     const domain = info?.domainToManage
-    const result = await domainService.addDNSRecord(domain, recordType, value, hostname, db)
+    // BUG FIX (@LevelupwithME, 2026-07-06): user-added DNS records must
+    // NOT be proxied through Cloudflare by default — the customer is
+    // pointing the domain at their OWN origin (e.g. 161.35.11.55) and
+    // expects `dig` to return that IP. Proxying (orange cloud) makes CF
+    // edge IPs appear instead, which reads as "the A record didn't
+    // update". `opts: { proxied: false }` is the explicit opt-out;
+    // hosting/shortener paths that DO want CF proxy keep it via their
+    // own defaults.
+    const result = await domainService.addDNSRecord(domain, recordType, value, hostname, db, undefined, undefined, { proxied: false })
     if (!result.success) {
       return send(chatId, t.errorSavingDns(sanitizeProviderError(result.error || 'Failed', 'domain')))
     }
@@ -21220,7 +21232,9 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
     send(chatId, trans('t.dns_4'), { parse_mode: 'HTML' })
 
-    const result = await domainService.resolveConflictAndAdd(domain, recordType, value, hostname, conflictingRecords, db)
+    // Conflict-replace is a user-driven Add-Record path — DNS-only by
+    // default, same rationale as the primary Add-Record flow above.
+    const result = await domainService.resolveConflictAndAdd(domain, recordType, value, hostname, conflictingRecords, db, undefined, { proxied: false })
     if (!result.success) {
       return send(chatId, t.errorSavingDns(sanitizeProviderError(result.error || 'Failed', 'domain')))
     }
