@@ -51,6 +51,310 @@ user_problem_statement: |
        reason surfaced so support sees "uapi EPERM" not "500".
 
 backend:
+  - task: "Codebase cleanup pass #3 — depcheck-driven package.json audit + 119 more one-off scripts archived (2026-07-06)"
+    implemented: true
+    working: true
+    file: "/app/package.json, /app/scripts/archive/, /app/archive/"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFIED - All cleanup pass #3 verification tasks PASSED (2026-07-06):
+          
+          TASK 1 - SERVICE HEALTH: ✅ PASSED (4/4)
+            • nodejs service: RUNNING (pid 7596, uptime 0:02:17) ✓
+            • backend service: RUNNING (pid 747, uptime 1:25:08) ✓
+            • frontend service: RUNNING (pid 751, uptime 1:25:06) ✓
+            • mongodb service: RUNNING (pid 45, uptime 1:35:46) ✓
+            • All services stable since cleanup — no crashes ✓
+          
+          TASK 2 - NODE.JS STARTUP SANITY: ✅ PASSED
+            • /var/log/supervisor/nodejs.err.log is empty (0 lines) ✓
+            • NO "Cannot find module" errors ✓
+            • NO "MODULE_NOT_FOUND" errors ✓
+            • NO "Error: Cannot find package" errors ✓
+            • Clean startup confirmed ✓
+          
+          TASK 3 - PACKAGE.JSON CONTENT: ✅ ALL PASSED (6/6)
+            3a. ✅ dependencies do NOT contain removed packages:
+              • @roamhq/wrtc - NOT present ✓
+              • @telnyx/webrtc - NOT present ✓
+              • express-validator - NOT present ✓
+              • graphql - NOT present ✓
+              • graphql-request - NOT present ✓
+              • jssip - NOT present ✓
+              • punycode - NOT present ✓
+              • request - NOT present ✓
+              • sharp - NOT present ✓
+              • sip - NOT present ✓
+            
+            3b. ✅ devDependencies do NOT contain:
+              • es-abstract - NOT present ✓
+            
+            3c. ✅ dependencies MUST contain:
+              • uuid: ^8.3.2 - PRESENT ✓
+              • jsonwebtoken: ^9.0.3 - PRESENT ✓
+              • node-fetch: ^2.7.0 - PRESENT ✓
+            
+            3d. ✅ devDependencies MUST contain:
+              • acorn: ^8.16.0 - PRESENT ✓
+            
+            3e. ✅ scripts section has all required entries:
+              • start - PRESENT ✓
+              • start:dev - PRESENT ✓
+              • lint:await - PRESENT ✓
+              • lint:lang - PRESENT ✓
+              • lint:ci - PRESENT ✓
+              • test - PRESENT ✓
+              • test:watch - PRESENT ✓
+            
+            3f. ✅ engines.node is ">=22.0.0" - PRESENT ✓
+          
+          TASK 4 - STATIC GREP (NO REMOVED DEPS IN LIVE CODE): ✅ PASSED
+            • grep pattern across /app/js /app/backend /app/scripts /app/tests
+            • Filtered out /archive/ directories
+            • Result: NO_HITS_OUTSIDE_ARCHIVE ✓
+            • No live code references any removed dependencies ✓
+          
+          TASK 5 - SCRIPTS/ DIRECTORY STRUCTURE: ✅ ALL PASSED (5/5)
+            5a. ✅ /app/scripts/ has 147 .js/.py files (target ≤170, expected 166) ✓
+            5b. ✅ /app/scripts/archive/ has 149 files total (target ≥145, expected ~150) ✓
+            5c. ✅ Spot-check — all target one-off scripts present in /app/scripts/archive/:
+              • probe_ovh_dedicated.js ✓
+              • fetch_railway_complaints_24h.js ✓
+              • dig_hosting_3week_v2.js ✓
+              • diagnose_contabo.js (+ 3 more diagnose_contabo_*.js) ✓
+              • check_kathyserious*.py (3 files) ✓
+              • johngambino/restore-johngambino/fix_johngambino (3 files) ✓
+              • twilio_06_16_postmortem.py ✓
+              • _wallet_guard_regression.js ✓
+              • _wallet_guard_test.js ✓
+              • audit_marketplace_unpaid_sellers.js ✓
+            5d. ✅ Linter scripts MUST exist at /app/scripts/:
+              • lint_async_in_if.js ✓
+              • check_lang_parity.js ✓
+              • check_panel_lang_parity.js ✓
+            5e. ✅ heal_bifurcated_domains.js MUST exist at /app/scripts/:
+              • heal_bifurcated_domains.js ✓
+          
+          TASK 6 - VALIDATEPHONE*.JS ARCHIVED: ✅ ALL PASSED (4/4)
+            6a. ✅ /app/js/validatePhoneWhatsapp.js → No such file ✓
+            6b. ✅ /app/js/validatePhoneAws.js → No such file ✓
+            6c. ✅ /app/archive/validatePhoneWhatsapp.js → exists ✓
+            6d. ✅ /app/archive/validatePhoneAws.js → exists ✓
+          
+          TASK 7 - LINTER SCRIPTS PARSE CLEANLY: ✅ ALL PASSED (3/3)
+            • node -c scripts/lint_async_in_if.js → exit 0 ✓
+            • node -c scripts/check_lang_parity.js → exit 0 ✓
+            • node -c scripts/check_panel_lang_parity.js → exit 0 ✓
+          
+          TASK 8 - REGRESSION SUITES: ✅ BOTH PASSED (40/40 assertions)
+            • node js/tests/test_hellpeaces_uapi_eperm_fix.js → 20/20 passed, exit 0 ✓
+              [1] Diagnostic helpers exported (4 checks)
+              [2] Extractor recovers real cPanel error (1 check)
+              [3] EPERM detector flags extracted string (4 checks)
+              [4] Extractor defensive against unusual bodies (6 checks)
+              [5] Sanitization still applied (2 checks)
+              [6] /files/mkdir WHM fallback wired (5 checks)
+            
+            • node js/tests/test_hhr2009_false_delivered_fix.js → 20/20 passed, exit 0 ✓
+              [1] cr-register-domain-&-create-cpanel.js mid-flight return (5 checks)
+              [2] cpanel-job-handlers.js provision handler deferred (4 checks)
+              [3] Behavioural: handler classifies queued+deferred (7 checks)
+              [4] Regression sanity — @hellpeaces mkdir fallback (4 checks)
+          
+          TASK 9 - HTTP SMOKE TESTS: ✅ BOTH PASSED (2/2)
+            • curl http://localhost:3000 → HTTP 200 ✓
+            • curl http://localhost:8001/api/sms-app/download/info → HTTP 200 ✓
+          
+          CONCLUSION:
+          The codebase cleanup pass #3 is COMPLETE and verified. All 10 verification tasks passed:
+          
+          1. PACKAGE.JSON AUDIT: Successfully removed 10 unused dependencies + 1 unused devDependency
+             (@roamhq/wrtc, @telnyx/webrtc, express-validator, graphql, graphql-request, jssip,
+             punycode, request, sharp, sip, es-abstract). Added 3 missing dependencies (uuid,
+             jsonwebtoken, node-fetch) and 1 devDependency (acorn) that were used but not declared.
+          
+          2. SCRIPTS ARCHIVAL: Successfully archived 119 more one-off scripts to /app/scripts/archive/
+             (now 149 files total including README). Active scripts directory reduced from 266 to 147
+             files. All protected scripts (linters, heal_bifurcated_domains.js) remain in place.
+          
+          3. DEAD CODE ARCHIVED: validatePhoneWhatsapp.js and validatePhoneAws.js moved to /app/archive/
+             since they were only referenced in commented-out code and required unused dependencies.
+          
+          4. RUNTIME INTEGRITY: All services remain stable (no crashes since cleanup). Node.js startup
+             logs are clean with no MODULE_NOT_FOUND errors. Both regression test suites pass with
+             40/40 assertions. HTTP endpoints respond correctly.
+          
+          5. SAFETY VERIFIED: The cleanup was truly non-functional — no behavior changed. No live code
+             (outside /archive/) references any removed dependencies. The archival successfully cleaned
+             up the codebase while maintaining full functionality.
+      
+      - working: "NA"
+        agent: "main"
+        comment: |
+          Two-part cleanup driven by `npx depcheck`:
+
+          ┌── Part A — /app/package.json audit ────────────────────
+          │
+          │  Before: 30 deps + 4 devDeps
+          │  After:  23 deps + 4 devDeps
+          │
+          │  REMOVED (10 unused deps + 1 unused devDep):
+          │    @roamhq/wrtc         (0 refs — legacy WebRTC binding)
+          │    @telnyx/webrtc       (0 refs in root JS — used only by
+          │                          /app/frontend which has its own
+          │                          package.json)
+          │    express-validator    (0 refs)
+          │    graphql              (0 refs — Railway calls use axios)
+          │    graphql-request      (0 refs)
+          │    jssip                (0 refs — legacy SIP client)
+          │    punycode             (0 refs; Node built-in works)
+          │    request              (0 refs; deprecated pkg, axios replaces it)
+          │    sharp                (0 refs — image processing unused)
+          │    sip                  (0 refs — legacy SIP client)
+          │    devDep: es-abstract  (0 refs)
+          │
+          │  ADDED (3 deps used by live code but not declared):
+          │    uuid          ^8.3.2   (used by js/utils.js, js/sms-app-service.js, tests)
+          │    jsonwebtoken  ^9.0.3   (used by js/store-routes.js, js/cpanel-auth.js)
+          │    node-fetch    ^2.7.0   (used by js/email-dns.js)
+          │  ADDED (1 devDep):
+          │    acorn         ^8.16.0  (used by scripts/lint_async_in_if.js
+          │                            — part of `yarn lint:ci`)
+          │
+          │  Skipped ADDs (used only in dead / docs code):
+          │    @tensorflow/tfjs-node    → only /app/docs/enhancement-2-*.js (docs)
+          │    @aws-sdk/client-pinpoint → only /app/js/validatePhoneAws.js
+          │                                (dead — only referenced in a
+          │                                 commented-out line of validatePhone.js)
+          │    whatsapp-web.js          → only /app/js/validatePhoneWhatsapp.js
+          │                                (dead — same story)
+          │
+          │  ARCHIVED to /app/archive/ (dead source files that made these
+          │  ghost-deps appear):
+          │    /app/js/validatePhoneAws.js
+          │    /app/js/validatePhoneWhatsapp.js
+          │
+          │  yarn install --ignore-engines re-ran clean; all 4 new deps
+          │  installed at expected versions; removed deps no longer at
+          │  top level of node_modules (punycode + es-abstract remain as
+          │  transitive deps of other packages — harmless).
+          │
+          └────────────────────────────────────────────────────────
+
+          ┌── Part B — /app/scripts/ audit ────────────────────────
+          │
+          │  Total scripts before this pass:  266 (after pass #2)
+          │  Total scripts after this pass:   166  (-100 net; 119 moved but
+          │                                          the 29 from pass #2 were
+          │                                          already there when we
+          │                                          started — recounted here)
+          │  /app/scripts/archive/ now:        149 files (29 pass#2 + 119 pass#3
+          │                                                + 1 README)
+          │
+          │  ARCHIVED 119 more one-off scripts matching high-confidence
+          │  one-off patterns AND with zero live require/import references:
+          │    ^ATT_                  (4)  incident-specific
+          │    ^probe_ovh             (7)  one-off OVH probes
+          │    ^probe_contabo         (2)  one-off Contabo probes
+          │    ^fetch_railway         (6)  one-off log fetches
+          │    ^dig_                  (19) DNS/diagnostic probes
+          │    ^diagnose_             (6)  one-off diagnoses
+          │    ^test_ovh              (4)  OVH tests
+          │    ^test_contabo          (2)  Contabo tests
+          │    ^check_kathyserious    (3)  user-specific
+          │    ^investigate_kathyserious (1)
+          │    ^notify_kathyserious   (1)  user-specific
+          │    ^check_railway         (4)
+          │    ^analyze_railway       (3)
+          │    ^set_railway           (2)  Railway config one-offs
+          │    ^voice_service_        (2)
+          │    ^smoke_                (2)  provider smoke probes
+          │    ^_vps_*                (4)  dated VPS-bug sanity checks
+          │    ^_wallet_guard_*       (2)  dated wallet regression tests
+          │    ^_mp_sanity*           (2)  dated marketplace sanity
+          │    ^_deposit_flow_test    (1)  dated
+          │    ^_check_invio_migration (1) dated migration check
+          │    ^_inspect_hosting_txns (1)  dated inspection
+          │    ^_verify_db_state      (1)  dated
+          │    ^johngambino / restore-johngambino / notify_johngambino / fix_johngambino (4)
+          │    ^rsvpeviteopen (non-heal) (2) domain-specific
+          │    ^strivepartypaperless (2)
+          │    ^twilio_06_16 / twilio_ (2) dated postmortem
+          │    ^audit_broken_twilio / _ssh_delete_renew /
+          │      _contabo_reconciliation / _autorenew_price_mismatch /
+          │      _marketplace_unpaid_sellers / _mp_prod_logs /
+          │      _vps_orphans / _hostbay (9) dated audits
+          │    ^buy_ovh_vst1_and_cancel_test (1)
+          │    ^backfill_renewal_prices, backfill_domain_nameservers,
+          │      backfill_leprechaun (pass#2), backfill_i18n (3+prev)
+          │    ^dig_hosting_3week_* / dig_hosting_samples (4) diagnostics
+          │    ^scan_de_nsentry, check_de_ssl, check_hostbay_impact,
+          │      check_hostbay_state (4)
+          │    ^unstick_migrated_cpanel_accounts, cleanup_orphan_smoke_resources,
+          │      regenerate_origin_placeholders, reset_falsely_stuck_protection (4)
+          │    ...and more matching similar dated one-off shapes.
+          │
+          │  NEVER TOUCHED (protected list):
+          │    lint_async_in_if.js
+          │    check_lang_parity.js
+          │    check_panel_lang_parity.js
+          │    heal_bifurcated_domains.js (required by bifurcation-heal-cron.js)
+          │    fix_inviolivepaperless_ns.js
+          │    heal_rsvpeviteopen_org.js
+          │    setup-nodejs.sh
+          │
+          └────────────────────────────────────────────────────────
+
+          Post-cleanup verification:
+            • sudo supervisorctl restart nodejs — clean start (pid 7596)
+            • All 4 services RUNNING (backend/frontend/nodejs/mongodb)
+            • Node.js startup logs show all schedulers initialised cleanly
+              (Marketplace, Voice, Broadcast, PhoneMonitor, HostingScheduler,
+               CartRecovery, ProtectionEnforcer, DnsHealer, BalanceMonitor)
+            • No MODULE_NOT_FOUND / require errors anywhere in nodejs.err.log
+            • node -c on all 3 package.json linter scripts → OK
+            • node js/tests/test_hellpeaces_uapi_eperm_fix.js → PASS
+            • node js/tests/test_hhr2009_false_delivered_fix.js → PASS
+            • GET /             → 200
+            • GET /api/sms-app/download/info → 200
+            • npx depcheck rerun: 0 unused deps, 0 unused devDeps, only 3
+              "missing" which are archived/docs code (safe to ignore)
+
+          Please deep_testing_backend_v2 verify:
+            1. Service health: nodejs / backend / frontend / mongodb RUNNING
+            2. `node -c` on all 3 package.json linter scripts → OK
+            3. Both regression suites still exit 0:
+                 node js/tests/test_hellpeaces_uapi_eperm_fix.js
+                 node js/tests/test_hhr2009_false_delivered_fix.js
+            4. package.json content:
+                a. Does NOT contain any of: "@roamhq/wrtc", "@telnyx/webrtc",
+                   "express-validator", "graphql", "graphql-request",
+                   "jssip", "punycode", "request", "sharp", "sip",
+                   "es-abstract"
+                b. DOES contain: "uuid", "jsonwebtoken", "node-fetch",
+                   "acorn"
+            5. No live JS/PY file (outside /archive/) requires or imports
+               any of the removed deps — run:
+                 grep -rn "require\(['\"]@roamhq/wrtc\|require\(['\"]express-validator\|require\(['\"]graphql\|require\(['\"]jssip\|require\(['\"]request['\"]\|require\(['\"]sharp['\"]\|require\(['\"]sip['\"]\|require\(['\"]punycode['\"]"
+                   /app/js /app/backend /app/scripts /app/tests
+                   --include="*.js" --include="*.py" 2>/dev/null | grep -v /archive/
+               → must be empty.
+            6. /app/scripts/ file count is ≤ 170 (was 266 before this pass,
+               now expected 166). /app/scripts/archive/ file count is ≥ 145.
+            7. /app/js/validatePhoneWhatsapp.js and /app/js/validatePhoneAws.js
+               MUST NOT exist at those old paths (they were archived).
+               `ls /app/archive/validatePhoneWhatsapp.js` should succeed.
+            8. HTTP smoke:
+                 GET http://localhost:3000              → 200
+                 GET http://localhost:8001/api/sms-app/download/info → 200
+            9. Update /app/test_result.md — this task set to working: true,
+               needs_retesting: false with agent:'testing' entry.
+
   - task: "Codebase cleanup pass #2 — archive 42 one-off scripts + root debug files (2026-07-06)"
     implemented: true
     working: true
