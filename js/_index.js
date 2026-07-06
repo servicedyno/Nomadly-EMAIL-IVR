@@ -4601,6 +4601,58 @@ function _mpPaywallLabels(lang) {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Marketplace SELLER-fee paywall (module-scope renderer).
+// Callable from ANY handler — text mpChat relay, photo relay, conversation
+// resume, listing publish, etc. — to consistently gate old sellers whose
+// action state was stuck in mpChat / mpChat-photo / mpConversations from
+// before the seller-fee rollout on 2026-07-01. The resulting state
+// (action=mpSellerPaywall + mpPaywallIntent + mpPaywallConvId) is picked up
+// by the existing mpSellerPaywall message handler which handles Wallet /
+// Crypto / NGN payment methods and resumes the seller's original intent.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+async function _showMpSellerPaywallInline(chatId, intent = 'reply', convId = null) {
+  try {
+    const info = await get(state, chatId)
+    const lang = info?.userLanguage || 'en'
+    const t = translation('t', lang)
+    const k = translation('k', lang)
+    const fee = marketplaceService.MARKETPLACE_ACCESS_FEE_USD
+    const { usdBal } = await getBalance(walletOf, chatId)
+    const canAfford = usdBal >= fee
+    const L = _mpPaywallLabels(lang)
+    const rows = [[canAfford ? L.wallet : L.topup], [L.crypto]]
+    if (process.env.HIDE_BANK_PAYMENT !== 'true') rows.push([L.ngn])
+    rows.push(['↩️ Back', '🏠 Main Menu'])
+    await set(state, chatId, 'mpPaywallIntent', intent)
+    await set(state, chatId, 'mpPaywallConvId', convId)
+    await set(state, chatId, 'action', 'mpSellerPaywall')
+    return send(chatId, t.mpPaywall(fee, usdBal), k.of(rows))
+  } catch (e) {
+    log(`[Marketplace] _showMpSellerPaywallInline error for ${chatId}: ${e.message}`)
+    return null
+  }
+}
+
+/**
+ * Returns true if `chatId` is the seller in the given conversation AND has
+ * NOT paid the one-time marketplace access fee. Used by any handler that
+ * needs to gate a seller-only action (reply, resume chat, edit listing).
+ * Never throws — on any error it fails-open (returns false) so a DB blip
+ * doesn't lock out a paying seller mid-conversation.
+ */
+async function _isSellerUnpaid(chatId, conv) {
+  try {
+    if (!conv) return false
+    if (String(conv.sellerId) !== String(chatId)) return false  // buyer — never gated
+    const paid = await marketplaceService.hasMarketplaceAccess(chatId)
+    return !paid
+  } catch (e) {
+    log(`[Marketplace] _isSellerUnpaid error for ${chatId}: ${e.message}`)
+    return false
+  }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Marketplace: Inline Keyboard callback_query handler
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 bot?.on('callback_query', async (query) => {
@@ -6212,6 +6264,16 @@ bot?.on('message', msg => {
       if (convId) {
         const conv = await marketplaceService.getConversation(convId)
         if (conv && (conv.status === 'active' || conv.status === 'escrow_started')) {
+          // ── SELLER FEE GATE (photo) ─────────────────────────────────────
+          // Old sellers who were mid-chat when the $50 seller fee shipped
+          // (2026-07-01) still have action=mpChat persisted. Without this
+          // guard they could keep sending photos to buyers for free. Buyers
+          // in the same conv are never gated (they're only ever the buyerId).
+          if (await _isSellerUnpaid(chatId, conv)) {
+            log(`[Marketplace] Blocked mpChat PHOTO from unpaid seller ${chatId} (conv ${convId}) — showing paywall`)
+            await _showMpSellerPaywallInline(chatId, 'reply', convId)
+            return
+          }
           const photo = msg.photo[msg.photo.length - 1]
           const senderRole = conv.buyerId === chatId ? 'buyer' : 'seller'
           await marketplaceService.addMessage({ conversationId: convId, senderId: chatId, senderRole, text: '[photo]', type: 'photo' })
@@ -16873,6 +16935,24 @@ ${message.replace(/\n/g, '<br>')}
       return goto.marketplace()
     }
 
+    // ── SELLER FEE GATE ──────────────────────────────────────────────────
+    // Block ALL other actions (relay, /price, /escrow, /report, photos) if
+    // this user is the SELLER in the conversation AND has NOT paid the
+    // one-time $50 marketplace access fee. Route them into the paywall so
+    // they can pay & resume. Buyers are never gated (they are the buyerId,
+    // never the sellerId). Escape hatches above (/done, ↩️ Back) always
+    // work so an unpaid seller can leave without paying.
+    //
+    // Why here: sellers whose action state was already 'mpChat' when the
+    // seller fee shipped on 2026-07-01 skipped both the mp:reply callback
+    // gate AND the mpListProduct entry gate. Prod audit found 25 open
+    // conversations owned by 10 unpaid sellers.
+    const _mpConvForGate = await marketplaceService.getConversation(convId)
+    if (await _isSellerUnpaid(chatId, _mpConvForGate)) {
+      log(`[Marketplace] Blocked mpChat message from unpaid seller ${chatId} (conv ${convId}) — routing to paywall`)
+      return goto.mpSellerPaywall('reply', convId)
+    }
+
     // /escrow — start escrow
     if (message === '/escrow') {
       const conv = await marketplaceService.getConversation(convId)
@@ -17255,10 +17335,25 @@ ${message.replace(/\n/g, '<br>')}
     if (!pid) return goto.marketplace()
 
     if (message === t.mpRemoveProduct) {
+      // Removing your own listing does NOT require the seller fee (user-
+      // friendly: an unpaid seller can always take their pre-fee listing
+      // down without paying). Only ACTIVE seller actions (edit / mark sold)
+      // and re-listing are gated below.
       await marketplaceService.deleteProduct(pid)
       send(chatId, t.mpProductRemoved)
       return goto.marketplace()
     }
+
+    // ── SELLER FEE GATE (edit / mark-sold) ──
+    // Any modification to a pre-fee listing (edit title/desc/price, mark
+    // sold) now requires the seller to have paid the $50 access fee. This
+    // stops old sellers from silently keeping listings alive & tweaking
+    // them post-rollout.
+    if (!(await marketplaceService.hasMarketplaceAccess(chatId))) {
+      log(`[Marketplace] Blocked mpManageListing action "${message}" by unpaid seller ${chatId} (pid ${pid}) — routing to paywall`)
+      return goto.mpSellerPaywall('list')
+    }
+
     if (message === t.mpMarkSold) {
       await marketplaceService.markProductSold(pid)
       send(chatId, t.mpProductSold)
@@ -17288,6 +17383,13 @@ ${message.replace(/\n/g, '<br>')}
     if (isBackPress(message) || message === '↩️ Back') { await set(state, chatId, 'action', a.mpManageListing); return send(chatId, t.mpEditWhat, k.of([[t.mpEditTitle], [t.mpEditDesc], [t.mpEditPrice]])) }
     const pid = info?.mpActiveProduct
     if (!pid) return goto.marketplace()
+    // Defense-in-depth: unpaid sellers who had this action persisted before
+    // the seller-fee rollout should be routed to the paywall, not silently
+    // allowed to edit their old listing.
+    if (!(await marketplaceService.hasMarketplaceAccess(chatId))) {
+      log(`[Marketplace] Blocked mpEditTitle by unpaid seller ${chatId} — routing to paywall`)
+      return goto.mpSellerPaywall('list')
+    }
     await marketplaceService.updateProduct(pid, { title: message.slice(0, marketplaceService.MAX_TITLE) })
     send(chatId, t.mpTitleUpdated)
     await set(state, chatId, 'action', a.mpManageListing)
@@ -17299,6 +17401,10 @@ ${message.replace(/\n/g, '<br>')}
     if (isBackPress(message) || message === '↩️ Back') { await set(state, chatId, 'action', a.mpManageListing); return send(chatId, t.mpEditWhat, k.of([[t.mpEditTitle], [t.mpEditDesc], [t.mpEditPrice]])) }
     const pid = info?.mpActiveProduct
     if (!pid) return goto.marketplace()
+    if (!(await marketplaceService.hasMarketplaceAccess(chatId))) {
+      log(`[Marketplace] Blocked mpEditDesc by unpaid seller ${chatId} — routing to paywall`)
+      return goto.mpSellerPaywall('list')
+    }
     await marketplaceService.updateProduct(pid, { description: message.slice(0, marketplaceService.MAX_DESC) })
     send(chatId, t.mpDescUpdated)
     await set(state, chatId, 'action', a.mpManageListing)
@@ -17310,6 +17416,10 @@ ${message.replace(/\n/g, '<br>')}
     if (isBackPress(message) || message === '↩️ Back') { await set(state, chatId, 'action', a.mpManageListing); return send(chatId, t.mpEditWhat, k.of([[t.mpEditTitle], [t.mpEditDesc], [t.mpEditPrice]])) }
     const pid = info?.mpActiveProduct
     if (!pid) return goto.marketplace()
+    if (!(await marketplaceService.hasMarketplaceAccess(chatId))) {
+      log(`[Marketplace] Blocked mpEditPrice by unpaid seller ${chatId} — routing to paywall`)
+      return goto.mpSellerPaywall('list')
+    }
     const price = parseFloat(message.replace(/[^0-9.]/g, ''))
     if (isNaN(price) || price < marketplaceService.MIN_PRICE || price > marketplaceService.MAX_PRICE) return send(chatId, t.mpPriceError)
     await marketplaceService.updateProduct(pid, { price })
@@ -17388,6 +17498,16 @@ ${message.replace(/\n/g, '<br>')}
   if (action === a.mpNewConfirm) {
     if (message === t.mpCancel || isBackPress(message) || message === '↩️ Back') return goto.marketplace()
     if (message === t.mpPublish) {
+      // ── SELLER FEE GATE (defense in depth) ──
+      // The entry gate at t.mpListProduct already blocks unpaid sellers, but
+      // a user whose action was persisted deep in the listing flow before
+      // the fee shipped (e.g. action=mpNewConfirm saved from a session
+      // interrupted on 2026-06-29) would otherwise create a product for
+      // free. Re-check here right before the DB write.
+      if (!(await marketplaceService.hasMarketplaceAccess(chatId))) {
+        log(`[Marketplace] Blocked mpNewConfirm publish by unpaid seller ${chatId} — routing to paywall`)
+        return goto.mpSellerPaywall('list')
+      }
       try {
         const product = await marketplaceService.createProduct({
           sellerId: chatId,
@@ -17422,6 +17542,14 @@ ${message.replace(/\n/g, '<br>')}
     if (!conv || conv.status === 'closed') {
       send(chatId, t.mpChatEnded)
       return goto.marketplace()
+    }
+    // ── SELLER FEE GATE (resume) ──
+    // Old sellers can walk into a pre-fee conversation via "My Conversations".
+    // Block resume unless they've paid; the paywall carries convId so the
+    // chat auto-resumes after payment.
+    if (await _isSellerUnpaid(chatId, conv)) {
+      log(`[Marketplace] Blocked mpConversations resume by unpaid seller ${chatId} (conv ${conv._id}) — routing to paywall`)
+      return goto.mpSellerPaywall('reply', conv._id)
     }
     await saveInfo('mpActiveConversation', conv._id)
     await set(state, chatId, 'action', a.mpChat)
