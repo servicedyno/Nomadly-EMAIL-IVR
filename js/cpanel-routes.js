@@ -537,8 +537,94 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
   router.post('/files/mkdir', ...auth, async (req, res) => {
     const { dir, name } = req.body
     if (!dir || !name) return res.status(400).json({ error: 'dir and name are required' })
+
+    // Attempt 1: user-level cPanel API2 (Fileman::mkdir). This is what the
+    // panel has always done — works for healthy accounts.
     const result = await cpProxy.createDirectory(req.cpUser, req.cpPass, dir, name, req.whmHost)
-    res.json(result)
+    if (result?.status === 1) return res.json(result)
+
+    // Attempt 2: WHM-root fallback for uapi EPERM / status-1 failures.
+    // Prod bug from @hellpeaces (5522767823) 2026-07-06: user's cPanel
+    // account had a broken shell/homedir that made `uapi` exit with EPERM,
+    // so user-level mkdir returned HTTP 500. Root, invoking the same API
+    // via WHM's /json-api/cpanel?cpanel_jsonapi_user=<user>, can `su` into
+    // the user's context and bypass the EPERM class of failures. Same
+    // pattern that /files/delete has used successfully for months.
+    const isEperm = result?.code === 'CPANEL_UAPI_EPERM'
+    const isServerErr = result?.httpStatus && result.httpStatus >= 500
+    const looksBroken = isEperm || isServerErr || result?.errors?.some(e => cpProxy.looksLikeUapiPermFailure && cpProxy.looksLikeUapiPermFailure(e))
+    const whmHost = req.whmHost || process.env.WHM_HOST
+    const whmToken = process.env.WHM_TOKEN
+    const whmApiUrl = process.env.WHM_API_URL
+    const whmBaseURL = (whmApiUrl && whmHost === process.env.WHM_HOST)
+      ? `${whmApiUrl.replace(/\/+$/, '')}/json-api`
+      : `https://${whmHost}:2087/json-api`
+
+    if (looksBroken && whmHost && whmToken) {
+      log(`[Panel] mkdir user-level failed for "${name}" in ${dir}, trying WHM fallback (user: ${req.cpUser}, reason: ${result?.errors?.[0] || 'unknown'})`)
+      try {
+        const https = require('https')
+        const axios = require('axios')
+        const whmApi = axios.create({
+          baseURL: whmBaseURL,
+          headers: {
+            Authorization: `whm ${process.env.WHM_USERNAME || 'root'}:${whmToken}`,
+            ...(process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET ? {
+              'CF-Access-Client-Id': process.env.CF_ACCESS_CLIENT_ID,
+              'CF-Access-Client-Secret': process.env.CF_ACCESS_CLIENT_SECRET,
+            } : {}),
+          },
+          timeout: 30000,
+          httpsAgent: new https.Agent({ rejectUnauthorized: false }),
+        })
+
+        // Fire the mkdir call as ROOT impersonating the cPanel user.
+        // Matches the exact API2 signature cpProxy.createDirectory uses so
+        // behaviour stays identical on the happy path.
+        const r = await whmApi.get('/cpanel', {
+          params: {
+            'api.version': 1,
+            cpanel_jsonapi_user: req.cpUser,
+            cpanel_jsonapi_apiversion: 2,
+            cpanel_jsonapi_module: 'Fileman',
+            cpanel_jsonapi_func: 'mkdir',
+            path: dir,
+            name,
+          },
+        })
+
+        const cp = r.data?.cpanelresult || {}
+        const dataArr = Array.isArray(cp.data) ? cp.data : []
+        const created = dataArr.length > 0 && dataArr[0]?.path && dataArr[0]?.name
+        const eventOk = cp.event?.result === 1
+        if (created || eventOk) {
+          log(`[Panel] mkdir succeeded via WHM fallback: "${name}" in ${dir} (user: ${req.cpUser})`)
+          return res.json({ status: 1, data: dataArr, errors: null, via: 'whm-fallback' })
+        }
+
+        // WHM fallback still failed — surface the deeper reason so support
+        // sees "uapi EPERM" rather than "Request failed with status code 500".
+        const whmReason = dataArr[0]?.reason || cp.error || 'WHM fallback also failed'
+        log(`[Panel] mkdir WHM fallback failed: "${name}" in ${dir} (user: ${req.cpUser}) — ${whmReason}`)
+        return res.status(500).json({
+          status: 0,
+          error: `Create folder failed: ${whmReason}`,
+          errors: [whmReason],
+          via: 'whm-fallback-failed',
+          code: cpProxy.looksLikeUapiPermFailure && cpProxy.looksLikeUapiPermFailure(String(whmReason)) ? 'CPANEL_UAPI_EPERM' : undefined,
+        })
+      } catch (e) {
+        log(`[Panel] mkdir WHM fallback exception: ${e.message} (user: ${req.cpUser})`)
+        // Fall through to the original user-level result so we don't hide it.
+      }
+    }
+
+    // No fallback fired (or fallback threw) — return the user-level result
+    // as-is. The api2()/uapi() normaliser has already dug the real cPanel
+    // reason out of the response body, so the panel will now show
+    // e.g. `"/usr/local/cpanel/uapi" exited with status 1 (EPERM)` instead
+    // of the useless "Request failed with status code 500".
+    return res.json(result)
   })
 
   router.post('/files/delete', ...auth, async (req, res) => {
