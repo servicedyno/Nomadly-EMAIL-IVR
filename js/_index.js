@@ -8849,6 +8849,18 @@ Enter new value:`), bc)
       await set(state, chatId, 'action', 'dns-add-mx-priority')
       send(chatId, t.askMxPriority, trans('dnsMxPriorityKeyboard'))
     },
+    // Per-record CF proxy toggle — orange (proxied) vs grey (DNS-only).
+    // Added after @LevelupwithME 2026-07-06 incident: previously all
+    // A/AAAA/CNAME records on CF zones were force-proxied which hid the
+    // customer's own origin IP from `dig`. Now defaults to DNS-only but
+    // gives power users the CF-dashboard toggle.
+    'dns-add-proxied-choice': async (recordType, value) => {
+      await set(state, chatId, 'action', 'dns-add-proxied-choice')
+      const ask = typeof t.dnsProxiedChoiceAsk === 'function'
+        ? t.dnsProxiedChoiceAsk(recordType, value)
+        : `Choose Cloudflare mode for this ${recordType} → ${value}`
+      send(chatId, ask, trans('dnsProxiedChoiceKeyboard'))
+    },
 
     // DNS Wizard: SRV multi-step
     'dns-srv-service': async () => {
@@ -21138,6 +21150,19 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       }
     }
 
+    // Per-record CF proxy toggle for A/AAAA/CNAME on Cloudflare-managed
+    // zones. See @LevelupwithME 2026-07-06 fix note below. For non-CF
+    // zones (OP/CR-managed), the proxied flag is meaningless — skip the
+    // prompt and use the default (DNS-only) path.
+    if (['A', 'AAAA', 'CNAME'].includes(recordType)) {
+      const meta = await domainService.getDomainMeta(info?.domainToManage, db)
+      const isCfZone = !!(meta?.cfZoneId && (meta?.nameserverType === 'cloudflare' || meta?.cfZoneId))
+      if (isCfZone) {
+        await set(state, chatId, 'dnsAddValue', value)
+        return goto['dns-add-proxied-choice'](recordType, value)
+      }
+    }
+
     // For A, CNAME, TXT — create record immediately
     const domain = info?.domainToManage
     // BUG FIX (@LevelupwithME, 2026-07-06): user-added DNS records must
@@ -21153,6 +21178,53 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       return send(chatId, t.errorSavingDns(sanitizeProviderError(result.error || 'Failed', 'domain')))
     }
     send(chatId, t.dnsRecordSaved)
+    const checkName = hostname ? `${hostname}.${domain}` : domain
+    dnsAutoCheck(send, chatId, t, checkName, recordType, value)
+    return goto['choose-dns-action']()
+  }
+
+  // Per-record CF proxy toggle — user picks ⚪ DNS Only or 🟠 Proxied.
+  // Enhancement 2026-07-06 (follow-up to @LevelupwithME fix): give power
+  // users the same orange/grey-cloud switch that Cloudflare's own
+  // dashboard exposes, per record. See lang/en.js dnsProxiedChoice*.
+  if (action === 'dns-add-proxied-choice') {
+    if (isBackPress(message) || isCancelPress(message)) return goto['select-dns-record-type-to-add']()
+    const recordType = info?.dnsAddRecordType
+    const hostname = info?.dnsAddHostname || ''
+    const value = info?.dnsAddValue
+    const domain = info?.domainToManage
+    if (!recordType || value === undefined || !domain) {
+      return goto['choose-dns-action']()
+    }
+
+    // Parse selection — accept exact button label (any language via
+    // trans() fallback) or the emoji prefix as a courtesy for typed input.
+    const proxiedLabel = trans('t.dnsProxiedChoiceLabelProxied')
+    const dnsOnlyLabel = trans('t.dnsProxiedChoiceLabelDnsOnly')
+    let chosenProxied = null
+    if (message === proxiedLabel || /^🟠/.test(message)) chosenProxied = true
+    else if (message === dnsOnlyLabel || /^⚪/.test(message)) chosenProxied = false
+    if (chosenProxied === null) {
+      return send(chatId, t.dnsProxiedChoiceInvalid || 'Please tap one of the buttons.', trans('dnsProxiedChoiceKeyboard'))
+    }
+
+    // If we came from a conflict-replace confirmation, dnsConflictRecords
+    // is still in state — use resolveConflictAndAdd so the existing
+    // records get deleted first. Otherwise, plain addDNSRecord.
+    const conflictingRecords = info?.dnsConflictRecords
+    let result
+    if (Array.isArray(conflictingRecords) && conflictingRecords.length > 0) {
+      send(chatId, trans('t.dns_4'), { parse_mode: 'HTML' })
+      result = await domainService.resolveConflictAndAdd(domain, recordType, value, hostname, conflictingRecords, db, undefined, { proxied: chosenProxied })
+      // Clear conflict flag to avoid leaking into a follow-up add
+      await set(state, chatId, 'dnsConflictRecords', null)
+    } else {
+      result = await domainService.addDNSRecord(domain, recordType, value, hostname, db, undefined, undefined, { proxied: chosenProxied })
+    }
+    if (!result.success) {
+      return send(chatId, t.errorSavingDns(sanitizeProviderError(result.error || 'Failed', 'domain')))
+    }
+    send(chatId, t.dnsRecordSaved + (chosenProxied ? '\n\n🟠 <i>Proxied through Cloudflare — CF edge IPs will be returned by DNS lookups; free SSL + CDN active.</i>' : '\n\n⚪ <i>DNS Only — lookups resolve directly to your target.</i>'), { parse_mode: 'HTML' })
     const checkName = hostname ? `${hostname}.${domain}` : domain
     dnsAutoCheck(send, chatId, t, checkName, recordType, value)
     return goto['choose-dns-action']()
@@ -21228,12 +21300,24 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     const recordType = info?.dnsAddRecordType
     const hostname = info?.dnsAddHostname || ''
     const value = info?.dnsAddValue
+
+    // After confirming replace, still route A/AAAA/CNAME on CF zones
+    // through the per-record proxied toggle — power-user parity with the
+    // non-conflict Add-Record path. `dnsConflictRecords` stays in state
+    // so the proxied-choice handler can call resolveConflictAndAdd
+    // instead of the plain addDNSRecord path.
+    if (['A', 'AAAA', 'CNAME'].includes(recordType)) {
+      const meta = await domainService.getDomainMeta(domain, db)
+      const isCfZone = !!(meta?.cfZoneId && (meta?.nameserverType === 'cloudflare' || meta?.cfZoneId))
+      if (isCfZone) {
+        return goto['dns-add-proxied-choice'](recordType, value)
+      }
+    }
+
+    // Non-proxiable OR non-CF zone — apply directly (DNS-only, historic
+    // safe default for user-driven flow — see @LevelupwithME 2026-07-06).
     const conflictingRecords = info?.dnsConflictRecords || []
-
     send(chatId, trans('t.dns_4'), { parse_mode: 'HTML' })
-
-    // Conflict-replace is a user-driven Add-Record path — DNS-only by
-    // default, same rationale as the primary Add-Record flow above.
     const result = await domainService.resolveConflictAndAdd(domain, recordType, value, hostname, conflictingRecords, db, undefined, { proxied: false })
     if (!result.success) {
       return send(chatId, t.errorSavingDns(sanitizeProviderError(result.error || 'Failed', 'domain')))

@@ -660,6 +660,18 @@ Select below:`,
  dnsRecordSaved: 'Record added successfully. DNS changes may take up to 24h to propagate.',
  dnsRecordDeleted: 'Record deleted successfully.',
  dnsRecordUpdated: 'Record updated successfully. DNS changes may take up to 24h to propagate.',
+ // DNS proxied-choice (per-record CF orange/grey cloud) — @LevelupwithME 2026-07-06
+ dnsProxiedChoiceLabelDnsOnly: '⚪ DNS Only (Recommended)',
+ dnsProxiedChoiceLabelProxied: '🟠 Proxied through Cloudflare',
+ dnsProxiedChoiceAsk: (recordType, value) => (
+   `⚙️ <b>Cloudflare mode for this ${recordType} record</b>\n\n` +
+   `Target: <code>${value}</code>\n\n` +
+   '⚪  <b>DNS Only</b> (recommended)\n' +
+   '<i>Lookups return your origin IP directly. Best for pointing at your own VPS, mail server, or when you need direct access to the target.</i>\n\n' +
+   '🟠  <b>Proxied through Cloudflare</b>\n' +
+   '<i>Cloudflare fronts your origin — free SSL, CDN caching, DDoS protection, and your origin IP stays hidden. Best for public websites.</i>'
+ ),
+ dnsProxiedChoiceInvalid: 'Please tap one of the buttons: ⚪ DNS Only or 🟠 Proxied through Cloudflare.',
  // DNS Quick Actions
  dnsQuickActionMenu: 'Choose a preset configuration:',
  dnsQuickAskIp: 'Enter your server IPv4 address:\ne.g. <b>192.168.1.1</b>',
@@ -2769,6 +2781,14 @@ const dnsMxPriorityKeyboard = {
  },
  disable_web_page_preview: true,
 }
+const dnsProxiedChoiceKeyboard = {
+ parse_mode: 'HTML',
+ reply_markup: {
+ keyboard: [[t.dnsProxiedChoiceLabelDnsOnly], [t.dnsProxiedChoiceLabelProxied], _bc],
+ resize_keyboard: true,
+ },
+ disable_web_page_preview: true,
+}
 const dnsSubdomainTargetTypeKeyboard = {
  parse_mode: 'HTML',
  reply_markup: {
@@ -3712,6 +3732,7 @@ const en = {
  dnsRecordType,
  dnsQuickActionKeyboard,
  dnsMxPriorityKeyboard,
+ dnsProxiedChoiceKeyboard,
  dnsSubdomainTargetTypeKeyboard,
  dnsQuickActions,
  getRecordTypeKeyboard,

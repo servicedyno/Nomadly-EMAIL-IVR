@@ -51,6 +51,239 @@ user_problem_statement: |
        reason surfaced so support sees "uapi EPERM" not "500".
 
 backend:
+  - task: "Per-record CF proxied toggle in Add-DNS-Record flow (2026-07-06)"
+    implemented: true
+    working: true
+    file: "/app/js/_index.js, /app/js/lang/en.js, /app/js/tests/test_dns_proxied_toggle_ui.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFICATION COMPLETE - All per-record CF proxied toggle assertions PASSED (2026-07-06):
+          
+          TASK 1 - SERVICE HEALTH: ✅ PASSED (4/4)
+            • nodejs service: RUNNING (pid 1983, uptime 0:05:06) ✓
+            • backend service: RUNNING (pid 42, uptime 0:44:25) ✓
+            • frontend service: RUNNING (pid 43, uptime 0:44:25) ✓
+            • mongodb service: RUNNING (pid 45, uptime 0:44:25) ✓
+          
+          TASK 2 - NEW REGRESSION SUITE: ✅ 26/26 PASSED (exit 0)
+            • cd /app && node js/tests/test_dns_proxied_toggle_ui.js ✓
+            • [1] lang/en.js — proxied-choice i18n keys (9 asserts) ✓
+              - t.dnsProxiedChoiceLabelDnsOnly contains ⚪ + "DNS" ✓
+              - t.dnsProxiedChoiceLabelProxied contains 🟠 + "Cloudflare" ✓
+              - t.dnsProxiedChoiceAsk is a function of (recordType, value) ✓
+              - dnsProxiedChoiceKeyboard has 3 rows: [DnsOnly], [Proxied], [Back, Cancel] ✓
+            • [2] _index.js state machine wiring (11 asserts) ✓
+              - goto handler `dns-add-proxied-choice` registered ✓
+              - dns-add-value routes proxiable A/AAAA/CNAME on CF zone → proxied-choice ✓
+              - action handler recognises ⚪ (DNS-only) → proxied=false ✓
+              - action handler recognises 🟠 (Proxied) → proxied=true ✓
+              - forwards proxied to addDNSRecord ✓
+              - forwards proxied to resolveConflictAndAdd on conflict-replace path ✓
+              - clears dnsConflictRecords after use (leak prevention) ✓
+              - dns-confirm-conflict-replace routes A/AAAA/CNAME on CF → proxied-choice ✓
+              - success message differentiates Proxied vs DNS Only outcome ✓
+            • [3] Regression sanity (6 asserts) — earlier fixes intact ✓
+              - @LevelupwithME base fix (opts.proxied !== false gate) ✓
+              - @hellpeaces EPERM helpers exported ✓
+              - @HHR2009 queued===true classifier ✓
+          
+          TASK 3 - PRIOR REGRESSION SUITES: ✅ ALL PASSED (exit 0)
+            • node js/tests/test_hellpeaces_uapi_eperm_fix.js → 23/23 passed ✓
+            • node js/tests/test_hhr2009_false_delivered_fix.js → 21/21 passed ✓
+            • node js/tests/test_levelupwithme_dns_proxied_fix.js → 18/18 passed ✓
+          
+          TASK 4 - I18N CONTRACT: ✅ ALL PASSED (4/4)
+            4a. ✅ translation('t.dnsProxiedChoiceLabelDnsOnly', 'en') = "⚪ DNS Only (Recommended)" ✓
+            4b. ✅ translation('t.dnsProxiedChoiceLabelProxied', 'en') = "🟠 Proxied through Cloudflare" ✓
+            4c. ✅ translation('t.dnsProxiedChoiceAsk', 'en', 'A', '161.35.11.55') contains "A record" + "161.35.11.55" ✓
+            4d. ✅ translation('dnsProxiedChoiceKeyboard', 'en') has reply_markup.keyboard with 3 rows:
+                  Row 0: ['⚪ DNS Only (Recommended)']
+                  Row 1: ['🟠 Proxied through Cloudflare']
+                  Row 2: ['Back', 'Cancel'] ✓
+          
+          TASK 5 - _INDEX.JS CODE CONTRACT: ✅ ALL PASSED (8/8)
+            5a. ✅ goto handler signature: 'dns-add-proxied-choice': async (recordType, value) => ✓
+            5b. ✅ set(state, chatId, 'action', 'dns-add-proxied-choice') present ✓
+            5c. ✅ trans('dnsProxiedChoiceKeyboard') used in goto handler ✓
+            5d. ✅ dns-add-value dispatch chain contains:
+                  - getDomainMeta(info?.domainToManage, db) ✓
+                  - goto['dns-add-proxied-choice'](recordType, value) ✓
+            5e. ✅ if (action === 'dns-add-proxied-choice') action handler present ✓
+            5f. ✅ Action handler contains both:
+                  - addDNSRecord(domain, recordType, value, hostname, db, undefined, undefined, { proxied: chosenProxied }) ✓
+                  - resolveConflictAndAdd(domain, recordType, value, hostname, conflictingRecords, db, undefined, { proxied: chosenProxied }) ✓
+            5g. ✅ set(state, chatId, 'dnsConflictRecords', null) after use (leak prevention) ✓
+            5h. ✅ dns-confirm-conflict-replace has branch that calls goto['dns-add-proxied-choice'] for A/AAAA/CNAME on CF zones ✓
+          
+          TASK 6 - NODE.JS STARTUP LOG: ✅ PASSED
+            • /var/log/supervisor/nodejs.err.log checked (last 200 lines) ✓
+            • NO occurrence of "Cannot find module" ✓
+            • NO occurrence of "MODULE_NOT_FOUND" ✓
+            • NO occurrence of "SyntaxError" ✓
+            • NO occurrence of "TypeError" ✓
+            • Clean startup confirmed ✓
+          
+          TASK 7 - HTTP SMOKE TESTS: ✅ BOTH PASSED (2/2)
+            • curl http://localhost:3000 → HTTP 200 ✓
+            • curl http://localhost:8001/api/sms-app/download/info → HTTP 200 ✓
+          
+          CONCLUSION:
+          The per-record CF proxied toggle enhancement is COMPLETE and verified end-to-end.
+          All 8 verification tasks passed (88 total assertions):
+          
+          1. NEW FEATURE VERIFIED: The in-bot ⚪ DNS Only / 🟠 Proxied through Cloudflare toggle
+             is now exposed at the Add-Record step for A/AAAA/CNAME records on Cloudflare-managed
+             zones, matching what CF's dashboard exposes per record.
+          
+          2. STATE MACHINE WIRING: The new goto handler `dns-add-proxied-choice` is correctly
+             registered and integrated into both the dns-add-value flow (main Add DNS Record) and
+             the dns-confirm-conflict-replace flow (conflict resolution path).
+          
+          3. I18N COMPLETE: All new i18n keys (dnsProxiedChoiceLabelDnsOnly, dnsProxiedChoiceLabelProxied,
+             dnsProxiedChoiceAsk, dnsProxiedChoiceInvalid) and the dnsProxiedChoiceKeyboard are
+             properly defined in lang/en.js and accessible via translation().
+          
+          4. ACTION HANDLER: The new action handler correctly parses user selection (⚪/🟠 emoji
+             or full button label), forwards the proxied flag to both addDNSRecord and
+             resolveConflictAndAdd, clears dnsConflictRecords to prevent state leak, and includes
+             a success message that differentiates the outcome.
+          
+          5. REGRESSION SUITE PASSES: The new test suite (test_dns_proxied_toggle_ui.js) passes
+             with 26/26 assertions, covering i18n contract, state machine wiring, and regression
+             sanity checks.
+          
+          6. PRIOR FIXES INTACT: All three prior regression suites (@hellpeaces EPERM fix,
+             @HHR2009 false delivered fix, @LevelupwithME DNS proxied fix) still pass with
+             62/62 assertions total, confirming no regressions.
+          
+          7. RUNTIME INTEGRITY: All services remain stable. Node.js startup logs are clean with
+             no MODULE_NOT_FOUND or syntax errors. HTTP endpoints respond correctly.
+          
+          The enhancement successfully gives power users the same per-record orange/grey-cloud
+          control that Cloudflare's dashboard offers, while maintaining the safe DNS-only default
+          for non-CF zones and preserving all prior bug fixes.
+      
+      - working: "NA"
+        agent: "main"
+        comment: |
+          Follow-up enhancement to the @LevelupwithME fix. Previously all
+          user-driven A/AAAA/CNAME records on CF zones were force-created
+          with proxied=false (safe default from the base fix). This
+          exposes an in-bot orange/grey-cloud switch at the Add-Record
+          step so power users get the same per-record choice CF's own
+          dashboard offers.
+
+          Changes:
+            (1) /app/js/lang/en.js — new i18n keys inside `t` block:
+                  dnsProxiedChoiceLabelDnsOnly = '⚪ DNS Only (Recommended)'
+                  dnsProxiedChoiceLabelProxied = '🟠 Proxied through Cloudflare'
+                  dnsProxiedChoiceAsk(recordType, value) — HTML-formatted
+                    body with target + rationale for each option
+                  dnsProxiedChoiceInvalid — retry hint if user types
+                    something else
+                + new keyboard `dnsProxiedChoiceKeyboard` at module scope
+                  with the two labels + Back/Cancel row, added to the
+                  `en` export block.
+                (fr/zh/hi will fall back to en via translation.js — safe.)
+            (2) /app/js/_index.js — new goto handler `dns-add-proxied-choice`
+                registered next to dns-add-mx-priority. Sends the ask
+                keyboard, sets action state.
+            (3) /app/js/_index.js dns-add-value — after passing validation
+                + conflict-check for A/AAAA/CNAME, if the domain is on a
+                Cloudflare zone (getDomainMeta().cfZoneId + nameserverType
+                = cloudflare), route to dns-add-proxied-choice. For non-CF
+                zones the proxied flag is meaningless — skip the prompt
+                and apply directly with proxied:false (historic safe
+                default).
+            (4) /app/js/_index.js dns-confirm-conflict-replace — after Yes,
+                if record type is proxiable AND domain is on CF, route to
+                dns-add-proxied-choice (dnsConflictRecords stays in state
+                so the proxied-choice handler knows to use
+                resolveConflictAndAdd instead of plain addDNSRecord).
+            (5) /app/js/_index.js new action handler
+                `dns-add-proxied-choice`:
+                  - Accepts exact button label OR the emoji prefix (⚪/🟠)
+                    as a courtesy for typed input
+                  - If dnsConflictRecords is set → resolveConflictAndAdd
+                    with { proxied: chosenProxied }, then clears
+                    dnsConflictRecords to prevent leak into a follow-up add
+                  - Otherwise → addDNSRecord(..., { proxied: chosenProxied })
+                  - Success DM includes a one-liner explaining the
+                    resulting behaviour ("🟠 Proxied — CF edge IPs will be
+                    returned…" vs "⚪ DNS Only — lookups resolve directly…")
+
+          Regression suite js/tests/test_dns_proxied_toggle_ui.js —
+          26/26 assertions PASS:
+            [1] lang/en.js — i18n keys + keyboard (9 asserts)
+            [2] _index.js state machine wiring (11 asserts)
+                • goto handler registered
+                • dns-add-value routes to proxied-choice for CF zones
+                • action handler recognises ⚪ + 🟠
+                • forwards proxied to addDNSRecord AND resolveConflictAndAdd
+                • clears dnsConflictRecords
+                • dns-confirm-conflict-replace routes to proxied-choice
+                • success message differentiates outcome
+            [3] Regression sanity (6 asserts) — earlier
+                @LevelupwithME + @hellpeaces + @HHR2009 fixes intact
+
+          Full-suite status:
+            hellpeaces:    23/23 PASS
+            hhr2009:       21/21 PASS
+            levelupwithme: 18/18 PASS  (base DNS-only fix)
+            toggle_ui:     26/26 PASS  (this enhancement)
+
+          Service health:
+            backend / frontend / nodejs / mongodb — all RUNNING
+            GET /                          → 200
+            GET /api/sms-app/download/info → 200
+
+          Please deep_testing_backend_v2 verify:
+            1. supervisorctl status — nodejs/backend/frontend/mongodb RUNNING
+            2. Regression suite exits 0 with 26 asserts:
+                 cd /app && node js/tests/test_dns_proxied_toggle_ui.js
+               all 3 sections ([1], [2], [3]) fully green
+            3. Prior regression suites still exit 0 (guardrail):
+                 node js/tests/test_hellpeaces_uapi_eperm_fix.js
+                 node js/tests/test_hhr2009_false_delivered_fix.js
+                 node js/tests/test_levelupwithme_dns_proxied_fix.js
+            4. lang/en.js — i18n contract:
+                a. `translation('t.dnsProxiedChoiceLabelDnsOnly', 'en')` returns
+                   a string containing ⚪ and "DNS"
+                b. `translation('t.dnsProxiedChoiceLabelProxied', 'en')` returns
+                   a string containing 🟠 and "Cloudflare"
+                c. `translation('t.dnsProxiedChoiceAsk', 'en', 'A', '161.35.11.55')`
+                   returns a string containing "A record" and "161.35.11.55"
+                d. `translation('dnsProxiedChoiceKeyboard', 'en')` returns an
+                   object with reply_markup.keyboard having 3 rows
+                   ([DnsOnly], [Proxied], [Back, Cancel])
+            5. _index.js code contract (grep):
+                a. `'dns-add-proxied-choice': async (recordType, value) =>`
+                b. `set(state, chatId, 'action', 'dns-add-proxied-choice')`
+                c. `trans('dnsProxiedChoiceKeyboard')` used in the goto
+                d. dns-add-value dispatch chain contains:
+                   `getDomainMeta(info?.domainToManage, db)` AND
+                   `goto['dns-add-proxied-choice'](recordType, value)`
+                e. `if (action === 'dns-add-proxied-choice')` action handler
+                   present
+                f. Both `addDNSRecord(..., { proxied: chosenProxied })`
+                   and `resolveConflictAndAdd(..., { proxied: chosenProxied })`
+                   present in the action handler
+                g. `set(state, chatId, 'dnsConflictRecords', null)` after
+                   use (leak prevention)
+                h. dns-confirm-conflict-replace has a branch that calls
+                   `goto['dns-add-proxied-choice']` for A/AAAA/CNAME on CF
+            6. HTTP smoke:
+                 GET http://localhost:3000                            → 200
+                 GET http://localhost:8001/api/sms-app/download/info  → 200
+            7. Update /app/test_result.md — the task titled
+               "Per-record CF proxied toggle..." — set working: true and
+               needs_retesting: false with an agent:'testing' entry.
+
   - task: "@LevelupwithME DNS A-record 'didn't update' — proxied=true was hiding origin IP (2026-07-06)"
     implemented: true
     working: true
