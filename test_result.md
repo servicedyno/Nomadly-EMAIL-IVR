@@ -51,6 +51,202 @@ user_problem_statement: |
        reason surfaced so support sees "uapi EPERM" not "500".
 
 backend:
+  - task: "Codebase cleanup pass #2 — archive 42 one-off scripts + root debug files (2026-07-06)"
+    implemented: true
+    working: true
+    file: "/app/scripts/archive/, /app/archive/"
+    stuck_count: 0
+    priority: "low"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFIED - All codebase archival cleanup assertions PASSED (2026-07-06):
+          
+          TASK 1 - SERVICE HEALTH: ✅ PASSED (4/4)
+            • backend service: RUNNING (pid 747, uptime 1:14:21) ✓
+            • frontend service: RUNNING (pid 751, uptime 1:14:19) ✓
+            • mongodb service: RUNNING (pid 45, uptime 1:24:59) ✓
+            • nodejs service: RUNNING (pid 4691, uptime 0:11:03) ✓
+            • All services stable since archival move — no crashes ✓
+          
+          TASK 2 - DIRECTORY STRUCTURE ASSERTS: ✅ ALL PASSED (7/7)
+            a. ✅ /app/scripts/archive/ exists ✓
+            b. ✅ /app/scripts/archive/README.md exists and mentions "user-specific recovery scripts" ✓
+            c. ✅ /app/scripts/archive/ contains 29 files (target: 29 moved) ✓
+            d. ✅ Spot-check — all 6 target files present in /app/scripts/archive/:
+               • audit_hhr2009_wallet.js ✓
+               • backfill_leprechaun_refund_tx.js ✓
+               • fetch_ciroovblzz_logs.py ✓
+               • investigate_chat_7191777173.js ✓
+               • deliver_davion419_creds.py ✓
+               • fetch_thebiggestbag22_logs.py ✓
+            e. ✅ /app/archive/ exists ✓
+            f. ✅ /app/archive/README.md exists ✓
+            g. ✅ /app/archive/ contains all 13 moved files:
+               • audit_origin_leaks.py ✓
+               • backend_test.py ✓
+               • backend_test_review.py ✓
+               • backend_test_store.py ✓
+               • cleanup_remaining_leaks.py ✓
+               • email_blast_test_simple.py ✓
+               • migrate_all_zones_to_tunnel.py ✓
+               • mongo_debug.py ✓
+               • setup_zero_trust.py ✓
+               • webhook_sim.py ✓
+               • webhook_sim_results.json ✓
+               • CODEBASE_AUDIT_REPORT.md ✓
+               • CODEBASE_IMPROVEMENTS_IMPLEMENTATION.md ✓
+          
+          TASK 3 - OLD LOCATIONS EMPTY: ✅ ALL PASSED (7/7)
+            a. ✅ /app/scripts/audit_hhr2009_wallet.js → "No such file" ✓
+            b. ✅ /app/scripts/check_davion419_mgmt_methods.js → "No such file" ✓
+            c. ✅ /app/scripts/fetch_ciroovblzz_logs.py → "No such file" ✓
+            d. ✅ /app/scripts/investigate_chat_7191777173.js → "No such file" ✓
+            e. ✅ /app/webhook_sim.py → "No such file" ✓
+            f. ✅ /app/backend_test.py → "No such file" ✓
+            g. ✅ /app/CODEBASE_AUDIT_REPORT.md → "No such file" ✓
+          
+          TASK 4 - NO LIVE CODE REFERENCES: ✅ PASSED
+            • grep -rln pattern across /app/js /app/backend /app/frontend/src /app/scripts /app/tests
+            • Filtered out /archive/ directories
+            • Result: NO_HITS_OUTSIDE_ARCHIVE ✓
+            • No live code references any archived filenames ✓
+          
+          TASK 5 - PACKAGE.JSON SCRIPTS PARSE CLEANLY: ✅ ALL PASSED (3/3)
+            • node -c scripts/lint_async_in_if.js → exit 0 ✓
+            • node -c scripts/check_lang_parity.js → exit 0 ✓
+            • node -c scripts/check_panel_lang_parity.js → exit 0 ✓
+          
+          TASK 6 - REGRESSION SUITES: ✅ BOTH PASSED (40/40 assertions)
+            • node js/tests/test_hellpeaces_uapi_eperm_fix.js → 20/20 passed, exit 0 ✓
+              [1] Diagnostic helpers exported (4 checks)
+              [2] Extractor recovers real cPanel error (1 check)
+              [3] EPERM detector flags extracted string (4 checks)
+              [4] Extractor defensive against unusual bodies (6 checks)
+              [5] Sanitization still applied (2 checks)
+              [6] /files/mkdir WHM fallback wired (5 checks)
+            
+            • node js/tests/test_hhr2009_false_delivered_fix.js → 20/20 passed, exit 0 ✓
+              [1] cr-register-domain-&-create-cpanel.js mid-flight return (5 checks)
+              [2] cpanel-job-handlers.js provision handler deferred (4 checks)
+              [3] Behavioural: handler classifies queued+deferred (7 checks)
+              [4] Regression sanity — @hellpeaces mkdir fallback (4 checks)
+          
+          TASK 7 - HTTP SMOKE TESTS: ✅ BOTH PASSED (2/2)
+            • curl http://localhost:3000 → HTTP 200 ✓
+            • curl http://localhost:8001/api/sms-app/download/info → HTTP 200 ✓
+          
+          CONCLUSION:
+          The codebase archival cleanup pass is COMPLETE and verified. All 42 files were successfully
+          moved to archive directories without breaking any live functionality:
+          
+          1. ARCHIVE STRUCTURE: Both /app/scripts/archive/ (29 user-specific scripts) and /app/archive/
+             (13 root files + 2 audit docs) are properly organized with README files explaining their
+             purpose and confirming nothing is loaded by the live runtime.
+          
+          2. CLEAN MIGRATION: All archived files are confirmed absent from their original locations.
+             No live code (JS, Python, or config) references any archived filenames outside the
+             archive directories.
+          
+          3. RUNTIME INTEGRITY: All services remain stable (no crashes since move). Package.json
+             script entries parse cleanly. Both regression test suites pass with 40/40 assertions.
+             HTTP endpoints respond correctly.
+          
+          4. SAFETY VERIFIED: The archival was truly non-functional — no behavior changed. The move
+             successfully cleaned up the codebase while preserving historical artifacts for future
+             reference if similar incidents occur.
+      
+      - working: "NA"
+        agent: "main"
+        comment: |
+          Non-functional archival pass. Moved 42 files from active source tree
+          into archive directories, kept as historical reference (not deleted).
+
+          MOVED to /app/scripts/archive/ (29 user-specific one-offs):
+            audit_hhr2009_wallet.js, backfill_leprechaun_refund_tx.js,
+            check_davion419_mgmt_methods.js, check_hhr2009_domain_status.js,
+            credit_7191777173_missing_30.js, davion_preflight.js,
+            deliver_davion419_creds.py, dig_davion419.py, dig_davion419_b.py,
+            dig_railway_davion.py, fetch_ciroovblzz_logs.py,
+            fetch_thebiggestbag22_logs.py, finalize_davion419.js,
+            find_davion419.js, inspect_davion_full.js,
+            investigate_chat_7191777173.js, investigate_hhr2009.py,
+            investigate_hhr2009_purchase.js, live_mgmt_test_davion419.js,
+            provision-davion419-vps.js, provision_davion419.js,
+            provision_davion419_azure_rdp.js, push_hhr2009_cf_ns_to_op.js,
+            recover_hhr2009_hosting.js,
+            recover_hhr2009_paperlesseviteguestreview.js,
+            redeliver_davion419_creds.py, restore-davion419-windows.js,
+            reverse_credit_7191777173.js, verify_davion419_rdp.js
+
+          MOVED to /app/archive/ (11 unreferenced root files + 2 audit docs):
+            audit_origin_leaks.py, backend_test.py, backend_test_review.py,
+            backend_test_store.py, cleanup_remaining_leaks.py,
+            email_blast_test_simple.py, migrate_all_zones_to_tunnel.py,
+            mongo_debug.py, setup_zero_trust.py, webhook_sim.py,
+            webhook_sim_results.json, CODEBASE_AUDIT_REPORT.md,
+            CODEBASE_IMPROVEMENTS_IMPLEMENTATION.md
+
+          Safety verification BEFORE moving:
+            • `grep -rln 'scripts/(name)' /app/js /app/backend /app/*.js`
+              for each of the 29 → zero non-script references
+            • test files (/app/tests, /app/backend/tests, /app/js/tests)
+              reference these usernames only in COMMENTS for attribution,
+              never invoke the archived scripts
+            • root Python files individually greped → all UNREFERENCED
+            • package.json scripts entries (start / lint / test) → unaffected
+            • supervisor configs (backend, frontend, nodejs, mongodb) → unaffected
+
+          Post-move sanity checks:
+            • sudo supervisorctl status — all 4 services still RUNNING
+              (backend pid 747, frontend pid 751, mongodb pid 45, nodejs
+              pid 4691)
+            • node js/tests/test_hellpeaces_uapi_eperm_fix.js → PASS
+            • node js/tests/test_hhr2009_false_delivered_fix.js → PASS
+
+          README stubs added:
+            • /app/archive/README.md — explains what's inside and that
+              nothing here is loaded by supervisor / package.json / routes
+            • /app/scripts/archive/README.md — same for user-specific ones
+
+          Skipped (too risky / high false-positive):
+            • Node deps in package.json — automated grep produced obvious
+              false positives (axios/express/mongodb flagged as "unused"),
+              regex was too naive to trust
+            • .env keys — 11 keys grepped as unused but several are
+              consumed dynamically via `process.env[...]` string lookups
+              (e.g. API_SIGNALWIRE for BulkSMS) or by CRA build
+              (DISABLE_ESLINT_PLUGIN) — not safe without deeper audit
+
+          Please deep_testing_backend_v2 verify:
+            1. supervisorctl status — nodejs/backend/frontend/mongodb RUNNING
+            2. /app/scripts/archive/ EXISTS with 29 .js/.py files + README.md
+            3. /app/archive/ EXISTS with 13 files + README.md
+            4. None of the archived filenames still appear at their old
+               location (spot-check 5 random ones like
+               `/app/scripts/audit_hhr2009_wallet.js` — must not exist)
+            5. No live JS or Python file references the moved paths:
+               grep -rln "audit_hhr2009_wallet.js\|davion419\|thebiggestbag22\|webhook_sim.py"
+                 /app/js /app/backend /app/frontend/src /app/*.js /app/*.py
+               → any hits must be either (a) inside /app/scripts/archive/
+               or /app/archive/, or (b) an attribution comment in a
+               regression test file (grep for the pattern "@davion419" or
+               "@ciroovblzz" is fine — those are inside comments).
+            6. Both regression suites still exit 0:
+                 node js/tests/test_hellpeaces_uapi_eperm_fix.js
+                 node js/tests/test_hhr2009_false_delivered_fix.js
+            7. package.json's `scripts` entries still resolve — try
+                 node -c scripts/lint_async_in_if.js
+                 node -c scripts/check_lang_parity.js
+                 node -c scripts/check_panel_lang_parity.js
+               all must exit 0.
+            8. Update /app/test_result.md — set working: true and
+               needs_retesting: false with an agent:'testing' entry
+               summarising which asserts passed. On any failure set
+               working: false + stuck_count += 1.
+
   - task: "Code cleanup — extract shared _makeWhmApi()/_resolveWhmBaseUrl() helpers + trim verbose comments (2026-07-06)"
     implemented: true
     working: true
