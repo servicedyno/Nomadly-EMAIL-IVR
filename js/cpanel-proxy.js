@@ -196,28 +196,22 @@ function sanitize(obj, extraHost) {
 
 // ─── cPanel error extraction ────────────────────────────
 //
-// When cPanel returns HTTP 500 (typical when a user-level `uapi` binary
-// exits with EPERM/status-1 because of a broken account shell or corrupted
-// homedir), axios throws with err.message = "Request failed with status
-// code 500" — literally what @hellpeaces reported on 2026-07-06 for his
-// "Create folder failed" complaint. The real diagnostic
-// (`"/usr/local/cpanel/uapi" exited with status 1 (EPERM)`) is embedded in
-// the response body under `cpanelresult.error`, `cpanelresult.data[0].reason`,
-// or as plain text. Digging it out gives support/admins the actual reason
-// they need to fix the underlying account (re-provision, fix shell) instead
-// of a useless "500" that tells nobody anything.
+// When cPanel returns HTTP 500 (typically when user-level `uapi` exits with
+// EPERM/status-1 due to a broken account shell/homedir — @hellpeaces
+// 5522767823, 2026-07-06), axios throws with a generic
+// "Request failed with status code 500" and drops the real diagnostic
+// (`"/usr/local/cpanel/uapi" exited with status 1 (EPERM)`) that lives in
+// the response body under cpanelresult.error / data[0].reason. Extracting
+// it here lets support/admins see the actual reason.
 function extractCpanelErrorFromResponse(err, host) {
   const body = err?.response?.data
   if (body === undefined || body === null) return null
   if (typeof body === 'string') {
     const trimmed = body.trim()
     if (!trimmed) return null
-    // Take the first non-empty line, capped at 500 chars — cPanel + uapi
-    // stderr often surface EPERM in the first line, then a stack trace.
     const firstLine = trimmed.split('\n').find(l => l.trim()) || trimmed
     return sanitizeString(firstLine.slice(0, 500), host)
   }
-  // Standard cPanel API2/UAPI JSON envelopes.
   const cp = body.cpanelresult || body.result || body
   const dataArr = Array.isArray(cp?.data)
     ? cp.data
@@ -234,9 +228,9 @@ function extractCpanelErrorFromResponse(err, host) {
   return sanitizeString(String(reason), host)
 }
 
-// Detect "uapi exited with status ... (EPERM)" class errors — used by
-// callers that want to switch to a WHM-root fallback (root can `su` into
-// the user's context and bypass the broken user-level shell/homedir).
+// Detect "uapi exited status 1 (EPERM)"-class errors — signals to callers
+// that they should try the WHM-root fallback (root can `su` into the user
+// context and bypass the broken user-level shell/homedir).
 const UAPI_EPERM_RX = /uapi.*(EPERM|status\s*1)|EPERM|permission denied|not permitted/i
 function looksLikeUapiPermFailure(msg) {
   return typeof msg === 'string' && UAPI_EPERM_RX.test(msg)
@@ -304,9 +298,8 @@ async function uapi(cpUser, cpPass, module, func, params = {}, method = 'GET', h
       return downResponse(err.code || err.message)
     }
     const status = err.response?.status
-    // Same rationale as api2(): pull the real cPanel error out of the
-    // response body (uapi EPERM/status-1) before falling back to axios's
-    // "Request failed with status code NNN" placeholder.
+    // Same rationale as api2(): pull the real cPanel error from the body
+    // before falling back to axios's generic status-code message.
     const cpanelMsg = extractCpanelErrorFromResponse(err, host)
     const msg = cpanelMsg || err.response?.data?.errors?.[0] || err.message
     const eperm = looksLikeUapiPermFailure(cpanelMsg || err.response?.data?.errors?.[0] || '')
@@ -397,9 +390,8 @@ async function api2(cpUser, cpPass, module, func, params = {}, host = null) {
       return downResponse(err.code || err.message)
     }
     const status = err.response?.status
-    // Dig the real cPanel reason out of the response body BEFORE falling
-    // back to axios's generic "Request failed with status code NNN" —
-    // otherwise `uapi EPERM` diagnostics get hidden from users AND admins.
+    // Extract the real cPanel reason from the response body before falling
+    // back to axios's generic "Request failed with status code NNN".
     const cpanelMsg = extractCpanelErrorFromResponse(err, host)
     const msg = cpanelMsg || err.response?.data?.errors?.[0] || err.message
     const eperm = looksLikeUapiPermFailure(cpanelMsg || err.response?.data?.errors?.[0] || '')
@@ -409,7 +401,6 @@ async function api2(cpUser, cpPass, module, func, params = {}, host = null) {
       errors: [sanitizeString(String(msg), host)],
       data: null,
       httpStatus: status || null,
-      // Tag EPERM so `/files/*` route can switch to the WHM-root fallback.
       code: eperm ? 'CPANEL_UAPI_EPERM' : undefined,
     }
   }

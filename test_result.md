@@ -51,6 +51,187 @@ user_problem_statement: |
        reason surfaced so support sees "uapi EPERM" not "500".
 
 backend:
+  - task: "Code cleanup — extract shared _makeWhmApi()/_resolveWhmBaseUrl() helpers + trim verbose comments (2026-07-06)"
+    implemented: true
+    working: true
+    file: "/app/js/cpanel-routes.js, /app/js/cpanel-proxy.js, /app/js/cpanel-job-handlers.js, /app/js/cr-register-domain-&-create-cpanel.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFIED - All code cleanup refactor assertions PASSED (2026-07-06):
+          
+          TASK 1 - SERVICE HEALTH: ✅ PASSED
+            • nodejs service: RUNNING (pid 4691, uptime 0:02:00) ✓
+            • backend service: RUNNING (pid 747, uptime 1:05:18) ✓
+            • frontend service: RUNNING (pid 751, uptime 1:05:16) ✓
+            • mongodb service: RUNNING (pid 45, uptime 1:15:56) ✓
+          
+          TASK 2 - STATIC GREP ASSERTS (/app/js/cpanel-routes.js): ✅ ALL PASSED (11/11)
+            a. ✅ function _resolveWhmBaseUrl(whmHost) defined at line 121 (< 200) ✓
+            b. ✅ function _makeWhmApi(whmHost) defined at line 131 (within a few lines of _resolveWhmBaseUrl) ✓
+            c. ✅ _makeWhmApi returns null check present: "if (!whmHost || !whmToken) return null" at line 133 ✓
+            d. ✅ _makeWhmApi builds axios client with baseURL from _resolveWhmBaseUrl(whmHost) at line 137 ✓
+            e. ✅ /files/mkdir route (line 580) contains: "const whmApi = looksBroken ? _makeWhmApi(req.whmHost || process.env.WHM_HOST) : null" ✓
+            f. ✅ /files/delete route (line 641) contains: "const whmApi = _makeWhmApi(req.whmHost || process.env.WHM_HOST)" ✓
+            g. ✅ NO occurrence of "axios.create(" inside /files/mkdir route body (extracted to helper) ✓
+            h. ✅ NO stray "const whmBaseURL" inside /files/mkdir or /files/delete route bodies ✓
+            i. ✅ mkdir route contains "cpanel_jsonapi_module: 'Fileman'" and "cpanel_jsonapi_func: 'mkdir'" ✓
+            j. ✅ mkdir route contains "via: 'whm-fallback'" on success and "via: 'whm-fallback-failed'" on failure ✓
+            k. ✅ delete route contains "via: 'whm-fallback'" and "[Panel] Deleted via WHM fallback:" log line at line 722 ✓
+          
+          TASK 3 - STATIC GREP ASSERTS (/app/js/cpanel-proxy.js): ✅ ALL PASSED (6/6)
+            a. ✅ function extractCpanelErrorFromResponse(err, host) defined at line 206 ✓
+            b. ✅ function looksLikeUapiPermFailure(msg) defined at line 235 ✓
+            c. ✅ UAPI_EPERM_RX const defined at line 234 with correct regex ✓
+            d. ✅ Both names present in module.exports block (lines 956-957) ✓
+            e. ✅ api2() catch block tags "code: eperm ? 'CPANEL_UAPI_EPERM'" at lines 312, 404 ✓
+            f. ✅ uapi() catch block calls extractCpanelErrorFromResponse at line 303 ✓
+          
+          TASK 4 - STATIC GREP ASSERTS (/app/js/cr-register-domain-&-create-cpanel.js): ✅ ALL PASSED (3/3)
+            a. ✅ Mid-flight branch returns "success: false, queued: true, deferred: true, code: 'CPANEL_DOWN'" at line 464 ✓
+            b. ✅ HHR2009 attribution anchor present at lines 35, 307, 388, 456 ✓
+            c. ✅ "!info._fromQueue" guard around "preparing" DM present at lines 141, 452 ✓
+          
+          TASK 5 - STATIC GREP ASSERTS (/app/js/cpanel-job-handlers.js): ✅ ALL PASSED (3/3)
+            a. ✅ "result?.queued === true" classifier present at line 87 ✓
+            b. ✅ Returns "{ ok: false, deferred: true, reason: result.code || 'CPANEL_DOWN' }" at line 89 ✓
+            c. ✅ HHR2009 attribution anchor present at line 80 ✓
+          
+          TASK 6 - REGRESSION SUITES: ✅ BOTH PASSED (exit 0)
+            ✅ node js/tests/test_hellpeaces_uapi_eperm_fix.js — 20/20 assertions passed ✓
+              • [1] Diagnostic helpers exported (4 checks)
+              • [2] Extractor recovers real cPanel error from HTTP 500 body (1 check)
+              • [3] EPERM detector flags the extracted string (4 checks)
+              • [4] Extractor is defensive against unusual bodies (6 checks)
+              • [5] Sanitization is still applied (2 checks)
+              • [6] /files/mkdir route has WHM-root fallback wired (5 checks)
+            
+            ✅ node js/tests/test_hhr2009_false_delivered_fix.js — 20/20 assertions passed ✓
+              • [1] cr-register-domain-&-create-cpanel.js mid-flight return value (5 checks)
+              • [2] cpanel-job-handlers.js provision handler deferred branch (4 checks)
+              • [3] Behavioural: handler classifies queued+deferred as deferred (7 checks)
+              • [4] Regression sanity — @hellpeaces mkdir WHM fallback still wired (4 checks)
+          
+          TASK 7 - BEHAVIOURAL SANITY (_makeWhmApi helper): ✅ ALL PASSED (12/12)
+            ✅ _makeWhmApi() defined at module scope (line 131) ✓
+            ✅ _resolveWhmBaseUrl() defined at module scope (line 121) ✓
+            ✅ _makeWhmApi returns null when whmHost or whmToken is missing ✓
+            ✅ _makeWhmApi uses _resolveWhmBaseUrl(whmHost) for baseURL ✓
+            ✅ _makeWhmApi returns axios.create() instance ✓
+            ✅ Authorization header shape is "whm <user>:<token>" ✓
+            ✅ _resolveWhmBaseUrl returns baseURL containing "/json-api" ✓
+            ✅ /files/mkdir route uses _makeWhmApi(req.whmHost || process.env.WHM_HOST) ✓
+            ✅ /files/delete route uses _makeWhmApi(req.whmHost || process.env.WHM_HOST) ✓
+            ✅ /files/mkdir route body does NOT contain inline axios.create() ✓
+            ✅ /files/mkdir route body does NOT contain inline whmBaseURL declaration ✓
+            ✅ /files/delete route body does NOT contain inline axios.create() ✓
+          
+          CONCLUSION:
+          The code cleanup refactor is COMPLETE and behaviour-preserving. All verification tasks passed:
+          
+          1. HELPER EXTRACTION: The two module-scope helpers (_resolveWhmBaseUrl and _makeWhmApi) are
+             correctly defined and eliminate ~20 lines of duplicated axios setup from each route.
+             Both /files/mkdir and /files/delete now use the shared helper instead of inline axios.create().
+          
+          2. NO FUNCTIONAL CHANGE: Both regression test suites pass (40/40 assertions total), confirming:
+             - The @hellpeaces EPERM fix (error surfacing + WHM fallback) is still intact
+             - The @HHR2009 false-success bug fix (mid-flight WHM-down handler) is still intact
+          
+          3. ATTRIBUTION PRESERVED: All attribution anchors (@hellpeaces, @HHR2009, CPANEL_UAPI_EPERM,
+             HHR2009, 5522767823) are preserved for tests and future readers.
+          
+          4. COMMENT CLEANUP: Verbose comments were trimmed while keeping essential attribution and
+             test anchors. Line count reduced by 40 lines total across 4 files.
+          
+          The refactor successfully deduplicates WHM fallback wiring and makes it reusable for future
+          file operations (rename/copy/move) without changing any runtime behavior.
+      
+      - working: "NA"
+        agent: "main"
+        comment: |
+          Non-functional cleanup pass (behaviour-preserving refactor). Changes:
+
+          1. /app/js/cpanel-routes.js — extracted two module-scope helpers to
+             deduplicate the WHM-root fallback wiring that mkdir + delete
+             both need (and future ops rename/copy/move can reuse):
+               • _resolveWhmBaseUrl(whmHost) — picks the CF tunnel base
+                 (WHM_API_URL/json-api) when host is the default shared box,
+                 or direct https://<host>:2087/json-api for custom-box
+                 resellers. Same logic that lived inline in both routes.
+               • _makeWhmApi(whmHost) — returns a configured axios instance
+                 (Authorization: whm root:<token>, optional CF Access
+                 headers, 30s timeout, self-signed OK) or null if creds
+                 missing. Caller checks null → skips fallback.
+             /files/mkdir and /files/delete now both use _makeWhmApi() —
+             ~20 lines of duplicated axios setup removed from each.
+
+          2. /app/js/cpanel-proxy.js — trimmed verbose comments on
+             extractCpanelErrorFromResponse() and looksLikeUapiPermFailure()
+             and on the api2()/uapi() catch blocks. Attribution anchors
+             kept (@hellpeaces, 5522767823, EPERM, CPANEL_UAPI_EPERM tag)
+             for tests + future readers.
+
+          3. /app/js/cr-register-domain-&-create-cpanel.js — trimmed the
+             three verbose comment blocks added in the @HHR2009 fix
+             (mid-flight defer, preflight defer, and "preparing" DM guard).
+             Anchor strings HHR2009 + `success: false, queued: true,
+             deferred: true, code: 'CPANEL_DOWN'` kept for regression tests.
+
+          4. /app/js/cpanel-job-handlers.js — trimmed the verbose comment on
+             the queued===true classifier. Kept HHR2009 attribution.
+
+          Local verification:
+            • node -c on all 4 files — syntax OK
+            • node js/tests/test_hellpeaces_uapi_eperm_fix.js — 20/20 PASS
+            • node js/tests/test_hhr2009_false_delivered_fix.js — 20/20 PASS
+            • sudo supervisorctl restart nodejs — clean start (pid 4691)
+            • GET / (frontend)                 → 200
+            • GET /api/sms-app/download/info   → 200 (proxy chain intact)
+
+          Line count change:
+            cpanel-routes.js:      2923 → 2909  (-14 net: added ~40-line
+                                                 helper block, removed
+                                                 ~54 lines of duplication)
+            cpanel-proxy.js:        965 →  958  (-7 comment reduction)
+            cpanel-job-handlers.js: 267 →  261  (-6 comment reduction)
+            cr-register-domain-&-create-cpanel.js: 921 → 908 (-13)
+
+          Please deep_testing_backend_v2 verify:
+            1. nodejs service RUNNING under supervisor
+            2. Static grep asserts in /app/js/cpanel-routes.js:
+                 • function _resolveWhmBaseUrl( defined
+                 • function _makeWhmApi( defined and returns axios instance
+                 • /files/mkdir route uses `_makeWhmApi(req.whmHost || process.env.WHM_HOST)`
+                 • /files/delete route uses `_makeWhmApi(req.whmHost || process.env.WHM_HOST)`
+                 • No stray `axios.create({` inside either /files/mkdir or
+                   /files/delete route bodies (they now delegate to helper)
+                 • No stray `whmBaseURL` local variable inside either route
+                 • cpanel_jsonapi_module: 'Fileman' + cpanel_jsonapi_func:
+                   'mkdir' still present in mkdir route (test anchor)
+            3. Static grep asserts in /app/js/cpanel-proxy.js:
+                 • extractCpanelErrorFromResponse still exported
+                 • looksLikeUapiPermFailure still exported
+                 • api2() catch still references CPANEL_UAPI_EPERM
+                 • UAPI_EPERM_RX regex still defined
+            4. Run BOTH regression suites — MUST exit 0:
+                 node js/tests/test_hellpeaces_uapi_eperm_fix.js
+                 node js/tests/test_hhr2009_false_delivered_fix.js
+            5. Behavioural sanity — load /app/js/cpanel-routes.js in a mock
+               harness and confirm _makeWhmApi():
+                 • Returns null when process.env.WHM_TOKEN is unset
+                 • Returns null when whmHost is falsy
+                 • Returns an object with .get/.post methods (axios instance)
+                   when both are set
+                 • baseURL contains '/json-api' path segment
+                 • Authorization header shape is `whm <user>:<token>`
+            6. Update /app/test_result.md — set working: true, needs_retesting:
+               false with an agent:'testing' entry summarising which asserts
+               passed. If any fail, set working: false + stuck_count += 1.
+
   - task: "@HHR2009 hosting purchase — false 'credentials delivered' when WHM license expired mid-flight (2026-07-06)"
     implemented: true
     working: true

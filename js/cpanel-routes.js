@@ -104,6 +104,49 @@ async function isDomainOwnedByChat(db, domain, chatId) {
 }
 
 
+// ─── WHM-root fallback helpers ─────────────────────────────
+//
+// Both /files/delete and /files/mkdir need to fall back to a root-level
+// WHM call (impersonating the cPanel user) when the user-level API2 call
+// fails — typically with a "uapi exited status 1 (EPERM)" style error
+// caused by a broken account shell/homedir. See @hellpeaces (5522767823)
+// 2026-07-06 for the incident that motivated extracting these helpers.
+// Consolidated here so future ops (rename/copy/move) can reuse the same
+// wiring without another copy-paste.
+
+// Resolve the WHM base URL. Prefer WHM_API_URL (tunnel) when the account
+// lives on the default shared host — direct IP:2087 is firewalled by the
+// DO lockdown. Resellers on their own box get direct :2087 via their
+// custom hostname.
+function _resolveWhmBaseUrl(whmHost) {
+  const whmApiUrl = process.env.WHM_API_URL
+  if (whmApiUrl && whmHost === process.env.WHM_HOST) {
+    return `${whmApiUrl.replace(/\/+$/, '')}/json-api`
+  }
+  return `https://${whmHost}:2087/json-api`
+}
+
+// Build a configured axios client for WHM /json-api calls. Returns null if
+// WHM credentials aren't available (caller should skip the fallback).
+function _makeWhmApi(whmHost) {
+  const whmToken = process.env.WHM_TOKEN
+  if (!whmHost || !whmToken) return null
+  const https = require('https')
+  const axios = require('axios')
+  return axios.create({
+    baseURL: _resolveWhmBaseUrl(whmHost),
+    headers: {
+      Authorization: `whm ${process.env.WHM_USERNAME || 'root'}:${whmToken}`,
+      ...(process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET ? {
+        'CF-Access-Client-Id': process.env.CF_ACCESS_CLIENT_ID,
+        'CF-Access-Client-Secret': process.env.CF_ACCESS_CLIENT_SECRET,
+      } : {}),
+    },
+    timeout: 30000,
+    httpsAgent: new https.Agent({ rejectUnauthorized: false }),
+  })
+}
+
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } })
 
@@ -538,49 +581,23 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     const { dir, name } = req.body
     if (!dir || !name) return res.status(400).json({ error: 'dir and name are required' })
 
-    // Attempt 1: user-level cPanel API2 (Fileman::mkdir). This is what the
-    // panel has always done — works for healthy accounts.
+    // Attempt 1: user-level cPanel API2 (Fileman::mkdir).
     const result = await cpProxy.createDirectory(req.cpUser, req.cpPass, dir, name, req.whmHost)
     if (result?.status === 1) return res.json(result)
 
     // Attempt 2: WHM-root fallback for uapi EPERM / status-1 failures.
-    // Prod bug from @hellpeaces (5522767823) 2026-07-06: user's cPanel
-    // account had a broken shell/homedir that made `uapi` exit with EPERM,
-    // so user-level mkdir returned HTTP 500. Root, invoking the same API
-    // via WHM's /json-api/cpanel?cpanel_jsonapi_user=<user>, can `su` into
-    // the user's context and bypass the EPERM class of failures. Same
-    // pattern that /files/delete has used successfully for months.
-    const isEperm = result?.code === 'CPANEL_UAPI_EPERM'
-    const isServerErr = result?.httpStatus && result.httpStatus >= 500
-    const looksBroken = isEperm || isServerErr || result?.errors?.some(e => cpProxy.looksLikeUapiPermFailure && cpProxy.looksLikeUapiPermFailure(e))
-    const whmHost = req.whmHost || process.env.WHM_HOST
-    const whmToken = process.env.WHM_TOKEN
-    const whmApiUrl = process.env.WHM_API_URL
-    const whmBaseURL = (whmApiUrl && whmHost === process.env.WHM_HOST)
-      ? `${whmApiUrl.replace(/\/+$/, '')}/json-api`
-      : `https://${whmHost}:2087/json-api`
+    // Motivated by @hellpeaces (5522767823) 2026-07-06 — broken shell/homedir
+    // made user-level `uapi` exit EPERM. Root, calling via WHM's
+    // /json-api/cpanel?cpanel_jsonapi_user=<user>, bypasses the class.
+    const looksBroken =
+      result?.code === 'CPANEL_UAPI_EPERM' ||
+      (result?.httpStatus && result.httpStatus >= 500) ||
+      result?.errors?.some(e => cpProxy.looksLikeUapiPermFailure && cpProxy.looksLikeUapiPermFailure(e))
+    const whmApi = looksBroken ? _makeWhmApi(req.whmHost || process.env.WHM_HOST) : null
 
-    if (looksBroken && whmHost && whmToken) {
+    if (whmApi) {
       log(`[Panel] mkdir user-level failed for "${name}" in ${dir}, trying WHM fallback (user: ${req.cpUser}, reason: ${result?.errors?.[0] || 'unknown'})`)
       try {
-        const https = require('https')
-        const axios = require('axios')
-        const whmApi = axios.create({
-          baseURL: whmBaseURL,
-          headers: {
-            Authorization: `whm ${process.env.WHM_USERNAME || 'root'}:${whmToken}`,
-            ...(process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET ? {
-              'CF-Access-Client-Id': process.env.CF_ACCESS_CLIENT_ID,
-              'CF-Access-Client-Secret': process.env.CF_ACCESS_CLIENT_SECRET,
-            } : {}),
-          },
-          timeout: 30000,
-          httpsAgent: new https.Agent({ rejectUnauthorized: false }),
-        })
-
-        // Fire the mkdir call as ROOT impersonating the cPanel user.
-        // Matches the exact API2 signature cpProxy.createDirectory uses so
-        // behaviour stays identical on the happy path.
         const r = await whmApi.get('/cpanel', {
           params: {
             'api.version': 1,
@@ -592,7 +609,6 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
             name,
           },
         })
-
         const cp = r.data?.cpanelresult || {}
         const dataArr = Array.isArray(cp.data) ? cp.data : []
         const created = dataArr.length > 0 && dataArr[0]?.path && dataArr[0]?.name
@@ -602,8 +618,7 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
           return res.json({ status: 1, data: dataArr, errors: null, via: 'whm-fallback' })
         }
 
-        // WHM fallback still failed — surface the deeper reason so support
-        // sees "uapi EPERM" rather than "Request failed with status code 500".
+        // Surface the deeper reason so support sees "uapi EPERM" not "500".
         const whmReason = dataArr[0]?.reason || cp.error || 'WHM fallback also failed'
         log(`[Panel] mkdir WHM fallback failed: "${name}" in ${dir} (user: ${req.cpUser}) — ${whmReason}`)
         return res.status(500).json({
@@ -615,15 +630,11 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
         })
       } catch (e) {
         log(`[Panel] mkdir WHM fallback exception: ${e.message} (user: ${req.cpUser})`)
-        // Fall through to the original user-level result so we don't hide it.
+        // Fall through to the user-level result — the api2()/uapi() normaliser
+        // already extracted the real cPanel reason from the response body.
       }
     }
 
-    // No fallback fired (or fallback threw) — return the user-level result
-    // as-is. The api2()/uapi() normaliser has already dug the real cPanel
-    // reason out of the response body, so the panel will now show
-    // e.g. `"/usr/local/cpanel/uapi" exited with status 1 (EPERM)` instead
-    // of the useless "Request failed with status code 500".
     return res.json(result)
   })
 
@@ -645,33 +656,9 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
       }
 
       // User-level cPanel API2 failed — try WHM-level fallback (root can delete on behalf of user)
-      const whmHost = req.whmHost || process.env.WHM_HOST
-      const whmToken = process.env.WHM_TOKEN
-      // Route through the WHM tunnel when the account lives on the default
-      // shared server — direct IP:2087 is firewalled by the DO lockdown, same
-      // regression that broke @ciroovblzz's file listing. Resellers on their
-      // own box still get direct access via their custom hostname.
-      const whmApiUrl = process.env.WHM_API_URL
-      const whmBaseURL = (whmApiUrl && whmHost === process.env.WHM_HOST)
-        ? `${whmApiUrl.replace(/\/+$/, '')}/json-api`
-        : `https://${whmHost}:2087/json-api`
-      if (whmHost && whmToken) {
+      const whmApi = _makeWhmApi(req.whmHost || process.env.WHM_HOST)
+      if (whmApi) {
         log(`[Panel] Delete user-level failed for ${file}, trying WHM fallback (user: ${req.cpUser}, reason: ${result?.errors?.[0] || 'unknown'})`)
-        const https = require('https')
-        const axios = require('axios')
-        const whmApi = axios.create({
-          baseURL: whmBaseURL,
-          headers: {
-            Authorization: `whm ${process.env.WHM_USERNAME || 'root'}:${whmToken}`,
-            ...(process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET ? {
-              'CF-Access-Client-Id': process.env.CF_ACCESS_CLIENT_ID,
-              'CF-Access-Client-Secret': process.env.CF_ACCESS_CLIENT_SECRET,
-            } : {}),
-          },
-          timeout: 30000,
-          httpsAgent: new https.Agent({ rejectUnauthorized: false }),
-        })
-
         // Helper: run a single fileop call as the user, return cpanelresult.data
         const runOp = async (op) => {
           const r = await whmApi.get('/cpanel', {
