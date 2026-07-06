@@ -30,33 +30,44 @@ if (mpChatAnchor < 0) { console.error('❌ Could not find mpChat handler anchor'
 const mpChatSlice = INDEX.slice(mpChatAnchor, mpChatAnchor + 8000)
 
 // ────────────────────────────────────────────────────────────
-// Bug #1 — '🏠 Main Menu' is an escape hatch in mpChat
+// Bug #1 — '🏠 Main Menu' is an escape hatch (handled by GLOBAL cancel
+// handler upstream, which now also closes the marketplace conversation +
+// notifies the other party).
 // ────────────────────────────────────────────────────────────
-console.log('─── Bug #1: 🏠 Main Menu escape hatch ───')
+console.log('─── Bug #1: 🏠 Main Menu escape hatch (global handler) ───')
 
+// Locate the global cancel handler block.
+const cancelHandlerAnchor = INDEX.indexOf("isCancelPress(message) || message === '🏠 Main Menu'")
+it('global cancel handler line found', cancelHandlerAnchor > 0)
+// Grab ~6KB forward from the anchor (covers the cancel-refund block, then
+// our new mpChat cleanup block, and the support-session cleanup).
+const cancelSlice = INDEX.slice(cancelHandlerAnchor, cancelHandlerAnchor + 6000)
+
+it('global handler has MARKETPLACE mpChat cleanup block',
+  cancelSlice.includes('MARKETPLACE mpChat cleanup'))
+it('global handler checks `action === \'mpChat\'` before cleanup',
+  /if \(action === 'mpChat'\)/.test(cancelSlice))
+it('global handler calls marketplaceService.closeConversation(...)',
+  /marketplaceService\.closeConversation\(_convId\)/.test(cancelSlice))
+it('global handler resets user mpActiveConversation to null',
+  /set\(state, chatId, 'mpActiveConversation', null\)/.test(cancelSlice))
+it('global handler notifies the other party (mpChatEndedNotify or mpChatClosedReset)',
+  cancelSlice.includes('mpChatEndedNotify') && cancelSlice.includes('mpChatClosedReset'))
+it('global handler resets other party state if they\'re still in the same chat',
+  /set\(state, _otherParty, 'action', a\.mpHome\)/.test(cancelSlice))
+it('global handler logs the marketplace cleanup event',
+  cancelSlice.includes('Conversation') && cancelSlice.includes('closed by'))
+
+// The mpChat local escape hatch should NO LONGER match '🏠 Main Menu'
+// (that button is fully handled by the upstream global handler now).
 const escapeHatchLine = mpChatSlice.match(/if \(message === '\/done' \|\| isBackPress\(message\) \|\| message === '↩️ Back'[^)]*\) \{/)
-it('mpChat escape-hatch conditional found',
-  !!escapeHatchLine)
-it('escape-hatch matches /done',
+it('mpChat local escape-hatch conditional found', !!escapeHatchLine)
+it('mpChat local escape-hatch DOES NOT match 🏠 Main Menu (handled upstream)',
+  escapeHatchLine && !escapeHatchLine[0].includes('🏠 Main Menu'))
+it('mpChat local escape-hatch still matches /done',
   escapeHatchLine && escapeHatchLine[0].includes("'/done'"))
-it('escape-hatch matches isBackPress(message)',
-  escapeHatchLine && escapeHatchLine[0].includes('isBackPress(message)'))
-it('escape-hatch matches "↩️ Back" literal',
+it('mpChat local escape-hatch still matches ↩️ Back',
   escapeHatchLine && escapeHatchLine[0].includes('↩️ Back'))
-it("escape-hatch matches '🏠 Main Menu' literal (Bug #1 FIX)",
-  escapeHatchLine && escapeHatchLine[0].includes('🏠 Main Menu'))
-
-// Verify 🏠 Main Menu is routed to displayMainMenuButtons (goes home, not
-// just to marketplace() which would re-enter mpHome).
-it("🏠 Main Menu returns to goto.displayMainMenuButtons()",
-  /message === '🏠 Main Menu'[^\n]*goto\.displayMainMenuButtons/.test(mpChatSlice))
-
-// Verify the escape hatch is BEFORE the seller-fee gate → unpaid sellers
-// can still tap 🏠 Main Menu without hitting the paywall.
-const escapeIdx = mpChatSlice.indexOf("'🏠 Main Menu'")
-const gateIdx = mpChatSlice.indexOf('SELLER FEE GATE')
-it('🏠 Main Menu check is BEFORE the seller-fee gate',
-  escapeIdx > 0 && gateIdx > 0 && escapeIdx < gateIdx)
 
 // ────────────────────────────────────────────────────────────
 // Bug #2 — single getConversation(convId) per mpChat message

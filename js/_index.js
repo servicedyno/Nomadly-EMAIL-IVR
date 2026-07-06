@@ -12883,6 +12883,42 @@ All verified numbers generated during sourcing.`))
       log(`[CloudPhone] Cancel-refund handler error for ${chatId}: ${cancelRefundErr.message}`)
     }
     await set(state, chatId, 'action', 'none')
+    // ━━━ MARKETPLACE mpChat cleanup on Cancel / 🏠 Main Menu ━━━━━━━━━━━━━━
+    // Bug #1 fix (2026-07-06): '🏠 Main Menu' is intercepted here BEFORE the
+    // mpChat action handler runs (line ~16912), so mpChat's own escape-hatch
+    // (which closes the conversation + notifies the other party) never
+    // executed when the user tapped 🏠 Main Menu — the conversation stayed
+    // "active" in the DB and the other party was never told the chat ended.
+    // Mirror the support-chat cleanup pattern below.
+    try {
+      if (action === 'mpChat') {
+        const _info2 = await get(state, chatId)
+        const _convId = _info2?.mpActiveConversation
+        if (_convId) {
+          const _conv = await marketplaceService.getConversation(_convId).catch(() => null)
+          await marketplaceService.closeConversation(_convId).catch(() => {})
+          await set(state, chatId, 'mpActiveConversation', null)
+          const _otherParty = _conv?.buyerId === chatId ? _conv?.sellerId : _conv?.buyerId
+          if (_otherParty && _conv) {
+            try {
+              const _otherInfo = await get(state, _otherParty)
+              const _otherLang = _otherInfo?.userLanguage || 'en'
+              const _otherT = translation('t', _otherLang)
+              if (_otherInfo?.action === 'mpChat' && _otherInfo?.mpActiveConversation === _convId) {
+                await set(state, _otherParty, 'action', a.mpHome)
+                await set(state, _otherParty, 'mpActiveConversation', null)
+                send(_otherParty, _otherT.mpChatClosedReset(_conv.productTitle || 'Product'), { parse_mode: 'HTML' })
+              } else {
+                send(_otherParty, _otherT.mpChatEndedNotify(_conv.productTitle || 'Product'), { parse_mode: 'HTML' })
+              }
+            } catch (_) { /* notify best-effort */ }
+          }
+          log(`[Marketplace] Conversation ${_convId} closed by ${chatId} via Cancel/Main Menu`)
+        }
+      }
+    } catch (mpCancelErr) {
+      log(`[Marketplace] Cancel-cleanup error for ${chatId}: ${mpCancelErr.message}`)
+    }
     if (action === a.supportChat) {
       // Cancel from support should end support session
       await set(supportSessions, chatId, 0)
@@ -16914,12 +16950,11 @@ ${message.replace(/\n/g, '<br>')}
     if (!convId) return goto.marketplace()
 
     // /done — end conversation
-    // Bug #1 fix (2026-07-06): '🏠 Main Menu' was previously falling through
-    // to the seller-fee gate → the literal button text got relayed to the
-    // other party as a chat message (and unpaid sellers even hit the
-    // paywall). Add it to this escape-hatch alongside /done + ↩️ Back so
-    // the button ALWAYS returns to the marketplace home instead.
-    if (message === '/done' || isBackPress(message) || message === '↩️ Back' || message === '🏠 Main Menu') {
+    // Note (2026-07-06): '🏠 Main Menu' is intercepted by the global cancel
+    // handler upstream (line ~12853) BEFORE this mpChat handler runs, so
+    // conversation-closure for that button is done there. This local escape
+    // hatch handles /done + ↩️ Back only.
+    if (message === '/done' || isBackPress(message) || message === '↩️ Back') {
       await marketplaceService.closeConversation(convId)
       const conv = await marketplaceService.getConversation(convId)
       const otherParty = conv?.buyerId === chatId ? conv?.sellerId : conv?.buyerId
@@ -16937,9 +16972,6 @@ ${message.replace(/\n/g, '<br>')}
         }
       }
       send(chatId, t.mpChatEnded, { parse_mode: 'HTML' })
-      // 🏠 Main Menu should take the user all the way home, not just to
-      // marketplace(). ↩️ Back and /done still return to marketplace().
-      if (message === '🏠 Main Menu') return goto.displayMainMenuButtons ? goto.displayMainMenuButtons() : goto.marketplace()
       return goto.marketplace()
     }
 
@@ -16948,8 +16980,13 @@ ${message.replace(/\n/g, '<br>')}
     // this user is the SELLER in the conversation AND has NOT paid the
     // one-time $50 marketplace access fee. Route them into the paywall so
     // they can pay & resume. Buyers are never gated (they are the buyerId,
-    // never the sellerId). Escape hatches above (/done, ↩️ Back,
-    // 🏠 Main Menu) always work so an unpaid seller can leave without paying.
+    // never the sellerId). Escape hatches always work so an unpaid seller
+    // can leave without paying:
+    //   - '/done' + '↩️ Back'      → handled by the local escape-hatch above
+    //   - '🏠 Main Menu'           → intercepted by the global cancel handler
+    //                                upstream (line ~12853), which now also
+    //                                closes the conversation + notifies the
+    //                                other party (Bug #1 fix, 2026-07-06).
     //
     // Why here: sellers whose action state was already 'mpChat' when the
     // seller fee shipped on 2026-07-01 skipped both the mp:reply callback
