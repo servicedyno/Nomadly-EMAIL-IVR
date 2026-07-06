@@ -3,7 +3,25 @@
 ## Original problem statement
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
-## 2026-07-06 — Fresh pod bootstrap (current session)
+## 2026-07-06 — Marketplace OLD-seller fee gates (defense-in-depth)
+**Bug**: 10 unpaid sellers with 24 pre-fee listings + 25 open convs could still post/reply in the marketplace without paying the $50 fee. Their action-state (mpChat / mpConversations / mpNewConfirm / mpManageListing / mpEditTitle / mpEditDesc / mpEditPrice) skipped the two original entry gates (mp:reply callback + t.mpListProduct button).
+
+**Fix** in `/app/js/_index.js`:
+- New module-scope helpers `_showMpSellerPaywallInline(chatId, intent, convId)` + `_isSellerUnpaid(chatId, conv)`.
+- 8 new gates added at every seller-action code path: mpChat text relay, mpChat photo relay, mpConversations resume, mpNewConfirm publish, mpManageListing edit/mark-sold (REMOVE stays free), mpEditTitle/Desc/Price handlers.
+- Buyers NEVER gated — check scoped to `String(conv.sellerId) === String(chatId)`.
+- Escape hatches (/done, ↩️ Back, remove listing) always free so unpaid sellers can leave without paying.
+
+**Verified**: 44/44 static-wiring + 37/37 behavioural (webhook + Mongo) = 81/81 assertions passed via deep_testing_backend_v2.
+
+**New files**:
+- `scripts/audit_marketplace_unpaid_sellers.js` — one-shot prod audit (found the 10 unpaid sellers).
+- `scripts/audit_mp_prod_logs.py` — Railway prod log grep for marketplace events.
+- `js/tests/test_marketplace_old_seller_gates.js` — static-source guard (44 checks).
+
+---
+
+## 2026-07-06 — Fresh pod bootstrap (earlier this session)
 - Created `/app/frontend/.env` with `REACT_APP_BACKEND_URL=https://3900c451-f55b-4790-a190-9dbb33cdaac5.preview.emergentagent.com` (from supervisor `APP_URL` env).
 - Created `/app/backend/.env` with all user-supplied credentials **plus mandatory README safety overrides**:
   - `BOT_ENVIRONMENT="development"` (user supplied `production`; would hijack prod bot webhook)
