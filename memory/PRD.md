@@ -2,6 +2,57 @@
 
 ## Original problem statement
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
+## 2026-07-08 — @rubixeleniyan (chatId 8011229362) churn incident → 12 fixes shipped
+
+### Trigger
+Prod user complained *"my cpanel wont let me update files"* on Jul 8 12:54, rated support **bad** twice, then cancelled a $105 Premium Anti-Red plan (`evene479`/`eventrsvp.sbs`), then immediately opened a $100 Golden intent (`jjIiy`) on `streakevents.fr` — which the AI failed to recognize when they said *"i deposited $100 for new cpanel"*.
+
+### Root causes found in Railway prod logs
+Cross-referenced deployment `c640c247` logs with MongoDB records (paymentIntents, cpanelAccounts, escalations, state, transactions).
+
+### Fixes shipped
+| # | Bug | File | Fix |
+|---|-----|------|-----|
+| 1 | Background CF IP Fix ran on `deleted:true` cPanels | `js/anti-red-service.js` | `deployCFIPFix()` now returns `skipped:'account_deleted_or_cancelled'` if `acct.deleted \|\| acct.cancelledByUser \|\| acct.suspended`. Once-per-hour skip log to avoid spam. |
+| 2 | `state.currentPackage.expiresAt` = purchase + **12h** for ALL plans (Freedom Plan carry-over bug) → 30-day hosting plans looked expired within half a day, expiry reminders never fired | `js/db.js` | New `_planDurationMs()` helper: Freedom=12h, weekly=7d, yearly=365d, default (Monthly/30-day/Golden)=30d. `assignPackageToUser()` uses it. |
+| 3 | AI Support only queried `walletOf` — missed pending payment intents. User said *"I deposited $100"*, AI said *"your wallet is $5"* → churn | `js/ai-support.js` | `getUserContext()` now adds RECENT PAYMENT INTENTS (last 48h) + RECENTLY CANCELLED HOSTING PLANS (last 7d) sections with explicit "if user says 'I deposited', reference the ref + escalate" prompt. |
+| 4 | `[reset] Unrecognized message` kicked user out of payment flow when they typed *"SENT"* / *"paid"* / a tx hash | `js/_index.js` (`a.proceedWithPaymentProcess`) | Whitelist of status words + tx-hash regex. Replies with "we're watching the blockchain for ref X" instead of resetting state. If tx-hash-like, stashes it on the intent + pings admin. |
+| 5 | Cloudflare Origin CA cert failed for every new addon domain: *"zone-name X not part of your account"* — silent origin TLS downgrade | `js/cf-service.js` | Uses `CLOUDFLARE_ORIGIN_CA_KEY` env var (User Service Key) when set. When still failing, throttled admin WARN log once per 6h with exact fix instructions. |
+| 6 | Escalation reminders hard-capped at **3** — after that, silence for 48+ h until manual ack | `js/_index.js` (`escalationReminderTick`) | Removed cap. New `_nextEscalationReminderMs()` back-off: 10m → 30m×2 → 2h×3 → 12h∞. From reminder #4 also cc's secondary admin (`ESCALATION_SECONDARY_ADMIN_CHAT_ID` env; falls back to `TELEGRAM_NOTIFY_GROUP_ID`). |
+| 7 | Cancellation UX gaps: no "no refund" warning shown loudly enough | `js/lang/*.js` (already there) + confirm handler | Existing text already says "no refund will be issued" (4 langs). Verified. Also added **audit script** `/app/scripts/audit-cancellation-refunds.js` — dry-run scan for cancelled plans with a `refundAmount>0` field, reversals via `$inc walletOf.usdOut`. Ran clean (0 historical refunds). |
+| 8 | "Bad" rating did nothing preventive — user cancelled 41s later | `js/_index.js` (rate_support callback) + cancel handler | On `rate_support_bad`: auto-open/upgrade a `severity:critical` escalation, set `state.badRatingCooldownUntil = now+15min`, send localized bridging message ("senior agent paged, please hold off"). Cancel Hosting Plan handler checks this cooldown and blocks the flow with a friendly message. |
+| 9 | `MAIL_RELAY_HOST` unset → every domain shipped without MX (silent) | `js/cf-service.js` | Same INFO line preserved for grep compat, PLUS a distinctive `⚠️` warn line (once per 24h) with fix instructions and a Telegram admin ping. |
+| 10 | Orphaned addon on cancel — user just paid $30 for `streakevents.fr`, lost hosting on cancel of parent plan | `js/_index.js` (`user.cancelHostingPlan`) | Before showing confirm dialog: if the plan has addons AND the user has another active cPanel, offer "↪️ Move addons first" / "🗑️ Continue cancelling". Migration uses `addon-domain-flow.attachAddonDomain()` (already-battle-tested code path). Failed migrations notify admin. |
+| 11 | Admin quick-reply UI didn't surface pending payment intent (admin replied dismissively to a user mid-$100 intent) | `js/_index.js` (`aR:` handler) | Reply prompt now shows: 🚨 pending intents (last 48h) with ref/amount/age, 🗑️ recent cancellations (24h), 💰 recent txns, 👛 wallet balance. |
+| 12 | SSL upgrade deferred forever with no escalation (WHM origin socket timeout for 30+ h) | `js/protection-enforcer.js` | `sslGracePeriod` now tracks `deferCount`. After 3 consecutive defers, admin gets a Telegram alert (once, then at most weekly re-alerts) with the last probe error. Success clears the record. |
+
+### Verification
+- All 6 modified files pass `node -c` syntax check.
+- Node.js supervisor restart clean; all boot lines identical to pre-change baseline.
+- `assignPackageToUser` test harness confirms new durations: Freedom→12h, 1-Month→30d, 1-Week→7d, 1-Year→365d.
+- `deployCFIPFix('evene479')` on the deleted account now returns `skipped: 'account_deleted_or_cancelled'` (previously would attempt WHM writes).
+- `getUserContext('8011229362')` now surfaces both the `jjIiy` pending $100 intent and the `evene479` cancellation to the AI system prompt.
+- `_nextEscalationReminderMs` back-off table verified numerically.
+- `audit-cancellation-refunds.js` dry-run: 0 historical refunds to reverse.
+- External `GET /api/sms-app/download/info` still returns HTTP 200.
+
+### Files touched
+- `js/db.js` — plan-duration helper
+- `js/anti-red-service.js` — deleted-cpanel skip
+- `js/ai-support.js` — paymentIntents + cancellations in context
+- `js/cf-service.js` — Origin CA User Service Key + MAIL_RELAY_HOST warn
+- `js/protection-enforcer.js` — SSL defer escalation
+- `js/_index.js` — escalation backoff, bad-rating cooldown, cancel migration, admin context, SENT keyword
+- `scripts/audit-cancellation-refunds.js` — new, dry-run refund clawback tool
+
+### Optional env vars introduced
+- `CLOUDFLARE_ORIGIN_CA_KEY` — CF User Service Key (fixes bug 5 above)
+- `ESCALATION_SECONDARY_ADMIN_CHAT_ID` — cc's second admin for #4+ escalation reminders (falls back to `TELEGRAM_NOTIFY_GROUP_ID`)
+- `MAIL_RELAY_HOST` / `MAIL_RELAY_PRIORITY` — enables MX provisioning (already-supported var; just newly warns when unset)
+
+---
+
+
 
 ## 2026-07-06 — Marketplace OLD-seller fee gates (defense-in-depth)
 **Bug**: 10 unpaid sellers with 24 pre-fee listings + 25 open convs could still post/reply in the marketplace without paying the $50 fee. Their action-state (mpChat / mpConversations / mpNewConfirm / mpManageListing / mpEditTitle / mpEditDesc / mpEditPrice) skipped the two original entry gates (mp:reply callback + t.mpListProduct button).

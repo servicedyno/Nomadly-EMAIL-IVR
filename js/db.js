@@ -323,9 +323,33 @@ async function removeKeysFromDocumentById(collection, chatId, keys) {
   }
 }
 
+// Derive plan duration in ms from the plan name. This is the single source
+// of truth for `state.currentPackage.expiresAt` — must mirror the actual
+// cPanel expiry set in cpanelAccounts.expiryDate so that the pre-expire
+// reminder gate (see `beforeExpireReminderSent` in _index.js) fires.
+//
+// Prior bug (fixed 2026-07-08): expiresAt was hard-coded to +12h. Every paid
+// hosting plan (Premium 1-Week, Premium/Golden 30-Day) got a 12-hour state
+// expiry → `state.currentPackage.expiresAt` was in the past within half a day,
+// so `beforeExpireReminderSent` and `expireReminderSent` never triggered.
+// (Freedom Plan was the only plan the 12h fit — it kept its 12h explicitly.)
+function _planDurationMs(planName) {
+  const HOUR = 60 * 60 * 1000
+  const DAY = 24 * HOUR
+  const n = String(planName || '').toLowerCase()
+  // Freedom Plan (free trial) — keep its historical 12h expiry
+  if (n.includes('freedom')) return 12 * HOUR
+  // Weekly plans — Premium Anti-Red (1-Week)
+  if (n.includes('1-week') || n.includes('1 week') || n.includes('weekly') || n.includes('(week)')) return 7 * DAY
+  // Yearly / annual plans
+  if (n.includes('1-year') || n.includes('1 year') || n.includes('annual') || n.includes('yearly')) return 365 * DAY
+  // Default: monthly (30 days) — covers Premium/Golden Anti-Red HostPanel (1-Month) / (30 Days)
+  return 30 * DAY
+}
+
 async function assignPackageToUser(c, chatId, packageName) {
   const now = new Date()
-  const expiresAt = new Date(now.getTime() + 12 * 60 * 60 * 1000)
+  const expiresAt = new Date(now.getTime() + _planDurationMs(packageName))
 
   const newPackage = {
     name: packageName,

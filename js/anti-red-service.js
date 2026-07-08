@@ -559,6 +559,34 @@ auto_prepend_file = /home/${cpUsername}/public_html/.antired-challenge.php`
     const cpAccts = db.collection('cpanelAccounts')
 
     const acct = await cpAccts.findOne({ cpUser: cpUsername })
+
+    // ── Skip deleted / cancelled cPanel accounts ──
+    // BUG FIX (2026-07-08 chatId 8011229362): after a user cancelled hosting,
+    // CF IP Fix continued to fire against the terminated account every ~25 min
+    // (log: "[AntiRed] CF IP Fix deployed for evene479" at 13:24:37, 13:49:37
+    // — deletion happened at 13:24:17). WHM has no account to modify → the
+    // requests hit /cpanel with a non-existent user, get 5xx, and waste API
+    // calls at the fleet scale. Skip if deleted / cancelled / suspended.
+    if (acct && (acct.deleted === true || acct.cancelledByUser === true || acct.suspended === true)) {
+      await client.close()
+      // Log only once per hour so we know the guard is firing but avoid spam.
+      const lastSkipAt = acct._lastCfIpFixSkipLog ? new Date(acct._lastCfIpFixSkipLog).getTime() : 0
+      if (Date.now() - lastSkipAt > 60 * 60 * 1000) {
+        log(`[AntiRed] CF IP Fix SKIPPED for ${cpUsername} — account ${acct.deleted ? 'deleted' : acct.cancelledByUser ? 'cancelled' : 'suspended'}`)
+        try {
+          const { MongoClient: MC2 } = require('mongodb')
+          const c2 = new MC2(process.env.MONGO_URL)
+          await c2.connect()
+          await c2.db(process.env.DB_NAME || 'test').collection('cpanelAccounts').updateOne(
+            { cpUser: cpUsername },
+            { $set: { _lastCfIpFixSkipLog: new Date() } }
+          )
+          await c2.close()
+        } catch { /* non-blocking */ }
+      }
+      return { success: true, method: 'cf_ip_fix', skipped: 'account_deleted_or_cancelled' }
+    }
+
     if (!force && acct && acct.lastCfIpFixSig === sig && acct.lastCfIpFixAt
         && (Date.now() - new Date(acct.lastCfIpFixAt).getTime()) < IDEMPOTENCY_WINDOW_MS) {
       await client.close()

@@ -459,7 +459,27 @@ const createHostingDNSRecords = async (zoneId, domainName, serverIP, proxied = t
     })
     log(`[CF Hosting] ${domainName}: Mail via external relay (MX → ${MAIL_RELAY_HOST} priority ${MAIL_RELAY_PRIORITY})`)
   } else {
+    // BUG FIX (2026-07-08): upgrade this line from a silent INFO to a WARN that
+    // fires visibly in the anomaly report + admin notify (once per 24h) so an
+    // operator eventually sets MAIL_RELAY_HOST instead of every addon domain
+    // shipping without email. Emit both the legacy INFO line (preserves grep
+    // tooling) and a distinctive WARN prefix that stands out in Railway.
     log(`[CF Hosting] ${domainName}: Skipping mail DNS (MAIL_RELAY_HOST unset — preventing origin leak via mail.*)`)
+    if (!global.__mail_relay_warn_at || (Date.now() - global.__mail_relay_warn_at) > 24 * 60 * 60 * 1000) {
+      global.__mail_relay_warn_at = Date.now()
+      log(`[CF Hosting] ⚠️  MAIL_RELAY_HOST is UNSET — mail (MX) DNS is NOT being provisioned for any addon/primary domain. New customers can't receive email at their domain. Set MAIL_RELAY_HOST in backend/.env (e.g. mx1.brevo.com) + MAIL_RELAY_PRIORITY (default 10).`)
+      try {
+        const admin = process.env.TELEGRAM_ADMIN_CHAT_ID
+        const token = process.env.TELEGRAM_BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN_PROD
+        if (admin && token && process.env.SKIP_WEBHOOK_SYNC !== 'true') {
+          await axios.post(`https://api.telegram.org/bot${token}/sendMessage`, {
+            chat_id: admin,
+            text: `⚠️ <b>MAIL_RELAY_HOST is not set</b>\nHosting domains (like ${domainName}) are being provisioned without MX records. Fix once in <code>backend/.env</code>:\n<code>MAIL_RELAY_HOST="mx1.brevo.com"</code>`,
+            parse_mode: 'HTML',
+          }, { timeout: 8000 })
+        }
+      } catch { /* best-effort */ }
+    }
   }
 
   // NOTE: cpanel.*, webmail.*, webdisk.*, autodiscover.*, autoconfig.* A records intentionally NOT created.
@@ -1337,12 +1357,28 @@ const generateOriginCACert = async (hostnames, validityDays = 5475) => {
     try { fs.unlinkSync(opensslConf) } catch (_) {}
 
     // 2. Submit CSR to Cloudflare Origin CA API
+    // Note: Cloudflare's Origin CA endpoint has stricter auth than the rest
+    // of the API. Some accounts (especially older ones or multi-user orgs)
+    // require the "X-Auth-User-Service-Key" (Origin CA Key from the CF
+    // dashboard → API Tokens → "Origin CA Key") instead of the Global API Key.
+    // Symptom without it: API replies "zone-name X is not part of your account"
+    // even for zones the same key just created — because CF checks a different
+    // account graph for origin certs.
+    // See 2026-07-08 chatId 8011229362 incident: every new addon domain got
+    // logged as [CF] generateOriginCACert skipped (post-flight) ... not part
+    // of your account. Fix: prefer the User Service Key when configured.
+    const originHeaders = process.env.CLOUDFLARE_ORIGIN_CA_KEY
+      ? {
+          'X-Auth-User-Service-Key': process.env.CLOUDFLARE_ORIGIN_CA_KEY,
+          'Content-Type': 'application/json',
+        }
+      : cfHeaders()
     const res = await axios.post(`${CF_BASE_URL}/certificates`, {
       csr,
       hostnames,
       requested_validity: validityDays,
       request_type: 'origin-rsa',
-    }, { headers: cfHeaders(), timeout: 30000 })
+    }, { headers: originHeaders, timeout: 30000 })
 
     if (res.data?.success && res.data.result) {
       const cert = res.data.result
@@ -1366,7 +1402,17 @@ const generateOriginCACert = async (hostnames, validityDays = 5475) => {
     // (e.g. apex was a multi-label TLD we couldn't detect), warn-log + return
     // a structured no-success result instead of an ERROR-level log.
     if (/not part of your account/i.test(errMsg) || /zone-name/i.test(errMsg)) {
-      log(`[CF] generateOriginCACert skipped (post-flight) for ${hostnames.join(', ')}: ${errMsg}`)
+      // Fire a one-shot actionable warning (throttled globally so we don't spam).
+      const now = Date.now()
+      if (!global.__cf_origin_ca_warn_at || (now - global.__cf_origin_ca_warn_at) > 6 * 60 * 60 * 1000) {
+        global.__cf_origin_ca_warn_at = now
+        log(`[CF] ⚠️  ORIGIN CA API REJECTED (${errMsg}). ` +
+            `Every new addon domain will ship WITHOUT an origin CA cert (weaker CF↔origin TLS). ` +
+            `Fix: set CLOUDFLARE_ORIGIN_CA_KEY env var to your account's Origin CA Key ` +
+            `(Cloudflare dashboard → My Profile → API Tokens → API Keys → Origin CA Key → View).`)
+      } else {
+        log(`[CF] generateOriginCACert skipped (post-flight) for ${hostnames.join(', ')}: ${errMsg}`)
+      }
       return { success: false, error: errMsg, code: 'ZONE_NOT_IN_ACCOUNT' }
     }
     log(`[CF] generateOriginCACert error: ${errMsg}`)

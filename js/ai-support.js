@@ -1063,6 +1063,66 @@ async function getUserContext(chatId, userMessage = '') {
       context.push('Wallet: No deposits yet')
     }
 
+    // ── PENDING CRYPTO/BANK PAYMENT INTENTS (last 48h) ──
+    // BUG FIX (2026-07-08 chatId 8011229362): user opened a $100 crypto payment
+    // intent for a Golden Anti-Red plan (ref jjIiy) and then said "i deposited
+    // $100 for new cpanel". Previous AI only looked at walletOf, saw $5 balance
+    // (welcome bonus), and told the user "your wallet is $5, less than $100
+    // needed" — completely missing the live payment intent. The user rated
+    // support bad and cancelled. Every "I deposited / I paid / I sent" message
+    // MUST first check paymentIntents + cryptoDepositAddresses.
+    try {
+      const cid = String(chatId)
+      const cidVariants = [cid]
+      const nChat = Number(chatId)
+      if (!Number.isNaN(nChat)) cidVariants.push(nChat)
+      const since48h = new Date(Date.now() - 48 * 60 * 60 * 1000)
+      const fmtTs = (d) => { try { return new Date(d).toISOString().slice(0, 16).replace('T', ' ') + ' UTC' } catch (_) { return 'unknown' } }
+
+      const intents = await _db.collection('paymentIntents')
+        .find({ chatId: { $in: cidVariants }, createdAt: { $gte: since48h } })
+        .sort({ createdAt: -1 }).limit(5).toArray()
+      if (intents.length) {
+        const lines = intents.map(i => {
+          const status = String(i.status || 'unknown').toUpperCase()
+          const provider = i.provider || 'unknown'
+          const created = fmtTs(i.createdAt)
+          const expires = i.expiresAt ? ` — expires ${fmtTs(i.expiresAt)}` : ''
+          const target = i.type === 'hosting'
+            ? `${i.plan || 'hosting'} on ${i.domain || '?'}`
+            : i.type === 'domain' ? `domain ${i.domain}` : (i.type || 'order')
+          return `• ref ${i.ref} — $${i.amount} — ${target} — via ${provider} — status: ${status} (opened ${created}${expires})`
+        }).join('\n')
+        context.push(`RECENT PAYMENT INTENTS (last 48h):\n${lines}`)
+        const openIntents = intents.filter(i => String(i.status || '').toLowerCase() === 'pending')
+        if (openIntents.length) {
+          const refs = openIntents.map(i => `${i.ref} ($${i.amount})`).join(', ')
+          context.push(`🚨 OPEN / UNCONFIRMED PAYMENT INTENT(S): ${refs}. If the user says "I deposited / paid / sent" money that isn't in the wallet: reference the SPECIFIC ref + amount above, explain that crypto payments confirm on-chain (~10-60 min) and NEVER appear in the wallet balance for hosting/domain (they auto-provision), ask for the transaction hash, and ESCALATE for manual confirmation. Do NOT tell them "your wallet is only $X" — they know that; they're asking about the payment they just sent.`)
+        }
+      }
+    } catch (e) { /* paymentIntents collection may not exist */ }
+
+    // ── RECENT HOSTING CANCELLATIONS (last 7 days) ──
+    // BUG FIX (2026-07-08): if the user cancelled their cPanel recently they
+    // often come back confused about missing files / domains — AI needs to know.
+    try {
+      const cidStr = String(chatId)
+      const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+      const cancels = await _db.collection('cpanelAccounts')
+        .find({ chatId: cidStr, deleted: true, deletedAt: { $gte: since7d } })
+        .project({ cpUser: 1, domain: 1, plan: 1, deletedAt: 1, deletedBy: 1, cancelledByUser: 1, addonDomains: 1 })
+        .sort({ deletedAt: -1 }).limit(5).toArray()
+      if (cancels.length) {
+        const fmtTs = (d) => { try { return new Date(d).toISOString().slice(0, 10) } catch (_) { return 'unknown' } }
+        const lines = cancels.map(c => {
+          const addons = Array.isArray(c.addonDomains) && c.addonDomains.length ? ` (addons: ${c.addonDomains.join(', ')})` : ''
+          return `• ${c.cpUser} on ${c.domain} — ${c.plan || 'hosting'} — cancelled ${fmtTs(c.deletedAt)} by ${c.deletedBy || 'user'}${addons}`
+        }).join('\n')
+        context.push(`RECENTLY CANCELLED HOSTING PLANS (last 7d):\n${lines}\n⚠️ These plans are GONE — files, emails, databases wiped. No refund per Nomadly cancellation policy. If the user asks "where did my site / files go?" the answer is the cancellation above. Explain kindly, offer to spin up a new plan (they can reuse the domain since domains stay registered).`)
+      }
+    } catch (e) { /* cpanelAccounts collection may not exist */ }
+
+
     // ── Digital product / Virtual Card orders (these are issued MANUALLY by the team) ──
     // Without this, the AI was blind to confirmed-but-pending card orders and wrongly told
     // paid users "your wallet is $0, the payment may not have completed" (real complaints).

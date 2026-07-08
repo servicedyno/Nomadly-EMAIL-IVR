@@ -312,16 +312,56 @@ async function isInSSLGracePeriod(domain) {
 
 /**
  * Record a domain entering the SSL grace period (first time seen on 'flexible').
+ * Also tracks consecutive deferCount so we can escalate to admin after N cycles.
  */
-async function recordSSLGracePeriod(domain) {
+async function recordSSLGracePeriod(domain, lastError = null) {
   if (!db) return
   try {
     await db.collection('sslGracePeriod').updateOne(
       { _id: domain },
-      { $setOnInsert: { firstSeen: new Date().toISOString(), domain } },
+      {
+        $setOnInsert: { firstSeen: new Date().toISOString(), domain },
+        $set: { lastDeferAt: new Date(), lastDeferError: lastError },
+        $inc: { deferCount: 1 },
+      },
       { upsert: true }
     )
   } catch (e) { log(`[ProtectionEnforcer] SSL grace record error for ${domain}: ${e.message}`) }
+}
+
+/**
+ * If the origin has failed the SSL probe for many consecutive cycles, page
+ * the admin so somebody actually looks at why the WHM origin isn't answering
+ * HTTPS. Prior behaviour: silent "SSL DEFERRED ... grace period started, will
+ * retry in 24h" every 24 h forever (see 2026-07-08 chatId 8011229362 logs for
+ * eventrsvp.sbs — 30+ hours deferring silently). Now: after 3 defers we
+ * escalate; after that we notify at most once every 7 days to avoid spam.
+ */
+async function _maybeEscalateSSLDefer(domain, deferCount, error) {
+  try {
+    if (deferCount < 3) return
+    const admin = process.env.TELEGRAM_ADMIN_CHAT_ID
+    const token = process.env.TELEGRAM_BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN_PROD
+    if (!admin || !token) return
+    // Notify once when we cross the threshold, then at most weekly.
+    const rec = await db.collection('sslGracePeriod').findOne({ _id: domain })
+    const lastAlert = rec?.lastAdminAlertAt ? new Date(rec.lastAdminAlertAt).getTime() : 0
+    if (deferCount > 3 && (Date.now() - lastAlert) < 7 * 24 * 60 * 60 * 1000) return
+    const msg =
+      `🔒 <b>SSL upgrade stuck</b>\n` +
+      `Domain: <b>${domain}</b>\n` +
+      `Consecutive defers: <b>${deferCount}</b>\n` +
+      `Last probe error: <code>${(error || 'unknown').slice(0, 200)}</code>\n\n` +
+      `The bot keeps CF SSL on 'flexible' (weaker) because the origin server can't terminate TLS for this domain. Fix on WHM/cPanel: install a valid cert (AutoSSL) or check that <code>${domain}</code> is served on port 443.`
+    await axios.post(`https://api.telegram.org/bot${token}/sendMessage`, {
+      chat_id: admin, text: msg, parse_mode: 'HTML', disable_web_page_preview: true,
+    }, { timeout: 10000 })
+    await db.collection('sslGracePeriod').updateOne(
+      { _id: domain },
+      { $set: { lastAdminAlertAt: new Date() } }
+    )
+    log(`[ProtectionEnforcer] SSL escalation sent to admin for ${domain} (deferCount=${deferCount})`)
+  } catch (e) { /* best-effort */ }
 }
 
 /**
@@ -437,8 +477,15 @@ async function enforceSSLMode(domain, zoneId) {
       const probe = await probeOriginSSL(domain)
       if (!probe.ok) {
         // Origin can't handle HTTPS for this domain yet — record grace period and skip
-        await recordSSLGracePeriod(domain)
+        await recordSSLGracePeriod(domain, probe.error)
         log(`[ProtectionEnforcer] SSL DEFERRED: ${domain} staying on 'flexible' — origin not ready (${probe.error}). Grace period started, will retry in ${SSL_GRACE_PERIOD_MS / 3600000}h.`)
+        // BUG FIX (2026-07-08): after 3 consecutive defers, page admin so the
+        // origin gets looked at instead of silently deferring forever.
+        try {
+          const rec = await db.collection('sslGracePeriod').findOne({ _id: domain })
+          const deferCount = (rec && rec.deferCount) || 1
+          await _maybeEscalateSSLDefer(domain, deferCount, probe.error)
+        } catch { /* best-effort */ }
         return
       }
 
@@ -448,6 +495,8 @@ async function enforceSSLMode(domain, zoneId) {
         timeout: 10000,
       })
       log(`[ProtectionEnforcer] SSL UPGRADED: ${domain} from 'flexible' → 'full' (origin probe OK, status=${probe.status})`)
+      // Success — remove the grace period doc so the deferCount / lastAdminAlertAt reset.
+      try { await db.collection('sslGracePeriod').deleteOne({ _id: domain }) } catch { /* best-effort */ }
     }
   } catch (err) {
     if (!err.message?.includes('ECONNREFUSED')) {

@@ -2110,23 +2110,46 @@ async function resolveOpenEscalationsForChat(chatId, adminId) {
   }
 }
 
-// Periodic reminder: re-ping admin about OPEN escalations >10 min old that
-// haven't been acknowledged. Runs every 5 min. Caps at 3 reminders per
-// escalation to avoid alert fatigue.
+// Periodic reminder: re-ping admin about OPEN escalations that haven't been
+// acknowledged. Runs every 5 min. NO HARD CAP on reminder count — instead,
+// uses exponential back-off so admin is not spammed but the alert keeps
+// firing until acknowledged (BUG FIX 2026-07-08 chatId 8011229362: escalation
+// RXcRi hit its 3-reminder cap after 16 min, then went silent for 51 hours
+// until admin manually acked). Backoff schedule (from createdAt):
+//   Reminder 1: after 10 min
+//   Reminders 2-3: every 30 min
+//   Reminders 4-6: every 2 h
+//   Reminder 7+: every 12 h (until acked/resolved) — also cc'd to secondary
+//     admin chat if configured via ESCALATION_SECONDARY_ADMIN_CHAT_ID.
+function _nextEscalationReminderMs(reminderCount) {
+  if (reminderCount < 1) return 10 * 60 * 1000       // first reminder at +10m
+  if (reminderCount < 3) return 30 * 60 * 1000       // +30m each for #2, #3
+  if (reminderCount < 6) return 2 * 60 * 60 * 1000   // +2h each for #4-#6
+  return 12 * 60 * 60 * 1000                          // +12h thereafter (daily-ish)
+}
+
 async function escalationReminderTick() {
   try {
     if (!escalations?.find) return
-    const cutoff = new Date(Date.now() - ESCALATION_REMINDER_AFTER_MS)
     const overdue = await escalations.find({
       status: 'open',
-      createdAt: { $lt: cutoff },
-      reminderCount: { $lt: 3 },
-    }).limit(20).toArray()
+    }).limit(50).toArray()
+    let sent = 0
     for (const esc of overdue) {
+      const reminderCount = esc.reminderCount || 0
+      const lastAt = esc.lastReminderAt ? new Date(esc.lastReminderAt).getTime() : new Date(esc.createdAt).getTime()
+      const dueAt = lastAt + _nextEscalationReminderMs(reminderCount)
+      if (Date.now() < dueAt) continue
+
       const ageMin = Math.floor((Date.now() - new Date(esc.createdAt).getTime()) / 60000)
+      const ageStr = ageMin < 60 ? `${ageMin} min` : ageMin < 1440 ? `${(ageMin/60).toFixed(1)} h` : `${(ageMin/1440).toFixed(1)} d`
+      const nextNum = reminderCount + 1
+      // Warn banner shows "unacked for X hours" once we're past the third reminder
+      const banner = reminderCount >= 3
+        ? `🚨 <b>STILL UNACKED — ESCALATION REMINDER #${nextNum}</b>\n(open ${ageStr}, ${reminderCount} prior reminders ignored)`
+        : `🔔 <b>ESCALATION REMINDER #${nextNum}</b>\nOpen for <b>${ageStr}</b> — still no reply.`
       const reminderMsg =
-        `🔔 <b>ESCALATION REMINDER (#${(esc.reminderCount || 0) + 1}/3)</b>\n` +
-        `Open for <b>${ageMin} min</b> — still no reply.\n\n` +
+        `${banner}\n\n` +
         `👤 ${esc.username || esc.chatId} (${esc.chatId})\n` +
         `🆔 <code>${esc._id}</code>\n` +
         `💬 <i>${String(esc.userMessage || '').substring(0, 300)}</i>`
@@ -2142,13 +2165,20 @@ async function escalationReminderTick() {
         if (bot?.sendMessage && TELEGRAM_ADMIN_CHAT_ID) {
           await bot.sendMessage(TELEGRAM_ADMIN_CHAT_ID, reminderMsg, opts)
         }
+        // Cc a secondary admin/channel once we've passed 3 reminders — so an
+        // ignored escalation always gets a second pair of eyes.
+        const secondary = process.env.ESCALATION_SECONDARY_ADMIN_CHAT_ID || process.env.TELEGRAM_NOTIFY_GROUP_ID
+        if (bot?.sendMessage && secondary && reminderCount >= 3 && String(secondary) !== String(TELEGRAM_ADMIN_CHAT_ID)) {
+          await bot.sendMessage(secondary, reminderMsg, opts)
+        }
       } catch (e) { log(`[Escalation] reminder send error: ${e.message}`) }
       await escalations.updateOne(
         { _id: esc._id },
         { $set: { lastReminderAt: new Date() }, $inc: { reminderCount: 1 } }
       )
+      sent++
     }
-    if (overdue.length > 0) log(`[Escalation] sent ${overdue.length} overdue reminder(s)`)
+    if (sent > 0) log(`[Escalation] sent ${sent} overdue reminder(s)`)
   } catch (e) {
     log(`[Escalation] reminder tick error: ${e.message}`)
   }
@@ -4978,6 +5008,74 @@ Tap a button below to change. Changes sync to your phone on next app open.`
       const rating = parts[2] // 'good' or 'bad'
       const ratingChatId = parts.slice(3).join('_')
       await rateSupportSession(ratingChatId || chatId, rating)
+
+      // ── BUG FIX (2026-07-08 chatId 8011229362): auto-escalate on BAD ratings ──
+      // Prior behaviour: bad rating just sent admin a 👎 note. User rated bad
+      // at 13:23:36, then cancelled a $105 plan 41 seconds later — no chance
+      // for a human to intervene. Now on 'bad' we (a) auto-open/upgrade an
+      // escalation flagged 'critical', (b) send the user a bridging message,
+      // and (c) record a cool-down that Cancel Hosting Plan honours.
+      if (rating === 'bad') {
+        try {
+          const badChatId = String(ratingChatId || chatId)
+          const badName = await get(nameOf, badChatId)
+          if (escalations?.updateOne) {
+            const escDoc = {
+              chatId: badChatId,
+              username: badName ? `@${badName}` : null,
+              userMessage: '[SUPPORT RATED BAD] — user marked the just-closed support session as bad',
+              aiResponse: '(escalated automatically on bad rating)',
+              reason: 'bad_rating_auto_escalate',
+              severity: 'critical',
+              lang: (await state.findOne({ _id: badChatId }))?.userLanguage || 'en',
+              status: 'open',
+              createdAt: new Date(),
+              acknowledgedAt: null,
+              resolvedAt: null,
+              lastReminderAt: null,
+              reminderCount: 0,
+              followups: [],
+              media: null,
+              latestMedia: null,
+            }
+            // Reuse existing open escalation or create a fresh one with a short id
+            const openEsc = await escalations.findOne({ chatId: badChatId, status: 'open' }, { sort: { createdAt: -1 } })
+            if (openEsc) {
+              await escalations.updateOne(
+                { _id: openEsc._id },
+                { $set: { severity: 'critical', reason: 'bad_rating_auto_escalate', badRatingAt: new Date() }, $push: { followups: { at: new Date(), note: 'Bumped to CRITICAL — user rated support bad.' } } }
+              )
+            } else {
+              const shortId = Math.random().toString(36).slice(2, 7)
+              escDoc._id = shortId
+              await escalations.insertOne(escDoc)
+            }
+          }
+          // 15-minute cool-down on destructive actions (Cancel Hosting Plan checks this)
+          await state.updateOne(
+            { _id: badChatId },
+            { $set: { badRatingCooldownUntil: new Date(Date.now() + 15 * 60 * 1000), lastBadRatingAt: new Date() } },
+            { upsert: true },
+          ).catch(() => {})
+          // Bridging message to the user so they don't rage-quit while admin is being paged.
+          try {
+            const info = await state.findOne({ _id: badChatId })
+            const lang = info?.userLanguage || 'en'
+            const bridgeMsg = ({
+              en: `🙇 <b>Sorry we let you down.</b>\n\nA senior support agent has been paged and will reach out shortly. Please hold off on cancelling any services — we'd like a chance to make it right.`,
+              fr: `🙇 <b>Désolés de vous avoir déçu.</b>\n\nUn agent senior a été alerté et vous contactera sous peu. Merci de ne pas annuler vos services — laissez-nous une chance d'arranger cela.`,
+              zh: `🙇 <b>非常抱歉让您失望了。</b>\n\n高级客服已收到通知，稍后会与您联系。在此之前请不要取消任何服务 — 请让我们有机会为您解决问题。`,
+              hi: `🙇 <b>माफ़ी चाहते हैं कि आपको निराश किया।</b>\n\nएक वरिष्ठ सपोर्ट एजेंट को सूचित किया गया है और जल्द ही आपसे संपर्क करेगा। कृपया अभी कोई सेवा रद्द न करें — हमें इसे ठीक करने का मौका दें।`,
+            })[lang] || null
+            if (bridgeMsg && bot?.sendMessage) {
+              await bot.sendMessage(badChatId, bridgeMsg, { parse_mode: 'HTML' })
+            }
+          } catch { /* best-effort */ }
+        } catch (badErr) {
+          log(`[AI Support] Bad-rating auto-escalate error: ${badErr.message}`)
+        }
+      }
+
       // Update the inline keyboard to show selected rating
       try {
         const emoji = rating === 'good' ? '👍' : '👎'
@@ -5727,7 +5825,63 @@ bot?.on('callback_query', async (query) => {
       }
       const tName = await get(nameOf, target)
       const label = tName ? `@${tName} (${target})` : `User ${target}`
-      send(adminId, `💬 <b>Quick Reply</b>\nType your message to ${label}.\n<i>Send /cancel to abort.</i>`, {
+
+      // ── BUG FIX (2026-07-08 chatId 8011229362) admin context ──
+      // Admin was replying "You canceled your plan and how can we then assist?"
+      // to a user who had opened a $100 payment intent 21 min earlier. Surface
+      // the last 48h of payment intents + last cancellation so admin never
+      // replies blind.
+      let contextBlock = ''
+      try {
+        const now = Date.now()
+        const since48h = new Date(now - 48 * 60 * 60 * 1000)
+        const cidStr = String(target)
+        const cidVariants = [cidStr]
+        const nChat = Number(cidStr); if (!Number.isNaN(nChat)) cidVariants.push(nChat)
+
+        const openIntents = await paymentIntents.find({
+          chatId: { $in: cidVariants },
+          status: 'pending',
+          createdAt: { $gte: since48h },
+        }).sort({ createdAt: -1 }).limit(3).toArray().catch(() => [])
+        const recentTxns = await db.collection('transactions').find({
+          chatId: { $in: cidVariants },
+        }).sort({ createdAt: -1 }).limit(3).toArray().catch(() => [])
+        const recentCancels = await cpanelAccounts.find({
+          chatId: cidStr,
+          deleted: true,
+          deletedAt: { $gte: new Date(now - 24 * 60 * 60 * 1000) },
+        }).sort({ deletedAt: -1 }).limit(2).toArray().catch(() => [])
+        const wallet = await walletOf.findOne({ _id: cidStr }).catch(() => null)
+        const usdBal = wallet ? ((wallet.usdIn || 0) - (wallet.usdOut || 0)) : 0
+
+        const bits = []
+        if (openIntents.length) {
+          bits.push(`🚨 <b>${openIntents.length} pending payment intent(s):</b>\n` + openIntents.map(i => {
+            const ago = Math.floor((now - new Date(i.createdAt).getTime()) / 60000)
+            return `  • <code>${i.ref}</code> $${i.amount} ${i.type || 'order'}${i.domain ? ' ' + i.domain : ''} (${ago}m ago, via ${i.provider || '?'})`
+          }).join('\n'))
+        }
+        if (recentCancels.length) {
+          bits.push('🗑️ <b>Recent cancellation(s):</b>\n' + recentCancels.map(c => {
+            const ago = Math.floor((now - new Date(c.deletedAt).getTime()) / 60000)
+            return `  • <code>${c.cpUser}</code> on ${c.domain} (${ago}m ago)`
+          }).join('\n'))
+        }
+        if (recentTxns.length) {
+          bits.push('💰 <b>Recent txns:</b>\n' + recentTxns.map(t => {
+            const ago = Math.floor((now - new Date(t.createdAt).getTime()) / 60000)
+            const meta = t.metadata?.domain ? ` ${t.metadata.domain}` : ''
+            return `  • $${t.amount} ${t.type}${meta} — ${t.status} (${ago}m ago)`
+          }).join('\n'))
+        }
+        bits.push(`👛 Wallet: $${usdBal.toFixed(2)}`)
+        if (bits.length) contextBlock = `\n\n📋 <b>Context</b>\n${bits.join('\n')}`
+      } catch (ctxErr) {
+        log(`[AdminQuickReply] context enrich failed: ${ctxErr.message}`)
+      }
+
+      send(adminId, `💬 <b>Quick Reply</b>\nType your message to ${label}.\n<i>Send /cancel to abort.</i>${contextBlock}`, {
         parse_mode: 'HTML',
         reply_markup: { force_reply: true, selective: false, input_field_placeholder: `Reply to ${label}…` },
       })
@@ -13415,6 +13569,55 @@ All verified numbers generated during sourcing.`))
   // 123456
   if (action === a.proceedWithPaymentProcess) {
     if (isBackPress(message)) return goto['hosting-pay']()
+
+    // ── BUG FIX (2026-07-08 chatId 8011229362): "SENT" / "PAID" / "DONE" ──
+    // Prior behaviour: any non-back-button text while waiting on a crypto
+    // payment fell through to the [reset] catch-all → user got dumped to the
+    // main menu and lost the ref. Users overwhelmingly reply with status
+    // words after sending a crypto tx; recognise them and hold the flow open.
+    const normalised = String(message || '').trim().toLowerCase()
+    const STATUS_WORDS = [
+      'sent', 'paid', 'done', 'confirmed', 'confirm', 'payment sent',
+      'paid ✅', 'sent ✅', 'i sent it', 'i paid', 'i sent', 'money sent',
+      'ok', 'okay', 'yes', '✅',
+    ]
+    const looksLikeTxHash = /^(0x[0-9a-f]{40,}|[0-9a-f]{40,})$/i.test(normalised)
+    if (STATUS_WORDS.includes(normalised) || looksLikeTxHash) {
+      const ref = info?.ref || null
+      let intent = null
+      if (ref) {
+        try { intent = await paymentIntents.findOne({ ref }) } catch { /* ignore */ }
+      }
+      const price = info?.couponApplied ? info?.newPrice : info?.totalPrice
+      const targetLabel = info?.plan
+        ? `${info.plan}${info?.domain ? ` on ${info.domain}` : ''}`
+        : info?.domain ? `domain ${info.domain}` : (intent?.type || 'your order')
+      const holdMsg =
+        `⏳ <b>Thanks — we\u2019re watching the blockchain for your payment.</b>\n\n` +
+        `<b>Ref:</b> <code>${ref || '—'}</code>\n` +
+        `<b>Amount:</b> $${price || intent?.amount || '?'} for ${targetLabel}\n\n` +
+        (looksLikeTxHash
+          ? `<b>Tx hash:</b> <code>${normalised.slice(0, 100)}</code> — logged for manual verification.\n\n`
+          : `If you have a <b>transaction hash / txid</b>, please paste it here. Otherwise sit tight — crypto payments typically confirm in 10-60 minutes and your ${info?.plan ? 'plan' : 'order'} will activate automatically.\n\n`) +
+        `If more than 90 minutes pass without activation, tap 💬 Support with your ref (<code>${ref || '?'}</code>) and we\u2019ll manually locate it.`
+      try { await send(chatId, holdMsg, { parse_mode: 'HTML' }) } catch { /* best-effort */ }
+      // If it looks like a tx hash, stash it on the intent so admin can locate it manually.
+      if (looksLikeTxHash && ref) {
+        try {
+          await paymentIntents.updateOne(
+            { ref },
+            { $set: { userReportedTxHash: normalised, userReportedTxHashAt: new Date() } }
+          )
+          if (TELEGRAM_ADMIN_CHAT_ID && bot?.sendMessage) {
+            await bot.sendMessage(TELEGRAM_ADMIN_CHAT_ID,
+              `📮 <b>User submitted tx hash for pending payment</b>\nUser: ${chatId}\nRef: <code>${ref}</code>\nAmount: $${price || intent?.amount || '?'}\nTarget: ${targetLabel}\nHash: <code>${normalised}</code>`,
+              { parse_mode: 'HTML' }
+            )
+          }
+        } catch { /* best-effort */ }
+      }
+      return
+    }
   }
 
   // My Hosting Plans — entry point
@@ -13845,6 +14048,56 @@ All verified numbers generated during sourcing.`))
       if (!domain) return goto.myHostingPlans()
       const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain, deleted: { $ne: true } })
       if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
+
+      // ── BUG FIX (2026-07-08 chatId 8011229362) BAD-RATING COOL-DOWN ──
+      // If the user rated support "bad" in the last 15 minutes, block the
+      // Cancel Hosting Plan flow so a human agent can intervene before they
+      // rage-cancel a paid plan. Cool-down set by the rate_support_bad callback.
+      const cooldownUntil = info?.badRatingCooldownUntil ? new Date(info.badRatingCooldownUntil).getTime() : 0
+      if (cooldownUntil > Date.now()) {
+        const minsLeft = Math.max(1, Math.ceil((cooldownUntil - Date.now()) / 60000))
+        const coolMsg = {
+          en: `⏸️ <b>One moment please.</b>\n\nYou just rated support bad — a senior agent has been paged and will be with you within ~${minsLeft} min. If you still want to cancel after speaking with them, come back here.\n\n<i>This cool-down protects you from cancelling in frustration and losing a plan you paid for.</i>`,
+          fr: `⏸️ <b>Un instant s'il vous plaît.</b>\n\nVous venez d'évaluer le support comme mauvais — un agent senior a été alerté et sera avec vous d'ici ~${minsLeft} min. Si vous souhaitez toujours annuler après lui avoir parlé, revenez ici.`,
+          zh: `⏸️ <b>请稍等。</b>\n\n您刚刚将客服评为「差」— 高级客服已收到通知，将在 ~${minsLeft} 分钟内与您联系。如果与他们沟通后仍希望取消，可以再回来此处。`,
+          hi: `⏸️ <b>कृपया एक क्षण रुकें।</b>\n\nआपने अभी सपोर्ट को खराब रेट किया है — एक वरिष्ठ एजेंट को सूचित किया गया है और लगभग ${minsLeft} मिनट में आपसे संपर्क करेगा। उनसे बात करने के बाद भी रद्द करना चाहें तो यहाँ वापस आएँ।`,
+        }[lang] || null
+        if (coolMsg) return send(chatId, coolMsg, k.of([[user.backToMyHostingPlans]]), { parse_mode: 'HTML' })
+      }
+
+      // ── BUG FIX (2026-07-08 chatId 8011229362) OFFER ADDON MIGRATION ──
+      // If this plan has addon domains AND the user owns ANOTHER active cPanel
+      // (a different plan on a different domain), offer to move the addons
+      // there before deleting — they're likely paid domains that would
+      // otherwise lose hosting immediately. User @rubixeleniyan lost
+      // streakevents.fr (just bought) when they cancelled evene479, then paid
+      // $100 for a new plan to host it — pure avoidable churn.
+      const addons = (plan.addonDomains || []).filter(Boolean)
+      if (addons.length) {
+        const otherActive = await cpanelAccounts.find({
+          chatId: String(chatId),
+          deleted: { $ne: true },
+          _id: { $ne: plan._id },
+        }).project({ cpUser: 1, domain: 1, plan: 1 }).limit(5).toArray()
+        if (otherActive.length) {
+          await set(state, chatId, 'action', a.confirmCancelHostingPlan)
+          saveInfo('cancelPlanAddonsToMigrate', addons)
+          const migrateMsg = {
+            en: `⚠️ <b>Before you cancel <code>${domain}</code>…</b>\n\nThis plan has <b>${addons.length}</b> addon domain(s):\n${addons.map(d => `• <b>${d}</b>`).join('\n')}\n\nIf you cancel now, they will lose hosting immediately. You have another active plan on <b>${otherActive[0].domain}</b> — would you like to <b>move the addons there</b> first (free), <b>keep the domain(s) parked</b>, or <b>continue to cancellation</b>?`,
+            fr: `⚠️ <b>Avant d'annuler <code>${domain}</code>…</b>\n\nCe plan a <b>${addons.length}</b> domaine(s) addon :\n${addons.map(d => `• <b>${d}</b>`).join('\n')}\n\nSi vous annulez, ils perdront leur hébergement immédiatement. Vous avez un autre plan actif sur <b>${otherActive[0].domain}</b> — voulez-vous <b>déplacer les addons</b> (gratuit) ou <b>continuer l'annulation</b> ?`,
+            zh: `⚠️ <b>取消 <code>${domain}</code> 之前…</b>\n\n此方案还有 <b>${addons.length}</b> 个附加域名：\n${addons.map(d => `• <b>${d}</b>`).join('\n')}\n\n若立即取消，它们将立刻失去主机服务。您在 <b>${otherActive[0].domain}</b> 上还有活跃方案 — 是否 <b>先迁移附加域名</b>（免费），还是 <b>继续取消</b>？`,
+            hi: `⚠️ <b><code>${domain}</code> रद्द करने से पहले…</b>\n\nइस प्लान में <b>${addons.length}</b> ऐडऑन डोमेन हैं:\n${addons.map(d => `• <b>${d}</b>`).join('\n')}\n\nअगर आप अभी रद्द करते हैं, तो वे तुरंत होस्टिंग खो देंगे। आपके पास <b>${otherActive[0].domain}</b> पर एक और सक्रिय प्लान है — क्या <b>पहले ऐडऑन को वहाँ ले जाएँ</b> (मुफ़्त) या <b>रद्द करना जारी रखें</b>?`,
+          }[lang] || null
+          if (migrateMsg) {
+            const btnMigrate = { en: '↪️ Move addons first', fr: '↪️ Déplacer les addons', zh: '↪️ 先迁移', hi: '↪️ पहले ऐडऑन ले जाएँ' }[lang] || '↪️ Move addons first'
+            const btnContinue = { en: '🗑️ Continue cancelling', fr: '🗑️ Continuer l\'annulation', zh: '🗑️ 继续取消', hi: '🗑️ रद्द करना जारी रखें' }[lang] || '🗑️ Continue cancelling'
+            saveInfo('cancelPlanMigrateTargetCpUser', otherActive[0].cpUser)
+            saveInfo('cancelPlanMigrateTargetDomain', otherActive[0].domain)
+            return send(chatId, migrateMsg, k.of([[btnMigrate], [btnContinue], [user.backToMyHostingPlans]]), { parse_mode: 'HTML' })
+          }
+        }
+      }
+
       await set(state, chatId, 'action', a.confirmCancelHostingPlan)
       return send(chatId, t.confirmCancelHostingPlan(domain, plan.plan || 'Hosting'), k.of([[user.confirmCancelHostingBtn], [user.cancelGoBackBtn]]), { parse_mode: 'HTML' })
     }
@@ -14275,8 +14528,103 @@ All verified numbers generated during sourcing.`))
   // ── Cancel Hosting Plan — confirm & execute ──
   if (action === a.confirmCancelHostingPlan) {
     if (message === user.cancelGoBackBtn || message === user.backToMyHostingPlans) {
+      // Clear any migration hints from earlier prompt
+      saveInfo('cancelPlanAddonsToMigrate', null)
+      saveInfo('cancelPlanMigrateTargetCpUser', null)
+      saveInfo('cancelPlanMigrateTargetDomain', null)
       return goto.viewHostingPlanDetails(info?.selectedHostingDomain)
     }
+
+    // ── Addon-migration branch: user tapped "↪️ Move addons first" ──
+    // (See BUG 12 addon-migration prompt above cancel confirm.)
+    const isMigrateBtn = typeof message === 'string' && (
+      message.startsWith('↪️ Move addons') ||
+      message.startsWith('↪️ Déplacer') ||
+      message.startsWith('↪️ 先迁移') ||
+      message.startsWith('↪️ पहले ऐडऑन')
+    )
+    if (isMigrateBtn) {
+      const addons = info?.cancelPlanAddonsToMigrate || []
+      const targetCpUser = info?.cancelPlanMigrateTargetCpUser
+      const targetDomain = info?.cancelPlanMigrateTargetDomain
+      if (!addons.length || !targetCpUser) {
+        return send(chatId, trans('t.selectCorrectOption'), k.of([[user.backToMyHostingPlans]]))
+      }
+      await send(chatId, `↪️ Moving ${addons.length} addon(s) to <b>${targetDomain}</b>…`, { parse_mode: 'HTML' })
+
+      // Load the target cpanel account + decrypt cpPass once (shared for all addons).
+      const targetPlan = await cpanelAccounts.findOne({ chatId: String(chatId), cpUser: targetCpUser, deleted: { $ne: true } })
+      let targetCpPass = null
+      if (targetPlan?.cpPass_encrypted) {
+        try {
+          const cpanelAuth = require('./cpanel-auth')
+          targetCpPass = cpanelAuth.decrypt({
+            encrypted: targetPlan.cpPass_encrypted,
+            iv: targetPlan.cpPass_iv,
+            tag: targetPlan.cpPass_tag,
+          })
+        } catch (e) {
+          log(`[AddonMigrate] decrypt cpPass failed for ${targetCpUser}: ${e.message}`)
+        }
+      }
+
+      const results = []
+      for (const addonDomain of addons) {
+        try {
+          if (!targetPlan || !targetCpPass) {
+            results.push({ addonDomain, ok: false, note: 'target plan or credentials unavailable' })
+            continue
+          }
+          const addonFlow = require('./addon-domain-flow')
+          const r = await addonFlow.attachAddonDomain({
+            account: targetPlan,
+            cpPass: targetCpPass,
+            domain: addonDomain,
+            db,
+            bot,
+            lang,
+          })
+          results.push({ addonDomain, ok: !!r?.ok, note: r?.error || (r?.alreadyAttached ? 'already attached' : null) })
+        } catch (mErr) {
+          results.push({ addonDomain, ok: false, note: mErr.message })
+        }
+      }
+      const ok = results.filter(r => r.ok).map(r => r.addonDomain)
+      const failed = results.filter(r => !r.ok)
+      let outMsg = ok.length
+        ? `✅ Moved: ${ok.join(', ')} → <b>${targetDomain}</b>`
+        : ''
+      if (failed.length) {
+        outMsg += (outMsg ? '\n' : '') + `⚠️ Could not auto-move: ${failed.map(f => `${f.addonDomain} (${f.note || 'error'})`).join('; ')}\n<i>Support has been notified — they will complete these manually.</i>`
+        try { notifyAdmin(`🛠️ <b>Addon migration on cancel — MANUAL FOLLOW-UP</b>\nUser: ${chatId}\nFrom plan: ${info?.selectedHostingDomain}\nTo plan: ${targetDomain} (${targetCpUser})\nFailed addon(s):\n${failed.map(f => `• <code>${f.addonDomain}</code> — ${f.note}`).join('\n')}`) } catch { /* noop */ }
+      }
+      if (outMsg) await send(chatId, outMsg, { parse_mode: 'HTML' })
+
+      // Reset migration hints — user must now confirm the cancel
+      saveInfo('cancelPlanAddonsToMigrate', null)
+      saveInfo('cancelPlanMigrateTargetCpUser', null)
+      saveInfo('cancelPlanMigrateTargetDomain', null)
+      const dom = info?.selectedHostingDomain
+      const p = await cpanelAccounts.findOne({ chatId: String(chatId), domain: dom, deleted: { $ne: true } })
+      return send(chatId, t.confirmCancelHostingPlan(dom, p?.plan || 'Hosting'), k.of([[user.confirmCancelHostingBtn], [user.cancelGoBackBtn]]), { parse_mode: 'HTML' })
+    }
+
+    // "🗑️ Continue cancelling" (localised) — clear migration hints and fall through
+    const isContinueBtn = typeof message === 'string' && (
+      message.startsWith('🗑️ Continue') ||
+      message.startsWith('🗑️ Continuer') ||
+      message.startsWith('🗑️ 继续') ||
+      message.startsWith('🗑️ रद्द करना जारी रखें')
+    )
+    if (isContinueBtn) {
+      saveInfo('cancelPlanAddonsToMigrate', null)
+      saveInfo('cancelPlanMigrateTargetCpUser', null)
+      saveInfo('cancelPlanMigrateTargetDomain', null)
+      const dom = info?.selectedHostingDomain
+      const p = await cpanelAccounts.findOne({ chatId: String(chatId), domain: dom, deleted: { $ne: true } })
+      return send(chatId, t.confirmCancelHostingPlan(dom, p?.plan || 'Hosting'), k.of([[user.confirmCancelHostingBtn], [user.cancelGoBackBtn]]), { parse_mode: 'HTML' })
+    }
+
     if (message !== user.confirmCancelHostingBtn) {
       return send(chatId, trans('t.selectCorrectOption'), k.of([[user.confirmCancelHostingBtn], [user.cancelGoBackBtn]]))
     }
