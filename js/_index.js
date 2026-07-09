@@ -2111,16 +2111,23 @@ async function resolveOpenEscalationsForChat(chatId, adminId) {
 }
 
 // Periodic reminder: re-ping admin about OPEN escalations that haven't been
-// acknowledged. Runs every 5 min. NO HARD CAP on reminder count — instead,
-// uses exponential back-off so admin is not spammed but the alert keeps
-// firing until acknowledged (BUG FIX 2026-07-08 chatId 8011229362: escalation
-// RXcRi hit its 3-reminder cap after 16 min, then went silent for 51 hours
-// until admin manually acked). Backoff schedule (from createdAt):
+// acknowledged. Runs every 5 min. NO HARD CAP on reminder count while the
+// escalation is fresh — instead, exponential back-off. Escalations older than
+// ABANDON_AGE_MS OR that have had ABANDON_REMINDER_COUNT reminders ignored
+// get status='abandoned' (dead-letter). This prevents the classic "42 zombie
+// escalations from 47 days ago all fire reminders in the same tick" storm.
+// Backoff schedule (from createdAt):
 //   Reminder 1: after 10 min
 //   Reminders 2-3: every 30 min
 //   Reminders 4-6: every 2 h
 //   Reminder 7+: every 12 h (until acked/resolved) — also cc'd to secondary
-//     admin chat if configured via ESCALATION_SECONDARY_ADMIN_CHAT_ID.
+//     admin chat if explicitly configured via ESCALATION_SECONDARY_ADMIN_CHAT_ID.
+//     (We do NOT fall back to TELEGRAM_NOTIFY_GROUP_ID — the group chat is for
+//      general notifications and should NEVER receive escalation pings.)
+const ESCALATION_ABANDON_AGE_MS = 7 * 24 * 60 * 60 * 1000   // 7 days
+const ESCALATION_ABANDON_REMINDER_COUNT = 10                // 10 reminders
+const ESCALATION_MAX_REMINDERS_PER_TICK = 5                 // digest if more
+
 function _nextEscalationReminderMs(reminderCount) {
   if (reminderCount < 1) return 10 * 60 * 1000       // first reminder at +10m
   if (reminderCount < 3) return 30 * 60 * 1000       // +30m each for #2, #3
@@ -2131,20 +2138,82 @@ function _nextEscalationReminderMs(reminderCount) {
 async function escalationReminderTick() {
   try {
     if (!escalations?.find) return
+
+    // ── DEV SAFETY GUARD (2026-07-09) ──
+    // Dev pods (Emergent sandbox) share the production Mongo but bind their
+    // own dev bot token. Left unguarded, the reminder loop reads all open
+    // production escalations and tries to ping TELEGRAM_ADMIN_CHAT_ID (which
+    // is a REAL production admin) using the dev bot. Any group the dev bot
+    // is a member of (e.g. Lockbay Market -1001843794247) receives the
+    // reminder. This produced the "STILL UNACKED" spam in the group on
+    // 2026-07-09. Honour SKIP_WEBHOOK_SYNC=true as the sandbox marker —
+    // same convention used by protection-heartbeat and the phone monitor.
+    if (process.env.SKIP_WEBHOOK_SYNC === 'true') {
+      // Silent skip — no reads, no writes, no message sends.
+      return
+    }
+
+    const now = Date.now()
     const overdue = await escalations.find({
       status: 'open',
-    }).limit(50).toArray()
-    let sent = 0
+    }).limit(200).toArray()
+
+    // Split into (a) abandoned (dead-letter) and (b) still-to-remind.
+    const toAbandon = []
+    const toRemind = []
     for (const esc of overdue) {
+      const ageMs = now - new Date(esc.createdAt).getTime()
       const reminderCount = esc.reminderCount || 0
+      if (ageMs > ESCALATION_ABANDON_AGE_MS || reminderCount >= ESCALATION_ABANDON_REMINDER_COUNT) {
+        toAbandon.push(esc)
+        continue
+      }
       const lastAt = esc.lastReminderAt ? new Date(esc.lastReminderAt).getTime() : new Date(esc.createdAt).getTime()
       const dueAt = lastAt + _nextEscalationReminderMs(reminderCount)
-      if (Date.now() < dueAt) continue
+      if (now < dueAt) continue
+      toRemind.push(esc)
+    }
 
-      const ageMin = Math.floor((Date.now() - new Date(esc.createdAt).getTime()) / 60000)
+    // ── (a) DEAD-LETTER: silently mark as abandoned so we stop re-alerting ──
+    if (toAbandon.length) {
+      const ids = toAbandon.map(e => e._id)
+      await escalations.updateMany(
+        { _id: { $in: ids } },
+        { $set: { status: 'abandoned', abandonedAt: new Date(), abandonedReason: 'auto: age>7d or reminders>=10' } }
+      )
+      log(`[Escalation] auto-abandoned ${toAbandon.length} stale escalation(s) (age>7d or reminders>=10)`)
+    }
+
+    // ── (b) DIGEST GUARD: if we'd send >5 in a single tick, batch into one msg ──
+    if (toRemind.length > ESCALATION_MAX_REMINDERS_PER_TICK) {
+      const lines = toRemind.map(esc => {
+        const ageH = ((now - new Date(esc.createdAt).getTime()) / 3600000).toFixed(1)
+        return `• <code>${esc._id}</code> — ${esc.username || esc.chatId} (${esc.chatId}) — ${ageH}h — <i>${String(esc.userMessage || '').slice(0, 80)}</i>`
+      }).join('\n')
+      const digest =
+        `📮 <b>${toRemind.length} unacked escalation(s) still open</b> (digest — too many for individual pings)\n\n${lines}\n\n` +
+        `Tap any 🆔 to open its record, then use 💬 Reply User / ✅ Ack / ✔️ Resolve.`
+      try {
+        if (bot?.sendMessage && TELEGRAM_ADMIN_CHAT_ID) {
+          await bot.sendMessage(TELEGRAM_ADMIN_CHAT_ID, digest, { parse_mode: 'HTML' })
+        }
+      } catch (e) { log(`[Escalation] digest send error: ${e.message}`) }
+      // Bump reminderCount + lastReminderAt on all of them so back-off math advances.
+      await escalations.updateMany(
+        { _id: { $in: toRemind.map(e => e._id) } },
+        { $set: { lastReminderAt: new Date() }, $inc: { reminderCount: 1 } }
+      )
+      log(`[Escalation] sent digest for ${toRemind.length} overdue reminder(s)`)
+      return
+    }
+
+    // ── Normal per-escalation reminders ──
+    let sent = 0
+    for (const esc of toRemind) {
+      const reminderCount = esc.reminderCount || 0
+      const ageMin = Math.floor((now - new Date(esc.createdAt).getTime()) / 60000)
       const ageStr = ageMin < 60 ? `${ageMin} min` : ageMin < 1440 ? `${(ageMin/60).toFixed(1)} h` : `${(ageMin/1440).toFixed(1)} d`
       const nextNum = reminderCount + 1
-      // Warn banner shows "unacked for X hours" once we're past the third reminder
       const banner = reminderCount >= 3
         ? `🚨 <b>STILL UNACKED — ESCALATION REMINDER #${nextNum}</b>\n(open ${ageStr}, ${reminderCount} prior reminders ignored)`
         : `🔔 <b>ESCALATION REMINDER #${nextNum}</b>\nOpen for <b>${ageStr}</b> — still no reply.`
@@ -2165,9 +2234,12 @@ async function escalationReminderTick() {
         if (bot?.sendMessage && TELEGRAM_ADMIN_CHAT_ID) {
           await bot.sendMessage(TELEGRAM_ADMIN_CHAT_ID, reminderMsg, opts)
         }
-        // Cc a secondary admin/channel once we've passed 3 reminders — so an
-        // ignored escalation always gets a second pair of eyes.
-        const secondary = process.env.ESCALATION_SECONDARY_ADMIN_CHAT_ID || process.env.TELEGRAM_NOTIFY_GROUP_ID
+        // Cc a SECONDARY admin once past 3 reminders — ONLY if explicitly
+        // configured. We do NOT fall back to TELEGRAM_NOTIFY_GROUP_ID; the
+        // group chat is for general notifications and must never receive
+        // per-user escalation alerts (previous behaviour was leaking user
+        // support tickets into the group — reported 2026-07-09).
+        const secondary = process.env.ESCALATION_SECONDARY_ADMIN_CHAT_ID
         if (bot?.sendMessage && secondary && reminderCount >= 3 && String(secondary) !== String(TELEGRAM_ADMIN_CHAT_ID)) {
           await bot.sendMessage(secondary, reminderMsg, opts)
         }
