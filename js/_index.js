@@ -5849,8 +5849,17 @@ bot?.on('callback_query', async (query) => {
     const data = query?.data || ''
     const fromId = String(query?.from?.id || '')
 
-    // All admin-action callbacks are prefixed with a* and gated to the admin chatId
-    if (!data || !(/^a[A-Z]/.test(data) || data === 'aCANCEL' || data === 'aCONF')) return
+    // All admin-action callbacks are prefixed with a* / e* (escalation
+    // callbacks: eAck, eResolve) and gated to the admin chatId.
+    //
+    // BUG-FIX 2026-07-16: the old regex `/^a[A-Z]/` matched only `aR`,
+    // `aCS`, `aD`, `aRO`, `aRC` — but NOT `eAck:` / `eResolve:`, so the
+    // ✅ Ack & Take Over and ✔️ Resolve buttons in the escalation alert
+    // silently returned before their handlers ran (no callback ack, no
+    // visible feedback). Extend the gate to accept the escalation
+    // prefixes explicitly.
+    const isAdminCallback = /^a[A-Z]/.test(data) || /^e(Ack|Resolve):/.test(data) || data === 'aCANCEL' || data === 'aCONF'
+    if (!data || !isAdminCallback) return
     if (fromId !== String(TELEGRAM_ADMIN_CHAT_ID)) {
       try { await bot.answerCallbackQuery(query.id, { text: '⛔ Admin only.', show_alert: true }) } catch { /* noop */ }
       return
