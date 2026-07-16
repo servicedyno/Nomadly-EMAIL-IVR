@@ -73,6 +73,20 @@ const increment = async (c, key, val = 1, valueInside) => {
 // Atomic increment using MongoDB $inc — safe for concurrent wallet operations
 const atomicIncrement = async (c, key, field, amount) => {
   try {
+    // ━━━ NaN / non-finite / non-numeric GUARD ━━━
+    // BUG-FIX 2026-07-15 (@ciroovblzz LTC → NaN wallet):
+    // If a caller passes NaN / undefined / null / Infinity as `amount`,
+    // MongoDB $inc will happily poison the field with NaN and the user's
+    // balance is corrupted forever. Refuse to write anything unsafe and
+    // surface a loud error so the caller/support can react.
+    if (typeof amount !== 'number' || !Number.isFinite(amount)) {
+      console.error(
+        `[atomicIncrement] ⛔ REFUSING non-finite amount: ${c.collectionName}[${key}].${field} += ${amount} (typeof=${typeof amount}). Stack:\n` +
+        new Error('non-finite-inc').stack
+      )
+      return false
+    }
+
     // Ensure wallet _id is always string for consistency
     if (c.collectionName === 'walletOf') {
       key = String(key)

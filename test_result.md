@@ -11,46 +11,217 @@
 
 
 user_problem_statement: |
-  PROD bug (2026-07-06): @hellpeaces (chatId 5522767823) reported via AI
-  Support chat that cPanel File Manager has been broken for 3 days —
-  "Create folder failed: Request failed with status code 500" and he can't
-  even access folders previously created. The real error hidden inside the
-  cPanel response body was:
-      "/usr/local/cpanel/uapi" exited with status 1 (EPERM).
-  Deployment traced via Railway GraphQL: 1a3f8d68-f57e-4126-a57b-d3b46aac9e61
-  (service: Nomadly-EMAIL-IVR, env: production, admin acked @ 11:27 UTC).
+  PROD bug (2026-07-15): @ciroovblzz (chatId 8625434794) tried to fund
+  his wallet with $10 via LTC through DynoPay. The on-chain payment
+  confirmed (LTC 0.22179053 at rate 45.1 USD, txId
+  033a036e8e732fa5b5de17c923b0e97f5d9aa2e297eb78c68632095f15b59a3f, DynoPay
+  payment_id 9b8965a8-248d-4e5b-b065-5c5d29330dde, deposit ref La52K) but
+  the wallet ended up in a corrupted state showing negative balance.
 
-  Two code-level defects surfaced (independent of the underlying cPanel
-  account being broken):
+  Railway logs (deployment 7b32c3ef-7089-49b9-a4cb-1ed667777d49) at
+  2026-07-15T21:14:19 revealed the full failure chain:
 
-  1. /app/js/cpanel-proxy.js — api2() and uapi() catch blocks were reading
-     only err.response?.data?.errors?.[0] before falling back to err.message.
-     Since cPanel API2 500 bodies carry the real reason under
-     .cpanelresult.error / .cpanelresult.data[0].reason (NOT .errors[]),
-     that fallback always kicked in and returned literally "Request failed
-     with status code 500" — the exact string @hellpeaces saw. Support &
-     users lost the actual "uapi EPERM" diagnostic.
+      SyntaxError: Unexpected token '<', "<!DOCTYPE "... is not valid JSON
+      Error is: Unexpected token '<', "<!DOCTYPE "... is not valid JSON ...
+      [Wallet] credit: invoice=$10 actual=$undefined → crediting $NaN
+      Crediting wallet for chatId: 8625434794 amount: $NaN
 
-  2. /app/js/cpanel-routes.js — /files/mkdir had no WHM-root fallback, even
-     though /files/delete has used one for months to route around exactly
-     this class of user-level EPERM failure (root, invoking the same call
-     via WHM /json-api/cpanel?cpanel_jsonapi_user=<user>, can `su` into the
-     user's context and bypass corrupted-shell/homedir EPERM).
+  Root cause chain:
+    1. BlockBee.getConvert() responded with an HTML error page (Cloudflare
+       or upstream 5xx), not JSON. Its client threw a SyntaxError.
+    2. /app/js/pay-blockbee.js — convert() catch block logs the error
+       and silently falls off the end of the function → returns undefined.
+    3. /app/js/_index.js dynopay wallet webhook (~line 36432) — computed
+       usdIn = Math.max(invoice=10, convertedValue=undefined) = NaN.
+    4. addFundsTo() → atomicIncrement() ran `$inc: { usdIn: NaN }` on
+       walletOf, permanently poisoning the document. MongoDB happily
+       stored the IEEE-754 NaN.
+    5. Balance = usdIn(NaN) - usdOut(1050.9) = NaN, which some UI paths
+       render as a negative / broken value → "balance went to negative".
+    6. depositFunnel.recordDepositCompleted got amountUsd=NaN → its
+       `Number(NaN) || 0` fallback wrote creditedUsd:0, hiding the bug
+       in reports. transactions[TXN-20260715-CCF50].amount also = 0.
 
   FIX (this run):
-    a. cpanel-proxy.js — new helpers extractCpanelErrorFromResponse() +
-       looksLikeUapiPermFailure(). Both api2() and uapi() catch blocks now
-       call the extractor first, tag EPERM-class failures with
-       code='CPANEL_UAPI_EPERM', and preserve httpStatus. Server hostnames
-       + ports 2083/2087/2096 are sanitized out. Helpers are exported.
-    b. cpanel-routes.js — /files/mkdir now retries via WHM-root fallback
-       (identical pattern to /files/delete) whenever the user-level result
-       reports CPANEL_UAPI_EPERM, HTTP ≥500, or an EPERM-shaped error.
-       Success path returns {via:'whm-fallback'}; deeper failure returns
-       {code:'CPANEL_UAPI_EPERM', via:'whm-fallback-failed'} with the real
-       reason surfaced so support sees "uapi EPERM" not "500".
+    a. /app/js/pay-blockbee.js — convert() now explicitly returns null on
+       ANY failure (thrown error OR non-finite Number(value_coin)), and
+       logs enough diagnostic context (HTTP status + first 200 chars of
+       body + error cause) to catch future upstream regressions.
+    b. /app/js/_index.js DynoPay wallet webhook — validates the pair
+       (convertedValue, base_amount): if conversion failed but the invoice
+       (base_amount + fee_payer='company') is valid, credits the invoice
+       value as a safe fallback; if both are unusable, aborts the write,
+       notifies the admin group with the payment_id/ref, and 200-OKs the
+       webhook so DynoPay does not spam-retry. Final invariant guard:
+       `Number.isFinite(usdIn) && usdIn > 0` before any DB write.
+    c. /app/js/_index.js addFundsTo() — refuses non-finite valueIn and
+       logs; last-line defence for every crediting code path (bank pay,
+       welcome bonus, admin credits, retro reconciliation, etc.).
+    d. /app/js/db.js atomicIncrement() — defence-in-depth: refuses any
+       $inc call with typeof!=='number' or !isFinite(amount) and logs a
+       stack trace. This closes the entire class of NaN-poisoning bugs
+       for every collection, not just walletOf.
+    e. Data remediation — walletOf._id=8625434794 usdIn set from NaN to
+       usdOut+10 (net balance $10.00 = the deposit user paid); audit
+       trail in walletAudit (type=nan_repair). depositFunnel.La52K
+       creditedUsd corrected 0 → 10. transactions.TXN-20260715-CCF50
+       amount corrected 0 → 10.
+    f. Cluster scan — walletOf scanned for other NaN/Infinity poisoning
+       across usdIn/usdOut/ngnIn/ngnOut: 0 additional victims. Single
+       user affected in this incident.
 
 backend:
+  - task: "DynoPay wallet NaN-poisoning fix (2026-07-15 @ciroovblzz LTC)"
+    implemented: true
+    working: true
+    file: "/app/js/pay-blockbee.js, /app/js/_index.js, /app/js/db.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFICATION COMPLETE - All DynoPay wallet NaN-poisoning fix assertions PASSED (22/22):
+          
+          [1] pay-blockbee.js convert() — null on error/non-finite (5/5 PASSED)
+            ✅ convert() has `return null` in catch block (line 41)
+            ✅ convert() has non-finite guard with `return null` (line 30)
+            ✅ Behavioural: convert() returns null when getConvert throws
+            ✅ Behavioural: convert() returns null when getConvert returns HTML (<!DOCTYPE)
+            ✅ Behavioural: convert() returns 10.5 when getConvert returns valid number
+          
+          [2] _index.js DynoPay wallet webhook — guards + invoice fallback (6/6 PASSED)
+            ✅ DynoPay webhook has conversionOk guard (line 36476)
+            ✅ DynoPay webhook has invoiceOk guard (line 36478)
+            ✅ DynoPay webhook has invoice fallback logic with abort on both failures (lines 36481-36494)
+            ✅ DynoPay webhook calls notifyGroup on credit failure (lines 36488-36492, 36513-36516)
+            ✅ DynoPay webhook has final invariant guard before DB write (lines 36527-36530)
+            ✅ DynoPay webhook only uses Math.max when conversionOk (line 36498)
+          
+          [3] _index.js addFundsTo() — refuses non-finite/non-positive (2/2 PASSED)
+            ✅ addFundsTo() refuses non-finite valueIn (lines 33597-33600)
+            ✅ addFundsTo() refuses non-positive valueIn (lines 33601-33604)
+          
+          [4] db.js atomicIncrement() — refuses non-finite at top (2/2 PASSED)
+            ✅ atomicIncrement() has non-finite guard at the top (before walletOf fork, lines 82-88)
+            ✅ atomicIncrement() returns false and logs on non-finite amount
+          
+          [5] MongoDB data remediation verification (6/6 PASSED)
+            ✅ walletOf._id='8625434794' has usdIn=1060.9 (finite, not NaN)
+            ✅ walletOf._id='8625434794' has usdOut=1050.9
+            ✅ walletOf._id='8625434794' net balance=$10.00 (1060.9 - 1050.9)
+            ✅ walletAudit has {chatId:'8625434794', type:'nan_repair'} entry
+            ✅ depositFunnel._id='La52K' has creditedUsd=10
+            ✅ transactions._id='TXN-20260715-CCF50' has amount=10
+          
+          [6] Cluster scan — no NaN/Infinity in walletOf (1/1 PASSED)
+            ✅ Cluster scan: 0 wallets with NaN/Infinity (scanned 617 wallets across usdIn/usdOut/ngnIn/ngnOut)
+          
+          [7] Service health (PASSED)
+            ✅ nodejs service: RUNNING (pid 1970, uptime 0:04:42)
+            ✅ backend service: RUNNING (pid 1077, uptime 0:14:47)
+            ✅ frontend service: RUNNING (pid 757, uptime 0:19:29)
+            ✅ mongodb service: RUNNING (pid 45, uptime 0:44:53)
+            ✅ No errors in nodejs.err.log
+          
+          CONCLUSION:
+          The DynoPay wallet NaN-poisoning fix is COMPLETE and verified end-to-end. All 22 assertions passed.
+          
+          1. CODE FIX VERIFIED: The pay-blockbee.js convert() function now explicitly returns null on ANY
+             failure (API error OR non-finite result), preventing undefined from propagating to callers.
+          
+          2. WEBHOOK GUARDS VERIFIED: The DynoPay wallet webhook has comprehensive guards:
+             - conversionOk = Number.isFinite(convertedValue) && convertedValue > 0
+             - invoiceOk = Number.isFinite(invoiceUsdFromBase) && invoiceUsdFromBase > 0
+             - If conversion fails but invoice is valid → credits invoice value (safe fallback)
+             - If both fail → aborts write, notifies admin group, 200-OKs webhook
+             - Final invariant: !Number.isFinite(usdIn) || usdIn <= 0 → early return before DB write
+          
+          3. DEFENCE-IN-DEPTH VERIFIED: Multiple layers of protection against NaN poisoning:
+             - addFundsTo() refuses non-finite/non-positive valueIn (last-line defence for all credit paths)
+             - atomicIncrement() refuses non-finite amount at the top (protects ALL collections, not just walletOf)
+          
+          4. DATA REMEDIATION VERIFIED: The affected user @ciroovblzz (chatId 8625434794) has been fully
+             recovered:
+             - walletOf.usdIn corrected from NaN to 1060.9 (net balance now $10.00)
+             - walletAudit contains nan_repair audit trail
+             - depositFunnel.La52K creditedUsd corrected from 0 to 10
+             - transactions.TXN-20260715-CCF50 amount corrected from 0 to 10
+          
+          5. CLUSTER INTEGRITY VERIFIED: Scanned all 617 wallets in the database — ZERO documents have
+             NaN or ±Infinity in usdIn/usdOut/ngnIn/ngnOut fields. This was a single-user incident.
+          
+          6. ROOT CAUSE CLOSED: The bug that caused BlockBee's HTML error page to poison the wallet with
+             NaN is now fixed at multiple layers. Future API failures will fall back to the invoice value
+             or defer to manual review, never writing NaN to the database.
+          
+          Test suite: /app/js/tests/test_dynopay_nan_fix.js (22/22 passed, exit 0)
+      
+      - working: "NA"
+        agent: "main"
+        comment: |
+          Fix applied. Needs verification by testing_agent.
+
+          What to verify (behavioural, static-source; no live BlockBee call):
+
+          1. /app/js/pay-blockbee.js convert()
+             - Simulate BlockBee.getConvert throwing (module-level mock or
+               monkey-patch): convert(0.22179053, 'ltc', 'usd') MUST resolve
+               to `null` (NOT undefined, NOT NaN).
+             - Simulate BlockBee.getConvert resolving to
+               { value_coin: '<!DOCTYPE html>' }: convert() MUST return null
+               (Number('<!DOCTYPE html>') is NaN → guard trips).
+             - Simulate BlockBee.getConvert resolving to
+               { value_coin: '10.5' }: convert() MUST return 10.5 (Number).
+             - No throw escapes the function.
+
+          2. /app/js/_index.js — DynoPay wallet webhook (route
+             POST /dynopay/crypto-wallet, look for
+             "=== DYNOPAY WALLET WEBHOOK PROCESSING START ==="):
+             - Static source check: the block MUST NOT call
+               `Math.max(invoice, convertedValue)` unless
+               `Number.isFinite(convertedValue) && convertedValue > 0`
+               (conversionOk). If not conversionOk but invoiceOk, usdIn
+               falls back to the invoice value.
+             - There MUST be a final invariant check:
+               `!Number.isFinite(usdIn) || usdIn <= 0` → early return
+               with 'Credit deferred — manual review' before addFundsTo.
+             - `notifyGroup(...)` is called when the credit is deferred so
+               admins are alerted with ref + coin + value.
+
+          3. /app/js/_index.js addFundsTo()
+             - Refuses `valueIn` if typeof !== 'number' OR !Number.isFinite.
+             - Refuses `valueIn <= 0`.
+             - No atomicIncrement call happens in the refused case.
+
+          4. /app/js/db.js atomicIncrement()
+             - Refuses `amount` if typeof !== 'number' OR !Number.isFinite.
+             - Refuses on both wallet-deduction path AND normal-inc path
+               (guard is above the walletOf-vs-normal fork).
+             - Returns false and logs a stack; NO database write.
+
+          5. Data remediation verification (read-only MongoDB check):
+             - db.walletOf.find_one({_id:'8625434794'}) — usdIn must be a
+               finite number (specifically 1060.9) and NOT NaN.
+             - Net balance = usdIn - usdOut = $10.00.
+             - db.walletAudit — at least one doc with
+               {chatId:'8625434794', type:'nan_repair'} exists.
+             - db.depositFunnel._id='La52K' — creditedUsd = 10.
+             - db.transactions._id='TXN-20260715-CCF50' — amount = 10.
+
+          6. Cluster scan — walletOf must have ZERO documents where any of
+             usdIn / usdOut / ngnIn / ngnOut is NaN or ±Infinity.
+
+          7. Node.js service is running (supervisorctl status nodejs).
+
+          MongoDB env: MONGO_URL + DB_NAME loaded from /app/backend/.env.
+          Use pymongo in a script; do NOT run curl end-to-end against the
+          live DynoPay webhook (it needs valid authDyno signature).
+          A behavioural test that swaps in a mocked BlockBee module and
+          hits the wallet webhook via supertest (or a route-level function
+          import) is acceptable and preferred over pure static-source checks.
+
   - task: "Per-record CF proxied toggle in Add-DNS-Record flow (2026-07-06)"
     implemented: true
     working: true
@@ -3888,6 +4059,52 @@ test_plan:
   test_priority: "high_first"
 
 agent_communication:
+  - agent: "testing"
+    message: |
+      ✅ TESTING COMPLETE (DynoPay wallet NaN-poisoning fix) - ALL VERIFIED (22/22 assertions passed).
+      
+      CRITICAL BUG FIX VERIFIED: The 2026-07-15 production incident where @ciroovblzz's LTC $10 deposit
+      poisoned their wallet with NaN has been fully fixed and verified at multiple layers.
+      
+      WHAT WAS VERIFIED:
+      
+      1. ✅ pay-blockbee.js convert() — Returns null on ANY failure (API error OR non-finite result)
+         • Behavioural tests confirm: throws → null, HTML response → null, valid number → correct value
+      
+      2. ✅ _index.js DynoPay wallet webhook — Comprehensive guards + invoice fallback
+         • conversionOk guard: Number.isFinite(convertedValue) && convertedValue > 0
+         • invoiceOk guard: Number.isFinite(invoiceUsdFromBase) && invoiceUsdFromBase > 0
+         • If conversion fails but invoice valid → credits invoice (safe fallback)
+         • If both fail → aborts write, notifies admin, 200-OKs webhook
+         • Final invariant: !Number.isFinite(usdIn) || usdIn <= 0 → early return before DB
+      
+      3. ✅ _index.js addFundsTo() — Refuses non-finite/non-positive valueIn (last-line defence)
+      
+      4. ✅ db.js atomicIncrement() — Refuses non-finite amount at the top (protects ALL collections)
+      
+      5. ✅ MongoDB data remediation — User @ciroovblzz fully recovered:
+         • walletOf._id='8625434794': usdIn=1060.9 (was NaN), net balance=$10.00 ✓
+         • walletAudit: nan_repair audit trail exists ✓
+         • depositFunnel.La52K: creditedUsd=10 (was 0) ✓
+         • transactions.TXN-20260715-CCF50: amount=10 (was 0) ✓
+      
+      6. ✅ Cluster scan — ZERO wallets with NaN/Infinity (scanned 617 wallets)
+         • This was a single-user incident, no other victims found
+      
+      7. ✅ Service health — All services running, no errors in logs
+      
+      ROOT CAUSE CLOSED: BlockBee's HTML error page can no longer poison wallets with NaN.
+      Multiple defence layers now prevent this entire class of bugs.
+      
+      Test suite: /app/js/tests/test_dynopay_nan_fix.js (22/22 passed, exit 0)
+      
+      ACTION ITEMS FOR MAIN AGENT:
+      • All fixes verified and working correctly at multiple layers
+      • Data remediation confirmed for affected user
+      • No other victims found in cluster scan
+      • Ready to summarize and finish
+      • YOU MUST ASK USER BEFORE DOING FRONTEND TESTING
+  
   - agent: "testing"
     message: |
       ✅ TESTING COMPLETE (test_sequence 22) - Hosting purchase bug fix (@HHR2009) VERIFIED.

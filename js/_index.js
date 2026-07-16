@@ -33589,7 +33589,20 @@ honeypotService.createHoneypotRoutes(app)
 const addFundsTo = async (walletOf, chatId, coin, valueIn, lang) => {
   // Ensure chatId is always string for database consistency
   chatId = String(chatId)
-  
+
+  // ━━━ NaN / non-finite GUARD (2026-07-15 ciroovblzz fix) ━━━
+  // Refuse to write NaN / undefined / Infinity into walletOf.usdIn/ngnIn.
+  // This is the last line of defence before atomicIncrement — cheap and
+  // safe to duplicate here since callers come from many code paths.
+  if (typeof valueIn !== 'number' || !Number.isFinite(valueIn)) {
+    log(`[addFundsTo] ⛔ REFUSING non-finite valueIn=${valueIn} (typeof=${typeof valueIn}) for chatId=${chatId} coin=${coin}. Wallet NOT modified.`)
+    return
+  }
+  if (valueIn <= 0) {
+    log(`[addFundsTo] Skipping non-positive valueIn=${valueIn} for chatId=${chatId} coin=${coin}`)
+    return
+  }
+
   // All deposits now credit USD wallet
   if (coin === 'ngn') {
     // Convert NGN to USD before crediting
@@ -36452,10 +36465,40 @@ app.post('/dynopay/crypto-wallet', authDyno, async (req, res) => {
   const convertedValue = await convert(value, ticker, 'usd')
   let usdIn
 
+  // ── BUG-FIX 2026-07-15 (@ciroovblzz LTC → NaN wallet) ──
+  // BlockBee's getConvert() can return null when its API responds with
+  // HTML instead of JSON (Cloudflare page, upstream 5xx, rate-limit).
+  // If we don't guard here, Math.max(invoice, null|undefined) = NaN,
+  // which then $inc's NaN into walletOf.usdIn and permanently poisons
+  // the user's wallet balance. We must fall back to the invoice value
+  // (base_amount) — the customer was quoted a USD price at address-gen
+  // time and the on-chain confirm means DynoPay verified they sent it.
+  const conversionOk = Number.isFinite(convertedValue) && convertedValue > 0
+  const invoiceUsdFromBase = baseAmount != null ? parseFloat(baseAmount) : NaN
+  const invoiceOk = Number.isFinite(invoiceUsdFromBase) && invoiceUsdFromBase > 0
+
   if (baseAmount && feePayer === 'company') {
-    const invoice = parseFloat(baseAmount)
-    usdIn = Math.max(invoice, convertedValue)
-    if (convertedValue > invoice * 1.05) {
+    if (!conversionOk && !invoiceOk) {
+      // Both the live-rate conversion AND the invoice are unusable —
+      // we have nothing safe to credit. Abort the wallet write, notify
+      // admin, and 200-OK the webhook so DynoPay does not spam retries
+      // (we've persisted enough context via the payment_id → refId map).
+      log(`[Wallet] CRITICAL: cannot determine USD to credit for chatId=${chatId} ref=${ref} coin=${coin} value=${value} — convert()=${convertedValue} base_amount=${baseAmount}. NOT crediting.`)
+      try {
+        notifyGroup(
+          '🚨 <b>Wallet credit BLOCKED — manual review required</b>',
+          `🚨 <b>Wallet credit BLOCKED</b>\n\n👤 User: ${adminUserTag(await get(nameOf, chatId), chatId)}\n💰 Ref: <code>${ref}</code>\n🪙 Coin: <b>${value} ${coin}</b>\n💵 Invoice: <b>$${baseAmount}</b>\n⚠️ Reason: BlockBee convert() returned non-finite AND base_amount unusable.\n📝 Action: credit manually via /admin.`
+        )
+      } catch (_e) { /* notifyGroup is best-effort */ }
+      return res.send(html('Credit deferred — manual review'))
+    }
+    const invoice = invoiceOk ? invoiceUsdFromBase : convertedValue
+    // If conversion failed, credit the invoice value only (safe fallback).
+    // If both are usable, keep Versace438 overpayment protection.
+    usdIn = conversionOk ? Math.max(invoice, convertedValue) : invoice
+    if (!conversionOk) {
+      log('[Wallet] convert() FAILED — falling back to invoice: $' + invoice + ' (was going to compute from ' + value + ' ' + ticker + ')')
+    } else if (convertedValue > invoice * 1.05) {
       log('[Wallet] OVERPAYMENT detected: invoice=$' + invoice + ' actual=$' + convertedValue + ' — crediting actual $' + usdIn)
     } else if (convertedValue < invoice * 0.95) {
       log('[Wallet] underpayment detected: invoice=$' + invoice + ' actual=$' + convertedValue + ' — crediting invoice $' + usdIn + ' (legacy protection)')
@@ -36463,9 +36506,27 @@ app.post('/dynopay/crypto-wallet', authDyno, async (req, res) => {
       log('[Wallet] credit: invoice=$' + invoice + ' actual=$' + convertedValue + ' → crediting $' + usdIn)
     }
   } else {
+    if (!conversionOk) {
+      // No invoice fallback available and conversion failed — abort.
+      log(`[Wallet] CRITICAL: convert() returned non-finite (${convertedValue}) and no base_amount/company-fee — NOT crediting chatId=${chatId} ref=${ref}`)
+      try {
+        notifyGroup(
+          '🚨 <b>Wallet credit BLOCKED — manual review required</b>',
+          `🚨 <b>Wallet credit BLOCKED</b>\n\n👤 User: ${adminUserTag(await get(nameOf, chatId), chatId)}\n💰 Ref: <code>${ref}</code>\n🪙 Coin: <b>${value} ${coin}</b>\n⚠️ Reason: BlockBee convert() failed and no invoice fallback.\n📝 Action: credit manually via /admin.`
+        )
+      } catch (_e) { /* notifyGroup is best-effort */ }
+      return res.send(html('Credit deferred — manual review'))
+    }
     log('Crediting raw converted value (no base_amount or fee_payer != company)')
     usdIn = convertedValue
     log('Conversion result:', value, ticker, '= $' + usdIn, 'USD')
+  }
+
+  // Final invariant: usdIn MUST be a finite positive number before we hit
+  // the DB. Any code path above that violates this is a bug.
+  if (!Number.isFinite(usdIn) || usdIn <= 0) {
+    log(`[Wallet] SANITY-CHECK FAILED: usdIn=${usdIn} (not finite/positive) — refusing to write NaN/negative to wallet`)
+    return res.send(html('Credit deferred — manual review'))
   }
 
   log('Crediting wallet for chatId:', chatId, 'amount: $' + usdIn)
