@@ -135,6 +135,43 @@ async function runExpiryCheck() {
         // ── Expired — attempt auto-renew or release immediately ──
         if (msUntilExpiry <= 0 && num.status === 'active') {
           if (num.autoRenew) {
+            // ━━━ Grace-period fast-path (2026-07-16 log-noise fix) ━━━
+            // If number is already in an active grace period, do a cheap
+            // wallet read first. If the balance still can't cover the
+            // renewal price, skip the whole attemptAutoRenew call — it
+            // would fail identically and produce two redundant log lines
+            // per hour ("Auto-renew failed …insufficient funds" and
+            // "…still in grace period, skipping release"). Two phones in
+            // grace hit the Railway 500 logs/sec rate limit on
+            // 2026-07-14T03:33 (54 messages dropped).
+            //
+            // The user was already notified when grace started. We keep
+            // hourly ticks so a wallet top-up is caught promptly: when
+            // usdBal crosses the price threshold, we fall through to
+            // attemptAutoRenew and renew immediately.
+            const graceUntilIso = num._graceUntil
+            if (graceUntilIso) {
+              const graceUntilDate = new Date(graceUntilIso)
+              if (graceUntilDate > new Date()) {
+                try {
+                  const { usdBal } = await getBalance(_walletOf, chatId)
+                  const needed = Number(num.planPrice) || 0
+                  if (Number.isFinite(usdBal) && Number.isFinite(needed) && usdBal < needed) {
+                    // Wallet still insufficient — skip silently. Numbers
+                    // array untouched, no set() call, no log line, no DB
+                    // charge attempt. The grace-expired branch will run
+                    // when graceUntil passes.
+                    continue
+                  }
+                  // else: wallet has crossed the threshold — fall through
+                  // to attemptAutoRenew and renew now.
+                } catch (_e) {
+                  // Balance read failed — fall through to the normal path
+                  // (safer than silently skipping).
+                }
+              }
+            }
+
             const result = await attemptAutoRenew(chatId, num, i, numbers)
             const outcome = (result && typeof result === 'object') ? result.outcome : (result === true ? 'renewed' : 'error')
 

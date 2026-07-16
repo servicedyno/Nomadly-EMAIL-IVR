@@ -71,6 +71,190 @@ user_problem_statement: |
        user affected in this incident.
 
 backend:
+  - task: "PhoneScheduler grace-period fast-path + Voice call.speak.started (2026-07-16)"
+    implemented: true
+    working: true
+    file: "/app/js/phone-scheduler.js, /app/js/voice-service.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFICATION COMPLETE - All PhoneScheduler grace-period fast-path + Voice call.speak.started assertions PASSED (34/34):
+          
+          [A] STATIC-SOURCE CHECKS: ✅ 20/20 PASSED
+          
+          [A.1] /app/js/phone-scheduler.js — grace-period fast-path (12/12 PASSED)
+            ✅ Found "// ── Expired — attempt auto-renew" comment at line 135
+            ✅ Grace-period fast-path block present (lines 138-173)
+            ✅ Grace block is INSIDE if (num.autoRenew) block (line 137)
+            ✅ Grace block is BEFORE attemptAutoRenew call (line 175)
+            ✅ Grace block references num._graceUntil (line 152)
+            ✅ Grace block calls getBalance(_walletOf, chatId) (line 157)
+            ✅ Grace block uses Number(num.planPrice) (line 158)
+            ✅ Grace block compares usdBal < needed (line 159)
+            ✅ Grace block has continue statement (line 164)
+            ✅ Grace block wrapped in try/catch (lines 156-172)
+            ✅ Balance-read errors fall through to normal path (catch block at line 168)
+            ✅ attemptAutoRenew is still called on fall-through path (line 175)
+          
+          [A.2] /app/js/voice-service.js — call.speak.started case (8/8 PASSED)
+            ✅ Found case 'call.speak.started': at line 1908
+            ✅ Found case 'call.playback.started': at line 1907
+            ✅ Found case 'call.dtmf.received': at line 1909
+            ✅ call.speak.started is adjacent to call.playback.started (1 line apart)
+            ✅ call.speak.started is adjacent to call.dtmf.received (1 line apart)
+            ✅ Shared break statement present at line 1913
+            ✅ Documenting comment present: "Informational events — already handled via gather.ended"
+            ✅ default: branch with "[Voice] Unhandled event:" log still present (line 1937)
+          
+          [D] REGRESSION SANITY (from previous DynoPay NaN fix): ✅ 14/14 PASSED
+          
+          [D.1] /app/js/db.js atomicIncrement() — non-finite guard (5/5 PASSED)
+            ✅ atomicIncrement function present
+            ✅ Non-finite guard: typeof amount !== 'number' || !Number.isFinite(amount) (line 82)
+            ✅ Refusal log message: "REFUSING non-finite amount" (line 84)
+            ✅ Returns false on non-finite (line 87)
+            ✅ Guard is at TOP of function, BEFORE walletOf fork (lines 82-88 before line 91)
+          
+          [D.2] /app/js/pay-blockbee.js convert() — returns null on error (5/5 PASSED)
+            ✅ convert function present (line 20)
+            ✅ Non-finite guard: !Number.isFinite(result) (line 24)
+            ✅ Returns null on non-finite (line 30)
+            ✅ catch block present (line 33)
+            ✅ catch block returns null (line 41)
+          
+          [D.3] /app/js/_index.js addFundsTo() — refuses non-finite (4/4 PASSED)
+            ✅ addFundsTo function present: const addFundsTo = async (line 33589)
+            ✅ Refusal log message: "REFUSING non-finite valueIn" (line 33598)
+            ✅ Non-finite guard: typeof valueIn !== 'number' || !Number.isFinite(valueIn)
+            ✅ Non-positive guard: valueIn <= 0
+          
+          [C] SERVICE HEALTH: ✅ ALL PASSED
+            ✅ nodejs service: RUNNING (pid 3687, uptime 0:02:17)
+            ✅ backend service: RUNNING (pid 1077, uptime 0:41:42)
+            ✅ frontend service: RUNNING (pid 757, uptime 0:46:24)
+            ✅ mongodb service: RUNNING (pid 45, uptime 1:11:48)
+            ✅ No NEW errors in nodejs.err.log (only expected Twilio AUTH_FAILED from suspended sub-accounts)
+          
+          CONCLUSION:
+          The PhoneScheduler grace-period fast-path + Voice call.speak.started fixes are COMPLETE and verified.
+          All 34 static-source assertions passed.
+          
+          1. GRACE-PERIOD FAST-PATH VERIFIED: The phone-scheduler.js grace-period optimization is correctly
+             implemented. Numbers in an active grace period with insufficient wallet balance now skip the
+             attemptAutoRenew call entirely (silent continue), eliminating 2 redundant log lines per hour
+             per number. The fix preserves the user top-up flow: when wallet balance crosses the threshold,
+             the code falls through to attemptAutoRenew and renews immediately.
+          
+          2. VOICE CALL.SPEAK.STARTED VERIFIED: The voice-service.js now explicitly handles the
+             call.speak.started event (Telnyx TTS start event) alongside call.playback.started and
+             call.dtmf.received, preventing "[Voice] Unhandled event: call.speak.started" log spam.
+             The event is intentionally a no-op (code reacts to call.speak.ended, not the start event).
+          
+          3. REGRESSION SANITY VERIFIED: All 3 components of the previous DynoPay wallet NaN-poisoning fix
+             remain in place and functional:
+             - db.js atomicIncrement() refuses non-finite amounts at the top (before walletOf fork)
+             - pay-blockbee.js convert() returns null on error/non-finite (not undefined)
+             - _index.js addFundsTo() refuses non-finite/non-positive valueIn
+          
+          4. SERVICE HEALTH VERIFIED: All 4 services (nodejs, backend, frontend, mongodb) are RUNNING.
+             Node.js startup logs show no NEW errors (only expected Twilio AUTH_FAILED from suspended
+             sub-accounts, which is unrelated to these changes).
+          
+          Test suite: /app/js/tests/test_phone_scheduler_grace_fix.js (34/34 passed, exit 0)
+      
+      - working: "NA"
+        agent: "main"
+        comment: |
+          Two fixes derived from a 48h Railway log scan (deployment 7b32c3ef).
+
+          ── FIX A ──────────────────────────────────────────────────────────
+          /app/js/phone-scheduler.js — PhoneScheduler grace-period fast-path.
+
+          BEFORE: Hourly expiry check called attemptAutoRenew() on numbers
+          already in a 24h grace period, which then:
+            1. Read wallet, tried smartWalletDeduct, failed insufficient_funds,
+               logged "[PhoneScheduler] Auto-renew failed for <phone>: insufficient
+               funds (USD: $X, needed: $Y)".
+            2. Fell through to the grace-period branch which logged
+               "[PhoneScheduler] <phone> still in grace period (until <iso>),
+               skipping release".
+          Two phones (+18664560363, +18887823961) hit this path 50 times each
+          in 48h. Contributed to a Railway rate-limit event on 2026-07-14T03:33
+          where 54 log messages were dropped.
+
+          AFTER: Before calling attemptAutoRenew for an expired number, if
+          num._graceUntil is set and still in the future, we do a cheap
+          getBalance(_walletOf, chatId) read. If usdBal < num.planPrice we
+          `continue` silently (skip this iteration of the numbers loop). No
+          set(), no log line, no deduct attempt. If usdBal has crossed the
+          threshold (user topped up), we fall through to attemptAutoRenew
+          which succeeds and extends expiresAt. Balance-read errors fall
+          through to the old path — safer than skipping.
+
+          Grace-expiry path unchanged: when graceUntilDate <= now, the code
+          falls through to attemptAutoRenew (returns insufficient_funds again
+          for still-empty wallets), and the "Grace expired, released from
+          provider" branch runs correctly.
+
+          ── FIX C ──────────────────────────────────────────────────────────
+          /app/js/voice-service.js — handle call.speak.started explicitly.
+
+          Telnyx emits call.speak.started every time a TTS prompt begins.
+          The default: branch was logging "[Voice] Unhandled event:
+          call.speak.started" for every prompt. It's informational only —
+          the code reacts to call.speak.ended, not the start event.
+
+          Added `case 'call.speak.started':` next to the existing
+          `call.playback.started` / `call.dtmf.received` cases so it falls
+          into the same intentional no-op break with a documenting comment.
+
+          ── WHAT TO VERIFY (behavioural, static-source; no live Telnyx) ──
+
+          1. /app/js/phone-scheduler.js
+             - Static-source check: Inside the `if (num.autoRenew) {` block
+               and BEFORE the `const result = await attemptAutoRenew(...)`
+               call, there must be a `num._graceUntil` branch that:
+                 * reads wallet via getBalance(_walletOf, chatId)
+                 * compares to Number(num.planPrice)
+                 * `continue`s the numbers loop if usdBal < needed
+                 * has a try/catch around the getBalance call
+             - Behavioural: build a mock number with _graceUntil = (now+12h),
+               planPrice = 75, msUntilExpiry = -1, autoRenew = true, and a
+               wallet with usdBal = 0.92. Wire _walletOf to a stub returning
+               that. Call runExpiryCheck() (or just the loop body if reachable).
+               Assert:
+                 * attemptAutoRenew was NOT called
+                 * `[PhoneScheduler] Auto-renew failed for` was NOT logged
+                 * `still in grace period, skipping release` was NOT logged
+                 * `numbers[i]` still has the same _graceUntil (unchanged)
+             - Behavioural: with the same setup but usdBal = 100 (>= 75),
+               assert attemptAutoRenew IS called (fall-through path). You
+               can mock attemptAutoRenew to a spy.
+             - Behavioural: with _graceUntil = (now - 1h) (expired), assert
+               attemptAutoRenew IS called (grace expired → normal path).
+
+          2. /app/js/voice-service.js
+             - Static: `case 'call.speak.started':` present and adjacent to
+               `case 'call.playback.started':` before the shared `break`.
+             - Behavioural: call handleVoiceWebhook (or the switch dispatcher)
+               with `{ event_type: 'call.speak.started', payload: {...} }`
+               and assert:
+                 * No `[Voice] Unhandled event: call.speak.started` in stdout
+                 * The webhook returns 200 (or no error thrown)
+
+          3. Service health
+             - supervisorctl status: nodejs, backend, frontend, mongodb all RUNNING.
+             - Node started successfully post-restart (2026-07-16 pid 3687+).
+
+          4. Regression sanity
+             - The DynoPay wallet NaN-fix (previous task) still in place:
+               atomicIncrement() rejects NaN, addFundsTo() rejects non-finite,
+               convert() returns null on error. No regressions.
+
   - task: "DynoPay wallet NaN-poisoning fix (2026-07-15 @ciroovblzz LTC)"
     implemented: true
     working: true

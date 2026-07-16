@@ -1905,8 +1905,11 @@ async function handleVoiceWebhook(req, res) {
         handleCallBridged(payload)
         break
       case 'call.playback.started':
+      case 'call.speak.started':
       case 'call.dtmf.received':
         // Informational events — already handled via gather.ended
+        // (call.speak.started arrives on every TTS prompt; we react to
+        //  call.speak.ended, not the start event.)
         break
       case 'call.machine.detection.ended': {
         // AMD result from Telnyx — store in outbound IVR session
