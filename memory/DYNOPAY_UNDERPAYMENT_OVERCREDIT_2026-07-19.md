@@ -111,3 +111,15 @@ Script: /app/js/scripts/reverse_underpaid_products.js
 - **N4b0q** (BTC wallet $5/$10): a wallet top-up, not a product/access — no grant to reverse; small $5
   wallet over-credit left as-is (flag for operator if clawback desired).
 Audit: walletAudit rows (fraud_hosting_suspend, fraud_marketplace_revoke).
+
+## Instant admin underpayment alert (DONE 2026-07-19)
+`notifyUnderpayment()` in /app/js/_index.js — ADMIN-ONLY Telegram alert (to TELEGRAM_ADMIN_CHAT_ID
+only, never the public notify groups). Fires whenever computeDepositCreditUsd() returns mode
+'major-underpayment' (actual < 90% of invoice). Wired into all 11 DynoPay product handlers + the wallet
+handler (replaced the wallet's old broadcast notifyGroup alert). computeDepositCreditUsd() now echoes
+its inputs (invoiceUsd/convertedValue/feePayer/tolerance) so the alert carries full context
+(user, service, received vs invoice, % paid, shortfall). Message logs as "[Underpayment] admin alert:".
+Dev-only endpoints (404 in prod): /api/dev/credit-preview adds `wouldAlertAdmin`;
+/api/dev/underpayment-alert-test exercises the real send path. Verified by testing agent: 27/27
+assertions (18 node + 5 trigger-logic + 2 real-send + 2 health); alert fires ONLY for <90%, never for
+exact/overpay/minor fee-shave.
