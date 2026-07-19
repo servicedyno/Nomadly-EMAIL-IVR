@@ -71,6 +71,156 @@ user_problem_statement: |
        user affected in this incident.
 
 backend:
+  - task: "DynoPay wallet UNDERPAYMENT over-credit bug (@Spirits_Of_The_Ancesters 17 TRX → $100, 2026-07-19)"
+    implemented: true
+    working: true
+    file: "/app/js/crypto-credit.js, /app/js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFICATION COMPLETE - All DynoPay wallet UNDERPAYMENT over-credit bug fix assertions PASSED:
+          
+          [TEST 1] NODE REGRESSION SUITE: ✅ 18/18 PASSED (exit 0)
+            • cd /app && node js/__tests__/dynopay-underpayment-credit.test.js
+            ✅ Spirits 17.72 TRX → credits $5.85 not $100 (THE KEY FIX)
+            ✅ Spirits mode = major-underpayment
+            ✅ 3R9ly hosting $58.94/$105 → actual
+            ✅ sAoKK mkt $4.23/$50 → actual
+            ✅ N4b0q btc $5/$10 → actual
+            ✅ fee-shave $45.04/$47 → credits invoice $47 (minor-underpayment goodwill)
+            ✅ Versace438 $60.10/$30 → credits actual $60.10 (overpayment preserved)
+            ✅ exact $50/$50 → $50
+            ✅ boundary tests at tolerance threshold (0.90)
+            ✅ fee_payer=customer → always credit actual
+            ✅ convert NaN + invoice → invoice fallback (ciroovblzz guard preserved)
+            ✅ no data → blocked-no-data
+            ✅ default tolerance = 0.90
+          
+          [TEST 2] HTTP VERIFICATION VIA FASTAPI PROXY: ✅ 7/7 SCENARIOS PASSED
+            POST {REACT_APP_BACKEND_URL}/api/dev/credit-preview with JSON body:
+            
+            (a) ✅ {"invoiceUsd":100,"convertedValue":5.85,"feePayer":"company"}
+                → creditUsd: 5.85, mode: "major-underpayment"
+                ★ THE REPORTED BUG FIX: Previously credited $100, now correctly credits $5.85
+            
+            (b) ✅ {"invoiceUsd":105,"convertedValue":58.94,"feePayer":"company"}
+                → creditUsd: 58.94, mode: "major-underpayment"
+            
+            (c) ✅ {"invoiceUsd":30,"convertedValue":60.10,"feePayer":"company"}
+                → creditUsd: 60.1, mode: "overpayment"
+            
+            (d) ✅ {"invoiceUsd":47,"convertedValue":45.04,"feePayer":"company"}
+                → creditUsd: 47, mode: "minor-underpayment"
+            
+            (e) ✅ {"invoiceUsd":50,"convertedValue":50,"feePayer":"company"}
+                → creditUsd: 50, mode: "overpayment"
+            
+            (f) ✅ {"invoiceUsd":100,"convertedValue":5.85,"feePayer":"customer"}
+                → creditUsd: 5.85, mode: "actual"
+            
+            (g) ✅ {"invoiceUsd":25,"convertedValue":null,"feePayer":"company"}
+                → creditUsd: 25, mode: "invoice-fallback-noconvert"
+          
+          [TEST 3] SERVICE HEALTH: ✅ ALL PASSED
+            ✅ nodejs service: RUNNING (pid 2031, uptime 0:02:51)
+            ✅ No NEW errors in /var/log/supervisor/nodejs.err.log
+            ✅ No crash/error entries caused by these changes
+          
+          CONCLUSION:
+          The DynoPay wallet UNDERPAYMENT over-credit bug fix is COMPLETE and verified end-to-end.
+          All 3 test suites passed (18 Node assertions + 7 HTTP scenarios + service health checks).
+          
+          1. BUG FIX VERIFIED: The critical scenario (a) - @Spirits_Of_The_Ancesters sending 17 TRX
+             ≈ $5.85 against a $100 invoice - now correctly credits $5.85 with mode "major-underpayment"
+             instead of the previous wrong behavior of crediting the full $100.
+          
+          2. PURE FUNCTION VERIFIED: /app/js/crypto-credit.js computeDepositCreditUsd() implements
+             the correct credit matrix:
+             • actual >= invoice .................. credit ACTUAL (overpayment - Versace438 preserved)
+             • invoice*0.90 <= actual < invoice ... credit INVOICE (fee-shave goodwill)
+             • actual < invoice*0.90 .............. credit ACTUAL (major underpayment - THE FIX)
+             • conversion failed + invoice ........ credit INVOICE (ciroovblzz NaN guard preserved)
+             • no usable data ..................... blocked-no-data
+          
+          3. DEV-ONLY ENDPOINT VERIFIED: POST /api/dev/credit-preview (proxied via FastAPI) correctly
+             exposes the pure logic with NO database writes, allowing safe verification without touching
+             production wallets.
+          
+          4. TOLERANCE THRESHOLD VERIFIED: The 0.90 underpayment tolerance correctly separates legitimate
+             fee-shave scenarios (0.958 ratio gets goodwill invoice credit) from major underpayment
+             exploits (all historical exploits <= 0.561 now correctly credit only actual amount).
+          
+          5. BACKWARD COMPATIBILITY VERIFIED: The Versace438 overpayment fix (credit actual when user
+             sends MORE than invoiced) is preserved. The ciroovblzz NaN guard (invoice fallback when
+             conversion fails) is preserved.
+          
+          6. SERVICE INTEGRITY VERIFIED: nodejs service remains stable with no new errors introduced
+             by these changes.
+          
+          The bug that allowed users to deposit far less than the invoice amount (e.g., $5.85 vs $100)
+          and still receive full invoice credit is now fixed. Major underpayments (< 90% of invoice)
+          now correctly credit only the actual amount received, while preserving goodwill for minor
+          fee-shave scenarios and the overpayment fix.
+          
+          SAFETY CONFIRMED: All testing performed via the read-only /api/dev/credit-preview endpoint.
+          NO writes to production MongoDB wallets during verification.
+      
+      - working: "NA"
+        agent: "main"
+        comment: |
+          BUG (reported): User @Spirits_Of_The_Ancesters (chatId 7898648919) deposited 17.720549 TRX
+          (DynoPay exchange_rate 0.33 → ≈ $5.85) against a $100 invoice (ref 6dwYg, fee_payer 'company')
+          and was credited the FULL $100 (transaction TXN-20260719-5FC10). Confirmed from production
+          MongoDB (cryptoDepositAddresses + dynopayWebhooks + transactions).
+
+          ROOT CAUSE: /app/js/_index.js POST /dynopay/crypto-wallet used
+            usdIn = Math.max(invoice, convertedValue)
+          The "underpayment legacy protection" credited the full invoice regardless of how large the
+          shortfall was — so a 94%-underpaid deposit still credited $100.
+
+          RETROSPECTIVE SWEEP (365-day forensic window) found 3 similar historical over-credits:
+            • 3R9ly  /dynopay/crypto-pay-hosting  USDT-TRC20  sent $58.94 vs $105 invoice
+            • sAoKK  /dynopay/crypto-pay-marketplace-access  USDT-TRC20  sent $4.23 vs $50 invoice
+            • N4b0q  /dynopay/crypto-wallet  BTC  sent $5.00 vs $10 invoice
+          (Product-handler cases share the same root class but use a different code path — reported to
+          user as follow-up; NOT changed in this run. This run fixes the WALLET handler only.)
+
+          FIX (this run):
+            a. NEW /app/js/crypto-credit.js — pure computeDepositCreditUsd({invoiceUsd, convertedValue,
+               feePayer, underpayTolerance=0.90}) returning {creditUsd, mode}. Matrix:
+                 actual >= invoice ............ credit ACTUAL (overpayment — Versace438 preserved)
+                 invoice*0.90 <= actual < inv . credit INVOICE (fee-shave goodwill)
+                 actual < invoice*0.90 ........ credit ACTUAL (major underpayment — THE FIX)
+                 conversion NaN + invoice ..... credit INVOICE (ciroovblzz NaN guard preserved)
+                 no data ...................... blocked-no-data (admin notify, no credit)
+               Tolerance 0.90 chosen from prod ratio analysis: legit deposits cluster [0.98,1.02] with a
+               single legit fee-shave at 0.958; all exploits <= 0.561.
+            b. /app/js/_index.js POST /dynopay/crypto-wallet — replaced Math.max block with the helper;
+               major-underpayment path also notifies admin group. NaN sanity guard before DB write kept.
+            c. NEW DEV-ONLY endpoint POST /dev/credit-preview (404 in production) — read-only, NO DB
+               writes — returns computeDepositCreditUsd() output so this can be verified via HTTP without
+               touching real wallets.
+            d. NEW regression test /app/js/__tests__/dynopay-underpayment-credit.test.js (18 assertions,
+               all pass via `node`).
+
+          HOW TO TEST (no production wallet writes):
+            1. Run node regression: `cd /app && node js/__tests__/dynopay-underpayment-credit.test.js`
+               → expect "18/18 assertions passed".
+            2. HTTP via FastAPI proxy POST {REACT_APP_BACKEND_URL}/api/dev/credit-preview with JSON body,
+               assert response {creditUsd, mode}:
+                 {"invoiceUsd":100,"convertedValue":5.85,"feePayer":"company"} → creditUsd 5.85, mode "major-underpayment"  (THE reported bug)
+                 {"invoiceUsd":30,"convertedValue":60.10,"feePayer":"company"} → creditUsd 60.1, mode "overpayment"
+                 {"invoiceUsd":47,"convertedValue":45.04,"feePayer":"company"} → creditUsd 47, mode "minor-underpayment"
+                 {"invoiceUsd":105,"convertedValue":58.94,"feePayer":"company"} → creditUsd 58.94, mode "major-underpayment"
+                 {"invoiceUsd":50,"convertedValue":50,"feePayer":"company"} → creditUsd 50 (exact)
+                 {"invoiceUsd":100,"convertedValue":5.85,"feePayer":"customer"} → creditUsd 5.85, mode "actual"
+                 {"invoiceUsd":25,"convertedValue":null,"feePayer":"company"} → creditUsd 25, mode "invoice-fallback-noconvert"
+            3. Do NOT POST to the real /dynopay/crypto-wallet webhook (it writes to the shared production DB).
+
   - task: "Admin escalation buttons Ack & Take Over / Resolve broken (2026-07-16)"
     implemented: true
     working: true
@@ -4419,12 +4569,121 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Hosting purchase — domainPrice/domainRegistered wallet-charge bug (@HHR2009, 2026-07-06)"
+    - "DynoPay wallet UNDERPAYMENT over-credit bug (@Spirits_Of_The_Ancesters 17 TRX → $100, 2026-07-19)"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
+  - agent: "main"
+    message: |
+      PLEASE TEST: DynoPay wallet UNDERPAYMENT over-credit fix (@Spirits_Of_The_Ancesters 17 TRX → $100).
+
+      CONTEXT: Bug confirmed from production data — user sent 17.72 TRX (~$5.85) against a $100 invoice
+      (fee_payer 'company') and was credited $100. Root cause was Math.max(invoice, convertedValue) in
+      POST /dynopay/crypto-wallet. Fixed via new pure helper /app/js/crypto-credit.js
+      (computeDepositCreditUsd) which credits the ACTUAL market value on major underpayments while
+      preserving the Versace438 overpayment fix and the fee-shave goodwill + ciroovblzz NaN fallback.
+
+      ⚠️ CRITICAL SAFETY: This dev pod shares the PRODUCTION MongoDB. DO NOT POST to the real
+      /dynopay/crypto-wallet webhook (it writes real wallets). Verify ONLY via:
+        (1) node regression test, and
+        (2) the read-only POST /api/dev/credit-preview endpoint (guarded, 404 in production, NO DB writes).
+
+      TEST STEPS:
+        1. Run: `cd /app && node js/__tests__/dynopay-underpayment-credit.test.js` → expect "18/18 assertions passed".
+        2. POST {REACT_APP_BACKEND_URL}/api/dev/credit-preview (Content-Type: application/json) and assert
+           JSON {creditUsd, mode} for each scenario:
+             {"invoiceUsd":100,"convertedValue":5.85,"feePayer":"company"}  → creditUsd 5.85, mode "major-underpayment"  ← THE reported bug
+             {"invoiceUsd":105,"convertedValue":58.94,"feePayer":"company"} → creditUsd 58.94, mode "major-underpayment"
+             {"invoiceUsd":30,"convertedValue":60.10,"feePayer":"company"}  → creditUsd 60.1,  mode "overpayment"
+             {"invoiceUsd":47,"convertedValue":45.04,"feePayer":"company"}  → creditUsd 47,    mode "minor-underpayment"
+             {"invoiceUsd":50,"convertedValue":50,"feePayer":"company"}     → creditUsd 50
+             {"invoiceUsd":100,"convertedValue":5.85,"feePayer":"customer"} → creditUsd 5.85,  mode "actual"
+             {"invoiceUsd":25,"convertedValue":null,"feePayer":"company"}   → creditUsd 25,    mode "invoice-fallback-noconvert"
+        3. Confirm nodejs service is RUNNING and no NEW errors in /var/log/supervisor/nodejs.err.log.
+
+      Report pass/fail per scenario. The key assertion is scenario 1 (must credit 5.85, NOT 100).
+
+  - agent: "testing"
+    message: |
+      ✅ TESTING COMPLETE (DynoPay wallet UNDERPAYMENT over-credit fix) - ALL VERIFIED.
+      
+      CRITICAL BUG FIX VERIFIED: The 2026-07-19 production incident where @Spirits_Of_The_Ancesters
+      sent 17 TRX (~$5.85) against a $100 invoice and was credited the FULL $100 has been fixed.
+      
+      ALL 3 TEST SUITES PASSED:
+      
+      [TEST 1] ✅ NODE REGRESSION SUITE: 18/18 assertions passed (exit 0)
+        • cd /app && node js/__tests__/dynopay-underpayment-credit.test.js
+        • THE KEY FIX: Spirits 17.72 TRX → credits $5.85 not $100 ✓
+        • Mode correctly set to "major-underpayment" ✓
+        • All historical incidents (3R9ly, sAoKK, N4b0q) now credit actual amount ✓
+        • Fee-shave goodwill preserved (0.958 ratio → invoice credit) ✓
+        • Versace438 overpayment fix preserved (credit actual when > invoice) ✓
+        • ciroovblzz NaN guard preserved (invoice fallback when conversion fails) ✓
+        • Tolerance threshold 0.90 correctly separates goodwill from exploits ✓
+      
+      [TEST 2] ✅ HTTP VERIFICATION VIA FASTAPI PROXY: 7/7 scenarios passed
+        POST {REACT_APP_BACKEND_URL}/api/dev/credit-preview with JSON body:
+        
+        (a) ✅ invoiceUsd=100, convertedValue=5.85, feePayer=company
+            → creditUsd: 5.85, mode: "major-underpayment"
+            ★ THE REPORTED BUG: Previously credited $100, now correctly credits $5.85
+        
+        (b) ✅ invoiceUsd=105, convertedValue=58.94 → creditUsd: 58.94, mode: "major-underpayment"
+        (c) ✅ invoiceUsd=30, convertedValue=60.10 → creditUsd: 60.1, mode: "overpayment"
+        (d) ✅ invoiceUsd=47, convertedValue=45.04 → creditUsd: 47, mode: "minor-underpayment"
+        (e) ✅ invoiceUsd=50, convertedValue=50 → creditUsd: 50, mode: "overpayment"
+        (f) ✅ invoiceUsd=100, convertedValue=5.85, feePayer=customer → creditUsd: 5.85, mode: "actual"
+        (g) ✅ invoiceUsd=25, convertedValue=null → creditUsd: 25, mode: "invoice-fallback-noconvert"
+      
+      [TEST 3] ✅ SERVICE HEALTH: All checks passed
+        • nodejs service: RUNNING (pid 2031, uptime 0:02:51) ✓
+        • No NEW errors in /var/log/supervisor/nodejs.err.log ✓
+        • No crash/error entries caused by these changes ✓
+      
+      WHAT WAS VERIFIED:
+      
+      1. ✅ PURE FUNCTION LOGIC (/app/js/crypto-credit.js computeDepositCreditUsd)
+         Credit matrix correctly implemented:
+         • actual >= invoice .................. credit ACTUAL (overpayment - Versace438)
+         • invoice*0.90 <= actual < invoice ... credit INVOICE (fee-shave goodwill)
+         • actual < invoice*0.90 .............. credit ACTUAL (major underpayment - THE FIX)
+         • conversion failed + invoice ........ credit INVOICE (ciroovblzz NaN guard)
+         • no usable data ..................... blocked-no-data
+      
+      2. ✅ DEV-ONLY ENDPOINT (/api/dev/credit-preview)
+         • Read-only, NO database writes ✓
+         • Correctly exposes pure logic via FastAPI proxy ✓
+         • All 7 test scenarios return correct creditUsd and mode values ✓
+      
+      3. ✅ TOLERANCE THRESHOLD (0.90)
+         • Correctly separates legitimate fee-shave (0.958 → goodwill) from exploits (≤0.561 → actual) ✓
+      
+      4. ✅ BACKWARD COMPATIBILITY
+         • Versace438 overpayment fix preserved (credit actual when user sends MORE) ✓
+         • ciroovblzz NaN guard preserved (invoice fallback when conversion fails) ✓
+      
+      5. ✅ SAFETY CONFIRMED
+         • All testing via read-only /api/dev/credit-preview endpoint ✓
+         • NO writes to production MongoDB wallets during verification ✓
+         • Did NOT POST to real /dynopay/crypto-wallet webhook ✓
+      
+      ROOT CAUSE CLOSED: The Math.max(invoice, convertedValue) logic that credited the full invoice
+      regardless of underpayment size has been replaced with the new computeDepositCreditUsd() helper.
+      Major underpayments (< 90% of invoice) now correctly credit only the actual amount received.
+      
+      Test suite: /app/js/__tests__/dynopay-underpayment-credit.test.js (18/18 passed, exit 0)
+      
+      ACTION ITEMS FOR MAIN AGENT:
+      • ✅ Bug fix verified and working correctly
+      • ✅ All 3 test suites passed (Node regression + HTTP verification + service health)
+      • ✅ THE KEY FIX confirmed: $5.85 vs $100 invoice now credits $5.85, not $100
+      • ✅ No production wallet writes during testing (safety confirmed)
+      • ✅ No further action required — ready to summarise and finish
+      • YOU MUST ASK USER BEFORE DOING FRONTEND TESTING
+
   - agent: "testing"
     message: |
       ✅ TESTING COMPLETE (Admin escalation buttons fix) - ALL VERIFIED (34/34 assertions passed).

@@ -500,6 +500,7 @@ const {
   walletDepositMinFor,
 } = require('./config.js')
 const { user: configUser } = require('./config.js')
+const { computeDepositCreditUsd } = require('./crypto-credit.js')
 const createShortBitly = require('./bitly.js')
 const { getBitlyClicks, isBitlyUrl } = require('./bitly.js')
 const { createShortUrlApi, analyticsCuttly } = require('./cuttly.js')
@@ -35561,6 +35562,23 @@ app.get('/crypto-wallet', auth, async (req, res) => {
   await set(state, chatId, 'action', 'none') // Reset action after crypto wallet deposit
 })
 
+// ── DEV-ONLY credit-logic preview (read-only, no DB writes) ──────────────
+// Exposes computeDepositCreditUsd() so the automated test harness can verify
+// the underpayment over-credit fix (2026-07-19) across scenarios WITHOUT
+// hitting a real wallet. Hard-disabled in production.
+app.post('/dev/credit-preview', (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const b = req.body || {}
+  const invoiceUsd = b.invoiceUsd != null ? parseFloat(b.invoiceUsd) : (b.base_amount != null ? parseFloat(b.base_amount) : NaN)
+  const convertedValue = b.convertedValue != null ? parseFloat(b.convertedValue) : NaN
+  const feePayer = b.feePayer != null ? b.feePayer : b.fee_payer
+  const underpayTolerance = b.underpayTolerance != null ? parseFloat(b.underpayTolerance) : undefined
+  const result = computeDepositCreditUsd({ invoiceUsd, convertedValue, feePayer, underpayTolerance })
+  return res.json({ input: { invoiceUsd, convertedValue, feePayer, underpayTolerance }, ...result })
+})
+
 // Dynopay Pay plan
 app.post('/dynopay/crypto-pay-plan', authDyno, async (req, res) => {
   // Validate
@@ -36486,49 +36504,50 @@ app.post('/dynopay/crypto-wallet', authDyno, async (req, res) => {
   const invoiceUsdFromBase = baseAmount != null ? parseFloat(baseAmount) : NaN
   const invoiceOk = Number.isFinite(invoiceUsdFromBase) && invoiceUsdFromBase > 0
 
-  if (baseAmount && feePayer === 'company') {
-    if (!conversionOk && !invoiceOk) {
-      // Both the live-rate conversion AND the invoice are unusable —
-      // we have nothing safe to credit. Abort the wallet write, notify
-      // admin, and 200-OK the webhook so DynoPay does not spam retries
-      // (we've persisted enough context via the payment_id → refId map).
-      log(`[Wallet] CRITICAL: cannot determine USD to credit for chatId=${chatId} ref=${ref} coin=${coin} value=${value} — convert()=${convertedValue} base_amount=${baseAmount}. NOT crediting.`)
-      try {
-        notifyGroup(
-          '🚨 <b>Wallet credit BLOCKED — manual review required</b>',
-          `🚨 <b>Wallet credit BLOCKED</b>\n\n👤 User: ${adminUserTag(await get(nameOf, chatId), chatId)}\n💰 Ref: <code>${ref}</code>\n🪙 Coin: <b>${value} ${coin}</b>\n💵 Invoice: <b>$${baseAmount}</b>\n⚠️ Reason: BlockBee convert() returned non-finite AND base_amount unusable.\n📝 Action: credit manually via /admin.`
-        )
-      } catch (_e) { /* notifyGroup is best-effort */ }
-      return res.send(html('Credit deferred — manual review'))
-    }
-    const invoice = invoiceOk ? invoiceUsdFromBase : convertedValue
-    // If conversion failed, credit the invoice value only (safe fallback).
-    // If both are usable, keep Versace438 overpayment protection.
-    usdIn = conversionOk ? Math.max(invoice, convertedValue) : invoice
-    if (!conversionOk) {
-      log('[Wallet] convert() FAILED — falling back to invoice: $' + invoice + ' (was going to compute from ' + value + ' ' + ticker + ')')
-    } else if (convertedValue > invoice * 1.05) {
-      log('[Wallet] OVERPAYMENT detected: invoice=$' + invoice + ' actual=$' + convertedValue + ' — crediting actual $' + usdIn)
-    } else if (convertedValue < invoice * 0.95) {
-      log('[Wallet] underpayment detected: invoice=$' + invoice + ' actual=$' + convertedValue + ' — crediting invoice $' + usdIn + ' (legacy protection)')
-    } else {
-      log('[Wallet] credit: invoice=$' + invoice + ' actual=$' + convertedValue + ' → crediting $' + usdIn)
-    }
+  // ── Credit decision (crypto-credit.js) — underpayment over-credit fix 2026-07-19 ──
+  // Old logic used Math.max(invoice, convertedValue), which credited the FULL
+  // invoice on massive underpayments (e.g. @Spirits_Of_The_Ancesters sent
+  // 17.72 TRX ≈ $5.85 against a $100 invoice → wrongly credited $100). The
+  // helper preserves the Versace438 overpayment fix + fee-shave goodwill but
+  // credits only the ACTUAL market value when the shortfall is large.
+  const { creditUsd, mode } = computeDepositCreditUsd({
+    invoiceUsd: invoiceUsdFromBase,
+    convertedValue,
+    feePayer,
+  })
+
+  if (mode === 'blocked-no-data') {
+    // Neither a usable live-rate conversion NOR an invoice → nothing safe to
+    // credit. Abort the wallet write, notify admin, and 200-OK the webhook so
+    // DynoPay does not spam retries.
+    log(`[Wallet] CRITICAL: cannot determine USD to credit for chatId=${chatId} ref=${ref} coin=${coin} value=${value} — convert()=${convertedValue} base_amount=${baseAmount}. NOT crediting.`)
+    try {
+      notifyGroup(
+        '🚨 <b>Wallet credit BLOCKED — manual review required</b>',
+        `🚨 <b>Wallet credit BLOCKED</b>\n\n👤 User: ${adminUserTag(await get(nameOf, chatId), chatId)}\n💰 Ref: <code>${ref}</code>\n🪙 Coin: <b>${value} ${coin}</b>\n💵 Invoice: <b>$${baseAmount ?? 'n/a'}</b>\n⚠️ Reason: convert() non-finite AND no usable invoice.\n📝 Action: credit manually via /admin.`
+      )
+    } catch (_e) { /* notifyGroup is best-effort */ }
+    return res.send(html('Credit deferred — manual review'))
+  }
+
+  usdIn = creditUsd
+  const invoiceForLog = invoiceOk ? invoiceUsdFromBase : null
+  if (mode === 'invoice-fallback-noconvert') {
+    log('[Wallet] convert() FAILED — falling back to invoice: $' + usdIn + ' (from ' + value + ' ' + ticker + ')')
+  } else if (mode === 'overpayment') {
+    log('[Wallet] OVERPAYMENT: invoice=$' + invoiceForLog + ' actual=$' + convertedValue + ' — crediting actual $' + usdIn)
+  } else if (mode === 'minor-underpayment') {
+    log('[Wallet] minor underpayment (fee-shave): invoice=$' + invoiceForLog + ' actual=$' + convertedValue + ' — crediting invoice $' + usdIn + ' (goodwill)')
+  } else if (mode === 'major-underpayment') {
+    log('[Wallet] MAJOR UNDERPAYMENT: invoice=$' + invoiceForLog + ' actual=$' + convertedValue + ' — crediting ACTUAL $' + usdIn + ' (underpayment over-credit fix; notifying admin)')
+    try {
+      notifyGroup(
+        '⚠️ <b>Underpaid crypto deposit — credited actual value</b>',
+        `⚠️ <b>Underpaid deposit</b>\n\n👤 User: ${adminUserTag(await get(nameOf, chatId), chatId)}\n💰 Ref: <code>${ref}</code>\n🪙 Received: <b>${value} ${coin}</b> (≈ $${convertedValue.toFixed(2)})\n💵 Invoice was: <b>$${invoiceForLog}</b>\n✅ Credited ACTUAL: <b>$${usdIn.toFixed ? usdIn.toFixed(2) : usdIn}</b>`
+      )
+    } catch (_e) { /* best-effort */ }
   } else {
-    if (!conversionOk) {
-      // No invoice fallback available and conversion failed — abort.
-      log(`[Wallet] CRITICAL: convert() returned non-finite (${convertedValue}) and no base_amount/company-fee — NOT crediting chatId=${chatId} ref=${ref}`)
-      try {
-        notifyGroup(
-          '🚨 <b>Wallet credit BLOCKED — manual review required</b>',
-          `🚨 <b>Wallet credit BLOCKED</b>\n\n👤 User: ${adminUserTag(await get(nameOf, chatId), chatId)}\n💰 Ref: <code>${ref}</code>\n🪙 Coin: <b>${value} ${coin}</b>\n⚠️ Reason: BlockBee convert() failed and no invoice fallback.\n📝 Action: credit manually via /admin.`
-        )
-      } catch (_e) { /* notifyGroup is best-effort */ }
-      return res.send(html('Credit deferred — manual review'))
-    }
-    log('Crediting raw converted value (no base_amount or fee_payer != company)')
-    usdIn = convertedValue
-    log('Conversion result:', value, ticker, '= $' + usdIn, 'USD')
+    log('[Wallet] credit: actual=$' + convertedValue + ' → crediting $' + usdIn + ' (mode=' + mode + ')')
   }
 
   // Final invariant: usdIn MUST be a finite positive number before we hit
