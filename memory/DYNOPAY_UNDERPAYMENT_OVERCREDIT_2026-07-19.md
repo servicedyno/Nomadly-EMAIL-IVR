@@ -123,3 +123,19 @@ Dev-only endpoints (404 in prod): /api/dev/credit-preview adds `wouldAlertAdmin`
 /api/dev/underpayment-alert-test exercises the real send path. Verified by testing agent: 27/27
 assertions (18 node + 5 trigger-logic + 2 real-send + 2 health); alert fires ONLY for <90%, never for
 exact/overpay/minor fee-shave.
+
+## Backend hardening (DONE 2026-07-19) — verified 5/5 by testing agent
+1. **Two-source valuation** — new `resolveCryptoCreditUsd(req, ctx)` in /app/js/_index.js values received
+   crypto via DynoPay's own settlement rate (`amount × exchange_rate` when `base_currency==='USD'`,
+   authoritative) with BlockBee `convert()` as fallback + >25% divergence warning. Removes the single-
+   source dependency where a flaky BlockBee response pushed credits onto the full-invoice fallback.
+   Helper `dynopayActualUsd(body)` returns null for non-USD base. Wired into all 11 product handlers +
+   the wallet handler.
+2. **Persistent + atomic webhook idempotency** — replaced the in-memory `processedDynopayPayments` Set
+   with Mongo collection `dynopayProcessed` (unique `_id`=payment_id, 30-day TTL index). authDyno now
+   atomically CLAIMS the payment_id (insert-if-absent) BEFORE crediting; duplicates & concurrent fires
+   hit duplicate-key 11000 → ignored. Survives pod restarts; fixes false "missed payment" alerts on
+   redelivery and the concurrent-double-credit race.
+3. **De-duplication** — the 11 near-identical product-handler credit blocks now call the single
+   resolveCryptoCreditUsd() helper (removes the copy-paste that let the original bug spread).
+Dev-only verification endpoints (404 in prod): /api/dev/resolve-credit-preview, /api/dev/idempotency-test.
