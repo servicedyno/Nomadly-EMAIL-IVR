@@ -71,6 +71,49 @@ user_problem_statement: |
        user affected in this incident.
 
 backend:
+  - task: "Legit-payment regression: normal DynoPay wallet deposits credit correctly after underpayment fix (self-tested by main agent)"
+    implemented: true
+    working: true
+    file: "/app/js/_index.js, /app/js/crypto-credit.js, /app/js/scripts/e2e_legit_wallet_credit.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: |
+          ✅ SELF-VERIFIED (per operator: "test to ensure payment will process accordingly just like
+          before the fix"). Operator chose full e2e + main-agent self-run. NOT run via testing agent.
+
+          [1] NODE REGRESSION: node js/__tests__/dynopay-underpayment-credit.test.js → 18/18.
+          [2] DEV-ENDPOINT LEGIT SCENARIOS (read-only, no DB writes):
+              • exact $50 (resolve-credit-preview, dynopay rate) → usdIn 50, dynopayActualUsd 50
+              • exact $50 (credit-preview) → creditUsd 50, mode overpayment, wouldAlertAdmin false
+              • overpay $55/$50 → creditUsd 55, overpayment
+              • fee-shave $48/$50 (96%) → creditUsd 50, minor-underpayment, wouldAlertAdmin false
+          [3] FULL E2E HARNESS (js/scripts/e2e_legit_wallet_credit.js) — synthetic non-numeric chatId
+              E2E-<ts> (no real user); real payment.confirmed webhooks POSTed to the LIVE authDyno +
+              /dynopay/crypto-wallet handler on localhost:5000 → 8/8 pass:
+                • exact 10 USDT = $10 vs $10 invoice → credited exactly $10
+                • overpay 12 USDT = $12 vs $8 invoice → credited actual $12
+                • minor fee-shave 9.6 USDT vs $10 (96%) → credited invoice $10 (goodwill)
+                • idempotency replay of same payment_id → NO double-credit
+                • cumulative balance exact ($32)
+                • DB LEFT PRISTINE — 0 residual docs (independent re-scan across walletOf, state,
+                  transactions, funnelEvents, userConversion, chatIdOfDynopayPayment, depositFunnel,
+                  cryptoDepositAddresses, payments, dynopayProcessed, dynopayWebhooks)
+          [4] SAFETY HARDENING: notifyGroup() now only prunes the shared notifyGroups registry when
+              BOT_ENVIRONMENT==='production'. The dev pod runs a different bot token (dev bot not a
+              member of prod groups) so a send-failure would previously have DELETED the 2 real
+              production notify groups. Post-run check confirmed both groups (Lockbay Market, Bagging
+              The Bag) INTACT. No new errors in nodejs.err.log (only expected dev-bot "chat not found"
+              for the fake chatId + pre-existing PhoneMonitor AUTH_FAILED).
+
+          CONCLUSION: Legitimate deposits (exact / overpay / minor fee-shave) credit the correct USD
+          amount end-to-end exactly as before the fix; idempotency holds; no regression. Production
+          MongoDB untouched.
+
+
   - task: "DynoPay backend hardening: 3 improvements (two-source valuation, atomic idempotency, regression)"
     implemented: true
     working: true

@@ -1857,7 +1857,14 @@ const notifyGroup = async (message, adminMessage = null, adminButtons = null) =>
           log('[NotifyGroup] ✅ Sent to group ' + (group.title || group._id))
         })?.catch(e => {
           log('Group notify error for ' + group._id + ': ' + e.message)
-          if (e.message?.includes('bot was kicked') || e.message?.includes('chat not found') || e.message?.includes('bot is not a member')) {
+          // SAFETY (2026-07): only prune the shared notifyGroups registry in a
+          // PRODUCTION pod. A dev/staging pod runs a *different* bot token
+          // (config-setup.js → TELEGRAM_BOT_TOKEN_DEV) that is not a member of
+          // the production groups, so a "chat not found"/"not a member" failure
+          // here does NOT mean the group is gone — deleting it would silently
+          // wipe real production notification targets from the shared DB.
+          if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production'
+            && (e.message?.includes('bot was kicked') || e.message?.includes('chat not found') || e.message?.includes('bot is not a member'))) {
             notifyGroupsCol.deleteOne({ _id: group._id })
             log('Removed group ' + group._id + ' from notifyGroups')
           }

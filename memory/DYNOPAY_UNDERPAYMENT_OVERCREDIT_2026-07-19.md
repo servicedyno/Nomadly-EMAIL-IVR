@@ -139,3 +139,26 @@ exact/overpay/minor fee-shave.
 3. **De-duplication** — the 11 near-identical product-handler credit blocks now call the single
    resolveCryptoCreditUsd() helper (removes the copy-paste that let the original bug spread).
 Dev-only verification endpoints (404 in prod): /api/dev/resolve-credit-preview, /api/dev/idempotency-test.
+
+
+## Legitimate-payment regression VERIFIED end-to-end (2026 — post-fix)
+Operator asked to confirm normal/legit deposits still process "just like before the fix".
+Verified via a self-contained harness (`/app/js/scripts/e2e_legit_wallet_credit.js`) — 8/8 pass:
+- **Exact** 10 USDT-TRC20 = $10 vs $10 invoice → credited **$10** (mode overpayment/equal).
+- **Overpayment** 12 USDT = $12 vs $8 invoice → credited **$12** actual (Versace438 preserved).
+- **Minor fee-shave** 9.6 USDT = $9.60 vs $10 invoice (96%) → credited **$10** invoice (goodwill).
+- **Idempotency** replay of the same payment_id → **no double-credit** (dynopayProcessed 11000 gate).
+- Cumulative wallet balance exact ($32); **DB left pristine** (0 residual docs — independent re-scan).
+Harness pushes real `payment.confirmed` webhooks through the REAL authDyno + /dynopay/crypto-wallet
+handler against a synthetic non-numeric chatId `E2E-<ts>` (no real user), then deletes every artifact
+(walletOf, state, transactions, funnelEvents, userConversion, depositFunnel, cryptoDepositAddresses,
+payments, dynopayProcessed, dynopayWebhooks). Also ran: node regression 18/18; dev-endpoint legit
+scenarios (exact/overpay/fee-shave) all correct with wouldAlertAdmin=false.
+
+### Dev-pod safety hardening applied during this run
+`notifyGroup()` in `js/_index.js` now only prunes the shared `notifyGroups` registry when
+`BOT_ENVIRONMENT==='production'`. RATIONALE: the dev pod runs a DIFFERENT bot token
+(`config-setup.js` → TELEGRAM_BOT_TOKEN_DEV) that is NOT a member of the production notify groups,
+so a "chat not found"/"not a member" send failure would previously have DELETED the real production
+groups from the shared DB. Verified both prod groups (Lockbay Market, Bagging The Bag) stayed intact
+after the e2e run.

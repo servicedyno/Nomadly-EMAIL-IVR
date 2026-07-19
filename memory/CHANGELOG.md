@@ -1610,3 +1610,13 @@ boot:
 | `js/cpanel-routes.js` | Same toggle fix on HostPanel API endpoint |
 | `js/lang/en.js`, `fr.js`, `hi.js`, `zh.js` | Accurate text; new `antiRedConfirmDisable` + `antiRedRestoredNote` strings |
 | `tests/test_visitor_captcha_hardening.js` | Rewritten — 48 assertions covering all 5 fixes + legacy migration |
+
+## 2026 — Legit-payment regression verified + dev-pod notifyGroup safety guard
+- Verified NORMAL DynoPay crypto wallet deposits still credit correctly end-to-end after the
+  underpayment-over-credit fix. Harness `js/scripts/e2e_legit_wallet_credit.js` (8/8 pass): exact→$10,
+  overpay→$12 actual, minor fee-shave→$10 invoice, idempotent replay→no double-credit, DB left pristine.
+  Also node regression 18/18 + dev-endpoint legit scenarios correct.
+- `js/_index.js` `notifyGroup()`: only prune `notifyGroups` registry when BOT_ENVIRONMENT==='production'
+  (dev pod uses a different bot token → must never delete real production notify groups on send-failure).
+  Both prod groups confirmed intact after the run.
+
