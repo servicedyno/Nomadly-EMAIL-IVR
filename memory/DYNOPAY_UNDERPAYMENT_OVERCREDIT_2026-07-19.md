@@ -78,7 +78,19 @@ fee-shaves from abuse.
 ## Open Follow-Ups (need operator decision)
 1. **Product handlers** (`crypto-pay-hosting`/`-marketplace-access`/`-plan`/`-vps`/…): apply the same
    actual-value logic so the `usdNeed < price` underpayment guard actually works. ~10 handlers.
-2. **Spirits wallet correction**: credited $100, actual $5.85. Wallet is usdIn=110/usdOut=75.42
-   (balance $34.58). Clawback of $94.15 would push negative — business call for the operator.
-3. **Pre-forensic sweep**: incidents before 2026-06-18 aren't in `dynopayWebhooks`; a `payments`-collection
-   sweep could estimate older losses.
+2. **Spirits wallet correction**: ✅ DONE 2026-07-19 — Twilio number +18885117144 RELEASED (API 404,
+   0 numbers left on subaccount), IVR "pro" plan cancelled (status=released, autoRenew=false), 2
+   bulkCallCampaigns cancelled, wallet zeroed ($34.58 → $0, usdIn=usdOut=75.42). Audit:
+   walletAudit + transactions TXN-REMEDIATE-9NW71 + phoneTransactions. Script:
+   /app/js/scripts/remediate_spirits.js.
+3. **Pre-forensic sweep (DONE 2026-07-19)** — /app/scripts/sweep_payments_pre_forensic.py scanned all
+   244 crypto `payments` rows (2026-04-19 .. 2026-07-19) using USDT stablecoin ground-truth + CoinGecko
+   daily historical prices for volatile coins. Result: only **1 borderline pre-forensic case** —
+   ref jv9Lk (2026-04-26, @Pacelolx / 6395648769): 53.99 USDT credited $60 (ratio 0.90, $6.01 over),
+   almost certainly a legit TRC20 fee-shave, NOT an exploit. **No volatile-coin (BTC/ETH/LTC/DOGE/TRX)
+   over-credits before 2026-06-18.** Conclusion: the exploit is concentrated in the post-2026-06-24
+   "amount-first flow" window (the 4 forensic cases: 6dwYg, 3R9ly, sAoKK, N4b0q). No mass historical leak.
+
+## Operational note
+The master Twilio token in the env was stale (HTTP 401) and was rotated to a working value on 2026-07-19
+(TWILIO_AUTH_TOKEN=f498e4c4…) so the number release could authenticate.
