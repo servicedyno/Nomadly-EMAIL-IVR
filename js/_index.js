@@ -1873,6 +1873,39 @@ const notifyGroup = async (message, adminMessage = null, adminButtons = null) =>
   }
 }
 
+// ─── Instant ADMIN-ONLY underpayment alert ──────────────────────────────
+// Fires whenever a confirmed crypto payment lands UNDER 90% of its invoice
+// (mode 'major-underpayment' from computeDepositCreditUsd), so abuse is caught
+// in real time. Sent ONLY to TELEGRAM_ADMIN_CHAT_ID — never broadcast to the
+// public notify groups. No-op for any other credit mode. Best-effort.
+const notifyUnderpayment = async ({ decided, chatId, coin, value, service, priceUsd } = {}) => {
+  try {
+    if (!decided || decided.mode !== 'major-underpayment') return
+    if (!TELEGRAM_ADMIN_CHAT_ID || !bot?.sendMessage) return
+    const invoice = Number(priceUsd != null ? priceUsd : decided.invoiceUsd)
+    const actual = Number(decided.convertedValue)
+    const pct = (invoice > 0 && Number.isFinite(actual)) ? Math.round((actual / invoice) * 100) : null
+    const shortfall = (Number.isFinite(invoice) && Number.isFinite(actual)) ? (invoice - actual) : null
+    let name = null
+    try { name = await get(nameOf, chatId) } catch (_e) { /* best-effort */ }
+    const svc = String(service || '').replace('/dynopay/', '').replace(/^\//, '') || 'crypto'
+    const msg =
+      `🚨 <b>UNDERPAYMENT DETECTED — possible abuse</b>\n\n` +
+      `👤 User: ${adminUserTag(name, chatId)}\n` +
+      `🧾 Service: <code>${svc}</code>\n` +
+      `🪙 Received: <b>${value} ${coin}</b> (≈ $${Number.isFinite(actual) ? actual.toFixed(2) : '?'})\n` +
+      `💵 Invoice: <b>$${Number.isFinite(invoice) ? invoice.toFixed(2) : '?'}</b>\n` +
+      `📉 Paid: <b>${pct != null ? pct + '%' : '?'}</b> of invoice` +
+      (shortfall != null ? ` · short <b>$${shortfall.toFixed(2)}</b>` : '') + `\n` +
+      `✅ Credited actual value only — full order/plan NOT granted.`
+    await bot.sendMessage(TELEGRAM_ADMIN_CHAT_ID, msg + `\n— <b>${CHAT_BOT_NAME}</b>`, { parse_mode: 'HTML' })
+    log(`[Underpayment] admin alert: chatId=${chatId} svc=${svc} paid≈$${actual} invoice=$${invoice} (${pct}%)`)
+  } catch (e) {
+    log('[Underpayment] alert error: ' + (e?.message || e))
+  }
+}
+
+
 // ─── Admin one-tap action buttons (inline_keyboard rows) ───
 // Used as the 3rd arg of `notifyGroup`. Callback handler lives in the existing
 // `bot.on('callback_query')` block; awaiting-state hand-off lives in the early
@@ -35576,7 +35609,32 @@ app.post('/dev/credit-preview', (req, res) => {
   const feePayer = b.feePayer != null ? b.feePayer : b.fee_payer
   const underpayTolerance = b.underpayTolerance != null ? parseFloat(b.underpayTolerance) : undefined
   const result = computeDepositCreditUsd({ invoiceUsd, convertedValue, feePayer, underpayTolerance })
-  return res.json({ input: { invoiceUsd, convertedValue, feePayer, underpayTolerance }, ...result })
+  // wouldAlertAdmin mirrors the notifyUnderpayment() trigger: an instant admin
+  // Telegram alert fires whenever a crypto payment lands < 90% of its invoice.
+  const wouldAlertAdmin = result.mode === 'major-underpayment'
+  return res.json({ input: { invoiceUsd, convertedValue, feePayer, underpayTolerance }, wouldAlertAdmin, ...result })
+})
+
+// ── DEV-ONLY: exercise the real notifyUnderpayment() admin-alert path ──────
+// Sends via the (dev) bot to TELEGRAM_ADMIN_CHAT_ID only when mode is
+// major-underpayment. Read-only w.r.t. the DB. Hard-disabled in production.
+app.post('/dev/underpayment-alert-test', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const b = req.body || {}
+  const invoiceUsd = b.invoiceUsd != null ? parseFloat(b.invoiceUsd) : NaN
+  const convertedValue = b.convertedValue != null ? parseFloat(b.convertedValue) : NaN
+  const feePayer = b.feePayer != null ? b.feePayer : (b.fee_payer || 'company')
+  const decided = computeDepositCreditUsd({ invoiceUsd, convertedValue, feePayer })
+  await notifyUnderpayment({
+    decided,
+    chatId: b.chatId || '0',
+    coin: b.coin || 'USDT-TRC20',
+    value: b.value != null ? b.value : '?',
+    service: b.service || 'dev-test',
+  })
+  return res.json({ triggered: decided.mode === 'major-underpayment', mode: decided.mode, hasBot: !!bot, adminChat: !!TELEGRAM_ADMIN_CHAT_ID })
 })
 
 // Dynopay Pay plan
@@ -35606,6 +35664,7 @@ app.post('/dynopay/crypto-pay-plan', authDyno, async (req, res) => {
     const _converted = await convert(value, ticker, 'usd')
     const _decided = computeDepositCreditUsd({ invoiceUsd: parseFloat(baseAmount), convertedValue: _converted, feePayer })
     usdIn = (Number.isFinite(_decided.creditUsd) && _decided.creditUsd > 0) ? _decided.creditUsd : parseFloat(baseAmount)
+    notifyUnderpayment({ decided: _decided, chatId, coin, value, service: req.path })
   }
   const usdNeed = usdIn
   console.log(`usdIn ${usdIn}, usdNeed ${usdNeed}, Crypto, Plan, ${chatId}, ${name}`)
@@ -35663,6 +35722,7 @@ app.post('/dynopay/crypto-pay-domain', authDyno, async (req, res) => {
     const _converted = await convert(value, ticker, 'usd')
     const _decided = computeDepositCreditUsd({ invoiceUsd: parseFloat(baseAmount), convertedValue: _converted, feePayer })
     usdIn = (Number.isFinite(_decided.creditUsd) && _decided.creditUsd > 0) ? _decided.creditUsd : parseFloat(baseAmount)
+    notifyUnderpayment({ decided: _decided, chatId, coin, value, service: req.path })
   }
   if (usdIn < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
@@ -35775,6 +35835,7 @@ app.post('/dynopay/crypto-pay-hosting', authDyno, async (req, res) => {
     const _converted = await convert(value, ticker, 'usd')
     const _decided = computeDepositCreditUsd({ invoiceUsd: parseFloat(baseAmount), convertedValue: _converted, feePayer })
     usdIn = (Number.isFinite(_decided.creditUsd) && _decided.creditUsd > 0) ? _decided.creditUsd : parseFloat(baseAmount)
+    notifyUnderpayment({ decided: _decided, chatId, coin, value, service: req.path })
     log('[crypto-pay-hosting] invoice=' + baseAmount + ' converted=' + _converted + ' → usdIn=$' + usdIn + ' (mode=' + _decided.mode + ')')
   }
   if (usdIn < price) {
@@ -35884,6 +35945,7 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
     const _converted = await convert(value, ticker, 'usd')
     const _decided = computeDepositCreditUsd({ invoiceUsd: parseFloat(baseAmount), convertedValue: _converted, feePayer })
     usdIn = (Number.isFinite(_decided.creditUsd) && _decided.creditUsd > 0) ? _decided.creditUsd : parseFloat(baseAmount)
+    notifyUnderpayment({ decided: _decided, chatId, coin, value, service: req.path })
   }
   if (usdIn < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
@@ -36037,6 +36099,7 @@ app.post('/dynopay/crypto-pay-phone-upgrade', authDyno, async (req, res) => {
     const _converted = await convert(value, ticker, 'usd')
     const _decided = computeDepositCreditUsd({ invoiceUsd: parseFloat(baseAmount), convertedValue: _converted, feePayer })
     usdIn = (Number.isFinite(_decided.creditUsd) && _decided.creditUsd > 0) ? _decided.creditUsd : parseFloat(baseAmount)
+    notifyUnderpayment({ decided: _decided, chatId, coin, value, service: req.path })
   }
   if (usdIn < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
@@ -36093,6 +36156,7 @@ app.post('/dynopay/crypto-pay-leads', authDyno, async (req, res) => {
     const _converted = await convert(value, ticker, 'usd')
     const _decided = computeDepositCreditUsd({ invoiceUsd: parseFloat(baseAmount), convertedValue: _converted, feePayer })
     usdIn = (Number.isFinite(_decided.creditUsd) && _decided.creditUsd > 0) ? _decided.creditUsd : parseFloat(baseAmount)
+    notifyUnderpayment({ decided: _decided, chatId, coin, value, service: req.path })
   }
   if (usdIn < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
@@ -36231,6 +36295,7 @@ app.post('/dynopay/crypto-pay-vps', authDyno, async (req, res) => {
     const _converted = await convert(value, ticker, 'usd')
     const _decided = computeDepositCreditUsd({ invoiceUsd: parseFloat(baseAmount_v), convertedValue: _converted, feePayer: feePayer_v })
     usdIn = (Number.isFinite(_decided.creditUsd) && _decided.creditUsd > 0) ? _decided.creditUsd : parseFloat(baseAmount_v)
+    notifyUnderpayment({ decided: _decided, chatId, coin, value, service: req.path })
   }
   if (usdIn < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
@@ -36306,6 +36371,7 @@ app.post('/dynopay/crypto-pay-upgrade-vps', authDyno, async (req, res) => {
     const _converted = await convert(value, ticker, 'usd')
     const _decided = computeDepositCreditUsd({ invoiceUsd: parseFloat(baseAmount_u), convertedValue: _converted, feePayer: feePayer_u })
     usdIn = (Number.isFinite(_decided.creditUsd) && _decided.creditUsd > 0) ? _decided.creditUsd : parseFloat(baseAmount_u)
+    notifyUnderpayment({ decided: _decided, chatId, coin, value, service: req.path })
   }
   if (usdIn < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
@@ -36363,6 +36429,7 @@ app.post('/dynopay/crypto-pay-digital-product', authDyno, async (req, res) => {
     const _converted = await convert(value, ticker, 'usd')
     const _decided = computeDepositCreditUsd({ invoiceUsd: parseFloat(baseAmount), convertedValue: _converted, feePayer })
     usdIn = (Number.isFinite(_decided.creditUsd) && _decided.creditUsd > 0) ? _decided.creditUsd : parseFloat(baseAmount)
+    notifyUnderpayment({ decided: _decided, chatId, coin, value, service: req.path })
   }
   if (usdIn < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
@@ -36411,6 +36478,7 @@ app.post('/dynopay/crypto-pay-marketplace-access', authDyno, async (req, res) =>
     const _converted = await convert(value, ticker, 'usd')
     const _decided = computeDepositCreditUsd({ invoiceUsd: parseFloat(baseAmount), convertedValue: _converted, feePayer })
     usdIn = (Number.isFinite(_decided.creditUsd) && _decided.creditUsd > 0) ? _decided.creditUsd : parseFloat(baseAmount)
+    notifyUnderpayment({ decided: _decided, chatId, coin, value, service: req.path })
   }
   await fulfillMarketplaceAccessPayment({ chatId, ref, fee, usdIn, mode: 'crypto', methodTag: '₿ Crypto (DynoPay)', coinLine: `${value} ${coin}` })
   res.send(html())
@@ -36439,6 +36507,7 @@ app.post('/dynopay/crypto-pay-virtual-card', authDyno, async (req, res) => {
     const _converted = await convert(value, ticker, 'usd')
     const _decided = computeDepositCreditUsd({ invoiceUsd: parseFloat(baseAmount), convertedValue: _converted, feePayer })
     usdIn = (Number.isFinite(_decided.creditUsd) && _decided.creditUsd > 0) ? _decided.creditUsd : parseFloat(baseAmount)
+    notifyUnderpayment({ decided: _decided, chatId, coin, value, service: req.path })
   }
   if (usdIn < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
@@ -36538,11 +36607,12 @@ app.post('/dynopay/crypto-wallet', authDyno, async (req, res) => {
   // 17.72 TRX ≈ $5.85 against a $100 invoice → wrongly credited $100). The
   // helper preserves the Versace438 overpayment fix + fee-shave goodwill but
   // credits only the ACTUAL market value when the shortfall is large.
-  const { creditUsd, mode } = computeDepositCreditUsd({
+  const _decided = computeDepositCreditUsd({
     invoiceUsd: invoiceUsdFromBase,
     convertedValue,
     feePayer,
   })
+  const { creditUsd, mode } = _decided
 
   if (mode === 'blocked-no-data') {
     // Neither a usable live-rate conversion NOR an invoice → nothing safe to
@@ -36567,13 +36637,8 @@ app.post('/dynopay/crypto-wallet', authDyno, async (req, res) => {
   } else if (mode === 'minor-underpayment') {
     log('[Wallet] minor underpayment (fee-shave): invoice=$' + invoiceForLog + ' actual=$' + convertedValue + ' — crediting invoice $' + usdIn + ' (goodwill)')
   } else if (mode === 'major-underpayment') {
-    log('[Wallet] MAJOR UNDERPAYMENT: invoice=$' + invoiceForLog + ' actual=$' + convertedValue + ' — crediting ACTUAL $' + usdIn + ' (underpayment over-credit fix; notifying admin)')
-    try {
-      notifyGroup(
-        '⚠️ <b>Underpaid crypto deposit — credited actual value</b>',
-        `⚠️ <b>Underpaid deposit</b>\n\n👤 User: ${adminUserTag(await get(nameOf, chatId), chatId)}\n💰 Ref: <code>${ref}</code>\n🪙 Received: <b>${value} ${coin}</b> (≈ $${convertedValue.toFixed(2)})\n💵 Invoice was: <b>$${invoiceForLog}</b>\n✅ Credited ACTUAL: <b>$${usdIn.toFixed ? usdIn.toFixed(2) : usdIn}</b>`
-      )
-    } catch (_e) { /* best-effort */ }
+    log('[Wallet] MAJOR UNDERPAYMENT: invoice=$' + invoiceForLog + ' actual=$' + convertedValue + ' — crediting ACTUAL $' + usdIn + ' (underpayment over-credit fix; admin alert)')
+    notifyUnderpayment({ decided: _decided, chatId, coin, value, service: 'wallet-deposit' })
   } else {
     log('[Wallet] credit: actual=$' + convertedValue + ' → crediting $' + usdIn + ' (mode=' + mode + ')')
   }

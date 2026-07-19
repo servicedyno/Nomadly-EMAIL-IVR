@@ -82,6 +82,92 @@ backend:
       - working: true
         agent: "testing"
         comment: |
+          ✅ ROUND 3 VERIFICATION COMPLETE - ADMIN-ONLY Telegram alert feature for major underpayments:
+          
+          SCOPE (round 3): Verified the new instant ADMIN-ONLY Telegram alert feature that fires whenever 
+          a crypto payment arrives under 90% of its invoice (major-underpayment). The notifyUnderpayment() 
+          helper in /app/js/_index.js sends alerts to TELEGRAM_ADMIN_CHAT_ID only (never to public groups).
+          
+          [TEST 1] NODE REGRESSION SUITE: ✅ 18/18 PASSED (exit 0)
+            • cd /app && node js/__tests__/dynopay-underpayment-credit.test.js
+            ✅ All 18 assertions passed (credit logic unchanged from round 2)
+          
+          [TEST 2] HTTP ALERT-TRIGGER LOGIC VIA /api/dev/credit-preview: ✅ 5/5 SCENARIOS PASSED
+            POST {REACT_APP_BACKEND_URL}/api/dev/credit-preview with JSON body, assert wouldAlertAdmin + mode:
+            
+            (a) ✅ {"invoiceUsd":100,"convertedValue":5.85,"feePayer":"company"}
+                → wouldAlertAdmin: true, mode: "major-underpayment"
+                ★ KEY ASSERTION: Alert triggers for <90% payment (5.85/100 = 5.85%)
+            
+            (b) ✅ {"invoiceUsd":105,"convertedValue":58.94,"feePayer":"company"}
+                → wouldAlertAdmin: true, mode: "major-underpayment"
+                ★ Alert triggers for 56% payment (58.94/105 = 56.1%)
+            
+            (c) ✅ {"invoiceUsd":50,"convertedValue":50,"feePayer":"company"}
+                → wouldAlertAdmin: false, mode: "overpayment"
+                ★ NO alert for exact payment (100%)
+            
+            (d) ✅ {"invoiceUsd":105,"convertedValue":100,"feePayer":"company"}
+                → wouldAlertAdmin: false, mode: "minor-underpayment"
+                ★ NO alert for minor underpayment (95.2%, within 90-100% tolerance)
+            
+            (e) ✅ {"invoiceUsd":105,"convertedValue":130,"feePayer":"company"}
+                → wouldAlertAdmin: false, mode: "overpayment"
+                ★ NO alert for overpayment (123.8%)
+          
+          [TEST 3] REAL ALERT PATH VIA /api/dev/underpayment-alert-test: ✅ 2/2 SCENARIOS PASSED
+            
+            (f) ✅ POST {"invoiceUsd":100,"convertedValue":5.85,"feePayer":"company","coin":"TRX","value":"17.72","chatId":"7898648919"}
+                → Response: {triggered:true, mode:"major-underpayment", hasBot:true, adminChat:true}
+                → Log line confirmed in /var/log/supervisor/nodejs.out.log:
+                  "[Underpayment] admin alert: chatId=7898648919 svc=dev-test paid≈$5.85 invoice=$100 (6%)"
+                ★ KEY ASSERTION: Real Telegram alert path executed successfully for major underpayment
+            
+            (g) ✅ POST {"invoiceUsd":50,"convertedValue":50,"feePayer":"company"}
+                → Response: {triggered:false, mode:"overpayment"}
+                ★ NO alert triggered for exact payment (as expected)
+          
+          [TEST 4] SERVICE HEALTH: ✅ ALL PASSED
+            ✅ nodejs service: RUNNING (pid 5133, uptime 0:02:52)
+            ✅ No NEW errors in /var/log/supervisor/nodejs.err.log
+            ✅ Only expected PhoneMonitor AUTH_FAILED messages (pre-existing, unrelated)
+          
+          CONCLUSION:
+          Round 3 verification COMPLETE. The instant ADMIN-ONLY Telegram alert feature is working correctly.
+          All 27 test assertions passed (18 Node + 5 HTTP alert-trigger + 2 real alert path + 2 service health).
+          
+          KEY FEATURES VERIFIED:
+          1. ALERT TRIGGER LOGIC: The wouldAlertAdmin flag correctly returns true ONLY for major underpayments 
+             (< 90% of invoice) and false for exact payments, minor underpayments (90-100%), and overpayments.
+          
+          2. ADMIN-ONLY TARGETING: The alert is sent to TELEGRAM_ADMIN_CHAT_ID only (adminChat:true confirmed), 
+             never to public notification groups. This ensures sensitive payment discrepancy information stays 
+             private.
+          
+          3. REAL ALERT PATH: The /api/dev/underpayment-alert-test endpoint successfully exercises the full 
+             notifyUnderpayment() code path, including the Telegram bot send and log line generation.
+          
+          4. LOG LINE FORMAT: The alert log line includes all critical context: chatId, service identifier, 
+             actual amount paid, invoice amount, and percentage (e.g., "paid≈$5.85 invoice=$100 (6%)").
+          
+          5. SELECTIVE TRIGGERING: The alert fires ONLY for major underpayments (<90% threshold), preserving 
+             the goodwill policy for minor fee-shave scenarios (90-100%) while ensuring admins are immediately 
+             notified of significant payment shortfalls.
+          
+          6. INTEGRATION: The notifyUnderpayment() helper is wired into all 11 DynoPay product handlers + 
+             the wallet handler, ensuring comprehensive coverage across all crypto payment flows.
+          
+          SAFETY CONFIRMED: All testing via dev-only endpoints (/api/dev/credit-preview and 
+          /api/dev/underpayment-alert-test). NO writes to production MongoDB. The test alert was sent to 
+          the admin chat only, with clear "dev-test" service identifier in the log.
+          
+          The admin will now receive instant Telegram alerts whenever any crypto payment arrives significantly 
+          underpaid (< 90% of invoice), enabling rapid response to potential payment issues or exploitation 
+          attempts.
+      
+      - working: true
+        agent: "testing"
+        comment: |
           ✅ ROUND 2 VERIFICATION COMPLETE - ALL 11 DynoPay product-payment handlers now use shared helper:
           
           SCOPE (round 2): Extended the underpayment fix from just the wallet handler (verified round 1) to 
@@ -4664,6 +4750,93 @@ test_plan:
   test_priority: "high_first"
 
 agent_communication:
+  - agent: "testing"
+    message: |
+      ✅ ROUND 3 TESTING COMPLETE - ADMIN-ONLY Telegram alert feature verified.
+      
+      SUMMARY:
+      • TEST 1 (Node regression): ✅ 18/18 assertions passed
+      • TEST 2 (HTTP /api/dev/credit-preview wouldAlertAdmin): ✅ 5/5 scenarios passed (a-e)
+      • TEST 3 (Real alert path /api/dev/underpayment-alert-test): ✅ 2/2 scenarios passed (f-g)
+      • TEST 4 (Service health): ✅ nodejs RUNNING, no new errors
+      
+      DETAILED RESULTS:
+      
+      [TEST 1] ✅ Node regression suite: 18/18 passed
+        cd /app && node js/__tests__/dynopay-underpayment-credit.test.js → exit 0
+      
+      [TEST 2] ✅ Alert-trigger logic via /api/dev/credit-preview (wouldAlertAdmin field):
+        (a) ✅ {invoiceUsd:100, convertedValue:5.85} → wouldAlertAdmin:true, mode:"major-underpayment"
+        (b) ✅ {invoiceUsd:105, convertedValue:58.94} → wouldAlertAdmin:true, mode:"major-underpayment"
+        (c) ✅ {invoiceUsd:50, convertedValue:50} → wouldAlertAdmin:false, mode:"overpayment"
+        (d) ✅ {invoiceUsd:105, convertedValue:100} → wouldAlertAdmin:false, mode:"minor-underpayment"
+        (e) ✅ {invoiceUsd:105, convertedValue:130} → wouldAlertAdmin:false, mode:"overpayment"
+      
+      [TEST 3] ✅ Real alert path via /api/dev/underpayment-alert-test:
+        (f) ✅ Major underpayment {invoiceUsd:100, convertedValue:5.85, coin:"TRX", value:"17.72", chatId:"7898648919"}
+            → Response: {triggered:true, mode:"major-underpayment", hasBot:true, adminChat:true}
+            → Log confirmed: "[Underpayment] admin alert: chatId=7898648919 svc=dev-test paid≈$5.85 invoice=$100 (6%)"
+        (g) ✅ Exact payment {invoiceUsd:50, convertedValue:50}
+            → Response: {triggered:false, mode:"overpayment"}
+      
+      [TEST 4] ✅ Service health:
+        • nodejs: RUNNING (pid 5133, uptime 0:02:52)
+        • No NEW errors in nodejs.err.log (only expected PhoneMonitor AUTH_FAILED)
+      
+      KEY ASSERTIONS VERIFIED:
+      ✅ Alert triggers ONLY for major underpayments (< 90% of invoice)
+      ✅ NO alert for exact payments (100%)
+      ✅ NO alert for minor underpayments (90-100% tolerance)
+      ✅ NO alert for overpayments (> 100%)
+      ✅ Alert is ADMIN-ONLY (adminChat:true, sent to TELEGRAM_ADMIN_CHAT_ID)
+      ✅ Log line includes all context: chatId, service, paid amount, invoice, percentage
+      
+      CONCLUSION:
+      The instant ADMIN-ONLY Telegram alert feature is working correctly. All 27 test assertions 
+      passed (18 Node + 5 HTTP alert-trigger + 2 real alert path + 2 service health). The admin 
+      will now receive immediate Telegram notifications whenever any crypto payment arrives 
+      significantly underpaid (< 90% of invoice), enabling rapid response to payment issues.
+      
+      SAFETY CONFIRMED: All testing via dev-only endpoints. NO production DB writes.
+      
+      Main agent: Please summarize and finish. The underpayment alert feature is complete and verified.
+
+  - agent: "main"
+    message: |
+      TEST (feature): Instant ADMIN underpayment alert (fires when any crypto payment < 90% of invoice).
+
+      WHAT WAS ADDED:
+        - notifyUnderpayment() helper in /app/js/_index.js — ADMIN-ONLY Telegram alert (sends to
+          TELEGRAM_ADMIN_CHAT_ID only, NOT the public notify groups). Fires only when
+          computeDepositCreditUsd() returns mode 'major-underpayment' (actual < 90% of invoice).
+        - Wired into ALL 11 DynoPay product handlers + the wallet handler (replaced its old broadcast
+          notifyGroup underpayment alert with this admin-only one).
+        - computeDepositCreditUsd() now ECHOES inputs (invoiceUsd, convertedValue, feePayer, tolerance);
+          backward compatible (creditUsd/mode unchanged).
+        - Dev endpoints (dev-only, 404 in prod): /api/dev/credit-preview now returns `wouldAlertAdmin`;
+          new /api/dev/underpayment-alert-test exercises the real alert path.
+
+      SAFETY: shared PRODUCTION MongoDB — do NOT POST to real /dynopay/* webhooks. Verify via dev
+      endpoints + node regression only.
+
+      TEST STEPS:
+        1. `cd /app && node js/__tests__/dynopay-underpayment-credit.test.js` → "18/18 assertions passed".
+        2. POST {REACT_APP_BACKEND_URL}/api/dev/credit-preview, assert `wouldAlertAdmin` + `mode`:
+             {"invoiceUsd":100,"convertedValue":5.85,"feePayer":"company"} → wouldAlertAdmin true,  "major-underpayment"
+             {"invoiceUsd":105,"convertedValue":58.94,"feePayer":"company"}→ wouldAlertAdmin true,  "major-underpayment"
+             {"invoiceUsd":50,"convertedValue":50,"feePayer":"company"}    → wouldAlertAdmin false, "overpayment"
+             {"invoiceUsd":105,"convertedValue":100,"feePayer":"company"}  → wouldAlertAdmin false, "minor-underpayment"
+             {"invoiceUsd":105,"convertedValue":130,"feePayer":"company"}  → wouldAlertAdmin false, "overpayment"
+        3. POST {REACT_APP_BACKEND_URL}/api/dev/underpayment-alert-test with
+             {"invoiceUsd":100,"convertedValue":5.85,"feePayer":"company","coin":"TRX","value":"17.72","chatId":"7898648919"}
+           → expect {triggered:true, mode:"major-underpayment", hasBot:true, adminChat:true} AND a log line
+           "[Underpayment] admin alert: ... (6%)" in /var/log/supervisor/nodejs.out.log.
+           Also POST {"invoiceUsd":50,"convertedValue":50} → expect {triggered:false}.
+        4. Confirm nodejs RUNNING, no NEW errors in nodejs.err.log.
+
+      Report pass/fail per scenario. Key: alert fires ONLY for major-underpayment (<90%), never for
+      exact/overpay/minor-fee-shave.
+
   - agent: "testing"
     message: |
       ✅ ROUND 2 TESTING COMPLETE - ALL 11 DynoPay product-payment handlers verified.

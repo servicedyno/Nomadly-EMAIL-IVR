@@ -46,10 +46,19 @@ function computeDepositCreditUsd({ invoiceUsd, convertedValue, feePayer, underpa
   const invoiceOk = Number.isFinite(invoiceUsd) && invoiceUsd > 0;
   const invoiceGuardApplies = invoiceOk && feePayer === 'company';
 
+  // All returns echo the inputs so callers (e.g. underpayment alerts) have full context.
+  const R = (creditUsd, mode) => ({
+    creditUsd, mode,
+    invoiceUsd: Number.isFinite(invoiceUsd) ? invoiceUsd : null,
+    convertedValue: Number.isFinite(convertedValue) ? convertedValue : null,
+    feePayer: feePayer || null,
+    tolerance: tol,
+  });
+
   if (!invoiceGuardApplies) {
     // No invoice protection → credit exactly what the market says was received.
-    if (!conversionOk) return { creditUsd: NaN, mode: 'blocked-no-data' };
-    return { creditUsd: convertedValue, mode: 'actual' };
+    if (!conversionOk) return R(NaN, 'blocked-no-data');
+    return R(convertedValue, 'actual');
   }
 
   // fee_payer === 'company' AND we have a usable invoice.
@@ -57,22 +66,22 @@ function computeDepositCreditUsd({ invoiceUsd, convertedValue, feePayer, underpa
     // Live conversion failed (BlockBee HTML/5xx). DynoPay confirmed the
     // payment on-chain and the customer was quoted the invoice, so the
     // invoice is the safe fallback (see @ciroovblzz LTC→NaN guard).
-    return { creditUsd: invoiceUsd, mode: 'invoice-fallback-noconvert' };
+    return R(invoiceUsd, 'invoice-fallback-noconvert');
   }
 
   if (convertedValue >= invoiceUsd) {
     // Overpayment (or exact) → credit actual market value. Versace438 fix.
-    return { creditUsd: convertedValue, mode: 'overpayment' };
+    return R(convertedValue, 'overpayment');
   }
 
   if (convertedValue >= invoiceUsd * tol) {
     // Minor shortfall within network-fee tolerance → credit invoice (goodwill).
-    return { creditUsd: invoiceUsd, mode: 'minor-underpayment' };
+    return R(invoiceUsd, 'minor-underpayment');
   }
 
   // MAJOR underpayment → credit ONLY what was actually received. THE FIX:
   // stops "$100 invoice, send $5.85 of TRX, get $100" over-credits.
-  return { creditUsd: convertedValue, mode: 'major-underpayment' };
+  return R(convertedValue, 'major-underpayment');
 }
 
 module.exports = { computeDepositCreditUsd, DEFAULT_UNDERPAY_TOLERANCE };
