@@ -71,6 +71,106 @@ user_problem_statement: |
        user affected in this incident.
 
 backend:
+  - task: "DynoPay backend hardening: 3 improvements (two-source valuation, atomic idempotency, regression)"
+    implemented: true
+    working: true
+    file: "/app/js/_index.js, /app/js/crypto-credit.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFICATION COMPLETE - All 3 DynoPay backend hardening improvements PASSED (5/5 tests):
+          
+          SCOPE: Verified 3 backend hardening improvements to the DynoPay crypto payment flow:
+          #1 Two-source valuation (DynoPay settlement rate primary, BlockBee fallback)
+          #2 Persistent + atomic webhook idempotency
+          #3 Regression verification of existing preview endpoint
+          
+          [TEST 1] NODE REGRESSION SUITE: ✅ 18/18 PASSED (exit 0)
+            • cd /app && node js/__tests__/dynopay-underpayment-credit.test.js
+            ✅ All 18 assertions passed (core logic unchanged)
+          
+          [TEST 2] IMPROVEMENT #1 — TWO-SOURCE VALUATION: ✅ 3/3 SCENARIOS PASSED
+            POST {REACT_APP_BACKEND_URL}/api/dev/resolve-credit-preview with JSON body:
+            
+            (a) ✅ {"amount":"17.72","exchange_rate":"0.33","base_currency":"USD","base_amount":"100","currency":"TRX","fee_payer":"company"}
+                → usdIn: 5.8476 (accept 5.84–5.85) ✅
+                → dynopayActualUsd: 5.8476 (must NOT be 100) ✅
+                ★ KEY ASSERTION #1: DynoPay rate used → ~5.85 (not 100) — proves DynoPay settlement rate is primary source
+            
+            (b) ✅ {"amount":"58.94","exchange_rate":"1.0","base_currency":"USD","base_amount":"105","currency":"USDT-TRC20","fee_payer":"company"}
+                → usdIn: 58.94 ✅
+                → dynopayActualUsd: 58.94 ✅
+            
+            (c) ✅ {"amount":"100","exchange_rate":"0.5","base_currency":"NGN","base_amount":"100","currency":"USDT-TRC20","fee_payer":"company"}
+                → dynopayActualUsd: null ✅
+                ★ Non-USD base_currency correctly ignored; falls back to BlockBee
+          
+          [TEST 3] IMPROVEMENT #2 — PERSISTENT + ATOMIC WEBHOOK IDEMPOTENCY: ✅ 3/3 ATTEMPTS PASSED
+            POST {REACT_APP_BACKEND_URL}/api/dev/idempotency-test with empty JSON body {} — repeated 3 times:
+            
+            Attempt 1: {"first":"inserted","second":"duplicate-blocked","pass":true} ✅
+            Attempt 2: {"first":"inserted","second":"duplicate-blocked","pass":true} ✅
+            Attempt 3: {"first":"inserted","second":"duplicate-blocked","pass":true} ✅
+            
+            ★ KEY ASSERTION #2: Second insert is "duplicate-blocked" — proves duplicate/concurrent payment_id 
+              insert is atomically rejected with unique-key error (MongoDB code 11000)
+          
+          [TEST 4] IMPROVEMENT #3 — REGRESSION OF EXISTING PREVIEW ENDPOINT: ✅ 2/2 SCENARIOS PASSED
+            POST {REACT_APP_BACKEND_URL}/api/dev/credit-preview with JSON body:
+            
+            (d) ✅ {"invoiceUsd":100,"convertedValue":5.85,"feePayer":"company"}
+                → creditUsd: 5.85 ✅
+                → mode: "major-underpayment" ✅
+                → wouldAlertAdmin: true ✅
+            
+            (e) ✅ {"invoiceUsd":50,"convertedValue":50,"feePayer":"company"}
+                → creditUsd: 50 ✅
+                → wouldAlertAdmin: false ✅
+          
+          [TEST 5] SERVICE HEALTH: ✅ ALL PASSED
+            ✅ nodejs service: RUNNING (pid 1226, uptime 0:03:35)
+            ✅ Startup log contains: "[DynoPay] processed-payment idempotency collection ready"
+            ✅ No NEW errors in /var/log/supervisor/nodejs.err.log
+            ✅ Only expected PhoneMonitor AUTH_FAILED messages (pre-existing, unrelated to these changes)
+          
+          CONCLUSION:
+          All 3 backend hardening improvements are working correctly. All 5 test suites passed.
+          
+          1. TWO-SOURCE VALUATION VERIFIED: The resolveCryptoCreditUsd() function correctly uses DynoPay's 
+             settlement rate (amount * exchange_rate) as the primary source when base_currency === 'USD', 
+             with BlockBee convert() as fallback. Non-USD base_currency correctly returns null for 
+             dynopayActualUsd, triggering BlockBee fallback path.
+          
+          2. ATOMIC IDEMPOTENCY VERIFIED: The /api/dev/idempotency-test endpoint demonstrates that duplicate 
+             payment_id inserts into the dynopayProcessed collection are atomically rejected with MongoDB 
+             duplicate-key error (code 11000). The endpoint self-cleans after each test. All 3 attempts 
+             showed consistent behavior: first insert succeeds, second is blocked.
+          
+          3. EXISTING ENDPOINT REGRESSION VERIFIED: The /api/dev/credit-preview endpoint continues to work 
+             correctly, returning proper creditUsd, mode, and wouldAlertAdmin flags for both major 
+             underpayment and exact payment scenarios.
+          
+          4. SERVICE INTEGRITY VERIFIED: nodejs service is running with the idempotency collection properly 
+             initialized. No new errors introduced by these changes.
+          
+          KEY ASSERTIONS CONFIRMED:
+          • ✅ #1 Test 2a uses DynoPay rate → ~5.85 (not 100)
+          • ✅ #2 Test 3 second insert is "duplicate-blocked"
+          
+          SAFETY CONFIRMED: All testing via dev-only endpoints (/api/dev/resolve-credit-preview, 
+          /api/dev/idempotency-test, /api/dev/credit-preview). These endpoints return 404 in production 
+          environment. The idempotency test self-cleans after each run. NO writes to production MongoDB 
+          during verification.
+          
+          The 3 hardening improvements successfully enhance the DynoPay crypto payment flow:
+          • More accurate valuation using DynoPay's authoritative settlement rate
+          • Robust protection against duplicate webhook processing via atomic DB constraints
+          • Confirmed backward compatibility with existing credit preview logic
+
   - task: "DynoPay wallet UNDERPAYMENT over-credit bug (@Spirits_Of_The_Ancesters 17 TRX → $100, 2026-07-19)"
     implemented: true
     working: true
@@ -4664,6 +4764,43 @@ frontend: []
           3. TRY-BEFORE-BUY NUDGE: When user taps "🛒 Choose a Plan" without having used any free
              trial (checks ivrTrialUsed_{chatId} in state + testCredentials collection), shows a
              💡 message suggesting they try free options first. Localized in EN/FR/ZH/HI.
+  - agent: "main"
+    message: |
+      TEST (backend hardening — 3 improvements to the DynoPay crypto payment flow):
+
+      #1 Two-source valuation: new resolveCryptoCreditUsd() values received crypto using DynoPay's own
+         settlement rate (amount × exchange_rate when base_currency=USD, authoritative) with BlockBee
+         convert() as fallback/cross-check — removing the single-source dependency that let a flaky
+         BlockBee push credits onto the full-invoice fallback. Wired into all 11 product handlers + the
+         wallet handler.
+      #2 Persistent + atomic webhook idempotency: replaced the in-memory processedDynopayPayments Set
+         with a Mongo `dynopayProcessed` collection (unique _id = payment_id + 30-day TTL). authDyno now
+         atomically CLAIMS the payment_id (insert-if-absent) before crediting; duplicates/concurrent
+         fires hit 11000 and are ignored. Survives restarts; no false "missed payment" alerts on redelivery.
+      #3 De-duplicated the 11 near-identical credit blocks into the single resolveCryptoCreditUsd() helper.
+
+      SAFETY: shared PRODUCTION MongoDB — do NOT POST to real /dynopay/* webhooks. Verify via node
+      regression + the dev-only endpoints below (404 in prod; /dev/idempotency-test self-cleans).
+
+      TEST STEPS (read REACT_APP_BACKEND_URL from /app/frontend/.env):
+        1. `cd /app && node js/__tests__/dynopay-underpayment-credit.test.js` → "18/18 assertions passed".
+        2. #1 resolver — POST {URL}/api/dev/resolve-credit-preview, assert JSON:
+             {"amount":"17.72","exchange_rate":"0.33","base_currency":"USD","base_amount":"100","currency":"TRX","fee_payer":"company"}
+               → usdIn ≈ 5.85 (5.8476) AND dynopayActualUsd ≈ 5.85   (DynoPay settlement rate used, NOT $100)
+             {"amount":"58.94","exchange_rate":"1.0","base_currency":"USD","base_amount":"105","currency":"USDT-TRC20","fee_payer":"company"}
+               → usdIn == 58.94, dynopayActualUsd == 58.94
+             {"amount":"100","exchange_rate":"0.5","base_currency":"NGN","base_amount":"100","currency":"USDT-TRC20","fee_payer":"company"}
+               → dynopayActualUsd == null (non-USD base ignored; falls back to BlockBee)
+        3. #2 idempotency — POST {URL}/api/dev/idempotency-test (empty body) → expect
+             {first:"inserted", second:"duplicate-blocked", pass:true}. Run it 2-3× (each uses a fresh id).
+        4. Regression of the existing preview still holds — POST {URL}/api/dev/credit-preview:
+             {"invoiceUsd":100,"convertedValue":5.85,"feePayer":"company"} → creditUsd 5.85, mode "major-underpayment", wouldAlertAdmin true
+             {"invoiceUsd":50,"convertedValue":50,"feePayer":"company"}    → creditUsd 50,   wouldAlertAdmin false
+        5. Confirm nodejs RUNNING; startup log shows "[DynoPay] processed-payment idempotency collection ready";
+           no NEW errors in nodejs.err.log (ignore pre-existing [PhoneMonitor] AUTH_FAILED lines).
+
+      Report pass/fail per step. Keys: #1 uses DynoPay rate → 5.85 (not 100); #2 second insert is duplicate-blocked.
+
              Does NOT block plan selection — just an informational nudge before the plan list.
           
           4. ONBOARDING /testsip: Added "/testsip for a free test call" to the onboarding services

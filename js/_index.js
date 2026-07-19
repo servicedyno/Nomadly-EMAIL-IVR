@@ -1905,6 +1905,56 @@ const notifyUnderpayment = async ({ decided, chatId, coin, value, service, price
   }
 }
 
+// ── DynoPay settlement value: amount × exchange_rate (only when base is USD) ──
+// DynoPay's own webhook carries the crypto `amount`, the `exchange_rate` it
+// settled at, and `base_currency`. When base_currency is USD this is the most
+// authoritative "USD actually received" figure — independent of BlockBee.
+const dynopayActualUsd = (body) => {
+  const amount = parseFloat(body?.amount)
+  const rate = parseFloat(body?.exchange_rate)
+  const baseCur = String(body?.base_currency || '').toUpperCase()
+  if (baseCur === 'USD' && Number.isFinite(amount) && amount > 0 && Number.isFinite(rate) && rate > 0) {
+    return amount * rate
+  }
+  return null
+}
+
+// ── Unified crypto-credit resolver (dedups the 11 DynoPay product handlers) ──
+// Values the crypto actually received in USD using TWO independent sources —
+// DynoPay's settlement rate (primary, authoritative) and BlockBee convert()
+// (fallback + cross-check) — then applies computeDepositCreditUsd() (overpayment
+// credit + fee-shave goodwill + major-underpayment protection) and fires the
+// admin underpayment alert. Returns the USD amount to credit. Never throws.
+const resolveCryptoCreditUsd = async (req, { chatId, coin, value, ticker, invoiceUsd, feePayer, service } = {}) => {
+  const tkr = ticker || tickerViewOfDyno[coin]
+  const inv = parseFloat(invoiceUsd)
+  let bbValue = null
+  try { bbValue = await convert(value, tkr, 'usd') } catch (_e) { bbValue = null }
+  const dpValue = dynopayActualUsd(req?.body)
+
+  let convertedValue = null
+  let convSource = 'none'
+  if (Number.isFinite(dpValue) && dpValue > 0) {
+    convertedValue = dpValue
+    convSource = 'dynopay-rate'
+    if (Number.isFinite(bbValue) && bbValue > 0) {
+      const div = Math.abs(bbValue - dpValue) / dpValue
+      if (div > 0.25) log(`[CryptoCredit] rate divergence ${(div * 100).toFixed(0)}%: blockbee=$${bbValue.toFixed(2)} dynopay=$${dpValue.toFixed(2)} — using dynopay settlement rate`)
+    }
+  } else if (Number.isFinite(bbValue) && bbValue > 0) {
+    convertedValue = bbValue
+    convSource = 'blockbee'
+  }
+
+  const decided = computeDepositCreditUsd({ invoiceUsd: inv, convertedValue, feePayer })
+  const usdIn = (Number.isFinite(decided.creditUsd) && decided.creditUsd > 0) ? decided.creditUsd : inv
+  const svc = service || req?.path || 'crypto'
+  log(`[CryptoCredit] ${svc}: recv=${value} ${coin} | blockbee=$${Number.isFinite(bbValue) ? bbValue.toFixed(2) : 'n/a'} dynopay=$${Number.isFinite(dpValue) ? dpValue.toFixed(2) : 'n/a'} src=${convSource} invoice=$${Number.isFinite(inv) ? inv.toFixed(2) : 'n/a'} → credit=$${Number.isFinite(usdIn) ? usdIn.toFixed(2) : usdIn} (${decided.mode})`)
+  notifyUnderpayment({ decided, chatId, coin, value, service: svc })
+  return usdIn
+}
+
+
 
 // ─── Admin one-tap action buttons (inline_keyboard rows) ───
 // Used as the 3rd arg of `notifyGroup`. Callback handler lives in the existing
@@ -2726,6 +2776,20 @@ const loadData = async () => {
     )
     log('[walletLedger] callRef idempotency index ready')
   } catch (e) { log(`[walletLedger] index create failed (non-fatal): ${e.message}`) }
+
+  // ── 2026-07-19: DynoPay webhook idempotency (persistent + atomic) ──
+  // Replaces the old in-memory `processedDynopayPayments` Set (which lost state on
+  // pod restart and could not stop concurrent duplicate deliveries). A unique _id
+  // (payment_id) + atomic insert-if-absent in authDyno makes double-crediting
+  // impossible across restarts AND concurrent webhook fires. TTL prunes markers
+  // after 30 days (DynoPay never re-sends that late).
+  try {
+    await db.collection('dynopayProcessed').createIndex(
+      { at: 1 }, { expireAfterSeconds: 2592000, name: 'dynopayProcessed_ttl' }
+    )
+    log('[DynoPay] processed-payment idempotency collection ready')
+  } catch (e) { log(`[DynoPay] dynopayProcessed index create failed (non-fatal): ${e.message}`) }
+
 
   // variables to view system information
   nameOf = db.collection('nameOf')
@@ -33448,8 +33512,10 @@ const auth = async (req, res, next) => {
   next()
 }
 
-// Track processed DynoPay payment IDs to prevent duplicate processing
-const processedDynopayPayments = new Set()
+// DynoPay payment_id idempotency is now PERSISTENT + ATOMIC via the
+// `dynopayProcessed` Mongo collection (unique _id + TTL). The old in-memory
+// `processedDynopayPayments` Set was removed 2026-07-19 — it lost state on pod
+// restart and could not stop concurrent duplicate deliveries. See authDyno.
 
 // Track processed Fincra webhook refs to prevent duplicate processing
 const processedFincraRefs = new Set()
@@ -33512,11 +33578,8 @@ const authDyno = async (req, res, next) => {
     return res.send(html('OK'))
   }
 
-  // Deduplicate by payment_id — DynoPay sends multiple webhooks per payment
-  if (paymentId && processedDynopayPayments.has(paymentId)) {
-    log(`[DynoPay] Duplicate webhook ignored for payment_id: ${paymentId}`)
-    return res.send(html('OK'))
-  }
+  // (Idempotency is enforced atomically below — after refId resolution and
+  //  before the session lookup — via the persistent dynopayProcessed collection.)
 
   // ── Extract refId — try meta_data first, then fall back to stored mapping from pending event ──
   const { meta_data } = req.body
@@ -33530,6 +33593,24 @@ const authDyno = async (req, res, next) => {
   }
   
   log('Extracted refId:', ref)
+
+  // ── Idempotency gate (persistent + atomic) ──────────────────────────────
+  // DynoPay fires several webhooks per payment and retries across our restarts.
+  // Atomically CLAIM this payment_id (unique _id) BEFORE the session lookup and
+  // any crediting. First delivery wins; duplicates & concurrent fires hit the
+  // duplicate-key error (11000) and are ignored — no double-credit, and no false
+  // "missed payment" alert on redelivery. Survives pod restarts.
+  if (paymentId) {
+    try {
+      await db.collection('dynopayProcessed').insertOne({ _id: String(paymentId), ref: ref || null, event, at: new Date() })
+    } catch (e) {
+      if (e && e.code === 11000) {
+        log(`[DynoPay] Duplicate webhook ignored (already claimed): payment_id ${paymentId}`)
+        return res.send(html('OK'))
+      }
+      log(`[DynoPay] idempotency insert error (proceeding): ${e?.message}`)
+    }
+  }
   
   const pay = await get(chatIdOfDynopayPayment, ref)
   log('Payment data found for ref:', ref, '=', pay ? 'YES' : 'NO')
@@ -33547,14 +33628,9 @@ const authDyno = async (req, res, next) => {
     return res.send(html('OK'))
   }
 
-  // Mark as processed to block future duplicates
-  if (paymentId) {
-    processedDynopayPayments.add(paymentId)
-    // Auto-cleanup after 1 hour to prevent memory leak
-    setTimeout(() => processedDynopayPayments.delete(paymentId), 3600000)
-    // Clean up the pending mapping as well
-    dynopayPaymentIdToRef.delete(paymentId)
-  }
+  // payment_id was already claimed atomically above (dynopayProcessed). Just
+  // clean up the pending payment_id → refId mapping.
+  if (paymentId) dynopayPaymentIdToRef.delete(paymentId)
   
   log('Payment session authenticated successfully:', pay)
   req.pay = { ...pay, ref }
@@ -35637,6 +35713,46 @@ app.post('/dev/underpayment-alert-test', async (req, res) => {
   return res.json({ triggered: decided.mode === 'major-underpayment', mode: decided.mode, hasBot: !!bot, adminChat: !!TELEGRAM_ADMIN_CHAT_ID })
 })
 
+// ── DEV-ONLY: exercise the unified resolver (#1 two-source valuation + #3) ──
+// Calls resolveCryptoCreditUsd() with a synthetic req so we can verify the
+// DynoPay-settlement-rate vs BlockBee source selection without a real webhook.
+// Read-only w.r.t. the DB. 404 in production.
+app.post('/dev/resolve-credit-preview', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const b = req.body || {}
+  const fakeReq = { body: b, path: '/dev/resolve-credit-preview' }
+  const usdIn = await resolveCryptoCreditUsd(fakeReq, {
+    chatId: b.chatId || '0',
+    coin: b.coin || b.currency,
+    value: b.value != null ? b.value : b.amount,
+    ticker: b.ticker,
+    invoiceUsd: b.invoiceUsd != null ? b.invoiceUsd : b.base_amount,
+    feePayer: b.feePayer != null ? b.feePayer : b.fee_payer,
+  })
+  return res.json({ usdIn, dynopayActualUsd: dynopayActualUsd(b) })
+})
+
+// ── DEV-ONLY: verify the atomic idempotency gate (#2) ──────────────────────
+// Inserts the same synthetic payment_id twice into dynopayProcessed; the second
+// must be rejected with duplicate-key (11000). Cleans up after itself. 404 in prod.
+app.post('/dev/idempotency-test', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const id = 'DEVTEST-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7)
+  const col = db.collection('dynopayProcessed')
+  const out = { first: null, second: null }
+  try { await col.insertOne({ _id: id, ref: 'devtest', event: 'payment.confirmed', at: new Date() }); out.first = 'inserted' }
+  catch (e) { out.first = 'error:' + (e && e.code) }
+  try { await col.insertOne({ _id: id, ref: 'devtest', event: 'payment.confirmed', at: new Date() }); out.second = 'inserted-UNEXPECTED' }
+  catch (e) { out.second = (e && e.code === 11000) ? 'duplicate-blocked' : ('error:' + (e && e.code)) }
+  try { await col.deleteOne({ _id: id }) } catch (_e) { /* cleanup best-effort */ }
+  return res.json({ ...out, pass: out.first === 'inserted' && out.second === 'duplicate-blocked' })
+})
+
+
 // Dynopay Pay plan
 app.post('/dynopay/crypto-pay-plan', authDyno, async (req, res) => {
   // Validate
@@ -35661,10 +35777,7 @@ app.post('/dynopay/crypto-pay-plan', authDyno, async (req, res) => {
   let usdIn
   {
     // Underpayment over-credit fix (2026-07-19): credit ACTUAL received value.
-    const _converted = await convert(value, ticker, 'usd')
-    const _decided = computeDepositCreditUsd({ invoiceUsd: parseFloat(baseAmount), convertedValue: _converted, feePayer })
-    usdIn = (Number.isFinite(_decided.creditUsd) && _decided.creditUsd > 0) ? _decided.creditUsd : parseFloat(baseAmount)
-    notifyUnderpayment({ decided: _decided, chatId, coin, value, service: req.path })
+    usdIn = await resolveCryptoCreditUsd(req, { chatId, coin, value, ticker, invoiceUsd: parseFloat(baseAmount), feePayer })
   }
   const usdNeed = usdIn
   console.log(`usdIn ${usdIn}, usdNeed ${usdNeed}, Crypto, Plan, ${chatId}, ${name}`)
@@ -35719,10 +35832,7 @@ app.post('/dynopay/crypto-pay-domain', authDyno, async (req, res) => {
   let usdIn
   {
     // Underpayment over-credit fix (2026-07-19): credit ACTUAL received value.
-    const _converted = await convert(value, ticker, 'usd')
-    const _decided = computeDepositCreditUsd({ invoiceUsd: parseFloat(baseAmount), convertedValue: _converted, feePayer })
-    usdIn = (Number.isFinite(_decided.creditUsd) && _decided.creditUsd > 0) ? _decided.creditUsd : parseFloat(baseAmount)
-    notifyUnderpayment({ decided: _decided, chatId, coin, value, service: req.path })
+    usdIn = await resolveCryptoCreditUsd(req, { chatId, coin, value, ticker, invoiceUsd: parseFloat(baseAmount), feePayer })
   }
   if (usdIn < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
@@ -35832,11 +35942,8 @@ app.post('/dynopay/crypto-pay-hosting', authDyno, async (req, res) => {
   let usdIn
   {
     // Underpayment over-credit fix (2026-07-19): credit ACTUAL received value.
-    const _converted = await convert(value, ticker, 'usd')
-    const _decided = computeDepositCreditUsd({ invoiceUsd: parseFloat(baseAmount), convertedValue: _converted, feePayer })
-    usdIn = (Number.isFinite(_decided.creditUsd) && _decided.creditUsd > 0) ? _decided.creditUsd : parseFloat(baseAmount)
-    notifyUnderpayment({ decided: _decided, chatId, coin, value, service: req.path })
-    log('[crypto-pay-hosting] invoice=' + baseAmount + ' converted=' + _converted + ' → usdIn=$' + usdIn + ' (mode=' + _decided.mode + ')')
+    usdIn = await resolveCryptoCreditUsd(req, { chatId, coin, value, ticker, invoiceUsd: parseFloat(baseAmount), feePayer })
+    log('[crypto-pay-hosting] invoice=' + baseAmount + ' → usdIn=$' + usdIn)
   }
   if (usdIn < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
@@ -35942,10 +36049,7 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
     // received (not the invoice base_amount) so the usdIn<price / usdIn<fee guard
     // below rejects under-paid orders. Preserves overpayment credit + fee-shave
     // goodwill + conversion-failure fallback (see crypto-credit.js).
-    const _converted = await convert(value, ticker, 'usd')
-    const _decided = computeDepositCreditUsd({ invoiceUsd: parseFloat(baseAmount), convertedValue: _converted, feePayer })
-    usdIn = (Number.isFinite(_decided.creditUsd) && _decided.creditUsd > 0) ? _decided.creditUsd : parseFloat(baseAmount)
-    notifyUnderpayment({ decided: _decided, chatId, coin, value, service: req.path })
+    usdIn = await resolveCryptoCreditUsd(req, { chatId, coin, value, ticker, invoiceUsd: parseFloat(baseAmount), feePayer })
   }
   if (usdIn < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
@@ -36096,10 +36200,7 @@ app.post('/dynopay/crypto-pay-phone-upgrade', authDyno, async (req, res) => {
     // received (not the invoice base_amount) so the usdIn<price / usdIn<fee guard
     // below rejects under-paid orders. Preserves overpayment credit + fee-shave
     // goodwill + conversion-failure fallback (see crypto-credit.js).
-    const _converted = await convert(value, ticker, 'usd')
-    const _decided = computeDepositCreditUsd({ invoiceUsd: parseFloat(baseAmount), convertedValue: _converted, feePayer })
-    usdIn = (Number.isFinite(_decided.creditUsd) && _decided.creditUsd > 0) ? _decided.creditUsd : parseFloat(baseAmount)
-    notifyUnderpayment({ decided: _decided, chatId, coin, value, service: req.path })
+    usdIn = await resolveCryptoCreditUsd(req, { chatId, coin, value, ticker, invoiceUsd: parseFloat(baseAmount), feePayer })
   }
   if (usdIn < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
@@ -36153,10 +36254,7 @@ app.post('/dynopay/crypto-pay-leads', authDyno, async (req, res) => {
     // received (not the invoice base_amount) so the usdIn<price / usdIn<fee guard
     // below rejects under-paid orders. Preserves overpayment credit + fee-shave
     // goodwill + conversion-failure fallback (see crypto-credit.js).
-    const _converted = await convert(value, ticker, 'usd')
-    const _decided = computeDepositCreditUsd({ invoiceUsd: parseFloat(baseAmount), convertedValue: _converted, feePayer })
-    usdIn = (Number.isFinite(_decided.creditUsd) && _decided.creditUsd > 0) ? _decided.creditUsd : parseFloat(baseAmount)
-    notifyUnderpayment({ decided: _decided, chatId, coin, value, service: req.path })
+    usdIn = await resolveCryptoCreditUsd(req, { chatId, coin, value, ticker, invoiceUsd: parseFloat(baseAmount), feePayer })
   }
   if (usdIn < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
@@ -36292,10 +36390,7 @@ app.post('/dynopay/crypto-pay-vps', authDyno, async (req, res) => {
   let usdIn
   {
     // Underpayment over-credit fix (2026-07-19): credit ACTUAL received value.
-    const _converted = await convert(value, ticker, 'usd')
-    const _decided = computeDepositCreditUsd({ invoiceUsd: parseFloat(baseAmount_v), convertedValue: _converted, feePayer: feePayer_v })
-    usdIn = (Number.isFinite(_decided.creditUsd) && _decided.creditUsd > 0) ? _decided.creditUsd : parseFloat(baseAmount_v)
-    notifyUnderpayment({ decided: _decided, chatId, coin, value, service: req.path })
+    usdIn = await resolveCryptoCreditUsd(req, { chatId, coin, value, ticker, invoiceUsd: parseFloat(baseAmount_v), feePayer: feePayer_v })
   }
   if (usdIn < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
@@ -36368,10 +36463,7 @@ app.post('/dynopay/crypto-pay-upgrade-vps', authDyno, async (req, res) => {
   let usdIn
   {
     // Underpayment over-credit fix (2026-07-19): credit ACTUAL received value.
-    const _converted = await convert(value, ticker, 'usd')
-    const _decided = computeDepositCreditUsd({ invoiceUsd: parseFloat(baseAmount_u), convertedValue: _converted, feePayer: feePayer_u })
-    usdIn = (Number.isFinite(_decided.creditUsd) && _decided.creditUsd > 0) ? _decided.creditUsd : parseFloat(baseAmount_u)
-    notifyUnderpayment({ decided: _decided, chatId, coin, value, service: req.path })
+    usdIn = await resolveCryptoCreditUsd(req, { chatId, coin, value, ticker, invoiceUsd: parseFloat(baseAmount_u), feePayer: feePayer_u })
   }
   if (usdIn < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
@@ -36426,10 +36518,7 @@ app.post('/dynopay/crypto-pay-digital-product', authDyno, async (req, res) => {
     // received (not the invoice base_amount) so the usdIn<price / usdIn<fee guard
     // below rejects under-paid orders. Preserves overpayment credit + fee-shave
     // goodwill + conversion-failure fallback (see crypto-credit.js).
-    const _converted = await convert(value, ticker, 'usd')
-    const _decided = computeDepositCreditUsd({ invoiceUsd: parseFloat(baseAmount), convertedValue: _converted, feePayer })
-    usdIn = (Number.isFinite(_decided.creditUsd) && _decided.creditUsd > 0) ? _decided.creditUsd : parseFloat(baseAmount)
-    notifyUnderpayment({ decided: _decided, chatId, coin, value, service: req.path })
+    usdIn = await resolveCryptoCreditUsd(req, { chatId, coin, value, ticker, invoiceUsd: parseFloat(baseAmount), feePayer })
   }
   if (usdIn < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
@@ -36475,10 +36564,7 @@ app.post('/dynopay/crypto-pay-marketplace-access', authDyno, async (req, res) =>
     // received (not the invoice base_amount) so the usdIn<price / usdIn<fee guard
     // below rejects under-paid orders. Preserves overpayment credit + fee-shave
     // goodwill + conversion-failure fallback (see crypto-credit.js).
-    const _converted = await convert(value, ticker, 'usd')
-    const _decided = computeDepositCreditUsd({ invoiceUsd: parseFloat(baseAmount), convertedValue: _converted, feePayer })
-    usdIn = (Number.isFinite(_decided.creditUsd) && _decided.creditUsd > 0) ? _decided.creditUsd : parseFloat(baseAmount)
-    notifyUnderpayment({ decided: _decided, chatId, coin, value, service: req.path })
+    usdIn = await resolveCryptoCreditUsd(req, { chatId, coin, value, ticker, invoiceUsd: parseFloat(baseAmount), feePayer })
   }
   await fulfillMarketplaceAccessPayment({ chatId, ref, fee, usdIn, mode: 'crypto', methodTag: '₿ Crypto (DynoPay)', coinLine: `${value} ${coin}` })
   res.send(html())
@@ -36504,10 +36590,7 @@ app.post('/dynopay/crypto-pay-virtual-card', authDyno, async (req, res) => {
     // received (not the invoice base_amount) so the usdIn<price / usdIn<fee guard
     // below rejects under-paid orders. Preserves overpayment credit + fee-shave
     // goodwill + conversion-failure fallback (see crypto-credit.js).
-    const _converted = await convert(value, ticker, 'usd')
-    const _decided = computeDepositCreditUsd({ invoiceUsd: parseFloat(baseAmount), convertedValue: _converted, feePayer })
-    usdIn = (Number.isFinite(_decided.creditUsd) && _decided.creditUsd > 0) ? _decided.creditUsd : parseFloat(baseAmount)
-    notifyUnderpayment({ decided: _decided, chatId, coin, value, service: req.path })
+    usdIn = await resolveCryptoCreditUsd(req, { chatId, coin, value, ticker, invoiceUsd: parseFloat(baseAmount), feePayer })
   }
   if (usdIn < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
@@ -36586,7 +36669,16 @@ app.post('/dynopay/crypto-wallet', authDyno, async (req, res) => {
   // the complexity.
   const baseAmount = req.body.base_amount
   const feePayer = req.body.fee_payer
-  const convertedValue = await convert(value, ticker, 'usd')
+  // #1 (2026-07-19): value the received crypto via DynoPay's own settlement
+  // rate (amount × exchange_rate — authoritative) first, BlockBee convert() as
+  // fallback/cross-check. Removes the single-source dependency that let a flaky
+  // BlockBee response push credits back onto the full-invoice fallback.
+  const _bbVal = await convert(value, ticker, 'usd')
+  const _dpVal = dynopayActualUsd(req.body)
+  const convertedValue = (Number.isFinite(_dpVal) && _dpVal > 0) ? _dpVal : _bbVal
+  if (Number.isFinite(_dpVal) && _dpVal > 0 && Number.isFinite(_bbVal) && _bbVal > 0 && Math.abs(_bbVal - _dpVal) / _dpVal > 0.25) {
+    log(`[Wallet] rate divergence: blockbee=$${_bbVal.toFixed(2)} dynopay=$${_dpVal.toFixed(2)} — using dynopay settlement rate`)
+  }
   let usdIn
 
   // ── BUG-FIX 2026-07-15 (@ciroovblzz LTC → NaN wallet) ──
