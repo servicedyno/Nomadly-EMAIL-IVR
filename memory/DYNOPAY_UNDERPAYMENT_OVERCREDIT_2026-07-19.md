@@ -76,8 +76,11 @@ fee-shaves from abuse.
 - NO production wallet was written during verification.
 
 ## Open Follow-Ups (need operator decision)
-1. **Product handlers** (`crypto-pay-hosting`/`-marketplace-access`/`-plan`/`-vps`/…): apply the same
-   actual-value logic so the `usdNeed < price` underpayment guard actually works. ~10 handlers.
+1. **Product handlers** — ✅ DONE 2026-07-19. computeDepositCreditUsd() wired into ALL 11 DynoPay
+   product handlers (crypto-pay-plan/-domain/-hosting/-phone/-phone-upgrade/-leads/-vps/-upgrade-vps/
+   -digital-product/-marketplace-access/-virtual-card). Each derives usdIn from ACTUAL received value
+   so the existing `usdIn < price` / `usdIn < fee` guards reject under-paid orders. Verified by testing
+   agent: 18/18 node assertions + 6/6 HTTP scenarios, service healthy.
 2. **Spirits wallet correction**: ✅ DONE 2026-07-19 — Twilio number +18885117144 RELEASED (API 404,
    0 numbers left on subaccount), IVR "pro" plan cancelled (status=released, autoRenew=false), 2
    bulkCallCampaigns cancelled, wallet zeroed ($34.58 → $0, usdIn=usdOut=75.42). Audit:
@@ -94,3 +97,17 @@ fee-shaves from abuse.
 ## Operational note
 The master Twilio token in the env was stale (HTTP 401) and was rotated to a working value on 2026-07-19
 (TWILIO_AUTH_TOKEN=f498e4c4…) so the number release could authenticate.
+
+## Reversals of exploited product grants (DONE 2026-07-19)
+Script: /app/js/scripts/reverse_underpaid_products.js
+- **3R9ly hosting** (chatId 8011229362 rubixeleniyan): paid $58.94 for a $105 "Premium Anti-Red
+  HostPanel (1-Month)" → cPanel account **evit8c7c / evitelesspost.com**. Action: **SUSPENDED on WHM**
+  (whm.suspendAccount → true; read-back suspended=1, suspendreason set). DB cpanelAccounts marked
+  status=suspended, autoRenewable=false, cancelledForFraud=true. Suspended (NOT terminated) — reversible;
+  operator can /removeacct to delete data if desired. The user's other 2 cPanel accounts
+  (evene479 07-02, stre80fc 07-08) were UNRELATED purchases, left untouched.
+- **sAoKK marketplace access** (chatId 8980682151 billy58712): paid $4.23 for the $50 one-time access.
+  Action: **REVOKED** (marketplaceAccess doc deleted; verified null).
+- **N4b0q** (BTC wallet $5/$10): a wallet top-up, not a product/access — no grant to reverse; small $5
+  wallet over-credit left as-is (flag for operator if clawback desired).
+Audit: walletAudit rows (fraud_hosting_suspend, fraud_marketplace_revoke).
