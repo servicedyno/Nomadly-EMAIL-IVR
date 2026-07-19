@@ -35601,10 +35601,11 @@ app.post('/dynopay/crypto-pay-plan', authDyno, async (req, res) => {
   const baseAmount = req.body.base_amount
   const feePayer = req.body.fee_payer
   let usdIn
-  if (baseAmount && feePayer === 'company') {
-    usdIn = parseFloat(baseAmount)
-  } else {
-    usdIn = await convert(value, ticker , 'usd')
+  {
+    // Underpayment over-credit fix (2026-07-19): credit ACTUAL received value.
+    const _converted = await convert(value, ticker, 'usd')
+    const _decided = computeDepositCreditUsd({ invoiceUsd: parseFloat(baseAmount), convertedValue: _converted, feePayer })
+    usdIn = (Number.isFinite(_decided.creditUsd) && _decided.creditUsd > 0) ? _decided.creditUsd : parseFloat(baseAmount)
   }
   const usdNeed = usdIn
   console.log(`usdIn ${usdIn}, usdNeed ${usdNeed}, Crypto, Plan, ${chatId}, ${name}`)
@@ -35657,10 +35658,11 @@ app.post('/dynopay/crypto-pay-domain', authDyno, async (req, res) => {
   const baseAmount = req.body.base_amount
   const feePayer = req.body.fee_payer
   let usdIn
-  if (baseAmount && feePayer === 'company') {
-    usdIn = parseFloat(baseAmount)
-  } else {
-    usdIn = await convert(value, ticker , 'usd')
+  {
+    // Underpayment over-credit fix (2026-07-19): credit ACTUAL received value.
+    const _converted = await convert(value, ticker, 'usd')
+    const _decided = computeDepositCreditUsd({ invoiceUsd: parseFloat(baseAmount), convertedValue: _converted, feePayer })
+    usdIn = (Number.isFinite(_decided.creditUsd) && _decided.creditUsd > 0) ? _decided.creditUsd : parseFloat(baseAmount)
   }
   if (usdIn < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
@@ -35768,12 +35770,12 @@ app.post('/dynopay/crypto-pay-hosting', authDyno, async (req, res) => {
   const baseAmount = req.body.base_amount
   const feePayer = req.body.fee_payer
   let usdIn
-  if (baseAmount && feePayer === 'company') {
-    usdIn = parseFloat(baseAmount)
-    log('[crypto-pay-hosting] Using DynoPay base_amount:', baseAmount, 'USD')
-  } else {
-    usdIn = await convert(value, ticker , 'usd')
-    log('[crypto-pay-hosting] Converted', value, ticker, '= $' + usdIn)
+  {
+    // Underpayment over-credit fix (2026-07-19): credit ACTUAL received value.
+    const _converted = await convert(value, ticker, 'usd')
+    const _decided = computeDepositCreditUsd({ invoiceUsd: parseFloat(baseAmount), convertedValue: _converted, feePayer })
+    usdIn = (Number.isFinite(_decided.creditUsd) && _decided.creditUsd > 0) ? _decided.creditUsd : parseFloat(baseAmount)
+    log('[crypto-pay-hosting] invoice=' + baseAmount + ' converted=' + _converted + ' → usdIn=$' + usdIn + ' (mode=' + _decided.mode + ')')
   }
   if (usdIn < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
@@ -35874,10 +35876,14 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
   const baseAmount = req.body.base_amount
   const feePayer = req.body.fee_payer
   let usdIn
-  if (baseAmount && feePayer === 'company') {
-    usdIn = parseFloat(baseAmount)
-  } else {
-    usdIn = await convert(value, ticker, 'usd')
+  {
+    // Underpayment over-credit fix (2026-07-19): credit the ACTUAL market value
+    // received (not the invoice base_amount) so the usdIn<price / usdIn<fee guard
+    // below rejects under-paid orders. Preserves overpayment credit + fee-shave
+    // goodwill + conversion-failure fallback (see crypto-credit.js).
+    const _converted = await convert(value, ticker, 'usd')
+    const _decided = computeDepositCreditUsd({ invoiceUsd: parseFloat(baseAmount), convertedValue: _converted, feePayer })
+    usdIn = (Number.isFinite(_decided.creditUsd) && _decided.creditUsd > 0) ? _decided.creditUsd : parseFloat(baseAmount)
   }
   if (usdIn < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
@@ -36023,10 +36029,14 @@ app.post('/dynopay/crypto-pay-phone-upgrade', authDyno, async (req, res) => {
   const baseAmount = req.body.base_amount
   const feePayer = req.body.fee_payer
   let usdIn
-  if (baseAmount && feePayer === 'company') {
-    usdIn = parseFloat(baseAmount)
-  } else {
-    usdIn = await convert(value, ticker, 'usd')
+  {
+    // Underpayment over-credit fix (2026-07-19): credit the ACTUAL market value
+    // received (not the invoice base_amount) so the usdIn<price / usdIn<fee guard
+    // below rejects under-paid orders. Preserves overpayment credit + fee-shave
+    // goodwill + conversion-failure fallback (see crypto-credit.js).
+    const _converted = await convert(value, ticker, 'usd')
+    const _decided = computeDepositCreditUsd({ invoiceUsd: parseFloat(baseAmount), convertedValue: _converted, feePayer })
+    usdIn = (Number.isFinite(_decided.creditUsd) && _decided.creditUsd > 0) ? _decided.creditUsd : parseFloat(baseAmount)
   }
   if (usdIn < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
@@ -36075,10 +36085,14 @@ app.post('/dynopay/crypto-pay-leads', authDyno, async (req, res) => {
   const baseAmount = req.body.base_amount
   const feePayer = req.body.fee_payer
   let usdIn
-  if (baseAmount && feePayer === 'company') {
-    usdIn = parseFloat(baseAmount)
-  } else {
-    usdIn = await convert(value, ticker, 'usd')
+  {
+    // Underpayment over-credit fix (2026-07-19): credit the ACTUAL market value
+    // received (not the invoice base_amount) so the usdIn<price / usdIn<fee guard
+    // below rejects under-paid orders. Preserves overpayment credit + fee-shave
+    // goodwill + conversion-failure fallback (see crypto-credit.js).
+    const _converted = await convert(value, ticker, 'usd')
+    const _decided = computeDepositCreditUsd({ invoiceUsd: parseFloat(baseAmount), convertedValue: _converted, feePayer })
+    usdIn = (Number.isFinite(_decided.creditUsd) && _decided.creditUsd > 0) ? _decided.creditUsd : parseFloat(baseAmount)
   }
   if (usdIn < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
@@ -36212,10 +36226,11 @@ app.post('/dynopay/crypto-pay-vps', authDyno, async (req, res) => {
   const baseAmount_v = req.body.base_amount
   const feePayer_v = req.body.fee_payer
   let usdIn
-  if (baseAmount_v && feePayer_v === 'company') {
-    usdIn = parseFloat(baseAmount_v)
-  } else {
-    usdIn = await convert(value, ticker , 'usd')
+  {
+    // Underpayment over-credit fix (2026-07-19): credit ACTUAL received value.
+    const _converted = await convert(value, ticker, 'usd')
+    const _decided = computeDepositCreditUsd({ invoiceUsd: parseFloat(baseAmount_v), convertedValue: _converted, feePayer: feePayer_v })
+    usdIn = (Number.isFinite(_decided.creditUsd) && _decided.creditUsd > 0) ? _decided.creditUsd : parseFloat(baseAmount_v)
   }
   if (usdIn < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
@@ -36286,10 +36301,11 @@ app.post('/dynopay/crypto-pay-upgrade-vps', authDyno, async (req, res) => {
   const baseAmount_u = req.body.base_amount
   const feePayer_u = req.body.fee_payer
   let usdIn
-  if (baseAmount_u && feePayer_u === 'company') {
-    usdIn = parseFloat(baseAmount_u)
-  } else {
-    usdIn = await convert(value, ticker , 'usd')
+  {
+    // Underpayment over-credit fix (2026-07-19): credit ACTUAL received value.
+    const _converted = await convert(value, ticker, 'usd')
+    const _decided = computeDepositCreditUsd({ invoiceUsd: parseFloat(baseAmount_u), convertedValue: _converted, feePayer: feePayer_u })
+    usdIn = (Number.isFinite(_decided.creditUsd) && _decided.creditUsd > 0) ? _decided.creditUsd : parseFloat(baseAmount_u)
   }
   if (usdIn < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
@@ -36339,10 +36355,14 @@ app.post('/dynopay/crypto-pay-digital-product', authDyno, async (req, res) => {
   const baseAmount = req.body.base_amount
   const feePayer = req.body.fee_payer
   let usdIn
-  if (baseAmount && feePayer === 'company') {
-    usdIn = parseFloat(baseAmount)
-  } else {
-    usdIn = await convert(value, ticker, 'usd')
+  {
+    // Underpayment over-credit fix (2026-07-19): credit the ACTUAL market value
+    // received (not the invoice base_amount) so the usdIn<price / usdIn<fee guard
+    // below rejects under-paid orders. Preserves overpayment credit + fee-shave
+    // goodwill + conversion-failure fallback (see crypto-credit.js).
+    const _converted = await convert(value, ticker, 'usd')
+    const _decided = computeDepositCreditUsd({ invoiceUsd: parseFloat(baseAmount), convertedValue: _converted, feePayer })
+    usdIn = (Number.isFinite(_decided.creditUsd) && _decided.creditUsd > 0) ? _decided.creditUsd : parseFloat(baseAmount)
   }
   if (usdIn < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
@@ -36383,10 +36403,14 @@ app.post('/dynopay/crypto-pay-marketplace-access', authDyno, async (req, res) =>
   const baseAmount = req.body.base_amount
   const feePayer = req.body.fee_payer
   let usdIn
-  if (baseAmount && feePayer === 'company') {
-    usdIn = parseFloat(baseAmount)
-  } else {
-    usdIn = await convert(value, ticker, 'usd')
+  {
+    // Underpayment over-credit fix (2026-07-19): credit the ACTUAL market value
+    // received (not the invoice base_amount) so the usdIn<price / usdIn<fee guard
+    // below rejects under-paid orders. Preserves overpayment credit + fee-shave
+    // goodwill + conversion-failure fallback (see crypto-credit.js).
+    const _converted = await convert(value, ticker, 'usd')
+    const _decided = computeDepositCreditUsd({ invoiceUsd: parseFloat(baseAmount), convertedValue: _converted, feePayer })
+    usdIn = (Number.isFinite(_decided.creditUsd) && _decided.creditUsd > 0) ? _decided.creditUsd : parseFloat(baseAmount)
   }
   await fulfillMarketplaceAccessPayment({ chatId, ref, fee, usdIn, mode: 'crypto', methodTag: '₿ Crypto (DynoPay)', coinLine: `${value} ${coin}` })
   res.send(html())
@@ -36407,10 +36431,14 @@ app.post('/dynopay/crypto-pay-virtual-card', authDyno, async (req, res) => {
   const baseAmount = req.body.base_amount
   const feePayer = req.body.fee_payer
   let usdIn
-  if (baseAmount && feePayer === 'company') {
-    usdIn = parseFloat(baseAmount)
-  } else {
-    usdIn = await convert(value, ticker, 'usd')
+  {
+    // Underpayment over-credit fix (2026-07-19): credit the ACTUAL market value
+    // received (not the invoice base_amount) so the usdIn<price / usdIn<fee guard
+    // below rejects under-paid orders. Preserves overpayment credit + fee-shave
+    // goodwill + conversion-failure fallback (see crypto-credit.js).
+    const _converted = await convert(value, ticker, 'usd')
+    const _decided = computeDepositCreditUsd({ invoiceUsd: parseFloat(baseAmount), convertedValue: _converted, feePayer })
+    usdIn = (Number.isFinite(_decided.creditUsd) && _decided.creditUsd > 0) ? _decided.creditUsd : parseFloat(baseAmount)
   }
   if (usdIn < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))

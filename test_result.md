@@ -82,6 +82,95 @@ backend:
       - working: true
         agent: "testing"
         comment: |
+          ✅ ROUND 2 VERIFICATION COMPLETE - ALL 11 DynoPay product-payment handlers now use shared helper:
+          
+          SCOPE (round 2): Extended the underpayment fix from just the wallet handler (verified round 1) to 
+          ALL 11 DynoPay product-payment handlers. Each handler now derives usdIn from the ACTUAL received 
+          value via computeDepositCreditUsd() instead of using parseFloat(base_amount), so their existing 
+          `usdIn < price` / `usdIn < fee` guards now correctly reject under-paid orders.
+          
+          [TEST 1] NODE REGRESSION SUITE: ✅ 18/18 PASSED (exit 0)
+            • cd /app && node js/__tests__/dynopay-underpayment-credit.test.js
+            ✅ Spirits 17.72 TRX → credits $5.85 not $100 (THE KEY FIX)
+            ✅ Spirits mode = major-underpayment
+            ✅ 3R9ly hosting $58.94/$105 → actual (historical exploit now fixed)
+            ✅ sAoKK marketplace $4.23/$50 → actual (historical exploit now fixed)
+            ✅ N4b0q wallet $5/$10 → actual (historical exploit now fixed)
+            ✅ fee-shave $45.04/$47 → credits invoice $47 (minor-underpayment goodwill)
+            ✅ Versace438 $60.10/$30 → credits actual $60.10 (overpayment preserved)
+            ✅ exact $50/$50 → $50
+            ✅ boundary tests at tolerance threshold (0.90)
+            ✅ fee_payer=customer → always credit actual
+            ✅ convert NaN + invoice → invoice fallback (ciroovblzz guard preserved)
+            ✅ no data → blocked-no-data
+            ✅ default tolerance = 0.90
+          
+          [TEST 2] HTTP VERIFICATION VIA /api/dev/credit-preview: ✅ 6/6 SCENARIOS PASSED
+            POST {REACT_APP_BACKEND_URL}/api/dev/credit-preview with JSON body:
+            
+            (a) ✅ {"invoiceUsd":105,"convertedValue":58.94,"feePayer":"company"}
+                → creditUsd: 58.94, mode: "major-underpayment"
+                ★ 3R9ly hosting exploit: Previously credited $105, now correctly credits $58.94
+            
+            (b) ✅ {"invoiceUsd":50,"convertedValue":4.23,"feePayer":"company"}
+                → creditUsd: 4.23, mode: "major-underpayment"
+                ★ sAoKK marketplace exploit: Previously credited $50, now correctly credits $4.23
+            
+            (c) ✅ {"invoiceUsd":100,"convertedValue":5.85,"feePayer":"company"}
+                → creditUsd: 5.85, mode: "major-underpayment"
+                ★ Spirits wallet exploit: Previously credited $100, now correctly credits $5.85
+            
+            (d) ✅ {"invoiceUsd":105,"convertedValue":105,"feePayer":"company"}
+                → creditUsd: 105 (exact payment → would fulfil)
+            
+            (e) ✅ {"invoiceUsd":105,"convertedValue":130,"feePayer":"company"}
+                → creditUsd: 130, mode: "overpayment" (fulfil + credit excess)
+            
+            (f) ✅ {"invoiceUsd":105,"convertedValue":100,"feePayer":"company"}
+                → creditUsd: 105, mode: "minor-underpayment" (fee-shave goodwill → fulfil)
+          
+          [TEST 3] SERVICE HEALTH: ✅ ALL PASSED
+            ✅ nodejs service: RUNNING (pid 3385, uptime 0:06:39)
+            ✅ No NEW errors in /var/log/supervisor/nodejs.err.log
+            ✅ No crash/error entries caused by these changes
+            ✅ Only expected Twilio AUTH_FAILED messages (pre-existing, unrelated)
+          
+          [CODE VERIFICATION] ALL 11 PRODUCT HANDLERS VERIFIED: ✅
+            ✅ crypto-pay-plan (line 35583)
+            ✅ crypto-pay-domain (line 35638)
+            ✅ crypto-pay-hosting (line 35744) ← 3R9ly exploit fixed
+            ✅ crypto-pay-phone (line 35863)
+            ✅ crypto-pay-phone-upgrade (line 36018)
+            ✅ crypto-pay-leads (line 36066)
+            ✅ crypto-pay-vps (line 36200)
+            ✅ crypto-pay-upgrade-vps (line 36276)
+            ✅ crypto-pay-digital-product (line 36343)
+            ✅ crypto-pay-marketplace-access (line 36393) ← sAoKK exploit fixed
+            ✅ crypto-pay-virtual-card (line 36419)
+            
+            Each handler now:
+            1. Calls convert(value, ticker, 'usd') to get ACTUAL market value
+            2. Calls computeDepositCreditUsd({ invoiceUsd: parseFloat(baseAmount), convertedValue: _converted, feePayer })
+            3. Uses _decided.creditUsd as usdIn (not base_amount)
+            4. Existing `usdIn < price` / `usdIn < fee` guards now correctly reject major underpayments
+          
+          CONCLUSION:
+          Round 2 verification COMPLETE. The underpayment over-credit fix is now deployed across ALL 11 
+          DynoPay product-payment handlers, not just the wallet handler. The three historical exploits 
+          (3R9ly hosting, sAoKK marketplace, Spirits wallet) are all now fixed. The shared pure helper 
+          computeDepositCreditUsd() ensures consistent credit logic across all payment flows:
+          
+          • Major underpayments (< 90% of invoice) → credit ACTUAL amount received (THE FIX)
+          • Minor underpayments (90-100% of invoice) → credit INVOICE (fee-shave goodwill)
+          • Exact/overpayments (≥ 100% of invoice) → credit ACTUAL amount (Versace438 fix preserved)
+          • Conversion failures → credit INVOICE fallback (ciroovblzz NaN guard preserved)
+          
+          SAFETY CONFIRMED: All testing via read-only /api/dev/credit-preview endpoint and Node regression 
+          suite. NO writes to production MongoDB during verification.
+      
+      - working: true
+        agent: "testing"
+        comment: |
           ✅ VERIFICATION COMPLETE - All DynoPay wallet UNDERPAYMENT over-credit bug fix assertions PASSED:
           
           [TEST 1] NODE REGRESSION SUITE: ✅ 18/18 PASSED (exit 0)
@@ -4575,6 +4664,64 @@ test_plan:
   test_priority: "high_first"
 
 agent_communication:
+  - agent: "testing"
+    message: |
+      ✅ ROUND 2 TESTING COMPLETE - ALL 11 DynoPay product-payment handlers verified.
+      
+      SUMMARY:
+      • TEST 1 (Node regression): ✅ 18/18 assertions passed
+      • TEST 2 (HTTP /api/dev/credit-preview): ✅ 6/6 scenarios passed
+      • TEST 3 (Service health): ✅ nodejs RUNNING, no new errors
+      • CODE VERIFICATION: ✅ All 11 handlers use computeDepositCreditUsd()
+      
+      KEY FIXES VERIFIED:
+      ✅ 3R9ly hosting exploit ($58.94/$105) → now credits actual $58.94 (was $105)
+      ✅ sAoKK marketplace exploit ($4.23/$50) → now credits actual $4.23 (was $50)
+      ✅ Spirits wallet exploit ($5.85/$100) → now credits actual $5.85 (was $100)
+      ✅ Fee-shave goodwill preserved (90-100% of invoice → credit invoice)
+      ✅ Overpayment fix preserved (≥100% of invoice → credit actual)
+      ✅ NaN fallback preserved (conversion fails → credit invoice)
+      
+      All 11 product handlers (plan, domain, hosting, phone, phone-upgrade, leads, vps, 
+      upgrade-vps, digital-product, marketplace-access, virtual-card) now derive usdIn from 
+      ACTUAL received value, so their `usdIn < price` guards correctly reject underpayments.
+      
+      SAFETY: All testing via read-only endpoints. NO production DB writes.
+      
+      Main agent: Please summarize and finish. The underpayment fix is now complete across 
+      ALL DynoPay payment flows.
+  
+  - agent: "main"
+    message: |
+      RE-TEST (round 2): Product-handler underpayment over-credit fix + shared helper regression.
+
+      SCOPE ADDED THIS ROUND: The same computeDepositCreditUsd() helper (crypto-credit.js) is now wired
+      into ALL 11 DynoPay product-payment handlers in /app/js/_index.js (crypto-pay-plan, -hosting,
+      -marketplace-access, -virtual-card, and the -v/-u variants, etc.). Each handler now computes
+      usdIn from the ACTUAL received value instead of parseFloat(base_amount), so their existing
+      `usdIn < price` / `usdIn < fee` guards finally reject under-paid orders. node --check passes and
+      the nodejs service boots clean.
+
+      ⚠️ CRITICAL SAFETY (unchanged): shared PRODUCTION MongoDB. DO NOT POST to any real
+      /dynopay/crypto-* webhook. Verify ONLY via the node regression test + the read-only
+      /api/dev/credit-preview endpoint (no DB writes).
+
+      TEST STEPS:
+        1. `cd /app && node js/__tests__/dynopay-underpayment-credit.test.js` → expect "18/18 assertions passed".
+        2. POST {REACT_APP_BACKEND_URL}/api/dev/credit-preview and assert {creditUsd, mode} — these cover
+           the exact decision logic every product handler now uses:
+             {"invoiceUsd":105,"convertedValue":58.94,"feePayer":"company"} → 58.94, "major-underpayment"  (3R9ly hosting exploit)
+             {"invoiceUsd":50,"convertedValue":4.23,"feePayer":"company"}   → 4.23,  "major-underpayment"  (sAoKK marketplace exploit)
+             {"invoiceUsd":100,"convertedValue":5.85,"feePayer":"company"}  → 5.85,  "major-underpayment"  (Spirits wallet exploit)
+             {"invoiceUsd":105,"convertedValue":105,"feePayer":"company"}   → 105 (exact pay → fulfil)
+             {"invoiceUsd":105,"convertedValue":130,"feePayer":"company"}   → 130, "overpayment" (fulfil + credit excess)
+             {"invoiceUsd":105,"convertedValue":100,"feePayer":"company"}   → 105, "minor-underpayment" (fee-shave goodwill → fulfil)
+        3. Confirm nodejs RUNNING and no NEW errors in /var/log/supervisor/nodejs.err.log.
+
+      Report pass/fail per scenario. Key assertions: the three "major-underpayment" exploit cases must
+      credit the ACTUAL small value (not the invoice), and exact/overpay/fee-shave must still fulfil.
+
+
   - agent: "main"
     message: |
       PLEASE TEST: DynoPay wallet UNDERPAYMENT over-credit fix (@Spirits_Of_The_Ancesters 17 TRX → $100).
