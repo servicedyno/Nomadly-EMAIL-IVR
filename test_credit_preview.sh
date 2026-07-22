@@ -1,5 +1,5 @@
 #!/bin/bash
-BACKEND_URL="https://service-onboard-env.preview.emergentagent.com"
+BACKEND_URL="https://naughty-raman-8.preview.emergentagent.com"
 
 echo "TEST 4 — Regression of existing preview endpoint"
 echo ""
