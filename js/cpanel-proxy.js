@@ -121,6 +121,72 @@ function _adminAlertDown(reason, host) {
   } catch (e) { log(`[cPanel Proxy] admin alert error: ${e.message}`) }
 }
 
+// ─── EPERM (broken account homedir/quota) — UX + ops alerting ───────────
+//
+// `"/usr/local/cpanel/uapi" exited with status 1 (EPERM)` means the account's
+// home directory / quota accounting is broken at the OS level. BOTH the
+// user-level UAPI call AND the WHM root-as-user fallback (which also runs in
+// the user context) fail until ops repairs it on the box. Before this, the
+// File Manager surfaced a raw "Create folder failed: 500 …EPERM" and NEVER
+// paged ops — so @hellpeaces (5522767823) had a broken panel for ~2 weeks
+// (2026-07-03 → 2026-07-21) and had to escalate manually 4 times. Now the
+// user sees a calm message and ops gets an actionable page with the exact
+// remediation so the account is repaired in minutes, not weeks.
+const EPERM_USER_MESSAGES = {
+  en: 'A temporary permission issue on your hosting account is blocking file changes right now. Our team has been alerted and is repairing it — your files and data are safe. Please try again shortly.',
+  fr: "Un problème d'autorisation temporaire sur votre compte d'hébergement empêche actuellement les modifications de fichiers. Notre équipe a été alertée et procède à la réparation — vos fichiers et données sont en sécurité. Veuillez réessayer sous peu.",
+  zh: '您的主机账户目前存在临时权限问题，暂时无法更改文件。我们的团队已收到提醒并正在修复 — 您的文件和数据是安全的。请稍后再试。',
+  hi: 'आपके होस्टिंग खाते में एक अस्थायी अनुमति समस्या के कारण अभी फ़ाइल परिवर्तन अवरुद्ध हैं। हमारी टीम को सूचित कर दिया गया है और वह इसे ठीक कर रही है — आपकी फ़ाइलें और डेटा सुरक्षित हैं। कृपया थोड़ी देर बाद पुनः प्रयास करें।',
+}
+function getEpermLocalizedMessages() {
+  return { ...EPERM_USER_MESSAGES }
+}
+function getEpermUserMessage(lang) {
+  return EPERM_USER_MESSAGES[lang] || EPERM_USER_MESSAGES.en
+}
+
+// Build the admin/ops page for a broken-homedir EPERM. Carries the exact
+// root-shell remediation so whoever is on-call can repair immediately.
+function buildEpermOpsAlert({ op = 'file operation', cpUser, domain, whmHost } = {}) {
+  const host = whmHost || WHM_HOST
+  return (
+    `🛠️ <b>cPanel account needs repair (EPERM)</b>\n` +
+    `A user's File Manager <b>${op}</b> failed with ` +
+    `<code>uapi exited status 1 (EPERM)</code> — a broken home directory / quota on the server. ` +
+    `The panel's user-level call AND the WHM root fallback both fail until this is repaired.\n\n` +
+    `Account: <code>${cpUser || 'unknown'}</code>${domain ? ` (${domain})` : ''}\n` +
+    `Server: <code>${host || 'unknown'}</code>\n\n` +
+    `<b>Fix — run as root on the WHM box:</b>\n` +
+    `<code>/scripts/fixquotas</code>\n` +
+    `<code>/scripts/fixhomedirperms --user=${cpUser || '<user>'}</code>\n` +
+    `<i>Then ask the user to retry. The panel auto-retries transient blips but cannot repair a broken homedir itself.</i>`
+  )
+}
+
+// Throttle: one ops page per (cpUser + op) per 30 min, so a user repeatedly
+// tapping "Create folder" can't flood the admin chat.
+const EPERM_ALERT_THROTTLE_MS = 30 * 60 * 1000
+const _epermAlertAt = new Map() // `${cpUser}:${op}` → last-alert ts
+function alertEpermRepairNeeded({ op = 'file operation', cpUser, domain, whmHost } = {}) {
+  if (!cpUser) return false
+  // Never page for obviously-fake test hosts (mirrors _adminAlertDown).
+  const h = String(whmHost || WHM_HOST || '').toLowerCase()
+  if (!h || h === 'test' || h === 'test.host' || h === 'localhost' || h === '127.0.0.1') return false
+  const key = `${cpUser}:${op}`
+  const now = Date.now()
+  const last = _epermAlertAt.get(key) || 0
+  if (now - last < EPERM_ALERT_THROTTLE_MS) return false
+  _epermAlertAt.set(key, now)
+  if (!_adminNotifier) return false
+  try {
+    _adminNotifier(buildEpermOpsAlert({ op, cpUser, domain, whmHost }))
+    return true
+  } catch (e) {
+    log(`[cPanel Proxy] EPERM admin alert error: ${e.message}`)
+    return false
+  }
+}
+
 // ─── Helpers ────────────────────────────────────────────
 
 function getBaseUrl(host) {
@@ -955,4 +1021,9 @@ module.exports = {
   // Diagnostics (surfaced for tests + route-level fallback logic)
   extractCpanelErrorFromResponse,
   looksLikeUapiPermFailure,
+  // EPERM (broken homedir/quota) — UX + ops alerting
+  getEpermUserMessage,
+  getEpermLocalizedMessages,
+  buildEpermOpsAlert,
+  alertEpermRepairNeeded,
 }

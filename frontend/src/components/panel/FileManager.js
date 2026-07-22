@@ -461,7 +461,7 @@ export default function FileManager() {
         body: JSON.stringify({ dir: currentDir, name: newDirName.trim() }),
       });
       if (res.errors?.length || res.code === 'CPANEL_DOWN') {
-        setError(res.code === 'CPANEL_DOWN'
+        setError((res.code === 'CPANEL_DOWN' || res.code === 'CPANEL_UAPI_EPERM')
           ? pickErrorMessage(res, t, lang)
           : `Create folder failed: ${res.errors[0]}`);
       } else {

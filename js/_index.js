@@ -35698,6 +35698,54 @@ app.post('/dev/credit-preview', (req, res) => {
   return res.json({ input: { invoiceUsd, convertedValue, feePayer, underpayTolerance }, wouldAlertAdmin, ...result })
 })
 
+// ── DEV-ONLY: preview the File Manager EPERM decision (@hellpeaces fix) ─────
+// Given a simulated cPanel failure reason, returns what the /files & /files/mkdir
+// routes would now do: detect the broken-homedir EPERM class, surface a calm
+// localized message (NOT the raw "500 …EPERM"), and page ops with the exact
+// repair. Read-only — does NOT fire a Telegram alert or touch cPanel/DB.
+// 404 in production. Motivated by @hellpeaces (5522767823) 2026-07-21.
+app.post('/dev/eperm-preview', (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const cpProxy = require('./cpanel-proxy')
+  const b = req.body || {}
+  const scenarioReason = {
+    eperm: '"/usr/local/cpanel/uapi" exited with status 1 (EPERM).',
+    exists: 'mkdir: cannot create directory: File exists',
+    ok: '',
+  }
+  const reason = b.reason != null ? String(b.reason) : (scenarioReason[b.scenario] ?? '')
+  const op = b.op || 'create folder'
+  const cpUser = b.cpUser || 'prevc2b4'
+  const domain = b.domain || 'previteletterviews.com'
+  const whmHost = b.whmHost || process.env.WHM_HOST
+  const lang = b.lang || 'en'
+
+  const isEperm = !!(cpProxy.looksLikeUapiPermFailure && cpProxy.looksLikeUapiPermFailure(reason))
+  const fakeHost = ['', 'test', 'test.host', 'localhost', '127.0.0.1'].includes(String(whmHost || '').toLowerCase())
+  const wouldAlertAdmin = isEperm && !!cpUser && !fakeHost
+  const userMessage = isEperm ? cpProxy.getEpermUserMessage(lang) : (reason || null)
+
+  return res.json({
+    input: { reason, op, cpUser, domain, whmHost, lang },
+    isEperm,
+    wouldAlertAdmin,
+    code: isEperm ? 'CPANEL_UAPI_EPERM' : null,
+    userMessage,
+    opsAlertPreview: isEperm ? cpProxy.buildEpermOpsAlert({ op, cpUser, domain, whmHost }) : null,
+    // Exactly what /files/mkdir now returns to the panel on a persistent EPERM:
+    simulatedRouteResponse: isEperm ? {
+      status: 0,
+      code: 'CPANEL_UAPI_EPERM',
+      error: cpProxy.getEpermUserMessage('en'),
+      errors: [cpProxy.getEpermUserMessage('en')],
+      localizedMessages: cpProxy.getEpermLocalizedMessages(),
+      via: 'whm-fallback-eperm',
+    } : { status: 0, errors: [reason], note: 'non-EPERM → raw reason surfaced as before' },
+  })
+})
+
 // ── DEV-ONLY: exercise the real notifyUnderpayment() admin-alert path ──────
 // Sends via the (dev) bot to TELEGRAM_ADMIN_CHAT_ID only when mode is
 // major-underpayment. Read-only w.r.t. the DB. Hard-disabled in production.

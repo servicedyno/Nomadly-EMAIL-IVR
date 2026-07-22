@@ -270,6 +270,23 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
   router.get('/files', ...auth, async (req, res) => {
     const dir = req.query.dir || `/home/${req.cpUser}/public_html`
     const result = await cpProxy.listFiles(req.cpUser, req.cpPass, dir, req.whmHost)
+    // A broken homedir/quota (uapi EPERM) also blocks *browsing* ("i can't
+    // even open those folders i created before" — @hellpeaces). Page ops with
+    // the repair and return a calm, localized message rather than raw EPERM.
+    if (result?.code === 'CPANEL_UAPI_EPERM') {
+      cpProxy.alertEpermRepairNeeded({
+        op: 'open folder',
+        cpUser: req.cpUser,
+        domain: req.cpDomain,
+        whmHost: req.whmHost || process.env.WHM_HOST,
+      })
+      return res.json({
+        ...result,
+        error: cpProxy.getEpermUserMessage('en'),
+        errors: [cpProxy.getEpermUserMessage('en')],
+        localizedMessages: cpProxy.getEpermLocalizedMessages(),
+      })
+    }
     res.json(result)
   })
 
@@ -588,7 +605,17 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     // Attempt 2: WHM-root fallback for uapi EPERM / status-1 failures.
     // Motivated by @hellpeaces (5522767823) 2026-07-06 — broken shell/homedir
     // made user-level `uapi` exit EPERM. Root, calling via WHM's
-    // /json-api/cpanel?cpanel_jsonapi_user=<user>, bypasses the class.
+    // /json-api/cpanel?cpanel_jsonapi_user=<user>, retries the same op.
+    //
+    // A genuinely broken homedir/quota makes BOTH the user-level call and the
+    // root-as-user fallback exit EPERM (both run in the user context) — but
+    // the dominant real-world pattern is a *transient* quota-accounting blip
+    // (common right after account creation), so we retry the fallback a couple
+    // of times with a short backoff before giving up. If it still fails with
+    // EPERM we (a) proactively page ops with the exact repair command and
+    // (b) return a calm, localized message instead of a raw "500 …EPERM".
+    // (Re-reported by @hellpeaces on 2026-07-21 because the 07-06 fallback
+    // alone couldn't recover a persistent break and never alerted anyone.)
     const looksBroken =
       result?.code === 'CPANEL_UAPI_EPERM' ||
       (result?.httpStatus && result.httpStatus >= 500) ||
@@ -597,42 +624,72 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
 
     if (whmApi) {
       log(`[Panel] mkdir user-level failed for "${name}" in ${dir}, trying WHM fallback (user: ${req.cpUser}, reason: ${result?.errors?.[0] || 'unknown'})`)
-      try {
-        const r = await whmApi.get('/cpanel', {
-          params: {
-            'api.version': 1,
-            cpanel_jsonapi_user: req.cpUser,
-            cpanel_jsonapi_apiversion: 2,
-            cpanel_jsonapi_module: 'Fileman',
-            cpanel_jsonapi_func: 'mkdir',
-            path: dir,
-            name,
-          },
-        })
-        const cp = r.data?.cpanelresult || {}
-        const dataArr = Array.isArray(cp.data) ? cp.data : []
-        const created = dataArr.length > 0 && dataArr[0]?.path && dataArr[0]?.name
-        const eventOk = cp.event?.result === 1
-        if (created || eventOk) {
-          log(`[Panel] mkdir succeeded via WHM fallback: "${name}" in ${dir} (user: ${req.cpUser})`)
-          return res.json({ status: 1, data: dataArr, errors: null, via: 'whm-fallback' })
+      const MKDIR_RETRY_BACKOFFS_MS = [0, 800, 1600] // initial + 2 retries
+      let lastWhmReason = result?.errors?.[0] || 'unknown'
+      for (let attempt = 0; attempt < MKDIR_RETRY_BACKOFFS_MS.length; attempt++) {
+        if (MKDIR_RETRY_BACKOFFS_MS[attempt] > 0) {
+          await new Promise(r => setTimeout(r, MKDIR_RETRY_BACKOFFS_MS[attempt]))
         }
-
-        // Surface the deeper reason so support sees "uapi EPERM" not "500".
-        const whmReason = dataArr[0]?.reason || cp.error || 'WHM fallback also failed'
-        log(`[Panel] mkdir WHM fallback failed: "${name}" in ${dir} (user: ${req.cpUser}) — ${whmReason}`)
-        return res.status(500).json({
-          status: 0,
-          error: `Create folder failed: ${whmReason}`,
-          errors: [whmReason],
-          via: 'whm-fallback-failed',
-          code: cpProxy.looksLikeUapiPermFailure && cpProxy.looksLikeUapiPermFailure(String(whmReason)) ? 'CPANEL_UAPI_EPERM' : undefined,
-        })
-      } catch (e) {
-        log(`[Panel] mkdir WHM fallback exception: ${e.message} (user: ${req.cpUser})`)
-        // Fall through to the user-level result — the api2()/uapi() normaliser
-        // already extracted the real cPanel reason from the response body.
+        try {
+          const r = await whmApi.get('/cpanel', {
+            params: {
+              'api.version': 1,
+              cpanel_jsonapi_user: req.cpUser,
+              cpanel_jsonapi_apiversion: 2,
+              cpanel_jsonapi_module: 'Fileman',
+              cpanel_jsonapi_func: 'mkdir',
+              path: dir,
+              name,
+            },
+          })
+          const cp = r.data?.cpanelresult || {}
+          const dataArr = Array.isArray(cp.data) ? cp.data : []
+          const created = dataArr.length > 0 && dataArr[0]?.path && dataArr[0]?.name
+          const eventOk = cp.event?.result === 1
+          if (created || eventOk) {
+            log(`[Panel] mkdir succeeded via WHM fallback${attempt ? ` (retry ${attempt})` : ''}: "${name}" in ${dir} (user: ${req.cpUser})`)
+            return res.json({ status: 1, data: dataArr, errors: null, via: attempt ? 'whm-fallback-retry' : 'whm-fallback' })
+          }
+          lastWhmReason = dataArr[0]?.reason || cp.error || 'WHM fallback also failed'
+          // Only worth retrying an EPERM/status-1 class blip; any other
+          // reason (e.g. "already exists", bad path) won't self-heal.
+          if (!(cpProxy.looksLikeUapiPermFailure && cpProxy.looksLikeUapiPermFailure(String(lastWhmReason)))) break
+          log(`[Panel] mkdir WHM fallback EPERM${attempt < MKDIR_RETRY_BACKOFFS_MS.length - 1 ? ' — retrying' : ''}: "${name}" (user: ${req.cpUser}) — ${lastWhmReason}`)
+        } catch (e) {
+          lastWhmReason = e.message
+          log(`[Panel] mkdir WHM fallback exception: ${e.message} (user: ${req.cpUser})`)
+          break
+        }
       }
+
+      // Fallback exhausted. If it's the EPERM class, page ops with the exact
+      // repair and give the user a calm message; otherwise surface the real
+      // reason as before.
+      const isEperm = cpProxy.looksLikeUapiPermFailure && cpProxy.looksLikeUapiPermFailure(String(lastWhmReason))
+      if (isEperm) {
+        cpProxy.alertEpermRepairNeeded({
+          op: 'create folder',
+          cpUser: req.cpUser,
+          domain: req.cpDomain,
+          whmHost: req.whmHost || process.env.WHM_HOST,
+        })
+        log(`[Panel] mkdir blocked by EPERM (user: ${req.cpUser}) — ops paged, friendly message returned`)
+        return res.json({
+          status: 0,
+          code: 'CPANEL_UAPI_EPERM',
+          error: cpProxy.getEpermUserMessage('en'),
+          errors: [cpProxy.getEpermUserMessage('en')],
+          localizedMessages: cpProxy.getEpermLocalizedMessages(),
+          via: 'whm-fallback-eperm',
+        })
+      }
+      log(`[Panel] mkdir WHM fallback failed: "${name}" in ${dir} (user: ${req.cpUser}) — ${lastWhmReason}`)
+      return res.status(500).json({
+        status: 0,
+        error: `Create folder failed: ${lastWhmReason}`,
+        errors: [lastWhmReason],
+        via: 'whm-fallback-failed',
+      })
     }
 
     return res.json(result)

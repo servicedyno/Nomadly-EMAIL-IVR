@@ -42,6 +42,13 @@ export function pickErrorMessage(res, t, lang) {
     if (res.localizedMessages && res.localizedMessages[lang]) return res.localizedMessages[lang]
     return t('errors.cpanelDown')
   }
+  // Broken account homedir/quota (uapi exited status 1 / EPERM). Neither the
+  // user-level call nor the WHM root fallback can proceed until ops repairs
+  // the account — show a calm message (ops is auto-paged server-side).
+  if (res.code === 'CPANEL_UAPI_EPERM') {
+    if (res.localizedMessages && res.localizedMessages[lang]) return res.localizedMessages[lang]
+    return t('errors.cpanelPermIssue')
+  }
   const raw = (res.errors && res.errors[0]) || ''
   return friendlyMessage(raw, t) || raw
 }
