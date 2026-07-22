@@ -150,6 +150,36 @@ function _makeWhmApi(whmHost) {
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } })
 
+// ─── Shared: broken-homedir EPERM reply ─────────────────────────────────
+// `"/usr/local/cpanel/uapi" exited with status 1 (EPERM)` (broken account
+// homedir / quota accounting) breaks ALL File Manager ops equally —
+// create/open folder, delete, extract, etc. When a route (and its WHM
+// fallback) hits this class, page ops once (throttled, with the exact repair
+// command) and return a calm localized message + code:'CPANEL_UAPI_EPERM'
+// instead of a raw "500 …EPERM". The frontend maps the code to a friendly
+// toast. Motivated by @hellpeaces (5522767823) — the raw error + no ops page
+// let a broken account fester ~2 weeks.
+function _isEpermReason(reason) {
+  return !!(cpProxy.looksLikeUapiPermFailure && cpProxy.looksLikeUapiPermFailure(String(reason || '')))
+}
+function _replyEperm(res, req, op) {
+  cpProxy.alertEpermRepairNeeded({
+    op,
+    cpUser: req.cpUser,
+    domain: req.cpDomain,
+    whmHost: req.whmHost || process.env.WHM_HOST,
+  })
+  log(`[Panel] ${op} blocked by broken-homedir EPERM (user: ${req.cpUser}) — ops paged, friendly message returned`)
+  return res.json({
+    status: 0,
+    code: 'CPANEL_UAPI_EPERM',
+    error: cpProxy.getEpermUserMessage('en'),
+    errors: [cpProxy.getEpermUserMessage('en')],
+    localizedMessages: cpProxy.getEpermLocalizedMessages(),
+    via: 'eperm',
+  })
+}
+
 function createCpanelRoutes(getCpanelCol, opts = {}) {
   const router = express.Router()
   const notifier = (opts && typeof opts.notifyAdmin === 'function') ? opts.notifyAdmin : (() => {})
@@ -786,15 +816,18 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
           || opResult.error
           || (gone === false ? 'Both ops returned success but target is still present (permission/readonly?)' : 'WHM operation also failed')
         log(`[Panel] Delete WHM fallback also failed: ${file} in ${dir} (user: ${req.cpUser}, ops_tried: [${attempted.join(', ')}]) — ${whmReason}`)
+        if (_isEpermReason(whmReason)) return _replyEperm(res, req, 'delete item')
         return res.status(500).json({ error: `Delete failed: ${whmReason}`, attempted_ops: attempted })
       }
 
       // No WHM credentials available — report the original error
       const reason = result?.errors?.[0] || 'cPanel refused to delete this item'
       log(`[Panel] Delete failed: ${file} in ${dir} (user: ${req.cpUser}) — ${reason}`)
+      if (result?.code === 'CPANEL_UAPI_EPERM' || _isEpermReason(reason)) return _replyEperm(res, req, 'delete item')
       return res.status(500).json({ error: `Delete failed: ${reason}`, ...result })
     } catch (err) {
       log(`[Panel] Delete exception: ${file} in ${dir} (user: ${req.cpUser}) — ${err.message}`)
+      if (_isEpermReason(err.message)) return _replyEperm(res, req, 'delete item')
       return res.status(500).json({ error: `Delete failed: ${err.message}` })
     }
   })
@@ -816,16 +849,54 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
   router.post('/files/extract', ...auth, async (req, res) => {
     const { dir, file, destDir } = req.body
     if (!dir || !file) return res.status(400).json({ error: 'dir and file are required' })
-    const result = await cpProxy.extractFile(req.cpUser, req.cpPass, dir, file, destDir || dir, req.whmHost)
-
-    // After extraction to public_html, re-deploy anti-red protection files
-    // since archive contents may have overwritten .user.ini / .antired-challenge.php
     const extractTarget = destDir || dir
-    if (extractTarget.includes('public_html')) {
+    let result = await cpProxy.extractFile(req.cpUser, req.cpPass, dir, file, extractTarget, req.whmHost)
+
+    // If the user-level extract failed with the broken-homedir class, try the
+    // WHM root-as-user fallback (same fileop path delete uses), retrying the
+    // EPERM class a couple of times for transient quota blips. If it still
+    // fails EPERM, page ops + return a calm localized message.
+    if (result?.status !== 1) {
+      const failReason = result?.errors?.[0] || result?.error || 'unknown'
+      const looksBroken = result?.code === 'CPANEL_UAPI_EPERM' ||
+        (result?.httpStatus && result.httpStatus >= 500) || _isEpermReason(failReason)
+      const whmApi = looksBroken ? _makeWhmApi(req.whmHost || process.env.WHM_HOST) : null
+      if (whmApi) {
+        log(`[Panel] extract user-level failed for ${file} → WHM fallback (user: ${req.cpUser}, reason: ${failReason})`)
+        const BACKOFFS = [0, 800, 1600]
+        let lastReason = failReason
+        for (let i = 0; i < BACKOFFS.length; i++) {
+          if (BACKOFFS[i] > 0) await new Promise(r => setTimeout(r, BACKOFFS[i]))
+          try {
+            const r = await whmApi.get('/cpanel', { params: {
+              'api.version': 1, cpanel_jsonapi_user: req.cpUser, cpanel_jsonapi_apiversion: 2,
+              cpanel_jsonapi_module: 'Fileman', cpanel_jsonapi_func: 'fileop', doubledecode: 0,
+              op: 'extract', sourcefiles: `${dir}/${file}`, destfiles: extractTarget,
+            } })
+            const cp = r.data?.cpanelresult || {}
+            const dataArr = Array.isArray(cp.data) ? cp.data : []
+            if ((dataArr[0]?.result === 1) || cp.event?.result === 1) {
+              log(`[Panel] extract succeeded via WHM fallback${i ? ` (retry ${i})` : ''}: ${file} (user: ${req.cpUser})`)
+              result = { status: 1, data: dataArr, errors: null, via: i ? 'whm-fallback-retry' : 'whm-fallback' }
+              break
+            }
+            lastReason = dataArr[0]?.reason || cp.error || 'WHM fallback also failed'
+            if (!_isEpermReason(lastReason)) break
+          } catch (e) { lastReason = e.message; break }
+        }
+        if (result?.status !== 1 && _isEpermReason(lastReason)) return _replyEperm(res, req, 'extract archive')
+        if (result?.status !== 1) result = { status: 0, error: `Extract failed: ${lastReason}`, errors: [lastReason] }
+      } else if (result?.code === 'CPANEL_UAPI_EPERM' || _isEpermReason(failReason)) {
+        return _replyEperm(res, req, 'extract archive')
+      }
+    }
+
+    // Only re-deploy anti-red protection if extraction actually succeeded —
+    // archive contents may have overwritten .user.ini / .antired-challenge.php.
+    if (result?.status === 1 && extractTarget.includes('public_html')) {
       try {
         const antiRed = require('./anti-red-service')
-        // force: zip extract may have just overwritten .user.ini / .antired-challenge.php
-        // — bypass the idempotency cache to guarantee a fresh write to WHM.
+        // force: bypass idempotency cache to guarantee a fresh write to WHM.
         await antiRed.deployCFIPFix(req.cpUser, { force: true })
         log(`[Panel] Re-deployed anti-red protection after extract to ${extractTarget} (user: ${req.cpUser})`)
       } catch (e) {

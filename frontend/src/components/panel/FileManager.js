@@ -403,10 +403,15 @@ export default function FileManager() {
     setDeleting(true);
     setError('');
     try {
-      await api('/files/delete', {
+      const res = await api('/files/delete', {
         method: 'POST',
         body: JSON.stringify({ dir: currentDir, file: fileName, isDirectory: isDir }),
       });
+      // A broken-homedir EPERM (and any soft failure) comes back HTTP 200 with
+      // status:0 — treat it as a failure, don't show a false "deleted".
+      if (res && res.status === 0) {
+        throw new Error(pickErrorMessage(res, t, lang) || res.error || `Could not delete ${fileName}`);
+      }
       setDeleteTarget(null);
       setSuccessMessage(`${isDir ? 'Folder' : 'File'} deleted: ${fileName}`);
       setTimeout(() => setSuccessMessage(''), 4000);
@@ -430,7 +435,7 @@ export default function FileManager() {
         body: JSON.stringify({ dir: currentDir, file: fileName, destDir: currentDir }),
       });
       if (res.errors?.length || res.code === 'CPANEL_DOWN') {
-        setError(res.code === 'CPANEL_DOWN'
+        setError((res.code === 'CPANEL_DOWN' || res.code === 'CPANEL_UAPI_EPERM')
           ? pickErrorMessage(res, t, lang)
           : `Extract failed: ${res.errors[0]}`);
       } else {
@@ -608,10 +613,13 @@ export default function FileManager() {
     const failures = [];
     for (const item of deleteTarget.items) {
       try {
-        await api('/files/delete', {
+        const res = await api('/files/delete', {
           method: 'POST',
           body: JSON.stringify({ dir: currentDir, file: item.name, isDirectory: item.isDir }),
         });
+        if (res && res.status === 0) {
+          throw new Error(pickErrorMessage(res, t, lang) || res.error || 'Delete failed');
+        }
         okCount++;
       } catch (err) {
         failures.push({ name: item.name, msg: err.message || 'Delete failed' });
