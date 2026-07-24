@@ -5203,7 +5203,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "QuickIVR outbound call — misleading 'Charged: 1 min (minimum)' on synchronous provider auth failure (Twilio error 20003 'Authenticate') — @Padrino_voodoo 2026-07-24"
+    - "Verify Twilio master credentials in Railway .env are working"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -7388,4 +7388,75 @@ agent_communication:
           reported by @livetospam_is_back — that's a separate WHM/CF-tunnel
           infra concern, flagged in the task's status_history for ops. NOT in
           scope for this run.
+
+
+  - task: "Verify Twilio master credentials in Railway .env are working"
+    implemented: true
+    working: true
+    file: "/app/backend/.env (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          User asked to verify Twilio credentials on Railway env are working
+          (context: chain-of-user-complaints all surface as Twilio SDK
+          "Authenticate" 20003).
+
+          Initial finding: the TWILIO_AUTH_TOKEN pasted by user at session
+          start (ea8a498932bd3a5abc6252c7f75f8515) was STALE — Twilio API
+          returned 401 code 20003 "Authenticate" for that token via both the
+          official Twilio Node SDK and raw HTTPS. Independently confirmed by
+          testing agent. That token was invalid on Twilio's side.
+
+          User then supplied the CURRENT token from Twilio dashboard
+          (f498e4c4e707e237ec4a9af2b470a303, same as Railway prod env value).
+          Applied to /app/backend/.env via search_replace, restarted nodejs.
+
+          Post-fix verification (all four passing):
+            1) node -e "twilio(SID,TOK).api.accounts(SID).fetch()"
+               → status=active, type=Full, friendly=Speechcue
+            2) balance.fetch() → $18.66 USD
+            3) sub-accounts.list() → returned live sub-accounts including
+               Padrino_voodoo's AC0167b2714fb8fc840f4d41076513be40 (status=active)
+            4) nodejs startup log after restart:
+               [PhoneMonitor] === Health check complete: 28 checked,
+                                                     0 newly suspended,
+                                                     0 auth-failed ===
+               [BalanceMonitor] Twilio: $18.67 USD [ok]
+               → previously that same startup produced ~40 AUTH_FAILED lines
+                 for the WHOLE sub-account tree; now zero.
+
+          Downstream implication for @Padrino_voodoo's "Call failed /
+          Authenticate" report (previous task):
+            • Padrino's Twilio sub-accounts (AC28b085…, AC0167b2…) are
+              status=active — NOT suspended.
+            • The stored `twilioSubAccountToken` in phoneNumbersOf for each
+              of his numbers is EMPTY. The runtime code at
+              _index.js:23912-23928 auto-resolves this by calling
+              twilioService.getSubAccount(subSid) — which uses the master
+              token. While master was broken, that auto-resolve failed →
+              call proceeded with undefined sub-token → Twilio SDK threw
+              20003 "Authenticate" → user got the misleading notification
+              (now corrected by the prior ivr-outbound.js copy fix).
+            • Now that master is fixed, the auto-resolve will succeed on his
+              next attempt and cache the sub-token, so subsequent QuickIVR
+              calls will work end-to-end.
+
+          SEPARATE FINDING (flagged, NOT fixed here — out of scope for this
+          Twilio-only task):
+            TELNYX_API_KEY is ALSO broken:
+              KEY019E2C4363D220CBD666F6B360BE7F7B_FJlqkTyMb4YAr8daYhFZVh
+              → 401 code 10009 "Authentication failed - No key found
+                matching the ID 'KEY019E2C4363D220CBD666F6B360BE7F7B' with
+                the provided secret."
+            This is why [PhoneMonitor] Error checking number +18883304418
+            (a Telnyx number) surfaces even after Twilio recovery. Needs
+            a fresh Telnyx v2 API key from
+            https://portal.telnyx.com/#/app/auth-keys — outside this task.
+
+          No code changes in this run. Only .env credential rotation.
+
 
