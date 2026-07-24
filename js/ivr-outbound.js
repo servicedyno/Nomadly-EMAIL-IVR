@@ -442,7 +442,14 @@ function formatCallNotification(type, data) {
       return `❌ <b>Transfer Failed</b>\n📞 ${target} | Duration: ${durText}${amd}\n🔘 Key pressed: ${data.digitPressed || 'None'}\n🔗 Transfer to ${data.ivrNumber || '?'} — No answer`
 
     case 'failed':
-      return `❌ <b>Call failed</b> — ${target}\n${data.reason || 'Unknown error'}\n💰 Charged: 1 min (minimum)`
+      // Provider (Telnyx/Twilio) rejected the call SYNCHRONOUSLY before it
+      // reached the carrier — no callSid was ever created, no status webhook
+      // fires, and no billing runs. Prior copy incorrectly said
+      // "💰 Charged: 1 min (minimum)" which made users think their wallet was
+      // debited. Confirmed against walletLedger for @Padrino_voodoo's failed
+      // call to +18032742510 on 2026-07-24: zero ledger entries — user was
+      // NOT charged. Fixed 2026-07-24.
+      return `❌ <b>Call failed</b> — ${target}\n${data.reason || 'Unknown error'}\n💰 No charge (call never connected)`
 
     case 'trial_used':
       return `🎉 <b>Free IVR Trial Call Complete!</b>\n\n` +

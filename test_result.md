@@ -5203,7 +5203,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "cPanel File Manager EPERM (broken homedir/quota) — @hellpeaces (5522767823) 2026-07-21: can't create/open folders, festered ~2 weeks"
+    - "QuickIVR outbound call — misleading 'Charged: 1 min (minimum)' on synchronous provider auth failure (Twilio error 20003 'Authenticate') — @Padrino_voodoo 2026-07-24"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -7145,3 +7145,247 @@ agent_communication:
       The implementation successfully closes the loophole where old sellers with pre-fee listings could
       continue posting/replying without paying. All 10 unpaid sellers with 24 pre-fee listings and 25
       open conversations will now be prompted to pay when they attempt any seller action.
+
+
+  - task: "QuickIVR outbound call — misleading 'Charged: 1 min (minimum)' on synchronous provider auth failure (Twilio error 20003 'Authenticate') — @Padrino_voodoo 2026-07-24"
+    implemented: true
+    working: true
+    file: "/app/js/ivr-outbound.js, /app/js/sanitize-provider.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFICATION COMPLETE - All QuickIVR outbound call bug fix assertions PASSED (4/4 test suites):
+          
+          SCOPE: Verified the backend-only fix for the "Call failed / Authenticate / Charged: 1 min (minimum)" 
+          bug reported by @Padrino_voodoo (chatId 7706898844) on 2026-07-24. The fix changes the notification 
+          copy for synchronous call failures to correctly state "No charge (call never connected)" instead of 
+          the misleading "Charged: 1 min (minimum)", and adds a user-friendly mapping for Twilio error 20003 
+          "Authenticate".
+          
+          [TEST 1] NODE ONE-LINER ASSERTION (PRIMARY REGRESSION SUITE): ✅ 9/9 PASSED (exit 0)
+            • cd /app && node -e "..." (full command from review request)
+            ✅ sanitizeHangupCause('Authenticate') → "Caller ID rejected by provider (authentication failed)."
+            ✅ sanitizeHangupCause('authenticate') → "Caller ID rejected by provider (authentication failed)."
+            ✅ sanitizeHangupCause('Twilio error 20003 Authenticate') → "Caller ID rejected by provider (authentication failed)."
+            ✅ sanitizeHangupCause('Authentication Error - No credentials provided') → "Caller ID rejected by provider (authentication failed)."
+            ✅ sanitizeHangupCause('caller not yet verified') → "Caller ID not verified for this account"
+            ✅ sanitizeHangupCause('user busy') → "user busy"
+            ✅ formatCallNotification('failed', ...) → contains "No charge (call never connected)" AND does NOT contain "Charged: 1 min"
+            ✅ formatCallNotification('busy', ...) → still contains "Charged: 1 min (minimum)" (regression check)
+            ✅ formatCallNotification('no_answer', ...) → still contains "Charged: 1 min (minimum)" (regression check)
+          
+          [TEST 2] SINGLE CALL SITE VERIFICATION: ✅ PASSED
+            • grep -rn "formatCallNotification.*['\"]failed" /app/js/
+            ✅ Exactly ONE call site found: /app/js/_index.js:23960
+            ★ KEY ASSERTION: The 'failed' notification is only emitted from the SYNCHRONOUS error path 
+              (right after result.error from initiateOutboundIvrCall) — no callSid, no status webhook, 
+              no billing. This proves the copy fix is safe.
+          
+          [TEST 3] REGRESSION CHECK - OTHER NOTIFICATION TYPES UNCHANGED: ✅ 2/2 PASSED
+            • grep -n "Charged: 1 min (minimum)" /app/js/ivr-outbound.js
+            ✅ Exactly TWO matches found:
+              - Line 420: case 'busy' → "💰 Charged: 1 min (minimum)"
+              - Line 432: case 'no_answer' → "💰 Charged: 1 min (minimum)"
+            ✅ NONE found inside case 'failed' (line 452 now says "💰 No charge (call never connected)")
+            ★ Regression confirmed: busy and no_answer notifications still correctly indicate billing
+          
+          [TEST 4] SERVICE HEALTH: ✅ ALL PASSED
+            ✅ nodejs service: RUNNING (pid 2358, uptime 0:03:58)
+            ✅ No NEW errors in /var/log/supervisor/nodejs.err.log
+            ✅ Only expected pre-existing [PhoneMonitor] AUTH_FAILED messages (unrelated to this fix)
+          
+          CONCLUSION:
+          The QuickIVR outbound call bug fix is COMPLETE and verified end-to-end. All 4 test suites passed 
+          (9 Node assertions + 1 call site verification + 2 regression checks + service health).
+          
+          KEY FIXES VERIFIED:
+          1. NOTIFICATION COPY FIX (/app/js/ivr-outbound.js line 452):
+             - case 'failed' now correctly returns "💰 No charge (call never connected)"
+             - OLD buggy copy "💰 Charged: 1 min (minimum)" is completely removed from the 'failed' case
+             - Comment at lines 445-451 documents the incident (@Padrino_voodoo, +18032742510, 2026-07-24) 
+               and confirms via walletLedger that zero billing occurred
+          
+          2. SANITIZER MAPPING FIX (/app/js/sanitize-provider.js lines 145-153):
+             - sanitizeHangupCause() now recognizes Twilio error 20003 "Authenticate" (bare word, embedded, 
+               "Authentication Error", or numeric code 20003)
+             - Returns user-actionable message: "Caller ID rejected by provider (authentication failed). 
+               Your number's sub-account may be suspended — contact support."
+             - Previously the bare "Authenticate" fell through to sanitizeProviderError with no guidance
+             - Comment documents the @Padrino_voodoo incident and AI-support mis-diagnosis
+          
+          3. REGRESSION SAFETY CONFIRMED:
+             - All other notification types (busy, no_answer, completed, hangup, transferred) are UNCHANGED
+             - These come from async status webhooks after carrier connection → billing IS charged
+             - Only the synchronous 'failed' path (no callSid, no webhook, no billing) was fixed
+          
+          4. SINGLE CALL SITE VERIFIED:
+             - formatCallNotification('failed', ...) is only called from /app/js/_index.js:23960
+             - This is the synchronous error return path from initiateOutboundIvrCall
+             - No other code path formats under 'failed' — all carrier-billed failures use 'busy'/'no_answer'/'hangup'
+          
+          SAFETY CONFIRMED: All testing via Node one-liner and grep assertions. NO real Twilio calls placed. 
+          NO production database writes. NO frontend testing (this is 100% backend notification copy + sanitizer).
+          
+          The bug that caused @Padrino_voodoo to receive a misleading "💰 Charged: 1 min (minimum)" notification 
+          for a synchronous provider auth failure (where no call was placed and no billing occurred) is now fixed. 
+          Users will see "💰 No charge (call never connected)" for synchronous failures, and the "Authenticate" 
+          error is now mapped to a clear, actionable message explaining the sub-account suspension issue.
+      
+      - working: "NA"
+        agent: "main"
+        comment: |
+          BUG REPORTED (@Padrino_voodoo / chatId 7706898844) 2026-07-24 05:27 UTC:
+          Received Telegram notification:
+            ❌ Call failed — +18032742510
+            Authenticate
+            💰 Charged: 1 min (minimum)
+          User pasted this into AI support asking why. Two problems verified against
+          production data (Railway MongoDB direct query):
+
+          1) The "Authenticate" reason is Twilio error 20003 — thrown synchronously
+             by twilio-service.js:makeOutboundCall (client.calls.create) when the
+             sub-account SID/AuthToken is rejected (suspended sub-account or rotated
+             token). Padrino owns Twilio sub-accounts AC0167b2714fb8fc840f4d41076513be40
+             and AC28b0850997dc2593c57455e6ad7dd2f5; the failed callerId was routed
+             through one that Twilio rejected. Matches the [PhoneMonitor] AUTH_FAILED
+             barrage seen in nodejs.err.log.
+
+          2) MISLEADING BILL LINE (the actual bug):
+             _index.js:23960 only emits formatCallNotification('failed', ...) after
+             the sync error path (result.error from initiateOutboundIvrCall → the
+             call never got a callSid → no Twilio API call reached the carrier → no
+             statusCallback webhook → no billing runs). But ivr-outbound.js:445 hard-
+             coded "💰 Charged: 1 min (minimum)" in the message body, so users think
+             their wallet was debited when it wasn't. Verified against walletLedger
+             for chatId 7706898844: ZERO entries touching +18032742510. Same class
+             of bug that was fixed for BulkIVR on 2026-06-10 (see comment in
+             bulk-call-service.js:823-830) — but the single-QuickIVR path was
+             missed.
+
+          FIX (this run):
+            (a) /app/js/ivr-outbound.js — case 'failed' now returns
+                "💰 No charge (call never connected)" instead of the false
+                "Charged: 1 min (minimum)". Adjacent comment cites the incident
+                and the walletLedger verification. Other cases (busy, no_answer,
+                completed, hangup, transferred, etc.) are UNCHANGED — those come
+                from the async status webhook after the carrier connected the call
+                attempt, where a 1-min minimum IS actually charged.
+            (b) /app/js/sanitize-provider.js — sanitizeHangupCause() now maps
+                Twilio "Authenticate" (as a bare word or embedded in a longer
+                message, and also error 20003, and generic "Authentication Error")
+                to a user-actionable line: "Caller ID rejected by provider
+                (authentication failed). Your number's sub-account may be
+                suspended — contact support." Previously the bare "Authenticate"
+                fell through to sanitizeProviderError, which kept the raw token
+                unchanged — offering no guidance. This also fixes the AI-support
+                mis-diagnosis (AI told @Padrino_voodoo it was a SIP-credentials
+                issue on 2026-07-24 05:27 because the raw "Authenticate" gives
+                no context).
+
+          MANUAL SANITY (already run in dev shell, node -e ...):
+            sanitizeHangupCause('Authenticate') → "Caller ID rejected by provider (authentication failed). Your number's sub-account may be suspended — contact support."
+            sanitizeHangupCause('busy')          → 'busy' (unchanged fallthrough — regression-safe)
+            formatCallNotification('failed',{targetNumber:'+18032742510', reason:'Authenticate'}) → final line reads "💰 No charge (call never connected)"
+            formatCallNotification('busy',{targetNumber:'+15551234567'})   → still ends with "💰 Charged: 1 min (minimum)" (unchanged, correct)
+            formatCallNotification('no_answer',...)                        → still ends with "💰 Charged: 1 min (minimum)" (unchanged, correct)
+
+          SEPARATE ANOMALY OBSERVED (not fixed in this run — flagging for
+          scoping):
+            • @livetospam_is_back (6522803416) reported "Hosting service is
+              temporarily unavailable. Please try again in a few minutes — your
+              data is safe." twice on 2026-07-24 (04:16 and 06:34 UTC). That
+              string is DOWN_MESSAGES.en emitted by cpanel-proxy.js:downResponse
+              when the WHM upstream (CPANEL_API_URL over the CF tunnel) times
+              out or 5xxs. Recommend an ops check on the CF tunnel
+              b395cebc-4b7a-4aba-8ced-e11665c26b30.cfargotunnel.com and the
+              origin WHM host 68.183.77.106. NOT fixed here — needs infra
+              triage, not a code change.
+
+
+  - agent: "main"
+    message: |
+      NEW HIGH-PRIORITY BUG FIX — please backend-verify (dev-pod only, do NOT
+      place real Twilio outbound calls or touch production data).
+
+      CONTEXT:
+        @Padrino_voodoo (7706898844) received a call-failed notification on
+        2026-07-24 05:27:
+            ❌ Call failed — +18032742510
+            Authenticate
+            💰 Charged: 1 min (minimum)
+        No walletLedger entry exists for +18032742510 → user was NOT charged.
+        The "Charged" line is a display bug in the sync-error path of the
+        single QuickIVR outbound flow.
+
+      FILES CHANGED:
+        1. /app/js/ivr-outbound.js  (case 'failed' — line 445-ish)
+        2. /app/js/sanitize-provider.js  (sanitizeHangupCause — added
+           Authenticate/20003 mapping before the generic fallback)
+
+      HOW TO VERIFY (BACKEND ONLY):
+        A) Unit-style asserts via node one-liners (no server hit needed):
+           node -e "
+             const {sanitizeHangupCause} = require('/app/js/sanitize-provider.js');
+             const {formatCallNotification} = require('/app/js/ivr-outbound.js');
+             const cases = {
+               'Authenticate':                                    'Caller ID rejected by provider (authentication failed).',
+               'authenticate':                                    'Caller ID rejected by provider (authentication failed).',
+               'Twilio error 20003 Authenticate':                 'Caller ID rejected by provider (authentication failed).',
+               'Authentication Error - No credentials provided':  'Caller ID rejected by provider (authentication failed).',
+               'caller not yet verified':                         'Caller ID not verified for this account',
+               'user busy':                                       'user busy',
+             };
+             let ok = 0, fail = 0;
+             for (const [inp, want] of Object.entries(cases)) {
+               const out = sanitizeHangupCause(inp);
+               const pass = out.startsWith(want);
+               console.log((pass ? 'OK  ' : 'FAIL') + '  in=' + JSON.stringify(inp) + '  out=' + JSON.stringify(out));
+               pass ? ok++ : fail++;
+             }
+             const failedMsg = formatCallNotification('failed', {targetNumber:'+18032742510', reason: sanitizeHangupCause('Authenticate')});
+             const busyMsg   = formatCallNotification('busy',   {targetNumber:'+15551234567'});
+             const naMsg     = formatCallNotification('no_answer',{targetNumber:'+15551234567'});
+             const failedOk = /No charge \(call never connected\)/.test(failedMsg) && !/Charged: 1 min/.test(failedMsg);
+             const busyOk   = /Charged: 1 min \(minimum\)/.test(busyMsg);
+             const naOk     = /Charged: 1 min \(minimum\)/.test(naMsg);
+             console.log((failedOk?'OK  ':'FAIL') + '  failed msg no longer claims a charge');
+             console.log((busyOk  ?'OK  ':'FAIL') + '  busy msg still says Charged: 1 min (regression check)');
+             console.log((naOk   ?'OK  ':'FAIL') + '  no_answer msg still says Charged: 1 min (regression check)');
+             process.exit(fail===0 && failedOk && busyOk && naOk ? 0 : 1);
+           "
+           → expect all 9 lines "OK" and exit 0.
+
+        B) Confirm the ONLY call site of formatCallNotification('failed', ...)
+           is /app/js/_index.js:23960 (sync-error return from
+           initiateOutboundIvrCall). Grep:
+             grep -rn "formatCallNotification\W*\(\W*['\"]failed" /app/js/
+           → expect exactly one line, in _index.js. This proves the message-copy
+           fix is safe (no other path reaches 'failed' — every real
+           carrier-billed failure comes through the async status webhook and
+           formats under 'busy' / 'no_answer' / 'hangup' / 'transfer_failed').
+
+        C) Regression: verify other notification types are UNCHANGED:
+             grep -n "Charged: 1 min (minimum)" /app/js/ivr-outbound.js
+           → expect two matches (case 'busy' at ~line 420 and case 'no_answer'
+             at ~line 432). NONE for case 'failed'.
+
+        D) Service health:
+           sudo supervisorctl status nodejs → RUNNING (already restarted at
+           15:35 pod-time after the edit; no new errors in nodejs.out.log).
+
+      DO NOT:
+        • Do NOT place real Twilio outbound calls from this pod (the pod is
+          BOT_ENVIRONMENT=development, SKIP_WEBHOOK_SYNC=true — infra jobs are
+          guarded — but hitting Twilio's REST API would still burn on the real
+          account).
+        • Do NOT run the frontend testing agent — this fix is 100% backend
+          notification-text copy + a sanitizer mapping.
+        • Do NOT touch the "Hosting service is temporarily unavailable" issue
+          reported by @livetospam_is_back — that's a separate WHM/CF-tunnel
+          infra concern, flagged in the task's status_history for ops. NOT in
+          scope for this run.
+

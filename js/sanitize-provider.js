@@ -142,6 +142,15 @@ function sanitizeHangupCause(cause) {
   if (lower.includes('not yet verified') || lower.includes('not verified')) {
     return 'Caller ID not verified for this account'
   }
+  // Twilio error 20003 = "Authenticate" — sub-account credentials rejected.
+  // Happens when the caller-ID's Twilio sub-account has been suspended by
+  // the provider, disabled, or its authToken was rotated. Users used to see
+  // a bare "Authenticate" and had no idea what to do (see @Padrino_voodoo
+  // support-chat transcript 2026-07-24 05:27 — AI misdiagnosed it as a SIP
+  // credential issue). Give them the real explanation + action. Fix 2026-07-24.
+  if (lower === 'authenticate' || lower.startsWith('authenticate ') || lower.includes('authenticate error') || lower.includes('20003') || lower.includes('authentication error')) {
+    return 'Caller ID rejected by provider (authentication failed). Your number\'s sub-account may be suspended — contact support.'
+  }
   if (lower.includes('blacklisted') || lower.includes('blocked')) {
     return 'Number is blocked or blacklisted'
   }
