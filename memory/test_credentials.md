@@ -4,9 +4,11 @@ This app uses Telegram bot authentication (chatId-based) — there is no email/p
 login for the panel. Auth flows are exercised via the bot / dev endpoints.
 
 ## Sandbox runtime config (set up this session)
+- Pod URL: https://b4354c97-2c35-4dde-b937-e075f4e876ea.preview.emergentagent.com
 - BOT_ENVIRONMENT = development  → uses TELEGRAM_BOT_TOKEN_DEV (safe dev bot, no live traffic)
 - SKIP_WEBHOOK_SYNC = true        → prod Telegram webhook preserved; infra-mutating jobs disabled
 - MONGO_URL points to the PRODUCTION Railway Mongo (DB_NAME=test) — real data, read-mostly
+- SELF_URL / SELF_URL_PROD auto-updated by setup-nodejs.sh to point at this pod's `/api`
 - Node bot Express :5000  |  FastAPI :8001 (proxies /api/* → node)  |  React :3000
 
 ## Keys for diagnostic / admin endpoints
