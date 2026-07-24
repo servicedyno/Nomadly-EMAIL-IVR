@@ -7249,8 +7249,8 @@ agent_communication:
           1) The "Authenticate" reason is Twilio error 20003 — thrown synchronously
              by twilio-service.js:makeOutboundCall (client.calls.create) when the
              sub-account SID/AuthToken is rejected (suspended sub-account or rotated
-             token). Padrino owns Twilio sub-accounts AC0167b2714fb8fc840f4d41076513be40
-             and AC28b0850997dc2593c57455e6ad7dd2f5; the failed callerId was routed
+             token). Padrino owns Twilio sub-accounts AC0167…be40
+             and AC28b0…d2f5; the failed callerId was routed
              through one that Twilio rejected. Matches the [PhoneMonitor] AUTH_FAILED
              barrage seen in nodejs.err.log.
 
@@ -7406,13 +7406,13 @@ agent_communication:
           "Authenticate" 20003).
 
           Initial finding: the TWILIO_AUTH_TOKEN pasted by user at session
-          start (ea8a498932bd3a5abc6252c7f75f8515) was STALE — Twilio API
+          start (ea8a…8515) was STALE — Twilio API
           returned 401 code 20003 "Authenticate" for that token via both the
           official Twilio Node SDK and raw HTTPS. Independently confirmed by
           testing agent. That token was invalid on Twilio's side.
 
           User then supplied the CURRENT token from Twilio dashboard
-          (f498e4c4e707e237ec4a9af2b470a303, same as Railway prod env value).
+          (f498…a303, same as Railway prod env value).
           Applied to /app/backend/.env via search_replace, restarted nodejs.
 
           Post-fix verification (all four passing):
@@ -7420,7 +7420,7 @@ agent_communication:
                → status=active, type=Full, friendly=Speechcue
             2) balance.fetch() → $18.66 USD
             3) sub-accounts.list() → returned live sub-accounts including
-               Padrino_voodoo's AC0167b2714fb8fc840f4d41076513be40 (status=active)
+               Padrino_voodoo's AC0167…be40 (status=active)
             4) nodejs startup log after restart:
                [PhoneMonitor] === Health check complete: 28 checked,
                                                      0 newly suspended,
@@ -7448,9 +7448,9 @@ agent_communication:
           SEPARATE FINDING (flagged, NOT fixed here — out of scope for this
           Twilio-only task):
             TELNYX_API_KEY is ALSO broken:
-              KEY019E2C4363D220CBD666F6B360BE7F7B_FJlqkTyMb4YAr8daYhFZVh
+              KEY019E…YhFZVh
               → 401 code 10009 "Authentication failed - No key found
-                matching the ID 'KEY019E2C4363D220CBD666F6B360BE7F7B' with
+                matching the ID 'KEY019E…F7B' with
                 the provided secret."
             This is why [PhoneMonitor] Error checking number +18883304418
             (a Telnyx number) surfaces even after Twilio recovery. Needs
