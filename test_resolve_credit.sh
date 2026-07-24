@@ -1,5 +1,5 @@
 #!/bin/bash
-BACKEND_URL="https://cred-deploy.preview.emergentagent.com"
+BACKEND_URL="https://multi-service-config-1.preview.emergentagent.com"
 
 echo "TEST 2 — Two-source valuation (DynoPay settlement rate primary, BlockBee fallback)"
 echo ""
