@@ -132,7 +132,14 @@ earlyApp.use('/assets/user-audio', async (req, res, next) => {
   } catch (e) {
     log(`[AudioRestore] Failed for ${req.path}: ${e.message}`)
   }
-  next() // Let it 404 naturally if not found in MongoDB either
+  // Not on disk AND not restorable from ivrAudioStore → the audio is genuinely
+  // gone. Return a clean 404 instead of calling next(), which previously fell
+  // through to the catch-all that serves the 200 HTML landing page. Telephony
+  // providers fetching this URL for <Play> would then receive HTML (not audio)
+  // and speak "an application error has occurred" before hanging up.
+  // (Fix: @Spirits_Of_The_Ancesters 7898648919, 2026-07-24.)
+  log(`[AudioRestore] MISSING audio (not on disk, not in ivrAudioStore): ${req.path}`)
+  return res.status(404).type('text/plain').send('Audio not found')
 })
 
 let appReady = false
@@ -1336,6 +1343,34 @@ function isNoPress(message) {
   const knownNo = new Set(['No', 'Non', '否', 'नहीं'])
   return knownNo.has(stripped)
 }
+
+/**
+ * Returns the hosting plan that should BLOCK URL-shortener activation for
+ * `domain` (primary OR addon), or null if activation is safe.
+ *
+ * A plan only blocks when it is LIVE — i.e. NOT deleted AND NOT suspended:
+ *   • deleted  → plan gone, DNS already cleaned up → safe to point shortener.
+ *   • suspended→ website is already OFFLINE, so replacing the hosting A/CNAME
+ *                with the shortener CNAME breaks nothing → safe (and is exactly
+ *                what the user asked for).
+ *
+ * Bug history: before 2026-07-24 the check only excluded `deleted`, so a
+ * *suspended* plan still blocked the shortener. @aramboss (6156677266) had to
+ * fully CANCEL his "Premium Anti-Red (1-Week)" plan on securipa.xyz just to
+ * activate the shortener — confirmed in Railway prod logs 15:20→15:22 UTC.
+ *
+ * This single helper is shared by all shortener-activation entry points AND the
+ * /dev/shortener-conflict-check test endpoint, so their logic can never drift.
+ */
+async function findShortenerBlockingHostingPlan(domain) {
+  if (!domain || !cpanelAccounts || typeof cpanelAccounts.findOne !== 'function') return null
+  return cpanelAccounts.findOne({
+    $or: [{ domain }, { addonDomains: domain }],
+    deleted: { $ne: true },
+    suspended: { $ne: true },
+  })
+}
+
 
 const send = (chatId, message, options) => {
   // Auto-detect HTML in message and add parse_mode if not already set
@@ -19499,10 +19534,8 @@ ${message.replace(/\n/g, '<br>')}
     try {
 
       // ── Check for hosting plan conflict (primary OR addon domain) ──
-      const existingHosting = await cpanelAccounts.findOne({
-        $or: [{ domain }, { addonDomains: domain }],
-        deleted: { $ne: true },
-      })
+      // Suspended/deleted plans don't block — see findShortenerBlockingHostingPlan().
+      const existingHosting = await findShortenerBlockingHostingPlan(domain)
       if (existingHosting) {
         return send(chatId, trans('t.vps_69', domain, existingHosting.plan || 'cPanel'), { parse_mode: 'HTML' })
       }
@@ -20650,10 +20683,8 @@ ${message.replace(/\n/g, '<br>')}
       
       try {
         // ── Check for hosting plan conflict (primary OR addon domain) ──
-        const existingHosting = await cpanelAccounts.findOne({
-          $or: [{ domain }, { addonDomains: domain }],
-          deleted: { $ne: true },
-        })
+        // Suspended/deleted plans don't block — see findShortenerBlockingHostingPlan().
+        const existingHosting = await findShortenerBlockingHostingPlan(domain)
         if (existingHosting) {
           return send(chatId, trans('t.vps_94', domain, existingHosting.plan || 'cPanel'), { parse_mode: 'HTML' })
         }
@@ -30249,10 +30280,8 @@ Select a category:`), k.of(catBtns))
       send(chatId, ({ en: `🔗 Activating shortener for <b>${domain}</b>…`, fr: `🔗 Activation du raccourcisseur pour <b>${domain}</b>…`, zh: `🔗 正在为 <b>${domain}</b> 激活短链接…`, hi: `🔗 <b>${domain}</b> के लिए शॉर्टनर सक्रिय कर रहे हैं…` }[lang] || `🔗 Activating shortener for <b>${domain}</b>…`), { parse_mode: 'HTML' })
       try {
         // ── Check for hosting plan conflict (primary OR addon domain) ──
-        const existingHosting = await cpanelAccounts.findOne({
-          $or: [{ domain }, { addonDomains: domain }],
-          deleted: { $ne: true },
-        })
+        // Suspended/deleted plans don't block — see findShortenerBlockingHostingPlan().
+        const existingHosting = await findShortenerBlockingHostingPlan(domain)
         if (existingHosting) {
           return send(chatId, trans('t.sms_4', domain, existingHosting.plan || 'cPanel'), { parse_mode: 'HTML' })
         }
@@ -35806,6 +35835,142 @@ app.post('/dev/idempotency-test', async (req, res) => {
   try { await col.deleteOne({ _id: id }) } catch (_e) { /* cleanup best-effort */ }
   return res.json({ ...out, pass: out.first === 'inserted' && out.second === 'duplicate-blocked' })
 })
+
+// ── DEV-ONLY: verify the shortener ↔ hosting-plan conflict rule ─────────────
+// Reproduces the @aramboss (6156677266) bug: a *suspended* Premium Anti-Red
+// plan on securipa.xyz still blocked "Activate for URL Shortener", forcing him
+// to fully CANCEL the plan. The fix: findShortenerBlockingHostingPlan() only
+// blocks LIVE plans (not deleted AND not suspended). This endpoint exercises
+// that exact shared helper (the same one all 3 shortener entry points call)
+// against synthetic fixtures, then cleans them up. Safe: no DNS/CF/Railway
+// side-effects, synthetic domain, 404 in production.
+//
+//   POST /dev/shortener-conflict-check
+//     body (optional) { "domain": "securipa.xyz" } → also reports live result
+//                                                     for that real domain.
+app.post('/dev/shortener-conflict-check', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const col = db.collection('cpanelAccounts')
+  const stamp = Date.now() + '-' + Math.random().toString(36).slice(2, 7)
+  const testDomain = `devtest-shortener-${stamp}.example`
+  const cases = [
+    { name: 'suspended_not_deleted', expectBlocked: false, doc: { domain: testDomain, suspended: true } },
+    { name: 'deleted',               expectBlocked: false, doc: { domain: testDomain, deleted: true } },
+    { name: 'live_active',           expectBlocked: true,  doc: { domain: testDomain } },
+    { name: 'addon_on_live_plan',    expectBlocked: true,  doc: { domain: `primary-${stamp}.example`, addonDomains: [testDomain] } },
+    { name: 'addon_on_suspended',    expectBlocked: false, doc: { domain: `primary2-${stamp}.example`, addonDomains: [testDomain], suspended: true } },
+  ]
+  const results = []
+  for (const c of cases) {
+    const _id = `DEVTEST-CP-${stamp}-${c.name}`
+    let blocked = null, plan = null, err = null
+    try {
+      await col.insertOne({ _id, chatId: 'DEVTEST-CHAT', plan: 'Premium Anti-Red (1-Week)', createdAt: new Date(), ...c.doc })
+      const hit = await findShortenerBlockingHostingPlan(testDomain)
+      blocked = !!hit
+      plan = hit ? (hit.plan || null) : null
+    } catch (e) {
+      err = e.message
+    } finally {
+      try { await col.deleteOne({ _id }) } catch (_e) { /* best-effort cleanup */ }
+    }
+    results.push({ case: c.name, expectBlocked: c.expectBlocked, blocked, plan, err, pass: err === null && blocked === c.expectBlocked })
+  }
+  // Optional: report the live conflict result for a real domain (read-only).
+  let liveDomainCheck = null
+  const domain = (req.body && req.body.domain) ? String(req.body.domain).toLowerCase().trim() : null
+  if (domain) {
+    try {
+      const hit = await findShortenerBlockingHostingPlan(domain)
+      liveDomainCheck = { domain, blocked: !!hit, plan: hit ? (hit.plan || null) : null }
+    } catch (e) {
+      liveDomainCheck = { domain, error: e.message }
+    }
+  }
+  const pass = results.every(r => r.pass)
+  return res.json({ pass, results, liveDomainCheck })
+})
+
+// ── DEV-ONLY: verify user-imported audio survives a Railway redeploy ────────
+// Reproduces the @Spirits_Of_The_Ancesters (7898648919) bug: imported "bill
+// call" audio was saved only to the ephemeral disk (never to ivrAudioStore),
+// so a redeploy wiped it. The /assets/user-audio URL then served the 200 HTML
+// landing page, Twilio <Play> got HTML instead of MP3, and callers heard
+// "an application error has occurred" then a hangup.
+//
+// This exercises the REAL code paths:
+//   1) audioLibraryService.downloadAndSave() → now persists binary to ivrAudioStore
+//   2) simulate a redeploy by deleting the on-disk file
+//   3) GET /assets/user-audio/<file> → [AudioRestore] middleware restores it
+//      and serves audio/mpeg (NOT html)  ← the core fix
+//   4) GET a missing file → clean 404 (not 200 HTML)  ← defense-in-depth fix
+// Safe: synthetic test file, cleaned up, 404 in production.
+app.post('/dev/audio-persistence-check', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const fsp = require('fs')
+  const pathp = require('path')
+  const http = require('http')
+  const out = { steps: {}, cleanup: {} }
+  let filename = null
+  try {
+    // Pick any existing on-disk audio to use as the "import source".
+    const dir = audioLibraryService.AUDIO_DIR
+    const existing = fsp.existsSync(dir) ? fsp.readdirSync(dir).filter(f => /\.(mp3|wav)$/i.test(f)) : []
+    if (existing.length === 0) {
+      return res.json({ pass: false, error: 'no seed audio file available in AUDIO_DIR to use as import source', dir })
+    }
+    const sourceFile = existing[0]
+    const sourceUrl = `http://127.0.0.1:${process.env.PORT || 5000}/assets/user-audio/${sourceFile}`
+
+    // 1) Import via the REAL library path (should now back up to ivrAudioStore)
+    const saved = await audioLibraryService.downloadAndSave(sourceUrl, 'DEVTEST-AUDIO', 'devtest.mp3', 'audio/mpeg')
+    filename = saved.filename
+    const storeDoc = await db.collection('ivrAudioStore').findOne({ filename })
+    out.steps.persisted_to_ivrAudioStore = { pass: !!(storeDoc && storeDoc.buffer && storeDoc.buffer.length > 0), bufferChars: storeDoc?.buffer?.length || 0 }
+
+    // 2) Simulate Railway redeploy — wipe the file from disk
+    try { fsp.unlinkSync(saved.localPath) } catch (_e) { /* ignore */ }
+    out.steps.disk_wiped = { pass: !fsp.existsSync(saved.localPath) }
+
+    // 3) GET the audio URL → restore middleware should serve audio/mpeg
+    const getUrl = (p) => new Promise((resolve) => {
+      http.get(`http://127.0.0.1:${process.env.PORT || 5000}/assets/user-audio/${p}`, (r) => {
+        let size = 0
+        r.on('data', c => { size += c.length })
+        r.on('end', () => resolve({ status: r.statusCode, contentType: r.headers['content-type'] || '', size }))
+      }).on('error', (e) => resolve({ status: -1, error: e.message }))
+    })
+    const restored = await getUrl(filename)
+    out.steps.restored_serves_audio = {
+      pass: restored.status === 200 && /audio\//.test(restored.contentType) && restored.size > 0,
+      ...restored,
+    }
+
+    // 4) GET a genuinely missing file → clean 404 (NOT 200 html)
+    const missing = await getUrl(`devtest-missing-${Date.now()}.mp3`)
+    out.steps.missing_returns_404 = { pass: missing.status === 404, ...missing }
+  } catch (e) {
+    out.error = e.message
+  } finally {
+    // cleanup: remove test artifacts
+    try { if (filename) { await db.collection('ivrAudioStore').deleteOne({ filename }); out.cleanup.ivrAudioStore = 'deleted' } } catch (_e) { /* best-effort */ }
+    try {
+      if (filename) {
+        const p = require('path').join(audioLibraryService.AUDIO_DIR, filename)
+        if (require('fs').existsSync(p)) require('fs').unlinkSync(p)
+        out.cleanup.disk = 'removed'
+      }
+    } catch (_e) { /* best-effort */ }
+  }
+  out.pass = !out.error && Object.values(out.steps).every(s => s && s.pass)
+  return res.json(out)
+})
+
+
 
 
 // Dynopay Pay plan

@@ -71,6 +71,209 @@ user_problem_statement: |
        user affected in this incident.
 
 backend:
+  - task: "URL Shortener blocked by SUSPENDED hosting plan — @aramboss (6156677266) 2026-07-24: suspended securipa.xyz still refused 'Activate for URL Shortener'"
+    implemented: true
+    working: true
+    file: "/app/js/_index.js (findShortenerBlockingHostingPlan helper + 3 shortener entry points; /dev/shortener-conflict-check)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFICATION COMPLETE - URL Shortener SUSPENDED hosting plan fix PASSED (all assertions):
+          
+          SCOPE: Verified the fix for @aramboss (chatId 6156677266) where a SUSPENDED hosting plan 
+          incorrectly blocked URL shortener activation. The fix ensures suspended plans do NOT block 
+          shortener activation (since suspended sites are already offline), while live plans still 
+          correctly block to prevent conflicts.
+          
+          [TEST 1] HTTP ENDPOINT TEST: ✅ ALL 5 CASES PASSED
+            POST {REACT_APP_BACKEND_URL}/api/dev/shortener-conflict-check with empty body {}
+            
+            Response: HTTP 200, top-level pass: true ✅
+            
+            Individual cases:
+            ✅ suspended_not_deleted → blocked: false (THE FIX - suspended plan must not block)
+            ✅ deleted → blocked: false (deleted plan should not block)
+            ✅ live_active → blocked: true (regression guard - live plan still blocks)
+            ✅ addon_on_live_plan → blocked: true (addon on live plan should block)
+            ✅ addon_on_suspended → blocked: false (addon on suspended should not block)
+          
+          [TEST 2] LIVE DOMAIN CHECK: ✅ PASSED
+            POST {REACT_APP_BACKEND_URL}/api/dev/shortener-conflict-check with {"domain":"securipa.xyz"}
+            
+            Response: HTTP 200, liveDomainCheck.blocked: false ✅
+            ★ Confirms the real domain securipa.xyz (from the bug report) now shows blocked: false 
+              because its plan was already deleted
+          
+          CONCLUSION:
+          The URL shortener conflict check fix is COMPLETE and verified. All test cases passed.
+          
+          KEY FIX VERIFIED:
+          The findShortenerBlockingHostingPlan() helper now correctly filters BOTH:
+          • deleted: { $ne: true } (existing)
+          • suspended: { $ne: true } (NEW - THE FIX)
+          
+          This ensures:
+          1. SUSPENDED plans do NOT block shortener activation (the reported bug is fixed)
+          2. DELETED plans do NOT block shortener activation (expected behavior)
+          3. LIVE/ACTIVE plans STILL block shortener activation (regression guard - no conflicts)
+          4. Addons on live plans block (expected)
+          5. Addons on suspended plans do NOT block (consistent with suspended behavior)
+          
+          The fix is wired into all 3 shortener activation entry points:
+          • quick-activate-domain-shortener (t.vps_69)
+          • DNS-menu activateShortener (t.vps_94)
+          • domainActionShortener (t.sms_4)
+          
+          SAFETY CONFIRMED: The /api/dev/shortener-conflict-check endpoint creates and cleans 
+          synthetic MongoDB fixtures with NO live DNS/Cloudflare/Railway side-effects. All testing 
+          was performed via this dev-only endpoint.
+          
+          The bug that forced @aramboss to fully delete his suspended hosting plan before activating 
+          the URL shortener is now fixed. Users can now activate URL shorteners on domains with 
+          suspended hosting plans (which are already offline and safe to point elsewhere).
+      
+      - working: "NA"
+        agent: "main"
+        comment: |
+          BUG (prod, confirmed in Railway logs 2026-07-24 15:20→15:22 UTC for chatId 6156677266):
+          user tapped "🔗 Activate for URL Shortener" on securipa.xyz which had a SUSPENDED
+          "Premium Anti-Red (1-Week)" plan. Bot replied "❌ Cannot activate URL shortener — has an
+          active hosting plan". He was forced to fully CANCEL (delete) the plan before the shortener
+          would activate. Root cause: all 3 shortener-activation conflict checks queried
+          cpanelAccounts with only `deleted: { $ne: true }` — they did NOT exclude `suspended: true`.
+          A suspended site is already offline, so pointing the shortener CNAME is safe.
+
+          FIX: extracted shared helper findShortenerBlockingHostingPlan(domain) that filters
+          BOTH `deleted:{$ne:true}` AND `suspended:{$ne:true}`. Wired into all 3 entry points
+          (quick-activate-domain-shortener → t.vps_69; DNS-menu activateShortener → t.vps_94;
+          domainActionShortener → t.sms_4 — the exact path in the screenshot).
+
+          VERIFY (backend only): POST {REACT_APP_BACKEND_URL}/api/dev/shortener-conflict-check with {}.
+          Expect top-level pass:true and results[] all pass:true:
+            • suspended_not_deleted → blocked:false   (the fix)
+            • deleted               → blocked:false
+            • live_active           → blocked:true     (no regression)
+            • addon_on_live_plan    → blocked:true
+            • addon_on_suspended    → blocked:false
+          Optional: body {"domain":"securipa.xyz"} → liveDomainCheck.blocked:false (already deleted).
+          Endpoint creates+cleans synthetic fixtures; NO live DNS/CF/Railway side-effects.
+
+  - task: "Imported call audio lost on Railway redeploy → 'application error' + hangup — @Spirits_Of_The_Ancesters (7898648919) 2026-07-24"
+    implemented: true
+    working: true
+    file: "/app/js/audio-library-service.js (downloadAndSave persistence), /app/js/_index.js (AudioRestore 404; /dev/audio-persistence-check)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFICATION COMPLETE - Audio persistence fix PASSED (all 4 steps):
+          
+          SCOPE: Verified the fix for @Spirits_Of_The_Ancesters (chatId 7898648919) where imported 
+          custom audio for bulk/bill calls was lost on Railway redeploy, causing Twilio to speak 
+          "an application error has occurred" then hang up. The fix ensures audio files are persisted 
+          to MongoDB and can be restored after disk wipes.
+          
+          [TEST] HTTP ENDPOINT TEST: ✅ ALL 4 STEPS PASSED
+            POST {REACT_APP_BACKEND_URL}/api/dev/audio-persistence-check with empty body {}
+            
+            Response: HTTP 200, top-level pass: true ✅
+            
+            Step-by-step verification:
+            
+            ✅ Step 1: persisted_to_ivrAudioStore
+                • pass: true ✅
+                • bufferChars: 676480 (> 0) ✅
+                ★ FIX VERIFIED: downloadAndSave() now backs up the binary (base64) to MongoDB 
+                  ivrAudioStore collection, keyed by filename. New imports survive redeploys.
+            
+            ✅ Step 2: disk_wiped
+                • pass: true ✅
+                ★ Simulated Railway redeploy successfully removed the file from ephemeral disk
+            
+            ✅ Step 3: restored_serves_audio (CORE FIX)
+                • pass: true ✅
+                • status: 200 ✅
+                • contentType: audio/mpeg ✅
+                • size: 507360 (> 0) ✅
+                ★ CORE FIX VERIFIED: The /assets/user-audio restore middleware successfully serves 
+                  real audio (MP3) from MongoDB after the disk wipe. Twilio <Play> will now receive 
+                  valid audio instead of HTML, preventing "application error" hangups.
+            
+            ✅ Step 4: missing_returns_404 (DEFENSE-IN-DEPTH)
+                • pass: true ✅
+                • status: 404 ✅
+                ★ SECOND FIX VERIFIED: Genuinely missing files now return a clean HTTP 404 instead 
+                  of falling through to the catch-all that returns 200 HTML landing page.
+          
+          CONCLUSION:
+          The audio persistence fix is COMPLETE and verified end-to-end. All 4 test steps passed.
+          
+          KEY FIXES VERIFIED:
+          1. PERSISTENCE TO MONGODB: audio-library-service.downloadAndSave() now upserts the binary 
+             (base64) into the ivrAudioStore collection, keyed by filename. This gives imported audio 
+             the same durability that IVR greetings already had.
+          
+          2. RESTORE AFTER REDEPLOY: The [AudioRestore] middleware in /app/js/_index.js successfully 
+             restores audio files from ivrAudioStore when they're missing from disk. The restored 
+             audio is served with correct content-type (audio/mpeg) and valid binary data.
+          
+          3. CLEAN 404 FOR MISSING FILES: The restore middleware now returns HTTP 404 for genuinely 
+             missing files instead of falling through to the catch-all route that returns 200 HTML. 
+             This prevents Twilio from receiving HTML when it expects audio.
+          
+          IMPACT:
+          • Imported audio files now survive Railway redeploys (disk wipes)
+          • Twilio <Play> receives valid MP3 audio instead of HTML
+          • No more "an application error has occurred" + hangup on bulk/bill calls
+          • Users no longer need to re-import audio after every redeploy
+          
+          SAFETY CONFIRMED: The /api/dev/audio-persistence-check endpoint:
+          • Creates a synthetic test audio file (not a real user's file)
+          • Simulates a redeploy by deleting the file from disk
+          • Verifies the restore path serves valid audio
+          • Cleans up all test data (MongoDB + disk) after completion
+          • NO real Telegram messages sent
+          • NO real Twilio calls placed
+          
+          The bug that caused @Spirits_Of_The_Ancesters's imported audio to fail with "application 
+          error" after Railway redeploys is now fixed. All imported audio is now persisted to MongoDB 
+          and will survive redeploys.
+      
+      - working: "NA"
+        agent: "main"
+        comment: |
+          BUG (prod, confirmed): user imported custom audio for bulk/"bill" calls; on test calls the
+          telephony provider spoke "an application error has occurred" then hung up, audio never played.
+          Root cause: audio-library-service.downloadAndSave() saved the file ONLY to the ephemeral disk
+          (+ ivrAudioFiles metadata) and never to the persistent ivrAudioStore collection. Railway wipes
+          the disk on every redeploy; the [AudioRestore] middleware restores from ivrAudioStore by
+          filename → not found → the /assets/user-audio/<file> URL fell through to the catch-all that
+          returns the 200 HTML landing page. Twilio <Play> received HTML (not MP3) → application error.
+          Proven: GET of user's audioUrl returned HTTP 200 text/html (4067 bytes); ivrAudioStore had
+          0 backup for filename 7898648919_aa80a43b-74c.mp3 (file unrecoverable — user must re-import).
+
+          FIX (systemic):
+            1. downloadAndSave() now upserts the binary (base64) into ivrAudioStore keyed by filename —
+               same durability IVR greetings already had. New imports survive redeploys.
+            2. /assets/user-audio restore middleware now returns a clean 404 for genuinely-missing
+               files instead of falling through to the 200 HTML landing page.
+
+          VERIFY (backend only): POST {REACT_APP_BACKEND_URL}/api/dev/audio-persistence-check with {}.
+          Expect pass:true with steps:
+            • persisted_to_ivrAudioStore.pass:true (bufferChars>0)
+            • disk_wiped.pass:true
+            • restored_serves_audio.pass:true (status 200, content-type audio/mpeg, size>0)  ← core fix
+            • missing_returns_404.pass:true (status 404, NOT 200 html)                        ← 2nd fix
+          Endpoint imports a synthetic file, simulates a redeploy (deletes it), verifies restore, then
+          cleans up. NO real Telegram/Twilio calls. Do NOT place real calls.
+
   - task: "cPanel File Manager EPERM (broken homedir/quota) — @hellpeaces (5522767823) 2026-07-21: can't create/open folders, festered ~2 weeks"
     implemented: true
     working: true
@@ -5203,12 +5406,76 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Verify Twilio master credentials in Railway .env are working"
+    - "URL Shortener blocked by SUSPENDED hosting plan — @aramboss (6156677266)"
+    - "Imported call audio lost on Railway redeploy → 'application error' + hangup — @Spirits_Of_The_Ancesters (7898648919)"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
+  - agent: "testing"
+    message: |
+      ✅ VERIFICATION COMPLETE - Both backend bug fixes PASSED (2/2 tests):
+      
+      TEST 1: URL Shortener Conflict Check ✅ PASSED
+      • POST /api/dev/shortener-conflict-check with {} → HTTP 200, pass: true
+      • All 5 cases passed:
+        - suspended_not_deleted → blocked: false ✅ (THE FIX)
+        - deleted → blocked: false ✅
+        - live_active → blocked: true ✅ (regression guard)
+        - addon_on_live_plan → blocked: true ✅
+        - addon_on_suspended → blocked: false ✅
+      • Domain test with {"domain":"securipa.xyz"} → liveDomainCheck.blocked: false ✅
+      
+      TEST 2: Audio Persistence Check ✅ PASSED
+      • POST /api/dev/audio-persistence-check with {} → HTTP 200, pass: true
+      • All 4 steps passed:
+        - persisted_to_ivrAudioStore: pass=true, bufferChars=676480 ✅
+        - disk_wiped: pass=true ✅
+        - restored_serves_audio: pass=true, status=200, contentType=audio/mpeg, size=507360 ✅ (CORE FIX)
+        - missing_returns_404: pass=true, status=404 ✅ (DEFENSE-IN-DEPTH)
+      
+      CONCLUSION: Both fixes are working correctly. No issues found.
+      • Suspended hosting plans no longer block URL shortener activation
+      • Imported audio files now survive Railway redeploys via MongoDB persistence
+      • Audio restore middleware serves valid MP3 (not HTML) after disk wipes
+      • Missing audio files return clean 404 (not 200 HTML)
+      
+      Updated test_result.md:
+      • Task 1 (URL Shortener): working=true, needs_retesting=false
+      • Task 2 (Audio Persistence): working=true, needs_retesting=false
+      
+      SAFETY: All testing via dev-only endpoints with synthetic fixtures. NO real Telegram/Twilio calls.
+      NO writes to production MongoDB. NO live DNS/Cloudflare/Railway side-effects.
+  
+  - agent: "main"
+    message: |
+      TWO backend bug fixes ready for verification (backend-only, use guarded DEV endpoints under
+      {REACT_APP_BACKEND_URL}/api — BOT_ENVIRONMENT=development so they are enabled).
+
+      1) SHORTENER vs SUSPENDED HOSTING (@aramboss 6156677266):
+         POST /api/dev/shortener-conflict-check   body {}
+         PASS = top-level "pass": true AND every results[].pass == true:
+           suspended_not_deleted→blocked:false, deleted→blocked:false, live_active→blocked:true,
+           addon_on_live_plan→blocked:true, addon_on_suspended→blocked:false.
+         (Optional) body {"domain":"securipa.xyz"} → liveDomainCheck.blocked:false.
+         Endpoint self-creates + cleans synthetic fixtures; no live DNS/CF side effects.
+
+      2) IMPORTED CALL AUDIO PERSISTENCE (@Spirits_Of_The_Ancesters 7898648919):
+         POST /api/dev/audio-persistence-check   body {}
+         PASS = "pass": true AND steps:
+           persisted_to_ivrAudioStore.pass:true (bufferChars>0),
+           disk_wiped.pass:true,
+           restored_serves_audio.pass:true (status 200, content-type audio/mpeg, size>0),
+           missing_returns_404.pass:true (status 404, NOT 200 html).
+         Endpoint imports a synthetic file, simulates a Railway redeploy, verifies the AudioRestore
+         middleware, then cleans up. Do NOT place real Telegram/Twilio/Telnyx calls.
+
+      NOTE (not for testing — credential issue, awaiting user): @Padrino_voodoo (7706898844) quick-IVR
+      "Authenticate" failure is caused by an INVALID TELNYX_API_KEY (Telnyx 401 code 10009, confirmed
+      by direct API probe). His caller number +18883304418 is a Telnyx number. Twilio master creds are
+      VALID. This needs a fresh Telnyx v2 API key from the user; no code fix to test yet.
+
   - agent: "main"
     message: |
       EXTENDED the @hellpeaces EPERM fix to /files/delete and /files/extract (user asked whether

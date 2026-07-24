@@ -99,6 +99,31 @@ async function downloadAndSave(fileLink, chatId, originalName, mimeType) {
   const size = fs.statSync(localPath).size
   const audioUrl = getAudioUrl(filename)
 
+  // ── Persist the binary to MongoDB (ivrAudioStore) so it SURVIVES Railway
+  //    redeploys. Railway's filesystem is EPHEMERAL — a redeploy wipes
+  //    /assets/user-audio, and without a DB backup the [AudioRestore]
+  //    middleware (js/_index.js) can't restore the file. The URL then serves
+  //    the 200 HTML landing page instead of audio, so Twilio <Play> receives
+  //    HTML and speaks "an application error has occurred" then hangs up.
+  //    Prod bug: @Spirits_Of_The_Ancesters (7898648919) 2026-07-24 — his
+  //    imported "bill call" audio was lost on redeploy → every test call
+  //    errored out. IVR greetings already back up here; library imports must too.
+  try {
+    if (_db) {
+      const audioBuffer = fs.readFileSync(localPath)
+      await _db.collection('ivrAudioStore').updateOne(
+        { filename },
+        { $set: { filename, buffer: audioBuffer.toString('base64'), audioUrl, mimeType: finalMimeType, source: 'audioLibrary', chatId: String(chatId), updatedAt: new Date() }, $setOnInsert: { createdAt: new Date() } },
+        { upsert: true }
+      )
+      log(`[AudioLibrary] Persisted ${filename} to ivrAudioStore (${(size / 1024).toFixed(1)} KB) — survives redeploys`)
+    } else {
+      log(`[AudioLibrary] WARN: _db not initialized — ${filename} NOT backed up to ivrAudioStore`)
+    }
+  } catch (e) {
+    log(`[AudioLibrary] ivrAudioStore persist FAILED for ${filename} (non-blocking): ${e.message}`)
+  }
+
   log(`[AudioLibrary] Saved: ${filename} (${(size / 1024).toFixed(1)} KB) for chatId ${chatId}`)
   return { filename, localPath, audioUrl, size }
 }
