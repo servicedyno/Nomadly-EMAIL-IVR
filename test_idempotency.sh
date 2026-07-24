@@ -1,5 +1,5 @@
 #!/bin/bash
-BACKEND_URL="https://naughty-raman-8.preview.emergentagent.com"
+BACKEND_URL="https://cred-deploy.preview.emergentagent.com"
 
 echo "TEST 3 — Persistent + atomic webhook idempotency"
 echo ""
