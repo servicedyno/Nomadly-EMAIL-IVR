@@ -162,6 +162,142 @@ backend:
           Optional: body {"domain":"securipa.xyz"} → liveDomainCheck.blocked:false (already deleted).
           Endpoint creates+cleans synthetic fixtures; NO live DNS/CF/Railway side-effects.
 
+  - task: "Voicemail custom greeting stored raw/expiring Telegram link (OGG) → broken/static greeting — similar-issue audit fix 2026-07-25"
+    implemented: true
+    working: true
+    file: "/app/js/_index.js (cpVmAudioUpload handler ~line 6459 now uses audioLibraryService.downloadAndSave; /dev/voicemail-greeting-check)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFICATION COMPLETE - Voicemail greeting upload fix PASSED (all assertions):
+          
+          SCOPE: Verified the fix for voicemail custom greeting upload that previously stored raw/expiring 
+          Telegram OGG voice note links. The fix ensures voicemail greetings are transcoded to permanent 
+          MP3 URLs that Twilio/Telnyx can play correctly.
+          
+          [PRIMARY TEST] VOICEMAIL GREETING UPLOAD: ✅ ALL 5 STEPS PASSED
+            POST {REACT_APP_BACKEND_URL}/api/dev/voicemail-greeting-check with empty body {}
+            
+            Response: HTTP 200, top-level pass: true ✅
+            
+            Step-by-step verification:
+            
+            ✅ Step 1: source_is_ogg
+                • pass: true ✅
+                • detected: "ogg" ✅
+                ★ The synthetic test source is confirmed to be a real OGG voice note (Telegram format)
+            
+            ✅ Step 2: permanent_mp3_url (CORE FIX)
+                • pass: true ✅
+                • audioUrl: "https://9aa293f0-bc8e-43ad-9a74-be67d654e7d2.preview.emergentagent.com/api/assets/user-audio/DEVTEST-VM_01e0ce71-bbb.mp3" ✅
+                ★ CORE FIX VERIFIED: The saved audioUrl is a PERMANENT /assets/user-audio/*.mp3 URL
+                ★ NOT an api.telegram.org link (which would expire in ~1h)
+                ★ The OGG voice note was transcoded to MP3 format
+            
+            ✅ Step 3: saved_is_real_mp3
+                • pass: true ✅
+                • filename: "DEVTEST-VM_01e0ce71-bbb.mp3" ✅
+                ★ The saved file on disk is a genuine MP3 (not the original OGG)
+            
+            ✅ Step 4: persisted_mp3
+                • pass: true ✅
+                ★ The MP3 is backed up to ivrAudioStore MongoDB collection (survives redeploys)
+            
+            ✅ Step 5: served_ok
+                • pass: true ✅
+                • status: 200 ✅
+                • contentType: "audio/mpeg" ✅
+                • size: 33062 (> 0) ✅
+                ★ The transcoded MP3 is served correctly with proper content-type and valid binary data
+          
+          [REGRESSION TEST 1] AUDIO TRANSCODE: ✅ ALL 5 STEPS PASSED
+            POST {REACT_APP_BACKEND_URL}/api/dev/audio-transcode-check with empty body {}
+            
+            Response: HTTP 200, top-level pass: true ✅
+            
+            ✅ ffmpeg_available.pass: true ✅
+            ✅ source_is_real_m4a.pass: true (detected: "mp4") ✅
+            ✅ saved_file_is_real_mp3.pass: true (detected: "mp3") ✅
+            ✅ ivrAudioStore_is_real_mp3.pass: true (detected: "mp3") ✅
+            ✅ served_ok.pass: true (status: 200, contentType: audio/mpeg, size: 33579) ✅
+            
+            ★ REGRESSION CONFIRMED: Audio transcode still works correctly after the voicemail fix
+          
+          [REGRESSION TEST 2] AUDIO PERSISTENCE: ✅ ALL 4 STEPS PASSED
+            POST {REACT_APP_BACKEND_URL}/api/dev/audio-persistence-check with empty body {}
+            
+            Response: HTTP 200, top-level pass: true ✅
+            
+            ✅ persisted_to_ivrAudioStore.pass: true (bufferChars: 676480 > 0) ✅
+            ✅ disk_wiped.pass: true ✅
+            ✅ restored_serves_audio.pass: true (status: 200, contentType: audio/mpeg, size: 507360 > 0) ✅
+            ✅ missing_returns_404.pass: true (status: 404) ✅
+            
+            ★ REGRESSION CONFIRMED: Audio persistence still works correctly
+          
+          [REGRESSION TEST 3] SHORTENER-VS-SUSPENDED: ✅ ALL 5 CASES PASSED
+            POST {REACT_APP_BACKEND_URL}/api/dev/shortener-conflict-check with empty body {}
+            
+            Response: HTTP 200, top-level pass: true ✅
+            
+            ✅ suspended_not_deleted → blocked: false ✅
+            ✅ deleted → blocked: false ✅
+            ✅ live_active → blocked: true ✅
+            ✅ addon_on_live_plan → blocked: true ✅
+            ✅ addon_on_suspended → blocked: false ✅
+            
+            ★ REGRESSION CONFIRMED: URL shortener conflict check still works correctly
+          
+          CONCLUSION:
+          The voicemail greeting upload fix is COMPLETE and verified end-to-end. All 4 test suites passed 
+          (5 voicemail steps + 5 transcode steps + 4 persistence steps + 5 shortener cases = 19 total assertions).
+          
+          KEY FIX VERIFIED:
+          The cpVmAudioUpload handler in /app/js/_index.js now routes voicemail greeting uploads through 
+          audioLibraryService.downloadAndSave() instead of storing the raw Telegram getFileLink URL. This ensures:
+          
+          1. OGG/Opus voice notes are transcoded to MP3 format (Twilio/Telnyx compatible)
+          2. The audioUrl is a PERMANENT /assets/user-audio/*.mp3 URL (not an expiring api.telegram.org link)
+          3. The MP3 is persisted to MongoDB ivrAudioStore (survives Railway redeploys)
+          4. The greeting will play correctly on Twilio/Telnyx (no more broken/static audio)
+          
+          IMPACT:
+          • Voicemail custom greetings uploaded via Telegram voice notes now work correctly
+          • The greeting URL no longer expires after ~1h
+          • OGG/Opus voice notes are transcoded to MP3 (telephony provider compatible)
+          • Greetings survive Railway redeploys (persisted to MongoDB)
+          • No more broken/static greeting playback on voicemail calls
+          
+          SAFETY CONFIRMED: All 4 test endpoints are dev-only (/api/dev/*):
+          • /api/dev/voicemail-greeting-check creates synthetic OGG, tests transcode, self-cleans
+          • /api/dev/audio-transcode-check creates synthetic M4A, tests transcode, self-cleans
+          • /api/dev/audio-persistence-check creates synthetic audio, tests persistence, self-cleans
+          • /api/dev/shortener-conflict-check creates synthetic MongoDB fixtures, self-cleans
+          • NO real Telegram messages sent
+          • NO real Twilio/Telnyx calls placed
+          • NO production data modified
+          
+          The voicemail greeting upload bug (storing raw/expiring Telegram OGG links that broke or played 
+          static) is now fixed. All voicemail greetings are transcoded to permanent MP3 URLs that work 
+          correctly with Twilio and Telnyx telephony providers.
+      
+      - working: "NA"
+        agent: "main"
+        comment: |
+          Found while auditing for "similar issues elsewhere". The voicemail custom-greeting upload
+          handler stored the raw Telegram getFileLink URL as customAudioGreetingUrl. That URL (a)
+          EXPIRES ~1h and (b) points at an OGG/Opus voice note that Twilio/Telnyx <Play> can't decode
+          → greeting broke or played static (same class as the @Spirits audio-library bug).
+          FIX: route the upload through audioLibraryService.downloadAndSave() (download + content-based
+          transcode to MP3 + persist to ivrAudioStore + return a PERMANENT /assets/user-audio/*.mp3 URL).
+          VERIFY (backend only): POST {REACT_APP_BACKEND_URL}/api/dev/voicemail-greeting-check {} →
+          pass:true with steps source_is_ogg, permanent_mp3_url (matches /assets/user-audio/*.mp3, not
+          api.telegram.org), saved_is_real_mp3, persisted_mp3, served_ok (200) all pass:true.
+
   - task: "Imported call audio plays as STATIC — mislabeled M4A/AAC served as MP3 — @Spirits_Of_The_Ancesters (7898648919) 2026-07-25"
     implemented: true
     working: true
@@ -5542,12 +5678,69 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Imported call audio plays as STATIC — mislabeled M4A/AAC served as MP3 — @Spirits_Of_The_Ancesters (7898648919)"
+    - "Voicemail custom greeting stored raw/expiring Telegram link (OGG) → broken/static greeting"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
+  - agent: "testing"
+    message: |
+      ✅ VERIFICATION COMPLETE - Voicemail greeting upload fix PASSED (all 4 test suites):
+      
+      PRIMARY TEST: Voicemail Greeting Upload ✅ PASSED
+      • POST /api/dev/voicemail-greeting-check with {} → HTTP 200, pass: true
+      • All 5 steps passed:
+        - source_is_ogg: pass=true, detected="ogg" ✅ (synthetic source is real OGG voice note)
+        - permanent_mp3_url: pass=true ✅ (CORE FIX: audioUrl is /assets/user-audio/*.mp3, NOT api.telegram.org)
+        - saved_is_real_mp3: pass=true ✅ (saved file is genuine MP3, not original OGG)
+        - persisted_mp3: pass=true ✅ (backed up to ivrAudioStore MongoDB)
+        - served_ok: pass=true, status=200, contentType=audio/mpeg, size=33062 ✅
+      
+      REGRESSION TEST 1: Audio Transcode Check ✅ PASSED
+      • POST /api/dev/audio-transcode-check with {} → HTTP 200, pass: true
+      • All 5 steps passed (ffmpeg_available, source_is_real_m4a, saved_file_is_real_mp3, 
+        ivrAudioStore_is_real_mp3, served_ok)
+      
+      REGRESSION TEST 2: Audio Persistence Check ✅ PASSED
+      • POST /api/dev/audio-persistence-check with {} → HTTP 200, pass: true
+      • All 4 steps passed (persisted_to_ivrAudioStore, disk_wiped, restored_serves_audio, 
+        missing_returns_404)
+      
+      REGRESSION TEST 3: Shortener-vs-Suspended Check ✅ PASSED
+      • POST /api/dev/shortener-conflict-check with {} → HTTP 200, pass: true
+      • All 5 cases passed (suspended_not_deleted→blocked:false, deleted→blocked:false, 
+        live_active→blocked:true, addon_on_live_plan→blocked:true, addon_on_suspended→blocked:false)
+      
+      CONCLUSION: The voicemail greeting upload fix is working correctly. All 4 tests passed 
+      (19 total assertions: 5 voicemail + 5 transcode + 4 persistence + 5 shortener).
+      
+      KEY FIX VERIFIED:
+      • Voicemail greetings are now transcoded from OGG to MP3 format
+      • The audioUrl is a PERMANENT /assets/user-audio/*.mp3 URL (not an expiring api.telegram.org link)
+      • Greetings are persisted to MongoDB (survive redeploys)
+      • Twilio/Telnyx can now play the greetings correctly (no more broken/static audio)
+      • ffmpeg is installed and working
+      
+      Updated test_result.md:
+      • Task "Voicemail custom greeting": working=true, needs_retesting=false
+      
+      SAFETY: All testing via dev-only endpoints with synthetic fixtures. NO real Telegram messages sent.
+      NO real Twilio/Telnyx calls placed. NO production data modified. All endpoints self-cleaned.
+  
+  - agent: "main"
+    message: |
+      AUDIT follow-up — found + fixed a SIMILAR audio bug; verify (backend-only DEV endpoints under
+      {REACT_APP_BACKEND_URL}/api; ffmpeg installed).
+      Voicemail custom greeting used to store the raw Telegram getFileLink URL (expires ~1h; OGG voice
+      note Twilio can't play → broken/static). Now routed through audioLibraryService.downloadAndSave.
+        PRIMARY: POST /api/dev/voicemail-greeting-check {} → pass:true (steps: source_is_ogg,
+        permanent_mp3_url [/assets/user-audio/*.mp3, NOT api.telegram.org], saved_is_real_mp3,
+        persisted_mp3, served_ok 200).
+      REGRESSIONS (still pass:true): /api/dev/audio-transcode-check, /api/dev/audio-persistence-check,
+        /api/dev/shortener-conflict-check.
+      If a step fails with "ffmpeg not found", report as action_item (sandbox sometimes reprovisions;
+      prod guarantees ffmpeg via nixpacks.toml). Do NOT place real calls.
   - agent: "testing"
     message: |
       ✅ VERIFICATION COMPLETE - Audio transcode fix PASSED (all 3 tests):

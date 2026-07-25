@@ -6464,7 +6464,17 @@ bot?.on('message', msg => {
           if (!num.features || typeof num.features !== 'object') num.features = {}
           const vm = num.features?.voicemail || {}
           vm.greetingType = 'custom'
-          vm.customAudioGreetingUrl = fileLink
+          // Download → transcode to real MP3 → persist to ivrAudioStore, then store
+          // the PERMANENT /assets/user-audio URL. Previously we stored the raw
+          // Telegram getFileLink URL, which (a) EXPIRES after ~1h and (b) points at
+          // an OGG/Opus voice note that Twilio/Telnyx <Play> can't decode — so the
+          // greeting broke or played as static. Same class of bug as the audio
+          // library static issue (@Spirits). Reuses audioLibraryService so format
+          // handling can't drift. (Similar-issue fix, 2026-07-25.)
+          const origName = msg.audio?.file_name || (msg.voice ? 'vm-greeting.ogg' : 'vm-greeting.mp3')
+          const vmMime = msg.voice?.mime_type || msg.audio?.mime_type || 'audio/ogg'
+          const savedVm = await audioLibraryService.downloadAndSave(fileLink, chatId, origName, vmMime)
+          vm.customAudioGreetingUrl = savedVm.audioUrl
           vm.customGreetingText = null
           await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'voicemail', vm)
           num.features.voicemail = vm
@@ -36056,6 +36066,75 @@ app.post('/dev/audio-transcode-check', async (req, res) => {
   out.pass = !out.error && Object.values(out.steps).every(s => s && s.pass)
   return res.json(out)
 })
+
+// ── DEV-ONLY: verify voicemail greeting uploads produce a PERMANENT MP3 URL ──
+// Reproduces the "similar issue" found while auditing: the voicemail custom
+// greeting upload used to store the raw Telegram getFileLink URL (expires ~1h)
+// pointing at an OGG/Opus voice note (Twilio can't play) → broken/static greeting.
+// The fix routes the upload through audioLibraryService.downloadAndSave, exactly
+// like this test does: a real OGG voice note is downloaded, transcoded to MP3,
+// persisted, and a permanent /assets/user-audio/*.mp3 URL is returned (NOT a
+// api.telegram.org link). 404 in production; cleans up.
+app.post('/dev/voicemail-greeting-check', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const fsp = require('fs')
+  const pathp = require('path')
+  const { execSync } = require('child_process')
+  const http = require('http')
+  const out = { steps: {}, cleanup: {} }
+  const dir = audioLibraryService.AUDIO_DIR
+  const stamp = Date.now() + '-' + Math.random().toString(36).slice(2, 7)
+  const oggName = `devtest-vm-${stamp}.ogg`
+  const oggPath = pathp.join(dir, oggName)
+  let savedFilename = null
+  const isMp3 = (b) => b && b.length > 2 && (b.slice(0, 3).toString('latin1') === 'ID3' || (b[0] === 0xff && (b[1] & 0xe0) === 0xe0))
+  try {
+    // 1) Generate a real OGG voice note (Telegram voice notes are Ogg/Opus)
+    try {
+      execSync(`ffmpeg -f lavfi -i "sine=frequency=440:duration=2" -c:a libopus -b:a 24k -y "${oggPath}"`, { stdio: 'pipe', timeout: 30000 })
+    } catch (_e) {
+      execSync(`ffmpeg -f lavfi -i "sine=frequency=440:duration=2" -c:a libvorbis -y "${oggPath}"`, { stdio: 'pipe', timeout: 30000 })
+    }
+    const srcHead = fsp.readFileSync(oggPath).subarray(0, 4).toString('latin1')
+    out.steps.source_is_ogg = { pass: srcHead === 'OggS', detected: audioLibraryService.detectAudioFormat(fsp.readFileSync(oggPath)) }
+
+    // 2) Run through the SAME path the voicemail handler now uses
+    const sourceUrl = `http://127.0.0.1:${process.env.PORT || 5000}/assets/user-audio/${oggName}`
+    const saved = await audioLibraryService.downloadAndSave(sourceUrl, 'DEVTEST-VM', 'vm-greeting.ogg', 'audio/ogg')
+    savedFilename = saved.filename
+    // 3) URL must be a permanent /assets/user-audio/*.mp3 (NOT a Telegram link)
+    out.steps.permanent_mp3_url = {
+      pass: /\/assets\/user-audio\/.+\.mp3$/.test(saved.audioUrl) && !/api\.telegram\.org/.test(saved.audioUrl),
+      audioUrl: saved.audioUrl,
+    }
+    out.steps.saved_is_real_mp3 = { pass: isMp3(fsp.readFileSync(saved.localPath).subarray(0, 16)), filename: saved.filename }
+    const storeDoc = await db.collection('ivrAudioStore').findOne({ filename: saved.filename })
+    out.steps.persisted_mp3 = { pass: !!(storeDoc && storeDoc.buffer && isMp3(Buffer.from(storeDoc.buffer, 'base64').subarray(0, 16))) }
+    const served = await new Promise((resolve) => {
+      http.get(`http://127.0.0.1:${process.env.PORT || 5000}/assets/user-audio/${saved.filename}`, (r) => {
+        let size = 0; r.on('data', c => { size += c.length }); r.on('end', () => resolve({ status: r.statusCode, contentType: r.headers['content-type'] || '', size }))
+      }).on('error', (e) => resolve({ status: -1, error: e.message }))
+    })
+    out.steps.served_ok = { pass: served.status === 200 && served.size > 0, ...served }
+  } catch (e) {
+    out.error = e.message
+  } finally {
+    try { if (fsp.existsSync(oggPath)) fsp.unlinkSync(oggPath); out.cleanup.source = 'removed' } catch (_e) { /* ignore */ }
+    try {
+      if (savedFilename) {
+        const p = pathp.join(dir, savedFilename)
+        if (fsp.existsSync(p)) fsp.unlinkSync(p)
+        await db.collection('ivrAudioStore').deleteOne({ filename: savedFilename })
+        out.cleanup.saved = 'removed'
+      }
+    } catch (_e) { /* best-effort */ }
+  }
+  out.pass = !out.error && Object.values(out.steps).every(s => s && s.pass)
+  return res.json(out)
+})
+
 
 
 
