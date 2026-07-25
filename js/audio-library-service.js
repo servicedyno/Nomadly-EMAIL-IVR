@@ -42,6 +42,24 @@ function getAudioUrl(filename) {
 }
 
 /**
+ * Identify an audio container from its leading bytes (magic numbers). Uploaded
+ * files are routinely MISLABELED by extension/MIME (e.g. Telegram delivers an
+ * M4A/AAC file as "audio/mpeg" with a ".mp3" name), so we must trust the bytes.
+ * Returns: 'mp3' | 'wav' | 'ogg' | 'flac' | 'mp4' (m4a/aac) | 'unknown'.
+ */
+function detectAudioFormat(buf) {
+  if (!buf || buf.length < 12) return 'unknown'
+  const ascii = (start, len) => buf.slice(start, start + len).toString('latin1')
+  if (ascii(0, 3) === 'ID3') return 'mp3' // MP3 with ID3v2 tag
+  if (buf[0] === 0xff && (buf[1] & 0xe0) === 0xe0) return 'mp3' // raw MP3 frame sync
+  if (ascii(0, 4) === 'RIFF' && ascii(8, 4) === 'WAVE') return 'wav'
+  if (ascii(0, 4) === 'OggS') return 'ogg'
+  if (ascii(0, 4) === 'fLaC') return 'flac'
+  if (ascii(4, 4) === 'ftyp') return 'mp4' // m4a / aac / mp4 container (NOT playable by Twilio)
+  return 'unknown'
+}
+
+/**
  * Download audio from Telegram and save locally
  * @param {string} fileLink - Telegram file download URL
  * @param {string} chatId - User's chat ID
@@ -68,32 +86,50 @@ async function downloadAndSave(fileLink, chatId, originalName, mimeType) {
 
   // Download file
   const response = await axios.get(fileLink, { responseType: 'arraybuffer', timeout: 30000 })
-  fs.writeFileSync(rawPath, Buffer.from(response.data))
+  const downloadedBuf = Buffer.from(response.data)
+  fs.writeFileSync(rawPath, downloadedBuf)
 
   let filename = rawFilename
   let localPath = rawPath
   let finalMimeType = mimeType || 'audio/mpeg'
 
-  // Convert OGG/non-MP3 to MP3 for Twilio compatibility
-  // Twilio only supports: MP3, WAV, AIFF, µ-law
-  if (ext === 'ogg' || ext === 'opus' || ext === 'mp4' || ext === 'webm') {
+  // ── Decide conversion from the REAL container (magic bytes), not the ext/MIME ──
+  // Telephony <Play> (Twilio/Telnyx) only decodes MP3/WAV reliably. Anything else
+  // — an M4A/AAC file mislabeled as ".mp3", or ogg/opus/webm/flac — plays as STATIC
+  // if served as-is. So detect the true format and transcode everything that isn't
+  // already MP3/WAV into real mono MP3. (Fix: @Spirits_Of_The_Ancesters 7898648919 —
+  // his imported "MP3" was actually ftypM4A, so every call played static.)
+  const realFormat = detectAudioFormat(downloadedBuf)
+
+  if (realFormat !== 'mp3' && realFormat !== 'wav') {
+    const mp3Filename = `${chatId}_${id}.mp3`
+    const mp3Path = path.join(AUDIO_DIR, mp3Filename)
+    // ffmpeg can't edit a file in place; if the raw upload already ends in ".mp3"
+    // (the mislabeled-M4A case) write to a temp path first, then move it over.
+    const outPath = (mp3Path === rawPath) ? path.join(AUDIO_DIR, `${chatId}_${id}.conv.mp3`) : mp3Path
     try {
-      const mp3Filename = `${chatId}_${id}.mp3`
-      const mp3Path = path.join(AUDIO_DIR, mp3Filename)
-      execSync(`ffmpeg -i "${rawPath}" -codec:a libmp3lame -b:a 128k -y "${mp3Path}"`, {
-        timeout: 30000,
+      // -vn drops any cover art/video; force mono 44.1k MP3 (telephony-safe).
+      execSync(`ffmpeg -i "${rawPath}" -vn -codec:a libmp3lame -ac 1 -ar 44100 -b:a 128k -y "${outPath}"`, {
+        timeout: 60000,
         stdio: 'pipe',
       })
-      // Remove original OGG, use MP3
-      fs.unlinkSync(rawPath)
+      if (fs.existsSync(rawPath)) { try { fs.unlinkSync(rawPath) } catch (_e) { /* ignore */ } }
+      if (outPath !== mp3Path) fs.renameSync(outPath, mp3Path)
       filename = mp3Filename
       localPath = mp3Path
       finalMimeType = 'audio/mpeg'
-      log(`[AudioLibrary] Converted ${ext} → MP3: ${mp3Filename}`)
+      log(`[AudioLibrary] Transcoded ${realFormat} → MP3 (mono 44.1k): ${mp3Filename}`)
     } catch (e) {
-      log(`[AudioLibrary] ffmpeg conversion failed (${ext} → MP3): ${e.message}, keeping original`)
-      // Keep original file as fallback
+      // Never keep a non-playable file — that IS the "static" bug. Fail loudly so
+      // the upload handler tells the user to try again (and a missing ffmpeg is
+      // surfaced instead of silently serving garbage that plays as static).
+      try { if (fs.existsSync(rawPath)) fs.unlinkSync(rawPath) } catch (_e) { /* ignore */ }
+      try { if (fs.existsSync(outPath)) fs.unlinkSync(outPath) } catch (_e) { /* ignore */ }
+      log(`[AudioLibrary] ffmpeg transcode FAILED (${realFormat} → MP3): ${e.message}`)
+      throw new Error(`Could not process your audio (detected format: ${realFormat}). Please upload a standard MP3 or WAV file.`)
     }
+  } else {
+    finalMimeType = realFormat === 'wav' ? 'audio/wav' : 'audio/mpeg'
   }
 
   const size = fs.statSync(localPath).size
@@ -217,5 +253,6 @@ module.exports = {
   deleteAudio,
   renameAudio,
   getAudioUrl,
+  detectAudioFormat,
   AUDIO_DIR,
 }

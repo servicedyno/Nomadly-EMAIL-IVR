@@ -125,7 +125,7 @@ earlyApp.use('/assets/user-audio', async (req, res, next) => {
       await fs.promises.mkdir(dir, { recursive: true }).catch(() => {})
       await fs.promises.writeFile(localPath, Buffer.from(stored.buffer, 'base64'))
       log(`[AudioRestore] Restored ${filename} from MongoDB to disk`)
-      res.set('Content-Type', 'audio/mpeg')
+      res.set('Content-Type', stored.mimeType || 'audio/mpeg')
       res.set('Cache-Control', 'public, max-age=3600')
       return fs.createReadStream(localPath).pipe(res)
     }
@@ -35969,6 +35969,94 @@ app.post('/dev/audio-persistence-check', async (req, res) => {
   out.pass = !out.error && Object.values(out.steps).every(s => s && s.pass)
   return res.json(out)
 })
+
+// ── DEV-ONLY: verify mislabeled audio is transcoded to real MP3 (no static) ──
+// Reproduces the @Spirits_Of_The_Ancesters (7898648919) "static / breaking up"
+// bug: he imported an M4A/AAC file that arrived labeled "audio/mpeg" + ".mp3".
+// The old code trusted the extension and served the AAC bytes as-is, so Twilio
+// <Play> decoded them as MP3 → static. The fix detects the REAL container from
+// magic bytes and transcodes anything non-MP3/WAV to real mono MP3 via ffmpeg.
+//
+// This test:
+//   1) generates a genuine M4A/AAC tone with ffmpeg
+//   2) serves it and runs it through the REAL audioLibraryService.downloadAndSave,
+//      DELIBERATELY mislabeling it as originalName="evil.mp3", mime="audio/mpeg"
+//   3) asserts the saved file's magic bytes are now MP3 (ID3 or 0xFFEx), that the
+//      ivrAudioStore backup is MP3 too, and that detectAudioFormat classifies the
+//      inputs correctly.
+// Cleans up all artifacts. 404 in production.
+app.post('/dev/audio-transcode-check', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const fsp = require('fs')
+  const pathp = require('path')
+  const { execSync } = require('child_process')
+  const http = require('http')
+  const out = { steps: {}, cleanup: {} }
+  const dir = audioLibraryService.AUDIO_DIR
+  const stamp = Date.now() + '-' + Math.random().toString(36).slice(2, 7)
+  const m4aName = `devtest-src-${stamp}.m4a`
+  const m4aPath = pathp.join(dir, m4aName)
+  let savedFilename = null
+  const magicOf = (buf) => {
+    if (!buf || buf.length < 12) return 'unknown'
+    const a = (s, l) => buf.slice(s, s + l).toString('latin1')
+    if (a(0, 3) === 'ID3' || (buf[0] === 0xff && (buf[1] & 0xe0) === 0xe0)) return 'mp3'
+    if (a(0, 4) === 'RIFF' && a(8, 4) === 'WAVE') return 'wav'
+    if (a(4, 4) === 'ftyp') return 'mp4'
+    if (a(0, 4) === 'OggS') return 'ogg'
+    return 'unknown'
+  }
+  try {
+    // ffmpeg availability (the fix depends on it in prod too)
+    let ffmpegOk = false
+    try { execSync('ffmpeg -version', { stdio: 'pipe', timeout: 15000 }); ffmpegOk = true } catch (_e) { ffmpegOk = false }
+    out.steps.ffmpeg_available = { pass: ffmpegOk }
+    if (!ffmpegOk) { out.error = 'ffmpeg not installed'; out.pass = false; return res.json(out) }
+
+    // 1) Generate a genuine M4A/AAC source tone
+    execSync(`ffmpeg -f lavfi -i "sine=frequency=440:duration=2" -c:a aac -b:a 96k -y "${m4aPath}"`, { stdio: 'pipe', timeout: 30000 })
+    const srcMagic = magicOf(fsp.readFileSync(m4aPath).subarray(0, 16))
+    out.steps.source_is_real_m4a = { pass: srcMagic === 'mp4', detected: srcMagic, detectorSays: audioLibraryService.detectAudioFormat(fsp.readFileSync(m4aPath)) }
+
+    // 2) Run through the REAL import path, mislabeled as a .mp3 / audio/mpeg
+    const sourceUrl = `http://127.0.0.1:${process.env.PORT || 5000}/assets/user-audio/${m4aName}`
+    const saved = await audioLibraryService.downloadAndSave(sourceUrl, 'DEVTEST-TRANSCODE', 'evil.mp3', 'audio/mpeg')
+    savedFilename = saved.filename
+    const savedMagic = magicOf(fsp.readFileSync(saved.localPath).subarray(0, 16))
+    out.steps.saved_file_is_real_mp3 = { pass: savedMagic === 'mp3', detected: savedMagic, filename: saved.filename }
+
+    // 3) The MongoDB backup must also be a real MP3
+    const storeDoc = await db.collection('ivrAudioStore').findOne({ filename: saved.filename })
+    let storeMagic = 'missing'
+    if (storeDoc && storeDoc.buffer) storeMagic = magicOf(Buffer.from(storeDoc.buffer, 'base64').subarray(0, 16))
+    out.steps.ivrAudioStore_is_real_mp3 = { pass: storeMagic === 'mp3', detected: storeMagic }
+
+    // 4) Serve it over HTTP and confirm it comes back as audio (post-transcode)
+    const served = await new Promise((resolve) => {
+      http.get(`http://127.0.0.1:${process.env.PORT || 5000}/assets/user-audio/${saved.filename}`, (r) => {
+        let size = 0; r.on('data', c => { size += c.length }); r.on('end', () => resolve({ status: r.statusCode, contentType: r.headers['content-type'] || '', size }))
+      }).on('error', (e) => resolve({ status: -1, error: e.message }))
+    })
+    out.steps.served_ok = { pass: served.status === 200 && served.size > 0, ...served }
+  } catch (e) {
+    out.error = e.message
+  } finally {
+    try { if (fsp.existsSync(m4aPath)) fsp.unlinkSync(m4aPath); out.cleanup.source = 'removed' } catch (_e) { /* ignore */ }
+    try {
+      if (savedFilename) {
+        const p = pathp.join(dir, savedFilename)
+        if (fsp.existsSync(p)) fsp.unlinkSync(p)
+        await db.collection('ivrAudioStore').deleteOne({ filename: savedFilename })
+        out.cleanup.saved = 'removed'
+      }
+    } catch (_e) { /* best-effort */ }
+  }
+  out.pass = !out.error && Object.values(out.steps).every(s => s && s.pass)
+  return res.json(out)
+})
+
 
 
 

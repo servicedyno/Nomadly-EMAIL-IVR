@@ -2,7 +2,9 @@
 # Pin nixpkgs to stable 25.05 release — prevents GitHub 504 timeouts on unstable/master refs
 nixPkgsArchive = 'https://github.com/NixOS/nixpkgs/archive/refs/tags/25.05.tar.gz'
 # Disable automatic Chromium detection for puppeteer-core (using external Browserless service)
-aptPkgs = []
+# Install ffmpeg — required to transcode mislabeled/uploaded audio (M4A/AAC, OGG,
+# etc.) into real MP3 for telephony <Play>. Without it callers hear static.
+aptPkgs = ['ffmpeg']
 
 [phases.install]
 # Use npm ci for faster, reproducible builds with yarn.lock (now fixed to use puppeteer-core)

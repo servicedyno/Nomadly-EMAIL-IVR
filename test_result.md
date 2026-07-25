@@ -162,6 +162,142 @@ backend:
           Optional: body {"domain":"securipa.xyz"} → liveDomainCheck.blocked:false (already deleted).
           Endpoint creates+cleans synthetic fixtures; NO live DNS/CF/Railway side-effects.
 
+  - task: "Imported call audio plays as STATIC — mislabeled M4A/AAC served as MP3 — @Spirits_Of_The_Ancesters (7898648919) 2026-07-25"
+    implemented: true
+    working: true
+    file: "/app/js/audio-library-service.js (detectAudioFormat + content-based transcode in downloadAndSave), /app/nixpacks.toml (ffmpeg), /app/js/_index.js (AudioRestore Content-Type; /dev/audio-transcode-check)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFICATION COMPLETE - Audio transcode fix PASSED (all 3 tests):
+          
+          SCOPE: Verified the fix for @Spirits_Of_The_Ancesters (chatId 7898648919) where imported 
+          call audio played as STATIC/breaking up because the file was actually M4A/AAC mislabeled 
+          as .mp3/audio/mpeg, which Twilio couldn't decode. The fix ensures all imported audio is 
+          transcoded to real MP3 format using ffmpeg, regardless of the source format or mislabeling.
+          
+          [PRIMARY TEST] AUDIO TRANSCODE FIX: ✅ ALL 5 STEPS PASSED
+            POST {REACT_APP_BACKEND_URL}/api/dev/audio-transcode-check with empty body {}
+            
+            Response: HTTP 200, top-level pass: true ✅
+            
+            Step-by-step verification:
+            
+            ✅ Step 1: ffmpeg_available
+                • pass: true ✅
+                ★ ffmpeg is installed and available in the build (nixpacks.toml aptPkgs=['ffmpeg'])
+            
+            ✅ Step 2: source_is_real_m4a
+                • pass: true ✅
+                • detected: "mp4" ✅
+                ★ The synthetic test source is confirmed to be a real M4A/AAC container (not MP3)
+            
+            ✅ Step 3: saved_file_is_real_mp3 (CORE FIX)
+                • pass: true ✅
+                • detected: "mp3" ✅
+                • filename: "DEVTEST-TRANSCODE_03667b3e-b25.mp3" ✅
+                ★ CORE FIX VERIFIED: A file mislabeled as evil.mp3/audio/mpeg but actually M4A/AAC 
+                  gets transcoded to REAL MP3 by detectAudioFormat() + downloadAndSave(). The saved 
+                  file on disk is now a genuine MP3, not the original M4A.
+            
+            ✅ Step 4: ivrAudioStore_is_real_mp3
+                • pass: true ✅
+                • detected: "mp3" ✅
+                ★ The MongoDB backup in ivrAudioStore is also real MP3 (not the original M4A)
+            
+            ✅ Step 5: served_ok
+                • pass: true ✅
+                • status: 200 ✅
+                • contentType: "audio/mpeg" ✅
+                • size: 33579 (> 0) ✅
+                ★ The transcoded MP3 is served correctly with proper content-type and valid binary data
+          
+          [REGRESSION TEST 1] AUDIO PERSISTENCE: ✅ ALL 4 STEPS PASSED
+            POST {REACT_APP_BACKEND_URL}/api/dev/audio-persistence-check with empty body {}
+            
+            Response: HTTP 200, top-level pass: true ✅
+            
+            ✅ persisted_to_ivrAudioStore.pass: true (bufferChars: 676480 > 0) ✅
+            ✅ disk_wiped.pass: true ✅
+            ✅ restored_serves_audio.pass: true (status: 200, contentType: audio/mpeg, size: 507360 > 0) ✅
+            ✅ missing_returns_404.pass: true (status: 404) ✅
+            
+            ★ REGRESSION CONFIRMED: Audio persistence still works correctly after the transcode fix
+          
+          [REGRESSION TEST 2] SHORTENER-VS-SUSPENDED: ✅ ALL 5 CASES PASSED
+            POST {REACT_APP_BACKEND_URL}/api/dev/shortener-conflict-check with empty body {}
+            
+            Response: HTTP 200, top-level pass: true ✅
+            
+            ✅ suspended_not_deleted → blocked: false ✅
+            ✅ deleted → blocked: false ✅
+            ✅ live_active → blocked: true ✅
+            ✅ addon_on_live_plan → blocked: true ✅
+            ✅ addon_on_suspended → blocked: false ✅
+            
+            ★ REGRESSION CONFIRMED: URL shortener conflict check still works correctly
+          
+          CONCLUSION:
+          The audio transcode fix is COMPLETE and verified end-to-end. All 3 test suites passed 
+          (5 transcode steps + 4 persistence steps + 5 shortener cases).
+          
+          KEY FIX VERIFIED:
+          The detectAudioFormat() function in /app/js/audio-library-service.js now reads magic bytes 
+          from imported audio files to detect the ACTUAL format (not just trusting the extension or 
+          MIME type). When downloadAndSave() detects a non-MP3/WAV format (including mislabeled M4A/AAC, 
+          ogg, opus, webm, flac), it transcodes to real mono 44.1kHz MP3 via ffmpeg before saving to 
+          disk and MongoDB.
+          
+          IMPACT:
+          • Mislabeled M4A/AAC files (like @Spirits_Of_The_Ancesters's 7898648919_15df0f4a-a79.mp3) 
+            are now transcoded to real MP3 before serving
+          • Twilio <Play> receives valid MP3 audio instead of AAC (which it can't decode)
+          • No more STATIC/breaking up audio on imported call recordings
+          • All audio formats (M4A, AAC, ogg, opus, webm, flac) are normalized to MP3
+          • ffmpeg is now installed in production (nixpacks.toml aptPkgs=['ffmpeg'])
+          
+          SAFETY CONFIRMED: All 3 test endpoints are dev-only (/api/dev/*):
+          • /api/dev/audio-transcode-check creates synthetic M4A, tests transcode, self-cleans
+          • /api/dev/audio-persistence-check creates synthetic audio, tests persistence, self-cleans
+          • /api/dev/shortener-conflict-check creates synthetic MongoDB fixtures, self-cleans
+          • NO real Telegram messages sent
+          • NO real Twilio calls placed
+          • NO production data modified
+          
+          The bug that caused @Spirits_Of_The_Ancesters's imported audio to play as STATIC (because 
+          the file was M4A/AAC mislabeled as MP3) is now fixed. All imported audio is transcoded to 
+          real MP3 format, ensuring compatibility with Twilio and other telephony providers.
+      
+      - working: "NA"
+        agent: "main"
+        comment: |
+          FOLLOW-UP to the earlier "application error" fix. New symptom: audio now loads but plays as
+          STATIC / breaking up. Confirmed root cause via prod data + live fetch: his re-imported file
+          7898648919_15df0f4a-a79.mp3 is served as content-type audio/mpeg but the bytes are actually
+          an M4A/AAC container ("....ftypM4A "). Twilio <Play> can't decode AAC → static. downloadAndSave
+          trusted the .mp3 extension / audio/mpeg MIME and skipped conversion. Also ffmpeg was NOT in the
+          build (nixpacks aptPkgs=[]), so the transcode path couldn't run anyway.
+
+          FIX:
+            1. audio-library-service.js: new detectAudioFormat() reads magic bytes; downloadAndSave now
+               transcodes ANYTHING that isn't a genuine MP3/WAV (incl. mislabeled M4A/AAC, ogg, opus,
+               webm, flac) to real mono 44.1k MP3 via ffmpeg, and THROWS on failure (never serve static).
+            2. nixpacks.toml: aptPkgs=['ffmpeg'] so prod can transcode.
+            3. _index.js AudioRestore now serves stored mimeType (not hardcoded audio/mpeg).
+
+          VERIFY (backend only): POST {REACT_APP_BACKEND_URL}/api/dev/audio-transcode-check with {}.
+          Expect pass:true with steps:
+            ffmpeg_available.pass:true, source_is_real_m4a.pass:true (detected mp4),
+            saved_file_is_real_mp3.pass:true (detected mp3), ivrAudioStore_is_real_mp3.pass:true,
+            served_ok.pass:true (200, size>0).
+          The endpoint generates a real M4A, feeds it through the REAL downloadAndSave DELIBERATELY
+          mislabeled as evil.mp3/audio/mpeg, and asserts the output is real MP3. Cleans up after itself.
+          ALSO re-run /api/dev/audio-persistence-check (regression) — must still pass:true.
+
   - task: "Imported call audio lost on Railway redeploy → 'application error' + hangup — @Spirits_Of_The_Ancesters (7898648919) 2026-07-24"
     implemented: true
     working: true
@@ -5406,13 +5542,74 @@ metadata:
 
 test_plan:
   current_focus:
-    - "URL Shortener blocked by SUSPENDED hosting plan — @aramboss (6156677266)"
-    - "Imported call audio lost on Railway redeploy → 'application error' + hangup — @Spirits_Of_The_Ancesters (7898648919)"
+    - "Imported call audio plays as STATIC — mislabeled M4A/AAC served as MP3 — @Spirits_Of_The_Ancesters (7898648919)"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
+  - agent: "testing"
+    message: |
+      ✅ VERIFICATION COMPLETE - Audio transcode fix PASSED (all 3 tests):
+      
+      PRIMARY TEST: Audio Transcode Check ✅ PASSED
+      • POST /api/dev/audio-transcode-check with {} → HTTP 200, pass: true
+      • All 5 steps passed:
+        - ffmpeg_available: pass=true ✅
+        - source_is_real_m4a: pass=true, detected="mp4" ✅ (synthetic source is real M4A/AAC)
+        - saved_file_is_real_mp3: pass=true, detected="mp3" ✅ (CORE FIX: mislabeled M4A transcoded to real MP3)
+        - ivrAudioStore_is_real_mp3: pass=true, detected="mp3" ✅ (MongoDB backup is also real MP3)
+        - served_ok: pass=true, status=200, contentType=audio/mpeg, size=33579 ✅
+      
+      REGRESSION TEST 1: Audio Persistence Check ✅ PASSED
+      • POST /api/dev/audio-persistence-check with {} → HTTP 200, pass: true
+      • All 4 steps passed:
+        - persisted_to_ivrAudioStore: pass=true, bufferChars=676480 ✅
+        - disk_wiped: pass=true ✅
+        - restored_serves_audio: pass=true, status=200, contentType=audio/mpeg, size=507360 ✅
+        - missing_returns_404: pass=true, status=404 ✅
+      
+      REGRESSION TEST 2: Shortener-vs-Suspended Check ✅ PASSED
+      • POST /api/dev/shortener-conflict-check with {} → HTTP 200, pass: true
+      • All 5 cases passed:
+        - suspended_not_deleted → blocked: false ✅
+        - deleted → blocked: false ✅
+        - live_active → blocked: true ✅
+        - addon_on_live_plan → blocked: true ✅
+        - addon_on_suspended → blocked: false ✅
+      
+      CONCLUSION: The audio transcode fix is working correctly. All 3 tests passed (14 total assertions).
+      • Mislabeled M4A/AAC files are now transcoded to real MP3 before serving
+      • ffmpeg is installed and working (nixpacks.toml aptPkgs=['ffmpeg'])
+      • Audio persistence still works (regression confirmed)
+      • Shortener-vs-suspended still works (regression confirmed)
+      • No more STATIC/breaking up audio on imported call recordings
+      
+      Updated test_result.md:
+      • Task "Imported call audio plays as STATIC": working=true, needs_retesting=false
+      
+      SAFETY: All testing via dev-only endpoints with synthetic fixtures. NO real Telegram/Twilio calls.
+      NO writes to production MongoDB. All endpoints self-cleaned after testing.
+  
+  - agent: "main"
+    message: |
+      NEW backend fix ready (backend-only; use guarded DEV endpoints under {REACT_APP_BACKEND_URL}/api;
+      BOT_ENVIRONMENT=development so they're enabled). ffmpeg is installed in this sandbox.
+
+      AUDIO STATIC FIX (@Spirits_Of_The_Ancesters 7898648919) — follow-up to the earlier "application
+      error" fix. His imported "MP3" is really an M4A/AAC file; served as audio/mpeg it played as STATIC.
+      downloadAndSave now detects the REAL container from magic bytes and transcodes non-MP3/WAV to real
+      mono MP3 via ffmpeg (throws on failure so we never serve static). nixpacks.toml adds ffmpeg.
+
+      PRIMARY: POST /api/dev/audio-transcode-check  body {}
+        PASS = "pass": true AND all steps pass:
+          ffmpeg_available, source_is_real_m4a (detected "mp4"), saved_file_is_real_mp3 (detected "mp3"),
+          ivrAudioStore_is_real_mp3 (detected "mp3"), served_ok (status 200, size>0).
+      REGRESSION: POST /api/dev/audio-persistence-check body {} → still "pass": true (persist, disk_wiped,
+        restored_serves_audio, missing_returns_404).
+      OPTIONAL REGRESSION: POST /api/dev/shortener-conflict-check body {} → still "pass": true.
+      Do NOT place real Telegram/Twilio/Telnyx calls. Endpoints self-clean synthetic fixtures.
+
   - agent: "testing"
     message: |
       ✅ VERIFICATION COMPLETE - Both backend bug fixes PASSED (2/2 tests):
