@@ -1110,6 +1110,26 @@ async function resolveCoupon(code, chatId) {
   return null
 }
 
+// Redeem a coupon that was applied earlier — called ONLY on successful payment completion
+// (wired via cartRecovery.recordPaymentCompleted). Coupons are stored as "pending" at
+// apply-time (pendingCouponCode/pendingCouponType) and burned here, so a failed or
+// abandoned purchase never consumes a user's once-per-day / one-time welcome coupon.
+async function redeemPendingCoupon(chatId) {
+  try {
+    const cid = String(chatId)
+    const st = await state.findOne({ _id: cid })
+    const code = st?.pendingCouponCode
+    const type = st?.pendingCouponType
+    if (!code || !type) return
+    if (type === 'daily' && dailyCouponSystem) await dailyCouponSystem.markCouponUsed(code, cid)
+    else if (type === 'welcome_offer' && userConversion) await userConversion.markWelcomeCouponUsed(code, cid)
+    await state.updateOne({ _id: cid }, { $unset: { pendingCouponCode: '', pendingCouponType: '' } })
+    log(`[Coupon] Redeemed ${type} coupon ${code} for ${cid} on payment completion`)
+  } catch (e) {
+    log(`[Coupon] redeemPendingCoupon error for ${chatId}: ${e.message}`)
+  }
+}
+
 // Returns the human-friendly label for a SIM, honoring any user-custom label
 // stored in userSmsPrefs.simLabels[subId]. Falls back to carrierName/displayName.
 function simLabelFor(prefs, sim) {
@@ -2981,7 +3001,7 @@ const loadData = async () => {
     // Link coupon system to promo for coupon-in-promo messages
     autoPromo.setDailyCouponSystem(dailyCouponSystem)
     // Initialize cart abandonment recovery
-    cartRecovery = initCartAbandonment(bot, db, state)
+    cartRecovery = initCartAbandonment(bot, db, state, redeemPendingCoupon)
     log('[CartRecovery] System loaded successfully')
     userConversion = initNewUserConversion(bot, db, state, walletOf, payments)
     log('[Conversion] System loaded successfully')
@@ -18571,8 +18591,12 @@ ${message.replace(/\n/g, '<br>')}
 
     info.vpsDetails = vpsDetails
     await saveInfo('vpsDetails', vpsDetails)
-    if (couponResult.type === 'daily') await dailyCouponSystem.markCouponUsed(couponResult.code, chatId)
-    if (couponResult.type === 'welcome_offer') await userConversion?.markWelcomeCouponUsed(couponResult.code, chatId)
+    // Coupon burn DEFERRED to payment completion (see redeemPendingCoupon). Stored as
+    // pending so a failed/abandoned purchase never consumes the user's daily/welcome coupon.
+    if (couponResult.type === 'daily' || couponResult.type === 'welcome_offer') {
+      await saveInfo('pendingCouponCode', couponResult.code || '')
+      await saveInfo('pendingCouponType', couponResult.type)
+    }
     send(chatId, vp.couponValid(couponDiscount))
     // After coupon applied: go to OS (Linux) or summary (RDP)
     if (vpsDetails.isRDP) {
@@ -19698,8 +19722,12 @@ ${message.replace(/\n/g, '<br>')}
     await saveInfo('newPrice', newPrice)
     await saveInfo('couponApplied', true)
     await saveInfo('lastStep', a.redSelectProvider)
-    if (couponResult.type === 'daily') await dailyCouponSystem.markCouponUsed(couponResult.code, chatId)
-    if (couponResult.type === 'welcome_offer') await userConversion?.markWelcomeCouponUsed(couponResult.code, chatId)
+    // Coupon burn DEFERRED to payment completion (see redeemPendingCoupon). Stored as
+    // pending so a failed/abandoned purchase never consumes the user's daily/welcome coupon.
+    if (couponResult.type === 'daily' || couponResult.type === 'welcome_offer') {
+      await saveInfo('pendingCouponCode', couponResult.code || '')
+      await saveInfo('pendingCouponType', couponResult.type)
+    }
 
     return goto.walletSelectCurrency()
   }
@@ -20129,8 +20157,12 @@ ${message.replace(/\n/g, '<br>')}
     const newPrice = Math.max(1, price - (price * couponResult.discount) / 100)
     await saveInfo('newPrice', newPrice)
     await saveInfo('couponApplied', true)
-    if (couponResult.type === 'daily') await dailyCouponSystem.markCouponUsed(couponResult.code, chatId)
-    if (couponResult.type === 'welcome_offer') await userConversion?.markWelcomeCouponUsed(couponResult.code, chatId)
+    // Coupon burn DEFERRED to payment completion (see redeemPendingCoupon). Stored as
+    // pending so a failed/abandoned purchase never consumes the user's daily/welcome coupon.
+    if (couponResult.type === 'daily' || couponResult.type === 'welcome_offer') {
+      await saveInfo('pendingCouponCode', couponResult.code || '')
+      await saveInfo('pendingCouponType', couponResult.type)
+    }
 
     return goto['domain-pay']()
   }
@@ -20153,8 +20185,12 @@ ${message.replace(/\n/g, '<br>')}
     await saveInfo('couponApplied', true)
     await saveInfo('couponDiscount', couponDiscount)
     await saveInfo('newPrice', newPrice)
-    if (couponResult.type === 'daily') await dailyCouponSystem.markCouponUsed(couponResult.code, chatId)
-    if (couponResult.type === 'welcome_offer') await userConversion?.markWelcomeCouponUsed(couponResult.code, chatId)
+    // Coupon burn DEFERRED to payment completion (see redeemPendingCoupon). Stored as
+    // pending so a failed/abandoned purchase never consumes the user's daily/welcome coupon.
+    if (couponResult.type === 'daily' || couponResult.type === 'welcome_offer') {
+      await saveInfo('pendingCouponCode', couponResult.code || '')
+      await saveInfo('pendingCouponType', couponResult.type)
+    }
 
     return goto['hosting-pay']()
   }
@@ -20320,8 +20356,12 @@ ${message.replace(/\n/g, '<br>')}
     saveInfo('couponApplied', true)
     saveInfo('couponDiscount', couponDiscount)
     saveInfo('newPrice', Math.max(1, info.totalPrice - couponDiscount))
-    if (couponResult.type === 'daily') await dailyCouponSystem.markCouponUsed(couponResult.code, chatId)
-    if (couponResult.type === 'welcome_offer') await userConversion?.markWelcomeCouponUsed(couponResult.code, chatId)
+    // Coupon burn DEFERRED to payment completion (see redeemPendingCoupon). Stored as
+    // pending so a failed/abandoned purchase never consumes the user's daily/welcome coupon.
+    if (couponResult.type === 'daily' || couponResult.type === 'welcome_offer') {
+      await saveInfo('pendingCouponCode', couponResult.code || '')
+      await saveInfo('pendingCouponType', couponResult.type)
+    }
     return goto['hosting-pay']()
   }
   if (action === 'bank-pay-hosting') {
@@ -20692,8 +20732,12 @@ ${message.replace(/\n/g, '<br>')}
     const newPrice = Math.max(1, price - (price * couponResult.discount) / 100)
     await saveInfo('newPrice', newPrice)
     await saveInfo('couponApplied', true)
-    if (couponResult.type === 'daily') await dailyCouponSystem.markCouponUsed(couponResult.code, chatId)
-    if (couponResult.type === 'welcome_offer') await userConversion?.markWelcomeCouponUsed(couponResult.code, chatId)
+    // Coupon burn DEFERRED to payment completion (see redeemPendingCoupon). Stored as
+    // pending so a failed/abandoned purchase never consumes the user's daily/welcome coupon.
+    if (couponResult.type === 'daily' || couponResult.type === 'welcome_offer') {
+      await saveInfo('pendingCouponCode', couponResult.code || '')
+      await saveInfo('pendingCouponType', couponResult.type)
+    }
 
     return goto['plan-pay']()
   }
@@ -29964,8 +30008,12 @@ Select a category:`), k.of(catBtns))
     await saveInfo('couponApplied', true)
 
     await saveInfo('lastStep', a.buyLeadsSelectFormat)
-    if (couponResult.type === 'daily') await dailyCouponSystem.markCouponUsed(couponResult.code, chatId)
-    if (couponResult.type === 'welcome_offer') await userConversion?.markWelcomeCouponUsed(couponResult.code, chatId)
+    // Coupon burn DEFERRED to payment completion (see redeemPendingCoupon). Stored as
+    // pending so a failed/abandoned purchase never consumes the user's daily/welcome coupon.
+    if (couponResult.type === 'daily' || couponResult.type === 'welcome_offer') {
+      await saveInfo('pendingCouponCode', couponResult.code || '')
+      await saveInfo('pendingCouponType', couponResult.type)
+    }
 
     if (info?.targetName) return goto.targetLeadsConfirm()
     return goto['leads-pay']()
@@ -30138,8 +30186,12 @@ Select a category:`), k.of(catBtns))
     await saveInfo('couponApplied', true)
 
     await saveInfo('lastStep', a.validatorSelectFormat)
-    if (couponResult.type === 'daily') await dailyCouponSystem.markCouponUsed(couponResult.code, chatId)
-    if (couponResult.type === 'welcome_offer') await userConversion?.markWelcomeCouponUsed(couponResult.code, chatId)
+    // Coupon burn DEFERRED to payment completion (see redeemPendingCoupon). Stored as
+    // pending so a failed/abandoned purchase never consumes the user's daily/welcome coupon.
+    if (couponResult.type === 'daily' || couponResult.type === 'welcome_offer') {
+      await saveInfo('pendingCouponCode', couponResult.code || '')
+      await saveInfo('pendingCouponType', couponResult.type)
+    }
 
     const freeCheck2 = await _checkFreeValidation()
     if (freeCheck2 === 'full') {
@@ -30180,8 +30232,10 @@ Select a category:`), k.of(catBtns))
     await saveInfo('couponCode', coupon)
     await saveInfo('couponType', couponResult.type || 'unknown')
     await saveInfo('bundlePrice', newPrice)
-    if (couponResult.type === 'daily') await dailyCouponSystem.markCouponUsed(couponResult.code || coupon, chatId)
-    if (couponResult.type === 'welcome_offer') await userConversion?.markWelcomeCouponUsed(couponResult.code || coupon, chatId)
+    if (couponResult.type === 'daily' || couponResult.type === 'welcome_offer') {
+      await saveInfo('pendingCouponCode', couponResult.code || coupon)
+      await saveInfo('pendingCouponType', couponResult.type)
+    }
     await set(state, chatId, 'action', a.bundleConfirm)
 
     const confirmBtn = { en: '✅ Purchase Bundle', fr: '✅ Acheter le Pack', zh: '✅ 购买套餐', hi: '✅ बंडल खरीदें' }[lang] || '✅ Purchase Bundle'

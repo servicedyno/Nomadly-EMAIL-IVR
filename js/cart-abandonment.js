@@ -242,7 +242,7 @@ const NUDGE_MESSAGES = {
 // treat it as abandonment (they closed the app without pressing Back/Cancel)
 const SILENT_TIMEOUT_MS = 20 * 60 * 1000 // 20 minutes of silence = abandoned
 
-function initCartAbandonment(bot, db, stateCol) {
+function initCartAbandonment(bot, db, stateCol, onPaymentCompleted) {
   const abandonedCarts = db.collection('abandonedCarts')
 
   // Cooldown: don't nudge the same user more than once per 24 hours
@@ -330,6 +330,11 @@ function initCartAbandonment(bot, db, stateCol) {
         { $set: { status: 'completed', completed: true, completedAt: new Date() } }
       )
       log(`[CartRecovery] Payment completed for ${cid} — cart cleared`)
+      // Redeem any coupon that was applied to this purchase (deferred burn — coupons are
+      // only consumed on actual payment completion, never on a failed/abandoned attempt).
+      if (typeof onPaymentCompleted === 'function') {
+        try { await onPaymentCompleted(cid) } catch (e) { /* non-critical */ }
+      }
     } catch (err) {
       // Non-critical
     }

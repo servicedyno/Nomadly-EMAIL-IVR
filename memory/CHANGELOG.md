@@ -1,3 +1,15 @@
+## 2026-07-26 — Coupon "expired" complaint fix (deferred burn)
+
+Prod user @Grrt2231 complained a coupon "expired". Root cause: coupons were burned at APPLY-time
+(not payment-time), so their failed interac.live purchase permanently consumed their daily coupon
+`NMD10VEQH5U`; re-applying said "already used today" → read as "expired". Restored their coupon
+(reversible DB fix). Systemic fix (user approved): coupons now stored as PENDING at apply-time and
+burned ONLY on payment completion via a new `redeemPendingCoupon` wired into
+`cartRecovery.recordPaymentCompleted`. Changed all 9 apply-sites + cart-abandonment + daily-coupons
+($addToSet). Verified via js/tests/test_deferred_coupon_burn.js (re-apply-after-fail now works;
+single-use/day preserved). Details: memory/COUPON_DEFERRED_BURN_FIX_2026-07-26.md
+
+
 ## 2026-07-26 — Railway 72h anomaly scan + orphaned-number fix
 
 Scanned prod Railway logs (last 72h). HostingBotNew clean. Nomadly-EMAIL-IVR (node bot):

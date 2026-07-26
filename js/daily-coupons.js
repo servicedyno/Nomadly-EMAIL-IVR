@@ -62,7 +62,7 @@ function initDailyCoupons(db, bot, nameOfCol, stateCol) {
     const today = new Date().toISOString().slice(0, 10)
     await dailyCouponsCol.updateOne(
       { date: today },
-      { $push: { [`codes.${code}.usedBy`]: chatId } }
+      { $addToSet: { [`codes.${code}.usedBy`]: chatId } }
     )
     log(`[DailyCoupon] ${code} used by ${chatId}`)
   }
