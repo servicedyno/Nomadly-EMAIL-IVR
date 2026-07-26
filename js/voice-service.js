@@ -62,6 +62,10 @@ const lastIvrCallParams = new Map() // chatId → last IVR call params for Redia
 const _endedCalls = new Set()
 const ENDED_CALL_TTL_MS = 60_000 // Auto-cleanup after 60s
 
+// Throttles admin alerts for orphaned (no-owner) inbound numbers: phoneNumber → last-alert ms.
+// A single de-provisioned number hammered by a robocaller must not spam the admin chat.
+const _orphanAlertThrottle = new Map()
+
 function markCallEnded(callControlId) {
   if (!callControlId) return
   _endedCalls.add(callControlId)
@@ -2015,18 +2019,21 @@ async function handleCallInitiated(payload) {
   const { chatId, num } = await findNumberOwner(to)
   if (!chatId || !num) {
     log(`[Voice] ⚠️ ORPHANED NUMBER: No owner found for ${to} — inbound call from ${from} rejected. Number may need cleanup.`)
-    // Alert admin about orphaned number
-    if (_bot && process.env.TELEGRAM_ADMIN_CHAT_ID) {
-      const msg = _trans('vs.orphanedNumberAlert', 'en', to, from)
-      if (msg) _bot.sendMessage(process.env.TELEGRAM_ADMIN_CHAT_ID, msg, { parse_mode: 'HTML' }).catch(() => {})
-    }
-    // Play "not in service" message so caller knows not to redial
-    try {
-      await _telnyxApi.answerCall(callControlId)
-      await _telnyxApi.speakOnCall(callControlId, 'The number you have dialed is no longer in service. Please check the number and try again.')
-      setTimeout(() => _telnyxApi.hangupCall(callControlId).catch(() => {}), 5000)
-    } catch {
-      await _telnyxApi.hangupCall(callControlId).catch(() => {})
+    // Reject BEFORE answering. A robocaller/scanner flooding an orphaned or
+    // de-provisioned number sends bursts of call.initiated that hang up in <1s;
+    // answering+speaking on those legs produced 90102 (answer on outbound leg) and
+    // 90034 (speak before answered) error storms. reject() sends a SIP rejection
+    // without ever answering — no billed answer, no error storm.
+    await _telnyxApi.rejectCall(callControlId, 'CALL_REJECTED').catch(() => {})
+    // Throttle the admin alert — one alert per number per 6h so a flood can't spam admin.
+    const _nowMs = Date.now()
+    const _lastAlert = _orphanAlertThrottle.get(to) || 0
+    if (_nowMs - _lastAlert > 6 * 3600000) {
+      _orphanAlertThrottle.set(to, _nowMs)
+      if (_bot && process.env.TELEGRAM_ADMIN_CHAT_ID) {
+        const msg = _trans('vs.orphanedNumberAlert', 'en', to, from)
+        if (msg) _bot.sendMessage(process.env.TELEGRAM_ADMIN_CHAT_ID, msg, { parse_mode: 'HTML' }).catch(() => {})
+      }
     }
     return
   }

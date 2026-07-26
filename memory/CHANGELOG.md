@@ -1,3 +1,16 @@
+## 2026-07-26 — Railway 72h anomaly scan + orphaned-number fix
+
+Scanned prod Railway logs (last 72h). HostingBotNew clean. Nomadly-EMAIL-IVR (node bot):
+FIXED #3 orphaned-number inbound storm — `handleCallInitiated` now `rejectCall()`s orphaned/no-owner
+numbers before answering (kills the answerCall 90102 + speakOnCall 90034 error storm caused by a
+robocaller flooding de-provisioned number +13513540093) and throttles the admin alert to 1/number/6h
+(`_orphanAlertThrottle`). Verified via js/tests/test_orphaned_number_reject.js.
+#5 AudioProxy 404 = self-resolved (legacy file, no remaining DB reference). #4 WHM-read-unreliable =
+already handled gracefully (infra latency). DEFERRED (config-only, per user): #1 Contabo invalid_client
+creds, #2 Connect Reseller prod-IP whitelist. LockbayNewFIX (separate python repo) has Fincra auth +
+balance_alert_state schema issues — needs its owner. Details: memory/RAILWAY_ANOMALY_SCAN_2026-07-26.md
+
+
 ## 2026-06 — Change Primary Domain (hosting) + AI-support knowledge
 
 New bot flow: 📋 My Hosting Plans → select plan → **🔄 Change Primary Domain**. Lets a user
