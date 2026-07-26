@@ -210,6 +210,8 @@ const user = {
  toggleAutoRenew: '🔁 切换自动续费',
  unlinkDomain: '🗑️ 解除域名绑定',
  addDomainToPlan: '➕ 添加域名到方案',
+ changePrimaryDomain: '🔄 更换主域名',
+ confirmChangePrimaryBtn: '✅ 是的，更换',
  confirmAttachBtn: '✅ 是的，添加',
  cancelHostingPlan: '🚫 取消主机方案',
  takeSiteOffline: '🔌 让网站下线',
@@ -2142,6 +2144,14 @@ host_4: (safeHtml) => `${safeHtml}`,
  // 添加附加域名到现有主机方案
  selectDomainToAttachHeader: mainDomain => `➕ <b>添加域名到方案</b>\n\n选择要附加到主机方案 (<code>${mainDomain}</code>) 的域名。\n\n仅显示在我们处注册且未关联到任何主机方案的域名。\n\n<i>新域名的文件将存放在 <code>public_html/&lt;域名&gt;/</code> 中，与主站独立。</i>`,
  noEligibleDomainsToAttach: '⚠️ 没有可用的域名。\n\n要附加域名到此方案，域名必须：\n• 在我们处注册，且\n• 尚未关联到任何主机方案。\n\n请注册新域名，然后返回此处附加。',
+
+ // 更换主机方案的主域名
+ selectDomainToMakePrimary: mainDomain => `🔄 <b>更换主域名</b>\n\n选择要成为此主机方案新主域名的域名（当前为 <code>${mainDomain}</code>）。\n\n仅显示您拥有且不是其他方案主域名的域名。\n\n<i>您的网站文件保持原位（<code>public_html/</code>）。cPanel 用户名和 PIN 保持不变。</i>`,
+ noEligibleDomainsToMakePrimary: '⚠️ 没有可用的域名。\n\n要更换主域名，您需要另一个域名，且该域名：\n• 在我们处注册（可在 🌐 防弹域名 购买），且\n• 尚未作为其他主机方案的主域名。\n\n请购买或注册一个域名，然后返回此处切换。',
+ confirmChangePrimaryDomain: (newDomain, oldDomain) => `⚠️ <b>确认更换主域名</b>\n\n将 <b>${newDomain}</b> 设为此方案的主域名？\n\n将会发生：\n• <b>${newDomain}</b> 成为您的主站域名\n• <b>${oldDomain}</b> 将从此主机方案移除 — 仍归您注册所有，仅解除主机关联\n• <code>public_html/</code> 中的文件保留，现由 <b>${newDomain}</b> 提供\n• 为 <b>${newDomain}</b> 配置 DNS + Anti-Red 保护\n• cPanel 用户名和 PIN 保持不变\n\n此操作<b>无法撤销</b>，且不予退款。\n\n继续？`,
+ changingPrimaryDomain: newDomain => `⏳ 正在将您的主域名切换为 <b>${newDomain}</b>...`,
+ changePrimaryDomainSuccess: (newDomain, oldDomain, panelUrl) => `✅ <b>${newDomain}</b> 现在是您的主域名！\n\n• <b>${oldDomain}</b> 已从此主机方案移除（仍归您注册）。\n• <code>public_html/</code> 中的现有文件现由 <b>${newDomain}</b> 提供。\n• cPanel 用户名和 PIN 不变。\n\n🔧 打开文件管理器：${panelUrl}\n\n⏱️ DNS 传播：通常 5 分钟内生效。\n🛡️ Anti-Red 保护：部署中（30 秒后验证）。`,
+ changePrimaryDomainFailed: (newDomain, error) => `❌ 无法将您的主域名切换为 <b>${newDomain}</b>。\n\n<code>${error}</code>\n\n您的方案未做任何更改。请重试或联系客服。`,
  confirmAttachDomain: (addonDomain, mainDomain, docRoot) => `🔗 <b>确认附加</b>\n\n将 <b>${addonDomain}</b> 附加到主机方案 (<code>${mainDomain}</code>)？\n\n后续步骤：\n• 创建 cPanel 附加域名条目（与主站隔离）\n• 文档根目录：<code>${docRoot}/</code>\n• 通过 Cloudflare 自动配置 DNS（根域+www → 隧道）\n• 部署 Anti-Red 保护\n• 清理旧 DNS（例如缩短器记录）\n\n<i>该文件夹内现有文件将保留。</i>\n\n继续？`,
  attachingDomain: addonDomain => `⏳ 正在将 <b>${addonDomain}</b> 附加到您的主机方案...`,
  attachDomainSuccess: (addonDomain, docRoot, panelUrl) => `✅ <b>${addonDomain}</b> 已连接到您的主机方案！\n\n📁 <b>网站文件上传位置</b>\n此域名的文件存放在：\n<code>${docRoot}/</code>\n\n不是 <code>public_html/</code> — 那是<i>主</i>域名文件的位置。每个附加域名有独立文件夹避免冲突。\n\n🔧 打开文件管理器：${panelUrl}\n\n⏱️ DNS 传播：通常 5 分钟内生效。\n🛡️ Anti-Red 保护：部署中（30 秒后验证）。`,

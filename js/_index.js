@@ -8226,6 +8226,8 @@ bot?.on('message', msg => {
     selectDomainToAttach: 'selectDomainToAttach',
     confirmAttachAddonDomain: 'confirmAttachAddonDomain',
     confirmUnlinkAddonDomain: 'confirmUnlinkAddonDomain',
+    selectDomainToMakePrimary: 'selectDomainToMakePrimary',
+    confirmChangePrimaryDomain: 'confirmChangePrimaryDomain',
     confirmCancelHostingPlan: 'confirmCancelHostingPlan',
     chooseSiteOfflineMode: 'chooseSiteOfflineMode',
     confirmSiteOfflineMode: 'confirmSiteOfflineMode',
@@ -10616,6 +10618,8 @@ Enter new value:`), bc)
       if (!atLimit) buttons.push([user.addDomainToPlan])
       // Allow user to unlink an addon domain (only when at least one is attached)
       if ((plan.addonDomains || []).length > 0) buttons.push([user.unlinkDomain])
+      // Allow user to swap the primary (main) domain of the plan
+      buttons.push([user.changePrimaryDomain])
       // Always allow cancelling the entire hosting plan
       buttons.push([user.cancelHostingPlan])
       buttons.push([user.backToMyHostingPlans])
@@ -14260,6 +14264,44 @@ All verified numbers generated during sourcing.`))
       btns.push([user.backToMyHostingPlans])
       return send(chatId, t.selectDomainToAttachHeader(domain), k.of(btns), { parse_mode: 'HTML' })
     }
+    if (message === user.changePrimaryDomain) {
+      const domain = info?.selectedHostingDomain
+      if (!domain) return goto.myHostingPlans()
+      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain, deleted: { $ne: true } })
+      if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
+
+      // Eligible = domains the user owns that are NOT the primary/addon of ANY OTHER
+      // hosting plan. Domains that are addons on THIS plan ARE eligible — we auto-remove
+      // them as an addon first before promoting them to primary.
+      const currentPrimary = (domain || '').toLowerCase()
+      const owned = await getPurchasedDomains(chatId)
+      const ownedLower = (owned || []).map(d => (d || '').toLowerCase()).filter(Boolean)
+      let eligible = []
+      if (ownedLower.length > 0) {
+        const usedRows = await cpanelAccounts.find(
+          { $or: [{ domain: { $in: ownedLower } }, { addonDomains: { $in: ownedLower } }], deleted: { $ne: true } },
+          { projection: { _id: 1, domain: 1, addonDomains: 1 } },
+        ).toArray()
+        const usedByOther = new Set()
+        for (const row of usedRows) {
+          if (String(row._id).toLowerCase() === String(plan._id).toLowerCase()) continue
+          if (row.domain) usedByOther.add(String(row.domain).toLowerCase())
+          if (Array.isArray(row.addonDomains)) {
+            for (const ad of row.addonDomains) if (ad) usedByOther.add(String(ad).toLowerCase())
+          }
+        }
+        eligible = ownedLower.filter(d => d !== currentPrimary && !usedByOther.has(d))
+      }
+
+      if (!eligible.length) {
+        return send(chatId, t.noEligibleDomainsToMakePrimary, k.of([[user.backToMyHostingPlans]]), { parse_mode: 'HTML' })
+      }
+
+      await set(state, chatId, 'action', a.selectDomainToMakePrimary)
+      const btns = eligible.map(d => [`🔄 ${d}`])
+      btns.push([user.backToMyHostingPlans])
+      return send(chatId, t.selectDomainToMakePrimary(domain), k.of(btns), { parse_mode: 'HTML' })
+    }
     if (message === user.unlinkDomain) {
       const domain = info?.selectedHostingDomain
       if (!domain) return goto.myHostingPlans()
@@ -14754,6 +14796,148 @@ All verified numbers generated during sourcing.`))
       }
     }
     return goto.viewHostingPlanDetails(domain)
+  }
+
+  // ── Change Primary Domain — pick the new primary ──
+  if (action === a.selectDomainToMakePrimary) {
+    if (message === user.backToMyHostingPlans || isBackPress(message)) {
+      return goto.viewHostingPlanDetails(info?.selectedHostingDomain)
+    }
+    const domain = info?.selectedHostingDomain
+    if (!domain) return goto.myHostingPlans()
+    const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain, deleted: { $ne: true } })
+    if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
+    const match = (message || '').match(/^🔄\s+(.+)$/)
+    if (!match) return goto.viewHostingPlanDetails(domain)
+    const candidate = match[1].trim().toLowerCase()
+
+    // Verify ownership + not the current primary
+    const owned = await getPurchasedDomains(chatId)
+    const ownedLower = (owned || []).map(d => (d || '').toLowerCase())
+    if (!ownedLower.includes(candidate)) return goto.viewHostingPlanDetails(domain)
+    if (candidate === (domain || '').toLowerCase()) return goto.viewHostingPlanDetails(domain)
+
+    // Reject if it's the primary/addon of a DIFFERENT plan
+    const onOther = await cpanelAccounts.findOne({
+      $or: [{ domain: candidate }, { addonDomains: candidate }],
+      deleted: { $ne: true },
+      _id: { $ne: plan._id },
+    })
+    if (onOther) {
+      return send(chatId, t.attachDomainAlreadyOnPlan(candidate), k.of([[user.backToMyHostingPlans]]), { parse_mode: 'HTML' })
+    }
+
+    saveInfo('makePrimaryDomain', candidate)
+    await set(state, chatId, 'action', a.confirmChangePrimaryDomain)
+    return send(chatId, t.confirmChangePrimaryDomain(candidate, domain), k.of([[user.confirmChangePrimaryBtn], [user.cancelGoBackBtn]]), { parse_mode: 'HTML' })
+  }
+
+  // ── Change Primary Domain — confirm & execute ──
+  if (action === a.confirmChangePrimaryDomain) {
+    if (message === user.cancelGoBackBtn || message === user.backToMyHostingPlans || isBackPress(message)) {
+      saveInfo('makePrimaryDomain', null)
+      return goto.viewHostingPlanDetails(info?.selectedHostingDomain)
+    }
+    if (message !== user.confirmChangePrimaryBtn) {
+      return send(chatId, trans('t.selectCorrectOption'), k.of([[user.confirmChangePrimaryBtn], [user.cancelGoBackBtn]]))
+    }
+
+    const oldDomain = info?.selectedHostingDomain
+    const candidate = info?.makePrimaryDomain
+    if (!oldDomain || !candidate) return goto.myHostingPlans()
+    const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain: oldDomain, deleted: { $ne: true } })
+    if (!plan) return send(chatId, trans('t.planNotFound'), k.of([[user.backToMyHostingPlans]]))
+
+    await send(chatId, t.changingPrimaryDomain(candidate), { parse_mode: 'HTML' })
+
+    const whmService = require('./whm-service')
+    const whmHost = plan.whmHost || process.env.WHM_HOST
+    const isAddonOnThisPlan = (plan.addonDomains || []).map(d => (d || '').toLowerCase()).includes(candidate)
+
+    // A domain can't be both an addon and the primary on the same account —
+    // remove it as an addon first so cPanel accepts the modifyacct.
+    if (isAddonOnThisPlan) {
+      try {
+        const cpanelAuth = require('./cpanel-auth')
+        const cpProxy = require('./cpanel-proxy')
+        let cpPass = null
+        try {
+          cpPass = cpanelAuth.decrypt({ encrypted: plan.cpPass_encrypted, iv: plan.cpPass_iv, tag: plan.cpPass_tag })
+        } catch (e) { log(`[ChangePrimary] decrypt cpPass failed for ${plan.cpUser}: ${e.message}`) }
+        if (cpPass) {
+          await cpProxy.removeAddonDomain(plan.cpUser, cpPass, candidate, undefined, plan.domain, whmHost).catch(e => log(`[ChangePrimary] removeAddonDomain warning: ${e.message}`))
+        }
+        await cpanelAccounts.updateOne({ _id: plan._id }, { $pull: { addonDomains: candidate } })
+      } catch (e) {
+        log(`[ChangePrimary] addon pre-removal warning: ${e.message}`)
+      }
+    }
+
+    let result
+    try {
+      result = await whmService.changePrimaryDomain(plan.cpUser, candidate)
+    } catch (e) {
+      result = { success: false, error: e.message }
+    }
+
+    if (!result || !result.success) {
+      await send(chatId, t.changePrimaryDomainFailed(candidate, result?.error || 'unknown error'), { parse_mode: 'HTML' })
+      try { notifyAdmin(`⚠️ <b>Change primary domain FAILED</b>\nUser: ${chatId}\ncpUser: ${plan.cpUser}\nOld: <b>${oldDomain}</b>\nNew: <b>${candidate}</b>\nError: <code>${result?.error || 'unknown'}</code>`) } catch { /* noop */ }
+      return goto.viewHostingPlanDetails(oldDomain)
+    }
+
+    // Persist the swap: new primary, drop candidate from addons, record previous primary.
+    try {
+      await cpanelAccounts.updateOne(
+        { _id: plan._id },
+        {
+          $set: { domain: candidate, primaryChangedAt: new Date().toISOString(), previousPrimaryDomain: oldDomain },
+          $pull: { addonDomains: candidate },
+        }
+      )
+    } catch (e) {
+      log(`[ChangePrimary] DB update warning: ${e.message}`)
+    }
+    saveInfo('selectedHostingDomain', candidate)
+    saveInfo('makePrimaryDomain', null)
+
+    // Best-effort: strip the OLD domain's hosting DNS + anti-red worker. The domain
+    // stays registered to the user; only the hosting link is removed. (fire-and-forget)
+    ;(async () => {
+      try {
+        const cfService = require('./cf-service')
+        const antiRedService = require('./anti-red-service')
+        const zone = await cfService.getZoneByName(oldDomain)
+        if (zone) {
+          await antiRedService.removeWorkerRoutes(oldDomain, zone.id).catch(() => {})
+          await cfService.cleanupAllHostingRecords(zone.id, oldDomain).catch(() => {})
+        }
+      } catch (e) {
+        log(`[ChangePrimary] old-domain CF cleanup warning for ${oldDomain}: ${e.message}`)
+      }
+    })()
+
+    // Set up Cloudflare DNS + Anti-Red protection for the NEW primary (fire-and-forget,
+    // mirrors the addon flow — can take up to ~65s with retries; user gets a quick success).
+    const updatedPlan = await cpanelAccounts.findOne({ _id: plan._id })
+    ;(async () => {
+      try {
+        const addonFlow = require('./addon-domain-flow')
+        await addonFlow.runDnsAndProtection({ domain: candidate, cpUser: plan.cpUser, whmHost, account: updatedPlan, db, bot, lang })
+      } catch (e) {
+        log(`[ChangePrimary] DNS/protection pipeline error for ${candidate}: ${e.message}`)
+      }
+    })()
+
+    const panelDomain = process.env.PANEL_DOMAIN
+    const panelUrl = panelDomain
+      ? (panelDomain.startsWith('http') ? panelDomain : `https://${panelDomain}`)
+      : `${(process.env.SELF_URL_PROD || '').replace('/api', '')}/panel`
+    await send(chatId, t.changePrimaryDomainSuccess(candidate, oldDomain, panelUrl), { parse_mode: 'HTML' })
+    try {
+      notifyAdmin(`🔄 <b>Primary domain changed</b>\nUser: ${chatId}\nPlan: <code>${plan.plan}</code>\ncpUser: ${plan.cpUser}\nOld: <b>${oldDomain}</b>\nNew: <b>${candidate}</b>`)
+    } catch { /* noop */ }
+    return goto.viewHostingPlanDetails(candidate)
   }
 
   // ── Cancel Hosting Plan — confirm & execute ──
@@ -27959,6 +28143,10 @@ Professional templates for voicemail, customer support, financial institutions, 
     if (message === btn.reupload) {
       draft.audioPath = null; draft.method = 'upload'
       await saveInfo('cpTtsDraft', draft)
+      // Route back to the upload handler so the re-uploaded voice note is actually
+      // captured + persisted. Staying in cpVmGreetingPreview meant the global
+      // voice/audio handler (which only processes cpVmAudioUpload) silently dropped it.
+      await set(state, chatId, 'action', a.cpVmAudioUpload)
       return send(chatId, trans('t.cp_290'), k.of([]))
     }
     if (msg?.voice || msg?.audio) {

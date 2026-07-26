@@ -380,6 +380,7 @@ To view/reveal your hosting credentials: <b>🛡️🔥 Anti-Red Hosting</b> →
 - 🔁 <b>Toggle Auto-Renew</b> (monthly only) — switch automatic renewal on/off; weekly plans never auto-renew
 - 🔌 <b>Take Site Offline</b> / 🌐 <b>Bring Site Online</b> — pick maintenance mode (clean "We'll be back soon" page; email/FTP/DBs keep working) or full suspend (everything stopped). <b>Does NOT pause expiry or auto-renewal billing.</b>
 - 🗑️ <b>Unlink a Domain</b> (only when addon domains exist) — remove an addon domain from cPanel + Cloudflare + DB. Permanent and non-refundable.
+- 🔄 <b>Change Primary Domain</b> — swap the plan's main domain for another domain the user owns (e.g. they bought hosting on a bad/typo domain and now want to use a fresh one). The old domain is removed from hosting (it stays registered to the user), files in <code>public_html</code> are kept and served on the new domain, DNS + Anti-Red are auto-configured for the new domain, and the same cPanel username/PIN is kept. No need to cancel and rebuy.
 - 🚫 <b>Cancel Hosting Plan</b> — terminate the entire cPanel account (files, email, databases, addons all deleted). Irreversible, no refund. Domain stays registered to user.
 
 Same actions are also available in the <b>web HostPanel → Account tab</b> (Site status card + Danger Zone).
@@ -706,6 +707,20 @@ The welcome message you received when the addon was attached shows the exact "do
 
 ### "How do I unlink an addon domain from my hosting plan?" / "Remove a domain from hosting"
 → Bot: <b>🛡️🔥 Anti-Red Hosting</b> → <b>📋 My Hosting Plans</b> → select your domain → <b>🗑️ Unlink a Domain</b>. Pick the addon to unlink, confirm. This removes the addon from cPanel, deletes its DNS records on Cloudflare, and removes Anti-Red protection for that domain. <b>It permanently deletes files under <code>public_html/&lt;domain&gt;/</code></b> and is not refundable. The button only appears when at least one addon is attached to the plan. The primary domain cannot be unlinked here — use "Cancel Hosting Plan" instead.
+
+### "How do I change the primary/main domain on my hosting?" / "I bought hosting with the wrong domain" / "Delete the old domain from my hosting and use a new one" / "Replace the domain linked to my cPanel" / "How do I remove the old bad domain from hosting"
+→ Use <b>🔄 Change Primary Domain</b>: Bot → <b>🛡️🔥 Anti-Red Hosting</b> → <b>📋 My Hosting Plans</b> → select the plan → <b>🔄 Change Primary Domain</b> → pick the new domain → confirm. This is exactly the tool for "I bought hosting on a bad/typo domain and have since bought a better one from the store."
+
+What happens:
+• The new domain becomes the plan's primary (main) domain.
+• The old domain is <b>removed from the hosting account</b> — but it stays <b>REGISTERED to you</b> (still listed in 📂 My Domain Names). You do NOT lose the domain; only its hosting link is removed.
+• Your website files in <code>public_html/</code> are kept and are served on the new domain immediately.
+• DNS + Anti-Red protection are auto-configured for the new domain (usually live within ~5 minutes).
+• You keep the SAME cPanel username and PIN — nothing to re-learn.
+
+Requirements: the new domain must be registered with us (buy it in 🌐 Bulletproof Domains first) and must not already be the primary/addon of another hosting plan. If the new domain is currently an ADDON on this same plan, the bot removes it as an addon automatically before promoting it to primary.
+
+<b>You do NOT need to cancel and rebuy hosting to change the domain</b> — always use 🔄 Change Primary Domain. It's irreversible and no refund is issued for the swap itself, but you keep your plan and all your files.
 
 ### "Where is my other domain?" / "My addon is not showing in My Hosting Plans" / "I bought 2 domains but only see one" / "My .org / .com is missing from hosting"
 → This is the most common confusion: <b>📋 My Hosting Plans</b> shows ONE row per cPanel account (the primary domain). When you add a second domain as an addon to the same plan, it does NOT get its own row — it nests under the primary. Your addon is NOT missing.
@@ -1985,6 +2000,41 @@ function extractActionButtons(aiResponse, lang = 'en') {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Tier 1 Feature 5: Rate support session (satisfaction tracking)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+async function rateSupportSession(chatId, rating) {
+  if (!_db) return
+  try {
+    await _db.collection('supportRatings').insertOne({
+      chatId,
+      rating, // 'good' or 'bad'
+      createdAt: new Date(),
+    })
+    log(`[AI Support] Session rated by ${chatId}: ${rating}`)
+  } catch (e) {
+    log(`[AI Support] Rating save error: ${e.message}`)
+  }
+}
+
+module.exports = {
+  initAiSupport,
+  getAiResponse,
+  getAiResponseStreaming,
+  getUserContext,
+  getMarketplaceAiResponse,
+  moderateMarketplaceChat,
+  clearHistory,
+  needsEscalation,
+  isAiEnabled: () => !!openai,
+  // ── Tier 1 new exports ──
+  recordUserError,
+  extractActionButtons,
+  rateSupportSession,
+  // Test-only hook: lets unit tests stub the OpenAI client without exporting
+  // the real instance for general consumption.
+  __setOpenAIForTest: (fake) => { openai = fake },
+}
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Tier 1 Feature 5: Rate support session (satisfaction tracking)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 async function rateSupportSession(chatId, rating) {

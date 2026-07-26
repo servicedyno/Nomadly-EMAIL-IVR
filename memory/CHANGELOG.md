@@ -1,3 +1,16 @@
+## 2026-06 — Change Primary Domain (hosting) + AI-support knowledge
+
+New bot flow: 📋 My Hosting Plans → select plan → **🔄 Change Primary Domain**. Lets a user
+swap the plan's primary/main domain for another domain they own (e.g. bought hosting on a
+bad/typo domain, then bought a better one). Old domain removed from hosting but stays
+registered; files in public_html kept; same cPanel user/PIN; DNS + Anti-Red auto-configured
+for the new domain. Wired existing `whmService.changePrimaryDomain` + `runDnsAndProtection`.
+AI Support (`ai-support.js`) updated with a dedicated FAQ. Also fixed the TTS "Re-upload"
+dead-end (routes to `cpVmAudioUpload`) and a pre-existing UTF-8 byte corruption in
+ai-support.js tail. Translations added in en/fr/hi/zh.
+Details: memory/CHANGE_PRIMARY_DOMAIN_2026-06.md
+
+
 # CHANGELOG — Nomadly Bot
 
 
