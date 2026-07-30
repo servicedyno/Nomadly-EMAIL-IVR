@@ -1528,8 +1528,19 @@ async function getConversationHistory(chatId, limit = 10) {
 }
 
 // ── Save message to history ──
+// (2026-07-30 diagnostic bug: user 5828254066 had a full support session with
+// AI reply but zero rows in aiSupportChats. Silent failures via `_aiChatHistory
+// = null` or a swallowed insertOne left admin unable to reconstruct the
+// conversation later. Now every skip/failure is logged with a stable prefix
+// so operators can grep, and we surface the row count on the debug endpoint.)
+let _aiChatSaveMisses = 0
+let _aiChatSaveOk = 0
 async function saveMessage(chatId, role, content) {
-  if (!_aiChatHistory) return
+  if (!_aiChatHistory) {
+    _aiChatSaveMisses++
+    log(`[AI Support] saveMessage SKIPPED: _aiChatHistory not initialized (chatId=${chatId}, role=${role}, misses=${_aiChatSaveMisses})`)
+    return
+  }
   try {
     await _aiChatHistory.insertOne({
       chatId,
@@ -1537,8 +1548,19 @@ async function saveMessage(chatId, role, content) {
       content,
       createdAt: new Date(),
     })
+    _aiChatSaveOk++
   } catch (e) {
-    log(`[AI Support] Save message error: ${e.message}`)
+    _aiChatSaveMisses++
+    log(`[AI Support] Save message error (chatId=${chatId}, role=${role}, misses=${_aiChatSaveMisses}): ${e.message}`)
+  }
+}
+
+// ── Diagnostic snapshot of chat-history save health ──
+function getAiChatHistoryHealth() {
+  return {
+    initialized: !!_aiChatHistory,
+    savesOk: _aiChatSaveOk,
+    saveMisses: _aiChatSaveMisses,
   }
 }
 
@@ -2030,42 +2052,15 @@ module.exports = {
   recordUserError,
   extractActionButtons,
   rateSupportSession,
+  // ── Diagnostic (2026-07-30 lost-chat-history investigation) ──
+  getAiChatHistoryHealth,
   // Test-only hook: lets unit tests stub the OpenAI client without exporting
   // the real instance for general consumption.
   __setOpenAIForTest: (fake) => { openai = fake },
 }
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Tier 1 Feature 5: Rate support session (satisfaction tracking)
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-async function rateSupportSession(chatId, rating) {
-  if (!_db) return
-  try {
-    await _db.collection('supportRatings').insertOne({
-      chatId,
-      rating, // 'good' or 'bad'
-      createdAt: new Date(),
-    })
-    log(`[AI Support] Session rated by ${chatId}: ${rating}`)
-  } catch (e) {
-    log(`[AI Support] Rating save error: ${e.message}`)
-  }
-}
+// (Duplicate rateSupportSession block removed 2026-07-30 — pre-existing
+// duplicate declaration was harmless at runtime (function hoisting kept
+// the second) but broke ESLint's module parser after the diagnostic
+// getAiChatHistoryHealth export was added.)
 
-module.exports = {
-  initAiSupport,
-  getAiResponse,
-  getAiResponseStreaming,
-  getUserContext,
-  getMarketplaceAiResponse,
-  moderateMarketplaceChat,
-  clearHistory,
-  needsEscalation,
-  isAiEnabled: () => !!openai,
-  // ── Tier 1 new exports ──
-  recordUserError,
-  extractActionButtons,
-  rateSupportSession,
-  // Test-only hook: lets unit tests stub the OpenAI client without exporting
-  // the real instance for general consumption.
-  __setOpenAIForTest: (fake) => { openai = fake },
-}

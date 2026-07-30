@@ -70,6 +70,86 @@ user_problem_statement: |
        across usdIn/usdOut/ngnIn/ngnOut: 0 additional victims. Single
        user affected in this incident.
 
+
+backend:
+  - task: "Escalation admin alert HTML parse crash + admin misdiagnosis — @iamthebestbusiness (5828254066) 2026-07-30 'Ecsow SIP forbidden' support ticket"
+    implemented: true
+    working: "NA"
+    file: "/app/js/_index.js (recordEscalation ~L2082, _escapeHtmlForTelegram helper, /dev/escalation-alert-preview ~L36182), /app/js/ai-support.js (saveMessage + getAiChatHistoryHealth), /app/js/phone-config.js (softphoneGuide + testOutboundSip.timeout)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          Fix batch bundling four defects discovered while investigating the
+          @iamthebestbusiness (5828254066) support ticket at 2026-07-30 06:14 UTC
+          ("Added sip credentials to Ecsow dialer and it keeps saying forbidden"):
+
+          [BUG 1 — CRITICAL] recordEscalation() interpolated userMessage /
+          aiResponse containing <b>/<i>/<code> tags UNESCAPED into an
+          HTML-parsed Telegram admin alert. When truncated at 400 chars the
+          tags got chopped mid-open, producing:
+            ETELEGRAM: 400 Bad Request: can't parse entities:
+            Unmatched end tag at byte offset 782, expected "</b>", found "</i>"
+          → admin never received the escalation → 38 min customer wait.
+          Fix: added _escapeHtmlForTelegram() helper; every interpolated
+          user/AI/reason/lang/displayName field is now escaped BEFORE
+          insertion into the HTML template. Truncate first (safe on plain
+          text) then escape → no orphan tags survive.
+
+          [BUG 3 — MEDIUM UX] The admin manually replied "You cannot use test
+          credentials on escow" — but the user actually had an active Pro
+          plan + real Telnyx SIP creds. The alert message didn't include
+          any account context, so the admin misdiagnosed.
+          Fix: recordEscalation() now attaches an "Account snapshot" block
+          (wallet balance, active plan(s), phoneNumber, provider, SIP
+          username) so the admin sees the real state at a glance.
+
+          [BUG 2 — MEDIUM DIAG] User 5828254066 has 0 rows in aiSupportChats
+          despite the AI having replied (Railway log confirms). Root cause:
+          saveMessage() silently no-op'ed when _aiChatHistory was null AND
+          swallowed insertOne errors → no way to detect lost history.
+          Fix: saveMessage() now logs every skip/failure with counters +
+          exports getAiChatHistoryHealth() surfacing initialized/savesOk/
+          saveMisses. New /dev/ai-support-health endpoint returns pass:true
+          iff the collection is bound.
+
+          [BUG 4+5 — CONTENT/UX] /sipguide and testOutboundSip.timeout gave
+          generic advice that didn't cover predictive-dialer softphones like
+          Ecsow (a real Windows auto-dialer needing SIP TRUNK mode) or the
+          most-common 403 root cause (long 49-char gencred… username in
+          wrong field). Guide now has a "403 Forbidden?" section
+          explaining truncation, wrong-field, and password causes, plus an
+          "Using Ecsow, DialFire, X-Lite" callout directing them to SIP
+          TRUNK mode. testOutboundSip.timeout now lists 403 as the top
+          cause with the same fix hints.
+
+          Two new /api/dev/* endpoints (404 in production) let the testing
+          agent verify the fix end-to-end:
+            • GET  /api/dev/ai-support-health
+                → { pass: true, initialized: true, savesOk, saveMisses }
+            • POST /api/dev/escalation-alert-preview  (body optional)
+                → rebuilds the exact HTML recordEscalation() posts, runs
+                  the Telegram entity-balance check (matched <b>/<i>/<code>
+                  stack), and returns:
+                  { ok, telegram_html_parse_ok, unbalanced_reason,
+                    input_contained_html_tags, input_html_was_escaped_out,
+                    account_snapshot_included, account_snapshot,
+                    alert_length, alertMsg }
+
+          Local smoke via curl passes:
+            • ai-support-health → pass:true, initialized:true
+            • escalation-alert-preview (default body) → ok:true,
+              input_contained_html_tags:true, input_html_was_escaped_out:true,
+              account_snapshot_included:true, snapshot shows real Pro plan +
+              gencredWIpw… SIP user + $93.68 wallet.
+
+          NEXT: testing_agent to run the endpoints against the pod URL and
+          confirm every assertion in the payload.
+
+
 backend:
   - task: "URL Shortener blocked by SUSPENDED hosting plan — @aramboss (6156677266) 2026-07-24: suspended securipa.xyz still refused 'Activate for URL Shortener'"
     implemented: true

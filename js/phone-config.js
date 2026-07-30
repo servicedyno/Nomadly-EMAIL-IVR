@@ -954,7 +954,7 @@ Inbound calls/SMS included · Outbound charged from wallet
   testOutboundSip: {
     listening: (phone, sipUser) => `📤 <b>Outbound SIP Test — listening for 90s</b>\n\n📞 Number: <code>${phone}</code>\n🔑 SIP user: <code>${sipUser}</code>\n\nFrom your softphone, dial <b>any number</b> within the next 90 seconds — your own mobile is ideal.\n\n💡 The call will be intercepted safely: <b>no wallet charges</b>, <b>no PSTN leg</b> will be placed. We just verify your softphone's outbound path reaches our servers with the correct SIP credentials.\n\nResult will appear here as soon as your call arrives.`,
     success: (phone, sipUser, provider, destination, elapsedSec) => `✅ <b>Outbound SIP verified</b>\n\nYour softphone successfully placed an outbound call.\n\n📞 Number: <code>${phone}</code>\n🔑 SIP user: <code>${sipUser}</code>\n🌐 Provider: <code>${provider}</code>\n📍 You dialed: <code>${destination}</code>\n⏱️ Latency to our servers: ${elapsedSec}s\n\n💡 The call was intercepted — no wallet charges, no PSTN leg placed. Your outbound SIP path is working end-to-end.`,
-    timeout: (phone) => `❌ <b>No outbound SIP call detected</b> on <code>${phone}</code> in 90 seconds.\n\nLikely causes:\n• Softphone not registered — check the registration/status light in Linphone/Zoiper\n• Wrong SIP credentials — verify username + password via <b>🔑 SIP Credentials</b>\n• Firewall blocking UDP 5060 / SIP traffic\n• PBX (3CX / FreePBX) misconfigured as user/extension instead of SIP TRUNK — see /sipguide\n\nOnce you see "Registered" in your softphone, run the test again.`,
+    timeout: (phone) => `❌ <b>No outbound SIP call detected</b> on <code>${phone}</code> in 90 seconds.\n\nLikely causes:\n• <b>SIP 403 Forbidden on register</b> — long <code>gencred…</code> usernames (49 chars) get truncated by some dialers. Copy-paste from 🔑 SIP Credentials; don't retype. Also make sure the domain <code>sip.speechcue.com</code> is in the <i>Domain / SIP Server</i> field, NOT appended to the username.\n• Softphone not registered — check the registration/status light in Linphone/Zoiper/MicroSIP\n• Wrong SIP credentials — verify username + password via <b>🔑 SIP Credentials</b>\n• Firewall blocking UDP 5060 / SIP traffic\n• <b>Predictive / auto-dialer</b> (Ecsow, DialFire, X-Lite) or PBX (3CX / FreePBX) misconfigured as user/extension instead of SIP TRUNK — see /sipguide\n\nOnce you see "Registered" in your softphone, run the test again.`,
     throttled: (max) => `⏳ You've already run ${max} outbound SIP tests on this number in the last 24 hours. Try again later.`,
     inactive: (phone) => `❌ Number <code>${phone}</code> is not active — outbound SIP testing is only available for active numbers.`,
     noSipConfigured: (phone) => `❌ No SIP credentials on <code>${phone}</code>. Set up SIP first via <b>🔑 SIP Credentials</b>, then retry.`,
@@ -977,10 +977,19 @@ Use a single-line softphone (one device per credential):
 <b>Setup steps</b>
 1. Install the app
 2. Add Account → SIP / VoIP
-3. Username + Password from 🔑 SIP Credentials
-4. Domain / SIP Server: <code>${domain}</code>
+3. Username + Password from 🔑 SIP Credentials — <b>copy-paste, don't retype</b> (usernames are 49 chars)
+4. Domain / SIP Server: <code>${domain}</code> — put this in the <i>Domain</i> field ONLY, do NOT append it to the username
 5. Port 5060 (UDP/TCP) or 5061 (TLS) · DTMF: RFC 2833 · Codec: G.711μ
 6. Save and make a test call
+
+⚠️ <b>Getting "403 Forbidden" / registration failed?</b>
+The three usual causes:
+1. <b>Username got truncated</b> — most SIP dialers accept 50+ char usernames but some old builds truncate. Copy-paste the full <code>gencred…</code> string exactly.
+2. <b>Domain in the wrong field</b> — the username is JUST <code>gencred…</code>. Do NOT enter <code>gencred…@${domain}</code> in the username box. The <code>@${domain}</code> part belongs in the "Domain / SIP Server" field.
+3. <b>Wrong password</b> — passwords are case-sensitive hex. Tap 🔄 Reset Password if unsure and copy-paste the fresh one.
+
+⚠️ <b>Using Ecsow, DialFire, X-Lite, or another predictive / auto-dialer?</b>
+These are <b>NOT</b> single-line softphones — they're built for outbound campaigns and expect a <b>SIP TRUNK</b>. If you added the credentials as a "SIP Account" / "Extension", you'll see registration errors (401/403) or calls that connect but drop instantly. Switch the account type to <b>SIP Trunk</b> and use the same domain / port / username / password.
 
 ⚠️ <b>Using 3CX, FreePBX, Asterisk or another PBX?</b>
 Don't add the SIP credential as a "user / extension" — a PBX answers the call and dumps it straight to its own voicemail (you'll hear "Record your message and press pound, or press star to contact the operator", then "transfer failed" on star). Configure it as a <b>SIP TRUNK</b> instead:

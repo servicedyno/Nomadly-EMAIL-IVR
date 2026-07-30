@@ -694,7 +694,7 @@ const { initTestMyNumber, placeTestCall: placeTestMyNumberCall } = require('./te
 const { initTestOutboundSip, startTest: startTestOutboundSip } = require('./test-outbound-sip.js')
 const antiRedService = require('./anti-red-service.js')
 const { initLeadJobPersistence, flushAllJobs, findInterruptedJobs, resumeJob } = require('./lead-job-persistence.js')
-const { initAiSupport, getAiResponse, getAiResponseStreaming, getMarketplaceAiResponse, moderateMarketplaceChat, clearHistory: clearAiHistory, isAiEnabled, recordUserError, extractActionButtons, rateSupportSession } = require('./ai-support.js')
+const { initAiSupport, getAiResponse, getAiResponseStreaming, getMarketplaceAiResponse, moderateMarketplaceChat, clearHistory: clearAiHistory, isAiEnabled, recordUserError, extractActionButtons, rateSupportSession, getAiChatHistoryHealth } = require('./ai-support.js')
 const { initShortenerPersistence, createActivationTask, markRailwayLinked, markDnsAdded, markCompleted, markFailed, markSkipped, findIncompleteTasks, enqueueDeactivation, incrementDeactivationRetry, markDeactivationDone, markDeactivationFailed, findPendingDeactivations, MAX_DEACTIVATION_RETRIES } = require('./shortener-activation-persistence.js')
 const honeypotService = require('./honeypot-service.js')
 const audioLibraryService = require('./audio-library-service.js')
@@ -2079,6 +2079,19 @@ const ESCALATION_DEDUP_MS = 5 * 60 * 1000          // 5 min per chatId
 const ESCALATION_REMINDER_AFTER_MS = 10 * 60 * 1000 // re-ping after 10 min
 const _recentEscalations = new Map() // chatId → { ts, escalationId }
 
+// ── HTML-escape helper for Telegram parse_mode='HTML' safety ────────────────
+// (2026-07-30 escalation bug: user message/AI response containing <b>, <i>,
+// <code>, or unmatched tags from mid-string truncation caused Telegram to
+// return "400 Bad Request: can't parse entities" → admin never got the alert
+// for chatId 5828254066's SIP-forbidden support ticket. Escape aggressively.)
+function _escapeHtmlForTelegram(s) {
+  if (s === null || s === undefined) return ''
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
 async function recordEscalation({ chatId, displayName, userMessage, aiResponse, reason, lang, media }) {
   try {
     if (!chatId) return null
@@ -2143,22 +2156,69 @@ async function recordEscalation({ chatId, displayName, userMessage, aiResponse, 
           if (recentErrs.length > 0) {
             const lines = recentErrs.map(e => {
               const ago = Math.max(0, Math.round((Date.now() - new Date(e.timestamp).getTime()) / 60000))
-              return `  • <code>${e.feature}</code> (${ago}min ago): ${String(e.error || '').substring(0, 140)}`
+              return `  • <code>${_escapeHtmlForTelegram(e.feature)}</code> (${ago}min ago): ${_escapeHtmlForTelegram(String(e.error || '').substring(0, 140))}`
             }).join('\n')
             recentCtxLines = `\n\n⚠️ <b>Recent errors hit by this user (last 30min):</b>\n${lines}\n`
           }
         }
       } catch (_) { /* non-fatal */ }
 
+      // ── Attach account snapshot so admin doesn't misdiagnose (see 2026-07-30 ──
+      // @iamthebestbusiness incident: admin replied "you cannot use test credentials"
+      // when the user actually had an active Pro plan + real Telnyx SIP creds).
+      let acctSnapshot = ''
+      try {
+        const [wallet, phones] = await Promise.all([
+          walletOf?.findOne ? walletOf.findOne({ _id: cidStr }).catch(() => null) : null,
+          phoneNumbersOf?.findOne ? phoneNumbersOf.findOne({ _id: cidStr }).catch(() => null) : null,
+        ])
+        const usdIn = Number(wallet?.usdIn) || 0
+        const usdOut = Number(wallet?.usdOut) || 0
+        const balance = Number.isFinite(usdIn - usdOut) ? (usdIn - usdOut).toFixed(2) : '?'
+        const nums = Array.isArray(phones?.val?.numbers) ? phones.val.numbers : []
+        const active = nums.filter(n => n?.status === 'active')
+        const summaryLines = []
+        summaryLines.push(`💰 Wallet: $${balance}`)
+        if (active.length === 0) {
+          summaryLines.push(`📞 Active numbers: <i>none</i>`)
+        } else {
+          const first = active[0]
+          const others = active.length - 1
+          const plan = _escapeHtmlForTelegram(first.plan || '?')
+          const num = _escapeHtmlForTelegram(first.phoneNumber || '?')
+          const provider = _escapeHtmlForTelegram(first.provider || '?')
+          const sipUser = first.telnyxSipUsername || first.sipUsername
+          summaryLines.push(`📞 Active plan: <b>${plan}</b> on <code>${num}</code> (${provider})`)
+          if (sipUser) summaryLines.push(`🔑 SIP user: <code>${_escapeHtmlForTelegram(sipUser)}</code>`)
+          if (others > 0) summaryLines.push(`   +${others} more active number(s)`)
+        }
+        acctSnapshot = `\n\n📋 <b>Account snapshot:</b>\n${summaryLines.join('\n')}\n`
+      } catch (_) { /* non-fatal */ }
+
+      // ── Truncate + HTML-escape all interpolated user/AI text ──
+      // Truncate FIRST (safe on plain text), then escape. This guarantees no
+      // orphan/unclosed <b>/<i>/<code> tags can leak into the Telegram-parsed
+      // HTML template and break entity parsing.
+      const userTxt = String(userMessage || '').substring(0, 400)
+      const aiTxt = String(aiResponse || '').substring(0, 400)
+      const userSuffix = (userMessage || '').length > 400 ? '...' : ''
+      const aiSuffix = (aiResponse || '').length > 400 ? '...' : ''
+      const safeUserTxt = _escapeHtmlForTelegram(userTxt) + userSuffix
+      const safeAiTxt = _escapeHtmlForTelegram(aiTxt) + aiSuffix
+      const safeDisplayName = _escapeHtmlForTelegram(displayName || cidStr)
+      const safeReason = _escapeHtmlForTelegram(reason || 'ai_flagged')
+      const safeLang = _escapeHtmlForTelegram(lang || 'en')
+
       const alertMsg =
         `🚨 <b>ESCALATION — HUMAN ATTENTION NEEDED</b>\n` +
         `━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-        `👤 User: <b>${displayName || cidStr}</b> (${cidStr})\n` +
-        `🌐 Lang: ${lang || 'en'}\n` +
-        `📝 Reason: ${reason || 'ai_flagged'}\n` +
-        `🆔 Esc: <code>${escId}</code>\n\n` +
-        `💬 <b>User said:</b>\n<i>${String(userMessage || '').substring(0, 400)}${(userMessage || '').length > 400 ? '...' : ''}</i>\n\n` +
-        `🤖 <b>AI's reply:</b>\n<i>${String(aiResponse || '').substring(0, 400)}${(aiResponse || '').length > 400 ? '...' : ''}</i>` +
+        `👤 User: <b>${safeDisplayName}</b> (${cidStr})\n` +
+        `🌐 Lang: ${safeLang}\n` +
+        `📝 Reason: ${safeReason}\n` +
+        `🆔 Esc: <code>${escId}</code>` +
+        acctSnapshot +
+        `\n💬 <b>User said:</b>\n<i>${safeUserTxt}</i>\n\n` +
+        `🤖 <b>AI's reply:</b>\n<i>${safeAiTxt}</i>` +
         recentCtxLines + `\n` +
         `⏰ Reply within 10 min to avoid auto-reminder.`
       const opts = {
@@ -36088,7 +36148,174 @@ app.post('/dev/idempotency-test', async (req, res) => {
   return res.json({ ...out, pass: out.first === 'inserted' && out.second === 'duplicate-blocked' })
 })
 
-// ── DEV-ONLY: verify the shortener ↔ hosting-plan conflict rule ─────────────
+// ── DEV-ONLY: aiSupportChats history save-health snapshot ──────────────────
+// Motivated by 2026-07-30 @iamthebestbusiness (5828254066) investigation:
+// user had a full AI support session (logs prove AI replied) but ZERO rows in
+// db.aiSupportChats. saveMessage() was silently no-op'ing when _aiChatHistory
+// was null, or its insertOne() error was swallowed. saveMessage() now logs
+// every skip/failure with a stable prefix, and this endpoint exposes the
+// counter so tests / ops can assert the persistence layer is healthy.
+app.get('/dev/ai-support-health', (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  try {
+    const h = getAiChatHistoryHealth ? getAiChatHistoryHealth() : { initialized: null }
+    return res.json({ pass: !!h.initialized, ...h })
+  } catch (e) {
+    return res.status(500).json({ error: e.message })
+  }
+})
+
+// ── DEV-ONLY: preview the escalation admin-alert HTML template ─────────────
+//   1. Interpolated userMessage / aiResponse containing <b>, </i>, <code> etc.
+//      are HTML-escaped (bug 2026-07-30 @iamthebestbusiness 5828254066:
+//      the AI reply contained "<b>Ecsow</b>" style tags → truncated mid-tag →
+//      Telegram threw "can't parse entities" and admin never got the alert).
+//   2. The account snapshot (plan / SIP username / wallet) is attached so the
+//      admin doesn't misdiagnose an active-plan user as "test credentials only"
+//      (real @iamthebestbusiness misreply, same day).
+//   3. The final Telegram message-entities parser doesn't throw on the built
+//      HTML. We validate by re-running the same balanced-tag scan Telegram
+//      uses (basic stack check over <b>/<i>/<code>/<pre>/<a>).
+// Safe: no DB writes, no Telegram send, no wallet changes. 404 in production.
+app.post('/dev/escalation-alert-preview', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const b = req.body || {}
+  const chatId = String(b.chatId || '5828254066')
+  const displayName = b.displayName || '@iamthebestbusiness'
+  // Default to the exact AI reply shape (with <b> tags) that caused the
+  // 2026-07-30 Telegram parse failure.
+  const userMessage = b.userMessage != null ? b.userMessage
+    : 'Added sip credentials to Ecsow dialer and it keeps saying forbidden'
+  const aiResponse = b.aiResponse != null ? b.aiResponse
+    : "I see you're having trouble with your SIP credentials being rejected as \"forbidden\" in your <b>Ecsow</b> dialer. Please try these steps: 1. Confirm <b>Domain</b>: <code>sip.speechcue.com</code>. 2. Confirm <b>Port</b> 5060 UDP. 3. If your dialer supports it, choose <b>SIP TRUNK</b> mode (Ecsow is a predictive dialer). If the issue persists I'll escalate to a human agent."
+  const reason = b.reason || 'ai_flagged'
+  const lang = b.lang || 'en'
+
+  // ── Rebuild recentCtxLines (read-only) ──
+  let recentCtxLines = ''
+  try {
+    if (db) {
+      const recentErrs = await db.collection('userErrors')
+        .find({ chatId, timestamp: { $gt: new Date(Date.now() - 30 * 60 * 1000) } })
+        .sort({ timestamp: -1 }).limit(5).toArray()
+      if (recentErrs.length > 0) {
+        const lines = recentErrs.map(e => {
+          const ago = Math.max(0, Math.round((Date.now() - new Date(e.timestamp).getTime()) / 60000))
+          return `  • <code>${_escapeHtmlForTelegram(e.feature)}</code> (${ago}min ago): ${_escapeHtmlForTelegram(String(e.error || '').substring(0, 140))}`
+        }).join('\n')
+        recentCtxLines = `\n\n⚠️ <b>Recent errors hit by this user (last 30min):</b>\n${lines}\n`
+      }
+    }
+  } catch (_) { /* non-fatal */ }
+
+  // ── Rebuild acctSnapshot (read-only) ──
+  let acctSnapshot = ''
+  try {
+    const [wallet, phones] = await Promise.all([
+      walletOf?.findOne ? walletOf.findOne({ _id: chatId }).catch(() => null) : null,
+      phoneNumbersOf?.findOne ? phoneNumbersOf.findOne({ _id: chatId }).catch(() => null) : null,
+    ])
+    const usdIn = Number(wallet?.usdIn) || 0
+    const usdOut = Number(wallet?.usdOut) || 0
+    const balance = Number.isFinite(usdIn - usdOut) ? (usdIn - usdOut).toFixed(2) : '?'
+    const nums = Array.isArray(phones?.val?.numbers) ? phones.val.numbers : []
+    const active = nums.filter(n => n?.status === 'active')
+    const summaryLines = []
+    summaryLines.push(`💰 Wallet: $${balance}`)
+    if (active.length === 0) {
+      summaryLines.push(`📞 Active numbers: <i>none</i>`)
+    } else {
+      const first = active[0]
+      const others = active.length - 1
+      const plan = _escapeHtmlForTelegram(first.plan || '?')
+      const num = _escapeHtmlForTelegram(first.phoneNumber || '?')
+      const provider = _escapeHtmlForTelegram(first.provider || '?')
+      const sipUser = first.telnyxSipUsername || first.sipUsername
+      summaryLines.push(`📞 Active plan: <b>${plan}</b> on <code>${num}</code> (${provider})`)
+      if (sipUser) summaryLines.push(`🔑 SIP user: <code>${_escapeHtmlForTelegram(sipUser)}</code>`)
+      if (others > 0) summaryLines.push(`   +${others} more active number(s)`)
+    }
+    acctSnapshot = `\n\n📋 <b>Account snapshot:</b>\n${summaryLines.join('\n')}\n`
+  } catch (_) { /* non-fatal */ }
+
+  const userTxt = String(userMessage || '').substring(0, 400)
+  const aiTxt = String(aiResponse || '').substring(0, 400)
+  const userSuffix = (userMessage || '').length > 400 ? '...' : ''
+  const aiSuffix = (aiResponse || '').length > 400 ? '...' : ''
+  const safeUserTxt = _escapeHtmlForTelegram(userTxt) + userSuffix
+  const safeAiTxt = _escapeHtmlForTelegram(aiTxt) + aiSuffix
+  const safeDisplayName = _escapeHtmlForTelegram(displayName || chatId)
+  const safeReason = _escapeHtmlForTelegram(reason || 'ai_flagged')
+  const safeLang = _escapeHtmlForTelegram(lang || 'en')
+  const escId = 'preview-' + Math.random().toString(36).slice(2, 8)
+
+  const alertMsg =
+    `🚨 <b>ESCALATION — HUMAN ATTENTION NEEDED</b>\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `👤 User: <b>${safeDisplayName}</b> (${chatId})\n` +
+    `🌐 Lang: ${safeLang}\n` +
+    `📝 Reason: ${safeReason}\n` +
+    `🆔 Esc: <code>${escId}</code>` +
+    acctSnapshot +
+    `\n💬 <b>User said:</b>\n<i>${safeUserTxt}</i>\n\n` +
+    `🤖 <b>AI's reply:</b>\n<i>${safeAiTxt}</i>` +
+    recentCtxLines + `\n` +
+    `⏰ Reply within 10 min to avoid auto-reminder.`
+
+  // ── Telegram-style HTML tag balance check ──
+  // Telegram supports <b>/<strong>, <i>/<em>, <u>/<ins>, <s>/<strike>/<del>,
+  // <code>, <pre>, <a href="...">, <tg-spoiler>. Any unmatched close-tag or
+  // orphan open-tag → 400 Bad Request "can't parse entities".
+  function validateTelegramHtml(html) {
+    const allowed = new Set(['b','strong','i','em','u','ins','s','strike','del','code','pre','a','tg-spoiler','br'])
+    const tagRe = /<\/?([a-zA-Z][a-zA-Z0-9-]*)(\s[^>]*)?>/g
+    const stack = []
+    let m
+    while ((m = tagRe.exec(html)) !== null) {
+      const full = m[0]
+      const name = m[1].toLowerCase()
+      if (!allowed.has(name)) return { ok: false, reason: `unsupported tag <${name}>` }
+      if (name === 'br') continue
+      const isClose = full.startsWith('</')
+      if (isClose) {
+        const top = stack.pop()
+        if (top !== name) return { ok: false, reason: `unmatched </${name}> (expected </${top || 'none'}>)` }
+      } else {
+        stack.push(name)
+      }
+    }
+    if (stack.length) return { ok: false, reason: `unclosed <${stack[stack.length-1]}>` }
+    return { ok: true }
+  }
+  const balance = validateTelegramHtml(alertMsg)
+
+  // Sanity check: guarantee the raw user/AI text no longer appears as active
+  // markup — any <b>/<i>/<code> in the ORIGINAL user or AI text should have
+  // been escaped to &lt;b&gt; etc.
+  const dangerousTagInBody =
+    /(<b>|<\/b>|<i>|<\/i>|<code>|<\/code>)/.test(userMessage || '') ||
+    /(<b>|<\/b>|<i>|<\/i>|<code>|<\/code>)/.test(aiResponse || '')
+  const escapedInAlert =
+    (safeUserTxt + safeAiTxt).includes('&lt;') && !safeUserTxt.includes('<b>') && !safeAiTxt.includes('<b>')
+
+  return res.json({
+    ok: balance.ok,
+    telegram_html_parse_ok: balance.ok,
+    unbalanced_reason: balance.ok ? null : balance.reason,
+    input_contained_html_tags: dangerousTagInBody,
+    input_html_was_escaped_out: escapedInAlert,
+    alert_length: alertMsg.length,
+    account_snapshot_included: acctSnapshot.length > 0,
+    account_snapshot: acctSnapshot.trim() || null,
+    alertMsg,
+  })
+})
+
+
 // Reproduces the @aramboss (6156677266) bug: a *suspended* Premium Anti-Red
 // plan on securipa.xyz still blocked "Activate for URL Shortener", forcing him
 // to fully CANCEL the plan. The fix: findShortenerBlockingHostingPlan() only
