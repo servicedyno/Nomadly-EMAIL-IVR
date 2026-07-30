@@ -1,5 +1,5 @@
 #!/bin/bash
-BACKEND_URL="https://multi-service-config-1.preview.emergentagent.com"
+BACKEND_URL="https://hosting-gateway-1.preview.emergentagent.com"
 
 echo "TEST 4 — Regression of existing preview endpoint"
 echo ""
