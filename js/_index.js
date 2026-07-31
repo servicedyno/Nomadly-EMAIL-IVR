@@ -31923,21 +31923,27 @@ Tap a button below to change. Changes sync to your phone on next app open.`
       { parse_mode: 'HTML', reply_markup: { keyboard: [['✂️ Shorten Now', '✂️ Custom Alias'], ['❌ Cancel']], resize_keyboard: true } })
   }
   
-  // U2 fix: Global handlers for common payment button texts that users tap from stale keyboards
-  // When session state is lost, these texts aren't recognized — redirect to wallet instead of resetting
+  // U2 fix (updated 2026-08): stale deposit-method / wallet buttons.
+  // A user whose session reset then taps a leftover reply-keyboard button like
+  // "Crypto" / "Bank" / "top up" used to get a generic "session expired — select
+  // a service first" message that dumped them to the MAIN menu (no path to add
+  // funds), and "deposit"/"top up" wrongly routed to the Hosting submenu. Now
+  // BOTH cases open the Wallet menu (balance + 💵 Deposit → crypto/bank picker)
+  // so the user can complete the top-up they intended. P0 UX friction fix.
   const staleMsg = message.toLowerCase().trim()
-  const paymentButtonTexts = ['crypto', '💰 crypto', 'bank', '🏦 bank', 'wallet', '👛 wallet', 'apply coupon', '🎟️ apply coupon']
-  const walletButtonTexts = ['deposit', '💵 deposit', 'top up', 'add funds']
-  if (paymentButtonTexts.includes(staleMsg) || paymentButtonTexts.some(p => staleMsg.startsWith(p))) {
-    log(`[U2] Recognized stale payment button "${message}" from ${chatId} — redirecting to wallet`)
+  const _staleWalletKind = classifyStaleWalletTap(staleMsg)
+  if (_staleWalletKind) {
+    log(`[U2] Recognized stale ${_staleWalletKind} button "${message}" from ${chatId} — opening wallet menu`)
     await set(state, chatId, 'action', 'none')
-    return send(chatId,
-      trans('t.host_4') || '💡 Your session expired. To make a payment, please select a service first from the menu below.\n\nTo manage your balance, use 👛 Wallet.',
-      trans('o'))
-  }
-  if (walletButtonTexts.includes(staleMsg) || walletButtonTexts.some(p => staleMsg.startsWith(p))) {
-    log(`[U2] Recognized stale wallet button "${message}" from ${chatId} — redirecting to wallet`)
-    return goto.submenu3 ? goto.submenu3() : send(chatId, trans('t.host_4') || '💡 Please use the menu below.', trans('o'))
+    const _walletNote = {
+      en: '👛 Here\'s your wallet — tap 💵 <b>Deposit</b> below to add funds (Crypto or Bank).',
+      fr: '👛 Voici votre portefeuille — touchez 💵 <b>Dépôt</b> ci-dessous pour ajouter des fonds (Crypto ou Banque).',
+      zh: '👛 这是您的钱包 — 点击下方 💵 <b>充值</b> 添加资金（加密货币或银行）。',
+      hi: '👛 यह आपका वॉलेट है — फंड जोड़ने के लिए नीचे 💵 <b>जमा करें</b> टैप करें (क्रिप्टो या बैंक)।',
+    }
+    try { await send(chatId, _walletNote[lang] || _walletNote.en, { parse_mode: 'HTML' }) } catch { /* noop */ }
+    if (goto[user.wallet]) return goto[user.wallet]()
+    return send(chatId, trans('t.host_4') || '💡 Tap 👛 Wallet in the menu below.', trans('o'))
   }
 
   // DNS-fix: Recognize stale DNS management buttons from cached keyboards
@@ -36512,6 +36518,22 @@ function isColdSupportQuestion(message) {
   return endsQuestion || hasQuestionOrPricingCue
 }
 
+// ── Classify a stale reply-keyboard tap on a deposit-method / wallet button ──
+// Returns 'deposit-method' (Crypto/Bank/Wallet/Apply-coupon), 'wallet'
+// (Deposit/Top-up/Add-funds), or null. Used by the U2 fallback to route users
+// whose session reset back into the Wallet menu instead of bouncing them to the
+// main menu. Kept intentionally exact-match/prefix so it never hijacks normal
+// menu navigation or genuine questions.
+function classifyStaleWalletTap(message) {
+  const staleMsg = String(message || '').toLowerCase().trim()
+  if (!staleMsg) return null
+  const depositMethodTexts = ['crypto', '💰 crypto', 'bank', '🏦 bank', 'wallet', '👛 wallet', 'apply coupon', '🎟️ apply coupon']
+  const walletButtonTexts = ['deposit', '💵 deposit', 'top up', 'add funds']
+  if (depositMethodTexts.includes(staleMsg) || depositMethodTexts.some(p => staleMsg.startsWith(p))) return 'deposit-method'
+  if (walletButtonTexts.includes(staleMsg) || walletButtonTexts.some(p => staleMsg.startsWith(p))) return 'wallet'
+  return null
+}
+
 // ── DEV-ONLY: verify the cold-question → AI routing heuristic ──────────────
 // Ensures genuine questions (esp. the "cost after free inbound minutes" case)
 // are routed to AI while stale button taps / URLs / commands are NOT. 404 in prod.
@@ -36539,6 +36561,36 @@ app.post('/dev/support-routing-test', async (req, res) => {
     notRoutedResults,
     checks: { allQuestionsRouted, noFalsePositives },
     pass: allQuestionsRouted && noFalsePositives,
+  })
+})
+
+// ── DEV-ONLY: verify stale deposit-method / wallet button routing ──────────
+// Ensures leftover deposit-method taps (Crypto/Bank/Wallet) and top-up taps
+// (Deposit/Top-up/Add-funds) are classified for wallet-menu routing, while
+// normal navigation / questions / commands are NOT hijacked. 404 in prod.
+app.post('/dev/stale-wallet-tap-test', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const depositMethodTaps = ['Crypto', '💰 Crypto', 'Bank', '🏦 Bank', 'Wallet', '👛 Wallet', 'crypto', 'bank', 'Apply Coupon']
+  const walletTaps = ['Deposit', '💵 Deposit', 'top up', 'Add Funds']
+  const shouldNotMatch = [
+    '/start', 'hi', 'ok', 'yes', 'no', 'Back to Hosting Plans',
+    'https://example.com/page?ref=1', 'What does a call cost after my free minutes?',
+    'Domains', '🌐 Domains', 'My Hosting Plans',
+  ]
+  const depositMethodResults = depositMethodTaps.map(q => ({ q, kind: classifyStaleWalletTap(q) }))
+  const walletResults = walletTaps.map(q => ({ q, kind: classifyStaleWalletTap(q) }))
+  const notMatchedResults = shouldNotMatch.map(q => ({ q, kind: classifyStaleWalletTap(q) }))
+  const allDepositMethodsClassified = depositMethodResults.every(r => r.kind === 'deposit-method')
+  const allWalletClassified = walletResults.every(r => r.kind === 'wallet')
+  const noFalsePositives = notMatchedResults.every(r => r.kind === null)
+  return res.json({
+    depositMethodResults,
+    walletResults,
+    notMatchedResults,
+    checks: { allDepositMethodsClassified, allWalletClassified, noFalsePositives },
+    pass: allDepositMethodsClassified && allWalletClassified && noFalsePositives,
   })
 })
 
