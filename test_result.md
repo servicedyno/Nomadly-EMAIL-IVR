@@ -72,6 +72,40 @@ user_problem_statement: |
 
 
 backend:
+  - task: "P0 UX — stale deposit/wallet reply-keyboard taps (Crypto/Bank/Wallet/Deposit/Top up) bounced users to main menu or Hosting instead of the Wallet deposit flow"
+    implemented: true
+    working: true
+    file: "/app/js/_index.js (classifyStaleWalletTap helper ~L36514; U2 fallback handler rewired ~L31926 to open goto[user.wallet]; /dev/stale-wallet-tap-test ~L36544)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFIED (iteration_23, backend-only, 100% pass, no regressions).
+          POST /api/dev/stale-wallet-tap-test → pass:true (allDepositMethodsClassified,
+          allWalletClassified, noFalsePositives all true). Crypto/💰 Crypto/Bank/🏦 Bank/
+          Wallet/👛 Wallet/crypto/bank/Apply Coupon → 'deposit-method'; Deposit/💵 Deposit/
+          top up/Add Funds → 'wallet'; /start, hi, ok, yes, no, 'Back to Hosting Plans', URL,
+          genuine question, Domains, 🌐 Domains, 'My Hosting Plans' → null.
+          Regression: /api/dev/support-routing-test still pass:true (Crypto & 👛 Wallet stay
+          routed:false there). billing-leak / concurrency-guard / settle-receipt endpoints all
+          pass:true. /api/health healthy+connected.
+      - working: "NA"
+        agent: "main"
+        comment: |
+          Fix picked up from prior fork's in-progress P0 UX item. The stale-payment-button
+          U2 handler (existing since 2026-04-16) routed Crypto/Bank/Wallet taps to the MAIN
+          menu with a generic "session expired — select a service first" message, and routed
+          deposit/top-up/add-funds taps to goto.submenu3() = the HOSTING menu (bug). Rewired
+          both branches to open the Wallet menu via goto[user.wallet]() (balance + 💵 Deposit
+          → crypto/bank picker), preceded by a short localized note. Added pure helper
+          classifyStaleWalletTap + dev endpoint /dev/stale-wallet-tap-test. Conservative
+          (exact-match/prefix) so menu nav, commands, URLs, and genuine questions are never
+          hijacked. User approved plan option (a).
+
+
   - task: "AI support reply not delivered to user — '💬 Typing…' placeholder never replaced (chatId 7706898844 @Padrino_voodoo)"
     implemented: true
     working: true

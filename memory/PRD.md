@@ -2,6 +2,19 @@
 
 ## Original problem statement
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
+
+## 2026-08 — P0 UX: stale deposit/wallet reply-keyboard taps → open Wallet menu
+**Bug (Railway UX scan):** A user whose Telegram session had reset then tapped a leftover reply-keyboard button — a deposit method ("Crypto"/"Bank"), "Wallet", or a top-up ("Deposit"/"Top up"/"Add funds") — got bounced. Root cause in `js/_index.js` U2 fallback (~L31926, added 2026-04-16): the Crypto/Bank/Wallet branch showed a generic "session expired — select a service first" message and dumped users to the MAIN menu (no path to add funds); the deposit/top-up branch wrongly called `goto.submenu3()` = the **Hosting Plans** menu.
+
+**Fix (backend only, `js/_index.js`):**
+- New module-scope pure helper `classifyStaleWalletTap(message)` (right after `isColdSupportQuestion`, ~L36514) → returns `'deposit-method'` (crypto/💰 crypto/bank/🏦 bank/wallet/👛 wallet/apply coupon), `'wallet'` (deposit/💵 deposit/top up/add funds), or `null`. Exact-match + prefix only, so normal navigation / commands / URLs / genuine questions are never hijacked.
+- U2 handler rewired: on any non-null classification it clears action, sends a short localized "👛 Here's your wallet — tap 💵 Deposit to add funds (Crypto or Bank)" note (en/fr/zh/hi), then calls `goto[user.wallet]()` (balance + 💵 Deposit → crypto/bank picker). BOTH branches now land in the Wallet menu.
+- New dev-only endpoint `POST /api/dev/stale-wallet-tap-test` (404 in prod) verifies classification + no false positives.
+
+**Verified:** `node -c` clean, Node restart clean (dev guards active). Backend testing agent (iteration_23) = **100% pass, no regressions**: `/api/dev/stale-wallet-tap-test` pass:true; `/api/dev/support-routing-test` still pass:true (Crypto & 👛 Wallet stay routed:false there); billing-leak / concurrency-guard / settle-receipt endpoints all pass:true; `/api/health` healthy.
+
+**Files:** `js/_index.js` (helper + U2 handler + dev endpoint).
+
 ## 2026-07-08 — @rubixeleniyan (chatId 8011229362) churn incident → 12 fixes shipped
 
 ### Trigger
