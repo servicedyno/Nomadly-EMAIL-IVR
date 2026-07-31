@@ -273,7 +273,7 @@ backend:
             
             ✅ Step 2: permanent_mp3_url (CORE FIX)
                 • pass: true ✅
-                • audioUrl: "https://hosting-gateway-1.preview.emergentagent.com/api/assets/user-audio/DEVTEST-VM_01e0ce71-bbb.mp3" ✅
+                • audioUrl: "https://config-preview-6.preview.emergentagent.com/api/assets/user-audio/DEVTEST-VM_01e0ce71-bbb.mp3" ✅
                 ★ CORE FIX VERIFIED: The saved audioUrl is a PERMANENT /assets/user-audio/*.mp3 URL
                 ★ NOT an api.telegram.org link (which would expire in ~1h)
                 ★ The OGG voice note was transcoded to MP3 format
@@ -4444,7 +4444,7 @@ backend:
             • test_phone_scheduler_no_leak.js: 12 passed, 0 failed ✓
           
           TEST 10 - Admin endpoint smoke test: ✅ PASSED
-            • GET https://hosting-gateway-1.preview.emergentagent.com/api/admin/dns-heal-status?key=o/Qb8ArGahlquhCQ
+            • GET https://config-preview-6.preview.emergentagent.com/api/admin/dns-heal-status?key=o/Qb8ArGahlquhCQ
             • HTTP 200, ok=true ✓
           
           CONCLUSION:

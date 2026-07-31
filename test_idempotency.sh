@@ -1,5 +1,5 @@
 #!/bin/bash
-BACKEND_URL="https://hosting-gateway-1.preview.emergentagent.com"
+BACKEND_URL="https://config-preview-6.preview.emergentagent.com"
 
 echo "TEST 3 — Persistent + atomic webhook idempotency"
 echo ""
