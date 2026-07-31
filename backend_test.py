@@ -1,44 +1,38 @@
 #!/usr/bin/env python3
 """
-Backend API Testing for Nomadly Telegram-bot Platform
-Tests two bug fixes:
-1. URL Shortener blocked by SUSPENDED hosting plan
-2. Imported call audio lost on Railway redeploy
+Backend test for Outbound-call [BillingLeak] fix
+Tests the /api/dev/outbound-billing-leak-test endpoint
 """
 
 import requests
 import json
 import sys
 
-# Backend URL from frontend/.env
-BACKEND_URL = "https://config-preview-6.preview.emergentagent.com/api"
+# Read backend URL from frontend/.env
+BACKEND_URL = "https://7b4407e6-eb4c-4661-af92-5701e1e9dc92.preview.emergentagent.com"
 
-def print_section(title):
-    """Print a formatted section header"""
+def test_primary_billing_leak():
+    """
+    PRIMARY TEST: Insufficient funds scenario
+    - Start with $0.10 balance
+    - 2-minute call costs $0.30
+    - Should force-settle as debt (balance goes negative)
+    - Should be idempotent (no double-charge)
+    """
     print("\n" + "="*80)
-    print(f"  {title}")
+    print("PRIMARY TEST: Outbound-call billing leak fix (insufficient funds)")
     print("="*80)
-
-def test_shortener_conflict_check():
-    """
-    TEST 1: URL Shortener must NOT be blocked by a SUSPENDED hosting plan
-    Bug: @aramboss / 6156677266
-    """
-    print_section("TEST 1: URL Shortener Conflict Check")
     
-    endpoint = f"{BACKEND_URL}/dev/shortener-conflict-check"
+    url = f"{BACKEND_URL}/api/dev/outbound-billing-leak-test"
+    headers = {"Content-Type": "application/json"}
+    body = {}
     
-    # Test 1a: Basic test with empty body
-    print("\n[1a] Testing with empty body {}")
+    print(f"\nPOST {url}")
+    print(f"Body: {json.dumps(body)}")
+    
     try:
-        response = requests.post(
-            endpoint,
-            json={},
-            headers={"Content-Type": "application/json"},
-            timeout=30
-        )
-        
-        print(f"Status Code: {response.status_code}")
+        response = requests.post(url, json=body, headers=headers, timeout=30)
+        print(f"\nStatus Code: {response.status_code}")
         
         if response.status_code != 200:
             print(f"❌ FAILED: Expected HTTP 200, got {response.status_code}")
@@ -46,266 +40,197 @@ def test_shortener_conflict_check():
             return False
         
         data = response.json()
-        print(f"Response JSON:\n{json.dumps(data, indent=2)}")
+        print(f"\nFull Response JSON:")
+        print(json.dumps(data, indent=2))
         
         # Check top-level pass
         if not data.get("pass"):
-            print(f"❌ FAILED: Top-level 'pass' is not true")
+            print(f"\n❌ FAILED: Top-level 'pass' is not true")
             return False
         
-        # Check all results
-        results = data.get("results", [])
-        if not results:
-            print(f"❌ FAILED: No results array found")
-            return False
-        
-        all_passed = True
-        expected_cases = {
-            "suspended_not_deleted": {"blocked": False, "description": "THE FIX - suspended plan must not block"},
-            "deleted": {"blocked": False, "description": "deleted plan should not block"},
-            "live_active": {"blocked": True, "description": "regression guard - live plan still blocks"},
-            "addon_on_live_plan": {"blocked": True, "description": "addon on live plan should block"},
-            "addon_on_suspended": {"blocked": False, "description": "addon on suspended should not block"}
-        }
-        
-        print("\nChecking individual cases:")
-        for result in results:
-            case_name = result.get("case")
-            blocked = result.get("blocked")
-            passed = result.get("pass")
-            
-            if case_name in expected_cases:
-                expected = expected_cases[case_name]
-                status = "✅" if passed else "❌"
-                print(f"  {status} {case_name}: blocked={blocked} (expected {expected['blocked']}) - {expected['description']}")
-                
-                if not passed:
-                    all_passed = False
-                    print(f"      FAILED: {result.get('reason', 'No reason provided')}")
-            else:
-                print(f"  ⚠️  Unknown case: {case_name}")
-        
-        if not all_passed:
-            print(f"\n❌ FAILED: Not all cases passed")
-            return False
-        
-        print(f"\n✅ PASSED: All cases passed for empty body test")
-        
-    except requests.exceptions.RequestException as e:
-        print(f"❌ FAILED: Request error: {e}")
-        return False
-    except json.JSONDecodeError as e:
-        print(f"❌ FAILED: JSON decode error: {e}")
-        print(f"Response text: {response.text}")
-        return False
-    except Exception as e:
-        print(f"❌ FAILED: Unexpected error: {e}")
-        return False
-    
-    # Test 1b: Test with specific domain (securipa.xyz)
-    print("\n[1b] Testing with domain: securipa.xyz")
-    try:
-        response = requests.post(
-            endpoint,
-            json={"domain": "securipa.xyz"},
-            headers={"Content-Type": "application/json"},
-            timeout=30
-        )
-        
-        print(f"Status Code: {response.status_code}")
-        
-        if response.status_code != 200:
-            print(f"❌ FAILED: Expected HTTP 200, got {response.status_code}")
-            return False
-        
-        data = response.json()
-        print(f"Response JSON:\n{json.dumps(data, indent=2)}")
-        
-        # Check for liveDomainCheck
-        live_domain_check = data.get("liveDomainCheck")
-        if live_domain_check:
-            blocked = live_domain_check.get("blocked")
-            print(f"\nLive domain check: blocked={blocked}")
-            if blocked is False:
-                print(f"✅ PASSED: securipa.xyz shows blocked:false (plan already deleted)")
-            else:
-                print(f"⚠️  WARNING: securipa.xyz blocked status is {blocked}")
-        else:
-            print(f"⚠️  WARNING: No liveDomainCheck in response")
-        
-        print(f"\n✅ PASSED: Domain-specific test completed")
-        
-    except Exception as e:
-        print(f"⚠️  WARNING: Domain test error (non-critical): {e}")
-    
-    return True
-
-
-def test_audio_persistence_check():
-    """
-    TEST 2: Imported call audio must survive a Railway redeploy
-    Bug: @Spirits_Of_The_Ancesters / 7898648919
-    """
-    print_section("TEST 2: Audio Persistence Check")
-    
-    endpoint = f"{BACKEND_URL}/dev/audio-persistence-check"
-    
-    print("\nTesting audio persistence after simulated redeploy")
-    try:
-        response = requests.post(
-            endpoint,
-            json={},
-            headers={"Content-Type": "application/json"},
-            timeout=60  # Longer timeout as this test does more work
-        )
-        
-        print(f"Status Code: {response.status_code}")
-        
-        if response.status_code != 200:
-            print(f"❌ FAILED: Expected HTTP 200, got {response.status_code}")
-            print(f"Response: {response.text}")
-            return False
-        
-        data = response.json()
-        print(f"Response JSON:\n{json.dumps(data, indent=2)}")
-        
-        # Check top-level pass
-        if not data.get("pass"):
-            print(f"❌ FAILED: Top-level 'pass' is not true")
-            return False
-        
-        # Check all steps
-        steps = data.get("steps", {})
-        if not steps:
-            print(f"❌ FAILED: No steps object found")
-            return False
-        
-        expected_steps = {
-            "persisted_to_ivrAudioStore": {
-                "description": "Import now backs up the binary to MongoDB",
-                "checks": ["pass", "bufferChars"]
-            },
-            "disk_wiped": {
-                "description": "Simulated redeploy removed the file from disk",
-                "checks": ["pass"]
-            },
-            "restored_serves_audio": {
-                "description": "CORE FIX: restore middleware serves real audio after disk wipe",
-                "checks": ["pass", "status", "contentType", "size"]
-            },
-            "missing_returns_404": {
-                "description": "Defense-in-depth: missing file returns clean 404",
-                "checks": ["pass", "status"]
-            }
+        # Check all 4 required checks
+        checks = data.get("checks", {})
+        required_checks = {
+            "chargeCaptured": "A walletLedger row of type 'outbound_call' with settledAsDebt:true was written",
+            "noLegacyLeakRow": "NO walletLedger row of type 'billing_failed' (old $0 revenue-leak row is gone)",
+            "balanceWentNegative": "Balance went negative (0.10 - 0.30 = -0.20)",
+            "idempotent": "Duplicate settlement with same callRef did NOT double-charge"
         }
         
         all_passed = True
-        print("\nChecking individual steps:")
+        print("\n" + "-"*80)
+        print("CHECKING REQUIRED ASSERTIONS:")
+        print("-"*80)
         
-        for step_name, expected in expected_steps.items():
-            step_data = steps.get(step_name, {})
-            passed = step_data.get("pass")
-            status = "✅" if passed else "❌"
-            
-            print(f"\n  {status} {step_name}:")
-            print(f"      {expected['description']}")
-            
-            if not passed:
+        for check_name, description in required_checks.items():
+            check_value = checks.get(check_name)
+            status = "✅ PASS" if check_value is True else "❌ FAIL"
+            print(f"{status}: {check_name} = {check_value}")
+            print(f"     ({description})")
+            if check_value is not True:
                 all_passed = False
-                print(f"      FAILED: {step_data.get('reason', 'No reason provided')}")
-            else:
-                # Print relevant details
-                for check in expected['checks']:
-                    if check != 'pass' and check in step_data:
-                        value = step_data[check]
-                        print(f"      {check}: {value}")
-                
-                # Specific validations
-                if step_name == "persisted_to_ivrAudioStore":
-                    buffer_chars = step_data.get("bufferChars", 0)
-                    if buffer_chars <= 0:
-                        print(f"      ❌ FAILED: bufferChars should be > 0, got {buffer_chars}")
-                        all_passed = False
-                
-                elif step_name == "restored_serves_audio":
-                    status_code = step_data.get("status")
-                    content_type = step_data.get("contentType", "")
-                    size = step_data.get("size", 0)
-                    
-                    if status_code != 200:
-                        print(f"      ❌ FAILED: Expected status 200, got {status_code}")
-                        all_passed = False
-                    if "audio/" not in content_type.lower():
-                        print(f"      ❌ FAILED: Expected content-type to contain 'audio/', got {content_type}")
-                        all_passed = False
-                    if size <= 0:
-                        print(f"      ❌ FAILED: Expected size > 0, got {size}")
-                        all_passed = False
-                
-                elif step_name == "missing_returns_404":
-                    status_code = step_data.get("status")
-                    if status_code != 404:
-                        print(f"      ❌ FAILED: Expected status 404, got {status_code}")
-                        all_passed = False
         
-        if not all_passed:
-            print(f"\n❌ FAILED: Not all steps passed")
+        # Print additional details
+        print("\n" + "-"*80)
+        print("ADDITIONAL DETAILS:")
+        print("-"*80)
+        print(f"Start Balance: ${data.get('startBalance', 'N/A')}")
+        print(f"Expected Charge: ${data.get('expectedCharge', 'N/A')}")
+        print(f"Balance After First: ${data.get('balanceAfterFirst', 'N/A')}")
+        print(f"Balance After Second: ${data.get('balanceAfterSecond', 'N/A')}")
+        print(f"Debit Rows Count: {data.get('debitRowsCount', 'N/A')}")
+        
+        if all_passed:
+            print("\n" + "="*80)
+            print("✅ PRIMARY TEST PASSED - All 4 checks are TRUE")
+            print("="*80)
+            return True
+        else:
+            print("\n" + "="*80)
+            print("❌ PRIMARY TEST FAILED - Some checks are not TRUE")
+            print("="*80)
             return False
-        
-        print(f"\n✅ PASSED: All steps passed")
-        return True
-        
+            
+    except requests.exceptions.Timeout:
+        print(f"❌ FAILED: Request timeout after 30 seconds")
+        return False
     except requests.exceptions.RequestException as e:
         print(f"❌ FAILED: Request error: {e}")
         return False
     except json.JSONDecodeError as e:
-        print(f"❌ FAILED: JSON decode error: {e}")
+        print(f"❌ FAILED: Invalid JSON response: {e}")
         print(f"Response text: {response.text}")
         return False
     except Exception as e:
         print(f"❌ FAILED: Unexpected error: {e}")
-        import traceback
-        traceback.print_exc()
+        return False
+
+
+def test_secondary_sufficient_funds():
+    """
+    SECONDARY TEST: Sufficient funds scenario
+    - Start with $5.00 balance
+    - 1-minute call costs less than $5
+    - Should bill normally (balance stays positive)
+    - Should NOT create billing_failed leak row
+    """
+    print("\n" + "="*80)
+    print("SECONDARY TEST: Sufficient funds scenario (normal billing path)")
+    print("="*80)
+    
+    url = f"{BACKEND_URL}/api/dev/outbound-billing-leak-test"
+    headers = {"Content-Type": "application/json"}
+    body = {"startBalance": 5, "minutes": 1}
+    
+    print(f"\nPOST {url}")
+    print(f"Body: {json.dumps(body)}")
+    
+    try:
+        response = requests.post(url, json=body, headers=headers, timeout=30)
+        print(f"\nStatus Code: {response.status_code}")
+        
+        if response.status_code != 200:
+            print(f"❌ FAILED: Expected HTTP 200, got {response.status_code}")
+            print(f"Response: {response.text}")
+            return False
+        
+        data = response.json()
+        print(f"\nFull Response JSON:")
+        print(json.dumps(data, indent=2))
+        
+        # NOTE: For sufficient funds scenario, the endpoint's "pass" field may be false
+        # because it's designed for the PRIMARY insufficient-funds test.
+        # What matters here is: balance >= 0 and no billing_failed leak row.
+        
+        # For sufficient funds, we expect:
+        # - Balance should remain >= 0
+        # - No billing_failed row (noLegacyLeakRow should be true)
+        # - balanceWentNegative may be false (that's expected and fine)
+        
+        checks = data.get("checks", {})
+        balance_after_first = data.get("balanceAfterFirst", 0)
+        
+        print("\n" + "-"*80)
+        print("CHECKING SUFFICIENT FUNDS SCENARIO:")
+        print("-"*80)
+        
+        # Check no legacy leak row
+        no_leak = checks.get("noLegacyLeakRow")
+        print(f"{'✅ PASS' if no_leak else '❌ FAIL'}: noLegacyLeakRow = {no_leak}")
+        print(f"     (NO billing_failed leak row should exist)")
+        
+        # Check balance stayed positive
+        balance_positive = balance_after_first >= 0
+        print(f"{'✅ PASS' if balance_positive else '❌ FAIL'}: Balance >= 0 = {balance_positive}")
+        print(f"     (Balance after first: ${balance_after_first})")
+        
+        # Note about balanceWentNegative
+        balance_went_negative = checks.get("balanceWentNegative")
+        print(f"ℹ️  INFO: balanceWentNegative = {balance_went_negative}")
+        print(f"     (Expected to be false with sufficient funds - this is normal)")
+        
+        print("\n" + "-"*80)
+        print("ADDITIONAL DETAILS:")
+        print("-"*80)
+        print(f"Start Balance: ${data.get('startBalance', 'N/A')}")
+        print(f"Expected Charge: ${data.get('expectedCharge', 'N/A')}")
+        print(f"Balance After First: ${data.get('balanceAfterFirst', 'N/A')}")
+        print(f"Balance After Second: ${data.get('balanceAfterSecond', 'N/A')}")
+        
+        if no_leak and balance_positive:
+            print("\n" + "="*80)
+            print("✅ SECONDARY TEST PASSED - Normal billing path works correctly")
+            print("="*80)
+            return True
+        else:
+            print("\n" + "="*80)
+            print("❌ SECONDARY TEST FAILED")
+            print("="*80)
+            return False
+            
+    except requests.exceptions.Timeout:
+        print(f"❌ FAILED: Request timeout after 30 seconds")
+        return False
+    except requests.exceptions.RequestException as e:
+        print(f"❌ FAILED: Request error: {e}")
+        return False
+    except json.JSONDecodeError as e:
+        print(f"❌ FAILED: Invalid JSON response: {e}")
+        print(f"Response text: {response.text}")
+        return False
+    except Exception as e:
+        print(f"❌ FAILED: Unexpected error: {e}")
         return False
 
 
 def main():
-    """Run all backend tests"""
-    print_section("NOMADLY TELEGRAM-BOT BACKEND API TESTS")
+    print("\n" + "="*80)
+    print("OUTBOUND-CALL [BillingLeak] FIX VERIFICATION")
+    print("="*80)
     print(f"Backend URL: {BACKEND_URL}")
-    print(f"Environment: development (BOT_ENVIRONMENT=development)")
-    print(f"\nTesting TWO bug fixes:")
-    print(f"  1. URL Shortener blocked by SUSPENDED hosting plan")
-    print(f"  2. Imported call audio lost on Railway redeploy")
-    
-    results = {}
+    print(f"Test Endpoint: /api/dev/outbound-billing-leak-test")
+    print("\nThis endpoint uses a synthetic DEVLEAK-* chatId and cleans up all test data.")
+    print("No production data is affected.")
     
     # Run tests
-    results["test1_shortener"] = test_shortener_conflict_check()
-    results["test2_audio"] = test_audio_persistence_check()
+    primary_passed = test_primary_billing_leak()
+    secondary_passed = test_secondary_sufficient_funds()
     
     # Summary
-    print_section("TEST SUMMARY")
+    print("\n" + "="*80)
+    print("TEST SUMMARY")
+    print("="*80)
+    print(f"PRIMARY TEST (insufficient funds):   {'✅ PASSED' if primary_passed else '❌ FAILED'}")
+    print(f"SECONDARY TEST (sufficient funds):   {'✅ PASSED' if secondary_passed else '❌ FAILED'}")
+    print("="*80)
     
-    test1_status = "✅ PASSED" if results["test1_shortener"] else "❌ FAILED"
-    test2_status = "✅ PASSED" if results["test2_audio"] else "❌ FAILED"
-    
-    print(f"\nTEST 1 (URL Shortener Conflict Check): {test1_status}")
-    print(f"TEST 2 (Audio Persistence Check): {test2_status}")
-    
-    all_passed = all(results.values())
-    
-    if all_passed:
-        print(f"\n{'='*80}")
-        print(f"  ✅ ALL TESTS PASSED")
-        print(f"{'='*80}")
-        return 0
+    if primary_passed and secondary_passed:
+        print("\n✅ ALL TESTS PASSED - BillingLeak fix is working correctly")
+        sys.exit(0)
     else:
-        print(f"\n{'='*80}")
-        print(f"  ❌ SOME TESTS FAILED")
-        print(f"{'='*80}")
-        return 1
+        print("\n❌ SOME TESTS FAILED - BillingLeak fix has issues")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()

@@ -36167,6 +36167,81 @@ app.get('/dev/ai-support-health', (req, res) => {
   }
 })
 
+// ── DEV-ONLY: outbound-call BillingLeak regression test ────────────────────
+// Reproduces the 2026-07-30 chatId 7898648919 [BillingLeak]: rapid concurrent
+// outbound dialing drained the wallet below the per-call cost, so the deferred
+// settlement (billCallMinutesUnified OUTBOUND) hit smartWalletDeduct's
+// atomic-conditional no-op and billed $0 → permanent revenue loss + a false
+// "call NOT billed" DM. The fix force-settles the delivered call as recoverable
+// debt (balance goes negative, recovered on next top-up) instead of dropping it.
+// Drives a synthetic low-balance wallet through the REAL billCallMinutesUnified()
+// path and asserts: (1) the charge is captured (not billing_failed $0),
+// (2) balance goes negative by exactly the owed amount, (3) a duplicate
+// settlement with the same callRef is idempotent (no double charge). Cleans up.
+// Safe: synthetic chatId, dev bot, 404 in production.
+app.post('/dev/outbound-billing-leak-test', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const voiceService = require('./voice-service.js')
+  const b = req.body || {}
+  const testChatId = 'DEVLEAK-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7)
+  const destination = String(b.destination || '+15415874255')
+  const minutes = Number(b.minutes || 2)
+  const startBalance = Number(b.startBalance != null ? b.startBalance : 0.10)
+  const callRef = 'telnyx_DEVLEAK_' + testChatId
+  const out = { testChatId }
+  try {
+    const rate = voiceService.getCallRate(destination)
+    const expectedCharge = +(minutes * rate).toFixed(4)
+    out.rate = rate
+    out.expectedCharge = expectedCharge
+    out.startBalance = startBalance
+
+    // 1) Seed a wallet that CANNOT cover the call
+    await walletOf.updateOne({ _id: testChatId }, { $set: { usdIn: startBalance, usdOut: 0 } }, { upsert: true })
+
+    // 2) Run the REAL deferred-settlement path (should force-settle as debt)
+    await voiceService.billCallMinutesUnified(testChatId, '+10000000000', minutes, destination, 'SIPOutbound', callRef)
+
+    const w1 = await walletOf.findOne({ _id: testChatId })
+    const bal1 = (w1?.usdIn || 0) - (w1?.usdOut || 0)
+    out.balanceAfterFirst = +bal1.toFixed(4)
+
+    const ledger1 = await db.collection('walletLedger').find({ chatId: testChatId }).toArray()
+    out.ledgerRows = ledger1.map(r => ({ type: r.type, amount: r.amount, balanceAfter: r.balanceAfter, settledAsDebt: !!r.settledAsDebt }))
+    const debitRow = ledger1.find(r => r.type === 'outbound_call' && r.settledAsDebt === true)
+    const leakRow = ledger1.find(r => r.type === 'billing_failed')
+
+    // 3) Idempotency — duplicate hangup webhook (same callRef) must NOT re-charge
+    await voiceService.billCallMinutesUnified(testChatId, '+10000000000', minutes, destination, 'SIPOutbound', callRef)
+    const w2 = await walletOf.findOne({ _id: testChatId })
+    const bal2 = (w2?.usdIn || 0) - (w2?.usdOut || 0)
+    out.balanceAfterSecond = +bal2.toFixed(4)
+    const debitRowsCount = (await db.collection('walletLedger').find({ chatId: testChatId, type: 'outbound_call' }).toArray()).length
+    out.debitRowsCount = debitRowsCount
+
+    // ── Assertions ──
+    const chargeCaptured = !!debitRow
+    const noLegacyLeakRow = !leakRow
+    const balanceWentNegative = bal1 < 0 && Math.abs(bal1 - (startBalance - expectedCharge)) < 0.001
+    const idempotent = debitRowsCount === 1 && Math.abs(bal2 - bal1) < 0.0001
+
+    out.checks = { chargeCaptured, noLegacyLeakRow, balanceWentNegative, idempotent }
+    out.pass = chargeCaptured && noLegacyLeakRow && balanceWentNegative && idempotent
+  } catch (e) {
+    out.error = e.message
+    out.pass = false
+  } finally {
+    // Cleanup synthetic data — never leave test rows in the shared DB
+    try { await walletOf.deleteOne({ _id: testChatId }) } catch (_) {}
+    try { await db.collection('walletLedger').deleteMany({ chatId: testChatId }) } catch (_) {}
+    try { await db.collection('payments').deleteMany({ val: { $regex: testChatId } }) } catch (_) {}
+  }
+  return res.json(out)
+})
+
+
 // ── DEV-ONLY: preview the escalation admin-alert HTML template ─────────────
 //   1. Interpolated userMessage / aiResponse containing <b>, </i>, <code> etc.
 //      are HTML-escaped (bug 2026-07-30 @iamthebestbusiness 5828254066:

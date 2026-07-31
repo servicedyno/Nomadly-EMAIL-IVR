@@ -4,7 +4,7 @@
 const { log } = require('console')
 const { get, set, setFields, atomicIncrement } = require('./db.js')
 const { formatPhone, formatDuration, canAccessFeature, plans, OVERAGE_RATE_MIN, OVERAGE_RATE_SMS, CALL_FORWARDING_RATE_MIN, CALL_CONNECTION_FEE } = require('./phone-config.js')
-const { getBalance, smartWalletDeduct, smartWalletCheck } = require('./utils.js')
+const { getBalance, smartWalletDeduct, smartWalletCheck, forceWalletDebit } = require('./utils.js')
 
 let _bot = null
 let _db = null
@@ -1326,45 +1326,51 @@ async function billCallMinutesUnified(chatId, phoneNumber, minutesBilled, destin
           const msg = _trans('vs.callTypeCharge', lang, callType, minutesBilled, rate, chargedStr, region, discountLine)
           if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
         } else {
-          // ── Hard-fail path: wallet did NOT cover this outbound call. ──
-          // Previously this was a silent log line, meaning the user got the
-          // service for free and the gap only surfaced in deep audits (see
-          // 2026-05-30 logsready audit). We now:
-          //   1) write a `billing_failed` walletLedger row so the loss is
-          //      visible in the same place as successful charges
-          //   2) DM the user that their wallet was insufficient + ask them
-          //      to top up before placing more calls
-          //   3) record a userError so AI Support has context if they ask
-          //   4) notify admin so the leak surfaces during operations review
-          log(`[Voice] ⛔ Outbound charge FAILED (insufficient funds): $${totalCharge.toFixed(2)} for ${callType} — service was provided but NOT billed`)
-          try {
-            const db = _walletOf.s?.db
-            if (db) {
-              const { v4: uuidv4 } = require('uuid')
-              db.collection('walletLedger').insertOne({
-                _id: uuidv4(),
-                chatId, type: 'billing_failed',
-                amount: 0, currency: 'usd',
-                balanceAfter: Math.max(0, (deductResult.usdBal || 0)),
-                description: `UNBILLED ${callType}: ${phoneNumber} → ${destinationNumber} (${minutesBilled} min × $${rate} = $${totalCharge.toFixed(2)} owed; balance $${deductResult.usdBal || 0})`,
-                callType, destination: destinationNumber, phoneNumber,
-                owedUsd: totalCharge,
-                timestamp: new Date(),
-              }).catch(() => {})
-            }
-          } catch (_) {}
+          // ── Hard-fail path REPLACED (2026-07-31 BillingLeak fix): ──
+          // smartWalletDeduct is atomic-conditional and silently no-ops when the
+          // wallet can't cover an ALREADY-CONNECTED outbound call — the call was
+          // delivered but $0 was billed, permanently LOSING the revenue. This is
+          // exactly the [BillingLeak] alerts seen for chatId 7898648919 on
+          // 2026-07-30 (rapid concurrent dialing drained the wallet below the
+          // per-call cost, so the deferred settlement for the last few calls
+          // failed). There is NO owedUsd-recovery anywhere, so those rows were a
+          // true loss.
+          //
+          // The service is already rendered, so it MUST be billed. We now
+          // FORCE-SETTLE the charge as recoverable debt (balance may go
+          // negative), mirroring the retroactive-ivr-billing precedent. The debt
+          // nets out on the user's next deposit (balance = usdIn - usdOut), and
+          // the LOW_BALANCE_LOCK (<$1) already blocks fresh calls while negative,
+          // so this cannot be abused to accumulate unbounded debt. Idempotent via
+          // callRef → duplicate hangup webhooks never double-charge.
+          const debtResult = await forceWalletDebit(_walletOf, chatId, totalCharge, {
+            type: 'outbound_call', callType,
+            description: `Outbound ${callType} (settled as debt): ${phoneNumber} → ${destinationNumber} (${minutesBilled} min × $${rate})`,
+            destination: destinationNumber, phoneNumber,
+            callRef,
+          })
+          if (debtResult.idempotent) {
+            log(`[Voice] Outbound debt-settle idempotent: $${totalCharge.toFixed(2)} for ${callType} (${callRef}) already billed — skipping`)
+            return { planMinUsed: 0, overageMin: minutesBilled, overageCharge: totalCharge, rate, used: 0, limit: 0, idempotent: true }
+          }
+          const newBal = debtResult.balanceAfter || 0
+          log(`[Voice] ⚠️ Outbound charge FORCE-SETTLED as debt: $${totalCharge.toFixed(2)} for ${callType} — service delivered, balance now $${newBal.toFixed(2)} (recovered on next top-up)`)
+          if (_payments) {
+            const ref = _nanoid?.() || `debt_${callType}_${Date.now()}`
+            set(_payments, ref, `Outbound,${callType},$${totalCharge.toFixed(2)},${chatId},${phoneNumber},${destinationNumber},${new Date()},settledAsDebt=true`)
+          }
           try {
             const lang = await _getUserLang(chatId)
             const dmMsg = ({
-              en: `⚠️ <b>Outbound call NOT billed — wallet empty</b>\n\n📞 ${phoneNumber} → ${destinationNumber} (${minutesBilled} min, owed $${totalCharge.toFixed(2)})\n\nTop up your wallet to keep placing calls — further outbound attempts will be blocked while balance is below the call rate.`,
-              fr: `⚠️ <b>Appel sortant non facturé — solde vide</b>\n\n📞 ${phoneNumber} → ${destinationNumber} (${minutesBilled} min, dû $${totalCharge.toFixed(2)})\n\nRechargez votre portefeuille pour continuer.`,
-              zh: `⚠️ <b>未计费的拨出电话 — 钱包余额为零</b>\n\n📞 ${phoneNumber} → ${destinationNumber}（${minutesBilled} 分钟，欠 $${totalCharge.toFixed(2)}）\n\n请充值钱包以继续拨打。`,
-              hi: `⚠️ <b>आउटबाउंड कॉल बिल नहीं हुआ — वॉलेट खाली</b>\n\n📞 ${phoneNumber} → ${destinationNumber} (${minutesBilled} मिनट, बकाया $${totalCharge.toFixed(2)})\n\nकॉल जारी रखने के लिए वॉलेट टॉप-अप करें।`,
-            }[lang] || `⚠️ <b>Outbound call NOT billed — wallet empty</b>\n\n📞 ${phoneNumber} → ${destinationNumber} (${minutesBilled} min, owed $${totalCharge.toFixed(2)})\n\nTop up your wallet to keep placing calls.`)
+              en: `⚠️ <b>Outbound call charged — wallet now negative</b>\n\n📞 ${phoneNumber} → ${destinationNumber} (${minutesBilled} min, $${totalCharge.toFixed(2)})\n💳 Balance: <b>$${newBal.toFixed(2)}</b>\n\nThis charge was applied on credit. Top up your wallet to clear it — further outbound calls are locked until your balance is positive.`,
+              fr: `⚠️ <b>Appel sortant facturé — solde négatif</b>\n\n📞 ${phoneNumber} → ${destinationNumber} (${minutesBilled} min, $${totalCharge.toFixed(2)})\n💳 Solde: <b>$${newBal.toFixed(2)}</b>\n\nRechargez votre portefeuille pour régler ce montant — les appels sortants sont bloqués tant que le solde est négatif.`,
+              zh: `⚠️ <b>拨出电话已计费 — 钱包余额为负</b>\n\n📞 ${phoneNumber} → ${destinationNumber}（${minutesBilled} 分钟，$${totalCharge.toFixed(2)}）\n💳 余额: <b>$${newBal.toFixed(2)}</b>\n\n此费用以信用方式扣除。请充值以结清，余额为负时拨出电话将被锁定。`,
+              hi: `⚠️ <b>आउटबाउंड कॉल शुल्क लिया गया — वॉलेट अब ऋणात्मक</b>\n\n📞 ${phoneNumber} → ${destinationNumber} (${minutesBilled} मिनट, $${totalCharge.toFixed(2)})\n💳 शेष: <b>$${newBal.toFixed(2)}</b>\n\nयह शुल्क उधार पर लिया गया। इसे चुकाने के लिए टॉप-अप करें — शेष ऋणात्मक रहने तक आउटबाउंड कॉल लॉक रहेंगी।`,
+            }[lang] || `⚠️ <b>Outbound call charged — wallet now negative</b>\n\n📞 ${phoneNumber} → ${destinationNumber} (${minutesBilled} min, $${totalCharge.toFixed(2)})\n💳 Balance: <b>$${newBal.toFixed(2)}</b>\n\nTop up your wallet to clear it — outbound calls are locked until your balance is positive.`)
             _bot?.sendMessage(chatId, dmMsg, { parse_mode: 'HTML' }).catch(() => {})
           } catch (_) {}
           if (_notifyAdmin) {
-            _notifyAdmin(`💸 [BillingLeak] $${totalCharge.toFixed(2)} unbilled ${callType}\nchatId: <code>${chatId}</code>\n${phoneNumber} → ${destinationNumber}\nminutes: ${minutesBilled} · rate: $${rate}\nbalance: $${deductResult.usdBal || 0}`).catch(() => {})
+            _notifyAdmin(`💸 [BillingRecovered] $${totalCharge.toFixed(2)} ${callType} settled as DEBT (was a leak)\nchatId: <code>${chatId}</code>\n${phoneNumber} → ${destinationNumber}\nminutes: ${minutesBilled} · rate: $${rate}\nbalance now: $${newBal.toFixed(2)} (recovers on next top-up)`).catch(() => {})
           }
         }
       }

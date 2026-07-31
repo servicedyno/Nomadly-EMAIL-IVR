@@ -72,6 +72,146 @@ user_problem_statement: |
 
 
 backend:
+  - task: "Outbound-call [BillingLeak] — deferred settlement billed $0 on insufficient funds (chatId 7898648919, 2026-07-30 rapid concurrent SIP dialing)"
+    implemented: true
+    working: true
+    file: "/app/js/utils.js (new forceWalletDebit), /app/js/voice-service.js (billCallMinutesUnified OUTBOUND failure branch ~L1328), /app/js/_index.js (/dev/outbound-billing-leak-test)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFICATION COMPLETE - Outbound-call [BillingLeak] fix PASSED (both PRIMARY and SECONDARY tests):
+          
+          SCOPE: Verified the fix for the outbound call billing leak where concurrent calls drained 
+          the wallet below the per-call cost, causing deferred settlements to bill $0 and write 
+          billing_failed rows (permanent revenue loss). The fix force-settles delivered calls as 
+          recoverable DEBT when funds are insufficient, and maintains normal billing when funds are sufficient.
+          
+          [PRIMARY TEST] INSUFFICIENT FUNDS SCENARIO: ✅ ALL 4 CHECKS PASSED
+            POST {REACT_APP_BACKEND_URL}/api/dev/outbound-billing-leak-test with body {}
+            
+            Response: HTTP 200, top-level pass: true ✅
+            
+            Test scenario:
+            • Start balance: $0.10
+            • 2-minute call cost: $0.30 (rate $0.15/min)
+            • Expected: Force-settle as debt, balance goes negative
+            
+            ✅ Check 1: chargeCaptured = true
+                • A walletLedger row of type "outbound_call" with settledAsDebt:true was written ✅
+                • Ledger shows: type="outbound_call", amount=-0.30, settledAsDebt=true ✅
+                ★ CORE FIX VERIFIED: The delivered call was captured as a charge (force-settled as debt)
+            
+            ✅ Check 2: noLegacyLeakRow = true
+                • NO walletLedger row of type "billing_failed" exists ✅
+                ★ REVENUE LEAK FIXED: The old $0 billing_failed row is gone
+            
+            ✅ Check 3: balanceWentNegative = true
+                • Balance after first: $-0.20 (0.10 - 0.30 = -0.20) ✅
+                ★ DEBT SETTLEMENT VERIFIED: Balance correctly went negative (recoverable on next deposit)
+            
+            ✅ Check 4: idempotent = true
+                • Debit rows count: 1 ✅
+                • Balance after second call: $-0.20 (unchanged) ✅
+                ★ IDEMPOTENCY VERIFIED: Duplicate settlement with same callRef did NOT double-charge
+          
+          [SECONDARY TEST] SUFFICIENT FUNDS SCENARIO: ✅ PASSED
+            POST {REACT_APP_BACKEND_URL}/api/dev/outbound-billing-leak-test with body {"startBalance": 5, "minutes": 1}
+            
+            Response: HTTP 200 ✅
+            
+            Test scenario:
+            • Start balance: $5.00
+            • 1-minute call cost: $0.15
+            • Expected: Normal billing path, balance stays positive
+            
+            ✅ noLegacyLeakRow = true
+                • NO billing_failed leak row exists ✅
+            
+            ✅ Balance stayed positive
+                • Balance after first: $4.85 (5.00 - 0.15 = 4.85) ✅
+                • Ledger shows: type="outbound_call", amount=-0.15, settledAsDebt=false ✅
+                ★ NORMAL BILLING PATH VERIFIED: With sufficient funds, normal billing works correctly
+            
+            ℹ️  Note: balanceWentNegative = false (expected with sufficient funds)
+            ℹ️  Note: chargeCaptured = false (expected - settledAsDebt only true for insufficient funds)
+          
+          CONCLUSION:
+          The outbound-call billing leak fix is COMPLETE and verified end-to-end. Both test scenarios passed.
+          
+          KEY FIX VERIFIED:
+          1. INSUFFICIENT FUNDS: When concurrent calls drain the wallet below the per-call cost, the 
+             deferred settlement now force-settles the delivered call as recoverable DEBT using the new 
+             forceWalletDebit() function. Balance goes negative (recovered on next deposit), and NO 
+             billing_failed $0 revenue-leak row is written.
+          
+          2. SUFFICIENT FUNDS: When funds are sufficient, the normal billing path works correctly. 
+             The call is billed normally (outbound_call row with settledAsDebt:false), balance stays 
+             positive, and NO billing_failed leak row is created.
+          
+          3. IDEMPOTENCY: Duplicate hangup webhooks with the same callRef do NOT double-charge. The 
+             second settlement is correctly rejected (E11000 duplicate key).
+          
+          IMPACT:
+          • Revenue leak fixed: Delivered outbound calls are now always charged (either normal debit 
+            or force-settled as debt)
+          • NO more billing_failed $0 rows (permanent revenue loss eliminated)
+          • Balance can go negative for delivered calls (recovered on next deposit)
+          • LOW_BALANCE_LOCK (<$1) still blocks fresh outbound calls while negative (debt bounded)
+          • Idempotent via callRef (duplicate webhooks safe)
+          
+          SAFETY CONFIRMED: The /api/dev/outbound-billing-leak-test endpoint:
+          • Uses synthetic DEVLEAK-* chatId (not a real user)
+          • Deletes all test data in finally block (wallet + ledger + payment rows)
+          • NO real Telegram messages sent
+          • NO real SIP/Twilio calls placed
+          • NO production data affected
+          
+          The bug that caused chatId 7898648919 to have 3 billing_failed rows ($3.28 revenue loss) 
+          during rapid concurrent SIP dialing is now fixed. All delivered outbound calls are now 
+          properly charged, either through normal billing or force-settled as recoverable debt.
+      
+      - working: "NA"
+        agent: "main"
+        comment: |
+          ROOT CAUSE (confirmed against prod walletLedger): Outbound calls are
+          billed primarily by the DEFERRED settlement at hangup —
+          billCallMinutesUnified() OUTBOUND path → smartWalletDeduct({type:
+          'outbound_call', callRef}). smartWalletDeduct is atomic-conditional
+          (only deducts if usdIn-usdOut >= amount). When rapid/concurrent
+          outbound calls drain the wallet below the per-call cost, the deferred
+          settlement for the last calls matched nothing → charged $0, wrote a
+          `billing_failed` (owedUsd) row, logged [BillingLeak], and DM'd the user
+          "call NOT billed". There is NO owedUsd recovery anywhere → permanent
+          revenue loss. (chatId 7898648919: 3 rows, $3.28, in a 2-min window.)
+          Verified NO double-billing risk: `sip_per_minute` ledger type has 0
+          rows all-time (dormant path); twilio_bridge_per_minute is a separate
+          carrier leg (intended dual-leg). `outbound_call` = 21,793 rows = the
+          authoritative biller.
+
+          FIX: New utils.forceWalletDebit() force-settles an already-delivered
+          call as recoverable DEBT (unconditional $inc usdOut, balance may go
+          negative; recovered automatically on next deposit since balance =
+          usdIn - usdOut). Mirrors the existing retroactive-ivr-billing
+          "force-charge as debt" precedent. Idempotent via callRef (duplicate
+          hangup webhooks never double-charge; E11000 dup → refund). The
+          billCallMinutesUnified OUTBOUND failure branch now calls it instead of
+          writing a $0 billing_failed row. LOW_BALANCE_LOCK (<$1) still blocks
+          fresh outbound calls while negative, so debt cannot grow unbounded.
+
+          TEST ENDPOINT (dev-only, 404 in production, synthetic chatId, cleans
+          up): POST /api/dev/outbound-billing-leak-test {} → expects pass:true.
+          Seeds a $0.10 wallet, runs the REAL billCallMinutesUnified for a
+          2-min outbound call ($0.30), asserts: chargeCaptured (real
+          outbound_call row with settledAsDebt:true, NOT billing_failed),
+          noLegacyLeakRow, balanceWentNegative (== start - owed), idempotent
+          (2nd call same callRef → 1 debit row, balance unchanged).
+          Main-agent local sanity already returned pass:true.
+
+
   - task: "Escalation admin alert HTML parse crash + admin misdiagnosis — @iamthebestbusiness (5828254066) 2026-07-30 'Ecsow SIP forbidden' support ticket"
     implemented: true
     working: "NA"
@@ -5753,17 +5893,46 @@ frontend: []
 metadata:
   created_by: "main_agent"
   version: "2.1"
-  test_sequence: 22
+  test_sequence: 23
   run_ui: false
 
 test_plan:
   current_focus:
-    - "Voicemail custom greeting stored raw/expiring Telegram link (OGG) → broken/static greeting"
+    - "Outbound-call [BillingLeak] — deferred settlement billed $0 on insufficient funds (chatId 7898648919)"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
+  - agent: "main"
+    message: |
+      PLEASE TEST the BillingLeak fix (backend, dev-only endpoint under
+      {REACT_APP_BACKEND_URL}/api — the FastAPI proxy forwards /api/* to the Node
+      Express server; BOT_ENVIRONMENT=development so /dev/* endpoints are live).
+
+      PRIMARY: POST /api/dev/outbound-billing-leak-test  (body {} is fine)
+        EXPECT HTTP 200 and JSON pass:true with checks:
+          - chargeCaptured:true   (a real walletLedger row type "outbound_call"
+                                    with settledAsDebt:true was written)
+          - noLegacyLeakRow:true  (NO type "billing_failed" $0 row)
+          - balanceWentNegative:true (balanceAfterFirst == startBalance - owed,
+                                    i.e. 0.10 - 0.30 = -0.20)
+          - idempotent:true       (2nd call with same callRef → debitRowsCount==1,
+                                    balanceAfterSecond == balanceAfterFirst)
+        Optionally also POST with {"startBalance":5,"minutes":1} to confirm that
+        when funds ARE sufficient the normal path still bills (no settledAsDebt row,
+        balance stays positive) — note: with startBalance>=cost the row will be a
+        normal outbound_call (settledAsDebt not set) and balance stays >= 0.
+
+      CONTEXT: fixes revenue leak where an already-connected outbound call billed
+      $0 when the wallet was drained by concurrent calls. Now force-settled as
+      recoverable debt (balance goes negative, recovered on next top-up),
+      idempotent via callRef.
+
+      SAFETY: endpoint uses a synthetic DEVLEAK-* chatId and deletes its wallet +
+      ledger + payment rows in a finally block. No real Telegram sends, no real
+      calls, no production user data touched.
+
   - agent: "testing"
     message: |
       ✅ VERIFICATION COMPLETE - Voicemail greeting upload fix PASSED (all 4 test suites):
@@ -8197,3 +8366,43 @@ agent_communication:
           No code changes in this run. Only .env credential rotation.
 
 
+
+
+  - agent: "testing"
+    message: |
+      ✅ VERIFICATION COMPLETE - Outbound-call [BillingLeak] fix PASSED (both PRIMARY and SECONDARY tests):
+      
+      PRIMARY TEST (insufficient funds): ✅ ALL 4 CHECKS PASSED
+      • POST /api/dev/outbound-billing-leak-test with {} → HTTP 200, pass: true
+      • chargeCaptured: true ✅ (walletLedger row type "outbound_call" with settledAsDebt:true)
+      • noLegacyLeakRow: true ✅ (NO "billing_failed" $0 revenue-leak row)
+      • balanceWentNegative: true ✅ (balance: 0.10 → -0.20, correctly went negative)
+      • idempotent: true ✅ (duplicate settlement did NOT double-charge)
+      
+      SECONDARY TEST (sufficient funds): ✅ PASSED
+      • POST /api/dev/outbound-billing-leak-test with {"startBalance": 5, "minutes": 1} → HTTP 200
+      • noLegacyLeakRow: true ✅ (NO billing_failed leak row)
+      • Balance stayed positive: 5.00 → 4.85 ✅
+      • Normal billing path works correctly (outbound_call row with settledAsDebt:false) ✅
+      
+      CONCLUSION: The outbound-call billing leak fix is working correctly end-to-end.
+      
+      KEY FIX VERIFIED:
+      1. INSUFFICIENT FUNDS: Delivered calls are now force-settled as recoverable DEBT (balance goes 
+         negative, recovered on next deposit). NO more billing_failed $0 revenue-leak rows.
+      2. SUFFICIENT FUNDS: Normal billing path works correctly (balance stays positive).
+      3. IDEMPOTENCY: Duplicate hangup webhooks with same callRef do NOT double-charge.
+      
+      IMPACT:
+      • Revenue leak eliminated: All delivered outbound calls are now properly charged
+      • Balance can go negative for delivered calls (recovered on next deposit)
+      • LOW_BALANCE_LOCK (<$1) still blocks fresh calls while negative (debt bounded)
+      
+      Updated test_result.md:
+      • Task "Outbound-call [BillingLeak]": working=true, needs_retesting=false
+      
+      SAFETY: Endpoint uses synthetic DEVLEAK-* chatId, cleans up all test data. NO real Telegram 
+      messages sent. NO real SIP/Twilio calls placed. NO production data affected.
+      
+      The bug that caused chatId 7898648919 to have 3 billing_failed rows ($3.28 revenue loss) 
+      during rapid concurrent SIP dialing is now fixed.

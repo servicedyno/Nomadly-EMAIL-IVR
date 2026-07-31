@@ -247,6 +247,97 @@ async function smartWalletDeduct(walletOf, chatId, amountUsd, metadata = {}) {
 }
 
 /**
+ * Force-settle an already-rendered charge as recoverable DEBT.
+ *
+ * Unlike smartWalletDeduct (atomic-conditional — silently no-ops when the
+ * balance can't cover the charge, which permanently LOSES the revenue), this
+ * ALWAYS records the charge, driving the wallet balance negative if needed.
+ * The debt is recovered automatically on the user's next deposit because
+ * balance = usdIn - usdOut (a top-up raises usdIn and nets out the debt).
+ *
+ * Use this ONLY for services that have ALREADY been delivered and therefore
+ * MUST be billed (e.g. an outbound call that already connected). New-service
+ * gating (LOW_BALANCE_LOCK etc.) still blocks fresh spend while the balance is
+ * negative, so this cannot be abused to rack up unbounded debt.
+ *
+ * Mirrors the "force-charge as debt" precedent in retroactive-ivr-billing.js.
+ *
+ * @returns {{ success: true, forced: boolean, charged: number, balanceAfter: number, idempotent?: boolean }}
+ */
+async function forceWalletDebit(walletOf, chatId, amountUsd, metadata = {}) {
+  const db = walletOf.s?.db
+  const { v4: uuidv4 } = require('uuid')
+
+  // ── Idempotency guard (same contract as smartWalletDeduct) ──
+  // Duplicate hangup webhooks for the same callRef must never double-charge.
+  if (metadata.callRef && db) {
+    try {
+      const existing = await db.collection('walletLedger').findOne(
+        { callRef: metadata.callRef, chatId },
+        { projection: { _id: 1 } }
+      )
+      if (existing) {
+        log(`[forceWalletDebit] Idempotent skip — callRef=${metadata.callRef} already billed (ledger=${existing._id})`)
+        const { usdBal } = await getBalance(walletOf, chatId)
+        return { success: true, forced: false, charged: 0, balanceAfter: usdBal, idempotent: true }
+      }
+    } catch (idemErr) {
+      log(`[forceWalletDebit] Idempotency check error (proceeding anyway): ${idemErr.message}`)
+    }
+  }
+
+  // ── Unconditional debit — balance is allowed to go negative (debt) ──
+  let newBal = 0
+  try {
+    const result = await walletOf.findOneAndUpdate(
+      { _id: chatId },
+      { $inc: { usdOut: amountUsd } },
+      { returnDocument: 'after', upsert: true, includeResultMetadata: false }
+    )
+    newBal = (result?.usdIn || 0) - (result?.usdOut || 0)
+  } catch (e) {
+    log(`[forceWalletDebit] Debit error for chatId=${chatId} amount=$${amountUsd}: ${e.message}`)
+    const { usdBal } = await getBalance(walletOf, chatId)
+    return { success: false, forced: false, charged: 0, balanceAfter: usdBal }
+  }
+
+  // ── Ledger row — records the charge as a REAL debit (recoverable debt) ──
+  if (db) {
+    try {
+      await db.collection('walletLedger').insertOne({
+        _id: uuidv4(),
+        chatId,
+        type: metadata.type || 'wallet_deduction',
+        amount: -amountUsd,
+        currency: 'usd',
+        balanceAfter: parseFloat(newBal.toFixed(4)),
+        description: metadata.description || `Debt settlement: $${amountUsd.toFixed(4)}`,
+        callType: metadata.callType || null,
+        destination: metadata.destination || null,
+        phoneNumber: metadata.phoneNumber || null,
+        callRef: metadata.callRef || null,
+        settledAsDebt: true,
+        owedUsd: amountUsd,
+        timestamp: new Date(),
+      })
+    } catch (e) {
+      // Duplicate-key on callRef → a concurrent caller already billed it. Refund
+      // our just-applied debit so the net effect is a single charge.
+      if (e && e.code === 11000) {
+        log(`[forceWalletDebit] callRef ${metadata.callRef} already inserted by concurrent caller — refunding $${amountUsd.toFixed(4)} to chatId ${chatId}`)
+        try { await walletOf.updateOne({ _id: chatId }, { $inc: { usdOut: -amountUsd } }) } catch (_) {}
+        const { usdBal } = await getBalance(walletOf, chatId)
+        return { success: true, forced: false, charged: 0, balanceAfter: usdBal, idempotent: true }
+      }
+      log(`[forceWalletDebit] Ledger insert error: ${e.message}`)
+    }
+  }
+
+  return { success: true, forced: true, charged: amountUsd, balanceAfter: newBal }
+}
+
+
+/**
  * Check and process referral reward after a wallet deduction
  * If the user was referred and their cumulative spend >= $30, credit referrer $5
  */
@@ -1083,6 +1174,7 @@ module.exports = {
   usdToNgn,
   ngnToUsd,
   smartWalletDeduct,
+  forceWalletDebit,
   checkReferralReward,
   smartWalletCheck,
   getRandom,
