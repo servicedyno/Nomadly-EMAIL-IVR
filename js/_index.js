@@ -1520,6 +1520,43 @@ const _aiQuickActionsLabel = {
 // then (if the AI suggested follow-up actions) updates the reply keyboard.
 // Returns { response, safeHtml, escalate, error } so the caller keeps its
 // existing admin-notify + escalation pipeline unchanged.
+// ── Guaranteed final delivery of a streamed AI reply ──────────────────────
+// Ensures the user ALWAYS receives the answer even when editing the "Typing…"
+// placeholder fails (rate limit / transient Telegram error / HTML parse quirk).
+// Order: skip if already shown → edit(HTML) → edit(plain) → delete placeholder +
+// sendMessage(HTML) → sendMessage(plain). Returns { delivered, via }.
+// `botApi` is injected so this is unit-testable with a mock bot.
+async function deliverFinalReply(botApi, chatId, mid, aiResponse, safeHtml, alreadyShown) {
+  const html = safeHtml
+  if (!html || !html.trim()) return { delivered: false, via: 'empty' }
+  if (mid) {
+    if (html === alreadyShown) return { delivered: true, via: 'already' }
+    try {
+      await botApi.editMessageText(html, { chat_id: chatId, message_id: mid, parse_mode: 'HTML', disable_web_page_preview: true })
+      return { delivered: true, via: 'edit' }
+    } catch (e) {
+      if (e && /not modified/i.test(e.message || '')) return { delivered: true, via: 'already' }
+      try {
+        await botApi.editMessageText(aiResponse, { chat_id: chatId, message_id: mid, disable_web_page_preview: true })
+        return { delivered: true, via: 'edit-plain' }
+      } catch { /* fall through to fresh message */ }
+    }
+    try { await botApi.deleteMessage(chatId, mid) } catch { /* noop */ }
+  }
+  try {
+    await botApi.sendMessage(chatId, html, { parse_mode: 'HTML', disable_web_page_preview: true, reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
+    return { delivered: true, via: 'send' }
+  } catch (e1) {
+    try {
+      await botApi.sendMessage(chatId, aiResponse, { reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
+      return { delivered: true, via: 'send-plain' }
+    } catch (e2) {
+      return { delivered: false, via: 'none' }
+    }
+  }
+}
+
+
 async function streamAiReply(chatId, message, lang = 'en') {
   const L = (lang && _aiStreamIndicator[lang]) ? lang : 'en'
 
@@ -1540,23 +1577,34 @@ async function streamAiReply(chatId, message, lang = 'en') {
   }
   const mid = placeholder?.message_id
 
-  let lastRendered = ''
+  // `lastShown` = the text CURRENTLY visible in the placeholder message. We only
+  // advance it after an edit SUCCEEDS, so a failed edit can never poison the
+  // "already shown" guard (previous bug: lastRendered was set before the attempt,
+  // so a failed edit made the final render think the answer was already shown).
+  let lastShown = _aiStreamIndicator[L]
   let lastEditAt = 0
 
+  // Returns true if the placeholder now shows `rawText`, false if the edit failed.
   const doEdit = async (rawText) => {
-    if (!mid) return
+    if (!mid) return false
     const html = aiMarkdownToHtml(rawText)
-    if (!html.trim() || html === lastRendered) return
-    lastRendered = html
+    if (!html.trim()) return false
+    if (html === lastShown) return true // already on screen
     try {
       await bot.editMessageText(html, {
         chat_id: chatId, message_id: mid,
         parse_mode: 'HTML', disable_web_page_preview: true,
       })
+      lastShown = html
+      return true
     } catch (e) {
-      if (e && /not modified/i.test(e.message)) return
-      // HTML parse hiccup on a partial — fall back to a plain-text edit.
-      try { await bot.editMessageText(rawText, { chat_id: chatId, message_id: mid, disable_web_page_preview: true }) } catch { /* skip this frame */ }
+      if (e && /not modified/i.test(e.message)) { lastShown = html; return true }
+      // HTML parse hiccup (e.g. a partial that cut mid-tag) — fall back to plain text.
+      try {
+        await bot.editMessageText(rawText, { chat_id: chatId, message_id: mid, disable_web_page_preview: true })
+        lastShown = rawText
+        return true
+      } catch { return false /* caller guarantees delivery below */ }
     }
   }
 
@@ -1578,12 +1626,18 @@ async function streamAiReply(chatId, message, lang = 'en') {
 
   const safeHtml = aiMarkdownToHtml(aiResponse)
 
-  // Final render (forced — bypasses the time throttle).
-  if (mid) {
-    await doEdit(aiResponse)
-  } else {
-    // Placeholder never sent — deliver as a normal message.
-    send(chatId, safeHtml, { parse_mode: 'HTML', reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
+  // ── GUARANTEED DELIVERY (2026-07-31 fix) ──────────────────────────────────
+  // Previously, if every editMessageText call failed (rate limit / transient
+  // Telegram error / parse quirk), the placeholder was left showing "💬 Typing…"
+  // and the user NEVER saw the answer — even though the admin mirror logged that
+  // the AI "replied" (the @Padrino_voodoo screenshot). deliverFinalReply() now
+  // confirms the answer actually landed; if the edit path fails it deletes the
+  // stuck placeholder and delivers the answer as a fresh message (HTML → plain).
+  const delivery = await deliverFinalReply(bot, chatId, mid, aiResponse, safeHtml, lastShown)
+  if (!delivery.delivered) {
+    log(`[Support] ⚠️ Could not deliver AI reply to ${chatId} (all edit+send attempts failed)`)
+  } else if (delivery.via && delivery.via.startsWith('send')) {
+    log(`[Support] AI reply delivered via fallback message (${delivery.via}) for ${chatId} — editMessageText failed`)
   }
 
   // If the AI suggested actions, surface them on the reply keyboard.
@@ -36521,6 +36575,109 @@ app.post('/dev/ai-support-ask', async (req, res) => {
   }
   return res.json(out)
 })
+
+
+// ── DEV-ONLY: diagnose the STREAMING reply path (Typing… never replaced) ───
+// The 2026-07-31 @Padrino_voodoo screenshot showed the "💬 Typing…" placeholder
+// never getting replaced by the AI answer even though the admin mirror showed a
+// reply. This calls getAiResponseStreaming exactly like streamAiReply does,
+// counts onDelta frames, and measures the rendered length vs Telegram's 4096
+// editMessageText limit — the prime suspect for the failed placeholder edit.
+app.post('/dev/ai-stream-diagnose', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const b = req.body || {}
+  const question = String(b.question || 'Are your domains truly bulletproof?')
+  const lang = String(b.lang || 'en')
+  const cid = 'DEVSTREAM-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7)
+  const out = { testChatId: cid, question, lang }
+  try {
+    let deltaCount = 0
+    let lastPartialLen = 0
+    const { response, escalate, error } = await getAiResponseStreaming(cid, question, lang, async (partial) => {
+      deltaCount++
+      lastPartialLen = (partial || '').length
+    })
+    const resp = response || ''
+    const html = aiMarkdownToHtml(resp)
+    out.deltaCount = deltaCount
+    out.responseLength = resp.length
+    out.htmlLength = html.length
+    out.rawExceeds4096 = resp.length > 4096
+    out.htmlExceeds4096 = html.length > 4096
+    out.escalate = !!escalate
+    out.error = error || null
+    out.responsePreview = resp.slice(0, 300)
+    out.streamingWorks = deltaCount > 0 && resp.length > 20 && !error
+  } catch (e) {
+    out.error = e.message
+  } finally {
+    try { await db.collection('aiSupportChats').deleteMany({ chatId: cid }) } catch (_) {}
+  }
+  return res.json(out)
+})
+
+
+// ── DEV-ONLY: verify GUARANTEED delivery of a streamed AI reply ────────────
+// Exercises deliverFinalReply() with a mock bot to prove the user still gets the
+// answer when editMessageText fails (the "💬 Typing… never replaced" bug). 404
+// in production. Pure in-memory (mock bot), no real Telegram / DB writes.
+app.post('/dev/stream-delivery-test', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const aiResponse = 'Inbound overage is $0.15 per minute after your included minutes.'
+  const safeHtml = 'Inbound overage is <b>$0.15/min</b> after your included minutes.'
+  const mkBot = (opts = {}) => {
+    const calls = { edit: 0, del: 0, send: 0 }
+    let sentText = null
+    return {
+      calls,
+      get sentText() { return sentText },
+      editMessageText: async () => { calls.edit++; if (opts.editFails) throw new Error('Bad Request: message can\'t be edited'); return true },
+      deleteMessage: async () => { calls.del++; return true },
+      sendMessage: async (cid, text) => { calls.send++; if (opts.sendHtmlFails && calls.send === 1) throw new Error('can\'t parse entities'); sentText = text; return { message_id: 999 } },
+    }
+  }
+  const out = { scenarios: {} }
+  try {
+    // A) edit succeeds → via 'edit', no fresh send
+    let b = mkBot({})
+    let r = await deliverFinalReply(b, 111, 500, aiResponse, safeHtml, '💬 Typing...')
+    out.scenarios.editSucceeds = { via: r.via, delivered: r.delivered, sends: b.calls.send }
+
+    // B) edit FAILS (both html+plain) → placeholder deleted + fresh HTML message
+    b = mkBot({ editFails: true })
+    r = await deliverFinalReply(b, 111, 500, aiResponse, safeHtml, '💬 Typing...')
+    out.scenarios.editFailsFallsBackToSend = { via: r.via, delivered: r.delivered, deleted: b.calls.del, sends: b.calls.send, sentText: b.sentText }
+
+    // C) edit fails AND html send fails → plain-text send
+    b = mkBot({ editFails: true, sendHtmlFails: true })
+    r = await deliverFinalReply(b, 111, 500, aiResponse, safeHtml, '💬 Typing...')
+    out.scenarios.plainTextLastResort = { via: r.via, delivered: r.delivered, sends: b.calls.send, sentText: b.sentText }
+
+    // D) answer already shown (streaming already rendered it) → no-op
+    b = mkBot({})
+    r = await deliverFinalReply(b, 111, 500, aiResponse, safeHtml, safeHtml)
+    out.scenarios.alreadyShown = { via: r.via, delivered: r.delivered, edits: b.calls.edit, sends: b.calls.send }
+
+    const c = out.scenarios
+    out.checks = {
+      editPathWorks: c.editSucceeds.via === 'edit' && c.editSucceeds.delivered && c.editSucceeds.sends === 0,
+      failureStillDelivers: c.editFailsFallsBackToSend.via === 'send' && c.editFailsFallsBackToSend.delivered === true && c.editFailsFallsBackToSend.deleted === 1 && c.editFailsFallsBackToSend.sentText === safeHtml,
+      plainTextLastResort: c.plainTextLastResort.via === 'send-plain' && c.plainTextLastResort.delivered === true && c.plainTextLastResort.sentText === aiResponse,
+      alreadyShownNoDuplicate: c.alreadyShown.via === 'already' && c.alreadyShown.delivered === true && c.alreadyShown.edits === 0 && c.alreadyShown.sends === 0,
+    }
+    out.pass = Object.values(out.checks).every(Boolean)
+  } catch (e) {
+    out.error = e.message
+    out.pass = false
+  }
+  return res.json(out)
+})
+
+
 
 
 

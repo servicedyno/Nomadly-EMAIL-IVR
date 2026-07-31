@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
 """
-Backend test for AI support 'no answer' fix
-Tests the routing heuristic and AI response endpoints
+Backend API Testing for AI Support Reply Delivery Fix
+Tests the guaranteed delivery mechanism for AI support replies
 """
 
 import requests
 import json
-import sys
 import time
+import os
 
-# Backend URL from frontend/.env
+# Get the backend URL from environment
 BACKEND_URL = "https://7b4407e6-eb4c-4661-af92-5701e1e9dc92.preview.emergentagent.com"
+BASE_URL = f"{BACKEND_URL}/api"
 
 def print_section(title):
-    """Print a section header"""
+    """Print a formatted section header"""
     print("\n" + "="*80)
     print(f"  {title}")
     print("="*80)
@@ -23,187 +24,204 @@ def print_result(test_name, passed, details=""):
     status = "✅ PASSED" if passed else "❌ FAILED"
     print(f"\n{status}: {test_name}")
     if details:
-        print(f"  {details}")
+        print(f"  Details: {details}")
 
-def test_support_routing():
+def test_stream_delivery():
     """
-    TEST 1: Routing heuristic
-    POST /api/dev/support-routing-test with body {}
-    Expect HTTP 200 and JSON "pass": true with checks.allQuestionsRouted:true AND checks.noFalsePositives:true
+    TEST 1: Guaranteed delivery test
+    POST /api/dev/stream-delivery-test
+    Expects pass:true with all checks true
     """
-    print_section("TEST 1: Support Routing Heuristic")
+    print_section("TEST 1: Stream Delivery Guaranteed Delivery")
     
-    url = f"{BACKEND_URL}/api/dev/support-routing-test"
-    headers = {"Content-Type": "application/json"}
-    body = {}
-    
-    print(f"\nEndpoint: POST {url}")
-    print(f"Body: {json.dumps(body)}")
+    url = f"{BASE_URL}/dev/stream-delivery-test"
+    print(f"URL: {url}")
+    print(f"Method: POST")
+    print(f"Body: {{}}")
     
     try:
-        response = requests.post(url, json=body, headers=headers, timeout=60)
+        response = requests.post(
+            url,
+            json={},
+            headers={"Content-Type": "application/json"},
+            timeout=60
+        )
         
-        print(f"\nHTTP Status: {response.status_code}")
-        print(f"\nRaw Response:")
-        print(json.dumps(response.json(), indent=2))
+        print(f"\nResponse Status: {response.status_code}")
         
         if response.status_code != 200:
-            print_result("TEST 1", False, f"Expected HTTP 200, got {response.status_code}")
+            print(f"Response Body: {response.text[:500]}")
+            print_result("TEST 1 - HTTP Status", False, f"Expected 200, got {response.status_code}")
             return False
         
-        data = response.json()
+        # Parse JSON response
+        try:
+            data = response.json()
+            print(f"\nResponse JSON:")
+            print(json.dumps(data, indent=2))
+        except Exception as e:
+            print(f"Failed to parse JSON: {e}")
+            print(f"Response text: {response.text[:500]}")
+            print_result("TEST 1 - JSON Parse", False, str(e))
+            return False
         
         # Check top-level pass
         if not data.get("pass"):
-            print_result("TEST 1", False, f"Top-level 'pass' is {data.get('pass')}, expected true")
+            print_result("TEST 1 - Top-level pass", False, f"pass={data.get('pass')}")
             return False
         
-        # Check nested checks
+        # Check all required checks (nested under "checks" key)
+        required_checks = [
+            "editPathWorks",
+            "failureStillDelivers",
+            "plainTextLastResort",
+            "alreadyShownNoDuplicate"
+        ]
+        
         checks = data.get("checks", {})
-        all_questions_routed = checks.get("allQuestionsRouted")
-        no_false_positives = checks.get("noFalsePositives")
+        all_passed = True
+        for check in required_checks:
+            check_value = checks.get(check)
+            if check_value is True:
+                print(f"  ✅ {check}: true")
+            else:
+                print(f"  ❌ {check}: {check_value}")
+                all_passed = False
         
-        if all_questions_routed is not True:
-            print_result("TEST 1", False, f"checks.allQuestionsRouted is {all_questions_routed}, expected true")
+        if all_passed:
+            print_result("TEST 1 - All Checks", True, "All 4 checks passed")
+            return True
+        else:
+            print_result("TEST 1 - All Checks", False, "Some checks failed")
             return False
-        
-        if no_false_positives is not True:
-            print_result("TEST 1", False, f"checks.noFalsePositives is {no_false_positives}, expected true")
-            return False
-        
-        print_result("TEST 1", True, "All routing checks passed: allQuestionsRouted=true, noFalsePositives=true")
-        return True
-        
+            
     except requests.exceptions.Timeout:
-        print_result("TEST 1", False, "Request timed out after 60 seconds")
+        print_result("TEST 1 - Request", False, "Request timed out after 60s")
         return False
     except Exception as e:
-        print_result("TEST 1", False, f"Exception: {str(e)}")
+        print_result("TEST 1 - Request", False, str(e))
         return False
 
-def test_ai_support_ask(question, test_name):
+def test_ai_stream_diagnose():
     """
-    TEST 2: AI actually answers (real OpenAI call)
-    POST /api/dev/ai-support-ask with body {"question": "..."}
-    Expect HTTP 200 and "pass": true with checks gotAnswer:true, citesOverageRate:true, 
-    mentionsInboundOrOverage:true, and escalate:false, error:null
+    TEST 2: Streaming pipeline health test
+    POST /api/dev/ai-stream-diagnose
+    Expects streamingWorks:true, deltaCount>0, responseLength>20, error:null
+    This is a REAL OpenAI streaming call - allow up to ~45s
     """
-    print_section(f"{test_name}: AI Support Ask - '{question[:50]}...'")
+    print_section("TEST 2: AI Stream Diagnose (Real OpenAI Call)")
     
-    url = f"{BACKEND_URL}/api/dev/ai-support-ask"
-    headers = {"Content-Type": "application/json"}
+    url = f"{BASE_URL}/dev/ai-stream-diagnose"
+    question = "Are your domains truly bulletproof?"
     body = {"question": question}
     
-    print(f"\nEndpoint: POST {url}")
+    print(f"URL: {url}")
+    print(f"Method: POST")
     print(f"Body: {json.dumps(body)}")
-    print(f"\n⏳ Calling real OpenAI API... (may take up to ~45 seconds)")
+    print(f"Note: This is a REAL OpenAI streaming call, may take up to 45 seconds...")
     
     try:
         start_time = time.time()
-        response = requests.post(url, json=body, headers=headers, timeout=60)
+        response = requests.post(
+            url,
+            json=body,
+            headers={"Content-Type": "application/json"},
+            timeout=60  # Allow up to 60s for OpenAI call
+        )
         elapsed = time.time() - start_time
         
-        print(f"\n⏱️  Response time: {elapsed:.2f} seconds")
-        print(f"HTTP Status: {response.status_code}")
-        print(f"\nRaw Response:")
-        print(json.dumps(response.json(), indent=2))
+        print(f"\nResponse Status: {response.status_code}")
+        print(f"Response Time: {elapsed:.2f}s")
         
         if response.status_code != 200:
-            print_result(test_name, False, f"Expected HTTP 200, got {response.status_code}")
+            print(f"Response Body: {response.text[:500]}")
+            print_result("TEST 2 - HTTP Status", False, f"Expected 200, got {response.status_code}")
             return False
         
-        data = response.json()
-        
-        # Check top-level pass
-        if not data.get("pass"):
-            print_result(test_name, False, f"Top-level 'pass' is {data.get('pass')}, expected true")
+        # Parse JSON response
+        try:
+            data = response.json()
+            print(f"\nResponse JSON:")
+            print(json.dumps(data, indent=2))
+        except Exception as e:
+            print(f"Failed to parse JSON: {e}")
+            print(f"Response text: {response.text[:500]}")
+            print_result("TEST 2 - JSON Parse", False, str(e))
             return False
         
-        # Check nested checks
-        checks = data.get("checks", {})
-        got_answer = checks.get("gotAnswer")
-        cites_overage_rate = checks.get("citesOverageRate")
-        mentions_inbound_or_overage = checks.get("mentionsInboundOrOverage")
-        escalate = data.get("escalate")
-        error = data.get("error")
+        # Check required fields
+        checks = {
+            "streamingWorks": data.get("streamingWorks") is True,
+            "deltaCount > 0": data.get("deltaCount", 0) > 0,
+            "responseLength > 20": data.get("responseLength", 0) > 20,
+            "error is null": data.get("error") is None
+        }
         
-        failures = []
+        all_passed = True
+        for check_name, check_result in checks.items():
+            if check_result:
+                print(f"  ✅ {check_name}")
+            else:
+                print(f"  ❌ {check_name}")
+                all_passed = False
         
-        if got_answer is not True:
-            failures.append(f"checks.gotAnswer is {got_answer}, expected true")
+        # Print actual values
+        print(f"\nActual Values:")
+        print(f"  streamingWorks: {data.get('streamingWorks')}")
+        print(f"  deltaCount: {data.get('deltaCount')}")
+        print(f"  responseLength: {data.get('responseLength')}")
+        print(f"  error: {data.get('error')}")
         
-        if cites_overage_rate is not True:
-            failures.append(f"checks.citesOverageRate is {cites_overage_rate}, expected true")
-        
-        if mentions_inbound_or_overage is not True:
-            failures.append(f"checks.mentionsInboundOrOverage is {mentions_inbound_or_overage}, expected true")
-        
-        if escalate is not False:
-            failures.append(f"escalate is {escalate}, expected false")
-        
-        if error is not None:
-            failures.append(f"error is {error}, expected null")
-        
-        if failures:
-            print_result(test_name, False, "; ".join(failures))
+        if all_passed:
+            print_result("TEST 2 - All Checks", True, f"All checks passed in {elapsed:.2f}s")
+            return True
+        else:
+            print_result("TEST 2 - All Checks", False, "Some checks failed")
             return False
-        
-        # Check response text mentions $0.15/min
-        response_text = data.get("response", "")
-        print(f"\n📝 AI Response excerpt: {response_text[:200]}...")
-        
-        print_result(test_name, True, "All checks passed: gotAnswer=true, citesOverageRate=true, mentionsInboundOrOverage=true, escalate=false, error=null")
-        return True
-        
+            
     except requests.exceptions.Timeout:
-        print_result(test_name, False, "Request timed out after 60 seconds")
+        print_result("TEST 2 - Request", False, "Request timed out after 60s")
         return False
     except Exception as e:
-        print_result(test_name, False, f"Exception: {str(e)}")
+        print_result("TEST 2 - Request", False, str(e))
         return False
 
 def main():
     """Run all tests"""
     print("\n" + "="*80)
-    print("  AI SUPPORT 'NO ANSWER' FIX - BACKEND VERIFICATION")
-    print("  Testing Node/Express backend proxied through FastAPI")
+    print("  AI SUPPORT REPLY DELIVERY FIX - BACKEND TESTING")
     print("="*80)
     print(f"\nBackend URL: {BACKEND_URL}")
-    print(f"Environment: BOT_ENVIRONMENT=development (dev endpoints enabled)")
+    print(f"Base API URL: {BASE_URL}")
+    print(f"\nTesting Environment: BOT_ENVIRONMENT=development")
+    print(f"Note: /dev/* endpoints are enabled in development mode")
     
-    results = []
+    results = {}
     
-    # TEST 1: Routing heuristic
-    results.append(("TEST 1: Routing Heuristic", test_support_routing()))
+    # Run TEST 1
+    results["test1_stream_delivery"] = test_stream_delivery()
     
-    # TEST 2a: AI support ask - first question
-    question1 = "What does a call cost after my free inbound minutes are used up?"
-    results.append(("TEST 2a: AI Support Ask (Question 1)", test_ai_support_ask(question1, "TEST 2a")))
-    
-    # TEST 2b: AI support ask - second question
-    question2 = "how much per minute after my plan minutes finish?"
-    results.append(("TEST 2b: AI Support Ask (Question 2)", test_ai_support_ask(question2, "TEST 2b")))
+    # Run TEST 2
+    results["test2_ai_stream_diagnose"] = test_ai_stream_diagnose()
     
     # Summary
     print_section("TEST SUMMARY")
     
-    passed_count = sum(1 for _, passed in results if passed)
-    total_count = len(results)
+    total_tests = len(results)
+    passed_tests = sum(1 for v in results.values() if v)
     
-    for test_name, passed in results:
+    for test_name, passed in results.items():
         status = "✅ PASSED" if passed else "❌ FAILED"
         print(f"{status}: {test_name}")
     
-    print(f"\n{'='*80}")
-    print(f"TOTAL: {passed_count}/{total_count} tests passed")
-    print(f"{'='*80}\n")
+    print(f"\nTotal: {passed_tests}/{total_tests} tests passed")
     
-    if passed_count == total_count:
-        print("🎉 ALL TESTS PASSED - AI support 'no answer' fix is working correctly!")
+    if all(results.values()):
+        print("\n🎉 ALL TESTS PASSED - AI support reply delivery fix is working correctly!")
         return 0
     else:
-        print("⚠️  SOME TESTS FAILED - See details above")
+        print("\n⚠️  SOME TESTS FAILED - See details above")
         return 1
 
 if __name__ == "__main__":
-    sys.exit(main())
+    exit(main())
