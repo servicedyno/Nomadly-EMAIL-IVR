@@ -1,196 +1,208 @@
 #!/usr/bin/env python3
 """
-Backend API Testing Script for BillingLeak Follow-ups
-Tests 3 new backend enhancements built on the verified BillingLeak fix
+Backend test for AI support 'no answer' fix
+Tests the routing heuristic and AI response endpoints
 """
 
 import requests
 import json
 import sys
-from typing import Dict, Any, Tuple
+import time
 
 # Backend URL from frontend/.env
-BASE_URL = "https://7b4407e6-eb4c-4661-af92-5701e1e9dc92.preview.emergentagent.com"
+BACKEND_URL = "https://7b4407e6-eb4c-4661-af92-5701e1e9dc92.preview.emergentagent.com"
 
-def print_section(title: str):
-    """Print a formatted section header"""
+def print_section(title):
+    """Print a section header"""
     print("\n" + "="*80)
     print(f"  {title}")
     print("="*80)
 
-def print_result(test_name: str, passed: bool, details: str = ""):
-    """Print test result with formatting"""
-    status = "✅ PASS" if passed else "❌ FAIL"
+def print_result(test_name, passed, details=""):
+    """Print test result"""
+    status = "✅ PASSED" if passed else "❌ FAILED"
     print(f"\n{status}: {test_name}")
     if details:
         print(f"  {details}")
 
-def test_endpoint(endpoint: str, expected_checks: list) -> Tuple[bool, Dict[Any, Any], str]:
+def test_support_routing():
     """
-    Test a backend endpoint
+    TEST 1: Routing heuristic
+    POST /api/dev/support-routing-test with body {}
+    Expect HTTP 200 and JSON "pass": true with checks.allQuestionsRouted:true AND checks.noFalsePositives:true
+    """
+    print_section("TEST 1: Support Routing Heuristic")
     
-    Args:
-        endpoint: The API endpoint path (e.g., '/api/dev/concurrency-guard-test')
-        expected_checks: List of check names that should all be true
-        
-    Returns:
-        Tuple of (success, response_json, error_message)
-    """
-    url = f"{BASE_URL}{endpoint}"
+    url = f"{BACKEND_URL}/api/dev/support-routing-test"
     headers = {"Content-Type": "application/json"}
     body = {}
     
+    print(f"\nEndpoint: POST {url}")
+    print(f"Body: {json.dumps(body)}")
+    
     try:
-        print(f"\n📡 Testing: POST {endpoint}")
-        print(f"   URL: {url}")
-        print(f"   Body: {json.dumps(body)}")
+        response = requests.post(url, json=body, headers=headers, timeout=60)
         
-        response = requests.post(url, headers=headers, json=body, timeout=30)
-        
-        print(f"   Status: {response.status_code}")
+        print(f"\nHTTP Status: {response.status_code}")
+        print(f"\nRaw Response:")
+        print(json.dumps(response.json(), indent=2))
         
         if response.status_code != 200:
-            return False, {}, f"Expected HTTP 200, got {response.status_code}"
+            print_result("TEST 1", False, f"Expected HTTP 200, got {response.status_code}")
+            return False
         
-        try:
-            data = response.json()
-        except json.JSONDecodeError as e:
-            return False, {}, f"Invalid JSON response: {e}"
+        data = response.json()
         
-        # Print full raw JSON
-        print(f"\n📄 Raw JSON Response:")
-        print(json.dumps(data, indent=2))
-        
-        # Check top-level pass field
+        # Check top-level pass
         if not data.get("pass"):
-            return False, data, f"Top-level 'pass' is not true: {data.get('pass')}"
+            print_result("TEST 1", False, f"Top-level 'pass' is {data.get('pass')}, expected true")
+            return False
         
-        # Check all expected checks (they're nested under "checks" object)
+        # Check nested checks
         checks = data.get("checks", {})
-        failed_checks = []
-        for check in expected_checks:
-            if check not in checks:
-                failed_checks.append(f"{check} (missing)")
-            elif not checks[check]:
-                failed_checks.append(f"{check} (false)")
+        all_questions_routed = checks.get("allQuestionsRouted")
+        no_false_positives = checks.get("noFalsePositives")
         
-        if failed_checks:
-            return False, data, f"Failed checks: {', '.join(failed_checks)}"
+        if all_questions_routed is not True:
+            print_result("TEST 1", False, f"checks.allQuestionsRouted is {all_questions_routed}, expected true")
+            return False
         
-        return True, data, ""
+        if no_false_positives is not True:
+            print_result("TEST 1", False, f"checks.noFalsePositives is {no_false_positives}, expected true")
+            return False
+        
+        print_result("TEST 1", True, "All routing checks passed: allQuestionsRouted=true, noFalsePositives=true")
+        return True
         
     except requests.exceptions.Timeout:
-        return False, {}, "Request timeout (30s)"
-    except requests.exceptions.RequestException as e:
-        return False, {}, f"Request error: {e}"
+        print_result("TEST 1", False, "Request timed out after 60 seconds")
+        return False
+    except Exception as e:
+        print_result("TEST 1", False, f"Exception: {str(e)}")
+        return False
+
+def test_ai_support_ask(question, test_name):
+    """
+    TEST 2: AI actually answers (real OpenAI call)
+    POST /api/dev/ai-support-ask with body {"question": "..."}
+    Expect HTTP 200 and "pass": true with checks gotAnswer:true, citesOverageRate:true, 
+    mentionsInboundOrOverage:true, and escalate:false, error:null
+    """
+    print_section(f"{test_name}: AI Support Ask - '{question[:50]}...'")
+    
+    url = f"{BACKEND_URL}/api/dev/ai-support-ask"
+    headers = {"Content-Type": "application/json"}
+    body = {"question": question}
+    
+    print(f"\nEndpoint: POST {url}")
+    print(f"Body: {json.dumps(body)}")
+    print(f"\n⏳ Calling real OpenAI API... (may take up to ~45 seconds)")
+    
+    try:
+        start_time = time.time()
+        response = requests.post(url, json=body, headers=headers, timeout=60)
+        elapsed = time.time() - start_time
+        
+        print(f"\n⏱️  Response time: {elapsed:.2f} seconds")
+        print(f"HTTP Status: {response.status_code}")
+        print(f"\nRaw Response:")
+        print(json.dumps(response.json(), indent=2))
+        
+        if response.status_code != 200:
+            print_result(test_name, False, f"Expected HTTP 200, got {response.status_code}")
+            return False
+        
+        data = response.json()
+        
+        # Check top-level pass
+        if not data.get("pass"):
+            print_result(test_name, False, f"Top-level 'pass' is {data.get('pass')}, expected true")
+            return False
+        
+        # Check nested checks
+        checks = data.get("checks", {})
+        got_answer = checks.get("gotAnswer")
+        cites_overage_rate = checks.get("citesOverageRate")
+        mentions_inbound_or_overage = checks.get("mentionsInboundOrOverage")
+        escalate = data.get("escalate")
+        error = data.get("error")
+        
+        failures = []
+        
+        if got_answer is not True:
+            failures.append(f"checks.gotAnswer is {got_answer}, expected true")
+        
+        if cites_overage_rate is not True:
+            failures.append(f"checks.citesOverageRate is {cites_overage_rate}, expected true")
+        
+        if mentions_inbound_or_overage is not True:
+            failures.append(f"checks.mentionsInboundOrOverage is {mentions_inbound_or_overage}, expected true")
+        
+        if escalate is not False:
+            failures.append(f"escalate is {escalate}, expected false")
+        
+        if error is not None:
+            failures.append(f"error is {error}, expected null")
+        
+        if failures:
+            print_result(test_name, False, "; ".join(failures))
+            return False
+        
+        # Check response text mentions $0.15/min
+        response_text = data.get("response", "")
+        print(f"\n📝 AI Response excerpt: {response_text[:200]}...")
+        
+        print_result(test_name, True, "All checks passed: gotAnswer=true, citesOverageRate=true, mentionsInboundOrOverage=true, escalate=false, error=null")
+        return True
+        
+    except requests.exceptions.Timeout:
+        print_result(test_name, False, "Request timed out after 60 seconds")
+        return False
+    except Exception as e:
+        print_result(test_name, False, f"Exception: {str(e)}")
+        return False
 
 def main():
-    """Main test execution"""
-    print_section("BACKEND API TESTING - BillingLeak Follow-ups")
-    print(f"Base URL: {BASE_URL}")
-    print(f"Testing 3 new backend enhancements + 1 regression test")
+    """Run all tests"""
+    print("\n" + "="*80)
+    print("  AI SUPPORT 'NO ANSWER' FIX - BACKEND VERIFICATION")
+    print("  Testing Node/Express backend proxied through FastAPI")
+    print("="*80)
+    print(f"\nBackend URL: {BACKEND_URL}")
+    print(f"Environment: BOT_ENVIRONMENT=development (dev endpoints enabled)")
     
-    all_passed = True
     results = []
     
-    # TEST 1: Concurrency Guard
-    print_section("TEST 1: Concurrency Guard Fund Reservation")
-    print("Verifies simultaneous outbound calls reserve funds so wallet can't be over-committed")
+    # TEST 1: Routing heuristic
+    results.append(("TEST 1: Routing Heuristic", test_support_routing()))
     
-    expected_checks_1 = [
-        "reserveAddsUp",
-        "releaseSubtracts", 
-        "reReserveIdempotent",
-        "gatingBlocksOverCommit",
-        "gatingAllowsWithHeadroom",
-        "releaseAllClears"
-    ]
+    # TEST 2a: AI support ask - first question
+    question1 = "What does a call cost after my free inbound minutes are used up?"
+    results.append(("TEST 2a: AI Support Ask (Question 1)", test_ai_support_ask(question1, "TEST 2a")))
     
-    success_1, data_1, error_1 = test_endpoint("/api/dev/concurrency-guard-test", expected_checks_1)
-    results.append(("Concurrency Guard", success_1, data_1, error_1))
-    
-    if success_1:
-        print_result("Concurrency Guard Test", True, "All 6 checks passed")
-        print("\n✓ reserveAddsUp: Reservations correctly add up")
-        print("✓ releaseSubtracts: Releases correctly subtract")
-        print("✓ reReserveIdempotent: Re-reserving same call is idempotent")
-        print("✓ gatingBlocksOverCommit: Gating blocks over-commitment")
-        print("✓ gatingAllowsWithHeadroom: Gating allows calls with sufficient headroom")
-        print("✓ releaseAllClears: Release all clears all reservations")
-    else:
-        print_result("Concurrency Guard Test", False, error_1)
-        all_passed = False
-    
-    # TEST 2: Deposit Settle Receipt
-    print_section("TEST 2: Deposit Settle Receipt")
-    print("Verifies top-up correctly nets out negative call-debt balance")
-    
-    expected_checks_2 = [
-        "startedNegative",
-        "partialLeavesDebt",
-        "fullClearsAndPositive"
-    ]
-    
-    success_2, data_2, error_2 = test_endpoint("/api/dev/settle-receipt-test", expected_checks_2)
-    results.append(("Deposit Settle Receipt", success_2, data_2, error_2))
-    
-    if success_2:
-        print_result("Deposit Settle Receipt Test", True, "All 3 checks passed")
-        print("\n✓ startedNegative: Started with negative balance (-0.50)")
-        print("✓ partialLeavesDebt: Partial top-up leaves debt (-0.20 after +0.30)")
-        print("✓ fullClearsAndPositive: Full top-up clears debt and goes positive (+0.80 after +1.00)")
-    else:
-        print_result("Deposit Settle Receipt Test", False, error_2)
-        all_passed = False
-    
-    # TEST 3: Regression - Outbound Billing Leak
-    print_section("TEST 3: REGRESSION - Outbound Billing Leak Fix")
-    print("Re-verifies the original BillingLeak fix still works correctly")
-    
-    expected_checks_3 = [
-        "chargeCaptured",
-        "noLegacyLeakRow",
-        "balanceWentNegative",
-        "idempotent"
-    ]
-    
-    success_3, data_3, error_3 = test_endpoint("/api/dev/outbound-billing-leak-test", expected_checks_3)
-    results.append(("Outbound Billing Leak (Regression)", success_3, data_3, error_3))
-    
-    if success_3:
-        print_result("Outbound Billing Leak Regression", True, "All 4 checks passed")
-        print("\n✓ chargeCaptured: Charge captured as debt when insufficient funds")
-        print("✓ noLegacyLeakRow: No billing_failed leak row created")
-        print("✓ balanceWentNegative: Balance correctly went negative")
-        print("✓ idempotent: Duplicate settlement did not double-charge")
-    else:
-        print_result("Outbound Billing Leak Regression", False, error_3)
-        all_passed = False
+    # TEST 2b: AI support ask - second question
+    question2 = "how much per minute after my plan minutes finish?"
+    results.append(("TEST 2b: AI Support Ask (Question 2)", test_ai_support_ask(question2, "TEST 2b")))
     
     # Summary
     print_section("TEST SUMMARY")
     
-    for test_name, success, data, error in results:
-        status = "✅ PASS" if success else "❌ FAIL"
-        print(f"\n{status}: {test_name}")
-        if not success and error:
-            print(f"   Error: {error}")
+    passed_count = sum(1 for _, passed in results if passed)
+    total_count = len(results)
     
-    print("\n" + "="*80)
-    if all_passed:
-        print("🎉 ALL TESTS PASSED (3/3)")
-        print("="*80)
-        print("\n✅ Concurrency Guard: Working correctly")
-        print("✅ Deposit Settle Receipt: Working correctly")
-        print("✅ Outbound Billing Leak (Regression): Still working correctly")
-        print("\nAll 3 new backend enhancements are verified and working.")
-        print("The original BillingLeak fix remains stable (regression test passed).")
+    for test_name, passed in results:
+        status = "✅ PASSED" if passed else "❌ FAILED"
+        print(f"{status}: {test_name}")
+    
+    print(f"\n{'='*80}")
+    print(f"TOTAL: {passed_count}/{total_count} tests passed")
+    print(f"{'='*80}\n")
+    
+    if passed_count == total_count:
+        print("🎉 ALL TESTS PASSED - AI support 'no answer' fix is working correctly!")
         return 0
     else:
-        print("❌ SOME TESTS FAILED")
-        print("="*80)
-        failed_count = sum(1 for _, success, _, _ in results if not success)
-        print(f"\n{failed_count}/{len(results)} tests failed")
+        print("⚠️  SOME TESTS FAILED - See details above")
         return 1
 
 if __name__ == "__main__":

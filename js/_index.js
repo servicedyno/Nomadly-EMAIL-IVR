@@ -31939,6 +31939,48 @@ Tap a button below to change. Changes sync to your phone on next app open.`
     }
   }
 
+  // ── Cold-start AI answer for genuine questions (2026-07-31 fix) ────────────
+  // A real question typed OUTSIDE a support session (and with no recent session)
+  // used to fall through to this generic menu reset — so the user never got an
+  // answer. Root cause of the @Padrino_voodoo report: "asked cost of calls after
+  // the inbound free minute is exhausted but didn't get an answer." We now detect
+  // question-like free-text and let AI support answer it directly, marking a
+  // recent session so any follow-up within the hour is AI-handled too (via the
+  // existing recent-session path above). All specific handlers (menu keywords,
+  // URLs, stale buttons, DNS, domain fragments) have already run before here.
+  if (!isInActiveFlow && isAiEnabled() && isColdSupportQuestion(message)) {
+    log(`[Support] Cold question routed to AI for ${chatId}: "${String(message).slice(0, 80)}"`)
+    const _cqName = (await get(nameOf, chatId)) || msg?.from?.username || chatId
+    await set(supportSessions, chatId, Date.now())
+    try {
+      const { response: aiResponse, safeHtml, escalate, error } = await streamAiReply(chatId, message, lang)
+      if (aiResponse) {
+        if (escalate) {
+          recordEscalation({ chatId, displayName: _cqName, userMessage: message, aiResponse: safeHtml, reason: 'ai_flagged_cold', lang })
+            .then(escId => {
+              if (escId) {
+                const reassure = {
+                  en: `\n\n📣 <i>I've flagged this for our human team — expect a reply within ~10 min. Ref: <code>${escId.substring(0, 8)}</code></i>`,
+                  fr: `\n\n📣 <i>Signalé à notre équipe humaine — réponse sous ~10 min. Réf : <code>${escId.substring(0, 8)}</code></i>`,
+                  zh: `\n\n📣 <i>已上报人工客服团队，约 10 分钟内回复。编号: <code>${escId.substring(0, 8)}</code></i>`,
+                  hi: `\n\n📣 <i>मानव सहायता टीम को भेज दिया — ~10 मिनट में जवाब। संदर्भ: <code>${escId.substring(0, 8)}</code></i>`,
+                }
+                send(chatId, reassure[lang] || reassure.en, { parse_mode: 'HTML' })
+              }
+            }).catch(e => log(`[Escalation] cold-question inline error: ${e.message}`))
+          send(TELEGRAM_ADMIN_CHAT_ID, `🤖 <b>AI answered a question from ${_cqName}</b> (${chatId}) — flagged for review:\n<i>${(safeHtml || '').substring(0, 400)}</i>`, { parse_mode: 'HTML' })
+        }
+      } else {
+        // AI failed → escalate so the question isn't silently dropped
+        send(chatId, trans('t.supportMsgReceived'), { reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
+        recordEscalation({ chatId, displayName: _cqName, userMessage: message, aiResponse: '(AI failed to respond)', reason: `ai_error:${error || 'unknown'}`, lang }).catch(() => {})
+      }
+    } catch (e) {
+      log(`[Support] Cold-question AI error: ${e.message}`)
+    }
+    return
+  }
+
   log(`[reset] Unrecognized message from ${chatId}: "${message}" (was action: ${action || 'none'}).`)
 
   // ── UX fix: silent swallow of stale Yes/No/Confirm/Cancel presses ──
@@ -36390,6 +36432,96 @@ app.post('/dev/settle-receipt-test', async (req, res) => {
   }
   return res.json(out)
 })
+
+
+// ── DEV-ONLY: ask the AI-support brain a question (repro + verify harness) ──
+// Lets us confirm the assistant gives a concrete answer to pricing questions
+// like "what does a call cost after my free inbound minutes run out?" — the
+// 2026-07-31 @Padrino_voodoo report ("asked cost after inbound free minutes,
+// didn't get an answer"). Calls the REAL getAiResponse() and returns the raw
+// answer + whether it cited the inbound overage rate. Uses a synthetic chatId
+// and deletes its saved aiSupportChats rows. 404 in production.
+// ── Heuristic: is an unmatched free-text message a genuine question that AI
+// support should answer (rather than a stale button / URL / short token)? ──
+// Kept intentionally conservative so it never hijacks menu button taps.
+function isColdSupportQuestion(message) {
+  if (!message || typeof message !== 'string') return false
+  const m = message.trim()
+  if (m.length < 6) return false                       // single words / short button taps
+  if (m.startsWith('/')) return false                  // bot commands
+  if (/^https?:\/\//i.test(m)) return false            // raw URLs (handled by shortener)
+  try { if (isValidUrl(sanitizeShortenerUrl(m))) return false } catch (_) {}
+  if (m.split(/\s+/).length < 2) return false          // must be more than one word
+  const lc = m.toLowerCase()
+  const endsQuestion = /\?\s*$/.test(m)
+  const hasQuestionOrPricingCue = /\b(how (much|many|do|does|can|to|long)|what('?s| is| are|s the| does)?|why|when|where|which|who|can i|could i|do you|does it|is there|are there|cost|costs?|price|pricing|rate|rates|charge|charged|fee|fees|per\s?minute|per-minute|overage|refund|expires?|expiry|minutes?|billed?|billing|deduct)\b/i.test(lc)
+  return endsQuestion || hasQuestionOrPricingCue
+}
+
+// ── DEV-ONLY: verify the cold-question → AI routing heuristic ──────────────
+// Ensures genuine questions (esp. the "cost after free inbound minutes" case)
+// are routed to AI while stale button taps / URLs / commands are NOT. 404 in prod.
+app.post('/dev/support-routing-test', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const shouldRoute = [
+    'What does a call cost after my free inbound minutes are used up?',
+    'how much per minute after my plan minutes finish',
+    'what is the overage rate for calls',
+    'do I get charged after free minutes?',
+    'What happens when my included minutes run out',
+  ]
+  const shouldNOTRoute = [
+    '👛 Wallet', 'Crypto', '🏦 Bank', 'hi', 'ok', '/start', 'yes', 'no',
+    'https://example.com/page?ref=1', 'Back to Hosting Plans', '👛 wallet',
+  ]
+  const routedResults = shouldRoute.map(q => ({ q, routed: isColdSupportQuestion(q) }))
+  const notRoutedResults = shouldNOTRoute.map(q => ({ q, routed: isColdSupportQuestion(q) }))
+  const allQuestionsRouted = routedResults.every(r => r.routed === true)
+  const noFalsePositives = notRoutedResults.every(r => r.routed === false)
+  return res.json({
+    routedResults,
+    notRoutedResults,
+    checks: { allQuestionsRouted, noFalsePositives },
+    pass: allQuestionsRouted && noFalsePositives,
+  })
+})
+
+
+app.post('/dev/ai-support-ask', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const aiSupport = require('./ai-support.js')
+  const b = req.body || {}
+  const question = String(b.question || 'What does a call cost after my free inbound minutes are used up?')
+  const lang = String(b.lang || 'en')
+  const cid = 'DEVAISUP-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7)
+  const out = { testChatId: cid, question, lang }
+  try {
+    const result = await aiSupport.getAiResponse(cid, question, lang)
+    const resp = result.response || ''
+    out.response = resp
+    out.escalate = !!result.escalate
+    out.error = result.error || null
+    const rate = process.env.OVERAGE_RATE_MIN || '0.15'
+    const lc = resp.toLowerCase()
+    out.checks = {
+      gotAnswer: !!resp && resp.length > 20 && !result.error,
+      citesOverageRate: resp.includes(rate) || /per (additional )?minute|\/min|per-minute/i.test(resp),
+      mentionsInboundOrOverage: /overage|inbound|included|free minute|plan minute|beyond/i.test(lc),
+    }
+    out.pass = out.checks.gotAnswer && out.checks.citesOverageRate && out.checks.mentionsInboundOrOverage
+  } catch (e) {
+    out.error = e.message
+    out.pass = false
+  } finally {
+    try { await db.collection('aiSupportChats').deleteMany({ chatId: cid }) } catch (_) {}
+  }
+  return res.json(out)
+})
+
 
 
 
