@@ -34070,7 +34070,13 @@ const addFundsTo = async (walletOf, chatId, coin, valueIn, lang) => {
     return
   }
 
+  // ── Capture pre-credit balance so we can detect an outstanding call-debt clearance ──
+  // (When an outbound call was force-settled as debt, balance is NEGATIVE here.)
+  let preBal = 0
+  try { preBal = (await getBalance(walletOf, chatId)).usdBal } catch (_) {}
+
   // All deposits now credit USD wallet
+  let creditedUsd = 0
   if (coin === 'ngn') {
     // Convert NGN to USD before crediting
     const usdAmount = await ngnToUsd(valueIn)
@@ -34078,12 +34084,46 @@ const addFundsTo = async (walletOf, chatId, coin, valueIn, lang) => {
       log(`[addFundsTo] NGN→USD conversion failed for chatId=${chatId}, ngnIn=${valueIn}`)
       return
     }
+    creditedUsd = usdAmount
     await atomicIncrement(walletOf, chatId, 'usdIn', usdAmount)
   } else {
+    creditedUsd = valueIn
     await atomicIncrement(walletOf, chatId, 'usdIn', valueIn)
   }
   const { usdBal } = await getBalance(walletOf, chatId)
-  sendMessage(chatId, translation('t.showWallet', lang, usdBal))
+
+  // ── Deposit Settle Receipt ──────────────────────────────────────────────
+  // If the wallet was negative (an outbound call was billed on credit), this
+  // top-up just cleared some/all of that debt. Show a friendly receipt that
+  // explains where the money went instead of the bare balance line.
+  if (preBal < 0) {
+    const _f = n => `$${Number(n).toFixed(2)}`
+    const debtCleared = Math.min(creditedUsd, -preBal)
+    const remainingDebt = usdBal < 0 ? -usdBal : 0
+    const positiveTail = {
+      en: `\n\n🎉 Your balance is positive again — outbound calling is unlocked.`,
+      fr: `\n\n🎉 Votre solde est de nouveau positif — les appels sortants sont débloqués.`,
+      zh: `\n\n🎉 您的余额已恢复为正 — 拨出电话已解锁。`,
+      hi: `\n\n🎉 आपका बैलेंस फिर से धनात्मक है — आउटबाउंड कॉलिंग अनलॉक हो गई।`,
+    }
+    const owedTail = {
+      en: `\n\n⚠️ Still owed: <b>${_f(remainingDebt)}</b> — top up a little more to unlock outbound calling.`,
+      fr: `\n\n⚠️ Reste dû : <b>${_f(remainingDebt)}</b> — rechargez encore un peu pour débloquer les appels sortants.`,
+      zh: `\n\n⚠️ 仍欠: <b>${_f(remainingDebt)}</b> — 请再充值一点以解锁拨出电话。`,
+      hi: `\n\n⚠️ अभी भी बकाया: <b>${_f(remainingDebt)}</b> — आउटबाउंड कॉलिंग अनलॉक करने के लिए थोड़ा और टॉप-अप करें।`,
+    }
+    const tail = remainingDebt > 0 ? (owedTail[lang] || owedTail.en) : (positiveTail[lang] || positiveTail.en)
+    const receipt = ({
+      en: `✅ <b>Top-up received: ${_f(creditedUsd)}</b>\n\n💳 Cleared <b>${_f(debtCleared)}</b> of outstanding call charges.\n👛 New balance: <b>${_f(usdBal)}</b>${tail}`,
+      fr: `✅ <b>Recharge reçue : ${_f(creditedUsd)}</b>\n\n💳 A réglé <b>${_f(debtCleared)}</b> de frais d'appel en attente.\n👛 Nouveau solde : <b>${_f(usdBal)}</b>${tail}`,
+      zh: `✅ <b>已收到充值: ${_f(creditedUsd)}</b>\n\n💳 已结清 <b>${_f(debtCleared)}</b> 未付通话费用。\n👛 新余额: <b>${_f(usdBal)}</b>${tail}`,
+      hi: `✅ <b>टॉप-अप प्राप्त हुआ: ${_f(creditedUsd)}</b>\n\n💳 <b>${_f(debtCleared)}</b> बकाया कॉल शुल्क चुकाया गया।\n👛 नया बैलेंस: <b>${_f(usdBal)}</b>${tail}`,
+    }[lang]) || `✅ <b>Top-up received: ${_f(creditedUsd)}</b>\n\n💳 Cleared <b>${_f(debtCleared)}</b> of outstanding call charges.\n👛 New balance: <b>${_f(usdBal)}</b>${tail}`
+    sendMessage(chatId, receipt, { parse_mode: 'HTML' })
+    log(`[SettleReceipt] chatId=${chatId} deposited ${_f(creditedUsd)} cleared ${_f(debtCleared)} debt → balance ${_f(usdBal)} (remaining debt ${_f(remainingDebt)})`)
+  } else {
+    sendMessage(chatId, translation('t.showWallet', lang, usdBal))
+  }
 
   // ── PRE-DIAL: Remove SIP block if balance is now above resume threshold ──
   if (usdBal >= 50) { // LOW_BALANCE_RESUME = 50
@@ -36240,6 +36280,117 @@ app.post('/dev/outbound-billing-leak-test', async (req, res) => {
   }
   return res.json(out)
 })
+
+
+// ── DEV-ONLY: Concurrency Guard (outbound fund reservation) regression test ─
+// Proves that funds committed to in-flight outbound calls are subtracted from
+// the available balance when authorizing the NEXT call — the root-cause fix for
+// the 2026-07-30 over-commitment leak (many rapid calls all passed a single
+// balance check). Tests reservation bookkeeping (add/release/total + TTL flag)
+// and the availableBalance = balance - reservedTotal gating math. In-memory
+// only; uses a synthetic chatId and releases everything at the end. 404 in prod.
+app.post('/dev/concurrency-guard-test', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const vs = require('./voice-service.js')
+  const cid = 'DEVGUARD-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7)
+  const out = { testChatId: cid }
+  try {
+    const perCall = 0.30 // e.g. $0.15/min * 2 reserve-minutes
+    // 1) Reserve three concurrent calls
+    vs._reserveOutbound(cid, 'callA', perCall)
+    vs._reserveOutbound(cid, 'callB', perCall)
+    vs._reserveOutbound(cid, 'callC', perCall)
+    const after3 = vs._reservedTotal(cid)
+    // 2) Release one
+    vs._releaseOutbound(cid, 'callB')
+    const after2 = vs._reservedTotal(cid)
+    // 3) Idempotent re-reserve of same callId must not double-count
+    vs._reserveOutbound(cid, 'callA', perCall)
+    const afterReReserve = vs._reservedTotal(cid)
+    // 4) Gating math: balance $1.00, minRequired $0.165
+    const balance = 1.00
+    const minRequired = 0.165
+    const availableWithReservations = +(balance - vs._reservedTotal(cid)).toFixed(4) // 1.00 - 0.60 = 0.40
+    const blockedWhenOverCommitted = (balance - 0.90) < minRequired // 3 calls reserved ($0.90) → available $0.10 < $0.165 → block
+    const allowedWithHeadroom = (balance - 0.30) >= minRequired      // 1 call reserved ($0.30) → available $0.70 → allow
+    // 5) Release everything
+    vs._releaseOutbound(cid, 'callA')
+    vs._releaseOutbound(cid, 'callC')
+    const afterReleaseAll = vs._reservedTotal(cid)
+
+    out.reservedAfter3 = +after3.toFixed(4)
+    out.reservedAfter2 = +after2.toFixed(4)
+    out.reservedAfterReReserve = +afterReReserve.toFixed(4)
+    out.availableWithReservations = availableWithReservations
+    out.afterReleaseAll = +afterReleaseAll.toFixed(4)
+
+    const checks = {
+      reserveAddsUp: Math.abs(after3 - 0.90) < 1e-6,
+      releaseSubtracts: Math.abs(after2 - 0.60) < 1e-6,
+      reReserveIdempotent: Math.abs(afterReReserve - 0.60) < 1e-6,
+      gatingBlocksOverCommit: blockedWhenOverCommitted === true,
+      gatingAllowsWithHeadroom: allowedWithHeadroom === true,
+      releaseAllClears: afterReleaseAll === 0,
+    }
+    out.checks = checks
+    out.pass = Object.values(checks).every(Boolean)
+  } catch (e) {
+    out.error = e.message
+    out.pass = false
+  } finally {
+    try { const vs2 = require('./voice-service.js'); vs2._releaseOutbound(cid, 'callA'); vs2._releaseOutbound(cid, 'callB'); vs2._releaseOutbound(cid, 'callC') } catch (_) {}
+  }
+  return res.json(out)
+})
+
+
+// ── DEV-ONLY: Deposit Settle Receipt regression test ───────────────────────
+// Proves that when a wallet is NEGATIVE (an outbound call was force-settled as
+// debt), a top-up (addFundsTo) nets out the debt and the balance recovers
+// correctly. Seeds a synthetic wallet at -$0.50, credits $1.00 via the REAL
+// addFundsTo path, asserts final balance == $0.50 and the debt-cleared math.
+// Also verifies a partial top-up leaves the remaining debt. Cleans up. 404 in prod.
+app.post('/dev/settle-receipt-test', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const cid = 'DEVSETTLE-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7)
+  const out = { testChatId: cid }
+  try {
+    // 1) Seed a wallet in DEBT: usdIn=0, usdOut=0.50 → balance = -0.50
+    await walletOf.updateOne({ _id: cid }, { $set: { usdIn: 0, usdOut: 0.50 } }, { upsert: true })
+    const pre = (await getBalance(walletOf, cid)).usdBal
+    out.preBalance = +pre.toFixed(4)
+
+    // 2) Partial top-up $0.30 → should clear $0.30 of debt, balance = -0.20 (still owed)
+    await addFundsTo(walletOf, cid, 'usd', 0.30, 'en')
+    const midBal = (await getBalance(walletOf, cid)).usdBal
+    out.balanceAfterPartial = +midBal.toFixed(4)
+
+    // 3) Full top-up $1.00 → clears remaining debt, balance = +0.80
+    await addFundsTo(walletOf, cid, 'usd', 1.00, 'en')
+    const postBal = (await getBalance(walletOf, cid)).usdBal
+    out.balanceAfterFull = +postBal.toFixed(4)
+
+    const checks = {
+      startedNegative: Math.abs(pre - (-0.50)) < 1e-6,
+      partialLeavesDebt: Math.abs(midBal - (-0.20)) < 1e-6,     // -0.50 + 0.30
+      fullClearsAndPositive: Math.abs(postBal - (0.80)) < 1e-6, // -0.20 + 1.00
+    }
+    out.checks = checks
+    out.pass = Object.values(checks).every(Boolean)
+  } catch (e) {
+    out.error = e.message
+    out.pass = false
+  } finally {
+    try { await walletOf.deleteOne({ _id: cid }) } catch (_) {}
+    try { await db.collection('walletLedger').deleteMany({ chatId: cid }) } catch (_) {}
+  }
+  return res.json(out)
+})
+
 
 
 // ── DEV-ONLY: preview the escalation admin-alert HTML template ─────────────

@@ -399,6 +399,51 @@ const WALLET_COOLDOWN_NOTIFY_MAX = 2 // Max Telegram notifications per cooldown 
 const LOW_BALANCE_TRIGGER = 1     // USD threshold that activates the lock
 const LOW_BALANCE_RESUME = 50     // USD minimum required to unlock calling
 
+// ── Concurrency Guard: per-user outbound fund reservation ──────────────────
+// A single wallet balance check at dial-time cannot prevent OVER-COMMITMENT
+// when many outbound calls start almost simultaneously (the 2026-07-30 chatId
+// 7898648919 [BillingLeak]: ~15 rapid calls all passed the balance check while
+// the wallet was still funded, then collectively cost more than the balance).
+// We now reserve an estimate of each in-flight call's not-yet-billed cost and
+// subtract the reserved total from the available balance when authorizing the
+// NEXT call. Reservations are released at hangup (+ a TTL safety-net so a
+// missed hangup event can never strand funds forever). Purely in-memory & keyed
+// by callControlId — safe to lose on restart (only affects concurrent gating).
+const OUTBOUND_RESERVE_MINUTES = parseFloat(process.env.OUTBOUND_RESERVE_MINUTES || '2') // est. minutes reserved per concurrent call
+const RESERVATION_TTL_MS = 2 * 60 * 60 * 1000 // 2h hard cap — auto-release stranded reservations
+const _outboundReservations = {} // { [chatId]: { [callControlId]: { amount, timer } } }
+
+function _reservedTotal(chatId) {
+  const m = _outboundReservations[String(chatId)]
+  if (!m) return 0
+  let sum = 0
+  for (const k in m) sum += (m[k]?.amount || 0)
+  return sum
+}
+function _reserveOutbound(chatId, callControlId, amount) {
+  if (!chatId || !callControlId || !(amount > 0)) return
+  const cid = String(chatId)
+  ;(_outboundReservations[cid] ||= {})
+  // Replace any existing reservation for this call (idempotent on retries)
+  _releaseOutbound(cid, callControlId)
+  const timer = setTimeout(() => {
+    log(`[Voice] ⏱️ Reservation TTL expired — auto-releasing $${amount.toFixed(2)} for chatId ${cid} call ${callControlId}`)
+    _releaseOutbound(cid, callControlId)
+  }, RESERVATION_TTL_MS)
+  if (timer.unref) timer.unref()
+  _outboundReservations[cid][callControlId] = { amount, timer }
+  log(`[Voice] 🔒 Reserved $${amount.toFixed(2)} for chatId ${cid} call ${callControlId} (in-flight reserved total: $${_reservedTotal(cid).toFixed(2)})`)
+}
+function _releaseOutbound(chatId, callControlId) {
+  const cid = String(chatId)
+  const m = _outboundReservations[cid]
+  if (!m || !m[callControlId]) return
+  try { if (m[callControlId].timer) clearTimeout(m[callControlId].timer) } catch (_) {}
+  delete m[callControlId]
+  if (Object.keys(m).length === 0) delete _outboundReservations[cid]
+}
+
+
 // ── User Wallet Low Balance Notification System ──
 // Thresholds for proactive warnings sent via Telegram bot
 const USER_BALANCE_WARN = parseFloat(process.env.USER_BALANCE_WARN || '5')    // $5 — "getting low"
@@ -1367,7 +1412,7 @@ async function billCallMinutesUnified(chatId, phoneNumber, minutesBilled, destin
               zh: `⚠️ <b>拨出电话已计费 — 钱包余额为负</b>\n\n📞 ${phoneNumber} → ${destinationNumber}（${minutesBilled} 分钟，$${totalCharge.toFixed(2)}）\n💳 余额: <b>$${newBal.toFixed(2)}</b>\n\n此费用以信用方式扣除。请充值以结清，余额为负时拨出电话将被锁定。`,
               hi: `⚠️ <b>आउटबाउंड कॉल शुल्क लिया गया — वॉलेट अब ऋणात्मक</b>\n\n📞 ${phoneNumber} → ${destinationNumber} (${minutesBilled} मिनट, $${totalCharge.toFixed(2)})\n💳 शेष: <b>$${newBal.toFixed(2)}</b>\n\nयह शुल्क उधार पर लिया गया। इसे चुकाने के लिए टॉप-अप करें — शेष ऋणात्मक रहने तक आउटबाउंड कॉल लॉक रहेंगी।`,
             }[lang] || `⚠️ <b>Outbound call charged — wallet now negative</b>\n\n📞 ${phoneNumber} → ${destinationNumber} (${minutesBilled} min, $${totalCharge.toFixed(2)})\n💳 Balance: <b>$${newBal.toFixed(2)}</b>\n\nTop up your wallet to clear it — outbound calls are locked until your balance is positive.`)
-            _bot?.sendMessage(chatId, dmMsg, { parse_mode: 'HTML' }).catch(() => {})
+            _bot?.sendMessage(chatId, dmMsg, { parse_mode: 'HTML', reply_markup: { inline_keyboard: [[{ text: '💰 Top Up Now', callback_data: 'wallet_topup_quick' }]] } }).catch(() => {})
           } catch (_) {}
           if (_notifyAdmin) {
             _notifyAdmin(`💸 [BillingRecovered] $${totalCharge.toFixed(2)} ${callType} settled as DEBT (was a leak)\nchatId: <code>${chatId}</code>\n${phoneNumber} → ${destinationNumber}\nminutes: ${minutesBilled} · rate: $${rate}\nbalance now: $${newBal.toFixed(2)} (recovers on next top-up)`).catch(() => {})
@@ -2781,17 +2826,28 @@ async function handleOutboundSipCall(payload) {
   if (_walletOf) {
     try {
       const walletCheck = await smartWalletCheck(_walletOf, chatId, minRequired)
+      // ── Concurrency Guard: subtract funds already committed to in-flight
+      // outbound calls so simultaneous dials can't collectively overspend. ──
+      const reservedNow = _reservedTotal(chatId)
+      const availableBal = walletCheck.usdBal - reservedNow
+      const availableSufficient = availableBal >= minRequired
+      if (reservedNow > 0) {
+        log(`[Voice] Concurrency Guard: chatId ${chatId} balance $${walletCheck.usdBal.toFixed(2)} − reserved $${reservedNow.toFixed(2)} = available $${availableBal.toFixed(2)} (need $${minRequired.toFixed(2)})`)
+      }
 
       // ── LOW BALANCE LOCK ──
-      // When USD balance drops below $1, lock outbound calling entirely.
-      // User must top up to $50+ to resume. Sends campaign message on every attempt.
-      if (walletCheck.usdBal < LOW_BALANCE_TRIGGER) {
-        log(`[Voice] Outbound SIP: LOW BALANCE LOCK for ${num.phoneNumber} → ${destination} (Balance: $${walletCheck.usdBal.toFixed(2)} < $${LOW_BALANCE_TRIGGER} trigger, need $${LOW_BALANCE_RESUME} to resume)`)
+      // When AVAILABLE USD balance (net of in-flight reservations) drops below
+      // $1, lock outbound calling entirely. User must top up to $50+ to resume.
+      if (availableBal < LOW_BALANCE_TRIGGER) {
+        log(`[Voice] Outbound SIP: LOW BALANCE LOCK for ${num.phoneNumber} → ${destination} (Available: $${availableBal.toFixed(2)} < $${LOW_BALANCE_TRIGGER} trigger [balance $${walletCheck.usdBal.toFixed(2)}, reserved $${reservedNow.toFixed(2)}], need $${LOW_BALANCE_RESUME} to resume)`)
         // Use chatId-based key so only THIS user is cooldown-blocked, not all users on the shared SIP connection
         setWalletRejectCooldown(`chatId:${chatId}`, chatId)
         if (credentialExtracted) setWalletRejectCooldown(sipUsername, chatId) // Also cache by SIP username for early check
         // ── PRE-DIAL: Add to instant-block list so ALL future calls are rejected in <1ms ──
-        if (credentialExtracted && sipUsername) {
+        // Only hard-block by SIP username when the ACTUAL balance is low (not merely
+        // reserved), otherwise concurrent in-flight calls would wrongly lock the user
+        // out even though their real balance recovers as each call settles.
+        if (credentialExtracted && sipUsername && walletCheck.usdBal < LOW_BALANCE_TRIGGER) {
           addSipPreDialBlock(sipUsername, chatId, 'low_balance', num.phoneNumber)
           log(`[Voice] PRE-DIAL: Added ${sipUsername} to instant-block list (balance $${walletCheck.usdBal.toFixed(2)})`)
         }
@@ -2803,18 +2859,21 @@ async function handleOutboundSipCall(payload) {
         }
         const lang = await _getUserLang(chatId)
         const baseMsg = _trans('vs.outboundCallingLocked', lang)
+        const reservedNote = reservedNow > 0
+          ? `\n\n(You have other calls in progress reserving <b>$${reservedNow.toFixed(2)}</b>.)`
+          : ''
         const fullMsg = baseMsg + 
-          `Your wallet balance (<b>$${walletCheck.usdBal.toFixed(2)}</b>) has dropped below $${LOW_BALANCE_TRIGGER}. To protect your account, outbound calls are temporarily locked.\n\n` +
+          `Your available wallet balance (<b>$${availableBal.toFixed(2)}</b>) is below $${LOW_BALANCE_TRIGGER}. To protect your account, outbound calls are temporarily locked.${reservedNote}\n\n` +
           `💰 <b>Top up at least $${LOW_BALANCE_RESUME}</b> to resume calling.\n` +
           `Use 👛 <b>Wallet</b> to add funds.`
-        if (baseMsg) _bot?.sendMessage(chatId, fullMsg, { parse_mode: 'HTML' }).catch(() => {})
+        if (baseMsg) _bot?.sendMessage(chatId, fullMsg, { parse_mode: 'HTML', reply_markup: { inline_keyboard: [[{ text: '💰 Top Up Now', callback_data: 'wallet_topup_quick' }]] } }).catch(() => {})
         return
       }
 
-      if (!walletCheck.sufficient) {
-        log(`[Voice] Outbound SIP: wallet too low for ${num.phoneNumber} → ${destination} (Balance: $${walletCheck.usdBal.toFixed(2)}, NGN: ₦${0})`)
+      if (!availableSufficient) {
+        log(`[Voice] Outbound SIP: wallet too low for ${num.phoneNumber} → ${destination} (Available: $${availableBal.toFixed(2)} [balance $${walletCheck.usdBal.toFixed(2)}, reserved $${reservedNow.toFixed(2)}])`)
         setWalletRejectCooldown(`chatId:${chatId}`, chatId)
-        if (credentialExtracted) setWalletRejectCooldown(sipUsername, chatId)
+        if (credentialExtracted && walletCheck.usdBal < minRequired) setWalletRejectCooldown(sipUsername, chatId)
         if (isAutoRouted) {
           await _telnyxApi.hangupCall(callControlId)
         } else {
@@ -2822,12 +2881,17 @@ async function handleOutboundSipCall(payload) {
         }
         const lang = await _getUserLang(chatId)
         const region = isUSCanada(destination) ? 'US/CA' : 'Intl'
-        const msg = _trans('vs.sipCallBlocked', lang, sipRate, CALL_CONNECTION_FEE, region, walletCheck.usdBal.toFixed(2), 0)
+        const msg = _trans('vs.sipCallBlocked', lang, sipRate, CALL_CONNECTION_FEE, region, availableBal.toFixed(2), 0)
         if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
         return
       }
     } catch (e) { log(`[Voice] Wallet check error: ${e.message}`) }
   }
+
+  // ── Concurrency Guard: RESERVE this call's estimated not-yet-billed cost ──
+  // Keyed by callControlId; released at hangup (+ TTL safety-net). This is what
+  // lets the check above see funds committed to sibling calls started moments ago.
+  _reserveOutbound(chatId, callControlId, sipRate * OUTBOUND_RESERVE_MINUTES)
 
   // ── CONNECTION FEE: Charge $CALL_CONNECTION_FEE per call attempt ──
   if (CALL_CONNECTION_FEE > 0 && _walletOf) {
@@ -2971,6 +3035,7 @@ async function handleOutboundSipCall(payload) {
           const sess = activeCalls[callControlId]
           if (sess?._limitTimer) clearInterval(sess._limitTimer)
           delete activeCalls[callControlId]
+          _releaseOutbound(chatId, callControlId) // Concurrency Guard: free reservation on transfer failure
           const lang = await _getUserLang(chatId)
           const msg = _trans('vs.outboundCallFailedRouting', lang, formatPhone(num.phoneNumber), formatPhone(destination))
           if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
@@ -3938,6 +4003,10 @@ async function handleCallHangup(payload) {
   if (session._limitTimer) {
     clearInterval(session._limitTimer)
   }
+  // ── Concurrency Guard: release this call's outbound fund reservation ──
+  // The actual charges have now been applied (or force-settled as debt), so the
+  // committed estimate must be freed for the user's next call.
+  _releaseOutbound(chatId, callControlId)
 
   // Build plan usage line for notifications
   const remaining = billingInfo.limit > 0 ? Math.max(0, billingInfo.limit - billingInfo.used) : null
@@ -4929,6 +4998,10 @@ async function handleIvrTransferLegHangup(payload) {
 module.exports = {
   handleVoiceWebhook,
   initVoiceService,
+  // Concurrency Guard (outbound fund reservation) — exported for dev tests
+  _reserveOutbound,
+  _releaseOutbound,
+  _reservedTotal,
   activeCalls,
   pendingBridges,
   outboundIvrCalls,
