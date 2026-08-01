@@ -210,9 +210,9 @@ backend:
               KEY019E2C4363D220CBD666F6B360BE7F7B_… returned 10009
               "Authentication failed / No key found matching the ID" for every
               Telnyx call. Production Railway env has the current key
-              KEY019F95E5C93E776C91F42B299F25D2B0_zH97KjdWadHlYdY4RWn4yD which
-              works (balance = $14.95). ANY call from a Telnyx-provider number
-              (+18883304418, etc.) fails until this is rotated.
+              (KEY019F95E5C…[REDACTED]) which works (balance = $14.95).
+              ANY call from a Telnyx-provider number (+18883304418, etc.)
+              fails until this is rotated.
               Fix: rotated key in .env, restarted nodejs. PhoneMonitor now
               reports "0 auth-failed" (was 30+ before).
 
