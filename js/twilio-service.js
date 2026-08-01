@@ -511,58 +511,145 @@ async function mapCredentialListToDomain(domainSid, credListSid, subSid, subToke
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 async function makeOutboundCall(from, to, twimlUrl, subSid, subToken, options = {}) {
-  try {
-    // ── Fix Railway-log issue #14: E.164 pre-validation ──
-    //   Reject obviously malformed numbers BEFORE hitting Twilio so we don't
-    //   waste an API call (and burn a "21211 Invalid 'To' Phone Number" error
-    //   in production logs). A US-style number like "+1208861989" (10 digits
-    //   after +1, but missing one) used to surface as a Twilio error; now we
-    //   surface a clean, user-actionable message synchronously.
-    const e164re = /^\+[1-9]\d{7,14}$/
-    const cleanTo = String(to || '').replace(/[\s\-()]/g, '')
-    if (!e164re.test(cleanTo)) {
-      log(`[Twilio] makeOutboundCall rejected — invalid E.164 destination: "${to}"`)
-      return { error: `Invalid phone number "${to}". Must be in E.164 format (e.g. +12085551212 — 11 digits total for US).` }
+  // ── Fix Railway-log issue #14: E.164 pre-validation ──
+  //   Reject obviously malformed numbers BEFORE hitting Twilio so we don't
+  //   waste an API call (and burn a "21211 Invalid 'To' Phone Number" error
+  //   in production logs). A US-style number like "+1208861989" (10 digits
+  //   after +1, but missing one) used to surface as a Twilio error; now we
+  //   surface a clean, user-actionable message synchronously.
+  const e164re = /^\+[1-9]\d{7,14}$/
+  const cleanTo = String(to || '').replace(/[\s\-()]/g, '')
+  if (!e164re.test(cleanTo)) {
+    log(`[Twilio] makeOutboundCall rejected — invalid E.164 destination: "${to}"`)
+    return { error: `Invalid phone number "${to}". Must be in E.164 format (e.g. +12085551212 — 11 digits total for US).` }
+  }
+  const cleanFrom = String(from || '').replace(/[\s\-()]/g, '')
+  if (!e164re.test(cleanFrom)) {
+    log(`[Twilio] makeOutboundCall rejected — invalid E.164 caller-id: "${from}"`)
+    return { error: `Invalid caller ID "${from}". Must be in E.164 format.` }
+  }
+  // ━━━ SECURITY: Outbound calls MUST use sub-account — never main account ━━━
+  if (!subSid || subSid === MAIN_ACCOUNT_SID) {
+    return { error: 'Outbound calls require a sub-account. Cannot use main Twilio account.' }
+  }
+
+  const callOpts = {
+    from: cleanFrom,
+    to: cleanTo,
+    url: twimlUrl,
+    method: 'POST',
+  }
+  if (options.statusCallback) {
+    callOpts.statusCallback = options.statusCallback
+    callOpts.statusCallbackMethod = 'POST'
+    callOpts.statusCallbackEvent = options.statusCallbackEvent || ['initiated', 'ringing', 'answered', 'completed']
+  }
+  if (options.machineDetection) {
+    callOpts.machineDetection = options.machineDetection
+  }
+  if (options.timeout) {
+    callOpts.timeout = options.timeout
+  }
+
+  // ── ATTEMPT-1: use stored sub-token (if any) ──
+  let attemptedTokens = new Set()
+  let liveToken = subToken || null
+  let tokenRotated = false
+  let transientAuth = false
+
+  const tryOnce = async (token, tag) => {
+    attemptedTokens.add(token || '')
+    try {
+      const call = await getSubClient(subSid, token).calls.create(callOpts)
+      log(`[Twilio] Outbound call: ${call.sid} from=${from} to=${to}${tag ? ' [' + tag + ']' : ''}`)
+      return {
+        callSid: call.sid,
+        status: call.status,
+        from: call.from,
+        to: call.to,
+      }
+    } catch (e) {
+      return { _err: e }
     }
-    const cleanFrom = String(from || '').replace(/[\s\-()]/g, '')
-    if (!e164re.test(cleanFrom)) {
-      log(`[Twilio] makeOutboundCall rejected — invalid E.164 caller-id: "${from}"`)
-      return { error: `Invalid caller ID "${from}". Must be in E.164 format.` }
+  }
+
+  if (subToken) {
+    const r1 = await tryOnce(subToken, 'stored')
+    if (!r1._err) return { ...r1, liveToken, tokenRotated: false }
+    const err = r1._err
+    if (!_isTwilioAuthError(err)) {
+      log(`[Twilio] makeOutboundCall error (non-auth): ${err.message}`)
+      const sanitized = String(err.message || '')
+        .replace(/\bTwilio\b/gi, 'Speechcue')
+        .replace(/\bTelnyx\b/gi, 'Speechcue')
+      return { error: sanitized }
     }
-    // ━━━ SECURITY: Outbound calls MUST use sub-account — never main account ━━━
-    const client = requireSubClient(subSid, subToken, 'makeOutboundCall')
-    if (!client) return { error: 'Outbound calls require a sub-account. Cannot use main Twilio account.' }
-    const callOpts = {
-      from: cleanFrom,
-      to: cleanTo,
-      url: twimlUrl,
-      method: 'POST',
-    }
-    if (options.statusCallback) {
-      callOpts.statusCallback = options.statusCallback
-      callOpts.statusCallbackMethod = 'POST'
-      callOpts.statusCallbackEvent = options.statusCallbackEvent || ['initiated', 'ringing', 'answered', 'completed']
-    }
-    if (options.machineDetection) {
-      callOpts.machineDetection = options.machineDetection
-    }
-    if (options.timeout) {
-      callOpts.timeout = options.timeout
-    }
-    const call = await client.calls.create(callOpts)
-    log(`[Twilio] Outbound call: ${call.sid} from=${from} to=${to}`)
+    log(`[Twilio] makeOutboundCall auth error with stored token — attempting self-heal (subSid=${subSid})`)
+  } else {
+    log(`[Twilio] makeOutboundCall: no stored sub-token — fetching live via self-heal path (subSid=${subSid})`)
+  }
+
+  // ── ATTEMPT-2: fetch live authToken from master, retry ──
+  const live = await getSubAccount(subSid)
+  if (live.error || !live.authToken) {
     return {
-      callSid: call.sid,
-      status: call.status,
-      from: call.from,
-      to: call.to,
+      error: `Provider auth service temporarily unavailable — please try the call again in a moment. (self-heal failed: ${live.error || 'no live token'})`,
+      liveToken: null,
+      tokenRotated: false,
+      transientAuth: true,
     }
-  } catch (e) {
-    log(`[Twilio] makeOutboundCall error: ${e.message}`)
-    const sanitized = e.message
-      .replace(/\bTwilio\b/gi, 'Speechcue')
-      .replace(/\bTelnyx\b/gi, 'Speechcue')
-    return { error: sanitized }
+  }
+  liveToken = live.authToken
+
+  // ── DIAGNOSTIC: check the sub-account status. If it's genuinely closed/suspended, ──
+  //    surface the correct "suspended" message; if it's active, transient auth issue. ──
+  const subStatusReallyBad = live.status && live.status !== 'active'
+
+  if (!attemptedTokens.has(liveToken)) {
+    const r2 = await tryOnce(liveToken, 'live-token')
+    if (!r2._err) {
+      const rotated = liveToken !== subToken
+      if (rotated) log(`[Twilio] makeOutboundCall ✓ self-healed with rotated token for sub ${subSid}`)
+      return { ...r2, liveToken, tokenRotated: rotated }
+    }
+    if (!_isTwilioAuthError(r2._err)) {
+      log(`[Twilio] makeOutboundCall non-auth error after self-heal: ${r2._err.message}`)
+      const sanitized = String(r2._err.message || '')
+        .replace(/\bTwilio\b/gi, 'Speechcue')
+        .replace(/\bTelnyx\b/gi, 'Speechcue')
+      return { error: sanitized, liveToken, tokenRotated: liveToken !== subToken }
+    }
+    tokenRotated = liveToken !== subToken
+    log(`[Twilio] makeOutboundCall still auth-erroring with live token (rotated=${tokenRotated}, subStatus=${live.status}) — one more retry after 750ms`)
+  } else {
+    log(`[Twilio] makeOutboundCall stored token matches live — likely transient provider blip; retrying after 750ms`)
+    transientAuth = true
+  }
+
+  // ── ATTEMPT-3: transient-blip retry (Twilio occasionally 401's for a few seconds during rate-limit / trust-hub bursts) ──
+  await new Promise(r => setTimeout(r, 750))
+  const r3 = await tryOnce(liveToken, 'retry-after-blip')
+  if (!r3._err) {
+    return { ...r3, liveToken, tokenRotated: liveToken !== subToken, retriedAfterBlip: true }
+  }
+
+  // ── Final classification: real suspension vs transient ──
+  if (subStatusReallyBad) {
+    log(`[Twilio] makeOutboundCall — sub-account ${subSid} is ${live.status} (real suspension)`)
+    return {
+      error: `Authenticate — sub-account is ${live.status}. Contact support.`,
+      liveToken,
+      tokenRotated: false,
+      subAccountStatus: live.status,
+    }
+  }
+
+  log(`[Twilio] makeOutboundCall — persistent auth failure but sub-account is active (transient); ${r3._err.message}`)
+  return {
+    error: 'Voice provider is temporarily rate-limiting caller-ID auth. Please try the call again in a moment.',
+    liveToken,
+    tokenRotated: liveToken !== subToken,
+    transientAuth: true,
   }
 }
 

@@ -36384,6 +36384,162 @@ app.post('/dev/outbound-billing-leak-test', async (req, res) => {
 })
 
 
+// ── DEV-ONLY: Outbound Call Auth Self-Heal + Provider Health Test ─────────
+// Verifies the 2026-08-01 fix for @Padrino_voodoo's failed call
+// (+18885728101 → +19545463213 "Caller ID rejected by provider").
+// Body: { destination?, targetChatId?, callerId?, dryRun? (default true) }
+//
+// Checks:
+//   1. Telnyx API auth (GET /v2/balance) — proves TELNYX_API_KEY is valid.
+//   2. Twilio master auth (GET account) — proves parent creds work.
+//   3. For a real Twilio number owned by targetChatId, verifies its sub-account
+//      is fetchable and status='active'.
+//   4. sanitizeHangupCause maps the new transient error string to the retry
+//      copy (not the "contact support" copy).
+//   5. makeOutboundCall self-heal path — with a *deliberately wrong* stored
+//      token, confirms the code fetches the live token from master, retries,
+//      and either succeeds (real call) or dry-runs (validates flow only).
+// dryRun=true (default) skips the real Twilio outbound call — only sanity-
+// checks the credentials + code paths. dryRun=false places a real call.
+// 404 in production.
+app.post('/dev/test-outbound-call-selfheal', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const b = req.body || {}
+  const destination = String(b.destination || '+19545463213')
+  const targetChatId = String(b.targetChatId || '7706898844')
+  const dryRun = b.dryRun !== false
+  const out = { checks: {}, destination, targetChatId, dryRun }
+  try {
+    // ── 1. Telnyx API auth check ──
+    try {
+      const axios = require('axios')
+      const bal = await axios.get('https://api.telnyx.com/v2/balance', {
+        headers: { Authorization: `Bearer ${process.env.TELNYX_API_KEY}` },
+        timeout: 10000,
+      })
+      out.checks.telnyxAuth = { ok: true, balance: bal.data?.data?.balance }
+    } catch (e) {
+      out.checks.telnyxAuth = { ok: false, status: e.response?.status, err: e.response?.data?.errors?.[0]?.detail || e.message }
+    }
+
+    // ── 2. Twilio master auth check ──
+    const twilioService = require('./twilio-service.js')
+    try {
+      const main = await twilioService.getSubAccount(process.env.TWILIO_ACCOUNT_SID)
+      out.checks.twilioMasterAuth = { ok: !!main.status, status: main.status, error: main.error }
+    } catch (e) {
+      out.checks.twilioMasterAuth = { ok: false, err: e.message }
+    }
+
+    // ── 3. Pull the target user's active Twilio number & sub-account ──
+    const doc = await phoneNumbersOf.findOne({ _id: targetChatId })
+    const nums = (doc?.val?.numbers || []).filter(n => n.provider === 'twilio' && n.status === 'active')
+    out.checks.userNumbers = nums.map(n => ({
+      phoneNumber: n.phoneNumber,
+      subSid: n.twilioSubAccountSid,
+      hasStoredSubToken: !!n.twilioSubAccountToken,
+    }))
+
+    let subAccountStatus = null
+    let liveTokenPrefix = null
+    if (nums.length > 0) {
+      const sub = await twilioService.getSubAccount(nums[0].twilioSubAccountSid)
+      subAccountStatus = sub.status
+      liveTokenPrefix = sub.authToken ? sub.authToken.slice(0, 12) + '…' : null
+      out.checks.subAccount = { sid: nums[0].twilioSubAccountSid, status: sub.status, error: sub.error }
+    }
+
+    // ── 4. sanitizeHangupCause routing test ──
+    const { sanitizeHangupCause } = require('./sanitize-provider.js')
+    const transientMsg = 'Voice provider is temporarily rate-limiting caller-ID auth. Please try the call again in a moment.'
+    const authMsg = 'Authenticate'
+    const telnyxAuthLeakMsg = "No key found matching the ID 'KEY01…' with the provided secret."
+    out.checks.sanitizeRouting = {
+      transient: sanitizeHangupCause(transientMsg),
+      suspended: sanitizeHangupCause(authMsg),
+      telnyxAuth: sanitizeHangupCause(telnyxAuthLeakMsg),
+    }
+    out.checks.sanitizeRouting.transientIsFriendly = /try the call again/i.test(out.checks.sanitizeRouting.transient) &&
+      !/contact support/i.test(out.checks.sanitizeRouting.transient)
+    out.checks.sanitizeRouting.suspendedStillGoesToSupport = /contact support/i.test(out.checks.sanitizeRouting.suspended)
+
+    // ── 5. Self-heal path test — deliberately wrong stored token, expect self-heal ──
+    if (nums.length > 0 && subAccountStatus === 'active') {
+      const wrongToken = 'deadbeef00000000000000000000dead'
+      // dry-run: we can't easily "dry" the actual call, but we can verify makeOutboundCall
+      // reaches the self-heal branch. When dryRun=true we use an OBVIOUSLY-INVALID
+      // destination so Twilio still 400/401's fast (no real call). When dryRun=false
+      // we make a real call to the destination.
+      const testDest = dryRun ? '+15005550001' /* Twilio magic reserved test # */ : destination
+      const r = await twilioService.makeOutboundCall(
+        nums[0].phoneNumber,
+        testDest,
+        `${process.env.SELF_URL || 'https://example.com/api'}/twilio/single-ivr?sessionId=devtest`,
+        nums[0].twilioSubAccountSid,
+        wrongToken,
+        { timeout: 15 }
+      )
+      out.checks.makeOutboundCallSelfHeal = {
+        callSid: r.callSid || null,
+        error: r.error || null,
+        tokenRotated: !!r.tokenRotated,
+        liveToken: r.liveToken ? r.liveToken.slice(0, 12) + '…' : null,
+        subAccountStatus: r.subAccountStatus,
+        transientAuth: !!r.transientAuth,
+      }
+    } else {
+      out.checks.makeOutboundCallSelfHeal = { skipped: `subStatus=${subAccountStatus}` }
+    }
+
+    // ── 6. Telnyx outbound call from +18883304418 (the user's Telnyx number) ──
+    //    Verifies the newly-rotated Telnyx API key actually places calls.
+    //    dryRun=true → skip real call, just verify createOutboundCall path is reachable.
+    if (!dryRun) {
+      const voiceService = require('./voice-service.js')
+      try {
+        const result = await voiceService.initiateOutboundIvrCall({
+          chatId: targetChatId,
+          callerId: '+18883304418',
+          targetNumber: destination,
+          ivrNumber: destination,
+          audioUrl: null,
+          activeKeys: ['1'],
+          templateName: 'Custom',
+          placeholderValues: {},
+          voiceName: 'Rachel',
+          isTrial: false,
+          holdMusic: false,
+          provider: 'telnyx',
+          ivrMode: 'transfer',
+        })
+        out.checks.telnyxIvrCall = {
+          callControlId: result.callControlId || null,
+          error: result.error || null,
+        }
+      } catch (e) {
+        out.checks.telnyxIvrCall = { error: e.message }
+      }
+    } else {
+      // In dryRun: just verify the Telnyx endpoint reaches auth (already covered by #1)
+      out.checks.telnyxIvrCall = { skipped: 'dryRun=true' }
+    }
+
+    // ── Summary ──
+    out.pass =
+      out.checks.telnyxAuth.ok &&
+      out.checks.twilioMasterAuth.ok &&
+      out.checks.sanitizeRouting.transientIsFriendly &&
+      out.checks.sanitizeRouting.suspendedStillGoesToSupport
+  } catch (e) {
+    out.error = e.message
+    out.pass = false
+  }
+  return res.json(out)
+})
+
+
 // ── DEV-ONLY: Concurrency Guard (outbound fund reservation) regression test ─
 // Proves that funds committed to in-flight outbound calls are subtracted from
 // the available balance when authorizing the NEXT call — the root-cause fix for

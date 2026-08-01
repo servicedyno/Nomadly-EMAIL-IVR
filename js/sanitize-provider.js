@@ -148,6 +148,25 @@ function sanitizeHangupCause(cause) {
   // a bare "Authenticate" and had no idea what to do (see @Padrino_voodoo
   // support-chat transcript 2026-07-24 05:27 — AI misdiagnosed it as a SIP
   // credential issue). Give them the real explanation + action. Fix 2026-07-24.
+  //
+  // 2026-08-01 REFINEMENT: makeOutboundCall now self-heals via master + retries
+  // once after a 750ms delay before surfacing the error. Two distinct final
+  // messages are used:
+  //   (a) "Voice provider is temporarily rate-limiting..." — sub-account is
+  //       still 'active' on Twilio but calls keep 401'ing (Twilio transient
+  //       trust-hub / rate-limit blip). Tell user to retry, NOT contact support.
+  //   (b) "Authenticate — sub-account is closed/suspended..." — verified via
+  //       master fetch that the sub-account really is dead. Support required.
+  if (lower.includes('temporarily rate-limiting') ||
+      lower.includes('provider auth service temporarily unavailable') ||
+      lower.includes('rate-limiting caller-id auth')) {
+    return 'Voice provider is temporarily rate-limiting caller-ID auth. Please try the call again in a moment.'
+  }
+  // Telnyx auth failure — 10009 "No key found matching the ID 'KEY…' with the provided secret."
+  // Leaks the API key ID in the message; also users can't fix this. Ops task.
+  if (lower.includes('no key found matching the id') || lower.includes('code=10009') || lower.startsWith('10009')) {
+    return 'Voice service is temporarily unavailable. Please try again shortly — our team has been notified.'
+  }
   if (lower === 'authenticate' || lower.startsWith('authenticate ') || lower.includes('authenticate error') || lower.includes('20003') || lower.includes('authentication error')) {
     return 'Caller ID rejected by provider (authentication failed). Your number\'s sub-account may be suspended — contact support.'
   }

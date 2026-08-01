@@ -4344,9 +4344,28 @@ async function initiateOutboundIvrCall(params) {
       }
     )
 
+    // ── Persist rotated sub-token back to DB (self-heal, added 2026-08-01) ──
+    // makeOutboundCall now returns liveToken + tokenRotated when it self-heals via
+    // the master account. We atomically cache it on the caller number so subsequent
+    // calls skip the master-account round-trip. See voice-service.js Twilio branch.
+    if (result.tokenRotated && result.liveToken && chatId && callerId && _phoneNumbersOf) {
+      try {
+        await _phoneNumbersOf.updateOne(
+          { _id: chatId, 'val.numbers.phoneNumber': callerId },
+          { $set: {
+              'val.numbers.$.twilioSubAccountToken': result.liveToken,
+              'val.twilioSubAccountToken': result.liveToken,
+          } }
+        )
+        log(`[OutboundIVR] ✓ Persisted rotated Twilio sub-token for ${callerId} (chatId=${chatId})`)
+      } catch (e) {
+        log(`[OutboundIVR] Failed to persist rotated sub-token: ${e.message}`)
+      }
+    }
+
     if (result.error) {
       delete twilioIvrSessions[sessionId]
-      return { error: result.error }
+      return { error: result.error, transientAuth: !!result.transientAuth, subAccountStatus: result.subAccountStatus }
     }
 
     twilioIvrSessions[sessionId].callSid = result.callSid
