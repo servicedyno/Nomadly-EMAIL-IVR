@@ -10,7 +10,7 @@ import time
 import os
 
 # Get the backend URL from environment
-BACKEND_URL = "https://7b4407e6-eb4c-4661-af92-5701e1e9dc92.preview.emergentagent.com"
+BACKEND_URL = "https://setup-guide-134.preview.emergentagent.com"
 BASE_URL = f"{BACKEND_URL}/api"
 
 def print_section(title):

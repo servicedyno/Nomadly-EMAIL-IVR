@@ -1,5 +1,5 @@
 #!/bin/bash
-BACKEND_URL="https://config-preview-6.preview.emergentagent.com"
+BACKEND_URL="https://setup-guide-134.preview.emergentagent.com"
 
 echo "TEST 4 — Regression of existing preview endpoint"
 echo ""
