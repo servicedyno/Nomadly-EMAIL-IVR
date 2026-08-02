@@ -302,14 +302,99 @@ async function deleteAudio(audioId, chatId, phoneNumbersOf) {
 }
 
 /**
- * Rename an audio file
+ * Rename an audio file (metadata only — filename/URL are preserved so any
+ * phone numbers / campaigns that reference this audio keep working).
+ * @param {string} audioId
+ * @param {string|number} chatId - owner (verified)
+ * @param {string} newName - trimmed, max 60 chars
+ * @returns {{renamed:boolean, name?:string}}
  */
 async function renameAudio(audioId, chatId, newName) {
+  const clean = String(newName || '').trim().substring(0, 60)
+  if (!clean) return { renamed: false, reason: 'empty' }
   const result = await _collection.updateOne(
     { id: audioId, chatId: String(chatId) },
-    { $set: { name: newName } }
+    { $set: { name: clean, renamedAt: new Date() } }
   )
-  return result.modifiedCount > 0
+  if (result.modifiedCount > 0) {
+    log(`[AudioLibrary] Renamed ${audioId} → "${clean}" for chatId ${chatId}`)
+    return { renamed: true, name: clean }
+  }
+  return { renamed: false }
+}
+
+/**
+ * Generate a short preview snippet (default 5s) from a library audio.
+ * Uses ffmpeg to trim + normalize to mono 128kbps MP3 so it's small and
+ * consistent across containers (M4A/OGG/etc all become playable MP3).
+ * Falls back to the original file if ffmpeg is unavailable.
+ * Caller MUST clean up the returned path when done (unless it equals the source).
+ *
+ * @param {string} audioId
+ * @param {string|number} chatId - ownership check
+ * @param {number} [seconds=5]
+ * @returns {Promise<{path:string, ephemeral:boolean, name:string, size:number} | null>}
+ */
+async function generatePreview(audioId, chatId, seconds = 5) {
+  const audio = await _collection.findOne({ id: audioId, chatId: String(chatId) })
+  if (!audio) return null
+
+  // Resolve source path — prefer localPath, else derive from filename + AUDIO_DIR
+  let srcPath = audio.localPath
+  if (!srcPath || !fs.existsSync(srcPath)) {
+    if (audio.filename) {
+      const p = path.join(AUDIO_DIR, audio.filename)
+      if (fs.existsSync(p)) srcPath = p
+    }
+  }
+
+  // If still missing on disk, try to restore from ivrAudioStore (Railway
+  // redeploy-survival cache) — same pattern as the [AudioRestore] middleware.
+  if ((!srcPath || !fs.existsSync(srcPath)) && _db && audio.filename) {
+    try {
+      const rec = await _db.collection('ivrAudioStore').findOne({ filename: audio.filename })
+      if (rec && rec.buffer) {
+        const restored = path.join(AUDIO_DIR, audio.filename)
+        fs.writeFileSync(restored, Buffer.from(rec.buffer, 'base64'))
+        srcPath = restored
+        log(`[AudioLibrary] Preview: restored ${audio.filename} from ivrAudioStore`)
+      }
+    } catch (e) {
+      log(`[AudioLibrary] Preview: ivrAudioStore restore failed for ${audio.filename}: ${e.message}`)
+    }
+  }
+
+  if (!srcPath || !fs.existsSync(srcPath)) {
+    log(`[AudioLibrary] Preview: source file missing for ${audioId} (${audio.filename})`)
+    return null
+  }
+
+  const clamped = Math.max(1, Math.min(15, Number(seconds) || 5))
+  const previewFilename = `${chatId}_preview_${audio.id.slice(0, 8)}_${Date.now()}.mp3`
+  const previewPath = path.join(AUDIO_DIR, previewFilename)
+
+  try {
+    // -ss 0 -t N   = trim to first N seconds
+    // -vn          = drop any cover art
+    // mono 44.1k   = telephony-safe, small, universally playable in Telegram
+    execSync(`ffmpeg -ss 0 -t ${clamped} -i "${srcPath}" -vn -codec:a libmp3lame -ac 1 -ar 44100 -b:a 128k -y "${previewPath}"`, {
+      timeout: 15000,
+      stdio: 'pipe',
+    })
+    if (!fs.existsSync(previewPath) || fs.statSync(previewPath).size === 0) {
+      throw new Error('ffmpeg produced empty output')
+    }
+    const size = fs.statSync(previewPath).size
+    log(`[AudioLibrary] Preview generated: ${previewFilename} (${(size / 1024).toFixed(1)} KB, ${clamped}s)`)
+    return { path: previewPath, ephemeral: true, name: audio.name, size }
+  } catch (e) {
+    // Clean up any partial output
+    try { if (fs.existsSync(previewPath)) fs.unlinkSync(previewPath) } catch (_e) { /* ignore */ }
+    log(`[AudioLibrary] Preview ffmpeg failed for ${audioId} (falling back to full file): ${e.message}`)
+    // Fallback: send the original file as-is. Ephemeral=false so caller doesn't delete the source.
+    const size = fs.statSync(srcPath).size
+    return { path: srcPath, ephemeral: false, name: audio.name, size }
+  }
 }
 
 module.exports = {
@@ -320,6 +405,7 @@ module.exports = {
   getAudio,
   deleteAudio,
   renameAudio,
+  generatePreview,
   getAudioUrl,
   detectAudioFormat,
   AUDIO_DIR,

@@ -3,6 +3,25 @@
 ## Original problem statement
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
+## 2026-08-03 — P0 Feature: IVR Audio Library Preview + Rename
+**User ask:** *"Preview In Library: Let users tap any saved audio and hear a 5-second preview before setting it as the active greeting. Rename Saved Audios: Add an inline rename option so users can turn '📞 IVR · Thank you for calling…' auto-names into meaningful labels."*
+
+**What shipped:**
+- **`js/audio-library-service.js`**
+  - `generatePreview(audioId, chatId, seconds=5)` — trims to a mono 128kbps MP3 using ffmpeg (clamped 1–15s); auto-restores source from `ivrAudioStore` if disk-evicted (Railway redeploy survival); ffmpeg-failure fallback returns the untouched source with `ephemeral:false` so the caller knows not to delete it.
+  - `renameAudio(audioId, chatId, newName)` — now returns `{ renamed, name?, reason? }`; trims to 60 chars, rejects empty names, filename/URL preserved so any phone-number references keep working.
+- **`js/_index.js`**
+  - New states `audioLibAudioDetail` + `audioLibRename`; audio library now renders one row per audio (`🎵 <name> (KB)`) that opens a per-audio detail submenu with `[🔊 Preview (5s)] [✏️ Rename] [🗑 Delete] [↩️ Back]`.
+  - Preview handler generates a 5s snippet via `generatePreview()` and sends it as a Telegram voice message (falls back to `sendAudio` if voice fails), then cleans up ephemeral files.
+  - Rename handler prompts for a new name, updates metadata, and returns to the detail view showing the new label.
+  - "🛠 Manage Library" jump from the IVR greeting picker + the top-level Audio Library entry both use the same tap-to-detail layout for consistency.
+- **Dev endpoint** `POST /dev/ivr-audio-preview-rename` (404 in prod) — creates a real 30s silent MP3 via ffmpeg lavfi, verifies preview shrinks it ~6×, rename works + preserves filename, empty-name is rejected, and post-rename preview still works. Cleans up all fixtures.
+
+**Verified:** `node -c` clean; dev endpoint `pass:true` on all 6 checks; existing `/dev/ivr-audio-library-integrity` still `pass:true` (no regression on delete-cascade + reselect flow).
+
+**Files:** `js/audio-library-service.js`, `js/_index.js`.
+
+
 ## 2026-08 — P0 UX: stale deposit/wallet reply-keyboard taps → open Wallet menu
 **Bug (Railway UX scan):** A user whose Telegram session had reset then tapped a leftover reply-keyboard button — a deposit method ("Crypto"/"Bank"), "Wallet", or a top-up ("Deposit"/"Top up"/"Add funds") — got bounced. Root cause in `js/_index.js` U2 fallback (~L31926, added 2026-04-16): the Crypto/Bank/Wallet branch showed a generic "session expired — select a service first" message and dumped users to the MAIN menu (no path to add funds); the deposit/top-up branch wrongly called `goto.submenu3()` = the **Hosting Plans** menu.
 

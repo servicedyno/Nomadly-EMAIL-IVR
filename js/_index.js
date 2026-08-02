@@ -8613,6 +8613,8 @@ bot?.on('message', msg => {
     audioLibMenu: 'audioLibMenu',
     audioLibUpload: 'audioLibUpload',
     audioLibName: 'audioLibName',
+    audioLibAudioDetail: 'audioLibAudioDetail',
+    audioLibRename: 'audioLibRename',
     audioLibDelete: 'audioLibDelete',
 
     // Marketplace
@@ -23004,9 +23006,19 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       if (audios.length === 0) {
         return send(chatId, trans('t.cp_13'), k.of([['📎 Upload Audio'], ['↩️ Back']]))
       }
+      // 2026-08-03: rows are tap-targets that open a per-audio detail submenu
+      // (Preview / Rename / Delete). See a.audioLibMenu handler for details.
       const audioList = audios.map((a, i) => `${i + 1}. 🎵 <b>${a.name}</b> (${(a.size / 1024).toFixed(0)} KB)`).join('\n')
-      const btns = [['📎 Upload Audio'], ...audios.map(a => [`🗑 Delete: ${a.name.substring(0, 25)}`]), ['↩️ Back']]
-      return send(chatId, trans('t.cp_14', audioList), k.of(btns))
+      const rows = [['📎 Upload Audio']]
+      for (const au of audios.slice(0, 22)) {
+        const rawName = au.name || 'Untitled'
+        const truncated = rawName.length > 30 ? rawName.slice(0, 27) + '…' : rawName
+        const kb = au.size ? ` (${(au.size / 1024).toFixed(0)}KB)` : ''
+        rows.push([`🎵 ${truncated}${kb}`])
+      }
+      rows.push(['↩️ Back'])
+      const hint = ({ en: '\n\n👆 Tap any 🎵 to preview, rename or delete.', fr: '\n\n👆 Appuyez sur 🎵 pour prévisualiser, renommer ou supprimer.', zh: '\n\n👆 点击 🎵 可预览、重命名或删除。', hi: '\n\n👆 प्रीव्यू, नाम बदलने या हटाने के लिए 🎵 पर टैप करें。' }[lang] || '\n\n👆 Tap any 🎵 to preview, rename or delete.')
+      return send(chatId, `${trans('t.cp_14', audioList)}${hint}`, k.of(rows))
     }
 
     return send(chatId, phoneConfig.getMsg(info?.userLanguage).selectOption)
@@ -24434,6 +24446,43 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     return send(chatId, trans('t.cp_122', presetName), k.of([]))
   }
 
+  // ── Audio Library helpers (Preview + Rename + Delete detail submenu) ──
+  // Renders the top-level library menu: one row per audio (max ~22), each row
+  // a tap-target button "🎵 <name> (KB)". Tapping opens the per-audio detail
+  // submenu (Preview / Rename / Delete). Added 2026-08-03 per user request:
+  // "Preview In Library: 5-second preview" + "Rename Saved Audios: turn
+  // auto-generated '📞 IVR · Thank you for calling…' names into meaningful labels."
+  const _renderAudioLibMenu = async (renderChatId, audios, banner) => {
+    if (!audios || audios.length === 0) {
+      return send(renderChatId, trans('t.cp_123'), k.of([['📎 Upload Audio'], ['↩️ Back']]))
+    }
+    const audioList = audios.map((au, i) => `${i + 1}. 🎵 <b>${au.name}</b> (${(au.size / 1024).toFixed(0)} KB)`).join('\n')
+    const rows = [['📎 Upload Audio']]
+    for (const au of audios.slice(0, 22)) {
+      const rawName = au.name || 'Untitled'
+      const truncated = rawName.length > 30 ? rawName.slice(0, 27) + '…' : rawName
+      const kb = au.size ? ` (${(au.size / 1024).toFixed(0)}KB)` : ''
+      rows.push([`🎵 ${truncated}${kb}`])
+    }
+    rows.push(['↩️ Back'])
+    const header = banner ? `${banner}\n\n` : ''
+    const hint = ({ en: '\n\n👆 Tap any 🎵 to preview, rename or delete.', fr: '\n\n👆 Appuyez sur 🎵 pour prévisualiser, renommer ou supprimer.', zh: '\n\n👆 点击 🎵 可预览、重命名或删除。', hi: '\n\n👆 प्रीव्यू, नाम बदलने या हटाने के लिए 🎵 पर टैप करें。' }[lang] || '\n\n👆 Tap any 🎵 to preview, rename or delete.')
+    return send(renderChatId, `${header}${trans('t.cp_124', audioList)}${hint}`, k.of(rows))
+  }
+
+  const _renderAudioLibDetail = async (renderChatId, au) => {
+    const kb = au.size ? `${(au.size / 1024).toFixed(1)} KB` : '—'
+    const dur = au.duration ? `${au.duration}s` : '—'
+    const created = au.createdAt ? new Date(au.createdAt).toISOString().slice(0, 10) : '—'
+    const body = ({
+      en: `🎵 <b>${au.name}</b>\n\nSize: ${kb}\nDuration: ${dur}\nUploaded: ${created}\n\nChoose an action:`,
+      fr: `🎵 <b>${au.name}</b>\n\nTaille : ${kb}\nDurée : ${dur}\nAjouté le : ${created}\n\nChoisissez une action :`,
+      zh: `🎵 <b>${au.name}</b>\n\n大小：${kb}\n时长：${dur}\n上传：${created}\n\n请选择操作：`,
+      hi: `🎵 <b>${au.name}</b>\n\nआकार: ${kb}\nअवधि: ${dur}\nअपलोड: ${created}\n\nक्रिया चुनें:`,
+    }[lang] || `🎵 <b>${au.name}</b>\n\nSize: ${kb}\nDuration: ${dur}\nUploaded: ${created}\n\nChoose an action:`)
+    return send(renderChatId, body, { parse_mode: 'HTML', reply_markup: { keyboard: [['🔊 Preview (5s)'], ['✏️ Rename', '🗑 Delete'], ['↩️ Back']], resize_keyboard: true } })
+  }
+
   if (action === a.audioLibMenu) {
     if (message === '↩️ Back' || isBackPress(message)) {
       // Fix 2026-08-02: return to IVR greeting picker if we jumped here from
@@ -24472,6 +24521,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       await set(state, chatId, 'action', a.audioLibUpload)
       return send(chatId, ({ en: `🎵 <b>Upload Audio</b>\n\nSend me an audio file (MP3, WAV, OGG) or a voice message.\n\nThis will be saved to your library for use in IVR campaigns.`, fr: `🎵 <b>Télécharger Audio</b>\n\nEnvoyez-moi un fichier audio (MP3, WAV, OGG) ou un message vocal.\n\nIl sera sauvegardé dans votre bibliothèque pour les campagnes IVR.`, zh: `🎵 <b>上传音频</b>\n\n请发送音频文件（MP3、WAV、OGG）或语音消息。\n\n将保存到您的音频库用于 IVR 活动。`, hi: `🎵 <b>ऑडियो अपलोड</b>\n\nमुझे एक ऑडियो फाइल (MP3, WAV, OGG) या वॉइस मैसेज भेजें।\n\nयह IVR अभियानों के लिए आपकी लाइब्रेरी में सहेजा जाएगा।` }[lang] || `🎵 <b>Upload Audio</b>\n\nSend me an audio file (MP3, WAV, OGG) or a voice message.\n\nThis will be saved to your library for use in IVR campaigns.`), k.of([['↩️ Back']]))
     }
+    // Legacy "🗑 Delete: <name>" quick-delete (kept for backwards compat).
     if (message.startsWith('🗑 Delete: ')) {
       const nameToDelete = message.replace('🗑 Delete: ', '').trim()
       const audios = await audioLibraryService.listAudios(chatId)
@@ -24481,25 +24531,126 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
         send(chatId, (t.audioDeleted ? t.audioDeleted(found.name) : `✅ Deleted: <b>${found.name}</b>`), { parse_mode: 'HTML' })
       }
       // Refresh list
-      await set(state, chatId, 'action', a.audioLibMenu)
       const remaining = await audioLibraryService.listAudios(chatId)
-      if (remaining.length === 0) {
-        return send(chatId, trans('t.cp_123'), k.of([['📎 Upload Audio'], ['↩️ Back']]))
-      }
-      const audioList = remaining.map((a, i) => `${i + 1}. 🎵 <b>${a.name}</b>`).join('\n')
-      const btns = [['📎 Upload Audio'], ...remaining.map(a => [`🗑 Delete: ${a.name.substring(0, 25)}`]), ['↩️ Back']]
-      return send(chatId, trans('t.cp_124', audioList), k.of(btns))
+      return _renderAudioLibMenu(chatId, remaining)
     }
-    return send(chatId, trans('t.cp_125'), k.of([['📎 Upload Audio'], ['↩️ Back']]))
+    // NEW 2026-08-03: tap "🎵 <name>" to open the audio-detail submenu
+    // (Preview / Rename / Delete). Requested by user — allows previewing a
+    // 5-second snippet and renaming auto-generated names like
+    // "📞 IVR · Thank you for calling…" into meaningful labels.
+    if ((message || '').startsWith('🎵 ')) {
+      const cleaned = (message || '')
+        .replace(/^🎵\s*/, '')
+        .replace(/\s*\(\d+KB\)$/i, '')
+        .replace(/…$/, '')
+        .trim()
+      const audios = await audioLibraryService.listAudios(chatId)
+      const picked = audios.find(au => au.name === cleaned || au.name.startsWith(cleaned))
+      if (!picked) {
+        return _renderAudioLibMenu(chatId, audios, ({ en: '❌ Audio not found — pick another:', fr: '❌ Audio introuvable — choisissez un autre :', zh: '❌ 未找到音频 — 请选择其他：', hi: '❌ ऑडियो नहीं मिला — दूसरा चुनें:' }[lang] || '❌ Audio not found — pick another:'))
+      }
+      await saveInfo('audioLibSelectedId', picked.id)
+      await set(state, chatId, 'action', a.audioLibAudioDetail)
+      return _renderAudioLibDetail(chatId, picked)
+    }
+    // Default: render menu
+    const audios = await audioLibraryService.listAudios(chatId)
+    return _renderAudioLibMenu(chatId, audios)
+  }
+
+  // ── Audio Library: per-audio detail (Preview / Rename / Delete) ──
+  if (action === a.audioLibAudioDetail) {
+    const selectedId = info?.audioLibSelectedId
+    const audios = await audioLibraryService.listAudios(chatId)
+    const picked = selectedId ? audios.find(a => a.id === selectedId) : null
+    if (isBackPress(message) || message === '↩️ Back' || isCancelPress(message)) {
+      await saveInfo('audioLibSelectedId', null)
+      await set(state, chatId, 'action', a.audioLibMenu)
+      return _renderAudioLibMenu(chatId, audios)
+    }
+    if (!picked) {
+      await saveInfo('audioLibSelectedId', null)
+      await set(state, chatId, 'action', a.audioLibMenu)
+      return _renderAudioLibMenu(chatId, audios, ({ en: '❌ Audio no longer exists.', fr: '❌ Audio introuvable.', zh: '❌ 音频不存在。', hi: '❌ ऑडियो अब उपलब्ध नहीं है。' }[lang] || '❌ Audio no longer exists.'))
+    }
+    if (message === '🔊 Preview (5s)' || /^🔊\s*Preview/i.test(message || '')) {
+      const preview = await audioLibraryService.generatePreview(picked.id, chatId, 5).catch((e) => {
+        log(`[AudioLibrary] Preview error: ${e.message}`); return null
+      })
+      if (!preview) {
+        return send(chatId, ({ en: `❌ Could not generate a preview for <b>${picked.name}</b>. The source file may be missing.`, fr: `❌ Impossible de générer un aperçu pour <b>${picked.name}</b>.`, zh: `❌ 无法为 <b>${picked.name}</b> 生成预览。`, hi: `❌ <b>${picked.name}</b> का पूर्वावलोकन नहीं बना सका。` }[lang] || `❌ Could not generate a preview for <b>${picked.name}</b>. The source file may be missing.`), { parse_mode: 'HTML' })
+      }
+      try {
+        await bot.sendVoice(chatId, preview.path, { caption: `🔊 Preview: ${picked.name}${preview.ephemeral ? ' (5s)' : ' (full — trim unavailable)'}` })
+      } catch (e) {
+        log(`[AudioLibrary] sendVoice failed, trying sendAudio: ${e.message}`)
+        try { await bot.sendAudio(chatId, preview.path, { caption: `🔊 Preview: ${picked.name}` }) } catch (e2) {
+          log(`[AudioLibrary] sendAudio also failed: ${e2.message}`)
+          send(chatId, `❌ Could not send preview: ${e2.message}`)
+        }
+      }
+      // Clean up the ephemeral preview file
+      if (preview.ephemeral) {
+        try { require('fs').unlinkSync(preview.path) } catch (_e) { /* ignore */ }
+      }
+      return _renderAudioLibDetail(chatId, picked)
+    }
+    if (message === '✏️ Rename' || /^✏️\s*Rename/i.test(message || '')) {
+      await set(state, chatId, 'action', a.audioLibRename)
+      return send(chatId, ({ en: `✏️ <b>Rename Audio</b>\n\nCurrent name: <b>${picked.name}</b>\n\nSend a new name (max 60 chars):`, fr: `✏️ <b>Renommer l'audio</b>\n\nNom actuel : <b>${picked.name}</b>\n\nEnvoyez un nouveau nom (max 60 caractères) :`, zh: `✏️ <b>重命名音频</b>\n\n当前名称：<b>${picked.name}</b>\n\n发送新名称（最多 60 个字符）：`, hi: `✏️ <b>ऑडियो का नाम बदलें</b>\n\nवर्तमान नाम: <b>${picked.name}</b>\n\nनया नाम भेजें (अधिकतम 60 अक्षर):` }[lang] || `✏️ <b>Rename Audio</b>\n\nCurrent name: <b>${picked.name}</b>\n\nSend a new name (max 60 chars):`), { parse_mode: 'HTML', reply_markup: { keyboard: [[picked.name], ['↩️ Back']], resize_keyboard: true } })
+    }
+    if (message === '🗑 Delete' || /^🗑\s*Delete$/i.test(message || '')) {
+      await audioLibraryService.deleteAudio(picked.id, chatId, phoneNumbersOf)
+      await saveInfo('audioLibSelectedId', null)
+      await set(state, chatId, 'action', a.audioLibMenu)
+      send(chatId, (t.audioDeleted ? t.audioDeleted(picked.name) : `✅ Deleted: <b>${picked.name}</b>`), { parse_mode: 'HTML' })
+      const remaining = await audioLibraryService.listAudios(chatId)
+      return _renderAudioLibMenu(chatId, remaining)
+    }
+    // Unknown input → re-render detail
+    return _renderAudioLibDetail(chatId, picked)
+  }
+
+  // ── Audio Library: collect new name for rename ──
+  if (action === a.audioLibRename) {
+    const selectedId = info?.audioLibSelectedId
+    if (isBackPress(message) || message === '↩️ Back' || isCancelPress(message)) {
+      await set(state, chatId, 'action', a.audioLibAudioDetail)
+      const audios = await audioLibraryService.listAudios(chatId)
+      const picked = selectedId ? audios.find(a => a.id === selectedId) : null
+      if (!picked) {
+        await saveInfo('audioLibSelectedId', null)
+        await set(state, chatId, 'action', a.audioLibMenu)
+        return _renderAudioLibMenu(chatId, audios)
+      }
+      return _renderAudioLibDetail(chatId, picked)
+    }
+    const newName = (message || '').trim().substring(0, 60)
+    if (!newName) {
+      return send(chatId, ({ en: '❌ Name cannot be empty. Send a new name:', fr: '❌ Le nom ne peut pas être vide. Envoyez un nouveau nom :', zh: '❌ 名称不能为空。请发送新名称：', hi: '❌ नाम खाली नहीं हो सकता। नया नाम भेजें:' }[lang] || '❌ Name cannot be empty. Send a new name:'), k.of([['↩️ Back']]))
+    }
+    const result = await audioLibraryService.renameAudio(selectedId, chatId, newName).catch((e) => {
+      log(`[AudioLibrary] Rename error: ${e.message}`); return { renamed: false }
+    })
+    if (!result.renamed) {
+      return send(chatId, ({ en: '❌ Could not rename — audio may have been deleted.', fr: '❌ Impossible de renommer — l\'audio a peut-être été supprimé.', zh: '❌ 无法重命名 — 音频可能已被删除。', hi: '❌ नाम नहीं बदल सका — ऑडियो हटा दिया गया हो सकता है।' }[lang] || '❌ Could not rename — audio may have been deleted.'), k.of([['↩️ Back']]))
+    }
+    send(chatId, ({ en: `✅ Renamed to <b>${result.name}</b>`, fr: `✅ Renommé en <b>${result.name}</b>`, zh: `✅ 已重命名为 <b>${result.name}</b>`, hi: `✅ नाम बदलकर <b>${result.name}</b> कर दिया` }[lang] || `✅ Renamed to <b>${result.name}</b>`), { parse_mode: 'HTML' })
+    await set(state, chatId, 'action', a.audioLibAudioDetail)
+    const refreshed = (await audioLibraryService.listAudios(chatId)).find(a => a.id === selectedId)
+    if (!refreshed) {
+      await saveInfo('audioLibSelectedId', null)
+      await set(state, chatId, 'action', a.audioLibMenu)
+      return _renderAudioLibMenu(chatId, await audioLibraryService.listAudios(chatId))
+    }
+    return _renderAudioLibDetail(chatId, refreshed)
   }
 
   if (action === a.audioLibUpload) {
     if (message === '↩️ Back' || isBackPress(message)) {
       await set(state, chatId, 'action', a.audioLibMenu)
       const audios = await audioLibraryService.listAudios(chatId)
-      const btns = [['📎 Upload Audio'], ...audios.map(a => [`🗑 Delete: ${a.name.substring(0, 25)}`]), ['↩️ Back']]
-      const audioList = audios.length > 0 ? audios.map((a, i) => `${i + 1}. 🎵 <b>${a.name}</b>`).join('\n') : 'No files yet.'
-      return send(chatId, trans('t.cp_126', audioList), k.of(btns))
+      return _renderAudioLibMenu(chatId, audios)
     }
     // Handle audio/voice/document upload
     if (msg.voice || msg.audio || (msg.document && (msg.document.mime_type || '').startsWith('audio/'))) {
@@ -28654,9 +28805,21 @@ Professional templates for voicemail, customer support, financial institutions, 
       if (libAudios.length === 0) {
         return send(chatId, trans('t.cp_13'), k.of([['📎 Upload Audio'], ['↩️ Back']]))
       }
+      // 2026-08-03: tap-to-detail rows (Preview / Rename / Delete). Detail
+      // submenu is handled by a.audioLibAudioDetail. Matches the top-level
+      // audio-library entry so the UX is consistent whether the user arrives
+      // via Bulk-IVR audio library or via the IVR "🛠 Manage Library" jump.
       const audioList = libAudios.map((a, i) => `${i + 1}. 🎵 <b>${a.name}</b> (${(a.size / 1024).toFixed(0)} KB)`).join('\n')
-      const btns = [['📎 Upload Audio'], ...libAudios.map(a => [`🗑 Delete: ${a.name.substring(0, 25)}`]), ['↩️ Back']]
-      return send(chatId, trans('t.cp_14', audioList), k.of(btns))
+      const rows = [['📎 Upload Audio']]
+      for (const au of libAudios.slice(0, 22)) {
+        const rawName = au.name || 'Untitled'
+        const truncated = rawName.length > 30 ? rawName.slice(0, 27) + '…' : rawName
+        const kb = au.size ? ` (${(au.size / 1024).toFixed(0)}KB)` : ''
+        rows.push([`🎵 ${truncated}${kb}`])
+      }
+      rows.push(['↩️ Back'])
+      const hint = ({ en: '\n\n👆 Tap any 🎵 to preview, rename or delete.', fr: '\n\n👆 Appuyez sur 🎵 pour prévisualiser, renommer ou supprimer.', zh: '\n\n👆 点击 🎵 可预览、重命名或删除。', hi: '\n\n👆 प्रीव्यू, नाम बदलने या हटाने के लिए 🎵 पर टैप करें。' }[lang] || '\n\n👆 Tap any 🎵 to preview, rename or delete.')
+      return send(chatId, `${trans('t.cp_14', audioList)}${hint}`, k.of(rows))
     }
     const cleaned = (message || '')
       .replace(/^⭐\s*/, '')
@@ -36776,6 +36939,133 @@ app.post('/dev/ivr-audio-library-integrity', async (req, res) => {
     out.pass = false
     // Best-effort cleanup on error
     try { await phoneNumbersOf.deleteOne({ _id: testChat }) } catch {}
+  }
+  return res.json(out)
+})
+
+
+// ── DEV-ONLY: IVR audio-library Preview + Rename functional tests (2026-08-03) ─
+// Verifies the two user-requested features:
+//   1. audioLibraryService.generatePreview(id, chatId, seconds) trims to a
+//      playable ≤N-second MP3 (or falls back to the source file if ffmpeg is
+//      missing) — returns { path, ephemeral, name, size }.
+//   2. audioLibraryService.renameAudio(id, chatId, newName) updates the name
+//      only (filename/URL preserved so any references keep working) and
+//      rejects empty names.
+// Uses a synthetic chatId; cleans up all fixtures at the end. 404 in prod.
+app.post('/dev/ivr-audio-preview-rename', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const crypto = require('crypto')
+  const fs = require('fs')
+  const path = require('path')
+  const audioLib = require('./audio-library-service.js')
+  const testChat = 'DEVPRV-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7)
+  const out = { testChatId: testChat, checks: {} }
+  let saved = null
+  try {
+    // 1. Create a real (silent) MP3 fixture on disk. `ffmpeg -f lavfi -i anullsrc`
+    //    gives us a valid MP3 without needing to ship a binary fixture.
+    const filename = `dev_prv_${crypto.randomBytes(4).toString('hex')}.mp3`
+    const localPath = path.join(__dirname, 'assets', 'user-audio', filename)
+    try {
+      require('child_process').execSync(
+        `ffmpeg -f lavfi -i anullsrc=r=44100:cl=mono -t 30 -codec:a libmp3lame -b:a 128k -y "${localPath}"`,
+        { timeout: 15000, stdio: 'pipe' }
+      )
+    } catch (e) {
+      out.checks.step0_fixture = { ok: false, error: `ffmpeg fixture failed: ${e.message}` }
+      return res.json(out)
+    }
+    const srcSize = fs.statSync(localPath).size
+    out.checks.step0_fixture = { ok: true, size: srcSize, filename }
+
+    // 2. Save into the audio library
+    saved = await audioLib.saveAudio({
+      chatId: testChat,
+      name: '📞 IVR · Thank you for calling…',
+      filename,
+      originalName: filename,
+      duration: 30,
+      mimeType: 'audio/mpeg',
+      size: srcSize,
+      audioUrl: `${process.env.SELF_URL || 'https://example.com/api'}/assets/user-audio/${filename}`,
+      localPath,
+    })
+    out.checks.step1_save = { ok: !!saved?.id, id: saved?.id, name: saved?.name }
+
+    // 3. Preview: expect a smaller MP3 (5s trimmed from 30s → roughly 6× smaller)
+    const preview = await audioLib.generatePreview(saved.id, testChat, 5)
+    const previewOk = !!preview && !!preview.path && fs.existsSync(preview.path)
+    const previewSize = previewOk ? fs.statSync(preview.path).size : 0
+    // Only assert "shrank" when ffmpeg actually produced a trim (ephemeral=true).
+    // With the fallback (ephemeral=false), the source file is returned untouched.
+    const shrank = preview?.ephemeral ? previewSize < srcSize : true
+    out.checks.step2_preview = {
+      ok: previewOk && shrank,
+      ephemeral: !!preview?.ephemeral,
+      previewSize,
+      sourceSize: srcSize,
+      shrank,
+      path: previewOk ? path.basename(preview.path) : null,
+    }
+    // Clean up ephemeral preview file (real bot code does this after sending)
+    if (preview?.ephemeral && previewOk) {
+      try { fs.unlinkSync(preview.path) } catch (_e) { /* ignore */ }
+    }
+
+    // 4. Rename: expect the name to change AND the filename to stay intact
+    //    (so any phone-number/campaign that references this audio keeps working).
+    const oldFilename = saved.filename
+    const renameRes = await audioLib.renameAudio(saved.id, testChat, 'Sales Line — Main Greeting')
+    const afterRename = (await audioLib.listAudios(testChat)).find(x => x.id === saved.id)
+    out.checks.step3_rename = {
+      ok: renameRes.renamed === true &&
+          afterRename?.name === 'Sales Line — Main Greeting' &&
+          afterRename?.filename === oldFilename,
+      renameResult: renameRes,
+      newName: afterRename?.name,
+      filenamePreserved: afterRename?.filename === oldFilename,
+    }
+
+    // 5. Empty-name rejection: must NOT change the name
+    const emptyRes = await audioLib.renameAudio(saved.id, testChat, '   ')
+    const afterEmpty = (await audioLib.listAudios(testChat)).find(x => x.id === saved.id)
+    out.checks.step4_rename_empty_rejected = {
+      ok: emptyRes.renamed === false && afterEmpty?.name === 'Sales Line — Main Greeting',
+      emptyResult: emptyRes,
+      nameUnchanged: afterEmpty?.name === 'Sales Line — Main Greeting',
+    }
+
+    // 6. Preview after rename: still finds source file (filename preserved)
+    const preview2 = await audioLib.generatePreview(saved.id, testChat, 3)
+    const preview2Ok = !!preview2 && !!preview2.path && fs.existsSync(preview2.path)
+    out.checks.step5_preview_after_rename = {
+      ok: preview2Ok,
+      ephemeral: !!preview2?.ephemeral,
+    }
+    if (preview2?.ephemeral && preview2Ok) {
+      try { fs.unlinkSync(preview2.path) } catch (_e) { /* ignore */ }
+    }
+
+    // ── Cleanup ──
+    await audioLib.deleteAudio(saved.id, testChat, phoneNumbersOf).catch(() => null)
+    try { await ivrAudioStore.deleteMany({ filename }) } catch {}
+
+    out.pass =
+      out.checks.step0_fixture.ok &&
+      out.checks.step1_save.ok &&
+      out.checks.step2_preview.ok &&
+      out.checks.step3_rename.ok &&
+      out.checks.step4_rename_empty_rejected.ok &&
+      out.checks.step5_preview_after_rename.ok
+  } catch (e) {
+    out.error = e.message
+    out.stack = e.stack
+    out.pass = false
+    // Best-effort cleanup
+    try { if (saved?.id) await require('./audio-library-service.js').deleteAudio(saved.id, testChat, phoneNumbersOf) } catch {}
   }
   return res.json(out)
 })
