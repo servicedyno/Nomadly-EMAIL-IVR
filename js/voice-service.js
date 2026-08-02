@@ -3629,19 +3629,29 @@ async function handleGatherEnded(payload) {
   const { num, chatId } = session
   const ivrConfig = num.features?.ivr
 
-  log(`[Voice] DTMF received: "${digits}" for ${num.phoneNumber}`)
+  // ── 2026-08-03: Multi-layer IVR — resolve option through session.ivrPath ──
+  // If session.ivrPath is set, we're inside a sub-menu and the digit resolves
+  // against ivrConfig.options[path].subMenu.options[digits] instead of the
+  // root options. Depth is capped at 2 by design (leaf actions can't be
+  // action:'submenu'), so no recursion possible.
+  const inSubMenu = !!session.ivrPath
+  const optionsMap = inSubMenu
+    ? (ivrConfig?.options?.[session.ivrPath]?.subMenu?.options || {})
+    : (ivrConfig?.options || {})
+  log(`[Voice] DTMF received: "${digits}" for ${num.phoneNumber}${inSubMenu ? ` (sub-menu ${session.ivrPath})` : ''}`)
 
-  // Track IVR analytics
-  trackIvrAnalytics(num.phoneNumber, chatId, session.from, digits, ivrConfig?.options?.[digits]?.action || 'invalid')
+  // Track IVR analytics — prefix digit with parent path for sub-menu selections
+  const analyticsDigit = inSubMenu ? `${session.ivrPath}.${digits}` : digits
+  trackIvrAnalytics(num.phoneNumber, chatId, session.from, analyticsDigit, optionsMap?.[digits]?.action || 'invalid')
 
-  if (!digits || !ivrConfig?.options?.[digits]) {
+  if (!digits || !optionsMap?.[digits]) {
     if (!session.ivrRetried) {
       session.ivrRetried = true
       await _telnyxApi.gatherDTMF(callControlId, 'Sorry, that was not a valid option. Please try again.', {
         minDigits: 1,
         maxDigits: 1,
         timeout: 10000,
-        validDigits: Object.keys(ivrConfig?.options || {}).join('') || '0123456789',
+        validDigits: Object.keys(optionsMap || {}).join('') || '0123456789',
       })
     } else {
       await _telnyxApi.speakOnCall(callControlId, 'Goodbye.')
@@ -3650,7 +3660,45 @@ async function handleGatherEnded(payload) {
     return
   }
 
-  const option = ivrConfig.options[digits]
+  const option = optionsMap[digits]
+
+  // ── 2026-08-03: If the caller picked a sub-menu key at the root, start a
+  // NEW gather that plays the sub-menu greeting and marks the session as
+  // being inside that sub-menu. The next DTMF will land here again with
+  // session.ivrPath set, and resolve against the sub-menu's options map.
+  if (option.action === 'submenu' && !inSubMenu) {
+    session.ivrPath = digits
+    session.ivrRetried = false // reset retry counter for the new menu level
+    const sub = option.subMenu || {}
+    const validDigits = Object.keys(sub.options || {}).join('') || '0123456789'
+    const greetingText = (sub.greetingType === 'text' || sub.greetingType === 'default')
+      ? (sub.greeting || 'Please select an option.')
+      : (sub.greeting || 'Please select an option.')
+    try {
+      if (sub.greetingType === 'audio' && sub.greetingAudioUrl && _telnyxApi.gatherDTMFWithAudio) {
+        await _telnyxApi.gatherDTMFWithAudio(callControlId, sub.greetingAudioUrl, {
+          minDigits: 1,
+          maxDigits: 1,
+          timeout: 10000,
+          validDigits,
+        })
+      } else {
+        await _telnyxApi.gatherDTMF(callControlId, greetingText, {
+          minDigits: 1,
+          maxDigits: 1,
+          timeout: 10000,
+          validDigits,
+        })
+      }
+      // Notify owner that a caller entered the sub-menu
+      _bot?.sendMessage(chatId, `📞 <b>IVR Call — Key ${digits}</b>\nFrom: ${session.from}\n📂 Entering sub-menu (${Object.keys(sub.options || {}).length} options)`, { parse_mode: 'HTML' }).catch(() => {})
+    } catch (e) {
+      log(`[Voice] Sub-menu gather failed: ${e.message}`)
+      await _telnyxApi.speakOnCall(callControlId, 'An error occurred. Goodbye.')
+      setTimeout(() => _telnyxApi.hangupCall(callControlId), 2000)
+    }
+    return
+  }
 
   switch (option.action) {
     case 'forward': {

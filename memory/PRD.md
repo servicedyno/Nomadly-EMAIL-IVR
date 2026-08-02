@@ -3,6 +3,31 @@
 ## Original problem statement
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
+## 2026-08-03 — P0 Feature: Multi-layer (2-level) IVR Auto-Attendant
+**User ask:** *"The auto attendant is single layer. After pressing 1 that's [it]. Pressing 1 should have a list of options as well, like how the outgoing IVR is."*
+
+**Design decisions (user picked all defaults):** depth = 2 (root → one sub-menu → leaf); sub-menu key actions = Forward / Play Message / Voicemail / Open Sub-Menu (`submenu` is root-only — leaves can't nest, so infinite recursion is structurally impossible); sub-menu greeting picker = Type Text (TTS) / Pick From Library / Use Default (Template + Audio Upload for sub-menus is a follow-up — users can seed the audio library via the root greeting picker and then Pick); existing single-layer configs untouched (nesting is opt-in per key).
+
+**What shipped:**
+- **Data model** — `num.features.ivr.options[key] = { action: 'submenu', label, subMenu: { greetingType, greeting, greetingAudioUrl, greetingFromLibrary, options: {…} } }`. Fully backward-compatible: existing `{ action: 'forward'/'voicemail'/'message' }` options keep working as-is.
+- **Config wizard** (`js/_index.js`) — 4th action button `📂 Open Sub-Menu` in `cpIvrOptionAction`. Picking it seeds an empty sub-menu on the parent key and drops the user into a new `cpIvrSubMenuManage` state showing greeting + options overview with `[🔊 Set Sub-Menu Greeting] [➕ Add Sub-Option] [🗑 Remove Sub-Option] [✅ Done]`.
+  - Sub-menu greeting picker: `cpIvrSubMenuGreeting` → Type Text / Pick From Library / Use Default. Text goes through `cpIvrSubMenuGreetingText`, library picks through `cpIvrSubMenuGreetingLibrary` (with `ivrAudioStore` backup so it survives Railway redeploys).
+  - Sub-option wizard: `cpIvrSubMenuOptionKey → cpIvrSubMenuOptionAction → cpIvrSubMenuOptionMsg`. Supports Forward (+ self-call-loop guard), Voicemail, Play Message (TTS text only in MVP). Includes `cpIvrSubMenuRemoveOption` for granular sub-key removal.
+  - Root-level Remove Option now cascades: deleting a `submenu`-action key also purges any `ivrAudioStore` records under `<phone>:submenu:<key>:*` so re-adding the same key never inherits stale audio.
+- **Runtime — Twilio inbound-ivr-gather** (`js/_index.js`) — endpoint now accepts an optional `?path=<parentDigit>` query param. When absent, root-level dispatch (existing behavior); when present, resolves `Digits` against `ivrConfig.options[path].subMenu.options[Digits]`. On a root-level `submenu` action, responds with a nested `<Gather>` that plays the sub-menu greeting (audio or TTS, with Railway-survival restore from `ivrAudioStore`) and targets the same endpoint with `?path=<digit>`. Analytics record sub-menu selections as `1.2` etc.; `phoneLogs.submenuPath` field added.
+- **Runtime — Telnyx `voice-service.handleGatherEnded`** — session-scoped `session.ivrPath` marks whether we're inside a sub-menu. On a root-level `submenu` action, calls `gatherDTMFWithAudio` / `gatherDTMF` again for the sub-menu prompt and sets `session.ivrPath = digit`; the next DTMF resolves against the sub-menu's options map. Invalid-digit retry counter resets per menu level. Depth is capped at 2 (leaves can't be `submenu`).
+- **Dev endpoint** `POST /dev/ivr-multilayer-test` (404 in prod) — 8 checks covering: schema seed, root→submenu nested Gather (asserts `path=1` and the sub-greeting), sub-menu Forward dispatch, sub-menu Message dispatch, sub-menu invalid-digit hangup, root invalid-digit hangup, single-layer voicemail regression, and stored-schema integrity. Cleans up all fixtures.
+
+**Verified:** `node -c` clean; all three related dev endpoints return `pass:true` — `/dev/ivr-audio-library-integrity` (no regression on the earlier delete-cascade feature), `/dev/ivr-audio-preview-rename` (no regression on preview + rename), `/dev/ivr-multilayer-test` (all 8 nested-flow checks pass).
+
+**Files:** `js/_index.js` (wizard + Twilio runtime + dev endpoint), `js/voice-service.js` (Telnyx runtime).
+
+**Not shipped (known follow-ups):**
+- Sub-menu greeting doesn't yet offer Template + Audio Upload (root greeting picker still supports both — users can seed the library, then Pick From Library at the sub-menu level).
+- Sub-menu Play-Message actions are TTS-text-only (no audio upload). Root menu keeps full audio support.
+- No dedicated UI to edit an *existing* sub-menu after creation — user removes and re-adds. (Add "🔧 Edit Sub-Menu" jump in a follow-up.)
+
+
 ## 2026-08-03 — P0 Feature: IVR Audio Library Preview + Rename
 **User ask:** *"Preview In Library: Let users tap any saved audio and hear a 5-second preview before setting it as the active greeting. Rename Saved Audios: Add an inline rename option so users can turn '📞 IVR · Thank you for calling…' auto-names into meaningful labels."*
 

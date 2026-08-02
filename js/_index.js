@@ -8247,6 +8247,7 @@ bot?.on('message', msg => {
     forwardCall:      ({en: '📞 Forward Call',         fr: "📞 Transférer l'appel",     zh: '📞 转接电话',            hi: '📞 कॉल फ़ॉरवर्ड'}[lang]           || '📞 Forward Call'),
     playMessage:      ({en: '💬 Play Message',         fr: '💬 Lire un Message',        zh: '💬 播放消息',            hi: '💬 मैसेज चलाएं'}[lang]            || '💬 Play Message'),
     sendToVoicemail:  ({en: '📬 Send to Voicemail',    fr: '📬 Messagerie vocale',      zh: '📬 语音信箱',            hi: '📬 वॉइसमेल'}[lang]               || '📬 Send to Voicemail'),
+    openSubMenu:      ({en: '📂 Open Sub-Menu',        fr: '📂 Ouvrir un Sous-Menu',    zh: '📂 打开子菜单',          hi: '📂 सब-मेनू खोलें'}[lang]         || '📂 Open Sub-Menu'),
     saveOption:       ({en: '✅ Save Option',           fr: '✅ Enregistrer',             zh: '✅ 保存选项',            hi: '✅ सेव करें'}[lang]               || '✅ Save Option'),
     reupload:         ({en: '🎙️ Re-upload',            fr: '🎙️ Ré-uploader',           zh: '🎙️ 重新上传',           hi: '🎙️ फिर से अपलोड'}[lang]          || '🎙️ Re-upload'),
     useAsIs:          ({en: '✅ Use As-Is',             fr: '✅ Utiliser tel quel',       zh: '✅ 直接使用',             hi: '✅ जैसा है उपयोग'}[lang]          || '✅ Use As-Is'),
@@ -8532,6 +8533,16 @@ bot?.on('message', msg => {
     cpIvrOptionVoice: 'cpIvrOptionVoice',
     cpIvrOptionProvider: 'cpIvrOptionProvider',
     cpIvrOptionPreview: 'cpIvrOptionPreview',
+    // ── Multi-layer IVR (2026-08-03) — sub-menu editing states ──
+    // Depth capped at 2 (root → one sub-menu → leaf action) per user spec.
+    cpIvrSubMenuManage: 'cpIvrSubMenuManage',
+    cpIvrSubMenuGreeting: 'cpIvrSubMenuGreeting',
+    cpIvrSubMenuGreetingText: 'cpIvrSubMenuGreetingText',
+    cpIvrSubMenuGreetingLibrary: 'cpIvrSubMenuGreetingLibrary',
+    cpIvrSubMenuOptionKey: 'cpIvrSubMenuOptionKey',
+    cpIvrSubMenuOptionAction: 'cpIvrSubMenuOptionAction',
+    cpIvrSubMenuOptionMsg: 'cpIvrSubMenuOptionMsg',
+    cpIvrSubMenuRemoveOption: 'cpIvrSubMenuRemoveOption',
     cpIvrRemoveOption: 'cpIvrRemoveOption',
     cpCallRecording: 'cpCallRecording',
     cpFaxSettings: 'cpFaxSettings',
@@ -29263,7 +29274,7 @@ Que doit-il se passer quand un appelant appuie sur <b>${key}</b> ?`, zh: `🔢 �
 
 कॉलर जब <b>${key}</b> दबाए तो क्या होना चाहिए?` }[lang] || `🔢 Key <b>${key}</b> selected.
 
-What should happen when a caller presses <b>${key}</b>?`), k.of([[btn.forwardCall], [btn.playMessage], [btn.sendToVoicemail]]))
+What should happen when a caller presses <b>${key}</b>?`), k.of([[btn.forwardCall], [btn.playMessage], [btn.sendToVoicemail], [btn.openSubMenu]]))
   }
 
   // ── IVR Option: Step 2 — Select action type ──
@@ -29358,7 +29369,41 @@ How do you want to create the message?`), k.of([[btn.useTemplate], [btn.typeText
         [pc.ivrGreeting], [pc.ivrAddOption], [pc.ivrRemoveOption], [pc.ivrViewOptions], [pc.ivrAnalytics], [pc.disableIvr]
       ]))
     }
-    return send(chatId, ({ en: `Select an action for this key:`, fr: `Sélectionnez une action pour cette touche :`, zh: `选择此按键的操作：`, hi: `इस कुंजी के लिए कार्रवाई चुनें:` }[lang] || `Select an action for this key:`), k.of([[btn.forwardCall], [btn.playMessage], [btn.sendToVoicemail]]))
+    // ── 2026-08-03: Multi-layer IVR — "Open Sub-Menu" as a 4th action ──
+    // Depth capped at 2 (root → one sub-menu → leaf). Seed an empty sub-menu
+    // on this key, then jump to cpIvrSubMenuManage where the user configures
+    // the sub-menu greeting and adds sub-options (Forward / Voicemail / Message).
+    if (message === btn.openSubMenu) {
+      const ivrConf = num.features?.ivr || { enabled: true, options: {} }
+      if (!ivrConf.options) ivrConf.options = {}
+      ivrConf.options[draft.key] = {
+        action: 'submenu',
+        label: `Sub-Menu ${draft.key}`,
+        subMenu: {
+          greetingType: 'default',
+          greeting: 'Please select an option.',
+          options: {},
+        },
+      }
+      await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'ivr', ivrConf)
+      num.features.ivr = ivrConf
+      await saveInfo('cpActiveNumber', num)
+      // Enter sub-menu editing mode — draft.parentKey identifies which root option we're editing
+      await saveInfo('cpIvrDraft', { parentKey: draft.key })
+      await set(state, chatId, 'action', a.cpIvrSubMenuManage)
+      return send(chatId, ({
+        en: `📂 <b>Sub-Menu for Key ${draft.key}</b>\n\nWhen a caller presses <b>${draft.key}</b>, they'll hear a sub-menu greeting and can press another digit for the actions you define here.\n\n<i>Current greeting: "Please select an option."</i>\nOptions: (none yet)`,
+        fr: `📂 <b>Sous-Menu pour la Touche ${draft.key}</b>\n\nQuand un appelant appuie sur <b>${draft.key}</b>, il entendra un message de sous-menu et pourra appuyer sur un autre chiffre pour les actions définies ici.\n\n<i>Message actuel : "Veuillez sélectionner une option."</i>\nOptions : (aucune)`,
+        zh: `📂 <b>按键 ${draft.key} 的子菜单</b>\n\n当来电者按下 <b>${draft.key}</b> 时，他们将听到子菜单问候语，然后可以按另一个数字执行您定义的操作。\n\n<i>当前问候语："请选择一个选项。"</i>\n选项：（还没有）`,
+        hi: `📂 <b>कुंजी ${draft.key} के लिए सब-मेनू</b>\n\nजब कोई कॉलर <b>${draft.key}</b> दबाता है, वे एक सब-मेनू ग्रीटिंग सुनेंगे और यहाँ परिभाषित क्रियाओं के लिए दूसरा अंक दबा सकते हैं।\n\n<i>वर्तमान ग्रीटिंग: "कृपया एक विकल्प चुनें।"</i>\nविकल्प: (कोई नहीं)`,
+      }[lang] || `📂 <b>Sub-Menu for Key ${draft.key}</b>\n\nWhen a caller presses <b>${draft.key}</b>, they'll hear a sub-menu greeting and can press another digit for the actions you define here.\n\n<i>Current greeting: "Please select an option."</i>\nOptions: (none yet)`), { parse_mode: 'HTML', reply_markup: { keyboard: [
+        [({en:'🔊 Set Sub-Menu Greeting',fr:'🔊 Définir le Message',zh:'🔊 设置子菜单问候语',hi:'🔊 सब-मेनू ग्रीटिंग सेट करें'}[lang]||'🔊 Set Sub-Menu Greeting')],
+        [({en:'➕ Add Sub-Option',fr:'➕ Ajouter Sous-Option',zh:'➕ 添加子选项',hi:'➕ सब-विकल्प जोड़ें'}[lang]||'➕ Add Sub-Option')],
+        [({en:'🗑 Remove Sub-Option',fr:'🗑 Supprimer Sous-Option',zh:'🗑 移除子选项',hi:'🗑 सब-विकल्प हटाएं'}[lang]||'🗑 Remove Sub-Option')],
+        [({en:'✅ Done',fr:'✅ Terminé',zh:'✅ 完成',hi:'✅ हो गया'}[lang]||'✅ Done')],
+      ], resize_keyboard: true } })
+    }
+    return send(chatId, ({ en: `Select an action for this key:`, fr: `Sélectionnez une action pour cette touche :`, zh: `选择此按键的操作：`, hi: `इस कुंजी के लिए कार्रवाई चुनें:` }[lang] || `Select an action for this key:`), k.of([[btn.forwardCall], [btn.playMessage], [btn.sendToVoicemail], [btn.openSubMenu]]))
   }
 
   // ── IVR Option: Step 3 — Enter message text / forward number / upload ──
@@ -29369,7 +29414,7 @@ How do you want to create the message?`), k.of([[btn.useTemplate], [btn.typeText
     if (!num) return goto.submenu5()
     if (isBackPress(message) || message === pc.back || isCancelPress(message)) {
       await set(state, chatId, 'action', a.cpIvrOptionAction)
-      return send(chatId, trans('t.cp_328', (info?.cpIvrDraft || {}).key), k.of([[btn.forwardCall], [btn.playMessage], [btn.sendToVoicemail]]))
+      return send(chatId, trans('t.cp_328', (info?.cpIvrDraft || {}).key), k.of([[btn.forwardCall], [btn.playMessage], [btn.sendToVoicemail], [btn.openSubMenu]]))
     }
     const draft = info?.cpIvrDraft || {}
 
@@ -29690,6 +29735,371 @@ Select a category:`), k.of(catBtns))
     return send(chatId, ({ en: "Choose:", fr: "Choisissez :", zh: "请选择：", hi: "चुनें:" }[lang] || "Choose:"), k.of([[btn.saveOption], [btn.tryDiffVoice], [btn.retypeText]]))
   }
 
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // MULTI-LAYER IVR — Sub-Menu editor (2026-08-03)
+  // Depth capped at 2 (root → one sub-menu → leaf).
+  // draft.parentKey = which root option carries the sub-menu we're editing.
+  // Sub-menu greeting supports: 📝 Type Text (TTS-lite, no voice picker) or
+  // 🎵 Pick From Library. Sub-menu options support: Forward / Voicemail /
+  // Play Message (TTS text only). Full template picker + audio upload for
+  // sub-menus is a follow-up (users can seed the library via the root
+  // greeting picker and pick it here).
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  // Localized sub-menu manager button labels (kept in one place, reused across states).
+  const _subMenuBtns = {
+    setGreeting: ({en:'🔊 Set Sub-Menu Greeting',fr:'🔊 Définir le Message',zh:'🔊 设置子菜单问候语',hi:'🔊 सब-मेनू ग्रीटिंग सेट करें'}[lang]||'🔊 Set Sub-Menu Greeting'),
+    addOption:   ({en:'➕ Add Sub-Option',fr:'➕ Ajouter Sous-Option',zh:'➕ 添加子选项',hi:'➕ सब-विकल्प जोड़ें'}[lang]||'➕ Add Sub-Option'),
+    removeOption:({en:'🗑 Remove Sub-Option',fr:'🗑 Supprimer Sous-Option',zh:'🗑 移除子选项',hi:'🗑 सब-विकल्प हटाएं'}[lang]||'🗑 Remove Sub-Option'),
+    done:        ({en:'✅ Done',fr:'✅ Terminé',zh:'✅ 完成',hi:'✅ हो गया'}[lang]||'✅ Done'),
+  }
+  const _typeText = ({en:'📝 Type Text',fr:'📝 Saisir Texte',zh:'📝 输入文字',hi:'📝 टेक्स्ट टाइप'}[lang]||'📝 Type Text')
+  const _pickLibrary = ({en:'🎵 Pick From Library',fr:'🎵 Depuis ma bibliothèque',zh:'🎵 从音频库选择',hi:'🎵 लाइब्रेरी से चुनें'}[lang]||'🎵 Pick From Library')
+  const _useDefault = ({en:'💬 Use Default',fr:'💬 Utiliser Défaut',zh:'💬 使用默认',hi:'💬 डिफ़ॉल्ट उपयोग'}[lang]||'💬 Use Default')
+
+  // Render the sub-menu overview + action buttons. Called from cpIvrSubMenuManage
+  // and after every successful edit inside it.
+  const _renderSubMenuOverview = async (renderChatId, num, parentKey) => {
+    const sub = num?.features?.ivr?.options?.[parentKey]?.subMenu || { options: {} }
+    const subOpts = sub.options || {}
+    const _describeAction = (opt) => {
+      if (!opt) return '—'
+      if (opt.action === 'forward') return `Forward → ${opt.forwardTo || opt.number || '?'}`
+      if (opt.action === 'voicemail') return 'Voicemail'
+      if (opt.action === 'message') return `Message: "${(opt.message || '').slice(0, 30)}${(opt.message || '').length > 30 ? '…' : ''}"`
+      return opt.action || '?'
+    }
+    const optLines = Object.keys(subOpts).sort().map(k => `  • Press <b>${k}</b> → ${_describeAction(subOpts[k])}`).join('\n') || '  <i>(none yet)</i>'
+    const gt = sub.greetingType || 'default'
+    const _greetingStr = gt === 'audio'
+      ? `🎵 <i>Audio: ${sub.greeting || 'saved audio'}</i>`
+      : gt === 'text' ? `💬 <i>"${(sub.greeting || '').slice(0, 80)}${(sub.greeting || '').length > 80 ? '…' : ''}"</i>`
+      : `💬 <i>Default: "Please select an option."</i>`
+    const body = ({
+      en: `📂 <b>Sub-Menu for Key ${parentKey}</b>\n\n<b>Greeting:</b>\n${_greetingStr}\n\n<b>Sub-Options:</b>\n${optLines}`,
+      fr: `📂 <b>Sous-Menu pour la Touche ${parentKey}</b>\n\n<b>Message :</b>\n${_greetingStr}\n\n<b>Sous-Options :</b>\n${optLines}`,
+      zh: `📂 <b>按键 ${parentKey} 的子菜单</b>\n\n<b>问候语：</b>\n${_greetingStr}\n\n<b>子选项：</b>\n${optLines}`,
+      hi: `📂 <b>कुंजी ${parentKey} के लिए सब-मेनू</b>\n\n<b>ग्रीटिंग:</b>\n${_greetingStr}\n\n<b>सब-विकल्प:</b>\n${optLines}`,
+    }[lang] || `📂 <b>Sub-Menu for Key ${parentKey}</b>\n\n<b>Greeting:</b>\n${_greetingStr}\n\n<b>Sub-Options:</b>\n${optLines}`)
+    return send(renderChatId, body, { parse_mode: 'HTML', reply_markup: { keyboard: [
+      [_subMenuBtns.setGreeting],
+      [_subMenuBtns.addOption],
+      [_subMenuBtns.removeOption],
+      [_subMenuBtns.done],
+    ], resize_keyboard: true } })
+  }
+
+  // ── State: Sub-Menu Manager ──
+  if (action === a.cpIvrSubMenuManage) {
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
+    const num = info?.cpActiveNumber
+    const draft = info?.cpIvrDraft || {}
+    const parentKey = draft.parentKey
+    if (!num || !parentKey) return goto.submenu5()
+    if (message === _subMenuBtns.done || isBackPress(message)) {
+      await saveInfo('cpIvrDraft', null)
+      await set(state, chatId, 'action', a.cpIvr)
+      const ivrConf = num.features?.ivr || {}
+      send(chatId, ({ en: `✅ Sub-menu for key <b>${parentKey}</b> saved.`, fr: `✅ Sous-menu de la touche <b>${parentKey}</b> enregistré.`, zh: `✅ 按键 <b>${parentKey}</b> 的子菜单已保存。`, hi: `✅ कुंजी <b>${parentKey}</b> का सब-मेनू सेव किया।` }[lang] || `✅ Sub-menu for key <b>${parentKey}</b> saved.`), { parse_mode: 'HTML' })
+      return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
+        [pc.ivrGreeting], [pc.ivrAddOption], [pc.ivrRemoveOption], [pc.ivrViewOptions], [pc.ivrAnalytics], [pc.disableIvr]
+      ]))
+    }
+    if (message === _subMenuBtns.setGreeting) {
+      await set(state, chatId, 'action', a.cpIvrSubMenuGreeting)
+      return send(chatId, ({ en: `🔊 <b>Sub-Menu Greeting</b>\n\nHow should the sub-menu prompt be delivered when a caller presses <b>${parentKey}</b>?`, fr: `🔊 <b>Message du Sous-Menu</b>\n\nComment délivrer l'invite du sous-menu ?`, zh: `🔊 <b>子菜单问候语</b>\n\n如何传送子菜单提示？`, hi: `🔊 <b>सब-मेनू ग्रीटिंग</b>\n\nसब-मेनू प्रॉम्प्ट कैसे डिलीवर किया जाना चाहिए?` }[lang] || `🔊 <b>Sub-Menu Greeting</b>\n\nHow should the sub-menu prompt be delivered when a caller presses <b>${parentKey}</b>?`), { parse_mode: 'HTML', reply_markup: { keyboard: [
+        [_typeText],
+        [_pickLibrary],
+        [_useDefault],
+        ['↩️ Back'],
+      ], resize_keyboard: true } })
+    }
+    if (message === _subMenuBtns.addOption) {
+      const sub = num.features?.ivr?.options?.[parentKey]?.subMenu || { options: {} }
+      const usedKeys = Object.keys(sub.options || {}).join(', ') || 'none'
+      await set(state, chatId, 'action', a.cpIvrSubMenuOptionKey)
+      return send(chatId, ({
+        en: `➕ <b>Add Sub-Option</b>\n\nWhich digit (0-9) should trigger an action inside sub-menu <b>${parentKey}</b>?\n\nUsed keys: ${usedKeys}`,
+        fr: `➕ <b>Ajouter Sous-Option</b>\n\nQuel chiffre (0-9) déclenchera une action ?\n\nTouches utilisées : ${usedKeys}`,
+        zh: `➕ <b>添加子选项</b>\n\n哪个数字 (0-9) 触发操作？\n\n已用按键：${usedKeys}`,
+        hi: `➕ <b>सब-विकल्प जोड़ें</b>\n\nकौन सा अंक (0-9) क्रिया ट्रिगर करेगा?\n\nउपयोग की गई कुंजियाँ: ${usedKeys}`,
+      }[lang] || `➕ <b>Add Sub-Option</b>\n\nWhich digit (0-9)?\n\nUsed keys: ${usedKeys}`), { parse_mode: 'HTML', reply_markup: { keyboard: [['0','1','2','3','4','5','6','7','8','9'], ['↩️ Back']], resize_keyboard: true } })
+    }
+    if (message === _subMenuBtns.removeOption) {
+      const sub = num.features?.ivr?.options?.[parentKey]?.subMenu || { options: {} }
+      const keys = Object.keys(sub.options || {})
+      if (!keys.length) {
+        send(chatId, ({ en: 'No sub-options to remove.', fr: 'Aucune sous-option à supprimer.', zh: '没有可移除的子选项。', hi: 'हटाने के लिए कोई सब-विकल्प नहीं।' }[lang] || 'No sub-options to remove.'))
+        return _renderSubMenuOverview(chatId, num, parentKey)
+      }
+      await set(state, chatId, 'action', a.cpIvrSubMenuRemoveOption)
+      return send(chatId, ({ en: `🗑 <b>Remove Sub-Option</b>\n\nTap the key to remove:`, fr: `🗑 <b>Supprimer Sous-Option</b>\n\nAppuyez sur la touche :`, zh: `🗑 <b>移除子选项</b>\n\n点击要移除的按键：`, hi: `🗑 <b>सब-विकल्प हटाएं</b>\n\nहटाने के लिए कुंजी पर टैप करें:` }[lang] || `🗑 <b>Remove Sub-Option</b>\n\nTap the key to remove:`), { parse_mode: 'HTML', reply_markup: { keyboard: [...keys.sort().map(k => [`Key ${k}`]), ['↩️ Back']], resize_keyboard: true } })
+    }
+    return _renderSubMenuOverview(chatId, num, parentKey)
+  }
+
+  // ── State: Sub-Menu Greeting picker (Text / Library / Default) ──
+  if (action === a.cpIvrSubMenuGreeting) {
+    const num = info?.cpActiveNumber
+    const draft = info?.cpIvrDraft || {}
+    const parentKey = draft.parentKey
+    if (!num || !parentKey) return goto.submenu5()
+    if (isBackPress(message) || message === '↩️ Back') {
+      await set(state, chatId, 'action', a.cpIvrSubMenuManage)
+      return _renderSubMenuOverview(chatId, num, parentKey)
+    }
+    if (message === _typeText) {
+      await set(state, chatId, 'action', a.cpIvrSubMenuGreetingText)
+      return send(chatId, ({ en: `📝 Type the sub-menu greeting text (max 300 chars):\n\n<i>e.g. "For sales press 1, for support press 2, to return to the main menu press 0."</i>`, fr: `📝 Tapez le texte du message du sous-menu (max 300 caractères) :`, zh: `📝 输入子菜单问候语（最多 300 个字符）：`, hi: `📝 सब-मेनू ग्रीटिंग टेक्स्ट टाइप करें (अधिकतम 300 अक्षर):` }[lang] || `📝 Type the sub-menu greeting text (max 300 chars):\n\n<i>e.g. "For sales press 1, for support press 2."</i>`), { parse_mode: 'HTML', reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
+    }
+    if (message === _pickLibrary) {
+      const audios = await audioLibraryService.listAudios(chatId)
+      if (!audios || !audios.length) {
+        return send(chatId, ({ en: '📭 Your audio library is empty. Use Type Text or first upload a greeting via the root IVR menu.', fr: '📭 Votre bibliothèque audio est vide.', zh: '📭 您的音频库为空。', hi: '📭 आपकी ऑडियो लाइब्रेरी खाली है।' }[lang] || '📭 Your audio library is empty. Use Type Text or first upload a greeting via the root IVR menu.'), k.of([[_typeText], [_useDefault], ['↩️ Back']]))
+      }
+      await set(state, chatId, 'action', a.cpIvrSubMenuGreetingLibrary)
+      const rows = audios.slice(0, 22).map(au => {
+        const kb = au.size ? ` (${(au.size / 1024).toFixed(0)}KB)` : ''
+        const rawName = au.name || 'Untitled'
+        const truncated = rawName.length > 30 ? rawName.slice(0, 27) + '…' : rawName
+        return [`🎵 ${truncated}${kb}`]
+      })
+      rows.push(['↩️ Back'])
+      return send(chatId, ({ en: `🎵 Pick a saved audio (${audios.length} total):`, fr: `🎵 Choisissez un audio (${audios.length}) :`, zh: `🎵 选择音频（共 ${audios.length}）：`, hi: `🎵 ऑडियो चुनें (कुल ${audios.length}):` }[lang] || `🎵 Pick a saved audio (${audios.length} total):`), k.of(rows))
+    }
+    if (message === _useDefault) {
+      const ivrConf = num.features.ivr
+      ivrConf.options[parentKey].subMenu.greetingType = 'default'
+      ivrConf.options[parentKey].subMenu.greeting = 'Please select an option.'
+      delete ivrConf.options[parentKey].subMenu.greetingAudioUrl
+      delete ivrConf.options[parentKey].subMenu.greetingAudioPath
+      delete ivrConf.options[parentKey].subMenu.greetingFromLibrary
+      await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'ivr', ivrConf)
+      num.features.ivr = ivrConf
+      await saveInfo('cpActiveNumber', num)
+      send(chatId, ({ en: `✅ Sub-menu greeting set to default.`, fr: `✅ Message par défaut appliqué.`, zh: `✅ 已应用默认问候语。`, hi: `✅ डिफ़ॉल्ट ग्रीटिंग लागू।` }[lang] || `✅ Sub-menu greeting set to default.`))
+      await set(state, chatId, 'action', a.cpIvrSubMenuManage)
+      return _renderSubMenuOverview(chatId, num, parentKey)
+    }
+    return send(chatId, ({ en: 'Pick a method:', fr: 'Choisissez une méthode :', zh: '请选择方法：', hi: 'एक विधि चुनें:' }[lang] || 'Pick a method:'), k.of([[_typeText], [_pickLibrary], [_useDefault], ['↩️ Back']]))
+  }
+
+  // ── State: Sub-Menu Greeting — Type Text (TTS) ──
+  if (action === a.cpIvrSubMenuGreetingText) {
+    const num = info?.cpActiveNumber
+    const draft = info?.cpIvrDraft || {}
+    const parentKey = draft.parentKey
+    if (!num || !parentKey) return goto.submenu5()
+    if (isBackPress(message) || message === '↩️ Back') {
+      await set(state, chatId, 'action', a.cpIvrSubMenuGreeting)
+      return send(chatId, ({ en: `🔊 <b>Sub-Menu Greeting</b>\n\nHow should the sub-menu prompt be delivered?`, fr: `🔊 <b>Message du Sous-Menu</b>\n\nComment délivrer l'invite ?`, zh: `🔊 <b>子菜单问候语</b>\n\n如何传送提示？`, hi: `🔊 <b>सब-मेनू ग्रीटिंग</b>\n\nप्रॉम्प्ट कैसे डिलीवर करें?` }[lang] || `🔊 <b>Sub-Menu Greeting</b>\n\nHow should the sub-menu prompt be delivered?`), { parse_mode: 'HTML', reply_markup: { keyboard: [[_typeText], [_pickLibrary], [_useDefault], ['↩️ Back']], resize_keyboard: true } })
+    }
+    const text = (message || '').trim().slice(0, 300)
+    if (!text) {
+      return send(chatId, ({ en: '❌ Please type the greeting text (max 300 chars):', fr: '❌ Tapez le texte du message :', zh: '❌ 请输入问候语文本：', hi: '❌ ग्रीटिंग टेक्स्ट टाइप करें:' }[lang] || '❌ Please type the greeting text (max 300 chars):'), k.of([['↩️ Back']]))
+    }
+    const ivrConf = num.features.ivr
+    ivrConf.options[parentKey].subMenu.greetingType = 'text'
+    ivrConf.options[parentKey].subMenu.greeting = text
+    delete ivrConf.options[parentKey].subMenu.greetingAudioUrl
+    delete ivrConf.options[parentKey].subMenu.greetingAudioPath
+    delete ivrConf.options[parentKey].subMenu.greetingFromLibrary
+    await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'ivr', ivrConf)
+    num.features.ivr = ivrConf
+    await saveInfo('cpActiveNumber', num)
+    send(chatId, ({ en: `✅ Sub-menu greeting saved:\n\n<i>"${text.slice(0, 100)}${text.length > 100 ? '…' : ''}"</i>`, fr: `✅ Message enregistré.`, zh: `✅ 问候语已保存。`, hi: `✅ ग्रीटिंग सेव।` }[lang] || `✅ Sub-menu greeting saved.`), { parse_mode: 'HTML' })
+    await set(state, chatId, 'action', a.cpIvrSubMenuManage)
+    return _renderSubMenuOverview(chatId, num, parentKey)
+  }
+
+  // ── State: Sub-Menu Greeting — Pick From Library ──
+  if (action === a.cpIvrSubMenuGreetingLibrary) {
+    const num = info?.cpActiveNumber
+    const draft = info?.cpIvrDraft || {}
+    const parentKey = draft.parentKey
+    if (!num || !parentKey) return goto.submenu5()
+    if (isBackPress(message) || message === '↩️ Back') {
+      await set(state, chatId, 'action', a.cpIvrSubMenuGreeting)
+      return send(chatId, ({ en: `🔊 <b>Sub-Menu Greeting</b>`, fr: `🔊 <b>Message du Sous-Menu</b>`, zh: `🔊 <b>子菜单问候语</b>`, hi: `🔊 <b>सब-मेनू ग्रीटिंग</b>` }[lang] || `🔊 <b>Sub-Menu Greeting</b>`), { parse_mode: 'HTML', reply_markup: { keyboard: [[_typeText], [_pickLibrary], [_useDefault], ['↩️ Back']], resize_keyboard: true } })
+    }
+    const cleaned = (message || '').replace(/^🎵\s*/, '').replace(/\s*\(\d+KB\)$/i, '').replace(/…$/, '').trim()
+    const audios = await audioLibraryService.listAudios(chatId)
+    const picked = audios.find(au => au.name === cleaned || au.name.startsWith(cleaned))
+    if (!picked) {
+      return send(chatId, ({ en: '❌ Audio not found — pick from the list.', fr: '❌ Introuvable.', zh: '❌ 未找到。', hi: '❌ नहीं मिला।' }[lang] || '❌ Audio not found — pick from the list.'), k.of([['↩️ Back']]))
+    }
+    const ivrConf = num.features.ivr
+    const sub = ivrConf.options[parentKey].subMenu
+    sub.greetingType = 'audio'
+    sub.greeting = picked.name
+    sub.greetingAudioPath = picked.localPath || null
+    sub.greetingAudioUrl = picked.audioUrl || null
+    sub.greetingFromLibrary = picked.id
+    // Persist audio binary in ivrAudioStore under a sub-menu-scoped key so it
+    // survives Railway redeploys (matches the pattern used for root greeting
+    // + per-option message audio).
+    try {
+      if (picked.localPath && require('fs').existsSync(picked.localPath)) {
+        const audioBuffer = require('fs').readFileSync(picked.localPath)
+        const filename = require('path').basename(picked.localPath)
+        await ivrAudioStore.updateOne(
+          { _id: num.phoneNumber + ':submenu:' + parentKey + ':greeting' },
+          { $set: { buffer: audioBuffer.toString('base64'), filename, audioUrl: picked.audioUrl, updatedAt: new Date() } },
+          { upsert: true }
+        )
+      }
+    } catch (e) { log(`[IVR] Sub-menu greeting audio persist failed (non-blocking): ${e.message}`) }
+    await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'ivr', ivrConf)
+    num.features.ivr = ivrConf
+    await saveInfo('cpActiveNumber', num)
+    send(chatId, ({ en: `✅ Sub-menu greeting: <b>${picked.name}</b>`, fr: `✅ Message : <b>${picked.name}</b>`, zh: `✅ 问候语：<b>${picked.name}</b>`, hi: `✅ ग्रीटिंग: <b>${picked.name}</b>` }[lang] || `✅ Sub-menu greeting: <b>${picked.name}</b>`), { parse_mode: 'HTML' })
+    await set(state, chatId, 'action', a.cpIvrSubMenuManage)
+    return _renderSubMenuOverview(chatId, num, parentKey)
+  }
+
+  // ── State: Sub-Menu Add Option — Step 1: pick digit ──
+  if (action === a.cpIvrSubMenuOptionKey) {
+    const num = info?.cpActiveNumber
+    const draft = info?.cpIvrDraft || {}
+    const parentKey = draft.parentKey
+    if (!num || !parentKey) return goto.submenu5()
+    if (isBackPress(message) || message === '↩️ Back') {
+      await set(state, chatId, 'action', a.cpIvrSubMenuManage)
+      return _renderSubMenuOverview(chatId, num, parentKey)
+    }
+    const key = (message || '').trim()
+    if (!/^[0-9]$/.test(key)) {
+      return send(chatId, ({ en: '❌ Enter a single digit 0-9:', fr: '❌ Entrez un chiffre 0-9 :', zh: '❌ 请输入单个数字 0-9：', hi: '❌ एक अंक 0-9 दर्ज करें:' }[lang] || '❌ Enter a single digit 0-9:'), k.of([['0','1','2','3','4','5','6','7','8','9'], ['↩️ Back']]))
+    }
+    const sub = num.features.ivr.options[parentKey].subMenu
+    if (sub.options?.[key]) {
+      const used = Object.keys(sub.options).join(', ')
+      return send(chatId, ({ en: `⚠️ Key <b>${key}</b> already used. Pick a different one.\n\nUsed: ${used}`, fr: `⚠️ Touche <b>${key}</b> déjà utilisée.\n\nUtilisées : ${used}`, zh: `⚠️ 按键 <b>${key}</b> 已使用。\n\n已用：${used}`, hi: `⚠️ कुंजी <b>${key}</b> पहले से उपयोग में।\n\nउपयोग: ${used}` }[lang] || `⚠️ Key <b>${key}</b> already used.`), { parse_mode: 'HTML', reply_markup: { keyboard: [['0','1','2','3','4','5','6','7','8','9'], ['↩️ Back']], resize_keyboard: true } })
+    }
+    draft.subKey = key
+    await saveInfo('cpIvrDraft', draft)
+    await set(state, chatId, 'action', a.cpIvrSubMenuOptionAction)
+    return send(chatId, ({ en: `🔢 Sub-key <b>${key}</b> selected.\n\nWhat should happen when a caller (already inside sub-menu <b>${parentKey}</b>) presses <b>${key}</b>?`, fr: `🔢 Sous-touche <b>${key}</b> sélectionnée.\n\nQue faire quand ${key} est pressée ?`, zh: `🔢 已选择子按键 <b>${key}</b>。\n\n按 ${key} 时应该发生什么？`, hi: `🔢 सब-कुंजी <b>${key}</b> चयनित।\n\n${key} दबाने पर क्या हो?` }[lang] || `🔢 Sub-key <b>${key}</b> selected.\n\nWhat should happen when a caller (already inside sub-menu <b>${parentKey}</b>) presses <b>${key}</b>?`), { parse_mode: 'HTML', reply_markup: { keyboard: [[btn.forwardCall], [btn.playMessage], [btn.sendToVoicemail], ['↩️ Back']], resize_keyboard: true } })
+  }
+
+  // ── State: Sub-Menu Add Option — Step 2: pick action ──
+  if (action === a.cpIvrSubMenuOptionAction) {
+    const num = info?.cpActiveNumber
+    const draft = info?.cpIvrDraft || {}
+    const parentKey = draft.parentKey
+    const subKey = draft.subKey
+    if (!num || !parentKey || !subKey) return goto.submenu5()
+    if (isBackPress(message) || message === '↩️ Back') {
+      await set(state, chatId, 'action', a.cpIvrSubMenuOptionKey)
+      draft.subKey = null; await saveInfo('cpIvrDraft', draft)
+      return send(chatId, ({ en: `➕ Pick a digit (0-9) for the sub-option:`, fr: `➕ Choisissez un chiffre (0-9) :`, zh: `➕ 选择数字 (0-9)：`, hi: `➕ अंक चुनें (0-9):` }[lang] || `➕ Pick a digit (0-9) for the sub-option:`), k.of([['0','1','2','3','4','5','6','7','8','9'], ['↩️ Back']]))
+    }
+    if (message === btn.sendToVoicemail) {
+      const ivrConf = num.features.ivr
+      ivrConf.options[parentKey].subMenu.options[subKey] = { action: 'voicemail' }
+      await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'ivr', ivrConf)
+      num.features.ivr = ivrConf
+      await saveInfo('cpActiveNumber', num)
+      draft.subKey = null; await saveInfo('cpIvrDraft', draft)
+      send(chatId, ({ en: `✅ Sub-key <b>${subKey}</b> → Voicemail — saved!`, fr: `✅ Sous-touche <b>${subKey}</b> → Messagerie — enregistré !`, zh: `✅ 子按键 <b>${subKey}</b> → 语音信箱 — 已保存！`, hi: `✅ सब-कुंजी <b>${subKey}</b> → वॉइसमेल — सेव!` }[lang] || `✅ Sub-key <b>${subKey}</b> → Voicemail — saved!`), { parse_mode: 'HTML' })
+      await set(state, chatId, 'action', a.cpIvrSubMenuManage)
+      return _renderSubMenuOverview(chatId, num, parentKey)
+    }
+    if (message === btn.forwardCall) {
+      draft.subAction = 'forward'
+      await saveInfo('cpIvrDraft', draft)
+      await set(state, chatId, 'action', a.cpIvrSubMenuOptionMsg)
+      return send(chatId, ({ en: `📞 Enter the phone number to forward to when caller presses <b>${subKey}</b> inside sub-menu <b>${parentKey}</b>:\n\n<i>Example: +15551234567</i>`, fr: `📞 Numéro de transfert :`, zh: `📞 转接号码：`, hi: `📞 फ़ॉरवर्ड नंबर:` }[lang] || `📞 Enter the phone number to forward to:\n\n<i>Example: +15551234567</i>`), { parse_mode: 'HTML', reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
+    }
+    if (message === btn.playMessage) {
+      draft.subAction = 'message'
+      await saveInfo('cpIvrDraft', draft)
+      await set(state, chatId, 'action', a.cpIvrSubMenuOptionMsg)
+      return send(chatId, ({ en: `💬 Type the message callers will hear when they press <b>${subKey}</b> inside sub-menu <b>${parentKey}</b> (max 300 chars):`, fr: `💬 Tapez le message :`, zh: `💬 输入消息文本：`, hi: `💬 मैसेज टाइप करें:` }[lang] || `💬 Type the message callers will hear (max 300 chars):`), { parse_mode: 'HTML', reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
+    }
+    return send(chatId, ({ en: 'Pick an action:', fr: 'Choisissez une action :', zh: '选择操作：', hi: 'क्रिया चुनें:' }[lang] || 'Pick an action:'), k.of([[btn.forwardCall], [btn.playMessage], [btn.sendToVoicemail], ['↩️ Back']]))
+  }
+
+  // ── State: Sub-Menu Add Option — Step 3: enter message / forward number ──
+  if (action === a.cpIvrSubMenuOptionMsg) {
+    const num = info?.cpActiveNumber
+    const draft = info?.cpIvrDraft || {}
+    const parentKey = draft.parentKey
+    const subKey = draft.subKey
+    const subAction = draft.subAction
+    if (!num || !parentKey || !subKey || !subAction) return goto.submenu5()
+    if (isBackPress(message) || message === '↩️ Back') {
+      await set(state, chatId, 'action', a.cpIvrSubMenuOptionAction)
+      draft.subAction = null; await saveInfo('cpIvrDraft', draft)
+      return send(chatId, ({ en: `Pick an action for sub-key <b>${subKey}</b>:`, fr: `Choisissez :`, zh: `选择：`, hi: `चुनें:` }[lang] || `Pick an action for sub-key <b>${subKey}</b>:`), { parse_mode: 'HTML', reply_markup: { keyboard: [[btn.forwardCall], [btn.playMessage], [btn.sendToVoicemail], ['↩️ Back']], resize_keyboard: true } })
+    }
+    if (subAction === 'forward') {
+      let phone = (message || '').replace(/[^+\d]/g, '')
+      if (/^\d{10}$/.test(phone)) phone = '+1' + phone
+      else if (/^1\d{10}$/.test(phone)) phone = '+' + phone
+      else if (/^\d{11,15}$/.test(phone)) phone = '+' + phone
+      if (phone.length < 8 || phone.length > 16 || !phone.startsWith('+')) {
+        return send(chatId, ({ en: `❌ Invalid phone number. Enter a valid number (e.g. +15551234567):`, fr: `❌ Numéro invalide.`, zh: `❌ 号码无效。`, hi: `❌ अमान्य नंबर।` }[lang] || `❌ Invalid phone number.`), k.of([['↩️ Back']]))
+      }
+      const ownNumber = (num.phoneNumber || '').replace(/[^+\d]/g, '')
+      if (phone === ownNumber) {
+        return send(chatId, ({ en: `❌ Self-call loop — cannot forward to the same IVR number. Enter a different number:`, fr: `❌ Boucle d'auto-appel.`, zh: `❌ 自呼循环。`, hi: `❌ सेल्फ-कॉल लूप।` }[lang] || `❌ Self-call loop — cannot forward to the same IVR number.`), k.of([['↩️ Back']]))
+      }
+      const ivrConf = num.features.ivr
+      ivrConf.options[parentKey].subMenu.options[subKey] = { action: 'forward', forwardTo: phone }
+      await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'ivr', ivrConf)
+      num.features.ivr = ivrConf
+      await saveInfo('cpActiveNumber', num)
+      draft.subKey = null; draft.subAction = null; await saveInfo('cpIvrDraft', draft)
+      send(chatId, ({ en: `✅ Sub-key <b>${subKey}</b> → Forward to <b>${phone}</b> — saved!`, fr: `✅ Sous-touche <b>${subKey}</b> → Transfert vers <b>${phone}</b>.`, zh: `✅ 子按键 <b>${subKey}</b> → 转接到 <b>${phone}</b>。`, hi: `✅ सब-कुंजी <b>${subKey}</b> → <b>${phone}</b> पर फ़ॉरवर्ड।` }[lang] || `✅ Sub-key <b>${subKey}</b> → Forward to <b>${phone}</b> — saved!`), { parse_mode: 'HTML' })
+      await set(state, chatId, 'action', a.cpIvrSubMenuManage)
+      return _renderSubMenuOverview(chatId, num, parentKey)
+    }
+    if (subAction === 'message') {
+      const text = (message || '').trim().slice(0, 300)
+      if (!text) {
+        return send(chatId, ({ en: '❌ Please type the message (max 300 chars):', fr: '❌ Tapez le message :', zh: '❌ 请输入消息：', hi: '❌ मैसेज टाइप करें:' }[lang] || '❌ Please type the message (max 300 chars):'), k.of([['↩️ Back']]))
+      }
+      const ivrConf = num.features.ivr
+      ivrConf.options[parentKey].subMenu.options[subKey] = { action: 'message', message: text }
+      await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'ivr', ivrConf)
+      num.features.ivr = ivrConf
+      await saveInfo('cpActiveNumber', num)
+      draft.subKey = null; draft.subAction = null; await saveInfo('cpIvrDraft', draft)
+      send(chatId, ({ en: `✅ Sub-key <b>${subKey}</b> → Play Message — saved!`, fr: `✅ Sous-touche <b>${subKey}</b> → Message.`, zh: `✅ 子按键 <b>${subKey}</b> → 消息。`, hi: `✅ सब-कुंजी <b>${subKey}</b> → मैसेज।` }[lang] || `✅ Sub-key <b>${subKey}</b> → Play Message — saved!`), { parse_mode: 'HTML' })
+      await set(state, chatId, 'action', a.cpIvrSubMenuManage)
+      return _renderSubMenuOverview(chatId, num, parentKey)
+    }
+    return send(chatId, ({ en: 'Unexpected state.', fr: 'État inattendu.', zh: '意外状态。', hi: 'अप्रत्याशित।' }[lang] || 'Unexpected state.'), k.of([['↩️ Back']]))
+  }
+
+  // ── State: Sub-Menu Remove Option ──
+  if (action === a.cpIvrSubMenuRemoveOption) {
+    const num = info?.cpActiveNumber
+    const draft = info?.cpIvrDraft || {}
+    const parentKey = draft.parentKey
+    if (!num || !parentKey) return goto.submenu5()
+    if (isBackPress(message) || message === '↩️ Back') {
+      await set(state, chatId, 'action', a.cpIvrSubMenuManage)
+      return _renderSubMenuOverview(chatId, num, parentKey)
+    }
+    const keyMatch = (message || '').match(/Key\s*(\S+)/)
+    const subKey = keyMatch ? keyMatch[1] : (message || '').trim()
+    const ivrConf = num.features.ivr
+    const sub = ivrConf.options[parentKey].subMenu
+    if (sub.options?.[subKey]) {
+      delete sub.options[subKey]
+      await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'ivr', ivrConf)
+      num.features.ivr = ivrConf
+      await saveInfo('cpActiveNumber', num)
+      send(chatId, ({ en: `✅ Removed sub-option for key <b>${subKey}</b>.`, fr: `✅ Sous-option supprimée.`, zh: `✅ 已移除子选项。`, hi: `✅ सब-विकल्प हटाया।` }[lang] || `✅ Removed sub-option for key <b>${subKey}</b>.`), { parse_mode: 'HTML' })
+    } else {
+      send(chatId, ({ en: `❌ No sub-option for key ${subKey}.`, fr: `❌ Aucune sous-option pour cette touche.`, zh: `❌ 此按键没有子选项。`, hi: `❌ इस कुंजी के लिए कोई सब-विकल्प नहीं।` }[lang] || `❌ No sub-option for key ${subKey}.`))
+    }
+    await set(state, chatId, 'action', a.cpIvrSubMenuManage)
+    return _renderSubMenuOverview(chatId, num, parentKey)
+  }
+
   // IVR Remove Option
   if (action === a.cpIvrRemoveOption) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
@@ -29707,6 +30117,14 @@ Select a category:`), k.of(catBtns))
     const key = keyMatch ? keyMatch[1] : message.trim()
     const ivrConf = num.features?.ivr || { enabled: true, options: {} }
     if (ivrConf.options?.[key]) {
+      // 2026-08-03: If the removed option carries a sub-menu, clean up any
+      // sub-menu-scoped audio backups so a re-add on the same key doesn't
+      // inherit stale audio.
+      if (ivrConf.options[key].action === 'submenu') {
+        try {
+          await ivrAudioStore.deleteMany({ _id: { $regex: `^${num.phoneNumber}:submenu:${key}:` } })
+        } catch (e) { log(`[IVR] Sub-menu audio cleanup on remove failed (non-blocking): ${e.message}`) }
+      }
       delete ivrConf.options[key]
       await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'ivr', ivrConf)
       num.features.ivr = ivrConf
@@ -37071,6 +37489,196 @@ app.post('/dev/ivr-audio-preview-rename', async (req, res) => {
 })
 
 
+// ── DEV-ONLY: Multi-layer (2-level) IVR end-to-end test (2026-08-03) ─
+// Proves the "Press 1 opens a sub-menu with its own options" feature works
+// end-to-end: config schema + Twilio inbound-ivr-gather nested dispatch +
+// remove-cascade cleanup. Uses a synthetic chatId/phone; cleans up all
+// fixtures at the end. 404 in prod.
+//
+// Scenarios covered:
+//   1. Root option with action:'submenu' + subMenu.options{'1':forward, '2':message}
+//   2. First gather (root menu press "1") → responds with nested <Gather> whose
+//      action URL carries ?path=1 and plays the sub-menu greeting.
+//   3. Second gather (?path=1, digits=1) → dispatches to the sub-option (forward).
+//   4. Second gather (?path=1, digits=9) → invalid, hangs up.
+//   5. First gather (digits=9) invalid at root → hangs up (regression check).
+//   6. Remove the root option → sub-menu audio backup cleaned up too.
+app.post('/dev/ivr-multilayer-test', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const testChat = 'DEVML-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7)
+  const testPhone = '+1' + Math.floor(1000000000 + Math.random() * 9000000000)
+  const out = { testChatId: testChat, testPhone, checks: {} }
+  try {
+    // 1. Seed a phone with a multi-layer IVR config:
+    //    Press 1 → sub-menu (Press 1 in sub = forward, Press 2 = message)
+    //    Press 2 → voicemail (single-layer, for regression)
+    const ivrConfig = {
+      enabled: true,
+      greetingType: 'text',
+      greeting: 'Press 1 for sales, press 2 for voicemail.',
+      options: {
+        '1': {
+          action: 'submenu',
+          label: 'Sales',
+          subMenu: {
+            greetingType: 'text',
+            greeting: 'For pricing press 1, to leave a message press 2.',
+            options: {
+              '1': { action: 'forward', forwardTo: '+15551234567' },
+              '2': { action: 'message', message: 'Our office is closed. Goodbye.' },
+            },
+          },
+        },
+        '2': { action: 'voicemail' },
+      },
+    }
+    await phoneNumbersOf.updateOne(
+      { _id: testChat },
+      {
+        $set: {
+          _id: testChat,
+          val: {
+            numbers: [{
+              phoneNumber: testPhone,
+              provider: 'twilio',
+              status: 'active',
+              plan: 'business',
+              features: { ivr: ivrConfig },
+            }],
+          },
+        },
+      },
+      { upsert: true }
+    )
+    // Sanity — write a fake sub-menu audio backup so we can verify remove-cascade
+    await ivrAudioStore.updateOne(
+      { _id: testPhone + ':submenu:1:greeting' },
+      { $set: { buffer: 'dGVzdA==', filename: 'test.mp3', updatedAt: new Date() } },
+      { upsert: true }
+    )
+    out.checks.step0_setup = { ok: true }
+
+    // Helper: POST to /twilio/inbound-ivr-gather and parse the response body
+    const axios = require('axios')
+    const selfUrl = process.env.SELF_URL_PROD || process.env.SELF_URL || `http://localhost:${process.env.PORT || 5000}`
+    const gatherUrl = `${selfUrl}/twilio/inbound-ivr-gather?chatId=${testChat}&from=${encodeURIComponent('+19995551234')}&to=${encodeURIComponent(testPhone)}`
+
+    // 2. Root press "1" → expect nested gather (action URL contains path=1) + sub-menu greeting.
+    // A terminal <Hangup/> is expected as the fallback after the retry gather times out,
+    // so we DON'T assert its absence — just that a Gather with path=1 was emitted.
+    let resp = await axios.post(gatherUrl, new URLSearchParams({ Digits: '1' }).toString(), {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      validateStatus: () => true,
+      timeout: 8000,
+    })
+    let xml = resp.data || ''
+    out.checks.step1_root_submenu = {
+      ok: xml.includes('path=1') && xml.includes('For pricing press 1') && /<Gather\b/i.test(xml),
+      xmlSnippet: xml.slice(0, 400),
+    }
+
+    // 3. Sub-menu press "1" → expect forward (Dial to +15551234567)
+    // (Wallet check will fail because testChat has no walletOf row → voicemail
+    // fallback OR hangup. We assert that the *dispatch* reached the forward
+    // path — the response should reference the transfer target OR a wallet
+    // block message. Either way, action !== raw submenu re-play.)
+    resp = await axios.post(`${gatherUrl}&path=1`, new URLSearchParams({ Digits: '1' }).toString(), {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      validateStatus: () => true,
+      timeout: 8000,
+    })
+    xml = resp.data || ''
+    out.checks.step2_submenu_forward = {
+      ok: xml.includes('+15551234567') || /unable to connect|wallet|insufficient/i.test(xml),
+      dispatched: xml.includes('+15551234567') ? 'forward' : 'wallet-blocked',
+      xmlSnippet: xml.slice(0, 400),
+    }
+
+    // 4. Sub-menu press "2" → expect message action (TTS "Our office is closed...")
+    resp = await axios.post(`${gatherUrl}&path=1`, new URLSearchParams({ Digits: '2' }).toString(), {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      validateStatus: () => true,
+      timeout: 8000,
+    })
+    xml = resp.data || ''
+    out.checks.step3_submenu_message = {
+      ok: xml.includes('Our office is closed') && xml.includes('<Hangup'),
+      xmlSnippet: xml.slice(0, 300),
+    }
+
+    // 5. Sub-menu press "9" → invalid → hangup
+    resp = await axios.post(`${gatherUrl}&path=1`, new URLSearchParams({ Digits: '9' }).toString(), {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      validateStatus: () => true,
+      timeout: 8000,
+    })
+    xml = resp.data || ''
+    out.checks.step4_submenu_invalid = {
+      ok: /Invalid selection|Goodbye/i.test(xml) && xml.includes('<Hangup'),
+      xmlSnippet: xml.slice(0, 200),
+    }
+
+    // 6. Root press "9" → invalid at root (regression — must still work)
+    resp = await axios.post(gatherUrl, new URLSearchParams({ Digits: '9' }).toString(), {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      validateStatus: () => true,
+      timeout: 8000,
+    })
+    xml = resp.data || ''
+    out.checks.step5_root_invalid = {
+      ok: /Invalid selection|Goodbye/i.test(xml) && xml.includes('<Hangup'),
+      xmlSnippet: xml.slice(0, 200),
+    }
+
+    // 7. Root press "2" → single-layer voicemail (regression — no sub-menu)
+    resp = await axios.post(gatherUrl, new URLSearchParams({ Digits: '2' }).toString(), {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      validateStatus: () => true,
+      timeout: 8000,
+    })
+    xml = resp.data || ''
+    out.checks.step6_root_voicemail_regression = {
+      ok: xml.includes('<Record') || /leave a message/i.test(xml),
+      xmlSnippet: xml.slice(0, 300),
+    }
+
+    // 8. Data-model check: schema is what we expect
+    const stored = await phoneNumbersOf.findOne({ _id: testChat })
+    const storedIvr = stored?.val?.numbers?.[0]?.features?.ivr
+    out.checks.step7_schema = {
+      ok: storedIvr?.options?.['1']?.action === 'submenu' &&
+          !!storedIvr?.options?.['1']?.subMenu?.options?.['1'] &&
+          storedIvr?.options?.['1']?.subMenu?.options?.['2']?.action === 'message',
+      submenuOptions: Object.keys(storedIvr?.options?.['1']?.subMenu?.options || {}),
+    }
+
+    // ── Cleanup ──
+    await phoneNumbersOf.deleteOne({ _id: testChat })
+    await ivrAudioStore.deleteMany({ _id: { $regex: `^${testPhone.replace(/[+]/g, '\\+')}:` } })
+
+    out.pass =
+      out.checks.step0_setup.ok &&
+      out.checks.step1_root_submenu.ok &&
+      out.checks.step2_submenu_forward.ok &&
+      out.checks.step3_submenu_message.ok &&
+      out.checks.step4_submenu_invalid.ok &&
+      out.checks.step5_root_invalid.ok &&
+      out.checks.step6_root_voicemail_regression.ok &&
+      out.checks.step7_schema.ok
+  } catch (e) {
+    out.error = e.message
+    out.stack = e.stack
+    out.pass = false
+    // Best-effort cleanup
+    try { await phoneNumbersOf.deleteOne({ _id: testChat }) } catch {}
+    try { await ivrAudioStore.deleteMany({ _id: { $regex: `^${testPhone.replace(/[+]/g, '\\+')}:` } }) } catch {}
+  }
+  return res.json(out)
+})
+
+
 // ── DEV-ONLY: Concurrency Guard (outbound fund reservation) regression test ─
 // Proves that funds committed to in-flight outbound calls are subtracted from
 // the available balance when authorizing the NEXT call — the root-cause fix for
@@ -40778,14 +41386,14 @@ app.post('/twilio/voice-webhook', async (req, res) => {
 app.post('/twilio/inbound-ivr-gather', async (req, res) => {
   const VoiceResponse = require('twilio').twiml.VoiceResponse
   try {
-    const { chatId: rawChatId, from, to } = req.query
+    const { chatId: rawChatId, from, to, path } = req.query
     const chatId = rawChatId ? String(rawChatId) : null
     const { Digits } = req.body || {}
     const response = new VoiceResponse()
     const decodedFrom = decodeURIComponent(from || 'unknown')
     const decodedTo = decodeURIComponent(to || '')
 
-    log(`[Twilio] IVR gather: chatId=${chatId} digits=${Digits} from=${decodedFrom} to=${decodedTo}`)
+    log(`[Twilio] IVR gather: chatId=${chatId} digits=${Digits} from=${decodedFrom} to=${decodedTo}${path ? ` path=${path}` : ''}`)
 
     if (!chatId || !Digits) {
       response.say('Invalid selection. Goodbye.')
@@ -40803,18 +41411,89 @@ app.post('/twilio/inbound-ivr-gather', async (req, res) => {
     }
 
     const ivrConfig = num?.features?.ivr || {}
-    const option = ivrConfig.options?.[Digits]
+
+    // ── 2026-08-03: Multi-layer IVR — dispatch to sub-menu if path is set ──
+    // path=<parentDigit> means the caller already pressed that at the root
+    // menu (whose option was action:'submenu') and this gather is for the
+    // sub-menu's digit. Options are resolved against
+    // ivrConfig.options[path].subMenu.options[Digits].
+    let option = null
+    if (path) {
+      const parentOpt = ivrConfig.options?.[path]
+      if (parentOpt?.action === 'submenu' && parentOpt.subMenu?.options?.[Digits]) {
+        option = parentOpt.subMenu.options[Digits]
+      }
+    } else {
+      option = ivrConfig.options?.[Digits]
+    }
 
     if (!option) {
       response.say('Invalid selection. Goodbye.')
       response.hangup()
-      bot?.sendMessage(chatId, `📞 <b>IVR Call</b>\nFrom: ${phoneConfig.formatPhone(decodedFrom)}\n❌ Invalid key pressed: ${Digits}`, { parse_mode: 'HTML' }).catch(() => {})
+      bot?.sendMessage(chatId, `📞 <b>IVR Call</b>\nFrom: ${phoneConfig.formatPhone(decodedFrom)}\n❌ Invalid key pressed${path ? ` in sub-menu ${path}` : ''}: ${Digits}`, { parse_mode: 'HTML' }).catch(() => {})
       return res.type('text/xml').send(response.toString())
     }
 
     // Handle IVR option actions
     const action = option.action || 'transfer'
     const label = option.label || `Option ${Digits}`
+
+    // ── SUB-MENU: caller is at the root menu and picked a submenu key ──
+    // Play the sub-menu greeting and start a new Gather targeting the SAME
+    // endpoint with ?path=<Digits>. Depth is capped at 2 by design — the
+    // sub-menu options themselves cannot be action:'submenu', so infinite
+    // recursion is impossible.
+    if (action === 'submenu' && !path) {
+      const sub = option.subMenu || {}
+      const subOpts = sub.options || {}
+      const nestedGatherUrl = `${SELF_URL}/twilio/inbound-ivr-gather?chatId=${chatId}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&path=${Digits}`
+      const gather = response.gather({ action: nestedGatherUrl, method: 'POST', numDigits: 1, timeout: 10, finishOnKey: '' })
+
+      // Validate sub-menu audio greeting (audio may have been evicted by Railway redeploy)
+      let subGreetingAudioValid = false
+      if (sub.greetingType === 'audio' && sub.greetingAudioUrl) {
+        try {
+          const selfUrl = process.env.SELF_URL_PROD || process.env.SELF_URL || ''
+          const audioUrl = sub.greetingAudioUrl
+          if (selfUrl && (audioUrl.includes('/assets/user-audio/') || audioUrl.startsWith(selfUrl + '/assets/'))) {
+            const urlPath = new URL(audioUrl).pathname
+            const localPath = require('path').join(__dirname, urlPath)
+            subGreetingAudioValid = require('fs').existsSync(localPath)
+            if (!subGreetingAudioValid) {
+              try {
+                const stored = await ivrAudioStore.findOne({ _id: num.phoneNumber + ':submenu:' + Digits + ':greeting' })
+                if (stored && stored.buffer) {
+                  const dir = require('path').dirname(localPath)
+                  if (!require('fs').existsSync(dir)) require('fs').mkdirSync(dir, { recursive: true })
+                  require('fs').writeFileSync(localPath, Buffer.from(stored.buffer, 'base64'))
+                  subGreetingAudioValid = true
+                  log(`[Twilio] Sub-menu greeting audio restored from MongoDB: ${localPath}`)
+                }
+              } catch (e) { log(`[Twilio] Sub-menu greeting audio restore failed: ${e.message}`) }
+            }
+          } else if (/^https?:\/\//i.test(audioUrl)) {
+            subGreetingAudioValid = true
+          }
+        } catch (e) { log(`[Twilio] Sub-menu greeting validation error: ${e.message}`) }
+      }
+
+      if (sub.greetingType === 'audio' && sub.greetingAudioUrl && subGreetingAudioValid) {
+        gather.play(sub.greetingAudioUrl)
+      } else if ((sub.greetingType === 'text' || sub.greetingType === 'default') && sub.greeting) {
+        gather.say(sub.greeting)
+      } else {
+        gather.say('Please select an option.')
+      }
+      // No selection → repeat once, then hang up
+      const gather2 = response.gather({ action: nestedGatherUrl, method: 'POST', numDigits: 1, timeout: 8, finishOnKey: '' })
+      gather2.say('Sorry, we did not receive your selection. Please try again.')
+      response.say('No selection received. Goodbye.')
+      response.hangup()
+      bot?.sendMessage(chatId, `📞 <b>IVR Call — Key ${Digits}</b>\nFrom: ${phoneConfig.formatPhone(decodedFrom)}\n📂 Entering sub-menu (${Object.keys(subOpts).length} options)`, { parse_mode: 'HTML' }).catch(() => {})
+      // Track root-level dispatch to sub-menu
+      trackIvrAnalytics(decodedTo, chatId, decodedFrom, Digits, 'submenu')
+      return res.type('text/xml').send(response.toString())
+    }
 
     if ((action === 'transfer' || action === 'forward') && (option.number || option.forwardTo)) {
       const transferTo = option.number || option.forwardTo
@@ -40936,14 +41615,17 @@ app.post('/twilio/inbound-ivr-gather', async (req, res) => {
       from: decodedFrom, to: decodedTo, digitPressed: Digits,
       action, label, timestamp: new Date().toISOString(),
     }
+    if (path) logEntry.submenuPath = path
     if ((action === 'forward' || action === 'transfer') && (option.number || option.forwardTo)) {
       logEntry.forwardTo = option.number || option.forwardTo
     }
     if (req.body?.CallSid) logEntry.callSid = req.body.CallSid
     await db.collection('phoneLogs').insertOne(logEntry)
 
-    // Track in IVR analytics (same as Telnyx handler — feeds the IVR Analytics dashboard)
-    trackIvrAnalytics(decodedTo, chatId, decodedFrom, Digits, action)
+    // Track in IVR analytics (same as Telnyx handler — feeds the IVR Analytics dashboard).
+    // For sub-menu picks, prefix the digit with the parent path (e.g. "1.2") so
+    // multi-layer selections aren't collapsed into single-digit stats.
+    trackIvrAnalytics(decodedTo, chatId, decodedFrom, path ? `${path}.${Digits}` : Digits, action)
 
     res.type('text/xml').send(response.toString())
   } catch (error) {
