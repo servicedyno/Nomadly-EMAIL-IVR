@@ -3691,7 +3691,7 @@ async function handleGatherEnded(payload) {
         })
       }
       // Notify owner that a caller entered the sub-menu
-      _bot?.sendMessage(chatId, `📞 <b>IVR Call — Key ${digits}</b>\nFrom: ${session.from}\n📂 Entering sub-menu (${Object.keys(sub.options || {}).length} options)`, { parse_mode: 'HTML' }).catch(() => {})
+      _bot?.sendMessage(chatId, `📞 <b>IVR Call — Key ${digits}</b>\nFrom: ${session.from}\n📂 Entering sub-menu <b>${option.label && option.label.trim() ? option.label.trim() : 'Sub-Menu ' + digits}</b> (${Object.keys(sub.options || {}).length} options)`, { parse_mode: 'HTML' }).catch(() => {})
     } catch (e) {
       log(`[Voice] Sub-menu gather failed: ${e.message}`)
       await _telnyxApi.speakOnCall(callControlId, 'An error occurred. Goodbye.')

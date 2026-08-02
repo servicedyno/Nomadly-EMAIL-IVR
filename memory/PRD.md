@@ -3,6 +3,22 @@
 ## Original problem statement
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
+## 2026-08-03 — Sub-Menu Rename (labels flow into Edit picker, IVR menu, notifications, analytics)
+**User ask:** *"Rename Sub-Menu: Let owners give each sub-menu a real label ('Sales', 'Support') that shows up in the Edit picker and the analytics dashboard."*
+
+**What shipped:**
+- **Wizard** — New `🏷 Rename Sub-Menu` button in `cpIvrSubMenuManage` + new state `cpIvrSubMenuRename` (localized en/fr/zh/hi). Prompts with the current label (auto = `Sub-Menu <digit>`) pre-filled as a tap-target so users can quickly append/edit; max 30 chars, empty rejected. Writes to `options[parentKey].label` and immediately re-renders the overview.
+- **Sub-menu overview** — `_renderSubMenuOverview` now shows `🏷 Label: <b>Sales Team</b>` in the header (all 4 locales).
+- **Edit Sub-Menu picker** — `cpIvrPickSubMenu` already read `label` (from the previous session's work); now populated for real.
+- **IVR main menu** — `cpTxt.ivrMenu` gets a new branch for `action === 'submenu'` in **all 4 locales**: shows `Press 1 → 📂 <b>Sales Team</b> — sub-menu (2 options)` instead of the misleading `🔊 Play message` fallback.
+- **Runtime notifications** — Twilio + Telnyx "entering sub-menu" DMs now read `📂 Entering sub-menu <b>Sales Team</b> (2 options)`.
+- **Analytics dashboard** — `cpTxt.ivrAnalyticsReport(number, data, labels)` now accepts a labels map (`{ '1': 'Sales', '1.2': 'Sales Team · 2', … }`, all 4 locales updated). `_index.js` builds the map from `options[key].label` for root digits and `<parentLabel> · <subDigit>` for sub-menu leaves, then passes it into the report so every row/recent-call line reads e.g. `Key 1 (Sales) █████░░░░░ 2 (66%)`.
+
+**Verified:** `POST /dev/ivr-multilayer-test` now covers 12 checks including `step10_label_in_menu` (renders "Sales Team" in the IVR summary) and `step11_label_in_analytics` (label alongside every digit stat + recent call). All pass. `/dev/ivr-audio-library-integrity` and `/dev/ivr-audio-preview-rename` still green.
+
+**Files:** `js/_index.js` (rename state + overview render + analytics label-map builder + dev-test extension), `js/phone-config.js` (submenu-aware `ivrMenu` en/fr/zh/hi + `ivrAnalyticsReport(labels)` en/fr/zh/hi + `ivrEditSubMenu`/`ivrRenameSubMenu` labels), `js/voice-service.js` (Telnyx notification uses `option.label`).
+
+
 ## 2026-08-03 — Multi-layer IVR follow-ups: Full Sub-Menu Greeting + Edit Sub-Menu Jump
 **User ask:** *"Full Sub-Menu Greeting: Bring Template picker and Audio Upload into the sub-menu greeting flow to match the root picker"* and *"Edit Sub-Menu Jump: Add a '🔧 Edit Sub-Menu' shortcut on any sub-menu key so owners tweak options without deleting and rebuilding."*
 

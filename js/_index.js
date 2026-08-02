@@ -8558,6 +8558,7 @@ bot?.on('message', msg => {
     // Sub-menu greeting reuses cpIvrGreeting/cpIvrGreetingLibrary/cpIvrGreetingPreview
     // (which are context-aware via cpIvrDraft.parentKey) — full picker parity with root.
     cpIvrSubMenuManage: 'cpIvrSubMenuManage',
+    cpIvrSubMenuRename: 'cpIvrSubMenuRename',
     cpIvrSubMenuOptionKey: 'cpIvrSubMenuOptionKey',
     cpIvrSubMenuOptionAction: 'cpIvrSubMenuOptionAction',
     cpIvrSubMenuOptionMsg: 'cpIvrSubMenuOptionMsg',
@@ -28699,7 +28700,21 @@ Professional templates for voicemail, customer support, financial institutions, 
     }
     if (message === pc.ivrAnalytics) {
       const analytics = await getIvrAnalytics(num.phoneNumber, 30)
-      return send(chatId, cpTxt.ivrAnalyticsReport(num.phoneNumber, analytics), k.of([
+      // 2026-08-03: build a label map so digits show alongside their friendly
+      // sub-menu labels in the report (e.g. "Key 1 (Sales)"). Root-level digits
+      // use the option's label if present; sub-menu picks use "<parentLabel> · <subLabel>".
+      const _labels = {}
+      const _opts = num.features?.ivr?.options || {}
+      for (const [k, opt] of Object.entries(_opts)) {
+        if (opt?.label) _labels[k] = opt.label
+        if (opt?.action === 'submenu' && opt.subMenu?.options) {
+          const parentLabel = opt.label || `Sub-Menu ${k}`
+          for (const [sk, sopt] of Object.entries(opt.subMenu.options)) {
+            _labels[`${k}.${sk}`] = sopt?.label || `${parentLabel} · ${sk}`
+          }
+        }
+      }
+      return send(chatId, cpTxt.ivrAnalyticsReport(num.phoneNumber, analytics, _labels), k.of([
         ..._ivrRootMenuRows(num.features?.ivr, pc)
       ]))
     }
@@ -29850,6 +29865,7 @@ Select a category:`), k.of(catBtns))
   // Localized sub-menu manager button labels (kept in one place, reused across states).
   const _subMenuBtns = {
     setGreeting: ({en:'🔊 Set Sub-Menu Greeting',fr:'🔊 Définir le Message',zh:'🔊 设置子菜单问候语',hi:'🔊 सब-मेनू ग्रीटिंग सेट करें'}[lang]||'🔊 Set Sub-Menu Greeting'),
+    renameLabel: ({en:'🏷 Rename Sub-Menu',fr:'🏷 Renommer Sous-Menu',zh:'🏷 重命名子菜单',hi:'🏷 सब-मेनू का नाम बदलें'}[lang]||'🏷 Rename Sub-Menu'),
     addOption:   ({en:'➕ Add Sub-Option',fr:'➕ Ajouter Sous-Option',zh:'➕ 添加子选项',hi:'➕ सब-विकल्प जोड़ें'}[lang]||'➕ Add Sub-Option'),
     removeOption:({en:'🗑 Remove Sub-Option',fr:'🗑 Supprimer Sous-Option',zh:'🗑 移除子选项',hi:'🗑 सब-विकल्प हटाएं'}[lang]||'🗑 Remove Sub-Option'),
     done:        ({en:'✅ Done',fr:'✅ Terminé',zh:'✅ 完成',hi:'✅ हो गया'}[lang]||'✅ Done'),
@@ -29858,14 +29874,16 @@ Select a category:`), k.of(catBtns))
   // Render the sub-menu overview + action buttons. Called from cpIvrSubMenuManage
   // and after every successful edit inside it.
   const _renderSubMenuOverview = async (renderChatId, num, parentKey) => {
-    const sub = num?.features?.ivr?.options?.[parentKey]?.subMenu || { options: {} }
+    const opt = num?.features?.ivr?.options?.[parentKey]
+    const sub = opt?.subMenu || { options: {} }
+    const label = opt?.label && opt.label.trim() ? opt.label.trim() : `Sub-Menu ${parentKey}`
     const subOpts = sub.options || {}
-    const _describeAction = (opt) => {
-      if (!opt) return '—'
-      if (opt.action === 'forward') return `Forward → ${opt.forwardTo || opt.number || '?'}`
-      if (opt.action === 'voicemail') return 'Voicemail'
-      if (opt.action === 'message') return `Message: "${(opt.message || '').slice(0, 30)}${(opt.message || '').length > 30 ? '…' : ''}"`
-      return opt.action || '?'
+    const _describeAction = (o) => {
+      if (!o) return '—'
+      if (o.action === 'forward') return `Forward → ${o.forwardTo || o.number || '?'}`
+      if (o.action === 'voicemail') return 'Voicemail'
+      if (o.action === 'message') return `Message: "${(o.message || '').slice(0, 30)}${(o.message || '').length > 30 ? '…' : ''}"`
+      return o.action || '?'
     }
     const optLines = Object.keys(subOpts).sort().map(k => `  • Press <b>${k}</b> → ${_describeAction(subOpts[k])}`).join('\n') || '  <i>(none yet)</i>'
     const gt = sub.greetingType || 'default'
@@ -29874,13 +29892,14 @@ Select a category:`), k.of(catBtns))
       : gt === 'text' ? `💬 <i>"${(sub.greeting || '').slice(0, 80)}${(sub.greeting || '').length > 80 ? '…' : ''}"</i>`
       : `💬 <i>Default: "Please select an option."</i>`
     const body = ({
-      en: `📂 <b>Sub-Menu for Key ${parentKey}</b>\n\n<b>Greeting:</b>\n${_greetingStr}\n\n<b>Sub-Options:</b>\n${optLines}`,
-      fr: `📂 <b>Sous-Menu pour la Touche ${parentKey}</b>\n\n<b>Message :</b>\n${_greetingStr}\n\n<b>Sous-Options :</b>\n${optLines}`,
-      zh: `📂 <b>按键 ${parentKey} 的子菜单</b>\n\n<b>问候语：</b>\n${_greetingStr}\n\n<b>子选项：</b>\n${optLines}`,
-      hi: `📂 <b>कुंजी ${parentKey} के लिए सब-मेनू</b>\n\n<b>ग्रीटिंग:</b>\n${_greetingStr}\n\n<b>सब-विकल्प:</b>\n${optLines}`,
-    }[lang] || `📂 <b>Sub-Menu for Key ${parentKey}</b>\n\n<b>Greeting:</b>\n${_greetingStr}\n\n<b>Sub-Options:</b>\n${optLines}`)
+      en: `📂 <b>Sub-Menu for Key ${parentKey}</b>\n🏷 Label: <b>${label}</b>\n\n<b>Greeting:</b>\n${_greetingStr}\n\n<b>Sub-Options:</b>\n${optLines}`,
+      fr: `📂 <b>Sous-Menu pour la Touche ${parentKey}</b>\n🏷 Nom : <b>${label}</b>\n\n<b>Message :</b>\n${_greetingStr}\n\n<b>Sous-Options :</b>\n${optLines}`,
+      zh: `📂 <b>按键 ${parentKey} 的子菜单</b>\n🏷 名称：<b>${label}</b>\n\n<b>问候语：</b>\n${_greetingStr}\n\n<b>子选项：</b>\n${optLines}`,
+      hi: `📂 <b>कुंजी ${parentKey} के लिए सब-मेनू</b>\n🏷 नाम: <b>${label}</b>\n\n<b>ग्रीटिंग:</b>\n${_greetingStr}\n\n<b>सब-विकल्प:</b>\n${optLines}`,
+    }[lang] || `📂 <b>Sub-Menu for Key ${parentKey}</b>\n🏷 Label: <b>${label}</b>\n\n<b>Greeting:</b>\n${_greetingStr}\n\n<b>Sub-Options:</b>\n${optLines}`)
     return send(renderChatId, body, { parse_mode: 'HTML', reply_markup: { keyboard: [
       [_subMenuBtns.setGreeting],
+      [_subMenuBtns.renameLabel],
       [_subMenuBtns.addOption],
       [_subMenuBtns.removeOption],
       [_subMenuBtns.done],
@@ -29921,6 +29940,19 @@ Select a category:`), k.of(catBtns))
         hi: `🔊 <b>कुंजी ${parentKey} सब-मेनू ग्रीटिंग</b>\n\nप्रॉम्प्ट कैसे डिलीवर करें?`,
       }[lang] || `🔊 <b>Sub-Menu Greeting for Key ${parentKey}</b>\n\nHow should the sub-menu prompt be delivered?`), { parse_mode: 'HTML', reply_markup: { keyboard: _menuRows, resize_keyboard: true } })
     }
+    // 2026-08-03: Rename Sub-Menu — user-friendly label ("Sales", "Support")
+    // that surfaces in the Edit-Sub-Menu picker, the runtime "entering sub-menu"
+    // notification, and the IVR Analytics dashboard next to the digit stat.
+    if (message === _subMenuBtns.renameLabel) {
+      await set(state, chatId, 'action', a.cpIvrSubMenuRename)
+      const currentLabel = num.features?.ivr?.options?.[parentKey]?.label || `Sub-Menu ${parentKey}`
+      return send(chatId, ({
+        en: `🏷 <b>Rename Sub-Menu</b>\n\nCurrent label: <b>${currentLabel}</b>\n\nSend a new short label (max 30 chars) — e.g. <i>Sales</i>, <i>Support</i>, <i>Billing</i>:`,
+        fr: `🏷 <b>Renommer Sous-Menu</b>\n\nNom actuel : <b>${currentLabel}</b>\n\nEnvoyez un nouveau nom (max 30 caractères) :`,
+        zh: `🏷 <b>重命名子菜单</b>\n\n当前名称：<b>${currentLabel}</b>\n\n发送新名称（最多 30 个字符）：`,
+        hi: `🏷 <b>सब-मेनू का नाम बदलें</b>\n\nवर्तमान नाम: <b>${currentLabel}</b>\n\nनया छोटा नाम भेजें (अधिकतम 30 अक्षर):`,
+      }[lang] || `🏷 <b>Rename Sub-Menu</b>\n\nCurrent label: <b>${currentLabel}</b>\n\nSend a new short label (max 30 chars):`), { parse_mode: 'HTML', reply_markup: { keyboard: [[currentLabel], ['↩️ Back']], resize_keyboard: true } })
+    }
     if (message === _subMenuBtns.addOption) {
       const sub = num.features?.ivr?.options?.[parentKey]?.subMenu || { options: {} }
       const usedKeys = Object.keys(sub.options || {}).join(', ') || 'none'
@@ -29942,6 +29974,34 @@ Select a category:`), k.of(catBtns))
       await set(state, chatId, 'action', a.cpIvrSubMenuRemoveOption)
       return send(chatId, ({ en: `🗑 <b>Remove Sub-Option</b>\n\nTap the key to remove:`, fr: `🗑 <b>Supprimer Sous-Option</b>\n\nAppuyez sur la touche :`, zh: `🗑 <b>移除子选项</b>\n\n点击要移除的按键：`, hi: `🗑 <b>सब-विकल्प हटाएं</b>\n\nहटाने के लिए कुंजी पर टैप करें:` }[lang] || `🗑 <b>Remove Sub-Option</b>\n\nTap the key to remove:`), { parse_mode: 'HTML', reply_markup: { keyboard: [...keys.sort().map(k => [`Key ${k}`]), ['↩️ Back']], resize_keyboard: true } })
     }
+    return _renderSubMenuOverview(chatId, num, parentKey)
+  }
+
+  // ── State: Rename Sub-Menu (2026-08-03) — collect a friendly label ──
+  if (action === a.cpIvrSubMenuRename) {
+    const num = info?.cpActiveNumber
+    const draft = info?.cpIvrDraft || {}
+    const parentKey = draft.parentKey
+    if (!num || !parentKey) return goto.submenu5()
+    if (isBackPress(message) || message === '↩️ Back') {
+      await set(state, chatId, 'action', a.cpIvrSubMenuManage)
+      return _renderSubMenuOverview(chatId, num, parentKey)
+    }
+    const newLabel = (message || '').trim().slice(0, 30)
+    if (!newLabel) {
+      return send(chatId, ({ en: '❌ Label cannot be empty. Send a short label (max 30 chars):', fr: '❌ Le nom ne peut pas être vide.', zh: '❌ 名称不能为空。', hi: '❌ नाम खाली नहीं हो सकता।' }[lang] || '❌ Label cannot be empty. Send a short label (max 30 chars):'), k.of([['↩️ Back']]))
+    }
+    const ivrConf = num.features.ivr
+    if (!ivrConf.options?.[parentKey] || ivrConf.options[parentKey].action !== 'submenu') {
+      await set(state, chatId, 'action', a.cpIvr)
+      return send(chatId, ({ en: '❌ Sub-menu no longer exists.', fr: '❌ Sous-menu introuvable.', zh: '❌ 子菜单不存在。', hi: '❌ सब-मेनू अब उपलब्ध नहीं है।' }[lang] || '❌ Sub-menu no longer exists.'), k.of([..._ivrRootMenuRows(ivrConf, phoneConfig.getBtn(info?.userLanguage || 'en'))]))
+    }
+    ivrConf.options[parentKey].label = newLabel
+    await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'ivr', ivrConf)
+    num.features.ivr = ivrConf
+    await saveInfo('cpActiveNumber', num)
+    send(chatId, ({ en: `✅ Sub-menu (key <b>${parentKey}</b>) renamed to <b>${newLabel}</b>`, fr: `✅ Sous-menu (touche <b>${parentKey}</b>) renommé en <b>${newLabel}</b>`, zh: `✅ 子菜单（按键 <b>${parentKey}</b>）已重命名为 <b>${newLabel}</b>`, hi: `✅ सब-मेनू (कुंजी <b>${parentKey}</b>) का नाम <b>${newLabel}</b> कर दिया` }[lang] || `✅ Sub-menu (key <b>${parentKey}</b>) renamed to <b>${newLabel}</b>`), { parse_mode: 'HTML' })
+    await set(state, chatId, 'action', a.cpIvrSubMenuManage)
     return _renderSubMenuOverview(chatId, num, parentKey)
   }
 
@@ -37709,6 +37769,49 @@ app.post('/dev/ivr-multilayer-test', async (req, res) => {
       subMenuKeys: Object.keys(storedIvr.options || {}).filter(k => storedIvr.options[k]?.action === 'submenu'),
     }
 
+    // 11. Rename Sub-Menu (2026-08-03): label written into options[key].label
+    //     surfaces in cpTxt.ivrMenu (submenu action description) AND in
+    //     the runtime "entering sub-menu" notification AND in the analytics
+    //     labels map that _index.js builds before rendering the report.
+    storedIvr.options['1'].label = 'Sales Team'
+    await phoneNumbersOf.updateOne(
+      { _id: testChat },
+      { $set: { 'val.numbers.0.features.ivr': storedIvr } }
+    )
+    // 11a. cpTxt.ivrMenu renders "Sales Team" instead of the auto label
+    const _menuText = phoneConfig.getTxt('en').ivrMenu(testPhone, storedIvr)
+    out.checks.step10_label_in_menu = {
+      ok: _menuText.includes('Sales Team') && _menuText.includes('sub-menu'),
+      snippet: _menuText.slice(-260),
+    }
+    // 11b. cpTxt.ivrAnalyticsReport surfaces the label alongside sub-menu digits
+    const _labels = {}
+    for (const [k, opt] of Object.entries(storedIvr.options)) {
+      if (opt?.label) _labels[k] = opt.label
+      if (opt?.action === 'submenu' && opt.subMenu?.options) {
+        const parentLabel = opt.label || `Sub-Menu ${k}`
+        for (const [sk, sopt] of Object.entries(opt.subMenu.options)) {
+          _labels[`${k}.${sk}`] = sopt?.label || `${parentLabel} · ${sk}`
+        }
+      }
+    }
+    const _mockAnalytics = {
+      totalCalls: 3,
+      topOption: { digit: '1', count: 2, percent: 66 },
+      optionBreakdown: [
+        { digit: '1', count: 2, percent: 66 },
+        { digit: '1.2', count: 1, percent: 33 },
+      ],
+      recentCalls: [{ from: '+19995551234', digit: '1.2', action: 'message', time: new Date() }],
+    }
+    const _analyticsText = phoneConfig.getTxt('en').ivrAnalyticsReport(testPhone, _mockAnalytics, _labels)
+    // Sanity: "Sales Team" (root label) AND "Sales Team · 2" (sub-menu leaf's
+    // auto-composed label) both appear next to their digits.
+    out.checks.step11_label_in_analytics = {
+      ok: _analyticsText.includes('Sales Team') && _analyticsText.includes('Sales Team · 2'),
+      snippet: _analyticsText.slice(0, 400),
+    }
+
     // ── Cleanup ──
     await phoneNumbersOf.deleteOne({ _id: testChat })
     await ivrAudioStore.deleteMany({ _id: { $regex: `^${testPhone.replace(/[+]/g, '\\+')}:` } })
@@ -37723,7 +37826,9 @@ app.post('/dev/ivr-multilayer-test', async (req, res) => {
       out.checks.step6_root_voicemail_regression.ok &&
       out.checks.step7_schema.ok &&
       out.checks.step8_submenu_audio_greeting.ok &&
-      out.checks.step9_edit_jump_visibility.ok
+      out.checks.step9_edit_jump_visibility.ok &&
+      out.checks.step10_label_in_menu.ok &&
+      out.checks.step11_label_in_analytics.ok
   } catch (e) {
     out.error = e.message
     out.stack = e.stack
@@ -41546,7 +41651,7 @@ app.post('/twilio/inbound-ivr-gather', async (req, res) => {
       gather2.say('Sorry, we did not receive your selection. Please try again.')
       response.say('No selection received. Goodbye.')
       response.hangup()
-      bot?.sendMessage(chatId, `📞 <b>IVR Call — Key ${Digits}</b>\nFrom: ${phoneConfig.formatPhone(decodedFrom)}\n📂 Entering sub-menu (${Object.keys(subOpts).length} options)`, { parse_mode: 'HTML' }).catch(() => {})
+      bot?.sendMessage(chatId, `📞 <b>IVR Call — Key ${Digits}</b>\nFrom: ${phoneConfig.formatPhone(decodedFrom)}\n📂 Entering sub-menu <b>${option.label && option.label.trim() ? option.label.trim() : 'Sub-Menu ' + Digits}</b> (${Object.keys(subOpts).length} options)`, { parse_mode: 'HTML' }).catch(() => {})
       // Track root-level dispatch to sub-menu
       trackIvrAnalytics(decodedTo, chatId, decodedFrom, Digits, 'submenu')
       return res.type('text/xml').send(response.toString())

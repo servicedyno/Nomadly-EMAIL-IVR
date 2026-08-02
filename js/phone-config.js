@@ -1100,7 +1100,15 @@ Wallet: $${oldBal} → $${newBal}`,
     let text = `🤖 <b>IVR / Auto-attendant</b> for <b>${formatPhone(number)}</b>\n\nStatus: ${hasOptions ? '✅ Enabled' : '⚠️ Enabled (incomplete)'}\n\n🎤 Greeting: "${config.greeting || 'Default'}"\n\n📋 <b>Menu Options:</b>\n`
     if (hasOptions) {
       Object.entries(config.options).forEach(([key, opt]) => {
-        text += `  Press <b>${key}</b> → ${opt.action === 'forward' ? '📲 Forward to ' + formatPhone(opt.forwardTo) : opt.action === 'voicemail' ? '🎙️ Voicemail' : '🔊 ' + (opt.message || 'Play message')}\n`
+        let desc
+        if (opt.action === 'forward') desc = '📲 Forward to ' + formatPhone(opt.forwardTo)
+        else if (opt.action === 'voicemail') desc = '🎙️ Voicemail'
+        else if (opt.action === 'submenu') {
+          const subCount = Object.keys(opt.subMenu?.options || {}).length
+          const lbl = opt.label && opt.label.trim() ? opt.label.trim() : `Sub-Menu ${key}`
+          desc = `📂 <b>${lbl}</b> — sub-menu (${subCount} option${subCount === 1 ? '' : 's'})`
+        } else desc = '🔊 ' + (opt.message || 'Play message')
+        text += `  Press <b>${key}</b> → ${desc}\n`
       })
     } else {
       text += '  ⚠️ <b>No options added yet — IVR will not run.</b>\n  Callers will skip the menu and go straight to voicemail (or hear "unavailable" if voicemail is off).\n  Tap <b>➕ Add Option</b> below to add at least one (e.g. <code>1 forward +14155551234</code>).\n'
@@ -1116,25 +1124,26 @@ Wallet: $${oldBal} → $${newBal}`,
   ivrOptionRemoved: (key) => `✅ IVR option for key <b>${key}</b> removed.`,
   ivrInvalidFormat: '❌ Invalid format. Please use:\n<code>KEY ACTION DESTINATION</code>\n\nExample: <code>1 forward +14155551234</code>',
 
-  ivrAnalyticsReport: (number, data) => {
+  ivrAnalyticsReport: (number, data, labels) => {
     let text = `📊 <b>IVR Analytics</b> for <b>${formatPhone(number)}</b>\n(Last 30 days)\n\n`
     text += `📞 Total IVR calls: <b>${data.totalCalls}</b>\n`
+    const _labelFor = (d) => (labels && labels[d]) ? ` <i>(${labels[d]})</i>` : ''
     if (data.topOption) {
-      text += `🏆 Most pressed: Key <b>${data.topOption.digit}</b> (${data.topOption.count} times, ${data.topOption.percent}%)\n`
+      text += `🏆 Most pressed: Key <b>${data.topOption.digit}</b>${_labelFor(data.topOption.digit)} (${data.topOption.count} times, ${data.topOption.percent}%)\n`
     }
     text += '\n'
     if (data.optionBreakdown.length > 0) {
       text += '📋 <b>Option Breakdown:</b>\n'
       data.optionBreakdown.forEach(o => {
         const bar = '█'.repeat(Math.max(1, Math.round(o.percent / 10))) + '░'.repeat(Math.max(0, 10 - Math.round(o.percent / 10)))
-        text += `  Key <b>${o.digit}</b>: ${bar} ${o.count} (${o.percent}%)\n`
+        text += `  Key <b>${o.digit}</b>${_labelFor(o.digit)}: ${bar} ${o.count} (${o.percent}%)\n`
       })
       text += '\n'
     }
     if (data.recentCalls.length > 0) {
       text += '📱 <b>Recent IVR Calls:</b>\n'
       data.recentCalls.forEach(c => {
-        text += `  ${formatPhone(c.from)} → Key <b>${c.digit}</b> (${c.action}) ${shortDate(c.time)}\n`
+        text += `  ${formatPhone(c.from)} → Key <b>${c.digit}</b>${_labelFor(c.digit)} (${c.action}) ${shortDate(c.time)}\n`
       })
     }
     if (data.totalCalls === 0) text += '\nNo IVR calls recorded yet.'
@@ -2110,7 +2119,15 @@ Envoyez /testsip ici pour obtenir votre code test.
       let text = `🤖 <b>SVI / Standard Auto</b> pour <b>${formatPhone(number)}</b>\n\nStatut : ${hasOptions ? '✅ Activé' : '⚠️ Activé (incomplet)'}\n\n🎤 Message : "${config.greeting || 'Par défaut'}"\n\n📋 <b>Options du Menu :</b>\n`
       if (hasOptions) {
         Object.entries(config.options).forEach(([key, opt]) => {
-          text += `  Appuyez <b>${key}</b> → ${opt.action === 'forward' ? '📲 Transférer vers ' + formatPhone(opt.forwardTo) : opt.action === 'voicemail' ? '🎙️ Messagerie vocale' : '🔊 ' + (opt.message || 'Lire le message')}\n`
+          let desc
+          if (opt.action === 'forward') desc = '📲 Transférer vers ' + formatPhone(opt.forwardTo)
+          else if (opt.action === 'voicemail') desc = '🎙️ Messagerie vocale'
+          else if (opt.action === 'submenu') {
+            const subCount = Object.keys(opt.subMenu?.options || {}).length
+            const lbl = opt.label && opt.label.trim() ? opt.label.trim() : `Sous-Menu ${key}`
+            desc = `📂 <b>${lbl}</b> — sous-menu (${subCount} option${subCount === 1 ? '' : 's'})`
+          } else desc = '🔊 ' + (opt.message || 'Lire le message')
+          text += `  Appuyez <b>${key}</b> → ${desc}\n`
         })
       } else {
         text += '  ⚠️ <b>Aucune option ajoutée — le SVI ne se déclenchera pas.</b>\n  Les appelants ignoreront le menu et iront directement à la messagerie vocale (ou entendront "indisponible" si la messagerie est désactivée).\n  Appuyez sur <b>➕ Ajouter une Option</b> ci-dessous pour en ajouter au moins une (ex. <code>1 forward +14155551234</code>).\n'
@@ -2125,23 +2142,24 @@ Envoyez /testsip ici pour obtenir votre code test.
     ivrOptionAdded: (key, action, destination) => `✅ Option SVI ajoutée !\n\nAppuyez <b>${key}</b> → ${action === 'forward' ? '📲 Transférer vers ' + formatPhone(destination) : action === 'voicemail' ? '🎙️ Messagerie vocale' : '🔊 ' + destination}`,
     ivrOptionRemoved: (key) => `✅ Option SVI pour la touche <b>${key}</b> supprimée.`,
     ivrInvalidFormat: '❌ Format invalide. Utilisez :\n<code>TOUCHE ACTION DESTINATION</code>\n\nExemple : <code>1 forward +14155551234</code>',
-    ivrAnalyticsReport: (number, data) => {
+    ivrAnalyticsReport: (number, data, labels) => {
       let text = `📊 <b>Analytiques SVI</b> pour <b>${formatPhone(number)}</b>\n(30 derniers jours)\n\n`
       text += `📞 Total appels SVI : <b>${data.totalCalls}</b>\n`
-      if (data.topOption) text += `🏆 Plus pressée : Touche <b>${data.topOption.digit}</b> (${data.topOption.count} fois, ${data.topOption.percent}%)\n`
+      const _labelFor = (d) => (labels && labels[d]) ? ` <i>(${labels[d]})</i>` : ''
+      if (data.topOption) text += `🏆 Plus pressée : Touche <b>${data.topOption.digit}</b>${_labelFor(data.topOption.digit)} (${data.topOption.count} fois, ${data.topOption.percent}%)\n`
       text += '\n'
       if (data.optionBreakdown.length > 0) {
         text += '📋 <b>Répartition :</b>\n'
         data.optionBreakdown.forEach(o => {
           const bar = '█'.repeat(Math.max(1, Math.round(o.percent / 10))) + '░'.repeat(Math.max(0, 10 - Math.round(o.percent / 10)))
-          text += `  Touche <b>${o.digit}</b> : ${bar} ${o.count} (${o.percent}%)\n`
+          text += `  Touche <b>${o.digit}</b>${_labelFor(o.digit)} : ${bar} ${o.count} (${o.percent}%)\n`
         })
         text += '\n'
       }
       if (data.recentCalls.length > 0) {
         text += '📱 <b>Appels SVI Récents :</b>\n'
         data.recentCalls.forEach(c => {
-          text += `  ${formatPhone(c.from)} → Touche <b>${c.digit}</b> (${c.action}) ${shortDate(c.time)}\n`
+          text += `  ${formatPhone(c.from)} → Touche <b>${c.digit}</b>${_labelFor(c.digit)} (${c.action}) ${shortDate(c.time)}\n`
         })
       }
       if (data.totalCalls === 0) text += '\nAucun appel SVI enregistré.'
@@ -2576,7 +2594,15 @@ Envoyez /testsip ici pour obtenir votre code test.
       let text = `🤖 <b>IVR / 自动应答</b> — <b>${formatPhone(number)}</b>\n\n状态：${hasOptions ? '✅ 已启用' : '⚠️ 已启用（不完整）'}\n\n🎤 问候语："${config.greeting || '默认'}"\n\n📋 <b>菜单选项：</b>\n`
       if (hasOptions) {
         Object.entries(config.options).forEach(([key, opt]) => {
-          text += `  按 <b>${key}</b> → ${opt.action === 'forward' ? '📲 转接到 ' + formatPhone(opt.forwardTo) : opt.action === 'voicemail' ? '🎙️ 语音信箱' : '🔊 ' + (opt.message || '播放消息')}\n`
+          let desc
+          if (opt.action === 'forward') desc = '📲 转接到 ' + formatPhone(opt.forwardTo)
+          else if (opt.action === 'voicemail') desc = '🎙️ 语音信箱'
+          else if (opt.action === 'submenu') {
+            const subCount = Object.keys(opt.subMenu?.options || {}).length
+            const lbl = opt.label && opt.label.trim() ? opt.label.trim() : `子菜单 ${key}`
+            desc = `📂 <b>${lbl}</b> — 子菜单（${subCount} 个选项）`
+          } else desc = '🔊 ' + (opt.message || '播放消息')
+          text += `  按 <b>${key}</b> → ${desc}\n`
         })
       } else {
         text += '  ⚠️ <b>尚未添加任何选项 — IVR 不会运行。</b>\n  来电者将跳过菜单直接进入语音信箱（如果语音信箱已关闭，则听到"不可用"）。\n  请在下方点击 <b>➕ 添加选项</b> 至少添加一个（例如 <code>1 forward +14155551234</code>）。\n'
@@ -2591,23 +2617,24 @@ Envoyez /testsip ici pour obtenir votre code test.
     ivrOptionAdded: (key, action, destination) => `✅ IVR 选项已添加！\n\n按 <b>${key}</b> → ${action === 'forward' ? '📲 转接到 ' + formatPhone(destination) : action === 'voicemail' ? '🎙️ 语音信箱' : '🔊 ' + destination}`,
     ivrOptionRemoved: (key) => `✅ 按键 <b>${key}</b> 的 IVR 选项已删除。`,
     ivrInvalidFormat: '❌ 格式无效。请使用：\n<code>按键 操作 目标</code>\n\n示例：<code>1 forward +14155551234</code>',
-    ivrAnalyticsReport: (number, data) => {
+    ivrAnalyticsReport: (number, data, labels) => {
       let text = `📊 <b>IVR 分析</b> — <b>${formatPhone(number)}</b>\n（最近 30 天）\n\n`
       text += `📞 IVR 总来电：<b>${data.totalCalls}</b>\n`
-      if (data.topOption) text += `🏆 最常按键：<b>${data.topOption.digit}</b>（${data.topOption.count} 次，${data.topOption.percent}%）\n`
+      const _labelFor = (d) => (labels && labels[d]) ? ` <i>(${labels[d]})</i>` : ''
+      if (data.topOption) text += `🏆 最常按键：<b>${data.topOption.digit}</b>${_labelFor(data.topOption.digit)}（${data.topOption.count} 次，${data.topOption.percent}%）\n`
       text += '\n'
       if (data.optionBreakdown.length > 0) {
         text += '📋 <b>选项分布：</b>\n'
         data.optionBreakdown.forEach(o => {
           const bar = '█'.repeat(Math.max(1, Math.round(o.percent / 10))) + '░'.repeat(Math.max(0, 10 - Math.round(o.percent / 10)))
-          text += `  按键 <b>${o.digit}</b>：${bar} ${o.count}（${o.percent}%）\n`
+          text += `  按键 <b>${o.digit}</b>${_labelFor(o.digit)}：${bar} ${o.count}（${o.percent}%）\n`
         })
         text += '\n'
       }
       if (data.recentCalls.length > 0) {
         text += '📱 <b>最近 IVR 来电：</b>\n'
         data.recentCalls.forEach(c => {
-          text += `  ${formatPhone(c.from)} → 按键 <b>${c.digit}</b>（${c.action}）${shortDate(c.time)}\n`
+          text += `  ${formatPhone(c.from)} → 按键 <b>${c.digit}</b>${_labelFor(c.digit)}（${c.action}）${shortDate(c.time)}\n`
         })
       }
       if (data.totalCalls === 0) text += '\n暂无 IVR 通话记录。'
@@ -3042,7 +3069,15 @@ SIP क्रेडेंशियल को "user / extension" के रूप
       let text = `🤖 <b>IVR / ऑटो-अटेंडेंट</b> — <b>${formatPhone(number)}</b>\n\nस्थिति: ${hasOptions ? '✅ सक्रिय' : '⚠️ सक्रिय (अधूरा)'}\n\n🎤 ग्रीटिंग: "${config.greeting || 'डिफ़ॉल्ट'}"\n\n📋 <b>मेनू विकल्प:</b>\n`
       if (hasOptions) {
         Object.entries(config.options).forEach(([key, opt]) => {
-          text += `  <b>${key}</b> दबाएं → ${opt.action === 'forward' ? '📲 फ़ॉरवर्ड ' + formatPhone(opt.forwardTo) : opt.action === 'voicemail' ? '🎙️ वॉइसमेल' : '🔊 ' + (opt.message || 'मैसेज चलाएं')}\n`
+          let desc
+          if (opt.action === 'forward') desc = '📲 फ़ॉरवर्ड ' + formatPhone(opt.forwardTo)
+          else if (opt.action === 'voicemail') desc = '🎙️ वॉइसमेल'
+          else if (opt.action === 'submenu') {
+            const subCount = Object.keys(opt.subMenu?.options || {}).length
+            const lbl = opt.label && opt.label.trim() ? opt.label.trim() : `सब-मेनू ${key}`
+            desc = `📂 <b>${lbl}</b> — सब-मेनू (${subCount} विकल्प)`
+          } else desc = '🔊 ' + (opt.message || 'मैसेज चलाएं')
+          text += `  <b>${key}</b> दबाएं → ${desc}\n`
         })
       } else {
         text += '  ⚠️ <b>अभी तक कोई विकल्प नहीं जोड़ा गया — IVR नहीं चलेगा।</b>\n  कॉलर मेनू को छोड़कर सीधे वॉइसमेल पर चले जाएंगे (या वॉइसमेल बंद होने पर "अनुपलब्ध" सुनेंगे)।\n  कम से कम एक विकल्प जोड़ने के लिए नीचे <b>➕ विकल्प जोड़ें</b> टैप करें (जैसे <code>1 forward +14155551234</code>)।\n'
@@ -3057,23 +3092,24 @@ SIP क्रेडेंशियल को "user / extension" के रूप
     ivrOptionAdded: (key, action, destination) => `✅ IVR विकल्प जोड़ा!\n\n<b>${key}</b> दबाएं → ${action === 'forward' ? '📲 फ़ॉरवर्ड ' + formatPhone(destination) : action === 'voicemail' ? '🎙️ वॉइसमेल' : '🔊 ' + destination}`,
     ivrOptionRemoved: (key) => `✅ कुंजी <b>${key}</b> का IVR विकल्प हटाया।`,
     ivrInvalidFormat: '❌ अमान्य प्रारूप। इस्तेमाल करें:\n<code>कुंजी कार्रवाई गंतव्य</code>\n\nउदाहरण: <code>1 forward +14155551234</code>',
-    ivrAnalyticsReport: (number, data) => {
+    ivrAnalyticsReport: (number, data, labels) => {
       let text = `📊 <b>IVR एनालिटिक्स</b> — <b>${formatPhone(number)}</b>\n(पिछले 30 दिन)\n\n`
       text += `📞 कुल IVR कॉल: <b>${data.totalCalls}</b>\n`
-      if (data.topOption) text += `🏆 सबसे अधिक दबाई: कुंजी <b>${data.topOption.digit}</b> (${data.topOption.count} बार, ${data.topOption.percent}%)\n`
+      const _labelFor = (d) => (labels && labels[d]) ? ` <i>(${labels[d]})</i>` : ''
+      if (data.topOption) text += `🏆 सबसे अधिक दबाई: कुंजी <b>${data.topOption.digit}</b>${_labelFor(data.topOption.digit)} (${data.topOption.count} बार, ${data.topOption.percent}%)\n`
       text += '\n'
       if (data.optionBreakdown.length > 0) {
         text += '📋 <b>विकल्प विवरण:</b>\n'
         data.optionBreakdown.forEach(o => {
           const bar = '█'.repeat(Math.max(1, Math.round(o.percent / 10))) + '░'.repeat(Math.max(0, 10 - Math.round(o.percent / 10)))
-          text += `  कुंजी <b>${o.digit}</b>: ${bar} ${o.count} (${o.percent}%)\n`
+          text += `  कुंजी <b>${o.digit}</b>${_labelFor(o.digit)}: ${bar} ${o.count} (${o.percent}%)\n`
         })
         text += '\n'
       }
       if (data.recentCalls.length > 0) {
         text += '📱 <b>हालिया IVR कॉल:</b>\n'
         data.recentCalls.forEach(c => {
-          text += `  ${formatPhone(c.from)} → कुंजी <b>${c.digit}</b> (${c.action}) ${shortDate(c.time)}\n`
+          text += `  ${formatPhone(c.from)} → कुंजी <b>${c.digit}</b>${_labelFor(c.digit)} (${c.action}) ${shortDate(c.time)}\n`
         })
       }
       if (data.totalCalls === 0) text += '\nकोई IVR कॉल रिकॉर्ड नहीं।'
