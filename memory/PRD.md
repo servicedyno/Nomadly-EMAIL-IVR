@@ -3,6 +3,24 @@
 ## Original problem statement
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
+## 2026-08-03 — Security fix: SEC-004 HTML injection in Telegram HTML-parsed messages
+**Source:** security_audit_agent report — SEC-004 [MEDIUM] flagged unescaped user-supplied labels/greetings/messages/action strings interpolated into `parse_mode:'HTML'` Telegram messages. A hostile label like `Sales <script>alert("x")</script> & "Support"` either broke the Telegram HTML parser (`can't parse entities`) or corrupted the render.
+
+**What shipped:**
+- **`js/phone-config.js`** — new module-scope `escapeHtml()` helper (escapes `&`, `<`, `>`, `"`), exported. Wired into every user-string interpolation in `ivrMenu` and `ivrAnalyticsReport` across **all 4 locales** (en/fr/zh/hi): greeting, per-option label, per-option message, digit key, action string, labels-map values.
+- **`js/_index.js`** — `_renderSubMenuOverview` escapes label / greeting / forwardTo / message / key. Twilio inbound-ivr-gather submenu notification, sub-menu rename prompt (current label echo) and rename-success message all escape their label interpolations.
+- **`js/voice-service.js`** — imports `escapeHtml` from phone-config; Telnyx sub-menu notification escapes `option.label`.
+- **Dev test** extended to 13 checks — `step10_label_in_menu`, `step11_label_in_analytics`, `step12_escape_helper` use the hostile label `Sales <script>alert("x")</script> & "Support"` and assert the escaped form (`&lt;script&gt;`, `&amp;`, `&quot;`) appears while the raw `<script>` never does.
+
+**Verified:** `bug_testing_agent` (independent QA) verdict **fixed** at 100% backend success. Direct renderer test across all 4 locales confirmed escape. Regression endpoints `/dev/ivr-audio-library-integrity`, `/dev/ivr-audio-preview-rename`, and the full 13-check `/dev/ivr-multilayer-test` all `pass:true`.
+
+**Other security audit findings NOT yet actioned (per user's scope decision):**
+- 🔴 SEC-001 [CRITICAL] — production MongoDB URL+password hardcoded in 5 tracked files (`scripts/provision-hosting-onlicpe.js`, `scripts/reset_wizardchop_settings.py`, `test_mpchat_bugfix_trio_behavioral.js`, `scripts/archive/*`). **User must rotate the DB password.** Also strip the literals from source in a follow-up sprint.
+- 🟠 SEC-002 [HIGH] — SSRF in `GET /twilio/audio-proxy?url=` (`js/_index.js:41117`). Follow-up.
+- 🟠 SEC-003 [HIGH] — Twilio/Telnyx webhooks lack signature verification. Follow-up.
+- ⚪ P3 — CORS `*` default in `backend/server.py:273`; two webhook lookups scan the entire `phoneNumbersOf` collection.
+
+
 ## 2026-08-03 — Sub-Menu Rename (labels flow into Edit picker, IVR menu, notifications, analytics)
 **User ask:** *"Rename Sub-Menu: Let owners give each sub-menu a real label ('Sales', 'Support') that shows up in the Edit picker and the analytics dashboard."*
 
