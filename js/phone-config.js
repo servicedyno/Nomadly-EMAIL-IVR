@@ -225,6 +225,7 @@ const btn = {
   ivrRemoveOption: '➖ Remove Option',
   ivrViewOptions: '📋 View Menu Options',
   ivrAnalytics: '📊 IVR Analytics',
+  ivrEditSubMenu: '🔧 Edit Sub-Menu',
 
   // Recording
   enableRecording: '✅ Enable Recording',
@@ -1499,6 +1500,7 @@ const btnI18n = {
     ivrRemoveOption: '➖ Supprimer une Option',
     ivrViewOptions: '📋 Voir les Options',
     ivrAnalytics: '📊 Analytiques SVI',
+    ivrEditSubMenu: '🔧 Modifier Sous-Menu',
     enableRecording: '✅ Activer l\'Enregistrement',
     disableRecording: '🚫 Désactiver l\'Enregistrement',
     inboxNewerPage: '◀️ Plus Récent',
@@ -1580,6 +1582,7 @@ const btnI18n = {
     ivrRemoveOption: '➖ 删除选项',
     ivrViewOptions: '📋 查看菜单选项',
     ivrAnalytics: '📊 IVR 分析',
+    ivrEditSubMenu: '🔧 编辑子菜单',
     enableRecording: '✅ 启用录音',
     disableRecording: '🚫 关闭录音',
     inboxNewerPage: '◀️ 较新',
@@ -1661,6 +1664,7 @@ const btnI18n = {
     ivrRemoveOption: '➖ विकल्प हटाएं',
     ivrViewOptions: '📋 विकल्प देखें',
     ivrAnalytics: '📊 IVR एनालिटिक्स',
+    ivrEditSubMenu: '🔧 सब-मेनू संपादित करें',
     enableRecording: '✅ रिकॉर्डिंग चालू करें',
     disableRecording: '🚫 रिकॉर्डिंग बंद करें',
     inboxNewerPage: '◀️ नए',

@@ -3,6 +3,26 @@
 ## Original problem statement
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
+## 2026-08-03 — Multi-layer IVR follow-ups: Full Sub-Menu Greeting + Edit Sub-Menu Jump
+**User ask:** *"Full Sub-Menu Greeting: Bring Template picker and Audio Upload into the sub-menu greeting flow to match the root picker"* and *"Edit Sub-Menu Jump: Add a '🔧 Edit Sub-Menu' shortcut on any sub-menu key so owners tweak options without deleting and rebuilding."*
+
+**What shipped:**
+- **Full Sub-Menu Greeting parity** — Instead of duplicating the greeting picker for sub-menus, made the root picker (`cpIvrGreeting`, `cpIvrGreetingLibrary`, `cpIvrGreetingPreview`) **context-aware** via `info.cpIvrDraft.parentKey`.
+  - When `parentKey` is set the save-points write to `options[parentKey].subMenu.*` (not the root `ivrConf.*`) and use a sub-menu-scoped `ivrAudioStore _id` (`<phone>:submenu:<key>:greeting`) so audio survives Railway redeploys.
+  - Back/after-save nav routes to `cpIvrSubMenuManage` (not the root IVR menu) — user stays in sub-menu editing context throughout.
+  - Sub-menus now support the **full 4-method picker**: 📋 Use Template / 📝 Type Text (AI Voice + language + provider + voice) / 🎙️ Upload Audio / 🎵 Pick From Library.
+  - Auto-save-to-library uses a `📞 IVR sub <key>` prefix so sub-menu greetings don't collide with root ones in the library list.
+  - Removed the placeholder MVP states `cpIvrSubMenuGreeting`, `cpIvrSubMenuGreetingText`, `cpIvrSubMenuGreetingLibrary` — superseded.
+- **Edit Sub-Menu Jump** — new `pc.ivrEditSubMenu` button (`🔧 Edit Sub-Menu`, localized en/fr/zh/hi) added to the IVR root menu, but **only visible when at least one root option is `action:'submenu'`** (extracted via `_ivrRootMenuRows()` helper — a single source of truth for the IVR keyboard, replacing 18 duplicated hard-coded row arrays across the file).
+  - 1 sub-menu configured → auto-jumps straight into `cpIvrSubMenuManage`.
+  - 2+ sub-menus → shows a picker (`cpIvrPickSubMenu`) listing `Key X · Label (subopts)` for each sub-menu; tap one → jump.
+- **Dev endpoint** extended to 10 checks — added `step8_submenu_audio_greeting` (Twilio nested Gather emits `<Play>` for an audio-typed sub-menu greeting AND restores from `ivrAudioStore` when the local file is missing) + `step9_edit_jump_visibility` (root menu correctly surfaces the Edit button when sub-menus exist).
+
+**Verified:** `node -c` clean; `POST /dev/ivr-multilayer-test` passes all 10 checks; `/dev/ivr-audio-library-integrity` and `/dev/ivr-audio-preview-rename` still green (no regression on the delete-cascade, preview, or rename flows).
+
+**Files:** `js/_index.js` (context-aware greeting picker + Edit jump + `_ivrRootMenuRows` helper + dev-test extension), `js/phone-config.js` (new `ivrEditSubMenu` button label, en/fr/zh/hi).
+
+
 ## 2026-08-03 — P0 Feature: Multi-layer (2-level) IVR Auto-Attendant
 **User ask:** *"The auto attendant is single layer. After pressing 1 that's [it]. Pressing 1 should have a list of options as well, like how the outgoing IVR is."*
 
