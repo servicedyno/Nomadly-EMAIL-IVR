@@ -29876,20 +29876,25 @@ Select a category:`), k.of(catBtns))
   const _renderSubMenuOverview = async (renderChatId, num, parentKey) => {
     const opt = num?.features?.ivr?.options?.[parentKey]
     const sub = opt?.subMenu || { options: {} }
-    const label = opt?.label && opt.label.trim() ? opt.label.trim() : `Sub-Menu ${parentKey}`
+    const rawLabel = opt?.label && opt.label.trim() ? opt.label.trim() : `Sub-Menu ${parentKey}`
+    const label = phoneConfig.escapeHtml(rawLabel)
     const subOpts = sub.options || {}
     const _describeAction = (o) => {
       if (!o) return '—'
-      if (o.action === 'forward') return `Forward → ${o.forwardTo || o.number || '?'}`
+      // Escape user-controlled values (forwardTo, message) — see SEC-004 (2026-08-03).
+      if (o.action === 'forward') return `Forward → ${phoneConfig.escapeHtml(o.forwardTo || o.number || '?')}`
       if (o.action === 'voicemail') return 'Voicemail'
-      if (o.action === 'message') return `Message: "${(o.message || '').slice(0, 30)}${(o.message || '').length > 30 ? '…' : ''}"`
-      return o.action || '?'
+      if (o.action === 'message') {
+        const _m = (o.message || '').slice(0, 30)
+        return `Message: "${phoneConfig.escapeHtml(_m)}${(o.message || '').length > 30 ? '…' : ''}"`
+      }
+      return phoneConfig.escapeHtml(o.action || '?')
     }
-    const optLines = Object.keys(subOpts).sort().map(k => `  • Press <b>${k}</b> → ${_describeAction(subOpts[k])}`).join('\n') || '  <i>(none yet)</i>'
+    const optLines = Object.keys(subOpts).sort().map(k => `  • Press <b>${phoneConfig.escapeHtml(k)}</b> → ${_describeAction(subOpts[k])}`).join('\n') || '  <i>(none yet)</i>'
     const gt = sub.greetingType || 'default'
     const _greetingStr = gt === 'audio'
-      ? `🎵 <i>Audio: ${sub.greeting || 'saved audio'}</i>`
-      : gt === 'text' ? `💬 <i>"${(sub.greeting || '').slice(0, 80)}${(sub.greeting || '').length > 80 ? '…' : ''}"</i>`
+      ? `🎵 <i>Audio: ${phoneConfig.escapeHtml(sub.greeting || 'saved audio')}</i>`
+      : gt === 'text' ? `💬 <i>"${phoneConfig.escapeHtml((sub.greeting || '').slice(0, 80))}${(sub.greeting || '').length > 80 ? '…' : ''}"</i>`
       : `💬 <i>Default: "Please select an option."</i>`
     const body = ({
       en: `📂 <b>Sub-Menu for Key ${parentKey}</b>\n🏷 Label: <b>${label}</b>\n\n<b>Greeting:</b>\n${_greetingStr}\n\n<b>Sub-Options:</b>\n${optLines}`,
@@ -29945,13 +29950,14 @@ Select a category:`), k.of(catBtns))
     // notification, and the IVR Analytics dashboard next to the digit stat.
     if (message === _subMenuBtns.renameLabel) {
       await set(state, chatId, 'action', a.cpIvrSubMenuRename)
-      const currentLabel = num.features?.ivr?.options?.[parentKey]?.label || `Sub-Menu ${parentKey}`
+      const currentLabelRaw = num.features?.ivr?.options?.[parentKey]?.label || `Sub-Menu ${parentKey}`
+      const currentLabel = phoneConfig.escapeHtml(currentLabelRaw)
       return send(chatId, ({
         en: `🏷 <b>Rename Sub-Menu</b>\n\nCurrent label: <b>${currentLabel}</b>\n\nSend a new short label (max 30 chars) — e.g. <i>Sales</i>, <i>Support</i>, <i>Billing</i>:`,
         fr: `🏷 <b>Renommer Sous-Menu</b>\n\nNom actuel : <b>${currentLabel}</b>\n\nEnvoyez un nouveau nom (max 30 caractères) :`,
         zh: `🏷 <b>重命名子菜单</b>\n\n当前名称：<b>${currentLabel}</b>\n\n发送新名称（最多 30 个字符）：`,
         hi: `🏷 <b>सब-मेनू का नाम बदलें</b>\n\nवर्तमान नाम: <b>${currentLabel}</b>\n\nनया छोटा नाम भेजें (अधिकतम 30 अक्षर):`,
-      }[lang] || `🏷 <b>Rename Sub-Menu</b>\n\nCurrent label: <b>${currentLabel}</b>\n\nSend a new short label (max 30 chars):`), { parse_mode: 'HTML', reply_markup: { keyboard: [[currentLabel], ['↩️ Back']], resize_keyboard: true } })
+      }[lang] || `🏷 <b>Rename Sub-Menu</b>\n\nCurrent label: <b>${currentLabel}</b>\n\nSend a new short label (max 30 chars):`), { parse_mode: 'HTML', reply_markup: { keyboard: [[currentLabelRaw], ['↩️ Back']], resize_keyboard: true } })
     }
     if (message === _subMenuBtns.addOption) {
       const sub = num.features?.ivr?.options?.[parentKey]?.subMenu || { options: {} }
@@ -30000,7 +30006,8 @@ Select a category:`), k.of(catBtns))
     await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'ivr', ivrConf)
     num.features.ivr = ivrConf
     await saveInfo('cpActiveNumber', num)
-    send(chatId, ({ en: `✅ Sub-menu (key <b>${parentKey}</b>) renamed to <b>${newLabel}</b>`, fr: `✅ Sous-menu (touche <b>${parentKey}</b>) renommé en <b>${newLabel}</b>`, zh: `✅ 子菜单（按键 <b>${parentKey}</b>）已重命名为 <b>${newLabel}</b>`, hi: `✅ सब-मेनू (कुंजी <b>${parentKey}</b>) का नाम <b>${newLabel}</b> कर दिया` }[lang] || `✅ Sub-menu (key <b>${parentKey}</b>) renamed to <b>${newLabel}</b>`), { parse_mode: 'HTML' })
+    const _newLabelSafe = phoneConfig.escapeHtml(newLabel)
+    send(chatId, ({ en: `✅ Sub-menu (key <b>${parentKey}</b>) renamed to <b>${_newLabelSafe}</b>`, fr: `✅ Sous-menu (touche <b>${parentKey}</b>) renommé en <b>${_newLabelSafe}</b>`, zh: `✅ 子菜单（按键 <b>${parentKey}</b>）已重命名为 <b>${_newLabelSafe}</b>`, hi: `✅ सब-मेनू (कुंजी <b>${parentKey}</b>) का नाम <b>${_newLabelSafe}</b> कर दिया` }[lang] || `✅ Sub-menu (key <b>${parentKey}</b>) renamed to <b>${_newLabelSafe}</b>`), { parse_mode: 'HTML' })
     await set(state, chatId, 'action', a.cpIvrSubMenuManage)
     return _renderSubMenuOverview(chatId, num, parentKey)
   }
@@ -37773,18 +37780,28 @@ app.post('/dev/ivr-multilayer-test', async (req, res) => {
     //     surfaces in cpTxt.ivrMenu (submenu action description) AND in
     //     the runtime "entering sub-menu" notification AND in the analytics
     //     labels map that _index.js builds before rendering the report.
-    storedIvr.options['1'].label = 'Sales Team'
+    // 2026-08-03 (SEC-004 fix): use a hostile label with `<`, `>`, `&`, `"` so
+    //     we also prove HTML-escaping happens at every render surface.
+    const HOSTILE_LABEL = 'Sales <script>alert("x")</script> & "Support"'
+    storedIvr.options['1'].label = HOSTILE_LABEL
     await phoneNumbersOf.updateOne(
       { _id: testChat },
       { $set: { 'val.numbers.0.features.ivr': storedIvr } }
     )
-    // 11a. cpTxt.ivrMenu renders "Sales Team" instead of the auto label
+    // 11a. cpTxt.ivrMenu renders the hostile label ESCAPED (not raw), and the
+    //      sub-menu action description survives.
     const _menuText = phoneConfig.getTxt('en').ivrMenu(testPhone, storedIvr)
+    const _menuEscaped =
+      _menuText.includes('Sales &lt;script&gt;') &&
+      _menuText.includes('&amp;') &&
+      _menuText.includes('&quot;Support&quot;') &&
+      !_menuText.includes('<script>') &&
+      _menuText.includes('sub-menu')
     out.checks.step10_label_in_menu = {
-      ok: _menuText.includes('Sales Team') && _menuText.includes('sub-menu'),
-      snippet: _menuText.slice(-260),
+      ok: _menuEscaped,
+      snippet: _menuText.slice(-320),
     }
-    // 11b. cpTxt.ivrAnalyticsReport surfaces the label alongside sub-menu digits
+    // 11b. cpTxt.ivrAnalyticsReport surfaces the label alongside sub-menu digits — ESCAPED
     const _labels = {}
     for (const [k, opt] of Object.entries(storedIvr.options)) {
       if (opt?.label) _labels[k] = opt.label
@@ -37805,11 +37822,21 @@ app.post('/dev/ivr-multilayer-test', async (req, res) => {
       recentCalls: [{ from: '+19995551234', digit: '1.2', action: 'message', time: new Date() }],
     }
     const _analyticsText = phoneConfig.getTxt('en').ivrAnalyticsReport(testPhone, _mockAnalytics, _labels)
-    // Sanity: "Sales Team" (root label) AND "Sales Team · 2" (sub-menu leaf's
-    // auto-composed label) both appear next to their digits.
+    // Sanity: hostile label appears ONLY escaped, in both root and sub-menu digit rows
     out.checks.step11_label_in_analytics = {
-      ok: _analyticsText.includes('Sales Team') && _analyticsText.includes('Sales Team · 2'),
-      snippet: _analyticsText.slice(0, 400),
+      ok: _analyticsText.includes('Sales &lt;script&gt;') &&
+          _analyticsText.includes('&amp;') &&
+          !_analyticsText.includes('<script>') &&
+          // Sub-menu leaf label (auto-composed from parentLabel) also escaped
+          _analyticsText.includes('Sales &lt;script&gt;'),
+      snippet: _analyticsText.slice(0, 500),
+    }
+
+    // 12. SEC-004 helper direct check: escapeHtml round-trips the 4 dangerous chars
+    const _e = phoneConfig.escapeHtml('<b>&"x"</b>')
+    out.checks.step12_escape_helper = {
+      ok: _e === '&lt;b&gt;&amp;&quot;x&quot;&lt;/b&gt;',
+      escaped: _e,
     }
 
     // ── Cleanup ──
@@ -37828,7 +37855,8 @@ app.post('/dev/ivr-multilayer-test', async (req, res) => {
       out.checks.step8_submenu_audio_greeting.ok &&
       out.checks.step9_edit_jump_visibility.ok &&
       out.checks.step10_label_in_menu.ok &&
-      out.checks.step11_label_in_analytics.ok
+      out.checks.step11_label_in_analytics.ok &&
+      out.checks.step12_escape_helper.ok
   } catch (e) {
     out.error = e.message
     out.stack = e.stack
@@ -41651,7 +41679,7 @@ app.post('/twilio/inbound-ivr-gather', async (req, res) => {
       gather2.say('Sorry, we did not receive your selection. Please try again.')
       response.say('No selection received. Goodbye.')
       response.hangup()
-      bot?.sendMessage(chatId, `📞 <b>IVR Call — Key ${Digits}</b>\nFrom: ${phoneConfig.formatPhone(decodedFrom)}\n📂 Entering sub-menu <b>${option.label && option.label.trim() ? option.label.trim() : 'Sub-Menu ' + Digits}</b> (${Object.keys(subOpts).length} options)`, { parse_mode: 'HTML' }).catch(() => {})
+      bot?.sendMessage(chatId, `📞 <b>IVR Call — Key ${Digits}</b>\nFrom: ${phoneConfig.formatPhone(decodedFrom)}\n📂 Entering sub-menu <b>${phoneConfig.escapeHtml(option.label && option.label.trim() ? option.label.trim() : 'Sub-Menu ' + Digits)}</b> (${Object.keys(subOpts).length} options)`, { parse_mode: 'HTML' }).catch(() => {})
       // Track root-level dispatch to sub-menu
       trackIvrAnalytics(decodedTo, chatId, decodedFrom, Digits, 'submenu')
       return res.type('text/xml').send(response.toString())

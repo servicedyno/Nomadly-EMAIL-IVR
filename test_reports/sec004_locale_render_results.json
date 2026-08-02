@@ -1,0 +1,31 @@
+{
+  "helper": "&lt;b&gt;&amp;&quot;x&quot;&lt;/b&gt;",
+  "locales": {
+    "en": {
+      "ok": true,
+      "failures": [],
+      "menuSnippet": "🤖 <b>IVR / Auto-attendant</b> for <b>+1 (847) 355-6048</b>\n\nStatus: ✅ Enabled\n\n🎤 Greeting: \"Sales &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; &quot;Support&quot;\"\n\n📋 <b>Menu Options:</b>\n  Press <b>1</b> → 📂 <b>Sales &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; &quot;Support&quot;</b> — sub-menu (0 options)\n  Press <b>2</b> → 🔊 Sales &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; ",
+      "analyticsSnippet": "📊 <b>IVR Analytics</b> for <b>+1 (847) 355-6048</b>\n(Last 30 days)\n\n📞 Total IVR calls: <b>3</b>\n🏆 Most pressed: Key <b>1</b> <i>(Sales &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; &quot;Support&quot;)</i> (2 times, 66%)\n\n📋 <b>Option Breakdown:</b>\n  Key <b>1</b> <i>(Sales &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; &quot;Support&quot;)</i>: ███████░░░ 2 (66%)\n  Key <b>3&lt;</b> <i>(Sales &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; &quot;Support&quot;)</i>: ███░░░░░░░ 1 (33%)\n\n"
+    },
+    "fr": {
+      "ok": true,
+      "failures": [],
+      "menuSnippet": "🤖 <b>SVI / Standard Auto</b> pour <b>+1 (847) 355-6048</b>\n\nStatut : ✅ Activé\n\n🎤 Message : \"Sales &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; &quot;Support&quot;\"\n\n📋 <b>Options du Menu :</b>\n  Appuyez <b>1</b> → 📂 <b>Sales &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; &quot;Support&quot;</b> — sous-menu (0 options)\n  Appuyez <b>2</b> → 🔊 Sales &lt;script&gt;alert(&quot;x&quot;)&lt;/script&g",
+      "analyticsSnippet": "📊 <b>Analytiques SVI</b> pour <b>+1 (847) 355-6048</b>\n(30 derniers jours)\n\n📞 Total appels SVI : <b>3</b>\n🏆 Plus pressée : Touche <b>1</b> <i>(Sales &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; &quot;Support&quot;)</i> (2 fois, 66%)\n\n📋 <b>Répartition :</b>\n  Touche <b>1</b> <i>(Sales &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; &quot;Support&quot;)</i> : ███████░░░ 2 (66%)\n  Touche <b>3&lt;</b> <i>(Sales &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; &quot;Support&quot;)</i> : ███"
+    },
+    "zh": {
+      "ok": true,
+      "failures": [],
+      "menuSnippet": "🤖 <b>IVR / 自动应答</b> — <b>+1 (847) 355-6048</b>\n\n状态：✅ 已启用\n\n🎤 问候语：\"Sales &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; &quot;Support&quot;\"\n\n📋 <b>菜单选项：</b>\n  按 <b>1</b> → 📂 <b>Sales &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; &quot;Support&quot;</b> — 子菜单（0 个选项）\n  按 <b>2</b> → 🔊 Sales &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; &quot;Support&quot;\n  按 <b>3&lt;</b> → 🎙️ 语音信箱\n",
+      "analyticsSnippet": "📊 <b>IVR 分析</b> — <b>+1 (847) 355-6048</b>\n（最近 30 天）\n\n📞 IVR 总来电：<b>3</b>\n🏆 最常按键：<b>1</b> <i>(Sales &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; &quot;Support&quot;)</i>（2 次，66%）\n\n📋 <b>选项分布：</b>\n  按键 <b>1</b> <i>(Sales &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; &quot;Support&quot;)</i>：███████░░░ 2（66%）\n  按键 <b>3&lt;</b> <i>(Sales &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; &quot;Support&quot;)</i>：███░░░░░░░ 1（33%）\n\n📱 <b>最近 IVR 来电：</b>\n  +1 (999) 555-1234 → 按键 <b>3&lt;</b> <"
+    },
+    "hi": {
+      "ok": true,
+      "failures": [],
+      "menuSnippet": "🤖 <b>IVR / ऑटो-अटेंडेंट</b> — <b>+1 (847) 355-6048</b>\n\nस्थिति: ✅ सक्रिय\n\n🎤 ग्रीटिंग: \"Sales &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; &quot;Support&quot;\"\n\n📋 <b>मेनू विकल्प:</b>\n  <b>1</b> दबाएं → 📂 <b>Sales &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; &quot;Support&quot;</b> — सब-मेनू (0 विकल्प)\n  <b>2</b> दबाएं → 🔊 Sales &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; &quot;Su",
+      "analyticsSnippet": "📊 <b>IVR एनालिटिक्स</b> — <b>+1 (847) 355-6048</b>\n(पिछले 30 दिन)\n\n📞 कुल IVR कॉल: <b>3</b>\n🏆 सबसे अधिक दबाई: कुंजी <b>1</b> <i>(Sales &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; &quot;Support&quot;)</i> (2 बार, 66%)\n\n📋 <b>विकल्प विवरण:</b>\n  कुंजी <b>1</b> <i>(Sales &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; &quot;Support&quot;)</i>: ███████░░░ 2 (66%)\n  कुंजी <b>3&lt;</b> <i>(Sales &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; &quot;Support&quot;)</i>: ███░░░░░░░ 1 (33%)\n\n📱 "
+    }
+  },
+  "pass": true,
+  "failures": []
+}

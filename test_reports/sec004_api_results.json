@@ -1,0 +1,91 @@
+{
+  "base": "http://localhost:5000",
+  "raw_hostile": "Sales <script>alert(\"x\")</script> & \"Support\"",
+  "checks": {
+    "step10_label_in_menu": {
+      "ok": true,
+      "snippet_line_1": " / Auto-attendant</b> for <b>+1 (228) 923-6918</b>",
+      "snippet_line_2": "",
+      "failures": []
+    },
+    "step11_label_in_analytics": {
+      "ok": true,
+      "snippet_line_1": "📊 <b>IVR Analytics</b> for <b>+1 (228) 923-6918</b>",
+      "snippet_line_2": "(Last 30 days)",
+      "failures": []
+    },
+    "step12_escape_helper": {
+      "actual": "&lt;b&gt;&amp;&quot;x&quot;&lt;/b&gt;",
+      "expected": "&lt;b&gt;&amp;&quot;x&quot;&lt;/b&gt;",
+      "ok": true
+    }
+  },
+  "multilayer": {
+    "testChatId": "DEVML-1785678264360-7x6r6",
+    "testPhone": "+12289236918",
+    "checks": {
+      "step0_setup": {
+        "ok": true
+      },
+      "step1_root_submenu": {
+        "ok": true,
+        "xmlSnippet": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Gather action=\"https://603d6712-f830-43b8-b78b-0d3dedac377b.preview.emergentagent.com/api/twilio/inbound-ivr-gather?chatId=DEVML-1785678264360-7x6r6&amp;from=%2B19995551234&amp;to=%2B12289236918&amp;path=1\" method=\"POST\" numDigits=\"1\" timeout=\"10\" finishOnKey=\"\"><Say>For pricing press 1, to leave a message press 2.</Say></Gather><Gather action=\"http"
+      },
+      "step2_submenu_forward": {
+        "ok": true,
+        "dispatched": "wallet-blocked",
+        "xmlSnippet": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Say>We are unable to connect your call at this time. Please try again later.</Say><Hangup/></Response>"
+      },
+      "step3_submenu_message": {
+        "ok": true,
+        "xmlSnippet": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Say>Our office is closed. Goodbye.</Say><Hangup/></Response>"
+      },
+      "step4_submenu_invalid": {
+        "ok": true,
+        "xmlSnippet": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Say>Invalid selection. Goodbye.</Say><Hangup/></Response>"
+      },
+      "step5_root_invalid": {
+        "ok": true,
+        "xmlSnippet": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Say>Invalid selection. Goodbye.</Say><Hangup/></Response>"
+      },
+      "step6_root_voicemail_regression": {
+        "ok": true,
+        "xmlSnippet": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Say>Please leave a message after the beep.</Say><Record action=\"https://603d6712-f830-43b8-b78b-0d3dedac377b.preview.emergentagent.com/api/twilio/voicemail-complete?chatId=DEVML-1785678264360-7x6r6&amp;from=%2B19995551234&amp;to=%2B12289236918\" maxLen"
+      },
+      "step7_schema": {
+        "ok": true,
+        "submenuOptions": [
+          "1",
+          "2"
+        ]
+      },
+      "step8_submenu_audio_greeting": {
+        "ok": true,
+        "xmlSnippet": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Gather action=\"https://603d6712-f830-43b8-b78b-0d3dedac377b.preview.emergentagent.com/api/twilio/inbound-ivr-gather?chatId=DEVML-1785678264360-7x6r6&amp;from=%2B19995551234&amp;to=%2B12289236918&amp;path=1\" method=\"POST\" numDigits=\"1\" timeout=\"10\" finishOnKey=\"\"><Play>https://example.com/api/assets/user-audio/dev_submenu_greeting.mp3</Play></Gather>"
+      },
+      "step9_edit_jump_visibility": {
+        "ok": true,
+        "subMenuKeys": [
+          "1"
+        ]
+      },
+      "step10_label_in_menu": {
+        "ok": true,
+        "snippet": " / Auto-attendant</b> for <b>+1 (228) 923-6918</b>\n\nStatus: ✅ Enabled\n\n🎤 Greeting: \"Press 1 for sales, press 2 for voicemail.\"\n\n📋 <b>Menu Options:</b>\n  Press <b>1</b> → 📂 <b>Sales &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; &quot;Support&quot;</b> — sub-menu (2 options)\n  Press <b>2</b> → 🎙️ Voicemail\n"
+      },
+      "step11_label_in_analytics": {
+        "ok": true,
+        "snippet": "📊 <b>IVR Analytics</b> for <b>+1 (228) 923-6918</b>\n(Last 30 days)\n\n📞 Total IVR calls: <b>3</b>\n🏆 Most pressed: Key <b>1</b> <i>(Sales &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; &quot;Support&quot;)</i> (2 times, 66%)\n\n📋 <b>Option Breakdown:</b>\n  Key <b>1</b> <i>(Sales &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; &quot;Support&quot;)</i>: ███████░░░ 2 (66%)\n  Key <b>1.2</b> <i>(Sales &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; &quot;Support&quot; · 2)</i>"
+      },
+      "step12_escape_helper": {
+        "ok": true,
+        "escaped": "&lt;b&gt;&amp;&quot;x&quot;&lt;/b&gt;"
+      }
+    },
+    "pass": true
+  },
+  "audio_library_integrity_pass": true,
+  "audio_preview_rename_pass": true,
+  "pass": true,
+  "failures": []
+}
