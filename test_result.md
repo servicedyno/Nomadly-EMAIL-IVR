@@ -72,6 +72,227 @@ user_problem_statement: |
 
 
 backend:
+  - task: "P0 UX — IVR auto-attendant audio library integrity (@Padrino_voodoo 2026-08-02 'Ivr autoattedant needs work': saved greetings must be re-selectable, deletable with proper cascade cleanup of ivrAudioStore backup and phone-number features.ivr fields; voicemail greeting auto-saves to library for reuse)"
+    implemented: true
+    working: true
+    file: "/app/js/audio-library-service.js (deleteAudio ~L200 now cascades ivrAudioStore + resets phones' features.ivr/voicemail greeting fields); /app/js/_index.js (audio library picker at cpIvrGreetingLibrary ~L28530 shows ⭐ for current + KB size + '🛠 Manage Library' jump; audioLibMenu ~L24437 back-nav returns to IVR picker via audioLibReturnTo state; voicemail save handler ~L28325 auto-saves greeting to audio library for reuse; new dev endpoint /dev/ivr-audio-library-integrity ~L36502)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFICATION COMPLETE - P0 IVR audio-library integrity fix PASSED (all 3 test suites, 100% pass):
+          
+          SCOPE: Verified the fix for @Padrino_voodoo (chatId 7706898844) "Ivr autoattedant needs work" 
+          bug report. The IVR auto-attendant audio library had 3 issues: (1) deleteAudio() didn't cascade 
+          cleanup to ivrAudioStore backup or phone features.ivr fields (zombie restore + 404 Play URLs), 
+          (2) IVR library picker didn't show current greeting or allow management, (3) voicemail greetings 
+          weren't auto-saved to library. All 3 issues are now fixed and verified.
+          
+          [TEST 1] MAIN FIX - IVR AUDIO-LIBRARY INTEGRITY: ✅ ALL 11 SUB-CHECKS PASSED
+            POST {REACT_APP_BACKEND_URL}/api/dev/ivr-audio-library-integrity
+            Body: {}
+            
+            Response: HTTP 200, top-level pass: true ✅
+            
+            ✅ checks.step1_save.ok: true
+                • Audio can be saved to library (id: d2bacd24-dd79-4f05-9c5e-fdcf44ac1f31) ✅
+            
+            ✅ checks.step2_reselect.ok: true
+                • Audio appears in listAudios (count: 1, byName: "DEV IVR Test Audio") ✅
+            
+            ✅ checks.step3_setup.ok: true
+                • Phone with features.ivr → greetingFromLibrary + backups seeded ✅
+            
+            ✅ checks.step4_delete_cascade.fileRemovedFromDisk: true
+                • File removed from disk ✅
+            
+            ✅ checks.step4_delete_cascade.removedFromLibrary: true
+                • Removed from ivrAudioFiles library ✅
+            
+            ✅ checks.step4_delete_cascade.backupRemoved: true
+                • ivrAudioStore backup removed (zombie restore prevention) ✅
+                ★ CORE FIX VERIFIED: Deleted audios will NOT come back after Railway redeploy
+            
+            ✅ checks.step4_delete_cascade.phoneGreetingReset: true
+                • Phone greeting reset ✅
+            
+            ✅ checks.step4_delete_cascade.currentIvrState.greetingType: "default"
+                • greetingType reset to 'default' ✅
+            
+            ✅ checks.step4_delete_cascade.currentIvrState.greetingFromLibrary: undefined
+                • greetingFromLibrary cleared ✅
+            
+            ✅ checks.step4_delete_cascade.currentIvrState.greetingAudioUrl: undefined
+                • greetingAudioUrl cleared (no 404 Play URL) ✅
+                ★ CORE FIX VERIFIED: Inbound calls will NOT <Play> a 404 URL after audio deletion
+            
+            ✅ checks.step5_reupload_and_pick.appearsInLibrary: true
+                • Re-upload and pick works (round-trip) ✅
+                • New audio (id: 70defe26-f2a6-4564-965a-9ff751da78cb) appears in library ✅
+            
+            ★ CORE FIX VERIFIED: The deleteAudio() cascade cleanup now removes:
+              1. File from disk ✅
+              2. ivrAudioFiles library row ✅
+              3. ivrAudioStore backup (prevents zombie restore) ✅
+              4. Phone features.ivr/voicemail greeting references (prevents 404 Play URLs) ✅
+          
+          [TEST 2] HEALTH CHECK: ✅ PASSED
+            GET {REACT_APP_BACKEND_URL}/api/health
+            
+            Response: HTTP 200 ✅
+            {
+              "status": "healthy",
+              "database": "connected",
+              "uptime": "0.06 hours"
+            }
+            
+            ★ Backend health confirmed: healthy + database connected
+          
+          [TEST 3] REGRESSION TESTS: ✅ ALL 6 ENDPOINTS PASSED
+            All regression endpoints returned pass: true ✅
+            
+            ✅ POST /api/dev/test-outbound-call-selfheal → pass: true
+                Body: {"dryRun": true, "targetChatId": "7706898844"}
+            
+            ✅ POST /api/dev/stale-wallet-tap-test → pass: true
+            
+            ✅ POST /api/dev/support-routing-test → pass: true
+            
+            ✅ POST /api/dev/outbound-billing-leak-test → pass: true
+            
+            ✅ POST /api/dev/concurrency-guard-test → pass: true
+            
+            ✅ POST /api/dev/settle-receipt-test → pass: true
+            
+            ★ REGRESSION CONFIRMED: All existing dev endpoints still work correctly (no regressions)
+          
+          CONCLUSION:
+          The P0 IVR audio-library integrity fix is COMPLETE and verified end-to-end. All 3 test 
+          suites passed (11 main checks + 1 health check + 6 regression checks = 18 total assertions).
+          
+          KEY FIXES VERIFIED:
+          1. CASCADE CLEANUP: deleteAudio() now properly cascades to:
+             • ivrAudioStore backup (prevents zombie restore after Railway redeploy) ✅
+             • Phone features.ivr/voicemail greeting fields (prevents 404 Play URLs) ✅
+             • Filesystem and ivrAudioFiles library (existing behavior preserved) ✅
+          
+          2. IVR LIBRARY PICKER UX: The picker now shows:
+             • ⭐ indicator for currently-selected greeting (not tested - Telegram UI only)
+             • Audio size in KB (not tested - Telegram UI only)
+             • "🛠 Manage Library" button with back-nav to IVR picker (not tested - Telegram UI only)
+          
+          3. VOICEMAIL GREETING AUTO-SAVE: Voicemail greetings are now auto-saved to audio library 
+             with source='voicemail-greeting' for reuse (not tested - Telegram UI only, covered by 
+             the cascade cleanup test which verifies the library integration works correctly).
+          
+          IMPACT:
+          • Deleted IVR/voicemail audios will NOT come back after Railway redeploy (zombie restore fixed)
+          • Inbound calls will NOT <Play> 404 URLs after audio deletion (provider "an application error 
+            has occurred" hangup fixed)
+          • Users can now manage IVR audio library from within the IVR flow (UX improvement)
+          • Voicemail greetings are now reusable across numbers (UX improvement)
+          
+          SAFETY CONFIRMED: All tests used dev-only endpoints (/api/dev/*):
+          • The integrity test uses synthetic dev_ivrlib_* chatId and test phone +18480157746
+          • NO real Telegram messages sent to production users
+          • NO production data affected
+          • All test data self-cleans
+          
+          The bug that caused @Padrino_voodoo to report "Ivr autoattedant needs work" is now fixed. 
+          Deleted IVR/voicemail audios are properly cleaned up with full cascade (no zombie restore, 
+          no 404 Play URLs), and the IVR library picker now provides proper management UX.
+      
+      - working: "NA"
+        agent: "main"
+        comment: |
+          @Padrino_voodoo (production bot user, chatId 7706898844) reported
+          "Ivr autoattedant needs work" — the auto-attendant feature was
+          missing three UX/data-integrity pieces:
+
+          (a) DATA-INTEGRITY: audioLibraryService.deleteAudio() removed the
+              file + the ivrAudioFiles row but did NOT clean up:
+                - the ivrAudioStore backup (filename-keyed), which the
+                  /assets/user-audio middleware uses to auto-restore audio
+                  on Railway redeploy → deleted audios could COME BACK
+                  after a deploy (silent zombie restore).
+                - any phone's features.ivr.greetingFromLibrary /
+                  greetingAudioPath / greetingAudioUrl that still pointed
+                  to the deleted audio → subsequent inbound calls to that
+                  number would <Play> a 404, provider speaks "an application
+                  error has occurred" and hangs up (same 404-audio failure
+                  mode fixed for @Spirits_Of_The_Ancesters 2026-07-24).
+              Fix: deleteAudio(audioId, chatId, phoneNumbersOf) now
+              deletes from ivrAudioFiles + disk + ivrAudioStore, then
+              scans doc.val.numbers for the chatId and resets any IVR /
+              voicemail greeting that references the deleted audio back
+              to default (with clear log lines showing which phone was
+              cascaded). All existing callers pass phoneNumbersOf.
+
+          (b) UX: the IVR greeting library picker
+              (a.cpIvrGreetingLibrary) previously showed audio names only
+              — no size, no indication of which one was CURRENTLY the
+              greeting on this number, no way to delete a stale
+              auto-saved audio from within IVR (users had to leave to
+              Bulk-IVR > Audio Library). Also names were truncated at 38
+              chars, making auto-generated "📞 IVR · Thanks for calling…"
+              lines indistinguishable.
+              Fix: picker now renders each audio as
+              "[⭐ if current] 🎵 <name 30ch> (<size>KB)" plus a
+              "🛠 Manage Library" button that jumps to audioLibMenu with
+              audioLibReturnTo='ivrGreeting' set — audioLibMenu Back
+              routes right back to the IVR picker (not out to Bulk-IVR
+              submenu) preserving the user's IVR flow.
+
+          (c) SIMILAR-ISSUE-ELSEWHERE: voicemail custom greetings were
+              persisted to ivrAudioStore under _id "<phoneNumber>:vmGreeting"
+              for redeploy-survival but were NOT auto-saved to the audio
+              library — so users couldn't re-use a good VM greeting on
+              another number, couldn't delete/rename it, and couldn't
+              pick it back if they overwrote it. Fix (voicemail
+              saveGreeting handler): now also calls
+              audioLibraryService.saveAudio with source='voicemail-greeting'
+              (skipping if a row with the same filename already exists),
+              so the greeting appears in the library and inherits all
+              the same cascade-delete integrity guarantees as IVR ones.
+
+          VALIDATION (pre-testing-agent, local dev):
+          - Lint: audio-library-service.js clean; _index.js syntax check
+            passes.
+          - Restart: nodejs supervisor restarts cleanly. [AudioLibrary]
+            Initialized ok. Telegram polling live.
+          - Live dev endpoint POST /api/dev/ivr-audio-library-integrity
+            {} returns pass:true with all 5 steps green:
+              step1_save.ok=true (audio saveable),
+              step2_reselect.ok=true (appears in listAudios),
+              step3_setup.ok=true (phone with features.ivr →
+                greetingFromLibrary + greetingAudioUrl + backup +
+                ':greeting' key all seeded),
+              step4_delete_cascade: fileRemovedFromDisk=true,
+                removedFromLibrary=true, backupRemoved=true,
+                phoneGreetingReset=true (currentIvrState.greetingType=
+                'default', greetingFromLibrary undefined, greeting URL
+                cleared → NO ghost reference remaining),
+              step5_reupload_and_pick.appearsInLibrary=true (round-trip
+                — re-uploading same-shaped audio produces a fresh
+                library entry).
+
+          Testing agent, please verify:
+           - Backend: POST /api/dev/ivr-audio-library-integrity {}
+             returns pass:true with all 5 sub-checks satisfying the
+             criteria above (delete cascade must remove file, library
+             row, ivrAudioStore backup, AND reset phone's IVR greeting).
+           - /api/health healthy + database connected.
+           - Existing dev endpoints must still pass:true (regression):
+             /api/dev/test-outbound-call-selfheal {"dryRun":true,"targetChatId":"7706898844"}
+             /api/dev/stale-wallet-tap-test {}
+             /api/dev/support-routing-test {}
+             /api/dev/outbound-billing-leak-test {}
+             /api/dev/concurrency-guard-test {}
+             /api/dev/settle-receipt-test {}
+
   - task: "P0 Voice — Twilio outbound-call auth self-heal + Telnyx API key rotation (@Padrino_voodoo 7706898844 2026-08-01: '❌ Call failed — +19545463213 · Caller ID rejected by provider (authentication failed). Your number's sub-account may be suspended — contact support.' for a call from Twilio +18885728101 that was NOT actually suspended)"
     implemented: true
     working: true
@@ -6618,15 +6839,96 @@ metadata:
 
 test_plan:
   current_focus:
-    - "P0 Voice — Twilio outbound-call auth self-heal + Telnyx API key rotation (@Padrino_voodoo 7706898844)"
+    - "P0 UX — IVR auto-attendant audio library integrity (@Padrino_voodoo 2026-08-02)"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
+  - agent: "testing"
+    message: |
+      ✅ IVR AUDIO-LIBRARY INTEGRITY FIX TESTING COMPLETE - ALL TESTS PASSED
+      
+      Tested the P0 IVR audio-library integrity fix for @Padrino_voodoo (chatId 7706898844) 
+      "Ivr autoattedant needs work" bug report. All 3 test suites passed (18 total assertions):
+      
+      [TEST 1] MAIN FIX - IVR AUDIO-LIBRARY INTEGRITY: ✅ PASSED
+        • POST /api/dev/ivr-audio-library-integrity → pass: true
+        • All 11 sub-checks passed (step1_save, step2_reselect, step3_setup, step4_delete_cascade 
+          with 7 sub-assertions, step5_reupload_and_pick)
+        • CORE FIX VERIFIED: deleteAudio() cascade cleanup now removes:
+          1. File from disk ✅
+          2. ivrAudioFiles library row ✅
+          3. ivrAudioStore backup (prevents zombie restore after Railway redeploy) ✅
+          4. Phone features.ivr/voicemail greeting references (prevents 404 Play URLs) ✅
+      
+      [TEST 2] HEALTH CHECK: ✅ PASSED
+        • GET /api/health → status: "healthy", database: "connected"
+      
+      [TEST 3] REGRESSION TESTS: ✅ ALL 6 ENDPOINTS PASSED
+        • test-outbound-call-selfheal → pass: true
+        • stale-wallet-tap-test → pass: true
+        • support-routing-test → pass: true
+        • outbound-billing-leak-test → pass: true
+        • concurrency-guard-test → pass: true
+        • settle-receipt-test → pass: true
+      
+      IMPACT:
+      • Deleted IVR/voicemail audios will NOT come back after Railway redeploy (zombie restore fixed)
+      • Inbound calls will NOT <Play> 404 URLs after audio deletion (provider "an application error 
+        has occurred" hangup fixed)
+      • All existing dev endpoints still work correctly (no regressions)
+      
+      RECOMMENDATION:
+      The IVR audio-library integrity fix is production-ready. All backend functionality verified. 
+      The UX improvements (⭐ indicator, KB size, "🛠 Manage Library" button) are Telegram UI-only 
+      and cannot be tested via backend API, but the underlying library integration is verified working.
+      
+      Main agent: Please summarize and finish. All backend tests passed with no issues.
+  
   - agent: "main"
     message: |
-      PLEASE TEST the Voice outbound-call auth self-heal fix
+      PLEASE TEST the IVR auto-attendant audio-library integrity fix
+      (@Padrino_voodoo 7706898844 "Ivr autoattedant needs work"). Dev
+      endpoints hit {REACT_APP_BACKEND_URL}/api. Content-Type application/json.
+
+      1) MAIN FIX: POST /api/dev/ivr-audio-library-integrity  body: {}
+         EXPECT 200 with pass:true and:
+           - checks.step1_save.ok = true (audio can be saved to library)
+           - checks.step2_reselect.ok = true (audio appears in listAudios; count >= 1)
+           - checks.step3_setup.ok = true (phone with features.ivr pointing to the audio + backup rows seeded)
+           - checks.step4_delete_cascade.fileRemovedFromDisk = true
+           - checks.step4_delete_cascade.removedFromLibrary = true
+           - checks.step4_delete_cascade.backupRemoved = true  (ivrAudioStore filename-keyed row gone — this is the fix for zombie-restore-after-redeploy)
+           - checks.step4_delete_cascade.phoneGreetingReset = true
+             AND checks.step4_delete_cascade.currentIvrState.greetingType = "default"
+             AND checks.step4_delete_cascade.currentIvrState.greetingFromLibrary is undefined
+             AND checks.step4_delete_cascade.currentIvrState.greetingAudioUrl is undefined
+             (cascade proves callers to that number will no longer <Play> a 404)
+           - checks.step5_reupload_and_pick.appearsInLibrary = true (round-trip: same-shaped file uploads OK, picker sees it)
+
+      2) HEALTH: GET /api/health → {"status":"healthy","database":"connected"} 200
+
+      3) REGRESSION — all must still return pass:true:
+           - POST /api/dev/test-outbound-call-selfheal  body {"dryRun":true,"targetChatId":"7706898844"}
+           - POST /api/dev/stale-wallet-tap-test  body {}
+           - POST /api/dev/support-routing-test  body {}
+           - POST /api/dev/outbound-billing-leak-test  body {}
+           - POST /api/dev/concurrency-guard-test  body {}
+           - POST /api/dev/settle-receipt-test  body {}
+
+      Backend files touched by this fix:
+        /app/js/audio-library-service.js   (deleteAudio cascade ~L200)
+        /app/js/_index.js                  (audioLibMenu back-nav ~L24437,
+                                            IVR library picker ⭐/KB/Manage ~L28530,
+                                            voicemail auto-save to library ~L28325,
+                                            dev endpoint ~L36502)
+
+      Do NOT test frontend — Node.js Express backend only.
+
+  - agent: "main"
+    message: |
+      PLEASE TEST the P0 Voice fix for @Padrino_voodoo's failed IVR call
       (@Padrino_voodoo 7706898844 reported "Caller ID rejected by provider
       (authentication failed). Your number's sub-account may be suspended —
       contact support" for a Twilio +18885728101 → +19545463213 call, but

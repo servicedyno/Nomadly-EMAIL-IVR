@@ -24435,7 +24435,39 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === a.audioLibMenu) {
-    if (message === '↩️ Back' || isBackPress(message)) return goto.submenu5()
+    if (message === '↩️ Back' || isBackPress(message)) {
+      // Fix 2026-08-02: return to IVR greeting picker if we jumped here from
+      // the IVR sub-menu (via "🛠 Manage Library"), not to the Bulk-IVR submenu.
+      const returnTo = info?.audioLibReturnTo
+      if (returnTo === 'ivrGreeting') {
+        await saveInfo('audioLibReturnTo', null)
+        const num = info?.cpActiveNumber
+        if (num) {
+          const audios = await audioLibraryService.listAudios(chatId)
+          if (audios.length === 0) {
+            await set(state, chatId, 'action', a.cpIvrGreeting)
+            return send(chatId, trans('t.cp_298'), k.of([[btn.useTemplate], [btn.typeText], [btn.uploadAudio]]))
+          }
+          await set(state, chatId, 'action', a.cpIvrGreetingLibrary)
+          const _curLibId = num?.features?.ivr?.greetingFromLibrary
+          const _curFile = (() => {
+            const u = num?.features?.ivr?.greetingAudioUrl || num?.features?.ivr?.greetingAudioPath || ''
+            return u ? u.split('/').pop() : ''
+          })()
+          const rows = audios.slice(0, 22).map(au => {
+            const isCurrent = (_curLibId && au.id === _curLibId) || (_curFile && au.filename === _curFile)
+            const kb = au.size ? ` (${(au.size / 1024).toFixed(0)}KB)` : ''
+            const rawName = au.name || 'Untitled'
+            const truncated = rawName.length > 30 ? rawName.slice(0, 27) + '…' : rawName
+            return [`${isCurrent ? '⭐ ' : ''}🎵 ${truncated}${kb}`]
+          })
+          rows.push(['🛠 Manage Library'])
+          rows.push(['↩️ Back'])
+          return send(chatId, `🎵 Pick a saved audio (${audios.length} total)${_curLibId || _curFile ? ' — ⭐ = currently used' : ''}:`, k.of(rows))
+        }
+      }
+      return goto.submenu5()
+    }
     if (message === '📎 Upload Audio') {
       await set(state, chatId, 'action', a.audioLibUpload)
       return send(chatId, ({ en: `🎵 <b>Upload Audio</b>\n\nSend me an audio file (MP3, WAV, OGG) or a voice message.\n\nThis will be saved to your library for use in IVR campaigns.`, fr: `🎵 <b>Télécharger Audio</b>\n\nEnvoyez-moi un fichier audio (MP3, WAV, OGG) ou un message vocal.\n\nIl sera sauvegardé dans votre bibliothèque pour les campagnes IVR.`, zh: `🎵 <b>上传音频</b>\n\n请发送音频文件（MP3、WAV、OGG）或语音消息。\n\n将保存到您的音频库用于 IVR 活动。`, hi: `🎵 <b>ऑडियो अपलोड</b>\n\nमुझे एक ऑडियो फाइल (MP3, WAV, OGG) या वॉइस मैसेज भेजें।\n\nयह IVR अभियानों के लिए आपकी लाइब्रेरी में सहेजा जाएगा।` }[lang] || `🎵 <b>Upload Audio</b>\n\nSend me an audio file (MP3, WAV, OGG) or a voice message.\n\nThis will be saved to your library for use in IVR campaigns.`), k.of([['↩️ Back']]))
@@ -24445,7 +24477,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       const audios = await audioLibraryService.listAudios(chatId)
       const found = audios.find(a => a.name.substring(0, 25) === nameToDelete)
       if (found) {
-        await audioLibraryService.deleteAudio(found.id, chatId)
+        await audioLibraryService.deleteAudio(found.id, chatId, phoneNumbersOf)
         send(chatId, (t.audioDeleted ? t.audioDeleted(found.name) : `✅ Deleted: <b>${found.name}</b>`), { parse_mode: 'HTML' })
       }
       // Refresh list
@@ -28342,6 +28374,38 @@ Professional templates for voicemail, customer support, financial institutions, 
             { upsert: true }
           )
         } catch (e) { log(`[VM] Greeting audio persist to MongoDB failed (non-blocking): ${e.message}`) }
+
+        // ── Auto-save to Audio Library so the greeting can be reused for IVR / other
+        //    numbers (parity with cpIvrGreetingVoice/Upload, fix 2026-08-02 for
+        //    @Padrino_voodoo "Ivr autoattedant needs work" — voicemail greetings
+        //    should be reusable and deletable like IVR ones). Best-effort, non-blocking.
+        try {
+          const stat = require('fs').statSync(draft.audioPath)
+          const filename = require('path').basename(draft.audioPath)
+          const autoName = draft.text
+            ? `📞 VM · ${String(draft.text).slice(0, 40).trim()}`
+            : `📞 VM · ${num.phoneNumber} · ${new Date().toISOString().slice(0, 10)}`
+          // Skip if we've already auto-saved this exact filename before
+          const existing = await audioLibraryService.listAudios(chatId).catch(() => [])
+          const already = existing.find(a => a.filename === filename)
+          if (!already) {
+            await audioLibraryService.saveAudio({
+              chatId,
+              name: autoName.slice(0, 60),
+              filename,
+              originalName: filename,
+              duration: 0,
+              mimeType: 'audio/mpeg',
+              size: stat.size,
+              audioUrl: vm.customAudioGreetingUrl,
+              localPath: draft.audioPath,
+              source: 'voicemail-greeting',
+              text: draft.text || null,
+              voice: draft.voice || null,
+            })
+            log(`[VM] Auto-saved voicemail greeting to library for chatId ${chatId}: ${autoName}`)
+          }
+        } catch (e) { log(`[VM] Auto-save to library failed (non-blocking): ${e.message}`) }
       } else if (draft.text) {
         vm.customGreetingText = draft.text
         vm.customAudioGreetingUrl = null
@@ -28528,14 +28592,34 @@ Professional templates for voicemail, customer support, financial institutions, 
           k.of([[btn.useTemplate], [btn.typeText], [btn.uploadAudio]]))
       }
       await set(state, chatId, 'action', a.cpIvrGreetingLibrary)
-      const rows = audios.slice(0, 24).map(au => [`🎵 ${au.name.length > 38 ? au.name.slice(0, 35) + '…' : au.name}`])
+      // Fix @Padrino_voodoo 2026-08-02 "Ivr autoattedant needs work":
+      // (1) mark the audio that's the CURRENT greeting on this number with a ⭐
+      //     so the user can see at a glance which one is active;
+      // (2) include size in the button so multiple similarly-named auto-saves
+      //     ("📞 IVR · Thanks for calling…") can be told apart;
+      // (3) surface a "🛠 Manage Library" jump so the user can delete/rename
+      //     saved audios without having to hunt for the Bulk IVR menu.
+      const _curLibId = num?.features?.ivr?.greetingFromLibrary
+      const _curFile = (() => {
+        const u = num?.features?.ivr?.greetingAudioUrl || num?.features?.ivr?.greetingAudioPath || ''
+        return u ? u.split('/').pop() : ''
+      })()
+      const _fmtRow = (au) => {
+        const isCurrent = (_curLibId && au.id === _curLibId) || (_curFile && au.filename === _curFile)
+        const kb = au.size ? ` (${(au.size / 1024).toFixed(0)}KB)` : ''
+        const rawName = au.name || 'Untitled'
+        const truncated = rawName.length > 30 ? rawName.slice(0, 27) + '…' : rawName
+        return [`${isCurrent ? '⭐ ' : ''}🎵 ${truncated}${kb}`]
+      }
+      const rows = audios.slice(0, 22).map(_fmtRow)
+      rows.push(['🛠 Manage Library'])
       rows.push(['↩️ Back'])
       return send(chatId,
-        ({en: `🎵 Pick a saved audio (${audios.length} total):`,
-          fr: `🎵 Choisissez un audio enregistré (${audios.length} au total) :`,
-          zh: `🎵 选择一个已保存的音频（共 ${audios.length} 个）：`,
-          hi: `🎵 सेव किया गया ऑडियो चुनें (कुल ${audios.length}):`}[lang] ||
-          `🎵 Pick a saved audio (${audios.length} total):`),
+        ({en: `🎵 Pick a saved audio (${audios.length} total)${_curLibId || _curFile ? ' — ⭐ = currently used' : ''}:`,
+          fr: `🎵 Choisissez un audio enregistré (${audios.length} au total)${_curLibId || _curFile ? ' — ⭐ = actuellement utilisé' : ''} :`,
+          zh: `🎵 选择一个已保存的音频（共 ${audios.length} 个）${_curLibId || _curFile ? ' — ⭐ = 当前使用' : ''}：`,
+          hi: `🎵 सेव किया गया ऑडियो चुनें (कुल ${audios.length})${_curLibId || _curFile ? ' — ⭐ = वर्तमान में उपयोग' : ''}:`}[lang] ||
+          `🎵 Pick a saved audio (${audios.length} total)${_curLibId || _curFile ? ' — ⭐ = currently used' : ''}:`),
         k.of(rows))
     }
     const _libCount = await audioLibraryService.listAudios(chatId).then(a => a.length).catch(() => 0)
@@ -28558,12 +28642,44 @@ Professional templates for voicemail, customer support, financial institutions, 
       _r.push([btn.useTemplate], [btn.typeText], [btn.uploadAudio])
       return send(chatId, trans('t.cp_298'), k.of(_r))
     }
-    // Match the audio by name (button text format: "🎵 <name>" possibly truncated with …)
+    // Match the audio by name (button text format: "🎵 <name> (KB)" or "⭐ 🎵 <name> (KB)", possibly truncated with …)
     const audios = await audioLibraryService.listAudios(chatId)
-    const cleaned = (message || '').replace(/^🎵\s*/, '').replace(/…$/, '')
+    // ── Fix 2026-08-02: 🛠 Manage Library jumps to full audio library management
+    //    (with delete/rename), then returns to IVR greeting picker. Prev users
+    //    had to leave the IVR menu entirely to delete an outdated greeting.
+    if (message === '🛠 Manage Library' || /Manage Library|Manage.*Audio/i.test(message || '')) {
+      await saveInfo('audioLibReturnTo', 'ivrGreeting')
+      await set(state, chatId, 'action', a.audioLibMenu)
+      const libAudios = await audioLibraryService.listAudios(chatId)
+      if (libAudios.length === 0) {
+        return send(chatId, trans('t.cp_13'), k.of([['📎 Upload Audio'], ['↩️ Back']]))
+      }
+      const audioList = libAudios.map((a, i) => `${i + 1}. 🎵 <b>${a.name}</b> (${(a.size / 1024).toFixed(0)} KB)`).join('\n')
+      const btns = [['📎 Upload Audio'], ...libAudios.map(a => [`🗑 Delete: ${a.name.substring(0, 25)}`]), ['↩️ Back']]
+      return send(chatId, trans('t.cp_14', audioList), k.of(btns))
+    }
+    const cleaned = (message || '')
+      .replace(/^⭐\s*/, '')
+      .replace(/^🎵\s*/, '')
+      .replace(/\s*\(\d+KB\)$/i, '')
+      .replace(/…$/, '')
+      .trim()
     const picked = audios.find(au => au.name === cleaned || au.name.startsWith(cleaned))
     if (!picked) {
-      const rows = audios.slice(0, 24).map(au => [`🎵 ${au.name.length > 38 ? au.name.slice(0, 35) + '…' : au.name}`])
+      const _curLibId = num?.features?.ivr?.greetingFromLibrary
+      const _curFile = (() => {
+        const u = num?.features?.ivr?.greetingAudioUrl || num?.features?.ivr?.greetingAudioPath || ''
+        return u ? u.split('/').pop() : ''
+      })()
+      const _fmtRow = (au) => {
+        const isCurrent = (_curLibId && au.id === _curLibId) || (_curFile && au.filename === _curFile)
+        const kb = au.size ? ` (${(au.size / 1024).toFixed(0)}KB)` : ''
+        const rawName = au.name || 'Untitled'
+        const truncated = rawName.length > 30 ? rawName.slice(0, 27) + '…' : rawName
+        return [`${isCurrent ? '⭐ ' : ''}🎵 ${truncated}${kb}`]
+      }
+      const rows = audios.slice(0, 22).map(_fmtRow)
+      rows.push(['🛠 Manage Library'])
       rows.push(['↩️ Back'])
       return send(chatId,
         ({en: '❌ Audio not found — pick from the list:',
@@ -36535,6 +36651,131 @@ app.post('/dev/test-outbound-call-selfheal', async (req, res) => {
   } catch (e) {
     out.error = e.message
     out.pass = false
+  }
+  return res.json(out)
+})
+
+
+// ── DEV-ONLY: IVR audio-library integrity tests (2026-08-02) ─────────────
+// Verifies the fix for @Padrino_voodoo's "Ivr autoattedant needs work"
+// (auto-attendant greetings must be saveable, re-selectable, deletable —
+// with proper cascade cleanup of the ivrAudioStore backup AND the phone's
+// features.ivr.greeting* fields so callers never hit a dangling 404).
+// Body: { targetChatId? } (default synthetic)
+// Cleans up all fixtures at the end.
+app.post('/dev/ivr-audio-library-integrity', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const audioLib = require('./audio-library-service.js')
+  const fs = require('fs')
+  const path = require('path')
+  const crypto = require('crypto')
+  const testChat = String(req.body?.targetChatId || `dev_ivrlib_${Date.now()}`)
+  const testPhone = '+1' + String(Math.floor(1000000000 + Math.random() * 8999999999))
+  const out = { chatId: testChat, phone: testPhone, checks: {} }
+
+  try {
+    // 1. Create a synthetic audio file → save to library
+    const filename = `dev_ivr_test_${crypto.randomBytes(4).toString('hex')}.mp3`
+    const localPath = path.join(__dirname, 'assets', 'user-audio', filename)
+    fs.mkdirSync(path.dirname(localPath), { recursive: true })
+    // 16-byte fake MP3 (ID3 header) — enough to satisfy the file exists check
+    fs.writeFileSync(localPath, Buffer.from([0x49, 0x44, 0x33, 0x03, 0, 0, 0, 0, 0, 0, 0xFF, 0xFB, 0x90, 0, 0, 0]))
+    const audioUrl = `${process.env.SELF_URL || 'https://example.com/api'}/assets/user-audio/${filename}`
+    const saved = await audioLib.saveAudio({
+      chatId: testChat, name: 'DEV IVR Test Audio', filename,
+      originalName: filename, duration: 3, mimeType: 'audio/mpeg', size: 16,
+      audioUrl, localPath, source: 'dev-test',
+    })
+    out.checks.step1_save = { ok: !!saved?.id, id: saved?.id, name: saved?.name }
+
+    // 2. List — must appear
+    const listed = await audioLib.listAudios(testChat)
+    const inList = listed.find(a => a.id === saved.id)
+    out.checks.step2_reselect = { ok: !!inList, count: listed.length, byName: inList?.name }
+
+    // 3. Persist a fake phone with features.ivr pointing to this audio + backup in ivrAudioStore
+    const db = require('mongodb').MongoClient ? null : null // handle already
+    await phoneNumbersOf.updateOne(
+      { _id: testChat },
+      { $set: { val: { numbers: [{
+        phoneNumber: testPhone, provider: 'telnyx', status: 'active', plan: 'business',
+        features: { ivr: { enabled: true, greetingType: 'audio', greetingAudioUrl: audioUrl, greetingAudioPath: localPath, greetingFromLibrary: saved.id, greeting: saved.name, options: {} } },
+      }] } } },
+      { upsert: true }
+    )
+    await ivrAudioStore.updateOne(
+      { filename },
+      { $set: { filename, buffer: fs.readFileSync(localPath).toString('base64'), createdAt: new Date() } },
+      { upsert: true }
+    )
+    await ivrAudioStore.updateOne(
+      { _id: testPhone + ':greeting' },
+      { $set: { filename, buffer: fs.readFileSync(localPath).toString('base64'), audioUrl, updatedAt: new Date() } },
+      { upsert: true }
+    )
+    out.checks.step3_setup = { ok: true }
+
+    // 4. Delete the audio with cascade — expect:
+    //    - file gone from disk
+    //    - ivrAudioFiles row gone
+    //    - ivrAudioStore filename-keyed row gone
+    //    - phone's features.ivr.greetingType reset to 'default' with library id + audio URL cleared
+    const delRes = await audioLib.deleteAudio(saved.id, testChat, phoneNumbersOf)
+    const stillOnDisk = fs.existsSync(localPath)
+    const stillInLibrary = (await audioLib.listAudios(testChat)).find(a => a.id === saved.id)
+    const stillInStore = await ivrAudioStore.findOne({ filename })
+    const phoneDoc = await phoneNumbersOf.findOne({ _id: testChat })
+    const cascadedIvr = phoneDoc?.val?.numbers?.[0]?.features?.ivr
+    out.checks.step4_delete_cascade = {
+      deletedResult: delRes,
+      fileRemovedFromDisk: !stillOnDisk,
+      removedFromLibrary: !stillInLibrary,
+      backupRemoved: !stillInStore,
+      phoneGreetingReset: cascadedIvr?.greetingType === 'default' && !cascadedIvr?.greetingFromLibrary && !cascadedIvr?.greetingAudioUrl,
+      currentIvrState: cascadedIvr,
+    }
+
+    // 5. sanity: re-uploading and re-selecting works (round-trip)
+    const filename2 = `dev_ivr_test_${crypto.randomBytes(4).toString('hex')}.mp3`
+    const localPath2 = path.join(__dirname, 'assets', 'user-audio', filename2)
+    fs.writeFileSync(localPath2, Buffer.from([0x49, 0x44, 0x33, 0x03, 0, 0, 0, 0, 0, 0, 0xFF, 0xFB, 0x90, 0, 0, 0]))
+    const saved2 = await audioLib.saveAudio({
+      chatId: testChat, name: 'DEV IVR Test 2', filename: filename2,
+      originalName: filename2, duration: 3, mimeType: 'audio/mpeg', size: 16,
+      audioUrl: `${process.env.SELF_URL || 'https://example.com/api'}/assets/user-audio/${filename2}`,
+      localPath: localPath2, source: 'dev-test',
+    })
+    const list2 = await audioLib.listAudios(testChat)
+    out.checks.step5_reupload_and_pick = {
+      newId: saved2.id,
+      newFile: filename2,
+      appearsInLibrary: !!list2.find(a => a.id === saved2.id),
+    }
+
+    // ── Cleanup ──
+    await audioLib.deleteAudio(saved2.id, testChat, phoneNumbersOf)
+    await phoneNumbersOf.deleteOne({ _id: testChat })
+    try { await ivrAudioStore.deleteMany({ filename: { $in: [filename, filename2] } }) } catch {}
+    try { await ivrAudioStore.deleteMany({ _id: testPhone + ':greeting' }) } catch {}
+
+    // ── Overall pass ──
+    out.pass =
+      out.checks.step1_save.ok &&
+      out.checks.step2_reselect.ok &&
+      out.checks.step3_setup.ok &&
+      out.checks.step4_delete_cascade.fileRemovedFromDisk &&
+      out.checks.step4_delete_cascade.removedFromLibrary &&
+      out.checks.step4_delete_cascade.backupRemoved &&
+      out.checks.step4_delete_cascade.phoneGreetingReset &&
+      out.checks.step5_reupload_and_pick.appearsInLibrary
+  } catch (e) {
+    out.error = e.message
+    out.stack = e.stack
+    out.pass = false
+    // Best-effort cleanup on error
+    try { await phoneNumbersOf.deleteOne({ _id: testChat }) } catch {}
   }
   return res.json(out)
 })

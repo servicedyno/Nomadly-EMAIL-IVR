@@ -207,12 +207,17 @@ async function getAudio(audioId) {
 }
 
 /**
- * Delete an audio file (both filesystem and MongoDB)
+ * Delete an audio file (both filesystem and MongoDB).
+ * Also cleans up the ivrAudioStore backup and resets any phone-number IVR/voicemail
+ * greetings that still point to this audio (prevents dangling 404 references that
+ * make callers hear "an application error has occurred" — see 2026-08-02 fix,
+ * @Padrino_voodoo IVR auto-attendant needs work).
  * @param {string} audioId
  * @param {number|string} chatId - For ownership verification
- * @returns {boolean}
+ * @param {object} [phoneNumbersOf] - Optional collection handle for cascade cleanup
+ * @returns {boolean|object}
  */
-async function deleteAudio(audioId, chatId) {
+async function deleteAudio(audioId, chatId, phoneNumbersOf) {
   const audio = await _collection.findOne({ id: audioId, chatId: String(chatId) })
   if (!audio) return false
 
@@ -228,9 +233,72 @@ async function deleteAudio(audioId, chatId) {
     log(`[AudioLibrary] File delete error: ${e.message}`)
   }
 
+  // ── Clean up ivrAudioStore backup (Railway redeploy-survival cache) ──
+  // Without this, the deleted audio would come back to life on the next
+  // redeploy via the /assets/user-audio restore middleware.
+  if (_db && audio.filename) {
+    try {
+      await _db.collection('ivrAudioStore').deleteMany({ filename: audio.filename })
+    } catch (e) {
+      log(`[AudioLibrary] ivrAudioStore cleanup for ${audio.filename} failed (non-blocking): ${e.message}`)
+    }
+  }
+
+  // ── Cascade: reset any phone whose IVR greeting / voicemail greeting still
+  //    points to this audio (by library id, filename, or audioUrl). Without
+  //    this reset, callers to that number would hit a 404 for the deleted
+  //    audio and hear "an application error has occurred" from the telephony
+  //    provider (Telnyx <Play> / Twilio <Play>).
+  if (phoneNumbersOf && audio.filename) {
+    try {
+      const cursor = phoneNumbersOf.find({ _id: String(chatId) })
+      const docs = await cursor.toArray()
+      for (const doc of docs) {
+        const nums = doc?.val?.numbers || []
+        let anyChanged = false
+        for (const n of nums) {
+          const ivr = n?.features?.ivr
+          if (ivr && (ivr.greetingFromLibrary === audioId ||
+                     (typeof ivr.greetingAudioPath === 'string' && ivr.greetingAudioPath.includes(audio.filename)) ||
+                     (typeof ivr.greetingAudioUrl === 'string' && ivr.greetingAudioUrl.includes(audio.filename)))) {
+            ivr.greetingType = 'default'
+            ivr.greeting = 'Thank you for calling. Please listen to the following options.'
+            delete ivr.greetingAudioPath
+            delete ivr.greetingAudioUrl
+            delete ivr.greetingFromLibrary
+            delete ivr.greetingVoice
+            anyChanged = true
+            log(`[AudioLibrary] Cascade: reset IVR greeting on ${n.phoneNumber} (was pointing to deleted audio ${audio.filename})`)
+          }
+          const vm = n?.features?.voicemail
+          if (vm && (vm.customGreetingFromLibrary === audioId ||
+                    (typeof vm.customAudioGreetingUrl === 'string' && vm.customAudioGreetingUrl.includes(audio.filename)) ||
+                    (typeof vm.customGreetingUrl === 'string' && vm.customGreetingUrl.includes(audio.filename)))) {
+            vm.greetingType = 'default'
+            delete vm.customAudioGreetingUrl
+            delete vm.customGreetingUrl
+            delete vm.customGreetingText
+            delete vm.customGreetingFromLibrary
+            delete vm.greetingVoice
+            anyChanged = true
+            log(`[AudioLibrary] Cascade: reset Voicemail greeting on ${n.phoneNumber} (was pointing to deleted audio ${audio.filename})`)
+          }
+        }
+        if (anyChanged) {
+          await phoneNumbersOf.updateOne(
+            { _id: doc._id },
+            { $set: { 'val.numbers': nums } }
+          )
+        }
+      }
+    } catch (e) {
+      log(`[AudioLibrary] Cascade phone-greeting cleanup failed (non-blocking): ${e.message}`)
+    }
+  }
+
   await _collection.deleteOne({ id: audioId, chatId: String(chatId) })
-  log(`[AudioLibrary] Deleted: ${audio.name} (id: ${audioId}) for chatId ${chatId}`)
-  return true
+  log(`[AudioLibrary] Deleted: ${audio.name} (id: ${audioId}, file: ${audio.filename}) for chatId ${chatId}`)
+  return { deleted: true, name: audio.name, filename: audio.filename }
 }
 
 /**
