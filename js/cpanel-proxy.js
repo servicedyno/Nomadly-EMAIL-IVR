@@ -302,6 +302,28 @@ function looksLikeUapiPermFailure(msg) {
   return typeof msg === 'string' && UAPI_EPERM_RX.test(msg)
 }
 
+// ─── File-name safety for cPanel Fileman::fileop ────────────────────────
+//
+// cPanel's `Fileman::fileop` takes `sourcefiles`/`destfiles` as a COMMA-separated
+// list (and `compress` joins with a NEWLINE). There is NO escaping mechanism, so a
+// file whose *name* contains one of these delimiters can be UPLOADED but then can
+// NEVER be deleted, renamed, moved or extracted through the panel — cPanel splits
+// the path on the delimiter and operates on a non-existent fragment
+// (`Downloader,withName.zip` → tries `Downloader` → "No such file or directory").
+// Confirmed live on @hellpeaces / prevc2b4 (2026-08-03): every API workaround
+// (api2/UAPI scalar+array, backslash-escape, rename-first) still splits.
+//
+// Fix: sanitize the *basename* at creation time (upload / mkdir / rename target)
+// so a delimiter can never enter a filename in the first place. We replace the
+// unusable characters with '_'. Returns { name, changed, original }.
+const CPANEL_FILEOP_UNSAFE_RX = /[,\r\n\t/\\\x00-\x1f]/g   // fileop list delims + path sep + control
+function sanitizeCpanelFileName(rawName) {
+  const original = String(rawName == null ? '' : rawName)
+  let name = original.replace(CPANEL_FILEOP_UNSAFE_RX, '_').trim()
+  if (!name || name === '.' || name === '..') name = 'file'
+  return { name, changed: name !== original, original }
+}
+
 // ─── Core UAPI call ─────────────────────────────────────
 
 // Idempotent UAPI reads that are safe to auto-retry ONCE on a transient
@@ -1021,6 +1043,7 @@ module.exports = {
   // Diagnostics (surfaced for tests + route-level fallback logic)
   extractCpanelErrorFromResponse,
   looksLikeUapiPermFailure,
+  sanitizeCpanelFileName,
   // EPERM (broken homedir/quota) — UX + ops alerting
   getEpermUserMessage,
   getEpermLocalizedMessages,

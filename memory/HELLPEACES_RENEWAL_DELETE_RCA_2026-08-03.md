@@ -53,4 +53,20 @@ had NO "HostingRenew" row (confirms auto-renew path, not manual).
    reject/auto-rename comma filenames at UPLOAD to prevent recurrence.
 2. OPS: operator with root console removes /home/prevc2b4/public_html/{scren,july}/Downloader,withName.zip
 3. BILLING/UX: autoRenew defaults ON — decide whether to (a) refund @hellpeaces $75, (b) turn his autoRenew
-   off, and/or (c) change the product so auto-renew is opt-IN. (Money/policy = operator's call.)
+   off, and/or (c) change the product so auto-renew is opt-IN.
+
+## ACTIONS TAKEN (operator decisions: 1a refund+autoRenew off; 2 ignore; 3b upload sanitize; + delete account)
+Executed 2026-08-03 via scripts/admin_refund_and_terminate_hellpeaces.js (idempotent):
+1. REFUND: walletOf $inc usdOut -75 → wallet now usdIn=91 / usdOut=0 = **$91.00** (was $16). Audit rows written
+   to walletLedger (type=hosting_renewal_refund +75, refundMarker) and transactions (type=refund $75).
+2. TERMINATE: WHM /removeacct prevc2b4 → result=removed (getAccountInfo now {success:false}). This also
+   deleted the un-deletable comma files (whole account gone). Cloudflare: 3 worker routes + 2 CNAME records
+   cleaned. cpanelAccounts soft-deleted: deleted=true, deletedBy=admin, autoRenew=false, terminatedOnWhm=true,
+   refundedUsd=75.
+3. CODE FIX (b): added cpProxy.sanitizeCpanelFileName() (replaces , \r \n \t / \\ + control → '_'); wired into
+   /files/upload, /files/upload-chunk, /files/mkdir (auto-rename + report savedAs/renamedFrom) and /files/rename
+   (reject with suggestedName). Unit-tested; lint-clean in edited regions; modules load OK. NOTE: did NOT ship
+   the runtime "honest message + ops page for EXISTING comma files" half (option 3a) — user picked 3b only.
+   Backend E2E via testing agent NOT run: would require starting the full Node bot (runs prod schedulers vs
+   live DB = risky) + a live cPanel login (test account prevc2b4 was just terminated).
+

@@ -478,13 +478,20 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
   }, async (req, res) => {
     const dir = req.body.dir || `/home/${req.cpUser}/public_html`
     if (!req.file) return res.status(400).json({ error: 'No file provided' })
-    log(`[Panel] Upload: ${req.file.originalname} (${(req.file.size / 1024).toFixed(1)} KB) → ${dir} (user: ${req.cpUser})`)
+    // Sanitize the filename so a comma/newline/control char (which cPanel's
+    // Fileman::fileop treats as a list delimiter with no escaping) can never
+    // enter the account — otherwise the file uploads fine but can NEVER be
+    // deleted/renamed/extracted afterwards. See @hellpeaces 2026-08-03.
+    const _up = cpProxy.sanitizeCpanelFileName(req.file.originalname)
+    const uploadName = _up.name
+    if (_up.changed) log(`[Panel] Upload filename sanitized: ${JSON.stringify(_up.original)} → ${JSON.stringify(uploadName)} (user: ${req.cpUser})`)
+    log(`[Panel] Upload: ${uploadName} (${(req.file.size / 1024).toFixed(1)} KB) → ${dir} (user: ${req.cpUser})`)
     // Prevent overwriting protected anti-red files via upload
-    if (isProtectedAntiRedFile(dir, req.file.originalname)) {
-      return res.status(403).json({ error: `Cannot upload ${req.file.originalname} — this file is managed by the anti-red protection system.` })
+    if (isProtectedAntiRedFile(dir, uploadName)) {
+      return res.status(403).json({ error: `Cannot upload ${uploadName} — this file is managed by the anti-red protection system.` })
     }
-    const result = await cpProxy.uploadFile(req.cpUser, req.cpPass, dir, req.file.originalname, req.file.buffer, req.whmHost)
-    res.json(result)
+    const result = await cpProxy.uploadFile(req.cpUser, req.cpPass, dir, uploadName, req.file.buffer, req.whmHost)
+    res.json(_up.changed ? { ...result, renamedFrom: _up.original, savedAs: uploadName } : result)
   })
 
   // ── Chunked upload (for files >8 MB that hit Railway's per-request timeout) ──
@@ -603,10 +610,15 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
         // All chunks present — assemble & forward
         const assembled = Buffer.concat(session.chunks)
         chunkSessions.delete(sessionKey)
-        log(`[Panel] Chunk upload complete: ${fileName} (${(assembled.length / (1024 * 1024)).toFixed(1)} MB) → ${dir} (user: ${req.cpUser}, id: ${uploadId})`)
+        // Sanitize the filename (comma/newline/control → '_') so it can be
+        // deleted/renamed later — cPanel fileop has no delimiter escaping.
+        const _cu = cpProxy.sanitizeCpanelFileName(fileName)
+        const saveName = _cu.name
+        if (_cu.changed) log(`[Panel] Chunk upload filename sanitized: ${JSON.stringify(_cu.original)} → ${JSON.stringify(saveName)} (user: ${req.cpUser})`)
+        log(`[Panel] Chunk upload complete: ${saveName} (${(assembled.length / (1024 * 1024)).toFixed(1)} MB) → ${dir} (user: ${req.cpUser}, id: ${uploadId})`)
 
-        const result = await cpProxy.uploadFile(req.cpUser, req.cpPass, dir, fileName, assembled, req.whmHost)
-        return res.json({ ...result, status: 'complete', cpanelStatus: result?.status })
+        const result = await cpProxy.uploadFile(req.cpUser, req.cpPass, dir, saveName, assembled, req.whmHost)
+        return res.json({ ...result, status: 'complete', cpanelStatus: result?.status, ...(_cu.changed ? { renamedFrom: _cu.original, savedAs: saveName } : {}) })
       } catch (e) {
         log(`[Panel] Chunk handler error: ${e.message} (user: ${req.cpUser || 'unknown'})`)
         return res.status(500).json({ error: `Upload failed: ${e.message}` })
@@ -625,12 +637,17 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
   })
 
   router.post('/files/mkdir', ...auth, async (req, res) => {
-    const { dir, name } = req.body
+    let { dir, name } = req.body
     if (!dir || !name) return res.status(400).json({ error: 'dir and name are required' })
+    // Sanitize folder name — a comma/newline in a directory name makes the
+    // folder (and everything under it) impossible to delete/rename via fileop.
+    const _mk = cpProxy.sanitizeCpanelFileName(name)
+    if (_mk.changed) log(`[Panel] mkdir name sanitized: ${JSON.stringify(_mk.original)} → ${JSON.stringify(_mk.name)} (user: ${req.cpUser})`)
+    name = _mk.name
 
     // Attempt 1: user-level cPanel API2 (Fileman::mkdir).
     const result = await cpProxy.createDirectory(req.cpUser, req.cpPass, dir, name, req.whmHost)
-    if (result?.status === 1) return res.json(result)
+    if (result?.status === 1) return res.json(_mk.changed ? { ...result, renamedFrom: _mk.original, savedAs: name } : result)
 
     // Attempt 2: WHM-root fallback for uapi EPERM / status-1 failures.
     // Motivated by @hellpeaces (5522767823) 2026-07-06 — broken shell/homedir
@@ -841,6 +858,12 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     }
     if (isProtectedAntiRedFile(dir, newName)) {
       return res.status(403).json({ error: `Cannot overwrite ${newName} — this file is managed by the anti-red protection system.` })
+    }
+    // Reject a new name containing cPanel fileop delimiters (comma/newline/etc.):
+    // it would create a file that can never be deleted/renamed/extracted again.
+    const _rn = cpProxy.sanitizeCpanelFileName(newName)
+    if (_rn.changed) {
+      return res.status(400).json({ error: `The name "${newName}" contains characters that aren't allowed (commas, slashes or line breaks). Try "${_rn.name}" instead.`, suggestedName: _rn.name })
     }
     const result = await cpProxy.renameFile(req.cpUser, req.cpPass, dir, oldName, newName, req.whmHost)
     res.json(result)
