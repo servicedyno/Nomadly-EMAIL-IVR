@@ -711,6 +711,7 @@ const smsAppService = require('./sms-app-service.js')
 // option is action:'submenu' (nesting is opt-in — see PRD 2026-08-03).
 function _ivrRootMenuRows(ivrConf, pc) {
   const rows = [
+    [pc.ivrUseTemplate],
     [pc.ivrGreeting],
     [pc.ivrAddOption],
     [pc.ivrRemoveOption],
@@ -720,6 +721,8 @@ function _ivrRootMenuRows(ivrConf, pc) {
   const _hasSubMenu = Object.values(_opts).some(o => o?.action === 'submenu')
   if (_hasSubMenu && pc.ivrEditSubMenu) rows.push([pc.ivrEditSubMenu])
   rows.push([pc.ivrAnalytics])
+  // Only offer "Save as Template" once at least one menu option exists.
+  if (Object.keys(_opts).length > 0 && pc.ivrSaveTemplate) rows.push([pc.ivrSaveTemplate])
   rows.push([pc.disableIvr])
   return rows
 }
@@ -8565,6 +8568,11 @@ bot?.on('message', msg => {
     cpIvrSubMenuRemoveOption: 'cpIvrSubMenuRemoveOption',
     cpIvrPickSubMenu: 'cpIvrPickSubMenu',
     cpIvrRemoveOption: 'cpIvrRemoveOption',
+    cpIvrTplCat: 'cpIvrTplCat',
+    cpIvrTplPick: 'cpIvrTplPick',
+    cpIvrTplApply: 'cpIvrTplApply',
+    cpIvrTplFillDest: 'cpIvrTplFillDest',
+    cpIvrSaveTplName: 'cpIvrSaveTplName',
     cpCallRecording: 'cpCallRecording',
     cpFaxSettings: 'cpFaxSettings',
     cpSmsInbox: 'cpSmsInbox',
@@ -27309,7 +27317,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       const ivrConf = num.features?.ivr || {}
       const btns = ivrConf.enabled
         ? [..._ivrRootMenuRows(num.features?.ivr, pc)]
-        : [[pc.enableIvr]]
+        : [[pc.enableIvr], [pc.ivrUseTemplate]]
       const preview = phoneConfig.formatCallFlowPreview(num, info?.userLanguage || 'en')
       return send(chatId, `${preview}\n\n${cpTxt.ivrMenu(num.phoneNumber, ivrConf)}`, k.of(btns))
     }
@@ -28672,6 +28680,30 @@ Professional templates for voicemail, customer support, financial institutions, 
       await set(state, chatId, 'action', a.cpManageNumber)
       return showManageScreen(chatId, num)
     }
+    if (message === pc.ivrUseTemplate) {
+      const ivrTpl = require('./ivr-templates.js')
+      await set(state, chatId, 'action', a.cpIvrTplCat)
+      await saveInfo('cpIvrTplDraft', {})
+      const catBtns = ivrTpl.getCategoryButtons(lang).map(b => [b])
+      const saved = Array.isArray(info?.savedIvrTemplates) ? info.savedIvrTemplates : []
+      const MY_TPL = ({ en: '⭐ My Saved Templates', fr: '⭐ Mes Modèles', zh: '⭐ 我的模板', hi: '⭐ मेरे टेम्पलेट' }[lang] || '⭐ My Saved Templates')
+      if (saved.length) catBtns.unshift([MY_TPL])
+      catBtns.push(['↩️ Back'])
+      return send(chatId, ({
+        en: `📋 <b>Start from a Template</b>\n\nPick a ready-made auto-attendant. It sets up the greeting + menu keys instantly — you just add the forward numbers after.\n\nChoose a category:`,
+        fr: `📋 <b>Partir d'un Modèle</b>\n\nChoisissez un standard automatique prêt à l'emploi. Il configure le message + les touches — vous ajoutez ensuite les numéros de transfert.\n\nChoisissez une catégorie :`,
+        zh: `📋 <b>从模板开始</b>\n\n选择现成的自动应答菜单，立即设置问候语和菜单按键，之后只需填写转接号码。\n\n选择分类：`,
+        hi: `📋 <b>टेम्पलेट से शुरू करें</b>\n\nतैयार ऑटो-अटेंडेंट चुनें। यह ग्रीटिंग + मेनू कुंजियाँ तुरंत सेट कर देता है — बाद में सिर्फ फ़ॉरवर्ड नंबर डालें।\n\nश्रेणी चुनें:`,
+      }[lang] || `📋 <b>Start from a Template</b>\n\nPick a ready-made auto-attendant. It sets up the greeting + menu keys instantly — you just add the forward numbers after.\n\nChoose a category:`), { parse_mode: 'HTML', reply_markup: { keyboard: catBtns, resize_keyboard: true } })
+    }
+    if (message === pc.ivrSaveTemplate) {
+      const ivrConf = num.features?.ivr || {}
+      if (!ivrConf.options || Object.keys(ivrConf.options).length === 0) {
+        return send(chatId, ({ en: `⚠️ Nothing to save yet — add at least one menu option first.`, fr: `⚠️ Rien à enregistrer — ajoutez d'abord au moins une option.`, zh: `⚠️ 暂无可保存内容 — 请先添加至少一个菜单选项。`, hi: `⚠️ अभी सेव करने के लिए कुछ नहीं — पहले कम से कम एक मेनू विकल्प जोड़ें।` }[lang] || `⚠️ Nothing to save yet — add at least one menu option first.`), k.of([..._ivrRootMenuRows(num.features?.ivr, pc)]))
+      }
+      await set(state, chatId, 'action', a.cpIvrSaveTplName)
+      return send(chatId, ({ en: `💾 <b>Save as Template</b>\n\nSend a short name for this menu (e.g. "Sales Line") so you can re-apply it to your other numbers:`, fr: `💾 <b>Enregistrer comme Modèle</b>\n\nEnvoyez un nom court (ex : "Ligne Ventes") pour le réutiliser sur vos autres numéros :`, zh: `💾 <b>保存为模板</b>\n\n发送一个简短名称（如 "销售线"），以便应用到您的其他号码：`, hi: `💾 <b>टेम्पलेट के रूप में सेव</b>\n\nएक छोटा नाम भेजें (जैसे "Sales Line") ताकि इसे अपने अन्य नंबरों पर लागू कर सकें:` }[lang] || `💾 <b>Save as Template</b>\n\nSend a short name for this menu (e.g. "Sales Line") so you can re-apply it to your other numbers:`), k.of([['↩️ Back']]))
+    }
     if (message === pc.ivrGreeting) {
       await set(state, chatId, 'action', a.cpIvrGreeting)
       return send(chatId, trans('t.cp_293'), k.of([[btn.useTemplate], [btn.typeText], [btn.uploadAudio]]))
@@ -29324,6 +29356,191 @@ Professional templates for voicemail, customer support, financial institutions, 
   // (IVR Add Option — step-by-step wizard: cpIvrOptionKey → cpIvrOptionAction → cpIvrOptionMsg → cpIvrOptionVoice → cpIvrOptionPreview)
 
   // ── IVR Option: Step 1 — Select key number (0-9) ──
+  // ══════════════ Inbound Auto-Attendant Templates ══════════════
+  // Category picker → template picker → preview/confirm → apply → fill forward numbers.
+  if (action === a.cpIvrTplCat) {
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
+    const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
+    if (!num) return goto.submenu5()
+    const ivrTpl = require('./ivr-templates.js')
+    const MY_TPL = ({ en: '⭐ My Saved Templates', fr: '⭐ Mes Modèles', zh: '⭐ 我的模板', hi: '⭐ मेरे टेम्पलेट' }[lang] || '⭐ My Saved Templates')
+    const backToIvr = async () => {
+      await set(state, chatId, 'action', a.cpIvr)
+      const enabled = num.features?.ivr?.enabled
+      return send(chatId, cpTxt.ivrMenu(num.phoneNumber, num.features?.ivr || {}), k.of(enabled ? [..._ivrRootMenuRows(num.features?.ivr, pc)] : [[pc.enableIvr], [pc.ivrUseTemplate]]))
+    }
+    if (isBackPress(message) || message === pc.back || isCancelPress(message)) return backToIvr()
+    const saved = Array.isArray(info?.savedIvrTemplates) ? info.savedIvrTemplates : []
+    if (message === MY_TPL) {
+      if (!saved.length) return send(chatId, ({ en: `You have no saved templates yet.`, fr: `Vous n'avez pas encore de modèles.`, zh: `您还没有保存的模板。`, hi: `आपके पास अभी कोई सेव किया टेम्पलेट नहीं है।` }[lang] || `You have no saved templates yet.`), k.of([['↩️ Back']]))
+      await saveInfo('cpIvrTplDraft', { category: '__user__' })
+      await set(state, chatId, 'action', a.cpIvrTplPick)
+      const rows = saved.map(t => [`⭐ ${t.name}`]); rows.push(['↩️ Back'])
+      return send(chatId, ({ en: `⭐ <b>Your Saved Templates</b>\n\nPick one to apply to this number:`, fr: `⭐ <b>Vos Modèles</b>\n\nChoisissez-en un à appliquer :`, zh: `⭐ <b>您的模板</b>\n\n选择一个应用到此号码：`, hi: `⭐ <b>आपके टेम्पलेट</b>\n\nइस नंबर पर लागू करने के लिए एक चुनें:` }[lang] || `⭐ <b>Your Saved Templates</b>\n\nPick one to apply to this number:`), { parse_mode: 'HTML', reply_markup: { keyboard: rows, resize_keyboard: true } })
+    }
+    const catKey = ivrTpl.getCategoryByButton(message)
+    if (!catKey) return send(chatId, ({ en: `Please pick a category from the buttons below.`, fr: `Choisissez une catégorie ci-dessous.`, zh: `请从下方按钮选择分类。`, hi: `कृपया नीचे दिए बटनों से श्रेणी चुनें।` }[lang] || `Please pick a category from the buttons below.`), k.of([]))
+    await saveInfo('cpIvrTplDraft', { category: catKey })
+    await set(state, chatId, 'action', a.cpIvrTplPick)
+    const tplBtns = ivrTpl.getTemplateButtons(catKey).map(b => [b]); tplBtns.push(['↩️ Back'])
+    return send(chatId, ({ en: `📋 <b>Choose a template</b>\n\nEach one sets a greeting and menu keys. You'll add the forward numbers next.`, fr: `📋 <b>Choisissez un modèle</b>\n\nChacun définit un message et des touches. Vous ajouterez ensuite les numéros.`, zh: `📋 <b>选择模板</b>\n\n每个模板都会设置问候语和菜单按键，下一步填写转接号码。`, hi: `📋 <b>टेम्पलेट चुनें</b>\n\nहर एक ग्रीटिंग और मेनू कुंजियाँ सेट करता है। आगे फ़ॉरवर्ड नंबर डालेंगे।` }[lang] || `📋 <b>Choose a template</b>\n\nEach one sets a greeting and menu keys. You'll add the forward numbers next.`), { parse_mode: 'HTML', reply_markup: { keyboard: tplBtns, resize_keyboard: true } })
+  }
+
+  if (action === a.cpIvrTplPick) {
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
+    const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
+    if (!num) return goto.submenu5()
+    const ivrTpl = require('./ivr-templates.js')
+    const draft = info?.cpIvrTplDraft || {}
+    if (isBackPress(message) || message === pc.back || isCancelPress(message)) {
+      await set(state, chatId, 'action', a.cpIvrTplCat)
+      const catBtns = ivrTpl.getCategoryButtons(lang).map(b => [b])
+      const saved = Array.isArray(info?.savedIvrTemplates) ? info.savedIvrTemplates : []
+      const MY_TPL = ({ en: '⭐ My Saved Templates', fr: '⭐ Mes Modèles', zh: '⭐ 我的模板', hi: '⭐ मेरे टेम्पलेट' }[lang] || '⭐ My Saved Templates')
+      if (saved.length) catBtns.unshift([MY_TPL])
+      catBtns.push(['↩️ Back'])
+      return send(chatId, ({ en: `📋 Choose a category:`, fr: `📋 Choisissez une catégorie :`, zh: `📋 选择分类：`, hi: `📋 श्रेणी चुनें:` }[lang] || `📋 Choose a category:`), { reply_markup: { keyboard: catBtns, resize_keyboard: true } })
+    }
+    let newIvr = null, tplName = ''
+    if (draft.category === '__user__') {
+      const saved = Array.isArray(info?.savedIvrTemplates) ? info.savedIvrTemplates : []
+      const ut = saved.find(t => `⭐ ${t.name}` === message)
+      if (!ut) return send(chatId, ({ en: `Please pick a template from the buttons.`, fr: `Choisissez un modèle ci-dessous.`, zh: `请从按钮选择模板。`, hi: `कृपया बटनों से टेम्पलेट चुनें।` }[lang] || `Please pick a template from the buttons.`), k.of([]))
+      newIvr = ivrTpl.buildInboundIvrFromUserTemplate(ut); tplName = ut.name
+    } else {
+      const tpl = ivrTpl.getTemplateByButton(draft.category, message)
+      if (!tpl) return send(chatId, ({ en: `Please pick a template from the buttons.`, fr: `Choisissez un modèle ci-dessous.`, zh: `请从按钮选择模板。`, hi: `कृपया बटनों से टेम्पलेट चुनें।` }[lang] || `Please pick a template from the buttons.`), k.of([]))
+      newIvr = ivrTpl.buildInboundIvrFromTemplate(tpl); tplName = tpl.name
+    }
+    await saveInfo('cpIvrTplPending', newIvr)
+    await set(state, chatId, 'action', a.cpIvrTplApply)
+    const keys = Object.keys(newIvr.options || {}).join(', ') || '—'
+    const existingCount = Object.keys(num.features?.ivr?.options || {}).length
+    const applyBtn = existingCount > 0
+      ? ({ en: '✅ Replace & Apply', fr: '✅ Remplacer et Appliquer', zh: '✅ 替换并应用', hi: '✅ बदलें और लागू करें' }[lang] || '✅ Replace & Apply')
+      : ({ en: '✅ Apply Template', fr: '✅ Appliquer le Modèle', zh: '✅ 应用模板', hi: '✅ टेम्पलेट लागू करें' }[lang] || '✅ Apply Template')
+    let txt = ({ en: `📋 <b>${tplName}</b>\n\n🎙 <b>Greeting</b>\n<i>${newIvr.greeting}</i>\n\n🔢 <b>Menu keys:</b> ${keys}\n(each forwards a call — set the numbers next)`, fr: `📋 <b>${tplName}</b>\n\n🎙 <b>Message</b>\n<i>${newIvr.greeting}</i>\n\n🔢 <b>Touches :</b> ${keys}\n(chacune transfère un appel — numéros ensuite)`, zh: `📋 <b>${tplName}</b>\n\n🎙 <b>问候语</b>\n<i>${newIvr.greeting}</i>\n\n🔢 <b>菜单按键：</b> ${keys}\n（每个转接来电 — 下一步设置号码）`, hi: `📋 <b>${tplName}</b>\n\n🎙 <b>ग्रीटिंग</b>\n<i>${newIvr.greeting}</i>\n\n🔢 <b>मेनू कुंजियाँ:</b> ${keys}\n(हर एक कॉल फ़ॉरवर्ड करती है — आगे नंबर सेट करें)` }[lang] || `📋 <b>${tplName}</b>\n\n🎙 <b>Greeting</b>\n<i>${newIvr.greeting}</i>\n\n🔢 <b>Menu keys:</b> ${keys}\n(each forwards a call — set the numbers next)`)
+    if (ivrTpl.greetingHasPlaceholders(newIvr.greeting)) txt += ({ en: `\n\n✏️ This greeting has [placeholders] — edit the greeting afterward to fill them in.`, fr: `\n\n✏️ Ce message contient des [espaces] — modifiez-le ensuite.`, zh: `\n\n✏️ 此问候语含 [占位符] — 之后请编辑填写。`, hi: `\n\n✏️ इस ग्रीटिंग में [प्लेसहोल्डर] हैं — बाद में ग्रीटिंग संपादित करें।` }[lang] || `\n\n✏️ This greeting has [placeholders] — edit the greeting afterward to fill them in.`)
+    if (existingCount > 0) txt += ({ en: `\n\n⚠️ This will <b>replace</b> your current ${existingCount} option(s).`, fr: `\n\n⚠️ Cela <b>remplacera</b> vos ${existingCount} option(s) actuelles.`, zh: `\n\n⚠️ 这将<b>替换</b>您当前的 ${existingCount} 个选项。`, hi: `\n\n⚠️ यह आपके मौजूदा ${existingCount} विकल्प <b>बदल</b> देगा।` }[lang] || `\n\n⚠️ This will <b>replace</b> your current ${existingCount} option(s).`)
+    return send(chatId, txt, { parse_mode: 'HTML', reply_markup: { keyboard: [[applyBtn], ['↩️ Back']], resize_keyboard: true } })
+  }
+
+  if (action === a.cpIvrTplApply) {
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
+    const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
+    if (!num) return goto.submenu5()
+    const ivrTpl = require('./ivr-templates.js')
+    if (isBackPress(message) || message === pc.back || isCancelPress(message)) {
+      await set(state, chatId, 'action', a.cpIvrTplCat)
+      const catBtns = ivrTpl.getCategoryButtons(lang).map(b => [b])
+      const saved = Array.isArray(info?.savedIvrTemplates) ? info.savedIvrTemplates : []
+      const MY_TPL = ({ en: '⭐ My Saved Templates', fr: '⭐ Mes Modèles', zh: '⭐ 我的模板', hi: '⭐ मेरे टेम्पलेट' }[lang] || '⭐ My Saved Templates')
+      if (saved.length) catBtns.unshift([MY_TPL])
+      catBtns.push(['↩️ Back'])
+      return send(chatId, ({ en: `📋 Choose a category:`, fr: `📋 Choisissez une catégorie :`, zh: `📋 选择分类：`, hi: `📋 श्रेणी चुनें:` }[lang] || `📋 Choose a category:`), { reply_markup: { keyboard: catBtns, resize_keyboard: true } })
+    }
+    if (!/^✅/.test(String(message || ''))) {
+      return send(chatId, ({ en: `Tap ✅ to apply, or ↩️ Back.`, fr: `Appuyez sur ✅ pour appliquer, ou ↩️ Retour.`, zh: `点击 ✅ 应用，或 ↩️ 返回。`, hi: `लागू करने के लिए ✅ दबाएँ, या ↩️ वापस।` }[lang] || `Tap ✅ to apply, or ↩️ Back.`), k.of([]))
+    }
+    const pending = info?.cpIvrTplPending
+    if (!pending) {
+      await set(state, chatId, 'action', a.cpIvr)
+      return send(chatId, ({ en: `⚠️ Template expired — please pick it again.`, fr: `⚠️ Modèle expiré — reprenez.`, zh: `⚠️ 模板已过期，请重新选择。`, hi: `⚠️ टेम्पलेट समाप्त — फिर चुनें।` }[lang] || `⚠️ Template expired — please pick it again.`), k.of(num.features?.ivr?.enabled ? [..._ivrRootMenuRows(num.features?.ivr, pc)] : [[pc.enableIvr], [pc.ivrUseTemplate]]))
+    }
+    await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'ivr', pending)
+    num.features.ivr = pending
+    await saveInfo('cpActiveNumber', num)
+    await saveInfo('cpIvrTplPending', null)
+    maybeWarnPreemptedByAlwaysForward(chatId, num, 'ivr', info?.userLanguage || 'en')
+    const pend = ivrTpl.pendingForwardKeys(pending)
+    if (pend.length) {
+      await saveInfo('cpIvrTplFill', { keys: pend, idx: 0 })
+      await set(state, chatId, 'action', a.cpIvrTplFillDest)
+      const SKIP = ({ en: '⏭ Skip this key', fr: '⏭ Passer', zh: '⏭ 跳过', hi: '⏭ छोड़ें' }[lang] || '⏭ Skip this key')
+      const FINISH = ({ en: '✅ Finish setup', fr: '✅ Terminer', zh: '✅ 完成设置', hi: '✅ सेटअप पूरा' }[lang] || '✅ Finish setup')
+      const k0 = pend[0]
+      return send(chatId, ({ en: `✅ Template applied!\n\nNow set the forward number for each key.\n\n📞 <b>Key ${k0}</b> — enter the phone number to forward to (e.g. +15551234567), or tap Skip:`, fr: `✅ Modèle appliqué !\n\nDéfinissez le numéro pour chaque touche.\n\n📞 <b>Touche ${k0}</b> — entrez le numéro (ex : +15551234567), ou Passer :`, zh: `✅ 模板已应用！\n\n为每个按键设置转接号码。\n\n📞 <b>按键 ${k0}</b> — 输入转接号码（如 +15551234567），或点击跳过：`, hi: `✅ टेम्पलेट लागू!\n\nहर कुंजी के लिए फ़ॉरवर्ड नंबर सेट करें।\n\n📞 <b>कुंजी ${k0}</b> — नंबर डालें (जैसे +15551234567), या Skip:` }[lang] || `✅ Template applied!\n\nNow set the forward number for each key.\n\n📞 <b>Key ${k0}</b> — enter the phone number to forward to (e.g. +15551234567), or tap Skip:`), { parse_mode: 'HTML', reply_markup: { keyboard: [[SKIP], [FINISH]], resize_keyboard: true } })
+    }
+    await set(state, chatId, 'action', a.cpIvr)
+    send(chatId, ({ en: `✅ Template applied!`, fr: `✅ Modèle appliqué !`, zh: `✅ 模板已应用！`, hi: `✅ टेम्पलेट लागू!` }[lang] || `✅ Template applied!`))
+    return send(chatId, cpTxt.ivrMenu(num.phoneNumber, pending), k.of([..._ivrRootMenuRows(num.features?.ivr, pc)]))
+  }
+
+  if (action === a.cpIvrTplFillDest) {
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
+    const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
+    if (!num) return goto.submenu5()
+    const fill = info?.cpIvrTplFill || { keys: [], idx: 0 }
+    const SKIP = ({ en: '⏭ Skip this key', fr: '⏭ Passer', zh: '⏭ 跳过', hi: '⏭ छोड़ें' }[lang] || '⏭ Skip this key')
+    const FINISH = ({ en: '✅ Finish setup', fr: '✅ Terminer', zh: '✅ 完成设置', hi: '✅ सेटअप पूरा' }[lang] || '✅ Finish setup')
+    const backToMenu = async () => {
+      await set(state, chatId, 'action', a.cpIvr)
+      await saveInfo('cpIvrTplFill', null)
+      return send(chatId, cpTxt.ivrMenu(num.phoneNumber, num.features?.ivr || {}), k.of([..._ivrRootMenuRows(num.features?.ivr, pc)]))
+    }
+    const askNext = async (nextIdx) => {
+      if (nextIdx >= fill.keys.length) {
+        send(chatId, ({ en: `🎉 All set! Your auto-attendant is live.`, fr: `🎉 Terminé ! Votre standard est actif.`, zh: `🎉 全部完成！您的自动应答已上线。`, hi: `🎉 सब तैयार! आपका ऑटो-अटेंडेंट लाइव है।` }[lang] || `🎉 All set! Your auto-attendant is live.`))
+        return backToMenu()
+      }
+      await saveInfo('cpIvrTplFill', { keys: fill.keys, idx: nextIdx })
+      const nk = fill.keys[nextIdx]
+      return send(chatId, ({ en: `📞 <b>Key ${nk}</b> — enter the forward number, or tap Skip:`, fr: `📞 <b>Touche ${nk}</b> — entrez le numéro, ou Passer :`, zh: `📞 <b>按键 ${nk}</b> — 输入转接号码，或跳过：`, hi: `📞 <b>कुंजी ${nk}</b> — फ़ॉरवर्ड नंबर डालें, या Skip:` }[lang] || `📞 <b>Key ${nk}</b> — enter the forward number, or tap Skip:`), { parse_mode: 'HTML', reply_markup: { keyboard: [[SKIP], [FINISH]], resize_keyboard: true } })
+    }
+    if (message === FINISH || isBackPress(message) || message === pc.back) return backToMenu()
+    const curKey = fill.keys[fill.idx]
+    if (curKey == null) return backToMenu()
+    if (message === SKIP) return askNext(fill.idx + 1)
+    let phone = String(message || '').replace(/[^+\d]/g, '')
+    if (/^\d{10}$/.test(phone)) phone = '+1' + phone
+    else if (/^1\d{10}$/.test(phone)) phone = '+' + phone
+    else if (/^\d{11,15}$/.test(phone)) phone = '+' + phone
+    if (phone.length < 8 || phone.length > 16 || !phone.startsWith('+')) {
+      return send(chatId, ({ en: `❌ Invalid number. Enter e.g. +15551234567, or tap Skip:`, fr: `❌ Numéro invalide. Ex : +15551234567, ou Passer :`, zh: `❌ 号码无效。如 +15551234567，或跳过：`, hi: `❌ अमान्य नंबर। जैसे +15551234567, या Skip:` }[lang] || `❌ Invalid number. Enter e.g. +15551234567, or tap Skip:`), { reply_markup: { keyboard: [[SKIP], [FINISH]], resize_keyboard: true } })
+    }
+    const ownNumber = (num.phoneNumber || '').replace(/[^+\d]/g, '')
+    if (phone === ownNumber) {
+      return send(chatId, ({ en: `❌ Can't forward to this same IVR number (loop). Enter a different number:`, fr: `❌ Impossible de transférer vers le même numéro IVR. Entrez un autre numéro :`, zh: `❌ 不能转接到同一 IVR 号码（循环）。请输入其他号码：`, hi: `❌ इसी IVR नंबर पर फ़ॉरवर्ड नहीं (लूप)। दूसरा नंबर डालें:` }[lang] || `❌ Can't forward to this same IVR number (loop). Enter a different number:`), { reply_markup: { keyboard: [[SKIP], [FINISH]], resize_keyboard: true } })
+    }
+    const ivrConf = num.features?.ivr || { enabled: true, options: {} }
+    if (!ivrConf.options) ivrConf.options = {}
+    ivrConf.options[curKey] = Object.assign({}, ivrConf.options[curKey], { action: 'forward', forwardTo: phone })
+    await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'ivr', ivrConf)
+    num.features.ivr = ivrConf
+    await saveInfo('cpActiveNumber', num)
+    send(chatId, ({ en: `✅ Key ${curKey} → ${phone}`, fr: `✅ Touche ${curKey} → ${phone}`, zh: `✅ 按键 ${curKey} → ${phone}`, hi: `✅ कुंजी ${curKey} → ${phone}` }[lang] || `✅ Key ${curKey} → ${phone}`))
+    return askNext(fill.idx + 1)
+  }
+
+  if (action === a.cpIvrSaveTplName) {
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
+    const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
+    if (!num) return goto.submenu5()
+    if (isBackPress(message) || message === pc.back || isCancelPress(message)) {
+      await set(state, chatId, 'action', a.cpIvr)
+      return send(chatId, cpTxt.ivrMenu(num.phoneNumber, num.features?.ivr || {}), k.of([..._ivrRootMenuRows(num.features?.ivr, pc)]))
+    }
+    const name = String(message || '').trim().slice(0, 40)
+    if (!name) return send(chatId, ({ en: `Send a short name (e.g. "Sales Line"):`, fr: `Envoyez un nom court (ex : "Ligne Ventes") :`, zh: `发送简短名称（如 "销售线"）：`, hi: `छोटा नाम भेजें (जैसे "Sales Line"):` }[lang] || `Send a short name (e.g. "Sales Line"):`), k.of([['↩️ Back']]))
+    const ivrTpl = require('./ivr-templates.js')
+    const ivrConf = num.features?.ivr || {}
+    if (!ivrConf.options || !Object.keys(ivrConf.options).length) {
+      await set(state, chatId, 'action', a.cpIvr)
+      return send(chatId, ({ en: `⚠️ Nothing to save — add a menu option first.`, fr: `⚠️ Rien à enregistrer — ajoutez une option d'abord.`, zh: `⚠️ 无可保存 — 请先添加菜单选项。`, hi: `⚠️ सेव करने के लिए कुछ नहीं — पहले विकल्प जोड़ें।` }[lang] || `⚠️ Nothing to save — add a menu option first.`), k.of([..._ivrRootMenuRows(num.features?.ivr, pc)]))
+    }
+    const saved = Array.isArray(info?.savedIvrTemplates) ? info.savedIvrTemplates.slice() : []
+    saved.unshift(ivrTpl.makeUserTemplate(name, ivrConf))
+    if (saved.length > 20) saved.length = 20
+    await saveInfo('savedIvrTemplates', saved)
+    await set(state, chatId, 'action', a.cpIvr)
+    return send(chatId, ({ en: `💾 Saved as "<b>${name}</b>"!\n\nApply it to any number via 📋 Start from Template → ⭐ My Saved Templates.`, fr: `💾 Enregistré : "<b>${name}</b>" !\n\nAppliquez-le via 📋 Partir d'un Modèle → ⭐ Mes Modèles.`, zh: `💾 已保存为 "<b>${name}</b>"！\n\n通过 📋 从模板开始 → ⭐ 我的模板 应用。`, hi: `💾 "<b>${name}</b>" के रूप में सेव!\n\n📋 टेम्पलेट से शुरू करें → ⭐ मेरे टेम्पलेट से लागू करें।` }[lang] || `💾 Saved as "<b>${name}</b>"!\n\nApply it to any number via 📋 Start from Template → ⭐ My Saved Templates.`), k.of([..._ivrRootMenuRows(num.features?.ivr, pc)]))
+  }
+
   if (action === a.cpIvrOptionKey) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
