@@ -8573,6 +8573,8 @@ bot?.on('message', msg => {
     cpIvrTplApply: 'cpIvrTplApply',
     cpIvrTplFillDest: 'cpIvrTplFillDest',
     cpIvrSaveTplName: 'cpIvrSaveTplName',
+    cpIvrDisableConfirm: 'cpIvrDisableConfirm',
+    cpIvrRemoveConfirm: 'cpIvrRemoveConfirm',
     cpCallRecording: 'cpCallRecording',
     cpFaxSettings: 'cpFaxSettings',
     cpSmsInbox: 'cpSmsInbox',
@@ -25591,7 +25593,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       })
     }
 
-    if (!results.length) return send(chatId, cpTxt.noSearchResults, k.of([]))
+    if (!results.length) return send(chatId, cpTxt.noSearchResults, k.of([[pc.back]]))
     await saveInfo('cpSearchResults', results)
     const location = info?.cpCountryName || cc
     // Build tagged number display
@@ -25642,7 +25644,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       results.forEach(r => { r._provider = provider; r._bulkIvrCapable = (provider === 'twilio') })
     }
 
-    if (!results.length) return send(chatId, cpTxt.noSearchResults, k.of([]))
+    if (!results.length) return send(chatId, cpTxt.noSearchResults, k.of([[pc.back]]))
     await saveInfo('cpSearchResults', results)
     const numberLines = results.map((r, i) => {
       const tag = r._bulkIvrCapable ? ' ☎️ Bulk IVR' : ''
@@ -25691,7 +25693,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       results.forEach(r => { r._provider = provider; r._bulkIvrCapable = (provider === 'twilio') })
     }
 
-    if (!results.length) return send(chatId, cpTxt.noSearchResults + '\nTry a different area code.', k.of([]))
+    if (!results.length) return send(chatId, cpTxt.noSearchResults + '\nTry a different area code.', k.of([[pc.back]]))
     await saveInfo('cpSearchResults', results)
     const numberLines = results.map((r, i) => {
       const tag = r._bulkIvrCapable ? ' ☎️ Bulk IVR' : ''
@@ -25740,7 +25742,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
         results.forEach(r => { r._provider = provider; r._bulkIvrCapable = (provider === 'twilio') })
       }
 
-      if (!results.length) return send(chatId, cpTxt.noSearchResults, k.of([]))
+      if (!results.length) return send(chatId, cpTxt.noSearchResults, k.of([[pc.back]]))
       await saveInfo('cpSearchResults', results)
       const location = info?.cpAreaName || info?.cpCountryName || 'US'
       const numberLines = results.map((r, i) => {
@@ -27565,7 +27567,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
         : await telnyxApi.searchNumbers(cc, numberType, null, 5)
       results.forEach(r => { r._provider = provider; r._bulkIvrCapable = (provider === 'twilio') })
     }
-    if (!results.length) return send(chatId, cpTxt.noSearchResults, k.of([]))
+    if (!results.length) return send(chatId, cpTxt.noSearchResults, k.of([[pc.back]]))
     await saveInfo('cpSearchResults', results)
     const numberLines = results.map((r, i) => {
       const tag = r._bulkIvrCapable ? ' ☎️ Bulk IVR' : ''
@@ -27611,7 +27613,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       }
       results.forEach(r => { r._provider = provider; r._bulkIvrCapable = (provider === 'twilio') })
     }
-    if (!results.length) return send(chatId, cpTxt.noSearchResults, k.of([]))
+    if (!results.length) return send(chatId, cpTxt.noSearchResults, k.of([[pc.back]]))
     await saveInfo('cpSearchResults', results)
     const numberLines = results.map((r, i) => {
       const tag = r._bulkIvrCapable ? ' ☎️ Bulk IVR' : ''
@@ -27657,7 +27659,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       }
       results.forEach(r => { r._provider = provider; r._bulkIvrCapable = (provider === 'twilio') })
     }
-    if (!results.length) return send(chatId, cpTxt.noSearchResults + '\nTry a different area code.', k.of([]))
+    if (!results.length) return send(chatId, cpTxt.noSearchResults + '\nTry a different area code.', k.of([[pc.back]]))
     await saveInfo('cpSearchResults', results)
     const numberLines = results.map((r, i) => {
       const tag = r._bulkIvrCapable ? ' ☎️ Bulk IVR' : ''
@@ -27699,7 +27701,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
         }
         results.forEach(r => { r._provider = provider; r._bulkIvrCapable = (provider === 'twilio') })
       }
-      if (!results.length) return send(chatId, cpTxt.noSearchResults, k.of([]))
+      if (!results.length) return send(chatId, cpTxt.noSearchResults, k.of([[pc.back]]))
       await saveInfo('cpSearchResults', results)
       const numberLines = results.map((r, i) => {
         const tag = r._bulkIvrCapable ? ' ☎️ Bulk IVR' : ''
@@ -28672,13 +28674,15 @@ Professional templates for voicemail, customer support, financial institutions, 
       ]))
     }
     if (message === pc.disableIvr) {
-      await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'ivr', { enabled: false })
-      num.features = num.features || {}
-      num.features.ivr = { enabled: false }
-      await saveInfo('cpActiveNumber', num)
-      send(chatId, cpTxt.ivrDisabled(num.phoneNumber))
-      await set(state, chatId, 'action', a.cpManageNumber)
-      return showManageScreen(chatId, num)
+      // Disable Guard: confirm before taking a live auto-attendant offline
+      await set(state, chatId, 'action', a.cpIvrDisableConfirm)
+      const YES = ({ en: '✅ Yes, disable', fr: '✅ Oui, désactiver', zh: '✅ 是，停用', hi: '✅ हाँ, बंद करें' }[lang] || '✅ Yes, disable')
+      return send(chatId, ({
+        en: `⚠️ <b>Disable auto-attendant?</b>\n\nCallers to <b>${num.phoneNumber}</b> will no longer hear your menu — the number falls back to normal ringing/voicemail. Your saved options are kept and you can re-enable anytime.\n\nAre you sure?`,
+        fr: `⚠️ <b>Désactiver le standard ?</b>\n\nLes appelants du <b>${num.phoneNumber}</b> n'entendront plus votre menu — le numéro sonnera normalement. Vos options sont conservées et réactivables à tout moment.\n\nÊtes-vous sûr ?`,
+        zh: `⚠️ <b>停用自动应答？</b>\n\n拨打 <b>${num.phoneNumber}</b> 的来电将不再听到菜单，号码恢复正常振铃/语音信箱。您的选项会保留，可随时重新启用。\n\n确定吗？`,
+        hi: `⚠️ <b>ऑटो-अटेंडेंट बंद करें?</b>\n\n<b>${num.phoneNumber}</b> पर कॉल करने वाले अब आपका मेनू नहीं सुनेंगे — नंबर सामान्य रिंग/वॉइसमेल पर लौट आएगा। आपके विकल्प सुरक्षित रहेंगे, कभी भी फिर चालू कर सकते हैं।\n\nक्या आप निश्चित हैं?`,
+      }[lang] || `⚠️ <b>Disable auto-attendant?</b>\n\nCallers to <b>${num.phoneNumber}</b> will no longer hear your menu — the number falls back to normal ringing/voicemail. Your saved options are kept and you can re-enable anytime.\n\nAre you sure?`), { parse_mode: 'HTML', reply_markup: { keyboard: [[YES], ['↩️ Back']], resize_keyboard: true } })
     }
     if (message === pc.ivrUseTemplate) {
       const ivrTpl = require('./ivr-templates.js')
@@ -29424,7 +29428,20 @@ Professional templates for voicemail, customer support, financial institutions, 
     let txt = ({ en: `📋 <b>${tplName}</b>\n\n🎙 <b>Greeting</b>\n<i>${newIvr.greeting}</i>\n\n🔢 <b>Menu keys:</b> ${keys}\n(each forwards a call — set the numbers next)`, fr: `📋 <b>${tplName}</b>\n\n🎙 <b>Message</b>\n<i>${newIvr.greeting}</i>\n\n🔢 <b>Touches :</b> ${keys}\n(chacune transfère un appel — numéros ensuite)`, zh: `📋 <b>${tplName}</b>\n\n🎙 <b>问候语</b>\n<i>${newIvr.greeting}</i>\n\n🔢 <b>菜单按键：</b> ${keys}\n（每个转接来电 — 下一步设置号码）`, hi: `📋 <b>${tplName}</b>\n\n🎙 <b>ग्रीटिंग</b>\n<i>${newIvr.greeting}</i>\n\n🔢 <b>मेनू कुंजियाँ:</b> ${keys}\n(हर एक कॉल फ़ॉरवर्ड करती है — आगे नंबर सेट करें)` }[lang] || `📋 <b>${tplName}</b>\n\n🎙 <b>Greeting</b>\n<i>${newIvr.greeting}</i>\n\n🔢 <b>Menu keys:</b> ${keys}\n(each forwards a call — set the numbers next)`)
     if (ivrTpl.greetingHasPlaceholders(newIvr.greeting)) txt += ({ en: `\n\n✏️ This greeting has [placeholders] — edit the greeting afterward to fill them in.`, fr: `\n\n✏️ Ce message contient des [espaces] — modifiez-le ensuite.`, zh: `\n\n✏️ 此问候语含 [占位符] — 之后请编辑填写。`, hi: `\n\n✏️ इस ग्रीटिंग में [प्लेसहोल्डर] हैं — बाद में ग्रीटिंग संपादित करें।` }[lang] || `\n\n✏️ This greeting has [placeholders] — edit the greeting afterward to fill them in.`)
     if (existingCount > 0) txt += ({ en: `\n\n⚠️ This will <b>replace</b> your current ${existingCount} option(s).`, fr: `\n\n⚠️ Cela <b>remplacera</b> vos ${existingCount} option(s) actuelles.`, zh: `\n\n⚠️ 这将<b>替换</b>您当前的 ${existingCount} 个选项。`, hi: `\n\n⚠️ यह आपके मौजूदा ${existingCount} विकल्प <b>बदल</b> देगा।` }[lang] || `\n\n⚠️ This will <b>replace</b> your current ${existingCount} option(s).`)
-    return send(chatId, txt, { parse_mode: 'HTML', reply_markup: { keyboard: [[applyBtn], ['↩️ Back']], resize_keyboard: true } })
+    // Apply To All: if the user has 2+ active numbers, offer a one-tap bulk apply
+    let applyAllBtn = null
+    try {
+      const _doc = await phoneNumbersOf.findOne({ _id: chatId })
+      const _active = (Array.isArray(_doc?.val?.numbers) ? _doc.val.numbers : []).filter(n => n && n.status === 'active')
+      if (_active.length >= 2) {
+        applyAllBtn = ({ en: `📢 Apply to All My Numbers (${_active.length})`, fr: `📢 Appliquer à Tous mes Numéros (${_active.length})`, zh: `📢 应用到我所有号码 (${_active.length})`, hi: `📢 मेरे सभी नंबरों पर लागू करें (${_active.length})` }[lang] || `📢 Apply to All My Numbers (${_active.length})`)
+        txt += ({ en: `\n\n📢 You have <b>${_active.length} numbers</b> — tap "Apply to All" to set this menu on every one at once.`, fr: `\n\n📢 Vous avez <b>${_active.length} numéros</b> — appuyez sur « Appliquer à Tous » pour tout configurer d'un coup.`, zh: `\n\n📢 您有 <b>${_active.length} 个号码</b> — 点击"应用到全部"一次性设置。`, hi: `\n\n📢 आपके पास <b>${_active.length} नंबर</b> हैं — "सभी पर लागू करें" दबाकर सभी पर एक साथ सेट करें।` }[lang] || `\n\n📢 You have <b>${_active.length} numbers</b> — tap "Apply to All" to set this menu on every one at once.`)
+      }
+    } catch (e) { /* non-blocking */ }
+    const _kbRows = [[applyBtn]]
+    if (applyAllBtn) _kbRows.push([applyAllBtn])
+    _kbRows.push(['↩️ Back'])
+    return send(chatId, txt, { parse_mode: 'HTML', reply_markup: { keyboard: _kbRows, resize_keyboard: true } })
   }
 
   if (action === a.cpIvrTplApply) {
@@ -29442,13 +29459,40 @@ Professional templates for voicemail, customer support, financial institutions, 
       catBtns.push(['↩️ Back'])
       return send(chatId, ({ en: `📋 Choose a category:`, fr: `📋 Choisissez une catégorie :`, zh: `📋 选择分类：`, hi: `📋 श्रेणी चुनें:` }[lang] || `📋 Choose a category:`), { reply_markup: { keyboard: catBtns, resize_keyboard: true } })
     }
-    if (!/^✅/.test(String(message || ''))) {
+    const isApplyAll = /^📢/.test(String(message || ''))
+    if (!isApplyAll && !/^✅/.test(String(message || ''))) {
       return send(chatId, ({ en: `Tap ✅ to apply, or ↩️ Back.`, fr: `Appuyez sur ✅ pour appliquer, ou ↩️ Retour.`, zh: `点击 ✅ 应用，或 ↩️ 返回。`, hi: `लागू करने के लिए ✅ दबाएँ, या ↩️ वापस।` }[lang] || `Tap ✅ to apply, or ↩️ Back.`), k.of([]))
     }
     const pending = info?.cpIvrTplPending
     if (!pending) {
       await set(state, chatId, 'action', a.cpIvr)
       return send(chatId, ({ en: `⚠️ Template expired — please pick it again.`, fr: `⚠️ Modèle expiré — reprenez.`, zh: `⚠️ 模板已过期，请重新选择。`, hi: `⚠️ टेम्पलेट समाप्त — फिर चुनें।` }[lang] || `⚠️ Template expired — please pick it again.`), k.of(num.features?.ivr?.enabled ? [..._ivrRootMenuRows(num.features?.ivr, pc)] : [[pc.enableIvr], [pc.ivrUseTemplate]]))
+    }
+    if (isApplyAll) {
+      const _doc = await phoneNumbersOf.findOne({ _id: chatId })
+      const _active = (Array.isArray(_doc?.val?.numbers) ? _doc.val.numbers : []).filter(n => n && n.status === 'active')
+      let _applied = 0
+      let _hasCurrent = false
+      for (const n of _active) {
+        const cfg = JSON.parse(JSON.stringify(pending))
+        await updatePhoneNumberFeature(phoneNumbersOf, chatId, n.phoneNumber, 'ivr', cfg)
+        if (n.phoneNumber === num.phoneNumber) { num.features.ivr = cfg; _hasCurrent = true }
+        _applied++
+      }
+      if (!_hasCurrent) {
+        const cfg = JSON.parse(JSON.stringify(pending))
+        await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'ivr', cfg)
+        num.features.ivr = cfg
+        _applied++
+      }
+      await saveInfo('cpActiveNumber', num)
+      await saveInfo('cpIvrTplPending', null)
+      maybeWarnPreemptedByAlwaysForward(chatId, num, 'ivr', info?.userLanguage || 'en')
+      const _pend = ivrTpl.pendingForwardKeys(pending)
+      const _note = _pend.length ? ({ en: `\n\n📞 Some keys still need forward numbers — open each number's IVR to set them.`, fr: `\n\n📞 Certaines touches nécessitent encore des numéros — ouvrez l'IVR de chaque numéro.`, zh: `\n\n📞 部分按键仍需转接号码 — 请打开各号码的 IVR 设置。`, hi: `\n\n📞 कुछ कुंजियों को अभी फ़ॉरवर्ड नंबर चाहिए — हर नंबर का IVR खोलें।` }[lang] || `\n\n📞 Some keys still need forward numbers — open each number's IVR to set them.`) : ''
+      await set(state, chatId, 'action', a.cpIvr)
+      send(chatId, ({ en: `✅ Applied to <b>${_applied}</b> number(s)!${_note}`, fr: `✅ Appliqué à <b>${_applied}</b> numéro(s) !${_note}`, zh: `✅ 已应用到 <b>${_applied}</b> 个号码！${_note}`, hi: `✅ <b>${_applied}</b> नंबरों पर लागू!${_note}` }[lang] || `✅ Applied to <b>${_applied}</b> number(s)!${_note}`), { parse_mode: 'HTML' })
+      return send(chatId, cpTxt.ivrMenu(num.phoneNumber, pending), k.of([..._ivrRootMenuRows(num.features?.ivr, pc)]))
     }
     await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'ivr', pending)
     num.features.ivr = pending
@@ -30414,10 +30458,50 @@ Select a category:`), k.of(catBtns))
     const keyMatch = message.match(/Key\s*(\S+)/)
     const key = keyMatch ? keyMatch[1] : message.trim()
     const ivrConf = num.features?.ivr || { enabled: true, options: {} }
-    if (ivrConf.options?.[key]) {
-      // 2026-08-03: If the removed option carries a sub-menu, clean up any
-      // sub-menu-scoped audio backups so a re-add on the same key doesn't
-      // inherit stale audio.
+    if (!ivrConf.options?.[key]) {
+      send(chatId, phoneConfig.getMsg(info?.userLanguage).noOptionForKey(key))
+      await set(state, chatId, 'action', a.cpIvr)
+      return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
+        ..._ivrRootMenuRows(num.features?.ivr, pc)
+      ]))
+    }
+    // ── Disable Guard: confirm before removing so an accidental tap can't drop a live option ──
+    await saveInfo('cpIvrRemoveKey', key)
+    await set(state, chatId, 'action', a.cpIvrRemoveConfirm)
+    const _o = ivrConf.options[key]
+    const _desc = _o.action === 'submenu' ? '📂 sub-menu' : (_o.action === 'forward' ? ('➡️ forward' + (_o.forwardTo ? ' → ' + _o.forwardTo : '')) : (_o.action === 'voicemail' ? '📩 voicemail' : '🔊 play message'))
+    const YES = ({ en: '🗑 Yes, remove', fr: '🗑 Oui, supprimer', zh: '🗑 是，删除', hi: '🗑 हाँ, हटाएँ' }[lang] || '🗑 Yes, remove')
+    return send(chatId, ({
+      en: `⚠️ <b>Remove option — Key ${key}?</b>\n\nCurrently: <b>${_desc}</b>\n\nCallers pressing ${key} will no longer be routed. You'd have to re-add it manually.\n\nAre you sure?`,
+      fr: `⚠️ <b>Supprimer l'option — Touche ${key} ?</b>\n\nActuellement : <b>${_desc}</b>\n\nLes appelants appuyant sur ${key} ne seront plus routés. Il faudrait la recréer manuellement.\n\nÊtes-vous sûr ?`,
+      zh: `⚠️ <b>删除选项 — 按键 ${key}？</b>\n\n当前：<b>${_desc}</b>\n\n按 ${key} 的来电将不再被转接。需手动重新添加。\n\n确定吗？`,
+      hi: `⚠️ <b>विकल्प हटाएँ — कुंजी ${key}?</b>\n\nअभी: <b>${_desc}</b>\n\n${key} दबाने वाले कॉलर अब रूट नहीं होंगे। इसे फिर से मैन्युअली जोड़ना होगा।\n\nक्या आप निश्चित हैं?`,
+    }[lang] || `⚠️ <b>Remove option — Key ${key}?</b>\n\nCurrently: <b>${_desc}</b>\n\nCallers pressing ${key} will no longer be routed. You'd have to re-add it manually.\n\nAre you sure?`), { parse_mode: 'HTML', reply_markup: { keyboard: [[YES], ['↩️ Back']], resize_keyboard: true } })
+  }
+
+  // ── Disable Guard: confirm removing an IVR option ──
+  if (action === a.cpIvrRemoveConfirm) {
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
+    const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
+    if (!num) return goto.submenu5()
+    const key = info?.cpIvrRemoveKey
+    const backToIvr = async () => {
+      await set(state, chatId, 'action', a.cpIvr)
+      const ivrConf = num.features?.ivr || {}
+      return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
+        ..._ivrRootMenuRows(num.features?.ivr, pc)
+      ]))
+    }
+    if (isBackPress(message) || message === pc.back || isCancelPress(message)) return backToIvr()
+    if (!/^🗑/.test(String(message || ''))) {
+      const YES = ({ en: '🗑 Yes, remove', fr: '🗑 Oui, supprimer', zh: '🗑 是，删除', hi: '🗑 हाँ, हटाएँ' }[lang] || '🗑 Yes, remove')
+      return send(chatId, ({ en: `Tap 🗑 to remove, or ↩️ Back to keep it.`, fr: `Appuyez sur 🗑 pour supprimer, ou ↩️ Retour pour conserver.`, zh: `点击 🗑 删除，或 ↩️ 返回保留。`, hi: `हटाने के लिए 🗑 दबाएँ, या ↩️ वापस।` }[lang] || `Tap 🗑 to remove, or ↩️ Back to keep it.`), { reply_markup: { keyboard: [[YES], ['↩️ Back']], resize_keyboard: true } })
+    }
+    const ivrConf = num.features?.ivr || { enabled: true, options: {} }
+    if (key && ivrConf.options?.[key]) {
+      // If the removed option carries a sub-menu, clean up any sub-menu-scoped
+      // audio backups so a re-add on the same key doesn't inherit stale audio.
       if (ivrConf.options[key].action === 'submenu') {
         try {
           await ivrAudioStore.deleteMany({ _id: { $regex: `^${num.phoneNumber}:submenu:${key}:` } })
@@ -30429,12 +30513,35 @@ Select a category:`), k.of(catBtns))
       await saveInfo('cpActiveNumber', num)
       send(chatId, cpTxt.ivrOptionRemoved(key))
     } else {
-      send(chatId, phoneConfig.getMsg(info?.userLanguage).noOptionForKey(key))
+      send(chatId, phoneConfig.getMsg(info?.userLanguage).noOptionForKey(key || '?'))
     }
-    await set(state, chatId, 'action', a.cpIvr)
-    return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
-      ..._ivrRootMenuRows(num.features?.ivr, pc)
-    ]))
+    await saveInfo('cpIvrRemoveKey', null)
+    return backToIvr()
+  }
+
+  // ── Disable Guard: confirm disabling the auto-attendant ──
+  if (action === a.cpIvrDisableConfirm) {
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
+    const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
+    if (!num) return goto.submenu5()
+    const backToIvr = async () => {
+      await set(state, chatId, 'action', a.cpIvr)
+      const ivrConf = num.features?.ivr || {}
+      return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of(ivrConf.enabled ? [..._ivrRootMenuRows(num.features?.ivr, pc)] : [[pc.enableIvr], [pc.ivrUseTemplate]]))
+    }
+    if (isBackPress(message) || message === pc.back || isCancelPress(message)) return backToIvr()
+    if (!/^✅/.test(String(message || ''))) {
+      const YES = ({ en: '✅ Yes, disable', fr: '✅ Oui, désactiver', zh: '✅ 是，停用', hi: '✅ हाँ, बंद करें' }[lang] || '✅ Yes, disable')
+      return send(chatId, ({ en: `Tap ✅ to disable, or ↩️ Back to keep it on.`, fr: `Appuyez sur ✅ pour désactiver, ou ↩️ Retour pour garder actif.`, zh: `点击 ✅ 停用，或 ↩️ 返回保留。`, hi: `बंद करने के लिए ✅ दबाएँ, या ↩️ वापस।` }[lang] || `Tap ✅ to disable, or ↩️ Back to keep it on.`), { reply_markup: { keyboard: [[YES], ['↩️ Back']], resize_keyboard: true } })
+    }
+    await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'ivr', { enabled: false })
+    num.features = num.features || {}
+    num.features.ivr = { enabled: false }
+    await saveInfo('cpActiveNumber', num)
+    send(chatId, cpTxt.ivrDisabled(num.phoneNumber))
+    await set(state, chatId, 'action', a.cpManageNumber)
+    return showManageScreen(chatId, num)
   }
 
   // ━━━ SIP CREDENTIALS ━━━

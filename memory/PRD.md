@@ -3,6 +3,35 @@
 ## Original problem statement
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
+## IVR UX safeguards (2026-08-03, follow-up batch — user-approved 1a/2/3a)
+Three requested safeguards shipped in `js/_index.js` (all localized en/fr/zh/hi):
+
+1. **Disable Guard** — a Yes/No confirm now protects BOTH destructive taps:
+   - `pc.disableIvr` → new state `a.cpIvrDisableConfirm`. Warns callers will stop hearing the menu
+     (options kept, re-enable anytime). YES disables + returns to Manage; Back keeps it live.
+   - `pc.ivrRemoveOption` key-pick → new state `a.cpIvrRemoveConfirm` (key stashed in
+     `info.cpIvrRemoveKey`). Shows the option's current action before removing. YES deletes (with the
+     existing sub-menu `ivrAudioStore` cleanup); Back keeps it. Non-existent keys short-circuit before
+     the confirm.
+
+2. **No-Results Rescue** — all 8 empty-keyboard dead-ends on `cpTxt.noSearchResults` (buy flow +
+   sub-number add flow) now render `k.of([[pc.back]])`. Each site's current state already handles
+   `pc.back`, so the caller lands back at country/area selection instead of being stranded.
+
+3. **Apply To All** — template-apply step (`a.cpIvrTplApply`) now offers
+   "📢 Apply to All My Numbers (N)" whenever the user has 2+ active numbers (ANY template). It
+   deep-clones the pending config (`JSON.parse(JSON.stringify)`) per number and writes each via
+   `updatePhoneNumberFeature`, updating `cpActiveNumber` too. Guided per-number forward-fill is skipped
+   for bulk apply (only meaningful one number at a time); a note tells the user to set blank forwards
+   per number if the template had any. Single-number apply keeps the existing guided-fill flow.
+
+**New action states:** `cpIvrDisableConfirm`, `cpIvrRemoveConfirm` (+ `info.cpIvrRemoveKey` transient).
+
+**Validation:** `node --check js/_index.js` clean; `ivr-templates.js` logic re-verified via `node -e`
+(deep-clone independence, pendingForwardKeys on business + saved templates, user-template round trip).
+NOT conversationally tested — Telegram bot can't be driven by curl/Playwright and booting the full
+server fires prod schedulers vs the live DB. **Final step: live test via DEV bot token.**
+
 ## 2026-08-03 — Security fix: SEC-004 HTML injection in Telegram HTML-parsed messages
 **Source:** security_audit_agent report — SEC-004 [MEDIUM] flagged unescaped user-supplied labels/greetings/messages/action strings interpolated into `parse_mode:'HTML'` Telegram messages. A hostile label like `Sales <script>alert("x")</script> & "Support"` either broke the Telegram HTML parser (`can't parse entities`) or corrupted the render.
 
