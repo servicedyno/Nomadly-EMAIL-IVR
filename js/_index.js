@@ -29665,7 +29665,7 @@ Entrez le numéro vers lequel transférer :
 
 Enter the phone number to forward calls to:
 
-<i>Example: +15551234567</i>`), k.of([]))
+<i>Example: +15551234567</i>`), k.of([['↩️ Back']]))
     }
     if (message === btn.playMessage) {
       draft.action = 'message'
@@ -29757,7 +29757,7 @@ How do you want to create the message?`), k.of([[btn.useTemplate], [btn.typeText
       else if (/^1\d{10}$/.test(phone)) phone = '+' + phone
       else if (/^\d{11,15}$/.test(phone)) phone = '+' + phone
       if (phone.length < 8 || phone.length > 16 || !phone.startsWith('+')) {
-        return send(chatId, ({ en: `❌ Invalid phone number. Enter a valid number (e.g. +15551234567):`, fr: `❌ Numéro invalide. Entrez un numéro valide (ex : +15551234567) :`, zh: `❌ 号码无效。请输入有效号码（如 +15551234567）：`, hi: `❌ अमान्य फ़ोन नंबर। मान्य नंबर दर्ज करें (जैसे +15551234567):` }[lang] || `❌ Invalid phone number. Enter a valid number (e.g. +15551234567):`), k.of([]))
+        return send(chatId, ({ en: `❌ Invalid phone number. Enter a valid number (e.g. +15551234567):`, fr: `❌ Numéro invalide. Entrez un numéro valide (ex : +15551234567) :`, zh: `❌ 号码无效。请输入有效号码（如 +15551234567）：`, hi: `❌ अमान्य फ़ोन नंबर। मान्य नंबर दर्ज करें (जैसे +15551234567):` }[lang] || `❌ Invalid phone number. Enter a valid number (e.g. +15551234567):`), k.of([['↩️ Back']]))
       }
       // ── Prevent self-call loop: reject if forward target is the user's own IVR number ──
       const ownNumber = (num.phoneNumber || '').replace(/[^+\d]/g, '')
