@@ -70,3 +70,24 @@ Executed 2026-08-03 via scripts/admin_refund_and_terminate_hellpeaces.js (idempo
    Backend E2E via testing agent NOT run: would require starting the full Node bot (runs prod schedulers vs
    live DB = risky) + a live cPanel login (test account prevc2b4 was just terminated).
 
+## DOMAIN REUSE VERIFICATION (follow-up: can he reuse previteletterviews.com for a NEW cPanel?)
+CONCLUSION: **YES — reuse works end-to-end, NO code change needed.** Verified every layer:
+1. Ownership intact: registeredDomains previteletterviews.com status=registered, ownerChatId=5522767823,
+   OpenProvider, NS=Cloudflare (anderson/leanna), autoRenew=true; domainsOf has `previteletterviews@com:true`.
+2. WHM freed it: whm-service.domainExists('previteletterviews.com') = {exists:false} (and www) after removeacct.
+3. Cloudflare zone (5e1f87d968eac0fadbe6510fdfb1781e) intact but **0 DNS records** (hosting recs + worker routes
+   were cleaned at termination) → clean slate, no conflict on re-provision.
+4. Purchase flow domain guards use `deleted:{$ne:true}` on BOTH paths (_index.js:13873 useMyDomain,
+   :13891 connectExternalDomain) → the terminated prevc2b4 does NOT block reuse.
+5. getPurchasedDomains('5522767823') returns ['previteletterviews.com'] → shows under "Use My Domain".
+6. Provisioning (cr-register-domain-&-create-cpanel.js): idempotency guard filters `deleted:{$ne:true}` (L57-60);
+   auto-archives old {deleted:true|terminatedOnWhm:true} records on re-purchase (L108-121);
+   skipDomainRegistration auto-set when registeredDomains shows he owns it (L78-92) → he pays hosting only,
+   NOT re-charged for the domain.
+7. No ban/blacklist/suppression on chatId/domain (chatIdBlocked/emailSuppressions/marketplaceBans all clear;
+   347 honeypotTriggers are just anti-red visitor logs, not a ban).
+RECOMMENDED PATH for user: "Use My Domain" (he owns it → no domain re-charge). "Connect External Domain" also
+works (provisioning auto-detects ownership via registeredDomains + reuses the CF zone). Leftover dnsHealState/
+sslGracePeriod rows are harmless (refreshed on re-provision; healer keys off registeredDomains he still owns).
+
+
