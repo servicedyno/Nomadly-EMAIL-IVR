@@ -1,5 +1,5 @@
 #!/bin/bash
-BACKEND_URL="https://setup-guide-134.preview.emergentagent.com"
+BACKEND_URL="https://wallet-debit-trace.preview.emergentagent.com"
 
 echo "TEST 3 — Persistent + atomic webhook idempotency"
 echo ""
