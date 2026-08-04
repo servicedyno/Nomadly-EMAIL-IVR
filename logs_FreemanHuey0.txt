@@ -1,0 +1,287 @@
+[2026-08-03T19:00:16.324480879Z] info [AutoPromo] User 8571206732 marked dead immediately (bot_blocked — user blocked the bot)
+[2026-08-03T19:00:16.324488469Z] info [AutoPromo] Unreachable 8571206732: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)
+[2026-08-03T19:01:34.183223178Z] info [AutoPromo]   ↳ failed chatId=8571206732 error="ETELEGRAM: 403 Forbidden: bot was blocked by the user"
+[2026-08-04T10:00:41.017405245Z] info [AutoPromo] User 8571206732 marked dead immediately (bot_blocked — user blocked the bot)
+[2026-08-04T10:00:41.017410495Z] info [AutoPromo] Unreachable 8571206732: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)
+[2026-08-04T10:07:33.194142952Z] info [AutoPromo]   ↳ failed chatId=8571206732 error="ETELEGRAM: 403 Forbidden: bot was blocked by the user"
+[2026-08-04T18:19:13.604318663Z] info message: /start	from: 8571206732 FreemanHuey0
+[2026-08-04T18:19:13.604344353Z] info Select an option below 	to: 8571206732
+[2026-08-04T18:19:13.604352833Z] info [Support] Session opened for 8571206732 FreemanHuey0 — AI will auto-respond, escalation to admin if needed
+[2026-08-04T18:19:13.604359483Z] info message: 💬 Support	from: 8571206732 FreemanHuey0
+[2026-08-04T18:19:13.604399263Z] info When done, send /done to close the chat. /done	to: 8571206732
+[2026-08-04T18:19:13.604413922Z] info User: <b>@FreemanHuey0</b> (8571206732)
+[2026-08-04T18:19:13.604437332Z] info Reply with: /reply 8571206732 <i>your message</i>
+[2026-08-04T18:19:13.604441822Z] info 📎 Or attach a photo/file with caption: <code>/reply 8571206732 your caption</code>
+[2026-08-04T18:19:13.604446602Z] info Close with: /close 8571206732 	to: 5590563715
+[2026-08-04T18:19:39.492700646Z] info message: How does your bulk sms work can I customize the sender name to be a company of my choosing	from: 8571206732 FreemanHuey0
+[2026-08-04T18:19:40.644007663Z] info reply: 💬 <b>@FreemanHuey0</b> (8571206732):
+[2026-08-04T18:19:40.644042453Z] info ↩️ /reply 8571206732 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-08-04T18:19:40.648119016Z] info [Support] 8571206732 -> admin: How does your bulk sms work can I customize the sender name to be a company of my choosing (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)
+[2026-08-04T18:19:44.765633506Z] info [Support] AI reply delivered via fallback message (send) for 8571206732 — editMessageText failed
+[2026-08-04T18:19:44.765655936Z] info reply: 👇 <i>Quick actions</i> 📱 SMS Leads,/done	to: 8571206732
+[2026-08-04T18:19:44.765662516Z] info reply: 🤖 <b>AI replied to @FreemanHuey0</b> (8571206732):
+[2026-08-04T18:19:44.765683505Z] info [Support] AI -> 8571206732: The BulkSMS Android app lets you send SMS campaigns with personalization via placeholders like <b>[n... (escalate: false)
+[2026-08-04T18:21:14.478978349Z] info message: How does the process work	from: 8571206732 FreemanHuey0
+[2026-08-04T18:21:14.478981989Z] info reply: 💬 <b>@FreemanHuey0</b> (8571206732):
+[2026-08-04T18:21:14.479046329Z] info ↩️ /reply 8571206732 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-08-04T18:21:14.479053638Z] info [Support] 8571206732 -> admin: How does the process work (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)
+[2026-08-04T18:21:17.726297770Z] info [Support] AI reply delivered via fallback message (send) for 8571206732 — editMessageText failed
+[2026-08-04T18:21:17.726302580Z] info reply: 👇 <i>Quick actions</i> 📱 SMS Leads,/done	to: 8571206732
+[2026-08-04T18:21:17.726308170Z] info reply: 🤖 <b>AI replied to @FreemanHuey0</b> (8571206732):
+[2026-08-04T18:21:17.726329850Z] info [Support] AI -> 8571206732: To use BulkSMS for sending personalized campaigns: 1. From the main menu, tap <b>📧🆓 BulkSMS -Trial... (escalate: false)
+[2026-08-04T18:30:19.553861046Z] info message: So you're saying without esim I can't send sms	from: 8571206732 FreemanHuey0
+[2026-08-04T18:30:20.330921955Z] info reply: 💬 <b>@FreemanHuey0</b> (8571206732):
+[2026-08-04T18:30:20.330962364Z] info ↩️ /reply 8571206732 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-08-04T18:30:20.349748335Z] info [Support] 8571206732 -> admin: So you're saying without esim I can't send sms (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)
+[2026-08-04T18:30:23.976893030Z] info [Support] AI reply delivered via fallback message (send) for 8571206732 — editMessageText failed
+[2026-08-04T18:30:23.976898910Z] info reply: 🤖 <b>AI replied to @FreemanHuey0</b> (8571206732):
+[2026-08-04T18:30:23.976908000Z] info [Support] AI -> 8571206732: Yes, to send SMS using the Nomadly BulkSMS Android app, you need e-SIM cards installed on your devic... (escalate: false)
+[2026-08-04T18:31:03.400163976Z] info message: Can you give an example of an sms received from your service	from: 8571206732 FreemanHuey0
+[2026-08-04T18:31:03.400167916Z] info reply: 💬 <b>@FreemanHuey0</b> (8571206732):
+[2026-08-04T18:31:03.400196566Z] info ↩️ /reply 8571206732 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-08-04T18:31:03.401203797Z] info [Support] 8571206732 -> admin: Can you give an example of an sms received from your service (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)
+[2026-08-04T18:31:07.164987887Z] info [Support] AI reply delivered via fallback message (send) for 8571206732 — editMessageText failed
+[2026-08-04T18:31:07.164993697Z] info reply: 🤖 <b>AI replied to @FreemanHuey0</b> (8571206732):
+[2026-08-04T18:31:07.165005677Z] info [Support] AI -> 8571206732: Sure! An example SMS sent via our BulkSMS app with personalization might look like this to your reci... (escalate: false)
+[2026-08-04T18:31:36.565784891Z] info message: How much does it cost	from: 8571206732 FreemanHuey0
+[2026-08-04T18:31:37.294195038Z] info reply: 💬 <b>@FreemanHuey0</b> (8571206732):
+[2026-08-04T18:31:37.294243778Z] info ↩️ /reply 8571206732 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-08-04T18:31:37.299368489Z] info [Support] 8571206732 -> admin: How much does it cost (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)
+[2026-08-04T18:31:41.294950103Z] info [Support] AI reply delivered via fallback message (send) for 8571206732 — editMessageText failed
+[2026-08-04T18:31:41.294956803Z] info reply: 👇 <i>Quick actions</i> 📱 SMS Leads,/done	to: 8571206732
+[2026-08-04T18:31:41.294973623Z] info reply: 🤖 <b>AI replied to @FreemanHuey0</b> (8571206732):
+[2026-08-04T18:31:41.294984513Z] info [Support] AI -> 8571206732: The BulkSMS Android app access is included with any Nomadly subscription plan (Daily $50/day, Weekly... (escalate: false)
+[2026-08-04T18:35:33.688846607Z] info [Support] Session ended by user 8571206732 — admin takeover OFF
+[2026-08-04T18:35:33.688875957Z] info message: /done	from: 8571206732 FreemanHuey0
+[2026-08-04T18:35:33.688881187Z] info reply: 📝 <b>Quick feedback:</b> Was our support helpful? 	to: 8571206732
+[2026-08-04T18:35:33.688893697Z] info reply: ✅ Support session ended. Thank you for reaching out! 	to: 8571206732
+[2026-08-04T18:35:33.688906056Z] info reply: 📴 Support session closed by user <b>@FreemanHuey0 (8571206732)</b> 	to: 5590563715
+[2026-08-04T18:36:03.826577789Z] info message: /start	from: 8571206732 FreemanHuey0
+[2026-08-04T18:36:03.927767300Z] info Select an option below 	to: 8571206732
+[2026-08-04T18:36:14.767486622Z] info message: 📧 BulkSMS	from: 8571206732 FreemanHuey0
+[2026-08-04T18:36:14.820139108Z] info 🔑 <b>Code:</b> <code>8571206732</code>
+[2026-08-04T18:36:14.820144268Z] info New here? Tap <b>❓ How It Works</b> 📱 Create Campaign,📋 My Campaigns,📲 Download App,📱 Manage Devices,⚙️ SMS Settings,🔓 Reset Login,❓ How It Works,⚡ Upgrade Plan,↩️ Back	to: 8571206732
+[2026-08-04T18:36:21.921328198Z] info 2️⃣ Enter activation code: <code>8571206732</code>
+[2026-08-04T18:36:21.921363627Z] info message: 📱 Create Campaign	from: 8571206732 FreemanHuey0
+[2026-08-04T18:36:21.921576785Z] info 3️⃣ Come back here to create campaigns 📲 Download App,↩️ Back	to: 8571206732
+[2026-08-04T18:36:24.056820931Z] info message: ↩️ Back	from: 8571206732 FreemanHuey0
+[2026-08-04T18:36:24.148995026Z] info Select an option below 	to: 8571206732
+[2026-08-04T18:36:28.192059314Z] info message: 📧 BulkSMS	from: 8571206732 FreemanHuey0
+[2026-08-04T18:36:28.262238756Z] info 🔑 <b>Code:</b> <code>8571206732</code>
+[2026-08-04T18:36:28.262244236Z] info New here? Tap <b>❓ How It Works</b> 📱 Create Campaign,📋 My Campaigns,📲 Download App,📱 Manage Devices,⚙️ SMS Settings,🔓 Reset Login,❓ How It Works,⚡ Upgrade Plan,↩️ Back	to: 8571206732
+[2026-08-04T18:36:31.117102970Z] info message: ❓ How It Works	from: 8571206732 FreemanHuey0
+[2026-08-04T18:36:31.163439976Z] info Need eSIM? Tap 💬 Support 📱 Create Campaign,📋 My Campaigns,📲 Download App,📱 Manage Devices,⚙️ SMS Settings,🔓 Reset Login,❓ How It Works,⚡ Upgrade Plan,↩️ Back	to: 8571206732
+[2026-08-04T18:36:31.163495255Z] info 2. Open it → enter code: <code>8571206732</code>
+[2026-08-04T18:38:26.434868949Z] info message: /start web-login	from: 8571206732 FreemanHuey0
+[2026-08-04T18:38:26.434873369Z] info [BotLink] 8571206732 requested web-login token (ttl=5m)
+[2026-08-04T18:38:28.671155505Z] info [Store] bot-login created webUser for tgChatId=8571206732 (f964f0b8-72e4-43a3-8096-1937d2b38ecf)
+[2026-08-04T18:38:48.669016849Z] info message: 📲 Download App	from: 8571206732 FreemanHuey0
+[2026-08-04T18:38:48.669033149Z] info <code>8571206732</code>
+[2026-08-04T18:38:48.669059659Z] info Need eSIM cards? Tap 💬 Get Support 	to: 8571206732
+[2026-08-04T18:39:13.455565967Z] info message: ⚙️ SMS Settings	from: 8571206732 FreemanHuey0
+[2026-08-04T18:39:13.455593377Z] info Tap a button below to change. Changes sync to your phone on next app open. 	to: 8571206732
+[2026-08-04T18:39:18.710434773Z] info message: ↩️ Back	from: 8571206732 FreemanHuey0
+[2026-08-04T18:39:18.793252391Z] info Select an option below 	to: 8571206732
+[2026-08-04T18:39:23.220551846Z] info message: 💬 Support	from: 8571206732 FreemanHuey0
+[2026-08-04T18:39:23.544225359Z] info When done, send /done to close the chat. /done	to: 8571206732
+[2026-08-04T18:39:23.544240149Z] info User: <b>@FreemanHuey0</b> (8571206732)
+[2026-08-04T18:39:23.544260809Z] info Reply with: /reply 8571206732 <i>your message</i>
+[2026-08-04T18:39:23.544265509Z] info 📎 Or attach a photo/file with caption: <code>/reply 8571206732 your caption</code>
+[2026-08-04T18:39:23.544270639Z] info Close with: /close 8571206732 	to: 5590563715
+[2026-08-04T18:39:23.544281989Z] info [Support] Session opened for 8571206732 FreemanHuey0 — AI will auto-respond, escalation to admin if needed
+[2026-08-04T18:39:53.428212143Z] info message: I am trying to download the sms app for android it lands Me in a page asking for payment	from: 8571206732 FreemanHuey0
+[2026-08-04T18:39:53.428216953Z] info reply: 💬 <b>@FreemanHuey0</b> (8571206732):
+[2026-08-04T18:39:53.428249823Z] info ↩️ /reply 8571206732 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-08-04T18:39:53.428257013Z] info [Support] 8571206732 -> admin: I am trying to download the sms app for android it lands Me in a page asking for payment (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)
+[2026-08-04T18:39:56.893916451Z] info [Support] AI reply delivered via fallback message (send) for 8571206732 — editMessageText failed
+[2026-08-04T18:39:56.893933161Z] info reply: 🤖 <b>AI replied to @FreemanHuey0</b> (8571206732):
+[2026-08-04T18:39:56.893948241Z] info [Support] AI -> 8571206732: To activate the BulkSMS Android app trial for sending SMS messages, you need to enable the free tria... (escalate: false)
+[2026-08-04T18:40:24.370974764Z] info message: /done	from: 8571206732 FreemanHuey0
+[2026-08-04T18:40:24.370979334Z] info reply: 📝 <b>Quick feedback:</b> Was our support helpful? 	to: 8571206732
+[2026-08-04T18:40:24.370987284Z] info reply: ✅ Support session ended. Thank you for reaching out! 	to: 8571206732
+[2026-08-04T18:40:24.370994704Z] info reply: 📴 Support session closed by user <b>@FreemanHuey0 (8571206732)</b> 	to: 5590563715
+[2026-08-04T18:40:24.371001184Z] info [Support] Session ended by user 8571206732 — admin takeover OFF
+[2026-08-04T18:41:11.937385703Z] info message: 📧 BulkSMS	from: 8571206732 FreemanHuey0
+[2026-08-04T18:41:11.937407923Z] info 🔑 <b>Code:</b> <code>8571206732</code>
+[2026-08-04T18:41:11.937414013Z] info New here? Tap <b>❓ How It Works</b> 📱 Create Campaign,📋 My Campaigns,📲 Download App,📱 Manage Devices,⚙️ SMS Settings,🔓 Reset Login,❓ How It Works,⚡ Upgrade Plan,↩️ Back	to: 8571206732
+[2026-08-04T18:41:18.602319019Z] info message: 📱 Create Campaign	from: 8571206732 FreemanHuey0
+[2026-08-04T18:41:18.603519278Z] info 3️⃣ Come back here to create campaigns 📲 Download App,↩️ Back	to: 8571206732
+[2026-08-04T18:41:18.603525478Z] info 2️⃣ Enter activation code: <code>8571206732</code>
+[2026-08-04T18:41:22.561658854Z] info message: 📲 Download App	from: 8571206732 FreemanHuey0
+[2026-08-04T18:41:22.561692943Z] info Need eSIM cards? Tap 💬 Get Support 	to: 8571206732
+[2026-08-04T18:41:22.561766072Z] info <code>8571206732</code>
+[2026-08-04T18:41:25.801075917Z] info message: 📲 Download App	from: 8571206732 FreemanHuey0
+[2026-08-04T18:41:25.884021876Z] info <code>8571206732</code>
+[2026-08-04T18:41:25.884050866Z] info Need eSIM cards? Tap 💬 Get Support 	to: 8571206732
+[2026-08-04T18:41:26.802904313Z] info message: ↩️ Back	from: 8571206732 FreemanHuey0
+[2026-08-04T18:41:26.905247662Z] info Select an option below 	to: 8571206732
+[2026-08-04T18:41:35.836944582Z] info message: 📧 BulkSMS	from: 8571206732 FreemanHuey0
+[2026-08-04T18:41:35.882092223Z] info 🔑 <b>Code:</b> <code>8571206732</code>
+[2026-08-04T18:41:35.882098153Z] info New here? Tap <b>❓ How It Works</b> 📱 Create Campaign,📋 My Campaigns,📲 Download App,📱 Manage Devices,⚙️ SMS Settings,🔓 Reset Login,❓ How It Works,⚡ Upgrade Plan,↩️ Back	to: 8571206732
+[2026-08-04T18:41:40.832337393Z] info message: 📱 Create Campaign	from: 8571206732 FreemanHuey0
+[2026-08-04T18:41:40.932059607Z] info 2️⃣ Enter activation code: <code>8571206732</code>
+[2026-08-04T18:41:40.932062247Z] info 3️⃣ Come back here to create campaigns 📲 Download App,↩️ Back	to: 8571206732
+[2026-08-04T18:43:00.374208055Z] info message: ↩️ Back	from: 8571206732 FreemanHuey0
+[2026-08-04T18:43:00.374231815Z] info Select an option below 	to: 8571206732
+[2026-08-04T18:43:02.907802284Z] info message: 💬 Support	from: 8571206732 FreemanHuey0
+[2026-08-04T18:43:02.996961898Z] info [Support] Session opened for 8571206732 FreemanHuey0 — AI will auto-respond, escalation to admin if needed
+[2026-08-04T18:43:02.997071627Z] info When done, send /done to close the chat. /done	to: 8571206732
+[2026-08-04T18:43:02.997084037Z] info User: <b>@FreemanHuey0</b> (8571206732)
+[2026-08-04T18:43:02.997124096Z] info Reply with: /reply 8571206732 <i>your message</i>
+[2026-08-04T18:43:02.997127416Z] info 📎 Or attach a photo/file with caption: <code>/reply 8571206732 your caption</code>
+[2026-08-04T18:43:02.997136856Z] info Close with: /close 8571206732 	to: 5590563715
+[2026-08-04T18:43:24.314890471Z] info message: Yo I still can't download the bulk sms app without landing in a payment page	from: 8571206732 FreemanHuey0
+[2026-08-04T18:43:24.314896521Z] info reply: 💬 <b>@FreemanHuey0</b> (8571206732):
+[2026-08-04T18:43:24.314932331Z] info ↩️ /reply 8571206732 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-08-04T18:43:24.314940421Z] info [Support] 8571206732 -> admin: Yo I still can't download the bulk sms app without landing in a payment page (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)
+[2026-08-04T18:43:26.928485359Z] info [Support] AI reply delivered via fallback message (send) for 8571206732 — editMessageText failed
+[2026-08-04T18:43:26.928490389Z] info reply: 🤖 <b>AI replied to @FreemanHuey0</b> (8571206732):
+[2026-08-04T18:43:26.928506699Z] info [Support] AI -> 8571206732: To activate the BulkSMS Android app trial for free, please follow this path from the main menu: 📧🆓... (escalate: true)
+[2026-08-04T18:43:26.967555657Z] info [Escalation] OPENED id=1uxq6 chatId=8571206732 reason="ai_flagged"
+[2026-08-04T18:43:26.967568847Z] info 📣 <i>I've flagged this for our human support team. Expect a reply within ~10 minutes during business hours. Ref: <code>1uxq6</code></i> 	to: 8571206732
+[2026-08-04T18:45:06.170755841Z] info message: Or I've used it cuz I don't remeber using your bulk sms before	from: 8571206732 FreemanHuey0
+[2026-08-04T18:45:07.438962093Z] info [Support] 8571206732 -> admin: Or I've used it cuz I don't remeber using your bulk sms before (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)
+[2026-08-04T18:45:07.438991622Z] info reply: 💬 <b>@FreemanHuey0</b> (8571206732):
+[2026-08-04T18:45:07.439028412Z] info ↩️ /reply 8571206732 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-08-04T18:45:11.115222288Z] info [Support] AI reply delivered via fallback message (send) for 8571206732 — editMessageText failed
+[2026-08-04T18:45:11.115225868Z] info reply: 👇 <i>Quick actions</i> 👛 Wallet,/done	to: 8571206732
+[2026-08-04T18:45:11.115231738Z] info reply: 🤖 <b>AI replied to @FreemanHuey0</b> (8571206732):
+[2026-08-04T18:45:11.115242867Z] info [Support] AI -> 8571206732: If you've already used the free BulkSMS app trial, it expires after one activation, and further use ... (escalate: false)
+[2026-08-04T18:45:21.581534994Z] info message: /done	from: 8571206732 FreemanHuey0
+[2026-08-04T18:45:21.662276137Z] info reply: 📝 <b>Quick feedback:</b> Was our support helpful? 	to: 8571206732
+[2026-08-04T18:45:21.662292967Z] info reply: ✅ Support session ended. Thank you for reaching out! 	to: 8571206732
+[2026-08-04T18:45:21.662301247Z] info reply: 📴 Support session closed by user <b>@FreemanHuey0 (8571206732)</b> 	to: 5590563715
+[2026-08-04T18:45:21.662310396Z] info [Support] Session ended by user 8571206732 — admin takeover OFF
+[2026-08-04T18:47:13.994572531Z] info [Support] Session opened for 8571206732 FreemanHuey0 — AI will auto-respond, escalation to admin if needed
+[2026-08-04T18:47:13.994621220Z] info message: 💬 Support	from: 8571206732 FreemanHuey0
+[2026-08-04T18:47:13.994656200Z] info When done, send /done to close the chat. /done	to: 8571206732
+[2026-08-04T18:47:13.994668990Z] info User: <b>@FreemanHuey0</b> (8571206732)
+[2026-08-04T18:47:13.994682729Z] info Reply with: /reply 8571206732 <i>your message</i>
+[2026-08-04T18:47:13.994685979Z] info 📎 Or attach a photo/file with caption: <code>/reply 8571206732 your caption</code>
+[2026-08-04T18:47:13.994690009Z] info Close with: /close 8571206732 	to: 5590563715
+[2026-08-04T18:47:39.053312235Z] info message: How do I use your bulk sms service no free trial	from: 8571206732 FreemanHuey0
+[2026-08-04T18:47:39.053319285Z] info reply: 💬 <b>@FreemanHuey0</b> (8571206732):
+[2026-08-04T18:47:39.053357855Z] info ↩️ /reply 8571206732 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-08-04T18:47:39.053365745Z] info [Support] 8571206732 -> admin: How do I use your bulk sms service no free trial (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)
+[2026-08-04T18:47:40.071247032Z] info [Support] AI reply delivered via fallback message (send) for 8571206732 — editMessageText failed
+[2026-08-04T18:47:40.071250032Z] info reply: 👇 <i>Quick actions</i> 🔗✂️ URL Shortener — Unlimited,👛 Wallet,/done	to: 8571206732
+[2026-08-04T18:47:40.071256962Z] info reply: 🤖 <b>AI replied to @FreemanHuey0</b> (8571206732):
+[2026-08-04T18:47:40.071275251Z] info [Support] AI -> 8571206732: To use the BulkSMS service without the free trial, you need a subscription plan for full access. Her... (escalate: false)
+[2026-08-04T18:49:30.068640120Z] info message: I don't think I have the free trial again because when I open the link it goes straight to buying a subscription plan	from: 8571206732 FreemanHuey0
+[2026-08-04T18:49:31.086655726Z] info reply: 💬 <b>@FreemanHuey0</b> (8571206732):
+[2026-08-04T18:49:31.086679486Z] info ↩️ /reply 8571206732 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-08-04T18:49:31.086685366Z] info [Support] 8571206732 -> admin: I don't think I have the free trial again because when I open the link it goes straight to buying a subscription plan (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)
+[2026-08-04T18:49:34.307457187Z] info [Support] AI reply delivered via fallback message (send) for 8571206732 — editMessageText failed
+[2026-08-04T18:49:34.307461917Z] info reply: 👇 <i>Quick actions</i> 👛 Wallet,/done	to: 8571206732
+[2026-08-04T18:49:34.307467757Z] info reply: 🤖 <b>AI replied to @FreemanHuey0</b> (8571206732):
+[2026-08-04T18:49:34.307478276Z] info [Support] AI -> 8571206732: If tapping <b>📧🆓 BulkSMS -Trial</b> sends you directly to buy a subscription, it means your free t... (escalate: false)
+[2026-08-04T18:51:17.862809650Z] info Type your message to @FreemanHuey0 (8571206732).
+[2026-08-04T18:51:17.868266980Z] info [Escalation] ACK id=1uxq6 chatId=8571206732 by=5590563715
+[2026-08-04T18:51:48.765575003Z] info message: I'll need an esim ? How's the tutorial like in the app and how will the messages recived by people look like also can it be traced back to me	from: 8571206732 FreemanHuey0
+[2026-08-04T18:51:49.798322673Z] info reply: 💬 <b>@FreemanHuey0</b> (8571206732):
+[2026-08-04T18:51:49.798348673Z] info ↩️ /reply 8571206732 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-08-04T18:51:49.803428226Z] info [Support] 8571206732 -> admin: I'll need an esim ? How's the tutorial like in the app and how will the messages recived by people look like also can it be traced back to me (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)
+[2026-08-04T18:51:53.800181456Z] info [Support] AI -> 8571206732: Yes, to send SMS campaigns with the BulkSMS Android app, you’ll need eSIM cards installed on your de... (escalate: false)
+[2026-08-04T18:51:53.800183496Z] info [Support] AI reply delivered via fallback message (send) for 8571206732 — editMessageText failed
+[2026-08-04T18:51:53.800190756Z] info reply: 🤖 <b>AI replied to @FreemanHuey0</b> (8571206732):
+[2026-08-04T18:52:37.208267557Z] info reply: ✅ Support session ended. Thank you for reaching out! 	to: 8571206732
+[2026-08-04T18:52:37.208281657Z] info message: /done	from: 8571206732 FreemanHuey0
+[2026-08-04T18:52:37.208291507Z] info reply: 📝 <b>Quick feedback:</b> Was our support helpful? 	to: 8571206732
+[2026-08-04T18:52:37.208294467Z] info reply: 📴 Support session closed by user <b>@FreemanHuey0 (8571206732)</b> 	to: 5590563715
+[2026-08-04T18:52:37.208307367Z] info [Support] Session ended by user 8571206732 — admin takeover OFF
+[2026-08-04T18:53:07.208313491Z] info User: <b>@FreemanHuey0</b> (8571206732)
+[2026-08-04T18:53:07.208350941Z] info message: 💬 Support	from: 8571206732 FreemanHuey0
+[2026-08-04T18:53:07.208395790Z] info When done, send /done to close the chat. /done	to: 8571206732
+[2026-08-04T18:53:07.208454810Z] info Reply with: /reply 8571206732 <i>your message</i>
+[2026-08-04T18:53:07.208459159Z] info 📎 Or attach a photo/file with caption: <code>/reply 8571206732 your caption</code>
+[2026-08-04T18:53:07.208461929Z] info Close with: /close 8571206732 	to: 5590563715
+[2026-08-04T18:53:07.208467559Z] info [Support] Session opened for 8571206732 FreemanHuey0 — AI will auto-respond, escalation to admin if needed
+[2026-08-04T18:53:49.821496411Z] info message: Make an example of a message sent by your bulk sms received by the receiver and the details that will be showed	from: 8571206732 FreemanHuey0
+[2026-08-04T18:53:49.821499171Z] info reply: 💬 <b>@FreemanHuey0</b> (8571206732):
+[2026-08-04T18:53:49.821524941Z] info ↩️ /reply 8571206732 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-08-04T18:53:49.821532311Z] info [Support] 8571206732 -> admin: Make an example of a message sent by your bulk sms received by the receiver and the details that will be showed (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)
+[2026-08-04T18:53:52.721936545Z] info [Support] AI reply delivered via fallback message (send) for 8571206732 — editMessageText failed
+[2026-08-04T18:53:52.721942285Z] info reply: 🤖 <b>AI replied to @FreemanHuey0</b> (8571206732):
+[2026-08-04T18:53:52.721955645Z] info [Support] AI -> 8571206732: Sure! Here is an example of a message sent via Nomadly BulkSMS app: --- <b>Sent SMS message:</b> "He... (escalate: false)
+[2026-08-04T18:55:03.089332434Z] info message: Can I customize what name will be shown	from: 8571206732 FreemanHuey0
+[2026-08-04T18:55:04.054005652Z] info reply: 💬 <b>@FreemanHuey0</b> (8571206732):
+[2026-08-04T18:55:04.054037961Z] info ↩️ /reply 8571206732 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-08-04T18:55:04.054047891Z] info [Support] 8571206732 -> admin: Can I customize what name will be shown (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)
+[2026-08-04T18:55:08.071679111Z] info [Support] AI reply delivered via fallback message (send) for 8571206732 — editMessageText failed
+[2026-08-04T18:55:08.071682861Z] info reply: 🤖 <b>AI replied to @FreemanHuey0</b> (8571206732):
+[2026-08-04T18:55:08.071694061Z] info [Support] AI -> 8571206732: The BulkSMS app replaces <b>[name]</b> with the recipient’s name from your own contact list (the nam... (escalate: false)
+[2026-08-04T18:55:28.056741987Z] info message: I mean the source of the message	from: 8571206732 FreemanHuey0
+[2026-08-04T18:55:28.671255676Z] info reply: 💬 <b>@FreemanHuey0</b> (8571206732):
+[2026-08-04T18:55:28.671286626Z] info ↩️ /reply 8571206732 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-08-04T18:55:28.671294636Z] info [Support] 8571206732 -> admin: I mean the source of the message (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)
+[2026-08-04T18:55:32.057385977Z] info [Support] AI reply delivered via fallback message (send) for 8571206732 — editMessageText failed
+[2026-08-04T18:55:32.057391657Z] info reply: 🤖 <b>AI replied to @FreemanHuey0</b> (8571206732):
+[2026-08-04T18:55:32.057405267Z] info [Support] AI -> 8571206732: The sender ID (the "source" name or number shown on the recipient’s phone) depends on your SMS sendi... (escalate: false)
+[2026-08-04T18:56:04.418842794Z] info message: I need a demo of hiw this works	from: 8571206732 FreemanHuey0
+[2026-08-04T18:56:04.418847774Z] info reply: 💬 <b>@FreemanHuey0</b> (8571206732):
+[2026-08-04T18:56:04.418993422Z] info ↩️ /reply 8571206732 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-08-04T18:56:04.419001292Z] info [Support] 8571206732 -> admin: I need a demo of hiw this works (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)
+[2026-08-04T18:56:06.803322109Z] info [Support] AI reply delivered via fallback message (send) for 8571206732 — editMessageText failed
+[2026-08-04T18:56:06.803327899Z] info reply: 🤖 <b>AI replied to @FreemanHuey0</b> (8571206732):
+[2026-08-04T18:56:06.803356179Z] info [Support] AI -> 8571206732: To see a demo of how BulkSMS personalization works, you can try this: 1. From the main menu, tap <b>... (escalate: false)
+[2026-08-04T19:03:47.573390016Z] info message: Theres something wrong your site asks for 6 digits code the bot gives me a 10 digit code	from: 8571206732 FreemanHuey0
+[2026-08-04T19:03:48.306752749Z] info ↩️ /reply 8571206732 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-08-04T19:03:48.306758769Z] info reply: 💬 <b>@FreemanHuey0</b> (8571206732):
+[2026-08-04T19:03:48.333948960Z] info [Support] 8571206732 -> admin: Theres something wrong your site asks for 6 digits code the bot gives me a 10 digit code (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)
+[2026-08-04T19:03:55.898892733Z] info [Support] AI reply delivered via fallback message (send) for 8571206732 — editMessageText failed
+[2026-08-04T19:03:55.898899433Z] info reply: 🤖 <b>AI replied to @FreemanHuey0</b> (8571206732):
+[2026-08-04T19:03:55.898910203Z] info [Support] AI -> 8571206732: I understand the confusion. The 6-digit code requested by the site and the 10-digit code you receive... (escalate: false)
+[2026-08-04T19:04:25.862918139Z] info message: Connect me with support	from: 8571206732 FreemanHuey0
+[2026-08-04T19:04:25.874099203Z] info reply: 💬 <b>@FreemanHuey0</b> (8571206732):
+[2026-08-04T19:04:25.874131783Z] info ↩️ /reply 8571206732 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-08-04T19:04:25.883759381Z] info [Support] 8571206732 -> admin: Connect me with support (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)
+[2026-08-04T19:04:28.967224390Z] info [Support] AI reply delivered via fallback message (send) for 8571206732 — editMessageText failed
+[2026-08-04T19:04:28.967229300Z] info reply: 🤖 <b>AI replied to @FreemanHuey0</b> (8571206732):
+[2026-08-04T19:04:28.967244450Z] info [Support] AI -> 8571206732: I’m flagging this for our technical team — a human agent will review your case shortly and assist yo... (escalate: true)
+[2026-08-04T19:04:28.967247210Z] info [Escalation] OPENED id=khPlB chatId=8571206732 reason="ai_flagged"
+[2026-08-04T19:04:28.967256629Z] info 📣 <i>I've flagged this for our human support team. Expect a reply within ~10 minutes during business hours. Ref: <code>khPlB</code></i> 	to: 8571206732
+[2026-08-04T19:05:29.409040167Z] info message: I am trying to test out your bulk sms your site requires a 6 digit code to login but what's provided by the bot is a 10 digit code	from: 8571206732 FreemanHuey0
+[2026-08-04T19:05:30.389165541Z] info reply: 💬 <b>@FreemanHuey0</b> (8571206732):
+[2026-08-04T19:05:30.389189370Z] info ↩️ /reply 8571206732 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-08-04T19:05:30.393944705Z] info [Support] 8571206732 -> admin: I am trying to test out your bulk sms your site requires a 6 digit code to login but what's provided by the bot is a 10 digit code (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)
+[2026-08-04T19:05:35.402542187Z] info [Support] AI reply delivered via fallback message (send) for 8571206732 — editMessageText failed
+[2026-08-04T19:05:35.402547666Z] info reply: 🤖 <b>AI replied to @FreemanHuey0</b> (8571206732):
+[2026-08-04T19:05:35.402559986Z] info [Support] AI -> 8571206732: Thanks for clarifying. The 6-digit code required by the BulkSMS site for login is separate from the ... (escalate: false)
+[2026-08-04T19:06:05.404425239Z] info message: Connect me with a human bro you aren't helping	from: 8571206732 FreemanHuey0
+[2026-08-04T19:06:05.404430439Z] info reply: 💬 <b>@FreemanHuey0</b> (8571206732):
+[2026-08-04T19:06:05.404464958Z] info ↩️ /reply 8571206732 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-08-04T19:06:05.404472718Z] info [Support] 8571206732 -> admin: Connect me with a human bro you aren't helping (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)
+[2026-08-04T19:06:05.404476958Z] info [Support] 8571206732 explicitly requested a HUMAN — suppressing AI auto-reply
+[2026-08-04T19:06:05.404490128Z] info You can keep typing — your messages are being forwarded to a real person. /done	to: 8571206732
+[2026-08-04T19:06:05.404498718Z] info [Escalation] DEDUP — follow-up for 8571206732 (id=khPlB)
+[2026-08-04T19:09:20.305977406Z] info When I log in with telegram account it asks for payment I just want to test it out to see if it fits my campaign	from: 8571206732 FreemanHuey0
+[2026-08-04T19:09:20.305984656Z] info reply: 💬 <b>@FreemanHuey0</b> (8571206732):
+[2026-08-04T19:09:20.306036035Z] info ↩️ /reply 8571206732 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-08-04T19:09:20.306043345Z] info [Support] 8571206732 -> admin: I am trying to test out your bulk sms your site requires a 6 digit code to login but what's provided by the bot is a 10 digit code
+[2026-08-04T19:09:31.009883714Z] info [Support] AI reply delivered via fallback message (send) for 8571206732 — editMessageText failed
+[2026-08-04T19:09:31.009890304Z] info reply: 🤖 <b>AI replied to @FreemanHuey0</b> (8571206732):
+[2026-08-04T19:09:31.009911274Z] info [Support] AI -> 8571206732: I understand you want to test BulkSMS before committing. To activate the free trial, from the main m... (escalate: true)
+[2026-08-04T19:09:31.009915174Z] info [Escalation] OPENED id=4gB9j chatId=8571206732 reason="ai_flagged"
+[2026-08-04T19:09:31.009926734Z] info 📣 <i>I've flagged this for our human support team. Expect a reply within ~10 minutes during business hours. Ref: <code>4gB9j</code></i> 	to: 8571206732
+[2026-08-04T19:15:01.571043282Z] info Type your message to @FreemanHuey0 (8571206732).
+[2026-08-04T19:15:01.585742165Z] info [Escalation] ACK id=4gB9j chatId=8571206732 by=5590563715
+[2026-08-04T19:15:05.498696123Z] info [AdminQuickReply] Re-emitting prompt (admin re-pressed Reply within 30s) target=8571206732 admin=5590563715
+[2026-08-04T19:15:05.538798259Z] info Type your message to @FreemanHuey0 (8571206732).
+[2026-08-04T19:15:05.539073546Z] info [Escalation] ACK id=khPlB chatId=8571206732 by=5590563715
+[2026-08-04T19:15:27.101575048Z] info [AdminAction] Quick-reply rewritten → /reply 8571206732 You must have tested it before. Everyone gets a trial of 100 S…
+[2026-08-04T19:15:27.101580288Z] info message: /reply 8571206732 You must have tested it before. Everyone gets a trial of 100 SMS	from: 5590563715 onarrival1
+[2026-08-04T19:15:27.101588438Z] info You must have tested it before. Everyone gets a trial of 100 SMS /done	to: 8571206732
+[2026-08-04T19:15:27.101604298Z] info [Support] Admin replied to 8571206732: You must have tested it before. Everyone gets a trial of 100 SMS (targetLang: en, translated: false) — session re-opened, admin takeover ON
+[2026-08-04T19:17:23.813412998Z] info message: I haven't I can hand you my tele iD	from: 8571206732 FreemanHuey0
+[2026-08-04T19:17:23.813417388Z] info reply: 💬 <b>@FreemanHuey0</b> (8571206732):
+[2026-08-04T19:17:23.813436808Z] info ↩️ /reply 8571206732 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-08-04T19:17:23.813441718Z] info [Support] 8571206732 -> admin: I haven't I can hand you my tele iD (botLang: en, msgLang: en, translated: false, adminTakeover: true, sessionOpen: true)
+[2026-08-04T19:17:23.813443868Z] info reply: ✉️ Message received! A support agent will respond shortly. /done	to: 8571206732
+[2026-08-04T19:21:47.826537777Z] info [Escalation] OPENED id=STkUo chatId=8571206732 reason="media:video"
+[2026-08-04T19:21:47.826540907Z] info reply: ✅ Your video was sent to our support team. They'll review it and reply shortly. /done	to: 8571206732
+[2026-08-04T19:21:47.826546536Z] info [Support] Media relayed 8571206732 → admin: video 15.48MB caption=""
+[2026-08-04T19:23:26.158836573Z] info [Support] 8571206732 -> admin: It takes me straight to payment page to pay for hosting I can't even download the app (botLang: en, msgLang: en, translated: false, adminTakeover: true, sessionOpen: true)
+[2026-08-04T19:23:26.158845453Z] info reply: ✉️ Message received! A support agent will respond shortly. /done	to: 8571206732
+[2026-08-04T19:23:26.158847183Z] info message: It takes me straight to payment page to pay for hosting I can't even download the app	from: 8571206732 FreemanHuey0
+[2026-08-04T19:23:26.158858593Z] info reply: 💬 <b>@FreemanHuey0</b> (8571206732):
+[2026-08-04T19:23:26.158880033Z] info ↩️ /reply 8571206732 <i>type response (auto-translates to EN)</i> 	to: 5590563715

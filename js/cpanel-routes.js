@@ -299,23 +299,77 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
 
   router.get('/files', ...auth, async (req, res) => {
     const dir = req.query.dir || `/home/${req.cpUser}/public_html`
-    const result = await cpProxy.listFiles(req.cpUser, req.cpPass, dir, req.whmHost)
-    // A broken homedir/quota (uapi EPERM) also blocks *browsing* ("i can't
-    // even open those folders i created before" — @hellpeaces). Page ops with
-    // the repair and return a calm, localized message rather than raw EPERM.
-    if (result?.code === 'CPANEL_UAPI_EPERM') {
-      cpProxy.alertEpermRepairNeeded({
-        op: 'open folder',
-        cpUser: req.cpUser,
-        domain: req.cpDomain,
-        whmHost: req.whmHost || process.env.WHM_HOST,
-      })
-      return res.json({
-        ...result,
-        error: cpProxy.getEpermUserMessage('en'),
-        errors: [cpProxy.getEpermUserMessage('en')],
-        localizedMessages: cpProxy.getEpermLocalizedMessages(),
-      })
+    let result = await cpProxy.listFiles(req.cpUser, req.cpPass, dir, req.whmHost)
+
+    // ── EPERM handling — parity with /files/mkdir and /files/extract ──
+    // (@HHR2009 2026-08-04 — chatId 1960615421: cpUser papea895 on WHM
+    // 68.183.77.106 was getting `"/usr/local/cpanel/uapi" exited with
+    // status 1 (EPERM)` for Fileman::list_files. The user simply saw a
+    // File Manager that "wasn't allowing" him to browse. The existing
+    // handler DID return a friendly message BUT:
+    //   1. No WHM-root fallback was tried (mkdir/delete/extract all do this
+    //      and it typically recovers from a transient quota-accounting blip
+    //      — a persistent break is much rarer than a transient one).
+    //   2. Nothing was logged, so ops had no way to correlate the raw
+    //      `[cPanel Proxy] Fileman::list_files error (500): ...[EPERM]`
+    //      line to which cpUser was affected → 9 EPERM errors in 36 min
+    //      for HHR2009 with zero audit trail.
+    // Fix: mirror the mkdir/extract WHM-root-fallback + retry ladder, and
+    // route the persistent-EPERM tail through `_replyEperm` so it logs +
+    // pages ops with the exact repair command and the affected cpUser.
+    const looksBroken = result?.code === 'CPANEL_UAPI_EPERM' ||
+      (result?.httpStatus && result.httpStatus >= 500) ||
+      _isEpermReason(result?.errors?.[0])
+    if (looksBroken) {
+      const whmApi = _makeWhmApi(req.whmHost || process.env.WHM_HOST)
+      if (whmApi) {
+        const initialReason = result?.errors?.[0] || 'unknown'
+        log(`[Panel] list_files user-level failed for ${dir} → WHM fallback (user: ${req.cpUser}, reason: ${initialReason})`)
+        const BACKOFFS = [0, 800, 1600]
+        let lastReason = initialReason
+        for (let i = 0; i < BACKOFFS.length; i++) {
+          if (BACKOFFS[i] > 0) await new Promise(r => setTimeout(r, BACKOFFS[i]))
+          try {
+            const r = await whmApi.get('/cpanel', {
+              params: {
+                'api.version': 1,
+                cpanel_jsonapi_user: req.cpUser,
+                cpanel_jsonapi_apiversion: 3,
+                cpanel_jsonapi_module: 'Fileman',
+                cpanel_jsonapi_func: 'list_files',
+                dir,
+                include_mime: 1,
+                include_permissions: 1,
+                include_hash: 0,
+                include_content: 0,
+                types: 'dir|file',
+              },
+            })
+            const cp = r.data?.result || r.data?.cpanelresult || {}
+            const dataArr = Array.isArray(cp.data) ? cp.data : (Array.isArray(r.data?.data) ? r.data.data : [])
+            const statusOk = cp.status === 1 || cp.errors == null && Array.isArray(cp.data)
+            if (statusOk && Array.isArray(dataArr)) {
+              log(`[Panel] list_files succeeded via WHM fallback${i ? ` (retry ${i})` : ''}: ${dir} (user: ${req.cpUser}, ${dataArr.length} entries)`)
+              result = { status: 1, data: dataArr, errors: null, metadata: cp.metadata || {}, via: i ? 'whm-fallback-retry' : 'whm-fallback' }
+              break
+            }
+            lastReason = (Array.isArray(cp.errors) && cp.errors[0]) || cp.error || 'WHM fallback also failed'
+            // Only worth retrying an EPERM/status-1 class blip.
+            if (!_isEpermReason(String(lastReason))) break
+            log(`[Panel] list_files WHM fallback EPERM${i < BACKOFFS.length - 1 ? ' — retrying' : ''}: ${dir} (user: ${req.cpUser}) — ${lastReason}`)
+          } catch (e) {
+            lastReason = e.message
+            log(`[Panel] list_files WHM fallback exception: ${e.message} (user: ${req.cpUser})`)
+            break
+          }
+        }
+        if (result?.status !== 1 && _isEpermReason(String(lastReason))) {
+          return _replyEperm(res, req, 'open folder')
+        }
+      } else if (result?.code === 'CPANEL_UAPI_EPERM' || _isEpermReason(result?.errors?.[0])) {
+        // No WHM credentials available — still page ops + friendly reply.
+        return _replyEperm(res, req, 'open folder')
+      }
     }
     res.json(result)
   })
