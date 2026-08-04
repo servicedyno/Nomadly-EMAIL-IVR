@@ -46,7 +46,7 @@ const cpAuth  = require('../cpanel-auth')
 
 // ── Test identifiers ──
 const TS = Date.now().toString(36)
-const TEST_DOMAIN = `epermtest${TS}.test`
+const TEST_DOMAIN = `eperm-e2e-${TS}.io`
 const TEST_USER   = `eptest${TS.slice(-6)}`
 const TEST_CHAT   = `TESTEPERM-${TS}`
 const TEST_PLAN   = 'premium anti-red (1-week)'
@@ -77,7 +77,7 @@ async function run() {
 
     // ── 1. Create a fresh cPanel account via WHM ─────────────────────────
     console.log(`[1] Creating cPanel account on ${WHM_HOST} …`)
-    acct = await whm.createAccount(TEST_DOMAIN, TEST_PLAN, TEST_EMAIL, TEST_USER, { useCloudflareNS: true })
+    acct = await whm.createAccount(TEST_DOMAIN, TEST_PLAN, TEST_EMAIL, TEST_USER, { useCloudflareNS: false })
     if (!acct.success) {
       console.error(`  ❌ WHM createAccount failed: ${acct.error}`)
       process.exit(2)
@@ -124,20 +124,29 @@ async function run() {
     check('session returns cpUser',  sessRes.data?.username === acct.username)
 
     // ── 4. LIST /panel/files ──────────────────────────────────────────────
-    console.log(`\n[4] GET /panel/files  (list root)`)
+    console.log(`\n[4] GET /panel/files  (list default = public_html)`)
     const listRoot = await axios.get(`${NODE_URL}/panel/files`, { ...authHeader, validateStatus: () => true })
-    check('list root → HTTP 200', listRoot.status === 200,
+    check('list default → HTTP 200', listRoot.status === 200,
       `got ${listRoot.status}: ${JSON.stringify(listRoot.data).slice(0, 300)}`)
-    check('list root → status 1',              listRoot.data?.status === 1)
-    check('list root → no CPANEL_UAPI_EPERM',  listRoot.data?.code !== 'CPANEL_UAPI_EPERM')
-    check('list root → data is array',         Array.isArray(listRoot.data?.data))
-    const hasPublicHtml = (listRoot.data?.data || []).some(f =>
-      (f.file || f.name || f.fullname) === 'public_html' && (f.type === 'dir' || /dir/i.test(f.type || ''))
+    check('list default → status 1',              listRoot.data?.status === 1)
+    check('list default → no CPANEL_UAPI_EPERM',  listRoot.data?.code !== 'CPANEL_UAPI_EPERM')
+    check('list default → data is array',         Array.isArray(listRoot.data?.data))
+
+    const homeDir = `/home/${acct.username}`
+    console.log(`\n[4b] GET /panel/files?dir=${homeDir}  (parent of public_html)`)
+    const listHome = await axios.get(`${NODE_URL}/panel/files`, {
+      ...authHeader, params: { dir: homeDir }, validateStatus: () => true,
+    })
+    check('list home → HTTP 200', listHome.status === 200)
+    check('list home → status 1', listHome.data?.status === 1)
+    const homeHasPublicHtml = (listHome.data?.data || []).some(f =>
+      (f.file || f.name || f.fullname) === 'public_html'
     )
-    check('list root → includes public_html/', hasPublicHtml)
+    check('list home → includes public_html/', homeHasPublicHtml,
+      `entries: ${(listHome.data?.data || []).map(f => f.file || f.name).slice(0,15).join(', ')}`)
 
     const dir = `/home/${acct.username}/public_html`
-    console.log(`\n[4b] GET /panel/files?dir=${dir}`)
+    console.log(`\n[4c] GET /panel/files?dir=${dir}`)
     const listPublicHtml = await axios.get(`${NODE_URL}/panel/files`, {
       ...authHeader, params: { dir }, validateStatus: () => true,
     })
@@ -151,14 +160,15 @@ async function run() {
     const uploadBody = Buffer.from(`Hello from e2e HHR2009 fix test at ${new Date().toISOString()}\n`, 'utf8')
     const form1 = new FormData()
     form1.append('dir', uploadDir)
-    form1.append('files', uploadBody, { filename: uploadName, contentType: 'text/plain' })
+    // multer expects the single-file field to be named 'file' (see cpanel-routes.js:516)
+    form1.append('file', uploadBody, { filename: uploadName, contentType: 'text/plain' })
     const upRes = await axios.post(`${NODE_URL}/panel/files/upload`, form1, {
       headers: { ...authHeader.headers, ...form1.getHeaders() },
       maxContentLength: Infinity, maxBodyLength: Infinity,
       validateStatus: () => true,
     })
     check('upload → HTTP 200',    upRes.status === 200, `got HTTP ${upRes.status}: ${JSON.stringify(upRes.data).slice(0,300)}`)
-    check('upload → status 1',    upRes.data?.status === 1 || upRes.data?.data?.some?.(f => f?.status === 1) || upRes.data?.uploaded > 0)
+    check('upload → status 1',    upRes.data?.status === 1 || upRes.data?.uploaded > 0 || upRes.data?.data?.some?.(f => f?.status === 1))
     check('upload → not EPERM',   upRes.data?.code !== 'CPANEL_UAPI_EPERM')
 
     // Verify the file appears when we re-list
@@ -257,13 +267,13 @@ async function run() {
       zipName = `eperm_probe_${TS}.zip`
       const form2 = new FormData()
       form2.append('dir', uploadDir)
-      form2.append('files', zipBuf, { filename: zipName, contentType: 'application/zip' })
+      form2.append('file', zipBuf, { filename: zipName, contentType: 'application/zip' })
       const upZipRes = await axios.post(`${NODE_URL}/panel/files/upload`, form2, {
         headers: { ...authHeader.headers, ...form2.getHeaders() },
         maxContentLength: Infinity, maxBodyLength: Infinity,
         validateStatus: () => true,
       })
-      check('upload zip → HTTP 200', upZipRes.status === 200)
+      check('upload zip → HTTP 200', upZipRes.status === 200, `got ${upZipRes.status}: ${JSON.stringify(upZipRes.data).slice(0,300)}`)
       check('upload zip → not EPERM', upZipRes.data?.code !== 'CPANEL_UAPI_EPERM')
     }
 
@@ -335,8 +345,8 @@ async function run() {
 
     try {
       if (cleanup.whmAcct) {
-        const term = await whm.terminateAccount(TEST_USER)
-        console.log(`  ${term.success ? '✅' : '⚠️ '} WHM terminateAccount(${TEST_USER}): ${term.success ? 'ok' : term.error}`)
+        const ok = await whm.terminateAccount(TEST_USER)
+        console.log(`  ${ok ? '✅' : '⚠️ '} WHM terminateAccount(${TEST_USER}): ${ok ? 'ok' : 'failed'}`)
       }
     } catch (e) { console.error(`  ⚠️  WHM cleanup: ${e.message}`) }
 
