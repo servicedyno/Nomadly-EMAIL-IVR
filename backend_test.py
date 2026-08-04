@@ -10,7 +10,7 @@ import sys
 from typing import Dict, Any, List, Tuple
 
 # Backend URL from frontend/.env
-BACKEND_URL = "https://wallet-debit-trace.preview.emergentagent.com/api"
+BACKEND_URL = "https://api-deployment-4.preview.emergentagent.com/api"
 
 class Colors:
     GREEN = '\033[92m'

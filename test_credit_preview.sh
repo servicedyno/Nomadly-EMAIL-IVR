@@ -1,5 +1,5 @@
 #!/bin/bash
-BACKEND_URL="https://wallet-debit-trace.preview.emergentagent.com"
+BACKEND_URL="https://api-deployment-4.preview.emergentagent.com"
 
 echo "TEST 4 — Regression of existing preview endpoint"
 echo ""
