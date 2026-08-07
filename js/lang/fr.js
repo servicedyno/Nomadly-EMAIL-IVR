@@ -124,7 +124,7 @@ const user = {
  smsManageDevices: '📱 Gérer les appareils',
  smsHowItWorks: '❓ Comment ça marche',
  smsAppSettings: '⚙️ Paramètres SMS',
- changeSetting: '🌍 Paramètres',
+ changeSetting: '⚙️ Paramètres',
  changeLanguage: '🌍 Changer de langue',
 
  // Sub Menu 1: urlShortenerMain

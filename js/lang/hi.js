@@ -123,7 +123,7 @@ const user = {
  smsManageDevices: '📱 डिवाइस प्रबंधित करें',
  smsHowItWorks: '❓ कैसे काम करता है',
  smsAppSettings: '⚙️ SMS सेटिंग्स',
- changeSetting: '🌍 सेटिंग्स',
+ changeSetting: '⚙️ सेटिंग्स',
  changeLanguage: '🌍 भाषा बदलें',
 
  // Sub Menu 1: urlShortenerMain

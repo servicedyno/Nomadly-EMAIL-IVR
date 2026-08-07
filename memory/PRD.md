@@ -1753,3 +1753,14 @@ at the start of the decline, plus ~5 unlabeled auto-deploys/day (no QA gate).
 
 **Verification (self-test — Telegram flow can't be automated on dev pod):** `node --check` on all touched files; 4-language render of the confirm card ($0.50/min · 50 min for $25, destination-based rate); routing simulation (Confirm→enable ✓, Back→cancel ✓, stray input→re-show ✓); node boots clean; `/api/dev/plan-quota-audit` & `/api/dev/ux-fixes-audit` still `ok:true`; `/api/health` healthy.
 
+
+### 2026-06 (same forked session, follow-up 3) — Low-Balance Forwarding Alert + Icon Audit (Settings)
+
+**1. Low-Balance Forwarding Alert (shipped)** — `js/voice-service.js`:
+- New `notifyLowForwardingBalance(chatId, phoneNumber, destinationNumber)` — after a forwarded call is billed, if the wallet covers fewer than `FORWARD_LOW_MIN_THRESHOLD` (env, default 10) minutes at that destination's rate (`getCallRate`: US/CA `$0.15`, else `$0.50`), it sends the existing `vs.lowBalanceForward` message ("⚠️ Low Balance — $X (~N min fwd). Top up $25"). Destination-aware minutes.
+- De-duplicated: falling-edge + 6h cooldown via `_forwardLowNotifyHistory` (nudge once per low episode; re-arms after the user tops back above the threshold; safety re-nag after 6h).
+- Hooked in `billCallMinutesUnified` (post-charge) for `callType` `'Forwarding'`/`'Bridge_Transfer'`. The old ad-hoc pre-call warning (`_forwardingWalletGate`, fired every call at `<$5` with NO dedup) now routes through the same helper — removes spam, unifies messaging.
+- Verified: `node --check`; logic simulation (US 13min quiet → 8min NUDGE → 7min skip(dedup) → topup 33min re-arm → 6min NUDGE; intl 12min quiet → 9min NUDGE); message renders; node healthy; dev audits still ok.
+
+**2. Icon Audit Pass (main menu)** — full inventory of all 19 main-menu buttons. Only real issue after sign-off: **🌍 Settings → ⚙️ Settings** (changed in all 4 langs). Routing safe: matcher (`_index.js` ~13543) already routes via `user.changeSetting` (now ⚙️) and keeps the old `🌍` literals as stale-keyboard aliases. Per user sign-off: SMS Leads stays 📱 (mild BulkSMS overlap accepted); Email Validation + Email Blast stay 📧 (same category). All other icons confirmed clean.
+
