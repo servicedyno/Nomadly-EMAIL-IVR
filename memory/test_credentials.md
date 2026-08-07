@@ -4,7 +4,7 @@ This app uses Telegram bot authentication (chatId-based) — there is no email/p
 login for the panel. Auth flows are exercised via the bot / dev endpoints.
 
 ## Sandbox runtime config (set up this session)
-- Pod URL: https://peaceful-rhodes-11.preview.emergentagent.com
+- Pod URL: https://integration-config.preview.emergentagent.com
 - Env source of truth: /app/backend/.env  (/app/.env is a symlink to it)
 - BOT_ENVIRONMENT = development  → uses TELEGRAM_BOT_TOKEN_DEV (safe dev bot, no live user traffic)
 - SKIP_WEBHOOK_SYNC = true        → prod Telegram webhook preserved; infra-mutating jobs disabled
