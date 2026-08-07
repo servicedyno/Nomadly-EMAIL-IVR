@@ -40153,6 +40153,49 @@ app.get('/unsubscribe', (req, res) => {
 // ADMIN: Reset all user keyboards
 // Clears stale action states and sends fresh keyboard to all users
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+app.get('/admin/dns-fix-selftest', (req, res) => {
+  // Guarded, READ-ONLY self-test for the 2026-08-07 group-D DNS fixes.
+  // Exercises the PURE logic only (no external Cloudflare/registrar calls):
+  //   • sanitizeProviderError → friendly registrar "domain status" lock message
+  //   • cfService._classifyCreateError → 81053/81057/81058 = already-exists
+  //   • cfService._isIdempotentDeleteStatus → 404 = idempotent success
+  const adminKey = req?.query?.key
+  if (adminKey !== process.env.SESSION_SECRET?.slice(0, 16)) {
+    return res.status(403).json({ error: 'Unauthorized' })
+  }
+  try {
+    const cfService = require('./cf-service')
+    const checks = []
+    const expect = (name, cond, detail) => checks.push({ name, pass: !!cond, detail })
+
+    // D3 — registrar "domain status" lock → friendly message
+    const nsRaw = 'This action is prohibitted for current domain status'
+    const nsOut = sanitizeProviderError(nsRaw, 'domain')
+    expect('D3_ns_status_mapped', /support/i.test(nsOut) && !/prohibit/i.test(nsOut), nsOut)
+    // D3 — must NOT clobber unrelated domain errors
+    const other = sanitizeProviderError('Domain is already registered', 'domain')
+    expect('D3_no_false_positive', /already registered/i.test(other), other)
+
+    // D1 — createDNSRecord "already exists" family
+    expect('D1_81053_alreadyExists', cfService._classifyCreateError([{ code: 81053 }], 400).alreadyExists === true)
+    expect('D1_81057_alreadyExists', cfService._classifyCreateError([{ code: 81057 }], 400).alreadyExists === true)
+    expect('D1_81058_alreadyExists', cfService._classifyCreateError([{ code: 81058 }], 400).alreadyExists === true)
+    expect('D1_403_outOfAccount', cfService._classifyCreateError([{ code: 1004 }], 403).outOfAccount === true)
+    expect('D1_10000_outOfAccount', cfService._classifyCreateError([{ code: 10000 }], 400).outOfAccount === true)
+    const benign = cfService._classifyCreateError([{ code: 9999 }], 500)
+    expect('D1_benign_neither', benign.alreadyExists === false && benign.outOfAccount === false)
+
+    // D2 — deleteDNSRecord 404 idempotency
+    expect('D2_delete_404_idempotent', cfService._isIdempotentDeleteStatus(404) === true)
+    expect('D2_delete_500_not_idempotent', cfService._isIdempotentDeleteStatus(500) === false)
+
+    const allPass = checks.every(c => c.pass)
+    return res.status(allPass ? 200 : 500).json({ ok: allPass, passed: checks.filter(c => c.pass).length, total: checks.length, checks })
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
 app.get('/admin/reset-keyboards', async (req, res) => {
   const adminKey = req?.query?.key
   if (adminKey !== process.env.SESSION_SECRET?.slice(0, 16)) {

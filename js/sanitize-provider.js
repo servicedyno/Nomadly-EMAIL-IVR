@@ -14,6 +14,20 @@
 function sanitizeProviderError(msg, context = 'generic') {
   if (!msg || typeof msg !== 'string') return msg || 'An error occurred'
 
+  // ── Known registrar "domain status" lock → friendly, actionable message ──
+  // ConnectReseller/OpenProvider reject nameserver/contact updates while a
+  // domain is in a state that disallows them: freshly registered & still
+  // activating at the registry, pending transfer, registry-locked, or expired.
+  // The raw text ("This action is prohibitted for current domain status")
+  // confused a user (support chat 2026-08-07, user 8868602470 "What's wrong
+  // with my domain? Rbc"). Short-circuit with a clear next-step so users aren't
+  // left staring at a registrar-speak error.
+  const _lc = msg.toLowerCase()
+  if (_lc.includes('current domain status') &&
+      (_lc.includes('prohibit') || _lc.includes('not allowed') || _lc.includes('cannot'))) {
+    return "Your domain isn't ready for nameserver changes yet — it may still be activating at the registry (this can take a few minutes after registration) or is temporarily locked. Please try again shortly. If it keeps failing, tap 💬 Support and we'll sort it out."
+  }
+
   let sanitized = msg
 
   // ── FIX: HTML entity escaping ──

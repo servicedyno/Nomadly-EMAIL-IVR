@@ -28,6 +28,29 @@ const cfHeaders = () => ({
   'Content-Type': 'application/json',
 })
 
+// ─── Cloudflare error-code classification (pure, unit-testable) ─────────
+// "Record already exists" family — Cloudflare returns different codes for the
+// same practical situation depending on record type. Previously only 81057 was
+// handled, so a pre-existing root/www record surfaced as a hard error
+// ("CF createDNSRecord error: 81053 ...", Railway prod 2026-08-06) and DNS
+// setup for a domain could be left incomplete → site not resolving.
+//   81053 = "An A, AAAA, or CNAME record with that host already exists"
+//   81057 = "Record already exists"
+//   81058 = "An A, AAAA record with that host already exists"
+const CF_ALREADY_EXISTS_CODES = [81053, 81057, 81058]
+// Zone is unusable by our token (different CF account or stale/invalid zone id).
+const CF_OUT_OF_ACCOUNT_CODES = [10000, 9109, 7003, 1003]
+
+const _classifyCreateError = (cfErrors = [], status) => {
+  const codes = (cfErrors || []).map((e) => Number(e && e.code)).filter((n) => !Number.isNaN(n))
+  const alreadyExists = codes.some((c) => CF_ALREADY_EXISTS_CODES.includes(c))
+  const outOfAccount = status === 403 || codes.some((c) => CF_OUT_OF_ACCOUNT_CODES.includes(c))
+  return { alreadyExists, outOfAccount, codes }
+}
+
+// A DELETE that 404s means the record is already gone → idempotent success.
+const _isIdempotentDeleteStatus = (status) => status === 404
+
 // ─── Connection ─────────────────────────────────────────
 
 const testConnection = async () => {
@@ -284,8 +307,8 @@ const createDNSRecord = async (zoneId, recordType, name, content, ttl = 300, pro
   } catch (err) {
     const cfErrors = err.response?.data?.errors || []
     const status = err.response?.status
-    // 81057 = "Record already exists" — try to update it instead
-    const alreadyExists = cfErrors.some(e => e.code === 81057)
+    // Classify: "record already exists" (81053/81057/81058) vs cross-account/stale zone.
+    const { alreadyExists, outOfAccount } = _classifyCreateError(cfErrors, status)
     if (alreadyExists) {
       try {
         // Find the existing record and update it
@@ -312,13 +335,7 @@ const createDNSRecord = async (zoneId, recordType, name, content, ttl = 300, pro
     //      (1) clear the stale zoneId from MongoDB
     //      (2) show the user a meaningful explanation instead of "Failed".
     const codes = cfErrors.map(e => Number(e.code))
-    const isOutOfAccount =
-      status === 403 ||
-      codes.includes(10000) ||
-      codes.includes(9109) ||      // "Unauthorized to access requested resource"
-      codes.includes(7003) ||      // "Could not route to /zones/<id>" (bad zone id)
-      codes.includes(1003)         // "Invalid or missing zone id"
-    if (isOutOfAccount) {
+    if (outOfAccount) {
       log(`[CF createDNSRecord] cross-account / stale zoneId: zone=${zoneId} status=${status} codes=${codes.join(',')} — caller should clear cfZoneId`)
       return {
         success: false,
@@ -356,6 +373,12 @@ const deleteDNSRecord = async (zoneId, recordId) => {
     if (res.data?.success) return { success: true }
     return { success: false, errors: res.data?.errors || [] }
   } catch (err) {
+    // 404 = record already gone → idempotent success (mirrors deleteZone).
+    // Prevents the DnsHealer/cleanup loops from treating an already-deleted
+    // record as a failure ("CF deleteDNSRecord error: ...404", Railway 2026-08-06).
+    if (_isIdempotentDeleteStatus(err.response?.status)) {
+      return { success: true, alreadyDeleted: true }
+    }
     log('CF deleteDNSRecord error:', err.message)
     return { success: false, errors: [{ message: err.message }] }
   }
@@ -1587,4 +1610,9 @@ module.exports = {
   // Tunnel
   migrateToTunnel,
   CF_TUNNEL_CNAME,
+  // Pure helpers (exported for unit tests + /admin/dns-fix-selftest)
+  _classifyCreateError,
+  _isIdempotentDeleteStatus,
+  CF_ALREADY_EXISTS_CODES,
+  CF_OUT_OF_ACCOUNT_CODES,
 }
