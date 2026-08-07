@@ -1727,3 +1727,18 @@ at the start of the decline, plus ~5 unlabeled auto-deploys/day (no QA gate).
 - Deferred UX terminology items (T1/T2/T3: BulkSMS icon, "Upgrade Plan" vs "Anti-Red Hosting" label collision, 📧 icon reuse) — still pending product sign-off (high 4-language + button-routing blast radius).
 - Storage/bandwidth hosting specs are marketing strings validated at WHM package level, not in bot code — no code-level enforcement to audit.
 
+
+### 2026-06 (same forked session, follow-up) — Forwarding Cost Preview + Menu Terminology cleanup
+
+**User picks:** Forwarding Cost Preview + Menu Terminology (with explicit sign-off: 📱 BulkSMS; hosting "⬆️ Upgrade Plan" → "⬆️ Upgrade Hosting"; leave genuine email buttons on 📧).
+
+1. **Forwarding Cost Preview (shipped)** — The `t.fwdEnterNumber` prompt (shown right before enabling forwarding) now displays per-minute rates (🇺🇸 US/CA `$OVERAGE_RATE_MIN` = $0.15, 🌍 International `$CALL_FORWARDING_RATE_MIN` = $0.50, both from `.env`) AND an estimate of how many minutes the wallet covers (`floor(walletBal/rate)`) before top-up. Updated in all 4 langs (en/fr/zh/hi) + the caller (`_index.js` ~27946) now passes `phoneConfig.OVERAGE_RATE_MIN` as the 3rd arg. Rates displayed with `.toFixed(2)`.
+
+2. **Menu Terminology cleanup (shipped)** —
+   - **BulkSMS icon 📧 → 📱** everywhere (button `smsAppMain` + trial button `freeTrialAvailable` in all 4 langs, dynamic label builder `_index.js` ~8318, AI cross-sell map ~1931, trigger-text fallbacks ~5176/~5191, and `plan-copy.js` perk labels). This frees 📧 to mean email-only (Email Blast, Email Validation, Google Workspace, Zoho, IONOS SMTP keep 📧). **Routing kept safe**: the BulkSMS discriminator (~8331) and matcher (~32244) now accept BOTH `📱` (new) and `📧` (stale cached keyboards) while still requiring `includes('BulkSMS'|'SMS en masse')`, so email products never false-match.
+   - **Hosting "⬆️ Upgrade Plan" → "⬆️ Upgrade Hosting"** (en `upgradeHostingPlan` + en `upgradeModalHeader`), removing the English collision with the top-level `⚡ Upgrade Plan` (`buyPlan`, left unchanged due to its large instructional-copy footprint). Matcher (~14366) accepts the old `⬆️ Upgrade Plan` as a stale-keyboard alias; `⚡ Upgrade Plan` correctly does NOT hit the hosting handler.
+
+**Verification (self-test — Telegram flows can't be automated on dev pod):** `node --check` on all touched files; direct matcher-logic simulation (new label ✓, stale label ✓, email product ✗, `⚡` vs hosting ✓ — all as expected); 4-language render of the forwarding preview ($0.15 / $0.50, minutes covered); node boots clean; `/api/dev/plan-quota-audit` and `/api/dev/ux-fixes-audit` still `ok:true` (no regression); `/api/health` healthy.
+
+**Backlog update:** BulkSMS-icon + "Upgrade Plan" collision from the earlier T1/T2/T3 terminology list are now resolved. Remaining deferred terminology (any other icon overloads) still pending explicit sign-off.
+

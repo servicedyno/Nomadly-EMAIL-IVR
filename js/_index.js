@@ -1928,10 +1928,10 @@ const postActivationNudge = async (chatId, phoneNumber, planName) => {
           hi: `🎯 <b>आपका नंबर लाइव है — आगे क्या?</b>\n\nअगला कदम चुनें:`,
         }
         const btnByLang = {
-          en: { sms: '📧 Try BulkSMS', domain: '🌐 Add a domain', vps: '🖥️ Add a VPS' },
-          fr: { sms: '📧 Essayer BulkSMS', domain: '🌐 Ajouter un domaine', vps: '🖥️ Ajouter un VPS' },
-          zh: { sms: '📧 试用 BulkSMS', domain: '🌐 添加域名', vps: '🖥️ 添加 VPS' },
-          hi: { sms: '📧 BulkSMS आज़माएं', domain: '🌐 डोमेन जोड़ें', vps: '🖥️ VPS जोड़ें' },
+          en: { sms: '📱 Try BulkSMS', domain: '🌐 Add a domain', vps: '🖥️ Add a VPS' },
+          fr: { sms: '📱 Essayer BulkSMS', domain: '🌐 Ajouter un domaine', vps: '🖥️ Ajouter un VPS' },
+          zh: { sms: '📱 试用 BulkSMS', domain: '🌐 添加域名', vps: '🖥️ 添加 VPS' },
+          hi: { sms: '📱 BulkSMS आज़माएं', domain: '🌐 डोमेन जोड़ें', vps: '🖥️ VPS जोड़ें' },
         }
         const labels = btnByLang[lang] || btnByLang.en
         sendMessage(chatId, titleByLang[lang] || titleByLang.en, {
@@ -5173,7 +5173,7 @@ bot?.on('callback_query', async (query) => {
           if (kind === 'hosting') triggerText = u.hostingDomainsRedirect || '🛡️🔥 Anti-Red Hosting'
           if (kind === 'phone')   triggerText = u.cloudPhone             || '📞 Cloud IVR + SIP'
         } else if (prefix === 'pp') {
-          if (kind === 'sms')    triggerText = u.smsAppMain  || '📧 BulkSMS'
+          if (kind === 'sms')    triggerText = u.smsAppMain  || '📱 BulkSMS'
           if (kind === 'domain') triggerText = u.domainNames || '🌐 Bulletproof Domains'
           if (kind === 'vps')    triggerText = u.vpsPlans    || '🖥️ VPS/RDP — Port 25 Open🛡️'
         }
@@ -5188,7 +5188,7 @@ bot?.on('callback_query', async (query) => {
           if (kind === 'hosting') triggerText = '🛡️🔥 Anti-Red Hosting'
           if (kind === 'phone')   triggerText = '📞 Cloud IVR + SIP'
         } else if (prefix === 'pp') {
-          if (kind === 'sms')    triggerText = '📧 BulkSMS'
+          if (kind === 'sms')    triggerText = '📱 BulkSMS'
           if (kind === 'domain') triggerText = '🌐 Bulletproof Domains'
           if (kind === 'vps')    triggerText = '🖥️ VPS/RDP — Port 25 Open🛡️'
         }
@@ -8315,10 +8315,10 @@ bot?.on('message', msg => {
       }
       const smsL = smsLabels[lang] || smsLabels.en
       const smsLabel = smsSubStatus.isSubscribed
-        ? `📧 ${smsL.active}`
+        ? `📱 ${smsL.active}`
         : smsSubStatus.isFreeTrial
-          ? `📧🆓 ${smsL.trial(smsSubStatus.freeSmsRemaining)}`
-          : `📧 ${smsL.noTrial}`
+          ? `📱🆓 ${smsL.trial(smsSubStatus.freeSmsRemaining)}`
+          : `📱 ${smsL.noTrial}`
 
       return {
         ...result,
@@ -8328,7 +8328,7 @@ bot?.on('message', msg => {
             row.map(cell => {
               if (typeof cell !== 'string') return cell
               if (cell.startsWith('🔗')) return label
-              if (cell.startsWith('📧') && (cell.includes('BulkSMS') || cell.includes('SMS en masse'))) return smsLabel
+              if ((cell.startsWith('📱') || cell.startsWith('📧')) && (cell.includes('BulkSMS') || cell.includes('SMS en masse'))) return smsLabel
               return cell
             })
           )
@@ -14363,7 +14363,7 @@ All verified numbers generated during sourcing.`))
       buttons.push([user.cancelRenewNow])
       return send(chatId, text, k.of(buttons))
     }
-    if (message === user.upgradeHostingPlan) {
+    if (message === user.upgradeHostingPlan || message === '⬆️ Upgrade Plan') {
       const domain = info?.selectedHostingDomain
       if (!domain) return goto.myHostingPlans()
       const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain, deleted: { $ne: true } })
@@ -32241,7 +32241,7 @@ Select a category:`), k.of(catBtns))
     return
   }
 
-  if (message === user.freeTrialAvailable || message === user.smsAppMain || (typeof message === 'string' && message.startsWith('📧') && (message.includes('BulkSMS') || message.includes('SMS en masse')))) {
+  if (message === user.freeTrialAvailable || message === user.smsAppMain || (typeof message === 'string' && (message.startsWith('📧') || message.startsWith('📱')) && (message.includes('BulkSMS') || message.includes('SMS en masse')))) {
     // Show BulkSMS sub-menu with dynamic status
     await set(state, chatId, 'action', a.submenu7)  // Set BulkSMS action state
     const sub = smsSubStatus
