@@ -255,7 +255,7 @@ const btn = {
   inboxRefresh: '🔄 Refresh',
 
   // Quick IVR Call (single number)
-  ivrOutboundCall: '📢 Quick IVR Call — 1 Free',
+  ivrOutboundCall: '📢 Quick IVR Call',
   ivrOutboundBack: '↩️ Back',
 
   // Bulk IVR Campaign (multiple numbers)
@@ -1328,7 +1328,7 @@ const msg = {
     sipTestReferral: (link) => `\n\n🎁 <b>Want 1 more free test call?</b>\nShare this link with a friend. When they send /testsip, you'll get a bonus call:\n\n${link}`,
     sipTestError: '❌ Could not generate test code. Please try again later.',
     sipTestMenuHint: '🆓 <b>Try a free SIP call now!</b> Send /testsip',
-    tryBeforeYouBuy: `💡 <b>Did you know?</b> You can try a <b>free SIP test call</b> and a <b>free IVR trial call</b> before choosing a plan!\n\n🆓 Tap <b>🆓 Try SIP Call Free</b> to test calling in your browser\n📢 Tap <b>📢 Quick IVR Call — 1 Free</b> for a free IVR demo\n\nOr continue below to pick a plan 👇`,
+    tryBeforeYouBuy: `💡 <b>Did you know?</b> You can try a <b>free SIP test call</b> and a <b>free IVR trial call</b> before choosing a plan!\n\n🆓 Tap <b>🆓 Try SIP Call Free</b> to test calling in your browser\n📢 Tap <b>📢 Quick IVR Call</b> for a free IVR demo\n\nOr continue below to pick a plan 👇`,
     buyPlansHeader: `📞 <b>Choose Your Plan</b>`,
   },
   fr: {
@@ -1370,7 +1370,7 @@ const msg = {
     sipTestReferral: (link) => `\n\n🎁 <b>Voulez-vous 1 appel test gratuit de plus ?</b>\nPartagez ce lien avec un ami. Quand il enverra /testsip, vous obtiendrez un appel bonus :\n\n${link}`,
     sipTestError: '❌ Impossible de générer le code test. Veuillez réessayer.',
     sipTestMenuHint: '🆓 <b>Essayez un appel SIP gratuit !</b> Envoyez /testsip',
-    tryBeforeYouBuy: `💡 <b>Le saviez-vous ?</b> Vous pouvez essayer un <b>appel SIP gratuit</b> et un <b>appel IVR d'essai</b> avant de choisir un forfait !\n\n🆓 Tapez <b>🆓 Essayer SIP Gratuit</b> pour tester\n📢 Tapez <b>📢 Appel IVR Rapide — 1 Gratuit</b> pour une démo\n\nOu continuez ci-dessous 👇`,
+    tryBeforeYouBuy: `💡 <b>Le saviez-vous ?</b> Vous pouvez essayer un <b>appel SIP gratuit</b> et un <b>appel IVR d'essai</b> avant de choisir un forfait !\n\n🆓 Tapez <b>🆓 Essayer SIP Gratuit</b> pour tester\n📢 Tapez <b>📢 Appel IVR Rapide</b> pour une démo\n\nOu continuez ci-dessous 👇`,
     buyPlansHeader: `🛒 <b>Choisir un Forfait Cloud IVR</b>\n\nChoisissez d'abord votre forfait :`,
   },
   zh: {
@@ -1412,7 +1412,7 @@ const msg = {
     sipTestReferral: (link) => `\n\n🎁 <b>想要再获得1次免费测试通话？</b>\n将此链接分享给朋友。当他们发送 /testsip 时，您将获得一次额外通话：\n\n${link}`,
     sipTestError: '❌ 无法生成测试码。请稍后重试。',
     sipTestMenuHint: '🆓 <b>免费试用SIP通话！</b> 发送 /testsip',
-    tryBeforeYouBuy: `💡 <b>您知道吗？</b>您可以在选择套餐之前试用<b>免费SIP测试通话</b>和<b>免费IVR试用通话</b>！\n\n🆓 点击 <b>🆓 免费试用SIP通话</b> 在浏览器中测试\n📢 点击 <b>📢 快速IVR呼叫 — 1次免费</b> 免费体验\n\n或继续选择套餐 👇`,
+    tryBeforeYouBuy: `💡 <b>您知道吗？</b>您可以在选择套餐之前试用<b>免费SIP测试通话</b>和<b>免费IVR试用通话</b>！\n\n🆓 点击 <b>🆓 免费试用SIP通话</b> 在浏览器中测试\n📢 点击 <b>📢 快速IVR呼叫</b> 免费体验\n\n或继续选择套餐 👇`,
     buyPlansHeader: `🛒 <b>选择云IVR套餐</b>\n\n请先选择您的套餐：`,
   },
   hi: {
@@ -1454,7 +1454,7 @@ const msg = {
     sipTestReferral: (link) => `\n\n🎁 <b>1 और मुफ्त टेस्ट कॉल चाहिए?</b>\nयह लिंक किसी दोस्त को भेजें। जब वे /testsip भेजेंगे, आपको बोनस कॉल मिलेगा:\n\n${link}`,
     sipTestError: '❌ टेस्ट कोड जनरेट नहीं हो सका। कृपया बाद में पुनः प्रयास करें।',
     sipTestMenuHint: '🆓 <b>मुफ्त SIP कॉल आज़माएं!</b> /testsip भेजें',
-    tryBeforeYouBuy: `💡 <b>क्या आप जानते हैं?</b> प्लान चुनने से पहले आप <b>मुफ्त SIP टेस्ट कॉल</b> और <b>मुफ्त IVR ट्रायल कॉल</b> आज़मा सकते हैं!\n\n🆓 <b>🆓 SIP कॉल मुफ्त आज़माएं</b> पर टैप करें\n📢 <b>📢 त्वरित IVR कॉल — 1 मुफ्त</b> पर टैप करें\n\nया प्लान चुनने के लिए आगे बढ़ें 👇`,
+    tryBeforeYouBuy: `💡 <b>क्या आप जानते हैं?</b> प्लान चुनने से पहले आप <b>मुफ्त SIP टेस्ट कॉल</b> और <b>मुफ्त IVR ट्रायल कॉल</b> आज़मा सकते हैं!\n\n🆓 <b>🆓 SIP कॉल मुफ्त आज़माएं</b> पर टैप करें\n📢 <b>📢 त्वरित IVR कॉल</b> पर टैप करें\n\nया प्लान चुनने के लिए आगे बढ़ें 👇`,
     buyPlansHeader: `🛒 <b>क्लाउड IVR प्लान चुनें</b>\n\nपहले अपना प्लान चुनें:`,
   },
 }
@@ -1535,7 +1535,7 @@ const btnI18n = {
     inboxNewerPage: '◀️ Plus Récent',
     inboxOlderPage: '▶️ Plus Ancien',
     inboxRefresh: '🔄 Actualiser',
-    ivrOutboundCall: '📢 Appel IVR Rapide — 1 Gratuit',
+    ivrOutboundCall: '📢 Appel IVR Rapide',
     ivrOutboundBack: '↩️ Retour',
     bulkCallCampaign: '📞 Campagne IVR en Masse',
     audioLibrary: '🎵 Bibliothèque Audio',
@@ -1619,7 +1619,7 @@ const btnI18n = {
     inboxNewerPage: '◀️ 较新',
     inboxOlderPage: '▶️ 较旧',
     inboxRefresh: '🔄 刷新',
-    ivrOutboundCall: '📢 快速IVR呼叫 — 1次免费',
+    ivrOutboundCall: '📢 快速IVR呼叫',
     ivrOutboundBack: '↩️ 返回',
     bulkCallCampaign: '📞 批量IVR活动',
     audioLibrary: '🎵 音频库',
@@ -1703,7 +1703,7 @@ const btnI18n = {
     inboxNewerPage: '◀️ नए',
     inboxOlderPage: '▶️ पुराने',
     inboxRefresh: '🔄 रिफ्रेश',
-    ivrOutboundCall: '📢 त्वरित IVR कॉल — 1 मुफ्त',
+    ivrOutboundCall: '📢 त्वरित IVR कॉल',
     ivrOutboundBack: '↩️ वापस',
     bulkCallCampaign: '📞 बल्क IVR अभियान',
     audioLibrary: '🎵 ऑडियो लाइब्रेरी',

@@ -22905,7 +22905,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       allBtns.push([pc.buyAnother])
       return send(chatId, displayText, k.of(allBtns))
     }
-    if (message === pc.ivrOutboundCall) {
+    if (message === pc.ivrOutboundCall || message === '📢 Quick IVR Call — 1 Free' || message === '📢 Appel IVR Rapide — 1 Gratuit' || message === '📢 快速IVR呼叫 — 1次免费' || message === '📢 त्वरित IVR कॉल — 1 मुफ्त') {
       // IVR Outbound Call — requires Pro or Business plan
       const ivrOb = require('./ivr-outbound.js')
       const userData = await get(phoneNumbersOf, chatId)
@@ -37412,6 +37412,82 @@ app.get('/dev/otp-plan-gate-check', (req, res) => {
     ...(reqPlan ? { requested: { plan: reqPlan, isTrial, decision: decide(reqPlan, isTrial) } } : {}),
   })
 })
+
+// ── DEV-ONLY: UX/text fixes audit (read-only) ───────────────────────────────
+// Verifies the 2026-08 UX/text batch from the bot-flow review:
+//   B1 — literal "\n" no longer leaks into rendered messages (translation.js nlFix)
+//   T4 — Quick IVR button no longer statically over-promises "1 Free" to everyone
+//   T5 — advertised plan features match planFeatureAccess enforcement (the class
+//        of bug behind @Padrino_voodoo's OTP complaint). No DB writes. 404 in prod.
+app.get('/dev/ux-fixes-audit', (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+
+  // --- B1: every en.js `t` string, fetched via translation(), must be free of literal "\n" ---
+  const enT = require('./lang/en.js').en.t
+  const leakKeys = []
+  let scanned = 0
+  for (const k of Object.keys(enT)) {
+    let s
+    try { s = translation('t.' + k, 'en') } catch (e) { continue }
+    if (typeof s !== 'string') continue
+    scanned++
+    if (/\\n/.test(s)) leakKeys.push(k)
+  }
+  const samples = {}
+  for (const k of ['cp_41', 'wlt_9', 'cp_76']) {
+    const s = String(translation('t.' + k, 'en'))
+    samples[k] = { literalBackslashN: (s.match(/\\n/g) || []).length, realNewlines: (s.match(/\n/g) || []).length }
+  }
+  const newlineCheck = { scanned, leakingKeyCount: leakKeys.length, leakingKeys: leakKeys.slice(0, 30), samples }
+
+  // --- T4: Quick IVR label must not carry a static "free" promise in any language ---
+  const quickIvrLabels = {}
+  const badWords = ['1 Free', 'Gratuit', '免费', 'मुफ्त', 'मुफ़्त']
+  for (const lang of ['en', 'fr', 'zh', 'hi']) {
+    let label = ''
+    try { label = phoneConfig.getBtn(lang).ivrOutboundCall } catch (e) { label = '(err)' }
+    quickIvrLabels[lang] = { label, overPromises: badWords.some(w => String(label).includes(w)) }
+  }
+  const t4Ok = Object.values(quickIvrLabels).every(v => !v.overPromises)
+
+  // --- T5: advertised plan features vs planFeatureAccess enforcement ---
+  const featureKeywords = {
+    voicemail: ['Voicemail'], sipCredentials: ['SIP'], callRecording: ['Recording'],
+    ivr: ['Auto-Attendant', 'Auto-attendant'], ivrOutbound: ['Quick IVR'], bulkCall: ['Bulk IVR'],
+    otpCollection: ['OTP Collection'], ivrRedial: ['Redial'], otpCustomMessages: ['Custom OTP'],
+  }
+  const lowerOf = { pro: 'starter', business: 'pro' }
+  const ownFeatures = (plan) => [
+    ...((phoneConfig.plans[plan] && phoneConfig.plans[plan].features) || []),
+    ...((phoneConfig.plansI18n.en[plan] && phoneConfig.plansI18n.en[plan].features) || []),
+  ]
+  const advertisesAll = (plan) => ownFeatures(plan).some(f => /^All\s+\w+\s+features/i.test(f))
+  const advertised = (plan, key) => {
+    const kws = featureKeywords[key]
+    if (ownFeatures(plan).some(f => kws.some(kw => f.toLowerCase().includes(kw.toLowerCase())))) return true
+    if (lowerOf[plan] && advertisesAll(plan)) return advertised(lowerOf[plan], key)
+    return false
+  }
+  const mismatches = []
+  for (const plan of ['starter', 'pro', 'business']) {
+    for (const key of Object.keys(featureKeywords)) {
+      const adv = advertised(plan, key)
+      const acc = phoneConfig.canAccessFeature(plan, key)
+      if (adv !== acc) mismatches.push({ plan, feature: key, advertised: adv, accessible: acc })
+    }
+  }
+  const planMarketingAudit = { mismatchCount: mismatches.length, mismatches }
+
+  return res.json({
+    ok: newlineCheck.leakingKeyCount === 0 && t4Ok && planMarketingAudit.mismatchCount === 0,
+    newlineCheck,        // B1
+    quickIvrLabels, t4Ok, // T4
+    planMarketingAudit,  // T5
+  })
+})
+
 
 
 // ── DEV-ONLY: preview the File Manager EPERM decision (@hellpeaces fix) ─────

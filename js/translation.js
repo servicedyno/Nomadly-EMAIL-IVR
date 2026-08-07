@@ -35,12 +35,19 @@ const translation = (key, language, ...args) => {
     return key
   }
 
+  // Normalize literal "\n" -> real newline. Many single-quoted lang strings were
+  // authored with '\\n', which renders as a VISIBLE "\n" in Telegram (verified on
+  // ~100 keys, e.g. Select Call Mode, Transaction History). Backtick strings that
+  // already use real newlines are unaffected (they contain no literal backslash-n).
+  // Only string values are touched; keyboards/objects pass through unchanged.
+  const nlFix = (s) => (typeof s === 'string' ? s.replace(/\\n/g, '\n') : s)
+
   // If the value is a function, call it with the provided arguments
   if (typeof value === 'function') {
-    return value(...args)
+    return nlFix(value(...args))
   }
 
-  return value
+  return nlFix(value)
 }
 
 module.exports = {
