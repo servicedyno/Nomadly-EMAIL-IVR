@@ -37971,6 +37971,88 @@ app.post('/dev/call-reconciler-test', async (req, res) => {
   return res.json(out)
 })
 
+// ── DEV-ONLY: Quick IVR transfer-leg billing test (Twilio). 404 in prod. ──
+// Verifies the 2026-08-07 fix: the Twilio Quick IVR transfer leg (caller → transfer
+// destination) is now billed like Telnyx (IVR_Transfer, flat IVR rate, min 1 min when
+// connected, idempotent). All-synthetic (fake chatId + in-memory session); cleans up.
+app.post('/dev/twilio-ivr-transfer-billing-test', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const voiceService = require('./voice-service.js')
+  const ledger = db.collection('walletLedger')
+  const ts = Date.now()
+  const testChatId = 'IVRXFERTEST-' + ts
+  const sessionId = 'ivrxfer_' + ts
+  const dialSid = 'CAxfertest' + ts
+  const callerId = '+3197006532350'
+  const ivrNumber = '+447460064497' // UK (+44) — international; flat IVR rate must still apply
+  const transferCallRef = `twilio_transfer_${dialSid}`
+  const IVR_RATE = voiceService.IVR_CALL_RATE || 0.15
+  const base = 'http://127.0.0.1:5000'
+  const form = (o) => new URLSearchParams(o).toString()
+  const post = async (path, body) => {
+    const r = await fetch(base + path, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: form(body) })
+    return { status: r.status, text: await r.text() }
+  }
+  const bal = async () => { const w = await walletOf.findOne({ _id: testChatId }); return +(((w?.usdIn || 0) - (w?.usdOut || 0))).toFixed(4) }
+  const out = { checks: {} }
+  try {
+    // Seed synthetic wallet + in-memory IVR session (non-trial, non-campaign, transfer mode)
+    await walletOf.updateOne({ _id: testChatId }, { $set: { usdIn: 10, usdOut: 0 } }, { upsert: true })
+    voiceService.twilioIvrSessions[sessionId] = {
+      chatId: testChatId, callerId, ivrNumber, targetNumber: '+31626742533',
+      activeKeys: ['1', '2'], ivrMode: 'transfer', bulkMode: 'transfer',
+      holdMusic: false, voiceName: '', isTrial: false, campaignId: null, phase: 'playing',
+    }
+
+    // (A) Gather TwiML must now include the transfer-leg status callback (the fix).
+    const gather = await post(`/twilio/single-ivr-gather?sessionId=${encodeURIComponent(sessionId)}`, { Digits: '1' })
+    out.checks.gather_has_transfer_action = gather.status === 200 && /single-ivr-transfer-status/.test(gather.text)
+    out.checks.gather_dials_destination = new RegExp(ivrNumber.replace('+', '\\+')).test(gather.text)
+
+    const balBefore = await bal()
+    // (B) Transfer completed for 90s → 2 min billed at FLAT IVR rate (not $0.50 intl).
+    const st1 = await post(`/twilio/single-ivr-transfer-status?sessionId=${encodeURIComponent(sessionId)}`, { DialCallStatus: 'completed', DialCallDuration: '90', DialCallSid: dialSid })
+    const balAfter1 = await bal()
+    const led1 = await ledger.find({ callRef: transferCallRef }).toArray()
+    const expectedCharge = +(2 * IVR_RATE).toFixed(4) // 2 min × flat IVR rate
+    out.checks.transfer_status_200 = st1.status === 200
+    out.checks.transfer_leg_billed_once = led1.length === 1
+    out.checks.charged_flat_ivr_rate = Math.abs((balBefore - balAfter1) - expectedCharge) < 0.0001
+    out.checks.not_charged_intl_rate = Math.abs((balBefore - balAfter1) - +(2 * 0.50).toFixed(4)) > 0.0001
+
+    // (C) Idempotency: replay the same DialCallSid (bypass in-memory guard) → no double charge.
+    if (voiceService.twilioIvrSessions[sessionId]) voiceService.twilioIvrSessions[sessionId]._transferBilled = false
+    await post(`/twilio/single-ivr-transfer-status?sessionId=${encodeURIComponent(sessionId)}`, { DialCallStatus: 'completed', DialCallDuration: '90', DialCallSid: dialSid })
+    const balAfter2 = await bal()
+    const led2 = await ledger.find({ callRef: transferCallRef }).toArray()
+    out.checks.idempotent_no_double_charge = led2.length === 1 && Math.abs(balAfter2 - balAfter1) < 0.0001
+
+    // (D) No-answer transfer must NOT be billed.
+    const dialSid2 = dialSid + '_na'
+    voiceService.twilioIvrSessions[sessionId] = { ...voiceService.twilioIvrSessions[sessionId], _transferBilled: false }
+    const balPreNA = await bal()
+    await post(`/twilio/single-ivr-transfer-status?sessionId=${encodeURIComponent(sessionId)}`, { DialCallStatus: 'no-answer', DialCallDuration: '0', DialCallSid: dialSid2 })
+    const balPostNA = await bal()
+    const ledNA = await ledger.find({ callRef: `twilio_transfer_${dialSid2}` }).toArray()
+    out.checks.no_answer_not_billed = ledNA.length === 0 && Math.abs(balPostNA - balPreNA) < 0.0001
+
+    out.expectedCharge = expectedCharge
+    out.observedCharge = +(balBefore - balAfter1).toFixed(4)
+    out.pass = Object.values(out.checks).every(Boolean)
+  } catch (e) {
+    out.error = e.message
+    out.pass = false
+  } finally {
+    try { delete voiceService.twilioIvrSessions[sessionId] } catch (_) { /* cleanup */ }
+    try { await walletOf.deleteOne({ _id: testChatId }) } catch (_) { /* cleanup */ }
+    try { await ledger.deleteMany({ chatId: testChatId }) } catch (_) { /* cleanup */ }
+    try { await db.collection('payments').deleteMany({ val: { $regex: testChatId } }) } catch (_) { /* cleanup */ }
+  }
+  return res.json(out)
+})
+
 
 
 // ── DEV-ONLY: Outbound Call Auth Self-Heal + Provider Health Test ─────────
@@ -43149,9 +43231,15 @@ app.post('/twilio/single-ivr-gather', async (req, res) => {
         } else {
           response.say({ voice: twilioVoice }, 'Please hold while we connect you.')
         }
-        const dial = response.dial({ callerId: session.callerId, timeout: 30 })
+        // BILLING FIX (2026-08-07): the transfer leg (callerId → ivrNumber) is a SECOND,
+        // concurrent outbound PSTN leg that Twilio charges Nomadly for — mirror Telnyx
+        // (handleIvrTransferLegHangup bills IVR_Transfer). Previously this <Dial> had NO
+        // action callback, so the transfer leg was NEVER billed on Twilio (revenue leak +
+        // Telnyx/Twilio inconsistency). Add a status callback so the leg is billed.
+        const transferStatusUrl = `${SELF_URL}/twilio/single-ivr-transfer-status?sessionId=${encodeURIComponent(sessionId)}`
+        const dial = response.dial({ callerId: session.callerId, timeout: 30, action: transferStatusUrl, method: 'POST' })
         dial.number(session.ivrNumber)
-        log(`[SingleIVR] Transferring to ${session.ivrNumber}`)
+        log(`[SingleIVR] Transferring to ${session.ivrNumber} (transfer-leg billing enabled)`)
       }
     } else {
       response.say({ voice: twilioVoice }, 'Invalid input. Goodbye.')
@@ -43163,6 +43251,48 @@ app.post('/twilio/single-ivr-gather', async (req, res) => {
     log('[SingleIVR] Gather error:', error.message)
     const response = new VoiceResponse()
     response.say('An error occurred. Goodbye.')
+    response.hangup()
+    res.type('text/xml').send(response.toString())
+  }
+})
+
+// TwiML: transfer-leg status callback — bills the Quick IVR transfer leg.
+// The transfer leg (callerId → ivrNumber) is a second, concurrent outbound PSTN
+// leg Twilio charges Nomadly for. This mirrors Telnyx's handleIvrTransferLegHangup
+// (IVR_Transfer, flat IVR rate, min 1 min when connected). Idempotent via a DISTINCT
+// callRef prefix (twilio_transfer_<DialCallSid>) so it never collides with the parent
+// IVR leg's callRef (twilio_<CallSid>). Scoped to non-trial, single (non-campaign)
+// Quick IVR — bulk campaigns bill via bulk-call-service.
+app.post('/twilio/single-ivr-transfer-status', async (req, res) => {
+  const VoiceResponse = require('twilio').twiml.VoiceResponse
+  const response = new VoiceResponse()
+  try {
+    const { sessionId } = req.query
+    const voiceService = require('./voice-service.js')
+    const session = voiceService.twilioIvrSessions[sessionId]
+    const dialStatus = req.body?.DialCallStatus || ''
+    const dialDuration = parseInt(req.body?.DialCallDuration || '0', 10)
+    const dialSid = req.body?.DialCallSid || ''
+    if (session && !session.isTrial && !session.campaignId && !session._transferBilled) {
+      if (dialStatus === 'completed' && dialDuration > 0) {
+        const minutes = Math.max(1, Math.ceil(dialDuration / 60))
+        session._transferBilled = true // in-memory guard (walletLedger callRef is the durable guard)
+        try {
+          const billingInfo = await voiceService.billCallMinutesUnified(
+            session.chatId, session.callerId, minutes, session.ivrNumber,
+            'IVR_Transfer', `twilio_transfer_${dialSid || sessionId}`
+          )
+          log(`[SingleIVR] Transfer leg billed: ${session.ivrNumber} ${minutes} min @ IVR rate (dialSid=${dialSid}, charge=$${(billingInfo?.overageCharge || 0).toFixed(2)})`)
+        } catch (e) { log('[SingleIVR] Transfer leg billing error:', e.message) }
+      } else {
+        log(`[SingleIVR] Transfer leg not billed (status=${dialStatus}, dur=${dialDuration}s) — no connected talk time`)
+      }
+    }
+    // Parent call ends after the transfer leg completes (matches prior no-action behaviour).
+    response.hangup()
+    res.type('text/xml').send(response.toString())
+  } catch (error) {
+    log('[SingleIVR] transfer-status error:', error.message)
     response.hangup()
     res.type('text/xml').send(response.toString())
   }
