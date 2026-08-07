@@ -566,6 +566,7 @@ const dnsChecker = require('./dns-checker.js')
 const { sanitizeProviderError, sanitizeHangupCause } = require('./sanitize-provider.js')
 const { initCartAbandonment } = require('./cart-abandonment.js')
 const { initNewUserConversion } = require('./new-user-conversion.js')
+const callBillingReconciler = require('./call-billing-reconciler.js')
 
 // ── New UX Enhancement Utilities ──
 const { generateTransactionId, logTransaction, updateTransactionStatus, getUserTransactions } = require('./transaction-id.js')
@@ -3433,6 +3434,34 @@ const loadData = async () => {
   protectionHeartbeat.init(db)
   protectionHeartbeat.startScheduler()
   log('[ProtectionHeartbeat] Initialized and scheduled')
+
+  // Initialize Call-Billing Reconciler — closes the connected-but-unbilled
+  // forward/IVR-forward leak (LEAK #1). init is safe everywhere (read/record);
+  // the SETTLE sweep below is gated to production (dev sandbox skips it).
+  try {
+    callBillingReconciler.init({ db, bot, notifyAdmin, logger: (...a) => log('[CallRecon]', ...a) })
+    log('[CallRecon] Initialized (pendingCallBills worklist + walletLedger reconciliation)')
+  } catch (e) {
+    log(`[CallRecon] init error (non-blocking): ${e.message}`)
+  }
+
+  // Scheduled reconciliation sweep — every 30 min. PROD-ONLY: settlement writes
+  // to real wallets, so the dev sandbox (SKIP_WEBHOOK_SYNC=true) must never run
+  // it. Production leaves the flag unset/false so it settles missed forward legs.
+  try {
+    schedule.scheduleJob('*/30 * * * *', async function () {
+      if (process.env.SKIP_WEBHOOK_SYNC === 'true') return // dev sandbox: no auto-settle
+      try {
+        const r = await callBillingReconciler.sweepPendingBills({ dryRun: false })
+        if (r.scanned > 0) {
+          log(`[CallRecon] sweep: scanned=${r.scanned} webhookOk=${r.reconciledByWebhook} settled=${r.settled} leaks=${r.leaksFound} ~$${r.leakedUsd.toFixed(2)} needsReview=${r.needsReview} noCharge=${r.noCharge} stale=${r.stale}`)
+        }
+      } catch (e) { log('[CallRecon] scheduled sweep error:', e.message) }
+    })
+    log('[CallRecon] Reconciliation sweep scheduled (every 30 min, production-only)')
+  } catch (e) {
+    log(`[CallRecon] sweep schedule error (non-blocking): ${e.message}`)
+  }
 
   // Initialize DNS Healer — self-heals registry-side delegation failures
   // (e.g. .de domains parked at nx.denic.de because DENIC's pre-delegation
@@ -37856,6 +37885,94 @@ app.post('/dev/outbound-billing-leak-test', async (req, res) => {
 })
 
 
+// ── ADMIN: Call-billing reconciliation (LEAK #1) — dry-run report or settle ──
+// GET /api/admin/reconcile-call-billing?key=<SESSION_SECRET[0..15]>&dryRun=true
+//     [&graceMinutes=10&maxAgeHours=72&limit=500]
+// dryRun defaults to TRUE (read-only report + $ estimate of unbilled connected
+// forward legs). Settlement (dryRun=false) writes to real wallets and is refused
+// on the dev sandbox (SKIP_WEBHOOK_SYNC=true) to protect shared production data.
+app.get('/admin/reconcile-call-billing', async (req, res) => {
+  const adminKey = req?.query?.key
+  if (adminKey !== process.env.SESSION_SECRET?.slice(0, 16)) {
+    return res.status(403).json({ error: 'forbidden' })
+  }
+  try {
+    const dryRun = req.query.dryRun !== 'false'
+    if (!dryRun && process.env.SKIP_WEBHOOK_SYNC === 'true') {
+      return res.status(400).json({
+        error: 'settlement disabled on dev sandbox (SKIP_WEBHOOK_SYNC=true) — use dryRun=true for a read-only report',
+      })
+    }
+    const graceMinutes = req.query.graceMinutes ? parseInt(req.query.graceMinutes, 10) : undefined
+    const maxAgeHours = req.query.maxAgeHours ? parseInt(req.query.maxAgeHours, 10) : undefined
+    const limit = req.query.limit ? parseInt(req.query.limit, 10) : undefined
+    const r = await callBillingReconciler.sweepPendingBills({ dryRun, graceMinutes, maxAgeHours, limit })
+    return res.json({ status: 'ok', ...r })
+  } catch (e) {
+    return res.status(500).json({ error: e.message })
+  }
+})
+
+// ── DEV-ONLY: Call-billing reconciler unit test (LEAK #1 + #2). 404 in prod. ──
+// All-synthetic + dry-run → touches NO real wallet. Cleans up its own fixtures.
+app.post('/dev/call-reconciler-test', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const pending = db.collection('pendingCallBills')
+  const ledger = db.collection('walletLedger')
+  const ts = Date.now()
+  const refBilled = `RECONTEST_billed_${ts}`
+  const refLeak = `RECONTEST_leak_${ts}`
+  const ledId = `RECONTEST_led_${ts}`
+  const oldCreated = new Date(ts - 20 * 60 * 1000) // 20 min ago → past the grace window
+  const out = { checks: {} }
+  try {
+    // (A) LEAK #2 — provider-drift-tolerant resolver (pure function, no I/O)
+    const drifted = [{ phoneNumber: '+18001234567', provider: 'telnyx' }] // provider field drifted
+    const strictMiss = drifted.find(n => n.phoneNumber === '+18001234567' && n.provider === 'twilio')
+    const resolved = callBillingReconciler.resolveOwnedTwilioNumber(drifted, '+18001234567')
+    out.checks.drift_strict_would_miss = !strictMiss
+    out.checks.drift_resolver_recovers = !!resolved.num && resolved.drifted === true
+    out.checks.drift_clean_match_not_flagged =
+      callBillingReconciler.resolveOwnedTwilioNumber([{ phoneNumber: '+1888', provider: 'twilio' }], '+1888').drifted === false
+
+    // (B) LEAK #1 — sweep reconciliation classification (dry-run, no billing)
+    // Row 1: pending AND already billed (walletLedger has the callRef) → should reconcile as webhook-ok.
+    await pending.updateOne({ _id: refBilled }, { $setOnInsert: {
+      _id: refBilled, callRef: refBilled, chatId: '999999999', phoneNumber: '+18001110001',
+      destination: '+14150000000', callType: 'Twilio_Forwarding', provider: 'nonprovider_test',
+      status: 'pending', createdAt: oldCreated,
+    } }, { upsert: true })
+    await ledger.insertOne({ _id: ledId, chatId: '999999999', callRef: refBilled, amount: -0.15, type: 'overage_charge', timestamp: new Date().toISOString() })
+    // Row 2: pending AND never billed (no walletLedger row) → should surface as a leak.
+    await pending.updateOne({ _id: refLeak }, { $setOnInsert: {
+      _id: refLeak, callRef: refLeak, chatId: '999999999', phoneNumber: '+18001110002',
+      destination: '+447000000000', callType: 'Twilio_Forwarding', provider: 'nonprovider_test',
+      status: 'pending', createdAt: oldCreated,
+    } }, { upsert: true })
+
+    const r = await callBillingReconciler.sweepPendingBills({ dryRun: true, graceMinutes: 5, maxAgeHours: 72, limit: 1000, callRefPrefix: 'RECONTEST_' })
+    out.summary = { scanned: r.scanned, reconciledByWebhook: r.reconciledByWebhook, leaksFound: r.leaksFound, needsReview: r.needsReview, dryRun: r.dryRun }
+    out.checks.billed_row_reconciled = r.reconciledByWebhook >= 1
+    out.checks.leak_row_detected = r.details.some(d => d.callRef === refLeak) || r.needsReview >= 1
+    const billedAfter = await pending.findOne({ _id: refBilled })
+    const leakAfter = await pending.findOne({ _id: refLeak })
+    out.checks.dryrun_left_pending = billedAfter?.status === 'pending' && leakAfter?.status === 'pending'
+
+    out.pass = Object.values(out.checks).every(Boolean)
+  } catch (e) {
+    out.error = e.message
+    out.pass = false
+  } finally {
+    try { await pending.deleteMany({ _id: { $in: [refBilled, refLeak] } }) } catch (_) { /* cleanup */ }
+    try { await ledger.deleteMany({ _id: ledId }) } catch (_) { /* cleanup */ }
+  }
+  return res.json(out)
+})
+
+
+
 // ── DEV-ONLY: Outbound Call Auth Self-Heal + Provider Health Test ─────────
 // Verifies the 2026-08-01 fix for @Padrino_voodoo's failed call
 // (+18885728101 → +19545463213 "Caller ID rejected by provider").
@@ -42337,6 +42454,14 @@ app.post('/twilio/voice-webhook', async (req, res) => {
         if (recordingEnabled) dialOpts.recordingStatusCallback = `${SELF_URL}/twilio/recording-status`
         const dial = response.dial(dialOpts)
         dial.number(fwdConfig.forwardTo)
+        // LEAK #1 guard: record a durable pending-bill row keyed by the exact
+        // callRef the /twilio/voice-dial-status callback will bill under, so the
+        // reconciler can settle this forward if that callback is ever dropped.
+        callBillingReconciler.recordPendingBill({
+          callRef: `twilio_${CallSid}`, chatId, phoneNumber: To,
+          destination: fwdConfig.forwardTo, callType: 'Twilio_Forwarding',
+          provider: 'twilio', subAccountSid: num.twilioSubAccountSid,
+        }).catch(() => {})
         bot?.sendMessage(chatId, `📞 <b>Incoming Call</b>\nFrom: ${From}\nForwarding to: ${fwdConfig.forwardTo}`, { parse_mode: 'HTML' }).catch(() => {})
         return res.type('text/xml').send(response.toString())
       }
@@ -42500,7 +42625,7 @@ app.post('/twilio/inbound-ivr-gather', async (req, res) => {
   try {
     const { chatId: rawChatId, from, to, path } = req.query
     const chatId = rawChatId ? String(rawChatId) : null
-    const { Digits } = req.body || {}
+    const { Digits, CallSid } = req.body || {}
     const response = new VoiceResponse()
     const decodedFrom = decodeURIComponent(from || 'unknown')
     const decodedTo = decodeURIComponent(to || '')
@@ -42666,6 +42791,12 @@ app.post('/twilio/inbound-ivr-gather', async (req, res) => {
         const dial = response.dial(dialOpts)
         dial.number(transferTo)
         log(`[Twilio] IVR transferring to ${transferTo} (key ${Digits}: ${label}) wallet=$${usdBal.toFixed(2)} rate=$${RATE}/min`)
+        // LEAK #1 guard: durable pending-bill row (see /twilio/voice-webhook note).
+        callBillingReconciler.recordPendingBill({
+          callRef: `twilio_${CallSid}`, chatId, phoneNumber: decodedTo,
+          destination: transferTo, callType: 'Twilio_Forwarding',
+          provider: 'twilio', subAccountSid: num.twilioSubAccountSid,
+        }).catch(() => {})
         bot?.sendMessage(chatId, `📞 <b>IVR Call — Key ${Digits}</b>\nFrom: ${phoneConfig.formatPhone(decodedFrom)}\n🔗 Transferring to: ${phoneConfig.formatPhone(transferTo)}\n💳 $${RATE}/min from wallet · Balance: $${usdBal.toFixed(2)}`, { parse_mode: 'HTML' }).catch(() => {})
       }
     } else if (action === 'voicemail') {
@@ -43410,7 +43541,15 @@ app.post('/twilio/voice-dial-status', async (req, res) => {
           // Try unified billing first
           const userData = await get(phoneNumbersOf, chatId)
           const numbers = userData?.numbers || []
-          const num = numbers.find(n => n.phoneNumber === decodedTo && n.provider === 'twilio')
+          // LEAK #2 fix: provider-drift-tolerant lookup so a connected, billable
+          // forward is never billed $0 just because the number's `provider` field
+          // drifted away from 'twilio' (this webhook is Twilio, so a match-by-number
+          // IS a Twilio number). Self-heal the field so future calls match strictly.
+          const { num, drifted } = callBillingReconciler.resolveOwnedTwilioNumber(numbers, decodedTo)
+          if (num && drifted) {
+            log(`[Twilio] ⚠️ provider-drift heal: billing ${decodedTo} matched by number only (provider='${num.provider || 'unset'}') — self-healing to 'twilio'`)
+            phoneNumbersOf.updateOne({ _id: chatId, 'val.numbers.phoneNumber': decodedTo }, { $set: { 'val.numbers.$.provider': 'twilio' } }).catch(() => {})
+          }
           if (num) {
             const fwdDest = destination || (num.features?.callForwarding?.forwardTo || decodeURIComponent(from || ''))
             const callType = type === 'sip_bridge' ? 'Twilio_SIP_Bridge' : type === 'sip_outbound' ? 'Twilio_SIP_Outbound' : 'Twilio_Forwarding'
@@ -43457,7 +43596,12 @@ app.post('/twilio/voice-dial-status', async (req, res) => {
           const dur = parseInt(DialCallDuration || '0')
           const userData = await get(phoneNumbersOf, chatId)
           const numbers = userData?.numbers || []
-          const num = numbers.find(n => n.phoneNumber === decodedToNum && n.provider === 'twilio')
+          // LEAK #2 fix: provider-drift-tolerant lookup (see completed-path note).
+          const { num, drifted } = callBillingReconciler.resolveOwnedTwilioNumber(numbers, decodedToNum)
+          if (num && drifted) {
+            log(`[Twilio] ⚠️ provider-drift heal: billing ${decodedToNum} matched by number only (provider='${num.provider || 'unset'}') — self-healing to 'twilio'`)
+            phoneNumbersOf.updateOne({ _id: chatId, 'val.numbers.phoneNumber': decodedToNum }, { $set: { 'val.numbers.$.provider': 'twilio' } }).catch(() => {})
+          }
           if (num) {
             const fwdDest = destination || (num.features?.callForwarding?.forwardTo || '')
             const callType = type === 'sip_bridge' ? 'Twilio_SIP_Bridge' : 'Twilio_SIP_Outbound'

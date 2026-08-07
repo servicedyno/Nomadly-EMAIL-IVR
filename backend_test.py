@@ -1,273 +1,319 @@
 #!/usr/bin/env python3
 """
-Backend test for T4 Quick IVR "1 Free" label dynamic eligibility fix + regression checks.
-
-Tests the corrected implementation where:
-- Eligible new users (no active phone number, haven't used free trial) see "📢 Quick IVR Call — 1 Free"
-- Subscribers and users who already used the trial see "📢 Quick IVR Call" (neutral, no "1 Free")
+Backend API Testing for Call-Billing Revenue-Leak Fixes
+Tests the 5 verification checks for the Nomadly Telegram-bot platform
 """
 
 import requests
+import json
 import sys
-import os
 
-# Get backend URL from environment
-BACKEND_URL = os.getenv('REACT_APP_BACKEND_URL', 'https://setup-keys.preview.emergentagent.com')
+# Backend URL from frontend/.env
+BACKEND_URL = "https://390e6ff0-6afa-45a4-a8ca-64792be6b7f1.preview.emergentagent.com"
+ADMIN_KEY = "o%2FQb8ArGahlquhCQ"  # URL-encoded
 
-def test_ux_fixes_audit():
+def print_test_header(test_num, description):
+    """Print a formatted test header"""
+    print(f"\n{'='*80}")
+    print(f"TEST {test_num}: {description}")
+    print(f"{'='*80}")
+
+def print_result(passed, message):
+    """Print test result with color coding"""
+    status = "✅ PASS" if passed else "❌ FAIL"
+    print(f"{status}: {message}")
+
+def print_json_response(response):
+    """Pretty print JSON response"""
+    try:
+        json_data = response.json()
+        print(f"\nResponse JSON:")
+        print(json.dumps(json_data, indent=2))
+        return json_data
+    except Exception:
+        print(f"\nResponse Text: {response.text[:500]}")
+        return None
+
+def test_1_leak_fix_unit_test():
     """
-    TEST 1: Verify the corrected T4 Quick IVR label fix (dynamic eligibility-based)
-    plus B1 (newline fix) and T5 (plan marketing consistency).
+    TEST 1: LEAK-FIX UNIT TEST (both fixes)
+    POST /api/dev/call-reconciler-test with body {}
     """
-    print("\n" + "="*80)
-    print("TEST 1: UX FIXES AUDIT (T4 revised - dynamic eligibility)")
-    print("="*80)
+    print_test_header(1, "LEAK-FIX UNIT TEST (both fixes)")
     
-    url = f"{BACKEND_URL}/api/dev/ux-fixes-audit"
-    print(f"\nGET {url}")
+    url = f"{BACKEND_URL}/api/dev/call-reconciler-test"
+    print(f"URL: {url}")
+    print(f"Method: POST")
+    print(f"Body: {{}}")
+    
+    try:
+        response = requests.post(url, json={}, headers={"Content-Type": "application/json"}, timeout=30)
+        print(f"Status Code: {response.status_code}")
+        
+        json_data = print_json_response(response)
+        
+        if response.status_code != 200:
+            print_result(False, f"Expected HTTP 200, got {response.status_code}")
+            return False
+        
+        if not json_data:
+            print_result(False, "No JSON response received")
+            return False
+        
+        # Check top-level pass field
+        if json_data.get("pass") != True:
+            print_result(False, f"Expected pass === true, got {json_data.get('pass')}")
+            return False
+        
+        # Check all checks fields
+        checks = json_data.get("checks", {})
+        required_checks = [
+            "drift_strict_would_miss",
+            "drift_resolver_recovers", 
+            "drift_clean_match_not_flagged",
+            "billed_row_reconciled",
+            "leak_row_detected",
+            "dryrun_left_pending"
+        ]
+        
+        all_checks_pass = True
+        for check in required_checks:
+            if checks.get(check) != True:
+                print_result(False, f"Check '{check}' expected true, got {checks.get(check)}")
+                all_checks_pass = False
+        
+        if not all_checks_pass:
+            return False
+        
+        # Check summary fields
+        summary = json_data.get("summary", {})
+        if summary.get("scanned") != 2:
+            print_result(False, f"Expected scanned === 2, got {summary.get('scanned')}")
+            return False
+        
+        if summary.get("reconciledByWebhook") != 1:
+            print_result(False, f"Expected reconciledByWebhook === 1, got {summary.get('reconciledByWebhook')}")
+            return False
+        
+        leaks_and_review = summary.get("leaksFound", 0) + summary.get("needsReview", 0)
+        if leaks_and_review < 1:
+            print_result(False, f"Expected (leaksFound + needsReview) >= 1, got {leaks_and_review}")
+            return False
+        
+        if summary.get("dryRun") != True:
+            print_result(False, f"Expected dryRun === true, got {summary.get('dryRun')}")
+            return False
+        
+        print_result(True, "All checks passed: pass=true, all checks.* === true, summary fields correct")
+        return True
+        
+    except Exception as e:
+        print_result(False, f"Exception: {str(e)}")
+        return False
+
+def test_2_admin_dry_run_report():
+    """
+    TEST 2: ADMIN DRY-RUN REPORT
+    GET /api/admin/reconcile-call-billing?key=o%2FQb8ArGahlquhCQ&dryRun=true
+    """
+    print_test_header(2, "ADMIN DRY-RUN REPORT")
+    
+    url = f"{BACKEND_URL}/api/admin/reconcile-call-billing?key={ADMIN_KEY}&dryRun=true"
+    print(f"URL: {url}")
+    print(f"Method: GET")
     
     try:
         response = requests.get(url, timeout=30)
-        print(f"Status: {response.status_code}")
+        print(f"Status Code: {response.status_code}")
+        
+        json_data = print_json_response(response)
         
         if response.status_code != 200:
-            print(f"❌ FAIL: Expected HTTP 200, got {response.status_code}")
-            print(f"Response: {response.text}")
+            print_result(False, f"Expected HTTP 200, got {response.status_code}")
             return False
         
-        data = response.json()
-        print(f"Response received (keys: {list(data.keys())})")
-        
-        # Track all assertions
-        assertions = []
-        
-        # Assert: ok === true
-        ok_check = data.get('ok') == True
-        assertions.append(('ok === true', ok_check))
-        print(f"\n✅ ok === true" if ok_check else f"\n❌ ok === {data.get('ok')}")
-        
-        # B1: Newline checks
-        newline_check = data.get('newlineCheck', {})
-        leaking_count = newline_check.get('leakingKeyCount', -1)
-        leaking_ok = leaking_count == 0
-        assertions.append(('newlineCheck.leakingKeyCount === 0', leaking_ok))
-        print(f"✅ newlineCheck.leakingKeyCount === 0" if leaking_ok else f"❌ newlineCheck.leakingKeyCount === {leaking_count}")
-        
-        # Sample checks
-        samples = newline_check.get('samples', {})
-        
-        cp_41 = samples.get('cp_41', {})
-        cp_41_ok = cp_41.get('literalBackslashN', -1) == 0
-        assertions.append(('newlineCheck.samples.cp_41.literalBackslashN === 0', cp_41_ok))
-        print(f"✅ newlineCheck.samples.cp_41.literalBackslashN === 0" if cp_41_ok else f"❌ cp_41.literalBackslashN === {cp_41.get('literalBackslashN')}")
-        
-        wlt_9 = samples.get('wlt_9', {})
-        wlt_9_ok = wlt_9.get('literalBackslashN', -1) == 0
-        assertions.append(('newlineCheck.samples.wlt_9.literalBackslashN === 0', wlt_9_ok))
-        print(f"✅ newlineCheck.samples.wlt_9.literalBackslashN === 0" if wlt_9_ok else f"❌ wlt_9.literalBackslashN === {wlt_9.get('literalBackslashN')}")
-        
-        cp_76 = samples.get('cp_76', {})
-        cp_76_ok = cp_76.get('literalBackslashN', -1) == 0
-        assertions.append(('newlineCheck.samples.cp_76.literalBackslashN === 0', cp_76_ok))
-        print(f"✅ newlineCheck.samples.cp_76.literalBackslashN === 0" if cp_76_ok else f"❌ cp_76.literalBackslashN === {cp_76.get('literalBackslashN')}")
-        
-        # T4: Quick IVR label checks (REVISED - dynamic eligibility)
-        t4_ok = data.get('t4Ok') == True
-        assertions.append(('t4Ok === true', t4_ok))
-        print(f"\n✅ t4Ok === true" if t4_ok else f"\n❌ t4Ok === {data.get('t4Ok')}")
-        
-        quick_ivr_labels = data.get('quickIvrLabels', {})
-        en_labels = quick_ivr_labels.get('en', {})
-        
-        # Base label should NOT over-promise (no "1 Free")
-        base_over_promises = en_labels.get('baseOverPromises', True)
-        base_ok = base_over_promises == False
-        assertions.append(('quickIvrLabels.en.baseOverPromises === false', base_ok))
-        print(f"✅ quickIvrLabels.en.baseOverPromises === false" if base_ok else f"❌ quickIvrLabels.en.baseOverPromises === {base_over_promises}")
-        
-        # Trial label SHOULD have the free hook
-        trial_has_free_hook = en_labels.get('trialHasFreeHook', False)
-        trial_hook_ok = trial_has_free_hook == True
-        assertions.append(('quickIvrLabels.en.trialHasFreeHook === true', trial_hook_ok))
-        print(f"✅ quickIvrLabels.en.trialHasFreeHook === true" if trial_hook_ok else f"❌ quickIvrLabels.en.trialHasFreeHook === {trial_has_free_hook}")
-        
-        # Trial label should contain "1 Free"
-        trial_label = en_labels.get('trial', '')
-        trial_contains_free = '1 Free' in trial_label
-        assertions.append(('quickIvrLabels.en.trial contains "1 Free"', trial_contains_free))
-        print(f"✅ quickIvrLabels.en.trial contains '1 Free': \"{trial_label}\"" if trial_contains_free else f"❌ quickIvrLabels.en.trial does NOT contain '1 Free': \"{trial_label}\"")
-        
-        # Base label should NOT contain "1 Free"
-        base_label = en_labels.get('base', '')
-        base_no_free = '1 Free' not in base_label
-        assertions.append(('quickIvrLabels.en.base does NOT contain "1 Free"', base_no_free))
-        print(f"✅ quickIvrLabels.en.base does NOT contain '1 Free': \"{base_label}\"" if base_no_free else f"❌ quickIvrLabels.en.base contains '1 Free': \"{base_label}\"")
-        
-        # Label decisions (dynamic eligibility)
-        label_decisions = data.get('labelDecisions', {})
-        
-        new_user_decision = label_decisions.get('newUser', '')
-        new_user_ok = new_user_decision == 'trial'
-        assertions.append(('labelDecisions.newUser === "trial"', new_user_ok))
-        print(f"\n✅ labelDecisions.newUser === 'trial' (eligible new user sees the '1 Free' hook)" if new_user_ok else f"\n❌ labelDecisions.newUser === '{new_user_decision}'")
-        
-        used_trial_decision = label_decisions.get('usedTrial', '')
-        used_trial_ok = used_trial_decision == 'base'
-        assertions.append(('labelDecisions.usedTrial === "base"', used_trial_ok))
-        print(f"✅ labelDecisions.usedTrial === 'base'" if used_trial_ok else f"❌ labelDecisions.usedTrial === '{used_trial_decision}'")
-        
-        subscriber_decision = label_decisions.get('subscriber', '')
-        subscriber_ok = subscriber_decision == 'base'
-        assertions.append(('labelDecisions.subscriber === "base"', subscriber_ok))
-        print(f"✅ labelDecisions.subscriber === 'base'" if subscriber_ok else f"❌ labelDecisions.subscriber === '{subscriber_decision}'")
-        
-        # T5: Plan marketing consistency
-        plan_marketing = data.get('planMarketingAudit', {})
-        mismatch_count = plan_marketing.get('mismatchCount', -1)
-        plan_ok = mismatch_count == 0
-        assertions.append(('planMarketingAudit.mismatchCount === 0', plan_ok))
-        print(f"\n✅ planMarketingAudit.mismatchCount === 0 (advertised == enforced)" if plan_ok else f"\n❌ planMarketingAudit.mismatchCount === {mismatch_count}")
-        
-        # Summary
-        passed = sum(1 for _, result in assertions if result)
-        total = len(assertions)
-        print(f"\n{'='*80}")
-        print(f"TEST 1 SUMMARY: {passed}/{total} assertions passed")
-        print(f"{'='*80}")
-        
-        if passed == total:
-            print("✅ TEST 1 PASSED - All assertions verified")
-            return True
-        else:
-            print("❌ TEST 1 FAILED - Some assertions failed")
-            for assertion, result in assertions:
-                if not result:
-                    print(f"  ❌ {assertion}")
+        if not json_data:
+            print_result(False, "No JSON response received")
             return False
-            
-    except requests.exceptions.RequestException as e:
-        print(f"❌ FAIL: Request error: {e}")
-        return False
+        
+        # Check required fields
+        if json_data.get("status") != "ok":
+            print_result(False, f"Expected status === 'ok', got {json_data.get('status')}")
+            return False
+        
+        if json_data.get("dryRun") != True:
+            print_result(False, f"Expected dryRun === true, got {json_data.get('dryRun')}")
+            return False
+        
+        # Check numeric fields exist (may be 0)
+        required_fields = ["scanned", "leaksFound", "leakedUsd"]
+        for field in required_fields:
+            if field not in json_data or not isinstance(json_data[field], (int, float)):
+                print_result(False, f"Expected numeric field '{field}', got {json_data.get(field)}")
+                return False
+        
+        # Check details is an array
+        if "details" not in json_data or not isinstance(json_data["details"], list):
+            print_result(False, f"Expected 'details' array, got {type(json_data.get('details'))}")
+            return False
+        
+        print_result(True, f"All checks passed: status='ok', dryRun=true, scanned={json_data['scanned']}, leaksFound={json_data['leaksFound']}, leakedUsd={json_data['leakedUsd']}, details array present")
+        return True
+        
     except Exception as e:
-        print(f"❌ FAIL: Unexpected error: {e}")
-        import traceback
-        traceback.print_exc()
+        print_result(False, f"Exception: {str(e)}")
         return False
 
-
-def test_otp_plan_gate_regression():
+def test_3_auth_guard():
     """
-    TEST 2: Regression check - verify OTP plan gate fix still holds
+    TEST 3: AUTH GUARD
+    GET /api/admin/reconcile-call-billing (NO key param)
     """
-    print("\n" + "="*80)
-    print("TEST 2: OTP PLAN GATE REGRESSION CHECK")
-    print("="*80)
+    print_test_header(3, "AUTH GUARD")
     
-    url = f"{BACKEND_URL}/api/dev/otp-plan-gate-check"
-    print(f"\nGET {url}")
+    url = f"{BACKEND_URL}/api/admin/reconcile-call-billing"
+    print(f"URL: {url}")
+    print(f"Method: GET (no key parameter)")
     
     try:
         response = requests.get(url, timeout=30)
-        print(f"Status: {response.status_code}")
+        print(f"Status Code: {response.status_code}")
         
-        if response.status_code != 200:
-            print(f"❌ FAIL: Expected HTTP 200, got {response.status_code}")
-            print(f"Response: {response.text}")
+        json_data = print_json_response(response)
+        
+        if response.status_code != 403:
+            print_result(False, f"Expected HTTP 403, got {response.status_code}")
             return False
         
-        data = response.json()
-        print(f"Response received (keys: {list(data.keys())})")
-        
-        # Track assertions
-        assertions = []
-        
-        # Assert: matrix.pro.otpCollection === true
-        matrix = data.get('matrix', {})
-        pro = matrix.get('pro', {})
-        otp_collection = pro.get('otpCollection', False)
-        otp_ok = otp_collection == True
-        assertions.append(('matrix.pro.otpCollection === true', otp_ok))
-        print(f"\n✅ matrix.pro.otpCollection === true" if otp_ok else f"\n❌ matrix.pro.otpCollection === {otp_collection}")
-        
-        # Assert: gateDecisions.pro.allowed === true
-        gate_decisions = data.get('gateDecisions', {})
-        pro_decision = gate_decisions.get('pro', {})
-        allowed = pro_decision.get('allowed', False)
-        allowed_ok = allowed == True
-        assertions.append(('gateDecisions.pro.allowed === true', allowed_ok))
-        print(f"✅ gateDecisions.pro.allowed === true" if allowed_ok else f"❌ gateDecisions.pro.allowed === {allowed}")
-        
-        # Summary
-        passed = sum(1 for _, result in assertions if result)
-        total = len(assertions)
-        print(f"\n{'='*80}")
-        print(f"TEST 2 SUMMARY: {passed}/{total} assertions passed")
-        print(f"{'='*80}")
-        
-        if passed == total:
-            print("✅ TEST 2 PASSED - Regression check verified")
-            return True
-        else:
-            print("❌ TEST 2 FAILED - Regression check failed")
-            for assertion, result in assertions:
-                if not result:
-                    print(f"  ❌ {assertion}")
+        if not json_data:
+            print_result(False, "No JSON response received")
             return False
-            
-    except requests.exceptions.RequestException as e:
-        print(f"❌ FAIL: Request error: {e}")
-        return False
+        
+        if "error" not in json_data or json_data["error"] != "forbidden":
+            print_result(False, f"Expected error='forbidden', got {json_data.get('error')}")
+            return False
+        
+        print_result(True, "Auth guard working: HTTP 403 with error='forbidden'")
+        return True
+        
     except Exception as e:
-        print(f"❌ FAIL: Unexpected error: {e}")
-        import traceback
-        traceback.print_exc()
+        print_result(False, f"Exception: {str(e)}")
         return False
 
+def test_4_sandbox_settle_guard():
+    """
+    TEST 4: SANDBOX SETTLE-GUARD
+    GET /api/admin/reconcile-call-billing?key=o%2FQb8ArGahlquhCQ&dryRun=false
+    """
+    print_test_header(4, "SANDBOX SETTLE-GUARD (must refuse settlement on dev pod)")
+    
+    url = f"{BACKEND_URL}/api/admin/reconcile-call-billing?key={ADMIN_KEY}&dryRun=false"
+    print(f"URL: {url}")
+    print(f"Method: GET")
+    
+    try:
+        response = requests.get(url, timeout=30)
+        print(f"Status Code: {response.status_code}")
+        
+        json_data = print_json_response(response)
+        
+        if response.status_code != 400:
+            print_result(False, f"Expected HTTP 400, got {response.status_code}")
+            return False
+        
+        if not json_data:
+            print_result(False, "No JSON response received")
+            return False
+        
+        error_msg = json_data.get("error", "")
+        if "settlement disabled" not in error_msg.lower() or "dev sandbox" not in error_msg.lower():
+            print_result(False, f"Expected error mentioning 'settlement disabled on dev sandbox', got: {error_msg}")
+            return False
+        
+        print_result(True, "Sandbox settle-guard working: HTTP 400 with settlement disabled message")
+        return True
+        
+    except Exception as e:
+        print_result(False, f"Exception: {str(e)}")
+        return False
+
+def test_5_regression_health():
+    """
+    TEST 5: REGRESSION / HEALTH
+    GET /api/health
+    """
+    print_test_header(5, "REGRESSION / HEALTH CHECK")
+    
+    url = f"{BACKEND_URL}/api/health"
+    print(f"URL: {url}")
+    print(f"Method: GET")
+    
+    try:
+        response = requests.get(url, timeout=30)
+        print(f"Status Code: {response.status_code}")
+        
+        json_data = print_json_response(response)
+        
+        if response.status_code != 200:
+            print_result(False, f"Expected HTTP 200, got {response.status_code}")
+            return False
+        
+        if not json_data:
+            print_result(False, "No JSON response received")
+            return False
+        
+        if json_data.get("status") != "healthy":
+            print_result(False, f"Expected status='healthy', got {json_data.get('status')}")
+            return False
+        
+        if json_data.get("database") != "connected":
+            print_result(False, f"Expected database='connected', got {json_data.get('database')}")
+            return False
+        
+        print_result(True, "Health check passed: status='healthy', database='connected'")
+        return True
+        
+    except Exception as e:
+        print_result(False, f"Exception: {str(e)}")
+        return False
 
 def main():
-    """Run all tests"""
+    """Run all tests and report results"""
     print("\n" + "="*80)
-    print("BACKEND TEST: T4 Quick IVR '1 Free' Label - Dynamic Eligibility Fix")
+    print("CALL-BILLING REVENUE-LEAK FIXES - VERIFICATION TESTS")
     print("="*80)
     print(f"Backend URL: {BACKEND_URL}")
-    print(f"Architecture: Node.js Express bot (port 5000) behind FastAPI proxy (port 8001)")
-    print(f"BOT_ENVIRONMENT=development (read-only /dev/* routes are live, no auth key needed)")
+    print(f"Admin Key: {ADMIN_KEY}")
     
     results = []
     
-    # Run TEST 1: UX fixes audit (T4 revised + B1 + T5)
-    test1_passed = test_ux_fixes_audit()
-    results.append(('TEST 1: UX Fixes Audit (T4 revised)', test1_passed))
+    # Run all tests
+    results.append(("Test 1: Leak-Fix Unit Test", test_1_leak_fix_unit_test()))
+    results.append(("Test 2: Admin Dry-Run Report", test_2_admin_dry_run_report()))
+    results.append(("Test 3: Auth Guard", test_3_auth_guard()))
+    results.append(("Test 4: Sandbox Settle-Guard", test_4_sandbox_settle_guard()))
+    results.append(("Test 5: Regression/Health", test_5_regression_health()))
     
-    # Run TEST 2: OTP plan gate regression
-    test2_passed = test_otp_plan_gate_regression()
-    results.append(('TEST 2: OTP Plan Gate Regression', test2_passed))
-    
-    # Final summary
+    # Print summary
     print("\n" + "="*80)
-    print("FINAL SUMMARY")
+    print("TEST SUMMARY")
     print("="*80)
     
-    for test_name, passed in results:
-        status = "✅ PASS" if passed else "❌ FAIL"
+    passed = sum(1 for _, result in results if result)
+    total = len(results)
+    
+    for test_name, result in results:
+        status = "✅ PASS" if result else "❌ FAIL"
         print(f"{status}: {test_name}")
     
-    all_passed = all(passed for _, passed in results)
+    print(f"\nTotal: {passed}/{total} tests passed ({100*passed//total}%)")
     
-    if all_passed:
-        print("\n✅ ALL TESTS PASSED")
-        print("\nKEY VERIFICATION:")
-        print("  • T4 Quick IVR label is now DYNAMIC/eligibility-based:")
-        print("    - Eligible new users see '📢 Quick IVR Call — 1 Free'")
-        print("    - Subscribers and users who used trial see '📢 Quick IVR Call' (neutral)")
-        print("  • B1 newline fix still holds (no literal \\n leaks)")
-        print("  • T5 plan marketing consistency still holds (advertised == enforced)")
-        print("  • OTP plan gate fix still holds (Pro users can access OTP Collection)")
-        return 0
+    if passed == total:
+        print("\n🎉 ALL TESTS PASSED!")
+        sys.exit(0)
     else:
-        print("\n❌ SOME TESTS FAILED")
-        return 1
+        print(f"\n⚠️  {total - passed} test(s) failed")
+        sys.exit(1)
 
-
-if __name__ == '__main__':
-    sys.exit(main())
+if __name__ == "__main__":
+    main()
