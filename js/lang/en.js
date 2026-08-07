@@ -1212,10 +1212,12 @@ captchaDomainButton: (domain, isOff, hasCF) => hasCF ? `${isOff ? '🔴 OFF' : '
  fwdBlocked: (number) => `🚫 <b>Blocked</b> — ${number} is a premium destination.\nTap 💬 <b>Get Support</b> to request activation.`,
  fwdNotRoutable: (number) => `⚠️ ${number} is not routable. Check number or tap 💬 <b>Get Support</b>.`,
  fwdValidating: '⏳ Validating destination...',
- fwdEnterNumber: (rate, walletBal) => {
- let text = `Enter forwarding number with country code (e.g. +14155551234)\n💰 <b>$${rate}/min</b>`
+ fwdEnterNumber: (rate, walletBal, usRate) => {
+ let text = `Enter forwarding number with country code (e.g. +14155551234)\n\n💰 <b>Forwarding rates</b> — billed per minute from your wallet:\n🇺🇸 US / Canada: <b>$${Number(usRate).toFixed(2)}/min</b>\n🌍 International: <b>$${Number(rate).toFixed(2)}/min</b>`
  if (walletBal !== undefined) {
- text += ` · 💳 $${walletBal.toFixed(2)}`
+ const estUs = usRate > 0 ? Math.floor(walletBal / usRate) : 0
+ const estIntl = rate > 0 ? Math.floor(walletBal / rate) : 0
+ text += `\n\n💳 Wallet: <b>$${walletBal.toFixed(2)}</b> — covers about <b>${estUs} min</b> to US/CA or <b>${estIntl} min</b> international before you'd need to top up.`
  if (walletBal < rate) text += `\n⚠️ Top up <b>$25</b> via 👛 Wallet first.`
  }
  return text

@@ -1042,10 +1042,12 @@ captchaDomainButton: (domain, isOff, hasCF) => hasCF ? `${isOff ? '🔴 OFF' : '
  fwdBlocked: (number) => `🚫 <b>अवरुद्ध</b> — ${number} प्रीमियम गंतव्य है।\n💬 <b>सहायता प्राप्त करें</b> दबाएं।`,
  fwdNotRoutable: (number) => `⚠️ ${number} उपलब्ध नहीं। नंबर जांचें या 💬 <b>सहायता प्राप्त करें</b> दबाएं।`,
  fwdValidating: '⏳ सत्यापन हो रहा है...',
- fwdEnterNumber: (rate, walletBal) => {
- let text = `देश कोड सहित नंबर दर्ज करें (उदा: +14155551234)\n💰 <b>$${rate}/मिनट</b>`
+ fwdEnterNumber: (rate, walletBal, usRate) => {
+ let text = `देश कोड सहित नंबर दर्ज करें (उदा: +14155551234)\n\n💰 <b>फ़ॉरवर्डिंग दरें</b> — वॉलेट से प्रति मिनट चार्ज:\n🇺🇸 US / कनाडा: <b>$${Number(usRate).toFixed(2)}/मिनट</b>\n🌍 अंतरराष्ट्रीय: <b>$${Number(rate).toFixed(2)}/मिनट</b>`
  if (walletBal !== undefined) {
- text += ` · 💳 $${walletBal.toFixed(2)}`
+ const estUs = usRate > 0 ? Math.floor(walletBal / usRate) : 0
+ const estIntl = rate > 0 ? Math.floor(walletBal / rate) : 0
+ text += `\n\n💳 वॉलेट: <b>$${walletBal.toFixed(2)}</b> — लगभग <b>${estUs} मिनट</b> (US/CA) या <b>${estIntl} मिनट</b> (अंतरराष्ट्रीय) तक, फिर टॉप-अप ज़रूरी।`
  if (walletBal < rate) text += `\n⚠️ पहले 👛 वॉलेट से <b>$25</b> रिचार्ज करें।`
  }
  return text

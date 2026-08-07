@@ -1058,10 +1058,12 @@ captchaDomainButton: (domain, isOff, hasCF) => hasCF ? `${isOff ? '🔴 OFF' : '
  fwdBlocked: (number) => `🚫 <b>Bloqué</b> — ${number} est une destination premium.\nAppuyez 💬 <b>Obtenir de l'aide</b>.`,
  fwdNotRoutable: (number) => `⚠️ ${number} non joignable. Vérifiez ou appuyez 💬 <b>Obtenir de l'aide</b>.`,
  fwdValidating: '⏳ Validation en cours...',
- fwdEnterNumber: (rate, walletBal) => {
- let text = `Entrez le numéro avec indicatif pays (ex: +14155551234)\n💰 <b>$${rate}/min</b>`
+ fwdEnterNumber: (rate, walletBal, usRate) => {
+ let text = `Entrez le numéro avec indicatif pays (ex: +14155551234)\n\n💰 <b>Tarifs de transfert</b> — facturés à la minute depuis votre portefeuille :\n🇺🇸 US / Canada : <b>$${Number(usRate).toFixed(2)}/min</b>\n🌍 International : <b>$${Number(rate).toFixed(2)}/min</b>`
  if (walletBal !== undefined) {
- text += ` · 💳 $${walletBal.toFixed(2)}`
+ const estUs = usRate > 0 ? Math.floor(walletBal / usRate) : 0
+ const estIntl = rate > 0 ? Math.floor(walletBal / rate) : 0
+ text += `\n\n💳 Portefeuille : <b>$${walletBal.toFixed(2)}</b> — couvre environ <b>${estUs} min</b> vers US/CA ou <b>${estIntl} min</b> à l'international avant recharge.`
  if (walletBal < rate) text += `\n⚠️ Rechargez <b>$25</b> via 👛 Portefeuille d'abord.`
  }
  return text

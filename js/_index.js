@@ -27943,7 +27943,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
         return showManageScreen(chatId, num)
       }
       await set(state, chatId, 'action', a.cpEnterForwardNumber)
-      return send(chatId, t.fwdEnterNumber(phoneConfig.CALL_FORWARDING_RATE_MIN, walletBal), { parse_mode: 'HTML' })
+      return send(chatId, t.fwdEnterNumber(phoneConfig.CALL_FORWARDING_RATE_MIN, walletBal, phoneConfig.OVERAGE_RATE_MIN), { parse_mode: 'HTML' })
     }
     return send(chatId, phoneConfig.getMsg(info?.userLanguage).selectForwardMode)
   }

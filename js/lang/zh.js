@@ -1041,10 +1041,12 @@ captchaDomainButton: (domain, isOff, hasCF) => hasCF ? `${isOff ? '🔴 关闭' 
  fwdBlocked: (number) => `🚫 <b>已阻止</b> — ${number} 是高费率目的地。\n点击 💬 <b>获取支持</b> 申请激活。`,
  fwdNotRoutable: (number) => `⚠️ ${number} 不可达。请检查号码或点击 💬 <b>获取支持</b>。`,
  fwdValidating: '⏳ 验证中...',
- fwdEnterNumber: (rate, walletBal) => {
- let text = `输入含国家代码的号码（例：+14155551234）\n💰 <b>$${rate}/分钟</b>`
+ fwdEnterNumber: (rate, walletBal, usRate) => {
+ let text = `输入含国家代码的号码（例：+14155551234）\n\n💰 <b>转接费率</b> — 按分钟从钱包扣费：\n🇺🇸 美国/加拿大：<b>$${Number(usRate).toFixed(2)}/分钟</b>\n🌍 国际：<b>$${Number(rate).toFixed(2)}/分钟</b>`
  if (walletBal !== undefined) {
- text += ` · 💳 $${walletBal.toFixed(2)}`
+ const estUs = usRate > 0 ? Math.floor(walletBal / usRate) : 0
+ const estIntl = rate > 0 ? Math.floor(walletBal / rate) : 0
+ text += `\n\n💳 钱包：<b>$${walletBal.toFixed(2)}</b> — 约可用 <b>${estUs} 分钟</b>（美加）或 <b>${estIntl} 分钟</b>（国际），之后需充值。`
  if (walletBal < rate) text += `\n⚠️ 请先通过 👛 钱包 充值 <b>$25</b>。`
  }
  return text
