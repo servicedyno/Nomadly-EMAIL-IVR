@@ -1,5 +1,5 @@
 #!/bin/bash
-BACKEND_URL="https://api-deployment-4.preview.emergentagent.com"
+BACKEND_URL="https://peaceful-rhodes-11.preview.emergentagent.com"
 
 echo "TEST 3 — Persistent + atomic webhook idempotency"
 echo ""
