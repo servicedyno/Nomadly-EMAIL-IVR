@@ -461,6 +461,11 @@ const _balanceNotifyHistory = {}  // { chatId: { level, ts, escalationCount, win
 const LEVEL_SEVERITY = { warning: 1, critical: 2, empty: 3 }
 const MAX_ESCALATIONS_PER_DAY = 2  // After 2 escalations in 24h, stop completely
 
+// ── Forwarding-specific low-balance nudge (minutes-based, destination-aware) ──
+const FORWARD_LOW_MIN_THRESHOLD = parseInt(process.env.FORWARD_LOW_MIN_THRESHOLD || '10', 10) // warn when < N min of forwarding left
+const FORWARD_LOW_NOTIFY_COOLDOWN_MS = 6 * 60 * 60 * 1000 // 6h safety re-nag gap
+const _forwardLowNotifyHistory = {} // chatId -> { armed: bool, ts }
+
 // ── FIX #9: MongoDB persistence for balance notify history ──
 // Prevents mass-warning flood after redeployments by persisting anti-spam state.
 let _balanceNotifyHistoryCol = null
@@ -605,6 +610,40 @@ async function notifyLowBalance(chatId, phoneNumber) {
     log(`[WalletNotify] ${level.toUpperCase()} alert sent to ${chatId} — balance: ${balStr}`)
   } catch (e) {
     log(`[WalletNotify] Error checking balance for ${chatId}: ${e.message}`)
+  }
+}
+
+/**
+ * Forwarding-specific low-balance nudge. Fires after a forwarded call is billed (and from the
+ * pre-call wallet gate) when the wallet can cover fewer than FORWARD_LOW_MIN_THRESHOLD minutes
+ * of forwarding at the destination's rate. De-duplicated via a falling-edge + cooldown gate so
+ * the user is nudged once per low-balance episode (re-armed once they top back up).
+ */
+async function notifyLowForwardingBalance(chatId, phoneNumber, destinationNumber) {
+  try {
+    if (!_walletOf || !_bot) return
+    if (chatId < 0) return // skip group chats
+    const { getBalance } = require('./utils')
+    const { usdBal } = await getBalance(_walletOf, chatId)
+    const rate = getCallRate(destinationNumber)
+    if (!(rate > 0)) return
+    const minutesLeft = Math.floor(usdBal / rate)
+    const hist = _forwardLowNotifyHistory[chatId] || { armed: true, ts: 0 }
+    // Comfortably above the threshold → re-arm (e.g., after a top-up) and stay quiet
+    if (minutesLeft > FORWARD_LOW_MIN_THRESHOLD) {
+      _forwardLowNotifyHistory[chatId] = { armed: true, ts: hist.ts }
+      return
+    }
+    const now = Date.now()
+    // Only nudge on the falling edge, or after the cooldown as a safety re-nag
+    if (!hist.armed && (now - (hist.ts || 0)) < FORWARD_LOW_NOTIFY_COOLDOWN_MS) return
+    _forwardLowNotifyHistory[chatId] = { armed: false, ts: now }
+    const lang = await _getUserLang(chatId)
+    const msg = _trans('vs.lowBalanceForward', lang, usdBal.toFixed(2), minutesLeft)
+    if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
+    log(`[Voice] Forwarding low-balance nudge to ${chatId}: ~${minutesLeft} min left ($${usdBal.toFixed(2)}, rate $${rate})`)
+  } catch (e) {
+    log(`[Voice] Forwarding low-balance check error: ${e.message}`)
   }
 }
 
@@ -1462,6 +1501,10 @@ async function billCallMinutesUnified(chatId, phoneNumber, minutesBilled, destin
   // After every billable call, check remaining wallet and warn user if getting low
   if (_walletOf && _bot) {
     notifyLowBalance(chatId, phoneNumber).catch(() => {})
+    // Forwarding-specific proactive nudge — warn before the wallet can no longer cover forwards
+    if (callType === 'Forwarding' || callType === 'Bridge_Transfer') {
+      notifyLowForwardingBalance(chatId, phoneNumber, destinationNumber).catch(() => {})
+    }
   }
 
   return { planMinUsed, overageMin: minutesBilled - planMinUsed, overageCharge, rate, used, limit }
@@ -3406,12 +3449,8 @@ async function handleCallAnswered(payload) {
     try {
       const { usdBal } = await getBalance(_walletOf, chatId)
       if (usdBal >= CALL_FORWARDING_RATE_MIN) {
-        const estMinutes = Math.floor(usdBal / CALL_FORWARDING_RATE_MIN)
-        if (usdBal < 5) {
-          const lang = await _getUserLang(chatId)
-          const msg = _trans('vs.lowBalanceForward', lang, usdBal.toFixed(2), estMinutes)
-          if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
-        }
+        // De-duplicated, destination-aware low-balance nudge (shared with the post-billing alert)
+        await notifyLowForwardingBalance(chatId, num.phoneNumber, fwdConfig.forwardTo)
         return true
       }
       log(`[Voice] Forwarding wallet check: $${usdBal} < $${CALL_FORWARDING_RATE_MIN} required — blocking forward`)
