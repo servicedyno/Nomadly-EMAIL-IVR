@@ -3,6 +3,22 @@
 ## Original problem statement
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
+## Auto-inherit dialing permissions setup (2026-08-07)
+Follow-up to the NL fix. Goal: manage Voice dialing/geo permissions ONCE on the master account and have
+every sub-account (present + future) inherit automatically. Findings/actions:
+- Verified via `/v1/Settings` (`dialing_permissions_inheritance`) that ALL 27 active sub-accounts already
+  have inheritance=true (Twilio's default). So the earlier per-sub NL bulk-update was redundant — the real
+  fix was enabling NL on the MASTER; subs inherit it. Confirmed @Topgass1 sub shows effective NL low=true via inheritance.
+- Code change: `js/twilio-service.js` `createSubAccount()` now explicitly sets
+  `voice.v1.dialingPermissions.settings().update({ dialingPermissionsInheritance: true })` right after creating
+  each new sub-account (non-fatal on error) — guarantees future numbers inherit master's approved countries.
+- Semantics (Twilio 2026): inheritance=true → sub inherits master's dialing permissions; false → independent.
+  New sub-accounts default to inheritance=true. SDK accessor is `settings()` (callable) then `.fetch()/.update()`.
+- Validation: node --check passed, idempotent `settings().update` verified returning inheritance=true, nodejs
+  service restarted clean. NOTE: full e2e (creating a real paid number) intentionally NOT triggered to avoid a
+  production write/charge; the inheritance API call itself is verified working. Deploys via normal Railway/Save-to-GitHub flow.
+
+
 ## IVR call failure fix — NL dialing permissions (2026-08-07)
 @Topgass1 (chatId 8186560549, number +3197006532350, sub-account AC832d91dc…) got
 "Calling this destination is not permitted / No charge" when the IVR tried to dial +31626742533 (NL mobile).

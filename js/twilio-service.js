@@ -175,6 +175,18 @@ async function createSubAccount(friendlyName) {
     if (!client) throw new Error('Twilio client not initialized')
     const account = await client.api.v2010.accounts.create({ friendlyName })
     log(`[Twilio] Created sub-account: ${account.sid} — ${friendlyName}`)
+    // Ensure the new sub-account inherits the master's Voice dialing (geo) permissions
+    // so approved countries (e.g. NL) work immediately — manage permissions once on the
+    // master and every number follows. Twilio defaults new subs to inheritance=true; we
+    // set it explicitly to be safe. Non-fatal: a failure here must not block provisioning.
+    try {
+      await getSubClient(account.sid, account.authToken)
+        .voice.v1.dialingPermissions.settings()
+        .update({ dialingPermissionsInheritance: true })
+      log(`[Twilio] Sub-account ${account.sid} dialing-permission inheritance ensured (true)`)
+    } catch (e) {
+      log(`[Twilio] WARN: could not set dialing-permission inheritance on ${account.sid}: ${e.message}`)
+    }
     return {
       accountSid: account.sid,
       authToken: account.authToken,
