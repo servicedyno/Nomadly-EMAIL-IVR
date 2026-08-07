@@ -1696,3 +1696,34 @@ at the start of the decline, plus ~5 unlabeled auto-deploys/day (no QA gate).
 ### Not done / go-forward
 - Only crypto deposit path instrumented/streamlined (NGN excluded per user). Recommend a deploy-time
   smoke test (deposit + 1 checkout) to catch silent conversion regressions given the ~5 deploys/day.
+
+---
+
+## 2026-06 (forked session) — CloudIVR quota fix + SIP-only billing copy + Trial Nudge + hosting audit
+
+**User decisions:** (1a) Use the `.env` values as the source of truth for CloudIVR quotas AND fix all display texts, noting that included minutes are **incoming SIP/browser-answered calls only** (call forwarding is billed from wallet). (2a) Finish the one-time Trial Nudge banner. (3b) Audit hosting plans and auto-fix obvious mismatches.
+
+### What shipped
+1. **CloudIVR quota misconfig (P0) fixed** — `js/phone-config.js` was reading `PHONE_PRO_MINUTES`/`PHONE_BUSINESS_MINUTES`/etc. but `.env` supplies UN-prefixed keys (`PRO_MINUTES`, `BUSINESS_MINUTES`, …), so it silently fell back to stale defaults (Pro 500min, Business Unlimited/1000SMS). Fixed the env references AND set defaults to mirror the live quotas. Resolved plan config now = **Starter 100min/50SMS, Pro 400min/200SMS, Business 600min/300SMS** (matches `.env`). All plan copy (`cp_8`, hub/howItWorks/selectPlan/orderSummary in all 4 langs) auto-propagates via `plans.X.minutes/.sms`.
+2. **SIP-only billing clarification (EN copy)** — FR/ZH/HI already stated "outbound + forwarding billed from wallet"; only the English base strings were deficient. Updated EN `hubWelcome`, `howItWorks` billing, `selectPlan` footer, `orderSummary`: included minutes cover **incoming calls answered via SIP/browser**; **call forwarding to another phone & all outbound (incl. IVR/OTP) are billed from wallet**.
+3. **Trial Nudge banner (P0) completed** — `maybeSendTrialNudge()` (js/_index.js ~1453) now hooked into the NEW-USER `/start` onboarding path (inside the post-welcome setTimeout after greeting, and the fallback branch) in addition to the returning-user path (~13004). Shows the one-time `🎁 You have 1 free Quick IVR call` banner only to trial-eligible users (no active number + unused free trial), tracked via `ivrTrialNudgeShown_<chatId>`.
+4. **Hosting plan audit + fix** — All 3 plans advertised "Unlimited domains" but `whm-service.js PLAN_ADDON_LIMITS` enforces Weekly=1 addon (2 total), Premium=5 (6 total), Golden=unlimited. Fixed advertised `domains` copy in all 4 lang files → **"Up to 2 domains" / "Up to 6 domains" / "Unlimited domains"**. Hosting prices already read `.env` correctly ($30/$75/$100). Storage/bandwidth are WHM-package-level (operator-configured, not enforced in bot code).
+
+### New verification endpoint
+- `GET /api/dev/plan-quota-audit` (dev-only, 404 in prod) — reports resolved CloudIVR quotas vs `.env` intent + hosting advertised-domains vs enforced WHM addon limits. Returns `ok:true` when both consistent.
+
+### Verified (testing agent iteration_25 — 100% backend, 7/7 pass, no issues)
+- `/api/dev/plan-quota-audit`: ok=true, cloudIvr.mismatchCount=0 (100/50, 400/200, 600/300), hosting.mismatchCount=0 (2/6/unlimited all consistent).
+- Regression: `/api/dev/ux-fixes-audit` ok=true (newline/T4/plan-marketing); `/api/dev/otp-plan-gate-check` pro.allowed=true.
+- Trial nudge: `t.ivrTrialNudge` resolves in en/fr/zh/hi with 0 literal `\n`; wired at 4 sites in `_index.js`.
+- `/api/health` healthy; node boots clean; all `node --check` pass.
+
+### Files touched
+- `js/phone-config.js` (env keys + defaults + EN SIP-billing copy)
+- `js/lang/en.js, fr.js, zh.js, hi.js` (hosting `domains` copy)
+- `js/_index.js` (new-user trial-nudge hooks + `/dev/plan-quota-audit` endpoint)
+
+### Go-forward / backlog
+- Deferred UX terminology items (T1/T2/T3: BulkSMS icon, "Upgrade Plan" vs "Anti-Red Hosting" label collision, 📧 icon reuse) — still pending product sign-off (high 4-language + button-routing blast radius).
+- Storage/bandwidth hosting specs are marketing strings validated at WHM package level, not in bot code — no code-level enforcement to audit.
+
