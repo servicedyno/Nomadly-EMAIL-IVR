@@ -1068,6 +1068,10 @@ captchaDomainButton: (domain, isOff, hasCF) => hasCF ? `${isOff ? '🔴 OFF' : '
  }
  return text
  },
+ fwdConfirm: (number, forwardTo, modeLabel, rate, walletBal, estMin) => {
+ return `📲 <b>Confirmer le transfert d'appel</b>\n\n📞 Votre numéro : <b>${number}</b>\n➡️ Transférer vers : <b>${forwardTo}</b>\n⚙️ Mode : <b>${modeLabel}</b>\n💰 Tarif : <b>$${Number(rate).toFixed(2)}/min</b> — facturé depuis votre portefeuille\n💳 Portefeuille : <b>$${walletBal.toFixed(2)}</b> — couvre environ <b>${estMin} min</b>\n\nAppuyez sur <b>✅ Confirmer</b> pour activer, ou ↩️ Retour pour modifier.`
+ },
+ fwdConfirmBtn: '✅ Confirmer et activer',
  planNotFound: 'Forfait introuvable.',
  noActivePlans: '📋 <b>Mes Forfaits Hébergement</b>\n\nVous n\'avez aucun forfait actif. Achetez un forfait pour commencer !',
  noRegisteredDomains: 'Vous n\'avez aucun domaine enregistré. Veuillez enregistrer un nouveau domaine ou connecter un domaine externe.',

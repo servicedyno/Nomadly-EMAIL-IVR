@@ -8619,6 +8619,7 @@ bot?.on('message', msg => {
     cpManageNumber: 'cpManageNumber',
     cpCallForwarding: 'cpCallForwarding',
     cpEnterForwardNumber: 'cpEnterForwardNumber',
+    cpConfirmForward: 'cpConfirmForward',
     cpForwardingConflictResolve: 'cpForwardingConflictResolve',
     cpSmsSettings: 'cpSmsSettings',
     cpEnterEmail: 'cpEnterEmail',
@@ -27991,6 +27992,52 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       return send(chatId, t.fwdNotRoutable(forwardTo), { parse_mode: 'HTML' })
     }
 
+    // ── Stash pending forward + show one-tap confirmation before it goes live ──
+    const modeSel = info?.cpForwardMode || 'always'
+    await saveInfo('cpPendingForward', forwardTo)
+    const fwdRate = forwardTo.startsWith('+1') ? phoneConfig.OVERAGE_RATE_MIN : phoneConfig.CALL_FORWARDING_RATE_MIN
+    const fwdEstMin = fwdRate > 0 ? Math.floor(walletBal / fwdRate) : 0
+    const fwdModeLbl = modeSel === 'always' ? pc.alwaysForward : modeSel === 'busy' ? pc.forwardBusy : pc.forwardNoAnswer
+    await set(state, chatId, 'action', a.cpConfirmForward)
+    return send(chatId, t.fwdConfirm(num.phoneNumber, forwardTo, fwdModeLbl, fwdRate, walletBal, fwdEstMin), k.of([[t.fwdConfirmBtn], [pc.back]]))
+  }
+
+  // ━━━ CONFIRM FORWARDING — one-tap review before it goes live ━━━
+  if (action === a.cpConfirmForward) {
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
+    const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
+    if (!num) return goto.submenu5()
+    let walletBal = 0
+    try { const { usdBal } = await getBalance(walletOf, chatId); walletBal = usdBal } catch (e) { /* noop */ }
+    // Back → return to the forwarding menu without enabling
+    if (isBackPress(message) || message === pc.back) {
+      await set(state, chatId, 'action', a.cpCallForwarding)
+      const fwd = num.features?.callForwarding || {}
+      const holdLabel = fwd.holdMusic ? pc.holdMusicOn : pc.holdMusicOff
+      const btns = fwd.enabled
+        ? [[pc.alwaysForward], [pc.forwardBusy], [pc.forwardNoAnswer], [holdLabel], ['📲 Change Forward-To Number'], [pc.disableForwarding]]
+        : [[pc.alwaysForward], [pc.forwardBusy], [pc.forwardNoAnswer]]
+      return send(chatId, cpTxt.forwardingStatus(num.phoneNumber, fwd, walletBal), k.of(btns))
+    }
+    // Any input other than the explicit confirm tap → re-show the confirmation
+    if (message !== t.fwdConfirmBtn) {
+      const forwardToP = info?.cpPendingForward
+      if (!forwardToP) { await set(state, chatId, 'action', a.cpManageNumber); return showManageScreen(chatId, num) }
+      const modeP = info?.cpForwardMode || 'always'
+      const rateP = forwardToP.startsWith('+1') ? phoneConfig.OVERAGE_RATE_MIN : phoneConfig.CALL_FORWARDING_RATE_MIN
+      const estP = rateP > 0 ? Math.floor(walletBal / rateP) : 0
+      const lblP = modeP === 'always' ? pc.alwaysForward : modeP === 'busy' ? pc.forwardBusy : pc.forwardNoAnswer
+      return send(chatId, t.fwdConfirm(num.phoneNumber, forwardToP, lblP, rateP, walletBal, estP), k.of([[t.fwdConfirmBtn], [pc.back]]))
+    }
+    const forwardTo = info?.cpPendingForward
+    if (!forwardTo) { await set(state, chatId, 'action', a.cpManageNumber); return showManageScreen(chatId, num) }
+    // Re-check wallet balance at confirm time (it may have changed since entry)
+    if (walletBal < phoneConfig.CALL_FORWARDING_RATE_MIN) {
+      send(chatId, t.fwdInsufficientBalance(walletBal, phoneConfig.CALL_FORWARDING_RATE_MIN), { parse_mode: 'HTML' })
+      await set(state, chatId, 'action', a.cpManageNumber)
+      return showManageScreen(chatId, num)
+    }
     const mode = info?.cpForwardMode || 'always'
     const existingFwd = num.features?.callForwarding || {}
     await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'callForwarding', { enabled: true, mode, forwardTo, ringTimeout: 25, holdMusic: existingFwd.holdMusic || false })

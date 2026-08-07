@@ -1742,3 +1742,14 @@ at the start of the decline, plus ~5 unlabeled auto-deploys/day (no QA gate).
 
 **Backlog update:** BulkSMS-icon + "Upgrade Plan" collision from the earlier T1/T2/T3 terminology list are now resolved. Remaining deferred terminology (any other icon overloads) still pending explicit sign-off.
 
+
+### 2026-06 (same forked session, follow-up 2) — Forwarding Confirm Step
+
+**Shipped:** A one-tap "Confirm & Enable" review screen now sits between entering the forwarding destination and forwarding actually going live.
+
+- New state `a.cpConfirmForward` (registered in the action-constants object next to `cpEnterForwardNumber`).
+- New `t.fwdConfirm(number, forwardTo, modeLabel, rate, walletBal, estMin)` + `t.fwdConfirmBtn` in all 4 langs (en/fr/zh/hi). The confirm card echoes: your number, forward-to destination, mode (localized via `pc.alwaysForward`/`forwardBusy`/`forwardNoAnswer`), destination-based per-minute rate (US/CA `$0.15` via `OVERAGE_RATE_MIN`, else `$0.50` via `CALL_FORWARDING_RATE_MIN`), wallet balance and estimated minutes covered.
+- Flow refactor in `_index.js`: after the destination passes format/prefix/wallet/Telnyx validation in `cpEnterForwardNumber`, it now stashes `cpPendingForward` and shows the confirm card (`[✅ Confirm & Enable] [↩️ Back]`) instead of enabling immediately. The new `cpConfirmForward` handler enables forwarding only on the explicit confirm tap (with a fresh wallet re-check), Back returns to the forwarding menu, and any other input re-shows the confirm card. The pre-existing Always-Forward conflict-awareness + busy/no-answer dormant warnings were relocated to become the tail of the confirm handler (no logic duplicated).
+
+**Verification (self-test — Telegram flow can't be automated on dev pod):** `node --check` on all touched files; 4-language render of the confirm card ($0.50/min · 50 min for $25, destination-based rate); routing simulation (Confirm→enable ✓, Back→cancel ✓, stray input→re-show ✓); node boots clean; `/api/dev/plan-quota-audit` & `/api/dev/ux-fixes-audit` still `ok:true`; `/api/health` healthy.
+

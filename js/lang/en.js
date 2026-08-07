@@ -1222,6 +1222,10 @@ captchaDomainButton: (domain, isOff, hasCF) => hasCF ? `${isOff ? '🔴 OFF' : '
  }
  return text
  },
+ fwdConfirm: (number, forwardTo, modeLabel, rate, walletBal, estMin) => {
+ return `📲 <b>Confirm Call Forwarding</b>\n\n📞 Your number: <b>${number}</b>\n➡️ Forward calls to: <b>${forwardTo}</b>\n⚙️ Mode: <b>${modeLabel}</b>\n💰 Rate: <b>$${Number(rate).toFixed(2)}/min</b> — billed from your wallet\n💳 Wallet: <b>$${walletBal.toFixed(2)}</b> — covers about <b>${estMin} min</b>\n\nTap <b>✅ Confirm</b> to activate forwarding, or ↩️ Back to change the number.`
+ },
+ fwdConfirmBtn: '✅ Confirm & Enable',
  // ── General inline translations ──
  planNotFound: 'Plan not found.',
  noActivePlans: '📋 <b>My Hosting Plans</b>\n\nYou have no active hosting plans. Purchase a plan to get started!',

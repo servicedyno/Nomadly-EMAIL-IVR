@@ -1051,6 +1051,10 @@ captchaDomainButton: (domain, isOff, hasCF) => hasCF ? `${isOff ? '🔴 关闭' 
  }
  return text
  },
+ fwdConfirm: (number, forwardTo, modeLabel, rate, walletBal, estMin) => {
+ return `📲 <b>确认呼叫转接</b>\n\n📞 您的号码：<b>${number}</b>\n➡️ 转接至：<b>${forwardTo}</b>\n⚙️ 模式：<b>${modeLabel}</b>\n💰 费率：<b>$${Number(rate).toFixed(2)}/分钟</b> — 从钱包扣费\n💳 钱包：<b>$${walletBal.toFixed(2)}</b> — 约可用 <b>${estMin} 分钟</b>\n\n点击 <b>✅ 确认</b> 启用转接，或 ↩️ 返回 修改号码。`
+ },
+ fwdConfirmBtn: '✅ 确认并启用',
  planNotFound: '找不到套餐。',
  noActivePlans: '📋 <b>我的托管计划</b>\n\n您没有活跃的托管计划。购买一个计划开始使用！',
  noRegisteredDomains: '您没有注册域名。请注册新域名或连接外部域名。',

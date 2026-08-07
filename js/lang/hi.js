@@ -1052,6 +1052,10 @@ captchaDomainButton: (domain, isOff, hasCF) => hasCF ? `${isOff ? '🔴 OFF' : '
  }
  return text
  },
+ fwdConfirm: (number, forwardTo, modeLabel, rate, walletBal, estMin) => {
+ return `📲 <b>कॉल फ़ॉरवर्डिंग की पुष्टि करें</b>\n\n📞 आपका नंबर: <b>${number}</b>\n➡️ यहाँ फ़ॉरवर्ड करें: <b>${forwardTo}</b>\n⚙️ मोड: <b>${modeLabel}</b>\n💰 दर: <b>$${Number(rate).toFixed(2)}/मिनट</b> — वॉलेट से चार्ज\n💳 वॉलेट: <b>$${walletBal.toFixed(2)}</b> — लगभग <b>${estMin} मिनट</b> तक\n\nसक्रिय करने के लिए <b>✅ पुष्टि करें</b> टैप करें, या ↩️ वापस जाकर नंबर बदलें।`
+ },
+ fwdConfirmBtn: '✅ पुष्टि करें और चालू करें',
  planNotFound: 'प्लान नहीं मिला।',
  noActivePlans: '📋 <b>मेरे होस्टिंग प्लान</b>\n\nकोई सक्रिय होस्टिंग प्लान नहीं। शुरू करने के लिए प्लान खरीदें!',
  noRegisteredDomains: 'कोई पंजीकृत डोमेन नहीं। कृपया नया डोमेन रजिस्टर करें या बाहरी डोमेन कनेक्ट करें।',
