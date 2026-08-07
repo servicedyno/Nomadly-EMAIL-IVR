@@ -1452,7 +1452,7 @@ captchaDomainButton: (domain, isOff, hasCF) => hasCF ? `${isOff ? '🔴 OFF' : '
  cp_198: '🎙 <b>वॉइस प्रोवाइडर चुनें</b>\\n\\nChoose your TTS engine:',
  cp_199: 'Please select a voice:',
  cp_2: (toLocaleString) => `⚠️ न्यूनतम जमा है ₦${toLocaleString} (≈ $10 USD). कृपया अधिक राशि दर्ज करें.`,
- cp_20: (presetName, currentPlan) => `🔒 <b>प्रीसेट "${presetName}" OTP संग्रह का उपयोग करता है</b>, जिसके लिए <b>Business</b> प्लान आवश्यक है।\n\nआपका वर्तमान प्लान: <b>${currentPlan}</b>\n\n🔄 नवीनीकरण/प्लान बदलें से अपग्रेड करें, या 🔗 ट्रांसफर मोड के साथ नई कॉल बनाएं।`,
+ cp_20: (presetName, currentPlan) => `🔒 <b>प्रीसेट "${presetName}" OTP संग्रह का उपयोग करता है</b>, जिसके लिए <b>Pro</b> प्लान आवश्यक है।\n\nआपका वर्तमान प्लान: <b>${currentPlan}</b>\n\n🔄 नवीनीकरण/प्लान बदलें से अपग्रेड करें, या 🔗 ट्रांसफर मोड के साथ नई कॉल बनाएं।`,
  cp_200: (name) => `🎤 आवाज़: <b>${name}</b>\n\n🎚 <b>बोलने की गति चुनें</b>\n\nChoose how fast the voice speaks:`,
  cp_201: '🎙 <b>वॉइस प्रोवाइडर चुनें</b>\\n\\nChoose your TTS engine:',
  cp_202: '✍️ दर्ज करें a custom speed multiplier:\\n<i>Examples: 0.6 (very slow), 0.9 (slightly slow), 1.2 (faster), 1.5 (very fast)\\nRange: 0.25 to 4.0</i>',

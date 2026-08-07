@@ -1540,7 +1540,7 @@ captchaDomainButton: (domain, isOff, hasCF) => hasCF ? `${isOff ? '🔴 OFF' : '
  cp_198: '🎙 <b>Select Voice Provider</b>\\n\\nChoose your TTS engine:',
  cp_199: 'Please select a voice:',
  cp_2: (toLocaleString) => `⚠️ Minimum deposit is ₦${toLocaleString} (≈ $10 USD). Please enter a higher amount.`,
- cp_20: (presetName, currentPlan) => `🔒 <b>Preset "${presetName}" uses OTP Collection</b>, which requires the <b>Business</b> plan.\n\nYour current plan: <b>${currentPlan}</b>\n\nUpgrade via 🔄 Renew / Change Plan, or create a new call with 🔗 Transfer mode.`,
+ cp_20: (presetName, currentPlan) => `🔒 <b>Preset "${presetName}" uses OTP Collection</b>, which requires the <b>Pro</b> plan.\n\nYour current plan: <b>${currentPlan}</b>\n\nUpgrade via 🔄 Renew / Change Plan, or create a new call with 🔗 Transfer mode.`,
  cp_200: (name) => `🎤 Voice: <b>${name}</b>\n\n🎚 <b>Select Speaking Speed</b>\n\nChoose how fast the voice speaks:`,
  cp_201: '🎙 <b>Select Voice Provider</b>\\n\\nChoose your TTS engine:',
  cp_202: '✍️ Enter a custom speed multiplier:\\n<i>Examples: 0.6 (very slow), 0.9 (slightly slow), 1.2 (faster), 1.5 (very fast)\\nRange: 0.25 to 4.0</i>',

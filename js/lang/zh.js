@@ -1451,7 +1451,7 @@ captchaDomainButton: (domain, isOff, hasCF) => hasCF ? `${isOff ? '🔴 关闭' 
  cp_198: '🎙 <b>选择 语音提供商</b>\\n\\nChoose your TTS engine:',
  cp_199: 'Please select a voice:',
  cp_2: (toLocaleString) => `⚠️ 最低存款为 ₦${toLocaleString} (≈ $10 USD). 请输入更高金额.`,
- cp_20: (presetName, currentPlan) => `🔒 <b>预设 "${presetName}" 使用OTP收集</b>，需要 <b>Business</b> 套餐。\n\n您当前的套餐：<b>${currentPlan}</b>\n\n通过 🔄 续费/更换套餐 升级，或使用 🔗 转接模式创建新通话。`,
+ cp_20: (presetName, currentPlan) => `🔒 <b>预设 "${presetName}" 使用OTP收集</b>，需要 <b>Pro</b> 套餐。\n\n您当前的套餐：<b>${currentPlan}</b>\n\n通过 🔄 续费/更换套餐 升级，或使用 🔗 转接模式创建新通话。`,
  cp_200: (name) => `🎤 语音: <b>${name}</b>\n\n🎚 <b>选择语速</b>\n\nChoose how fast the voice speaks:`,
  cp_201: '🎙 <b>选择 语音提供商</b>\\n\\nChoose your TTS engine:',
  cp_202: '✍️ 输入 a custom speed multiplier:\\n<i>Examples: 0.6 (very slow), 0.9 (slightly slow), 1.2 (faster), 1.5 (very fast)\\nRange: 0.25 to 4.0</i>',

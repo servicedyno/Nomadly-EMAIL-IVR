@@ -390,7 +390,7 @@ const planFeatureAccess = {
     ivr: false,
     ivrOutbound: true,
     bulkCall: true,
-    otpCollection: false,
+    otpCollection: true,
     ivrRedial: false,
     otpCustomMessages: false,
   },
@@ -416,8 +416,8 @@ const canAccessFeature = (planKey, feature) => {
 }
 
 const upgradeMessage = (feature, currentPlan, lang) => {
-  const needed = (feature === 'callRecording' || feature === 'ivr' || feature === 'ivrRedial' || feature === 'otpCustomMessages' || feature === 'otpCollection') ? 'Business'
-    : (feature === 'ivrOutbound' || feature === 'bulkCall') ? 'Pro'
+  const needed = (feature === 'callRecording' || feature === 'ivr' || feature === 'ivrRedial' || feature === 'otpCustomMessages') ? 'Business'
+    : (feature === 'ivrOutbound' || feature === 'bulkCall' || feature === 'otpCollection') ? 'Pro'
     : 'Pro'
   // Detect "current plan already meets the required tier" — happens when the
   // gate fires for a non-plan reason (e.g. legacy `sipDisabled` flag stuck

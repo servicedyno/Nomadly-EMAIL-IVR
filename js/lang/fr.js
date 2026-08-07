@@ -1468,7 +1468,7 @@ captchaDomainButton: (domain, isOff, hasCF) => hasCF ? `${isOff ? '🔴 OFF' : '
  cp_198: '🎙 <b>Sélectionnez le fournisseur de voix</b>\\n\\nChoose your TTS engine:',
  cp_199: 'Please select a voice:',
  cp_2: (toLocaleString) => `⚠️ Le dépôt minimum est de ₦${toLocaleString} (≈ $10 USD). Veuillez entrer un montant plus élevé.`,
- cp_20: (presetName, currentPlan) => `🔒 <b>Le préréglage « ${presetName} » utilise la Collecte OTP</b>, qui nécessite le forfait <b>Business</b>.\n\nVotre forfait actuel : <b>${currentPlan}</b>\n\nMettez à niveau via 🔄 Renouveler / Changer de Forfait, ou créez un nouvel appel avec le mode 🔗 Transfert.`,
+ cp_20: (presetName, currentPlan) => `🔒 <b>Le préréglage « ${presetName} » utilise la Collecte OTP</b>, qui nécessite le forfait <b>Pro</b>.\n\nVotre forfait actuel : <b>${currentPlan}</b>\n\nMettez à niveau via 🔄 Renouveler / Changer de Forfait, ou créez un nouvel appel avec le mode 🔗 Transfert.`,
  cp_200: (name) => `🎤 Voix: <b>${name}</b>\n\n🎚 <b>Sélectionnez la vitesse de parole</b>\n\nChoose how fast the voice speaks:`,
  cp_201: '🎙 <b>Sélectionnez le fournisseur de voix</b>\\n\\nChoose your TTS engine:',
  cp_202: '✍️ Entrez a custom speed multiplier:\\n<i>Examples: 0.6 (very slow), 0.9 (slightly slow), 1.2 (faster), 1.5 (very fast)\\nRange: 0.25 to 4.0</i>',

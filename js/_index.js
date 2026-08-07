@@ -37364,6 +37364,56 @@ app.post('/dev/credit-preview', (req, res) => {
   return res.json({ input: { invoiceUsd, convertedValue, feePayer, underpayTolerance }, wouldAlertAdmin, ...result })
 })
 
+// ── DEV-ONLY: OTP Collection plan-gate check (read-only) ───────────────────
+// Mirrors the Quick IVR "🔑 OTP Collection" gate (_index.js ~23937-23945) and
+// the preset OTP gate (~23258) so the automated harness can verify the
+// 2026-08 fix: OTP Collection is a PRO feature (Business only ADDS custom OTP
+// messages + redial). Root-caused via @Padrino_voodoo "i need otp on pro plan".
+// Returns the full plan→feature matrix and the exact allow/block decision the
+// bot would make for a caller number on each plan. No DB writes. 404 in prod.
+app.get('/dev/otp-plan-gate-check', (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const plans = ['starter', 'pro', 'business']
+  const matrix = {}
+  for (const p of plans) {
+    matrix[p] = {
+      otpCollection: phoneConfig.canAccessFeature(p, 'otpCollection'),
+      otpCustomMessages: phoneConfig.canAccessFeature(p, 'otpCustomMessages'),
+      ivrRedial: phoneConfig.canAccessFeature(p, 'ivrRedial'),
+    }
+  }
+  // Simulate the Quick IVR OTP-mode gate for a caller on `plan` (and optional trial)
+  const decide = (plan, isTrial) => {
+    if (isTrial) {
+      return { allowed: false, reason: 'trial', requiredTier: 'Pro' }
+    }
+    const currentPlan = plan || 'starter'
+    if (!phoneConfig.canAccessFeature(currentPlan, 'otpCollection')) {
+      const msg = phoneConfig.upgradeMessage('otpCollection', currentPlan, 'en')
+      return { allowed: false, reason: 'plan_gate', requiredTier: 'Pro', upgradeMessageFirstLine: String(msg).split('\n')[0] }
+    }
+    return { allowed: true }
+  }
+  const reqPlan = req.query.plan ? String(req.query.plan).toLowerCase() : null
+  const isTrial = String(req.query.trial || '') === 'true'
+  const gateDecisions = {
+    starter: decide('starter', false),
+    pro: decide('pro', false),
+    business: decide('business', false),
+    trial: decide('pro', true),
+  }
+  return res.json({
+    feature: 'otpCollection',
+    intendedTier: 'Pro',
+    matrix,
+    gateDecisions,
+    ...(reqPlan ? { requested: { plan: reqPlan, isTrial, decision: decide(reqPlan, isTrial) } } : {}),
+  })
+})
+
+
 // ── DEV-ONLY: preview the File Manager EPERM decision (@hellpeaces fix) ─────
 // Given a simulated cPanel failure reason, returns what the /files & /files/mkdir
 // routes would now do: detect the broken-homedir EPERM class, surface a calm

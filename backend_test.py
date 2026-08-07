@@ -1,330 +1,263 @@
 #!/usr/bin/env python3
 """
-Backend API Test Suite for NS Auto-Retry + Domain Status Check Feature
-Tests the Node.js Express server running behind FastAPI proxy
+Backend API Test Suite for Nomadly Telegram Bot
+Testing OTP Plan Gate Bug Fix
 """
 
 import requests
 import json
 import sys
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, List, Tuple
 
-# Read REACT_APP_BACKEND_URL from frontend/.env
-def get_backend_url() -> str:
-    """Read REACT_APP_BACKEND_URL from frontend/.env"""
+# Read backend URL from frontend/.env
+BACKEND_URL = "https://f06fe503-30a9-4c4e-a049-cc26f354ea86.preview.emergentagent.com"
+API_BASE = f"{BACKEND_URL}/api"
+
+class TestResult:
+    def __init__(self):
+        self.passed = 0
+        self.failed = 0
+        self.errors = []
+    
+    def add_pass(self, test_name: str):
+        self.passed += 1
+        print(f"✅ PASS: {test_name}")
+    
+    def add_fail(self, test_name: str, reason: str):
+        self.failed += 1
+        error_msg = f"❌ FAIL: {test_name} - {reason}"
+        self.errors.append(error_msg)
+        print(error_msg)
+    
+    def summary(self):
+        total = self.passed + self.failed
+        print(f"\n{'='*80}")
+        print(f"TEST SUMMARY: {self.passed}/{total} passed")
+        print(f"{'='*80}")
+        if self.errors:
+            print("\nFAILED TESTS:")
+            for error in self.errors:
+                print(f"  {error}")
+        return self.failed == 0
+
+
+def test_otp_plan_gate_check(result: TestResult):
+    """
+    Test the OTP Plan Gate Check endpoint
+    Verifies the fix for @Padrino_voodoo's "OTP mode not working" bug
+    """
+    print("\n" + "="*80)
+    print("TEST SUITE: OTP Plan Gate Check (Bug Fix Verification)")
+    print("="*80)
+    
+    endpoint = f"{API_BASE}/dev/otp-plan-gate-check"
+    
+    # Test 1: Basic endpoint availability
+    print(f"\n[TEST 1] GET {endpoint}")
     try:
-        with open('/app/frontend/.env', 'r') as f:
-            for line in f:
-                if line.startswith('REACT_APP_BACKEND_URL='):
-                    return line.strip().split('=', 1)[1]
-    except Exception as e:
-        print(f"❌ ERROR: Could not read REACT_APP_BACKEND_URL from /app/frontend/.env: {e}")
-        sys.exit(1)
-    return ""
-
-BACKEND_URL = get_backend_url()
-ADMIN_KEY_ENCODED = "o%2FQb8ArGahlquhCQ"  # URL-encoded version of o/Qb8ArGahlquhCQ
-ADMIN_KEY_RAW = "o/Qb8ArGahlquhCQ"  # Raw version (fallback if %2F 403s)
-
-print(f"🔍 Testing NS Auto-Retry + Domain Status Check Feature")
-print(f"📍 Backend URL: {BACKEND_URL}")
-print(f"🔑 Admin Key: {ADMIN_KEY_ENCODED} (URL-encoded) / {ADMIN_KEY_RAW} (raw)")
-print("=" * 80)
-
-# Test results tracking
-test_results = {
-    "passed": 0,
-    "failed": 0,
-    "tests": []
-}
-
-def log_test(name: str, passed: bool, details: str = ""):
-    """Log test result"""
-    status = "✅ PASS" if passed else "❌ FAIL"
-    print(f"\n{status}: {name}")
-    if details:
-        print(f"   {details}")
-    
-    test_results["tests"].append({
-        "name": name,
-        "passed": passed,
-        "details": details
-    })
-    
-    if passed:
-        test_results["passed"] += 1
-    else:
-        test_results["failed"] += 1
-
-def test_ns_activation_selftest_with_key():
-    """TEST 1: NS Activation Self-Test with valid admin key"""
-    print("\n" + "=" * 80)
-    print("TEST 1: NS Activation Self-Test (with valid admin key)")
-    print("=" * 80)
-    
-    # Try URL-encoded version first
-    url = f"{BACKEND_URL}/api/admin/ns-activation-selftest?key={ADMIN_KEY_ENCODED}"
-    print(f"🌐 GET {url}")
-    
-    try:
-        response = requests.get(url, timeout=30)
-        print(f"📊 HTTP Status: {response.status_code}")
-        
-        # If 403 with encoded key, try raw key
-        if response.status_code == 403:
-            print(f"⚠️  URL-encoded key returned 403, trying raw key...")
-            url_raw = f"{BACKEND_URL}/api/admin/ns-activation-selftest?key={ADMIN_KEY_RAW}"
-            print(f"🌐 GET {url_raw}")
-            response = requests.get(url_raw, timeout=30)
-            print(f"📊 HTTP Status: {response.status_code}")
+        response = requests.get(endpoint, timeout=10)
         
         if response.status_code != 200:
-            log_test("TEST 1: HTTP 200 Status", False, f"Expected 200, got {response.status_code}")
-            print(f"📄 Response Body: {response.text[:500]}")
-            return False
+            result.add_fail(
+                "Endpoint availability",
+                f"Expected HTTP 200, got {response.status_code}"
+            )
+            print(f"Response body: {response.text[:500]}")
+            return
         
-        log_test("TEST 1: HTTP 200 Status", True, f"Got HTTP {response.status_code}")
+        result.add_pass("Endpoint returns HTTP 200")
         
-        # Parse JSON response
+        # Parse JSON
         try:
             data = response.json()
-            print(f"📄 Response JSON:")
-            print(json.dumps(data, indent=2))
-        except Exception as e:
-            log_test("TEST 1: Valid JSON Response", False, f"Failed to parse JSON: {e}")
-            return False
+        except json.JSONDecodeError as e:
+            result.add_fail("JSON parsing", f"Invalid JSON response: {e}")
+            print(f"Response body: {response.text[:500]}")
+            return
         
-        log_test("TEST 1: Valid JSON Response", True, "Response is valid JSON")
+        print(f"\nResponse structure:")
+        print(json.dumps(data, indent=2)[:1000])
         
-        # Check top-level 'ok' field
-        if not data.get("ok"):
-            log_test("TEST 1: Top-level 'ok' field", False, f"Expected ok:true, got ok:{data.get('ok')}")
-            return False
-        
-        log_test("TEST 1: Top-level 'ok' field", True, "ok: true")
-        
-        # Check passed == total == 17
-        passed = data.get("passed", 0)
-        total = data.get("total", 0)
-        
-        if passed != 17:
-            log_test("TEST 1: Passed count", False, f"Expected passed=17, got passed={passed}")
+        # Test 2: Verify matrix.starter.otpCollection === false
+        if data.get("matrix", {}).get("starter", {}).get("otpCollection") == False:
+            result.add_pass("matrix.starter.otpCollection === false")
         else:
-            log_test("TEST 1: Passed count", True, f"passed={passed}")
+            result.add_fail(
+                "matrix.starter.otpCollection === false",
+                f"Got {data.get('matrix', {}).get('starter', {}).get('otpCollection')}"
+            )
         
-        if total != 17:
-            log_test("TEST 1: Total count", False, f"Expected total=17, got total={total}")
+        # Test 3: Verify matrix.pro.otpCollection === true (THE FIX)
+        if data.get("matrix", {}).get("pro", {}).get("otpCollection") == True:
+            result.add_pass("matrix.pro.otpCollection === true (THE FIX - was false before)")
         else:
-            log_test("TEST 1: Total count", True, f"total={total}")
+            result.add_fail(
+                "matrix.pro.otpCollection === true (THE FIX)",
+                f"Got {data.get('matrix', {}).get('pro', {}).get('otpCollection')} - THIS IS THE CRITICAL BUG"
+            )
         
-        if passed != total:
-            log_test("TEST 1: All checks passed", False, f"passed={passed} != total={total}")
+        # Test 4: Verify matrix.business.otpCollection === true
+        if data.get("matrix", {}).get("business", {}).get("otpCollection") == True:
+            result.add_pass("matrix.business.otpCollection === true")
         else:
-            log_test("TEST 1: All checks passed", True, f"All {total} checks passed")
+            result.add_fail(
+                "matrix.business.otpCollection === true",
+                f"Got {data.get('matrix', {}).get('business', {}).get('otpCollection')}"
+            )
         
-        # Check individual checks
-        checks = data.get("checks", [])
-        print(f"\n📋 Individual Checks ({len(checks)} total):")
-        
-        failed_checks = []
-        for check in checks:
-            check_name = check.get("name", "unknown")
-            check_pass = check.get("pass", False)
-            check_detail = check.get("detail", "")
-            
-            status = "✅" if check_pass else "❌"
-            print(f"   {status} {check_name}: {check_pass} (detail: {check_detail})")
-            
-            if not check_pass:
-                failed_checks.append(check_name)
-        
-        if failed_checks:
-            log_test("TEST 1: All individual checks pass", False, f"Failed checks: {', '.join(failed_checks)}")
-            return False
+        # Test 5: Verify matrix.pro.otpCustomMessages === false (Business-only differentiator)
+        if data.get("matrix", {}).get("pro", {}).get("otpCustomMessages") == False:
+            result.add_pass("matrix.pro.otpCustomMessages === false (Business-only preserved)")
         else:
-            log_test("TEST 1: All individual checks pass", True, f"All {len(checks)} checks passed")
+            result.add_fail(
+                "matrix.pro.otpCustomMessages === false",
+                f"Got {data.get('matrix', {}).get('pro', {}).get('otpCustomMessages')}"
+            )
         
-        # Verify expected check names are present
-        expected_checks = [
-            "classify_ACT_apply",
-            "classify_REQ_wait",
-            "classify_PEN_wait",
-            "classify_FAI_giveup",
-            "classify_old_escalate",
-            "classify_maxattempts_escalate",
-            "nextDelay_monotonic",
-            "processOne_active_applies",
-            "processOne_pending_waits",
-            "processOne_failed_giveup",
-            "map_ACT_active",
-            "map_REQ_activating",
-            "map_REQ_old_stuck",
-            "map_FAI_failed",
-            "nudge_activating_text",
-            "nudge_active_null",
-            "nudge_stuck_text"
-        ]
-        
-        check_names = [c.get("name") for c in checks]
-        missing_checks = [name for name in expected_checks if name not in check_names]
-        
-        if missing_checks:
-            log_test("TEST 1: Expected checks present", False, f"Missing checks: {', '.join(missing_checks)}")
+        # Test 6: Verify matrix.business.otpCustomMessages === true
+        if data.get("matrix", {}).get("business", {}).get("otpCustomMessages") == True:
+            result.add_pass("matrix.business.otpCustomMessages === true")
         else:
-            log_test("TEST 1: Expected checks present", True, f"All {len(expected_checks)} expected checks present")
+            result.add_fail(
+                "matrix.business.otpCustomMessages === true",
+                f"Got {data.get('matrix', {}).get('business', {}).get('otpCustomMessages')}"
+            )
         
-        return passed == total == 17 and not failed_checks and not missing_checks
+        # Test 7: Verify gateDecisions.pro.allowed === true (REGRESSION TARGET)
+        if data.get("gateDecisions", {}).get("pro", {}).get("allowed") == True:
+            result.add_pass("gateDecisions.pro.allowed === true (Pro user can NOW select OTP mode)")
+        else:
+            result.add_fail(
+                "gateDecisions.pro.allowed === true (REGRESSION TARGET)",
+                f"Got {data.get('gateDecisions', {}).get('pro', {}).get('allowed')} - Pro users still blocked!"
+            )
         
-    except requests.exceptions.Timeout:
-        log_test("TEST 1: Request Timeout", False, "Request timed out after 30 seconds")
-        return False
+        # Test 8: Verify gateDecisions.business.allowed === true
+        if data.get("gateDecisions", {}).get("business", {}).get("allowed") == True:
+            result.add_pass("gateDecisions.business.allowed === true")
+        else:
+            result.add_fail(
+                "gateDecisions.business.allowed === true",
+                f"Got {data.get('gateDecisions', {}).get('business', {}).get('allowed')}"
+            )
+        
+        # Test 9: Verify gateDecisions.starter.allowed === false
+        if data.get("gateDecisions", {}).get("starter", {}).get("allowed") == False:
+            result.add_pass("gateDecisions.starter.allowed === false")
+        else:
+            result.add_fail(
+                "gateDecisions.starter.allowed === false",
+                f"Got {data.get('gateDecisions', {}).get('starter', {}).get('allowed')}"
+            )
+        
+        # Test 10: Verify gateDecisions.starter.requiredTier === "Pro"
+        if data.get("gateDecisions", {}).get("starter", {}).get("requiredTier") == "Pro":
+            result.add_pass("gateDecisions.starter.requiredTier === 'Pro'")
+        else:
+            result.add_fail(
+                "gateDecisions.starter.requiredTier === 'Pro'",
+                f"Got {data.get('gateDecisions', {}).get('starter', {}).get('requiredTier')}"
+            )
+        
+        # Test 11: Verify gateDecisions.trial.allowed === false
+        if data.get("gateDecisions", {}).get("trial", {}).get("allowed") == False:
+            result.add_pass("gateDecisions.trial.allowed === false")
+        else:
+            result.add_fail(
+                "gateDecisions.trial.allowed === false",
+                f"Got {data.get('gateDecisions', {}).get('trial', {}).get('allowed')}"
+            )
+        
+        # Test 12: Verify gateDecisions.trial.reason === "trial"
+        if data.get("gateDecisions", {}).get("trial", {}).get("reason") == "trial":
+            result.add_pass("gateDecisions.trial.reason === 'trial'")
+        else:
+            result.add_fail(
+                "gateDecisions.trial.reason === 'trial'",
+                f"Got {data.get('gateDecisions', {}).get('trial', {}).get('reason')}"
+            )
+        
     except requests.exceptions.RequestException as e:
-        log_test("TEST 1: Request Exception", False, f"Request failed: {e}")
-        return False
-    except Exception as e:
-        log_test("TEST 1: Unexpected Error", False, f"Unexpected error: {e}")
-        return False
+        result.add_fail("Endpoint availability", f"Request failed: {e}")
+        return
 
-def test_ns_activation_selftest_no_key():
-    """TEST 2: NS Activation Self-Test without admin key (auth guard)"""
-    print("\n" + "=" * 80)
-    print("TEST 2: NS Activation Self-Test (no admin key - auth guard)")
-    print("=" * 80)
-    
-    url = f"{BACKEND_URL}/api/admin/ns-activation-selftest"
-    print(f"🌐 GET {url}")
-    
-    try:
-        response = requests.get(url, timeout=30)
-        print(f"📊 HTTP Status: {response.status_code}")
-        
-        if response.status_code != 403:
-            log_test("TEST 2: HTTP 403 Status", False, f"Expected 403, got {response.status_code}")
-            print(f"📄 Response Body: {response.text[:500]}")
-            return False
-        
-        log_test("TEST 2: HTTP 403 Status", True, f"Got HTTP {response.status_code}")
-        
-        # Parse JSON response
-        try:
-            data = response.json()
-            print(f"📄 Response JSON:")
-            print(json.dumps(data, indent=2))
-        except Exception as e:
-            log_test("TEST 2: Valid JSON Response", False, f"Failed to parse JSON: {e}")
-            return False
-        
-        log_test("TEST 2: Valid JSON Response", True, "Response is valid JSON")
-        
-        # Check for "Unauthorized" error
-        error = data.get("error", "")
-        if error != "Unauthorized":
-            log_test("TEST 2: Unauthorized error message", False, f"Expected 'Unauthorized', got '{error}'")
-            return False
-        
-        log_test("TEST 2: Unauthorized error message", True, f"error: '{error}'")
-        
-        return True
-        
-    except requests.exceptions.Timeout:
-        log_test("TEST 2: Request Timeout", False, "Request timed out after 30 seconds")
-        return False
-    except requests.exceptions.RequestException as e:
-        log_test("TEST 2: Request Exception", False, f"Request failed: {e}")
-        return False
-    except Exception as e:
-        log_test("TEST 2: Unexpected Error", False, f"Unexpected error: {e}")
-        return False
 
-def test_health_endpoint():
-    """TEST 3: Health endpoint (regression check)"""
-    print("\n" + "=" * 80)
-    print("TEST 3: Health Endpoint (regression check)")
-    print("=" * 80)
+def test_otp_plan_gate_check_with_plan_param(result: TestResult):
+    """
+    Test the OTP Plan Gate Check endpoint with plan=pro query parameter
+    """
+    print("\n" + "="*80)
+    print("TEST SUITE: OTP Plan Gate Check with ?plan=pro (Optional Spot Check)")
+    print("="*80)
     
-    url = f"{BACKEND_URL}/api/health"
-    print(f"🌐 GET {url}")
+    endpoint = f"{API_BASE}/dev/otp-plan-gate-check?plan=pro"
     
+    print(f"\n[TEST 2] GET {endpoint}")
     try:
-        response = requests.get(url, timeout=30)
-        print(f"📊 HTTP Status: {response.status_code}")
+        response = requests.get(endpoint, timeout=10)
         
         if response.status_code != 200:
-            log_test("TEST 3: HTTP 200 Status", False, f"Expected 200, got {response.status_code}")
-            print(f"📄 Response Body: {response.text[:500]}")
-            return False
+            result.add_fail(
+                "Endpoint with plan=pro",
+                f"Expected HTTP 200, got {response.status_code}"
+            )
+            return
         
-        log_test("TEST 3: HTTP 200 Status", True, f"Got HTTP {response.status_code}")
+        result.add_pass("Endpoint with plan=pro returns HTTP 200")
         
-        # Parse JSON response
         try:
             data = response.json()
-            print(f"📄 Response JSON:")
-            print(json.dumps(data, indent=2))
-        except Exception as e:
-            log_test("TEST 3: Valid JSON Response", False, f"Failed to parse JSON: {e}")
-            return False
+        except json.JSONDecodeError as e:
+            result.add_fail("JSON parsing (plan=pro)", f"Invalid JSON response: {e}")
+            return
         
-        log_test("TEST 3: Valid JSON Response", True, "Response is valid JSON")
+        print(f"\nResponse structure (plan=pro):")
+        print(json.dumps(data, indent=2)[:500])
         
-        # Check status field
-        status = data.get("status", "")
-        if status != "healthy":
-            log_test("TEST 3: Status 'healthy'", False, f"Expected 'healthy', got '{status}'")
+        # Test 13: Verify requested.decision.allowed === true for Pro plan
+        if data.get("requested", {}).get("decision", {}).get("allowed") == True:
+            result.add_pass("requested.decision.allowed === true (Pro plan can access OTP)")
         else:
-            log_test("TEST 3: Status 'healthy'", True, f"status: '{status}'")
+            result.add_fail(
+                "requested.decision.allowed === true (plan=pro)",
+                f"Got {data.get('requested', {}).get('decision', {}).get('allowed')}"
+            )
         
-        # Check database field
-        database = data.get("database", "")
-        if database != "connected":
-            log_test("TEST 3: Database 'connected'", False, f"Expected 'connected', got '{database}'")
-        else:
-            log_test("TEST 3: Database 'connected'", True, f"database: '{database}'")
-        
-        return status == "healthy" and database == "connected"
-        
-    except requests.exceptions.Timeout:
-        log_test("TEST 3: Request Timeout", False, "Request timed out after 30 seconds")
-        return False
     except requests.exceptions.RequestException as e:
-        log_test("TEST 3: Request Exception", False, f"Request failed: {e}")
-        return False
-    except Exception as e:
-        log_test("TEST 3: Unexpected Error", False, f"Unexpected error: {e}")
-        return False
+        result.add_fail("Endpoint with plan=pro", f"Request failed: {e}")
 
-def print_summary():
-    """Print test summary"""
-    print("\n" + "=" * 80)
-    print("TEST SUMMARY")
-    print("=" * 80)
-    
-    total = test_results["passed"] + test_results["failed"]
-    pass_rate = (test_results["passed"] / total * 100) if total > 0 else 0
-    
-    print(f"✅ Passed: {test_results['passed']}/{total} ({pass_rate:.1f}%)")
-    print(f"❌ Failed: {test_results['failed']}/{total}")
-    
-    if test_results["failed"] > 0:
-        print("\n❌ FAILED TESTS:")
-        for test in test_results["tests"]:
-            if not test["passed"]:
-                print(f"   • {test['name']}")
-                if test["details"]:
-                    print(f"     {test['details']}")
-    
-    print("=" * 80)
-    
-    return test_results["failed"] == 0
 
-if __name__ == "__main__":
-    # Run all tests
-    test1_pass = test_ns_activation_selftest_with_key()
-    test2_pass = test_ns_activation_selftest_no_key()
-    test3_pass = test_health_endpoint()
+def main():
+    print("\n" + "="*80)
+    print("NOMADLY TELEGRAM BOT - OTP PLAN GATE BUG FIX VERIFICATION")
+    print("="*80)
+    print(f"Backend URL: {BACKEND_URL}")
+    print(f"Testing endpoint: /api/dev/otp-plan-gate-check")
+    print(f"Bug: @Padrino_voodoo (chatId 7706898844) - 'OTP mode not working'")
+    print(f"Root cause: planFeatureAccess.pro.otpCollection was false (should be true)")
+    print("="*80)
+    
+    result = TestResult()
+    
+    # Run test suites
+    test_otp_plan_gate_check(result)
+    test_otp_plan_gate_check_with_plan_param(result)
     
     # Print summary
-    all_pass = print_summary()
+    success = result.summary()
     
-    # Exit with appropriate code
-    sys.exit(0 if all_pass else 1)
+    if success:
+        print("\n✅ ALL TESTS PASSED - OTP Plan Gate bug fix is VERIFIED")
+        print("\nKEY FIX CONFIRMED:")
+        print("  • matrix.pro.otpCollection is now TRUE (was false)")
+        print("  • gateDecisions.pro.allowed is TRUE (Pro users can now select OTP mode)")
+        print("  • Business-only differentiator preserved (otpCustomMessages)")
+        print("\n@Padrino_voodoo's bug is FIXED - Pro users can now use OTP Collection mode")
+        sys.exit(0)
+    else:
+        print("\n❌ TESTS FAILED - OTP Plan Gate bug fix has issues")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
