@@ -3,6 +3,20 @@
 ## Original problem statement
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
+## IVR call failure fix — NL dialing permissions (2026-08-07)
+@Topgass1 (chatId 8186560549, number +3197006532350, sub-account AC832d91dc…) got
+"Calling this destination is not permitted / No charge" when the IVR tried to dial +31626742533 (NL mobile).
+Root cause (confirmed via live Twilio API, not Railway logs — the `API_KEY_RAILWAY` account token lacks
+access to the Railway project; `RAILWAY_PROJECT_TOKEN` is absent from .env): **Netherlands outbound dialing
+was disabled in Twilio Voice Geographic/Dialing Permissions** (`lowRiskNumbersEnabled=false`) on the master
+AND all sub-accounts. Twilio rejected the call at creation (error 21215), and `sanitize-provider.js:211`
+maps "permission" → the friendly message; no leg created → correctly no charge.
+FIX (user-approved option b): enabled NL **low-risk** dialing (high-risk/toll-fraud left OFF) via the
+`BulkCountryUpdates` REST endpoint on the master + all 28 active accounts (27 newly enabled + master already).
+Verified read-back: @Topgass1 sub now `low=true`. No app code changed. SDK note: correct accessor is
+`client.voice.v1.dialingPermissions.bulkCountryUpdates.create({updateRequest})` (path `/DialingPermissions/BulkCountryUpdates`, plural).
+
+
 ## Twilio 2026 zero-compliance country research (2026-08-07, read-only)
 User asked which countries require no compliance to provision Twilio numbers in 2026. Ran a read-only
 full sweep (`/app/tmp_twilio_reg.js`) over the 54 countries this account exposes, cross-checking
