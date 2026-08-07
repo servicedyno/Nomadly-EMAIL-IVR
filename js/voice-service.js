@@ -1287,9 +1287,19 @@ function getCallRate(destinationNumber) {
   return isUSCanada(destinationNumber) ? OVERAGE_RATE_MIN : CALL_FORWARDING_RATE_MIN
 }
 
-// ── IVR outbound flat rate (same as bulk IVR) — plan minutes are for inbound only ──
+// ── IVR outbound base rate (same as bulk IVR) — plan minutes are for inbound only ──
 const IVR_CALL_RATE = parseFloat(process.env.BULK_CALL_RATE_PER_MIN || '0.15')
 const IVR_CALL_TYPES = ['IVR_Outbound', 'IVR_Transfer', 'IVR_Outbound_Twilio']
+
+/**
+ * Per-minute rate for Quick IVR / Bulk IVR product legs (IVR_Outbound + IVR_Transfer).
+ * Policy (user directive 2026-08-07): US/Canada (+1) = the IVR flat rate ($0.15/min);
+ * INTERNATIONAL (non-US/CA) = the $0.50/min forwarding rate — an international IVR leg is a
+ * real international outbound PSTN cost. Applied identically on Telnyx & Twilio (parity).
+ */
+function getIvrCallRate(destinationNumber) {
+  return isUSCanada(destinationNumber) ? IVR_CALL_RATE : CALL_FORWARDING_RATE_MIN
+}
 
 function getMinuteLimit(planKey) {
   const plan = plans[planKey]
@@ -1379,8 +1389,9 @@ const OUTBOUND_CALL_TYPES = [
 async function billCallMinutesUnified(chatId, phoneNumber, minutesBilled, destinationNumber, callType, callRef = null) {
   if (minutesBilled <= 0) return { planMinUsed: 0, overageMin: 0, overageCharge: 0, rate: 0, used: 0, limit: 0 }
 
-  // IVR outbound calls use flat IVR rate; other calls use destination-based rate
-  let baseRate = IVR_CALL_TYPES.includes(callType) ? IVR_CALL_RATE : getCallRate(destinationNumber)
+  // IVR product legs: US/CA at flat IVR rate, INTERNATIONAL at the $0.50 forwarding rate
+  // (user policy 2026-08-07). Non-IVR legs: destination-based rate (getCallRate).
+  let baseRate = IVR_CALL_TYPES.includes(callType) ? getIvrCallRate(destinationNumber) : getCallRate(destinationNumber)
   const isOutbound = OUTBOUND_CALL_TYPES.includes(callType)
 
   // ━━━ LOYALTY TIER DISCOUNT — applies to all call billing ━━━
@@ -4342,10 +4353,14 @@ async function initiateOutboundIvrCall(params) {
       const { chatId: ownerId } = await findNumberOwner(callerId)
       if (ownerId) {
         const { usdBal } = await getBalance(_walletOf, ownerId)
-        if (usdBal < IVR_CALL_RATE) {
-          return { error: `Insufficient wallet balance ($${usdBal.toFixed(2)}). Quick IVR calls cost $${IVR_CALL_RATE.toFixed(2)}/min from wallet. Top up your wallet.` }
+        // Require at least 1 min at the ACTUAL rate for the leg(s) — international IVR legs
+        // cost $0.50/min (policy 2026-08-07), not the flat $0.15. Use the max across the
+        // primary target + transfer leg so an intl call can't start under-funded.
+        const startRate = Math.max(getIvrCallRate(targetNumber), ivrNumber ? getIvrCallRate(ivrNumber) : 0)
+        if (usdBal < startRate) {
+          return { error: `Insufficient wallet balance ($${usdBal.toFixed(2)}). This Quick IVR call costs $${startRate.toFixed(2)}/min from wallet. Top up your wallet.` }
         }
-        log(`[OutboundIVR] Wallet check passed: $${usdBal.toFixed(2)} (IVR rate: $${IVR_CALL_RATE}/min)`)
+        log(`[OutboundIVR] Wallet check passed: $${usdBal.toFixed(2)} (IVR rate: $${startRate}/min)`)
       }
     } catch (e) {
       log(`[OutboundIVR] Wallet check error: ${e.message}`)
@@ -4580,12 +4595,15 @@ async function handleOutboundIvrAnswered(payload) {
           if (_walletOf) {
             try {
               const { usdBal } = await getBalance(_walletOf, ownerId)
-              if (usdBal < IVR_CALL_RATE) {
-                log(`[OutboundIVR] Mid-call wallet exhausted: $${usdBal.toFixed(2)} < $${IVR_CALL_RATE}/min. Disconnecting.`)
+              // Disconnect threshold = the ACTUAL per-min rate for the active leg(s)
+              // (international IVR = $0.50/min, policy 2026-08-07), not the flat $0.15.
+              const midRate = Math.max(getIvrCallRate(sess.targetNumber), sess.ivrNumber ? getIvrCallRate(sess.ivrNumber) : 0) || IVR_CALL_RATE
+              if (usdBal < midRate) {
+                log(`[OutboundIVR] Mid-call wallet exhausted: $${usdBal.toFixed(2)} < $${midRate}/min. Disconnecting.`)
                 clearInterval(session._limitTimer)
                 await _telnyxApi.hangupCall(callControlId).catch(() => {})
                 const lang = await _getUserLang(session.chatId)
-                const msg = _trans('vs.ivrCallEndedWalletExhausted', lang, usdBal.toFixed(2), IVR_CALL_RATE)
+                const msg = _trans('vs.ivrCallEndedWalletExhausted', lang, usdBal.toFixed(2), midRate)
                 if (msg) _bot?.sendMessage(session.chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
               }
             } catch (e) { log(`[OutboundIVR] Mid-call wallet check error: ${e.message}`) }

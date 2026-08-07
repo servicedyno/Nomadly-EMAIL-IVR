@@ -37995,7 +37995,7 @@ app.post('/dev/twilio-ivr-transfer-billing-test', async (req, res) => {
   const sessionId = 'ivrxfer_' + ts
   const dialSid = 'CAxfertest' + ts
   const callerId = '+3197006532350'
-  const ivrNumber = '+447460064497' // UK (+44) — international; flat IVR rate must still apply
+  const ivrNumber = '+447460064497' // UK (+44) — international; now bills at $0.50/min (policy 2026-08-07)
   const transferCallRef = `twilio_transfer_${dialSid}`
   const IVR_RATE = voiceService.IVR_CALL_RATE || 0.15
   const base = 'http://127.0.0.1:5000'
@@ -38021,15 +38021,16 @@ app.post('/dev/twilio-ivr-transfer-billing-test', async (req, res) => {
     out.checks.gather_dials_destination = new RegExp(ivrNumber.replace('+', '\\+')).test(gather.text)
 
     const balBefore = await bal()
-    // (B) Transfer completed for 90s → 2 min billed at FLAT IVR rate (not $0.50 intl).
+    // (B) INTERNATIONAL transfer (+44) completed for 90s → 2 min billed at the $0.50 intl rate
+    //     (policy 2026-08-07: international IVR legs bill at $0.50/min, NOT the flat $0.15).
     const st1 = await post(`/twilio/single-ivr-transfer-status?sessionId=${encodeURIComponent(sessionId)}`, { DialCallStatus: 'completed', DialCallDuration: '90', DialCallSid: dialSid })
     const balAfter1 = await bal()
     const led1 = await ledger.find({ callRef: transferCallRef }).toArray()
-    const expectedCharge = +(2 * IVR_RATE).toFixed(4) // 2 min × flat IVR rate
+    const expectedCharge = +(2 * 0.50).toFixed(4) // 2 min × $0.50 intl rate
     out.checks.transfer_status_200 = st1.status === 200
     out.checks.transfer_leg_billed_once = led1.length === 1
-    out.checks.charged_flat_ivr_rate = Math.abs((balBefore - balAfter1) - expectedCharge) < 0.0001
-    out.checks.not_charged_intl_rate = Math.abs((balBefore - balAfter1) - +(2 * 0.50).toFixed(4)) > 0.0001
+    out.checks.charged_intl_rate = Math.abs((balBefore - balAfter1) - expectedCharge) < 0.0001
+    out.checks.not_charged_flat_ivr_rate = Math.abs((balBefore - balAfter1) - +(2 * IVR_RATE).toFixed(4)) > 0.0001
 
     // (C) Idempotency: replay the same DialCallSid (bypass in-memory guard) → no double charge.
     if (voiceService.twilioIvrSessions[sessionId]) voiceService.twilioIvrSessions[sessionId]._transferBilled = false
@@ -38046,6 +38047,20 @@ app.post('/dev/twilio-ivr-transfer-billing-test', async (req, res) => {
     const balPostNA = await bal()
     const ledNA = await ledger.find({ callRef: `twilio_transfer_${dialSid2}` }).toArray()
     out.checks.no_answer_not_billed = ledNA.length === 0 && Math.abs(balPostNA - balPreNA) < 0.0001
+
+    // (E) US/CA transfer (+1) must still bill at the FLAT IVR rate ($0.15/min), NOT $0.50.
+    const usSid = 'CAxferus' + ts
+    const usSession = 'ivrxferus_' + ts
+    voiceService.twilioIvrSessions[usSession] = {
+      chatId: testChatId, callerId, ivrNumber: '+14155550123', targetNumber: '+31626742533',
+      activeKeys: ['1', '2'], ivrMode: 'transfer', bulkMode: 'transfer',
+      holdMusic: false, voiceName: '', isTrial: false, campaignId: null, phase: 'playing',
+    }
+    const balPreUS = await bal()
+    await post(`/twilio/single-ivr-transfer-status?sessionId=${encodeURIComponent(usSession)}`, { DialCallStatus: 'completed', DialCallDuration: '90', DialCallSid: usSid })
+    const balPostUS = await bal()
+    out.checks.usca_charged_flat_ivr_rate = Math.abs((balPreUS - balPostUS) - +(2 * IVR_RATE).toFixed(4)) < 0.0001
+    try { delete voiceService.twilioIvrSessions[usSession] } catch (_) { /* cleanup */ }
 
     out.expectedCharge = expectedCharge
     out.observedCharge = +(balBefore - balAfter1).toFixed(4)
@@ -38155,7 +38170,8 @@ app.post('/dev/bulk-transfer-billing-test', async (req, res) => {
   const leadIndex = '0'
   const dialSid = 'CAbulkxfer' + ts
   const callerId = '+3197006532350'
-  const transferNumber = '+447460064497' // UK (+44) — international; flat IVR rate must still apply
+  const transferNumber = '+447460064497' // UK (+44) — international; now bills at $0.50/min (policy 2026-08-07)
+  const usTransferNumber = '+14155550123' // US (+1) — must still bill at the flat IVR rate ($0.15/min)
   const transferCallRef = `twilio_transfer_${dialSid}`
   const IVR_RATE = voiceService.IVR_CALL_RATE || 0.15
   const base = 'http://127.0.0.1:5000'
@@ -38175,15 +38191,16 @@ app.post('/dev/bulk-transfer-billing-test', async (req, res) => {
     } }, { upsert: true })
 
     const balBefore = await bal()
-    // (A) Transfer completed for 90s → 2 min billed at FLAT IVR rate (not $0.50 intl).
+    // (A) INTERNATIONAL transfer (+44) completed for 90s → 2 min billed at the $0.50 intl rate
+    //     (policy 2026-08-07: international IVR legs bill at $0.50/min, NOT the flat $0.15).
     const st1 = await post(`/twilio/bulk-ivr-transfer-status?campaignId=${encodeURIComponent(campaignId)}&leadIndex=${leadIndex}`, { DialCallStatus: 'completed', DialCallDuration: '90', DialCallSid: dialSid })
     const balAfter1 = await bal()
     const led1 = await ledger.find({ callRef: transferCallRef }).toArray()
-    const expectedCharge = +(2 * IVR_RATE).toFixed(4)
+    const expectedCharge = +(2 * 0.50).toFixed(4)
     out.checks.transfer_status_200 = st1.status === 200
     out.checks.transfer_leg_billed_once = led1.length === 1
-    out.checks.charged_flat_ivr_rate = Math.abs((balBefore - balAfter1) - expectedCharge) < 0.0001
-    out.checks.not_charged_intl_rate = Math.abs((balBefore - balAfter1) - +(2 * 0.50).toFixed(4)) > 0.0001
+    out.checks.charged_intl_rate = Math.abs((balBefore - balAfter1) - expectedCharge) < 0.0001
+    out.checks.not_charged_flat_ivr_rate = Math.abs((balBefore - balAfter1) - +(2 * IVR_RATE).toFixed(4)) > 0.0001
 
     // (B) Idempotency: replay same DialCallSid → no double charge (callRef ledger guard).
     await post(`/twilio/bulk-ivr-transfer-status?campaignId=${encodeURIComponent(campaignId)}&leadIndex=${leadIndex}`, { DialCallStatus: 'completed', DialCallDuration: '90', DialCallSid: dialSid })
@@ -38199,6 +38216,14 @@ app.post('/dev/bulk-transfer-billing-test', async (req, res) => {
     const ledNA = await ledger.find({ callRef: `twilio_transfer_${dialSid2}` }).toArray()
     out.checks.no_answer_not_billed = ledNA.length === 0 && Math.abs(balPostNA - balPreNA) < 0.0001
 
+    // (D) US/CA transfer (+1) must still bill at the FLAT IVR rate ($0.15/min), NOT $0.50.
+    const usSid = 'CAbulkxferus' + ts
+    await campaigns.updateOne({ id: campaignId }, { $set: { transferNumber: usTransferNumber } })
+    const balPreUS = await bal()
+    await post(`/twilio/bulk-ivr-transfer-status?campaignId=${encodeURIComponent(campaignId)}&leadIndex=${leadIndex}`, { DialCallStatus: 'completed', DialCallDuration: '90', DialCallSid: usSid })
+    const balPostUS = await bal()
+    out.checks.usca_charged_flat_ivr_rate = Math.abs((balPreUS - balPostUS) - +(2 * IVR_RATE).toFixed(4)) < 0.0001
+
     out.expectedCharge = expectedCharge
     out.observedCharge = +(balBefore - balAfter1).toFixed(4)
     out.pass = Object.values(out.checks).every(Boolean)
@@ -38213,6 +38238,62 @@ app.post('/dev/bulk-transfer-billing-test', async (req, res) => {
   }
   return res.json(out)
 })
+
+
+// ── DEV-ONLY: IVR international rate-policy test. 404 in prod. ──
+// Verifies the 2026-08-07 policy: Quick IVR / Bulk IVR product legs (IVR_Outbound +
+// IVR_Transfer, on BOTH Telnyx & Twilio — all route through billCallMinutesUnified) bill at
+// the flat IVR rate ($0.15/min) for US/CA and at the $0.50/min forwarding rate for
+// INTERNATIONAL destinations. Also sanity-checks non-IVR legs (SIP outbound) stay
+// destination-based. Calls billCallMinutesUnified directly with a funded synthetic wallet +
+// unique callRefs; cleans up.
+app.post('/dev/ivr-rate-policy-test', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const voiceService = require('./voice-service.js')
+  const ledger = db.collection('walletLedger')
+  const ts = Date.now()
+  const chatId = 'IVRRATETEST-' + ts
+  const intl = '+447460064497' // UK (+44)
+  const usca = '+14155550123'  // US (+1)
+  const from = '+3197006532350'
+  const IVR_RATE = voiceService.IVR_CALL_RATE || 0.15
+  const INTL_RATE = 0.50
+  const out = { checks: {}, rates: {} }
+  const run = async (dest, callType, tag) => {
+    const callRef = `IVRRATE_${tag}_${ts}`
+    const r = await voiceService.billCallMinutesUnified(chatId, from, 2, dest, callType, callRef)
+    return +(+r.rate).toFixed(4)
+  }
+  try {
+    await walletOf.updateOne({ _id: chatId }, { $set: { usdIn: 50, usdOut: 0 } }, { upsert: true })
+
+    out.rates.ivr_outbound_intl = await run(intl, 'IVR_Outbound', 'out_intl')
+    out.rates.ivr_transfer_intl = await run(intl, 'IVR_Transfer', 'xfer_intl')
+    out.rates.ivr_outbound_usca = await run(usca, 'IVR_Outbound', 'out_us')
+    out.rates.ivr_transfer_usca = await run(usca, 'IVR_Transfer', 'xfer_us')
+    out.rates.sip_outbound_intl = await run(intl, 'AutoRoute_SIPOutbound', 'sip_intl')
+    out.rates.sip_outbound_usca = await run(usca, 'AutoRoute_SIPOutbound', 'sip_us')
+
+    out.checks.ivr_outbound_intl_050 = Math.abs(out.rates.ivr_outbound_intl - INTL_RATE) < 0.0001
+    out.checks.ivr_transfer_intl_050 = Math.abs(out.rates.ivr_transfer_intl - INTL_RATE) < 0.0001
+    out.checks.ivr_outbound_usca_flat = Math.abs(out.rates.ivr_outbound_usca - IVR_RATE) < 0.0001
+    out.checks.ivr_transfer_usca_flat = Math.abs(out.rates.ivr_transfer_usca - IVR_RATE) < 0.0001
+    out.checks.sip_outbound_intl_050 = Math.abs(out.rates.sip_outbound_intl - INTL_RATE) < 0.0001
+    out.checks.sip_outbound_usca_matches_getcallrate = out.rates.sip_outbound_usca > 0
+    out.pass = Object.values(out.checks).every(Boolean)
+  } catch (e) {
+    out.error = e.message
+    out.pass = false
+  } finally {
+    try { await walletOf.deleteOne({ _id: chatId }) } catch (_) { /* cleanup */ }
+    try { await ledger.deleteMany({ chatId }) } catch (_) { /* cleanup */ }
+    try { await db.collection('payments').deleteMany({ val: { $regex: chatId } }) } catch (_) { /* cleanup */ }
+  }
+  return res.json(out)
+})
+
 
 
 // ── DEV-ONLY: OTP voice-match test. 404 in prod. ──

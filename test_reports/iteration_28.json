@@ -1,0 +1,22 @@
+{
+  "summary": "Backend-only verification of the new International IVR rate policy ($0.50/min intl, $0.15/min US/CA) plus regressions (Widen Reconciler, Call Reconciler, Bulk Transfer Parity, health). All 6 required endpoints returned HTTP 200 with pass===true and every assertion (rates, checks, expectedCharge/observedCharge, reconciler summary counts) matched the spec exactly.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_ivr_intl_rate_policy.py",
+    "/app/test_reports/pytest/ivr_intl_rate_policy.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "/app/js/_index.js is very large; dev test endpoints (billing/reconciler) could be extracted into a dedicated module for maintainability.",
+    "getIvrCallRate uses isUSCanada(dest) — ensure destination normalization is consistent (E.164) at all call sites (initiateOutboundIvrCall pre-flight, mid-call timer, billCallMinutesUnified) to avoid rate mismatch on unnormalized inputs."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "n/a"},
+  "test_credentials": "None required (BOT_ENVIRONMENT=development, /api/dev/* open)",
+  "seed_data_creation": "Each dev endpoint self-seeds synthetic fixtures (fake chatIds, unique callRefs) and cleans up; no production wallet touched.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Test file /app/backend/tests/test_ivr_intl_rate_policy.py covers: /api/health, /api/dev/ivr-rate-policy-test (rates: ivr/sip intl=0.5, usca=0.15), /api/dev/twilio-ivr-transfer-billing-test (expectedCharge=observedCharge=1, all 8 checks true incl usca_charged_flat_ivr_rate), /api/dev/bulk-transfer-billing-test (expectedCharge=1, 6 checks), /api/dev/reconciler-widen-test (scanned=3, reconciledByWebhook=2, needsReview>=1, settled=0, dryRun=true), /api/dev/call-reconciler-test. Reuse for future regressions.",
+  "rca of the issue": "N/A — no issues found."
+}

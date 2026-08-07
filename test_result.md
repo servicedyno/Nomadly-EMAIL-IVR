@@ -72,6 +72,32 @@ user_problem_statement: |
 
 
 backend:
+  - task: "International IVR rate policy (2026-08-07 user directive, option b): Quick IVR + Bulk IVR product legs (IVR_Outbound + IVR_Transfer) now bill at the $0.50/min forwarding rate for INTERNATIONAL (non-US/CA) destinations, while US/CA stays at the flat $0.15 IVR rate. Applied at the single central billing rate line in billCallMinutesUnified (js/voice-service.js ~line 1394) via new helper getIvrCallRate(dest)=isUSCanada?IVR_CALL_RATE:CALL_FORWARDING_RATE_MIN, so BOTH Telnyx (handleOutboundIvrHangup IVR_Outbound, handleIvrTransferLegHangup IVR_Transfer) and Twilio (single-ivr-transfer-status, bulk-ivr-transfer-status, IVR_Outbound_Twilio) inherit it at parity. Pre-flight + mid-call wallet guards in initiateOutboundIvrCall/limit-timer now use the destination-based rate (max across primary + transfer leg) so an intl call can't start/continue under-funded. Non-IVR legs (forwarding, SIP outbound/bridge, Bridge_Transfer) unchanged — already destination-based ($0.50 intl)."
+    implemented: true
+    working: "NA"
+    file: "/app/js/voice-service.js (getIvrCallRate helper + billCallMinutesUnified rate line + 2 wallet guards); /app/js/_index.js (new POST /dev/ivr-rate-policy-test; updated /dev/twilio-ivr-transfer-billing-test and /dev/bulk-transfer-billing-test to assert intl=$0.50 + US/CA=$0.15)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          Verified via curl (all pass); requesting formal confirmation. All dev tests synthetic/self-cleaning.
+          VERIFY (external {REACT_APP_BACKEND_URL}, BOT_ENVIRONMENT=development so /dev/* live):
+            1) POST /api/dev/ivr-rate-policy-test {} -> HTTP 200, pass===true, and rates:
+               ivr_outbound_intl===0.5, ivr_transfer_intl===0.5, ivr_outbound_usca===0.15,
+               ivr_transfer_usca===0.15, sip_outbound_intl===0.5, sip_outbound_usca===0.15.
+               (Proves BOTH providers' IVR legs bill $0.50 intl / $0.15 US-CA via the shared billing fn.)
+            2) POST /api/dev/twilio-ivr-transfer-billing-test {} -> pass===true; checks charged_intl_rate,
+               not_charged_flat_ivr_rate, usca_charged_flat_ivr_rate all true; expectedCharge===1, observedCharge===1
+               (+44 transfer = 2min x $0.50 = $1.00; a US/CA transfer still bills 2min x $0.15 = $0.30).
+            3) POST /api/dev/bulk-transfer-billing-test {} -> pass===true; same intl/US-CA checks; expectedCharge===1.
+            4) Regression: POST /api/dev/reconciler-widen-test {} -> pass===true;
+               POST /api/dev/call-reconciler-test {} -> pass===true; GET /api/health -> healthy/connected.
+
+
+backend:
   - task: "Widen Reconciler (2026-08-07 follow-up): extend the connected-but-unbilled leak sweeper (LEAK #1) to cover Twilio SIP-bridge, Twilio SIP-outbound, and Telnyx bridge/transfer legs so every connected call leg is swept. Previously only Twilio forward / IVR-forward dial sites recorded durable `pendingCallBills` worklist rows. NOW recordPendingBill is wired at three additional dial/bridge sites: (a) Twilio SIP-bridge (js/_index.js /twilio/sip-voice bridge branch, callType Twilio_SIP_Bridge — done earlier), (b) Twilio SIP-outbound (js/_index.js /twilio/sip-voice regular outbound branch, callType Twilio_SIP_Outbound, keyed twilio_<CallSid>), (c) Telnyx bridge/transfer leg (js/voice-service.js at phase='bridged', callType Bridge_Transfer, provider telnyx, keyed telnyx_<callControlId>, scoped non-trial). AUTO-SETTLE remains Twilio-only: the sweeper reads true durations from the Twilio API, so a dropped Twilio callback is auto-billed via the idempotent billCallMinutesUnified(...,callRef). Telnyx legs are DETECTION-ONLY (flagged needs_review + admin alert) because Telnyx reports 0s for bridged legs — the true duration is computed locally (bridgeTime) and cannot be reconstructed server-side after a missed callback."
     implemented: true
     working: "NA"
