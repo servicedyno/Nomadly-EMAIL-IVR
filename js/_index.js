@@ -13764,6 +13764,7 @@ All verified numbers generated during sourcing.`))
         try {
           const greeting = await getMainMenuGreeting()
           send(chatId, greeting, trans('o'))
+          await maybeSendTrialNudge(chatId, validLanguage || 'en')
         } catch (e) { /* non-critical */ }
       }, 2000)
 
@@ -13772,7 +13773,9 @@ All verified numbers generated during sourcing.`))
 
     // Fallback: Go straight to main menu if something went wrong above
     const greeting = await getMainMenuGreeting()
-    return send(chatId, greeting, trans('o'))
+    send(chatId, greeting, trans('o'))
+    await maybeSendTrialNudge(chatId, validLanguage || 'en')
+    return
   }
 
   // ━━━ Settings Menu ━━━
@@ -37538,6 +37541,66 @@ app.get('/dev/ux-fixes-audit', (req, res) => {
     newlineCheck,        // B1
     quickIvrLabels, labelDecisions, t4Ok, // T4
     planMarketingAudit,  // T5
+  })
+})
+
+// ── Plan quota + hosting-domain audit (dev only; 404 in prod) ──────────────
+// CloudIVR: resolved plan minutes/SMS must match the raw .env intent (the
+// PHONE_-prefix bug used to silently fall back to hardcoded defaults).
+// Hosting: advertised "domains" copy must match the enforced WHM addon limit.
+app.get('/dev/plan-quota-audit', (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+
+  const envNum = (k, d) => {
+    const v = process.env[k]
+    if (v === 'Unlimited') return 'Unlimited'
+    const n = parseInt(v, 10)
+    return Number.isFinite(n) ? n : d
+  }
+  const cloudIvr = {
+    starter: { minutes: phoneConfig.plans.starter.minutes, sms: phoneConfig.plans.starter.sms },
+    pro: { minutes: phoneConfig.plans.pro.minutes, sms: phoneConfig.plans.pro.sms },
+    business: { minutes: phoneConfig.plans.business.minutes, sms: phoneConfig.plans.business.sms },
+  }
+  const envExpected = {
+    starter: { minutes: envNum('STARTER_MINUTES', 100), sms: envNum('STARTER_SMS', 50) },
+    pro: { minutes: envNum('PRO_MINUTES', 400), sms: envNum('PRO_SMS', 200) },
+    business: { minutes: envNum('BUSINESS_MINUTES', 600), sms: envNum('BUSINESS_SMS', 300) },
+  }
+  const cloudIvrMismatches = []
+  for (const p of ['starter', 'pro', 'business']) {
+    if (cloudIvr[p].minutes !== envExpected[p].minutes) cloudIvrMismatches.push({ plan: p, field: 'minutes', resolved: cloudIvr[p].minutes, env: envExpected[p].minutes })
+    if (cloudIvr[p].sms !== envExpected[p].sms) cloudIvrMismatches.push({ plan: p, field: 'sms', resolved: cloudIvr[p].sms, env: envExpected[p].sms })
+  }
+
+  // Hosting: advertised domain copy vs enforced WHM addon limit (+1 primary)
+  const whm = require('./whm-service.js')
+  const hostPlans = require('./lang/en.js').en.hP.plans()
+  const hostingMap = {
+    premiumWeekly: 'Premium-Anti-Red-1-Week',
+    premiumCpanel: 'Premium-Anti-Red-HostPanel-1-Month',
+    goldenCpanel: 'Golden-Anti-Red-HostPanel-1-Month',
+  }
+  const hosting = {}
+  const hostingMismatches = []
+  for (const key of Object.keys(hostingMap)) {
+    const advertised = (hostPlans[key] && hostPlans[key].domains) || ''
+    const addonLimit = whm.PLAN_ADDON_LIMITS[hostingMap[key]]
+    const enforcedTotal = addonLimit === -1 ? 'unlimited' : (addonLimit + 1)
+    const advertisesUnlimited = /unlimited/i.test(advertised)
+    const consistent = enforcedTotal === 'unlimited'
+      ? advertisesUnlimited
+      : (!advertisesUnlimited && advertised.includes(String(enforcedTotal)))
+    hosting[key] = { advertisedDomains: advertised, enforcedAddonLimit: addonLimit, enforcedTotalDomains: enforcedTotal, consistent }
+    if (!consistent) hostingMismatches.push({ plan: key, advertised, enforcedTotalDomains: enforcedTotal })
+  }
+
+  return res.json({
+    ok: cloudIvrMismatches.length === 0 && hostingMismatches.length === 0,
+    cloudIvr: { resolved: cloudIvr, envExpected, mismatchCount: cloudIvrMismatches.length, mismatches: cloudIvrMismatches },
+    hosting: { plans: hosting, mismatchCount: hostingMismatches.length, mismatches: hostingMismatches },
   })
 })
 

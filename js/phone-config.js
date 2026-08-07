@@ -33,12 +33,16 @@ const SIP_DOMAIN = process.env.SIP_DOMAIN || 'sip.speechcue.com'
 const CALL_PAGE_URL = process.env.CALL_PAGE_URL || 'https://speechcue.com/call'
 
 // ── Configurable plan minutes & SMS from .env ──
-const STARTER_MINUTES = parseInt(process.env.PHONE_STARTER_MINUTES || '100', 10)
-const STARTER_SMS = parseInt(process.env.PHONE_STARTER_SMS || '50', 10)
-const PRO_MINUTES = parseInt(process.env.PHONE_PRO_MINUTES || '500', 10)
-const PRO_SMS = parseInt(process.env.PHONE_PRO_SMS || '200', 10)
-const BUSINESS_MINUTES = process.env.PHONE_BUSINESS_MINUTES === 'Unlimited' || !process.env.PHONE_BUSINESS_MINUTES ? 'Unlimited' : parseInt(process.env.PHONE_BUSINESS_MINUTES, 10)
-const BUSINESS_SMS = parseInt(process.env.PHONE_BUSINESS_SMS || '1000', 10)
+// IMPORTANT: env keys are UN-prefixed (STARTER_MINUTES / PRO_MINUTES / BUSINESS_MINUTES …).
+// Included minutes cover INCOMING calls answered via SIP/browser only — call
+// forwarding to an external number is billed separately from the wallet.
+// Defaults mirror the live public quotas so a missing env never advertises stale numbers.
+const STARTER_MINUTES = parseInt(process.env.STARTER_MINUTES || '100', 10)
+const STARTER_SMS = parseInt(process.env.STARTER_SMS || '50', 10)
+const PRO_MINUTES = parseInt(process.env.PRO_MINUTES || '400', 10)
+const PRO_SMS = parseInt(process.env.PRO_SMS || '200', 10)
+const BUSINESS_MINUTES = process.env.BUSINESS_MINUTES === 'Unlimited' ? 'Unlimited' : parseInt(process.env.BUSINESS_MINUTES || '600', 10)
+const BUSINESS_SMS = parseInt(process.env.BUSINESS_SMS || '300', 10)
 
 // All users always connect to sip.speechcue.com regardless of provider
 // Telnyx: DNS A record resolves to Telnyx SIP IP (192.76.120.10)
@@ -594,7 +598,7 @@ Virtual numbers in 30+ countries · Active in 2 minutes
 
 📞 Call forwarding · 💬 SMS to Telegram · 🌐 Browser calls · 🤖 IVR · 🔗 SIP
 
-Plans from <b>$${PHONE_STARTER_PRICE}/mo</b> (${plans.starter.minutes} inbound min + ${plans.starter.sms} SMS included · outbound from wallet)
+Plans from <b>$${PHONE_STARTER_PRICE}/mo</b> (${plans.starter.minutes} inbound min + ${plans.starter.sms} SMS included — incoming calls answered via SIP/browser · call forwarding & outbound billed from wallet)
 
 New? Tap <b>❓ How It Works</b>`,
 
@@ -616,7 +620,7 @@ Virtual phone numbers in 30+ countries, managed from Telegram.
 • Custom voicemail
 
 <b>💰 Billing:</b>
-Inbound calls/SMS included · Outbound charged from wallet
+Incoming calls answered via SIP/browser + SMS included · Call forwarding & outbound charged from wallet
 
 <b>📋 Plans:</b>
 💡 Starter $${PHONE_STARTER_PRICE}/mo — ${plans.starter.minutes} inbound min · Forwarding + SMS
@@ -667,7 +671,7 @@ Inbound calls/SMS included · Outbound charged from wallet
     if (PHONE_BUSINESS_ON) {
       text += `<b>👑 Business — $${PHONE_BUSINESS_PRICE}/mo</b>\n📞 ${plans.business.minutes} inbound min · 📩 ${plans.business.sms} SMS · All Pro + Recording · Auto-Attendant · Priority Support\n<b>🎙 IVR / SIP softphone:</b> ✅ <i>Pro + Auto-Attendant + Recording</i>\n\n`
     }
-    text += `<i>💳 Outbound calls charged from wallet</i>\n<i>⚠️ Need IVR (Quick IVR Call, Bulk IVR Campaign, OTP, Auto-Attendant)? Choose Pro or Business — Starter does <b>not</b> include IVR.</i>`
+    text += `<i>📞 Included minutes cover incoming calls you answer via SIP/browser. Call forwarding to another phone & all outbound calls (incl. IVR/OTP) are billed from your wallet.</i>\n<i>⚠️ Need IVR (Quick IVR Call, Bulk IVR Campaign, OTP, Auto-Attendant)? Choose Pro or Business — Starter does <b>not</b> include IVR.</i>`
     return text
   },
 
@@ -681,7 +685,7 @@ Inbound calls/SMS included · Outbound charged from wallet
       : planKey === 'pro'
       ? `\n<i>🛡️ 14-day upgrade credit — get 25% off if you upgrade to Business within 14 days</i>`
       : ''
-    return `📋 <b>Order Summary</b>\n\n📞 ${formatPhone(number)} · ${country}\n📦 ${plan.name} — $${price}/mo\n📩 ${plan.sms} SMS · 📞 ${plan.minutes} inbound min\n\n💰 Total: <b>$${price}</b> (first month)\n\n<i>💳 Outbound calls (incl. IVR/OTP) are pay-as-you-go from wallet — plan minutes are inbound only</i>${creditLine}${ivrLine}`
+    return `📋 <b>Order Summary</b>\n\n📞 ${formatPhone(number)} · ${country}\n📦 ${plan.name} — $${price}/mo\n📩 ${plan.sms} SMS · 📞 ${plan.minutes} inbound min\n\n💰 Total: <b>$${price}</b> (first month)\n\n<i>📞 Included minutes cover incoming calls answered via SIP/browser. Call forwarding to another phone & all outbound (incl. IVR/OTP) are billed from your wallet.</i>${creditLine}${ivrLine}`
   },
 
   paymentPrompt: (price) => `Price: <b>$${price}</b>. Choose payment method:`,
