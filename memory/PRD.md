@@ -3,6 +3,17 @@
 ## Original problem statement
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
+## 2026-08-07 — OTP IVR voice-mismatch fix + billing audit
+**Bug (reported):** "the voice that asks for the OTP is different from the voice that delivers the greeting."
+Root cause: greeting = generated audio file in the user's TTS voice (ElevenLabs/OpenAI) played via `<Play>`; OTP prompts used Twilio Polly `say()` (different engine), and for ElevenLabs voices `getTwilioVoice()` fell back to `Polly.Matthew` (MALE) → female greeting then male OTP ask.
+Fix: `tts-service.js` pre-generates the fixed OTP prompt texts (first/invalid/retry) in the SAME voice, cached in persistent `ivrOtpPromptCache` (warmed at greeting-generation when `ivrMode==='otp_collect'`); `/twilio/single-ivr-otp` now `<Play>`s the matching-voice clip (via `/twilio/audio-proxy`) with a Polly `say()` fallback; `voice-service.getTwilioVoice` mapping extended so the fallback is GENDER-matched for ElevenLabs voices. Verified by testing agent via POST /api/dev/otp-voice-match-test (8/8) + regressions (transfer-billing 8/8, reconciler 6/6, health).
+
+**Additional billing issues found (audit — NOT yet fixed, need user confirmation):**
+1. Bulk IVR billing has NO idempotency key: `bulk-call-service.onCallComplete` → `smartWalletDeduct(...)` passes no `callRef`, so a retried Twilio status callback can double-charge a lead (single-call paths all use callRef). Fix = pass `callRef: bulkivr_<CallSid>`.
+2. Bulk transfer-leg parity: bulk transfer-mode campaigns bill once per lead (outbound leg); the transfer leg to the campaign destination isn't billed separately — same 1-leg-vs-2-leg question as the single Quick IVR transfer (which was fixed to 2-leg). Needs the same policy decision.
+3. Reconciler (LEAK #1) still doesn't record SIP-bridge / SIP-outbound / Telnyx bridge legs (prior follow-up).
+
+
 ## 2026-08-07 — Quick IVR transfer-leg billing parity (Telnyx vs Twilio)
 Reported scenario: Quick IVR OUTBOUND — Target +31626742533, Caller ID +3197006532350, Transfer to +447460064497 (UK/+44), keys 1&2, $0.15/min.
 Finding: this is a BRIDGE, so there are TWO concurrent outbound PSTN legs (caller→target, caller→+44), each a real carrier cost.
