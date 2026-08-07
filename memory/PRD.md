@@ -3,6 +3,16 @@
 ## Original problem statement
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
+## 2026-08-07 — Quick IVR transfer-leg billing parity (Telnyx vs Twilio)
+Reported scenario: Quick IVR OUTBOUND — Target +31626742533, Caller ID +3197006532350, Transfer to +447460064497 (UK/+44), keys 1&2, $0.15/min.
+Finding: this is a BRIDGE, so there are TWO concurrent outbound PSTN legs (caller→target, caller→+44), each a real carrier cost.
+- **Telnyx (correct):** bills both — original `IVR_Outbound` + transfer `IVR_Transfer`, each flat `IVR_CALL_RATE` $0.15/min, min 1 min, idempotent (`voice-service.js` handleOutboundIvrHangup + handleIvrTransferLegHangup).
+- **Twilio (bug):** the transfer `<Dial>` in `/twilio/single-ivr-gather` had NO `action` callback → the concurrent +44 leg was NEVER billed (under-charge vs Telnyx + revenue leak). Only the parent `IVR_Outbound_Twilio` leg was billed.
+FIX: transfer `<Dial>` now sets `action=/twilio/single-ivr-transfer-status`; new handler bills the transfer leg via `billCallMinutesUnified(chatId, callerId, ceil(DialCallDuration/60)≥1, ivrNumber, 'IVR_Transfer', 'twilio_transfer_<DialCallSid>')` — flat IVR rate (NOT the $0.50 intl forwarding rate), only when `DialCallStatus=completed & dur>0`, idempotent via a DISTINCT callRef that never collides with the parent's `twilio_<CallSid>`. Scoped to non-trial, single (non-campaign) Quick IVR (bulk bills via bulk-call-service).
+Verified by testing agent (POST /api/dev/twilio-ivr-transfer-billing-test): 8/8 checks pass — 90s→2min→$0.30 (flat, not $1.00 intl), billed once, idempotent, no-answer→$0; regressions (call-reconciler + /api/health) intact.
+KNOWN FOLLOW-UP: bulk-campaign Twilio transfer legs still bill via bulk-call-service (not this handler) — parity for bulk not audited here.
+
+
 ## 2026-08-07 — Call-billing revenue-leak fixes (IVR/cloud-phone audit)
 Audit doc: `/app/CLOUD_PHONE_BILLING_ANALYSIS.md`. Fixed the two genuine revenue leaks (money lost on CONNECTED calls):
 
