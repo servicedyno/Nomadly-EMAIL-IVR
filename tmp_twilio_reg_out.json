@@ -1,0 +1,1075 @@
+{
+  "generatedAt": "2026-08-07T14:01:38.600Z",
+  "totalCountries": 54,
+  "strictlyZeroCompliance": [
+    {
+      "iso": "CA",
+      "country": "Canada",
+      "zeroTypes": [
+        "local",
+        "tollfree"
+      ]
+    },
+    {
+      "iso": "IL",
+      "country": "Israel",
+      "zeroTypes": [
+        "local",
+        "mobile"
+      ]
+    },
+    {
+      "iso": "PH",
+      "country": "Philippines",
+      "zeroTypes": [
+        "mobile"
+      ]
+    },
+    {
+      "iso": "PR",
+      "country": "Puerto Rico",
+      "zeroTypes": [
+        "local"
+      ]
+    },
+    {
+      "iso": "SE",
+      "country": "Sweden",
+      "zeroTypes": [
+        "mobile"
+      ]
+    },
+    {
+      "iso": "TN",
+      "country": "Tunisia",
+      "zeroTypes": [
+        "local"
+      ]
+    },
+    {
+      "iso": "US",
+      "country": "United States",
+      "zeroTypes": [
+        "local",
+        "tollfree"
+      ]
+    }
+  ],
+  "noAddressButBundleRequired": [
+    {
+      "iso": "GB",
+      "country": "United Kingdom",
+      "noAddrTypesButBundle": [
+        "mobile"
+      ]
+    }
+  ],
+  "raw": {
+    "PL": {
+      "country": "Poland",
+      "iso": "PL",
+      "types": {}
+    },
+    "ID": {
+      "country": "Indonesia",
+      "iso": "ID",
+      "types": {
+        "tollfree": {
+          "sampleNumber": "+6280332160711",
+          "addressRequirements": "any",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 5,
+          "bundleRequired": true,
+          "strictlyZero": false
+        }
+      }
+    },
+    "ZA": {
+      "country": "South Africa",
+      "iso": "ZA",
+      "types": {
+        "local": {
+          "sampleNumber": "+27878133670",
+          "addressRequirements": "any",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 5,
+          "bundleRequired": true,
+          "strictlyZero": false
+        },
+        "mobile": {
+          "sampleNumber": "+27600184871",
+          "addressRequirements": "local",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 5,
+          "bundleRequired": true,
+          "strictlyZero": false
+        }
+      }
+    },
+    "LU": {
+      "country": "Luxembourg",
+      "iso": "LU",
+      "types": {
+        "local": {
+          "sampleNumber": "+35227630699",
+          "addressRequirements": "local",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 5,
+          "bundleRequired": true,
+          "strictlyZero": false
+        },
+        "tollfree": {
+          "sampleNumber": "+35280091382",
+          "addressRequirements": "local",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 5,
+          "bundleRequired": true,
+          "strictlyZero": false
+        }
+      }
+    },
+    "BE": {
+      "country": "Belgium",
+      "iso": "BE",
+      "types": {
+        "mobile": {
+          "sampleNumber": "+32460233812",
+          "addressRequirements": "any",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 3,
+          "bundleRequired": true,
+          "strictlyZero": false
+        },
+        "tollfree": {
+          "sampleNumber": "+3280075850",
+          "addressRequirements": "local",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 3,
+          "bundleRequired": true,
+          "strictlyZero": false
+        }
+      }
+    },
+    "CH": {
+      "country": "Switzerland",
+      "iso": "CH",
+      "types": {
+        "local": {
+          "sampleNumber": "+41315394116",
+          "addressRequirements": "local",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 3,
+          "bundleRequired": true,
+          "strictlyZero": false
+        },
+        "mobile": {
+          "sampleNumber": "+41755731621",
+          "addressRequirements": "any",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 3,
+          "bundleRequired": true,
+          "strictlyZero": false
+        }
+      }
+    },
+    "CZ": {
+      "country": "Czech Republic",
+      "iso": "CZ",
+      "types": {
+        "local": {
+          "sampleNumber": "+420910921413",
+          "addressRequirements": "any",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 1,
+          "bundleRequired": true,
+          "strictlyZero": false
+        },
+        "mobile": {
+          "sampleNumber": "+420736354114",
+          "addressRequirements": "any",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 3,
+          "bundleRequired": true,
+          "strictlyZero": false
+        },
+        "tollfree": {
+          "sampleNumber": "+420800882031",
+          "addressRequirements": "any",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 0,
+          "bundleRequired": true,
+          "strictlyZero": false
+        }
+      }
+    },
+    "HR": {
+      "country": "Croatia",
+      "iso": "HR",
+      "types": {
+        "tollfree": {
+          "sampleNumber": "+385800410065",
+          "addressRequirements": "local",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 4,
+          "bundleRequired": true,
+          "strictlyZero": false
+        }
+      }
+    },
+    "MX": {
+      "country": "Mexico",
+      "iso": "MX",
+      "types": {
+        "local": {
+          "sampleNumber": "+523321017690",
+          "addressRequirements": "local",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 2,
+          "bundleRequired": true,
+          "strictlyZero": false
+        },
+        "mobile": {
+          "sampleNumber": "+525629153772",
+          "addressRequirements": "local",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 4,
+          "bundleRequired": true,
+          "strictlyZero": false
+        },
+        "tollfree": {
+          "sampleNumber": "+528004611271",
+          "addressRequirements": "any",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 2,
+          "bundleRequired": true,
+          "strictlyZero": false
+        }
+      }
+    },
+    "HK": {
+      "country": "Hong Kong",
+      "iso": "HK",
+      "types": {
+        "mobile": {
+          "sampleNumber": "+85292904590",
+          "addressRequirements": "any",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 3,
+          "bundleRequired": true,
+          "strictlyZero": false
+        },
+        "tollfree": {
+          "sampleNumber": "+852800938028",
+          "addressRequirements": "any",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 3,
+          "bundleRequired": true,
+          "strictlyZero": false
+        }
+      }
+    },
+    "MY": {
+      "country": "Malaysia",
+      "iso": "MY",
+      "types": {
+        "local": {
+          "sampleNumber": "+60360439826",
+          "addressRequirements": "any",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 2,
+          "bundleRequired": true,
+          "strictlyZero": false
+        },
+        "tollfree": {
+          "sampleNumber": "+601800382631",
+          "addressRequirements": "local",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 2,
+          "bundleRequired": true,
+          "strictlyZero": false
+        }
+      }
+    },
+    "FR": {
+      "country": "France",
+      "iso": "FR",
+      "types": {
+        "local": {
+          "sampleNumber": "+33939201047",
+          "addressRequirements": "local",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 2,
+          "bundleRequired": true,
+          "strictlyZero": false
+        }
+      }
+    },
+    "GR": {
+      "country": "Greece",
+      "iso": "GR",
+      "types": {}
+    },
+    "DE": {
+      "country": "Germany",
+      "iso": "DE",
+      "types": {
+        "local": {
+          "sampleNumber": "+4960479724124",
+          "addressRequirements": "local",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 3,
+          "bundleRequired": true,
+          "strictlyZero": false
+        },
+        "mobile": {
+          "sampleNumber": "+4915888656229",
+          "addressRequirements": "local",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 3,
+          "bundleRequired": true,
+          "strictlyZero": false
+        }
+      }
+    },
+    "IT": {
+      "country": "Italy",
+      "iso": "IT",
+      "types": {
+        "mobile": {
+          "sampleNumber": "+393399958060",
+          "addressRequirements": "any",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 2,
+          "bundleRequired": true,
+          "strictlyZero": false
+        },
+        "tollfree": {
+          "sampleNumber": "+39800816946",
+          "addressRequirements": "any",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 2,
+          "bundleRequired": true,
+          "strictlyZero": false
+        }
+      }
+    },
+    "JP": {
+      "country": "Japan",
+      "iso": "JP",
+      "types": {
+        "local": {
+          "sampleNumber": "+81528985154",
+          "addressRequirements": "local",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 6,
+          "bundleRequired": true,
+          "strictlyZero": false
+        },
+        "tollfree": {
+          "sampleNumber": "+818001119357",
+          "addressRequirements": "local",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 6,
+          "bundleRequired": true,
+          "strictlyZero": false
+        }
+      }
+    },
+    "EE": {
+      "country": "Estonia",
+      "iso": "EE",
+      "types": {
+        "local": {
+          "sampleNumber": "+3726692093",
+          "addressRequirements": "any",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 1,
+          "bundleRequired": true,
+          "strictlyZero": false
+        },
+        "mobile": {
+          "sampleNumber": "+37257238013",
+          "addressRequirements": "any",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 1,
+          "bundleRequired": true,
+          "strictlyZero": false
+        },
+        "tollfree": {
+          "sampleNumber": "+37280010006",
+          "addressRequirements": "any",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 1,
+          "bundleRequired": true,
+          "strictlyZero": false
+        }
+      }
+    },
+    "DK": {
+      "country": "Denmark",
+      "iso": "DK",
+      "types": {
+        "mobile": {
+          "sampleNumber": "+4591309994",
+          "addressRequirements": "local",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 0,
+          "bundleRequired": true,
+          "strictlyZero": false
+        }
+      }
+    },
+    "BG": {
+      "country": "Bulgaria",
+      "iso": "BG",
+      "types": {}
+    },
+    "CL": {
+      "country": "Chile",
+      "iso": "CL",
+      "types": {
+        "local": {
+          "sampleNumber": "+56229148803",
+          "addressRequirements": "local",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 2,
+          "bundleRequired": true,
+          "strictlyZero": false
+        }
+      }
+    },
+    "BR": {
+      "country": "Brazil",
+      "iso": "BR",
+      "types": {
+        "local": {
+          "sampleNumber": "+554323980186",
+          "addressRequirements": "local",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 2,
+          "bundleRequired": true,
+          "strictlyZero": false
+        }
+      }
+    },
+    "TH": {
+      "country": "Thailand",
+      "iso": "TH",
+      "types": {
+        "local": {
+          "sampleNumber": "+6652072356",
+          "addressRequirements": "local",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 5,
+          "bundleRequired": true,
+          "strictlyZero": false
+        },
+        "mobile": {
+          "sampleNumber": "+66975311628",
+          "addressRequirements": "any",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 6,
+          "bundleRequired": true,
+          "strictlyZero": false
+        },
+        "tollfree": {
+          "sampleNumber": "+661800013729",
+          "addressRequirements": "any",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 3,
+          "bundleRequired": true,
+          "strictlyZero": false
+        }
+      }
+    },
+    "RO": {
+      "country": "Romania",
+      "iso": "RO",
+      "types": {
+        "local": {
+          "sampleNumber": "+40373814234",
+          "addressRequirements": "local",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 6,
+          "bundleRequired": true,
+          "strictlyZero": false
+        },
+        "tollfree": {
+          "sampleNumber": "+40800476275",
+          "addressRequirements": "any",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 6,
+          "bundleRequired": true,
+          "strictlyZero": false
+        }
+      }
+    },
+    "GB": {
+      "country": "United Kingdom",
+      "iso": "GB",
+      "types": {
+        "local": {
+          "sampleNumber": "+442922717028",
+          "addressRequirements": "local",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 2,
+          "bundleRequired": true,
+          "strictlyZero": false
+        },
+        "mobile": {
+          "sampleNumber": "+447846716648",
+          "addressRequirements": "none",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 2,
+          "bundleRequired": true,
+          "strictlyZero": false
+        },
+        "tollfree": {
+          "sampleNumber": "+448000074105",
+          "addressRequirements": "any",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 2,
+          "bundleRequired": true,
+          "strictlyZero": false
+        }
+      }
+    },
+    "AR": {
+      "country": "Argentina",
+      "iso": "AR",
+      "types": {
+        "local": {
+          "sampleNumber": "+542657668580",
+          "addressRequirements": "local",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 3,
+          "bundleRequired": true,
+          "strictlyZero": false
+        },
+        "tollfree": {
+          "sampleNumber": "+548003450715",
+          "addressRequirements": "local",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 3,
+          "bundleRequired": true,
+          "strictlyZero": false
+        }
+      }
+    },
+    "AT": {
+      "country": "Austria",
+      "iso": "AT",
+      "types": {
+        "local": {
+          "sampleNumber": "+43743521985",
+          "addressRequirements": "local",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 3,
+          "bundleRequired": true,
+          "strictlyZero": false
+        },
+        "mobile": {
+          "sampleNumber": "+436703015403",
+          "addressRequirements": "local",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 3,
+          "bundleRequired": true,
+          "strictlyZero": false
+        },
+        "tollfree": {
+          "sampleNumber": "+43800007898",
+          "addressRequirements": "local",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 2,
+          "bundleRequired": true,
+          "strictlyZero": false
+        }
+      }
+    },
+    "CO": {
+      "country": "Colombia",
+      "iso": "CO",
+      "types": {
+        "local": {
+          "sampleNumber": "+576023692735",
+          "addressRequirements": "local",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 2,
+          "bundleRequired": true,
+          "strictlyZero": false
+        },
+        "tollfree": {
+          "sampleNumber": "+578005191699",
+          "addressRequirements": "any",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 2,
+          "bundleRequired": true,
+          "strictlyZero": false
+        }
+      }
+    },
+    "FI": {
+      "country": "Finland",
+      "iso": "FI",
+      "types": {
+        "mobile": {
+          "sampleNumber": "+358454901219",
+          "addressRequirements": "any",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 0,
+          "bundleRequired": true,
+          "strictlyZero": false
+        },
+        "tollfree": {
+          "sampleNumber": "+35880006396",
+          "addressRequirements": "any",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 0,
+          "bundleRequired": true,
+          "strictlyZero": false
+        }
+      }
+    },
+    "IL": {
+      "country": "Israel",
+      "iso": "IL",
+      "types": {
+        "local": {
+          "sampleNumber": "+972765323205",
+          "addressRequirements": "none",
+          "regHasEntry": true,
+          "regEndUserFields": 0,
+          "regSupportingDocs": 0,
+          "bundleRequired": false,
+          "strictlyZero": true
+        },
+        "mobile": {
+          "sampleNumber": "+972535661683",
+          "addressRequirements": "none",
+          "regHasEntry": true,
+          "regEndUserFields": 0,
+          "regSupportingDocs": 0,
+          "bundleRequired": false,
+          "strictlyZero": true
+        },
+        "tollfree": {
+          "sampleNumber": "+9721809466140",
+          "addressRequirements": "any",
+          "regHasEntry": true,
+          "regEndUserFields": 0,
+          "regSupportingDocs": 0,
+          "bundleRequired": false,
+          "strictlyZero": false
+        }
+      }
+    },
+    "PE": {
+      "country": "Peru",
+      "iso": "PE",
+      "types": {
+        "tollfree": {
+          "sampleNumber": "+5180056520",
+          "addressRequirements": "any",
+          "regHasEntry": true,
+          "regEndUserFields": 0,
+          "regSupportingDocs": 0,
+          "bundleRequired": false,
+          "strictlyZero": false
+        }
+      }
+    },
+    "PH": {
+      "country": "Philippines",
+      "iso": "PH",
+      "types": {
+        "local": {
+          "sampleNumber": "+63822293659",
+          "addressRequirements": "local",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 3,
+          "bundleRequired": true,
+          "strictlyZero": false
+        },
+        "mobile": {
+          "sampleNumber": "+639221200740",
+          "addressRequirements": "none",
+          "regHasEntry": true,
+          "regEndUserFields": 0,
+          "regSupportingDocs": 0,
+          "bundleRequired": false,
+          "strictlyZero": true
+        },
+        "tollfree": {
+          "sampleNumber": "+63180015500197",
+          "addressRequirements": "any",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 2,
+          "bundleRequired": true,
+          "strictlyZero": false
+        }
+      }
+    },
+    "SK": {
+      "country": "Slovakia",
+      "iso": "SK",
+      "types": {}
+    },
+    "SE": {
+      "country": "Sweden",
+      "iso": "SE",
+      "types": {
+        "mobile": {
+          "sampleNumber": "+46721496456",
+          "addressRequirements": "none",
+          "regHasEntry": true,
+          "regEndUserFields": 0,
+          "regSupportingDocs": 0,
+          "bundleRequired": false,
+          "strictlyZero": true
+        }
+      }
+    },
+    "TN": {
+      "country": "Tunisia",
+      "iso": "TN",
+      "types": {
+        "local": {
+          "sampleNumber": "+21631358063",
+          "addressRequirements": "none",
+          "regHasEntry": true,
+          "regEndUserFields": 0,
+          "regSupportingDocs": 0,
+          "bundleRequired": false,
+          "strictlyZero": true
+        }
+      }
+    },
+    "NA": {
+      "country": "Namibia",
+      "iso": "NA",
+      "types": {}
+    },
+    "GN": {
+      "country": "Guinea",
+      "iso": "GN",
+      "types": {}
+    },
+    "HU": {
+      "country": "Hungary",
+      "iso": "HU",
+      "types": {
+        "mobile": {
+          "sampleNumber": "+36707177904",
+          "addressRequirements": "local",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 1,
+          "bundleRequired": true,
+          "strictlyZero": false
+        }
+      }
+    },
+    "IE": {
+      "country": "Ireland",
+      "iso": "IE",
+      "types": {
+        "local": {
+          "sampleNumber": "+353909716527",
+          "addressRequirements": "local",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 2,
+          "bundleRequired": true,
+          "strictlyZero": false
+        }
+      }
+    },
+    "AU": {
+      "country": "Australia",
+      "iso": "AU",
+      "types": {
+        "local": {
+          "sampleNumber": "+61745204093",
+          "addressRequirements": "local",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 4,
+          "bundleRequired": true,
+          "strictlyZero": false
+        },
+        "mobile": {
+          "sampleNumber": "+61489086545",
+          "addressRequirements": "any",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 3,
+          "bundleRequired": true,
+          "strictlyZero": false
+        },
+        "tollfree": {
+          "sampleNumber": "+611800960631",
+          "addressRequirements": "any",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 1,
+          "bundleRequired": true,
+          "strictlyZero": false
+        }
+      }
+    },
+    "LT": {
+      "country": "Lithuania",
+      "iso": "LT",
+      "types": {
+        "mobile": {
+          "sampleNumber": "+37066802726",
+          "addressRequirements": "any",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 2,
+          "bundleRequired": true,
+          "strictlyZero": false
+        }
+      }
+    },
+    "CA": {
+      "country": "Canada",
+      "iso": "CA",
+      "types": {
+        "local": {
+          "sampleNumber": "+12362014541",
+          "addressRequirements": "none",
+          "regHasEntry": true,
+          "regEndUserFields": 0,
+          "regSupportingDocs": 0,
+          "bundleRequired": false,
+          "strictlyZero": true
+        },
+        "tollfree": {
+          "sampleNumber": "+18885042427",
+          "addressRequirements": "none",
+          "regHasEntry": true,
+          "regEndUserFields": 0,
+          "regSupportingDocs": 0,
+          "bundleRequired": false,
+          "strictlyZero": true
+        }
+      }
+    },
+    "PA": {
+      "country": "Panama",
+      "iso": "PA",
+      "types": {
+        "local": {
+          "sampleNumber": "+5072021668",
+          "addressRequirements": "local",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 4,
+          "bundleRequired": true,
+          "strictlyZero": false
+        }
+      }
+    },
+    "DZ": {
+      "country": "Algeria",
+      "iso": "DZ",
+      "types": {}
+    },
+    "US": {
+      "country": "United States",
+      "iso": "US",
+      "types": {
+        "local": {
+          "sampleNumber": "+16313029584",
+          "addressRequirements": "none",
+          "regHasEntry": true,
+          "regEndUserFields": 0,
+          "regSupportingDocs": 0,
+          "bundleRequired": false,
+          "strictlyZero": true
+        },
+        "tollfree": {
+          "sampleNumber": "+18889260383",
+          "addressRequirements": "none",
+          "regHasEntry": true,
+          "regEndUserFields": 0,
+          "regSupportingDocs": 0,
+          "bundleRequired": false,
+          "strictlyZero": true
+        }
+      }
+    },
+    "VI": {
+      "country": "Virgin Islands, U.S.",
+      "iso": "VI",
+      "types": {}
+    },
+    "EC": {
+      "country": "Ecuador",
+      "iso": "EC",
+      "types": {
+        "local": {
+          "sampleNumber": "+59324018853",
+          "addressRequirements": "local",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 2,
+          "bundleRequired": true,
+          "strictlyZero": false
+        }
+      }
+    },
+    "NL": {
+      "country": "Netherlands",
+      "iso": "NL",
+      "types": {
+        "mobile": {
+          "sampleNumber": "+3197006534981",
+          "addressRequirements": "any",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 0,
+          "bundleRequired": true,
+          "strictlyZero": false
+        }
+      }
+    },
+    "PR": {
+      "country": "Puerto Rico",
+      "iso": "PR",
+      "types": {
+        "local": {
+          "sampleNumber": "+19392983052",
+          "addressRequirements": "none",
+          "regHasEntry": true,
+          "regEndUserFields": 0,
+          "regSupportingDocs": 0,
+          "bundleRequired": false,
+          "strictlyZero": true
+        }
+      }
+    },
+    "NZ": {
+      "country": "New Zealand",
+      "iso": "NZ",
+      "types": {
+        "local": {
+          "sampleNumber": "+6498700588",
+          "addressRequirements": "any",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 2,
+          "bundleRequired": true,
+          "strictlyZero": false
+        },
+        "tollfree": {
+          "sampleNumber": "+64800424062",
+          "addressRequirements": "any",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 0,
+          "bundleRequired": true,
+          "strictlyZero": false
+        }
+      }
+    },
+    "GD": {
+      "country": "Grenada",
+      "iso": "GD",
+      "types": {}
+    },
+    "GE": {
+      "country": "Georgia",
+      "iso": "GE",
+      "types": {}
+    },
+    "SV": {
+      "country": "El Salvador",
+      "iso": "SV",
+      "types": {
+        "local": {
+          "sampleNumber": "+50321045505",
+          "addressRequirements": "local",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 4,
+          "bundleRequired": true,
+          "strictlyZero": false
+        }
+      }
+    },
+    "BJ": {
+      "country": "Benin",
+      "iso": "BJ",
+      "types": {
+        "mobile": {
+          "sampleNumber": "+2290161509920",
+          "addressRequirements": "local",
+          "regHasEntry": true,
+          "regEndUserFields": 1,
+          "regSupportingDocs": 1,
+          "bundleRequired": true,
+          "strictlyZero": false
+        }
+      }
+    },
+    "BB": {
+      "country": "Barbados",
+      "iso": "BB",
+      "types": {}
+    }
+  }
+}

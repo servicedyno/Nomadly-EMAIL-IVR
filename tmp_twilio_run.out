@@ -1,0 +1,67 @@
+Total Twilio countries: 54
+PL Poland :: types=none | ZERO=[-]
+ID Indonesia :: types=tollfree | ZERO=[-]
+ZA South Africa :: types=local,mobile | ZERO=[-]
+LU Luxembourg :: types=local,tollfree | ZERO=[-]
+BE Belgium :: types=mobile,tollfree | ZERO=[-]
+CH Switzerland :: types=local,mobile | ZERO=[-]
+CZ Czech Republic :: types=local,mobile,tollfree | ZERO=[-]
+HR Croatia :: types=tollfree | ZERO=[-]
+MX Mexico :: types=local,mobile,tollfree | ZERO=[-]
+HK Hong Kong :: types=mobile,tollfree | ZERO=[-]
+MY Malaysia :: types=local,tollfree | ZERO=[-]
+FR France :: types=local | ZERO=[-]
+GR Greece :: types=none | ZERO=[-]
+DE Germany :: types=local,mobile | ZERO=[-]
+IT Italy :: types=mobile,tollfree | ZERO=[-]
+JP Japan :: types=local,tollfree | ZERO=[-]
+EE Estonia :: types=local,mobile,tollfree | ZERO=[-]
+DK Denmark :: types=mobile | ZERO=[-]
+BG Bulgaria :: types=none | ZERO=[-]
+CL Chile :: types=local | ZERO=[-]
+BR Brazil :: types=local | ZERO=[-]
+TH Thailand :: types=local,mobile,tollfree | ZERO=[-]
+RO Romania :: types=local,tollfree | ZERO=[-]
+GB United Kingdom :: types=local,mobile,tollfree | ZERO=[-]
+AR Argentina :: types=local,tollfree | ZERO=[-]
+AT Austria :: types=local,mobile,tollfree | ZERO=[-]
+CO Colombia :: types=local,tollfree | ZERO=[-]
+FI Finland :: types=mobile,tollfree | ZERO=[-]
+IL Israel :: types=local,mobile,tollfree | ZERO=[local,mobile]
+PE Peru :: types=tollfree | ZERO=[-]
+PH Philippines :: types=local,mobile,tollfree | ZERO=[mobile]
+SK Slovakia :: types=none | ZERO=[-]
+SE Sweden :: types=mobile | ZERO=[mobile]
+TN Tunisia :: types=local | ZERO=[local]
+NA Namibia :: types=none | ZERO=[-]
+GN Guinea :: types=none | ZERO=[-]
+HU Hungary :: types=mobile | ZERO=[-]
+IE Ireland :: types=local | ZERO=[-]
+AU Australia :: types=local,mobile,tollfree | ZERO=[-]
+LT Lithuania :: types=mobile | ZERO=[-]
+CA Canada :: types=local,tollfree | ZERO=[local,tollfree]
+PA Panama :: types=local | ZERO=[-]
+DZ Algeria :: types=none | ZERO=[-]
+US United States :: types=local,tollfree | ZERO=[local,tollfree]
+VI Virgin Islands, U.S. :: types=none | ZERO=[-]
+EC Ecuador :: types=local | ZERO=[-]
+NL Netherlands :: types=mobile | ZERO=[-]
+PR Puerto Rico :: types=local | ZERO=[local]
+NZ New Zealand :: types=local,tollfree | ZERO=[-]
+GD Grenada :: types=none | ZERO=[-]
+GE Georgia :: types=none | ZERO=[-]
+SV El Salvador :: types=local | ZERO=[-]
+BJ Benin :: types=mobile | ZERO=[-]
+BB Barbados :: types=none | ZERO=[-]
+
+================ STRICTLY ZERO COMPLIANCE (no address, no bundle) ================
+  CA  Canada  ->  local, tollfree
+  IL  Israel  ->  local, mobile
+  PH  Philippines  ->  mobile
+  PR  Puerto Rico  ->  local
+  SE  Sweden  ->  mobile
+  TN  Tunisia  ->  local
+  US  United States  ->  local, tollfree
+
+Total strictly-zero countries: 7
+Saved detail to /app/tmp_twilio_reg_out.json

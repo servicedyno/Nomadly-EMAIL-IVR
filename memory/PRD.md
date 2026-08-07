@@ -3,6 +3,17 @@
 ## Original problem statement
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
+## Twilio 2026 zero-compliance country research (2026-08-07, read-only)
+User asked which countries require no compliance to provision Twilio numbers in 2026. Ran a read-only
+full sweep (`/app/tmp_twilio_reg.js`) over the 54 countries this account exposes, cross-checking
+`AvailablePhoneNumbers.addressRequirements` AND `RegulatoryCompliance/Regulations` (`end_user` +
+`supporting_document`, note snake_case + `toll-free` hyphenation — earlier camelCase check was a bug).
+Result: **7 strictly-zero countries** (US, CA, PR, IL, SE, PH, TN) + a "no-docs-but-address" tier
+(NL mobile, FI, DK, CZ, IL toll-free, NZ, PE). Key gotcha: `addressRequirements=none` alone is NOT
+sufficient (GB mobile shows `none` but still needs a bundle). Reference doc saved at
+`/app/memory/twilio_no_compliance_2026.md`; raw JSON at `/app/tmp_twilio_reg_out.json`. No app code changed.
+
+
 ## IVR UX safeguards (2026-08-03, follow-up batch — user-approved 1a/2/3a)
 Three requested safeguards shipped in `js/_index.js` (all localized en/fr/zh/hi):
 
