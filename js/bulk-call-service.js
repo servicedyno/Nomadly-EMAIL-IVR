@@ -173,12 +173,20 @@ function registerRoutes(app) {
         if (campaign.mode === 'transfer' && campaign.transferNumber) {
           // Transfer mode — bridge to the transfer number
           response.say('Please hold while we connect you.')
+          // BILLING PARITY (2026-08-07): the transfer leg (callerId → transferNumber) is a
+          // SECOND concurrent outbound PSTN leg Twilio charges Nomadly for. Bill it exactly
+          // like the single Quick IVR transfer (IVR_Transfer, flat rate, idempotent) by adding
+          // a status callback — previously this <Dial> had none, so the transfer leg was unbilled.
+          const selfUrl = process.env.SELF_URL_PROD || process.env.SELF_URL || ''
+          const transferStatusUrl = `${selfUrl}/twilio/bulk-ivr-transfer-status?campaignId=${encodeURIComponent(campaignId)}&leadIndex=${encodeURIComponent(leadIndex)}`
           const dial = response.dial({
             callerId: campaign.callerId,
             timeout: 30,
+            action: transferStatusUrl,
+            method: 'POST',
           })
           dial.number(campaign.transferNumber)
-          log(`[BulkIVR] Transferring lead=${leadIndex} to ${campaign.transferNumber}`)
+          log(`[BulkIVR] Transferring lead=${leadIndex} to ${campaign.transferNumber} (transfer-leg billing enabled)`)
         } else {
           // Report only — acknowledge and hang up
           response.say('Thank you. Goodbye.')
@@ -196,6 +204,38 @@ function registerRoutes(app) {
       log('[BulkIVR] Gather error:', error.message)
       const response = new VoiceResponse()
       response.say('An error occurred. Goodbye.')
+      response.hangup()
+      res.type('text/xml').send(response.toString())
+    }
+  })
+
+  // TwiML: transfer-leg status callback — bills the bulk transfer leg (billing parity
+  // with single Quick IVR). Flat IVR rate (IVR_Transfer), min 1 min when connected,
+  // idempotent via a DISTINCT callRef (twilio_transfer_<DialCallSid>) that never collides
+  // with the per-lead BulkIVR charge. 2026-08-07.
+  app.post('/twilio/bulk-ivr-transfer-status', async (req, res) => {
+    const response = new VoiceResponse()
+    try {
+      const { campaignId, leadIndex } = req.query
+      const dialStatus = req.body?.DialCallStatus || ''
+      const dialDuration = parseInt(req.body?.DialCallDuration || '0', 10)
+      const dialSid = req.body?.DialCallSid || ''
+      const campaign = await getCampaign(campaignId)
+      if (campaign && campaign.mode === 'transfer' && campaign.chatId && dialStatus === 'completed' && dialDuration > 0) {
+        const minutes = Math.max(1, Math.ceil(dialDuration / 60))
+        const callRef = `twilio_transfer_${dialSid || (campaignId + '_' + leadIndex)}`
+        try {
+          const voiceService = require('./voice-service.js')
+          await voiceService.billCallMinutesUnified(campaign.chatId, campaign.callerId, minutes, campaign.transferNumber, 'IVR_Transfer', callRef)
+          log(`[BulkIVR] Transfer leg billed: campaign=${campaignId} lead=${leadIndex} → ${campaign.transferNumber} ${minutes} min (dialSid=${dialSid})`)
+        } catch (e) { log('[BulkIVR] Transfer leg billing error:', e.message) }
+      } else {
+        log(`[BulkIVR] Transfer leg not billed (status=${dialStatus}, dur=${dialDuration})`)
+      }
+      response.hangup()
+      res.type('text/xml').send(response.toString())
+    } catch (error) {
+      log('[BulkIVR] transfer-status error:', error.message)
       response.hangup()
       res.type('text/xml').send(response.toString())
     }

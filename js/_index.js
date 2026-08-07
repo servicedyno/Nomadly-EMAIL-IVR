@@ -44279,6 +44279,14 @@ app.post('/twilio/sip-voice', async (req, res) => {
       }
       const dial = response.dial(dialOpts)
       dial.number(bridge.destination)
+      // LEAK sweeper coverage (2026-08-07): record durable pending-bill row (billed by
+      // /twilio/voice-dial-status as Twilio_SIP_Bridge). Lets the reconciler settle it if
+      // that callback is dropped. callRef matches the webhook's twilio_<CallSid>.
+      callBillingReconciler.recordPendingBill({
+        callRef: `twilio_${CallSid}`, chatId: bridge.chatId, phoneNumber: bridge.twilioNumber,
+        destination: bridge.destination, callType: 'Twilio_SIP_Bridge',
+        provider: 'twilio', subAccountSid: bridge.num?.twilioSubAccountSid,
+      }).catch(() => {})
 
       log(`[Twilio] Bridge call: ${bridge.twilioNumber} → ${bridge.destination} (callerId=${bridge.twilioNumber})`)
       return res.type('text/xml').send(response.toString())
