@@ -1743,6 +1743,11 @@ captchaDomainButton: (domain, isOff, hasCF) => hasCF ? `${isOff ? '🔴 OFF' : '
  cp_73: (currentPh, value, nextPh) => `✅ ${currentPh}: <b>${value}</b>\n\nEnter value for <b>[${nextPh}]</b>:`,
  cp_74: '✅ All values set!\\n\\n📋 <b>Select Call Mode</b>\\n\\n🔗 <b>Transfer</b> — When target presses the key, bridge them to your number\\n🔑 <b>OTP Collection</b> — After the key press, target is auto-prompted for a code — delivered to you via Telegram\\n\\nBoth modes report full results.',
  cp_75: '🔗 <b>Transfer Mode</b>\\n\\nEnter the number to transfer the caller to when they press a key:\\n<i>Example: +17174794833</i>',
+ ivrTrialNudge: `🎁 <b>You have 1 free Quick IVR call!</b>
+
+Make an automated call that plays your recorded message and captures a keypress or OTP — free, no plan needed.
+
+👉 Tap <b>📞 Cloud IVR + SIP</b> below, then <b>📢 Quick IVR Call</b> to try it now.`,
  cp_76: '🔒 <b>OTP Collection</b> is not available on the free trial.\\n\\nSubscribe to a <b>Pro</b> or <b>Business</b> plan to use OTP Collection.\\n\\nYou can still use <b>🔗 Transfer</b> mode for your trial call.',
  cp_77: '🔑 <b>OTP Collection Mode</b>\\n\\nHow many digits should the code be?\\n\\n💡 The code prompt is added automatically after your script — no need to include it.\\n\\n<i>Default: 6 digits</i>',
  cp_78: 'Select a mode:',

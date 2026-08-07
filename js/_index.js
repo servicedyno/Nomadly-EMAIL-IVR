@@ -1445,6 +1445,24 @@ async function quickIvrLabel(chatId, pc) {
   return pc.ivrOutboundCall
 }
 
+// One-time "🎁 You have 1 free Quick IVR call" banner. Shown ONCE per user to
+// trial-eligible users only (non-subscriber with an unused free trial call).
+// Tracked via state key ivrTrialNudgeShown_<chatId>; the flag is set BEFORE the
+// send so a transient send failure can never cause it to re-show. Non-blocking:
+// any error is swallowed so it never interferes with the main-menu flow.
+async function maybeSendTrialNudge(chatId, lang) {
+  try {
+    const nudgeKey = `ivrTrialNudgeShown_${chatId}`
+    if (await get(state, nudgeKey).catch(() => null)) return
+    const userData = await get(phoneNumbersOf, chatId)
+    if ((userData?.numbers || []).some(n => n.status === 'active')) return // subscribers already have IVR
+    if (await get(state, `ivrTrialUsed_${chatId}`).catch(() => null)) return // already used the free call
+    await set(state, nudgeKey, true)
+    send(chatId, translation('t.ivrTrialNudge', lang || 'en'), { parse_mode: 'HTML' })
+  } catch (e) { /* non-critical nudge; ignore */ }
+}
+
+
 // ════════════════════════════════════════════════════════════════════
 // UX FEATURE #3 — Message Reactions
 // Lightweight, native acknowledgment of key events by reacting to the
@@ -12982,7 +13000,9 @@ All verified numbers generated during sourcing.`))
     await set(state, chatId, 'action', 'none')
     await set(state, chatId, 'processingPayment', false) // Clear any stale payment lock
     const greeting = await getMainMenuGreeting()
-    return send(chatId, greeting, trans('o'))
+    send(chatId, greeting, trans('o'))
+    await maybeSendTrialNudge(chatId, info?.userLanguage || 'en')
+    return
   }
 
   // /cancel — global handler: cancel orphaned doc collection sessions from any state
