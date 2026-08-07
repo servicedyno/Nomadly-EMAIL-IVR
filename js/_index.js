@@ -40153,6 +40153,44 @@ app.get('/unsubscribe', (req, res) => {
 // ADMIN: Reset all user keyboards
 // Clears stale action states and sends fresh keyboard to all users
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+app.get('/admin/smsapp-fix-selftest', (req, res) => {
+  // Guarded self-test for the 2026-08-07 group-B download-link fix (b1).
+  const adminKey = req?.query?.key
+  if (adminKey !== process.env.SESSION_SECRET?.slice(0, 16)) {
+    return res.status(403).json({ error: 'Unauthorized' })
+  }
+  try {
+    const { resolveSmsAppLink } = require('./sms-app-link')
+    const checks = []
+    const expect = (name, cond, detail) => checks.push({ name, pass: !!cond, detail })
+
+    // b1a — cPanel storefront host is redirected to the bot's own /sms-app/download
+    const r1 = resolveSmsAppLink({ envLink: 'https://panel.1.hostbay.io/sms-app/download', self: 'https://bot.example.com', panelDomain: 'panel.1.hostbay.io' })
+    expect('B1_panel_host_redirected', r1 === 'https://bot.example.com/sms-app/download', r1)
+    // b1b — panel.* heuristic even when PANEL_DOMAIN not provided
+    const r2 = resolveSmsAppLink({ envLink: 'https://panel.foo.io/x', self: 'https://bot.example.com', panelDomain: '' })
+    expect('B1_panel_prefix_redirected', r2 === 'https://bot.example.com/sms-app/download', r2)
+    // b1c — a legitimate external link is preserved untouched
+    const r3 = resolveSmsAppLink({ envLink: 'https://cdn.good.com/app.apk', self: 'https://bot.example.com', panelDomain: 'panel.1.hostbay.io' })
+    expect('B1_good_link_preserved', r3 === 'https://cdn.good.com/app.apk', r3)
+    // b1d — empty env falls back to the bot's own route
+    const r4 = resolveSmsAppLink({ envLink: '', self: 'https://bot.example.com' })
+    expect('B1_empty_falls_back', r4 === 'https://bot.example.com/sms-app/download', r4)
+    // b1e — LIVE prod config must NOT resolve to the panel/storefront host
+    const live = resolveSmsAppLink()
+    let liveHost = ''
+    try { liveHost = new URL(live).hostname } catch {}
+    const panelHost = (process.env.PANEL_DOMAIN || '').replace(/^https?:\/\//, '').replace(/\/.*$/, '')
+    expect('B1_live_not_panel', !!live && liveHost !== panelHost && !/^panel\./i.test(liveHost), live)
+    expect('B1_live_is_download_url', /\/sms-app\/download$/.test(live) || /\.apk$/i.test(live), live)
+
+    const allPass = checks.every(c => c.pass)
+    return res.status(allPass ? 200 : 500).json({ ok: allPass, passed: checks.filter(c => c.pass).length, total: checks.length, live, checks })
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
 app.get('/admin/dns-fix-selftest', (req, res) => {
   // Guarded, READ-ONLY self-test for the 2026-08-07 group-D DNS fixes.
   // Exercises the PURE logic only (no external Cloudflare/registrar calls):

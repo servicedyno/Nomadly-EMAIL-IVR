@@ -108,18 +108,33 @@ const API = {
 
     console.log(`[API] ${method} ${url}`)
     let response
+    // Hard timeout so a slow/hung network can NEVER leave the UI stuck (e.g. the
+    // login "Connect" button spinning forever with a disabled state). Without
+    // this, fetch() has no client-side timeout and the login() finally-block
+    // that re-enables the button would never run. (Nomadly report 2026-08-07:
+    // "sign in button is inactive / doesn't work".)
+    const REQUEST_TIMEOUT_MS = 20000
+    const ctl = new AbortController()
+    const timer = setTimeout(() => ctl.abort(), REQUEST_TIMEOUT_MS)
+    options.signal = ctl.signal
     try {
       response = await fetch(url, options)
     } catch (e) {
-      // Fetch-level failure = DNS, TLS, offline, timeout. Never the server.
-      console.error(`[API] Network failure for ${url}:`, e.message)
+      // Fetch-level failure = DNS, TLS, offline, or our abort timeout. Never the server.
+      const aborted = e && e.name === 'AbortError'
+      console.error(`[API] ${aborted ? 'Timeout' : 'Network failure'} for ${url}:`, e.message)
       throw new APIError(
-        'Cannot reach server. Check your internet connection and try again.',
+        aborted
+          ? 'The server took too long to respond. Check your connection and try again.'
+          : 'Cannot reach server. Check your internet connection and try again.',
         0,
-        'network',
+        aborted ? 'timeout' : 'network',
         { cause: e.message, url },
       )
+    } finally {
+      clearTimeout(timer)
     }
+
 
     let data
     try {

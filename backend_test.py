@@ -1,248 +1,265 @@
 #!/usr/bin/env python3
 """
-Backend API Test Suite for IVR Audio-Library Integrity Fix
-Tests the P0 IVR audio-library integrity fix for @Padrino_voodoo (chatId 7706898844)
+Backend test for SMS-app bug fixes (group-B)
+Tests both b1 (curl) and b2 (browser E2E with Playwright)
 """
 
 import requests
 import json
-import sys
-from typing import Dict, Any, List, Tuple
+import time
+from playwright.sync_api import sync_playwright, expect
 
-# Backend URL from frontend/.env
-BACKEND_URL = "https://peaceful-rhodes-11.preview.emergentagent.com/api"
+# Read backend URL from frontend/.env
+BACKEND_URL = "https://9301884d-aa88-496f-bcb1-99734d54ef54.preview.emergentagent.com"
+ADMIN_KEY = "o%2FQb8ArGahlquhCQ"  # URL-encoded o/Qb8ArGahlquhCQ
 
-class Colors:
-    GREEN = '\033[92m'
-    RED = '\033[91m'
-    YELLOW = '\033[93m'
-    BLUE = '\033[94m'
-    RESET = '\033[0m'
-
-def print_test_header(test_name: str):
-    print(f"\n{Colors.BLUE}{'='*80}{Colors.RESET}")
-    print(f"{Colors.BLUE}TEST: {test_name}{Colors.RESET}")
-    print(f"{Colors.BLUE}{'='*80}{Colors.RESET}")
-
-def print_pass(message: str):
-    print(f"{Colors.GREEN}✅ PASS: {message}{Colors.RESET}")
-
-def print_fail(message: str):
-    print(f"{Colors.RED}❌ FAIL: {message}{Colors.RESET}")
-
-def print_info(message: str):
-    print(f"{Colors.YELLOW}ℹ️  INFO: {message}{Colors.RESET}")
-
-def test_health_check() -> Tuple[bool, str]:
-    """Test 1: Health check endpoint"""
-    print_test_header("Health Check")
+def test_b1_curl_tests():
+    """Test b1: SMS-app download link resolver (curl tests)"""
+    print("\n" + "="*80)
+    print("PART 1 - b1: SMS-app download link resolver (curl tests)")
+    print("="*80)
     
-    try:
-        response = requests.get(f"{BACKEND_URL}/health", timeout=10)
-        print_info(f"Status Code: {response.status_code}")
-        
-        if response.status_code != 200:
-            return False, f"Expected 200, got {response.status_code}"
-        
-        data = response.json()
-        print_info(f"Response: {json.dumps(data, indent=2)}")
-        
-        if data.get("status") != "healthy":
-            return False, f"Expected status='healthy', got '{data.get('status')}'"
-        
-        if data.get("database") != "connected":
-            return False, f"Expected database='connected', got '{data.get('database')}'"
-        
-        print_pass("Health check passed: healthy + database connected")
-        return True, "Health check OK"
-        
-    except Exception as e:
-        return False, f"Health check failed: {str(e)}"
-
-def test_ivr_audio_library_integrity() -> Tuple[bool, str]:
-    """Test 2: Main IVR audio-library integrity fix"""
-    print_test_header("IVR Audio-Library Integrity Fix")
+    # TEST 1a: Self-test endpoint with admin key
+    print("\n[TEST 1a] GET /api/admin/smsapp-fix-selftest?key=o%2FQb8ArGahlquhCQ")
+    response = requests.get(f"{BACKEND_URL}/api/admin/smsapp-fix-selftest?key={ADMIN_KEY}")
+    print(f"HTTP Status: {response.status_code}")
     
-    try:
-        response = requests.post(
-            f"{BACKEND_URL}/dev/ivr-audio-library-integrity",
-            json={},
-            headers={"Content-Type": "application/json"},
-            timeout=30
-        )
-        
-        print_info(f"Status Code: {response.status_code}")
-        
-        if response.status_code != 200:
-            return False, f"Expected 200, got {response.status_code}. Response: {response.text[:500]}"
-        
-        data = response.json()
-        print_info(f"Response: {json.dumps(data, indent=2)}")
-        
-        # Check top-level pass
-        if not data.get("pass"):
-            return False, f"Top-level pass is not true: {data.get('pass')}"
-        
-        checks = data.get("checks", {})
-        
-        # Step 1: Save audio to library
-        step1 = checks.get("step1_save", {})
-        if not step1.get("ok"):
-            return False, f"step1_save.ok is not true: {step1}"
-        print_pass("Step 1: Audio can be saved to library")
-        
-        # Step 2: Reselect (appears in listAudios)
-        step2 = checks.get("step2_reselect", {})
-        if not step2.get("ok"):
-            return False, f"step2_reselect.ok is not true: {step2}"
-        print_pass("Step 2: Audio appears in listAudios")
-        
-        # Step 3: Setup (phone with features.ivr → greetingFromLibrary + backups seeded)
-        step3 = checks.get("step3_setup", {})
-        if not step3.get("ok"):
-            return False, f"step3_setup.ok is not true: {step3}"
-        print_pass("Step 3: Phone with features.ivr → greetingFromLibrary + backups seeded")
-        
-        # Step 4: Delete cascade (CRITICAL - this is the main fix)
-        step4 = checks.get("step4_delete_cascade", {})
-        if not step4.get("fileRemovedFromDisk"):
-            return False, f"step4_delete_cascade.fileRemovedFromDisk is not true: {step4}"
-        print_pass("Step 4a: File removed from disk")
-        
-        if not step4.get("removedFromLibrary"):
-            return False, f"step4_delete_cascade.removedFromLibrary is not true: {step4}"
-        print_pass("Step 4b: Removed from library")
-        
-        if not step4.get("backupRemoved"):
-            return False, f"step4_delete_cascade.backupRemoved is not true: {step4}"
-        print_pass("Step 4c: ivrAudioStore backup removed (zombie restore prevention)")
-        
-        if not step4.get("phoneGreetingReset"):
-            return False, f"step4_delete_cascade.phoneGreetingReset is not true: {step4}"
-        print_pass("Step 4d: Phone greeting reset")
-        
-        # Verify phone greeting state after delete
-        current_ivr = step4.get("currentIvrState", {})
-        if current_ivr.get("greetingType") != "default":
-            return False, f"currentIvrState.greetingType should be 'default', got '{current_ivr.get('greetingType')}'"
-        print_pass("Step 4e: greetingType reset to 'default'")
-        
-        if current_ivr.get("greetingFromLibrary"):
-            return False, f"currentIvrState.greetingFromLibrary should be falsy, got '{current_ivr.get('greetingFromLibrary')}'"
-        print_pass("Step 4f: greetingFromLibrary cleared")
-        
-        if current_ivr.get("greetingAudioUrl"):
-            return False, f"currentIvrState.greetingAudioUrl should be falsy, got '{current_ivr.get('greetingAudioUrl')}'"
-        print_pass("Step 4g: greetingAudioUrl cleared (no 404 Play URL)")
-        
-        # Step 5: Reupload and pick (round-trip)
-        step5 = checks.get("step5_reupload_and_pick", {})
-        if not step5.get("appearsInLibrary"):
-            return False, f"step5_reupload_and_pick.appearsInLibrary is not true: {step5}"
-        print_pass("Step 5: Re-upload and pick works (round-trip)")
-        
-        print_pass("ALL IVR audio-library integrity checks PASSED")
-        return True, "IVR audio-library integrity fix verified"
-        
-    except Exception as e:
-        return False, f"IVR audio-library integrity test failed: {str(e)}"
-
-def test_regression_endpoint(endpoint: str, body: Dict[str, Any]) -> Tuple[bool, str]:
-    """Test a regression endpoint"""
-    try:
-        response = requests.post(
-            f"{BACKEND_URL}/dev/{endpoint}",
-            json=body,
-            headers={"Content-Type": "application/json"},
-            timeout=30
-        )
-        
-        print_info(f"  {endpoint}: Status {response.status_code}")
-        
-        if response.status_code != 200:
-            return False, f"Expected 200, got {response.status_code}"
-        
-        data = response.json()
-        
-        if not data.get("pass"):
-            return False, f"Expected pass:true, got pass:{data.get('pass')}"
-        
-        print_pass(f"  {endpoint}: pass=true")
-        return True, f"{endpoint} OK"
-        
-    except Exception as e:
-        return False, f"{endpoint} failed: {str(e)}"
-
-def test_all_regressions() -> Tuple[bool, str]:
-    """Test 3: All regression endpoints"""
-    print_test_header("Regression Tests")
+    if response.status_code != 200:
+        print(f"❌ FAILED: Expected HTTP 200, got {response.status_code}")
+        return False
     
-    regression_tests = [
-        ("test-outbound-call-selfheal", {"dryRun": True, "targetChatId": "7706898844"}),
-        ("stale-wallet-tap-test", {}),
-        ("support-routing-test", {}),
-        ("outbound-billing-leak-test", {}),
-        ("concurrency-guard-test", {}),
-        ("settle-receipt-test", {}),
+    data = response.json()
+    print(f"Response JSON:\n{json.dumps(data, indent=2)}")
+    
+    # Verify all checks passed
+    if not data.get("ok"):
+        print(f"❌ FAILED: ok field is not true")
+        return False
+    
+    if data.get("passed") != 6 or data.get("total") != 6:
+        print(f"❌ FAILED: Expected passed=6, total=6, got passed={data.get('passed')}, total={data.get('total')}")
+        return False
+    
+    # Verify live field
+    live_url = data.get("live", "")
+    if not live_url.endswith("/sms-app/download"):
+        print(f"❌ FAILED: live URL doesn't end with /sms-app/download: {live_url}")
+        return False
+    
+    if "panel.1.hostbay.io" in live_url:
+        print(f"❌ FAILED: live URL still points to panel host: {live_url}")
+        return False
+    
+    if "nomadly-email-ivr-production.up.railway.app" not in live_url:
+        print(f"❌ FAILED: live URL doesn't point to nomadly-email-ivr-production.up.railway.app: {live_url}")
+        return False
+    
+    # Verify all 6 checks
+    expected_checks = [
+        "B1_panel_host_redirected",
+        "B1_panel_prefix_redirected",
+        "B1_good_link_preserved",
+        "B1_empty_falls_back",
+        "B1_live_not_panel",
+        "B1_live_is_download_url"
     ]
     
-    all_passed = True
-    failed_tests = []
+    checks = data.get("checks", [])
+    check_names = [c.get("name") for c in checks]
     
-    for endpoint, body in regression_tests:
-        passed, message = test_regression_endpoint(endpoint, body)
-        if not passed:
-            all_passed = False
-            failed_tests.append(f"{endpoint}: {message}")
+    for expected_name in expected_checks:
+        if expected_name not in check_names:
+            print(f"❌ FAILED: Missing check: {expected_name}")
+            return False
+        
+        check = next(c for c in checks if c.get("name") == expected_name)
+        if not check.get("pass"):
+            print(f"❌ FAILED: Check {expected_name} did not pass")
+            return False
     
-    if all_passed:
-        print_pass(f"All {len(regression_tests)} regression tests PASSED")
-        return True, "All regression tests OK"
-    else:
-        return False, f"Regression failures: {', '.join(failed_tests)}"
+    print("✅ TEST 1a PASSED: All 6 checks passed, live URL correct")
+    
+    # TEST 1b: Download info endpoint
+    print("\n[TEST 1b] GET /api/sms-app/download/info")
+    response = requests.get(f"{BACKEND_URL}/api/sms-app/download/info")
+    print(f"HTTP Status: {response.status_code}")
+    
+    if response.status_code != 200:
+        print(f"❌ FAILED: Expected HTTP 200, got {response.status_code}")
+        return False
+    
+    data = response.json()
+    print(f"Response JSON:\n{json.dumps(data, indent=2)}")
+    
+    if not data.get("available"):
+        print(f"❌ FAILED: available field is not true")
+        return False
+    
+    if data.get("name") != "Nomadly SMS":
+        print(f"❌ FAILED: Expected name='Nomadly SMS', got '{data.get('name')}'")
+        return False
+    
+    print("✅ TEST 1b PASSED: APK info correct")
+    
+    # TEST 1c: Auth guard (no key)
+    print("\n[TEST 1c] GET /api/admin/smsapp-fix-selftest (no key)")
+    response = requests.get(f"{BACKEND_URL}/api/admin/smsapp-fix-selftest")
+    print(f"HTTP Status: {response.status_code}")
+    
+    if response.status_code != 403:
+        print(f"❌ FAILED: Expected HTTP 403, got {response.status_code}")
+        return False
+    
+    data = response.json()
+    print(f"Response JSON:\n{json.dumps(data, indent=2)}")
+    
+    if data.get("error") != "Unauthorized":
+        print(f"❌ FAILED: Expected error='Unauthorized', got '{data.get('error')}'")
+        return False
+    
+    print("✅ TEST 1c PASSED: Auth guard works correctly")
+    
+    return True
+
+
+def test_b2_browser_e2e():
+    """Test b2: SMS web-app API client timeout (browser E2E with Playwright)"""
+    print("\n" + "="*80)
+    print("PART 2 - b2: SMS web-app API client timeout (browser E2E)")
+    print("="*80)
+    
+    with sync_playwright() as p:
+        # Launch browser
+        print("\n[TEST 2] Opening browser and navigating to SMS web app...")
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(
+            viewport={'width': 480, 'height': 900},
+            user_agent='Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36'
+        )
+        page = context.new_page()
+        
+        try:
+            # Navigate to SMS web app
+            url = f"{BACKEND_URL}/api/sms-app-web"
+            print(f"Navigating to: {url}")
+            page.goto(url, wait_until='networkidle', timeout=30000)
+            
+            # Wait for login screen to load
+            print("Waiting for login screen to load...")
+            page.wait_for_selector('#loginCode', timeout=10000)
+            page.wait_for_selector('#loginBtn', timeout=10000)
+            
+            # Verify we're on the login screen
+            login_screen = page.locator('#loginScreen')
+            if not login_screen.is_visible():
+                print("❌ FAILED: Login screen not visible")
+                return False
+            
+            print("✅ Login screen loaded successfully")
+            
+            # Type invalid activation code
+            print("\nTyping invalid activation code '9999999999' into #loginCode...")
+            login_code_input = page.locator('#loginCode')
+            login_code_input.fill('9999999999')
+            
+            # Click the Connect button
+            print("Clicking #loginBtn ('Connect to Account')...")
+            login_btn = page.locator('#loginBtn')
+            
+            # Verify button is initially enabled
+            if login_btn.is_disabled():
+                print("⚠️  WARNING: Login button is disabled before clicking")
+            
+            login_btn.click()
+            
+            # Wait up to 8 seconds for the error to appear
+            print("Waiting up to 8 seconds for error message...")
+            time.sleep(1)  # Give it a moment to start processing
+            
+            # Wait for loginError to become visible
+            login_error = page.locator('#loginError')
+            try:
+                login_error.wait_for(state='visible', timeout=8000)
+                print("✅ Login error element became visible")
+            except Exception as e:
+                print(f"❌ FAILED: Login error did not become visible within 8 seconds: {e}")
+                return False
+            
+            # Get the error text
+            error_text = login_error.text_content()
+            print(f"\nError message text: '{error_text}'")
+            
+            if "Invalid activation code" not in error_text:
+                print(f"❌ FAILED: Error text doesn't contain 'Invalid activation code'")
+                return False
+            
+            print("✅ Error message contains 'Invalid activation code'")
+            
+            # Check if button is re-enabled
+            print("\nChecking if #loginBtn is re-enabled...")
+            is_disabled = login_btn.is_disabled()
+            print(f"Button disabled state: {is_disabled}")
+            
+            if is_disabled:
+                print("❌ FAILED: Login button is still disabled (hung in spinner state)")
+                return False
+            
+            print("✅ Login button is re-enabled (not stuck)")
+            
+            # Verify still on login screen
+            print("\nVerifying still on login screen...")
+            if not login_screen.is_visible():
+                print("❌ FAILED: No longer on login screen")
+                return False
+            
+            # Check if loginScreen has 'active' class
+            classes = login_screen.get_attribute('class') or ''
+            if 'active' not in classes:
+                print(f"⚠️  WARNING: loginScreen doesn't have 'active' class: '{classes}'")
+            else:
+                print("✅ loginScreen has 'active' class")
+            
+            print("\n✅ TEST 2 PASSED: No hang occurred, button re-enabled, error shown correctly")
+            
+            return True
+            
+        except Exception as e:
+            print(f"\n❌ EXCEPTION during browser test: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+        finally:
+            browser.close()
+
 
 def main():
-    print(f"\n{Colors.BLUE}{'='*80}{Colors.RESET}")
-    print(f"{Colors.BLUE}IVR Audio-Library Integrity Fix - Backend Test Suite{Colors.RESET}")
-    print(f"{Colors.BLUE}Backend URL: {BACKEND_URL}{Colors.RESET}")
-    print(f"{Colors.BLUE}{'='*80}{Colors.RESET}")
+    """Run all tests"""
+    print("\n" + "="*80)
+    print("SMS-APP BUG FIXES VERIFICATION (group-B)")
+    print("="*80)
+    print(f"Backend URL: {BACKEND_URL}")
+    print(f"Admin Key: {ADMIN_KEY}")
     
-    results = []
+    # Run b1 curl tests
+    b1_passed = test_b1_curl_tests()
     
-    # Test 1: Health check
-    passed, message = test_health_check()
-    results.append(("Health Check", passed, message))
-    
-    # Test 2: Main IVR audio-library integrity fix
-    passed, message = test_ivr_audio_library_integrity()
-    results.append(("IVR Audio-Library Integrity", passed, message))
-    
-    # Test 3: Regression tests
-    passed, message = test_all_regressions()
-    results.append(("Regression Tests", passed, message))
+    # Run b2 browser E2E test
+    b2_passed = test_b2_browser_e2e()
     
     # Summary
-    print(f"\n{Colors.BLUE}{'='*80}{Colors.RESET}")
-    print(f"{Colors.BLUE}TEST SUMMARY{Colors.RESET}")
-    print(f"{Colors.BLUE}{'='*80}{Colors.RESET}")
+    print("\n" + "="*80)
+    print("TEST SUMMARY")
+    print("="*80)
+    print(f"b1 (curl tests): {'✅ PASSED' if b1_passed else '❌ FAILED'}")
+    print(f"b2 (browser E2E): {'✅ PASSED' if b2_passed else '❌ FAILED'}")
     
-    all_passed = True
-    for test_name, passed, message in results:
-        if passed:
-            print_pass(f"{test_name}: {message}")
-        else:
-            print_fail(f"{test_name}: {message}")
-            all_passed = False
-    
-    print(f"\n{Colors.BLUE}{'='*80}{Colors.RESET}")
-    if all_passed:
-        print(f"{Colors.GREEN}✅ ALL TESTS PASSED{Colors.RESET}")
-        print(f"{Colors.BLUE}{'='*80}{Colors.RESET}")
+    if b1_passed and b2_passed:
+        print("\n✅ ALL TESTS PASSED")
         return 0
     else:
-        print(f"{Colors.RED}❌ SOME TESTS FAILED{Colors.RESET}")
-        print(f"{Colors.BLUE}{'='*80}{Colors.RESET}")
+        print("\n❌ SOME TESTS FAILED")
         return 1
 
+
 if __name__ == "__main__":
-    sys.exit(main())
+    exit(main())
