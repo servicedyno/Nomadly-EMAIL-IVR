@@ -3410,6 +3410,21 @@ const loadData = async () => {
   dnsHealer.startScheduler(db, { bot, notifyAdmin, adminChatId: TELEGRAM_ADMIN_CHAT_ID })
   log('[DnsHealer] Initialized and scheduled')
 
+  // NS Auto-Retry — re-applies a user's nameserver change once a freshly
+  // registered domain finishes activating at the registry (OpenProvider code 366
+  // "prohibited for current domain status"). Self-gated off on sandbox pods.
+  try {
+    const nsRetry = require('./ns-activation-retry')
+    const _opSvc = require('./op-service')
+    nsRetry.startScheduler(db, {
+      getDomainInfo: (d) => _opSvc.getDomainInfo(d),
+      updateNameservers: (d, ns) => _opSvc.updateNameservers(d, ns),
+      sendMessage: (cid, msg, opts) => bot.sendMessage(cid, msg, opts),
+      notifyAdmin,
+      log: (...a) => log('[NS Auto-Retry]', ...a),
+    })
+  } catch (e) { log('[NS Auto-Retry] init failed:', e.message) }
+
   // Initialize Voice Service (IVR, Recording, Call handling)
   if (process.env.PHONE_SERVICE_ON === 'true') {
     initVoiceService({
@@ -9247,6 +9262,13 @@ bot?.on('message', msg => {
         disable_web_page_preview: true,
       }
       let dnsMsg = t.viewDnsRecords(categorizedRecords, domain, nameserverType)
+      // Domain Status Check: surface an "activating / stuck" nudge for a
+      // freshly-registered OpenProvider domain that isn't active yet (best-effort,
+      // time-boxed; rbcroyalbank.app case where the registry hadn't activated it).
+      try {
+        const _nudge = await domainService.getActivationNudge(domain, domainMeta)
+        if (_nudge) dnsMsg = `${_nudge}\n\n${dnsMsg}`
+      } catch (_) { /* non-fatal */ }
       // Append shortener warning if active — user needs to know root domain is used by shortener
       if (shortenerActive) {
         dnsMsg += `\n⚠️ <b>URL Shortener is active on root domain (@).</b>\n`
@@ -21801,6 +21823,25 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
     const result = await domainService.updateAllNameservers(domain, newNS, db)
     if (result.error) {
+      // ── NS Auto-Retry: registry still activating the domain (OpenProvider
+      // code 366 "prohibited for current domain status"). Queue the change and
+      // reassure the user instead of leaving them to retry & fail (rbcroyalbank.app).
+      const _errLow = String(result.error).toLowerCase()
+      const _isPendingStatus = _errLow.includes('current domain status') &&
+        (_errLow.includes('prohibit') || _errLow.includes('not allowed') || _errLow.includes('cannot'))
+      if (_isPendingStatus) {
+        try {
+          await require('./ns-activation-retry').enqueue(db, { domainName: domain, chatId, nameservers: newNS, lastError: result.error })
+        } catch (qErr) { log(`[NS Auto-Retry] enqueue failed for ${domain}: ${qErr.message}`) }
+        const _nsLines = newNS.map((ns, i) => `NS${i + 1}: <code>${ns}</code>`).join('\n')
+        send(chatId, ({
+          en: `⏳ <b>${domain}</b> is still activating at the registry, so nameserver changes are temporarily locked.\n\n✅ No need to retry — we'll apply your nameservers automatically the moment it's active (usually a few minutes to a couple of hours) and message you here:\n${_nsLines}`,
+          fr: `⏳ <b>${domain}</b> est encore en cours d'activation au registre, donc les changements de serveurs de noms sont temporairement verrouillés.\n\n✅ Pas besoin de réessayer — nous appliquerons vos serveurs de noms automatiquement dès qu'il sera actif (généralement quelques minutes à quelques heures) et vous préviendrons ici :\n${_nsLines}`,
+          zh: `⏳ <b>${domain}</b> 仍在注册局激活中，因此暂时无法更改域名服务器。\n\n✅ 无需重试 — 域名激活后我们会自动为您应用域名服务器（通常几分钟到几小时）并在此通知您：\n${_nsLines}`,
+          hi: `⏳ <b>${domain}</b> अभी रजिस्ट्री पर सक्रिय हो रहा है, इसलिए नेमसर्वर बदलाव अस्थायी रूप से लॉक हैं।\n\n✅ दोबारा प्रयास की ज़रूरत नहीं — सक्रिय होते ही हम आपके नेमसर्वर अपने आप लागू कर देंगे (आम तौर पर कुछ मिनट से कुछ घंटे) और यहाँ सूचित करेंगे:\n${_nsLines}`,
+        }[lang] || `⏳ <b>${domain}</b> is still activating at the registry, so nameserver changes are temporarily locked.\n\n✅ No need to retry — we'll apply your nameservers automatically once it's active and message you here:\n${_nsLines}`), { parse_mode: 'HTML' })
+        return goto['choose-dns-action']()
+      }
       return send(chatId, ({ en: `❌ Failed to update nameservers: ${sanitizeProviderError(result.error, 'domain')}`, fr: `❌ Échec de la mise à jour des serveurs de noms : ${sanitizeProviderError(result.error, 'domain')}`, zh: `❌ 域名服务器更新失败：${sanitizeProviderError(result.error, 'domain')}`, hi: `❌ नेमसर्वर अपडेट विफल: ${sanitizeProviderError(result.error, 'domain')}` }[lang] || `❌ Failed to update nameservers: ${sanitizeProviderError(result.error, 'domain')}`), { parse_mode: 'HTML' })
     }
 
@@ -40193,6 +40234,93 @@ app.get('/unsubscribe', (req, res) => {
 // ADMIN: Reset all user keyboards
 // Clears stale action states and sends fresh keyboard to all users
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+app.get('/admin/ns-activation-selftest', async (req, res) => {
+  // Guarded self-test for NS Auto-Retry + Domain Status Check features.
+  // Pure in-memory — no real OpenProvider / DB / Telegram.
+  const adminKey = req?.query?.key
+  if (adminKey !== process.env.SESSION_SECRET?.slice(0, 16)) {
+    return res.status(403).json({ error: 'Unauthorized' })
+  }
+  try {
+    const nsr = require('./ns-activation-retry')
+    const opSvc = require('./op-service')
+    const domSvc = require('./domain-service')
+    const checks = []
+    const expect = (name, cond, detail) => checks.push({ name, pass: !!cond, detail })
+
+    // ── classifyAction (pure) ──
+    expect('classify_ACT_apply', nsr.classifyAction('ACT') === 'apply')
+    expect('classify_REQ_wait', nsr.classifyAction('REQ') === 'wait')
+    expect('classify_PEN_wait', nsr.classifyAction('PEN') === 'wait')
+    expect('classify_FAI_giveup', nsr.classifyAction('FAI') === 'giveup')
+    expect('classify_old_escalate', nsr.classifyAction('REQ', 100, 0) === 'escalate')
+    expect('classify_maxattempts_escalate', nsr.classifyAction('REQ', 0, 100) === 'escalate')
+    expect('nextDelay_monotonic', nsr.nextDelayMs(0) <= nsr.nextDelayMs(3) && nsr.nextDelayMs(99) === nsr.nextDelayMs(5))
+
+    // ── processOne with mock db + deps ──
+    const mkDb = () => {
+      const store = new Map()
+      const col = {
+        async updateOne(filter, update) {
+          const id = filter._id
+          const prev = store.get(id) || {}
+          store.set(id, { ...prev, ...(update.$setOnInsert || {}), ...(update.$set || {}) })
+        },
+        get: (id) => store.get(id),
+      }
+      return { collection: () => col, _col: col }
+    }
+    const baseRow = (over = {}) => ({ _id: 'd1', domainName: 'd1', chatId: '123', nameservers: ['a.ns.cloudflare.com', 'b.ns.cloudflare.com'], createdAt: new Date(), attempts: 0, status: 'pending', ...over })
+
+    // Active → applies NS + notifies user
+    let sent = 0; let updatedNs = 0
+    let db1 = mkDb()
+    let r1 = await nsr.processOne(db1, {
+      getDomainInfo: async () => ({ status: 'ACT' }),
+      updateNameservers: async () => { updatedNs++; return {} },
+      sendMessage: () => { sent++ },
+      log: () => {},
+    }, baseRow())
+    expect('processOne_active_applies', r1.action === 'applied' && updatedNs === 1 && sent === 1 && db1._col.get('d1').status === 'applied', `${r1.action}/ns=${updatedNs}/sent=${sent}`)
+
+    // Pending → waits, does NOT touch nameservers
+    let updatedNs2 = 0
+    let db2 = mkDb()
+    let r2 = await nsr.processOne(db2, {
+      getDomainInfo: async () => ({ status: 'REQ' }),
+      updateNameservers: async () => { updatedNs2++; return {} },
+      sendMessage: () => {},
+      log: () => {},
+    }, baseRow())
+    expect('processOne_pending_waits', r2.action === 'wait' && updatedNs2 === 0, `${r2.action}/ns=${updatedNs2}`)
+
+    // Failed registration → giveup + admin escalation
+    let admin = 0
+    let db3 = mkDb()
+    let r3 = await nsr.processOne(db3, {
+      getDomainInfo: async () => ({ status: 'FAI' }),
+      updateNameservers: async () => ({}),
+      notifyAdmin: () => { admin++ },
+      log: () => {},
+    }, baseRow())
+    expect('processOne_failed_giveup', r3.action === 'giveup' && admin === 1 && db3._col.get('d1').status === 'failed', `${r3.action}/admin=${admin}`)
+
+    // ── Domain Status Check mapping + nudge text (pure) ──
+    expect('map_ACT_active', opSvc.mapOpStatusToState('ACT', 0) === 'active')
+    expect('map_REQ_activating', opSvc.mapOpStatusToState('REQ', 0) === 'activating')
+    expect('map_REQ_old_stuck', opSvc.mapOpStatusToState('REQ', 30) === 'stuck')
+    expect('map_FAI_failed', opSvc.mapOpStatusToState('FAI', 0) === 'failed')
+    expect('nudge_activating_text', /activating/i.test(domSvc._activationNudgeText('activating') || ''))
+    expect('nudge_active_null', domSvc._activationNudgeText('active') === null)
+    expect('nudge_stuck_text', /longer than usual/i.test(domSvc._activationNudgeText('stuck') || ''))
+
+    const allPass = checks.every((c) => c.pass)
+    return res.status(allPass ? 200 : 500).json({ ok: allPass, passed: checks.filter((c) => c.pass).length, total: checks.length, checks })
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message, stack: (e.stack || '').split('\n').slice(0, 3) })
+  }
+})
+
 app.get('/admin/support-delivery-selftest', async (req, res) => {
   // Guarded self-test for the 2026-08-07 Support-AI editMessageText fix.
   // Proves: (1) a rate-limit (429) is retried in place instead of dumping to the

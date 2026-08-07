@@ -1613,6 +1613,44 @@ const addShortenerCNAME = async (domainName, cnameTarget, db, txtHost, txtValue)
   }
 }
 
+// ─── Activation nudge (Domain Status Check feature) ──────────────────────────
+// Human-friendly, HTML-safe nudge text for a normalized activation state.
+const _activationNudgeText = (state) => {
+  switch (state) {
+    case 'activating':
+      return "⏳ <b>Activating…</b>\nThis domain is still being set up at the registry (usually a few minutes to a couple of hours after purchase). Nameserver changes may be temporarily locked — we'll apply them automatically once it's active. No action needed."
+    case 'stuck':
+      return "⚠️ <b>Setup is taking longer than usual.</b>\nThis domain hasn't finished activating at the registry yet. We're retrying automatically — if it isn't live within a few hours, tap 💬 Support."
+    case 'failed':
+      return "❌ <b>Registration problem.</b>\nThe registry reports this domain's registration didn't complete. Please tap 💬 Support so we can sort it out."
+    default:
+      return null // active / unknown → show nothing
+  }
+}
+
+// Best-effort activation nudge for a freshly-registered OpenProvider domain.
+// Reuses already-fetched `meta` (no extra DB call), only hits the OP API for
+// recent OpenProvider domains, and is time-boxed so the DNS view never stalls.
+// Returns an HTML nudge string, or null when there's nothing to show.
+const getActivationNudge = async (domainName, meta) => {
+  try {
+    const registrar = String(meta?.registrar || meta?.provider || '').toLowerCase()
+    if (!registrar.includes('openprovider')) return null // code 366 is OpenProvider-specific
+    const regAt = meta?.registeredAt ? new Date(meta.registeredAt) : null
+    const ageHours = regAt && !isNaN(regAt.getTime()) ? (Date.now() - regAt.getTime()) / 3600000 : 0
+    // Domains older than 14 days are certainly active — skip the network call.
+    if (regAt && ageHours > 24 * 14) return null
+    const res = await Promise.race([
+      opService.getActivationState(domainName, ageHours),
+      new Promise((r) => setTimeout(() => r({ state: 'unknown', timeout: true }), 6000)),
+    ])
+    return _activationNudgeText(res && res.state)
+  } catch (e) {
+    log(`[domain-service] getActivationNudge(${domainName}): ${e.message}`)
+    return null
+  }
+}
+
 module.exports = {
   checkDomainPrice,
   checkAlternativeTLDs,
@@ -1635,4 +1673,6 @@ module.exports = {
   resolveConflictAndAdd,
   addShortenerCNAME,
   sanitizeErrorForUser,
+  getActivationNudge,
+  _activationNudgeText,
 }

@@ -1331,6 +1331,34 @@ const checkNsAuthoritative = async (domainName, nsList, timeoutMs = 60000) => {
   }
 }
 
+// ─── Activation-state helper (Domain Status Check feature) ───────────────────
+// Map a raw OpenProvider domain status into a normalized activation state so the
+// bot can surface "activating / stuck" nudges. OP statuses: ACT=active,
+// REQ=requested, SCH=scheduled, PEN=pending, FAI=failed, DEL=deleted.
+const mapOpStatusToState = (status, ageHours = 0) => {
+  const s = String(status || '').toUpperCase()
+  if (s === 'ACT' || s === 'ACTIVE') return 'active'
+  if (['FAI', 'DEL', 'FAILED', 'DELETED'].includes(s)) return 'failed'
+  if (['REQ', 'SCH', 'PEN', 'PENDING', 'REQUESTED', 'SCHEDULED'].includes(s) || !s) {
+    // Pending is normal for a short window after purchase; flag as "stuck" once
+    // it's dragged on unusually long so support/nudge can act.
+    return ageHours >= 24 ? 'stuck' : 'activating'
+  }
+  return 'unknown'
+}
+
+// Live activation state for a domain (best-effort; never throws).
+const getActivationState = async (domainName, ageHours = 0) => {
+  try {
+    const info = await getDomainInfo(domainName)
+    if (!info) return { state: 'unknown', opStatus: null }
+    const opStatus = info.status || info.domainData?.status || null
+    return { state: mapOpStatusToState(opStatus, ageHours), opStatus, domainId: info.domainId || null }
+  } catch (e) {
+    return { state: 'unknown', opStatus: null, error: e.message }
+  }
+}
+
 module.exports = {
   authenticate,
   checkDomainAvailability,
@@ -1350,4 +1378,6 @@ module.exports = {
   addDNSRecord,
   updateDNSRecord,
   deleteDNSRecord,
+  mapOpStatusToState,
+  getActivationState,
 }
