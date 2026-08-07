@@ -12,7 +12,7 @@ import sys
 import os
 
 # Get backend URL from environment
-BACKEND_URL = os.getenv('REACT_APP_BACKEND_URL', 'https://f06fe503-30a9-4c4e-a049-cc26f354ea86.preview.emergentagent.com')
+BACKEND_URL = os.getenv('REACT_APP_BACKEND_URL', 'https://setup-keys.preview.emergentagent.com')
 
 def test_ux_fixes_audit():
     """

@@ -3,8 +3,8 @@
 This app uses Telegram bot authentication (chatId-based) — there is no email/password
 login for the panel. Auth flows are exercised via the bot / dev endpoints.
 
-## Sandbox runtime config (set up this session)
-- Pod URL: https://f06fe503-30a9-4c4e-a049-cc26f354ea86.preview.emergentagent.com
+## Sandbox runtime config (re-bootstrapped 2026-08-07 — fresh pod)
+- Pod URL: https://390e6ff0-6afa-45a4-a8ca-64792be6b7f1.preview.emergentagent.com
 - Env source of truth: /app/backend/.env  (/app/.env is a symlink to it)
 - BOT_ENVIRONMENT = development  → uses TELEGRAM_BOT_TOKEN_DEV (safe dev bot, no live user traffic)
 - SKIP_WEBHOOK_SYNC = true        → prod Telegram webhook preserved; infra-mutating jobs disabled
@@ -27,3 +27,4 @@ login for the panel. Auth flows are exercised via the bot / dev endpoints.
 ## Health checks
 - http://127.0.0.1:5000/api/health  → {status: healthy, database: connected}
 - FastAPI proxy: <pod>/api/health
+- Verified 2026-08-07: node:5000, fastapi:8001, external <pod>/api/sms-app/download/info all 200; frontend :3000 → 200 ("HostBay | Hosting Panel")
