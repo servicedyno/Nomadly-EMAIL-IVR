@@ -1549,22 +1549,62 @@ const _aiQuickActionsLabel = {
 // Order: skip if already shown → edit(HTML) → edit(plain) → delete placeholder +
 // sendMessage(HTML) → sendMessage(plain). Returns { delivered, via }.
 // `botApi` is injected so this is unit-testable with a mock bot.
+// ── Rate-limit helpers for Telegram edit/send (the #1 cause of the
+// "editMessageText failed → fallback send" spam on chatty support sessions) ──
+const _sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+function _tgRetryAfterMs(err) {
+  try {
+    const ra = err?.response?.body?.parameters?.retry_after
+    if (Number.isFinite(ra)) return Math.min(ra, 5) * 1000
+  } catch { /* noop */ }
+  const m = /retry after (\d+)/i.exec((err && err.message) || '')
+  if (m) return Math.min(parseInt(m[1], 10), 5) * 1000
+  return 0
+}
+function _tgIsRateLimited(err) {
+  const s = err?.response?.statusCode || err?.response?.status || err?.code
+  if (s === 429) return true
+  return /too many requests|retry after|\b429\b/i.test((err && err.message) || '')
+}
+
 async function deliverFinalReply(botApi, chatId, mid, aiResponse, safeHtml, alreadyShown) {
   const html = safeHtml
   if (!html || !html.trim()) return { delivered: false, via: 'empty' }
   if (mid) {
     if (html === alreadyShown) return { delivered: true, via: 'already' }
-    try {
-      await botApi.editMessageText(html, { chat_id: chatId, message_id: mid, parse_mode: 'HTML', disable_web_page_preview: true })
-      return { delivered: true, via: 'edit' }
-    } catch (e) {
-      if (e && /not modified/i.test(e.message || '')) return { delivered: true, via: 'already' }
+    // Edit the placeholder in place — preferred (no new message = no double-post).
+    // A single rate-limit-aware retry absorbs Telegram 429 bursts that previously
+    // dumped every reply onto the noisy send() fallback (43 in a row for one user).
+    let editErr = null
+    for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        await botApi.editMessageText(aiResponse, { chat_id: chatId, message_id: mid, disable_web_page_preview: true })
-        return { delivered: true, via: 'edit-plain' }
-      } catch { /* fall through to fresh message */ }
+        await botApi.editMessageText(html, { chat_id: chatId, message_id: mid, parse_mode: 'HTML', disable_web_page_preview: true })
+        return { delivered: true, via: attempt ? 'edit-retry' : 'edit' }
+      } catch (e) {
+        editErr = e
+        if (e && /not modified/i.test(e.message || '')) return { delivered: true, via: 'already' }
+        if (attempt === 0 && _tgIsRateLimited(e)) {
+          await _sleep(_tgRetryAfterMs(e) || 1200)
+          continue // retry the HTML edit once after backing off
+        }
+        break
+      }
     }
-    try { await botApi.deleteMessage(chatId, mid) } catch { /* noop */ }
+    // HTML edit exhausted — try a plain-text edit (handles HTML parse quirks).
+    let plainErr = null
+    try {
+      await botApi.editMessageText(aiResponse, { chat_id: chatId, message_id: mid, disable_web_page_preview: true })
+      return { delivered: true, via: 'edit-plain' }
+    } catch (e2) {
+      plainErr = e2
+    }
+    // Both edits failed — surface the REAL Telegram reason (was swallowed before,
+    // which is why the fallback kept recurring invisibly).
+    log(`[Support] editMessageText failed for ${chatId} mid=${mid}: html="${(editErr && editErr.message) || ''}" plain="${(plainErr && plainErr.message) || ''}"`)
+    // Remove the stuck placeholder BEFORE sending a fresh copy so we never
+    // double-post (placeholder + answer). Log if it can't be removed.
+    try { await botApi.deleteMessage(chatId, mid) }
+    catch (e3) { log(`[Support] deleteMessage failed for ${chatId} mid=${mid}: ${(e3 && e3.message) || ''}`) }
   }
   try {
     await botApi.sendMessage(chatId, html, { parse_mode: 'HTML', disable_web_page_preview: true, reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
@@ -40153,6 +40193,66 @@ app.get('/unsubscribe', (req, res) => {
 // ADMIN: Reset all user keyboards
 // Clears stale action states and sends fresh keyboard to all users
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+app.get('/admin/support-delivery-selftest', async (req, res) => {
+  // Guarded self-test for the 2026-08-07 Support-AI editMessageText fix.
+  // Proves: (1) a rate-limit (429) is retried in place instead of dumping to the
+  // noisy send() fallback, and (2) when the placeholder truly can't be edited it
+  // is DELETED before a fresh send (exactly one message → no double-post).
+  // Pure in-memory mock bot — no real Telegram / DB.
+  const adminKey = req?.query?.key
+  if (adminKey !== process.env.SESSION_SECRET?.slice(0, 16)) {
+    return res.status(403).json({ error: 'Unauthorized' })
+  }
+  const aiResponse = 'Inbound overage is $0.15 per minute after your included minutes.'
+  const safeHtml = 'Inbound overage is <b>$0.15/min</b> after your included minutes.'
+  const rateErr = () => { const e = new Error('Too Many Requests: retry after 1'); e.response = { statusCode: 429, body: { parameters: { retry_after: 1 } } }; return e }
+  const mkBot = (opts = {}) => {
+    const calls = { edit: 0, del: 0, send: 0 }
+    let sentText = null
+    return {
+      calls,
+      get sentText() { return sentText },
+      editMessageText: async () => {
+        calls.edit++
+        if (opts.rateLimitOnce && calls.edit === 1) throw rateErr()
+        if (opts.editFails) throw new Error("Bad Request: message can't be edited")
+        return true
+      },
+      deleteMessage: async () => { calls.del++; if (opts.deleteFails) throw new Error('message to delete not found'); return true },
+      sendMessage: async (cid, text) => { calls.send++; sentText = text; return { message_id: 999 } },
+    }
+  }
+  try {
+    const checks = []
+    const expect = (name, cond, detail) => checks.push({ name, pass: !!cond, detail })
+
+    // A) edit succeeds → single message, no send
+    let b = mkBot({}); let r = await deliverFinalReply(b, 111, 500, aiResponse, safeHtml, '💬 Typing...')
+    expect('A_edit_no_send', r.via === 'edit' && r.delivered && b.calls.send === 0 && b.calls.del === 0, r.via)
+
+    // B) rate-limited once → retried in place (NOT a fallback send) → no double-post
+    b = mkBot({ rateLimitOnce: true }); r = await deliverFinalReply(b, 111, 500, aiResponse, safeHtml, '💬 Typing...')
+    expect('B_429_retried_in_place', r.via === 'edit-retry' && r.delivered && b.calls.edit === 2 && b.calls.send === 0 && b.calls.del === 0, `${r.via}/edits=${b.calls.edit}`)
+
+    // C) truly un-editable → placeholder DELETED then exactly one fresh send (no dup)
+    b = mkBot({ editFails: true }); r = await deliverFinalReply(b, 111, 500, aiResponse, safeHtml, '💬 Typing...')
+    expect('C_uneditable_delete_then_single_send', r.via === 'send' && r.delivered && b.calls.del === 1 && b.calls.send === 1 && b.sentText === safeHtml, `${r.via}/del=${b.calls.del}/send=${b.calls.send}`)
+
+    // D) already shown → no-op, no duplicate
+    b = mkBot({}); r = await deliverFinalReply(b, 111, 500, aiResponse, safeHtml, safeHtml)
+    expect('D_already_shown_noop', r.via === 'already' && r.delivered && b.calls.edit === 0 && b.calls.send === 0, r.via)
+
+    // E) edit fails AND delete fails → still delivers exactly one send
+    b = mkBot({ editFails: true, deleteFails: true }); r = await deliverFinalReply(b, 111, 500, aiResponse, safeHtml, '💬 Typing...')
+    expect('E_delete_fail_still_delivers_once', r.delivered && b.calls.send === 1, `${r.via}/send=${b.calls.send}`)
+
+    const allPass = checks.every(c => c.pass)
+    return res.status(allPass ? 200 : 500).json({ ok: allPass, passed: checks.filter(c => c.pass).length, total: checks.length, checks })
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
 app.get('/admin/smsapp-fix-selftest', (req, res) => {
   // Guarded self-test for the 2026-08-07 group-B download-link fix (b1).
   const adminKey = req?.query?.key
