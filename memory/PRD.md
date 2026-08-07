@@ -3,6 +3,13 @@
 ## Original problem statement
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
+## 2026-08-07 — International IVR rate policy ($0.50/min intl) — VERIFIED
+User directive (option b): Quick IVR + Bulk IVR product legs (`IVR_Outbound` + `IVR_Transfer`) now bill at the **$0.50/min forwarding rate for INTERNATIONAL (non-US/CA)** destinations; US/CA stays at the flat **$0.15/min** IVR rate. Regular forwarding / SIP outbound / SIP bridge / Bridge_Transfer were already destination-based ($0.50 intl) and are unchanged.
+- Implemented at the single central billing rate line in `billCallMinutesUnified` (`js/voice-service.js` ~L1394) via new helper `getIvrCallRate(dest) = isUSCanada(dest) ? IVR_CALL_RATE($0.15) : CALL_FORWARDING_RATE_MIN($0.50)`. Because every IVR leg on BOTH providers funnels through this one function (Telnyx: handleOutboundIvrHangup/handleIvrTransferLegHangup; Twilio: single-ivr-transfer-status, bulk-ivr-transfer-status, IVR_Outbound_Twilio), the change applies at parity with one edit.
+- Pre-flight (`initiateOutboundIvrCall`) + mid-call (limit-timer) wallet guards now use the destination-based IVR rate (max across primary target + transfer leg) so an international IVR call can't start/continue under-funded.
+- Verified iteration_28 (backend 100%): `/dev/ivr-rate-policy-test` rates {ivr/sip intl 0.5, usca 0.15}; `/dev/twilio-ivr-transfer-billing-test` + `/dev/bulk-transfer-billing-test` intl=$1.00 (2min×$0.50), US/CA sub-case=$0.30. Tester: `/app/backend/tests/test_ivr_intl_rate_policy.py`.
+
+
 ## 2026-08-07 — Widen Reconciler + Bulk Transfer Parity (billing follow-ups) — VERIFIED
 Two remaining items from the cloud-phone billing audit shipped & verified by testing agent (iteration_27, 100% pass, no regressions).
 

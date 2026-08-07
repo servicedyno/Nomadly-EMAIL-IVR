@@ -78,8 +78,17 @@ backend:
     file: "/app/js/voice-service.js (getIvrCallRate helper + billCallMinutesUnified rate line + 2 wallet guards); /app/js/_index.js (new POST /dev/ivr-rate-policy-test; updated /dev/twilio-ivr-transfer-billing-test and /dev/bulk-transfer-billing-test to assert intl=$0.50 + US/CA=$0.15)"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFIED (iteration_28, backend 100%, no critical/minor issues). /api/dev/ivr-rate-policy-test →
+          pass=true, rates exact: ivr_outbound_intl=0.5, ivr_transfer_intl=0.5, ivr_outbound_usca=0.15,
+          ivr_transfer_usca=0.15, sip_outbound_intl=0.5, sip_outbound_usca=0.15 (proves BOTH Telnyx+Twilio IVR
+          legs bill $0.50 intl / $0.15 US-CA via shared billCallMinutesUnified). twilio-ivr-transfer + bulk-transfer
+          both pass with intl=$1.00 (2min×$0.50) and US/CA sub-case=$0.30 (2min×$0.15). Regressions green
+          (reconciler-widen, call-reconciler, health). Tester file /app/backend/tests/test_ivr_intl_rate_policy.py.
       - working: "NA"
         agent: "main"
         comment: |
