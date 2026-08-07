@@ -3,6 +3,21 @@
 ## Original problem statement
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
+## 2026-08-07 — Widen Reconciler + Bulk Transfer Parity (billing follow-ups) — VERIFIED
+Two remaining items from the cloud-phone billing audit shipped & verified by testing agent (iteration_27, 100% pass, no regressions).
+
+**Widen Reconciler (LEAK #1 coverage extended).** The connected-but-unbilled leak sweeper now records durable `pendingCallBills` worklist rows at THREE more dial/bridge sites (previously only Twilio forward / IVR-forward):
+- Twilio SIP-bridge — `js/_index.js` /twilio/sip-voice bridge branch, callType `Twilio_SIP_Bridge`, keyed `twilio_<CallSid>` (done in the prior session).
+- Twilio SIP-outbound — `js/_index.js` /twilio/sip-voice regular-outbound branch (after `dial.number(destinationNumber)`), callType `Twilio_SIP_Outbound`, keyed `twilio_<CallSid>`.
+- Telnyx bridge/transfer leg — `js/voice-service.js` at `transfer.phase='bridged'`, callType `Bridge_Transfer`, provider `telnyx`, keyed `telnyx_<callControlId>`, scoped to non-trial parent sessions (mirrors the billing guard in handleBridgeTransferHangup).
+- **Auto-settle stays Twilio-only** (sweeper reads true durations from the Twilio API → auto-bills via idempotent `billCallMinutesUnified(...,callRef)`). **Telnyx legs are DETECTION-ONLY** (flagged `needs_review` + admin alert) — Telnyx reports 0s for bridged legs, so the locally-tracked duration (bridgeTime) can't be reconstructed server-side after a dropped callback; auto-settling would risk mis-billing. (User confirmed detection-only.)
+- New dev endpoint `POST /dev/reconciler-widen-test` (404 in prod): static wiring guards for all three sites + sweep classification (2 billed Twilio SIP legs → reconciled; unbilled Telnyx Bridge_Transfer → leak + needs_review; settled===0; dry-run leaves row pending).
+
+**Bulk Transfer Parity.** Bulk (campaign) transfer-mode leg now bills like the single Quick IVR transfer. `js/bulk-call-service.js`: transfer `<Dial>` now sets `action=/twilio/bulk-ivr-transfer-status`; new handler bills the transfer leg via `billCallMinutesUnified(chatId, callerId, ceil(DialCallDuration/60)>=1, transferNumber, 'IVR_Transfer', 'twilio_transfer_<DialCallSid>')` — flat IVR rate ($0.15/min, NOT the $0.50 intl forwarding rate), only when completed & duration>0, idempotent via a DISTINCT callRef that never collides with the per-lead BulkIVR charge. New dev endpoint `POST /dev/bulk-transfer-billing-test` (404 in prod): 90s→2min→$0.30 flat, billed once, idempotent, no-answer→$0.
+
+Files: `js/_index.js`, `js/voice-service.js`, `js/bulk-call-service.js`. Tester file: `/app/backend/tests/test_reconciler_widen_and_bulk_transfer.py`.
+
+
 ## 2026-08-07 — OTP IVR voice-mismatch fix + billing audit
 **Bug (reported):** "the voice that asks for the OTP is different from the voice that delivers the greeting."
 Root cause: greeting = generated audio file in the user's TTS voice (ElevenLabs/OpenAI) played via `<Play>`; OTP prompts used Twilio Polly `say()` (different engine), and for ElevenLabs voices `getTwilioVoice()` fell back to `Polly.Matthew` (MALE) → female greeting then male OTP ask.

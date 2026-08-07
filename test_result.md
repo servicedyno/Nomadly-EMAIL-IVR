@@ -78,8 +78,16 @@ backend:
     file: "/app/js/_index.js (recordPendingBill at Twilio SIP-outbound dial site; new POST /dev/reconciler-widen-test); /app/js/voice-service.js (recordPendingBill at Telnyx phase='bridged' bridge point, non-trial scoped)"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFIED (iteration_27, 100% pass). POST /api/dev/reconciler-widen-test → pass=true, all 7 checks true
+          (wired_twilio_sip_bridge, wired_twilio_sip_outbound, wired_telnyx_bridge, sip_legs_reconciled,
+          telnyx_leak_detected, telnyx_not_auto_settled, dryrun_left_telnyx_pending); summary scanned=3,
+          reconciledByWebhook=2, leaksFound=1, needsReview=1, settled=0, dryRun=true. DETECTION-ONLY policy for
+          Telnyx confirmed (never auto-settled). Regressions (call-reconciler + single Quick IVR transfer) green.
       - working: "NA"
         agent: "main"
         comment: |
@@ -107,8 +115,15 @@ backend:
     file: "/app/js/bulk-call-service.js (transfer <Dial> action callback + new POST /twilio/bulk-ivr-transfer-status billing handler); /app/js/_index.js (new POST /dev/bulk-transfer-billing-test)"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFIED (iteration_27, 100% pass). POST /api/dev/bulk-transfer-billing-test → pass=true, all 6 checks
+          true (transfer_status_200, transfer_leg_billed_once, charged_flat_ivr_rate, not_charged_intl_rate,
+          idempotent_no_double_charge, no_answer_not_billed); expectedCharge=0.3, observedCharge=0.3 (2 min × $0.15
+          flat IVR rate, NOT $1.00 intl). Bulk transfer leg now bills like the single Quick IVR transfer. No regressions.
       - working: "NA"
         agent: "main"
         comment: |
