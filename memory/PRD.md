@@ -3,6 +3,21 @@
 ## Original problem statement
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
+## 2026-08-07 — Call-billing revenue-leak fixes (IVR/cloud-phone audit)
+Audit doc: `/app/CLOUD_PHONE_BILLING_ANALYSIS.md`. Fixed the two genuine revenue leaks (money lost on CONNECTED calls):
+
+**LEAK #1 — connected-but-unbilled forward legs.** Twilio forward / IVR-forward legs are only billed when `/twilio/voice-dial-status` fires `DialCallStatus=completed`; a dropped callback (Railway redeploy webhook downtime, 5xx, proxy hiccup) = $0 forever, with no standing sweeper (only the one-off `retroactive-ivr-billing.js`).
+- New `js/call-billing-reconciler.js`: durable `pendingCallBills` worklist recorded at dial time keyed by the EXACT `callRef` the webhook bills under (`twilio_<parentCallSid>`); a prod-only 30-min `schedule.scheduleJob` sweep reconciles pending rows against the `walletLedger` idempotency ledger by `callRef`. Missing ledger row → fetch the forward leg's true duration from Twilio (sub-account child call) and settle via the EXISTING idempotent `voiceService.billCallMinutesUnified(..., callRef)` (a late duplicate webhook can never double-charge).
+- `recordPendingBill` wired at the two Twilio forward dial sites (`/twilio/voice-webhook` forward-always + `/twilio/inbound-ivr-gather` key-press transfer; `CallSid` added to the gather body destructure).
+
+**LEAK #2 — provider-drift lookup-miss.** `/twilio/voice-dial-status` looked up the owned number with `phoneNumber===to && provider==='twilio'`; if the stored `provider` drifted, a connected billable forward was silently skipped (code even logged "NOT BILLED provider != 'twilio'"). Fixed with `resolveOwnedTwilioNumber()` — strict match then phoneNumber-only fallback (this webhook IS Twilio) → bill anyway + self-heal `provider='twilio'`. Applied to both the completed-billing and unanswered-SIP-billing paths.
+
+**Safety / gating:** settlement WRITES to wallets → gated to production; on this dev sandbox (`SKIP_WEBHOOK_SYNC=true`) the scheduled sweep is skipped and the admin endpoint refuses `dryRun=false`. Dry-run is read-only (also the leak quantifier).
+- New endpoints: `GET /api/admin/reconcile-call-billing?key=<SESSION_SECRET[0..15]>&dryRun=true` (report/settle) and `POST /api/dev/call-reconciler-test` (all-synthetic dry-run unit test, self-cleans).
+- Verified by testing agent: 5/5 checks pass (unit test pass:true w/ all 6 sub-checks; admin dry-run 200; 403 no-key; 400 settle-guard; /api/health healthy). Node boots clean: `[CallRecon] Initialized` + `sweep scheduled (production-only)`.
+- KNOWN FOLLOW-UPS (not covered): pending-record wiring for Twilio SIP-bridge/SIP-outbound dial sites and Telnyx bridge-transfer legs; auto-settle currently Twilio-only (non-Twilio missed rows → `needs_review`).
+
+
 ## 2026-08-07 — Fresh pod re-bootstrap (setup from provided .env)
 Pod came up with no `backend/.env`, empty `frontend/.env`, no `/app/.env` symlink, no `nodejs` supervisor program (backend+frontend STOPPED; only mongodb running).
 - New pod URL: `https://390e6ff0-6afa-45a4-a8ca-64792be6b7f1.preview.emergentagent.com` (was `setup-keys...`).
