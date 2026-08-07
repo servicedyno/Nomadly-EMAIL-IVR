@@ -1681,7 +1681,27 @@ async function handleBridgeTransferAnswered(payload) {
   transfer.phase = 'bridged'
   transfer.bridgeTime = Date.now()
 
-  // Safety timeout: max bridge duration (10 min) to prevent indefinite calls (e.g., voicemail recording silence)
+  // LEAK sweeper coverage (2026-08-07): record a durable pending-bill row for this Telnyx
+  // bridge/transfer leg, keyed by the EXACT callRef handleBridgeTransferHangup bills under
+  // (telnyx_<callControlId>, Bridge_Transfer). If that hangup callback is dropped, the
+  // reconciler DETECTS it (needs_review + admin alert). Telnyx legs are NOT auto-settled:
+  // Telnyx reports 0s for bridged legs, so the true duration (tracked locally via bridgeTime)
+  // cannot be reconstructed server-side after a missed callback. Scoped to non-trial, billable
+  // sessions — mirrors the billing guard in handleBridgeTransferHangup.
+  try {
+    const _ps = outboundIvrCalls[transfer.originalCallControlId] || activeCalls[transfer.originalCallControlId]
+    if (_ps && !_ps.isTrial) {
+      const _reconciler = require('./call-billing-reconciler.js')
+      _reconciler.recordPendingBill({
+        callRef: `telnyx_${callControlId}`,
+        chatId: _ps.chatId != null ? String(_ps.chatId) : null,
+        phoneNumber: _ps.callerId || _ps.num?.phoneNumber || null,
+        destination: transfer.forwardTo,
+        callType: 'Bridge_Transfer',
+        provider: 'telnyx',
+      }).catch(() => {})
+    }
+  } catch (_) { /* never break the bridge path */ }
   const MAX_BRIDGE_MINUTES = 10
   transfer._bridgeTimeout = setTimeout(async () => {
     const t = activeBridgeTransfers[callControlId]

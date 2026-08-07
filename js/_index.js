@@ -38062,6 +38062,159 @@ app.post('/dev/twilio-ivr-transfer-billing-test', async (req, res) => {
   return res.json(out)
 })
 
+// ── DEV-ONLY: Widen-Reconciler coverage test. 404 in prod. ──
+// Verifies the 2026-08-07 "Widen Reconciler" change: the leak sweeper now covers
+// Twilio SIP-bridge, Twilio SIP-outbound, and Telnyx bridge/transfer legs.
+//   (1) recordPendingBill is WIRED at all three new dial/bridge sites (static-source guard).
+//   (2) the sweep classifies the new legTypes correctly: a billed Twilio SIP-outbound/bridge
+//       row reconciles as webhook-ok; an unbilled Telnyx Bridge_Transfer row is DETECTED as a
+//       leak and flagged needs_review (Telnyx legs are never auto-settled — Telnyx reports 0s
+//       for bridged legs so there is no server-side duration to reconstruct).
+// All-synthetic (isolated WIDENTEST_ callRef prefix, dry-run); cleans up its own fixtures.
+app.post('/dev/reconciler-widen-test', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const pending = db.collection('pendingCallBills')
+  const ledger = db.collection('walletLedger')
+  const ts = Date.now()
+  const refSipOut = `WIDENTEST_sipout_${ts}`
+  const refSipBridge = `WIDENTEST_sipbridge_${ts}`
+  const refTelnyx = `WIDENTEST_telnyxbridge_${ts}`
+  const ledSipOut = `WIDENTEST_led_sipout_${ts}`
+  const ledSipBridge = `WIDENTEST_led_sipbridge_${ts}`
+  const oldCreated = new Date(ts - 20 * 60 * 1000) // past the grace window
+  const out = { checks: {}, summary: {} }
+  try {
+    // (1) STATIC WIRING GUARD — recordPendingBill present at the three widened sites.
+    const idxSrc = require('fs').readFileSync(require('path').join(__dirname, '_index.js'), 'utf8')
+    const vsSrc = require('fs').readFileSync(require('path').join(__dirname, 'voice-service.js'), 'utf8')
+    out.checks.wired_twilio_sip_bridge = /recordPendingBill\([^)]*callType:\s*'Twilio_SIP_Bridge'/s.test(idxSrc)
+    out.checks.wired_twilio_sip_outbound = /recordPendingBill\([^)]*callType:\s*'Twilio_SIP_Outbound'/s.test(idxSrc)
+    out.checks.wired_telnyx_bridge = /recordPendingBill\(/.test(vsSrc) && /callType:\s*'Bridge_Transfer'/.test(vsSrc) && /provider:\s*'telnyx'/.test(vsSrc)
+
+    // (2) SWEEP CLASSIFICATION for the widened legTypes.
+    // Row A — Twilio SIP-outbound, ALREADY billed (ledger has callRef) → reconcile as webhook-ok.
+    await pending.updateOne({ _id: refSipOut }, { $setOnInsert: {
+      _id: refSipOut, callRef: refSipOut, chatId: '999999901', phoneNumber: '+18001110010',
+      destination: '+14150000010', callType: 'Twilio_SIP_Outbound', provider: 'twilio',
+      status: 'pending', createdAt: oldCreated,
+    } }, { upsert: true })
+    await ledger.insertOne({ _id: ledSipOut, chatId: '999999901', callRef: refSipOut, amount: -0.15, type: 'outbound_call', timestamp: new Date().toISOString() })
+    // Row B — Twilio SIP-bridge, ALREADY billed → reconcile as webhook-ok.
+    await pending.updateOne({ _id: refSipBridge }, { $setOnInsert: {
+      _id: refSipBridge, callRef: refSipBridge, chatId: '999999902', phoneNumber: '+18001110011',
+      destination: '+14150000011', callType: 'Twilio_SIP_Bridge', provider: 'twilio',
+      status: 'pending', createdAt: oldCreated,
+    } }, { upsert: true })
+    await ledger.insertOne({ _id: ledSipBridge, chatId: '999999902', callRef: refSipBridge, amount: -0.15, type: 'inbound_call', timestamp: new Date().toISOString() })
+    // Row C — Telnyx Bridge_Transfer, NEVER billed (no ledger row) → leak DETECTED, needs_review.
+    await pending.updateOne({ _id: refTelnyx }, { $setOnInsert: {
+      _id: refTelnyx, callRef: refTelnyx, chatId: '999999903', phoneNumber: '+3197006532350',
+      destination: '+447460064497', callType: 'Bridge_Transfer', provider: 'telnyx',
+      status: 'pending', createdAt: oldCreated,
+    } }, { upsert: true })
+
+    const r = await callBillingReconciler.sweepPendingBills({ dryRun: true, graceMinutes: 5, maxAgeHours: 72, limit: 1000, callRefPrefix: 'WIDENTEST_' })
+    out.summary = { scanned: r.scanned, reconciledByWebhook: r.reconciledByWebhook, leaksFound: r.leaksFound, needsReview: r.needsReview, settled: r.settled, dryRun: r.dryRun }
+
+    out.checks.sip_legs_reconciled = r.reconciledByWebhook >= 2
+    out.checks.telnyx_leak_detected = r.details.some(d => d.callRef === refTelnyx) || r.leaksFound >= 1
+    out.checks.telnyx_not_auto_settled = r.settled === 0 && r.needsReview >= 1
+    const telnyxAfter = await pending.findOne({ _id: refTelnyx })
+    out.checks.dryrun_left_telnyx_pending = telnyxAfter?.status === 'pending'
+
+    out.pass = Object.values(out.checks).every(Boolean)
+  } catch (e) {
+    out.error = e.message
+    out.pass = false
+  } finally {
+    try { await pending.deleteMany({ _id: { $in: [refSipOut, refSipBridge, refTelnyx] } }) } catch (_) { /* cleanup */ }
+    try { await ledger.deleteMany({ _id: { $in: [ledSipOut, ledSipBridge] } }) } catch (_) { /* cleanup */ }
+  }
+  return res.json(out)
+})
+
+// ── DEV-ONLY: Bulk Transfer Parity billing test (Twilio). 404 in prod. ──
+// Verifies the 2026-08-07 "Bulk Transfer Parity" change: the bulk transfer-mode leg
+// (callerId → transferNumber) is now billed like the single Quick IVR transfer —
+// IVR_Transfer at the flat IVR rate, min 1 min when connected, idempotent via a DISTINCT
+// callRef (twilio_transfer_<DialCallSid>), no-answer → $0. Drives the REAL
+// /twilio/bulk-ivr-transfer-status endpoint with a seeded transfer-mode campaign + synthetic
+// wallet. All-synthetic; cleans up.
+app.post('/dev/bulk-transfer-billing-test', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const voiceService = require('./voice-service.js')
+  const campaigns = db.collection('bulkCallCampaigns')
+  const ledger = db.collection('walletLedger')
+  const ts = Date.now()
+  const testChatId = 'BULKXFERTEST-' + ts
+  const campaignId = 'bulkxfer_' + ts
+  const leadIndex = '0'
+  const dialSid = 'CAbulkxfer' + ts
+  const callerId = '+3197006532350'
+  const transferNumber = '+447460064497' // UK (+44) — international; flat IVR rate must still apply
+  const transferCallRef = `twilio_transfer_${dialSid}`
+  const IVR_RATE = voiceService.IVR_CALL_RATE || 0.15
+  const base = 'http://127.0.0.1:5000'
+  const form = (o) => new URLSearchParams(o).toString()
+  const post = async (path, body) => {
+    const r = await fetch(base + path, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: form(body) })
+    return { status: r.status, text: await r.text() }
+  }
+  const bal = async () => { const w = await walletOf.findOne({ _id: testChatId }); return +(((w?.usdIn || 0) - (w?.usdOut || 0))).toFixed(4) }
+  const out = { checks: {} }
+  try {
+    // Seed synthetic wallet + a transfer-mode bulk campaign (non-trial).
+    await walletOf.updateOne({ _id: testChatId }, { $set: { usdIn: 10, usdOut: 0 } }, { upsert: true })
+    await campaigns.updateOne({ id: campaignId }, { $set: {
+      id: campaignId, chatId: testChatId, callerId, transferNumber,
+      mode: 'transfer', status: 'running', createdAt: new Date(),
+    } }, { upsert: true })
+
+    const balBefore = await bal()
+    // (A) Transfer completed for 90s → 2 min billed at FLAT IVR rate (not $0.50 intl).
+    const st1 = await post(`/twilio/bulk-ivr-transfer-status?campaignId=${encodeURIComponent(campaignId)}&leadIndex=${leadIndex}`, { DialCallStatus: 'completed', DialCallDuration: '90', DialCallSid: dialSid })
+    const balAfter1 = await bal()
+    const led1 = await ledger.find({ callRef: transferCallRef }).toArray()
+    const expectedCharge = +(2 * IVR_RATE).toFixed(4)
+    out.checks.transfer_status_200 = st1.status === 200
+    out.checks.transfer_leg_billed_once = led1.length === 1
+    out.checks.charged_flat_ivr_rate = Math.abs((balBefore - balAfter1) - expectedCharge) < 0.0001
+    out.checks.not_charged_intl_rate = Math.abs((balBefore - balAfter1) - +(2 * 0.50).toFixed(4)) > 0.0001
+
+    // (B) Idempotency: replay same DialCallSid → no double charge (callRef ledger guard).
+    await post(`/twilio/bulk-ivr-transfer-status?campaignId=${encodeURIComponent(campaignId)}&leadIndex=${leadIndex}`, { DialCallStatus: 'completed', DialCallDuration: '90', DialCallSid: dialSid })
+    const balAfter2 = await bal()
+    const led2 = await ledger.find({ callRef: transferCallRef }).toArray()
+    out.checks.idempotent_no_double_charge = led2.length === 1 && Math.abs(balAfter2 - balAfter1) < 0.0001
+
+    // (C) No-answer transfer must NOT be billed.
+    const dialSid2 = dialSid + '_na'
+    const balPreNA = await bal()
+    await post(`/twilio/bulk-ivr-transfer-status?campaignId=${encodeURIComponent(campaignId)}&leadIndex=${leadIndex}`, { DialCallStatus: 'no-answer', DialCallDuration: '0', DialCallSid: dialSid2 })
+    const balPostNA = await bal()
+    const ledNA = await ledger.find({ callRef: `twilio_transfer_${dialSid2}` }).toArray()
+    out.checks.no_answer_not_billed = ledNA.length === 0 && Math.abs(balPostNA - balPreNA) < 0.0001
+
+    out.expectedCharge = expectedCharge
+    out.observedCharge = +(balBefore - balAfter1).toFixed(4)
+    out.pass = Object.values(out.checks).every(Boolean)
+  } catch (e) {
+    out.error = e.message
+    out.pass = false
+  } finally {
+    try { await campaigns.deleteOne({ id: campaignId }) } catch (_) { /* cleanup */ }
+    try { await walletOf.deleteOne({ _id: testChatId }) } catch (_) { /* cleanup */ }
+    try { await ledger.deleteMany({ chatId: testChatId }) } catch (_) { /* cleanup */ }
+    try { await db.collection('payments').deleteMany({ val: { $regex: testChatId } }) } catch (_) { /* cleanup */ }
+  }
+  return res.json(out)
+})
+
+
 // ── DEV-ONLY: OTP voice-match test. 404 in prod. ──
 // Verifies the 2026-08-07 fix: the OTP prompt is spoken in the SAME TTS voice as the
 // greeting (a cached <Play> clip), and falls back to a GENDER-MATCHED Polly <Say> when
@@ -44342,6 +44495,14 @@ app.post('/twilio/sip-voice', async (req, res) => {
     }
     const dial = response.dial(dialOpts)
     dial.number(destinationNumber)
+    // LEAK sweeper coverage (2026-08-07): record a durable pending-bill row for the SIP-outbound
+    // leg (billed by /twilio/voice-status or /twilio/voice-dial-status as Twilio_SIP_Outbound
+    // under twilio_<CallSid>). Auto-settled by the reconciler if that callback is ever dropped.
+    callBillingReconciler.recordPendingBill({
+      callRef: `twilio_${CallSid}`, chatId, phoneNumber: num.phoneNumber,
+      destination: destinationNumber, callType: 'Twilio_SIP_Outbound',
+      provider: 'twilio', subAccountSid: num.twilioSubAccountSid,
+    }).catch(() => {})
 
     const estMinutes = Math.floor(usdBal / RATE)
     bot?.sendMessage(chatId, `📞 <b>SIP Outbound Call</b>\nFrom: ${num.phoneNumber}\nTo: ${destinationNumber}\nRate: $${RATE}/min (~${estMinutes} min available)`, { parse_mode: 'HTML' }).catch(() => {})

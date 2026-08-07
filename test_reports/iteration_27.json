@@ -1,0 +1,22 @@
+{
+  "summary": "Formal backend verification of (1) Widen Reconciler coverage and (2) Bulk Transfer Parity billing on the Nomadly Node.js backend proxied through FastAPI. All 5 pytest cases PASSED against the external REACT_APP_BACKEND_URL: health, /api/dev/reconciler-widen-test, /api/dev/bulk-transfer-billing-test, and both regressions (/api/dev/call-reconciler-test, /api/dev/twilio-ivr-transfer-billing-test).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_reconciler_widen_and_bulk_transfer.py",
+    "/app/test_reports/pytest/pytest_widen.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Widen Reconciler dev endpoint returns exactly the required shape (pass=true, all 7 checks true, summary scanned=3/reconciled=2/leaksFound=1/needsReview=1/settled=0/dryRun=true) confirming static wiring guards at all three widened sites (twilio_sip_bridge, twilio_sip_outbound, telnyx_bridge) and DETECTION-ONLY policy for Telnyx legs (never auto-settled).",
+    "Bulk Transfer Parity endpoint returns pass=true with expectedCharge=0.3 and observedCharge=0.3 -- flat IVR rate applied (2 min x $0.15), NOT intl forwarding rate ($1.00). Idempotency & no-answer-not-billed both verified.",
+    "Regressions (call reconciler + single Quick IVR transfer billing) remain green -- no regression from the widening."
+  ],
+  "updated_files": ["/app/backend/tests/test_reconciler_widen_and_bulk_transfer.py"],
+  "success_rate": {"backend": "100%", "frontend": "N/A (skipped per request)"},
+  "test_credentials": "Not required for /api/dev/* in BOT_ENVIRONMENT=development",
+  "seed_data_creation": "None from tester side; the two dev endpoints seed and self-clean their own fixtures on dev sandbox sharing production DB (dry-run + rollback, no production wallet touched).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Reuse /app/backend/tests/test_reconciler_widen_and_bulk_transfer.py; export env vars from /app/frontend/.env before running pytest so REACT_APP_BACKEND_URL is resolvable (otherwise MissingSchema). All 5 tests pass in ~3.4s."
+}

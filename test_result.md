@@ -72,6 +72,66 @@ user_problem_statement: |
 
 
 backend:
+  - task: "Widen Reconciler (2026-08-07 follow-up): extend the connected-but-unbilled leak sweeper (LEAK #1) to cover Twilio SIP-bridge, Twilio SIP-outbound, and Telnyx bridge/transfer legs so every connected call leg is swept. Previously only Twilio forward / IVR-forward dial sites recorded durable `pendingCallBills` worklist rows. NOW recordPendingBill is wired at three additional dial/bridge sites: (a) Twilio SIP-bridge (js/_index.js /twilio/sip-voice bridge branch, callType Twilio_SIP_Bridge — done earlier), (b) Twilio SIP-outbound (js/_index.js /twilio/sip-voice regular outbound branch, callType Twilio_SIP_Outbound, keyed twilio_<CallSid>), (c) Telnyx bridge/transfer leg (js/voice-service.js at phase='bridged', callType Bridge_Transfer, provider telnyx, keyed telnyx_<callControlId>, scoped non-trial). AUTO-SETTLE remains Twilio-only: the sweeper reads true durations from the Twilio API, so a dropped Twilio callback is auto-billed via the idempotent billCallMinutesUnified(...,callRef). Telnyx legs are DETECTION-ONLY (flagged needs_review + admin alert) because Telnyx reports 0s for bridged legs — the true duration is computed locally (bridgeTime) and cannot be reconstructed server-side after a missed callback."
+    implemented: true
+    working: "NA"
+    file: "/app/js/_index.js (recordPendingBill at Twilio SIP-outbound dial site; new POST /dev/reconciler-widen-test); /app/js/voice-service.js (recordPendingBill at Telnyx phase='bridged' bridge point, non-trial scoped)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          Node Express (5000) behind FastAPI proxy (8001). BOT_ENVIRONMENT=development so /dev/* routes live.
+          Real Twilio/Telnyx call state cannot be driven on this sandbox, so the widen coverage is verified at the
+          logic level: a synthetic dev test (a) statically confirms recordPendingBill is WIRED at all three widened
+          sites, and (b) drives the sweep classifier against seeded pendingCallBills rows for the new legTypes.
+          VERIFY:
+            1) POST {REACT_APP_BACKEND_URL}/api/dev/reconciler-widen-test  (empty JSON body {})
+               EXPECT HTTP 200, top-level pass === true, and EVERY checks.* === true:
+                 wired_twilio_sip_bridge, wired_twilio_sip_outbound, wired_telnyx_bridge   (static wiring guard)
+                 sip_legs_reconciled           (2 billed Twilio SIP legs reconcile as webhook-ok)
+                 telnyx_leak_detected          (unbilled Telnyx Bridge_Transfer row surfaces as a leak)
+                 telnyx_not_auto_settled       (settled===0 && needsReview>=1 — Telnyx never auto-billed)
+                 dryrun_left_telnyx_pending    (dry-run does not mutate the row)
+               summary: scanned===3, reconciledByWebhook===2, leaksFound>=1, needsReview>=1, settled===0, dryRun===true.
+            2) Regression: POST {REACT_APP_BACKEND_URL}/api/dev/call-reconciler-test {} → pass === true.
+            3) Regression: GET {REACT_APP_BACKEND_URL}/api/health → {"status":"healthy","database":"connected"}.
+          NOTE: the actual production settlement (real Twilio duration fetch) + the Telnyx admin needs_review alert
+          only execute in PRODUCTION (SKIP_WEBHOOK_SYNC unset); covered here at the logic level via the synthetic test.
+
+  - task: "Bulk Transfer Parity (2026-08-07): bill the bulk (campaign) transfer-mode leg the same way as the single Quick IVR transfer, so both flows match. Previously bulk transfer-mode campaigns only billed the outbound leg per lead; the concurrent transfer <Dial> (callerId → transferNumber) had NO action callback → the transfer leg was unbilled (same 1-leg-vs-2-leg gap as the single Quick IVR transfer, which was already fixed). FIX (js/bulk-call-service.js): the transfer <Dial> now sets action=/twilio/bulk-ivr-transfer-status; the new handler bills the transfer leg via billCallMinutesUnified(chatId, callerId, ceil(DialCallDuration/60)>=1, transferNumber, 'IVR_Transfer', 'twilio_transfer_<DialCallSid>') — flat IVR rate (NOT the $0.50 intl forwarding rate), only when DialCallStatus=completed & duration>0, idempotent via a DISTINCT callRef that never collides with the per-lead BulkIVR charge."
+    implemented: true
+    working: "NA"
+    file: "/app/js/bulk-call-service.js (transfer <Dial> action callback + new POST /twilio/bulk-ivr-transfer-status billing handler); /app/js/_index.js (new POST /dev/bulk-transfer-billing-test)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          Node Express (5000) behind FastAPI proxy (8001). BOT_ENVIRONMENT=development so /dev/* routes live.
+          Real Twilio webhooks cannot fire on this sandbox, so the fix is verified at the logic level: the dev
+          test seeds a synthetic transfer-mode bulkCallCampaigns row + a synthetic wallet (fake chatId, cleaned up),
+          drives the REAL /twilio/bulk-ivr-transfer-status endpoint, and asserts billing. NO production wallet touched.
+          VERIFY:
+            1) POST {REACT_APP_BACKEND_URL}/api/dev/bulk-transfer-billing-test  (empty JSON body {})
+               EXPECT HTTP 200, JSON pass === true, and EVERY checks.* === true:
+                 transfer_status_200
+                 transfer_leg_billed_once     (exactly one walletLedger row for callRef twilio_transfer_<sid>)
+                 charged_flat_ivr_rate        (90s → 2 min × $0.15 = $0.30 charged)
+                 not_charged_intl_rate        (NOT 2 × $0.50 = $1.00 — proves flat IVR rate, not intl forwarding)
+                 idempotent_no_double_charge  (replaying same DialCallSid does not double-charge)
+                 no_answer_not_billed         (DialCallStatus=no-answer → $0 charged)
+               Also expect expectedCharge === 0.3 and observedCharge === 0.3.
+            2) Regression: GET {REACT_APP_BACKEND_URL}/api/health → {"status":"healthy","database":"connected"}.
+          NOTE: the production wallet settlement + real bulk transfer <Dial> callback only execute in production
+          with real Twilio calls; covered here at the logic level via the synthetic test above.
+
+
+backend:
   - task: "OTP IVR voice mismatch bug (user report: 'the voice that asks for the OTP is different from the voice that delivers the greeting'). Root cause: in the Twilio single-IVR OTP flow the greeting is a generated audio FILE in the user's chosen TTS voice (ElevenLabs/OpenAI, e.g. 'Rachel') played via <Play>, but the OTP prompts used Twilio Polly say() with getTwilioVoice(voiceName) — a DIFFERENT engine, and for ElevenLabs voices getTwilioVoice fell through to Polly.Matthew (a MALE voice), so a female greeting was followed by a male OTP ask. FIX: (1) tts-service.js pre-generates the fixed OTP prompt texts (first/invalid/retry) in the SAME TTS voice and caches them in a persistent `ivrOtpPromptCache` collection (getCachedOtpPrompt / ensureOtpPrompt / warmOtpPrompts); warmed at greeting-generation time (ivrMode==='otp_collect'). (2) /twilio/single-ivr-otp now PLAYS the cached matching-voice clip (via /twilio/audio-proxy) and only falls back to say() if no clip is cached yet. (3) voice-service.getTwilioVoice mapping extended so the say() FALLBACK is GENDER-matched for ElevenLabs voices (female voices→female Polly, male→male Polly)."
     implemented: true
     working: true
