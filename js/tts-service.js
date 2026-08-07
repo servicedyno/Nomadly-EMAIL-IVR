@@ -615,6 +615,64 @@ function getSpeedPresets() {
   return TTS_SPEED_PRESETS
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// OTP prompt voice-matching (bug fix 2026-08-07)
+// The IVR greeting is a generated audio file in the user's chosen TTS voice
+// (ElevenLabs/OpenAI). Previously the OTP prompts used Twilio Polly `say()` — a
+// DIFFERENT engine/voice — so the greeting and the OTP prompt sounded like two
+// different people. We pre-generate the (fixed-text) OTP prompts in the SAME
+// TTS voice and cache them in `ivrOtpPromptCache` (persisted → survives restarts).
+// The live webhook does a fast cache-only lookup and plays the clip; if it isn't
+// warmed yet it falls back to Polly `say()` (gender-matched in voice-service).
+// ────────────────────────────────────────────────────────────────────────────
+const OTP_PROMPT_TEXTS = {
+  first: 'Please enter the verification code sent to your number, followed by the pound key.',
+  invalid: 'Invalid code. Please re-enter the verification code sent to your number, followed by the pound key.',
+  retry: 'We did not receive your code. Please enter it now, followed by the pound key.',
+}
+
+function _otpCacheId(voiceKey, promptKey, speed) {
+  return `${voiceKey}:${promptKey}:${Number(speed || 1)}`
+}
+
+// Fast, cache-ONLY lookup for the live TwiML webhook. Never generates. Returns audioUrl|null.
+async function getCachedOtpPrompt(voiceKey, promptKey, speed = 1) {
+  try {
+    if (!_db || !voiceKey || !OTP_PROMPT_TEXTS[promptKey]) return null
+    const doc = await _db.collection('ivrOtpPromptCache').findOne({ _id: _otpCacheId(voiceKey, promptKey, speed) })
+    return (doc && doc.audioUrl) || null
+  } catch (_) { return null }
+}
+
+// Generate + persist a single OTP prompt clip if not already cached. Returns audioUrl|null.
+async function ensureOtpPrompt(voiceKey, promptKey, speed = 1) {
+  try {
+    if (!voiceKey || !OTP_PROMPT_TEXTS[promptKey]) return null
+    const cached = await getCachedOtpPrompt(voiceKey, promptKey, speed)
+    if (cached) return cached
+    const result = await generateTTS(OTP_PROMPT_TEXTS[promptKey], voiceKey, null, speed)
+    if (result && result.audioUrl && _db) {
+      const _id = _otpCacheId(voiceKey, promptKey, speed)
+      await _db.collection('ivrOtpPromptCache').updateOne(
+        { _id },
+        { $set: { _id, voiceKey, promptKey, speed: Number(speed || 1), audioUrl: result.audioUrl, text: OTP_PROMPT_TEXTS[promptKey], createdAt: new Date() } },
+        { upsert: true }
+      )
+      return result.audioUrl
+    }
+    return null
+  } catch (e) { try { log(`[TTS] ensureOtpPrompt error: ${e.message}`) } catch (_) { /* noop */ } ; return null }
+}
+
+// Warm all OTP prompt clips for a voice (fire-and-forget from IVR setup / call init).
+async function warmOtpPrompts(voiceKey, speed = 1) {
+  if (!voiceKey) return
+  for (const promptKey of Object.keys(OTP_PROMPT_TEXTS)) {
+    await ensureOtpPrompt(voiceKey, promptKey, speed).catch(() => {})
+  }
+}
+
+
 module.exports = {
   generateTTS,
   downloadTelegramAudio,
@@ -647,4 +705,8 @@ module.exports = {
   DEFAULT_VOICE,
   DEFAULT_PROVIDER,
   AUDIO_DIR,
+  OTP_PROMPT_TEXTS,
+  getCachedOtpPrompt,
+  ensureOtpPrompt,
+  warmOtpPrompts,
 }

@@ -76,18 +76,34 @@ function isCallEnded(callControlId) {
   return _endedCalls.has(callControlId)
 }
 
-// ── Voice mapping: OpenAI voice → Twilio Polly voice & Telnyx voice gender ──
+// ── Voice mapping: TTS voice → Twilio Polly voice & Telnyx voice gender ──
+// Used as the FALLBACK voice for Twilio say() when a matching-voice audio clip
+// isn't available. ElevenLabs voices are mapped by GENDER so the fallback at least
+// matches the greeting's gender (bug fix 2026-08-07).
 const OPENAI_TO_TWILIO_VOICE = {
+  // OpenAI voices
   'alloy': 'Polly.Joanna-Neural',      // Female, neutral
   'fable': 'Polly.Brian-Neural',        // Male, British expressive
   'nova': 'Polly.Salli-Neural',         // Female, warm friendly
   'shimmer': 'Polly.Kimberly-Neural',   // Female, clear pleasant
   'echo': 'Polly.Matthew-Neural',       // Male, warm deep
   'onyx': 'Polly.Stephen-Neural',       // Male, deep authoritative
+  // ElevenLabs female voices → female Polly
+  'rachel': 'Polly.Joanna-Neural', 'sarah': 'Polly.Kimberly-Neural', 'laura': 'Polly.Salli-Neural',
+  'emily': 'Polly.Joanna-Neural', 'domi': 'Polly.Kimberly-Neural', 'dorothy': 'Polly.Salli-Neural',
+  'glinda': 'Polly.Joanna-Neural',
+  // ElevenLabs male voices → male Polly
+  'drew': 'Polly.Matthew-Neural', 'charlie': 'Polly.Brian-Neural', 'clyde': 'Polly.Stephen-Neural',
+  'adam': 'Polly.Matthew-Neural', 'josh': 'Polly.Stephen-Neural', 'arnold': 'Polly.Matthew-Neural',
+  'sam': 'Polly.Brian-Neural', 'thomas': 'Polly.Matthew-Neural',
 }
 const OPENAI_TO_TELNYX_VOICE = {
   'alloy': 'female', 'fable': 'male', 'nova': 'female',
   'shimmer': 'female', 'echo': 'male', 'onyx': 'male',
+  'rachel': 'female', 'sarah': 'female', 'laura': 'female', 'emily': 'female',
+  'domi': 'female', 'dorothy': 'female', 'glinda': 'female',
+  'drew': 'male', 'charlie': 'male', 'clyde': 'male', 'adam': 'male',
+  'josh': 'male', 'arnold': 'male', 'sam': 'male', 'thomas': 'male',
 }
 function getTwilioVoice(voiceName) {
   return OPENAI_TO_TWILIO_VOICE[(voiceName || '').toLowerCase()] || 'Polly.Matthew-Neural'

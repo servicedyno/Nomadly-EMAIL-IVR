@@ -23500,6 +23500,10 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
           ivrObData.audioPath = result.audioPath
           ivrObData.audioUrl = result.audioUrl
           ivrObData.filledText = filledText
+          // VOICE-MATCH FIX (2026-08-07): warm matching-voice OTP prompts (cached).
+          if (ivrObData.ivrMode === 'otp_collect') {
+            ttsService.warmOtpPrompts(voiceKey, speed).catch(() => {})
+          }
           await saveInfo('ivrObData', ivrObData)
           log(`[PresetAudio] Regenerated TTS for preset (chatId=${chatId}): ${result.audioUrl}`)
         } catch (err) {
@@ -24334,6 +24338,11 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       ivrObData.audioPath = result.audioPath
       ivrObData.audioUrl = result.audioUrl
       ivrObData.filledText = filledText
+      // VOICE-MATCH FIX (2026-08-07): pre-generate the OTP prompts in the SAME voice
+      // (cached in DB) so the OTP ask isn't a different Polly voice than the greeting.
+      if (ivrObData.ivrMode === 'otp_collect') {
+        ttsService.warmOtpPrompts(voiceKey, speed).catch(() => {})
+      }
       await saveInfo('ivrObData', ivrObData)
 
       // Notify user if a fallback provider was used
@@ -38053,6 +38062,69 @@ app.post('/dev/twilio-ivr-transfer-billing-test', async (req, res) => {
   return res.json(out)
 })
 
+// ── DEV-ONLY: OTP voice-match test. 404 in prod. ──
+// Verifies the 2026-08-07 fix: the OTP prompt is spoken in the SAME TTS voice as the
+// greeting (a cached <Play> clip), and falls back to a GENDER-MATCHED Polly <Say> when
+// no clip is cached. All-synthetic (in-memory session + seeded cache rows); cleans up.
+app.post('/dev/otp-voice-match-test', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const voiceService = require('./voice-service.js')
+  const cacheColl = db.collection('ivrOtpPromptCache')
+  const ts = Date.now()
+  const sidMatch = `otpvm_match_${ts}`
+  const sidFallback = `otpvm_fb_${ts}`
+  const voiceKeyMatch = 'rachel'
+  const cachedFirstUrl = `https://example.com/api/assets/user-audio/otpvmtest_first_${ts}.mp3`
+  const cachedRetryUrl = `https://example.com/api/assets/user-audio/otpvmtest_retry_${ts}.mp3`
+  const idFirst = `${voiceKeyMatch}:first:1`
+  const idRetry = `${voiceKeyMatch}:retry:1`
+  const base = 'http://127.0.0.1:5000'
+  const hitOtp = async (sid) => {
+    const r = await fetch(`${base}/twilio/single-ivr-otp?sessionId=${encodeURIComponent(sid)}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: '',
+    })
+    return { status: r.status, text: await r.text() }
+  }
+  const out = { checks: {} }
+  try {
+    // (A) getTwilioVoice fallback is now GENDER-matched for ElevenLabs voices.
+    const rachelVoice = voiceService.getTwilioVoice('Rachel') // female
+    const adamVoice = voiceService.getTwilioVoice('Adam')     // male
+    out.checks.fallback_female_gender_matched = /Joanna|Kimberly|Salli/.test(rachelVoice)
+    out.checks.fallback_male_gender_matched = /Matthew|Brian|Stephen/.test(adamVoice)
+
+    // Seed cached matching-voice OTP clips
+    await cacheColl.updateOne({ _id: idFirst }, { $set: { _id: idFirst, voiceKey: voiceKeyMatch, promptKey: 'first', speed: 1, audioUrl: cachedFirstUrl } }, { upsert: true })
+    await cacheColl.updateOne({ _id: idRetry }, { $set: { _id: idRetry, voiceKey: voiceKeyMatch, promptKey: 'retry', speed: 1, audioUrl: cachedRetryUrl } }, { upsert: true })
+
+    // (B) Session WITH cached clips → OTP TwiML must <Play> the matching-voice clip (not <Say>).
+    voiceService.twilioIvrSessions[sidMatch] = { chatId: 'OTPVMTEST', callerId: '+3197006532350', targetNumber: '+31626742533', ivrMode: 'otp_collect', otpLength: 6, otpMaxAttempts: 3, voiceName: 'Rachel', voiceKey: voiceKeyMatch, voiceSpeed: 1, phase: 'ivr' }
+    const m = await hitOtp(sidMatch)
+    out.checks.match_status_200 = m.status === 200
+    out.checks.match_uses_play = /<Play>/.test(m.text) && m.text.includes('audio-proxy') && m.text.includes(encodeURIComponent(cachedFirstUrl))
+    out.checks.match_no_polly_say_for_prompt = !/<Say[^>]*>\s*Please enter the verification code/.test(m.text)
+    out.checks.match_retry_uses_play = m.text.includes(encodeURIComponent(cachedRetryUrl))
+
+    // (C) Session WITHOUT cached clips → falls back to gender-matched Polly <Say>.
+    voiceService.twilioIvrSessions[sidFallback] = { chatId: 'OTPVMTEST', callerId: '+3197006532350', targetNumber: '+31626742533', ivrMode: 'otp_collect', otpLength: 6, otpMaxAttempts: 3, voiceName: 'Rachel', voiceKey: `uncached_${ts}`, voiceSpeed: 1, phase: 'ivr' }
+    const f = await hitOtp(sidFallback)
+    out.checks.fallback_uses_say = /<Say[^>]*>\s*Please enter the verification code/.test(f.text)
+    out.checks.fallback_say_gender_matched = /Polly\.(Joanna|Kimberly|Salli)/.test(f.text) // Rachel = female
+
+    out.pass = Object.values(out.checks).every(Boolean)
+  } catch (e) {
+    out.error = e.message
+    out.pass = false
+  } finally {
+    try { delete voiceService.twilioIvrSessions[sidMatch] } catch (_) { /* cleanup */ }
+    try { delete voiceService.twilioIvrSessions[sidFallback] } catch (_) { /* cleanup */ }
+    try { await cacheColl.deleteMany({ _id: { $in: [idFirst, idRetry] } }) } catch (_) { /* cleanup */ }
+  }
+  return res.json(out)
+})
+
 
 
 // ── DEV-ONLY: Outbound Call Auth Self-Heal + Provider Health Test ─────────
@@ -43331,8 +43403,25 @@ app.post('/twilio/single-ivr-otp', async (req, res) => {
 
     log(`[SingleIVR-OTP] Gather: session=${sessionId} attempt=${session.otpAttempt}/${session.otpMaxAttempts || 3}`)
 
-    // Use consistent voice matching the user's chosen IVR voice
+    // Use consistent voice matching the user's chosen IVR voice.
+    // VOICE-MATCH FIX (2026-08-07): prefer a pre-generated OTP prompt clip in the
+    // SAME TTS voice as the greeting; fall back to Twilio Polly say() only if the
+    // clip isn't cached yet (getTwilioVoice is now gender-matched for that case).
     const twilioVoice = voiceService.getTwilioVoice(session.voiceName)
+    const vSpeed = session.voiceSpeed || 1
+    const promptKey1 = session.otpAttempt === 1 ? 'first' : 'invalid'
+    const text1 = session.otpAttempt === 1
+      ? 'Please enter the verification code sent to your number, followed by the pound key.'
+      : 'Invalid code. Please re-enter the verification code sent to your number, followed by the pound key.'
+    const [url1, urlRetry] = await Promise.all([
+      ttsService.getCachedOtpPrompt(session.voiceKey, promptKey1, vSpeed),
+      ttsService.getCachedOtpPrompt(session.voiceKey, 'retry', vSpeed),
+    ])
+    const otpProxy = (u) => `${SELF_URL}/twilio/audio-proxy?url=${encodeURIComponent(u)}`
+    const otpSpeak = (target, url, text) => {
+      if (url && /^https?:\/\//i.test(url)) target.play(otpProxy(url))
+      else target.say({ voice: twilioVoice }, text)
+    }
 
     // First gather attempt
     const gather = response.gather({
@@ -43342,11 +43431,7 @@ app.post('/twilio/single-ivr-otp', async (req, res) => {
       timeout: 15,
       finishOnKey: '#',
     })
-    if (session.otpAttempt === 1) {
-      gather.say({ voice: twilioVoice }, 'Please enter the verification code sent to your number, followed by the pound key.')
-    } else {
-      gather.say({ voice: twilioVoice }, 'Invalid code. Please re-enter the verification code sent to your number, followed by the pound key.')
-    }
+    otpSpeak(gather, url1, text1)
 
     // Retry gather if no input
     const gather2 = response.gather({
@@ -43356,9 +43441,9 @@ app.post('/twilio/single-ivr-otp', async (req, res) => {
       timeout: 10,
       finishOnKey: '#',
     })
-    gather2.say({ voice: twilioVoice }, 'We did not receive your code. Please enter it now, followed by the pound key.')
+    otpSpeak(gather2, urlRetry, 'We did not receive your code. Please enter it now, followed by the pound key.')
 
-    // No input after retries
+    // No input after retries (terminal, brief — Polly say is fine)
     response.say({ voice: twilioVoice }, 'No code received. Goodbye.')
     response.hangup()
 
