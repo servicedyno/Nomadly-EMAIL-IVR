@@ -256,6 +256,7 @@ const btn = {
 
   // Quick IVR Call (single number)
   ivrOutboundCall: '📢 Quick IVR Call',
+  ivrOutboundCallTrial: '📢 Quick IVR Call — 1 Free',
   ivrOutboundBack: '↩️ Back',
 
   // Bulk IVR Campaign (multiple numbers)
@@ -1536,6 +1537,7 @@ const btnI18n = {
     inboxOlderPage: '▶️ Plus Ancien',
     inboxRefresh: '🔄 Actualiser',
     ivrOutboundCall: '📢 Appel IVR Rapide',
+    ivrOutboundCallTrial: '📢 Appel IVR Rapide — 1 Gratuit',
     ivrOutboundBack: '↩️ Retour',
     bulkCallCampaign: '📞 Campagne IVR en Masse',
     audioLibrary: '🎵 Bibliothèque Audio',
@@ -1620,6 +1622,7 @@ const btnI18n = {
     inboxOlderPage: '▶️ 较旧',
     inboxRefresh: '🔄 刷新',
     ivrOutboundCall: '📢 快速IVR呼叫',
+    ivrOutboundCallTrial: '📢 快速IVR呼叫 — 1次免费',
     ivrOutboundBack: '↩️ 返回',
     bulkCallCampaign: '📞 批量IVR活动',
     audioLibrary: '🎵 音频库',
@@ -1704,6 +1707,7 @@ const btnI18n = {
     inboxOlderPage: '▶️ पुराने',
     inboxRefresh: '🔄 रिफ्रेश',
     ivrOutboundCall: '📢 त्वरित IVR कॉल',
+    ivrOutboundCallTrial: '📢 त्वरित IVR कॉल — 1 मुफ्त',
     ivrOutboundBack: '↩️ वापस',
     bulkCallCampaign: '📞 बल्क IVR अभियान',
     audioLibrary: '🎵 ऑडियो लाइब्रेरी',

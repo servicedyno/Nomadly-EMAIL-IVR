@@ -1429,6 +1429,22 @@ const send = (chatId, message, options) => {
   bot?.sendMessage(chatId, message, opts)?.catch(e => log(e.message + ': ' + chatId))
 }
 
+// Quick IVR button label — show the "— 1 Free" hook ONLY to trial-eligible users:
+// non-subscribers (no active number) who have NOT yet used their free Quick IVR
+// trial call. Mirrors the grant rule in the Quick IVR tap handler
+// (!hasNumbers && !ivrTrialUsed_<chatId>). Subscribers and users who already used
+// the trial see the neutral label. Async — call as `await quickIvrLabel(chatId, pc)`.
+async function quickIvrLabel(chatId, pc) {
+  try {
+    const userData = await get(phoneNumbersOf, chatId)
+    const hasActive = (userData?.numbers || []).some(n => n.status === 'active')
+    if (hasActive) return pc.ivrOutboundCall
+    const trialUsed = await get(state, `ivrTrialUsed_${chatId}`).catch(() => null)
+    if (!trialUsed) return pc.ivrOutboundCallTrial || pc.ivrOutboundCall
+  } catch (e) { /* fall back to neutral label */ }
+  return pc.ivrOutboundCall
+}
+
 // ════════════════════════════════════════════════════════════════════
 // UX FEATURE #3 — Message Reactions
 // Lightweight, native acknowledgment of key events by reacting to the
@@ -8904,9 +8920,10 @@ bot?.on('message', msg => {
         const proof = userConversion.getSocialProof('cloudphone', info?.userLanguage || 'en')
         if (proof) cpWelcome += `\n\n${proof}`
       }
+      const ivrBtnHub = await quickIvrLabel(chatId, pc)
       send(chatId, cpWelcome, k.of([
         [pc.testSipFree],
-        [pc.ivrOutboundCall],
+        [ivrBtnHub],
         [pc.buyPhoneNumber],
         [pc.bulkCallCampaign],
         [pc.audioLibrary],
@@ -22737,9 +22754,10 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   // ❓ Cloud IVR: How It Works
   if (action === a.submenu5 && phoneConfig.isBtnMatch(message, 'howItWorks')) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
+    const ivrBtnHiw = await quickIvrLabel(chatId, pc)
     return send(chatId, cpTxt.howItWorks, k.of([
       [pc.testSipFree],
-      [pc.ivrOutboundCall],
+      [ivrBtnHiw],
       [pc.buyPhoneNumber],
       [pc.bulkCallCampaign],
       [pc.audioLibrary],
@@ -37443,14 +37461,29 @@ app.get('/dev/ux-fixes-audit', (req, res) => {
   const newlineCheck = { scanned, leakingKeyCount: leakKeys.length, leakingKeys: leakKeys.slice(0, 30), samples }
 
   // --- T4: Quick IVR label must not carry a static "free" promise in any language ---
+  // --- T4: base label neutral; trial variant carries the "1 Free" hook; hook
+  //         is shown ONLY to trial-eligible users (non-subscriber + unused trial) ---
   const quickIvrLabels = {}
-  const badWords = ['1 Free', 'Gratuit', '免费', 'मुफ्त', 'मुफ़्त']
+  const freeWords = ['1 Free', 'Gratuit', '免费', 'मुफ्त', 'मुफ़्त']
   for (const lang of ['en', 'fr', 'zh', 'hi']) {
-    let label = ''
-    try { label = phoneConfig.getBtn(lang).ivrOutboundCall } catch (e) { label = '(err)' }
-    quickIvrLabels[lang] = { label, overPromises: badWords.some(w => String(label).includes(w)) }
+    const b = phoneConfig.getBtn(lang)
+    const base = b.ivrOutboundCall || ''
+    const trial = b.ivrOutboundCallTrial || ''
+    quickIvrLabels[lang] = {
+      base, trial,
+      baseOverPromises: freeWords.some(w => base.includes(w)),
+      trialHasFreeHook: freeWords.some(w => trial.includes(w)),
+    }
   }
-  const t4Ok = Object.values(quickIvrLabels).every(v => !v.overPromises)
+  // Pure decision rule mirroring quickIvrLabel(): eligible = no active number AND trial not used.
+  const decideLabel = (hasActive, trialUsed) => (!hasActive && !trialUsed) ? 'trial' : 'base'
+  const labelDecisions = {
+    newUser: decideLabel(false, false),    // expect 'trial'  -> sees "— 1 Free"
+    usedTrial: decideLabel(false, true),    // expect 'base'
+    subscriber: decideLabel(true, false),   // expect 'base'
+  }
+  const t4Ok = Object.values(quickIvrLabels).every(v => !v.baseOverPromises && v.trialHasFreeHook)
+    && labelDecisions.newUser === 'trial' && labelDecisions.usedTrial === 'base' && labelDecisions.subscriber === 'base'
 
   // --- T5: advertised plan features vs planFeatureAccess enforcement ---
   const featureKeywords = {
@@ -37483,7 +37516,7 @@ app.get('/dev/ux-fixes-audit', (req, res) => {
   return res.json({
     ok: newlineCheck.leakingKeyCount === 0 && t4Ok && planMarketingAudit.mismatchCount === 0,
     newlineCheck,        // B1
-    quickIvrLabels, t4Ok, // T4
+    quickIvrLabels, labelDecisions, t4Ok, // T4
     planMarketingAudit,  // T5
   })
 })

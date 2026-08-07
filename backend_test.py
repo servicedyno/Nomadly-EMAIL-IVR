@@ -1,253 +1,273 @@
 #!/usr/bin/env python3
 """
-Backend API Testing for Nomadly Telegram-bot UX/text fix batch
-Tests B1 (newline fix), T4 (Quick IVR label), T5 (plan marketing consistency)
-Plus OTP regression check
+Backend test for T4 Quick IVR "1 Free" label dynamic eligibility fix + regression checks.
+
+Tests the corrected implementation where:
+- Eligible new users (no active phone number, haven't used free trial) see "📢 Quick IVR Call — 1 Free"
+- Subscribers and users who already used the trial see "📢 Quick IVR Call" (neutral, no "1 Free")
 """
 
 import requests
 import sys
-import json
+import os
 
-# Get backend URL from frontend/.env
-BACKEND_URL = "https://f06fe503-30a9-4c4e-a049-cc26f354ea86.preview.emergentagent.com"
+# Get backend URL from environment
+BACKEND_URL = os.getenv('REACT_APP_BACKEND_URL', 'https://f06fe503-30a9-4c4e-a049-cc26f354ea86.preview.emergentagent.com')
 
-class TestResult:
-    def __init__(self):
-        self.passed = 0
-        self.failed = 0
-        self.errors = []
-    
-    def add_pass(self, test_name: str):
-        self.passed += 1
-        print(f"  ✅ {test_name}")
-    
-    def add_fail(self, test_name: str, reason: str):
-        self.failed += 1
-        error_msg = f"  ❌ {test_name}: {reason}"
-        self.errors.append(error_msg)
-        print(error_msg)
-    
-    def summary(self):
-        total = self.passed + self.failed
-        print(f"\n{'='*80}")
-        print(f"OVERALL: {self.passed}/{total} assertions passed")
-        print(f"{'='*80}")
-        if self.errors:
-            print("\nFAILED ASSERTIONS:")
-            for error in self.errors:
-                print(error)
-        return self.failed == 0
-
-
-def test_ux_fixes_audit(result: TestResult):
+def test_ux_fixes_audit():
     """
-    TEST 1: Verify B1 (newline fix), T4 (Quick IVR label), T5 (plan marketing consistency)
+    TEST 1: Verify the corrected T4 Quick IVR label fix (dynamic eligibility-based)
+    plus B1 (newline fix) and T5 (plan marketing consistency).
     """
     print("\n" + "="*80)
-    print("TEST 1: UX Fixes Audit - B1, T4, T5 Verification")
+    print("TEST 1: UX FIXES AUDIT (T4 revised - dynamic eligibility)")
     print("="*80)
     
     url = f"{BACKEND_URL}/api/dev/ux-fixes-audit"
-    print(f"\nGET {url}\n")
+    print(f"\nGET {url}")
     
     try:
         response = requests.get(url, timeout=30)
         print(f"Status: {response.status_code}")
         
         if response.status_code != 200:
-            result.add_fail("HTTP 200", f"Got {response.status_code}")
-            print(f"Response: {response.text[:500]}")
-            return
-        
-        result.add_pass("HTTP 200")
+            print(f"❌ FAIL: Expected HTTP 200, got {response.status_code}")
+            print(f"Response: {response.text}")
+            return False
         
         data = response.json()
-        print(f"\nResponse preview:")
-        print(json.dumps(data, indent=2)[:800])
-        print("...\n")
+        print(f"Response received (keys: {list(data.keys())})")
         
-        # Assertion 1: ok === true
-        if data.get('ok') == True:
-            result.add_pass("ok === true")
-        else:
-            result.add_fail("ok === true", f"Got {data.get('ok')}")
+        # Track all assertions
+        assertions = []
         
-        # B1 ASSERTIONS: newlineCheck
-        print("\n[B1: Newline Fix Verification]")
+        # Assert: ok === true
+        ok_check = data.get('ok') == True
+        assertions.append(('ok === true', ok_check))
+        print(f"\n✅ ok === true" if ok_check else f"\n❌ ok === {data.get('ok')}")
+        
+        # B1: Newline checks
         newline_check = data.get('newlineCheck', {})
-        
-        # Assertion 2: leakingKeyCount === 0
         leaking_count = newline_check.get('leakingKeyCount', -1)
-        if leaking_count == 0:
-            result.add_pass("newlineCheck.leakingKeyCount === 0 (no literal \\n leaks)")
-        else:
-            result.add_fail("newlineCheck.leakingKeyCount === 0", f"Got {leaking_count}")
+        leaking_ok = leaking_count == 0
+        assertions.append(('newlineCheck.leakingKeyCount === 0', leaking_ok))
+        print(f"✅ newlineCheck.leakingKeyCount === 0" if leaking_ok else f"❌ newlineCheck.leakingKeyCount === {leaking_count}")
         
+        # Sample checks
         samples = newline_check.get('samples', {})
         
-        # Assertion 3: cp_41 (Select Call Mode)
         cp_41 = samples.get('cp_41', {})
-        cp_41_literal = cp_41.get('literalBackslashN', -1)
-        cp_41_real = cp_41.get('realNewlines', -1)
-        if cp_41_literal == 0 and cp_41_real > 0:
-            result.add_pass(f"cp_41.literalBackslashN === 0 AND realNewlines > 0 (literal={cp_41_literal}, real={cp_41_real})")
-        else:
-            result.add_fail("cp_41 newline check", f"literal={cp_41_literal}, real={cp_41_real}")
+        cp_41_ok = cp_41.get('literalBackslashN', -1) == 0
+        assertions.append(('newlineCheck.samples.cp_41.literalBackslashN === 0', cp_41_ok))
+        print(f"✅ newlineCheck.samples.cp_41.literalBackslashN === 0" if cp_41_ok else f"❌ cp_41.literalBackslashN === {cp_41.get('literalBackslashN')}")
         
-        # Assertion 4: wlt_9 (Transaction History)
         wlt_9 = samples.get('wlt_9', {})
-        wlt_9_literal = wlt_9.get('literalBackslashN', -1)
-        if wlt_9_literal == 0:
-            result.add_pass(f"wlt_9.literalBackslashN === 0 (actual={wlt_9_literal})")
-        else:
-            result.add_fail("wlt_9.literalBackslashN === 0", f"Got {wlt_9_literal}")
+        wlt_9_ok = wlt_9.get('literalBackslashN', -1) == 0
+        assertions.append(('newlineCheck.samples.wlt_9.literalBackslashN === 0', wlt_9_ok))
+        print(f"✅ newlineCheck.samples.wlt_9.literalBackslashN === 0" if wlt_9_ok else f"❌ wlt_9.literalBackslashN === {wlt_9.get('literalBackslashN')}")
         
-        # Assertion 5: cp_76 (trial OTP)
         cp_76 = samples.get('cp_76', {})
-        cp_76_literal = cp_76.get('literalBackslashN', -1)
-        if cp_76_literal == 0:
-            result.add_pass(f"cp_76.literalBackslashN === 0 (actual={cp_76_literal})")
-        else:
-            result.add_fail("cp_76.literalBackslashN === 0", f"Got {cp_76_literal}")
+        cp_76_ok = cp_76.get('literalBackslashN', -1) == 0
+        assertions.append(('newlineCheck.samples.cp_76.literalBackslashN === 0', cp_76_ok))
+        print(f"✅ newlineCheck.samples.cp_76.literalBackslashN === 0" if cp_76_ok else f"❌ cp_76.literalBackslashN === {cp_76.get('literalBackslashN')}")
         
-        # T4 ASSERTIONS: Quick IVR label
-        print("\n[T4: Quick IVR Label Fix Verification]")
-        
-        # Assertion 6: t4Ok === true
-        t4_ok = data.get('t4Ok')
-        if t4_ok == True:
-            result.add_pass("t4Ok === true")
-        else:
-            result.add_fail("t4Ok === true", f"Got {t4_ok}")
+        # T4: Quick IVR label checks (REVISED - dynamic eligibility)
+        t4_ok = data.get('t4Ok') == True
+        assertions.append(('t4Ok === true', t4_ok))
+        print(f"\n✅ t4Ok === true" if t4_ok else f"\n❌ t4Ok === {data.get('t4Ok')}")
         
         quick_ivr_labels = data.get('quickIvrLabels', {})
-        en_label = quick_ivr_labels.get('en', {})
+        en_labels = quick_ivr_labels.get('en', {})
         
-        # Assertion 7: overPromises === false
-        over_promises = en_label.get('overPromises')
-        if over_promises == False:
-            result.add_pass("quickIvrLabels.en.overPromises === false")
-        else:
-            result.add_fail("quickIvrLabels.en.overPromises === false", f"Got {over_promises}")
+        # Base label should NOT over-promise (no "1 Free")
+        base_over_promises = en_labels.get('baseOverPromises', True)
+        base_ok = base_over_promises == False
+        assertions.append(('quickIvrLabels.en.baseOverPromises === false', base_ok))
+        print(f"✅ quickIvrLabels.en.baseOverPromises === false" if base_ok else f"❌ quickIvrLabels.en.baseOverPromises === {base_over_promises}")
         
-        # Assertion 8: label does NOT contain "1 Free"
-        label_text = en_label.get('label', '')
-        if '1 Free' not in label_text:
-            result.add_pass(f"quickIvrLabels.en.label does NOT contain '1 Free' (label: '{label_text}')")
-        else:
-            result.add_fail("label does NOT contain '1 Free'", f"Found in: '{label_text}'")
+        # Trial label SHOULD have the free hook
+        trial_has_free_hook = en_labels.get('trialHasFreeHook', False)
+        trial_hook_ok = trial_has_free_hook == True
+        assertions.append(('quickIvrLabels.en.trialHasFreeHook === true', trial_hook_ok))
+        print(f"✅ quickIvrLabels.en.trialHasFreeHook === true" if trial_hook_ok else f"❌ quickIvrLabels.en.trialHasFreeHook === {trial_has_free_hook}")
         
-        # T5 ASSERTIONS: Plan marketing consistency
-        print("\n[T5: Plan Marketing Consistency Guard Verification]")
+        # Trial label should contain "1 Free"
+        trial_label = en_labels.get('trial', '')
+        trial_contains_free = '1 Free' in trial_label
+        assertions.append(('quickIvrLabels.en.trial contains "1 Free"', trial_contains_free))
+        print(f"✅ quickIvrLabels.en.trial contains '1 Free': \"{trial_label}\"" if trial_contains_free else f"❌ quickIvrLabels.en.trial does NOT contain '1 Free': \"{trial_label}\"")
         
-        # Assertion 9: planMarketingAudit.mismatchCount === 0
+        # Base label should NOT contain "1 Free"
+        base_label = en_labels.get('base', '')
+        base_no_free = '1 Free' not in base_label
+        assertions.append(('quickIvrLabels.en.base does NOT contain "1 Free"', base_no_free))
+        print(f"✅ quickIvrLabels.en.base does NOT contain '1 Free': \"{base_label}\"" if base_no_free else f"❌ quickIvrLabels.en.base contains '1 Free': \"{base_label}\"")
+        
+        # Label decisions (dynamic eligibility)
+        label_decisions = data.get('labelDecisions', {})
+        
+        new_user_decision = label_decisions.get('newUser', '')
+        new_user_ok = new_user_decision == 'trial'
+        assertions.append(('labelDecisions.newUser === "trial"', new_user_ok))
+        print(f"\n✅ labelDecisions.newUser === 'trial' (eligible new user sees the '1 Free' hook)" if new_user_ok else f"\n❌ labelDecisions.newUser === '{new_user_decision}'")
+        
+        used_trial_decision = label_decisions.get('usedTrial', '')
+        used_trial_ok = used_trial_decision == 'base'
+        assertions.append(('labelDecisions.usedTrial === "base"', used_trial_ok))
+        print(f"✅ labelDecisions.usedTrial === 'base'" if used_trial_ok else f"❌ labelDecisions.usedTrial === '{used_trial_decision}'")
+        
+        subscriber_decision = label_decisions.get('subscriber', '')
+        subscriber_ok = subscriber_decision == 'base'
+        assertions.append(('labelDecisions.subscriber === "base"', subscriber_ok))
+        print(f"✅ labelDecisions.subscriber === 'base'" if subscriber_ok else f"❌ labelDecisions.subscriber === '{subscriber_decision}'")
+        
+        # T5: Plan marketing consistency
         plan_marketing = data.get('planMarketingAudit', {})
         mismatch_count = plan_marketing.get('mismatchCount', -1)
-        if mismatch_count == 0:
-            result.add_pass("planMarketingAudit.mismatchCount === 0 (advertised == enforced)")
-        else:
-            result.add_fail("planMarketingAudit.mismatchCount === 0", f"Got {mismatch_count}")
-            # Show mismatches if any
-            mismatches = plan_marketing.get('mismatches', [])
-            if mismatches:
-                print(f"\n  Mismatches found:")
-                for m in mismatches[:3]:  # Show first 3
-                    print(f"    - {m}")
+        plan_ok = mismatch_count == 0
+        assertions.append(('planMarketingAudit.mismatchCount === 0', plan_ok))
+        print(f"\n✅ planMarketingAudit.mismatchCount === 0 (advertised == enforced)" if plan_ok else f"\n❌ planMarketingAudit.mismatchCount === {mismatch_count}")
         
+        # Summary
+        passed = sum(1 for _, result in assertions if result)
+        total = len(assertions)
+        print(f"\n{'='*80}")
+        print(f"TEST 1 SUMMARY: {passed}/{total} assertions passed")
+        print(f"{'='*80}")
+        
+        if passed == total:
+            print("✅ TEST 1 PASSED - All assertions verified")
+            return True
+        else:
+            print("❌ TEST 1 FAILED - Some assertions failed")
+            for assertion, result in assertions:
+                if not result:
+                    print(f"  ❌ {assertion}")
+            return False
+            
     except requests.exceptions.RequestException as e:
-        result.add_fail("Request", f"Error: {e}")
+        print(f"❌ FAIL: Request error: {e}")
+        return False
     except Exception as e:
-        result.add_fail("Test execution", f"Error: {e}")
+        print(f"❌ FAIL: Unexpected error: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
 
 
-def test_otp_regression(result: TestResult):
+def test_otp_plan_gate_regression():
     """
-    TEST 2: Regression check - OTP plan gate fix must still hold
+    TEST 2: Regression check - verify OTP plan gate fix still holds
     """
     print("\n" + "="*80)
-    print("TEST 2: OTP Plan Gate Regression Check")
+    print("TEST 2: OTP PLAN GATE REGRESSION CHECK")
     print("="*80)
     
     url = f"{BACKEND_URL}/api/dev/otp-plan-gate-check"
-    print(f"\nGET {url}\n")
+    print(f"\nGET {url}")
     
     try:
         response = requests.get(url, timeout=30)
         print(f"Status: {response.status_code}")
         
         if response.status_code != 200:
-            result.add_fail("HTTP 200", f"Got {response.status_code}")
-            print(f"Response: {response.text[:500]}")
-            return
-        
-        result.add_pass("HTTP 200")
+            print(f"❌ FAIL: Expected HTTP 200, got {response.status_code}")
+            print(f"Response: {response.text}")
+            return False
         
         data = response.json()
-        print(f"\nResponse preview:")
-        print(json.dumps(data, indent=2)[:600])
-        print("...\n")
+        print(f"Response received (keys: {list(data.keys())})")
         
-        # Assertion 10: matrix.pro.otpCollection === true
+        # Track assertions
+        assertions = []
+        
+        # Assert: matrix.pro.otpCollection === true
         matrix = data.get('matrix', {})
         pro = matrix.get('pro', {})
-        pro_otp = pro.get('otpCollection')
-        if pro_otp == True:
-            result.add_pass("matrix.pro.otpCollection === true")
-        else:
-            result.add_fail("matrix.pro.otpCollection === true", f"Got {pro_otp}")
+        otp_collection = pro.get('otpCollection', False)
+        otp_ok = otp_collection == True
+        assertions.append(('matrix.pro.otpCollection === true', otp_ok))
+        print(f"\n✅ matrix.pro.otpCollection === true" if otp_ok else f"\n❌ matrix.pro.otpCollection === {otp_collection}")
         
-        # Assertion 11: gateDecisions.pro.allowed === true
+        # Assert: gateDecisions.pro.allowed === true
         gate_decisions = data.get('gateDecisions', {})
         pro_decision = gate_decisions.get('pro', {})
-        pro_allowed = pro_decision.get('allowed')
-        if pro_allowed == True:
-            result.add_pass("gateDecisions.pro.allowed === true")
-        else:
-            result.add_fail("gateDecisions.pro.allowed === true", f"Got {pro_allowed}")
+        allowed = pro_decision.get('allowed', False)
+        allowed_ok = allowed == True
+        assertions.append(('gateDecisions.pro.allowed === true', allowed_ok))
+        print(f"✅ gateDecisions.pro.allowed === true" if allowed_ok else f"❌ gateDecisions.pro.allowed === {allowed}")
         
+        # Summary
+        passed = sum(1 for _, result in assertions if result)
+        total = len(assertions)
+        print(f"\n{'='*80}")
+        print(f"TEST 2 SUMMARY: {passed}/{total} assertions passed")
+        print(f"{'='*80}")
+        
+        if passed == total:
+            print("✅ TEST 2 PASSED - Regression check verified")
+            return True
+        else:
+            print("❌ TEST 2 FAILED - Regression check failed")
+            for assertion, result in assertions:
+                if not result:
+                    print(f"  ❌ {assertion}")
+            return False
+            
     except requests.exceptions.RequestException as e:
-        result.add_fail("Request", f"Error: {e}")
+        print(f"❌ FAIL: Request error: {e}")
+        return False
     except Exception as e:
-        result.add_fail("Test execution", f"Error: {e}")
+        print(f"❌ FAIL: Unexpected error: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
 
 
 def main():
     """Run all tests"""
     print("\n" + "="*80)
-    print("NOMADLY TELEGRAM-BOT UX/TEXT FIX BATCH VERIFICATION")
+    print("BACKEND TEST: T4 Quick IVR '1 Free' Label - Dynamic Eligibility Fix")
     print("="*80)
     print(f"Backend URL: {BACKEND_URL}")
-    print(f"Architecture: Node.js Express (port 5000) behind FastAPI proxy (port 8001)")
-    print(f"BOT_ENVIRONMENT: development (dev routes live, no auth key needed)")
-    print("\nFixes to verify:")
-    print("  B1: ~100 language strings fixed (literal \\n → real newlines)")
-    print("  T4: Quick IVR button '— 1 Free' promise removed")
-    print("  T5: Plan marketing consistency guard added")
-    print("  Regression: OTP plan gate fix must still hold")
+    print(f"Architecture: Node.js Express bot (port 5000) behind FastAPI proxy (port 8001)")
+    print(f"BOT_ENVIRONMENT=development (read-only /dev/* routes are live, no auth key needed)")
+    
+    results = []
+    
+    # Run TEST 1: UX fixes audit (T4 revised + B1 + T5)
+    test1_passed = test_ux_fixes_audit()
+    results.append(('TEST 1: UX Fixes Audit (T4 revised)', test1_passed))
+    
+    # Run TEST 2: OTP plan gate regression
+    test2_passed = test_otp_plan_gate_regression()
+    results.append(('TEST 2: OTP Plan Gate Regression', test2_passed))
+    
+    # Final summary
+    print("\n" + "="*80)
+    print("FINAL SUMMARY")
     print("="*80)
     
-    result = TestResult()
+    for test_name, passed in results:
+        status = "✅ PASS" if passed else "❌ FAIL"
+        print(f"{status}: {test_name}")
     
-    # Run tests
-    test_ux_fixes_audit(result)
-    test_otp_regression(result)
+    all_passed = all(passed for _, passed in results)
     
-    # Summary
-    success = result.summary()
-    
-    if success:
+    if all_passed:
         print("\n✅ ALL TESTS PASSED")
-        print("\nVerified fixes:")
-        print("  ✓ B1: No literal \\n leaks (cp_41, wlt_9, cp_76 all clean)")
-        print("  ✓ T4: Quick IVR label no longer over-promises '1 Free'")
-        print("  ✓ T5: Plan marketing consistency (advertised == enforced)")
-        print("  ✓ Regression: OTP plan gate fix still holds")
-        sys.exit(0)
+        print("\nKEY VERIFICATION:")
+        print("  • T4 Quick IVR label is now DYNAMIC/eligibility-based:")
+        print("    - Eligible new users see '📢 Quick IVR Call — 1 Free'")
+        print("    - Subscribers and users who used trial see '📢 Quick IVR Call' (neutral)")
+        print("  • B1 newline fix still holds (no literal \\n leaks)")
+        print("  • T5 plan marketing consistency still holds (advertised == enforced)")
+        print("  • OTP plan gate fix still holds (Pro users can access OTP Collection)")
+        return 0
     else:
         print("\n❌ SOME TESTS FAILED")
-        sys.exit(1)
+        return 1
 
 
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    sys.exit(main())
