@@ -78,8 +78,16 @@ backend:
     file: "/app/js/dial-rate-guard.js (new); /app/js/high-cost-dial-rates.json (new, 1260 prefixes); /app/js/voice-service.js (getCallRate/getIvrCallRate use guard; block in initiateOutboundIvrCall; getIvrCallRate exported); /app/js/phone-config.js (BLOCKED_FORWARDING_PREFIXES extended: 875/876/877/888/449); /app/js/_index.js (SIP-outbound block+rate; forwarding fwdRate; bulk transfer block; new POST /dev/dial-rate-guard-test)"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFIED (iteration_29, backend 100%, no critical/minor issues). /api/dev/dial-rate-guard-test →
+          pass=true, all checks true: satellite +882/+870 & UK premium +449 BLOCKED; Cuba=$1.53, Falklands=$4.95,
+          UK mobile=$4.25 surcharged; UK landline/NL=$0.50, US=$0.15 standard; getCallRate/getIvrCallRate reflect
+          guard incl. $10 satellite recovery rate; billing_cuba_surcharge_applied=$3.06 (2min×$1.53). All 6
+          regressions green (ivr-rate-policy, twilio+bulk transfer, reconciler-widen, call-reconciler, health).
       - working: "NA"
         agent: "main"
         comment: |

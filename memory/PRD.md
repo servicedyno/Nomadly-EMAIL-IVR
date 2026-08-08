@@ -3,6 +3,15 @@
 ## Original problem statement
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
+## 2026-08-07 — High-cost destination margin protection (block + surcharge) — VERIFIED
+User options 1+2: many destinations cost > $0.50/min on Twilio/Telnyx (satellite $10/min, Cuba $1.02, Falklands $3.30, UK mobile-surcharge prefixes $2.83, etc.), so the flat $0.50 intl price was loss-making on ~80 countries' worst prefixes. Fixed with a new margin guard.
+- New `js/dial-rate-guard.js` + `js/high-cost-dial-rates.json` (1260 prefixes seeded from Twilio's official outbound-voice rate deck). `classifyDial`/`getHighCostRate`/`getBilledRate`, longest-prefix match.
+- **Option 1 (BLOCK)**: satellite (`+870-878`, `+881-883`, `+888`) + UK premium (`+449`) blocked at placement — reuses/extends `phoneConfig.BLOCKED_FORWARDING_PREFIXES`. Blocks wired at: IVR outbound init (target+transfer), Twilio SIP-outbound, forwarding save (existing), bulk transfer-number entry. Blocked dests also return a $10/min recovery rate in billing as a safety net.
+- **Option 2 (SURCHARGE)**: expensive prefixes billed at cost×1.5 (floored $0.50) — integrated once into `getCallRate` + `getIvrCallRate`, so ALL billing (forwarding, SIP, outbound, IVR, transfer, bulk on both providers) auto-applies it. Longest-prefix match keeps cheap landlines in expensive countries (e.g. UK London +4420) at standard $0.50; only the pricey mobile/premium prefixes are surcharged.
+- Note: the handoff's own test number +447460064497 is a genuine $2.83/min UK mobile-surcharge prefix, so regression dev tests were switched to NL +31651234567 for their 'standard intl' cases.
+- Verified iteration_29 (backend 100%): `/dev/dial-rate-guard-test` (satellite/UK-premium blocked; Cuba $1.53, Falklands $4.95, UK mobile $4.25 surcharged; billing end-to-end $3.06 for 2min Cuba) + all 6 prior dev-test regressions green.
+
+
 ## 2026-08-07 — International IVR rate policy ($0.50/min intl) — VERIFIED
 User directive (option b): Quick IVR + Bulk IVR product legs (`IVR_Outbound` + `IVR_Transfer`) now bill at the **$0.50/min forwarding rate for INTERNATIONAL (non-US/CA)** destinations; US/CA stays at the flat **$0.15/min** IVR rate. Regular forwarding / SIP outbound / SIP bridge / Bridge_Transfer were already destination-based ($0.50 intl) and are unchanged.
 - Implemented at the single central billing rate line in `billCallMinutesUnified` (`js/voice-service.js` ~L1394) via new helper `getIvrCallRate(dest) = isUSCanada(dest) ? IVR_CALL_RATE($0.15) : CALL_FORWARDING_RATE_MIN($0.50)`. Because every IVR leg on BOTH providers funnels through this one function (Telnyx: handleOutboundIvrHangup/handleIvrTransferLegHangup; Twilio: single-ivr-transfer-status, bulk-ivr-transfer-status, IVR_Outbound_Twilio), the change applies at parity with one edit.
