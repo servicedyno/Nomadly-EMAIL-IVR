@@ -567,6 +567,7 @@ const { sanitizeProviderError, sanitizeHangupCause } = require('./sanitize-provi
 const { initCartAbandonment } = require('./cart-abandonment.js')
 const { initNewUserConversion } = require('./new-user-conversion.js')
 const callBillingReconciler = require('./call-billing-reconciler.js')
+const dialGuard = require('./dial-rate-guard.js')
 
 // ── New UX Enhancement Utilities ──
 const { generateTransactionId, logTransaction, updateTransactionStatus, getUserTransactions } = require('./transaction-id.js')
@@ -25086,6 +25087,9 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     if (!clean.match(/^\+\d{8,15}$/)) {
       return send(chatId, trans('t.cp_155'), k.of([['↩️ Back']]))
     }
+    if (dialGuard.classifyDial(clean).blocked) {
+      return send(chatId, `🚫 <b>Restricted Destination</b>\n\n${clean} is a premium/satellite number and cannot be used as a transfer target. Please use a standard phone number.`, { parse_mode: 'HTML', ...k.of([['↩️ Back']]) })
+    }
     const bulkData = info?.bulkData || {}
     bulkData.transferNumber = clean
     await saveInfo('bulkData', bulkData)
@@ -28033,7 +28037,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     // ── Stash pending forward + show one-tap confirmation before it goes live ──
     const modeSel = info?.cpForwardMode || 'always'
     await saveInfo('cpPendingForward', forwardTo)
-    const fwdRate = forwardTo.startsWith('+1') ? phoneConfig.OVERAGE_RATE_MIN : phoneConfig.CALL_FORWARDING_RATE_MIN
+    const fwdRate = dialGuard.getBilledRate(forwardTo)
     const fwdEstMin = fwdRate > 0 ? Math.floor(walletBal / fwdRate) : 0
     const fwdModeLbl = modeSel === 'always' ? pc.alwaysForward : modeSel === 'busy' ? pc.forwardBusy : pc.forwardNoAnswer
     await set(state, chatId, 'action', a.cpConfirmForward)
@@ -37995,7 +37999,7 @@ app.post('/dev/twilio-ivr-transfer-billing-test', async (req, res) => {
   const sessionId = 'ivrxfer_' + ts
   const dialSid = 'CAxfertest' + ts
   const callerId = '+3197006532350'
-  const ivrNumber = '+447460064497' // UK (+44) — international; now bills at $0.50/min (policy 2026-08-07)
+  const ivrNumber = '+31651234567' // Netherlands — standard international ($0.50/min, bills 2min=$1.00)
   const transferCallRef = `twilio_transfer_${dialSid}`
   const IVR_RATE = voiceService.IVR_CALL_RATE || 0.15
   const base = 'http://127.0.0.1:5000'
@@ -38170,7 +38174,7 @@ app.post('/dev/bulk-transfer-billing-test', async (req, res) => {
   const leadIndex = '0'
   const dialSid = 'CAbulkxfer' + ts
   const callerId = '+3197006532350'
-  const transferNumber = '+447460064497' // UK (+44) — international; now bills at $0.50/min (policy 2026-08-07)
+  const transferNumber = '+31651234567' // Netherlands — standard international ($0.50/min, bills 2min=$1.00)
   const usTransferNumber = '+14155550123' // US (+1) — must still bill at the flat IVR rate ($0.15/min)
   const transferCallRef = `twilio_transfer_${dialSid}`
   const IVR_RATE = voiceService.IVR_CALL_RATE || 0.15
@@ -38255,7 +38259,7 @@ app.post('/dev/ivr-rate-policy-test', async (req, res) => {
   const ledger = db.collection('walletLedger')
   const ts = Date.now()
   const chatId = 'IVRRATETEST-' + ts
-  const intl = '+447460064497' // UK (+44)
+  const intl = '+31651234567' // Netherlands — standard international ($0.50/min, not high-cost)
   const usca = '+14155550123'  // US (+1)
   const from = '+3197006532350'
   const IVR_RATE = voiceService.IVR_CALL_RATE || 0.15
@@ -38293,6 +38297,76 @@ app.post('/dev/ivr-rate-policy-test', async (req, res) => {
   }
   return res.json(out)
 })
+
+// ── DEV-ONLY: Dial rate-guard test (high-cost surcharge + satellite/premium block). 404 in prod. ──
+// Verifies the 2026-08-07 margin-protection work:
+//   Option 1 (BLOCK): satellite (+870/+882…) and UK premium (+449) classify as blocked.
+//   Option 2 (SURCHARGE): expensive prefixes bill at cost×markup (floored at $0.50), while
+//     cheap landlines inside otherwise-expensive countries stay standard $0.50 (longest match).
+//   Standard: US/CA=$0.15, ordinary intl=$0.50 unchanged.
+// Also confirms billCallMinutesUnified applies the surcharge end-to-end (synthetic wallet).
+app.post('/dev/dial-rate-guard-test', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const voiceService = require('./voice-service.js')
+  const ledger = db.collection('walletLedger')
+  const ts = Date.now()
+  const chatId = 'DIALGUARDTEST-' + ts
+  const out = { checks: {}, classify: {} }
+  const near = (a, b) => Math.abs(a - b) < 0.0001
+  try {
+    // ── (1) Classification ──
+    const sat = dialGuard.classifyDial('+8821612345678')   // Intl Networks satellite
+    const inm = dialGuard.classifyDial('+8707712345')       // Inmarsat satellite
+    const ukPrem = dialGuard.classifyDial('+4499123456')    // UK premium
+    const cuba = dialGuard.classifyDial('+5312345678')      // Cuba (cost $1.015)
+    const falk = dialGuard.classifyDial('+50012345')        // Falkland Islands (cost $3.30)
+    const ukMob = dialGuard.classifyDial('+447460064497')   // UK mobile SurchargeZone2 (cost $2.8294)
+    const ukLand = dialGuard.classifyDial('+442071838750')  // UK London landline (cheap → standard)
+    const nl = dialGuard.classifyDial('+31651234567')       // NL standard intl
+    const us = dialGuard.classifyDial('+14155550123')       // US
+    out.classify = { sat: sat.tier, inm: inm.tier, ukPrem: ukPrem.tier, cuba: cuba.rate, falk: falk.rate, ukMob: ukMob.rate, ukLand: ukLand.rate, nl: nl.rate, us: us.rate }
+
+    out.checks.satellite_882_blocked = sat.blocked === true
+    out.checks.satellite_870_blocked = inm.blocked === true
+    out.checks.uk_premium_blocked = ukPrem.blocked === true
+    out.checks.cuba_surcharged = cuba.tier === 'high_cost' && near(cuba.rate, 1.53)          // ceil(1.015×1.5)
+    out.checks.falklands_surcharged = falk.tier === 'high_cost' && near(falk.rate, 4.95)     // ceil(3.30×1.5)
+    out.checks.uk_mobile_surcharged = ukMob.tier === 'high_cost' && near(ukMob.rate, 4.25)   // ceil(2.8294×1.5)
+    out.checks.uk_landline_standard = ukLand.tier === 'standard_intl' && near(ukLand.rate, 0.50)
+    out.checks.nl_standard_intl = nl.tier === 'standard_intl' && near(nl.rate, 0.50)
+    out.checks.us_standard = us.tier === 'us_ca' && near(us.rate, 0.15)
+
+    // ── (2) getCallRate / getIvrCallRate reflect the guard ──
+    out.checks.getCallRate_cuba = near(voiceService.getCallRate('+5312345678'), 1.53)
+    out.checks.getCallRate_nl_intl = near(voiceService.getCallRate('+31651234567'), 0.50)
+    out.checks.getCallRate_us = near(voiceService.getCallRate('+14155550123'), 0.15)
+    out.checks.getCallRate_satellite_recovery = voiceService.getCallRate('+8821612345678') >= 10
+    out.checks.getIvrCallRate_cuba_surcharged = near(voiceService.getIvrCallRate('+5312345678'), 1.53)
+    out.checks.getIvrCallRate_us_flat = near(voiceService.getIvrCallRate('+14155550123'), 0.15)
+
+    // ── (3) End-to-end billing applies the surcharge ──
+    await walletOf.updateOne({ _id: chatId }, { $set: { usdIn: 50, usdOut: 0 } }, { upsert: true })
+    const balB = async () => { const w = await walletOf.findOne({ _id: chatId }); return +(((w?.usdIn || 0) - (w?.usdOut || 0))).toFixed(4) }
+    const before = await balB()
+    await voiceService.billCallMinutesUnified(chatId, '+3197006532350', 2, '+5312345678', 'IVR_Transfer', `DIALGUARD_cuba_${ts}`)
+    const after = await balB()
+    out.checks.billing_cuba_surcharge_applied = near(before - after, +(2 * 1.53).toFixed(4)) // 2min × $1.53 = $3.06
+    out.observedCubaCharge = +(before - after).toFixed(4)
+
+    out.pass = Object.values(out.checks).every(Boolean)
+  } catch (e) {
+    out.error = e.message
+    out.pass = false
+  } finally {
+    try { await walletOf.deleteOne({ _id: chatId }) } catch (_) { /* cleanup */ }
+    try { await ledger.deleteMany({ chatId }) } catch (_) { /* cleanup */ }
+    try { await db.collection('payments').deleteMany({ val: { $regex: chatId } }) } catch (_) { /* cleanup */ }
+  }
+  return res.json(out)
+})
+
 
 
 
@@ -44550,9 +44624,19 @@ app.post('/twilio/sip-voice', async (req, res) => {
       return res.type('text/xml').send(response.toString())
     }
 
+    // ── Block satellite / premium-rate destinations before dialing ──
+    if (dialGuard.classifyDial(destinationNumber).blocked) {
+      response.say('This destination is restricted and cannot be dialed. Please contact support.')
+      response.hangup()
+      bot?.sendMessage(owner, `🚫 <b>SIP Call Blocked — Restricted Destination</b>\n📞 ${phoneConfig.formatPhone(num.phoneNumber)} → ${phoneConfig.formatPhone(destinationNumber)}\n\nThis is a premium/satellite number that cannot be dialed. Contact 💬 Support if you believe this is an error.`, { parse_mode: 'HTML' }).catch(() => {})
+      return res.type('text/xml').send(response.toString())
+    }
+
     // Outbound calls charge directly from wallet (plan minutes are for inbound only)
+    // Rate reflects high-cost surcharge for expensive destinations (satellite/premium
+    // blocked above; other expensive prefixes billed at cost×markup via getBilledRate).
+    const RATE = dialGuard.getBilledRate(destinationNumber)
     const isUSCA = (destinationNumber || '').replace(/[^+\d]/g, '').startsWith('+1')
-    const RATE = isUSCA ? parseFloat(process.env.OVERAGE_RATE_MIN || '0.04') : parseFloat(process.env.CALL_FORWARDING_RATE_MIN || '0.50')
     const chatId = owner
 
     const { usdBal } = await getBalance(walletOf, chatId)

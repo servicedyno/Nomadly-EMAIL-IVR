@@ -5,6 +5,7 @@ const { log } = require('console')
 const { get, set, setFields, atomicIncrement } = require('./db.js')
 const { formatPhone, formatDuration, canAccessFeature, plans, OVERAGE_RATE_MIN, OVERAGE_RATE_SMS, CALL_FORWARDING_RATE_MIN, CALL_CONNECTION_FEE, escapeHtml } = require('./phone-config.js')
 const { getBalance, smartWalletDeduct, smartWalletCheck, forceWalletDebit } = require('./utils.js')
+const dialGuard = require('./dial-rate-guard.js')
 
 let _bot = null
 let _db = null
@@ -1284,6 +1285,10 @@ function isUSCanada(phoneNumber) {
  * International: CALL_FORWARDING_RATE_MIN ($0.50)
  */
 function getCallRate(destinationNumber) {
+  // High-cost destinations (satellite/premium blocked → recovery rate; expensive
+  // prefixes → cost×markup surcharge). null for standard → apply US/CA vs intl below.
+  const hc = dialGuard.getHighCostRate(destinationNumber)
+  if (hc != null) return hc
   return isUSCanada(destinationNumber) ? OVERAGE_RATE_MIN : CALL_FORWARDING_RATE_MIN
 }
 
@@ -1298,6 +1303,10 @@ const IVR_CALL_TYPES = ['IVR_Outbound', 'IVR_Transfer', 'IVR_Outbound_Twilio']
  * real international outbound PSTN cost. Applied identically on Telnyx & Twilio (parity).
  */
 function getIvrCallRate(destinationNumber) {
+  // High-cost destinations override the flat IVR rate (satellite/premium → recovery;
+  // expensive prefixes → cost×markup surcharge). null for standard → US/CA vs intl below.
+  const hc = dialGuard.getHighCostRate(destinationNumber)
+  if (hc != null) return hc
   return isUSCanada(destinationNumber) ? IVR_CALL_RATE : CALL_FORWARDING_RATE_MIN
 }
 
@@ -4346,6 +4355,13 @@ const ivrOutbound = require('./ivr-outbound.js')
 async function initiateOutboundIvrCall(params) {
   const { chatId, callerId, targetNumber, ivrNumber, audioUrl, activeKeys, templateName, placeholderValues, voiceName, isTrial, holdMusic, campaignId, leadIndex, bulkMode, ivrMode, otpLength, otpMaxAttempts, otpConfirmMsg, otpRejectMsg } = params
 
+  // ── Block satellite / premium-rate destinations (target + transfer leg) ──
+  for (const dest of [targetNumber, ivrNumber].filter(Boolean)) {
+    if (dialGuard.classifyDial(dest).blocked) {
+      return { error: `❌ ${dest} is a restricted premium/satellite destination and cannot be dialed. Contact support if you believe this is an error.` }
+    }
+  }
+
   // ── Wallet balance check (skip for trial calls) ──
   // Outbound IVR always charges wallet at flat IVR rate (plan minutes are for inbound only)
   if (!isTrial && _walletOf) {
@@ -5176,6 +5192,7 @@ module.exports = {
   getSmsLimit,
   isUSCanada,
   getCallRate,
+  getIvrCallRate,
   billCallMinutesUnified,
   findNumberOwner,
   incrementMinutesUsed,

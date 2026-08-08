@@ -134,7 +134,9 @@ const BLOCKED_FORWARDING_PREFIXES = [
   '900', '901', '906', '908', '909',   // US/International premium
   // Satellite / VSAT
   '870', '871', '872', '873', '874',   // Inmarsat
-  '881', '882', '883',                  // Iridium / Globalstar / other satellite
+  '875', '876', '877',                  // Maritime mobile satellite
+  '881', '882', '883', '888',           // Iridium / Globalstar / Intl Networks / disaster-relief satellite
+  '449',                                // UK premium-rate (+44 9xx, up to ~$1.05/min)
   // Premium Portuguese prefixes (up to $3.62/min on Telnyx)
   '35176', '351760', '351761',
   // Cuban mobile (very high rates)

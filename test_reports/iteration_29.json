@@ -1,0 +1,19 @@
+{
+  "summary": "Backend-only regression run for dial rate-guard (block + surcharge) and IVR/transfer/reconciler dev endpoints. All 7 target endpoints returned pass===true with expected classify and billing values (incl. billing_cuba_surcharge_applied $3.06). Executed against external REACT_APP_BACKEND_URL /api/*.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_dial_rate_guard.py",
+    "/app/test_reports/pytest/dial_rate_guard.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": ["/app/backend/tests/test_dial_rate_guard.py"],
+  "success_rate": {"backend": "100%", "frontend": "N/A (skipped per request)"},
+  "test_credentials": "N/A - /api/dev/* is unauthenticated in BOT_ENVIRONMENT=development",
+  "seed_data_creation": "Endpoints self-seed synthetic wallets/callRefs and clean up (verified via passing billing_cuba_surcharge_applied).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 29 confirms iteration 28's fixes. Tests live at /app/backend/tests/test_dial_rate_guard.py and cover: /api/health, /api/dev/dial-rate-guard-test, /api/dev/ivr-rate-policy-test, /api/dev/twilio-ivr-transfer-billing-test, /api/dev/bulk-transfer-billing-test, /api/dev/reconciler-widen-test, /api/dev/call-reconciler-test. Note intl regression uses NL +31 (not +447460... which is now correctly a UK-mobile high-cost surcharge prefix).",
+  "rca of the issue": "N/A - no failures."
+}

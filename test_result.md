@@ -72,6 +72,36 @@ user_problem_statement: |
 
 
 backend:
+  - task: "High-cost destination margin protection (2026-08-07, user options 1+2): BLOCK satellite (+870-878/+881-883/+888) + UK premium (+449) prefixes at call placement (catastrophic $3-$15/min, rarely legit), and SURCHARGE ~1260 real destination prefixes that cost > $0.50/min (seeded from Twilio's official outbound-voice rate deck) at cost×markup (default 1.5×, floored at $0.50) via longest-prefix match. New module js/dial-rate-guard.js (+ js/high-cost-dial-rates.json) exposes classifyDial/getHighCostRate/getBilledRate. Integrated into js/voice-service.js getCallRate + getIvrCallRate so ALL billing (forwarding, SIP, outbound, IVR, transfer, bulk on BOTH providers) auto-applies the surcharge; blocked dests return a $10/min recovery rate as a billing safety net. Placement blocks added at: initiateOutboundIvrCall (target+transfer), /twilio/sip-voice SIP-outbound (block + getBilledRate rate), forwarding-number save (existing phoneConfig.isBlockedPrefix, list extended), forwarding confirm rate display, and bulk transfer-number entry. Longest-prefix match means cheap landlines in otherwise-expensive countries (e.g. UK London +4420) stay standard $0.50 — only expensive mobile/premium prefixes are surcharged."
+    implemented: true
+    working: "NA"
+    file: "/app/js/dial-rate-guard.js (new); /app/js/high-cost-dial-rates.json (new, 1260 prefixes); /app/js/voice-service.js (getCallRate/getIvrCallRate use guard; block in initiateOutboundIvrCall; getIvrCallRate exported); /app/js/phone-config.js (BLOCKED_FORWARDING_PREFIXES extended: 875/876/877/888/449); /app/js/_index.js (SIP-outbound block+rate; forwarding fwdRate; bulk transfer block; new POST /dev/dial-rate-guard-test)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          Verified via curl (all pass); requesting formal confirmation. All dev tests synthetic/self-cleaning.
+          VERIFY (external {REACT_APP_BACKEND_URL}, BOT_ENVIRONMENT=development so /dev/* live):
+            1) POST /api/dev/dial-rate-guard-test {} -> HTTP 200, pass===true, ALL checks true:
+               satellite_882_blocked, satellite_870_blocked, uk_premium_blocked,
+               cuba_surcharged (rate 1.53), falklands_surcharged (4.95), uk_mobile_surcharged (4.25),
+               uk_landline_standard (0.50), nl_standard_intl (0.50), us_standard (0.15),
+               getCallRate_cuba (1.53), getCallRate_nl_intl (0.50), getCallRate_us (0.15),
+               getCallRate_satellite_recovery (>=10), getIvrCallRate_cuba_surcharged (1.53),
+               getIvrCallRate_us_flat (0.15), billing_cuba_surcharge_applied (2min x $1.53 = $3.06).
+               classify should read {sat:blocked, inm:blocked, ukPrem:blocked, cuba:1.53, falk:4.95, ukMob:4.25, ukLand:0.5, nl:0.5, us:0.15}.
+            2) Regression (dev tests switched to NL +31 for the 'standard intl' cases since +44746 is now high-cost):
+               POST /api/dev/ivr-rate-policy-test {} -> pass===true (rates: ivr/sip intl=0.5, usca=0.15).
+               POST /api/dev/twilio-ivr-transfer-billing-test {} -> pass===true (intl leg 2min x $0.50 = $1.00).
+               POST /api/dev/bulk-transfer-billing-test {} -> pass===true.
+               POST /api/dev/reconciler-widen-test {} -> pass===true.
+               POST /api/dev/call-reconciler-test {} -> pass===true.
+               GET /api/health -> healthy/connected.
+
+
   - task: "International IVR rate policy (2026-08-07 user directive, option b): Quick IVR + Bulk IVR product legs (IVR_Outbound + IVR_Transfer) now bill at the $0.50/min forwarding rate for INTERNATIONAL (non-US/CA) destinations, while US/CA stays at the flat $0.15 IVR rate. Applied at the single central billing rate line in billCallMinutesUnified (js/voice-service.js ~line 1394) via new helper getIvrCallRate(dest)=isUSCanada?IVR_CALL_RATE:CALL_FORWARDING_RATE_MIN, so BOTH Telnyx (handleOutboundIvrHangup IVR_Outbound, handleIvrTransferLegHangup IVR_Transfer) and Twilio (single-ivr-transfer-status, bulk-ivr-transfer-status, IVR_Outbound_Twilio) inherit it at parity. Pre-flight + mid-call wallet guards in initiateOutboundIvrCall/limit-timer now use the destination-based rate (max across primary + transfer leg) so an intl call can't start/continue under-funded. Non-IVR legs (forwarding, SIP outbound/bridge, Bridge_Transfer) unchanged — already destination-based ($0.50 intl)."
     implemented: true
     working: "NA"
