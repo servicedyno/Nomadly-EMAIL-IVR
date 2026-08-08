@@ -72,6 +72,35 @@ user_problem_statement: |
 
 
 backend:
+  - task: "Rate Preview + Telnyx Rate Sync (2026-08-07). (A) RATE PREVIEW: the Quick IVR confirm banner (ivrWalletHintPrefix) now shows the ACTUAL per-destination rate (📟 Rate: $X/min, range for batches, ⚠️ high-cost tag), a 🚫 Restricted notice for satellite/premium targets, and an estimate summed from real per-target rates; the forwarding confirm screen (fwdConfirm) appends a ⚠️ High-cost note when the destination is surcharged above $0.50. Uses new dialGuard.rateInfo(dest,{ivr}). (B) TELNYX RATE SYNC: new js/rate-deck-sync.js pulls provider outbound-voice rate decks and MERGES into the dialRateDeck MongoDB collection by MAX cost per prefix (so the guard reflects the most expensive provider). Twilio auto-fetched from TWILIO_RATEDECK_URL (public CSV default); Telnyx merged from TELNYX_RATEDECK_URL (Telnyx has NO public rate-deck API — admin provides a hosted CSV, or POST via sync). js/dial-rate-guard.js is now DB-backed: seeds dialRateDeck from the bundled JSON on first run, rebuilds its in-memory index from the collection via initDeck(db)+reloadFromDb(), refreshes hourly; weekly provider sync (Sun 03:00) prod-only. Only prefixes > $0.50 and ≤9 digits are stored; satellite/premium/special rows skipped (blocked separately)."
+    implemented: true
+    working: "NA"
+    file: "/app/js/dial-rate-guard.js (rateInfo; DB-backed initDeck/reloadFromDb + JSON seed/fallback); /app/js/rate-deck-sync.js (new; parseRateDeck/mergeIntoDeck/syncFromUrl/syncAll); /app/js/_index.js (ivrWalletHintPrefix rate preview; fwdConfirm high-cost note; startup wiring initDeck+syncAll+weekly schedule; new POST /dev/rate-deck-sync-test)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          Verified via curl (all pass); requesting formal confirmation. All dev tests synthetic/self-cleaning.
+          NOTE: the initial+weekly network rate-deck fetch is PROD-ONLY (skipped when SKIP_WEBHOOK_SYNC=true on this
+          sandbox); the deck is still served from the seeded dialRateDeck collection, and mergeIntoDeck is exercised
+          directly by the dev test below (no external HTTP needed). Rate Preview screens are Telegram-only (no web UI);
+          the underlying dialGuard.rateInfo is unit-verified.
+          VERIFY (external {REACT_APP_BACKEND_URL}, BOT_ENVIRONMENT=development so /dev/* live):
+            1) POST /api/dev/rate-deck-sync-test {} -> HTTP 200, pass===true, ALL checks true:
+               parser_keeps_only_valid (CSV parser skips satellite/premium/<=$0.50 rows, keeps the one valid prefix),
+               merge_twilio_stored, guard_reflects_twilio (1.00 -> $1.50), merge_max_cost_wins (telnyx $3.62 > twilio $1.00),
+               merge_tracks_both_providers, guard_reflects_merged_max ($5.43), lower_provider_keeps_max (a later lower
+               twilio cost does NOT lower the merged $3.62 max). parsed should be [{prefix:'99990',cost:1}].
+            2) Regression: POST /api/dev/dial-rate-guard-test {} -> pass===true (block+surcharge classification intact
+               after the guard became DB-backed).
+            3) Regression: POST /api/dev/ivr-rate-policy-test {} , /api/dev/twilio-ivr-transfer-billing-test {} ,
+               /api/dev/bulk-transfer-billing-test {} , /api/dev/reconciler-widen-test {} , /api/dev/call-reconciler-test {}
+               -> all pass===true. GET /api/health -> healthy/connected.
+
+
   - task: "High-cost destination margin protection (2026-08-07, user options 1+2): BLOCK satellite (+870-878/+881-883/+888) + UK premium (+449) prefixes at call placement (catastrophic $3-$15/min, rarely legit), and SURCHARGE ~1260 real destination prefixes that cost > $0.50/min (seeded from Twilio's official outbound-voice rate deck) at cost×markup (default 1.5×, floored at $0.50) via longest-prefix match. New module js/dial-rate-guard.js (+ js/high-cost-dial-rates.json) exposes classifyDial/getHighCostRate/getBilledRate. Integrated into js/voice-service.js getCallRate + getIvrCallRate so ALL billing (forwarding, SIP, outbound, IVR, transfer, bulk on BOTH providers) auto-applies the surcharge; blocked dests return a $10/min recovery rate as a billing safety net. Placement blocks added at: initiateOutboundIvrCall (target+transfer), /twilio/sip-voice SIP-outbound (block + getBilledRate rate), forwarding-number save (existing phoneConfig.isBlockedPrefix, list extended), forwarding confirm rate display, and bulk transfer-number entry. Longest-prefix match means cheap landlines in otherwise-expensive countries (e.g. UK London +4420) stay standard $0.50 — only expensive mobile/premium prefixes are surcharged."
     implemented: true
     working: "NA"

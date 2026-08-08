@@ -1817,18 +1817,52 @@ const ivrWalletHintPrefix = async (chatId, lang = 'en', ivrObData = null) => {
     const bal = wc.usdBal.toFixed(2)
     const min = IVR_MIN_WALLET.toFixed(2)
 
-    // Per-campaign cost estimate (only if we have target info).
-    const targetCount = Array.isArray(ivrObData?.batchTargets) && ivrObData.batchTargets.length
-      ? ivrObData.batchTargets.length
-      : (ivrObData?.targetNumber ? 1 : 0)
-    const estCost = targetCount * IVR_RATE // 1-minute minimum per call
+    // Per-campaign cost estimate + RATE PREVIEW (actual per-destination rate incl.
+    // high-cost surcharge, and a "restricted destination" notice for satellite/premium).
+    const _targets = Array.isArray(ivrObData?.batchTargets) && ivrObData.batchTargets.length
+      ? ivrObData.batchTargets
+      : (ivrObData?.targetNumber ? [ivrObData.targetNumber] : [])
+    const targetCount = _targets.length
+    const _infos = _targets.map(t => ({ num: t, ...dialGuard.rateInfo(t, { ivr: true }) }))
+    const _blocked = _infos.filter(i => i.blocked)
+    const estCost = _infos.reduce((s, i) => s + i.rate, 0) // 1-minute minimum per call, actual rate
     const canCoverCampaign = targetCount === 0 || wc.usdBal >= estCost
+
+    // Restricted-destination warning (satellite/premium — cannot be dialed).
+    let blockedLine = ''
+    if (_blocked.length) {
+      const list = _blocked.map(i => i.num).join(', ')
+      blockedLine = ({
+        en: `🚫 <b>Restricted:</b> ${list} — satellite/premium number(s) can't be dialed.\n`,
+        fr: `🚫 <b>Restreint :</b> ${list} — numéro(s) satellite/premium impossibles à appeler.\n`,
+        zh: `🚫 <b>受限:</b> ${list} — 卫星/高级号码无法拨打。\n`,
+        hi: `🚫 <b>प्रतिबंधित:</b> ${list} — सैटेलाइट/प्रीमियम नंबर डायल नहीं हो सकते।\n`,
+      }[lang]) || `🚫 <b>Restricted:</b> ${list} — satellite/premium number(s) can't be dialed.\n`
+    }
+
+    // Rate-preview line (only when targets exist) — shows the actual per-minute rate.
+    let rateLine = ''
+    if (targetCount > 0) {
+      const _billable = _infos.filter(i => !i.blocked)
+      const _rates = _billable.length ? _billable.map(i => i.rate) : [IVR_RATE]
+      const _min = Math.min(..._rates); const _max = Math.max(..._rates)
+      const _hasHighCost = _billable.some(i => i.tier === 'high_cost')
+      const rateStr = _min === _max ? `$${_max.toFixed(2)}/min` : `$${_min.toFixed(2)}–$${_max.toFixed(2)}/min`
+      const hcTag = _hasHighCost ? ({ en: ' ⚠️ high-cost destination', fr: ' ⚠️ destination coûteuse', zh: ' ⚠️ 高费用目的地', hi: ' ⚠️ महंगा गंतव्य' }[lang] || ' ⚠️ high-cost destination') : ''
+      rateLine = ({
+        en: `📟 <b>Rate:</b> ${rateStr}${hcTag}\n`,
+        fr: `📟 <b>Tarif :</b> ${rateStr}${hcTag}\n`,
+        zh: `📟 <b>费率:</b> ${rateStr}${hcTag}\n`,
+        hi: `📟 <b>दर:</b> ${rateStr}${hcTag}\n`,
+      }[lang]) || `📟 <b>Rate:</b> ${rateStr}${hcTag}\n`
+    }
+    const _previewLines = blockedLine + rateLine
     const estLine = targetCount > 0 ? ({
-      en: `📞 <b>Est:</b> $${estCost.toFixed(2)} (${targetCount} target${targetCount === 1 ? '' : 's'} × $${IVR_RATE.toFixed(2)})\n\n`,
-      fr: `📞 <b>Estimation :</b> ${estCost.toFixed(2)} $ (${targetCount} cible${targetCount === 1 ? '' : 's'} × ${IVR_RATE.toFixed(2)} $)\n\n`,
-      zh: `📞 <b>预估费用:</b> $${estCost.toFixed(2)} (${targetCount} 个目标 × $${IVR_RATE.toFixed(2)})\n\n`,
-      hi: `📞 <b>अनुमानित:</b> $${estCost.toFixed(2)} (${targetCount} लक्ष्य × $${IVR_RATE.toFixed(2)})\n\n`,
-    }[lang] || `📞 <b>Est:</b> $${estCost.toFixed(2)} (${targetCount} targets × $${IVR_RATE.toFixed(2)})\n\n`) : ''
+      en: `📞 <b>Est:</b> $${estCost.toFixed(2)} (${targetCount} target${targetCount === 1 ? '' : 's'}, 1st min)\n\n`,
+      fr: `📞 <b>Estimation :</b> ${estCost.toFixed(2)} $ (${targetCount} cible${targetCount === 1 ? '' : 's'}, 1re min)\n\n`,
+      zh: `📞 <b>预估费用:</b> $${estCost.toFixed(2)} (${targetCount} 个目标, 第1分钟)\n\n`,
+      hi: `📞 <b>अनुमानित:</b> $${estCost.toFixed(2)} (${targetCount} लक्ष्य, पहला मिनट)\n\n`,
+    }[lang] || `📞 <b>Est:</b> $${estCost.toFixed(2)} (${targetCount} targets, 1st min)\n\n`) : ''
 
     if (wc.sufficient && canCoverCampaign) {
       const walletLine = ({
@@ -1837,7 +1871,7 @@ const ivrWalletHintPrefix = async (chatId, lang = 'en', ivrObData = null) => {
         zh: `💰 <b>钱包:</b> $${bal} · <b>最低:</b> $${min} ✅\n`,
         hi: `💰 <b>वॉलेट:</b> $${bal} · <b>न्यूनतम:</b> $${min} ✅\n`,
       }[lang] || `💰 <b>Wallet:</b> $${bal} · <b>Min:</b> $${min} ✅\n`)
-      return walletLine + estLine + (estLine ? '' : '\n')
+      return walletLine + _previewLines + estLine + (estLine ? '' : '\n')
     }
 
     // Short of either the min-wallet floor OR the per-campaign estimate —
@@ -1854,7 +1888,7 @@ const ivrWalletHintPrefix = async (chatId, lang = 'en', ivrObData = null) => {
       zh: `⚠️ <b>钱包:</b> $${bal} · <b>最低:</b> $${min} · 需充值 <b>$${gap.toFixed(2)}</b> ${reasonZh}。\n`,
       hi: `⚠️ <b>वॉलेट:</b> $${bal} · <b>न्यूनतम:</b> $${min} · <b>$${gap.toFixed(2)}</b> ${reasonHi} जमा करें।\n`,
     }[lang] || `⚠️ <b>Wallet:</b> $${bal} · <b>Min:</b> $${min} · Top up <b>$${gap.toFixed(2)}</b> ${reasonEn}.\n`)
-    return walletLine + estLine + (estLine ? '' : '\n')
+    return walletLine + _previewLines + estLine + (estLine ? '' : '\n')
   } catch (e) {
     return ''
   }
@@ -3462,6 +3496,28 @@ const loadData = async () => {
     log('[CallRecon] Reconciliation sweep scheduled (every 30 min, production-only)')
   } catch (e) {
     log(`[CallRecon] sweep schedule error (non-blocking): ${e.message}`)
+  }
+
+  // ── Dial rate-guard: DB-backed high-cost deck + periodic Telnyx/Twilio rate sync ──
+  // Seeds dialRateDeck from the bundled Twilio JSON, then merges provider rate decks
+  // (max cost per prefix) so the surcharge/block guard reflects each provider's true cost.
+  try {
+    const rateDeckSync = require('./rate-deck-sync.js')
+    rateDeckSync.init({ db, logger: (...a) => log('[RateDeckSync]', ...a), onUpdated: () => dialGuard.reloadFromDb() })
+    await dialGuard.initDeck({ db, logger: (...a) => log('[DialRateGuard]', ...a), refreshMinutes: 60 })
+    // Initial sync in the background (non-blocking). PROD-ONLY network fetch — the dev
+    // sandbox skips the outbound HTTP pull but still serves the seeded/DB deck.
+    if (process.env.SKIP_WEBHOOK_SYNC !== 'true') {
+      rateDeckSync.syncAll().then(r => log('[RateDeckSync] initial sync:', JSON.stringify(r))).catch(e => log('[RateDeckSync] initial sync error:', e.message))
+      // Weekly refresh (Sunday 03:00).
+      schedule.scheduleJob('0 3 * * 0', async function () {
+        try { const r = await rateDeckSync.syncAll(); log('[RateDeckSync] weekly sync:', JSON.stringify(r)) }
+        catch (e) { log('[RateDeckSync] weekly sync error:', e.message) }
+      })
+    }
+    log('[RateDeckSync] Initialized (dialRateDeck deck + weekly provider merge)')
+  } catch (e) {
+    log(`[RateDeckSync] init error (non-blocking): ${e.message}`)
   }
 
   // Initialize DNS Healer — self-heals registry-side delegation failures
@@ -28040,8 +28096,19 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     const fwdRate = dialGuard.getBilledRate(forwardTo)
     const fwdEstMin = fwdRate > 0 ? Math.floor(walletBal / fwdRate) : 0
     const fwdModeLbl = modeSel === 'always' ? pc.alwaysForward : modeSel === 'busy' ? pc.forwardBusy : pc.forwardNoAnswer
+    // Rate preview: flag high-cost destinations so the user understands why the
+    // rate is above the standard $0.50/min international rate.
+    const _fwdLang = info?.userLanguage || 'en'
+    const fwdHcNote = dialGuard.classifyDial(forwardTo).tier === 'high_cost'
+      ? ('\n\n' + ({
+          en: `⚠️ <b>High-cost destination</b> — billed at $${fwdRate.toFixed(2)}/min (above the standard $0.50 international rate).`,
+          fr: `⚠️ <b>Destination coûteuse</b> — facturé ${fwdRate.toFixed(2)} $/min (au-dessus du tarif international standard de 0,50 $).`,
+          zh: `⚠️ <b>高费用目的地</b> — 按 $${fwdRate.toFixed(2)}/分钟计费（高于标准国际费率 $0.50）。`,
+          hi: `⚠️ <b>महंगा गंतव्य</b> — $${fwdRate.toFixed(2)}/मिनट पर बिल (मानक अंतरराष्ट्रीय दर $0.50 से अधिक)।`,
+        }[_fwdLang] || `⚠️ <b>High-cost destination</b> — billed at $${fwdRate.toFixed(2)}/min (above the standard $0.50 international rate).`))
+      : ''
     await set(state, chatId, 'action', a.cpConfirmForward)
-    return send(chatId, t.fwdConfirm(num.phoneNumber, forwardTo, fwdModeLbl, fwdRate, walletBal, fwdEstMin), k.of([[t.fwdConfirmBtn], [pc.back]]))
+    return send(chatId, t.fwdConfirm(num.phoneNumber, forwardTo, fwdModeLbl, fwdRate, walletBal, fwdEstMin) + fwdHcNote, k.of([[t.fwdConfirmBtn], [pc.back]]))
   }
 
   // ━━━ CONFIRM FORWARDING — one-tap review before it goes live ━━━
@@ -38366,6 +38433,64 @@ app.post('/dev/dial-rate-guard-test', async (req, res) => {
   }
   return res.json(out)
 })
+
+// ── DEV-ONLY: Rate-deck sync/merge test. 404 in prod. ──
+// Verifies the 2026-08-07 "Telnyx Rate Sync" work: provider rate decks merge into
+// the dialRateDeck collection by MAX cost per prefix, the CSV parser skips
+// satellite/premium/below-threshold rows, and the guard reflects the merged deck
+// after reload. All-synthetic (fake test prefixes 99990/99991); cleans up + restores.
+app.post('/dev/rate-deck-sync-test', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const rateDeckSync = require('./rate-deck-sync.js')
+  const deck = db.collection('dialRateDeck')
+  const near = (a, b) => Math.abs(a - b) < 0.0001
+  const A = '99990'; const B = '99991' // fake prefixes (invalid country code — safe)
+  const out = { checks: {}, parsed: null }
+  try {
+    // (1) CSV parser: generic {prefix, cost} deck — skip satellite/premium/<=threshold.
+    const csv = [
+      'Prefix,Description,Rate',
+      `${A},Testland Mobile,1.0000`,
+      `${B},Testland Landline,0.3000`,          // below $0.50 threshold → skipped
+      '870,Inmarsat Satellite,8.0000',           // satellite → skipped
+      '449123,UK Premium Services,1.0500',       // premium → skipped
+    ].join('\n')
+    const parsed = rateDeckSync.parseRateDeck(csv)
+    out.parsed = parsed
+    out.checks.parser_keeps_only_valid = parsed.length === 1 && parsed[0].prefix === A && near(parsed[0].cost, 1.0)
+
+    // (2) Merge Twilio cost $1.00 for prefix A → deck cost 1.00 → guard surcharge $1.50.
+    await rateDeckSync.mergeIntoDeck('twilio', [{ prefix: A, cost: 1.00 }])
+    const afterTwilio = await deck.findOne({ _id: A })
+    out.checks.merge_twilio_stored = near(afterTwilio?.cost, 1.00) && near(afterTwilio?.costs?.twilio, 1.00)
+    out.checks.guard_reflects_twilio = near(dialGuard.getBilledRate(`+${A}12345`), 1.50) // ceil(1.00×1.5)
+
+    // (3) Merge Telnyx cost $3.62 for SAME prefix → MAX wins (3.62) → guard $5.43.
+    await rateDeckSync.mergeIntoDeck('telnyx', [{ prefix: A, cost: 3.62 }])
+    const afterTelnyx = await deck.findOne({ _id: A })
+    out.checks.merge_max_cost_wins = near(afterTelnyx?.cost, 3.62)
+    out.checks.merge_tracks_both_providers = near(afterTelnyx?.costs?.twilio, 1.00) && near(afterTelnyx?.costs?.telnyx, 3.62)
+    out.checks.guard_reflects_merged_max = near(dialGuard.getBilledRate(`+${A}12345`), 5.43) // ceil(3.62×1.5)
+
+    // (4) Lower provider cost must NOT lower the merged max.
+    await rateDeckSync.mergeIntoDeck('twilio', [{ prefix: A, cost: 0.60 }])
+    const afterLower = await deck.findOne({ _id: A })
+    out.checks.lower_provider_keeps_max = near(afterLower?.cost, 3.62)
+
+    out.pass = Object.values(out.checks).every(Boolean)
+  } catch (e) {
+    out.error = e.message
+    out.pass = false
+  } finally {
+    try { await deck.deleteMany({ _id: { $in: [A, B] } }) } catch (_) { /* cleanup */ }
+    try { await dialGuard.reloadFromDb() } catch (_) { /* restore in-memory index */ }
+  }
+  return res.json(out)
+})
+
+
 
 
 

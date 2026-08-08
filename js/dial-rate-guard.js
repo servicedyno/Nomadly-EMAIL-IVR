@@ -37,8 +37,60 @@ try {
   console.error(`[DialRateGuard] Failed to load high-cost-dial-rates.json: ${e.message}`)
   TABLE = []
 }
-const RATE_MAP = new Map(TABLE.map(r => [r.prefix, r.cost]))
-const LENGTHS = [...new Set(TABLE.map(r => r.prefix.length))].sort((a, b) => b - a)
+// Mutable in-memory index — seeded from the JSON at require-time (always available
+// immediately for voice-service billing), then rebuilt from the DB-backed
+// `dialRateDeck` collection once initDeck(db) runs (merged Twilio+Telnyx rates).
+let RATE_MAP = new Map()
+let LENGTHS = []
+function rebuildIndex(rows) {
+  RATE_MAP = new Map(rows.map(r => [r.prefix, r.cost]))
+  LENGTHS = [...new Set(rows.map(r => r.prefix.length))].sort((a, b) => b - a)
+}
+rebuildIndex(TABLE)
+
+let _db = null
+let _log = (...a) => console.log('[DialRateGuard]', ...a)
+
+// Load/refresh the high-cost index from the `dialRateDeck` collection. Seeds the
+// collection from the JSON on first run (empty collection). Falls back silently to
+// the current in-memory index on any DB error.
+async function reloadFromDb() {
+  if (!_db) return
+  try {
+    const col = _db.collection('dialRateDeck')
+    const count = await col.countDocuments()
+    if (count === 0) {
+      // Seed from the bundled JSON (Twilio deck) so the collection is never empty.
+      if (TABLE.length) {
+        const ops = TABLE.map(r => ({
+          updateOne: {
+            filter: { _id: r.prefix },
+            update: { $set: { _id: r.prefix, prefix: r.prefix, cost: r.cost, costs: { twilio: r.cost }, updatedAt: new Date(), seeded: true } },
+            upsert: true,
+          },
+        }))
+        await col.bulkWrite(ops, { ordered: false })
+        _log(`seeded dialRateDeck with ${ops.length} prefixes from JSON`)
+      }
+    }
+    const rows = await col.find({}, { projection: { prefix: 1, cost: 1 } }).toArray()
+    if (rows.length) {
+      rebuildIndex(rows.map(r => ({ prefix: r.prefix, cost: r.cost })))
+      _log(`loaded ${rows.length} high-cost prefixes from dialRateDeck`)
+    }
+  } catch (e) {
+    _log(`reloadFromDb error (keeping in-memory table): ${e.message}`)
+  }
+}
+
+// Initialize DB-backed deck + periodic refresh. Non-blocking; JSON fallback stands until loaded.
+async function initDeck({ db, logger, refreshMinutes = 60 } = {}) {
+  _db = db
+  if (logger) _log = logger
+  await reloadFromDb()
+  const ms = Math.max(5, refreshMinutes) * 60 * 1000
+  setInterval(() => { reloadFromDb() }, ms)
+}
 
 function digits(dest) { return String(dest || '').replace(/[^\d]/g, '') }
 function ceilCent(x) { return Math.ceil(x * 100) / 100 }
@@ -91,4 +143,11 @@ function getBilledRate(dest, { ivr = false } = {}) {
   return c.tier === 'us_ca' ? (ivr ? IVR_CALL_RATE : OVERAGE_RATE_MIN) : CALL_FORWARDING_RATE_MIN
 }
 
-module.exports = { classifyDial, getHighCostRate, getBilledRate, retail, HIGH_COST_MARKUP, BLOCKED_DEST_RECOVERY_RATE }
+// Compact info for UI rate-preview screens: { blocked, tier, rate }.
+// tier ∈ blocked | high_cost | us_ca | standard_intl.
+function rateInfo(dest, { ivr = false } = {}) {
+  const c = classifyDial(dest)
+  return { blocked: c.blocked, tier: c.tier, rate: getBilledRate(dest, { ivr }) }
+}
+
+module.exports = { classifyDial, getHighCostRate, getBilledRate, rateInfo, retail, initDeck, reloadFromDb, HIGH_COST_MARKUP, BLOCKED_DEST_RECOVERY_RATE }
