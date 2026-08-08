@@ -78,8 +78,15 @@ backend:
     file: "/app/js/dial-rate-guard.js (rateInfo; DB-backed initDeck/reloadFromDb + JSON seed/fallback); /app/js/rate-deck-sync.js (new; parseRateDeck/mergeIntoDeck/syncFromUrl/syncAll); /app/js/_index.js (ivrWalletHintPrefix rate preview; fwdConfirm high-cost note; startup wiring initDeck+syncAll+weekly schedule; new POST /dev/rate-deck-sync-test)"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFIED (iteration_30, backend 100%, no critical/minor). /api/dev/rate-deck-sync-test pass=true, all 7
+          checks true (parser skips satellite/premium/<=$0.50; twilio $1.00→$1.50; telnyx $3.62 max wins→$5.43; both
+          providers tracked; lower later cost keeps max). All 6 regressions green + health. Rate Preview is Telegram-only
+          UI (not web-tested); dialGuard.rateInfo verified. Tester: /app/backend/tests/test_rate_deck_sync_and_preview.py.
       - working: "NA"
         agent: "main"
         comment: |

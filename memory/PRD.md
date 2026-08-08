@@ -3,6 +3,12 @@
 ## Original problem statement
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
+## 2026-08-07 — Rate Preview + Telnyx Rate Sync — VERIFIED
+- **Rate Preview**: Quick IVR confirm banner (`ivrWalletHintPrefix`) now shows the ACTUAL per-destination rate (📟 Rate: $X/min, a range for batches, ⚠️ high-cost tag), a 🚫 Restricted notice for satellite/premium targets, and an estimate summed from real per-target rates. Forwarding confirm (`fwdConfirm`) appends a ⚠️ High-cost note when the destination is surcharged above $0.50. Backed by new `dialGuard.rateInfo(dest,{ivr})`.
+- **Telnyx Rate Sync**: new `js/rate-deck-sync.js` merges provider outbound-voice rate decks into the `dialRateDeck` MongoDB collection by **MAX cost per prefix** (guard reflects the most expensive provider). Twilio auto-fetched from `TWILIO_RATEDECK_URL` (public CSV default); Telnyx merged from `TELNYX_RATEDECK_URL` — **Telnyx has NO public rate-deck API**, so the admin provides a hosted CSV (downloaded from Mission Control) or POSTs one. `dial-rate-guard.js` is now DB-backed: seeds `dialRateDeck` from the bundled JSON on first run, rebuilds its in-memory index via `initDeck(db)`+`reloadFromDb()` (hourly refresh), JSON fallback until loaded. Weekly provider sync (Sun 03:00), prod-only network fetch. Parser skips satellite/premium/≤$0.50 rows.
+- Verified iteration_30 (backend 100%): `/dev/rate-deck-sync-test` (parser filter; twilio→$1.50; telnyx $3.62 max→$5.43; both providers tracked; lower later cost keeps max) + all 6 prior dev-test regressions green.
+
+
 ## 2026-08-07 — High-cost destination margin protection (block + surcharge) — VERIFIED
 User options 1+2: many destinations cost > $0.50/min on Twilio/Telnyx (satellite $10/min, Cuba $1.02, Falklands $3.30, UK mobile-surcharge prefixes $2.83, etc.), so the flat $0.50 intl price was loss-making on ~80 countries' worst prefixes. Fixed with a new margin guard.
 - New `js/dial-rate-guard.js` + `js/high-cost-dial-rates.json` (1260 prefixes seeded from Twilio's official outbound-voice rate deck). `classifyDial`/`getHighCostRate`/`getBilledRate`, longest-prefix match.
