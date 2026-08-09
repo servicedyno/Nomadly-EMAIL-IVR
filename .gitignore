@@ -1309,3 +1309,14 @@ scripts/data/
 # phone numbers, IPs, and other secrets). Never commit.
 rail_*.txt
 
+
+# ── cleanup 2026-08-09: investigation/data artifacts (keep out of git) ──
+tmp_*.json
+*_test_v*.json
+bulksms_test_*.json
+scripts/ATT_*.txt
+scripts/railway_logs_*/
+memory/*_investigation.json
+memory/*_backup_*.json
+memory/revoke_backup_*.json
+memory/complaints_*.json
