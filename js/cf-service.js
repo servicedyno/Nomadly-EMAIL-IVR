@@ -524,23 +524,6 @@ const createHostingDNSRecords = async (zoneId, domainName, serverIP, proxied = t
  * Handles both A records (legacy) and CNAME records (tunnel).
  * Called after AutoSSL has had time to issue a CA cert via HTTP-01 validation.
  */
-const proxyHostingDNSRecords = async (zoneId, domainName) => {
-  const headers = cfHeaders()
-  const records = await listDNSRecords(zoneId)
-  const targets = records.filter(r =>
-    (r.type === 'A' || r.type === 'CNAME') &&
-    (r.name === domainName || r.name === `www.${domainName}`) &&
-    !r.proxied
-  )
-  for (const r of targets) {
-    await axios.patch(`${CF_BASE_URL}/zones/${zoneId}/dns_records/${r.id}`, {
-      type: r.type, name: r.name, content: r.content, proxied: true, ttl: 1,
-    }, { headers, timeout: 10000 })
-    log(`[CF] Proxied: ${r.name} (${r.type}) → ${r.content}`)
-  }
-  return { proxied: targets.length }
-}
-
 
 /**
  * Set Cloudflare SSL mode for a zone to Full (Strict)
@@ -1447,21 +1430,6 @@ const generateOriginCACert = async (hostnames, validityDays = 5475) => {
  * List existing Origin CA certificates for given hostnames.
  * Used to check if a cert already exists before generating a new one.
  */
-const listOriginCACerts = async (zoneId) => {
-  try {
-    const res = await axios.get(`${CF_BASE_URL}/certificates`, {
-      params: { zone_id: zoneId },
-      headers: cfHeaders(),
-      timeout: 10000,
-    })
-    if (res.data?.success) {
-      return { success: true, certificates: res.data.result || [] }
-    }
-    return { success: false, certificates: [] }
-  } catch (err) {
-    return { success: false, certificates: [], error: err.message }
-  }
-}
 
 /**
  * Migrate a domain from A-record (direct IP) to CNAME (Cloudflare Tunnel).
@@ -1580,7 +1548,7 @@ module.exports = {
   deleteZone,
   createDefaultDNSRecords,
   createHostingDNSRecords,
-  proxyHostingDNSRecords,
+  
   cleanupConflictingDNS,
   cleanupAllHostingRecords,
   setSSLMode,
@@ -1606,7 +1574,7 @@ module.exports = {
   enableAuthenticatedOriginPulls,
   getAuthenticatedOriginPullsStatus,
   generateOriginCACert,
-  listOriginCACerts,
+  
   // Tunnel
   migrateToTunnel,
   CF_TUNNEL_CNAME,

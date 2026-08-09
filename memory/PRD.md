@@ -1918,3 +1918,8 @@ at the start of the decline, plus ~5 unlabeled auto-deploys/day (no QA gate).
 - Traced require() graph from js/start-bot.js: 144/158 js modules reachable. Removed 10 verified-dead unreferenced modules (see test_result.md deadcode_scan_2026_08_09). ZERO runtime code changed. Node restarted clean (no MODULE_NOT_FOUND), /api/health healthy.
 - KEPT real entry points: create_indexes.js (DB index bootstrap), email-validation-worker.js (separate EV_WORKER_URL process), cr-whitelist-browser.js (spawned by cr-auto-whitelist.js), hosting/plans.js (test-referenced, conservative).
 - Skipped unused-EXPORTS pruning (high risk in 45k-line _index.js).
+
+## 2026-08-09 — Cleanup Phase 2 (b ops-scripts + a dead-exports) — DONE
+- (b) Purged 360 one-off ops/forensic scripts: scripts/archive/(148), js/scripts/(31), scripts/ top-level(174)+leftover data. Runtime never imports from these. KEPT setup-nodejs.sh, scripts/*.sh, git hook, and 3 package.json lint scripts.
+- (a) Dead-export scan: 209 exports unreferenced externally; 154 used internally (kept); 55 genuinely dead → removed 50 via acorn AST codemod (skipped 5 ambiguous). 28 files edited incl core (utils/config/twilio/voice/cf-service).
+- Verified: node --check 0 fails; ESLint no no-undef; nodejs clean boot (no MODULE_NOT_FOUND/ReferenceError); /api/health healthy. Backend testing agent read-only sanity pending/next.

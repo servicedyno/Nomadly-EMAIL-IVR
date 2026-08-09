@@ -215,9 +215,6 @@ const DOWN_MESSAGES = {
   zh: '主机服务暂时不可用，请几分钟后再试 — 您的数据是安全的。',
   hi: 'होस्टिंग सेवा अस्थायी रूप से अनुपलब्ध है। कृपया कुछ मिनटों में फिर से प्रयास करें — आपका डेटा सुरक्षित है।',
 }
-function getDownMessage(lang) {
-  return DOWN_MESSAGES[lang] || DOWN_MESSAGES.en
-}
 
 function downResponse(reason) {
   return {
@@ -738,9 +735,6 @@ async function removeAddonDomain(cpUser, cpPass, domain, subDomain, mainDomain, 
 // Full per-vhost data including documentroot. Used to derive whether an addon
 // domain currently mirrors the primary site (docroot === public_html) or
 // serves its own folder (docroot === public_html/<domain>).
-async function getDomainsData(cpUser, cpPass, host = null) {
-  return uapi(cpUser, cpPass, 'DomainInfo', 'domains_data', { format: 'hash' }, 'GET', host)
-}
 
 // Change the document root of an addon domain's underlying subdomain.
 // cPanel exposes this ONLY via API2 SubDomain::changedocroot (no UAPI equiv).
@@ -779,18 +773,7 @@ async function changeEmailPassword(cpUser, cpPass, email, password, domain, host
   return uapi(cpUser, cpPass, 'Email', 'passwd_pop', { email, password, domain }, 'POST', host)
 }
 
-async function getEmailDiskUsage(cpUser, cpPass, host = null) {
-  return uapi(cpUser, cpPass, 'Email', 'get_disk_usage', {}, 'GET', host)
-}
-
 // Send test email via cPanel webmail (uses the server's sendmail)
-async function sendTestEmail(cpUser, cpPass, fromEmail, toEmail, domain, host = null) {
-  return uapi(cpUser, cpPass, 'Email', 'send_test', {
-    from: fromEmail,
-    to: toEmail,
-    subject: `Test from ${domain} - ${new Date().toISOString().split('T')[0]}`,
-  }, 'POST', host)
-}
 
 // STATS
 
@@ -1001,7 +984,7 @@ module.exports = {
   listDomains,
   addAddonDomain,
   removeAddonDomain,
-  getDomainsData,
+  
   changeDomainDocRoot,
   // Subdomains
   listSubdomains,
@@ -1012,8 +995,8 @@ module.exports = {
   createEmailAccount,
   deleteEmailAccount,
   changeEmailPassword,
-  getEmailDiskUsage,
-  sendTestEmail,
+  
+  
   // Stats
   getQuotaInfo,
   getBandwidthData,
@@ -1039,7 +1022,7 @@ module.exports = {
   // Health hooks
   setAdminNotifier,
   isControlPlaneDown,
-  getDownMessage,
+  
   // Diagnostics (surfaced for tests + route-level fallback logic)
   extractCpanelErrorFromResponse,
   looksLikeUapiPermFailure,

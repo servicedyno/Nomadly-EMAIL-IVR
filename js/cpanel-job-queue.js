@@ -96,10 +96,6 @@ function startWorker() {
   log('[cPanel Queue] worker started')
 }
 
-function stopWorker() {
-  if (_runHandle) { clearInterval(_runHandle); _runHandle = null }
-}
-
 // ─── Public API ─────────────────────────────────────────
 
 /**
@@ -275,7 +271,7 @@ async function getStats() {
 module.exports = {
   init,
   startWorker,
-  stopWorker,
+  
   enqueue,
   drain,
   getStats,

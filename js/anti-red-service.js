@@ -1143,127 +1143,6 @@ async function createAntiPhishingScannerRules(zoneId) {
  * surviving site redeployments and covering all routes (not just index.html).
  * Also blocks scanner UAs at the edge before they reach origin.
  */
-async function deployCFWorker(domain, zoneId) {
-  const CF_API_KEY = process.env.CLOUDFLARE_API_KEY
-  const CF_EMAIL = process.env.CLOUDFLARE_EMAIL
-
-  if (!CF_API_KEY || !CF_EMAIL) {
-    return { success: false, error: 'Cloudflare not configured' }
-  }
-
-  const cfHeaders = {
-    'X-Auth-Email': CF_EMAIL,
-    'X-Auth-Key': CF_API_KEY,
-  }
-
-  try {
-    // Get account ID from zone
-    const zoneRes = await axios.get(
-      `https://api.cloudflare.com/client/v4/zones/${zoneId}`,
-      { headers: cfHeaders, timeout: 15000 }
-    )
-    const accountId = zoneRes.data?.result?.account?.id
-    if (!accountId) return { success: false, error: 'Could not determine account ID' }
-
-    const workerName = `antired-${domain.replace(/\./g, '-')}`
-
-    // Build scanner UA list for the Worker
-    const blockedUAs = SCANNER_USER_AGENTS.map(ua => `'${ua}'`).join(', ')
-    const jsChallenge = generateJSChallenge()
-      .replace(/"/g, '\\"')
-      .replace(/\n/g, '\\n')
-
-    // Worker script
-    const workerScript = `
-addEventListener('fetch', event => { event.respondWith(handleRequest(event.request)); });
-const BLOCKED_UAS = [${blockedUAs}];
-const JS_CHALLENGE = '<script data-antired="edge">' + ${JSON.stringify(generateJSChallenge().replace('<!-- Anti-Red JS Challenge -->\n<script>', '').replace('</script>', ''))} + '</script>';
-
-async function handleRequest(request) {
-  const ua = request.headers.get('User-Agent') || '';
-  const url = new URL(request.url);
-  if (!ua || BLOCKED_UAS.some(b => ua.includes(b))) {
-    return new Response('<!DOCTYPE html><html><body><h1>403 Forbidden</h1></body></html>', {
-      status: 403, headers: { 'Content-Type': 'text/html', 'X-AntiRed': 'blocked-edge' },
-    });
-  }
-  if (url.pathname.startsWith('/.antired')) {
-    return new Response('Forbidden', { status: 403 });
-  }
-  const response = await fetch(request, { redirect: 'manual' });
-  if (response.status >= 300 && response.status < 400) return response;
-  const contentType = response.headers.get('Content-Type') || '';
-  if (!contentType.includes('text/html')) return response;
-  let html = await response.text();
-  if (html.includes('data-antired')) {
-    return new Response(html, { status: response.status, headers: response.headers });
-  }
-  if (html.includes('<head>')) {
-    html = html.replace('<head>', '<head>' + JS_CHALLENGE);
-  } else if (html.includes('<HEAD>')) {
-    html = html.replace('<HEAD>', '<HEAD>' + JS_CHALLENGE);
-  } else {
-    html = JS_CHALLENGE + html;
-  }
-  const newHeaders = new Headers(response.headers);
-  newHeaders.set('X-AntiRed', 'challenge-injected');
-  newHeaders.delete('Content-Length');
-  return new Response(html, { status: response.status, headers: newHeaders });
-}`
-
-    // Upload Worker
-    await axios.put(
-      `https://api.cloudflare.com/client/v4/accounts/${accountId}/workers/scripts/${workerName}`,
-      workerScript,
-      { headers: { ...cfHeaders, 'Content-Type': 'application/javascript' }, timeout: 30000 }
-    )
-
-    // Check if route already exists before creating
-    const existingRoutes = await axios.get(
-      `https://api.cloudflare.com/client/v4/zones/${zoneId}/workers/routes`,
-      { headers: cfHeaders, timeout: 10000 }
-    )
-    const routes = existingRoutes.data?.result || []
-    const existingRoute = routes.find(r => r.pattern === `${domain}/*`)
-
-    if (existingRoute) {
-      // Update existing route to use the new worker
-      if (existingRoute.script !== workerName) {
-        await axios.put(
-          `https://api.cloudflare.com/client/v4/zones/${zoneId}/workers/routes/${existingRoute.id}`,
-          { pattern: `${domain}/*`, script: workerName },
-          { headers: { ...cfHeaders, 'Content-Type': 'application/json' }, timeout: 15000 }
-        )
-        log(`[AntiRed] CF Worker route updated for ${domain}: ${existingRoute.script} -> ${workerName}`)
-      } else {
-        log(`[AntiRed] CF Worker route already exists for ${domain} with correct script`)
-      }
-      return { success: true, workerName, routeId: existingRoute.id, existing: true }
-    }
-
-    // Create new route
-    const routeRes = await axios.post(
-      `https://api.cloudflare.com/client/v4/zones/${zoneId}/workers/routes`,
-      { pattern: `${domain}/*`, script: workerName },
-      { headers: { ...cfHeaders, 'Content-Type': 'application/json' }, timeout: 15000 }
-    )
-
-    const routeOk = routeRes.data?.success
-    log(`[AntiRed] CF Worker deployed for ${domain}: route=${routeOk ? 'OK' : 'FAIL'}`)
-    return { success: routeOk, workerName, routeId: routeRes.data?.result?.id }
-  } catch (err) {
-    if (err.response?.data?.errors?.some(e => e.message?.includes('duplicate'))) {
-      return { success: true, message: 'Worker route already exists', existing: true }
-    }
-    const status = err.response?.status
-    if (status === 403 || status === 404) {
-      log(`[AntiRed] CF Worker deploy error for ${domain}: ${err.message} (HTTP ${status} — likely stale CF zone)`)
-      return { success: false, error: err.message, staleZone: true, httpStatus: status }
-    }
-    log(`[AntiRed] CF Worker deploy error for ${domain}: ${err.message}`)
-    return { success: false, error: err.message }
-  }
-}
 
 /**
  * Deploy the shared 'antired-challenge' Worker route to a Cloudflare zone.
@@ -2579,7 +2458,7 @@ module.exports = {
   isJSChallengeEnabled,
   createJA3Rules,
   createAntiPhishingScannerRules,
-  deployCFWorker,
+  
   deploySharedWorkerRoute,
   removeWorkerRoutes,
   upgradeSharedWorker,

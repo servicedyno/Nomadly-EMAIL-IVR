@@ -83,7 +83,6 @@ const ALL_VOICES = { ...OPENAI_VOICES, ...ELEVENLABS_VOICES }
 
 // Legacy alias — keep backward compat for code that references VOICES
 const VOICES = ALL_VOICES
-const GENERIC_VOICES = VOICES
 
 const DEFAULT_VOICE = 'rachel'
 const DEFAULT_PROVIDER = 'openai'
@@ -601,18 +600,12 @@ const TTS_SPEED_PRESETS = [
   { key: 'x-fast', name: 'Very Fast',  icon: '⚡', rate: 1.35, desc: '1.35x' },
 ]
 
-const DEFAULT_SPEED = 1.0
-
 function getSpeedButtons() {
   return TTS_SPEED_PRESETS.map(s => `${s.icon} ${s.name} (${s.desc})`)
 }
 
 function getSpeedByButton(buttonText) {
   return TTS_SPEED_PRESETS.find(s => buttonText === `${s.icon} ${s.name} (${s.desc})`) || null
-}
-
-function getSpeedPresets() {
-  return TTS_SPEED_PRESETS
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -672,7 +665,6 @@ async function warmOtpPrompts(voiceKey, speed = 1) {
   }
 }
 
-
 module.exports = {
   generateTTS,
   downloadTelegramAudio,
@@ -688,7 +680,7 @@ module.exports = {
   getProviderByButton,
   getSpeedButtons,
   getSpeedByButton,
-  getSpeedPresets,
+  
   translateText,
   setDb,
   VOICES,
@@ -697,8 +689,8 @@ module.exports = {
   OPENAI_VOICES,
   TTS_PROVIDERS,
   TTS_SPEED_PRESETS,
-  DEFAULT_SPEED,
-  GENERIC_VOICES,
+  
+  
   TTS_LANGUAGES,
   GREETING_TEMPLATES,
   TEMPLATE_CATEGORIES,

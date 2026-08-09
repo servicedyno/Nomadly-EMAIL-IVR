@@ -87,19 +87,10 @@ async function getUserTransactions(db, chatId, limit = 10) {
 /**
  * Get transaction by ID
  */
-async function getTransaction(db, transactionId) {
-  try {
-    return await db.collection('transactions').findOne({ _id: transactionId })
-  } catch (err) {
-    console.error('[TransactionID] Failed to fetch transaction:', err.message)
-    return null
-  }
-}
 
 module.exports = {
   generateTransactionId,
   logTransaction,
   updateTransactionStatus,
-  getUserTransactions,
-  getTransaction
+  getUserTransactions
 }

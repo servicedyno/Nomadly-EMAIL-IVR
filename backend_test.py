@@ -1,218 +1,228 @@
 #!/usr/bin/env python3
 """
-Backend API Testing Script for OTP Voice Match Bug Fix Verification
-Tests the Nomadly Telegram-bot platform (Node.js Express on port 5000 behind FastAPI proxy on 8001)
+Backend regression test after cleanup (360 scripts + 50 dead functions removed).
+Tests read-only endpoints to verify no runtime business logic was broken.
 """
 
 import requests
 import json
 import sys
+from typing import Dict, Any, List, Tuple
 
-# Backend URL from frontend/.env
-BACKEND_URL = "https://infrastructure-keys.preview.emergentagent.com"
-
-def print_section(title):
-    """Print a formatted section header"""
-    print("\n" + "="*80)
-    print(f"  {title}")
-    print("="*80)
-
-def test_otp_voice_match():
-    """
-    TEST 1: PRIMARY FIX - OTP voice match test
-    POST {REACT_APP_BACKEND_URL}/api/dev/otp-voice-match-test with body {}
-    """
-    print_section("TEST 1: PRIMARY FIX - OTP Voice Match Test")
-    
-    url = f"{BACKEND_URL}/api/dev/otp-voice-match-test"
-    print(f"URL: {url}")
-    print(f"Method: POST")
-    print(f"Body: {{}}")
-    
+# Load backend URL from frontend/.env
+def get_backend_url() -> str:
+    """Read REACT_APP_BACKEND_URL from frontend/.env"""
     try:
-        response = requests.post(url, json={}, timeout=30)
-        print(f"\nStatus Code: {response.status_code}")
-        
-        if response.status_code == 200:
-            data = response.json()
-            print(f"\nResponse JSON:")
-            print(json.dumps(data, indent=2))
-            
-            # Verify expected fields
-            print("\n--- VERIFICATION ---")
-            print(f"✓ HTTP 200: {'✅' if response.status_code == 200 else '❌'}")
-            print(f"✓ top-level 'pass' === true: {'✅' if data.get('pass') == True else '❌'}")
-            
-            checks = data.get('checks', {})
-            print("\n--- CHECKS ---")
-            expected_checks = [
-                'fallback_female_gender_matched',
-                'fallback_male_gender_matched',
-                'match_status_200',
-                'match_uses_play',
-                'match_no_polly_say_for_prompt',
-                'match_retry_uses_play',
-                'fallback_uses_say',
-                'fallback_say_gender_matched'
-            ]
-            
-            all_passed = True
-            for check in expected_checks:
-                value = checks.get(check)
-                status = '✅' if value == True else '❌'
-                print(f"  {check}: {value} {status}")
-                if value != True:
-                    all_passed = False
-            
-            print(f"\n{'✅ ALL CHECKS PASSED' if all_passed and data.get('pass') == True else '❌ SOME CHECKS FAILED'}")
-            return response.status_code == 200 and all_passed and data.get('pass') == True
-        else:
-            print(f"\nResponse Text: {response.text}")
-            return False
-            
+        with open('/app/frontend/.env', 'r') as f:
+            for line in f:
+                if line.startswith('REACT_APP_BACKEND_URL='):
+                    return line.split('=', 1)[1].strip()
     except Exception as e:
-        print(f"\n❌ ERROR: {str(e)}")
+        print(f"❌ Failed to read REACT_APP_BACKEND_URL: {e}")
+        sys.exit(1)
+    return ""
+
+BASE_URL = get_backend_url()
+print(f"🔗 Testing backend at: {BASE_URL}")
+print(f"📋 Scope: Verify NO regression after cleanup (360 scripts + 50 dead functions removed)\n")
+
+# Test results tracking
+results: List[Tuple[str, bool, str]] = []
+
+def test_endpoint(name: str, method: str, path: str, expected_status: int = 200, 
+                  body: Dict[Any, Any] = None, check_fields: List[str] = None) -> bool:
+    """Test a single endpoint and track results"""
+    url = f"{BASE_URL}{path}"
+    try:
+        if method == "GET":
+            response = requests.get(url, timeout=30)
+        elif method == "POST":
+            response = requests.post(url, json=body or {}, timeout=30)
+        else:
+            results.append((name, False, f"Unsupported method: {method}"))
+            return False
+        
+        # Check status code
+        if response.status_code != expected_status:
+            results.append((name, False, f"Expected {expected_status}, got {response.status_code}"))
+            return False
+        
+        # Check response fields if specified
+        if check_fields:
+            try:
+                data = response.json()
+                for field in check_fields:
+                    if field not in data:
+                        results.append((name, False, f"Missing field: {field}"))
+                        return False
+            except Exception as e:
+                results.append((name, False, f"JSON parse error: {e}"))
+                return False
+        
+        results.append((name, True, "PASSED"))
+        return True
+        
+    except requests.exceptions.Timeout:
+        results.append((name, False, "Request timeout (30s)"))
+        return False
+    except requests.exceptions.ConnectionError as e:
+        results.append((name, False, f"Connection error: {e}"))
+        return False
+    except Exception as e:
+        results.append((name, False, f"Unexpected error: {e}"))
         return False
 
-def test_twilio_ivr_transfer_billing():
-    """
-    TEST 2: REGRESSION - Twilio IVR transfer billing test
-    POST {REACT_APP_BACKEND_URL}/api/dev/twilio-ivr-transfer-billing-test with body {}
-    """
-    print_section("TEST 2: REGRESSION - Twilio IVR Transfer Billing Test")
+def test_health_endpoint() -> bool:
+    """Test 1: Health check endpoint"""
+    print("🏥 TEST 1: Health Check")
+    success = test_endpoint(
+        "Health Check",
+        "GET",
+        "/api/health",
+        expected_status=200,
+        check_fields=["status", "database"]
+    )
     
-    url = f"{BACKEND_URL}/api/dev/twilio-ivr-transfer-billing-test"
-    print(f"URL: {url}")
-    print(f"Method: POST")
-    print(f"Body: {{}}")
-    
-    try:
-        response = requests.post(url, json={}, timeout=30)
-        print(f"\nStatus Code: {response.status_code}")
-        
-        if response.status_code == 200:
-            data = response.json()
-            print(f"\nResponse JSON:")
-            print(json.dumps(data, indent=2))
-            
-            # Verify expected fields
-            print("\n--- VERIFICATION ---")
-            print(f"✓ HTTP 200: {'✅' if response.status_code == 200 else '❌'}")
-            print(f"✓ top-level 'pass' === true: {'✅' if data.get('pass') == True else '❌'}")
-            
-            return response.status_code == 200 and data.get('pass') == True
+    if success:
+        # Get the actual response to verify values
+        response = requests.get(f"{BASE_URL}/api/health", timeout=30)
+        data = response.json()
+        if data.get("status") == "healthy" and data.get("database") == "connected":
+            print(f"   ✅ Health: {data.get('status')}, Database: {data.get('database')}")
+            return True
         else:
-            print(f"\nResponse Text: {response.text}")
+            print(f"   ❌ Unexpected values: {data}")
+            results[-1] = ("Health Check", False, f"status={data.get('status')}, database={data.get('database')}")
             return False
-            
-    except Exception as e:
-        print(f"\n❌ ERROR: {str(e)}")
+    else:
+        print(f"   ❌ Health check failed")
         return False
 
-def test_call_reconciler():
-    """
-    TEST 3: REGRESSION - Call reconciler test
-    POST {REACT_APP_BACKEND_URL}/api/dev/call-reconciler-test with body {}
-    """
-    print_section("TEST 3: REGRESSION - Call Reconciler Test")
+def test_dev_endpoints() -> Dict[str, bool]:
+    """Test 2-7: Dev diagnostic endpoints (read-only, self-cleaning)"""
+    print("\n🔬 TEST 2-7: Dev Diagnostic Endpoints (read-only)")
     
-    url = f"{BACKEND_URL}/api/dev/call-reconciler-test"
-    print(f"URL: {url}")
-    print(f"Method: POST")
-    print(f"Body: {{}}")
+    dev_tests = {
+        "UX Fixes Audit": {
+            "method": "GET",
+            "path": "/api/dev/ux-fixes-audit",
+            "check_field": "ok"
+        },
+        "Call Reconciler": {
+            "method": "POST",
+            "path": "/api/dev/call-reconciler-test",
+            "check_field": "pass"
+        },
+        "OTP Voice Match": {
+            "method": "POST",
+            "path": "/api/dev/otp-voice-match-test",
+            "check_field": "pass"
+        },
+        "Twilio IVR Transfer Billing": {
+            "method": "POST",
+            "path": "/api/dev/twilio-ivr-transfer-billing-test",
+            "check_field": "pass"
+        },
+        "Dial Rate Guard": {
+            "method": "POST",
+            "path": "/api/dev/dial-rate-guard-test",
+            "check_field": "pass"
+        },
+        "IVR Rate Policy": {
+            "method": "POST",
+            "path": "/api/dev/ivr-rate-policy-test",
+            "check_field": "pass"
+        }
+    }
     
-    try:
-        response = requests.post(url, json={}, timeout=30)
-        print(f"\nStatus Code: {response.status_code}")
+    test_results = {}
+    for name, config in dev_tests.items():
+        success = test_endpoint(
+            name,
+            config["method"],
+            config["path"],
+            expected_status=200
+        )
         
-        if response.status_code == 200:
-            data = response.json()
-            print(f"\nResponse JSON:")
-            print(json.dumps(data, indent=2))
-            
-            # Verify expected fields
-            print("\n--- VERIFICATION ---")
-            print(f"✓ HTTP 200: {'✅' if response.status_code == 200 else '❌'}")
-            print(f"✓ top-level 'pass' === true: {'✅' if data.get('pass') == True else '❌'}")
-            
-            return response.status_code == 200 and data.get('pass') == True
+        if success:
+            # Verify the pass/ok field
+            try:
+                if config["method"] == "GET":
+                    response = requests.get(f"{BASE_URL}{config['path']}", timeout=30)
+                else:
+                    response = requests.post(f"{BASE_URL}{config['path']}", json={}, timeout=30)
+                
+                data = response.json()
+                check_field = config["check_field"]
+                
+                if data.get(check_field) == True:
+                    print(f"   ✅ {name}: {check_field}=true")
+                    test_results[name] = True
+                else:
+                    print(f"   ❌ {name}: {check_field}={data.get(check_field)}")
+                    results[-1] = (name, False, f"{check_field}={data.get(check_field)}")
+                    test_results[name] = False
+            except Exception as e:
+                print(f"   ❌ {name}: Failed to verify response - {e}")
+                results[-1] = (name, False, f"Response verification failed: {e}")
+                test_results[name] = False
         else:
-            print(f"\nResponse Text: {response.text}")
-            return False
-            
-    except Exception as e:
-        print(f"\n❌ ERROR: {str(e)}")
-        return False
+            print(f"   ❌ {name}: Request failed")
+            test_results[name] = False
+    
+    return test_results
 
-def test_health():
-    """
-    TEST 4: REGRESSION - Health check
-    GET {REACT_APP_BACKEND_URL}/api/health
-    """
-    print_section("TEST 4: REGRESSION - Health Check")
+def print_summary():
+    """Print test summary"""
+    print("\n" + "="*70)
+    print("📊 TEST SUMMARY")
+    print("="*70)
     
-    url = f"{BACKEND_URL}/api/health"
-    print(f"URL: {url}")
-    print(f"Method: GET")
+    passed = sum(1 for _, success, _ in results if success)
+    total = len(results)
     
-    try:
-        response = requests.get(url, timeout=30)
-        print(f"\nStatus Code: {response.status_code}")
-        
-        if response.status_code == 200:
-            data = response.json()
-            print(f"\nResponse JSON:")
-            print(json.dumps(data, indent=2))
-            
-            # Verify expected fields
-            print("\n--- VERIFICATION ---")
-            print(f"✓ HTTP 200: {'✅' if response.status_code == 200 else '❌'}")
-            print(f"✓ status === 'healthy': {'✅' if data.get('status') == 'healthy' else '❌'}")
-            print(f"✓ database === 'connected': {'✅' if data.get('database') == 'connected' else '❌'}")
-            
-            return (response.status_code == 200 and 
-                   data.get('status') == 'healthy' and 
-                   data.get('database') == 'connected')
-        else:
-            print(f"\nResponse Text: {response.text}")
-            return False
-            
-    except Exception as e:
-        print(f"\n❌ ERROR: {str(e)}")
+    print(f"\n✅ Passed: {passed}/{total}")
+    print(f"❌ Failed: {total - passed}/{total}")
+    
+    if total - passed > 0:
+        print("\n❌ FAILED TESTS:")
+        for name, success, message in results:
+            if not success:
+                print(f"   • {name}: {message}")
+    
+    print("\n" + "="*70)
+    
+    if passed == total:
+        print("✅ ALL TESTS PASSED - No regression detected")
+        print("="*70)
+        return True
+    else:
+        print("❌ SOME TESTS FAILED - Regression detected")
+        print("="*70)
         return False
 
 def main():
-    """Run all tests and report results"""
-    print("\n" + "="*80)
-    print("  OTP VOICE MATCH BUG FIX VERIFICATION")
-    print("  Nomadly Telegram-bot Platform")
-    print("  Node.js Express (5000) behind FastAPI proxy (8001)")
-    print("="*80)
+    """Run all tests"""
+    print("="*70)
+    print("🧪 BACKEND REGRESSION TEST AFTER CLEANUP")
+    print("="*70)
+    print("Cleanup performed:")
+    print("  • 360 unused one-off ops/forensic script files removed")
+    print("  • 50 genuinely-dead exported functions removed from 28 modules")
+    print("="*70)
+    print()
     
-    results = {
-        'test1_otp_voice_match': test_otp_voice_match(),
-        'test2_twilio_ivr_transfer_billing': test_twilio_ivr_transfer_billing(),
-        'test3_call_reconciler': test_call_reconciler(),
-        'test4_health': test_health()
-    }
+    # Test 1: Health check
+    health_ok = test_health_endpoint()
     
-    # Summary
-    print_section("SUMMARY")
-    total = len(results)
-    passed = sum(1 for v in results.values() if v)
+    # Test 2-7: Dev endpoints
+    dev_results = test_dev_endpoints()
     
-    for test_name, result in results.items():
-        status = '✅ PASSED' if result else '❌ FAILED'
-        print(f"{test_name}: {status}")
+    # Print summary
+    all_passed = print_summary()
     
-    print(f"\nTotal: {passed}/{total} tests passed ({int(passed/total*100)}%)")
-    
-    if passed == total:
-        print("\n✅ ALL TESTS PASSED - Bug fix verified successfully!")
-        sys.exit(0)
-    else:
-        print(f"\n❌ {total - passed} TEST(S) FAILED - Bug fix verification incomplete")
-        sys.exit(1)
+    # Exit with appropriate code
+    sys.exit(0 if all_passed else 1)
 
 if __name__ == "__main__":
     main()

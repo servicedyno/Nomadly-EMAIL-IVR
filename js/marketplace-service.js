@@ -19,10 +19,9 @@ const MAX_PRICE = 5000
 const MAX_LISTINGS = 10
 const MAX_TITLE = 100
 const MAX_DESC = 500
-const MAX_IMAGES = 5
+
 const MSG_RATE_LIMIT = 30 // per conversation per hour
 const INACTIVITY_CLOSE_HOURS = 72
-const SELLER_OFFLINE_HOURS = 24
 
 // ── One-time marketplace access fee ──────────────────────────────────────
 // Charged from the user's wallet the first time they try to USE the
@@ -423,8 +422,8 @@ module.exports = {
   MAX_LISTINGS,
   MAX_TITLE,
   MAX_DESC,
-  MAX_IMAGES,
+  
   MSG_RATE_LIMIT,
-  SELLER_OFFLINE_HOURS,
+  
   MARKETPLACE_ACCESS_FEE_USD,
 }

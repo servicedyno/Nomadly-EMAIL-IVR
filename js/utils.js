@@ -107,10 +107,6 @@ function sanitizeShortenerUrl(raw) {
   return s
 }
 
-function isNormalUser(chatId) {
-  return !isAdmin(chatId) && !isDeveloper(chatId)
-}
-
 function isDeveloper(chatId) {
   const devId = process.env.TELEGRAM_DEVELOPER_CHAT_ID
   if (!devId) return false
@@ -336,7 +332,6 @@ async function forceWalletDebit(walletOf, chatId, amountUsd, metadata = {}) {
   return { success: true, forced: true, charged: amountUsd, balanceAfter: newBal }
 }
 
-
 /**
  * Check and process referral reward after a wallet deduction
  * If the user was referred and their cumulative spend >= $30, credit referrer $5
@@ -456,37 +451,6 @@ const safeStringify = (obj, replacer = null, space = 2) => {
 }
 
 // Enhanced API error handler for better debugging
-const handleApiError = (error, context = '') => {
-  const errorInfo = {
-    context,
-    message: error?.message || 'Unknown error',
-    status: error?.response?.status,
-    statusText: error?.response?.statusText,
-    data: error?.response?.data,
-    code: error?.code
-  }
-  
-  console.error(`❌ API Error${context ? ` [${context}]` : ''}:`)
-  console.error(`   Message: ${errorInfo.message}`)
-  
-  if (errorInfo.status) {
-    console.error(`   HTTP Status: ${errorInfo.status} ${errorInfo.statusText || ''}`)
-  }
-  
-  if (errorInfo.code) {
-    console.error(`   Error Code: ${errorInfo.code}`)
-  }
-  
-  if (errorInfo.data) {
-    console.error(`   Response Data: ${safeStringify(errorInfo.data)}`)
-  }
-  
-  if (error?.config?.url) {
-    console.error(`   URL: ${error.config.url}`)
-  }
-  
-  return errorInfo
-}
 
 function today() {
   const currentDate = new Date()
@@ -989,12 +953,6 @@ const getBalance = async (walletOf, chatId) => {
   return { usdBal }
 }
 
-const MAX_PLAN_DURATION_MS = {
-  Daily: 86400 * 1000 * 1.5,    // 1.5 days max (buffer for timezone edge cases)
-  Weekly: 7 * 86400 * 1000 * 1.1,  // ~7.7 days max
-  Monthly: 31 * 86400 * 1000,      // 31 days max
-}
-
 const subscribePlan = async (planEndingTime, freeDomainNamesAvailableFor, planOf, chatId, plan, bot, lang, freeValidationsAvailableFor) => {
   const duration = timeOf[plan]
   if (!duration) {
@@ -1187,9 +1145,9 @@ module.exports = {
   nextNumber,
   isDeveloper,
   isValidEmail,
-  isNormalUser,
+  
   subscribePlan,
-  MAX_PLAN_DURATION_MS,
+  
   regularCheckDns,
   checkFreeTrialTaken,
   extractPhoneNumbers,
@@ -1202,5 +1160,5 @@ module.exports = {
   planCheckExistingDomain,
   removeProtocolFromDomain,
   safeStringify,
-  handleApiError,
+  
 }

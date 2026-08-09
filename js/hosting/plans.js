@@ -96,7 +96,7 @@ const generateDomainFoundText = (websiteName, price) =>
 const generateExistingDomainText = websiteName => `Domain set: <b>${websiteName}</b>`
 const connectExternalDomainText = websiteName => `Domain: <b>${websiteName}</b>\n\nNameservers will be pointed to Cloudflare. DNS records auto-configured.`
 const domainNotFound = websiteName => `<b>${websiteName}</b> is not available. Try another.`
-const nameserverSelectionText = websiteName => `Select nameserver provider for <b>${websiteName}</b>`
+
 const confirmEmailBeforeProceeding = email => `Use <b>${email}</b> for this account?`
 
 const generateInvoiceText = payload => {
@@ -122,16 +122,6 @@ const showCryptoPaymentInfo = (priceCrypto, tickerView, address, plan) => `Send 
 
 Confirmation may take up to 30 min. Your ${plan} activates automatically once confirmed.`
 
-const successText = (info, response) =>
-  `Your hosting is live.
-
-<b>Domain:</b> ${info.website_name}
-<b>Username:</b> <code>${response.username}</code>
-<b>Password:</b> <code>${response.password}</code>
-<b>Panel:</b> ${response.url}
-${info.email ? `<b>Email:</b> ${info.email}` : ''}
-DNS auto-configured via Cloudflare.`
-
 const support = (plan, statusCode) => `Setup failed for ${plan} (${statusCode}). Tap 💬 Get Support for help.`
 
 const bankPayDomain = (priceNGN, plan) => `Pay <b>${priceNGN} NGN</b> via the button below. Your ${plan} activates automatically once confirmed.`
@@ -143,11 +133,11 @@ module.exports = {
   generateExistingDomainText,
   connectExternalDomainText,
   generateInvoiceText,
-  nameserverSelectionText,
+  
   confirmEmailBeforeProceeding,
   showCryptoPaymentInfo,
   domainNotFound,
-  successText,
+  
   support,
   bankPayDomain,
 }

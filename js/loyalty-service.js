@@ -230,12 +230,6 @@ function formatUpgradeMessage(upgrade, lang) {
 /**
  * Format discount applied line for checkout (translated)
  */
-function formatDiscountLine(discountInfo, lang) {
-  if (discountInfo.discount <= 0) return ''
-  const s = getStrings(lang)
-  const tierName = s.tierNames[discountInfo.tier.key] || discountInfo.tier.name
-  return `\n${discountInfo.tier.badge} <b>${tierName} ${s.discount} (${discountInfo.tier.discountPercent}%)</b>: -$${discountInfo.discount.toFixed(2)}`
-}
 
 /**
  * Get translated tier line for wallet display
@@ -268,7 +262,7 @@ module.exports = {
   getTotalSpend,
   formatTierStatus,
   formatUpgradeMessage,
-  formatDiscountLine,
+  
   formatWalletTierLine,
   formatCheckoutDiscount,
 }

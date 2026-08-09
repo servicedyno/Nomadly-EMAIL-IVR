@@ -12640,3 +12640,33 @@ deadcode_regression_test_2026_08_09:
     - "Dev sandbox (SKIP_WEBHOOK_SYNC=true) sharing production MongoDB"
     - "All tests synthetic/self-cleaning or pure read-only diagnostics"
 
+
+#====================================================================================================
+# CLEANUP PHASE 2 (2026-08-09) — (b) purge ops-script libraries + (a) remove dead exports
+#====================================================================================================
+cleanup_phase2_2026_08_09:
+  part_b_ops_scripts:
+    removed: 360
+    detail: "scripts/archive/ (148), js/scripts/ (31), scripts/ top-level one-off .js/.py (174) +
+             leftover extraction data (vs_*.json/.txt, voice_service_*.json, 7). Verified runtime NEVER
+             require()s from scripts/, js/scripts/, scripts/archive/. KEPT: setup-nodejs.sh, all scripts/*.sh
+             tooling + git-hook, and the 3 package.json-referenced js (lint_async_in_if, check_lang_parity,
+             check_panel_lang_parity)."
+  part_a_dead_exports:
+    method: "require()-graph trace + per-name usage search across ALL js incl js/__tests__, js/tests, root tests/,
+             and _index.js. Found 209 exports unreferenced by other files; 154 still used INTERNALLY (left as-is);
+             55 GENUINELY DEAD (def+export only, never called anywhere)."
+    removed: 50
+    skipped_ambiguous: 5   # userKeyboard, adminKeyboard, _cooldownMs, forLang, _sets (def/export not cleanly matched)
+    how: "AST codemod (acorn) removed each dead top-level declaration + its export entry; re-parsed each file
+          post-edit (skip-on-break). Edited 28 files incl utils.js, config.js, twilio-service.js, voice-service.js,
+          cf-service.js. Examples removed: handleApiError, isNormalUser, generateDialTwiml/Forward/Reject (twilio),
+          fetchDynoPayTransaction, checkSSLCert, listAllProviders, getRejectionGuidance."
+    not_removed: "154 internal-only exports (removing gives no code reduction, only edit risk) — intentionally kept."
+  verification_by_main_agent:
+    - "All 28 edited files pass `node --check` (0 syntax failures)."
+    - "ESLint on core edited files (utils/config/twilio/voice/cf): NO no-undef errors; only pre-existing empty-catch style warnings."
+    - "nodejs restarted CLEAN: no MODULE_NOT_FOUND / ReferenceError / is-not-defined / is-not-a-function / SyntaxError; app ready; Mongo connected; /api/health healthy."
+  testing_request_for_backend_agent:
+    - "READ-ONLY regression sanity ONLY (prod-connected backend; no writes/payments/provisioning/SMS/calls/emails,
+       no test users). Confirm /api/health + the safe dev diagnostic GETs still pass after the dead-export removal + script purge."

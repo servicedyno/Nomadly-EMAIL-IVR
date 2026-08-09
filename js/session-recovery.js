@@ -165,28 +165,10 @@ function generateResumePrompt(session, lang = 'en') {
 /**
  * Update session progress
  */
-async function updateSessionProgress(db, chatId, newData) {
-  try {
-    await db.collection('resumableSessions').updateOne(
-      { _id: `resume_${chatId}` },
-      { 
-        $set: { 
-          data: newData,
-          updatedAt: new Date()
-        } 
-      }
-    )
-    return true
-  } catch (err) {
-    console.error('[SessionRecovery] Failed to update session:', err.message)
-    return false
-  }
-}
 
 module.exports = {
   saveResumableSession,
   getResumableSession,
   clearResumableSession,
-  generateResumePrompt,
-  updateSessionProgress
+  generateResumePrompt
 }

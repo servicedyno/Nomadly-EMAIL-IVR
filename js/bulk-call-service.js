@@ -60,10 +60,6 @@ async function initBulkCallService(db, bot, twilioService, walletOf, app) {
   setTimeout(() => recoverRunningCampaigns().catch(e => log(`[BulkCall] Recovery error: ${e.message}`)), 15000)
 }
 
-function isReady() {
-  return _collection != null
-}
-
 let _routesRegistered = false
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1212,7 +1208,7 @@ function getCampaignMapping(callSid) {
 
 module.exports = {
   initBulkCallService,
-  isReady,
+  
   registerRoutes,
   recoverRunningCampaigns,
   parseLeadsFile,

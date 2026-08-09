@@ -81,9 +81,6 @@ async function startWarming(ip, domain) {
 /**
  * Get current warming status for an IP
  */
-async function getWarmingStatus(ip) {
-  return _ipWarmingCol.findOne({ ip });
-}
 
 /**
  * Get all warming entries
@@ -175,9 +172,6 @@ async function resumeWarming(ip) {
 /**
  * Remove an IP from warming
  */
-async function removeWarming(ip) {
-  await _ipWarmingCol.deleteOne({ ip });
-}
 
 /**
  * Reset hourly counters for all IPs
@@ -263,36 +257,19 @@ async function getTotalCapacity() {
 /**
  * Pick the best IP to send from (most capacity, respects warming)
  */
-async function pickBestIp() {
-  const allIps = await _ipWarmingCol.find({ isPaused: false }).toArray();
-  if (allIps.length === 0) return null;
-
-  let best = null;
-  let bestCapacity = -1;
-
-  for (const w of allIps) {
-    const check = await canSend(w.ip);
-    if (check.canSend && check.dailyRemaining > bestCapacity) {
-      bestCapacity = check.dailyRemaining;
-      best = w;
-    }
-  }
-
-  return best;
-}
 
 module.exports = {
   initWarming,
   startWarming,
-  getWarmingStatus,
+  
   getAllWarming,
   canSend,
   recordSent,
   pauseWarming,
   resumeWarming,
-  removeWarming,
+  
   getTotalCapacity,
-  pickBestIp,
+  
   WARMING_STAGES,
   getStage
 };

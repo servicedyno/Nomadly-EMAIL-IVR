@@ -828,7 +828,6 @@ const payIn = {
   wallet: '👛 Wallet',
 }
 
-const tickerViews = Object.keys(tickerOf)
 const reverseObject = o => Object.fromEntries(Object.entries(o).map(([key, val]) => [val, key]))
 const tickerViewOf = reverseObject(tickerOf)
 const supportedCryptoView = reverseObject(supportedCrypto)
@@ -953,12 +952,6 @@ const chooseSubscription = {
   },
 }
 
-const dO = {
-  reply_markup: {
-    keyboard: [_bc, ['Backup Data'], ['Restore Data']],
-  },
-}
-
 const rem = {
   reply_markup: {
     remove_keyboard: true,
@@ -1048,7 +1041,7 @@ module.exports = {
   k,
   t,
   u,
-  dO,
+  
   bc,
   npl,
   dns,
@@ -1069,7 +1062,7 @@ module.exports = {
   tickerOf,
   linkType,
   discountOn,
-  tickerViews,
+  
   linkOptions,
   planOptions,
   tickerViewOf,

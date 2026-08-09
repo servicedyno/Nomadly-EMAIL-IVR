@@ -155,15 +155,6 @@ function getProviderForRecord(vpsRecord) {
   return getProvider()
 }
 
-function listAllProviders() {
-  const out = [{ name: DEFAULT_PROVIDER, service: getProvider(), primary: true }]
-  const fb = getFallbackProvider()
-  if (fb) {
-    out.push({ name: DEFAULT_PROVIDER === 'ovh' ? 'contabo' : 'ovh', service: fb, primary: false })
-  }
-  return out
-}
-
 /**
  * Detect which provider owns an instanceId based on format:
  *  - OVH service names look like 'vps-12abc34.vps.ovh.net' (or any string starting with 'vps-')
@@ -236,7 +227,7 @@ module.exports = {
   pickProviderForOs,
   getFallbackProvider,
   getProviderForRecord,
-  listAllProviders,
+  
   detectProviderByInstanceId,
   dispatchByInstanceId,
   buildSmartProxy,

@@ -272,15 +272,6 @@ function registerRecentTestCredential(sipUsername, chatId) {
  * Look up a chatId from the recent test credential cache.
  * Returns { chatId, registeredAt } or null if not found/expired.
  */
-function lookupRecentTestCredential(sipUsername) {
-  const entry = _recentTestCredentials.get(sipUsername)
-  if (!entry) return null
-  if (Date.now() - entry.registeredAt > RECENT_TEST_CREDENTIAL_TTL) {
-    _recentTestCredentials.delete(sipUsername)
-    return null
-  }
-  return entry
-}
 
 // Fix #4 → Fix #5: Auto-routed call REAL-TIME billing.
 // When rate-limit/hard-block rejects a call but Telnyx auto-routed it to PSTN,
@@ -459,7 +450,6 @@ function _releaseOutbound(chatId, callControlId) {
   delete m[callControlId]
   if (Object.keys(m).length === 0) delete _outboundReservations[cid]
 }
-
 
 // ── User Wallet Low Balance Notification System ──
 // Thresholds for proactive warnings sent via Telegram bot
@@ -5203,7 +5193,7 @@ module.exports = {
   getTwilioVoice,
   getTelnyxVoice,
   registerRecentTestCredential,
-  lookupRecentTestCredential,
+  
   trackIvrAnalytics,
   removeSipPreDialBlockByChatId,
 }

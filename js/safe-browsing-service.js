@@ -66,54 +66,6 @@ async function checkDomain(domain) {
 /**
  * Check multiple domains at once (batched, max 500 URLs per request)
  */
-async function checkDomains(domains) {
-  if (!SB_API_KEY) {
-    return domains.map(d => ({ domain: d, safe: null, threats: [], error: 'API key not configured' }))
-  }
-
-  // Build URL entries (http + https for each domain)
-  const urls = []
-  const domainMap = {}
-  for (const domain of domains) {
-    const httpUrl = `http://${domain}/`
-    const httpsUrl = `https://${domain}/`
-    urls.push({ url: httpUrl }, { url: httpsUrl })
-    domainMap[httpUrl] = domain
-    domainMap[httpsUrl] = domain
-  }
-
-  try {
-    const res = await axios.post(`${SB_ENDPOINT}?key=${SB_API_KEY}`, {
-      client: { clientId: 'nomadly-hosting', clientVersion: '1.0' },
-      threatInfo: {
-        threatTypes: ['MALWARE', 'SOCIAL_ENGINEERING', 'UNWANTED_SOFTWARE', 'POTENTIALLY_HARMFUL_APPLICATION'],
-        platformTypes: ['ANY_PLATFORM'],
-        threatEntryTypes: ['URL'],
-        threatEntries: urls,
-      },
-    }, { timeout: 20000 })
-
-    const matches = res.data?.matches || []
-    const flagged = new Map()
-    for (const m of matches) {
-      const domain = domainMap[m.threat?.url]
-      if (domain) {
-        if (!flagged.has(domain)) flagged.set(domain, [])
-        flagged.get(domain).push({ type: m.threatType, platform: m.platformType })
-      }
-    }
-
-    return domains.map(d => {
-      const threats = flagged.get(d) || []
-      const safe = threats.length === 0
-      cache.set(d, { safe, threats, checkedAt: Date.now() })
-      return { domain: d, safe, threats, error: null }
-    })
-  } catch (err) {
-    log(`[SafeBrowsing] Batch check error:`, err.message)
-    return domains.map(d => ({ domain: d, safe: null, threats: [], error: err.message }))
-  }
-}
 
 /**
  * Check domain IP against common blacklists (DNSBL)
@@ -154,11 +106,6 @@ async function checkBlacklists(domain) {
 /**
  * Get cached status for a domain (if available)
  */
-function getCachedStatus(domain) {
-  const cached = cache.get(domain)
-  if (!cached) return null
-  return { safe: cached.safe, threats: cached.threats, checkedAt: new Date(cached.checkedAt).toISOString() }
-}
 
 /**
  * Check if Safe Browsing API is configured
@@ -169,8 +116,8 @@ function isConfigured() {
 
 module.exports = {
   checkDomain,
-  checkDomains,
+  
   checkBlacklists,
-  getCachedStatus,
+  
   isConfigured,
 }

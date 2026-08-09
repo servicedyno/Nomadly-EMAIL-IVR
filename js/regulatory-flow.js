@@ -690,11 +690,6 @@ async function cancelSession(chatId, session) {
 /**
  * Check if a user is currently in document collection mode.
  */
-async function isInDocCollection(chatId) {
-  const docSessions = deps.db.collection('docSessions')
-  const session = await docSessions.findOne({ chatId, status: { $in: ['collecting', 'awaiting_address'] } })
-  return !!session
-}
 
 /**
  * Get incomplete doc session for a user (for resume detection).
@@ -792,7 +787,7 @@ module.exports = {
   handleTextInput,
   handlePhotoInput,
   handleAddressInput,
-  isInDocCollection,
+  
   getIncompleteSession,
   resumeSession,
   restartSession,

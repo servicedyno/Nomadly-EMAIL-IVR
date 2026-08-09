@@ -325,10 +325,6 @@ async function pauseCampaign(campaignId) {
   await _campaignsCol.updateOne({ campaignId }, { $set: { status: 'paused' } });
 }
 
-async function resumeCampaign(campaignId) {
-  await _campaignsCol.updateOne({ campaignId }, { $set: { status: 'queued' } });
-}
-
 async function cancelCampaign(campaignId) {
   await _campaignsCol.updateOne({ campaignId }, { $set: { status: 'cancelled' } });
 }
@@ -586,22 +582,6 @@ async function getSuppressionCount() {
   return _suppressionsCol.countDocuments({});
 }
 
-async function isEmailSuppressed(email) {
-  return !!(await _suppressionsCol.findOne({ email }));
-}
-
-async function addSuppression(email, reason = 'manual') {
-  await _suppressionsCol.updateOne(
-    { email },
-    { $set: { email, reason, addedAt: new Date() } },
-    { upsert: true }
-  );
-}
-
-async function clearSuppressions() {
-  return _suppressionsCol.deleteMany({});
-}
-
 async function getSuppressionList(limit = 50) {
   return _suppressionsCol.find({}).sort({ addedAt: -1 }).limit(limit).toArray();
 }
@@ -699,13 +679,13 @@ module.exports = {
   getUserCampaigns,
   startCampaign,
   pauseCampaign,
-  resumeCampaign,
+  
   processSpintax,
   cancelCampaign,
   getSuppressionCount,
-  isEmailSuppressed,
-  addSuppression,
-  clearSuppressions,
+  
+  
+  
   getSuppressionList,
   getAnalytics,
   DKIM_SELECTOR,

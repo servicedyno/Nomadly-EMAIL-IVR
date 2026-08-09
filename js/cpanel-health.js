@@ -297,10 +297,6 @@ function startProbeLoop({ intervalMs = 20 * 1000 } = {}) {
   if (typeof _loopHandle.unref === 'function') _loopHandle.unref()
 }
 
-function stopProbeLoop() {
-  if (_loopHandle) { clearInterval(_loopHandle); _loopHandle = null }
-}
-
 module.exports = {
   isWhmReachable,
   isWhmReachableCached,
@@ -309,7 +305,7 @@ module.exports = {
   onUp,
   onDown,
   startProbeLoop,
-  stopProbeLoop,
+  
   // exposed for tests
   _resetCache: () => {
     _cache = {

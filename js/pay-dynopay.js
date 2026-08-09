@@ -25,10 +25,6 @@ const SUPPORTED_CRYPTO = [
   { currency: 'TRX', name: 'TRON' },
 ]
 
-const fetchSupportedCryptoCurrency = async () => {
-  return SUPPORTED_CRYPTO
-}
-
 const getDynopayCryptoAddress = async (amount, currency, webhook_url, meta_data) => {
   // Enforce minimum $1 USD as required by DynoPay
   const finalAmount = Math.max(amount, 1)
@@ -71,20 +67,4 @@ const getDynopayCryptoPaymentStatus = async (address) => {
   }
 }
 
-const fetchDynoPayTransaction = async (id) => {
-  const options = {
-    method: 'GET',
-    url: `${baseUrl}/user/getSingleTransaction/${id}`,
-    headers: headers
-  }
-
-  try {
-    const response = await axios.request(options)
-    return response.data.data
-  } catch (error) {
-    console.error('Error in Fetching transactions data', error?.response?.data?.message)
-    return false
-  }
-}
-
-module.exports = { fetchSupportedCryptoCurrency, getDynopayCryptoAddress, getDynopayCryptoPaymentStatus, fetchDynoPayTransaction }
+module.exports = {  getDynopayCryptoAddress, getDynopayCryptoPaymentStatus }

@@ -84,11 +84,6 @@ async function getJobHistory(chatId, limit = 10) {
     .toArray()
 }
 
-async function getJob(jobId) {
-  if (!_db) return null
-  return _db.collection(COLLECTION).findOne({ jobId })
-}
-
 // ═══════════════════════════════════════
 // CSV Generation
 // ═══════════════════════════════════════
@@ -274,7 +269,7 @@ module.exports = {
   initEmailValidationService,
   processValidationJob,
   getJobHistory,
-  getJob,
+  
   parseEmailList,
   buildSummary,
   generateValidCsv,

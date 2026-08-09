@@ -14,7 +14,6 @@ const MAIN_ACCOUNT_SID = ACCOUNT_SID
 
 // Stores the active Twilio SIP domain name (set during initialization)
 let activeSipDomainName = null
-function getTwilioSipDomainName() { return activeSipDomainName }
 
 let mainClient = null
 
@@ -42,8 +41,6 @@ function requireSubClient(subSid, subToken, operation) {
   }
   return getSubClient(subSid, subToken)
 }
-
-function getMainAccountSid() { return MAIN_ACCOUNT_SID }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // TOKEN-ROTATION SELF-HEAL (added 2026-02)
@@ -501,7 +498,6 @@ async function removeSipCredential(credListSid, username) {
   }
 }
 
-
 async function mapCredentialListToDomain(domainSid, credListSid, subSid, subToken) {
   try {
     // ━━━ SECURITY: Credential list mapping MUST use sub-account — never main account ━━━
@@ -708,30 +704,10 @@ async function makeTrialOutboundCall(from, to, twimlUrl, options = {}) {
 }
 
 // Generate TwiML for dialing out (used for SIP-originated outbound calls)
-function generateDialTwiml(to, callerId) {
-  const VoiceResponse = twilio.twiml.VoiceResponse
-  const response = new VoiceResponse()
-  response.dial({ callerId }).number(to)
-  return response.toString()
-}
 
 // Generate TwiML for call forwarding
-function generateForwardTwiml(forwardTo, callerId) {
-  const VoiceResponse = twilio.twiml.VoiceResponse
-  const response = new VoiceResponse()
-  const dial = response.dial({ callerId, timeout: 30 })
-  dial.number(forwardTo)
-  return response.toString()
-}
 
 // Generate TwiML to reject call
-function generateRejectTwiml(reason) {
-  const VoiceResponse = twilio.twiml.VoiceResponse
-  const response = new VoiceResponse()
-  response.say(reason || 'This call cannot be completed.')
-  response.hangup()
-  return response.toString()
-}
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // READ-ONLY: Get existing Twilio resources without updating webhooks
@@ -1424,7 +1400,7 @@ module.exports = {
   getSubClient,
   requireSubClient,
   withSubAccountSelfHeal,
-  getMainAccountSid,
+  
   createSubAccount,
   getSubAccount,
   closeSubAccount,
@@ -1439,14 +1415,14 @@ module.exports = {
   mapCredentialListToDomain,
   makeOutboundCall,
   makeTrialOutboundCall,
-  generateDialTwiml,
-  generateForwardTwiml,
-  generateRejectTwiml,
+  
+  
+  
   initializeTwilioResources,
   getTwilioResourcesFromEnv,
   transferNumberToSubAccount,
   updateSubAccountNumberWebhooks,
-  getTwilioSipDomainName,
+  
   createAddress,
   NO_COMPLIANCE_COUNTRIES,
   NUMBER_COST_FREE_THRESHOLD,

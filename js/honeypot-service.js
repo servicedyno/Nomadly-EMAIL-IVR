@@ -153,10 +153,6 @@ async function getOrCreateKVNamespace() {
   }
 }
 
-function getKVNamespaceId() {
-  return kvNamespaceId
-}
-
 // ─── Ban IP via Cloudflare KV (from backend for manual bans) ──
 
 async function banIPViaKV(ip, reason, details, ttlSeconds = 86400) {
@@ -251,7 +247,7 @@ module.exports = {
   logHoneypotTrigger,
   getHoneypotStats,
   getOrCreateKVNamespace,
-  getKVNamespaceId,
+  
   banIPViaKV,
   createHoneypotRoutes,
   KV_NAMESPACE_TITLE,

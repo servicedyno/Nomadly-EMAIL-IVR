@@ -604,12 +604,6 @@ function getTotalSteps(config) {
  * Get country-specific rejection guidance for a given doc key.
  * Returns an object with language keys, or null if no specific guidance.
  */
-function getRejectionGuidance(countryCode, numType, docKey) {
-  const key = `${countryCode}:${numType}`
-  const guidance = REJECTION_GUIDANCE[key]
-  if (!guidance) return null
-  return guidance[docKey] || null
-}
 
 /**
  * Get ALL rejection guidance for a country+numType.
@@ -629,6 +623,6 @@ module.exports = {
   getRegConfig,
   needsDocUpload,
   getTotalSteps,
-  getRejectionGuidance,
+  
   getAllRejectionGuidance,
 }

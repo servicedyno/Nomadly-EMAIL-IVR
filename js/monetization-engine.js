@@ -137,7 +137,6 @@ function getUpsellMessage(type, lang = 'en', ...args) {
   return fn ? fn(...args) : (UPSELL_MESSAGES.en[type] || (() => ''))(...args)
 }
 
-
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // FEATURE 2: Welcome Bonus
 // Auto-credits wallet when user first joins
@@ -237,12 +236,6 @@ async function checkAndAwardWelcomeBonus(chatId, lang = 'en') {
     log(`[WelcomeBonus] Error: ${e.message}`)
     return null
   }
-}
-
-async function hasReceivedWelcomeBonus(chatId) {
-  if (!_welcomeBonusCol) return true // Assume yes if not initialized
-  const record = await _welcomeBonusCol.findOne({ chatId })
-  return !!record
 }
 
 /**
@@ -364,7 +357,6 @@ async function giftAllUsersWelcomeBonus(getChatIds, sendMessage, adminSend, getU
   log(`[GiftAll] Complete — gifted=${gifted}, skipped=${skipped}, failed=${failed}, total=${total}`)
   return { gifted, skipped, failed, total }
 }
-
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // FEATURE 3: Win-Back Campaign
@@ -671,7 +663,6 @@ async function runWinBackCampaign(bot) {
   return { sent, errors, markedDead, rateLimited }
 }
 
-
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // FEATURE 4: Service Bundles
 // Discounted multi-service packages
@@ -810,7 +801,6 @@ function formatBundleMenu(lang = 'en') {
   return msg
 }
 
-
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Unified Coupon Validator (integrates win-back codes)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -837,7 +827,6 @@ async function markMonetizationCodeUsed(code, type) {
   }
 }
 
-
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Activity Tracking (for win-back detection)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -852,7 +841,6 @@ async function trackUserActivity(stateCol, chatId) {
     )
   } catch (e) { /* non-critical */ }
 }
-
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Admin Stats
@@ -879,7 +867,6 @@ async function getMonetizationStats() {
   return stats
 }
 
-
 module.exports = {
   // Feature 1: Upsell
   getUpsellMessage,
@@ -888,7 +875,7 @@ module.exports = {
   // Feature 2: Welcome Bonus
   initWelcomeBonus,
   checkAndAwardWelcomeBonus,
-  hasReceivedWelcomeBonus,
+  
   giftAllUsersWelcomeBonus,
   WELCOME_BONUS_USD,
 
