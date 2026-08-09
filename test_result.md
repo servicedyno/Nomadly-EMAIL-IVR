@@ -12519,3 +12519,124 @@ cleanup_verification_2026_08_09:
     
     RECOMMENDATION:
     The cleanup is SAFE and caused NO regression. The backend is healthy and serving correctly.
+
+#====================================================================================================
+# DEAD-CODE SCAN (2026-08-09) — removed 10 unreferenced js/ modules (ZERO runtime code changed)
+#====================================================================================================
+deadcode_scan_2026_08_09:
+  method: "Traced require() graph from the sole runtime entry point js/start-bot.js (bot). 144 reachable
+           js files / 158 total modules. 3 dynamic-require sites identified (i18n/*.json, disposable-domains.json,
+           lang/${lang}.js) — none load the candidates. Every removed file re-verified 0 runtime require-refs
+           + not a spawned/worker entry point + not feature-config used elsewhere."
+  removed_10:
+    - "js/cleanup-domain-only-workers.js, js/cleanup_empty_collections.js, js/cleanup_group_notifications.js (one-off ops)"
+    - "js/collections-schema.js (doc-only schema, 0 refs)"
+    - "js/customCuttly.js (dead variant of cuttly.js; only a LEGACY excluded test mentioned it)"
+    - "js/deploy-protection-all-domains.js, js/retroactive-ivr-billing.js (one-off ops; only comment refs)"
+    - "js/email-config.js (orphaned EMAIL_BLAST_CONFIG; symbol referenced only by itself, not by email-blast-service.js)"
+    - "js/validatePhone.js (dead base; leads/bulk flow uses validatePhoneBulk.js/validatePhoneBulkFile.js)"
+    - "js/verify-promo-changes.js (one-off verify script)"
+  kept_with_reason:
+    - "js/create_indexes.js — DB index bootstrap reference (deploy-time tool)"
+    - "js/email-validation-worker.js — SEPARATE external worker process (EV_WORKER_URL box), not bot-required"
+    - "js/cr-whitelist-browser.js — spawned as a subprocess by the live js/cr-auto-whitelist.js (path.join)"
+    - "js/hosting/plans.js — referenced by a test; core-revenue feature → conservative keep"
+  not_done: "Unused-EXPORTS pruning inside modules (esp. 45k-line _index.js) intentionally skipped — high risk /
+             low ROI; destructuring + dynamic access make static removal unsafe."
+  verification_by_main_agent:
+    - "nodejs restarted CLEAN after removal: no MODULE_NOT_FOUND / Cannot find module; 'Main application ready';
+       MongoDB connected; /api/health healthy."
+  testing_request_for_backend_agent:
+    - "READ-ONLY regression sanity ONLY (prod-connected backend). Same constraints as cleanup_2026_08_09:
+       no writes/payments/provisioning/SMS/calls/emails, no test users. Just confirm /api/health + the same
+       safe dev diagnostic GETs still pass, proving the dead-code removal caused no regression."
+
+#====================================================================================================
+# DEAD-CODE REMOVAL REGRESSION TEST RESULTS (2026-08-09) — Backend Testing Agent
+#====================================================================================================
+deadcode_regression_test_2026_08_09:
+  tested_by: "testing_agent (backend)"
+  test_date: "2026-08-09"
+  test_scope: "READ-ONLY regression verification after removing 10 unreferenced JS modules"
+  
+  verification_results:
+    nodejs_service_status:
+      status: "RUNNING"
+      pid: 4708
+      uptime: "0:01:54"
+      startup_message: "✅ Main application ready! Server already listening on port 5000"
+      module_errors: "NONE (no MODULE_NOT_FOUND or Cannot find module errors)"
+      mongodb_connection: "connected"
+    
+    test_1_health_endpoint:
+      endpoint: "GET /api/health"
+      status_code: 200
+      response:
+        status: "healthy"
+        database: "connected"
+        uptime: "0.03 hours"
+      result: "✅ PASS"
+    
+    test_2_ux_fixes_audit:
+      endpoint: "GET /api/dev/ux-fixes-audit"
+      status_code: 200
+      response:
+        ok: true
+        keys: ["ok", "newlineCheck", "quickIvrLabels", "labelDecisions", "t4Ok", "planMarketingAudit"]
+      result: "✅ PASS"
+      note: "Read-only diagnostic endpoint responding correctly"
+    
+    test_3_call_reconciler:
+      endpoint: "POST /api/dev/call-reconciler-test"
+      status_code: 200
+      response:
+        pass: true
+        dryRun: true
+        all_checks: true
+      result: "✅ PASS"
+      note: "Synthetic self-cleaning test, no production data touched"
+    
+    test_4_otp_voice_match:
+      endpoint: "POST /api/dev/otp-voice-match-test"
+      status_code: 200
+      response:
+        pass: true
+        all_checks_passed: true
+      result: "✅ PASS"
+      note: "All 8 checks passed (fallback gender matching, play vs say logic)"
+    
+    test_5_twilio_ivr_transfer_billing:
+      endpoint: "POST /api/dev/twilio-ivr-transfer-billing-test"
+      status_code: 200
+      response:
+        pass: true
+        expectedCharge: 1
+        observedCharge: 1
+      result: "✅ PASS"
+      note: "All 9 checks passed (transfer action, billing, idempotency)"
+  
+  summary:
+    total_tests: 5
+    passed: 5
+    failed: 0
+    pass_rate: "100%"
+    
+  conclusion: |
+    ✅ NO REGRESSION DETECTED from dead-code removal.
+    
+    The backend is HEALTHY and SERVING correctly after removing 10 unreferenced JS modules:
+    - nodejs service running cleanly (no MODULE_NOT_FOUND errors)
+    - MongoDB connected
+    - Health endpoint responding correctly
+    - All safe read-only dev diagnostic endpoints passing
+    - Core logic modules (call reconciler, OTP voice, IVR billing) functioning correctly
+    
+    The dead-code removal was SAFE and caused ZERO runtime impact.
+  
+  safety_confirmation:
+    - "All tests were READ-ONLY (no DB writes, no payments, no provisioning, no SMS/calls/emails)"
+    - "No test users created"
+    - "No production data mutated"
+    - "Dev sandbox (SKIP_WEBHOOK_SYNC=true) sharing production MongoDB"
+    - "All tests synthetic/self-cleaning or pure read-only diagnostics"
+

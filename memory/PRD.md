@@ -1913,3 +1913,8 @@ at the start of the decline, plus ~5 unlabeled auto-deploys/day (no QA gate).
 - Verified: every deletion had 0 runtime require-refs (grep catches lazy/inline requires); nodejs restarted CLEAN (no MODULE_NOT_FOUND); deep_testing_backend_v2 read-only sanity = 3/3 pass, no regression.
 - .gitignore hardened so these artifact types don't return.
 - NOT YET TOUCHED (large ops-script libraries, foldered tooling — left for user decision): scripts/*.js|.py non-archive (177), scripts/archive/* (148), js/scripts/* (31) = ~356 one-off ops/forensic scripts.
+
+## 2026-08-09 — Dead-code scan (js/) — DONE
+- Traced require() graph from js/start-bot.js: 144/158 js modules reachable. Removed 10 verified-dead unreferenced modules (see test_result.md deadcode_scan_2026_08_09). ZERO runtime code changed. Node restarted clean (no MODULE_NOT_FOUND), /api/health healthy.
+- KEPT real entry points: create_indexes.js (DB index bootstrap), email-validation-worker.js (separate EV_WORKER_URL process), cr-whitelist-browser.js (spawned by cr-auto-whitelist.js), hosting/plans.js (test-referenced, conservative).
+- Skipped unused-EXPORTS pruning (high risk in 45k-line _index.js).
