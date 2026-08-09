@@ -9,7 +9,7 @@ import json
 import sys
 
 # Backend URL from frontend/.env
-BACKEND_URL = "https://390e6ff0-6afa-45a4-a8ca-64792be6b7f1.preview.emergentagent.com"
+BACKEND_URL = "https://infrastructure-keys.preview.emergentagent.com"
 
 def print_section(title):
     """Print a formatted section header"""

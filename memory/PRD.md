@@ -3,6 +3,20 @@
 ## Original problem statement
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
+
+## 2026-08-09 — Fresh pod re-bootstrap (setup from provided .env) — DONE
+Pod came up with only `.git`/app tree present, empty `frontend/.env`, no `backend/.env`, no `/app/.env` symlink, and no `nodejs` supervisor program (backend/frontend/mongodb running).
+- New pod URL: `https://0a6e9359-ab4b-453a-8b30-5728e6616f8c.preview.emergentagent.com` (detected from env `preview_endpoint`).
+- Created `/app/frontend/.env` → `REACT_APP_BACKEND_URL=<pod>`.
+- Created `/app/backend/.env` from the user-provided credential list **with the mandatory README safety overrides**:
+  - `BOT_ENVIRONMENT="development"` (user list had `production` — would hijack the prod Telegram bot's webhook from this dev pod).
+  - `SKIP_WEBHOOK_SYNC="true"` (blocks Telnyx/Twilio webhook + Call-Control migration + SIP ANI overrides + prod schedulers from mutating shared prod state).
+  - `SELF_URL`/`SELF_URL_DEV` = `<pod>/api`; `SELF_URL_PROD` rewritten to `<pod>/api` by setup script (unused in dev).
+- Ran `bash /app/scripts/setup-nodejs.sh`: created `/app/.env → backend/.env` symlink, `yarn install` (node v20), registered + started `nodejs` supervisor program. Restarted `backend`.
+- Verified guards live in node boot log: `Environment: DEVELOPMENT`, `SKIP_WEBHOOK_SYNC=true — preserving existing Telegram webhook`, Telnyx/Twilio READ-ONLY, number migration + SIP ANI override skipped, AntiRed + CF-Sync + ProtectionHeartbeat + NS Auto-Retry all skipped/disabled, `MongoDB connection pool ready`.
+- Smoke tests (all 200): node :5000 `/api/health` (db connected), FastAPI :8001 `/api/health`, external `<pod>/api/health` + `<pod>/api/sms-app/download/info`, frontend :3000 (`HostBay | Hosting Panel`).
+- Observation (non-blocking): `[BalanceMonitor] Telnyx: HTTP 401` on boot — the provided `TELNYX_API_KEY` is rejected by Telnyx's balance endpoint (possibly stale). Does not block setup; flag to user if Telnyx voice/SMS is needed.
+
 ## 2026-08-07 — Rate Preview + Telnyx Rate Sync — VERIFIED
 - **Rate Preview**: Quick IVR confirm banner (`ivrWalletHintPrefix`) now shows the ACTUAL per-destination rate (📟 Rate: $X/min, a range for batches, ⚠️ high-cost tag), a 🚫 Restricted notice for satellite/premium targets, and an estimate summed from real per-target rates. Forwarding confirm (`fwdConfirm`) appends a ⚠️ High-cost note when the destination is surcharged above $0.50. Backed by new `dialGuard.rateInfo(dest,{ivr})`.
 - **Telnyx Rate Sync**: new `js/rate-deck-sync.js` merges provider outbound-voice rate decks into the `dialRateDeck` MongoDB collection by **MAX cost per prefix** (guard reflects the most expensive provider). Twilio auto-fetched from `TWILIO_RATEDECK_URL` (public CSV default); Telnyx merged from `TELNYX_RATEDECK_URL` — **Telnyx has NO public rate-deck API**, so the admin provides a hosted CSV (downloaded from Mission Control) or POSTs one. `dial-rate-guard.js` is now DB-backed: seeds `dialRateDeck` from the bundled JSON on first run, rebuilds its in-memory index via `initDeck(db)`+`reloadFromDb()` (hourly refresh), JSON fallback until loaded. Weekly provider sync (Sun 03:00), prod-only network fetch. Parser skips satellite/premium/≤$0.50 rows.
@@ -78,7 +92,7 @@ Audit doc: `/app/CLOUD_PHONE_BILLING_ANALYSIS.md`. Fixed the two genuine revenue
 
 ## 2026-08-07 — Fresh pod re-bootstrap (setup from provided .env)
 Pod came up with no `backend/.env`, empty `frontend/.env`, no `/app/.env` symlink, no `nodejs` supervisor program (backend+frontend STOPPED; only mongodb running).
-- New pod URL: `https://390e6ff0-6afa-45a4-a8ca-64792be6b7f1.preview.emergentagent.com` (was `setup-keys...`).
+- New pod URL: `https://infrastructure-keys.preview.emergentagent.com` (was `setup-keys...`).
 - Created `/app/frontend/.env` → `REACT_APP_BACKEND_URL=<pod>`.
 - Created `/app/backend/.env` from the user-provided credential list **with the mandatory README safety overrides**:
   - `BOT_ENVIRONMENT="development"` (user list had `production` — would hijack the prod Telegram bot's webhook from this dev pod).
@@ -340,7 +354,7 @@ Cross-referenced deployment `c640c247` logs with MongoDB records (paymentIntents
 ---
 
 ## 2026-07-06 — Fresh pod bootstrap (earlier this session)
-- Created `/app/frontend/.env` with `REACT_APP_BACKEND_URL=https://setup-keys.preview.emergentagent.com` (from supervisor `APP_URL` env).
+- Created `/app/frontend/.env` with `REACT_APP_BACKEND_URL=https://infrastructure-keys.preview.emergentagent.com` (from supervisor `APP_URL` env).
 - Created `/app/backend/.env` with all user-supplied credentials **plus mandatory README safety overrides**:
   - `BOT_ENVIRONMENT="development"` (user supplied `production`; would hijack prod bot webhook)
   - `SKIP_WEBHOOK_SYNC="true"` (blocks Telnyx/Twilio webhook + Call Control migration + SIP ANI overrides from this pod)
@@ -550,7 +564,7 @@ For the 5 currently-stuck domains the OP REST sync DID succeed (`code:0`), but D
 
 ## Current pod state (2026-02-20)
 - `/app/frontend/.env` — `REACT_APP_BACKEND_URL` set to current dev pod URL
-- `/app/backend/.env` — full user-provided env list + safety overrides (`BOT_ENVIRONMENT=development`, `SKIP_WEBHOOK_SYNC=true`); `SELF_URL`/`SELF_URL_PROD` rewritten by setup script to `https://setup-keys.preview.emergentagent.com/api`
+- `/app/backend/.env` — full user-provided env list + safety overrides (`BOT_ENVIRONMENT=development`, `SKIP_WEBHOOK_SYNC=true`); `SELF_URL`/`SELF_URL_PROD` rewritten by setup script to `https://infrastructure-keys.preview.emergentagent.com/api`
 - `/app/.env` — symlink → `/app/backend/.env` (Node.js dotenv root)
 - Supervisor: `backend`, `frontend`, `mongodb`, `nodejs` all RUNNING
 - Node.js logs confirm: AntiRed worker upgrade SKIPPED, CF-Sync skipped (dev mode), health monitor DISABLED on backend
@@ -743,7 +757,7 @@ Code changes ready. `logs_prod/` is gitignored from yesterday's cleanup so this 
 ## 2026-06-21 — Fresh Railway 6-day RCA + Referral funnel fixes
 
 ### Step 1 — Dev setup refreshed
-- `SELF_URL` + `SELF_URL_DEV` updated to current pod `https://setup-keys.preview.emergentagent.com/api`
+- `SELF_URL` + `SELF_URL_DEV` updated to current pod `https://infrastructure-keys.preview.emergentagent.com/api`
 - `SELF_URL_PROD` left intact (still points to real Railway prod URL)
 - Production isolation reconfirmed: `BOT_ENVIRONMENT=development`, `SKIP_WEBHOOK_SYNC=true`, dev bot token in use
 - Nodejs restarted clean, all `/api/*` routes reachable
@@ -1198,7 +1212,7 @@ Removed one screen, added decision-shortcuts at the end, made the wait feel shor
 User asked: "read the README file and set up using below credentials" and supplied the full production .env list.
 
 ### What was done
-- Created `/app/frontend/.env` with `REACT_APP_BACKEND_URL=https://setup-keys.preview.emergentagent.com`
+- Created `/app/frontend/.env` with `REACT_APP_BACKEND_URL=https://infrastructure-keys.preview.emergentagent.com`
 - Created `/app/backend/.env` from the user-provided list with critical dev-pod safety overrides:
   - `BOT_ENVIRONMENT="production"` → `"development"` (CRITICAL — prevents prod bot hijack)
   - Added `SKIP_WEBHOOK_SYNC="true"` (CRITICAL — blocks Telnyx/Twilio/CF mutations)
@@ -1225,7 +1239,7 @@ All RUNNING: `backend`, `frontend`, `mongodb`, `nodejs`. Logs confirm:
 - `[PhoneMonitor] === Health check complete: 23 checked, 0 newly suspended, 0 auth-failed ===`
 
 ### Updated docs
-- `/app/memory/test_credentials.md` — current pod URL updated to `https://setup-keys.preview.emergentagent.com`
+- `/app/memory/test_credentials.md` — current pod URL updated to `https://infrastructure-keys.preview.emergentagent.com`
 
 Pod is initialised and idle, ready for development work.
 

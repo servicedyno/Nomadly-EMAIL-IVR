@@ -1,5 +1,5 @@
 #!/bin/bash
-BACKEND_URL="https://setup-keys.preview.emergentagent.com"
+BACKEND_URL="https://infrastructure-keys.preview.emergentagent.com"
 
 echo "TEST 2 — Two-source valuation (DynoPay settlement rate primary, BlockBee fallback)"
 echo ""
