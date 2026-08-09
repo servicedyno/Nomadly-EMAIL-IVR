@@ -14,6 +14,12 @@ login for the panel. Auth flows are exercised via the bot / dev endpoints.
 - Node bot Express :5000  |  FastAPI :8001 (proxies /api/* → node)  |  React :3000
 - Start Node bot: `bash /app/scripts/setup-nodejs.sh` (supervisor program: nodejs)
 
+## Railway production access (CONFIRMED WORKING 2026-08-09)
+- `API_KEY_RAILWAY` in backend/.env is a **PROJECT-scoped token** — use header `Project-Access-Token: <API_KEY_RAILWAY>` (NOT `Authorization: Bearer`, which returns "Not Authorized" for account-scoped `me`/`projects` queries).
+- Endpoint: `POST https://backboard.railway.app/graphql/v2`
+- Project "New Hosting": projectId `c23ac3d9-51c5-4242-8776-eed4e3801abe`, envId (production) `889fd56a-720a-4020-884c-034784992666`, main bot serviceId (Nomadly-EMAIL-IVR) `b9c4ad64-7667-4dd3-8b9a-3867ede47885`.
+- Verified `projectToken` query returns those IDs; `deployments`/`deploymentLogs(deploymentId, limit, filter)` work. Filter by chatId / "Azure" / etc.
+
 ## Keys for diagnostic / admin endpoints
 - Admin key for diagnostic endpoints: `o/Qb8ArGahlquhCQ` (first 16 chars of SESSION_SECRET)
 - TELEGRAM_ADMIN_CHAT_ID: 5590563715
