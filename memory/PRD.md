@@ -1905,3 +1905,11 @@ at the start of the decline, plus ~5 unlabeled auto-deploys/day (no QA gate).
 
 **2. Icon Audit Pass (main menu)** — full inventory of all 19 main-menu buttons. Only real issue after sign-off: **🌍 Settings → ⚙️ Settings** (changed in all 4 langs). Routing safe: matcher (`_index.js` ~13543) already routes via `user.changeSetting` (now ⚙️) and keeps the old `🌍` literals as stale-keyboard aliases. Per user sign-off: SMS Leads stays 📱 (mild BulkSMS overlap accepted); Email Validation + Email Blast stay 📧 (same category). All other icons confirmed clean.
 
+
+## 2026-08-09 — Broader codebase cleanup (file removals only) — DONE
+- Removed 88 unused files (~4MB), ZERO runtime code changed. Auto-committed as `8e3783b1` (93 files, 135,405 deletions incl. .gitignore + docs).
+- Removed: committed log/data dumps (railway_logs_*.json, memory/leadjobs_investigation.json, complaints_24h.json, *revoke_backup*.json, scripts/railway_logs_12h/, scripts/ATT_619_*.txt, tmp_twilio_reg_out.json, bulksms_test_v3.json); root-level one-off scripts (test_*.sh, *_behavioral.js, check_user_data.js, explore_sip_db.js, etc.); js/ root investigation scripts (fetch_railway_*.js, lookup_davion419*.js, analyze_user_activity.js, audit_protection_heartbeat*.js, diagnose/investigate_contabo*.js); js/scripts + js/tests one-offs.
+- KEPT (verified still-used despite names): phone-test-routes.js, test-my-number.js, test-outbound-sip.js (required by _index.js/voice-service.js), cpanel-migration.js, maxsql-migration.js, ivr-templates.js, image.png (js/utils.js), npm-referenced scripts, setup-nodejs.sh, js/__tests__ + root tests/ jest suites.
+- Verified: every deletion had 0 runtime require-refs (grep catches lazy/inline requires); nodejs restarted CLEAN (no MODULE_NOT_FOUND); deep_testing_backend_v2 read-only sanity = 3/3 pass, no regression.
+- .gitignore hardened so these artifact types don't return.
+- NOT YET TOUCHED (large ops-script libraries, foldered tooling — left for user decision): scripts/*.js|.py non-archive (177), scripts/archive/* (148), js/scripts/* (31) = ~356 one-off ops/forensic scripts.
