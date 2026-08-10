@@ -806,6 +806,51 @@ function _ivrVoiceKeyboard(lang) {
   return rows
 }
 
+// Intro prompt for the inbound-template per-number voice picker.
+function _ivrVoicePrompt(lang) {
+  return ({
+    en: `🗣 <b>Choose a voice</b> for this number's greeting.\n\nPick one of the premium voices below, or ⭐ Default Voice for the standard phone voice.`,
+    fr: `🗣 <b>Choisissez une voix</b> pour le message de ce numéro.\n\nChoisissez une voix premium ci-dessous, ou ⭐ Voix par défaut.`,
+    zh: `🗣 <b>为此号码的问候语选择语音</b>。\n\n在下方选择高级语音，或 ⭐ 默认语音。`,
+    hi: `🗣 इस नंबर की ग्रीटिंग के लिए <b>आवाज़ चुनें</b>।\n\nनीचे प्रीमियम आवाज़ चुनें, या ⭐ डिफ़ॉल्ट आवाज़।`,
+  }[lang] || `🗣 <b>Choose a voice</b> for this number's greeting.\n\nPick one of the premium voices below, or ⭐ Default Voice for the standard phone voice.`)
+}
+
+// Default-voice matcher (mirrors the ⭐ label built in _ivrVoiceKeyboard, all langs).
+function _ivrIsDefaultVoicePick(message) {
+  return ['⭐ Default Voice', '⭐ Voix par défaut', '⭐ 默认语音', '⭐ डिफ़ॉल्ट आवाज़'].includes(String(message || ''))
+}
+function _ivrDefaultVoiceLabel(lang) {
+  return ({ en: 'Default (standard)', fr: 'Par défaut', zh: '默认', hi: 'डिफ़ॉल्ट' }[lang] || 'Default (standard)')
+}
+
+// Speaking-speed options for the inbound-template voice flow (user-approved values).
+const _IVR_SPEED_OPTS = [
+  { speed: 0.85, label: '0.85x', btn: { en: '🐢 Slow (0.85x)', fr: '🐢 Lent (0.85x)', zh: '🐢 慢速 (0.85x)', hi: '🐢 धीमा (0.85x)' } },
+  { speed: 1.0, label: '1.0x', btn: { en: '🎯 Normal (1.0x)', fr: '🎯 Normal (1.0x)', zh: '🎯 正常 (1.0x)', hi: '🎯 सामान्य (1.0x)' } },
+  { speed: 1.15, label: '1.15x', btn: { en: '⚡ Fast (1.15x)', fr: '⚡ Rapide (1.15x)', zh: '⚡ 快速 (1.15x)', hi: '⚡ तेज़ (1.15x)' } },
+]
+function _ivrSpeedKeyboard(lang) {
+  const rows = _IVR_SPEED_OPTS.map(o => [o.btn[lang] || o.btn.en])
+  rows.push(['↩️ Back'])
+  return rows
+}
+function _ivrSpeedFromButton(message) {
+  const m = String(message || '')
+  for (const o of _IVR_SPEED_OPTS) {
+    if (Object.values(o.btn).includes(m)) return { speed: o.speed, label: o.label }
+  }
+  return null
+}
+function _ivrSpeedPrompt(lang, voiceName) {
+  return ({
+    en: `🎚 <b>Choose speaking speed</b> for <b>${voiceName}</b>:`,
+    fr: `🎚 <b>Choisissez la vitesse</b> pour <b>${voiceName}</b> :`,
+    zh: `🎚 为 <b>${voiceName}</b> <b>选择语速</b>：`,
+    hi: `🎚 <b>${voiceName}</b> के लिए <b>बोलने की गति चुनें</b>:`,
+  }[lang] || `🎚 <b>Choose speaking speed</b> for <b>${voiceName}</b>:`)
+}
+
 
 
 const emailBlastService = require('./email-blast-service.js')
@@ -29812,29 +29857,10 @@ Professional templates for voicemail, customer support, financial institutions, 
       newIvr = ivrTpl.buildInboundIvrFromTemplate(tpl, { placeholderValues: _autoVals }); tplName = tpl.name
     }
     await saveInfo('cpIvrTplPending', newIvr)
-    await set(state, chatId, 'action', a.cpIvrTplApply)
-    const keys = Object.keys(newIvr.options || {}).join(', ') || '—'
-    const existingCount = Object.keys(num.features?.ivr?.options || {}).length
-    const applyBtn = existingCount > 0
-      ? ({ en: '✅ Replace & Apply', fr: '✅ Remplacer et Appliquer', zh: '✅ 替换并应用', hi: '✅ बदलें और लागू करें' }[lang] || '✅ Replace & Apply')
-      : ({ en: '✅ Apply Template', fr: '✅ Appliquer le Modèle', zh: '✅ 应用模板', hi: '✅ टेम्पलेट लागू करें' }[lang] || '✅ Apply Template')
-    let txt = ({ en: `📋 <b>${tplName}</b>\n\n🎙 <b>Greeting</b>\n<i>${newIvr.greeting}</i>\n\n🔢 <b>Menu keys:</b> ${keys}\n(each forwards a call — set the numbers next)`, fr: `📋 <b>${tplName}</b>\n\n🎙 <b>Message</b>\n<i>${newIvr.greeting}</i>\n\n🔢 <b>Touches :</b> ${keys}\n(chacune transfère un appel — numéros ensuite)`, zh: `📋 <b>${tplName}</b>\n\n🎙 <b>问候语</b>\n<i>${newIvr.greeting}</i>\n\n🔢 <b>菜单按键：</b> ${keys}\n（每个转接来电 — 下一步设置号码）`, hi: `📋 <b>${tplName}</b>\n\n🎙 <b>ग्रीटिंग</b>\n<i>${newIvr.greeting}</i>\n\n🔢 <b>मेनू कुंजियाँ:</b> ${keys}\n(हर एक कॉल फ़ॉरवर्ड करती है — आगे नंबर सेट करें)` }[lang] || `📋 <b>${tplName}</b>\n\n🎙 <b>Greeting</b>\n<i>${newIvr.greeting}</i>\n\n🔢 <b>Menu keys:</b> ${keys}\n(each forwards a call — set the numbers next)`)
-    if (ivrTpl.greetingHasPlaceholders(newIvr.greeting)) txt += ({ en: `\n\n✏️ This greeting has [placeholders] — edit the greeting afterward to fill them in.`, fr: `\n\n✏️ Ce message contient des [espaces] — modifiez-le ensuite.`, zh: `\n\n✏️ 此问候语含 [占位符] — 之后请编辑填写。`, hi: `\n\n✏️ इस ग्रीटिंग में [प्लेसहोल्डर] हैं — बाद में ग्रीटिंग संपादित करें।` }[lang] || `\n\n✏️ This greeting has [placeholders] — edit the greeting afterward to fill them in.`)
-    if (existingCount > 0) txt += ({ en: `\n\n⚠️ This will <b>replace</b> your current ${existingCount} option(s).`, fr: `\n\n⚠️ Cela <b>remplacera</b> vos ${existingCount} option(s) actuelles.`, zh: `\n\n⚠️ 这将<b>替换</b>您当前的 ${existingCount} 个选项。`, hi: `\n\n⚠️ यह आपके मौजूदा ${existingCount} विकल्प <b>बदल</b> देगा।` }[lang] || `\n\n⚠️ This will <b>replace</b> your current ${existingCount} option(s).`)
-    // Apply To All: if the user has 2+ active numbers, offer a one-tap bulk apply
-    let applyAllBtn = null
-    try {
-      const _doc = await phoneNumbersOf.findOne({ _id: chatId })
-      const _active = (Array.isArray(_doc?.val?.numbers) ? _doc.val.numbers : []).filter(n => n && n.status === 'active')
-      if (_active.length >= 2) {
-        applyAllBtn = ({ en: `📢 Apply to All My Numbers (${_active.length})`, fr: `📢 Appliquer à Tous mes Numéros (${_active.length})`, zh: `📢 应用到我所有号码 (${_active.length})`, hi: `📢 मेरे सभी नंबरों पर लागू करें (${_active.length})` }[lang] || `📢 Apply to All My Numbers (${_active.length})`)
-        txt += ({ en: `\n\n📢 You have <b>${_active.length} numbers</b> — tap "Apply to All" to set this menu on every one at once.`, fr: `\n\n📢 Vous avez <b>${_active.length} numéros</b> — appuyez sur « Appliquer à Tous » pour tout configurer d'un coup.`, zh: `\n\n📢 您有 <b>${_active.length} 个号码</b> — 点击"应用到全部"一次性设置。`, hi: `\n\n📢 आपके पास <b>${_active.length} नंबर</b> हैं — "सभी पर लागू करें" दबाकर सभी पर एक साथ सेट करें।` }[lang] || `\n\n📢 You have <b>${_active.length} numbers</b> — tap "Apply to All" to set this menu on every one at once.`)
-      }
-    } catch (e) { /* non-blocking */ }
-    const _kbRows = [[applyBtn]]
-    if (applyAllBtn) _kbRows.push([applyAllBtn])
-    _kbRows.push(['↩️ Back'])
-    return send(chatId, txt, { parse_mode: 'HTML', reply_markup: { keyboard: _kbRows, resize_keyboard: true } })
+    // Per-Number Voice (Phase 2): route through the voice + speed picker before apply.
+    await saveInfo('cpIvrTplVoiceDraft', { tplName })
+    await set(state, chatId, 'action', a.cpIvrTplVoice)
+    return send(chatId, _ivrVoicePrompt(lang), { parse_mode: 'HTML', reply_markup: { keyboard: _ivrVoiceKeyboard(lang), resize_keyboard: true } })
   }
 
   if (action === a.cpIvrTplFillGreeting) {
@@ -29888,35 +29914,127 @@ Professional templates for voicemail, customer support, financial institutions, 
       await set(state, chatId, 'action', a.cpIvr)
       return send(chatId, ({ en: `⚠️ Template expired — please pick it again.`, fr: `⚠️ Modèle expiré — reprenez.`, zh: `⚠️ 模板已过期，请重新选择。`, hi: `⚠️ टेम्पलेट समाप्त — फिर चुनें।` }[lang] || `⚠️ Template expired — please pick it again.`))
     }
-    const newIvr = ivrTpl.buildInboundIvrFromTemplate(tpl, { placeholderValues: ctx.values, voiceKey: ttsService.DEFAULT_VOICE, ttsSpeed: 1.0 })
+    const newIvr = ivrTpl.buildInboundIvrFromTemplate(tpl, { placeholderValues: ctx.values })
     const tplName = ctx.tplName
     await saveInfo('cpIvrTplGreet', null)
-    const validation = ivrTpl.validateInboundReady(newIvr)
     await saveInfo('cpIvrTplPending', newIvr)
-    await set(state, chatId, 'action', a.cpIvrTplApply)
-    // ── Preview + apply screen (parity with the pick handler) ──
-    const keys = Object.keys(newIvr.options || {}).join(', ') || '—'
-    const existingCount = Object.keys(num.features?.ivr?.options || {}).length
-    const applyBtn = existingCount > 0
-      ? ({ en: '✅ Replace & Apply', fr: '✅ Remplacer et Appliquer', zh: '✅ 替换并应用', hi: '✅ बदलें और लागू करें' }[lang] || '✅ Replace & Apply')
-      : ({ en: '✅ Apply Template', fr: '✅ Appliquer le Modèle', zh: '✅ 应用模板', hi: '✅ टेम्पलेट लागू करें' }[lang] || '✅ Apply Template')
-    let txt = ({ en: `📋 <b>${tplName}</b>\n\n🎙 <b>Greeting</b> (voice: ${ttsService.DEFAULT_VOICE})\n<i>${newIvr.greeting}</i>\n\n🔢 <b>Menu keys:</b> ${keys}\n(each forwards a call — set the numbers next)`, fr: `📋 <b>${tplName}</b>\n\n🎙 <b>Message</b> (voix : ${ttsService.DEFAULT_VOICE})\n<i>${newIvr.greeting}</i>\n\n🔢 <b>Touches :</b> ${keys}\n(chacune transfère un appel — numéros ensuite)`, zh: `📋 <b>${tplName}</b>\n\n🎙 <b>问候语</b>（语音：${ttsService.DEFAULT_VOICE}）\n<i>${newIvr.greeting}</i>\n\n🔢 <b>菜单按键：</b> ${keys}\n（每个转接来电 — 下一步设置号码）`, hi: `📋 <b>${tplName}</b>\n\n🎙 <b>ग्रीटिंग</b> (आवाज़: ${ttsService.DEFAULT_VOICE})\n<i>${newIvr.greeting}</i>\n\n🔢 <b>मेनू कुंजियाँ:</b> ${keys}\n(हर एक कॉल फ़ॉरवर्ड करती है — आगे नंबर सेट करें)` }[lang] || `📋 <b>${tplName}</b>\n\n🎙 <b>Greeting</b> (voice: ${ttsService.DEFAULT_VOICE})\n<i>${newIvr.greeting}</i>\n\n🔢 <b>Menu keys:</b> ${keys}\n(each forwards a call — set the numbers next)`)
-    if (validation.unfilledPlaceholders.length) txt += ({ en: `\n\n✏️ Still has: ${validation.unfilledPlaceholders.map(p => `[${p}]`).join(', ')} — edit the greeting to finish.`, fr: `\n\n✏️ Reste : ${validation.unfilledPlaceholders.map(p => `[${p}]`).join(', ')} — modifiez le message.`, zh: `\n\n✏️ 仍有：${validation.unfilledPlaceholders.map(p => `[${p}]`).join(', ')} — 请编辑问候语。`, hi: `\n\n✏️ शेष: ${validation.unfilledPlaceholders.map(p => `[${p}]`).join(', ')} — ग्रीटिंग संपादित करें।` }[lang] || `\n\n✏️ Still has: ${validation.unfilledPlaceholders.map(p => `[${p}]`).join(', ')} — edit the greeting to finish.`)
-    if (existingCount > 0) txt += ({ en: `\n\n⚠️ This will <b>replace</b> your current ${existingCount} option(s).`, fr: `\n\n⚠️ Cela <b>remplacera</b> vos ${existingCount} option(s) actuelles.`, zh: `\n\n⚠️ 这将<b>替换</b>您当前的 ${existingCount} 个选项。`, hi: `\n\n⚠️ यह आपके मौजूदा ${existingCount} विकल्प <b>बदल</b> देगा।` }[lang] || `\n\n⚠️ This will <b>replace</b> your current ${existingCount} option(s).`)
-    let applyAllBtn = null
-    try {
-      const _doc = await phoneNumbersOf.findOne({ _id: chatId })
-      const _active = (Array.isArray(_doc?.val?.numbers) ? _doc.val.numbers : []).filter(n => n && n.status === 'active')
-      if (_active.length >= 2) {
-        applyAllBtn = ({ en: `📢 Apply to All My Numbers (${_active.length})`, fr: `📢 Appliquer à Tous mes Numéros (${_active.length})`, zh: `📢 应用到我所有号码 (${_active.length})`, hi: `📢 मेरे सभी नंबरों पर लागू करें (${_active.length})` }[lang] || `📢 Apply to All My Numbers (${_active.length})`)
-      }
-    } catch (e) { /* non-blocking */ }
-    const _kbRows = [[applyBtn]]
-    if (applyAllBtn) _kbRows.push([applyAllBtn])
-    _kbRows.push(['↩️ Back'])
-    return send(chatId, txt, { parse_mode: 'HTML', reply_markup: { keyboard: _kbRows, resize_keyboard: true } })
+    // Per-Number Voice (Phase 2): route through the voice + speed picker before apply.
+    await saveInfo('cpIvrTplVoiceDraft', { tplName })
+    await set(state, chatId, 'action', a.cpIvrTplVoice)
+    return send(chatId, _ivrVoicePrompt(lang), { parse_mode: 'HTML', reply_markup: { keyboard: _ivrVoiceKeyboard(lang), resize_keyboard: true } })
   }
 
+
+  // ── Per-Number Voice (Phase 2): pick one of the 21 premium voices ──
+  if (action === a.cpIvrTplVoice) {
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
+    const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
+    if (!num) return goto.submenu5()
+    const ivrTpl = require('./ivr-templates.js')
+    const pending = info?.cpIvrTplPending
+    const vdraft = info?.cpIvrTplVoiceDraft || {}
+    if (!pending) {
+      await set(state, chatId, 'action', a.cpIvr)
+      return send(chatId, ({ en: `⚠️ Template expired — please pick it again.`, fr: `⚠️ Modèle expiré — reprenez.`, zh: `⚠️ 模板已过期，请重新选择。`, hi: `⚠️ टेम्पलेट समाप्त — फिर चुनें।` }[lang] || `⚠️ Template expired — please pick it again.`), k.of(num.features?.ivr?.enabled ? [..._ivrRootMenuRows(num.features?.ivr, pc)] : [[pc.enableIvr], [pc.ivrUseTemplate]]))
+    }
+    if (isCancelPress(message)) return goto.submenu5()
+    if (isBackPress(message) || message === pc.back) {
+      await set(state, chatId, 'action', a.cpIvrTplCat)
+      const catBtns = ivrTpl.getCategoryButtons(lang).map(b => [b])
+      const saved = Array.isArray(info?.savedIvrTemplates) ? info.savedIvrTemplates : []
+      const MY_TPL = ({ en: '⭐ My Saved Templates', fr: '⭐ Mes Modèles', zh: '⭐ 我的模板', hi: '⭐ मेरे टेम्पलेट' }[lang] || '⭐ My Saved Templates')
+      if (saved.length) catBtns.unshift([MY_TPL])
+      catBtns.push(['↩️ Back'])
+      return send(chatId, ({ en: `📋 Choose a category:`, fr: `📋 Choisissez une catégorie :`, zh: `📋 选择分类：`, hi: `📋 श्रेणी चुनें:` }[lang] || `📋 Choose a category:`), { reply_markup: { keyboard: catBtns, resize_keyboard: true } })
+    }
+    // ⭐ Default Voice → skip speed, use the standard phone voice (no premium audio).
+    if (_ivrIsDefaultVoicePick(message)) {
+      pending.voiceKey = null
+      pending.voiceName = null
+      pending.ttsSpeed = 1.0
+      await saveInfo('cpIvrTplPending', pending)
+      await saveInfo('cpIvrTplVoiceDraft', null)
+      await set(state, chatId, 'action', a.cpIvrTplApply)
+      const existingCount = Object.keys(num.features?.ivr?.options || {}).length
+      let activeCount = 0
+      try { const _d = await phoneNumbersOf.findOne({ _id: chatId }); activeCount = (Array.isArray(_d?.val?.numbers) ? _d.val.numbers : []).filter(n => n && n.status === 'active').length } catch (e) { /* non-blocking */ }
+      const prev = _ivrTplPreview(lang, pending, vdraft.tplName || pending.appliedTemplateName || 'Template', existingCount, activeCount, _ivrDefaultVoiceLabel(lang), '1.0x')
+      return send(chatId, prev.text, { parse_mode: 'HTML', reply_markup: { keyboard: prev.rows, resize_keyboard: true } })
+    }
+    // Premium voice → resolve the key (must be a real voice button, not garbage).
+    if (!ttsService.getVoiceButtons('en').includes(String(message || ''))) {
+      return send(chatId, ({ en: `Please pick a voice from the buttons below.`, fr: `Choisissez une voix ci-dessous.`, zh: `请从下方按钮选择语音。`, hi: `कृपया नीचे दिए बटनों से आवाज़ चुनें।` }[lang] || `Please pick a voice from the buttons below.`), { reply_markup: { keyboard: _ivrVoiceKeyboard(lang), resize_keyboard: true } })
+    }
+    const voiceKey = ttsService.getVoiceKeyByButton(message, 'en')
+    const voiceMeta = ttsService.ALL_VOICES[voiceKey]
+    vdraft.voiceKey = voiceKey
+    vdraft.voiceName = (voiceMeta && voiceMeta.name) || 'Rachel'
+    await saveInfo('cpIvrTplVoiceDraft', vdraft)
+    await set(state, chatId, 'action', a.cpIvrTplSpeed)
+    return send(chatId, _ivrSpeedPrompt(lang, vdraft.voiceName), { parse_mode: 'HTML', reply_markup: { keyboard: _ivrSpeedKeyboard(lang), resize_keyboard: true } })
+  }
+
+  // ── Per-Number Voice (Phase 2): pick speaking speed, render greeting audio ──
+  if (action === a.cpIvrTplSpeed) {
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
+    const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
+    if (!num) return goto.submenu5()
+    const pending = info?.cpIvrTplPending
+    const vdraft = info?.cpIvrTplVoiceDraft || {}
+    if (!pending || !vdraft.voiceKey) {
+      await set(state, chatId, 'action', a.cpIvr)
+      return send(chatId, ({ en: `⚠️ Template expired — please pick it again.`, fr: `⚠️ Modèle expiré — reprenez.`, zh: `⚠️ 模板已过期，请重新选择。`, hi: `⚠️ टेम्पलेट समाप्त — फिर चुनें।` }[lang] || `⚠️ Template expired — please pick it again.`), k.of(num.features?.ivr?.enabled ? [..._ivrRootMenuRows(num.features?.ivr, pc)] : [[pc.enableIvr], [pc.ivrUseTemplate]]))
+    }
+    if (isCancelPress(message)) return goto.submenu5()
+    if (isBackPress(message) || message === pc.back) {
+      await set(state, chatId, 'action', a.cpIvrTplVoice)
+      return send(chatId, _ivrVoicePrompt(lang), { parse_mode: 'HTML', reply_markup: { keyboard: _ivrVoiceKeyboard(lang), resize_keyboard: true } })
+    }
+    const sp = _ivrSpeedFromButton(message)
+    if (!sp) {
+      return send(chatId, ({ en: `Please pick a speed from the buttons below.`, fr: `Choisissez une vitesse ci-dessous.`, zh: `请从下方按钮选择语速。`, hi: `कृपया नीचे दिए बटनों से गति चुनें।` }[lang] || `Please pick a speed from the buttons below.`), { reply_markup: { keyboard: _ivrSpeedKeyboard(lang), resize_keyboard: true } })
+    }
+    send(chatId, ({ en: `🎙 Generating your greeting in <b>${vdraft.voiceName}</b> (${sp.label})… <i>(this can take 30–90s)</i>`, fr: `🎙 Génération du message avec <b>${vdraft.voiceName}</b> (${sp.label})… <i>(30–90s)</i>`, zh: `🎙 正在用 <b>${vdraft.voiceName}</b>（${sp.label}）生成问候语…… <i>(约 30–90 秒)</i>`, hi: `🎙 <b>${vdraft.voiceName}</b> (${sp.label}) में ग्रीटिंग बन रही है… <i>(30–90 सेकंड)</i>` }[lang] || `🎙 Generating your greeting in <b>${vdraft.voiceName}</b> (${sp.label})… <i>(this can take 30–90s)</i>`), { parse_mode: 'HTML' })
+    let audioOk = false
+    try {
+      const result = await ttsService.generateTTS(pending.greeting, vdraft.voiceKey, null, sp.speed)
+      pending.greetingType = 'audio'
+      pending.greetingAudioPath = result.audioPath
+      pending.greetingAudioUrl = result.audioUrl
+      pending.greetingVoice = vdraft.voiceKey
+      pending.voiceKey = vdraft.voiceKey
+      pending.voiceName = result.voice || vdraft.voiceName
+      pending.ttsSpeed = sp.speed
+      // Persist to ivrAudioStore so the /assets/user-audio restore middleware can
+      // rehydrate it after a Railway redeploy (looked up by filename).
+      try {
+        const audioBuffer = require('fs').readFileSync(result.audioPath)
+        const filename = require('path').basename(result.audioPath)
+        await ivrAudioStore.updateOne(
+          { _id: `${num.phoneNumber}:greeting` },
+          { $set: { buffer: audioBuffer.toString('base64'), filename, audioUrl: result.audioUrl, mimeType: 'audio/mpeg', updatedAt: new Date() } },
+          { upsert: true }
+        )
+      } catch (e) { log(`[IVR] tpl voice persist to MongoDB failed (non-blocking): ${e.message}`) }
+      try { await bot.sendVoice(chatId, result.audioPath) } catch (e) { /* preview best-effort */ }
+      audioOk = true
+    } catch (e) {
+      log(`[IVR] tpl voice TTS failed: ${e.message}`)
+      send(chatId, ({ en: `⚠️ Couldn't generate premium audio right now — the greeting will use the standard voice. You can retry from the greeting menu later.`, fr: `⚠️ Impossible de générer l'audio premium — le message utilisera la voix standard.`, zh: `⚠️ 暂时无法生成高级语音 — 问候语将使用标准语音。`, hi: `⚠️ अभी प्रीमियम ऑडियो नहीं बन सका — ग्रीटिंग मानक आवाज़ का उपयोग करेगी।` }[lang] || `⚠️ Couldn't generate premium audio right now — the greeting will use the standard voice.`))
+      pending.voiceName = null
+      pending.ttsSpeed = 1.0
+    }
+    await saveInfo('cpIvrTplPending', pending)
+    await saveInfo('cpIvrTplVoiceDraft', null)
+    await set(state, chatId, 'action', a.cpIvrTplApply)
+    const existingCount = Object.keys(num.features?.ivr?.options || {}).length
+    let activeCount = 0
+    try { const _d = await phoneNumbersOf.findOne({ _id: chatId }); activeCount = (Array.isArray(_d?.val?.numbers) ? _d.val.numbers : []).filter(n => n && n.status === 'active').length } catch (e) { /* non-blocking */ }
+    const prev = _ivrTplPreview(lang, pending, vdraft.tplName || pending.appliedTemplateName || 'Template', existingCount, activeCount, audioOk ? pending.voiceName : null, audioOk ? sp.label : null)
+    return send(chatId, prev.text, { parse_mode: 'HTML', reply_markup: { keyboard: prev.rows, resize_keyboard: true } })
+  }
 
   if (action === a.cpIvrTplApply) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
