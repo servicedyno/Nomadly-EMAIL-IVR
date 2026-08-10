@@ -13855,3 +13855,50 @@ phase2_outbound_parity:
       3. Regression: /dev/twilio-ivr-transfer-billing-test, /dev/bulk-transfer-billing-test
     Backend base: use REACT_APP_BACKEND_URL from /app/frontend/.env (routes via /api).
     No auth required for dev endpoints. Node bot runs in BOT_ENVIRONMENT=development.
+
+#====================================================================================================
+# PHASE 2b — Menu Analytics + Ready-Made Menus + Preset Menu Reuse (2026-06, forked session)
+#====================================================================================================
+phase2b_menu_enhancements:
+  scope: |
+    Three follow-up enhancements the user selected from Next Action Items:
+    (1) Menu Analytics — track which outbound menu keys callers press (like inbound
+        ivrAnalytics) + a "📊 Menu Stats" report in the Quick IVR hub.
+    (2) Ready-Made Menus — one-tap starter menus in the outbound menu builder that
+        seed the key skeleton (user fills phone numbers).
+    (3) Preset Menu Reuse — bulk campaigns can load a saved preset's menu.
+
+  changes:
+    - "js/voice-service.js: recordOutboundMenuPress() + getOutboundMenuAnalytics(chatId,days);
+       both exported. Telnyx handleOutboundMenuDigit records each valid press
+       (direction:'outbound', digit, action, campaignId)."
+    - "js/_index.js: Twilio /twilio/single-ivr-gather menu branch records presses via
+       voiceService.recordOutboundMenuPress."
+    - "js/bulk-call-service.js: /twilio/bulk-ivr-gather menu branch records presses
+       (targetNumber = the lead's number)."
+    - "js/_index.js: '📊 Menu Stats' button in the Quick IVR hub + handler (30-day
+       breakdown: total presses, top key, per-key action %, recent)."
+    - "js/_index.js: menu-builder starter menus — helpers _OB_MENU_STARTERS/
+       _obMenuStarterKb/_obMenuStarterBtn + new state ivrObMenuStarter + '📋 Use a
+       starter menu' on the builder home. Done-validation via _obMenuFirstIncomplete
+       (rejects forward keys with no number / empty sub-menus)."
+    - "js/_index.js: bulk '⭐ Use a saved menu' button (shown when the user has presets
+       WITH a menu) + new state bulkPickPresetMenu that loads preset.menu into bulkData."
+
+  main_agent_verification:
+    - "POST /api/dev/outbound-menu-route-test → pass=true with 17 checks (15 routing +
+       analytics_captured_presses + analytics_has_breakdown). analytics.totalPresses=8,
+       keyBreakdown has 5 distinct keys incl sub-keys 0.1/0.2, topKey computed."
+    - "node --check passes for js/_index.js, js/voice-service.js, js/bulk-call-service.js;
+       nodejs RUNNING, no ReferenceError/SyntaxError in logs."
+
+  testing_agent_notes: |
+    Bot-flow handlers (📊 Menu Stats button, ivrObMenuStarter, bulkPickPresetMenu) are
+    Telegram message handlers — verify by code review + the dev endpoint. HTTP focus:
+      1. POST /api/dev/outbound-menu-route-test → pass=true (17 checks) — this now also
+         exercises recordOutboundMenuPress + getOutboundMenuAnalytics end-to-end and
+         self-cleans its ivrAnalytics rows (chatId prefix 'OBMENUTEST-').
+      2. Regression: /dev/twilio-ivr-transfer-billing-test + /dev/bulk-transfer-billing-test
+         still pass=true (analytics recording is additive/non-blocking).
+    All new behaviour is opt-in/backward-compatible. Base URL = REACT_APP_BACKEND_URL.
+

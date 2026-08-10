@@ -1,0 +1,27 @@
+{
+  "summary": "Phase-2b re-verification: Menu Analytics + Ready-Made Menus + Preset Menu Reuse. All 4 dev endpoints pass (outbound-menu-route-test 17/17 with analytics.totalPresses=8 incl sub-keys 0.1/0.2, twilio-ivr-transfer-billing-test 9/9, bulk-transfer-billing-test 7/7, call-reconciler-test 6/6). DB self-cleaning confirmed (0 leftover OBMENUTEST- rows in ivrAnalytics/bulkCallCampaigns). Code review of the 5 non-HTTP-drivable bot handlers all clean.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": { "ui_bugs": [], "integration_issues": [], "design_issues": [] },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "voice-service.js recordOutboundMenuPress: writes to _ivrAnalytics with direction:'outbound', all expected fields (phoneNumber, chatId, callerFrom, digit, action, campaignId, timestamp). Guarded on _ivrAnalytics. Exported. ✅",
+    "voice-service.js getOutboundMenuAnalytics: filters chatId + direction:'outbound' + 30-day window, aggregates counts by digit, computes percent/topKey/recent. Correct fallback on error. Exported. ✅",
+    "voice-service.js handleOutboundMenuDigit: records every valid press (line 4703) including sub-key composite '<parent>.<digit>' when atSub. ✅",
+    "bulk-call-service.js line 177: bulk gather branch records press with same composite sub-key semantics. ✅",
+    "_index.js Menu Stats: '📊 Menu Stats' button seeded on Quick IVR hub (line 23457); handler (line 23640) has proper empty-state message and rich breakdown/topKey/recent rendering with actionLabel mapping. ✅",
+    "_index.js starter menus: _OB_MENU_STARTERS has 4 well-formed seeds (sales_support_op, connect_one, info_line, sales_submenu); _obMenuStarterBtn on builder home row (line 891); _obMenuFirstIncomplete correctly flags empty forwardTo AND empty sub-menu AND sub-forward with empty forwardTo (returns composite key). ✅",
+    "_index.js ivrObMenuStarter handler present (line 24640) and Done-validation uses _obMenuFirstIncomplete (line 24597). ✅",
+    "_index.js bulk '⭐ Use a saved menu': shown only when ivrPresets has at least one preset with non-empty menu (line 25716, 25718); bulkPickPresetMenu handler loads preset.menu → bulkData.menu + activeKeys + first forwardTo, then advances to bulkSetConcurrency (line 25796). ✅",
+    "Enum: exactly 1 occurrence each of 'ivrObMenuStarter:' and 'bulkPickPresetMenu:' — no duplicate block. ✅",
+    "node --check passes on js/_index.js, js/voice-service.js, js/bulk-call-service.js. ✅"
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "100%", "frontend": "n/a (backend-only)" },
+  "test_credentials": "none required (dev endpoints unauthenticated)",
+  "seed_data_creation": "none — outbound-menu-route-test seeds and self-cleans its own OBMENUTEST- rows; verified 0 leftovers post-run",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Phase-2b is verified end-to-end. Dev endpoints: /api/dev/outbound-menu-route-test returns 17/17 checks incl analytics_captured_presses + analytics_has_breakdown, totalPresses=8, keyBreakdown covers digits 0,1,2,0.1,0.2. Legacy billing/reconciler suites untouched. If further iterations touch outbound menu analytics, re-run these four dev endpoints and re-check MongoDB for OBMENUTEST- leftovers.",
+  "rca of the issue": "n/a — no bugs found"
+}

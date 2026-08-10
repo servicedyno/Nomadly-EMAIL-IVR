@@ -171,6 +171,12 @@ function registerRoutes(app) {
         const atSub = !!path
         const levelOpts = atSub ? ((campaign.menu[path] && campaign.menu[path].options) || {}) : campaign.menu
         const opt = digits ? levelOpts[digits] : null
+        if (opt) {
+          try {
+            const leadNum = (Array.isArray(campaign.leads) && campaign.leads[parseInt(leadIndex)]) ? campaign.leads[parseInt(leadIndex)].number : null
+            require('./voice-service.js').recordOutboundMenuPress({ callerId: campaign.callerId, chatId: campaign.chatId, targetNumber: leadNum, digit: atSub ? `${path}.${digits}` : digits, action: opt.action, campaignId })
+          } catch (_) { /* non-blocking */ }
+        }
         const selfUrl = process.env.SELF_URL_PROD || process.env.SELF_URL || ''
         const gatherBase = `${selfUrl}/twilio/bulk-ivr-gather?campaignId=${encodeURIComponent(campaignId)}&leadIndex=${leadIndex}`
         if (opt && opt.action === 'forward' && opt.forwardTo) {

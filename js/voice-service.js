@@ -4332,6 +4332,48 @@ async function getIvrAnalytics(phoneNumber, days = 30) {
   }
 }
 
+// ── Outbound MENU analytics (Phase 2 parity) — track which menu keys callers press
+// on outbound calls, mirroring inbound trackIvrAnalytics but tagged direction:'outbound'.
+function recordOutboundMenuPress({ callerId, chatId, targetNumber, digit, action, campaignId } = {}) {
+  if (!_ivrAnalytics) return
+  _ivrAnalytics.insertOne({
+    phoneNumber: callerId || null,
+    chatId: chatId || null,
+    callerFrom: targetNumber || null,
+    digit,
+    action,
+    direction: 'outbound',
+    campaignId: campaignId || null,
+    timestamp: new Date().toISOString(),
+  }).catch(e => log(`[Voice] Outbound menu analytics log error: ${e.message}`))
+}
+
+async function getOutboundMenuAnalytics(chatId, days = 30) {
+  if (!_ivrAnalytics) return { totalPresses: 0, keyBreakdown: [], topKey: null, recent: [] }
+  try {
+    const since = new Date()
+    since.setDate(since.getDate() - days)
+    const sinceStr = since.toISOString()
+    const all = await _ivrAnalytics.find({ chatId, direction: 'outbound', timestamp: { $gte: sinceStr } }).sort({ timestamp: -1 }).toArray()
+    const total = all.length
+    const counts = {}
+    for (const e of all) {
+      const key = `${e.digit || '?'}`
+      if (!counts[key]) counts[key] = { count: 0, action: e.action }
+      counts[key].count++
+    }
+    const keyBreakdown = Object.entries(counts)
+      .map(([digit, v]) => ({ digit, action: v.action, count: v.count, percent: total ? Math.round((v.count / total) * 100) : 0 }))
+      .sort((a, b) => b.count - a.count)
+    const topKey = keyBreakdown[0] || null
+    const recent = all.slice(0, 5).map(e => ({ to: e.callerFrom, digit: e.digit, action: e.action, time: e.timestamp }))
+    return { totalPresses: total, keyBreakdown, topKey, recent }
+  } catch (e) {
+    log(`[Voice] Outbound menu analytics query error: ${e.message}`)
+    return { totalPresses: 0, keyBreakdown: [], topKey: null, recent: [] }
+  }
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // OUTBOUND IVR CALL — Place automated IVR calls
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -4656,6 +4698,13 @@ async function handleOutboundMenuDigit(callControlId, session, digits) {
   const atSub = !!session.obPath
   const levelOpts = atSub ? ((menu[session.obPath] && menu[session.obPath].options) || {}) : menu
   const opt = digits ? levelOpts[digits] : null
+
+  if (opt) {
+    recordOutboundMenuPress({
+      callerId: session.callerId, chatId: session.chatId, targetNumber: session.targetNumber,
+      digit: atSub ? `${session.obPath}.${digits}` : digits, action: opt.action, campaignId: session.campaignId,
+    })
+  }
 
   if (opt && opt.action === 'forward' && opt.forwardTo) {
     session.phase = 'transferring'
@@ -5263,6 +5312,8 @@ module.exports = {
   twilioIvrSessions,
   ivrTransferLegs,
   getIvrAnalytics,
+  recordOutboundMenuPress,
+  getOutboundMenuAnalytics,
   initiateOutboundIvrCall,
   incrementSmsUsed,
   isSmsLimitReached,
