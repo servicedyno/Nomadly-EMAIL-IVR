@@ -6,7 +6,7 @@ Read the README file and set up using the provided `.env` variables, ensuring th
 
 ## 2026-08-09 — Fresh pod re-bootstrap (setup from provided .env) — DONE
 Pod came up with only `.git`/app tree present, empty `frontend/.env`, no `backend/.env`, no `/app/.env` symlink, and no `nodejs` supervisor program (backend/frontend/mongodb running).
-- New pod URL: `https://0a6e9359-ab4b-453a-8b30-5728e6616f8c.preview.emergentagent.com` (detected from env `preview_endpoint`).
+- New pod URL: `https://env-config-preview-2.preview.emergentagent.com` (detected from env `preview_endpoint`).
 - Created `/app/frontend/.env` → `REACT_APP_BACKEND_URL=<pod>`.
 - Created `/app/backend/.env` from the user-provided credential list **with the mandatory README safety overrides**:
   - `BOT_ENVIRONMENT="development"` (user list had `production` — would hijack the prod Telegram bot's webhook from this dev pod).
@@ -92,7 +92,7 @@ Audit doc: `/app/CLOUD_PHONE_BILLING_ANALYSIS.md`. Fixed the two genuine revenue
 
 ## 2026-08-07 — Fresh pod re-bootstrap (setup from provided .env)
 Pod came up with no `backend/.env`, empty `frontend/.env`, no `/app/.env` symlink, no `nodejs` supervisor program (backend+frontend STOPPED; only mongodb running).
-- New pod URL: `https://infrastructure-keys.preview.emergentagent.com` (was `setup-keys...`).
+- New pod URL: `https://env-config-preview-2.preview.emergentagent.com` (was `setup-keys...`).
 - Created `/app/frontend/.env` → `REACT_APP_BACKEND_URL=<pod>`.
 - Created `/app/backend/.env` from the user-provided credential list **with the mandatory README safety overrides**:
   - `BOT_ENVIRONMENT="development"` (user list had `production` — would hijack the prod Telegram bot's webhook from this dev pod).
@@ -354,7 +354,7 @@ Cross-referenced deployment `c640c247` logs with MongoDB records (paymentIntents
 ---
 
 ## 2026-07-06 — Fresh pod bootstrap (earlier this session)
-- Created `/app/frontend/.env` with `REACT_APP_BACKEND_URL=https://infrastructure-keys.preview.emergentagent.com` (from supervisor `APP_URL` env).
+- Created `/app/frontend/.env` with `REACT_APP_BACKEND_URL=https://env-config-preview-2.preview.emergentagent.com` (from supervisor `APP_URL` env).
 - Created `/app/backend/.env` with all user-supplied credentials **plus mandatory README safety overrides**:
   - `BOT_ENVIRONMENT="development"` (user supplied `production`; would hijack prod bot webhook)
   - `SKIP_WEBHOOK_SYNC="true"` (blocks Telnyx/Twilio webhook + Call Control migration + SIP ANI overrides from this pod)
@@ -564,7 +564,7 @@ For the 5 currently-stuck domains the OP REST sync DID succeed (`code:0`), but D
 
 ## Current pod state (2026-02-20)
 - `/app/frontend/.env` — `REACT_APP_BACKEND_URL` set to current dev pod URL
-- `/app/backend/.env` — full user-provided env list + safety overrides (`BOT_ENVIRONMENT=development`, `SKIP_WEBHOOK_SYNC=true`); `SELF_URL`/`SELF_URL_PROD` rewritten by setup script to `https://infrastructure-keys.preview.emergentagent.com/api`
+- `/app/backend/.env` — full user-provided env list + safety overrides (`BOT_ENVIRONMENT=development`, `SKIP_WEBHOOK_SYNC=true`); `SELF_URL`/`SELF_URL_PROD` rewritten by setup script to `https://env-config-preview-2.preview.emergentagent.com/api`
 - `/app/.env` — symlink → `/app/backend/.env` (Node.js dotenv root)
 - Supervisor: `backend`, `frontend`, `mongodb`, `nodejs` all RUNNING
 - Node.js logs confirm: AntiRed worker upgrade SKIPPED, CF-Sync skipped (dev mode), health monitor DISABLED on backend
@@ -757,7 +757,7 @@ Code changes ready. `logs_prod/` is gitignored from yesterday's cleanup so this 
 ## 2026-06-21 — Fresh Railway 6-day RCA + Referral funnel fixes
 
 ### Step 1 — Dev setup refreshed
-- `SELF_URL` + `SELF_URL_DEV` updated to current pod `https://infrastructure-keys.preview.emergentagent.com/api`
+- `SELF_URL` + `SELF_URL_DEV` updated to current pod `https://env-config-preview-2.preview.emergentagent.com/api`
 - `SELF_URL_PROD` left intact (still points to real Railway prod URL)
 - Production isolation reconfirmed: `BOT_ENVIRONMENT=development`, `SKIP_WEBHOOK_SYNC=true`, dev bot token in use
 - Nodejs restarted clean, all `/api/*` routes reachable
@@ -1212,7 +1212,7 @@ Removed one screen, added decision-shortcuts at the end, made the wait feel shor
 User asked: "read the README file and set up using below credentials" and supplied the full production .env list.
 
 ### What was done
-- Created `/app/frontend/.env` with `REACT_APP_BACKEND_URL=https://infrastructure-keys.preview.emergentagent.com`
+- Created `/app/frontend/.env` with `REACT_APP_BACKEND_URL=https://env-config-preview-2.preview.emergentagent.com`
 - Created `/app/backend/.env` from the user-provided list with critical dev-pod safety overrides:
   - `BOT_ENVIRONMENT="production"` → `"development"` (CRITICAL — prevents prod bot hijack)
   - Added `SKIP_WEBHOOK_SYNC="true"` (CRITICAL — blocks Telnyx/Twilio/CF mutations)
@@ -1239,7 +1239,7 @@ All RUNNING: `backend`, `frontend`, `mongodb`, `nodejs`. Logs confirm:
 - `[PhoneMonitor] === Health check complete: 23 checked, 0 newly suspended, 0 auth-failed ===`
 
 ### Updated docs
-- `/app/memory/test_credentials.md` — current pod URL updated to `https://infrastructure-keys.preview.emergentagent.com`
+- `/app/memory/test_credentials.md` — current pod URL updated to `https://env-config-preview-2.preview.emergentagent.com`
 
 Pod is initialised and idle, ready for development work.
 

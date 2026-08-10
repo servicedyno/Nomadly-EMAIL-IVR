@@ -14,7 +14,7 @@ import json
 import sys
 
 # Backend URL from frontend/.env
-BACKEND_URL = "https://infrastructure-keys.preview.emergentagent.com"
+BACKEND_URL = "https://env-config-preview-2.preview.emergentagent.com"
 
 def print_section(title):
     """Print a formatted section header"""
