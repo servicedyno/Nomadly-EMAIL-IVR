@@ -164,6 +164,43 @@ function registerRoutes(app) {
         await onDigitReceived(campaignId, parseInt(leadIndex), digits)
       }
 
+      // ── Multi-key menu routing (Phase 2 outbound parity, opt-in) ──
+      // Only when campaign.menu is set; otherwise the legacy single-transfer path runs.
+      if (campaign.menu) {
+        const path = req.query.path || ''
+        const atSub = !!path
+        const levelOpts = atSub ? ((campaign.menu[path] && campaign.menu[path].options) || {}) : campaign.menu
+        const opt = digits ? levelOpts[digits] : null
+        const selfUrl = process.env.SELF_URL_PROD || process.env.SELF_URL || ''
+        const gatherBase = `${selfUrl}/twilio/bulk-ivr-gather?campaignId=${encodeURIComponent(campaignId)}&leadIndex=${leadIndex}`
+        if (opt && opt.action === 'forward' && opt.forwardTo) {
+          response.say('Please hold while we connect you.')
+          const transferStatusUrl = `${selfUrl}/twilio/bulk-ivr-transfer-status?campaignId=${encodeURIComponent(campaignId)}&leadIndex=${encodeURIComponent(leadIndex)}&dest=${encodeURIComponent(opt.forwardTo)}`
+          const dial = response.dial({ callerId: campaign.callerId, timeout: 30, action: transferStatusUrl, method: 'POST' })
+          dial.number(opt.forwardTo)
+          log(`[BulkIVR] Menu forward: lead=${leadIndex} key=${atSub ? path + '.' : ''}${digits} → ${opt.forwardTo}`)
+          return res.type('text/xml').send(response.toString())
+        }
+        if (opt && opt.action === 'message') {
+          response.say(opt.message || 'Thank you. Goodbye.')
+          response.hangup()
+          return res.type('text/xml').send(response.toString())
+        }
+        if (opt && opt.action === 'submenu' && !atSub) {
+          const subUrl = `${gatherBase}&path=${encodeURIComponent(digits)}`
+          const g = response.gather({ action: subUrl, method: 'POST', numDigits: 1, timeout: 8, finishOnKey: '' })
+          g.say(opt.greeting || 'Please select an option.')
+          const g2 = response.gather({ action: subUrl, method: 'POST', numDigits: 1, timeout: 6, finishOnKey: '' })
+          g2.say(opt.greeting || 'Please select an option.')
+          response.say('No input received. Goodbye.')
+          response.hangup()
+          return res.type('text/xml').send(response.toString())
+        }
+        response.say('Invalid input. Goodbye.')
+        response.hangup()
+        return res.type('text/xml').send(response.toString())
+      }
+
       // Check if it's an active key (e.g., "1")
       if (digits && campaign.activeKeys.includes(digits)) {
         if (campaign.mode === 'transfer' && campaign.transferNumber) {
@@ -220,10 +257,11 @@ function registerRoutes(app) {
       if (campaign && campaign.mode === 'transfer' && campaign.chatId && dialStatus === 'completed' && dialDuration > 0) {
         const minutes = Math.max(1, Math.ceil(dialDuration / 60))
         const callRef = `twilio_transfer_${dialSid || (campaignId + '_' + leadIndex)}`
+        const dest = req.query.dest || campaign.transferNumber
         try {
           const voiceService = require('./voice-service.js')
-          await voiceService.billCallMinutesUnified(campaign.chatId, campaign.callerId, minutes, campaign.transferNumber, 'IVR_Transfer', callRef)
-          log(`[BulkIVR] Transfer leg billed: campaign=${campaignId} lead=${leadIndex} → ${campaign.transferNumber} ${minutes} min (dialSid=${dialSid})`)
+          await voiceService.billCallMinutesUnified(campaign.chatId, campaign.callerId, minutes, dest, 'IVR_Transfer', callRef)
+          log(`[BulkIVR] Transfer leg billed: campaign=${campaignId} lead=${leadIndex} → ${dest} ${minutes} min (dialSid=${dialSid})`)
         } catch (e) { log('[BulkIVR] Transfer leg billing error:', e.message) }
       } else {
         log(`[BulkIVR] Transfer leg not billed (status=${dialStatus}, dur=${dialDuration})`)
@@ -484,7 +522,7 @@ function parseLeadsFile(content) {
  * Create a new campaign
  */
 async function createCampaign(params) {
-  const { chatId, callerId, audioUrl, audioName, mode, transferNumber, activeKeys, concurrency, holdMusic, leads, twilioSubAccountSid, twilioSubAccountToken } = params
+  const { chatId, callerId, audioUrl, audioName, mode, transferNumber, menu, activeKeys, concurrency, holdMusic, leads, twilioSubAccountSid, twilioSubAccountToken } = params
 
   // ━━━ Enforce max lead limit ━━━
   if (leads.length > MAX_BULK_LEADS) {
@@ -499,6 +537,7 @@ async function createCampaign(params) {
     audioName: audioName || 'Custom Audio',
     mode: mode || 'report_only', // 'transfer' or 'report_only'
     transferNumber: transferNumber || null,
+    menu: menu || null,
     activeKeys: activeKeys || ['1'],
     concurrency: Math.min(concurrency || 10, 20),
     holdMusic: holdMusic || false,

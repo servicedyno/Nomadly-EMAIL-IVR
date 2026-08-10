@@ -851,6 +851,101 @@ function _ivrSpeedPrompt(lang, voiceName) {
   }[lang] || `🎚 <b>Choose speaking speed</b> for <b>${voiceName}</b>:`)
 }
 
+// ── Outbound multi-key menu builder (Phase 2 parity) — pure render helpers ──
+function _obRouteLabel(opt) {
+  if (!opt) return '—'
+  if (opt.action === 'forward') return `📞 ${opt.forwardTo || '(number)'}`
+  if (opt.action === 'message') { const m = opt.message || ''; return `💬 "${m.slice(0, 24)}${m.length > 24 ? '…' : ''}"` }
+  if (opt.action === 'submenu') return `📂 Sub-menu (${Object.keys(opt.options || {}).length})`
+  return '—'
+}
+function _obMenuSummary(menu, lang) {
+  const keys = Object.keys(menu || {}).sort()
+  if (!keys.length) return ({ en: '<i>No keys configured yet.</i>', fr: '<i>Aucune touche configurée.</i>', zh: '<i>尚未配置按键。</i>', hi: '<i>अभी तक कोई कुंजी नहीं।</i>' }[lang] || '<i>No keys configured yet.</i>')
+  return keys.map(k => {
+    const o = menu[k]
+    let line = `<b>${k}</b> → ${_obRouteLabel(o)}`
+    if (o && o.action === 'submenu') {
+      const subKeys = Object.keys(o.options || {}).sort()
+      line += subKeys.map(sk => `\n   <b>${k}${sk}</b> → ${_obRouteLabel(o.options[sk])}`).join('')
+    }
+    return line
+  }).join('\n')
+}
+function _obDigitRows(configuredKeys) {
+  const set = new Set(configuredKeys || [])
+  const mark = d => (set.has(d) ? `✓ ${d}` : `${d}`)
+  return [[mark('1'), mark('2'), mark('3')], [mark('4'), mark('5'), mark('6')], [mark('7'), mark('8'), mark('9')], [mark('0')]]
+}
+function _obDigitFromButton(message) {
+  const m = String(message || '').replace(/^✓\s*/, '').trim()
+  return /^[0-9]$/.test(m) ? m : null
+}
+function _obMenuHomeText(lang, menu) {
+  const head = ({ en: `🔀 <b>Multi-key menu builder</b>\n\nTap a digit to set what happens when the caller presses it. Configure at least one key, then tap ✅ Done.`, fr: `🔀 <b>Constructeur de menu multi-touches</b>\n\nAppuyez sur un chiffre pour définir l'action. Configurez au moins une touche, puis ✅ Terminé.`, zh: `🔀 <b>多键菜单构建器</b>\n\n点击数字设置按下后的操作。至少配置一个按键，然后点击 ✅ 完成。`, hi: `🔀 <b>मल्टी-की मेनू बिल्डर</b>\n\nअंक दबाकर तय करें कि कॉलर के दबाने पर क्या हो। कम से कम एक कुंजी सेट करें, फिर ✅ हो गया।` }[lang] || `🔀 <b>Multi-key menu builder</b>\n\nTap a digit to set what happens when the caller presses it. Configure at least one key, then tap ✅ Done.`)
+  return `${head}\n\n${_obMenuSummary(menu, lang)}`
+}
+function _obMenuHomeKb(menu, lang) {
+  const rows = _obDigitRows(Object.keys(menu || {}))
+  const done = ({ en: '✅ Done — use this menu', fr: '✅ Terminé', zh: '✅ 完成', hi: '✅ हो गया' }[lang] || '✅ Done — use this menu')
+  rows.push([done])
+  rows.push(['↩️ Back'])
+  return rows
+}
+function _obMenuIsDone(message) {
+  return ['✅ Done — use this menu', '✅ Terminé', '✅ 完成', '✅ हो गया'].includes(String(message || ''))
+}
+function _obMenuActionKb(isSub, lang) {
+  const fwd = ({ en: '📞 Forward to a number', fr: '📞 Transférer vers un numéro', zh: '📞 转接到号码', hi: '📞 नंबर पर फ़ॉरवर्ड' }[lang] || '📞 Forward to a number')
+  const msg = ({ en: '💬 Play a message', fr: '💬 Lire un message', zh: '💬 播放消息', hi: '💬 संदेश चलाएँ' }[lang] || '💬 Play a message')
+  const sub = ({ en: '📂 Open a sub-menu', fr: '📂 Ouvrir un sous-menu', zh: '📂 打开子菜单', hi: '📂 सब-मेनू खोलें' }[lang] || '📂 Open a sub-menu')
+  const rm = ({ en: '🗑 Remove this key', fr: '🗑 Supprimer', zh: '🗑 删除', hi: '🗑 हटाएँ' }[lang] || '🗑 Remove this key')
+  const rows = [[fwd], [msg]]
+  if (!isSub) rows.push([sub])
+  rows.push([rm, '↩️ Back'])
+  return rows
+}
+function _obMenuActionFromButton(message) {
+  const m = String(message || '')
+  if (['📞 Forward to a number', '📞 Transférer vers un numéro', '📞 转接到号码', '📞 नंबर पर फ़ॉरवर्ड'].includes(m)) return 'forward'
+  if (['💬 Play a message', '💬 Lire un message', '💬 播放消息', '💬 संदेश चलाएँ'].includes(m)) return 'message'
+  if (['📂 Open a sub-menu', '📂 Ouvrir un sous-menu', '📂 打开子菜单', '📂 सब-मेनू खोलें'].includes(m)) return 'submenu'
+  if (['🗑 Remove this key', '🗑 Supprimer', '🗑 删除', '🗑 हटाएँ'].includes(m)) return 'remove'
+  return null
+}
+function _obMenuSubHomeText(lang, rootKey, subOpts) {
+  const head = ({ en: `📂 <b>Sub-menu for key ${rootKey}</b>\n\nTap a digit to set a sub-option. Tap ✅ Done sub-menu when finished.`, fr: `📂 <b>Sous-menu pour la touche ${rootKey}</b>\n\nAppuyez sur un chiffre. ✅ Terminé quand c'est fini.`, zh: `📂 <b>按键 ${rootKey} 的子菜单</b>\n\n点击数字设置子选项。完成后点击 ✅ 完成子菜单。`, hi: `📂 <b>कुंजी ${rootKey} का सब-मेनू</b>\n\nअंक दबाकर सब-विकल्प सेट करें। पूरा होने पर ✅ हो गया।` }[lang] || `📂 <b>Sub-menu for key ${rootKey}</b>\n\nTap a digit to set a sub-option. Tap ✅ Done sub-menu when finished.`)
+  const summary = Object.keys(subOpts || {}).sort().map(sk => `<b>${rootKey}${sk}</b> → ${_obRouteLabel(subOpts[sk])}`).join('\n') || ({ en: '<i>No sub-options yet.</i>', fr: '<i>Aucun sous-option.</i>', zh: '<i>暂无子选项。</i>', hi: '<i>अभी कोई सब-विकल्प नहीं।</i>' }[lang] || '<i>No sub-options yet.</i>')
+  return `${head}\n\n${summary}`
+}
+function _obMenuSubHomeKb(subOpts, lang) {
+  const rows = _obDigitRows(Object.keys(subOpts || {}))
+  const done = ({ en: '✅ Done sub-menu', fr: '✅ Sous-menu terminé', zh: '✅ 完成子菜单', hi: '✅ सब-मेनू पूरा' }[lang] || '✅ Done sub-menu')
+  rows.push([done])
+  rows.push(['↩️ Back'])
+  return rows
+}
+function _obMenuSubIsDone(message) {
+  return ['✅ Done sub-menu', '✅ Sous-menu terminé', '✅ 完成子菜单', '✅ सब-मेनू पूरा'].includes(String(message || ''))
+}
+function _obFirstForward(menu) {
+  for (const k of Object.keys(menu || {})) {
+    const o = menu[k]
+    if (o && o.action === 'forward' && o.forwardTo) return o.forwardTo
+    if (o && o.action === 'submenu') {
+      for (const sk of Object.keys(o.options || {})) {
+        const so = o.options[sk]
+        if (so && so.action === 'forward' && so.forwardTo) return so.forwardTo
+      }
+    }
+  }
+  return null
+}
+function _obKeyActionText(lang, displayKey, isSub, existingOpt) {
+  const cur = existingOpt ? `\n\n${({ en: 'Currently', fr: 'Actuellement', zh: '当前', hi: 'वर्तमान' }[lang] || 'Currently')}: ${_obRouteLabel(existingOpt)}` : ''
+  return ({ en: `⚙️ <b>Key ${displayKey}</b> — what happens when the caller presses it?${cur}`, fr: `⚙️ <b>Touche ${displayKey}</b> — que se passe-t-il à l'appui ?${cur}`, zh: `⚙️ <b>按键 ${displayKey}</b> — 按下时执行什么？${cur}`, hi: `⚙️ <b>कुंजी ${displayKey}</b> — दबाने पर क्या हो?${cur}` }[lang] || `⚙️ <b>Key ${displayKey}</b> — what happens when the caller presses it?${cur}`)
+}
+
 
 
 const emailBlastService = require('./email-blast-service.js')
@@ -3639,6 +3734,44 @@ const loadData = async () => {
     log('[CallRecon] Reconciliation sweep scheduled (every 30 min, production-only)')
   } catch (e) {
     log(`[CallRecon] sweep schedule error (non-blocking): ${e.message}`)
+  }
+
+  // ── Stuck Bulk IVR Campaign Nudge (Phase 2 UX) ────────────────────────────
+  // A campaign that reached 'created' but never became 'running' means the Launch
+  // step was interrupted (process restart or a mid-flow error), so it sits silently
+  // abandoned. Every 20 min, DM the owner once so they can relaunch. PROD-ONLY —
+  // the dev sandbox (SKIP_WEBHOOK_SYNC=true) must never DM real production users.
+  // Deduped via a persisted nudgedAt field so a user is nudged at most once.
+  try {
+    schedule.scheduleJob('*/20 * * * *', async function () {
+      if (process.env.SKIP_WEBHOOK_SYNC === 'true') return // dev sandbox: never DM real users
+      try {
+        const cutoff = new Date(Date.now() - 15 * 60 * 1000)
+        const stuck = await db.collection('bulkCallCampaigns').find({
+          status: 'created',
+          createdAt: { $lt: cutoff },
+          nudgedAt: { $exists: false },
+        }).limit(25).toArray()
+        for (const c of stuck) {
+          const leadCount = (c.stats && c.stats.total) || (Array.isArray(c.leads) ? c.leads.length : 0)
+          try {
+            await bot.sendMessage(c.chatId,
+              `⏳ <b>Your bulk call campaign didn't launch</b>\n\n` +
+              `You set up a campaign (${leadCount} lead${leadCount === 1 ? '' : 's'}, caller <b>${c.callerId || '—'}</b>) but it never started — it looks like the launch was interrupted.\n\n` +
+              `Tap <b>📞 Bulk Calls</b> in the menu to review and launch it, or start a fresh one. Your leads are safe.`,
+              { parse_mode: 'HTML' }
+            )
+          } catch (_) { /* user may have blocked the bot — ignore */ }
+          await db.collection('bulkCallCampaigns').updateOne({ id: c.id }, { $set: { nudgedAt: new Date() } })
+        }
+        if (stuck.length) log(`[BulkNudge] Nudged ${stuck.length} stuck 'created' campaign(s)`)
+      } catch (e) {
+        log('[BulkNudge] scheduled nudge error:', e.message)
+      }
+    })
+    log('[BulkNudge] Stuck-campaign nudge scheduled (every 20 min, production-only)')
+  } catch (e) {
+    log(`[BulkNudge] schedule error (non-blocking): ${e.message}`)
   }
 
   // ── Dial rate-guard: DB-backed high-cost deck + periodic Telnyx/Twilio rate sync ──
@@ -8947,6 +9080,20 @@ bot?.on('message', msg => {
     ivrObOtpRejectMsg: 'ivrObOtpRejectMsg',
     ivrObPresetName: 'ivrObPresetName',
     ivrObBatchTargets: 'ivrObBatchTargets',
+    // Outbound multi-key menu builder (Phase 2 parity)
+    ivrObMenuHome: 'ivrObMenuHome',
+    ivrObMenuKeyAction: 'ivrObMenuKeyAction',
+    ivrObMenuForwardInput: 'ivrObMenuForwardInput',
+    ivrObMenuMessageInput: 'ivrObMenuMessageInput',
+    ivrObMenuSubGreetInput: 'ivrObMenuSubGreetInput',
+    ivrObMenuSubHome: 'ivrObMenuSubHome',
+    // Outbound multi-key menu builder (Phase 2 parity)
+    ivrObMenuHome: 'ivrObMenuHome',
+    ivrObMenuKeyAction: 'ivrObMenuKeyAction',
+    ivrObMenuForwardInput: 'ivrObMenuForwardInput',
+    ivrObMenuMessageInput: 'ivrObMenuMessageInput',
+    ivrObMenuSubGreetInput: 'ivrObMenuSubGreetInput',
+    ivrObMenuSubHome: 'ivrObMenuSubHome',
 
     // Bulk IVR Campaign
     bulkSelectCaller: 'bulkSelectCaller',
@@ -23552,6 +23699,8 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
         voiceKey: preset.voiceKey,
         voiceSpeed: preset.voiceSpeed,
         holdMusic: preset.holdMusic,
+        ivrNumber: preset.ivrNumber || null,
+        menu: preset.menu || null,
         isTrial: false,
         fromPreset: true,
         // Clear per-call fields so they get filled fresh
@@ -24207,9 +24356,10 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
     if (message === '🔗 Transfer') {
       ivrObData.ivrMode = 'transfer'
+      ivrObData.menu = null
       await saveInfo('ivrObData', ivrObData)
       await set(state, chatId, 'action', a.ivrObEnterIvrNumber)
-      return send(chatId, trans('t.cp_75'), k.of([['↩️ Back']]))
+      return send(chatId, trans('t.cp_75'), k.of([['🔀 Route each key (menu)'], ['↩️ Back']]))
     }
 
     if (message === '🔑 OTP Collection') {
@@ -24349,6 +24499,12 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       const rows = catBtns.map(b => [b])
       return send(chatId, ({ en: "Choose an IVR template category:", fr: "Choisissez une catégorie de modèle IVR :", zh: "选择 IVR 模板分类：", hi: "IVR टेम्पलेट श्रेणी चुनें:" }[lang] || "Choose an IVR template category:"), k.of(rows))
     }
+    if (message === '🔀 Route each key (menu)') {
+      const draft = { returnTo: 'single', menu: {}, cursor: null, subParent: null }
+      await saveInfo('ivrMenuDraft', draft)
+      await set(state, chatId, 'action', a.ivrObMenuHome)
+      return send(chatId, _obMenuHomeText(lang, draft.menu), { parse_mode: 'HTML', reply_markup: { keyboard: _obMenuHomeKb(draft.menu, lang), resize_keyboard: true } })
+    }
     let clean = message.replace(/[^+\d]/g, '')
     // Auto-correct: 10-digit US number without country code → +1
     if (/^\d{10}$/.test(clean)) clean = '+1' + clean
@@ -24363,6 +24519,211 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     const ttsService = require('./tts-service.js')
     const providerBtns = ttsService.getProviderButtons().map(b => [b])
     return send(chatId, trans('t.cp_92'), k.of(providerBtns))
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // Outbound multi-key menu builder (Phase 2 parity). Shared by single Quick IVR
+  // (returnTo='single' → ivrObData.menu) and Bulk campaigns (returnTo='bulk' →
+  // bulkData.menu). Draft lives in info.ivrMenuDraft.
+  // ══════════════════════════════════════════════════════════════════════════
+  if (action === a.ivrObMenuHome) {
+    const draft = info?.ivrMenuDraft
+    if (!draft) return goto.submenu5()
+    if (isCancelPress(message)) return goto.submenu5()
+    if (isBackPress(message)) {
+      if (draft.returnTo === 'bulk') {
+        await set(state, chatId, 'action', a.bulkEnterTransfer)
+        return send(chatId, trans('t.cp_151'), k.of([['🔀 Route each key (menu)'], ['↩️ Back']]))
+      }
+      await set(state, chatId, 'action', a.ivrObEnterIvrNumber)
+      return send(chatId, trans('t.cp_75'), k.of([['🔀 Route each key (menu)'], ['↩️ Back']]))
+    }
+    if (_obMenuIsDone(message)) {
+      if (!Object.keys(draft.menu).length) {
+        return send(chatId, ({ en: '⚠️ Add at least one key first (tap a digit).', fr: '⚠️ Ajoutez au moins une touche.', zh: '⚠️ 请先添加至少一个按键。', hi: '⚠️ पहले कम से कम एक कुंजी जोड़ें।' }[lang] || '⚠️ Add at least one key first (tap a digit).'), { reply_markup: { keyboard: _obMenuHomeKb(draft.menu, lang), resize_keyboard: true } })
+      }
+      const keyCount = Object.keys(draft.menu).length
+      if (draft.returnTo === 'bulk') {
+        const bulkData = info?.bulkData || {}
+        bulkData.menu = draft.menu
+        bulkData.mode = 'transfer'
+        bulkData.transferNumber = _obFirstForward(draft.menu)
+        bulkData.activeKeys = Object.keys(draft.menu)
+        await saveInfo('bulkData', bulkData)
+        await saveInfo('ivrMenuDraft', null)
+        await set(state, chatId, 'action', a.bulkSetConcurrency)
+        return send(chatId, ({ en: `✅ Menu ready (${keyCount} keys). How many calls at once (concurrency)?`, fr: `✅ Menu prêt (${keyCount}). Combien d'appels simultanés ?`, zh: `✅ 菜单已就绪（${keyCount}）。并发呼叫数？`, hi: `✅ मेनू तैयार (${keyCount})। एक साथ कितनी कॉल?` }[lang] || `✅ Menu ready (${keyCount} keys). How many calls at once (concurrency)?`), k.of([['5'], ['10'], ['15'], ['20'], ['↩️ Back']]))
+      }
+      const ivrObData = info?.ivrObData || {}
+      ivrObData.menu = draft.menu
+      ivrObData.activeKeys = Object.keys(draft.menu)
+      ivrObData.ivrNumber = _obFirstForward(draft.menu)
+      await saveInfo('ivrObData', ivrObData)
+      await saveInfo('ivrMenuDraft', null)
+      await set(state, chatId, 'action', a.ivrObSelectProvider)
+      const ttsService = require('./tts-service.js')
+      const providerBtns = ttsService.getProviderButtons().map(b => [b])
+      return send(chatId, ({ en: `✅ Menu ready with ${keyCount} key(s). Now choose the voice provider:`, fr: `✅ Menu prêt (${keyCount}). Choisissez le fournisseur de voix :`, zh: `✅ 菜单已就绪（${keyCount}）。请选择语音提供商：`, hi: `✅ मेनू तैयार (${keyCount})। वॉइस प्रदाता चुनें:` }[lang] || `✅ Menu ready with ${keyCount} key(s). Now choose the voice provider:`), k.of(providerBtns))
+    }
+    const digit = _obDigitFromButton(message)
+    if (digit) {
+      draft.cursor = digit
+      draft.subParent = null
+      draft.subCursor = null
+      await saveInfo('ivrMenuDraft', draft)
+      await set(state, chatId, 'action', a.ivrObMenuKeyAction)
+      return send(chatId, _obKeyActionText(lang, digit, false, draft.menu[digit]), { parse_mode: 'HTML', reply_markup: { keyboard: _obMenuActionKb(false, lang), resize_keyboard: true } })
+    }
+    return send(chatId, _obMenuHomeText(lang, draft.menu), { parse_mode: 'HTML', reply_markup: { keyboard: _obMenuHomeKb(draft.menu, lang), resize_keyboard: true } })
+  }
+
+  if (action === a.ivrObMenuKeyAction) {
+    const draft = info?.ivrMenuDraft
+    if (!draft) return goto.submenu5()
+    const isSub = !!draft.subParent
+    const key = isSub ? draft.subCursor : draft.cursor
+    const displayKey = isSub ? `${draft.subParent}${key}` : `${key}`
+    const backToHome = async () => {
+      if (isSub) {
+        await set(state, chatId, 'action', a.ivrObMenuSubHome)
+        const subOpts = (draft.menu[draft.subParent] || {}).options || {}
+        return send(chatId, _obMenuSubHomeText(lang, draft.subParent, subOpts), { parse_mode: 'HTML', reply_markup: { keyboard: _obMenuSubHomeKb(subOpts, lang), resize_keyboard: true } })
+      }
+      await set(state, chatId, 'action', a.ivrObMenuHome)
+      return send(chatId, _obMenuHomeText(lang, draft.menu), { parse_mode: 'HTML', reply_markup: { keyboard: _obMenuHomeKb(draft.menu, lang), resize_keyboard: true } })
+    }
+    if (isCancelPress(message)) return goto.submenu5()
+    if (isBackPress(message)) return backToHome()
+    const act = _obMenuActionFromButton(message)
+    if (act === 'forward') {
+      await set(state, chatId, 'action', a.ivrObMenuForwardInput)
+      return send(chatId, ({ en: `📞 Enter the number to forward to when the caller presses <b>${displayKey}</b> (e.g. +14155551234):`, fr: `📞 Entrez le numéro de transfert pour <b>${displayKey}</b> :`, zh: `📞 输入按 <b>${displayKey}</b> 时转接的号码：`, hi: `📞 <b>${displayKey}</b> दबाने पर फ़ॉरवर्ड नंबर डालें:` }[lang] || `📞 Enter the number to forward to when the caller presses <b>${displayKey}</b>:`), { parse_mode: 'HTML', reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
+    }
+    if (act === 'message') {
+      await set(state, chatId, 'action', a.ivrObMenuMessageInput)
+      return send(chatId, ({ en: `💬 Type the message to play when the caller presses <b>${displayKey}</b> (the call ends after it plays):`, fr: `💬 Tapez le message pour <b>${displayKey}</b> :`, zh: `💬 输入按 <b>${displayKey}</b> 时播放的消息：`, hi: `💬 <b>${displayKey}</b> दबाने पर चलने वाला संदेश लिखें:` }[lang] || `💬 Type the message to play when the caller presses <b>${displayKey}</b>:`), { parse_mode: 'HTML', reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
+    }
+    if (act === 'submenu' && !isSub) {
+      await set(state, chatId, 'action', a.ivrObMenuSubGreetInput)
+      return send(chatId, ({ en: `📂 Type the sub-menu greeting for key <b>${key}</b> (what the caller hears after pressing ${key}, e.g. "Press 1 for billing, 2 for support"):`, fr: `📂 Message du sous-menu pour <b>${key}</b> :`, zh: `📂 输入按键 <b>${key}</b> 的子菜单问候语：`, hi: `📂 कुंजी <b>${key}</b> के सब-मेनू का ग्रीटिंग लिखें:` }[lang] || `📂 Type the sub-menu greeting for key <b>${key}</b>:`), { parse_mode: 'HTML', reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
+    }
+    if (act === 'remove') {
+      if (isSub) { if (draft.menu[draft.subParent] && draft.menu[draft.subParent].options) delete draft.menu[draft.subParent].options[key] }
+      else { delete draft.menu[key] }
+      await saveInfo('ivrMenuDraft', draft)
+      return backToHome()
+    }
+    return send(chatId, _obKeyActionText(lang, displayKey, isSub, isSub ? ((draft.menu[draft.subParent] || {}).options || {})[key] : draft.menu[key]), { parse_mode: 'HTML', reply_markup: { keyboard: _obMenuActionKb(isSub, lang), resize_keyboard: true } })
+  }
+
+  if (action === a.ivrObMenuForwardInput) {
+    const draft = info?.ivrMenuDraft
+    if (!draft) return goto.submenu5()
+    const isSub = !!draft.subParent
+    const key = isSub ? draft.subCursor : draft.cursor
+    const displayKey = isSub ? `${draft.subParent}${key}` : `${key}`
+    if (isCancelPress(message)) return goto.submenu5()
+    if (isBackPress(message)) {
+      await set(state, chatId, 'action', a.ivrObMenuKeyAction)
+      return send(chatId, _obKeyActionText(lang, displayKey, isSub, null), { parse_mode: 'HTML', reply_markup: { keyboard: _obMenuActionKb(isSub, lang), resize_keyboard: true } })
+    }
+    let clean = message.replace(/[^+\d]/g, '')
+    if (/^\d{10}$/.test(clean)) clean = '+1' + clean
+    if (/^\+\d{10}$/.test(clean) && /^\+[2-9]/.test(clean)) clean = '+1' + clean.slice(1)
+    if (!clean.match(/^\+\d{10,15}$/)) {
+      return send(chatId, ({ en: '⚠️ Enter a valid number in international format, e.g. +14155551234:', fr: '⚠️ Entrez un numéro valide (format international) :', zh: '⚠️ 请输入有效的国际格式号码：', hi: '⚠️ मान्य अंतरराष्ट्रीय नंबर डालें:' }[lang] || '⚠️ Enter a valid number, e.g. +14155551234:'), { reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
+    }
+    if (dialGuard.classifyDial(clean).blocked) {
+      return send(chatId, `🚫 ${clean} is a restricted premium/satellite number. Enter a standard number:`, { reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
+    }
+    const opt = { action: 'forward', forwardTo: clean }
+    if (isSub) { draft.menu[draft.subParent].options = draft.menu[draft.subParent].options || {}; draft.menu[draft.subParent].options[key] = opt }
+    else { draft.menu[key] = opt }
+    await saveInfo('ivrMenuDraft', draft)
+    if (isSub) {
+      await set(state, chatId, 'action', a.ivrObMenuSubHome)
+      const subOpts = draft.menu[draft.subParent].options
+      return send(chatId, _obMenuSubHomeText(lang, draft.subParent, subOpts), { parse_mode: 'HTML', reply_markup: { keyboard: _obMenuSubHomeKb(subOpts, lang), resize_keyboard: true } })
+    }
+    await set(state, chatId, 'action', a.ivrObMenuHome)
+    return send(chatId, _obMenuHomeText(lang, draft.menu), { parse_mode: 'HTML', reply_markup: { keyboard: _obMenuHomeKb(draft.menu, lang), resize_keyboard: true } })
+  }
+
+  if (action === a.ivrObMenuMessageInput) {
+    const draft = info?.ivrMenuDraft
+    if (!draft) return goto.submenu5()
+    const isSub = !!draft.subParent
+    const key = isSub ? draft.subCursor : draft.cursor
+    const displayKey = isSub ? `${draft.subParent}${key}` : `${key}`
+    if (isCancelPress(message)) return goto.submenu5()
+    if (isBackPress(message)) {
+      await set(state, chatId, 'action', a.ivrObMenuKeyAction)
+      return send(chatId, _obKeyActionText(lang, displayKey, isSub, null), { parse_mode: 'HTML', reply_markup: { keyboard: _obMenuActionKb(isSub, lang), resize_keyboard: true } })
+    }
+    const text = String(message || '').trim()
+    if (!text || text.length > 500) {
+      return send(chatId, ({ en: '⚠️ Enter a message (1–500 characters):', fr: '⚠️ Entrez un message (1–500) :', zh: '⚠️ 请输入消息（1–500 字符）：', hi: '⚠️ संदेश डालें (1–500 अक्षर):' }[lang] || '⚠️ Enter a message (1–500 characters):'), { reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
+    }
+    const opt = { action: 'message', message: text }
+    if (isSub) { draft.menu[draft.subParent].options = draft.menu[draft.subParent].options || {}; draft.menu[draft.subParent].options[key] = opt }
+    else { draft.menu[key] = opt }
+    await saveInfo('ivrMenuDraft', draft)
+    if (isSub) {
+      await set(state, chatId, 'action', a.ivrObMenuSubHome)
+      const subOpts = draft.menu[draft.subParent].options
+      return send(chatId, _obMenuSubHomeText(lang, draft.subParent, subOpts), { parse_mode: 'HTML', reply_markup: { keyboard: _obMenuSubHomeKb(subOpts, lang), resize_keyboard: true } })
+    }
+    await set(state, chatId, 'action', a.ivrObMenuHome)
+    return send(chatId, _obMenuHomeText(lang, draft.menu), { parse_mode: 'HTML', reply_markup: { keyboard: _obMenuHomeKb(draft.menu, lang), resize_keyboard: true } })
+  }
+
+  if (action === a.ivrObMenuSubGreetInput) {
+    const draft = info?.ivrMenuDraft
+    if (!draft || !draft.cursor) return goto.submenu5()
+    const root = draft.cursor
+    if (isCancelPress(message)) return goto.submenu5()
+    if (isBackPress(message)) {
+      await set(state, chatId, 'action', a.ivrObMenuKeyAction)
+      return send(chatId, _obKeyActionText(lang, root, false, draft.menu[root]), { parse_mode: 'HTML', reply_markup: { keyboard: _obMenuActionKb(false, lang), resize_keyboard: true } })
+    }
+    const greeting = String(message || '').trim()
+    if (!greeting || greeting.length > 500) {
+      return send(chatId, ({ en: '⚠️ Enter a sub-menu greeting (1–500 characters):', fr: '⚠️ Entrez un message de sous-menu :', zh: '⚠️ 请输入子菜单问候语：', hi: '⚠️ सब-मेनू ग्रीटिंग डालें:' }[lang] || '⚠️ Enter a sub-menu greeting (1–500 characters):'), { reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
+    }
+    const existing = (draft.menu[root] && draft.menu[root].action === 'submenu') ? draft.menu[root].options : {}
+    draft.menu[root] = { action: 'submenu', greeting, options: existing || {} }
+    draft.subParent = root
+    draft.subCursor = null
+    await saveInfo('ivrMenuDraft', draft)
+    await set(state, chatId, 'action', a.ivrObMenuSubHome)
+    return send(chatId, _obMenuSubHomeText(lang, root, draft.menu[root].options), { parse_mode: 'HTML', reply_markup: { keyboard: _obMenuSubHomeKb(draft.menu[root].options, lang), resize_keyboard: true } })
+  }
+
+  if (action === a.ivrObMenuSubHome) {
+    const draft = info?.ivrMenuDraft
+    if (!draft || !draft.cursor) return goto.submenu5()
+    const root = draft.cursor
+    const node = draft.menu[root] || { action: 'submenu', greeting: '', options: {} }
+    const subOpts = node.options || {}
+    if (isCancelPress(message)) return goto.submenu5()
+    if (isBackPress(message) || _obMenuSubIsDone(message)) {
+      if (!Object.keys(subOpts).length) delete draft.menu[root]
+      draft.subParent = null
+      draft.subCursor = null
+      draft.cursor = null
+      await saveInfo('ivrMenuDraft', draft)
+      await set(state, chatId, 'action', a.ivrObMenuHome)
+      return send(chatId, _obMenuHomeText(lang, draft.menu), { parse_mode: 'HTML', reply_markup: { keyboard: _obMenuHomeKb(draft.menu, lang), resize_keyboard: true } })
+    }
+    const digit = _obDigitFromButton(message)
+    if (digit) {
+      draft.subParent = root
+      draft.subCursor = digit
+      await saveInfo('ivrMenuDraft', draft)
+      await set(state, chatId, 'action', a.ivrObMenuKeyAction)
+      return send(chatId, _obKeyActionText(lang, `${root}${digit}`, true, subOpts[digit]), { parse_mode: 'HTML', reply_markup: { keyboard: _obMenuActionKb(true, lang), resize_keyboard: true } })
+    }
+    return send(chatId, _obMenuSubHomeText(lang, root, subOpts), { parse_mode: 'HTML', reply_markup: { keyboard: _obMenuSubHomeKb(subOpts, lang), resize_keyboard: true } })
   }
 
   if (action === a.ivrObSelectProvider) {
@@ -24740,8 +25101,9 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
         callerId: ivrObData.callerId,
         targetNumber: ivrObData.targetNumber,
         ivrNumber: ivrObData.ivrNumber,
+        menu: ivrObData.menu || null,
         audioUrl: ivrObData.audioUrl,
-        activeKeys: ivrObData.activeKeys,
+        activeKeys: ivrObData.menu ? Object.keys(ivrObData.menu) : ivrObData.activeKeys,
         templateName: ivrObData.templateName,
         placeholderValues: ivrObData.placeholderValues,
         voiceName: ivrObData.voiceName,
@@ -24774,8 +25136,8 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
           send(chatId, trans('t.cp_119', batchCount, batchTargets.length, target))
           await voiceService.initiateOutboundIvrCall({
             chatId, callerId: ivrObData.callerId, targetNumber: target,
-            ivrNumber: ivrObData.ivrNumber, audioUrl: ivrObData.audioUrl,
-            activeKeys: ivrObData.activeKeys, templateName: ivrObData.templateName,
+            ivrNumber: ivrObData.ivrNumber, menu: ivrObData.menu || null, audioUrl: ivrObData.audioUrl,
+            activeKeys: ivrObData.menu ? Object.keys(ivrObData.menu) : ivrObData.activeKeys, templateName: ivrObData.templateName,
             placeholderValues: ivrObData.placeholderValues, voiceName: ivrObData.voiceName,
             isTrial: false, holdMusic: ivrObData.holdMusic || false,
             provider: callerProvider, twilioSubAccountSid: subAccountSid, twilioSubAccountToken: subAccountToken,
@@ -24843,6 +25205,8 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       voiceKey: ivrObData.voiceKey,
       voiceSpeed: ivrObData.voiceSpeed,
       holdMusic: ivrObData.holdMusic,
+      ivrNumber: ivrObData.ivrNumber || null,
+      menu: ivrObData.menu || null,
       savedAt: new Date().toISOString(),
     })
     // Keep max 10 presets
@@ -25263,9 +25627,10 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     const bulkData = info?.bulkData || {}
     if (message === '🔗 Transfer + Report') {
       bulkData.mode = 'transfer'
+      bulkData.menu = null
       await saveInfo('bulkData', bulkData)
       await set(state, chatId, 'action', a.bulkEnterTransfer)
-      return send(chatId, trans('t.cp_151'), k.of([['↩️ Back']]))
+      return send(chatId, trans('t.cp_151'), k.of([['🔀 Route each key (menu)'], ['↩️ Back']]))
     }
     if (message === '📊 Report Only') {
       bulkData.mode = 'report_only'
@@ -25281,6 +25646,12 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     if (message === '↩️ Back' || isBackPress(message)) {
       await set(state, chatId, 'action', a.bulkSelectMode)
       return send(chatId, trans('t.cp_154'), k.of([['🔗 Transfer + Report'], ['📊 Report Only'], ['↩️ Back']]))
+    }
+    if (message === '🔀 Route each key (menu)') {
+      const draft = { returnTo: 'bulk', menu: {}, cursor: null, subParent: null }
+      await saveInfo('ivrMenuDraft', draft)
+      await set(state, chatId, 'action', a.ivrObMenuHome)
+      return send(chatId, _obMenuHomeText(lang, draft.menu), { parse_mode: 'HTML', reply_markup: { keyboard: _obMenuHomeKb(draft.menu, lang), resize_keyboard: true } })
     }
     let clean = message.replace(/[^+\d]/g, '')
     // Auto-correct: 10-digit US number without country code → +1
@@ -25776,9 +26147,9 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       `📞 Leads: <b>${leadCount}</b> (max ${bulkCallService.MAX_BULK_LEADS || 500})`,
       `🎵 Audio: <b>${bulkData.audioName || 'Selected'}</b>`,
       `📊 Mode: <b>${bulkData.mode === 'transfer' ? '🔗 Transfer + Report' : '📊 Report Only'}</b>`,
-      bulkData.transferNumber ? `🔗 Transfer to: <b>${bulkData.transferNumber}</b>` : null,
+      bulkData.menu ? `🔀 Menu: <b>${Object.keys(bulkData.menu).length} key(s)</b>\n${_obMenuSummary(bulkData.menu, lang)}` : (bulkData.transferNumber ? `🔗 Transfer to: <b>${bulkData.transferNumber}</b>` : null),
       `⚡ Concurrency: <b>${num}</b>`,
-      `🔘 Active keys: <b>${(bulkData.activeKeys || ['1']).join(', ')}</b>`,
+      bulkData.menu ? null : `🔘 Active keys: <b>${(bulkData.activeKeys || ['1']).join(', ')}</b>`,
       ``,
       `💰 <b>Rate: $${bulkRate.toFixed(2)}/min per number</b> (min 1 min, charged whether answered or not)`,
       `💰 <b>Estimated cost: $${estCost}</b>`,
@@ -25807,7 +26178,8 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
           audioName: bulkData.audioName,
           mode: bulkData.mode,
           transferNumber: bulkData.transferNumber,
-          activeKeys: bulkData.activeKeys || ['1'],
+          menu: bulkData.menu || null,
+          activeKeys: bulkData.menu ? Object.keys(bulkData.menu) : (bulkData.activeKeys || ['1']),
           concurrency: bulkData.concurrency || 10,
           holdMusic: bulkData.mode === 'transfer',
           leads: bulkData.leads,
@@ -38624,6 +38996,95 @@ app.post('/dev/twilio-ivr-transfer-billing-test', async (req, res) => {
   return res.json(out)
 })
 
+// ── DEV-ONLY: Outbound multi-key menu routing test (Phase 2 parity). 404 in prod. ──
+// Verifies the opt-in menu router across the Twilio single + bulk TwiML paths (real
+// runtime code) and mirrors the Telnyx decision via a pure resolver. All synthetic;
+// registers an in-memory Twilio session + a temp campaign doc and cleans them up.
+app.post('/dev/outbound-menu-route-test', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const voiceService = require('./voice-service.js')
+  const ts = Date.now()
+  const sessionId = 'obmenu_' + ts
+  const campaignId = 'obmenucamp_' + ts
+  const base = 'http://127.0.0.1:5000'
+  const form = (o) => new URLSearchParams(o).toString()
+  const post = async (path, body) => {
+    const r = await fetch(base + path, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: form(body || {}) })
+    return { status: r.status, text: await r.text() }
+  }
+  const menu = {
+    '1': { action: 'forward', forwardTo: '+14155550111' },
+    '2': { action: 'message', message: 'Goodbye from menu two.' },
+    '0': { action: 'submenu', greeting: 'Sub menu greeting here.', options: {
+      '1': { action: 'forward', forwardTo: '+14155550222' },
+      '2': { action: 'message', message: 'Sub message here.' },
+    } },
+  }
+  const out = { checks: {} }
+  try {
+    // ── (A) Telnyx-equivalent routing DECISION (pure resolver, mirrors handleOutboundMenuDigit) ──
+    const resolveTelnyx = (m, obPath, digits) => {
+      const levelOpts = obPath ? ((m[obPath] && m[obPath].options) || {}) : m
+      const opt = digits ? levelOpts[digits] : null
+      return opt ? opt.action : 'invalid'
+    }
+    out.checks.telnyx_root_forward = resolveTelnyx(menu, null, '1') === 'forward'
+    out.checks.telnyx_root_message = resolveTelnyx(menu, null, '2') === 'message'
+    out.checks.telnyx_root_submenu = resolveTelnyx(menu, null, '0') === 'submenu'
+    out.checks.telnyx_sub_forward = resolveTelnyx(menu, '0', '1') === 'forward'
+    out.checks.telnyx_sub_message = resolveTelnyx(menu, '0', '2') === 'message'
+    out.checks.telnyx_root_invalid = resolveTelnyx(menu, null, '9') === 'invalid'
+
+    // ── (B) Twilio SINGLE path (real /twilio/single-ivr-gather TwiML) ──
+    voiceService.twilioIvrSessions[sessionId] = {
+      chatId: 'OBMENUTEST-' + ts, callerId: '+3197006532350', targetNumber: '+31626742533',
+      ivrNumber: null, menu, obPath: null, activeKeys: Object.keys(menu),
+      ivrMode: 'transfer', bulkMode: null, holdMusic: false, voiceName: '', isTrial: false,
+      campaignId: null, phase: 'playing',
+    }
+    const g1 = await post(`/twilio/single-ivr-gather?sessionId=${encodeURIComponent(sessionId)}`, { Digits: '1' })
+    out.checks.single_root_forward_dials = g1.status === 200 && /\+14155550111/.test(g1.text) && /single-ivr-transfer-status/.test(g1.text)
+    const g2 = await post(`/twilio/single-ivr-gather?sessionId=${encodeURIComponent(sessionId)}`, { Digits: '2' })
+    out.checks.single_root_message_says = g2.status === 200 && /Goodbye from menu two/.test(g2.text) && /<Hangup/.test(g2.text)
+    const g0 = await post(`/twilio/single-ivr-gather?sessionId=${encodeURIComponent(sessionId)}`, { Digits: '0' })
+    out.checks.single_root_submenu_gathers = g0.status === 200 && /path=0/.test(g0.text) && /Sub menu greeting here/.test(g0.text)
+    const gs1 = await post(`/twilio/single-ivr-gather?sessionId=${encodeURIComponent(sessionId)}&path=0`, { Digits: '1' })
+    out.checks.single_sub_forward_dials = gs1.status === 200 && /\+14155550222/.test(gs1.text)
+    const gs2 = await post(`/twilio/single-ivr-gather?sessionId=${encodeURIComponent(sessionId)}&path=0`, { Digits: '2' })
+    out.checks.single_sub_message_says = gs2.status === 200 && /Sub message here/.test(gs2.text)
+    const g9 = await post(`/twilio/single-ivr-gather?sessionId=${encodeURIComponent(sessionId)}`, { Digits: '9' })
+    out.checks.single_invalid_hangs_up = g9.status === 200 && /Invalid input/.test(g9.text)
+
+    // ── (C) Twilio BULK path (real /twilio/bulk-ivr-gather TwiML) ──
+    await db.collection('bulkCallCampaigns').insertOne({
+      id: campaignId, chatId: 'OBMENUTEST-' + ts, callerId: '+3197006532350',
+      mode: 'transfer', transferNumber: null, menu, activeKeys: Object.keys(menu),
+      status: 'running', concurrency: 1, holdMusic: false,
+      leads: [{ index: 0, number: '+31626742533', name: 'Test', status: 'answered', digitPressed: null }],
+      stats: { total: 1, completed: 0, answered: 1, keyPressed: 0, transferred: 0, noAnswer: 0, busy: 0, failed: 0, hungUp: 0 },
+      createdAt: new Date(),
+    })
+    const b1 = await post(`/twilio/bulk-ivr-gather?campaignId=${encodeURIComponent(campaignId)}&leadIndex=0`, { Digits: '1' })
+    out.checks.bulk_root_forward_dials = b1.status === 200 && /\+14155550111/.test(b1.text) && /bulk-ivr-transfer-status/.test(b1.text) && /dest=/.test(b1.text)
+    const b0 = await post(`/twilio/bulk-ivr-gather?campaignId=${encodeURIComponent(campaignId)}&leadIndex=0`, { Digits: '0' })
+    out.checks.bulk_root_submenu_gathers = b0.status === 200 && /path=0/.test(b0.text) && /Sub menu greeting here/.test(b0.text)
+    const bs2 = await post(`/twilio/bulk-ivr-gather?campaignId=${encodeURIComponent(campaignId)}&leadIndex=0&path=0`, { Digits: '2' })
+    out.checks.bulk_sub_message_says = bs2.status === 200 && /Sub message here/.test(bs2.text)
+
+    out.pass = Object.values(out.checks).every(Boolean)
+  } catch (e) {
+    out.error = e.message
+    out.pass = false
+  } finally {
+    try { delete voiceService.twilioIvrSessions[sessionId] } catch (_) { /* cleanup */ }
+    try { await db.collection('bulkCallCampaigns').deleteOne({ id: campaignId }) } catch (_) { /* cleanup */ }
+  }
+  return res.json(out)
+})
+
+
 // ── DEV-ONLY: Widen-Reconciler coverage test. 404 in prod. ──
 // Verifies the 2026-08-07 "Widen Reconciler" change: the leak sweeper now covers
 // Twilio SIP-bridge, Twilio SIP-outbound, and Telnyx bridge/transfer legs.
@@ -44181,6 +44642,46 @@ app.post('/twilio/single-ivr-gather', async (req, res) => {
 
     const twilioVoice = voiceService.getTwilioVoice(session.voiceName)
     session.digitPressed = digits
+
+    // ── Multi-key menu routing (Phase 2 outbound parity, opt-in) ──
+    // Only when session.menu is set; OTP + report-only flows keep prior behaviour.
+    if (session.menu && session.ivrMode !== 'otp_collect' && session.bulkMode !== 'report_only') {
+      const path = req.query.path || ''
+      const atSub = !!path
+      const levelOpts = atSub ? ((session.menu[path] && session.menu[path].options) || {}) : session.menu
+      const opt = digits ? levelOpts[digits] : null
+      const gatherBase = `${SELF_URL}/twilio/single-ivr-gather?sessionId=${encodeURIComponent(sessionId)}`
+      if (opt && opt.action === 'forward' && opt.forwardTo) {
+        session.phase = 'transferring'
+        session.ivrNumber = opt.forwardTo
+        if (session.holdMusic) response.play(`${SELF_URL}/assets/hold-music-jazz.mp3`)
+        else response.say({ voice: twilioVoice }, 'Please hold while we connect you.')
+        const transferStatusUrl = `${SELF_URL}/twilio/single-ivr-transfer-status?sessionId=${encodeURIComponent(sessionId)}`
+        const dial = response.dial({ callerId: session.callerId, timeout: 30, action: transferStatusUrl, method: 'POST' })
+        dial.number(opt.forwardTo)
+        log(`[SingleIVR] Menu forward: key=${atSub ? path + '.' : ''}${digits} → ${opt.forwardTo}`)
+        return res.type('text/xml').send(response.toString())
+      }
+      if (opt && opt.action === 'message') {
+        session.phase = 'completed'
+        response.say({ voice: twilioVoice }, opt.message || 'Thank you. Goodbye.')
+        response.hangup()
+        return res.type('text/xml').send(response.toString())
+      }
+      if (opt && opt.action === 'submenu' && !atSub) {
+        const subUrl = `${gatherBase}&path=${encodeURIComponent(digits)}`
+        const g = response.gather({ action: subUrl, method: 'POST', numDigits: 1, timeout: 8, finishOnKey: '' })
+        g.say({ voice: twilioVoice }, opt.greeting || 'Please select an option.')
+        const g2 = response.gather({ action: subUrl, method: 'POST', numDigits: 1, timeout: 6, finishOnKey: '' })
+        g2.say({ voice: twilioVoice }, opt.greeting || 'Please select an option.')
+        response.say({ voice: twilioVoice }, 'No input received. Goodbye.')
+        response.hangup()
+        return res.type('text/xml').send(response.toString())
+      }
+      response.say({ voice: twilioVoice }, 'Invalid input. Goodbye.')
+      response.hangup()
+      return res.type('text/xml').send(response.toString())
+    }
 
     if (digits && session.activeKeys.includes(digits)) {
       session.phase = 'transferring'

@@ -13797,3 +13797,61 @@ agent_communication:
       
       The call-billing reconciler notifyAdmin crash bug is now fixed and verified. The reported production 
       issue is resolved.
+
+
+#====================================================================================================
+# PHASE 2 — Outbound IVR Parity + Per-Number Voice (2026-06, forked session)
+#====================================================================================================
+phase2_outbound_parity:
+  scope: |
+    User request (Phase 2): (a) Per-Number Voice for inbound IVR template wizard
+    (pick any of 21 premium voices + speaking speed per number), (b) Outbound
+    multi-key menus + one-level sub-menus with runtime parity across Telnyx +
+    Twilio single + Twilio bulk, (c) extend outbound Saved Presets to also persist
+    the transfer number + menu, (d) friendly domain-search error (no raw JSON leak),
+    (e) nudge for stuck 'created' bulk campaigns.
+
+  changes:
+    - "js/_index.js: cpIvrTplVoice + cpIvrTplSpeed handlers (per-number voice wizard);
+       renders premium greeting audio (ttsService.generateTTS) + persists voiceKey/
+       ttsSpeed/greetingAudioUrl onto the number's IVR config + ivrAudioStore."
+    - "js/_index.js: outbound multi-key menu builder (states ivrObMenuHome,
+       ivrObMenuKeyAction, ivrObMenuForwardInput, ivrObMenuMessageInput,
+       ivrObMenuSubGreetInput, ivrObMenuSubHome). Opt-in from the transfer-number
+       step (single) and bulk transfer step. Shared draft: info.ivrMenuDraft."
+    - "js/voice-service.js: handleOutboundMenuDigit() Telnyx runtime router +
+       menu/obPath threaded through initiateOutboundIvrCall sessions."
+    - "js/_index.js: /twilio/single-ivr-gather menu routing (+path param)."
+    - "js/bulk-call-service.js: /twilio/bulk-ivr-gather menu routing (+path, +dest
+       billing); createCampaign accepts menu."
+    - "js/_index.js: preset save/load now persists ivrNumber + menu."
+    - "js/cr-domain-price-get.js: catch returns friendly message (raw detail → logs+debug)."
+    - "js/_index.js: BulkNudge scheduler (every 20 min, PROD-ONLY, deduped via nudgedAt)."
+    - "js/_index.js: NEW dev endpoint POST /dev/outbound-menu-route-test (404 in prod)."
+
+  backward_compat: |
+    All menu behaviour is OPT-IN. When session.menu / campaign.menu is null (every
+    existing call), the legacy single-transfer path runs byte-for-byte as before.
+    Regression verified: /dev/twilio-ivr-transfer-billing-test and
+    /dev/bulk-transfer-billing-test both still pass=true.
+
+  main_agent_verification:
+    - "POST /api/dev/outbound-menu-route-test → pass=true (15/15 checks: Telnyx
+       decision + Twilio single forward/message/submenu/sub-forward/sub-message/
+       invalid + Twilio bulk forward/submenu/sub-message)."
+    - "POST /api/dev/ivr-parity/apply-template (voiceKey=nova, ttsSpeed=1.15,
+       generateAudio=true) → config.voiceKey=nova, config.ttsSpeed=1.15, audio
+       rendered as 'Nova' (no fallback), audioUrl reachable (HTTP 200 audio/mpeg)."
+    - "Regression: /dev/twilio-ivr-transfer-billing-test pass=true;
+       /dev/bulk-transfer-billing-test pass=true (legacy no-menu paths intact)."
+    - "Domain: checkDomainPriceOnline no longer leaks raw JSON/'Maybe IP Not Whitelisted'."
+
+  testing_agent_notes: |
+    Bot-flow WIZARD handlers (per-number voice + menu builder) are Telegram message
+    handlers and CANNOT be driven via HTTP — verify their LOGIC by code review + the
+    dev endpoints above. Focus HTTP tests on:
+      1. POST /api/dev/outbound-menu-route-test  (expect pass=true)
+      2. POST /api/dev/ivr-parity/apply-template with a non-default voiceKey+ttsSpeed
+      3. Regression: /dev/twilio-ivr-transfer-billing-test, /dev/bulk-transfer-billing-test
+    Backend base: use REACT_APP_BACKEND_URL from /app/frontend/.env (routes via /api).
+    No auth required for dev endpoints. Node bot runs in BOT_ENVIRONMENT=development.

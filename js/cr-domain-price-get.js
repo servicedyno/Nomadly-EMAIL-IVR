@@ -51,15 +51,17 @@ async function checkDomainPriceOnline(domainName) {
       return { available: false, message: 'Invalid domain name, please try another domain name' }
     }
   } catch (error) {
-    const message = `An error occurred while checking domain availability. Maybe IP Not Whitelisted. ${
-      error?.message
-    } ${JSON.stringify(error?.response?.data, null, 2)}`
-
-    console.error('checkDomainPriceOnline', message)
+    // Keep the raw detail in server logs for ops/debugging, but NEVER surface it to
+    // end users (previously the JSON blob + "Maybe IP Not Whitelisted" leaked into the
+    // bot reply). Return a clean, friendly message instead.
+    const debug = `checkDomainPriceOnline error: ${error?.message} ${JSON.stringify(error?.response?.data || {})}`
+    console.error('checkDomainPriceOnline', debug)
 
     return {
       available: false,
-      message,
+      error: true,
+      message: 'We could not check that domain right now. Please try again in a moment, or try a different name.',
+      debug,
     }
   }
 }

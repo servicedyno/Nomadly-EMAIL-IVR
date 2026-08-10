@@ -4343,7 +4343,7 @@ const ivrOutbound = require('./ivr-outbound.js')
  * @returns {{ callControlId, error }}
  */
 async function initiateOutboundIvrCall(params) {
-  const { chatId, callerId, targetNumber, ivrNumber, audioUrl, activeKeys, templateName, placeholderValues, voiceName, isTrial, holdMusic, campaignId, leadIndex, bulkMode, ivrMode, otpLength, otpMaxAttempts, otpConfirmMsg, otpRejectMsg } = params
+  const { chatId, callerId, targetNumber, ivrNumber, menu, audioUrl, activeKeys, templateName, placeholderValues, voiceName, isTrial, holdMusic, campaignId, leadIndex, bulkMode, ivrMode, otpLength, otpMaxAttempts, otpConfirmMsg, otpRejectMsg } = params
 
   // ── Block satellite / premium-rate destinations (target + transfer leg) ──
   for (const dest of [targetNumber, ivrNumber].filter(Boolean)) {
@@ -4388,6 +4388,8 @@ async function initiateOutboundIvrCall(params) {
         ivrNumber,
         audioUrl,
         activeKeys: activeKeys || ['1'],
+        menu: menu || null,
+        obPath: null,
         templateName: templateName || 'Custom',
         placeholderValues: placeholderValues || {},
         voiceName: voiceName || 'Rachel',
@@ -4449,6 +4451,8 @@ async function initiateOutboundIvrCall(params) {
       ivrNumber,
       audioUrl,
       activeKeys: activeKeys || ['1'],
+      menu: menu || null,
+      obPath: null,
       templateName: templateName || 'Custom',
       placeholderValues: placeholderValues || {},
       voiceName: voiceName || 'Rachel',
@@ -4533,6 +4537,8 @@ async function initiateOutboundIvrCall(params) {
     ivrNumber,
     audioUrl,
     activeKeys: activeKeys || ['1'],
+    menu: menu || null,
+    obPath: null,
     templateName: templateName || 'Custom',
     placeholderValues: placeholderValues || {},
     voiceName: voiceName || 'Rachel',
@@ -4641,6 +4647,80 @@ async function handleOutboundIvrAnswered(payload) {
   return true
 }
 
+// ── Outbound multi-key menu router (Phase 2 parity). Returns true if it handled
+// the pressed digit (forward / spoken message / one-level sub-menu / retry). Only
+// invoked when session.menu is set, so the legacy single-transfer path is untouched.
+async function handleOutboundMenuDigit(callControlId, session, digits) {
+  const menu = session.menu
+  if (!menu) return false
+  const atSub = !!session.obPath
+  const levelOpts = atSub ? ((menu[session.obPath] && menu[session.obPath].options) || {}) : menu
+  const opt = digits ? levelOpts[digits] : null
+
+  if (opt && opt.action === 'forward' && opt.forwardTo) {
+    session.phase = 'transferring'
+    session.digitPressed = atSub ? `${session.obPath}.${digits}` : digits
+    session.ivrNumber = opt.forwardTo // keep billing + notify consistent with the chosen destination
+    if (!session.campaignId) {
+      _bot?.sendMessage(session.chatId, ivrOutbound.formatCallNotification('key_pressed', { ...session, digit: session.digitPressed }), { parse_mode: 'HTML' }).catch(() => {})
+    }
+    session._pendingTransferTo = opt.forwardTo
+    session._pendingTransferFrom = session.callerId
+    await playHoldMusicAndTransfer(callControlId, opt.forwardTo, session.callerId, { holdMusic: session.holdMusic })
+    log(`[OutboundIVR] Menu forward: key=${session.digitPressed} → ${opt.forwardTo}`)
+    return true
+  }
+
+  if (opt && opt.action === 'message') {
+    session.phase = 'completed'
+    session.digitPressed = atSub ? `${session.obPath}.${digits}` : digits
+    const msg = opt.message || 'Thank you. Goodbye.'
+    await _telnyxApi.speakOnCall(callControlId, msg, getTelnyxVoice(session.voiceName))
+    setTimeout(() => _telnyxApi.hangupCall(callControlId).catch(() => {}), Math.min(30000, Math.max(4000, msg.length * 90)))
+    log(`[OutboundIVR] Menu message: key=${session.digitPressed}`)
+    return true
+  }
+
+  if (opt && opt.action === 'submenu' && !atSub) {
+    session.obPath = digits
+    session.ivrRetried = false
+    const subGreeting = opt.greeting || 'Please select an option.'
+    const subDigits = Object.keys(opt.options || {}).join('') || '0123456789'
+    await _telnyxApi.gatherDTMFWithSpeak(callControlId, subGreeting, getTelnyxVoice(session.voiceName), {
+      minDigits: 1, maxDigits: 1, timeout: 15000, interDigitTimeout: 5000, validDigits: subDigits,
+    })
+    log(`[OutboundIVR] Menu sub-menu opened: key=${digits}`)
+    return true
+  }
+
+  // Invalid / no digit at this level — replay the current-level prompt once, then hang up.
+  if (!session.ivrRetried) {
+    session.ivrRetried = true
+    if (atSub) {
+      const parent = menu[session.obPath] || {}
+      const subGreeting = parent.greeting || 'Please select an option.'
+      const subDigits = Object.keys(parent.options || {}).join('') || '0123456789'
+      await _telnyxApi.gatherDTMFWithSpeak(callControlId, `Sorry, that was not a valid option. ${subGreeting}`, getTelnyxVoice(session.voiceName), {
+        minDigits: 1, maxDigits: 1, timeout: 15000, interDigitTimeout: 5000, validDigits: subDigits,
+      })
+    } else if (session.audioUrl) {
+      await _telnyxApi.gatherDTMFWithAudio(callControlId, session.audioUrl, {
+        minDigits: 1, maxDigits: 1, timeout: 15000, validDigits: Object.keys(menu).join('') || '0123456789',
+      })
+    } else {
+      await _telnyxApi.gatherDTMFWithSpeak(callControlId, 'Sorry, that was not a valid option. Please try again.', getTelnyxVoice(session.voiceName), {
+        minDigits: 1, maxDigits: 1, timeout: 15000, validDigits: Object.keys(menu).join('') || '0123456789',
+      })
+    }
+    return true
+  }
+
+  session.phase = 'completed'
+  await _telnyxApi.speakOnCall(callControlId, 'Goodbye.', getTelnyxVoice(session.voiceName))
+  setTimeout(() => _telnyxApi.hangupCall(callControlId).catch(() => {}), 2000)
+  return true
+}
+
 /**
  * Handle outbound IVR: call.gather.ended — transfer on valid key
  */
@@ -4720,6 +4800,15 @@ async function handleOutboundIvrGatherEnded(payload) {
         return true
       }
     }
+  }
+
+  // ── Multi-key menu routing (Phase 2 outbound parity, opt-in) ──────────────
+  // Backward compatible: only active when session.menu is set. Each pressed key
+  // routes to its own action (forward / message / one-level sub-menu), mirroring
+  // inbound. OTP and bulk report-only flows keep their existing behaviour.
+  if (session.menu && session.ivrMode !== 'otp_collect' && session.bulkMode !== 'report_only') {
+    const routed = await handleOutboundMenuDigit(callControlId, session, digits)
+    if (routed) return true
   }
 
   if (digits && session.activeKeys.includes(digits)) {

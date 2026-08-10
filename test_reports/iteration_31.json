@@ -1,0 +1,26 @@
+{
+  "summary": "Phase 2 backend re-verification: outbound multi-key menu routing (Telnyx + Twilio single + bulk), Per-Number Voice IVR template wizard, and 3 regressions (Twilio single billing, bulk billing, call reconciler). All 6 pytest tests PASSED. Node syntax OK for js/_index.js, js/voice-service.js, js/bulk-call-service.js. Code review of wizard + menu-builder handlers and opt-in guards confirms design matches spec.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_phase2_ivr_voice.py",
+    "/app/test_reports/pytest/phase2_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "js/_index.js is ~45k lines — enormous monolith; splitting into feature modules would substantially improve maintainability (non-blocking for this phase).",
+    "Wizard handlers cpIvrTplVoice (line 30301) and cpIvrTplSpeed (line 30351) correctly branch: default voice -> cpIvrTplApply directly; premium voice -> cpIvrTplSpeed -> generate audio -> cpIvrTplApply. voiceKey/voiceName/ttsSpeed/greetingAudioUrl are persisted onto info.cpIvrTplPending.",
+    "Outbound menu builder states ivrObMenuHome/KeyAction/ForwardInput/MessageInput/SubGreetInput/SubHome all present with Back + remove handling; Done writes ivrObData.menu / bulkData.menu.",
+    "Opt-in guards confirmed: Twilio single-ivr-gather (line 44648), bulk-call-service (line 169), voice-service (line 4809) all gate on session.menu / campaign.menu and exclude otp_collect / report_only.",
+    "Preset save/load persists preset.menu (line 23703 draft init) and is used in the ivrObPresetName state.",
+    "BulkNudge scheduler present (js/_index.js line ~3767) and production-only (dev sandbox skips actual nudging)."
+  ],
+  "updated_files": ["/app/backend/tests/test_phase2_ivr_voice.py"],
+  "success_rate": {"backend": "100%", "frontend": "skipped-per-request"},
+  "test_credentials": "N/A - dev endpoints unauthenticated in BOT_ENVIRONMENT=development",
+  "seed_data_creation": "None - all dev endpoints self-contained and synthetic",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Phase 2 outbound menu + per-number-voice fully verified via /api/dev/outbound-menu-route-test (15/15 checks), /api/dev/ivr-parity/apply-template (nova @1.15x with reachable audio/mpeg), and 3 regression suites. Wizard + menu-builder + opt-in guards code-reviewed. Ignore pre-existing 'Error sending reminders: Mongo WaitQueueTimeout' log noise — shared-prod-DB pool contention, unrelated.",
+  "rca of the issue": "N/A - no issues found"
+}
