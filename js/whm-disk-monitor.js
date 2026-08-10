@@ -10,7 +10,7 @@
  *  2. Customer account count is approaching the host's capacity.
  *
  * Strategy:
- *   - Hit `accounts_summary` (cheap, returns metadata even on a stressed
+ *   - Hit `listaccts` (cheap, returns metadata even on a stressed
  *     server). If it 5xxs, we KNOW WHM is sick.
  *   - Compare account count to the configured threshold.
  *   - Cross-check the `cpanelAccounts.lastCfIpFixAt` distribution — if
@@ -37,7 +37,7 @@ async function probeWhmHealth(whmService) {
   const result = { healthy: true, signals: [], httpStatus: null }
   try {
     // Use the cheapest possible WHM call to detect 5xx / disk-full / license issues
-    const resp = await whmService._whmApi.get('/accounts_summary', {
+    const resp = await whmService._whmApi.get('/listaccts', {
       params: { 'api.version': 1 },
       timeout: 15000,
     })
@@ -45,22 +45,22 @@ async function probeWhmHealth(whmService) {
     result.accountCount = (resp.data?.data?.acct || []).length
     if (resp.data?.metadata?.result !== 1) {
       result.healthy = false
-      result.signals.push(`accounts_summary metadata.result != 1 (reason: ${resp.data?.metadata?.reason || 'no reason'})`)
+      result.signals.push(`listaccts metadata.result != 1 (reason: ${resp.data?.metadata?.reason || 'no reason'})`)
     }
   } catch (err) {
     result.healthy = false
     result.httpStatus = err.response?.status || 0
     if (err.response?.status >= 500) {
-      result.signals.push(`accounts_summary returned HTTP ${err.response.status}`)
+      result.signals.push(`listaccts returned HTTP ${err.response.status}`)
       const reason = err.response.data?.metadata?.reason || err.response.data || ''
       if (/No space left|disk.{0,4}full/i.test(String(reason))) {
         result.signals.push(`DISK-FULL detected in error body: ${String(reason).slice(0, 200)}`)
         result.diskFull = true
       }
     } else if (!err.response) {
-      result.signals.push(`accounts_summary unreachable: ${err.code || err.message}`)
+      result.signals.push(`listaccts unreachable: ${err.code || err.message}`)
     } else {
-      result.signals.push(`accounts_summary HTTP ${err.response.status}: ${err.message}`)
+      result.signals.push(`listaccts HTTP ${err.response.status}: ${err.message}`)
     }
   }
   return result

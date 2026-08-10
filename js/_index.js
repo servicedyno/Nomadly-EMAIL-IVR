@@ -3483,6 +3483,7 @@ const loadData = async () => {
   // Scheduled reconciliation sweep — every 30 min. PROD-ONLY: settlement writes
   // to real wallets, so the dev sandbox (SKIP_WEBHOOK_SYNC=true) must never run
   // it. Production leaves the flag unset/false so it settles missed forward legs.
+  let _lastSweepErrAlertAt = 0 // Stuck Sweep Alert dedupe (persist across ticks)
   try {
     schedule.scheduleJob('*/30 * * * *', async function () {
       if (process.env.SKIP_WEBHOOK_SYNC === 'true') return // dev sandbox: no auto-settle
@@ -3491,7 +3492,25 @@ const loadData = async () => {
         if (r.scanned > 0) {
           log(`[CallRecon] sweep: scanned=${r.scanned} webhookOk=${r.reconciledByWebhook} settled=${r.settled} leaks=${r.leaksFound} ~$${r.leakedUsd.toFixed(2)} needsReview=${r.needsReview} noCharge=${r.noCharge} stale=${r.stale}`)
         }
-      } catch (e) { log('[CallRecon] scheduled sweep error:', e.message) }
+      } catch (e) {
+        log('[CallRecon] scheduled sweep error:', e.message)
+        // Stuck Sweep Alert — a silent reconciliation failure (like the 2026-08-10
+        // notifyAdmin `.catch` crash) must never go unnoticed again. DM the admin,
+        // deduped to at most once / 6h so a persistent error can't spam.
+        try {
+          const nowMs = Date.now()
+          if (nowMs - _lastSweepErrAlertAt > 6 * 3600 * 1000) {
+            _lastSweepErrAlertAt = nowMs
+            notifyAdmin(
+              `🚨 <b>CallRecon sweep FAILED</b>\n\n` +
+              `The 30-min call-billing reconciliation sweep threw and was skipped:\n` +
+              `<code>${String(e.message || 'unknown error').slice(0, 300)}</code>\n\n` +
+              `Unbilled connected call legs may stop settling until this is fixed. ` +
+              `Investigate <code>js/call-billing-reconciler.js</code>.`
+            )
+          }
+        } catch (_) { /* alert is best-effort — never break the scheduler */ }
+      }
     })
     log('[CallRecon] Reconciliation sweep scheduled (every 30 min, production-only)')
   } catch (e) {
@@ -38050,6 +38069,101 @@ app.post('/dev/call-reconciler-test', async (req, res) => {
   }
   return res.json(out)
 })
+
+// ── DEV-ONLY: Inbound IVR usage stats (read-only). 404 in prod. ──
+// "Inbound IVR Boost" — surfaces how much the inbound virtual-number IVR menus
+// are ACTUALLY used vs how many numbers are provisioned, so we can see WHY the
+// menus are barely used and where to improve. 100% read-only aggregation.
+app.get('/dev/inbound-ivr-stats', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  try {
+    const days = Math.max(1, Math.min(365, parseInt(req.query.days, 10) || 30))
+    const since = new Date(Date.now() - days * 24 * 3600 * 1000)
+    const sinceIso = since.toISOString()
+
+    // ivrAnalytics.timestamp is an ISO string; the collection is tiny, so fetch
+    // all and filter in-memory (robust to Date-vs-string storage drift).
+    const all = await db.collection('ivrAnalytics').find({}).toArray()
+    const inWindow = all.filter(d => {
+      const t = d.timestamp instanceof Date ? d.timestamp.toISOString() : String(d.timestamp || '')
+      return t >= sinceIso
+    })
+
+    const byAction = {}
+    const byDigit = {}
+    const callers = new Set()
+    const numbersUsed = new Set()
+    const users = new Set()
+    const perNumber = {}
+    const perUser = {}
+    for (const d of inWindow) {
+      const action = d.action || 'unknown'
+      byAction[action] = (byAction[action] || 0) + 1
+      const digit = (d.digit == null || d.digit === '') ? 'none' : String(d.digit)
+      byDigit[digit] = (byDigit[digit] || 0) + 1
+      if (d.callerFrom) callers.add(d.callerFrom)
+      if (d.phoneNumber) numbersUsed.add(d.phoneNumber)
+      if (d.chatId != null) users.add(String(d.chatId))
+      const pn = d.phoneNumber || 'unknown'
+      perNumber[pn] = perNumber[pn] || { phoneNumber: pn, events: 0, callers: new Set(), owner: d.chatId != null ? String(d.chatId) : null }
+      perNumber[pn].events++
+      if (d.callerFrom) perNumber[pn].callers.add(d.callerFrom)
+      const cid = d.chatId != null ? String(d.chatId) : 'unknown'
+      perUser[cid] = perUser[cid] || { chatId: cid, events: 0, actions: {} }
+      perUser[cid].events++
+      perUser[cid].actions[action] = (perUser[cid].actions[action] || 0) + 1
+    }
+
+    // How many virtual numbers even exist (to quantify the "barely used" gap).
+    let provisionedNumbers = 0
+    let activeNumbers = 0
+    const activeNumberSet = new Set()
+    const numberDocs = await db.collection('phoneNumbersOf').find({}).toArray()
+    for (const doc of numberDocs) {
+      const nums = (doc && doc.val && doc.val.numbers) || []
+      for (const n of nums) {
+        provisionedNumbers++
+        if (n.status && n.status !== 'released' && n.status !== 'expired') {
+          activeNumbers++
+          if (n.phoneNumber) activeNumberSet.add(n.phoneNumber)
+        }
+      }
+    }
+    // Of the currently-active numbers, how many actually saw inbound IVR usage
+    // in the window (intersection — avoids the >100% apples-to-oranges bug).
+    const usedActiveNumbers = [...numbersUsed].filter(n => activeNumberSet.has(n)).length
+
+    const byNumber = Object.values(perNumber)
+      .map(x => ({ phoneNumber: x.phoneNumber, owner: x.owner, events: x.events, distinctCallers: x.callers.size }))
+      .sort((a, b) => b.events - a.events)
+      .slice(0, 25)
+    const byUser = Object.values(perUser).sort((a, b) => b.events - a.events).slice(0, 25)
+
+    return res.json({
+      ok: true,
+      windowDays: days,
+      since: sinceIso,
+      totalEvents: inWindow.length,
+      lifetimeEvents: all.length,
+      distinctCallers: callers.size,
+      distinctNumbersUsed: numbersUsed.size,
+      distinctUsers: users.size,
+      provisionedNumbers,
+      activeNumbers,
+      usedActiveNumbers,
+      numbersUsedForInboundIvrPct: activeNumbers ? +((usedActiveNumbers / activeNumbers) * 100).toFixed(1) : 0,
+      byAction,
+      byDigit,
+      byNumber,
+      byUser,
+    })
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
 
 // ── DEV-ONLY: Quick IVR transfer-leg billing test (Twilio). 404 in prod. ──
 // Verifies the 2026-08-07 fix: the Twilio Quick IVR transfer leg (caller → transfer
