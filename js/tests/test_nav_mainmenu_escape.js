@@ -47,13 +47,13 @@ for (const L of langs) {
   ok(`[${L}] shallow menu keeps legacy Back+Cancel`,
      shallow.some(r => r.includes(BACK[L]) && r.includes(CANCEL[L])), shallowRows)
 
-  // CONTEXTUAL back (backToHostingPlans / t.backButton): appends nothing
+  // CONTEXTUAL back (backToHostingPlans / t.backButton): Task 1 now adds a 🏠 Main Menu row
   const ctx = k.of([['Buy'], [user.backToHostingPlans]]).reply_markup.keyboard
-  ok(`[${L}] contextual-back appends nothing`,
-     !ctx.some(r => r.includes('🏠 Main Menu')) && !ctx.some(r => r.includes(CANCEL[L])), JSON.stringify(ctx))
+  ok(`[${L}] contextual-back now shows 🏠 Main Menu (no Cancel)`,
+     ctx.some(r => r.includes('🏠 Main Menu')) && !ctx.some(r => r.includes(CANCEL[L])), JSON.stringify(ctx))
   const ctx2 = k.of([['X'], [t.backButton]]).reply_markup.keyboard
-  ok(`[${L}] t.backButton appends nothing`,
-     ctx2.length === 2, JSON.stringify(ctx2))
+  ok(`[${L}] t.backButton screen adds a 🏠 Main Menu row`,
+     ctx2.length === 3 && ctx2.some(r => r.includes('🏠 Main Menu')), JSON.stringify(ctx2))
 }
 
 console.log('\n=== (d) isMainMenuPress util ===')
@@ -86,6 +86,35 @@ ok('free-trial dead line removed',
 ok('free-trial Back still routes via isBackPress -> submenu3',
    /if \(action === a\.freeTrial\)[\s\S]{0,300}isBackPress\(message\)\) return goto\.submenu3\(\)/.test(src))
 ok('isBackPress still defined (regression)', /function\s+isBackPress/.test(src))
+
+console.log('\n=== Task 1: Main-Menu escape on contextual-back (plan-detail) screens ===')
+for (const L of langs) {
+  const k = mods[L].k, user = mods[L].user
+  const plan = k.of([[user.buyPremiumWeekly], [user.backToHostingPlans]]).reply_markup.keyboard
+  ok(`[${L}] plan-detail screen shows 🏠 Main Menu`, plan.some(r => r.includes('🏠 Main Menu')), JSON.stringify(plan))
+  ok(`[${L}] plan-detail keeps its contextual back`, plan.some(r => r.some(b => typeof b === 'string' && b.includes('⬅️'))), JSON.stringify(plan))
+  // dedup: don't add a second Main Menu when list already has one
+  const dup = k.of([['x', '🏠 Main Menu'], [user.backToHostingPlans]]).reply_markup.keyboard
+  ok(`[${L}] no duplicate 🏠 Main Menu`, dup.flat().filter(b => b === '🏠 Main Menu').length === 1, JSON.stringify(dup))
+}
+
+console.log('\n=== Task 2: label declutter + stale-keyboard backward compat ===')
+for (const L of langs) {
+  const user = mods[L].user
+  ok(`[${L}] hosting label decluttered (no 🛡️🔥)`, !user.hostingDomainsRedirect.startsWith('🛡️🔥') && user.hostingDomainsRedirect.startsWith('🛡️'))
+  ok(`[${L}] vps label decluttered (no 'VPS/RDP —')`, !user.vpsPlans.includes('VPS/RDP') && user.vpsPlans.includes('VPS'))
+}
+// stale detectors (mirror handler logic) match OLD labels, reject NEW
+const oldHost = ['🛡️🔥 Anti-Red Hosting', '🛡️🔥 Hébergement Anti-Red', '🛡️🔥 Anti-Red 托管', '🛡️🔥 Anti-Red होस्टिंग']
+const oldVps = ['🖥️ VPS/RDP — Port 25 Open🛡️', '🖥️ VPS/RDP — Port 25 Ouvert🛡️', '🖥️ VPS/RDP — 端口25开放🛡️', '🖥️ VPS/RDP — पोर्ट 25 खुला🛡️']
+ok('old hosting labels match startsWith(🛡️🔥)', oldHost.every(s => s.startsWith('🛡️🔥')))
+ok('new hosting labels do NOT match startsWith(🛡️🔥)', langs.every(L => !mods[L].user.hostingDomainsRedirect.startsWith('🛡️🔥')))
+ok('🔥 Browse Deals does NOT match startsWith(🛡️🔥)', !'🔥 Browse Deals'.startsWith('🛡️🔥'))
+ok('old vps labels match startsWith(🖥️ VPS/RDP —)', oldVps.every(s => s.startsWith('🖥️ VPS/RDP —')))
+ok('new vps labels do NOT match startsWith(🖥️ VPS/RDP —)', langs.every(L => !mods[L].user.vpsPlans.startsWith('🖥️ VPS/RDP —')))
+// source-level: handlers carry the stale fallbacks
+ok('hosting handler carries startsWith(🛡️🔥) fallback', src.includes("message.startsWith('🛡️🔥')"))
+ok('vps handler carries startsWith(🖥️ VPS/RDP —) fallback', src.includes("message.startsWith('🖥️ VPS/RDP —')"))
 
 console.log('\n=== lang exports intact (regression) ===')
 for (const L of langs) {

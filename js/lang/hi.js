@@ -103,7 +103,7 @@ const user = {
  buyLeads: '🎯 लीड्स खरीदें',
  validateLeads: '✅ नंबर सत्यापित करें',
  leadsValidation: '📱 SMS Leads',
- hostingDomainsRedirect: '🛡️🔥 Anti-Red होस्टिंग',
+ hostingDomainsRedirect: '🛡️ Anti-Red होस्टिंग',
  wallet: '👛 वॉलेट',
  urlShortenerMain: '🔗 URL शॉर्टनर',
  domainNames: '🌐 बुलेटप्रूफ डोमेन',
@@ -112,7 +112,7 @@ const user = {
  getSupport: '💬 सहायता',
  cloudPhone: '📞 Cloud IVR + SIP',
  testSip: '🧪 SIP मुफ्त टेस्ट',
- vpsPlans: '🖥️ VPS/RDP — पोर्ट 25 खुला🛡️',
+ vpsPlans: '🖥️ VPS / RDP',
  buyPlan: '⚡ प्लान अपग्रेड करें',
  freeTrialAvailable: '📱🆓 BulkSMS - फ्री ट्रायल',
  smsAppMain: '📱 BulkSMS',
@@ -2325,7 +2325,7 @@ const kOf = list => ({
  item.includes(user.backToPurchaseOptions)),
  ),
  )
- ? []
+ ? (list.some(a => Array.isArray(a) && a.some(i => typeof i === 'string' && i.includes('🏠 Main Menu'))) ? [] : [['🏠 Main Menu']])
  : (list.some(a => Array.isArray(a) && a.some(item => _isEmojiBack(item))) ? [_mc] : [_bc])),
  ],
  },

@@ -2307,7 +2307,7 @@ const sendDomainUpsell = (chatId, lang, domain, delayMs = 2000) => {
         reply_markup: {
           keyboard: [
             ['🔗 Activate Domain for Shortener'],
-            ['🛡️🔥 Anti-Red Hosting'],
+            ['🛡️ Anti-Red Hosting'],
             [backLabel]
           ],
           resize_keyboard: true,
@@ -14616,7 +14616,7 @@ All verified numbers generated during sourcing.`))
       saveInfo('billingFlow', false)
       return goto.submenu3()
     }
-    if (message === user.hostingDomainsRedirect) return goto.submenu3()
+    if (message === user.hostingDomainsRedirect || (typeof message === 'string' && message.startsWith('🛡️🔥'))) return goto.submenu3()
 
     // Detect localized per-domain billing buttons (🔄 Renew Now — <domain> / 🔁 Toggle Auto-Renew — <domain>)
     // The labels are translated, so we match against the user's actual generated labels.
@@ -14700,7 +14700,7 @@ All verified numbers generated during sourcing.`))
     if (domainMatch) {
       return goto.viewHostingPlanDetails(domainMatch[1])
     }
-    if (message === user.hostingDomainsRedirect) return goto.submenu3()
+    if (message === user.hostingDomainsRedirect || (typeof message === 'string' && message.startsWith('🛡️🔥'))) return goto.submenu3()
   }
 
   // View Hosting Plan — actions
@@ -16309,7 +16309,7 @@ All verified numbers generated during sourcing.`))
   }
 
   //VPS plans (backward compat for old button labels)
-  if (message === user.vpsPlans || message === 'Buy Bulletproof VPS🛡️ - Hourly/Monthly' || message === 'Acheter un VPS Bulletproof🛡️ - Horaire/Mensuel' || message === '购买防弹 VPS🛡️ - 按小时/按月' || message === 'बुलेटप्रूफ VPS🛡️ खरीदें - प्रति घंटा/मासिक' || message === '🖥️ VPS/RDP — Bulletproof Servers' || message === '🖥️ VPS/RDP — Serveurs Blindés' || message === '🖥️ VPS/RDP — 防弹服务器' || message === '🖥️ VPS/RDP — बुलेटप्रूफ सर्वर') {
+  if (message === user.vpsPlans || message === 'Buy Bulletproof VPS🛡️ - Hourly/Monthly' || message === 'Acheter un VPS Bulletproof🛡️ - Horaire/Mensuel' || message === '购买防弹 VPS🛡️ - 按小时/按月' || message === 'बुलेटप्रूफ VPS🛡️ खरीदें - प्रति घंटा/मासिक' || message === '🖥️ VPS/RDP — Bulletproof Servers' || message === '🖥️ VPS/RDP — Serveurs Blindés' || message === '🖥️ VPS/RDP — 防弹服务器' || message === '🖥️ VPS/RDP — बुलेटप्रूफ सर्वर' || (typeof message === 'string' && message.startsWith('🖥️ VPS/RDP —'))) {
     if (VPS_ENABLED !== 'true') {
       return send(chatId, trans('t.host_31'), trans('o'))
     }
@@ -23225,7 +23225,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   if (message === user.validateLeads || message === '✅ Validate Numbers') {
     return goto.validatorSelectCountry()
   }
-  if (message === user.hostingDomainsRedirect || message.startsWith('🛡️🔥 Anti-Red Hosting') || message.startsWith('🌐 Register Bulletproof') || message.startsWith('🌐 Offshore Hosting') || message.startsWith('🌐 Anti-Red Hosting') || message.startsWith('🌐 Hosting')) {
+  if (message === user.hostingDomainsRedirect || message === '🛡️ Anti-Red Hosting' || message.startsWith('🛡️🔥') || message.startsWith('🌐 Register Bulletproof') || message.startsWith('🌐 Offshore Hosting') || message.startsWith('🌐 Anti-Red Hosting') || message.startsWith('🌐 Hosting')) {
     if (process.env.OFFSHORE_HOSTING_ON === 'false') {
       return send(chatId, trans('t.cp_3'), trans('o'))
     }

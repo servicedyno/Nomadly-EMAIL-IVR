@@ -104,10 +104,10 @@ const user = {
  buyLeads: '🎯 Acheter des Leads',
  validateLeads: '✅ Valider les numéros',
  leadsValidation: '📱 SMS Leads',
- hostingDomainsRedirect: '🛡️🔥 Hébergement Anti-Red',
+ hostingDomainsRedirect: '🛡️ Hébergement Anti-Red',
  wallet: '👛 Portefeuille',
  urlShortenerMain: "🔗 Raccourcisseur d'URL",
- vpsPlans: '🖥️ VPS/RDP — Port 25 Ouvert🛡️',
+ vpsPlans: '🖥️ VPS / RDP',
  buyPlan: '⚡ Améliorer le plan',
  domainNames: '🌐 Domaines Blindés',
  viewPlan: '📋 Mes Plans',
@@ -2334,7 +2334,7 @@ const kOf = list => ({
  item.includes(user.backToPurchaseOptions)),
  ),
  )
- ? []
+ ? (list.some(a => Array.isArray(a) && a.some(i => typeof i === 'string' && i.includes('🏠 Main Menu'))) ? [] : [['🏠 Main Menu']])
  : (list.some(a => Array.isArray(a) && a.some(item => _isEmojiBack(item))) ? [_mc] : [_bc])),
  ],
  },

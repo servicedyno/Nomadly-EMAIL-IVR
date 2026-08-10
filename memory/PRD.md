@@ -15,6 +15,12 @@ User asked to audit bot navigation for usability/clarity. Approved plan: **1a** 
 - **Verified:** `node js/tests/test_nav_mainmenu_escape.js` = **55/0** (keyboard rendering deep/shallow/contextual × 4 locales, isMainMenuPress, static-source wiring guards, lang exports). Regressions green: `test_button_helpers.js` 49/0, `test_back_button.js` 32/0. `node --check` clean on all 5 files; nodejs booted clean with dev safety guards active (`BOT_ENVIRONMENT=development`, `SKIP_WEBHOOK_SYNC=true`).
 - Files: `js/lang/{en,fr,zh,hi}.js` (`_mc`/`_isEmojiBack` + `kOf` tail), `js/_index.js` (isMainMenuPress + global handler + freeTrial dead-code), `js/tests/test_nav_mainmenu_escape.js` (new).
 
+### Follow-ups (same session) — Purchase-Flow Menu + Label Polish — VERIFIED (offline)
+- **Purchase-Flow Menu:** `kOf`'s contextual-back branch (screens whose list carries `⬅️ Back To Hosting Plans` / `t.backButton` etc. — the hosting/domain plan-detail screens) previously appended NOTHING (no home escape). Now appends a `[🏠 Main Menu]` row (with a dedup guard so it never doubles if the list already has one). Every screen with an explicit back button now has a Main-Menu escape.
+- **Label Polish (light):** decluttered two main-menu labels in all 4 locales — `hostingDomainsRedirect` `🛡️🔥 …` → `🛡️ …`; `vpsPlans` `🖥️ VPS/RDP — Port 25 Open🛡️` (+ localized) → `🖥️ VPS / RDP`. **Stale-keyboard backward compat:** handler matchers now also accept the old labels via `message.startsWith('🛡️🔥')` (hosting: line 14619/14703/23228) and `message.startsWith('🖥️ VPS/RDP —')` (vps: line 16312); the `sendDomainUpsell` hardcoded button + 23228 also accept the new en literal `🛡️ Anti-Red Hosting` so the (English-hardcoded) post-purchase upsell routes for all locales. Byte-verified the emoji prefixes match the real old constants. `config.js` legacy labels left untouched (only its `nsProvider*` keys are referenced). Promo/AI copy (`auto-promo.js`/`ai-support.js`) referencing `🛡️🔥`/`Port 25` left as-is (marketing text, still routes via the startsWith fallbacks).
+- **Verified:** `test_nav_mainmenu_escape.js` extended to **82/0** (adds contextual-back Main-Menu, dedup, label declutter, old↔new stale-matcher checks). `node --check` clean; Node rebooted clean with dev guards active.
+
+
 
 ## 2026-08-09 — Fresh pod re-bootstrap (setup from provided .env) — DONE
 Pod came up with only `.git`/app tree present, empty `frontend/.env`, no `backend/.env`, no `/app/.env` symlink, and no `nodejs` supervisor program (backend/frontend/mongodb running).

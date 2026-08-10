@@ -103,7 +103,7 @@ const user = {
  buyLeads: '🎯 购买线索',
  validateLeads: '✅ 验证号码',
  leadsValidation: '📱 SMS Leads',
- hostingDomainsRedirect: '🛡️🔥 Anti-Red 托管',
+ hostingDomainsRedirect: '🛡️ Anti-Red 托管',
  wallet: '👛 钱包',
  urlShortenerMain: '🔗 URL 缩短器',
  domainNames: '🌐 防弹域名',
@@ -112,7 +112,7 @@ const user = {
  getSupport: '💬 支持',
  cloudPhone: '📞 Cloud IVR + SIP',
  testSip: '🧪 免费测试 SIP',
- vpsPlans: '🖥️ VPS/RDP — 端口25开放🛡️',
+ vpsPlans: '🖥️ VPS / RDP',
  buyPlan: '⚡ 升级计划',
  freeTrialAvailable: '📱🆓 BulkSMS - 免费试用',
  smsAppMain: '📱 BulkSMS',
@@ -2317,7 +2317,7 @@ const kOf = list => ({
  item.includes(user.backToPurchaseOptions)),
  ),
  )
- ? []
+ ? (list.some(a => Array.isArray(a) && a.some(i => typeof i === 'string' && i.includes('🏠 Main Menu'))) ? [] : [['🏠 Main Menu']])
  : (list.some(a => Array.isArray(a) && a.some(item => _isEmojiBack(item))) ? [_mc] : [_bc])),
  ],
  },
