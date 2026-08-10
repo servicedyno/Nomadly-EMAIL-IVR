@@ -72,6 +72,146 @@ user_problem_statement: |
 
 
 backend:
+  - task: "Call-billing reconciler notifyAdmin crash bug fix (2026 prod incident). Symptom: recurring '[CallRecon] scheduled sweep error: Cannot read properties of undefined (reading catch)' in Railway prod logs — the call-billing reconciliation sweep aborted whenever it found a leak in production. Root cause: js/_index.js notifyAdmin is a SYNCHRONOUS function that returns undefined; js/call-billing-reconciler.js did _notifyAdmin(...).catch(() => {}) → calling .catch on undefined threw a TypeError that aborted the sweep. This branch only runs when leaksFound > 0 && dryRun === false (production, leak found), which is why the existing dev endpoint (dryRun:true) never caught it. FIX: js/call-billing-reconciler.js sweepPendingBills() now guards the notify call (invokes notifyAdmin in try/catch and only attaches .catch when the return is a thenable). Best-effort admin notify can never abort the sweep."
+    implemented: true
+    working: true
+    file: "/app/js/call-billing-reconciler.js (sweepPendingBills notify guard); /app/tests/callrecon_notify_fix.test.js (new in-memory regression harness)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFICATION COMPLETE - Call reconciler notifyAdmin crash bug fix PASSED (all 3 checks, 100% pass):
+          
+          SCOPE: Verified the bug fix for the production call-billing reconciler crash. This is a prod-connected 
+          DB, so ALL testing was READ-ONLY / fully isolated — NO mutations to real user data, NO non-dry-run 
+          reconciliation against real data.
+          
+          [TEST 1] PRIMARY - In-memory regression harness (no DB, no network, no writes): ✅ ALL 6 ASSERTIONS PASSED
+            Command: cd /app && node tests/callrecon_notify_fix.test.js ; echo "EXIT=$?"
+            
+            Result: EXIT=0 ✅
+            Output: "🎉 ALL TESTS PASSED"
+            
+            [All Assertions]
+            ✅ Control: undefined.catch() reproduces "Cannot read properties of undefined (reading 'catch')"
+            ✅ sweepPendingBills did NOT throw (was: null)
+            ✅ returned a summary object
+            ✅ reached the leak branch (leaksFound >= 1)
+            ✅ ran in non-dry-run mode (dryRun === false)
+            ✅ notifyAdmin was invoked (best-effort) — calls=1
+            
+            Summary returned: {"dryRun":false,"scanned":1,"reconciledByWebhook":0,"leaksFound":1,"leakedUsd":0,
+            "settled":0,"needsReview":1,"noCharge":0,"stale":0,"details":[...]}
+            
+            ★ CORE BUG FIX VERIFIED: The reconciler sweep NO LONGER crashes when notifyAdmin is called in 
+              production leak-found mode. The synchronous notifyAdmin function is now properly guarded with 
+              try/catch, and .catch() is only attached when the return is a thenable. Best-effort admin 
+              notify can never abort the sweep.
+          
+          [TEST 2] REGRESSION - HTTP synthetic + self-cleaning: ✅ ALL CHECKS PASSED
+            POST {REACT_APP_BACKEND_URL}/api/dev/call-reconciler-test with body {}
+            
+            Response: HTTP 200 ✅
+            
+            ✅ pass === true (top-level pass field)
+            
+            [All Checks]
+            ✅ drift_strict_would_miss === true
+            ✅ drift_resolver_recovers === true
+            ✅ drift_clean_match_not_flagged === true
+            ✅ billed_row_reconciled === true
+            ✅ leak_row_detected === true
+            ✅ dryrun_left_pending === true
+            
+            [Summary Fields]
+            ✅ summary.scanned === 2
+            ✅ summary.reconciledByWebhook === 1
+            ✅ summary.leaksFound === 1
+            ✅ summary.needsReview === 1
+            ✅ summary.dryRun === true
+            
+            ★ REGRESSION CONFIRMED: The reconciler's other logic (drift resolver, leak detection, dry-run) 
+              remains intact and working correctly.
+          
+          [TEST 3] HEALTH / no boot regression: ✅ ALL CHECKS PASSED
+            GET {REACT_APP_BACKEND_URL}/api/health
+            
+            Response: HTTP 200 ✅
+            {
+              "status": "healthy",
+              "database": "connected",
+              "uptime": "0.05 hours"
+            }
+            
+            ✅ nodejs supervisor service is RUNNING (pid 2595, uptime 0:03:09)
+            ✅ Recent nodejs logs show "[CallRecon] Initialized" WITHOUT any "Cannot read properties of undefined" error
+            
+            Logs (grep -i "CallRecon\|Cannot read" /var/log/supervisor/nodejs.out.log | tail -20):
+            [CallRecon] Initialized (pendingCallBills worklist + walletLedger reconciliation)
+            [CallRecon] Reconciliation sweep scheduled (every 30 min, production-only)
+            [CallRecon] Initialized (pendingCallBills worklist + walletLedger reconciliation)
+            [CallRecon] Reconciliation sweep scheduled (every 30 min, production-only)
+            
+            ★ HEALTH CONFIRMED: Backend is healthy, database connected, no boot regression, no "Cannot read 
+              properties of undefined" errors in logs.
+          
+          CONCLUSION:
+          The reported bug is FIXED. All 3 verification checks passed (6 primary assertions + 6 regression 
+          checks + 3 health checks = 15 total assertions, 100% pass rate).
+          
+          KEY FIX VERIFIED:
+          • BUG FIXED:
+            - BEFORE: js/call-billing-reconciler.js did _notifyAdmin(...).catch(() => {}) on a synchronous 
+              function that returns undefined → TypeError: "Cannot read properties of undefined (reading 'catch')" 
+              → sweep aborted in production when leaksFound > 0
+            - AFTER: sweepPendingBills() now guards the notify call (try/catch + only attaches .catch when 
+              the return is a thenable) → best-effort admin notify can never abort the sweep
+          
+          • PRODUCTION IMPACT:
+            - The recurring "[CallRecon] scheduled sweep error" in Railway prod logs is now FIXED
+            - The sweep will no longer abort when it finds a leak in production
+            - Admin notifications are best-effort and cannot crash the reconciliation process
+          
+          • REGRESSION SAFETY:
+            - The reconciler's other logic (drift resolver, leak detection, dry-run) remains intact
+            - Backend health confirmed (no boot regression)
+            - No "Cannot read properties of undefined" errors in logs
+          
+          SAFETY CONFIRMED:
+          • All testing was READ-ONLY / fully isolated (no mutations to real user data)
+          • The in-memory harness is 100% synthetic (no DB, no network, no writes)
+          • The HTTP endpoint is synthetic/self-cleaning and callRefPrefix-isolated ('RECONTEST_')
+          • NO real users created, NO real calls/SMS/payments triggered, NO non-dry-run sweep against real data
+          
+          The call-billing reconciler notifyAdmin crash bug is now fixed and verified. The sweep will no 
+          longer abort when it finds a leak in production.
+      - working: "NA"
+        agent: "main"
+        comment: |
+          PROD bug fix (2026): recurring "[CallRecon] scheduled sweep error: Cannot read properties of undefined 
+          (reading 'catch')" in Railway prod logs. Root cause: notifyAdmin is synchronous (returns undefined); 
+          code did _notifyAdmin(...).catch(() => {}) → TypeError aborted the sweep when leaksFound > 0 && 
+          dryRun === false (production, leak found). FIX: sweepPendingBills() now guards the notify call 
+          (try/catch + only attaches .catch when return is thenable). Best-effort admin notify can never abort 
+          the sweep. VERIFY (in order):
+            1) PRIMARY — in-memory regression harness (no DB, no network, no writes):
+               cd /app && node tests/callrecon_notify_fix.test.js ; echo "EXIT=$?"
+               EXPECT: "🎉 ALL TESTS PASSED" and EXIT=0 (6 assertions: control reproduces bug, sweep did NOT 
+               throw, returned summary, reached leak branch, ran non-dry-run, notifyAdmin invoked).
+            2) REGRESSION (HTTP, synthetic + self-cleaning):
+               POST {REACT_APP_BACKEND_URL}/api/dev/call-reconciler-test {} → HTTP 200, pass===true, all checks true.
+            3) HEALTH / no boot regression:
+               GET {REACT_APP_BACKEND_URL}/api/health → {"status":"healthy","database":"connected"}.
+               sudo supervisorctl status nodejs → RUNNING.
+               grep -i "CallRecon\|Cannot read" /var/log/supervisor/nodejs.out.log | tail -20 → 
+               "[CallRecon] Initialized" WITHOUT "Cannot read properties of undefined" error.
+          SAFETY: harness is 100% in-memory (safe); /api/dev/call-reconciler-test is synthetic/self-cleaning 
+          and callRefPrefix-isolated ('RECONTEST_') (safe). Do NOT create real users, do NOT trigger real 
+          calls/SMS/payments, do NOT run any non-dry-run sweep against real data.
+
   - task: "Rate Preview + Telnyx Rate Sync (2026-08-07). (A) RATE PREVIEW: the Quick IVR confirm banner (ivrWalletHintPrefix) now shows the ACTUAL per-destination rate (📟 Rate: $X/min, range for batches, ⚠️ high-cost tag), a 🚫 Restricted notice for satellite/premium targets, and an estimate summed from real per-target rates; the forwarding confirm screen (fwdConfirm) appends a ⚠️ High-cost note when the destination is surcharged above $0.50. Uses new dialGuard.rateInfo(dest,{ivr}). (B) TELNYX RATE SYNC: new js/rate-deck-sync.js pulls provider outbound-voice rate decks and MERGES into the dialRateDeck MongoDB collection by MAX cost per prefix (so the guard reflects the most expensive provider). Twilio auto-fetched from TWILIO_RATEDECK_URL (public CSV default); Telnyx merged from TELNYX_RATEDECK_URL (Telnyx has NO public rate-deck API — admin provides a hosted CSV, or POST via sync). js/dial-rate-guard.js is now DB-backed: seeds dialRateDeck from the bundled JSON on first run, rebuilds its in-memory index from the collection via initDeck(db)+reloadFromDb(), refreshes hourly; weekly provider sync (Sun 03:00) prod-only. Only prefixes > $0.50 and ≤9 digits are stored; satellite/premium/special rows skipped (blocked separately)."
     implemented: true
     working: "NA"
@@ -9030,12 +9170,51 @@ metadata:
 
 test_plan:
   current_focus:
-    - "OTP Collection wrongly gated to Business instead of Pro (@Padrino_voodoo 2026-08-07) — verify GET /api/dev/otp-plan-gate-check"
+    - "CallRecon scheduled-sweep crash fix (2026-08-10): notifyAdmin is synchronous (returns undefined); call-billing-reconciler.js called .catch() on it → 'Cannot read properties of undefined (reading catch)' aborted every prod sweep that found a leak. Verify via node /app/tests/callrecon_notify_fix.test.js + regression POST /api/dev/call-reconciler-test."
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
+  - agent: "main"
+    message: |
+      NEW BUG FIX TO VERIFY (2026-08-10) — [CallRecon] scheduled sweep crash.
+
+      SYMPTOM (from live Railway prod logs, deployment f8da964f): recurring
+      "[CallRecon] scheduled sweep error: Cannot read properties of undefined (reading 'catch')"
+      roughly every 30 min. When it fired, no "[CallRecon] sweep: scanned=..." summary line
+      was printed → the whole reconciliation sweep aborted. (No money lost — the sweeps that
+      DID run reported leaks=0 — but the call-billing safety-net was degraded.)
+
+      ROOT CAUSE: js/_index.js `notifyAdmin` (line ~2656) is a SYNCHRONOUS arrow function that
+      returns undefined. js/call-billing-reconciler.js did `_notifyAdmin(...).catch(() => {})`,
+      i.e. `.catch` on undefined → TypeError that aborted sweepPendingBills(). This branch only
+      runs when `summary.leaksFound > 0 && !dryRun` (production, leak found) — which is why the
+      existing dev endpoint (dryRun:true) never caught it and only some prod sweeps crashed.
+
+      FIX: js/call-billing-reconciler.js sweepPendingBills() now guards the notify call — invokes
+      notifyAdmin inside try/catch and only attaches `.catch` when the return value is a thenable.
+      Best-effort admin notify can never abort the sweep. Handles both sync (undefined) and async
+      (Promise) notifyAdmin. No behavior change for the async case.
+
+      HOW TO VERIFY (READ-ONLY / fully isolated — prod-connected DB, do NOT mutate real data):
+        1) PRIMARY (regression harness, in-memory, no DB): run
+             cd /app && node tests/callrecon_notify_fix.test.js ; echo "EXIT=$?"
+           EXPECT: EXIT=0 and "🎉 ALL TESTS PASSED". It (a) proves the control — undefined.catch()
+           throws the exact reported error, and (b) drives the REAL reconciler module through the
+           leak+non-dry-run notify path with a synchronous notifyAdmin (mock Mongo collections, a
+           non-twilio provider row so minutes=null → needs_review, NO wallet writes) and asserts it
+           does NOT throw, reaches the leak branch (leaksFound>=1), and still invokes notifyAdmin.
+        2) REGRESSION (HTTP, synthetic + self-cleaning): POST {REACT_APP_BACKEND_URL}/api/dev/call-reconciler-test
+           EXPECT: 200 with {"pass": true} (reconciler dry-run classification still correct).
+        3) HEALTH: GET {REACT_APP_BACKEND_URL}/api/health → {"status":"healthy","database":"connected"};
+           confirm nodejs service is RUNNING and no "Cannot read properties of undefined" on boot.
+
+      SAFETY: harness is 100% in-memory (no network, no DB, no wallet writes). The dev endpoint is
+      synthetic/self-cleaning and callRefPrefix-isolated ('RECONTEST_'). SKIP_WEBHOOK_SYNC=true so the
+      real scheduled sweep stays disabled on this pod. Do NOT run any non-dry-run sweep against real data.
+
+
   - agent: "testing"
     message: |
       ✅ T4 CORRECTED (DYNAMIC ELIGIBILITY) + REGRESSION CHECKS - ALL TESTS PASSED (16/16, 100% pass rate)
@@ -12670,3 +12849,54 @@ cleanup_phase2_2026_08_09:
   testing_request_for_backend_agent:
     - "READ-ONLY regression sanity ONLY (prod-connected backend; no writes/payments/provisioning/SMS/calls/emails,
        no test users). Confirm /api/health + the safe dev diagnostic GETs still pass after the dead-export removal + script purge."
+
+
+
+agent_communication:
+  - agent: "testing"
+    timestamp: "2026-08-09"
+    message: |
+      ✅ CALL RECONCILER NOTIFY BUG FIX VERIFICATION COMPLETE - ALL TESTS PASSED (100% pass rate)
+      
+      Verified the production bug fix for the call-billing reconciler notifyAdmin crash. The reported bug 
+      ("Cannot read properties of undefined (reading 'catch')") is now FIXED.
+      
+      VERIFICATION RESULTS:
+      
+      [1] PRIMARY - In-memory regression harness: ✅ PASSED (EXIT=0, all 6 assertions)
+          • Control test reproduced the bug (undefined.catch() throws TypeError)
+          • sweepPendingBills did NOT throw (was: null)
+          • Returned a summary object
+          • Reached leak branch (leaksFound=1)
+          • Ran in non-dry-run mode (dryRun=false)
+          • notifyAdmin was invoked (best-effort, calls=1)
+      
+      [2] REGRESSION - HTTP endpoint: ✅ PASSED (pass=true, all 6 checks true)
+          • POST /api/dev/call-reconciler-test returned HTTP 200
+          • All checks passed: drift resolver, billed row reconciled, leak detected, dry-run left pending
+          • Summary: scanned=2, reconciledByWebhook=1, leaksFound=1, needsReview=1, dryRun=true
+      
+      [3] HEALTH - No boot regression: ✅ PASSED
+          • GET /api/health → {"status":"healthy","database":"connected","uptime":"0.05 hours"}
+          • nodejs supervisor service RUNNING (pid 2595, uptime 0:03:09)
+          • Logs show "[CallRecon] Initialized" WITHOUT any "Cannot read properties of undefined" error
+      
+      KEY FIX VERIFIED:
+      • BEFORE: js/call-billing-reconciler.js did _notifyAdmin(...).catch(() => {}) on a synchronous 
+        function that returns undefined → TypeError aborted the sweep when leaksFound > 0 in production
+      • AFTER: sweepPendingBills() now guards the notify call (try/catch + only attaches .catch when 
+        the return is a thenable) → best-effort admin notify can never abort the sweep
+      
+      PRODUCTION IMPACT:
+      • The recurring "[CallRecon] scheduled sweep error" in Railway prod logs is now FIXED
+      • The sweep will no longer abort when it finds a leak in production
+      • Admin notifications are best-effort and cannot crash the reconciliation process
+      
+      SAFETY CONFIRMED:
+      • All testing was READ-ONLY / fully isolated (no mutations to real user data)
+      • The in-memory harness is 100% synthetic (no DB, no network, no writes)
+      • The HTTP endpoint is synthetic/self-cleaning and callRefPrefix-isolated ('RECONTEST_')
+      • NO real users created, NO real calls/SMS/payments triggered, NO non-dry-run sweep against real data
+      
+      The call-billing reconciler notifyAdmin crash bug is now fixed and verified. The reported production 
+      issue is resolved.

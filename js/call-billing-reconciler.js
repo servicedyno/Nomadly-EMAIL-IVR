@@ -245,10 +245,19 @@ async function sweepPendingBills(opts = {}) {
   }
 
   if (summary.leaksFound > 0 && _notifyAdmin && !dryRun) {
-    _notifyAdmin(
-      `🧾 [CallRecon] sweep ${dryRun ? '(DRY-RUN)' : ''}: ${summary.leaksFound} unbilled connected leg(s) ~$${summary.leakedUsd.toFixed(2)}` +
-      `${dryRun ? '' : `, settled ${summary.settled}`}. scanned=${summary.scanned} webhookOk=${summary.reconciledByWebhook} needsReview=${summary.needsReview} noCharge=${summary.noCharge}`
-    ).catch(() => {})
+    // notifyAdmin may be SYNCHRONOUS (returns undefined) or async (returns a
+    // Promise). Calling `.catch()` unconditionally crashed the entire sweep with
+    // "Cannot read properties of undefined (reading 'catch')" every time a leak
+    // was found in production — the reconciliation safety-net silently aborted.
+    // Guard so we only attach a rejection handler when we actually got a thenable,
+    // and never let a best-effort admin notification abort the sweep.
+    try {
+      const _notifyResult = _notifyAdmin(
+        `🧾 [CallRecon] sweep ${dryRun ? '(DRY-RUN)' : ''}: ${summary.leaksFound} unbilled connected leg(s) ~$${summary.leakedUsd.toFixed(2)}` +
+        `${dryRun ? '' : `, settled ${summary.settled}`}. scanned=${summary.scanned} webhookOk=${summary.reconciledByWebhook} needsReview=${summary.needsReview} noCharge=${summary.noCharge}`
+      )
+      if (_notifyResult && typeof _notifyResult.catch === 'function') _notifyResult.catch(() => {})
+    } catch (_) { /* notify is best-effort — never abort the sweep */ }
   }
   return summary
 }
