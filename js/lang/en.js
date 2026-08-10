@@ -143,7 +143,6 @@ const user = {
  activateDomainShortener: '🔗 Activate Domain for Shortener',
 
  // Sub Menu 6: Digital Products
- digitalProducts: '🛒 Digital Products',
  virtualCard: '💳 Virtual Card',
 
  // Sub Menu 2: domainNames
@@ -2457,6 +2456,12 @@ const supportedCrypto = {
 /////////////////////////////////////////////////////////////////////////////////////
 const _bc = ['Back', 'Cancel']
 const _bcm = ['Back', '🏠 Main Menu', 'Cancel']
+const _mc = ['🏠 Main Menu', 'Cancel']
+const _isEmojiBack = item => {
+  if (typeof item !== 'string') return false
+  const s = item.replace(/^[^\p{L}]+/u, '').trim()
+  return s === 'Back' || s === 'Retour' || s === '返回' || s === 'वापस'
+}
 
 const payIn = {
  crypto: 'Crypto',
@@ -2488,7 +2493,7 @@ const kOf = list => ({
  ),
  )
  ? []
- : [_bc]),
+ : (list.some(a => Array.isArray(a) && a.some(item => _isEmojiBack(item))) ? [_mc] : [_bc])),
  ],
  },
  parse_mode: 'HTML',

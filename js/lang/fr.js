@@ -2298,6 +2298,12 @@ const supportedCrypto = {
 
 /////////////////////////////////////////////////////////////////////////////////////
 const _bc = ['Retour', 'Annuler']
+const _mc = ['🏠 Main Menu', 'Annuler']
+const _isEmojiBack = item => {
+  if (typeof item !== 'string') return false
+  const s = item.replace(/^[^\p{L}]+/u, '').trim()
+  return s === 'Back' || s === 'Retour' || s === '返回' || s === 'वापस'
+}
 
 const payIn = {
  crypto: 'Crypto',
@@ -2329,7 +2335,7 @@ const kOf = list => ({
  ),
  )
  ? []
- : [_bc]),
+ : (list.some(a => Array.isArray(a) && a.some(item => _isEmojiBack(item))) ? [_mc] : [_bc])),
  ],
  },
  parse_mode: 'HTML',

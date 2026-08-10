@@ -1611,6 +1611,20 @@ function isBackPress(message) {
 }
 
 /**
+ * Robust Main-Menu-button matcher — mirrors isBackPress / isCancelPress.
+ * Accepts the literal '🏠 Main Menu' (used across all locales) plus emoji
+ * variants and localized labels, so a Main-Menu tap always routes home
+ * regardless of language or a stale keyboard.
+ */
+function isMainMenuPress(message) {
+  if (!message || typeof message !== 'string') return false
+  const stripped = message.replace(/^[^\p{L}]+/u, '').trim()
+  const known = new Set(['Main Menu', 'Menu principal', '主菜单', 'मुख्य मेनू'])
+  return known.has(stripped)
+}
+
+
+/**
  * Robust Cancel-button matcher — same approach as isBackPress.
  * Accepts plain locale words (`Cancel` / `Annuler` / `取消` / `रद्द करें`) and
  * any emoji-prefixed variant (`❌ Cancel`, `❎ Cancel`, `🚫 Cancel`, etc.).
@@ -13998,7 +14012,7 @@ All verified numbers generated during sourcing.`))
     ]))
   }
   //
-  if (isCancelPress(message) || message === '🏠 Main Menu' || (firstSteps.includes(action) && isBackPress(message))) {
+  if (isCancelPress(message) || isMainMenuPress(message) || (firstSteps.includes(action) && isBackPress(message))) {
     // ━━━ HELD-PAYMENT REFUND on cancel from address-collection state ━━━
     // When user paid via Wallet then enters cpEnterAddress, the wallet is
     // already debited and `cpPendingPriceUsd` is set. The bot tells them
@@ -14286,8 +14300,9 @@ All verified numbers generated during sourcing.`))
   }
 
   if (action === a.freeTrial) {
+    // isBackPress already matches '↩️ Back'; route Back up to the hosting plans menu.
+    // (The old literal `=== '↩️ Back'` line below it was dead code and was removed.)
     if (isBackPress(message)) return goto.submenu3()
-    if (message === '↩️ Back') return goto.freeTrialMenu()
     if (message === user.freeTrialMenuButton) return goto.freeTrial()
     if (message === user.getFreeTrialPlanNow) return goto.getFreeTrialPlanNow()
   }

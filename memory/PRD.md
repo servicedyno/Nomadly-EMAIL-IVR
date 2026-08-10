@@ -4,6 +4,18 @@
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
 
+## 2026-06-XX (this session) — Bot navigation UX: Main-Menu escape hatch + declutter + matcher hardening (plan "cbd") — VERIFIED (offline)
+User asked to audit bot navigation for usability/clarity. Approved plan: **1a** (surgical Main-Menu escape), **2a** (light-touch label cleanup), **3 yes** (dead-code + isMainMenuPress). Backend-only, all 4 locales (en/fr/zh/hi).
+
+- **(b) Main-Menu escape + (c) declutter — one clean change in `kOf`:** the generic reply-keyboard builder appends `_bc = [Back, Cancel]` to nearly every keyboard. New helper `_isEmojiBack()` detects an explicit `↩️ Back` (deep-step signal). When present, `kOf` now appends `_mc = [🏠 Main Menu, <localizedCancel>]` instead of `_bc` — i.e. it (b) adds a Main-Menu escape to every deep flow AND (c) drops the redundant plain `Back` that duplicated the `↩️ Back` already on screen. Shallow menus (no explicit back) are UNCHANGED (still `[Back, Cancel]`); contextual-back screens (`backToHostingPlans`/`t.backButton`) still append nothing. `↩️ Back` is preserved so back-nav is untouched.
+- **(c) label dedup:** removed a duplicate `digitalProducts` key in `en.js` (identical value; no behavior change).
+- **(d) matcher hardening:** new `isMainMenuPress()` util in `_index.js` (mirrors isBackPress/isCancelPress; matches `🏠 Main Menu` + localized `主菜单`/`Menu principal`/`मुख्य मेनू` + emoji strip). Wired into the global cancel/main-menu handler so non-English Main-Menu taps route home.
+- **(d) dead code:** in the `a.freeTrial` handler the literal `if (message === '↩️ Back') return goto.freeTrialMenu()` was unreachable (preempted by `isBackPress`). Removed it; Back keeps routing to `goto.submenu3()` (hosting plans, the valid parent). No loop, no stranding (freeTrial view also gets the new `🏠 Main Menu` escape via kOf).
+- **Safety note:** NOT driven conversationally/via webhook — the bot's only update entry (`/telegram/webhook`) writes to the SHARED PRODUCTION Mongo (`MONGO_URL`) and fires real dev-bot `sendMessage`. Verified instead with the repo's established offline pattern.
+- **Verified:** `node js/tests/test_nav_mainmenu_escape.js` = **55/0** (keyboard rendering deep/shallow/contextual × 4 locales, isMainMenuPress, static-source wiring guards, lang exports). Regressions green: `test_button_helpers.js` 49/0, `test_back_button.js` 32/0. `node --check` clean on all 5 files; nodejs booted clean with dev safety guards active (`BOT_ENVIRONMENT=development`, `SKIP_WEBHOOK_SYNC=true`).
+- Files: `js/lang/{en,fr,zh,hi}.js` (`_mc`/`_isEmojiBack` + `kOf` tail), `js/_index.js` (isMainMenuPress + global handler + freeTrial dead-code), `js/tests/test_nav_mainmenu_escape.js` (new).
+
+
 ## 2026-08-09 — Fresh pod re-bootstrap (setup from provided .env) — DONE
 Pod came up with only `.git`/app tree present, empty `frontend/.env`, no `backend/.env`, no `/app/.env` symlink, and no `nodejs` supervisor program (backend/frontend/mongodb running).
 - New pod URL: `https://env-config-deploy-10.preview.emergentagent.com` (detected from env `preview_endpoint`).
