@@ -729,6 +729,46 @@ function _ivrRootMenuRows(ivrConf, pc) {
   return rows
 }
 
+// ── Inbound IVR greeting placeholder wizard helpers (PARITY with outbound) ──
+// Build keyboard rows for filling a greeting [Placeholder] from its smart type
+// (list → presets, number → user's own numbers, otherwise free-text input).
+function _ivrGreetKeyboard(ph, userNumbers) {
+  const ivrOb = require('./ivr-outbound.js')
+  const sp = ivrOb.getSmartPlaceholder(ph)
+  if (!sp) return []
+  if (sp.type === 'list' && Array.isArray(sp.presets)) {
+    const rows = sp.presets.slice(0, 8).map(p => [p])
+    rows.push(['✍️ Custom'])
+    return rows
+  }
+  if (sp.type === 'number') {
+    const rows = (userNumbers || []).slice(0, 6).map(n => [`📱 ${n}`])
+    rows.push(['✍️ Custom Number'])
+    return rows
+  }
+  return []
+}
+
+// Prompt text for one greeting placeholder (mirrors the outbound wizard wording).
+function _ivrGreetPromptText(lang, ph, idx, total) {
+  const ivrOb = require('./ivr-outbound.js')
+  const sp = ivrOb.getSmartPlaceholder(ph)
+  const step = `(${idx + 1}/${total})`
+  const label = sp ? `${sp.icon || '•'} <b>${sp.label || ph}</b>` : `<b>[${ph}]</b>`
+  const desc = sp && sp.description ? `\n<i>${sp.description}</i>` : ''
+  let hint = ''
+  if (sp && sp.hint) hint = `\n💡 ${sp.hint}`
+  else if (sp && sp.type === 'list') hint = ({ en: '\n💡 Pick one below or tap ✍️ Custom.', fr: '\n💡 Choisissez ci-dessous ou ✍️ Personnalisé.', zh: '\n💡 在下方选择或点击 ✍️ 自定义。', hi: '\n💡 नीचे चुनें या ✍️ कस्टम दबाएँ।' }[lang] || '\n💡 Pick one below or tap ✍️ Custom.')
+  else if (sp && sp.type === 'number') hint = ({ en: '\n💡 Pick one of your numbers or enter a custom one.', fr: '\n💡 Choisissez un de vos numéros ou saisissez-en un.', zh: '\n💡 选择您的号码或输入自定义号码。', hi: '\n💡 अपना नंबर चुनें या कस्टम डालें।' }[lang] || '\n💡 Pick one of your numbers or enter a custom one.')
+  return ({
+    en: `✏️ ${step} Enter a value for ${label}:${desc}${hint}`,
+    fr: `✏️ ${step} Saisissez une valeur pour ${label} :${desc}${hint}`,
+    zh: `✏️ ${step} 请输入 ${label} 的值：${desc}${hint}`,
+    hi: `✏️ ${step} ${label} के लिए मान डालें:${desc}${hint}`,
+  }[lang] || `✏️ ${step} Enter a value for ${label}:${desc}${hint}`)
+}
+
+
 const emailBlastService = require('./email-blast-service.js')
 const emailValidation = require('./email-validation.js')
 const emailValidationService = require('./email-validation-service.js')
@@ -8767,6 +8807,7 @@ bot?.on('message', msg => {
     cpIvrTplPick: 'cpIvrTplPick',
     cpIvrTplApply: 'cpIvrTplApply',
     cpIvrTplFillDest: 'cpIvrTplFillDest',
+    cpIvrTplFillGreeting: 'cpIvrTplFillGreeting',
     cpIvrSaveTplName: 'cpIvrSaveTplName',
     cpIvrDisableConfirm: 'cpIvrDisableConfirm',
     cpIvrRemoveConfirm: 'cpIvrRemoveConfirm',
@@ -29713,7 +29754,21 @@ Professional templates for voicemail, customer support, financial institutions, 
     } else {
       const tpl = ivrTpl.getTemplateByButton(draft.category, message)
       if (!tpl) return send(chatId, ({ en: `Please pick a template from the buttons.`, fr: `Choisissez un modèle ci-dessous.`, zh: `请从按钮选择模板。`, hi: `कृपया बटनों से टेम्पलेट चुनें।` }[lang] || `Please pick a template from the buttons.`), k.of([]))
-      newIvr = ivrTpl.buildInboundIvrFromTemplate(tpl); tplName = tpl.name
+      // PARITY with outbound: auto-generate AUTO smart placeholders (CardLast4,
+      // CaseID, ReferenceNum), then guide the user through the remaining ones via
+      // the placeholder wizard BEFORE showing the preview/apply screen.
+      const _autoVals = ivrTpl.autoFillSmartPlaceholders(tpl.text)
+      const _remaining = ivrTpl.greetingPlaceholders(tpl.text).filter(p => ivrTpl.describePlaceholder(p).type !== 'auto')
+      if (_remaining.length) {
+        await saveInfo('cpIvrTplGreet', { templateKey: tpl.key, tplName: tpl.name, placeholders: _remaining, idx: 0, values: _autoVals })
+        await set(state, chatId, 'action', a.cpIvrTplFillGreeting)
+        let _userNums = []
+        try { const _ud = await phoneNumbersOf.findOne({ _id: chatId }); _userNums = (Array.isArray(_ud?.val?.numbers) ? _ud.val.numbers : []).map(n => n.phoneNumber).filter(Boolean) } catch (e) { /* non-blocking */ }
+        const _rows = _ivrGreetKeyboard(_remaining[0], _userNums)
+        const _intro = ({ en: `🧩 This template has ${_remaining.length} field(s) to fill in.\n\n`, fr: `🧩 Ce modèle a ${_remaining.length} champ(s) à remplir.\n\n`, zh: `🧩 此模板有 ${_remaining.length} 个字段需填写。\n\n`, hi: `🧩 इस टेम्पलेट में ${_remaining.length} फ़ील्ड भरने हैं।\n\n` }[lang] || `🧩 This template has ${_remaining.length} field(s) to fill in.\n\n`)
+        return send(chatId, _intro + _ivrGreetPromptText(lang, _remaining[0], 0, _remaining.length), { parse_mode: 'HTML', reply_markup: { keyboard: [..._rows, ['↩️ Back']], resize_keyboard: true } })
+      }
+      newIvr = ivrTpl.buildInboundIvrFromTemplate(tpl, { placeholderValues: _autoVals }); tplName = tpl.name
     }
     await saveInfo('cpIvrTplPending', newIvr)
     await set(state, chatId, 'action', a.cpIvrTplApply)
@@ -29740,6 +29795,87 @@ Professional templates for voicemail, customer support, financial institutions, 
     _kbRows.push(['↩️ Back'])
     return send(chatId, txt, { parse_mode: 'HTML', reply_markup: { keyboard: _kbRows, resize_keyboard: true } })
   }
+
+  if (action === a.cpIvrTplFillGreeting) {
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
+    const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
+    if (!num) return goto.submenu5()
+    const ivrTpl = require('./ivr-templates.js')
+    const ivrOb = require('./ivr-outbound.js')
+    const ctx = info?.cpIvrTplGreet
+    if (!ctx || !Array.isArray(ctx.placeholders) || !ctx.placeholders.length) {
+      await set(state, chatId, 'action', a.cpIvr)
+      return send(chatId, ({ en: `⚠️ Session expired — please pick the template again.`, fr: `⚠️ Session expirée — reprenez le modèle.`, zh: `⚠️ 会话已过期，请重新选择模板。`, hi: `⚠️ सत्र समाप्त — टेम्पलेट फिर चुनें।` }[lang] || `⚠️ Session expired — please pick the template again.`))
+    }
+    if (isCancelPress(message)) return goto.submenu5()
+    if (isBackPress(message) || message === pc.back) {
+      await set(state, chatId, 'action', a.cpIvrTplCat)
+      const catBtns = ivrTpl.getCategoryButtons(lang).map(b => [b])
+      const saved = Array.isArray(info?.savedIvrTemplates) ? info.savedIvrTemplates : []
+      const MY_TPL = ({ en: '⭐ My Saved Templates', fr: '⭐ Mes Modèles', zh: '⭐ 我的模板', hi: '⭐ मेरे टेम्पलेट' }[lang] || '⭐ My Saved Templates')
+      if (saved.length) catBtns.unshift([MY_TPL])
+      catBtns.push(['↩️ Back'])
+      return send(chatId, ({ en: `📋 Choose a category:`, fr: `📋 Choisissez une catégorie :`, zh: `📋 选择分类：`, hi: `📋 श्रेणी चुनें:` }[lang] || `📋 Choose a category:`), { reply_markup: { keyboard: catBtns, resize_keyboard: true } })
+    }
+    const idx = ctx.idx || 0
+    const ph = ctx.placeholders[idx]
+    const sp = ivrOb.getSmartPlaceholder(ph)
+    let value = String(message || '').trim()
+    // "Custom" chips → ask for free-text input for the SAME placeholder
+    if (value === '✍️ Custom' || value === '✍️ Custom Number') {
+      return send(chatId, ({ en: `✍️ Type the value for <b>[${ph}]</b>:`, fr: `✍️ Saisissez la valeur pour <b>[${ph}]</b> :`, zh: `✍️ 请输入 <b>[${ph}]</b> 的值：`, hi: `✍️ <b>[${ph}]</b> के लिए मान लिखें:` }[lang] || `✍️ Type the value for <b>[${ph}]</b>:`), { parse_mode: 'HTML', reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
+    }
+    if (value.startsWith('📱 ')) value = value.replace('📱 ', '').trim()
+    if (!value) return send(chatId, ({ en: `Please enter a value.`, fr: `Veuillez saisir une valeur.`, zh: `请输入一个值。`, hi: `कृपया मान डालें।` }[lang] || `Please enter a value.`), k.of([]))
+    const canonical = (sp && sp.canonical) || ph
+    ctx.values[canonical] = value
+    ctx.idx = idx + 1
+    await saveInfo('cpIvrTplGreet', ctx)
+    // Still more fields to collect → prompt the next placeholder
+    if (ctx.idx < ctx.placeholders.length) {
+      const nextPh = ctx.placeholders[ctx.idx]
+      let _userNums = []
+      try { const _ud = await phoneNumbersOf.findOne({ _id: chatId }); _userNums = (Array.isArray(_ud?.val?.numbers) ? _ud.val.numbers : []).map(n => n.phoneNumber).filter(Boolean) } catch (e) { /* non-blocking */ }
+      const _rows = _ivrGreetKeyboard(nextPh, _userNums)
+      return send(chatId, _ivrGreetPromptText(lang, nextPh, ctx.idx, ctx.placeholders.length), { parse_mode: 'HTML', reply_markup: { keyboard: [..._rows, ['↩️ Back']], resize_keyboard: true } })
+    }
+    // All fields collected → build the final config with the SHARED fill engine
+    const tpl = ivrTpl.getTemplateByKey(ctx.templateKey)
+    if (!tpl) {
+      await saveInfo('cpIvrTplGreet', null)
+      await set(state, chatId, 'action', a.cpIvr)
+      return send(chatId, ({ en: `⚠️ Template expired — please pick it again.`, fr: `⚠️ Modèle expiré — reprenez.`, zh: `⚠️ 模板已过期，请重新选择。`, hi: `⚠️ टेम्पलेट समाप्त — फिर चुनें।` }[lang] || `⚠️ Template expired — please pick it again.`))
+    }
+    const newIvr = ivrTpl.buildInboundIvrFromTemplate(tpl, { placeholderValues: ctx.values, voiceKey: ttsService.DEFAULT_VOICE, ttsSpeed: 1.0 })
+    const tplName = ctx.tplName
+    await saveInfo('cpIvrTplGreet', null)
+    const validation = ivrTpl.validateInboundReady(newIvr)
+    await saveInfo('cpIvrTplPending', newIvr)
+    await set(state, chatId, 'action', a.cpIvrTplApply)
+    // ── Preview + apply screen (parity with the pick handler) ──
+    const keys = Object.keys(newIvr.options || {}).join(', ') || '—'
+    const existingCount = Object.keys(num.features?.ivr?.options || {}).length
+    const applyBtn = existingCount > 0
+      ? ({ en: '✅ Replace & Apply', fr: '✅ Remplacer et Appliquer', zh: '✅ 替换并应用', hi: '✅ बदलें और लागू करें' }[lang] || '✅ Replace & Apply')
+      : ({ en: '✅ Apply Template', fr: '✅ Appliquer le Modèle', zh: '✅ 应用模板', hi: '✅ टेम्पलेट लागू करें' }[lang] || '✅ Apply Template')
+    let txt = ({ en: `📋 <b>${tplName}</b>\n\n🎙 <b>Greeting</b> (voice: ${ttsService.DEFAULT_VOICE})\n<i>${newIvr.greeting}</i>\n\n🔢 <b>Menu keys:</b> ${keys}\n(each forwards a call — set the numbers next)`, fr: `📋 <b>${tplName}</b>\n\n🎙 <b>Message</b> (voix : ${ttsService.DEFAULT_VOICE})\n<i>${newIvr.greeting}</i>\n\n🔢 <b>Touches :</b> ${keys}\n(chacune transfère un appel — numéros ensuite)`, zh: `📋 <b>${tplName}</b>\n\n🎙 <b>问候语</b>（语音：${ttsService.DEFAULT_VOICE}）\n<i>${newIvr.greeting}</i>\n\n🔢 <b>菜单按键：</b> ${keys}\n（每个转接来电 — 下一步设置号码）`, hi: `📋 <b>${tplName}</b>\n\n🎙 <b>ग्रीटिंग</b> (आवाज़: ${ttsService.DEFAULT_VOICE})\n<i>${newIvr.greeting}</i>\n\n🔢 <b>मेनू कुंजियाँ:</b> ${keys}\n(हर एक कॉल फ़ॉरवर्ड करती है — आगे नंबर सेट करें)` }[lang] || `📋 <b>${tplName}</b>\n\n🎙 <b>Greeting</b> (voice: ${ttsService.DEFAULT_VOICE})\n<i>${newIvr.greeting}</i>\n\n🔢 <b>Menu keys:</b> ${keys}\n(each forwards a call — set the numbers next)`)
+    if (validation.unfilledPlaceholders.length) txt += ({ en: `\n\n✏️ Still has: ${validation.unfilledPlaceholders.map(p => `[${p}]`).join(', ')} — edit the greeting to finish.`, fr: `\n\n✏️ Reste : ${validation.unfilledPlaceholders.map(p => `[${p}]`).join(', ')} — modifiez le message.`, zh: `\n\n✏️ 仍有：${validation.unfilledPlaceholders.map(p => `[${p}]`).join(', ')} — 请编辑问候语。`, hi: `\n\n✏️ शेष: ${validation.unfilledPlaceholders.map(p => `[${p}]`).join(', ')} — ग्रीटिंग संपादित करें।` }[lang] || `\n\n✏️ Still has: ${validation.unfilledPlaceholders.map(p => `[${p}]`).join(', ')} — edit the greeting to finish.`)
+    if (existingCount > 0) txt += ({ en: `\n\n⚠️ This will <b>replace</b> your current ${existingCount} option(s).`, fr: `\n\n⚠️ Cela <b>remplacera</b> vos ${existingCount} option(s) actuelles.`, zh: `\n\n⚠️ 这将<b>替换</b>您当前的 ${existingCount} 个选项。`, hi: `\n\n⚠️ यह आपके मौजूदा ${existingCount} विकल्प <b>बदल</b> देगा।` }[lang] || `\n\n⚠️ This will <b>replace</b> your current ${existingCount} option(s).`)
+    let applyAllBtn = null
+    try {
+      const _doc = await phoneNumbersOf.findOne({ _id: chatId })
+      const _active = (Array.isArray(_doc?.val?.numbers) ? _doc.val.numbers : []).filter(n => n && n.status === 'active')
+      if (_active.length >= 2) {
+        applyAllBtn = ({ en: `📢 Apply to All My Numbers (${_active.length})`, fr: `📢 Appliquer à Tous mes Numéros (${_active.length})`, zh: `📢 应用到我所有号码 (${_active.length})`, hi: `📢 मेरे सभी नंबरों पर लागू करें (${_active.length})` }[lang] || `📢 Apply to All My Numbers (${_active.length})`)
+      }
+    } catch (e) { /* non-blocking */ }
+    const _kbRows = [[applyBtn]]
+    if (applyAllBtn) _kbRows.push([applyAllBtn])
+    _kbRows.push(['↩️ Back'])
+    return send(chatId, txt, { parse_mode: 'HTML', reply_markup: { keyboard: _kbRows, resize_keyboard: true } })
+  }
+
 
   if (action === a.cpIvrTplApply) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
@@ -38163,6 +38299,73 @@ app.get('/dev/inbound-ivr-stats', async (req, res) => {
     return res.status(500).json({ ok: false, error: e.message })
   }
 })
+
+// ── DEV-ONLY: IVR parity check (read-only unless generateAudio=true). 404 in prod. ──
+// Phase 1 parity — proves inbound greetings now use the SAME smart-placeholder +
+// premium-voice engine as outbound. Body: { templateKey, placeholderValues?,
+// voiceKey?, ttsSpeed?, generateAudio? }. Builds the inbound IVR config the way
+// the bot flow does, auto-fills AUTO smart placeholders, fills the rest, runs the
+// validateFilled pre-flight guard, and (optionally) renders the greeting with a
+// premium EdenAI voice — end-to-end, no Telegram / phone call needed.
+app.post('/dev/ivr-parity/apply-template', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  try {
+    const ivrTpl = require('./ivr-templates.js')
+    const ttsSvc = require('./tts-service.js')
+    const body = req.body || {}
+    const templateKey = String(body.templateKey || '')
+    const tpl = ivrTpl.getTemplateByKey(templateKey)
+    if (!tpl || !tpl.text) {
+      return res.status(400).json({ ok: false, error: `unknown templateKey '${templateKey}' (or template has no script text)` })
+    }
+
+    // 1) Placeholder discovery + auto-fill (parity with outbound wizard)
+    const allPlaceholders = ivrTpl.greetingPlaceholders(tpl.text)
+    const autoValues = ivrTpl.autoFillSmartPlaceholders(tpl.text)
+    const providedValues = (body.placeholderValues && typeof body.placeholderValues === 'object') ? body.placeholderValues : {}
+    const placeholderValues = { ...autoValues, ...providedValues }
+    const placeholderPlan = allPlaceholders.map(p => ivrTpl.describePlaceholder(p))
+
+    // 2) Build the inbound IVR config using the SHARED fill engine + voice/speed
+    const voiceKey = body.voiceKey || ttsSvc.DEFAULT_VOICE
+    const ttsSpeed = Number(body.ttsSpeed || 1.0)
+    const conf = ivrTpl.buildInboundIvrFromTemplate(tpl, { placeholderValues, voiceKey, ttsSpeed })
+
+    // 3) Pre-flight guard (parity with outbound validateFilled)
+    const validation = ivrTpl.validateInboundReady(conf)
+
+    // 4) Optionally render greeting with a premium EdenAI voice (end-to-end proof)
+    let audio = null
+    if (body.generateAudio === true && validation.unfilledPlaceholders.length === 0) {
+      try {
+        const result = await ttsSvc.generateTTS(conf.greeting, voiceKey, null, ttsSpeed)
+        audio = { audioUrl: result.audioUrl, voice: result.voice, fallbackUsed: !!result.fallbackUsed, fallbackProvider: result.fallbackProvider || null }
+      } catch (e) {
+        audio = { error: e.message }
+      }
+    }
+
+    return res.json({
+      ok: true,
+      templateKey,
+      templateName: tpl.name,
+      placeholders: allPlaceholders,
+      placeholderPlan,       // per-placeholder: smart?/type/icon/label/presets/hint/autoValue
+      autoFilled: autoValues, // AUTO smart placeholders generated for the user
+      placeholderValues,      // final merged values used to fill the greeting
+      voiceKey,
+      ttsSpeed,
+      config: conf,           // enabled/greeting/options/... exactly as stored on the number
+      validation,             // { ok, unfilledPlaceholders, pendingForwardKeys }
+      audio,                  // null unless generateAudio=true
+    })
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
 
 
 // ── DEV-ONLY: Quick IVR transfer-leg billing test (Twilio). 404 in prod. ──

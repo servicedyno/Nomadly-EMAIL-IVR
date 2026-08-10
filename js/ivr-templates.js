@@ -79,7 +79,7 @@ function getTemplateByKey(key) {
 // Greeting = template script text (kept verbatim per product decision — user
 // edits the [Placeholders] afterward). Each activeKey becomes a "forward"
 // option with a blank destination the user fills in next.
-function buildInboundIvrFromTemplate(template) {
+function buildInboundIvrFromTemplate(template, opts = {}) {
   const options = {}
   for (const key of template.activeKeys || []) {
     options[String(key)] = {
@@ -89,13 +89,77 @@ function buildInboundIvrFromTemplate(template) {
       fromTemplate: template.key,
     }
   }
-  return {
+  // PARITY with outbound: fill [Placeholders] using the SHARED engine
+  // (ivr-outbound.fillTemplate — case-insensitive, whitespace-tolerant). When
+  // no values are supplied the greeting keeps its [Placeholders] verbatim so
+  // the caller can still detect them via validateInboundReady().
+  const placeholderValues = opts.placeholderValues || {}
+  const greeting = ivrOb.fillTemplate(template.text, placeholderValues)
+  const conf = {
     enabled: true,
-    greeting: template.text,
+    greeting,
     greetingType: 'custom',
     appliedTemplate: template.key,
     appliedTemplateName: template.name,
     options,
+    sourcePlaceholders: ivrOb.extractPlaceholders(template.text),
+    placeholderValues,
+  }
+  if (opts.voiceKey) conf.voiceKey = opts.voiceKey
+  if (opts.ttsSpeed) conf.ttsSpeed = opts.ttsSpeed
+  return conf
+}
+
+// ── Parity helpers: the SHARED smart-placeholder engine (ivr-outbound.js) ──
+// These bring the exact outbound placeholder behaviour to inbound greetings.
+
+// Placeholders present in a greeting / template text.
+function greetingPlaceholders(text) {
+  return ivrOb.extractPlaceholders(String(text || ''))
+}
+
+// Auto-generate values for every AUTO-type smart placeholder in the text
+// (CardLast4, CaseID, ReferenceNum). Returns a { Placeholder: value } map so
+// the user is never asked to invent a case number by hand.
+function autoFillSmartPlaceholders(text) {
+  const values = {}
+  for (const ph of ivrOb.extractPlaceholders(String(text || ''))) {
+    const sp = ivrOb.getSmartPlaceholder(ph)
+    if (sp && sp.type === 'auto') {
+      const v = ivrOb.generatePlaceholderValue(ph)
+      if (v != null) values[sp.canonical || ph] = v
+    }
+  }
+  return values
+}
+
+// Describe a placeholder for building the fill UI (mirrors the outbound wizard).
+function describePlaceholder(name) {
+  const sp = ivrOb.getSmartPlaceholder(name)
+  if (!sp) return { name, smart: false, type: 'input' }
+  return {
+    name: sp.canonical || name,
+    smart: true,
+    type: sp.type,
+    icon: sp.icon,
+    label: sp.label,
+    description: sp.description,
+    presets: sp.presets || null,
+    hint: sp.hint || null,
+    autoValue: sp.type === 'auto' && sp.generate ? sp.generate() : null,
+  }
+}
+
+// Pre-flight guard (parity with outbound validateFilled): is this inbound IVR
+// safe to go live? Fails if the greeting still has unfilled [Placeholders] or
+// any menu key is a 'forward' with no destination number yet.
+function validateInboundReady(ivrConf) {
+  const greetingCheck = ivrOb.validateFilled((ivrConf && ivrConf.greeting) || '')
+  const pending = pendingForwardKeys(ivrConf)
+  return {
+    ok: greetingCheck.ok && pending.length === 0,
+    unfilledPlaceholders: greetingCheck.unfilled,
+    pendingForwardKeys: pending,
   }
 }
 
@@ -150,4 +214,9 @@ module.exports = {
   pendingForwardKeys,
   greetingHasPlaceholders,
   makeUserTemplate,
+  // Parity helpers (shared smart-placeholder engine)
+  greetingPlaceholders,
+  autoFillSmartPlaceholders,
+  describePlaceholder,
+  validateInboundReady,
 }
