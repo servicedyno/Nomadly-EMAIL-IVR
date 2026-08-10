@@ -768,6 +768,45 @@ function _ivrGreetPromptText(lang, ph, idx, total) {
   }[lang] || `✏️ ${step} Enter a value for ${label}:${desc}${hint}`)
 }
 
+// Shared inbound-template preview builder (used by pick / wizard / voice+speed
+// completion). Returns { text, rows } — the single source of truth for the
+// "apply template" preview so voice/speed can be shown consistently.
+function _ivrTplPreview(lang, newIvr, tplName, existingCount, activeCount, voiceName, speedLabel) {
+  const ivrTpl = require('./ivr-templates.js')
+  const keys = Object.keys(newIvr.options || {}).join(', ') || '—'
+  const voiceLine = voiceName
+    ? (({ en: `🗣 Voice: <b>${voiceName}</b> • Speed: <b>${speedLabel || '1.0x'}</b>\n`, fr: `🗣 Voix : <b>${voiceName}</b> • Vitesse : <b>${speedLabel || '1.0x'}</b>\n`, zh: `🗣 语音：<b>${voiceName}</b> • 语速：<b>${speedLabel || '1.0x'}</b>\n`, hi: `🗣 आवाज़: <b>${voiceName}</b> • गति: <b>${speedLabel || '1.0x'}</b>\n` }[lang]) || `🗣 Voice: <b>${voiceName}</b> • Speed: <b>${speedLabel || '1.0x'}</b>\n`)
+    : ''
+  const applyBtn = existingCount > 0
+    ? ({ en: '✅ Replace & Apply', fr: '✅ Remplacer et Appliquer', zh: '✅ 替换并应用', hi: '✅ बदलें और लागू करें' }[lang] || '✅ Replace & Apply')
+    : ({ en: '✅ Apply Template', fr: '✅ Appliquer le Modèle', zh: '✅ 应用模板', hi: '✅ टेम्पलेट लागू करें' }[lang] || '✅ Apply Template')
+  let txt = ({ en: `📋 <b>${tplName}</b>\n\n${voiceLine}🎙 <b>Greeting</b>\n<i>${newIvr.greeting}</i>\n\n🔢 <b>Menu keys:</b> ${keys}\n(each forwards a call — set the numbers next)`, fr: `📋 <b>${tplName}</b>\n\n${voiceLine}🎙 <b>Message</b>\n<i>${newIvr.greeting}</i>\n\n🔢 <b>Touches :</b> ${keys}\n(chacune transfère un appel — numéros ensuite)`, zh: `📋 <b>${tplName}</b>\n\n${voiceLine}🎙 <b>问候语</b>\n<i>${newIvr.greeting}</i>\n\n🔢 <b>菜单按键：</b> ${keys}\n（每个转接来电 — 下一步设置号码）`, hi: `📋 <b>${tplName}</b>\n\n${voiceLine}🎙 <b>ग्रीटिंग</b>\n<i>${newIvr.greeting}</i>\n\n🔢 <b>मेनू कुंजियाँ:</b> ${keys}\n(हर एक कॉल फ़ॉरवर्ड करती है — आगे नंबर सेट करें)` }[lang] || `📋 <b>${tplName}</b>\n\n${voiceLine}🎙 <b>Greeting</b>\n<i>${newIvr.greeting}</i>\n\n🔢 <b>Menu keys:</b> ${keys}\n(each forwards a call — set the numbers next)`)
+  if (ivrTpl.greetingHasPlaceholders(newIvr.greeting)) txt += ({ en: `\n\n✏️ This greeting still has [placeholders] — edit the greeting afterward to fill them in.`, fr: `\n\n✏️ Ce message contient encore des [espaces] — modifiez-le ensuite.`, zh: `\n\n✏️ 此问候语仍含 [占位符] — 之后请编辑填写。`, hi: `\n\n✏️ इस ग्रीटिंग में अभी [प्लेसहोल्डर] हैं — बाद में संपादित करें।` }[lang] || `\n\n✏️ This greeting still has [placeholders] — edit the greeting afterward to fill them in.`)
+  if (existingCount > 0) txt += ({ en: `\n\n⚠️ This will <b>replace</b> your current ${existingCount} option(s).`, fr: `\n\n⚠️ Cela <b>remplacera</b> vos ${existingCount} option(s) actuelles.`, zh: `\n\n⚠️ 这将<b>替换</b>您当前的 ${existingCount} 个选项。`, hi: `\n\n⚠️ यह आपके मौजूदा ${existingCount} विकल्प <b>बदल</b> देगा।` }[lang] || `\n\n⚠️ This will <b>replace</b> your current ${existingCount} option(s).`)
+  let applyAllBtn = null
+  if (activeCount >= 2) {
+    applyAllBtn = ({ en: `📢 Apply to All My Numbers (${activeCount})`, fr: `📢 Appliquer à Tous mes Numéros (${activeCount})`, zh: `📢 应用到我所有号码 (${activeCount})`, hi: `📢 मेरे सभी नंबरों पर लागू करें (${activeCount})` }[lang] || `📢 Apply to All My Numbers (${activeCount})`)
+    txt += ({ en: `\n\n📢 You have <b>${activeCount} numbers</b> — tap "Apply to All" to set this on every one at once.`, fr: `\n\n📢 Vous avez <b>${activeCount} numéros</b> — appuyez sur « Appliquer à Tous ».`, zh: `\n\n📢 您有 <b>${activeCount} 个号码</b> — 点击"应用到全部"。`, hi: `\n\n📢 आपके पास <b>${activeCount} नंबर</b> हैं — "सभी पर लागू करें" दबाएँ।` }[lang] || `\n\n📢 You have <b>${activeCount} numbers</b> — tap "Apply to All".`)
+  }
+  const rows = [[applyBtn]]
+  if (applyAllBtn) rows.push([applyAllBtn])
+  rows.push(['↩️ Back'])
+  return { text: txt, rows }
+}
+
+// Voice keyboard for the inbound template voice picker (all 21 voices, 2/row).
+function _ivrVoiceKeyboard(lang) {
+  const ttsSvc = require('./tts-service.js')
+  const btns = ttsSvc.getVoiceButtons(lang || 'en')
+  const rows = []
+  for (let i = 0; i < btns.length; i += 2) rows.push(btns.slice(i, i + 2))
+  const DEFAULT = ({ en: '⭐ Default Voice', fr: '⭐ Voix par défaut', zh: '⭐ 默认语音', hi: '⭐ डिफ़ॉल्ट आवाज़' }[lang] || '⭐ Default Voice')
+  rows.unshift([DEFAULT])
+  rows.push(['↩️ Back'])
+  return rows
+}
+
+
 
 const emailBlastService = require('./email-blast-service.js')
 const emailValidation = require('./email-validation.js')
@@ -8808,6 +8847,8 @@ bot?.on('message', msg => {
     cpIvrTplApply: 'cpIvrTplApply',
     cpIvrTplFillDest: 'cpIvrTplFillDest',
     cpIvrTplFillGreeting: 'cpIvrTplFillGreeting',
+    cpIvrTplVoice: 'cpIvrTplVoice',
+    cpIvrTplSpeed: 'cpIvrTplSpeed',
     cpIvrSaveTplName: 'cpIvrSaveTplName',
     cpIvrDisableConfirm: 'cpIvrDisableConfirm',
     cpIvrRemoveConfirm: 'cpIvrRemoveConfirm',
