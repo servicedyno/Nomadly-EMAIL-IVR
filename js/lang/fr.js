@@ -97,8 +97,8 @@ const admin = {
 
 const user = {
  // main keyboards
- cPanelWebHostingPlans: "Plans d'hébergement HostPanel en Russie 🔒",
- pleskWebHostingPlans: "Plans d'hébergement Plesk en Russie 🔒",
+ cPanelWebHostingPlans: "Plans d'hébergement HostPanel en Russie",
+ pleskWebHostingPlans: "Plans d'hébergement Plesk en Russie",
  joinChannel: '📢 Rejoindre le canal',
  phoneNumberLeads: '🎯 Acheter des Leads | Vérifier les Vôtres',
  buyLeads: '🎯 Acheter des Leads',
@@ -115,7 +115,7 @@ const user = {
  getSupport: '💬 Support',
  cloudPhone: '📞 Cloud IVR + SIP',
  testSip: '🧪 Tester SIP Gratuit',
- freeTrialAvailable: '📱🆓 SMS en masse - Essai gratuit',
+ freeTrialAvailable: '🆓 Essai SMS en masse',
  smsAppMain: '📱 SMS en masse',
  smsCreateCampaign: '📱 Créer une campagne',
  smsMyCampaigns: '📋 Mes campagnes',

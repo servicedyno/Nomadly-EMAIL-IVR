@@ -116,6 +116,43 @@ ok('new vps labels do NOT match startsWith(🖥️ VPS/RDP —)', langs.every(L 
 ok('hosting handler carries startsWith(🛡️🔥) fallback', src.includes("message.startsWith('🛡️🔥')"))
 ok('vps handler carries startsWith(🖥️ VPS/RDP —) fallback', src.includes("message.startsWith('🖥️ VPS/RDP —')"))
 
+console.log('\n=== Fuller Label Pass: declutter + stale fallback ===')
+for (const L of langs) {
+  const user = mods[L].user
+  ok(`[${L}] cPanel label has no 🔒`, !user.cPanelWebHostingPlans.includes('🔒'))
+  ok(`[${L}] plesk label has no 🔒`, !user.pleskWebHostingPlans.includes('🔒'))
+  ok(`[${L}] freeTrial label decluttered (no 📱🆓)`, !user.freeTrialAvailable.includes('📱🆓') && user.freeTrialAvailable.startsWith('🆓'))
+}
+ok('RU-hosting handler carries legacy 🔒 fallbacks', src.includes("'🇷🇺 HostPanel Plans 🔒'") && src.includes("'俄罗斯 Plesk 托管计划 🔒'"))
+ok('freeTrial handler still catches old 📱-prefixed labels', /startsWith\('📱'\)[\s\S]{0,80}BulkSMS/.test(src) || src.includes("startsWith('📱')"))
+
+console.log('\n=== Breadcrumb header helper (Task 3) ===')
+{
+  const bc = src.match(/function bcHeader[\s\S]*?\n}/)[0]
+  const cr = src.match(/const CRUMBS = \{[\s\S]*?\n\}/)[0]
+  eval(bc + '\n' + cr + '\nglobalThis.__bcHeader = bcHeader; globalThis.__CRUMBS = CRUMBS;')
+  const bcHeader = globalThis.__bcHeader, CRUMBS = globalThis.__CRUMBS
+  ok('bcHeader formats the exact example', bcHeader(CRUMBS.en.wallet, CRUMBS.en.deposit, CRUMBS.en.amount) === '📍 <i>Wallet › Deposit › Amount</i>\n\n')
+  ok('bcHeader empty input → empty string', bcHeader() === '')
+  ok('bcHeader skips falsy parts', bcHeader(CRUMBS.en.hosting, null, CRUMBS.en.domain) === '📍 <i>Hosting › Domain</i>\n\n')
+  ok('CRUMBS covers all 4 locales', ['en', 'fr', 'zh', 'hi'].every(l => CRUMBS[l] && CRUMBS[l].wallet && CRUMBS[l].hosting))
+  ok('deposit amount step wired with breadcrumb', /bcHeader\(_c\.wallet, _c\.deposit, _c\.amount\) \+ t\.selectCurrencyToDeposit/.test(src))
+  ok('deposit method step wired with breadcrumb', /bcHeader\(_cm\.wallet, _cm\.deposit, _cm\.method\)/.test(src))
+  ok('hosting selectPlan wired with breadcrumb', /bcHeader\(_cp\.hosting, _cp\.plan\) \+ message/.test(src))
+  ok('hosting buyPlan wired with breadcrumb', /bcHeader\(_cb\.hosting, _cb\.plan, _cb\.domain\) \+ message/.test(src))
+}
+
+console.log('\n=== Stuck-flow nudge (Task 2) ===')
+{
+  const sn = src.match(/const STUCK_NUDGE = \{[\s\S]*?\n\}/)[0]
+  eval(sn + '\nglobalThis.__SN = STUCK_NUDGE;')
+  const STUCK_NUDGE = globalThis.__SN
+  ok('STUCK_NUDGE covers all 4 locales', ['en', 'fr', 'zh', 'hi'].every(l => typeof STUCK_NUDGE[l] === 'string' && STUCK_NUDGE[l].includes('Main Menu') || /主菜单|मुख्य मेनू|Menu principal/.test(STUCK_NUDGE[l])))
+  ok('nudge streak logic present (increments on isBackPress + action)', /isBackPress\(message\) && action[\s\S]{0,160}backPressStreak/.test(src))
+  ok('nudge fires once at streak === 3', /backStreak === 3\) send\(chatId, STUCK_NUDGE/.test(src))
+  ok('nudge streak resets on non-back input', /else if \(info\?\.backPressStreak\) \{\s*await saveInfo\('backPressStreak', 0\)/.test(src))
+}
+
 console.log('\n=== lang exports intact (regression) ===')
 for (const L of langs) {
   ok(`[${L}] exports k.of`, typeof mods[L].k?.of === 'function')

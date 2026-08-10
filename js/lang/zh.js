@@ -96,8 +96,8 @@ const admin = {
 }
 const user = {
  // main keyboards
- cPanelWebHostingPlans: '俄罗斯 HostPanel 托管计划 🔒',
- pleskWebHostingPlans: '俄罗斯 Plesk 托管计划 🔒',
+ cPanelWebHostingPlans: '俄罗斯 HostPanel 托管计划',
+ pleskWebHostingPlans: '俄罗斯 Plesk 托管计划',
  joinChannel: '📢 加入频道',
  phoneNumberLeads: '🎯 购买线索 | 验证您的号码',
  buyLeads: '🎯 购买线索',
@@ -114,7 +114,7 @@ const user = {
  testSip: '🧪 免费测试 SIP',
  vpsPlans: '🖥️ VPS / RDP',
  buyPlan: '⚡ 升级计划',
- freeTrialAvailable: '📱🆓 BulkSMS - 免费试用',
+ freeTrialAvailable: '🆓 BulkSMS 免费试用',
  smsAppMain: '📱 BulkSMS',
  smsCreateCampaign: '📱 创建活动',
  smsMyCampaigns: '📋 我的活动',

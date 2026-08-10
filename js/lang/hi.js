@@ -96,8 +96,8 @@ const admin = {
 }
 const user = {
  // main keyboards
- cPanelWebHostingPlans: 'रूस HostPanel होस्टिंग प्लान 🔒',
- pleskWebHostingPlans: 'रूस Plesk होस्टिंग प्लान ',
+ cPanelWebHostingPlans: 'रूस HostPanel होस्टिंग प्लान',
+ pleskWebHostingPlans: 'रूस Plesk होस्टिंग प्लान',
  joinChannel: '📢 चैनल जॉइन करें',
  phoneNumberLeads: '🎯 लीड्स खरीदें | अपने सत्यापित करें',
  buyLeads: '🎯 लीड्स खरीदें',
@@ -114,7 +114,7 @@ const user = {
  testSip: '🧪 SIP मुफ्त टेस्ट',
  vpsPlans: '🖥️ VPS / RDP',
  buyPlan: '⚡ प्लान अपग्रेड करें',
- freeTrialAvailable: '📱🆓 BulkSMS - फ्री ट्रायल',
+ freeTrialAvailable: '🆓 BulkSMS फ्री ट्रायल',
  smsAppMain: '📱 BulkSMS',
  smsCreateCampaign: '📱 अभियान बनाएं',
  smsMyCampaigns: '📋 मेरे अभियान',

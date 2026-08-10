@@ -1623,6 +1623,30 @@ function isMainMenuPress(message) {
   return known.has(stripped)
 }
 
+/**
+ * Deep-flow breadcrumb header, e.g. "📍 Wallet › Deposit › Amount".
+ * Prepended to a step's message so users always know where they are.
+ */
+function bcHeader(...parts) {
+  const trail = parts.filter(Boolean).join(' › ')
+  return trail ? `📍 <i>${trail}</i>\n\n` : ''
+}
+// Localized structural words for breadcrumbs (kept here so no lang-file churn).
+const CRUMBS = {
+  en: { wallet: 'Wallet', deposit: 'Deposit', amount: 'Amount', method: 'Payment', hosting: 'Hosting', plan: 'Plan', domain: 'Domain' },
+  fr: { wallet: 'Portefeuille', deposit: 'Dépôt', amount: 'Montant', method: 'Paiement', hosting: 'Hébergement', plan: 'Forfait', domain: 'Domaine' },
+  zh: { wallet: '钱包', deposit: '充值', amount: '金额', method: '支付', hosting: '托管', plan: '套餐', domain: '域名' },
+  hi: { wallet: 'वॉलेट', deposit: 'जमा', amount: 'राशि', method: 'भुगतान', hosting: 'होस्टिंग', plan: 'प्लान', domain: 'डोमेन' },
+}
+// Gentle "you seem stuck" nudge shown after repeated Back taps in a flow.
+const STUCK_NUDGE = {
+  en: '🧭 Going in circles? Tap 🏠 <b>Main Menu</b> anytime to start fresh.',
+  fr: '🧭 Vous tournez en rond ? Appuyez sur 🏠 <b>Menu principal</b> à tout moment pour recommencer.',
+  zh: '🧭 在原地打转？随时点击 🏠 <b>主菜单</b> 重新开始。',
+  hi: '🧭 चक्कर में फँस गए? कभी भी 🏠 <b>मुख्य मेनू</b> दबाकर नए सिरे से शुरू करें।',
+}
+
+
 
 /**
  * Robust Cancel-button matcher — same approach as isBackPress.
@@ -8799,6 +8823,16 @@ bot?.on('message', msg => {
   const buyLeadsSelectCnam = trans('buyLeadsSelectCnam')
   const lang = info?.userLanguage || 'en'
 
+  // ── Stuck-flow nudge: repeated Back taps inside a flow → gently surface the
+  //    🏠 Main Menu escape (once per streak). Any non-back input resets it. ──
+  if (typeof message === 'string' && isBackPress(message) && action) {
+    const backStreak = (info?.backPressStreak || 0) + 1
+    await saveInfo('backPressStreak', backStreak)
+    if (backStreak === 3) send(chatId, STUCK_NUDGE[lang] || STUCK_NUDGE.en, { parse_mode: 'HTML' })
+  } else if (info?.backPressStreak) {
+    await saveInfo('backPressStreak', 0)
+  }
+
   // ━━━ Shared translated button labels for VM/IVR/Option flows ━━━
   const btn = {
     useTemplate:      ({en: '📋 Use Template',        fr: '📋 Utiliser un Modèle',     zh: '📋 使用模板',            hi: '📋 टेम्पलेट उपयोग'}[lang]        || '📋 Use Template'),
@@ -10293,7 +10327,8 @@ Enter new value:`), bc)
       // ── Friction reduction (2026-07-01): offer one-tap amount presets to cut
       //    typing (a custom typed amount still works — the handler strips "$"). ──
       const depositPresetKb = k.of([['$20', '$50'], ['$100', '$200'], ['↩️ Back']])
-      send(chatId, t.selectCurrencyToDeposit, depositPresetKb)
+      const _c = CRUMBS[lang] || CRUMBS.en
+      send(chatId, bcHeader(_c.wallet, _c.deposit, _c.amount) + t.selectCurrencyToDeposit, depositPresetKb)
     },
     [a.depositMethodSelect]: async () => {
       await set(state, chatId, 'action', a.depositMethodSelect)
@@ -10307,7 +10342,8 @@ Enter new value:`), bc)
       if (bankLabel && process.env.HIDE_BANK_PAYMENT !== 'true') buttons.push([bankLabel])
       buttons.push([cryptoLabel])
       buttons.push(['↩️ Back'])
-      send(chatId, trans('t.wlt_11', amount), k.of(buttons))
+      const _cm = CRUMBS[lang] || CRUMBS.en
+      send(chatId, bcHeader(_cm.wallet, _cm.deposit, _cm.method) + trans('t.wlt_11', amount), k.of(buttons))
     },
     //
     [a.depositNGN]: async () => {
@@ -10989,7 +11025,8 @@ Enter new value:`), bc)
         actions = [[user.buyGoldenCpanel], [user.viewPremiumWeekly, user.viewPremiumCpanel], [user.backToHostingPlans]];
       }
 
-      send(chatId, message, k.of(actions))
+      const _cp = CRUMBS[lang] || CRUMBS.en
+      send(chatId, bcHeader(_cp.hosting, _cp.plan) + message, k.of(actions))
     },
 
     // Step 1.1: View Plan
@@ -11016,7 +11053,8 @@ Enter new value:`), bc)
       else if (plan === a.premiumCpanel) backBtn = user.backToPremiumCpanelDetails
 
       const actions = [user.registerANewDomain, user.useMyDomain, user.connectExternalDomain, [backBtn]];
-      send(chatId, message, k.of(actions))
+      const _cb = CRUMBS[lang] || CRUMBS.en
+      send(chatId, bcHeader(_cb.hosting, _cb.plan, _cb.domain) + message, k.of(actions))
     },
 
     // Step 2.1: Register New Domain
@@ -14274,7 +14312,7 @@ All verified numbers generated during sourcing.`))
   }
 
   // cPanel Plans Events Handlers
-  if ([user.cPanelWebHostingPlans, user.pleskWebHostingPlans].includes(message)) {
+  if ([user.cPanelWebHostingPlans, user.pleskWebHostingPlans, '🇷🇺 HostPanel Plans 🔒', '🇷🇺 Plesk Plans 🔒', "Plans d'hébergement HostPanel en Russie 🔒", "Plans d'hébergement Plesk en Russie 🔒", '俄罗斯 HostPanel 托管计划 🔒', '俄罗斯 Plesk 托管计划 🔒', 'रूस HostPanel होस्टिंग प्लान 🔒', 'रूस Plesk होस्टिंग प्लान '].includes(message)) {
     return goto.selectPlan(a.premiumWeekly)
   }
 
