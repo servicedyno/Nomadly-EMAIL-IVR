@@ -1,3 +1,32 @@
+## 2026-06 — Phase 2b: Menu Analytics + Ready-Made Menus + Preset Menu Reuse (forked session)
+
+Three follow-up enhancements on top of the Phase 2 outbound-menu work, all additive/opt-in:
+
+**Menu Analytics** — outbound calls now track which menu keys callers press (mirroring inbound
+`ivrAnalytics`). New `recordOutboundMenuPress()` + `getOutboundMenuAnalytics(chatId, days)` in
+voice-service.js; every valid press is recorded (direction:'outbound', digit incl composite sub-keys
+like `0.1`, action, campaignId) across all 3 runtimes (Telnyx, Twilio single, Twilio bulk). A new
+"📊 Menu Stats" button in the Quick IVR hub shows a 30-day breakdown (total presses, top key,
+per-key action %, recent presses).
+
+**Ready-Made Menus** — the outbound menu builder now has a "📋 Use a starter menu" button offering
+4 starters (Sales·Support·Operator, Press-1-to-connect, Info message, Sales+Support sub-menu). A
+starter seeds the key skeleton and the user just fills the phone numbers; Done-validation
+(`_obMenuFirstIncomplete`) blocks finishing until every forward key has a number and no sub-menu is
+empty.
+
+**Preset Menu Reuse (bulk)** — bulk campaigns now show "⭐ Use a saved menu" (only when the user has
+a saved preset that contains a menu) → new `bulkPickPresetMenu` state loads the preset's menu into
+the campaign and jumps straight to concurrency.
+
+Verified: /api/dev/outbound-menu-route-test → 17/17 (15 routing + analytics_captured_presses +
+analytics_has_breakdown; totalPresses=8, keys 0,1,2,0.1,0.2). Testing agent iteration_32 → all 4 dev
+endpoints pass, DB self-cleaning confirmed (0 leftovers), 5 bot handlers code-reviewed clean, no
+issues. NOTE: bot-flow handlers (Menu Stats button, starter picker, preset reuse) can't be
+HTTP-driven — verified via code review + dev endpoints; real call behaviour not exercised (dev sandbox).
+
+
+
 ## 2026-06 — Phase 2: Outbound IVR Parity + Per-Number Voice (forked session)
 
 Delivered the full Phase 2 backlog (user chose "tackle all"), all backward-compatible/opt-in:

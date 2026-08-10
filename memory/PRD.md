@@ -1933,3 +1933,10 @@ at the start of the decline, plus ~5 unlabeled auto-deploys/day (no QA gate).
 - Verified: /api/dev/outbound-menu-route-test 15/15; /api/dev/ivr-parity/apply-template (nova @1.15x); billing regressions still pass; testing agent iteration_31 = 6/6, no issues.
 - Full details in memory/CHANGELOG.md (top entry). NOTE: real phone-call behaviour not exercised (dev sandbox); wizard handlers verified via code review + dev endpoints.
 
+
+## 2026-06 — Phase 2b: Menu Analytics + Ready-Made Menus + Preset Menu Reuse — DONE (forked session)
+- Menu Analytics: outbound menu key-press tracking (recordOutboundMenuPress/getOutboundMenuAnalytics in voice-service.js) across Telnyx + Twilio single + bulk; "📊 Menu Stats" report in the Quick IVR hub. DONE.
+- Ready-Made Menus: "📋 Use a starter menu" in the outbound menu builder (4 starters) + Done-validation (_obMenuFirstIncomplete). State ivrObMenuStarter. DONE.
+- Preset Menu Reuse (bulk): "⭐ Use a saved menu" → bulkPickPresetMenu loads a saved preset's menu into the campaign. DONE.
+- Verified: /api/dev/outbound-menu-route-test 17/17 (incl analytics, totalPresses=8); testing agent iteration_32 all pass, DB self-cleaning confirmed, handlers code-reviewed. Details in memory/CHANGELOG.md (top).
+
