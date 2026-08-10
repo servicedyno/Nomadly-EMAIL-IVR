@@ -1940,3 +1940,10 @@ at the start of the decline, plus ~5 unlabeled auto-deploys/day (no QA gate).
 - Preset Menu Reuse (bulk): "⭐ Use a saved menu" → bulkPickPresetMenu loads a saved preset's menu into the campaign. DONE.
 - Verified: /api/dev/outbound-menu-route-test 17/17 (incl analytics, totalPresses=8); testing agent iteration_32 all pass, DB self-cleaning confirmed, handlers code-reviewed. Details in memory/CHANGELOG.md (top).
 
+
+## 2026-06 — Phase 2c: Scheduled Bulk Campaigns — DONE (forked session)
+- Bulk campaign preview offers "⏰ Schedule for later" (1/3/6/12/24h presets or custom hours 0.1–168); campaign saved status:'scheduled' + scheduledFor; cancellable before launch (bulkScheduleTime/bulkScheduled states). DONE.
+- bulk-call-service.js: createCampaign accepts scheduledFor; launchDueScheduledCampaigns() with atomic claim (exactly-once launch). DONE.
+- Scheduler job in _index.js: every 1 min, PROD-ONLY (SKIP_WEBHOOK_SYNC gate), launches due campaigns + DMs owner. DONE.
+- Verified: /api/dev/bulk-schedule-test 4/4; regressions green; testing agent iteration_33 = 100% backend, no issues. Details in memory/CHANGELOG.md (top).
+

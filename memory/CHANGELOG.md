@@ -1,3 +1,27 @@
+## 2026-06 — Phase 2c: Scheduled Bulk Campaigns (forked session)
+
+Bulk campaigns can now be scheduled to launch at a chosen time instead of only immediately.
+
+- **Bot flow**: the campaign preview now offers **"⏰ Schedule for later"** → pick 1/3/6/12/24h or
+  type a custom "hours from now" (0.1–168). The campaign is saved as `status:'scheduled'` with a
+  `scheduledFor` timestamp and can be cancelled (**"❌ Cancel scheduled launch"**) any time before it fires.
+- **Service**: `createCampaign` gained an optional `scheduledFor`; new
+  `launchDueScheduledCampaigns()` uses an **atomic claim** (`updateOne` guarded on
+  `status:'scheduled'`, `modifiedCount===1`) so a campaign launches exactly once even across
+  concurrent workers, then calls `startCampaign`.
+- **Scheduler**: a 1-minute job (**PRODUCTION-ONLY** via the `SKIP_WEBHOOK_SYNC` gate so the dev
+  sandbox never auto-places calls) launches due campaigns and DMs the owner on launch/failure.
+  The stuck-`created` nudge job intentionally ignores `scheduled` campaigns.
+
+Verified: `/api/dev/bulk-schedule-test` → pass 4/4 (due campaign claimed+launched then safely blocked
+by the no-sub-account guard = no real calls; future campaign untouched; self-cleaning). Regressions
+still green (outbound-menu 17/17, both billing suites, reconciler). Testing agent iteration_33 →
+100% backend, no issues, all bot handlers + atomic-claim + prod-gating code-reviewed clean.
+New dev endpoint: `POST /dev/bulk-schedule-test` (404 in prod). NOTE: bot-flow states verified by
+code review + dev endpoint; real scheduled launches only occur in production.
+
+
+
 ## 2026-06 — Phase 2b: Menu Analytics + Ready-Made Menus + Preset Menu Reuse (forked session)
 
 Three follow-up enhancements on top of the Phase 2 outbound-menu work, all additive/opt-in:
