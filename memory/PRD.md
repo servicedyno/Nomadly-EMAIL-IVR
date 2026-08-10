@@ -1923,3 +1923,13 @@ at the start of the decline, plus ~5 unlabeled auto-deploys/day (no QA gate).
 - (b) Purged 360 one-off ops/forensic scripts: scripts/archive/(148), js/scripts/(31), scripts/ top-level(174)+leftover data. Runtime never imports from these. KEPT setup-nodejs.sh, scripts/*.sh, git hook, and 3 package.json lint scripts.
 - (a) Dead-export scan: 209 exports unreferenced externally; 154 used internally (kept); 55 genuinely dead → removed 50 via acorn AST codemod (skipped 5 ambiguous). 28 files edited incl core (utils/config/twilio/voice/cf-service).
 - Verified: node --check 0 fails; ESLint no no-undef; nodejs clean boot (no MODULE_NOT_FOUND/ReferenceError); /api/health healthy. Backend testing agent read-only sanity pending/next.
+
+## 2026-06 — Phase 2: Outbound IVR Parity + Per-Number Voice — DONE (forked session)
+- (a) Per-Number Voice for inbound IVR template wizard (21 voices + speed 0.85/1.0/1.15x) — states cpIvrTplVoice/cpIvrTplSpeed; renders + persists premium greeting audio. DONE.
+- (b) Outbound multi-key menus + one-level sub-menus (forward / message / sub-menu) with runtime parity across Telnyx + Twilio single + Twilio bulk; opt-in menu builder (ivrObMenu* states). Backward compatible — legacy single-transfer unchanged when no menu. DONE.
+- (c) Outbound Saved Presets extended to persist transfer number + menu (full round-trip). DONE.
+- (d) Domain-search error no longer leaks raw JSON to users (js/cr-domain-price-get.js). DONE.
+- (e) Stuck 'created' bulk-campaign nudge scheduler (every 20 min, PROD-only, deduped). DONE.
+- Verified: /api/dev/outbound-menu-route-test 15/15; /api/dev/ivr-parity/apply-template (nova @1.15x); billing regressions still pass; testing agent iteration_31 = 6/6, no issues.
+- Full details in memory/CHANGELOG.md (top entry). NOTE: real phone-call behaviour not exercised (dev sandbox); wizard handlers verified via code review + dev endpoints.
+

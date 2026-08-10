@@ -1,3 +1,44 @@
+## 2026-06 — Phase 2: Outbound IVR Parity + Per-Number Voice (forked session)
+
+Delivered the full Phase 2 backlog (user chose "tackle all"), all backward-compatible/opt-in:
+
+(a) **Per-Number Voice (inbound IVR template wizard)** — after filling a template greeting the
+user now picks one of 21 premium voices + a speaking speed (Slow 0.85x / Normal 1.0x / Fast 1.15x).
+New bot states `cpIvrTplVoice` + `cpIvrTplSpeed` in js/_index.js; premium choice renders greeting
+audio via ttsService.generateTTS and persists voiceKey/voiceName/ttsSpeed/greetingAudioUrl onto the
+number's IVR config + ivrAudioStore (restore-by-filename survives Railway redeploys). Default voice
+skips speed and keeps the standard Telnyx TTS. Verified: /api/dev/ivr-parity/apply-template
+(nova @1.15x) → config carries voiceKey/ttsSpeed, audio renders as "Nova", audioUrl reachable (200).
+
+(b) **Outbound multi-key menus + one-level sub-menus** — outbound calls now support per-key routing
+(forward-to-number / play-message / open-sub-menu) with runtime parity across **Telnyx**
+(`handleOutboundMenuDigit` in voice-service.js), **Twilio single** (`/twilio/single-ivr-gather`
++path), and **Twilio bulk** (`/twilio/bulk-ivr-gather` +path, +dest billing). New opt-in menu
+builder (states ivrObMenuHome / KeyAction / ForwardInput / MessageInput / SubGreetInput / SubHome),
+reachable from the single Quick-IVR transfer step and the bulk transfer step. `menu` threaded through
+initiateOutboundIvrCall sessions + createCampaign. Legacy single-transfer path is byte-for-byte
+unchanged when no menu is built. Verified: /api/dev/outbound-menu-route-test → 15/15 checks pass;
+legacy billing regressions (/dev/twilio-ivr-transfer-billing-test, /dev/bulk-transfer-billing-test)
+still pass.
+
+(c) **Saved Presets extended** — outbound presets (`ivrPresets`) now also persist the transfer
+number (`ivrNumber`) and the per-key `menu`, so a saved call fully round-trips on reuse.
+
+(d) **Domain-search error UX** — js/cr-domain-price-get.js no longer leaks raw JSON /
+"Maybe IP Not Whitelisted" to users; the raw detail goes to logs + a `debug` field and users get a
+friendly "couldn't check that domain right now" message.
+
+(e) **Stuck bulk-campaign nudge** — a scheduler (every 20 min, PRODUCTION-ONLY, deduped via a
+persisted `nudgedAt`) DMs the owner when a campaign reached `created` but never launched, so it's not
+silently abandoned.
+
+New dev endpoint: `POST /dev/outbound-menu-route-test` (404 in prod). Backend verified by testing
+agent (iteration_31): 6/6 tests pass, wizard + menu-builder + opt-in guards code-reviewed, no issues.
+NOTE: bot-flow wizard handlers can't be driven over HTTP (Telegram message handlers) — verified via
+code review + engine/dev endpoints. Real phone-call behaviour not exercised (dev sandbox).
+
+
+
 ## 2026-07-26 — Coupon "expired" complaint fix (deferred burn)
 
 Prod user @Grrt2231 complained a coupon "expired". Root cause: coupons were burned at APPLY-time
