@@ -13902,3 +13902,47 @@ phase2b_menu_enhancements:
          still pass=true (analytics recording is additive/non-blocking).
     All new behaviour is opt-in/backward-compatible. Base URL = REACT_APP_BACKEND_URL.
 
+
+#====================================================================================================
+# PHASE 2c — Scheduled Bulk Campaigns (2026-06, forked session)
+#====================================================================================================
+phase2c_scheduled_campaigns:
+  scope: |
+    Let a bulk campaign be scheduled to launch at a chosen time instead of only now.
+    User picks a relative time (1/3/6/12/24h presets or a custom "hours from now"),
+    the campaign is stored as status:'scheduled' with scheduledFor, and a scheduler
+    launches it automatically at that time (with a DM to the owner). Cancellable before launch.
+
+  changes:
+    - "js/bulk-call-service.js: createCampaign accepts optional scheduledFor → status
+       'scheduled' + scheduledFor field (else 'created' as before). New
+       launchDueScheduledCampaigns() with ATOMIC claim (updateOne guarded on
+       status:'scheduled') so a campaign launches exactly once across instances; calls
+       startCampaign for each due campaign. Exported."
+    - "js/_index.js: bulkConfirm preview adds '⏰ Schedule for later'; new states
+       bulkScheduleTime (preset/custom hours → createCampaign w/ scheduledFor) and
+       bulkScheduled ('❌ Cancel scheduled launch' → status cancelled if still scheduled)."
+    - "js/_index.js: scheduler job (every 1 min, PROD-ONLY via SKIP_WEBHOOK_SYNC gate)
+       calls launchDueScheduledCampaigns + DMs owners on launch/failure."
+    - "js/_index.js: NEW dev endpoint POST /dev/bulk-schedule-test (404 in prod)."
+
+  safety: |
+    Scheduler is PROD-ONLY (dev sandbox never auto-launches/places calls). Atomic claim
+    prevents double-launch. Dev test campaigns have NO Twilio sub-account, so startCampaign
+    safely BLOCKS them (status→cancelled) — the launcher path is exercised WITHOUT placing
+    any real calls. Scheduled campaigns are status:'scheduled' so the stuck-'created' nudge
+    job does not touch them.
+
+  main_agent_verification:
+    - "POST /api/dev/bulk-schedule-test → pass=true (4 checks: due_campaign_claimed_and_launched,
+       due_campaign_not_left_scheduled, due_campaign_blocked_no_subaccount, future_campaign_untouched).
+       Self-cleaning (chatId prefix 'SCHEDTEST-')."
+    - "Regression after createCampaign signature change: /dev/outbound-menu-route-test 17/17,
+       /dev/bulk-transfer-billing-test pass, /dev/twilio-ivr-transfer-billing-test pass."
+    - "node --check clean for js/_index.js + js/bulk-call-service.js; nodejs RUNNING."
+
+  testing_agent_notes: |
+    Bot states bulkScheduleTime + bulkScheduled are Telegram handlers (verify by code review).
+    HTTP: POST /api/dev/bulk-schedule-test (expect pass=true) + confirm no leftover 'SCHEDTEST-'
+    docs. Re-verify the 3 regression endpoints above. Base URL = REACT_APP_BACKEND_URL.
+

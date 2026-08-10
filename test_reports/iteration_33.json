@@ -1,0 +1,26 @@
+{
+  "summary": "Phase-2c re-verification: Scheduled Bulk Campaigns. /api/dev/bulk-schedule-test → pass=true (4/4 checks: due_campaign_claimed_and_launched, due_campaign_not_left_scheduled, due_campaign_blocked_no_subaccount [cancelled by no-sub-account guard — proves launcher invoked startCampaign WITHOUT placing real calls], future_campaign_untouched). All 4 regression endpoints still pass: outbound-menu-route-test 17/17, bulk-transfer-billing-test 7/7, twilio-ivr-transfer-billing-test 9/9, call-reconciler-test 6/6. /api/health=healthy+connected, nodejs RUNNING (pid 4894), node --check clean on _index.js + bulk-call-service.js. DB self-cleaning verified — 0 leftover SCHEDTEST- docs in bulkCallCampaigns after run.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": { "ui_bugs": [], "integration_issues": [], "design_issues": [] },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "bulk-call-service.js createCampaign (line 530-598): scheduledFor param optional; parsed to Date; only sets status:'scheduled' when the date is valid (schedAt !== null), otherwise campaign keeps default status:'created' — unchanged pre-Phase-2c behaviour. ✅",
+    "bulk-call-service.js launchDueScheduledCampaigns (line 606-626): queries status:'scheduled' + scheduledFor $lte now; per-doc ATOMIC claim via updateOne({id, status:'scheduled'}, {$set:{status:'created',claimedAt}}) with modifiedCount===1 guard — a campaign cannot double-launch across concurrent workers. Then invokes startCampaign. Exported at line 1301. ✅",
+    "_index.js bulkConfirm '⏰ Schedule for later' (line 26360): validates leads/callerId/audioUrl, sets state to a.bulkScheduleTime, and shows preset keyboard [1h/3h/6h/12h/24h] + free-text prompt. Does NOT call startCampaign. ✅",
+    "_index.js bulkScheduleTime handler (line 26371-26420): preset hours map correct {1,3,6,12,24}; custom input uses parseFloat with 0.1 ≤ n ≤ 168 validation; on success calls createCampaign with scheduledFor and does NOT call startCampaign; advances state to a.bulkScheduled; shows cancel keyboard. ✅",
+    "_index.js bulkScheduled handler (line 26422-26441): cancel path uses updateOne({id, status:'scheduled'}, {$set:{status:'cancelled'}}) and only confirms success when modifiedCount===1 (so it cannot cancel an already-launched/completed campaign). ✅",
+    "_index.js Scheduled-campaign launcher (line 3821-3847): PROD-ONLY guard — returns early when SKIP_WEBHOOK_SYNC==='true'; runs every minute; DMs each owner on launch success or error with lead count; wrapped in try/catch. ✅",
+    "_index.js stuck-'created' nudge job (line 3789-3819): filter is {status:'created', createdAt<cutoff, nudgedAt missing} — it does NOT touch 'scheduled' campaigns. ✅",
+    "Enum: bulkScheduleTime and bulkScheduled present in actions map (lines 9164-9165). ✅",
+    "node --check passes on js/_index.js + js/bulk-call-service.js. ✅"
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "100%", "frontend": "n/a (backend-only)" },
+  "test_credentials": "none (dev endpoints unauthenticated; 404 in production; BOT_ENVIRONMENT=development)",
+  "seed_data_creation": "none persistent — bulk-schedule-test seeds two SCHEDTEST-* campaigns (1 due, 1 future 2h) and self-cleans in finally; verified 0 SCHEDTEST- leftovers post-run",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Phase-2c (Scheduled Bulk Campaigns) verified. Key contracts: createCampaign accepts optional scheduledFor; launchDueScheduledCampaigns is atomic and safe to call across workers; scheduler job in _index.js is gated on SKIP_WEBHOOK_SYNC==='true' → early return (dev sandbox never DMs real users). If future changes touch the scheduler or bulk campaign state machine, re-run /api/dev/bulk-schedule-test + the 3 regression endpoints listed here.",
+  "rca of the issue": "n/a — no bugs found"
+}

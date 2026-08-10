@@ -3818,6 +3818,34 @@ const loadData = async () => {
     log(`[BulkNudge] schedule error (non-blocking): ${e.message}`)
   }
 
+  // ── Scheduled Bulk Campaign Launcher (Phase 2b) ───────────────────────────
+  // Launches campaigns whose scheduledFor time has arrived. PROD-ONLY so the dev
+  // sandbox never places real calls; launchDueScheduledCampaigns uses an atomic
+  // claim so each campaign launches exactly once even if multiple instances run.
+  try {
+    schedule.scheduleJob('* * * * *', async function () {
+      if (process.env.SKIP_WEBHOOK_SYNC === 'true') return // dev sandbox: don't auto-launch / place calls
+      try {
+        const launched = await bulkCallService.launchDueScheduledCampaigns()
+        for (const l of launched) {
+          try {
+            if (l.error) {
+              await bot.sendMessage(l.chatId, `⚠️ <b>Scheduled campaign couldn't launch</b>\n\nYour scheduled bulk campaign (${l.leadCount} lead${l.leadCount === 1 ? '' : 's'}) failed to start: ${l.error}\n\nOpen 📞 Bulk Calls to retry.`, { parse_mode: 'HTML' })
+            } else {
+              await bot.sendMessage(l.chatId, `🚀 <b>Your scheduled campaign just launched</b>\n\n📞 ${l.leadCount} lead${l.leadCount === 1 ? '' : 's'} now being dialed. Open 📞 Bulk Calls → 📊 Show Status for live progress.`, { parse_mode: 'HTML' })
+            }
+          } catch (_) { /* user may have blocked the bot — ignore */ }
+        }
+        if (launched.length) log(`[BulkSchedule] Launched ${launched.length} scheduled campaign(s)`)
+      } catch (e) {
+        log('[BulkSchedule] launcher error:', e.message)
+      }
+    })
+    log('[BulkSchedule] Scheduled-campaign launcher active (every 1 min, production-only)')
+  } catch (e) {
+    log(`[BulkSchedule] schedule error (non-blocking): ${e.message}`)
+  }
+
   // ── Dial rate-guard: DB-backed high-cost deck + periodic Telnyx/Twilio rate sync ──
   // Seeds dialRateDeck from the bundled Twilio JSON, then merges provider rate decks
   // (max cost per prefix) so the surcharge/block guard reflects each provider's true cost.
@@ -9133,6 +9161,8 @@ bot?.on('message', msg => {
     ivrObMenuSubHome: 'ivrObMenuSubHome',
     ivrObMenuStarter: 'ivrObMenuStarter',
     bulkPickPresetMenu: 'bulkPickPresetMenu',
+    bulkScheduleTime: 'bulkScheduleTime',
+    bulkScheduled: 'bulkScheduled',
 
     // Bulk IVR Campaign
     bulkSelectCaller: 'bulkSelectCaller',
@@ -26282,9 +26312,9 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       `💰 <b>Rate: $${bulkRate.toFixed(2)}/min per number</b> (min 1 min, charged whether answered or not)`,
       `💰 <b>Estimated cost: $${estCost}</b>`,
       ``,
-      `Ready to launch? Tap <b>🚀 Launch Campaign</b>`,
+      `Ready to launch? Tap <b>🚀 Launch Campaign</b>, or <b>⏰ Schedule for later</b>.`,
     ].filter(Boolean).join('\n')
-    return send(chatId, preview, k.of([['🚀 Launch Campaign'], ['↩️ Back']]))
+    return send(chatId, preview, k.of([['🚀 Launch Campaign'], ['⏰ Schedule for later'], ['↩️ Back']]))
   }
 
   if (action === a.bulkConfirm) {
@@ -26327,7 +26357,87 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
         return send(chatId, trans('t.cp_221', sanitizeProviderError(e.message, 'voice')), k.of([['↩️ Back']]))
       }
     }
+    if (message === '⏰ Schedule for later') {
+      const bulkData = info?.bulkData || {}
+      if (!bulkData.leads?.length || !bulkData.callerId || !bulkData.audioUrl) {
+        return send(chatId, trans('t.cp_217'))
+      }
+      await set(state, chatId, 'action', a.bulkScheduleTime)
+      return send(chatId, `⏰ <b>Schedule launch</b>\n\nWhen should this campaign start? Pick an option, or type a number of hours from now (e.g. <code>2</code> or <code>0.5</code>, max 168 = 7 days).`, { parse_mode: 'HTML', reply_markup: { keyboard: [['⏰ In 1 hour', '⏰ In 3 hours'], ['⏰ In 6 hours', '⏰ In 12 hours'], ['⏰ In 24 hours'], ['↩️ Back']], resize_keyboard: true } })
+    }
     return send(chatId, trans('t.cp_222'))
+  }
+
+  if (action === a.bulkScheduleTime) {
+    if (isCancelPress(message)) return goto.submenu5()
+    if (message === '↩️ Back' || isBackPress(message)) {
+      await set(state, chatId, 'action', a.bulkConfirm)
+      return send(chatId, `Tap <b>🚀 Launch Campaign</b> to start now, or <b>⏰ Schedule for later</b>.`, { parse_mode: 'HTML', reply_markup: { keyboard: [['🚀 Launch Campaign'], ['⏰ Schedule for later'], ['↩️ Back']], resize_keyboard: true } })
+    }
+    const presetHours = { '⏰ In 1 hour': 1, '⏰ In 3 hours': 3, '⏰ In 6 hours': 6, '⏰ In 12 hours': 12, '⏰ In 24 hours': 24 }
+    let hours = presetHours[message]
+    if (hours === undefined) {
+      const n = parseFloat(String(message || '').trim())
+      if (isNaN(n) || n < 0.1 || n > 168) {
+        return send(chatId, `⚠️ Pick an option, or type hours from now between 0.1 and 168:`, { reply_markup: { keyboard: [['⏰ In 1 hour', '⏰ In 3 hours'], ['⏰ In 6 hours', '⏰ In 12 hours'], ['⏰ In 24 hours'], ['↩️ Back']], resize_keyboard: true } })
+      }
+      hours = n
+    }
+    const bulkData = info?.bulkData || {}
+    if (!bulkData.leads?.length || !bulkData.callerId || !bulkData.audioUrl) {
+      return send(chatId, trans('t.cp_217'))
+    }
+    const scheduledFor = new Date(Date.now() + hours * 60 * 60 * 1000)
+    try {
+      const campaign = await bulkCallService.createCampaign({
+        chatId,
+        callerId: bulkData.callerId,
+        audioUrl: bulkData.audioUrl,
+        audioName: bulkData.audioName,
+        mode: bulkData.mode,
+        transferNumber: bulkData.transferNumber,
+        menu: bulkData.menu || null,
+        activeKeys: bulkData.menu ? Object.keys(bulkData.menu) : (bulkData.activeKeys || ['1']),
+        concurrency: bulkData.concurrency || 10,
+        holdMusic: bulkData.mode === 'transfer',
+        leads: bulkData.leads,
+        twilioSubAccountSid: bulkData.twilioSubAccountSid || null,
+        twilioSubAccountToken: bulkData.twilioSubAccountToken || null,
+        scheduledFor,
+      })
+      if (campaign.error) {
+        return send(chatId, trans('t.cp_221', campaign.error), k.of([['↩️ Back']]))
+      }
+      await saveInfo('scheduledCampaignId', campaign.id)
+      await set(state, chatId, 'action', a.bulkScheduled)
+      const relHrs = hours >= 1 ? `${hours % 1 === 0 ? hours : hours.toFixed(1)} hour${hours === 1 ? '' : 's'}` : `${Math.round(hours * 60)} minutes`
+      const when = scheduledFor.toISOString().replace('T', ' ').slice(0, 16)
+      return send(chatId, `⏰ <b>Campaign scheduled</b>\n\n📞 Leads: <b>${(bulkData.leads || []).length}</b>\n🚀 Launches in <b>~${relHrs}</b>\n🕒 At <b>${when} UTC</b>\n\nIt'll start automatically — you'll get a message when it launches. You can cancel it below any time before then.`, { parse_mode: 'HTML', reply_markup: { keyboard: [['❌ Cancel scheduled launch'], ['↩️ Back']], resize_keyboard: true } })
+    } catch (e) {
+      log(`[BulkSchedule] schedule error: ${e.message}`)
+      return send(chatId, trans('t.cp_221', sanitizeProviderError(e.message, 'voice')), k.of([['↩️ Back']]))
+    }
+  }
+
+  if (action === a.bulkScheduled) {
+    if (message === '❌ Cancel scheduled launch') {
+      const cid = info?.scheduledCampaignId
+      if (cid) {
+        try {
+          const r = await db.collection('bulkCallCampaigns').updateOne({ id: cid, status: 'scheduled' }, { $set: { status: 'cancelled', cancelledReason: 'Cancelled by user before scheduled launch' } })
+          if (r.modifiedCount === 1) {
+            await saveInfo('scheduledCampaignId', null)
+            await set(state, chatId, 'action', a.submenu5)
+            return send(chatId, `✅ Scheduled campaign cancelled. Nothing will be dialed.`, k.of([['📞 New Call'], ['↩️ Back']]))
+          }
+          return send(chatId, `⚠️ That campaign already launched or can't be cancelled now.`, k.of([['↩️ Back']]))
+        } catch (e) {
+          return send(chatId, `⚠️ Couldn't cancel: ${e.message}`, k.of([['↩️ Back']]))
+        }
+      }
+      return goto.submenu5()
+    }
+    return goto.submenu5()
   }
 
   if (action === a.bulkRunning) {
@@ -39216,6 +39326,54 @@ app.post('/dev/outbound-menu-route-test', async (req, res) => {
     try { delete voiceService.twilioIvrSessions[sessionId] } catch (_) { /* cleanup */ }
     try { await db.collection('bulkCallCampaigns').deleteOne({ id: campaignId }) } catch (_) { /* cleanup */ }
     try { await db.collection('ivrAnalytics').deleteMany({ chatId: 'OBMENUTEST-' + ts }) } catch (_) { /* cleanup */ }
+  }
+  return res.json(out)
+})
+
+// ── DEV-ONLY: Scheduled bulk campaign launcher test (Phase 2b). 404 in prod. ──
+// Inserts a DUE scheduled campaign + a FUTURE one (both WITHOUT a Twilio sub-account,
+// so startCampaign safely BLOCKS them — no real calls are placed), runs the launcher,
+// and asserts the due one was claimed+launched (→ cancelled by the no-sub-account
+// guard) while the future one is untouched. Self-cleaning.
+app.post('/dev/bulk-schedule-test', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const bulkCallService = require('./bulk-call-service.js')
+  const ts = Date.now()
+  const dueId = 'schedtest_due_' + ts
+  const futureId = 'schedtest_future_' + ts
+  const out = { checks: {} }
+  const mkCampaign = (id, scheduledFor) => ({
+    id, chatId: 'SCHEDTEST-' + ts, callerId: '+3197006532350', mode: 'transfer',
+    transferNumber: '+14155550111', menu: null, activeKeys: ['1'], concurrency: 1, holdMusic: true,
+    twilioSubAccountSid: null, twilioSubAccountToken: null,
+    leads: [{ index: 0, number: '+31626742533', name: 'T', status: 'pending', digitPressed: null, transferred: false, duration: 0, callSid: null, startedAt: null, answeredAt: null, completedAt: null, hangupCause: null }],
+    status: 'scheduled', stats: { total: 1, completed: 0, answered: 0, keyPressed: 0, transferred: 0, noAnswer: 0, busy: 0, failed: 0, hungUp: 0 },
+    scheduledFor, startedAt: null, completedAt: null, createdAt: new Date(),
+  })
+  try {
+    await db.collection('bulkCallCampaigns').insertOne(mkCampaign(dueId, new Date(Date.now() - 60 * 1000)))       // due 1 min ago
+    await db.collection('bulkCallCampaigns').insertOne(mkCampaign(futureId, new Date(Date.now() + 2 * 3600 * 1000))) // due in 2h
+
+    const launched = await bulkCallService.launchDueScheduledCampaigns()
+    out.launched = launched.map(l => ({ id: l.id, error: l.error }))
+
+    const dueLaunched = launched.find(l => l.id === dueId)
+    out.checks.due_campaign_claimed_and_launched = !!dueLaunched
+    // No Twilio sub-account → startCampaign blocks it → status becomes 'cancelled' (NOT running, no real calls).
+    const dueDoc = await db.collection('bulkCallCampaigns').findOne({ id: dueId })
+    out.checks.due_campaign_not_left_scheduled = !!dueDoc && dueDoc.status !== 'scheduled'
+    out.checks.due_campaign_blocked_no_subaccount = !!dueDoc && dueDoc.status === 'cancelled'
+    const futureDoc = await db.collection('bulkCallCampaigns').findOne({ id: futureId })
+    out.checks.future_campaign_untouched = !!futureDoc && futureDoc.status === 'scheduled'
+
+    out.pass = Object.values(out.checks).every(Boolean)
+  } catch (e) {
+    out.error = e.message
+    out.pass = false
+  } finally {
+    try { await db.collection('bulkCallCampaigns').deleteMany({ chatId: 'SCHEDTEST-' + ts }) } catch (_) { /* cleanup */ }
   }
   return res.json(out)
 })

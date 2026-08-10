@@ -528,11 +528,19 @@ function parseLeadsFile(content) {
  * Create a new campaign
  */
 async function createCampaign(params) {
-  const { chatId, callerId, audioUrl, audioName, mode, transferNumber, menu, activeKeys, concurrency, holdMusic, leads, twilioSubAccountSid, twilioSubAccountToken } = params
+  const { chatId, callerId, audioUrl, audioName, mode, transferNumber, menu, activeKeys, concurrency, holdMusic, leads, twilioSubAccountSid, twilioSubAccountToken, scheduledFor } = params
 
   // ━━━ Enforce max lead limit ━━━
   if (leads.length > MAX_BULK_LEADS) {
     return { error: `Maximum ${MAX_BULK_LEADS} leads per campaign. You uploaded ${leads.length}.` }
+  }
+
+  // Scheduled launch (Phase 2b): a valid future timestamp means the campaign waits
+  // for the scheduler to launch it, instead of running immediately.
+  let schedAt = null
+  if (scheduledFor) {
+    const d = scheduledFor instanceof Date ? scheduledFor : new Date(scheduledFor)
+    if (!isNaN(d.getTime())) schedAt = d
   }
 
   const campaign = {
@@ -564,7 +572,7 @@ async function createCampaign(params) {
       completedAt: null,
       hangupCause: null,
     })),
-    status: 'created', // created|running|paused|completed|cancelled
+    status: 'created', // created|scheduled|running|paused|completed|cancelled
     stats: {
       total: leads.length,
       completed: 0,
@@ -576,14 +584,45 @@ async function createCampaign(params) {
       failed: 0,
       hungUp: 0,
     },
+    scheduledFor: schedAt,
     startedAt: null,
     completedAt: null,
     createdAt: new Date(),
   }
 
+  if (schedAt) campaign.status = 'scheduled'
+
   await _collection.insertOne(campaign)
-  log(`[BulkCall] Campaign created: ${campaign.id} (${leads.length} leads, mode: ${mode}, concurrency: ${campaign.concurrency})`)
+  log(`[BulkCall] Campaign created: ${campaign.id} (${leads.length} leads, mode: ${mode}, concurrency: ${campaign.concurrency}${schedAt ? `, scheduledFor: ${schedAt.toISOString()}` : ''})`)
   return campaign
+}
+
+/**
+ * Launch any scheduled campaigns whose time has arrived (Phase 2b).
+ * Uses an atomic claim (updateOne guarded on status:'scheduled') so that even if two
+ * instances run this concurrently, each due campaign is launched exactly once.
+ * Returns [{ id, chatId, leadCount, error? }] for the caller to notify owners.
+ */
+async function launchDueScheduledCampaigns() {
+  const launched = []
+  if (!_collection) return launched
+  const now = new Date()
+  const due = await _collection.find({ status: 'scheduled', scheduledFor: { $lte: now } }).limit(20).toArray()
+  for (const c of due) {
+    // Atomic claim — only the winner flips 'scheduled' -> 'created' and proceeds.
+    const claim = await _collection.updateOne({ id: c.id, status: 'scheduled' }, { $set: { status: 'created', claimedAt: new Date() } })
+    if (!claim || claim.modifiedCount !== 1) continue
+    const leadCount = (c.stats && c.stats.total) || (Array.isArray(c.leads) ? c.leads.length : 0)
+    try {
+      const r = await startCampaign(c.id)
+      launched.push({ id: c.id, chatId: c.chatId, leadCount, error: r && r.error ? r.error : null })
+      log(`[BulkSchedule] Launched scheduled campaign ${c.id}${r && r.error ? ` (error: ${r.error})` : ''}`)
+    } catch (e) {
+      launched.push({ id: c.id, chatId: c.chatId, leadCount, error: e.message })
+      log(`[BulkSchedule] Launch exception ${c.id}: ${e.message}`)
+    }
+  }
+  return launched
 }
 
 /**
@@ -1259,6 +1298,7 @@ module.exports = {
   parseLeadsFile,
   createCampaign,
   startCampaign,
+  launchDueScheduledCampaigns,
   onDigitReceived,
   onCallStatusUpdate,
   cancelCampaign,
