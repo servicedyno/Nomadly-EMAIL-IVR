@@ -3391,6 +3391,55 @@ ${list
  subscriptionBtn: '🔄 Subscriptions',
  VpsLinkedKeysBtn: '🔑 SSH Keys',
  resetPasswordBtn: '🔑 Reset Password',
+ revealPasswordBtn: '🔐 Show Password',
+ revealPasswordChecking: name => `🔐 Looking up the current password for <strong>${name}</strong>...
+
+⏱️ Just a few seconds — we also test the login for you.`,
+
+ revealPasswordSuccess: (name, ip, username, password, opts = {}) => {
+   const isRDP = !!opts.isRDP
+   const port = isRDP ? 3389 : 22
+   const v = opts.verification || null
+   let statusLine = ''
+   if (v && v.status === 'ok') {
+     statusLine = '\n✅ <b>We just logged in with this password — it works.</b>'
+   } else if (v && v.status === 'password_wrong') {
+     statusLine = '\n⚠️ <b>This password was rejected by your server.</b> Tap <b>🔑 Reset Password</b> to set a fresh one — it is applied instantly and your data is kept.'
+   } else if (v && v.status === 'password_auth_disabled') {
+     statusLine = '\n⚠️ <b>Your server is currently refusing password logins</b> (SSH key only). Tap <b>🔑 Reset Password</b> — that re-enables password login and gives you a new password.'
+   } else if (v && v.status === 'unreachable') {
+     statusLine = '\n💤 We could not reach your server to test this password. If it does not work, tap <b>🔑 Reset Password</b>.'
+   }
+   const recoveredLine = opts.recovered
+     ? '\n\n♻️ <i>Recovered from your server\'s original setup — saved so it loads instantly next time.</i>'
+     : ''
+   return `🔐 <strong>Current VPS Password</strong>
+
+🖥️ <strong>${isRDP ? 'RDP' : 'Server'}:</strong> ${name}
+🌐 <strong>IP:</strong> <code>${ip}</code>
+🔌 <strong>${isRDP ? 'RDP Port' : 'SSH Port'}:</strong> <code>${port}</code>
+👤 <strong>Username:</strong> <code>${username}</code>
+🔑 <strong>Password:</strong> <code>${password}</code>
+
+📋 <strong>Connect:</strong> <code>${isRDP ? `${ip}:${port}` : `ssh ${username}@${ip} -p ${port}`}</code>${statusLine}${recoveredLine}
+
+💡 Click the password to copy it. Keep it private — anyone with it has full access.`
+ },
+
+ revealPasswordNotStored: (name, reason) => `🔐 <strong>Password Not Available</strong>
+
+We could not retrieve the current password for <strong>${name}</strong>.
+
+📋 <i>Reason: ${reason || 'no stored password for this server'}</i>
+
+✅ <strong>What to do:</strong> tap <b>🔑 Reset Password</b>. It sets a brand-new password on your <b>running</b> server in about a minute — <b>your files and data are kept</b> — and we show you the new password here and confirm it works.`,
+
+ revealPasswordFailed: name => `❌ <strong>Could not look up the password</strong>
+
+Something went wrong while fetching the password for <strong>${name}</strong>.
+
+Please try again in a moment, or tap <b>🔑 Reset Password</b> to set a new one.`,
+
  reinstallWindowsBtn: '🔄 Reinstall Windows',
  confirmChangeBtn: '✅ Confirm',
 

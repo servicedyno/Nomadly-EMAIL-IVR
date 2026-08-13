@@ -581,6 +581,34 @@ function _resolvePasswordSecret(idOrPassword) {
   return String(idOrPassword)
 }
 
+/**
+ * 2026-08-13: these secrets used to live ONLY in the per-process Map above, so
+ * every Railway redeploy permanently destroyed each customer's VPS password
+ * while vpsPlansOf.rootPasswordSecretId still pointed at it. Mirror every write
+ * into the durable Mongo store so "🔐 Show Password" keeps working forever.
+ */
+function _rememberPwdSecret(secretId, password, name) {
+  _passwordSecrets.set(secretId, { password, name: name || secretId, createdAt: Date.now() })
+  try {
+    require('./vps-secret-store')
+      .putSecret(secretId, password, { provider: 'azure', name: name || secretId })
+      .catch(() => {})
+  } catch (_) { /* store not initialised (unit tests) — cache only */ }
+  return secretId
+}
+
+/** Reveal the plaintext behind an `az-pwd-*` id (cache first, then Mongo). */
+async function getSecretPassword(secretId) {
+  if (!_isFakePwdId(secretId)) return null
+  const c = _passwordSecrets.get(secretId)
+  if (c?.password) return c.password
+  try {
+    return await require('./vps-secret-store').getSecretPassword(secretId)
+  } catch (_) {
+    return null
+  }
+}
+
 // ─── VM name helpers ─────────────────────────────────────────────────────
 // Windows VM name: 1-15 chars, alphanumeric + hyphens, no leading/trailing hyphen.
 function _generateVmName(prefix = 'nmd') {
@@ -817,7 +845,7 @@ async function createInstance(opts) {
     // Persist the password as a fake-secret-id (Contabo-compat) so the bot can
     // store the id in vpsPlansOf without writing the raw password.
     const secretId = `az-pwd-${vmName}-${Date.now().toString(36)}`
-    _passwordSecrets.set(secretId, { password: adminPwd, name: secretId, createdAt: Date.now() })
+    _rememberPwdSecret(secretId, adminPwd, secretId)
 
     _trackCreateResult(true)
     log(`  ✅ VM ${vmName} provisioning started (Azure async — full IP/Ready in ~3-5 min)`)
@@ -1049,7 +1077,7 @@ async function resetPassword(instanceId, opts = {}) {
     }
   )
   const secretId = `az-pwd-${vmName}-${Date.now().toString(36)}`
-  _passwordSecrets.set(secretId, { password: newPassword, name: secretId, createdAt: Date.now() })
+  _rememberPwdSecret(secretId, newPassword, secretId)
   return {
     password:    newPassword,
     newPassword: newPassword,
@@ -1265,7 +1293,7 @@ async function listTags() { return [] }
 async function createSecret(name, value, type = 'password') {
   if (type === 'password') {
     const secretId = `az-pwd-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
-    _passwordSecrets.set(secretId, { password: value, name, createdAt: Date.now() })
+    _rememberPwdSecret(secretId, value, name)
     return { secretId, id: secretId, name, type: 'password' }
   }
   // Azure RDP doesn't use SSH keys (Windows). Stash the value as a fake
@@ -1399,6 +1427,7 @@ module.exports = {
   createSecret,
   listSecrets,
   getSecret,
+  getSecretPassword,
   deleteSecret,
   // Circuit breaker
   isProvisioningHealthy,

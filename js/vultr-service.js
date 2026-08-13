@@ -338,6 +338,35 @@ function _isFakePasswordSecretId(id) {
 }
 
 /**
+ * 2026-08-13: this cache used to be the ONLY home for a customer's VPS
+ * password, so every Railway redeploy destroyed it while
+ * vpsPlansOf.rootPasswordSecretId still pointed at the dead id. Mirror every
+ * write into the durable Mongo store (vps-secret-store) so the customer can
+ * look their password up later via "🔐 Show Password".
+ */
+function _rememberPwdSecret(secretId, password, name) {
+  _passwordSecrets.set(secretId, { password, name: name || secretId, createdAt: Date.now() })
+  try {
+    require('./vps-secret-store')
+      .putSecret(secretId, password, { provider: 'vultr', name: name || secretId })
+      .catch(() => {})
+  } catch (_) { /* store not initialised (unit tests) — cache only */ }
+  return secretId
+}
+
+/** Reveal the plaintext behind a `vultr-pwd-*` id (cache first, then Mongo). */
+async function getSecretPassword(secretId) {
+  if (!_isFakePasswordSecretId(secretId)) return null
+  const cached = _passwordSecrets.get(secretId)
+  if (cached?.password) return cached.password
+  try {
+    return await require('./vps-secret-store').getSecretPassword(secretId)
+  } catch (_) {
+    return null
+  }
+}
+
+/**
  * Helper: accept either a fake-secret-id (from createSecret('password',…))
  * or a raw password string. Returns the raw password to pass to Vultr's API.
  */
@@ -501,7 +530,7 @@ async function resetPassword(instanceId, opts = {}) {
   let secretId = null
   if (newPassword) {
     secretId = `vultr-pwd-${instanceId}-${Date.now().toString(36)}`
-    _passwordSecrets.set(secretId, { password: newPassword, name: secretId, createdAt: Date.now() })
+    _rememberPwdSecret(secretId, newPassword, secretId)
   }
 
   const isRDP = opts.isRDP || opts.osType === 'Windows'
@@ -550,9 +579,7 @@ async function reinstallInstance(instanceId, opts = {}) {
   const cached = _resolvePasswordSecret(opts.password || opts.rootPassword)
   if (newPassword && opts.rootPassword && _isFakePasswordSecretId(opts.rootPassword)) {
     // Update cache so subsequent reads of this secretId reflect the new password
-    _passwordSecrets.set(opts.rootPassword, {
-      password: newPassword, name: opts.rootPassword, createdAt: Date.now(),
-    })
+    _rememberPwdSecret(opts.rootPassword, newPassword, opts.rootPassword)
   }
   return {
     instanceId,
@@ -639,7 +666,7 @@ async function createSecret(name, value, type = 'ssh') {
   if (type === 'password') {
     // Simulate Contabo's password-secret model in-process.
     const secretId = `vultr-pwd-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
-    _passwordSecrets.set(secretId, { password: value, name, createdAt: Date.now() })
+    _rememberPwdSecret(secretId, value, name)
     return { secretId, id: secretId, name, type: 'password' }
   }
   if (type !== 'ssh') throw new Error(`Vultr createSecret: unsupported type "${type}" (only 'ssh' and 'password')`)
@@ -792,6 +819,7 @@ module.exports = {
   createSecret,
   listSecrets,
   getSecret,
+  getSecretPassword,
   deleteSecret,
   // Circuit breaker
   isProvisioningHealthy,

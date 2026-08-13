@@ -57,6 +57,37 @@ function initVpsDb(db) {
 
 // ─── Utility ──────────────────────────────────────────────────────────────
 
+/**
+ * Load a customer's stored SSH PRIVATE keys, newest-relevant first.
+ *
+ * Used by the DigitalOcean password paths: DO cannot set or read a droplet
+ * password through its API, so the bot logs into the running box with the key
+ * it injected at create time (DO re-injects it on every rebuild) to apply a new
+ * password or to recover the original one from cloud-init user-data.
+ *
+ * @param {string|number} telegramId
+ * @param {string|number} [linkedSecretId] provider ssh-key id linked to the VPS
+ *                                         (that key is returned first)
+ * @returns {Promise<Array<{privateKey:string, sshKeyName:string}>>}
+ */
+async function fetchUserSSHPrivateKeys(telegramId, linkedSecretId = null) {
+  try {
+    if (!_sshKeysOf) return []
+    const docs = await _sshKeysOf.find({ telegramId: String(telegramId) }).toArray()
+    return docs
+      .filter(k => k && k.privateKey)
+      .sort((a, b) => {
+        const am = linkedSecretId && String(a.contaboSecretId) === String(linkedSecretId) ? -1 : 0
+        const bm = linkedSecretId && String(b.contaboSecretId) === String(linkedSecretId) ? -1 : 0
+        return am - bm
+      })
+      .map(k => ({ privateKey: k.privateKey, sshKeyName: k.sshKeyName }))
+  } catch (e) {
+    console.log(`[VPS] fetchUserSSHPrivateKeys(${telegramId}) failed: ${e.message || e}`)
+    return []
+  }
+}
+
 function generateRandomName(prefix, number = 12) {
   const randomSuffix = crypto.randomBytes(number).toString('hex').substring(0, 12)
   return `${prefix}-${randomSuffix}`
@@ -1823,6 +1854,7 @@ module.exports = {
 
   // SSH keys
   fetchUserSSHkeyList,
+  fetchUserSSHPrivateKeys,
   generateNewSSHkey,
   uploadSSHPublicKey,
   downloadSSHKeyFile,

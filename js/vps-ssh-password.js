@@ -275,9 +275,138 @@ async function applyPasswordOverSSH(opts = {}) {
   }
 }
 
+/**
+ * Parse a root/admin password out of a cloud-init `#cloud-config` document.
+ *
+ * The bot writes create-time user_data shaped like:
+ *   #cloud-config
+ *   chpasswd:
+ *     list: |
+ *       root:SomePassword
+ *     expire: false
+ *   ssh_pwauth: true
+ *
+ * YAML keys that are part of the schema (expire/list/...) are skipped so only
+ * the `user:password` lines are considered.
+ */
+function parsePasswordFromCloudInit(userData, username = 'root') {
+  if (!userData) return null
+  const RESERVED = new Set([
+    'expire', 'list', 'chpasswd', 'users', 'ssh_pwauth', 'runcmd', 'password',
+    'packages', 'write_files', 'name', 'lock_passwd', 'shell', 'sudo', 'groups',
+  ])
+  const lines = String(userData).split('\n')
+  let fallback = null
+  for (const line of lines) {
+    // password entries are always indented inside the `list: |` block
+    const m = line.match(/^\s{2,}([A-Za-z0-9._-]+):(.+)$/)
+    if (!m) continue
+    const user = m[1]
+    const value = m[2].trim()
+    if (RESERVED.has(user.toLowerCase()) || !value) continue
+    if (user === username) return value
+    if (!fallback) fallback = value
+  }
+  return fallback
+}
+
+/**
+ * Recover the ORIGINAL create-time password of a droplet by reading the
+ * cloud-init user-data the provider still serves it.
+ *
+ * Why this works (and why we need it): DigitalOcean stores `user_data`
+ * immutably at create time and keeps serving it for the life of the droplet —
+ * that is the very quirk that broke the old password reset. We can turn it to
+ * our advantage: for every VPS created before password secrets were persisted
+ * (they used to live in a per-process Map and died on each redeploy), the
+ * original password is still recoverable straight off the box.
+ *
+ * Requires an SSH key, which the bot injects at create time and DO re-injects
+ * on every rebuild.
+ *
+ * @returns {Promise<{ok:boolean, password?:string, source?:string, error?:string}>}
+ */
+async function recoverPasswordFromCloudInit(opts = {}) {
+  const { host, port = 22, username = 'root', privateKeys = [], timeoutMs = DEFAULT_TIMEOUT_MS } = opts
+  if (!host) return { ok: false, error: 'no host on record' }
+
+  const keys = (Array.isArray(privateKeys) ? privateKeys : [privateKeys])
+    .map(k => (typeof k === 'string' ? k : (k && (k.privateKey || k.key))))
+    .filter(k => k && String(k).includes('PRIVATE KEY'))
+  if (!keys.length) return { ok: false, error: 'no SSH key on file' }
+
+  // Read the delivered user-data; fall back to the cloud metadata service.
+  const script = [
+    'cat /var/lib/cloud/instance/user-data.txt 2>/dev/null',
+    '  || cat /var/lib/cloud/instances/*/user-data.txt 2>/dev/null',
+    '  || curl -s --max-time 5 http://169.254.169.254/metadata/v1/user-data 2>/dev/null',
+    '  || true',
+  ].join(' ')
+
+  for (const privateKey of keys) {
+    try {
+      const res = await execOverSSH({ host, port, username, privateKey, script, timeoutMs })
+      const password = parsePasswordFromCloudInit(res.stdout, username)
+      if (password) {
+        log(`recovered create-time password for ${host} from cloud-init user-data`)
+        return { ok: true, password, source: 'cloud-init-user-data' }
+      }
+      return { ok: false, error: 'user-data contained no password entry' }
+    } catch (e) {
+      // try the next key
+      if (keys.indexOf(privateKey) === keys.length - 1) {
+        return { ok: false, error: String(e.message || e).slice(0, 200) }
+      }
+    }
+  }
+  return { ok: false, error: 'could not read user-data' }
+}
+
+/**
+ * Work out whether a password we hold actually grants access, and if not, WHY.
+ *
+ * This is what stops the bot from ever showing a customer a credential that
+ * silently does not work (the @user_uu0 failure mode).
+ *
+ * @returns {Promise<{status:'ok'|'password_auth_disabled'|'password_wrong'|'unreachable', detail:string}>}
+ */
+async function diagnosePasswordAccess(opts = {}) {
+  const { host, port = 22, username = 'root', password, privateKeys = [], timeoutMs = 30000 } = opts
+  if (!host) return { status: 'unreachable', detail: 'no host on record' }
+
+  if (password && await verifyPasswordLogin({ host, port, username, password, timeoutMs })) {
+    return { status: 'ok', detail: 'password login succeeded' }
+  }
+
+  // Password did not work. Use the SSH key to find out whether sshd is even
+  // accepting passwords — otherwise we would blame the password unfairly.
+  const keys = (Array.isArray(privateKeys) ? privateKeys : [privateKeys])
+    .map(k => (typeof k === 'string' ? k : (k && (k.privateKey || k.key))))
+    .filter(k => k && String(k).includes('PRIVATE KEY'))
+
+  for (const privateKey of keys) {
+    try {
+      const res = await execOverSSH({
+        host, port, username, privateKey, timeoutMs,
+        script: 'sshd -T 2>/dev/null | grep -i "^passwordauthentication" || echo unknown',
+      })
+      const out = String(res.stdout || '').toLowerCase()
+      if (out.includes('passwordauthentication no')) {
+        return { status: 'password_auth_disabled', detail: 'sshd is refusing all password logins' }
+      }
+      return { status: 'password_wrong', detail: 'server accepts passwords but rejected this one' }
+    } catch (_) { /* try next key */ }
+  }
+
+  return { status: 'unreachable', detail: 'could not reach the server to check' }
+}
+
 module.exports = {
   applyPasswordOverSSH,
   verifyPasswordLogin,
+  diagnosePasswordAccess,
+  recoverPasswordFromCloudInit,
+  parsePasswordFromCloudInit,
   execOverSSH,
   buildPasswordScript,
   normalizePrivateKey,

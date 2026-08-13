@@ -1,0 +1,23 @@
+{
+  "summary": "Backend-only regression + verification for the new 🔐 Show Password (VPS password recovery) feature and the earlier DigitalOcean SSH-based reset fix. All targets green: /api/dev/vps-password-reveal-check = pass=true 24/24, /api/dev/vps-password-fix-check = pass=true 23/23, node E2E sandbox = 8/8, /api/health healthy+connected, ai-support-health pass=true, no leftover test docs in vpsPasswordSecrets. Security gate on the reveal-check dev endpoint returns 403 with no key and 403 with wrong key (BOT_ENVIRONMENT=development confirmed). Code review of goto.revealVpsPassword and vps-secret-store / azure-service / vultr-service confirmed all requested properties.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/js/tests/test_vps_password_reset_e2e.js"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "js/_index.js goto.revealVpsPassword (lines 11752-11788): (a) reads vpsPlansOf.findOne({chatId,vpsId}) to recover rootPasswordSecretId/sshKeySecretId/defaultUser that fetchVPSDetails omits — OK; (b) SSH keys loaded via fetchUserSSHPrivateKeys(chatId, record.sshKeySecretId) from js/vm-instance-setup.js — OK; (c) password is only sent when res.status==='ok' && res.password (else vp.revealPasswordNotStored / vp.revealPasswordFailed) — OK, no leak on failure; (d) success message vp.revealPasswordSuccess passes host+username(root/Administrator)+isRDP+verification, and 'reveal message shows port, username and a connect command' + 'RDP reveal shows port 3389, not 22' assertions both pass in the dev endpoint checks — OK.",
+    "js/vps-secret-store.js: Mongo-backed CRUD over vpsPasswordSecrets collection (init at line 33, getSecretPassword line 69). In-process Map retained only as a cache — durability across process restarts confirmed by the two 'passwords survive a redeploy' checks in the dev endpoint.",
+    "js/azure-service.js and js/vultr-service.js both define _rememberPwdSecret() (azure:590, vultr:347) that mirrors every password write into the durable store, and both export async getSecretPassword() delegating to vps-secret-store (azure:601/1430, vultr:358/822). All password-write sites (azure lines 848, 1080, 1296; vultr lines 533, 582, 669) call _rememberPwdSecret — no orphaned writes.",
+    "Reveal-check dev endpoint self-cleans: post-run Mongo query for _id matching /revealtest|durable-/ in vpsPasswordSecrets returned 0 documents."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "N/A (backend-only per request)"},
+  "test_credentials": "Dev key o/Qb8ArGahlquhCQ (URL-encode / as %2F). No user auth — Telegram chatId based only.",
+  "seed_data_creation": "None. Dev endpoints self-clean.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Reveal endpoint results detail (all True, 24/24): cloud-init user-data recovery; parser ignores schema keys (expire/ssh_pwauth/runcmd); non-Windows admin user parsed; returns null when there is no password; provider detected from do-* id; provider detected from numeric Contabo id; explicit provider wins; login user is root for Linux and Administrator for RDP; stored password revealed after a redeploy; missing password returns not_available with reason (never fabricated); Windows/RDP reveal skips SSH verification; azure and vultr passwords survive a redeploy; 'Show Password' button label exists; reveal message shows port+username+connect command; reveal message confirms a verified password; reveal message warns when password no longer works; reveal message explains a server that refuses password logins; RDP reveal shows port 3389 not 22; unavailable message points to Reset Password and promises data is kept; recovered passwords labelled recovered; Show Password is on the VPS details keyboard; button is routed to handler; handler reads stored record for the secret id. Fix-check (DO reset regression): 23/23 pass. Node E2E: 8/8 pass, exit 0. nodejs supervisor RUNNING, err log clean.",
+  "rca of the issue": "N/A — verification-only run, no bugs found."
+}

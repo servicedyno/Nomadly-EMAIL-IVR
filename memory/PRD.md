@@ -4,6 +4,27 @@
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
 
+## 2026-06 (forked session) — 🔐 Show Password (VPS password recovery) — INDEPENDENTLY VERIFIED
+Carried over from the previous session as "user verification pending". Ran the backend testing agent
+(report: `/app/test_reports/iteration_34.json`) — **100% backend, 0 issues, retest_needed=false**.
+- `/api/dev/vps-password-reveal-check` → pass=true **24/24** (cloud-init recovery + parser ignores YAML
+  schema keys, provider/login-user detection, stored password survives a redeploy for DO/Azure/Vultr,
+  missing password → `not_available` with a reason and never a fabricated one, Windows/RDP skips the SSH
+  probe and shows port 3389, all copy checks, 3 wiring checks). Security gate: no key → 403, wrong key → 403.
+- Regressions green: `/api/dev/vps-password-fix-check` **23/23** (DO SSH-based non-destructive reset +
+  `active`→RUNNING status mapping + port/username on the details screen),
+  `node js/tests/test_vps_password_reset_e2e.js` **8/8** exit 0, `/api/health` healthy+connected,
+  `/api/dev/ai-support-health` pass=true, `nodejs` RUNNING with a clean err log.
+- Code review confirmed: `goto.revealVpsPassword` reads `vpsPlansOf` for `rootPasswordSecretId`, loads keys
+  via `fetchUserSSHPrivateKeys`, and never sends a password unless `status==='ok'`; `vps-secret-store.js` is
+  Mongo-durable and every Azure/Vultr password write mirrors into it. No leftover test docs in
+  `vpsPasswordSecrets`.
+- Pod state: services RUNNING, dev guards intact (`BOT_ENVIRONMENT=development`, `SKIP_WEBHOOK_SYNC=true`),
+  Mongo still the LIVE production DB. Pod URL: `https://2cae5e88-288e-465b-9cc6-f4bedccd167b.preview.emergentagent.com`.
+- KNOWN GAP (user deferred): **Contabo** still lacks durable-store/reveal coverage parity; its OAuth creds
+  are invalid in this pod so it can't be live-verified.
+
+
 ## 2026-06-XX (this session) — Bot navigation UX: Main-Menu escape hatch + declutter + matcher hardening (plan "cbd") — VERIFIED (offline)
 User asked to audit bot navigation for usability/clarity. Approved plan: **1a** (surgical Main-Menu escape), **2a** (light-touch label cleanup), **3 yes** (dead-code + isMainMenuPress). Backend-only, all 4 locales (en/fr/zh/hi).
 

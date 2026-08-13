@@ -14419,3 +14419,100 @@ vps_password_and_port_incident_2026_08_13:
         ("what's my vps port, when i put 22 it says authentication failed" + "all my vps passwords
         are wrong and i keep resetting them... since the first time i changed password i get
         'Permission denied, please try again.' on all my new passwords") is RESOLVED.
+
+
+vps_show_password_feature_2026_08_13:
+  scope: |
+    FEATURE: "🔐 Show Password" — let a customer look up the CURRENT password of their VPS at
+    any time, instead of only in the single message sent at create/reset time.
+
+    Motivation: the old copy literally said "We cannot retrieve it later for security reasons",
+    which was true for the wrong reason — DigitalOcean/Vultr/Azure have no secrets API, so the
+    bot fabricated `do-pwd-*` / `vultr-pwd-*` / `az-pwd-*` ids and kept the plaintext in a
+    per-process Map that died on every Railway redeploy. A customer who lost that message had
+    to "Reset Password", which (before the 2026-08-13 fix) wiped their server AND handed them a
+    password that did not work.
+
+  resolution_order: |
+    1. vps-secret-store (Mongo)      — everything created/reset from now on
+    2. provider in-process cache     — secrets created since the last restart
+    3. provider secrets API          — Contabo stores real secrets server-side
+    4. provider instance record      — Vultr exposes `default_password`
+    5. cloud-init user-data over SSH — LEGACY RECOVERY. DO serves the immutable create-time
+       user_data for the life of the droplet, so the ORIGINAL password is still on the box even
+       for droplets created before durable storage existed. Recovered values are written back
+       into the store so the next lookup is instant.
+    The result is then probed against the live server (Linux only) via diagnosePasswordAccess()
+    so the bot never shows a credential that silently does not work — the exact @user_uu0
+    failure mode. The probe distinguishes: ok / password_wrong / password_auth_disabled /
+    unreachable, and the message tells the customer what to do in each case.
+
+  changes:
+    - "NEW js/vps-password-reveal.js — provider-agnostic revealVpsPassword(record, opts)
+       implementing the resolution order above + detectProvider/loginUserFor/isRdpRecord."
+    - "js/vps-ssh-password.js — NEW recoverPasswordFromCloudInit() (reads
+       /var/lib/cloud/instance/user-data.txt, falls back to the 169.254.169.254 metadata
+       service), parsePasswordFromCloudInit() (skips YAML schema keys so `expire: false` etc.
+       are never mistaken for a password) and diagnosePasswordAccess() (password login →
+       key login + `sshd -T` to tell 'wrong password' apart from 'password auth disabled')."
+    - "js/azure-service.js + js/vultr-service.js — every password-secret write is now mirrored
+       into the durable Mongo store via _rememberPwdSecret(), and both export an async
+       getSecretPassword(). This closes the SAME in-memory-Map data-loss bug that was fixed for
+       DigitalOcean, for the other two providers that had it."
+    - "js/vm-instance-setup.js — NEW exported fetchUserSSHPrivateKeys(telegramId, linkedSecretId)
+       (linked key first); the reset handler's duplicated inline key-loading block now uses it."
+    - "js/_index.js — '🔐 Show Password' added to the VPS details keyboard (Linux and RDP),
+       routed to the new goto.revealVpsPassword() handler, which reads the stored vpsPlansOf
+       record (fetchVPSDetails deliberately omits secret ids), resolves + verifies the password
+       and logs source/recovered/verification. NEW dev endpoint
+       GET /dev/vps-password-reveal-check."
+    - "js/lang/en.js — revealPasswordBtn, revealPasswordChecking, revealPasswordSuccess
+       (port + username + copy-paste connect command + a live verification line + a
+       'recovered' note), revealPasswordNotStored (explains why and points at the now
+       non-destructive Reset Password), revealPasswordFailed."
+
+  safety: |
+    Read-only with respect to customer servers: recovery only READS cloud-init user-data and
+    opens auth-probe connections. The only write is an additive `vpsPasswordSecrets` document
+    caching the recovered password. No droplet is created, rebuilt, resized or deleted.
+    Windows/RDP records are never SSH-probed. If nothing can be resolved the bot says so
+    plainly rather than inventing a credential.
+
+  main_agent_verification:
+    - "GET /api/dev/vps-password-reveal-check?key=<SESSION_SECRET[0..15]> → pass=true, 24/24"
+    - "REAL-WORLD: ran revealVpsPassword() against @user_uu0's live record
+       (do-591819943 / 204.48.23.185, legacy secret NOT in the store) →
+       status=ok, source=cloud-init-user-data, recovered=true, password matches the value
+       independently proven to work, verification={status:'ok','password login succeeded'},
+       and it was cached into the durable store. Took 1.7s.
+       => the customer can now tap 🔐 Show Password and get a WORKING password with no reset
+          and no data loss."
+    - "Regression: /api/dev/vps-password-fix-check still 23/23; node --check clean on
+       _index.js, lang/en.js, vps-password-reveal.js, vps-ssh-password.js, vm-instance-setup.js,
+       azure-service.js, vultr-service.js; eslint clean on the new modules; nodejs RUNNING."
+
+  testing_agent_notes: |
+    (1) PRIMARY: GET {REACT_APP_BACKEND_URL}/api/dev/vps-password-reveal-check?key=o/Qb8ArGahlquhCQ
+        Expect HTTP 200, pass=true, failed=0, total=24. Report every check name + pass flag.
+        Highlights: cloud-init recovery parsing (incl. "returns null when there is no password"),
+        provider/login-user detection, "a stored password can be revealed after a redeploy",
+        "missing password returns not_available with a reason (never a fake one)",
+        "Windows/RDP reveal skips the SSH verification step",
+        "azure passwords survive a redeploy", "vultr passwords survive a redeploy",
+        all the copy checks, and the 3 wiring checks (button on keyboard, route, record lookup).
+        Also confirm the gate: no key → 403, wrong key → 403.
+    (2) REGRESSION: GET .../api/dev/vps-password-fix-check?key=o/Qb8ArGahlquhCQ → still 23/23,
+        and cd /app && node js/tests/test_vps_password_reset_e2e.js → EXIT=0, 8/8.
+    (3) REGRESSION: /api/health 200 + database connected; `sudo supervisorctl status nodejs`
+        RUNNING; /var/log/supervisor/nodejs.err.log has no new stack traces;
+        /api/dev/ai-support-health pass=true.
+    (4) CODE REVIEW only for the Telegram flow: js/_index.js goto.revealVpsPassword — confirm it
+        reads vpsPlansOf for rootPasswordSecretId, calls fetchUserSSHPrivateKeys, and never
+        sends a password when status !== 'ok'.
+
+    HARD CONSTRAINTS — the pod is wired to the LIVE production Mongo and live provider keys:
+      • DO NOT create/delete/rebuild/resize/power-cycle/password-reset any real VPS.
+      • DO NOT SSH to any external IP and DO NOT run the reveal against a real customer record.
+      • DO NOT trigger any Telegram flow for a real user.
+      • The endpoints only write self-cleaning `vpsPasswordSecrets` test docs — verify none are
+        left behind (ids contain 'revealtest' or 'durable-').

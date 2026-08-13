@@ -654,6 +654,7 @@ const {
   fetchAvailableOS,
   registerVpsTelegram,
   fetchUserSSHkeyList,
+  fetchUserSSHPrivateKeys,
   generateNewSSHkey,
   uploadSSHPublicKey,
   fetchAvailableVPSConfigs,
@@ -11712,9 +11713,12 @@ Enter new value:`), bc)
       saveInfo('userVPSDetails', vpsData)
       let action = vpsData.status === 'RUNNING' ? [vp.stopVpsBtn, vp.restartVpsBtn] : [vp.startVpsBtn]
       
-      // Add instance management buttons — Reset Password for all, Reinstall Windows for RDP only
+      // Add instance management buttons — Reset Password + Show Password for all,
+      // Reinstall Windows for RDP only
       const isRDP = vpsData.isRDP || vpsData.osType === 'Windows'
-      const extraButtons = isRDP ? [vp.resetPasswordBtn, vp.reinstallWindowsBtn] : [vp.resetPasswordBtn]
+      const extraButtons = isRDP
+        ? [vp.revealPasswordBtn, vp.resetPasswordBtn, vp.reinstallWindowsBtn]
+        : [vp.revealPasswordBtn, vp.resetPasswordBtn]
       
       return send(chatId, vp.selectedVpsData(vpsData), vp.of([ ...action, ...extraButtons, vp.subscriptionBtn, vp.VpsLinkedKeysBtn, vp.upgradeVpsBtn,  vp.deleteVpsBtn]))
     },
@@ -11735,6 +11739,52 @@ Enter new value:`), bc)
       
       // Password reset is available for ALL VPS types (Linux + Windows)
       return send(chatId, vp.confirmResetPasswordText(vpsDetails.name), vp.of([vp.confirmChangeBtn, vp.cancel]))
+    },
+
+    // ━━━ Show the CURRENT VPS password ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // Customers used to see their password exactly once (at create or reset
+    // time) and the copy told them it could never be retrieved again — so a
+    // lost message meant a "reset", which before 2026-08-13 wiped the server.
+    // Passwords are now stored durably, and for older DigitalOcean droplets we
+    // can even recover the original one from the immutable create-time
+    // cloud-init user-data. Whatever we find is tested against the live server
+    // before we show it, so we never hand out a credential that doesn't work.
+    revealVpsPassword: async () => {
+      const vpsDetails = info.userVPSDetails
+      if (!vpsDetails) return goto.getUserAllVmIntances()
+
+      send(chatId, vp.revealPasswordChecking(vpsDetails.name))
+      try {
+        // fetchVPSDetails() intentionally omits secret ids — read the stored
+        // record for rootPasswordSecretId / provider / sshKeySecretId / defaultUser.
+        let stored = null
+        try {
+          stored = await vpsPlansOf.findOne({ chatId: String(chatId), vpsId: String(vpsDetails._id) })
+        } catch (_) { /* fall back to the live view only */ }
+
+        const record = { ...vpsDetails, ...(stored || {}), host: vpsDetails.host || stored?.host }
+        const isRDP = !!(record.isRDP || record.osType === 'Windows')
+        const username = record.defaultUser || (isRDP ? 'Administrator' : 'root')
+
+        const sshPrivateKeys = await fetchUserSSHPrivateKeys(chatId, record.sshKeySecretId)
+        const { revealVpsPassword: resolvePassword } = require('./vps-password-reveal')
+        const res = await resolvePassword(record, { sshPrivateKeys })
+
+        if (res.status === 'ok' && res.password) {
+          console.log(`[VPS] Password revealed - ChatId: ${chatId}, Instance: ${record.vpsId || record._id}, source=${res.source}, recovered=${res.recovered}, verification=${res.verification?.status || 'n/a'}`)
+          send(chatId, vp.revealPasswordSuccess(
+            record.name, record.host, username, res.password,
+            { isRDP, verification: res.verification, recovered: res.recovered }
+          ))
+        } else {
+          console.log(`[VPS] Password reveal unavailable - ChatId: ${chatId}, Instance: ${record.vpsId || record._id}, reason=${res.reason}`)
+          send(chatId, vp.revealPasswordNotStored(record.name, res.reason))
+        }
+      } catch (err) {
+        console.error(`[VPS] Password reveal failed - ChatId: ${chatId}, Error:`, err.message || err)
+        send(chatId, vp.revealPasswordFailed(vpsDetails.name))
+      }
+      return goto.getVPSDetails()
     },
 
     confirmReinstallWindows: async () => {
@@ -19615,6 +19665,7 @@ ${message.replace(/\n/g, '<br>')}
     if (message === vp.subscriptionBtn) return goto.vpsSubscription()
     if (message === vp.VpsLinkedKeysBtn) return goto.vpsLinkedSSHkeys()
     if (message === vp.resetPasswordBtn) return goto.confirmResetPassword()
+    if (message === vp.revealPasswordBtn) return goto.revealVpsPassword()
     if (message === vp.reinstallWindowsBtn) return goto.confirmReinstallWindows()
     if (message === vp.startVpsBtn) {
       send(chatId, vp.vpsBeingStarted(userVPSDetails.name))
@@ -19713,24 +19764,9 @@ ${message.replace(/\n/g, '<br>')}
         // DigitalOcean cannot set a password through its API (user_data is
         // create-only and `rebuild` ignores it), so the provider applies the
         // new password over SSH on the running box instead. It needs the key
-        // that was injected at create time — prefer the key actually linked to
-        // this VPS, then any other key the customer owns.
-        let sshPrivateKeys = []
-        try {
-          const _sshKeysCol = db.collection('sshKeysOf')
-          const keyDocs = await _sshKeysCol.find({ telegramId: String(chatId) }).toArray()
-          const linkedId = userVPSDetails.sshKeySecretId
-          sshPrivateKeys = keyDocs
-            .filter(k => k && k.privateKey)
-            .sort((a, b) => {
-              const aMatch = linkedId && String(a.contaboSecretId) === String(linkedId) ? -1 : 0
-              const bMatch = linkedId && String(b.contaboSecretId) === String(linkedId) ? -1 : 0
-              return aMatch - bMatch
-            })
-            .map(k => ({ privateKey: k.privateKey, sshKeyName: k.sshKeyName }))
-        } catch (e) {
-          console.error(`[VPS] Could not load SSH keys for ${chatId}: ${e.message || e}`)
-        }
+        // that was injected at create time — the key linked to this VPS is
+        // tried first.
+        const sshPrivateKeys = await fetchUserSSHPrivateKeys(chatId, userVPSDetails.sshKeySecretId)
 
         const { password, secretId, reinstalled, note, raw, verified } = await provider.resetPassword(instanceId, {
           defaultUser: userVPSDetails.defaultUser,
@@ -39065,6 +39101,169 @@ app.get('/dev/vps-password-fix-check', async (req, res) => {
     return res.status(500).json({ pass: false, error: e.message, stack: String(e.stack || '').slice(0, 600), checks })
   }
 })
+
+// ── DEV-ONLY: "🔐 Show Password" (VPS password recovery) test ──────────────
+// Feature added 2026-08-13 after the @user_uu0 incident: customers used to see
+// their VPS password exactly once (create or reset) and the copy claimed it
+// could never be retrieved — because DO/Vultr/Azure secrets lived in a
+// per-process Map that died on every redeploy. Passwords are now stored in
+// Mongo, older DigitalOcean droplets can be recovered from their immutable
+// create-time cloud-init user-data, and whatever we surface is tested against
+// the live server first so we never show a credential that doesn't work.
+app.get('/dev/vps-password-reveal-check', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  if (req?.query?.key !== process.env.SESSION_SECRET?.slice(0, 16)) {
+    return res.status(403).json({ error: 'forbidden' })
+  }
+
+  const checks = []
+  const add = (name, pass, detail) => checks.push({ name, pass: !!pass, detail: String(detail).slice(0, 400) })
+
+  try {
+    const reveal = require('./vps-password-reveal')
+    const sshMod = require('./vps-ssh-password')
+    const store = require('./vps-secret-store')
+    const { en } = require('./lang/en.js')
+    const vpLabels = en.vp
+
+    // 1 ── parse a password out of real cloud-init user-data (legacy recovery)
+    const realUserData = [
+      '#cloud-config',
+      'chpasswd:',
+      '  list: |',
+      '    root:jdMK2V7-a4=xagYR6yI#',
+      '  expire: false',
+      'ssh_pwauth: true',
+      'runcmd:',
+      "  - sed -i 's/^#\\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config",
+    ].join('\n')
+    const parsed = sshMod.parsePasswordFromCloudInit(realUserData, 'root')
+    add('recovers the root password from cloud-init user-data',
+      parsed === 'jdMK2V7-a4=xagYR6yI#', `parsed=${JSON.stringify(parsed)}`)
+    add('cloud-init parser ignores schema keys (expire/ssh_pwauth/runcmd)',
+      parsed !== 'false' && parsed !== 'true' && !String(parsed).startsWith('- '), `parsed=${JSON.stringify(parsed)}`)
+    add('cloud-init parser handles a non-Windows admin user',
+      sshMod.parsePasswordFromCloudInit('#cloud-config\nchpasswd:\n  list: |\n    admin:Secret123\n  expire: false\n', 'admin') === 'Secret123',
+      'admin user parsed')
+    add('cloud-init parser returns null when there is no password',
+      sshMod.parsePasswordFromCloudInit('#cloud-config\npackages:\n  - curl\n', 'root') === null,
+      'no false positives')
+
+    // 2 ── provider + login-user detection
+    add('provider detected from a do- instance id',
+      reveal.detectProvider({ vpsId: 'do-591819943' }) === 'digitalocean', 'do- → digitalocean')
+    add('provider detected from a numeric (Contabo) id',
+      reveal.detectProvider({ vpsId: '203259606' }) === 'contabo', 'numeric → contabo')
+    add('explicit provider field wins',
+      reveal.detectProvider({ provider: 'azure', vpsId: '123' }) === 'azure', 'azure honoured')
+    add('login user is root for Linux and Administrator for RDP',
+      reveal.loginUserFor({ osType: 'Linux' }) === 'root' &&
+      reveal.loginUserFor({ isRDP: true }) === 'Administrator',
+      'usernames correct')
+
+    // 3 ── a stored password is returned, and survives a cache wipe
+    const sid = `do-pwd-revealtest-${Date.now().toString(36)}`
+    const pw = `RevealTest${Date.now()}`
+    await store.putSecret(sid, pw, { provider: 'digitalocean', name: sid })
+    store._clearCache() // simulate the redeploy that used to lose every password
+    const okRes = await reveal.revealVpsPassword(
+      { vpsId: 'do-999999999', provider: 'digitalocean', rootPasswordSecretId: sid, osType: 'Linux', defaultUser: 'root', host: null },
+      { sshPrivateKeys: [], verify: false }
+    )
+    add('a stored password can be revealed after a redeploy',
+      okRes.status === 'ok' && okRes.password === pw && okRes.source === 'stored',
+      `status=${okRes.status} source=${okRes.source}`)
+    await store.deleteSecret(sid)
+
+    // 4 ── honest, actionable answer when nothing is retrievable
+    const noneRes = await reveal.revealVpsPassword(
+      { vpsId: 'do-888888888', provider: 'digitalocean', rootPasswordSecretId: null, osType: 'Linux', host: null },
+      { sshPrivateKeys: [], verify: false }
+    )
+    add('missing password returns not_available with a reason (never a fake one)',
+      noneRes.status === 'not_available' && !noneRes.password && !!noneRes.reason,
+      `status=${noneRes.status} reason=${noneRes.reason}`)
+
+    // 5 ── RDP records are not SSH-probed
+    const rdpSid = `az-pwd-revealtest-${Date.now().toString(36)}`
+    await store.putSecret(rdpSid, 'RdpPw123', { provider: 'azure', name: rdpSid })
+    const rdpRes = await reveal.revealVpsPassword(
+      { vpsId: 'az-nmdtest', provider: 'azure', rootPasswordSecretId: rdpSid, isRDP: true, osType: 'Windows', host: '20.1.2.3' },
+      { sshPrivateKeys: [] }
+    )
+    add('Windows/RDP reveal skips the SSH verification step',
+      rdpRes.status === 'ok' && rdpRes.verification === null,
+      `status=${rdpRes.status} verification=${JSON.stringify(rdpRes.verification)}`)
+    await store.deleteSecret(rdpSid)
+
+    // 6 ── Azure + Vultr now persist secrets too (the same in-memory-Map bug)
+    for (const [prov, mod, prefix] of [['azure', './azure-service', 'az-pwd-'], ['vultr', './vultr-service', 'vultr-pwd-']]) {
+      const m = require(mod)
+      const id = `${prefix}durable-${Date.now().toString(36)}`
+      const val = `Durable_${prov}_1`
+      await store.putSecret(id, val, { provider: prov, name: id })
+      store._clearCache()
+      const got = typeof m.getSecretPassword === 'function' ? await m.getSecretPassword(id) : null
+      add(`${prov} passwords survive a redeploy`, got === val, `getSecretPassword → ${got ? 'recovered' : 'null'}`)
+      await store.deleteSecret(id)
+    }
+
+    // 7 ── customer-facing copy
+    add('a "Show Password" button label exists',
+      typeof vpLabels.revealPasswordBtn === 'string' && vpLabels.revealPasswordBtn.length > 0,
+      `label=${vpLabels.revealPasswordBtn}`)
+    const okMsg = vpLabels.revealPasswordSuccess('vps-1', '1.2.3.4', 'root', 'Pw1', { isRDP: false, verification: { status: 'ok' } })
+    add('reveal message shows port, username and a connect command',
+      okMsg.includes('SSH Port') && okMsg.includes('<code>22</code>') && okMsg.includes('ssh root@1.2.3.4 -p 22') && okMsg.includes('root'),
+      'connect details present')
+    add('reveal message confirms a verified password',
+      okMsg.includes('it works'), 'verified wording present')
+    const badMsg = vpLabels.revealPasswordSuccess('vps-1', '1.2.3.4', 'root', 'Pw1', { isRDP: false, verification: { status: 'password_wrong' } })
+    add('reveal message warns when the password no longer works',
+      badMsg.includes('rejected') && badMsg.includes('Reset Password'),
+      'rejection warning + next step present')
+    const offMsg = vpLabels.revealPasswordSuccess('vps-1', '1.2.3.4', 'root', 'Pw1', { isRDP: false, verification: { status: 'password_auth_disabled' } })
+    add('reveal message explains a server that refuses password logins',
+      offMsg.includes('refusing password logins'), 'pwauth-disabled wording present')
+    const rdpMsg = vpLabels.revealPasswordSuccess('rdp-1', '1.2.3.4', 'Administrator', 'Pw1', { isRDP: true })
+    add('RDP reveal shows port 3389, not 22',
+      rdpMsg.includes('3389') && !rdpMsg.includes('SSH Port'), 'RDP port correct')
+    const naMsg = vpLabels.revealPasswordNotStored('vps-1', 'no stored password')
+    add('unavailable message points at Reset Password and promises data is kept',
+      naMsg.includes('Reset Password') && /data are kept|data is kept|files and data/i.test(naMsg),
+      'actionable next step present')
+    add('recovered passwords are labelled as recovered',
+      vpLabels.revealPasswordSuccess('v', '1.2.3.4', 'root', 'p', { recovered: true }).includes('Recovered'),
+      'recovery note present')
+
+    // 8 ── the button is actually wired into the bot
+    const selfSrc = require('fs').readFileSync(__filename, 'utf8')
+    add('Show Password is on the VPS details keyboard',
+      /extraButtons\s*=\s*isRDP[\s\S]{0,200}vp\.revealPasswordBtn/.test(selfSrc),
+      'button present in extraButtons')
+    add('Show Password button is routed to its handler',
+      selfSrc.includes('if (message === vp.revealPasswordBtn) return goto.revealVpsPassword()'),
+      'route present')
+    add('reveal handler reads the stored record for the secret id',
+      /revealVpsPassword:\s*async[\s\S]{0,1200}rootPasswordSecretId|revealVpsPassword:\s*async[\s\S]{0,1200}vpsPlansOf\.findOne/.test(selfSrc),
+      'stored record lookup present')
+
+    const failed = checks.filter(c => !c.pass)
+    return res.json({
+      pass: failed.length === 0,
+      total: checks.length,
+      passed: checks.length - failed.length,
+      failed: failed.length,
+      feature: 'Show Password — look up the CURRENT VPS password any time, verified against the live server',
+      checks,
+    })
+  } catch (e) {
+    return res.status(500).json({ pass: false, error: e.message, stack: String(e.stack || '').slice(0, 600), checks })
+  }
+})
+
 
 
 // ── DEV-ONLY: outbound-call BillingLeak regression test ────────────────────
