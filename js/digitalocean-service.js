@@ -692,6 +692,35 @@ async function resetPassword(instanceId, opts = {}) {
     currentPassword = await _resolvePasswordSecret(opts.currentSecretId)
   }
 
+  // Fallback recovery: if we STILL do not know a password, run the full reveal
+  // resolution chain (durable store → provider cache → cloud-init user-data over
+  // SSH). Feeding a recovered password back in keeps the in-place SSH reset path
+  // usable — so we set the new password on the RUNNING server (data kept, shown
+  // here) instead of falling back to DO emailing a password we can never display.
+  if (!currentPassword && host) {
+    try {
+      const { revealVpsPassword } = require('./vps-password-reveal')
+      const rev = await revealVpsPassword(
+        {
+          provider: PROVIDER,
+          vpsId: `do-${id}`,
+          host,
+          defaultUser: username,
+          isRDP: opts.isRDP,
+          osType: opts.osType,
+          rootPasswordSecretId: opts.currentSecretId || null,
+        },
+        { sshPrivateKeys: opts.sshPrivateKeys || [], verify: false }
+      )
+      if (rev && rev.status === 'ok' && rev.password) {
+        currentPassword = rev.password
+        log(`resetPassword ${id}: recovered current password via reveal (source=${rev.source}${rev.recovered ? ', recovered' : ''})`)
+      }
+    } catch (e) {
+      log(`resetPassword ${id}: reveal fallback failed — ${e.message || e}`)
+    }
+  }
+
   const plan = _resetPasswordPlan({ host, sshPrivateKeys: opts.sshPrivateKeys, currentPassword })
   log(`resetPassword ${id}: plan=[${plan.steps.join(' → ')}]${plan.reason ? ` (${plan.reason})` : ''}`)
 

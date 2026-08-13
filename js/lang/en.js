@@ -3466,15 +3466,45 @@ Please Try again after sometime.`,
 
 Do you want to proceed?`,
  
- confirmResetPasswordText: name => `🔑 <strong>Reset VPS Password</strong>
+ // Provider-aware: DigitalOcean/Azure/Contabo-root apply the password on the
+ // RUNNING server (nothing erased), while Vultr/OVH/Contabo-non-root can only
+ // reinstall. Never promise "your data is kept" unless it is actually true.
+ confirmResetPasswordText: (name, impact = {}) => {
+   const mode = impact.mode || 'in-place'
+   const head = `🔑 <strong>Reset ${impact.isRDP ? 'RDP' : 'VPS'} Password</strong>
 
-⚠️ <strong>Important:</strong>
-• Your current password will stop working
-• A new password will be generated and shown to you here
-• We apply it on the <b>running server</b> — your files and data are kept
-• <b>Windows RDP:</b> your data and files are preserved too
+🖥️ <strong>Server:</strong> ${name}
+`
+   const nudge = `
+💡 <i>Only lost the password? Go ❌ Cancel → <b>🔐 Show Password</b> — no reset needed.</i>
 
-Do you want to reset the password for <strong>${name}</strong>?`,
+Reset the password for <strong>${name}</strong>?`
+
+   if (mode === 'reinstall') return head + `
+⚠️ <strong>THIS ERASES THE SERVER.</strong> This provider cannot change the password on a running machine, so the OS is reinstalled — all files, websites, databases and settings are permanently deleted.
+
+• You get a fresh install with a brand-new password
+• Your current password stops working
+• 💾 Take a backup/snapshot first if you need the data
+` + nudge
+
+   if (mode === 'rebuild-emailed') return head + `
+⚠️ <strong>THIS ERASES THE SERVER</strong> and the new password is <b>emailed by the provider</b> — we cannot show it to you here.
+
+• The OS is rebuilt: all files and data are permanently deleted
+• The provider emails a fresh password to the hosting account (~5 min)
+• For instant access, use your SSH key
+` + nudge
+
+   return head + `
+✅ <strong>Your data is kept.</strong> Nothing is erased — your files, websites, databases and settings stay exactly as they are. We only change the login password on the <b>running</b> server (no reinstall, no reboot).
+
+• A brand-new password is generated and shown to you right here
+• We apply it, then log in with it to confirm it works
+• Your current password stops working
+• ⏱️ Takes about 20-60 seconds
+` + nudge
+ },
 
  confirmReinstallWindowsText: name => `🔄 <strong>Reinstall Windows</strong>
 
@@ -3489,11 +3519,15 @@ Do you want to reset the password for <strong>${name}</strong>?`,
 
 Do you want to reinstall Windows on <strong>${name}</strong>?`,
 
- passwordResetInProgress: name => `🔄 Resetting password for <strong>${name}</strong>...
+ passwordResetInProgress: (name, impact = {}) => `🔄 Resetting password for <strong>${name}</strong>...
 
-⏱️ This usually takes 20-60 seconds. Please wait.
+⏱️ This usually takes 20-60 seconds. Please wait.${
+   (impact.mode || 'in-place') === 'in-place'
+     ? `
 
-🔒 <i>The new password is applied on your running server — your data stays intact.</i>`,
+🔒 <i>The new password is applied on your running server — your data stays intact.</i>`
+     : ''
+ }`,
 
  passwordResetSuccess: (name, ip, username, password, opts = {}) => {
    const isRDP = !!opts.isRDP
@@ -3514,7 +3548,9 @@ ${dataPreserved
    ? '💾 <strong>Your data was NOT touched</strong> — the password was changed on the running server.'
    : '⚠️ <strong>The OS was reinstalled</strong>, so previous data on the server is gone.'}
 
-⚠️ <strong>Save this password.</strong> Your old password no longer works.
+⚠️ <strong>Your old password no longer works.</strong>
+
+🔐 Lost this one later? Tap <b>Show Password</b> on your VPS — you can look it up any time, no reset needed.
 
 💡 Click the password to copy it.`
  },

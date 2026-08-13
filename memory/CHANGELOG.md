@@ -1,3 +1,33 @@
+## 2026-06 — VPS password reveal/reset i18n parity + DO fallback (forked session)
+
+Fixed the P0 crash where the Telegram inline keyboard was rejected for **non-English users** on the
+VPS details screen: fr/zh/hi were missing `revealPasswordBtn` ("🔐 Show Password") and 4 reveal
+message builders, so the keyboard row contained an `undefined` button and Telegram rejected it.
+
+- **`js/lang/{fr,zh,hi}.js`** — added `revealPasswordBtn`, `revealPasswordChecking`,
+  `revealPasswordSuccess`, `revealPasswordNotStored`, `revealPasswordFailed`; and upgraded
+  `confirmResetPasswordText(name, impact={})`, `passwordResetInProgress(name, impact={})`,
+  `passwordResetSuccess(name, ip, username, password, opts={})` to the en.js signatures.
+  The reset **confirm screen now shows a clear "your data is kept" note** (default `in-place` mode,
+  DO-focused), and the success screen reports `dataPreserved`/`verified` + a "Show Password" nudge.
+- **`js/digitalocean-service.js` `resetPassword()`** — when the current password is unknown it now
+  runs the full reveal chain (`revealVpsPassword`: durable store → provider cache → cloud-init
+  recovery) **before** building `_resetPasswordPlan`, feeding a recovered password so the in-place
+  `ssh-password` path stays usable instead of falling back to DO emailing a password the customer
+  never sees. Strictly additive; `rebuild` is still never used.
+- **`js/_index.js`** dev self-test `/dev/vps-password-reveal-check` extended with 16 multilingual
+  render assertions (en/fr/zh/hi) + a DO reveal-fallback wiring check.
+- **Tests**: new offline render test `js/__tests__/vps-password-i18n.verify.js` (ALL LANGUAGES
+  PASSED). Dev endpoints: reveal-check 41/41, fix-check 23/23. testing_agent iteration_35 → 100%.
+
+**Railway prod-log finding for the complainant (chatId 6277663071 / @user_uu0, droplet
+do-591819943 / 204.48.23.185, 2026-08-13):** the bot side is healthy — reset applied in-place via
+`ssh-key:key-fd6c20999f41` `verified=true` (data kept), and Show Password returns a stored password
+that the bot logs in with successfully (`verification=ok`). The user's "Permission denied" comes
+from their own Windows SSH client (client-side paste/typing), NOT a bot bug. This `en` user was
+never affected by the keyboard crash (that only hit fr/zh/hi).
+
+
 ## 2026-06 — Phase 2c: Scheduled Bulk Campaigns (forked session)
 
 Bulk campaigns can now be scheduled to launch at a chosen time instead of only immediately.
@@ -424,7 +454,7 @@ last_error: "Wrong response from the webhook: 404 Not Found"
 ### Operational restoration
 - Called Telegram `setWebhook` to put the prod bot back on Railway:  
   `https://nomadly-email-ivr-production.up.railway.app/telegram/webhook` — verified `last_error: none, pending_update_count: 0`.
-- Local nodejs restarted cleanly; logs show `[Webhooks] SKIP_WEBHOOK_SYNC=true — preserving existing Telegram webhook (NOT overwriting)` and `📡 Existing webhook (left untouched): https://deployment-preview-26.preview.emergentagent.com/api/telegram/webhook` (the dev bot's webhook is preserved, even though it points at a dead preview pod — that's fine, we'll re-point it on demand if needed for dev testing).
+- Local nodejs restarted cleanly; logs show `[Webhooks] SKIP_WEBHOOK_SYNC=true — preserving existing Telegram webhook (NOT overwriting)` and `📡 Existing webhook (left untouched): https://reset-confirm-update.preview.emergentagent.com/api/telegram/webhook` (the dev bot's webhook is preserved, even though it points at a dead preview pod — that's fine, we'll re-point it on demand if needed for dev testing).
 
 ### Tests
 - `/app/backend/tests/test_webhook_isolation.js` — 3 cases (the SKIP_WEBHOOK_SYNC guard comes before `bot.setWebHook` in source order; the setup-nodejs.sh `SKIP_SELF_URL_UPDATE` gate is wired correctly and sits BEFORE the sed rewrite; `.env` is in dev mode with the safety flag set). All pass.

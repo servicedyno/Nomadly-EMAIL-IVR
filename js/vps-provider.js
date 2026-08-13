@@ -132,27 +132,64 @@ function getFallbackProvider() {
  *
  * @param {Object} vpsRecord - The vpsPlansOf document (or null for "current default")
  */
-function getProviderForRecord(vpsRecord) {
-  if (!vpsRecord) return getProvider()
+function providerNameForRecord(vpsRecord) {
+  if (!vpsRecord) return DEFAULT_PROVIDER
   const explicit = (vpsRecord.provider || '').toLowerCase()
-  if (explicit === 'ovh' || explicit === 'contabo' || explicit === 'vultr' || explicit === 'digitalocean' || explicit === 'azure') return _loadProvider(explicit)
+  if (explicit === 'ovh' || explicit === 'contabo' || explicit === 'vultr' || explicit === 'digitalocean' || explicit === 'azure') return explicit
   if (vpsRecord._ovhServiceName || (typeof vpsRecord.contaboInstanceId === 'string' && /^vps-/.test(vpsRecord.contaboInstanceId))) {
-    return _loadProvider('ovh')
+    return 'ovh'
   }
   if (vpsRecord.contaboInstanceId != null) {
     const s = String(vpsRecord.contaboInstanceId)
-    if (/^az-/i.test(s)) {
-      return _loadProvider('azure')
-    }
-    if (/^do-/i.test(s)) {
-      return _loadProvider('digitalocean')
-    }
-    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)) {
-      return _loadProvider('vultr')
-    }
-    return _loadProvider('contabo')
+    if (/^az-/i.test(s)) return 'azure'
+    if (/^do-/i.test(s)) return 'digitalocean'
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)) return 'vultr'
+    return 'contabo'
   }
-  return getProvider()
+  return DEFAULT_PROVIDER
+}
+
+function getProviderForRecord(vpsRecord) {
+  if (!vpsRecord) return getProvider()
+  return _loadProvider(providerNameForRecord(vpsRecord))
+}
+
+/**
+ * What a "Reset Password" tap will actually DO to this server — so the bot can
+ * tell the customer the truth BEFORE they confirm.
+ *
+ * The providers are not equivalent:
+ *   • digitalocean — applies the new password over SSH on the RUNNING droplet
+ *     (`chpasswd`) and verifies it by logging back in. Nothing is erased.
+ *   • azure        — VMAccessAgent extension resets the admin password in place.
+ *   • contabo      — plain resetPassword API for root Linux and ALL Windows
+ *     (in place); a non-root Linux user forces a REINSTALL with cloud-init.
+ *   • vultr        — has no in-place endpoint at all: resetPassword() calls
+ *     /reinstall, which WIPES the disk.
+ *   • ovh          — rebuilds with the same image and the provider emails the
+ *     new password; data is lost and we cannot show the password.
+ *
+ * @returns {{provider:string, mode:'in-place'|'reinstall'|'rebuild-emailed',
+ *            dataPreserved:boolean, showsPassword:boolean, isRDP:boolean}}
+ */
+function passwordResetImpact(vpsRecord) {
+  const provider = providerNameForRecord(vpsRecord)
+  const rec = vpsRecord || {}
+  const isRDP = rec.isRDP === true || rec.osType === 'Windows'
+  const defaultUser = rec.defaultUser || (isRDP ? 'Administrator' : 'root')
+
+  let mode = 'in-place'
+  if (provider === 'vultr') mode = 'reinstall'
+  else if (provider === 'ovh') mode = 'rebuild-emailed'
+  else if (provider === 'contabo' && !isRDP && defaultUser !== 'root') mode = 'reinstall'
+
+  return {
+    provider,
+    mode,
+    dataPreserved: mode === 'in-place',
+    showsPassword: mode !== 'rebuild-emailed',
+    isRDP,
+  }
 }
 
 /**
@@ -227,6 +264,8 @@ module.exports = {
   pickProviderForOs,
   getFallbackProvider,
   getProviderForRecord,
+  providerNameForRecord,
+  passwordResetImpact,
   
   detectProviderByInstanceId,
   dispatchByInstanceId,

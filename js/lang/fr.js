@@ -3219,6 +3219,54 @@ ${list
  subscriptionBtn: '🔄 Abonnements',
  VpsLinkedKeysBtn: '🔑 Clés SSH',
  resetPasswordBtn: '🔑 Réinitialiser le mot de passe',
+ revealPasswordBtn: '🔐 Afficher le mot de passe',
+ revealPasswordChecking: name => `🔐 Recherche du mot de passe actuel pour <strong>${name}</strong>...
+
+⏱️ Juste quelques secondes — nous testons aussi la connexion pour vous.`,
+
+ revealPasswordSuccess: (name, ip, username, password, opts = {}) => {
+   const isRDP = !!opts.isRDP
+   const port = isRDP ? 3389 : 22
+   const v = opts.verification || null
+   let statusLine = ''
+   if (v && v.status === 'ok') {
+     statusLine = '\n✅ <b>Nous venons de nous connecter avec ce mot de passe — il fonctionne.</b>'
+   } else if (v && v.status === 'password_wrong') {
+     statusLine = '\n⚠️ <b>Ce mot de passe a été rejeté par votre serveur.</b> Appuyez sur <b>🔑 Réinitialiser le mot de passe</b> pour en définir un nouveau — il est appliqué immédiatement et vos données sont conservées.'
+   } else if (v && v.status === 'password_auth_disabled') {
+     statusLine = '\n⚠️ <b>Votre serveur refuse actuellement les connexions par mot de passe</b> (clé SSH uniquement). Appuyez sur <b>🔑 Réinitialiser le mot de passe</b> — cela réactive la connexion par mot de passe et vous donne un nouveau mot de passe.'
+   } else if (v && v.status === 'unreachable') {
+     statusLine = '\n💤 Nous n\'avons pas pu joindre votre serveur pour tester ce mot de passe. S\'il ne fonctionne pas, appuyez sur <b>🔑 Réinitialiser le mot de passe</b>.'
+   }
+   const recoveredLine = opts.recovered
+     ? '\n\n♻️ <i>Récupéré depuis la configuration d\'origine de votre serveur — enregistré pour un chargement instantané la prochaine fois.</i>'
+     : ''
+   return `🔐 <strong>Mot de passe VPS actuel</strong>
+
+🖥️ <strong>${isRDP ? 'RDP' : 'Serveur'} :</strong> ${name}
+🌐 <strong>IP :</strong> <code>${ip}</code>
+🔌 <strong>${isRDP ? 'Port RDP' : 'Port SSH'} :</strong> <code>${port}</code>
+👤 <strong>Nom d'utilisateur :</strong> <code>${username}</code>
+🔑 <strong>Mot de passe :</strong> <code>${password}</code>
+
+📋 <strong>Connexion :</strong> <code>${isRDP ? `${ip}:${port}` : `ssh ${username}@${ip} -p ${port}`}</code>${statusLine}${recoveredLine}
+
+💡 Cliquez sur le mot de passe pour le copier. Gardez-le privé — quiconque le possède a un accès complet.`
+ },
+
+ revealPasswordNotStored: (name, reason) => `🔐 <strong>Mot de passe non disponible</strong>
+
+Nous n'avons pas pu récupérer le mot de passe actuel pour <strong>${name}</strong>.
+
+📋 <i>Raison : ${reason || 'aucun mot de passe enregistré pour ce serveur'}</i>
+
+✅ <strong>Que faire :</strong> appuyez sur <b>🔑 Réinitialiser le mot de passe</b>. Cela définit un tout nouveau mot de passe sur votre serveur <b>en cours d'exécution</b> en environ une minute — <b>vos fichiers et données sont conservés</b> — puis nous vous affichons le nouveau mot de passe ici et confirmons qu'il fonctionne.`,
+
+ revealPasswordFailed: name => `❌ <strong>Impossible de récupérer le mot de passe</strong>
+
+Une erreur s'est produite lors de la récupération du mot de passe pour <strong>${name}</strong>.
+
+Veuillez réessayer dans un instant, ou appuyez sur <b>🔑 Réinitialiser le mot de passe</b> pour en définir un nouveau.`,
  reinstallWindowsBtn: '🔄 Réinstaller Windows',
  confirmChangeBtn: '✅ Confirmer',
 
@@ -3245,15 +3293,42 @@ Veuillez réessayer après un certain temps.`,
  
  Voulez-vous continuer ?`,
  
- confirmResetPasswordText: name => `🔑 <strong>Réinitialiser le mot de passe RDP</strong>
+ confirmResetPasswordText: (name, impact = {}) => {
+   const mode = impact.mode || 'in-place'
+   const head = `🔑 <strong>Réinitialiser le mot de passe ${impact.isRDP ? 'RDP' : 'VPS'}</strong>
 
-⚠️ <strong>Important :</strong>
-• Votre mot de passe actuel ne fonctionnera plus
-• Un nouveau mot de passe sera généré
-• Toutes vos données et fichiers seront préservés
-• Vous aurez besoin du nouveau mot de passe pour accéder au RDP
+🖥️ <strong>Serveur :</strong> ${name}
+`
+   const nudge = `
+💡 <i>Vous avez seulement perdu le mot de passe ? Faites ❌ Annuler → <b>🔐 Afficher le mot de passe</b> — aucune réinitialisation nécessaire.</i>
 
-Voulez-vous réinitialiser le mot de passe pour <strong>${name}</strong> ?`,
+Voulez-vous réinitialiser le mot de passe pour <strong>${name}</strong> ?`
+
+   if (mode === 'reinstall') return head + `
+⚠️ <strong>CELA EFFACE LE SERVEUR.</strong> Ce fournisseur ne peut pas changer le mot de passe sur une machine en cours d'exécution, donc l'OS est réinstallé — tous les fichiers, sites web, bases de données et paramètres sont définitivement supprimés.
+
+• Vous obtenez une nouvelle installation avec un tout nouveau mot de passe
+• Votre mot de passe actuel cesse de fonctionner
+• 💾 Faites d'abord une sauvegarde/instantané si vous avez besoin des données
+` + nudge
+
+   if (mode === 'rebuild-emailed') return head + `
+⚠️ <strong>CELA EFFACE LE SERVEUR</strong> et le nouveau mot de passe est <b>envoyé par e-mail par le fournisseur</b> — nous ne pouvons pas vous l'afficher ici.
+
+• L'OS est reconstruit : tous les fichiers et données sont définitivement supprimés
+• Le fournisseur envoie un nouveau mot de passe au compte d'hébergement (~5 min)
+• Pour un accès instantané, utilisez votre clé SSH
+` + nudge
+
+   return head + `
+✅ <strong>Vos données sont conservées.</strong> Rien n'est effacé — vos fichiers, sites web, bases de données et paramètres restent exactement tels quels. Nous changeons uniquement le mot de passe de connexion sur le serveur <b>en cours d'exécution</b> (pas de réinstallation, pas de redémarrage).
+
+• Un tout nouveau mot de passe est généré et affiché ici même
+• Nous l'appliquons, puis nous connectons avec pour confirmer qu'il fonctionne
+• Votre mot de passe actuel cesse de fonctionner
+• ⏱️ Cela prend environ 20 à 60 secondes
+` + nudge
+ },
 
  confirmReinstallWindowsText: name => `🔄 <strong>Réinstaller Windows</strong>
 
@@ -3268,23 +3343,39 @@ Voulez-vous réinitialiser le mot de passe pour <strong>${name}</strong> ?`,
 
 Voulez-vous réinstaller Windows sur <strong>${name}</strong> ?`,
 
- passwordResetInProgress: name => `🔄 Réinitialisation du mot de passe pour <strong>${name}</strong>...
+ passwordResetInProgress: (name, impact = {}) => `🔄 Réinitialisation du mot de passe pour <strong>${name}</strong>...
 
-⏱️ Cela peut prendre 30 à 60 secondes. Veuillez patienter.`,
+⏱️ Cela prend généralement 20 à 60 secondes. Veuillez patienter.${
+   (impact.mode || 'in-place') === 'in-place'
+     ? `
 
- passwordResetSuccess: (name, ip, username, password) => `✅ <strong>Mot de passe réinitialisé avec succès !</strong>
+🔒 <i>Le nouveau mot de passe est appliqué sur votre serveur en cours d'exécution — vos données restent intactes.</i>`
+     : ''
+ }`,
 
-🖥️ <strong>RDP :</strong> ${name}
-🌐 <strong>IP :</strong> ${ip}
-👤 <strong>Nom d'utilisateur :</strong> ${username}
+ passwordResetSuccess: (name, ip, username, password, opts = {}) => {
+   const isRDP = !!opts.isRDP
+   const port = isRDP ? 3389 : 22
+   const dataPreserved = opts.dataPreserved !== false
+   return `✅ <strong>Mot de passe réinitialisé avec succès !</strong>
+
+🖥️ <strong>${isRDP ? 'RDP' : 'Serveur'} :</strong> ${name}
+🌐 <strong>IP :</strong> <code>${ip}</code>
+🔌 <strong>${isRDP ? 'Port RDP' : 'Port SSH'} :</strong> <code>${port}</code>
+👤 <strong>Nom d'utilisateur :</strong> <code>${username}</code>
 🔑 <strong>Nouveau mot de passe :</strong> <code>${password}</code>
+${isRDP ? `\n📋 <strong>Connexion :</strong> <code>${ip}:${port}</code>` : `\n📋 <strong>Connexion :</strong> <code>ssh ${username}@${ip} -p ${port}</code>`}
+${opts.verified ? '\n✅ Nous nous sommes connectés avec ce mot de passe pour confirmer qu\'il fonctionne.' : ''}
+${dataPreserved
+   ? '💾 <strong>Vos données n\'ont PAS été touchées</strong> — le mot de passe a été changé sur le serveur en cours d\'exécution.'
+   : '⚠️ <strong>L\'OS a été réinstallé</strong>, donc les données précédentes sur le serveur ont disparu.'}
 
-⚠️ <strong>IMPORTANT - Enregistrez ce mot de passe maintenant !</strong>
-• Nous ne pouvons pas le récupérer plus tard pour des raisons de sécurité
-• Si perdu, vous devez réinitialiser votre mot de passe à nouveau (les données seront préservées)
-• Votre ancien mot de passe ne fonctionne plus
+⚠️ <strong>Votre ancien mot de passe ne fonctionne plus.</strong>
 
-💡 Cliquez sur le mot de passe pour le copier.`,
+🔐 Vous perdez celui-ci plus tard ? Appuyez sur <b>Afficher le mot de passe</b> sur votre VPS — vous pouvez le consulter à tout moment, sans réinitialisation.
+
+💡 Cliquez sur le mot de passe pour le copier.`
+ },
 
  passwordResetEmailed: (name, ip, username, note) => `✅ <strong>Réinitialisation du mot de passe lancée !</strong>
 

@@ -3185,6 +3185,54 @@ ${list
  subscriptionBtn: '🔄 订阅',
  VpsLinkedKeysBtn: '🔑 SSH 密钥',
  resetPasswordBtn: '🔑 重置密码',
+ revealPasswordBtn: '🔐 显示密码',
+ revealPasswordChecking: name => `🔐 正在查找 <strong>${name}</strong> 的当前密码...
+
+⏱️ 只需几秒 — 我们还会为您测试登录。`,
+
+ revealPasswordSuccess: (name, ip, username, password, opts = {}) => {
+   const isRDP = !!opts.isRDP
+   const port = isRDP ? 3389 : 22
+   const v = opts.verification || null
+   let statusLine = ''
+   if (v && v.status === 'ok') {
+     statusLine = '\n✅ <b>我们刚刚用此密码登录成功 — 它有效。</b>'
+   } else if (v && v.status === 'password_wrong') {
+     statusLine = '\n⚠️ <b>此密码被您的服务器拒绝。</b> 点击 <b>🔑 重置密码</b> 设置新密码 — 即时生效，您的数据将保留。'
+   } else if (v && v.status === 'password_auth_disabled') {
+     statusLine = '\n⚠️ <b>您的服务器当前拒绝密码登录</b>（仅限 SSH 密钥）。点击 <b>🔑 重置密码</b> — 这将重新启用密码登录并为您提供新密码。'
+   } else if (v && v.status === 'unreachable') {
+     statusLine = '\n💤 我们无法连接到您的服务器来测试此密码。如果无效，请点击 <b>🔑 重置密码</b>。'
+   }
+   const recoveredLine = opts.recovered
+     ? '\n\n♻️ <i>从您服务器的原始设置中恢复 — 已保存，下次将即时加载。</i>'
+     : ''
+   return `🔐 <strong>当前 VPS 密码</strong>
+
+🖥️ <strong>${isRDP ? 'RDP' : '服务器'}：</strong> ${name}
+🌐 <strong>IP：</strong> <code>${ip}</code>
+🔌 <strong>${isRDP ? 'RDP 端口' : 'SSH 端口'}：</strong> <code>${port}</code>
+👤 <strong>用户名：</strong> <code>${username}</code>
+🔑 <strong>密码：</strong> <code>${password}</code>
+
+📋 <strong>连接：</strong> <code>${isRDP ? `${ip}:${port}` : `ssh ${username}@${ip} -p ${port}`}</code>${statusLine}${recoveredLine}
+
+💡 点击密码即可复制。请妥善保管 — 任何拥有它的人都能完全访问。`
+ },
+
+ revealPasswordNotStored: (name, reason) => `🔐 <strong>密码不可用</strong>
+
+我们无法获取 <strong>${name}</strong> 的当前密码。
+
+📋 <i>原因：${reason || '此服务器没有已存储的密码'}</i>
+
+✅ <strong>该怎么做：</strong> 点击 <b>🔑 重置密码</b>。它会在约一分钟内在您<b>正在运行</b>的服务器上设置一个全新密码 — <b>您的文件和数据会被保留</b> — 然后我们在此显示新密码并确认其有效。`,
+
+ revealPasswordFailed: name => `❌ <strong>无法查询密码</strong>
+
+获取 <strong>${name}</strong> 的密码时出错。
+
+请稍后重试，或点击 <b>🔑 重置密码</b> 设置一个新密码。`,
  reinstallWindowsBtn: '🔄 重装 Windows',
  confirmChangeBtn: '✅ 确认',
 
@@ -3210,15 +3258,42 @@ ${list
  
 您确定要继续吗？`,
 
- confirmResetPasswordText: name => `🔑 <strong>重置 RDP 密码</strong>
+ confirmResetPasswordText: (name, impact = {}) => {
+   const mode = impact.mode || 'in-place'
+   const head = `🔑 <strong>重置${impact.isRDP ? ' RDP' : ' VPS'} 密码</strong>
 
-⚠️ <strong>重要提示：</strong>
+🖥️ <strong>服务器：</strong> ${name}
+`
+   const nudge = `
+💡 <i>只是忘记了密码？点击 ❌ 取消 → <b>🔐 显示密码</b> — 无需重置。</i>
+
+您确定要重置 <strong>${name}</strong> 的密码吗？`
+
+   if (mode === 'reinstall') return head + `
+⚠️ <strong>这会清空服务器。</strong> 此提供商无法在运行中的机器上更改密码，因此会重装操作系统 — 所有文件、网站、数据库和设置将被永久删除。
+
+• 您将获得一个全新安装和一个全新密码
 • 您当前的密码将停止工作
-• 将生成新密码
-• 所有数据和文件将被保留
-• 您需要新密码才能访问 RDP
+• 💾 如果需要数据，请先创建备份/快照
+` + nudge
 
-您确定要重置 <strong>${name}</strong> 的密码吗？`,
+   if (mode === 'rebuild-emailed') return head + `
+⚠️ <strong>这会清空服务器</strong>，并且新密码由<b>提供商通过邮件发送</b> — 我们无法在此向您显示。
+
+• 操作系统将被重建：所有文件和数据将被永久删除
+• 提供商会将新密码发送到托管账户邮箱（约5分钟）
+• 如需立即访问，请使用您的 SSH 密钥
+` + nudge
+
+   return head + `
+✅ <strong>您的数据将保留。</strong> 什么都不会被删除 — 您的文件、网站、数据库和设置将保持原样。我们只更改<b>正在运行</b>的服务器上的登录密码（不重装、不重启）。
+
+• 生成一个全新密码并在此直接显示
+• 我们应用它，然后用它登录以确认其有效
+• 您当前的密码将停止工作
+• ⏱️ 大约需要 20-60 秒
+` + nudge
+ },
 
  confirmReinstallWindowsText: name => `🔄 <strong>重装 Windows</strong>
 
@@ -3233,23 +3308,39 @@ ${list
 
 您确定要在 <strong>${name}</strong> 上重装 Windows 吗？`,
 
- passwordResetInProgress: name => `🔄 正在重置 <strong>${name}</strong> 的密码...
+ passwordResetInProgress: (name, impact = {}) => `🔄 正在重置 <strong>${name}</strong> 的密码...
 
-⏱️ 这可能需要 30-60 秒。请稍候。`,
+⏱️ 通常需要 20-60 秒。请稍候。${
+   (impact.mode || 'in-place') === 'in-place'
+     ? `
 
- passwordResetSuccess: (name, ip, username, password) => `✅ <strong>密码重置成功！</strong>
+🔒 <i>新密码将应用于您正在运行的服务器 — 您的数据保持完好。</i>`
+     : ''
+ }`,
 
-🖥️ <strong>RDP：</strong> ${name}
-🌐 <strong>IP：</strong> ${ip}
-👤 <strong>用户名：</strong> ${username}
+ passwordResetSuccess: (name, ip, username, password, opts = {}) => {
+   const isRDP = !!opts.isRDP
+   const port = isRDP ? 3389 : 22
+   const dataPreserved = opts.dataPreserved !== false
+   return `✅ <strong>密码重置成功！</strong>
+
+🖥️ <strong>${isRDP ? 'RDP' : '服务器'}：</strong> ${name}
+🌐 <strong>IP：</strong> <code>${ip}</code>
+🔌 <strong>${isRDP ? 'RDP 端口' : 'SSH 端口'}：</strong> <code>${port}</code>
+👤 <strong>用户名：</strong> <code>${username}</code>
 🔑 <strong>新密码：</strong> <code>${password}</code>
+${isRDP ? `\n📋 <strong>连接：</strong> <code>${ip}:${port}</code>` : `\n📋 <strong>连接：</strong> <code>ssh ${username}@${ip} -p ${port}</code>`}
+${opts.verified ? '\n✅ 我们已用此密码登录以确认其有效。' : ''}
+${dataPreserved
+   ? '💾 <strong>您的数据未被改动</strong> — 密码是在正在运行的服务器上更改的。'
+   : '⚠️ <strong>操作系统已被重装</strong>，因此服务器上先前的数据已丢失。'}
 
-⚠️ <strong>重要 - 立即保存此密码！</strong>
-• 出于安全原因，我们以后无法检索它
-• 如果丢失，您必须再次重置密码（数据将被保留）
-• 您的旧密码不再有效
+⚠️ <strong>您的旧密码不再有效。</strong>
 
-💡 点击密码即可复制。`,
+🔐 以后又忘了？在您的 VPS 上点击 <b>显示密码</b> — 您可以随时查看，无需重置。
+
+💡 点击密码即可复制。`
+ },
 
  passwordResetEmailed: (name, ip, username, note) => `✅ <strong>密码重置已启动！</strong>
 

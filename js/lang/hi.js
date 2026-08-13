@@ -3205,6 +3205,54 @@ ${list
  subscriptionBtn: '🔄 सदस्यता',
  VpsLinkedKeysBtn: '🔑 SSH कुंजी',
  resetPasswordBtn: '🔑 पासवर्ड रीसेट करें',
+ revealPasswordBtn: '🔐 पासवर्ड दिखाएं',
+ revealPasswordChecking: name => `🔐 <strong>${name}</strong> के लिए वर्तमान पासवर्ड ढूंढ रहे हैं...
+
+⏱️ बस कुछ सेकंड — हम आपके लिए लॉगिन भी जांचते हैं।`,
+
+ revealPasswordSuccess: (name, ip, username, password, opts = {}) => {
+   const isRDP = !!opts.isRDP
+   const port = isRDP ? 3389 : 22
+   const v = opts.verification || null
+   let statusLine = ''
+   if (v && v.status === 'ok') {
+     statusLine = '\n✅ <b>हमने अभी इस पासवर्ड से लॉगिन किया — यह काम करता है।</b>'
+   } else if (v && v.status === 'password_wrong') {
+     statusLine = '\n⚠️ <b>यह पासवर्ड आपके सर्वर द्वारा अस्वीकार कर दिया गया।</b> नया सेट करने के लिए <b>🔑 पासवर्ड रीसेट करें</b> दबाएं — यह तुरंत लागू होता है और आपका डेटा सुरक्षित रहता है।'
+   } else if (v && v.status === 'password_auth_disabled') {
+     statusLine = '\n⚠️ <b>आपका सर्वर अभी पासवर्ड लॉगिन अस्वीकार कर रहा है</b> (केवल SSH कुंजी)। <b>🔑 पासवर्ड रीसेट करें</b> दबाएं — यह पासवर्ड लॉगिन फिर से सक्षम करता है और आपको नया पासवर्ड देता है।'
+   } else if (v && v.status === 'unreachable') {
+     statusLine = '\n💤 हम इस पासवर्ड को जांचने के लिए आपके सर्वर तक नहीं पहुंच सके। यदि यह काम न करे, तो <b>🔑 पासवर्ड रीसेट करें</b> दबाएं।'
+   }
+   const recoveredLine = opts.recovered
+     ? '\n\n♻️ <i>आपके सर्वर के मूल सेटअप से पुनर्प्राप्त — सहेजा गया ताकि अगली बार तुरंत लोड हो।</i>'
+     : ''
+   return `🔐 <strong>वर्तमान VPS पासवर्ड</strong>
+
+🖥️ <strong>${isRDP ? 'RDP' : 'सर्वर'}:</strong> ${name}
+🌐 <strong>IP:</strong> <code>${ip}</code>
+🔌 <strong>${isRDP ? 'RDP पोर्ट' : 'SSH पोर्ट'}:</strong> <code>${port}</code>
+👤 <strong>उपयोगकर्ता नाम:</strong> <code>${username}</code>
+🔑 <strong>पासवर्ड:</strong> <code>${password}</code>
+
+📋 <strong>कनेक्ट करें:</strong> <code>${isRDP ? `${ip}:${port}` : `ssh ${username}@${ip} -p ${port}`}</code>${statusLine}${recoveredLine}
+
+💡 पासवर्ड को कॉपी करने के लिए क्लिक करें। इसे निजी रखें — जिसके पास यह है उसे पूरा एक्सेस मिल जाता है।`
+ },
+
+ revealPasswordNotStored: (name, reason) => `🔐 <strong>पासवर्ड उपलब्ध नहीं</strong>
+
+हम <strong>${name}</strong> के लिए वर्तमान पासवर्ड प्राप्त नहीं कर सके।
+
+📋 <i>कारण: ${reason || 'इस सर्वर के लिए कोई सहेजा हुआ पासवर्ड नहीं'}</i>
+
+✅ <strong>क्या करें:</strong> <b>🔑 पासवर्ड रीसेट करें</b> दबाएं। यह लगभग एक मिनट में आपके <b>चल रहे</b> सर्वर पर एक बिल्कुल नया पासवर्ड सेट करता है — <b>आपकी फाइलें और डेटा सुरक्षित रहते हैं</b> — और हम आपको नया पासवर्ड यहां दिखाते हैं और पुष्टि करते हैं कि यह काम करता है।`,
+
+ revealPasswordFailed: name => `❌ <strong>पासवर्ड ढूंढ नहीं सके</strong>
+
+<strong>${name}</strong> के लिए पासवर्ड प्राप्त करते समय कुछ गलत हो गया।
+
+कृपया कुछ देर में पुनः प्रयास करें, या नया सेट करने के लिए <b>🔑 पासवर्ड रीसेट करें</b> दबाएं।`,
  reinstallWindowsBtn: '🔄 Windows पुनः स्थापित करें',
  confirmChangeBtn: '✅ पुष्टि करें',
 
@@ -3231,15 +3279,42 @@ ${list
  
 क्या आप आगे बढ़ना चाहते हैं?`,
 
- confirmResetPasswordText: name => `🔑 <strong>RDP पासवर्ड रीसेट करें</strong>
+ confirmResetPasswordText: (name, impact = {}) => {
+   const mode = impact.mode || 'in-place'
+   const head = `🔑 <strong>${impact.isRDP ? 'RDP' : 'VPS'} पासवर्ड रीसेट करें</strong>
 
-⚠️ <strong>महत्वपूर्ण:</strong>
-• आपका वर्तमान पासवर्ड काम करना बंद कर देगा
-• एक नया पासवर्ड उत्पन्न किया जाएगा
-• आपके सभी डेटा और फाइलें संरक्षित रहेंगी
-• RDP तक पहुंचने के लिए आपको नए पासवर्ड की आवश्यकता होगी
+🖥️ <strong>सर्वर:</strong> ${name}
+`
+   const nudge = `
+💡 <i>सिर्फ पासवर्ड भूल गए? ❌ रद्द करें → <b>🔐 पासवर्ड दिखाएं</b> — रीसेट की आवश्यकता नहीं।</i>
 
-क्या आप <strong>${name}</strong> के लिए पासवर्ड रीसेट करना चाहते हैं?`,
+क्या आप <strong>${name}</strong> के लिए पासवर्ड रीसेट करना चाहते हैं?`
+
+   if (mode === 'reinstall') return head + `
+⚠️ <strong>यह सर्वर को मिटा देता है।</strong> यह प्रदाता चालू मशीन पर पासवर्ड नहीं बदल सकता, इसलिए OS पुनः स्थापित किया जाता है — सभी फाइलें, वेबसाइट, डेटाबेस और सेटिंग्स स्थायी रूप से हटा दी जाती हैं।
+
+• आपको एक बिल्कुल नए पासवर्ड के साथ नई इंस्टॉलेशन मिलती है
+• आपका वर्तमान पासवर्ड काम करना बंद कर देता है
+• 💾 यदि आपको डेटा चाहिए तो पहले बैकअप/स्नैपशॉट लें
+` + nudge
+
+   if (mode === 'rebuild-emailed') return head + `
+⚠️ <strong>यह सर्वर को मिटा देता है</strong> और नया पासवर्ड <b>प्रदाता द्वारा ईमेल किया जाता है</b> — हम इसे यहां नहीं दिखा सकते।
+
+• OS पुनर्निर्मित होता है: सभी फाइलें और डेटा स्थायी रूप से हटा दिए जाते हैं
+• प्रदाता होस्टिंग खाते पर नया पासवर्ड ईमेल करता है (~5 मिनट)
+• तुरंत एक्सेस के लिए, अपनी SSH कुंजी का उपयोग करें
+` + nudge
+
+   return head + `
+✅ <strong>आपका डेटा सुरक्षित रहता है।</strong> कुछ भी नहीं मिटाया जाता — आपकी फाइलें, वेबसाइट, डेटाबेस और सेटिंग्स बिल्कुल वैसी ही रहती हैं। हम केवल <b>चल रहे</b> सर्वर पर लॉगिन पासवर्ड बदलते हैं (कोई पुनर्स्थापना नहीं, कोई रीबूट नहीं)।
+
+• एक बिल्कुल नया पासवर्ड बनाया जाता है और यहीं दिखाया जाता है
+• हम इसे लागू करते हैं, फिर इससे लॉगिन करके पुष्टि करते हैं कि यह काम करता है
+• आपका वर्तमान पासवर्ड काम करना बंद कर देता है
+• ⏱️ लगभग 20-60 सेकंड लगते हैं
+` + nudge
+ },
 
  confirmReinstallWindowsText: name => `🔄 <strong>Windows पुनः स्थापित करें</strong>
 
@@ -3254,23 +3329,39 @@ ${list
 
 क्या आप <strong>${name}</strong> पर Windows पुनः स्थापित करना चाहते हैं?`,
 
- passwordResetInProgress: name => `🔄 <strong>${name}</strong> के लिए पासवर्ड रीसेट किया जा रहा है...
+ passwordResetInProgress: (name, impact = {}) => `🔄 <strong>${name}</strong> के लिए पासवर्ड रीसेट किया जा रहा है...
 
-⏱️ इसमें 30-60 सेकंड लग सकते हैं। कृपया प्रतीक्षा करें।`,
+⏱️ इसमें आमतौर पर 20-60 सेकंड लगते हैं। कृपया प्रतीक्षा करें।${
+   (impact.mode || 'in-place') === 'in-place'
+     ? `
 
- passwordResetSuccess: (name, ip, username, password) => `✅ <strong>पासवर्ड सफलतापूर्वक रीसेट हो गया!</strong>
+🔒 <i>नया पासवर्ड आपके चल रहे सर्वर पर लागू किया जाता है — आपका डेटा बरकरार रहता है।</i>`
+     : ''
+ }`,
 
-🖥️ <strong>RDP:</strong> ${name}
-🌐 <strong>IP:</strong> ${ip}
-👤 <strong>उपयोगकर्ता नाम:</strong> ${username}
+ passwordResetSuccess: (name, ip, username, password, opts = {}) => {
+   const isRDP = !!opts.isRDP
+   const port = isRDP ? 3389 : 22
+   const dataPreserved = opts.dataPreserved !== false
+   return `✅ <strong>पासवर्ड सफलतापूर्वक रीसेट हो गया!</strong>
+
+🖥️ <strong>${isRDP ? 'RDP' : 'सर्वर'}:</strong> ${name}
+🌐 <strong>IP:</strong> <code>${ip}</code>
+🔌 <strong>${isRDP ? 'RDP पोर्ट' : 'SSH पोर्ट'}:</strong> <code>${port}</code>
+👤 <strong>उपयोगकर्ता नाम:</strong> <code>${username}</code>
 🔑 <strong>नया पासवर्ड:</strong> <code>${password}</code>
+${isRDP ? `\n📋 <strong>कनेक्ट करें:</strong> <code>${ip}:${port}</code>` : `\n📋 <strong>कनेक्ट करें:</strong> <code>ssh ${username}@${ip} -p ${port}</code>`}
+${opts.verified ? '\n✅ हमने इस पासवर्ड से लॉगिन करके पुष्टि की कि यह काम करता है।' : ''}
+${dataPreserved
+   ? '💾 <strong>आपके डेटा को छुआ नहीं गया</strong> — पासवर्ड चल रहे सर्वर पर बदला गया।'
+   : '⚠️ <strong>OS पुनः स्थापित किया गया</strong>, इसलिए सर्वर पर पिछला डेटा चला गया।'}
 
-⚠️ <strong>महत्वपूर्ण - अभी यह पासवर्ड सहेजें!</strong>
-• सुरक्षा कारणों से हम इसे बाद में पुनः प्राप्त नहीं कर सकते
-• यदि खो जाता है, तो आपको अपना पासवर्ड फिर से रीसेट करना होगा (डेटा संरक्षित रहेगा)
-• आपका पुराना पासवर्ड अब काम नहीं करता
+⚠️ <strong>आपका पुराना पासवर्ड अब काम नहीं करता।</strong>
 
-💡 पासवर्ड को कॉपी करने के लिए क्लिक करें।`,
+🔐 बाद में यह भी खो गया? अपने VPS पर <b>पासवर्ड दिखाएं</b> दबाएं — आप इसे कभी भी देख सकते हैं, रीसेट की आवश्यकता नहीं।
+
+💡 पासवर्ड को कॉपी करने के लिए क्लिक करें।`
+ },
 
  passwordResetEmailed: (name, ip, username, note) => `✅ <strong>पासवर्ड रीसेट शुरू किया गया!</strong>
 

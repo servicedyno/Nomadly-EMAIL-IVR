@@ -1,0 +1,20 @@
+{
+  "summary": "Independently verified the Node bot (localhost:5000) multilingual VPS password reveal/reset fixes. All 4 requested checks pass: reveal-check (41/41, 16 multilang checks present), fix-check (23/23), DO reveal-fallback wiring check present and pass:true, and offline i18n render test exits 0 with 'ALL LANGUAGES PASSED' for en/fr/zh/hi (data-kept note + 3 buttons + 18 render cases each).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/js/__tests__/vps-password-i18n.verify.js"],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "N/A (skipped as requested)"},
+  "seed_data_creation": "None. Read-only verification against dev endpoints; no DB writes.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Dev self-test endpoints are gated by key=SESSION_SECRET.slice(0,16). Compute via node -e 'require(\"dotenv\").config(); process.stdout.write(process.env.SESSION_SECRET.slice(0,16))'. Endpoints on localhost:5000, not on /api ingress. reveal-check total=41 (includes 16 multilang: 4 per lang en/fr/zh/hi + DO reveal-fallback wiring). fix-check total=23. Offline render test at /app/js/__tests__/vps-password-i18n.verify.js.",
+  "verification_results": {
+    "reveal_check": {"pass": true, "total": 41, "passed": 41, "failed": 0, "multilang_checks": 16},
+    "fix_check": {"pass": true, "total": 23, "passed": 23, "failed": 0},
+    "do_reveal_fallback_check": {"name": "DO reset recovers a password via reveal before the provider-email fallback", "pass": true, "detail": "reveal fallback wired ahead of the reset plan"},
+    "offline_i18n_test": {"exit_code": 0, "result": "ALL LANGUAGES PASSED (en/fr/zh/hi each: data-kept note + 3 buttons + 18 render cases)"}
+  }
+}

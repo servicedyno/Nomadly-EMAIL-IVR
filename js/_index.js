@@ -39250,13 +39250,55 @@ app.get('/dev/vps-password-reveal-check', async (req, res) => {
       /revealVpsPassword:\s*async[\s\S]{0,1200}rootPasswordSecretId|revealVpsPassword:\s*async[\s\S]{0,1200}vpsPlansOf\.findOne/.test(selfSrc),
       'stored record lookup present')
 
+    // 9 ── EVERY language renders the VPS-password UI. A missing key used to
+    //      produce an `undefined` inline-keyboard button, which Telegram rejects
+    //      — the bot became unresponsive for non-English users on VPS details.
+    for (const lng of ['en', 'fr', 'zh', 'hi']) {
+      const L = require(`./lang/${lng}.js`)[lng].vp
+      const row = [L.revealPasswordBtn, L.resetPasswordBtn, L.reinstallWindowsBtn]
+      add(`[${lng}] VPS keyboard buttons are all non-empty strings`,
+        row.every(b => typeof b === 'string' && b.length > 0),
+        `row=${JSON.stringify(row)}`)
+      const fns = ['revealPasswordChecking', 'revealPasswordSuccess', 'revealPasswordNotStored', 'revealPasswordFailed', 'confirmResetPasswordText', 'passwordResetInProgress', 'passwordResetSuccess']
+      const missing = fns.filter(f => typeof L[f] !== 'function')
+      add(`[${lng}] all reset/reveal message builders exist`, missing.length === 0, `missing=${JSON.stringify(missing)}`)
+      let rendered = ''
+      try {
+        rendered = [
+          L.revealPasswordChecking('S'),
+          L.revealPasswordSuccess('S', '1.2.3.4', 'root', 'Pw1', { verification: { status: 'ok' } }),
+          L.revealPasswordNotStored('S', 'no stored password'),
+          L.revealPasswordFailed('S'),
+          L.confirmResetPasswordText('S'),
+          L.confirmResetPasswordText('S', { mode: 'reinstall' }),
+          L.confirmResetPasswordText('S', { mode: 'rebuild-emailed' }),
+          L.passwordResetInProgress('S'),
+          L.passwordResetSuccess('S', '1.2.3.4', 'root', 'Pw1', { dataPreserved: true, verified: true }),
+        ].join('\n---\n')
+      } catch (e) { rendered = 'THREW: ' + e.message }
+      add(`[${lng}] reset/reveal messages render without "undefined"`,
+        rendered.length > 0 && !rendered.includes('undefined') && !rendered.includes('[object Object]') && !rendered.startsWith('THREW'),
+        rendered.startsWith('THREW') ? rendered : 'clean render')
+      add(`[${lng}] reset confirm screen shows a "your data is kept" note`,
+        /data is kept|données sont conservées|您的数据将保留|आपका डेटा सुरक्षित रहता है/.test(L.confirmResetPasswordText('S', { mode: 'in-place' })),
+        'data-kept note present')
+    }
+
+    // 10 ── DO reset now recovers a stored/original password (via the reveal
+    //       chain) BEFORE giving up to DO's email fallback, so the in-place SSH
+    //       reset path stays usable and the customer sees a working password.
+    const doSrc = require('./digitalocean-service').resetPassword.toString()
+    add('DO reset recovers a password via reveal before the provider-email fallback',
+      /revealVpsPassword/.test(doSrc) && doSrc.indexOf('revealVpsPassword') < doSrc.indexOf('_resetPasswordPlan'),
+      'reveal fallback wired ahead of the reset plan')
+
     const failed = checks.filter(c => !c.pass)
     return res.json({
       pass: failed.length === 0,
       total: checks.length,
       passed: checks.length - failed.length,
       failed: failed.length,
-      feature: 'Show Password — look up the CURRENT VPS password any time, verified against the live server',
+      feature: 'Show Password + multilingual VPS reset/reveal — verified against the live server, every language',
       checks,
     })
   } catch (e) {
