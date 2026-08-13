@@ -11737,8 +11737,10 @@ Enter new value:`), bc)
       await set(state, chatId, 'action', a.confirmResetPassword)
       const vpsDetails = info.userVPSDetails
       
-      // Password reset is available for ALL VPS types (Linux + Windows)
-      return send(chatId, vp.confirmResetPasswordText(vpsDetails.name), vp.of([vp.confirmChangeBtn, vp.cancel]))
+      // Password reset is available for ALL VPS types (Linux + Windows).
+      // Surface "🔐 Show Password" right here on its own row — most people who
+      // reach this screen only lost the password and don't need a reset at all.
+      return send(chatId, vp.confirmResetPasswordText(vpsDetails.name), vp.of([vp.revealPasswordBtn, [vp.confirmChangeBtn, vp.cancel]]))
     },
 
     // ━━━ Show the CURRENT VPS password ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -19750,6 +19752,8 @@ ${message.replace(/\n/g, '<br>')}
   // ━━━ Reset VPS/RDP Password ━━━
   if (action === a.confirmResetPassword) {
     if (message === vp.back || message === vp.cancel) return goto.getVPSDetails()
+    // "Just view it instead" — jump straight to the reveal flow from the confirm screen.
+    if (message === vp.revealPasswordBtn) return goto.revealVpsPassword()
     if (message === vp.confirmChangeBtn) {
       const userVPSDetails = info.userVPSDetails
       const instanceId = userVPSDetails.contaboInstanceId || userVPSDetails._id
@@ -19831,7 +19835,7 @@ ${message.replace(/\n/g, '<br>')}
         return goto.getVPSDetails()
       }
     }
-    return send(chatId, vp.selectCorrectOption, vp.of([vp.confirmChangeBtn, vp.cancel]))
+    return send(chatId, vp.selectCorrectOption, vp.of([vp.revealPasswordBtn, [vp.confirmChangeBtn, vp.cancel]]))
   }
 
   // ━━━ Reinstall Windows ━━━
@@ -39249,6 +39253,13 @@ app.get('/dev/vps-password-reveal-check', async (req, res) => {
     add('reveal handler reads the stored record for the secret id',
       /revealVpsPassword:\s*async[\s\S]{0,1200}rootPasswordSecretId|revealVpsPassword:\s*async[\s\S]{0,1200}vpsPlansOf\.findOne/.test(selfSrc),
       'stored record lookup present')
+
+    add('Show Password is offered on the reset-confirm screen',
+      /confirmResetPassword:\s*async[\s\S]{0,900}vp\.of\(\[vp\.revealPasswordBtn/.test(selfSrc),
+      'reveal button present on the confirm-screen keyboard')
+    add('Show Password is tappable from the reset-confirm state',
+      /action === a\.confirmResetPassword[\s\S]{0,400}if \(message === vp\.revealPasswordBtn\) return goto\.revealVpsPassword\(\)/.test(selfSrc),
+      'reveal routed from the confirm state')
 
     // 9 ── EVERY language renders the VPS-password UI. A missing key used to
     //      produce an `undefined` inline-keyboard button, which Telegram rejects

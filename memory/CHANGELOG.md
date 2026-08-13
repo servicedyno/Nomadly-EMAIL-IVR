@@ -15,8 +15,11 @@ message builders, so the keyboard row contained an `undefined` button and Telegr
   recovery) **before** building `_resetPasswordPlan`, feeding a recovered password so the in-place
   `ssh-password` path stays usable instead of falling back to DO emailing a password the customer
   never sees. Strictly additive; `rebuild` is still never used.
+- **`js/_index.js`** — the **reset confirm screen now has a tappable `🔐 Show Password` button on
+  its own top row** (above Confirm/Cancel); tapping it from the confirm state jumps straight to the
+  reveal flow, so users who only lost the password never have to run a reset.
 - **`js/_index.js`** dev self-test `/dev/vps-password-reveal-check` extended with 16 multilingual
-  render assertions (en/fr/zh/hi) + a DO reveal-fallback wiring check.
+  render assertions (en/fr/zh/hi) + a DO reveal-fallback wiring check + 2 confirm-screen wiring checks.
 - **Tests**: new offline render test `js/__tests__/vps-password-i18n.verify.js` (ALL LANGUAGES
   PASSED). Dev endpoints: reveal-check 41/41, fix-check 23/23. testing_agent iteration_35 → 100%.
 
