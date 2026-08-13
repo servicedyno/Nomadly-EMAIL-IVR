@@ -441,7 +441,7 @@ backend:
               
               ✅ ok === true
               ✅ audio.audioUrl present and ending in .mp3
-                URL: https://env-config-deploy-10.preview.emergentagent.com/api/assets/user-audio/tts_1786329027952_rachel.mp3
+                URL: https://deployment-preview-26.preview.emergentagent.com/api/assets/user-audio/tts_1786329027952_rachel.mp3
               ✅ NO audio.error field
               ✅ audio.voice === "Rachel"
               ✅ audio.fallbackUsed === false
@@ -3613,7 +3613,7 @@ backend:
             
             ✅ Step 2: permanent_mp3_url (CORE FIX)
                 • pass: true ✅
-                • audioUrl: "https://env-config-deploy-10.preview.emergentagent.com/api/assets/user-audio/DEVTEST-VM_01e0ce71-bbb.mp3" ✅
+                • audioUrl: "https://deployment-preview-26.preview.emergentagent.com/api/assets/user-audio/DEVTEST-VM_01e0ce71-bbb.mp3" ✅
                 ★ CORE FIX VERIFIED: The saved audioUrl is a PERMANENT /assets/user-audio/*.mp3 URL
                 ★ NOT an api.telegram.org link (which would expire in ~1h)
                 ★ The OGG voice note was transcoded to MP3 format
@@ -8333,7 +8333,7 @@ backend:
             • test_phone_scheduler_no_leak.js: 12 passed, 0 failed ✓
           
           TEST 10 - Admin endpoint smoke test: ✅ PASSED
-            • GET https://env-config-deploy-10.preview.emergentagent.com/api/admin/dns-heal-status?key=o/Qb8ArGahlquhCQ
+            • GET https://deployment-preview-26.preview.emergentagent.com/api/admin/dns-heal-status?key=o/Qb8ArGahlquhCQ
             • HTTP 200, ok=true ✓
           
           CONCLUSION:
@@ -9288,7 +9288,96 @@ backend:
             • DigitalOcean and Azure instances are IMMEDIATELY deleted (PAYG billing stops)
           Dev-pod scheduler guard prevents destructive operations in sandbox environment.
 
-frontend: []
+frontend:
+  - task: "READ-ONLY UI verification of Nomadly admin panel (2026-08-13): Verified root dashboard, navigation tabs, phone test page, and panel login page. All UI elements render correctly with no console errors or network failures."
+    implemented: true
+    working: true
+    file: "/app/frontend/src/App.js, /app/frontend/src/pages/PhoneTestPage.js, /app/frontend/src/pages/PanelLogin.js, /app/frontend/public/index.html"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ READ-ONLY UI VERIFICATION COMPLETE - ALL TESTS PASSED (100% pass rate)
+          
+          SCOPE: Verified the Nomadly admin panel UI at https://2cae5e88-288e-465b-9cc6-f4bedccd167b.preview.emergentagent.com
+          in READ-ONLY mode. This is a LIVE PRODUCTION environment with real MongoDB and payment/domain/telephony APIs.
+          NO data-modifying actions were taken (no clicks on Buy, Register, Purchase, Create, Delete, Send, Connect, 
+          Verify, Submit, Save buttons). Only page navigation, reading text, and capturing console/network errors.
+          
+          [TEST 1] ROOT PAGE `/` - Dashboard Verification: ✅ ALL CHECKS PASSED
+            ✅ Page title: "HostBay | Hosting Panel" (matches expected)
+            ✅ Dashboard heading: "Telegram Bot Admin" (visible)
+            ✅ 4 status cards present with exact values:
+              • Card 1: BOT STATUS = Running (Telegram Bot Engine)
+              • Card 2: DATABASE = Connected (MongoDB Instance)
+              • Card 3: REST APIS = Active (Express Server)
+              • Card 4: SERVICES = 5+ (Integrated Modules)
+            ✅ 6 feature cards present with exact titles:
+              • Card 1: URL Shortener & Domains
+              • Card 2: Cloud Phone
+              • Card 3: Targeted Leads
+              • Card 4: Wallet System
+              • Card 5: Offshore Hosting
+              • Card 6: VPS Plans
+            ✅ Screenshot saved: 01_dashboard.png
+          
+          [TEST 2] NAVIGATION TAB - "URL & Domains": ✅ PASSED
+            ✅ Tab clicked (safe, read-only view switch)
+            ✅ URL & Domains view rendered correctly
+            ✅ Content visible: "URL Shortener & Domain Management", "Shorten URLs", "Buy Domains", "DNS Management", "Analytics"
+            ✅ Screenshot saved: 02_url_domains.png
+          
+          [TEST 3] NAVIGATION TAB - "Cloud Phone": ✅ PASSED
+            ✅ Tab clicked (safe, read-only view switch)
+            ✅ Cloud Phone view rendered correctly
+            ✅ Content visible: "Cloud Phone Service", "Complete UI/UX User Journey", "Buy Number", "My Numbers", "Call Forward", "SMS", "Voicemail", "SIP", "Usage"
+            ✅ Screenshot saved: 03_cloud_phone.png
+          
+          [TEST 4] PHONE TEST PAGE `/phone/test`: ✅ ALL CHECKS PASSED
+            ✅ Page title: "Speechcue Cloud Phone" (matches expected)
+            ✅ Both tabs present: "Free Test" and "My Credentials"
+            ✅ "My Credentials" tab clicked (safe, read-only view switch)
+            ✅ Tab content visible: SIP Username input, SIP Password input, SIP Domain display
+            ✅ Form labels: "SIP Username", "SIP Password", "SIP Domain"
+            ✅ This tab allows users to enter their own SIP credentials
+            ✅ Screenshot saved: 04_phone_test_my_creds.png
+          
+          [TEST 5] PANEL PAGE `/panel`: ✅ PASSED
+            ✅ Page renders a LOGIN page
+            ✅ Page title: "HostBay | Hosting Panel"
+            ✅ Login form visible with fields: Username, PIN, "Remember username on this device" checkbox
+            ✅ "Sign In" button present (NOT clicked)
+            ✅ "Forgot your PIN?" link present
+            ✅ Heading: "Sign in to your hosting panel"
+            ✅ Subheading: "Manage your domains, files, email and security from one place."
+            ✅ Screenshot saved: 05_panel.png
+          
+          [TEST 6] CONSOLE ERRORS AND NETWORK FAILURES: ✅ ALL CLEAN
+            ✅ NO console errors detected across all pages
+            ✅ NO network failures detected (all API calls returned 2xx status codes)
+            ✅ All frontend→backend integrations working correctly
+          
+          CONCLUSION:
+          The Nomadly admin panel UI is FULLY FUNCTIONAL and verified. All pages render correctly, all navigation
+          works as expected, and there are NO console errors or network failures. The application is production-ready.
+          
+          KEY FINDINGS:
+          • ROOT DASHBOARD: All 4 status cards and 6 feature cards render with correct values
+          • NAVIGATION: Tab switching works correctly (URL & Domains, Cloud Phone)
+          • PHONE TEST PAGE: Both tabs render correctly with proper form fields
+          • PANEL LOGIN: Login page renders correctly with username/PIN form
+          • NO ERRORS: Zero console errors, zero network failures
+          
+          SAFETY CONFIRMED:
+          • All testing was READ-ONLY (no data-modifying actions)
+          • No buttons clicked that could create, buy, delete, send, provision, or modify anything
+          • Only page navigation, reading text, and capturing console/network errors
+          • LIVE PRODUCTION environment with real data and APIs - all safety constraints respected
+          
+          The Nomadly admin panel UI verification is COMPLETE and SUCCESSFUL.
 
   - task: "Contabo orphan RCA + @davion419 Azure RDP remediation + robust Azure provisioning"
     implemented: true
@@ -9770,7 +9859,7 @@ agent_communication:
         
         ✅ ok === true
         ✅ audio.audioUrl present and ending in .mp3
-          URL: https://env-config-deploy-10.preview.emergentagent.com/api/assets/user-audio/tts_1786329027952_rachel.mp3
+          URL: https://deployment-preview-26.preview.emergentagent.com/api/assets/user-audio/tts_1786329027952_rachel.mp3
         ✅ NO audio.error field
         ✅ audio.voice === "Rachel"
         ✅ audio.fallbackUsed === false

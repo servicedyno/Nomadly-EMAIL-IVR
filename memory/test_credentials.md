@@ -3,8 +3,8 @@
 This app uses Telegram bot authentication (chatId-based) — there is no email/password
 login for the panel. Auth flows are exercised via the bot / dev endpoints.
 
-## Sandbox runtime config (re-bootstrapped 2026-08-10 — fresh pod)
-- Pod URL: https://be242688-a29d-420d-844e-e7b6bc5d0595.preview.emergentagent.com
+## Sandbox runtime config (re-bootstrapped 2026-08-13 — fresh pod, creds re-supplied by user)
+- Pod URL: https://2cae5e88-288e-465b-9cc6-f4bedccd167b.preview.emergentagent.com
 - Env source of truth: /app/backend/.env  (/app/.env is a symlink to it)
 - BOT_ENVIRONMENT = development  → uses TELEGRAM_BOT_TOKEN_DEV (safe dev bot, no live user traffic)
 - SKIP_WEBHOOK_SYNC = true        → prod Telegram webhook preserved; infra-mutating jobs disabled
@@ -34,3 +34,37 @@ login for the panel. Auth flows are exercised via the bot / dev endpoints.
 - http://127.0.0.1:5000/api/health  → {status: healthy, database: connected}
 - FastAPI proxy: <pod>/api/health
 - Verified 2026-08-09: node:5000, fastapi:8001, external <pod>/api/health + /api/sms-app/download/info all 200; frontend :3000 → 200 ("HostBay | Hosting Panel")
+- Re-verified 2026-08-13 on the new pod: node :5000 healthy/DB connected, FastAPI :8001 healthy,
+  external <pod>/api/health + /api/sms-app/download/info 200, frontend :3000 → 200,
+  /api/dev/ai-support-health pass:true, /api/admin/cnam-circuit all 3 providers CLOSED,
+  /api/admin/dns-heal-status reads live prod data. UI: / (admin dashboard) + /phone/test both render.
+- NOTE: uvicorn `--reload` keeps the supervisor parent RUNNING even when the app import fails.
+  If /api/* returns 502 but `supervisorctl status backend` says RUNNING, the import crashed —
+  `sudo supervisorctl restart backend` (this happens when backend/.env is created AFTER first boot).
+
+## Credential health audit (read-only probes, 2026-08-13)
+LIVE (13): Telnyx (balance $9.53 — LOW, credit_limit $0), Twilio (active, "Speechcue"),
+Cloudflare (expressdrop247@gmail.com), OpenExchangeRates (1 USD = 1361.86 NGN), OpenAI (124 models),
+DigitalOcean (active, 10-droplet limit), Railway project token, WHM via https://whm-api.hostbay.io
+(v11.136.0.33), OpenProvider (token issued), ConnectReseller, Azure (token issued),
+Brevo SMTP relay smtp-relay.brevo.com:587 (AUTH accepted), DynoPay (auth accepted).
+BROKEN (3):
+- BREVO_API_KEY → 401 "API Key is not enabled". Only affects inbound-SMS→email forwarding
+  (js/sms-service.js forwardSmsToEmail via api.brevo.com/v3/smtp/email). Main transactional
+  email is unaffected because it uses the SMTP relay creds (MAIL_AUTH_*), which ARE live.
+  Fix: re-enable/regenerate the key in Brevo → SMTP & API → API Keys.
+- VULTR_API_KEY → 401 Unauthorized. Likely Vultr "Access Control" IP allow-list (the key only
+  accepts calls from whitelisted subnets, e.g. Railway's egress IP, not this pod).
+  Non-blocking: VPS_DEFAULT_PROVIDER=digitalocean.
+- Contabo OAuth → "Invalid client credentials". Non-blocking: VPS_CONTABO_FALLBACK_ENABLED=false.
+IMPORTANT: direct WHM probes to https://68.183.77.106:2087 time out BY DESIGN (origin IP/port
+lockdown). Always call WHM through WHM_API_URL (Cloudflare Tunnel) as anti-red-service.js does.
+
+## Telegram webhook state (verified 2026-08-13)
+- PROD bot (6292288341) webhook = https://nomadly-email-ivr-production.up.railway.app/telegram/webhook
+  → UNTOUCHED by this sandbox (SKIP_WEBHOOK_SYNC=true worked). Never overwrite it from a dev pod.
+- DEV bot = @Nomadlytestbot (id 6597817067). Its webhook URL is EMPTY, so the dev bot receives
+  nothing and messaging it does nothing. To exercise bot flows from this pod, point ONLY the dev
+  bot at this pod:
+    curl -s "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN_DEV>/setWebhook?url=<pod>/api/telegram/webhook"
+  (Safe: separate token from prod. Caveat: it writes to the LIVE production Mongo.)
