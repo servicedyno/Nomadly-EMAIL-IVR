@@ -26,6 +26,7 @@
 require('dotenv').config()
 const axios = require('axios')
 const crypto = require('crypto')
+const secretStore = require('./vps-secret-store')
 
 const API_TOKEN  = process.env.DIGITALOCEAN_API_TOKEN || ''
 const API_BASE   = 'https://api.digitalocean.com/v2'
@@ -349,22 +350,42 @@ async function getCompatibleLinuxImage(currentImageId, _productId) {
 // ─── Password secrets (Contabo-compat shim) ──────────────────────────────
 // Contabo's bot flow calls `createSecret(name, value, 'password')` → gets a
 // secretId → passes it to `createInstance({ rootPassword: secretId })`. DO
-// has no native concept of "password secrets" so we cache in-process the
-// same way Vultr does. Lifecycle: secret is created and consumed within the
-// same async function in vm-instance-setup.js / _index.js.
-const _passwordSecrets = new Map() // fakeSecretId → { password, name, createdAt }
+// has no native concept of "password secrets".
+//
+// 2026-08-13 FIX: this used to be a bare in-process `new Map()`, so the
+// plaintext died with the process while `vpsPlansOf.rootPasswordSecretId`
+// happily pointed at it in Mongo. Every Railway redeploy therefore destroyed
+// every DO customer's VPS password permanently. Secrets are now persisted via
+// vps-secret-store.js (Mongo + in-process cache).
+const _passwordSecrets = new Map() // legacy fast path: fakeSecretId → { password, name, createdAt }
 
 function _isFakePasswordSecretId(id) {
   return typeof id === 'string' && id.startsWith('do-pwd-')
 }
 
-function _resolvePasswordSecret(secretIdOrPassword) {
+/**
+ * Resolve a value that is EITHER a fabricated password-secret id OR an actual
+ * plaintext password. Async because the durable store is in Mongo.
+ */
+async function _resolvePasswordSecret(secretIdOrPassword) {
   if (!secretIdOrPassword) return null
   if (_isFakePasswordSecretId(secretIdOrPassword)) {
     const cached = _passwordSecrets.get(secretIdOrPassword)
     if (cached?.password) return cached.password
+    const stored = await secretStore.getSecretPassword(secretIdOrPassword)
+    if (stored) return stored
+    // Unresolvable secret id — returning the id itself would set the id AS the
+    // password (the old behaviour), so return null and let the caller decide.
+    return null
   }
   return String(secretIdOrPassword)
+}
+
+/** Persist a fabricated password secret in both the cache and Mongo. */
+async function _storePasswordSecret(secretId, password, name) {
+  _passwordSecrets.set(secretId, { password, name: name || secretId, createdAt: Date.now() })
+  await secretStore.putSecret(secretId, password, { name: name || secretId, provider: PROVIDER })
+  return secretId
 }
 
 /**
@@ -391,10 +412,38 @@ runcmd:
   // If caller supplied extra userData, embed both via cloud-init's multipart-
   // less alternative: append a runcmd line that writes+exec the extra script.
   if (extraUserData) {
-    const extraB64 = Buffer.from(String(extraUserData), 'utf-8').toString('base64')
+    // 2026-08-13 FIX — DOUBLE-BASE64 BUG.
+    // vm-instance-setup.js base64-encodes its cloud-init script before calling
+    // us (Contabo's API requires base64). We then encoded it a SECOND time, so
+    // on the box `base64 -d` produced base64 TEXT instead of a shell script and
+    // bash reported `<base64 blob>: command not found`. The whole sshd-hardening
+    // script silently never ran (verified on droplet 591819943: cloud-init
+    // status=error, /root/_bot_userdata.sh contained base64). Normalise to
+    // plaintext first, then encode exactly once.
+    const extraB64 = Buffer.from(_decodeIfBase64(extraUserData), 'utf-8').toString('base64')
     return script + `  - echo '${extraB64}' | base64 -d > /root/_bot_userdata.sh && bash /root/_bot_userdata.sh\n`
   }
   return script
+}
+
+/**
+ * Return the plaintext of `input`, transparently base64-decoding it when the
+ * caller already encoded it. Detection is content-based (a decoded shell or
+ * cloud-config script), never just "looks like base64".
+ */
+function _decodeIfBase64(input) {
+  const raw = String(input || '')
+  if (!raw) return raw
+  // Already plaintext?
+  if (raw.includes('#!/') || raw.includes('#cloud-config') || raw.includes('\n')) return raw
+  if (!/^[A-Za-z0-9+/=]+$/.test(raw.trim())) return raw
+  try {
+    const decoded = Buffer.from(raw.trim(), 'base64').toString('utf-8')
+    if (decoded.includes('#!/') || decoded.includes('#cloud-config') || decoded.includes('sed ') || decoded.includes('echo ')) {
+      return decoded
+    }
+  } catch (_) { /* fall through */ }
+  return raw
 }
 
 // ─── Instances (Droplets) ────────────────────────────────────────────────
@@ -419,7 +468,7 @@ async function createInstance(opts) {
   const tag         = o.tag        || null
   const sshKeyIds   = o.sshKeyIds  || o.sshKeys || null
   const userDataIn  = o.userData   || null
-  const password    = _resolvePasswordSecret(o.password || o.rootPassword)
+  const password    = await _resolvePasswordSecret(o.password || o.rootPassword)
 
   if (!productId || !regionSlug) {
     throw new Error(`createInstance requires { productId, regionSlug } — got productId=${productId} regionSlug=${regionSlug}`)
@@ -469,7 +518,8 @@ async function createInstance(opts) {
       instanceId:      _wrapId(droplet.id),         // do-12345678
       mainIp:          _extractIPv4(droplet) || null,
       defaultPassword: password || null,
-      status:          droplet.status,
+      status:          _mapStatus(droplet.status),
+      providerStatus:  droplet.status,
       raw:             droplet,
     }
   } catch (err) {
@@ -499,9 +549,10 @@ async function getInstance(instanceId) {
     instanceId:      _wrapId(droplet.id),
     mainIp:          _extractIPv4(droplet),
     defaultPassword: null, // DO never returns the password
-    status:          droplet.status,
-    powerStatus:     droplet.status,
-    serverStatus:    droplet.status,
+    status:          _mapStatus(droplet.status),
+    powerStatus:     _mapStatus(droplet.status),
+    serverStatus:    _mapStatus(droplet.status),
+    providerStatus:  droplet.status, // untranslated, for debugging
     region:          droplet.region?.slug,
     plan:            droplet.size_slug,
     osId:            droplet.image?.slug || droplet.image?.id,
@@ -522,7 +573,8 @@ async function listInstances(filters = {}) {
   return (data.droplets || []).map(d => ({
     instanceId: _wrapId(d.id),
     mainIp:     _extractIPv4(d),
-    status:     d.status,
+    status:     _mapStatus(d.status),
+    providerStatus: d.status,
     region:     d.region?.slug,
     plan:       d.size_slug,
     label:      d.name,
@@ -542,53 +594,157 @@ async function stopInstance(instanceId)     { return _dropletAction(instanceId, 
 async function restartInstance(instanceId)  { return _dropletAction(instanceId, { type: 'reboot' }) }
 async function shutdownInstance(instanceId) { return _dropletAction(instanceId, { type: 'shutdown' }) }
 
+// ─── Status vocabulary ───────────────────────────────────────────────────
 /**
- * Reset the root password for a DO Droplet.
+ * Translate DigitalOcean's status words into the canonical (Contabo)
+ * vocabulary the rest of the bot is written against.
  *
- * DO has TWO password-reset paths:
+ * 2026-08-13 FIX: the whole bot compares `status === 'RUNNING'` — that is how
+ * it decides between the ▶️ Start and ⏹️ Stop buttons and between the 🟢 and
+ * 🔴 dots. DO returns `active`, which `fetchVPSDetails()` upper-cases to
+ * `ACTIVE`, so EVERY healthy DO droplet was rendered as 🔴 with a "▶️ Start"
+ * button. Customers then "started" servers that were already running and
+ * concluded their VPS was broken (real case: chatId 6277663071 tapped
+ * ▶️ Start twice on a running droplet before opening a support ticket).
+ */
+const _DO_STATUS_MAP = {
+  active:  'running',
+  off:     'stopped',
+  new:     'provisioning',
+  archive: 'archived',
+}
+function _mapStatus(s) {
+  if (!s) return s
+  const k = String(s).toLowerCase()
+  return _DO_STATUS_MAP[k] || k
+}
+
+/**
+ * Decide HOW a password reset will be attempted, without doing any I/O.
+ * Exported so the regression test can assert that `rebuild` is never in the
+ * plan again.
+ *
+ * @returns {{steps: string[], canApply: boolean, reason: string|null}}
+ */
+function _resetPasswordPlan(opts = {}) {
+  const steps = []
+  const keys = Array.isArray(opts.sshPrivateKeys) ? opts.sshPrivateKeys : (opts.sshPrivateKeys ? [opts.sshPrivateKeys] : [])
+  const usableKeys = keys.filter(k => {
+    const key = typeof k === 'string' ? k : (k && (k.privateKey || k.key))
+    return key && String(key).includes('PRIVATE KEY')
+  })
+  if (opts.host && usableKeys.length) steps.push('ssh-key')
+  if (opts.host && opts.currentPassword) steps.push('ssh-password')
+  // Last resort: DO's native action. It emails a random password to the
+  // ACCOUNT owner and does NOT touch the disk. Never destructive.
+  steps.push('provider-email')
+  return {
+    steps,
+    canApply: steps.some(s => s.startsWith('ssh-')),
+    reason: steps.some(s => s.startsWith('ssh-'))
+      ? null
+      : (!opts.host ? 'no host on record' : 'no SSH key on file and current password unknown'),
+  }
+}
+
+/**
+ * Reset the root password for a DO Droplet — IN PLACE, without destroying data.
+ *
+ * ─── HISTORY / WHY THIS LOOKS LIKE THIS ──────────────────────────────────
+ * DO offers only two native paths, and BOTH are unusable for bot UX:
  *   1. `password_reset` action — emails a random password to the account
- *      holder. Useless for bot UX (we never see the password + the customer
- *      doesn't either, since the email goes to our team mailbox).
- *   2. `rebuild` action with a cloud-init user_data that sets the password.
- *      Destroys data but matches Vultr's resetPassword semantics.
+ *      holder (our team mailbox), so the customer never sees it.
+ *   2. `rebuild` action — the previous implementation used this and passed a
+ *      cloud-init `user_data` that set the new password.
  *
- * We use path 2 to keep cross-provider parity.
+ * Path 2 was silently broken: **DO accepts `user_data` only at droplet
+ * CREATE time and it is immutable afterwards.** `rebuild` ignores the
+ * user_data you send and re-runs the ORIGINAL creation cloud-init. So every
+ * "Reset Password" tap wiped the customer's disk AND left the original
+ * password in place, while the bot displayed a fresh password that existed
+ * nowhere. Customers saw "Permission denied, please try again." forever.
+ * (Verified on droplet 591819943 / chatId 6277663071: 3 rebuilds in 20h, the
+ * droplet was still being served the ORIGINAL create-time user_data.)
+ *
+ * We now log in to the RUNNING droplet (SSH key first, then the password we
+ * currently believe is set), apply the password with `chpasswd`, re-enable
+ * password auth, and VERIFY by logging back in with the new password. No
+ * reboot, no data loss, and we never return a password we could not prove.
  *
  * Cross-provider contract (matches Contabo / OVH / Vultr return shape):
- *   → { password, secretId, reinstalled, note }
+ *   → { password, secretId, reinstalled, note, verified }
+ * `password: null` tells the bot to render the "provider emailed it" copy.
  */
 async function resetPassword(instanceId, opts = {}) {
   const id = _stripIdPrefix(instanceId)
-  const newPassword = _generateRandomPassword(20)
+  const username = opts.defaultUser || 'root'
 
-  // Need to know which image to rebuild with. Fetch the current droplet
-  // to preserve its image. If we can't read it, fall back to ubuntu-24-04.
-  let imageSlug = 'ubuntu-24-04-x64'
-  try {
-    const cur = await apiRequest('GET', `/droplets/${id}`)
-    imageSlug = cur.droplet?.image?.slug || imageSlug
-  } catch (_) { /* keep default */ }
+  // Resolve the host and the currently known password.
+  let host = opts.host || null
+  if (!host) {
+    try {
+      const cur = await apiRequest('GET', `/droplets/${id}`)
+      host = _extractIPv4(cur.droplet)
+    } catch (_) { /* leave null — plan() will fall back */ }
+  }
+  let currentPassword = opts.currentPassword || null
+  if (!currentPassword && opts.currentSecretId) {
+    currentPassword = await _resolvePasswordSecret(opts.currentSecretId)
+  }
 
-  const cloudInit = _buildPasswordCloudInit(newPassword, null)
+  const plan = _resetPasswordPlan({ host, sshPrivateKeys: opts.sshPrivateKeys, currentPassword })
+  log(`resetPassword ${id}: plan=[${plan.steps.join(' → ')}]${plan.reason ? ` (${plan.reason})` : ''}`)
 
-  await apiRequest('POST', `/droplets/${id}/actions`, {
-    type:      'rebuild',
-    image:     imageSlug,
-    user_data: cloudInit, // NOTE: rebuild may ignore user_data — fallback below
-  })
+  if (plan.canApply) {
+    const newPassword = _generateRandomPassword(20)
+    const { applyPasswordOverSSH } = require('./vps-ssh-password')
+    let result
+    try {
+      result = await applyPasswordOverSSH({
+        host,
+        port: 22,
+        username,
+        newPassword,
+        privateKeys: opts.sshPrivateKeys || [],
+        currentPassword,
+      })
+    } catch (e) {
+      result = { ok: false, error: String(e.message || e) }
+    }
 
-  // Cache as a fake secret so the caller can store the secretId (matches
-  // Contabo's flow where resetPassword returns a real secretId).
-  const secretId = `do-pwd-${id}-${Date.now().toString(36)}`
-  _passwordSecrets.set(secretId, { password: newPassword, name: secretId, createdAt: Date.now() })
+    if (result.ok) {
+      const secretId = `do-pwd-${id}-${Date.now().toString(36)}`
+      await _storePasswordSecret(secretId, newPassword, secretId)
+      return {
+        password:    newPassword,
+        newPassword,
+        secretId,
+        reinstalled: false,
+        verified:    !!result.verified,
+        note:        result.verified
+          ? 'Password applied on the running server and verified by logging in. Your data was NOT touched.'
+          : 'Password applied on the running server (login verification timed out — allow ~1 minute). Your data was NOT touched.',
+        raw: { id, method: result.method, attempts: result.attempts },
+      }
+    }
+    log(`resetPassword ${id}: SSH path failed — ${result.error || 'unknown'}`)
+  }
 
+  // ── Last resort: DO's native, NON-destructive password_reset ────────────
+  // Deliberately NOT `rebuild`: a password reset must never wipe a customer's
+  // server, and rebuild cannot apply a new password anyway (see above).
+  await apiRequest('POST', `/droplets/${id}/actions`, { type: 'password_reset' })
   return {
-    password:    newPassword,
-    newPassword: newPassword,
-    secretId,
-    reinstalled: true,
-    note:        'DigitalOcean rebuilt the droplet to apply a new root password. SSH keys still attached.',
-    raw:         { id, image: imageSlug },
+    password:    null,
+    newPassword: null,
+    secretId:    opts.currentSecretId || null,
+    reinstalled: false,
+    verified:    false,
+    note:
+      'DigitalOcean has generated a new root password and emailed it to the hosting account — support will forward it to you shortly. ' +
+      'Your server and all data are untouched. For instant access use your SSH key.' +
+      (plan.reason ? ` (Reason we could not set it directly: ${plan.reason}.)` : ''),
+    raw: { id, fallback: 'provider-email', planReason: plan.reason },
   }
 }
 
@@ -603,12 +759,20 @@ function _generateRandomPassword(length = 20) {
  * Cross-provider contract — accepts the bot's existing call signature:
  *   { imageId, rootPassword, sshKeys, userData, osType, isRDP }
  *
- * Uses DO's `rebuild` action. Password is set via cloud-init user_data.
+ * Uses DO's `rebuild` action.
+ *
+ * ⚠️ CAVEAT (same DO limitation that broke resetPassword): `rebuild` IGNORES
+ * `user_data` — DO only honours it on CREATE and it is immutable thereafter,
+ * so the box comes back with its ORIGINAL create-time cloud-init (and
+ * therefore its ORIGINAL password). We still send it for the day DO adds
+ * support, but we report `passwordApplied: false` so no caller shows the
+ * customer a password we have not actually set. To change the password after
+ * a reinstall, call resetPassword() — it applies it over SSH.
  */
 async function reinstallInstance(instanceId, opts = {}) {
   const id = _stripIdPrefix(instanceId)
   const osId = opts.osId || opts.imageId || 'ubuntu-24-04-x64'
-  const password = _resolvePasswordSecret(opts.password || opts.rootPassword)
+  const password = await _resolvePasswordSecret(opts.password || opts.rootPassword)
 
   const cloudInit = password ? _buildPasswordCloudInit(password, opts.userData) : (opts.userData || null)
 
@@ -704,13 +868,13 @@ async function listTags() {
 }
 
 // ─── Secrets / SSH keys ──────────────────────────────────────────────────
-// Same pattern as vultr-service: real SSH keys hit DO's /account/keys, but
-// password secrets are cached in-process so the bot's "create password
-// secret → pass id to createInstance" flow works unchanged.
+// Same pattern as vultr-service: real SSH keys hit DO's /account/keys.
+// Password secrets are fabricated ids, now DURABLY persisted via
+// vps-secret-store.js (was an in-process Map — see the note at its definition).
 async function createSecret(name, value, type = 'ssh') {
   if (type === 'password') {
     const secretId = `do-pwd-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
-    _passwordSecrets.set(secretId, { password: value, name, createdAt: Date.now() })
+    await _storePasswordSecret(secretId, value, name)
     return { secretId, id: secretId, name, type: 'password' }
   }
   if (type !== 'ssh') throw new Error(`DO createSecret: unsupported type "${type}" (only 'ssh' and 'password')`)
@@ -731,15 +895,27 @@ async function listSecrets(_type = null) {
 async function getSecret(secretId) {
   if (_isFakePasswordSecretId(secretId)) {
     const cached = _passwordSecrets.get(secretId)
-    return cached ? { id: secretId, name: cached.name, type: 'password' } : null
+    if (cached) return { id: secretId, name: cached.name, type: 'password' }
+    return await secretStore.getSecretMeta(secretId)
   }
   const data = await apiRequest('GET', `/account/keys/${secretId}`)
   return data.ssh_key || null
 }
 
+/**
+ * Reveal the plaintext password behind a fabricated secret id.
+ * Returns null when the secret predates durable storage (i.e. it was lost to a
+ * redeploy while secrets still lived in a per-process Map).
+ */
+async function getSecretPassword(secretId) {
+  if (!_isFakePasswordSecretId(secretId)) return null
+  return await _resolvePasswordSecret(secretId)
+}
+
 async function deleteSecret(secretId) {
   if (_isFakePasswordSecretId(secretId)) {
     _passwordSecrets.delete(secretId)
+    await secretStore.deleteSecret(secretId)
     return { success: true }
   }
   return apiRequest('DELETE', `/account/keys/${secretId}`)
@@ -779,7 +955,7 @@ function formatInstanceForDisplay(instance) {
     error:        '❌',
     unknown:      '⚪',
   }
-  const status = (instance.status || 'unknown').toLowerCase()
+  const status = _mapStatus(instance.status || 'unknown')
   return {
     instanceId:   instance.instanceId,
     name:         instance.displayName || instance.label || instance.name,
@@ -862,6 +1038,7 @@ module.exports = {
   createSecret,
   listSecrets,
   getSecret,
+  getSecretPassword,
   deleteSecret,
   // Circuit breaker
   isProvisioningHealthy,
@@ -872,6 +1049,10 @@ module.exports = {
   _stripIdPrefix,
   _wrapId,
   _buildPasswordCloudInit,
+  _decodeIfBase64,
+  _resetPasswordPlan,
+  _resolvePasswordSecret,
+  _mapStatus,
   // Low-level
   apiRequest,
 }

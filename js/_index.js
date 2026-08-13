@@ -3309,6 +3309,15 @@ const loadData = async () => {
   paymentIntents = db.collection('paymentIntents') // P0: Payment intent persistence
   vpsPlansOf = db.collection('vpsPlansOf')
   initVpsDb(db) // Initialize VPS DB for Contabo service
+  // Durable store for fabricated VPS password secrets (DigitalOcean / Vultr).
+  // Without this they live in a per-process Map and every redeploy wipes every
+  // customer's VPS password while vpsPlansOf.rootPasswordSecretId still points
+  // at them — see js/vps-secret-store.js.
+  try {
+    require('./vps-secret-store').initSecretStore(db)
+  } catch (e) {
+    log(`[VpsSecretStore] init failed: ${e.message || e}`)
+  }
 
   // ── Register Contabo provisioning circuit-breaker admin alert ──
   // When createInstance hits the 5xx threshold, fire a one-shot DM to the
@@ -19699,11 +19708,41 @@ ${message.replace(/\n/g, '<br>')}
       try {
         // Route to the provider that owns this record (OVH vps-* / Contabo numeric)
         const provider = require('./vps-provider').getProviderForRecord(userVPSDetails)
-        const { password, secretId, reinstalled, note, raw } = await provider.resetPassword(instanceId, {
+
+        // ── Load this customer's stored SSH private keys ──────────────────
+        // DigitalOcean cannot set a password through its API (user_data is
+        // create-only and `rebuild` ignores it), so the provider applies the
+        // new password over SSH on the running box instead. It needs the key
+        // that was injected at create time — prefer the key actually linked to
+        // this VPS, then any other key the customer owns.
+        let sshPrivateKeys = []
+        try {
+          const _sshKeysCol = db.collection('sshKeysOf')
+          const keyDocs = await _sshKeysCol.find({ telegramId: String(chatId) }).toArray()
+          const linkedId = userVPSDetails.sshKeySecretId
+          sshPrivateKeys = keyDocs
+            .filter(k => k && k.privateKey)
+            .sort((a, b) => {
+              const aMatch = linkedId && String(a.contaboSecretId) === String(linkedId) ? -1 : 0
+              const bMatch = linkedId && String(b.contaboSecretId) === String(linkedId) ? -1 : 0
+              return aMatch - bMatch
+            })
+            .map(k => ({ privateKey: k.privateKey, sshKeyName: k.sshKeyName }))
+        } catch (e) {
+          console.error(`[VPS] Could not load SSH keys for ${chatId}: ${e.message || e}`)
+        }
+
+        const { password, secretId, reinstalled, note, raw, verified } = await provider.resetPassword(instanceId, {
           defaultUser: userVPSDetails.defaultUser,
           imageId: userVPSDetails.imageId,
           osType: userVPSDetails.osType,
-          isRDP: userVPSDetails.isRDP
+          isRDP: userVPSDetails.isRDP,
+          // ── context required for the in-place SSH reset ──
+          host: userVPSDetails.host,
+          chatId: String(chatId),
+          sshKeySecretId: userVPSDetails.sshKeySecretId,
+          sshPrivateKeys,
+          currentSecretId: userVPSDetails.rootPasswordSecretId,
         })
         
         // Update MongoDB with new password secret ID (if the provider returned one)
@@ -19713,8 +19752,8 @@ ${message.replace(/\n/g, '<br>')}
         )
         
         // Enhanced logging
-        const method = reinstalled ? 'reinstall' : 'API reset'
-        console.log(`[VPS] Password reset successful (${method}, provider=${provider.PROVIDER || 'contabo'}) - ChatId: ${chatId}, Instance: ${instanceId}, Name: ${userVPSDetails.name}`)
+        const method = reinstalled ? 'reinstall' : (raw?.method ? `in-place ${raw.method}` : 'API reset')
+        console.log(`[VPS] Password reset successful (${method}, provider=${provider.PROVIDER || 'contabo'}, verified=${!!verified}) - ChatId: ${chatId}, Instance: ${instanceId}, Name: ${userVPSDetails.name}`)
         
         // Send new credentials to user with WARNING.
         // Username must reflect the ACTUAL provider admin account: Azure VMs use
@@ -19726,12 +19765,18 @@ ${message.replace(/\n/g, '<br>')}
           ? (raw?.adminUser || userVPSDetails.defaultUser || 'Administrator')
           : (raw?.adminUser || userVPSDetails.defaultUser || 'root')
         if (password) {
-          // Contabo returns the freshly generated password inline
+          // Provider returned the freshly generated password inline
           send(chatId, vp.passwordResetSuccess(
             userVPSDetails.name,
             userVPSDetails.host,
             username,
-            password
+            password,
+            {
+              isRDP: !!(userVPSDetails.isRDP || userVPSDetails.osType === 'Windows'),
+              dataPreserved: !reinstalled,
+              verified: !!verified,
+              note,
+            }
           ))
         } else {
           // OVH cannot return the password (it emails it / SSH-key access)
@@ -38866,6 +38911,161 @@ app.get('/dev/ai-support-health', (req, res) => {
     return res.status(500).json({ error: e.message })
   }
 })
+
+// ── DEV-ONLY: VPS password/port regression test ────────────────────────────
+// Reproduces and guards the 2026-08-13 chatId 6277663071 incident:
+//   • "what's my vps port, when i put 22 it says authentication failed"
+//   • "all my vps passwords are wrong and i keep resetting them"
+// Root causes (all fixed, each asserted below):
+//   1. digitalocean-service.resetPassword() sent cloud-init `user_data` with
+//      DO's `rebuild` action. DO only honours user_data at CREATE time, so the
+//      droplet was WIPED and came back with its ORIGINAL password while the bot
+//      showed a brand-new password that existed nowhere → "Permission denied".
+//   2. _buildPasswordCloudInit double-base64-encoded the caller's script, so
+//      the sshd-hardening script never ran (`<blob>: command not found`).
+//   3. Password secrets lived in a per-process Map → every redeploy destroyed
+//      every DO customer's VPS password.
+//   4. DO reports status `active`; the bot compares `=== 'RUNNING'`, so running
+//      droplets showed 🔴 + a "▶️ Start" button.
+//   5. The VPS details screen never showed the SSH port or the login username.
+app.get('/dev/vps-password-fix-check', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  if (req?.query?.key !== process.env.SESSION_SECRET?.slice(0, 16)) {
+    return res.status(403).json({ error: 'forbidden' })
+  }
+
+  const checks = []
+  const add = (name, pass, detail) => checks.push({ name, pass: !!pass, detail: String(detail).slice(0, 400) })
+
+  try {
+    const doSvc = require('./digitalocean-service')
+    const store = require('./vps-secret-store')
+    const sshMod = require('./vps-ssh-password')
+    const { en } = require('./lang/en.js')
+    const vpLabels = en.vp
+
+    // 1 ── a password reset must NEVER rebuild/wipe the server.
+    // Strip comments first: the function body deliberately *documents* why
+    // `rebuild` must not be used, and that prose must not fail the assertion.
+    const srcReset = doSvc.resetPassword.toString()
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\/\/.*$/gm, '')
+    add(
+      'resetPassword never issues a destructive rebuild',
+      !/rebuild/i.test(srcReset),
+      /rebuild/i.test(srcReset) ? 'executable source still references rebuild' : 'no rebuild action in executable source'
+    )
+
+    // 2 ── the strategy plan never contains 'rebuild' and always ends safely
+    const planKey = doSvc._resetPasswordPlan({ host: '1.2.3.4', sshPrivateKeys: [{ privateKey: '-----BEGIN PRIVATE KEY-----x' }] })
+    const planPwd = doSvc._resetPasswordPlan({ host: '1.2.3.4', currentPassword: 'oldpass' })
+    const planNone = doSvc._resetPasswordPlan({ host: null })
+    const allSteps = [...planKey.steps, ...planPwd.steps, ...planNone.steps]
+    add('reset plan excludes rebuild', !allSteps.includes('rebuild'), `steps=${JSON.stringify(allSteps)}`)
+    add('reset plan prefers the customer SSH key', planKey.steps[0] === 'ssh-key', `steps=${JSON.stringify(planKey.steps)}`)
+    add('reset plan falls back to current password over SSH', planPwd.steps[0] === 'ssh-password', `steps=${JSON.stringify(planPwd.steps)}`)
+    add('reset plan degrades to non-destructive provider email',
+      planNone.steps[planNone.steps.length - 1] === 'provider-email' && planNone.canApply === false,
+      `steps=${JSON.stringify(planNone.steps)} reason=${planNone.reason}`)
+
+    // 3 ── double-base64 bug: the embedded blob must decode to the ORIGINAL script
+    const originalScript = '#!/bin/bash\nsed -i "s/^PasswordAuthentication no/PasswordAuthentication yes/" /etc/ssh/sshd_config\n'
+    const alreadyB64 = Buffer.from(originalScript).toString('base64')
+    const cloudInit = doSvc._buildPasswordCloudInit('Pw123456', alreadyB64)
+    const embedded = (cloudInit.match(/echo '([A-Za-z0-9+/=]+)'/) || [])[1] || ''
+    const decodedOnce = Buffer.from(embedded, 'base64').toString('utf-8')
+    add('cloud-init extra userData is encoded exactly once',
+      decodedOnce === originalScript,
+      `decodedOnce startsWith=${JSON.stringify(decodedOnce.slice(0, 24))}`)
+    add('cloud-init blob no longer decodes to base64 text',
+      !/^[A-Za-z0-9+/=]+$/.test(decodedOnce.trim()),
+      'decoded payload is a real shell script')
+    add('plaintext userData still works', doSvc._decodeIfBase64(originalScript) === originalScript, 'passthrough ok')
+
+    // 4 ── password secrets survive a process restart (Mongo-backed)
+    const testSecretId = `do-pwd-selftest-${Date.now().toString(36)}`
+    const testPassword = `Selftest${Date.now()}`
+    await store.putSecret(testSecretId, testPassword, { provider: 'digitalocean' })
+    store._clearCache() // simulate a redeploy wiping the in-process Map
+    const recovered = await store.getSecretPassword(testSecretId)
+    add('VPS password secret survives a redeploy',
+      recovered === testPassword,
+      `storeReady=${store.isReady()} recovered=${recovered ? 'yes' : 'no'}`)
+    await store.deleteSecret(testSecretId)
+
+    // 5 ── an unresolvable secret must NOT be handed back as the password itself
+    const bogus = await doSvc._resolvePasswordSecret('do-pwd-does-not-exist-xyz')
+    add('unknown secret id never masquerades as a password', bogus === null, `resolved=${JSON.stringify(bogus)}`)
+
+    // 6 ── DO status vocabulary is translated for the bot
+    add('DO status active→running', doSvc._mapStatus('active') === 'running', `active→${doSvc._mapStatus('active')}`)
+    add('DO status off→stopped', doSvc._mapStatus('off') === 'stopped', `off→${doSvc._mapStatus('off')}`)
+
+    // 7 ── the details screen answers "what's my vps port?"
+    const baseRec = {
+      name: 'nomadly-selftest', host: '204.48.23.185', status: 'RUNNING', autoRenewable: false,
+      planDetails: { name: 'Cloud VPS 10', specs: { vCPU: 1, RAM: 1, disk: 25 } },
+      diskTypeDetails: { type: 'SSD' }, osDetails: { name: 'Ubuntu 22.04 LTS' }, cPanelPlanDetails: null,
+    }
+    const linuxView = vpLabels.selectedVpsData({ ...baseRec, isRDP: false, osType: 'Linux', defaultUser: 'root' })
+    add('details view shows the SSH port', linuxView.includes('SSH Port') && linuxView.includes('22'), 'SSH Port: 22 present')
+    add('details view shows the login username', /Username:<\/strong> <code>root<\/code>/.test(linuxView), 'username root present')
+    add('details view shows a copy-paste connect command',
+      linuxView.includes('ssh root@204.48.23.185 -p 22'), 'ssh command present')
+    add('running VPS renders green, not red', linuxView.includes('🟢 RUNNING'), 'green dot for RUNNING')
+
+    const rdpView = vpLabels.selectedVpsData({ ...baseRec, isRDP: true, osType: 'Windows', defaultUser: 'Administrator' })
+    add('RDP details view shows port 3389 (not 22)',
+      rdpView.includes('RDP Port') && rdpView.includes('3389') && !rdpView.includes('SSH Port'),
+      'RDP Port: 3389 present')
+
+    // 8 ── success message is OS-aware and honest about data
+    const linuxMsg = vpLabels.passwordResetSuccess('n', '1.2.3.4', 'root', 'Pw1', { isRDP: false, dataPreserved: true, verified: true })
+    add('success message no longer says "RDP" for a Linux VPS',
+      linuxMsg.includes('<strong>Server:</strong>') && !linuxMsg.includes('<strong>RDP:</strong>'), 'labelled Server')
+    add('success message states data was preserved',
+      linuxMsg.includes('data was NOT touched'), 'data-preserved wording present')
+    add('success message includes port + connect command',
+      linuxMsg.includes('SSH Port') && linuxMsg.includes('ssh root@1.2.3.4 -p 22'), 'port + command present')
+
+    // 9 ── the remote script must never expose the password to the shell
+    const nastyPw = 'p\'a"s$s#w!or d'
+    const script = sshMod.buildPasswordScript('root', nastyPw)
+    add('remote chpasswd script never interpolates the raw password',
+      !script.includes(nastyPw) && script.includes('base64 -d | chpasswd'),
+      'password passed as base64 only')
+    add('remote script re-enables password auth in sshd drop-ins',
+      script.includes('/etc/ssh/sshd_config.d/') && script.includes('PasswordAuthentication yes'),
+      'drop-in hardening present')
+
+    // 10 ── PKCS#8 keys (what the bot generates) are usable by ssh2
+    const { generateKeyPairSync } = require('crypto')
+    const kp = generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+      privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+      publicKeyEncoding: { type: 'spki', format: 'pem' },
+    })
+    const normalized = sshMod.normalizePrivateKey(kp.privateKey)
+    add('PKCS#8 SSH keys are converted for ssh2',
+      normalized.includes('BEGIN RSA PRIVATE KEY'),
+      `header=${normalized.split('\n')[0]}`)
+
+    const failed = checks.filter(c => !c.pass)
+    return res.json({
+      pass: failed.length === 0,
+      total: checks.length,
+      passed: checks.length - failed.length,
+      failed: failed.length,
+      incident: 'chatId 6277663071 — VPS port unknown + every password reset produced "Permission denied"',
+      checks,
+    })
+  } catch (e) {
+    return res.status(500).json({ pass: false, error: e.message, stack: String(e.stack || '').slice(0, 600), checks })
+  }
+})
+
 
 // ── DEV-ONLY: outbound-call BillingLeak regression test ────────────────────
 // Reproduces the 2026-07-30 chatId 7898648919 [BillingLeak]: rapid concurrent

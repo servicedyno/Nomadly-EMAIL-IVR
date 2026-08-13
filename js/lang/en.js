@@ -3348,24 +3348,42 @@ ${CHAT_BOT_NAME}`,
  vpsList: list => `<strong>🖥️ Active VPS Instances:</strong>
 
 ${list
- .map(vps => `<strong>• ${vps.name} :</strong> ${vps.status === 'RUNNING' ? '🟢' : '🔴'} ${vps.status}`)
+ .map(vps => `<strong>• ${vps.name} :</strong> ${String(vps.status || '').toUpperCase() === 'RUNNING' ? '🟢' : '🔴'} ${vps.status}`)
  .join('\n')}
 `,
  noVPSfound: 'No Active VPS instance exists. Create a new one.',
  selectCorrectOption: 'Please select a option from the list',
- selectedVpsData: data => `<strong>🖥️ VPS ID:</strong> ${data.name}
+ selectedVpsData: data => {
+   const isRDP = !!(data.isRDP || data.osType === 'Windows')
+   const port = isRDP ? 3389 : 22
+   const loginUser = data.defaultUser || (isRDP ? 'Administrator' : 'root')
+   const running = String(data.status || '').toUpperCase() === 'RUNNING'
+   return `<strong>🖥️ VPS ID:</strong> ${data.name}
 
 <strong>• Plan:</strong> ${data.planDetails.name}
 <strong>• vCPUs:</strong> ${data.planDetails.specs.vCPU} | RAM: ${data.planDetails.specs.RAM} GB | Disk: ${
- data.planDetails.specs.disk
+   data.planDetails.specs.disk
  } GB (${data.diskTypeDetails.type})
 <strong>• OS:</strong> ${data.osDetails.name}
 <strong>• Control Panel:</strong> ${
- data.cPanelPlanDetails && data.cPanelPlanDetails.type ? data.cPanelPlanDetails.type : 'None'
+   data.cPanelPlanDetails && data.cPanelPlanDetails.type ? data.cPanelPlanDetails.type : 'None'
  }
-<strong>• Status:</strong> ${data.status === 'RUNNING' ? '🟢' : '🔴'} ${data.status}
+<strong>• Status:</strong> ${running ? '🟢' : '🔴'} ${data.status}
 <strong>• Auto-Renewal:</strong> ${data.autoRenewable ? 'Enabled' : 'Disabled'}
-<strong>• IP Address:</strong> ${data.host}`,
+
+<b>🔌 How to connect</b>
+<strong>• IP Address:</strong> <code>${data.host}</code>
+<strong>• ${isRDP ? 'RDP Port' : 'SSH Port'}:</strong> <code>${port}</code>
+<strong>• Username:</strong> <code>${loginUser}</code>${
+   isRDP
+     ? `
+<strong>• Remote Desktop:</strong> <code>${data.host}:${port}</code>`
+     : `
+<strong>• Command:</strong> <code>ssh ${loginUser}@${data.host} -p ${port}</code>`
+ }
+
+🔑 Lost your password? Tap <b>Reset Password</b> — it is applied on the running server, your data is kept.`
+ },
  stopVpsBtn: '⏹️ Stop',
  startVpsBtn: '▶️ Start',
  restartVpsBtn: '🔄 Restart',
@@ -3383,7 +3401,7 @@ ${list
 
 Please Try again after sometime.`,
  vpsBeingStarted: name => `⚙️ Please wait while your VPS (${name}) is being started`,
- vpsStarted: name => `✅ VPS (${name}) his now running.`,
+ vpsStarted: name => `✅ VPS (${name}) is now running.`,
  failedStartedVPS: name => `❌ Failed to start VPS (${name}). 
 
 Please Try again after sometime.`,
@@ -3403,12 +3421,9 @@ Do you want to proceed?`,
 
 ⚠️ <strong>Important:</strong>
 • Your current password will stop working
-• A new password will be generated
-• For <b>Linux VPS</b>: This will reinstall the OS — <b>ALL DATA will be erased</b>
-• For <b>Windows RDP</b>: Your data and files will be preserved
-• You'll need the new password to access your VPS
-
-💾 <strong>Linux users:</strong> Back up important files before proceeding.
+• A new password will be generated and shown to you here
+• We apply it on the <b>running server</b> — your files and data are kept
+• <b>Windows RDP:</b> your data and files are preserved too
 
 Do you want to reset the password for <strong>${name}</strong>?`,
 
@@ -3427,23 +3442,33 @@ Do you want to reinstall Windows on <strong>${name}</strong>?`,
 
  passwordResetInProgress: name => `🔄 Resetting password for <strong>${name}</strong>...
 
-⏱️ This may take 2-5 minutes. Please wait.
+⏱️ This usually takes 20-60 seconds. Please wait.
 
-⚠️ <i>Note: For Linux VPS, this performs a fresh OS reinstall with the new password. Any data on the server will be reset.</i>`,
+🔒 <i>The new password is applied on your running server — your data stays intact.</i>`,
 
- passwordResetSuccess: (name, ip, username, password) => `✅ <strong>Password Reset Successful!</strong>
+ passwordResetSuccess: (name, ip, username, password, opts = {}) => {
+   const isRDP = !!opts.isRDP
+   const port = isRDP ? 3389 : 22
+   // `dataPreserved` is true whenever the provider applied the password on the
+   // RUNNING server (the DigitalOcean/SSH path) instead of reinstalling it.
+   const dataPreserved = opts.dataPreserved !== false
+   return `✅ <strong>Password Reset Successful!</strong>
 
-🖥️ <strong>RDP:</strong> ${name}
-🌐 <strong>IP:</strong> ${ip}
-👤 <strong>Username:</strong> ${username}
+🖥️ <strong>${isRDP ? 'RDP' : 'Server'}:</strong> ${name}
+🌐 <strong>IP:</strong> <code>${ip}</code>
+🔌 <strong>${isRDP ? 'RDP Port' : 'SSH Port'}:</strong> <code>${port}</code>
+👤 <strong>Username:</strong> <code>${username}</code>
 🔑 <strong>New Password:</strong> <code>${password}</code>
+${isRDP ? `\n📋 <strong>Connect:</strong> <code>${ip}:${port}</code>` : `\n📋 <strong>Connect:</strong> <code>ssh ${username}@${ip} -p ${port}</code>`}
+${opts.verified ? '\n✅ We logged in with this password to confirm it works.' : ''}
+${dataPreserved
+   ? '💾 <strong>Your data was NOT touched</strong> — the password was changed on the running server.'
+   : '⚠️ <strong>The OS was reinstalled</strong>, so previous data on the server is gone.'}
 
-⚠️ <strong>IMPORTANT - Save This Password Now!</strong>
-• We cannot retrieve it later for security reasons
-• If lost, you must reset your password again (data will be preserved)
-• Your old password no longer works
+⚠️ <strong>Save this password.</strong> Your old password no longer works.
 
-💡 Click the password to copy it.`,
+💡 Click the password to copy it.`
+ },
 
  passwordResetEmailed: (name, ip, username, note) => `✅ <strong>Password Reset Initiated!</strong>
 

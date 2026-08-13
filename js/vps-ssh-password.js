@@ -1,0 +1,284 @@
+'use strict'
+/**
+ * vps-ssh-password.js — apply a password to a LIVE Linux VPS over SSH.
+ *
+ * ─── WHY THIS EXISTS ─────────────────────────────────────────────────────
+ * DigitalOcean's API physically cannot set a password on an existing droplet:
+ *
+ *   • `user_data` is accepted ONLY by the droplet-CREATE endpoint and is
+ *     immutable afterwards. The `rebuild` action silently IGNORES any
+ *     user_data you send and re-runs the ORIGINAL creation cloud-init.
+ *   • `password_reset` generates a random password and EMAILS it to the
+ *     account owner, so neither the bot nor the customer ever sees it.
+ *
+ * The previous resetPassword() implementation sent user_data together with
+ * `rebuild`, which meant every "🔑 Reset Password" tap:
+ *   1. WIPED the customer's server (fresh OS install), and
+ *   2. left the ORIGINAL creation password in place, while the bot displayed
+ *      a brand-new password that had never been applied anywhere.
+ * Customers therefore got "Permission denied, please try again." forever and
+ * lost their data on every retry. (Real incident: chatId 6277663071 — 3
+ * rebuilds in 20h, 3 wipes, 0 working passwords.)
+ *
+ * This module instead logs in to the RUNNING box — SSH key first, then the
+ * currently known password — sets the new password in place, re-enables
+ * password auth, and finally VERIFIES the new password by logging in with it.
+ * No reboot, no data loss, and the bot never shows a password it hasn't
+ * proven to work.
+ */
+
+const crypto = require('crypto')
+const { Client } = require('ssh2')
+
+const log = (...a) => console.log('[VPS-SSH]', ...a)
+
+const DEFAULT_TIMEOUT_MS = 45000
+
+/**
+ * ssh2 only understands PKCS#1 (`BEGIN RSA PRIVATE KEY`), SEC1 and OpenSSH
+ * private keys — it rejects PKCS#8 (`BEGIN PRIVATE KEY`) with
+ * "Unsupported key format". The bot's own generateNewSSHkey() emits PKCS#8,
+ * so every key in `sshKeysOf` needs converting before use. Node's crypto can
+ * re-encode it without any extra dependency.
+ */
+function normalizePrivateKey(pem) {
+  if (!pem) return null
+  const raw = String(pem).trim()
+  // Already in a format ssh2 accepts
+  if (raw.includes('BEGIN RSA PRIVATE KEY') ||
+      raw.includes('BEGIN OPENSSH PRIVATE KEY') ||
+      raw.includes('BEGIN EC PRIVATE KEY') ||
+      raw.includes('BEGIN DSA PRIVATE KEY')) {
+    return raw
+  }
+  try {
+    const keyObj = crypto.createPrivateKey(raw)
+    const type = keyObj.asymmetricKeyType
+    if (type === 'rsa' || type === 'rsa-pss') {
+      return keyObj.export({ type: 'pkcs1', format: 'pem' }).toString()
+    }
+    if (type === 'ec') {
+      return keyObj.export({ type: 'sec1', format: 'pem' }).toString()
+    }
+    // ed25519/x25519 have no PKCS#1/SEC1 equivalent — hand back the original
+    // and let ssh2 decide (newer ssh2 builds accept some of these).
+    return raw
+  } catch (e) {
+    log(`normalizePrivateKey failed (${e.message || e}) — using key as-is`)
+    return raw
+  }
+}
+
+/**
+ * Build the remote bash script that sets `username`'s password and makes sure
+ * sshd actually accepts password logins.
+ *
+ * The credential is passed as base64 (`user:password`) and piped straight into
+ * `chpasswd`, so the password is NEVER interpolated into the shell — any
+ * character (quotes, $, !, #, spaces) is safe.
+ */
+function buildPasswordScript(username, newPassword) {
+  const cred = Buffer.from(`${username}:${newPassword}`, 'utf-8').toString('base64')
+  return [
+    'set -u',
+    // 1. Set the password without ever exposing it to the shell parser
+    `echo '${cred}' | base64 -d | chpasswd`,
+    // 2. Unlock the account (Ubuntu 24.04 ships root locked)
+    `passwd -u ${username} 2>/dev/null || true`,
+    // 3. Enable password auth + root login in the main config
+    "sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config 2>/dev/null || true",
+    "sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config 2>/dev/null || true",
+    "grep -q '^PasswordAuthentication yes' /etc/ssh/sshd_config 2>/dev/null || echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config",
+    "grep -q '^PermitRootLogin yes' /etc/ssh/sshd_config 2>/dev/null || echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config",
+    // 4. Neutralise drop-ins that turn it back off.
+    //    DO's Ubuntu images ship /etc/ssh/sshd_config.d/60-cloudimg-settings.conf
+    //    with `PasswordAuthentication no`.
+    'for f in /etc/ssh/sshd_config.d/*.conf; do',
+    '  [ -f "$f" ] || continue',
+    '  sed -i "s/^PasswordAuthentication no/PasswordAuthentication yes/" "$f"',
+    '  sed -i "s/^PermitRootLogin prohibit-password/PermitRootLogin yes/" "$f"',
+    '  sed -i "s/^PermitRootLogin no/PermitRootLogin yes/" "$f"',
+    'done',
+    // 5. Reload sshd so the config edits take effect. `reload` (not `restart`)
+    //    so we never kill our own session; the HUP fallback covers images
+    //    without systemd.
+    'systemctl reload sshd 2>/dev/null || systemctl reload ssh 2>/dev/null || systemctl restart sshd 2>/dev/null || systemctl restart ssh 2>/dev/null || service ssh reload 2>/dev/null || pkill -HUP -x sshd 2>/dev/null || true',
+    'echo NOMADLY_PWD_OK',
+  ].join('\n')
+}
+
+/**
+ * Run a command over SSH. Resolves { code, stdout, stderr }.
+ * Pass script=null to only test that authentication succeeds.
+ */
+function execOverSSH(opts = {}) {
+  const {
+    host,
+    port = 22,
+    username = 'root',
+    privateKey = null,
+    password = null,
+    script = null,
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+  } = opts
+
+  return new Promise((resolve, reject) => {
+    if (!host) return reject(new Error('execOverSSH: host is required'))
+    if (!privateKey && !password) return reject(new Error('execOverSSH: privateKey or password is required'))
+
+    const conn = new Client()
+    let settled = false
+    const finish = (err, val) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      try { conn.end() } catch (_) { /* noop */ }
+      err ? reject(err) : resolve(val)
+    }
+    const timer = setTimeout(
+      () => finish(new Error(`SSH timeout after ${timeoutMs}ms`)),
+      timeoutMs
+    )
+
+    conn.on('ready', () => {
+      if (!script) return finish(null, { code: 0, stdout: '', stderr: '', authOnly: true })
+      conn.exec(script, (err, stream) => {
+        if (err) return finish(err)
+        let stdout = ''
+        let stderr = ''
+        stream.on('data', d => { stdout += d.toString() })
+        stream.stderr.on('data', d => { stderr += d.toString() })
+        stream.on('close', code => finish(null, { code, stdout, stderr }))
+      })
+    })
+
+    conn.on('error', e => finish(e))
+
+    // Some images only offer keyboard-interactive for password auth.
+    conn.on('keyboard-interactive', (_n, _i, _il, _p, cb) => {
+      if (password) return cb([password])
+      return cb([])
+    })
+
+    const cfg = {
+      host,
+      port: Number(port) || 22,
+      username,
+      readyTimeout: timeoutMs,
+      keepaliveInterval: 0,
+    }
+    if (privateKey) {
+      cfg.privateKey = normalizePrivateKey(privateKey)
+    } else {
+      cfg.password = password
+      cfg.tryKeyboard = true
+    }
+
+    try {
+      conn.connect(cfg)
+    } catch (e) {
+      finish(e)
+    }
+  })
+}
+
+/**
+ * Verify that `password` can actually log in. This is what stops the bot from
+ * ever handing a customer a password that does not work.
+ */
+async function verifyPasswordLogin({ host, port = 22, username = 'root', password, timeoutMs = 30000 }) {
+  try {
+    await execOverSSH({ host, port, username, password, script: null, timeoutMs })
+    return true
+  } catch (_) {
+    return false
+  }
+}
+
+/**
+ * Apply `newPassword` to a running VPS.
+ *
+ * Auth is attempted in this order:
+ *   1. every stored SSH private key (the customer's key is injected at create
+ *      time and re-injected by DO on rebuild, so it keeps working)
+ *   2. the password we currently believe is set
+ *
+ * @returns {Promise<{ok:boolean, method:string|null, verified:boolean, attempts:Array, error?:string}>}
+ */
+async function applyPasswordOverSSH(opts = {}) {
+  const {
+    host,
+    port = 22,
+    username = 'root',
+    newPassword,
+    privateKeys = [],
+    currentPassword = null,
+    verify = true,
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+  } = opts
+
+  const attempts = []
+  if (!host) return { ok: false, method: null, verified: false, attempts, error: 'no host on record' }
+  if (!newPassword) return { ok: false, method: null, verified: false, attempts, error: 'no newPassword supplied' }
+
+  const script = buildPasswordScript(username, newPassword)
+
+  const candidates = []
+  for (const k of (Array.isArray(privateKeys) ? privateKeys : [privateKeys])) {
+    const key = typeof k === 'string' ? k : (k && (k.privateKey || k.key))
+    const name = (k && k.sshKeyName) || (k && k.name) || 'ssh-key'
+    if (key && String(key).includes('PRIVATE KEY')) {
+      candidates.push({ method: `ssh-key:${name}`, privateKey: String(key) })
+    }
+  }
+  if (currentPassword) candidates.push({ method: 'ssh-password', password: currentPassword })
+
+  if (!candidates.length) {
+    return { ok: false, method: null, verified: false, attempts, error: 'no SSH key and no known current password' }
+  }
+
+  for (const cand of candidates) {
+    try {
+      const res = await execOverSSH({
+        host, port, username, script, timeoutMs,
+        privateKey: cand.privateKey || null,
+        password: cand.password || null,
+      })
+      const ok = res.code === 0 || String(res.stdout).includes('NOMADLY_PWD_OK')
+      attempts.push({ method: cand.method, ok, code: res.code, stderr: String(res.stderr || '').slice(0, 200) })
+      if (!ok) continue
+
+      let verified = false
+      if (verify) {
+        // sshd needs a moment after reload before it honours the new config
+        await new Promise(r => setTimeout(r, 2500))
+        verified = await verifyPasswordLogin({ host, port, username, password: newPassword })
+        if (!verified) {
+          // one retry — cloud images can be slow to reload sshd
+          await new Promise(r => setTimeout(r, 4000))
+          verified = await verifyPasswordLogin({ host, port, username, password: newPassword })
+        }
+      }
+      log(`password applied on ${host} via ${cand.method} (verified=${verified})`)
+      return { ok: true, method: cand.method, verified, attempts }
+    } catch (e) {
+      attempts.push({ method: cand.method, ok: false, error: String(e.message || e).slice(0, 200) })
+    }
+  }
+
+  return {
+    ok: false,
+    method: null,
+    verified: false,
+    attempts,
+    error: `all SSH auth attempts failed: ${attempts.map(a => `${a.method}=${a.error || a.code}`).join('; ')}`,
+  }
+}
+
+module.exports = {
+  applyPasswordOverSSH,
+  verifyPasswordLogin,
+  execOverSSH,
+  buildPasswordScript,
+  normalizePrivateKey,
+}

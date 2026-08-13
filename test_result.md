@@ -14035,3 +14035,387 @@ phase2c_scheduled_campaigns:
     HTTP: POST /api/dev/bulk-schedule-test (expect pass=true) + confirm no leftover 'SCHEDTEST-'
     docs. Re-verify the 3 regression endpoints above. Base URL = REACT_APP_BACKEND_URL.
 
+
+vps_password_and_port_incident_2026_08_13:
+  reported_by: "user @user_uu0 (chatId 6277663071) — 2 escalations (fSSsT 07:54, f9fXH 08:29)"
+  user_words: |
+    "what's my vps port, when i put 22 it says authentication failed, when i put 25 it says proxy error"
+    "all my vps passwords are wrong and i keep resetting them and waiting more then 5 minutes.
+     PLEASE FIX THIS ASAP AND REFUND MY WASTED DAYS"
+    "1 but after the first time i reset password, all the other times it says wrong password"
+    "since the first time i changed password i get 'Permission denied, please try again.' on all my new passwords"
+
+  affected_vps: |
+    vpsPlansOf._id=6a7c39e8f85b21ef268026ec provider=digitalocean vpsId=do-591819943
+    host=204.48.23.185 ubuntu-22-04-x64 s-1vcpu-1gb osType=Linux isRDP=false defaultUser=root
+    created 2026-08-12 09:16, lastPasswordReset 2026-08-13 08:28
+
+  evidence: |
+    • DO action history for droplet 591819943: create 08-12 09:16, rebuild 08-12 11:55,
+      rebuild 08-13 08:04, rebuild 08-13 08:28  → 3 password resets = 3 FULL OS WIPES.
+    • Live SSH into the droplet (key from sshKeysOf) showed
+      /var/lib/cloud/instance/user-data.txt STILL contains the ORIGINAL create-time
+      cloud-init  `chpasswd: root:jdMK2V7-a4=xagYR6yI#`  after all 3 rebuilds.
+    • Read-only auth probe: root@204.48.23.185 with that ORIGINAL password → LOGIN SUCCEEDS;
+      control wrong password → fails. Proves every post-reset password was fiction.
+    • sshd -T on the box: port 22, permitrootlogin yes, passwordauthentication yes
+      → the customer's port guess (22) was right all along; only the password was wrong.
+    • cloud-init status=error; /root/_bot_userdata.sh contained BASE64 TEXT and
+      cloud-init-output.log showed "<base64 blob>: command not found".
+
+  root_causes:
+    - "P0 js/digitalocean-service.js resetPassword() sent cloud-init user_data with DO's
+       `rebuild` action. DO accepts user_data ONLY at droplet-CREATE time (immutable
+       afterwards) and rebuild re-runs the ORIGINAL cloud-init. So each reset wiped the
+       disk AND left the original password, while the bot displayed + stored a new password
+       that existed nowhere. The code even carried the comment 'NOTE: rebuild may ignore
+       user_data — fallback below' with NO fallback implemented."
+    - "P0 Password secrets (`do-pwd-*`) lived in a per-process `new Map()` while
+       vpsPlansOf.rootPasswordSecretId was persisted in Mongo → every Railway redeploy
+       permanently destroyed every DO customer's VPS password."
+    - "P1 VPS details screen (lang/en.js selectedVpsData) showed only VPS ID + IP — no SSH
+       port, no login username, no connect command → the customer had to guess (22, then 25)
+       and open a ticket."
+    - "P1 _buildPasswordCloudInit double-base64-encoded the caller's script
+       (vm-instance-setup.js already base64s it), so the sshd-hardening script never ran."
+    - "P2 DO reports status 'active'; the bot compares === 'RUNNING', so every running
+       droplet rendered 🔴 with a '▶️ Start' button (customer tapped Start twice on a
+       running server)."
+    - "P2 passwordResetSuccess hardcoded '🖥️ RDP:' for Linux VPS and claimed 'data will be
+       preserved' while the Linux path was actually wiping the disk."
+    - "P2 vpsStarted typo: 'VPS (x) his now running.'"
+
+  changes:
+    - "NEW js/vps-ssh-password.js — applies the password on the RUNNING box over SSH
+       (chpasswd via base64 so the password never hits the shell parser), re-enables
+       PasswordAuthentication/PermitRootLogin in sshd_config AND all sshd_config.d drop-ins
+       (DO ships 60-cloudimg-settings.conf with PasswordAuthentication no), then VERIFIES by
+       logging in with the new password. normalizePrivateKey() converts the bot's PKCS#8
+       keys to PKCS#1 because ssh2 rejects PKCS#8 ('Unsupported key format')."
+    - "NEW js/vps-secret-store.js — Mongo-backed (`vpsPasswordSecrets`) durable store for
+       fabricated password secrets, in-process Map kept only as a cache."
+    - "js/digitalocean-service.js — resetPassword() rewritten: NO rebuild ever. Order:
+       ssh-key → ssh-password → DO native password_reset (email, non-destructive).
+       Returns verified flag + reinstalled:false. New pure _resetPasswordPlan() for testing.
+       _resolvePasswordSecret is async + Mongo-backed and returns null (never the secret id)
+       when unresolvable. _decodeIfBase64 fixes the double-encode. _mapStatus translates
+       active→running / off→stopped. createSecret/getSecret/deleteSecret persist.
+       New getSecretPassword(). reinstallInstance documents the same DO user_data caveat."
+    - "js/_index.js — initSecretStore(db) at boot; reset handler now loads the customer's
+       sshKeysOf private keys (linked key first) and passes host/chatId/sshPrivateKeys/
+       currentSecretId to the provider; logs method + verified; passes OS/data-preserved
+       context to the success message. NEW dev endpoint GET /dev/vps-password-fix-check."
+    - "js/lang/en.js — selectedVpsData now has a '🔌 How to connect' block with SSH/RDP port,
+       username and a copy-paste `ssh user@ip -p 22` (or ip:3389) command + case-insensitive
+       RUNNING dot; passwordResetSuccess is OS-aware ('Server:' vs 'RDP:'), states whether
+       data was preserved, shows port + connect command and a 'we verified this password'
+       line; confirmResetPasswordText/passwordResetInProgress no longer threaten data loss;
+       vpsStarted typo fixed; vpsList dot case-insensitive."
+    - "package.json — added ssh2@1.17.0"
+
+  safety: |
+    No customer server was mutated. All droplet access was READ-ONLY (config reads + auth
+    probes). The destructive `rebuild` path is deleted, so a password reset can no longer
+    wipe a customer's disk. The last-resort path is DO's native password_reset, which only
+    emails the account and never touches the disk.
+
+  remediation_for_user_uu0: |
+    The customer can log in RIGHT NOW with  root@204.48.23.185:22  /  jdMK2V7-a4=xagYR6yI#
+    (verified by live auth probe). After this deploy, tapping 🔑 Reset Password will apply a
+    NEW password over SSH and verify it, without touching data.
+
+  main_agent_verification:
+    - "GET /api/dev/vps-password-fix-check?key=<SESSION_SECRET[0..15]> → pass=true, 23/23 checks"
+    - "node js/tests/test_vps_password_reset_e2e.js → ALL E2E CHECKS PASSED (8/8). Builds a
+       local sandbox sshd that mirrors droplet 591819943 (DO's
+       sshd_config.d/60-cloudimg-settings.conf `PasswordAuthentication no` + a PKCS#8 key in
+       root's authorized_keys), REPRODUCES the customer symptom (a correct password is still
+       rejected), then runs the REAL applyPasswordOverSSH() path and proves: key auth works →
+       drop-in corrected to yes → the new password logs in → the old one no longer does.
+       Saves/restores root's shadow hash, sshd_config and authorized_keys, kills the sandbox
+       sshd — pod verified clean afterwards. No customer server touched."
+    - "Live read-only SSH into droplet 591819943 with the stored PKCS#8 key → NOMADLY_SSH_OK"
+    - "Live read-only auth probe: root@204.48.23.185 + the ORIGINAL create-time password →
+       LOGIN SUCCEEDS, while a control wrong password fails → proves every post-reset
+       password the bot displayed never existed on the box."
+    - "node --check clean on _index.js, digitalocean-service.js, vps-ssh-password.js,
+       vps-secret-store.js, lang/en.js; eslint clean on all new/edited js except
+       PRE-EXISTING errors also present in HEAD (lang/en.js dupe keys 1081/1246/1344/1345 +
+       no-undef 3832; _index.js voiceService 23769 + 18 no-empty, all outside my diff hunks)"
+    - "nodejs RUNNING, 0 bytes in nodejs.err.log, '[VpsSecretStore] initialised' at boot"
+
+  testing_agent_notes: |
+    Please run BOTH of these and report each individual check name + pass flag.
+
+    (1) PRIMARY HTTP — the regression endpoint:
+        GET {REACT_APP_BACKEND_URL}/api/dev/vps-password-fix-check?key=o/Qb8ArGahlquhCQ
+        Expect HTTP 200, pass=true, failed=0, total=23. Key checks:
+          - "resetPassword never issues a destructive rebuild"
+          - "reset plan prefers the customer SSH key"
+          - "reset plan falls back to current password over SSH"
+          - "reset plan degrades to non-destructive provider email"
+          - "cloud-init extra userData is encoded exactly once"
+          - "cloud-init blob no longer decodes to base64 text"
+          - "VPS password secret survives a redeploy"
+          - "unknown secret id never masquerades as a password"
+          - "DO status active→running" / "DO status off→stopped"
+          - "details view shows the SSH port" / "...the login username"
+            / "...a copy-paste connect command"
+          - "running VPS renders green, not red"
+          - "RDP details view shows port 3389 (not 22)"
+          - "success message no longer says RDP for a Linux VPS"
+          - "success message states data was preserved"
+          - "remote chpasswd script never interpolates the raw password"
+          - "PKCS#8 SSH keys are converted for ssh2"
+        Also confirm the auth gate: same URL WITHOUT ?key → HTTP 403,
+        and with a wrong key → HTTP 403.
+
+    (2) PRIMARY E2E — the incident reproduction (safe, self-contained, self-cleaning):
+        cd /app && node js/tests/test_vps_password_reset_e2e.js ; echo "EXIT=$?"
+        Expect EXIT=0 and "ALL E2E CHECKS PASSED (8/8)". It stands up a sandbox sshd on
+        127.0.0.1:2222 inside the pod, reproduces the customer's "Permission denied" symptom,
+        then proves the real reset path sets a password that actually works. It restores
+        root's shadow hash, /etc/ssh/sshd_config and /root/.ssh/authorized_keys and kills the
+        sandbox sshd on exit — please confirm afterwards that `pgrep -x sshd` is empty and
+        /etc/ssh/sshd_config.d/60-cloudimg-settings.conf does not exist.
+
+    (3) REGRESSION: confirm /api/health is still 200 and the bot is still RUNNING
+        (`sudo supervisorctl status nodejs`), and that /var/log/supervisor/nodejs.err.log
+        has no new stack traces.
+
+    HARD CONSTRAINTS — this pod is wired to the LIVE production Mongo and to live
+    DigitalOcean / Telnyx / registrar / payment credentials:
+      • DO NOT create, delete, rebuild, resize or reset any real VPS/droplet.
+      • DO NOT trigger the Telegram reset-password flow against any real customer.
+      • DO NOT SSH to any external host (the E2E test only uses 127.0.0.1).
+      • The reset-password bot flow itself must be verified by CODE REVIEW only
+        (js/_index.js action a.confirmResetPassword, ~line 19711).
+
+
+
+  testing_agent_verification:
+    - agent: "testing"
+      timestamp: "2026-08-13"
+      status: "FIXED"
+      comment: |
+        ✅ VERIFICATION COMPLETE - VPS password/port bug fix PASSED (all 3 test suites, 100% pass):
+        
+        SCOPE: Verified the VPS password/port incident fix reported by @user_uu0 (chatId 6277663071).
+        This is a PRODUCTION-CONNECTED environment with LIVE MongoDB and DigitalOcean credentials.
+        ALL testing was SAFE and READ-ONLY (no customer servers mutated, no real password resets triggered).
+        
+        [TEST 1] PRIMARY HTTP - Regression endpoint: ✅ ALL 23 CHECKS PASSED
+          GET {REACT_APP_BACKEND_URL}/api/dev/vps-password-fix-check?key=o/Qb8ArGahlquhCQ
+          
+          Response: HTTP 200 ✅
+          
+          ✅ pass === true
+          ✅ total === 23
+          ✅ passed === 23
+          ✅ failed === 0
+          
+          [All 23 Checks - EVERY ONE PASSED]
+          ✅ "resetPassword never issues a destructive rebuild" → no rebuild action in executable source
+          ✅ "reset plan excludes rebuild" → steps=[ssh-key, provider-email, ssh-password, provider-email, provider-email]
+          ✅ "reset plan prefers the customer SSH key" → steps=[ssh-key, provider-email]
+          ✅ "reset plan falls back to current password over SSH" → steps=[ssh-password, provider-email]
+          ✅ "reset plan degrades to non-destructive provider email" → steps=[provider-email] reason=no host on record
+          ✅ "cloud-init extra userData is encoded exactly once" → decodedOnce startsWith="#!/bin/bash\nsed -i \"s/^P"
+          ✅ "cloud-init blob no longer decodes to base64 text" → decoded payload is a real shell script
+          ✅ "plaintext userData still works" → passthrough ok
+          ✅ "VPS password secret survives a redeploy" → storeReady=true recovered=yes
+          ✅ "unknown secret id never masquerades as a password" → resolved=null
+          ✅ "DO status active→running" → active→running
+          ✅ "DO status off→stopped" → off→stopped
+          ✅ "details view shows the SSH port" → SSH Port: 22 present
+          ✅ "details view shows the login username" → username root present
+          ✅ "details view shows a copy-paste connect command" → ssh command present
+          ✅ "running VPS renders green, not red" → green dot for RUNNING
+          ✅ "RDP details view shows port 3389 (not 22)" → RDP Port: 3389 present
+          ✅ "success message no longer says \"RDP\" for a Linux VPS" → labelled Server
+          ✅ "success message states data was preserved" → data-preserved wording present
+          ✅ "success message includes port + connect command" → port + command present
+          ✅ "remote chpasswd script never interpolates the raw password" → password passed as base64 only
+          ✅ "remote script re-enables password auth in sshd drop-ins" → drop-in hardening present
+          ✅ "PKCS#8 SSH keys are converted for ssh2" → header=-----BEGIN RSA PRIVATE KEY-----
+          
+          ★ CORE FIX VERIFIED: The VPS password/port bug is FIXED. The resetPassword() function
+            NO LONGER uses the destructive `rebuild` action. Password secrets are now stored in
+            MongoDB (vpsPasswordSecrets collection) and survive redeployments. VPS details screen
+            now shows SSH port, username, and a copy-paste connect command.
+        
+        [TEST 1B] AUTH GATE VERIFICATION: ✅ PASSED
+          • GET /api/dev/vps-password-fix-check (NO ?key parameter) → HTTP 403 {"error":"forbidden"} ✅
+          • GET /api/dev/vps-password-fix-check?key=wrongkey123 → HTTP 403 {"error":"forbidden"} ✅
+          
+          ★ AUTH GATE CONFIRMED: The endpoint correctly rejects requests without the correct key.
+        
+        [TEST 2] PRIMARY E2E - Incident reproduction test: ✅ ALL 8 CHECKS PASSED
+          cd /app && node js/tests/test_vps_password_reset_e2e.js ; echo "EXIT=$?"
+          
+          Result: EXIT=0 ✅
+          Output: "ALL E2E CHECKS PASSED (8/8)" ✅
+          
+          [All 8 E2E Checks]
+          ✅ REPRO: sandbox ships password auth disabled, like a DO droplet → passwordauthentication no
+          ✅ REPRO: a CORRECT password is still rejected ("Permission denied") → valid password => denied
+          ✅ REPRO: the injected SSH key still works (our way back in) → key login => true
+          ✅ FIX: reset authenticated with the stored PKCS#8 SSH key → method=ssh-key:e2e-key err=
+          ✅ FIX: new password VERIFIED by logging back in → verified=true
+          ✅ FIX: the drop-in that blocked password auth was corrected → passwordauthentication yes
+          ✅ FIX: the password the bot SHOWS the customer actually works → new password => accepted
+          ✅ FIX: the previous password stopped working (it really changed) → old password => rejected
+          
+          ★ INCIDENT REPRODUCTION VERIFIED: The E2E test successfully reproduced the customer's
+            "Permission denied" symptom (DigitalOcean's sshd_config.d/60-cloudimg-settings.conf
+            with PasswordAuthentication no), then proved the REAL applyPasswordOverSSH() path
+            fixes it: key auth works → drop-in corrected to yes → new password logs in → old
+            password no longer works.
+        
+        [TEST 2B] POD CLEANUP VERIFICATION: ✅ PASSED
+          • `pgrep -x sshd` → No sshd processes (EXPECTED) ✅
+          • /etc/ssh/sshd_config.d/60-cloudimg-settings.conf → File does not exist (EXPECTED) ✅
+          • /root/.ssh/authorized_keys → File does not exist (EXPECTED) ✅
+          
+          ★ POD CLEANUP CONFIRMED: The E2E test left the pod in a clean state. No sandbox sshd
+            processes running, no test configuration files left behind.
+        
+        [TEST 3] REGRESSION / no-collateral-damage: ✅ ALL CHECKS PASSED
+          
+          3a) Health check: ✅ PASSED
+            GET {REACT_APP_BACKEND_URL}/api/health
+            
+            Response: HTTP 200 ✅
+            {
+              "status": "healthy",
+              "database": "connected",
+              "uptime": "0.14 hours"
+            }
+            
+            ★ BACKEND HEALTH CONFIRMED: Server is healthy, database connected.
+          
+          3b) nodejs supervisor status: ✅ PASSED
+            sudo supervisorctl status nodejs
+            
+            Result: nodejs RUNNING (pid 4807, uptime 0:08:35) ✅
+            
+            ★ SERVICE HEALTH CONFIRMED: nodejs service is running without issues.
+          
+          3c) nodejs error logs: ✅ PASSED
+            /var/log/supervisor/nodejs.err.log size: 0 bytes ✅
+            No stack traces found in recent logs ✅
+            
+            ★ LOG HEALTH CONFIRMED: No errors, no stack traces, no boot regression.
+          
+          3d) AI Support Health: ✅ PASSED
+            GET {REACT_APP_BACKEND_URL}/api/dev/ai-support-health
+            
+            Response: HTTP 200 ✅
+            {
+              "pass": true,
+              "initialized": true,
+              "savesOk": 0,
+              "saveMisses": 0
+            }
+            
+            ★ AI SUPPORT CONFIRMED: AI support system is healthy and initialized.
+          
+          3e) CNAM Circuit: ✅ PASSED
+            GET {REACT_APP_BACKEND_URL}/api/admin/cnam-circuit?key=o/Qb8ArGahlquhCQ
+            
+            Response: HTTP 200 ✅
+            {
+              "success": true,
+              "circuitBreakers": [
+                {"provider": "telnyx", "state": "CLOSED", "failures": 0},
+                {"provider": "multitel", "state": "CLOSED", "failures": 0},
+                {"provider": "signalwire", "state": "CLOSED", "failures": 0}
+              ]
+            }
+            
+            ★ CNAM CIRCUIT CONFIRMED: All circuit breakers are healthy (CLOSED state, 0 failures).
+        
+        [TEST 4] CODE REVIEW - Telegram reset-password handler: ✅ VERIFIED
+          js/_index.js action a.confirmResetPassword (line 19700-19799)
+          
+          ✅ Handler loads customer's sshKeysOf private keys (lines 19712-19733)
+          ✅ Linked key is sorted first (lines 19722-19730)
+          ✅ Handler passes host, chatId, sshPrivateKeys, currentSecretId to provider.resetPassword() (lines 19735-19746)
+          ✅ Handler logs method + verified flag (line 19756)
+          ✅ Handler passes OS/data-preserved context to success message (lines 19769-19780)
+          
+          js/digitalocean-service.js resetPassword() (lines 678-749)
+          
+          ✅ NO rebuild action in executable path (line 734 comment: "Deliberately NOT `rebuild`")
+          ✅ Reset plan: ssh-key → ssh-password → provider-email (lines 629-648)
+          ✅ applyPasswordOverSSH() is called with host, port, username, newPassword, privateKeys, currentPassword (lines 700-713)
+          ✅ Password secrets are stored in MongoDB via _storePasswordSecret() (line 717)
+          ✅ Returns verified flag + reinstalled:false (lines 718-728)
+          ✅ Last resort is DO's native password_reset (email, non-destructive) (line 736)
+          
+          ★ CODE REVIEW CONFIRMED: The Telegram reset-password handler correctly loads customer
+            SSH keys and passes them to the provider. The digitalocean-service.js resetPassword()
+            function NO LONGER uses the destructive `rebuild` action. Password secrets are now
+            stored in MongoDB and survive redeployments.
+        
+        CONCLUSION:
+        The reported bug is FIXED. All 3 verification test suites passed (23 HTTP checks + 2 auth
+        gate checks + 8 E2E checks + 3 pod cleanup checks + 5 regression checks + code review = 
+        41 total assertions, 100% pass rate).
+        
+        KEY FIX VERIFIED:
+        • BUG FIXED:
+          - BEFORE: js/digitalocean-service.js resetPassword() used DigitalOcean's `rebuild` action
+            with cloud-init user_data. DO only honors user_data at CREATE time (immutable afterwards),
+            so every "Reset Password" tap WIPED the customer's disk and left the ORIGINAL password,
+            while the bot displayed a brand-new password that existed nowhere. Customer saw
+            "Permission denied, please try again." on all new passwords.
+          - AFTER: resetPassword() rewritten to NEVER use rebuild. Order: ssh-key → ssh-password →
+            DO native password_reset (email, non-destructive). Password is applied on the RUNNING
+            box over SSH, re-enables PasswordAuthentication in sshd_config AND all sshd_config.d
+            drop-ins, then VERIFIES by logging back in with the new password. No reboot, no data
+            loss, and the bot never returns a password it could not prove.
+        
+        • PASSWORD SECRETS NOW DURABLE:
+          - BEFORE: Password secrets (`do-pwd-*`) lived in a per-process `new Map()` while
+            vpsPlansOf.rootPasswordSecretId was persisted in Mongo → every Railway redeploy
+            permanently destroyed every DO customer's VPS password.
+          - AFTER: New js/vps-secret-store.js provides Mongo-backed (`vpsPasswordSecrets`) durable
+            store for fabricated password secrets. In-process Map kept only as a cache. Password
+            secrets now survive redeployments.
+        
+        • VPS DETAILS SCREEN ENHANCED:
+          - BEFORE: VPS details screen showed only VPS ID + IP — no SSH port, no login username,
+            no connect command → customer had to guess (22, then 25) and open a ticket.
+          - AFTER: VPS details screen now has a '🔌 How to connect' block with SSH/RDP port,
+            username, and a copy-paste `ssh user@ip -p 22` (or ip:3389) command.
+        
+        • OTHER FIXES:
+          - DO status mapping: active→running, off→stopped (was comparing === 'RUNNING', so every
+            running droplet rendered 🔴 with a '▶️ Start' button)
+          - passwordResetSuccess is now OS-aware ('Server:' vs 'RDP:'), states whether data was
+            preserved, shows port + connect command, and includes a 'we verified this password' line
+          - cloud-init double-base64-encoding fixed (was encoding twice, so sshd-hardening script
+            never ran)
+          - PKCS#8 SSH keys are now converted to PKCS#1 for ssh2 compatibility
+        
+        • PRODUCTION IMPACT:
+          - The customer (@user_uu0, chatId 6277663071) can now tap 🔑 Reset Password and get a
+            password that ACTUALLY WORKS, without losing any data
+          - All future DigitalOcean VPS password resets will be NON-DESTRUCTIVE (no disk wipes)
+          - Password secrets survive Railway redeployments (MongoDB-backed)
+          - VPS details screen shows SSH port, username, and connect command (no more guessing)
+        
+        SAFETY CONFIRMED:
+        • All testing was SAFE and READ-ONLY (no customer servers mutated)
+        • The E2E test only touched 127.0.0.1 (loopback, inside the pod)
+        • NO real VPS/droplet was created, deleted, rebuilt, resized, or password-reset
+        • NO Telegram reset-password flow was triggered for any real customer
+        • NO SSH to any external/public IP
+        • The Telegram reset-password handler was verified by CODE REVIEW only
+        • Pod was left in a clean state (no sandbox sshd, no test config files)
+        
+        The VPS password/port bug is now fixed and verified. The customer's reported issue
+        ("what's my vps port, when i put 22 it says authentication failed" + "all my vps passwords
+        are wrong and i keep resetting them... since the first time i changed password i get
+        'Permission denied, please try again.' on all my new passwords") is RESOLVED.
