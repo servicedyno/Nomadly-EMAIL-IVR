@@ -4,6 +4,32 @@
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
 
+## 2026-08-20 — Admin image/media reply bug fix + Railway 5-day-ago log audit
+
+### BUG FIX — Admin "send image to user" showed "option not available" — VERIFIED (testing agent, iteration_36, 100% backend, 0 issues)
+**Report:** admin tried to send images to a user but the option was "not available".
+**Root cause (`js/_index.js` message handler):** two admin→user reply paths existed —
+(1) the `💬 Reply User` inline button (`aR:<chatId>`) sets `state.awaitingAdminAction={type:'reply',target}` and prompts "Type your message", but its follow-up rewrite (~L7140) only handled **text** (explicitly excluded `msg.photo/document/video`); and
+(2) an admin media handler (~L7244) that only fired when the media **caption** literally started with `/reply <id> `.
+So tapping "Reply User" and then attaching an image (no `/reply` caption) fell through every handler unhandled → nothing forwarded.
+**Fix:**
+- New module-scope pure helper `classifyAdminMediaReply(caption, hasMedia, pending, now)` (near `classifyStaleWalletTap`): returns `'reply-caption'` (caption starts `/reply …`, takes priority), else `'quick-reply'` + target when a **fresh (≤10 min)** `awaitingAdminAction` reply is pending, else `'none'`.
+- Admin media branch now uses it: a pending Quick-Reply target forwards the attached media (photo/video/doc/voice/audio/gif/sticker/video-note) using the media caption as the message text, then clears `awaitingAdminAction`. Explicit `/reply <id|@user>` caption still works and wins.
+- Voice/audio block (~L7231) no longer swallows admin quick-reply media — it delegates to `classifyAdminMediaReply` for a consistent guard.
+- Dev endpoint `POST /api/dev/admin-media-reply-test` (404 in prod) — 9 checks (quick-reply w/ & w/o caption, reply-caption numeric/@username, reply-caption beats pending, and 4 anti-hijack negatives: text-only, no-pending, /deliver-pending, stale-pending).
+**Verified:** dev endpoint `pass:true` (all 9) internal + external; regressions `/api/dev/stale-wallet-tap-test` + `/api/dev/support-routing-test` pass:true; `/api/health` healthy. Testing agent report: `/app/test_reports/iteration_36.json`, suite `/app/backend/tests/test_admin_media_reply.py`.
+
+### DIAGNOSTIC — Railway prod logs ~5 days ago (Aug 15, deployment 7c9ab6af…, read-only, NOT fixed)
+- 🟠 **Unhandled Promise Rejection on deactivated Telegram accounts** — `ETELEGRAM Forbidden: user is deactivated` (~14×). Sends to deactivated accounts throw *unhandled* rejections (unlike `bot_blocked`, which is caught). Genuine robustness bug — recommend catching/marking-dead like the bot_blocked path.
+- 🟡 **Support `editMessageText failed … message can't be edited`** (~11×) → AI reply delivered via fallback `send()`. Users still get the reply; may see a leftover "typing…" placeholder. Minor UX.
+- 🟡 **Escalations overdue** — `[Escalation] sent N overdue reminder(s)` (~21×). Support queue not being acknowledged in time → reminder loop. Operational/UX.
+- 🟡 **AutoPromo blasting users who blocked the bot** — `bot_blocked … marked dead` (100+×). Handled gracefully, but the high block volume may indicate promo cadence is too aggressive (UX review).
+- ⚪ **Contabo OAuth `invalid_client`** + **VPS Self-heal auth failed** (38×). Known: Contabo creds invalid, fallback disabled. Log noise; Contabo VPS unavailable.
+- ⚪ **ProtectionHeartbeat "WHM read unreliable (empty content after 3 retries)"** for many cPanels (dozens×). WHM reads via CF tunnel return empty → anti-red protection status can't be verified (SKIPs on prior CF-IP-fix signature). Reliability risk.
+- ⚪ **DnsHealer escalated ticks** (escalated=1–3). A few domains chronically stuck in escalated DNS state (matches known .de NAST issue).
+- ⚪ **Voice: SIP from connection default number blocked** (~4×) — wrong-user-billing guard; by design.
+
+
 ## 2026-06 (forked session) — 🔐 Show Password (VPS password recovery) — INDEPENDENTLY VERIFIED
 Carried over from the previous session as "user verification pending". Ran the backend testing agent
 (report: `/app/test_reports/iteration_34.json`) — **100% backend, 0 issues, retest_needed=false**.

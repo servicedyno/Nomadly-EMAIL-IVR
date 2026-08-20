@@ -1,0 +1,24 @@
+{
+  "summary": "Backend-only verification of the admin media-reply fix (classifyAdminMediaReply). Created pytest suite /app/backend/tests/test_admin_media_reply.py (7 tests) hitting the external URL. All 7 passed: /api/dev/admin-media-reply-test returns pass:true with exactly 9 checks all true (verified case-level modes/targets too, plus 3x determinism repeat), /api/dev/stale-wallet-tap-test pass:true, /api/dev/support-routing-test pass:true, /api/health = {status: healthy, database: connected}. Did NOT touch /api/telegram/webhook per instructions. Also code-reviewed the handler wiring at js/_index.js ~7231-7320 and the helper at ~41196.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /dev/admin-media-reply-test (bare, non /api path)", "issue": "Not reachable externally (404 via ingress/express fallback); works on internal localhost:5000. Use /api/dev/... externally. Documented in test, not a defect."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/backend/tests/test_admin_media_reply.py", "/app/test_reports/pytest/admin_media_reply_results.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "js/_index.js:7231 — the voice/audio pass-through guard checks only `awaitingAdminAction?.type === 'reply'` with no freshness/target check, unlike classifyAdminMediaReply (10-min window + target required). With a STALE (>10 min) pending reply, an admin voice note is no longer silently ignored: it skips the early `return` and then classifies as 'none', so it falls through to downstream media handlers. Suggest reusing classifyAdminMediaReply (or mirroring its ts/target guard) in that condition.",
+    "classifyAdminMediaReply treats a pending action with missing/0 ts as FRESH (`!ts || ...`). Currently safe because the aR: callback always sets ts, but any future code path that sets awaitingAdminAction without ts would bypass the stale guard.",
+    "js/_index.js is ~47.6k lines — far past the 700-line guideline; the message handler and dev endpoints should be split into modules to keep this area reviewable."
+  ],
+  "updated_files": ["/app/backend/tests/test_admin_media_reply.py"],
+  "success_rate": {"backend": "100%", "frontend": "not tested (backend-only request)"},
+  "seed_data_creation": "None — all dev endpoints are pure/stateless; no writes to the shared live MongoDB.",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Regression suite for this fix: /app/backend/tests/test_admin_media_reply.py (external URL from frontend/.env). It asserts the 9 checks by name and case modes/targets. Never drive /api/telegram/webhook — shared live DB + real Telegram sends. Bare /dev/* paths only work on internal localhost:5000, use /api/dev/* externally.",
+  "rca_of_the_issue": "Original bug: admin tapped '💬 Reply User' (sets awaitingAdminAction={type:'reply',target}) then attached an image; the text quick-reply rewrite explicitly excluded msg.photo/document/video and the admin media handler only fired when the caption began with '/reply <id> ', so the media fell through unhandled. Fix adds the pure helper classifyAdminMediaReply(caption, hasMedia, pending, now) — 'reply-caption' takes priority, else a fresh (<=10 min) pending reply target yields 'quick-reply', else 'none' — wired into the admin media branch which then resolves target, forwards the media using the caption as text, and clears awaitingAdminAction. Verified via the dev endpoint: all 9 routing/anti-hijack cases correct."
+}

@@ -7228,6 +7228,11 @@ bot?.on('message', msg => {
     if (userInfo?.action === 'audioLibUpload' || userInfo?.action === 'bulkUploadAudio') {
       // Let the main message handler process it (it checks msg.voice/msg.audio)
       // Don't return here — fall through to main handler
+    } else if (isAdmin(chatId) && classifyAdminMediaReply(msg?.caption || '', true, userInfo?.awaitingAdminAction, Date.now()).mode !== 'none') {
+      // Admin is sending a voice/audio reply to a user (via the Quick-Reply
+      // button or the /reply caption syntax) — DON'T swallow it here; let the
+      // admin media-reply handler below claim it. Reuses classifyAdminMediaReply
+      // so the freshness/target guard matches exactly. (2026-08-20 admin media fix.)
     } else {
       // If not in audio upload state, ignore voice/audio messages
       return
@@ -7244,34 +7249,61 @@ bot?.on('message', msg => {
   if (isAdmin(chatId)) {
     const _adminCaption = msg?.caption || ''
     const _hasMedia = !!(msg?.photo || msg?.document || msg?.video || msg?.voice || msg?.audio || msg?.video_note || msg?.animation || msg?.sticker)
-    if (_hasMedia && _adminCaption.startsWith('/reply ')) {
-      try {
-        const parts = _adminCaption.substring(7).trim().split(/\s+/)
-        const firstArg = parts[0] || ''
-        const captionText = parts.slice(1).join(' ').trim()
 
-        // Resolve target — same logic as text /reply (supports @username and numeric chatId)
+    // ── Quick-Reply media support (2026-08-20 fix) ──────────────────────────
+    // Admins tap "💬 Reply User" (aR:) which sets awaitingAdminAction={reply,target}
+    // and prompts "Type your message". If they then ATTACH a photo/video/doc
+    // (an image) instead of typing text, the old code required them to know the
+    // arcane `/reply <chatId> <caption>` syntax on the media caption — otherwise
+    // the media fell through unhandled and the admin saw "option not available".
+    // Now: if a reply target is pending, forward the attached media to that user
+    // using the media caption (if any) as the message. The explicit `/reply`
+    // caption syntax still works and takes priority. See classifyAdminMediaReply.
+    let _adminPending = null
+    if (_hasMedia && !_adminCaption.startsWith('/reply ')) {
+      const _adminStateQR = await get(state, chatId)
+      _adminPending = _adminStateQR?.awaitingAdminAction || null
+    }
+    const _mediaReply = classifyAdminMediaReply(_adminCaption, _hasMedia, _adminPending, Date.now())
+    if (_mediaReply.mode !== 'none') {
+      try {
+        // Resolve target + caption — either from the /reply caption syntax OR
+        // from a pending Quick-Reply button target.
         let targetChatId = null
         let targetName = null
-        if (firstArg.startsWith('@')) {
-          const username = firstArg.slice(1).trim()
-          if (!username) {
-            return send(chatId, '⚠️ Usage: attach media with caption `/reply @username [optional caption]` or `/reply <chatId> [optional caption]`')
-          }
-          const esc = username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-          const doc = await nameOf.findOne({ val: { $regex: `^${esc}$`, $options: 'i' } })
-          if (!doc) {
-            return send(chatId, `⚠️ No user found with username <b>@${username}</b>.`, { parse_mode: 'HTML' })
-          }
-          targetChatId = doc._id
-          targetName = doc.val
-        } else {
-          const cid = firstArg.trim()
-          if (!/^\d+$/.test(cid)) {
-            return send(chatId, '⚠️ Usage: attach media with caption `/reply @username [optional caption]` or `/reply <chatId> [optional caption]`')
-          }
-          targetChatId = cid
+        let captionText = ''
+        if (_mediaReply.mode === 'quick-reply') {
+          targetChatId = String(_mediaReply.target)
           targetName = await get(nameOf, targetChatId)
+          captionText = _adminCaption.trim()
+          // Consume the pending action so the NEXT message isn't re-routed.
+          await set(state, chatId, 'awaitingAdminAction', null)
+        } else {
+          // 'reply-caption' — same logic as text /reply (supports @username + numeric)
+          const parts = _adminCaption.substring(7).trim().split(/\s+/)
+          const firstArg = parts[0] || ''
+          captionText = parts.slice(1).join(' ').trim()
+
+          if (firstArg.startsWith('@')) {
+            const username = firstArg.slice(1).trim()
+            if (!username) {
+              return send(chatId, '⚠️ Usage: attach media with caption `/reply @username [optional caption]` or `/reply <chatId> [optional caption]`')
+            }
+            const esc = username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+            const doc = await nameOf.findOne({ val: { $regex: `^${esc}$`, $options: 'i' } })
+            if (!doc) {
+              return send(chatId, `⚠️ No user found with username <b>@${username}</b>.`, { parse_mode: 'HTML' })
+            }
+            targetChatId = doc._id
+            targetName = doc.val
+          } else {
+            const cid = firstArg.trim()
+            if (!/^\d+$/.test(cid)) {
+              return send(chatId, '⚠️ Usage: attach media with caption `/reply @username [optional caption]` or `/reply <chatId> [optional caption]`')
+            }
+            targetChatId = cid
+            targetName = await get(nameOf, targetChatId)
+          }
         }
         if (!targetChatId) {
           return send(chatId, '⚠️ Usage: attach media with caption `/reply <chatId> [optional caption]`')
@@ -41153,6 +41185,27 @@ function classifyStaleWalletTap(message) {
   return null
 }
 
+// ── Admin media-reply routing decision (2026-08-20) ────────────────────────
+// Pure helper deciding how an admin's media message (photo/video/doc/voice/etc.)
+// should be routed to a user. Keeps the message-handler branch testable.
+//   'reply-caption' → admin attached media with caption "/reply <id|@user> [text]"
+//   'quick-reply'   → admin tapped "💬 Reply User" (awaitingAdminAction pending,
+//                     type='reply') then attached media WITHOUT the /reply caption
+//   'none'          → not an admin media reply (let downstream handlers run)
+// The pending reply is honoured only within a 10-minute freshness window (mirrors
+// the awaitingAdminAction stale-guard in the text quick-reply rewrite).
+function classifyAdminMediaReply(caption, hasMedia, pending, now) {
+  if (!hasMedia) return { mode: 'none' }
+  const cap = String(caption || '')
+  if (cap.startsWith('/reply ')) return { mode: 'reply-caption' }
+  if (pending && pending.type === 'reply' && pending.target) {
+    const ts = pending.ts || 0
+    const fresh = !ts || ((typeof now === 'number' ? now : Date.now()) - ts) <= 10 * 60 * 1000
+    if (fresh) return { mode: 'quick-reply', target: String(pending.target) }
+  }
+  return { mode: 'none' }
+}
+
 // ── DEV-ONLY: verify the cold-question → AI routing heuristic ──────────────
 // Ensures genuine questions (esp. the "cost after free inbound minutes" case)
 // are routed to AI while stale button taps / URLs / commands are NOT. 404 in prod.
@@ -41211,6 +41264,58 @@ app.post('/dev/stale-wallet-tap-test', async (req, res) => {
     checks: { allDepositMethodsClassified, allWalletClassified, noFalsePositives },
     pass: allDepositMethodsClassified && allWalletClassified && noFalsePositives,
   })
+})
+
+// ── DEV-ONLY: verify admin media-reply routing (Quick-Reply button + /reply) ──
+// Regression guard for the 2026-08-20 fix where an admin who tapped "💬 Reply
+// User" and then attached an IMAGE saw "option not available" (media was never
+// forwarded). Asserts classifyAdminMediaReply routes: pending reply + media →
+// quick-reply(target); "/reply <id>" caption + media → reply-caption; and does
+// NOT hijack media when there's no pending reply / stale pending / plain text
+// message. 404 in prod.
+app.post('/dev/admin-media-reply-test', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const NOW = 1_700_000_000_000
+  const freshPending = { type: 'reply', target: '7080940684', ts: NOW - 60 * 1000 }        // 1 min ago
+  const stalePending = { type: 'reply', target: '7080940684', ts: NOW - 20 * 60 * 1000 }    // 20 min ago (>10m)
+  const deliverPending = { type: 'deliver', orderId: 'ORD123', ts: NOW - 60 * 1000 }
+
+  const cases = {
+    // The reported bug: tapped Reply → attached image (no caption) → must forward.
+    quickReplyPhotoNoCaption: classifyAdminMediaReply('', true, freshPending, NOW),
+    // Image WITH a plain caption (used as the message text) → still quick-reply.
+    quickReplyPhotoWithCaption: classifyAdminMediaReply('here is your card', true, freshPending, NOW),
+    // Explicit /reply caption always resolves via reply-caption (numeric).
+    replyCaptionNumeric: classifyAdminMediaReply('/reply 7080940684 hello', true, null, NOW),
+    // Explicit /reply caption to @username.
+    replyCaptionUsername: classifyAdminMediaReply('/reply @someuser hello', true, null, NOW),
+    // /reply caption takes priority even if a quick-reply is pending.
+    replyCaptionBeatsPending: classifyAdminMediaReply('/reply 999 hi', true, freshPending, NOW),
+    // No media at all → none (plain text handled elsewhere).
+    textOnlyPending: classifyAdminMediaReply('just typing a reply', false, freshPending, NOW),
+    // Media but NO pending reply → none (don't hijack marketplace/other uploads).
+    mediaNoPending: classifyAdminMediaReply('', true, null, NOW),
+    // Media but pending is a /deliver action, not a reply → none.
+    mediaDeliverPending: classifyAdminMediaReply('', true, deliverPending, NOW),
+    // Media + stale (>10 min) pending reply → none (don't misfire on old state).
+    mediaStalePending: classifyAdminMediaReply('', true, stalePending, NOW),
+  }
+
+  const checks = {
+    quickReplyPhotoNoCaption: cases.quickReplyPhotoNoCaption.mode === 'quick-reply' && cases.quickReplyPhotoNoCaption.target === '7080940684',
+    quickReplyPhotoWithCaption: cases.quickReplyPhotoWithCaption.mode === 'quick-reply' && cases.quickReplyPhotoWithCaption.target === '7080940684',
+    replyCaptionNumeric: cases.replyCaptionNumeric.mode === 'reply-caption',
+    replyCaptionUsername: cases.replyCaptionUsername.mode === 'reply-caption',
+    replyCaptionBeatsPending: cases.replyCaptionBeatsPending.mode === 'reply-caption',
+    textOnlyPendingIsNone: cases.textOnlyPending.mode === 'none',
+    mediaNoPendingIsNone: cases.mediaNoPending.mode === 'none',
+    mediaDeliverPendingIsNone: cases.mediaDeliverPending.mode === 'none',
+    mediaStalePendingIsNone: cases.mediaStalePending.mode === 'none',
+  }
+  const pass = Object.values(checks).every(Boolean)
+  return res.json({ cases, checks, pass })
 })
 
 
