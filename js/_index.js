@@ -1730,7 +1730,13 @@ const send = (chatId, message, options) => {
     opts.reply_markup.resize_keyboard = true
   }
   log('reply: ' + message + ' ' + (opts?.reply_markup?.keyboard?.map(i => i) || '') + '\tto: ' + chatId + '\n')
-  bot?.sendMessage(chatId, message, opts)?.catch(e => log(e.message + ': ' + chatId))
+  bot?.sendMessage(chatId, message, opts)?.catch(e => {
+    // Permanent delivery failures (user deactivated / blocked / chat gone) —
+    // mark the user dead so future sends skip them, and keep the log quiet.
+    const perm = _isPermanentTelegramSendError(e)
+    if (perm) { markUserDead(chatId, perm); log(`[Send] ${chatId} unreachable (${perm}) — marked dead`) }
+    else log(e.message + ': ' + chatId)
+  })
 }
 
 // Quick IVR button label — show the "— 1 Free" hook ONLY to trial-eligible users:
@@ -2822,6 +2828,10 @@ async function resolveOpenEscalationsForChat(chatId, adminId) {
 const ESCALATION_ABANDON_AGE_MS = 7 * 24 * 60 * 60 * 1000   // 7 days
 const ESCALATION_ABANDON_REMINDER_COUNT = 10                // 10 reminders
 const ESCALATION_MAX_REMINDERS_PER_TICK = 5                 // digest if more
+// A ticket open longer than this (no ack/reply yet) is "overdue" → louder
+// banner + immediate secondary-admin cc so users aren't left waiting. Tunable
+// via ESCALATION_OVERDUE_MINUTES (default 30 min).
+const ESCALATION_OVERDUE_MS = (parseInt(process.env.ESCALATION_OVERDUE_MINUTES, 10) || 30) * 60 * 1000
 
 function _nextEscalationReminderMs(reminderCount) {
   if (reminderCount < 1) return 10 * 60 * 1000       // first reminder at +10m
@@ -2904,12 +2914,21 @@ async function escalationReminderTick() {
 
     // ── Normal per-escalation reminders ──
     let sent = 0
+    const _secondaryAdmin = process.env.ESCALATION_SECONDARY_ADMIN_CHAT_ID
     for (const esc of toRemind) {
       const reminderCount = esc.reminderCount || 0
       const ageMin = Math.floor((now - new Date(esc.createdAt).getTime()) / 60000)
       const ageStr = ageMin < 60 ? `${ageMin} min` : ageMin < 1440 ? `${(ageMin/60).toFixed(1)} h` : `${(ageMin/1440).toFixed(1)} d`
       const nextNum = reminderCount + 1
-      const banner = reminderCount >= 3
+      // Overdue plan — louder banner + immediate secondary cc when a customer
+      // has been waiting past the overdue threshold (see _escalationAlertPlan).
+      const plan = _escalationAlertPlan(esc, now, {
+        overdueMs: ESCALATION_OVERDUE_MS,
+        secondaryConfigured: !!_secondaryAdmin && String(_secondaryAdmin) !== String(TELEGRAM_ADMIN_CHAT_ID),
+      })
+      const banner = plan.overdue
+        ? `⏰🚨 <b>OVERDUE — customer waiting ${ageStr}</b>\n🚨 <b>ESCALATION REMINDER #${nextNum}</b> — still no reply, please respond now.`
+        : reminderCount >= 3
         ? `🚨 <b>STILL UNACKED — ESCALATION REMINDER #${nextNum}</b>\n(open ${ageStr}, ${reminderCount} prior reminders ignored)`
         : `🔔 <b>ESCALATION REMINDER #${nextNum}</b>\nOpen for <b>${ageStr}</b> — still no reply.`
       const reminderMsg =
@@ -2929,14 +2948,14 @@ async function escalationReminderTick() {
         if (bot?.sendMessage && TELEGRAM_ADMIN_CHAT_ID) {
           await bot.sendMessage(TELEGRAM_ADMIN_CHAT_ID, reminderMsg, opts)
         }
-        // Cc a SECONDARY admin once past 3 reminders — ONLY if explicitly
-        // configured. We do NOT fall back to TELEGRAM_NOTIFY_GROUP_ID; the
-        // group chat is for general notifications and must never receive
-        // per-user escalation alerts (previous behaviour was leaking user
-        // support tickets into the group — reported 2026-07-09).
-        const secondary = process.env.ESCALATION_SECONDARY_ADMIN_CHAT_ID
-        if (bot?.sendMessage && secondary && reminderCount >= 3 && String(secondary) !== String(TELEGRAM_ADMIN_CHAT_ID)) {
-          await bot.sendMessage(secondary, reminderMsg, opts)
+        // Cc the SECONDARY admin — now fires as soon as a ticket is OVERDUE
+        // (customer waiting past the threshold), OR once past 3 reminders —
+        // ONLY if explicitly configured. We do NOT fall back to
+        // TELEGRAM_NOTIFY_GROUP_ID; the group chat must never receive per-user
+        // escalation alerts (previous behaviour leaked tickets — 2026-07-09).
+        if (bot?.sendMessage && plan.ccSecondary && _secondaryAdmin) {
+          const ccMsg = plan.overdue ? `👥 <i>Cc — overdue ticket needs attention</i>\n\n${reminderMsg}` : reminderMsg
+          await bot.sendMessage(_secondaryAdmin, ccMsg, opts)
         }
       } catch (e) { log(`[Escalation] reminder send error: ${e.message}`) }
       await escalations.updateOne(
@@ -6830,7 +6849,7 @@ bot?.on('callback_query', async (query) => {
         log(`[AdminQuickReply] context enrich failed: ${ctxErr.message}`)
       }
 
-      send(adminId, `💬 <b>Quick Reply</b>\nType your message to ${label}.\n<i>Send /cancel to abort.</i>${contextBlock}`, {
+      send(adminId, `💬 <b>Quick Reply</b>\nType your message to ${label} — or attach an 🖼️ image / file and you'll get a one-tap <b>Send</b> confirm.\n<i>Send /cancel to abort.</i>${contextBlock}`, {
         parse_mode: 'HTML',
         reply_markup: { force_reply: true, selective: false, input_field_placeholder: `Reply to ${label}…` },
       })
@@ -6838,6 +6857,60 @@ bot?.on('callback_query', async (query) => {
       //   the moment admin taps Reply (they've seen it, they're acting on it).
       //   Prevents the reminder loop from firing once admin is actively replying.
       acknowledgeEscalationForChat(target, adminId).catch(() => {})
+      return
+    }
+
+    // ── Admin Media Confirm ── amcSend / amcCancel (2026-08-20) ─────────────
+    // Preview-and-confirm before an admin's attached image/file is forwarded to
+    // a user (Quick-Reply flow). The pending media is stashed on the admin's
+    // state by the media handler; here we either send it or cancel.
+    if (data.startsWith('amcSend') || data.startsWith('amcCancel')) {
+      const _isCancel = data.startsWith('amcCancel')
+      const _cbToken = data.includes(':') ? data.slice(data.indexOf(':') + 1) : ''
+      const adminState = await get(state, adminId)
+      const pm = adminState?.pendingAdminMedia
+      const _clearMarkup = async () => {
+        try { await bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: adminId, message_id: query.message?.message_id }) } catch (_) { /* noop */ }
+      }
+      if (!pm || !pm.targetChatId || !pm.fileId) {
+        await ackPopup('Nothing to send')
+        await _clearMarkup()
+        return
+      }
+      // Token guard — a newer attachment supersedes an older preview's button.
+      if (pm.token && _cbToken && String(pm.token) !== String(_cbToken)) {
+        await ackPopup('Superseded by a newer attachment')
+        await _clearMarkup()
+        return
+      }
+      // 10-min freshness guard — matches the quick-reply stale window.
+      if (pm.ts && (Date.now() - pm.ts) > 10 * 60 * 1000) {
+        await set(state, adminId, 'pendingAdminMedia', null)
+        await ackPopup('Expired — please re-attach')
+        await _clearMarkup()
+        send(adminId, '⌛ That media preview expired. Please attach the image again.')
+        return
+      }
+      if (_isCancel) {
+        await set(state, adminId, 'pendingAdminMedia', null)
+        await ackPopup('Cancelled')
+        await _clearMarkup()
+        send(adminId, '❌ Media reply cancelled — nothing was sent.')
+        return
+      }
+      // amcSend
+      await ackPopup('Sending…')
+      await set(state, adminId, 'pendingAdminMedia', null)
+      try {
+        await _sendAdminMediaToUser({
+          adminId, targetChatId: pm.targetChatId, targetName: pm.targetName,
+          mediaKind: pm.mediaKind, fileId: pm.fileId, captionText: pm.captionText || '',
+        })
+      } catch (e) {
+        log(`[Support] amcSend media error: ${e.message}`)
+        send(adminId, `⚠️ Failed to send media: ${e.message}`)
+      }
+      await _clearMarkup()
       return
     }
 
@@ -7310,76 +7383,33 @@ bot?.on('message', msg => {
         }
 
         // Detect media type + file_id
-        let mediaKind, fileId, sendFn, supportsCaption = true
-        if (msg.photo)           { mediaKind = 'photo';      fileId = msg.photo[msg.photo.length - 1].file_id; sendFn = (o) => bot.sendPhoto(targetChatId, fileId, o) }
-        else if (msg.document)   { mediaKind = 'document';   fileId = msg.document.file_id;                    sendFn = (o) => bot.sendDocument(targetChatId, fileId, o) }
-        else if (msg.video)      { mediaKind = 'video';      fileId = msg.video.file_id;                       sendFn = (o) => bot.sendVideo(targetChatId, fileId, o) }
-        else if (msg.voice)      { mediaKind = 'voice';      fileId = msg.voice.file_id;                       sendFn = (o) => bot.sendVoice(targetChatId, fileId, o) }
-        else if (msg.audio)      { mediaKind = 'audio';      fileId = msg.audio.file_id;                       sendFn = (o) => bot.sendAudio(targetChatId, fileId, o) }
-        else if (msg.animation)  { mediaKind = 'GIF';        fileId = msg.animation.file_id;                   sendFn = (o) => bot.sendAnimation(targetChatId, fileId, o) }
-        else if (msg.video_note) { mediaKind = 'video note'; fileId = msg.video_note.file_id;                  sendFn = () => bot.sendVideoNote(targetChatId, fileId); supportsCaption = false }
-        else if (msg.sticker)    { mediaKind = 'sticker';    fileId = msg.sticker.file_id;                     sendFn = () => bot.sendSticker(targetChatId, fileId);    supportsCaption = false }
+        let mediaKind, fileId
+        if (msg.photo)           { mediaKind = 'photo';      fileId = msg.photo[msg.photo.length - 1].file_id }
+        else if (msg.document)   { mediaKind = 'document';   fileId = msg.document.file_id }
+        else if (msg.video)      { mediaKind = 'video';      fileId = msg.video.file_id }
+        else if (msg.voice)      { mediaKind = 'voice';      fileId = msg.voice.file_id }
+        else if (msg.audio)      { mediaKind = 'audio';      fileId = msg.audio.file_id }
+        else if (msg.animation)  { mediaKind = 'GIF';        fileId = msg.animation.file_id }
+        else if (msg.video_note) { mediaKind = 'video note'; fileId = msg.video_note.file_id }
+        else if (msg.sticker)    { mediaKind = 'sticker';    fileId = msg.sticker.file_id }
+        if (!fileId) { return send(chatId, '⚠️ Unsupported media type.') }
 
-        // Translate caption (if any) using same pipeline as text /reply
-        const targetState = await get(state, targetChatId)
-        const userBotLang = targetState?.userLanguage || 'en'
-        const targetLang = targetState?.lastMessageLanguage || userBotLang
-        let translated = { translated: captionText, needsTranslation: false, langName: targetLang }
-        if (captionText) {
-          translated = await translationService.translateAdminReplyForUser(captionText, targetLang)
-        }
-        // ── Translated admin→user media headers (b) ─────────────────────────
-        //   Replaces the hardcoded English "💬 Support:" / "💬 Support sent
-        //   you a file:" so the recipient sees the header in their own bot
-        //   language. Falls back to English if their lang isn't in the map.
-        const supportLabelByLang = {
-          en: 'Support', fr: 'Support', es: 'Soporte', de: 'Support', it: 'Supporto',
-          pt: 'Suporte', nl: 'Ondersteuning', ru: 'Поддержка', tr: 'Destek',
-          zh: '客服', 'zh-cn': '客服', 'zh-tw': '客服', ja: 'サポート', ko: '고객지원',
-          hi: 'सहायता', ar: 'الدعم', he: 'תמיכה', id: 'Dukungan', vi: 'Hỗ trợ', th: 'ฝ่ายสนับสนุน',
-        }
-        const sentFileLineByLang = {
-          en: 'sent you a file:', fr: 'vous a envoyé un fichier :', es: 'te ha enviado un archivo:',
-          de: 'hat dir eine Datei gesendet:', it: 'ti ha inviato un file:', pt: 'enviou-lhe um ficheiro:',
-          nl: 'heeft je een bestand gestuurd:', ru: 'отправил(а) вам файл:', tr: 'size bir dosya gönderdi:',
-          zh: '给您发送了一个文件：', 'zh-cn': '给您发送了一个文件：', 'zh-tw': '給您發送了一個檔案：',
-          ja: 'ファイルが届きました:', ko: '파일을 보냈습니다:', hi: 'ने आपको एक फ़ाइल भेजी है:',
-          ar: 'أرسل لك ملفاً:', he: 'שלח לך קובץ:', id: 'mengirimi Anda berkas:', vi: 'đã gửi bạn một tệp:',
-          th: 'ส่งไฟล์ให้คุณ:',
-        }
-        const langKey = (translated.detectedLang || targetLang || userBotLang || 'en').toLowerCase()
-        const localizedSupport = supportLabelByLang[langKey] || supportLabelByLang[langKey.split('-')[0]] || supportLabelByLang.en
-        const localizedSentFile = sentFileLineByLang[langKey] || sentFileLineByLang[langKey.split('-')[0]] || sentFileLineByLang.en
-        const userCaption = translated.translated
-          ? `💬 <b>${localizedSupport}:</b>\n${translated.translated}`
-          : `💬 <b>${localizedSupport} ${localizedSentFile}</b>`
-
-        // Dispatch media to user
-        if (supportsCaption) {
-          await sendFn({ caption: userCaption, parse_mode: 'HTML' })
+        if (_mediaReply.mode === 'quick-reply') {
+          // ── Admin Media Confirm (2026-08-20) ──────────────────────────────
+          // Preview & confirm before sending. Stash the media on the admin's
+          // state with a short token (so a second attachment can't be sent by
+          // an older preview's button) and show a one-tap "✅ Send to <user>"
+          // button. amcSend/amcCancel finish the flow.
+          const _mediaToken = Math.random().toString(36).slice(2, 10)
+          await set(state, chatId, 'pendingAdminMedia', {
+            targetChatId: String(targetChatId), targetName, mediaKind, fileId, captionText, token: _mediaToken, ts: Date.now(),
+          })
+          const { text, reply_markup } = _buildAdminMediaConfirm(mediaKind, targetName, targetChatId, captionText, _mediaToken)
+          send(chatId, text, { parse_mode: 'HTML', reply_markup })
         } else {
-          await sendFn()
-          // Send caption as a separate message since this media type doesn't support captions
-          if (userCaption) await bot.sendMessage(targetChatId, userCaption, { parse_mode: 'HTML' })
+          // 'reply-caption' — explicit /reply command, power-user path: send now.
+          await _sendAdminMediaToUser({ adminId: chatId, targetChatId, targetName, mediaKind, fileId, captionText })
         }
-
-        // Re-open session + admin takeover (same as text /reply)
-        await set(supportSessions, targetChatId, Date.now())
-        await set(state, targetChatId, 'action', 'supportChat')
-        await set(state, targetChatId, 'adminTakeover', true)
-
-        // Confirm to admin with translation info
-        const mediaLabel = mediaKind.charAt(0).toUpperCase() + mediaKind.slice(1)
-        if (captionText && translated.needsTranslation) {
-          send(chatId,
-            `✅ ${mediaLabel} sent to ${targetName || targetChatId}\n\n` +
-            `🌐 Caption auto-translated to ${translated.langName}:\n` +
-            `<i>${translated.translated}</i>`,
-            { parse_mode: 'HTML' })
-        } else {
-          send(chatId, `✅ ${mediaLabel} sent to ${targetName || targetChatId}${captionText ? ' (no translation needed)' : ''}`)
-        }
-        log(`[Support] Admin sent ${mediaKind} to ${targetChatId} (caption: ${captionText ? 'yes' : 'no'}, translated: ${translated.needsTranslation}) — session re-opened, admin takeover ON`)
       } catch (e) {
         log(`[Support] /reply media error: ${e.message}`)
         send(chatId, `⚠️ Failed to send media: ${e.message}`)
@@ -41206,6 +41236,141 @@ function classifyAdminMediaReply(caption, hasMedia, pending, now) {
   return { mode: 'none' }
 }
 
+// ── Admin Media Confirm — preview payload (2026-08-20) ─────────────────────
+// Pure builder for the "Send this image to <user>?" confirmation shown to the
+// admin before an attached image/file is forwarded (Quick-Reply flow). Returns
+// { text, reply_markup } with a one-tap "✅ Send to <user>" button.
+function _buildAdminMediaConfirm(mediaKind, targetName, targetChatId, captionText, token) {
+  const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const label = targetName ? `@${targetName}` : String(targetChatId)
+  const kindLabel = String(mediaKind || 'file').charAt(0).toUpperCase() + String(mediaKind || 'file').slice(1)
+  const capLine = captionText ? `\n\n💬 Caption: <i>${esc(captionText)}</i>` : '\n\n<i>(no caption)</i>'
+  const text = `🖼️ <b>Confirm media reply</b>\nSend this ${esc(kindLabel)} to <b>${esc(label)}</b> (<code>${esc(targetChatId)}</code>)?${capLine}`
+  const tok = token ? String(token) : ''
+  const reply_markup = { inline_keyboard: [[
+    { text: `✅ Send to ${label}`.slice(0, 60), callback_data: `amcSend:${tok}` },
+    { text: '❌ Cancel', callback_data: `amcCancel:${tok}` },
+  ]] }
+  return { text, reply_markup }
+}
+
+// Shared admin→user media forward. Rebuilds the correct Telegram send fn from
+// mediaKind + fileId (so it works both from a live msg AND from a stashed
+// confirm), translates the caption to the user's language, dispatches, re-opens
+// the support session + admin takeover, and confirms to the admin. Throws on
+// send failure so the caller can surface it. Used by the /reply-caption path
+// and the Quick-Reply confirm (amcSend) callback.
+async function _sendAdminMediaToUser({ adminId, targetChatId, targetName, mediaKind, fileId, captionText }) {
+  const noCaptionKinds = ['video note', 'sticker']
+  const supportsCaption = !noCaptionKinds.includes(mediaKind)
+  const builders = {
+    'photo':      (o) => bot.sendPhoto(targetChatId, fileId, o),
+    'document':   (o) => bot.sendDocument(targetChatId, fileId, o),
+    'video':      (o) => bot.sendVideo(targetChatId, fileId, o),
+    'voice':      (o) => bot.sendVoice(targetChatId, fileId, o),
+    'audio':      (o) => bot.sendAudio(targetChatId, fileId, o),
+    'GIF':        (o) => bot.sendAnimation(targetChatId, fileId, o),
+    'video note': ()  => bot.sendVideoNote(targetChatId, fileId),
+    'sticker':    ()  => bot.sendSticker(targetChatId, fileId),
+  }
+  const sendFn = builders[mediaKind]
+  if (!sendFn) throw new Error('unknown media kind: ' + mediaKind)
+
+  const targetState = await get(state, targetChatId)
+  const userBotLang = targetState?.userLanguage || 'en'
+  const targetLang = targetState?.lastMessageLanguage || userBotLang
+  let translated = { translated: captionText, needsTranslation: false, langName: targetLang }
+  if (captionText) translated = await translationService.translateAdminReplyForUser(captionText, targetLang)
+
+  const supportLabelByLang = {
+    en: 'Support', fr: 'Support', es: 'Soporte', de: 'Support', it: 'Supporto',
+    pt: 'Suporte', nl: 'Ondersteuning', ru: 'Поддержка', tr: 'Destek',
+    zh: '客服', 'zh-cn': '客服', 'zh-tw': '客服', ja: 'サポート', ko: '고객지원',
+    hi: 'सहायता', ar: 'الدعم', he: 'תמיכה', id: 'Dukungan', vi: 'Hỗ trợ', th: 'ฝ่ายสนับสนุน',
+  }
+  const sentFileLineByLang = {
+    en: 'sent you a file:', fr: 'vous a envoyé un fichier :', es: 'te ha enviado un archivo:',
+    de: 'hat dir eine Datei gesendet:', it: 'ti ha inviato un file:', pt: 'enviou-lhe um ficheiro:',
+    nl: 'heeft je een bestand gestuurd:', ru: 'отправил(а) вам файл:', tr: 'size bir dosya gönderdi:',
+    zh: '给您发送了一个文件：', 'zh-cn': '给您发送了一个文件：', 'zh-tw': '給您發送了一個檔案：',
+    ja: 'ファイルが届きました:', ko: '파일을 보냈습니다:', hi: 'ने आपको एक फ़ाइल भेजी है:',
+    ar: 'أرسل لك ملفاً:', he: 'שלח לך קובץ:', id: 'mengirimi Anda berkas:', vi: 'đã gửi bạn một tệp:',
+    th: 'ส่งไฟล์ให้คุณ:',
+  }
+  const langKey = (translated.detectedLang || targetLang || userBotLang || 'en').toLowerCase()
+  const localizedSupport = supportLabelByLang[langKey] || supportLabelByLang[langKey.split('-')[0]] || supportLabelByLang.en
+  const localizedSentFile = sentFileLineByLang[langKey] || sentFileLineByLang[langKey.split('-')[0]] || sentFileLineByLang.en
+  const userCaption = translated.translated
+    ? `💬 <b>${localizedSupport}:</b>\n${translated.translated}`
+    : `💬 <b>${localizedSupport} ${localizedSentFile}</b>`
+
+  if (supportsCaption) {
+    await sendFn({ caption: userCaption, parse_mode: 'HTML' })
+  } else {
+    await sendFn()
+    if (userCaption) await bot.sendMessage(targetChatId, userCaption, { parse_mode: 'HTML' })
+  }
+
+  await set(supportSessions, targetChatId, Date.now())
+  await set(state, targetChatId, 'action', 'supportChat')
+  await set(state, targetChatId, 'adminTakeover', true)
+
+  const mediaLabel = mediaKind.charAt(0).toUpperCase() + mediaKind.slice(1)
+  if (captionText && translated.needsTranslation) {
+    send(adminId, `✅ ${mediaLabel} sent to ${targetName || targetChatId}\n\n🌐 Caption auto-translated to ${translated.langName}:\n<i>${translated.translated}</i>`, { parse_mode: 'HTML' })
+  } else {
+    send(adminId, `✅ ${mediaLabel} sent to ${targetName || targetChatId}${captionText ? ' (no translation needed)' : ''}`)
+  }
+  log(`[Support] Admin sent ${mediaKind} to ${targetChatId} (caption: ${captionText ? 'yes' : 'no'}, translated: ${translated.needsTranslation}) — session re-opened, admin takeover ON`)
+}
+
+// ── Deactivated / unreachable-user guard (2026-08-20) ──────────────────────
+// Classifies a Telegram send error as a PERMANENT delivery failure (user gone,
+// blocked, or chat missing). Used to (a) mark the user dead so we stop retrying
+// and (b) suppress false "crash" admin alerts from unhandled send rejections.
+function _isPermanentTelegramSendError(err) {
+  const m = String(err?.message || err || '').toLowerCase()
+  if (!m) return null
+  if (m.includes('user is deactivated')) return 'user_deactivated'
+  if (m.includes('bot was blocked')) return 'bot_blocked'
+  if (m.includes('chat not found')) return 'chat_not_found'
+  if (m.includes("bots can't send messages to bots")) return 'bot_target'
+  if (m.includes('have no rights to send')) return 'no_rights'
+  return null
+}
+
+// Mark a user as dead/opted-out (reuses the AutoPromo opt-out store) so future
+// broadcasts and sends skip them. Best-effort; never throws.
+async function markUserDead(chatId, reason) {
+  try {
+    if (chatId != null && autoPromo?.setOptOut) {
+      await autoPromo.setOptOut(String(chatId), true, reason || 'unreachable')
+    }
+  } catch (_) { /* best-effort */ }
+}
+
+// ── Escalation overdue alert plan (2026-08-20) ─────────────────────────────
+// Pure decision for the reminder tick: abandon (dead-letter), skip (not due),
+// or remind. When reminding, flags `overdue` (open past the overdue threshold →
+// louder banner) and `ccSecondary` (also ping the secondary admin so users
+// aren't left waiting). Mirrors the tick's existing back-off + abandon rules.
+function _escalationAlertPlan(esc, now, opts) {
+  const overdueMs = (opts && typeof opts.overdueMs === 'number') ? opts.overdueMs : (30 * 60 * 1000)
+  const secondaryConfigured = !!(opts && opts.secondaryConfigured)
+  const createdAt = new Date(esc.createdAt).getTime()
+  const ageMs = (typeof now === 'number' ? now : Date.now()) - createdAt
+  const reminderCount = esc.reminderCount || 0
+  if (ageMs > ESCALATION_ABANDON_AGE_MS || reminderCount >= ESCALATION_ABANDON_REMINDER_COUNT) {
+    return { action: 'abandon' }
+  }
+  const lastAt = esc.lastReminderAt ? new Date(esc.lastReminderAt).getTime() : createdAt
+  const dueAt = lastAt + _nextEscalationReminderMs(reminderCount)
+  if ((typeof now === 'number' ? now : Date.now()) < dueAt) return { action: 'skip' }
+  const overdue = ageMs > overdueMs
+  const ccSecondary = secondaryConfigured && (overdue || reminderCount >= 3)
+  return { action: 'remind', overdue, ccSecondary, reminderCount, ageMs }
+}
+
 // ── DEV-ONLY: verify the cold-question → AI routing heuristic ──────────────
 // Ensures genuine questions (esp. the "cost after free inbound minutes" case)
 // are routed to AI while stale button taps / URLs / commands are NOT. 404 in prod.
@@ -41316,6 +41481,107 @@ app.post('/dev/admin-media-reply-test', async (req, res) => {
   }
   const pass = Object.values(checks).every(Boolean)
   return res.json({ cases, checks, pass })
+})
+
+// ── DEV-ONLY: admin media CONFIRM builder + deactivated-user guard ─────────
+// Regression guard for the 2026-08-20 Admin Media Confirm + Deactivated-User
+// Guard features. 404 in prod.
+app.post('/dev/admin-media-confirm-test', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const withCaption = _buildAdminMediaConfirm('photo', 'someuser', '7080940684', 'here is your card', 'tok123')
+  const noCaption = _buildAdminMediaConfirm('document', null, '5590563715', '', 'tok456')
+  const kb = (c) => (c.reply_markup?.inline_keyboard?.[0] || []).map(b => b.callback_data)
+  const guard = {
+    deactivated: _isPermanentTelegramSendError(new Error('ETELEGRAM: 403 Forbidden: user is deactivated')),
+    blocked: _isPermanentTelegramSendError(new Error('ETELEGRAM: 403 Forbidden: bot was blocked by the user')),
+    notFound: _isPermanentTelegramSendError(new Error('ETELEGRAM: 400 Bad Request: chat not found')),
+    benign: _isPermanentTelegramSendError(new Error('ETELEGRAM: 429 Too Many Requests: retry after 30')),
+    empty: _isPermanentTelegramSendError(null),
+  }
+  const checks = {
+    confirmHasHeading: withCaption.text.includes('Confirm media reply'),
+    confirmShowsTarget: withCaption.text.includes('@someuser') && withCaption.text.includes('7080940684'),
+    confirmShowsCaption: withCaption.text.includes('here is your card'),
+    confirmButtons: kb(withCaption).includes('amcSend:tok123') && kb(withCaption).includes('amcCancel:tok123'),
+    noCaptionLabel: noCaption.text.includes('(no caption)') && kb(noCaption).some(c => c.startsWith('amcSend')),
+    guardDeactivated: guard.deactivated === 'user_deactivated',
+    guardBlocked: guard.blocked === 'bot_blocked',
+    guardNotFound: guard.notFound === 'chat_not_found',
+    guardBenignIsNull: guard.benign === null,
+    guardEmptyIsNull: guard.empty === null,
+  }
+  return res.json({ withCaption, noCaption, guard, checks, pass: Object.values(checks).every(Boolean) })
+})
+
+// ── DEV-ONLY: escalation overdue alert plan (louder alert + secondary cc) ──
+app.post('/dev/escalation-alert-plan-test', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const NOW = 1_700_000_000_000
+  const min = (m) => new Date(NOW - m * 60 * 1000).toISOString()
+  const day = (d) => new Date(NOW - d * 24 * 60 * 60 * 1000).toISOString()
+  const cfgSec = { overdueMs: 30 * 60 * 1000, secondaryConfigured: true }
+  const cfgNoSec = { overdueMs: 30 * 60 * 1000, secondaryConfigured: false }
+  const cases = {
+    abandonByAge: _escalationAlertPlan({ createdAt: day(8), reminderCount: 0 }, NOW, cfgSec),
+    abandonByCount: _escalationAlertPlan({ createdAt: min(60), reminderCount: 10 }, NOW, cfgSec),
+    skipNotDue: _escalationAlertPlan({ createdAt: min(5), reminderCount: 0 }, NOW, cfgSec),
+    remindNotOverdue: _escalationAlertPlan({ createdAt: min(15), reminderCount: 0 }, NOW, cfgSec),
+    remindOverdueCc: _escalationAlertPlan({ createdAt: min(45), reminderCount: 0 }, NOW, cfgSec),
+    remindOverdueNoSecondary: _escalationAlertPlan({ createdAt: min(45), reminderCount: 0 }, NOW, cfgNoSec),
+    ccByReminderCount: _escalationAlertPlan({ createdAt: min(200), reminderCount: 4, lastReminderAt: min(190) }, NOW, { overdueMs: 999 * 60 * 1000, secondaryConfigured: true }),
+  }
+  const checks = {
+    abandonByAge: cases.abandonByAge.action === 'abandon',
+    abandonByCount: cases.abandonByCount.action === 'abandon',
+    skipNotDue: cases.skipNotDue.action === 'skip',
+    remindNotOverdue: cases.remindNotOverdue.action === 'remind' && cases.remindNotOverdue.overdue === false && cases.remindNotOverdue.ccSecondary === false,
+    remindOverdueCc: cases.remindOverdueCc.action === 'remind' && cases.remindOverdueCc.overdue === true && cases.remindOverdueCc.ccSecondary === true,
+    overdueCcNeedsSecondary: cases.remindOverdueNoSecondary.overdue === true && cases.remindOverdueNoSecondary.ccSecondary === false,
+    ccByReminderCount: cases.ccByReminderCount.action === 'remind' && cases.ccByReminderCount.overdue === false && cases.ccByReminderCount.ccSecondary === true,
+  }
+  return res.json({ cases, checks, pass: Object.values(checks).every(Boolean) })
+})
+
+// ── DEV-ONLY: promo cadence (repeat-blocker back-off + pre-blast report) ───
+app.post('/dev/promo-cadence-test', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const ap = require('./auto-promo.js')
+  const ttl = ap._promoRetestTtlDays
+  const report = ap._buildBlockRateReport({
+    theme: 'cloudphone', lang: 'en', slot: 'morning',
+    totalUsers: 1000, targets: 800, dead: 150,
+    deadByReason: { bot_blocked: 100, user_deactivated: 30, chat_not_found: 20 }, inactive: 50,
+  })
+  const ttls = {
+    deactivated: ttl('user_deactivated', 0),
+    notFound: ttl('chat_not_found', 5),
+    blocked1: ttl('bot_blocked', 1),
+    blocked2: ttl('bot_blocked', 2),
+    blocked3: ttl('bot_blocked', 3),
+    blocked9: ttl('bot_blocked', 9),
+    other: ttl('unknown', 0),
+  }
+  const checks = {
+    deactivatedNever: ttls.deactivated === Infinity,
+    notFound14: ttls.notFound === 14,
+    blocked1_7d: ttls.blocked1 === 7,
+    blocked2_30d: ttls.blocked2 === 30,
+    blocked3_easedOff: ttls.blocked3 === Infinity,
+    blocked9_easedOff: ttls.blocked9 === Infinity,
+    other7d: ttls.other === 7,
+    reportRate: report.includes('15.0%'),
+    reportAudience: report.includes('cloudphone/en') && report.includes('Will send: <b>800</b>'),
+    reportBreakdown: report.includes('blocked: 100') && report.includes('deactivated: 30'),
+  }
+  // JSON can't represent Infinity — stringify for the response view.
+  const ttlsView = Object.fromEntries(Object.entries(ttls).map(([k, v]) => [k, v === Infinity ? 'Infinity' : v]))
+  return res.json({ ttls: ttlsView, report, checks, pass: Object.values(checks).every(Boolean) })
 })
 
 
@@ -47107,6 +47373,15 @@ process.on('uncaughtException', (err) => {
 
 process.on('unhandledRejection', (reason) => {
   const err = reason instanceof Error ? reason : new Error(String(reason))
+  // Deactivated-user guard: a send to an unreachable user (deactivated /
+  // blocked / chat-not-found) escaped a missing .catch(). These are NOT real
+  // crashes — log lightly and DO NOT persist a crash doc or fire the admin
+  // crash alert (previously they spammed "❌ Unhandled Promise Rejection").
+  const _permSend = _isPermanentTelegramSendError(err)
+  if (_permSend) {
+    log(`[UnhandledRejection] benign Telegram send error (${_permSend}) — suppressed crash alert: ${err.message}`)
+    return
+  }
   log(`❌ unhandledRejection: ${err.message} | ${_formatMem()}`)
   if (err.stack) log(err.stack)
   const now = Date.now()

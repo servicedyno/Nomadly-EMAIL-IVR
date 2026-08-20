@@ -1,0 +1,33 @@
+{
+  "summary": "Backend-only verification of the 4 approved enhancements (A deactivated-user guard, B escalation overdue coverage, C promo cadence back-off + pre-blast block-rate report, D admin media preview/confirm) plus regressions, all via the external ingress (https://hosting-check-2.preview.emergentagent.com). Created pytest suite /app/backend/tests/test_admin_media_confirm_suite.py (7 tests) — 7/7 PASSED. Verified independently with raw curl as well (run twice, deterministic). Endpoint results: /api/dev/admin-media-reply-test 9/9 checks true (regression intact after refactor); /api/dev/admin-media-confirm-test 10/10 (confirmHasHeading, confirmShowsTarget, confirmShowsCaption, confirmButtons amcSend/amcCancel, noCaptionLabel, guardDeactivated, guardBlocked, guardNotFound, guardBenignIsNull, guardEmptyIsNull); /api/dev/escalation-alert-plan-test 6/6 (abandonByAge, abandonByCount, skipNotDue, remindNotOverdue, remindOverdueCc, overdueCcNeedsSecondary); /api/dev/promo-cadence-test 10/10 (deactivatedNever/Infinity, notFound14, blocked1_7d, blocked2_30d, blocked3+_easedOff, other7d, reportRate 15.0%, reportAudience cloudphone/en + 'Will send: <b>800</b>', reportBreakdown); regressions /api/dev/stale-wallet-tap-test pass:true and /api/dev/support-routing-test pass:true; GET /api/health -> healthy + database connected. No Telegram webhook was driven (per safety instruction) — no writes to the shared live DB, no real sends. Also code-reviewed the call sites: send() global catch -> _isPermanentTelegramSendError -> markUserDead + 'unreachable (reason)' log, unhandledRejection suppression, escalation tick consumes plan.overdue for the 'OVERDUE — customer waiting' banner and plan.ccSecondary gated on an explicitly configured _secondaryAdmin (no group leak), amcSend/amcCancel handler has a 10-min freshness guard + clears pendingAdminMedia + strips the keyboard, auto-promo isOptedOut uses _promoRetestTtlDays and recordSendFailure $inc blockCount, broadcastPromoForLang sends the pre-blast report inside try/catch. markUserDead correctly resolves autoPromo.setOptOut(chatId, optedOut, reason), which is exported by initAutoPromo.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "n/a (background PhoneMonitor)", "issue": "Pre-existing and unrelated to this change: nodejs log repeatedly shows '[PhoneMonitor] Error checking number +18883304418: Request failed with status code 401' (upstream provider auth). Not caused by these edits, but it is noisy in logs."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_admin_media_confirm_suite.py",
+    "/app/test_reports/pytest/iter37_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "js/_index.js is ~47.9k lines and js/auto-promo.js ~4.7k lines — far past the maintainable limit; the new helpers (_buildAdminMediaConfirm, _sendAdminMediaToUser, _isPermanentTelegramSendError, markUserDead, _escalationAlertPlan) plus their dev endpoints would be good candidates to extract into a dedicated module (e.g. js/admin-media.js, js/escalation.js) with unit tests.",
+    "markUserDead() reasons 'bot_target' and 'no_rights' returned by _isPermanentTelegramSendError fall through to the default 7-day branch of _promoRetestTtlDays; consider whether 'bot_target' should be Infinity (a bot target can never receive) so we stop retesting it forever.",
+    "_escalationAlertPlan's ccSecondary also fires at reminderCount >= 3 even when not overdue — intentional per the code comment, but the dev endpoint only covers the overdue path; a check for the '3 reminders, not overdue' case would close the coverage gap.",
+    "Non-blocking: the confirm flow keys pendingAdminMedia on a single admin state slot, so a second attachment before confirming silently overwrites the first (the old preview's amcSend then sends the new media). Consider embedding a token in the callback_data (amcSend:<id>) to make the confirmation unambiguous."
+  ],
+  "updated_files": ["/app/backend/tests/test_admin_media_confirm_suite.py"],
+  "success_rate": {"backend": "100%", "frontend": "not tested (backend-only request)"},
+  "seed_data_creation": "None — all dev endpoints are pure-helper harnesses with no DB writes.",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "Not required — /api/dev/* endpoints are open because BOT_ENVIRONMENT=development",
+  "context_for_next_testing_agent": "Run `pytest /app/backend/tests/test_admin_media_confirm_suite.py -v` for the enhancement regression pack (health, admin-media-reply 9 checks, admin-media-confirm 10, escalation-alert-plan 6, promo-cadence 10, stale-wallet-tap, support-routing). Suite asserts every check is exactly true AND the expected check count, so a dropped check will fail. NEVER POST to /api/telegram/webhook — it writes to the shared live production MongoDB and triggers real Telegram sends. Only /api/dev/... works through the external ingress (/dev/... is internal only).",
+  "rca_of_the_issue": "No defects found in the tested scope; all 41 helper-level checks across the 4 new endpoints plus 2 adjacent regression endpoints returned true, and health is green."
+}

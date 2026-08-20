@@ -4116,6 +4116,42 @@ function localToUtc(localHour, localMinute, offsetHours) {
   return { hour: utcHour, minute: utcMinute }
 }
 
+// ── Promo cadence: escalating re-test back-off for repeat blockers (2026-08-20)
+// The more times a user blocks the bot, the LESS often we retry them:
+//   user_deactivated → never (permanent)
+//   chat_not_found   → 14 days
+//   bot_blocked      → 7d after 1st block, 30d after 2nd, then NEVER (3+ = eased off)
+//   other            → 7 days
+// Returns a TTL in days, or Infinity meaning "never re-test" (stay opted out).
+function _promoRetestTtlDays(reason, blockCount) {
+  if (reason === 'user_deactivated') return Infinity
+  if (reason === 'bot_target') return Infinity   // a bot target can never receive — never re-test
+  if (reason === 'chat_not_found') return 14
+  if (reason === 'bot_blocked') {
+    const b = blockCount || 1
+    if (b <= 1) return 7
+    if (b === 2) return 30
+    return Infinity
+  }
+  return 7
+}
+
+// ── Pre-blast block-rate report (admin-facing, 2026-08-20) ─────────────────
+// Quick health snapshot sent to the admin BEFORE each broadcast so they can see
+// how many users are dead/opted-out (and why) vs. how many will receive it.
+function _buildBlockRateReport({ theme, lang, slot, totalUsers, targets, dead, deadByReason, inactive }) {
+  const total = totalUsers || 0
+  const d = dead || 0
+  const rate = total > 0 ? ((d / total) * 100).toFixed(1) : '0.0'
+  const br = deadByReason || {}
+  return `📊 <b>Pre-blast report</b> — ${theme}/${lang} (${slot})\n` +
+    `👥 Users: <b>${total}</b>\n` +
+    `🎯 Will send: <b>${targets || 0}</b>\n` +
+    `🚫 Dead / opted-out: <b>${d}</b> (${rate}%)\n` +
+    `   • blocked: ${br.bot_blocked || 0} · deactivated: ${br.user_deactivated || 0} · not-found: ${br.chat_not_found || 0}\n` +
+    `😴 Inactive 30d+ skipped: ${inactive || 0}`
+}
+
 // ─── Initialize Auto-Promo System ─────────────────────────────────────
 function initAutoPromo(bot, db, nameOf, stateCol) {
   const promoTracker = db.collection('promoTracker')
@@ -4153,13 +4189,15 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
     const record = await promoOptOut.findOne({ _id: chatId })
     if (!record?.optedOut) return false
     if (PERMANENT_OPTOUT_REASONS.includes(record.reason)) return true
-    // chat_not_found users get a 14-day TTL before auto re-testing
-    const ttlDays = record.reason === 'chat_not_found' ? 14 : OPTOUT_TTL_DAYS
+    // Escalating back-off: repeat blockers are re-tested less and less often
+    // (and never after 3+ blocks). See _promoRetestTtlDays.
+    const ttlDays = _promoRetestTtlDays(record.reason, record.blockCount)
+    if (ttlDays === Infinity) return true   // eased off — stay opted out
     if (record.updatedAt) {
       const daysSinceOptOut = (Date.now() - new Date(record.updatedAt).getTime()) / (1000 * 60 * 60 * 24)
       if (daysSinceOptOut >= ttlDays) {
         await promoOptOut.updateOne({ _id: chatId }, { $set: { optedOut: false, updatedAt: new Date(), reOptInReason: 'ttl_expired', failCount: 0 } })
-        log(`[AutoPromo] Re-opted-in ${chatId} after ${Math.floor(daysSinceOptOut)}d TTL (was: ${record.reason || 'unknown'})`)
+        log(`[AutoPromo] Re-opted-in ${chatId} after ${Math.floor(daysSinceOptOut)}d TTL (was: ${record.reason || 'unknown'}, blocks: ${record.blockCount || 0})`)
         return false
       }
     }
@@ -4178,10 +4216,13 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
     if (reason === 'bot_blocked') {
       await promoOptOut.updateOne(
         { _id: chatId },
-        { $set: { optedOut: true, reason, updatedAt: new Date() }, $inc: { failCount: 1 } },
+        { $set: { optedOut: true, reason, updatedAt: new Date() }, $inc: { failCount: 1, blockCount: 1 } },
         { upsert: true }
       )
-      log(`[AutoPromo] User ${chatId} marked dead immediately (bot_blocked — user blocked the bot)`)
+      const rec = await promoOptOut.findOne({ _id: chatId }).catch(() => null)
+      const bc = rec?.blockCount || 1
+      const ttl = _promoRetestTtlDays('bot_blocked', bc)
+      log(`[AutoPromo] User ${chatId} marked dead (bot_blocked #${bc}) — re-test in ${ttl === Infinity ? 'never (eased off)' : ttl + 'd'}`)
       return
     }
     await promoOptOut.updateOne(
@@ -4453,6 +4494,22 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
     if (targetChatIds.length === 0) return log(`[AutoPromo] No ${lang} users for ${theme} (${skippedDead} dead, ${skippedInactive} inactive 30+ days skipped)`)
     log(`[AutoPromo] Targeting ${targetChatIds.length} active ${lang} users (${skippedDead} dead, ${skippedInactive} inactive skipped)`)
 
+    // ── Pre-blast block-rate report to admin (2026-08-20) ──────────────────
+    // Send a quick health snapshot BEFORE the blast so the admin can see the
+    // block/dead rate for this audience versus how many will actually receive.
+    try {
+      if (adminChatId && bot?.sendMessage) {
+        const deadByReason = {}
+        for (const r of permanentlyDead) { const k = r.reason || 'unknown'; deadByReason[k] = (deadByReason[k] || 0) + 1 }
+        const report = _buildBlockRateReport({
+          theme, lang, slot: isEvening ? 'evening' : 'morning',
+          totalUsers: allChatIds.length, targets: targetChatIds.length,
+          dead: deadSet.size, deadByReason, inactive: skippedInactive,
+        })
+        await bot.sendMessage(adminChatId, report, { parse_mode: 'HTML' }).catch(() => {})
+      }
+    } catch (e) { log(`[AutoPromo] block-rate report error: ${e.message}`) }
+
     let dynamicMessage = null
     let usedAI = false
     // Only use AI for morning hero ads — evening cross-sells use static (short & punchy)
@@ -4697,4 +4754,4 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
   }
 }
 
-module.exports = { initAutoPromo, promoMessages, crossSellMessages }
+module.exports = { initAutoPromo, promoMessages, crossSellMessages, _promoRetestTtlDays, _buildBlockRateReport }

@@ -30,6 +30,16 @@ So tapping "Reply User" and then attaching an image (no `/reply` caption) fell t
 - ⚪ **Voice: SIP from connection default number blocked** (~4×) — wrong-user-billing guard; by design.
 
 
+## 2026-08-20 (part 2) — 4 approved enhancements — VERIFIED (testing agent, iteration_37, 100% backend, 0 defects)
+
+Backend (Node) only. All logic exercised by pure-helper dev endpoints (bot NOT driven via webhook — shared live prod Mongo). Regression pack: `/app/backend/tests/test_admin_media_confirm_suite.py`.
+
+- **(A) Deactivated-User Guard** — `_isPermanentTelegramSendError(err)` classifies permanent send failures (user_deactivated / bot_blocked / chat_not_found / bot_target / no_rights). Global `send()` catch now calls `markUserDead(chatId, reason)` (reuses AutoPromo opt-out) + quiet log; the `unhandledRejection` handler suppresses these benign send errors (no more false "❌ Unhandled Promise Rejection" admin crash alerts / crash docs). Dev: `/api/dev/admin-media-confirm-test`.
+- **(B) Escalation Coverage** — new `ESCALATION_OVERDUE_MS` (env `ESCALATION_OVERDUE_MINUTES`, default 30). `_escalationAlertPlan(esc, now, {overdueMs, secondaryConfigured})` decides abandon/skip/remind + `overdue` + `ccSecondary`. Overdue tickets get a louder `⏰🚨 OVERDUE — customer waiting …` banner and an immediate secondary-admin cc (still gated on an explicitly-configured `ESCALATION_SECONDARY_ADMIN_CHAT_ID`; never leaks to the group). Dev: `/api/dev/escalation-alert-plan-test`.
+- **(C) Promo Cadence** — `_promoRetestTtlDays(reason, blockCount)` escalating back-off for repeat blockers: bot_blocked 1st=7d, 2nd=30d, 3rd+=never; user_deactivated/bot_target=never; chat_not_found=14d. `isOptedOut()` uses it; `recordSendFailure()` `$inc blockCount`. Pre-blast admin block-rate report (`_buildBlockRateReport`) sent before each `broadcastPromoForLang`. Dev: `/api/dev/promo-cadence-test`.
+- **(D) Admin Media Confirm** — tapping "💬 Reply User" then attaching an image now shows a preview "🖼️ Confirm media reply … [✅ Send to <user>] [❌ Cancel]" (`_buildAdminMediaConfirm`) instead of firing immediately; token-scoped callbacks `amcSend:<tok>` / `amcCancel:<tok>` (a newer attachment supersedes an older preview), 10-min freshness guard. Shared forward extracted to `_sendAdminMediaToUser(...)`; explicit `/reply <id>` caption path still sends immediately. Reply prompt now hints the image option. Dev: `/api/dev/admin-media-confirm-test`.
+
+
 ## 2026-06 (forked session) — 🔐 Show Password (VPS password recovery) — INDEPENDENTLY VERIFIED
 Carried over from the previous session as "user verification pending". Ran the backend testing agent
 (report: `/app/test_reports/iteration_34.json`) — **100% backend, 0 issues, retest_needed=false**.
