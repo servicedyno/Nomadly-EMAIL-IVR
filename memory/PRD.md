@@ -4,6 +4,14 @@
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
 
+## 2026-08-20 (part 4) — Restored missing `heal_bifurcated_domains.js` (BifurcationHealCron boot error) — VERIFIED (testing agent, iteration_38, 100% backend)
+
+- **Bug:** prod boot logged `[BifurcationHealCron] init error (non-fatal): Cannot find module '/app/scripts/heal_bifurcated_domains'`. Root cause: git commit `bffe1653` deleted `scripts/heal_bifurcated_domains.js` while `js/bifurcation-heal-cron.js:23` still `require()`d it. The init in `_index.js` is try/catch-wrapped so the bot booted fine, but the **daily 03:30 UTC domain-bifurcation heal sweep silently never scheduled** (Category A/B/D divergences would accumulate unrepaired).
+- **Fix:** `git checkout bffe1653^ -- scripts/heal_bifurcated_domains.js` — restored the exact 554-line last-good version (git diff vs parent = empty). Exports `runHealSweep` + `detectCategory` (categories A/B/C/D/OK).
+- **Verified:** `node --check` OK; require smoke-load OK; unit tests `test_heal_bifurcated_domains_categorize.js` (14/14) + `test_bifurcation_heal_cron.js` (18/18) pass; after nodejs restart the boot log emits `[BifurcationHealCron] Scheduled — daily at 03:30 UTC (apply=A,B,D)` with NO error; `/api/health` healthy.
+- ⚠️ **Reaches production only after the repo is pushed to GitHub (Save to GitHub) + Railway redeploys** — the file is restored in the codebase but Railway builds from GitHub.
+- Optional follow-up (reviewer suggestion, not done): surface cron-init failures to the admin Telegram chat (like `runOnce` does) so a future silent-init regression is noticed.
+
 ## 2026-08-20 (part 3) — Contabo creds rotation (Railway prod) + RDP ownership association
 
 **Ops task (no code changes). Verified via live Contabo API + prod Mongo read-back.**
