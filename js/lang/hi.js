@@ -1007,6 +1007,7 @@ captchaDomainButton: (domain, isOff, hasCF) => hasCF ? `${isOff ? '🔴 OFF' : '
  goBackToCoupon: '❌ वापस जाएं और कूपन लागू करें',
  errorFetchingCryptoAddress: 'क्रिप्टोक्यूरेंसी पता प्राप्त करने में त्रुटि। कृपया बाद में पुनः प्रयास करें।',
  paymentSuccessFul: '✅ भुगतान पुष्टि — अभी आपकी सेवाएं तैयार हो रही हैं।',
+ domainProcessingOrder: '⏳ आपका ऑर्डर प्रोसेस हो रहा है — अभी आपका डोमेन रजिस्टर किया जा रहा है।',
  nsVerifying: (tld) => `🔍 .${tld} रजिस्ट्री पर नेमसर्वर सेटअप सत्यापित किया जा रहा है — लगभग 30–60 सेकंड…`,
  nsVerifiedOk: '✅ नेमसर्वर सत्यापित — अब पंजीकरण कर रहे हैं।',
  mpPaywall: (fee, balance) =>

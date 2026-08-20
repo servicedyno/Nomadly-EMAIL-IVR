@@ -12109,7 +12109,7 @@ Enter new value:`), bc)
       const lang = info?.userLanguage ?? 'en'
 
       try {
-        const error = await buyDomainFullProcess(chatId, lang, domain)
+        const error = await buyDomainFullProcess(chatId, lang, domain, { deferPaymentMsg: true })
         if (error) return
         const name = await get(nameOf, chatId)
 
@@ -21443,7 +21443,7 @@ ${message.replace(/\n/g, '<br>')}
 
     const domain = info?.domain
     const lang = info?.userLanguage ?? 'en'
-    const error = await buyDomainFullProcess(chatId, lang, domain)
+    const error = await buyDomainFullProcess(chatId, lang, domain, { deferPaymentMsg: true })
     if (!error) decrement(freeDomainNamesAvailableFor, chatId)
     // Clean up actual price state (no charge for free domains, but keep state clean)
     await set(state, chatId, 'actualPrice', null)
@@ -34962,10 +34962,26 @@ const formatLinks = (links, t) => {
   })
 }
 
-const buyDomainFullProcess = async (chatId, lang, domain) => {
+// Pure helper — which opening-message i18n key the domain purchase flow should show.
+// deferPaymentMsg=true  → caller has NOT charged yet (wallet / free-domain paths charge
+//                         only AFTER a successful registration) → neutral "processing" msg.
+// deferPaymentMsg=false → money already received (crypto / bank webhooks) → "payment confirmed".
+// Exposed via /dev/domain-payment-msg-test so the fix is verifiable without a live purchase.
+const _domainOpeningMsgKey = (deferPaymentMsg) => (deferPaymentMsg ? 't.domainProcessingOrder' : 't.paymentSuccessFul')
+
+const buyDomainFullProcess = async (chatId, lang, domain, opts = {}) => {
+  // deferPaymentMsg=true → the caller has NOT charged the user yet. The wallet and
+  // free-domain flows only debit AFTER a successful registration, so claiming
+  // "✅ Payment confirmed" up-front is misleading: if the registry then rejects the
+  // domain (e.g. OpenProvider HTTP 500), the user sees "Payment confirmed" followed
+  // by "registration failed" and believes they paid for a domain that never
+  // registered. In those flows we show a neutral "⏳ Processing your order…" message;
+  // the real charge + success confirmation happen in the caller after buyDomain succeeds.
+  // (Crypto / bank webhook callers leave this false — money is already received there.)
+  const { deferPaymentMsg = false } = opts
   let domainRegistered = false // track so catch-block knows not to refund
   try {
-    sendMessage(chatId, translation('t.paymentSuccessFul', lang), rem)
+    sendMessage(chatId, translation(_domainOpeningMsgKey(deferPaymentMsg), lang), rem)
     let info = await get(state, chatId)
     let registrar = info?.registrar || 'ConnectReseller'
     const nsChoice = info?.nsChoice || 'provider_default'
@@ -38945,6 +38961,68 @@ app.get('/dev/plan-quota-audit', (req, res) => {
 })
 
 
+
+// ── DEV-ONLY: verify the domain purchase opening-message fix (404 in prod) ──
+// Bug: on the WALLET path the bot charged the user only AFTER a successful
+// registration, yet buyDomainFullProcess showed "✅ Payment confirmed" up-front.
+// When OpenProvider then failed (HTTP 500), users saw "Payment confirmed" →
+// "registration failed" and believed they'd paid for a domain that never
+// registered (real incident: @Pacelolx 6395648769, citizensonlineprofile.com).
+// Fix: wallet + free-domain callers pass { deferPaymentMsg: true } so the opening
+// message is the neutral "⏳ Processing your order…" (t.domainProcessingOrder);
+// only AFTER the wallet is actually debited does the success confirmation appear.
+// Crypto/bank webhook callers keep "payment confirmed" (money already received).
+app.get('/dev/domain-payment-msg-test', (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const langs = ['en', 'fr', 'zh', 'hi']
+
+  // 1) The pure helper must map defer→processing key, non-defer→payment key.
+  const helperOk = _domainOpeningMsgKey(true) === 't.domainProcessingOrder' &&
+                   _domainOpeningMsgKey(false) === 't.paymentSuccessFul'
+
+  // 2) Both i18n keys must resolve (non-empty, not the raw key) and DIFFER in every locale.
+  const messages = {}
+  let i18nOk = true
+  for (const l of langs) {
+    const processing = translation(_domainOpeningMsgKey(true), l)
+    const confirmed = translation(_domainOpeningMsgKey(false), l)
+    const resolved = processing && confirmed &&
+      processing !== 't.domainProcessingOrder' && confirmed !== 't.paymentSuccessFul' &&
+      processing !== confirmed
+    if (!resolved) i18nOk = false
+    messages[l] = { processing, confirmed, resolved }
+  }
+
+  // 3) Call-site scan: wallet + free-domain callers MUST pass deferPaymentMsg:true;
+  //    the crypto/bank webhook callers MUST NOT (they leave it false).
+  let callSites = { total: 0, defer: 0, nonDefer: 0, scanError: null }
+  try {
+    const src = require('fs').readFileSync(__filename, 'utf8')
+    const re = /buyDomainFullProcess\(chatId, lang, domain([^)]*)\)/g
+    let m
+    while ((m = re.exec(src)) !== null) {
+      callSites.total++
+      if (/deferPaymentMsg:\s*true/.test(m[1])) callSites.defer++
+      else callSites.nonDefer++
+    }
+  } catch (e) {
+    callSites.scanError = e.message
+  }
+  // Expect exactly 5 real call sites: 2 deferred (wallet + free), 3 not (bank/blockbee/dynopay).
+  const callSitesOk = callSites.scanError === null &&
+    callSites.total === 5 && callSites.defer === 2 && callSites.nonDefer === 3
+
+  return res.json({
+    ok: helperOk && i18nOk && callSitesOk,
+    helperOk,
+    i18nOk,
+    callSitesOk,
+    messages,
+    callSites,
+  })
+})
 
 // ── DEV-ONLY: preview the File Manager EPERM decision (@hellpeaces fix) ─────
 // Given a simulated cPanel failure reason, returns what the /files & /files/mkdir

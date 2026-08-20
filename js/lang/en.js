@@ -1173,6 +1173,7 @@ captchaDomainButton: (domain, isOff, hasCF) => hasCF ? `${isOff ? '🔴 OFF' : '
  goBackToCoupon: '❌ Go Back & Apply Coupon',
  errorFetchingCryptoAddress: `Error fetching cryptocurrency address. Please try again later.`,
  paymentSuccessFul: '✅ Payment confirmed — provisioning your services now.',
+ domainProcessingOrder: '⏳ Processing your order — registering your domain now.',
  // Pre-delegation TLD progress (.de/.nl/.se/.eu etc. need authoritative NS
  // at registry submit time, so we wait for Cloudflare to be live first)
  nsVerifying: (tld) => `🔍 Verifying nameserver setup at the .${tld} registry — this takes about 30–60 seconds…`,

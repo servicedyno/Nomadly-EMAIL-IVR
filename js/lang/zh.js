@@ -1006,6 +1006,7 @@ captchaDomainButton: (domain, isOff, hasCF) => hasCF ? `${isOff ? '🔴 关闭' 
  goBackToCoupon: '❌ 返回并应用优惠券',
  errorFetchingCryptoAddress: '获取加密货币地址时出错。请稍后再试。',
  paymentSuccessFul: '✅ 付款已确认 — 正在配置您的服务。',
+ domainProcessingOrder: '⏳ 正在处理您的订单 — 正在注册您的域名。',
  nsVerifying: (tld) => `🔍 正在向 .${tld} 注册局验证域名服务器配置 — 大约需要 30–60 秒…`,
  nsVerifiedOk: '✅ 域名服务器验证通过 — 正在注册。',
  mpPaywall: (fee, balance) =>
