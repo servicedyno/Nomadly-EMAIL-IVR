@@ -4,6 +4,16 @@
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
 
+## 2026-08-20 (part 3) — Contabo creds rotation (Railway prod) + RDP ownership association
+
+**Ops task (no code changes). Verified via live Contabo API + prod Mongo read-back.**
+
+- **New Contabo creds** (RDP provisioning/management) upserted to **Railway production** env via Railway GraphQL `variableUpsert` (project `c23ac3d9…`, env `889fd56a…` production, service `b9c4ad64…`): `CONTABO_CLIENT_ID=INT-15295080`, `CONTABO_CLIENT_SECRET`, `CONTABO_API_USER=rdpup@dyno.pt`, `CONTABO_API_PASSWORD`. OAuth validated (HTTP 200, token acquired). Railway API call needs a browser `User-Agent` header (else Cloudflare 1010) and GraphQL **variables** (not inline JSON object literals).
+  - ⚠️ Running Railway deployment keeps OLD env until a **redeploy** — creds go live only after redeploying the prod service.
+  - Dev pod `/app/backend/.env` intentionally NOT changed (prod bot on Railway serves real users; avoids dev-pod background workers touching prod Contabo).
+- **Associated existing Contabo RDP `vmi3508080`** (instanceId `203508080`, Windows/RDP, region US-central, product V153, IP 157.173.194.107, user `administrator`, Contabo cancelDate 2026-09-13) with bot user **@davion419 (chatId 404562920)** by inserting a `vpsPlansOf` doc: `provider:'contabo'`, `contaboInstanceId:203508080`, `vpsId:'203508080'`, `isRDP:true`, `osType:'Windows'`, `autoRenewable:false`, `end_time:2026-09-13`, `_contaboCancelledEarly:true`. Verified the bot's own `vps-provider` routes this instance → contabo and exposes restart/start/stop/resetPassword; live `getInstance` OK.
+  - RDP password NOT stored (provisioned outside the bot) → user gets credentials via the bot's **Reset Password** action; restart/start/stop work immediately.
+
 ## 2026-08-20 — Admin image/media reply bug fix + Railway 5-day-ago log audit
 
 ### BUG FIX — Admin "send image to user" showed "option not available" — VERIFIED (testing agent, iteration_36, 100% backend, 0 issues)
