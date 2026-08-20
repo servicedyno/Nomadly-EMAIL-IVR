@@ -30,7 +30,7 @@ def get_base_url():
                     return line.split('=', 1)[1].strip()
     except:
         pass
-    return "https://hosting-check-2.preview.emergentagent.com"
+    return "https://env-deployment-3.preview.emergentagent.com"
 
 BASE_URL = get_base_url()
 API_BASE = f"{BASE_URL}/api/store"
