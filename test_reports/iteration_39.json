@@ -1,0 +1,23 @@
+{
+  "summary": "Backend-only verification of the startup-cron init guard + admin alerting (safeInitCron / buildCronInitAlert / shouldAlertCronInit / _alertCronInitFailure in js/_index.js). Created pytest suite /app/backend/tests/test_cron_init_alert.py (7 tests, all PASS, run twice for flake check). POST /api/dev/cron-init-alert-test → 200, pass:true, exactly 12 checks all true; injected sink captured ONLY unit_bad (no real Telegram send), alertText has heading 'Startup cron failed to load' + cron name + error and HTML-escapes <, >, & (raw '<detail>' absent); dedup first=true/second=false; endpoint is idempotent across repeated calls (failuresIncrementedByOne uses a delta). Boot resilience: restarted supervisor 'nodejs', post-restart log block shows '[HostingUpgradeNudge] Initialized', '[ProtectionEnforcer] Initialized and scheduled', '[ProtectionHeartbeat] Initialized and scheduled' and (after ~60s) '[BifurcationHealCron] Scheduled — daily at 03:30 UTC'; the only '[CronInit] ❌' lines in the log are 'unit_bad' from the dev test calls — no real startup-cron failures and no 'Cannot find module' from boot. Regression: /api/dev/admin-media-confirm-test, /api/dev/escalation-alert-plan-test, /api/dev/promo-cadence-test, /api/dev/admin-media-reply-test all pass:true; /api/health healthy + database connected. Safety honoured: no Telegram webhook driving, no /admin/* calls.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": { "ui_bugs": [], "integration_issues": [], "design_issues": [] },
+  "test_report_links": [
+    "/app/backend/tests/test_cron_init_alert.py",
+    "/app/test_reports/pytest/cron_init_alert.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Optional hardening: _cronInitFailures is only visible in-process; consider exposing it (count + names) on /api/health or an admin diagnostic so a failed startup cron is also detectable without relying on the Telegram DM landing.",
+    "_cronInitAlerted dedup is per-process, so every pod restart re-alerts the same broken cron. Acceptable (loud is the goal) but worth a note if restart churn could spam the admin chat.",
+    "_alertCronInitFailure fires in dev pods too (TELEGRAM_ADMIN_CHAT_ID is set); unlike escalationReminderTick it has no BOT_ENVIRONMENT/SKIP_WEBHOOK_SYNC dev guard, so a dev-only module break would DM the production admin. Consider gating or prefixing the alert with the environment."
+  ],
+  "updated_files": ["/app/backend/tests/test_cron_init_alert.py"],
+  "success_rate": { "backend": "100%", "frontend": "not tested (backend-only request)" },
+  "seed_data_creation": "None — dev endpoint is pure/in-memory with an injected alert sink; no Mongo writes.",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "No auth needed; /api/dev/* enabled via BOT_ENVIRONMENT=development",
+  "context_for_next_testing_agent": "Reusable suite: pytest /app/backend/tests/test_cron_init_alert.py (uses REACT_APP_BACKEND_URL from /app/frontend/.env). Note that each run of /api/dev/cron-init-alert-test intentionally logs one \"[CronInit] ❌ 'unit_bad' ... Cannot find module '/x/y'\" line — ignore those when auditing boot logs. Startup-cron log markers appear ~145-150 lines after the '🚀 Early health check server started on port 5000' boot marker; BifurcationHealCron schedules ~60s after restart, so wait before asserting.",
+  "rca_of_the_issue": "Original regression: BifurcationHealCron require() threw and was swallowed by an info-level try/catch, so the daily sweep silently never scheduled. Fix verified: safeInitCron logs with a ❌ marker, records the failure, and Telegrams the admin (once per name), while never throwing so boot continues; previously unguarded inits (ProtectionEnforcer, ProtectionHeartbeat, HostingUpgradeNudge) are now wrapped and the existing catches for cPanelHealth, WhmDiskMonitor, CallBillingReconciler, RateDeckSync, BifurcationHealCron now alert."
+}

@@ -2833,6 +2833,58 @@ const ESCALATION_MAX_REMINDERS_PER_TICK = 5                 // digest if more
 // via ESCALATION_OVERDUE_MINUTES (default 30 min).
 const ESCALATION_OVERDUE_MS = (parseInt(process.env.ESCALATION_OVERDUE_MINUTES, 10) || 30) * 60 * 1000
 
+// ── Startup cron/scheduler init guard + admin alerting (2026-08-20) ────────
+// A missing/broken cron module used to fail SILENTLY: the BifurcationHealCron
+// require() threw, got swallowed by a try/catch that only logged at info level,
+// and the daily sweep never scheduled. safeInitCron() wraps a startup cron init
+// so a failure is (a) non-fatal (boot continues), (b) logged, (c) recorded, and
+// (d) Telegrammed to the admin — so a silent regression can't hide again.
+const _cronInitAlerted = new Set()
+const _cronInitFailures = []
+
+function buildCronInitAlert(name, err) {
+  const raw = String(err?.message || err || 'unknown error').slice(0, 400)
+  const safe = raw.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const env = process.env.BOT_ENVIRONMENT || 'unknown'
+  return `🚨 <b>Startup cron failed to load</b>\n` +
+    `Env: <code>${env}</code>\n` +
+    `Cron: <code>${name}</code>\n` +
+    `Error: <code>${safe}</code>\n\n` +
+    `<i>This scheduler is NOT running until it's fixed + redeployed.</i>`
+}
+
+// Pure dedup decision: alert once per cron name per process. Mutates seenSet.
+function shouldAlertCronInit(name, seenSet) {
+  if (seenSet.has(name)) return false
+  seenSet.add(name)
+  return true
+}
+
+function _alertCronInitFailure(name, err) {
+  try {
+    if (!shouldAlertCronInit(name, _cronInitAlerted)) return
+    const admin = process.env.TELEGRAM_ADMIN_CHAT_ID
+    if (!bot?.sendMessage || !admin) return
+    bot.sendMessage(String(admin), buildCronInitAlert(name, err), { parse_mode: 'HTML' }).catch(() => {})
+  } catch (_) { /* an alert must never throw */ }
+}
+
+// Run a startup cron/scheduler init safely. NEVER throws (boot always continues).
+// Returns true on success, false on failure (logged + recorded + admin-alerted).
+// `alertFn` is injectable so tests can capture alerts without a real Telegram send.
+async function safeInitCron(name, fn, alertFn) {
+  const notify = alertFn || _alertCronInitFailure
+  try {
+    await fn()
+    return true
+  } catch (e) {
+    log(`[CronInit] ❌ '${name}' failed to load (non-fatal): ${e.message}`)
+    _cronInitFailures.push({ name, error: e.message, at: new Date().toISOString() })
+    try { notify(name, e) } catch (_) { /* ignore */ }
+    return false
+  }
+}
+
 function _nextEscalationReminderMs(reminderCount) {
   if (reminderCount < 1) return 10 * 60 * 1000       // first reminder at +10m
   if (reminderCount < 3) return 30 * 60 * 1000       // +30m each for #2, #3
@@ -3492,6 +3544,7 @@ const loadData = async () => {
     log('[cPanel Health] probe + queue worker initialised')
   } catch (e) {
     log(`[cPanel Health] init error (non-blocking): ${e.message}`)
+    _alertCronInitFailure('cPanelHealth', e)
   }
 
   // ── Structured hostingTransactions helper ──
@@ -3781,24 +3834,29 @@ const loadData = async () => {
     require('./whm-disk-monitor').initMonitor({ bot, whmService: require('./whm-service.js') })
   } catch (e) {
     log(`[WhmDiskMonitor] init error (non-blocking): ${e.message}`)
+    _alertCronInitFailure('WhmDiskMonitor', e)
   }
 
   // Initialize Hosting Upgrade Credit Nudge (daily DM 2 days before window closes)
-  require('./hosting-upgrade-nudge').init({ bot, db })
+  await safeInitCron('HostingUpgradeNudge', () => require('./hosting-upgrade-nudge').init({ bot, db }))
 
   // Initialize Protection Enforcer — ensure all domains have anti-red worker protection
-  const protectionEnforcer = require('./protection-enforcer')
-  protectionEnforcer.init(db)
-  // Pass bot ref so the 24h auto re-enable sweeper can DM the owner.
-  protectionEnforcer.startScheduler({ bot })
-  log('[ProtectionEnforcer] Initialized and scheduled')
+  await safeInitCron('ProtectionEnforcer', () => {
+    const protectionEnforcer = require('./protection-enforcer')
+    protectionEnforcer.init(db)
+    // Pass bot ref so the 24h auto re-enable sweeper can DM the owner.
+    protectionEnforcer.startScheduler({ bot })
+    log('[ProtectionEnforcer] Initialized and scheduled')
+  })
 
   // Initialize Protection Heartbeat — hourly check that every cPanel account has
   // .user.ini auto_prepend + .antired-challenge.php intact; auto-repair if missing/mutated.
-  const protectionHeartbeat = require('./protection-heartbeat')
-  protectionHeartbeat.init(db)
-  protectionHeartbeat.startScheduler()
-  log('[ProtectionHeartbeat] Initialized and scheduled')
+  await safeInitCron('ProtectionHeartbeat', () => {
+    const protectionHeartbeat = require('./protection-heartbeat')
+    protectionHeartbeat.init(db)
+    protectionHeartbeat.startScheduler()
+    log('[ProtectionHeartbeat] Initialized and scheduled')
+  })
 
   // Initialize Call-Billing Reconciler — closes the connected-but-unbilled
   // forward/IVR-forward leak (LEAK #1). init is safe everywhere (read/record);
@@ -3808,6 +3866,7 @@ const loadData = async () => {
     log('[CallRecon] Initialized (pendingCallBills worklist + walletLedger reconciliation)')
   } catch (e) {
     log(`[CallRecon] init error (non-blocking): ${e.message}`)
+    _alertCronInitFailure('CallBillingReconciler', e)
   }
 
   // Scheduled reconciliation sweep — every 30 min. PROD-ONLY: settlement writes
@@ -3933,6 +3992,7 @@ const loadData = async () => {
     log('[RateDeckSync] Initialized (dialRateDeck deck + weekly provider merge)')
   } catch (e) {
     log(`[RateDeckSync] init error (non-blocking): ${e.message}`)
+    _alertCronInitFailure('RateDeckSync', e)
   }
 
   // Initialize DNS Healer — self-heals registry-side delegation failures
@@ -41584,6 +41644,45 @@ app.post('/dev/promo-cadence-test', async (req, res) => {
   return res.json({ ttls: ttlsView, report, checks, pass: Object.values(checks).every(Boolean) })
 })
 
+// ── DEV-ONLY: startup cron init guard + admin alerting (2026-08-20) ────────
+// Regression guard for the "silent cron init failure" fix. Uses an injected
+// alert sink so NO real Telegram send happens. 404 in prod.
+app.post('/dev/cron-init-alert-test', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const captured = []
+  const sink = (name, err) => captured.push({ name, error: String(err?.message || err) })
+
+  const beforeFailures = _cronInitFailures.length
+  const okResult = await safeInitCron('unit_good', async () => { /* succeeds */ }, sink)
+  const badResult = await safeInitCron('unit_bad', () => { throw new Error("Cannot find module '/x/y'") }, sink)
+  const failuresAdded = _cronInitFailures.length - beforeFailures
+
+  const alertText = buildCronInitAlert('unit_bad', new Error('boom <detail> & more'))
+
+  // dedup: same name should alert only once against a fresh set
+  const seen = new Set()
+  const first = shouldAlertCronInit('dupName', seen)
+  const second = shouldAlertCronInit('dupName', seen)
+
+  const checks = {
+    goodInitReturnsTrue: okResult === true,
+    badInitReturnsFalse: badResult === false,
+    badRecorded: _cronInitFailures.some(f => f.name === 'unit_bad'),
+    failuresIncrementedByOne: failuresAdded === 1,
+    sinkCalledOnlyForBad: captured.length === 1 && captured[0].name === 'unit_bad',
+    sinkNotCalledForGood: !captured.some(c => c.name === 'unit_good'),
+    alertHasHeading: alertText.includes('Startup cron failed to load'),
+    alertHasName: alertText.includes('unit_bad'),
+    alertHasError: alertText.includes('boom'),
+    alertEscapesHtml: alertText.includes('&lt;detail&gt;') && alertText.includes('&amp;'),
+    dedupFirstTrue: first === true,
+    dedupSecondFalse: second === false,
+  }
+  return res.json({ captured, alertText, checks, pass: Object.values(checks).every(Boolean) })
+})
+
 
 app.post('/dev/ai-support-ask', async (req, res) => {
   if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
@@ -44607,6 +44706,7 @@ try {
   })
 } catch (e) {
   log('[BifurcationHealCron] init error (non-fatal):', e.message)
+  _alertCronInitFailure('BifurcationHealCron', e)
 }
 
 //

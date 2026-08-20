@@ -4,6 +4,15 @@
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
 
+## 2026-08-20 (part 5) — Startup cron init guard + admin alerting — VERIFIED (testing agent, iteration_39, 100% backend)
+
+Prevents silent cron regressions (like part 4's BifurcationHealCron) from hiding.
+- **`safeInitCron(name, fn, alertFn)`** (`js/_index.js`): wraps a startup cron init — never throws (boot continues), logs `[CronInit] ❌ …`, records the failure in `_cronInitFailures`, and Telegrams the admin. `alertFn` injectable for tests (no real send).
+- **`buildCronInitAlert`** (pure, HTML-escaped, now prefixed with `Env: <BOT_ENVIRONMENT>`), **`shouldAlertCronInit`** (once-per-name dedup), **`_alertCronInitFailure`** (→ `TELEGRAM_ADMIN_CHAT_ID`).
+- Wrapped previously-UNGUARDED inits (would have crashed boot on a missing module): **ProtectionEnforcer, ProtectionHeartbeat, HostingUpgradeNudge**. Added `_alertCronInitFailure(...)` to existing catch blocks: **cPanelHealth, WhmDiskMonitor, CallBillingReconciler, RateDeckSync, BifurcationHealCron**.
+- Dev endpoint `POST /api/dev/cron-init-alert-test` (12 checks). Testing agent: 100% backend, 0 issues; reusable suite `/app/backend/tests/test_cron_init_alert.py`. Boot confirmed all 3 wrapped inits initialize; no real `CronInit ❌`.
+- Reaches prod after Save-to-GitHub + Railway redeploy (same as parts 3/4). Optional follow-ups (not done): expose `_cronInitFailures` count on `/api/health`; per-process dedup re-alerts on each restart (acceptable — loud by design).
+
 ## 2026-08-20 (part 4) — Restored missing `heal_bifurcated_domains.js` (BifurcationHealCron boot error) — VERIFIED (testing agent, iteration_38, 100% backend)
 
 - **Bug:** prod boot logged `[BifurcationHealCron] init error (non-fatal): Cannot find module '/app/scripts/heal_bifurcated_domains'`. Root cause: git commit `bffe1653` deleted `scripts/heal_bifurcated_domains.js` while `js/bifurcation-heal-cron.js:23` still `require()`d it. The init in `_index.js` is try/catch-wrapped so the bot booted fine, but the **daily 03:30 UTC domain-bifurcation heal sweep silently never scheduled** (Category A/B/D divergences would accumulate unrepaired).
