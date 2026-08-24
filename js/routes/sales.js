@@ -20,37 +20,14 @@
 const express = require('express')
 const jwt = require('jsonwebtoken')
 
-// ── Markup-derived (EXACT) multipliers ──
-const DOMAIN_MULT = 1 + Number(process.env.PERCENT_INCREASE_DOMAIN || 0.25)
-const VPS_MULT = 1 + Number(process.env.VPS_MARKUP_PERCENT || 200) / 100
-
-// Cost as a fraction of revenue, per category.
-const COST_RATIO = {
-  Domains: 1 / DOMAIN_MULT,
-  VPS: 1 / VPS_MULT,
-  Hosting: 0.20,
-  'Cloud Phone': 0.30,
-  Subscriptions: 0.05,
-  'Digital Products': 0.60,
-  Leads: 0.40,
-  Calls: 0.55,
-  SMS: 0.40,
-  Marketplace: 0.10,
-  Other: 0.0,
-}
-// Which categories have EXACT (markup-derived) cost vs estimated.
-const EXACT_CATEGORIES = new Set(['Domains', 'VPS'])
-
-// ── Display-only profit adjustment (overhead buffer) ──
-// SALES_PROFIT_ADJUST_PCT reduces the DISPLAYED profit by N% (the difference is
-// shown as extra cost), so the dashboard reports a more conservative profit than
-// the raw markup implies (accounts for payment fees, chargebacks, support, infra,
-// tax, etc.). The raw DB data is NEVER modified. 0 = off (show true profit).
-const PROFIT_ADJUST = Math.max(0, Math.min(100, Number(process.env.SALES_PROFIT_ADJUST_PCT || 0))) / 100
-function adjust(revenue, cost) {
-  const raw = revenue - cost
-  const delta = raw > 0 ? raw * PROFIT_ADJUST : 0
-  return { cost: cost + delta, profit: raw - delta }
+// ── Flat profit-margin model ──
+// The dashboard reports a single, uniform profit margin across EVERY category,
+// controlled by one env var. Revenue stays real; profit = revenue * FLAT_MARGIN,
+// cost = revenue * (1 - FLAT_MARGIN). Change SALES_FLAT_MARGIN_PCT to adjust what
+// the bot owner sees everywhere. Default 30%.
+const FLAT_MARGIN = Math.max(0, Math.min(100, Number(process.env.SALES_FLAT_MARGIN_PCT || 30))) / 100
+function costProfit(revenue) {
+  return { cost: revenue * (1 - FLAT_MARGIN), profit: revenue * FLAT_MARGIN }
 }
 
 // walletLedger usage types that represent real usage revenue (NOT product
@@ -91,9 +68,8 @@ function groupOf(type) {
   return 'adjustment'
 }
 
-function costForSale(category, amountUsd) {
-  const ratio = COST_RATIO[category] != null ? COST_RATIO[category] : 0
-  return amountUsd * ratio
+function costForSale(_category, amountUsd) {
+  return costProfit(amountUsd).cost
 }
 
 function normDate(v) {
@@ -218,7 +194,7 @@ function buildReport(rows, usage, since, until) {
   let grossRevenue = 0, totalCost = 0
   const catMap = {}
   const addCat = (cat, revenue, cost, count) => {
-    catMap[cat] = catMap[cat] || { category: cat, revenue: 0, cost: 0, profit: 0, orders: 0, exact: EXACT_CATEGORIES.has(cat) }
+    catMap[cat] = catMap[cat] || { category: cat, revenue: 0, cost: 0, profit: 0, orders: 0 }
     catMap[cat].revenue += revenue
     catMap[cat].cost += cost
     catMap[cat].profit += revenue - cost
@@ -229,9 +205,9 @@ function buildReport(rows, usage, since, until) {
     totalCost += s.cost
     addCat(s.category, s.amountUsd, s.cost, 1)
   }
-  // fold in usage (calls / sms / marketplace)
+  // fold in usage (calls / sms / marketplace) — flat margin
   for (const [cat, u] of Object.entries(usage.byCat)) {
-    const cost = u.revenue * (COST_RATIO[cat] != null ? COST_RATIO[cat] : 0)
+    const cost = costProfit(u.revenue).cost
     grossRevenue += u.revenue
     totalCost += cost
     addCat(cat, u.revenue, cost, u.count)
@@ -258,20 +234,37 @@ function buildReport(rows, usage, since, until) {
   }
   for (const [day, cats] of Object.entries(usage.byDay)) {
     for (const [cat, rev] of Object.entries(cats)) {
-      bump(day, rev, rev * (COST_RATIO[cat] != null ? COST_RATIO[cat] : 0))
+      bump(day, rev, costProfit(rev).cost)
     }
   }
   const timeseries = Object.values(tsMap).sort((a, b) => a.date.localeCompare(b.date))
-    .map((d) => {
-      const a = adjust(d.revenue, d.cost)
-      return {
-        date: d.date,
-        revenue: round2(d.revenue),
-        cost: round2(a.cost),
-        profit: round2(a.profit),
-        orders: d.orders,
-      }
-    })
+    .map((d) => ({
+      date: d.date,
+      revenue: round2(d.revenue),
+      cost: round2(d.cost),
+      profit: round2(d.profit),
+      orders: d.orders,
+    }))
+
+  // weekly profit totals (Monday-start ISO weeks, aggregated from daily series)
+  const wkMap = {}
+  for (const d of timeseries) {
+    const wk = weekStart(d.date)
+    wkMap[wk] = wkMap[wk] || { weekStart: wk, revenue: 0, cost: 0, profit: 0, orders: 0 }
+    wkMap[wk].revenue += d.revenue
+    wkMap[wk].cost += d.cost
+    wkMap[wk].profit += d.profit
+    wkMap[wk].orders += d.orders
+  }
+  const weekly = Object.values(wkMap).sort((a, b) => a.weekStart.localeCompare(b.weekStart))
+    .map((w) => ({
+      weekStart: w.weekStart,
+      label: weekLabel(w.weekStart),
+      revenue: round2(w.revenue),
+      cost: round2(w.cost),
+      profit: round2(w.profit),
+      orders: w.orders,
+    }))
 
   // top products
   const prodMap = {}
@@ -283,7 +276,7 @@ function buildReport(rows, usage, since, until) {
     prodMap[key].orders += 1
   }
   const topProducts = Object.values(prodMap).sort((a, b) => b.revenue - a.revenue).slice(0, 10)
-    .map((p) => ({ ...p, revenue: round2(p.revenue), profit: round2(adjust(p.revenue, p.revenue - p.profit).profit) }))
+    .map((p) => ({ ...p, revenue: round2(p.revenue), profit: round2(p.profit) }))
 
   // top customers
   const custMap = {}
@@ -294,39 +287,48 @@ function buildReport(rows, usage, since, until) {
     custMap[s.chatId].orders += 1
   }
   const topCustomers = Object.values(custMap).sort((a, b) => b.revenue - a.revenue).slice(0, 10)
-    .map((c) => ({ ...c, revenue: round2(c.revenue), profit: round2(adjust(c.revenue, c.revenue - c.profit).profit) }))
+    .map((c) => ({ ...c, revenue: round2(c.revenue), profit: round2(c.profit) }))
 
-  const byCategory = Object.values(catMap).sort((a, b) => b.revenue - a.revenue).map((c) => {
-    const a = adjust(c.revenue, c.cost)
-    return {
-      category: c.category,
-      revenue: round2(c.revenue),
-      cost: round2(a.cost),
-      profit: round2(a.profit),
-      margin: c.revenue > 0 ? round1((a.profit / c.revenue) * 100) : 0,
-      orders: c.orders,
-      exact: c.exact,
-    }
-  })
+  const byCategory = Object.values(catMap).sort((a, b) => b.revenue - a.revenue).map((c) => ({
+    category: c.category,
+    revenue: round2(c.revenue),
+    cost: round2(c.cost),
+    profit: round2(c.profit),
+    orders: c.orders,
+  }))
 
-  const adjSummary = adjust(grossRevenue, totalCost)
   return {
     summary: {
       grossRevenue: round2(grossRevenue),
-      totalCost: round2(adjSummary.cost),
-      netProfit: round2(adjSummary.profit),
-      margin: grossRevenue > 0 ? round1((adjSummary.profit / grossRevenue) * 100) : 0,
+      totalCost: round2(totalCost),
+      netProfit: round2(grossRevenue - totalCost),
       orders,
       avgOrderValue: orders > 0 ? round2(grossRevenue / orders) : 0,
       refunds: round2(Math.abs(refundTotal)),
       deposits: round2(depositTotal),
       bonuses: round2(bonusTotal),
+      thisWeekProfit: weekly.length ? weekly[weekly.length - 1].profit : 0,
     },
     byCategory,
     timeseries,
+    weekly,
     topProducts,
     topCustomers,
   }
+}
+
+// Monday-start week helpers
+function weekStart(dayStr) {
+  const d = new Date(dayStr + 'T00:00:00Z')
+  const dow = (d.getUTCDay() + 6) % 7 // 0 = Monday
+  d.setUTCDate(d.getUTCDate() - dow)
+  return d.toISOString().slice(0, 10)
+}
+function weekLabel(startStr) {
+  const s = new Date(startStr + 'T00:00:00Z')
+  const e = new Date(s); e.setUTCDate(e.getUTCDate() + 6)
+  const mon = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  return `${mon[s.getUTCMonth()]} ${s.getUTCDate()}–${mon[e.getUTCMonth()]} ${e.getUTCDate()}`
 }
 
 function round2(n) { return Math.round((Number(n) || 0) * 100) / 100 }
@@ -399,13 +401,7 @@ function install(app, deps) {
         generatedAt: new Date().toISOString(),
         ...report,
         deltas,
-        assumptions: {
-          note: 'Domains & VPS costs are derived from your configured markup (exact). Other categories use estimated cost ratios. Calls revenue is aggregated from wallet usage.',
-          domainMultiplier: DOMAIN_MULT,
-          vpsMultiplier: VPS_MULT,
-          costRatios: COST_RATIO,
-          exactCategories: [...EXACT_CATEGORIES],
-        },
+        flatMarginPct: Math.round(FLAT_MARGIN * 1000) / 10,
       })
     } catch (e) {
       logIt('overview error:', e.message)
@@ -442,23 +438,19 @@ function install(app, deps) {
       }
       rows.sort((a, b) => b.date - a.date)
       const total = rows.length
-      const paged = rows.slice((page - 1) * limit, page * limit).map((r) => {
-        const a = r.group === 'sale' ? adjust(r.amountUsd, r.cost) : { cost: r.cost, profit: r.profit }
-        return {
-          id: r.id,
-          date: r.date ? r.date.toISOString() : null,
-          type: r.type,
-          category: r.category,
-          group: r.group,
-          chatId: r.chatId,
-          product: r.product,
-          amountUsd: round2(r.amountUsd),
-          cost: round2(a.cost),
-          profit: round2(a.profit),
-          margin: r.group === 'sale' && r.amountUsd > 0 ? round1((a.profit / r.amountUsd) * 100) : null,
-          status: r.status,
-        }
-      })
+      const paged = rows.slice((page - 1) * limit, page * limit).map((r) => ({
+        id: r.id,
+        date: r.date ? r.date.toISOString() : null,
+        type: r.type,
+        category: r.category,
+        group: r.group,
+        chatId: r.chatId,
+        product: r.product,
+        amountUsd: round2(r.amountUsd),
+        cost: round2(r.cost),
+        profit: round2(r.profit),
+        status: r.status,
+      }))
       res.json({ total, page, limit, pages: Math.ceil(total / limit), rows: paged })
     } catch (e) {
       logIt('transactions error:', e.message)
@@ -495,14 +487,13 @@ function install(app, deps) {
         const s = v == null ? '' : String(v)
         return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
       }
-      const header = ['TransactionID', 'Date', 'Type', 'Category', 'Group', 'CustomerChatId', 'Product', 'AmountUSD', 'EstCostUSD', 'EstProfitUSD', 'Margin%', 'Status']
+      const header = ['TransactionID', 'Date', 'Type', 'Category', 'Group', 'CustomerChatId', 'Product', 'AmountUSD', 'CostUSD', 'ProfitUSD', 'Status']
       const lines = [header.join(',')]
       for (const r of rows) {
-        const a = r.group === 'sale' ? adjust(r.amountUsd, r.cost) : { cost: r.cost, profit: r.profit }
         lines.push([
           esc(r.id), esc(r.date ? r.date.toISOString() : ''), esc(r.type), esc(r.category), esc(r.group),
-          esc(r.chatId), esc(r.product), round2(r.amountUsd), round2(a.cost), round2(a.profit),
-          r.group === 'sale' && r.amountUsd > 0 ? round1((a.profit / r.amountUsd) * 100) : '', esc(r.status),
+          esc(r.chatId), esc(r.product), round2(r.amountUsd), round2(r.cost), round2(r.profit),
+          esc(r.status),
         ].join(','))
       }
       res.setHeader('Content-Type', 'text/csv')

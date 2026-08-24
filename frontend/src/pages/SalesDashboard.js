@@ -4,8 +4,8 @@ import {
   BarChart, Bar, Cell,
 } from 'recharts';
 import {
-  TrendingUp, TrendingDown, DollarSign, PiggyBank, Percent, ShoppingCart,
-  Receipt, RefreshCw, LogOut, Download, Search, Wallet, Gift, ArrowUpRight,
+  TrendingUp, TrendingDown, DollarSign, PiggyBank, CalendarDays, ShoppingCart,
+  Receipt, RefreshCw, LogOut, Download, Search, Wallet, Gift, BarChart3,
   Layers, Users, Package, Lock,
 } from 'lucide-react';
 
@@ -155,7 +155,20 @@ function CategoryTooltip({ active, payload }) {
       <div className="text-white font-medium mb-1">{d.category}</div>
       <div className="text-slate-400">Revenue: <span className="text-white">{fmtUsd(d.revenue)}</span></div>
       <div className="text-slate-400">Profit: <span className="text-emerald-400">{fmtUsd(d.profit)}</span></div>
-      <div className="text-slate-400">Margin: <span className="text-white">{d.margin}%</span></div>
+      <div className="text-slate-400">Orders: <span className="text-white">{d.orders}</span></div>
+    </div>
+  );
+}
+
+function WeeklyTooltip({ active, payload }) {
+  if (!active || !payload || !payload.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div className="bg-[#14161b] border border-white/10 rounded-lg px-3 py-2 text-xs shadow-xl">
+      <div className="text-white font-medium mb-1">{d.label}</div>
+      <div className="text-slate-400">Profit: <span className="text-emerald-400">{fmtUsd(d.profit)}</span></div>
+      <div className="text-slate-400">Revenue: <span className="text-white">{fmtUsd(d.revenue)}</span></div>
+      <div className="text-slate-400">Orders: <span className="text-white">{d.orders}</span></div>
     </div>
   );
 }
@@ -310,7 +323,7 @@ function Dashboard({ token, onLogout }) {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3" data-testid="sales-kpis">
               <Kpi icon={DollarSign} label="Gross Revenue" value={fmtUsd(summary.grossRevenue)} accent="emerald" delta={deltas?.grossRevenue} sub="vs prev" testid="kpi-revenue" />
               <Kpi icon={PiggyBank} label="Net Profit" value={fmtUsd(summary.netProfit)} accent="sky" delta={deltas?.netProfit} sub="vs prev" testid="kpi-profit" />
-              <Kpi icon={Percent} label="Profit Margin" value={`${summary.margin}%`} accent="violet" sub={`Cost ${fmtUsd0(summary.totalCost)}`} testid="kpi-margin" />
+              <Kpi icon={CalendarDays} label="This Week's Profit" value={fmtUsd(summary.thisWeekProfit)} accent="violet" sub="current week" testid="kpi-weekprofit" />
               <Kpi icon={ShoppingCart} label="Orders" value={fmtNum(summary.orders)} accent="amber" delta={deltas?.orders} sub={`AOV ${fmtUsd(summary.avgOrderValue)}`} testid="kpi-orders" />
             </div>
 
@@ -354,6 +367,29 @@ function Dashboard({ token, onLogout }) {
               </div>
             </div>
 
+            {/* Weekly Profit chart */}
+            <div className="bg-white/[0.04] border border-white/10 rounded-2xl p-4 sm:p-5" data-testid="sales-weekly">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-semibold flex items-center gap-2"><BarChart3 className="w-4 h-4 text-emerald-400" /> Weekly Profit</h2>
+                <span className="text-xs text-slate-500">Total profit per week</span>
+              </div>
+              {data.weekly && data.weekly.length ? (
+                <div style={{ width: '100%', height: 260 }}>
+                  <ResponsiveContainer>
+                    <BarChart data={data.weekly} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
+                      <XAxis dataKey="label" tick={{ fill: '#94a3b8', fontSize: 10 }} minTickGap={12} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                      <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} tickFormatter={(v) => `$${v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v}`} axisLine={false} tickLine={false} width={48} />
+                      <Tooltip cursor={{ fill: '#ffffff08' }} content={<WeeklyTooltip />} />
+                      <Bar dataKey="profit" fill="#34d399" radius={[4, 4, 0, 0]} maxBarSize={44} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="text-slate-500 text-sm py-10 text-center">No weekly data in this period.</div>
+              )}
+            </div>
+
             {/* Category breakdown */}
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
               <div className="lg:col-span-3 bg-white/[0.04] border border-white/10 rounded-2xl p-4 sm:p-5" data-testid="sales-by-category">
@@ -382,7 +418,7 @@ function Dashboard({ token, onLogout }) {
                         <th className="text-left font-medium py-2 px-1">Category</th>
                         <th className="text-right font-medium py-2 px-1">Revenue</th>
                         <th className="text-right font-medium py-2 px-1">Profit</th>
-                        <th className="text-right font-medium py-2 px-1">Margin</th>
+                        <th className="text-right font-medium py-2 px-1">Orders</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -392,12 +428,11 @@ function Dashboard({ token, onLogout }) {
                             <span className="inline-flex items-center gap-1.5">
                               <span className="w-2 h-2 rounded-full" style={{ background: colorFor(c.category) }} />
                               {c.category}
-                              {!c.exact && <span className="text-[9px] uppercase text-amber-400/80 bg-amber-400/10 rounded px-1 py-0.5" title="Cost estimated from markup">est</span>}
                             </span>
                           </td>
                           <td className="text-right tabular-nums py-2 px-1">{fmtUsd0(c.revenue)}</td>
                           <td className="text-right tabular-nums py-2 px-1 text-emerald-400">{fmtUsd0(c.profit)}</td>
-                          <td className="text-right tabular-nums py-2 px-1">{c.margin}%</td>
+                          <td className="text-right tabular-nums py-2 px-1 text-slate-400">{c.orders}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -496,7 +531,6 @@ function Dashboard({ token, onLogout }) {
                       <th className="text-left font-medium py-2 px-2">Product</th>
                       <th className="text-right font-medium py-2 px-2">Amount</th>
                       <th className="text-right font-medium py-2 px-2">Profit</th>
-                      <th className="text-right font-medium py-2 px-2">Margin</th>
                       <th className="text-left font-medium py-2 px-2">Status</th>
                     </tr>
                   </thead>
@@ -514,14 +548,13 @@ function Dashboard({ token, onLogout }) {
                         <td className="py-2 px-2 text-slate-300 max-w-[200px] truncate">{r.product}</td>
                         <td className="py-2 px-2 text-right tabular-nums">{fmtUsd(r.amountUsd)}</td>
                         <td className="py-2 px-2 text-right tabular-nums text-emerald-400">{r.group === 'sale' ? fmtUsd(r.profit) : '—'}</td>
-                        <td className="py-2 px-2 text-right tabular-nums">{r.margin != null ? `${r.margin}%` : '—'}</td>
                         <td className="py-2 px-2">
                           <span className={`text-xs px-2 py-0.5 rounded-full ${r.status === 'completed' ? 'bg-emerald-500/10 text-emerald-400' : r.status === 'refunded' || r.status === 'reversed' ? 'bg-rose-500/10 text-rose-400' : 'bg-slate-500/10 text-slate-400'}`}>{r.status}</span>
                         </td>
                       </tr>
                     ))}
                     {txns && !txns.rows.length && (
-                      <tr><td colSpan={8} className="text-center text-slate-500 py-8">No transactions match your filters.</td></tr>
+                      <tr><td colSpan={7} className="text-center text-slate-500 py-8">No transactions match your filters.</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -542,12 +575,7 @@ function Dashboard({ token, onLogout }) {
             </div>
 
             {/* assumptions footnote */}
-            {data.assumptions && (
-              <p className="text-slate-600 text-xs flex items-start gap-1.5 pb-6">
-                <ArrowUpRight className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                {data.assumptions.note}
-              </p>
-            )}
+            <div className="pb-6" />
           </>
         ) : null}
       </main>

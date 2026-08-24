@@ -9443,6 +9443,187 @@ backend:
       - working: true
         agent: "testing"
         comment: |
+          ✅ RE-VERIFICATION COMPLETE - Sales & Profit API FLAT Margin Model (30%) PASSED (all 9 checks, 100% pass):
+          
+          SCOPE: Re-verified the Sales & Profit admin analytics API after switching to a FLAT profit-margin 
+          model (30%). This is a PRODUCTION-connected MongoDB environment with READ-ONLY endpoints only. 
+          NO users created, NO purchases placed, NO data mutations.
+          
+          ARCHITECTURE: React → {REACT_APP_BACKEND_URL}/api/admin/sales/* → FastAPI (8001) → Node.js Express (5000).
+          All endpoints tested through the external base URL.
+          
+          WHAT CHANGED (backend js/routes/sales.js):
+          • Removed the old 25% "haircut" (SALES_PROFIT_ADJUST_PCT) and all per-category cost ratios / exact costing
+          • Single FLAT margin applies to EVERY category: profit = revenue * 0.30, cost = revenue * 0.70
+          • Controlled by env SALES_FLAT_MARGIN_PCT (currently 30)
+          • Responses NO LONGER include any 'margin' field (summary, byCategory, transactions rows)
+          • Removed 'assumptions' block
+          • Added top-level 'flatMarginPct' field (=30)
+          • Added 'weekly' array with weekStart, label, revenue, cost, profit, orders
+          • Added 'summary.thisWeekProfit' field
+          • CSV export header changed: removed "Margin%" column, changed "EstCostUSD" to "CostUSD", "EstProfitUSD" to "ProfitUSD"
+          
+          [CHECK 1] Login with wrong password: ✅ PASSED
+            POST /api/admin/sales/login with {"password":"wrong"}
+            
+            Response: HTTP 401 ✅
+            
+            ★ AUTH GUARD VERIFIED: Wrong password correctly returns 401.
+          
+          [CHECK 2] Login with correct password: ✅ PASSED
+            POST /api/admin/sales/login with {"password":"Nomadly123@"}
+            
+            Response: HTTP 200 ✅
+            Token received (length: 156) ✅
+            
+            ★ AUTH WORKING: Correct password returns 200 with valid JWT token.
+          
+          [CHECK 3] Overview range=all - FLAT 30% margin verification: ✅ ALL ASSERTIONS PASSED
+            GET /api/admin/sales/overview?range=all WITH Bearer token
+            
+            Response: HTTP 200 ✅
+            
+            [CRITICAL VERIFICATIONS - All Passed]
+            ✅ grossRevenue: $22,317.09
+            ✅ totalCost: $15,621.96
+            ✅ netProfit: $6,695.13
+            ✅ netProfit ≈ grossRevenue * 0.30 (diff: $0.00, within ±0.5 tolerance) ✅
+            ✅ totalCost ≈ grossRevenue * 0.70 (diff: $0.00, within ±0.5 tolerance) ✅
+            ✅ summary has NO 'margin' key ✅
+            ✅ flatMarginPct == 30 (top-level field) ✅
+            ✅ byCategory: 9 items, each has profit ≈ revenue*0.30 (±0.5) ✅
+            ✅ byCategory: NO 'margin' key in any item ✅
+            ✅ weekly: 21 items, correct structure (weekStart, label, revenue, cost, profit, orders) ✅
+            ✅ summary.thisWeekProfit: $41.58 (is a number) ✅
+            
+            ★ FLAT 30% MARGIN MODEL VERIFIED: The API correctly applies a single FLAT 30% profit margin 
+              to ALL categories. netProfit = grossRevenue * 0.30 exactly ($6,695.13 = $22,317.09 * 0.30). 
+              All per-category cost ratios and exact costing have been removed. Every byCategory item 
+              follows the same 30% margin rule.
+          
+          [CHECK 4] Overview range=30d - FLAT 30% margin verification: ✅ PASSED
+            GET /api/admin/sales/overview?range=30d WITH Bearer token
+            
+            Response: HTTP 200 ✅
+            
+            ✅ grossRevenue: $5,372.06
+            ✅ totalCost: $3,760.44
+            ✅ netProfit: $1,611.62
+            ✅ netProfit ≈ grossRevenue * 0.30 (diff: $0.00, within ±0.5 tolerance) ✅
+            
+            ★ FLAT 30% MARGIN VERIFIED: The 30d range also follows the FLAT 30% margin model exactly.
+          
+          [CHECK 5] Transactions - FLAT 30% margin on rows: ✅ PASSED
+            GET /api/admin/sales/transactions?range=all&group=sale&page=1&limit=25 WITH Bearer token
+            
+            Response: HTTP 200 ✅
+            Structure: {total: 397, page: 1, limit: 25, pages: 16, rows: [25 items]} ✅
+            
+            ✅ All 25 rows checked: profit ≈ amountUsd*0.30 (±0.02 tolerance) ✅
+            ✅ NO 'margin' key in any row ✅
+            
+            ★ TRANSACTION ROWS VERIFIED: Every sale transaction row follows the FLAT 30% margin model. 
+              The 'margin' field has been successfully removed from all rows.
+          
+          [CHECK 6] Export CSV - NO Margin% column: ✅ PASSED
+            GET /api/admin/sales/export.csv?range=all&group=sale WITH Bearer token
+            
+            Response: HTTP 200 ✅
+            Content-Type: text/csv; charset=utf-8 ✅
+            
+            First line (header):
+            TransactionID,Date,Type,Category,Group,CustomerChatId,Product,AmountUSD,CostUSD,ProfitUSD,Status
+            
+            ✅ Header EXACTLY matches expected format ✅
+            ✅ NO "Margin%" column (removed as expected) ✅
+            ✅ "EstCostUSD" changed to "CostUSD" ✅
+            ✅ "EstProfitUSD" changed to "ProfitUSD" ✅
+            ✅ Total lines: 398 (1 header + 397 data rows) ✅
+            
+            ★ CSV EXPORT VERIFIED: The CSV header has been updated correctly. The "Margin%" column has 
+              been removed, and the "Est" prefix has been removed from "CostUSD" and "ProfitUSD" columns.
+          
+          [CHECK 7] NO REGRESSION - Health check: ✅ PASSED
+            GET /api/health
+            
+            Response: HTTP 200 ✅
+            {
+              "status": "healthy",
+              "database": "connected"
+            }
+            
+            ★ BACKEND HEALTH CONFIRMED: Server is healthy, database connected.
+          
+          [CHECK 8] NO REGRESSION - nodejs supervisor: ✅ PASSED
+            sudo supervisorctl status nodejs
+            
+            Result: nodejs RUNNING ✅
+            
+            ★ SERVICE HEALTH CONFIRMED: nodejs service is running without issues.
+          
+          [CHECK 9] NO REGRESSION - nodejs error logs: ✅ PASSED
+            tail -n 100 /var/log/supervisor/nodejs.err.log
+            
+            Result: No NEW SyntaxError, ReferenceError, or "Cannot read properties" errors ✅
+            
+            ★ LOG HEALTH CONFIRMED: No errors related to the FLAT margin model change. 
+              (The recurring PhoneMonitor/BalanceMonitor Telnyx 401 errors are EXPECTED 
+              and pre-existing, as noted in the review request.)
+          
+          CONCLUSION:
+          The Sales & Profit API FLAT profit-margin model (30%) is COMPLETE and verified end-to-end. 
+          All 9 checks passed (100% pass rate).
+          
+          KEY CHANGES VERIFIED:
+          • FLAT 30% MARGIN MODEL WORKING:
+            - Single FLAT margin applies to EVERY category: profit = revenue * 0.30, cost = revenue * 0.70
+            - Verified on overview (range=all and range=30d): netProfit = grossRevenue * 0.30 exactly
+            - Verified on byCategory items: profit = revenue * 0.30 for all 9 categories
+            - Verified on transaction rows: profit = amountUsd * 0.30 for all sale rows
+            - Controlled by env SALES_FLAT_MARGIN_PCT (currently 30)
+          
+          • REMOVED FIELDS VERIFIED:
+            - summary has NO 'margin' key ✅
+            - byCategory items have NO 'margin' key ✅
+            - transaction rows have NO 'margin' key ✅
+            - 'assumptions' block removed ✅
+          
+          • NEW FIELDS VERIFIED:
+            - Top-level 'flatMarginPct' field == 30 ✅
+            - 'weekly' array with 21 items (weekStart, label, revenue, cost, profit, orders) ✅
+            - 'summary.thisWeekProfit' field == $41.58 ✅
+          
+          • CSV EXPORT VERIFIED:
+            - Header: TransactionID,Date,Type,Category,Group,CustomerChatId,Product,AmountUSD,CostUSD,ProfitUSD,Status
+            - NO "Margin%" column (removed) ✅
+            - "EstCostUSD" changed to "CostUSD" ✅
+            - "EstProfitUSD" changed to "ProfitUSD" ✅
+          
+          • ACTUAL NUMBERS (range=all):
+            - grossRevenue: $22,317.09
+            - totalCost: $15,621.96 (= grossRevenue * 0.70)
+            - netProfit: $6,695.13 (= grossRevenue * 0.30)
+            - flatMarginPct: 30
+            - thisWeekProfit: $41.58
+          
+          • NO REGRESSION:
+            - Backend health: status=healthy, database=connected
+            - nodejs service: RUNNING
+            - No NEW errors in logs (only expected PhoneMonitor/BalanceMonitor Telnyx 401s)
+          
+          SAFETY CONFIRMED:
+          • All testing was READ-ONLY (analytics queries only, no writes)
+          • NO users created, NO domain purchases placed, NO calls made, NO data mutations
+          • PRODUCTION-connected MongoDB was NOT modified
+          • All verification via the external API endpoints
+          
+          The Sales & Profit API FLAT profit-margin model (30%) is now working and verified. The old 
+          per-category cost ratios and exact costing have been successfully removed. A single FLAT 30% 
+          margin now applies to ALL categories, simplifying the profit calculation and making it 
+          consistent across the entire dashboard.
+      - working: true
+        agent: "testing"
+        comment: |
           ✅ VERIFICATION COMPLETE - Sales & Profit admin analytics API PASSED (all 12 checks, 100% pass):
           
           SCOPE: Verified the NEW Sales & Profit web dashboard admin analytics API. This is a 
@@ -10119,7 +10300,38 @@ test_plan:
 agent_communication:
   - agent: "main"
     message: |
-      NEW WORK TO VERIFY (2026-08-24) — Sales & Profit web dashboard (NEW admin analytics feature).
+      UPDATE (2026-08-24 v2) — Sales dashboard switched to a FLAT profit-margin model. Re-verify the
+      Sales API. Still READ-ONLY on prod Mongo — do NOT mutate data. Auth unchanged
+      (POST /api/admin/sales/login {password:"Nomadly123@"} → JWT; Bearer token on all other routes).
+
+      WHAT CHANGED (backend js/routes/sales.js):
+      - Removed the old 25% "haircut" (SALES_PROFIT_ADJUST_PCT) and all per-category cost ratios / exact
+        costing. Now a single FLAT margin applies to EVERY category: profit = revenue * FLAT_MARGIN,
+        cost = revenue * (1 - FLAT_MARGIN). Controlled by env SALES_FLAT_MARGIN_PCT (currently 30).
+      - Responses NO LONGER include any `margin` field (summary, byCategory, transactions rows) or the
+        `assumptions` block. Added top-level `flatMarginPct` (=30). Added `weekly` array + summary.thisWeekProfit.
+
+      CHECKS:
+      1) POST /api/admin/sales/login wrong pw → 401; correct pw "Nomadly123@" → 200 with token.
+      2) GET /api/admin/sales/overview?range=all WITH Bearer token → 200. Assert:
+         - summary.netProfit ≈ summary.grossRevenue * 0.30 (±0.5 rounding), summary.totalCost ≈ grossRevenue*0.70.
+         - summary has NO `margin` key. Response has flatMarginPct == 30.
+         - EACH byCategory item: profit ≈ revenue*0.30 (±0.5) and has NO `margin` key.
+         - `weekly` is a non-empty array; each item has weekStart, label, revenue, cost, profit, orders.
+         - summary.thisWeekProfit is a number.
+      3) GET /api/admin/sales/overview?range=30d WITH token → 200, same flat-30 relationship holds.
+      4) GET /api/admin/sales/transactions?range=all&group=sale&page=1&limit=25 WITH token → 200;
+         rows have profit ≈ amountUsd*0.30 for sale rows, and NO `margin` key on rows.
+      5) GET /api/admin/sales/export.csv?range=all&group=sale WITH token → 200, text/csv, header first line
+         = "TransactionID,Date,Type,Category,Group,CustomerChatId,Product,AmountUSD,CostUSD,ProfitUSD,Status"
+         (note: NO Margin% column anymore).
+      6) NO-REGRESSION: GET /api/health → healthy + db connected; nodejs RUNNING (recurring Telnyx 401 in
+         logs is pre-existing/expected — ignore).
+      Report pass/fail per check with the actual grossRevenue/netProfit numbers from range=all.
+
+  - agent: "main"
+    message: |
+      (prev) Domain purchase opening-message fix (2026-08-20) — bot/backend only.
       PROD-connected Mongo — READ-ONLY endpoints only. Do NOT create users / place purchases / mutate data.
 
       WHAT WAS BUILT:
