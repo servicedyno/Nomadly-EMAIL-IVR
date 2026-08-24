@@ -5,6 +5,11 @@
 const schedule = require('node-schedule')
 const { log } = require('console')
 const BROADCAST_CONFIG = require('./broadcast-config.js')
+const { branding } = require('./branding.js')
+const BRAND = branding.name
+const PHONE_BRAND = branding.phoneBrand
+const SUPPORT = branding.supportHandle
+const SUPPORT2 = branding.supportHandle2
 
 // OpenAI — optional (graceful fallback if missing)
 let OpenAI = null
@@ -23,7 +28,7 @@ const LANG_NAMES = { en: 'English', fr: 'French', zh: 'Chinese (Simplified)', hi
 // ─── Service Context for AI Generation ────────────────────────────────
 const SERVICE_CONTEXT = {
   cloudphone: {
-    services: 'CloudPhone by SpeechCue — virtual phone numbers',
+    services: `CloudPhone by ${PHONE_BRAND} — virtual phone numbers`,
     details: [
       'Virtual phone numbers in 30+ countries — no SIM, no contract',
       'Custom IVR greetings — sound like a real business',
@@ -138,7 +143,7 @@ const SERVICE_CONTEXT = {
     cta: '/start → 🖥️ VPS/RDP',
   },
   bulksms_app: {
-    services: 'Nomadly BulkSMS App — Send mass SMS campaigns from your Android phone',
+    services: `${BRAND} BulkSMS App — Send mass SMS campaigns from your Android phone`,
     details: [
       'Full-featured Android app for mass SMS campaigns',
       'Send from YOUR phone number — no shared sender IDs',
@@ -176,7 +181,7 @@ const SERVICE_CONTEXT = {
       'Share your unique referral link with friends and contacts',
       'Earn commission on every purchase your referrals make',
       'Commissions credited directly to your wallet — withdraw anytime',
-      'Works across ALL Nomadly services — Cloud IVR, Hosting, Domains, VPS, BulkSMS, etc.',
+      `Works across ALL ${BRAND} services — Cloud IVR, Hosting, Domains, VPS, BulkSMS, etc.`,
       'No cap on earnings — the more you refer, the more you earn',
       'Track your referrals and earnings in real-time',
       'Referral link never expires',
@@ -234,7 +239,7 @@ STRICT Requirements:
 - Keep under 500 characters
 - End with clear CTA: ${ctx.cta}
 - Be creative — vary tone, angle, and hook each time
-- Do NOT mention VPS, RDP, email blast, or @hostbay_bot
+- Do NOT mention VPS, RDP, email blast, or other bots
 - Sound exciting, not corporate
 
 Return ONLY the promotional message text.`
@@ -268,24 +273,24 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 // ─── BulkSMS Footer Variations (appended to every promo) ─────────────
 const BULKSMS_FOOTER = {
   en: [
-    `━━━━━━━━━━━━━━━\n<b>📩 Daily BulkSMS Sendout</b>\nReach thousands instantly — minimum 2,000 messages with <b>98% delivery rate</b>.\nContact Admin: @onarrival1 or @Hostbay_support`,
-    `━━━━━━━━━━━━━━━\n<b>📩 BulkSMS That Actually Delivers</b>\n2,000+ messages daily with a <b>98% delivery rate</b> — no wasted sends.\nDM @onarrival1 or @Hostbay_support to start`,
-    `━━━━━━━━━━━━━━━\n<b>📩 Need Mass SMS?</b>\nDaily BulkSMS sendout — min. 2,000 messages, <b>98% delivered</b>. Fast & reliable.\nReach out: @onarrival1 or @Hostbay_support`,
+    `━━━━━━━━━━━━━━━\n<b>📩 Daily BulkSMS Sendout</b>\nReach thousands instantly — minimum 2,000 messages with <b>98% delivery rate</b>.\nContact Admin: ${SUPPORT} or ${SUPPORT2}`,
+    `━━━━━━━━━━━━━━━\n<b>📩 BulkSMS That Actually Delivers</b>\n2,000+ messages daily with a <b>98% delivery rate</b> — no wasted sends.\nDM ${SUPPORT} or ${SUPPORT2} to start`,
+    `━━━━━━━━━━━━━━━\n<b>📩 Need Mass SMS?</b>\nDaily BulkSMS sendout — min. 2,000 messages, <b>98% delivered</b>. Fast & reliable.\nReach out: ${SUPPORT} or ${SUPPORT2}`,
   ],
   fr: [
-    `━━━━━━━━━━━━━━━\n<b>📩 Envoi BulkSMS Quotidien</b>\nTouchez des milliers de personnes — minimum 2 000 messages avec un <b>taux de livraison de 98%</b>.\nContactez : @onarrival1 ou @Hostbay_support`,
-    `━━━━━━━━━━━━━━━\n<b>📩 BulkSMS Fiable & Efficace</b>\n2 000+ messages par jour avec <b>98% de taux de livraison</b> — aucun envoi perdu.\nÉcrivez à @onarrival1 ou @Hostbay_support`,
-    `━━━━━━━━━━━━━━━\n<b>📩 Besoin d'envois SMS en masse ?</b>\nEnvoi quotidien — min. 2 000 SMS, <b>98% livrés</b>. Rapide & fiable.\nContact : @onarrival1 ou @Hostbay_support`,
+    `━━━━━━━━━━━━━━━\n<b>📩 Envoi BulkSMS Quotidien</b>\nTouchez des milliers de personnes — minimum 2 000 messages avec un <b>taux de livraison de 98%</b>.\nContactez : ${SUPPORT} ou ${SUPPORT2}`,
+    `━━━━━━━━━━━━━━━\n<b>📩 BulkSMS Fiable & Efficace</b>\n2 000+ messages par jour avec <b>98% de taux de livraison</b> — aucun envoi perdu.\nÉcrivez à ${SUPPORT} ou ${SUPPORT2}`,
+    `━━━━━━━━━━━━━━━\n<b>📩 Besoin d'envois SMS en masse ?</b>\nEnvoi quotidien — min. 2 000 SMS, <b>98% livrés</b>. Rapide & fiable.\nContact : ${SUPPORT} ou ${SUPPORT2}`,
   ],
   zh: [
-    `━━━━━━━━━━━━━━━\n<b>📩 每日群发短信服务</b>\n即时触达数千人 — 最低2,000条，<b>98%送达率</b>。\n联系管理员：@onarrival1 或 @Hostbay_support`,
-    `━━━━━━━━━━━━━━━\n<b>📩 高效群发短信</b>\n每日2,000+条短信，<b>98%送达率</b> — 零浪费发送。\n私信 @onarrival1 或 @Hostbay_support 开始`,
-    `━━━━━━━━━━━━━━━\n<b>📩 需要大量发送短信？</b>\n每日群发 — 最低2,000条，<b>98%成功送达</b>。快速可靠。\n联系：@onarrival1 或 @Hostbay_support`,
+    `━━━━━━━━━━━━━━━\n<b>📩 每日群发短信服务</b>\n即时触达数千人 — 最低2,000条，<b>98%送达率</b>。\n联系管理员：${SUPPORT} 或 ${SUPPORT2}`,
+    `━━━━━━━━━━━━━━━\n<b>📩 高效群发短信</b>\n每日2,000+条短信，<b>98%送达率</b> — 零浪费发送。\n私信 ${SUPPORT} 或 ${SUPPORT2} 开始`,
+    `━━━━━━━━━━━━━━━\n<b>📩 需要大量发送短信？</b>\n每日群发 — 最低2,000条，<b>98%成功送达</b>。快速可靠。\n联系：${SUPPORT} 或 ${SUPPORT2}`,
   ],
   hi: [
-    `━━━━━━━━━━━━━━━\n<b>📩 दैनिक BulkSMS सेवा</b>\nहज़ारों लोगों तक तुरंत पहुँचें — न्यूनतम 2,000 संदेश, <b>98% डिलीवरी दर</b>।\nसंपर्क करें: @onarrival1 या @Hostbay_support`,
-    `━━━━━━━━━━━━━━━\n<b>📩 BulkSMS जो सच में डिलीवर होता है</b>\nरोज़ाना 2,000+ मैसेज, <b>98% डिलीवरी रेट</b> — कोई बर्बादी नहीं।\nDM करें @onarrival1 या @Hostbay_support`,
-    `━━━━━━━━━━━━━━━\n<b>📩 बल्क SMS चाहिए?</b>\nदैनिक भेजें — न्यूनतम 2,000 SMS, <b>98% डिलीवर</b>। तेज़ और भरोसेमंद।\nसंपर्क: @onarrival1 या @Hostbay_support`,
+    `━━━━━━━━━━━━━━━\n<b>📩 दैनिक BulkSMS सेवा</b>\nहज़ारों लोगों तक तुरंत पहुँचें — न्यूनतम 2,000 संदेश, <b>98% डिलीवरी दर</b>।\nसंपर्क करें: ${SUPPORT} या ${SUPPORT2}`,
+    `━━━━━━━━━━━━━━━\n<b>📩 BulkSMS जो सच में डिलीवर होता है</b>\nरोज़ाना 2,000+ मैसेज, <b>98% डिलीवरी रेट</b> — कोई बर्बादी नहीं।\nDM करें ${SUPPORT} या ${SUPPORT2}`,
+    `━━━━━━━━━━━━━━━\n<b>📩 बल्क SMS चाहिए?</b>\nदैनिक भेजें — न्यूनतम 2,000 SMS, <b>98% डिलीवर</b>। तेज़ और भरोसेमंद।\nसंपर्क: ${SUPPORT} या ${SUPPORT2}`,
   ],
 }
 
@@ -297,24 +302,24 @@ function getBulkSmsFooter(lang) {
 // ─── Private SMTP Footer (appended to every promo before DynoPay) ──
 const SMTP_FOOTER = {
   en: [
-    `📧 <b>Private SMTP Server</b> — dedicated rotating IP + warming for email inboxing.\nDM @onarrival1 or @Hostbay_support`,
-    `📧 <b>Set up your own SMTP server</b> — rotating IP & warming included for max inboxing.\nDM @onarrival1 or @Hostbay_support`,
-    `📧 <b>Dedicated SMTP with rotating IP</b> — warming built-in for reliable email delivery.\nDM @onarrival1 or @Hostbay_support`,
+    `📧 <b>Private SMTP Server</b> — dedicated rotating IP + warming for email inboxing.\nDM ${SUPPORT} or ${SUPPORT2}`,
+    `📧 <b>Set up your own SMTP server</b> — rotating IP & warming included for max inboxing.\nDM ${SUPPORT} or ${SUPPORT2}`,
+    `📧 <b>Dedicated SMTP with rotating IP</b> — warming built-in for reliable email delivery.\nDM ${SUPPORT} or ${SUPPORT2}`,
   ],
   fr: [
-    `📧 <b>Serveur SMTP privé</b> — IP rotative dédiée + préchauffage pour la boîte de réception.\nDM @onarrival1 ou @Hostbay_support`,
-    `📧 <b>Configurez votre serveur SMTP</b> — IP rotative & préchauffage inclus pour un inboxing optimal.\nDM @onarrival1 ou @Hostbay_support`,
-    `📧 <b>SMTP dédié avec IP rotative</b> — préchauffage intégré pour une livraison fiable.\nDM @onarrival1 ou @Hostbay_support`,
+    `📧 <b>Serveur SMTP privé</b> — IP rotative dédiée + préchauffage pour la boîte de réception.\nDM ${SUPPORT} ou ${SUPPORT2}`,
+    `📧 <b>Configurez votre serveur SMTP</b> — IP rotative & préchauffage inclus pour un inboxing optimal.\nDM ${SUPPORT} ou ${SUPPORT2}`,
+    `📧 <b>SMTP dédié avec IP rotative</b> — préchauffage intégré pour une livraison fiable.\nDM ${SUPPORT} ou ${SUPPORT2}`,
   ],
   zh: [
-    `📧 <b>私有SMTP服务器</b> — 专属轮换IP + 预热，确保邮件进入收件箱。\n私信 @onarrival1 或 @Hostbay_support`,
-    `📧 <b>搭建您的SMTP服务器</b> — 轮换IP和预热功能，最大化收件率。\n私信 @onarrival1 或 @Hostbay_support`,
-    `📧 <b>专属SMTP + 轮换IP</b> — 内置预热，确保邮件可靠投递。\n私信 @onarrival1 或 @Hostbay_support`,
+    `📧 <b>私有SMTP服务器</b> — 专属轮换IP + 预热，确保邮件进入收件箱。\n私信 ${SUPPORT} 或 ${SUPPORT2}`,
+    `📧 <b>搭建您的SMTP服务器</b> — 轮换IP和预热功能，最大化收件率。\n私信 ${SUPPORT} 或 ${SUPPORT2}`,
+    `📧 <b>专属SMTP + 轮换IP</b> — 内置预热，确保邮件可靠投递。\n私信 ${SUPPORT} 或 ${SUPPORT2}`,
   ],
   hi: [
-    `📧 <b>प्राइवेट SMTP सर्वर</b> — डेडिकेटेड रोटेटिंग IP + वार्मिंग, ईमेल इनबॉक्सिंग के लिए।\nDM करें @onarrival1 या @Hostbay_support`,
-    `📧 <b>अपना SMTP सर्वर सेटअप करें</b> — रोटेटिंग IP और वार्मिंग शामिल, बेहतर इनबॉक्सिंग।\nDM करें @onarrival1 या @Hostbay_support`,
-    `📧 <b>डेडिकेटेड SMTP + रोटेटिंग IP</b> — बिल्ट-इन वार्मिंग, भरोसेमंद ईमेल डिलीवरी।\nDM करें @onarrival1 या @Hostbay_support`,
+    `📧 <b>प्राइवेट SMTP सर्वर</b> — डेडिकेटेड रोटेटिंग IP + वार्मिंग, ईमेल इनबॉक्सिंग के लिए।\nDM करें ${SUPPORT} या ${SUPPORT2}`,
+    `📧 <b>अपना SMTP सर्वर सेटअप करें</b> — रोटेटिंग IP और वार्मिंग शामिल, बेहतर इनबॉक्सिंग।\nDM करें ${SUPPORT} या ${SUPPORT2}`,
+    `📧 <b>डेडिकेटेड SMTP + रोटेटिंग IP</b> — बिल्ट-इन वार्मिंग, भरोसेमंद ईमेल डिलीवरी।\nDM करें ${SUPPORT} या ${SUPPORT2}`,
   ],
 }
 
@@ -641,7 +646,7 @@ Everything you need — one Telegram bot.
 🎁 Bundles save <b>20%+</b>
 
 Why use 10 different platforms?
-Nomadly has it ALL in one place ⚡
+${BRAND} has it ALL in one place ⚡
 
 Type <b>/start</b> to explore everything`,
 
@@ -665,7 +670,7 @@ Type <b>/start</b> to see everything we offer`,
 
       `💼 <b>EARN MONEY WITH EVERY REFERRAL</b>
 
-Join the Nomadly Reseller Program & build your income.
+Join the ${BRAND} Reseller Program & build your income.
 
 ✅ Sell any service on the bot to YOUR customers
 💰 Earn commission on every single sale
@@ -879,7 +884,7 @@ Type <b>/start</b> → 📧 BulkSMS`,
 
 Why pay $0.01+ per SMS when you can send for FREE from your number?
 
-📱 <b>Nomadly BulkSMS App</b>:
+📱 <b>${BRAND} BulkSMS App</b>:
 • Mass SMS campaigns from your Android
 • YOUR phone number = higher delivery & trust
 • Schedule, pause, resume campaigns anytime
@@ -940,7 +945,7 @@ Type <b>/start</b> → 📧 Email Blast`,
     refer_earn: [
       `🤝 <b>EARN MONEY WHILE YOU SLEEP</b>
 
-Share Nomadly → your friends buy → you get paid. Simple.
+Share ${BRAND} → your friends buy → you get paid. Simple.
 
 💰 Commission on EVERY purchase your referrals make
 🔗 One link — works across ALL services
@@ -953,7 +958,7 @@ Type <b>/start</b> → 🤝 Refer & Earn`,
 
       `💸 <b>YOUR NETWORK = YOUR NET WORTH</b>
 
-Every person you refer to Nomadly earns you real money.
+Every person you refer to ${BRAND} earns you real money.
 
 ✅ Cloud IVR, Hosting, Domains, VPS, BulkSMS — ALL count
 ✅ Commission credited instantly to wallet
@@ -965,13 +970,13 @@ Grab your link: <b>/start</b> → 🤝 Refer & Earn`,
 
       `🔥 <b>REFER FRIENDS. GET PAID. REPEAT.</b>
 
-Nomadly's referral program pays you for every sale:
+${BRAND}'s referral program pays you for every sale:
 
 🤝 Share your unique link
 💰 Friend buys ANY service → you earn commission
 💳 Withdraw from wallet anytime
 
-Works with ALL Nomadly services — the more you share, the more you make.
+Works with ALL ${BRAND} services — the more you share, the more you make.
 
 Start now: <b>/start</b> → 🤝 Refer & Earn`,
     ],
@@ -1242,7 +1247,7 @@ Tout ce dont vous avez besoin — un seul bot Telegram.
 💰 Cartes à partir de <b>5$</b> | Étiquettes à partir de <b>10$</b>
 🎁 Packs : économisez <b>20%+</b>
 
-Pourquoi utiliser 10 plateformes ? Nomadly a TOUT ⚡
+Pourquoi utiliser 10 plateformes ? ${BRAND} a TOUT ⚡
 
 Tapez <b>/start</b> pour tout explorer`,
 
@@ -1265,7 +1270,7 @@ Tapez <b>/start</b> pour tout voir`,
 
       `💼 <b>GAGNEZ DE L'ARGENT AVEC CHAQUE PARRAINAGE</b>
 
-Rejoignez le Programme Revendeur Nomadly.
+Rejoignez le Programme Revendeur ${BRAND}.
 
 ✅ Vendez n'importe quel service à VOS clients
 💰 Commission sur chaque vente
@@ -1459,7 +1464,7 @@ Tapez <b>/start</b> → 📧 BulkSMS`,
 
 Pourquoi payer 0,01$+ par SMS quand vous pouvez envoyer GRATUITEMENT ?
 
-📱 <b>App Nomadly BulkSMS</b> :
+📱 <b>App ${BRAND} BulkSMS</b> :
 • Campagnes SMS en masse depuis votre Android
 • VOTRE numéro = meilleure livraison & confiance
 • Programmez, mettez en pause, reprenez à tout moment
@@ -1516,7 +1521,7 @@ Tapez <b>/start</b> → 📧 Email Blast`,
     refer_earn: [
       `🤝 <b>GAGNEZ DE L'ARGENT EN DORMANT</b>
 
-Partagez Nomadly → vos amis achètent → vous êtes payé. Simple.
+Partagez ${BRAND} → vos amis achètent → vous êtes payé. Simple.
 
 💰 Commission sur CHAQUE achat de vos filleuls
 🔗 Un lien — fonctionne pour TOUS les services
@@ -1539,7 +1544,7 @@ Tapez <b>/start</b> → 🤝 Refer & Earn`,
 
       `🔥 <b>PARRAINEZ. GAGNEZ. RÉPÉTEZ.</b>
 
-Le programme de parrainage Nomadly vous paie à chaque vente :
+Le programme de parrainage ${BRAND} vous paie à chaque vente :
 
 🤝 Partagez votre lien unique
 💰 Votre ami achète N'IMPORTE QUEL service → vous gagnez
@@ -1812,7 +1817,7 @@ Shortit — 免费、快速、可追踪。
 💰 卡片 <b>$5</b> 起 | 标签 <b>$10</b> 起
 🎁 套餐节省 <b>20%+</b>
 
-为什么使用10个平台？Nomadly全部搞定 ⚡
+为什么使用10个平台？${BRAND}全部搞定 ⚡
 
 输入 <b>/start</b> 探索所有功能`,
 
@@ -1835,7 +1840,7 @@ Shortit — 免费、快速、可追踪。
 
       `💼 <b>每次推荐都能赚钱</b>
 
-加入Nomadly经销商计划，建立您的收入。
+加入${BRAND}经销商计划，建立您的收入。
 
 ✅ 将机器人上的任何服务卖给您的客户
 💰 每笔销售赚取佣金
@@ -2027,7 +2032,7 @@ Shortit — 免费、快速、可追踪。
 
       `💬 <b>别再付短信网关费用 — 用您自己的手机</b>
 
-📱 <b>Nomadly BulkSMS应用</b>：
+📱 <b>${BRAND} BulkSMS应用</b>：
 • 安卓手机群发短信
 • 您的号码 = 更高送达率和信任度
 • 随时预约、暂停、恢复活动
@@ -2084,7 +2089,7 @@ Shortit — 免费、快速、可追踪。
     refer_earn: [
       `🤝 <b>睡觉也能赚钱</b>
 
-分享Nomadly → 朋友购买 → 你赚钱。就这么简单。
+分享${BRAND} → 朋友购买 → 你赚钱。就这么简单。
 
 💰 推荐人每笔购买你都有佣金
 🔗 一个链接 — 适用于所有服务
@@ -2107,13 +2112,13 @@ Shortit — 免费、快速、可追踪。
 
       `🔥 <b>推荐朋友。获得报酬。重复。</b>
 
-Nomadly推荐计划为每笔交易付费：
+${BRAND}推荐计划为每笔交易付费：
 
 🤝 分享你的专属链接
 💰 朋友购买任何服务 → 你赚佣金
 💳 随时从钱包提现
 
-适用于所有Nomadly服务 — 分享越多，赚得越多。
+适用于所有${BRAND}服务 — 分享越多，赚得越多。
 
 输入 <b>/start</b> → 🤝 Refer & Earn`,
     ],
@@ -2384,7 +2389,7 @@ Shortit — मुफ्त, तेज़ और ट्रैक करने �
 💰 कार्ड <b>$5</b> से | लेबल <b>$10</b> से
 🎁 बंडल में <b>20%+</b> बचत
 
-10 प्लेटफॉर्म क्यों? Nomadly में सब है ⚡
+10 प्लेटफॉर्म क्यों? ${BRAND} में सब है ⚡
 
 <b>/start</b> टाइप करें`,
 
@@ -2407,7 +2412,7 @@ Shortit — मुफ्त, तेज़ और ट्रैक करने �
 
       `💼 <b>हर रेफरल से पैसे कमाएं</b>
 
-Nomadly रिसेलर प्रोग्राम जॉइन करें और आय बनाएं।
+${BRAND} रिसेलर प्रोग्राम जॉइन करें और आय बनाएं।
 
 ✅ बॉट पर कोई भी सर्विस अपने ग्राहकों को बेचें
 💰 हर बिक्री पर कमीशन
@@ -2597,7 +2602,7 @@ Nomadly रिसेलर प्रोग्राम जॉइन करें
 
       `💬 <b>SMS गेटवे पर पैसे खर्च करना बंद करें — अपना फोन इस्तेमाल करें</b>
 
-📱 <b>Nomadly BulkSMS ऐप</b>:
+📱 <b>${BRAND} BulkSMS ऐप</b>:
 • एंड्रॉइड से बल्क SMS कैंपेन
 • आपका नंबर = बेहतर डिलीवरी और भरोसा
 • कभी भी शेड्यूल, पॉज, रिज्यूम करें
@@ -2654,7 +2659,7 @@ Nomadly रिसेलर प्रोग्राम जॉइन करें
     refer_earn: [
       `🤝 <b>सोते-सोते पैसे कमाएं</b>
 
-Nomadly शेयर करें → दोस्त खरीदें → आप कमाएं। बस इतना।
+${BRAND} शेयर करें → दोस्त खरीदें → आप कमाएं। बस इतना।
 
 💰 आपके रेफरल की हर खरीदारी पर कमीशन
 🔗 एक लिंक — सभी सर्विसेज पर काम करता है
@@ -2667,7 +2672,7 @@ Nomadly शेयर करें → दोस्त खरीदें → आ
 
       `💸 <b>आपका नेटवर्क = आपकी कमाई</b>
 
-आप जिसे भी Nomadly का रेफरल देंगे, आपको असली पैसा मिलेगा।
+आप जिसे भी ${BRAND} का रेफरल देंगे, आपको असली पैसा मिलेगा।
 
 ✅ Cloud IVR, Hosting, Domains, VPS, BulkSMS — सब काउंट होता है
 ✅ कमीशन तुरंत क्रेडिट
@@ -2677,13 +2682,13 @@ Nomadly शेयर करें → दोस्त खरीदें → आ
 
       `🔥 <b>रेफर करो। कमाओ। दोहराओ।</b>
 
-Nomadly का रेफरल प्रोग्राम हर सेल पर पैसे देता है:
+${BRAND} का रेफरल प्रोग्राम हर सेल पर पैसे देता है:
 
 🤝 अपना यूनिक लिंक शेयर करें
 💰 दोस्त कोई भी सर्विस खरीदे → आप कमाएं
 💳 वॉलेट से कभी भी निकालें
 
-सभी Nomadly सर्विसेज पर काम करता है।
+सभी ${BRAND} सर्विसेज पर काम करता है।
 
 <b>/start</b> टाइप करें → 🤝 Refer & Earn`,
     ],
@@ -3008,7 +3013,7 @@ Type <b>/start</b> → 📧 BulkSMS`,
 
       `💡 <b>TIRED OF PAYING PER-SMS? THERE'S A BETTER WAY.</b>
 
-Nomadly BulkSMS App — mass SMS from your Android, YOUR number.
+${BRAND} BulkSMS App — mass SMS from your Android, YOUR number.
 
 📱 Up to UNLIMITED devices on Monthly plan
 ✅ Schedule, import CSV, real-time tracking
@@ -3064,7 +3069,7 @@ Type <b>/start</b> → 🤝 Refer & Earn`,
 
       `🌙💸 <b>PASSIVE INCOME — 1 LINK AWAY</b>
 
-Every friend you bring to Nomadly = money in YOUR wallet.
+Every friend you bring to ${BRAND} = money in YOUR wallet.
 No limit. No expiry.
 
 Grab your link: <b>/start</b> → 🤝 Refer & Earn`,
@@ -3350,7 +3355,7 @@ Tapez <b>/start</b> → 📧 BulkSMS`,
 
       `💡 <b>MARRE DE PAYER PAR SMS ? IL Y A MIEUX.</b>
 
-App Nomadly BulkSMS — SMS en masse depuis votre Android.
+App ${BRAND} BulkSMS — SMS en masse depuis votre Android.
 
 📱 Jusqu'à ILLIMITÉ d'appareils avec l'abonnement Mensuel
 
@@ -3692,7 +3697,7 @@ Linux VPS 或 Windows RDP — 25端口开放，忽略DMCA。
 
       `💡 <b>厌倦了按条付费？有更好的方法。</b>
 
-Nomadly BulkSMS应用 — 安卓群发短信。
+${BRAND} BulkSMS应用 — 安卓群发短信。
 
 📱 月套餐可用无限台设备
 
@@ -3738,7 +3743,7 @@ Nomadly BulkSMS应用 — 安卓群发短信。
     ],
 
     refer_earn: [
-      `🌙🤝 <b>分享Nomadly，别人买你赚。</b>
+      `🌙🤝 <b>分享${BRAND}，别人买你赚。</b>
 
 你的推荐链接覆盖所有服务。
 一次分享 = 持续佣金 💰
@@ -4034,7 +4039,7 @@ Linux VPS या Windows RDP — पोर्ट 25 ओपन, DMCA-इग्न
 
       `💡 <b>SMS पर पैसे बर्बाद करना बंद करें।</b>
 
-Nomadly BulkSMS ऐप — एंड्रॉइड से बल्क SMS।
+${BRAND} BulkSMS ऐप — एंड्रॉइड से बल्क SMS।
 
 📱 मंथली प्लान में अनलिमिटेड डिवाइस
 
@@ -4080,7 +4085,7 @@ Email Blast से कॉन्टैक्ट्स को कन्वर्�
     ],
 
     refer_earn: [
-      `🌙🤝 <b>Nomadly शेयर करो। दूसरे खरीदें, तुम कमाओ।</b>
+      `🌙🤝 <b>${BRAND} शेयर करो। दूसरे खरीदें, तुम कमाओ।</b>
 
 तुम्हारा रेफरल लिंक सभी सर्विसेज पर काम करता है।
 एक शेयर = बार-बार कमीशन 💰

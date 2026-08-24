@@ -11,6 +11,7 @@ import SecurityPanel from '../components/panel/SecurityPanel';
 import AccountSettings from '../components/panel/AccountSettings';
 import LanguageSwitcher from '../components/LanguageSwitcher';
 import useTheme from '../components/panel/useTheme';
+import BRAND from '../branding';
 
 const TABS = [
   { id: 'files', i18nKey: 'files', icon: 'folder' },
@@ -31,7 +32,7 @@ export default function PanelDashboard() {
 
   // Set browser tab title — overrides static "Speechcue | Cloud Phone" from index.html
   useEffect(() => {
-    document.title = 'HostBay | Hosting Panel';
+    document.title = `${BRAND.panelName} | Hosting Panel`;
   }, []);
 
   return (
@@ -46,7 +47,7 @@ export default function PanelDashboard() {
               <circle cx="6" cy="18" r="1" fill="currentColor"/>
             </svg>
           </div>
-          <span className="panel-header-title">Nomadly Hosting</span>
+          <span className="panel-header-title">{BRAND.name} Hosting</span>
           <a 
             href={`https://${user?.domain}`} 
             target="_blank" 

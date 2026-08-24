@@ -36715,6 +36715,12 @@ require('./routes/sales.js').install(app, {
   log,
 })
 
+// ── Public white-label branding (frontend fetches this at load) ──
+// External: <pod>/api/branding  →  node /branding
+app.get('/branding', (_req, res) => {
+  try { res.json(require('./branding').publicBranding()) } catch (e) { res.json({}) }
+})
+
 // ── cPanel Panel Routes ──
 const { createCpanelRoutes } = require('./cpanel-routes')
 app.use('/panel', createCpanelRoutes(() => cpanelAccounts, { notifyAdmin }))

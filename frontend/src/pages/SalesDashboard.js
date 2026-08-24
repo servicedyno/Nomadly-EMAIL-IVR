@@ -8,6 +8,7 @@ import {
   Receipt, RefreshCw, LogOut, Download, Search, Wallet, Gift, BarChart3,
   Layers, Users, Package, Lock,
 } from 'lucide-react';
+import { BRAND, brandSlug } from '../branding';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
 const API = `${BACKEND_URL}/api/admin/sales`;
@@ -70,7 +71,7 @@ function Login({ onLogin }) {
           </div>
           <div>
             <h1 className="text-white text-lg font-semibold leading-tight">Sales & Profit</h1>
-            <p className="text-slate-400 text-xs">Nomadly Admin Analytics</p>
+            <p className="text-slate-400 text-xs">{BRAND.name} Admin Analytics</p>
           </div>
         </div>
         <label className="block text-slate-300 text-sm mb-2">Dashboard password</label>
@@ -255,7 +256,7 @@ function Dashboard({ token, onLogout }) {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `nomadly-sales-${range}.csv`;
+      a.download = `${brandSlug}-sales-${range}.csv`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -278,7 +279,7 @@ function Dashboard({ token, onLogout }) {
             </div>
             <div>
               <h1 className="font-semibold leading-tight">Sales &amp; Profit</h1>
-              <p className="text-slate-500 text-xs leading-tight">Nomadly Bot Analytics</p>
+              <p className="text-slate-500 text-xs leading-tight">{BRAND.name} {BRAND.tagline}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -586,6 +587,7 @@ function Dashboard({ token, onLogout }) {
 // ─────────────────────────────────────────────────────────────
 export default function SalesDashboard() {
   const [token, setToken] = useState(() => localStorage.getItem('salesToken'));
+  useEffect(() => { document.title = `${BRAND.name} — Sales & Profit`; }, []);
   const logout = () => { localStorage.removeItem('salesToken'); setToken(null); };
   if (!token) return <Login onLogin={setToken} />;
   return <Dashboard token={token} onLogout={logout} />;

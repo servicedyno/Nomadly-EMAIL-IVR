@@ -1,10 +1,11 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { TelnyxRTC } from '@telnyx/webrtc';
+import BRAND from '../branding';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
-const SIP_DOMAIN = 'sip.speechcue.com';
+const SIP_DOMAIN = process.env.REACT_APP_SIP_DOMAIN || 'sip.speechcue.com';
 const MAX_CALL_DURATION = 60;
-const TELEGRAM_BOT_URL = 'https://t.me/Nomadlybot';
+const TELEGRAM_BOT_URL = `https://t.me/${BRAND.botUsername}`;
 
 const PhoneTestPage = () => {
   const [activeTab, setActiveTab] = useState('test');

@@ -8,6 +8,7 @@ import PanelDashboard from './pages/PanelDashboard';
 import PhoneTestPage from './pages/PhoneTestPage';
 import Storefront from './pages/Storefront';
 import SalesDashboard from './pages/SalesDashboard';
+import BRAND from './branding';
 import './App.css';
 import './panel-v2.css';
 import './store.css';
@@ -61,9 +62,9 @@ function MainApp() {
       <div className="dashboard-container">
         <header className="header" data-testid="header">
           <div className="logo-section">
-            <button className="logo-mark" onClick={() => setActiveView(VIEWS.DASHBOARD)} data-testid="logo-home-btn">N</button>
+            <button className="logo-mark" onClick={() => setActiveView(VIEWS.DASHBOARD)} data-testid="logo-home-btn">{BRAND.logoUrl ? <img src={BRAND.logoUrl} alt={BRAND.name} style={{ width: '72%', height: '72%', objectFit: 'contain' }} /> : (BRAND.name || 'N').charAt(0)}</button>
             <h1 className="logo-text">
-              <button className="logo-text-btn" onClick={() => setActiveView(VIEWS.DASHBOARD)}>NomadlyBot</button>
+              <button className="logo-text-btn" onClick={() => setActiveView(VIEWS.DASHBOARD)}>{BRAND.botName}</button>
             </h1>
           </div>
           <div className="header-right">
@@ -147,7 +148,7 @@ function MainApp() {
         )}
 
         <footer className="footer" data-testid="footer">
-          <p>NomadlyBot Admin Panel &middot; Powered by Speechcue</p>
+          <p>{BRAND.botName} Admin Panel &middot; Powered by {BRAND.poweredBy}</p>
         </footer>
       </div>
     </div>
@@ -192,6 +193,13 @@ function FeatureCard({ icon, title, desc, onClick, accent }) {
 }
 
 export default function App() {
+  useEffect(() => {
+    if (BRAND.faviconUrl) {
+      let link = document.querySelector("link[rel~='icon']");
+      if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link); }
+      link.href = BRAND.faviconUrl;
+    }
+  }, []);
   return (
     <BrowserRouter>
       <AuthProvider>

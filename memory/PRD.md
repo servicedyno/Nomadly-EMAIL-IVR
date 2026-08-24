@@ -3,6 +3,22 @@
 ## Original problem statement
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
+## 2026-06 (this fork) — White-Label backend pass COMPLETE (Path A single full rebrand) — VERIFIED (offline node/grep + frontend screenshot)
+Resumed the paused white-label task. Frontend React pages were already refactored to `frontend/src/branding.js`; this fork finished the **backend + static-asset** pass so EVERY brand string is env-driven with the current brand (Nomadly / HostBay / SpeechCue / @onarrival1 / @Hostbay_support / @NomadlyBot) as the built-in fallback — nothing changes until an env var is set (fully reversible, safe for the live bot).
+
+- **`js/branding.js`**: added `phoneBrand` (`BRAND_PHONE_NAME`→'SpeechCue'), `botHandle` (`CHAT_BOT_USERNAME`→'@NomadlyBot'); fixed `supportHandle2` default to `@Hostbay_support` (preserves current promo footers).
+- **`js/auto-promo.js`** (63 strings, EN/FR/ZH/HI): module consts from branding; `@onarrival1`→`${SUPPORT}`, `@Hostbay_support`→`${SUPPORT2}`, `Nomadly`→`${BRAND}`, `SpeechCue`→`${PHONE_BRAND}`, `@hostbay_bot`→"other bots" (AI instruction).
+- **`js/ai-support.js`** (14): reused existing `${BRAND}`; parameterized `ns1.hostbay.io`/`hostbay.io`→`${NS1}`/`${NS_DOMAIN}` (from `branding.nameservers`), all "Nomadly" prompt/code refs→`${BRAND}`. Kept the BANNED-words instruction (still bans "Hostbay"→use `${BRAND}`).
+- **`js/sms-app-service.js`** (13): module consts; "Nomadly SMS"→`${BRAND} SMS`, `@NomadlyBot`→`${BOT_HANDLE}` (single-quoted strings converted to template literals).
+- **`js/monetization-engine.js`** (13): welcome-bonus/win-back copy `Nomadly`→`${BRAND}` (4 locales).
+- **`frontend/public/index.html`**: `<title>`/description now `%REACT_APP_BRAND_PANEL_NAME%`-interpolated at build (renders "HostBay").
+- **Logo/favicon (easy upload later)**: added `REACT_APP_BRAND_LOGO_URL` + `REACT_APP_BRAND_FAVICON_URL` (+ `logoUrl`/`faviconUrl` in `frontend/src/branding.js`). Wired logo into App.js header mark, PanelLogin brand mark, Storefront logo (fallback to initial/SVG when unset); favicon set at runtime in `App()`. Set one URL + restart frontend → logo appears.
+- **`/app/BRANDING.md`**: full env-var reference (backend + frontend tables) + logo/favicon how-to + real-world go-live checklist (BotFather, DNS/NS, support handles, registrant, assets).
+- **Verified**: `node --check` clean on all 5 js files; runtime `require()` of all 4 modules OK (no ReferenceError); rendered `promoMessages` contains real "Nomadly"/handles with ZERO literal `${...}` leaks; nodejs rebooted clean with dev guards active (`BOT_ENVIRONMENT=development`, CF-Sync skipped), Mongo connected, `/api/branding` correct; frontend HTTP 200, title interpolated to "HostBay", admin UI screenshot renders header logo mark + nav intact.
+- ⚠️ Reaches production only after Save-to-GitHub + Railway redeploy (same as all code changes). Bot copy NOT driven conversationally in this pod (shared live prod Mongo) — verified offline per the established pattern.
+- NOT in scope (left as-is): the main bot menu/label copy in `js/lang/*.js` (huge; not requested), and `js/branding.js`/`.env` header comment brand mentions (cosmetic).
+
+
 
 ## 2026-08-20 (part 5) — Startup cron init guard + admin alerting — VERIFIED (testing agent, iteration_39, 100% backend)
 

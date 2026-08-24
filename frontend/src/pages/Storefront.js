@@ -5,6 +5,7 @@ import { Sun, Moon } from 'lucide-react';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { StoreProvider, useStore } from '../components/store/StoreContext';
 import useTheme from '../components/panel/useTheme';
+import BRAND from '../branding';
 
 const money = (n) => `$${Number(n || 0).toFixed(2)}`;
 const BACKEND = process.env.REACT_APP_BACKEND_URL || '';
@@ -145,7 +146,7 @@ export default function Storefront() {
 function StoreInner() {
   const { user, botLogin } = useStore();
   const [plans, setPlans] = useState([]);
-  const [config, setConfig] = useState({ botUsername: 'NomadlyBot', botStartPayload: 'web-login' });
+  const [config, setConfig] = useState({ botUsername: BRAND.botName, botStartPayload: 'web-login' });
   const [botLoginStatus, setBotLoginStatus] = useState('idle'); // idle | exchanging | failed
   const [botLoginError, setBotLoginError] = useState('');
   const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
@@ -197,8 +198,8 @@ function StoreHeader({ rightExtras }) {
   return (
     <header className="store-top">
       <div className="store-brand">
-        <span className="store-logo">H</span>
-        <span className="store-brand-name">HostBay</span>
+        <span className="store-logo">{BRAND.logoUrl ? <img src={BRAND.logoUrl} alt={BRAND.panelName} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : BRAND.panelName.charAt(0)}</span>
+        <span className="store-brand-name">{BRAND.panelName}</span>
         <span className="store-sub">Anti-Red Hosting</span>
       </div>
       <div className="store-top-right">
@@ -232,7 +233,7 @@ function AuthGate({ plans, config, botLoginError }) {
   useEffect(() => { if (botLoginError) setError(botLoginError); }, [botLoginError]);
 
   // Build the Telegram deep-link used by the QR + "Open Telegram" button.
-  const botUsername = (config?.botUsername || 'NomadlyBot').replace(/^@/, '');
+  const botUsername = (config?.botUsername || BRAND.botName).replace(/^@/, '');
   const startPayload = config?.botStartPayload || 'web-login';
   const tgDeepLink = `https://t.me/${botUsername}?start=${encodeURIComponent(startPayload)}`;
 
