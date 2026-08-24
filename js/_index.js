@@ -1276,6 +1276,9 @@ const RATE_LEAD = Number(process.env.RATE_LEAD)
 const PRICE_BITLY_LINK = Number(process.env.PRICE_BITLY_LINK)
 const RATE_LEAD_VALIDATOR = Number(process.env.RATE_LEAD_VALIDATOR)
 const RATE_CNAM_VALIDATOR = Number(process.env.RATE_CNAM_VALIDATOR)
+// Retail CNAM (caller-name) surcharge for LEAD PURCHASES (per lead). Previously
+// defined but never wired in, so CNAM was given away free on lead buys. Now charged.
+const RATE_CNAM = Number(process.env.RATE_CNAM)
 const FREE_LINKS = Number(process.env.FREE_LINKS)
 const HOSTED_ON = process.env.HOSTED_ON
 // Shortit feature flag — disabled only when explicitly set to 'false' (production kill-switch)
@@ -32640,7 +32643,11 @@ Select a category:`), k.of(catBtns))
       return send(chatId, t.whatNum)
 
     saveInfo('amount', amount)
-    const price = amount * RATE_LEAD
+    // CNAM (caller-name) is now a PAID add-on on lead purchases: auto-on for USA
+    // targeted leads, opt-in for other USA leads, N/A for non-USA. Mirrors the
+    // cnam logic used at generation time (line ~12897). Previously free.
+    const cnam = info?.country === 'USA' ? (info?.targetName ? true : info?.cnam) : false
+    const price = amount * RATE_LEAD + (cnam ? amount * RATE_CNAM : 0)
     await saveInfo('price', price)
     // FIX: Reset stale coupon state from previous orders (domain, hosting, etc.)
     // Without this, couponApplied+newPrice from a prior product leak into the leads confirm screen
