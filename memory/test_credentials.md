@@ -3,8 +3,10 @@
 This app uses Telegram bot authentication (chatId-based) — there is no email/password
 login for the panel. Auth flows are exercised via the bot / dev endpoints.
 
-## Sandbox runtime config (re-bootstrapped 2026-08-20 — NEW fresh pod, creds re-supplied by user)
-- Pod URL: https://credentials-preview-1.preview.emergentagent.com
+## Sandbox runtime config (re-bootstrapped 2026 — NEW fresh pod, creds re-supplied by user)
+- Pod URL: https://002e5fd7-d93b-42f7-b5f1-3c783c399bca.preview.emergentagent.com
+- Verified: node:5000 healthy/DB connected, FastAPI:8001 healthy, ext /api/health + /api/sms-app/download/info 200, frontend:3000 renders admin dashboard (Bot Running, DB Connected, REST APIs Active). BOT_ENVIRONMENT=development, SKIP_WEBHOOK_SYNC=true confirmed ([CF-Sync] Skipped log). Prod bot webhook untouched.
+- Prev pod URL (stale): https://credentials-preview-1.preview.emergentagent.com
 - Dev Telegram bot webhook (token TELEGRAM_BOT_TOKEN_DEV = 6597817067 @Nomadlytestbot) SET to <pod>/api/telegram/webhook (verified ok)
 - PROD bot (6292288341) webhook confirmed still on Railway (https://nomadly-email-ivr-production.up.railway.app/telegram/webhook) — UNTOUCHED
 - Env source of truth: /app/backend/.env  (/app/.env is a symlink to it)
