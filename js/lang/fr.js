@@ -9,6 +9,9 @@ const HIDE_BANK_PAYMENT = process.env.HIDE_BANK_PAYMENT
 const SELF_URL = process.env.SELF_URL
 const FREE_LINKS = Number(process.env.FREE_LINKS)
 const SUPPORT_USERNAME = process.env.SUPPORT_USERNAME
+const { branding: _brand } = require('../branding.js')
+const BRAND = _brand.name
+const BOT_HANDLE = _brand.botHandle
 
 // Digital Product Prices (from .env)
 const DP_PRICE_TWILIO_MAIN = Number(process.env.DP_PRICE_TWILIO_MAIN) || 450
@@ -355,7 +358,7 @@ ${CHAT_BOT_NAME}`,
  smsAppMenuExpired: `📧 <b>BulkSMS</b>\n\n📱 <i>Fonctionne uniquement sur Android (iOS non pris en charge).</i>\n\nVotre essai est terminé. Appuyez sur <b>⚡ Améliorer le plan</b> pour continuer.\n\nNouveau ? Appuyez sur <b>❓ Comment ça marche</b> pour découvrir BulkSMS.`,
 
  smsHowItWorks: (chatId) => `📧 <b>BulkSMS — Comment ça marche</b>\n\nBulkSMS envoie de vrais SMS <b>depuis la carte SIM de votre téléphone</b> — pas un serveur. Haute délivrabilité et vrai ID expéditeur.\n\n<b>⚙️ Configuration (une seule fois) :</b>\n1. Téléchargez l'appli → ${SMS_APP_LINK}\n2. Ouvrez → entrez le code : <code>${chatId}</code>\n3. Autorisez les permissions SMS\n\n<b>📤 Envoyer une campagne :</b>\n• Appuyez sur <b>📱 Créer une campagne</b> ici ou dans l'appli\n• Ajoutez message + contacts (coller ou fichier)\n• La campagne se synchronise → appuyez sur Envoyer sur votre téléphone\n\n<b>💡 Astuces :</b>\n• Utilisez une <b>eSIM</b> pour une ligne dédiée\n• Plusieurs lignes de message = rotation automatique\n• <code>[name]</code> = personnalisation automatique\n• Planifiez ou envoyez immédiatement\n\n<b>📋 Mes campagnes</b> affiche toutes vos campagnes.\n<b>🔓 Réinitialiser</b> pour changer d'appareil.\n\nBesoin d'eSIM ? Appuyez sur 💬 Support`,
- smsCreateCampaignIntro: `📱 <b>Créer une campagne SMS</b>\n\nVoici comment ça marche :\n\n<b>Étape 1 :</b> Nommez votre campagne\n<b>Étape 2 :</b> Rédigez votre/vos message(s)\n • Utilisez <code>[name]</code> pour personnaliser\n • Plusieurs lignes = rotation de messages\n<b>Étape 3 :</b> Importez les contacts\n • Collez en texte : <code>+1234567890, Jean</code>\n • Ou téléchargez un fichier .txt / .csv\n<b>Étape 4 :</b> Réglez le délai entre SMS\n<b>Étape 5 :</b> Vérifiez & confirmez — envoyez, planifiez ou enregistrez comme brouillon\n\nLa campagne se synchronise avec l'appli Nomadly SMS pour l'envoi.\n\n<b>Commençons — entrez un nom de campagne :</b>`,
+ smsCreateCampaignIntro: `📱 <b>Créer une campagne SMS</b>\n\nVoici comment ça marche :\n\n<b>Étape 1 :</b> Nommez votre campagne\n<b>Étape 2 :</b> Rédigez votre/vos message(s)\n • Utilisez <code>[name]</code> pour personnaliser\n • Plusieurs lignes = rotation de messages\n<b>Étape 3 :</b> Importez les contacts\n • Collez en texte : <code>+1234567890, Jean</code>\n • Ou téléchargez un fichier .txt / .csv\n<b>Étape 4 :</b> Réglez le délai entre SMS\n<b>Étape 5 :</b> Vérifiez & confirmez — envoyez, planifiez ou enregistrez comme brouillon\n\nLa campagne se synchronise avec l'appli ${BRAND} SMS pour l'envoi.\n\n<b>Commençons — entrez un nom de campagne :</b>`,
  smsSchedulePrompt: '⏰ <b>Planifier la campagne ?</b>\n\nChoisissez quand rendre cette campagne disponible :',
  smsSendNow: '▶️ Envoyer maintenant',
  smsScheduleLater: '⏰ Planifier pour plus tard',
@@ -369,7 +372,7 @@ ${CHAT_BOT_NAME}`,
  const lines = campaigns.slice(0, 10).map((c, i) =>
  `${i + 1}. ${statusIcons[c.status] || '📋'} <b>${c.name}</b>\n ${c.sentCount}/${c.totalCount} envoyés · ${c.status}`
  )
- return `📋 <b>Mes campagnes</b>\n\n${lines.join('\n\n')}\n\n<i>Gérez vos campagnes dans l'appli Nomadly SMS.</i>`
+ return `📋 <b>Mes campagnes</b>\n\n${lines.join('\n\n')}\n\n<i>Gérez vos campagnes dans l'appli ${BRAND} SMS.</i>`
  },
  planSubscribed:
  HIDE_SMS_APP === 'true'
@@ -960,7 +963,7 @@ ${CHAT_BOT_NAME}`,
  shortenedLinkText: linksText => `Voici vos liens raccourcis :\n${linksText}`,
  analyticsNotAvailable: provider => `📊 statistiques indisponibles (${provider})`,
  qrCodeText: `Voici votre code QR !`,
- scanQrOrUseChat: chatId => `📱 <b>Nomadly SMS App</b>\n\nVotre code d'activation :\n<code>${chatId}</code>\n\n📲 Téléchargez : ${process.env.SMS_APP_LINK || 'Contactez le support'}`,
+ scanQrOrUseChat: chatId => `📱 <b>${BRAND} SMS App</b>\n\nVotre code d'activation :\n<code>${chatId}</code>\n\n📲 Téléchargez : ${process.env.SMS_APP_LINK || 'Contactez le support'}`,
  domainPurchasedFailed: (domain) =>
  `❌ L'enregistrement du domaine <b>${domain}</b> n'a pas pu être complété. Veuillez réessayer ou contacter le support si le problème persiste.`,
  noDomainRegistered: `Vous n'avez pas encore acheté de domaines.`,
@@ -1577,7 +1580,7 @@ captchaDomainButton: (domain, isOff, hasCF) => hasCF ? `${isOff ? '🔴 OFF' : '
  cp_292: '✅ Messagerie Vocale greeting saved!',
  cp_293: '🎤 <b>Set SVI Message d\'accueil</b>\\n\\nChoose how to create your greeting:',
  cp_294: (usedKeys) => `➕ <b>Ajouter une option de menu</b>\n\nTouches utilisées : ${usedKeys}\n\nEntrez le numéro de touche (0-9) et la description.\n<i>Exemple : 1 Ventes</i>`,
- cp_295: '📝 Tapez le message d\'accueil que les appelants entendront.\\n\\n<i>Exemple : « Merci d\'avoir appelé Nomadly. Appuyez sur 1 pour les ventes, 2 pour le support. »</i>',
+ cp_295: '📝 Tapez le message d\'accueil que les appelants entendront.\\n\\n<i>Exemple : « Merci d\'avoir appelé ' + BRAND + '. Appuyez sur 1 pour les ventes, 2 pour le support. »</i>',
  cp_296: '🎙️ Envoyer a voice message or audio file for your SVI greeting.',
  cp_297: '📋 <b>Message d\'accueil Templates</b>\\n\\nProfessional templates for financial institutions — fraud hotlines, customer support, after-heures, and more. Sélectionner a category:',
  cp_298: 'Choisissez an option:',
@@ -1969,7 +1972,7 @@ host_4: (safeHtml) => `${safeHtml}`,
  sms_24: '✅ Non active app sessions found — you can login freely.',
  sms_25: '✅ <b>All devices logged out!</b>\\n\\nYou can now login on a new device.',
  sms_26: (buyPlan) => `❌ <b>Abonnement Required</b>\n\nYou need an active abonnement to create SMS campagnes.\n\nTap <b>${buyPlan}</b> on the main menu to subscribe — plans include unlimited URL shortening, BulkSMS, phone validations, and gratuit domains!`,
- sms_27: (SMS_APP_LINK, chatId) => `📵 <b>Non Actif Device</b>\n\nYou need to activate the Nomadly SMS App on a device before creating campagnes.\n\n1️⃣ Télécharger the app: ${SMS_APP_LINK}\n2️⃣ Entrez activation code: <code>${chatId}</code>\n3️⃣ Come back here to create campagnes`,
+ sms_27: (SMS_APP_LINK, chatId) => `📵 <b>Non Actif Device</b>\n\nYou need to activate the ${BRAND} SMS App on a device before creating campagnes.\n\n1️⃣ Télécharger the app: ${SMS_APP_LINK}\n2️⃣ Entrez activation code: <code>${chatId}</code>\n3️⃣ Come back here to create campagnes`,
  sms_28: (length) => `📱 <b>Sélectionner l'appareil</b>\n\nVous avez ${length} appareils actifs. Choisissez lequel enverra cette campagne :`,
  sms_29: '❌ Veuillez sélectionner un appareil parmi les boutons ci-dessous.',
  sms_3: (minAmount, maxAmount) => `Veuillez entrer un montant valide entre ${minAmount} et ${maxAmount}.`,
@@ -2448,11 +2451,11 @@ const languageMenu = {
 }
 
 const l = {
- continueAtHostbay: '🚀 Tous les services sont maintenant disponibles ici sur Nomadly Bot — domaines, leads, Cloud IVR, produits digitaux et plus.',
- redirectMessage: '🚀 Tous les services sont maintenant disponibles ici sur Nomadly Bot — domaines, leads, Cloud IVR, produits digitaux et plus.',
+ continueAtHostbay: '🚀 Tous les services sont maintenant disponibles ici sur ' + BRAND + ' Bot — domaines, leads, Cloud IVR, produits digitaux et plus.',
+ redirectMessage: '🚀 Tous les services sont maintenant disponibles ici sur ' + BRAND + ' Bot — domaines, leads, Cloud IVR, produits digitaux et plus.',
 
  serviceAd: `━━━━━━━━━━━━━━━━━━━━━━
-⚡ <b>Nomadly</b> — Votre Boîte à Outils Numérique
+⚡ <b>${BRAND}</b> — Votre Boîte à Outils Numérique
 ━━━━━━━━━━━━━━━━━━━━━━
 
 📞 <b>Cloud IVR + SIP</b>
@@ -2486,7 +2489,7 @@ Liens de marque · Domaines personnalisés · Analyses
 💰 Payez avec <b>Crypto · Virement · Portefeuille</b>
 ━━━━━━━━━━━━━━━━━━━━━━
 
-🤖 <b>Commencer →</b> @Nomadlybot
+🤖 <b>Commencer →</b> ${BOT_HANDLE}
 💬 <b>Besoin d'aide ?</b> Appuyez sur Obtenir de l'aide
 📢 <b>Mises à jour →</b> ${TG_CHANNEL}`,
 

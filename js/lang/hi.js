@@ -9,6 +9,9 @@ const HIDE_BANK_PAYMENT = process.env.HIDE_BANK_PAYMENT
 const SELF_URL = process.env.SELF_URL
 const FREE_LINKS = Number(process.env.FREE_LINKS)
 const SUPPORT_USERNAME = process.env.SUPPORT_USERNAME
+const { branding: _brand } = require('../branding.js')
+const BRAND = _brand.name
+const BOT_HANDLE = _brand.botHandle
 
 // Digital Product Prices (from .env)
 const DP_PRICE_TWILIO_MAIN = Number(process.env.DP_PRICE_TWILIO_MAIN) || 450
@@ -350,7 +353,7 @@ ${CHAT_BOT_NAME}`,
  smsAppMenuExpired: `📧 <b>BulkSMS</b>\n\n📱 <i>केवल Android डिवाइस पर काम करता है (iOS / iPhone समर्थित नहीं)।</i>\n\nआपका ट्रायल समाप्त हो गया। <b>⚡ प्लान अपग्रेड करें</b> दबाकर जारी रखें।\n\nनए हैं? <b>❓ कैसे काम करता है</b> दबाएं।`,
 
  smsHowItWorks: (chatId) => `📧 <b>BulkSMS — कैसे काम करता है</b>\n\nBulkSMS <b>आपके फोन की SIM कार्ड</b> से असली SMS भेजता है — सर्वर से नहीं। उच्च डिलीवरी और असली सेंडर ID।\n\n<b>⚙️ एक बार सेटअप:</b>\n1. ऐप डाउनलोड करें → ${SMS_APP_LINK}\n2. खोलें → कोड दर्ज करें: <code>${chatId}</code>\n3. SMS अनुमति दें\n\n<b>📤 अभियान भेजें:</b>\n• यहां <b>📱 अभियान बनाएं</b> दबाएं या ऐप में बनाएं\n• संदेश + संपर्क जोड़ें (पेस्ट या फ़ाइल अपलोड)\n• अभियान ऐप में सिंक → फोन पर भेजें दबाएं\n\n<b>💡 सुझाव:</b>\n• समर्पित लाइन के लिए <b>eSIM</b> उपयोग करें\n• कई संदेश पंक्तियां = स्वचालित रोटेशन\n• <code>[name]</code> = स्वचालित व्यक्तिगतकरण\n• शेड्यूल करें या तुरंत भेजें\n\n<b>📋 मेरे अभियान</b> सभी अभियान देखें।\n<b>🔓 लॉगिन रीसेट</b> डिवाइस बदलें।\n\neSIM चाहिए? 💬 सहायता दबाएं`,
- smsCreateCampaignIntro: `📱 <b>SMS अभियान बनाएं</b>\n\nइस तरह काम करता है:\n\n<b>चरण 1:</b> अपने अभियान का नाम दें\n<b>चरण 2:</b> अपना/अपने संदेश लिखें\n • व्यक्तिगत बनाने के लिए <code>[name]</code> उपयोग करें\n • कई पंक्तियां = संदेश रोटेशन\n<b>चरण 3:</b> संपर्क अपलोड करें\n • टेक्स्ट में चिपकाएं: <code>+1234567890, राम</code>\n • या .txt / .csv फ़ाइल अपलोड करें\n<b>चरण 4:</b> SMS के बीच विलंब समय सेट करें\n<b>चरण 5:</b> समीक्षा करें और पुष्टि करें — भेजें, शेड्यूल करें, या ड्राफ्ट सहेजें\n\nअभियान भेजने के लिए Nomadly SMS ऐप में सिंक होता है।\n\n<b>शुरू करें — अभियान का नाम दर्ज करें:</b>`,
+ smsCreateCampaignIntro: `📱 <b>SMS अभियान बनाएं</b>\n\nइस तरह काम करता है:\n\n<b>चरण 1:</b> अपने अभियान का नाम दें\n<b>चरण 2:</b> अपना/अपने संदेश लिखें\n • व्यक्तिगत बनाने के लिए <code>[name]</code> उपयोग करें\n • कई पंक्तियां = संदेश रोटेशन\n<b>चरण 3:</b> संपर्क अपलोड करें\n • टेक्स्ट में चिपकाएं: <code>+1234567890, राम</code>\n • या .txt / .csv फ़ाइल अपलोड करें\n<b>चरण 4:</b> SMS के बीच विलंब समय सेट करें\n<b>चरण 5:</b> समीक्षा करें और पुष्टि करें — भेजें, शेड्यूल करें, या ड्राफ्ट सहेजें\n\nअभियान भेजने के लिए ${BRAND} SMS ऐप में सिंक होता है।\n\n<b>शुरू करें — अभियान का नाम दर्ज करें:</b>`,
  smsSchedulePrompt: '⏰ <b>अभियान शेड्यूल करें?</b>\n\nचुनें कि यह अभियान कब उपलब्ध हो:',
  smsSendNow: '▶️ अभी भेजें',
  smsScheduleLater: '⏰ बाद के लिए शेड्यूल करें',
@@ -364,7 +367,7 @@ ${CHAT_BOT_NAME}`,
  const lines = campaigns.slice(0, 10).map((c, i) =>
  `${i + 1}. ${statusIcons[c.status] || '📋'} <b>${c.name}</b>\n ${c.sentCount}/${c.totalCount} भेजे · ${c.status}`
  )
- return `📋 <b>मेरे अभियान</b>\n\n${lines.join('\n\n')}\n\n<i>Nomadly SMS ऐप में अभियान प्रबंधित करें।</i>`
+ return `📋 <b>मेरे अभियान</b>\n\n${lines.join('\n\n')}\n\n<i>${BRAND} SMS ऐप में अभियान प्रबंधित करें।</i>`
  },
  planSubscribed:
  HIDE_SMS_APP === 'true'
@@ -945,7 +948,7 @@ ${CHAT_BOT_NAME}`,
  analyticsNotAvailable: provider => `📊 एनालिटिक्स उपलब्ध नहीं (${provider})`,
 
  qrCodeText: `यह आपका क्यूआर कोड है!`,
- scanQrOrUseChat: chatId => `📱 <b>Nomadly SMS ऐप</b>\n\nआपका एक्टिवेशन कोड:\n<code>${chatId}</code>\n\n📲 डाउनलोड: ${process.env.SMS_APP_LINK || 'सहायता से संपर्क करें'}`,
+ scanQrOrUseChat: chatId => `📱 <b>${BRAND} SMS ऐप</b>\n\nआपका एक्टिवेशन कोड:\n<code>${chatId}</code>\n\n📲 डाउनलोड: ${process.env.SMS_APP_LINK || 'सहायता से संपर्क करें'}`,
  domainPurchasedFailed: (domain) =>
  `❌ डोमेन <b>${domain}</b> का पंजीकरण पूरा नहीं हो सका। कृपया पुनः प्रयास करें या समस्या बनी रहने पर सहायता से संपर्क करें।`,
  noDomainRegistered: 'आपके पास अभी तक कोई खरीदा हुआ डोमेन नहीं है।',
@@ -1561,7 +1564,7 @@ captchaDomainButton: (domain, isOff, hasCF) => hasCF ? `${isOff ? '🔴 OFF' : '
  cp_292: '✅ वॉइसमेल greeting saved!',
  cp_293: '🎤 <b>Set IVR अभिवादन</b>\\n\\nChoose how to create your greeting:',
  cp_294: (usedKeys) => `➕ <b>मेनू विकल्प जोड़ें</b>\n\nउपयोग की गई कुंजियाँ: ${usedKeys}\n\nकुंजी संख्या (0-9) और विवरण दर्ज करें।\n<i>उदाहरण: 1 बिक्री</i>`,
- cp_295: '📝 कॉलर को सुनाई देने वाला ग्रीटिंग संदेश टाइप करें।\\n\\n<i>उदाहरण: "Nomadly पर कॉल करने के लिए धन्यवाद। बिक्री के लिए 1 दबाएं, सहायता के लिए 2 दबाएं।"</i>',
+ cp_295: '📝 कॉलर को सुनाई देने वाला ग्रीटिंग संदेश टाइप करें।\\n\\n<i>उदाहरण: "' + BRAND + ' पर कॉल करने के लिए धन्यवाद। बिक्री के लिए 1 दबाएं, सहायता के लिए 2 दबाएं।"</i>',
  cp_296: '🎙️ Send a voice message or audio file for your IVR greeting.',
  cp_297: '📋 <b>अभिवादन Templates</b>\\n\\nProfessional templates for financial institutions — fraud hotlines, customer support, after-घंटे, and more. चुनें a category:',
  cp_298: 'चुनें an option:',
@@ -1953,7 +1956,7 @@ host_4: (safeHtml) => `${safeHtml}`,
  sms_24: '✅ नहीं active app sessions found — you can login freely.',
  sms_25: '✅ <b>All devices logged out!</b>\\n\\nYou can now login on a new device.',
  sms_26: (buyPlan) => `❌ <b>सब्सक्रिप्शन Required</b>\n\nYou need an active subscription to create SMS campaigns.\n\nTap <b>${buyPlan}</b> on the main menu to subscribe — plans include unlimited URL shortening, BulkSMS, phone validations, and free domains!`,
- sms_27: (SMS_APP_LINK, chatId) => `📵 <b>नहीं सक्रिय Device</b>\n\nYou need to activate the Nomadly SMS App on a device before creating campaigns.\n\n1️⃣ Download the app: ${SMS_APP_LINK}\n2️⃣ दर्ज करें activation code: <code>${chatId}</code>\n3️⃣ Come back here to create campaigns`,
+ sms_27: (SMS_APP_LINK, chatId) => `📵 <b>नहीं सक्रिय Device</b>\n\nYou need to activate the ${BRAND} SMS App on a device before creating campaigns.\n\n1️⃣ Download the app: ${SMS_APP_LINK}\n2️⃣ दर्ज करें activation code: <code>${chatId}</code>\n3️⃣ Come back here to create campaigns`,
  sms_28: (length) => `📱 <b>डिवाइस चुनें</b>\n\nआपके पास ${length} सक्रिय डिवाइस हैं। चुनें कौन सा डिवाइस यह अभियान भेजेगा:`,
  sms_29: '❌ कृपया नीचे बटन से डिवाइस चुनें।',
  sms_3: (minAmount, maxAmount) => `कृपया ${minAmount} से ${maxAmount} के बीच वैध राशि दर्ज करें।`,
@@ -2440,11 +2443,11 @@ const languageMenu = {
 }
 
 const l = {
- continueAtHostbay: '🚀 सभी सेवाएं अब Nomadly Bot पर उपलब्ध हैं — डोमेन, लीड्स, Cloud IVR, डिजिटल उत्पाद और बहुत कुछ।',
- redirectMessage: '🚀 सभी सेवाएं अब Nomadly Bot पर उपलब्ध हैं — डोमेन, लीड्स, Cloud IVR, डिजिटल उत्पाद और बहुत कुछ।',
+ continueAtHostbay: '🚀 सभी सेवाएं अब ' + BRAND + ' Bot पर उपलब्ध हैं — डोमेन, लीड्स, Cloud IVR, डिजिटल उत्पाद और बहुत कुछ।',
+ redirectMessage: '🚀 सभी सेवाएं अब ' + BRAND + ' Bot पर उपलब्ध हैं — डोमेन, लीड्स, Cloud IVR, डिजिटल उत्पाद और बहुत कुछ।',
 
  serviceAd: `━━━━━━━━━━━━━━━━━━━━━━
-⚡ <b>Nomadly</b> — आपका डिजिटल टूलकिट
+⚡ <b>${BRAND}</b> — आपका डिजिटल टूलकिट
 ━━━━━━━━━━━━━━━━━━━━━━
 
 📞 <b>Cloud IVR + SIP</b>
@@ -2478,7 +2481,7 @@ Google Workspace · Zoho Mail · eSIM
 💰 भुगतान: <b>क्रिप्टो · बैंक · वॉलेट</b>
 ━━━━━━━━━━━━━━━━━━━━━━
 
-🤖 <b>अभी शुरू करें →</b> @Nomadlybot
+🤖 <b>अभी शुरू करें →</b> ${BOT_HANDLE}
 💬 <b>मदद चाहिए?</b> बॉट में सहायता पर टैप करें
 📢 <b>अपडेट →</b> ${TG_CHANNEL}`,
 

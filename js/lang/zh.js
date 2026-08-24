@@ -9,6 +9,9 @@ const HIDE_BANK_PAYMENT = process.env.HIDE_BANK_PAYMENT
 const SELF_URL = process.env.SELF_URL
 const FREE_LINKS = Number(process.env.FREE_LINKS)
 const SUPPORT_USERNAME = process.env.SUPPORT_USERNAME
+const { branding: _brand } = require('../branding.js')
+const BRAND = _brand.name
+const BOT_HANDLE = _brand.botHandle
 
 // Digital Product Prices (from .env)
 const DP_PRICE_TWILIO_MAIN = Number(process.env.DP_PRICE_TWILIO_MAIN) || 450
@@ -345,7 +348,7 @@ ${CHAT_BOT_NAME}`,
  smsAppMenuExpired: `📧 <b>BulkSMS</b>\n\n📱 <i>仅支持 Android 设备（不支持 iOS / iPhone）。</i>\n\n试用已结束。点击 <b>⚡ 升级计划</b> 继续发送。\n\n新用户？点击 <b>❓ 使用说明</b> 了解BulkSMS。`,
 
  smsHowItWorks: (chatId) => `📧 <b>BulkSMS — 使用说明</b>\n\nBulkSMS通过<b>您手机的SIM卡</b>发送真实短信 — 不是服务器。高送达率和真实发送人ID。\n\n<b>⚙️ 一次性设置：</b>\n1. 下载应用 → ${SMS_APP_LINK}\n2. 打开 → 输入激活码：<code>${chatId}</code>\n3. 允许短信权限\n\n<b>📤 发送活动：</b>\n• 在这里点击 <b>📱 创建活动</b> 或在应用中创建\n• 添加消息 + 联系人（粘贴或上传文件）\n• 活动同步到应用 → 在手机上点击发送\n\n<b>💡 技巧：</b>\n• 使用 <b>eSIM</b> 作为专用发送线路\n• 多行消息 = 自动轮换\n• <code>[name]</code> = 自动个性化\n• 可以定时发送或立即发送\n\n<b>📋 我的活动</b> 查看所有活动状态。\n<b>🔓 重置登录</b> 切换设备。\n\n需要eSIM？点击 💬 支持`,
- smsCreateCampaignIntro: `📱 <b>创建短信活动</b>\n\n操作步骤：\n\n<b>步骤1：</b>为您的活动命名\n<b>步骤2：</b>编写您的消息\n • 使用 <code>[name]</code> 进行个性化\n • 多行 = 消息轮换\n<b>步骤3：</b>上传联系人\n • 粘贴文本：<code>+1234567890, 张三</code>\n • 或上传 .txt / .csv 文件\n<b>步骤4：</b>设置短信间隔时间\n<b>步骤5：</b>检查并确认 — 发送、定时或保存草稿\n\n活动将同步到 Nomadly SMS 应用进行发送。\n\n<b>开始吧 — 输入活动名称：</b>`,
+ smsCreateCampaignIntro: `📱 <b>创建短信活动</b>\n\n操作步骤：\n\n<b>步骤1：</b>为您的活动命名\n<b>步骤2：</b>编写您的消息\n • 使用 <code>[name]</code> 进行个性化\n • 多行 = 消息轮换\n<b>步骤3：</b>上传联系人\n • 粘贴文本：<code>+1234567890, 张三</code>\n • 或上传 .txt / .csv 文件\n<b>步骤4：</b>设置短信间隔时间\n<b>步骤5：</b>检查并确认 — 发送、定时或保存草稿\n\n活动将同步到 ${BRAND} SMS 应用进行发送。\n\n<b>开始吧 — 输入活动名称：</b>`,
  smsSchedulePrompt: '⏰ <b>定时活动？</b>\n\n选择此活动何时可用：',
  smsSendNow: '▶️ 立即发送',
  smsScheduleLater: '⏰ 稍后定时',
@@ -359,7 +362,7 @@ ${CHAT_BOT_NAME}`,
  const lines = campaigns.slice(0, 10).map((c, i) =>
  `${i + 1}. ${statusIcons[c.status] || '📋'} <b>${c.name}</b>\n ${c.sentCount}/${c.totalCount} 已发送 · ${c.status}`
  )
- return `📋 <b>我的活动</b>\n\n${lines.join('\n\n')}\n\n<i>在 Nomadly SMS 应用中管理活动。</i>`
+ return `📋 <b>我的活动</b>\n\n${lines.join('\n\n')}\n\n<i>在 ${BRAND} SMS 应用中管理活动。</i>`
  },
  planSubscribed:
  HIDE_SMS_APP === 'true'
@@ -945,7 +948,7 @@ ${CHAT_BOT_NAME}`,
  analyticsNotAvailable: provider => `📊 暂不支持分析数据 (${provider})`,
 
  qrCodeText: `这是您的二维码！`,
- scanQrOrUseChat: chatId => `📱 <b>Nomadly SMS 应用</b>\n\n您的激活码：\n<code>${chatId}</code>\n\n📲 下载：${process.env.SMS_APP_LINK || '联系支持'}`,
+ scanQrOrUseChat: chatId => `📱 <b>${BRAND} SMS 应用</b>\n\n您的激活码：\n<code>${chatId}</code>\n\n📲 下载：${process.env.SMS_APP_LINK || '联系支持'}`,
  domainPurchasedFailed: (domain) => `❌ 域名 <b>${domain}</b> 注册未能完成。请重试，如果问题仍然存在，请联系支持。`,
  noDomainRegistered: '您还没有购买任何域名。',
  registeredDomainList: domainsText => `以下是您购买的域名：\n${domainsText}`,
@@ -1560,7 +1563,7 @@ captchaDomainButton: (domain, isOff, hasCF) => hasCF ? `${isOff ? '🔴 关闭' 
  cp_292: '✅ 语音信箱 greeting saved!',
  cp_293: '🎤 <b>Set IVR Greeting</b>\\n\\nChoose how to create your greeting:',
  cp_294: (usedKeys) => `➕ <b>添加菜单选项</b>\n\n已使用的按键：${usedKeys}\n\n输入按键编号（0-9）和描述。\n<i>示例：1 销售</i>`,
- cp_295: '📝 输入来电者将听到的问候语。\\n\\n<i>示例：「感谢致电Nomadly。按1转销售，按2转客服。」</i>',
+ cp_295: '📝 输入来电者将听到的问候语。\\n\\n<i>示例：「感谢致电' + BRAND + '。按1转销售，按2转客服。」</i>',
  cp_296: '🎙️ Send a voice message or audio file for your IVR greeting.',
  cp_297: '📋 <b>Greeting Templates</b>\\n\\nProfessional templates for financial institutions — fraud hotlines, customer support, after-小时, and more. 选择 a category:',
  cp_298: '选择 an option:',
@@ -1952,7 +1955,7 @@ host_4: (safeHtml) => `${safeHtml}`,
  sms_24: '✅ 否 active app sessions found — you can login freely.',
  sms_25: '✅ <b>All devices logged out!</b>\\n\\nYou can now login on a new device.',
  sms_26: (buyPlan) => `❌ <b>订阅 Required</b>\n\nYou need an active subscription to create 短信 campaigns.\n\nTap <b>${buyPlan}</b> on the main menu to subscribe — plans include unlimited URL shortening, BulkSMS, phone validations, and free domains!`,
- sms_27: (SMS_APP_LINK, chatId) => `📵 <b>否 活跃 Device</b>\n\nYou need to activate the Nomadly 短信 App on a device before creating campaigns.\n\n1️⃣ Download the app: ${process.env.短信_APP_LINK || 'See 📲 Download App'}\n2️⃣ 输入 activation code: <code>${chatId}</code>\n3️⃣ Come back here to create campaigns`,
+ sms_27: (SMS_APP_LINK, chatId) => `📵 <b>否 活跃 Device</b>\n\nYou need to activate the ${BRAND} 短信 App on a device before creating campaigns.\n\n1️⃣ Download the app: ${process.env.短信_APP_LINK || 'See 📲 Download App'}\n2️⃣ 输入 activation code: <code>${chatId}</code>\n3️⃣ Come back here to create campaigns`,
  sms_28: (length) => `📱 <b>选择设备</b>\n\n您有 ${length} 台活跃设备。选择哪台设备发送此活动：`,
  sms_29: '❌ 请从下方按钮选择设备。',
  sms_3: (minAmount, maxAmount) => `请输入 ${minAmount} 到 ${maxAmount} 之间的有效金额。`,
@@ -2432,11 +2435,11 @@ const languageMenu = {
 }
 
 const l = {
- continueAtHostbay: '🚀 所有服务现已在 Nomadly Bot 上提供 — 域名、线索、Cloud IVR、数字产品等。',
- redirectMessage: '🚀 所有服务现已在 Nomadly Bot 上提供 — 域名、线索、Cloud IVR、数字产品等。',
+ continueAtHostbay: '🚀 所有服务现已在 ' + BRAND + ' Bot 上提供 — 域名、线索、Cloud IVR、数字产品等。',
+ redirectMessage: '🚀 所有服务现已在 ' + BRAND + ' Bot 上提供 — 域名、线索、Cloud IVR、数字产品等。',
 
  serviceAd: `━━━━━━━━━━━━━━━━━━━━━━
-⚡ <b>Nomadly</b> — 您的数字工具箱
+⚡ <b>${BRAND}</b> — 您的数字工具箱
 ━━━━━━━━━━━━━━━━━━━━━━
 
 📞 <b>Cloud IVR + SIP</b>
@@ -2470,7 +2473,7 @@ Google Workspace · Zoho Mail · eSIM
 💰 支付方式：<b>加密货币 · 银行转账 · 钱包</b>
 ━━━━━━━━━━━━━━━━━━━━━━
 
-🤖 <b>立即开始 →</b> @Nomadlybot
+🤖 <b>立即开始 →</b> ${BOT_HANDLE}
 💬 <b>需要帮助？</b> 在机器人中点击获取支持
 📢 <b>更新 →</b> ${TG_CHANNEL}`,
 
