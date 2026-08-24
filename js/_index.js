@@ -36700,6 +36700,14 @@ require('./routes/admin.js').install(app, {
   },
 })
 
+// ── Sales & Profit dashboard (web admin) ──
+// Read-only analytics over `transactions` + call usage from `walletLedger`.
+// Mounted at /admin/sales — external <pod>/api/admin/sales/*.
+require('./routes/sales.js').install(app, {
+  getDb: () => db,
+  log,
+})
+
 // ── cPanel Panel Routes ──
 const { createCpanelRoutes } = require('./cpanel-routes')
 app.use('/panel', createCpanelRoutes(() => cpanelAccounts, { notifyAdmin }))

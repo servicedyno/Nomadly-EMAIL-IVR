@@ -9432,6 +9432,238 @@ backend:
             • DigitalOcean and Azure instances are IMMEDIATELY deleted (PAYG billing stops)
           Dev-pod scheduler guard prevents destructive operations in sandbox environment.
 
+  - task: "Sales & Profit web dashboard (2026-08-24) — new admin analytics API + UI"
+    implemented: true
+    working: true
+    file: "/app/js/routes/sales.js (new router mounted at /admin/sales); /app/js/_index.js (router installation); /app/frontend/src/pages/SalesDashboard.js (React page at /sales)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFICATION COMPLETE - Sales & Profit admin analytics API PASSED (all 12 checks, 100% pass):
+          
+          SCOPE: Verified the NEW Sales & Profit web dashboard admin analytics API. This is a 
+          PRODUCTION-connected MongoDB environment with READ-ONLY endpoints only. NO users created, 
+          NO purchases placed, NO data mutations.
+          
+          ARCHITECTURE: React → {REACT_APP_BACKEND_URL}/api/admin/sales/* → FastAPI (8001) → proxies 
+          to Node.js Express (5000). All endpoints tested through the external base URL.
+          
+          AUTH: Password-gated (password: "Nomadly123@" from backend/.env SALES_DASHBOARD_PASSWORD). 
+          Login returns JWT (24h). All other routes require "Authorization: Bearer <token>" header.
+          
+          [CHECK 1] Login with wrong password: ✅ PASSED
+            POST /api/admin/sales/login with {"password":"wrong"}
+            
+            Response: HTTP 401 ✅
+            {
+              "error": "Incorrect password"
+            }
+            
+            ★ AUTH GUARD VERIFIED: Wrong password correctly returns 401 with error message.
+          
+          [CHECK 2] Login with correct password: ✅ PASSED
+            POST /api/admin/sales/login with {"password":"Nomadly123@"}
+            
+            Response: HTTP 200 ✅
+            Token received (length: 156) ✅
+            
+            ★ AUTH WORKING: Correct password returns 200 with valid JWT token.
+          
+          [CHECK 3] Overview without auth: ✅ PASSED
+            GET /api/admin/sales/overview?range=30d WITHOUT Authorization header
+            
+            Response: HTTP 401 ✅
+            
+            ★ AUTH GUARD VERIFIED: Protected endpoint correctly returns 401 without token.
+          
+          [CHECK 4] Overview 30d with auth: ✅ PASSED
+            GET /api/admin/sales/overview?range=30d WITH Bearer token
+            
+            Response: HTTP 200 ✅
+            
+            [All Required Keys Present]
+            ✅ summary (with grossRevenue, totalCost, netProfit, margin, orders, avgOrderValue, refunds, deposits, bonuses)
+            ✅ byCategory (array with 7 items, each has category, revenue, cost, profit, margin, orders, exact)
+            ✅ timeseries (array with 30 items, each has date, revenue, cost, profit, orders)
+            ✅ topProducts (array)
+            ✅ topCustomers (array)
+            ✅ deltas (object)
+            ✅ assumptions (object)
+            
+            [Sanity Checks - All Passed]
+            ✅ grossRevenue >= 0: $5371.94
+            ✅ netProfit ≈ grossRevenue - totalCost (diff=0.0000): $3417.91 ≈ $5371.94 - $1954.03
+            ✅ margin is a number: 63.6
+            ✅ byCategory items have required keys
+            ✅ timeseries items have required keys
+            
+            Summary: grossRevenue=$5371.94, totalCost=$1954.03, netProfit=$3417.91, margin=63.6%
+            
+            ★ ANALYTICS WORKING: Overview endpoint returns valid structure with all required keys 
+              and sanity checks pass (profit calculation correct, all data types valid).
+          
+          [CHECK 5] Overview all with auth: ✅ PASSED
+            GET /api/admin/sales/overview?range=all WITH Bearer token
+            
+            Response: HTTP 200 ✅
+            
+            Summary (all): grossRevenue=$22316.96, totalCost=$8276.12, netProfit=$14040.84
+            Comparison: all=$22316.96 >= 30d=$5371.94 ✅
+            
+            ★ RANGE FILTER WORKING: "all" range returns larger totals than "30d" as expected.
+          
+          [CHECK 6] Transactions with filters: ✅ ALL 3 SUB-CHECKS PASSED
+            
+            6a) GET /api/admin/sales/transactions?range=all&group=sale&page=1&limit=25
+              Response: HTTP 200 ✅
+              Structure: {total: 397, page: 1, limit: 25, pages: 16, rows: [25 items]} ✅
+              All rows have group == "sale" ✅
+              Row structure: id, date, type, category, group, amountUsd, cost, profit, margin, status ✅
+              
+              ★ GROUP FILTER WORKING: group=sale returns only sale transactions (397 total).
+            
+            6b) GET /api/admin/sales/transactions?range=all&group=deposit&page=1&limit=25
+              Response: HTTP 200 ✅
+              Total: 246, Rows: 25 ✅
+              All rows have group == "deposit" ✅
+              
+              ★ GROUP FILTER WORKING: group=deposit returns only deposit transactions (246 total).
+            
+            6c) Search filter test
+              Without search: 397 total
+              With search=.com: 247 total
+              247 <= 397 ✅
+              
+              ★ SEARCH FILTER WORKING: Search parameter correctly narrows results (397 → 247).
+          
+          [CHECK 7] Export CSV: ✅ PASSED
+            GET /api/admin/sales/export.csv?range=all&group=sale WITH Bearer token
+            
+            Response: HTTP 200 ✅
+            Content-Type: text/csv; charset=utf-8 ✅
+            
+            First line (header):
+            TransactionID,Date,Type,Category,Group,CustomerChatId,Product,AmountUSD,EstCostUSD,EstProfitUSD,Margin%,Status
+            
+            Total lines: 398 (1 header + 397 data rows) ✅
+            
+            ★ CSV EXPORT WORKING: Export endpoint returns valid CSV with correct header format.
+          
+          [CHECK 8] NO REGRESSION: ✅ ALL 3 SUB-CHECKS PASSED
+            
+            8a) Health check: ✅ PASSED
+              GET /api/health
+              
+              Response: HTTP 200 ✅
+              {
+                "status": "healthy",
+                "database": "connected",
+                "uptime": "0.21 hours"
+              }
+              
+              ★ BACKEND HEALTH CONFIRMED: Server is healthy, database connected.
+            
+            8b) nodejs supervisor status: ✅ PASSED
+              sudo supervisorctl status nodejs
+              
+              Result: nodejs RUNNING (pid 3044, uptime 0:12:41) ✅
+              
+              ★ SERVICE HEALTH CONFIRMED: nodejs service is running without issues.
+            
+            8c) nodejs error logs: ✅ PASSED
+              tail -n 100 /var/log/supervisor/nodejs.err.log
+              
+              Result: No SyntaxError, ReferenceError, or "Cannot read properties" errors ✅
+              
+              ★ LOG HEALTH CONFIRMED: No errors related to the Sales & Profit dashboard. 
+                (The recurring PhoneMonitor/BalanceMonitor Telnyx 401 errors are EXPECTED 
+                and pre-existing, as noted in the review request.)
+          
+          CONCLUSION:
+          The Sales & Profit web dashboard admin analytics API is COMPLETE and verified end-to-end. 
+          All 12 checks passed (100% pass rate).
+          
+          KEY FEATURES VERIFIED:
+          • AUTH WORKING:
+            - Password-gated login (wrong password → 401, correct password → 200 with JWT)
+            - Protected endpoints require Bearer token (no token → 401)
+            - JWT token valid for 24h (signed with SESSION_SECRET)
+          
+          • ANALYTICS ENDPOINTS WORKING:
+            - GET /overview?range=30d|all → Returns comprehensive sales/profit analytics
+            - Summary: grossRevenue, totalCost, netProfit, margin, orders, avgOrderValue, refunds, deposits, bonuses
+            - byCategory: Array of category breakdowns (revenue, cost, profit, margin, orders, exact flag)
+            - timeseries: Array of daily data points (date, revenue, cost, profit, orders)
+            - topProducts: Array of top-selling products
+            - topCustomers: Array of top customers
+            - deltas: Period-over-period changes
+            - assumptions: Cost estimation methodology notes
+          
+          • TRANSACTIONS ENDPOINT WORKING:
+            - GET /transactions?range=all&group=sale|deposit&page=1&limit=25 → Paginated transaction list
+            - Filters: group (sale/deposit), search (text filter), range (30d/all), pagination
+            - Structure: {total, page, limit, pages, rows[]}
+            - Row fields: id, date, type, category, group, amountUsd, cost, profit, margin, status
+            - Group filter correctly isolates sale (397) vs deposit (246) transactions
+            - Search filter correctly narrows results (397 → 247 with search=.com)
+          
+          • CSV EXPORT WORKING:
+            - GET /export.csv?range=all&group=sale → Returns CSV file
+            - Content-Type: text/csv; charset=utf-8
+            - Header: TransactionID,Date,Type,Category,Group,CustomerChatId,Product,AmountUSD,EstCostUSD,EstProfitUSD,Margin%,Status
+            - 398 lines (1 header + 397 data rows)
+          
+          • SANITY CHECKS PASSED:
+            - grossRevenue >= 0: $5371.94 (30d), $22316.96 (all)
+            - netProfit = grossRevenue - totalCost (±0.05 rounding): $3417.91 = $5371.94 - $1954.03 (diff=0.0000)
+            - margin is a number: 63.6%
+            - "all" range totals >= "30d" range totals: $22316.96 >= $5371.94 ✅
+          
+          • PROFIT CALCULATION:
+            - HYBRID model: Domains & VPS cost derived from configured markup (exact)
+            - Other categories use per-category cost ratios (estimated, flagged in UI with "exact" field)
+            - Analytics over `transactions` collection (canonical sales log, all USD)
+            - Call-usage aggregates from `walletLedger`
+          
+          • NO REGRESSION:
+            - Backend health: status=healthy, database=connected
+            - nodejs service: RUNNING (pid 3044, uptime 0:12:41)
+            - No NEW errors in logs (only expected PhoneMonitor/BalanceMonitor Telnyx 401s)
+          
+          SAFETY CONFIRMED:
+          • All testing was READ-ONLY (analytics queries only, no writes)
+          • NO users created, NO domain purchases placed, NO calls made, NO data mutations
+          • PRODUCTION-connected MongoDB was NOT modified
+          • All verification via the external API endpoints
+          
+          The Sales & Profit web dashboard admin analytics API is now working and verified. 
+          Admins can log in with the password and view comprehensive sales/profit analytics, 
+          transaction history, and export CSV reports.
+      - working: "NA"
+        agent: "main"
+        comment: |
+          NEW WORK (2026-08-24) — Sales & Profit web dashboard (admin analytics feature).
+          PROD-connected Mongo — READ-ONLY endpoints only. Do NOT create users / place purchases / mutate data.
+          
+          WHAT WAS BUILT:
+          - New Node/Express router js/routes/sales.js, mounted at /admin/sales (installed in js/_index.js
+            right after routes/admin.js). Reachable externally at {REACT_APP_BACKEND_URL}/api/admin/sales/*.
+          - New React page frontend/src/pages/SalesDashboard.js at route /sales (login gate + dashboard).
+          - Analytics over the `transactions` collection (canonical sales log, all USD) + call-usage
+            aggregates from `walletLedger`. Profit is HYBRID: Domains & VPS cost derived from configured
+            markup (exact); other categories use per-category cost ratios (estimated, flagged in UI).
+          
+          AUTH: password-gated. Password is in backend/.env as SALES_DASHBOARD_PASSWORD (value: Nomadly123@).
+          POST /admin/sales/login {password} → { token } (JWT, 24h, signed with SESSION_SECRET). All other
+          routes require header `Authorization: Bearer <token>`.
+          
+          Awaiting testing-agent verification of all 8 checks (login, auth guards, overview, transactions, 
+          CSV export, no regression).
+
 frontend:
   - task: "READ-ONLY UI verification of Nomadly admin panel (2026-08-13): Verified root dashboard, navigation tabs, phone test page, and panel login page. All UI elements render correctly with no console errors or network failures."
     implemented: true
@@ -9875,12 +10107,11 @@ frontend:
 metadata:
   created_by: "main_agent"
   version: "2.1"
-  test_sequence: 29
+  test_sequence: 30
   run_ui: false
 
 test_plan:
-  current_focus:
-    - "Domain purchase opening-message fix (2026-08-20)"
+  current_focus: []
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -9888,7 +10119,41 @@ test_plan:
 agent_communication:
   - agent: "main"
     message: |
-      NEW WORK TO VERIFY (2026-08-20) — Domain purchase opening-message fix (backend/bot only).
+      NEW WORK TO VERIFY (2026-08-24) — Sales & Profit web dashboard (NEW admin analytics feature).
+      PROD-connected Mongo — READ-ONLY endpoints only. Do NOT create users / place purchases / mutate data.
+
+      WHAT WAS BUILT:
+      - New Node/Express router js/routes/sales.js, mounted at /admin/sales (installed in js/_index.js
+        right after routes/admin.js). Reachable externally at {REACT_APP_BACKEND_URL}/api/admin/sales/*.
+      - New React page frontend/src/pages/SalesDashboard.js at route /sales (login gate + dashboard).
+      - Analytics over the `transactions` collection (canonical sales log, all USD) + call-usage
+        aggregates from `walletLedger`. Profit is HYBRID: Domains & VPS cost derived from configured
+        markup (exact); other categories use per-category cost ratios (estimated, flagged in UI).
+
+      AUTH: password-gated. Password is in backend/.env as SALES_DASHBOARD_PASSWORD (value: Nomadly123@).
+      POST /admin/sales/login {password} → { token } (JWT, 24h, signed with SESSION_SECRET). All other
+      routes require header `Authorization: Bearer <token>`.
+
+      ENDPOINTS TO TEST (all via {REACT_APP_BACKEND_URL}/api/admin/sales, i.e. proxied through FastAPI):
+      1) POST /login with wrong password → expect HTTP 401 {error:"Incorrect password"}.
+      2) POST /login with password "Nomadly123@" → expect HTTP 200 with a non-empty `token`.
+      3) GET /overview?range=30d WITHOUT Authorization header → expect HTTP 401.
+      4) GET /overview?range=30d WITH Bearer token → HTTP 200 JSON with keys:
+         summary{grossRevenue,totalCost,netProfit,margin,orders,avgOrderValue,refunds,deposits,bonuses},
+         byCategory[] (each has category,revenue,cost,profit,margin,orders,exact), timeseries[]
+         (each date,revenue,cost,profit,orders), topProducts[], topCustomers[], deltas, assumptions.
+         Sanity: grossRevenue >= 0, netProfit == grossRevenue - totalCost (±0.05 rounding).
+      5) GET /overview?range=all WITH token → HTTP 200 (larger totals than 30d is expected).
+      6) GET /transactions?range=all&group=sale&page=1&limit=25 WITH token → HTTP 200 with
+         {total,page,limit,pages,rows[]}; rows have id,date,type,category,group,amountUsd,cost,profit,
+         margin,status. Verify filters: group=deposit returns only deposit rows; search=<a real domain
+         substring> narrows results.
+      7) GET /export.csv?range=all&group=sale WITH token → HTTP 200, content-type text/csv, first line
+         is the header row (TransactionID,Date,Type,Category,Group,CustomerChatId,Product,AmountUSD,...).
+      8) NO REGRESSION: GET /api/health → healthy + database connected; nodejs RUNNING; no
+         SyntaxError/ReferenceError in logs (the recurring PhoneMonitor Telnyx 401 is pre-existing/expected).
+
+      Report pass/fail per check. All endpoints are read-only; safe on the production DB.
       PROD-connected Mongo — do NOT create users, do NOT place real domain purchases or calls.
 
       CONTEXT (RCA already done, verified via Railway prod logs + prod Mongo + OpenProvider API):
@@ -9949,6 +10214,135 @@ agent_communication:
 
       SAFETY: engine test in-memory; endpoint dev-gated + read-only unless generateAudio=true (only renders
       an mp3 — no call placed). Do NOT apply templates to real numbers.
+
+
+  - agent: "testing"
+    message: |
+      ✅ VERIFICATION COMPLETE - Sales & Profit admin analytics API PASSED (all 12 checks, 100% pass)
+      
+      Verified the NEW Sales & Profit web dashboard admin analytics API on prod-connected MongoDB 
+      (READ-ONLY testing, NO data mutations).
+      
+      ===========================================================
+      TEST RESULTS SUMMARY
+      ===========================================================
+      
+      Total Tests: 12
+      Passed: 12 ✅
+      Failed: 0
+      Pass Rate: 100%
+      
+      ===========================================================
+      DETAILED CHECK RESULTS
+      ===========================================================
+      
+      ✅ CHECK 1: Login with wrong password → HTTP 401 with "Incorrect password"
+      ✅ CHECK 2: Login with correct password → HTTP 200 with JWT token (length: 156)
+      ✅ CHECK 3: Overview without auth → HTTP 401 (auth guard working)
+      ✅ CHECK 4: Overview 30d with auth → HTTP 200 with valid structure
+         • grossRevenue: $5,371.94
+         • totalCost: $1,954.03
+         • netProfit: $3,417.91 (calculation verified: diff=0.0000)
+         • margin: 63.6%
+         • byCategory: 7 items (all with required keys)
+         • timeseries: 30 items (all with required keys)
+         • All sanity checks passed ✅
+      
+      ✅ CHECK 5: Overview all with auth → HTTP 200
+         • grossRevenue: $22,316.96 (>= 30d: $5,371.94) ✅
+         • totalCost: $8,276.12
+         • netProfit: $14,040.84
+      
+      ✅ CHECK 6a: Transactions group=sale → HTTP 200
+         • Total: 397 transactions
+         • All rows have group == "sale" ✅
+         • Pagination working (page 1, limit 25, pages 16)
+      
+      ✅ CHECK 6b: Transactions group=deposit → HTTP 200
+         • Total: 246 transactions
+         • All rows have group == "deposit" ✅
+      
+      ✅ CHECK 6c: Search filter → Correctly narrows results
+         • Without search: 397 total
+         • With search=.com: 247 total (247 <= 397) ✅
+      
+      ✅ CHECK 7: Export CSV → HTTP 200 with valid CSV
+         • Content-Type: text/csv; charset=utf-8 ✅
+         • Header: TransactionID,Date,Type,Category,Group,CustomerChatId,Product,AmountUSD,EstCostUSD,EstProfitUSD,Margin%,Status ✅
+         • Total lines: 398 (1 header + 397 data rows)
+      
+      ✅ CHECK 8a: Health check → HTTP 200 (status: healthy, database: connected)
+      ✅ CHECK 8b: nodejs supervisor → RUNNING (pid 3044, uptime 0:12:41)
+      ✅ CHECK 8c: nodejs logs → No NEW errors (only expected PhoneMonitor/BalanceMonitor Telnyx 401s)
+      
+      ===========================================================
+      KEY FEATURES VERIFIED
+      ===========================================================
+      
+      ✅ AUTH SYSTEM:
+         • Password-gated login (wrong password → 401, correct → 200 with JWT)
+         • Protected endpoints require Bearer token (no token → 401)
+         • JWT token valid for 24h (signed with SESSION_SECRET)
+      
+      ✅ ANALYTICS ENDPOINTS:
+         • GET /overview?range=30d|all → Comprehensive sales/profit analytics
+         • Summary fields: grossRevenue, totalCost, netProfit, margin, orders, avgOrderValue, refunds, deposits, bonuses
+         • byCategory: Array of category breakdowns (revenue, cost, profit, margin, orders, exact flag)
+         • timeseries: Array of daily data points (date, revenue, cost, profit, orders)
+         • topProducts, topCustomers, deltas, assumptions
+      
+      ✅ TRANSACTIONS ENDPOINT:
+         • GET /transactions?range=all&group=sale|deposit&page=1&limit=25 → Paginated transaction list
+         • Filters: group (sale/deposit), search (text filter), range (30d/all), pagination
+         • Structure: {total, page, limit, pages, rows[]}
+         • Row fields: id, date, type, category, group, amountUsd, cost, profit, margin, status
+         • Group filter correctly isolates sale (397) vs deposit (246) transactions
+         • Search filter correctly narrows results (397 → 247 with search=.com)
+      
+      ✅ CSV EXPORT:
+         • GET /export.csv?range=all&group=sale → Returns CSV file
+         • Content-Type: text/csv; charset=utf-8
+         • Header: TransactionID,Date,Type,Category,Group,CustomerChatId,Product,AmountUSD,EstCostUSD,EstProfitUSD,Margin%,Status
+         • 398 lines (1 header + 397 data rows)
+      
+      ✅ SANITY CHECKS:
+         • grossRevenue >= 0: $5,371.94 (30d), $22,316.96 (all) ✅
+         • netProfit = grossRevenue - totalCost (±0.05): $3,417.91 = $5,371.94 - $1,954.03 (diff=0.0000) ✅
+         • margin is a number: 63.6% ✅
+         • "all" range totals >= "30d" range totals: $22,316.96 >= $5,371.94 ✅
+      
+      ✅ NO REGRESSION:
+         • Backend health: status=healthy, database=connected
+         • nodejs service: RUNNING (pid 3044, uptime 0:12:41)
+         • No NEW errors in logs (only expected PhoneMonitor/BalanceMonitor Telnyx 401s)
+      
+      ===========================================================
+      SAFETY CONFIRMED
+      ===========================================================
+      
+      • All testing was READ-ONLY (analytics queries only, no writes)
+      • NO users created, NO domain purchases placed, NO calls made, NO data mutations
+      • PRODUCTION-connected MongoDB was NOT modified
+      • All verification via external API endpoints through {REACT_APP_BACKEND_URL}/api/admin/sales/*
+      
+      ===========================================================
+      CONCLUSION
+      ===========================================================
+      
+      The Sales & Profit web dashboard admin analytics API is COMPLETE and verified end-to-end. 
+      All 12 checks passed (100% pass rate). Admins can log in with the password and view 
+      comprehensive sales/profit analytics, transaction history, and export CSV reports.
+      
+      ARCHITECTURE VERIFIED:
+      React → {REACT_APP_BACKEND_URL}/api/admin/sales/* → FastAPI (8001) → Node.js Express (5000)
+      
+      PROFIT CALCULATION:
+      HYBRID model - Domains & VPS cost derived from configured markup (exact); other categories 
+      use per-category cost ratios (estimated, flagged in UI with "exact" field). Analytics over 
+      `transactions` collection (canonical sales log, all USD) + call-usage aggregates from 
+      `walletLedger`.
+      
+      Test file: /app/test_sales_api.py
 
 
   - agent: "testing"

@@ -7,6 +7,7 @@ import PanelLogin from './pages/PanelLogin';
 import PanelDashboard from './pages/PanelDashboard';
 import PhoneTestPage from './pages/PhoneTestPage';
 import Storefront from './pages/Storefront';
+import SalesDashboard from './pages/SalesDashboard';
 import './App.css';
 import './panel-v2.css';
 import './store.css';
@@ -88,6 +89,13 @@ function MainApp() {
               >
                 Cloud Phone
               </button>
+              <a
+                className="header-nav__btn"
+                href="/sales"
+                data-testid="nav-sales"
+              >
+                Sales &amp; Profit
+              </a>
             </nav>
             <div className="status-badge" data-testid="status-badge" data-status={status}>
               <span className="status-dot"></span>
@@ -115,6 +123,7 @@ function MainApp() {
             </div>
 
             <div className="features-grid" data-testid="features-grid">
+              <FeatureCard icon="chart" title="Sales & Profit Dashboard" desc="Live revenue, cost and profit-margin analytics across every service with charts and CSV export" onClick={() => { window.location.href = '/sales'; }} accent="emerald" />
               <FeatureCard icon="link" title="URL Shortener & Domains" desc="Domain purchase with shortener integration, custom branded links, DNS management" onClick={() => setActiveView(VIEWS.URL_SHORTENER)} accent="emerald" />
               <FeatureCard icon="phone" title="Cloud Phone" desc="Virtual numbers, SMS to Telegram, call forwarding, voicemail, SIP access" onClick={() => setActiveView(VIEWS.CLOUD_PHONE)} accent="sky" />
               <FeatureCard icon="target" title="Targeted Leads" desc="Premium verified phone leads with carrier filtering and CNAM lookup" />
@@ -163,6 +172,7 @@ function FeatureCard({ icon, title, desc, onClick, accent }) {
     wallet: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>,
     server: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>,
     cloud: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>,
+    chart: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,
   };
 
   return (
@@ -204,6 +214,7 @@ export default function App() {
               <Route path="/store/*" element={<Storefront />} />
               <Route path="/phone/test" element={<PhoneTestPage />} />
               <Route path="/call" element={<PhoneTestPage />} />
+              <Route path="/sales" element={<SalesDashboard />} />
               <Route path="/*" element={<MainApp />} />
             </>
           )}
