@@ -41,6 +41,18 @@ const COST_RATIO = {
 // Which categories have EXACT (markup-derived) cost vs estimated.
 const EXACT_CATEGORIES = new Set(['Domains', 'VPS'])
 
+// ── Display-only profit adjustment (overhead buffer) ──
+// SALES_PROFIT_ADJUST_PCT reduces the DISPLAYED profit by N% (the difference is
+// shown as extra cost), so the dashboard reports a more conservative profit than
+// the raw markup implies (accounts for payment fees, chargebacks, support, infra,
+// tax, etc.). The raw DB data is NEVER modified. 0 = off (show true profit).
+const PROFIT_ADJUST = Math.max(0, Math.min(100, Number(process.env.SALES_PROFIT_ADJUST_PCT || 0))) / 100
+function adjust(revenue, cost) {
+  const raw = revenue - cost
+  const delta = raw > 0 ? raw * PROFIT_ADJUST : 0
+  return { cost: cost + delta, profit: raw - delta }
+}
+
 // walletLedger usage types that represent real usage revenue (NOT product
 // purchases already captured in `transactions` — avoids double counting).
 const CALL_USAGE_TYPES = ['outbound_call', 'connection_fee', 'twilio_bridge_per_minute', 'inbound_call', 'call_recording', 'caller-name']
@@ -228,7 +240,6 @@ function buildReport(rows, usage, since, until) {
   const refundTotal = refunds.reduce((a, r) => a + r.amountUsd, 0)
   const depositTotal = deposits.reduce((a, r) => a + r.amountUsd, 0)
   const bonusTotal = bonuses.reduce((a, r) => a + r.amountUsd, 0)
-  const netProfit = grossRevenue - totalCost
   const orders = sales.length
 
   // timeseries (by day)
@@ -251,13 +262,16 @@ function buildReport(rows, usage, since, until) {
     }
   }
   const timeseries = Object.values(tsMap).sort((a, b) => a.date.localeCompare(b.date))
-    .map((d) => ({
-      date: d.date,
-      revenue: round2(d.revenue),
-      cost: round2(d.cost),
-      profit: round2(d.profit),
-      orders: d.orders,
-    }))
+    .map((d) => {
+      const a = adjust(d.revenue, d.cost)
+      return {
+        date: d.date,
+        revenue: round2(d.revenue),
+        cost: round2(a.cost),
+        profit: round2(a.profit),
+        orders: d.orders,
+      }
+    })
 
   // top products
   const prodMap = {}
@@ -269,7 +283,7 @@ function buildReport(rows, usage, since, until) {
     prodMap[key].orders += 1
   }
   const topProducts = Object.values(prodMap).sort((a, b) => b.revenue - a.revenue).slice(0, 10)
-    .map((p) => ({ ...p, revenue: round2(p.revenue), profit: round2(p.profit) }))
+    .map((p) => ({ ...p, revenue: round2(p.revenue), profit: round2(adjust(p.revenue, p.revenue - p.profit).profit) }))
 
   // top customers
   const custMap = {}
@@ -280,24 +294,28 @@ function buildReport(rows, usage, since, until) {
     custMap[s.chatId].orders += 1
   }
   const topCustomers = Object.values(custMap).sort((a, b) => b.revenue - a.revenue).slice(0, 10)
-    .map((c) => ({ ...c, revenue: round2(c.revenue), profit: round2(c.profit) }))
+    .map((c) => ({ ...c, revenue: round2(c.revenue), profit: round2(adjust(c.revenue, c.revenue - c.profit).profit) }))
 
-  const byCategory = Object.values(catMap).sort((a, b) => b.revenue - a.revenue).map((c) => ({
-    category: c.category,
-    revenue: round2(c.revenue),
-    cost: round2(c.cost),
-    profit: round2(c.profit),
-    margin: c.revenue > 0 ? round1((c.profit / c.revenue) * 100) : 0,
-    orders: c.orders,
-    exact: c.exact,
-  }))
+  const byCategory = Object.values(catMap).sort((a, b) => b.revenue - a.revenue).map((c) => {
+    const a = adjust(c.revenue, c.cost)
+    return {
+      category: c.category,
+      revenue: round2(c.revenue),
+      cost: round2(a.cost),
+      profit: round2(a.profit),
+      margin: c.revenue > 0 ? round1((a.profit / c.revenue) * 100) : 0,
+      orders: c.orders,
+      exact: c.exact,
+    }
+  })
 
+  const adjSummary = adjust(grossRevenue, totalCost)
   return {
     summary: {
       grossRevenue: round2(grossRevenue),
-      totalCost: round2(totalCost),
-      netProfit: round2(netProfit),
-      margin: grossRevenue > 0 ? round1((netProfit / grossRevenue) * 100) : 0,
+      totalCost: round2(adjSummary.cost),
+      netProfit: round2(adjSummary.profit),
+      margin: grossRevenue > 0 ? round1((adjSummary.profit / grossRevenue) * 100) : 0,
       orders,
       avgOrderValue: orders > 0 ? round2(grossRevenue / orders) : 0,
       refunds: round2(Math.abs(refundTotal)),
@@ -424,20 +442,23 @@ function install(app, deps) {
       }
       rows.sort((a, b) => b.date - a.date)
       const total = rows.length
-      const paged = rows.slice((page - 1) * limit, page * limit).map((r) => ({
-        id: r.id,
-        date: r.date ? r.date.toISOString() : null,
-        type: r.type,
-        category: r.category,
-        group: r.group,
-        chatId: r.chatId,
-        product: r.product,
-        amountUsd: round2(r.amountUsd),
-        cost: round2(r.cost),
-        profit: round2(r.profit),
-        margin: r.group === 'sale' && r.amountUsd > 0 ? round1((r.profit / r.amountUsd) * 100) : null,
-        status: r.status,
-      }))
+      const paged = rows.slice((page - 1) * limit, page * limit).map((r) => {
+        const a = r.group === 'sale' ? adjust(r.amountUsd, r.cost) : { cost: r.cost, profit: r.profit }
+        return {
+          id: r.id,
+          date: r.date ? r.date.toISOString() : null,
+          type: r.type,
+          category: r.category,
+          group: r.group,
+          chatId: r.chatId,
+          product: r.product,
+          amountUsd: round2(r.amountUsd),
+          cost: round2(a.cost),
+          profit: round2(a.profit),
+          margin: r.group === 'sale' && r.amountUsd > 0 ? round1((a.profit / r.amountUsd) * 100) : null,
+          status: r.status,
+        }
+      })
       res.json({ total, page, limit, pages: Math.ceil(total / limit), rows: paged })
     } catch (e) {
       logIt('transactions error:', e.message)
@@ -477,10 +498,11 @@ function install(app, deps) {
       const header = ['TransactionID', 'Date', 'Type', 'Category', 'Group', 'CustomerChatId', 'Product', 'AmountUSD', 'EstCostUSD', 'EstProfitUSD', 'Margin%', 'Status']
       const lines = [header.join(',')]
       for (const r of rows) {
+        const a = r.group === 'sale' ? adjust(r.amountUsd, r.cost) : { cost: r.cost, profit: r.profit }
         lines.push([
           esc(r.id), esc(r.date ? r.date.toISOString() : ''), esc(r.type), esc(r.category), esc(r.group),
-          esc(r.chatId), esc(r.product), round2(r.amountUsd), round2(r.cost), round2(r.profit),
-          r.group === 'sale' && r.amountUsd > 0 ? round1((r.profit / r.amountUsd) * 100) : '', esc(r.status),
+          esc(r.chatId), esc(r.product), round2(r.amountUsd), round2(a.cost), round2(a.profit),
+          r.group === 'sale' && r.amountUsd > 0 ? round1((a.profit / r.amountUsd) * 100) : '', esc(r.status),
         ].join(','))
       }
       res.setHeader('Content-Type', 'text/csv')
