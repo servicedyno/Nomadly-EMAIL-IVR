@@ -3,6 +3,15 @@
 ## Original problem statement
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
+## 2026-06 (this fork) — SMADAV whitelabel: Cloudflare/DNS for custom domains COMPLETE & VERIFIED (live)
+Second Railway service **SMADAV** (whitelabel of the same codebase) lives in the SAME Railway project "New Hosting" (projectId `c23ac3d9-51c5-4242-8776-eed4e3801abe`, env production `889fd56a-720a-4020-884c-034784992666`, **SMADAV serviceId `1354dd9f-5fd8-4152-99d8-911dc657a787`**). The Nomadly project-scoped `API_KEY_RAILWAY` token CAN read/write SMADAV because it's the same project.
+- **Two custom domains attached to SMADAV on Railway** (already done in a prior fork): `smadavspeech.com` (root, cloudivr/call page) → CNAME `518yxmv4.up.railway.app`; `panel.smadavhost.com` (hosting panel) → CNAME `17xqjh9c.up.railway.app`.
+- **Cloudflare (shared account expressdrop247@gmail.com)**: both zones `smadavspeech.com` + `smadavhost.com` already existed & active (NS anderson/leanna delegated). Added via `js/cf-service.js`: the root/panel **CNAME + `_railway-verify` TXT** for each. Set zone SSL=full.
+- **CRITICAL CONFIG LESSON**: these two domains must be **DNS-only (gray cloud)**, NOT proxied. Nomadly's equivalents (`1.speechcue.com`, `panel.1.hostbay.io`) are `cdnProvider:null` + `cert=VALID`. Initially set proxied (orange) → Railway detected CLOUDFLARE, stuck `VALIDATING_OWNERSHIP` + 404. Flipped CNAMEs to DNS-only via `cfService.setProxiedState(zoneId, name, false, 'CNAME')` → Railway resolved CNAME → issued Let's Encrypt cert → **`cert=VALID`, `dns=PROPAGATED`**.
+- **Verified live**: `https://smadavspeech.com`, `/call`, `https://panel.smadavhost.com`, `/login` all return **HTTP 200** over valid TLS (Let's Encrypt, CN=smadavspeech.com). No redirect loop.
+- **⚠️ Open follow-ups**: (1) SMADAV frontend build has NO `REACT_APP_BRAND_*` vars → panel shows default "HostBay" and title renders raw `%REACT_APP_BRAND_PANEL_NAME%`. Needs the brand env vars set on the SMADAV Railway service + rebuild ("Apply Your Brand"). (2) **Twilio SIP isolation** (`js/twilio-service.js` `TWILIO_SIP_DOMAIN_PREFIX`, ready locally) must reach the SMADAV deploy via **Save to GitHub** BEFORE flipping `PHONE_SERVICE_ON=true` on SMADAV — else it hijacks Nomadly's shared Twilio/Telnyx webhooks.
+
+
 ## 2026-06 (this fork) — White-Label backend pass COMPLETE (Path A single full rebrand) — VERIFIED (offline node/grep + frontend screenshot)
 Resumed the paused white-label task. Frontend React pages were already refactored to `frontend/src/branding.js`; this fork finished the **backend + static-asset** pass so EVERY brand string is env-driven with the current brand (Nomadly / HostBay / SpeechCue / @onarrival1 / @Hostbay_support / @NomadlyBot) as the built-in fallback — nothing changes until an env var is set (fully reversible, safe for the live bot).
 

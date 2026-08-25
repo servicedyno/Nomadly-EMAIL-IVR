@@ -23,6 +23,10 @@ login for the panel. Auth flows are exercised via the bot / dev endpoints.
 - Endpoint: `POST https://backboard.railway.app/graphql/v2`
 - Project "New Hosting": projectId `c23ac3d9-51c5-4242-8776-eed4e3801abe`, envId (production) `889fd56a-720a-4020-884c-034784992666`, main bot serviceId (Nomadly-EMAIL-IVR) `b9c4ad64-7667-4dd3-8b9a-3867ede47885`.
 - Verified `projectToken` query returns those IDs; `deployments`/`deploymentLogs(deploymentId, limit, filter)` work. Filter by chatId / "Azure" / etc.
+- **Project services** (same project, readable with the project token): `Nomadly-EMAIL-IVR` `b9c4ad64-7667-4dd3-8b9a-3867ede47885`, **`SMADAV` `1354dd9f-5fd8-4152-99d8-911dc657a787`** (whitelabel), `HostingBotNew` `0a453645-4180-441b-8988-020807f4479a`, `LockbayNewFIX` `96ee768e-3f4d-49c8-be75-dea30777e890`.
+- Query a service's custom domains: `domains(projectId, serviceId, environmentId){ customDomains{ domain status{ certificateStatus cdnProvider dnsRecords{ requiredValue currentValue status } verificationDnsHost verificationToken } } }`.
+- **SMADAV custom domains (LIVE, cert=VALID, DNS-only 2026-06)**: `smadavspeech.com` → CNAME `518yxmv4.up.railway.app` (CF zone `4e3fa86fdd52ea305d3ae2e57a9705aa`); `panel.smadavhost.com` → CNAME `17xqjh9c.up.railway.app` (CF zone `b3667eb4a8adce1f33b86d7f9d614431`). Each has `_railway-verify[.panel]` TXT. MUST be gray-cloud (DNS-only) in Cloudflare or Railway stays in VALIDATING_OWNERSHIP.
+
 
 ## Keys for diagnostic / admin endpoints
 - Admin key for diagnostic endpoints: `o/Qb8ArGahlquhCQ` (first 16 chars of SESSION_SECRET)
