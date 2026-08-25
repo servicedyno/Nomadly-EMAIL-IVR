@@ -101,3 +101,9 @@ lockdown). Always call WHM through WHM_API_URL (Cloudflare Tunnel) as anti-red-s
   * BREVO_API_KEY → 401 "not enabled" (only inbound-SMS→email forwarding; SMTP relay MAIL_AUTH_* is live).
   * EDENAI_API_KEY → 401 (used only by js/tts-service.js for TTS; regenerate at edenai.run if TTS via EdenAI needed).
   * Contabo OAuth previously invalid (non-blocking, VPS_CONTABO_FALLBACK_ENABLED=false).
+
+
+## SMADAV Sales Dashboard (set 2026-06)
+- URL: https://smadavspeech.com/sales  (main/non-panel domain; `/sales` does NOT exist on panel.smadavhost.com)
+- Password: `Nomadly123@`  (env `SALES_DASHBOARD_PASSWORD` on SMADAV Railway service `1354dd9f-5fd8-4152-99d8-911dc657a787`, set via variableUpsert + serviceInstanceRedeploy)
+- Auth: POST /api/admin/sales/login {password} → JWT (24h, signed w/ SESSION_SECRET). Verified live: correct pw → token, wrong pw → 401.
