@@ -20618,7 +20618,7 @@ ${message.replace(/\n/g, '<br>')}
     }
     // Reserved words — must match the SPA + system routes in app.get('/:id')
     const reserved = new Set([
-      'call', 'panel', 'phone', 'login', 'signup', 'dashboard', 'settings',
+      'call', 'panel', 'phone', 'login', 'signup', 'dashboard', 'settings', 'sales',
       'api', 'admin', 'webhook', 'webhooks', 'twilio', 'telnyx', 'static',
       'health', 'sms-app', 'voice', 'sms', 'auth',
     ])
@@ -44833,7 +44833,7 @@ app.get('/:id', async (req, res) => {
   }
 
   // Skip known frontend SPA routes — let them be handled by the React catch-all
-  const spaRoutes = ['call', 'panel', 'phone', 'login', 'signup', 'dashboard', 'settings']
+  const spaRoutes = ['call', 'panel', 'phone', 'login', 'signup', 'dashboard', 'settings', 'sales']
   if (spaRoutes.includes(id.toLowerCase())) {
     // Serve the React SPA index.html for these routes
     const buildPath = require('path').join(__dirname, '..', 'frontend', 'build', 'index.html')
