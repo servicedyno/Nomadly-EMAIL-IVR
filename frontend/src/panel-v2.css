@@ -195,6 +195,15 @@
   pointer-events: none;
 }
 
+/* Real brand logo supplied: drop the coloured tile + gloss so a transparent
+   logo reads cleanly (works in both dark and .panel-light themes). */
+.panel-login-icon.panel-login-icon--img,
+.panel-light .panel-login-icon.panel-login-icon--img {
+  background: transparent;
+  box-shadow: none;
+}
+.panel-login-icon.panel-login-icon--img::before { display: none; }
+
 .panel-login-logo h1 {
   font-family: var(--pv-font-display);
   font-weight: 700;

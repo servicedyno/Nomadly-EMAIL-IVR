@@ -106,6 +106,9 @@
 
 .logo-mark:hover { transform: scale(1.05); }
 
+/* Real brand logo supplied: drop the coloured tile so a transparent logo reads cleanly. */
+.logo-mark.logo-mark--img { background: transparent; }
+
 .logo-text {
   font-size: 20px;
   font-weight: 600;

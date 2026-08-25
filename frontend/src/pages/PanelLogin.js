@@ -114,9 +114,9 @@ export default function PanelLogin() {
 
       <div className="panel-login-card" data-testid="panel-login-card">
         <div className="panel-login-logo">
-          <div className="panel-login-icon" data-testid="panel-login-brand-mark" aria-label={BRAND.panelName}>
+          <div className={`panel-login-icon${BRAND.logoUrl ? ' panel-login-icon--img' : ''}`} data-testid="panel-login-brand-mark" aria-label={BRAND.panelName}>
             {BRAND.logoUrl ? (
-              <img src={BRAND.logoUrl} alt={BRAND.panelName} style={{ width: 34, height: 34, objectFit: 'contain' }} />
+              <img src={BRAND.logoUrl} alt={BRAND.panelName} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
             ) : (
             <svg width="34" height="34" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
               <rect x="6" y="4" width="4" height="20" rx="1.5" fill="currentColor"/>

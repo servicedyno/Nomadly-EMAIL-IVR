@@ -62,7 +62,7 @@ function MainApp() {
       <div className="dashboard-container">
         <header className="header" data-testid="header">
           <div className="logo-section">
-            <button className="logo-mark" onClick={() => setActiveView(VIEWS.DASHBOARD)} data-testid="logo-home-btn">{BRAND.logoUrl ? <img src={BRAND.logoUrl} alt={BRAND.name} style={{ width: '72%', height: '72%', objectFit: 'contain' }} /> : (BRAND.name || 'N').charAt(0)}</button>
+            <button className={`logo-mark${BRAND.logoUrl ? ' logo-mark--img' : ''}`} onClick={() => setActiveView(VIEWS.DASHBOARD)} data-testid="logo-home-btn">{BRAND.logoUrl ? <img src={BRAND.logoUrl} alt={BRAND.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : (BRAND.name || 'N').charAt(0)}</button>
             <h1 className="logo-text">
               <button className="logo-text-btn" onClick={() => setActiveView(VIEWS.DASHBOARD)}>{BRAND.botName}</button>
             </h1>
