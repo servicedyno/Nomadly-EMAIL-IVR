@@ -3,6 +3,18 @@
 ## Original problem statement
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
+## 2026-06 (this fork) — SMADAV PRODUCTION TEST PASS + 2 bug fixes (Nomadly untouched)
+Full production test of SMADAV telephony, hosting purchase, and crypto payments — verifying isolation from Nomadly (shared Twilio/Telnyx/WHM accounts). `PHONE_SERVICE_ON=true` on SMADAV (user enabled it); isolation confirmed safe.
+- **Isolation VERIFIED**: Twilio → 2 separate SIP domains (`smadav-7937a0…`→SMADAV webhook, `speechcue-…`→Nomadly). Telnyx → SMADAV Call Control app `3034191310081754961` + SIP connection `3034191521164298080` (own 10 DIDs) vs Nomadly app `2898117434361775526`; each webhook points only to its own brand. Dynopay → SMADAV has its own merchant key/wallet. Blockbee → shared key (rate-conversion only), isolated by callback URL. WHM → SHARED (same host/token) but provisioning tested safely.
+- **BUG 1 FIXED (P0, Dynopay checkout broken)**: `DYNO_PAY_BASE_URL` was `https://dyno.up.railway.app/api` (dead host → Railway 404 "Application not found"), so crypto checkout failed. Corrected to `https://dynopay.com/api`. SMADAV's own creds verified 200 + real address. Fixed via Railway env + redeploy.
+- **BUG 2 FIXED (P1, cross-brand leak)**: `BOT_USERNAME`/`TELEGRAM_BOT_USERNAME` unset on SMADAV → storefront "Continue with Telegram" + referral links opened `@NomadlyBot` (store-routes.js:362 `|| 'NomadlyBot'`). Set both to `smadavv_bot`. Now `/api/store/config` returns `smadavv_bot`.
+- **Both fixes independently verified by testing_agent** (iteration_40, 4/4 production checks pass).
+- **Hosting purchase E2E**: `/api/store/guest/checkout` → real Dynopay crypto address; WHM provisioning tested by creating a real cPanel account (`Premium-Anti-Red-1-Week`), verifying credentials, then terminating it (no residue). Test orders cleaned from `smadav` DB.
+- **Crypto payments**: Dynopay (fixed) + Blockbee (enabled `BLOCKBEE_CRYTPO_PAYMENT_ON=true`, BTC address gen works) both isolated to SMADAV callbacks.
+- **CloudIVR outbound call**: placed a real Telnyx call from SMADAV number `+18445831558` via SMADAV's Call Control app → connected + stayed alive → clean hangup. Outbound origination + isolation confirmed.
+- **⚠️ NOT exercised**: inbound-IVR answer flow + call forwarding (configured inside @smadavv_bot cloud-phone flow — needs user to set up in the bot; offered to watch live logs). **Optional hardening backlog**: replace `|| 'NomadlyBot'` literal fallback in store-routes.js:362 with a brand-safe default/startup validation (code change, would also touch Nomadly).
+
+
 ## 2026-06 (this fork) — SMADAV whitelabel: Cloudflare/DNS for custom domains COMPLETE & VERIFIED (live)
 Second Railway service **SMADAV** (whitelabel of the same codebase) lives in the SAME Railway project "New Hosting" (projectId `c23ac3d9-51c5-4242-8776-eed4e3801abe`, env production `889fd56a-720a-4020-884c-034784992666`, **SMADAV serviceId `1354dd9f-5fd8-4152-99d8-911dc657a787`**). The Nomadly project-scoped `API_KEY_RAILWAY` token CAN read/write SMADAV because it's the same project.
 - **Two custom domains attached to SMADAV on Railway** (already done in a prior fork): `smadavspeech.com` (root, cloudivr/call page) → CNAME `518yxmv4.up.railway.app`; `panel.smadavhost.com` (hosting panel) → CNAME `17xqjh9c.up.railway.app`.

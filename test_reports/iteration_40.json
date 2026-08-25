@@ -1,0 +1,36 @@
+{
+  "summary": "Independently verified the two production config fixes on the LIVE SMADAV backend (https://panel.smadavhost.com) via HTTP only. All 4 checks PASS: (1) /api/store/config now returns botUsername='smadavv_bot' (no Nomadly leak); (2) /api/store/guest/checkout returns HTTP 200 with a real BTC deposit address and amountUsd=30 (Dynopay base URL fix live); (3) /api/store/plans returns exactly 3 plans with correct prices; (4) /api/store/health returns ok:true with BTC and USDT-TRC20 in coins. Created one unpaid pending order (no payment/webhook/provisioning actions taken). Exact JSON responses recorded below in rca_of_the_issue field / test file.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "js/store-routes.js:362", "issue": "Cross-brand fallback still hardcoded: botUsername: process.env.TELEGRAM_BOT_USERNAME || 'NomadlyBot'. If the env var is ever unset again on the SMADAV service, the Nomadly bot leaks back silently. Recommend removing the Nomadly default (fail-fast or brand-neutral default from a SMADAV config constant)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/test_smadav_prod_store_verify.py",
+    "/app/test_reports/pytest/smadav_prod_store_verify.xml"
+  ],
+  "action_items": [
+    "Optional hardening: replace the 'NomadlyBot' literal fallback in js/store-routes.js:362 with a brand-safe value or startup validation, so a missing TELEGRAM_BOT_USERNAME cannot leak the other brand again.",
+    "Optional: add a startup assertion that DYNO_PAY_BASE_URL is reachable/non-empty (pay-dynopay.js reads it with no default, so a bad value only surfaces as a 502 at checkout time)."
+  ],
+  "critical_code_review_comments": [
+    "js/store-routes.js:362 — whitelabel leak risk from hardcoded 'NomadlyBot' default; env-var-only branding should fail fast rather than fall back to another tenant's bot.",
+    "js/pay-dynopay.js:5-13 — DYNO_PAY_BASE_URL/API_KEY/WALLET_TOKEN are captured at module load with no validation; misconfiguration is only observable as a checkout-time 502. A boot-time config check would have caught the dead-host bug earlier."
+  ],
+  "updated_files": [
+    "/app/test_reports/test_smadav_prod_store_verify.py"
+  ],
+  "success_rate": {"backend": "100% (4/4 production checks passed)", "frontend": "not tested (backend-only request)"},
+  "seed_data_creation": "One unpaid guest order created on production: orderId dd815723-b42e-4279-80e6-e1c92a344cb6, email qa-verify@smadavhost.com, plan premium-weekly ($30), domain smadav-qa-verify-02.com, BTC address bc1qa5eyed02n8qz0ft5ukdphewg4j3z32xcpgcq8k, status 'pending'. Not paid, not fulfilled. Re-running the pytest file creates an additional pending order each run.",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "None required — all endpoints tested are public/guest.",
+  "context_for_next_testing_agent": "Regression suite for the SMADAV production storefront lives at /app/test_reports/test_smadav_prod_store_verify.py (base URL overridable via SMADAV_PROD_URL env; defaults to https://panel.smadavhost.com). It asserts botUsername=='smadavv_bot', 3 plans with prices 30/75/100, health ok+coins, and a Dynopay BTC address on guest checkout. Note it creates a real unpaid production order each run — do not spam it. No payment settlement, webhook, provisioning, or telephony endpoints were touched.",
+  "rca_of_the_issue": "Exact production responses observed 2026-07: GET /api/store/config -> 200 {\"botUsername\":\"smadavv_bot\",\"botStartPayload\":\"web-login\"}. GET /api/store/plans -> 200 with premium-weekly $30/7d, premium-monthly $75/30d, golden-monthly $100/30d. GET /api/store/health -> 200 {\"ok\":true,\"coins\":[\"BTC\",\"ETH\",\"LTC\",\"DOGE\",\"USDT-TRC20\",\"USDT-ERC20\",\"BCH\",\"TRX\"]}. POST /api/store/guest/checkout -> 200 {\"orderId\":\"dd815723-b42e-4279-80e6-e1c92a344cb6\",\"address\":\"bc1qa5eyed02n8qz0ft5ukdphewg4j3z32xcpgcq8k\",\"coin\":\"BTC\",\"amountUsd\":30,\"plan\":\"Premium Anti-Red (1-Week)\",\"domain\":\"smadav-qa-verify-02.com\"}. GET /api/store/order/{id} -> 200 status 'pending' with the same address/amount. Both original root causes (dead DYNO_PAY_BASE_URL host, unset BOT_USERNAME/TELEGRAM_BOT_USERNAME) are resolved via Railway env vars; no 502 'Payment provider unavailable' reproduced. Residual risk is purely config-drift because both values rely on env vars with either an unsafe cross-brand default or no validation."
+}
