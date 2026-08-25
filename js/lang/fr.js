@@ -382,14 +382,14 @@ ${CHAT_BOT_NAME}`,
 Inclus :
 • Liens Shortit illimités
 • Validation USA avec noms
-• \${SMS_APP_NAME}
+• ${SMS_APP_NAME}
 
 📱 Accès appareils :
  Quotidien — 3 appareils
  Hebdomadaire — 10 appareils
  Mensuel — Appareils illimités
 
-📲 Télécharger : \${SMS_APP_LINK}
+📲 Télécharger : ${SMS_APP_LINK}
 💬 E-sim : Appuyez sur Support
 🔓 Changer d'appareil : /resetlogin`,
  alreadySubscribedPlan: days => `Votre abonnement est actif et expire dans ${days} jours.`,

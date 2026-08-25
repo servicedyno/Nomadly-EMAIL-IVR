@@ -29,11 +29,20 @@ Confirm the rebranded menus/messages render correctly in an actual chat.
 
 ## P1 — Nice to have soon
 
-### ☐ Fix FR "plan subscribed" glitch (pre-existing)
-`fr.t.planSubscribed` in `js/lang/fr.js` contains a literal `${SMS_APP_NAME}` inside a
-single-quoted string, so it never interpolates (shows raw text to French users).
-- **Fix**: concatenate `SMS_APP_NAME`/`BRAND` (mirror the other locales) or convert to a template literal.
-- Unrelated to the white-label task; flagged during it.
+### ✅ Fix FR "plan subscribed" glitch (pre-existing) — DONE 2025-07
+`fr.t.planSubscribed` in `js/lang/fr.js` had escaped `\${SMS_APP_NAME}` / `\${SMS_APP_LINK}`
+inside a template literal, so French users saw the raw text. Removed the backslashes
+(lines 385 & 392) so they interpolate like every other locale. Verified by rendering
+`t.planSubscribed` → now shows the brand name + real download link. Node reloaded.
+
+### ☐ Fix `vs_*` voice-notification interpolation (pre-existing, ALL 4 locales) — NEW, found 2025-07
+The ~26 `vs_*` call/voice notification functions in `js/lang/{en,fr,zh,hi}.js` escape their
+`${param}` placeholders (e.g. `vs_outboundCallFailed: (from,to,reason) => \`... \${from} → \${to} ...\``).
+`translation.js` calls them as `value(...args)` with NO second-pass `${}` replacement, so they
+render literal `${from} → ${to}` instead of the actual numbers/amounts. Confirmed empirically.
+- **Fix**: remove the backslash before each `${...}` in the `vs_*` entries across all 4 locales
+  (unescape ~100+ placeholders), then verify a sample of each renders real values.
+- **Scope/risk**: touches live voice/call/SMS-overage notifications — test before shipping.
 
 ### ☐ Brand API expansion
 Expose more of the brand on `GET /api/branding` (`publicBranding()` in `js/branding.js`):
