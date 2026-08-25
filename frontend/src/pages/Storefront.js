@@ -198,7 +198,7 @@ function StoreHeader({ rightExtras }) {
   return (
     <header className="store-top">
       <div className="store-brand">
-        <span className="store-logo">{BRAND.logoUrl ? <img src={BRAND.logoUrl} alt={BRAND.panelName} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : BRAND.panelName.charAt(0)}</span>
+        <span className={`store-logo${BRAND.logoUrl ? ' store-logo--img' : ''}`}>{BRAND.logoUrl ? <img src={BRAND.logoUrl} alt={BRAND.panelName} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : BRAND.panelName.charAt(0)}</span>
         <span className="store-brand-name">{BRAND.panelName}</span>
         <span className="store-sub">Anti-Red Hosting</span>
       </div>
