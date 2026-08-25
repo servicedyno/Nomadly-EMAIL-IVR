@@ -3,6 +3,16 @@
 ## Original problem statement
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
+## 2026-06 (this fork) — SMADAV brand-leak end-to-end audit + fixes
+"Hey, Hostbay Support" was NOT a leak — the greeting echoes the user's own Telegram name (`_index.js` `name = first_name || username`).
+- **Env leaks FIXED (live on SMADAV Railway, redeployed)**: `SUPPORT_HANDLE_2=@Smadavv` (was leaking `@Hostbay_support`), `BRAND_NAMESERVERS=anderson.ns.cloudflare.com,leanna.ns.cloudflare.com` (was `ns1.hostbay.io`), `BRAND_TAGLINE`, `REACT_APP_SIP_DOMAIN=sip.smadavspeech.com`.
+- **Code leaks FIXED (staged — live after Save to GitHub → redeploy; all default to Nomadly value so Nomadly unaffected)**: `phone-config.js` (`@Hostbay_support`→SUPPORT_HANDLE_2, `sip.speechcue.com`→SIP_DOMAIN, Cloud IVR "by Speechcue" ×4 langs→BRAND_PHONE_NAME, "Nomadly test line"→CHAT_BOT_BRAND); `_index.js` (AI-reply `sip.speechcue.com`, 3× referral links `t.me/Nomadlybot`→BOT_USERNAME, "Invite friends to Nomadly"→CHAT_BOT_BRAND); `bulk-call-service.js` ("Provider: Speechcue" ×2→BRAND_PHONE_NAME); `test-my-number.js` ("Nomadly test line"); `store-routes.js` (/config botUsername→branding.botHandle); frontend `PhoneTestPage.js` ("Speechcue"/"@Nomadlybot"→BRAND.phoneName/botUsername) + `CloudPhoneJourney.js` (~26× "Nomadly Bot"→BRAND.botName).
+- **Logo self-hosted (staged)**: `frontend/public/smadav-logo.png` (512²) + `smadav-favicon.png` (256²); env `REACT_APP_BRAND_LOGO_URL`/`FAVICON_URL`/`BRAND_LOGO_URL` → `https://panel.smadavhost.com/smadav-*.png` (off Emergent CDN). Staged so the current logo doesn't 404 before Save to GitHub.
+- **Left intentionally (NOT customer-facing)**: internal Twilio/Telnyx resource names (`Nomadly-Bridge-*`, subaccount labels), KYC org name (`Hostbay PLC`, env `SINGAPORE_COMPANY_NAME`), WHM whitelist comments, logs, code identifiers.
+- **OPEN QUESTION**: "Nomadly SMS app" references (`_index.js` 1448-1452, 5949, 48001) left unchanged — depends on whether SMADAV ships a rebranded SMS APK or reuses the shared "Nomadly SMS" app. Needs user decision.
+- **⚠️ Code fixes NOT yet verified on production** (require Save to GitHub); syntax-checked + frontend compiles locally.
+
+
 ## 2026-06 (this fork) — SMADAV PRODUCTION TEST PASS + 2 bug fixes (Nomadly untouched)
 Full production test of SMADAV telephony, hosting purchase, and crypto payments — verifying isolation from Nomadly (shared Twilio/Telnyx/WHM accounts). `PHONE_SERVICE_ON=true` on SMADAV (user enabled it); isolation confirmed safe.
 - **Isolation VERIFIED**: Twilio → 2 separate SIP domains (`smadav-7937a0…`→SMADAV webhook, `speechcue-…`→Nomadly). Telnyx → SMADAV Call Control app `3034191310081754961` + SIP connection `3034191521164298080` (own 10 DIDs) vs Nomadly app `2898117434361775526`; each webhook points only to its own brand. Dynopay → SMADAV has its own merchant key/wallet. Blockbee → shared key (rate-conversion only), isolated by callback URL. WHM → SHARED (same host/token) but provisioning tested safely.

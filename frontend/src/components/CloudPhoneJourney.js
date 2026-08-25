@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import BRAND from '../branding';
 import { Phone, MessageSquare, Shield, Settings, CreditCard, ChevronRight, ChevronDown, ArrowRight, Check, Headphones, Mail, Globe, Mic, BarChart3, RefreshCw, X, Zap, Users, ArrowLeft } from 'lucide-react';
 
 const FLOWS = {
@@ -140,8 +141,8 @@ export default function CloudPhoneJourney() {
 
             <div className="overview-grid">
               {/* Main menu mockup */}
-              <PhoneScreen title="NomadlyBot">
-                <TgBubble from="Nomadly Bot" buttons={[
+              <PhoneScreen title={BRAND.botName}>
+                <TgBubble from={BRAND.botName} buttons={[
                   ['🔗✂️ URL Shortener — 5 Free Links'],
                   ['🌐 Offshore Hosting'],
                   ['📞☁️ Cloud Phone'],
@@ -151,13 +152,13 @@ export default function CloudPhoneJourney() {
                   ['🔔 Subscribe Here'],
                   [['🌍 Change Settings', '💬 Get Support']],
                 ]}>
-                  Welcome to Nomadly Bot! Please choose an option below:
+                  Welcome to {BRAND.botName}! Please choose an option below:
                 </TgBubble>
               </PhoneScreen>
 
               {/* Submenu mockup */}
               <PhoneScreen title="Cloud Phone">
-                <TgBubble from="Nomadly Bot" buttons={[
+                <TgBubble from={BRAND.botName} buttons={[
                   ['🛒 Buy Phone Number'],
                   ['📱 My Numbers'],
                   ['⚙️ SIP Settings'],
@@ -245,7 +246,7 @@ export default function CloudPhoneJourney() {
               {activeBuyStep === 1 && (
                 <div className="buy-step-pair">
                   <PhoneScreen title="Buy Number">
-                    <TgBubble from="Nomadly Bot" buttons={[
+                    <TgBubble from={BRAND.botName} buttons={[
                       [['🇺🇸 United States', '🇬🇧 United Kingdom']],
                       [['🇨🇦 Canada', '🇦🇺 Australia']],
                       [['🇩🇪 Germany', '🇫🇷 France']],
@@ -273,7 +274,7 @@ export default function CloudPhoneJourney() {
               {activeBuyStep === 2 && (
                 <div className="buy-step-pair">
                   <PhoneScreen title="Number Type">
-                    <TgBubble from="Nomadly Bot" buttons={[
+                    <TgBubble from={BRAND.botName} buttons={[
                       ['📍 Local Number'],
                       ['🆓 Toll-Free Number'],
                       [['Back', 'Cancel']],
@@ -301,7 +302,7 @@ export default function CloudPhoneJourney() {
               {activeBuyStep === 3 && (
                 <div className="buy-step-pair">
                   <PhoneScreen title="Select Area">
-                    <TgBubble from="Nomadly Bot" buttons={[
+                    <TgBubble from={BRAND.botName} buttons={[
                       [['New York (212)', 'Los Angeles (310)']],
                       [['Chicago (312)', 'Miami (305)']],
                       [['Houston (713)', 'Dallas (214)']],
@@ -329,7 +330,7 @@ export default function CloudPhoneJourney() {
               {activeBuyStep === 4 && (
                 <div className="buy-step-pair">
                   <PhoneScreen title="Available Numbers">
-                    <TgBubble from="Nomadly Bot" buttons={[
+                    <TgBubble from={BRAND.botName} buttons={[
                       [['1', '2', '3', '4', '5']],
                       ['🔄 Show More Numbers'],
                       [['Back', 'Cancel']],
@@ -360,7 +361,7 @@ export default function CloudPhoneJourney() {
               {activeBuyStep === 5 && (
                 <div className="buy-step-pair">
                   <PhoneScreen title="Select Plan">
-                    <TgBubble from="Nomadly Bot" buttons={[
+                    <TgBubble from={BRAND.botName} buttons={[
                       ['💡 Starter — $5/mo'],
                       ['⭐ Pro — $15/mo'],
                       ['👑 Business — $30/mo'],
@@ -391,7 +392,7 @@ export default function CloudPhoneJourney() {
               {activeBuyStep === 6 && (
                 <div className="buy-step-pair">
                   <PhoneScreen title="Add-ons">
-                    <TgBubble from="Nomadly Bot" buttons={[
+                    <TgBubble from={BRAND.botName} buttons={[
                       ['🎙️ Add Voicemail — $2/mo'],
                       ['🔑 Add SIP Access — $3/mo'],
                       ['🎧 Add Recording — $5/mo'],
@@ -422,7 +423,7 @@ export default function CloudPhoneJourney() {
               {activeBuyStep === 7 && (
                 <div className="buy-step-pair">
                   <PhoneScreen title="Order Summary">
-                    <TgBubble from="Nomadly Bot" buttons={[
+                    <TgBubble from={BRAND.botName} buttons={[
                       ['🎟️ Apply Coupon'],
                       ['✅ Proceed to Payment'],
                       [['Back', 'Cancel']],
@@ -456,7 +457,7 @@ export default function CloudPhoneJourney() {
               {activeBuyStep === 8 && (
                 <div className="buy-step-pair">
                   <PhoneScreen title="Payment">
-                    <TgBubble from="Nomadly Bot" buttons={[
+                    <TgBubble from={BRAND.botName} buttons={[
                       [['Crypto', '👛 Wallet']],
                       ['Bank ₦aira + Card🏦💳'],
                       [['Back', 'Cancel']],
@@ -482,7 +483,7 @@ export default function CloudPhoneJourney() {
               {activeBuyStep === 9 && (
                 <div className="buy-step-pair">
                   <PhoneScreen title="Activated!">
-                    <TgBubble from="Nomadly Bot">
+                    <TgBubble from={BRAND.botName}>
                       🎉 <b>Your Cloud Phone is Active!</b>{'\n\n'}
                       📞 Number: +1 (212) 555-0142{'\n'}
                       📍 Location: New York, US{'\n'}
@@ -529,7 +530,7 @@ export default function CloudPhoneJourney() {
 
             <div className="my-numbers-grid">
               <PhoneScreen title="My Numbers">
-                <TgBubble from="Nomadly Bot" buttons={[
+                <TgBubble from={BRAND.botName} buttons={[
                   ['1', '2'],
                   [['Back', 'Cancel']],
                 ]}>
@@ -542,7 +543,7 @@ export default function CloudPhoneJourney() {
               </PhoneScreen>
 
               <PhoneScreen title="Manage Number">
-                <TgBubble from="Nomadly Bot" buttons={[
+                <TgBubble from={BRAND.botName} buttons={[
                   ['📞 Call Forwarding'],
                   ['📩 SMS Settings'],
                   ['🎙️ Voicemail'],
@@ -595,7 +596,7 @@ export default function CloudPhoneJourney() {
             <p className="panel-desc">Users choose a forwarding mode, enter a destination number, and get instant confirmation. Implemented via Telnyx Call Control webhooks.</p>
             <div className="forwarding-grid">
               <PhoneScreen title="Call Forwarding">
-                <TgBubble from="Nomadly Bot" buttons={[
+                <TgBubble from={BRAND.botName} buttons={[
                   ['📞 Always Forward'],
                   ['📵 Forward When Busy'],
                   ['⏰ Forward No Answer'],
@@ -606,11 +607,11 @@ export default function CloudPhoneJourney() {
                 </TgBubble>
               </PhoneScreen>
               <PhoneScreen title="Enter Number">
-                <TgBubble from="Nomadly Bot" buttons={[['Back', 'Cancel']]}>
+                <TgBubble from={BRAND.botName} buttons={[['Back', 'Cancel']]}>
                   📞 Enter the number to forward calls to:{'\n'}(Include country code, e.g. +14155551234)
                 </TgBubble>
                 <TgBubble isBot={false}>+14155551234</TgBubble>
-                <TgBubble from="Nomadly Bot">
+                <TgBubble from={BRAND.botName}>
                   ✅ <b>Call Forwarding Updated!</b>{'\n\n'}
                   📞 +1 (212) 555-0142{'\n'}
                   📲 Forward to: +1 (415) 555-1234{'\n'}
@@ -637,7 +638,7 @@ export default function CloudPhoneJourney() {
             <p className="panel-desc">The killer feature — inbound SMS to your virtual number appears directly in your Telegram chat. Also supports email and webhook forwarding.</p>
             <div className="sms-grid">
               <PhoneScreen title="SMS Settings">
-                <TgBubble from="Nomadly Bot" buttons={[
+                <TgBubble from={BRAND.botName} buttons={[
                   ['📲 SMS to Telegram: ✅ ON'],
                   ['📧 SMS to Email: ❌ OFF'],
                   ['🔗 Webhook URL: Not Set'],
@@ -647,13 +648,13 @@ export default function CloudPhoneJourney() {
                 </TgBubble>
               </PhoneScreen>
               <PhoneScreen title="SMS Received!">
-                <TgBubble from="Nomadly Bot">
+                <TgBubble from={BRAND.botName}>
                   📩 <b>SMS Received</b>{'\n\n'}
                   📞 To: +1 (212) 555-0142{'\n'}
                   👤 From: +1 (415) 555-7890{'\n\n'}
                   💬 "Hi, I saw your listing. Is the apartment still available? I'd like to schedule a viewing this weekend."
                 </TgBubble>
-                <TgBubble from="Nomadly Bot">
+                <TgBubble from={BRAND.botName}>
                   📩 <b>SMS Received</b>{'\n\n'}
                   📞 To: +1 (212) 555-0142{'\n'}
                   👤 From: +1 (310) 555-1234{'\n\n'}
@@ -680,7 +681,7 @@ export default function CloudPhoneJourney() {
             <p className="panel-desc">Missed calls are greeted with a custom message, recorded, and sent as audio files to Telegram or email.</p>
             <div className="voicemail-grid">
               <PhoneScreen title="Voicemail Setup">
-                <TgBubble from="Nomadly Bot" buttons={[
+                <TgBubble from={BRAND.botName} buttons={[
                   ['🔊 Greeting: Default'],
                   ['📲 Send to Telegram: ✅ ON'],
                   ['📧 Send to Email: ❌ OFF'],
@@ -692,7 +693,7 @@ export default function CloudPhoneJourney() {
                 </TgBubble>
               </PhoneScreen>
               <PhoneScreen title="Voicemail Received!">
-                <TgBubble from="Nomadly Bot">
+                <TgBubble from={BRAND.botName}>
                   🎙️ <b>New Voicemail</b>{'\n\n'}
                   📞 To: +1 (212) 555-0142{'\n'}
                   👤 From: +1 (415) 555-7890{'\n'}
@@ -720,7 +721,7 @@ export default function CloudPhoneJourney() {
             <p className="panel-desc">Users get branded SIP credentials to connect any softphone, IP phone, or PBX to their virtual number.</p>
             <div className="sip-grid">
               <PhoneScreen title="SIP Credentials">
-                <TgBubble from="Nomadly Bot" buttons={[
+                <TgBubble from={BRAND.botName} buttons={[
                   ['👁️ Reveal Password'],
                   ['🔄 Reset Password'],
                   ['📋 Softphone Setup Guide'],
@@ -735,7 +736,7 @@ export default function CloudPhoneJourney() {
                 </TgBubble>
               </PhoneScreen>
               <PhoneScreen title="Global SIP">
-                <TgBubble from="Nomadly Bot" buttons={[
+                <TgBubble from={BRAND.botName} buttons={[
                   ['📱 Softphone Setup Guide'],
                   ['💻 IP Phone Config'],
                   ['🔧 PBX Integration'],
@@ -770,7 +771,7 @@ export default function CloudPhoneJourney() {
             <p className="panel-desc">Users see recent call and SMS activity with direction indicators, timestamps, and duration.</p>
             <div className="usage-grid">
               <PhoneScreen title="Activity Log">
-                <TgBubble from="Nomadly Bot" buttons={[
+                <TgBubble from={BRAND.botName} buttons={[
                   ['📞 Full Call History'],
                   ['📩 Full SMS History'],
                   ['Back'],
@@ -788,7 +789,7 @@ export default function CloudPhoneJourney() {
                 </TgBubble>
               </PhoneScreen>
               <PhoneScreen title="Usage Summary">
-                <TgBubble from="Nomadly Bot" buttons={[
+                <TgBubble from={BRAND.botName} buttons={[
                   ['🔄 Renew / Change Plan'],
                   ['Back'],
                 ]}>

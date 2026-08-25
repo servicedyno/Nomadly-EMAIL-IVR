@@ -20,6 +20,7 @@ const { log } = require('console')
 
 const { getDynopayCryptoAddress, getDynopayCryptoPaymentStatus } = require('./pay-dynopay')
 const { getCryptoDepositAddress, convert } = require('./pay-blockbee')
+const { branding } = require('./branding')
 
 const JWT_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex')
 const JWT_EXPIRY = '30d'
@@ -358,8 +359,17 @@ function createStoreRoutes(deps = {}) {
   // Public storefront config — exposes the Telegram bot username so the
   // landing page can render the "Continue with Telegram" QR / deep-link.
   router.get('/config', (req, res) => {
+    // Resolve the bot username from this deploy's OWN brand config — never a
+    // hardcoded cross-tenant literal. `branding.botHandle` is driven by
+    // CHAT_BOT_USERNAME and defaults to the deploy's own brand, so a missing
+    // BOT_USERNAME/TELEGRAM_BOT_USERNAME can never re-leak another tenant's bot.
+    const botUsername = (
+      process.env.TELEGRAM_BOT_USERNAME ||
+      process.env.BOT_USERNAME ||
+      branding.botHandle
+    ).replace(/^@/, '')
     res.json({
-      botUsername: process.env.TELEGRAM_BOT_USERNAME || 'NomadlyBot',
+      botUsername,
       botStartPayload: 'web-login',
     })
   })

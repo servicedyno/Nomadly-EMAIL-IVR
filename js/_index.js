@@ -13712,7 +13712,7 @@ All verified numbers generated during sourcing.`))
     if (result.error === 'limit_reached') {
       let msg = pMsg.sipTestComplete
       const refResult = await getOrCreateReferralCode(chatId)
-      const refLink = refResult ? `https://t.me/Nomadlybot?start=ref_${refResult.code}` : null
+      const refLink = refResult ? `https://t.me/${process.env.BOT_USERNAME || 'Nomadlybot'}?start=ref_${refResult.code}` : null
       if (refLink && !refResult.bonusEarned) {
         msg += pMsg.sipTestReferral(refLink)
       }
@@ -16574,7 +16574,7 @@ All verified numbers generated during sourcing.`))
       }
 
       const msg = `🤝 <b>Refer & Earn — now with instant bonus</b>\n\n` +
-        `Invite friends to Nomadly. When they deposit <b>$5</b>, you get <b>$1</b> instantly. When their total spend hits <b>$30</b>, you get another <b>$5</b>.\n\n` +
+        `Invite friends to ${process.env.CHAT_BOT_BRAND || 'Nomadly'}. When they deposit <b>$5</b>, you get <b>$1</b> instantly. When their total spend hits <b>$30</b>, you get another <b>$5</b>.\n\n` +
         `🔗 <a href="${referralLink}">Tap to copy your invite link</a>\n\n` +
         `${'─'.repeat(22)}\n` +
         `👥  <b>${totalReferred}</b> referred   ✅  <b>${qualified}</b> qualified   💰  <b>$${totalEarned.toFixed(2)}</b> earned` +
@@ -23513,7 +23513,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     if (result.error === 'limit_reached') {
       let msg = pMsg.sipTestComplete
       const refResult = await getOrCreateReferralCode(chatId)
-      const refLink = refResult ? `https://t.me/Nomadlybot?start=ref_${refResult.code}` : null
+      const refLink = refResult ? `https://t.me/${process.env.BOT_USERNAME || 'Nomadlybot'}?start=ref_${refResult.code}` : null
       if (refLink && !refResult.bonusEarned) {
         msg += pMsg.sipTestReferral(refLink)
       }
@@ -23815,7 +23815,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       if (result.error === 'limit_reached') {
         let msg = pMsg.sipTestComplete
         const refResult = await getOrCreateReferralCode(chatId)
-        const refLink = refResult ? `https://t.me/Nomadlybot?start=ref_${refResult.code}` : null
+        const refLink = refResult ? `https://t.me/${process.env.BOT_USERNAME || 'Nomadlybot'}?start=ref_${refResult.code}` : null
         if (refLink && !refResult.bonusEarned) {
           msg += pMsg.sipTestReferral(refLink)
         }
@@ -41946,7 +41946,7 @@ app.post('/dev/escalation-alert-preview', async (req, res) => {
   const userMessage = b.userMessage != null ? b.userMessage
     : 'Added sip credentials to Ecsow dialer and it keeps saying forbidden'
   const aiResponse = b.aiResponse != null ? b.aiResponse
-    : "I see you're having trouble with your SIP credentials being rejected as \"forbidden\" in your <b>Ecsow</b> dialer. Please try these steps: 1. Confirm <b>Domain</b>: <code>sip.speechcue.com</code>. 2. Confirm <b>Port</b> 5060 UDP. 3. If your dialer supports it, choose <b>SIP TRUNK</b> mode (Ecsow is a predictive dialer). If the issue persists I'll escalate to a human agent."
+    : "I see you're having trouble with your SIP credentials being rejected as \"forbidden\" in your <b>Ecsow</b> dialer. Please try these steps: 1. Confirm <b>Domain</b>: <code>" + (process.env.SIP_DOMAIN || 'sip.speechcue.com') + "</code>. 2. Confirm <b>Port</b> 5060 UDP. 3. If your dialer supports it, choose <b>SIP TRUNK</b> mode (Ecsow is a predictive dialer). If the issue persists I'll escalate to a human agent."
   const reason = b.reason || 'ai_flagged'
   const lang = b.lang || 'en'
 
