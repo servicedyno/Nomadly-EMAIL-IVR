@@ -56,6 +56,19 @@ After editing `.env`, restart the affected service:
 The page title / meta description in `frontend/public/index.html` are built from
 `%REACT_APP_BRAND_PANEL_NAME%` at build time.
 
+### Neutral default placeholder (for brand-new brands)
+Two clean, brand-agnostic marks ship in `frontend/public/` so a fresh brand looks
+polished before real artwork arrives:
+- `brand-placeholder-logo.svg` — square logo mark
+- `brand-placeholder-favicon.svg` — favicon
+Point a new brand at them (served same-origin, no external hosting) until real assets exist:
+```
+REACT_APP_BRAND_LOGO_URL=/brand-placeholder-logo.svg
+REACT_APP_BRAND_FAVICON_URL=/brand-placeholder-favicon.svg
+```
+(The runtime default is intentionally left empty so existing brands keep their initial-letter
+mark — set the vars above to opt in to the placeholder.)
+
 ### Adding your own logo & favicon (no code change)
 1. Upload your logo/favicon somewhere public (S3, your CDN, Cloudinary, etc.) and copy the direct image URL.
 2. In `frontend/.env` set:
