@@ -72,3 +72,28 @@ lockdown). Always call WHM through WHM_API_URL (Cloudflare Tunnel) as anti-red-s
   bot at this pod:
     curl -s "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN_DEV>/setWebhook?url=<pod>/api/telegram/webhook"
   (Safe: separate token from prod. Caveat: it writes to the LIVE production Mongo.)
+
+## Re-bootstrap 2025-07 (this pod) — SAFE DEV MODE
+- Pod URL: https://61f1ab1b-de5e-42f9-bda9-813fcb643786.preview.emergentagent.com
+- User re-supplied the full production env. Written to /app/backend/.env with sandbox overrides:
+  BOT_ENVIRONMENT=development (dev bot @Nomadlytestbot 6597817067) + SKIP_WEBHOOK_SYNC=true.
+- setup-nodejs.sh ran: SELF_URL/SELF_URL_PROD rewritten to <pod>/api, yarn install (528 pkgs),
+  nodejs supervisor program created + started. /app/.env symlink → /app/backend/.env.
+- frontend/.env created with REACT_APP_BACKEND_URL=<pod> + REACT_APP_BRAND_* (Nomadly/HostBay).
+- Verified: node:5000 healthy/DB connected, FastAPI:8001 proxy healthy, frontend:3000 "HostBay | Hosting Panel"
+  renders (Bot Running, DB Connected, REST APIs Active, Online). Boot guards fired:
+  [AntiRed] SKIPPED (dev), [CF-Sync] Skipped (dev). Prod Telegram webhook UNTOUCHED.
+
+### Fresh read-only credential audit 2025-07 (13 probed)
+- LIVE (9): OpenAI (200), Twilio (200), DigitalOcean (200), Cloudflare (user ok, expressdrop247@gmail.com),
+  OpenExchangeRates (200), Railway project token (200), WHM via WHM_API_URL (200), Bitly (200),
+  BlockBee (200), OpenProvider (token issued), ConnectReseller (boot: IP whitelisted).
+- BROKEN (4):
+  * TELNYX_API_KEY → 10009 "Authentication failed / No key found matching the ID" (NEW regression vs
+    2026-08-13 audit where it was live $9.53). Impacts Telnyx cloud-phone (voice/IVR/CNAM/SMS provisioning).
+    NON-URGENT right now: phone-monitor shows 0 active Telnyx numbers; platform runs on Twilio (live).
+    Fix: regenerate key at portal.telnyx.com → Auth → API Keys (V2), update TELNYX_API_KEY.
+  * VULTR_API_KEY → 401 (IP allow-list; non-blocking, VPS_DEFAULT_PROVIDER=digitalocean live).
+  * BREVO_API_KEY → 401 "not enabled" (only inbound-SMS→email forwarding; SMTP relay MAIL_AUTH_* is live).
+  * EDENAI_API_KEY → 401 (used only by js/tts-service.js for TTS; regenerate at edenai.run if TTS via EdenAI needed).
+  * Contabo OAuth previously invalid (non-blocking, VPS_CONTABO_FALLBACK_ENABLED=false).
