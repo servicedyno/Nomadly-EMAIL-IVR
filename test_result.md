@@ -11,6 +11,26 @@
 
 
 user_problem_statement: |
+  ==================== CURRENT TASK (2025-07) ====================
+  Voice Alert i18n bug fix. The vs_* call/SMS notification strings in
+  js/lang/{en,fr,zh,hi}.js escaped their ${param} placeholders
+  (authored as `\${from}`, `\${to}`, `\${rate}`, etc.). translation.js
+  calls these functions as value(...args) with NO second-pass ${}
+  replacement, so users saw LITERAL "${from} -> ${to}" instead of real
+  phone numbers / amounts (garbled notifications).
+  FIX APPLIED: unescaped all 81 x 4 = 324 placeholders (\${ -> ${) across
+  all four locale files, preserving literal money signs ($\${rate} -> $${rate}).
+  HOW TO VERIFY (backend / node-level; these are internal i18n functions,
+  not HTTP endpoints): using /app/js/translation.js, for EACH locale
+  en/fr/zh/hi call e.g.
+    translation('t.vs_outboundCallFailed', lang, '+15550001','+16660002','busy')
+    translation('t.vs_callDisconnectedWallet', lang, '0.15','0.03')
+    translation('t.vs_callForwarded', lang, '+1TO','+1FWD','+1FROM','3m','pl','12:00')
+  Each result MUST interpolate the passed args (contain the real values)
+  and MUST NOT contain any literal "${". Also assert `grep -o '\\${' js/lang/*.js`
+  returns ZERO. Node bot (supervisor: nodejs, :5000) is healthy after reload.
+  ================================================================
+
   PROD bug (2026-07-15): @ciroovblzz (chatId 8625434794) tried to fund
   his wallet with $10 via LTC through DynoPay. The on-chain payment
   confirmed (LTC 0.22179053 at rate 45.1 USD, txId
@@ -9844,6 +9864,141 @@ backend:
           
           Awaiting testing-agent verification of all 8 checks (login, auth guards, overview, transactions, 
           CSV export, no regression).
+
+  - task: "Voice Alert i18n bug fix (2026-07). The vs_* call/SMS notification strings in js/lang/{en,fr,zh,hi}.js escaped their ${param} placeholders (authored as \\${from}, \\${to}, \\${rate}, etc.). translation.js calls these functions as value(...args) with NO second-pass ${} replacement, so users saw LITERAL '${from} -> ${to}' instead of real phone numbers/amounts (garbled notifications). FIX APPLIED: unescaped all 81 x 4 = 324 placeholders (\\${ -> ${) across all four locale files, preserving literal money signs ($\\${rate} -> $${rate})."
+    implemented: true
+    working: true
+    file: "/app/js/lang/en.js, /app/js/lang/fr.js, /app/js/lang/zh.js, /app/js/lang/hi.js (vs_* notification strings unescaped); /app/js/translation.js (translation function)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFICATION COMPLETE - Voice Alert i18n bug fix PASSED (all 4 checks, 100% pass):
+          
+          SCOPE: Verified the i18n string-interpolation fix for vs_* voice/call/SMS notification strings 
+          in the Node.js Telegram-bot backend. These are INTERNAL translation functions (not HTTP endpoints), 
+          verified by running Node against the translation module.
+          
+          [CHECK 1] Zero escaped placeholders remain: ✅ PASSED
+            Command: grep -E '\\$\\{' /app/js/lang/*.js | wc -l
+            
+            Result: 0 ✅
+            
+            ★ NO ESCAPED PLACEHOLDERS: All 324 escaped placeholders (\\${) have been successfully 
+              unescaped across all four locale files (en, fr, zh, hi).
+          
+          [CHECK 2] All locale files syntactically valid: ✅ PASSED
+            Command: for f in en fr zh hi; do node --check /app/js/lang/$f.js && echo "$f OK"; done
+            
+            Result:
+            en OK ✅
+            fr OK ✅
+            zh OK ✅
+            hi OK ✅
+            
+            ★ SYNTAX VALID: All four locale files are syntactically valid JavaScript.
+          
+          [CHECK 3] Interpolation works for representative vs_* notifications: ✅ ALL 20 TESTS PASSED
+            Created test script /app/test_i18n_interpolation.js that requires /app/js/translation.js 
+            and tests the translation(key, lang, ...args) function.
+            
+            Tested 5 representative vs_* notification keys across all 4 languages (20 total tests):
+            
+            ✅ t.vs_outboundCallFailed (from, to, reason)
+               - Args: ['+15550001', '+16660002', 'busy']
+               - EN: "🚫 <b>Outbound Call Failed</b>\n📞 +15550001 → +16660002\nReason: busy"
+               - FR: "🚫 <b>Appel sortant échoué</b>\n📞 +15550001 → +16660002\nRaison : busy"
+               - ZH: "🚫 <b>外呼失败</b>\n📞 +15550001 → +16660002\n原因：busy"
+               - HI: "🚫 <b>आउटबाउंड कॉल विफल</b>\n📞 +15550001 → +16660002\nकारण: busy"
+               - All contain: +15550001, +16660002, busy ✅
+               - None contain literal "${" ✅
+            
+            ✅ t.vs_callDisconnectedWallet (rate, connection)
+               - Args: ['0.15', '0.03']
+               - EN: "🚫 <b>Call Disconnected</b> — Wallet insufficient (need $0.15/min + $0.03 connection)..."
+               - FR: "🚫 <b>Appel déconnecté</b> — Solde insuffisant (besoin de $0.15/min + $0.03 connexion)..."
+               - ZH: "🚫 <b>通话断开</b> — 余额不足（需要$0.15/分钟 + $0.03连接费）..."
+               - HI: "🚫 <b>कॉल डिस्कनेक्ट</b> — वॉलेट अपर्याप्त ($0.15/मिनट + $0.03 कनेक्शन)..."
+               - All contain: $0.15, $0.03 ✅ (money signs preserved correctly)
+               - None contain literal "${" ✅
+            
+            ✅ t.vs_callForwarded (to, fwd, from, duration, plan, time)
+               - Args: ['+1TO', '+1FWD', '+1FROM', '3m', 'planL', '12:00']
+               - All 4 languages contain: +1TO, +1FWD, +1FROM, 3m, 12:00 ✅
+               - None contain literal "${" ✅
+            
+            ✅ t.vs_planMinutesExhausted (phone, used, total, overage)
+               - Args: ['+1PH', '90', '100', 'ovr']
+               - All 4 languages contain: +1PH, 90, 100, ovr ✅
+               - None contain literal "${" ✅
+            
+            ✅ t.vs_newVoicemail (to, from, duration, time)
+               - Args: ['+1TO', '+1FROM', '15s', '13:00']
+               - All 4 languages contain: +1TO, +1FROM, 15s, 13:00 ✅
+               - None contain literal "${" ✅
+            
+            SUMMARY: 20/20 tests passed (100% pass rate)
+            - Every returned string CONTAINS all passed argument values ✅
+            - NO returned string contains literal "${" substring ✅
+            
+            ★ INTERPOLATION VERIFIED: The translation function correctly interpolates all placeholders 
+              across all 4 languages. Users will now see real phone numbers, amounts, and values instead 
+              of garbled "${from} -> ${to}" literal text.
+          
+          [CHECK 4] Node service health: ✅ PASSED
+            Command: curl -s http://127.0.0.1:5000/api/health
+            
+            Response: HTTP 200 ✅
+            {
+              "status": "healthy",
+              "database": "connected",
+              "uptime": "0.06 hours"
+            }
+            
+            ★ SERVICE HEALTH CONFIRMED: Node service is up and healthy, database connected.
+          
+          CONCLUSION:
+          The Voice Alert i18n bug fix is COMPLETE and verified. All 4 verification checks passed 
+          (0 escaped placeholders + 4 syntax checks + 20 interpolation tests + 1 health check = 
+          25 total assertions, 100% pass rate).
+          
+          KEY FIX VERIFIED:
+          • BUG FIXED:
+            - BEFORE: vs_* notification strings had escaped placeholders (\\${from}, \\${to}, \\${rate}, etc.)
+              → translation.js called value(...args) with NO second-pass ${} replacement
+              → users saw LITERAL "${from} -> ${to}" instead of real phone numbers/amounts
+            - AFTER: All 324 escaped placeholders unescaped (\\${ -> ${) across all 4 locale files
+              → template literals now correctly interpolate arguments
+              → users see real values: "📞 +15550001 → +16660002" instead of "📞 ${from} → ${to}"
+          
+          • IMPLEMENTATION VERIFIED:
+            - 81 placeholders per file × 4 files = 324 total unescaped
+            - Literal money signs preserved correctly ($\\${rate} -> $${rate} = "$0.15" in output)
+            - All 4 locale files (en, fr, zh, hi) syntactically valid
+            - Translation function works correctly for all tested vs_* keys
+            - 5 representative notification types tested across all 4 languages
+          
+          • PRODUCTION IMPACT:
+            - Users will now see properly formatted call/SMS notifications with real phone numbers, 
+              amounts, durations, and timestamps
+            - No more garbled "${from} -> ${to}" literal text in notifications
+            - All voice alert notifications (outbound call failed, call disconnected, call forwarded, 
+              plan minutes exhausted, new voicemail, etc.) now display correctly
+          
+          SAFETY CONFIRMED:
+          • All testing was READ-ONLY (no HTTP endpoints involved)
+          • Verification via Node script against translation module (as intended)
+          • No external API calls, no real calls/SMS triggered
+          • Node service remains healthy after fix
+          
+          The Voice Alert i18n bug is now FIXED and verified. Users will see properly interpolated 
+          phone numbers, amounts, and values in all call/SMS notifications across all 4 languages.
+      - working: "NA"
+        agent: "main"
+        comment: "Fix applied: unescaped all 81 x 4 = 324 placeholders (\\${ -> ${) across js/lang/{en,fr,zh,hi}.js, preserving literal money signs ($\\${rate} -> $${rate}). Awaiting testing-agent verification via node-level translation function testing (not HTTP endpoints)."
 
 frontend:
   - task: "READ-ONLY UI verification of Nomadly admin panel (2026-08-13): Verified root dashboard, navigation tabs, phone test page, and panel login page. All UI elements render correctly with no console errors or network failures."
