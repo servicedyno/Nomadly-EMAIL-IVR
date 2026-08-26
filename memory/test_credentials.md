@@ -4,9 +4,9 @@ This app uses Telegram bot authentication (chatId-based) — there is no email/p
 login for the panel. Auth flows are exercised via the bot / dev endpoints.
 
 ## Sandbox runtime config (re-bootstrapped 2026 — NEW fresh pod, creds re-supplied by user)
-- Pod URL: https://cred-verify-12.preview.emergentagent.com
+- Pod URL: https://webhook-skip-config.preview.emergentagent.com
 - Verified: node:5000 healthy/DB connected, FastAPI:8001 healthy, ext /api/health + /api/sms-app/download/info 200, frontend:3000 renders admin dashboard (Bot Running, DB Connected, REST APIs Active). BOT_ENVIRONMENT=development, SKIP_WEBHOOK_SYNC=true confirmed ([CF-Sync] Skipped log). Prod bot webhook untouched.
-- Prev pod URL (stale): https://cred-verify-12.preview.emergentagent.com
+- Prev pod URL (stale): https://webhook-skip-config.preview.emergentagent.com
 - Dev Telegram bot webhook (token TELEGRAM_BOT_TOKEN_DEV = 6597817067 @Nomadlytestbot) SET to <pod>/api/telegram/webhook (verified ok)
 - PROD bot (6292288341) webhook confirmed still on Railway (https://nomadly-email-ivr-production.up.railway.app/telegram/webhook) — UNTOUCHED
 - Env source of truth: /app/backend/.env  (/app/.env is a symlink to it)
@@ -78,7 +78,7 @@ lockdown). Always call WHM through WHM_API_URL (Cloudflare Tunnel) as anti-red-s
   (Safe: separate token from prod. Caveat: it writes to the LIVE production Mongo.)
 
 ## Re-bootstrap 2025-07 (this pod) — SAFE DEV MODE
-- Pod URL: https://61f1ab1b-de5e-42f9-bda9-813fcb643786.preview.emergentagent.com
+- Pod URL: https://webhook-skip-config.preview.emergentagent.com
 - User re-supplied the full production env. Written to /app/backend/.env with sandbox overrides:
   BOT_ENVIRONMENT=development (dev bot @Nomadlytestbot 6597817067) + SKIP_WEBHOOK_SYNC=true.
 - setup-nodejs.sh ran: SELF_URL/SELF_URL_PROD rewritten to <pod>/api, yarn install (528 pkgs),

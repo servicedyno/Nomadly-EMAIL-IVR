@@ -19,7 +19,7 @@ import json
 from datetime import datetime
 
 # Base URL from frontend/.env
-BASE_URL = "https://cred-verify-12.preview.emergentagent.com"
+BASE_URL = "https://webhook-skip-config.preview.emergentagent.com"
 PANEL_API = f"{BASE_URL}/api/panel"
 
 # Test credentials

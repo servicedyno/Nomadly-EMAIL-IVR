@@ -10,7 +10,7 @@ import re
 from datetime import datetime
 
 # Base URL from environment
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://cred-verify-12.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://webhook-skip-config.preview.emergentagent.com')
 
 # ============================================================================
 # SECTION 1: Utility Module Import Tests (Items 22-27)
