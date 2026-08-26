@@ -3,6 +3,14 @@
 ## Original problem statement
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
+## 2026-06 (this fork) — Sales Dashboard: Conversion Funnel (joined → deposited → purchased) — VERIFIED (testing agent, iteration_42, 100% frontend)
+**User request:** "Show a joined → deposited → purchased funnel so you can see exactly where users drop off."
+**Shipped (backend `js/routes/sales.js`):** `/overview` now returns `funnel {joined, deposited, purchased}` — a join-cohort (users whose `userConversion.joinedAt` falls in the selected range; nameOf-only users counted only for range=all) intersected with real deposits (`transactions` group==='deposit', amount>0) and sales (group==='sale'). Note: `welcome-bonus` is a bonus, NOT a deposit, so it does not count toward the "Deposited" stage.
+**Shipped (frontend `frontend/src/pages/SalesDashboard.js`):** new `ConversionFunnel` card (`sales-funnel`) rendered right below the 3 user KPI cards. 3 horizontal bars (Joined the bot / Deposited funds / Made a purchase; testids `funnel-stage-*`, `funnel-count-*`) with per-stage count, % of joined, and step-to-step "% continued · % dropped off".
+**Verified:** curl `funnel {joined:21, deposited:0, purchased:0}` (all + 30d). Testing agent 100% frontend: correct DOM position, counts 21/0/0, full/empty bars, drop-off text, range switching, no regressions. Only pre-existing cosmetic console warnings (visual-edit hydration span + recharts sizing — not the funnel).
+**Reaches production only after Save to GitHub + Railway redeploy.**
+
+
 ## 2026-06 (this fork) — Sales Dashboard: "Bot Users" list + per-user order history — VERIFIED (testing agent, iteration_41, 100% frontend)
 **User report:** "The sales dashboard is not showing bot users who joined the bot. It should show them along with their order history if any. Also identify what UI should be showing that isn't."
 **Root cause:** The `/sales` dashboard only listed *paying* customers ("Top Customers" = tx `group==='sale'`). The `smadav` DB has 19→21 users who joined (each got a $5 welcome-bonus) but **zero purchases**, so every sales section rendered empty. There was no place at all listing users who joined the bot.

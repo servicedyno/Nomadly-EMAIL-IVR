@@ -1,0 +1,24 @@
+{
+  "summary": "Frontend-only test of the new Conversion Funnel card on /sales. Login worked, funnel card renders in the correct DOM position (immediately after sales-user-kpis, before secondary KPIs kpi-deposits/bonuses/refunds). All three stage testids (funnel-stage-joined/deposited/purchased) and count testids present with counts 21/0/0 matching prod data. Joined bar full width, deposited & purchased bars empty. Drop-off text '0% continued · 100% dropped off' shown under deposited and purchased. Range switching (7 Days, All Time, 30 Days) works without errors; joined stays at 21 as expected. Regression: sales-bot-users + kpi-total-users/new-users/paying-users all render fine.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "SalesDashboard", "issues": ["React hydration warnings from a visual-edit wrapper (<span> inside <tbody>, <span> as child of <select>/<tr>) — not caused by the new ConversionFunnel component but noticed while testing. Cosmetic console noise only; does not affect rendering."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "ConversionFunnel implementation looks clean; testids are in place and DOM order matches spec.",
+    "Consider guarding recharts containers with a minHeight to silence 'width(-1)/height(-1)' console warnings (pre-existing, not from funnel)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A", "frontend": "100%"},
+  "test_credentials": "Dashboard password: Nomadly123@",
+  "seed_data_creation": "None (read-only prod DB)",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Funnel feature verified end-to-end on /sales. testids: sales-funnel, funnel-stage-{joined|deposited|purchased}, funnel-count-{joined|deposited|purchased}. Current prod values: 21/0/0. Range buttons are plain buttons with text labels ('Today','7 Days','30 Days','90 Days','1 Year','All Time') — no dedicated data-testid on individual range buttons."
+}

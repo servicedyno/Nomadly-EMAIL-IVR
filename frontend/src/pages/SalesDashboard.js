@@ -7,7 +7,7 @@ import {
   TrendingUp, TrendingDown, DollarSign, PiggyBank, CalendarDays, ShoppingCart,
   Receipt, RefreshCw, LogOut, Download, Search, Wallet, Gift, BarChart3,
   Layers, Users, Package, Lock, UserPlus, UserCheck, ChevronDown, ChevronRight,
-  Globe,
+  Globe, Filter,
 } from 'lucide-react';
 import { BRAND, brandSlug } from '../branding';
 
@@ -177,6 +177,67 @@ function WeeklyTooltip({ active, payload }) {
 
 const fmtDate = (s) => (s ? new Date(s).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '—');
 const LANG_LABEL = { en: 'English', fr: 'French', zh: 'Chinese', hi: 'Hindi' };
+
+// ─────────────────────────────────────────────────────────────
+// Conversion funnel — joined → deposited → purchased (where users drop off)
+// ─────────────────────────────────────────────────────────────
+function ConversionFunnel({ funnel }) {
+  if (!funnel) return null;
+  const { joined = 0, deposited = 0, purchased = 0 } = funnel;
+  const stages = [
+    { key: 'joined', label: 'Joined the bot', count: joined, icon: Users, bar: 'bg-sky-500', text: 'text-sky-400', sub: 'received welcome bonus' },
+    { key: 'deposited', label: 'Deposited funds', count: deposited, icon: Wallet, bar: 'bg-amber-500', text: 'text-amber-400', sub: 'funded their wallet' },
+    { key: 'purchased', label: 'Made a purchase', count: purchased, icon: ShoppingCart, bar: 'bg-emerald-500', text: 'text-emerald-400', sub: 'bought a product' },
+  ];
+  const pct = (n) => (joined > 0 ? Math.round((n / joined) * 1000) / 10 : 0);
+
+  return (
+    <div className="bg-white/[0.04] border border-white/10 rounded-2xl p-4 sm:p-5" data-testid="sales-funnel">
+      <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
+        <h2 className="font-semibold flex items-center gap-2"><Filter className="w-4 h-4 text-emerald-400" /> Conversion Funnel</h2>
+        <span className="text-xs text-slate-500">Joined → Deposited → Purchased</span>
+      </div>
+      <div className="space-y-3">
+        {stages.map((s, i) => {
+          const p = pct(s.count);
+          const prev = i > 0 ? stages[i - 1].count : null;
+          const stepConv = i === 0 ? null : (prev > 0 ? Math.round((s.count / prev) * 1000) / 10 : 0);
+          const Icon = s.icon;
+          return (
+            <div key={s.key} data-testid={`funnel-stage-${s.key}`}>
+              <div className="flex items-center justify-between text-sm mb-1.5">
+                <span className="flex items-center gap-2 text-slate-300">
+                  <Icon className={`w-4 h-4 ${s.text}`} /> {s.label}
+                  <span className="text-slate-500 text-xs hidden sm:inline">· {s.sub}</span>
+                </span>
+                <span className="tabular-nums text-slate-400">
+                  <span className={`font-semibold ${s.text}`} data-testid={`funnel-count-${s.key}`}>{fmtNum(s.count)}</span> · {p}%
+                </span>
+              </div>
+              <div className="h-8 rounded-lg bg-white/5 overflow-hidden">
+                <div
+                  className={`h-full ${s.bar} rounded-lg transition-all duration-700 ease-out`}
+                  style={{ width: `${s.count > 0 ? Math.max(p, 3) : 0}%` }}
+                />
+              </div>
+              {i > 0 && (
+                <div className="text-xs mt-1.5 pl-0.5 flex items-center gap-2">
+                  <span className="text-emerald-400/90">{stepConv}% continued</span>
+                  <span className="text-slate-600">·</span>
+                  <span className="text-rose-400/90 flex items-center gap-0.5">
+                    <TrendingDown className="w-3 h-3" />{Math.round((100 - stepConv) * 10) / 10}% dropped off
+                  </span>
+                  <span className="text-slate-500 hidden sm:inline">from {stages[i - 1].label.toLowerCase()}</span>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {joined === 0 && <div className="text-slate-500 text-sm mt-4">No users joined in this period.</div>}
+    </div>
+  );
+}
 
 const USER_SORTS = [
   { k: 'joinedAt', label: 'Newest joined' },
@@ -612,6 +673,9 @@ function Dashboard({ token, onLogout }) {
               <Kpi icon={UserPlus} label="New Users" value={fmtNum(data?.userStats?.newUsers || 0)} accent="emerald" sub="in selected range" testid="kpi-new-users" />
               <Kpi icon={UserCheck} label="Paying Users" value={fmtNum(data?.userStats?.purchasedUsers || 0)} accent="violet" sub="made a purchase" testid="kpi-paying-users" />
             </div>
+
+            {/* Conversion Funnel */}
+            <ConversionFunnel funnel={data?.funnel} />
 
             {/* Secondary KPIs */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

@@ -396,18 +396,41 @@ function install(app, deps) {
         }
       } catch (_) { /* names optional */ }
 
-      // bot-user stats (every chatId that ever joined the bot) — total + new-in-range + paying
+      // bot-user stats + conversion funnel (join-cohort within range): joined → deposited → purchased
       let userStats = null
+      let funnel = null
       try {
         const convDocs = await db.collection('userConversion')
           .find({}, { projection: { chatId: 1, joinedAt: 1, hasPurchased: 1 } }).toArray()
         // nameOf holds one doc per chatId that ever messaged the bot — the most complete "joined" signal
         const nameIds = await db.collection('nameOf').find({}, { projection: { _id: 1 } }).toArray()
+        const joinedAtMap = {}
+        for (const c of convDocs) joinedAtMap[String(c.chatId)] = normDate(c.joinedAt)
         const allIds = new Set(nameIds.map((n) => String(n._id)))
         for (const c of convDocs) allIds.add(String(c.chatId))
-        const newUsers = convDocs.filter((c) => { const d = normDate(c.joinedAt); return d && d >= since && d <= until }).length
+
+        // cohort = users who joined within the selected range (nameOf-only users have no join
+        // date, so they only count when range = 'all')
+        const inRange = (cid) => {
+          const d = joinedAtMap[cid]
+          if (d) return d >= since && d <= until
+          return String(range) === 'all'
+        }
+        const cohortSet = new Set([...allIds].filter(inRange))
         const purchasedUsers = convDocs.filter((c) => c.hasPurchased).length
-        userStats = { totalUsers: allIds.size, newUsers, purchasedUsers }
+        userStats = { totalUsers: allIds.size, newUsers: cohortSet.size, purchasedUsers }
+
+        // funnel: of the joined cohort, how many deposited real funds / made a purchase
+        const depositedSet = new Set()
+        const purchasedSet = new Set()
+        for (const doc of raw) {
+          const cid = String(doc.chatId || '')
+          if (!cohortSet.has(cid)) continue
+          const r = normalizeTxn(doc)
+          if (r.group === 'deposit' && r.amountUsd > 0) depositedSet.add(cid)
+          if (r.group === 'sale') purchasedSet.add(cid)
+        }
+        funnel = { joined: cohortSet.size, deposited: depositedSet.size, purchased: purchasedSet.size }
       } catch (_) { /* optional */ }
 
       res.json({
@@ -416,6 +439,7 @@ function install(app, deps) {
         ...report,
         deltas,
         userStats,
+        funnel,
         flatMarginPct: Math.round(FLAT_MARGIN * 1000) / 10,
       })
     } catch (e) {
