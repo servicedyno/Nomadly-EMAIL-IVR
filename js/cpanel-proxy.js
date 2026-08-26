@@ -299,6 +299,39 @@ function looksLikeUapiPermFailure(msg) {
   return typeof msg === 'string' && UAPI_EPERM_RX.test(msg)
 }
 
+// ─── Auth-broken classifier (stale cpPass in Mongo vs. real WHM password) ──
+//
+// A user's cached cPanel password in Mongo can silently drift out of sync
+// with the actual password on WHM (rotation on the server, restore from a
+// backup, admin manual change, etc.). When that happens EVERY user-level
+// HTTP Basic Auth call fails at the transport layer:
+//
+//   • UAPI  /execute/Fileman/upload_files, list_files     → HTTP 401
+//       (body: cPanel HTML login page — NOT the usual JSON error shape)
+//   • API2  /json-api/cpanel?...Fileman::mkdir            → HTTP 403
+//       (body may say "Access denied" or return the login page)
+//   • Occasionally the transport surfaces only axios' generic message
+//     "Request failed with status code 401" / "…403" with no body clue.
+//
+// Because httpStatus is 401/403 (not >= 500) and the message doesn't match
+// the EPERM regex, the existing WHM-root fallback never triggered — the raw
+// "Access denied" leaked to the panel UI. This classifier lets callers spot
+// the auth-broken case so they can trip the SAME root-impersonation ladder
+// EPERM already uses, which sidesteps the stale password entirely by
+// authenticating as root and passing cpanel_jsonapi_user=<user>.
+//
+// Confirmed in prod on cpUser `nnliae74` (WHM 68.183.77.106, domain
+// evitesapp.org) — @HHR2009 2026-08-26. Fix mirrors the sister-repo pattern.
+function looksLikeAuthFailure(status, msg) {
+  if (status === 401 || status === 403) return true
+  const s = String(msg == null ? '' : msg)
+  if (/access\s*denied/i.test(s)) return true
+  // axios's generic transport message when a response body doesn't carry a
+  // richer error — the number is the same 401/403 we just tested for.
+  if (/Request failed with status code\s*40[13]/i.test(s)) return true
+  return false
+}
+
 // ─── File-name safety for cPanel Fileman::fileop ────────────────────────
 //
 // cPanel's `Fileman::fileop` takes `sourcefiles`/`destfiles` as a COMMA-separated
@@ -387,20 +420,31 @@ async function uapi(cpUser, cpPass, module, func, params = {}, method = 'GET', h
     // before falling back to axios's generic status-code message.
     const cpanelMsg = extractCpanelErrorFromResponse(err, host)
     const msg = cpanelMsg || err.response?.data?.errors?.[0] || err.message
-    const eperm = looksLikeUapiPermFailure(cpanelMsg || err.response?.data?.errors?.[0] || '')
-    log(`[cPanel Proxy] ${module}::${func} error (${status}): ${msg}${eperm ? ' [EPERM]' : ''}`)
+    const rawErrText = cpanelMsg || err.response?.data?.errors?.[0] || err.message || ''
+    const eperm = looksLikeUapiPermFailure(rawErrText)
+    // EPERM takes precedence over auth-broken — some responses can carry both
+    // signals (a broken-homedir account may 500 with "permission denied") and
+    // callers rely on CPANEL_UAPI_EPERM to trigger the ops-repair page.
+    const authBroken = !eperm && looksLikeAuthFailure(status, rawErrText)
+    let code
+    if (eperm) code = 'CPANEL_UAPI_EPERM'
+    else if (authBroken) code = 'CPANEL_AUTH_FAILURE'
+    log(`[cPanel Proxy] ${module}::${func} error (${status}): ${msg}${eperm ? ' [EPERM]' : ''}${authBroken ? ' [AUTH-BROKEN]' : ''}`)
     return {
       status: 0,
       errors: [sanitizeString(String(msg), host)],
       data: null,
       httpStatus: status || null,
-      code: eperm ? 'CPANEL_UAPI_EPERM' : undefined,
+      code,
     }
   }
 }
 
 /**
- * Upload file to cPanel via multipart/form-data
+ * Upload file to cPanel via multipart/form-data (user-level HTTP Basic Auth).
+ * Returns { status, data, errors, httpStatus, code } — httpStatus/code are
+ * exposed so route-level fallback logic can spot stale-cpPass auth failures
+ * (401/403) and retry via uploadFileAsRoot() below.
  */
 async function uploadFile(cpUser, cpPass, dir, fileName, fileBuffer, host = null) {
   const baseUrl = getBaseUrl(host)
@@ -426,8 +470,102 @@ async function uploadFile(cpUser, cpPass, dir, fileName, fileBuffer, host = null
       _adminAlertDown(err.code || err.message, host || WHM_HOST)
       return downResponse(err.code || err.message)
     }
-    log(`[cPanel Proxy] Fileman::upload_files error: ${err.message}`)
-    return { status: 0, errors: [sanitizeString(err.message, host)], data: null }
+    const status = err.response?.status
+    const cpanelMsg = extractCpanelErrorFromResponse(err, host)
+    const rawErrText = cpanelMsg || err.response?.data?.errors?.[0] || err.message || ''
+    const eperm = looksLikeUapiPermFailure(rawErrText)
+    const authBroken = !eperm && looksLikeAuthFailure(status, rawErrText)
+    let code
+    if (eperm) code = 'CPANEL_UAPI_EPERM'
+    else if (authBroken) code = 'CPANEL_AUTH_FAILURE'
+    const msg = cpanelMsg || err.message
+    log(`[cPanel Proxy] Fileman::upload_files error (${status}): ${msg}${eperm ? ' [EPERM]' : ''}${authBroken ? ' [AUTH-BROKEN]' : ''}`)
+    return {
+      status: 0,
+      errors: [sanitizeString(String(msg), host)],
+      data: null,
+      httpStatus: status || null,
+      code,
+    }
+  }
+}
+
+/**
+ * Upload file impersonating the user via WHM's root token — bypasses the
+ * user's cPanel password entirely. Used as a fallback when uploadFile()
+ * returns CPANEL_AUTH_FAILURE (stale cpPass in Mongo vs real WHM password).
+ *
+ * Auth model: HTTP header `Authorization: whm <username>:<WHM_TOKEN>` + query
+ * param `cpanel_jsonapi_user=<cpUser>` tells WHM to route the call into the
+ * cPanel user's context. Same shape used by the EPERM fallback ladder in
+ * /files/mkdir and /files/delete.
+ *
+ * Returns { status, data, errors, httpStatus, via } — via='whm-root-upload'
+ * so callers can log the ladder step for ops.
+ */
+async function uploadFileAsRoot(cpUser, dir, fileName, fileBuffer, whmHost) {
+  const host = whmHost || WHM_HOST
+  const whmToken = process.env.WHM_TOKEN
+  if (!host || !whmToken) {
+    return { status: 0, errors: ['WHM credentials unavailable for root fallback'], data: null, httpStatus: null, via: 'whm-root-upload-unavailable' }
+  }
+  // Prefer the internal tunnel base if configured for the default host — the
+  // direct :2087 endpoint is firewalled on the shared box.
+  const whmApiUrl = process.env.WHM_API_URL
+  const baseUrl = (whmApiUrl && host === WHM_HOST)
+    ? `${whmApiUrl.replace(/\/+$/, '')}/json-api/cpanel`
+    : `https://${host}:2087/json-api/cpanel`
+
+  const form = new FormData()
+  form.append('dir', dir)
+  form.append('file-1', fileBuffer, { filename: fileName })
+
+  const headers = {
+    ...form.getHeaders(),
+    Authorization: `whm ${process.env.WHM_USERNAME || 'root'}:${whmToken}`,
+    ...(process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET ? {
+      'CF-Access-Client-Id': process.env.CF_ACCESS_CLIENT_ID,
+      'CF-Access-Client-Secret': process.env.CF_ACCESS_CLIENT_SECRET,
+    } : {}),
+  }
+
+  try {
+    const res = await axios.post(baseUrl, form, {
+      params: {
+        cpanel_jsonapi_user: cpUser,
+        cpanel_jsonapi_apiversion: 3,
+        cpanel_jsonapi_module: 'Fileman',
+        cpanel_jsonapi_func: 'upload_files',
+      },
+      headers,
+      httpsAgent,
+      timeout: 120000,
+      maxContentLength: 100 * 1024 * 1024,
+    })
+    const raw = sanitize(res.data, host)
+    // WHM wraps the UAPI response in .result (v3) — normalize to the same
+    // { status, data, errors } shape the caller already knows how to consume.
+    const wrapped = raw && (raw.result || raw)
+    const okStatus = wrapped?.status === 1 || (Array.isArray(wrapped?.data) && wrapped.data.length > 0)
+    return {
+      status: okStatus ? 1 : 0,
+      data: wrapped?.data || null,
+      errors: (Array.isArray(wrapped?.errors) && wrapped.errors.length) ? wrapped.errors : null,
+      httpStatus: res.status,
+      via: 'whm-root-upload',
+    }
+  } catch (err) {
+    const status = err.response?.status
+    const cpanelMsg = extractCpanelErrorFromResponse(err, host)
+    const msg = cpanelMsg || err.response?.data?.errors?.[0] || err.message
+    log(`[cPanel Proxy] Fileman::upload_files (WHM-root) error (${status}): ${msg}`)
+    return {
+      status: 0,
+      errors: [sanitizeString(String(msg), host)],
+      data: null,
+      httpStatus: status || null,
+      via: 'whm-root-upload-failed',
+    }
   }
 }
 
@@ -479,14 +617,21 @@ async function api2(cpUser, cpPass, module, func, params = {}, host = null) {
     // back to axios's generic "Request failed with status code NNN".
     const cpanelMsg = extractCpanelErrorFromResponse(err, host)
     const msg = cpanelMsg || err.response?.data?.errors?.[0] || err.message
-    const eperm = looksLikeUapiPermFailure(cpanelMsg || err.response?.data?.errors?.[0] || '')
-    log(`[cPanel Proxy API2] ${module}::${func} error (${status}): ${msg}${eperm ? ' [EPERM]' : ''}`)
+    const rawErrText = cpanelMsg || err.response?.data?.errors?.[0] || err.message || ''
+    const eperm = looksLikeUapiPermFailure(rawErrText)
+    // Auth-broken (stale cpPass ↔ WHM) — API2 typically 403s with body
+    // "Access denied". EPERM takes precedence for accounts that are also broken.
+    const authBroken = !eperm && looksLikeAuthFailure(status, rawErrText)
+    let code
+    if (eperm) code = 'CPANEL_UAPI_EPERM'
+    else if (authBroken) code = 'CPANEL_AUTH_FAILURE'
+    log(`[cPanel Proxy API2] ${module}::${func} error (${status}): ${msg}${eperm ? ' [EPERM]' : ''}${authBroken ? ' [AUTH-BROKEN]' : ''}`)
     return {
       status: 0,
       errors: [sanitizeString(String(msg), host)],
       data: null,
       httpStatus: status || null,
-      code: eperm ? 'CPANEL_UAPI_EPERM' : undefined,
+      code,
     }
   }
 }
@@ -1026,7 +1171,10 @@ module.exports = {
   // Diagnostics (surfaced for tests + route-level fallback logic)
   extractCpanelErrorFromResponse,
   looksLikeUapiPermFailure,
+  looksLikeAuthFailure,
   sanitizeCpanelFileName,
+  // Stale-cpPass fallback (WHM root impersonation) — peer of the EPERM ladder
+  uploadFileAsRoot,
   // EPERM (broken homedir/quota) — UX + ops alerting
   getEpermUserMessage,
   getEpermLocalizedMessages,

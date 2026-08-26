@@ -36725,6 +36725,103 @@ app.get('/branding', (_req, res) => {
 const { createCpanelRoutes } = require('./cpanel-routes')
 app.use('/panel', createCpanelRoutes(() => cpanelAccounts, { notifyAdmin }))
 
+// ── READ-ONLY dev endpoint: verify the cPanel auth-broken classifier + wiring
+// (no real WHM traffic, no data mutation). Motivated by @HHR2009 2026-08-26
+// bug fix — lets the testing agent + ops verify the classifier truth table
+// and check that /panel/files, /panel/files/mkdir, /panel/files/extract,
+// /panel/files/upload, /panel/files/upload-chunk all reference the new
+// _isAuthBroken() helper without hitting a real cPanel account.
+//
+// External path is /api/dev/cpanel-auth-broken-check (the middleware at
+// line ~36686 strips the /api prefix before Express matches, so we register
+// as /dev/… here). Access model:
+//   • 404 in production (NODE_ENV=production && BOT_ENVIRONMENT=production)
+//     unless caller supplies ?key=<SESSION_SECRET>
+//   • Always available in dev/staging
+app.get('/dev/cpanel-auth-broken-check', (req, res) => {
+  const isProd = process.env.NODE_ENV === 'production' && process.env.BOT_ENVIRONMENT === 'production'
+  const supplied = String(req.query.key || '')
+  const secret = String(process.env.SESSION_SECRET || '')
+  const authorised = supplied && secret && supplied === secret
+  if (isProd && !authorised) return res.status(404).json({ error: 'Not Found' })
+  if (!authorised && !isProd && process.env.BOT_ENVIRONMENT === 'production') {
+    return res.status(403).json({ error: 'admin key required in prod-like env' })
+  }
+
+  try {
+    const cp = require('./cpanel-proxy')
+    // ── 1. Classifier truth table ──
+    const cases = [
+      // auth-broken (should ALL be true)
+      { name: 'uapi 401 blank body',        status: 401, msg: '',                              want: 'auth' },
+      { name: 'uapi 401 HTML login body',   status: 401, msg: '<html>cPanel Login</html>',    want: 'auth' },
+      { name: 'api2 403 Access denied',     status: 403, msg: 'Access denied',                 want: 'auth' },
+      { name: 'api2 403 mixed case body',   status: 403, msg: 'access DENIED',                 want: 'auth' },
+      { name: 'axios generic 401 message',  status: null, msg: 'Request failed with status code 401', want: 'auth' },
+      { name: 'axios generic 403 message',  status: null, msg: 'Request failed with status code 403', want: 'auth' },
+      // eperm (should stay EPERM, NOT tagged auth)
+      { name: 'uapi status 1 EPERM',        status: 500, msg: '"/usr/local/cpanel/uapi" exited with status 1 (EPERM)', want: 'eperm' },
+      { name: 'plain EPERM msg',            status: 500, msg: 'EPERM: permission denied',      want: 'eperm' },
+      { name: 'permission denied on 403',   status: 403, msg: 'permission denied',             want: 'eperm' }, // EPERM regex catches this first
+      // legit non-auth errors (should be neither)
+      { name: 'File exists 400',            status: 400, msg: 'File exists',                   want: 'none' },
+      { name: '404 not found',              status: 404, msg: 'File not found',                want: 'none' },
+      { name: '502 upstream',               status: 502, msg: 'Bad Gateway',                   want: 'none' },
+      { name: 'no status ECONNRESET',       status: null, msg: 'ECONNRESET',                    want: 'none' },
+    ]
+    const classifier = cases.map(c => {
+      const isAuth = cp.looksLikeAuthFailure(c.status, c.msg)
+      const isEperm = cp.looksLikeUapiPermFailure(c.msg)
+      // Mutual exclusion — code precedence is EPERM first, then AUTH
+      const code = isEperm ? 'CPANEL_UAPI_EPERM' : (isAuth ? 'CPANEL_AUTH_FAILURE' : null)
+      let got
+      if (code === 'CPANEL_AUTH_FAILURE') got = 'auth'
+      else if (code === 'CPANEL_UAPI_EPERM') got = 'eperm'
+      else got = 'none'
+      return { ...c, isAuth, isEperm, code, got, pass: got === c.want }
+    })
+    const classifierAllPass = classifier.every(c => c.pass)
+
+    // ── 2. Wiring check: grep the route source for _isAuthBroken() usage ──
+    const path = require('path')
+    const fs = require('fs')
+    const routesPath = path.join(__dirname, 'cpanel-routes.js')
+    const routesSrc = fs.readFileSync(routesPath, 'utf8')
+    const wiring = {
+      helper_defined:          /function\s+_isAuthBroken\s*\(/.test(routesSrc),
+      list_files_gate:         /router\.get\(['"]\/files['"][\s\S]{0,4000}_isAuthBroken\(/.test(routesSrc),
+      mkdir_gate:              /router\.post\(['"]\/files\/mkdir['"][\s\S]{0,4000}_isAuthBroken\(/.test(routesSrc),
+      extract_gate:            /router\.post\(['"]\/files\/extract['"][\s\S]{0,4000}_isAuthBroken\(/.test(routesSrc),
+      upload_calls_root:       /router\.post\(['"]\/files\/upload['"][\s\S]{0,4000}uploadFileAsRoot\(/.test(routesSrc),
+      upload_chunk_calls_root: /router\.post\(['"]\/files\/upload-chunk['"][\s\S]{0,6000}uploadFileAsRoot\(/.test(routesSrc),
+    }
+    const wiringAllPass = Object.values(wiring).every(Boolean)
+
+    // ── 3. Exports check: proxy exports the two new helpers ──
+    const exports_check = {
+      classifier_exported:     typeof cp.looksLikeAuthFailure === 'function',
+      root_upload_exported:    typeof cp.uploadFileAsRoot === 'function',
+      eperm_classifier_kept:   typeof cp.looksLikeUapiPermFailure === 'function',
+    }
+    const exportsAllPass = Object.values(exports_check).every(Boolean)
+
+    const passed = classifierAllPass && wiringAllPass && exportsAllPass
+    return res.json({
+      passed,
+      counts: {
+        classifier_cases: classifier.length,
+        classifier_pass:  classifier.filter(c => c.pass).length,
+      },
+      classifier,
+      wiring,
+      exports: exports_check,
+      note: 'READ-ONLY diagnostic — no real WHM traffic, no DB mutation.',
+    })
+  } catch (e) {
+    return res.status(500).json({ error: `dev check failed: ${e.message}` })
+  }
+})
+
 // ── Public Web Storefront Routes (account + wallet + crypto top-up) ──
 const { createStoreRoutes, mintBotLoginToken } = require('./store-routes')
 app.use('/store', createStoreRoutes({
@@ -48092,7 +48189,7 @@ if (fs.existsSync(frontendBuildPath)) {
   // those later-registered handlers. Without this, /phone/reviews etc. get index.html on Railway.
   app.get('/{*splat}', (req, res, next) => {
     // Known Express API paths registered asynchronously — let them pass through to actual handlers
-    const apiPrefixes = ['/phone/', '/honeypot/', '/telegram/', '/telnyx/', '/twilio/', '/panel/', '/dynopay/', '/fincra/', '/blockbee/', '/sms-app/']
+    const apiPrefixes = ['/api/', '/phone/', '/honeypot/', '/telegram/', '/telnyx/', '/twilio/', '/panel/', '/dynopay/', '/fincra/', '/blockbee/', '/sms-app/']
     if (apiPrefixes.some(p => req.path.startsWith(p))) {
       return next()
     }
