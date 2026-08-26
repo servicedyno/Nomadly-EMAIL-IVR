@@ -39133,6 +39133,143 @@ app.post('/dev/idempotency-test', async (req, res) => {
   return res.json({ ...out, pass: out.first === 'inserted' && out.second === 'duplicate-blocked' })
 })
 
+// ── DEV-ONLY: verify the @HHR2009 "Create folder failed: Access denied" fix ─
+// 2026-08-26 bug — chatId 1960615421, cpUser nnliae74, WHM 68.183.77.106.
+// User's cached cpPass no longer matches the actual cPanel account password:
+//   API2 Fileman::mkdir  → HTTP 403 "Access denied"        (×3 in Railway logs)
+//   UAPI Fileman::upload_files → HTTP 401 (login page)
+//   UAPI Fileman::list_files   → HTTP 401 (login page)
+//   ProtectionHeartbeat        → "empty content after 3 retries" hourly
+//                                since 2026-08-24
+// Previously, /files/mkdir + /files (+ /files/extract + upload paths) only
+// tripped the WHM-root fallback on `httpStatus >= 500` or EPERM-class error
+// strings — never on 401/403 — so the raw "Access denied" leaked to the UI.
+// Fix: classify 401/403 (and body "Access denied") as user-auth-broken →
+// trip the WHM-root fallback ladder (root token + cpanel_jsonapi_user=X
+// impersonation → bypasses stale cpPass entirely). Also added
+// uploadFileAsRoot() so multipart uploads have a matching root-impersonation
+// path. Read-only endpoint: does NOT hit WHM or cPanel and does NOT mutate
+// the DB. 404 in production.
+app.get('/dev/cpanel-auth-broken-check', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  if (req?.query?.key !== process.env.SESSION_SECRET?.slice(0, 16)) {
+    return res.status(403).json({ error: 'forbidden' })
+  }
+
+  const cpProxy = require('./cpanel-proxy')
+  const fs = require('fs')
+  const path = require('path')
+  const routesSrc = fs.readFileSync(path.resolve(__dirname, 'cpanel-routes.js'), 'utf8')
+  const proxySrc = fs.readFileSync(path.resolve(__dirname, 'cpanel-proxy.js'), 'utf8')
+
+  const checks = []
+  const add = (name, pass, detail) => checks.push({ name, pass: !!pass, detail: String(detail == null ? '' : detail).slice(0, 400) })
+
+  // ── 1. looksLikeAuthFailure classifies user-auth breaks correctly ───────
+  add('looksLikeAuthFailure exported', typeof cpProxy.looksLikeAuthFailure === 'function', typeof cpProxy.looksLikeAuthFailure)
+  if (typeof cpProxy.looksLikeAuthFailure === 'function') {
+    add('  401 → true', cpProxy.looksLikeAuthFailure(401, '') === true, '')
+    add('  403 → true', cpProxy.looksLikeAuthFailure(403, '') === true, '')
+    add('  body "Access denied" (no status) → true', cpProxy.looksLikeAuthFailure(null, 'Access denied') === true, '')
+    add('  body "access denied" case-insensitive → true', cpProxy.looksLikeAuthFailure(null, 'access denied') === true, '')
+    add('  axios "Request failed with status code 401" → true', cpProxy.looksLikeAuthFailure(null, 'Request failed with status code 401') === true, '')
+    add('  500 → false (that is EPERM/server class)', cpProxy.looksLikeAuthFailure(500, '') === false, '')
+    add('  404 → false', cpProxy.looksLikeAuthFailure(404, '') === false, '')
+    add('  legit "File exists" mkdir error → false', cpProxy.looksLikeAuthFailure(null, 'File exists') === false, '')
+  }
+
+  // ── 2. EPERM vs AUTH classifiers don't collide ────────────────────────
+  add('AUTH: "Access denied" is AUTH, not EPERM',
+    cpProxy.looksLikeUapiPermFailure('Access denied') === false &&
+    cpProxy.looksLikeAuthFailure(null, 'Access denied') === true, '')
+  add('EPERM: "permission denied" is EPERM, not AUTH',
+    cpProxy.looksLikeUapiPermFailure('permission denied') === true &&
+    cpProxy.looksLikeAuthFailure(null, 'permission denied') === false, '')
+
+  // ── 3. Return-shape simulation for the 3 real @HHR2009 responses ──────
+  const scenarios = [
+    { name: '403 Access denied (mkdir @HHR2009)', status: 403, msg: 'Access denied', expectedCode: 'CPANEL_AUTH_FAILURE' },
+    { name: '401 HTML login page (list_files @HHR2009)', status: 401, msg: '<!DOCTYPE html>', expectedCode: 'CPANEL_AUTH_FAILURE' },
+    { name: '500 EPERM (@hellpeaces, regression)', status: 500, msg: '"/usr/local/cpanel/uapi" exited with status 1 (EPERM)', expectedCode: 'CPANEL_UAPI_EPERM' },
+    { name: '404 "File exists" (legit mkdir error, regression)', status: 404, msg: 'File exists', expectedCode: undefined },
+  ]
+  for (const s of scenarios) {
+    const eperm = cpProxy.looksLikeUapiPermFailure(s.msg)
+    const authFail = !eperm && cpProxy.looksLikeAuthFailure(s.status, s.msg)
+    const actual = eperm ? 'CPANEL_UAPI_EPERM' : (authFail ? 'CPANEL_AUTH_FAILURE' : undefined)
+    add(`classify: ${s.name} → ${s.expectedCode || 'undefined'}`, actual === s.expectedCode, `actual=${actual}`)
+  }
+
+  // ── 4. WHM-root multipart upload helper wired ─────────────────────────
+  add('uploadFileAsRoot exported', typeof cpProxy.uploadFileAsRoot === 'function', typeof cpProxy.uploadFileAsRoot)
+  add('cpanel-proxy: uploadFileAsRoot uses whm root Authorization header',
+    /Authorization:\s*`whm\s+\$\{process\.env\.WHM_USERNAME\s*\|\|\s*'root'\}:\$\{whmToken\}`/.test(proxySrc), '')
+  add('cpanel-proxy: uploadFileAsRoot impersonates via cpanel_jsonapi_user',
+    /cpanel_jsonapi_user:\s*cpUser[\s\S]{0,120}cpanel_jsonapi_func:\s*'upload_files'/.test(proxySrc), '')
+
+  // ── 5. cpanel-proxy: api2 / uapi / uploadFile all tag CPANEL_AUTH_FAILURE ─
+  add('api2 error: sets code CPANEL_AUTH_FAILURE on auth-fail',
+    (proxySrc.match(/code:\s*eperm\s*\?\s*'CPANEL_UAPI_EPERM'\s*:\s*\(authFail\s*\?\s*'CPANEL_AUTH_FAILURE'/g) || []).length >= 2, '')
+  add('uploadFile error: sets code CPANEL_AUTH_FAILURE + httpStatus',
+    /Fileman::upload_files error[\s\S]{0,400}httpStatus:\s*status\s*\|\|\s*null,\s*code:\s*authFail\s*\?\s*'CPANEL_AUTH_FAILURE'/.test(proxySrc), '')
+
+  // ── 6. cpanel-routes: _isAuthBroken + WHM-root wiring on 401/403 ──────
+  add('_isAuthBroken defined', /function _isAuthBroken/.test(routesSrc), '')
+  add('_isAuthBroken checks CPANEL_AUTH_FAILURE code', /result\.code === 'CPANEL_AUTH_FAILURE'/.test(routesSrc), '')
+  add('_isAuthBroken checks httpStatus 401/403', /result\.httpStatus === 401 \|\| result\.httpStatus === 403/.test(routesSrc), '')
+  add('mkdir: looksBroken includes authBroken', /const authBroken = _isAuthBroken\(result\)[\s\S]{0,80}const looksBroken =[\s\S]{0,40}authBroken/.test(routesSrc), '')
+  add('list_files: looksBroken includes authBrokenList', /const authBrokenList = _isAuthBroken\(result\)[\s\S]{0,120}looksBroken = authBrokenList/.test(routesSrc), '')
+  add('extract: looksBroken includes authBrokenExt', /const authBrokenExt = _isAuthBroken\(result\)[\s\S]{0,120}looksBroken = authBrokenExt/.test(routesSrc), '')
+  add('single-upload: falls back to uploadFileAsRoot on auth-broken', /Upload user-level auth-broken[\s\S]{0,400}uploadFileAsRoot/.test(routesSrc), '')
+  add('chunk-upload: falls back to uploadFileAsRoot on auth-broken', /Chunk upload user-level auth-broken[\s\S]{0,400}uploadFileAsRoot/.test(routesSrc), '')
+  add('mkdir source anchored to 2026-08-26 @HHR2009 fix', /2026-08-26 @HHR2009/.test(routesSrc), '')
+  add('mkdir logs "user-auth-broken" reason tag for ops audit', /user-auth-broken/.test(routesSrc), '')
+
+  // ── 7. Backward-compat regressions ────────────────────────────────────
+  add('EPERM path preserved: _replyEperm still defined', /function _replyEperm/.test(routesSrc), '')
+  add('EPERM path preserved: CPANEL_UAPI_EPERM still referenced', /CPANEL_UAPI_EPERM/.test(routesSrc), '')
+
+  // ── 8. Environment: WHM_TOKEN present so root fallback actually works ─
+  add('env WHM_TOKEN present (root fallback usable)', !!process.env.WHM_TOKEN, process.env.WHM_TOKEN ? `len=${process.env.WHM_TOKEN.length}` : 'MISSING')
+  add('env WHM_HOST present', !!process.env.WHM_HOST, process.env.WHM_HOST || 'MISSING')
+  add('env WHM_API_URL present (Cloudflare tunnel path preferred)', !!process.env.WHM_API_URL, process.env.WHM_API_URL || 'MISSING')
+
+  // ── 9. @HHR2009 record actually exists in Mongo (audit anchor, read-only) ─
+  let accountFound = null
+  try {
+    const col = db && db.collection ? db.collection('cpanelAccounts') : null
+    if (col && col.findOne) {
+      const doc = await col.findOne({ _id: 'nnliae74' }, { projection: { _id: 1, chatId: 1, whmHost: 1, domain: 1, plan: 1, createdAt: 1, protectionLastSkipReason: 1 } })
+      if (doc) {
+        accountFound = {
+          _id: doc._id,
+          chatId: doc.chatId || null,
+          whmHost: doc.whmHost || null,
+          domain: doc.domain || null,
+          plan: doc.plan || null,
+          createdAt: doc.createdAt || null,
+          protectionLastSkipReason: doc.protectionLastSkipReason || null,
+        }
+      }
+    }
+  } catch (_e) { /* best-effort — DB probe is informational */ }
+  add('Mongo record: cpanelAccounts.nnliae74 exists', !!accountFound, accountFound ? `chatId=${accountFound.chatId}, whmHost=${accountFound.whmHost}` : 'not found')
+
+  const failed = checks.filter(c => !c.pass).length
+  const passed = checks.length - failed
+  return res.json({
+    pass: failed === 0,
+    passed,
+    failed,
+    total: checks.length,
+    scenario: '@HHR2009 (1960615421) / nnliae74 / WHM 68.183.77.106 — mkdir 403 + upload 401 fix',
+    accountFound,
+    checks,
+  })
+})
+
 // ── DEV-ONLY: aiSupportChats history save-health snapshot ──────────────────
 // Motivated by 2026-07-30 @iamthebestbusiness (5828254066) investigation:
 // user had a full AI support session (logs prove AI replied) but ZERO rows in

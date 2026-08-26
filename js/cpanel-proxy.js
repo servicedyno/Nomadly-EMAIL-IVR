@@ -299,6 +299,34 @@ function looksLikeUapiPermFailure(msg) {
   return typeof msg === 'string' && UAPI_EPERM_RX.test(msg)
 }
 
+// Detect user-level cPanel auth failures — cPanel refusing the user's
+// HTTP Basic Auth. Same class of "user session is broken, use WHM root as
+// impersonator" problem as EPERM, but caused by:
+//   • stale cached cpPass (password rotated on the panel side, not synced
+//     back to our encrypted store) — the dominant real-world case
+//     (2026-08-26 @HHR2009 / nnliae74: 401 on upload_files+list_files,
+//      403 "Access denied" on mkdir; ProtectionHeartbeat has been logging
+//      "empty content after 3 retries" every hour since 2026-08-24 — same
+//      root, same class)
+//   • cPanel session-security policy blocking the user
+//   • WAF (ModSecurity / cPHulk) rate-limiting the user's IP or account
+//
+// UAPI /execute/... returns 401 with an HTML login page.
+// API2 /json-api/cpanel returns 403 with plain "Access denied".
+// Both should trigger the WHM-root fallback ladder (Authorization: whm
+// root:TOKEN + cpanel_jsonapi_user=<user>) which authenticates as root and
+// impersonates the user — bypassing the user's password entirely.
+function looksLikeAuthFailure(status, msg) {
+  if (status === 401 || status === 403) return true
+  if (typeof msg === 'string') {
+    // Body-based fallback: some deployments strip the HTTP status (e.g. via
+    // Cloudflare Access) but still leak the string in the body.
+    if (/^Access denied$/i.test(msg.trim())) return true
+    if (/Request failed with status code 40[13]/.test(msg)) return true
+  }
+  return false
+}
+
 // ─── File-name safety for cPanel Fileman::fileop ────────────────────────
 //
 // cPanel's `Fileman::fileop` takes `sourcefiles`/`destfiles` as a COMMA-separated
@@ -388,13 +416,14 @@ async function uapi(cpUser, cpPass, module, func, params = {}, method = 'GET', h
     const cpanelMsg = extractCpanelErrorFromResponse(err, host)
     const msg = cpanelMsg || err.response?.data?.errors?.[0] || err.message
     const eperm = looksLikeUapiPermFailure(cpanelMsg || err.response?.data?.errors?.[0] || '')
-    log(`[cPanel Proxy] ${module}::${func} error (${status}): ${msg}${eperm ? ' [EPERM]' : ''}`)
+    const authFail = !eperm && looksLikeAuthFailure(status, msg)
+    log(`[cPanel Proxy] ${module}::${func} error (${status}): ${msg}${eperm ? ' [EPERM]' : ''}${authFail ? ' [AUTH]' : ''}`)
     return {
       status: 0,
       errors: [sanitizeString(String(msg), host)],
       data: null,
       httpStatus: status || null,
-      code: eperm ? 'CPANEL_UAPI_EPERM' : undefined,
+      code: eperm ? 'CPANEL_UAPI_EPERM' : (authFail ? 'CPANEL_AUTH_FAILURE' : undefined),
     }
   }
 }
@@ -426,8 +455,16 @@ async function uploadFile(cpUser, cpPass, dir, fileName, fileBuffer, host = null
       _adminAlertDown(err.code || err.message, host || WHM_HOST)
       return downResponse(err.code || err.message)
     }
-    log(`[cPanel Proxy] Fileman::upload_files error: ${err.message}`)
-    return { status: 0, errors: [sanitizeString(err.message, host)], data: null }
+    const status = err.response?.status
+    const authFail = looksLikeAuthFailure(status, err.message)
+    log(`[cPanel Proxy] Fileman::upload_files error (${status || 'no-status'}): ${err.message}${authFail ? ' [AUTH]' : ''}`)
+    return {
+      status: 0,
+      errors: [sanitizeString(err.message, host)],
+      data: null,
+      httpStatus: status || null,
+      code: authFail ? 'CPANEL_AUTH_FAILURE' : undefined,
+    }
   }
 }
 
@@ -480,13 +517,14 @@ async function api2(cpUser, cpPass, module, func, params = {}, host = null) {
     const cpanelMsg = extractCpanelErrorFromResponse(err, host)
     const msg = cpanelMsg || err.response?.data?.errors?.[0] || err.message
     const eperm = looksLikeUapiPermFailure(cpanelMsg || err.response?.data?.errors?.[0] || '')
-    log(`[cPanel Proxy API2] ${module}::${func} error (${status}): ${msg}${eperm ? ' [EPERM]' : ''}`)
+    const authFail = !eperm && looksLikeAuthFailure(status, msg)
+    log(`[cPanel Proxy API2] ${module}::${func} error (${status}): ${msg}${eperm ? ' [EPERM]' : ''}${authFail ? ' [AUTH]' : ''}`)
     return {
       status: 0,
       errors: [sanitizeString(String(msg), host)],
       data: null,
       httpStatus: status || null,
-      code: eperm ? 'CPANEL_UAPI_EPERM' : undefined,
+      code: eperm ? 'CPANEL_UAPI_EPERM' : (authFail ? 'CPANEL_AUTH_FAILURE' : undefined),
     }
   }
 }
@@ -966,6 +1004,77 @@ async function deleteMysqlRemoteHost(cpUser, cpPass, remoteHost, host = null) {
   return uapi(cpUser, cpPass, 'Mysql', 'delete_host', { host: remoteHost }, 'POST', host)
 }
 
+// ─── WHM-root multipart upload fallback ──────────────────────────────
+//
+// When user-level UAPI upload_files fails with 401/403 (stale cpPass /
+// cPanel session-security lockout — 2026-08-26 @HHR2009 / nnliae74), retry
+// the upload via WHM's /json-api/cpanel gateway authenticated as root, with
+// cpanel_jsonapi_user=<user> to impersonate. Uses multipart POST (same body
+// shape as user-level upload_files) and returns a normalized
+// { status, data, errors, via } shape so callers can treat it identically.
+//
+// Requires process.env.WHM_TOKEN and a whmHost. Returns a canonical failure
+// shape if either is missing so callers can log + report cleanly.
+async function uploadFileAsRoot(cpUser, dir, fileName, fileBuffer, whmHost) {
+  const whmToken = process.env.WHM_TOKEN
+  if (!whmToken || !whmHost) {
+    return { status: 0, errors: ['WHM root fallback not configured (missing WHM_TOKEN or whmHost)'], data: null, via: 'whm-root-unavailable' }
+  }
+  // Resolve WHM base URL: prefer WHM_API_URL (Cloudflare tunnel) when the
+  // account is pinned to the primary WHM_HOST — matches _resolveWhmBaseUrl in
+  // cpanel-routes.js.
+  const whmApiUrl = process.env.WHM_API_URL
+  const useTunnel = whmApiUrl && whmHost === process.env.WHM_HOST
+  const base = useTunnel ? `${whmApiUrl.replace(/\/+$/, '')}/json-api` : `https://${whmHost}:2087/json-api`
+  const url = `${base}/cpanel`
+
+  const form = new FormData()
+  form.append('dir', dir)
+  form.append('file-1', fileBuffer, { filename: fileName })
+
+  const cfAccess = (process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET) ? {
+    'CF-Access-Client-Id': process.env.CF_ACCESS_CLIENT_ID,
+    'CF-Access-Client-Secret': process.env.CF_ACCESS_CLIENT_SECRET,
+  } : {}
+
+  try {
+    const res = await axios.post(url, form, {
+      params: {
+        'api.version': 1,
+        cpanel_jsonapi_user: cpUser,
+        cpanel_jsonapi_apiversion: 3,
+        cpanel_jsonapi_module: 'Fileman',
+        cpanel_jsonapi_func: 'upload_files',
+      },
+      headers: {
+        Authorization: `whm ${process.env.WHM_USERNAME || 'root'}:${whmToken}`,
+        ...form.getHeaders(),
+        ...cfAccess,
+      },
+      httpsAgent,
+      timeout: 120000,
+      maxContentLength: 100 * 1024 * 1024,
+    })
+    const body = sanitize(res.data, whmHost)
+    // WHM wraps UAPI result under `result:`. Accept either shape.
+    const inner = body?.result || body?.cpanelresult || body || {}
+    const uploaded = inner?.data?.uploads?.uploaded
+    const succeeded = Array.isArray(uploaded)
+      ? uploaded.some(u => u && (u.status === 1 || u.uploaded === 1))
+      : (inner?.status === 1 || inner?.data?.uploaded === 1)
+    if (succeeded) {
+      return { status: 1, data: inner.data || null, errors: null, via: 'whm-root' }
+    }
+    const reason = inner?.errors?.[0] || inner?.error || 'WHM root upload also failed'
+    return { status: 0, errors: [sanitizeString(String(reason), whmHost)], data: null, via: 'whm-root-failed' }
+  } catch (err) {
+    const status = err.response?.status
+    const msg = extractCpanelErrorFromResponse(err, whmHost) || err.message
+    log(`[cPanel Proxy] WHM-root upload_files error (${status || 'no-status'}): ${msg}`)
+    return { status: 0, errors: [sanitizeString(String(msg), whmHost)], data: null, httpStatus: status || null, via: 'whm-root-exception' }
+  }
+}
+
 module.exports = {
   uapi,
   uploadFile,
@@ -1026,7 +1135,10 @@ module.exports = {
   // Diagnostics (surfaced for tests + route-level fallback logic)
   extractCpanelErrorFromResponse,
   looksLikeUapiPermFailure,
+  looksLikeAuthFailure,
   sanitizeCpanelFileName,
+  // WHM-root multipart upload fallback (2026-08-26 @HHR2009 /nnliae74 fix)
+  uploadFileAsRoot,
   // EPERM (broken homedir/quota) — UX + ops alerting
   getEpermUserMessage,
   getEpermLocalizedMessages,

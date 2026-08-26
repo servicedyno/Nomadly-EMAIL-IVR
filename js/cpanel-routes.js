@@ -162,6 +162,23 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100
 function _isEpermReason(reason) {
   return !!(cpProxy.looksLikeUapiPermFailure && cpProxy.looksLikeUapiPermFailure(String(reason || '')))
 }
+
+// User-level cPanel Basic Auth broken? 401 / 403 → try the WHM-root
+// impersonation fallback ladder (same as EPERM). Dominant real-world cause
+// is a stale cached cpPass (password rotated on cPanel side without a
+// re-sync into our encrypted store) — 2026-08-26 @HHR2009 / nnliae74:
+// mkdir 403 "Access denied", list_files/upload_files 401, ProtectionHeartbeat
+// silently degraded to "empty content after 3 retries" every hour since
+// 2026-08-24. Also covers cpHulk/ModSecurity lockouts + cPanel session
+// policy blocks. Cheap safety net: WHM-root uses WHM_TOKEN + impersonation
+// (`cpanel_jsonapi_user=X`) which sidesteps the user's password entirely.
+function _isAuthBroken(result) {
+  if (!result) return false
+  if (result.code === 'CPANEL_AUTH_FAILURE') return true
+  if (result.httpStatus === 401 || result.httpStatus === 403) return true
+  const first = Array.isArray(result.errors) ? result.errors[0] : (result.error || '')
+  return !!(cpProxy.looksLikeAuthFailure && cpProxy.looksLikeAuthFailure(result.httpStatus, String(first || '')))
+}
 function _replyEperm(res, req, op) {
   cpProxy.alertEpermRepairNeeded({
     op,
@@ -301,7 +318,7 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     const dir = req.query.dir || `/home/${req.cpUser}/public_html`
     let result = await cpProxy.listFiles(req.cpUser, req.cpPass, dir, req.whmHost)
 
-    // ── EPERM handling — parity with /files/mkdir and /files/extract ──
+    // ── EPERM / user-auth broken handling — parity with /files/mkdir and /files/extract ──
     // (@HHR2009 2026-08-04 — chatId 1960615421: cpUser papea895 on WHM
     // 68.183.77.106 was getting `"/usr/local/cpanel/uapi" exited with
     // status 1 (EPERM)` for Fileman::list_files. The user simply saw a
@@ -317,13 +334,19 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     // Fix: mirror the mkdir/extract WHM-root-fallback + retry ladder, and
     // route the persistent-EPERM tail through `_replyEperm` so it logs +
     // pages ops with the exact repair command and the affected cpUser.
-    const looksBroken = result?.code === 'CPANEL_UAPI_EPERM' ||
+    // 2026-08-26 update: also fall back on 401 (@HHR2009/nnliae74 —
+    // cPanel returning HTML login page for user-level UAPI due to a stale
+    // cached cpPass). WHM-root path uses root credentials + impersonation
+    // so it succeeds regardless of the user's broken auth.
+    const authBrokenList = _isAuthBroken(result)
+    const looksBroken = authBrokenList ||
+      result?.code === 'CPANEL_UAPI_EPERM' ||
       (result?.httpStatus && result.httpStatus >= 500) ||
       _isEpermReason(result?.errors?.[0])
     if (looksBroken) {
       const whmApi = _makeWhmApi(req.whmHost || process.env.WHM_HOST)
       if (whmApi) {
-        const initialReason = result?.errors?.[0] || 'unknown'
+        const initialReason = authBrokenList ? 'user-auth-broken' : (result?.errors?.[0] || 'unknown')
         log(`[Panel] list_files user-level failed for ${dir} → WHM fallback (user: ${req.cpUser}, reason: ${initialReason})`)
         const BACKOFFS = [0, 800, 1600]
         let lastReason = initialReason
@@ -545,6 +568,19 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
       return res.status(403).json({ error: `Cannot upload ${uploadName} — this file is managed by the anti-red protection system.` })
     }
     const result = await cpProxy.uploadFile(req.cpUser, req.cpPass, dir, uploadName, req.file.buffer, req.whmHost)
+    // If user-level upload got 401/403 (stale cpPass, cpHulk lockout,
+    // ModSecurity — 2026-08-26 @HHR2009 fix), retry via WHM-root multipart
+    // impersonation. Root creds sidestep the user's broken auth entirely.
+    if (result?.status !== 1 && _isAuthBroken(result)) {
+      log(`[Panel] Upload user-level auth-broken (${result?.httpStatus}) → WHM-root fallback: ${uploadName} → ${dir} (user: ${req.cpUser})`)
+      const rootResult = await cpProxy.uploadFileAsRoot(req.cpUser, dir, uploadName, req.file.buffer, req.whmHost || process.env.WHM_HOST)
+      if (rootResult?.status === 1) {
+        log(`[Panel] Upload succeeded via WHM-root fallback: ${uploadName} → ${dir} (user: ${req.cpUser})`)
+        return res.json(_up.changed ? { ...rootResult, renamedFrom: _up.original, savedAs: uploadName } : rootResult)
+      }
+      log(`[Panel] Upload WHM-root fallback failed: ${uploadName} → ${dir} (user: ${req.cpUser}) — ${rootResult?.errors?.[0] || 'unknown'}`)
+      return res.status(500).json({ status: 0, error: `Upload failed: ${rootResult?.errors?.[0] || 'auth error persists via WHM root'}`, errors: rootResult?.errors || ['auth error'], via: 'whm-root-failed' })
+    }
     res.json(_up.changed ? { ...result, renamedFrom: _up.original, savedAs: uploadName } : result)
   })
 
@@ -672,6 +708,17 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
         log(`[Panel] Chunk upload complete: ${saveName} (${(assembled.length / (1024 * 1024)).toFixed(1)} MB) → ${dir} (user: ${req.cpUser}, id: ${uploadId})`)
 
         const result = await cpProxy.uploadFile(req.cpUser, req.cpPass, dir, saveName, assembled, req.whmHost)
+        // Same 401/403 WHM-root fallback as single-shot upload (@HHR2009 fix).
+        if (result?.status !== 1 && _isAuthBroken(result)) {
+          log(`[Panel] Chunk upload user-level auth-broken (${result?.httpStatus}) → WHM-root fallback: ${saveName} → ${dir} (user: ${req.cpUser}, id: ${uploadId})`)
+          const rootResult = await cpProxy.uploadFileAsRoot(req.cpUser, dir, saveName, assembled, req.whmHost || process.env.WHM_HOST)
+          if (rootResult?.status === 1) {
+            log(`[Panel] Chunk upload succeeded via WHM-root fallback: ${saveName} (${(assembled.length / (1024 * 1024)).toFixed(1)} MB) → ${dir} (user: ${req.cpUser})`)
+            return res.json({ ...rootResult, status: 'complete', cpanelStatus: rootResult.status, ...(_cu.changed ? { renamedFrom: _cu.original, savedAs: saveName } : {}) })
+          }
+          log(`[Panel] Chunk upload WHM-root fallback failed: ${saveName} → ${dir} (user: ${req.cpUser}) — ${rootResult?.errors?.[0] || 'unknown'}`)
+          return res.status(500).json({ status: 'complete', cpanelStatus: 0, error: `Upload failed: ${rootResult?.errors?.[0] || 'auth error persists via WHM root'}`, errors: rootResult?.errors || ['auth error'], via: 'whm-root-failed' })
+        }
         return res.json({ ...result, status: 'complete', cpanelStatus: result?.status, ...(_cu.changed ? { renamedFrom: _cu.original, savedAs: saveName } : {}) })
       } catch (e) {
         log(`[Panel] Chunk handler error: ${e.message} (user: ${req.cpUser || 'unknown'})`)
@@ -703,7 +750,9 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     const result = await cpProxy.createDirectory(req.cpUser, req.cpPass, dir, name, req.whmHost)
     if (result?.status === 1) return res.json(_mk.changed ? { ...result, renamedFrom: _mk.original, savedAs: name } : result)
 
-    // Attempt 2: WHM-root fallback for uapi EPERM / status-1 failures.
+    // Attempt 2: WHM-root fallback for uapi EPERM / status-1 failures OR
+    // user-level auth failures (401/403 — stale cpPass / cPanel session
+    // lockout, 2026-08-26 @HHR2009 fix).
     // Motivated by @hellpeaces (5522767823) 2026-07-06 — broken shell/homedir
     // made user-level `uapi` exit EPERM. Root, calling via WHM's
     // /json-api/cpanel?cpanel_jsonapi_user=<user>, retries the same op.
@@ -717,14 +766,20 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     // (b) return a calm, localized message instead of a raw "500 …EPERM".
     // (Re-reported by @hellpeaces on 2026-07-21 because the 07-06 fallback
     // alone couldn't recover a persistent break and never alerted anyone.)
+    // For 401/403 (broken user auth), the WHM-root path succeeds because
+    // it uses root credentials + impersonation — no retry needed, single
+    // attempt is enough.
+    const authBroken = _isAuthBroken(result)
     const looksBroken =
+      authBroken ||
       result?.code === 'CPANEL_UAPI_EPERM' ||
       (result?.httpStatus && result.httpStatus >= 500) ||
       result?.errors?.some(e => cpProxy.looksLikeUapiPermFailure && cpProxy.looksLikeUapiPermFailure(e))
     const whmApi = looksBroken ? _makeWhmApi(req.whmHost || process.env.WHM_HOST) : null
 
     if (whmApi) {
-      log(`[Panel] mkdir user-level failed for "${name}" in ${dir}, trying WHM fallback (user: ${req.cpUser}, reason: ${result?.errors?.[0] || 'unknown'})`)
+      const reasonTag = authBroken ? 'user-auth-broken' : (result?.errors?.[0] || 'unknown')
+      log(`[Panel] mkdir user-level failed for "${name}" in ${dir}, trying WHM fallback (user: ${req.cpUser}, reason: ${reasonTag})`)
       const MKDIR_RETRY_BACKOFFS_MS = [0, 800, 1600] // initial + 2 retries
       let lastWhmReason = result?.errors?.[0] || 'unknown'
       for (let attempt = 0; attempt < MKDIR_RETRY_BACKOFFS_MS.length; attempt++) {
@@ -929,17 +984,17 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     const extractTarget = destDir || dir
     let result = await cpProxy.extractFile(req.cpUser, req.cpPass, dir, file, extractTarget, req.whmHost)
 
-    // If the user-level extract failed with the broken-homedir class, try the
-    // WHM root-as-user fallback (same fileop path delete uses), retrying the
-    // EPERM class a couple of times for transient quota blips. If it still
-    // fails EPERM, page ops + return a calm localized message.
+    // If the user-level extract failed with the broken-homedir class OR
+    // user-auth-broken (401/403 — stale cpPass, 2026-08-26 @HHR2009 fix),
+    // try the WHM root-as-user fallback (same fileop path delete uses).
     if (result?.status !== 1) {
       const failReason = result?.errors?.[0] || result?.error || 'unknown'
-      const looksBroken = result?.code === 'CPANEL_UAPI_EPERM' ||
+      const authBrokenExt = _isAuthBroken(result)
+      const looksBroken = authBrokenExt || result?.code === 'CPANEL_UAPI_EPERM' ||
         (result?.httpStatus && result.httpStatus >= 500) || _isEpermReason(failReason)
       const whmApi = looksBroken ? _makeWhmApi(req.whmHost || process.env.WHM_HOST) : null
       if (whmApi) {
-        log(`[Panel] extract user-level failed for ${file} → WHM fallback (user: ${req.cpUser}, reason: ${failReason})`)
+        log(`[Panel] extract user-level failed for ${file} → WHM fallback (user: ${req.cpUser}, reason: ${authBrokenExt ? 'user-auth-broken' : failReason})`)
         const BACKOFFS = [0, 800, 1600]
         let lastReason = failReason
         for (let i = 0; i < BACKOFFS.length; i++) {
