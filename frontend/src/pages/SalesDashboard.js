@@ -6,7 +6,8 @@ import {
 import {
   TrendingUp, TrendingDown, DollarSign, PiggyBank, CalendarDays, ShoppingCart,
   Receipt, RefreshCw, LogOut, Download, Search, Wallet, Gift, BarChart3,
-  Layers, Users, Package, Lock,
+  Layers, Users, Package, Lock, UserPlus, UserCheck, ChevronDown, ChevronRight,
+  Globe,
 } from 'lucide-react';
 import { BRAND, brandSlug } from '../branding';
 
@@ -174,6 +175,283 @@ function WeeklyTooltip({ active, payload }) {
   );
 }
 
+const fmtDate = (s) => (s ? new Date(s).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '—');
+const LANG_LABEL = { en: 'English', fr: 'French', zh: 'Chinese', hi: 'Hindi' };
+
+const USER_SORTS = [
+  { k: 'joinedAt', label: 'Newest joined' },
+  { k: 'spent', label: 'Top spenders' },
+  { k: 'orders', label: 'Most orders' },
+  { k: 'balance', label: 'Wallet balance' },
+  { k: 'lastOrder', label: 'Recent order' },
+];
+
+// ─────────────────────────────────────────────────────────────
+// Expanded per-user order history (drill-down)
+// ─────────────────────────────────────────────────────────────
+function UserOrderHistory({ authFetch, chatId }) {
+  const [detail, setDetail] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      setLoading(true); setError('');
+      try {
+        const res = await authFetch(`/users/${chatId}`);
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || 'Failed to load');
+        if (alive) setDetail(json);
+      } catch (err) { if (alive) setError(err.message); }
+      finally { if (alive) setLoading(false); }
+    })();
+    return () => { alive = false; };
+  }, [authFetch, chatId]);
+
+  if (loading) return <div className="text-slate-500 text-sm py-4 px-4">Loading order history…</div>;
+  if (error) return <div className="text-rose-400 text-sm py-4 px-4">{error}</div>;
+  if (!detail) return null;
+
+  const p = detail.profile || {};
+  const orders = (detail.transactions || []).filter((t) => t.group === 'sale');
+  const other = (detail.transactions || []).filter((t) => t.group !== 'sale');
+
+  return (
+    <div className="bg-black/30 border-t border-white/10 px-4 py-4 space-y-4" data-testid={`user-detail-${chatId}`}>
+      {/* mini profile stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="bg-white/[0.03] rounded-lg p-3">
+          <div className="text-slate-500 text-xs">Wallet Balance</div>
+          <div className="text-white font-semibold tabular-nums">{fmtUsd(p.balance)}</div>
+        </div>
+        <div className="bg-white/[0.03] rounded-lg p-3">
+          <div className="text-slate-500 text-xs">Total Spent</div>
+          <div className="text-emerald-400 font-semibold tabular-nums">{fmtUsd(p.totalSpent)}</div>
+        </div>
+        <div className="bg-white/[0.03] rounded-lg p-3">
+          <div className="text-slate-500 text-xs">Deposits</div>
+          <div className="text-white font-semibold tabular-nums">{fmtUsd(p.deposits)}</div>
+        </div>
+        <div className="bg-white/[0.03] rounded-lg p-3">
+          <div className="text-slate-500 text-xs">Bonuses</div>
+          <div className="text-white font-semibold tabular-nums">{fmtUsd(p.bonuses)}</div>
+        </div>
+      </div>
+
+      {/* order history */}
+      <div>
+        <h4 className="text-sm font-semibold text-slate-200 mb-2 flex items-center gap-1.5">
+          <Package className="w-3.5 h-3.5 text-amber-400" /> Order History
+          <span className="text-slate-500 font-normal">({orders.length})</span>
+        </h4>
+        {orders.length ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[560px]">
+              <thead>
+                <tr className="text-slate-500 text-xs border-b border-white/10">
+                  <th className="text-left font-medium py-1.5 px-2">Date</th>
+                  <th className="text-left font-medium py-1.5 px-2">Category</th>
+                  <th className="text-left font-medium py-1.5 px-2">Product</th>
+                  <th className="text-right font-medium py-1.5 px-2">Amount</th>
+                  <th className="text-right font-medium py-1.5 px-2">Profit</th>
+                  <th className="text-left font-medium py-1.5 px-2">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {orders.map((o) => (
+                  <tr key={o.id} className="border-b border-white/5 last:border-0">
+                    <td className="py-1.5 px-2 text-slate-400 whitespace-nowrap">{fmtDate(o.date)}</td>
+                    <td className="py-1.5 px-2">
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full" style={{ background: colorFor(o.category) }} />
+                        {o.category}
+                      </span>
+                    </td>
+                    <td className="py-1.5 px-2 text-slate-300 max-w-[180px] truncate">{o.product}</td>
+                    <td className="py-1.5 px-2 text-right tabular-nums">{fmtUsd(o.amountUsd)}</td>
+                    <td className="py-1.5 px-2 text-right tabular-nums text-emerald-400">{fmtUsd(o.profit)}</td>
+                    <td className="py-1.5 px-2">
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${o.status === 'completed' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-500/10 text-slate-400'}`}>{o.status}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-slate-500 text-sm py-3">No purchases yet — this user has joined but hasn't ordered anything.</div>
+        )}
+      </div>
+
+      {/* other wallet activity (deposits / bonuses / refunds) */}
+      {other.length > 0 && (
+        <div>
+          <h4 className="text-sm font-semibold text-slate-200 mb-2 flex items-center gap-1.5">
+            <Wallet className="w-3.5 h-3.5 text-sky-400" /> Wallet Activity
+            <span className="text-slate-500 font-normal">({other.length})</span>
+          </h4>
+          <div className="space-y-1">
+            {other.map((o) => (
+              <div key={o.id} className="flex items-center justify-between gap-3 py-1.5 border-b border-white/5 last:border-0 text-sm">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-white/5 text-slate-300 capitalize">{o.group}</span>
+                  <span className="text-slate-400 truncate">{o.type}</span>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className="text-slate-500 text-xs whitespace-nowrap">{fmtDate(o.date)}</span>
+                  <span className="tabular-nums text-white">{fmtUsd(o.amountUsd)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Bot Users section — every user who joined the bot + order history
+// ─────────────────────────────────────────────────────────────
+function BotUsers({ authFetch, range }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [page, setPage] = useState(1);
+  const [sort, setSort] = useState('joinedAt');
+  const [search, setSearch] = useState('');
+  const [expanded, setExpanded] = useState(null);
+  const searchTimer = useRef(null);
+
+  const load = useCallback(async () => {
+    setLoading(true); setError('');
+    try {
+      const q = new URLSearchParams({ range, page: String(page), limit: '25', sort, dir: 'desc', search });
+      const res = await authFetch(`/users?${q.toString()}`);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Failed to load');
+      setData(json);
+    } catch (err) { setError(err.message); }
+    finally { setLoading(false); }
+  }, [authFetch, range, page, sort, search]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const onSearchChange = (v) => {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => { setPage(1); setSearch(v); }, 400);
+  };
+
+  const rows = data?.rows || [];
+
+  return (
+    <div className="bg-white/[0.04] border border-white/10 rounded-2xl p-4 sm:p-5" data-testid="sales-bot-users">
+      <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+        <h2 className="font-semibold flex items-center gap-2">
+          <Users className="w-4 h-4 text-sky-400" /> Bot Users
+          {data && <span className="text-slate-500 text-sm font-normal">({fmtNum(data.totalUsers)} joined)</span>}
+        </h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <Search className="w-4 h-4 text-slate-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            <input placeholder="Search name or chat ID…" data-testid="user-search"
+              onChange={(e) => onSearchChange(e.target.value)}
+              className="bg-black/40 border border-white/10 rounded-lg pl-8 pr-3 py-1.5 text-sm w-52 focus:outline-none focus:border-emerald-500/60" />
+          </div>
+          <select value={sort} data-testid="user-sort"
+            onChange={(e) => { setPage(1); setSort(e.target.value); }}
+            className="bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:border-emerald-500/60">
+            {USER_SORTS.map((s) => <option key={s.k} value={s.k}>{s.label}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {error && <div className="text-rose-400 text-sm mb-3" data-testid="user-error">{error}</div>}
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[820px]">
+          <thead>
+            <tr className="text-slate-500 text-xs border-b border-white/10">
+              <th className="text-left font-medium py-2 px-2 w-8"></th>
+              <th className="text-left font-medium py-2 px-2">User</th>
+              <th className="text-left font-medium py-2 px-2">Chat ID</th>
+              <th className="text-left font-medium py-2 px-2">Joined</th>
+              <th className="text-left font-medium py-2 px-2">Lang</th>
+              <th className="text-right font-medium py-2 px-2">Balance</th>
+              <th className="text-right font-medium py-2 px-2">Orders</th>
+              <th className="text-right font-medium py-2 px-2">Spent</th>
+              <th className="text-left font-medium py-2 px-2">Last Order</th>
+            </tr>
+          </thead>
+          <tbody className={loading ? 'opacity-50' : ''}>
+            {rows.map((u) => {
+              const isOpen = expanded === u.chatId;
+              return (
+                <React.Fragment key={u.chatId}>
+                  <tr
+                    onClick={() => setExpanded(isOpen ? null : u.chatId)}
+                    data-testid={`user-row-${u.chatId}`}
+                    className={`border-b border-white/5 cursor-pointer hover:bg-white/[0.03] transition ${isOpen ? 'bg-white/[0.03]' : ''}`}
+                  >
+                    <td className="py-2.5 px-2 text-slate-500">
+                      {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                    </td>
+                    <td className="py-2.5 px-2">
+                      <div className="flex items-center gap-2">
+                        <span className="w-7 h-7 rounded-full bg-sky-500/10 text-sky-300 text-xs flex items-center justify-center shrink-0 font-medium">
+                          {(u.name || u.chatId).slice(0, 2).toUpperCase()}
+                        </span>
+                        <div className="min-w-0">
+                          <div className="truncate text-slate-200">{u.name ? `@${u.name}` : `User ${u.chatId}`}</div>
+                          {u.hasPurchased && <div className="text-xs text-emerald-400 flex items-center gap-1"><UserCheck className="w-3 h-3" /> Customer</div>}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-2.5 px-2 font-mono text-xs text-slate-400">{u.chatId}</td>
+                    <td className="py-2.5 px-2 text-slate-400 whitespace-nowrap">{fmtDate(u.joinedAt)}</td>
+                    <td className="py-2.5 px-2 text-slate-400">
+                      <span className="inline-flex items-center gap-1"><Globe className="w-3 h-3 text-slate-500" />{LANG_LABEL[u.lang] || u.lang || '—'}</span>
+                    </td>
+                    <td className="py-2.5 px-2 text-right tabular-nums text-slate-200">{fmtUsd(u.balance)}</td>
+                    <td className="py-2.5 px-2 text-right tabular-nums text-slate-300">{u.orders}</td>
+                    <td className="py-2.5 px-2 text-right tabular-nums text-emerald-400">{u.totalSpent ? fmtUsd(u.totalSpent) : '—'}</td>
+                    <td className="py-2.5 px-2 text-slate-400 whitespace-nowrap">{u.lastOrderDate ? fmtDate(u.lastOrderDate) : '—'}</td>
+                  </tr>
+                  {isOpen && (
+                    <tr>
+                      <td colSpan={9} className="p-0">
+                        <UserOrderHistory authFetch={authFetch} chatId={u.chatId} />
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
+            {data && !rows.length && (
+              <tr><td colSpan={9} className="text-center text-slate-500 py-8">No bot users match your search.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {data && data.pages > 1 && (
+        <div className="flex items-center justify-between mt-4 text-sm">
+          <span className="text-slate-500">{fmtNum(data.total)} users · page {data.page}/{data.pages}</span>
+          <div className="flex items-center gap-2">
+            <button disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}
+              data-testid="user-prev-btn"
+              className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-30 transition">Prev</button>
+            <button disabled={page >= data.pages} onClick={() => setPage((p) => p + 1)}
+              data-testid="user-next-btn"
+              className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-30 transition">Next</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────
 // Main dashboard
 // ─────────────────────────────────────────────────────────────
@@ -326,6 +604,13 @@ function Dashboard({ token, onLogout }) {
               <Kpi icon={PiggyBank} label="Net Profit" value={fmtUsd(summary.netProfit)} accent="sky" delta={deltas?.netProfit} sub="vs prev" testid="kpi-profit" />
               <Kpi icon={CalendarDays} label="This Week's Profit" value={fmtUsd(summary.thisWeekProfit)} accent="violet" sub="current week" testid="kpi-weekprofit" />
               <Kpi icon={ShoppingCart} label="Orders" value={fmtNum(summary.orders)} accent="amber" delta={deltas?.orders} sub={`AOV ${fmtUsd(summary.avgOrderValue)}`} testid="kpi-orders" />
+            </div>
+
+            {/* Bot-user KPIs */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3" data-testid="sales-user-kpis">
+              <Kpi icon={Users} label="Total Bot Users" value={fmtNum(data?.userStats?.totalUsers || 0)} accent="sky" sub="joined the bot" testid="kpi-total-users" />
+              <Kpi icon={UserPlus} label="New Users" value={fmtNum(data?.userStats?.newUsers || 0)} accent="emerald" sub="in selected range" testid="kpi-new-users" />
+              <Kpi icon={UserCheck} label="Paying Users" value={fmtNum(data?.userStats?.purchasedUsers || 0)} accent="violet" sub="made a purchase" testid="kpi-paying-users" />
             </div>
 
             {/* Secondary KPIs */}
@@ -485,6 +770,9 @@ function Dashboard({ token, onLogout }) {
                 </div>
               </div>
             </div>
+
+            {/* Bot Users */}
+            <BotUsers authFetch={authFetch} range={range} />
 
             {/* Transactions table */}
             <div className="bg-white/[0.04] border border-white/10 rounded-2xl p-4 sm:p-5" data-testid="sales-transactions">

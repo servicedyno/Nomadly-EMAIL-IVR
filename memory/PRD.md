@@ -3,6 +3,22 @@
 ## Original problem statement
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
+## 2026-06 (this fork) — Sales Dashboard: "Bot Users" list + per-user order history — VERIFIED (testing agent, iteration_41, 100% frontend)
+**User report:** "The sales dashboard is not showing bot users who joined the bot. It should show them along with their order history if any. Also identify what UI should be showing that isn't."
+**Root cause:** The `/sales` dashboard only listed *paying* customers ("Top Customers" = tx `group==='sale'`). The `smadav` DB has 19→21 users who joined (each got a $5 welcome-bonus) but **zero purchases**, so every sales section rendered empty. There was no place at all listing users who joined the bot.
+**Data sources (were unsurfaced):** `userConversion` (joinedAt, lang, hasPurchased) ∪ `nameOf` (username) ∪ `walletOf` (balance) ∪ `transactions` (orders/deposits/bonuses).
+**Shipped (backend `js/routes/sales.js`):**
+- `buildUserIndex(db)` — aggregates the 4 collections into one row per chatId (name, joinedAt, lang, balance, orders, totalSpent, lastOrderDate, deposits, bonuses, refunds, hasPurchased).
+- `GET /admin/sales/users` — paginated (25/pg) list of ALL joined users + `{totalUsers,newUsers,purchasedUsers}`; supports `search`, `sort` (joinedAt/spent/orders/balance/lastOrder), `dir`, `onlyNew`, `range`.
+- `GET /admin/sales/users/:chatId` — per-user drill-down: `{profile, transactions}` (full order + wallet history, newest first).
+- `/overview` now also returns `userStats {totalUsers,newUsers,purchasedUsers}`.
+**Shipped (frontend `frontend/src/pages/SalesDashboard.js`):**
+- 3 new KPI cards: Total Bot Users, New Users (in range), Paying Users (testids kpi-total-users / kpi-new-users / kpi-paying-users).
+- New **Bot Users** section (`sales-bot-users`): searchable + sortable table, each row (`user-row-<chatId>`) clickable to expand a drill-down (`user-detail-<chatId>`) showing wallet stats, Order History table, and Wallet Activity (deposits/bonuses/refunds). Sits just above the Transactions table.
+**Verified:** All backend endpoints curl-verified (19/21 users, userStats, welcome-bonus drill-down). Testing agent 100% frontend: login, KPIs (21/21/0), table lists all joined users, row expand shows "No purchases yet" + $5 welcome-bonus, search + sort work, no regressions. Only LOW cosmetic console warnings (pre-existing Recharts sizing + platform dev-overlay `data-ve-dynamic` span — not app code).
+**Reaches production only after Save to GitHub + Railway redeploy** (Railway builds from GitHub, same as all code changes).
+
+
 ## 2026-06 (this fork) — SMADAV brand-leak end-to-end audit + fixes
 "Hey, Hostbay Support" was NOT a leak — the greeting echoes the user's own Telegram name (`_index.js` `name = first_name || username`).
 - **Env leaks FIXED (live on SMADAV Railway, redeployed)**: `SUPPORT_HANDLE_2=@Smadavv` (was leaking `@Hostbay_support`), `BRAND_NAMESERVERS=anderson.ns.cloudflare.com,leanna.ns.cloudflare.com` (was `ns1.hostbay.io`), `BRAND_TAGLINE`, `REACT_APP_SIP_DOMAIN=sip.smadavspeech.com`.

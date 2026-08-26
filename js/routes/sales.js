@@ -396,11 +396,26 @@ function install(app, deps) {
         }
       } catch (_) { /* names optional */ }
 
+      // bot-user stats (every chatId that ever joined the bot) — total + new-in-range + paying
+      let userStats = null
+      try {
+        const convDocs = await db.collection('userConversion')
+          .find({}, { projection: { chatId: 1, joinedAt: 1, hasPurchased: 1 } }).toArray()
+        // nameOf holds one doc per chatId that ever messaged the bot — the most complete "joined" signal
+        const nameIds = await db.collection('nameOf').find({}, { projection: { _id: 1 } }).toArray()
+        const allIds = new Set(nameIds.map((n) => String(n._id)))
+        for (const c of convDocs) allIds.add(String(c.chatId))
+        const newUsers = convDocs.filter((c) => { const d = normDate(c.joinedAt); return d && d >= since && d <= until }).length
+        const purchasedUsers = convDocs.filter((c) => c.hasPurchased).length
+        userStats = { totalUsers: allIds.size, newUsers, purchasedUsers }
+      } catch (_) { /* optional */ }
+
       res.json({
         range,
         generatedAt: new Date().toISOString(),
         ...report,
         deltas,
+        userStats,
         flatMarginPct: Math.round(FLAT_MARGIN * 1000) / 10,
       })
     } catch (e) {
@@ -501,6 +516,168 @@ function install(app, deps) {
       res.send(lines.join('\n'))
     } catch (e) {
       logIt('export error:', e.message)
+      res.status(500).json({ error: e.message })
+    }
+  })
+
+  // ── Bot Users (everyone who joined the bot) + per-user order stats ──
+  // Builds a row per known chatId: username, join date, language, wallet balance,
+  // order count, total spent, last order + deposit/bonus/refund totals. Sourced from
+  // userConversion (joinedAt/lang/hasPurchased) ∪ nameOf (username) ∪ transactions.
+  async function buildUserIndex(db) {
+    const [conv, names, wallets, txns] = await Promise.all([
+      db.collection('userConversion').find({}, { projection: { chatId: 1, joinedAt: 1, lang: 1, hasPurchased: 1 } }).toArray(),
+      db.collection('nameOf').find({}).toArray(),
+      db.collection('walletOf').find({}).toArray(),
+      db.collection('transactions').find({}).toArray(),
+    ])
+    const nameMap = {}
+    for (const n of names) nameMap[String(n._id)] = n.val
+    const walletMap = {}
+    for (const w of wallets) walletMap[String(w._id)] = (Number(w.usdIn) || 0) - (Number(w.usdOut) || 0)
+
+    const agg = {}
+    const ensure = (cid) => (agg[cid] = agg[cid] || { orders: 0, totalSpent: 0, deposits: 0, bonuses: 0, refunds: 0, lastOrderDate: null, firstTxnDate: null, txnCount: 0 })
+    for (const doc of txns) {
+      const cid = String(doc.chatId || '')
+      if (!cid) continue
+      const r = normalizeTxn(doc)
+      const a = ensure(cid)
+      a.txnCount += 1
+      if (r.date && (!a.firstTxnDate || r.date < a.firstTxnDate)) a.firstTxnDate = r.date
+      if (r.group === 'sale') {
+        a.orders += 1
+        a.totalSpent += r.amountUsd
+        if (r.date && (!a.lastOrderDate || r.date > a.lastOrderDate)) a.lastOrderDate = r.date
+      } else if (r.group === 'deposit') a.deposits += r.amountUsd
+      else if (r.group === 'bonus') a.bonuses += r.amountUsd
+      else if (r.group === 'refund') a.refunds += Math.abs(r.amountUsd)
+    }
+
+    const convMap = {}
+    for (const c of conv) convMap[String(c.chatId)] = c
+    const ids = new Set()
+    for (const c of conv) ids.add(String(c.chatId))
+    for (const n of names) ids.add(String(n._id))
+    for (const cid of Object.keys(agg)) ids.add(cid)
+
+    const rows = []
+    for (const cid of ids) {
+      const c = convMap[cid] || {}
+      const a = agg[cid] || {}
+      const joinedAt = normDate(c.joinedAt) || a.firstTxnDate || null
+      rows.push({
+        chatId: cid,
+        name: nameMap[cid] || null,
+        joinedAt,
+        lang: c.lang || null,
+        balance: round2(walletMap[cid] || 0),
+        orders: a.orders || 0,
+        totalSpent: round2(a.totalSpent || 0),
+        lastOrderDate: a.lastOrderDate || null,
+        deposits: round2(a.deposits || 0),
+        bonuses: round2(a.bonuses || 0),
+        refunds: round2(a.refunds || 0),
+        hasPurchased: (a.orders || 0) > 0 || !!c.hasPurchased,
+      })
+    }
+    return rows
+  }
+
+  router.get('/users', authMiddleware, async (req, res) => {
+    try {
+      const db = getDb()
+      if (!db) return res.status(503).json({ error: 'DB not ready' })
+      const range = req.query.range || 'all'
+      const since = rangeToSince(range)
+      const search = String(req.query.search || '').toLowerCase().trim()
+      const sort = String(req.query.sort || 'joinedAt')
+      const dir = String(req.query.dir || 'desc') === 'asc' ? 1 : -1
+      const onlyNew = String(req.query.onlyNew || '') === 'true'
+      const page = Math.max(1, parseInt(req.query.page, 10) || 1)
+      const limit = Math.min(200, Math.max(10, parseInt(req.query.limit, 10) || 25))
+
+      let rows = await buildUserIndex(db)
+      const totalUsers = rows.length
+      const newUsers = rows.filter((r) => r.joinedAt && r.joinedAt >= since).length
+      const purchasedUsers = rows.filter((r) => r.hasPurchased).length
+
+      if (onlyNew) rows = rows.filter((r) => r.joinedAt && r.joinedAt >= since)
+      if (search) {
+        rows = rows.filter((r) =>
+          String(r.chatId).toLowerCase().includes(search) ||
+          String(r.name || '').toLowerCase().includes(search))
+      }
+      const t = (d) => (d ? d.getTime() : 0)
+      const cmp = {
+        joinedAt: (a, b) => t(a.joinedAt) - t(b.joinedAt),
+        balance: (a, b) => a.balance - b.balance,
+        spent: (a, b) => a.totalSpent - b.totalSpent,
+        orders: (a, b) => a.orders - b.orders,
+        lastOrder: (a, b) => t(a.lastOrderDate) - t(b.lastOrderDate),
+        name: (a, b) => String(a.name || '').localeCompare(String(b.name || '')),
+      }
+      const base = cmp[sort] || cmp.joinedAt
+      rows.sort((a, b) => dir * base(a, b))
+
+      const total = rows.length
+      const paged = rows.slice((page - 1) * limit, page * limit).map((r) => ({
+        ...r,
+        joinedAt: r.joinedAt ? r.joinedAt.toISOString() : null,
+        lastOrderDate: r.lastOrderDate ? r.lastOrderDate.toISOString() : null,
+      }))
+      res.json({ total, page, limit, pages: Math.ceil(total / limit), totalUsers, newUsers, purchasedUsers, rows: paged })
+    } catch (e) {
+      logIt('users error:', e.message)
+      res.status(500).json({ error: e.message })
+    }
+  })
+
+  // Per-user drill-down: full profile + complete order/transaction history.
+  router.get('/users/:chatId', authMiddleware, async (req, res) => {
+    try {
+      const db = getDb()
+      if (!db) return res.status(503).json({ error: 'DB not ready' })
+      const chatId = String(req.params.chatId || '')
+      const [conv, nameDoc, wallet, txnDocs] = await Promise.all([
+        db.collection('userConversion').findOne({ chatId }),
+        db.collection('nameOf').findOne({ _id: chatId }),
+        db.collection('walletOf').findOne({ _id: chatId }),
+        db.collection('transactions').find({ chatId }).toArray(),
+      ])
+      const txns = txnDocs.map(normalizeTxn).sort((a, b) => (b.date ? b.date.getTime() : 0) - (a.date ? a.date.getTime() : 0))
+      const sales = txns.filter((t) => t.group === 'sale')
+      const balance = wallet ? (Number(wallet.usdIn) || 0) - (Number(wallet.usdOut) || 0) : 0
+      const joinedAt = (conv && normDate(conv.joinedAt))
+        || (txns.length ? txns[txns.length - 1].date : null)
+      res.json({
+        profile: {
+          chatId,
+          name: nameDoc ? nameDoc.val : null,
+          joinedAt: joinedAt ? joinedAt.toISOString() : null,
+          lang: conv ? conv.lang : null,
+          balance: round2(balance),
+          hasPurchased: sales.length > 0 || !!(conv && conv.hasPurchased),
+          orders: sales.length,
+          totalSpent: round2(sales.reduce((a, x) => a + x.amountUsd, 0)),
+          deposits: round2(txns.filter((x) => x.group === 'deposit').reduce((a, x) => a + x.amountUsd, 0)),
+          bonuses: round2(txns.filter((x) => x.group === 'bonus').reduce((a, x) => a + x.amountUsd, 0)),
+          refunds: round2(txns.filter((x) => x.group === 'refund').reduce((a, x) => a + Math.abs(x.amountUsd), 0)),
+        },
+        transactions: txns.map((x) => ({
+          id: x.id,
+          date: x.date ? x.date.toISOString() : null,
+          type: x.type,
+          category: x.category,
+          group: x.group,
+          product: x.product,
+          amountUsd: round2(x.amountUsd),
+          profit: round2(x.profit),
+          status: x.status,
+        })),
+      })
+    } catch (e) {
+      logIt('user detail error:', e.message)
       res.status(500).json({ error: e.message })
     }
   })

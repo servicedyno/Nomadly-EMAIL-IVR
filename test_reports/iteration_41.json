@@ -1,0 +1,31 @@
+{
+  "summary": "Frontend-only test of the Smadav Sales Dashboard /sales — new Bot Users section, drill-down, KPI cards, search, sort, and regressions. All requested flows work end-to-end against production-linked Mongo data.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "SalesDashboard", "issues": [
+        "Recharts warning: 'width(-1) and height(-1) of chart should be greater than 0' — Profit by Category / Weekly charts render inside a hidden/zero-size container on first paint. Cosmetic but pollutes console.",
+        "Hydration warnings: multiple 'span cannot be a child of tbody/select/tr' warnings caused by a wrapper span injected around dynamic children in <tbody> (Bot Users, Transactions) and inside <select data-testid=user-sort>. Likely from a dev-time instrumentation span (x-ve-dynamic). Does not break functionality but produces React hydration errors in console."
+      ]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "(Low) Investigate Recharts container sizing warnings on initial load.",
+    "(Low) The dev instrumentation wrapper <span data-ve-dynamic> is being emitted as a direct child of <tbody>, <select>, and <tr>, producing HTML hydration errors. Not a functional bug but worth cleaning up."
+  ],
+  "critical_code_review_comments": [
+    "SalesDashboard.js is large (>900 lines) — consider splitting BotUsers/UserOrderHistory into their own files.",
+    "Bot Users table rows are <tr>s wrapped in Fragments for expand — verify only valid table children are emitted (currently OK, warnings appear caused by the dev overlay span, not the app code)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "100%"},
+  "test_credentials": "Dashboard password: Nomadly123@",
+  "seed_data_creation": "None — production Mongo (read-only).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Verified on /sales: login with Nomadly123@ works. KPI cards render: kpi-total-users=21, kpi-new-users=21, kpi-paying-users=0 (spec said 19 but data grew to 21 in prod — expected). sales-bot-users section lists 21 rows (all on page 1, paginated). Clicking a user-row-<chatId> expands and loads user-detail-<chatId> containing wallet balance $5.00, 'No purchases yet' message, and Wallet Activity showing welcome-bonus $5.00 — matches spec. user-search filters correctly ('zzznomatch123' -> 0 rows). user-sort is a <select>; changing to 'Top spenders' reloads without error. Regression: sales-range-selector, sales-transactions, sales-export-btn all render (note: actual testids are 'sales-range-selector' and 'sales-export-btn', not 'sales-range-select'/'sales-export-csv' as written in the request).",
+  "rca of the issue": "N/A — feature works as designed."
+}
