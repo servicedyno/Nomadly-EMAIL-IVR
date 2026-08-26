@@ -13,7 +13,7 @@ import pytest
 
 BASE_URL = os.environ.get(
     "REACT_APP_BACKEND_URL",
-    "https://webhook-skip-config.preview.emergentagent.com",
+    "https://webhook-skip-config-1.preview.emergentagent.com",
 ).rstrip("/")
 TEST_CHATID = "5346193142"
 
