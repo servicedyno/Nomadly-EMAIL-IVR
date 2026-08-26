@@ -36782,18 +36782,56 @@ app.get('/dev/cpanel-auth-broken-check', (req, res) => {
     })
     const classifierAllPass = classifier.every(c => c.pass)
 
-    // ── 2. Wiring check: grep the route source for _isAuthBroken() usage ──
+    // ── 2. Wiring check: grep the route source ─────────────────────────
+    // We're verifying the CURRENT fix (self-heal cpPass via WHM /passwd),
+    // not the old WHM-root multipart path — that path is dead here because
+    // WHM's json-api gateway drops multipart file bodies. Both upload
+    // routes must:
+    //   • call _repairCpPass() on auth-broken
+    //   • NOT call uploadFileAsRoot() in the upload branch (dead code)
+    //   • emit the two via: tags on failure
     const path = require('path')
     const fs = require('fs')
     const routesPath = path.join(__dirname, 'cpanel-routes.js')
     const routesSrc = fs.readFileSync(routesPath, 'utf8')
+
+    // Helper: extract the source of a specific route body (used to run
+    // localised greps that don't leak across route boundaries).
+    const routeBody = (method, path_) => {
+      const rx = new RegExp(`router\\.${method}\\(['"]${path_.replace(/\//g, '\\/')}['"][\\s\\S]{0,8000}?\\n {2}\\}\\)`)
+      const m = routesSrc.match(rx)
+      return m ? m[0] : ''
+    }
+    const uploadBody       = routeBody('post', '/files/upload')
+    const uploadChunkBody  = routeBody('post', '/files/upload-chunk')
+    const mkdirBody        = routeBody('post', '/files/mkdir')
+    const listBody         = routeBody('get',  '/files')
+    const extractBody      = routeBody('post', '/files/extract')
+    const deleteBody       = routeBody('post', '/files/delete')
+
     const wiring = {
-      helper_defined:          /function\s+_isAuthBroken\s*\(/.test(routesSrc),
-      list_files_gate:         /router\.get\(['"]\/files['"][\s\S]{0,4000}_isAuthBroken\(/.test(routesSrc),
-      mkdir_gate:              /router\.post\(['"]\/files\/mkdir['"][\s\S]{0,4000}_isAuthBroken\(/.test(routesSrc),
-      extract_gate:            /router\.post\(['"]\/files\/extract['"][\s\S]{0,4000}_isAuthBroken\(/.test(routesSrc),
-      upload_calls_root:       /router\.post\(['"]\/files\/upload['"][\s\S]{0,4000}uploadFileAsRoot\(/.test(routesSrc),
-      upload_chunk_calls_root: /router\.post\(['"]\/files\/upload-chunk['"][\s\S]{0,6000}uploadFileAsRoot\(/.test(routesSrc),
+      // Read/write-side gates on auth-broken (unchanged — these still use
+      // the WHM-root GET fallback, gateway handles GETs fine).
+      list_files_gate:         /_isAuthBroken\(/.test(listBody),
+      mkdir_gate:              /_isAuthBroken\(/.test(mkdirBody),
+      extract_gate:            /_isAuthBroken\(/.test(extractBody),
+      // ── The cpPass self-heal path (this bug's actual fix) ──
+      repair_helper_defined:            /(async\s+)?function\s+_repairCpPass\s*\(\s*getCpanelCol/.test(routesSrc),
+      repair_cooldown_60min:            /CPPASS_COOLDOWN_MS\s*=\s*60\s*\*\s*60\s*\*\s*1000/.test(routesSrc),
+      repair_uses_crypto_randomBytes:   /crypto\.randomBytes\(32\)/.test(routesSrc) && !/Math\.random/.test(routesSrc.split('function _repairCpPass')[1] || ''),
+      repair_calls_whm_passwd:          /whmApi\.get\(['"]\/passwd['"][\s\S]{0,600}db_pass_update\s*:\s*0/.test(routesSrc),
+      repair_persists_all_fields:       /cpPass_encrypted[\s\S]{0,400}cpPass_iv[\s\S]{0,400}cpPass_tag[\s\S]{0,400}cpPassRotatedAt[\s\S]{0,400}cpPassLastRotateReason/.test(routesSrc),
+      // Both upload routes call _repairCpPass() on auth-broken
+      upload_calls_repair:       /_repairCpPass\(getCpanelCol/.test(uploadBody),
+      upload_chunk_calls_repair: /_repairCpPass\(getCpanelCol/.test(uploadChunkBody),
+      // Both upload routes NO LONGER call uploadFileAsRoot() (dead code)
+      upload_no_root_upload:        !/uploadFileAsRoot\(/.test(uploadBody),
+      upload_chunk_no_root_upload:  !/uploadFileAsRoot\(/.test(uploadChunkBody),
+      // Failure tags are emitted
+      emits_repair_failed_tag:            /['"]cppass-repair-failed['"]/.test(routesSrc),
+      emits_repaired_retry_failed_tag:    /['"]cppass-repaired-retry-failed['"]/.test(routesSrc),
+      // Regression guard: /files/delete unchanged (no _repairCpPass gate)
+      delete_untouched_by_repair:   !/_repairCpPass\(/.test(deleteBody),
     }
     const wiringAllPass = Object.values(wiring).every(Boolean)
 
@@ -36811,11 +36849,13 @@ app.get('/dev/cpanel-auth-broken-check', (req, res) => {
       counts: {
         classifier_cases: classifier.length,
         classifier_pass:  classifier.filter(c => c.pass).length,
+        wiring_checks:    Object.keys(wiring).length,
+        wiring_pass:      Object.values(wiring).filter(Boolean).length,
       },
       classifier,
       wiring,
       exports: exports_check,
-      note: 'READ-ONLY diagnostic — no real WHM traffic, no DB mutation.',
+      note: 'READ-ONLY diagnostic — no real WHM traffic, no DB mutation. Verifies the cpPass self-heal path (not the dead WHM-root multipart path).',
     })
   } catch (e) {
     return res.status(500).json({ error: `dev check failed: ${e.message}` })

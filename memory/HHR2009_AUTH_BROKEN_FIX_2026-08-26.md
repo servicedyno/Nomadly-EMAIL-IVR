@@ -1,107 +1,116 @@
-# HHR2009 auth-broken fallback — RCA + fix (2026-08-26)
+# HHR2009 stale-cpPass self-heal — v2 fix (2026-08-26)
 
-## Bug
-cpUser `nnliae74` (owned by @HHR2009 / chatId `1960615421`, WHM `68.183.77.106`,
-domain `evitesapp.org`) reported:
-- "Create folder failed: Access denied" in the File Manager
-- "Upload failed (401)" for any file upload
+## Why v2
+v1 wired `/files/upload` and `/files/upload-chunk` to fall back to
+`cpProxy.uploadFileAsRoot()` on 401/403 — a multipart POST against WHM's
+`/json-api/cpanel` with `Authorization: whm root:$WHM_TOKEN`.
 
-## Root cause
-User's cached `cpPass` in Mongo drifted out of sync with the real WHM
-password (rotation on the server / restore-from-backup / manual admin
-change). Every user-level HTTP Basic Auth call hit the transport layer:
-- UAPI `/execute/Fileman/upload_files`, `list_files` → **401** (body: cPanel
-  HTML login page)
-- API2 `/json-api/cpanel?...Fileman::mkdir` → **403 "Access denied"**
+Ops confirmed this doesn't actually work: WHM's json-api gateway silently
+drops the multipart file body. Users saw
+"You must specify at least one file to upload" instead of the original
+"Upload failed (401)". No net improvement.
 
-The existing WHM-root fallback ladder (uses `WHM_TOKEN` + `cpanel_jsonapi_user`
-impersonation to bypass user auth entirely) only fired on:
-- `httpStatus >= 500`, OR
-- an EPERM regex match ("permission denied" / "status 1" / EPERM)
+## Real fix — self-heal the underlying stale cpPass
 
-So `401`/`403 "Access denied"` leaked to the panel UI. The fallback that
-would have succeeded (root credentials sidestep the stale password) never
-got a chance.
+The root cause is a stale `cpPass_encrypted` in `cpanelAccounts` (drifted
+out of sync with the real WHM password — rotation, restore-from-backup,
+manual admin change). Instead of routing around WHM's gateway with
+impersonation, we rotate the password on WHM, persist the new value in
+Mongo (AES-256-GCM), and retry the SAME user-level upload path — the
+exact code path a healthy account uses.
 
-Verified via sister-repo Railway deployment `3719705c` (main branch, same
-project) which committed the exact same fix pattern after independent RCA
-on the same customer 2026-08-26 22:37 UTC.
+### New helper: `_repairCpPass(getCpanelCol, cpUser, whmHost)` in `js/cpanel-routes.js`
 
-## Fix (mirror of sister-repo commit)
+Contract:
+- **60-min cool-down** (`CPPASS_COOLDOWN_MS`): if `doc.cpPassRotatedAt` is
+  within 60 min, decrypt and return the cached pass with `rotated:false,
+  reason:"cool-down (Xm left)"`. Prevents cPHulk / ModSecurity thrash.
+- **Password**: 24 chars, `crypto.randomBytes(32)` → mapped into a
+  `[A-Za-z0-9]` alphabet (`CPPASS_ALPHABET`). URL-safe (avoids WHM
+  shell-encoding quirks). ~143 bits entropy.
+- **WHM call**: `whmApi.get('/passwd', { params: { 'api.version': 1,
+  user: cpUser, password: newPass, db_pass_update: 0 } })`.
+  - `db_pass_update:0` is **critical** — rotating bound MySQL passes
+    silently breaks the customer's live site (their app config still
+    points at the old MySQL pass).
+  - Success gate: `res.data?.metadata?.result === 1`.
+- **Persist**: `cpAuth.encrypt(newPass)` → `{encrypted, iv, tag}`. Update
+  the account doc with:
+  - `cpPass_encrypted`, `cpPass_iv`, `cpPass_tag`
+  - `cpPassRotatedAt: new Date()`
+  - `cpPassLastRotateReason: 'CPANEL_AUTH_FAILURE'`
+- **Returns**: `{ ok, cpPass?, rotated?, reason?, error? }`.
 
-### `js/cpanel-proxy.js`
-- Added `looksLikeAuthFailure(status, msg)` classifier: `true` for `status ===
-  401 || status === 403`, or body matches `/access\s*denied/i`, or matches
-  axios generic `/Request failed with status code 40[13]/i`.
-- `uapi()`, `api2()`, `uploadFile()` all now tag response with
-  `code: 'CPANEL_AUTH_FAILURE'` when auth-broken detected. **Mutually
-  exclusive with `CPANEL_UAPI_EPERM` — EPERM is checked first.**
-- `uploadFile()` now exposes `httpStatus` (it didn't before).
-- New `uploadFileAsRoot(cpUser, dir, fileName, buf, whmHost)`: multipart
-  POST to WHM `/json-api/cpanel` with `Authorization: whm root:${WHM_TOKEN}`
-  + query params `cpanel_jsonapi_user=<user>&…apiversion=3&…module=Fileman&…func=upload_files`.
-  Returns `{ status, data, errors, httpStatus, via }`.
-- Both new functions **exported**.
+### Route wiring
+- `POST /files/upload` and `POST /files/upload-chunk`: on
+  `_isAuthBroken(result)`, call `_repairCpPass(getCpanelCol, req.cpUser,
+  req.whmHost)`. On `ok:true`, retry `cpProxy.uploadFile(req.cpUser,
+  repair.cpPass, ...)` — the SAME user-level upload path. Also
+  `req.cpPass = repair.cpPass` so any downstream op in the same request
+  uses the fresh pass.
+- Failure taxonomy for ops:
+  - `via: 'cppass-repair-failed'` — the repair itself failed (Mongo
+    lookup, WHM /passwd non-1 metadata result, exception)
+  - `via: 'cppass-repaired-retry-failed'` — the repair succeeded but the
+    retry upload still failed. Probably a real cPanel-side lockout, not
+    a stale-pass problem.
+  - `via: 'cppass-repaired-retry-ok'` / `via: 'cppass-cooldown-retry-ok'`
+    — success paths.
+- **`uploadFileAsRoot()` REMOVED from the upload flow.** Kept in
+  `js/cpanel-proxy.js` for legacy compat (still exported).
 
-### `js/cpanel-routes.js`
-- Added `_isAuthBroken(result)` helper: `true` if `result.code ===
-  'CPANEL_AUTH_FAILURE'` OR `result.httpStatus === 401|403` OR classifier's
-  body check.
-- Extended the `looksBroken` gate in:
-  - `router.get('/files', …)` (list_files)
-  - `router.post('/files/mkdir', …)`
-  - `router.post('/files/extract', …)`
-- New `reasonTag` logged so ops can grep `user-auth-broken` alongside
-  `eperm` / `http5xx` in Railway logs.
-- `router.post('/files/upload', …)`: on auth-broken, retry via
-  `cpProxy.uploadFileAsRoot()`.
-- `router.post('/files/upload-chunk', …)`: same fallback after chunk
-  assembly.
-- `router.post('/files/delete', …)`: **NOT touched** — already unconditionally
-  hits WHM-root on any non-status:1 result (regression-guarded in tests).
+### Untouched
+- `POST /files/mkdir`, `GET /files` (list_files), `POST /files/extract` —
+  keep using `_isAuthBroken()` + WHM-root GET impersonation. These are
+  read-only URL-encoded calls, the gateway handles them fine.
+- `POST /files/delete` — untouched (already unconditional WHM-root path).
 
-### `js/_index.js`
-- New READ-ONLY dev endpoint `GET /api/dev/cpanel-auth-broken-check?key=…`
-  (registered as `/dev/cpanel-auth-broken-check` — the `/api` prefix is
-  stripped by the ingress middleware at the top of the file, line ~36686).
-  - Returns 404 in prod without admin key
-  - Runs 13 classifier truth-table cases + 6 route wiring greps + 3 export
-    checks
-  - Zero WHM traffic, zero DB mutation
-- Also fixed `apiPrefixes` list in the SPA catch-all (line 48188) to
-  include `/api/` so any async-registered `/api/*` handler can be reached
-  (previously only `/panel/`, `/telnyx/` etc. were whitelisted).
+## Dev endpoint (READ-ONLY)
+`GET /api/dev/cpanel-auth-broken-check?key=$SESSION_SECRET`
+- 404 in prod without admin key
+- Runs 13 classifier truth-table cases
+- Runs 15 route wiring greps:
+  1. `list_files_gate` — /files still uses _isAuthBroken
+  2. `mkdir_gate`
+  3. `extract_gate`
+  4. `repair_helper_defined` — `_repairCpPass(getCpanelCol, cpUser, whmHost)`
+  5. `repair_cooldown_60min` — `CPPASS_COOLDOWN_MS = 60*60*1000`
+  6. `repair_uses_crypto_randomBytes` — no Math.random
+  7. `repair_calls_whm_passwd` — /passwd with db_pass_update:0
+  8. `repair_persists_all_fields` — all 5 fields
+  9. `upload_calls_repair`
+  10. `upload_chunk_calls_repair`
+  11. `upload_no_root_upload` — NO uploadFileAsRoot in upload branch
+  12. `upload_chunk_no_root_upload` — same
+  13. `emits_repair_failed_tag`
+  14. `emits_repaired_retry_failed_tag`
+  15. `delete_untouched_by_repair` — regression guard
 
-### `js/tests/test_hhr2009_auth_broken_fallback.js`
-- 37 assertions covering:
-  1. `looksLikeAuthFailure` truth table (7 auth-yes cases)
-  2. Non-auth cases return false (8 cases incl. File exists, 404, 502, ECONNRESET)
-  3. EPERM vs AUTH mutual exclusion (EPERM wins on "permission denied")
-  4. Proxy exports (arity of `uploadFileAsRoot` = 5)
-  5. Routes reference `_isAuthBroken()` / `uploadFileAsRoot()` (6 greps)
-  6. `/files/delete` unconditional-fallback regression guard (no
-     `_isAuthBroken` gate introduced)
-  7. Result-shape semantics (auth vs eperm vs File-exists)
+## Local test suite
+`node js/tests/test_hhr2009_auth_broken_fallback.js` → **52 passed, 0 failed**
 
-Run: `node js/tests/test_hhr2009_auth_broken_fallback.js` → **37 passed, 0 failed**
+Covers:
+- Classifier truth table (13 cases)
+- EPERM vs AUTH mutual exclusion
+- `_repairCpPass` signature, cool-down constant, password gen, WHM call
+  shape, persistence field list
+- Both upload routes wired to repair, NOT to `uploadFileAsRoot`
+- Failure via: tags emitted
+- `/files/delete` untouched
+- proxy exports preserved
 
-## What this does NOT do (intentional)
-- Does NOT reset the user's cPanel password
-- Does NOT mutate Mongo (auto-resync is a separate enhancement)
+## Verify in production (Railway)
+Look for these tags in logs after the next 401/403:
+- `[Panel] cpPass repair: rotating <user>` — repair attempted
+- `[Panel] cpPass repair OK for <user>` — repair succeeded, doc persisted
+- `[Panel] Upload recovered via cpPass repair` — retry succeeded
+- `tag: user-auth-broken` — auth failure detected
+- `tag: cppass-repair-failed` — the rotation itself failed
+- `tag: cppass-repaired-retry-failed` — probably cPHulk lockout
+
+## What this does NOT do
+- Does NOT rotate MySQL passwords (`db_pass_update:0`)
+- Does NOT mutate any other account
 - Does NOT SSH into WHM
-- The WHM-root fallback is the whole fix — root credentials + impersonation
-  sidestep the stale-password problem completely
-
-## How to verify without hitting real WHM
-```
-curl "https://<pod>/api/dev/cpanel-auth-broken-check?key=$SESSION_SECRET" | jq .passed
-```
-Expect `true`. Detail JSON: `classifier[]`, `wiring{}`, `exports{}`.
-
-## Regression safety confirmed
-- Existing EPERM path still classifies "permission denied" / EPERM /
-  status 1 as `CPANEL_UAPI_EPERM` (not AUTH) — verified by test [3]
-- Legit errors ("File exists", 404) return `code: undefined` — verified
-  by test [7]
-- `/files/delete`'s unconditional root-fallback path is untouched —
-  verified by test [6]
+- Does NOT delete `uploadFileAsRoot()` (kept exported for legacy compat,
+  just not called from any route)

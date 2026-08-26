@@ -184,6 +184,120 @@ function _isAuthBroken(result) {
   }
   return false
 }
+
+// ─── Self-heal stale cpPass ──────────────────────────────────────────────
+//
+// Rotate the user's cPanel password on WHM and write the fresh value back
+// into Mongo (encrypted). Restores the user-level HTTP Basic Auth path
+// end-to-end, so subsequent uploadFile()/list/mkdir calls succeed on the
+// SAME code path as a normal upload — no WHM-root multipart gateway hell.
+//
+// Why this exists (not the WHM-root ladder):
+//   The WHM /json-api/cpanel route can proxy read-only UAPI calls (list,
+//   mkdir, extract, delete — all GETs with query params). But it silently
+//   drops multipart file bodies, so a root-impersonation upload returns
+//   "You must specify at least one file to upload" — a dead end for the
+//   upload path. Repairing the underlying cpPass sidesteps the gateway.
+//
+// Contract:
+//   • Cool-down: 60 min per account (doc.cpPassRotatedAt). Inside the
+//     window, decrypt & return the cached pass with rotated:false — this
+//     prevents thrashing on cPHulk / ModSecurity short lockouts that
+//     otherwise cause a rotate → still fails → rotate loop.
+//   • Password: 24 chars from crypto.randomBytes(32) mapped into a
+//     [A-Za-z0-9] alphabet. URL-safe (avoids WHM's shell-special-char
+//     encoding quirks). ~143 bits entropy.
+//   • WHM call: whmApi.get('/passwd', {api.version:1, user, password,
+//     db_pass_update:0}). db_pass_update:0 is CRITICAL — rotating bound
+//     MySQL passes silently breaks the customer's live site (their app
+//     config still points at the old MySQL pass). Success on
+//     res.data?.metadata?.result === 1.
+//   • Persist: AES-256-GCM encrypt via cpAuth.encrypt(), write
+//     cpPass_encrypted + cpPass_iv + cpPass_tag + cpPassRotatedAt +
+//     cpPassLastRotateReason: 'CPANEL_AUTH_FAILURE'.
+//
+// Returns: { ok, cpPass?, rotated?, reason?, error? }.
+const CPPASS_COOLDOWN_MS = 60 * 60 * 1000 // 60 min — prevents cPHulk thrash
+const CPPASS_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+const CPPASS_LENGTH = 24
+
+function _generateCpPass() {
+  const crypto = require('crypto')
+  const raw = crypto.randomBytes(32) // 32 bytes > 24 chars needed
+  let out = ''
+  for (let i = 0; i < CPPASS_LENGTH; i++) {
+    out += CPPASS_ALPHABET[raw[i] % CPPASS_ALPHABET.length]
+  }
+  return out
+}
+
+async function _repairCpPass(getCpanelCol, cpUser, whmHost) {
+  try {
+    const col = getCpanelCol()
+    if (!col) return { ok: false, error: 'cpanelAccounts collection unavailable' }
+    const account = await col.findOne({ _id: String(cpUser || '').toLowerCase() })
+    if (!account) return { ok: false, error: `account ${cpUser} not found in cpanelAccounts` }
+
+    // ── Cool-down guard ─────────────────────────────────────────────
+    // If we just rotated recently, don't hammer /passwd again — return
+    // the cached pass (which IS the freshly-rotated one) and let the
+    // caller retry. If auth is STILL broken after a recent rotate,
+    // that's cPHulk / lockout territory, not stale-pass.
+    if (account.cpPassRotatedAt) {
+      const rotatedAt = new Date(account.cpPassRotatedAt).getTime()
+      const elapsed = Date.now() - rotatedAt
+      if (elapsed >= 0 && elapsed < CPPASS_COOLDOWN_MS) {
+        const cached = cpAuth.decrypt({
+          encrypted: account.cpPass_encrypted,
+          iv: account.cpPass_iv,
+          tag: account.cpPass_tag,
+        })
+        const leftMin = Math.max(1, Math.ceil((CPPASS_COOLDOWN_MS - elapsed) / 60000))
+        return { ok: true, cpPass: cached, rotated: false, reason: `cool-down (${leftMin}m left)` }
+      }
+    }
+
+    const whmApi = _makeWhmApi(whmHost || process.env.WHM_HOST)
+    if (!whmApi) return { ok: false, error: 'WHM API unavailable (missing WHM_HOST / WHM_TOKEN)' }
+
+    const newPass = _generateCpPass()
+    log(`[Panel] cpPass repair: rotating ${cpUser} on ${whmHost || process.env.WHM_HOST} (db_pass_update:0)`)
+    const res = await whmApi.get('/passwd', {
+      params: {
+        'api.version': 1,
+        user: cpUser,
+        password: newPass,
+        // CRITICAL: 0 means DO NOT rotate MySQL/db passwords bound to this
+        // account. Rotating bound MySQL passes silently breaks the customer's
+        // live site (their app config still points at the old MySQL pass).
+        db_pass_update: 0,
+      },
+    })
+    if (res.data?.metadata?.result !== 1) {
+      const reason = res.data?.metadata?.reason || 'WHM /passwd returned non-success'
+      log(`[Panel] cpPass repair FAILED for ${cpUser}: ${reason}`)
+      return { ok: false, error: reason }
+    }
+
+    // Persist the fresh pass — same AES-256-GCM shape as storeCredentials().
+    const enc = cpAuth.encrypt(newPass)
+    await col.updateOne(
+      { _id: account._id },
+      { $set: {
+        cpPass_encrypted: enc.encrypted,
+        cpPass_iv: enc.iv,
+        cpPass_tag: enc.tag,
+        cpPassRotatedAt: new Date(),
+        cpPassLastRotateReason: 'CPANEL_AUTH_FAILURE',
+      } },
+    )
+    log(`[Panel] cpPass repair OK for ${cpUser} (rotated, persisted)`)
+    return { ok: true, cpPass: newPass, rotated: true }
+  } catch (e) {
+    log(`[Panel] cpPass repair EXCEPTION for ${cpUser}: ${e.message}`)
+    return { ok: false, error: e.message }
+  }
+}
 function _replyEperm(res, req, op) {
   cpProxy.alertEpermRepairNeeded({
     op,
@@ -569,19 +683,33 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
       return res.status(403).json({ error: `Cannot upload ${uploadName} — this file is managed by the anti-red protection system.` })
     }
     let result = await cpProxy.uploadFile(req.cpUser, req.cpPass, dir, uploadName, req.file.buffer, req.whmHost)
-    // Stale-cpPass fallback (peer of the EPERM ladder used by mkdir/list/extract).
-    // The user-level 401/403 leaked to the panel as "Upload failed (401)" before
-    // this fix — root-impersonation upload sidesteps the mismatched password
-    // entirely. Confirmed on cpUser nnliae74 — @HHR2009 2026-08-26.
+    // Self-heal stale cpPass. The old WHM-root fallback (uploadFileAsRoot)
+    // is dead here because WHM's /json-api/cpanel gateway drops multipart
+    // file bodies — it returns "You must specify at least one file to
+    // upload" every time. Instead we rotate the cPanel password on WHM,
+    // save the fresh value back to Mongo, and retry the SAME user-level
+    // upload path — the exact code path a healthy account uses.
+    // Contract-guarded by 60-min cool-down inside _repairCpPass.
     if (result?.status !== 1 && _isAuthBroken(result)) {
-      log(`[Panel] upload user-level auth-broken (status=${result?.httpStatus}, reason=${result?.errors?.[0] || '?'}) → WHM-root upload (user: ${req.cpUser}, tag: user-auth-broken)`)
-      const rootResult = await cpProxy.uploadFileAsRoot(req.cpUser, dir, uploadName, req.file.buffer, req.whmHost || process.env.WHM_HOST)
-      if (rootResult?.status === 1) {
-        log(`[Panel] Upload recovered via WHM-root: ${uploadName} → ${dir} (user: ${req.cpUser})`)
+      log(`[Panel] upload user-level auth-broken (status=${result?.httpStatus}, reason=${result?.errors?.[0] || '?'}) → cpPass repair (user: ${req.cpUser}, tag: user-auth-broken)`)
+      const repair = await _repairCpPass(getCpanelCol, req.cpUser, req.whmHost || process.env.WHM_HOST)
+      if (!repair.ok) {
+        log(`[Panel] Upload cpPass repair failed for ${req.cpUser}: ${repair.error} (tag: cppass-repair-failed)`)
+        result = { status: 0, errors: [repair.error || 'cpPass repair failed'], data: null, via: 'cppass-repair-failed' }
       } else {
-        log(`[Panel] WHM-root upload also failed: ${uploadName} → ${dir} (user: ${req.cpUser}) — ${rootResult?.errors?.[0] || 'unknown'}`)
+        // Retry the SAME user-level upload with the fresh pass. Also stamp
+        // req.cpPass so any subsequent op in this request (e.g. a follow-up
+        // chown / touch) uses the new value.
+        req.cpPass = repair.cpPass
+        const retry = await cpProxy.uploadFile(req.cpUser, repair.cpPass, dir, uploadName, req.file.buffer, req.whmHost)
+        if (retry?.status === 1) {
+          log(`[Panel] Upload recovered via cpPass repair: ${uploadName} → ${dir} (user: ${req.cpUser}, rotated: ${repair.rotated}${repair.reason ? `, ${repair.reason}` : ''})`)
+          result = { ...retry, via: repair.rotated ? 'cppass-repaired-retry-ok' : 'cppass-cooldown-retry-ok' }
+        } else {
+          log(`[Panel] Upload cpPass repaired but retry still failed for ${req.cpUser}: ${retry?.errors?.[0] || 'unknown'} (tag: cppass-repaired-retry-failed)`)
+          result = { ...retry, via: 'cppass-repaired-retry-failed' }
+        }
       }
-      result = rootResult
     }
     res.json(_up.changed ? { ...result, renamedFrom: _up.original, savedAs: uploadName } : result)
   })
@@ -710,21 +838,30 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
         log(`[Panel] Chunk upload complete: ${saveName} (${(assembled.length / (1024 * 1024)).toFixed(1)} MB) → ${dir} (user: ${req.cpUser}, id: ${uploadId})`)
 
         const result = await cpProxy.uploadFile(req.cpUser, req.cpPass, dir, saveName, assembled, req.whmHost)
-        // Stale-cpPass fallback — mirror of /files/upload above. If the
-        // user-level upload was blocked by auth (401/403), retry via WHM root
-        // impersonation which bypasses the mismatched password. Without this
-        // the customer sees "Upload failed (401)" after a full chunked upload
-        // (~50 MB over slow mobile) — an especially painful UX regression.
+        // Self-heal stale cpPass — mirror of /files/upload above. Rotate
+        // the cPanel password on WHM, persist encrypted in Mongo, retry
+        // the SAME user-level upload. Fixes 401/403 without the broken
+        // multipart-over-WHM-root gateway path. Especially important here:
+        // otherwise the customer sees "Upload failed (401)" after a full
+        // chunked upload (~50 MB over slow mobile).
         let finalResult = result
         if (result?.status !== 1 && _isAuthBroken(result)) {
-          log(`[Panel] Chunk upload user-level auth-broken (status=${result?.httpStatus}, reason=${result?.errors?.[0] || '?'}) → WHM-root upload (user: ${req.cpUser}, tag: user-auth-broken, id: ${uploadId})`)
-          const rootResult = await cpProxy.uploadFileAsRoot(req.cpUser, dir, saveName, assembled, req.whmHost || process.env.WHM_HOST)
-          if (rootResult?.status === 1) {
-            log(`[Panel] Chunk upload recovered via WHM-root: ${saveName} → ${dir} (user: ${req.cpUser}, id: ${uploadId})`)
+          log(`[Panel] Chunk upload user-level auth-broken (status=${result?.httpStatus}, reason=${result?.errors?.[0] || '?'}) → cpPass repair (user: ${req.cpUser}, tag: user-auth-broken, id: ${uploadId})`)
+          const repair = await _repairCpPass(getCpanelCol, req.cpUser, req.whmHost || process.env.WHM_HOST)
+          if (!repair.ok) {
+            log(`[Panel] Chunk upload cpPass repair failed for ${req.cpUser}: ${repair.error} (tag: cppass-repair-failed, id: ${uploadId})`)
+            finalResult = { status: 0, errors: [repair.error || 'cpPass repair failed'], data: null, via: 'cppass-repair-failed' }
           } else {
-            log(`[Panel] Chunk upload WHM-root also failed: ${saveName} (user: ${req.cpUser}) — ${rootResult?.errors?.[0] || 'unknown'}`)
+            req.cpPass = repair.cpPass
+            const retry = await cpProxy.uploadFile(req.cpUser, repair.cpPass, dir, saveName, assembled, req.whmHost)
+            if (retry?.status === 1) {
+              log(`[Panel] Chunk upload recovered via cpPass repair: ${saveName} → ${dir} (user: ${req.cpUser}, id: ${uploadId}, rotated: ${repair.rotated}${repair.reason ? `, ${repair.reason}` : ''})`)
+              finalResult = { ...retry, via: repair.rotated ? 'cppass-repaired-retry-ok' : 'cppass-cooldown-retry-ok' }
+            } else {
+              log(`[Panel] Chunk upload cpPass repaired but retry still failed for ${req.cpUser}: ${retry?.errors?.[0] || 'unknown'} (tag: cppass-repaired-retry-failed, id: ${uploadId})`)
+              finalResult = { ...retry, via: 'cppass-repaired-retry-failed' }
+            }
           }
-          finalResult = rootResult
         }
         return res.json({ ...finalResult, status: 'complete', cpanelStatus: finalResult?.status, ...(_cu.changed ? { renamedFrom: _cu.original, savedAs: saveName } : {}) })
       } catch (e) {
