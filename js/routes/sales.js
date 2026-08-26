@@ -549,16 +549,21 @@ function install(app, deps) {
   // order count, total spent, last order + deposit/bonus/refund totals. Sourced from
   // userConversion (joinedAt/lang/hasPurchased) ∪ nameOf (username) ∪ transactions.
   async function buildUserIndex(db) {
-    const [conv, names, wallets, txns] = await Promise.all([
+    const [conv, names, wallets, txns, welcomeBonusDocs] = await Promise.all([
       db.collection('userConversion').find({}, { projection: { chatId: 1, joinedAt: 1, lang: 1, hasPurchased: 1 } }).toArray(),
       db.collection('nameOf').find({}).toArray(),
       db.collection('walletOf').find({}).toArray(),
       db.collection('transactions').find({}).toArray(),
+      db.collection('welcomeBonuses').find({}, { projection: { chatId: 1, bonusAmount: 1 } }).toArray(),
     ])
     const nameMap = {}
     for (const n of names) nameMap[String(n._id)] = n.val
     const walletMap = {}
     for (const w of wallets) walletMap[String(w._id)] = (Number(w.usdIn) || 0) - (Number(w.usdOut) || 0)
+    // Ground-truth "welcome bonus received" map (from welcomeBonuses collection —
+    // one doc per user who ever received the $WELCOME_BONUS_USD gift)
+    const welcomeBonusMap = {}
+    for (const w of welcomeBonusDocs) welcomeBonusMap[String(w.chatId)] = Number(w.bonusAmount) || 0
 
     const agg = {}
     const ensure = (cid) => (agg[cid] = agg[cid] || { orders: 0, totalSpent: 0, deposits: 0, bonuses: 0, refunds: 0, lastOrderDate: null, firstTxnDate: null, txnCount: 0 })
@@ -590,18 +595,30 @@ function install(app, deps) {
       const c = convMap[cid] || {}
       const a = agg[cid] || {}
       const joinedAt = normDate(c.joinedAt) || a.firstTxnDate || null
+      const balance = round2(walletMap[cid] || 0)
+      const deposits = round2(a.deposits || 0)
+      const bonuses = round2(a.bonuses || 0)
+      const welcomeBonus = round2(welcomeBonusMap[cid] || 0)
+      // "Bonus-only" wallet — user has never deposited real funds AND everything
+      // in their wallet is still (unspent) promotional credit. Small epsilon lets
+      // rounding artifacts like $4.999… still qualify.
+      const bonusOnly = deposits === 0 && balance > 0 && balance <= bonuses + 0.01
+      const bonusRemaining = bonusOnly ? Math.min(balance, bonuses) : 0
       rows.push({
         chatId: cid,
         name: nameMap[cid] || null,
         joinedAt,
         lang: c.lang || null,
-        balance: round2(walletMap[cid] || 0),
+        balance,
         orders: a.orders || 0,
         totalSpent: round2(a.totalSpent || 0),
         lastOrderDate: a.lastOrderDate || null,
-        deposits: round2(a.deposits || 0),
-        bonuses: round2(a.bonuses || 0),
+        deposits,
+        bonuses,
         refunds: round2(a.refunds || 0),
+        welcomeBonus,
+        bonusOnly,
+        bonusRemaining: round2(bonusRemaining),
         hasPurchased: (a.orders || 0) > 0 || !!c.hasPurchased,
       })
     }
@@ -663,30 +680,42 @@ function install(app, deps) {
       const db = getDb()
       if (!db) return res.status(503).json({ error: 'DB not ready' })
       const chatId = String(req.params.chatId || '')
-      const [conv, nameDoc, wallet, txnDocs] = await Promise.all([
+      const [conv, nameDoc, wallet, txnDocs, welcomeDoc] = await Promise.all([
         db.collection('userConversion').findOne({ chatId }),
         db.collection('nameOf').findOne({ _id: chatId }),
         db.collection('walletOf').findOne({ _id: chatId }),
         db.collection('transactions').find({ chatId }).toArray(),
+        db.collection('welcomeBonuses').findOne({ chatId }),
       ])
       const txns = txnDocs.map(normalizeTxn).sort((a, b) => (b.date ? b.date.getTime() : 0) - (a.date ? a.date.getTime() : 0))
       const sales = txns.filter((t) => t.group === 'sale')
-      const balance = wallet ? (Number(wallet.usdIn) || 0) - (Number(wallet.usdOut) || 0) : 0
+      const balanceRaw = wallet ? (Number(wallet.usdIn) || 0) - (Number(wallet.usdOut) || 0) : 0
+      const balance = round2(balanceRaw)
       const joinedAt = (conv && normDate(conv.joinedAt))
         || (txns.length ? txns[txns.length - 1].date : null)
+      const deposits = round2(txns.filter((x) => x.group === 'deposit').reduce((a, x) => a + x.amountUsd, 0))
+      const bonuses = round2(txns.filter((x) => x.group === 'bonus').reduce((a, x) => a + x.amountUsd, 0))
+      const welcomeBonus = round2(welcomeDoc ? (Number(welcomeDoc.bonusAmount) || 0) : 0)
+      const refunds = round2(txns.filter((x) => x.group === 'refund').reduce((a, x) => a + Math.abs(x.amountUsd), 0))
+      // Purely promotional wallet — no real deposits AND balance still ≤ total bonuses
+      const bonusOnly = deposits === 0 && balance > 0 && balance <= bonuses + 0.01
+      const bonusRemaining = round2(bonusOnly ? Math.min(balance, bonuses) : 0)
       res.json({
         profile: {
           chatId,
           name: nameDoc ? nameDoc.val : null,
           joinedAt: joinedAt ? joinedAt.toISOString() : null,
           lang: conv ? conv.lang : null,
-          balance: round2(balance),
+          balance,
           hasPurchased: sales.length > 0 || !!(conv && conv.hasPurchased),
           orders: sales.length,
           totalSpent: round2(sales.reduce((a, x) => a + x.amountUsd, 0)),
-          deposits: round2(txns.filter((x) => x.group === 'deposit').reduce((a, x) => a + x.amountUsd, 0)),
-          bonuses: round2(txns.filter((x) => x.group === 'bonus').reduce((a, x) => a + x.amountUsd, 0)),
-          refunds: round2(txns.filter((x) => x.group === 'refund').reduce((a, x) => a + Math.abs(x.amountUsd), 0)),
+          deposits,
+          bonuses,
+          refunds,
+          welcomeBonus,
+          bonusOnly,
+          bonusRemaining,
         },
         transactions: txns.map((x) => ({
           id: x.id,

@@ -315,7 +315,16 @@ function UserOrderHistory({ authFetch, chatId }) {
       {/* mini profile stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { l: 'Wallet Balance', v: fmtUsd(p.balance), cls: 'text-[#FAFAFA]' },
+          {
+            l: 'Wallet Balance',
+            v: fmtUsd(p.balance),
+            cls: 'text-[#FAFAFA]',
+            sub: p.bonusRemaining > 0
+              ? `incl. ${fmtUsd(p.bonusRemaining)} welcome bonus`
+              : (p.welcomeBonus > 0 ? `${fmtUsd(p.welcomeBonus)} welcome bonus received` : null),
+            subCls: p.bonusRemaining > 0 ? 'text-[#FFB800]' : 'text-[#71717A]',
+            icon: p.bonusRemaining > 0 ? Gift : null,
+          },
           { l: 'Total Spent', v: fmtUsd(p.totalSpent), cls: 'text-[#00E599]' },
           { l: 'Deposits', v: fmtUsd(p.deposits), cls: 'text-[#FAFAFA]' },
           { l: 'Bonuses', v: fmtUsd(p.bonuses), cls: 'text-[#FAFAFA]' },
@@ -323,6 +332,12 @@ function UserOrderHistory({ authFetch, chatId }) {
           <div key={s.l} className="bg-[#121214] border border-white/[0.05] rounded-lg p-3">
             <div className="text-[#71717A] text-[10px] uppercase tracking-[0.08em] font-medium">{s.l}</div>
             <div className={`font-mono font-semibold tabular-nums mt-1 ${s.cls}`}>{s.v}</div>
+            {s.sub && (
+              <div className={`mt-1 flex items-center gap-1 font-mono text-[10px] ${s.subCls}`} data-testid={s.l === 'Wallet Balance' && p.bonusRemaining > 0 ? `bonus-note-${chatId}` : undefined}>
+                {s.icon && <s.icon className="w-3 h-3" />}
+                <span className="truncate">{s.sub}</span>
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -501,7 +516,19 @@ function BotUsers({ authFetch, range }) {
                     <td className="py-3 px-2 text-[#A1A1AA]">
                       <span className="inline-flex items-center gap-1 text-xs"><Globe className="w-3 h-3 text-[#71717A]" />{LANG_LABEL[u.lang] || u.lang || '—'}</span>
                     </td>
-                    <td className="py-3 px-2 text-right font-mono tabular-nums text-[#FAFAFA]">{fmtUsd(u.balance)}</td>
+                    <td className="py-3 px-2 text-right font-mono tabular-nums text-[#FAFAFA]">
+                      <div>{fmtUsd(u.balance)}</div>
+                      {u.bonusRemaining > 0 && (
+                        <div
+                          className="mt-0.5 inline-flex items-center gap-1 font-mono text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-[#FFB800]/10 text-[#FFB800] border border-[#FFB800]/20"
+                          title={`Wallet is unspent promotional credit — ${fmtUsd(u.bonusRemaining)} welcome bonus, no real deposits yet`}
+                          data-testid={`bonus-tag-${u.chatId}`}
+                        >
+                          <Gift className="w-2.5 h-2.5" />
+                          Bonus
+                        </div>
+                      )}
+                    </td>
                     <td className="py-3 px-2 text-right font-mono tabular-nums text-[#A1A1AA]">{u.orders}</td>
                     <td className="py-3 px-2 text-right font-mono tabular-nums text-[#00E599]">{u.totalSpent ? fmtUsd(u.totalSpent) : '—'}</td>
                     <td className="py-3 px-2 text-[#A1A1AA] whitespace-nowrap font-mono text-xs">{u.lastOrderDate ? fmtDate(u.lastOrderDate) : '—'}</td>
