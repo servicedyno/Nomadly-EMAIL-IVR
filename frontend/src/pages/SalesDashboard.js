@@ -127,14 +127,14 @@ const KPI_TINTS = {
   slate: 'text-[#A1A1AA]',
 };
 
-function Kpi({ icon: Icon, label, value, accent = 'mint', delta, sub, testid }) {
+function Kpi({ icon: Icon, label, value, accent = 'mint', delta, sub, testid, footnote, valueClassName }) {
   return (
     <div className={`${CARD} p-5 hover:border-white/[0.14] transition-colors duration-300`} data-testid={testid}>
       <div className="flex items-center justify-between mb-3">
         <span className="text-[11px] text-[#A1A1AA] font-medium uppercase tracking-[0.08em]">{label}</span>
         <Icon className={`w-4 h-4 ${KPI_TINTS[accent]} opacity-80`} />
       </div>
-      <div className="font-mono text-2xl lg:text-[26px] font-semibold tracking-tight text-[#FAFAFA]">{value}</div>
+      <div className={`font-mono text-2xl lg:text-[26px] font-semibold tracking-tight ${valueClassName || 'text-[#FAFAFA]'}`}>{value}</div>
       <div className="flex items-center gap-2 mt-2.5 min-h-[20px]">
         {delta != null && (
           <span className={`inline-flex items-center gap-1 font-mono text-[11px] font-medium px-1.5 py-0.5 rounded ${delta >= 0 ? 'text-[#00E599] bg-[#00E599]/10' : 'text-[#FF3366] bg-[#FF3366]/10'}`}>
@@ -144,6 +144,11 @@ function Kpi({ icon: Icon, label, value, accent = 'mint', delta, sub, testid }) 
         )}
         {sub && <span className="text-[#71717A] text-xs">{sub}</span>}
       </div>
+      {footnote && (
+        <div className="mt-1.5 text-[#71717A] font-mono text-[10.5px]" data-testid={testid ? `${testid}-footnote` : undefined}>
+          {footnote}
+        </div>
+      )}
     </div>
   );
 }
@@ -176,16 +181,25 @@ const TOOLTIP_BOX = 'bg-[#121214]/95 backdrop-blur-xl border border-white/[0.1] 
 
 function CustomTooltip({ active, payload, label }) {
   if (!active || !payload || !payload.length) return null;
+  const d = payload[0].payload;
+  const wb = d && d.welcomeBonuses ? d.welcomeBonuses : 0;
   return (
     <div className={TOOLTIP_BOX}>
       <div className="text-[#A1A1AA] mb-1.5 font-medium">{label}</div>
-      {payload.map((p) => (
-        <div key={p.dataKey} className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full" style={{ background: p.color }} />
-          <span className="text-[#71717A] capitalize">{p.dataKey}:</span>
-          <span className="text-[#FAFAFA] font-medium">{fmtUsd(p.value)}</span>
-        </div>
-      ))}
+      {payload.map((p) => {
+        const nice = p.dataKey === 'netProfit' ? 'net profit' : p.dataKey;
+        const neg = (p.value ?? 0) < 0;
+        return (
+          <div key={p.dataKey} className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full" style={{ background: p.color }} />
+            <span className="text-[#71717A] capitalize">{nice}:</span>
+            <span className={`font-medium ${neg ? 'text-[#FF3366]' : 'text-[#FAFAFA]'}`}>{fmtUsd(p.value)}</span>
+          </div>
+        );
+      })}
+      {wb > 0 && d.grossProfit != null && (
+        <div className="text-[#71717A] mt-0.5 text-[10.5px]">↳ gross {fmtUsd(d.grossProfit)} − welcome bonus {fmtUsd(wb)}</div>
+      )}
     </div>
   );
 }
@@ -206,10 +220,20 @@ function CategoryTooltip({ active, payload }) {
 function WeeklyTooltip({ active, payload }) {
   if (!active || !payload || !payload.length) return null;
   const d = payload[0].payload;
+  const wb = d.welcomeBonuses || 0;
+  const net = d.netProfit != null ? d.netProfit : d.profit;
+  const gross = d.grossProfit != null ? d.grossProfit : d.profit;
+  const negative = net < 0;
   return (
     <div className={TOOLTIP_BOX}>
       <div className="text-[#FAFAFA] font-medium mb-1">{d.label}</div>
-      <div className="text-[#71717A]">Profit: <span className="text-[#00E599]">{fmtUsd(d.profit)}</span></div>
+      <div className="text-[#71717A]">Net profit: <span className={negative ? 'text-[#FF3366]' : 'text-[#00E599]'}>{fmtUsd(net)}</span></div>
+      {wb > 0 && (
+        <>
+          <div className="text-[#71717A]">↳ Gross profit: <span className="text-[#FAFAFA]">{fmtUsd(gross)}</span></div>
+          <div className="text-[#71717A]">↳ Welcome bonus: <span className="text-[#FFB800]">−{fmtUsd(wb)}</span></div>
+        </>
+      )}
       <div className="text-[#71717A]">Revenue: <span className="text-[#FAFAFA]">{fmtUsd(d.revenue)}</span></div>
       <div className="text-[#71717A]">Orders: <span className="text-[#FAFAFA]">{d.orders}</span></div>
     </div>
@@ -872,8 +896,30 @@ function Dashboard({ token, onLogout }) {
             <Eyebrow>Overview</Eyebrow>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4" data-testid="sales-kpis">
               <Kpi icon={DollarSign} label="Gross Revenue" value={fmtUsd(summary.grossRevenue)} accent="mint" delta={deltas?.grossRevenue} sub="vs prev" testid="kpi-revenue" />
-              <Kpi icon={PiggyBank} label="Net Profit" value={fmtUsd(summary.netProfit)} accent="cyan" delta={deltas?.netProfit} sub="vs prev" testid="kpi-profit" />
-              <Kpi icon={CalendarDays} label="This Week's Profit" value={fmtUsd(summary.thisWeekProfit)} accent="violet" sub="current week" testid="kpi-weekprofit" />
+              <Kpi
+                icon={PiggyBank}
+                label="Net Profit"
+                value={fmtUsd(summary.netProfit)}
+                accent="cyan"
+                delta={deltas?.netProfit}
+                sub="vs prev"
+                testid="kpi-profit"
+                valueClassName={summary.netProfit < 0 ? 'text-[#FF3366]' : 'text-[#FAFAFA]'}
+                footnote={
+                  summary.welcomeBonusesGiven > 0
+                    ? `gross ${fmtUsd(summary.grossProfit)} − welcome bonus ${fmtUsd(summary.welcomeBonusesGiven)}`
+                    : null
+                }
+              />
+              <Kpi
+                icon={CalendarDays}
+                label="This Week's Profit"
+                value={fmtUsd(summary.thisWeekProfit)}
+                accent="violet"
+                sub="net · current week"
+                testid="kpi-weekprofit"
+                valueClassName={summary.thisWeekProfit < 0 ? 'text-[#FF3366]' : 'text-[#FAFAFA]'}
+              />
               <Kpi icon={ShoppingCart} label="Orders" value={fmtNum(summary.orders)} accent="amber" delta={deltas?.orders} sub={`AOV ${fmtUsd(summary.avgOrderValue)}`} testid="kpi-orders" />
             </div>
 
@@ -884,7 +930,7 @@ function Dashboard({ token, onLogout }) {
                 icon={Gift}
                 label="Bonuses Given"
                 value={fmtUsd(summary.bonuses)}
-                sub="promotional credit"
+                sub="welcome bonus deducted from profit"
                 accent="amber"
                 testid="kpi-bonuses"
                 breakdown={[
@@ -915,10 +961,10 @@ function Dashboard({ token, onLogout }) {
             <Eyebrow>Trends</Eyebrow>
             <div className={`${CARD} p-5 sm:p-6`} data-testid="sales-timeseries">
               <div className="flex items-center justify-between mb-5">
-                <h2 className="font-heading font-semibold tracking-tight flex items-center gap-2"><TrendingUp className="w-4 h-4 text-[#00E599]" /> Revenue &amp; Profit</h2>
+                <h2 className="font-heading font-semibold tracking-tight flex items-center gap-2"><TrendingUp className="w-4 h-4 text-[#00E599]" /> Revenue &amp; Net Profit</h2>
                 <div className="flex items-center gap-4 font-mono text-[11px] text-[#A1A1AA]">
                   <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#FAFAFA]" /> Revenue</span>
-                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#00E599]" /> Profit</span>
+                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#00E599]" /> Net profit</span>
                 </div>
               </div>
               <div style={{ width: '100%', height: 300 }}>
@@ -939,7 +985,7 @@ function Dashboard({ token, onLogout }) {
                     <YAxis tick={AXIS_TICK} tickFormatter={(v) => `$${v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v}`} axisLine={false} tickLine={false} width={48} />
                     <Tooltip content={<CustomTooltip />} />
                     <Area type="monotone" dataKey="revenue" stroke="#FAFAFA" strokeWidth={1.5} fill="url(#gRev)" />
-                    <Area type="monotone" dataKey="profit" stroke="#00E599" strokeWidth={2} fill="url(#gProfit)" />
+                    <Area type="monotone" dataKey="netProfit" stroke="#00E599" strokeWidth={2} fill="url(#gProfit)" />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
@@ -948,8 +994,8 @@ function Dashboard({ token, onLogout }) {
             {/* Weekly Profit chart */}
             <div className={`${CARD} p-5 sm:p-6`} data-testid="sales-weekly">
               <div className="flex items-center justify-between mb-5">
-                <h2 className="font-heading font-semibold tracking-tight flex items-center gap-2"><BarChart3 className="w-4 h-4 text-[#00E599]" /> Weekly Profit</h2>
-                <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-[#71717A]">Total profit per week</span>
+                <h2 className="font-heading font-semibold tracking-tight flex items-center gap-2"><BarChart3 className="w-4 h-4 text-[#00E599]" /> Weekly Net Profit</h2>
+                <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-[#71717A]">Net of welcome bonuses given</span>
               </div>
               {data.weekly && data.weekly.length ? (
                 <div style={{ width: '100%', height: 260 }}>
@@ -957,9 +1003,13 @@ function Dashboard({ token, onLogout }) {
                     <BarChart data={data.weekly} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
                       <XAxis dataKey="label" tick={{ ...AXIS_TICK, fontSize: 10 }} minTickGap={12} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-                      <YAxis tick={AXIS_TICK} tickFormatter={(v) => `$${v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v}`} axisLine={false} tickLine={false} width={48} />
+                      <YAxis tick={AXIS_TICK} tickFormatter={(v) => `$${v >= 1000 ? (v / 1000).toFixed(0) + 'k' : (v <= -1000 ? (v / 1000).toFixed(0) + 'k' : v)}`} axisLine={false} tickLine={false} width={48} />
                       <Tooltip cursor={{ fill: 'rgba(255,255,255,0.03)' }} content={<WeeklyTooltip />} />
-                      <Bar dataKey="profit" fill="#00E599" radius={[4, 4, 0, 0]} maxBarSize={44} />
+                      <Bar dataKey="netProfit" radius={[4, 4, 0, 0]} maxBarSize={44}>
+                        {data.weekly.map((w, i) => (
+                          <Cell key={i} fill={(w.netProfit || 0) < 0 ? '#FF3366' : '#00E599'} />
+                        ))}
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 </div>

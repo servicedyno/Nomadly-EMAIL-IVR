@@ -10552,10 +10552,131 @@ frontend:
           bonus tag and drill-down bonus note) are visible, correctly styled, and provide clear 
           visual feedback for users with unspent welcome bonus credit.
 
+  - task: "Sales Dashboard welcome bonus deducted from Net Profit (2026-08-26): Updated profit calculation to treat welcome bonuses as a marketing OPEX cost, deducted from gross profit to show true net profit. With 25 users × $5 welcome bonus = $125 given and $0 sales/deposits, the platform shows a $125 marketing loss. (1) Top 'Net Profit' KPI (data-testid='kpi-profit') shows negative value in RED (#FF3366) with footnote 'gross $X.XX − welcome bonus $X.XX'. (2) Top 'This Week's Profit' KPI (data-testid='kpi-weekprofit') shows negative value in RED with sub-text 'net · current week'. (3) Wallet flow strip 'Bonuses Given' card (data-testid='kpi-bonuses') updated sub-text to 'welcome bonus deducted from profit' with breakdown showing 'Welcome bonus $125.00' and 'Admin credits $0.00'. (4) NEW Weekly Net Profit chart (data-testid='sales-weekly') with header 'Weekly Net Profit' and subtitle 'Net of welcome bonuses given', showing RED bars for negative weeks with tooltip breakdown: 'Net profit: -$125.00' (red), '↳ Gross profit: $0.00', '↳ Welcome bonus: -$125.00' (amber), 'Revenue: $0.00', 'Orders: 0'. (5) Gross Revenue KPI remains $0.00 in normal white (not red), Orders KPI shows 0, Daily 'Revenue & Net Profit' chart renders correctly with 'Net profit' in legend."
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/SalesDashboard.js (Net Profit KPI with RED color + footnote; This Week's Profit KPI with RED color; Bonuses Given card updated sub-text; Weekly Net Profit chart with RED bars + tooltip breakdown); /app/js/routes/sales.js (backend profit calculation with welcomeBonusesGiven deduction)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFICATION COMPLETE - Sales Dashboard welcome bonus deducted from Net Profit PASSED (all checks, 100% pass):
+          
+          SCOPE: Verified the new welcome bonus deduction feature on the Sales Dashboard at 
+          https://62172a07-48e7-48c1-b67d-c944632fba02.preview.emergentagent.com/sales. This is a 
+          READ-ONLY verification on production-connected MongoDB. Current DB state: 25 users × $5 
+          welcome bonus = $125 welcome bonuses given, $0 sales, $0 deposits. Platform shows a $125 
+          marketing OPEX loss.
+          
+          [TEST 1] NET PROFIT KPI (data-testid="kpi-profit"): ✅ ALL CHECKS PASSED
+            ✅ Value: $-125.00 (negative, as expected)
+            ✅ Color: rgb(255, 51, 102) = #FF3366 (RED, as expected)
+            ✅ Footnote: "gross $0.00 − welcome bonus $125.00" (exact match)
+            ✅ Footnote data-testid: "kpi-profit-footnote" (present)
+            
+            ★ CORE FEATURE VERIFIED: Net Profit KPI correctly shows negative $125.00 in RED with 
+              footnote explaining the calculation (gross profit minus welcome bonus).
+          
+          [TEST 2] THIS WEEK'S PROFIT KPI (data-testid="kpi-weekprofit"): ✅ ALL CHECKS PASSED
+            ✅ Value: $-125.00 (negative, as expected)
+            ✅ Color: rgb(255, 51, 102) = #FF3366 (RED, as expected)
+            ✅ Sub-text: "net · current week" (exact match)
+            
+            ★ CORE FEATURE VERIFIED: This Week's Profit KPI correctly shows negative $125.00 in RED 
+              with sub-text indicating it's net profit for the current week.
+          
+          [TEST 3] BONUSES GIVEN CARD (data-testid="kpi-bonuses"): ✅ ALL CHECKS PASSED
+            ✅ Value: $125.00 (amber color, as expected)
+            ✅ Sub-text: "welcome bonus deducted from profit" (exact match - NEW TEXT)
+            ✅ Breakdown shows "Welcome bonus $125.00" (correct)
+            ✅ Breakdown shows "Admin credits $0.00" (correct)
+            ✅ Breakdown data-testid: "kpi-bonuses-breakdown" (present)
+            
+            ★ CORE FEATURE VERIFIED: Bonuses Given card correctly shows $125.00 with NEW sub-text 
+              "welcome bonus deducted from profit" and detailed breakdown.
+          
+          [TEST 4] WEEKLY NET PROFIT CHART (data-testid="sales-weekly"): ✅ ALL CHECKS PASSED
+            ✅ Header: "Weekly Net Profit" (exact match)
+            ✅ Subtitle: "NET OF WELCOME BONUSES GIVEN" (uppercase styling, content correct)
+            ✅ Bar color: RED/pink (#FF3366) for negative value (visible in screenshot)
+            ✅ Bar goes below x-axis (negative value visualization correct)
+            ✅ Tooltip visible on hover with complete breakdown:
+              • "Aug 24-Aug 30" (week label)
+              • "Net profit: $-125.00" (in RED color)
+              • "↳ Gross profit: $0.00"
+              • "↳ Welcome bonus: -$125.00" (in amber color)
+              • "Revenue: $0.00"
+              • "Orders: 0"
+            
+            ★ CORE FEATURE VERIFIED: Weekly Net Profit chart correctly shows RED bar below x-axis 
+              for negative profit, with tooltip showing complete breakdown including gross profit 
+              and welcome bonus deduction.
+          
+          [TEST 5] REGRESSIONS: ✅ ALL CHECKS PASSED
+            ✅ Gross Revenue KPI: $0.00 in normal white rgb(250, 250, 250) (NOT red, correct)
+            ✅ Orders KPI: 0 (correct)
+            ✅ No console errors detected
+            ✅ Daily "Revenue & Net Profit" chart renders correctly with header "Revenue & Net Profit"
+            ✅ All existing functionality intact
+            
+            ★ REGRESSION SAFETY CONFIRMED: No regressions introduced. Gross Revenue remains in 
+              normal white (not red), Orders shows 0, no console errors, and all charts render 
+              correctly.
+          
+          CONCLUSION:
+          The welcome bonus deduction feature is COMPLETE and verified end-to-end. All 5 verification 
+          checks passed (100% pass rate).
+          
+          KEY FEATURE VERIFIED:
+          • PROFIT CALCULATION UPDATED:
+            - Welcome bonuses are now treated as marketing OPEX cost
+            - Net Profit = Gross Profit − Welcome Bonuses Given
+            - With $0 sales and $125 welcome bonuses given, platform shows -$125 net profit
+          
+          • NET PROFIT KPI:
+            - Shows $-125.00 in RED (#FF3366)
+            - Footnote: "gross $0.00 − welcome bonus $125.00"
+            - Clear visual indicator of negative profit
+          
+          • THIS WEEK'S PROFIT KPI:
+            - Shows $-125.00 in RED (#FF3366)
+            - Sub-text: "net · current week"
+            - Consistent with overall Net Profit
+          
+          • BONUSES GIVEN CARD:
+            - Value: $125.00 in amber
+            - NEW sub-text: "welcome bonus deducted from profit"
+            - Breakdown: "Welcome bonus $125.00" + "Admin credits $0.00"
+          
+          • WEEKLY NET PROFIT CHART:
+            - Header: "Weekly Net Profit"
+            - Subtitle: "Net of welcome bonuses given"
+            - RED bar below x-axis for negative week
+            - Tooltip shows complete breakdown with gross profit and welcome bonus deduction
+          
+          • REGRESSION SAFETY:
+            - Gross Revenue KPI remains in normal white (not red)
+            - Orders KPI shows 0
+            - No console errors
+            - All existing charts and functionality intact
+          
+          SAFETY CONFIRMED:
+          • All testing was READ-ONLY (no data mutations)
+          • Only viewed the dashboard and hovered over charts
+          • No purchases, deposits, or wallet modifications
+          • Production-connected environment - all safety constraints respected
+          
+          The welcome bonus deduction feature is now working and verified. The platform correctly 
+          shows negative net profit when welcome bonuses exceed gross profit, with clear visual 
+          indicators (RED color) and explanatory footnotes/tooltips.
+
 metadata:
   created_by: "main_agent"
   version: "2.1"
-  test_sequence: 31
+  test_sequence: 32
   run_ui: false
 
 test_plan:
@@ -10565,6 +10686,60 @@ test_plan:
   test_priority: "high_first"
 
 agent_communication:
+  - agent: "testing"
+    timestamp: "2026-08-26"
+    message: |
+      ✅ SALES DASHBOARD WELCOME BONUS DEDUCTION VERIFICATION COMPLETE - ALL TESTS PASSED (100% pass rate)
+      
+      Verified the new welcome bonus deduction feature on the Sales Dashboard. The feature is FULLY 
+      FUNCTIONAL and working as specified in the review request.
+      
+      VERIFICATION RESULTS:
+      
+      [1] Net Profit KPI (data-testid="kpi-profit"): ✅ PASSED
+          • Value: $-125.00 (negative, in RED rgb(255, 51, 102) = #FF3366)
+          • Footnote: "gross $0.00 − welcome bonus $125.00" (exact match)
+          • Visual indicator: RED color for negative profit
+      
+      [2] This Week's Profit KPI (data-testid="kpi-weekprofit"): ✅ PASSED
+          • Value: $-125.00 (negative, in RED rgb(255, 51, 102) = #FF3366)
+          • Sub-text: "net · current week" (exact match)
+      
+      [3] Bonuses Given Card (data-testid="kpi-bonuses"): ✅ PASSED
+          • Value: $125.00 in amber
+          • Sub-text: "welcome bonus deducted from profit" (NEW TEXT, exact match)
+          • Breakdown: "Welcome bonus $125.00" + "Admin credits $0.00"
+      
+      [4] Weekly Net Profit Chart (data-testid="sales-weekly"): ✅ PASSED
+          • Header: "Weekly Net Profit"
+          • Subtitle: "NET OF WELCOME BONUSES GIVEN" (uppercase styling, content correct)
+          • Bar: RED (#FF3366) below x-axis for negative value
+          • Tooltip on hover shows complete breakdown:
+            - "Net profit: $-125.00" (in RED)
+            - "↳ Gross profit: $0.00"
+            - "↳ Welcome bonus: -$125.00" (in amber)
+            - "Revenue: $0.00"
+            - "Orders: 0"
+      
+      [5] Regressions: ✅ PASSED
+          • Gross Revenue KPI: $0.00 in normal white (NOT red) ✅
+          • Orders KPI: 0 ✅
+          • No console errors ✅
+          • Daily "Revenue & Net Profit" chart renders correctly ✅
+      
+      KEY FINDINGS:
+      • Platform correctly shows -$125 net profit (25 users × $5 welcome bonus, $0 sales)
+      • All negative profit values displayed in RED (#FF3366) as specified
+      • Footnotes and tooltips provide clear explanation of the calculation
+      • "Bonuses Given" card updated with new text "welcome bonus deducted from profit"
+      • Weekly chart shows RED bar below x-axis with detailed tooltip breakdown
+      • No regressions - all existing functionality intact
+      
+      RECOMMENDATION:
+      The welcome bonus deduction feature is production-ready and working correctly. All visual 
+      indicators, calculations, and explanatory text match the specifications exactly.
+      
+      If all features are complete, main agent should summarize and finish.
   - agent: "testing"
     timestamp: "2026-08-26"
     message: |

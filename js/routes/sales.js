@@ -259,6 +259,16 @@ function buildReport(rows, usage, since, until) {
   const otherBonusTotal = bonusTotal - welcomeBonusTotal - adminCreditTotal - firstDepositBonusTotal
   const orders = sales.length
 
+  // Welcome bonuses granted per day — deducted from that day's profit so that
+  // the platform doesn't book a sale funded by promotional credit as pure profit.
+  // (Grants are recognised as marketing OPEX on the day they're awarded.)
+  const wbByDay = {}
+  for (const b of bonuses) {
+    if (b.subgroup !== 'welcome' || !b.date) continue
+    const day = dayKey(b.date)
+    wbByDay[day] = (wbByDay[day] || 0) + b.amountUsd
+  }
+
   // timeseries (by day)
   const tsMap = {}
   const bump = (day, rev, cost) => {
@@ -278,23 +288,38 @@ function buildReport(rows, usage, since, until) {
       bump(day, rev, costProfit(rev).cost)
     }
   }
+  // seed any day that had welcome-bonus grants (marketing OPEX) so the weekly
+  // chart shows a bar even for periods where no sales happened but bonuses were paid out
+  for (const day of Object.keys(wbByDay)) {
+    tsMap[day] = tsMap[day] || { date: day, revenue: 0, cost: 0, profit: 0, orders: 0 }
+  }
   const timeseries = Object.values(tsMap).sort((a, b) => a.date.localeCompare(b.date))
-    .map((d) => ({
-      date: d.date,
-      revenue: round2(d.revenue),
-      cost: round2(d.cost),
-      profit: round2(d.profit),
-      orders: d.orders,
-    }))
+    .map((d) => {
+      const wb = wbByDay[d.date] || 0
+      const grossProfit = d.profit
+      return {
+        date: d.date,
+        revenue: round2(d.revenue),
+        cost: round2(d.cost),
+        // "profit" alias kept for backward-compat (still gross)
+        profit: round2(grossProfit),
+        grossProfit: round2(grossProfit),
+        welcomeBonuses: round2(wb),
+        netProfit: round2(grossProfit - wb),
+        orders: d.orders,
+      }
+    })
 
   // weekly profit totals (Monday-start ISO weeks, aggregated from daily series)
   const wkMap = {}
   for (const d of timeseries) {
     const wk = weekStart(d.date)
-    wkMap[wk] = wkMap[wk] || { weekStart: wk, revenue: 0, cost: 0, profit: 0, orders: 0 }
+    wkMap[wk] = wkMap[wk] || { weekStart: wk, revenue: 0, cost: 0, grossProfit: 0, welcomeBonuses: 0, netProfit: 0, orders: 0 }
     wkMap[wk].revenue += d.revenue
     wkMap[wk].cost += d.cost
-    wkMap[wk].profit += d.profit
+    wkMap[wk].grossProfit += d.grossProfit
+    wkMap[wk].welcomeBonuses += d.welcomeBonuses
+    wkMap[wk].netProfit += d.netProfit
     wkMap[wk].orders += d.orders
   }
   const weekly = Object.values(wkMap).sort((a, b) => a.weekStart.localeCompare(b.weekStart))
@@ -303,7 +328,12 @@ function buildReport(rows, usage, since, until) {
       label: weekLabel(w.weekStart),
       revenue: round2(w.revenue),
       cost: round2(w.cost),
-      profit: round2(w.profit),
+      // "profit" alias kept for backward-compat (points to netProfit now — the
+      // headline number the operator cares about)
+      profit: round2(w.netProfit),
+      grossProfit: round2(w.grossProfit),
+      welcomeBonuses: round2(w.welcomeBonuses),
+      netProfit: round2(w.netProfit),
       orders: w.orders,
     }))
 
@@ -338,11 +368,20 @@ function buildReport(rows, usage, since, until) {
     orders: c.orders,
   }))
 
+  const grossProfitAmt = grossRevenue - totalCost
+  const netProfitAmt = grossProfitAmt - welcomeBonusTotal
+
   return {
     summary: {
       grossRevenue: round2(grossRevenue),
       totalCost: round2(totalCost),
-      netProfit: round2(grossRevenue - totalCost),
+      // Gross Profit = revenue − COGS. Doesn't count promotional credit as an expense.
+      grossProfit: round2(grossProfitAmt),
+      // Welcome bonuses given out in this period — treated as marketing OPEX so they
+      // don't inflate profit when the credit is later spent on a service.
+      welcomeBonusesGiven: round2(welcomeBonusTotal),
+      // Net Profit = Gross Profit − welcome bonuses granted this period.
+      netProfit: round2(netProfitAmt),
       orders,
       avgOrderValue: orders > 0 ? round2(grossRevenue / orders) : 0,
       refunds: round2(Math.abs(refundTotal)),
@@ -354,7 +393,8 @@ function buildReport(rows, usage, since, until) {
       adminCredits: round2(adminCreditTotal),
       firstDepositBonuses: round2(firstDepositBonusTotal),
       otherBonuses: round2(otherBonusTotal),
-      thisWeekProfit: weekly.length ? weekly[weekly.length - 1].profit : 0,
+      thisWeekProfit: weekly.length ? weekly[weekly.length - 1].netProfit : 0,
+      thisWeekGrossProfit: weekly.length ? weekly[weekly.length - 1].grossProfit : 0,
     },
     byCategory,
     timeseries,
