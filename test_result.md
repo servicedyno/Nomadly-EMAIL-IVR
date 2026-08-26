@@ -15667,3 +15667,156 @@ vps_show_password_feature_2026_08_13:
       
       The domain purchase opening-message fix is now working and verified. The misleading "Payment 
       confirmed" message on wallet/free-domain paths is FIXED.
+
+  - task: "Enhanced wallet-composition indicators on Sales Dashboard (2026-08-26): Added comprehensive wallet-flow breakdown and composition indicators to help admins understand user wallet structure at a glance. (1) Top wallet-flow strip now has FOUR cards: Wallet Deposits (mint), Bonuses Given (amber with sub-breakdown showing Welcome bonus/Admin credits/First-deposit bonus/Other bonuses), Refunds (rose), and NEW Adjustments card (violet with Scale icon). (2) Bot Users table Balance column shows amber 'Bonus' pill for bonus-only users. (3) Drill-down Wallet Composition block shows detailed breakdown: Deposits (mint), Bonuses (amber with indented sub-items), Refunds received (cyan), Adjustments (violet), Total spent (red). (4) Wallet Activity list now has color-coded group pills (amber for bonus, cyan for refund, violet for adjustment) with human-readable sub-group labels. (5) Main Transactions table Category column shows color-coded group pill first (e.g., amber 'Bonus') plus sub-group label (e.g., 'Welcome bonus'). Amount is signed and colored per group."
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/SalesDashboard.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFICATION COMPLETE - Enhanced wallet-composition indicators PASSED (all checks, 100% pass):
+          
+          SCOPE: Verified the enhanced wallet-composition indicators on the Sales Dashboard at 
+          https://62172a07-48e7-48c1-b67d-c944632fba02.preview.emergentagent.com/sales. This is a 
+          READ-ONLY verification of the UI indicators - no data mutations. DB currently only has 
+          welcome-bonus transactions ($120.00 total = 24 users × $5.00 each), so refunds/adjustments/
+          deposits read $0.00 as expected per review request.
+          
+          [TEST 1] Login verification: ✅ PASSED
+            • Password input found (data-testid="sales-password-input") ✓
+            • Entered password: "Nomadly123@" ✓
+            • Login button clicked (data-testid="sales-login-btn") ✓
+            • Successfully logged in - dashboard visible ✓
+          
+          [TEST 2] Wallet-flow strip with FOUR cards: ✅ PASSED
+            • Wallet-flow strip found (data-testid="wallet-flow-strip") ✓
+            • Card 1: kpi-deposits - "Wallet Deposits" $0.00, mint colored ✓
+            • Card 2: kpi-bonuses - "Bonuses Given" $120.00, amber colored ✓
+              - Breakdown found (data-testid="kpi-bonuses-breakdown") ✓
+              - Shows "Welcome bonus $120.00" ✓
+              - Shows "Admin credits $0.00" ✓
+            • Card 3: kpi-refunds - "Refunds" $0.00, rose colored ✓
+            • Card 4: kpi-adjustments - "Adjustments" $0.00, violet colored with Scale icon ✓
+          
+          [TEST 3] Bot Users table Balance column: ✅ PASSED
+            • Bot Users section found (data-testid="sales-bot-users") ✓
+            • Sort changed to "Wallet balance" (data-testid="user-sort") ✓
+            • Found 24 bonus tags (data-testid="bonus-tag-{chatId}") ✓
+            • First bonus tag verified:
+              - Text: "BONUS" (uppercase) ✓
+              - Color: rgb(255, 184, 0) = #FFB800 (amber) ✓
+              - Gift icon present ✓
+              - Tooltip: "Wallet is unspent promotional credit — $5.00 welcome bonus, no real deposits yet" ✓
+          
+          [TEST 4] Drill-down Wallet Composition: ✅ PASSED
+            • Clicked user row for chatId: 5168006768 ✓
+            • Detail panel expanded (data-testid="user-detail-5168006768") ✓
+            • Wallet composition block found (data-testid="wallet-composition-5168006768") ✓
+            • All 5 composition rows verified:
+              1. Deposits - mint green dot, +$0.00 ✓
+              2. Bonuses - amber dot, +$5.00 ✓
+                 - Sub-breakdown: "↳ Welcome bonus $5.00" ✓
+              3. Refunds received - cyan dot, +$0.00 ✓
+              4. Adjustments - violet dot, ±$0.00 ✓
+              5. Total spent - red dot, −$0.00 ✓
+            • Wallet status pills found (data-testid="wallet-status-5168006768") ✓
+              - Shows "BONUS-ONLY WALLET" pill ✓
+            • Bonus note found (data-testid="bonus-note-5168006768") ✓
+              - Text: "incl. $5.00 welcome bonus (unspent)" ✓
+              - Contains "welcome bonus" text ✓
+            • Quick facts card shows Orders, Total spent, Joined ✓
+          
+          [TEST 5] Wallet Activity list: ✅ PASSED
+            • Wallet Activity section found ✓
+            • Found 1 activity group pill ✓
+            • First pill verified:
+              - Text: "BONUS" ✓
+              - Color: rgb(255, 184, 0) = #FFB800 (amber) ✓
+              - Color-coded correctly ✓
+          
+          [TEST 6] Main Transactions table: ✅ PASSED
+            • Transactions table found (data-testid="sales-transactions") ✓
+            • Filtered by "Bonuses" (data-testid="txn-group") ✓
+            • Found 48 transaction rows with colored pills ✓
+            • First pill verified:
+              - Text: "BONUS" ✓
+              - Color: rgb(255, 184, 0) = #FFB800 (amber) ✓
+              - Background: rgba(255, 184, 0, 0.1) ✓
+            • Category column shows color-coded group pill + sub-group label ✓
+            • Amount is signed and colored per group ✓
+            
+            NOTE: Initial test showed "no pills" because default filter was "Sales" (which only 
+            shows sale transactions, no bonus/deposit/refund/adjustment pills). When filtered by 
+            "Bonuses" or "All types", the colored pills appeared correctly as expected.
+          
+          [TEST 7] Regressions: ✅ PASSED
+            • No console errors detected ✓
+            • Found 12 KPI elements ✓
+            • Conversion funnel visible ✓
+            • Found 2 charts ✓
+            • No error messages on page ✓
+          
+          CONCLUSION:
+          The enhanced wallet-composition indicators feature is COMPLETE and verified. All indicators 
+          are visible, correctly styled, and working as specified.
+          
+          KEY FEATURES VERIFIED:
+          • WALLET-FLOW STRIP (4 cards):
+            - Deposits (mint), Bonuses (amber with breakdown), Refunds (rose), Adjustments (violet)
+            - Bonus breakdown shows Welcome bonus + Admin credits sub-items
+            - All cards render correctly with proper colors and icons
+          
+          • BOT USERS TABLE:
+            - Bonus pills show for 24 users with unspent welcome bonus
+            - Amber color (#FFB800), Gift icon, "BONUS" text
+            - Tooltip provides clear explanation
+            - No refund/adjustment tags visible (expected - DB has no refunds/adjustments)
+          
+          • DRILL-DOWN WALLET COMPOSITION:
+            - All 5 rows render in correct order with proper colors
+            - Deposits (mint), Bonuses (amber), Refunds (cyan), Adjustments (violet), Total spent (red)
+            - Bonus sub-breakdown shows indented "↳ Welcome bonus $5.00"
+            - Wallet status pills show "BONUS-ONLY WALLET" for bonus-only users
+            - Bonus note: "incl. $5.00 welcome bonus (unspent)"
+            - Quick facts card shows Orders, Total spent, Joined
+          
+          • WALLET ACTIVITY LIST:
+            - Group pills are color-coded (amber for bonus)
+            - Human-readable sub-group labels (e.g., "Welcome bonus")
+            - Amount has sign prefix and is color-coded
+          
+          • TRANSACTIONS TABLE:
+            - Category column shows color-coded group pill first
+            - Sub-group label appears next to pill
+            - Amount is signed (e.g., "+$5.00") and colored per group
+            - Pills render correctly when filtered by group type
+          
+          • REGRESSION SAFETY:
+            - Dashboard summary KPIs render correctly
+            - Conversion funnel, charts, and tables all working
+            - No console errors or layout issues
+            - All existing functionality intact
+          
+          DATA VERIFICATION:
+          • DB has $120.00 in total bonuses (24 users × $5.00 = $120.00) ✓
+          • Deposits: $0.00 (expected per review request) ✓
+          • Refunds: $0.00 (expected per review request) ✓
+          • Adjustments: $0.00 (expected per review request) ✓
+          • All indicators RENDER correctly even with $0.00 values ✓
+          
+          SAFETY CONFIRMED:
+          • All testing was READ-ONLY (no data mutations)
+          • Only viewed the dashboard and clicked to expand user details
+          • No purchases, deposits, or wallet modifications
+          • Production-connected environment - all safety constraints respected
+          
+          The enhanced wallet-composition indicators feature is now working and verified. All 
+          indicators (wallet-flow strip, bonus tags, drill-down composition, wallet activity, 
+          transactions table) are visible, correctly styled, and provide clear visual feedback 
+          for understanding user wallet structure.
+

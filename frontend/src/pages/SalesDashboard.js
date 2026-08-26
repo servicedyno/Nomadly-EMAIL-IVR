@@ -7,7 +7,7 @@ import {
   TrendingUp, TrendingDown, DollarSign, PiggyBank, CalendarDays, ShoppingCart,
   Receipt, RefreshCw, LogOut, Download, Search, Wallet, Gift, BarChart3,
   Layers, Users, Package, Lock, UserPlus, UserCheck, ChevronDown, ChevronRight,
-  Globe, Filter,
+  Globe, Filter, Scale, Undo2, ShieldCheck, MinusCircle,
 } from 'lucide-react';
 import { BRAND, brandSlug } from '../branding';
 
@@ -148,14 +148,26 @@ function Kpi({ icon: Icon, label, value, accent = 'mint', delta, sub, testid }) 
   );
 }
 
-function MiniStat({ icon: Icon, label, value, sub, accent = 'slate', testid }) {
+function MiniStat({ icon: Icon, label, value, sub, accent = 'slate', testid, breakdown }) {
   return (
     <div className="p-5 flex flex-col gap-1.5" data-testid={testid}>
       <span className="flex items-center gap-2 text-[11px] text-[#A1A1AA] font-medium uppercase tracking-[0.08em]">
         <Icon className={`w-3.5 h-3.5 ${KPI_TINTS[accent]}`} /> {label}
       </span>
       <span className="font-mono text-lg font-semibold text-[#FAFAFA]">{value}</span>
-      <span className="text-[#71717A] text-xs">{sub}</span>
+      {sub && <span className="text-[#71717A] text-xs">{sub}</span>}
+      {breakdown && breakdown.length > 0 && (
+        <div className="mt-1 space-y-0.5" data-testid={testid ? `${testid}-breakdown` : undefined}>
+          {breakdown.map((b) => (
+            <div key={b.label} className="flex items-center justify-between gap-2 text-[10.5px] font-mono">
+              <span className="text-[#71717A] flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: b.color || '#71717A' }} /> {b.label}
+              </span>
+              <span className="text-[#A1A1AA] tabular-nums">{b.value}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -207,6 +219,37 @@ function WeeklyTooltip({ active, payload }) {
 const AXIS_TICK = { fill: '#71717A', fontSize: 11, fontFamily: 'JetBrains Mono' };
 const fmtDate = (s) => (s ? new Date(s).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '—');
 const LANG_LABEL = { en: 'English', fr: 'French', zh: 'Chinese', hi: 'Hindi' };
+
+// Colour + label + sign hint for every wallet-activity group/subgroup, so
+// deposits, bonuses, refunds and adjustments read at a glance in both the
+// per-user Wallet Activity list and the composition panel.
+const GROUP_STYLE = {
+  sale:       { color: '#FF3366', label: 'Sale',       sign: '−', desc: 'Product purchase — money leaving the wallet' },
+  deposit:    { color: '#00E599', label: 'Deposit',    sign: '+', desc: 'Real funds the user added to their wallet' },
+  bonus:      { color: '#FFB800', label: 'Bonus',      sign: '+', desc: 'Free promotional credit — cannot be withdrawn' },
+  refund:     { color: '#00C2FF', label: 'Refund',     sign: '+', desc: 'Money returned to the user for a failed / cancelled service' },
+  adjustment: { color: '#A78BFA', label: 'Adjustment', sign: '±', desc: 'Manual correction — over/underpayment credit, savings, etc.' },
+};
+const SUBGROUP_LABEL = {
+  welcome:            'Welcome bonus',
+  'admin-credit':     'Admin credit',
+  'first-deposit':    'First-deposit bonus',
+  'other-bonus':      'Other bonus',
+  overpayment:        'Overpayment credit',
+  underpayment:       'Underpayment credit',
+  savings:            'Savings credit',
+  correction:         'Correction',
+  'other-adjustment': 'Adjustment',
+  'refund-reversal':  'Refund reversal',
+  'domain-refund':    'Domain refund',
+  'admin-refund':     'Admin refund',
+  refund:             'Refund',
+  crypto:             'Crypto deposit',
+  topup:              'Wallet top-up',
+  deposit:            'Deposit',
+};
+const groupStyle = (g) => GROUP_STYLE[g] || { color: '#71717A', label: g || 'other', sign: '', desc: '' };
+const subgroupLabel = (sg, type) => SUBGROUP_LABEL[sg] || (type || sg || 'other');
 
 // ─────────────────────────────────────────────────────────────
 // Conversion funnel — joined → deposited → purchased (where users drop off)
@@ -310,36 +353,110 @@ function UserOrderHistory({ authFetch, chatId }) {
   const orders = (detail.transactions || []).filter((t) => t.group === 'sale');
   const other = (detail.transactions || []).filter((t) => t.group !== 'sale');
 
+  // Wallet composition breakdown — money that flowed in vs out. Explains why
+  // the current balance is what it is (deposits + bonuses + refunds + adjustments − spent).
+  const walletRows = [
+    { key: 'deposits',    label: 'Deposits',            value: p.deposits,    color: GROUP_STYLE.deposit.color,    sign: '+', hint: 'Real funds the user added (crypto, top-up, etc.)' },
+    { key: 'bonuses',     label: 'Bonuses',             value: p.bonuses,     color: GROUP_STYLE.bonus.color,      sign: '+', hint: 'Promotional credit — cannot be withdrawn',
+      sub: [
+        { label: 'Welcome bonus',        value: p.welcomeBonus || 0 },
+        { label: 'Admin credit',         value: p.adminCredit || 0 },
+        { label: 'First-deposit bonus',  value: p.firstDepositBonus || 0 },
+        { label: 'Other bonus',          value: p.otherBonus || 0 },
+      ].filter((s) => s.value > 0),
+    },
+    { key: 'refunds',     label: 'Refunds received',    value: p.refunds,     color: GROUP_STYLE.refund.color,     sign: '+', hint: 'Money returned for failed / cancelled services' },
+    { key: 'adjustments', label: 'Adjustments',         value: p.adjustments, color: GROUP_STYLE.adjustment.color, sign: '±', hint: 'Manual corrections (overpayment credit, savings, etc.)' },
+    { key: 'spent',       label: 'Total spent',         value: p.totalSpent,  color: '#FF3366',                    sign: '−', hint: 'Product purchases — money leaving the wallet' },
+  ];
+  // status pills — instantly communicates "what kind of wallet is this?"
+  const statusPills = [];
+  if (p.bonusRemaining > 0) statusPills.push({ label: 'Bonus-only wallet', color: '#FFB800', icon: Gift });
+  if (p.deposits > 0)       statusPills.push({ label: 'Real depositor', color: '#00E599', icon: ShieldCheck });
+  if (p.refunds > 0)        statusPills.push({ label: 'Has refunds', color: '#00C2FF', icon: Undo2 });
+  if (p.adjustments !== 0)  statusPills.push({ label: 'Manually adjusted', color: '#A78BFA', icon: Scale });
+  if (p.balance < 0)        statusPills.push({ label: 'Negative balance', color: '#FF3366', icon: MinusCircle });
+
   return (
     <div className="bg-[#09090B] border-t border-white/[0.06] px-4 py-5 space-y-5 shadow-inner" data-testid={`user-detail-${chatId}`}>
-      {/* mini profile stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          {
-            l: 'Wallet Balance',
-            v: fmtUsd(p.balance),
-            cls: 'text-[#FAFAFA]',
-            sub: p.bonusRemaining > 0
-              ? `incl. ${fmtUsd(p.bonusRemaining)} welcome bonus`
-              : (p.welcomeBonus > 0 ? `${fmtUsd(p.welcomeBonus)} welcome bonus received` : null),
-            subCls: p.bonusRemaining > 0 ? 'text-[#FFB800]' : 'text-[#71717A]',
-            icon: p.bonusRemaining > 0 ? Gift : null,
-          },
-          { l: 'Total Spent', v: fmtUsd(p.totalSpent), cls: 'text-[#00E599]' },
-          { l: 'Deposits', v: fmtUsd(p.deposits), cls: 'text-[#FAFAFA]' },
-          { l: 'Bonuses', v: fmtUsd(p.bonuses), cls: 'text-[#FAFAFA]' },
-        ].map((s) => (
-          <div key={s.l} className="bg-[#121214] border border-white/[0.05] rounded-lg p-3">
-            <div className="text-[#71717A] text-[10px] uppercase tracking-[0.08em] font-medium">{s.l}</div>
-            <div className={`font-mono font-semibold tabular-nums mt-1 ${s.cls}`}>{s.v}</div>
-            {s.sub && (
-              <div className={`mt-1 flex items-center gap-1 font-mono text-[10px] ${s.subCls}`} data-testid={s.l === 'Wallet Balance' && p.bonusRemaining > 0 ? `bonus-note-${chatId}` : undefined}>
-                {s.icon && <s.icon className="w-3 h-3" />}
-                <span className="truncate">{s.sub}</span>
+      {/* Wallet composition — Balance + full component breakdown */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+        {/* balance headline (2/3 width on desktop) */}
+        <div className="lg:col-span-2 bg-[#121214] border border-white/[0.05] rounded-lg p-4">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <div className="text-[#71717A] text-[10px] uppercase tracking-[0.08em] font-medium">Wallet Balance</div>
+              <div className={`font-mono text-2xl font-semibold tabular-nums mt-1 ${p.balance < 0 ? 'text-[#FF3366]' : 'text-[#FAFAFA]'}`}>{fmtUsd(p.balance)}</div>
+              {p.bonusRemaining > 0 && (
+                <div className="mt-1.5 flex items-center gap-1 font-mono text-[11px] text-[#FFB800]" data-testid={`bonus-note-${chatId}`}>
+                  <Gift className="w-3 h-3" />
+                  <span>incl. {fmtUsd(p.bonusRemaining)} welcome bonus (unspent)</span>
+                </div>
+              )}
+              {p.bonusRemaining === 0 && p.welcomeBonus > 0 && (
+                <div className="mt-1.5 flex items-center gap-1 font-mono text-[11px] text-[#71717A]">
+                  <Gift className="w-3 h-3" />
+                  <span>{fmtUsd(p.welcomeBonus)} welcome bonus received (spent or superseded by deposits)</span>
+                </div>
+              )}
+            </div>
+            {statusPills.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 max-w-full" data-testid={`wallet-status-${chatId}`}>
+                {statusPills.map((s) => (
+                  <span key={s.label}
+                    className="inline-flex items-center gap-1 font-mono text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded-full border"
+                    style={{ color: s.color, borderColor: `${s.color}33`, background: `${s.color}14` }}>
+                    <s.icon className="w-2.5 h-2.5" />
+                    {s.label}
+                  </span>
+                ))}
               </div>
             )}
           </div>
-        ))}
+
+          {/* composition rows — each shows sign, label, sub-breakdown (if any) and $ */}
+          <div className="mt-4 pt-3 border-t border-white/[0.06] space-y-1.5" data-testid={`wallet-composition-${chatId}`}>
+            {walletRows.map((r) => (
+              <div key={r.key}>
+                <div className="flex items-center justify-between gap-3 text-xs">
+                  <span className="flex items-center gap-2 text-[#A1A1AA]" title={r.hint}>
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: r.color }} />
+                    {r.label}
+                  </span>
+                  <span className="font-mono tabular-nums" style={{ color: r.value ? r.color : '#3F3F46' }}>
+                    {r.sign}{fmtUsd(r.value || 0)}
+                  </span>
+                </div>
+                {r.sub && r.sub.length > 0 && r.value > 0 && (
+                  <div className="ml-3.5 mt-0.5 space-y-0.5">
+                    {r.sub.map((s) => (
+                      <div key={s.label} className="flex items-center justify-between gap-2 text-[10.5px] font-mono">
+                        <span className="text-[#71717A]">↳ {s.label}</span>
+                        <span className="text-[#71717A] tabular-nums">{fmtUsd(s.value)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* quick facts (1/3 width on desktop) */}
+        <div className="bg-[#121214] border border-white/[0.05] rounded-lg p-4 space-y-3">
+          <div>
+            <div className="text-[#71717A] text-[10px] uppercase tracking-[0.08em] font-medium">Orders</div>
+            <div className="font-mono text-lg font-semibold text-[#FAFAFA] mt-0.5">{p.orders}</div>
+          </div>
+          <div>
+            <div className="text-[#71717A] text-[10px] uppercase tracking-[0.08em] font-medium">Total spent</div>
+            <div className="font-mono text-lg font-semibold text-[#00E599] mt-0.5">{fmtUsd(p.totalSpent)}</div>
+          </div>
+          <div>
+            <div className="text-[#71717A] text-[10px] uppercase tracking-[0.08em] font-medium">Joined</div>
+            <div className="font-mono text-xs text-[#A1A1AA] mt-0.5">{fmtDate(p.joinedAt)}</div>
+          </div>
+        </div>
       </div>
 
       {/* order history */}
@@ -387,7 +504,7 @@ function UserOrderHistory({ authFetch, chatId }) {
         )}
       </div>
 
-      {/* other wallet activity (deposits / bonuses / refunds) */}
+      {/* other wallet activity (deposits / bonuses / refunds / adjustments) */}
       {other.length > 0 && (
         <div>
           <h4 className="text-sm font-heading font-semibold text-[#FAFAFA] mb-2 flex items-center gap-1.5">
@@ -395,18 +512,34 @@ function UserOrderHistory({ authFetch, chatId }) {
             <span className="text-[#71717A] font-normal font-mono text-xs">({other.length})</span>
           </h4>
           <div className="space-y-1">
-            {other.map((o) => (
-              <div key={o.id} className="flex items-center justify-between gap-3 py-1.5 border-b border-white/[0.04] last:border-0 text-sm">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="font-mono text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-white/[0.05] text-[#A1A1AA]">{o.group}</span>
-                  <span className="text-[#A1A1AA] truncate">{o.type}</span>
+            {other.map((o) => {
+              const st = groupStyle(o.group);
+              const isNegative = o.group === 'refund' && o.amountUsd < 0; // refund reversal
+              const displaySign = o.group === 'adjustment' ? (o.amountUsd >= 0 ? '+' : '−') : st.sign;
+              return (
+                <div key={o.id} className="flex items-center justify-between gap-3 py-1.5 border-b border-white/[0.04] last:border-0 text-sm">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span
+                      className="font-mono text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full border"
+                      style={{ color: st.color, borderColor: `${st.color}33`, background: `${st.color}14` }}
+                      title={st.desc}
+                    >
+                      {st.label}
+                    </span>
+                    <span className="text-[#A1A1AA] truncate" title={o.type}>{subgroupLabel(o.subgroup, o.type)}</span>
+                    {o.status && o.status !== 'completed' && (
+                      <span className="font-mono text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-white/[0.05] text-[#71717A]">{o.status}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className="text-[#71717A] font-mono text-xs whitespace-nowrap">{fmtDate(o.date)}</span>
+                    <span className="font-mono tabular-nums" style={{ color: isNegative ? '#FF3366' : st.color }}>
+                      {displaySign}{fmtUsd(Math.abs(o.amountUsd))}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <span className="text-[#71717A] font-mono text-xs whitespace-nowrap">{fmtDate(o.date)}</span>
-                  <span className="font-mono tabular-nums text-[#FAFAFA]">{fmtUsd(o.amountUsd)}</span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -517,17 +650,39 @@ function BotUsers({ authFetch, range }) {
                       <span className="inline-flex items-center gap-1 text-xs"><Globe className="w-3 h-3 text-[#71717A]" />{LANG_LABEL[u.lang] || u.lang || '—'}</span>
                     </td>
                     <td className="py-3 px-2 text-right font-mono tabular-nums text-[#FAFAFA]">
-                      <div>{fmtUsd(u.balance)}</div>
-                      {u.bonusRemaining > 0 && (
-                        <div
-                          className="mt-0.5 inline-flex items-center gap-1 font-mono text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-[#FFB800]/10 text-[#FFB800] border border-[#FFB800]/20"
-                          title={`Wallet is unspent promotional credit — ${fmtUsd(u.bonusRemaining)} welcome bonus, no real deposits yet`}
-                          data-testid={`bonus-tag-${u.chatId}`}
-                        >
-                          <Gift className="w-2.5 h-2.5" />
-                          Bonus
-                        </div>
-                      )}
+                      <div className={u.balance < 0 ? 'text-[#FF3366]' : ''}>{fmtUsd(u.balance)}</div>
+                      <div className="mt-0.5 flex items-center justify-end gap-1 flex-wrap">
+                        {u.bonusRemaining > 0 && (
+                          <div
+                            className="inline-flex items-center gap-1 font-mono text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-[#FFB800]/10 text-[#FFB800] border border-[#FFB800]/20"
+                            title={`Wallet is unspent promotional credit — ${fmtUsd(u.bonusRemaining)} welcome bonus, no real deposits yet`}
+                            data-testid={`bonus-tag-${u.chatId}`}
+                          >
+                            <Gift className="w-2.5 h-2.5" />
+                            Bonus
+                          </div>
+                        )}
+                        {u.refunds > 0 && u.balance > 0 && u.deposits === 0 && !u.bonusRemaining && (
+                          <div
+                            className="inline-flex items-center gap-1 font-mono text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-[#00C2FF]/10 text-[#00C2FF] border border-[#00C2FF]/20"
+                            title={`Balance includes ${fmtUsd(u.refunds)} in refunds`}
+                            data-testid={`refund-tag-${u.chatId}`}
+                          >
+                            <Undo2 className="w-2.5 h-2.5" />
+                            Refund
+                          </div>
+                        )}
+                        {u.adjustments !== 0 && u.balance > 0 && u.deposits === 0 && !u.bonusRemaining && (
+                          <div
+                            className="inline-flex items-center gap-1 font-mono text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-[#A78BFA]/10 text-[#A78BFA] border border-[#A78BFA]/20"
+                            title={`Balance includes ${fmtUsd(u.adjustments)} in admin adjustments`}
+                            data-testid={`adjustment-tag-${u.chatId}`}
+                          >
+                            <Scale className="w-2.5 h-2.5" />
+                            Adjusted
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td className="py-3 px-2 text-right font-mono tabular-nums text-[#A1A1AA]">{u.orders}</td>
                     <td className="py-3 px-2 text-right font-mono tabular-nums text-[#00E599]">{u.totalSpent ? fmtUsd(u.totalSpent) : '—'}</td>
@@ -722,11 +877,25 @@ function Dashboard({ token, onLogout }) {
               <Kpi icon={ShoppingCart} label="Orders" value={fmtNum(summary.orders)} accent="amber" delta={deltas?.orders} sub={`AOV ${fmtUsd(summary.avgOrderValue)}`} testid="kpi-orders" />
             </div>
 
-            {/* Wallet flow strip */}
-            <div className={`${CARD} grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-white/[0.06]`}>
-              <MiniStat icon={Wallet} label="Wallet Deposits" value={fmtUsd(summary.deposits)} sub="funded (not sales)" accent="slate" testid="kpi-deposits" />
-              <MiniStat icon={Gift} label="Bonuses Given" value={fmtUsd(summary.bonuses)} sub="welcome + credits" accent="slate" testid="kpi-bonuses" />
-              <MiniStat icon={Receipt} label="Refunds" value={fmtUsd(summary.refunds)} sub="returned to users" accent="rose" testid="kpi-refunds" />
+            {/* Wallet flow strip — money that moved in/out of user wallets */}
+            <div className={`${CARD} grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-white/[0.06]`} data-testid="wallet-flow-strip">
+              <MiniStat icon={Wallet} label="Wallet Deposits" value={fmtUsd(summary.deposits)} sub="real money funded" accent="mint" testid="kpi-deposits" />
+              <MiniStat
+                icon={Gift}
+                label="Bonuses Given"
+                value={fmtUsd(summary.bonuses)}
+                sub="promotional credit"
+                accent="amber"
+                testid="kpi-bonuses"
+                breakdown={[
+                  { label: 'Welcome bonus', value: fmtUsd(summary.welcomeBonuses || 0), color: '#FFB800' },
+                  { label: 'Admin credits', value: fmtUsd(summary.adminCredits || 0), color: '#A78BFA' },
+                  ...(summary.firstDepositBonuses ? [{ label: 'First-deposit bonus', value: fmtUsd(summary.firstDepositBonuses), color: '#00E599' }] : []),
+                  ...(summary.otherBonuses ? [{ label: 'Other bonuses', value: fmtUsd(summary.otherBonuses), color: '#71717A' }] : []),
+                ]}
+              />
+              <MiniStat icon={Undo2} label="Refunds" value={fmtUsd(summary.refunds)} sub="returned to users" accent="rose" testid="kpi-refunds" />
+              <MiniStat icon={Scale} label="Adjustments" value={fmtUsd(summary.adjustments || 0)} sub="over/under/corrections" accent="violet" testid="kpi-adjustments" />
             </div>
 
             {/* Users & conversion */}
@@ -949,24 +1118,44 @@ function Dashboard({ token, onLogout }) {
                     </tr>
                   </thead>
                   <tbody className={txnLoading ? 'opacity-50' : ''}>
-                    {(txns?.rows || []).map((r) => (
-                      <tr key={r.id} className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors">
-                        <td className="py-2.5 px-2 font-mono text-xs text-[#A1A1AA]">{r.id}</td>
-                        <td className="py-2.5 px-2 text-[#A1A1AA] whitespace-nowrap font-mono text-xs">{r.date ? new Date(r.date).toLocaleDateString() : '—'}</td>
-                        <td className="py-2.5 px-2">
-                          <span className="inline-flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full" style={{ background: colorFor(r.category) }} />
-                            {r.category}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-2 text-[#A1A1AA] max-w-[200px] truncate">{r.product}</td>
-                        <td className="py-2.5 px-2 text-right font-mono tabular-nums">{fmtUsd(r.amountUsd)}</td>
-                        <td className="py-2.5 px-2 text-right font-mono tabular-nums text-[#00E599]">{r.group === 'sale' ? fmtUsd(r.profit) : '—'}</td>
-                        <td className="py-2.5 px-2">
-                          <span className={`font-mono text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full ${r.status === 'completed' ? 'bg-[#00E599]/10 text-[#00E599]' : r.status === 'refunded' || r.status === 'reversed' ? 'bg-[#FF3366]/10 text-[#FF3366]' : 'bg-white/[0.05] text-[#A1A1AA]'}`}>{r.status}</span>
-                        </td>
-                      </tr>
-                    ))}
+                    {(txns?.rows || []).map((r) => {
+                      const st = groupStyle(r.group);
+                      const isNegative = r.group === 'sale' || (r.amountUsd < 0);
+                      const sign = r.group === 'adjustment' ? (r.amountUsd >= 0 ? '+' : '−') : (isNegative ? '−' : '+');
+                      const amtColor = r.group === 'sale' ? '#FAFAFA' : st.color;
+                      return (
+                        <tr key={r.id} className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors">
+                          <td className="py-2.5 px-2 font-mono text-xs text-[#A1A1AA]">{r.id}</td>
+                          <td className="py-2.5 px-2 text-[#A1A1AA] whitespace-nowrap font-mono text-xs">{r.date ? new Date(r.date).toLocaleDateString() : '—'}</td>
+                          <td className="py-2.5 px-2">
+                            <span className="inline-flex items-center gap-1.5">
+                              <span
+                                className="font-mono text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded-full border"
+                                style={{ color: st.color, borderColor: `${st.color}33`, background: `${st.color}14` }}
+                                title={st.desc}
+                              >
+                                {st.label}
+                              </span>
+                              {r.group === 'sale' && (
+                                <span className="inline-flex items-center gap-1">
+                                  <span className="w-2 h-2 rounded-full" style={{ background: colorFor(r.category) }} />
+                                  {r.category}
+                                </span>
+                              )}
+                              {r.group !== 'sale' && (
+                                <span className="text-[#A1A1AA] text-xs">{subgroupLabel(r.subgroup, r.type)}</span>
+                              )}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-2 text-[#A1A1AA] max-w-[200px] truncate">{r.product}</td>
+                          <td className="py-2.5 px-2 text-right font-mono tabular-nums" style={{ color: amtColor }}>{sign}{fmtUsd(Math.abs(r.amountUsd))}</td>
+                          <td className="py-2.5 px-2 text-right font-mono tabular-nums text-[#00E599]">{r.group === 'sale' ? fmtUsd(r.profit) : '—'}</td>
+                          <td className="py-2.5 px-2">
+                            <span className={`font-mono text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full ${r.status === 'completed' ? 'bg-[#00E599]/10 text-[#00E599]' : r.status === 'refunded' || r.status === 'reversed' ? 'bg-[#FF3366]/10 text-[#FF3366]' : 'bg-white/[0.05] text-[#A1A1AA]'}`}>{r.status}</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
                     {txns && !txns.rows.length && (
                       <tr><td colSpan={7} className="text-center text-[#71717A] py-8">No transactions match your filters.</td></tr>
                     )}

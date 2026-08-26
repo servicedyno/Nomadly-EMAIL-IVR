@@ -68,6 +68,39 @@ function groupOf(type) {
   return 'adjustment'
 }
 
+// Finer classification within a group — used by the dashboard to break
+// bonuses into welcome / admin / first-deposit and adjustments into
+// overpayment / underpayment / savings, so the operator can see at a
+// glance what kind of promotional/corrective credit a wallet holds.
+function subgroupOf(type, group) {
+  const t = String(type || '').toLowerCase()
+  if (group === 'bonus') {
+    if (t === 'welcome-bonus' || t.includes('welcome')) return 'welcome'
+    if (t === 'admin-credit' || (t.includes('admin') && !t.includes('refund'))) return 'admin-credit'
+    if (t.startsWith('first-deposit-bonus')) return 'first-deposit'
+    return 'other-bonus'
+  }
+  if (group === 'adjustment') {
+    if (t.includes('overpayment')) return 'overpayment'
+    if (t.includes('underpayment')) return 'underpayment'
+    if (t.includes('savings')) return 'savings'
+    if (t.includes('correction')) return 'correction'
+    return 'other-adjustment'
+  }
+  if (group === 'refund') {
+    if (t.includes('reversal')) return 'refund-reversal'
+    if (t.startsWith('domain-refund')) return 'domain-refund'
+    if (t.includes('admin')) return 'admin-refund'
+    return 'refund'
+  }
+  if (group === 'deposit') {
+    if (t.includes('crypto')) return 'crypto'
+    if (t === 'wallet-topup' || t === 'topup') return 'topup'
+    return 'deposit'
+  }
+  return group
+}
+
 function costForSale(_category, amountUsd) {
   return costProfit(amountUsd).cost
 }
@@ -122,6 +155,7 @@ function normalizeTxn(doc) {
     type,
     category,
     group,
+    subgroup: subgroupOf(type, group),
     amountUsd,
     cost,
     profit: isSale ? amountUsd - cost : 0,
@@ -190,6 +224,7 @@ function buildReport(rows, usage, since, until) {
   const refunds = rows.filter((r) => r.group === 'refund')
   const deposits = rows.filter((r) => r.group === 'deposit')
   const bonuses = rows.filter((r) => r.group === 'bonus')
+  const adjustments = rows.filter((r) => r.group === 'adjustment')
 
   let grossRevenue = 0, totalCost = 0
   const catMap = {}
@@ -216,6 +251,12 @@ function buildReport(rows, usage, since, until) {
   const refundTotal = refunds.reduce((a, r) => a + r.amountUsd, 0)
   const depositTotal = deposits.reduce((a, r) => a + r.amountUsd, 0)
   const bonusTotal = bonuses.reduce((a, r) => a + r.amountUsd, 0)
+  const adjustmentTotal = adjustments.reduce((a, r) => a + r.amountUsd, 0)
+  // Bonus sub-breakdown
+  const welcomeBonusTotal = bonuses.filter((r) => r.subgroup === 'welcome').reduce((a, r) => a + r.amountUsd, 0)
+  const adminCreditTotal = bonuses.filter((r) => r.subgroup === 'admin-credit').reduce((a, r) => a + r.amountUsd, 0)
+  const firstDepositBonusTotal = bonuses.filter((r) => r.subgroup === 'first-deposit').reduce((a, r) => a + r.amountUsd, 0)
+  const otherBonusTotal = bonusTotal - welcomeBonusTotal - adminCreditTotal - firstDepositBonusTotal
   const orders = sales.length
 
   // timeseries (by day)
@@ -307,6 +348,12 @@ function buildReport(rows, usage, since, until) {
       refunds: round2(Math.abs(refundTotal)),
       deposits: round2(depositTotal),
       bonuses: round2(bonusTotal),
+      adjustments: round2(adjustmentTotal),
+      // finer bonus breakdown so the UI can render sub-lines
+      welcomeBonuses: round2(welcomeBonusTotal),
+      adminCredits: round2(adminCreditTotal),
+      firstDepositBonuses: round2(firstDepositBonusTotal),
+      otherBonuses: round2(otherBonusTotal),
       thisWeekProfit: weekly.length ? weekly[weekly.length - 1].profit : 0,
     },
     byCategory,
@@ -566,7 +613,13 @@ function install(app, deps) {
     for (const w of welcomeBonusDocs) welcomeBonusMap[String(w.chatId)] = Number(w.bonusAmount) || 0
 
     const agg = {}
-    const ensure = (cid) => (agg[cid] = agg[cid] || { orders: 0, totalSpent: 0, deposits: 0, bonuses: 0, refunds: 0, lastOrderDate: null, firstTxnDate: null, txnCount: 0 })
+    const ensure = (cid) => (agg[cid] = agg[cid] || {
+      orders: 0, totalSpent: 0,
+      deposits: 0, bonuses: 0, refunds: 0, adjustments: 0,
+      // finer bonus breakdown (welcome comes from welcomeBonuses coll; the rest from txns)
+      adminCredit: 0, firstDepositBonus: 0, otherBonusFromTxns: 0,
+      lastOrderDate: null, firstTxnDate: null, txnCount: 0,
+    })
     for (const doc of txns) {
       const cid = String(doc.chatId || '')
       if (!cid) continue
@@ -579,8 +632,14 @@ function install(app, deps) {
         a.totalSpent += r.amountUsd
         if (r.date && (!a.lastOrderDate || r.date > a.lastOrderDate)) a.lastOrderDate = r.date
       } else if (r.group === 'deposit') a.deposits += r.amountUsd
-      else if (r.group === 'bonus') a.bonuses += r.amountUsd
+      else if (r.group === 'bonus') {
+        a.bonuses += r.amountUsd
+        if (r.subgroup === 'admin-credit') a.adminCredit += r.amountUsd
+        else if (r.subgroup === 'first-deposit') a.firstDepositBonus += r.amountUsd
+        else if (r.subgroup !== 'welcome') a.otherBonusFromTxns += r.amountUsd
+      }
       else if (r.group === 'refund') a.refunds += Math.abs(r.amountUsd)
+      else if (r.group === 'adjustment') a.adjustments += r.amountUsd
     }
 
     const convMap = {}
@@ -598,11 +657,18 @@ function install(app, deps) {
       const balance = round2(walletMap[cid] || 0)
       const deposits = round2(a.deposits || 0)
       const bonuses = round2(a.bonuses || 0)
+      const refunds = round2(a.refunds || 0)
+      const adjustments = round2(a.adjustments || 0)
       const welcomeBonus = round2(welcomeBonusMap[cid] || 0)
-      // "Bonus-only" wallet — user has never deposited real funds AND everything
-      // in their wallet is still (unspent) promotional credit. Small epsilon lets
-      // rounding artifacts like $4.999… still qualify.
-      const bonusOnly = deposits === 0 && balance > 0 && balance <= bonuses + 0.01
+      const adminCredit = round2(a.adminCredit || 0)
+      const firstDepositBonus = round2(a.firstDepositBonus || 0)
+      // "other" = bonuses in txns that weren't welcome/admin/first-deposit
+      const otherBonus = round2(Math.max(0, (a.otherBonusFromTxns || 0)))
+      // "Bonus-only" wallet — user has never deposited real funds, has no refunds
+      // and no adjustments, AND everything in their wallet is (unspent)
+      // promotional credit. Small epsilon lets rounding artifacts qualify.
+      const bonusOnly = deposits === 0 && refunds === 0 && adjustments === 0
+        && balance > 0 && balance <= bonuses + 0.01
       const bonusRemaining = bonusOnly ? Math.min(balance, bonuses) : 0
       rows.push({
         chatId: cid,
@@ -615,8 +681,12 @@ function install(app, deps) {
         lastOrderDate: a.lastOrderDate || null,
         deposits,
         bonuses,
-        refunds: round2(a.refunds || 0),
+        refunds,
+        adjustments,
         welcomeBonus,
+        adminCredit,
+        firstDepositBonus,
+        otherBonus,
         bonusOnly,
         bonusRemaining: round2(bonusRemaining),
         hasPurchased: (a.orders || 0) > 0 || !!c.hasPurchased,
@@ -694,11 +764,18 @@ function install(app, deps) {
       const joinedAt = (conv && normDate(conv.joinedAt))
         || (txns.length ? txns[txns.length - 1].date : null)
       const deposits = round2(txns.filter((x) => x.group === 'deposit').reduce((a, x) => a + x.amountUsd, 0))
-      const bonuses = round2(txns.filter((x) => x.group === 'bonus').reduce((a, x) => a + x.amountUsd, 0))
+      const bonusTxns = txns.filter((x) => x.group === 'bonus')
+      const bonuses = round2(bonusTxns.reduce((a, x) => a + x.amountUsd, 0))
       const welcomeBonus = round2(welcomeDoc ? (Number(welcomeDoc.bonusAmount) || 0) : 0)
+      const adminCredit = round2(bonusTxns.filter((x) => x.subgroup === 'admin-credit').reduce((a, x) => a + x.amountUsd, 0))
+      const firstDepositBonus = round2(bonusTxns.filter((x) => x.subgroup === 'first-deposit').reduce((a, x) => a + x.amountUsd, 0))
+      const otherBonus = round2(bonusTxns.filter((x) => x.subgroup !== 'welcome' && x.subgroup !== 'admin-credit' && x.subgroup !== 'first-deposit').reduce((a, x) => a + x.amountUsd, 0))
       const refunds = round2(txns.filter((x) => x.group === 'refund').reduce((a, x) => a + Math.abs(x.amountUsd), 0))
-      // Purely promotional wallet — no real deposits AND balance still ≤ total bonuses
-      const bonusOnly = deposits === 0 && balance > 0 && balance <= bonuses + 0.01
+      const adjustments = round2(txns.filter((x) => x.group === 'adjustment').reduce((a, x) => a + x.amountUsd, 0))
+      // Purely promotional wallet — no real deposits, no refunds, no adjustments,
+      // AND balance still ≤ total bonuses. Everything else is treated as ambiguous.
+      const bonusOnly = deposits === 0 && refunds === 0 && adjustments === 0
+        && balance > 0 && balance <= bonuses + 0.01
       const bonusRemaining = round2(bonusOnly ? Math.min(balance, bonuses) : 0)
       res.json({
         profile: {
@@ -713,7 +790,11 @@ function install(app, deps) {
           deposits,
           bonuses,
           refunds,
+          adjustments,
           welcomeBonus,
+          adminCredit,
+          firstDepositBonus,
+          otherBonus,
           bonusOnly,
           bonusRemaining,
         },
@@ -723,6 +804,7 @@ function install(app, deps) {
           type: x.type,
           category: x.category,
           group: x.group,
+          subgroup: x.subgroup,
           product: x.product,
           amountUsd: round2(x.amountUsd),
           profit: round2(x.profit),
