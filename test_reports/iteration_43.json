@@ -1,0 +1,41 @@
+{
+  "summary": "Frontend-only UI/UX redesign verification for Admin Home ('/') and Sales & Profit Dashboard ('/sales') with Obsidian & Electric Mint dark theme. All flows exercised end-to-end via Playwright on desktop (1920) and mobile (390). All 30+ data-testids present, all core interactions work, centering bug is confirmed fixed, no horizontal overflow on either viewport, and seeded data (22 users, $110 bonuses, 0 sales) is reflected correctly. Only findings are pre-existing React dev-mode hydration warnings caused by Emergent visual-editor <span data-ve-dynamic> wrappers being injected inside <tbody>, <tr>, and <select> — this is tooling instrumentation, not application code, and does not affect functionality.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "verified_flows": [
+    "Admin Home '/' renders with dark obsidian theme, sticky header, brand logo, all 4 nav links, ONLINE status badge (mint pill), hero, 4 stat cards (emerald/sky/violet/amber), 7 feature cards, footer",
+    "Centering verified: stats-grid box x=384 / w=1152 on 1920px viewport (perfectly centered under max-w container). Header spans full width, main content centered. Legacy .app-root display:flex bug confirmed fixed.",
+    "Navigation: nav-url-shortener -> url-shortener-view OK, nav-cloud-phone -> cloud-phone-view OK, nav-dashboard returns to stats-grid OK",
+    "No horizontal overflow: desktop scrollW==clientW==1920, mobile scrollW==clientW==390",
+    "Sales login: wrong password shows sales-login-error, correct password 'Nomadly123@' logs in and renders dashboard (kpis, funnel, tables, charts)",
+    "Sales dashboard testids all present (0 missing): range selector (today/7d/30d/90d/1y/all), sales-kpis (revenue/profit/weekprofit/orders), wallet strip (deposits/bonuses/refunds), sales-funnel with all 3 stages, sales-user-kpis, sales-timeseries, sales-weekly, sales-by-category, sales-top-products, sales-top-customers, sales-bot-users, sales-transactions, sales-export-btn",
+    "Funnel counts match seeded data: joined=22, deposited=0, purchased=0",
+    "Sales dashboard centering: sales-kpis x=344/w=1232 on 1920px (centered under max-w-7xl)",
+    "Range switching (30d) reloads data without error",
+    "Bot Users: 22 rows rendered, row click expands user-detail-<chatId>, second click collapses",
+    "Transactions: switching txn-group to 'bonus' shows 22 bonus rows (matches $110 seeded bonuses)",
+    "CSV export: download triggered successfully, filename=smadav-sales-30d.csv",
+    "Logout returns to sales-password-input login screen",
+    "Mobile 390px: no overflow, layout stacks correctly"
+  ],
+  "console_notes": [
+    "React hydration warnings observed in dev build: <span data-ve-dynamic='true'> wrappers appear as direct children of <tbody>, <tr>, and <select>. These wrappers are injected by Emergent visual-editor tooling (x-file-name / x-ve-dynamic attributes), not by SalesDashboard.js source. Warnings are cosmetic in dev only; behavior is unaffected. Recommend main agent ignore unless the visual-editor tooling can be disabled at build time.",
+    "Recharts ResponsiveContainer width/height warnings noted as pre-existing per request."
+  ],
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Redesign is clean: consistent dark theme, mint accents used sparingly, good typography hierarchy (Manrope/IBM Plex/JetBrains Mono), all cards use surface tokens. No file-size or DRY concerns spotted in the tested pages."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "N/A (not tested per request)", "frontend": "100%" },
+  "test_credentials": "Sales password Nomadly123@ (from /app/memory/test_credentials.md) works",
+  "seed_data_creation": "None — used existing seeded data (22 users, $110 bonuses, 0 sales)",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "UI redesign iteration 43 fully verified. Home '/' and '/sales' both render correctly with centered layout post .app-root display:flex removal. If future work touches visual-editor instrumentation, revisit the <span data-ve-dynamic> hydration warnings inside tables/select."
+}

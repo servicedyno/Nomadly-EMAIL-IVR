@@ -2131,3 +2131,13 @@ at the start of the decline, plus ~5 unlabeled auto-deploys/day (no QA gate).
 - Scheduler job in _index.js: every 1 min, PROD-ONLY (SKIP_WEBHOOK_SYNC gate), launches due campaigns + DMs owner. DONE.
 - Verified: /api/dev/bulk-schedule-test 4/4; regressions green; testing agent iteration_33 = 100% backend, no issues. Details in memory/CHANGELOG.md (top).
 
+
+
+## 2026-06 — Premium Admin Panel UI/UX Redesign — DONE (forked session)
+- User request: "redesign the UI/UX for premium usability and simplicity" — scope: whole admin panel; visual direction delegated to design agent.
+- Design system: "Premium Obsidian & Electric Mint" (bg #09090B, surface #121214, mint #00E599, cyan #00C2FF, rose #FF3366; Manrope headings / IBM Plex Sans body / JetBrains Mono numbers). Stored in /app/design_guidelines.json.
+- Admin Home '/' (App.js MainApp): rebuilt with Tailwind — sticky blur header, segmented nav, status pill, mono-eyebrow hero, system stat cards, service feature cards, grain overlay, entrance animations. All data-testids preserved.
+- Sales Dashboard '/sales' (SalesDashboard.js): full restyle — premium login card, segmented range control (white-active), KPI cards w/ mono values + delta chips, wallet mini-strip, funnel beside user KPIs, retinted Recharts (gradient areas, mono axes, blur tooltips), refined tables (Bot Users drill-down + Transactions). All endpoints/testids unchanged.
+- App.css: global retint of theme vars + hardcoded hexes (harmonizes embedded URL/Cloud-Phone journey views); fixed legacy .app-root display:flex bug that pushed content sideways; new fonts imported; tailwind fontFamily heading/body/mono added.
+- Verified: testing agent iteration_43 = 100% frontend (centering fixed, all testids present, funnel 22/0/0, drill-down, filters, CSV export, logout, mobile 390px no overflow). Backend untouched.
+- Still pending (pre-existing): webhook-crond supervisor FATAL loop (background cron, not user-facing).
