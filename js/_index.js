@@ -39222,14 +39222,37 @@ app.get('/dev/cpanel-auth-broken-check', async (req, res) => {
   add('mkdir: looksBroken includes authBroken', /const authBroken = _isAuthBroken\(result\)[\s\S]{0,80}const looksBroken =[\s\S]{0,40}authBroken/.test(routesSrc), '')
   add('list_files: looksBroken includes authBrokenList', /const authBrokenList = _isAuthBroken\(result\)[\s\S]{0,120}looksBroken = authBrokenList/.test(routesSrc), '')
   add('extract: looksBroken includes authBrokenExt', /const authBrokenExt = _isAuthBroken\(result\)[\s\S]{0,120}looksBroken = authBrokenExt/.test(routesSrc), '')
-  add('single-upload: falls back to uploadFileAsRoot on auth-broken', /Upload user-level auth-broken[\s\S]{0,400}uploadFileAsRoot/.test(routesSrc), '')
-  add('chunk-upload: falls back to uploadFileAsRoot on auth-broken', /Chunk upload user-level auth-broken[\s\S]{0,400}uploadFileAsRoot/.test(routesSrc), '')
+  add('single-upload: falls back to _repairCpPass + retry on auth-broken', /Upload user-level auth-broken[\s\S]{0,300}_repairCpPass\(getCpanelCol/.test(routesSrc), '')
+  add('chunk-upload: falls back to _repairCpPass + retry on auth-broken', /Chunk upload user-level auth-broken[\s\S]{0,300}_repairCpPass\(getCpanelCol/.test(routesSrc), '')
   add('mkdir source anchored to 2026-08-26 @HHR2009 fix', /2026-08-26 @HHR2009/.test(routesSrc), '')
   add('mkdir logs "user-auth-broken" reason tag for ops audit', /user-auth-broken/.test(routesSrc), '')
 
   // ── 7. Backward-compat regressions ────────────────────────────────────
   add('EPERM path preserved: _replyEperm still defined', /function _replyEperm/.test(routesSrc), '')
   add('EPERM path preserved: CPANEL_UAPI_EPERM still referenced', /CPANEL_UAPI_EPERM/.test(routesSrc), '')
+
+  // ── 7b. Self-heal cpPass rotation wiring (2026-08-26 22:54Z follow-up) ─
+  // WHM /json-api/cpanel gateway silently drops multipart bodies before
+  // forwarding to the impersonated cPanel context, so uploadFileAsRoot()
+  // (multipart-via-gateway) fails with "You must specify at least one
+  // file to upload." Fix: on CPANEL_AUTH_FAILURE we rotate the cpPass via
+  // WHM /passwd and retry the ORIGINAL user-level UAPI upload with the
+  // fresh pass — same code path, no gateway multipart surface.
+  add('_repairCpPass helper defined in cpanel-routes.js', /async function _repairCpPass/.test(routesSrc), '')
+  add('_repairCpPass has 60-min cool-down guard', /COOL_DOWN_MS\s*=\s*60\s*\*\s*60\s*\*\s*1000/.test(routesSrc), '')
+  add('_repairCpPass calls WHM /passwd with db_pass_update:0', /whmApi\.get\(['"]\/passwd['"]\s*,[\s\S]{0,200}db_pass_update:\s*0/.test(routesSrc), '')
+  add('_repairCpPass generates 24-char password from crypto.randomBytes', /crypto\.randomBytes\(32\)[\s\S]{0,200}for\s*\(let i = 0; i < 24; i\+\+\)\s*newPass \+= alphabet/.test(routesSrc), '')
+  add('_repairCpPass persists new pass encrypted (cpPass_encrypted/iv/tag)', /cpPass_encrypted:\s*encPass\.encrypted[\s\S]{0,120}cpPass_iv:\s*encPass\.iv[\s\S]{0,120}cpPass_tag:\s*encPass\.tag/.test(routesSrc), '')
+  add('_repairCpPass writes cpPassRotatedAt audit stamp', /cpPassRotatedAt:\s*new Date\(\)/.test(routesSrc), '')
+  add('_repairCpPass writes cpPassLastRotateReason=CPANEL_AUTH_FAILURE tag', /cpPassLastRotateReason:\s*['"]CPANEL_AUTH_FAILURE['"]/.test(routesSrc), '')
+  add('single upload uses _repairCpPass on auth-broken (NOT uploadFileAsRoot)', /Upload user-level auth-broken[\s\S]{0,300}_repairCpPass\(getCpanelCol/.test(routesSrc), '')
+  add('chunk upload uses _repairCpPass on auth-broken (NOT uploadFileAsRoot)', /Chunk upload user-level auth-broken[\s\S]{0,300}_repairCpPass\(getCpanelCol/.test(routesSrc), '')
+  add('upload paths no longer call uploadFileAsRoot in the auth-broken branch', !/Upload user-level auth-broken[\s\S]{0,500}uploadFileAsRoot/.test(routesSrc) && !/Chunk upload user-level auth-broken[\s\S]{0,500}uploadFileAsRoot/.test(routesSrc), 'uploadFileAsRoot no longer wired into upload flow (kept in proxy for legacy compat)')
+  add('single upload retries cpProxy.uploadFile with repair.cpPass', /const retry = await cpProxy\.uploadFile\(req\.cpUser, repair\.cpPass/.test(routesSrc), '')
+  add('single upload refreshes req.cpPass after successful repair', /req\.cpPass = repair\.cpPass/.test(routesSrc), '')
+  add('upload paths emit "cppass-repair-failed" via tag on repair failure', /via:\s*['"]cppass-repair-failed['"]/.test(routesSrc), '')
+  add('upload paths emit "cppass-repaired-retry-failed" via tag if new pass also fails', /via:\s*['"]cppass-repaired-retry-failed['"]/.test(routesSrc), '')
+  add('_repairCpPass log line anchored to @HHR2009 pattern', /rotated cpPass for[\s\S]{0,100}@HHR2009 pattern/.test(routesSrc), '')
 
   // ── 8. Environment: WHM_TOKEN present so root fallback actually works ─
   add('env WHM_TOKEN present (root fallback usable)', !!process.env.WHM_TOKEN, process.env.WHM_TOKEN ? `len=${process.env.WHM_TOKEN.length}` : 'MISSING')
@@ -39241,7 +39264,7 @@ app.get('/dev/cpanel-auth-broken-check', async (req, res) => {
   try {
     const col = db && db.collection ? db.collection('cpanelAccounts') : null
     if (col && col.findOne) {
-      const doc = await col.findOne({ _id: 'nnliae74' }, { projection: { _id: 1, chatId: 1, whmHost: 1, domain: 1, plan: 1, createdAt: 1, protectionLastSkipReason: 1 } })
+      const doc = await col.findOne({ _id: 'nnliae74' }, { projection: { _id: 1, chatId: 1, whmHost: 1, domain: 1, plan: 1, createdAt: 1, protectionLastSkipReason: 1, cpPassRotatedAt: 1, cpPassLastRotateReason: 1 } })
       if (doc) {
         accountFound = {
           _id: doc._id,
@@ -39251,11 +39274,13 @@ app.get('/dev/cpanel-auth-broken-check', async (req, res) => {
           plan: doc.plan || null,
           createdAt: doc.createdAt || null,
           protectionLastSkipReason: doc.protectionLastSkipReason || null,
+          cpPassRotatedAt: doc.cpPassRotatedAt || null,
+          cpPassLastRotateReason: doc.cpPassLastRotateReason || null,
         }
       }
     }
   } catch (_e) { /* best-effort — DB probe is informational */ }
-  add('Mongo record: cpanelAccounts.nnliae74 exists', !!accountFound, accountFound ? `chatId=${accountFound.chatId}, whmHost=${accountFound.whmHost}` : 'not found')
+  add('Mongo record: cpanelAccounts.nnliae74 exists', !!accountFound, accountFound ? `chatId=${accountFound.chatId}, whmHost=${accountFound.whmHost}, rotatedAt=${accountFound.cpPassRotatedAt || 'never'}` : 'not found')
 
   const failed = checks.filter(c => !c.pass).length
   const passed = checks.length - failed
