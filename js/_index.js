@@ -36783,24 +36783,30 @@ app.get('/dev/cpanel-auth-broken-check', (req, res) => {
     const classifierAllPass = classifier.every(c => c.pass)
 
     // ── 2. Wiring check: grep the route source ─────────────────────────
-    // We're verifying the CURRENT fix (self-heal cpPass via WHM /passwd),
-    // not the old WHM-root multipart path — that path is dead here because
-    // WHM's json-api gateway drops multipart file bodies. Both upload
-    // routes must:
-    //   • call _repairCpPass() on auth-broken
-    //   • NOT call uploadFileAsRoot() in the upload branch (dead code)
-    //   • emit the two via: tags on failure
+    // The CURRENT fix is uploadFileViaSession (WHM impersonation session
+    // cookie). Two earlier iterations are RETIRED and must NOT appear in
+    // the upload-route branches:
+    //   (a) uploadFileAsRoot() — WHM /json-api gateway strips multipart
+    //   (b) _repairCpPass() — cpsrvd still denies Basic Auth after rotate
     const path = require('path')
     const fs = require('fs')
     const routesPath = path.join(__dirname, 'cpanel-routes.js')
+    const proxyPath = path.join(__dirname, 'cpanel-proxy.js')
     const routesSrc = fs.readFileSync(routesPath, 'utf8')
+    const proxySrc = fs.readFileSync(proxyPath, 'utf8')
 
-    // Helper: extract the source of a specific route body (used to run
-    // localised greps that don't leak across route boundaries).
+    // Extract a single route body so localised greps don't leak across routes.
+    // ALSO strip out // ... comments so we don't confuse retired-approach
+    // documentation ("uploadFileAsRoot()" mentioned in a comment) for a
+    // real code call.
     const routeBody = (method, path_) => {
       const rx = new RegExp(`router\\.${method}\\(['"]${path_.replace(/\//g, '\\/')}['"][\\s\\S]{0,8000}?\\n {2}\\}\\)`)
       const m = routesSrc.match(rx)
-      return m ? m[0] : ''
+      if (!m) return ''
+      // Strip // line comments and /* block */ comments so grep matches only real code
+      return m[0]
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/(^|[^:'"])\/\/[^\n]*/g, '$1')
     }
     const uploadBody       = routeBody('post', '/files/upload')
     const uploadChunkBody  = routeBody('post', '/files/upload-chunk')
@@ -36809,37 +36815,64 @@ app.get('/dev/cpanel-auth-broken-check', (req, res) => {
     const extractBody      = routeBody('post', '/files/extract')
     const deleteBody       = routeBody('post', '/files/delete')
 
+    // Isolate the uploadFile function body from proxy (for HTML-detection check)
+    // and uploadFileViaSession function body (for sub-implementation checks).
+    const uploadFileFnMatch = proxySrc.match(/async\s+function\s+uploadFile\s*\([\s\S]{0,10000}?\n\}\n/)
+    const uploadFileFn = uploadFileFnMatch ? uploadFileFnMatch[0] : ''
+    const sessionFnMatch = proxySrc.match(/async\s+function\s+uploadFileViaSession[\s\S]{0,12000}?\n\}\n/)
+    const sessionFn = sessionFnMatch ? sessionFnMatch[0] : ''
+
     const wiring = {
-      // Read/write-side gates on auth-broken (unchanged — these still use
-      // the WHM-root GET fallback, gateway handles GETs fine).
+      // ── (Existing) auth-broken gates on list/mkdir/extract — untouched ─
       list_files_gate:         /_isAuthBroken\(/.test(listBody),
       mkdir_gate:              /_isAuthBroken\(/.test(mkdirBody),
       extract_gate:            /_isAuthBroken\(/.test(extractBody),
-      // ── The cpPass self-heal path (this bug's actual fix) ──
-      repair_helper_defined:            /(async\s+)?function\s+_repairCpPass\s*\(\s*getCpanelCol/.test(routesSrc),
-      repair_cooldown_60min:            /CPPASS_COOLDOWN_MS\s*=\s*60\s*\*\s*60\s*\*\s*1000/.test(routesSrc),
-      repair_uses_crypto_randomBytes:   /crypto\.randomBytes\(32\)/.test(routesSrc) && !/Math\.random/.test(routesSrc.split('function _repairCpPass')[1] || ''),
-      repair_calls_whm_passwd:          /whmApi\.get\(['"]\/passwd['"][\s\S]{0,600}db_pass_update\s*:\s*0/.test(routesSrc),
-      repair_persists_all_fields:       /cpPass_encrypted[\s\S]{0,400}cpPass_iv[\s\S]{0,400}cpPass_tag[\s\S]{0,400}cpPassRotatedAt[\s\S]{0,400}cpPassLastRotateReason/.test(routesSrc),
-      // Both upload routes call _repairCpPass() on auth-broken
-      upload_calls_repair:       /_repairCpPass\(getCpanelCol/.test(uploadBody),
-      upload_chunk_calls_repair: /_repairCpPass\(getCpanelCol/.test(uploadChunkBody),
-      // Both upload routes NO LONGER call uploadFileAsRoot() (dead code)
-      upload_no_root_upload:        !/uploadFileAsRoot\(/.test(uploadBody),
-      upload_chunk_no_root_upload:  !/uploadFileAsRoot\(/.test(uploadChunkBody),
-      // Failure tags are emitted
-      emits_repair_failed_tag:            /['"]cppass-repair-failed['"]/.test(routesSrc),
-      emits_repaired_retry_failed_tag:    /['"]cppass-repaired-retry-failed['"]/.test(routesSrc),
-      // Regression guard: /files/delete unchanged (no _repairCpPass gate)
-      delete_untouched_by_repair:   !/_repairCpPass\(/.test(deleteBody),
+      // ── (New) uploadFileViaSession helper + implementation checks ─
+      session_helper_defined:              /async\s+function\s+uploadFileViaSession\s*\(\s*cpUser\s*,\s*dir\s*,\s*fileName\s*,\s*fileBuffer\s*,\s*whmHost\s*\)/.test(proxySrc),
+      session_uses_create_user_session:    /['"`]\/json-api\/create_user_session['"`]|\$\{whmApiUrl\}\/json-api\/create_user_session/.test(sessionFn),
+      session_uses_cpanel_api_url:         /cpanelApiUrl\}/.test(sessionFn) && /CPANEL_API_URL/.test(sessionFn),
+      session_max_redirects_zero:          /maxRedirects\s*:\s*0/.test(sessionFn),
+      session_regex_cpsession_cookie:      /cpsession=\(\[\^;\]\+\)/.test(sessionFn),
+      session_posts_upload_files:          /\/execute\/Fileman\/upload_files/.test(sessionFn),
+      session_uses_whm_root_header:        /whm \$\{[^}]+\}:\$\{whmToken\}|Authorization:\s*whmAuthHeader/.test(sessionFn),
+      // ── (New) uploadFile catches HTTP-200-Login-page ─
+      uploadFile_catches_login_html:       /<title>cPanel Login<\/title>|<!DOCTYPE html>/i.test(uploadFileFn) && /CPANEL_AUTH_FAILURE/.test(uploadFileFn),
+      // ── (New) _verifyDeleted returns null on failed listing ─
+      verify_deleted_null_on_bad_listing:  /_verifyDeleted[\s\S]{0,1500}listing\.status\s*!==\s*1/.test(proxySrc),
+      // ── (New) deleteFile only promotes to status:1 if original was 1 ─
+      delete_promote_only_on_original_ok:  /gone\s*===\s*true\s*&&\s*result\?\.status\s*===\s*1/.test(proxySrc),
+      // ── Route wiring: both upload routes call the session helper ─
+      upload_calls_session:                /uploadFileViaSession\(req\.cpUser/.test(uploadBody),
+      upload_chunk_calls_session:          /uploadFileViaSession\(req\.cpUser/.test(uploadChunkBody),
+      // ── Route wiring: retired helpers are gone from the upload branches ─
+      upload_no_repair_cppass:             !/_repairCpPass\(/.test(uploadBody),
+      upload_chunk_no_repair_cppass:       !/_repairCpPass\(/.test(uploadChunkBody),
+      upload_no_root_upload:               !/uploadFileAsRoot\(/.test(uploadBody),
+      upload_chunk_no_root_upload:         !/uploadFileAsRoot\(/.test(uploadChunkBody),
+      // ── (New) Failure via: tags emitted ─
+      emits_session_tags:                  /['"]whm-session['"]/.test(proxySrc)
+                                            && /['"]session-cookie-missing['"]/.test(proxySrc)
+                                            && /['"]session-upload-rejected['"]/.test(proxySrc)
+                                            && /['"]session-upload-failed['"]/.test(proxySrc)
+                                            && /['"]session-exception['"]/.test(proxySrc)
+                                            && /['"]session-create-failed['"]/.test(proxySrc)
+                                            && /['"]session-unavailable['"]/.test(proxySrc),
+      // ── Regression: /files/delete untouched ─
+      delete_untouched_by_session:         !/uploadFileViaSession\(/.test(deleteBody) && !/_repairCpPass\(/.test(deleteBody),
+      // ── Env presence ─
+      env_whm_token:                       !!process.env.WHM_TOKEN,
+      env_whm_host:                        !!process.env.WHM_HOST,
+      env_whm_api_url:                     !!process.env.WHM_API_URL,
+      env_cpanel_api_url:                  !!process.env.CPANEL_API_URL,
     }
     const wiringAllPass = Object.values(wiring).every(Boolean)
 
-    // ── 3. Exports check: proxy exports the two new helpers ──
+    // ── 3. Exports check ──
     const exports_check = {
-      classifier_exported:     typeof cp.looksLikeAuthFailure === 'function',
-      root_upload_exported:    typeof cp.uploadFileAsRoot === 'function',
-      eperm_classifier_kept:   typeof cp.looksLikeUapiPermFailure === 'function',
+      classifier_exported:      typeof cp.looksLikeAuthFailure === 'function',
+      session_upload_exported:  typeof cp.uploadFileViaSession === 'function',
+      root_upload_still_exported: typeof cp.uploadFileAsRoot === 'function', // kept for legacy compat
+      eperm_classifier_kept:    typeof cp.looksLikeUapiPermFailure === 'function',
     }
     const exportsAllPass = Object.values(exports_check).every(Boolean)
 
@@ -36851,11 +36884,13 @@ app.get('/dev/cpanel-auth-broken-check', (req, res) => {
         classifier_pass:  classifier.filter(c => c.pass).length,
         wiring_checks:    Object.keys(wiring).length,
         wiring_pass:      Object.values(wiring).filter(Boolean).length,
+        exports_checks:   Object.keys(exports_check).length,
+        exports_pass:     Object.values(exports_check).filter(Boolean).length,
       },
       classifier,
       wiring,
       exports: exports_check,
-      note: 'READ-ONLY diagnostic — no real WHM traffic, no DB mutation. Verifies the cpPass self-heal path (not the dead WHM-root multipart path).',
+      note: 'READ-ONLY diagnostic — greps source only, no real WHM traffic, no DB writes. Verifies the WHM impersonation session upload path (uploadFileViaSession); retired uploadFileAsRoot/_repairCpPass must NOT appear in upload-route branches.',
     })
   } catch (e) {
     return res.status(500).json({ error: `dev check failed: ${e.message}` })
