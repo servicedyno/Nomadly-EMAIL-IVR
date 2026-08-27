@@ -187,7 +187,7 @@ function CustomTooltip({ active, payload, label }) {
     <div className={TOOLTIP_BOX}>
       <div className="text-[#A1A1AA] mb-1.5 font-medium">{label}</div>
       {payload.map((p) => {
-        const nice = p.dataKey === 'netProfit' ? 'net profit' : p.dataKey;
+        const nice = p.dataKey === 'netProfit' ? 'profit' : p.dataKey;
         const neg = (p.value ?? 0) < 0;
         return (
           <div key={p.dataKey} className="flex items-center gap-2">
@@ -197,8 +197,8 @@ function CustomTooltip({ active, payload, label }) {
           </div>
         );
       })}
-      {wb > 0 && d.grossProfit != null && (
-        <div className="text-[#71717A] mt-0.5 text-[10.5px]">↳ gross {fmtUsd(d.grossProfit)} − welcome bonus {fmtUsd(wb)}</div>
+      {wb > 0 && (
+        <div className="text-[#71717A] mt-0.5 text-[10.5px]">+ {fmtUsd(wb)} promo credit issued · not in profit</div>
       )}
     </div>
   );
@@ -222,20 +222,16 @@ function WeeklyTooltip({ active, payload }) {
   const d = payload[0].payload;
   const wb = d.welcomeBonuses || 0;
   const net = d.netProfit != null ? d.netProfit : d.profit;
-  const gross = d.grossProfit != null ? d.grossProfit : d.profit;
   const negative = net < 0;
   return (
     <div className={TOOLTIP_BOX}>
       <div className="text-[#FAFAFA] font-medium mb-1">{d.label}</div>
-      <div className="text-[#71717A]">Net profit: <span className={negative ? 'text-[#FF3366]' : 'text-[#00E599]'}>{fmtUsd(net)}</span></div>
-      {wb > 0 && (
-        <>
-          <div className="text-[#71717A]">↳ Gross profit: <span className="text-[#FAFAFA]">{fmtUsd(gross)}</span></div>
-          <div className="text-[#71717A]">↳ Welcome bonus: <span className="text-[#FFB800]">−{fmtUsd(wb)}</span></div>
-        </>
-      )}
+      <div className="text-[#71717A]">Profit: <span className={negative ? 'text-[#FF3366]' : 'text-[#00E599]'}>{fmtUsd(net)}</span></div>
       <div className="text-[#71717A]">Revenue: <span className="text-[#FAFAFA]">{fmtUsd(d.revenue)}</span></div>
       <div className="text-[#71717A]">Orders: <span className="text-[#FAFAFA]">{d.orders}</span></div>
+      {wb > 0 && (
+        <div className="text-[#71717A] mt-0.5 text-[10.5px]">+ {fmtUsd(wb)} promo credit issued · not in profit</div>
+      )}
     </div>
   );
 }
@@ -380,11 +376,15 @@ function UserOrderHistory({ authFetch, chatId }) {
   // Wallet composition breakdown — money that flowed in vs out. Explains why
   // the current balance is what it is (deposits + bonuses + refunds + adjustments − spent).
   const walletRows = [
-    { key: 'deposits',    label: 'Deposits',            value: p.deposits,    color: GROUP_STYLE.deposit.color,    sign: '+', hint: 'Real funds the user added (crypto, top-up, etc.)' },
-    { key: 'bonuses',     label: 'Bonuses',             value: p.bonuses,     color: GROUP_STYLE.bonus.color,      sign: '+', hint: 'Promotional credit — cannot be withdrawn',
+    { key: 'deposits',    label: 'Deposits',            value: p.deposits,    color: GROUP_STYLE.deposit.color,    sign: '+', hint: 'Real funds the user added (crypto, top-up, admin credit)',
+      sub: [
+        { label: 'Crypto / top-up',       value: (p.deposits || 0) - (p.adminCredit || 0) },
+        { label: 'Admin credit (manual)', value: p.adminCredit || 0 },
+      ].filter((s) => s.value > 0),
+    },
+    { key: 'bonuses',     label: 'Bonuses',             value: p.bonuses,     color: GROUP_STYLE.bonus.color,      sign: '+', hint: 'Promotional store credit — not counted in profit',
       sub: [
         { label: 'Welcome bonus',        value: p.welcomeBonus || 0 },
-        { label: 'Admin credit',         value: p.adminCredit || 0 },
         { label: 'First-deposit bonus',  value: p.firstDepositBonus || 0 },
         { label: 'Other bonus',          value: p.otherBonus || 0 },
       ].filter((s) => s.value > 0),
@@ -898,25 +898,21 @@ function Dashboard({ token, onLogout }) {
               <Kpi icon={DollarSign} label="Gross Revenue" value={fmtUsd(summary.grossRevenue)} accent="mint" delta={deltas?.grossRevenue} sub="vs prev" testid="kpi-revenue" />
               <Kpi
                 icon={PiggyBank}
-                label="Net Profit"
+                label="Profit"
                 value={fmtUsd(summary.netProfit)}
                 accent="cyan"
                 delta={deltas?.netProfit}
-                sub="vs prev"
+                sub="revenue − cost"
                 testid="kpi-profit"
                 valueClassName={summary.netProfit < 0 ? 'text-[#FF3366]' : 'text-[#FAFAFA]'}
-                footnote={
-                  summary.welcomeBonusesGiven > 0
-                    ? `gross ${fmtUsd(summary.grossProfit)} − welcome bonus ${fmtUsd(summary.welcomeBonusesGiven)}`
-                    : null
-                }
+                footnote="excludes bonuses"
               />
               <Kpi
                 icon={CalendarDays}
                 label="This Week's Profit"
                 value={fmtUsd(summary.thisWeekProfit)}
                 accent="violet"
-                sub="net · current week"
+                sub="current week · excl. bonuses"
                 testid="kpi-weekprofit"
                 valueClassName={summary.thisWeekProfit < 0 ? 'text-[#FF3366]' : 'text-[#FAFAFA]'}
               />
@@ -925,17 +921,27 @@ function Dashboard({ token, onLogout }) {
 
             {/* Wallet flow strip — money that moved in/out of user wallets */}
             <div className={`${CARD} grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-white/[0.06]`} data-testid="wallet-flow-strip">
-              <MiniStat icon={Wallet} label="Wallet Deposits" value={fmtUsd(summary.deposits)} sub="real money funded" accent="mint" testid="kpi-deposits" />
+              <MiniStat
+                icon={Wallet}
+                label="Wallet Deposits"
+                value={fmtUsd(summary.deposits)}
+                sub="real money in (incl. admin credit)"
+                accent="mint"
+                testid="kpi-deposits"
+                breakdown={[
+                  { label: 'Crypto / top-up', value: fmtUsd(summary.cashDeposits != null ? summary.cashDeposits : ((summary.deposits || 0) - (summary.adminCredits || 0))), color: '#00E599' },
+                  ...(summary.adminCredits ? [{ label: 'Admin credit (manual)', value: fmtUsd(summary.adminCredits), color: '#A78BFA' }] : []),
+                ]}
+              />
               <MiniStat
                 icon={Gift}
-                label="Bonuses Given"
-                value={fmtUsd(summary.bonuses)}
-                sub="welcome bonus deducted from profit"
+                label="Promo Credit Issued"
+                value={fmtUsd(summary.promoCreditIssued != null ? summary.promoCreditIssued : summary.bonuses)}
+                sub="signup credit · NOT counted in profit"
                 accent="amber"
                 testid="kpi-bonuses"
                 breakdown={[
                   { label: 'Welcome bonus', value: fmtUsd(summary.welcomeBonuses || 0), color: '#FFB800' },
-                  { label: 'Admin credits', value: fmtUsd(summary.adminCredits || 0), color: '#A78BFA' },
                   ...(summary.firstDepositBonuses ? [{ label: 'First-deposit bonus', value: fmtUsd(summary.firstDepositBonuses), color: '#00E599' }] : []),
                   ...(summary.otherBonuses ? [{ label: 'Other bonuses', value: fmtUsd(summary.otherBonuses), color: '#71717A' }] : []),
                 ]}
@@ -961,10 +967,10 @@ function Dashboard({ token, onLogout }) {
             <Eyebrow>Trends</Eyebrow>
             <div className={`${CARD} p-5 sm:p-6`} data-testid="sales-timeseries">
               <div className="flex items-center justify-between mb-5">
-                <h2 className="font-heading font-semibold tracking-tight flex items-center gap-2"><TrendingUp className="w-4 h-4 text-[#00E599]" /> Revenue &amp; Net Profit</h2>
+                <h2 className="font-heading font-semibold tracking-tight flex items-center gap-2"><TrendingUp className="w-4 h-4 text-[#00E599]" /> Revenue &amp; Profit</h2>
                 <div className="flex items-center gap-4 font-mono text-[11px] text-[#A1A1AA]">
                   <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#FAFAFA]" /> Revenue</span>
-                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#00E599]" /> Net profit</span>
+                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#00E599]" /> Profit</span>
                 </div>
               </div>
               <div style={{ width: '100%', height: 300 }}>
@@ -994,8 +1000,8 @@ function Dashboard({ token, onLogout }) {
             {/* Weekly Profit chart */}
             <div className={`${CARD} p-5 sm:p-6`} data-testid="sales-weekly">
               <div className="flex items-center justify-between mb-5">
-                <h2 className="font-heading font-semibold tracking-tight flex items-center gap-2"><BarChart3 className="w-4 h-4 text-[#00E599]" /> Weekly Net Profit</h2>
-                <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-[#71717A]">Net of welcome bonuses given</span>
+                <h2 className="font-heading font-semibold tracking-tight flex items-center gap-2"><BarChart3 className="w-4 h-4 text-[#00E599]" /> Weekly Profit</h2>
+                <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-[#71717A]">Revenue − cost · excludes bonuses</span>
               </div>
               {data.weekly && data.weekly.length ? (
                 <div style={{ width: '100%', height: 260 }}>

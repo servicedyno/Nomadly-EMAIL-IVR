@@ -41,8 +41,10 @@ const SALE_TYPES = new Set([
   'plan-subscription', 'virtual-card', 'digital-product', 'digital-product-purchase',
   'leads', 'purchase', 'esim',
 ])
-const DEPOSIT_TYPES = new Set(['wallet-topup', 'topup', 'deposit'])
-const BONUS_TYPES = new Set(['welcome-bonus', 'first-deposit-bonus', 'first-deposit-bonus-retro', 'admin-credit'])
+// admin-credit is REAL MONEY (a manual deposit made by the operator on behalf of
+// a user who paid out-of-band), NOT a promotional bonus. It belongs in deposits.
+const DEPOSIT_TYPES = new Set(['wallet-topup', 'topup', 'deposit', 'admin-credit'])
+const BONUS_TYPES = new Set(['welcome-bonus', 'first-deposit-bonus', 'first-deposit-bonus-retro'])
 const REFUND_TYPES = new Set(['refund', 'refund-reversal', 'domain-refund'])
 
 function categoryOf(type) {
@@ -94,6 +96,7 @@ function subgroupOf(type, group) {
     return 'refund'
   }
   if (group === 'deposit') {
+    if (t === 'admin-credit' || t.includes('admin')) return 'admin-credit'
     if (t.includes('crypto')) return 'crypto'
     if (t === 'wallet-topup' || t === 'topup') return 'topup'
     return 'deposit'
@@ -254,14 +257,16 @@ function buildReport(rows, usage, since, until) {
   const adjustmentTotal = adjustments.reduce((a, r) => a + r.amountUsd, 0)
   // Bonus sub-breakdown
   const welcomeBonusTotal = bonuses.filter((r) => r.subgroup === 'welcome').reduce((a, r) => a + r.amountUsd, 0)
-  const adminCreditTotal = bonuses.filter((r) => r.subgroup === 'admin-credit').reduce((a, r) => a + r.amountUsd, 0)
+  // Admin credit is REAL MONEY (a manual deposit), not a bonus — it now lives in
+  // the deposit group and is surfaced here only for the deposits breakdown.
+  const adminCreditTotal = deposits.filter((r) => r.subgroup === 'admin-credit').reduce((a, r) => a + r.amountUsd, 0)
   const firstDepositBonusTotal = bonuses.filter((r) => r.subgroup === 'first-deposit').reduce((a, r) => a + r.amountUsd, 0)
-  const otherBonusTotal = bonusTotal - welcomeBonusTotal - adminCreditTotal - firstDepositBonusTotal
+  const otherBonusTotal = bonusTotal - welcomeBonusTotal - firstDepositBonusTotal
   const orders = sales.length
 
-  // Welcome bonuses granted per day — deducted from that day's profit so that
-  // the platform doesn't book a sale funded by promotional credit as pure profit.
-  // (Grants are recognised as marketing OPEX on the day they're awarded.)
+  // Welcome bonuses granted per day — tracked ONLY for the separate "Promo Credit
+  // Issued" panel. Per owner policy, bonuses are promotional store credit (not a
+  // cash expense) and are NEVER deducted from profit.
   const wbByDay = {}
   for (const b of bonuses) {
     if (b.subgroup !== 'welcome' || !b.date) continue
@@ -301,11 +306,12 @@ function buildReport(rows, usage, since, until) {
         date: d.date,
         revenue: round2(d.revenue),
         cost: round2(d.cost),
-        // "profit" alias kept for backward-compat (still gross)
+        // Profit EXCLUDES bonuses (owner policy): profit = revenue − cost only.
         profit: round2(grossProfit),
         grossProfit: round2(grossProfit),
+        // welcomeBonuses reported separately for the promo panel — NOT subtracted.
         welcomeBonuses: round2(wb),
-        netProfit: round2(grossProfit - wb),
+        netProfit: round2(grossProfit),
         orders: d.orders,
       }
     })
@@ -328,12 +334,12 @@ function buildReport(rows, usage, since, until) {
       label: weekLabel(w.weekStart),
       revenue: round2(w.revenue),
       cost: round2(w.cost),
-      // "profit" alias kept for backward-compat (points to netProfit now — the
-      // headline number the operator cares about)
-      profit: round2(w.netProfit),
+      // Weekly Profit EXCLUDES bonuses (owner policy) = revenue − cost for the week.
+      profit: round2(w.grossProfit),
       grossProfit: round2(w.grossProfit),
+      // welcomeBonuses shown separately (promo panel) — never reduces profit.
       welcomeBonuses: round2(w.welcomeBonuses),
-      netProfit: round2(w.netProfit),
+      netProfit: round2(w.grossProfit),
       orders: w.orders,
     }))
 
@@ -369,28 +375,36 @@ function buildReport(rows, usage, since, until) {
   }))
 
   const grossProfitAmt = grossRevenue - totalCost
-  const netProfitAmt = grossProfitAmt - welcomeBonusTotal
+  // PROFIT EXCLUDES BONUSES (owner policy). Bonuses are promotional store credit,
+  // not a cash expense; admin-credit is real money (a deposit). Profit is pure
+  // product margin: Revenue (GMV) − COGS. Bonuses are reported separately below
+  // and NEVER reduce profit.
+  const netProfitAmt = grossProfitAmt
+  const cashDepositTotal = depositTotal - adminCreditTotal
 
   return {
     summary: {
       grossRevenue: round2(grossRevenue),
       totalCost: round2(totalCost),
-      // Gross Profit = revenue − COGS. Doesn't count promotional credit as an expense.
+      // Gross Profit = revenue − COGS.
       grossProfit: round2(grossProfitAmt),
-      // Welcome bonuses given out in this period — treated as marketing OPEX so they
-      // don't inflate profit when the credit is later spent on a service.
-      welcomeBonusesGiven: round2(welcomeBonusTotal),
-      // Net Profit = Gross Profit − welcome bonuses granted this period.
+      // Profit = Gross Profit. Bonuses excluded entirely (owner policy).
       netProfit: round2(netProfitAmt),
+      // Promo credit issued this period (welcome + first-deposit). INFORMATIONAL
+      // ONLY — shown in its own panel, never subtracted from profit.
+      promoCreditIssued: round2(welcomeBonusTotal + firstDepositBonusTotal),
+      welcomeBonusesGiven: round2(welcomeBonusTotal),
       orders,
       avgOrderValue: orders > 0 ? round2(grossRevenue / orders) : 0,
       refunds: round2(Math.abs(refundTotal)),
+      // deposits = ALL real money in (crypto/top-up + admin credit)
       deposits: round2(depositTotal),
+      cashDeposits: round2(cashDepositTotal),
+      adminCredits: round2(adminCreditTotal),
       bonuses: round2(bonusTotal),
       adjustments: round2(adjustmentTotal),
       // finer bonus breakdown so the UI can render sub-lines
       welcomeBonuses: round2(welcomeBonusTotal),
-      adminCredits: round2(adminCreditTotal),
       firstDepositBonuses: round2(firstDepositBonusTotal),
       otherBonuses: round2(otherBonusTotal),
       thisWeekProfit: weekly.length ? weekly[weekly.length - 1].netProfit : 0,
@@ -671,11 +685,14 @@ function install(app, deps) {
         a.orders += 1
         a.totalSpent += r.amountUsd
         if (r.date && (!a.lastOrderDate || r.date > a.lastOrderDate)) a.lastOrderDate = r.date
-      } else if (r.group === 'deposit') a.deposits += r.amountUsd
+      } else if (r.group === 'deposit') {
+        a.deposits += r.amountUsd
+        // admin-credit is a manual REAL-MONEY deposit — track it for the breakdown
+        if (r.subgroup === 'admin-credit') a.adminCredit += r.amountUsd
+      }
       else if (r.group === 'bonus') {
         a.bonuses += r.amountUsd
-        if (r.subgroup === 'admin-credit') a.adminCredit += r.amountUsd
-        else if (r.subgroup === 'first-deposit') a.firstDepositBonus += r.amountUsd
+        if (r.subgroup === 'first-deposit') a.firstDepositBonus += r.amountUsd
         else if (r.subgroup !== 'welcome') a.otherBonusFromTxns += r.amountUsd
       }
       else if (r.group === 'refund') a.refunds += Math.abs(r.amountUsd)
