@@ -10263,6 +10263,260 @@ backend:
             • DigitalOcean and Azure instances are IMMEDIATELY deleted (PAYG billing stops)
           Dev-pod scheduler guard prevents destructive operations in sandbox environment.
 
+  - task: "Railway deployment build fix — removed accidentally-added tough-cookie/axios-cookiejar-support deps (2026-08-27 00:04Z). Railway build failed with npm EOVERRIDE (direct tough-cookie@^6.0.2 colliding with overrides.tough-cookie@^4.1.4). Root cause: earlier diagnostic probe added tough-cookie + axios-cookiejar-support to dependencies, but neither is required by production code — final uploadFileViaSession() parses cpsession cookie manually with regex. FIX: removed tough-cookie + axios-cookiejar-support from dependencies, moved adm-zip to devDependencies (only used by test file). Verified locally: npm install --omit=dev (exact Railway command) completes successfully, nodejs service restarted cleanly, all dev endpoints still pass (50/50 cpanel-auth-broken-check, 43/43 vps-password-reveal-check, eperm-preview, domain-payment-msg-test, ai-support-health), all 5 static test files pass (38/38 auth_broken_fallback, 41/41 whm_session, hellpeaces_uapi_eperm_fix, hhr2009_list_files_eperm_fix, 10/10 hellpeaces_eperm_fix), no production code requires removed deps."
+    implemented: true
+    working: true
+    file: "/app/package.json"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFICATION COMPLETE - Railway deployment build fix PASSED (all checks, 100% pass):
+          
+          SCOPE: Verified the Railway deployment build fix (package.json cleanup) for the Nomadly / 
+          HostBay Telegram-bot backend (Node.js on :5000, exposed via FastAPI proxy at 
+          {REACT_APP_BACKEND_URL}/api/*). This is a READ-ONLY regression sweep after removing 
+          tough-cookie + axios-cookiejar-support from dependencies and moving adm-zip to devDependencies.
+          
+          [TEST 1] HEALTH - Service status and logs: ✅ ALL 4 CHECKS PASSED
+            
+            1a) Health check: ✅ PASSED
+              GET {REACT_APP_BACKEND_URL}/api/health
+              
+              Response: HTTP 200 ✅
+              {
+                "status": "healthy",
+                "database": "connected",
+                "uptime": "0.09 hours"
+              }
+              
+              ★ BACKEND HEALTH CONFIRMED: Server is healthy, database connected.
+            
+            1b) nodejs + backend supervisor status: ✅ PASSED
+              sudo supervisorctl status nodejs backend
+              
+              Result: 
+                nodejs RUNNING (pid 9167, uptime 0:05:16) ✅
+                backend RUNNING (pid 1519, uptime 2:02:33) ✅
+              
+              ★ SERVICE HEALTH CONFIRMED: Both nodejs and backend services are running without issues.
+            
+            1c) nodejs error logs: ✅ PASSED
+              tail -n 80 /var/log/supervisor/nodejs.err.log
+              
+              Result: No stack traces, no "Cannot find module 'tough-cookie'" or 
+                      "Cannot find module 'axios-cookiejar-support'" errors ✅
+              
+              ★ LOG HEALTH CONFIRMED: No errors related to the removed dependencies after the last restart.
+            
+            1d) No restart loops: ✅ PASSED
+              Both services show stable uptimes (nodejs 0:05:16, backend 2:02:33) ✅
+              
+              ★ STABILITY CONFIRMED: No restart loops detected.
+          
+          [TEST 2] THE FIX STILL WORKS - Dev endpoint (WHM impersonation-session wiring): ✅ PASSED
+            GET {REACT_APP_BACKEND_URL}/api/dev/cpanel-auth-broken-check?key=o/Qb8ArGahlquhCQ
+            
+            Response: HTTP 200 ✅
+            
+            ✅ pass === true
+            ✅ failed === 0
+            ✅ total === 50
+            ✅ passed === 50
+            
+            ★ CORE FIX VERIFIED: The WHM impersonation-session upload wiring (which was live-verified 
+              earlier 18/18 against @HHR2009's real account) is intact after the deps change. All 50 
+              checks pass, proving the package.json cleanup did NOT break the cPanel auth fix.
+          
+          [TEST 3] EXISTING DEV ENDPOINT REGRESSION: ✅ ALL 5 CHECKS PASSED
+            
+            3a) eperm-preview (scenario=eperm): ✅ PASSED
+              POST {REACT_APP_BACKEND_URL}/api/dev/eperm-preview with body {"scenario":"eperm"}
+              
+              Response: HTTP 200 ✅
+              
+              ✅ isEperm === true
+              ✅ wouldAlertAdmin === true
+              
+              ★ REGRESSION CONFIRMED: The @hellpeaces EPERM fix path remains working correctly.
+            
+            3b) eperm-preview (scenario=ok): ✅ PASSED
+              POST {REACT_APP_BACKEND_URL}/api/dev/eperm-preview with body {"scenario":"ok"}
+              
+              Response: HTTP 200 ✅
+              
+              ✅ isEperm === false
+              ✅ wouldAlertAdmin === false
+              
+              ★ REGRESSION CONFIRMED: The EPERM classifier correctly returns false for non-EPERM cases.
+            
+            3c) domain-payment-msg-test: ✅ PASSED
+              GET {REACT_APP_BACKEND_URL}/api/dev/domain-payment-msg-test
+              
+              Response: HTTP 200 ✅
+              
+              ✅ ok === true
+              
+              ★ REGRESSION CONFIRMED: The domain payment message endpoint remains working correctly.
+            
+            3d) vps-password-reveal-check: ✅ PASSED
+              GET {REACT_APP_BACKEND_URL}/api/dev/vps-password-reveal-check?key=o/Qb8ArGahlquhCQ
+              
+              Response: HTTP 200 ✅
+              
+              ✅ pass === true
+              ✅ failed === 0
+              ✅ total === 43
+              ✅ passed === 43
+              
+              ★ REGRESSION CONFIRMED: The VPS password reveal check remains working correctly (43/43 checks passed).
+            
+            3e) ai-support-health: ✅ PASSED
+              GET {REACT_APP_BACKEND_URL}/api/dev/ai-support-health
+              
+              Response: HTTP 200 ✅
+              
+              ✅ pass === true
+              
+              ★ REGRESSION CONFIRMED: The AI support health check remains working correctly.
+          
+          [TEST 4] STATIC TEST SUITE - All 5 test files: ✅ ALL 5 FILES PASSED
+            
+            4a) test_hhr2009_auth_broken_fallback.js: ✅ PASSED
+              cd /app && node js/tests/test_hhr2009_auth_broken_fallback.js
+              
+              Result: 38 passed, 0 failed ✅
+              
+              ★ STATIC REGRESSION CONFIRMED: The @HHR2009 auth broken fallback test remains working 
+                correctly (38/38 checks passed).
+            
+            4b) test_hhr2009_whm_session_2026-08-26.js: ✅ PASSED
+              cd /app && node js/tests/test_hhr2009_whm_session_2026-08-26.js
+              
+              Result: 41 passed, 0 failed ✅
+              
+              ★ STATIC REGRESSION CONFIRMED: The @HHR2009 WHM session test (FINAL architecture) passed 
+                all checks (41/41 checks passed).
+            
+            4c) test_hellpeaces_uapi_eperm_fix.js: ✅ PASSED
+              cd /app && node js/tests/test_hellpeaces_uapi_eperm_fix.js
+              
+              Result: ALL TESTS PASSED ✅
+              
+              ★ STATIC REGRESSION CONFIRMED: The @hellpeaces UAPI EPERM fix test remains working correctly.
+            
+            4d) test_hhr2009_list_files_eperm_fix.js: ✅ PASSED
+              cd /app && node js/tests/test_hhr2009_list_files_eperm_fix.js
+              
+              Result: ALL CHECKS PASSED ✅
+              
+              ★ STATIC REGRESSION CONFIRMED: The @HHR2009 list_files EPERM fix test remains working correctly.
+            
+            4e) test_hellpeaces_eperm_fix.js: ✅ PASSED
+              cd /app && node js/tests/test_hellpeaces_eperm_fix.js
+              
+              Result: 10/10 assertions passed ✅
+              
+              ★ STATIC REGRESSION CONFIRMED: The @hellpeaces EPERM fix test remains working correctly 
+                (10/10 assertions passed).
+          
+          [TEST 5] EXPLICIT GREP FOR ACCIDENTAL PROD USAGE OF REMOVED DEPS: ✅ PASSED
+            grep -rEn "require\(['\"](tough-cookie|axios-cookiejar-support)['\"])" /app/js/
+            
+            Result: NO results in js/*.js (production code) ✅
+            Result: NO results in js/tests/live_hhr2009_endtoend_2026-08-26.js either ✅
+            
+            ★ DEPENDENCY CLEANUP CONFIRMED: No production code requires tough-cookie or 
+              axios-cookiejar-support. The final uploadFileViaSession() implementation parses the 
+              cpsession cookie manually with a regex on set-cookie (no jar/tough-cookie dependency).
+          
+          [TEST 6] npm install --omit=dev DRY RUN - Railway build command: ✅ PASSED
+            mkdir /tmp/rly-check && cp /app/package.json /tmp/rly-check/
+            cd /tmp/rly-check && npm install --omit=dev
+            
+            Result: Exit code 0 ✅
+            
+            Output (last 20 lines):
+              npm warn deprecated scmp@2.1.0: Just use Node.js's crypto.timingSafeEqual()
+              npm warn deprecated cron-parser@4.9.0: v4 is no longer maintained, upgrade to v5
+              npm warn deprecated uuid@3.4.0: uuid@10 and below is no longer supported...
+              npm warn deprecated request@2.88.2: request has been deprecated...
+              npm warn deprecated uuid@8.3.2: uuid@10 and below is no longer supported...
+              
+              added 387 packages, and audited 388 packages in 23s
+              
+              101 packages are looking for funding
+                run `npm fund` for details
+              
+              10 vulnerabilities (6 moderate, 4 high)
+              
+              To address issues that do not require attention, run:
+                npm audit fix
+              
+              To address all issues (including breaking changes), run:
+                npm audit fix --force
+              
+              Run `npm audit` for details.
+            
+            ★ RAILWAY BUILD COMMAND CONFIRMED: The exact command Railway runs (npm install --omit=dev) 
+              completed successfully with exit code 0. No more EOVERRIDE error. The direct 
+              tough-cookie@^6.0.2 dep that was colliding with overrides.tough-cookie@^4.1.4 has been 
+              removed.
+          
+          CONCLUSION:
+          The Railway deployment build fix is COMPLETE and verified. All 6 test categories passed 
+          (4 health checks + 1 dev endpoint + 5 regression endpoints + 5 static test files + 1 grep 
+          check + 1 npm install dry run = 17 total assertions, 100% pass rate).
+          
+          KEY FIX VERIFIED:
+          • BUG FIXED:
+            - BEFORE: Railway build failed with "npm error code EOVERRIDE" — direct tough-cookie@^6.0.2 
+              colliding with overrides.tough-cookie@^4.1.4. Build command "npm install --omit=dev" 
+              exited with code 1.
+            - AFTER: Removed tough-cookie + axios-cookiejar-support from dependencies (neither is 
+              required by production code), moved adm-zip to devDependencies (only used by test file). 
+              npm install --omit=dev now completes successfully with exit code 0.
+          
+          • IMPLEMENTATION VERIFIED:
+            - package.json: tough-cookie removed from dependencies
+            - package.json: axios-cookiejar-support removed from dependencies
+            - package.json: adm-zip moved from dependencies to devDependencies
+            - overrides.tough-cookie@^4.1.4 kept as-is (transitive-dep constraint)
+            - No production code requires tough-cookie or axios-cookiejar-support (grep confirmed)
+            - Final uploadFileViaSession() parses cpsession cookie manually with regex (no jar dependency)
+            - npm install --omit=dev (exact Railway command) completes with exit code 0
+          
+          • PRODUCTION IMPACT:
+            - Railway deployment builds will now succeed (no more EOVERRIDE error)
+            - All existing functionality remains intact (50/50 cpanel-auth-broken-check, 43/43 
+              vps-password-reveal-check, all dev endpoints pass, all 5 static test files pass)
+            - The WHM impersonation-session upload wiring (live-verified 18/18 against @HHR2009's 
+              real account) is unaffected by the package.json cleanup
+            - adm-zip moved to devDependencies (correct — only used by test file that doesn't run 
+              on Railway)
+          
+          SAFETY CONFIRMED:
+          • All testing was READ-ONLY (no mutations, no live WHM calls, no data changes)
+          • nodejs service restarted cleanly (pid 9167, uptime 0:05:16)
+          • backend service running stably (pid 1519, uptime 2:02:33)
+          • No errors in nodejs.err.log related to removed dependencies
+          • No restart loops detected
+          • All dev endpoints remain functional
+          • All static test files pass
+          
+          The Railway deployment build fix is now working and verified. The npm EOVERRIDE error 
+          (tough-cookie@^6.0.2 vs overrides.tough-cookie@^4.1.4) is FIXED via dependency cleanup.
+      - working: "NA"
+        agent: "main"
+        comment: |
+          Fix implemented (single-file change to /app/package.json). Verified locally:
+          npm install --omit=dev completed successfully, nodejs service restarted cleanly,
+          all dev endpoints still pass (50/50 cpanel-auth-broken-check), all 5 static test
+          files pass. Awaiting testing agent verification per protocol.
+
 frontend:
   - task: "READ-ONLY UI verification of Nomadly admin panel (2026-08-13): Verified root dashboard, navigation tabs, phone test page, and panel login page. All UI elements render correctly with no console errors or network failures."
     implemented: true
@@ -10705,16 +10959,101 @@ frontend:
 
 metadata:
   created_by: "main_agent"
-  version: "2.4"
-  test_sequence: 32
+  version: "2.5"
+  test_sequence: 33
   run_ui: false
 
 test_plan:
-  current_focus:
-    - "@HHR2009 cPanel Panel upload FINAL architecture: WHM impersonation-session (cpsess) — LIVE-verified end-to-end (2026-08-26 23:45Z)"
+  current_focus: []
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
+
+agent_communication:
+  - agent: "testing"
+    message: |
+      ✅ RAILWAY DEPLOYMENT BUILD FIX VERIFIED (2026-08-27 00:04Z) — All regression 
+      tests passed after removing tough-cookie + axios-cookiejar-support from 
+      dependencies and moving adm-zip to devDependencies.
+      
+      VERIFICATION RESULTS (100% pass rate):
+        ✅ Health: nodejs + backend services RUNNING, no errors in logs
+        ✅ Dev endpoint: /api/dev/cpanel-auth-broken-check → 50/50 pass (WHM 
+           impersonation-session wiring intact)
+        ✅ Regression endpoints: eperm-preview, domain-payment-msg-test, 
+           vps-password-reveal-check (43/43), ai-support-health → all pass
+        ✅ Static test suite: All 5 test files pass (38/38 auth_broken_fallback, 
+           41/41 whm_session, hellpeaces_uapi_eperm_fix, hhr2009_list_files_eperm_fix, 
+           10/10 hellpeaces_eperm_fix)
+        ✅ Dependency cleanup: No production code requires tough-cookie or 
+           axios-cookiejar-support (grep confirmed)
+        ✅ Railway build command: npm install --omit=dev → exit code 0 (no more 
+           EOVERRIDE error)
+      
+      CONCLUSION: The package.json cleanup did NOT break anything. Railway 
+      deployment builds will now succeed. All existing functionality remains intact.
+  - agent: "main"
+    message: |
+      DEPLOYMENT BUILD FIX (2026-08-27 00:04Z) — Railway build failed with:
+        npm error code EOVERRIDE
+        npm error Override for tough-cookie@^6.0.2 conflicts with direct dependency
+        Build Failed: build daemon returned an error
+        RUN "npm install --omit=dev" did not complete successfully: exit code: 1
+
+      Root cause: earlier this evening I ran `yarn add tough-cookie
+      axios-cookiejar-support --ignore-engines` for a quick standalone
+      diagnostic probe of the WHM session cookie flow. Both packages ended
+      up in package.json > dependencies, but neither is actually required
+      by production code — my final `uploadFileViaSession()` implementation
+      parses the `cpsession` cookie manually with a regex on
+      `set-cookie` (no jar/tough-cookie dependency). The direct
+      `tough-cookie@^6.0.2` dep collided with the pre-existing
+      `overrides.tough-cookie@^4.1.4` (needed by a transitive resolution)
+      → EOVERRIDE at npm install time.
+
+      Fix (single-file change to /app/package.json):
+        - Removed `"tough-cookie": "^6.0.2"` from dependencies.
+        - Removed `"axios-cookiejar-support": "^7.0.0"` from dependencies.
+        - Moved `"adm-zip": "0.5.10"` from dependencies to devDependencies
+          (it's only referenced by /app/js/tests/live_hhr2009_endtoend_2026-08-26.js,
+          which is already guarded with try/catch and never runs on Railway).
+        - `overrides.tough-cookie@^4.1.4` kept as-is (it's a transitive-dep
+          constraint, unrelated to my earlier mistake).
+
+      Verified locally:
+        • `npm install --omit=dev` (the EXACT command Railway runs)
+          completed successfully in /tmp with only the trimmed package.json.
+        • `yarn install --ignore-engines` on the sandbox → success.
+        • sudo supervisorctl restart nodejs → RUNNING pid 9167, no errors.
+        • /api/health → status healthy, database connected.
+        • /api/dev/cpanel-auth-broken-check?key=... → still 50/50 pass
+          (all WHM impersonation-session wiring intact — no code changes
+          to the fix, only package.json cleanup).
+        • require('adm-zip') still resolves from node_modules (devDep is
+          installed locally for the test file; Railway skips it via
+          --omit=dev, which is correct since the test isn't run there).
+
+      HOW TO VERIFY:
+      (1) Call deployment_agent to statically scan for any remaining
+          deployment blockers.
+      (2) Confirm the dev endpoint still returns 50/50 pass.
+      (3) Confirm sudo supervisorctl status nodejs shows RUNNING.
+      (4) Confirm no production file requires tough-cookie or
+          axios-cookiejar-support:
+              grep -rEn "require\\(['\"](tough-cookie|axios-cookiejar-support)['\"]\\)" /app/js/
+          Expected: only /app/js/tests/live_hhr2009_endtoend_2026-08-26.js
+          might reference them (which is OK; that test doesn't run on
+          Railway). Actually it doesn't — final live test only uses axios +
+          form-data + mongodb + adm-zip.
+
+      HARD CONSTRAINTS:
+        • DO NOT re-add tough-cookie or axios-cookiejar-support to
+          dependencies. If a future feature genuinely needs them, coordinate
+          with the overrides section first (bump the override to a
+          compatible major).
+        • DO NOT trigger a live WHM /passwd or /create_user_session call.
+        • DO NOT rerun /app/js/tests/live_hhr2009_endtoend_2026-08-26.js.
+
 
 agent_communication:
   - agent: "main"
