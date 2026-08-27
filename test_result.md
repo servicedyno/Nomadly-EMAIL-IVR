@@ -72,6 +72,326 @@ user_problem_statement: |
 
 
 backend:
+  - task: "@HHR2009 cPanel Panel — FINAL architecture: WHM impersonation-session (cpsess) upload — LIVE-verified end-to-end (2026-08-26 23:45Z). This SUPERSEDES the earlier _repairCpPass self-heal (which succeeded at the WHM /passwd layer but couldn't restore user-level UAPI — cpsrvd was denying Basic Auth REGARDLESS of the password, confirmed via live probe at 23:37Z). The definitive fix: WHM /create_user_session → cpsession cookie → POST /execute/Fileman/upload_files on CPANEL_API_URL (port 2083 tunnel — the cpsess+/execute path lives here, NOT on WHM_API_URL port 2087). This bypasses cpsrvd's Basic-Auth denial state entirely AND handles the multipart body that WHM /json-api/cpanel gateway silently strips. Also fixed 2 downstream bugs: (a) uploadFile now detects HTTP-200 login-page HTML (not just 401) and tags as CPANEL_AUTH_FAILURE — cpsrvd returns 200+HTML for some auth failures which was leaking to clients as false success; (b) deleteFile no longer PROMOTES status:0 → status:1 based on _verifyDeleted when the verifying listFiles itself failed (broken UAPI returning data:null was interpreted as 'empty dir → file gone → delete succeeded'). LIVE tested end-to-end against real @HHR2009 hosting account: 18/18 scenarios pass (mkdir, list, single upload, chunked 2.5MB upload, .zip upload, extract, delete 4 files, delete nested folder, delete top-level test dir, cleanup verified, cpPass NOT rotated). Dev endpoint /api/dev/cpanel-auth-broken-check now 50/50 checks including 13 new checks for the WHM impersonation-session architecture. New live regression /app/js/tests/live_hhr2009_endtoend_2026-08-26.js (18/18) + new static regression /app/js/tests/test_hhr2009_whm_session_2026-08-26.js (41/41). _repairCpPass helper kept in cpanel-routes.js for legacy compat but no route calls it."
+    implemented: true
+    working: true
+    file: "/app/js/cpanel-proxy.js (uploadFileViaSession helper + HTTP-200-login-page detection + _verifyDeleted null-on-fail fix + deleteFile no-promotion fix); /app/js/cpanel-routes.js (upload+upload-chunk routed to uploadFileViaSession, _repairCpPass calls removed); /app/js/_index.js (/dev/cpanel-auth-broken-check now 50 checks); /app/js/tests/live_hhr2009_endtoend_2026-08-26.js (new live e2e); /app/js/tests/test_hhr2009_whm_session_2026-08-26.js (new static regression, replaces the retired _repairCpPass test)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFICATION COMPLETE - @HHR2009 cPanel Panel FINAL architecture (WHM impersonation-session upload) PASSED (all checks, 100% pass):
+          
+          SCOPE: Verified the @HHR2009 cPanel Panel FINAL fix architecture — WHM impersonation-session (cpsess) upload — for the Nomadly / HostBay Telegram-bot backend (Node.js on :5000, exposed via FastAPI proxy at {REACT_APP_BACKEND_URL}/api/*). This is the THIRD iteration of a same-day fix chain. This is a PRODUCTION-connected MongoDB environment. All verification was READ-ONLY via the dev endpoint (NO real WHM /create_user_session calls, NO real cPanel operations, NO data mutations).
+          
+          [TEST 1] PRIMARY - Dev verification endpoint (50 checks, expanded from 51 in iteration 2): ✅ ALL 50 CHECKS PASSED
+            GET {REACT_APP_BACKEND_URL}/api/dev/cpanel-auth-broken-check?key=o/Qb8ArGahlquhCQ
+            
+            Response: HTTP 200 ✅
+            
+            ✅ pass === true (top-level pass field)
+            ✅ passed === 50 (all checks passed)
+            ✅ failed === 0 (no failures)
+            ✅ total === 50 (50 checks total)
+            ✅ scenario === "@HHR2009 (1960615421) / nnliae74 / WHM 68.183.77.106 — mkdir 403 + upload 401 fix"
+            
+            [Account Found - Audit Anchor]
+            ✅ accountFound._id === "nnliae74"
+            ✅ accountFound.chatId === "1960615421"
+            ✅ accountFound.whmHost === "68.183.77.106"
+            ✅ accountFound.domain === "evitesapp.org"
+            ✅ accountFound.plan === "Golden Anti-Red HostPanel (1-Month)"
+            ✅ accountFound.createdAt === "2026-08-07T19:42:14.269Z"
+            ✅ accountFound.cpPassRotatedAt === "2026-08-26T23:34:45.586Z" (from the retired iteration 2 _repairCpPass path that fired during live probe at 23:34Z before the architecture pivot — normal, does NOT indicate any current wiring)
+            ✅ accountFound.cpPassLastRotateReason === "CPANEL_AUTH_FAILURE"
+            
+            [All 50 Checks - 13 NEW checks for WHM impersonation-session highlighted]
+            
+            ★ EARLIER 36 CHECKS (from iteration 1) — ALL PASSED:
+            ✅ looksLikeAuthFailure exported (function)
+            ✅   401 → true
+            ✅   403 → true
+            ✅   body "Access denied" (no status) → true
+            ✅   body "access denied" case-insensitive → true
+            ✅   axios "Request failed with status code 401" → true
+            ✅   500 → false (that is EPERM/server class)
+            ✅   404 → false
+            ✅   legit "File exists" mkdir error → false
+            ✅ AUTH: "Access denied" is AUTH, not EPERM
+            ✅ EPERM: "permission denied" is EPERM, not AUTH
+            ✅ classify: 403 Access denied (mkdir @HHR2009) → CPANEL_AUTH_FAILURE
+            ✅ classify: 401 HTML login page (list_files @HHR2009) → CPANEL_AUTH_FAILURE
+            ✅ classify: 500 EPERM (@hellpeaces, regression) → CPANEL_UAPI_EPERM
+            ✅ classify: 404 "File exists" (legit mkdir error, regression) → undefined
+            ✅ uploadFileAsRoot exported (function)
+            ✅ cpanel-proxy: uploadFileAsRoot uses whm root Authorization header
+            ✅ cpanel-proxy: uploadFileAsRoot impersonates via cpanel_jsonapi_user
+            ✅ api2 error: sets code CPANEL_AUTH_FAILURE on auth-fail
+            ✅ uploadFile error: sets code CPANEL_AUTH_FAILURE + httpStatus
+            ✅ _isAuthBroken defined
+            ✅ _isAuthBroken checks CPANEL_AUTH_FAILURE code
+            ✅ _isAuthBroken checks httpStatus 401/403
+            ✅ mkdir: looksBroken includes authBroken
+            ✅ list_files: looksBroken includes authBrokenList
+            ✅ extract: looksBroken includes authBrokenExt
+            ✅ mkdir source anchored to 2026-08-26 @HHR2009 fix
+            ✅ mkdir logs "user-auth-broken" reason tag for ops audit
+            ✅ EPERM path preserved: _replyEperm still defined
+            ✅ EPERM path preserved: CPANEL_UAPI_EPERM still referenced
+            ✅ env WHM_TOKEN present (root fallback usable) - len=32
+            ✅ env WHM_HOST present - 68.183.77.106
+            ✅ env WHM_API_URL present (Cloudflare tunnel path preferred) - https://whm-api.hostbay.io
+            ✅ Mongo record: cpanelAccounts.nnliae74 exists - chatId=1960615421, whmHost=68.183.77.106, rotatedAt=Wed Aug 26 2026 23:34:45 GMT+0000 (GMT+00:00)
+            
+            ★ RETIRED CHECK (from iteration 2, kept for legacy compat):
+            ✅ _repairCpPass helper still defined (legacy)
+            
+            ★★★ NEW 13 CHECKS (for WHM impersonation-session — FINAL architecture) — ALL PASSED: ★★★
+            ✅ 1. uploadFileViaSession helper defined in cpanel-proxy.js
+            ✅ 2. uploadFileViaSession calls WHM /create_user_session
+            ✅ 3. uploadFileViaSession uses CPANEL_API_URL for /cpsess... path (NOT WHM_API_URL)
+            ✅ 4. uploadFileViaSession follows login with maxRedirects:0 (capture real cpsession)
+            ✅ 5. uploadFileViaSession extracts cpsession cookie from set-cookie
+            ✅ 6. uploadFileViaSession POST to /execute/Fileman/upload_files via cpsess path
+            ✅ 7. uploadFile detects HTTP-200 login-page HTML → CPANEL_AUTH_FAILURE
+            ✅ 8. _verifyDeleted returns null when listing itself failed (false-positive fix)
+            ✅ 9. deleteFile only promotes to status:1 when original op also status:1
+            ✅ 10. single upload routes to uploadFileViaSession on auth-broken
+            ✅ 11. chunk upload routes to uploadFileViaSession on auth-broken
+            ✅ 12. upload paths no longer call _repairCpPass (WHM session supersedes)
+            ✅ 13. env CPANEL_API_URL present (Cloudflare tunnel for cPanel :2083 — cpsess/execute path) - https://cpanel-api.hostbay.io
+            
+            ★ CORE FIX VERIFIED: The @HHR2009 cPanel Panel FINAL architecture is WORKING correctly. 
+              The WHM impersonation-session (cpsess) upload bypasses cpsrvd's Basic-Auth denial state 
+              entirely AND handles the multipart body that WHM /json-api/cpanel gateway silently strips. 
+              The uploadFileViaSession helper calls WHM /create_user_session → cpsession cookie → POST 
+              /execute/Fileman/upload_files on CPANEL_API_URL (port 2083 tunnel). Also fixed 2 downstream 
+              bugs: (a) uploadFile now detects HTTP-200 login-page HTML (not just 401) and tags as 
+              CPANEL_AUTH_FAILURE; (b) deleteFile no longer PROMOTES status:0 → status:1 based on 
+              _verifyDeleted when the verifying listFiles itself failed.
+          
+          [TEST 2] GATE - Admin-only endpoint: ✅ PASSED
+            
+            2a) No key: ✅ PASSED
+              GET {REACT_APP_BACKEND_URL}/api/dev/cpanel-auth-broken-check (no key)
+              
+              Response: HTTP 403 ✅
+              
+              ★ GATE CONFIRMED: Endpoint is admin-only (no key → 403).
+            
+            2b) Wrong key: ✅ PASSED
+              GET {REACT_APP_BACKEND_URL}/api/dev/cpanel-auth-broken-check?key=WRONG
+              
+              Response: HTTP 403 ✅
+              
+              ★ GATE CONFIRMED: Endpoint is admin-only (wrong key → 403).
+          
+          [TEST 3] REGRESSION - Existing dev endpoints: ✅ ALL 5 CHECKS PASSED
+            
+            3a) eperm-preview (scenario=eperm): ✅ PASSED
+              POST {REACT_APP_BACKEND_URL}/api/dev/eperm-preview with body {"scenario":"eperm"}
+              
+              Response: HTTP 200 ✅
+              
+              ✅ isEperm === true
+              ✅ wouldAlertAdmin === true
+              
+              ★ REGRESSION CONFIRMED: The @hellpeaces EPERM fix path remains working correctly.
+            
+            3b) eperm-preview (scenario=ok): ✅ PASSED
+              POST {REACT_APP_BACKEND_URL}/api/dev/eperm-preview with body {"scenario":"ok"}
+              
+              Response: HTTP 200 ✅
+              
+              ✅ isEperm === false
+              ✅ wouldAlertAdmin === false
+              
+              ★ REGRESSION CONFIRMED: The EPERM classifier correctly returns false for non-EPERM cases.
+            
+            3c) domain-payment-msg-test: ✅ PASSED
+              GET {REACT_APP_BACKEND_URL}/api/dev/domain-payment-msg-test
+              
+              Response: HTTP 200 ✅
+              
+              ✅ ok === true
+              
+              ★ REGRESSION CONFIRMED: The domain payment message endpoint remains working correctly.
+            
+            3d) vps-password-reveal-check: ✅ PASSED
+              GET {REACT_APP_BACKEND_URL}/api/dev/vps-password-reveal-check?key=o/Qb8ArGahlquhCQ
+              
+              Response: HTTP 200 ✅
+              
+              ✅ pass === true
+              ✅ failed === 0
+              ✅ total === 43
+              ✅ passed === 43
+              
+              ★ REGRESSION CONFIRMED: The VPS password reveal check remains working correctly (43/43 checks passed).
+            
+            3e) ai-support-health: ✅ PASSED
+              GET {REACT_APP_BACKEND_URL}/api/dev/ai-support-health
+              
+              Response: HTTP 200 ✅
+              
+              ✅ pass === true
+              
+              ★ REGRESSION CONFIRMED: The AI support health check remains working correctly.
+          
+          [TEST 4] HEALTH - No regressions on the node bot: ✅ ALL 4 CHECKS PASSED
+            
+            4a) Health check: ✅ PASSED
+              GET {REACT_APP_BACKEND_URL}/api/health
+              
+              Response: HTTP 200 ✅
+              {
+                "status": "healthy",
+                "database": "connected",
+                "uptime": "0.06 hours"
+              }
+              
+              ★ BACKEND HEALTH CONFIRMED: Server is healthy, database connected.
+            
+            4b) nodejs supervisor status: ✅ PASSED
+              sudo supervisorctl status nodejs
+              
+              Result: nodejs RUNNING (pid 7652, uptime 0:04:08) ✅
+              
+              ★ SERVICE HEALTH CONFIRMED: nodejs service is running without issues (pid 7652).
+            
+            4c) nodejs error logs: ✅ PASSED
+              tail -n 80 /var/log/supervisor/nodejs.err.log
+              
+              Result: No stack traces (empty grep result) ✅
+              
+              ★ LOG HEALTH CONFIRMED: No SyntaxError, TypeError, ReferenceError, or "Cannot read 
+                properties" errors in nodejs.err.log after the last restart.
+            
+            4d) nodejs output logs: ✅ PASSED
+              tail -n 40 /var/log/supervisor/nodejs.out.log
+              
+              Result: Usual scheduler init lines print cleanly ✅
+              
+              Sample logs:
+              [UserWalletMonitor] Scan complete: 774 wallets checked, 0 low-balance warnings sent
+              [ProtectionEnforcer] Total: 344 | Protected: 241 | Fixed: 0 | No Zone: 103 | Errors: 0
+              [Panel] list_files succeeded via WHM fallback: /home/nnliae74 (user: nnliae74, 7 entries)
+              
+              ★ LOG HEALTH CONFIRMED: The usual scheduler init lines print cleanly, no errors.
+          
+          [TEST 5] STATIC REGRESSION SUITE - All 5 test files: ✅ ALL 5 FILES PASSED
+            
+            5a) test_hhr2009_auth_broken_fallback.js: ✅ PASSED
+              cd /app && node js/tests/test_hhr2009_auth_broken_fallback.js
+              
+              Result: 38 passed, 0 failed ✅
+              
+              ★ STATIC REGRESSION CONFIRMED: The @HHR2009 auth broken fallback test (iteration 1) 
+                remains working correctly (38/38 checks passed).
+            
+            5b) test_hhr2009_whm_session_2026-08-26.js: ✅ PASSED
+              cd /app && node js/tests/test_hhr2009_whm_session_2026-08-26.js
+              
+              Result: 41 passed, 0 failed ✅
+              
+              ★ STATIC REGRESSION CONFIRMED: The @HHR2009 WHM session test (iteration 3, FINAL 
+                architecture) passed all checks (41/41 checks passed).
+            
+            5c) test_hellpeaces_uapi_eperm_fix.js: ✅ PASSED
+              cd /app && node js/tests/test_hellpeaces_uapi_eperm_fix.js
+              
+              Result: ALL TESTS PASSED ✅
+              
+              ★ STATIC REGRESSION CONFIRMED: The @hellpeaces UAPI EPERM fix test remains working correctly.
+            
+            5d) test_hhr2009_list_files_eperm_fix.js: ✅ PASSED
+              cd /app && node js/tests/test_hhr2009_list_files_eperm_fix.js
+              
+              Result: ALL CHECKS PASSED ✅
+              
+              ★ STATIC REGRESSION CONFIRMED: The @HHR2009 list_files EPERM fix test remains working correctly.
+            
+            5e) test_hellpeaces_eperm_fix.js: ✅ PASSED
+              cd /app && node js/tests/test_hellpeaces_eperm_fix.js
+              
+              Result: 10/10 assertions passed ✅
+              
+              ★ STATIC REGRESSION CONFIRMED: The @hellpeaces EPERM fix test remains working correctly (10/10 assertions passed).
+          
+          CONCLUSION:
+          The @HHR2009 cPanel Panel FINAL architecture (WHM impersonation-session upload) is COMPLETE 
+          and verified. All 5 test categories passed (50 primary checks + 2 gate checks + 5 regression 
+          checks + 4 health checks + 5 static regression files = 66 total assertions, 100% pass rate).
+          
+          KEY FIX VERIFIED:
+          • BUG FIXED (ITERATION 3 — FINAL ARCHITECTURE):
+            - BEFORE (iteration 2): The _repairCpPass self-heal succeeded at the WHM /passwd layer but 
+              couldn't restore user-level UAPI — cpsrvd was denying Basic Auth REGARDLESS of the password, 
+              confirmed via live probe at 23:34Z. The WHM /passwd itself SUCCEEDED but cpsrvd was STILL 
+              denying Basic Auth even with the fresh pass.
+            - AFTER (iteration 3, FINAL): WHM impersonation session (create_user_session + cpsession 
+              cookie → POST /execute/Fileman/upload_files on CPANEL_API_URL port 2083 tunnel). This 
+              bypasses cpsrvd's Basic-Auth denial state entirely AND handles the multipart body that 
+              WHM /json-api/cpanel gateway silently strips. LIVE-verified end-to-end against the real 
+              @HHR2009 hosting account — 18/18 scenarios pass.
+          
+          • IMPLEMENTATION VERIFIED:
+            - uploadFileViaSession helper defined in cpanel-proxy.js
+            - Calls WHM /create_user_session to get impersonation session
+            - Uses CPANEL_API_URL (port 2083 tunnel) for /cpsess... path (NOT WHM_API_URL port 2087)
+            - Follows login with maxRedirects:0 to capture real cpsession cookie
+            - Extracts cpsession cookie from set-cookie header
+            - POST to /execute/Fileman/upload_files via cpsess path
+            - uploadFile now detects HTTP-200 login-page HTML (not just 401) → CPANEL_AUTH_FAILURE
+            - _verifyDeleted returns null when listing itself failed (false-positive fix)
+            - deleteFile only promotes to status:1 when original op also status:1
+            - Single + chunk upload routes to uploadFileViaSession on auth-broken
+            - Upload paths no longer call _repairCpPass (WHM session supersedes)
+            - _repairCpPass helper kept for legacy compat but no route calls it
+            - Dev endpoint /api/dev/cpanel-auth-broken-check expanded to 50 checks (13 new checks)
+            - New static regression /app/js/tests/test_hhr2009_whm_session_2026-08-26.js (41/41)
+            - LIVE regression /app/js/tests/live_hhr2009_endtoend_2026-08-26.js (18/18) — already run by main agent
+          
+          • PRODUCTION IMPACT:
+            - @HHR2009 (and any other users with cpsrvd Basic-Auth denial state) will now be able to 
+              upload files via the panel UI — the WHM impersonation-session upload bypasses the denial 
+              state entirely
+            - The multipart body is now handled correctly (WHM /json-api/cpanel gateway was silently 
+              stripping it in iteration 2)
+            - HTTP-200 login-page HTML is now detected as CPANEL_AUTH_FAILURE (was leaking to clients 
+              as false success)
+            - deleteFile no longer promotes status:0 → status:1 based on _verifyDeleted when the 
+              verifying listFiles itself failed (false-positive fix)
+            - The _repairCpPass path (iteration 2) is retired but kept for legacy compat
+          
+          SAFETY CONFIRMED:
+          • All testing was READ-ONLY (dev endpoint verification + static regression only)
+          • NO real WHM /create_user_session calls (the endpoint verifies wiring via source-code grep + 
+            Mongo READ only)
+          • NO real cPanel operations (mkdir, upload, list_files, extract) were performed
+          • PRODUCTION-connected MongoDB was NOT modified
+          • accountFound.cpPassRotatedAt === "2026-08-26T23:34:45.586Z" (from the retired iteration 2 
+            _repairCpPass path that fired during live probe at 23:34Z before the architecture pivot — 
+            normal, does NOT indicate any current wiring)
+          • All verification via the dev endpoint /api/dev/cpanel-auth-broken-check + static regression
+          • LIVE end-to-end test /app/js/tests/live_hhr2009_endtoend_2026-08-26.js (18/18) was already 
+            run by main agent and left the account clean (test dir cleaned up, verified) — NOT re-run 
+            per review request
+          
+          The @HHR2009 cPanel Panel FINAL architecture (WHM impersonation-session upload) is now working 
+          and verified. The upload 401 bug (cpsrvd Basic-Auth denial + WHM gateway multipart stripping) 
+          is FIXED via WHM impersonation-session upload.
+      - working: "NA"
+        agent: "main"
+        comment: |
+          Fix implemented and LIVE-verified end-to-end against real @HHR2009 hosting account
+          (18/18 scenarios pass — /app/js/tests/live_hhr2009_endtoend_2026-08-26.js). 41/41
+          static regression + 38/38 old regression + dev endpoint 50/50. Node bot restarted
+          cleanly. Awaiting testing agent verification against the dev endpoint per protocol.
+
   - task: "@HHR2009 cPanel Panel upload 401 self-heal via cpPass rotation (2026-08-26 22:54Z follow-up). PROD BUG cont'd: earlier today's fix (WHM-root impersonation fallback for /files/mkdir + /files list_files + /files/extract + /files/upload* on 401/403) landed on Railway at 22:37Z (deploy 3719705c). list_files and delete NOW WORK for @HHR2009 (chatId 1960615421, cpUser nnliae74) via the WHM-root fallback ladder — Railway logs confirm at 22:53:56 'list_files succeeded via WHM fallback (8 entries)' and at 22:54:06 'Deleted file: Evite_Guest_Access.zip'. But at 22:54:27+29 the SAME user tried to upload setup_Unassigned.msi (8.4 MB) and the new upload fallback failed with 'You must specify at least one file to upload' — WHM's /json-api/cpanel gateway silently drops multipart bodies before forwarding to the impersonated cPanel context, so cpProxy.uploadFileAsRoot() (multipart POST via WHM impersonation) can never work for Fileman::upload_files. FIX: instead of working around WHM's gateway limitation, self-heal the underlying stale-cpPass by rotating the user's cPanel password via WHM /passwd (root token) and retrying the ORIGINAL user-level UAPI upload with the fresh pass — same code path, no gateway multipart surface. New _repairCpPass(getCpanelCol, cpUser, whmHost) helper in cpanel-routes.js: 60-min cool-down guard via doc.cpPassRotatedAt (won't churn on cPHulk 5-min lockouts), crypto.randomBytes 24-char [A-Za-z0-9] password, WHM /passwd with db_pass_update:0 (don't touch bound MySQL — would break live sites), persists via cpAuth.encrypt (same AES-GCM as storeCredentials) → cpPass_encrypted/iv/tag + cpPassRotatedAt + cpPassLastRotateReason='CPANEL_AUTH_FAILURE'. /files/upload + /files/upload-chunk now use _repairCpPass + retry cpProxy.uploadFile with new cpPass; single-shot also refreshes req.cpPass so any subsequent op in the same request uses the rotated pass. uploadFileAsRoot no longer wired into upload flow (kept in proxy for legacy compat). Emits 'cppass-repair-failed' / 'cppass-repaired-retry-failed' via tags for observability. Dev endpoint /api/dev/cpanel-auth-broken-check expanded from 36 → 51 checks including 15 new checks for the self-heal wiring; new local regression /app/js/tests/test_hhr2009_cppass_repair_2026-08-26.js (39/39 pass); existing test_hhr2009_auth_broken_fallback.js updated to match new architecture (38/38 pass)."
     implemented: true
     working: true
@@ -10385,16 +10705,156 @@ frontend:
 
 metadata:
   created_by: "main_agent"
-  version: "2.3"
-  test_sequence: 31
+  version: "2.4"
+  test_sequence: 32
   run_ui: false
 
 test_plan:
   current_focus:
-    - "@HHR2009 cPanel Panel upload 401 self-heal via cpPass rotation (2026-08-26 22:54Z follow-up)"
+    - "@HHR2009 cPanel Panel upload FINAL architecture: WHM impersonation-session (cpsess) — LIVE-verified end-to-end (2026-08-26 23:45Z)"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: |
+      NEW WORK TO VERIFY (2026-08-26 23:45Z FINAL FIX) — @HHR2009 cPanel
+      upload / delete / list / mkdir / extract — verified LIVE against the
+      real production hosting account (cpUser=nnliae74, chatId=1960615421,
+      WHM 68.183.77.106, domain evitesapp.org).
+
+      SCOPE: this fix supersedes the earlier `_repairCpPass` self-heal
+      (which "worked" at the WHM /passwd layer but couldn't restore
+      user-level UAPI — cpsrvd was denying Basic Auth REGARDLESS of the
+      password, so rotation was a no-op). The definitive fix uses WHM
+      `create_user_session` + cpsession cookie → POST
+      /execute/Fileman/upload_files on CPANEL_API_URL (port 2083 tunnel).
+      This bypasses cpsrvd's Basic-Auth denial state entirely and works
+      even for the multipart body that the WHM /json-api/cpanel gateway
+      silently strips.
+
+      END-TO-END LIVE TEST (18/18 passed against real account at 23:52Z):
+        ✅ mkdir folder                        via WHM-root impersonation
+        ✅ list_files (retry-tolerant)         via WHM-root impersonation
+        ✅ single-shot upload (small text)     via WHM SESSION (cpsess)
+        ✅ chunked upload (2.5 MB / 3 chunks)  via WHM SESSION (cpsess)
+        ✅ upload .zip                         via WHM SESSION (cpsess)
+        ✅ extract .zip                        via WHM-root impersonation
+        ✅ delete all 4 uploaded files          via WHM-root impersonation
+        ✅ delete nested folder                via WHM-root impersonation
+        ✅ delete top-level test folder        via WHM-root impersonation
+        ✅ list_files after cleanup — dir gone  via WHM-root impersonation
+        ✅ cpPass NOT rotated (no password churn)
+      Script: /app/js/tests/live_hhr2009_endtoend_2026-08-26.js
+
+      FILES TOUCHED (this session):
+        1. /app/js/cpanel-proxy.js
+           - NEW `async function uploadFileViaSession(cpUser, dir, fileName,
+             fileBuffer, whmHost)` — the FINAL architecture:
+             1) Ask WHM for a session:   GET /json-api/create_user_session?user=X&service=cpaneld
+             2) Seed cpsession cookie:   GET  {CPANEL_API_URL}/cpsess<N>/login/?session=... (maxRedirects:0)
+             3) POST /execute/Fileman/upload_files on cpsess path with Cookie: cpsession=<value>
+             Returns { status, data, errors, via: 'whm-session' } shape.
+             (Uses CPANEL_API_URL for cpsess/execute path — NOT WHM_API_URL,
+             which is port 2087 for WHM json-api. Earlier draft got this
+             wrong; live-probed and fixed.)
+           - `uploadFile()` now detects HTTP 200 with cPanel login-page
+             HTML in the body (not just 401) and tags the response as
+             CPANEL_AUTH_FAILURE so the route triggers the session
+             fallback. Without this, cpsrvd's HTTP-200-login-page response
+             was leaking to the client as a "successful" upload.
+           - `_verifyDeleted()` false-positive fix: when the verifying
+             listFiles itself fails (status !== 1 OR data not an array),
+             return null (unknown) instead of true (gone). Previously a
+             broken user-level UAPI would return {status:0, data:null},
+             which was treated as an empty listing → verify returned true
+             → deleteFile promoted the FAILED delete from status:0 to
+             status:1 → false success. The test dir survived every
+             claimed-successful delete before this fix.
+           - `deleteFile()` no longer PROMOTES status:0 → status:1 based
+             on verifyDeleted alone. It only DEMOTES status:1 → status:0
+             when verification says "still there". Prevents the false-
+             success chain.
+           - `uploadFileViaSession` exported. `uploadFileAsRoot` kept for
+             legacy compat but no route calls it.
+
+        2. /app/js/cpanel-routes.js
+           - `/files/upload` (single) + `/files/upload-chunk` (chunked)
+             now route to `cpProxy.uploadFileViaSession(...)` on
+             `_isAuthBroken(result)`. Log tag: "WHM session fallback".
+           - `_repairCpPass` helper is still defined but no route calls
+             it any more (superseded by the session architecture).
+
+        3. /app/js/_index.js
+           - /dev/cpanel-auth-broken-check dev endpoint updated: was
+             51 checks (36 old + 15 self-heal). Now 50 checks (36 old +
+             1 legacy `_repairCpPass helper still defined` +
+             13 NEW checks in section 7c covering the WHM impersonation-
+             session architecture). Total = 50, all pass.
+           - Section 7b comment retitled "RETIRED — kept as documentation".
+
+        4. /app/js/tests/live_hhr2009_endtoend_2026-08-26.js
+           - NEW live end-to-end regression that actually hits the real
+             prod hosting account. 18/18 pass.
+
+        5. /app/js/tests/test_hhr2009_whm_session_2026-08-26.js
+           - NEW static regression (renamed from
+             test_hhr2009_cppass_repair, which is now retired). 41/41
+             checks pass covering the FINAL architecture.
+
+        6. /app/js/tests/test_hhr2009_auth_broken_fallback.js
+           - Updated 2 checks (used to assert `_repairCpPass` wiring;
+             now assert `uploadFileViaSession` wiring). 38/38 pass.
+
+      HOW TO VERIFY:
+
+      (1) PRIMARY: GET {REACT_APP_BACKEND_URL}/api/dev/cpanel-auth-broken-check?key=o/Qb8ArGahlquhCQ
+          Expect HTTP 200, pass=true, failed=0, total=50.
+          Highlights (13 NEW checks in section 7c):
+            • uploadFileViaSession helper defined in cpanel-proxy.js
+            • uploadFileViaSession calls WHM /create_user_session
+            • uploadFileViaSession uses CPANEL_API_URL for /cpsess... path (NOT WHM_API_URL)
+            • uploadFileViaSession follows login with maxRedirects:0 (capture real cpsession)
+            • uploadFileViaSession extracts cpsession cookie from set-cookie
+            • uploadFileViaSession POST to /execute/Fileman/upload_files via cpsess path
+            • uploadFile detects HTTP-200 login-page HTML → CPANEL_AUTH_FAILURE
+            • _verifyDeleted returns null when listing itself failed (false-positive fix)
+            • deleteFile only promotes to status:1 when original op also status:1
+            • single upload routes to uploadFileViaSession on auth-broken
+            • chunk upload routes to uploadFileViaSession on auth-broken
+            • upload paths no longer call _repairCpPass (WHM session supersedes)
+            • env CPANEL_API_URL present (Cloudflare tunnel for cPanel :2083 — cpsess/execute path)
+          Also confirm the earlier 36 checks (classifier truth-table, EPERM
+          non-collision, WHM env presence, Mongo audit anchor) still all pass.
+
+      (2) GATE (unchanged):
+          • no key → HTTP 403
+          • wrong key → HTTP 403
+
+      (3) REGRESSION (unchanged):
+          • POST /api/dev/eperm-preview {"scenario":"eperm"} → isEperm=true, wouldAlertAdmin=true
+          • POST /api/dev/eperm-preview {"scenario":"ok"}    → isEperm=false, wouldAlertAdmin=false
+          • GET  /api/dev/domain-payment-msg-test           → ok=true
+          • GET  /api/dev/vps-password-reveal-check?key=... → pass=true, failed=0
+          • GET  /api/dev/ai-support-health                 → pass=true
+
+      (4) HEALTH:
+          • GET /api/health → HTTP 200, status "healthy", database "connected"
+          • `sudo supervisorctl status nodejs` → RUNNING with no restart loop
+          • `tail -n 80 /var/log/supervisor/nodejs.err.log` — no new stack traces
+          • `tail -n 40 /var/log/supervisor/nodejs.out.log` — usual scheduler init
+
+      HARD CONSTRAINTS (unchanged):
+        • DO NOT re-run the live end-to-end test —
+          /app/js/tests/live_hhr2009_endtoend_2026-08-26.js already
+          exercised the real account (upload+extract+delete cleanup verified
+          at 23:52Z, dir was left empty). Re-running is safe but redundant.
+        • DO NOT hit real WHM /passwd — the dev endpoint verifies wiring
+          via source-code grep + Mongo READ only.
+        • DO NOT modify any cpanelAccounts document.
+        • DO NOT drive Telegram flows.
+
 
 agent_communication:
   - agent: "main"

@@ -66,8 +66,8 @@ check('_isAuthBroken checks httpStatus 401/403', /result\.httpStatus === 401 \|\
 check('mkdir looksBroken includes authBroken', /const authBroken = _isAuthBroken\(result\)[\s\S]{0,50}const looksBroken =[\s\S]{0,20}authBroken/.test(routesSrc))
 check('list_files looksBroken includes authBrokenList', /const authBrokenList = _isAuthBroken\(result\)[\s\S]{0,80}looksBroken = authBrokenList/.test(routesSrc))
 check('extract looksBroken includes authBrokenExt', /const authBrokenExt = _isAuthBroken\(result\)[\s\S]{0,80}looksBroken = authBrokenExt/.test(routesSrc))
-check('single upload wired to _repairCpPass + retry on auth-broken', /_isAuthBroken\(result\)[\s\S]{0,400}_repairCpPass\(getCpanelCol/.test(routesSrc))
-check('chunk upload wired to _repairCpPass + retry on auth-broken', /Chunk upload user-level auth-broken[\s\S]{0,400}_repairCpPass\(getCpanelCol/.test(routesSrc))
+check('single upload wired to uploadFileViaSession on auth-broken', /_isAuthBroken\(result\)[\s\S]{0,600}cpProxy\.uploadFileViaSession/.test(routesSrc))
+check('chunk upload wired to uploadFileViaSession on auth-broken', /Chunk upload user-level auth-broken[\s\S]{0,600}uploadFileViaSession/.test(routesSrc))
 
 // ─── 5. api2 error path tags CPANEL_AUTH_FAILURE — simulate via 403 ─────
 console.log('\n[5] api2 return shape correctly tags AUTH failures')

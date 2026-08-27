@@ -676,28 +676,23 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
       return res.status(403).json({ error: `Cannot upload ${uploadName} — this file is managed by the anti-red protection system.` })
     }
     const result = await cpProxy.uploadFile(req.cpUser, req.cpPass, dir, uploadName, req.file.buffer, req.whmHost)
-    // If user-level upload got 401/403 (stale cpPass, cpHulk lockout,
-    // ModSecurity — 2026-08-26 @HHR2009 fix), rotate the cpPass via WHM
-    // /passwd (root token) and retry the ORIGINAL user-level UAPI call with
-    // the fresh pass. The multipart-via-WHM-root-gateway approach we tried
-    // first at 22:37Z was silently dropping the multipart body ("You must
-    // specify at least one file to upload." — 22:54:29Z log), so instead of
-    // working around WHM's gateway limitation we repair the underlying auth.
+    // 2026-08-26 @HHR2009 / nnliae74 fix (final):
+    // On user-level auth-broken (401 login-page / 403 Access denied), retry via
+    // WHM impersonation session (create_user_session + cpsession cookie → POST
+    // /execute/Fileman/upload_files). This works when the account is stuck in
+    // a cpsrvd security-policy state that denies Basic Auth entirely, even
+    // right after WHM /passwd sets a fresh password. Live-tested against
+    // nnliae74 at 23:37Z — session upload succeeded (56-byte payload) where
+    // both user-level UAPI and WHM-root multipart returned 401 / "no file".
     if (result?.status !== 1 && _isAuthBroken(result)) {
-      log(`[Panel] Upload user-level auth-broken (${result?.httpStatus}) → cpPass repair + retry: ${uploadName} → ${dir} (user: ${req.cpUser})`)
-      const repair = await _repairCpPass(getCpanelCol, req.cpUser, req.whmHost || process.env.WHM_HOST)
-      if (repair.ok) {
-        const retry = await cpProxy.uploadFile(req.cpUser, repair.cpPass, dir, uploadName, req.file.buffer, req.whmHost)
-        if (retry?.status === 1) {
-          log(`[Panel] Upload succeeded after cpPass repair (rotated=${repair.rotated}): ${uploadName} → ${dir} (user: ${req.cpUser})`)
-          req.cpPass = repair.cpPass // refresh in-request so any post-upload op reuses it
-          return res.json(_up.changed ? { ...retry, renamedFrom: _up.original, savedAs: uploadName } : retry)
-        }
-        log(`[Panel] Upload retry after cpPass repair still failed: ${uploadName} → ${dir} (user: ${req.cpUser}, rotated=${repair.rotated}) — ${retry?.errors?.[0] || 'unknown'}`)
-        return res.status(500).json({ status: 0, error: `Upload failed: ${retry?.errors?.[0] || 'auth error persists after cpPass rotate'}`, errors: retry?.errors || ['auth error'], via: 'cppass-repaired-retry-failed' })
+      log(`[Panel] Upload user-level auth-broken (${result?.httpStatus}) → WHM session fallback: ${uploadName} → ${dir} (user: ${req.cpUser})`)
+      const sessResult = await cpProxy.uploadFileViaSession(req.cpUser, dir, uploadName, req.file.buffer, req.whmHost || process.env.WHM_HOST)
+      if (sessResult?.status === 1) {
+        log(`[Panel] Upload succeeded via WHM session fallback: ${uploadName} → ${dir} (user: ${req.cpUser})`)
+        return res.json(_up.changed ? { ...sessResult, renamedFrom: _up.original, savedAs: uploadName } : sessResult)
       }
-      log(`[Panel] Upload cpPass repair FAILED: ${uploadName} → ${dir} (user: ${req.cpUser}) — ${repair.error}`)
-      return res.status(500).json({ status: 0, error: `Upload failed: ${repair.error}`, errors: [repair.error], via: 'cppass-repair-failed' })
+      log(`[Panel] Upload WHM session fallback failed: ${uploadName} → ${dir} (user: ${req.cpUser}, via=${sessResult?.via}) — ${sessResult?.errors?.[0] || 'unknown'}`)
+      return res.status(500).json({ status: 0, error: `Upload failed: ${sessResult?.errors?.[0] || 'auth error persists via WHM session'}`, errors: sessResult?.errors || ['auth error'], via: sessResult?.via || 'whm-session-failed' })
     }
     res.json(_up.changed ? { ...result, renamedFrom: _up.original, savedAs: uploadName } : result)
   })
@@ -826,26 +821,19 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
         log(`[Panel] Chunk upload complete: ${saveName} (${(assembled.length / (1024 * 1024)).toFixed(1)} MB) → ${dir} (user: ${req.cpUser}, id: ${uploadId})`)
 
         const result = await cpProxy.uploadFile(req.cpUser, req.cpPass, dir, saveName, assembled, req.whmHost)
-        // Same 401/403 self-heal as single-shot upload (@HHR2009 fix +
-        // 2026-08-26 22:54Z WHM-root multipart limitation follow-up):
-        // rotate cpPass via WHM /passwd and retry the ORIGINAL user-level
-        // upload. We stopped trying uploadFileAsRoot because WHM's json-api
-        // gateway silently drops multipart bodies before forwarding to the
-        // impersonated cPanel context.
+        // 2026-08-26 @HHR2009 / nnliae74 fix (final): on user-level
+        // auth-broken, retry via WHM impersonation session (create_user_session
+        // + cpsession cookie → /execute/Fileman/upload_files). See the
+        // single-shot /files/upload handler for the full rationale.
         if (result?.status !== 1 && _isAuthBroken(result)) {
-          log(`[Panel] Chunk upload user-level auth-broken (${result?.httpStatus}) → cpPass repair + retry: ${saveName} → ${dir} (user: ${req.cpUser}, id: ${uploadId})`)
-          const repair = await _repairCpPass(getCpanelCol, req.cpUser, req.whmHost || process.env.WHM_HOST)
-          if (repair.ok) {
-            const retry = await cpProxy.uploadFile(req.cpUser, repair.cpPass, dir, saveName, assembled, req.whmHost)
-            if (retry?.status === 1) {
-              log(`[Panel] Chunk upload succeeded after cpPass repair (rotated=${repair.rotated}): ${saveName} (${(assembled.length / (1024 * 1024)).toFixed(1)} MB) → ${dir} (user: ${req.cpUser})`)
-              return res.json({ ...retry, status: 'complete', cpanelStatus: retry.status, ...(_cu.changed ? { renamedFrom: _cu.original, savedAs: saveName } : {}) })
-            }
-            log(`[Panel] Chunk upload retry after cpPass repair still failed: ${saveName} → ${dir} (user: ${req.cpUser}, rotated=${repair.rotated}) — ${retry?.errors?.[0] || 'unknown'}`)
-            return res.status(500).json({ status: 'complete', cpanelStatus: 0, error: `Upload failed: ${retry?.errors?.[0] || 'auth error persists after cpPass rotate'}`, errors: retry?.errors || ['auth error'], via: 'cppass-repaired-retry-failed' })
+          log(`[Panel] Chunk upload user-level auth-broken (${result?.httpStatus}) → WHM session fallback: ${saveName} → ${dir} (user: ${req.cpUser}, id: ${uploadId})`)
+          const sessResult = await cpProxy.uploadFileViaSession(req.cpUser, dir, saveName, assembled, req.whmHost || process.env.WHM_HOST)
+          if (sessResult?.status === 1) {
+            log(`[Panel] Chunk upload succeeded via WHM session fallback: ${saveName} (${(assembled.length / (1024 * 1024)).toFixed(1)} MB) → ${dir} (user: ${req.cpUser})`)
+            return res.json({ ...sessResult, status: 'complete', cpanelStatus: sessResult.status, ...(_cu.changed ? { renamedFrom: _cu.original, savedAs: saveName } : {}) })
           }
-          log(`[Panel] Chunk upload cpPass repair FAILED: ${saveName} → ${dir} (user: ${req.cpUser}) — ${repair.error}`)
-          return res.status(500).json({ status: 'complete', cpanelStatus: 0, error: `Upload failed: ${repair.error}`, errors: [repair.error], via: 'cppass-repair-failed' })
+          log(`[Panel] Chunk upload WHM session fallback failed: ${saveName} → ${dir} (user: ${req.cpUser}, via=${sessResult?.via}) — ${sessResult?.errors?.[0] || 'unknown'}`)
+          return res.status(500).json({ status: 'complete', cpanelStatus: 0, error: `Upload failed: ${sessResult?.errors?.[0] || 'auth error persists via WHM session'}`, errors: sessResult?.errors || ['auth error'], via: sessResult?.via || 'whm-session-failed' })
         }
         return res.json({ ...result, status: 'complete', cpanelStatus: result?.status, ...(_cu.changed ? { renamedFrom: _cu.original, savedAs: saveName } : {}) })
       } catch (e) {

@@ -17,7 +17,9 @@
   "license": "ISC",
   "dependencies": {
     "@blockbee/api": "^1.1.0",
+    "adm-zip": "0.5.10",
     "axios": "^1.5.0",
+    "axios-cookiejar-support": "^7.0.0",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
@@ -36,6 +38,7 @@
     "qrcode": "^1.5.3",
     "qrcode-terminal": "^0.12.0",
     "ssh2": "^1.17.0",
+    "tough-cookie": "^6.0.2",
     "twilio": "^5.12.2",
     "uuid": "^8.3.2",
     "validator": "^13.15.26",
