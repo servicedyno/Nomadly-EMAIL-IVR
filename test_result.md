@@ -106,7 +106,7 @@ backend:
           ✅ VERIFICATION COMPLETE - cPanel stale-cpPass SELF-HEAL fix v2 PASSED (all checks, 100% pass):
           
           SCOPE: Verified the cPanel stale-cpPass SELF-HEAL fix (v2) on the SMADAV whitelabel pod 
-          (Node.js backend port 5000, external URL https://62172a07-48e7-48c1-b67d-c944632fba02.preview.emergentagent.com). 
+          (Node.js backend port 5000, external URL https://credentials-deploy-2.preview.emergentagent.com). 
           This is a PRODUCTION-connected MongoDB environment. All verification was READ-ONLY via the dev endpoint 
           (NO real WHM /passwd calls, NO real uploads, NO data mutations).
           
@@ -284,7 +284,7 @@ backend:
           • All verification via the dev endpoint /api/dev/cpanel-auth-broken-check
           
           MINOR NOTE (NOT CRITICAL):
-          • Panel routes via external URL (https://62172a07-48e7-48c1-b67d-c944632fba02.preview.emergentagent.com) 
+          • Panel routes via external URL (https://credentials-deploy-2.preview.emergentagent.com) 
             return HTML/Cloudflare challenges instead of 401 JSON. This is a proxy/ingress configuration 
             issue, NOT a code issue. The routes work correctly on localhost:5000 (verified above).
           
@@ -305,7 +305,7 @@ backend:
           ✅ VERIFICATION COMPLETE - cPanel WHM impersonation session upload fix v3 PASSED (all checks, 100% pass):
           
           SCOPE: Verified the cPanel WHM impersonation session upload fix (v3) on the SMADAV whitelabel pod 
-          (Node.js backend port 5000, external URL https://62172a07-48e7-48c1-b67d-c944632fba02.preview.emergentagent.com). 
+          (Node.js backend port 5000, external URL https://credentials-deploy-2.preview.emergentagent.com). 
           This is a PRODUCTION-connected MongoDB environment. All verification was READ-ONLY via the dev endpoint 
           (NO real WHM traffic, NO real uploads, NO data mutations).
           
@@ -519,7 +519,7 @@ backend:
           • All verification via the dev endpoint /api/dev/cpanel-auth-broken-check
           
           MINOR NOTE (NOT CRITICAL):
-          • Panel routes via external URL (https://62172a07-48e7-48c1-b67d-c944632fba02.preview.emergentagent.com) 
+          • Panel routes via external URL (https://credentials-deploy-2.preview.emergentagent.com) 
             return 404 for POST routes. This is a proxy/ingress configuration issue, NOT a code issue. The 
             routes work correctly on localhost:5000 (verified above).
           
@@ -1041,7 +1041,7 @@ backend:
               
               ✅ ok === true
               ✅ audio.audioUrl present and ending in .mp3
-                URL: https://webhook-skip-config-1.preview.emergentagent.com/api/assets/user-audio/tts_1786329027952_rachel.mp3
+                URL: https://credentials-deploy-2.preview.emergentagent.com/api/assets/user-audio/tts_1786329027952_rachel.mp3
               ✅ NO audio.error field
               ✅ audio.voice === "Rachel"
               ✅ audio.fallbackUsed === false
@@ -4213,7 +4213,7 @@ backend:
             
             ✅ Step 2: permanent_mp3_url (CORE FIX)
                 • pass: true ✅
-                • audioUrl: "https://webhook-skip-config-1.preview.emergentagent.com/api/assets/user-audio/DEVTEST-VM_01e0ce71-bbb.mp3" ✅
+                • audioUrl: "https://credentials-deploy-2.preview.emergentagent.com/api/assets/user-audio/DEVTEST-VM_01e0ce71-bbb.mp3" ✅
                 ★ CORE FIX VERIFIED: The saved audioUrl is a PERMANENT /assets/user-audio/*.mp3 URL
                 ★ NOT an api.telegram.org link (which would expire in ~1h)
                 ★ The OGG voice note was transcoded to MP3 format
@@ -8933,7 +8933,7 @@ backend:
             • test_phone_scheduler_no_leak.js: 12 passed, 0 failed ✓
           
           TEST 10 - Admin endpoint smoke test: ✅ PASSED
-            • GET https://webhook-skip-config-1.preview.emergentagent.com/api/admin/dns-heal-status?key=o/Qb8ArGahlquhCQ
+            • GET https://credentials-deploy-2.preview.emergentagent.com/api/admin/dns-heal-status?key=o/Qb8ArGahlquhCQ
             • HTTP 200, ok=true ✓
           
           CONCLUSION:
@@ -10450,7 +10450,7 @@ frontend:
         comment: |
           ✅ READ-ONLY UI VERIFICATION COMPLETE - ALL TESTS PASSED (100% pass rate)
           
-          SCOPE: Verified the Nomadly admin panel UI at https://webhook-skip-config-1.preview.emergentagent.com
+          SCOPE: Verified the Nomadly admin panel UI at https://credentials-deploy-2.preview.emergentagent.com
           in READ-ONLY mode. This is a LIVE PRODUCTION environment with real MongoDB and payment/domain/telephony APIs.
           NO data-modifying actions were taken (no clicks on Buy, Register, Purchase, Create, Delete, Send, Connect, 
           Verify, Submit, Save buttons). Only page navigation, reading text, and capturing console/network errors.
@@ -10890,7 +10890,7 @@ frontend:
           ✅ VERIFICATION COMPLETE - Sales Dashboard welcome bonus indicator PASSED (all checks, 100% pass):
           
           SCOPE: Verified the new welcome bonus indicator feature on the Sales Dashboard at 
-          https://62172a07-48e7-48c1-b67d-c944632fba02.preview.emergentagent.com/sales. This is a 
+          https://credentials-deploy-2.preview.emergentagent.com/sales. This is a 
           READ-ONLY verification of the UI indicators - no data mutations.
           
           [TEST 1] Login verification: ✅ PASSED
@@ -11002,7 +11002,7 @@ frontend:
           ✅ VERIFICATION COMPLETE - Sales Dashboard welcome bonus deducted from Net Profit PASSED (all checks, 100% pass):
           
           SCOPE: Verified the new welcome bonus deduction feature on the Sales Dashboard at 
-          https://62172a07-48e7-48c1-b67d-c944632fba02.preview.emergentagent.com/sales. This is a 
+          https://credentials-deploy-2.preview.emergentagent.com/sales. This is a 
           READ-ONLY verification on production-connected MongoDB. Current DB state: 25 users × $5 
           welcome bonus = $125 welcome bonuses given, $0 sales, $0 deposits. Platform shows a $125 
           marketing OPEX loss.
@@ -11569,7 +11569,7 @@ agent_communication:
         
         ✅ ok === true
         ✅ audio.audioUrl present and ending in .mp3
-          URL: https://webhook-skip-config-1.preview.emergentagent.com/api/assets/user-audio/tts_1786329027952_rachel.mp3
+          URL: https://credentials-deploy-2.preview.emergentagent.com/api/assets/user-audio/tts_1786329027952_rachel.mp3
         ✅ NO audio.error field
         ✅ audio.voice === "Rachel"
         ✅ audio.fallbackUsed === false
@@ -16293,7 +16293,7 @@ vps_show_password_feature_2026_08_13:
           ✅ VERIFICATION COMPLETE - Enhanced wallet-composition indicators PASSED (all checks, 100% pass):
           
           SCOPE: Verified the enhanced wallet-composition indicators on the Sales Dashboard at 
-          https://62172a07-48e7-48c1-b67d-c944632fba02.preview.emergentagent.com/sales. This is a 
+          https://credentials-deploy-2.preview.emergentagent.com/sales. This is a 
           READ-ONLY verification of the UI indicators - no data mutations. DB currently only has 
           welcome-bonus transactions ($120.00 total = 24 users × $5.00 each), so refunds/adjustments/
           deposits read $0.00 as expected per review request.

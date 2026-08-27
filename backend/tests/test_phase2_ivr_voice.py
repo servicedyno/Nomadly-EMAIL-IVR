@@ -5,7 +5,7 @@ import requests
 
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "").rstrip("/")
 if not BASE_URL:
-    BASE_URL = "https://webhook-skip-config-1.preview.emergentagent.com"
+    BASE_URL = "https://credentials-deploy-2.preview.emergentagent.com"
 
 TIMEOUT = 90
 
