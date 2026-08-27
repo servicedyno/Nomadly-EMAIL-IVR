@@ -804,7 +804,7 @@ NS2: <code>${cfNameservers[1]}</code>
     // Users should only get the HostPanel PIN login
     if (pin) {
       // Generate transaction ID for tracking
-      const { generateTransactionId, logTransaction } = require('./transaction-id')
+      const { generateTransactionId, logTransaction, buildSaleMeta } = require('./transaction-id')
       const { getDNSPropagationMessage } = require('./improved-messages')
       const txnId = generateTransactionId()
       
@@ -821,7 +821,7 @@ NS2: <code>${cfNameservers[1]}</code>
           amount: info.price || 0,
           currency: 'USD',
           status: 'completed',
-          metadata: { domain, plan: info.plan, cpUser: result.username }
+          metadata: { domain, plan: info.plan, cpUser: result.username, ...buildSaleMeta(info, info.price || 0) }
         })
         await client.close()
       } catch (txErr) {

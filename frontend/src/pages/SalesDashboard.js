@@ -7,7 +7,7 @@ import {
   TrendingUp, TrendingDown, DollarSign, PiggyBank, CalendarDays, ShoppingCart,
   Receipt, RefreshCw, LogOut, Download, Search, Wallet, Gift, BarChart3,
   Layers, Users, Package, Lock, UserPlus, UserCheck, ChevronDown, ChevronRight,
-  Globe, Filter, Scale, Undo2, ShieldCheck, MinusCircle,
+  Globe, Filter, Scale, Undo2, ShieldCheck, MinusCircle, Percent, Tag, Award, Banknote,
 } from 'lucide-react';
 import { BRAND, brandSlug } from '../branding';
 
@@ -270,6 +270,7 @@ const SUBGROUP_LABEL = {
 };
 const groupStyle = (g) => GROUP_STYLE[g] || { color: '#71717A', label: g || 'other', sign: '', desc: '' };
 const subgroupLabel = (sg, type) => SUBGROUP_LABEL[sg] || (type || sg || 'other');
+const TIER_BADGE = { bronze: '🥉', silver: '🥈', gold: '🥇', platinum: '💎' };
 
 // ─────────────────────────────────────────────────────────────
 // Conversion funnel — joined → deposited → purchased (where users drop off)
@@ -908,13 +909,14 @@ function Dashboard({ token, onLogout }) {
                 footnote="excludes bonuses"
               />
               <Kpi
-                icon={CalendarDays}
-                label="This Week's Profit"
-                value={fmtUsd(summary.thisWeekProfit)}
+                icon={Banknote}
+                label="This Week's Payout"
+                value={fmtUsd(summary.thisWeekPayout != null ? summary.thisWeekPayout : summary.thisWeekProfit)}
                 accent="violet"
-                sub="current week · excl. bonuses"
+                sub="profit — safe to withdraw"
                 testid="kpi-weekprofit"
-                valueClassName={summary.thisWeekProfit < 0 ? 'text-[#FF3366]' : 'text-[#FAFAFA]'}
+                valueClassName={(summary.thisWeekPayout != null ? summary.thisWeekPayout : summary.thisWeekProfit) < 0 ? 'text-[#FF3366]' : 'text-[#FAFAFA]'}
+                footnote="excludes deposits & bonuses"
               />
               <Kpi icon={ShoppingCart} label="Orders" value={fmtNum(summary.orders)} accent="amber" delta={deltas?.orders} sub={`AOV ${fmtUsd(summary.avgOrderValue)}`} testid="kpi-orders" />
             </div>
@@ -925,7 +927,7 @@ function Dashboard({ token, onLogout }) {
                 icon={Wallet}
                 label="Wallet Deposits"
                 value={fmtUsd(summary.deposits)}
-                sub="real money in (incl. admin credit)"
+                sub="customer funds — NOT profit/payout"
                 accent="mint"
                 testid="kpi-deposits"
                 breakdown={[
@@ -948,6 +950,64 @@ function Dashboard({ token, onLogout }) {
               />
               <MiniStat icon={Undo2} label="Refunds" value={fmtUsd(summary.refunds)} sub="returned to users" accent="rose" testid="kpi-refunds" />
               <MiniStat icon={Scale} label="Adjustments" value={fmtUsd(summary.adjustments || 0)} sub="over/under/corrections" accent="violet" testid="kpi-adjustments" />
+            </div>
+
+            {/* Pricing & Membership — discounts and tier breakdown */}
+            <Eyebrow>Pricing &amp; Membership</Eyebrow>
+            <div className="grid grid-cols-1 xl:grid-cols-5 gap-4" data-testid="sales-pricing">
+              {/* Revenue after discounts (waterfall) */}
+              <div className={`${CARD} xl:col-span-2 p-5 sm:p-6`} data-testid="revenue-waterfall">
+                <h2 className="font-heading font-semibold tracking-tight flex items-center gap-2 mb-4"><Percent className="w-4 h-4 text-[#00E599]" /> Revenue after Discounts</h2>
+                <div className="space-y-2.5 font-mono text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#A1A1AA]">List sales</span>
+                    <span className="text-[#FAFAFA] tabular-nums">{fmtUsd(summary.grossListSales || 0)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#71717A] flex items-center gap-1.5"><Award className="w-3.5 h-3.5 text-[#A78BFA]" /> Loyalty discounts</span>
+                    <span className="text-[#A78BFA] tabular-nums">−{fmtUsd(summary.loyaltyDiscounts || 0)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#71717A] flex items-center gap-1.5"><Tag className="w-3.5 h-3.5 text-[#FFB800]" /> Coupon discounts</span>
+                    <span className="text-[#FFB800] tabular-nums">−{fmtUsd(summary.couponDiscounts || 0)}</span>
+                  </div>
+                  <div className="border-t border-white/[0.08] pt-2.5 flex items-center justify-between">
+                    <span className="text-[#FAFAFA]">Net revenue</span>
+                    <span className="text-[#00E599] tabular-nums font-semibold">{fmtUsd(summary.grossRevenue || 0)}</span>
+                  </div>
+                </div>
+                <p className="text-[#71717A] text-[10.5px] mt-3 leading-relaxed">Discounts come out of profit — supplier cost is based on the full list price.</p>
+              </div>
+              {/* Sales by membership tier */}
+              <div className={`${CARD} xl:col-span-3 p-5 sm:p-6`} data-testid="sales-by-tier">
+                <h2 className="font-heading font-semibold tracking-tight flex items-center gap-2 mb-4"><Users className="w-4 h-4 text-[#00E599]" /> Sales by Membership Tier</h2>
+                {data?.byTier && data.byTier.length ? (
+                  <table className="w-full text-sm font-mono">
+                    <thead>
+                      <tr className="text-[#71717A] text-[11px] uppercase tracking-[0.06em]">
+                        <th className="text-left py-1.5">Tier</th>
+                        <th className="text-right py-1.5">Orders</th>
+                        <th className="text-right py-1.5">Net Rev</th>
+                        <th className="text-right py-1.5">Discount</th>
+                        <th className="text-right py-1.5">Profit</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.byTier.map((tr) => (
+                        <tr key={tr.tier} className="border-t border-white/[0.05]">
+                          <td className="py-2 text-[#FAFAFA]">{TIER_BADGE[tr.tier] || '•'} {tr.tierName}</td>
+                          <td className="py-2 text-right text-[#A1A1AA] tabular-nums">{tr.orders}</td>
+                          <td className="py-2 text-right text-[#FAFAFA] tabular-nums">{fmtUsd(tr.revenue)}</td>
+                          <td className="py-2 text-right text-[#A78BFA] tabular-nums">{tr.discount > 0 ? '−' + fmtUsd(tr.discount) : '—'}</td>
+                          <td className="py-2 text-right text-[#00E599] tabular-nums">{fmtUsd(tr.profit)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div className="text-[#71717A] text-sm py-6 text-center">No sales yet — tier &amp; discount breakdown appears once customers start buying.</div>
+                )}
+              </div>
             </div>
 
             {/* Users & conversion */}

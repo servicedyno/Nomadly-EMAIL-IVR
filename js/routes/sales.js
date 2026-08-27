@@ -107,6 +107,12 @@ function subgroupOf(type, group) {
 function costForSale(_category, amountUsd) {
   return costProfit(amountUsd).cost
 }
+// Cost anchored to the LIST (pre-discount) price. This is the key to accurate
+// profit on discounted sales: the supplier cost doesn't shrink when we hand the
+// customer a loyalty/coupon discount, so the discount must come out of margin.
+function costFromList(listUsd) {
+  return costProfit(listUsd).cost
+}
 
 function normDate(v) {
   if (!v) return null
@@ -143,10 +149,18 @@ function normalizeTxn(doc) {
   const category = categoryOf(type)
   const amount = Number(doc.amount) || 0
   // NGN safety (in practice all rows are USD)
-  const amountUsd = String(doc.currency || 'USD').toUpperCase() === 'NGN' ? amount / 1360 : amount
+  const ngnScale = String(doc.currency || 'USD').toUpperCase() === 'NGN' ? (1 / 1360) : 1
+  const amountUsd = amount * ngnScale
   const isSale = group === 'sale'
-  const cost = isSale ? costForSale(category, amountUsd) : 0
   const md = doc.metadata || {}
+  // ── Discount / membership-tier fields (present on newer sales) ──
+  // listPrice = pre-discount price. When absent (older sales) fall back to the
+  // amount paid (treat as no discount). Cost is anchored to the LIST price.
+  const listUsd = isSale ? (Number(md.listPrice) > 0 ? Number(md.listPrice) * ngnScale : amountUsd) : 0
+  const loyaltyDiscount = isSale ? (Number(md.loyaltyDiscount) || 0) * ngnScale : 0
+  const couponDiscount = isSale ? (Number(md.couponDiscount) || 0) * ngnScale : 0
+  const loyaltyTier = String(md.loyaltyTier || 'bronze').toLowerCase()
+  const cost = isSale ? costFromList(listUsd) : 0
   let product = category
   if (category === 'Domains' && md.domain) product = md.domain
   else if ((category === 'Hosting' || category === 'VPS') && md.plan) product = md.plan
@@ -160,6 +174,12 @@ function normalizeTxn(doc) {
     group,
     subgroup: subgroupOf(type, group),
     amountUsd,
+    listUsd,
+    loyaltyDiscount,
+    couponDiscount,
+    totalDiscount: round2(loyaltyDiscount + couponDiscount),
+    loyaltyTier,
+    couponCode: md.couponCode || null,
     cost,
     profit: isSale ? amountUsd - cost : 0,
     status: doc.status || 'completed',
@@ -230,6 +250,7 @@ function buildReport(rows, usage, since, until) {
   const adjustments = rows.filter((r) => r.group === 'adjustment')
 
   let grossRevenue = 0, totalCost = 0
+  let grossListSales = 0, loyaltyDiscountTotal = 0, couponDiscountTotal = 0
   const catMap = {}
   const addCat = (cat, revenue, cost, count) => {
     catMap[cat] = catMap[cat] || { category: cat, revenue: 0, cost: 0, profit: 0, orders: 0 }
@@ -238,16 +259,33 @@ function buildReport(rows, usage, since, until) {
     catMap[cat].profit += revenue - cost
     catMap[cat].orders += count
   }
+  // ── Sales by membership tier (bronze/silver/gold/platinum) ──
+  const tierMap = {}
+  const addTier = (tier, revenue, listSales, discount, cost, count) => {
+    const k = tier || 'bronze'
+    tierMap[k] = tierMap[k] || { tier: k, revenue: 0, listSales: 0, discount: 0, cost: 0, profit: 0, orders: 0 }
+    tierMap[k].revenue += revenue
+    tierMap[k].listSales += listSales
+    tierMap[k].discount += discount
+    tierMap[k].cost += cost
+    tierMap[k].profit += revenue - cost
+    tierMap[k].orders += count
+  }
   for (const s of sales) {
     grossRevenue += s.amountUsd
     totalCost += s.cost
+    grossListSales += s.listUsd
+    loyaltyDiscountTotal += s.loyaltyDiscount
+    couponDiscountTotal += s.couponDiscount
     addCat(s.category, s.amountUsd, s.cost, 1)
+    addTier(s.loyaltyTier, s.amountUsd, s.listUsd, s.totalDiscount, s.cost, 1)
   }
-  // fold in usage (calls / sms / marketplace) — flat margin
+  // fold in usage (calls / sms / marketplace) — flat margin, no discounts
   for (const [cat, u] of Object.entries(usage.byCat)) {
     const cost = costProfit(u.revenue).cost
     grossRevenue += u.revenue
     totalCost += cost
+    grossListSales += u.revenue
     addCat(cat, u.revenue, cost, u.count)
   }
 
@@ -340,6 +378,9 @@ function buildReport(rows, usage, since, until) {
       // welcomeBonuses shown separately (promo panel) — never reduces profit.
       welcomeBonuses: round2(w.welcomeBonuses),
       netProfit: round2(w.grossProfit),
+      // Weekly PAYOUT = profit you can safely withdraw this week (revenue − cost);
+      // excludes deposits (customer money not yet spent) and bonuses (promo credit).
+      payout: round2(w.grossProfit),
       orders: w.orders,
     }))
 
@@ -374,6 +415,23 @@ function buildReport(rows, usage, since, until) {
     orders: c.orders,
   }))
 
+  // ── Sales by membership tier ──
+  const totalDiscountAmt = loyaltyDiscountTotal + couponDiscountTotal
+  const TIER_RANK = { bronze: 0, silver: 1, gold: 2, platinum: 3 }
+  const TIER_NAMES = { bronze: 'Bronze', silver: 'Silver', gold: 'Gold', platinum: 'Platinum' }
+  const byTier = Object.values(tierMap)
+    .sort((a, b) => (TIER_RANK[a.tier] ?? 9) - (TIER_RANK[b.tier] ?? 9))
+    .map((tr) => ({
+      tier: tr.tier,
+      tierName: TIER_NAMES[tr.tier] || tr.tier,
+      revenue: round2(tr.revenue),
+      listSales: round2(tr.listSales),
+      discount: round2(tr.discount),
+      cost: round2(tr.cost),
+      profit: round2(tr.profit),
+      orders: tr.orders,
+    }))
+
   const grossProfitAmt = grossRevenue - totalCost
   // PROFIT EXCLUDES BONUSES (owner policy). Bonuses are promotional store credit,
   // not a cash expense; admin-credit is real money (a deposit). Profit is pure
@@ -390,6 +448,15 @@ function buildReport(rows, usage, since, until) {
       grossProfit: round2(grossProfitAmt),
       // Profit = Gross Profit. Bonuses excluded entirely (owner policy).
       netProfit: round2(netProfitAmt),
+      // PAYOUT = profit safe to withdraw. Excludes wallet deposits (customer money
+      // not yet spent — a liability) and bonuses (promo credit).
+      payout: round2(netProfitAmt),
+      thisWeekPayout: weekly.length ? weekly[weekly.length - 1].netProfit : 0,
+      // ── Pricing / discount transparency (list → discounts → net revenue) ──
+      grossListSales: round2(grossListSales),
+      loyaltyDiscounts: round2(loyaltyDiscountTotal),
+      couponDiscounts: round2(couponDiscountTotal),
+      totalDiscounts: round2(totalDiscountAmt),
       // Promo credit issued this period (welcome + first-deposit). INFORMATIONAL
       // ONLY — shown in its own panel, never subtracted from profit.
       promoCreditIssued: round2(welcomeBonusTotal + firstDepositBonusTotal),
@@ -411,6 +478,7 @@ function buildReport(rows, usage, since, until) {
       thisWeekGrossProfit: weekly.length ? weekly[weekly.length - 1].grossProfit : 0,
     },
     byCategory,
+    byTier,
     timeseries,
     weekly,
     topProducts,
@@ -878,4 +946,5 @@ function install(app, deps) {
   logIt('Sales dashboard routes mounted at /admin/sales')
 }
 
-module.exports = { install }
+// normalizeTxn + buildReport exported for unit testing the profit/discount math.
+module.exports = { install, normalizeTxn, buildReport }

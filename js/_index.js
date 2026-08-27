@@ -570,7 +570,7 @@ const callBillingReconciler = require('./call-billing-reconciler.js')
 const dialGuard = require('./dial-rate-guard.js')
 
 // ── New UX Enhancement Utilities ──
-const { generateTransactionId, logTransaction, updateTransactionStatus, getUserTransactions } = require('./transaction-id.js')
+const { generateTransactionId, logTransaction, updateTransactionStatus, getUserTransactions, buildSaleMeta } = require('./transaction-id.js')
 const { handleError, safeRefund, safeExecute } = require('./error-handler.js')
 const { createProgressTracker } = require('./progress-tracker.js')
 const { checkDNSStatus, formatDNSStatus } = require('./dns-status-checker.js')
@@ -10677,6 +10677,10 @@ Enter new value:`), bc)
         }
         if (basePrice > 0) {
           const discountInfo = await loyalty.applyDiscount(walletOf, chatId, basePrice)
+          // Record the member's tier on the session so the sale's transaction can
+          // be tagged with it (dashboard "Sales by Membership Tier"). Saved even
+          // for Bronze (0% discount) so every discount-eligible sale is tagged.
+          await saveInfo('loyaltyTierKey', (discountInfo.tier && discountInfo.tier.key) || 'bronze')
           if (discountInfo.discount > 0) {
             await saveInfo('loyaltyDiscount', discountInfo.discount)
             await saveInfo('preLoyaltyPrice', basePrice)
@@ -12848,7 +12852,7 @@ Enter new value:`), bc)
             amount: price,
             currency: 'USD',
             status: 'completed',
-            metadata: { phoneNumber: selectedNumber, plan: planKey, provider }
+            metadata: { phoneNumber: selectedNumber, plan: planKey, provider, ...buildSaleMeta((typeof info !== 'undefined' ? info : null), price) }
           })
         } catch (txErr) {
           log('[Phone] Failed to log transaction (non-blocking):', txErr.message)
@@ -35035,7 +35039,7 @@ const buyDomainFullProcess = async (chatId, lang, domain, opts = {}) => {
         amount: buyResult.actualPrice || info?.price || 0,
         currency: 'USD',
         status: 'completed',
-        metadata: { domain, registrar: buyResult.registrar, nameservers: buyResult.nameservers }
+        metadata: { domain, registrar: buyResult.registrar, nameservers: buyResult.nameservers, ...buildSaleMeta((typeof info !== 'undefined' ? info : null), buyResult.actualPrice || info?.price || 0) }
       })
     } catch (txErr) {
       log('[Domain] Failed to log transaction (non-blocking):', txErr.message)
@@ -36213,7 +36217,7 @@ const buyVPSPlanFullProcess = async (chatId, lang, vpsDetails) => {
         amount: vpsDetails.totalPrice || 0,
         currency: 'USD',
         status: 'completed',
-        metadata: { plan: vpsDetails.plan, host: vpsData.host, region: vpsDetails.region }
+        metadata: { plan: vpsDetails.plan, host: vpsData.host, region: vpsDetails.region, ...buildSaleMeta((typeof info !== 'undefined' ? info : null), vpsDetails.totalPrice || 0) }
       })
     } catch (txErr) {
       log('[VPS] Failed to log transaction (non-blocking):', txErr.message)
@@ -36380,6 +36384,17 @@ const upgradeVPSDetails = async (chatId, lang, vpsDetails) => {
 // provisioned. See the Apr-30-2026 audit-trail sweep for context.
 async function auditCryptoTx(chatId, type, amount, metadata, psp) {
   try {
+    // Tag product SALES with discount / membership-tier / list-price so the
+    // Sales & Profit dashboard is accurate. Pulls the live checkout session
+    // (holds loyalty + coupon detail). Defensive — any failure just omits them.
+    let saleMeta = {}
+    try {
+      const NON_SALE = /credit|refund|savings|topup|deposit|bonus|validation/i
+      if (!NON_SALE.test(String(type || ''))) {
+        const sess = await get(state, chatId)
+        saleMeta = buildSaleMeta(sess, amount)
+      }
+    } catch (_) { saleMeta = {} }
     await logTransaction(db, {
       transactionId: generateTransactionId(),
       chatId,
@@ -36387,7 +36402,7 @@ async function auditCryptoTx(chatId, type, amount, metadata, psp) {
       amount,
       currency: 'USD',
       status: 'completed',
-      metadata: { ...(metadata || {}), psp },
+      metadata: { ...(metadata || {}), psp, ...saleMeta },
     })
   } catch (txErr) {
     log(`[Audit] Failed to log ${psp} ${type} transaction (non-blocking): ${txErr.message}`)
@@ -37473,7 +37488,7 @@ const bankApis = {
         amount: price,
         currency: 'NGN',
         status: 'completed',
-        metadata: { phoneNumber: selectedNumber, plan: planKey, paymentMethod: 'bank_ngn' }
+        metadata: { phoneNumber: selectedNumber, plan: planKey, paymentMethod: 'bank_ngn', ...buildSaleMeta((typeof info !== 'undefined' ? info : null), price) }
       })
     } catch (txErr) {
       log('[Phone] Failed to log transaction (non-blocking):', txErr.message)
@@ -38089,7 +38104,7 @@ app.get('/crypto-pay-plan', auth, async (req, res) => {
       amount: price,
       currency: 'USD',
       status: 'completed',
-      metadata: { plan, coin, value, ref, psp: 'blockbee' },
+      metadata: { plan, coin, value, ref, psp: 'blockbee', ...buildSaleMeta((typeof info !== 'undefined' ? info : null), price) },
     })
   } catch (txErr) {
     log('[Plan] Failed to log BlockBee subscription transaction (non-blocking): ' + txErr.message)
@@ -38188,7 +38203,7 @@ app.get('/crypto-pay-domain', auth, async (req, res) => {
       amount: updatedInfo?.actualPrice || cheaperPrice || price,
       currency: 'USD',
       status: 'completed',
-      metadata: { domain, registrar: updatedInfo?.actualRegistrar, coin, value, ref, psp: 'blockbee' },
+      metadata: { domain, registrar: updatedInfo?.actualRegistrar, coin, value, ref, psp: 'blockbee', ...buildSaleMeta((typeof info !== 'undefined' ? info : null), updatedInfo?.actualPrice || cheaperPrice || price) },
     })
   } catch (txErr) {
     log('[Domain] Failed to log BlockBee domain transaction (non-blocking): ' + txErr.message)
