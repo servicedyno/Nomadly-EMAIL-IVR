@@ -457,6 +457,68 @@ async function generateNewSSHkey(telegramId, sshName) {
 }
 
 /**
+ * A (full VPS control): ensure a BOT-MANAGED SSH key exists for this user and
+ * is registered with the provider, returning its provider key id so the caller
+ * can attach it at droplet-create time.
+ *
+ * Why: DigitalOcean has no API to set/return a password on a running droplet,
+ * so the bot sets passwords over SSH. If no key is on the box the bot can only
+ * authenticate with the password it thinks is set — and once that drifts (or
+ * the box only allows key auth) the bot is locked out and falls back to DO's
+ * useless email reset. Injecting the bot's own key at create guarantees the
+ * bot can always SSH in and set+show+verify a fresh password, no email.
+ *
+ * Idempotent: reuses the user's existing managed key (with its private half
+ * stored) instead of piling up a new key on every purchase.
+ *
+ * @returns {Promise<{secretId:(string|number), sshKeyName:string}>}
+ */
+async function ensureManagedSSHKey(telegramId, provider) {
+  const providerName = (provider && provider.PROVIDER) || 'digitalocean'
+
+  if (_sshKeysOf) {
+    try {
+      const existing = await _sshKeysOf.findOne({
+        telegramId: String(telegramId),
+        managed: true,
+        provider: providerName,
+      })
+      if (existing && existing.contaboSecretId && existing.privateKey) {
+        return { secretId: existing.contaboSecretId, sshKeyName: existing.sshKeyName }
+      }
+    } catch (_) { /* fall through and create a fresh one */ }
+  }
+
+  const keyName = generateRandomName('botkey')
+  const contaboName = `ssh-${telegramId}-${keyName}`
+  const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
+    modulusLength: 2048,
+    publicKeyEncoding:  { type: 'spki', format: 'pem' },
+    privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+  })
+  const sshPubKey = convertPemToOpenSSH(publicKey, `${telegramId}@nomadly`)
+  if (!sshPubKey) throw new Error('failed to convert public key to OpenSSH format')
+
+  const secret = await provider.createSecret(contaboName, sshPubKey, 'ssh')
+  if (!secret || !secret.secretId) throw new Error('provider did not return an ssh key id')
+
+  if (_sshKeysOf) {
+    await _sshKeysOf.insertOne({
+      telegramId: String(telegramId),
+      contaboSecretId: secret.secretId,
+      sshKeyName: keyName,
+      contaboName,
+      privateKey,
+      publicKey: sshPubKey,
+      provider: providerName,
+      managed: true,
+      createdAt: new Date(),
+    })
+  }
+  return { secretId: secret.secretId, sshKeyName: keyName }
+}
+
+/**
  * Convert PEM public key to OpenSSH format.
  * Fix #3: Previous implementation exported SPKI DER as base64, which is NOT valid OpenSSH format.
  * Contabo rejected these keys with "Ssh key is not valid. Valid formats [ dsa | ecdsa | ed25519 | rsa ]".
@@ -647,9 +709,24 @@ async function createVPSInstance(telegramId, vpsDetails) {
       period:       1 // monthly
     }
 
-    // Attach SSH keys if provided
+    // Attach SSH keys. For Linux VPS we ALWAYS ensure a bot-managed key is
+    // attached at create time so the bot can authenticate over SSH later
+    // regardless of the password state — this is what makes in-bot password
+    // reset/reveal work without ever emailing (A: full VPS control). A
+    // customer-selected key (if any) still takes precedence.
     if (vpsDetails.sshKeySecretId) {
       createOpts.sshKeys = [vpsDetails.sshKeySecretId]
+    } else if (!isRDP) {
+      try {
+        const managed = await ensureManagedSSHKey(telegramId, newProvider)
+        if (managed && managed.secretId) {
+          vpsDetails.sshKeySecretId = managed.secretId
+          createOpts.sshKeys = [managed.secretId]
+          console.log(`[VPS] Attached bot-managed SSH key ${managed.secretId} (${managed.sshKeyName}) to new Linux VPS for ${telegramId}`)
+        }
+      } catch (e) {
+        console.log(`[VPS] ensureManagedSSHKey failed for ${telegramId} — continuing without a bot key: ${e.message || e}`)
+      }
     }
 
     // Fix: On modern Linux distros (Ubuntu 24.04+), the root account is locked
@@ -696,6 +773,12 @@ async function createVPSInstance(telegramId, vpsDetails) {
         '    passwd -u root 2>/dev/null',
         '  ;; esac',
         'fi',
+        '# Ensure SSH can never be firewalled out. Register an ufw allow rule',
+        '# for OpenSSH so that even if the customer enables ufw later (or an',
+        '# image ships it enabled), port 22 stays reachable — rules persist',
+        '# across reboots. This is the exact lock-out that stranded chatId',
+        '# 6277663071: ufw allowed port 80 only, so every reboot killed SSH.',
+        'if command -v ufw >/dev/null 2>&1; then ufw allow OpenSSH 2>/dev/null || ufw allow 22/tcp 2>/dev/null || true; fi',
         '# Restart SSH daemon',
         'systemctl restart sshd 2>/dev/null || systemctl restart ssh 2>/dev/null || service ssh restart 2>/dev/null',
       ].join('\n')
@@ -1856,6 +1939,7 @@ module.exports = {
   fetchUserSSHkeyList,
   fetchUserSSHPrivateKeys,
   generateNewSSHkey,
+  ensureManagedSSHKey,
   uploadSSHPublicKey,
   downloadSSHKeyFile,
   unlinkSSHKeyFromVps,

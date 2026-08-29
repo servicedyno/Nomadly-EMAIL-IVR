@@ -11902,7 +11902,11 @@ Enter new value:`), bc)
           ))
         } else {
           console.log(`[VPS] Password reveal unavailable - ChatId: ${chatId}, Instance: ${record.vpsId || record._id}, reason=${res.reason}`)
-          send(chatId, vp.revealPasswordNotStored(record.name, res.reason))
+          if (res.sshBlocked) {
+            send(chatId, vp.vpsSshBlockedHelp(record.name, record.host, username))
+          } else {
+            send(chatId, vp.revealPasswordNotStored(record.name, res.reason))
+          }
         }
       } catch (err) {
         console.error(`[VPS] Password reveal failed - ChatId: ${chatId}, Error:`, err.message || err)
@@ -19941,13 +19945,20 @@ ${message.replace(/\n/g, '<br>')}
             }
           ))
         } else {
-          // OVH cannot return the password (it emails it / SSH-key access)
-          send(chatId, vp.passwordResetEmailed(
-            userVPSDetails.name,
-            userVPSDetails.host,
-            username,
-            note
-          ))
+          // Provider could not return a password inline.
+          if (raw?.fallback === 'ssh-blocked') {
+            // Box is up but SSH (22) is firewalled — a reset can't help until
+            // the port is reopened. Give actionable recovery-console guidance.
+            send(chatId, vp.vpsSshBlockedHelp(userVPSDetails.name, userVPSDetails.host, username))
+          } else {
+            // OVH cannot return the password (it emails it / SSH-key access)
+            send(chatId, vp.passwordResetEmailed(
+              userVPSDetails.name,
+              userVPSDetails.host,
+              username,
+              note
+            ))
+          }
         }
         
         return goto.getVPSDetails()
@@ -39473,6 +39484,115 @@ app.get('/dev/vps-password-fix-check', async (req, res) => {
     return res.status(500).json({ pass: false, error: e.message, stack: String(e.stack || '').slice(0, 600), checks })
   }
 })
+
+// ── DEV-ONLY: A+B+C "full VPS control" regression check ────────────────────
+// A) every DigitalOcean Linux VPS gets a bot-managed SSH key at create so the
+//    bot can always SSH in and set+show+verify a password (no provider email).
+// B) create-time cloud-init registers `ufw allow OpenSSH` so a customer can't
+//    firewall port 22 shut (the exact @user_uu0 / 6277663071 lock-out).
+// C) when SSH is unreachable but the box is ONLINE, the bot detects the
+//    firewall block and shows actionable recovery-console guidance instead of
+//    the misleading "we emailed it" copy.
+// Pure/self-contained — makes NO real DigitalOcean calls and mutates no VPS.
+app.get('/dev/vps-full-control-check', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  if (req?.query?.key !== process.env.SESSION_SECRET?.slice(0, 16)) {
+    return res.status(403).json({ error: 'forbidden' })
+  }
+
+  const checks = []
+  const add = (name, pass, detail) => checks.push({ name, pass: !!pass, detail: String(detail).slice(0, 400) })
+
+  try {
+    const vmSetup = require('./vm-instance-setup')
+    const doSvc = require('./digitalocean-service')
+    const sshMod = require('./vps-ssh-password')
+    const revealMod = require('./vps-password-reveal')
+    const { en } = require('./lang/en.js')
+    const vp = en.vp
+
+    // ── A: bot-managed SSH key at create ─────────────────────────────────
+    add('ensureManagedSSHKey is exported',
+      typeof vmSetup.ensureManagedSSHKey === 'function',
+      `typeof=${typeof vmSetup.ensureManagedSSHKey}`)
+    const createSrc = vmSetup.createVPSInstance.toString()
+    add('Linux create always attaches a bot-managed SSH key',
+      /ensureManagedSSHKey\(\s*telegramId/.test(createSrc) && /createOpts\.sshKeys\s*=\s*\[\s*managed\.secretId/.test(createSrc),
+      'createVPSInstance calls ensureManagedSSHKey when no customer key + attaches it')
+
+    // ── B: ufw allow OpenSSH baked into create-time cloud-init ───────────
+    add('create-time cloud-init registers `ufw allow OpenSSH`',
+      /ufw allow OpenSSH/.test(createSrc),
+      /ufw allow OpenSSH/.test(createSrc) ? 'present in Linux setup script' : 'MISSING — port 22 can be firewalled shut')
+
+    // ── C: TCP reachability diagnosis (real probes on localhost) ─────────
+    add('diagnoseSshReachability + probeTcpPort are exported',
+      typeof sshMod.diagnoseSshReachability === 'function' && typeof sshMod.probeTcpPort === 'function',
+      `diag=${typeof sshMod.diagnoseSshReachability} probe=${typeof sshMod.probeTcpPort}`)
+
+    // Stand up a throwaway TCP listener → its port must probe OPEN, and a
+    // definitely-closed port must probe CLOSED (fast, self-cleaning).
+    const net = require('net')
+    const srv = net.createServer(() => {})
+    await new Promise(r => srv.listen(0, '127.0.0.1', r))
+    const openPort = srv.address().port
+    const openHit = await sshMod.probeTcpPort('127.0.0.1', openPort, 3000)
+    const closedHit = await sshMod.probeTcpPort('127.0.0.1', 65533, 1500)
+    await new Promise(r => srv.close(r))
+    add('probeTcpPort detects an OPEN port', openHit === true, `open ${openPort} → ${openHit}`)
+    add('probeTcpPort detects a CLOSED port', closedHit === false, `65533 → ${closedHit}`)
+
+    // verdict logic: open SSH → 'ok'; nothing anywhere → 'host-down'
+    const srv2 = net.createServer(() => {})
+    await new Promise(r => srv2.listen(0, '127.0.0.1', r))
+    const sshPort = srv2.address().port
+    const vOk = await sshMod.diagnoseSshReachability('127.0.0.1', { sshPort, webPorts: [65533], timeoutMs: 2000 })
+    await new Promise(r => srv2.close(r))
+    add("verdict 'ok' when the SSH port is open", vOk.verdict === 'ok', `verdict=${vOk.verdict}`)
+    const vDown = await sshMod.diagnoseSshReachability('127.0.0.1', { sshPort: 65533, webPorts: [65532], timeoutMs: 1500 })
+    add("verdict 'host-down' when nothing answers", vDown.verdict === 'host-down', `verdict=${vDown.verdict}`)
+
+    // resetPassword must return the actionable ssh-blocked fallback (source)
+    const resetSrc = doSvc.resetPassword.toString()
+    add("resetPassword returns an 'ssh-blocked' fallback (not just email)",
+      /ssh-blocked/.test(resetSrc) && /diagnoseSshReachability/.test(resetSrc),
+      'resetPassword diagnoses reachability before the email fallback')
+
+    // reveal exposes the ssh-blocked flag path
+    add('reveal path flags ssh-blocked for firewalled boxes',
+      /sshBlocked\s*=\s*true/.test(revealMod.revealVpsPassword.toString()),
+      'revealVpsPassword sets out.sshBlocked when the box is up but 22 is closed')
+
+    // C: the actionable customer message exists and renders real guidance
+    add('vpsSshBlockedHelp message exists', typeof vp.vpsSshBlockedHelp === 'function', `typeof=${typeof vp.vpsSshBlockedHelp}`)
+    const helpMsg = typeof vp.vpsSshBlockedHelp === 'function'
+      ? vp.vpsSshBlockedHelp('nomadly-test', '204.48.23.185', 'root') : ''
+    add('ssh-blocked message tells the user to reopen port 22',
+      /ufw allow OpenSSH/.test(helpMsg) && /22/.test(helpMsg) && /Recovery/i.test(helpMsg),
+      'renders recovery-console + ufw allow OpenSSH guidance')
+
+    // ── Regression: the 2026-08-13 password-reset guarantees still hold ──
+    const planKey = doSvc._resetPasswordPlan({ host: '1.2.3.4', sshPrivateKeys: [{ privateKey: '-----BEGIN PRIVATE KEY-----x' }] })
+    add('reset plan still prefers the SSH key and never rebuilds',
+      planKey.steps[0] === 'ssh-key' && !planKey.steps.includes('rebuild') && planKey.steps[planKey.steps.length - 1] === 'provider-email',
+      `steps=${JSON.stringify(planKey.steps)}`)
+
+    const failed = checks.filter(c => !c.pass)
+    return res.json({
+      pass: failed.length === 0,
+      total: checks.length,
+      passed: checks.length - failed.length,
+      failed: failed.length,
+      feature: 'A+B+C full VPS control (no-email password) — chatId 6277663071 remediation',
+      checks,
+    })
+  } catch (e) {
+    return res.status(500).json({ pass: false, error: e.message, stack: String(e.stack || '').slice(0, 600), checks })
+  }
+})
+
 
 // ── DEV-ONLY: "🔐 Show Password" (VPS password recovery) test ──────────────
 // Feature added 2026-08-13 after the @user_uu0 incident: customers used to see

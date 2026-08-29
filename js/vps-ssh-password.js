@@ -28,6 +28,7 @@
  */
 
 const crypto = require('crypto')
+const net = require('net')
 const { Client } = require('ssh2')
 
 const log = (...a) => console.log('[VPS-SSH]', ...a)
@@ -401,6 +402,64 @@ async function diagnosePasswordAccess(opts = {}) {
   return { status: 'unreachable', detail: 'could not reach the server to check' }
 }
 
+/**
+ * Open a bare TCP connection to host:port and resolve true if it accepts the
+ * connection within `timeoutMs`. Never throws. Used to tell "the box is down"
+ * apart from "the box is up but SSH (22) is firewalled".
+ */
+function probeTcpPort(host, port, timeoutMs = 6000) {
+  return new Promise((resolve) => {
+    if (!host) return resolve(false)
+    const sock = new net.Socket()
+    let done = false
+    const finish = (val) => {
+      if (done) return
+      done = true
+      try { sock.destroy() } catch (_) { /* noop */ }
+      resolve(val)
+    }
+    sock.setTimeout(timeoutMs)
+    sock.once('connect', () => finish(true))
+    sock.once('timeout', () => finish(false))
+    sock.once('error', () => finish(false))
+    try {
+      sock.connect(Number(port) || 22, host)
+    } catch (_) {
+      finish(false)
+    }
+  })
+}
+
+/**
+ * Diagnose why an SSH operation could not reach a VPS.
+ *   verdict 'ok'          — SSH port is open (problem is auth, not reachability)
+ *   verdict 'ssh-blocked' — box is ONLINE (a web port answers) but SSH is closed
+ *                           → almost always the guest firewall (ufw) blocking 22
+ *   verdict 'host-down'   — nothing answers on SSH or the common web ports
+ *
+ * @returns {Promise<{sshOpen:boolean, webOpen:boolean, hostUp:boolean, verdict:string}>}
+ */
+async function diagnoseSshReachability(host, opts = {}) {
+  const sshPort = Number(opts.sshPort) || 22
+  const timeoutMs = Number(opts.timeoutMs) || 6000
+  const sshOpen = await probeTcpPort(host, sshPort, timeoutMs)
+  if (sshOpen) {
+    return { sshOpen: true, webOpen: false, hostUp: true, verdict: 'ok' }
+  }
+  // SSH closed — is the box otherwise alive? Probe common always-on ports.
+  const webPorts = Array.isArray(opts.webPorts) && opts.webPorts.length ? opts.webPorts : [80, 443]
+  let webOpen = false
+  for (const p of webPorts) {
+    if (await probeTcpPort(host, p, timeoutMs)) { webOpen = true; break }
+  }
+  return {
+    sshOpen: false,
+    webOpen,
+    hostUp: webOpen,
+    verdict: webOpen ? 'ssh-blocked' : 'host-down',
+  }
+}
+
 module.exports = {
   applyPasswordOverSSH,
   verifyPasswordLogin,
@@ -410,4 +469,6 @@ module.exports = {
   execOverSSH,
   buildPasswordScript,
   normalizePrivateKey,
+  probeTcpPort,
+  diagnoseSshReachability,
 }

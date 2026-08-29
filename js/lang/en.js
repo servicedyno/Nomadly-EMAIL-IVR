@@ -3568,6 +3568,25 @@ ${dataPreserved
 
 ⚠️ <i>Note: with this provider we can't display the password here for security — it is emailed by the provider or you authenticate with your SSH key.</i>`,
 
+ // Box is ONLINE but SSH port 22 is firewalled (ufw) on the server itself.
+ // A password reset can't help until the port is reopened, so guide the user.
+ vpsSshBlockedHelp: (name, ip, username = 'root') => `🟠 <strong>Your VPS is online — but SSH is blocked</strong>
+
+🖥️ <strong>Server:</strong> ${name}
+🌐 <strong>IP:</strong> <code>${ip}</code>
+
+We reached your server (it's up and running), but <b>port 22 (SSH) is closed by a firewall inside the server</b>. That's why login and password reset don't work — no password can get through a closed port.
+
+✅ <strong>How to reopen it (2 minutes):</strong>
+1. Open your provider's <b>Recovery / Web Console</b> for this server (no SSH needed).
+2. Log in as <code>${username}</code>.
+3. Run: <code>ufw allow OpenSSH</code>  (or <code>ufw allow 22/tcp</code>)
+4. Then run: <code>ufw reload</code>
+
+Once port 22 is open, come back and tap <b>🔑 Reset Password</b> — we'll set a fresh password on the running server and confirm it works, with your data kept.
+
+💬 Stuck? Tap <b>💬 Support</b> and we'll reopen it for you.`,
+
  windowsReinstallEmailed: (name, ip, username, note) => `🎉 <strong>Windows Reinstall Started!</strong>
 
 🖥️ <strong>RDP:</strong> ${name}

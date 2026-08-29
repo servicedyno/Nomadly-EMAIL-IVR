@@ -759,6 +759,32 @@ async function resetPassword(instanceId, opts = {}) {
     log(`resetPassword ${id}: SSH path failed — ${result.error || 'unknown'}`)
   }
 
+  // ── Diagnose reachability before giving up on the in-place path ──────────
+  // If the droplet is ONLINE (a web port answers) but SSH (22) is closed, the
+  // guest firewall (ufw) is blocking us — DO's email reset would set a password
+  // the customer still could not use, so we return actionable guidance instead
+  // of the misleading "we emailed it" copy.
+  if (host) {
+    try {
+      const { diagnoseSshReachability } = require('./vps-ssh-password')
+      const diag = await diagnoseSshReachability(host, { sshPort: 22 })
+      log(`resetPassword ${id}: reachability verdict=${diag.verdict} (ssh=${diag.sshOpen} web=${diag.webOpen})`)
+      if (diag.verdict === 'ssh-blocked') {
+        return {
+          password:    null,
+          newPassword: null,
+          secretId:    opts.currentSecretId || null,
+          reinstalled: false,
+          verified:    false,
+          note:        'Your VPS is online, but its SSH port (22) is blocked by a firewall on the server itself — so we cannot set or verify a password remotely. Open port 22 and we can do it instantly.',
+          raw: { id, fallback: 'ssh-blocked', diag },
+        }
+      }
+    } catch (e) {
+      log(`resetPassword ${id}: reachability probe failed — ${e.message || e}`)
+    }
+  }
+
   // ── Last resort: DO's native, NON-destructive password_reset ────────────
   // Deliberately NOT `rebuild`: a password reset must never wipe a customer's
   // server, and rebuild cannot apply a new password anyway (see above).
