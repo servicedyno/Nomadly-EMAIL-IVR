@@ -741,7 +741,9 @@ NS2: <code>${cfNameservers[1]}</code>
       username: result.username,
       password: result.password,
       url: result.url,
-      nameservers: result.nameservers,
+      // Real Cloudflare NS only — never the WHM createAccount return (which used
+      // to carry the WHM origin IP as ns1/ns2.<WHM_HOST>, an origin-leak vector).
+      nameservers: Array.isArray(cfNameservers) ? cfNameservers : [],
     }
 
     // Store encrypted credentials & generate PIN
@@ -897,7 +899,7 @@ Login: ${panelUrl}
       'planName',
       'duration',
     ])
-    return { success: true, username: result.username, pin, url: result.url, nameservers: result.nameservers, domainRegistered: true }
+    return { success: true, username: result.username, pin, url: result.url, nameservers: Array.isArray(cfNameservers) ? cfNameservers : [], domainRegistered: true }
   } catch (err) {
     log('err registerDomain&CreateCPanel via WHM', err.message)
     send(chatId, `❌ Setup failed. Tap 💬 Get Support for help.\n\nError: ${err.message}`, keyboardButtons)

@@ -188,6 +188,35 @@ async function attachAddonDomain(opts) {
   if (result && result.code === 'CPANEL_DOWN') {
     return { ok: false, errorKind: 'cpanel_down', error: 'WHM unreachable' }
   }
+
+  // ── Self-heal: stale userdata from THIS user's earlier (deleted) plan ──
+  // If cPanel rejected with "already exists in the userdata", the domain is
+  // stuck on the box from a plan of the same user that was flipped deleted but
+  // whose WHM /removeacct silently failed. Release it (chatId-scoped) and retry
+  // once. Heal failures never mask the original cPanel error.
+  if (result && result.status !== 1) {
+    const errMsg = (result.errors || []).join(', ') || ''
+    const heal = require('./whm-userdata-heal')
+    if (heal.isStaleUserdataError(errMsg) && account.chatId) {
+      try {
+        const release = await heal.attemptUserdataRelease({
+          db: opts.db,
+          whmService: require('./whm-service'),
+          domain,
+          chatId: account.chatId,
+        })
+        if (release.released) {
+          log(`[AddonFlow] userdata self-heal released ${domain} from stale ${release.staleCpUser} — retrying addAddon`)
+          try {
+            result = await cpProxy.addAddonDomain(cpUser, opts.cpPass, domain, subDomain, docRoot, whmHost)
+          } catch (e2) { return { ok: false, errorKind: 'whm_failed', error: e2.message } }
+        }
+      } catch (healErr) {
+        log(`[AddonFlow] userdata self-heal error (non-blocking): ${healErr.message}`)
+      }
+    }
+  }
+
   if (!result || result.status !== 1) {
     const errMsg = (result?.errors || []).join(', ') || 'cPanel rejected the addon'
     return { ok: false, errorKind: 'whm_failed', error: errMsg }

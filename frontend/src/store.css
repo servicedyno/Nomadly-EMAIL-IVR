@@ -300,6 +300,21 @@ html.dark .store-plan-card--gold {
   margin: 2px 0 10px; line-height: 1.45;
 }
 
+/* Nameserver callout on purchase success (real CF NS only) */
+.store-ns-callout {
+  margin: 16px 0; padding: 14px 16px;
+  background: var(--st-bg-inset);
+  border: 1px solid var(--st-gold, #f5a623);
+  border-left: 3px solid var(--st-gold, #f5a623);
+  border-radius: var(--st-radius-sm);
+}
+.store-ns-callout > p:first-child { margin: 0 0 10px 0; font-size: 14px; color: var(--st-text); }
+.store-ns-list { list-style: none; margin: 0 0 10px 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.store-ns-list li { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.store-ns-list li span { display: inline-block; min-width: 40px; font-size: 10px; color: var(--st-text-muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
+.store-ns-list li code { flex: 1; word-break: break-all; background: var(--st-surface); padding: 6px 10px; border-radius: var(--st-radius-sm); color: var(--st-accent); font-weight: 600; font-size: 13px; border: 1px solid var(--st-border); }
+.store-ns-callout > p:last-child { margin: 0; }
+
 /* ─── Auth card (unified login) ─── */
 .store-auth-card {
   background: var(--st-surface);

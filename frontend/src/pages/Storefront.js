@@ -75,7 +75,19 @@ function CryptoPayBox({ order, onProvisioned }) {
           <div><span>{t('store.pin')}</span><code data-testid="store-cred-pin">{creds.pin}</code></div>
         </div>
         <p className="store-muted">{t('store.credsEmailed')}</p>
-        {creds.nameservers?.length > 0 && <p className="store-muted">Point your domain nameservers to: {creds.nameservers.join(', ')}</p>}
+        {/* Real CF nameservers only. Defensive guard: Array.isArray + length>=2 so
+            any legacy object-shape record (the old WHM origin-IP leak) renders
+            NOTHING rather than painting the origin IP in front of the user. */}
+        {Array.isArray(creds.nameservers) && creds.nameservers.length >= 2 && (
+          <div className="store-ns-callout" data-testid="store-crypto-ns-callout">
+            <p>Point your domain&apos;s nameservers (at your registrar) to these two — this is what turns on your Anti-Red protection:</p>
+            <ul className="store-ns-list">
+              <li><span>NS1</span><code data-testid="store-crypto-ns-1">{creds.nameservers[0]}</code></li>
+              <li><span>NS2</span><code data-testid="store-crypto-ns-2">{creds.nameservers[1]}</code></li>
+            </ul>
+            <p className="store-muted">DNS changes can take a few hours to propagate.</p>
+          </div>
+        )}
         <a className="store-btn store-btn--primary" href="/panel" data-testid="store-crypto-open-panel">{t('store.goPanel')}</a>
       </div>
     );
@@ -576,8 +588,18 @@ function BuyTab({ plans, goWallet, goPlans }) {
           <div><span>HostPanel PIN</span><code data-testid="store-cred-pin">{result.pin}</code></div>
         </div>
         <p className="store-muted">These were also emailed to you. Use them to log into the panel anytime.</p>
-        {result.nameservers?.length > 0 && (
-          <p className="store-muted">Point your domain nameservers to: {result.nameservers.join(', ')}</p>
+        {/* Real CF nameservers only. Defensive guard: Array.isArray + length>=2 so
+            any legacy object-shape record (the old WHM origin-IP leak) renders
+            NOTHING rather than painting the origin IP in front of the user. */}
+        {Array.isArray(result.nameservers) && result.nameservers.length >= 2 && (
+          <div className="store-ns-callout" data-testid="store-purchase-ns-callout">
+            <p>Point your domain&apos;s nameservers (at your registrar) to these two — this is what turns on your Anti-Red protection:</p>
+            <ul className="store-ns-list">
+              <li><span>NS1</span><code data-testid="store-purchase-ns-1">{result.nameservers[0]}</code></li>
+              <li><span>NS2</span><code data-testid="store-purchase-ns-2">{result.nameservers[1]}</code></li>
+            </ul>
+            <p className="store-muted">DNS changes can take a few hours to propagate.</p>
+          </div>
         )}
         <button className="store-btn store-btn--primary" disabled={openBusy} onClick={() => openPanel(api, result.username, setOpenBusy, setError)} data-testid="store-open-panel-success">
           {openBusy ? 'Opening…' : 'Open HostPanel →'}

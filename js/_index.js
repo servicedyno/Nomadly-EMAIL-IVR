@@ -15867,6 +15867,30 @@ All verified numbers generated during sourcing.`))
       result = { success: false, error: e.message }
     }
 
+    // ── Self-heal: stale userdata from THIS user's earlier (deleted) plan ──
+    // WHM modifyacct rejects change-primary when `candidate` still lives in the
+    // userdata layer from a same-user plan whose /removeacct silently failed.
+    // Release it (chatId-scoped) and retry once. Heal errors never mask the
+    // original WHM error.
+    if (!result || !result.success) {
+      const errMsg = String(result?.error || '')
+      const heal = require('./whm-userdata-heal')
+      if (heal.isStaleUserdataError(errMsg)) {
+        try {
+          const release = await heal.attemptUserdataRelease({
+            db, whmService, domain: candidate, chatId: String(chatId),
+          })
+          if (release.released) {
+            log(`[ChangePrimary] userdata self-heal released ${candidate} from stale ${release.staleCpUser} — retrying changePrimaryDomain`)
+            try { result = await whmService.changePrimaryDomain(plan.cpUser, candidate) }
+            catch (e) { result = { success: false, error: e.message } }
+          }
+        } catch (healErr) {
+          log(`[ChangePrimary] userdata self-heal error (non-blocking): ${healErr.message}`)
+        }
+      }
+    }
+
     if (!result || !result.success) {
       await send(chatId, t.changePrimaryDomainFailed(candidate, result?.error || 'unknown error'), { parse_mode: 'HTML' })
       try { notifyAdmin(`⚠️ <b>Change primary domain FAILED</b>\nUser: ${chatId}\ncpUser: ${plan.cpUser}\nOld: <b>${oldDomain}</b>\nNew: <b>${candidate}</b>\nError: <code>${result?.error || 'unknown'}</code>`) } catch { /* noop */ }

@@ -1,5 +1,22 @@
 # Nomadly — Dev Pod PRD / Setup Notes
 
+## 2026-08-29 (this pod) — Two WHM infra bug-fixes ported from sibling repo (NS origin-IP leak + userdata self-heal)
+### FIX 1 — WHM origin-IP leak in the storefront `nameservers` payload
+- **RCA:** `whm-service.js createAccount()` returned `nameservers: { ns1: \`ns1.${WHM_HOST}\`, ns2: \`ns2.${WHM_HOST}\` }`. WHM_HOST is our origin IP/hostname (not a delegated NS), so it was meaningless AND an origin-leak vector once served to the browser via `/api/store/order/:id` + `/api/store/purchase`. It propagated through `cr-register-domain-&-create-cpanel.js` (internal `response` + final return) into `webOrders.nameservers`. The React guard `result.nameservers?.length > 0` silently rendered nothing (objects have no `.length`), so BYO buyers never saw the CF nameservers to set at their registrar.
+- **Fix:** removed the `nameservers` object from `createAccount()` (+ JSDoc). Both cr-register sites now emit `nameservers: Array.isArray(cfNameservers) ? cfNameservers : []` (real CF NS from the existing NS-setup block: `reg.val.nameservers` / `liveZone.name_servers` / `zone.nameservers`). Storefront crypto + wallet success cards now render a prominent `.store-ns-callout` (NS1/NS2 monospace) guarded by `Array.isArray(x) && x.length >= 2` — legacy object-shape records render NOTHING (never leak the origin IP). testids: `store-crypto-ns-callout|-1|-2`, `store-purchase-ns-callout|-1|-2`.
+- **Tests:** `js/tests/test_ns_origin_leak_fix.js` (static grep) → 20/20.
+
+### FIX 2 — WHM userdata self-heal (unstick domains after silent /removeacct failures)
+- **RCA:** `hosting-scheduler.js` grace-period + startup-enforcement paths flipped `deleted:true` unconditionally even when WHM `/removeacct` returned false (transient net/license/disk/race). Mongo said gone; WHM kept the account + its domains in the `userdata` layer. The SAME user's next purchase then failed `addaddondomain` ("already exists in the userdata") and `modifyacct` change-primary (XID 6ekdqc Modify.pm:972). The user-cancel path already had a `whmTerminatePending` guard; the scheduler paths never did.
+- **Fix Part 1:** both scheduler terminate sites now, on `!terminated`, set `whmTerminatePending:true` + `whmTerminateLastAttemptAt` and fire a `notifyAdmin` (reads `TELEGRAM_ADMIN_CHAT_ID`; silent no-op without bot/admin).
+- **Fix Part 2:** new `js/whm-userdata-heal.js` — `isStaleUserdataError`, `attemptStaleTerminate` (guards on `terminatedOnWhm !== true` so historical rows without the pending flag are still healed; RETRY_CAP=6 → one-time admin alert), `attemptUserdataRelease` (same-chatId guardrail lives INSIDE the Mongo query — cross-user release structurally impossible), `runSelfHealSweep`.
+- **Fix Part 3:** sweep registered hourly in `initScheduler`, **production-gated** (`BOT_ENVIRONMENT === 'production'`; dev logs a loud SKIP — verified in this dev pod's boot log). On-demand chatId-scoped rescue wired into `addon-domain-flow.js attachAddonDomain()` (retries `addAddonDomain` once after release) and `_index.js` change-primary handler (retries `changePrimaryDomain` once after release). Heal failures never mask the original cPanel/WHM error.
+- **Tests:** `js/tests/test_whm_userdata_heal.js` (fake in-process Mongo) → 54/54, incl. the cross-user leak guard (WHM stub asserted never called) and the historical-stuck-row regression.
+- **Hard rules honored:** `blockedDomains` untouched; no targeted manual `/removeacct`; same-chatId guard inside the query; sweep prod-gated; no test credentials changed.
+- **Regression:** existing `js/tests/test_provisioning_deferred.js` still 17/17 (run against LOCAL mongod, never prod).
+- **⚠️ Ship as TWO separate commits** (FIX 1, FIX 2) via Save to GitHub; reaches production after Railway redeploy.
+
+
 ## 2026-08-29 (this pod) — Storefront hosting-plan panel UI/UX usability pass — VERIFIED (frontend testing agent, 15/15 functional items)
 **Scope (frontend-only):** `/app/frontend/src/pages/Storefront.js`, `/app/frontend/src/store.css`, `/app/frontend/src/locales/en.json`. Fixed every issue from the usability audit of the customer-facing storefront (`/`, `/store`):
 - **HIGH — Mobile ordering:** flipped `store.css` so on phones the hero + plan cards render FIRST and Sign-in is below (`.store-landing-left{order:0}/.store-landing-right{order:1}`); added a mobile-only "Already a customer? Sign in" jump link (`data-testid=store-returning-hint` → `#store-login`), hidden >=1024px.

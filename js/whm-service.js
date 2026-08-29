@@ -201,7 +201,13 @@ async function ensureCloudflareTweaks() {
  * @param {string} email - Contact email
  * @param {string} [customUsername] - Optional custom username
  * @param {object} [opts] - Options { useCloudflareNS: boolean }
- * @returns {{ success, username, password, domain, url, nameservers, error }}
+ * @returns {{ success, username, password, domain, url, error }}
+ *   NOTE: intentionally does NOT return `nameservers`. WHM_HOST is our origin
+ *   IP/hostname (not a delegated NS), so returning a fake ns1/ns2 pair built
+ *   from the host was both meaningless AND an origin-IP-leak vector once served
+ *   to the browser (defeats the Anti-Red cloaking premise). Callers MUST source
+ *   real nameservers from Cloudflare / the registrar (cfNameservers /
+ *   registeredDomains.val.nameservers), never from this function.
  */
 async function createAccount(domain, plan, email, customUsername, opts = {}) {
   const pkg = PLAN_MAP[plan.toLowerCase()]
@@ -267,10 +273,9 @@ async function createAccount(domain, plan, email, customUsername, opts = {}) {
         password,
         domain,
         url: `https://${WHM_HOST}:2083`,
-        nameservers: {
-          ns1: `ns1.${WHM_HOST}`,
-          ns2: `ns2.${WHM_HOST}`,
-        },
+        // NB: no `nameservers` here — WHM_HOST is the origin IP/hostname, not a
+        // delegated NS. Returning it leaked the origin to the browser via the
+        // storefront order payload. Real NS come from Cloudflare/registrar.
         package: pkg,
       }
     } catch (err) {
