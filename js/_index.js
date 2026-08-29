@@ -39594,6 +39594,131 @@ app.get('/dev/vps-full-control-check', async (req, res) => {
 })
 
 
+// ── DEV-ONLY: full VPS management surface audit ────────────────────────────
+// Verifies EVERY VPS management feature reachable from the bot is wired,
+// renders, and its provider contract exists. Destructive ops (stop/delete/
+// upgrade) are verified by wiring + provider-contract + message rendering only
+// — never fired on a real box. Read-only live checks use the just-provisioned
+// customer VPS do-596118090 (getInstance/listInstances) — no mutation.
+app.get('/dev/vps-management-audit', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  if (req?.query?.key !== process.env.SESSION_SECRET?.slice(0, 16)) {
+    return res.status(403).json({ error: 'forbidden' })
+  }
+
+  const checks = []
+  const add = (name, pass, detail) => checks.push({ name, pass: !!pass, detail: String(detail).slice(0, 300) })
+
+  try {
+    const fs = require('fs')
+    const path = require('path')
+    const vmSetup = require('./vm-instance-setup')
+    const doSvc = require('./digitalocean-service')
+    const vpsProvider = require('./vps-provider')
+    const sp = vpsProvider.buildSmartProxy()
+    const { en } = require('./lang/en.js')
+    const vp = en.vp
+
+    // 1 ── ROUTING: every management button reaches a handler (source scan) ──
+    const src = fs.readFileSync(path.join(__dirname, '_index.js'), 'utf-8')
+    const routes = [
+      ['Stop → confirmStopVps',            /message === vp\.stopVpsBtn\) return goto\.confirmStopVps/],
+      ['Delete → confirmDeleteVps',        /message === vp\.deleteVpsBtn\) return goto\.confirmDeleteVps/],
+      ['Upgrade → upgradeVpsInstance',     /message === vp\.upgradeVpsBtn\) return goto\.upgradeVpsInstance/],
+      ['Subscriptions → vpsSubscription',  /message === vp\.subscriptionBtn\) return goto\.vpsSubscription/],
+      ['SSH Keys → vpsLinkedSSHkeys',      /message === vp\.VpsLinkedKeysBtn\) return goto\.vpsLinkedSSHkeys/],
+      ['Reset Password → confirmResetPassword', /message === vp\.resetPasswordBtn\) return goto\.confirmResetPassword/],
+      ['Show Password → revealVpsPassword',/message === vp\.revealPasswordBtn\) return goto\.revealVpsPassword/],
+      ['Reinstall Windows → confirmReinstallWindows', /message === vp\.reinstallWindowsBtn\) return goto\.confirmReinstallWindows/],
+      ['Start (inline handler)',           /message === vp\.startVpsBtn\)/],
+      ['Restart (inline handler)',         /message === vp\.restartVpsBtn\)/],
+    ]
+    for (const [label, re] of routes) add('route: ' + label, re.test(src), re.test(src) ? 'wired' : 'ROUTE MISSING')
+
+    // 2 ── HELPER FUNCTIONS exist ────────────────────────────────────────────
+    for (const fn of ['changeVpsInstanceStatus', 'deleteVPSinstance', 'changeVpsAutoRenewal', 'createVPSInstance', 'ensureManagedSSHKey', 'fetchUserVPSList', 'fetchVPSDetails', 'fetchVpsUpgradeOptions']) {
+      add('helper: ' + fn, typeof vmSetup[fn] === 'function', `typeof=${typeof vmSetup[fn]}`)
+    }
+
+    // 3 ── PROVIDER CONTRACT (smart proxy + DO) ──────────────────────────────
+    for (const m of ['getInstance', 'cancelInstance', 'startInstance', 'stopInstance', 'restartInstance', 'resetPassword', 'reinstallInstance', 'upgradeInstance']) {
+      add('provider: smartProxy.' + m, typeof sp[m] === 'function', `typeof=${typeof sp[m]}`)
+    }
+    add('provider: doSvc.listInstances', typeof doSvc.listInstances === 'function', `typeof=${typeof doSvc.listInstances}`)
+
+    // 4 ── MESSAGE RENDERING for every feature (no throw + key tokens) ────────
+    const renders = (label, fn, args, mustInclude) => {
+      if (typeof fn !== 'function') return add('render: ' + label, false, 'message fn missing')
+      let out = ''
+      try { out = String(fn(...args)) } catch (e) { return add('render: ' + label, false, 'threw: ' + (e.message || e)) }
+      const missing = (mustInclude || []).filter(tok => !out.includes(tok))
+      add('render: ' + label, out.length > 0 && missing.length === 0, missing.length ? `missing tokens: ${missing.join(', ')}` : `ok (${out.length} chars)`)
+    }
+    const linuxRec = { name: 'nomadly-test', host: '134.122.25.36', status: 'RUNNING', isRDP: false, osType: 'Linux', defaultUser: 'root', autoRenewable: false,
+      planDetails: { name: 'Cloud VPS', specs: { vCPU: 1, RAM: 1, disk: 25 } }, diskTypeDetails: { type: 'SSD' }, osDetails: { name: 'Ubuntu 22.04 LTS' }, cPanelPlanDetails: null }
+    const rdpRec = { ...linuxRec, isRDP: true, osType: 'Windows', defaultUser: 'Administrator', osDetails: { name: 'Windows Server 2022' } }
+
+    renders('details (Linux) shows IP/port22/user/connect/green', vp.selectedVpsData, [linuxRec], ['134.122.25.36', '22', 'root', 'ssh ', '🟢'])
+    renders('details (RDP) shows port 3389', vp.selectedVpsData, [rdpRec], ['3389'])
+    renders('stop confirm', vp.confirmStopVpstext, ['nomadly-test'], ['nomadly-test'])
+    renders('stopping', vp.vpsBeingStopped, ['nomadly-test'], ['nomadly-test'])
+    renders('stopped', vp.vpsStopped, ['nomadly-test'], ['nomadly-test'])
+    renders('stop failed', vp.failedStoppingVPS, ['nomadly-test'], ['nomadly-test'])
+    renders('starting', vp.vpsBeingStarted, ['nomadly-test'], ['nomadly-test'])
+    renders('started', vp.vpsStarted, ['nomadly-test'], ['nomadly-test'])
+    renders('start failed', vp.failedStartedVPS, ['nomadly-test'], ['nomadly-test'])
+    renders('restarting', vp.vpsBeingRestarted, ['nomadly-test'], ['nomadly-test'])
+    renders('restarted', vp.vpsRestarted, ['nomadly-test'], ['nomadly-test'])
+    renders('restart failed', vp.failedRestartingVPS, ['nomadly-test'], ['nomadly-test'])
+    renders('delete confirm', vp.confirmDeleteVpstext, ['nomadly-test'], ['nomadly-test'])
+    renders('deleting', vp.vpsBeingDeleted, ['nomadly-test'], ['nomadly-test'])
+    renders('deleted', vp.vpsDeleted, ['nomadly-test'], ['nomadly-test'])
+    renders('delete failed', vp.failedDeletingVPS, ['nomadly-test'], ['nomadly-test'])
+    renders('reinstall windows confirm', vp.confirmReinstallWindowsText, ['nomadly-test'], ['nomadly-test'])
+    renders('auto-renew enabled', vp.enabledAutoRenewal, [linuxRec, '2026-09-29'], [])
+    renders('auto-renew disabled', vp.disabledAutoRenewal, [linuxRec, '2026-09-29'], [])
+    renders('reset password success', vp.passwordResetSuccess, ['nomadly-test', '134.122.25.36', 'root', 'Secret123', { isRDP: false, dataPreserved: true, verified: true }], ['Secret123', '22'])
+    renders('ssh-blocked help', vp.vpsSshBlockedHelp, ['nomadly-test', '134.122.25.36', 'root'], ['ufw allow OpenSSH', '22'])
+
+    // 5 ── STATUS vocabulary (drives Start/Stop button + dot) ─────────────────
+    add('status map active→running', doSvc._mapStatus('active') === 'running', `active→${doSvc._mapStatus('active')}`)
+    add('status map off→stopped', doSvc._mapStatus('off') === 'stopped', `off→${doSvc._mapStatus('off')}`)
+
+    // 6 ── LIVE READ-ONLY against the real customer VPS (no mutation) ─────────
+    try {
+      const inst = await sp.getInstance('do-596118090')
+      const ip = inst && (inst.mainIp || (inst.ipConfig && inst.ipConfig.v4 && inst.ipConfig.v4.ip))
+      add('live getInstance(do-596118090) → running', inst && inst.status === 'running', `status=${inst && inst.status} ip=${ip}`)
+    } catch (e) {
+      add('live getInstance(do-596118090) → running', false, 'threw: ' + (e.message || e))
+    }
+    try {
+      const list = await doSvc.listInstances()
+      const hasIt = Array.isArray(list) && list.some(d => String(d.instanceId).includes('596118090'))
+      add('live listInstances() returns the VPS', Array.isArray(list) && hasIt, `count=${Array.isArray(list) ? list.length : 'n/a'} hasNew=${hasIt}`)
+    } catch (e) {
+      add('live listInstances() returns the VPS', false, 'threw: ' + (e.message || e))
+    }
+
+    const failed = checks.filter(c => !c.pass)
+    return res.json({
+      pass: failed.length === 0,
+      total: checks.length,
+      passed: checks.length - failed.length,
+      failed: failed.length,
+      feature: 'VPS management surface audit (list/details/start/stop/restart/reset/show/upgrade/subscription/ssh-keys/reinstall/delete)',
+      failedChecks: failed.map(c => ({ name: c.name, detail: c.detail })),
+      checks,
+    })
+  } catch (e) {
+    return res.status(500).json({ pass: false, error: e.message, stack: String(e.stack || '').slice(0, 600), checks })
+  }
+})
+
+
+
 // ── DEV-ONLY: "🔐 Show Password" (VPS password recovery) test ──────────────
 // Feature added 2026-08-13 after the @user_uu0 incident: customers used to see
 // their VPS password exactly once (create or reset) and the copy claimed it
