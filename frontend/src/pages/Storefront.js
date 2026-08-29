@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import QRCode from 'react-qr-code';
 import { Sun, Moon } from 'lucide-react';
@@ -15,6 +15,30 @@ const COIN_OPTS = [
 ];
 
 const isEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || '').trim());
+
+// Billing-period helpers so plans on different cycles can be compared fairly.
+const periodLabel = (days) => (Number(days) === 7 ? 'wk' : 'mo');
+const isMonthlyCycle = (days) => Number(days) === 30 || Number(days) === 31 || !days;
+const perMonthEquiv = (priceUsd, days) => (Number(priceUsd || 0) * 30) / (Number(days) || 30);
+
+/* Brand logo that degrades gracefully to the panel initial if the image 404s. */
+function BrandLogo() {
+  const [imgOk, setImgOk] = useState(!!BRAND.logoUrl);
+  return (
+    <span className={`store-logo${imgOk ? ' store-logo--img' : ''}`} aria-hidden="true">
+      {imgOk ? (
+        <img
+          src={BRAND.logoUrl}
+          alt=""
+          onError={() => setImgOk(false)}
+          style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+        />
+      ) : (
+        (BRAND.panelName || 'H').charAt(0)
+      )}
+    </span>
+  );
+}
 
 // Tokens already consumed in this page session. We track them at module scope
 // (not in component state / ref) so React 18 StrictMode's double-mount in dev
@@ -77,6 +101,47 @@ function GuestBuyModal({ plan, onClose }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [order, setOrder] = useState(null);
+  const modalRef = useRef(null);
+
+  // "Dirty" once the shopper has typed/selected anything — so a stray backdrop
+  // click can't wipe an in-progress order. Once an order exists it's always dirty.
+  const dirty = !!order || !!email.trim() || !!domain.trim() || domainMode !== 'byo';
+
+  const requestClose = useCallback(() => {
+    if (dirty && !window.confirm(t('store.discardConfirm'))) return;
+    onClose();
+  }, [dirty, onClose, t]);
+
+  // Accessibility: Esc-to-close (guarded), focus the first field, trap Tab within
+  // the dialog, lock body scroll, and restore focus to the trigger on unmount.
+  useEffect(() => {
+    const prevActive = document.activeElement;
+    const node = modalRef.current;
+    const getFocusable = () => (node
+      ? Array.from(node.querySelectorAll('button:not([disabled]), a[href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled])'))
+      : []);
+    const first = node && node.querySelector('input, select, button');
+    if (first) setTimeout(() => { try { first.focus(); } catch (_) { /* noop */ } }, 0);
+
+    const onKey = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); requestClose(); return; }
+      if (e.key === 'Tab') {
+        const items = getFocusable();
+        if (!items.length) return;
+        const idx = items.indexOf(document.activeElement);
+        if (e.shiftKey && idx <= 0) { e.preventDefault(); items[items.length - 1].focus(); }
+        else if (!e.shiftKey && (idx === items.length - 1 || idx === -1)) { e.preventDefault(); items[0].focus(); }
+      }
+    };
+    document.addEventListener('keydown', onKey, true);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey, true);
+      document.body.style.overflow = prevOverflow;
+      try { prevActive && prevActive.focus && prevActive.focus(); } catch (_) { /* noop */ }
+    };
+  }, [requestClose]);
 
   const doSearch = async () => {
     if (!domain.trim()) return;
@@ -100,10 +165,17 @@ function GuestBuyModal({ plan, onClose }) {
   };
 
   return (
-    <div className="store-modal-overlay" onClick={onClose} data-testid="store-guest-modal">
-      <div className="store-modal" onClick={e => e.stopPropagation()}>
-        <button className="store-modal-x" onClick={onClose} data-testid="store-guest-close">×</button>
-        <h2>Buy {plan.name}</h2>
+    <div className="store-modal-overlay" onClick={requestClose} data-testid="store-guest-modal">
+      <div
+        className="store-modal"
+        onClick={e => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="store-guest-title"
+        ref={modalRef}
+      >
+        <button className="store-modal-x" onClick={requestClose} data-testid="store-guest-close" aria-label={t('store.close')}>×</button>
+        <h2 id="store-guest-title">Buy {plan.name}</h2>
         <div className="store-total" data-testid="store-guest-total">Total: <b>{money(total)}</b></div>
         {order ? <CryptoPayBox order={order} /> : (
           <>
@@ -119,6 +191,7 @@ function GuestBuyModal({ plan, onClose }) {
               <input type="text" placeholder="mysite.com" value={domain} onChange={e => setDomain(e.target.value)} data-testid="store-guest-domain" />
               {domainMode === 'buy' && <button className="store-btn" onClick={doSearch} data-testid="store-guest-check">Check</button>}
             </div>
+            {domainMode === 'byo' && <p className="store-domain-hint" data-testid="store-guest-byo-hint">{t('store.byoDomainHint')}</p>}
             {domainMode === 'buy' && search && <div className={`store-domain-result ${search.available ? 'ok' : 'no'}`}>{search.available ? `✓ ${search.domain} — ${money(search.priceUsd)}` : `✕ ${search.message || 'Not available'}`}</div>}
             <label className="store-label">{t('store.payWith')}</label>
             <select value={coin} onChange={e => setCoin(e.target.value)} data-testid="store-guest-coin">
@@ -198,7 +271,7 @@ function StoreHeader({ rightExtras }) {
   return (
     <header className="store-top">
       <div className="store-brand">
-        <span className={`store-logo${BRAND.logoUrl ? ' store-logo--img' : ''}`}>{BRAND.logoUrl ? <img src={BRAND.logoUrl} alt={BRAND.panelName} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : BRAND.panelName.charAt(0)}</span>
+        <BrandLogo />
         <span className="store-brand-name">{BRAND.panelName}</span>
         <span className="store-sub">Anti-Red Hosting</span>
       </div>
@@ -280,7 +353,7 @@ function AuthGate({ plans, config, botLoginError }) {
       <div className="store-landing-grid">
         {/* RIGHT column on desktop, FIRST on mobile: unified single login */}
         <aside className="store-landing-right">
-          <section className="store-auth-card" data-testid="store-auth-card">
+          <section className="store-auth-card" id="store-login" data-testid="store-auth-card">
             <h2 className="store-auth-title">{t('store.loginTitle')}</h2>
             <p className="store-muted store-auth-sub">{t('store.loginSub')}</p>
             <form onSubmit={submit}>
@@ -340,23 +413,47 @@ function AuthGate({ plans, config, botLoginError }) {
           </section>
         </aside>
 
-        {/* LEFT column on desktop, BELOW login on mobile: hero + plans */}
+        {/* LEFT column on desktop, FIRST on mobile: lead with hero + plans */}
         <div className="store-landing-left">
           <section className="store-hero">
             <h1>{t('store.heroTitle')}</h1>
             <p>{t('store.tagline')}</p>
+            <p className="store-hero-explain">{t('store.antiRedExplain')}</p>
           </section>
 
+          {/* Mobile-only: returning customers jump straight to the login below */}
+          <a href="#store-login" className="store-returning-hint" data-testid="store-returning-hint">
+            {t('store.returningCustomer')}
+          </a>
+
           <section className="store-plan-grid" data-testid="store-plans">
-            {plans.map(p => (
-              <div key={p.id} className={`store-plan-card ${p.tier === 'gold' ? 'store-plan-card--gold' : ''}`} data-testid={`store-plan-${p.id}`}>
-                <div className="store-plan-name">{p.name}</div>
-                <div className="store-plan-price">{money(p.priceUsd)}<span>/{p.durationDays === 7 ? 'wk' : 'mo'}</span></div>
-                <ul className="store-plan-feats">{(p.features || []).map((f, i) => <li key={i}>✓ {f}</li>)}</ul>
-                <button className="store-btn store-btn--primary" onClick={() => setBuyPlan(p)} data-testid={`store-buynow-${p.id}`}>{t('store.buyNow')}</button>
-              </div>
-            ))}
+            {plans.map(p => {
+              const isGold = p.tier === 'gold';
+              const showEquiv = !isMonthlyCycle(p.durationDays);
+              return (
+                <div key={p.id} className={`store-plan-card ${isGold ? 'store-plan-card--gold' : ''}`} data-testid={`store-plan-${p.id}`}>
+                  {isGold && <div className="store-plan-badge" data-testid={`store-plan-badge-${p.id}`}>{t('store.mostPopular')}</div>}
+                  <div className="store-plan-name">{p.name}</div>
+                  <div className="store-plan-price">{money(p.priceUsd)}<span className="store-plan-per">/{periodLabel(p.durationDays)}</span></div>
+                  <div className="store-plan-period-note" data-testid={`store-plan-period-${p.id}`}>
+                    {showEquiv
+                      ? t('store.perMonthEquiv', { price: money(perMonthEquiv(p.priceUsd, p.durationDays)) })
+                      : t('store.billedMonthly')}
+                  </div>
+                  <ul className="store-plan-feats">{(p.features || []).map((f, i) => <li key={i}>✓ {f}</li>)}</ul>
+                  <button className={`store-btn store-btn--primary${isGold ? ' store-btn--gold' : ''}`} onClick={() => setBuyPlan(p)} data-testid={`store-buynow-${p.id}`}>{t('store.buyNow')}</button>
+                </div>
+              );
+            })}
           </section>
+
+          {/* Trust signals — matter for a crypto-only, instant-delivery product */}
+          <ul className="store-trust-row" data-testid="store-trust-row">
+            <li className="store-trust-item">⚡ {t('store.trustInstant')}</li>
+            <li className="store-trust-item">🛡️ {t('store.trustProtection')}</li>
+            <li className="store-trust-item">🔁 {t('store.trustReplace')}</li>
+            <li className="store-trust-item">💬 {t('store.trustSupport')} {BRAND.supportHandle}</li>
+          </ul>
         </div>
       </div>
 
@@ -518,6 +615,7 @@ function BuyTab({ plans, goWallet, goPlans }) {
         <input type="text" placeholder="mysite.com" value={domain} onChange={e => setDomain(e.target.value)} data-testid="store-domain-input" />
         {domainMode === 'buy' && <button className="store-btn" onClick={doSearch} disabled={searching} data-testid="store-domain-check">{searching ? 'Checking…' : 'Check'}</button>}
       </div>
+      {domainMode === 'byo' && <p className="store-domain-hint" data-testid="store-byo-hint">After checkout you&apos;ll point your domain&apos;s nameservers to us — we&apos;ll show you exactly how (takes ~5 min).</p>}
       {domainMode === 'buy' && search && (
         <div className={`store-domain-result ${search.available ? 'ok' : 'no'}`} data-testid="store-domain-result">
           {search.available ? `✓ ${search.domain} is available — ${money(search.priceUsd)}` : `✕ ${search.message || 'Not available'}`}

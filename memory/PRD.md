@@ -1,5 +1,22 @@
 # Nomadly — Dev Pod PRD / Setup Notes
 
+## 2026-08-29 (this pod) — Storefront hosting-plan panel UI/UX usability pass — VERIFIED (frontend testing agent, 15/15 functional items)
+**Scope (frontend-only):** `/app/frontend/src/pages/Storefront.js`, `/app/frontend/src/store.css`, `/app/frontend/src/locales/en.json`. Fixed every issue from the usability audit of the customer-facing storefront (`/`, `/store`):
+- **HIGH — Mobile ordering:** flipped `store.css` so on phones the hero + plan cards render FIRST and Sign-in is below (`.store-landing-left{order:0}/.store-landing-right{order:1}`); added a mobile-only "Already a customer? Sign in" jump link (`data-testid=store-returning-hint` → `#store-login`), hidden >=1024px.
+- **HIGH — Broken logo:** new `<BrandLogo>` with `onError` → "S" letter-mark fallback.
+- **HIGH — Mixed billing periods:** each card shows a normalized note — weekly = "≈ $X/mo · billed weekly", monthly = "billed monthly".
+- **MED — Recommended tier:** "★ Most Popular" badge on gold tier + distinct gold CTA (`.store-btn--gold`).
+- **MED — Unified login clarity:** clearer helper copy + contrast bump.
+- **MED — Disabled button:** neutral gray (tokens `--st-disabled-bg/-fg`) instead of faded pink.
+- **MED — Checkout modal a11y:** role=dialog/aria-modal, Esc-to-close, focus trap + restore, body-scroll lock, backdrop dismiss guarded by discard-confirm once dirty.
+- **MED — Contrast:** `.store-muted`/auth sub+help/QR caption → readable `--st-text-soft` / 14px.
+- **LOW — polish:** consistent price spacing, BYO nameserver hint (guest modal + BuyTab), trust row (Instant setup · Anti-Red protection · Free replacement · 24/7 support @smadavv), plain-language Anti-Red hero line.
+New `en.json` store keys (all-lang via `fallbackLng:en`): mostPopular, billedMonthly, perMonthEquiv, antiRedExplain, byoDomainHint, returningCustomer, discardConfirm, close, trust*.
+**Verification:** frontend testing agent — all 15 functional items PASS; STRICT READ-ONLY (no real purchases/logins on the live prod site).
+**Known non-blocker:** dev/preview-only console warning "`<span>` cannot be a child of `<option>/<select>`" comes from the Emergent live-edit instrumentation wrapping `<option>` text under React 19 validateDOMNesting; live DOM has zero such nodes and options already use plain strings — absent in production builds, unrelated to this change.
+**Reaches production only after Save to GitHub + Railway redeploy.**
+
+
 ## 2026-08-29 (this pod) — DO VPS "full control": set+show password in-bot, no emails, no SSH lock-outs — VERIFIED (testing agent, 93/93, 100% backend)
 **User request:** Give DigitalOcean Linux customers full VPS control — set + show the root password in-bot with nothing emailed, and stop SSH lock-outs. Root cause of the real incident: a droplet was online (web port answered) but SSH/22 was closed by the guest firewall (ufw), so the bot's SSH-based password set/show failed and fell back to DO's "we emailed it" dead-end (customer never sees a usable password).
 **Shipped (A) — always-attach a bot-managed SSH key at DO Linux create (`js/vm-instance-setup.js createVPSInstance`):** when the customer picks no key and the provider is DigitalOcean + Linux, generate an RSA keypair, register the public key with DO (`createSecret → POST /account/keys`), store the private key in `sshKeysOf` keyed by the user (`botManaged:true`), persist `sshKeySecretId` on the record, and attach the key id at create. Guarantees the bot can always SSH in to set/show/verify a password regardless of password state, without ever emailing. Non-fatal on any error.
