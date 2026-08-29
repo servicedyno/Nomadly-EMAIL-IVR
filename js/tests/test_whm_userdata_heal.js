@@ -90,7 +90,8 @@ console.log('\n=== (2) attemptStaleTerminate ===')
   const col = makeFakeCol([
     { _id: 'stale1', cpUser: 'stale1', chatId: '1', domain: 'foo.com', deleted: true, whmTerminatePending: true, whmTerminateRetryCount: 0 },
     { _id: 'live1', cpUser: 'live1', chatId: '2', domain: 'bar.com', deleted: false },
-    { _id: 'clean1', cpUser: 'clean1', chatId: '3', domain: 'baz.com', deleted: true }, // deleted but NOT pending
+    { _id: 'clean1', cpUser: 'clean1', chatId: '3', domain: 'baz.com', deleted: true }, // deleted, historical (pre-fix), no pending flag — should still be retried
+    { _id: 'done1', cpUser: 'done1', chatId: '4', domain: 'qux.com', deleted: true, terminatedOnWhm: true }, // already confirmed cleared — no-op
   ])
   const db = makeFakeDb(col)
 
@@ -123,12 +124,23 @@ console.log('\n=== (2) attemptStaleTerminate ===')
   })
   ok('C: refuses to touch live account (deleted:false)', r.ok === false && r.reason === 'not-deleted')
 
-  // Case D: no-op when row is deleted but not pending (already cleared earlier pass)
+  // Case D (updated semantics): historical stuck row (deleted:true, NO pending flag)
+  // SHOULD now be retried (before the fix, this was skipped, which permanently
+  // stranded every legit user's pre-fix stuck domains).
   r = await heal.attemptStaleTerminate({
-    db, whmService: makeWhmStub({ terminate: async () => { throw new Error('BOOM should never be called') } }),
+    db, whmService: makeWhmStub({ terminate: async () => true }),
     account: await col.findOne({ _id: 'clean1' }),
   })
-  ok('D: no-op when whmTerminatePending is not set', r.ok === true && r.cleared === false)
+  ok('D: historical stuck row (no pending flag) IS retried + cleared', r.ok === true && r.cleared === true)
+  const clean1After = await col.findOne({ _id: 'clean1' })
+  ok('D: historical row now has terminatedOnWhm:true', clean1After.terminatedOnWhm === true)
+
+  // Case D2: already-cleared row (terminatedOnWhm:true) is a no-op — no WHM call.
+  r = await heal.attemptStaleTerminate({
+    db, whmService: makeWhmStub({ terminate: async () => { throw new Error('BOOM should never call WHM for already-terminated row') } }),
+    account: await col.findOne({ _id: 'done1' }),
+  })
+  ok('D2: terminatedOnWhm:true short-circuits (no WHM call)', r.ok === true && r.cleared === false && r.reason === 'already-terminated')
 
   console.log('\n=== (3) attemptUserdataRelease ===')
 

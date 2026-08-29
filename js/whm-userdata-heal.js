@@ -66,13 +66,20 @@ function isStaleUserdataError(reasonText) {
  */
 async function attemptStaleTerminate({ db, whmService, account, notifyAdmin }) {
   if (!account || !account._id) return { ok: false, reason: 'no account' }
-  if (!account.whmTerminatePending && account.deleted === true) {
-    // Not flagged for retry (or already cleared by an earlier pass).
-    return { ok: true, cleared: false, reason: 'not-pending' }
-  }
   if (!account.deleted) {
     // NEVER retry-terminate a live account. Only stuck-deleted rows.
     return { ok: false, reason: 'not-deleted' }
+  }
+  if (account.terminatedOnWhm === true) {
+    // Already confirmed removed on WHM by an earlier sweep / rescue — no-op.
+    // (This is the cheap short-circuit; the previous `whmTerminatePending`
+    // guard was too strict — it blocked historical stuck rows that were
+    // deleted BEFORE this fix landed and therefore never got the flag.
+    // Those rows are exactly the ones legit users hit today, and the
+    // on-demand rescue in addon-flow / change-primary now handles them
+    // by retrying `/removeacct` directly. The sweep still only touches
+    // pre-flagged rows via its own query filter.)
+    return { ok: true, cleared: false, reason: 'already-terminated' }
   }
 
   const retries = (account.whmTerminateRetryCount || 0) + 1

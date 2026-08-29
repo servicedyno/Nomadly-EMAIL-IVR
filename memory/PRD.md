@@ -32,6 +32,8 @@ Read the README file and set up using the provided `.env` variables, ensuring th
 - Wired into `js/addon-domain-flow.js`: on `result.status !== 1` with reason matching `/already exists in the userdata|already exists/i`, run rescue + retry `cpProxy.addAddonDomain` once.
 - Wired into `js/_index.js` change-primary handler: same pattern with `whmService.changePrimaryDomain` retry.
 
+**Part 3b · works for HISTORICAL stuck rows too** — Follow-up refinement: `attemptStaleTerminate` originally early-returned on rows without `whmTerminatePending:true`, which meant every user whose plan expired BEFORE this fix landed (and therefore never got the flag set) would stay permanently stuck. Guard replaced with `terminatedOnWhm === true` (short-circuits only when we've *confirmed* WHM removed it). Sweep still only touches pre-flagged rows via its own query filter; on-demand rescue in addon-flow / change-primary now works for legacy stuck rows too. Same chatId guardrail unchanged.
+
 ### `blockedDomains` collection — untouched
 Per operator instruction ("keep blockeddomain empty as it is"). The addon-flow / add-enhanced routes still check it and still return HTTP 403 if a domain is ever added, so it remains the *correct* platform-level abuse gate — just currently empty. Not populated by any of these changes.
 
