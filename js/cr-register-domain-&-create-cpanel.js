@@ -741,7 +741,12 @@ NS2: <code>${cfNameservers[1]}</code>
       username: result.username,
       password: result.password,
       url: result.url,
-      nameservers: result.nameservers,
+      // Use the ACTUAL Cloudflare / registrar nameservers we set up above —
+      // NOT the deprecated origin-IP `result.nameservers` from WHM (removed
+      // 2026-08-29 to close an origin-IP-leak vector on the storefront).
+      // `cfNameservers` is populated by every branch of the NS-setup block
+      // (existing zone lookup / new zone creation / re-run from queue).
+      nameservers: Array.isArray(cfNameservers) ? cfNameservers : [],
     }
 
     // Store encrypted credentials & generate PIN
@@ -897,7 +902,7 @@ Login: ${panelUrl}
       'planName',
       'duration',
     ])
-    return { success: true, username: result.username, pin, url: result.url, nameservers: result.nameservers, domainRegistered: true }
+    return { success: true, username: result.username, pin, url: result.url, nameservers: Array.isArray(cfNameservers) ? cfNameservers : [], domainRegistered: true }
   } catch (err) {
     log('err registerDomain&CreateCPanel via WHM', err.message)
     send(chatId, `❌ Setup failed. Tap 💬 Get Support for help.\n\nError: ${err.message}`, keyboardButtons)

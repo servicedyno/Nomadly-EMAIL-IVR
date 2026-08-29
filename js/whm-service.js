@@ -201,7 +201,7 @@ async function ensureCloudflareTweaks() {
  * @param {string} email - Contact email
  * @param {string} [customUsername] - Optional custom username
  * @param {object} [opts] - Options { useCloudflareNS: boolean }
- * @returns {{ success, username, password, domain, url, nameservers, error }}
+ * @returns {{ success, username, password, domain, url, error }}
  */
 async function createAccount(domain, plan, email, customUsername, opts = {}) {
   const pkg = PLAN_MAP[plan.toLowerCase()]
@@ -267,10 +267,15 @@ async function createAccount(domain, plan, email, customUsername, opts = {}) {
         password,
         domain,
         url: `https://${WHM_HOST}:2083`,
-        nameservers: {
-          ns1: `ns1.${WHM_HOST}`,
-          ns2: `ns2.${WHM_HOST}`,
-        },
+        // NOTE: We intentionally DO NOT return "server" nameservers here.
+        // Historically this returned `{ns1: 'ns1.<WHM_HOST>', ns2: 'ns2.<WHM_HOST>'}`
+        // which is (a) meaningless (WHM_HOST is our origin IP/hostname, not the
+        // delegated NS the user should point to) and (b) an origin-IP leak
+        // vector when the value gets surfaced to a browser via
+        // /api/store/order/:orderId → Storefront React. Callers (currently
+        // `cr-register-domain-&-create-cpanel.js`) must source the real
+        // (Cloudflare / registrar) nameservers from `cfNameservers` /
+        // `registeredDomains.val.nameservers` instead.
         package: pkg,
       }
     } catch (err) {

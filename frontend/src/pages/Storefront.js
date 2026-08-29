@@ -50,7 +50,17 @@ function CryptoPayBox({ order, onProvisioned }) {
           <div><span>{t('store.pin')}</span><code data-testid="store-cred-pin">{creds.pin}</code></div>
         </div>
         <p className="store-muted">{t('store.credsEmailed')}</p>
-        {creds.nameservers?.length > 0 && <p className="store-muted">Point your domain nameservers to: {creds.nameservers.join(', ')}</p>}
+        {Array.isArray(creds.nameservers) && creds.nameservers.length >= 2 && (
+          <div className="store-ns-callout" data-testid="store-crypto-ns-callout">
+            <p><b>⚠️ Point your domain to these nameservers at your registrar:</b></p>
+            <ul className="store-ns-list">
+              {creds.nameservers.slice(0, 4).map((ns, i) => (
+                <li key={i}><span>NS{i + 1}:</span> <code data-testid={`store-crypto-ns-${i + 1}`}>{ns}</code></li>
+              ))}
+            </ul>
+            <p className="store-muted">Propagation can take up to 24h. Your site is live the moment DNS updates.</p>
+          </div>
+        )}
         <a className="store-btn store-btn--primary" href="/panel" data-testid="store-crypto-open-panel">{t('store.goPanel')}</a>
       </div>
     );
@@ -557,8 +567,16 @@ function BuyTab({ plans, goWallet, goPlans }) {
           <div><span>HostPanel PIN</span><code data-testid="store-cred-pin">{result.pin}</code></div>
         </div>
         <p className="store-muted">These were also emailed to you. Use them to log into the panel anytime.</p>
-        {result.nameservers?.length > 0 && (
-          <p className="store-muted">Point your domain nameservers to: {result.nameservers.join(', ')}</p>
+        {Array.isArray(result.nameservers) && result.nameservers.length >= 2 && (
+          <div className="store-ns-callout" data-testid="store-purchase-ns-callout">
+            <p><b>⚠️ Point your domain to these nameservers at your registrar:</b></p>
+            <ul className="store-ns-list">
+              {result.nameservers.slice(0, 4).map((ns, i) => (
+                <li key={i}><span>NS{i + 1}:</span> <code data-testid={`store-purchase-ns-${i + 1}`}>{ns}</code></li>
+              ))}
+            </ul>
+            <p className="store-muted">Propagation can take up to 24h. Your site is live the moment DNS updates.</p>
+          </div>
         )}
         <button className="store-btn store-btn--primary" disabled={openBusy} onClick={() => openPanel(api, result.username, setOpenBusy, setError)} data-testid="store-open-panel-success">
           {openBusy ? 'Opening…' : 'Open HostPanel →'}
