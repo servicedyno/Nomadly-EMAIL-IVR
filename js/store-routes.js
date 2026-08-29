@@ -20,6 +20,7 @@ const { log } = require('console')
 
 const { getDynopayCryptoAddress, getDynopayCryptoPaymentStatus } = require('./pay-dynopay')
 const { getCryptoDepositAddress, convert } = require('./pay-blockbee')
+const { isPaidStatus, classifyStoreWebhook, isStoreUnderpaid, storeUnderpayTolerance } = require('./store-payment-verify')
 
 const JWT_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex')
 const JWT_EXPIRY = '30d'
@@ -453,7 +454,7 @@ function createStoreRoutes(deps = {}) {
       if (order.status === 'pending' && order.provider === 'dynopay' && order.payAddress) {
         try {
           const st = await getDynopayCryptoPaymentStatus(order.payAddress)
-          if (st && (st.status === 'completed' || st.status === 'confirmed' || st.status === 'settled')) {
+          if (st && isPaidStatus(st.status)) {
             await creditTopup(order, st.base_amount, st.fee_payer, order.paymentId || st.payment_id, 'poll')
           }
         } catch (_) {}
@@ -561,8 +562,9 @@ function createStoreRoutes(deps = {}) {
       await col('webWalletTxns').insertOne({ _id: uuid(), webUserId: order.webUserId, type, amountUsd: amt, balanceAfter: u?.walletUsd || 0, coin: order.coin, provider: order.provider, orderId: order._id, status: 'done', note, createdAt: now() })
     }
 
-    // Underpaid → don't provision.
-    if (usdIn + 0.01 < total) {
+    // Underpaid beyond the network-fee tolerance → don't provision. A minor
+    // fee-shave (e.g. $67.31 of a $69 order) is WITHIN tolerance and provisions.
+    if (isStoreUnderpaid(usdIn, total)) {
       if (isGuest) {
         await col('webOrders').updateOne({ _id: order._id }, { $set: { status: 'failed', note: 'underpaid', usdCredited: usdIn, updatedAt: now() } })
         try { notifyAdmin(`⚠️ <b>Guest hosting UNDERPAID</b>\nOrder: ${order._id}\nGot $${usdIn} / $${total}\nEmail: ${order.email}\nDomain: ${order.domain}\n→ manual refund needed`) } catch {}
@@ -570,7 +572,7 @@ function createStoreRoutes(deps = {}) {
         await creditWallet(usdIn, 'topup', `Underpaid hosting order → credited to wallet (${source})`)
         await col('webOrders').updateOne({ _id: order._id }, { $set: { status: 'failed', usdCredited: usdIn, note: 'underpaid', updatedAt: now() } })
       }
-      log(`[Store] hosting order ${order._id} UNDERPAID ($${usdIn}<$${total})`)
+      log(`[Store] hosting order ${order._id} UNDERPAID ($${usdIn} < $${total} × tol ${storeUnderpayTolerance()})`)
       return false
     }
 
@@ -631,18 +633,29 @@ function createStoreRoutes(deps = {}) {
 
       if (order.status === 'credited' || order.status === 'provisioned') { log(`[Store] webhook dup for ${order._id}`); return res.send('OK') }
 
-      // ── SECURITY: re-verify with DynoPay before crediting ──
-      // The webhook is necessarily unauthenticated, so never trust the body's
-      // amount/status blindly — re-fetch the payment from DynoPay and only
-      // credit if it actually confirmed. (Dev/test bypass via STORE_DEV_TRUST_WEBHOOK.)
+      // ── Re-verify with DynoPay (best-effort), then decide — PARITY with the
+      // working wallet-deposit path (authDyno in _index.js), which trusts the
+      // webhook event and only skips pending/failed/underpaid. Previously this
+      // required the gateway status ∈ [completed,confirmed,settled,paid] and
+      // SILENTLY dropped DynoPay's 'received' status with NO admin alert →
+      // fully-paid storefront orders vanished. See classifyStoreWebhook().
+      // (Dev/test bypass via STORE_DEV_TRUST_WEBHOOK.)
       const trustBody = process.env.STORE_DEV_TRUST_WEBHOOK === 'true'
       if (!trustBody && order.provider === 'dynopay' && order.payAddress) {
-        let ok = false
+        let gatewayReached = false, gatewayStatus = null
         try {
           const st = await getDynopayCryptoPaymentStatus(order.payAddress)
-          ok = st && ['completed', 'confirmed', 'settled', 'paid'].includes(String(st.status || '').toLowerCase())
-        } catch (_) { ok = false }
-        if (!ok) { log(`[Store] webhook: DynoPay re-verify failed for ${order._id} — NOT crediting`); return res.send('OK') }
+          if (st && st.status != null) { gatewayReached = true; gatewayStatus = st.status }
+        } catch (_) { gatewayReached = false }
+        const decision = classifyStoreWebhook({ event, gatewayReached, gatewayStatus })
+        log(`[Store] webhook ${order._id}: decision=${decision.action} (${decision.reason})`)
+        if (decision.action === 'hold') {
+          try { notifyAdmin(`⚠️ <b>Store crypto webhook HELD</b>\nOrder: <code>${order._id}</code>\nKind: ${order.kind}\nDomain: ${order.domain || '—'}\nCustomer: ${order.email || order.webUserId || '—'}\nAmount: $${order.amountUsd} (${order.coin})\nEvent: ${event}\nReason: ${decision.reason}\n→ verify in DynoPay; if paid, reconcile via /api/store/admin/reconcile-order/${order._id}`) } catch {}
+          return res.send('OK')
+        }
+        if (decision.action === 'unverified-fulfill') {
+          try { notifyAdmin(`ℹ️ <b>Store crypto order fulfilling WITHOUT gateway re-verify</b>\nOrder: <code>${order._id}</code>\nDomain: ${order.domain || '—'}\nCustomer: ${order.email || order.webUserId || '—'}\nAmount: $${order.amountUsd} (${order.coin})\nReason: ${decision.reason} (gateway unreachable — trusting webhook, same policy as wallet deposits)`) } catch {}
+        }
       }
 
       if (order.kind === 'hosting') {
@@ -685,6 +698,51 @@ function createStoreRoutes(deps = {}) {
   }
   router.get('/blockbee-webhook', handleBlockbee)
   router.post('/blockbee-webhook', handleBlockbee)
+
+  // ── ADMIN: force-reconcile a stuck crypto order (provisions / credits). ──
+  // Gated by the admin key (first 16 chars of SESSION_SECRET). Because this
+  // registers a REAL domain + creates a REAL cPanel (or credits a wallet), it
+  // is a two-step call: without ?confirm=true it only PREVIEWS the order.
+  //   POST /api/store/admin/reconcile-order/<id>?key=<adminKey>            (preview)
+  //   POST /api/store/admin/reconcile-order/<id>?key=<adminKey>&confirm=true[&amountUsd=67.31][&feePayer=company]
+  router.post('/admin/reconcile-order/:orderId', async (req, res) => {
+    if (req.query.key !== (process.env.SESSION_SECRET || '').slice(0, 16)) {
+      return res.status(403).json({ error: 'forbidden' })
+    }
+    try {
+      const order = await col('webOrders').findOne({ _id: req.params.orderId })
+      if (!order) return res.status(404).json({ error: 'order not found' })
+      if (order.status === 'provisioned' || order.status === 'credited') {
+        return res.json({ ok: true, alreadyDone: true, status: order.status, username: order.username || null, domain: order.domain || null })
+      }
+      if (req.query.confirm !== 'true') {
+        return res.json({
+          ok: false, wouldReconcile: true,
+          order: { id: order._id, kind: order.kind, status: order.status, domain: order.domain, email: order.email || order.webUserId, amountUsd: order.amountUsd, coin: order.coin },
+          hint: 'add &confirm=true to actually provision/credit (optionally &amountUsd=<received>&feePayer=company)',
+        })
+      }
+      // Reset to pending so the atomic claim in fulfillHostingOrder succeeds.
+      if (['failed', 'fulfilling'].includes(order.status)) {
+        await col('webOrders').updateOne({ _id: order._id }, { $set: { status: 'pending', updatedAt: now() } })
+        order.status = 'pending'
+      }
+      const amountOverride = req.query.amountUsd != null ? parseFloat(req.query.amountUsd) : order.amountUsd
+      const feePayer = req.query.feePayer || 'company'
+      let result
+      if (order.kind === 'hosting') {
+        result = await fulfillHostingOrder(order, amountOverride, feePayer, order.paymentId, 'admin-reconcile')
+      } else {
+        result = await creditTopup(order, amountOverride, feePayer, order.paymentId, 'admin-reconcile')
+      }
+      const fresh = await col('webOrders').findOne({ _id: order._id })
+      log(`[Store] admin-reconcile ${order._id}: result=${!!result} status=${fresh?.status}`)
+      return res.json({ ok: !!result, status: fresh?.status, username: fresh?.username || null, domain: fresh?.domain || null, note: fresh?.note || null })
+    } catch (err) {
+      log(`[Store] reconcile-order error: ${err.message}`)
+      return res.status(500).json({ error: err.message })
+    }
+  })
 
   // health/info
   router.get('/health', (req, res) => res.json({ ok: true, coins: COINS.map(c => c.code) }))
@@ -948,7 +1006,7 @@ function createStoreRoutes(deps = {}) {
       if (o.status === 'pending' && o.provider === 'dynopay' && o.payAddress) {
         try {
           const st = await getDynopayCryptoPaymentStatus(o.payAddress)
-          if (st && ['completed', 'confirmed', 'settled', 'paid'].includes(String(st.status || '').toLowerCase())) {
+          if (st && isPaidStatus(st.status)) {
             await fulfillHostingOrder(o, st.base_amount, st.fee_payer, o.paymentId || st.payment_id, 'poll')
           }
         } catch (_) {}

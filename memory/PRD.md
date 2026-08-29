@@ -3,6 +3,60 @@
 ## Original problem statement
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
+## 2026-06 (forked session) — Storefront crypto webhook silent-drop FIX + leadsAmount TDZ crash + admin reconcile endpoint
+
+**Incident:** A guest storefront hosting order (`lloyd-support.com`, guest `triborg799@protonmail.com`,
+order `9fd5da6a-d587-4de1-a3a3-1bd75d315149`, $69, USDT-ERC20, paid ~$67.31) was received by DynoPay but
+never provisioned, no credentials sent, and NO admin/group notification arrived. User noted a $20+ ETH
+**wallet deposit worked** — so the wallet webhook path is fine, the STORE path was broken.
+
+**Root causes (all fixed):**
+1. **Silent drop** — `js/store-routes.js` `/crypto-webhook` re-verified against DynoPay's GET API and only
+   accepted status ∈ `['completed','confirmed','settled','paid']`. DynoPay's `'received'` status (and a
+   404 from the IP-restricted GET) failed the check → `return res.send('OK')` with **no admin alert**. The
+   working wallet path (`authDyno` in `_index.js`) never does this strict GET re-verify — it trusts the
+   webhook event and only skips pending/failed/underpaid.
+2. **Underpayment guard too strict** — even if status passed, `fulfillHostingOrder` treated `67.31 < 69`
+   (network-fee shave) as underpaid → refused to provision.
+3. **`leadsAmount` TDZ crash** — in `_index.js` the `[a.validatorSelectFormat]` (buy-leads-from-wallet)
+   handler used `leadsAmount` at ~L13105 but declared it with `const` at ~L13110 → "Cannot access
+   'leadsAmount' before initialization" on every such purchase. (Handoff mislabeled the file as
+   store-routes.js.)
+
+**What shipped:**
+- **New pure helper `js/store-payment-verify.js`** — `classifyStoreWebhook({event, gatewayReached,
+  gatewayStatus})` → `fulfill` | `unverified-fulfill` | `hold`; `isPaidStatus`/`isUnpaidStatus`
+  (PAID now includes `received`, `received_unconfirmed`, `success`, `complete`); `isStoreUnderpaid()` +
+  `storeUnderpayTolerance()` (env `STORE_UNDERPAY_TOLERANCE`, default **0.90** = matches wallet tolerance).
+- **`store-routes.js` webhook** rewritten to parity: best-effort GET re-verify → if gateway positively
+  confirms → fulfill; if gateway says definitively unpaid → **HOLD + admin alert**; if gateway
+  unreachable/unknown → trust the webhook event (wallet parity) + **admin alert** (`unverified-fulfill`).
+  Never drops silently again.
+- **Underpayment tolerance** wired into `fulfillHostingOrder` (`isStoreUnderpaid`) so $67.31/$69 provisions;
+  a real major underpayment still fails+alerts.
+- **Poll endpoints** (`GET /wallet/topup/:orderId`, `GET /order/:orderId`) now use `isPaidStatus` too, so
+  the storefront UI poll also fulfills on `received`.
+- **Admin reconcile endpoint** `POST /api/store/admin/reconcile-order/:orderId?key=<SESSION_SECRET[0..15]>`
+  — 403 w/o key; read-only PREVIEW without `&confirm=true`; `&confirm=true[&amountUsd=&feePayer=]` force-
+  provisions/credits (resets failed/fulfilling → pending for the atomic claim). For reconciling stuck
+  orders; NOT auto-run (provisions real domain+cPanel).
+- **`leadsAmount` TDZ** fixed (declaration moved above first use; duplicate removed).
+
+**Verified (self-test, no prod side effects):**
+- `/api/dev/store-webhook-verify-test` → `pass:true` 9/9 (received fulfills, confirmed fulfills, gateway-
+  unreachable→unverified-fulfill, gateway-pending→hold, unknown→hold, 67.31/69 within tol, 30/69 blocked,
+  exact ok, received_unconfirmed paid). tolerance=0.9.
+- Admin endpoint: 403 (no key), 404 (bad order), and the REAL stuck order previews correctly
+  (`lloyd-support.com`, still `status:pending`, $69 USDT-ERC20) — ready to reconcile with `&confirm=true`.
+- `node --check` clean on all 3 files; nodejs rebooted clean, `/api/health` healthy+connected.
+- NOTE: the actual fulfill/provision path is code-verified but NOT driven e2e (would register a real domain
+  + create a real cPanel on live infra from this dev pod, and MONGO_URL points at PROD). The stuck order is
+  still `pending` (never marked failed) so reconciliation is safe when the fix reaches prod.
+- ⚠️ Reaches production only after **Save to GitHub + Railway redeploy**.
+- ⚠️ `frontend/.env` REACT_APP_BACKEND_URL still points at the decommissioned `api-integration-hub-51` pod
+  (current pod SELF_URL = `5a0a0e87-...`); left untouched (protected var, out of scope for this backend fix).
+
+
 
 ## 2026-08-20 (part 5) — Startup cron init guard + admin alerting — VERIFIED (testing agent, iteration_39, 100% backend)
 

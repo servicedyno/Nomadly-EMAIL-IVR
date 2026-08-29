@@ -13088,6 +13088,7 @@ All verified numbers generated during sourcing.`))
     [a.validatorSelectFormat]: async coin => {
       await set(state, chatId, 'action', 'none')
       const price = info?.couponApplied ? info?.newPrice : info?.price
+      const leadsAmount = info?.amount
       const { usdBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
@@ -13107,7 +13108,6 @@ All verified numbers generated during sourcing.`))
       // buy leads
       send(chatId, t.validatorBulkNumbersStart, trans('o')) // main keyboard view
       const phones = info?.phones?.slice(0, info?.amount)
-      const leadsAmount = info?.amount
 
       // ── Deduct wallet BEFORE validation to prevent lost charges on crash ──
       await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
@@ -39142,6 +39142,42 @@ app.post('/dev/idempotency-test', async (req, res) => {
   catch (e) { out.second = (e && e.code === 11000) ? 'duplicate-blocked' : ('error:' + (e && e.code)) }
   try { await col.deleteOne({ _id: id }) } catch (_e) { /* cleanup best-effort */ }
   return res.json({ ...out, pass: out.first === 'inserted' && out.second === 'duplicate-blocked' })
+})
+
+// ── DEV-ONLY: storefront DynoPay webhook classification + underpay tolerance ─
+// Verifies the fix for the silent-drop bug: DynoPay's 'received' status now
+// FULFILLS, a gateway-unreachable re-verify falls back to trusting the webhook
+// event (wallet-deposit parity), definitive-unpaid statuses HOLD, and the
+// $67.31/$69 network-fee shave provisions. Pure logic, no DB writes. 404 in prod.
+app.post('/dev/store-webhook-verify-test', (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const V = require('./store-payment-verify')
+  const checks = []
+  const ck = (name, got, want) => checks.push({ name, pass: JSON.stringify(got) === JSON.stringify(want), got, want })
+
+  // 1. DynoPay 'received' status must now FULFILL (this was the silent-drop bug).
+  ck('received_status_fulfills', V.classifyStoreWebhook({ event: 'received', gatewayReached: true, gatewayStatus: 'received' }).action, 'fulfill')
+  // 2. classic confirmed still fulfills
+  ck('confirmed_fulfills', V.classifyStoreWebhook({ event: 'payment.confirmed', gatewayReached: true, gatewayStatus: 'confirmed' }).action, 'fulfill')
+  // 3. gateway unreachable (IP-restricted 404) + paid webhook → trust webhook (wallet parity)
+  ck('gateway_unreachable_trusts_webhook', V.classifyStoreWebhook({ event: 'payment.confirmed', gatewayReached: false }).action, 'unverified-fulfill')
+  // 4. gateway says definitively unpaid → HOLD (never provision)
+  ck('gateway_pending_holds', V.classifyStoreWebhook({ event: 'payment.confirmed', gatewayReached: true, gatewayStatus: 'pending' }).action, 'hold')
+  // 5. non-paid webhook event + unreachable gateway → HOLD
+  ck('unknown_event_holds', V.classifyStoreWebhook({ event: 'foobar', gatewayReached: false }).action, 'hold')
+  // 6. $67.31 of a $69 order (fee-shave) is WITHIN tolerance → NOT underpaid
+  ck('feeshave_within_tolerance', V.isStoreUnderpaid(67.31, 69), false)
+  // 7. a real major underpayment IS underpaid
+  ck('major_underpayment_blocked', V.isStoreUnderpaid(30, 69), true)
+  // 8. exact payment is fine
+  ck('exact_payment_ok', V.isStoreUnderpaid(69, 69), false)
+  // 9. received_unconfirmed treated as paid (per requirement)
+  ck('received_unconfirmed_paid', V.isPaidStatus('received_unconfirmed'), true)
+
+  const pass = checks.every(c => c.pass)
+  return res.json({ pass, tolerance: V.storeUnderpayTolerance(), checks })
 })
 
 // ── DEV-ONLY: verify the @HHR2009 "Create folder failed: Access denied" fix ─
