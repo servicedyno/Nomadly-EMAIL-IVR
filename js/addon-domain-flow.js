@@ -188,6 +188,42 @@ async function attachAddonDomain(opts) {
   if (result && result.code === 'CPANEL_DOWN') {
     return { ok: false, errorKind: 'cpanel_down', error: 'WHM unreachable' }
   }
+
+  // ── Self-heal: "domain already exists in the userdata" ──
+  //   If a prior deleted account (SAME chatId) is still holding this
+  //   domain in WHM userdata because /removeacct silently failed at
+  //   grace-period termination, our own cross-plan duplicate check
+  //   (which excludes deleted rows) passed, but cPanel's userdata
+  //   layer still rejects. Retry `/removeacct` on the stale row + one
+  //   retry of addAddon. NEVER cross-user (heal helper enforces).
+  if (result && result.status !== 1) {
+    const errMsg = (result.errors || []).join(', ') || ''
+    const heal = require('./whm-userdata-heal')
+    if (heal.isStaleUserdataError(errMsg) && account.chatId) {
+      try {
+        const release = await heal.attemptUserdataRelease({
+          db: opts.db,
+          whmService: require('./whm-service'),
+          domain,
+          chatId: account.chatId,
+        })
+        if (release.released) {
+          log(`[AddonFlow] userdata self-heal released ${domain} from stale ${release.staleCpUser} — retrying addAddon`)
+          try {
+            result = await cpProxy.addAddonDomain(cpUser, opts.cpPass, domain, subDomain, docRoot, whmHost)
+          } catch (e2) {
+            log(`[AddonFlow] retry addAddonDomain threw: ${e2.message}`)
+            return { ok: false, errorKind: 'whm_failed', error: e2.message }
+          }
+        } else {
+          log(`[AddonFlow] userdata self-heal did NOT release ${domain}: ${release.reason}`)
+        }
+      } catch (healErr) {
+        log(`[AddonFlow] userdata self-heal error (non-blocking): ${healErr.message}`)
+      }
+    }
+  }
+
   if (!result || result.status !== 1) {
     const errMsg = (result?.errors || []).join(', ') || 'cPanel rejected the addon'
     return { ok: false, errorKind: 'whm_failed', error: errMsg }

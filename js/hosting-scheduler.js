@@ -124,6 +124,18 @@ function initScheduler(deps) {
   }
 
   /**
+   * Best-effort admin notifier (Telegram) — used by the WHM userdata self-heal
+   * when /removeacct persistently fails. Silent no-op if bot or admin chatId
+   * are unavailable so scheduler paths NEVER throw on notify failure.
+   */
+  function notifyAdmin(message) {
+    if (!bot) return
+    const adminId = process.env.TELEGRAM_ADMIN_CHAT_ID
+    if (!adminId) return
+    bot.sendMessage(adminId, message, { parse_mode: 'HTML', disable_web_page_preview: true }).catch(() => { /* noop */ })
+  }
+
+  /**
    * Suspend a cPanel account via WHM
    */
   async function suspendAccount(cpUsername, reason) {
@@ -345,9 +357,22 @@ function initScheduler(deps) {
             // Cleanup anti-red routes
             await cleanupAntiRed(domain)
 
+            // If WHM /removeacct silently failed (transient network / disk /
+            // license / mid-restart), the domains this account owns stay in
+            // WHM's userdata layer forever. Flag the row so `runSelfHealSweep`
+            // (below) retries automatically — otherwise the user hits
+            // "domain already exists in the userdata" on their NEXT hosting
+            // purchase when they try to attach or re-primary one of these
+            // same domains. Root-caused via @Devils_gods report 2026-08-29.
+            const updateFields = { deleted: true, deletedAt: now }
+            if (!terminated) {
+              updateFields.whmTerminatePending = true
+              updateFields.whmTerminateLastAttemptAt = now
+              try { notifyAdmin && notifyAdmin(`⚠️ <b>WHM /removeacct failed (grace-period)</b>\nUser: ${chatId}\ncPanel: <code>${account.cpUser}</code>\nDomain: <b>${domain}</b>\n\n<i>Row flagged whmTerminatePending — self-heal will retry hourly.</i>`) } catch (_) {}
+            }
             await cpanelAccounts.updateOne(
               { _id: account._id },
-              { $set: { deleted: true, deletedAt: now } }
+              { $set: updateFields }
             )
 
             const langD = await getUserLang(chatId)
@@ -357,7 +382,7 @@ function initScheduler(deps) {
               + ttD('schedDeletedBody', domain, plan)
             )
             deleted++
-            log(`[HostingScheduler] DELETED cPanel for ${domain} (${plan}), user ${chatId} — WHM terminate: ${terminated}`)
+            log(`[HostingScheduler] DELETED cPanel for ${domain} (${plan}), user ${chatId} — WHM terminate: ${terminated}${terminated ? '' : ' (flagged whmTerminatePending for retry)'}`)
           }
         }
       }
@@ -493,9 +518,17 @@ function initScheduler(deps) {
           const terminated = await terminateAccount(account.cpUser)
           await cleanupAntiRed(domain)
 
+          // Same self-heal flag as the hourly path — don't lose the domain
+          // in WHM userdata if /removeacct hiccups (2026-08-29 fix).
+          const updateFields2 = { deleted: true, deletedAt: now }
+          if (!terminated) {
+            updateFields2.whmTerminatePending = true
+            updateFields2.whmTerminateLastAttemptAt = now
+            try { notifyAdmin && notifyAdmin(`⚠️ <b>WHM /removeacct failed (startup-enforce)</b>\nUser: ${chatId}\ncPanel: <code>${account.cpUser}</code>\nDomain: <b>${domain}</b>\n\n<i>Row flagged whmTerminatePending — self-heal will retry hourly.</i>`) } catch (_) {}
+          }
           await cpanelAccounts.updateOne(
             { _id: account._id },
-            { $set: { deleted: true, deletedAt: now } }
+            { $set: updateFields2 }
           )
 
           const langF = await getUserLang(chatId)
@@ -522,11 +555,39 @@ function initScheduler(deps) {
   setTimeout(runCheck, 30000) // 30s after startup
   const interval = setInterval(runCheck, CHECK_INTERVAL_MS)
 
-  log(`[HostingScheduler] Scheduled: expiry check (every ${CHECK_INTERVAL_MS / 60000} min)`)
+  // WHM userdata self-heal — retries /removeacct on rows still flagged
+  // `whmTerminatePending: true`. Runs 45s after boot (offset from runCheck),
+  // then hourly. Prevents domains from staying stuck in WHM userdata after
+  // a transient /removeacct failure, so users can re-attach their OWN
+  // previously-registered domains to a fresh hosting plan (2026-08-29 fix).
+  //
+  // Gated to BOT_ENVIRONMENT=production — the sweep mutates WHM state
+  // (real /removeacct calls) and Mongo (`terminatedOnWhm:true` / clears
+  // `whmTerminatePending`) so it must never run from dev pods that share
+  // the production Mongo (parity with CF-Sync / AntiRed worker upgrade).
+  const { runSelfHealSweep } = require('./whm-userdata-heal')
+  const _healEnabled = String(process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production'
+  async function safeRunSelfHeal() {
+    if (!_healEnabled) return
+    try {
+      await runSelfHealSweep({ db, whmService, notifyAdmin })
+    } catch (e) {
+      log(`[HostingScheduler] whm-userdata-heal sweep error: ${e.message}`)
+    }
+  }
+  let healInterval = null
+  if (_healEnabled) {
+    setTimeout(safeRunSelfHeal, 45000)
+    healInterval = setInterval(safeRunSelfHeal, CHECK_INTERVAL_MS)
+    log(`[HostingScheduler] Scheduled: expiry check (every ${CHECK_INTERVAL_MS / 60000} min), whm-userdata-heal sweep (every ${CHECK_INTERVAL_MS / 60000} min)`)
+  } else {
+    log(`[HostingScheduler] Scheduled: expiry check (every ${CHECK_INTERVAL_MS / 60000} min); whm-userdata-heal sweep SKIPPED (BOT_ENVIRONMENT!=production — dev pod must not mutate prod WHM)`)
+  }
 
   return {
     runCheck,
-    stop: () => clearInterval(interval),
+    runSelfHeal: safeRunSelfHeal,
+    stop: () => { clearInterval(interval); if (healInterval) clearInterval(healInterval) },
     getPlanPrice,
     getPlanDuration,
     isWeeklyPlan,

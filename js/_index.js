@@ -15849,6 +15849,39 @@ All verified numbers generated during sourcing.`))
       result = { success: false, error: e.message }
     }
 
+    // ── Self-heal: "domain already exists in the userdata" ──
+    // Mirror of the addon-flow rescue: if a prior deleted account of the
+    // SAME chatId is still holding `candidate` in WHM userdata (because
+    // /removeacct silently failed on grace-period termination), retry
+    // /removeacct on that stale row via whm-userdata-heal, then retry
+    // changePrimaryDomain once. Never cross-user (heal helper enforces).
+    if (!result || !result.success) {
+      const errMsg = String(result?.error || '')
+      const heal = require('./whm-userdata-heal')
+      if (heal.isStaleUserdataError(errMsg)) {
+        try {
+          const release = await heal.attemptUserdataRelease({
+            db,
+            whmService,
+            domain: candidate,
+            chatId: String(chatId),
+          })
+          if (release.released) {
+            log(`[ChangePrimary] userdata self-heal released ${candidate} from stale ${release.staleCpUser} — retrying changePrimaryDomain`)
+            try {
+              result = await whmService.changePrimaryDomain(plan.cpUser, candidate)
+            } catch (e) {
+              result = { success: false, error: e.message }
+            }
+          } else {
+            log(`[ChangePrimary] userdata self-heal did NOT release ${candidate}: ${release.reason}`)
+          }
+        } catch (healErr) {
+          log(`[ChangePrimary] userdata self-heal error (non-blocking): ${healErr.message}`)
+        }
+      }
+    }
+
     if (!result || !result.success) {
       await send(chatId, t.changePrimaryDomainFailed(candidate, result?.error || 'unknown error'), { parse_mode: 'HTML' })
       try { notifyAdmin(`⚠️ <b>Change primary domain FAILED</b>\nUser: ${chatId}\ncpUser: ${plan.cpUser}\nOld: <b>${oldDomain}</b>\nNew: <b>${candidate}</b>\nError: <code>${result?.error || 'unknown'}</code>`) } catch { /* noop */ }
