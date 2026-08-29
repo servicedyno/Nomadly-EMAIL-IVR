@@ -21,6 +21,7 @@ const { log } = require('console')
 const { getDynopayCryptoAddress, getDynopayCryptoPaymentStatus } = require('./pay-dynopay')
 const { getCryptoDepositAddress, convert } = require('./pay-blockbee')
 const { branding } = require('./branding')
+const { classifyStoreWebhook, isStoreUnderpaid } = require('./store-payment-verify')
 
 const JWT_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex')
 const JWT_EXPIRY = '30d'
@@ -40,6 +41,19 @@ const coinByCode = (c) => COINS.find(x => x.code === String(c || '').toUpperCase
 
 const uuid = () => crypto.randomUUID()
 const now = () => new Date()
+
+// ── WHM-down provisioning outcome (parity with the bot) ──────────────────────
+// cr-register-domain-&-create-cpanel returns, when WHM is unreachable:
+//   • { success:true,  queued:true }                                  (preflight: nothing done yet, queued)
+//   • { success:false, queued:true, deferred:true, code:'CPANEL_DOWN' } (mid-flight: DOMAIN ALREADY REGISTERED, cPanel deferred)
+// Both mean "committed, will auto-provision when WHM is back" — the caller must
+// NEVER refund (a refund after the domain was registered loses the domain cost).
+function isQueuedDeferredResult(r) {
+  if (!r) return false
+  if (r.success === true && r.queued === true) return true
+  if (r.success === false && r.queued === true && (r.deferred === true || r.code === 'CPANEL_DOWN')) return true
+  return false
+}
 
 function signToken(payload) { return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRY }) }
 function verifyToken(token) { try { return jwt.verify(token, JWT_SECRET) } catch { return null } }
@@ -571,8 +585,8 @@ function createStoreRoutes(deps = {}) {
       await col('webWalletTxns').insertOne({ _id: uuid(), webUserId: order.webUserId, type, amountUsd: amt, balanceAfter: u?.walletUsd || 0, coin: order.coin, provider: order.provider, orderId: order._id, status: 'done', note, createdAt: now() })
     }
 
-    // Underpaid → don't provision.
-    if (usdIn + 0.01 < total) {
+    // Underpaid → don't provision. (0.90 tolerance — parity with the bot; unchanged.)
+    if (isStoreUnderpaid(usdIn, total)) {
       if (isGuest) {
         await col('webOrders').updateOne({ _id: order._id }, { $set: { status: 'failed', note: 'underpaid', usdCredited: usdIn, updatedAt: now() } })
         try { notifyAdmin(`⚠️ <b>Guest hosting UNDERPAID</b>\nOrder: ${order._id}\nGot $${usdIn} / $${total}\nEmail: ${order.email}\nDomain: ${order.domain}\n→ manual refund needed`) } catch {}
@@ -590,7 +604,10 @@ function createStoreRoutes(deps = {}) {
       hostingPrice: order.hostingPrice, total, domain: order.domain, domainMode: order.domainMode, registrar: order.registrar,
     })
 
-    if (!result?.success) {
+    const queuedDeferred = isQueuedDeferredResult(result)
+
+    // Genuine provisioning failure (NOT a WHM-down deferral) → refund / fail.
+    if (!result?.success && !queuedDeferred) {
       if (isGuest) {
         await col('webOrders').updateOne({ _id: order._id }, { $set: { status: 'failed', usdCredited: usdIn, updatedAt: now() } })
         try { notifyAdmin(`❌ <b>Guest hosting provision FAILED</b>\nOrder: ${order._id}\nEmail: ${order.email}\nDomain: ${order.domain}\nPaid $${usdIn} → manual refund needed`) } catch {}
@@ -602,12 +619,24 @@ function createStoreRoutes(deps = {}) {
       return false
     }
 
-    // Success — store creds on the order; for logged-in, credit overpayment + log purchase.
+    // Charge the order (committed) — applies to BOTH full success and the
+    // WHM-down deferral. For logged-in: credit overpayment + log the purchase.
     if (!isGuest) {
       const overpay = Math.round((usdIn - total) * 100) / 100
       if (overpay >= 0.01) await creditWallet(overpay, 'topup', `Overpayment credited to wallet (${order.domain})`)
       await creditWallet(-total, 'purchase', `Hosting (crypto): ${order.plan} — ${order.domain}`)
     }
+
+    // WHM-down: domain may already be registered, cPanel is queued to auto-
+    // complete. Commit as 'provisioning' — NEVER refund — and alert admin.
+    if (queuedDeferred) {
+      await col('webOrders').updateOne({ _id: order._id }, { $set: { status: 'provisioning', usdCredited: usdIn, note: 'whm_down_queued', updatedAt: now() } })
+      log(`[Store] hosting order ${order._id} QUEUED (WHM down) — committed, will auto-provision (guest=${isGuest})`)
+      try { notifyAdmin(`⏳ <b>Web hosting QUEUED (WHM down)</b>\n${isGuest ? 'GUEST' : order.webUserId}\nPlan: ${order.plan}\nDomain: ${order.domain}\nPaid $${usdIn}\nDomain ${result.domainRegistered ? 'registered ✅' : 'pending'} — cPanel auto-completes when WHM is back. NO refund.`) } catch {}
+      return true
+    }
+
+    // Full success — store creds on the order.
     await col('webOrders').updateOne({ _id: order._id }, { $set: { status: 'provisioned', username: result.username, pin: result.pin, nameservers: result.nameservers || [], usdCredited: usdIn, updatedAt: now() } })
     log(`[Store] hosting order ${order._id} PROVISIONED → ${result.username}@${order.domain} (guest=${isGuest})`)
     try { notifyAdmin(`🆕 <b>Web hosting purchase (crypto)</b>\n${isGuest ? 'GUEST' : order.webUserId}\nPlan: ${order.plan}\nDomain: ${order.domain}\ncpUser: ${result.username}`) } catch {}
@@ -615,50 +644,69 @@ function createStoreRoutes(deps = {}) {
   }
 
   // ── DynoPay webhook (durable, DB-backed) ──
+  // Classification mirrors the bot's authDyno DENY-LIST: hold ONLY on empty /
+  // definitively-unpaid events; trust every other event as PAID and fulfill.
+  // The DynoPay status endpoint is ADVISORY-ONLY here — it must never block a
+  // paid webhook (it returns "Application not found" for storefront addresses,
+  // which is exactly the bug that stopped web orders from ever provisioning).
   router.post('/crypto-webhook', async (req, res) => {
     try {
-      const event = req.body?.event || req.body?.status
       const paymentId = req.body?.payment_id
       const refId = req.body?.meta_data?.refId
+      const verdict = classifyStoreWebhook(req.body)
 
-      // pending: just record the paymentId→order mapping
-      if (event === 'payment.pending' || req.body?.status === 'pending') {
-        if (refId && paymentId) {
-          await col('webOrders').updateOne({ _id: refId }, { $set: { paymentId, updatedAt: now() } }).catch(() => {})
-        }
-        return res.send('OK')
-      }
-      if (event === 'payment.failed') {
-        if (refId) await col('webOrders').updateOne({ _id: refId, status: 'pending' }, { $set: { status: 'failed', updatedAt: now() } }).catch(() => {})
-        return res.send('OK')
+      // Record the payment_id → order mapping whenever we can, so a later
+      // confirmed event (which may lack meta_data) can still find the order.
+      if (refId && paymentId) {
+        await col('webOrders').updateOne({ _id: refId }, { $set: { paymentId, updatedAt: now() } }).catch(() => {})
       }
 
-      // confirmed / settled / underpaid(with funds) → credit
+      // HOLD (empty / pending / underpaid / waiting): do nothing terminal.
+      if (verdict.decision === 'hold') {
+        log(`[Store] webhook HOLD (${verdict.status || 'empty'}) ref=${refId} pid=${paymentId}`)
+        return res.send('OK')
+      }
+
+      // FAIL (failed / expired / cancelled / declined): mark a pending order failed.
+      if (verdict.decision === 'fail') {
+        if (refId) await col('webOrders').updateOne({ _id: refId, status: 'pending' }, { $set: { status: 'failed', note: verdict.status, updatedAt: now() } }).catch(() => {})
+        log(`[Store] webhook FAIL (${verdict.status}) ref=${refId}`)
+        return res.send('OK')
+      }
+
+      // FULFILL (trusted paid) — find the order.
       let order = null
       if (refId) order = await col('webOrders').findOne({ _id: refId })
       if (!order && paymentId) order = await col('webOrders').findOne({ paymentId })
       if (!order) { log(`[Store] webhook: no matching order (ref=${refId}, pid=${paymentId})`); return res.send('OK') }
 
-      if (order.status === 'credited' || order.status === 'provisioned') { log(`[Store] webhook dup for ${order._id}`); return res.send('OK') }
+      if (['credited', 'provisioned', 'provisioning', 'fulfilling', 'crediting', 'failed'].includes(order.status)) {
+        log(`[Store] webhook dup/terminal for ${order._id} (status=${order.status})`); return res.send('OK')
+      }
 
-      // ── SECURITY: re-verify with DynoPay before crediting ──
-      // The webhook is necessarily unauthenticated, so never trust the body's
-      // amount/status blindly — re-fetch the payment from DynoPay and only
-      // credit if it actually confirmed. (Dev/test bypass via STORE_DEV_TRUST_WEBHOOK.)
-      const trustBody = process.env.STORE_DEV_TRUST_WEBHOOK === 'true'
-      if (!trustBody && order.provider === 'dynopay' && order.payAddress) {
-        let ok = false
+      // ── Gateway status is ADVISORY-ONLY — NEVER blocks a paid webhook. ──
+      // If DynoPay's status endpoint positively CONTRADICTS the paid webhook
+      // (returns a known-unpaid status, not just unreachable/unknown), we still
+      // fulfill but flag the order unverified + alert admin for a spot-check.
+      if (order.provider === 'dynopay' && order.payAddress && process.env.STORE_DEV_TRUST_WEBHOOK !== 'true') {
+        let gateway = null
         try {
           const st = await getDynopayCryptoPaymentStatus(order.payAddress)
-          ok = st && ['completed', 'confirmed', 'settled', 'paid'].includes(String(st.status || '').toLowerCase())
-        } catch (_) { ok = false }
-        if (!ok) { log(`[Store] webhook: DynoPay re-verify failed for ${order._id} — NOT crediting`); return res.send('OK') }
+          if (st && st.status != null) {
+            gateway = ['completed', 'confirmed', 'settled', 'paid'].includes(String(st.status).toLowerCase())
+          }
+        } catch (_) { gateway = null } // unreachable / "Application not found" → advisory unknown → still fulfill
+        if (gateway === false) {
+          log(`[Store] webhook: gateway status CONTRADICTS paid webhook for ${order._id} — unverified-fulfill + admin alert`)
+          try { await col('webOrders').updateOne({ _id: order._id }, { $set: { unverifiedFulfill: true, updatedAt: now() } }) } catch {}
+          try { notifyAdmin(`⚠️ <b>Store payment UNVERIFIED-fulfill</b>\nOrder: ${order._id}\nWebhook event: <code>${verdict.status}</code>\nGateway status endpoint disagrees (often "Application not found" for storefront addresses). Fulfilling on webhook trust — please spot-check.`) } catch {}
+        }
       }
 
       if (order.kind === 'hosting') {
-        await fulfillHostingOrder(order, req.body?.base_amount, req.body?.fee_payer, paymentId, `dynopay:${event}`)
+        await fulfillHostingOrder(order, req.body?.base_amount, req.body?.fee_payer, paymentId, `dynopay:${verdict.status}`)
       } else {
-        await creditTopup(order, req.body?.base_amount, req.body?.fee_payer, paymentId, `dynopay:${event}`)
+        await creditTopup(order, req.body?.base_amount, req.body?.fee_payer, paymentId, `dynopay:${verdict.status}`)
       }
       return res.send('OK')
     } catch (err) {
@@ -812,6 +860,19 @@ function createStoreRoutes(deps = {}) {
       } catch (e) {
         log(`[Store] provision threw: ${e.message}`)
         result = { success: false, error: e.message }
+      }
+
+      // WHM-down: domain may already be registered, cPanel is queued to auto-
+      // complete when WHM recovers. Do NOT refund — the purchase is committed
+      // (parity with the bot). Return 202 so the UI shows "provisioning".
+      if (isQueuedDeferredResult(result)) {
+        try { notifyAdmin(`⏳ <b>Web hosting QUEUED (WHM down)</b>\nUser: ${req.webUserId}\nPlan: ${plan.name}\nDomain: ${domain}\nCharged $${total}\nDomain ${result.domainRegistered ? 'registered ✅' : 'pending'} — cPanel auto-completes when WHM is back. NO refund.`) } catch {}
+        log(`[Store] PURCHASE queued (WHM down) — ${req.webUserId} ${plan.name} on ${domain} (committed, no refund)`)
+        return res.status(202).json({
+          success: true, queued: true, provisioning: true, domain, plan: plan.name,
+          balanceUsd: balanceAfter,
+          message: 'Your hosting is being set up — this can take a few minutes while our control plane finishes. You will not be charged twice; refresh "My Plans" shortly.',
+        })
       }
 
       if (!result?.success) {

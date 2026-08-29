@@ -11,7 +11,40 @@
 
 
 user_problem_statement: |
-  ==================== CURRENT TASK (2025-07) ====================
+  ==================== CURRENT TASK (2026-08) ====================
+  BUG: Web storefront hosting checkout confirms crypto payment but NEVER
+  provisions hosting (no web-sourced cpanelAccounts exist, while the Telegram
+  bot has many). Root cause: js/store-routes.js /crypto-webhook gated
+  provisioning on getDynopayCryptoPaymentStatus(payAddress), which returns
+  false / "Application not found" for storefront addresses → every fully-paid
+  web order was dropped/held. The bot's authDyno path never calls that endpoint
+  — it TRUSTS the webhook (deny-list).
+
+  FIX APPLIED (backend, Node :5000):
+    1. NEW js/store-payment-verify.js — classifyStoreWebhook() is a DENY-LIST
+       (parity with bot authDyno): hold ONLY on empty/pending/underpaid/waiting,
+       fail on failed/expired/cancelled/declined, TRUST every other event as
+       paid. isStoreUnderpaid() keeps the 0.90 (90%) tolerance.
+    2. js/store-routes.js /crypto-webhook — uses classifyStoreWebhook; the
+       DynoPay status endpoint is now ADVISORY-ONLY (never blocks a paid
+       webhook; if it positively contradicts → unverified-fulfill + admin alert;
+       if unreachable → still fulfill).
+    3. js/store-routes.js fulfillHostingOrder + /hosting/purchase — WHM-down
+       queued results ({success:true,queued} and {success:false,queued,deferred,
+       code:'CPANEL_DOWN'}) are COMMITTED as status 'provisioning', NEVER
+       refunded (domain already registered), admin alerted.
+
+  HOW TO VERIFY (node-level; DO NOT run a real purchase — it registers a real
+  domain + cPanel). Run the fully-mocked jest suites:
+    cd /app && npx jest tests/store-payment-verify.test.js tests/store-webhook-e2e.test.js
+  Both suites must pass (43 tests). Key e2e assertions: payment.confirmed with
+  the gateway UNREACHABLE must PROVISION; underpaid(<90%) → order 'failed';
+  pending → 'held'/pending; duplicate confirmed → provisions exactly once;
+  CPANEL_DOWN/queued → 'provisioning' (never refunded). No live DB writes, no
+  real domain/cPanel/gateway calls are made by these tests.
+  ================================================================
+
+  ==================== PREVIOUS TASK (2025-07) ====================
   Voice Alert i18n bug fix. The vs_* call/SMS notification strings in
   js/lang/{en,fr,zh,hi}.js escaped their ${param} placeholders
   (authored as `\${from}`, `\${to}`, `\${rate}`, etc.). translation.js
