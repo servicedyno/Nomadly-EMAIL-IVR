@@ -14,7 +14,7 @@
   --st-border-strong: rgba(10, 14, 30, 0.16);
   --st-text: #0f172a;
   --st-text-soft: #475569;
-  --st-text-muted: #94a3b8;
+  --st-text-muted: #5b6576;
   --st-accent: #ff5670;
   --st-accent-soft: rgba(255, 86, 112, 0.10);
   --st-accent-hover: #ff3e5c;
@@ -36,7 +36,7 @@ html.dark, [data-theme="dark"] {
   --st-border-strong: rgba(255, 255, 255, 0.16);
   --st-text: #e8ecf3;
   --st-text-soft: #aab2c5;
-  --st-text-muted: #7a8299;
+  --st-text-muted: #a3adc2;
   --st-accent: #ff6b85;
   --st-accent-soft: rgba(255, 107, 133, 0.14);
   --st-accent-hover: #ff7a92;
@@ -162,9 +162,10 @@ html.dark .store-tg-pill { color: #5db8e0; }
   grid-template-columns: 1fr;
   gap: clamp(16px, 3vw, 28px);
 }
-/* Mobile/tablet: login first (DOM order). Desktop: flip so plans are on the left. */
-.store-landing-right { order: 0; }
-.store-landing-left { order: 1; }
+/* Mobile/tablet: hero + PLANS first (conversion), login demoted below.
+   Desktop: 2-col with plans on the left and a sticky login on the right. */
+.store-landing-left { order: 0; }
+.store-landing-right { order: 1; }
 @media (min-width: 1024px) {
   .store-landing-grid {
     grid-template-columns: minmax(0, 1fr) 380px;
@@ -376,7 +377,21 @@ html.dark .store-plan-card--gold {
 }
 .store-btn:hover { background: var(--st-surface); border-color: var(--st-border-strong); }
 .store-btn:active { transform: scale(0.98); }
-.store-btn:disabled { opacity: .5; cursor: not-allowed; }
+.store-btn:disabled {
+  opacity: 1;
+  background: var(--st-bg-inset);
+  color: var(--st-text-muted);
+  border-color: var(--st-border);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+/* keep the primary CTA's disabled state clearly NEUTRAL (not faded pink) so the
+   enabled gradient reads as the affordance */
+.store-btn--primary:disabled {
+  background: var(--st-bg-inset);
+  color: var(--st-text-muted);
+  box-shadow: none;
+}
 .store-btn--primary {
   background: linear-gradient(135deg, var(--st-accent), var(--st-accent-hover));
   border-color: transparent;
@@ -569,4 +584,114 @@ html.dark .store-plan-card--gold {
   .store-wallet-pill { font-size: 11px; padding: 4px 9px; }
   .store-auth-title { font-size: 20px; }
   .store-tabs { top: 60px; }
+}
+
+/* ═══════════ Storefront UX pass (conversion + clarity + a11y) ═══════════ */
+
+/* Logo image variant with graceful onError fallback to the letter mark */
+.store-logo--img {
+  width: 32px; height: 32px; border-radius: 9px;
+  object-fit: cover; background: transparent; box-shadow: none;
+}
+
+/* Hero: plain-language Anti-Red line + mobile-only "sign in" shortcut */
+.store-hero-explainer {
+  color: var(--st-text-soft);
+  font-size: clamp(13px, 1.6vw, 15px);
+  margin: 10px 0 0;
+  max-width: 62ch;
+}
+.store-hero-signin {
+  display: inline-block;
+  margin-top: 12px;
+  color: var(--st-accent);
+  font-weight: 600; font-size: 14px; text-decoration: none;
+}
+.store-hero-signin:hover { color: var(--st-accent-hover); }
+@media (min-width: 1024px) {
+  /* On desktop the login card is always visible on the right → hide the jump link */
+  .store-hero-signin { display: none; }
+}
+
+/* Plan cards: badge + billing clarity + equalized structure */
+.store-plan-card { position: relative; }
+.store-plan-badge {
+  position: absolute; top: -11px; left: 16px;
+  background: linear-gradient(135deg, var(--st-gold), #f59e0b);
+  color: #1a1205; font-weight: 800; font-size: 11px;
+  letter-spacing: .02em; padding: 4px 10px; border-radius: 999px;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, .40);
+}
+html.dark .store-plan-badge { color: #1a1205; }
+.store-plan-card--gold { transform: none; }
+@media (min-width: 1024px) {
+  /* let the anchor tier stand slightly proud on desktop */
+  .store-plan-card--gold { transform: translateY(-4px); }
+  .store-plan-card--gold:hover { transform: translateY(-6px); }
+}
+.store-plan-per {
+  font-size: 14px; font-weight: 500; color: var(--st-text-muted);
+  margin-left: 1px;
+}
+.store-plan-billing {
+  font-size: 12px; color: var(--st-text-soft);
+  margin: -4px 0 12px;
+}
+/* Equalize card body so CTAs line up across mixed feature lists */
+.store-plan-feats { min-height: 96px; }
+.store-btn--gold {
+  background: linear-gradient(135deg, var(--st-gold), #f59e0b);
+  color: #1a1205;
+  box-shadow: 0 8px 20px rgba(245, 158, 11, .38);
+}
+.store-btn--gold:hover {
+  background: linear-gradient(135deg, #f59e0b, var(--st-gold));
+  box-shadow: 0 12px 26px rgba(245, 158, 11, .48);
+  color: #1a1205;
+}
+
+/* Trust row under plans / in checkout */
+.store-trust-row {
+  display: flex; flex-wrap: wrap; gap: 8px 16px;
+  margin: 16px 2px 0; padding-top: 14px;
+  border-top: 1px solid var(--st-border);
+}
+.store-trust-item {
+  font-size: 12.5px; font-weight: 600; color: var(--st-text-soft);
+  display: inline-flex; align-items: center; gap: 4px;
+}
+
+/* Clearer, higher-contrast login helper (was tiny + muted) */
+.store-auth-hint {
+  margin: 0 0 16px;
+  font-size: 12.5px; line-height: 1.45;
+  color: var(--st-text-soft);
+  background: var(--st-bg-inset);
+  border: 1px solid var(--st-border);
+  border-radius: var(--st-radius-sm);
+  padding: 8px 10px;
+}
+/* bump the once-tiny muted lines to a readable size/contrast */
+.store-auth-sub { color: var(--st-text-soft); }
+.store-auth-help { font-size: 13px; color: var(--st-text-soft); }
+.store-tg-qr-cap { color: var(--st-text-soft); }
+
+/* Inline hint (e.g. bring-your-own-domain DNS note) */
+.store-hint {
+  font-size: 12.5px; line-height: 1.45;
+  color: var(--st-text-soft);
+  background: var(--st-accent-soft);
+  border-radius: var(--st-radius-sm);
+  padding: 8px 10px; margin: 2px 0 12px;
+}
+
+/* Visible keyboard focus for accessibility (focus-trap lives in JS) */
+.store-modal a:focus-visible,
+.store-modal button:focus-visible,
+.store-modal input:focus-visible,
+.store-modal select:focus-visible,
+.store-btn:focus-visible,
+.store-hero-signin:focus-visible {
+  outline: 2px solid var(--st-accent);
+  outline-offset: 2px;
 }

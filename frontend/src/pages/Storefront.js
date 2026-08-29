@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import QRCode from 'react-qr-code';
 import { Sun, Moon } from 'lucide-react';
@@ -76,6 +76,7 @@ function GuestBuyModal({ plan, onClose }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [order, setOrder] = useState(null);
+  const modalRef = useRef(null);
 
   const doSearch = async () => {
     if (!domain.trim()) return;
@@ -98,9 +99,34 @@ function GuestBuyModal({ plan, onClose }) {
     } catch (e) { setError(e.message); } finally { setBusy(false); }
   };
 
+  // Once the shopper has typed anything (or an order exists), a stray backdrop
+  // click must NOT wipe their entry. Backdrop is guarded; the × button and Esc
+  // are explicit and always close.
+  const dirty = Boolean(email.trim() || domain.trim() || order || search || coin !== 'USDT-TRC20');
+  const guardedClose = useCallback(() => { if (!dirty) onClose(); }, [dirty, onClose]);
+
+  // Accessibility: Esc closes, Tab is trapped inside the dialog, first field is
+  // focused on open.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'Escape') { onClose(); return; }
+      if (e.key === 'Tab' && modalRef.current) {
+        const f = modalRef.current.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea,[tabindex]:not([tabindex="-1"])');
+        if (!f.length) return;
+        const first = f[0], last = f[f.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    };
+    document.addEventListener('keydown', onKey, true);
+    const el = modalRef.current && modalRef.current.querySelector('input,select,button');
+    const tmr = setTimeout(() => { if (el) el.focus(); }, 30);
+    return () => { document.removeEventListener('keydown', onKey, true); clearTimeout(tmr); };
+  }, [onClose]);
+
   return (
-    <div className="store-modal-overlay" onClick={onClose} data-testid="store-guest-modal">
-      <div className="store-modal" onClick={e => e.stopPropagation()}>
+    <div className="store-modal-overlay" onClick={guardedClose} data-testid="store-guest-modal" role="dialog" aria-modal="true">
+      <div className="store-modal" ref={modalRef} onClick={e => e.stopPropagation()}>
         <button className="store-modal-x" onClick={onClose} data-testid="store-guest-close">×</button>
         <h2>Buy {plan.name}</h2>
         <div className="store-total" data-testid="store-guest-total">Total: <b>{money(total)}</b></div>
@@ -114,6 +140,7 @@ function GuestBuyModal({ plan, onClose }) {
               <label><input type="radio" checked={domainMode === 'byo'} onChange={() => { setDomainMode('byo'); setSearch(null); }} data-testid="store-guest-byo" /> {t('store.ownDomain')}</label>
               <label><input type="radio" checked={domainMode === 'buy'} onChange={() => setDomainMode('buy')} data-testid="store-guest-buy" /> {t('store.buyDomain')}</label>
             </div>
+            {domainMode === 'byo' && <p className="store-hint" data-testid="store-byo-hint">{t('store.byoHint')}</p>}
             <div className="store-domain-row">
               <input type="text" placeholder="mysite.com" value={domain} onChange={e => setDomain(e.target.value)} data-testid="store-guest-domain" />
               {domainMode === 'buy' && <button className="store-btn" onClick={doSearch} data-testid="store-guest-check">Check</button>}
@@ -191,14 +218,33 @@ function StoreInner() {
 }
 
 /* ───────────── Theme + brand row used on every storefront page ───────────── */
-function StoreHeader({ rightExtras }) {
+// Brand mark that degrades gracefully: if a logo URL is supplied but fails to
+// load (wrong host / offline asset), we fall back to the letter mark instead of
+// showing a broken-image icon on the hero.
+function BrandLogo({ logoUrl, letter }) {
+  const [broken, setBroken] = useState(false);
+  if (logoUrl && !broken) {
+    return (
+      <img
+        className="store-logo store-logo--img"
+        src={logoUrl}
+        alt=""
+        onError={() => setBroken(true)}
+        data-testid="store-logo-img"
+      />
+    );
+  }
+  return <span className="store-logo" data-testid="store-logo-letter">{letter || 'H'}</span>;
+}
+
+function StoreHeader({ rightExtras, logoUrl, brandName = 'HostBay' }) {
   const { theme, toggleTheme, isDark } = useTheme();
   const { t } = useTranslation();
   return (
     <header className="store-top">
       <div className="store-brand">
-        <span className="store-logo">H</span>
-        <span className="store-brand-name">HostBay</span>
+        <BrandLogo logoUrl={logoUrl} letter={(brandName || 'H').charAt(0).toUpperCase()} />
+        <span className="store-brand-name">{brandName}</span>
         <span className="store-sub">Anti-Red Hosting</span>
       </div>
       <div className="store-top-right">
@@ -215,6 +261,19 @@ function StoreHeader({ rightExtras }) {
         </button>
       </div>
     </header>
+  );
+}
+
+/* Trust row shown under the plans + inside checkout — reassurance for a
+   crypto-only, instant-delivery product. */
+function TrustRow({ supportHandle }) {
+  const { t } = useTranslation();
+  const items = [t('store.trustInstant'), t('store.trustReplace'), t('store.trustUptime'), t('store.trustNoLogin')];
+  if (supportHandle) items.push(t('store.trustSupport', { handle: supportHandle }));
+  return (
+    <div className="store-trust-row" data-testid="store-trust-row">
+      {items.map((x, i) => <span key={i} className="store-trust-item">✓ {x}</span>)}
+    </div>
   );
 }
 
@@ -274,14 +333,15 @@ function AuthGate({ plans, config, botLoginError }) {
 
   return (
     <div className="store-landing">
-      <StoreHeader />
+      <StoreHeader logoUrl={config?.logoUrl} brandName={config?.brandName || 'HostBay'} />
 
       <div className="store-landing-grid">
-        {/* RIGHT column on desktop, FIRST on mobile: unified single login */}
-        <aside className="store-landing-right">
+        {/* RIGHT column on desktop, BELOW plans on mobile: unified single login */}
+        <aside className="store-landing-right" id="store-signin">
           <section className="store-auth-card" data-testid="store-auth-card">
             <h2 className="store-auth-title">{t('store.loginTitle')}</h2>
             <p className="store-muted store-auth-sub">{t('store.loginSub')}</p>
+            <p className="store-auth-hint" data-testid="store-login-helper">{t('store.loginHelper')}</p>
             <form onSubmit={submit}>
               {error && <div className="store-error" data-testid="store-auth-error">{error}</div>}
               <label className="store-label" htmlFor="store-id-input">{t('store.userOrEmail')}</label>
@@ -339,23 +399,42 @@ function AuthGate({ plans, config, botLoginError }) {
           </section>
         </aside>
 
-        {/* LEFT column on desktop, BELOW login on mobile: hero + plans */}
+        {/* LEFT column on desktop, FIRST on mobile: hero + plans */}
         <div className="store-landing-left">
           <section className="store-hero">
             <h1>{t('store.heroTitle')}</h1>
             <p>{t('store.tagline')}</p>
+            <p className="store-hero-explainer" data-testid="store-antired-explainer">{t('store.antiRedExplainer')}</p>
+            <a href="#store-signin" className="store-hero-signin" data-testid="store-mobile-signin">{t('store.signInMobile')} ↓</a>
           </section>
 
           <section className="store-plan-grid" data-testid="store-plans">
-            {plans.map(p => (
-              <div key={p.id} className={`store-plan-card ${p.tier === 'gold' ? 'store-plan-card--gold' : ''}`} data-testid={`store-plan-${p.id}`}>
-                <div className="store-plan-name">{p.name}</div>
-                <div className="store-plan-price">{money(p.priceUsd)}<span>/{p.durationDays === 7 ? 'wk' : 'mo'}</span></div>
-                <ul className="store-plan-feats">{(p.features || []).map((f, i) => <li key={i}>✓ {f}</li>)}</ul>
-                <button className="store-btn store-btn--primary" onClick={() => setBuyPlan(p)} data-testid={`store-buynow-${p.id}`}>{t('store.buyNow')}</button>
-              </div>
-            ))}
+            {plans.map(p => {
+              const isGold = p.tier === 'gold';
+              const per = p.durationDays === 7 ? t('store.perWeek') : t('store.perMonth');
+              const moEq = p.durationDays === 7 ? (Number(p.priceUsd) * 30 / 7) : null;
+              return (
+                <div key={p.id} className={`store-plan-card ${isGold ? 'store-plan-card--gold' : ''}`} data-testid={`store-plan-${p.id}`}>
+                  {isGold && <div className="store-plan-badge" data-testid={`store-badge-${p.id}`}>{t('store.badgePopular')}</div>}
+                  <div className="store-plan-name">{p.name}</div>
+                  <div className="store-plan-price">{money(p.priceUsd)}<span className="store-plan-per">/{per}</span></div>
+                  <div className="store-plan-billing" data-testid={`store-billing-${p.id}`}>
+                    {moEq ? `${t('store.moEquiv', { amount: money(moEq) })} · ${t('store.billedWeekly')}` : t('store.billedMonthly')}
+                  </div>
+                  <ul className="store-plan-feats">{(p.features || []).map((f, i) => <li key={i}>✓ {f}</li>)}</ul>
+                  <button
+                    className={`store-btn store-btn--primary ${isGold ? 'store-btn--gold' : ''}`}
+                    onClick={() => setBuyPlan(p)}
+                    data-testid={`store-buynow-${p.id}`}
+                  >
+                    {isGold ? t('store.getPlan', { name: (p.name || '').split(' ')[0] }) : t('store.buyNow')}
+                  </button>
+                </div>
+              );
+            })}
           </section>
+
+          <TrustRow supportHandle={config?.supportHandle} />
         </div>
       </div>
 

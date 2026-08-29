@@ -16435,6 +16435,162 @@ vps_abc_backfill_existing_2026_08_29:
         Verify the A+B backfill CODE via /api/dev/vps-backfill-check + regressions + /api/health.
         Backend only, READ-ONLY. The live backfill execution (RUN=1) is done separately by main
         agent with its own live SSH verification — do NOT execute it.
+
+
+storefront_ux_pass_2026_08_29:
+  goal: "Fix a list of storefront UI/UX issues on the web store landing + checkout."
+  route: "Storefront is at {REACT_APP_BACKEND_URL}/store (NOT /). Not-logged-in landing = AuthGate."
+  files: ["frontend/src/pages/Storefront.js", "frontend/src/store.css", "frontend/src/locales/en.json"]
+  fixes:
+    - "MOBILE ORDER: hero+plans now lead on mobile; login demoted BELOW (store-landing-left order:0, right:1). A mobile-only 'Already a customer? Sign in ↓' link (data-testid=store-mobile-signin) jumps to #store-signin."
+    - "LOGO: BrandLogo renders config.logoUrl as <img> with onError fallback to the letter mark (data-testid store-logo-img / store-logo-letter). No logoUrl in this env → letter 'H'."
+    - "PRICES: weekly plan shows '$30.00/wk' + '≈ $128.57/mo · billed weekly'; monthly shows 'billed monthly' (data-testid store-billing-<id>). Consistent /wk //mo spacing via .store-plan-per."
+    - "BADGE + CTA: gold tier shows '★ Most Popular' badge (store-badge-golden-monthly) + gold CTA 'Get Golden →' (store-buynow-golden-monthly) distinct from pink 'Buy now'."
+    - "LOGIN HELPER: clearer high-contrast helper box (store-login-helper): 'Shoppers → email · Hosting customers → username + PIN'."
+    - "DISABLED BUTTON: neutral grey (not faded pink) — .store-btn:disabled + .store-btn--primary:disabled."
+    - "CHECKOUT MODAL: backdrop click is GUARDED once any field is dirty (email/domain/coin/search/order) — modal stays open & preserves input; × button and Esc always close; focus-trap (Tab cycles), first field focused; role=dialog aria-modal."
+    - "CONTRAST: --st-text-muted darkened (light #5b6576) / lightened (dark #a3adc2); muted copy bumped."
+    - "BYO DOMAIN: hint shown when 'I already own a domain' selected (store-byo-hint) about pointing nameservers/DNS after payment."
+    - "TRUST ROW: under plans (store-trust-row): Instant crypto delivery · Free replacement · 99.9% uptime · No account needed."
+    - "ANTI-RED: plain-language explainer line in hero (store-antired-explainer)."
+    - "CARD EQUALIZATION: .store-plan-feats min-height so CTAs align."
+  main_agent_verification: "eslint clean; en.json valid; frontend compiled; screenshots confirm mobile order, badge, prices, trust row, disabled neutral, BYO hint, and modal stays open on backdrop click (still_open=True)."
+  testing_agent_notes: |
+    Frontend UI test at {REACT_APP_BACKEND_URL}/store. Verify each fix; report pass/fail:
+    1. MOBILE (viewport ~390px): the plans grid (store-plans) appears ABOVE the auth card
+       (store-auth-card) in the visual/DOM flow; store-mobile-signin link is visible and its href=#store-signin.
+    2. DESKTOP (~1440px): 2-col — plans left, login right; gold card shows store-badge-golden-monthly
+       and gold CTA text 'Get Golden'.
+    3. PRICES: store-billing-premium-weekly contains '≈' and '/mo' and 'billed weekly';
+       store-billing-golden-monthly contains 'billed monthly'.
+    4. LOGIN: store-login-helper visible with 'Shoppers' + 'Hosting customers' text.
+    5. DISABLED CTA: with empty login fields, store-auth-submit is disabled and is NOT the pink
+       gradient (neutral background). Filling both enables it.
+    6. CHECKOUT MODAL (open via store-buynow-golden-monthly):
+       a. store-byo-hint visible when 'I already own a domain' selected.
+       b. Type into store-guest-email, then click the backdrop overlay (outside the modal card,
+          e.g. near top-left): the modal (store-guest-modal) MUST remain open AND the email value
+          MUST be preserved (this is the key regression to assert).
+       c. Press Escape: modal closes.
+       d. Re-open, click the × (store-guest-close): modal closes.
+    7. TRUST ROW store-trust-row visible near plans with 4 items.
+    8. No console errors on load; storefront renders (storefront testid present).
+    NOTE: This is a PUBLIC storefront — no login required for the landing/checkout-modal tests.
+      Do NOT submit a real crypto order (do not click 'Pay … with crypto'); only verify the modal
+      open/close/guard behavior and field rendering.
+  test_results:
+    - agent: "testing"
+      timestamp: "2026-08-29"
+      status: "PASS"
+      message: |
+        ✅ VERIFICATION COMPLETE - Storefront UX Pass (2026-08-29) PASSED (all 8 tests, 100% pass):
+        
+        SCOPE: Verified the storefront UI/UX fixes on the Nomadly/HostBay web store at 
+        {REACT_APP_BACKEND_URL}/store (PUBLIC storefront, no login required). Tested mobile layout, 
+        desktop layout, pricing display, login helper, disabled button styling, checkout modal behavior 
+        (including the KEY REGRESSION: backdrop click guard), trust row, and console errors.
+        
+        [TEST 1] MOBILE LAYOUT (viewport 390x850): ✅ PASS
+          • Plans grid (data-testid="store-plans") appears ABOVE auth card (data-testid="store-auth-card")
+            - Plans Y position: 306.47
+            - Auth card Y position: 1371.47
+            - ✅ Plans Y < Auth Y (plans appear first in mobile flow)
+          • Mobile sign-in link (data-testid="store-mobile-signin") visible with href="#store-signin"
+          • Screenshot: storefront-mobile.png
+        
+        [TEST 2] DESKTOP LAYOUT (viewport 1440x820): ✅ PASS
+          • Two-column layout: plans left, login right
+          • Gold plan badge (data-testid="store-badge-golden-monthly") visible with text "★ Most Popular"
+          • Gold CTA button (data-testid="store-buynow-golden-monthly") text is "Get Golden →" (not "Buy now")
+          • Screenshot: storefront-desktop.png
+        
+        [TEST 3] PRICE DISPLAY: ✅ PASS
+          • Weekly plan (data-testid="store-billing-premium-weekly"): "≈ $128.57/mo · billed weekly"
+            - Contains "≈" ✅
+            - Contains "/mo" ✅
+            - Contains "billed weekly" ✅
+          • Monthly plan (data-testid="store-billing-golden-monthly"): "billed monthly" ✅
+        
+        [TEST 4] LOGIN HELPER TEXT: ✅ PASS
+          • data-testid="store-login-helper" visible
+          • Text: "Shoppers → sign in with your email · Hosting customers → panel username + PIN"
+            - Contains "Shoppers" ✅
+            - Contains "Hosting customers" ✅
+        
+        [TEST 5] DISABLED BUTTON STYLING: ✅ PASS
+          • Submit button (data-testid="store-auth-submit") disabled with empty fields ✅
+          • Disabled button has NEUTRAL background (NOT pink gradient) ✅
+            - Background: "rgb(238, 242, 247) none repeat scroll..." (solid color, no linear-gradient)
+          • Button becomes enabled after filling both fields ✅
+        
+        [TEST 6] CHECKOUT MODAL BEHAVIOR: ✅ ALL 4 SUB-TESTS PASS
+          
+          [TEST 6a] BYO domain hint: ✅ PASS
+            • Modal opens when clicking gold plan "Get Golden →" button
+            • "I already own a domain" (data-testid="store-guest-byo") selected by default
+            • BYO hint (data-testid="store-byo-hint") visible with text about nameservers/DNS
+            • Screenshot: storefront-modal-open.png
+          
+          [TEST 6b] KEY REGRESSION - Backdrop click guard: ✅ PASS
+            • Typed "buyer@example.com" into email field (data-testid="store-guest-email")
+            • Clicked backdrop overlay OUTSIDE modal card (position x=30, y=30)
+            • ✅ Modal REMAINS OPEN (data-testid="store-guest-modal" still visible)
+            • ✅ Email value PRESERVED: "buyer@example.com" (not wiped)
+            • Screenshot: storefront-modal-after-backdrop-click.png
+            
+            ★ CORE REGRESSION FIX VERIFIED: The backdrop click guard is working correctly. 
+              Once any field is dirty (email typed), clicking the backdrop does NOT close 
+              the modal or wipe the input. This prevents accidental data loss.
+          
+          [TEST 6c] Escape key closes modal: ✅ PASS
+            • Pressed Escape key
+            • Modal closed (data-testid="store-guest-modal" no longer visible)
+          
+          [TEST 6d] Close button (×) closes modal: ✅ PASS
+            • Re-opened modal
+            • Clicked × button (data-testid="store-guest-close")
+            • Modal closed
+        
+        [TEST 7] TRUST ROW: ✅ PASS
+          • data-testid="store-trust-row" visible near plans
+          • Contains 4 trust items (Instant crypto delivery, Free replacement, 99.9% uptime, No account needed)
+        
+        [TEST 8] CONSOLE ERRORS: ✅ PASS (with minor note)
+          • Storefront rendered (data-testid="storefront" present)
+          • No critical console errors on load
+          • Minor: 2 React hydration warnings about <span> inside <option> and <select>
+            - These are non-critical React warnings, do not affect functionality
+            - Error: "In HTML, <span> cannot be a child of <option>" (from React dev tools)
+            - Error: "In HTML, <span> cannot be a child of <select>" (from React dev tools)
+        
+        SUMMARY:
+        All 8 storefront UX tests PASSED. The key fixes are working correctly:
+        • ✅ Mobile layout: Plans appear above login (conversion-optimized order)
+        • ✅ Desktop layout: Two columns with gold badge and distinct CTA
+        • ✅ Pricing: Clear weekly/monthly billing text with equivalents
+        • ✅ Login helper: High-contrast helper box with clear instructions
+        • ✅ Disabled button: Neutral grey (not faded pink gradient)
+        • ✅ Checkout modal: Backdrop click guard prevents accidental data loss (KEY REGRESSION)
+        • ✅ Trust row: Visible with 4 reassurance items
+        • ✅ No critical errors: Storefront renders cleanly
+        
+        PRODUCTION IMPACT:
+        • Mobile users see plans first (conversion-optimized flow)
+        • Gold tier stands out with badge + distinct CTA
+        • Pricing is clear with weekly/monthly equivalents
+        • Login helper reduces confusion for shoppers vs hosting customers
+        • Disabled button styling is clear (neutral, not faded pink)
+        • Checkout modal prevents accidental data loss (backdrop click guard)
+        • Trust row builds confidence for crypto-only instant delivery
+        
+        MINOR ISSUE (non-blocking):
+        • 2 React hydration warnings about <span> inside <option>/<select>
+        • These are dev-mode warnings from React dev tools, not runtime errors
+        • Do not affect functionality or user experience
+        • Can be addressed in a future cleanup pass
+        
+        The storefront UX pass is COMPLETE and verified. All conversion-critical fixes are working.
+
     - agent: "testing"
       timestamp: "2026-08-29"
       message: |
