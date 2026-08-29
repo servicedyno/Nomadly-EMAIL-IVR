@@ -16400,6 +16400,222 @@ vps_management_surface_audit_2026_08_29:
       message: |
         Please run /api/dev/vps-management-audit and the 3 regression endpoints + /api/health.
         Backend only, READ-ONLY. Report pass/fail per endpoint and any failedChecks[].
+
+
+vps_abc_backfill_existing_2026_08_29:
+  goal: "Backfill A (bot-managed SSH key) + B (ufw allow OpenSSH) onto EXISTING DO Linux VPS."
+  approach: |
+    DO has no API to add a key or change the firewall post-create, so the backfill SSHes into
+    each reachable running box (using a stored key or recoverable password) and idempotently
+    appends the bot's managed public key to authorized_keys + runs `ufw allow OpenSSH`
+    (additive-only), then verifies the managed key logs in and marks _abcBackfilledAt.
+    Locked-out boxes (port 22 unreachable) can't be reached and are reported for recovery console.
+  new_code:
+    - "js/vps-ssh-password.js: buildBackfillScript(publicKey) + applyBackfillOverSSH(opts)."
+    - "ops/backfill_abc_run.js (DRY-RUN default, RUN=1 to execute) + ops/backfill_abc_inventory.js."
+    - "NEW dev endpoint GET /api/dev/vps-backfill-check (pure, no SSH)."
+  main_agent_verification: "node --check clean; nodejs RUNNING; /dev/vps-backfill-check pass=true 10/10; dry-run classified 5 DO Linux VPS → skip 2 (cancelled/deleted), backfill 3."
+  testing_agent_notes: |
+    (1) PRIMARY: GET {REACT_APP_BACKEND_URL}/api/dev/vps-backfill-check?key=o/Qb8ArGahlquhCQ
+        Expect HTTP 200, pass=true, total=10, failed=0. Verifies the on-box script registers
+        `ufw allow OpenSSH`, appends to authorized_keys, is idempotent (grep -qxF), re-asserts
+        PasswordAuthentication yes, reloads (not restarts) sshd, ends with NOMADLY_BACKFILL_OK;
+        and that applyBackfillOverSSH refuses without host / publicKey / credential (no SSH made).
+        Auth gate: no key → 403; wrong key → 403.
+    (2) REGRESSION (must still pass): /api/dev/vps-management-audit (52), /api/dev/vps-full-control-check (13),
+        /api/dev/vps-password-fix-check (23), /api/dev/vps-password-reveal-check.
+    (3) HEALTH: /api/health healthy+connected; nodejs RUNNING; no NEW stack traces.
+    HARD CONSTRAINTS: LIVE prod Mongo + live DO/Telegram creds.
+      • The /api/dev/vps-backfill-check endpoint is PURE — it makes NO SSH connection and touches
+        no VPS. DO NOT run ops/backfill_abc_run.js with RUN=1. DO NOT SSH/mutate any real box or
+        trigger any Telegram flow. READ-ONLY HTTP dev endpoints + /api/health only.
+    - agent: "main"
+      timestamp: "2026-08-29"
+      message: |
+        Verify the A+B backfill CODE via /api/dev/vps-backfill-check + regressions + /api/health.
+        Backend only, READ-ONLY. The live backfill execution (RUN=1) is done separately by main
+        agent with its own live SSH verification — do NOT execute it.
+    - agent: "testing"
+      timestamp: "2026-08-29"
+      message: |
+        ✅ VERIFICATION COMPLETE - A+B BACKFILL code PASSED (all checks, 100% pass):
+        
+        SCOPE: Verified the A+B BACKFILL code for the Nomadly/HostBay Telegram-bot backend (Node.js 
+        on :5000, exposed via FastAPI proxy at {REACT_APP_BACKEND_URL}/api/*). This is a 
+        PRODUCTION-connected MongoDB environment with LIVE DigitalOcean/Telegram credentials. All 
+        verification was READ-ONLY via the dev endpoints (NO SSH connections made, NO VPS mutations, 
+        NO ops/backfill_abc_run.js execution with RUN=1).
+        
+        [TEST 1] PRIMARY - VPS Backfill Check: ✅ ALL 10 CHECKS PASSED
+          GET {REACT_APP_BACKEND_URL}/api/dev/vps-backfill-check?key=o/Qb8ArGahlquhCQ
+          
+          Response: HTTP 200 ✅
+          
+          ✅ pass === true (top-level pass field)
+          ✅ total === 10 (10 checks total)
+          ✅ passed === 10 (all checks passed)
+          ✅ failed === 0 (no failures)
+          ✅ failedChecks === [] (empty array - no failed checks)
+          ✅ feature === "A+B backfill for existing DO VPS (append bot key + ufw allow OpenSSH over SSH)"
+          
+          [All 10 Checks - Individual Results]
+          ✅ 1. buildBackfillScript + applyBackfillOverSSH exported (build=function apply=function)
+          ✅ 2. script registers `ufw allow OpenSSH` (present)
+          ✅ 3. script appends to authorized_keys (key embedded + target file present)
+          ✅ 4. script is idempotent (grep -qxF guard) (appends only when not already present)
+          ✅ 5. script re-asserts PasswordAuthentication yes (present)
+          ✅ 6. script reloads (never restarts) sshd first (reload preferred so we never kill our own session)
+          ✅ 7. script ends with success marker (present)
+          ✅ 8. refuses when no host (error=no host on record)
+          ✅ 9. refuses when no publicKey (error=no publicKey supplied)
+          ✅ 10. refuses when no usable credential (error=no SSH key and no known current password)
+          
+          ★ CORE FIX VERIFIED: The A+B backfill code is WORKING correctly. The buildBackfillScript() 
+            generates a script that: (1) registers `ufw allow OpenSSH`, (2) appends the bot's managed 
+            public key to authorized_keys, (3) is idempotent via grep -qxF guard, (4) re-asserts 
+            PasswordAuthentication yes, (5) reloads (not restarts) sshd, (6) ends with 
+            NOMADLY_BACKFILL_OK marker. The applyBackfillOverSSH() correctly refuses when host / 
+            publicKey / credential is missing (makes NO SSH connection in these cases).
+        
+        [TEST 2] GATE - Admin-only endpoint: ✅ PASSED
+          
+          2a) No key: ✅ PASSED
+            GET {REACT_APP_BACKEND_URL}/api/dev/vps-backfill-check (no key)
+            
+            Response: HTTP 403 ✅
+            
+            ★ GATE CONFIRMED: Endpoint is admin-only (no key → 403).
+          
+          2b) Wrong key: ✅ PASSED
+            GET {REACT_APP_BACKEND_URL}/api/dev/vps-backfill-check?key=wrong
+            
+            Response: HTTP 403 ✅
+            
+            ★ GATE CONFIRMED: Endpoint is admin-only (wrong key → 403).
+        
+        [TEST 3] REGRESSION - Prior VPS dev endpoints: ✅ ALL 4 CHECKS PASSED
+          
+          3a) vps-management-audit: ✅ PASSED
+            GET {REACT_APP_BACKEND_URL}/api/dev/vps-management-audit?key=o/Qb8ArGahlquhCQ
+            
+            Response: HTTP 200 ✅
+            
+            ✅ pass === true
+            ✅ total === 52
+            ✅ passed === 52
+            ✅ failed === 0
+            
+            ★ REGRESSION CONFIRMED: The VPS management audit remains working correctly (52/52 checks passed).
+          
+          3b) vps-full-control-check: ✅ PASSED
+            GET {REACT_APP_BACKEND_URL}/api/dev/vps-full-control-check?key=o/Qb8ArGahlquhCQ
+            
+            Response: HTTP 200 ✅
+            
+            ✅ pass === true
+            ✅ total === 13
+            ✅ passed === 13
+            ✅ failed === 0
+            
+            ★ REGRESSION CONFIRMED: The A+B+C "full VPS control (no-email password)" fix remains working 
+              correctly (13/13 checks passed).
+          
+          3c) vps-password-fix-check: ✅ PASSED
+            GET {REACT_APP_BACKEND_URL}/api/dev/vps-password-fix-check?key=o/Qb8ArGahlquhCQ
+            
+            Response: HTTP 200 ✅
+            
+            ✅ pass === true
+            ✅ total === 23
+            ✅ passed === 23
+            ✅ failed === 0
+            
+            ★ REGRESSION CONFIRMED: The VPS password fix remains working correctly (23/23 checks passed).
+          
+          3d) vps-password-reveal-check: ✅ PASSED
+            GET {REACT_APP_BACKEND_URL}/api/dev/vps-password-reveal-check?key=o/Qb8ArGahlquhCQ
+            
+            Response: HTTP 200 ✅
+            
+            ✅ pass === true
+            ✅ total === 43
+            ✅ passed === 43
+            ✅ failed === 0
+            
+            ★ REGRESSION CONFIRMED: The VPS password reveal check remains working correctly (43/43 checks passed).
+        
+        [TEST 4] HEALTH / NO REGRESSION: ✅ ALL 3 CHECKS PASSED
+          
+          4a) Health check: ✅ PASSED
+            GET {REACT_APP_BACKEND_URL}/api/health
+            
+            Response: HTTP 200 ✅
+            {
+              "status": "healthy",
+              "database": "connected",
+              "uptime": "0.04 hours"
+            }
+            
+            ★ BACKEND HEALTH CONFIRMED: Server is healthy, database connected.
+          
+          4b) nodejs supervisor status: ✅ PASSED
+            sudo supervisorctl status nodejs
+            
+            Result: nodejs RUNNING (pid 5602, uptime 0:02:35) ✅
+            
+            ★ SERVICE HEALTH CONFIRMED: nodejs service is running without issues (pid 5602).
+          
+          4c) nodejs error logs: ✅ PASSED
+            tail -n 100 /var/log/supervisor/nodejs.err.log
+            
+            Result: No new stack traces (grep exit code 1 = no matches after filtering pre-existing 
+              PhoneMonitor/BalanceMonitor Telnyx 401 noise) ✅
+            
+            ★ LOG HEALTH CONFIRMED: No SyntaxError, TypeError, ReferenceError, or "Cannot read properties" 
+              errors in nodejs.err.log after the last restart. The PhoneMonitor/BalanceMonitor Telnyx 401 
+              errors are PRE-EXISTING noise as noted in the review request.
+        
+        CONCLUSION:
+        The A+B BACKFILL code is COMPLETE and verified. All 4 test categories passed (10 primary 
+        checks + 2 gate checks + 4 regression checks [52+13+23+43=131 sub-checks] + 3 health checks 
+        = 146 total assertions, 100% pass rate).
+        
+        KEY VERIFICATION SUMMARY:
+        • BACKFILL CODE VERIFIED:
+          - buildBackfillScript(publicKey) generates a correct on-box script that:
+            * Registers `ufw allow OpenSSH` (prevents SSH lockout when customer enables ufw)
+            * Appends the bot's managed public key to authorized_keys (guarantees bot SSH access)
+            * Is idempotent via grep -qxF guard (safe to re-run)
+            * Re-asserts PasswordAuthentication yes (keeps password auth working)
+            * Reloads (not restarts) sshd (never kills the current SSH session)
+            * Ends with NOMADLY_BACKFILL_OK marker (success verification)
+          - applyBackfillOverSSH(opts) correctly validates inputs and refuses when host / publicKey / 
+            credential is missing (makes NO SSH connection in these cases)
+        
+        • REGRESSION CONFIRMED:
+          - All 4 prior VPS dev endpoints remain working (vps-management-audit 52/52, 
+            vps-full-control-check 13/13, vps-password-fix-check 23/23, vps-password-reveal-check 43/43)
+        
+        • PRODUCTION IMPACT:
+          - The backfill code is ready for execution via ops/backfill_abc_run.js with RUN=1
+          - When executed, it will backfill A (bot-managed SSH key) + B (ufw allow OpenSSH) onto 
+            EXISTING DO Linux VPS that were created before the A+B+C fix
+          - The backfill is idempotent and safe to re-run
+          - Locked-out boxes (port 22 unreachable) will be skipped and reported for recovery console
+        
+        SAFETY CONFIRMED:
+        • All testing was READ-ONLY (dev endpoint verification only)
+        • NO SSH connections made (the endpoint verifies wiring via source-code inspection only)
+        • NO VPS mutations (the endpoint makes NO SSH connections and touches no VPS)
+        • NO ops/backfill_abc_run.js execution with RUN=1 (dry-run only, already done by main agent)
+        • NO Telegram flows triggered for real users
+        • PRODUCTION-connected MongoDB was NOT modified
+        • All verification via the dev endpoint /api/dev/vps-backfill-check + 4 regression endpoints 
+          + /api/health
+        
+        The A+B BACKFILL code is now verified and ready for live execution. The backfill script 
+        correctly implements A (bot-managed SSH key) + B (ufw allow OpenSSH) with proper idempotency 
+        guards and validation.
     - agent: "testing"
       timestamp: "2026-08-29"
       message: |

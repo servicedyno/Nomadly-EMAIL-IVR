@@ -39718,6 +39718,61 @@ app.get('/dev/vps-management-audit', async (req, res) => {
 })
 
 
+// ── DEV-ONLY: A+B backfill code check ──────────────────────────────────────
+// Verifies the on-box backfill script (append bot key + `ufw allow OpenSSH`)
+// and its apply-over-SSH wrapper are correct + idempotent + guarded. Pure —
+// makes NO SSH connection and touches no real VPS.
+app.get('/dev/vps-backfill-check', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  if (req?.query?.key !== process.env.SESSION_SECRET?.slice(0, 16)) {
+    return res.status(403).json({ error: 'forbidden' })
+  }
+
+  const checks = []
+  const add = (name, pass, detail) => checks.push({ name, pass: !!pass, detail: String(detail).slice(0, 300) })
+
+  try {
+    const sshMod = require('./vps-ssh-password')
+    add('buildBackfillScript + applyBackfillOverSSH exported',
+      typeof sshMod.buildBackfillScript === 'function' && typeof sshMod.applyBackfillOverSSH === 'function',
+      `build=${typeof sshMod.buildBackfillScript} apply=${typeof sshMod.applyBackfillOverSSH}`)
+
+    const pub = 'ssh-rsa AAAAB3NzaC1yc2ETESTKEY 6277663071@nomadly'
+    const script = sshMod.buildBackfillScript(pub)
+    add('script registers `ufw allow OpenSSH`', /ufw allow OpenSSH/.test(script), 'present')
+    add('script appends to authorized_keys', /authorized_keys/.test(script) && script.includes(pub), 'key embedded + target file present')
+    add('script is idempotent (grep -qxF guard)', /grep -qxF/.test(script), 'appends only when not already present')
+    add('script re-asserts PasswordAuthentication yes', /PasswordAuthentication yes/.test(script), 'present')
+    add('script reloads (never restarts) sshd first', /reload sshd/.test(script) && script.indexOf('reload') < script.indexOf('NOMADLY_BACKFILL_OK'), 'reload preferred so we never kill our own session')
+    add('script ends with success marker', /NOMADLY_BACKFILL_OK/.test(script), 'present')
+
+    // guards — must refuse without host / publicKey / credential (no SSH made)
+    const noHost = await sshMod.applyBackfillOverSSH({ publicKey: pub })
+    add('refuses when no host', noHost.ok === false && /host/.test(noHost.error || ''), `error=${noHost.error}`)
+    const noKey = await sshMod.applyBackfillOverSSH({ host: '203.0.113.10' })
+    add('refuses when no publicKey', noKey.ok === false && /publicKey/.test(noKey.error || ''), `error=${noKey.error}`)
+    const noCred = await sshMod.applyBackfillOverSSH({ host: '203.0.113.10', publicKey: pub, privateKeys: [], currentPassword: null })
+    add('refuses when no usable credential', noCred.ok === false && /credential|password/.test(noCred.error || ''), `error=${noCred.error}`)
+
+    const failed = checks.filter(c => !c.pass)
+    return res.json({
+      pass: failed.length === 0,
+      total: checks.length,
+      passed: checks.length - failed.length,
+      failed: failed.length,
+      feature: 'A+B backfill for existing DO VPS (append bot key + ufw allow OpenSSH over SSH)',
+      failedChecks: failed.map(c => ({ name: c.name, detail: c.detail })),
+      checks,
+    })
+  } catch (e) {
+    return res.status(500).json({ pass: false, error: e.message, stack: String(e.stack || '').slice(0, 600), checks })
+  }
+})
+
+
+
 
 // ── DEV-ONLY: "🔐 Show Password" (VPS password recovery) test ──────────────
 // Feature added 2026-08-13 after the @user_uu0 incident: customers used to see

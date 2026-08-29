@@ -24,3 +24,18 @@
 - OLD do-591819943 DELETED on DO + its vpsPlansOf record removed (deletedCount 1).
 - Credentials sent to chatId 6277663071 on the PRODUCTION bot (token 6292288341), message_id 3264299.
 - Idempotency: new record marked _goodwillReplacement:true (script refuses to double-provision).
+
+## A+B backfill onto EXISTING DO Linux VPS (2026-08-29, ops/backfill_abc_run.js)
+- DO has no API to add a key/change firewall post-create -> backfill SSHes into each reachable box
+  (stored key or recoverable password) and idempotently appends the bot's managed key to
+  authorized_keys + runs `ufw allow OpenSSH` (additive only), then verifies the managed key logs in.
+- Code: js/vps-ssh-password.js buildBackfillScript()+applyBackfillOverSSH(); dev endpoint
+  /api/dev/vps-backfill-check (testing agent: 10/10 + 131 regression + health = 146 assertions 100%).
+- Executed (RUN=1): BACKFILLED 3 — do-593457561 (7706898844 @157.230.110.191),
+  do-593967362 (8186560549 @157.230.117.197), do-596118090 (6277663071 @134.122.25.36).
+  All verifiedManagedKey=true; port 22 confirmed OPEN after. Skipped 2 (do-580192787 cancelled,
+  do-581455672 DELETED). Re-run is idempotent (skip:already-done via _abcBackfilledAt marker).
+- IMPORTANT: the A+B CREATE-time fix lives in THIS dev sandbox only, NOT deployed to production
+  Railway. New boxes created by the LIVE prod bot won't get A+B automatically until the code is
+  deployed (Save to GitHub -> Railway). Backfill covers existing boxes; re-run for any new ones, or
+  deploy the create fix. Locked-out boxes (port 22 unreachable) need the recovery console (none in scope now).
