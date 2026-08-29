@@ -3,10 +3,13 @@
 This app uses Telegram bot authentication (chatId-based) — there is no email/password
 login for the panel. Auth flows are exercised via the bot / dev endpoints.
 
-## Sandbox runtime config (re-bootstrapped 2026-08-29 — NEW fresh pod, creds re-supplied by user)
-- Pod URL: https://5a0a0e87-e1ce-41a7-8065-109af3c2de81.preview.emergentagent.com
-  (previous pod: https://api-integration-hub-51.preview.emergentagent.com — decommissioned)
-- Dev Telegram bot webhook (token TELEGRAM_BOT_TOKEN_DEV = 6597817067 @Nomadlytestbot) SET to <pod>/api/telegram/webhook (verified ok 2026-08-29)
+## Sandbox runtime config (re-bootstrapped on NEW fresh pod, creds re-supplied by user)
+- Pod URL: https://d7417461-8fc7-4a5d-9a71-94b9878bb747.preview.emergentagent.com
+  (previous pod: https://api-creds-setup.preview.emergentagent.com — decommissioned)
+- Dev Telegram bot webhook (token TELEGRAM_BOT_TOKEN_DEV = 6597817067 @Nomadlytestbot) SET to
+  https://d7417461-8fc7-4a5d-9a71-94b9878bb747.preview.emergentagent.com/api/telegram/webhook (verified ok)
+- Verified this bootstrap: node:5000 + FastAPI:8001 + external <pod>/api/health all healthy/DB connected;
+  frontend :3000 → "HostBay | Hosting Panel"; PROD bot (6292288341) webhook confirmed STILL on Railway (0 pending), UNTOUCHED.
 - Verified 2026-08-29: node:5000 + FastAPI:8001 + external <pod>/api/health all healthy/DB connected;
   frontend :3000 → "HostBay | Hosting Panel"; PROD bot (6292288341) webhook confirmed STILL on Railway (0 pending), UNTOUCHED.
 - PROD bot (6292288341) webhook confirmed still on Railway (https://nomadly-email-ivr-production.up.railway.app/telegram/webhook) — UNTOUCHED
