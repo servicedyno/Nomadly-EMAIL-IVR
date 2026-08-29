@@ -3,10 +3,12 @@
 This app uses Telegram bot authentication (chatId-based) — there is no email/password
 login for the panel. Auth flows are exercised via the bot / dev endpoints.
 
-## Sandbox runtime config (re-bootstrapped 2026-08-26 — NEW fresh pod, creds re-supplied by user)
-- Pod URL: https://14cc8627-8883-4b18-a314-aec5a3fac7d1.preview.emergentagent.com
-  (previous pod: https://multi-service-config-2.preview.emergentagent.com — decommissioned)
-- Dev Telegram bot webhook (token TELEGRAM_BOT_TOKEN_DEV = 6597817067 @Nomadlytestbot) SET to <pod>/api/telegram/webhook (verified ok)
+## Sandbox runtime config (re-bootstrapped 2026-08-29 — NEW fresh pod, creds re-supplied by user)
+- Pod URL: https://5a0a0e87-e1ce-41a7-8065-109af3c2de81.preview.emergentagent.com
+  (previous pod: https://api-integration-hub-51.preview.emergentagent.com — decommissioned)
+- Dev Telegram bot webhook (token TELEGRAM_BOT_TOKEN_DEV = 6597817067 @Nomadlytestbot) SET to <pod>/api/telegram/webhook (verified ok 2026-08-29)
+- Verified 2026-08-29: node:5000 + FastAPI:8001 + external <pod>/api/health all healthy/DB connected;
+  frontend :3000 → "HostBay | Hosting Panel"; PROD bot (6292288341) webhook confirmed STILL on Railway (0 pending), UNTOUCHED.
 - PROD bot (6292288341) webhook confirmed still on Railway (https://nomadly-email-ivr-production.up.railway.app/telegram/webhook) — UNTOUCHED
 - Env source of truth: /app/backend/.env  (/app/.env is a symlink to it)
 - BOT_ENVIRONMENT = development  → uses TELEGRAM_BOT_TOKEN_DEV (safe dev bot, no live user traffic)
