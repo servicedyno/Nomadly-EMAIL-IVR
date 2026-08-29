@@ -647,7 +647,54 @@ async function createVPSInstance(telegramId, vpsDetails) {
       period:       1 // monthly
     }
 
-    // Attach SSH keys if provided
+    // ── Part A: guarantee a bot-managed SSH key on DigitalOcean Linux ────────
+    // DO has NO API to set/return a password on a running droplet, so the ONLY
+    // reliable way to set + show + verify a password later (🔑 Reset Password /
+    // 🔐 Show Password) is to SSH in. If the customer didn't pick their own key,
+    // generate a keypair, register the PUBLIC key with DO (POST /account/keys),
+    // store the PRIVATE key keyed by the user, and attach it at create — so we
+    // can ALWAYS log in regardless of password state and never fall back to DO's
+    // "we emailed the password to the account" dead-end. Non-fatal: if anything
+    // here fails, provisioning continues exactly as before.
+    if (!isRDP && !vpsDetails.sshKeySecretId &&
+        String(newProvider.PROVIDER || '').toLowerCase() === 'digitalocean') {
+      try {
+        const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
+          modulusLength: 4096,
+          publicKeyEncoding:  { type: 'spki', format: 'pem' },
+          privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+        })
+        const opensshPub = convertPemToOpenSSH(publicKey, `bot-${telegramId}@nomadly`)
+        if (opensshPub) {
+          const keyName = `bot-${telegramId}-${Date.now().toString(36)}`
+          const reg = await newProvider.createSecret(keyName, opensshPub, 'ssh')
+          const doKeyId = reg && (reg.secretId || reg.id)
+          if (doKeyId) {
+            if (_sshKeysOf) {
+              await _sshKeysOf.insertOne({
+                telegramId:  String(telegramId),
+                provider:    'digitalocean',
+                doKeyId:     String(doKeyId),
+                sshKeyName:  keyName,
+                botManaged:  true,
+                privateKey,
+                publicKey:   opensshPub,
+                createdAt:   new Date(),
+              })
+            }
+            // Persist onto the record + attach at create so reset/reveal find it.
+            vpsDetails.sshKeySecretId = String(doKeyId)
+            console.log(`[VPS] DO Linux: attached bot-managed SSH key ${doKeyId} for ${telegramId} (full-control guarantee)`)
+          }
+        } else {
+          console.log(`[VPS] DO Linux: PEM→OpenSSH conversion failed — proceeding without a managed key for ${telegramId}`)
+        }
+      } catch (e) {
+        console.log(`[VPS] DO Linux: managed SSH key setup failed (non-fatal) for ${telegramId}: ${e.message || e}`)
+      }
+    }
+
+    // Attach SSH keys if provided (customer-selected OR the bot-managed key above)
     if (vpsDetails.sshKeySecretId) {
       createOpts.sshKeys = [vpsDetails.sshKeySecretId]
     }
@@ -669,6 +716,11 @@ async function createVPSInstance(telegramId, vpsDetails) {
         '# Ensure settings exist even if sed missed commented lines',
         'grep -q "^PermitRootLogin yes" /etc/ssh/sshd_config || echo "PermitRootLogin yes" >> /etc/ssh/sshd_config',
         'grep -q "^PasswordAuthentication yes" /etc/ssh/sshd_config || echo "PasswordAuthentication yes" >> /etc/ssh/sshd_config',
+        '# === Firewall-proof port 22 (Part B) ===',
+        '# Root cause of DO SSH lock-outs: the customer enables ufw, which closes',
+        '# port 22 and we can never SSH back in to set/show a password. Allowing',
+        '# OpenSSH now persists the rule even if ufw is enabled later.',
+        'if command -v ufw >/dev/null 2>&1; then ufw allow OpenSSH 2>/dev/null || ufw allow 22/tcp; fi',
         '# Fix ALL drop-in configs (60-cloudimg-settings.conf often overrides)',
         'for f in /etc/ssh/sshd_config.d/*.conf; do',
         '  [ -f "$f" ] && sed -i "s/^PasswordAuthentication no/PasswordAuthentication yes/" "$f"',

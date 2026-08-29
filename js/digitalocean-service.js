@@ -648,6 +648,62 @@ function _resetPasswordPlan(opts = {}) {
 }
 
 /**
+ * PURE decision for the reset "SSH unreachable" fallback (Part C). Given a TCP
+ * reachability verdict, decide whether to (a) fall back to DO's native email
+ * password_reset, or (b) return actionable ufw guidance WITHOUT emailing.
+ *
+ * Exported so the regression test can assert the ssh-blocked branch never
+ * emails and always renders the `ufw allow OpenSSH` guidance — with zero real
+ * DigitalOcean calls.
+ *
+ * @returns {{email:boolean, response:object}}
+ */
+function _resetFallbackForVerdict(verdict, ctx = {}) {
+  const {
+    id, host, username = 'root', name = null,
+    currentSecretId = null, planReason = null, probe = null,
+  } = ctx
+
+  if (verdict === 'ssh-blocked') {
+    // Box is UP but SSH/22 is firewalled → emailing a password is pointless.
+    const { sshBlockedGuidance } = require('./vps-ssh-reachability')
+    return {
+      email: false,
+      response: {
+        password:     null,
+        newPassword:  null,
+        secretId:     currentSecretId || null,
+        reinstalled:  false,
+        verified:     false,
+        sshBlocked:   true,
+        reachability: 'ssh-blocked',
+        note:         sshBlockedGuidance({ name, host, username }),
+        raw: { id, fallback: 'ssh-blocked', probe },
+      },
+    }
+  }
+
+  // 'ok' (creds wrong) or 'host-down' / unknown → DO's non-destructive email reset.
+  return {
+    email: true,
+    response: {
+      password:     null,
+      newPassword:  null,
+      secretId:     currentSecretId || null,
+      reinstalled:  false,
+      verified:     false,
+      sshBlocked:   false,
+      reachability: verdict || 'host-down',
+      note:
+        'DigitalOcean has generated a new root password and emailed it to the hosting account — support will forward it to you shortly. ' +
+        'Your server and all data are untouched. For instant access use your SSH key.' +
+        (planReason ? ` (Reason we could not set it directly: ${planReason}.)` : ''),
+      raw: { id, fallback: 'provider-email', planReason, probe },
+    },
+  }
+}
+
+/**
  * Reset the root password for a DO Droplet — IN PLACE, without destroying data.
  *
  * ─── HISTORY / WHY THIS LOOKS LIKE THIS ──────────────────────────────────
@@ -759,22 +815,38 @@ async function resetPassword(instanceId, opts = {}) {
     log(`resetPassword ${id}: SSH path failed — ${result.error || 'unknown'}`)
   }
 
-  // ── Last resort: DO's native, NON-destructive password_reset ────────────
+  // ── SSH unreachable → diagnose before emailing (Part C) ──────────────────
+  // DO's `password_reset` only emails a random password to the ACCOUNT owner,
+  // so the customer never sees it. Before doing that, probe the box: if it's
+  // ONLINE but SSH/22 is firewalled (ufw — the #1 lock-out cause), emailing is
+  // useless. Return actionable ufw guidance instead. Only 'host-down' (or a
+  // probe error) keeps the legacy DO email fallback.
+  let verdict = 'host-down'
+  let probe = null
+  if (host) {
+    try {
+      const { probeReachability } = require('./vps-ssh-reachability')
+      probe = await probeReachability({ host })
+      verdict = probe.verdict
+      log(`resetPassword ${id}: SSH unreachable — reachability verdict=${verdict} (ssh${probe.sshOpen ? '=open' : '=closed'}, web${probe.webOpen ? '=open' : '=closed'})`)
+    } catch (e) {
+      log(`resetPassword ${id}: reachability probe failed — ${e.message || e}`)
+    }
+  }
+
+  const decision = _resetFallbackForVerdict(verdict, {
+    id, host, username, name: opts.name || null,
+    currentSecretId: opts.currentSecretId, planReason: plan.reason, probe,
+  })
+
+  // ssh-blocked → DO NOT email; hand back the ufw guidance.
+  if (!decision.email) return decision.response
+
+  // host-down / creds-wrong → DO's native, NON-destructive password_reset.
   // Deliberately NOT `rebuild`: a password reset must never wipe a customer's
   // server, and rebuild cannot apply a new password anyway (see above).
   await apiRequest('POST', `/droplets/${id}/actions`, { type: 'password_reset' })
-  return {
-    password:    null,
-    newPassword: null,
-    secretId:    opts.currentSecretId || null,
-    reinstalled: false,
-    verified:    false,
-    note:
-      'DigitalOcean has generated a new root password and emailed it to the hosting account — support will forward it to you shortly. ' +
-      'Your server and all data are untouched. For instant access use your SSH key.' +
-      (plan.reason ? ` (Reason we could not set it directly: ${plan.reason}.)` : ''),
-    raw: { id, fallback: 'provider-email', planReason: plan.reason },
-  }
+  return decision.response
 }
 
 function _generateRandomPassword(length = 20) {
@@ -1080,6 +1152,7 @@ module.exports = {
   _buildPasswordCloudInit,
   _decodeIfBase64,
   _resetPasswordPlan,
+  _resetFallbackForVerdict,
   _resolvePasswordSecret,
   _mapStatus,
   // Low-level

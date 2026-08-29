@@ -15,7 +15,7 @@
 - Bot token (dev==prod): 8822506525:... (env: TELEGRAM_BOT_TOKEN_PROD / _DEV)
 
 ## URLs
-- Frontend/preview: https://55762318-83b2-41ce-b30f-2d909ab3c553.preview.emergentagent.com
+- Frontend/preview: https://provider-sandbox.preview.emergentagent.com
 - Backend API base (proxied to Node :5000): <preview>/api
 - Panel domain: panel.smadavhost.com | SIP domain: sip.smadavspeech.com
 

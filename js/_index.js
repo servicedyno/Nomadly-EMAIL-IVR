@@ -11909,7 +11909,22 @@ Enter new value:`), bc)
           ))
         } else {
           console.log(`[VPS] Password reveal unavailable - ChatId: ${chatId}, Instance: ${record.vpsId || record._id}, reason=${res.reason}`)
-          send(chatId, vp.revealPasswordNotStored(record.name, res.reason))
+          // Part C: if the box is online but SSH/22 is firewalled, the recovery
+          // SSH login can't work — give actionable ufw guidance instead of a
+          // vague "not stored" message. (Linux only; RDP has no SSH path.)
+          let shownBlocked = false
+          try {
+            if (!isRDP && record.host) {
+              const { probeReachability, sshBlockedGuidance } = require('./vps-ssh-reachability')
+              const probe = await probeReachability({ host: record.host })
+              if (probe.verdict === 'ssh-blocked') {
+                console.log(`[VPS] Password reveal ssh-blocked (ufw) - ChatId: ${chatId}, Instance: ${record.vpsId || record._id}`)
+                send(chatId, sshBlockedGuidance({ name: record.name, host: record.host, username }))
+                shownBlocked = true
+              }
+            }
+          } catch (_) { /* fall through to the default copy */ }
+          if (!shownBlocked) send(chatId, vp.revealPasswordNotStored(record.name, res.reason))
         }
       } catch (err) {
         console.error(`[VPS] Password reveal failed - ChatId: ${chatId}, Error:`, err.message || err)
@@ -19901,7 +19916,8 @@ ${message.replace(/\n/g, '<br>')}
         // tried first.
         const sshPrivateKeys = await fetchUserSSHPrivateKeys(chatId, userVPSDetails.sshKeySecretId)
 
-        const { password, secretId, reinstalled, note, raw, verified } = await provider.resetPassword(instanceId, {
+        const { password, secretId, reinstalled, note, raw, verified, sshBlocked } = await provider.resetPassword(instanceId, {
+          name: userVPSDetails.name,
           defaultUser: userVPSDetails.defaultUser,
           imageId: userVPSDetails.imageId,
           osType: userVPSDetails.osType,
@@ -19913,7 +19929,20 @@ ${message.replace(/\n/g, '<br>')}
           sshPrivateKeys,
           currentSecretId: userVPSDetails.rootPasswordSecretId,
         })
-        
+
+        // Part C: box is online but SSH/22 is firewalled (ufw). We could not set
+        // the password over SSH and we did NOT email anything — `note` is the
+        // actionable ufw guidance. Show it and stop (don't render "emailed" copy).
+        if (sshBlocked) {
+          await vpsPlansOf.updateOne(
+            { vpsId: userVPSDetails._id },
+            { $set: { lastPasswordReset: new Date() } }
+          )
+          console.log(`[VPS] Password reset ssh-blocked (ufw) - ChatId: ${chatId}, Instance: ${instanceId}, Name: ${userVPSDetails.name}`)
+          send(chatId, note)
+          return goto.getVPSDetails()
+        }
+
         // Update MongoDB with new password secret ID (if the provider returned one)
         await vpsPlansOf.updateOne(
           { vpsId: userVPSDetails._id },
@@ -39511,6 +39540,156 @@ app.get('/dev/vps-password-fix-check', async (req, res) => {
     })
   } catch (e) {
     return res.status(500).json({ pass: false, error: e.message, stack: String(e.stack || '').slice(0, 600), checks })
+  }
+})
+
+// ── DEV-ONLY: VPS "full control" (A+B+C) regression test ───────────────────
+// Feature 2026: give DO customers full VPS control — set + show the password
+// in-bot with nothing emailed, and stop SSH lock-outs. Root cause of lock-outs
+// was the customer enabling ufw (closing port 22). This suite verifies, with
+// ZERO real DigitalOcean/Telegram traffic (pure helpers + a throwaway localhost
+// TCP listener), that:
+//   A. every DO Linux create attaches a bot-managed SSH key (so we can always SSH)
+//   B. create cloud-init runs `ufw allow OpenSSH` (SSH can never be locked out)
+//   C. when SSH is unreachable we DIAGNOSE (probe 22 then web) and, if the box is
+//      up but SSH is firewalled, show `ufw allow OpenSSH` guidance instead of
+//      DO's useless "we emailed the password" fallback.
+app.get('/dev/vps-full-control-check', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  if (req?.query?.key !== process.env.SESSION_SECRET?.slice(0, 16)) {
+    return res.status(403).json({ error: 'forbidden' })
+  }
+
+  const checks = []
+  const add = (name, pass, detail) => checks.push({ name, pass: !!pass, detail: String(detail == null ? '' : detail).slice(0, 300) })
+
+  const net = require('net')
+  const listen = () => new Promise((resolve) => {
+    const srv = net.createServer((sock) => { try { sock.destroy() } catch (_) {} })
+    srv.on('error', () => {})
+    srv.listen(0, '127.0.0.1', () => resolve(srv))
+  })
+
+  let openSrv = null
+  let webSrv = null
+  try {
+    const reach = require('./vps-ssh-reachability')
+    const doSvc = require('./digitalocean-service')
+
+    // ══ A + B: create path (source assertions) ══════════════════════════════
+    const vmSrc = require('./vm-instance-setup').createVPSInstance.toString()
+    add('B: create cloud-init firewall-proofs port 22 (ufw allow OpenSSH)',
+      /ufw allow OpenSSH/.test(vmSrc),
+      'ufw allow OpenSSH present in cloud-init')
+    add('A: create registers a bot-managed DO SSH key when none is selected',
+      /digitalocean/.test(vmSrc) &&
+      /createSecret\([^)]*opensshPub[^)]*'ssh'\)/.test(vmSrc) &&
+      /botManaged/.test(vmSrc),
+      'generate + POST /account/keys + store private key')
+    add('A: bot-managed key is persisted + attached at create',
+      /vpsDetails\.sshKeySecretId\s*=\s*String\(doKeyId\)/.test(vmSrc) &&
+      /createOpts\.sshKeys\s*=\s*\[vpsDetails\.sshKeySecretId\]/.test(vmSrc),
+      'sshKeySecretId set + createOpts.sshKeys attached')
+    const doCreateSrc = doSvc.createInstance.toString()
+    add('A: DO createInstance forwards ssh_keys + user_data to the API',
+      /body\.ssh_keys\s*=\s*ssh_keys/.test(doCreateSrc) &&
+      /body\.user_data\s*=\s*userData/.test(doCreateSrc),
+      'ssh_keys + user_data mapped onto droplet create body')
+
+    // ══ C: reachability classifier (pure) ═══════════════════════════════════
+    add('classify: ssh open → ok', reach.classifyReachability({ sshOpen: true }) === 'ok', 'ok')
+    add('classify: ssh closed + web open → ssh-blocked',
+      reach.classifyReachability({ sshOpen: false, webOpen: true }) === 'ssh-blocked', 'ssh-blocked')
+    add('classify: nothing open → host-down',
+      reach.classifyReachability({ sshOpen: false, webOpen: false }) === 'host-down', 'host-down')
+
+    // ══ C: live TCP probe against throwaway localhost listeners ══════════════
+    openSrv = await listen()
+    const openPort = openSrv.address().port
+    webSrv = await listen()
+    const webPort = webSrv.address().port
+    // A guaranteed-closed port: open then immediately close.
+    const tmp = await listen()
+    const closedPort = tmp.address().port
+    await new Promise((r) => tmp.close(r))
+
+    const okP = await reach.probeReachability({ host: '127.0.0.1', sshPort: openPort, webPorts: [closedPort], timeoutMs: 1500 })
+    add('probe: OPEN ssh port → verdict ok', okP.verdict === 'ok' && okP.sshOpen === true, `verdict=${okP.verdict} sshOpen=${okP.sshOpen}`)
+
+    const downP = await reach.probeReachability({ host: '127.0.0.1', sshPort: closedPort, webPorts: [closedPort], timeoutMs: 1500 })
+    add('probe: all ports closed → verdict host-down', downP.verdict === 'host-down', `verdict=${downP.verdict}`)
+
+    const blockedP = await reach.probeReachability({ host: '127.0.0.1', sshPort: closedPort, webPorts: [webPort], timeoutMs: 1500 })
+    add('probe: ssh closed but web open → verdict ssh-blocked',
+      blockedP.verdict === 'ssh-blocked' && blockedP.openWebPort === webPort,
+      `verdict=${blockedP.verdict} openWebPort=${blockedP.openWebPort}`)
+
+    const noHostP = await reach.probeReachability({ host: null })
+    add('probe: no host on record → host-down (no throw)', noHostP.verdict === 'host-down', `verdict=${noHostP.verdict}`)
+
+    // ══ C: reset fallback decision (pure — no DO calls) ══════════════════════
+    const blk = doSvc._resetFallbackForVerdict('ssh-blocked', { id: '123', host: '1.2.3.4', username: 'root', name: 'test-vps', currentSecretId: 'do-pwd-x' })
+    add('reset ssh-blocked → does NOT email', blk.email === false, `email=${blk.email}`)
+    add('reset ssh-blocked → password null + sshBlocked=true',
+      blk.response.password === null && blk.response.sshBlocked === true && blk.response.reachability === 'ssh-blocked',
+      `password=${blk.response.password} sshBlocked=${blk.response.sshBlocked}`)
+    add('reset ssh-blocked note renders ufw guidance',
+      /ufw allow OpenSSH/.test(blk.response.note) && /ufw reload/.test(blk.response.note),
+      'note contains ufw allow OpenSSH + ufw reload')
+
+    const dn = doSvc._resetFallbackForVerdict('host-down', { id: '123', host: '1.2.3.4', currentSecretId: 'do-pwd-x', planReason: 'no key on file' })
+    add('reset host-down → keeps DO email fallback',
+      dn.email === true && dn.response.sshBlocked === false && /emailed/i.test(dn.response.note),
+      `email=${dn.email} sshBlocked=${dn.response.sshBlocked}`)
+    add('reset ok (SSH reachable, creds wrong) → still emails as last resort',
+      doSvc._resetFallbackForVerdict('ok', { id: '1' }).email === true, 'ok→email')
+
+    // ══ C: resetPassword probes BEFORE emailing; never rebuilds ══════════════
+    const resetSrc = doSvc.resetPassword.toString()
+    add('resetPassword probes reachability before emailing',
+      /probeReachability/.test(resetSrc) &&
+      resetSrc.indexOf('probeReachability') < resetSrc.indexOf("type: 'password_reset'"),
+      'probe precedes password_reset')
+    const resetExec = resetSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
+    add('resetPassword never issues a destructive rebuild (regression)',
+      !/rebuild/i.test(resetExec), 'no rebuild in executable source')
+
+    // ══ ssh-blocked user message renders the ufw guidance ════════════════════
+    const guide = reach.sshBlockedGuidance({ name: 'n', host: '1.2.3.4', username: 'root' })
+    add('ssh-blocked message includes "ufw allow OpenSSH"', /ufw allow OpenSSH/.test(guide), 'present')
+    add('ssh-blocked message includes ufw reload + recovery console',
+      /ufw reload/.test(guide) && /Recovery/i.test(guide), 'reload + recovery console')
+    add('ssh-blocked message states nothing was emailed', /emailed/i.test(guide), 'nothing emailed')
+
+    // ══ Telegram-flow wiring (code review) ═══════════════════════════════════
+    const idxSrc = require('fs').readFileSync(__filename, 'utf8')
+    add('wiring: reset handler destructures sshBlocked',
+      /verified,\s*sshBlocked\s*}\s*=\s*await provider\.resetPassword/.test(idxSrc), 'destructured')
+    add('wiring: reset handler branches on sshBlocked (no false "emailed")',
+      /if \(sshBlocked\) \{/.test(idxSrc), 'sshBlocked branch present')
+    add('wiring: reveal handler probes reachability on failure',
+      /probeReachability, sshBlockedGuidance } = require\('\.\/vps-ssh-reachability'\)/.test(idxSrc), 'reveal probe wired')
+    add('wiring: Show / Reset password buttons still routed',
+      /if \(message === vp\.revealPasswordBtn\) return goto\.revealVpsPassword\(\)/.test(idxSrc) &&
+      /if \(message === vp\.resetPasswordBtn\) return goto\.confirmResetPassword\(\)/.test(idxSrc),
+      'buttons wired')
+
+    const failed = checks.filter((c) => !c.pass)
+    return res.json({
+      pass: failed.length === 0,
+      total: checks.length,
+      passed: checks.length - failed.length,
+      failed: failed.length,
+      feature: 'DO full VPS control — managed SSH key (A) + ufw allow OpenSSH (B) + reachability probe / ssh-blocked guidance (C)',
+      checks,
+    })
+  } catch (e) {
+    return res.status(500).json({ pass: false, error: e.message, stack: String(e.stack || '').slice(0, 600), checks })
+  } finally {
+    try { if (openSrv) openSrv.close() } catch (_) {}
+    try { if (webSrv) webSrv.close() } catch (_) {}
   }
 })
 

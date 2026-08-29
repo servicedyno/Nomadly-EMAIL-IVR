@@ -106,7 +106,7 @@ backend:
           ✅ VERIFICATION COMPLETE - cPanel stale-cpPass SELF-HEAL fix v2 PASSED (all checks, 100% pass):
           
           SCOPE: Verified the cPanel stale-cpPass SELF-HEAL fix (v2) on the SMADAV whitelabel pod 
-          (Node.js backend port 5000, external URL https://credentials-deploy-2.preview.emergentagent.com). 
+          (Node.js backend port 5000, external URL https://provider-sandbox.preview.emergentagent.com). 
           This is a PRODUCTION-connected MongoDB environment. All verification was READ-ONLY via the dev endpoint 
           (NO real WHM /passwd calls, NO real uploads, NO data mutations).
           
@@ -284,7 +284,7 @@ backend:
           • All verification via the dev endpoint /api/dev/cpanel-auth-broken-check
           
           MINOR NOTE (NOT CRITICAL):
-          • Panel routes via external URL (https://credentials-deploy-2.preview.emergentagent.com) 
+          • Panel routes via external URL (https://provider-sandbox.preview.emergentagent.com) 
             return HTML/Cloudflare challenges instead of 401 JSON. This is a proxy/ingress configuration 
             issue, NOT a code issue. The routes work correctly on localhost:5000 (verified above).
           
@@ -305,7 +305,7 @@ backend:
           ✅ VERIFICATION COMPLETE - cPanel WHM impersonation session upload fix v3 PASSED (all checks, 100% pass):
           
           SCOPE: Verified the cPanel WHM impersonation session upload fix (v3) on the SMADAV whitelabel pod 
-          (Node.js backend port 5000, external URL https://credentials-deploy-2.preview.emergentagent.com). 
+          (Node.js backend port 5000, external URL https://provider-sandbox.preview.emergentagent.com). 
           This is a PRODUCTION-connected MongoDB environment. All verification was READ-ONLY via the dev endpoint 
           (NO real WHM traffic, NO real uploads, NO data mutations).
           
@@ -519,7 +519,7 @@ backend:
           • All verification via the dev endpoint /api/dev/cpanel-auth-broken-check
           
           MINOR NOTE (NOT CRITICAL):
-          • Panel routes via external URL (https://credentials-deploy-2.preview.emergentagent.com) 
+          • Panel routes via external URL (https://provider-sandbox.preview.emergentagent.com) 
             return 404 for POST routes. This is a proxy/ingress configuration issue, NOT a code issue. The 
             routes work correctly on localhost:5000 (verified above).
           
@@ -1041,7 +1041,7 @@ backend:
               
               ✅ ok === true
               ✅ audio.audioUrl present and ending in .mp3
-                URL: https://credentials-deploy-2.preview.emergentagent.com/api/assets/user-audio/tts_1786329027952_rachel.mp3
+                URL: https://provider-sandbox.preview.emergentagent.com/api/assets/user-audio/tts_1786329027952_rachel.mp3
               ✅ NO audio.error field
               ✅ audio.voice === "Rachel"
               ✅ audio.fallbackUsed === false
@@ -4213,7 +4213,7 @@ backend:
             
             ✅ Step 2: permanent_mp3_url (CORE FIX)
                 • pass: true ✅
-                • audioUrl: "https://credentials-deploy-2.preview.emergentagent.com/api/assets/user-audio/DEVTEST-VM_01e0ce71-bbb.mp3" ✅
+                • audioUrl: "https://provider-sandbox.preview.emergentagent.com/api/assets/user-audio/DEVTEST-VM_01e0ce71-bbb.mp3" ✅
                 ★ CORE FIX VERIFIED: The saved audioUrl is a PERMANENT /assets/user-audio/*.mp3 URL
                 ★ NOT an api.telegram.org link (which would expire in ~1h)
                 ★ The OGG voice note was transcoded to MP3 format
@@ -8933,7 +8933,7 @@ backend:
             • test_phone_scheduler_no_leak.js: 12 passed, 0 failed ✓
           
           TEST 10 - Admin endpoint smoke test: ✅ PASSED
-            • GET https://credentials-deploy-2.preview.emergentagent.com/api/admin/dns-heal-status?key=o/Qb8ArGahlquhCQ
+            • GET https://provider-sandbox.preview.emergentagent.com/api/admin/dns-heal-status?key=o/Qb8ArGahlquhCQ
             • HTTP 200, ok=true ✓
           
           CONCLUSION:
@@ -10450,7 +10450,7 @@ frontend:
         comment: |
           ✅ READ-ONLY UI VERIFICATION COMPLETE - ALL TESTS PASSED (100% pass rate)
           
-          SCOPE: Verified the Nomadly admin panel UI at https://credentials-deploy-2.preview.emergentagent.com
+          SCOPE: Verified the Nomadly admin panel UI at https://provider-sandbox.preview.emergentagent.com
           in READ-ONLY mode. This is a LIVE PRODUCTION environment with real MongoDB and payment/domain/telephony APIs.
           NO data-modifying actions were taken (no clicks on Buy, Register, Purchase, Create, Delete, Send, Connect, 
           Verify, Submit, Save buttons). Only page navigation, reading text, and capturing console/network errors.
@@ -10890,7 +10890,7 @@ frontend:
           ✅ VERIFICATION COMPLETE - Sales Dashboard welcome bonus indicator PASSED (all checks, 100% pass):
           
           SCOPE: Verified the new welcome bonus indicator feature on the Sales Dashboard at 
-          https://credentials-deploy-2.preview.emergentagent.com/sales. This is a 
+          https://provider-sandbox.preview.emergentagent.com/sales. This is a 
           READ-ONLY verification of the UI indicators - no data mutations.
           
           [TEST 1] Login verification: ✅ PASSED
@@ -11002,7 +11002,7 @@ frontend:
           ✅ VERIFICATION COMPLETE - Sales Dashboard welcome bonus deducted from Net Profit PASSED (all checks, 100% pass):
           
           SCOPE: Verified the new welcome bonus deduction feature on the Sales Dashboard at 
-          https://credentials-deploy-2.preview.emergentagent.com/sales. This is a 
+          https://provider-sandbox.preview.emergentagent.com/sales. This is a 
           READ-ONLY verification on production-connected MongoDB. Current DB state: 25 users × $5 
           welcome bonus = $125 welcome bonuses given, $0 sales, $0 deposits. Platform shows a $125 
           marketing OPEX loss.
@@ -11109,21 +11109,271 @@ frontend:
           shows negative net profit when welcome bonuses exceed gross profit, with clear visual 
           indicators (RED color) and explanatory footnotes/tooltips.
 
+backend:
+  - task: "DO VPS full control (A+B+C): bot-managed SSH key at create, ufw allow OpenSSH in cloud-init, and reachability-probe / ssh-blocked guidance instead of emailing the password"
+    implemented: true
+    working: true
+    file: "/app/js/vps-ssh-reachability.js (new), /app/js/vm-instance-setup.js, /app/js/digitalocean-service.js, /app/js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFICATION COMPLETE - DO VPS full control (A+B+C) PASSED (all checks, 100% pass):
+          
+          SCOPE: Verified the DigitalOcean "full VPS control" feature (A+B+C) on the Smadav/Nomadly 
+          Node.js bot backend (port 5000, external URL https://29e41c80-53ae-4429-b58f-6dbe4580ceb3.preview.emergentagent.com). 
+          This is a PRODUCTION-connected MongoDB environment with LIVE DigitalOcean and Telegram credentials. 
+          All verification was READ-ONLY via the dev regression endpoint (NO real DigitalOcean or Telegram actions).
+          
+          [TEST 1] PRIMARY - Dev endpoint vps-full-control-check: ✅ ALL CHECKS PASSED (100%)
+            GET /api/dev/vps-full-control-check?key=<url-encoded SESSION_SECRET first 16 chars>
+            
+            Response: HTTP 200 ✅
+            
+            ✅ pass === true (top-level pass field)
+            ✅ total === 25 (25 checks total)
+            ✅ passed === 25 (all checks passed)
+            ✅ failed === 0 (no failures)
+            
+            [All 25 Checks PASSED]
+            ✅ B: create cloud-init firewall-proofs port 22 (ufw allow OpenSSH)
+            ✅ A: create registers a bot-managed DO SSH key when none is selected
+            ✅ A: bot-managed key is persisted + attached at create
+            ✅ A: DO createInstance forwards ssh_keys + user_data to the API
+            ✅ classify: ssh open → ok
+            ✅ classify: ssh closed + web open → ssh-blocked
+            ✅ classify: nothing open → host-down
+            ✅ probe: OPEN ssh port → verdict ok
+            ✅ probe: all ports closed → verdict host-down
+            ✅ probe: ssh closed but web open → verdict ssh-blocked
+            ✅ probe: no host on record → host-down (no throw)
+            ✅ reset ssh-blocked → does NOT email
+            ✅ reset ssh-blocked → password null + sshBlocked=true
+            ✅ reset ssh-blocked note renders ufw guidance
+            ✅ reset host-down → keeps DO email fallback
+            ✅ reset ok (SSH reachable, creds wrong) → still emails as last resort
+            ✅ resetPassword probes reachability before emailing
+            ✅ resetPassword never issues a destructive rebuild (regression)
+            ✅ ssh-blocked message includes "ufw allow OpenSSH"
+            ✅ ssh-blocked message includes ufw reload + recovery console
+            ✅ ssh-blocked message states nothing was emailed
+            ✅ wiring: reset handler destructures sshBlocked
+            ✅ wiring: reset handler branches on sshBlocked (no false "emailed")
+            ✅ wiring: reveal handler probes reachability on failure
+            ✅ wiring: Show / Reset password buttons still routed
+            
+            ★ CORE FIX VERIFIED: The DigitalOcean "full VPS control" feature (A+B+C) is WORKING correctly. 
+              All 25 checks passed, covering:
+              - (A) Bot-managed SSH key generation, registration, and attachment at create
+              - (B) Cloud-init ufw allow OpenSSH firewall proofing
+              - (C) Reachability probe (ssh/web ports) with ssh-blocked guidance instead of emailing
+          
+          [TEST 2] ACCESS CONTROL: ✅ ALL CHECKS PASSED
+            
+            2a) No key: ✅ PASSED
+              GET /api/dev/vps-full-control-check (no key parameter)
+              
+              Response: HTTP 403 ✅
+              {
+                "error": "forbidden"
+              }
+              
+              ★ ACCESS CONTROL CONFIRMED: Endpoint correctly rejects requests without key.
+            
+            2b) Wrong key: ✅ PASSED
+              GET /api/dev/vps-full-control-check?key=wrong
+              
+              Response: HTTP 403 ✅
+              {
+                "error": "forbidden"
+              }
+              
+              ★ ACCESS CONTROL CONFIRMED: Endpoint correctly rejects requests with wrong key.
+          
+          [TEST 3] REGRESSION - Existing dev endpoints: ✅ ALL CHECKS PASSED
+            
+            3a) vps-password-fix-check: ✅ PASSED
+              GET /api/dev/vps-password-fix-check?key=<url-encoded SESSION_SECRET first 16 chars>
+              
+              Response: HTTP 200 ✅
+              
+              ✅ pass === true
+              ✅ total === 23
+              ✅ passed === 23
+              ✅ failed === 0
+              
+              ★ REGRESSION CONFIRMED: The vps-password-fix-check endpoint still passes (23/23 checks).
+            
+            3b) vps-password-reveal-check: ✅ PASSED
+              GET /api/dev/vps-password-reveal-check?key=<url-encoded SESSION_SECRET first 16 chars>
+              
+              Response: HTTP 200 ✅
+              
+              ✅ pass === true
+              ✅ total === 43
+              ✅ passed === 43
+              ✅ failed === 0
+              
+              ★ REGRESSION CONFIRMED: The vps-password-reveal-check endpoint still passes (43/43 checks).
+            
+            3c) Auth gating for regression endpoints: ✅ PASSED
+              - vps-password-fix-check with wrong key → HTTP 403 ✅
+              - vps-password-reveal-check with wrong key → HTTP 403 ✅
+              
+              ★ REGRESSION CONFIRMED: Auth gating works correctly for all regression endpoints.
+          
+          CONCLUSION:
+          The DigitalOcean "full VPS control" feature (A+B+C) is COMPLETE and verified. All 3 verification 
+          checks passed (25 primary assertions + 2 access control checks + 66 regression checks = 93 total 
+          assertions, 100% pass rate).
+          
+          KEY FIX VERIFIED:
+          • FEATURE IMPLEMENTED:
+            - (A) Bot-managed SSH key: createVPSInstance now auto-generates + registers a bot-managed SSH 
+              key with DigitalOcean (POST /account/keys), stores the private key in sshKeysOf keyed by 
+              the user, and attaches it at create. This ensures the bot can ALWAYS SSH in to set/show/verify 
+              a password without ever emailing. Only applies when the customer did not pick their own key 
+              (DO Linux VPS).
+            - (B) Firewall proofing: create cloud-init runs `ufw allow OpenSSH` (falls back to `ufw allow 
+              22/tcp`) so the customer can never lock themselves out of SSH by enabling ufw (the exact root 
+              cause of the original issue).
+            - (C) Reachability probe: New js/vps-ssh-reachability.js TCP probe (port 22 then 80/443) → 
+              verdict ok / ssh-blocked / host-down. resetPassword() now probes BEFORE the DO email fallback: 
+              if ssh-blocked it returns actionable `ufw allow OpenSSH` guidance and does NOT email; only 
+              host-down keeps the legacy DO email path. Telegram reset + show-password handlers wired to 
+              show the guidance.
+          
+          • IMPLEMENTATION VERIFIED:
+            - All 25 checks passed for the primary endpoint /api/dev/vps-full-control-check
+            - Create-path source verified (ufw + managed key + ssh_keys/user_data mapping)
+            - Probe logic verified against throwaway localhost TCP listeners (open→ok, all-closed→host-down, 
+              ssh-closed+web-open→ssh-blocked)
+            - Pure reset fallback decision verified (ssh-blocked→no email + ufw note; host-down→email)
+            - ssh-blocked message copy verified (includes "ufw allow OpenSSH", ufw reload, recovery console, 
+              and "nothing was emailed" note)
+            - Telegram-flow wiring verified (reset handler destructures sshBlocked, branches on sshBlocked, 
+              reveal handler probes reachability on failure)
+            - Regression safety verified (resetPassword never issues a destructive rebuild)
+          
+          • PRODUCTION IMPACT:
+            - Users can no longer lock themselves out of SSH by enabling ufw (firewall proofing)
+            - Bot can always SSH in to set/show/verify passwords (bot-managed SSH key)
+            - Users with ssh-blocked VPS get actionable guidance instead of misleading "emailed" messages
+            - Users with host-down VPS still get the legacy DO email fallback (safe degradation)
+            - No destructive rebuilds (data is always preserved)
+          
+          SAFETY CONFIRMED:
+          • All testing was READ-ONLY (dev endpoint verification only, pure helpers + localhost TCP probes)
+          • NO real DigitalOcean API calls made (no VPS create/reset/rebuild)
+          • NO real Telegram messages sent
+          • NO data mutations to MongoDB
+          • PRODUCTION-connected MongoDB was NOT modified
+          • All verification via the dev endpoint /api/dev/vps-full-control-check
+          
+          The DigitalOcean "full VPS control" feature (A+B+C) is now working and verified. The bot can 
+          always SSH in to manage passwords, users can never lock themselves out of SSH, and users get 
+          actionable guidance instead of misleading "emailed" messages.
+      - working: "NA"
+        agent: "main"
+        comment: |
+          Implemented the 3-part fix for DigitalOcean "full VPS control":
+          A) createVPSInstance now auto-generates + registers a bot-managed SSH key with DO
+             (POST /account/keys), stores the private key in sshKeysOf keyed by the user, and
+             attaches it at create — so we can ALWAYS SSH in to set/show/verify a password
+             without ever emailing. Only when the customer did not pick their own key (DO Linux).
+          B) create cloud-init runs `ufw allow OpenSSH` (falls back to `ufw allow 22/tcp`) so the
+             customer can never lock themselves out of SSH by enabling ufw (the exact root cause).
+          C) New js/vps-ssh-reachability.js TCP probe (port 22 then 80/443) → verdict ok /
+             ssh-blocked / host-down. resetPassword() now probes BEFORE the DO email fallback:
+             if ssh-blocked it returns actionable `ufw allow OpenSSH` guidance and does NOT email;
+             only host-down keeps the legacy DO email path. Telegram reset + show-password handlers
+             wired to show the guidance.
+          VERIFY (pure, no real DO/Telegram): GET /api/dev/vps-full-control-check?key=<SESSION_SECRET[0:16]>
+          — 25 assertions (already 25/25 locally). It asserts the create-path source (ufw + managed key
+          + ssh_keys/user_data mapping), the probe against throwaway localhost TCP listeners
+          (open→ok, all-closed→host-down, ssh-closed+web-open→ssh-blocked), the pure reset fallback
+          decision (ssh-blocked→no email + ufw note; host-down→email), the ssh-blocked message copy,
+          and the Telegram-flow wiring. Note: key contains a leading '+' — URL-encode it (%2B) or use
+          curl --data-urlencode. SAFETY: this pod is on LIVE prod Mongo + live DO/Telegram creds;
+          do NOT create/reset/rebuild any real VPS or message any real customer — verify ONLY via the
+          dev endpoint + localhost probes.
+
 metadata:
   created_by: "main_agent"
-  version: "2.1"
-  test_sequence: 32
+  version: "2.2"
+  test_sequence: 33
   run_ui: false
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "DO VPS full control (A+B+C): bot-managed SSH key at create, ufw allow OpenSSH in cloud-init, and reachability-probe / ssh-blocked guidance instead of emailing the password"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
   - agent: "testing"
-    timestamp: "2026-08-26"
+    timestamp: "2026-08-29"
+    message: |
+      ✅ DO VPS FULL CONTROL (A+B+C) VERIFICATION COMPLETE - ALL TESTS PASSED (100% pass rate)
+      
+      Verified the DigitalOcean "full VPS control" feature (A+B+C) via the dev regression endpoint. 
+      All tests passed with NO failures.
+      
+      VERIFICATION RESULTS:
+      
+      [1] PRIMARY ENDPOINT - /api/dev/vps-full-control-check: ✅ PASSED (25/25 checks, 100%)
+          • HTTP 200 with pass=true, total=25, passed=25, failed=0
+          • All 25 checks passed covering:
+            - (A) Bot-managed SSH key generation, registration, and attachment at create
+            - (B) Cloud-init ufw allow OpenSSH firewall proofing
+            - (C) Reachability probe (ssh/web ports) with ssh-blocked guidance instead of emailing
+      
+      [2] ACCESS CONTROL: ✅ PASSED (2/2 checks)
+          • Missing key → HTTP 403 {"error":"forbidden"}
+          • Wrong key → HTTP 403 {"error":"forbidden"}
+      
+      [3] REGRESSION ENDPOINTS: ✅ PASSED (66/66 checks, 100%)
+          • /api/dev/vps-password-fix-check → pass=true (23/23 checks)
+          • /api/dev/vps-password-reveal-check → pass=true (43/43 checks)
+          • Auth gating for both regression endpoints → HTTP 403 for wrong keys
+      
+      TOTAL: 93 assertions, 100% pass rate
+      
+      KEY FINDINGS:
+      • Feature (A): Bot-managed SSH key auto-generation + registration + attachment verified
+      • Feature (B): Cloud-init ufw allow OpenSSH firewall proofing verified
+      • Feature (C): Reachability probe (ok/ssh-blocked/host-down) + guidance verified
+      • All regression endpoints remain working (no regressions introduced)
+      • Auth gating works correctly for all dev endpoints
+      
+      SAFETY CONFIRMED:
+      • All testing was READ-ONLY (dev endpoint verification only)
+      • NO real DigitalOcean API calls made (no VPS create/reset/rebuild)
+      • NO real Telegram messages sent
+      • NO data mutations to MongoDB
+      • All verification via pure helpers + localhost TCP probes
+      
+      RECOMMENDATION:
+      The DigitalOcean "full VPS control" feature (A+B+C) is production-ready and working correctly. 
+      All 3 parts of the fix are verified and no regressions were introduced.
+
+  - agent: "main"
+    timestamp: "2026-08-29"
+    message: |
+      NEW TASK READY FOR BACKEND TESTING — DO VPS "full control" (A+B+C).
+      Please verify ONLY the dev regression endpoint (pure, no real DigitalOcean or Telegram calls):
+        GET  <REACT_APP_BACKEND_URL>/api/dev/vps-full-control-check?key=<SESSION_SECRET first 16 chars>
+      The key starts with a '+' — URL-encode it as %2B (or use curl --data-urlencode "key=...").
+      Expect HTTP 200 JSON with pass=true, total=25, failed=0. Also confirm a wrong/missing key → 403.
+      This endpoint spins up throwaway localhost TCP listeners and calls pure helpers; it must NOT touch
+      any real VPS or send any Telegram message. Do NOT attempt real VPS create/reset/show flows — this
+      pod runs on the LIVE production Mongo + live DO/Telegram credentials. Regression: the existing
+      /api/dev/vps-password-fix-check and /api/dev/vps-password-reveal-check should still pass.
+
     message: |
       ✅ SALES DASHBOARD WELCOME BONUS DEDUCTION VERIFICATION COMPLETE - ALL TESTS PASSED (100% pass rate)
       
@@ -11569,7 +11819,7 @@ agent_communication:
         
         ✅ ok === true
         ✅ audio.audioUrl present and ending in .mp3
-          URL: https://credentials-deploy-2.preview.emergentagent.com/api/assets/user-audio/tts_1786329027952_rachel.mp3
+          URL: https://provider-sandbox.preview.emergentagent.com/api/assets/user-audio/tts_1786329027952_rachel.mp3
         ✅ NO audio.error field
         ✅ audio.voice === "Rachel"
         ✅ audio.fallbackUsed === false
@@ -16293,7 +16543,7 @@ vps_show_password_feature_2026_08_13:
           ✅ VERIFICATION COMPLETE - Enhanced wallet-composition indicators PASSED (all checks, 100% pass):
           
           SCOPE: Verified the enhanced wallet-composition indicators on the Sales Dashboard at 
-          https://credentials-deploy-2.preview.emergentagent.com/sales. This is a 
+          https://provider-sandbox.preview.emergentagent.com/sales. This is a 
           READ-ONLY verification of the UI indicators - no data mutations. DB currently only has 
           welcome-bonus transactions ($120.00 total = 24 users × $5.00 each), so refunds/adjustments/
           deposits read $0.00 as expected per review request.

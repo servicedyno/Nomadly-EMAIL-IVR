@@ -1,5 +1,14 @@
 # Nomadly — Dev Pod PRD / Setup Notes
 
+## 2026-08-29 (this pod) — DO VPS "full control": set+show password in-bot, no emails, no SSH lock-outs — VERIFIED (testing agent, 93/93, 100% backend)
+**User request:** Give DigitalOcean Linux customers full VPS control — set + show the root password in-bot with nothing emailed, and stop SSH lock-outs. Root cause of the real incident: a droplet was online (web port answered) but SSH/22 was closed by the guest firewall (ufw), so the bot's SSH-based password set/show failed and fell back to DO's "we emailed it" dead-end (customer never sees a usable password).
+**Shipped (A) — always-attach a bot-managed SSH key at DO Linux create (`js/vm-instance-setup.js createVPSInstance`):** when the customer picks no key and the provider is DigitalOcean + Linux, generate an RSA keypair, register the public key with DO (`createSecret → POST /account/keys`), store the private key in `sshKeysOf` keyed by the user (`botManaged:true`), persist `sshKeySecretId` on the record, and attach the key id at create. Guarantees the bot can always SSH in to set/show/verify a password regardless of password state, without ever emailing. Non-fatal on any error.
+**Shipped (B) — firewall-proof port 22 at create (same cloud-init):** added `if command -v ufw >/dev/null 2>&1; then ufw allow OpenSSH 2>/dev/null || ufw allow 22/tcp; fi` — ufw persists the rule even if the customer enables ufw later, so SSH can never get locked out (the exact root cause).
+**Shipped (C) — diagnose instead of emailing when SSH is unreachable:** new `js/vps-ssh-reachability.js` TCP probe (port 22, then 80/443) → verdict `ok` (22 open) / `ssh-blocked` (22 closed, web open → box up, firewall blocking) / `host-down` (nothing answers). `digitalocean-service.resetPassword()` now probes BEFORE the DO email fallback via pure `_resetFallbackForVerdict(verdict,...)`: `ssh-blocked` → returns actionable `ufw allow OpenSSH` / `ufw reload` recovery-console guidance and does NOT email; `host-down`/`ok` → keeps the legacy non-destructive DO email path (never `rebuild`). Telegram handlers wired: reset handler (`_index.js`) destructures `sshBlocked` and shows the guidance (no false "emailed" copy); show-password (`revealVpsPassword`) probes on failure and shows the same guidance instead of a vague "not stored".
+**Verify (pure, no real DO/Telegram):** `GET /api/dev/vps-full-control-check?key=<SESSION_SECRET[0:16]>` (key starts with '+', URL-encode as %2B) — 25 assertions (create-path source: ufw + managed key + ssh_keys/user_data mapping; probe vs throwaway localhost listeners: open→ok, all-closed→host-down, ssh-closed+web-open→ssh-blocked; pure reset fallback: ssh-blocked→no email + ufw note, host-down→email; message copy; Telegram wiring). Testing agent: 25/25 + regressions `vps-password-fix-check` 23/23 and `vps-password-reveal-check` 43/43 = **93/93, 100%**, 403 on wrong key. Safety: zero real VPS/Telegram actions; live prod Mongo untouched.
+**Reaches production only after Save to GitHub + Railway redeploy** (Railway builds from GitHub).
+
+
 ## Original problem statement
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
@@ -159,7 +168,7 @@ Carried over from the previous session as "user verification pending". Ran the b
   Mongo-durable and every Azure/Vultr password write mirrors into it. No leftover test docs in
   `vpsPasswordSecrets`.
 - Pod state: services RUNNING, dev guards intact (`BOT_ENVIRONMENT=development`, `SKIP_WEBHOOK_SYNC=true`),
-  Mongo still the LIVE production DB. Pod URL: `https://credentials-deploy-2.preview.emergentagent.com`.
+  Mongo still the LIVE production DB. Pod URL: `https://provider-sandbox.preview.emergentagent.com`.
 - KNOWN GAP (user deferred): **Contabo** still lacks durable-store/reveal coverage parity; its OAuth creds
   are invalid in this pod so it can't be live-verified.
 
@@ -190,7 +199,7 @@ User asked to audit bot navigation for usability/clarity. Approved plan: **1a** 
 
 ## 2026-08-09 — Fresh pod re-bootstrap (setup from provided .env) — DONE
 Pod came up with only `.git`/app tree present, empty `frontend/.env`, no `backend/.env`, no `/app/.env` symlink, and no `nodejs` supervisor program (backend/frontend/mongodb running).
-- New pod URL: `https://credentials-deploy-2.preview.emergentagent.com` (detected from env `preview_endpoint`).
+- New pod URL: `https://provider-sandbox.preview.emergentagent.com` (detected from env `preview_endpoint`).
 - Created `/app/frontend/.env` → `REACT_APP_BACKEND_URL=<pod>`.
 - Created `/app/backend/.env` from the user-provided credential list **with the mandatory README safety overrides**:
   - `BOT_ENVIRONMENT="development"` (user list had `production` — would hijack the prod Telegram bot's webhook from this dev pod).
@@ -276,7 +285,7 @@ Audit doc: `/app/CLOUD_PHONE_BILLING_ANALYSIS.md`. Fixed the two genuine revenue
 
 ## 2026-08-07 — Fresh pod re-bootstrap (setup from provided .env)
 Pod came up with no `backend/.env`, empty `frontend/.env`, no `/app/.env` symlink, no `nodejs` supervisor program (backend+frontend STOPPED; only mongodb running).
-- New pod URL: `https://credentials-deploy-2.preview.emergentagent.com` (was `setup-keys...`).
+- New pod URL: `https://provider-sandbox.preview.emergentagent.com` (was `setup-keys...`).
 - Created `/app/frontend/.env` → `REACT_APP_BACKEND_URL=<pod>`.
 - Created `/app/backend/.env` from the user-provided credential list **with the mandatory README safety overrides**:
   - `BOT_ENVIRONMENT="development"` (user list had `production` — would hijack the prod Telegram bot's webhook from this dev pod).
@@ -538,7 +547,7 @@ Cross-referenced deployment `c640c247` logs with MongoDB records (paymentIntents
 ---
 
 ## 2026-07-06 — Fresh pod bootstrap (earlier this session)
-- Created `/app/frontend/.env` with `REACT_APP_BACKEND_URL=https://credentials-deploy-2.preview.emergentagent.com` (from supervisor `APP_URL` env).
+- Created `/app/frontend/.env` with `REACT_APP_BACKEND_URL=https://provider-sandbox.preview.emergentagent.com` (from supervisor `APP_URL` env).
 - Created `/app/backend/.env` with all user-supplied credentials **plus mandatory README safety overrides**:
   - `BOT_ENVIRONMENT="development"` (user supplied `production`; would hijack prod bot webhook)
   - `SKIP_WEBHOOK_SYNC="true"` (blocks Telnyx/Twilio webhook + Call Control migration + SIP ANI overrides from this pod)
@@ -748,7 +757,7 @@ For the 5 currently-stuck domains the OP REST sync DID succeed (`code:0`), but D
 
 ## Current pod state (2026-02-20)
 - `/app/frontend/.env` — `REACT_APP_BACKEND_URL` set to current dev pod URL
-- `/app/backend/.env` — full user-provided env list + safety overrides (`BOT_ENVIRONMENT=development`, `SKIP_WEBHOOK_SYNC=true`); `SELF_URL`/`SELF_URL_PROD` rewritten by setup script to `https://credentials-deploy-2.preview.emergentagent.com/api`
+- `/app/backend/.env` — full user-provided env list + safety overrides (`BOT_ENVIRONMENT=development`, `SKIP_WEBHOOK_SYNC=true`); `SELF_URL`/`SELF_URL_PROD` rewritten by setup script to `https://provider-sandbox.preview.emergentagent.com/api`
 - `/app/.env` — symlink → `/app/backend/.env` (Node.js dotenv root)
 - Supervisor: `backend`, `frontend`, `mongodb`, `nodejs` all RUNNING
 - Node.js logs confirm: AntiRed worker upgrade SKIPPED, CF-Sync skipped (dev mode), health monitor DISABLED on backend
@@ -941,7 +950,7 @@ Code changes ready. `logs_prod/` is gitignored from yesterday's cleanup so this 
 ## 2026-06-21 — Fresh Railway 6-day RCA + Referral funnel fixes
 
 ### Step 1 — Dev setup refreshed
-- `SELF_URL` + `SELF_URL_DEV` updated to current pod `https://credentials-deploy-2.preview.emergentagent.com/api`
+- `SELF_URL` + `SELF_URL_DEV` updated to current pod `https://provider-sandbox.preview.emergentagent.com/api`
 - `SELF_URL_PROD` left intact (still points to real Railway prod URL)
 - Production isolation reconfirmed: `BOT_ENVIRONMENT=development`, `SKIP_WEBHOOK_SYNC=true`, dev bot token in use
 - Nodejs restarted clean, all `/api/*` routes reachable
@@ -1396,7 +1405,7 @@ Removed one screen, added decision-shortcuts at the end, made the wait feel shor
 User asked: "read the README file and set up using below credentials" and supplied the full production .env list.
 
 ### What was done
-- Created `/app/frontend/.env` with `REACT_APP_BACKEND_URL=https://credentials-deploy-2.preview.emergentagent.com`
+- Created `/app/frontend/.env` with `REACT_APP_BACKEND_URL=https://provider-sandbox.preview.emergentagent.com`
 - Created `/app/backend/.env` from the user-provided list with critical dev-pod safety overrides:
   - `BOT_ENVIRONMENT="production"` → `"development"` (CRITICAL — prevents prod bot hijack)
   - Added `SKIP_WEBHOOK_SYNC="true"` (CRITICAL — blocks Telnyx/Twilio/CF mutations)
@@ -1423,7 +1432,7 @@ All RUNNING: `backend`, `frontend`, `mongodb`, `nodejs`. Logs confirm:
 - `[PhoneMonitor] === Health check complete: 23 checked, 0 newly suspended, 0 auth-failed ===`
 
 ### Updated docs
-- `/app/memory/test_credentials.md` — current pod URL updated to `https://credentials-deploy-2.preview.emergentagent.com`
+- `/app/memory/test_credentials.md` — current pod URL updated to `https://provider-sandbox.preview.emergentagent.com`
 
 Pod is initialised and idle, ready for development work.
 
