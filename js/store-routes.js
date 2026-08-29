@@ -582,6 +582,25 @@ function createStoreRoutes(deps = {}) {
       hostingPrice: order.hostingPrice, total, domain: order.domain, domainMode: order.domainMode, registrar: order.registrar,
     })
 
+    // ── WHM down at provisioning time → order is COMMITTED; the background
+    // cpanel-job-queue worker finishes the moment WHM recovers. Parity with the
+    // bot, which shows "being prepared" and NEVER refunds. Covers BOTH queued
+    // shapes the provisioner returns: {success:true,queued} (WHM down before
+    // domain registration) and {success:false,queued,deferred,code:'CPANEL_DOWN'}
+    // (WHM down AFTER the domain was already registered — refunding here would
+    // be wrong because the domain purchase already happened).
+    if (result?.queued) {
+      if (!isGuest) {
+        const overpay = Math.round((usdIn - total) * 100) / 100
+        if (overpay >= 0.01) await creditWallet(overpay, 'topup', `Overpayment credited to wallet (${order.domain})`)
+        await creditWallet(-total, 'purchase', `Hosting (crypto): ${order.plan} — ${order.domain}`)
+      }
+      await col('webOrders').updateOne({ _id: order._id }, { $set: { status: 'provisioning', usdCredited: usdIn, note: 'whm_down_queued', updatedAt: now() } })
+      log(`[Store] hosting order ${order._id} QUEUED (WHM down) — worker will finish provisioning (guest=${isGuest})`)
+      try { notifyAdmin(`⏳ <b>Web hosting QUEUED (WHM down)</b>\nOrder: <code>${order._id}</code>\n${isGuest ? 'GUEST ' + order.email : order.webUserId}\nDomain: ${order.domain}\nPaid $${usdIn} — background worker will provision on WHM recovery`) } catch {}
+      return true
+    }
+
     if (!result?.success) {
       if (isGuest) {
         await col('webOrders').updateOne({ _id: order._id }, { $set: { status: 'failed', usdCredited: usdIn, updatedAt: now() } })

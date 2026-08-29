@@ -2162,3 +2162,11 @@ at the start of the decline, plus ~5 unlabeled auto-deploys/day (no QA gate).
 - Scheduler job in _index.js: every 1 min, PROD-ONLY (SKIP_WEBHOOK_SYNC gate), launches due campaigns + DMs owner. DONE.
 - Verified: /api/dev/bulk-schedule-test 4/4; regressions green; testing agent iteration_33 = 100% backend, no issues. Details in memory/CHANGELOG.md (top).
 
+
+## 2026-08 — Web hosting checkout: payment-confirmation parity with the bot — DONE
+- Problem (Railway logs + prod DB): 97 bot hosting accounts provisioned, but 0 web-originated ever. Most recent web order 9fd5da6a (guest, lloyd-support.com, $69 ERC20) was PAID but ended `failed` with no cPanel; customer messaged support. Root cause: `/store/crypto-webhook` gated fulfillment on `getDynopayCryptoPaymentStatus`, which returns `false`/"Application not found" for storefront payment addresses (live-tested) → paid orders dropped/held. The bot's wallet path (authDyno) never calls that endpoint — it trusts the webhook.
+- Fix 1 (js/store-payment-verify.js `classifyStoreWebhook`): deny-list parity with authDyno — hold only on empty or definitively-unpaid events (pending/failed/underpaid/expired/cancelled/waiting/declined); TRUST every other event as paid. Gateway status is ADVISORY ONLY and can never block a paid webhook (contradiction → unverified-fulfill + admin alert). Underpayment tolerance (isStoreUnderpaid, 0.90) unchanged.
+- Fix 2 (js/store-routes.js `fulfillHostingOrder`): handle WHM-down `queued` outcomes like the bot — commit the order (status `provisioning`), never wrongly refund after the domain was already registered ({success:false,queued,deferred,CPANEL_DOWN}); alert admin.
+- Provisioning path is the SAME proven `registerDomainAndCreateCpanel` the bot uses (web-aware via send=no-op/bot=null).
+- Verified: 28 unit+e2e tests (tests/store-payment-verify.test.js, tests/store-webhook-e2e.test.js) incl. the lloyd regression driving the real /store/crypto-webhook route with provisioner+gateway mocked → order PROVISIONED; underpaid→failed; pending→held; duplicate→idempotent. Live decision proof against the real (broken) DynoPay gateway: confirmed/settled ⇒ fulfill, pending/underpaid ⇒ hold. No real purchase run (would register a real domain + cPanel).
+

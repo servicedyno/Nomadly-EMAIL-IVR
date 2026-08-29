@@ -36,8 +36,21 @@ function isUnpaidStatus(s) { return UNPAID.has(normalizeStatus(s)) }
 
 /**
  * Decide what to do with a store crypto webhook that has ALREADY passed the
- * pending/failed skip. Mirrors the wallet path: trust the webhook event; use
- * the gateway re-verify as a best-effort confirmation only.
+ * pending/failed skip. TRUE PARITY with the working wallet-deposit path
+ * (authDyno in _index.js): TRUST the webhook event and only skip the
+ * definitively-unpaid statuses (pending/failed/underpaid/expired/…). The
+ * DynoPay status API (getDynopayCryptoPaymentStatus) is ADVISORY ONLY and can
+ * NEVER block a paid webhook — it is frequently unreachable ("Application not
+ * found") for storefront payment addresses, which historically DROPPED
+ * fully-paid orders (see lloyd-support.com / order 9fd5da6a, 2026-08-29 — the
+ * customer paid $69, got nothing, and had to message support).
+ *
+ * Difference vs the old allow-list model: we no longer require the event to be
+ * in a hardcoded PAID set. Anything that is NOT empty and NOT explicitly
+ * unpaid is treated as "funds arrived" — exactly what authDyno does — so a new
+ * or unusual paid status (e.g. 'received', 'settlement_failed') can never be
+ * silently dropped again. The network-fee underpayment check in
+ * isStoreUnderpaid() remains the money-safety gate.
  *
  * @param {Object} p
  * @param {string}  p.event          - webhook body event/status
@@ -47,20 +60,27 @@ function isUnpaidStatus(s) { return UNPAID.has(normalizeStatus(s)) }
  */
 function classifyStoreWebhook({ event, gatewayReached, gatewayStatus } = {}) {
   const ev = normalizeStatus(event)
-  if (gatewayReached) {
-    if (isPaidStatus(gatewayStatus)) return { action: 'fulfill', reason: `gateway-confirmed:${normalizeStatus(gatewayStatus)}` }
-    if (isUnpaidStatus(gatewayStatus)) return { action: 'hold', reason: `gateway-unpaid:${normalizeStatus(gatewayStatus)}` }
-    // gateway reached but returned an UNKNOWN status → fall through to trust the webhook event
+
+  // Never provision on an empty or definitively-unpaid webhook event.
+  if (!ev) return { action: 'hold', reason: 'webhook-event-empty' }
+  if (isUnpaidStatus(ev)) return { action: 'hold', reason: `webhook-event-unpaid:${ev}` }
+
+  // The webhook says funds arrived → fulfill. The gateway is ADVISORY ONLY and
+  // must never block a paid order (parity with the wallet-deposit path).
+  if (gatewayReached && isPaidStatus(gatewayStatus)) {
+    return { action: 'fulfill', reason: `gateway-confirmed:${normalizeStatus(gatewayStatus)}` }
   }
-  // Gateway unreachable (IP-restricted 404 / network) OR unknown status →
-  // trust the webhook event exactly like the wallet-deposit path does.
-  if (isPaidStatus(ev)) {
-    return {
-      action: gatewayReached ? 'fulfill' : 'unverified-fulfill',
-      reason: `webhook-event:${ev}${gatewayReached ? '(gateway-unknown-status)' : '(gateway-unreachable)'}`,
-    }
+  if (gatewayReached && isUnpaidStatus(gatewayStatus)) {
+    // Gateway contradicts a paid webhook → still fulfill (parity with wallet
+    // deposits) but flag it for admin review.
+    return { action: 'unverified-fulfill', reason: `webhook-paid:${ev}(gateway-contradicts:${normalizeStatus(gatewayStatus)})` }
   }
-  return { action: 'hold', reason: `webhook-event-not-paid:${ev || 'empty'}` }
+  // Gateway unreachable OR reported an unknown status → trust the webhook,
+  // same policy as the wallet-deposit path.
+  return {
+    action: gatewayReached ? 'fulfill' : 'unverified-fulfill',
+    reason: `webhook-paid:${ev}${gatewayReached ? '(gateway-unknown)' : '(gateway-unreachable)'}`,
+  }
 }
 
 function storeUnderpayTolerance() {
