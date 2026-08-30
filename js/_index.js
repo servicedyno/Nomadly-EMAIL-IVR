@@ -23501,11 +23501,25 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
         await set(state, chatId, 'action', 'none')
         return send(chatId, ({ en: '⚠️ Your session expired. Please start your purchase again from the main menu.', fr: '⚠️ Votre session a expiré. Veuillez recommencer votre achat depuis le menu principal.', zh: '⚠️ 您的会话已过期。请从主菜单重新开始购买。', hi: '⚠️ आपका सत्र समाप्त हो गया। कृपया मुख्य मेनू से अपनी खरीदारी फिर से शुरू करें।' }[lang] || '⚠️ Your session expired. Please start your purchase again from the main menu.'), trans('o'))
       }
-      // Track payment completion for cart recovery
-      if (cartRecovery) cartRecovery.recordPaymentCompleted(chatId)
-      // Mark user as purchased (cancels welcome offer + browse follow-up timers)
-      if (userConversion) userConversion.markPurchased(chatId)
-      return handler(info?.coin)
+      // Run the wallet purchase FIRST, then record completion / mark the user as
+      // "purchased" ONLY if the wallet was actually debited (a genuine sale).
+      // Root cause of the phantom "paying users": markPurchased() used to fire HERE,
+      // before the handler ran. A user who confirmed "Pay with Wallet" but had
+      // insufficient balance hit the handler's walletBalanceLowAmount early-return
+      // (no debit, no sale) yet still got hasPurchased=true — a stale flag with no
+      // purchase. Every walletOk handler only increments usdOut on a successful
+      // purchase (deposits are never done here), so a drop in usdBal == a real sale.
+      const balBefore = await getBalance(walletOf, chatId)
+      const result = await handler(info?.coin)
+      const balAfter = await getBalance(walletOf, chatId)
+      const walletDebited = ((Number(balBefore?.usdBal) || 0) - (Number(balAfter?.usdBal) || 0)) > 0
+      if (walletDebited) {
+        // Track payment completion for cart recovery
+        if (cartRecovery) cartRecovery.recordPaymentCompleted(chatId)
+        // Mark user as purchased (cancels welcome offer + browse follow-up timers)
+        if (userConversion) userConversion.markPurchased(chatId)
+      }
+      return result
     } catch (error) {
       log(`[Wallet] walletOk error for lastStep=${info?.lastStep}: ${error?.message}`)
       return sendMessage(chatId, 'Error code 209 ' + error?.message)
