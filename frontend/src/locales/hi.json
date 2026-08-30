@@ -559,7 +559,16 @@
     "nsRecheckNow": "अब पुनः जाँच करें",
     "nsExternalUpdate": "अपने डोमेन रजिस्ट्रार पर अपने नाम सर्वर अपडेट करें:",
     "nsExternalNote": "प्रसार में 24-48 घंटे लग सकते हैं।",
-    "nsExternalNoteTail": "(अगर NS सक्रिय है तो SSL जारी करने को भी प्रेरित करता है)"
+    "nsExternalNoteTail": "(अगर NS सक्रिय है तो SSL जारी करने को भी प्रेरित करता है)",
+    "bulkImport": "बल्क इम्पोर्ट",
+    "bulkSingle": "एकल",
+    "bulkNote": "एक साथ कई सबडोमेन नाम पेस्ट करें — प्रति पंक्ति एक या कॉमा से अलग। ये सभी चयनित डोमेन के अंतर्गत बनाए जाएंगे (अधिकतम 50)।",
+    "bulkPlaceholder": "blog, shop, app\nmail\nnews",
+    "bulkCreateAll": "सभी बनाएँ",
+    "bulkCreating": "बनाया जा रहा है…",
+    "bulkSummary": "{{total}} में से {{succeeded}} बने, {{failed}} विफल",
+    "bulkEmpty": "कम से कम एक मान्य सबडोमेन नाम दर्ज करें।",
+    "bulkDone": "पूर्ण"
   },
   "an": {
     "title": "अतिथि विश्लेषण",

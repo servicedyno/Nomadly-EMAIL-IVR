@@ -559,7 +559,16 @@
     "nsRecheckNow": "Re-vérifier maintenant",
     "nsExternalUpdate": "Mettre à jour vos serveurs de noms chez votre registraire de domaine :",
     "nsExternalNote": "La propagation peut prendre jusqu'à 24-48 heures.",
-    "nsExternalNoteTail": "(déclenche également l'émission SSL si NS actif)"
+    "nsExternalNoteTail": "(déclenche également l'émission SSL si NS actif)",
+    "bulkImport": "Import groupé",
+    "bulkSingle": "Simple",
+    "bulkNote": "Collez plusieurs noms de sous-domaines — un par ligne ou séparés par des virgules. Ils seront tous créés sous le domaine sélectionné (max 50).",
+    "bulkPlaceholder": "blog, shop, app\nmail\nnews",
+    "bulkCreateAll": "Tout créer",
+    "bulkCreating": "Création en cours…",
+    "bulkSummary": "{{succeeded}} créés, {{failed}} échoués sur {{total}}",
+    "bulkEmpty": "Entrez au moins un nom de sous-domaine valide.",
+    "bulkDone": "Terminé"
   },
   "an": {
     "title": "Analyse des Visiteurs",

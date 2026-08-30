@@ -3266,6 +3266,32 @@
   border-color: rgba(0,0,0,0.12);
   color: #111827;
 }
+/* Bulk Subdomain Import (Light) */
+.panel-light .dl-bulk-toggle {
+  background: #eef1f6;
+  border-color: rgba(0,0,0,0.08);
+}
+.panel-light .dl-bulk-tab { color: #6b7280; }
+.panel-light .dl-bulk-tab:hover { color: #111827; }
+.panel-light .dl-bulk-tab--active { background: #3b82f6; color: #fff; }
+.panel-light .dl-bulk-textarea {
+  background: #f5f7fa;
+  border-color: rgba(0,0,0,0.12);
+  color: #111827;
+}
+.panel-light .dl-bulk-textarea:focus { border-color: #3b82f6; }
+.panel-light .dl-bulk-side select {
+  background: #f5f7fa;
+  border-color: rgba(0,0,0,0.12);
+  color: #111827;
+}
+.panel-light .dl-bulk-result { border-color: rgba(0,0,0,0.1); }
+.panel-light .dl-bulk-summary--ok { background: rgba(16,185,129,0.12); color: #047857; }
+.panel-light .dl-bulk-summary--warn { background: rgba(245,158,11,0.14); color: #b45309; }
+.panel-light .dl-bulk-item { border-top-color: rgba(0,0,0,0.06); }
+.panel-light .dl-bulk-item-name { color: #111827; }
+.panel-light .dl-bulk-item-err { color: #dc2626; }
+
 
 /* ─── Email Manager (Light) ──────────────────── */
 .panel-light .em-create-form {
@@ -3997,6 +4023,141 @@
   outline: none;
   min-width: 120px;
 }
+
+/* ─── Bulk Subdomain Import ────────────────────── */
+.dl-bulk-toggle {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  background: #14141f;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 9px;
+  margin-bottom: 4px;
+  width: fit-content;
+}
+
+.dl-bulk-tab {
+  padding: 6px 14px;
+  background: transparent;
+  border: none;
+  border-radius: 7px;
+  color: #9a9ab0;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+
+.dl-bulk-tab:hover { color: #d0d0e0; }
+
+.dl-bulk-tab--active {
+  background: #4f6ff5;
+  color: #fff;
+}
+
+.dl-bulk-row {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.dl-bulk-textarea {
+  flex: 1;
+  padding: 10px 12px;
+  background: #1a1a28;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  color: #e0e0f0;
+  font-size: 14px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  line-height: 1.6;
+  outline: none;
+  resize: vertical;
+  min-height: 96px;
+}
+
+.dl-bulk-textarea:focus { border-color: #4f6ff5; }
+
+.dl-bulk-side {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.dl-bulk-side select {
+  padding: 8px 12px;
+  background: #1a1a28;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 0 8px 8px 0;
+  color: #e0e0f0;
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  min-width: 130px;
+  align-self: flex-start;
+}
+
+.dl-bulk-result {
+  margin-top: 4px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.dl-bulk-summary {
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.dl-bulk-summary--ok { background: rgba(52,199,120,0.12); color: #6ee7a8; }
+.dl-bulk-summary--warn { background: rgba(245,180,80,0.12); color: #f5c469; }
+
+.dl-bulk-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.dl-bulk-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+}
+
+.dl-bulk-item-icon {
+  width: 16px;
+  text-align: center;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.dl-bulk-item--ok .dl-bulk-item-icon { color: #6ee7a8; }
+.dl-bulk-item--fail .dl-bulk-item-icon { color: #ff7a7a; }
+
+.dl-bulk-item-name {
+  color: #e0e0f0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.dl-bulk-item-err {
+  margin-left: auto;
+  color: #ff9a9a;
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+@media (max-width: 640px) {
+  .dl-bulk-row { flex-direction: column; }
+  .dl-bulk-side select { border-radius: 8px; width: 100%; }
+}
+
 
 /* ─── Domain Card Enhancement ──────────────────── */
 .dl-domain-card-top {

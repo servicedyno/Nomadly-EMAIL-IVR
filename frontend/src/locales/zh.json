@@ -559,7 +559,16 @@
     "nsRecheckNow": "立即重新检查",
     "nsExternalUpdate": "在您的域名注册商处更新您的名称服务器：",
     "nsExternalNote": "传播可能需要24-48小时。",
-    "nsExternalNoteTail": "(如果NS处于活动状态，还会触发SSL签发)"
+    "nsExternalNoteTail": "(如果NS处于活动状态，还会触发SSL签发)",
+    "bulkImport": "批量导入",
+    "bulkSingle": "单个",
+    "bulkNote": "粘贴多个子域名——每行一个或用逗号分隔。它们都将创建在所选域名下（最多 50 个）。",
+    "bulkPlaceholder": "blog, shop, app\nmail\nnews",
+    "bulkCreateAll": "全部创建",
+    "bulkCreating": "正在创建…",
+    "bulkSummary": "共 {{total}} 个：成功 {{succeeded}}，失败 {{failed}}",
+    "bulkEmpty": "请至少输入一个有效的子域名。",
+    "bulkDone": "完成"
   },
   "an": {
     "title": "访客分析",

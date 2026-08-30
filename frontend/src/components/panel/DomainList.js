@@ -56,6 +56,11 @@ export default function DomainList() {
   const [subName, setSubName] = useState('');
   const [subRoot, setSubRoot] = useState('');
   const [creatingSub, setCreatingSub] = useState(false);
+  // Bulk subdomain import (paste a comma/newline-separated list → /subdomains/bulk-create)
+  const [bulkMode, setBulkMode] = useState(false);
+  const [bulkText, setBulkText] = useState('');
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkResult, setBulkResult] = useState(null);
   const [subdomains, setSubdomains] = useState([]);
   const [subLoading, setSubLoading] = useState(true);
   // Domain document-root mode (mirror primary vs own folder) + set-primary
@@ -411,6 +416,29 @@ export default function DomainList() {
     }
   };
 
+  const handleBulkCreate = async () => {
+    const raw = bulkText.trim();
+    if (!raw || !subRoot) { setError(t('dl.bulkEmpty')); return; }
+    setBulkBusy(true);
+    setError('');
+    setBulkResult(null);
+    try {
+      const res = await api('/subdomains/bulk-create', {
+        method: 'POST',
+        body: JSON.stringify({ subdomains: raw, rootdomain: subRoot }),
+      });
+      // Backend returns { status, results:[{subdomain,fqdn,ok,error}], summary:{total,succeeded,failed} }
+      setBulkResult(res);
+      // Refresh the list in the background so newly-created subdomains appear.
+      fetchSubdomains();
+      fetchDomains();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
   const handleDeleteSub = async (sub) => {
     if (!window.confirm(t('dl.deleteSubConfirm', { subdomain: sub }))) return;
     // Optimistic removal with rollback. Match by the same display name the
@@ -687,30 +715,96 @@ export default function DomainList() {
       {/* Subdomain Create Form */}
       {showSubCreate && (
         <div className="dl-add-form dl-sub-form" data-testid="dl-sub-form">
-          <div className="dl-add-note">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-            <span dangerouslySetInnerHTML={{ __html: t('dl.addSubdomainNote') }} />
+          {/* Single / Bulk mode toggle */}
+          <div className="dl-bulk-toggle" data-testid="dl-sub-mode-toggle">
+            <button
+              type="button"
+              className={`dl-bulk-tab ${!bulkMode ? 'dl-bulk-tab--active' : ''}`}
+              onClick={() => { setBulkMode(false); setBulkResult(null); }}
+              data-testid="dl-sub-mode-single"
+            >{t('dl.bulkSingle')}</button>
+            <button
+              type="button"
+              className={`dl-bulk-tab ${bulkMode ? 'dl-bulk-tab--active' : ''}`}
+              onClick={() => { setBulkMode(true); setError(''); }}
+              data-testid="dl-sub-mode-bulk"
+            >{t('dl.bulkImport')}</button>
           </div>
-          <div className="dl-sub-input-row">
-            <input
-              type="text"
-              value={subName}
-              onChange={(e) => setSubName(e.target.value)}
-              placeholder={t('dl.subdomainPlaceholder')}
-              data-testid="dl-sub-name-input"
-              onKeyDown={(e) => e.key === 'Enter' && handleCreateSub()}
-            />
-            <span className="dl-sub-dot">.</span>
-            <select value={subRoot} onChange={(e) => setSubRoot(e.target.value)} data-testid="dl-sub-root-select">
-              {allDomains.map(d => <option key={d} value={d}>{d}</option>)}
-            </select>
-          </div>
-          <div className="dl-sub-actions">
-            <button onClick={handleCreateSub} className="fm-btn fm-btn--primary" disabled={creatingSub || !subName.trim()} data-testid="dl-sub-submit">
-              {creatingSub ? t('dl.creating') : t('dl.create')}
-            </button>
-            <button onClick={() => { setShowSubCreate(false); setSubName(''); }} className="fm-btn fm-btn--ghost">{t('dl.cancel')}</button>
-          </div>
+
+          {!bulkMode ? (
+            <>
+              <div className="dl-add-note">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                <span dangerouslySetInnerHTML={{ __html: t('dl.addSubdomainNote') }} />
+              </div>
+              <div className="dl-sub-input-row">
+                <input
+                  type="text"
+                  value={subName}
+                  onChange={(e) => setSubName(e.target.value)}
+                  placeholder={t('dl.subdomainPlaceholder')}
+                  data-testid="dl-sub-name-input"
+                  onKeyDown={(e) => e.key === 'Enter' && handleCreateSub()}
+                />
+                <span className="dl-sub-dot">.</span>
+                <select value={subRoot} onChange={(e) => setSubRoot(e.target.value)} data-testid="dl-sub-root-select">
+                  {allDomains.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+              <div className="dl-sub-actions">
+                <button onClick={handleCreateSub} className="fm-btn fm-btn--primary" disabled={creatingSub || !subName.trim()} data-testid="dl-sub-submit">
+                  {creatingSub ? t('dl.creating') : t('dl.create')}
+                </button>
+                <button onClick={() => { setShowSubCreate(false); setSubName(''); }} className="fm-btn fm-btn--ghost">{t('dl.cancel')}</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="dl-add-note">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                <span>{t('dl.bulkNote')}</span>
+              </div>
+              <div className="dl-bulk-row">
+                <textarea
+                  className="dl-bulk-textarea"
+                  value={bulkText}
+                  onChange={(e) => setBulkText(e.target.value)}
+                  placeholder={t('dl.bulkPlaceholder')}
+                  rows={5}
+                  data-testid="dl-bulk-textarea"
+                />
+                <div className="dl-bulk-side">
+                  <span className="dl-sub-dot">.</span>
+                  <select value={subRoot} onChange={(e) => setSubRoot(e.target.value)} data-testid="dl-bulk-root-select">
+                    {allDomains.map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="dl-sub-actions">
+                <button onClick={handleBulkCreate} className="fm-btn fm-btn--primary" disabled={bulkBusy || !bulkText.trim()} data-testid="dl-bulk-submit">
+                  {bulkBusy ? t('dl.bulkCreating') : t('dl.bulkCreateAll')}
+                </button>
+                <button onClick={() => { setShowSubCreate(false); setBulkText(''); setBulkResult(null); }} className="fm-btn fm-btn--ghost">{t('dl.cancel')}</button>
+              </div>
+
+              {bulkResult?.summary && (
+                <div className="dl-bulk-result" data-testid="dl-bulk-result">
+                  <div className={`dl-bulk-summary ${bulkResult.summary.failed ? 'dl-bulk-summary--warn' : 'dl-bulk-summary--ok'}`}>
+                    {bulkResult.summary.failed ? '⚠️' : '✅'} {t('dl.bulkSummary', { succeeded: bulkResult.summary.succeeded, failed: bulkResult.summary.failed, total: bulkResult.summary.total })}
+                  </div>
+                  <ul className="dl-bulk-list">
+                    {(bulkResult.results || []).map((r, i) => (
+                      <li key={i} className={`dl-bulk-item ${r.ok ? 'dl-bulk-item--ok' : 'dl-bulk-item--fail'}`} data-testid={`dl-bulk-item-${i}`}>
+                        <span className="dl-bulk-item-icon">{r.ok ? '✓' : '✕'}</span>
+                        <span className="dl-bulk-item-name">{r.fqdn || r.subdomain}</span>
+                        {!r.ok && r.error && <span className="dl-bulk-item-err">{r.error}</span>}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
 

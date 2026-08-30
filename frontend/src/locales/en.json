@@ -486,7 +486,16 @@
     "nsRecheckNow": "Re-check now",
     "nsExternalUpdate": "Update your nameservers at your domain registrar:",
     "nsExternalNote": "Propagation can take up to 24-48 hours.",
-    "nsExternalNoteTail": "(also triggers SSL issuance if NS active)"
+    "nsExternalNoteTail": "(also triggers SSL issuance if NS active)",
+    "bulkImport": "Bulk import",
+    "bulkSingle": "Single",
+    "bulkNote": "Paste multiple subdomain names — one per line or comma-separated. They'll all be created under the selected domain (max 50).",
+    "bulkPlaceholder": "blog, shop, app\nmail\nnews",
+    "bulkCreateAll": "Create all",
+    "bulkCreating": "Creating…",
+    "bulkSummary": "{{succeeded}} created, {{failed}} failed of {{total}}",
+    "bulkEmpty": "Enter at least one valid subdomain name.",
+    "bulkDone": "Done"
   },
   "an": {
     "title": "Visitor Analytics",

@@ -25,9 +25,21 @@
   against the LIVE production WHM (68.183.77.106) + live customer accounts.
 - DO NOT run destructive cPanel ops (add/delete subdomain/domain, MySQL
   create/delete, file rename/move) against real accounts from this pod.
+
+### Bulk-Subdomain feature test — VERIFIED then TORN DOWN (2026-08-30)
+- An isolated throwaway cPanel account (btpk8j / btpk8jbulk.com) was created on
+  the WHM only to verify the Bulk Subdomain Import UI end-to-end (4/4 subdomains
+  created, display-name doubling fix confirmed), then DELETED via
+  /tmp/teardown_bulk_test_account.js. No artifacts remain on the WHM or DB.
+- To re-run this E2E test later, recreate the account:
+    set -a; source /app/backend/.env; set +a; NODE_PATH=/app/node_modules node /tmp/setup_bulk_test_account.js
+  (prints fresh PANEL_USERNAME / PANEL_PIN / PRIMARY_DOMAIN), then tear down with
+    NODE_PATH=/app/node_modules node /tmp/teardown_bulk_test_account.js
+
 - The cPanel "broken user-auth" WHM-root fallback fix is verified with the
   fully-mocked jest suite: `cd /app && npx jest tests/cpanel-auth-broken-fallback.test.js`
   (nock — no live cPanel/WHM/DB calls).
+
 
 
 ## Architecture
