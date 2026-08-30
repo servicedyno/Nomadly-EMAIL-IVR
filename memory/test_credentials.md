@@ -15,10 +15,20 @@
 - Bot token (dev==prod): 8822506525:... (env: TELEGRAM_BOT_TOKEN_PROD / _DEV)
 
 ## URLs
-- Frontend/preview: https://config-preview-9.preview.emergentagent.com
+- Frontend/preview: https://f749731e-1dd0-49f4-b134-7e7d4ee5926b.preview.emergentagent.com
 - Backend API base (proxied to Node :5000): <preview>/api
-- Re-provisioned 2026-08-29: fresh .env from user creds; ran scripts/setup-nodejs.sh; all services verified (bot Running, DB Connected, REST APIs Active).
+- Re-provisioned 2026-08-30: fresh .env from user creds; ran scripts/setup-nodejs.sh; all services verified (nodejs RUNNING, DB Connected, REST APIs Active).
 - Panel domain: panel.smadavhost.com | SIP domain: sip.smadavspeech.com
+
+## Panel (cPanel management UI) testing
+- No live customer panel credentials are stored here. cPanel/WHM operations run
+  against the LIVE production WHM (68.183.77.106) + live customer accounts.
+- DO NOT run destructive cPanel ops (add/delete subdomain/domain, MySQL
+  create/delete, file rename/move) against real accounts from this pod.
+- The cPanel "broken user-auth" WHM-root fallback fix is verified with the
+  fully-mocked jest suite: `cd /app && npx jest tests/cpanel-auth-broken-fallback.test.js`
+  (nock — no live cPanel/WHM/DB calls).
+
 
 ## Architecture
 - Frontend (React, :3000) → FastAPI (:8001) → proxy → Node Express (:5000) → MongoDB (live).

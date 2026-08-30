@@ -332,6 +332,25 @@ function looksLikeAuthFailure(status, msg) {
   return false
 }
 
+// ─── HTTP-200-with-login-page-HTML detector ─────────────────────────────
+//
+// The nastiest of the three auth-denial signals: cpsrvd sometimes answers a
+// perfectly normal HTTP 200 whose *body* is the raw cPanel login page HTML
+// (Basic Auth silently rejected by cPHulk / ModSecurity / session policy).
+// axios resolves this as a success, so callers happily treat
+// `<!DOCTYPE html>…` as valid data — the file editor literally rendered the
+// login page as "file content", and API2 callers saw a missing
+// `cpanelresult` and invented a generic "Operation failed".
+//
+// This detector lets uapi()/api2()/domain ops normalize that case into the
+// same CPANEL_AUTH_FAILURE shape the 401/403 paths already produce, so the
+// WHM-root impersonation fallback can kick in.
+function _detectLoginPageHtml(body) {
+  if (typeof body !== 'string') return null
+  if (!/<!DOCTYPE html|<title>cPanel Login<\/title>|<title>Login<\/title>/i.test(body)) return null
+  return { reason: 'cPanel returned login page HTML (session/auth denied at cpsrvd layer)' }
+}
+
 // ─── File-name safety for cPanel Fileman::fileop ────────────────────────
 //
 // cPanel's `Fileman::fileop` takes `sourcefiles`/`destfiles` as a COMMA-separated
@@ -407,6 +426,15 @@ async function uapi(cpUser, cpPass, module, func, params = {}, method = 'GET', h
     }
 
     const data = res.data
+    // HTTP-200-with-login-page-HTML → cpsrvd denied auth. Normalize to the
+    // same CPANEL_AUTH_FAILURE shape the 401/403 error path produces so the
+    // route-level WHM-root fallback triggers instead of the editor rendering
+    // the login page as "file content".
+    const htmlAuthFail = _detectLoginPageHtml(data)
+    if (htmlAuthFail) {
+      log(`[cPanel Proxy] ${module}::${func} got HTTP ${res.status} with cPanel Login HTML → AUTH-BROKEN`)
+      return { status: 0, errors: [htmlAuthFail.reason], data: null, httpStatus: res.status, code: 'CPANEL_AUTH_FAILURE' }
+    }
     // Sanitize: strip server IP from response
     return sanitize(data, host)
   } catch (err) {
@@ -805,6 +833,13 @@ async function api2(cpUser, cpPass, module, func, params = {}, host = null) {
 
   try {
     const res = await axios.get(url, { params: queryParams, auth, httpsAgent, timeout: 60000, headers: _maybeAccessHeaders(baseUrl) })
+    // HTTP-200-with-login-page-HTML variant — treat as auth broken (same as
+    // the 401/403 catch path) so callers can trip the WHM-root fallback.
+    const htmlAuthFail = _detectLoginPageHtml(res.data)
+    if (htmlAuthFail) {
+      log(`[cPanel Proxy API2] ${module}::${func} got HTTP ${res.status} with cPanel Login HTML → AUTH-BROKEN`)
+      return { status: 0, errors: [htmlAuthFail.reason], data: null, httpStatus: res.status, code: 'CPANEL_AUTH_FAILURE' }
+    }
     const raw = sanitize(res.data, host)
 
     // Normalize API2 response to UAPI-like format
@@ -853,6 +888,54 @@ async function api2(cpUser, cpPass, module, func, params = {}, host = null) {
       code,
     }
   }
+}
+
+// ─── WHM-root API2 impersonation fallback ───────────────────────────────
+//
+// When a user's cPanel HTTP Basic Auth is dead (stale cpPass, cPHulk lockout,
+// session-security policy), WHM-root can still drive the exact same cPanel
+// API2 op on the user's behalf via /json-api/cpanel with
+// cpanel_jsonapi_user=<user> (the WHM root token authenticates; the query
+// param impersonates the user). This is the API2 sibling of the UAPI
+// root-impersonation ladder that file-list/mkdir/upload/delete already use.
+//
+// Returns a normalized { status, data, errors, via } on a reachable result,
+// or null when WHM creds are unavailable / the request throws — so the caller
+// can surface the ORIGINAL user-level error instead of a misleading one.
+function _resolveWhmBaseUrl(host) {
+  const whmApiUrl = process.env.WHM_API_URL
+  const eff = host || WHM_HOST
+  if (whmApiUrl && eff === WHM_HOST) return `${whmApiUrl.replace(/\/+$/, '')}/json-api`
+  return `https://${eff}:2087/json-api`
+}
+
+async function _api2ViaWhmRoot(cpUser, module, func, params = {}, host = null) {
+  const whmToken = process.env.WHM_TOKEN
+  const whmUser  = process.env.WHM_USERNAME || 'root'
+  const eff = host || WHM_HOST
+  if (!eff || !whmToken) return null            // no creds → let caller surface original error
+  const url = `${_resolveWhmBaseUrl(host)}/cpanel`
+  const queryParams = {
+    'api.version': 1, cpanel_jsonapi_user: cpUser, cpanel_jsonapi_apiversion: 2,
+    cpanel_jsonapi_module: module, cpanel_jsonapi_func: func, ...params,
+  }
+  const headers = {
+    Authorization: `whm ${whmUser}:${whmToken}`,
+    ...(CF_ACCESS_CLIENT_ID && CF_ACCESS_CLIENT_SECRET ? {
+      'CF-Access-Client-Id': CF_ACCESS_CLIENT_ID, 'CF-Access-Client-Secret': CF_ACCESS_CLIENT_SECRET } : {}),
+  }
+  try {
+    const res = await axios.get(url, { params: queryParams, headers, httpsAgent, timeout: 30000 })
+    const cp = sanitize(res.data, host)?.cpanelresult || {}
+    const first = (Array.isArray(cp.data) ? cp.data : (cp.data ? [cp.data] : []))[0] || {}
+    const ok = v => v === 1 || v === '1' || v === true
+    if ((ok(first.result) || ok(cp.event?.result)) && !cp.error) {
+      log(`[cPanel Proxy] ${module}::${func} recovered via WHM-root impersonation for ${cpUser}`)
+      return { status: 1, data: first, errors: null, via: 'whm-fallback' }
+    }
+    const reason = first.reason || cp.error || `Failed to ${func}`
+    return { status: 0, data: null, errors: [sanitizeString(String(reason), host)], via: 'whm-fallback-failed' }
+  } catch (err) { return null }
 }
 
 // ─── High-level operations ──────────────────────────────
@@ -1048,14 +1131,17 @@ async function addAddonDomain(cpUser, cpPass, domain, subDomain, dir, host = nul
   // Use cPanel API2 for AddonDomain::addaddondomain (UAPI module not available on all versions)
   const auth = { username: cpUser, password: cpPass }
   const url = `${getBaseUrl(host)}/json-api/cpanel`
+  const p2 = {
+    newdomain: domain,
+    subdomain: subDomain || domain.replace(/\./g, ''),
+    dir: dir || `public_html/${domain}`,
+  }
   const params = {
     cpanel_jsonapi_user: cpUser,
     cpanel_jsonapi_apiversion: 2,
     cpanel_jsonapi_module: 'AddonDomain',
     cpanel_jsonapi_func: 'addaddondomain',
-    newdomain: domain,
-    subdomain: subDomain || domain.replace(/\./g, ''),
-    dir: dir || `public_html/${domain}`,
+    ...p2,
   }
   try {
     const res = await axios.get(url, {
@@ -1065,6 +1151,12 @@ async function addAddonDomain(cpUser, cpPass, domain, subDomain, dir, host = nul
       timeout: 30000,
       headers: _maybeAccessHeaders(getBaseUrl(host)),
     })
+    // HTTP-200-with-login-page-HTML → auth denied at cpsrvd. Try WHM-root.
+    if (_detectLoginPageHtml(res.data)) {
+      const fb = await _api2ViaWhmRoot(cpUser, 'AddonDomain', 'addaddondomain', p2, host)
+      if (fb) return fb
+      return { status: 0, data: null, errors: ['cPanel returned login page HTML (session/auth denied at cpsrvd layer)'], code: 'CPANEL_AUTH_FAILURE' }
+    }
     const result = res.data?.cpanelresult?.data?.[0] || {}
     if (result.result === 1) {
       return { status: 1, data: result, errors: null }
@@ -1075,6 +1167,11 @@ async function addAddonDomain(cpUser, cpPass, domain, subDomain, dir, host = nul
       _adminAlertDown(err.code || err.message, host || WHM_HOST)
       return downResponse(err.code || err.message)
     }
+    // Stale-cpPass / cpHulk 401/403 → drive the op as WHM root instead.
+    if (looksLikeAuthFailure(err.response?.status, err.message)) {
+      const fb = await _api2ViaWhmRoot(cpUser, 'AddonDomain', 'addaddondomain', p2, host)
+      if (fb) return fb
+    }
     return { status: 0, data: null, errors: [err.message] }
   }
 }
@@ -1082,13 +1179,16 @@ async function addAddonDomain(cpUser, cpPass, domain, subDomain, dir, host = nul
 async function removeAddonDomain(cpUser, cpPass, domain, subDomain, mainDomain, host = null) {
   const auth = { username: cpUser, password: cpPass }
   const url = `${getBaseUrl(host)}/json-api/cpanel`
+  const p2 = {
+    domain: domain,
+    subdomain: subDomain || (mainDomain ? `${domain.replace(/\./g, '')}.${mainDomain}` : domain.replace(/\./g, '')),
+  }
   const params = {
     cpanel_jsonapi_user: cpUser,
     cpanel_jsonapi_apiversion: 2,
     cpanel_jsonapi_module: 'AddonDomain',
     cpanel_jsonapi_func: 'deladdondomain',
-    domain: domain,
-    subdomain: subDomain || (mainDomain ? `${domain.replace(/\./g, '')}.${mainDomain}` : domain.replace(/\./g, '')),
+    ...p2,
   }
   try {
     const res = await axios.get(url, {
@@ -1098,6 +1198,11 @@ async function removeAddonDomain(cpUser, cpPass, domain, subDomain, mainDomain, 
       timeout: 30000,
       headers: _maybeAccessHeaders(getBaseUrl(host)),
     })
+    if (_detectLoginPageHtml(res.data)) {
+      const fb = await _api2ViaWhmRoot(cpUser, 'AddonDomain', 'deladdondomain', p2, host)
+      if (fb) return fb
+      return { status: 0, data: null, errors: ['cPanel returned login page HTML (session/auth denied at cpsrvd layer)'], code: 'CPANEL_AUTH_FAILURE' }
+    }
     const result = res.data?.cpanelresult?.data?.[0] || {}
     if (result.result === 1) {
       return { status: 1, data: result, errors: null }
@@ -1107,6 +1212,10 @@ async function removeAddonDomain(cpUser, cpPass, domain, subDomain, mainDomain, 
     if (isControlPlaneDown(err)) {
       _adminAlertDown(err.code || err.message, host || WHM_HOST)
       return downResponse(err.code || err.message)
+    }
+    if (looksLikeAuthFailure(err.response?.status, err.message)) {
+      const fb = await _api2ViaWhmRoot(cpUser, 'AddonDomain', 'deladdondomain', p2, host)
+      if (fb) return fb
     }
     return { status: 0, data: null, errors: [err.message] }
   }
@@ -1184,6 +1293,10 @@ async function listSubdomains(cpUser, cpPass, host = null) {
     }),
     status: domains.status,
     errors: domains.errors,
+    // Propagate auth-broken signals so the route can trip the WHM fallback
+    // (listDomains itself returns CPANEL_AUTH_FAILURE / httpStatus on 401/403).
+    code: domains.code,
+    httpStatus: domains.httpStatus,
   }
 }
 
@@ -1191,14 +1304,20 @@ async function createSubdomain(cpUser, cpPass, subdomain, rootdomain, dir, host 
   // Use cpanel API2 for SubDomain::addsubdomain
   const auth = { username: cpUser, password: cpPass }
   const url = `${getBaseUrl(host)}/json-api/cpanel`
+  const p2 = {
+    domain: subdomain,
+    rootdomain: rootdomain,
+    // docroot default is public_html/<subdomain> — NOT
+    // public_html/<subdomain>.<rootdomain> (the old value produced a wrong
+    // docroot and fed the frontend display-name doubling bug).
+    dir: dir || `public_html/${subdomain}`,
+  }
   const params = {
     cpanel_jsonapi_user: cpUser,
     cpanel_jsonapi_apiversion: 2,
     cpanel_jsonapi_module: 'SubDomain',
     cpanel_jsonapi_func: 'addsubdomain',
-    domain: subdomain,
-    rootdomain: rootdomain,
-    dir: dir || `public_html/${subdomain}.${rootdomain}`,
+    ...p2,
   }
   try {
     const res = await axios.get(url, {
@@ -1208,6 +1327,11 @@ async function createSubdomain(cpUser, cpPass, subdomain, rootdomain, dir, host 
       timeout: 30000,
       headers: _maybeAccessHeaders(getBaseUrl(host)),
     })
+    if (_detectLoginPageHtml(res.data)) {
+      const fb = await _api2ViaWhmRoot(cpUser, 'SubDomain', 'addsubdomain', p2, host)
+      if (fb) return fb
+      return { status: 0, data: null, errors: ['cPanel returned login page HTML (session/auth denied at cpsrvd layer)'], code: 'CPANEL_AUTH_FAILURE' }
+    }
     const result = res.data?.cpanelresult?.data?.[0] || {}
     if (result.result === 1) {
       return { status: 1, data: result, errors: null }
@@ -1218,6 +1342,10 @@ async function createSubdomain(cpUser, cpPass, subdomain, rootdomain, dir, host 
       _adminAlertDown(err.code || err.message, host || WHM_HOST)
       return downResponse(err.code || err.message)
     }
+    if (looksLikeAuthFailure(err.response?.status, err.message)) {
+      const fb = await _api2ViaWhmRoot(cpUser, 'SubDomain', 'addsubdomain', p2, host)
+      if (fb) return fb
+    }
     return { status: 0, data: null, errors: [err.message] }
   }
 }
@@ -1227,12 +1355,15 @@ async function deleteSubdomain(cpUser, cpPass, fullSubdomain, host = null) {
   const effectiveHost = host || WHM_HOST
   const auth = { username: cpUser, password: cpPass }
   const url = `${getBaseUrl(host)}/json-api/cpanel`
+  const p2 = {
+    domain: fullSubdomain,
+  }
   const params = {
     cpanel_jsonapi_user: cpUser,
     cpanel_jsonapi_apiversion: 2,
     cpanel_jsonapi_module: 'SubDomain',
     cpanel_jsonapi_func: 'delsubdomain',
-    domain: fullSubdomain,
+    ...p2,
   }
   try {
     const res = await axios.get(url, {
@@ -1242,6 +1373,11 @@ async function deleteSubdomain(cpUser, cpPass, fullSubdomain, host = null) {
       timeout: 30000,
       headers: _maybeAccessHeaders(getBaseUrl(host)),
     })
+    if (_detectLoginPageHtml(res.data)) {
+      const fb = await _api2ViaWhmRoot(cpUser, 'SubDomain', 'delsubdomain', p2, effectiveHost)
+      if (fb) return fb
+      return { status: 0, data: null, errors: ['cPanel returned login page HTML (session/auth denied at cpsrvd layer)'], code: 'CPANEL_AUTH_FAILURE' }
+    }
     const result = res.data?.cpanelresult?.data?.[0] || {}
     if (result.result === 1) {
       return { status: 1, data: result, errors: null }
@@ -1251,6 +1387,10 @@ async function deleteSubdomain(cpUser, cpPass, fullSubdomain, host = null) {
     if (isControlPlaneDown(err)) {
       _adminAlertDown(err.code || err.message, host || WHM_HOST)
       return downResponse(err.code || err.message)
+    }
+    if (looksLikeAuthFailure(err.response?.status, err.message)) {
+      const fb = await _api2ViaWhmRoot(cpUser, 'SubDomain', 'delsubdomain', p2, effectiveHost)
+      if (fb) return fb
     }
     return { status: 0, data: null, errors: [err.message] }
   }

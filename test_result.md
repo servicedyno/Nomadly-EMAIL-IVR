@@ -11,6 +11,53 @@
 
 
 user_problem_statement: |
+  ==================== CURRENT TASK (2026-08 / cPanel auth-broken) ====================
+  BUG: cPanel operations silently fail for accounts whose USER-LEVEL cPanel
+  HTTP Basic Auth is dead (stale cpPass in Mongo / cPHulk lockout / session
+  policy). cpsrvd signals the denial 3 ways; the code only handled some:
+    - HTTP 401 (login page body)        → was caught
+    - HTTP 403 {"error":"Access denied"}→ was caught
+    - HTTP 200 with the raw cPanel LOGIN-PAGE HTML as the body → NOT caught
+      (axios resolved as success → editor rendered the login page as "file
+       content"; API2 callers invented a generic "Operation failed").
+  Also many routes had NO WHM-root impersonation fallback (subdomains, addon
+  domains, file content/save/rename/copy/move/compress, GET /domains,
+  GET /subdomains, all MySQL routes) even though WHM-root can drive the same
+  op for a broken user via /json-api/cpanel?cpanel_jsonapi_user=<user>.
+
+  FIX APPLIED (backend, Node :5000):
+    STEP 1 js/cpanel-proxy.js — _detectLoginPageHtml(); wired into uapi()+api2()
+      success paths (HTTP-200-HTML → CPANEL_AUTH_FAILURE); _resolveWhmBaseUrl +
+      _api2ViaWhmRoot; addAddonDomain/removeAddonDomain/createSubdomain/
+      deleteSubdomain now trip the WHM-root fallback on HTML-200 and on
+      401/403; createSubdomain docroot default fixed to public_html/<sub>.
+    STEP 2 js/cpanel-routes.js — _isAuthBroken() also catches proxied HTML
+      variant; new _uapiViaWhmRoot / _uapiViaWhmSession / _fileopViaWhmRoot /
+      _mysqlWithFallback helpers; fallback wired into files content/save/
+      rename/copy/move/compress, GET /domains, GET /subdomains; POST
+      /domains/remove hardened (HARD FAIL → 502/503, NO Mongo $pull / NO CF
+      wipe → no orphan; "already gone" → reconciled:true); all 15 MySQL routes
+      routed through _mysqlWithFallback; NEW POST /subdomains/bulk-create.
+    STEP 3 frontend DomainList.js — subdomain display-name doubling fixed
+      (subDisplayName/subDocRoot helpers, no more api.example.com.example.com);
+      optimistic delete + rollback for addon domains and subdomains.
+
+  HOW TO VERIFY (node-level, FULLY MOCKED — DO NOT run a real subdomain/domain/
+  MySQL op: this pod points at the LIVE production WHM box + live Railway DB
+  with REAL customer accounts, so a real op would mutate a real customer).
+  Run the mocked jest suite (nock — no live cPanel/WHM/DB calls):
+    cd /app && npx jest tests/cpanel-auth-broken-fallback.test.js
+  All 9 tests must pass. They assert: HTTP-200 login-page HTML → normalized to
+  CPANEL_AUTH_FAILURE (uapi + api2); subdomain/addon create+delete recover via
+  WHM root (via:'whm-fallback') on login-page-HTML AND on 401/403; a HEALTHY
+  account NEVER touches the WHM fallback (via unset, WHM endpoint not called);
+  a genuine "already exists" error is surfaced not swallowed; createSubdomain
+  uses the corrected docroot (public_html/<sub>). Also confirm the Node server
+  boots clean (supervisorctl status nodejs = RUNNING) and the panel routes are
+  mounted + auth-protected (curl <backend>/api/panel/subdomains → 401 JSON).
+  ================================================================
+
+
   ==================== CURRENT TASK (2026-08) ====================
   BUG: Web storefront hosting checkout confirms crypto payment but NEVER
   provisions hosting (no web-sourced cpanelAccounts exist, while the Telegram

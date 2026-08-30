@@ -147,6 +147,161 @@ function _makeWhmApi(whmHost) {
   })
 }
 
+// ─── Shared WHM-root impersonation helpers (UAPI v3 / session / fileop) ──
+//
+// These let a route recover a user-level op that failed because the user's
+// cPanel Basic Auth is dead (stale cpPass / cPHulk lockout / login-page HTML).
+// The WHM root token authenticates; cpanel_jsonapi_user=<user> impersonates.
+// They intentionally NEVER throw — a null/failed result lets the caller keep
+// the ORIGINAL user-level error rather than masking it with a WHM transport
+// error, so genuine "already exists" / bad-input errors still surface.
+
+// UAPI (api.version 3) via WHM /json-api/cpanel. Unwraps r.data.result to the
+// same { status, data, errors, messages, metadata } shape UAPI callers know.
+async function _uapiViaWhmRoot(whmApi, cpUser, module, func, params = {}) {
+  try {
+    const r = await whmApi.get('/cpanel', {
+      params: {
+        'api.version': 1,
+        cpanel_jsonapi_user: cpUser,
+        cpanel_jsonapi_apiversion: 3,
+        cpanel_jsonapi_module: module,
+        cpanel_jsonapi_func: func,
+        ...params,
+      },
+    })
+    const result = r.data?.result || {}
+    const errs = Array.isArray(result.errors) && result.errors.length ? result.errors : null
+    return {
+      status: result.status === 1 && !errs ? 1 : 0,
+      data: result.data != null ? result.data : null,
+      errors: errs,
+      messages: result.messages != null ? result.messages : null,
+      metadata: result.metadata != null ? result.metadata : null,
+      reason: errs ? errs[0] : null,
+      via: 'whm-fallback',
+    }
+  } catch (e) {
+    return { status: 0, data: null, errors: [e.message], reason: e.message, via: 'whm-fallback-failed' }
+  }
+}
+
+// UAPI via a WHM-minted cPanel login SESSION — required for get/save file
+// content because the plain /json-api query-string wrapper mangles large or
+// binary-ish file bodies. Ladder: create_user_session → cpsession cookie →
+// /execute/<module>/<func>. GET for reads, POST (form-encoded) for writes.
+// Reuses the CPANEL_API_URL tunnel when the session URL points at the default
+// firewalled host (direct :2083 is unreachable on the shared box).
+async function _uapiViaWhmSession(whmApi, cpUser, module, func, params = {}, method = 'POST') {
+  const https = require('https')
+  const axios = require('axios')
+  const httpsAgent = new https.Agent({ rejectUnauthorized: false })
+  const accessHeaders = (process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET) ? {
+    'CF-Access-Client-Id': process.env.CF_ACCESS_CLIENT_ID,
+    'CF-Access-Client-Secret': process.env.CF_ACCESS_CLIENT_SECRET,
+  } : {}
+  try {
+    const sess = await whmApi.get('/create_user_session', {
+      params: { 'api.version': 1, user: cpUser, service: 'cpaneld' },
+    })
+    if (sess.data?.metadata?.result !== 1 || !sess.data?.data?.session) {
+      return { status: 0, data: null, errors: [sess.data?.metadata?.reason || 'create_user_session failed'], via: 'whm-session-failed' }
+    }
+    const sessionToken = sess.data.data.session
+    const rawUrl = String(sess.data.data.url || '')
+    const cpsessMatch = rawUrl.match(/\/(cpsess\d+)\//)
+    const cpsessPath = cpsessMatch ? `/${cpsessMatch[1]}` : null
+    if (!cpsessPath) return { status: 0, data: null, errors: ['could not extract cp_security_token from session url'], via: 'whm-session-failed' }
+    // Prefer the CPANEL tunnel; else use the origin WHM returned.
+    let cpBase = (process.env.CPANEL_API_URL || '').replace(/\/+$/, '')
+    if (!cpBase) {
+      const m = rawUrl.match(/^(https?:\/\/[^/]+)/)
+      cpBase = m ? m[1] : null
+    }
+    if (!cpBase) return { status: 0, data: null, errors: ['no cPanel base URL for session'], via: 'whm-session-failed' }
+
+    // Consume the session to capture the cpsession cookie (maxRedirects:0!).
+    const loginRes = await axios.get(`${cpBase}${cpsessPath}/login/`, {
+      params: { session: sessionToken },
+      headers: accessHeaders,
+      httpsAgent, timeout: 30000, maxRedirects: 0,
+      validateStatus: s => s < 500,
+    })
+    const setCookies = loginRes.headers['set-cookie'] || []
+    const cpsessionCookie = setCookies.map(c => (c.match(/cpsession=([^;]+)/) || [])[1]).find(Boolean)
+    if (!cpsessionCookie) return { status: 0, data: null, errors: ['login step did not return a cpsession cookie'], via: 'whm-session-failed' }
+
+    const execUrl = `${cpBase}${cpsessPath}/execute/${module}/${func}`
+    const headers = { Cookie: `cpsession=${cpsessionCookie}`, ...accessHeaders }
+    let execRes
+    if (String(method).toUpperCase() === 'GET') {
+      execRes = await axios.get(execUrl, { params, headers, httpsAgent, timeout: 60000, validateStatus: s => s < 500 })
+    } else {
+      const qs = require('querystring')
+      execRes = await axios.post(execUrl, qs.stringify(params), {
+        headers: { ...headers, 'Content-Type': 'application/x-www-form-urlencoded' },
+        httpsAgent, timeout: 60000, maxContentLength: 100 * 1024 * 1024, validateStatus: s => s < 500,
+      })
+    }
+    if (typeof execRes.data === 'string' && /<!DOCTYPE html|<title>cPanel Login<\/title>/i.test(execRes.data)) {
+      return { status: 0, data: null, errors: ['session execute returned login page — session invalid'], via: 'whm-session-failed' }
+    }
+    const body = execRes.data || {}
+    const errs = Array.isArray(body.errors) && body.errors.length ? body.errors : null
+    return {
+      status: body.status === 1 && !errs ? 1 : 0,
+      data: body.data != null ? body.data : null,
+      errors: errs,
+      messages: body.messages != null ? body.messages : null,
+      metadata: body.metadata != null ? body.metadata : null,
+      reason: errs ? errs[0] : null,
+      via: 'whm-session-fallback',
+    }
+  } catch (e) {
+    return { status: 0, data: null, errors: [e.message], reason: e.message, via: 'whm-session-failed' }
+  }
+}
+
+// API2 Fileman::fileop as WHM root (rename/copy/move/compress). Returns
+// { ok, dataArr, reason } so the caller can shape its own response.
+async function _fileopViaWhmRoot(whmApi, cpUser, op, params = {}) {
+  try {
+    const r = await whmApi.get('/cpanel', {
+      params: {
+        'api.version': 1,
+        cpanel_jsonapi_user: cpUser,
+        cpanel_jsonapi_apiversion: 2,
+        cpanel_jsonapi_module: 'Fileman',
+        cpanel_jsonapi_func: 'fileop',
+        doubledecode: 0,
+        op,
+        ...params,
+      },
+    })
+    const cp = r.data?.cpanelresult || {}
+    const dataArr = Array.isArray(cp.data) ? cp.data : (cp.data ? [cp.data] : [])
+    const ok = (dataArr[0]?.result === 1) || cp.event?.result === 1
+    const reason = dataArr[0]?.reason || cp.error || (ok ? null : `Failed to ${op}`)
+    return { ok: !!ok, dataArr, reason }
+  } catch (e) {
+    return { ok: false, dataArr: [], reason: e.message }
+  }
+}
+
+// MySQL op wrapper: run the user-level cPanel call (primaryFn thunk) and, if
+// it comes back auth-broken, retry the SAME UAPI Mysql func as WHM root
+// (cpanel_jsonapi_user impersonation). A non-auth error (e.g. "already
+// exists", "does not exist") is returned untouched so it still surfaces.
+async function _mysqlWithFallback(req, primaryFn, func, params = {}) {
+  const result = await primaryFn()
+  if (result?.status === 1 || !_isAuthBroken(result)) return result
+  const whmApi = _makeWhmApi(req.whmHost || process.env.WHM_HOST)
+  if (!whmApi) return result
+  log(`[Panel] mysql ${func} user-level auth-broken → WHM fallback (user: ${req.cpUser}, tag: user-auth-broken)`)
+  const fb = await _uapiViaWhmRoot(whmApi, req.cpUser, 'Mysql', func, params)
+  return fb || result
+}
+
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } })
 
@@ -182,6 +337,10 @@ function _isAuthBroken(result) {
       && cpProxy.looksLikeAuthFailure(result.httpStatus, String(result.errors?.[0] || ''))) {
     return true
   }
+  // Proxied HTML variant: the cpanel-proxy normalizer may hand us a result
+  // whose errors[0] IS the raw login-page HTML (no httpStatus to key on).
+  const first = Array.isArray(result.errors) ? result.errors[0] : (result.error || '')
+  if (typeof first === 'string' && /<!DOCTYPE html>/i.test(first)) return true
   return false
 }
 
@@ -530,7 +689,23 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
   router.get('/files/content', ...auth, async (req, res) => {
     const { dir, file } = req.query
     if (!dir || !file) return res.status(400).json({ error: 'dir and file are required' })
-    const result = await cpProxy.getFileContent(req.cpUser, req.cpPass, dir, file, req.whmHost)
+    let result = await cpProxy.getFileContent(req.cpUser, req.cpPass, dir, file, req.whmHost)
+    // Auth-broken (stale cpPass / login-page HTML) → recover via a WHM-minted
+    // cPanel session. Without this the editor rendered the login page as
+    // "file content". Plain json-api wrapper is a last resort (mangles content).
+    if (result?.status !== 1 && _isAuthBroken(result)) {
+      const whmApi = _makeWhmApi(req.whmHost || process.env.WHM_HOST)
+      if (whmApi) {
+        log(`[Panel] files/content user-level auth-broken → WHM session fallback (user: ${req.cpUser}, tag: user-auth-broken)`)
+        let fb = await _uapiViaWhmSession(whmApi, req.cpUser, 'Fileman', 'get_file_content', { dir, file }, 'GET')
+        if (fb?.status !== 1) {
+          const fb2 = await _uapiViaWhmRoot(whmApi, req.cpUser, 'Fileman', 'get_file_content', { dir, file })
+          if (fb2?.status === 1) fb = fb2
+        }
+        if (fb?.status === 1) result = { ...fb, via: 'whm-session-fallback' }
+        else if (fb) result = fb
+      }
+    }
     res.json(result)
   })
 
@@ -540,7 +715,20 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     if (isProtectedAntiRedFile(dir, file)) {
       return res.status(403).json({ error: `Cannot modify ${file} — this file is managed by the anti-red protection system. Changes would be overwritten automatically.` })
     }
-    const result = await cpProxy.saveFileContent(req.cpUser, req.cpPass, dir, file, content, req.whmHost)
+    let result = await cpProxy.saveFileContent(req.cpUser, req.cpPass, dir, file, content, req.whmHost)
+    if (result?.status !== 1 && _isAuthBroken(result)) {
+      const whmApi = _makeWhmApi(req.whmHost || process.env.WHM_HOST)
+      if (whmApi) {
+        log(`[Panel] files/save user-level auth-broken → WHM session fallback (user: ${req.cpUser}, tag: user-auth-broken)`)
+        let fb = await _uapiViaWhmSession(whmApi, req.cpUser, 'Fileman', 'save_file_content', { dir, file, content }, 'POST')
+        if (fb?.status !== 1) {
+          const fb2 = await _uapiViaWhmRoot(whmApi, req.cpUser, 'Fileman', 'save_file_content', { dir, file, content })
+          if (fb2?.status === 1) fb = fb2
+        }
+        if (fb?.status === 1) result = { ...fb, via: 'whm-session-fallback' }
+        else if (fb) result = fb
+      }
+    }
     res.json(result)
   })
 
@@ -1000,7 +1188,16 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     if (_rn.changed) {
       return res.status(400).json({ error: `The name "${newName}" contains characters that aren't allowed (commas, slashes or line breaks). Try "${_rn.name}" instead.`, suggestedName: _rn.name })
     }
-    const result = await cpProxy.renameFile(req.cpUser, req.cpPass, dir, oldName, newName, req.whmHost)
+    let result = await cpProxy.renameFile(req.cpUser, req.cpPass, dir, oldName, newName, req.whmHost)
+    if (result?.status !== 1 && _isAuthBroken(result)) {
+      const whmApi = _makeWhmApi(req.whmHost || process.env.WHM_HOST)
+      if (whmApi) {
+        log(`[Panel] files/rename user-level auth-broken → WHM fileop fallback (user: ${req.cpUser}, tag: user-auth-broken)`)
+        const fb = await _fileopViaWhmRoot(whmApi, req.cpUser, 'rename', { sourcefiles: `${dir}/${oldName}`, destfiles: `${dir}/${newName}` })
+        if (fb.ok) return res.json({ status: 1, data: fb.dataArr, errors: null, via: 'whm-fallback' })
+        return res.status(500).json({ status: 0, error: `Rename failed: ${fb.reason}`, errors: [fb.reason] })
+      }
+    }
     res.json(result)
   })
 
@@ -1070,7 +1267,16 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
   router.post('/files/compress', ...auth, async (req, res) => {
     const { dir, files, destFile } = req.body
     if (!dir || !files?.length || !destFile) return res.status(400).json({ error: 'dir, files, and destFile are required' })
-    const result = await cpProxy.compressFiles(req.cpUser, req.cpPass, dir, files, destFile, req.whmHost)
+    let result = await cpProxy.compressFiles(req.cpUser, req.cpPass, dir, files, destFile, req.whmHost)
+    if (result?.status !== 1 && _isAuthBroken(result)) {
+      const whmApi = _makeWhmApi(req.whmHost || process.env.WHM_HOST)
+      if (whmApi) {
+        log(`[Panel] files/compress user-level auth-broken → WHM fileop fallback (user: ${req.cpUser}, tag: user-auth-broken)`)
+        const fb = await _fileopViaWhmRoot(whmApi, req.cpUser, 'compress', { sourcefiles: files.map(f => `${dir}/${f}`).join('\n'), destfiles: `${dir}/${destFile}` })
+        if (fb.ok) return res.json({ status: 1, data: fb.dataArr, errors: null, via: 'whm-fallback' })
+        return res.status(500).json({ status: 0, error: `Compress failed: ${fb.reason}`, errors: [fb.reason] })
+      }
+    }
     res.json(result)
   })
 
@@ -1080,7 +1286,16 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     if (isProtectedAntiRedFile(dir, file)) {
       return res.status(403).json({ error: `Cannot copy ${file} — this file is managed by the anti-red protection system.` })
     }
-    const result = await cpProxy.copyFile(req.cpUser, req.cpPass, dir, file, destDir, req.whmHost)
+    let result = await cpProxy.copyFile(req.cpUser, req.cpPass, dir, file, destDir, req.whmHost)
+    if (result?.status !== 1 && _isAuthBroken(result)) {
+      const whmApi = _makeWhmApi(req.whmHost || process.env.WHM_HOST)
+      if (whmApi) {
+        log(`[Panel] files/copy user-level auth-broken → WHM fileop fallback (user: ${req.cpUser}, tag: user-auth-broken)`)
+        const fb = await _fileopViaWhmRoot(whmApi, req.cpUser, 'copy', { sourcefiles: `${dir}/${file}`, destfiles: destDir })
+        if (fb.ok) return res.json({ status: 1, data: fb.dataArr, errors: null, via: 'whm-fallback' })
+        return res.status(500).json({ status: 0, error: `Copy failed: ${fb.reason}`, errors: [fb.reason] })
+      }
+    }
     res.json(result)
   })
 
@@ -1090,14 +1305,31 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     if (isProtectedAntiRedFile(dir, file)) {
       return res.status(403).json({ error: `Cannot move ${file} — this file is managed by the anti-red protection system.` })
     }
-    const result = await cpProxy.moveFile(req.cpUser, req.cpPass, dir, file, destDir, req.whmHost)
+    let result = await cpProxy.moveFile(req.cpUser, req.cpPass, dir, file, destDir, req.whmHost)
+    if (result?.status !== 1 && _isAuthBroken(result)) {
+      const whmApi = _makeWhmApi(req.whmHost || process.env.WHM_HOST)
+      if (whmApi) {
+        log(`[Panel] files/move user-level auth-broken → WHM fileop fallback (user: ${req.cpUser}, tag: user-auth-broken)`)
+        const fb = await _fileopViaWhmRoot(whmApi, req.cpUser, 'move', { sourcefiles: `${dir}/${file}`, destfiles: destDir })
+        if (fb.ok) return res.json({ status: 1, data: fb.dataArr, errors: null, via: 'whm-fallback' })
+        return res.status(500).json({ status: 0, error: `Move failed: ${fb.reason}`, errors: [fb.reason] })
+      }
+    }
     res.json(result)
   })
 
   // ─── Domains ────────────────────────────────────────────
 
   router.get('/domains', ...auth, async (req, res) => {
-    const result = await cpProxy.listDomains(req.cpUser, req.cpPass, req.whmHost)
+    let result = await cpProxy.listDomains(req.cpUser, req.cpPass, req.whmHost)
+    if (result?.status !== 1 && _isAuthBroken(result)) {
+      const whmApi = _makeWhmApi(req.whmHost || process.env.WHM_HOST)
+      if (whmApi) {
+        log(`[Panel] domains list user-level auth-broken → WHM fallback (user: ${req.cpUser}, tag: user-auth-broken)`)
+        const fb = await _uapiViaWhmRoot(whmApi, req.cpUser, 'DomainInfo', 'list_domains', {})
+        if (fb?.status === 1) result = { ...fb, via: 'whm-fallback' }
+      }
+    }
     res.json(result)
   })
 
@@ -1159,8 +1391,29 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     const { domain, subDomain } = req.body
     if (!domain) return res.status(400).json({ error: 'domain is required' })
 
-    // 1. Remove addon domain from cPanel
+    // 1. Remove addon domain from cPanel (WHM-root fallback is inside removeAddonDomain)
     const result = await cpProxy.removeAddonDomain(req.cpUser, req.cpPass, domain, subDomain, req.cpDomain, req.whmHost)
+
+    // Reconcile-vs-orphan guard (data-integrity fix): a domain that cPanel says
+    // is already gone should still trigger our tracking cleanup, but a HARD
+    // failure MUST NOT $pull from Mongo or wipe Cloudflare — otherwise the
+    // domain is orphaned (removed from our records but still attached in
+    // cPanel) and the user can never retry cleanly.
+    const errText = String((result?.errors && result.errors[0]) || '').toLowerCase()
+    const alreadyGone = /does\s*not\s*exist|not\s*found|is\s*not\s*an?\s*(addon|park)|no such/.test(errText)
+    const succeeded = result?.status === 1 || alreadyGone
+
+    if (!succeeded) {
+      // HARD FAIL → keep everything, let the user retry.
+      const statusCode = result?.code === 'CPANEL_DOWN' ? 503 : 502
+      log(`[Panel] domains/remove HARD FAIL for ${domain} (user: ${req.cpUser}) — ${result?.errors?.[0] || 'unknown'} — NOT unpersisting (avoid orphan)`)
+      return res.status(statusCode).json({
+        status: 0,
+        error: result?.errors?.[0] || 'Failed to remove addon domain',
+        errors: result?.errors || ['Failed to remove addon domain'],
+        code: result?.code,
+      })
+    }
 
     // 2. Remove addon domain from cpanelAccounts.addonDomains[] (protection-enforcer tracking)
     try {
@@ -1191,7 +1444,7 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
       log(`[Panel] CF cleanup warning for removed domain ${domain}: ${cfErr.message}`)
     }
 
-    res.json(result)
+    res.json(alreadyGone ? { status: 1, data: null, errors: null, reconciled: true } : result)
   })
 
   // ─── Domain Document-Root Mode (mirror primary vs own folder) ───
@@ -1665,8 +1918,8 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
   // List databases. Returns `{ data: { databases: [...], users: [...] } }`.
   router.get('/mysql/databases', ...mysqlAuth, async (req, res) => {
     const [databases, users] = await Promise.all([
-      cpProxy.listDatabases(req.cpUser, req.cpPass, req.whmHost),
-      cpProxy.listDatabaseUsers(req.cpUser, req.cpPass, req.whmHost),
+      _mysqlWithFallback(req, () => cpProxy.listDatabases(req.cpUser, req.cpPass, req.whmHost), 'list_databases', {}),
+      _mysqlWithFallback(req, () => cpProxy.listDatabaseUsers(req.cpUser, req.cpPass, req.whmHost), 'list_users', {}),
     ])
     res.json({ databases, users })
   })
@@ -1674,41 +1927,41 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
   router.post('/mysql/databases/create', ...mysqlAuth, async (req, res) => {
     const { name } = req.body
     if (!name || typeof name !== 'string') return res.status(400).json({ error: 'name is required' })
-    const result = await cpProxy.createDatabase(req.cpUser, req.cpPass, name.trim(), req.whmHost)
+    const result = await _mysqlWithFallback(req, () => cpProxy.createDatabase(req.cpUser, req.cpPass, name.trim(), req.whmHost), 'create_database', { name: name.trim() })
     res.json(result)
   })
 
   router.post('/mysql/databases/delete', ...mysqlAuth, async (req, res) => {
     const { name } = req.body
     if (!name) return res.status(400).json({ error: 'name is required' })
-    const result = await cpProxy.deleteDatabase(req.cpUser, req.cpPass, name, req.whmHost)
+    const result = await _mysqlWithFallback(req, () => cpProxy.deleteDatabase(req.cpUser, req.cpPass, name, req.whmHost), 'delete_database', { name })
     res.json(result)
   })
 
   router.post('/mysql/databases/rename', ...mysqlAuth, async (req, res) => {
     const { oldname, newname } = req.body
     if (!oldname || !newname) return res.status(400).json({ error: 'oldname and newname are required' })
-    const result = await cpProxy.renameDatabase(req.cpUser, req.cpPass, oldname, newname, req.whmHost)
+    const result = await _mysqlWithFallback(req, () => cpProxy.renameDatabase(req.cpUser, req.cpPass, oldname, newname, req.whmHost), 'rename_database', { oldname, newname })
     res.json(result)
   })
 
   router.post('/mysql/databases/repair', ...mysqlAuth, async (req, res) => {
     const { name } = req.body
     if (!name) return res.status(400).json({ error: 'name is required' })
-    const result = await cpProxy.repairDatabase(req.cpUser, req.cpPass, name, req.whmHost)
+    const result = await _mysqlWithFallback(req, () => cpProxy.repairDatabase(req.cpUser, req.cpPass, name, req.whmHost), 'repair_database', { name })
     res.json(result)
   })
 
   router.post('/mysql/databases/check', ...mysqlAuth, async (req, res) => {
     const { name } = req.body
     if (!name) return res.status(400).json({ error: 'name is required' })
-    const result = await cpProxy.checkDatabase(req.cpUser, req.cpPass, name, req.whmHost)
+    const result = await _mysqlWithFallback(req, () => cpProxy.checkDatabase(req.cpUser, req.cpPass, name, req.whmHost), 'check_database', { name })
     res.json(result)
   })
 
   // DB Users
   router.get('/mysql/users', ...mysqlAuth, async (req, res) => {
-    const result = await cpProxy.listDatabaseUsers(req.cpUser, req.cpPass, req.whmHost)
+    const result = await _mysqlWithFallback(req, () => cpProxy.listDatabaseUsers(req.cpUser, req.cpPass, req.whmHost), 'list_users', {})
     res.json(result)
   })
 
@@ -1716,14 +1969,14 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     const { name, password } = req.body
     if (!name || !password) return res.status(400).json({ error: 'name and password are required' })
     if (String(password).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' })
-    const result = await cpProxy.createDatabaseUser(req.cpUser, req.cpPass, name.trim(), password, req.whmHost)
+    const result = await _mysqlWithFallback(req, () => cpProxy.createDatabaseUser(req.cpUser, req.cpPass, name.trim(), password, req.whmHost), 'create_user', { name: name.trim(), password })
     res.json(result)
   })
 
   router.post('/mysql/users/delete', ...mysqlAuth, async (req, res) => {
     const { name } = req.body
     if (!name) return res.status(400).json({ error: 'name is required' })
-    const result = await cpProxy.deleteDatabaseUser(req.cpUser, req.cpPass, name, req.whmHost)
+    const result = await _mysqlWithFallback(req, () => cpProxy.deleteDatabaseUser(req.cpUser, req.cpPass, name, req.whmHost), 'delete_user', { name })
     res.json(result)
   })
 
@@ -1731,14 +1984,14 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     const { user, password } = req.body
     if (!user || !password) return res.status(400).json({ error: 'user and password are required' })
     if (String(password).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' })
-    const result = await cpProxy.setDatabaseUserPassword(req.cpUser, req.cpPass, user, password, req.whmHost)
+    const result = await _mysqlWithFallback(req, () => cpProxy.setDatabaseUserPassword(req.cpUser, req.cpPass, user, password, req.whmHost), 'set_password', { user, password })
     res.json(result)
   })
 
   router.post('/mysql/users/rename', ...mysqlAuth, async (req, res) => {
     const { oldname, newname } = req.body
     if (!oldname || !newname) return res.status(400).json({ error: 'oldname and newname are required' })
-    const result = await cpProxy.renameDatabaseUser(req.cpUser, req.cpPass, oldname, newname, req.whmHost)
+    const result = await _mysqlWithFallback(req, () => cpProxy.renameDatabaseUser(req.cpUser, req.cpPass, oldname, newname, req.whmHost), 'rename_user', { oldname, newname })
     res.json(result)
   })
 
@@ -1748,8 +2001,11 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     if (!user || !database) return res.status(400).json({ error: 'user and database are required' })
     // Default to ALL PRIVILEGES if caller omits — matches cPanel's "Add User to Database" default.
     const privs = (Array.isArray(privileges) && privileges.length) ? privileges : ['ALL PRIVILEGES']
-    const result = await cpProxy.setUserPrivilegesOnDatabase(
-      req.cpUser, req.cpPass, user, database, privs, req.whmHost,
+    const result = await _mysqlWithFallback(
+      req,
+      () => cpProxy.setUserPrivilegesOnDatabase(req.cpUser, req.cpPass, user, database, privs, req.whmHost),
+      'set_privileges_on_database',
+      { user, database, privileges: privs.join(',') },
     )
     res.json(result)
   })
@@ -1757,15 +2013,18 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
   router.post('/mysql/privileges/revoke', ...mysqlAuth, async (req, res) => {
     const { user, database } = req.body
     if (!user || !database) return res.status(400).json({ error: 'user and database are required' })
-    const result = await cpProxy.revokeUserPrivilegesOnDatabase(
-      req.cpUser, req.cpPass, user, database, req.whmHost,
+    const result = await _mysqlWithFallback(
+      req,
+      () => cpProxy.revokeUserPrivilegesOnDatabase(req.cpUser, req.cpPass, user, database, req.whmHost),
+      'revoke_privileges_on_database',
+      { user, database },
     )
     res.json(result)
   })
 
   // Remote MySQL access hosts
   router.get('/mysql/remote-hosts', ...mysqlAuth, async (req, res) => {
-    const result = await cpProxy.listMysqlRemoteHosts(req.cpUser, req.cpPass, req.whmHost)
+    const result = await _mysqlWithFallback(req, () => cpProxy.listMysqlRemoteHosts(req.cpUser, req.cpPass, req.whmHost), 'get_remote_hosts', {})
     res.json(result)
   })
 
@@ -1778,14 +2037,14 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     if (cleaned.length < 1 || cleaned.length > 60) {
       return res.status(400).json({ error: 'host must be 1-60 characters' })
     }
-    const result = await cpProxy.addMysqlRemoteHost(req.cpUser, req.cpPass, cleaned, req.whmHost)
+    const result = await _mysqlWithFallback(req, () => cpProxy.addMysqlRemoteHost(req.cpUser, req.cpPass, cleaned, req.whmHost), 'add_host', { host: cleaned })
     res.json(result)
   })
 
   router.post('/mysql/remote-hosts/delete', ...mysqlAuth, async (req, res) => {
     const { host } = req.body
     if (!host) return res.status(400).json({ error: 'host is required' })
-    const result = await cpProxy.deleteMysqlRemoteHost(req.cpUser, req.cpPass, host, req.whmHost)
+    const result = await _mysqlWithFallback(req, () => cpProxy.deleteMysqlRemoteHost(req.cpUser, req.cpPass, host, req.whmHost), 'delete_host', { host })
     res.json(result)
   })
 
@@ -1806,7 +2065,30 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
   // ─── Subdomains ─────────────────────────────────────────
 
   router.get('/subdomains', ...auth, async (req, res) => {
-    const result = await cpProxy.listSubdomains(req.cpUser, req.cpPass, req.whmHost)
+    let result = await cpProxy.listSubdomains(req.cpUser, req.cpPass, req.whmHost)
+    if (result?.status !== 1 && _isAuthBroken(result)) {
+      const whmApi = _makeWhmApi(req.whmHost || process.env.WHM_HOST)
+      if (whmApi) {
+        log(`[Panel] subdomains list user-level auth-broken → WHM fallback (user: ${req.cpUser}, tag: user-auth-broken)`)
+        try {
+          const r = await whmApi.get('/cpanel', {
+            params: {
+              'api.version': 1,
+              cpanel_jsonapi_user: req.cpUser,
+              cpanel_jsonapi_apiversion: 2,
+              cpanel_jsonapi_module: 'SubDomain',
+              cpanel_jsonapi_func: 'listsubdomains',
+            },
+          })
+          const cp = r.data?.cpanelresult || {}
+          if (!cp.error) {
+            result = { status: 1, data: Array.isArray(cp.data) ? cp.data : [], errors: null, via: 'whm-fallback' }
+          }
+        } catch (e) {
+          log(`[Panel] subdomains WHM fallback exception: ${e.message} (user: ${req.cpUser})`)
+        }
+      }
+    }
     res.json(result)
   })
 
@@ -1868,6 +2150,44 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     }
 
     res.json(result)
+  })
+
+  // ── Bulk subdomain create — accepts a comma/newline-separated list ──
+  // Body: { subdomains: string | string[], rootdomain }. Validates DNS-label
+  // names, dedupes, caps at 50, then loops createSubdomain (WHM-root fallback
+  // is built into cpProxy.createSubdomain) + best-effort tunnel CNAME.
+  router.post('/subdomains/bulk-create', ...auth, async (req, res) => {
+    const { subdomains, rootdomain } = req.body || {}
+    if (!rootdomain) return res.status(400).json({ error: 'rootdomain is required' })
+    const list = Array.isArray(subdomains) ? subdomains : String(subdomains || '').split(/[,\n\r]+/)
+    const nameRx = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/i
+    const seen = new Set()
+    const clean = []
+    for (let s of list) {
+      s = String(s || '').trim().toLowerCase()
+      if (!s || seen.has(s) || !nameRx.test(s)) continue
+      seen.add(s)
+      clean.push(s)
+      if (clean.length >= 50) break
+    }
+    if (!clean.length) return res.status(400).json({ error: 'no valid subdomain names provided' })
+
+    const results = []
+    for (const sub of clean) {
+      const r = await cpProxy.createSubdomain(req.cpUser, req.cpPass, sub, rootdomain, null, req.whmHost)
+      const ok = r?.status === 1
+      if (ok) {
+        try {
+          const zone = await cfService.getZoneByName(rootdomain)
+          if (zone && cfService.CF_TUNNEL_CNAME) {
+            await cfService.createDNSRecord(zone.id, 'CNAME', `${sub}.${rootdomain}`, cfService.CF_TUNNEL_CNAME, 1, true).catch(() => {})
+          }
+        } catch (_) { /* best-effort CF CNAME — non-blocking */ }
+      }
+      results.push({ subdomain: sub, fqdn: `${sub}.${rootdomain}`, ok, error: ok ? null : (r?.errors?.[0] || 'failed') })
+    }
+    const succeeded = results.filter(x => x.ok).length
+    res.json({ status: 1, results, summary: { total: results.length, succeeded, failed: results.length - succeeded } })
   })
 
   // ─── Domain NS Status ──────────────────────────────────

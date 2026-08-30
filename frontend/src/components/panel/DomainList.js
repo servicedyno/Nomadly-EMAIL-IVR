@@ -3,6 +3,36 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from './AuthContext';
 import { pickErrorMessage, friendlyMessage, isTransientError } from './shared/cpanelErrors';
 
+// ── Shared subdomain name helpers ───────────────────────────────────────
+// The /subdomains payload varies by source: production list_domains returns
+// objects whose `domain` is ALREADY the full FQDN (api.example.com); the
+// string-mapped path exposes `fullDomain`; the WHM api2 fallback returns
+// `domain` as just the label + a separate `rootdomain`. The old render did
+// `${s.domain}.${rootdomain}` unconditionally → "api.example.com.example.com".
+// These helpers derive the display FQDN and docroot correctly for every shape
+// (and are reused by the optimistic-delete filter so both agree).
+function subDisplayName(s) {
+  if (!s) return '';
+  if (typeof s === 'string') return s;
+  if (s.fullDomain) return s.fullDomain;
+  const domainField = typeof s.domain === 'string' ? s.domain : '';
+  const rootDom = s.rootdomain || '';
+  if (domainField.includes('.')) return domainField;       // already an FQDN
+  if (domainField && rootDom) return `${domainField}.${rootDom}`;
+  return domainField || String(s);
+}
+function subDocRoot(s) {
+  if (!s || typeof s === 'string') return `public_html/${String(s || '')}`;
+  if (s.dir) return s.dir;
+  if (s.documentroot) return s.documentroot;
+  const domainField = typeof s.domain === 'string' ? s.domain : '';
+  const rootDom = s.rootdomain || '';
+  const prefix = s.subdomain
+    || (domainField.includes('.') && rootDom ? domainField.slice(0, -(rootDom.length + 1)) : domainField)
+    || '';
+  return `public_html/${prefix}`;
+}
+
 export default function DomainList() {
   const { t, i18n } = useTranslation();
   const lang = (i18n.language || 'en').slice(0, 2);
@@ -276,17 +306,26 @@ export default function DomainList() {
 
   const handleRemove = async (domain) => {
     if (!window.confirm(t('dl.removeAddonConfirm', { domain }))) return;
+    // Optimistic: strip the domain from the local view immediately so removal
+    // feels instant. Snapshot first — on any failure (incl. the backend's new
+    // 502/503 orphan-guard) we roll back and surface the error, and the domain
+    // stays in the list so the user can retry.
+    const prevDomains = domains;
+    setDomains(d => (d ? { ...d, addon_domains: (d.addon_domains || []).filter(x => x !== domain) } : d));
+    setError('');
     try {
       const res = await api('/domains/remove', {
         method: 'POST',
         body: JSON.stringify({ domain }),
       });
       if (res.errors?.length) {
+        setDomains(prevDomains); // rollback
         setError(res.errors[0]);
       } else {
-        fetchDomains();
+        fetchDomains(); // background reconcile
       }
     } catch (err) {
+      setDomains(prevDomains); // rollback
       setError(err.message);
     }
   };
@@ -374,18 +413,25 @@ export default function DomainList() {
 
   const handleDeleteSub = async (sub) => {
     if (!window.confirm(t('dl.deleteSubConfirm', { subdomain: sub }))) return;
+    // Optimistic removal with rollback. Match by the same display name the
+    // render uses (subDisplayName) so the right row disappears.
+    const prevSubs = subdomains;
+    setSubdomains(list => list.filter(s => subDisplayName(s) !== sub));
+    setError('');
     try {
       const res = await api('/subdomains/delete', {
         method: 'POST',
         body: JSON.stringify({ subdomain: sub }),
       });
       if (res.errors?.length) {
+        setSubdomains(prevSubs); // rollback
         setError(res.errors[0]);
       } else {
         fetchSubdomains();
         fetchDomains();
       }
     } catch (err) {
+      setSubdomains(prevSubs); // rollback
       setError(err.message);
     }
   };
@@ -757,10 +803,8 @@ export default function DomainList() {
             <div className="dl-section">
               <h3>{t('dl.subdomains', { count: subdomains.length })}</h3>
               {subdomains.map((s, i) => {
-                const fullSub = s.domain || s;
-                const rootDom = s.rootdomain || '';
-                const display = rootDom ? `${fullSub}.${rootDom}` : fullSub;
-                const docRoot = s.dir || s.documentroot || `public_html/${fullSub}`;
+                const display = subDisplayName(s);
+                const docRoot = subDocRoot(s);
                 return (
                   <div key={i} className="dl-domain-card" data-testid={`dl-sub-${display}`}>
                     <div className="dl-domain-card-top">
