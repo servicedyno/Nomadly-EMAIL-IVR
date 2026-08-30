@@ -485,6 +485,84 @@ async function uploadFile(cpUser, cpPass, dir, fileName, fileBuffer, host = null
   }
 }
 
+// ─── WHM-root impersonation for cPanel API2 ────────────────────────────
+//
+// When the user's cPanel HTTP Basic Auth is broken (401 login-page /
+// 403 "Access denied" — typically a stale cached cpPass in Mongo, cPHulk
+// lockout or session-security policy block), user-level API2 calls fail
+// silently but WHM-root can still drive the exact same cPanel op via
+// `/json-api/cpanel?cpanel_jsonapi_user=<user>` — root token authenticates,
+// `cpanel_jsonapi_user` impersonates.
+//
+// Existing use in cpanel-routes.js gives every File Manager op a
+// WHM-root fallback (mkdir/list/upload). This helper extends the same
+// safety net to the AddonDomain / SubDomain API2 calls below —
+// otherwise a fresh account with broken user-auth (@greyhound110 /
+// laup48f8, 2026-08-30) sees "Add Subdomain" silently fail with a
+// generic error and no fallback, even though WHM package allows it.
+//
+// Returns the SAME response shape as the direct-Basic-Auth call so
+// callers don't have to branch. Returns `null` when WHM_TOKEN /
+// WHM_HOST are missing so the caller can surface the original error.
+function _resolveWhmBaseUrl(host) {
+  const whmApiUrl = process.env.WHM_API_URL
+  const eff = host || WHM_HOST
+  if (whmApiUrl && eff === WHM_HOST) {
+    return `${whmApiUrl.replace(/\/+$/, '')}/json-api`
+  }
+  return `https://${eff}:2087/json-api`
+}
+
+async function _api2ViaWhmRoot(cpUser, module, func, params = {}, host = null) {
+  const whmToken = process.env.WHM_TOKEN
+  const whmUser = process.env.WHM_USERNAME || 'root'
+  const eff = host || WHM_HOST
+  if (!eff || !whmToken) return null
+  const baseUrl = _resolveWhmBaseUrl(host)
+  const url = `${baseUrl}/cpanel`
+  const queryParams = {
+    'api.version': 1,
+    cpanel_jsonapi_user: cpUser,
+    cpanel_jsonapi_apiversion: 2,
+    cpanel_jsonapi_module: module,
+    cpanel_jsonapi_func: func,
+    ...params,
+  }
+  const headers = {
+    Authorization: `whm ${whmUser}:${whmToken}`,
+    ...(CF_ACCESS_CLIENT_ID && CF_ACCESS_CLIENT_SECRET ? {
+      'CF-Access-Client-Id': CF_ACCESS_CLIENT_ID,
+      'CF-Access-Client-Secret': CF_ACCESS_CLIENT_SECRET,
+    } : {}),
+  }
+  try {
+    const res = await axios.get(url, {
+      params: queryParams,
+      headers,
+      httpsAgent,
+      timeout: 30000,
+    })
+    const raw = sanitize(res.data, host)
+    const cp = raw?.cpanelresult || {}
+    const dataArr = Array.isArray(cp.data) ? cp.data : (cp.data ? [cp.data] : [])
+    const first = dataArr[0] || {}
+    // cPanel's api2 result field is sometimes '1' (string) sometimes 1 (number).
+    const okBit = (v) => v === 1 || v === '1' || v === true
+    const opOk = okBit(first.result)
+    const eventOk = okBit(cp.event?.result)
+    if ((opOk || eventOk) && !cp.error) {
+      log(`[cPanel Proxy] ${module}::${func} succeeded via WHM-root fallback (user: ${cpUser})`)
+      return { status: 1, data: first, errors: null, via: 'whm-fallback' }
+    }
+    const reason = first.reason || cp.error || `Failed to ${func}`
+    log(`[cPanel Proxy] ${module}::${func} WHM-root fallback returned failure (user: ${cpUser}): ${reason}`)
+    return { status: 0, data: null, errors: [sanitizeString(String(reason), host)], via: 'whm-fallback-failed' }
+  } catch (err) {
+    log(`[cPanel Proxy] ${module}::${func} WHM-root fallback error (user: ${cpUser}): ${err.message}`)
+    return null
+  }
+}
+
 // ─── cPanel API2 call (for functions not available in UAPI) ──
 // Normalizes API2 response to match UAPI format: { status, data, errors }
 
@@ -734,14 +812,17 @@ async function addAddonDomain(cpUser, cpPass, domain, subDomain, dir, host = nul
   // Use cPanel API2 for AddonDomain::addaddondomain (UAPI module not available on all versions)
   const auth = { username: cpUser, password: cpPass }
   const url = `${getBaseUrl(host)}/json-api/cpanel`
+  const p2 = {
+    newdomain: domain,
+    subdomain: subDomain || domain.replace(/\./g, ''),
+    dir: dir || `public_html/${domain}`,
+  }
   const params = {
     cpanel_jsonapi_user: cpUser,
     cpanel_jsonapi_apiversion: 2,
     cpanel_jsonapi_module: 'AddonDomain',
     cpanel_jsonapi_func: 'addaddondomain',
-    newdomain: domain,
-    subdomain: subDomain || domain.replace(/\./g, ''),
-    dir: dir || `public_html/${domain}`,
+    ...p2,
   }
   try {
     const res = await axios.get(url, {
@@ -761,20 +842,33 @@ async function addAddonDomain(cpUser, cpPass, domain, subDomain, dir, host = nul
       _adminAlertDown(err.code || err.message, host || WHM_HOST)
       return downResponse(err.code || err.message)
     }
-    return { status: 0, data: null, errors: [err.message] }
+    // User-level Basic Auth broken (401 login-page / 403 "Access denied") →
+    // retry via WHM-root impersonation. Fixes @greyhound110 / laup48f8
+    // (2026-08-30): fresh account had a broken user auth so every panel
+    // subdomain / addon-domain create silently failed with a generic 403,
+    // even though the WHM package (Premium-Anti-Red-1-Week) allows both.
+    const status = err.response?.status
+    if (looksLikeAuthFailure(status, err.message)) {
+      const fallback = await _api2ViaWhmRoot(cpUser, 'AddonDomain', 'addaddondomain', p2, host)
+      if (fallback) return fallback
+    }
+    return { status: 0, data: null, errors: [err.message], httpStatus: status || null }
   }
 }
 
 async function removeAddonDomain(cpUser, cpPass, domain, subDomain, mainDomain, host = null) {
   const auth = { username: cpUser, password: cpPass }
   const url = `${getBaseUrl(host)}/json-api/cpanel`
+  const p2 = {
+    domain: domain,
+    subdomain: subDomain || (mainDomain ? `${domain.replace(/\./g, '')}.${mainDomain}` : domain.replace(/\./g, '')),
+  }
   const params = {
     cpanel_jsonapi_user: cpUser,
     cpanel_jsonapi_apiversion: 2,
     cpanel_jsonapi_module: 'AddonDomain',
     cpanel_jsonapi_func: 'deladdondomain',
-    domain: domain,
-    subdomain: subDomain || (mainDomain ? `${domain.replace(/\./g, '')}.${mainDomain}` : domain.replace(/\./g, '')),
+    ...p2,
   }
   try {
     const res = await axios.get(url, {
@@ -794,7 +888,13 @@ async function removeAddonDomain(cpUser, cpPass, domain, subDomain, mainDomain, 
       _adminAlertDown(err.code || err.message, host || WHM_HOST)
       return downResponse(err.code || err.message)
     }
-    return { status: 0, data: null, errors: [err.message] }
+    // WHM-root fallback for user-auth-broken (parity with addAddonDomain).
+    const status = err.response?.status
+    if (looksLikeAuthFailure(status, err.message)) {
+      const fallback = await _api2ViaWhmRoot(cpUser, 'AddonDomain', 'deladdondomain', p2, host)
+      if (fallback) return fallback
+    }
+    return { status: 0, data: null, errors: [err.message], httpStatus: status || null }
   }
 }
 
@@ -877,14 +977,17 @@ async function createSubdomain(cpUser, cpPass, subdomain, rootdomain, dir, host 
   // Use cpanel API2 for SubDomain::addsubdomain
   const auth = { username: cpUser, password: cpPass }
   const url = `${getBaseUrl(host)}/json-api/cpanel`
+  const p2 = {
+    domain: subdomain,
+    rootdomain: rootdomain,
+    dir: dir || `public_html/${subdomain}.${rootdomain}`,
+  }
   const params = {
     cpanel_jsonapi_user: cpUser,
     cpanel_jsonapi_apiversion: 2,
     cpanel_jsonapi_module: 'SubDomain',
     cpanel_jsonapi_func: 'addsubdomain',
-    domain: subdomain,
-    rootdomain: rootdomain,
-    dir: dir || `public_html/${subdomain}.${rootdomain}`,
+    ...p2,
   }
   try {
     const res = await axios.get(url, {
@@ -904,7 +1007,16 @@ async function createSubdomain(cpUser, cpPass, subdomain, rootdomain, dir, host 
       _adminAlertDown(err.code || err.message, host || WHM_HOST)
       return downResponse(err.code || err.message)
     }
-    return { status: 0, data: null, errors: [err.message] }
+    // WHM-root fallback for user-auth-broken (401/403). Fixes @greyhound110
+    // 2026-08-30: fresh laup48f8 account had broken user Basic Auth so the
+    // panel's "Add Subdomain" silently failed with 403 even though the plan
+    // (Premium-Anti-Red-1-Week, MAXSUB=unlimited) permits it.
+    const status = err.response?.status
+    if (looksLikeAuthFailure(status, err.message)) {
+      const fallback = await _api2ViaWhmRoot(cpUser, 'SubDomain', 'addsubdomain', p2, host)
+      if (fallback) return fallback
+    }
+    return { status: 0, data: null, errors: [err.message], httpStatus: status || null }
   }
 }
 
@@ -913,12 +1025,15 @@ async function deleteSubdomain(cpUser, cpPass, fullSubdomain, host = null) {
   const effectiveHost = host || WHM_HOST
   const auth = { username: cpUser, password: cpPass }
   const url = `${getBaseUrl(host)}/json-api/cpanel`
+  const p2 = {
+    domain: fullSubdomain,
+  }
   const params = {
     cpanel_jsonapi_user: cpUser,
     cpanel_jsonapi_apiversion: 2,
     cpanel_jsonapi_module: 'SubDomain',
     cpanel_jsonapi_func: 'delsubdomain',
-    domain: fullSubdomain,
+    ...p2,
   }
   try {
     const res = await axios.get(url, {
@@ -938,7 +1053,13 @@ async function deleteSubdomain(cpUser, cpPass, fullSubdomain, host = null) {
       _adminAlertDown(err.code || err.message, host || WHM_HOST)
       return downResponse(err.code || err.message)
     }
-    return { status: 0, data: null, errors: [err.message] }
+    // WHM-root fallback for user-auth-broken (parity with createSubdomain).
+    const status = err.response?.status
+    if (looksLikeAuthFailure(status, err.message)) {
+      const fallback = await _api2ViaWhmRoot(cpUser, 'SubDomain', 'delsubdomain', p2, host)
+      if (fallback) return fallback
+    }
+    return { status: 0, data: null, errors: [err.message], httpStatus: status || null }
   }
 }
 
