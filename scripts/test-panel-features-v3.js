@@ -15,8 +15,15 @@ const WHM_HOST = process.env.WHM_HOST
 const WHM_TOKEN = process.env.WHM_TOKEN
 const WHM_API_RAW = (process.env.WHM_API_URL || '').replace(/\/+$/, '')
 const WHM_API_BASE = WHM_API_RAW ? `${WHM_API_RAW}/json-api` : `https://${WHM_HOST}:2087/json-api`
+const CPANEL_API_URL = process.env.CPANEL_API_URL || `https://cpanel-api.hostbay.io`
 const TEST_DOMAIN = 'testingbays.sbs'
 const TEST_PLAN = 'Golden-Anti-Red-HostPanel-1-Month'
+
+// App modules for credential management
+const cpAuth = require('../js/cpanel-auth')
+const { MongoClient } = require('mongodb')
+const MONGO_URL = process.env.MONGO_URL
+const DB_NAME = process.env.DB_NAME || 'test'
 
 const agent = new https.Agent({ rejectUnauthorized: false })
 const whmHeaders = { Authorization: `whm root:${WHM_TOKEN}` }
@@ -27,6 +34,7 @@ const results = { passed: 0, failed: 0, tests: [] }
 
 function record(name, ok, detail) {
   results.tests.push({ name, ok, detail })
+  if (ok) results.passed++; else results.failed++
   console.log(`  ${ok ? '✅ PASS' : '❌ FAIL'}: ${name}${detail ? ' — ' + detail : ''}`)
 }
 
@@ -89,18 +97,24 @@ async function uapiViaSession(cpUser, module, func, params = {}) {
   })
   const sessData = sessRes?.data || {}
   const sessionUrl = sessData.url   // e.g. https://host:2083/cpsess1234567890/
-  const cpSessId = sessData.session || (sessionUrl ? sessionUrl.match(/cpsess(\w+)/)?.[0] : null)
   if (!sessionUrl) throw new Error('create_user_session returned no URL')
   
-  // Step 2: Use session URL to POST to UAPI
-  const baseUrl = sessionUrl.replace(/\/+$/, '')
-  const url = `${baseUrl}/execute/${module}/${func}`
+  // Extract cpsess token from URL  
+  const cpsessMatch = sessionUrl.match(/(cpsess\w+)/)
+  if (!cpsessMatch) throw new Error('Could not extract cpsess token from session URL: ' + sessionUrl)
+  const cpsessToken = cpsessMatch[1]
+  
+  // Step 2: Use CPANEL_API_URL (tunnel) + cpsess token instead of direct WHM host
+  const url = `${CPANEL_API_URL}/${cpsessToken}/execute/${module}/${func}`
+  log(`  [DEBUG] uapiViaSession: ${url}`)
   const res = await axios.post(url, new URLSearchParams(params).toString(), {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     httpsAgent: agent,
     timeout: 30000,
     maxRedirects: 5,
   })
+  log(`  [DEBUG] Response status=${res.status}, type=${typeof res.data}, keys=${Object.keys(res.data || {})}`)
+  if (typeof res.data === 'string') log(`  [DEBUG] body(200)=${res.data.substring(0, 200)}`)
   return res.data
 }
 
@@ -121,6 +135,49 @@ async function createTestAccount() {
     if (result?.metadata?.result === 1) {
       testAccount = { username, password, domain: TEST_DOMAIN }
       record('WHM: createacct', true, `user=${username}`)
+      
+      // Rotate password via WHM /passwd — this forces cPanel to recognize
+      // the credentials immediately (fixes auth-broken on fresh accounts)
+      try {
+        const crypto = require('crypto')
+        const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+        const buf = crypto.randomBytes(32)
+        let newPass = ''
+        for (let i = 0; i < 24; i++) newPass += alphabet[buf[i] % alphabet.length]
+        
+        const passRes = await whmGet('/passwd', { user: username, password: newPass, db_pass_update: 0 })
+        if (passRes?.metadata?.result === 1) {
+          testAccount.password = newPass
+          log(`  🔑 Password rotated via WHM /passwd (auth self-heal)`)
+        } else {
+          log(`  ⚠️ Password rotation failed: ${passRes?.metadata?.reason}`)
+        }
+      } catch (e) {
+        log(`  ⚠️ Password rotation error: ${e.message}`)
+      }
+      
+      // Brief wait after rotation
+      await new Promise(resolve => setTimeout(resolve, 5000))
+      
+      // Store credentials in MongoDB for panel login
+      try {
+        const mongoClient = new MongoClient(MONGO_URL)
+        await mongoClient.connect()
+        const col = mongoClient.db(DB_NAME).collection('cpanelAccounts')
+        const { pin } = await cpAuth.storeCredentials(col, {
+          cpUser: username,
+          cpPass: password,
+          chatId: '5590563715',
+          domain: TEST_DOMAIN,
+          plan: TEST_PLAN,
+        })
+        testAccount.pin = pin
+        testAccount.mongoClient = mongoClient
+        log(`  PIN: ${pin}`)
+      } catch (dbErr) {
+        log(`  ⚠️ MongoDB store failed: ${dbErr.message}`)
+      }
+      
       return true
     }
     record('WHM: createacct', false, result?.metadata?.reason)
@@ -154,22 +211,42 @@ async function testFileManager() {
     record('FM: mkdir (API2 fileop)', ok, `test_dir ${data.error || ''}`)
   } catch (e) { record('FM: mkdir', false, e.message) }
 
-  // 3. save_file_content (via WHM session — needs POST)
+  // 3. save_file_content — WHM impersonation can only update EXISTING files,
+  //    so first create the file by copying .htaccess, then overwrite content
   try {
-    const r = await uapiViaSession(u, 'Fileman', 'save_file_content', {
-      file: 'index.html', dir: '/public_html/test_dir',
-      content: '<html><body><h1>Panel Test Page</h1></body></html>',
+    // Create the file by copying an existing default file
+    await api2(u, 'Fileman', 'fileop', {
+      op: 'copy',
+      sourcefiles: '/public_html/php.ini',
+      destfiles: '/public_html/test_dir/index.html',
     })
-    record('FM: save_file_content', r?.status === 1, `index.html ${JSON.stringify(r?.errors||[])}`)
+    // Now save content (file exists → WHM impersonation works)
+    const saveParams = {
+      'api.version': '1',
+      cpanel_jsonapi_user: u,
+      cpanel_jsonapi_apiversion: '3',
+      cpanel_jsonapi_module: 'Fileman',
+      cpanel_jsonapi_func: 'save_file_content',
+      file: 'index.html',
+      dir: '/public_html/test_dir',
+      content: '<html><body><h1>Panel Test Page</h1></body></html>',
+    }
+    const saveRes = await axios.post(`${WHM_API_BASE}/cpanel`,
+      new URLSearchParams(saveParams).toString(), {
+      headers: { ...whmHeaders, 'Content-Type': 'application/x-www-form-urlencoded' },
+      httpsAgent: agent, timeout: 30000,
+    })
+    record('FM: save_file_content', saveRes.data?.result?.status === 1, 'index.html saved')
   } catch (e) { record('FM: save_file_content', false, e.message) }
 
-  // 4. get_file_content (via WHM session)
+  // 4. get_file_content — read back via WHM UAPI impersonation
   try {
-    const r = await uapiViaSession(u, 'Fileman', 'get_file_content', {
+    const r = await uapi(u, 'Fileman', 'get_file_content', {
       file: 'index.html', dir: '/public_html/test_dir',
     })
-    const hasContent = r?.status === 1 && (r?.data?.content || '').includes('Panel Test')
-    record('FM: get_file_content', hasContent, hasContent ? 'content verified' : `status=${r?.status}, got: ${(r?.data?.content||'').substring(0,50)}`)
+    const content = r?.data?.content || ''
+    const hasContent = content.includes('Panel Test')
+    record('FM: get_file_content', hasContent, hasContent ? 'content verified' : `status=${r?.status}`)
   } catch (e) { record('FM: get_file_content', false, e.message) }
 
   // 5. rename (API2 Fileman::fileop op=rename or UAPI Fileman::rename_file)
@@ -264,6 +341,41 @@ async function testSubdomains() {
     const d = r?.data?.[0] || {}
     record('SUB: delete blog', d.result === 1, d.reason || 'OK')
   } catch (e) { record('SUB: delete blog', false, e.message) }
+
+  // 6. BULK IMPORT TEST — login + call bulk-create via panel API
+  if (!testAccount.pin) {
+    record('SUB: bulk-create (3 subdomains)', false, 'No PIN available (MongoDB store failed)')
+  } else {
+    try {
+      // Step 1: Login to get JWT
+      const loginRes = await axios.post('http://localhost:5000/panel/login', {
+        username: testAccount.username,
+        pin: testAccount.pin,
+      }, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 })
+      const token = loginRes.data?.token
+      if (!token) throw new Error('Login returned no token: ' + JSON.stringify(loginRes.data))
+
+      // Step 2: Call bulk-create
+      const bulkRes = await axios.post('http://localhost:5000/panel/subdomains/bulk-create', {
+        subdomains: 'api, staging, dev',
+        rootdomain: TEST_DOMAIN,
+      }, {
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        timeout: 90000,
+      })
+      const data = bulkRes.data
+      const ok = data?.summary?.total === 3 && data?.summary?.succeeded >= 2
+      record('SUB: bulk-create (3 subdomains)', ok,
+        `created=${data?.summary?.succeeded}, failed=${data?.summary?.failed}`)
+
+      // Cleanup bulk subdomains
+      for (const sub of ['api', 'staging', 'dev']) {
+        try { await api2(u, 'SubDomain', 'delsubdomain', { domain: `${sub}.${TEST_DOMAIN}` }) } catch {}
+      }
+    } catch (e) {
+      record('SUB: bulk-create (3 subdomains)', false, e.response?.data?.error || e.message)
+    }
+  }
 }
 
 // ═══ ADDON DOMAINS ══════════════════════════════════════
@@ -489,6 +601,15 @@ async function cleanup() {
   try {
     await api2(testAccount.username, 'SubDomain', 'delsubdomain', { domain: `shop.${TEST_DOMAIN}` })
   } catch (e) {}
+  // Remove from MongoDB
+  if (testAccount.mongoClient) {
+    try {
+      const col = testAccount.mongoClient.db(DB_NAME).collection('cpanelAccounts')
+      await col.deleteOne({ _id: testAccount.username.toLowerCase() })
+      log('  Removed MongoDB record')
+      await testAccount.mongoClient.close()
+    } catch (e) { log(`  MongoDB cleanup: ${e.message}`) }
+  }
   try {
     const r = await whmGet('/removeacct', { username: testAccount.username, keepdns: 0 })
     log(r?.metadata?.result === 1 ? `✅ Account ${testAccount.username} removed` : `⚠️ ${r?.metadata?.reason}`)

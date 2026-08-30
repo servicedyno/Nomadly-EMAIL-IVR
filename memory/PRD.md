@@ -3,6 +3,34 @@
 ## Original problem statement
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
+
+## 2026-08-30 (forked session) — Frontend testing unblocked + WHM-root fallback for domain/subdomain listing + comprehensive E2E test
+
+### Auth blocker fixed
+- `nbayftest` test account had cPanel auth sync delay (freshly created account not recognized by cPanel user-level auth).
+- Applied WHM password rotation (`/json-api/passwd?user=nbayftest&pass=<newPass>&db_pass_update=0`) via WHM API tunnel to force instant cPanel auth recognition.
+- Re-encrypted new password in MongoDB `cpanelAccounts` + confirmed PIN 241743.
+
+### WHM-root fallback added to GET /domains and GET /subdomains
+- **Bug**: `GET /panel/domains` and `GET /panel/subdomains` had NO WHM-root fallback, unlike all other routes (files, subdomain CRUD, addon CRUD). When user-level cPanel auth was broken, these routes returned `CPANEL_AUTH_FAILURE` with `<!DOCTYPE html>` error body.
+- **Fix in `js/cpanel-routes.js`**:
+  - `GET /domains`: on `_isAuthBroken(result)`, creates `whmApi = _makeWhmApi(...)` and calls `_uapiViaWhmRoot(whmApi, cpUser, 'DomainInfo', 'list_domains', {})`.
+  - `GET /subdomains`: on `_isAuthBroken(result)`, creates `whmApi` and calls `whmApi.get('/cpanel', {params: {cpanel_jsonapi_module: 'SubDomain', cpanel_jsonapi_func: 'listsubdomains'}})`.
+  - Also enhanced `_isAuthBroken()` to detect `<!DOCTYPE html>` in error strings (previously only caught explicit `CPANEL_AUTH_FAILURE` code or `httpStatus 401/403`, but proxied results from `listSubdomains` lost the `httpStatus` field).
+
+### Subdomain display bug fixed (by testing agent)
+- `DomainList.js` subdomain rendering was computing `display = fullSub + '.' + rootDom` but `fullSub` (from `s.domain`) was already the FQDN (e.g., `api.testingbays.sbs`), creating doubled names like `api.testingbays.sbs.testingbays.sbs`.
+- Fix: use `s.domain` directly when available; only fall back to concatenation when `s.domain` is just the prefix.
+
+### Testing (2 rounds, both passed)
+- **Iteration 42** (frontend): 100% — Login, Domains tab, subdomains list, quick-nav, bulk import, File Manager, SSL/NS badges.
+- **Iteration 43** (frontend): 95% — Add-on domain add/display/quick-nav/remove, File Manager create dir/upload/rename/copy-move/delete/breadcrumb navigation, all subdomain features. Minor: addon removal confirmation dialog timing (backend succeeded, UI refresh delay).
+
+### Files modified
+- `js/cpanel-routes.js` — WHM-root fallback for GET /domains + GET /subdomains + enhanced `_isAuthBroken`.
+- `frontend/src/components/panel/DomainList.js` — Subdomain display bug fix (by testing agent).
+
+
 ## 2026-08-30 (this session, end) — @smsbeast_real "credentials not received on email" — Operational resend via Telegram
 
 **Facts confirmed:**

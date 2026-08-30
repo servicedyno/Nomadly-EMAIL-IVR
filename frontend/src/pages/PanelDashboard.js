@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../components/panel/AuthContext';
 import FileManager from '../components/panel/FileManager';
@@ -28,6 +28,13 @@ export default function PanelDashboard() {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('files');
   const { theme, toggleTheme, isDark } = useTheme();
+  // Cross-tab navigation: DomainList → FileManager
+  const [fileManagerTargetDir, setFileManagerTargetDir] = useState(null);
+
+  const navigateToFileManager = useCallback((dir) => {
+    setFileManagerTargetDir(dir);
+    setActiveTab('files');
+  }, []);
 
   // Set browser tab title — overrides static "Speechcue | Cloud Phone" from index.html
   useEffect(() => {
@@ -127,8 +134,8 @@ export default function PanelDashboard() {
       </nav>
 
       <main className="panel-main" data-testid="panel-main">
-        {activeTab === 'files' && <FileManager />}
-        {activeTab === 'domains' && <DomainList />}
+        {activeTab === 'files' && <FileManager targetDir={fileManagerTargetDir} onTargetDirConsumed={() => setFileManagerTargetDir(null)} />}
+        {activeTab === 'domains' && <DomainList onNavigateToFileManager={navigateToFileManager} />}
         {activeTab === 'email' && <EmailManager />}
         {activeTab === 'mysql' && <MysqlManager />}
         {activeTab === 'security' && <SecurityPanel />}

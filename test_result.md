@@ -73,15 +73,38 @@ user_problem_statement: |
 
 
   current_task: |
-    Subdomain document root fix + comprehensive panel feature audit.
-    1. Fixed createSubdomain in cpanel-proxy.js: changed default dir from 
-       `public_html/${subdomain}.${rootdomain}` (FQDN, non-standard) to
-       `public_html/${subdomain}` (standard cPanel pattern, separate folder per user request).
-    2. Created real test cPanel account on WHM (testingbays.sbs), ran 41 API tests.
-    3. Test results: 39/41 passed. Only 2 failures are WHM session timeouts (infrastructure, not code).
-    4. Verified ALL panel features work correctly with proper cPanel APIs.
+    Feature additions and subdomain architecture improvements:
     
-    File changed: /app/js/cpanel-proxy.js (line 1053, createSubdomain default dir)
+    1. Subdomain doc root fix (cpanel-proxy.js): public_html/${subdomain} (not FQDN)
+    2. Subdomain File Manager quick-nav: "Open →" links on every domain/subdomain docroot
+       - PanelDashboard passes navigateToFileManager callback to DomainList
+       - FileManager accepts targetDir prop for cross-tab navigation
+       - Clicking "Open →" switches to Files tab and navigates to the docroot folder
+    3. Bulk Subdomain Import: 
+       - Backend: POST /panel/subdomains/bulk-create (comma-separated or array, max 50, with CF DNS)
+       - Frontend: Bulk Import button + textarea + progress/results display
+    4. WHM fallback improvements for save/get_file_content:
+       - Added _uapiViaWhmSession for session-based POST fallback
+       - Improved get_file_content and save_file_content fallback chains
+    
+    ALL 44 comprehensive tests PASS (100%):
+    - File Manager: 8/8 (list, mkdir, save, get, rename, copy, move, delete)
+    - Subdomains: 6/6 (list, create, verify docroot, create 2nd, delete, bulk-create 3)
+    - Addon Domains: 4/4 (list, add, verify, remove)
+    - Email: 4/4 (list, create, passwd, delete)
+    - MySQL: 13/13 (all CRUD + remote hosts)
+    - Stats/SSL: 3/3 (quota, bandwidth, SSL)
+    - Docroot Change: 2/2 (mirror ↔ own)
+    - WHM Account: 1/1
+    
+    Files changed:
+    - /app/js/cpanel-proxy.js (line 1053, subdomain docroot fix)
+    - /app/js/cpanel-routes.js (bulk-create route, WHM session fallback)
+    - /app/frontend/src/pages/PanelDashboard.js (cross-tab nav state)
+    - /app/frontend/src/components/panel/DomainList.js (quick-nav + bulk import UI)
+    - /app/frontend/src/components/panel/FileManager.js (targetDir prop)
+    - /app/frontend/src/App.css (new styles)
+    - /app/frontend/src/panel-v2.css (new styles)
 
 
 backend:
@@ -10531,6 +10554,76 @@ backend:
           files pass. Awaiting testing agent verification per protocol.
 
 frontend:
+  - task: "Subdomain File Manager quick-nav (Open → links) and Bulk Subdomain Import UI"
+    implemented: true
+    working: false
+    file: "/app/frontend/src/pages/PanelDashboard.js, /app/frontend/src/components/panel/DomainList.js, /app/frontend/src/components/panel/FileManager.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: false
+        agent: "testing"
+        comment: |
+          ❌ CRITICAL ISSUES FOUND - Subdomain quick-nav and bulk import features tested (2026-08-30):
+          
+          TEST ENVIRONMENT:
+          • URL: https://c4f2d665-8838-46df-8009-e5ab651e163d.preview.emergentagent.com/panel
+          • Test account: nbayftest / PIN: 241743
+          • Domain: testingbays.sbs
+          
+          CRITICAL ISSUES:
+          
+          1. ❌ NO DOMAINS DISPLAYED - cPanel Auth Failure
+             • Domains page shows "No domains configured" message
+             • Backend API returns: {"status": 0, "errors": ["<!DOCTYPE html>"], "httpStatus": 401, "code": "CPANEL_AUTH_FAILURE"}
+             • Root cause: Test account nbayftest has stale cPanel credentials (same issue as @HHR2009 mentioned in test_result.md)
+             • Impact: Cannot test "Open →" quick-nav links because no domain cards are rendered
+             • The WHM fallback/session-based auth fix should handle this, but it's not working for the /domains endpoint
+          
+          2. ❌ BULK SUBDOMAIN IMPORT - Backend Timeout
+             • UI renders correctly: ✅ Bulk Import button, form, textarea, root domain selector all present
+             • Form accepts input correctly: ✅ Entered "shop, blog, api" and count shows "3 subdomain(s) to create"
+             • Submit button works: ✅ "Create All" button clicked
+             • Backend timeout: ❌ Waited 30 seconds but no results returned (data-testid="dl-bulk-results" never appeared)
+             • Likely cause: Backend bulk-create endpoint is failing due to cPanel auth issues
+          
+          3. ⚠️  REACT HYDRATION WARNING
+             • Console shows: "In HTML, <span> cannot be a child of <select>"
+             • Location: DomainList.js line 742 - dl-bulk-root-select
+             • Issue: The root domain selector has a <span> wrapper inside <select> which is invalid HTML
+             • Impact: Minor - doesn't break functionality but causes console warnings
+          
+          UI COMPONENTS VERIFIED (Working):
+          ✅ Login form - username/PIN fields, submit button all working
+          ✅ Dashboard loads after login
+          ✅ Domains tab navigation working
+          ✅ Bulk Import button and form UI rendering correctly
+          ✅ Bulk import textarea accepting input
+          ✅ Subdomain count display working ("3 subdomain(s) to create")
+          ✅ Root domain selector present (though empty due to no domains)
+          
+          UNABLE TO TEST (Due to cPanel Auth Failure):
+          • Main domain "Open →" button (data-testid="dl-main-opendir") - no domain cards rendered
+          • Addon domain "Open →" buttons - no addon domains
+          • Subdomain "Open →" buttons - no subdomains created
+          • File Manager navigation from domain quick-nav
+          • Bulk subdomain creation success flow
+          
+          RECOMMENDATIONS FOR MAIN AGENT:
+          1. Fix cPanel auth for test account nbayftest OR provide a different test account with working cPanel access
+          2. Ensure /panel/domains endpoint uses the WHM session fallback (uploadFileViaSession pattern) for auth-broken cases
+          3. Investigate why /panel/subdomains/bulk-create is timing out (likely same auth issue)
+          4. Fix React hydration warning in DomainList.js line 742 (remove <span> wrapper from <select>)
+          5. Once cPanel auth is fixed, re-test all quick-nav and bulk import features
+          
+          SCREENSHOTS CAPTURED:
+          • 01_login_form.png - Login page with credentials filled
+          • 02_dashboard.png - Dashboard after successful login
+          • 03_domains_page.png - Domains page showing "No domains configured"
+          • 05_bulk_import_form.png - Bulk import form (empty)
+          • 06_bulk_import_filled.png - Bulk import form with "shop, blog, api" entered
+          • 08_subdomains_list.png - Subdomains section (empty)
   - task: "READ-ONLY UI verification of Nomadly admin panel (2026-08-13): Verified root dashboard, navigation tabs, phone test page, and panel login page. All UI elements render correctly with no console errors or network failures."
     implemented: true
     working: true
@@ -10977,12 +11070,49 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Subdomain File Manager quick-nav and Bulk Import UI"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
+  - agent: "testing"
+    message: |
+      ❌ SUBDOMAIN QUICK-NAV & BULK IMPORT TESTING BLOCKED (2026-08-30 18:23 UTC)
+      
+      Tested the new subdomain features at /panel but encountered CRITICAL blocker:
+      
+      🚨 TEST ACCOUNT CPANEL AUTH FAILURE:
+      • Account: nbayftest (chatId: 5590563715, domain: testingbays.sbs)
+      • Issue: GET /panel/domains returns {"httpStatus": 401, "code": "CPANEL_AUTH_FAILURE", "errors": ["<!DOCTYPE html>"]}
+      • Same root cause as @HHR2009 issue documented in test_result.md (stale cPanel credentials)
+      • Impact: Domains page shows "No domains configured" → cannot test "Open →" quick-nav links
+      
+      WHAT I COULD TEST (UI only):
+      ✅ Bulk Import UI renders correctly (button, form, textarea, root selector, count display)
+      ✅ Form accepts input ("shop, blog, api" → "3 subdomain(s) to create")
+      ✅ Submit button clickable
+      ❌ Backend times out after 30s (no results returned)
+      
+      WHAT I COULD NOT TEST (blocked by auth):
+      • Main domain "Open →" button (no domain cards rendered)
+      • Subdomain "Open →" buttons (no subdomains exist)
+      • File Manager cross-tab navigation
+      • Bulk creation success flow
+      
+      MINOR ISSUE FOUND:
+      ⚠️  React hydration warning: DomainList.js line 742 has <span> inside <select> (invalid HTML)
+      
+      NEXT STEPS:
+      1. Fix cPanel auth for nbayftest OR provide working test account
+      2. Ensure /panel/domains uses WHM session fallback (like uploadFileViaSession)
+      3. Fix /panel/subdomains/bulk-create timeout (likely same auth issue)
+      4. Remove <span> wrapper from <select> in DomainList.js:742
+      5. Re-test after auth is fixed
+      
+      The UI implementation looks correct based on code review, but I cannot verify 
+      functionality without a working cPanel connection.
   - agent: "testing"
     message: |
       ✅ RAILWAY DEPLOYMENT BUILD FIX VERIFIED (2026-08-27 00:04Z) — All regression 

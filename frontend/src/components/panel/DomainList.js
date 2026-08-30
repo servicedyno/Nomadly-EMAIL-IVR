@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from './AuthContext';
 import { pickErrorMessage, friendlyMessage, isTransientError } from './shared/cpanelErrors';
 
-export default function DomainList() {
+export default function DomainList({ onNavigateToFileManager }) {
   const { t, i18n } = useTranslation();
   const lang = (i18n.language || 'en').slice(0, 2);
   const { api, updateSession, user } = useAuth();
@@ -34,6 +34,12 @@ export default function DomainList() {
   const [primaryBusy, setPrimaryBusy] = useState({});
   const [addMode, setAddMode] = useState('own');
   const [actionMsg, setActionMsg] = useState(null);
+  // Bulk subdomain import
+  const [showBulkImport, setShowBulkImport] = useState(false);
+  const [bulkInput, setBulkInput] = useState('');
+  const [bulkRoot, setBulkRoot] = useState('');
+  const [bulkCreating, setBulkCreating] = useState(false);
+  const [bulkResults, setBulkResults] = useState(null);
 
   const fetchDomains = useCallback(async () => {
     setLoading(true);
@@ -399,6 +405,49 @@ export default function DomainList() {
     if (allDomains.length > 0 && !subRoot) setSubRoot(allDomains[0]);
   }, [allDomains, subRoot]);
 
+  // Set default root domain for bulk import
+  useEffect(() => {
+    if (allDomains.length > 0 && !bulkRoot) setBulkRoot(allDomains[0]);
+  }, [allDomains, bulkRoot]);
+
+  // Quick-nav to File Manager for a given docroot
+  const openInFileManager = (docRoot) => {
+    if (!onNavigateToFileManager) return;
+    // docRoot can be relative like "public_html/shop" or absolute like "/home/user/public_html/shop"
+    let absPath = docRoot;
+    if (!absPath.startsWith('/')) {
+      absPath = `/home/${user?.username}/${absPath}`;
+    }
+    onNavigateToFileManager(absPath);
+  };
+
+  // Bulk subdomain import handler
+  const handleBulkCreate = async () => {
+    if (!bulkInput.trim() || !bulkRoot) return;
+    setBulkCreating(true);
+    setBulkResults(null);
+    setError('');
+    try {
+      const res = await api('/subdomains/bulk-create', {
+        method: 'POST',
+        body: JSON.stringify({ subdomains: bulkInput.trim(), rootdomain: bulkRoot }),
+      });
+      if (res.error) {
+        setError(res.error);
+      } else {
+        setBulkResults(res);
+        if (res.summary?.succeeded > 0) {
+          fetchSubdomains();
+          fetchDomains();
+        }
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBulkCreating(false);
+    }
+  };
+
   const NSBadge = ({ domain }) => {
     const info = nsStatus[domain];
     const isLoading = nsLoading[domain];
@@ -505,10 +554,13 @@ export default function DomainList() {
           <button onClick={fetchSSL} className="fm-btn fm-btn--ghost" data-testid="dl-refresh-ssl" title={t('dl.refreshSSLTitle')} disabled={sslLoading}>
             {sslLoading ? t('dl.nsChecking') : t('dl.refreshSSL')}
           </button>
-          <button onClick={() => { setShowSubCreate(!showSubCreate); setShowAdd(false); }} className="fm-btn fm-btn--ghost" data-testid="dl-sub-btn">
+          <button onClick={() => { setShowSubCreate(!showSubCreate); setShowAdd(false); setShowBulkImport(false); }} className="fm-btn fm-btn--ghost" data-testid="dl-sub-btn">
             {t('dl.addSubdomain')}
           </button>
-          <button onClick={() => { setShowAdd(!showAdd); setShowSubCreate(false); }} className="fm-btn fm-btn--primary" data-testid="dl-add-btn">
+          <button onClick={() => { setShowBulkImport(!showBulkImport); setShowSubCreate(false); setShowAdd(false); }} className="fm-btn fm-btn--ghost" data-testid="dl-bulk-btn">
+            Bulk Import
+          </button>
+          <button onClick={() => { setShowAdd(!showAdd); setShowSubCreate(false); setShowBulkImport(false); }} className="fm-btn fm-btn--primary" data-testid="dl-add-btn">
             {t('dl.addDomain')}
           </button>
         </div>
@@ -668,6 +720,66 @@ export default function DomainList() {
         </div>
       )}
 
+      {/* Bulk Subdomain Import */}
+      {showBulkImport && (
+        <div className="dl-add-form dl-bulk-form" data-testid="dl-bulk-form">
+          <div className="dl-add-note">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            <span>Create multiple subdomains at once. Enter subdomain names separated by commas or one per line (max 50). Each gets its own folder in <code>public_html/</code>.</span>
+          </div>
+          <div className="dl-bulk-row">
+            <textarea
+              value={bulkInput}
+              onChange={(e) => setBulkInput(e.target.value)}
+              placeholder="shop, blog, api, dev, staging"
+              rows={4}
+              data-testid="dl-bulk-textarea"
+              className="dl-bulk-textarea"
+            />
+          </div>
+          <div className="dl-sub-input-row" style={{ marginTop: '0.5rem' }}>
+            <span style={{ opacity: 0.7, fontSize: '0.85rem' }}>Root domain:</span>
+            <select value={bulkRoot} onChange={(e) => setBulkRoot(e.target.value)} data-testid="dl-bulk-root-select">
+              {allDomains.map(d => <option key={d} value={d}>{d}</option>)}
+            </select>
+          </div>
+          {bulkInput.trim() && (
+            <div style={{ fontSize: '0.8rem', opacity: 0.6, margin: '0.25rem 0' }}>
+              {bulkInput.split(/[,\n\r]+/).map(s => s.trim()).filter(Boolean).length} subdomain(s) to create
+            </div>
+          )}
+          <div className="dl-sub-actions">
+            <button
+              onClick={handleBulkCreate}
+              className="fm-btn fm-btn--primary"
+              disabled={bulkCreating || !bulkInput.trim()}
+              data-testid="dl-bulk-submit"
+            >
+              {bulkCreating ? 'Creating...' : 'Create All'}
+            </button>
+            <button onClick={() => { setShowBulkImport(false); setBulkInput(''); setBulkResults(null); }} className="fm-btn fm-btn--ghost">
+              {t('dl.cancel')}
+            </button>
+          </div>
+          {bulkResults && (
+            <div className="dl-bulk-results" data-testid="dl-bulk-results">
+              <div className="dl-bulk-summary">
+                ✅ {bulkResults.summary?.succeeded || 0} created
+                {bulkResults.summary?.failed > 0 && <span> · ❌ {bulkResults.summary.failed} failed</span>}
+              </div>
+              <div className="dl-bulk-details">
+                {(bulkResults.results || []).map((r, i) => (
+                  <div key={i} className={`dl-bulk-item ${r.success ? 'dl-bulk-item--ok' : 'dl-bulk-item--fail'}`}>
+                    <span>{r.success ? '✅' : '❌'} {r.fqdn}</span>
+                    {!r.success && <span className="dl-bulk-item-error">{r.error}</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {loading ? (
         <div className="fm-loading">{t('dl.loading')}</div>
       ) : (
@@ -690,6 +802,11 @@ export default function DomainList() {
                 <div className="dl-domain-docroot">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
                   <span>{t('dl.docRootLabel')} <code>public_html/</code></span>
+                  {onNavigateToFileManager && (
+                    <button onClick={() => openInFileManager('public_html')} className="dl-docroot-link" data-testid="dl-main-opendir" title="Open folder in File Manager">
+                      Open →
+                    </button>
+                  )}
                 </div>
               </div>
               <NSPendingInfo domain={mainDomain} />
@@ -724,6 +841,16 @@ export default function DomainList() {
                     <div className="dl-domain-docroot">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
                       <span>{t('dl.docRootLabel')} <code>{mode === 'mirror' ? t('dl.docRootMirror') : `public_html/${d}`}</code></span>
+                      {onNavigateToFileManager && (
+                        <button
+                          onClick={() => openInFileManager(mode === 'mirror' ? 'public_html' : `public_html/${d}`)}
+                          className="dl-docroot-link"
+                          data-testid={`dl-addon-opendir-${d}`}
+                          title="Open folder in File Manager"
+                        >
+                          Open →
+                        </button>
+                      )}
                     </div>
                     <div className="dl-domain-actions" data-testid={`dl-domain-actions-${d}`}>
                       <button
@@ -757,10 +884,13 @@ export default function DomainList() {
             <div className="dl-section">
               <h3>{t('dl.subdomains', { count: subdomains.length })}</h3>
               {subdomains.map((s, i) => {
-                const fullSub = s.domain || s;
+                // s.domain is already the full FQDN (e.g., "api.testingbays.sbs")
+                // s.subdomain is just the prefix (e.g., "api")
+                const subPrefix = s.subdomain || s.domain || s;
                 const rootDom = s.rootdomain || '';
-                const display = rootDom ? `${fullSub}.${rootDom}` : fullSub;
-                const docRoot = s.dir || s.documentroot || `public_html/${fullSub}`;
+                // Use the full domain if available, otherwise construct it
+                const display = s.domain || (rootDom ? `${subPrefix}.${rootDom}` : subPrefix);
+                const docRoot = s.dir || s.documentroot || `public_html/${subPrefix}`;
                 return (
                   <div key={i} className="dl-domain-card" data-testid={`dl-sub-${display}`}>
                     <div className="dl-domain-card-top">
@@ -770,6 +900,16 @@ export default function DomainList() {
                         <SSLBadge domain={display} />
                         <span className="dl-badge dl-badge--sub">{t('dl.subBadge')}</span>
                       </div>
+                      {onNavigateToFileManager && (
+                        <button
+                          onClick={() => openInFileManager(docRoot)}
+                          className="fm-action-btn"
+                          title="Open in File Manager"
+                          data-testid={`dl-sub-fm-${display}`}
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+                        </button>
+                      )}
                       <button onClick={() => handleDeleteSub(display)} className="fm-action-btn fm-action-btn--danger" title={t('dl.deleteTitle')} data-testid={`dl-sub-del-${display}`}>
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
                       </button>
@@ -777,6 +917,16 @@ export default function DomainList() {
                     <div className="dl-domain-docroot">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
                       <span>{t('dl.docRootLabel')} <code>{docRoot}</code></span>
+                      {onNavigateToFileManager && (
+                        <button
+                          onClick={() => openInFileManager(docRoot)}
+                          className="dl-docroot-link"
+                          data-testid={`dl-sub-opendir-${display}`}
+                          title="Open folder in File Manager"
+                        >
+                          Open →
+                        </button>
+                      )}
                     </div>
                   </div>
                 );

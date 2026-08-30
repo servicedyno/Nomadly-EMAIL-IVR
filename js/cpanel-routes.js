@@ -177,6 +177,8 @@ function _isAuthBroken(result) {
   if (result.code === 'CPANEL_AUTH_FAILURE') return true
   if (result.httpStatus === 401 || result.httpStatus === 403) return true
   const first = Array.isArray(result.errors) ? result.errors[0] : (result.error || '')
+  // cPanel login-page HTML returned as error body (no httpStatus in proxied results)
+  if (typeof first === 'string' && /<!DOCTYPE html>/i.test(first)) return true
   return !!(cpProxy.looksLikeAuthFailure && cpProxy.looksLikeAuthFailure(result.httpStatus, String(first || '')))
 }
 
@@ -215,6 +217,49 @@ async function _uapiViaWhmRoot(whmApi, cpUser, module, func, params) {
     messages: cp.messages || null,
     metadata: cp.metadata || null,
     reason: (Array.isArray(cp.errors) && cp.errors[0]) || cp.error || null,
+  }
+}
+
+// WHM session-based UAPI call — creates a user session and POSTs
+// to the cPanel UAPI endpoint. Required for functions like
+// save_file_content and get_file_content which don't work properly
+// via the WHM GET /json-api/cpanel wrapper (content params get mangled
+// in query strings or file reads return empty).
+async function _uapiViaWhmSession(whmApi, cpUser, module, func, params, method = 'POST') {
+  // Step 1: create user session
+  const sessRes = await whmApi.get('/create_user_session', {
+    params: { 'api.version': 1, user: cpUser, service: 'cpaneld' },
+  })
+  const sessionUrl = sessRes.data?.data?.url
+  if (!sessionUrl) throw new Error('WHM create_user_session returned no URL')
+
+  // Step 2: Use session URL to call UAPI directly via cPanel
+  const baseUrl = sessionUrl.replace(/\/+$/, '')
+  const url = `${baseUrl}/execute/${module}/${func}`
+  const axiosOpts = {
+    httpsAgent: new (require('https').Agent)({ rejectUnauthorized: false }),
+    timeout: 30000,
+    maxRedirects: 5,
+  }
+
+  let res
+  if (method === 'POST') {
+    res = await require('axios').post(url, new URLSearchParams(params).toString(), {
+      ...axiosOpts,
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    })
+  } else {
+    res = await require('axios').get(url, { ...axiosOpts, params })
+  }
+
+  const data = res.data || {}
+  return {
+    status: data.status === 1 ? 1 : 0,
+    data: data.data ?? null,
+    errors: data.errors || null,
+    messages: data.messages || null,
+    metadata: data.metadata || null,
+    reason: (Array.isArray(data.errors) && data.errors[0]) || data.error || null,
   }
 }
 
@@ -686,13 +731,20 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
       const whmApi = _makeWhmApi(req.whmHost || process.env.WHM_HOST)
       if (whmApi) {
         try {
-          log(`[Panel] get_file_content user-level auth-broken → WHM fallback (user: ${req.cpUser}, file: ${file})`)
-          const fb = await _uapiViaWhmRoot(whmApi, req.cpUser, 'Fileman', 'get_file_content', { dir, file })
+          log(`[Panel] get_file_content user-level auth-broken → WHM session fallback (user: ${req.cpUser}, file: ${file})`)
+          const fb = await _uapiViaWhmSession(whmApi, req.cpUser, 'Fileman', 'get_file_content', { dir, file }, 'GET')
           if (fb.status === 1) {
-            log(`[Panel] get_file_content succeeded via WHM fallback (user: ${req.cpUser}, file: ${file})`)
-            result = { ...fb, via: 'whm-fallback' }
+            log(`[Panel] get_file_content succeeded via WHM session fallback (user: ${req.cpUser}, file: ${file})`)
+            result = { ...fb, via: 'whm-session-fallback' }
           } else {
-            log(`[Panel] get_file_content WHM fallback failed (user: ${req.cpUser}, file: ${file}) — ${fb.reason || 'unknown'}`)
+            // Second attempt: try the plain WHM impersonation as last resort
+            log(`[Panel] get_file_content WHM session fallback returned status=0, trying plain WHM (user: ${req.cpUser})`)
+            const fb2 = await _uapiViaWhmRoot(whmApi, req.cpUser, 'Fileman', 'get_file_content', { dir, file })
+            if (fb2.status === 1) {
+              result = { ...fb2, via: 'whm-fallback' }
+            } else {
+              log(`[Panel] get_file_content all fallbacks failed (user: ${req.cpUser}, file: ${file}) — ${fb.reason || fb2.reason || 'unknown'}`)
+            }
           }
         } catch (e) {
           log(`[Panel] get_file_content WHM fallback exception (user: ${req.cpUser}): ${e.message}`)
@@ -714,13 +766,20 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
       const whmApi = _makeWhmApi(req.whmHost || process.env.WHM_HOST)
       if (whmApi) {
         try {
-          log(`[Panel] save_file_content user-level auth-broken → WHM fallback (user: ${req.cpUser}, file: ${file})`)
-          const fb = await _uapiViaWhmRoot(whmApi, req.cpUser, 'Fileman', 'save_file_content', { dir, file, content })
+          log(`[Panel] save_file_content user-level auth-broken → WHM session fallback (user: ${req.cpUser}, file: ${file})`)
+          const fb = await _uapiViaWhmSession(whmApi, req.cpUser, 'Fileman', 'save_file_content', { dir, file, content }, 'POST')
           if (fb.status === 1) {
-            log(`[Panel] save_file_content succeeded via WHM fallback (user: ${req.cpUser}, file: ${file})`)
-            result = { ...fb, via: 'whm-fallback' }
+            log(`[Panel] save_file_content succeeded via WHM session fallback (user: ${req.cpUser}, file: ${file})`)
+            result = { ...fb, via: 'whm-session-fallback' }
           } else {
-            log(`[Panel] save_file_content WHM fallback failed (user: ${req.cpUser}, file: ${file}) — ${fb.reason || 'unknown'}`)
+            // Second attempt: try plain WHM as last resort
+            log(`[Panel] save_file_content WHM session fallback returned status=0, trying plain WHM (user: ${req.cpUser})`)
+            const fb2 = await _uapiViaWhmRoot(whmApi, req.cpUser, 'Fileman', 'save_file_content', { dir, file, content })
+            if (fb2.status === 1) {
+              result = { ...fb2, via: 'whm-fallback' }
+            } else {
+              log(`[Panel] save_file_content all fallbacks failed (user: ${req.cpUser}, file: ${file}) — ${fb.reason || fb2.reason || 'unknown'}`)
+            }
           }
         } catch (e) {
           log(`[Panel] save_file_content WHM fallback exception (user: ${req.cpUser}): ${e.message}`)
@@ -1374,6 +1433,22 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
 
   router.get('/domains', ...auth, async (req, res) => {
     const result = await cpProxy.listDomains(req.cpUser, req.cpPass, req.whmHost)
+    // WHM-root fallback when user-level auth is broken (same pattern as file routes)
+    if (result?.status !== 1 && _isAuthBroken(result)) {
+      const whmApi = _makeWhmApi(req.whmHost || process.env.WHM_HOST)
+      if (whmApi) {
+        log(`[Panel] listDomains user-level auth broken for ${req.cpUser} → WHM-root fallback`)
+        try {
+          const fb = await _uapiViaWhmRoot(whmApi, req.cpUser, 'DomainInfo', 'list_domains', {})
+          if (fb.status === 1) {
+            log(`[Panel] listDomains WHM-root fallback SUCCESS for ${req.cpUser}`)
+            return res.json(fb)
+          }
+        } catch (e) {
+          log(`[Panel] listDomains WHM-root fallback error: ${e.message}`)
+        }
+      }
+    }
     res.json(result)
   })
 
@@ -2109,6 +2184,28 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
 
   router.get('/subdomains', ...auth, async (req, res) => {
     const result = await cpProxy.listSubdomains(req.cpUser, req.cpPass, req.whmHost)
+    // WHM-root fallback when user-level auth is broken
+    if (_isAuthBroken(result)) {
+      const whmApi = _makeWhmApi(req.whmHost || process.env.WHM_HOST)
+      if (whmApi) {
+        log(`[Panel] listSubdomains user-level auth broken for ${req.cpUser} → WHM-root fallback`)
+        try {
+          const fb = await whmApi.get('/cpanel', {
+            params: {
+              cpanel_jsonapi_user: req.cpUser,
+              cpanel_jsonapi_apiversion: 2,
+              cpanel_jsonapi_module: 'SubDomain',
+              cpanel_jsonapi_func: 'listsubdomains',
+            },
+          })
+          const subData = fb.data?.cpanelresult?.data || []
+          log(`[Panel] listSubdomains WHM-root fallback SUCCESS for ${req.cpUser} (${subData.length} subdomains)`)
+          return res.json({ status: 1, data: subData, errors: null })
+        } catch (e) {
+          log(`[Panel] listSubdomains WHM-root fallback error: ${e.message}`)
+        }
+      }
+    }
     res.json(result)
   })
 
@@ -2141,6 +2238,78 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     }
 
     res.json(result)
+  })
+
+  // ─── Bulk subdomain creation ──────────────────────────────
+  // Accepts { subdomains: string | string[], rootdomain: string }
+  // subdomains can be comma-separated string or array
+  router.post('/subdomains/bulk-create', ...auth, async (req, res) => {
+    let { subdomains, rootdomain } = req.body
+    if (!rootdomain) return res.status(400).json({ error: 'rootdomain is required' })
+
+    // Parse comma-separated string into array
+    if (typeof subdomains === 'string') {
+      subdomains = subdomains.split(/[,\n\r]+/).map(s => s.trim()).filter(Boolean)
+    }
+    if (!Array.isArray(subdomains) || subdomains.length === 0) {
+      return res.status(400).json({ error: 'subdomains array is required (comma-separated or array)' })
+    }
+    if (subdomains.length > 50) {
+      return res.status(400).json({ error: 'Maximum 50 subdomains per bulk operation' })
+    }
+
+    // Validate subdomain names
+    const validSubRe = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/i
+    const invalid = subdomains.filter(s => !validSubRe.test(s))
+    if (invalid.length > 0) {
+      return res.status(400).json({ error: `Invalid subdomain names: ${invalid.join(', ')}` })
+    }
+
+    // Deduplicate
+    const uniqueSubs = [...new Set(subdomains.map(s => s.toLowerCase()))]
+
+    const results = []
+    for (const subdomain of uniqueSubs) {
+      try {
+        // 1. Create in cPanel
+        const result = await cpProxy.createSubdomain(req.cpUser, req.cpPass, subdomain, rootdomain, null, req.whmHost)
+        const ok = result?.status === 1 || (result?.data?.[0]?.result === 1)
+
+        // 2. Create CF DNS (non-blocking)
+        if (ok) {
+          try {
+            const zone = await cfService.getZoneByName(rootdomain)
+            if (zone && cfService.CF_TUNNEL_CNAME) {
+              const fqdn = `${subdomain}.${rootdomain}`
+              await cfService.createDNSRecord(zone.id, 'CNAME', fqdn, cfService.CF_TUNNEL_CNAME, 1, true)
+              log(`[Panel] Bulk: CF DNS CNAME for ${fqdn} → tunnel`)
+            }
+          } catch (cfErr) {
+            log(`[Panel] Bulk: CF DNS for ${subdomain}.${rootdomain} warning: ${cfErr.message}`)
+          }
+        }
+
+        results.push({
+          subdomain,
+          fqdn: `${subdomain}.${rootdomain}`,
+          success: ok,
+          error: ok ? null : (result?.errors?.[0] || result?.data?.[0]?.reason || 'Unknown error'),
+        })
+      } catch (err) {
+        results.push({
+          subdomain,
+          fqdn: `${subdomain}.${rootdomain}`,
+          success: false,
+          error: err.message || 'Request failed',
+        })
+      }
+    }
+
+    const succeeded = results.filter(r => r.success).length
+    const failed = results.filter(r => !r.success).length
+    log(`[Panel] Bulk subdomain create: ${succeeded} ok, ${failed} failed out of ${uniqueSubs.length} (user: ${req.cpUser}, root: ${rootdomain})`)
+
+    res.json({ results, summary: { total: uniqueSubs.length, succeeded, failed } })
   })
 
   router.post('/subdomains/delete', ...auth, async (req, res) => {

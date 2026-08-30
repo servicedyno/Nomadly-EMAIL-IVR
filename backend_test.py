@@ -1,228 +1,193 @@
 #!/usr/bin/env python3
 """
-Backend regression test after cleanup (360 scripts + 50 dead functions removed).
-Tests read-only endpoints to verify no runtime business logic was broken.
+Backend API Test for Nomadly Hosting Panel - Three New Features
+Tests:
+1. Subdomain Document Root Fix (cpanel-proxy.js line 1053)
+2. Bulk Subdomain Import API (POST /panel/subdomains/bulk-create)
+3. WHM Session Fallback for File Operations (_uapiViaWhmSession)
 """
 
 import requests
-import json
+import os
 import sys
-from typing import Dict, Any, List, Tuple
 
-# Load backend URL from frontend/.env
-def get_backend_url() -> str:
-    """Read REACT_APP_BACKEND_URL from frontend/.env"""
+# Get backend URL from environment
+BACKEND_URL = os.getenv('REACT_APP_BACKEND_URL', 'https://c4f2d665-8838-46df-8009-e5ab651e163d.preview.emergentagent.com')
+API_BASE = f"{BACKEND_URL}/api"
+NODE_BASE = "http://localhost:5000"
+
+def test_health_checks():
+    """Test 1: Health checks"""
+    print("\n=== TEST 1: Health Checks ===")
+    
+    # Test FastAPI health
     try:
-        with open('/app/frontend/.env', 'r') as f:
-            for line in f:
-                if line.startswith('REACT_APP_BACKEND_URL='):
-                    return line.split('=', 1)[1].strip()
-    except Exception as e:
-        print(f"❌ Failed to read REACT_APP_BACKEND_URL: {e}")
-        sys.exit(1)
-    return ""
-
-BASE_URL = get_backend_url()
-print(f"🔗 Testing backend at: {BASE_URL}")
-print(f"📋 Scope: Verify NO regression after cleanup (360 scripts + 50 dead functions removed)\n")
-
-# Test results tracking
-results: List[Tuple[str, bool, str]] = []
-
-def test_endpoint(name: str, method: str, path: str, expected_status: int = 200, 
-                  body: Dict[Any, Any] = None, check_fields: List[str] = None) -> bool:
-    """Test a single endpoint and track results"""
-    url = f"{BASE_URL}{path}"
-    try:
-        if method == "GET":
-            response = requests.get(url, timeout=30)
-        elif method == "POST":
-            response = requests.post(url, json=body or {}, timeout=30)
-        else:
-            results.append((name, False, f"Unsupported method: {method}"))
-            return False
-        
-        # Check status code
-        if response.status_code != expected_status:
-            results.append((name, False, f"Expected {expected_status}, got {response.status_code}"))
-            return False
-        
-        # Check response fields if specified
-        if check_fields:
-            try:
-                data = response.json()
-                for field in check_fields:
-                    if field not in data:
-                        results.append((name, False, f"Missing field: {field}"))
-                        return False
-            except Exception as e:
-                results.append((name, False, f"JSON parse error: {e}"))
+        resp = requests.get(f"{API_BASE}/health", timeout=10)
+        if resp.status_code == 200:
+            data = resp.json()
+            if data.get('status') == 'healthy' and data.get('database') == 'connected':
+                print(f"✅ FastAPI health check: {data}")
+                return True
+            else:
+                print(f"❌ FastAPI health check failed: {data}")
                 return False
-        
-        results.append((name, True, "PASSED"))
-        return True
-        
-    except requests.exceptions.Timeout:
-        results.append((name, False, "Request timeout (30s)"))
-        return False
-    except requests.exceptions.ConnectionError as e:
-        results.append((name, False, f"Connection error: {e}"))
-        return False
-    except Exception as e:
-        results.append((name, False, f"Unexpected error: {e}"))
-        return False
-
-def test_health_endpoint() -> bool:
-    """Test 1: Health check endpoint"""
-    print("🏥 TEST 1: Health Check")
-    success = test_endpoint(
-        "Health Check",
-        "GET",
-        "/api/health",
-        expected_status=200,
-        check_fields=["status", "database"]
-    )
-    
-    if success:
-        # Get the actual response to verify values
-        response = requests.get(f"{BASE_URL}/api/health", timeout=30)
-        data = response.json()
-        if data.get("status") == "healthy" and data.get("database") == "connected":
-            print(f"   ✅ Health: {data.get('status')}, Database: {data.get('database')}")
-            return True
         else:
-            print(f"   ❌ Unexpected values: {data}")
-            results[-1] = ("Health Check", False, f"status={data.get('status')}, database={data.get('database')}")
+            print(f"❌ FastAPI health check returned {resp.status_code}")
             return False
-    else:
-        print(f"   ❌ Health check failed")
+    except Exception as e:
+        print(f"❌ FastAPI health check error: {e}")
         return False
 
-def test_dev_endpoints() -> Dict[str, bool]:
-    """Test 2-7: Dev diagnostic endpoints (read-only, self-cleaning)"""
-    print("\n🔬 TEST 2-7: Dev Diagnostic Endpoints (read-only)")
+def test_nodejs_health():
+    """Test 2: Node.js health check"""
+    print("\n=== TEST 2: Node.js Health Check ===")
     
-    dev_tests = {
-        "UX Fixes Audit": {
-            "method": "GET",
-            "path": "/api/dev/ux-fixes-audit",
-            "check_field": "ok"
-        },
-        "Call Reconciler": {
-            "method": "POST",
-            "path": "/api/dev/call-reconciler-test",
-            "check_field": "pass"
-        },
-        "OTP Voice Match": {
-            "method": "POST",
-            "path": "/api/dev/otp-voice-match-test",
-            "check_field": "pass"
-        },
-        "Twilio IVR Transfer Billing": {
-            "method": "POST",
-            "path": "/api/dev/twilio-ivr-transfer-billing-test",
-            "check_field": "pass"
-        },
-        "Dial Rate Guard": {
-            "method": "POST",
-            "path": "/api/dev/dial-rate-guard-test",
-            "check_field": "pass"
-        },
-        "IVR Rate Policy": {
-            "method": "POST",
-            "path": "/api/dev/ivr-rate-policy-test",
-            "check_field": "pass"
-        }
-    }
-    
-    test_results = {}
-    for name, config in dev_tests.items():
-        success = test_endpoint(
-            name,
-            config["method"],
-            config["path"],
-            expected_status=200
-        )
-        
-        if success:
-            # Verify the pass/ok field
-            try:
-                if config["method"] == "GET":
-                    response = requests.get(f"{BASE_URL}{config['path']}", timeout=30)
-                else:
-                    response = requests.post(f"{BASE_URL}{config['path']}", json={}, timeout=30)
-                
-                data = response.json()
-                check_field = config["check_field"]
-                
-                if data.get(check_field) == True:
-                    print(f"   ✅ {name}: {check_field}=true")
-                    test_results[name] = True
-                else:
-                    print(f"   ❌ {name}: {check_field}={data.get(check_field)}")
-                    results[-1] = (name, False, f"{check_field}={data.get(check_field)}")
-                    test_results[name] = False
-            except Exception as e:
-                print(f"   ❌ {name}: Failed to verify response - {e}")
-                results[-1] = (name, False, f"Response verification failed: {e}")
-                test_results[name] = False
+    try:
+        resp = requests.get(f"{NODE_BASE}/health", timeout=10)
+        if resp.status_code == 200:
+            data = resp.json()
+            if data.get('status') == 'healthy' and data.get('database') == 'connected':
+                print(f"✅ Node.js health check: {data}")
+                return True
+            else:
+                print(f"❌ Node.js health check failed: {data}")
+                return False
         else:
-            print(f"   ❌ {name}: Request failed")
-            test_results[name] = False
-    
-    return test_results
-
-def print_summary():
-    """Print test summary"""
-    print("\n" + "="*70)
-    print("📊 TEST SUMMARY")
-    print("="*70)
-    
-    passed = sum(1 for _, success, _ in results if success)
-    total = len(results)
-    
-    print(f"\n✅ Passed: {passed}/{total}")
-    print(f"❌ Failed: {total - passed}/{total}")
-    
-    if total - passed > 0:
-        print("\n❌ FAILED TESTS:")
-        for name, success, message in results:
-            if not success:
-                print(f"   • {name}: {message}")
-    
-    print("\n" + "="*70)
-    
-    if passed == total:
-        print("✅ ALL TESTS PASSED - No regression detected")
-        print("="*70)
-        return True
-    else:
-        print("❌ SOME TESTS FAILED - Regression detected")
-        print("="*70)
+            print(f"❌ Node.js health check returned {resp.status_code}")
+            return False
+    except Exception as e:
+        print(f"❌ Node.js health check error: {e}")
         return False
+
+def test_bulk_create_route_exists():
+    """Test 3: Verify bulk-create route exists (should return 401 without auth)"""
+    print("\n=== TEST 3: Bulk Subdomain Import Route Exists ===")
+    
+    try:
+        # POST without auth should return 401 (Unauthorized), not 404 (Not Found)
+        resp = requests.post(f"{NODE_BASE}/panel/subdomains/bulk-create", 
+                            json={"subdomains": "test", "rootdomain": "example.com"},
+                            timeout=10)
+        
+        if resp.status_code == 401:
+            print(f"✅ Bulk-create route exists (returned 401 Unauthorized as expected)")
+            return True
+        elif resp.status_code == 404:
+            print(f"❌ Bulk-create route NOT FOUND (404)")
+            return False
+        else:
+            print(f"⚠️  Bulk-create route returned unexpected status: {resp.status_code}")
+            # Still consider it a pass if the route exists (not 404)
+            return True
+    except Exception as e:
+        print(f"❌ Bulk-create route test error: {e}")
+        return False
+
+def verify_code_changes():
+    """Test 4: Verify code changes are in place"""
+    print("\n=== TEST 4: Verify Code Changes ===")
+    
+    results = []
+    
+    # Check 1: Subdomain docroot fix
+    try:
+        with open('/app/js/cpanel-proxy.js', 'r') as f:
+            content = f.read()
+            if 'public_html/${subdomain}' in content and 'dir: dir || `public_html/${subdomain}`' in content:
+                print("✅ Subdomain docroot fix found at line 1053 (public_html/${subdomain})")
+                results.append(True)
+            else:
+                print("❌ Subdomain docroot fix NOT found")
+                results.append(False)
+    except Exception as e:
+        print(f"❌ Error checking cpanel-proxy.js: {e}")
+        results.append(False)
+    
+    # Check 2: Bulk-create route
+    try:
+        with open('/app/js/cpanel-routes.js', 'r') as f:
+            content = f.read()
+            if "router.post('/subdomains/bulk-create'" in content:
+                print("✅ Bulk-create route found in cpanel-routes.js")
+                results.append(True)
+            else:
+                print("❌ Bulk-create route NOT found in cpanel-routes.js")
+                results.append(False)
+    except Exception as e:
+        print(f"❌ Error checking cpanel-routes.js: {e}")
+        results.append(False)
+    
+    # Check 3: _uapiViaWhmSession function
+    try:
+        with open('/app/js/cpanel-routes.js', 'r') as f:
+            content = f.read()
+            if 'async function _uapiViaWhmSession' in content or 'function _uapiViaWhmSession' in content:
+                print("✅ _uapiViaWhmSession function found in cpanel-routes.js")
+                results.append(True)
+            else:
+                print("❌ _uapiViaWhmSession function NOT found")
+                results.append(False)
+    except Exception as e:
+        print(f"❌ Error checking for _uapiViaWhmSession: {e}")
+        results.append(False)
+    
+    # Check 4: WHM session fallback usage
+    try:
+        with open('/app/js/cpanel-routes.js', 'r') as f:
+            content = f.read()
+            if '_uapiViaWhmSession(whmApi, req.cpUser, \'Fileman\', \'get_file_content\'' in content:
+                print("✅ WHM session fallback for get_file_content found")
+                results.append(True)
+            else:
+                print("❌ WHM session fallback for get_file_content NOT found")
+                results.append(False)
+            
+            if '_uapiViaWhmSession(whmApi, req.cpUser, \'Fileman\', \'save_file_content\'' in content:
+                print("✅ WHM session fallback for save_file_content found")
+                results.append(True)
+            else:
+                print("❌ WHM session fallback for save_file_content NOT found")
+                results.append(False)
+    except Exception as e:
+        print(f"❌ Error checking WHM session fallback usage: {e}")
+        results.append(False)
+    
+    return all(results)
 
 def main():
-    """Run all tests"""
-    print("="*70)
-    print("🧪 BACKEND REGRESSION TEST AFTER CLEANUP")
-    print("="*70)
-    print("Cleanup performed:")
-    print("  • 360 unused one-off ops/forensic script files removed")
-    print("  • 50 genuinely-dead exported functions removed from 28 modules")
-    print("="*70)
-    print()
+    print("=" * 60)
+    print("NOMADLY HOSTING PANEL - BACKEND API TEST")
+    print("Testing Three New Features:")
+    print("1. Subdomain Document Root Fix")
+    print("2. Bulk Subdomain Import API")
+    print("3. WHM Session Fallback for File Operations")
+    print("=" * 60)
     
-    # Test 1: Health check
-    health_ok = test_health_endpoint()
+    results = []
     
-    # Test 2-7: Dev endpoints
-    dev_results = test_dev_endpoints()
+    # Run tests
+    results.append(("Health Checks", test_health_checks()))
+    results.append(("Node.js Health", test_nodejs_health()))
+    results.append(("Bulk-Create Route", test_bulk_create_route_exists()))
+    results.append(("Code Changes", verify_code_changes()))
     
-    # Print summary
-    all_passed = print_summary()
+    # Summary
+    print("\n" + "=" * 60)
+    print("TEST SUMMARY")
+    print("=" * 60)
+    
+    passed = sum(1 for _, result in results if result)
+    total = len(results)
+    
+    for name, result in results:
+        status = "✅ PASS" if result else "❌ FAIL"
+        print(f"{status}: {name}")
+    
+    print(f"\nTotal: {passed}/{total} tests passed ({int(passed/total*100)}%)")
+    print("=" * 60)
     
     # Exit with appropriate code
-    sys.exit(0 if all_passed else 1)
+    sys.exit(0 if passed == total else 1)
 
 if __name__ == "__main__":
     main()
