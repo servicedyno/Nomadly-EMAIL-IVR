@@ -180,6 +180,67 @@ function _isAuthBroken(result) {
   return !!(cpProxy.looksLikeAuthFailure && cpProxy.looksLikeAuthFailure(result.httpStatus, String(first || '')))
 }
 
+// ─── Shared WHM-root impersonation callers for File Manager routes ─────
+//
+// The mkdir / list_files / delete / extract / upload routes already retry
+// via WHM-root when the user-level API returns 401/403 or an EPERM login
+// page. This helper generalises that so /files/content, /files/save,
+// /files/rename, /files/move, /files/copy, /files/compress can share the
+// exact same fallback ladder without another dozen copy-pastes.
+//
+// Motivated by @Devils_gods (chatId 1446310286, cpUser auth62f9,
+// 2026-08-30): every file-list call succeeded via WHM fallback (already
+// wired), but clicking Edit on a real file surfaced `<!DOCTYPE html>` in
+// the code editor (get_file_content had no fallback → cpsrvd returned
+// the login page HTML with HTTP 200) and every move attempt silently
+// returned "Access denied" [AUTH] (fileop had no fallback).
+async function _uapiViaWhmRoot(whmApi, cpUser, module, func, params) {
+  const r = await whmApi.get('/cpanel', {
+    params: {
+      'api.version': 1,
+      cpanel_jsonapi_user: cpUser,
+      cpanel_jsonapi_apiversion: 3,
+      cpanel_jsonapi_module: module,
+      cpanel_jsonapi_func: func,
+      ...params,
+    },
+  })
+  // WHM's json-api wraps UAPI (api3) responses under `result`.
+  const cp = r.data?.result || r.data || {}
+  const ok = cp.status === 1 || cp.status === '1'
+  return {
+    status: ok ? 1 : 0,
+    data: cp.data ?? null,
+    errors: cp.errors || null,
+    messages: cp.messages || null,
+    metadata: cp.metadata || null,
+    reason: (Array.isArray(cp.errors) && cp.errors[0]) || cp.error || null,
+  }
+}
+
+async function _fileopViaWhmRoot(whmApi, cpUser, op, params) {
+  const r = await whmApi.get('/cpanel', {
+    params: {
+      'api.version': 1,
+      cpanel_jsonapi_user: cpUser,
+      cpanel_jsonapi_apiversion: 2,
+      cpanel_jsonapi_module: 'Fileman',
+      cpanel_jsonapi_func: 'fileop',
+      doubledecode: 0,
+      op,
+      ...params,
+    },
+  })
+  const cp = r.data?.cpanelresult || {}
+  const dataArr = Array.isArray(cp.data) ? cp.data : []
+  const ok = (dataArr[0]?.result === 1) || cp.event?.result === 1
+  return {
+    ok,
+    dataArr,
+    reason: dataArr[0]?.reason || cp.error || (ok ? null : 'WHM fallback also failed'),
+  }
+}
+
 // ─── Self-healing cpPass rotation for CPANEL_AUTH_FAILURE ─────────────
 //
 // When the user's cached cpPass in Mongo no longer matches the real cPanel
@@ -616,7 +677,28 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
   router.get('/files/content', ...auth, async (req, res) => {
     const { dir, file } = req.query
     if (!dir || !file) return res.status(400).json({ error: 'dir and file are required' })
-    const result = await cpProxy.getFileContent(req.cpUser, req.cpPass, dir, file, req.whmHost)
+    let result = await cpProxy.getFileContent(req.cpUser, req.cpPass, dir, file, req.whmHost)
+    // WHM-root fallback on user-auth-broken (2026-08-30 @Devils_gods fix):
+    // uapi()'s HTML-in-200 detector normalises the "cpsrvd returned login
+    // page instead of file content" case to CPANEL_AUTH_FAILURE — retry the
+    // read via WHM-root impersonation so Edit shows the actual file.
+    if (result?.status !== 1 && _isAuthBroken(result)) {
+      const whmApi = _makeWhmApi(req.whmHost || process.env.WHM_HOST)
+      if (whmApi) {
+        try {
+          log(`[Panel] get_file_content user-level auth-broken → WHM fallback (user: ${req.cpUser}, file: ${file})`)
+          const fb = await _uapiViaWhmRoot(whmApi, req.cpUser, 'Fileman', 'get_file_content', { dir, file })
+          if (fb.status === 1) {
+            log(`[Panel] get_file_content succeeded via WHM fallback (user: ${req.cpUser}, file: ${file})`)
+            result = { ...fb, via: 'whm-fallback' }
+          } else {
+            log(`[Panel] get_file_content WHM fallback failed (user: ${req.cpUser}, file: ${file}) — ${fb.reason || 'unknown'}`)
+          }
+        } catch (e) {
+          log(`[Panel] get_file_content WHM fallback exception (user: ${req.cpUser}): ${e.message}`)
+        }
+      }
+    }
     res.json(result)
   })
 
@@ -626,7 +708,25 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     if (isProtectedAntiRedFile(dir, file)) {
       return res.status(403).json({ error: `Cannot modify ${file} — this file is managed by the anti-red protection system. Changes would be overwritten automatically.` })
     }
-    const result = await cpProxy.saveFileContent(req.cpUser, req.cpPass, dir, file, content, req.whmHost)
+    let result = await cpProxy.saveFileContent(req.cpUser, req.cpPass, dir, file, content, req.whmHost)
+    // WHM-root fallback on user-auth-broken (parity with /files/content).
+    if (result?.status !== 1 && _isAuthBroken(result)) {
+      const whmApi = _makeWhmApi(req.whmHost || process.env.WHM_HOST)
+      if (whmApi) {
+        try {
+          log(`[Panel] save_file_content user-level auth-broken → WHM fallback (user: ${req.cpUser}, file: ${file})`)
+          const fb = await _uapiViaWhmRoot(whmApi, req.cpUser, 'Fileman', 'save_file_content', { dir, file, content })
+          if (fb.status === 1) {
+            log(`[Panel] save_file_content succeeded via WHM fallback (user: ${req.cpUser}, file: ${file})`)
+            result = { ...fb, via: 'whm-fallback' }
+          } else {
+            log(`[Panel] save_file_content WHM fallback failed (user: ${req.cpUser}, file: ${file}) — ${fb.reason || 'unknown'}`)
+          }
+        } catch (e) {
+          log(`[Panel] save_file_content WHM fallback exception (user: ${req.cpUser}): ${e.message}`)
+        }
+      }
+    }
     res.json(result)
   })
 
@@ -1091,6 +1191,28 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
       return res.status(400).json({ error: `The name "${newName}" contains characters that aren't allowed (commas, slashes or line breaks). Try "${_rn.name}" instead.`, suggestedName: _rn.name })
     }
     const result = await cpProxy.renameFile(req.cpUser, req.cpPass, dir, oldName, newName, req.whmHost)
+    // WHM-root fallback on user-auth-broken (@Devils_gods 2026-08-30 —
+    // Fileman::fileop returned 403 [AUTH] silently; no fallback wired).
+    if (result?.status !== 1 && _isAuthBroken(result)) {
+      const whmApi = _makeWhmApi(req.whmHost || process.env.WHM_HOST)
+      if (whmApi) {
+        try {
+          log(`[Panel] rename user-level auth-broken → WHM fallback (user: ${req.cpUser}, ${oldName} → ${newName})`)
+          const fb = await _fileopViaWhmRoot(whmApi, req.cpUser, 'rename', {
+            sourcefiles: `${dir}/${oldName}`,
+            destfiles: `${dir}/${newName}`,
+          })
+          if (fb.ok) {
+            log(`[Panel] rename succeeded via WHM fallback (user: ${req.cpUser})`)
+            return res.json({ status: 1, data: fb.dataArr, errors: null, via: 'whm-fallback' })
+          }
+          log(`[Panel] rename WHM fallback failed (user: ${req.cpUser}) — ${fb.reason}`)
+          return res.status(500).json({ status: 0, error: `Rename failed: ${fb.reason}`, errors: [fb.reason] })
+        } catch (e) {
+          log(`[Panel] rename WHM fallback exception (user: ${req.cpUser}): ${e.message}`)
+        }
+      }
+    }
     res.json(result)
   })
 
@@ -1159,6 +1281,28 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     const { dir, files, destFile } = req.body
     if (!dir || !files?.length || !destFile) return res.status(400).json({ error: 'dir, files, and destFile are required' })
     const result = await cpProxy.compressFiles(req.cpUser, req.cpPass, dir, files, destFile, req.whmHost)
+    // WHM-root fallback on user-auth-broken (parity with /files/rename).
+    if (result?.status !== 1 && _isAuthBroken(result)) {
+      const whmApi = _makeWhmApi(req.whmHost || process.env.WHM_HOST)
+      if (whmApi) {
+        try {
+          log(`[Panel] compress user-level auth-broken → WHM fallback (user: ${req.cpUser}, ${files.length} files → ${destFile})`)
+          // fileop compress joins sources with a NEWLINE (per cPanel API).
+          const fb = await _fileopViaWhmRoot(whmApi, req.cpUser, 'compress', {
+            sourcefiles: files.map(f => `${dir}/${f}`).join('\n'),
+            destfiles: `${dir}/${destFile}`,
+          })
+          if (fb.ok) {
+            log(`[Panel] compress succeeded via WHM fallback (user: ${req.cpUser})`)
+            return res.json({ status: 1, data: fb.dataArr, errors: null, via: 'whm-fallback' })
+          }
+          log(`[Panel] compress WHM fallback failed (user: ${req.cpUser}) — ${fb.reason}`)
+          return res.status(500).json({ status: 0, error: `Compress failed: ${fb.reason}`, errors: [fb.reason] })
+        } catch (e) {
+          log(`[Panel] compress WHM fallback exception (user: ${req.cpUser}): ${e.message}`)
+        }
+      }
+    }
     res.json(result)
   })
 
@@ -1169,6 +1313,27 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
       return res.status(403).json({ error: `Cannot copy ${file} — this file is managed by the anti-red protection system.` })
     }
     const result = await cpProxy.copyFile(req.cpUser, req.cpPass, dir, file, destDir, req.whmHost)
+    // WHM-root fallback on user-auth-broken (parity with /files/rename).
+    if (result?.status !== 1 && _isAuthBroken(result)) {
+      const whmApi = _makeWhmApi(req.whmHost || process.env.WHM_HOST)
+      if (whmApi) {
+        try {
+          log(`[Panel] copy user-level auth-broken → WHM fallback (user: ${req.cpUser}, ${file} → ${destDir})`)
+          const fb = await _fileopViaWhmRoot(whmApi, req.cpUser, 'copy', {
+            sourcefiles: `${dir}/${file}`,
+            destfiles: destDir,
+          })
+          if (fb.ok) {
+            log(`[Panel] copy succeeded via WHM fallback (user: ${req.cpUser})`)
+            return res.json({ status: 1, data: fb.dataArr, errors: null, via: 'whm-fallback' })
+          }
+          log(`[Panel] copy WHM fallback failed (user: ${req.cpUser}) — ${fb.reason}`)
+          return res.status(500).json({ status: 0, error: `Copy failed: ${fb.reason}`, errors: [fb.reason] })
+        } catch (e) {
+          log(`[Panel] copy WHM fallback exception (user: ${req.cpUser}): ${e.message}`)
+        }
+      }
+    }
     res.json(result)
   })
 
@@ -1179,6 +1344,29 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
       return res.status(403).json({ error: `Cannot move ${file} — this file is managed by the anti-red protection system.` })
     }
     const result = await cpProxy.moveFile(req.cpUser, req.cpPass, dir, file, destDir, req.whmHost)
+    // WHM-root fallback on user-auth-broken (@Devils_gods 2026-08-30 —
+    // reported "i still cant move files"; Railway logs confirmed
+    // Fileman::fileop returned 403 [AUTH] with NO fallback wired).
+    if (result?.status !== 1 && _isAuthBroken(result)) {
+      const whmApi = _makeWhmApi(req.whmHost || process.env.WHM_HOST)
+      if (whmApi) {
+        try {
+          log(`[Panel] move user-level auth-broken → WHM fallback (user: ${req.cpUser}, ${file} → ${destDir})`)
+          const fb = await _fileopViaWhmRoot(whmApi, req.cpUser, 'move', {
+            sourcefiles: `${dir}/${file}`,
+            destfiles: destDir,
+          })
+          if (fb.ok) {
+            log(`[Panel] move succeeded via WHM fallback (user: ${req.cpUser})`)
+            return res.json({ status: 1, data: fb.dataArr, errors: null, via: 'whm-fallback' })
+          }
+          log(`[Panel] move WHM fallback failed (user: ${req.cpUser}) — ${fb.reason}`)
+          return res.status(500).json({ status: 0, error: `Move failed: ${fb.reason}`, errors: [fb.reason] })
+        } catch (e) {
+          log(`[Panel] move WHM fallback exception (user: ${req.cpUser}): ${e.message}`)
+        }
+      }
+    }
     res.json(result)
   })
 
@@ -1247,8 +1435,32 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     const { domain, subDomain } = req.body
     if (!domain) return res.status(400).json({ error: 'domain is required' })
 
-    // 1. Remove addon domain from cPanel
+    // 1. Remove addon domain from cPanel (with WHM-root fallback via cpanel-proxy)
     const result = await cpProxy.removeAddonDomain(req.cpUser, req.cpPass, domain, subDomain, req.cpDomain, req.whmHost)
+
+    // Treat "already gone" as success — cPanel returns "does not exist" when
+    // a partial delete previously stripped it from the httpd conf. We MUST
+    // still clean up our own tracking + CF for these.
+    const errText = String((result?.errors && result.errors[0]) || '').toLowerCase()
+    const alreadyGone = /does\s*not\s*exist|not\s*found|is\s*not\s*an?\s*(addon|park)|no such/.test(errText)
+    const succeeded = result?.status === 1 || alreadyGone
+
+    // If the cPanel removal HARD-failed, do NOT unpersist from Mongo or wipe
+    // Cloudflare — otherwise the domain silently disappears from our tracking
+    // while still attached in cPanel, producing the exact orphan state that
+    // @Devils_gods hit ("i added an example domain ... now i cant delete it").
+    // 2026-08-30 testing-agent flagged this.
+    if (!succeeded) {
+      log(`[Panel] domains/remove HARD FAIL for ${req.cpUser} → ${domain}: ${result?.errors?.[0] || 'unknown'} — skipping Mongo/CF cleanup so retry is possible`)
+      // 503 for control-plane down (parity with /domains/add), 502 otherwise.
+      const statusCode = result?.code === 'CPANEL_DOWN' ? 503 : 502
+      return res.status(statusCode).json({
+        status: 0,
+        error: (result && result.errors && result.errors[0]) || 'Failed to remove addon domain',
+        errors: (result && result.errors) || ['Failed to remove addon domain'],
+        code: result?.code,
+      })
+    }
 
     // 2. Remove addon domain from cpanelAccounts.addonDomains[] (protection-enforcer tracking)
     try {
@@ -1258,7 +1470,7 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
           { _id: req.cpUser.toLowerCase() },
           { $pull: { addonDomains: domain.toLowerCase() } }
         )
-        log(`[Panel] Removed addon domain ${domain} from cpanelAccounts for ${req.cpUser}`)
+        log(`[Panel] Removed addon domain ${domain} from cpanelAccounts for ${req.cpUser}${alreadyGone ? ' (already-gone reconcile)' : ''}`)
       }
     } catch (dbErr) {
       log(`[Panel] remove: failed to unpersist addon ${domain}: ${dbErr.message}`)
@@ -1279,7 +1491,9 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
       log(`[Panel] CF cleanup warning for removed domain ${domain}: ${cfErr.message}`)
     }
 
-    res.json(result)
+    // If we got here via alreadyGone, still return status:1 so the panel
+    // treats it as a successful reconcile.
+    res.json(alreadyGone ? { status: 1, data: null, errors: null, reconciled: true } : result)
   })
 
   // ─── Domain Document-Root Mode (mirror primary vs own folder) ───

@@ -3,6 +3,58 @@
 ## Original problem statement
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
+## 2026-08-30 (this session, later) — @Devils_gods "can't delete domain / doctype html on edit / can't move files" — WHM-root fallback extended to File Manager routes + orphan-state guard on /domains/remove
+
+**Report chain:**
+1. Bot user @Devils_gods (chatId `1446310286`, cpUser `auth62f9`, `auth09-tdhelpdesk.click`, Premium Anti-Red 1-Week, purchased 2026-08-30T11:02, addonDomains: `["anydomain.com"]`) reported three symptoms in support:
+   - "i added an example domain to check if domain addons are working and now i cant delete that domain"
+   - "when i click on edit it shows that doctype html error" (screenshot: panel code editor rendering `<!DOCTYPE html>` as the file content)
+   - "i still cant move files and edit them"
+2. Same root cause as @greyhound110 — user-level cPanel HTTP Basic Auth broken for cpUser `auth62f9`.
+
+### Root cause (extended)
+
+Live probes against `auth62f9`:
+- `Fileman::get_file_content` → **HTTP 401 with `<!DOCTYPE html>` body** (login page).
+- `Fileman::fileop` (move/rename/copy) → **HTTP 403 "Access denied" `[AUTH]`**.
+- Existing `list_files` WHM fallback was already succeeding (visible in Railway logs) but the panel calls for content/save/move/rename/copy/compress had no fallback wired, and cpsrvd's occasional **HTTP 200 + login-page HTML** variant slipped through as "valid data" so the panel editor rendered the raw HTML in the file editor.
+
+Additionally: `/domains/remove` unconditionally ran the Mongo `$pull` from `addonDomains` **and** wiped Cloudflare records **even when the cPanel-side removal failed** — so a hard delete failure left an orphan (cPanel still had it, our tracking lost it, CF was purged). That's why @Devils_gods couldn't delete `anydomain.com` cleanly.
+
+### FIX shipped
+
+`js/cpanel-proxy.js`:
+- New shared helper `_detectLoginPageHtml(body)` (single source of truth for the "cpsrvd returned login-page HTML" auth-broken variant — pure `typeof body === 'string'` check so real object responses containing HTML file content never false-positive).
+- Wired the helper into `uapi()`, `api2()`, and the four direct-axios funcs (`createSubdomain`, `deleteSubdomain`, `addAddonDomain`, `removeAddonDomain`). The 4 subdomain/addon funcs automatically retry via `_api2ViaWhmRoot` on detection; uapi/api2 return `{status:0, code:'CPANEL_AUTH_FAILURE', httpStatus}` so callers' WHM-root fallback fires.
+
+`js/cpanel-routes.js`:
+- New shared helpers `_uapiViaWhmRoot(whmApi, cpUser, module, func, params)` and `_fileopViaWhmRoot(whmApi, cpUser, op, params)` — mounted right after `_isAuthBroken`.
+- Wired WHM-root fallback into the six missing routes: `GET /files/content`, `POST /files/save`, `POST /files/rename`, `POST /files/copy`, `POST /files/move`, `POST /files/compress`. Each guards with `result?.status !== 1 && _isAuthBroken(result)`, logs entry/success/failure, and no-ops when `whmApi` is null (WHM_TOKEN missing).
+- `POST /domains/remove` orphan-state guard: computes `succeeded = result?.status === 1 || alreadyGone` where `alreadyGone` matches `/does not exist|not found|is not an?\s*(addon|park)|no such/i`. On hard-fail (`!succeeded`) returns HTTP **503** for `CPANEL_DOWN` (parity with `/domains/add`) or **502** otherwise **before** the Mongo `$pull` and CF cleanup — no orphan state possible. On `alreadyGone` still runs Mongo+CF cleanup and responds `{status:1, reconciled:true}`.
+
+### Verified
+
+- **Live probe** against real `auth62f9`: `getFileContent → CPANEL_AUTH_FAILURE (401 + HTML body)`, `moveFile → CPANEL_AUTH_FAILURE (403 Access denied)`. Both now correctly propagate the auth-broken code up to the routes so the WHM-root fallback fires.
+- **Testing agent (iterations 40 + 41)**: 100% assertion pass across the 3 target test files (5 + 9 + 6 = 20 assertions) plus 8 additional assertions from the testing agent's own probe (`test_cpanel_proxy_html200_addon_subdomain_fallback.js`) — 28/28 pass, 0 new regressions.
+- Existing suites (`test_cpanel_proxy_retry.js`, `test_cpanel_tunnel_routing.js`, `test_addon_from_bot.js`) — all green.
+- Node service restarted with new code: supervisor RUNNING, `/api/health` healthy+DB connected.
+
+### Files modified / added
+- `js/cpanel-proxy.js` — added `_detectLoginPageHtml`, wired into `uapi`, `api2`, and 4 direct-axios addon/subdomain funcs.
+- `js/cpanel-routes.js` — added `_uapiViaWhmRoot`, `_fileopViaWhmRoot`, wired into 6 file routes, added orphan-state guard on `/domains/remove`.
+- `js/tests/test_cpanel_proxy_html_in_200_auth_broken.js` — NEW (5 assertions).
+- `js/tests/test_cpanel_routes_file_ops_whm_fallback.js` — NEW (9 assertions: 6 file routes + healthy + 2 domains/remove).
+- `js/tests/test_cpanel_proxy_html200_addon_subdomain_fallback.js` — NEW by testing agent (8 assertions).
+
+### Reaches production
+Ships after Save-to-GitHub + Railway redeploy. First affected user @Devils_gods will be able to edit / save / move / rename / copy / compress files and delete addon domains from the Panel on the very next click. `anydomain.com` will delete cleanly (with `reconciled:true` if it's already partially gone in cPanel).
+
+### Known residuals (non-blocking)
+- Underlying platform-level fix — the `_repairCpPass` helper is defined in cpanel-routes.js but never called; wiring it into the same auth-broken path would repair user-Basic-Auth after the first fallback rather than every future call taking the WHM-root detour. Follow-up work.
+- Test noise: `SESSION_SECRET not set` warning in the routes test file (cosmetic; test mints its own JWT and passes).
+- `js/cpanel-routes.js` is now 3474 lines — File Manager route cluster is a natural module to extract (documented, deferred).
+
+
 ## 2026-08-30 (this session) — @greyhound110 "cannot add subdomain" — WHM-root impersonation fallback for cPanel API2 SubDomain / AddonDomain
 
 **Report chain:**
