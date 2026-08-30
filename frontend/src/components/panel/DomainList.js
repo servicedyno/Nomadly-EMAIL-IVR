@@ -218,7 +218,7 @@ export default function DomainList() {
     }
   };
 
-  const CaptchaBadge = ({ domain }) => {
+  const renderCaptchaBadge = (domain) => {
     const info = captchaByDomain[domain];
     const isGold = captchaInfo.isGold;
     const toggling = !!captchaToggling[domain];
@@ -473,7 +473,7 @@ export default function DomainList() {
     if (allDomains.length > 0 && !subRoot) setSubRoot(allDomains[0]);
   }, [allDomains, subRoot]);
 
-  const NSBadge = ({ domain }) => {
+  const renderNSBadge = (domain) => {
     const info = nsStatus[domain];
     const isLoading = nsLoading[domain];
     if (isLoading) return <span className="dl-ns-badge dl-ns-badge--loading">{t('dl.nsChecking')}</span>;
@@ -496,7 +496,7 @@ export default function DomainList() {
     return <span className="dl-ns-badge dl-ns-badge--unknown" data-testid={`dl-ns-unknown-${domain}`}>{t('dl.nsUnknown')}</span>;
   };
 
-  const SSLBadge = ({ domain }) => {
+  const renderSSLBadge = (domain) => {
     const info = sslStatus[domain];
     if (sslLoading && !info) return <span className="dl-ssl-badge dl-ssl-badge--loading" data-testid={`dl-ssl-loading-${domain}`}>{t('dl.sslLoading')}</span>;
     if (!info) return <span className="dl-ssl-badge dl-ssl-badge--none" data-testid={`dl-ssl-none-${domain}`}>{t('dl.sslNone')}</span>;
@@ -532,8 +532,9 @@ export default function DomainList() {
     return <span className="dl-ssl-badge dl-ssl-badge--none" data-testid={`dl-ssl-none-${domain}`}>{t('dl.sslNone')}</span>;
   };
 
-  // Inline NS pending info component
-  const NSPendingInfo = ({ domain }) => {
+  // Inline NS pending info render helper (plain function — not a nested
+  // component — so React doesn't remount the subtree every render).
+  const renderNSPendingInfo = (domain) => {
     const info = nsStatus[domain];
     if (!info || info.status !== 'pending') return null;
 
@@ -821,9 +822,9 @@ export default function DomainList() {
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10A15.3 15.3 0 0112 2z"/></svg>
                   <span className="dl-domain-name">{mainDomain}</span>
                   <div className="dl-badges-row">
-                    <SSLBadge domain={mainDomain} />
-                    <NSBadge domain={mainDomain} />
-                    <CaptchaBadge domain={mainDomain} />
+                    {renderSSLBadge(mainDomain)}
+                    {renderNSBadge(mainDomain)}
+                    {renderCaptchaBadge(mainDomain)}
                     <span className="dl-badge dl-badge--primary">{t('dl.primaryBadge')}</span>
                   </div>
                 </div>
@@ -832,7 +833,7 @@ export default function DomainList() {
                   <span>{t('dl.docRootLabel')} <code>public_html/</code></span>
                 </div>
               </div>
-              <NSPendingInfo domain={mainDomain} />
+              {renderNSPendingInfo(mainDomain)}
             </div>
           )}
 
@@ -849,9 +850,9 @@ export default function DomainList() {
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10A15.3 15.3 0 0112 2z"/></svg>
                       <span className="dl-domain-name">{d}</span>
                       <div className="dl-badges-row">
-                        <SSLBadge domain={d} />
-                        <NSBadge domain={d} />
-                        <CaptchaBadge domain={d} />
+                        {renderSSLBadge(d)}
+                        {renderNSBadge(d)}
+                        {renderCaptchaBadge(d)}
                         <span className={`dl-badge dl-badge--mode${mode === 'mirror' ? ' dl-badge--mirror' : ''}`} data-testid={`dl-mode-badge-${d}`}>
                           {mode === 'mirror' ? t('dl.modeMirrorBadge') : t('dl.modeOwnBadge')}
                         </span>
@@ -885,7 +886,7 @@ export default function DomainList() {
                       </button>
                     </div>
                   </div>
-                  <NSPendingInfo domain={d} />
+                  {renderNSPendingInfo(d)}
                 </React.Fragment>
                 );
               })}
@@ -905,7 +906,7 @@ export default function DomainList() {
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
                       <span className="dl-domain-name">{display}</span>
                       <div className="dl-badges-row">
-                        <SSLBadge domain={display} />
+                        {renderSSLBadge(display)}
                         <span className="dl-badge dl-badge--sub">{t('dl.subBadge')}</span>
                       </div>
                       <button onClick={() => handleDeleteSub(display)} className="fm-action-btn fm-action-btn--danger" title={t('dl.deleteTitle')} data-testid={`dl-sub-del-${display}`}>
