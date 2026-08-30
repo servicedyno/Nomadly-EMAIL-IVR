@@ -1050,7 +1050,7 @@ async function createSubdomain(cpUser, cpPass, subdomain, rootdomain, dir, host 
   const p2 = {
     domain: subdomain,
     rootdomain: rootdomain,
-    dir: dir || `public_html/${subdomain}.${rootdomain}`,
+    dir: dir || `public_html/${subdomain}`,
   }
   const params = {
     cpanel_jsonapi_user: cpUser,
