@@ -4,6 +4,36 @@
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
 
+## 2026-08-30 (forked session #2) — Domain Refresh Fix + Extract/Unzip Verification + MySQL WHM-root Fallback
+
+### Domain Refresh Fix (Bug)
+- **Problem**: Addon domain removal waited 2-3 seconds for cPanel API response before updating UI.
+- **Fix**: True optimistic UI update — `setDomains()` and `setDocrootModes()` called BEFORE the API call. Previous state saved for rollback on error. Also added optimistic removal for subdomain deletion.
+- **Verification**: Testing agent measured 0.146s UI update time (was 2+ seconds).
+
+### Extract/Unzip E2E (Self-tested)
+- Uploaded test.zip → extracted via POST /files/extract → verified file1.txt & file2.txt appear → cleaned up.
+- Extract works via WHM-root fallback. Important: `file` param must be just filename (not full path), `dir` is the directory.
+
+### MySQL WHM-root Fallback (Critical)
+- All MySQL routes (GET /mysql/databases, POST /mysql/databases/create, etc.) had NO WHM-root fallback, identical to the domains/subdomains bug fixed earlier.
+- Added `_mysqlWithFallback()` helper in cpanel-routes.js that wraps all 12+ MySQL UAPI calls with automatic WHM-root retry on `_isAuthBroken()`.
+- Also added fallback to remote-hosts GET/add/delete routes.
+- Backend verified: create DB, create user, grant privileges, list, delete all work through fallback.
+
+### MySQL UI (Already Existed)
+- Full Database Wizard was already implemented: MysqlManager.js + DatabasesTab.js + HostsTab.js + Modals.js.
+- Frontend testing (iteration 44): 100% — create DB, create user, assign privileges, change password, delete user, delete DB, remote hosts tab.
+
+### Testing (iteration 44): 100% pass — 13/13 tests
+- Domain removal instant refresh, MySQL full CRUD, subdomain/bulk import regression all passed.
+
+### Files modified
+- `js/cpanel-routes.js` — _mysqlWithFallback helper, WHM-root fallback for all MySQL + remote-hosts routes
+- `frontend/src/components/panel/DomainList.js` — True optimistic removal for addon domains + subdomains
+
+
+
 ## 2026-08-30 (forked session) — Frontend testing unblocked + WHM-root fallback for domain/subdomain listing + comprehensive E2E test
 
 ### Auth blocker fixed

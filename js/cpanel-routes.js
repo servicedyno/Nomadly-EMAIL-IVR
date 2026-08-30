@@ -2041,51 +2041,97 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
 
   // List databases. Returns `{ data: { databases: [...], users: [...] } }`.
   router.get('/mysql/databases', ...mysqlAuth, async (req, res) => {
-    const [databases, users] = await Promise.all([
+    let [databases, users] = await Promise.all([
       cpProxy.listDatabases(req.cpUser, req.cpPass, req.whmHost),
       cpProxy.listDatabaseUsers(req.cpUser, req.cpPass, req.whmHost),
     ])
+    // WHM-root fallback when user-level auth is broken
+    if (_isAuthBroken(databases) || _isAuthBroken(users)) {
+      const whmApi = _makeWhmApi(req.whmHost || process.env.WHM_HOST)
+      if (whmApi) {
+        log(`[Panel] mysql/databases user-level auth broken for ${req.cpUser} → WHM-root fallback`)
+        const [fbDbs, fbUsers] = await Promise.all([
+          _isAuthBroken(databases) ? _uapiViaWhmRoot(whmApi, req.cpUser, 'Mysql', 'list_databases', {}).catch(() => databases) : databases,
+          _isAuthBroken(users) ? _uapiViaWhmRoot(whmApi, req.cpUser, 'Mysql', 'list_users', {}).catch(() => users) : users,
+        ])
+        databases = fbDbs
+        users = fbUsers
+      }
+    }
     res.json({ databases, users })
   })
+
+  // ── MySQL WHM-root fallback helper ─────────────────────────────
+  // Same concept as domain/subdomain/file routes: when user-level cPanel auth
+  // is broken, retry the UAPI call via WHM root impersonation.
+  async function _mysqlWithFallback(req, module, func, params, method = 'POST') {
+    const proxyFnMap = {
+      'create_database': () => cpProxy.createDatabase(req.cpUser, req.cpPass, params.name, req.whmHost),
+      'delete_database': () => cpProxy.deleteDatabase(req.cpUser, req.cpPass, params.name, req.whmHost),
+      'rename_database': () => cpProxy.renameDatabase(req.cpUser, req.cpPass, params.oldname, params.newname, req.whmHost),
+      'repair_database': () => cpProxy.repairDatabase(req.cpUser, req.cpPass, params.name, req.whmHost),
+      'check_database': () => cpProxy.checkDatabase(req.cpUser, req.cpPass, params.name, req.whmHost),
+      'create_user': () => cpProxy.createDatabaseUser(req.cpUser, req.cpPass, params.name, params.password, req.whmHost),
+      'delete_user': () => cpProxy.deleteDatabaseUser(req.cpUser, req.cpPass, params.name, req.whmHost),
+      'set_password': () => cpProxy.setDatabaseUserPassword(req.cpUser, req.cpPass, params.user, params.password, req.whmHost),
+      'rename_user': () => cpProxy.renameDatabaseUser(req.cpUser, req.cpPass, params.oldname, params.newname, req.whmHost),
+      'set_privileges_on_database': () => cpProxy.setUserPrivilegesOnDatabase(req.cpUser, req.cpPass, params.user, params.database, params.privileges, req.whmHost),
+      'revoke_privileges_on_database': () => cpProxy.revokeUserPrivilegesOnDatabase(req.cpUser, req.cpPass, params.user, params.database, req.whmHost),
+      'list_users': () => cpProxy.listDatabaseUsers(req.cpUser, req.cpPass, req.whmHost),
+    }
+    let result = proxyFnMap[func] ? await proxyFnMap[func]() : await cpProxy[func]?.(req.cpUser, req.cpPass, req.whmHost)
+    if (_isAuthBroken(result)) {
+      const whmApi = _makeWhmApi(req.whmHost || process.env.WHM_HOST)
+      if (whmApi) {
+        log(`[Panel] mysql/${func} user-level auth broken for ${req.cpUser} → WHM-root fallback`)
+        try {
+          result = await _uapiViaWhmRoot(whmApi, req.cpUser, module, func, params)
+        } catch (e) {
+          log(`[Panel] mysql/${func} WHM-root fallback error: ${e.message}`)
+        }
+      }
+    }
+    return result
+  }
 
   router.post('/mysql/databases/create', ...mysqlAuth, async (req, res) => {
     const { name } = req.body
     if (!name || typeof name !== 'string') return res.status(400).json({ error: 'name is required' })
-    const result = await cpProxy.createDatabase(req.cpUser, req.cpPass, name.trim(), req.whmHost)
+    const result = await _mysqlWithFallback(req, 'Mysql', 'create_database', { name: name.trim() })
     res.json(result)
   })
 
   router.post('/mysql/databases/delete', ...mysqlAuth, async (req, res) => {
     const { name } = req.body
     if (!name) return res.status(400).json({ error: 'name is required' })
-    const result = await cpProxy.deleteDatabase(req.cpUser, req.cpPass, name, req.whmHost)
+    const result = await _mysqlWithFallback(req, 'Mysql', 'delete_database', { name })
     res.json(result)
   })
 
   router.post('/mysql/databases/rename', ...mysqlAuth, async (req, res) => {
     const { oldname, newname } = req.body
     if (!oldname || !newname) return res.status(400).json({ error: 'oldname and newname are required' })
-    const result = await cpProxy.renameDatabase(req.cpUser, req.cpPass, oldname, newname, req.whmHost)
+    const result = await _mysqlWithFallback(req, 'Mysql', 'rename_database', { oldname, newname })
     res.json(result)
   })
 
   router.post('/mysql/databases/repair', ...mysqlAuth, async (req, res) => {
     const { name } = req.body
     if (!name) return res.status(400).json({ error: 'name is required' })
-    const result = await cpProxy.repairDatabase(req.cpUser, req.cpPass, name, req.whmHost)
+    const result = await _mysqlWithFallback(req, 'Mysql', 'repair_database', { name })
     res.json(result)
   })
 
   router.post('/mysql/databases/check', ...mysqlAuth, async (req, res) => {
     const { name } = req.body
     if (!name) return res.status(400).json({ error: 'name is required' })
-    const result = await cpProxy.checkDatabase(req.cpUser, req.cpPass, name, req.whmHost)
+    const result = await _mysqlWithFallback(req, 'Mysql', 'check_database', { name })
     res.json(result)
   })
 
   // DB Users
   router.get('/mysql/users', ...mysqlAuth, async (req, res) => {
-    const result = await cpProxy.listDatabaseUsers(req.cpUser, req.cpPass, req.whmHost)
+    const result = await _mysqlWithFallback(req, 'Mysql', 'list_users', {}, 'GET')
     res.json(result)
   })
 
@@ -2093,14 +2139,14 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     const { name, password } = req.body
     if (!name || !password) return res.status(400).json({ error: 'name and password are required' })
     if (String(password).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' })
-    const result = await cpProxy.createDatabaseUser(req.cpUser, req.cpPass, name.trim(), password, req.whmHost)
+    const result = await _mysqlWithFallback(req, 'Mysql', 'create_user', { name: name.trim(), password })
     res.json(result)
   })
 
   router.post('/mysql/users/delete', ...mysqlAuth, async (req, res) => {
     const { name } = req.body
     if (!name) return res.status(400).json({ error: 'name is required' })
-    const result = await cpProxy.deleteDatabaseUser(req.cpUser, req.cpPass, name, req.whmHost)
+    const result = await _mysqlWithFallback(req, 'Mysql', 'delete_user', { name })
     res.json(result)
   })
 
@@ -2108,14 +2154,14 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     const { user, password } = req.body
     if (!user || !password) return res.status(400).json({ error: 'user and password are required' })
     if (String(password).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' })
-    const result = await cpProxy.setDatabaseUserPassword(req.cpUser, req.cpPass, user, password, req.whmHost)
+    const result = await _mysqlWithFallback(req, 'Mysql', 'set_password', { user, password })
     res.json(result)
   })
 
   router.post('/mysql/users/rename', ...mysqlAuth, async (req, res) => {
     const { oldname, newname } = req.body
     if (!oldname || !newname) return res.status(400).json({ error: 'oldname and newname are required' })
-    const result = await cpProxy.renameDatabaseUser(req.cpUser, req.cpPass, oldname, newname, req.whmHost)
+    const result = await _mysqlWithFallback(req, 'Mysql', 'rename_user', { oldname, newname })
     res.json(result)
   })
 
@@ -2125,44 +2171,57 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     if (!user || !database) return res.status(400).json({ error: 'user and database are required' })
     // Default to ALL PRIVILEGES if caller omits — matches cPanel's "Add User to Database" default.
     const privs = (Array.isArray(privileges) && privileges.length) ? privileges : ['ALL PRIVILEGES']
-    const result = await cpProxy.setUserPrivilegesOnDatabase(
-      req.cpUser, req.cpPass, user, database, privs, req.whmHost,
-    )
+    const result = await _mysqlWithFallback(req, 'Mysql', 'set_privileges_on_database', { user, database, privileges: privs })
     res.json(result)
   })
 
   router.post('/mysql/privileges/revoke', ...mysqlAuth, async (req, res) => {
     const { user, database } = req.body
     if (!user || !database) return res.status(400).json({ error: 'user and database are required' })
-    const result = await cpProxy.revokeUserPrivilegesOnDatabase(
-      req.cpUser, req.cpPass, user, database, req.whmHost,
-    )
+    const result = await _mysqlWithFallback(req, 'Mysql', 'revoke_privileges_on_database', { user, database })
     res.json(result)
   })
 
   // Remote MySQL access hosts
   router.get('/mysql/remote-hosts', ...mysqlAuth, async (req, res) => {
-    const result = await cpProxy.listMysqlRemoteHosts(req.cpUser, req.cpPass, req.whmHost)
+    let result = await cpProxy.listMysqlRemoteHosts(req.cpUser, req.cpPass, req.whmHost)
+    if (_isAuthBroken(result)) {
+      const whmApi = _makeWhmApi(req.whmHost || process.env.WHM_HOST)
+      if (whmApi) {
+        log(`[Panel] mysql/remote-hosts user-level auth broken for ${req.cpUser} → WHM-root fallback`)
+        try { result = await _uapiViaWhmRoot(whmApi, req.cpUser, 'Mysql', 'get_host_notes', {}) } catch (_) {}
+      }
+    }
     res.json(result)
   })
 
   router.post('/mysql/remote-hosts/add', ...mysqlAuth, async (req, res) => {
     const { host } = req.body
     if (!host || typeof host !== 'string') return res.status(400).json({ error: 'host is required' })
-    // Basic shape check: IPv4, IPv4 wildcard (%), hostname, or %.example.com.
-    // cPanel does its own validation server-side, this is just to catch obvious typos.
     const cleaned = host.trim()
     if (cleaned.length < 1 || cleaned.length > 60) {
       return res.status(400).json({ error: 'host must be 1-60 characters' })
     }
-    const result = await cpProxy.addMysqlRemoteHost(req.cpUser, req.cpPass, cleaned, req.whmHost)
+    let result = await cpProxy.addMysqlRemoteHost(req.cpUser, req.cpPass, cleaned, req.whmHost)
+    if (_isAuthBroken(result)) {
+      const whmApi = _makeWhmApi(req.whmHost || process.env.WHM_HOST)
+      if (whmApi) {
+        try { result = await _uapiViaWhmRoot(whmApi, req.cpUser, 'Mysql', 'add_host', { host: cleaned }) } catch (_) {}
+      }
+    }
     res.json(result)
   })
 
   router.post('/mysql/remote-hosts/delete', ...mysqlAuth, async (req, res) => {
     const { host } = req.body
     if (!host) return res.status(400).json({ error: 'host is required' })
-    const result = await cpProxy.deleteMysqlRemoteHost(req.cpUser, req.cpPass, host, req.whmHost)
+    let result = await cpProxy.deleteMysqlRemoteHost(req.cpUser, req.cpPass, host, req.whmHost)
+    if (_isAuthBroken(result)) {
+      const whmApi = _makeWhmApi(req.whmHost || process.env.WHM_HOST)
+      if (whmApi) {
+        try { result = await _uapiViaWhmRoot(whmApi, req.cpUser, 'Mysql', 'delete_host', { host }) } catch (_) {}
+      }
+    }
     res.json(result)
   })
 

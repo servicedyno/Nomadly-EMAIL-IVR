@@ -282,17 +282,39 @@ export default function DomainList({ onNavigateToFileManager }) {
 
   const handleRemove = async (domain) => {
     if (!window.confirm(t('dl.removeAddonConfirm', { domain }))) return;
+    
+    // TRUE optimistic removal: immediately strip from local state BEFORE the API call
+    // so the UI updates instantly. If the API fails, we'll re-fetch to restore.
+    const previousDomains = domains;
+    const previousDocrootModes = docrootModes;
+    
+    setDomains(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        addon_domains: (prev.addon_domains || []).filter(d => d !== domain),
+      };
+    });
+    setDocrootModes(prev => { const n = { ...prev }; delete n[domain]; return n; });
+    
     try {
       const res = await api('/domains/remove', {
         method: 'POST',
         body: JSON.stringify({ domain }),
       });
       if (res.errors?.length) {
+        // API failed — restore previous state and show error
+        setDomains(previousDomains);
+        setDocrootModes(previousDocrootModes);
         setError(res.errors[0]);
       } else {
+        // Background re-fetch to sync with server truth
         fetchDomains();
       }
     } catch (err) {
+      // Network error — restore previous state and show error
+      setDomains(previousDomains);
+      setDocrootModes(previousDocrootModes);
       setError(err.message);
     }
   };
@@ -388,6 +410,11 @@ export default function DomainList({ onNavigateToFileManager }) {
       if (res.errors?.length) {
         setError(res.errors[0]);
       } else {
+        // Optimistic removal — strip subdomain from local state immediately
+        setSubdomains(prev => prev.filter(s => {
+          const d = s.domain || `${s.subdomain || s.sub}.${s.rootdomain || ''}`;
+          return d !== sub;
+        }));
         fetchSubdomains();
         fetchDomains();
       }
