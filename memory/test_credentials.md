@@ -15,7 +15,7 @@
 - Bot token (dev==prod): 8822506525:... (env: TELEGRAM_BOT_TOKEN_PROD / _DEV)
 
 ## URLs
-- Frontend/preview: https://79faaadb-6cf4-42f8-a52f-aa409deef53f.preview.emergentagent.com
+- Frontend/preview: https://config-preview-9.preview.emergentagent.com
 - Backend API base (proxied to Node :5000): <preview>/api
 - Re-provisioned 2026-08-29: fresh .env from user creds; ran scripts/setup-nodejs.sh; all services verified (bot Running, DB Connected, REST APIs Active).
 - Panel domain: panel.smadavhost.com | SIP domain: sip.smadavspeech.com

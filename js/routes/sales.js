@@ -586,7 +586,19 @@ function install(app, deps) {
           return String(range) === 'all'
         }
         const cohortSet = new Set([...allIds].filter(inRange))
-        const purchasedUsers = convDocs.filter((c) => c.hasPurchased).length
+        // "Paying Users" = distinct chatIds with a REAL sale transaction (amount > 0),
+        // NOT the loose userConversion.hasPurchased flag. markPurchased() sets that flag
+        // optimistically in several flows (so it can be true without a sale row ever
+        // landing — e.g. welcome-bonus-only users), which inflated this KPI to 3 while
+        // there were zero actual sales. Aligning with the funnel's `group==='sale'`
+        // definition keeps the KPI consistent with real revenue (welcome-bonus rows are
+        // group 'bonus', never 'sale').
+        const paidAllSet = new Set()
+        for (const doc of raw) {
+          const nr = normalizeTxn(doc)
+          if (nr.group === 'sale' && nr.amountUsd > 0) paidAllSet.add(String(doc.chatId || ''))
+        }
+        const purchasedUsers = paidAllSet.size
         userStats = { totalUsers: allIds.size, newUsers: cohortSet.size, purchasedUsers }
 
         // funnel: of the joined cohort, how many deposited real funds / made a purchase
@@ -814,7 +826,8 @@ function install(app, deps) {
         otherBonus,
         bonusOnly,
         bonusRemaining: round2(bonusRemaining),
-        hasPurchased: (a.orders || 0) > 0 || !!c.hasPurchased,
+        // real sales only — do NOT trust the optimistic userConversion.hasPurchased flag
+        hasPurchased: (a.orders || 0) > 0,
       })
     }
     return rows
@@ -909,7 +922,8 @@ function install(app, deps) {
           joinedAt: joinedAt ? joinedAt.toISOString() : null,
           lang: conv ? conv.lang : null,
           balance,
-          hasPurchased: sales.length > 0 || !!(conv && conv.hasPurchased),
+          // real sales only — do NOT trust the optimistic userConversion.hasPurchased flag
+          hasPurchased: sales.length > 0,
           orders: sales.length,
           totalSpent: round2(sales.reduce((a, x) => a + x.amountUsd, 0)),
           deposits,

@@ -13,7 +13,7 @@ import pytest
 
 BASE_URL = os.environ.get(
     "REACT_APP_BACKEND_URL",
-    "https://multi-api-deploy.preview.emergentagent.com",
+    "https://config-preview-9.preview.emergentagent.com",
 ).rstrip("/")
 TEST_CHATID = "5346193142"
 
