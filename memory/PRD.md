@@ -3,6 +3,29 @@
 ## Original problem statement
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
+## 2026-08-30 (this session, end) — @smsbeast_real "credentials not received on email" — Operational resend via Telegram
+
+**Facts confirmed:**
+- User @smsbeast_real (chatId `5976060042`, cpUser `clin47b2`, external domain `cliniquedentairedesspecialitesrabat.com`, plan Premium Anti-Red 1-Week, purchased 2026-08-30T13:50:15). Email `mark327464@proton.me` captured during checkout.
+- **Original email WAS sent** — Railway log at `2026-08-30T13:50:15.917Z`: `[Email] Hosting credentials sent to mark327464@proton.me (messageId: <cc0891a9-e3ba-ce01-bb22-456c4ffb7658@priv.host>)`. Our SMTP relay (Brevo) accepted it. Delivery Brevo → Proton dropped downstream (Proton's strict inbound policy, likely rejected silently or filtered into spam).
+- **Email API is working** — SMTP self-test from this pod: `verify(): true`, `sendMail accepted: [hosting@priv.host]`, messageId returned.
+
+**Operational fix executed (user approved option "a"):**
+1. Generated fresh 6-digit PIN via `cpanel-auth.generatePin()`, bcrypt-hashed via `hashPin(pin)`.
+2. Updated Mongo `cpanelAccounts._id="clin47b2"` (`modifiedCount:1`): `pinHash` rotated, `pinRotatedAt = 2026-08-30T14:14:49.778Z`, `pinRotatedBy = "admin-support-resend"`, `pinRotatedReason = "user-reported-email-not-received"`.
+3. Fetched Cloudflare zone for the external domain → NS: `anderson.ns.cloudflare.com` + `leanna.ns.cloudflare.com` (zone status: pending — user still needs to point his registrar there).
+4. Sent Telegram DM via `TELEGRAM_BOT_TOKEN_PROD` to chatId `5976060042` (message_id `3267632`, delivered OK) containing: apology + explanation, username `clin47b2`, new PIN, panel URL `https://panel.1.hostbay.io`, both CF nameservers with plain instructions, propagation window (up to 24h).
+
+**Testing status:**
+- testing_agent NOT called for this operational action (user ended session and this was a data operation, not a code change requiring regression coverage).
+- Verified in Mongo: pinHash rotated, `verifyPin('000000', pinHash) === false` sanity check passes.
+- Telegram delivery confirmed by Bot API response `{ok: true, message_id: 3267632}`.
+
+**Follow-up not shipped this session:**
+- Enhancement to the credentials email template to include CF nameservers by default for external-domain plans (user asked for this earlier — DEFERRED to next session).
+- `sendEmail()` swallows SMTP errors silently — the "📧 Credentials sent" bot reply always shows even when SMTP throws. Should propagate failure to the outer try/catch so the user is told to reach out for a resend. DEFERRED.
+
+
 ## 2026-08-30 (this session, later) — @Devils_gods "can't delete domain / doctype html on edit / can't move files" — WHM-root fallback extended to File Manager routes + orphan-state guard on /domains/remove
 
 **Report chain:**
