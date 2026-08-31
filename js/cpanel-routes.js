@@ -393,6 +393,72 @@ async function _repairCpPass(getCpanelCol, cpUser, whmHost) {
   return { ok: true, cpPass: newPass, rotated: true }
 }
 
+// ─── Self-heal wiring: rotate a stale cpPass on the first auth-broken hit ──
+//
+// When a user-level cPanel call fails with a broken-Basic-Auth signature
+// (_isAuthBroken → 401/403 login-page HTML / CPANEL_AUTH_FAILURE), rotate the
+// account password ONCE via the proven _repairCpPass primitive, persist it
+// AES-GCM-encrypted to Mongo, and retry the SAME user-level call with the
+// fresh pass. Because resolveCpPass reads the pass fresh from Mongo on every
+// request, one successful heal means every SUBSEQUENT panel request uses the
+// healthy pass — no more WHM-root detour on each call.
+//
+// SAFETY: production-gated. Dev/sandbox pods share the PRODUCTION Mongo + WHM
+// token, so they must NEVER rotate a real customer's cPanel password. When
+// BOT_ENVIRONMENT!=='production' (or SKIP_WEBHOOK_SYNC==='true') the heal is a
+// no-op and the existing WHM-root fallback handles the request exactly as
+// before. Idempotent per request (req._selfHealAttempted) and rate-limited to
+// 1 rotation / 60 min / account inside _repairCpPass (cPHulk-churn safe).
+// `repairFn` is injectable purely so unit tests can exercise the control-flow
+// without touching WHM/Mongo.
+async function _selfHealCpPass(req, getCpanelCol, repairFn = _repairCpPass) {
+  if (req._selfHealAttempted) return !!req._selfHealOk
+  req._selfHealAttempted = true
+
+  if (process.env.BOT_ENVIRONMENT !== 'production' || process.env.SKIP_WEBHOOK_SYNC === 'true') {
+    log(`[Panel] Self-heal SKIPPED for ${req.cpUser} (non-production sandbox — must not rotate prod cpPass)`)
+    req._selfHealOk = false
+    return false
+  }
+
+  try {
+    const repair = await repairFn(getCpanelCol, req.cpUser, req.whmHost)
+    if (repair && repair.ok) {
+      // Adopt the new (or cool-down cached) pass for the retry + any later op
+      // in this request. Only report "healed" when we actually ROTATED — during
+      // cool-down the cached pass is unchanged and may still be failing.
+      if (repair.cpPass) req.cpPass = repair.cpPass
+      req._selfHealOk = !!repair.rotated
+      if (repair.rotated) {
+        log(`[Panel] Self-heal: repaired cpPass for ${req.cpUser} — user-level auth restored; future calls skip the WHM-root detour`)
+      } else {
+        log(`[Panel] Self-heal: rotation skipped for ${req.cpUser} — ${repair.reason || 'cool-down'}`)
+      }
+      return req._selfHealOk
+    }
+    log(`[Panel] Self-heal: cpPass repair failed for ${req.cpUser} — ${(repair && repair.error) || 'unknown'}`)
+    req._selfHealOk = false
+    return false
+  } catch (e) {
+    log(`[Panel] Self-heal exception for ${req.cpUser}: ${e.message}`)
+    req._selfHealOk = false
+    return false
+  }
+}
+
+// Run a user-level cPanel call; on a broken-auth failure, self-heal the cpPass
+// and retry ONCE with the fresh pass. Returns the (possibly retried) result;
+// if it's still broken the caller's existing WHM-root fallback takes over.
+// `doCall(pass)` issues the user-level call → cPanel-shaped result ({status:1}
+// on success). `selfHeal()` resolves true only when it actually rotated.
+async function _userCallWithHeal(req, doCall, selfHeal) {
+  const result = await doCall(req.cpPass)
+  if (result?.status === 1 || !_isAuthBroken(result)) return result
+  const healed = await selfHeal()
+  if (healed) return doCall(req.cpPass)
+  return result
+}
+
 function _replyEperm(res, req, op) {
   cpProxy.alertEpermRepairNeeded({
     op,
@@ -530,7 +596,7 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
 
   router.get('/files', ...auth, async (req, res) => {
     const dir = req.query.dir || `/home/${req.cpUser}/public_html`
-    let result = await cpProxy.listFiles(req.cpUser, req.cpPass, dir, req.whmHost)
+    let result = await _userCallWithHeal(req, (pass) => cpProxy.listFiles(req.cpUser, pass, dir, req.whmHost), () => _selfHealCpPass(req, getCpanelCol))
 
     // ── EPERM / user-auth broken handling — parity with /files/mkdir and /files/extract ──
     // (@HHR2009 2026-08-04 — chatId 1960615421: cpUser papea895 on WHM
@@ -722,7 +788,7 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
   router.get('/files/content', ...auth, async (req, res) => {
     const { dir, file } = req.query
     if (!dir || !file) return res.status(400).json({ error: 'dir and file are required' })
-    let result = await cpProxy.getFileContent(req.cpUser, req.cpPass, dir, file, req.whmHost)
+    let result = await _userCallWithHeal(req, (pass) => cpProxy.getFileContent(req.cpUser, pass, dir, file, req.whmHost), () => _selfHealCpPass(req, getCpanelCol))
     // WHM-root fallback on user-auth-broken (2026-08-30 @Devils_gods fix):
     // uapi()'s HTML-in-200 detector normalises the "cpsrvd returned login
     // page instead of file content" case to CPANEL_AUTH_FAILURE — retry the
@@ -760,7 +826,7 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     if (isProtectedAntiRedFile(dir, file)) {
       return res.status(403).json({ error: `Cannot modify ${file} — this file is managed by the anti-red protection system. Changes would be overwritten automatically.` })
     }
-    let result = await cpProxy.saveFileContent(req.cpUser, req.cpPass, dir, file, content, req.whmHost)
+    let result = await _userCallWithHeal(req, (pass) => cpProxy.saveFileContent(req.cpUser, pass, dir, file, content, req.whmHost), () => _selfHealCpPass(req, getCpanelCol))
     // WHM-root fallback on user-auth-broken (parity with /files/content).
     if (result?.status !== 1 && _isAuthBroken(result)) {
       const whmApi = _makeWhmApi(req.whmHost || process.env.WHM_HOST)
@@ -1432,7 +1498,7 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
   // ─── Domains ────────────────────────────────────────────
 
   router.get('/domains', ...auth, async (req, res) => {
-    const result = await cpProxy.listDomains(req.cpUser, req.cpPass, req.whmHost)
+    const result = await _userCallWithHeal(req, (pass) => cpProxy.listDomains(req.cpUser, pass, req.whmHost), () => _selfHealCpPass(req, getCpanelCol))
     // WHM-root fallback when user-level auth is broken (same pattern as file routes)
     if (result?.status !== 1 && _isAuthBroken(result)) {
       const whmApi = _makeWhmApi(req.whmHost || process.env.WHM_HOST)
@@ -2242,7 +2308,7 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
   // ─── Subdomains ─────────────────────────────────────────
 
   router.get('/subdomains', ...auth, async (req, res) => {
-    const result = await cpProxy.listSubdomains(req.cpUser, req.cpPass, req.whmHost)
+    const result = await _userCallWithHeal(req, (pass) => cpProxy.listSubdomains(req.cpUser, pass, req.whmHost), () => _selfHealCpPass(req, getCpanelCol))
     // WHM-root fallback when user-level auth is broken
     if (_isAuthBroken(result)) {
       const whmApi = _makeWhmApi(req.whmHost || process.env.WHM_HOST)
@@ -3724,4 +3790,8 @@ module.exports = {
   scheduleProtectionRestore,
   isPublicHtmlPath,
   __setRestoreRunnerForTest,
+  // Exposed for unit tests (cpPass self-heal wiring)
+  _selfHealCpPass,
+  _userCallWithHeal,
+  _repairCpPass,
 }

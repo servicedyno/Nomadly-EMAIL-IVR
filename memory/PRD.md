@@ -4,6 +4,49 @@
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
 
+## 2026-06 (forked session #4, part 2) — Full email localization + cpPass self-heal wiring
+
+### (1) Hosting welcome email fully localized (en/fr/zh/hi)
+User asked to localize the WHOLE email, not just the nameserver card. `js/send-email.js` now has a
+module-level `T` translations map covering header title/subtitle, greeting, all credential labels
+(Domain/Plan/Duration/Username/PIN/Hosting Panel), duration values (1 Week/Month/3-6 Months/Year),
+CTA button, security notice, "Need help?/Contact Support", footer "Sent by"/automated line, AND the
+email subject. New `emailSubject(info)` export. Language from `info.userLanguage` (falls back to EN
+for unknown langs). Plan name + brand name stay verbatim (brand strings). NS card (`NS_COPY`) still
+localized + external-only.
+- Verified: `js/tests/test_email_external_nameservers.js` = **35/35 pass** (header/greeting/labels/cta/
+  footer/subject in en/fr/zh/hi; NS card localized; internal→no card; <2 NS→no card; unknown lang→EN).
+  Visual render (ZH external-domain) screenshot confirmed — all glyphs render, NS card present.
+
+### (2) cpPass self-heal wired into the auth-broken path (was: `_repairCpPass` defined but never called)
+Called `integration_expert` first (auth = integration mandate) — playbook confirmed the design
+(production-gate mandatory, retry-once with re-read from store, cool-down to avoid cPHulk churn — all
+already present in the proven `_repairCpPass`). `js/cpanel-routes.js`:
+- New module-level `_selfHealCpPass(req, getCpanelCol, repairFn=_repairCpPass)` — **production-gated**
+  (no-op when `BOT_ENVIRONMENT!=='production'` OR `SKIP_WEBHOOK_SYNC==='true'`; dev/sandbox NEVER rotates
+  a real prod cPanel password), idempotent per request (`req._selfHealAttempted`), adopts the rotated/
+  cool-down pass onto `req.cpPass`, returns true only when it actually rotated. Relies on `_repairCpPass`'s
+  existing 60-min per-account cool-down (cPHulk-safe).
+- New `_userCallWithHeal(req, doCall, selfHeal)` — runs the user-level call; on `_isAuthBroken` result,
+  self-heals then retries ONCE with the fresh pass; if still broken, returns the broken result so the
+  EXISTING WHM-root fallback (untouched) takes over.
+- Wired into the 5 first-touch user-level entry points: `GET /files`, `GET /files/content`,
+  `POST /files/save`, `GET /domains`, `GET /subdomains`. Because `resolveCpPass` re-reads the pass fresh
+  from Mongo every request, one heal on the first broken read means EVERY subsequent panel op (incl.
+  unwrapped routes) uses the healthy pass — no more per-call WHM-root detour.
+- Exposed `_selfHealCpPass`/`_userCallWithHeal`/`_repairCpPass` for tests.
+- Verified: `js/tests/test_cpanel_selfheal_cppass.js` = **24/24 pass** (gate skips in dev + never calls
+  repair; prod rotate→retry→success; cool-down→fallback; repair-fail→fallback; idempotent;
+  `_userCallWithHeal` all 4 control-flow branches). Regression `test_cpanel_routes_file_ops_whm_fallback.js`
+  still green. Node boots clean, dev guards active.
+
+⚠️ **DEV-POD SAFETY:** self-heal rotation is production-gated and was verified OFFLINE only (injected
+`repairFn`). It was NOT driven against a live prod cPanel account from this dev pod (would rotate a real
+customer password). In production, the first broken-auth panel action for an affected account will rotate
++ persist a fresh cPanel password (beneficial — restores user-level auth). Reaches prod after Save-to-
+GitHub + Railway redeploy.
+
+
 ## 2026-06 (forked session #4) — Hosting welcome email now shows Cloudflare nameservers for EXTERNAL domains (localized)
 
 **Task (user msg #10):** the hosting-plan confirmation email after purchase must include the
