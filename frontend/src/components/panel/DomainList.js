@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from './AuthContext';
 import { pickErrorMessage, friendlyMessage, isTransientError } from './shared/cpanelErrors';
@@ -91,12 +91,24 @@ export default function DomainList({ onNavigateToFileManager }) {
     }
   }, [api, t, lang]);
 
+  // FQDNs of subdomains just deleted by the user. WHM's listsubdomains lags for
+  // a few seconds after a delete, so an eager refetch would re-show a row the
+  // user just removed (the "reappears after delete" flicker). We hide guarded
+  // names until WHM confirms they're gone, then auto-clear the guard.
+  const recentlyDeletedSubsRef = useRef(new Set());
+
   const fetchSubdomains = useCallback(async () => {
     setSubLoading(true);
     try {
       const res = await api('/subdomains');
       if (res.data && Array.isArray(res.data)) {
-        setSubdomains(res.data);
+        const guard = recentlyDeletedSubsRef.current;
+        // A guarded name no longer returned by WHM has propagated → stop guarding it.
+        for (const name of Array.from(guard)) {
+          if (!res.data.some(s => subDisplayName(s) === name)) guard.delete(name);
+        }
+        // Hide any just-deleted names WHM is still (stale-)listing.
+        setSubdomains(res.data.filter(s => !guard.has(subDisplayName(s))));
       }
     } catch (_) {}
     setSubLoading(false);
@@ -432,21 +444,34 @@ export default function DomainList({ onNavigateToFileManager }) {
 
   const handleDeleteSub = async (sub) => {
     if (!window.confirm(t('dl.deleteSubConfirm', { subdomain: sub }))) return;
+    // Optimistic + GUARDED removal BEFORE the API call: the row vanishes at once,
+    // and because the render filter reads this same guard, no refetch (WHM's
+    // listsubdomains lags a few seconds after a delete, and unrelated effects can
+    // trigger fetchSubdomains) can re-show the just-deleted row. Rollback on failure.
+    const snapshot = subdomains;
+    recentlyDeletedSubsRef.current.add(sub);
+    setSubdomains(prev => prev.filter(s => subDisplayName(s) !== sub));
     try {
       const res = await api('/subdomains/delete', {
         method: 'POST',
         body: JSON.stringify({ subdomain: sub }),
       });
       if (res.errors?.length) {
+        // Hard failure -> unguard + restore the row + surface the error.
+        recentlyDeletedSubsRef.current.delete(sub);
+        setSubdomains(snapshot);
         setError(res.errors[0]);
       } else {
-        // Optimistic removal — strip subdomain from local state immediately.
-        // Match by subDisplayName(s) so render + filter agree on the FQDN.
-        setSubdomains(prev => prev.filter(s => subDisplayName(s) !== sub));
-        fetchSubdomains();
+        // Success -> reconcile after WHM propagates. The name stays guarded until a
+        // refetch confirms it's gone (fetchSubdomains auto-clears it); 60s backstop.
         fetchDomains();
+        setTimeout(() => { fetchSubdomains(); }, 3000);
+        setTimeout(() => { recentlyDeletedSubsRef.current.delete(sub); }, 60000);
       }
     } catch (err) {
+      // Network / thrown (incl. backend 502/503 hard-fail) -> rollback.
+      recentlyDeletedSubsRef.current.delete(sub);
+      setSubdomains(snapshot);
       setError(err.message);
     }
   };
@@ -454,6 +479,11 @@ export default function DomainList({ onNavigateToFileManager }) {
   const mainDomain = domains?.main_domain;
   const addonDomains = domains?.addon_domains || [];
   const allDomains = [mainDomain, ...addonDomains].filter(Boolean);
+
+  // Render-time guard: never show a subdomain the user just deleted, even if a
+  // refetch briefly returns it (WHM listsubdomains propagation lag). This is the
+  // single source of truth for what's displayed — no fetch can bypass it.
+  const visibleSubdomains = subdomains.filter(s => !recentlyDeletedSubsRef.current.has(subDisplayName(s)));
 
   // Set default root domain for subdomain creation
   useEffect(() => {
@@ -763,7 +793,7 @@ export default function DomainList({ onNavigateToFileManager }) {
             />
             <span className="dl-sub-dot">.</span>
             <select value={subRoot} onChange={(e) => setSubRoot(e.target.value)} data-testid="dl-sub-root-select">
-              {allDomains.map(d => <option key={d} value={d}>{d}</option>)}
+              {allDomains.map(d => { const v = typeof d === 'string' ? d : (d?.domain || d?.fullDomain || String(d)); return <option key={v} value={v}>{v}</option>; })}
             </select>
           </div>
           <div className="dl-sub-actions">
@@ -795,7 +825,7 @@ export default function DomainList({ onNavigateToFileManager }) {
           <div className="dl-sub-input-row" style={{ marginTop: '0.5rem' }}>
             <span style={{ opacity: 0.7, fontSize: '0.85rem' }}>Root domain:</span>
             <select value={bulkRoot} onChange={(e) => setBulkRoot(e.target.value)} data-testid="dl-bulk-root-select">
-              {allDomains.map(d => <option key={d} value={d}>{d}</option>)}
+              {allDomains.map(d => { const v = typeof d === 'string' ? d : (d?.domain || d?.fullDomain || String(d)); return <option key={v} value={v}>{v}</option>; })}
             </select>
           </div>
           {bulkInput.trim() && (
@@ -938,10 +968,10 @@ export default function DomainList({ onNavigateToFileManager }) {
           )}
 
           {/* Subdomains */}
-          {!subLoading && subdomains.length > 0 && (
+          {!subLoading && visibleSubdomains.length > 0 && (
             <div className="dl-section">
-              <h3>{t('dl.subdomains', { count: subdomains.length })}</h3>
-              {subdomains.map((s, i) => {
+              <h3>{t('dl.subdomains', { count: visibleSubdomains.length })}</h3>
+              {visibleSubdomains.map((s, i) => {
                 const display = subDisplayName(s);
                 const docRoot = subDocRoot(s);
                 return (
@@ -987,7 +1017,7 @@ export default function DomainList({ onNavigateToFileManager }) {
             </div>
           )}
 
-          {!mainDomain && addonDomains.length === 0 && subdomains.length === 0 && (
+          {!mainDomain && addonDomains.length === 0 && visibleSubdomains.length === 0 && (
             <div className="fm-empty">{t('dl.noDomainsConfigured')}</div>
           )}
         </div>

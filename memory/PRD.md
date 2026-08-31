@@ -41,6 +41,26 @@ content, no `<!DOCTYPE html>` leak, `via: whm-session-fallback`.
 `tests/cpanel-auth-broken-fallback.test.js` (new, nock-mocked) — 9/9 pass.
 Backend E2E on nbayftest (broken-auth account): 16/16 pass via WHM fallback.
 
+### 2026-08-31 (later) — Full panel UI test + follow-up fixes
+- Full browser UI test (testing agent) on nbayftest: login, Domains, Subdomains
+  (no doubling), ADDON DOMAIN add+remove, bulk import, File Manager edit/save,
+  MySQL — ALL PASS via WHM-root fallback (no HTML leak, no 401/403).
+- FIXED subdomain-delete "reappear/flicker": handleDeleteSub now strips the row
+  BEFORE the API call (rollback on failure) and the render filters through a
+  `recentlyDeletedSubsRef` guard (auto-clears once WHM confirms deletion, 60s
+  backstop). Verified: gone immediately, stays gone 15s; other subs unaffected.
+- Hardened DomainList `<select>` options to String() (defends against object-
+  shaped addon_domains → "Objects are not valid as a React child").
+- The "4 React hydration/validateDOMNesting warnings" are NOT app bugs: the
+  testing agent confirmed ALL originate from `<span data-ve-dynamic="true"
+  x-excluded style=display:contents>` wrappers injected by the Emergent Visual
+  Editor (639 in the DOM) — dev-preview only, absent in the production build.
+  App markup (selects use plain string options; FileManager table is proper
+  thead/tbody/tr/td) is valid; nothing to change there.
+- Ledger fix + backfill: crypto-VPS purchases now write to `payments` (4 handlers
+  in _index.js); backfilled 5 historical crypto-VPS rows (incl. @user_uu0 Aug-12
+  $18 BTC) via scripts/backfill_crypto_vps_payments.js (idempotent).
+
 
 ## 2026-08-30 (forked session #2) — Domain Refresh Fix + Extract/Unzip Verification + MySQL WHM-root Fallback
 

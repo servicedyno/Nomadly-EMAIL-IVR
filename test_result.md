@@ -17590,3 +17590,284 @@ frontend_ui_test_scope_2026-08-31: |
       
       The cPanel File Manager content read/save via WHM-session fallback fix is now working 
       and verified. The 30s timeout bug for accounts with broken user-level auth is FIXED.
+
+
+  - agent: "testing"
+    timestamp: "2026-08-31"
+    message: |
+      ✅ VERIFICATION PASSED - HostBay Panel subdomain delete fix WORKING (2/2 tests passed):
+      
+      SCOPE: Re-verified the subdomain delete fix in the HostBay hosting panel (React app at 
+      https://32c87c5a-618c-4605-b7ff-ac90ea9cb3bb.preview.emergentagent.com/panel). This is a 
+      PRODUCTION-connected environment. Account: nbayftest / PIN: 241743 / domain: testingbays.sbs.
+      
+      [TEST 1] PRIMARY - Subdomain delete must not "reappear": ✅ PASSED
+        
+        Test procedure:
+        1. Login to panel (nbayftest / 241743) → ✅ SUCCESS
+        2. Navigate to Domains tab → ✅ SUCCESS
+        3. Create subdomain "qadelchk2.testingbays.sbs" → ✅ SUCCESS (subdomain appeared in list)
+        4. Delete subdomain → ✅ DELETE BUTTON CLICKED + CONFIRM DIALOG ACCEPTED
+        5. ⭐ CRITICAL: Monitor subdomain list for 15 seconds
+        
+        ✅ RESULT: PASSED - Subdomain disappeared immediately and STAYED GONE for all 15 seconds
+        
+        Timeline of subdomain presence (polled every 1 second):
+          1s: GONE ✅    6s: GONE ✅    11s: GONE ✅
+          2s: GONE ✅    7s: GONE ✅    12s: GONE ✅
+          3s: GONE ✅    8s: GONE ✅    13s: GONE ✅
+          4s: GONE ✅    9s: GONE ✅    14s: GONE ✅
+          5s: GONE ✅    10s: GONE ✅   15s: GONE ✅
+        
+        The subdomain qadelchk2.testingbays.sbs was successfully deleted and NEVER reappeared 
+        during the 15-second monitoring period. The "reappear/flicker" bug is FIXED.
+        
+        FIX VERIFIED (from code inspection):
+        • DomainList.js lines 445-477: handleDeleteSub now adds the subdomain to 
+          recentlyDeletedSubsRef guard BEFORE the optimistic removal (line 452)
+        • Line 453: Optimistic removal from UI state
+        • Lines 100-115: fetchSubdomains filters out any subdomains in the guard (line 111)
+        • Lines 107-108: Guard auto-clears when WHM confirms the subdomain is gone
+        • Line 469: 60-second backstop to clear the guard
+        
+        This fixes the race condition where fetchSubdomains (triggered by useEffect or tab 
+        switch) would re-show the deleted subdomain before the 2.5s reconciliation timeout.
+        
+        Other subdomains verification:
+        ✅ shop.testingbays.sbs - VISIBLE throughout test
+        ✅ blog.testingbays.sbs - VISIBLE throughout test
+        ✅ api.testingbays.sbs - VISIBLE throughout test
+        ✅ dev.testingbays.sbs - VISIBLE throughout test
+        
+        Confirmed: Only the deleted subdomain was hidden, not the whole list.
+      
+      [TEST 2] SECONDARY - Console DOM-nesting errors source identification: ✅ PASSED
+        
+        Test procedure:
+        1. Open subdomain create form (data-testid="dl-sub-btn") → ✅ FORM OPENED
+        2. Open bulk import form (data-testid="dl-bulk-btn") → ✅ FORM OPENED
+        3. Navigate to Files tab (data-testid="panel-tab-files") → ✅ TAB CLICKED
+        4. Monitor console for validateDOMNesting errors and check their source
+        
+        ✅ RESULT: PASSED - ALL console DOM-nesting errors originate from data-ve-dynamic spans
+        
+        Console errors found: 4 total
+        
+        ERROR 1: "<span> cannot be a child of <select>"
+          Location: DomainList.js line 795 (subdomain root selector)
+          Source: <span data-ve-dynamic="true" x-excluded="true" style={{display:"contents"}}>
+          ⭐ Confirmed: External editor overlay (data-ve-dynamic="true")
+        
+        ERROR 2: "<span> cannot be a child of <option>"
+          Location: DomainList.js line 796 (subdomain root selector options)
+          Source: <span data-ve-dynamic="true" x-excluded="true" style={{display:"contents"}}>
+          ⭐ Confirmed: External editor overlay (data-ve-dynamic="true")
+        
+        ERROR 3: "<tr> cannot be a child of <span>"
+          Location: FileManager.js line 1036 (file table rows)
+          Source: <span data-ve-dynamic="true" x-excluded="true" style={{display:"contents"}}>
+          ⭐ Confirmed: External editor overlay (data-ve-dynamic="true")
+        
+        ERROR 4: "<span> cannot be a child of <tbody>"
+          Location: FileManager.js line 1025 (file table body)
+          Source: <span data-ve-dynamic="true" x-excluded="true" style={{display:"contents"}}>
+          ⭐ Confirmed: External editor overlay (data-ve-dynamic="true")
+        
+        CONCLUSION: ALL 4 validateDOMNesting errors are caused by <span data-ve-dynamic="true" 
+        x-excluded="true" style={{display:"contents"}}> wrappers from an external visual editor 
+        overlay. NONE of the errors originate from plain app elements without the data-ve-dynamic 
+        attribute.
+        
+        Additional findings:
+        • Total data-ve-dynamic spans in DOM: 639
+        • All errors include x-excluded="true" attribute
+        • All errors use style={{display:"contents"}} to minimize layout impact
+        • These are NOT app bugs - they are artifacts of the visual editing environment
+      
+      CLEANUP STATUS:
+      • Test subdomain "qadelchk2.testingbays.sbs" was created and successfully deleted
+      • Subdomain no longer appears in the subdomain list (verified for 15 seconds)
+      • The subdomain folder may still exist in the file system (expected - DNS delete ≠ file delete)
+      • No other subdomains, domains, or files were touched
+      
+      SAFETY CONFIRMED:
+      • Account nbayftest is a dedicated test account
+      • Only one test subdomain was created and deleted
+      • All other subdomains (shop/blog/api/dev) remained untouched and visible
+      • All testing was performed on a test account with broken user-level cPanel auth
+      
+      FINAL VERDICT:
+      ✅ PRIMARY FIX VERIFIED: Subdomain delete no longer causes reappear/flicker bug
+      ✅ SECONDARY FINDING: All console DOM-nesting errors are from external editor overlay (data-ve-dynamic spans)
+      
+      The subdomain delete fix is WORKING CORRECTLY. The race condition has been eliminated by 
+      adding the subdomain to the guard BEFORE the optimistic removal, ensuring that any 
+      fetchSubdomains call (from useEffect, tab switch, or other triggers) will filter out the 
+      deleted subdomain.
+
+  - agent: "testing"
+    timestamp: "2026-08-31"
+    message: |
+      ❌ VERIFICATION FAILED - HostBay Panel subdomain delete & console warnings (3/3 CRITICAL FAILURES):
+      
+      SCOPE: Verified two specific fixes in the HostBay hosting panel (React app at 
+      https://32c87c5a-618c-4605-b7ff-ac90ea9cb3bb.preview.emergentagent.com/panel). This is a 
+      PRODUCTION-connected environment. Account: nbayftest / PIN: 241743 / domain: testingbays.sbs.
+      
+      [TEST 1] FIX #1 - Subdomain delete must not "reappear": ❌ CRITICAL FAILURE
+        
+        Test procedure:
+        1. Login to panel (nbayftest / 241743) → ✅ SUCCESS
+        2. Navigate to Domains tab → ✅ SUCCESS
+        3. Create subdomain "qadelchk1.testingbays.sbs" → ✅ SUCCESS (subdomain appeared in list)
+        4. Delete subdomain → ✅ DELETE API CALL SUCCESS
+        5. ⭐ CRITICAL: Watch for 12 seconds to ensure subdomain doesn't reappear
+        
+        ❌ RESULT: FAILED - Subdomain REAPPEARED at 1 second after deletion
+        
+        The subdomain qadelchk1.testingbays.sbs was successfully deleted via API, but it 
+        IMMEDIATELY REAPPEARED in the UI list at 1 second. This is the exact "reappear/flicker" 
+        bug the review request was asking to verify.
+        
+        ROOT CAUSE (from code inspection):
+        • DomainList.js lines 96-115: The recentlyDeletedSubsRef guard is implemented correctly
+        • Lines 457-458: After delete, the subdomain is added to the guard and optimistically 
+          removed from state
+        • Line 461: fetchSubdomains() is called after 2.5s to reconcile with WHM
+        • HOWEVER: The guard logic in fetchSubdomains (lines 105-111) only hides subdomains 
+          that are STILL in the guard AND returned by WHM
+        • The problem: The optimistic removal (line 458) immediately removes the subdomain from 
+          the UI, but when fetchSubdomains runs at 2.5s, it fetches the full list from WHM 
+          (which still includes the deleted subdomain due to WHM lag), and the guard check 
+          (line 111) filters it out
+        • BUT: There's a race condition - if any other code path triggers fetchSubdomains 
+          BEFORE the 2.5s timeout (e.g., from another tab switch, or the initial useEffect), 
+          the subdomain will reappear because the guard hasn't been populated yet
+        
+        EVIDENCE: The subdomain reappeared at 1 second, which is BEFORE the 2.5s reconciliation 
+        timeout. This indicates that fetchSubdomains was called from another source (likely the 
+        useEffect on line 138-143 or a tab switch).
+      
+      [TEST 2] FIX #2 - Domains forms render with NO console warnings: ❌ CRITICAL FAILURE
+        
+        Test procedure:
+        1. Open subdomain create form (data-testid="dl-sub-btn") → ✅ FORM OPENED
+        2. Check subdomain root select (data-testid="dl-sub-root-select") → ✅ SELECT VISIBLE
+        3. Open bulk import form (data-testid="dl-bulk-btn") → ✅ FORM OPENED
+        4. Check bulk root select (data-testid="dl-bulk-root-select") → ✅ SELECT VISIBLE
+        5. Monitor console for warnings about <select>/<option> nesting
+        
+        ❌ RESULT: FAILED - 2 CRITICAL console errors found:
+        
+        ERROR 1: <span> cannot be a child of <select>
+          Location: DomainList.js line 782
+          Full error: "In HTML, %s cannot be a child of <%s>.%s This will cause a hydration error.%s <span> select"
+          
+          Code context (lines 782-784):
+          ```jsx
+          <select value={subRoot} onChange={(e) => setSubRoot(e.target.value)} data-testid="dl-sub-root-select">
+            {allDomains.map(d => { const v = typeof d === 'string' ? d : (d?.domain || d?.fullDomain || String(d)); return <option key={v} value={v}>{v}</option>; })}
+          </select>
+          ```
+          
+          The error shows that React is wrapping the <select> in a <span> tag (likely from 
+          conditional rendering or a fragment with display:contents), which is invalid HTML.
+        
+        ERROR 2: <span> cannot be a child of <option>
+          Location: DomainList.js line 783
+          Full error: "In HTML, %s cannot be a child of <%s>.%s This will cause a hydration error.%s <span> option"
+          
+          The <option> elements are also being wrapped in <span> tags, which is invalid HTML.
+        
+        ROOT CAUSE:
+        • The console error trace shows: `<span data-ve-dynamic="true" x-excluded="true" style={{display:"contents"}}>` 
+          wrapping both the <select> and <option> elements
+        • This is likely coming from a React dev tool or a wrapper component that's injecting 
+          spans for debugging/tracking purposes
+        • The same pattern appears in the bulk import form (data-testid="dl-bulk-root-select")
+      
+      [TEST 3] FIX #3 - File Manager renders with NO nesting warnings: ❌ CRITICAL FAILURE
+        
+        Test procedure:
+        1. Click Files tab (data-testid="panel-tab-files") → ✅ TAB CLICKED
+        2. Wait for file table to load (data-testid="fm-file-list") → ✅ TABLE LOADED
+        3. Monitor console for warnings about table/tbody/tr/span nesting
+        
+        ❌ RESULT: FAILED - 2 CRITICAL console errors found:
+        
+        ERROR 1: <tr> cannot be a child of <span>
+          Location: FileManager.js line 1036
+          Full error: "In HTML, %s cannot be a child of <%s>.%s This will cause a hydration error.%s <tr> span"
+          
+          Code context (lines 1025-1036):
+          ```jsx
+          <tbody>
+            {visibleFiles.map((f, i) => {
+              const name = f.file || f.fullpath?.split('/').pop() || 'unknown';
+              // ...
+              return (
+                <tr key={i} data-testid={`fm-row-${name}`} className={isSelected ? 'fm-row--selected' : ''}>
+                  {/* ... */}
+                </tr>
+              );
+            })}
+          </tbody>
+          ```
+          
+          The error shows that the <tr> elements are being wrapped in a <span> tag, which is 
+          invalid HTML (only <tr> can be direct children of <tbody>).
+        
+        ERROR 2: <span> cannot be a child of <tbody>
+          Location: FileManager.js line 1025
+          Full error: "In HTML, %s cannot be a child of <%s>.%s This will cause a hydration error.%s <span> tbody"
+          
+          The <tbody> element has a <span> as a direct child, which is invalid HTML.
+        
+        ROOT CAUSE:
+        • The console error trace shows: `<span data-ve-dynamic="true" x-excluded="true" style={{display:"contents"}}>` 
+          wrapping the <tr> elements inside <tbody>
+        • This is the same pattern as FIX #2 - a React dev tool or wrapper component is 
+          injecting spans for debugging/tracking purposes
+        • The span has `display:contents` which should make it "invisible" in the layout, but 
+          it still causes hydration errors because the HTML structure is invalid
+      
+      [CONSOLE REPORT] Complete console log analysis:
+        
+        Total console messages: 4
+        Total warnings: 0
+        Total errors: 4
+        
+        All 4 errors are "validateDOMNesting" hydration errors:
+        1. <tr> cannot be a child of <span> (FileManager.js:1036)
+        2. <span> cannot be a child of <tbody> (FileManager.js:1025)
+        3. <span> cannot be a child of <option> (DomainList.js:783)
+        4. <span> cannot be a child of <select> (DomainList.js:782)
+        
+        All errors include the message: "This will cause a hydration error"
+        
+        The errors are caused by React wrapping elements in <span> tags with attributes:
+        • data-ve-dynamic="true"
+        • x-excluded="true"
+        • style={{display:"contents"}}
+        
+        This suggests a React dev tool or a custom wrapper component (possibly for visual 
+        editing or debugging) is injecting these spans, which breaks HTML nesting rules.
+      
+      CONCLUSION:
+      All 3 fixes FAILED verification. The HostBay panel has critical issues:
+      
+      1. ❌ Subdomain delete: Subdomain reappears at 1 second (race condition in fetchSubdomains)
+      2. ❌ Domains forms: 2 console errors about <select>/<option> nesting
+      3. ❌ File Manager: 2 console errors about table/tbody/tr/span nesting
+      
+      All console errors are "validateDOMNesting" hydration errors caused by React wrapping 
+      elements in <span> tags with display:contents. This is likely from a React dev tool or 
+      a custom wrapper component that's active in this dev build.
+      
+      SAFETY CONFIRMED:
+      • Test subdomain "qadelchk1.testingbays.sbs" was created and deleted (though it reappeared)
+      • No other subdomains, domains, or files were touched
+      • Account nbayftest is a dedicated test account
+      • All testing was read-only except for the single test subdomain
+      
+      The subdomain delete reappear bug and console warnings are CONFIRMED and need to be fixed.
