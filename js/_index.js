@@ -38536,6 +38536,10 @@ app.get('/crypto-pay-vps', auth, async (req, res) => {
     }
     return res.send(html('error'))
   }
+  // Ledger parity (2026-08-31): direct-crypto VPS purchases must ALSO be written
+  // to `payments` (see the DynoPay path note). Keyed on `ref` → idempotent.
+  const vpsBuyerName = await get(nameOf, chatId)
+  set(payments, ref, `Crypto,VPSPlan,${vpsDetails?.plan},$${price},${chatId},${vpsBuyerName},${new Date()},${value} ${coin}`)
   await auditCryptoTx(chatId, 'vps', price, { plan: vpsDetails?.plan, region: vpsDetails?.region, type: 'new-plan', coin, value, ref }, 'blockbee')
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
@@ -38585,6 +38589,10 @@ app.get('/crypto-pay-upgrade-vps', auth, async (req, res) => {
   // Upgrade VPS plan or disk
   const isSuccess = await upgradeVPSDetails(chatId, lang, vpsDetails)
   if (!isSuccess) return res.send(html('error'))
+  // Ledger parity (2026-08-31): crypto VPS upgrades also recorded in `payments`
+  // (wallet upgrades write `Wallet,VPSUpgrade,...`). Keyed on `ref` → idempotent.
+  const vpsUpgBuyerName = await get(nameOf, chatId)
+  set(payments, ref, `Crypto,VPSUpgrade,${vpsDetails?.upgradeType},$${price},${chatId},${vpsUpgBuyerName},${new Date()},${value} ${coin}`)
   await auditCryptoTx(chatId, vpsDetails.upgradeType === 'plan' ? 'vps-upgrade-plan' : 'vps-upgrade-disk', price, { plan: vpsDetails?.plan, upgradeType: vpsDetails?.upgradeType, coin, value, ref }, 'blockbee')
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
@@ -43565,6 +43573,13 @@ app.post('/dynopay/crypto-pay-vps', authDyno, async (req, res) => {
     return res.send(html('error'))
   }
   await auditCryptoTx(chatId, 'vps', price, { plan: vpsDetails?.plan, region: vpsDetails?.region, type: 'new-plan', coin, value, ref }, 'dynopay')
+  // Ledger parity (2026-08-31): direct-crypto VPS purchases must ALSO be written
+  // to `payments`, not just `transactions`/`vpsTransactions`. Wallet-funded VPS
+  // buys record `Wallet,VPSPlan,...` here; without this line a crypto-paid VPS
+  // left NO row in `payments` and no `walletOf.usdOut` movement, so "did they
+  // pay?" audits silently missed it (the @user_uu0 Aug-12 $18 BTC case). Keyed
+  // on `ref` so a webhook replay upserts the same row (idempotent).
+  set(payments, ref, `Crypto,VPSPlan,${vpsDetails?.plan},$${price},${chatId},${name},${new Date()},${value} ${coin}`)
   notifyGroup(
     `🖥️ <b>VPS Deployed!</b>\nUser ${maskName(name)} just deployed a new VPS server via crypto.\nDeploy yours in seconds — /start`,
     `🖥️ <b>New VPS (Crypto DynoPay)</b>\n👤 User: ${adminUserTag(name, chatId)}\n💰 Price: <b>$${Number(price).toFixed(2)}</b> (${value} ${coin})\n📦 Plan: ${vpsDetails?.plan || 'VPS'}\n💳 Payment: Crypto DynoPay`
@@ -43629,6 +43644,9 @@ app.post('/dynopay/crypto-pay-upgrade-vps', authDyno, async (req, res) => {
   await auditCryptoTx(chatId, vpsDetails.upgradeType === 'plan' ? 'vps-upgrade-plan' : 'vps-upgrade-disk', price, { plan: vpsDetails?.plan, upgradeType: vpsDetails?.upgradeType, coin, value, ref }, 'dynopay')
   const upgradeLabel = vpsDetails.upgradeType === 'plan' ? 'Plan Upgrade' : 'Disk Upgrade'
   const name = await get(nameOf, chatId)
+  // Ledger parity (2026-08-31): crypto VPS upgrades also recorded in `payments`
+  // (idempotent on `ref`), matching the wallet `Wallet,VPSUpgrade,...` row.
+  set(payments, ref, `Crypto,VPSUpgrade,${vpsDetails?.upgradeType},$${price},${chatId},${name},${new Date()},${value} ${coin}`)
   notifyGroup(
     `🖥️ <b>VPS ${upgradeLabel}!</b>\nUser ${maskName(name)} just upgraded their VPS via crypto.\nUpgrade yours — /start`,
     `🖥️ <b>VPS ${upgradeLabel} (Crypto DynoPay)</b>\n👤 User: ${adminUserTag(name, chatId)}\n💰 Price: <b>$${Number(price).toFixed(2)}</b> (${value} ${coin})\n📦 Plan: ${vpsDetails?.plan || 'VPS'}\n💳 Payment: Crypto DynoPay`
