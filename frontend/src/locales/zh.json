@@ -461,6 +461,15 @@
     "unknownPlan": "未知"
   },
   "dl": {
+    "bulkImport": "批量导入",
+    "bulkSingle": "单个",
+    "bulkNote": "一次创建多个子域名——用逗号或换行分隔名称（最多 50 个）。每个都会获得自己的 public_html/ 文件夹。",
+    "bulkPlaceholder": "shop, blog, api, dev, staging",
+    "bulkCreateAll": "全部创建",
+    "bulkCreating": "创建中...",
+    "bulkSummary": "已创建 {{total}} 个中的 {{succeeded}} 个 · {{failed}} 个失败",
+    "bulkEmpty": "请至少输入一个子域名。",
+    "bulkDone": "完成",
     "title": "域名",
     "runAutoSSL": "运行 AutoSSL",
     "running": "运行中...",

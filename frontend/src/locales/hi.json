@@ -461,6 +461,15 @@
     "unknownPlan": "अज्ञात"
   },
   "dl": {
+    "bulkImport": "बल्क इम्पोर्ट",
+    "bulkSingle": "एकल",
+    "bulkNote": "एक साथ कई सबडोमेन बनाएं — नामों को कॉमा या नई लाइनों से अलग करें (अधिकतम 50)। हर एक को अपना public_html/ फ़ोल्डर मिलता है।",
+    "bulkPlaceholder": "shop, blog, api, dev, staging",
+    "bulkCreateAll": "सभी बनाएं",
+    "bulkCreating": "बना रहे हैं...",
+    "bulkSummary": "{{total}} में से {{succeeded}} बने · {{failed}} विफल",
+    "bulkEmpty": "कम से कम एक सबडोमेन नाम दर्ज करें।",
+    "bulkDone": "पूर्ण",
     "title": "डोमेन",
     "runAutoSSL": "ऑटोSSL चलाएँ",
     "running": "चल रहा है...",

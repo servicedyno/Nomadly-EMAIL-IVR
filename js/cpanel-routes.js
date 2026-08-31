@@ -732,7 +732,7 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
       if (whmApi) {
         try {
           log(`[Panel] get_file_content user-level auth-broken → WHM session fallback (user: ${req.cpUser}, file: ${file})`)
-          const fb = await _uapiViaWhmSession(whmApi, req.cpUser, 'Fileman', 'get_file_content', { dir, file }, 'GET')
+          const fb = await cpProxy.uapiViaSession(req.cpUser, 'Fileman', 'get_file_content', { dir, file }, 'GET', req.whmHost)
           if (fb.status === 1) {
             log(`[Panel] get_file_content succeeded via WHM session fallback (user: ${req.cpUser}, file: ${file})`)
             result = { ...fb, via: 'whm-session-fallback' }
@@ -767,7 +767,7 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
       if (whmApi) {
         try {
           log(`[Panel] save_file_content user-level auth-broken → WHM session fallback (user: ${req.cpUser}, file: ${file})`)
-          const fb = await _uapiViaWhmSession(whmApi, req.cpUser, 'Fileman', 'save_file_content', { dir, file, content }, 'POST')
+          const fb = await cpProxy.uapiViaSession(req.cpUser, 'Fileman', 'save_file_content', { dir, file, content }, 'POST', req.whmHost)
           if (fb.status === 1) {
             log(`[Panel] save_file_content succeeded via WHM session fallback (user: ${req.cpUser}, file: ${file})`)
             result = { ...fb, via: 'whm-session-fallback' }

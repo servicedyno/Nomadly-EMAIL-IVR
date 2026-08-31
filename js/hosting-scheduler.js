@@ -549,11 +549,25 @@ function initScheduler(deps) {
     }
   }
 
-  // Run startup enforcement first (10s), then regular hourly checks (30s+)
-  setTimeout(startupEnforcement, 10000)
-  // Run immediately on startup, then every hour
-  setTimeout(runCheck, 30000) // 30s after startup
-  const interval = setInterval(runCheck, CHECK_INTERVAL_MS)
+  // ── Dev-sandbox safety guard (2026-08-31) ────────────────────────────
+  // startupEnforcement() and runCheck() deduct REAL wallet balances (auto-renew),
+  // suspend/delete REAL cPanel accounts, and cascade into AntiRed worker deploys.
+  // A dev pod shares the PRODUCTION Mongo, so these MUST NOT auto-fire here or the
+  // sandbox will charge/suspend real users on every boot. Parity with CF-Sync,
+  // the AntiRed worker upgrade, and whm-userdata-heal, which are all dev-gated.
+  // (Regression this closes: a dev-pod boot charged sequeldex.de's owner $75 via
+  //  startupEnforcement auto-renew before this guard existed.)
+  const _isDevSandbox = String(process.env.SKIP_WEBHOOK_SYNC || '').toLowerCase() === 'true'
+  let interval = null
+  if (_isDevSandbox) {
+    log('[HostingScheduler] DEV SANDBOX (SKIP_WEBHOOK_SYNC=true) — startup enforcement + hourly expiry sweep SKIPPED (must not charge/suspend/delete real users from a dev pod)')
+  } else {
+    // Run startup enforcement first (10s), then regular hourly checks (30s+)
+    setTimeout(startupEnforcement, 10000)
+    // Run immediately on startup, then every hour
+    setTimeout(runCheck, 30000) // 30s after startup
+    interval = setInterval(runCheck, CHECK_INTERVAL_MS)
+  }
 
   // WHM userdata self-heal — retries /removeacct on rows still flagged
   // `whmTerminatePending: true`. Runs 45s after boot (offset from runCheck),

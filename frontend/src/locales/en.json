@@ -392,6 +392,15 @@
     "unknownPlan": "unknown"
   },
   "dl": {
+    "bulkImport": "Bulk import",
+    "bulkSingle": "Single",
+    "bulkNote": "Create multiple subdomains at once — separate names with commas or new lines (max 50). Each gets its own public_html/ folder.",
+    "bulkPlaceholder": "shop, blog, api, dev, staging",
+    "bulkCreateAll": "Create all",
+    "bulkCreating": "Creating...",
+    "bulkSummary": "{{succeeded}} of {{total}} created · {{failed}} failed",
+    "bulkEmpty": "Enter at least one subdomain name.",
+    "bulkDone": "Done",
     "title": "Domains",
     "runAutoSSL": "Run AutoSSL",
     "running": "Running...",

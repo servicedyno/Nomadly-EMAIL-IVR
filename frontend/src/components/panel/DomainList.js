@@ -3,6 +3,36 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from './AuthContext';
 import { pickErrorMessage, friendlyMessage, isTransientError } from './shared/cpanelErrors';
 
+// ─── Shared pure helpers (defined ABOVE the component so render + delete
+// filter agree, and so React never sees a "new" function each render) ───
+// Subdomain records arrive in several shapes depending on the source:
+//   - WHM-root fallback (api2 listsubdomains): { domain: "api.example.com", rootdomain, dir }
+//   - user-level UAPI mapping: { domain: "api", rootdomain: "example.com", fullDomain }
+//   - plain string: "api.example.com"
+// subDisplayName() must NEVER double the root (the "api.example.com.example.com"
+// bug) — if the domain field is already an FQDN we return it verbatim.
+function subDisplayName(s) {
+  if (!s) return '';
+  if (typeof s === 'string') return s;
+  if (s.fullDomain) return s.fullDomain;
+  const domainField = typeof s.domain === 'string' ? s.domain : '';
+  const rootDom = s.rootdomain || '';
+  if (domainField.includes('.')) return domainField;       // already an FQDN -> no doubling
+  if (domainField && rootDom) return `${domainField}.${rootDom}`;
+  return domainField || String(s);
+}
+
+function subDocRoot(s) {
+  if (!s || typeof s === 'string') return `public_html/${String(s || '')}`;
+  if (s.dir) return s.dir;
+  if (s.documentroot) return s.documentroot;
+  const domainField = typeof s.domain === 'string' ? s.domain : '';
+  const rootDom = s.rootdomain || '';
+  const prefix = s.subdomain
+    || (domainField.includes('.') && rootDom ? domainField.slice(0, -(rootDom.length + 1)) : domainField) || '';
+  return `public_html/${prefix}`;
+}
+
 export default function DomainList({ onNavigateToFileManager }) {
   const { t, i18n } = useTranslation();
   const lang = (i18n.language || 'en').slice(0, 2);
@@ -189,7 +219,7 @@ export default function DomainList({ onNavigateToFileManager }) {
     }
   };
 
-  const CaptchaBadge = ({ domain }) => {
+  const renderCaptchaBadge = (domain) => {
     const info = captchaByDomain[domain];
     const isGold = captchaInfo.isGold;
     const toggling = !!captchaToggling[domain];
@@ -410,11 +440,9 @@ export default function DomainList({ onNavigateToFileManager }) {
       if (res.errors?.length) {
         setError(res.errors[0]);
       } else {
-        // Optimistic removal — strip subdomain from local state immediately
-        setSubdomains(prev => prev.filter(s => {
-          const d = s.domain || `${s.subdomain || s.sub}.${s.rootdomain || ''}`;
-          return d !== sub;
-        }));
+        // Optimistic removal — strip subdomain from local state immediately.
+        // Match by subDisplayName(s) so render + filter agree on the FQDN.
+        setSubdomains(prev => prev.filter(s => subDisplayName(s) !== sub));
         fetchSubdomains();
         fetchDomains();
       }
@@ -475,7 +503,7 @@ export default function DomainList({ onNavigateToFileManager }) {
     }
   };
 
-  const NSBadge = ({ domain }) => {
+  const renderNSBadge = (domain) => {
     const info = nsStatus[domain];
     const isLoading = nsLoading[domain];
     if (isLoading) return <span className="dl-ns-badge dl-ns-badge--loading">{t('dl.nsChecking')}</span>;
@@ -498,7 +526,7 @@ export default function DomainList({ onNavigateToFileManager }) {
     return <span className="dl-ns-badge dl-ns-badge--unknown" data-testid={`dl-ns-unknown-${domain}`}>{t('dl.nsUnknown')}</span>;
   };
 
-  const SSLBadge = ({ domain }) => {
+  const renderSSLBadge = (domain) => {
     const info = sslStatus[domain];
     if (sslLoading && !info) return <span className="dl-ssl-badge dl-ssl-badge--loading" data-testid={`dl-ssl-loading-${domain}`}>{t('dl.sslLoading')}</span>;
     if (!info) return <span className="dl-ssl-badge dl-ssl-badge--none" data-testid={`dl-ssl-none-${domain}`}>{t('dl.sslNone')}</span>;
@@ -534,8 +562,8 @@ export default function DomainList({ onNavigateToFileManager }) {
     return <span className="dl-ssl-badge dl-ssl-badge--none" data-testid={`dl-ssl-none-${domain}`}>{t('dl.sslNone')}</span>;
   };
 
-  // Inline NS pending info component
-  const NSPendingInfo = ({ domain }) => {
+  // Inline NS pending info — render function (not a nested component)
+  const renderNSPendingInfo = (domain) => {
     const info = nsStatus[domain];
     if (!info || info.status !== 'pending') return null;
 
@@ -585,7 +613,7 @@ export default function DomainList({ onNavigateToFileManager }) {
             {t('dl.addSubdomain')}
           </button>
           <button onClick={() => { setShowBulkImport(!showBulkImport); setShowSubCreate(false); setShowAdd(false); }} className="fm-btn fm-btn--ghost" data-testid="dl-bulk-btn">
-            Bulk Import
+            {t('dl.bulkImport')}
           </button>
           <button onClick={() => { setShowAdd(!showAdd); setShowSubCreate(false); setShowBulkImport(false); }} className="fm-btn fm-btn--primary" data-testid="dl-add-btn">
             {t('dl.addDomain')}
@@ -752,13 +780,13 @@ export default function DomainList({ onNavigateToFileManager }) {
         <div className="dl-add-form dl-bulk-form" data-testid="dl-bulk-form">
           <div className="dl-add-note">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-            <span>Create multiple subdomains at once. Enter subdomain names separated by commas or one per line (max 50). Each gets its own folder in <code>public_html/</code>.</span>
+            <span>{t('dl.bulkNote')}</span>
           </div>
           <div className="dl-bulk-row">
             <textarea
               value={bulkInput}
               onChange={(e) => setBulkInput(e.target.value)}
-              placeholder="shop, blog, api, dev, staging"
+              placeholder={t('dl.bulkPlaceholder')}
               rows={4}
               data-testid="dl-bulk-textarea"
               className="dl-bulk-textarea"
@@ -782,7 +810,7 @@ export default function DomainList({ onNavigateToFileManager }) {
               disabled={bulkCreating || !bulkInput.trim()}
               data-testid="dl-bulk-submit"
             >
-              {bulkCreating ? 'Creating...' : 'Create All'}
+              {bulkCreating ? t('dl.bulkCreating') : t('dl.bulkCreateAll')}
             </button>
             <button onClick={() => { setShowBulkImport(false); setBulkInput(''); setBulkResults(null); }} className="fm-btn fm-btn--ghost">
               {t('dl.cancel')}
@@ -791,8 +819,11 @@ export default function DomainList({ onNavigateToFileManager }) {
           {bulkResults && (
             <div className="dl-bulk-results" data-testid="dl-bulk-results">
               <div className="dl-bulk-summary">
-                ✅ {bulkResults.summary?.succeeded || 0} created
-                {bulkResults.summary?.failed > 0 && <span> · ❌ {bulkResults.summary.failed} failed</span>}
+                {t('dl.bulkSummary', {
+                  succeeded: bulkResults.summary?.succeeded || 0,
+                  failed: bulkResults.summary?.failed || 0,
+                  total: bulkResults.summary?.total || 0,
+                })}
               </div>
               <div className="dl-bulk-details">
                 {(bulkResults.results || []).map((r, i) => (
@@ -820,9 +851,9 @@ export default function DomainList({ onNavigateToFileManager }) {
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10A15.3 15.3 0 0112 2z"/></svg>
                   <span className="dl-domain-name">{mainDomain}</span>
                   <div className="dl-badges-row">
-                    <SSLBadge domain={mainDomain} />
-                    <NSBadge domain={mainDomain} />
-                    <CaptchaBadge domain={mainDomain} />
+                    {renderSSLBadge(mainDomain)}
+                    {renderNSBadge(mainDomain)}
+                    {renderCaptchaBadge(mainDomain)}
                     <span className="dl-badge dl-badge--primary">{t('dl.primaryBadge')}</span>
                   </div>
                 </div>
@@ -836,7 +867,7 @@ export default function DomainList({ onNavigateToFileManager }) {
                   )}
                 </div>
               </div>
-              <NSPendingInfo domain={mainDomain} />
+              {renderNSPendingInfo(mainDomain)}
             </div>
           )}
 
@@ -853,9 +884,9 @@ export default function DomainList({ onNavigateToFileManager }) {
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10A15.3 15.3 0 0112 2z"/></svg>
                       <span className="dl-domain-name">{d}</span>
                       <div className="dl-badges-row">
-                        <SSLBadge domain={d} />
-                        <NSBadge domain={d} />
-                        <CaptchaBadge domain={d} />
+                        {renderSSLBadge(d)}
+                        {renderNSBadge(d)}
+                        {renderCaptchaBadge(d)}
                         <span className={`dl-badge dl-badge--mode${mode === 'mirror' ? ' dl-badge--mirror' : ''}`} data-testid={`dl-mode-badge-${d}`}>
                           {mode === 'mirror' ? t('dl.modeMirrorBadge') : t('dl.modeOwnBadge')}
                         </span>
@@ -899,7 +930,7 @@ export default function DomainList({ onNavigateToFileManager }) {
                       </button>
                     </div>
                   </div>
-                  <NSPendingInfo domain={d} />
+                  {renderNSPendingInfo(d)}
                 </React.Fragment>
                 );
               })}
@@ -911,20 +942,15 @@ export default function DomainList({ onNavigateToFileManager }) {
             <div className="dl-section">
               <h3>{t('dl.subdomains', { count: subdomains.length })}</h3>
               {subdomains.map((s, i) => {
-                // s.domain is already the full FQDN (e.g., "api.testingbays.sbs")
-                // s.subdomain is just the prefix (e.g., "api")
-                const subPrefix = s.subdomain || s.domain || s;
-                const rootDom = s.rootdomain || '';
-                // Use the full domain if available, otherwise construct it
-                const display = s.domain || (rootDom ? `${subPrefix}.${rootDom}` : subPrefix);
-                const docRoot = s.dir || s.documentroot || `public_html/${subPrefix}`;
+                const display = subDisplayName(s);
+                const docRoot = subDocRoot(s);
                 return (
                   <div key={i} className="dl-domain-card" data-testid={`dl-sub-${display}`}>
                     <div className="dl-domain-card-top">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
                       <span className="dl-domain-name">{display}</span>
                       <div className="dl-badges-row">
-                        <SSLBadge domain={display} />
+                        {renderSSLBadge(display)}
                         <span className="dl-badge dl-badge--sub">{t('dl.subBadge')}</span>
                       </div>
                       {onNavigateToFileManager && (

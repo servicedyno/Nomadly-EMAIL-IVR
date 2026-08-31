@@ -4,10 +4,10 @@ This app uses Telegram bot authentication (chatId-based) — there is no email/p
 login for the panel. Auth flows are exercised via the bot / dev endpoints.
 
 ## Sandbox runtime config (re-bootstrapped on NEW fresh pod, creds re-supplied by user)
-- Pod URL: https://c4f2d665-8838-46df-8009-e5ab651e163d.preview.emergentagent.com
-  (previous pod: https://integration-platform-11.preview.emergentagent.com — decommissioned)
+- Pod URL: https://deployment-config-12.preview.emergentagent.com
+  (previous pod: https://deployment-config-12.preview.emergentagent.com — decommissioned)
 - Dev Telegram bot webhook (token TELEGRAM_BOT_TOKEN_DEV = 6597817067 @Nomadlytestbot) SET to
-  https://integration-platform-11.preview.emergentagent.com/api/telegram/webhook (verified ok)
+  https://deployment-config-12.preview.emergentagent.com/api/telegram/webhook (verified ok)
 - Verified this bootstrap: node:5000 + FastAPI:8001 + external <pod>/api/health all healthy/DB connected;
   frontend :3000 → "HostBay | Hosting Panel"; PROD bot (6292288341) webhook confirmed STILL on Railway (0 pending), UNTOUCHED.
 - PROD bot (6292288341) webhook confirmed still on Railway (https://nomadly-email-ivr-production.up.railway.app/telegram/webhook) — UNTOUCHED
@@ -26,7 +26,7 @@ login for the panel. Auth flows are exercised via the bot / dev endpoints.
 - Domain: testingbays.sbs
 - Plan: Golden-Anti-Red-HostPanel-1-Month
 - WHM Host: 68.183.77.106
-- Login URL: https://c4f2d665-8838-46df-8009-e5ab651e163d.preview.emergentagent.com/panel
+- Login URL: https://deployment-config-12.preview.emergentagent.com/panel
 - NOTE: User-level cPanel auth is broken for this account. All API calls work via WHM-root fallback.
 - Password was rotated via WHM /passwd to force cPanel auth recognition (2026-08-30).
 - Existing subdomains: shop, blog, api, dev (all under testingbays.sbs with public_html/<name> docroot)

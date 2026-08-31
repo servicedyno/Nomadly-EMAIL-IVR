@@ -3527,7 +3527,12 @@ const loadData = async () => {
       // gets stuck in a reboot loop.
       try {
         const autoRecover = require('./cpanel-auto-recover')
-        if (autoRecover._isConfigured()) {
+        // DEV SANDBOX GUARD: never power-cycle the PRODUCTION WHM droplet from a dev
+        // pod. If the pod simply can't reach WHM (network/CF-Access), that must NOT
+        // be misread as an outage and trigger a DigitalOcean reboot of the live box.
+        if (process.env.SKIP_WEBHOOK_SYNC === 'true') {
+          log('[AutoRecover] SKIP_WEBHOOK_SYNC=true — skipping droplet power-cycle (dev sandbox must not reboot prod WHM)')
+        } else if (autoRecover._isConfigured()) {
           autoRecover.attemptRecovery({ reason, notify: notifyAdmin })
             .then(r => log(`[AutoRecover] result: ${JSON.stringify(r)}`))
             .catch(e => log(`[AutoRecover] unexpected: ${e.message}`))
@@ -36758,23 +36763,35 @@ app.use('/store', createStoreRoutes({
 
 // ── cPanel Server Migration (auto-sync accounts when WHM_HOST changes) ──
 const { runMigration: runCpanelMigration } = require('./cpanel-migration')
-setTimeout(() => {
-  runCpanelMigration(() => cpanelAccounts).catch(err => {
-    log(`[CpanelMigration] Error: ${err.message}`)
-  })
-}, 15000) // Run 15s after startup to let DB settle
+// DEV SANDBOX GUARD: runCpanelMigration rotates REAL cPanel passwords via WHM /passwd
+// and rewrites PRODUCTION Cloudflare DNS records. A dev pod shares the production Mongo,
+// so it must never run this (parity with CF-Sync / AntiRed / hosting-scheduler guards).
+if (process.env.SKIP_WEBHOOK_SYNC === 'true') {
+  log('[CpanelMigration] SKIP_WEBHOOK_SYNC=true — skipping (dev sandbox must not rotate prod cPanel passwords or rewrite prod DNS)')
+} else {
+  setTimeout(() => {
+    runCpanelMigration(() => cpanelAccounts).catch(err => {
+      log(`[CpanelMigration] Error: ${err.message}`)
+    })
+  }, 15000) // Run 15s after startup to let DB settle
+}
 
 // ── MAXSQL Migration (one-shot: raise MySQL quota on Premium Monthly accounts) ──
 // Idempotent. Recorded in `migrations` collection so it only runs once. If WHM
 // is unreachable (e.g. sandbox CF Access 403), the marker is NOT set and the
 // migration retries on the next startup (production has the WHM tunnel allowlist).
 const { runMaxsqlMigration } = require('./maxsql-migration')
-setTimeout(() => {
-  const getDb = () => (cpanelAccounts && cpanelAccounts.s && cpanelAccounts.s.db) || null
-  runMaxsqlMigration(getDb).catch(err => {
-    log(`[MaxsqlMigration] Error: ${err.message}`)
-  })
-}, 20000) // Run 20s after startup, after cpanel-migration
+// DEV SANDBOX GUARD: mutates real WHM MySQL quotas. Skip on the dev pod (shared prod Mongo/WHM).
+if (process.env.SKIP_WEBHOOK_SYNC === 'true') {
+  log('[MaxsqlMigration] SKIP_WEBHOOK_SYNC=true — skipping (dev sandbox must not mutate prod WHM quotas)')
+} else {
+  setTimeout(() => {
+    const getDb = () => (cpanelAccounts && cpanelAccounts.s && cpanelAccounts.s.db) || null
+    runMaxsqlMigration(getDb).catch(err => {
+      log(`[MaxsqlMigration] Error: ${err.message}`)
+    })
+  }, 20000) // Run 20s after startup, after cpanel-migration
+}
 
 // ── Honeypot Routes (receive reports from CF Workers + analytics) ──
 honeypotService.createHoneypotRoutes(app)

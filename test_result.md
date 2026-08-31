@@ -1452,7 +1452,7 @@ backend:
               
               ✅ ok === true
               ✅ audio.audioUrl present and ending in .mp3
-                URL: https://integration-platform-11.preview.emergentagent.com/api/assets/user-audio/tts_1786329027952_rachel.mp3
+                URL: https://deployment-config-12.preview.emergentagent.com/api/assets/user-audio/tts_1786329027952_rachel.mp3
               ✅ NO audio.error field
               ✅ audio.voice === "Rachel"
               ✅ audio.fallbackUsed === false
@@ -4624,7 +4624,7 @@ backend:
             
             ✅ Step 2: permanent_mp3_url (CORE FIX)
                 • pass: true ✅
-                • audioUrl: "https://integration-platform-11.preview.emergentagent.com/api/assets/user-audio/DEVTEST-VM_01e0ce71-bbb.mp3" ✅
+                • audioUrl: "https://deployment-config-12.preview.emergentagent.com/api/assets/user-audio/DEVTEST-VM_01e0ce71-bbb.mp3" ✅
                 ★ CORE FIX VERIFIED: The saved audioUrl is a PERMANENT /assets/user-audio/*.mp3 URL
                 ★ NOT an api.telegram.org link (which would expire in ~1h)
                 ★ The OGG voice note was transcoded to MP3 format
@@ -9344,7 +9344,7 @@ backend:
             • test_phone_scheduler_no_leak.js: 12 passed, 0 failed ✓
           
           TEST 10 - Admin endpoint smoke test: ✅ PASSED
-            • GET https://integration-platform-11.preview.emergentagent.com/api/admin/dns-heal-status?key=o/Qb8ArGahlquhCQ
+            • GET https://deployment-config-12.preview.emergentagent.com/api/admin/dns-heal-status?key=o/Qb8ArGahlquhCQ
             • HTTP 200, ok=true ✓
           
           CONCLUSION:
@@ -10568,7 +10568,7 @@ frontend:
           ❌ CRITICAL ISSUES FOUND - Subdomain quick-nav and bulk import features tested (2026-08-30):
           
           TEST ENVIRONMENT:
-          • URL: https://c4f2d665-8838-46df-8009-e5ab651e163d.preview.emergentagent.com/panel
+          • URL: https://deployment-config-12.preview.emergentagent.com/panel
           • Test account: nbayftest / PIN: 241743
           • Domain: testingbays.sbs
           
@@ -10637,7 +10637,7 @@ frontend:
         comment: |
           ✅ READ-ONLY UI VERIFICATION COMPLETE - ALL TESTS PASSED (100% pass rate)
           
-          SCOPE: Verified the Nomadly admin panel UI at https://integration-platform-11.preview.emergentagent.com
+          SCOPE: Verified the Nomadly admin panel UI at https://deployment-config-12.preview.emergentagent.com
           in READ-ONLY mode. This is a LIVE PRODUCTION environment with real MongoDB and payment/domain/telephony APIs.
           NO data-modifying actions were taken (no clicks on Buy, Register, Purchase, Create, Delete, Send, Connect, 
           Verify, Submit, Save buttons). Only page navigation, reading text, and capturing console/network errors.
@@ -11727,7 +11727,7 @@ agent_communication:
         
         ✅ ok === true
         ✅ audio.audioUrl present and ending in .mp3
-          URL: https://integration-platform-11.preview.emergentagent.com/api/assets/user-audio/tts_1786329027952_rachel.mp3
+          URL: https://deployment-config-12.preview.emergentagent.com/api/assets/user-audio/tts_1786329027952_rachel.mp3
         ✅ NO audio.error field
         ✅ audio.voice === "Rachel"
         ✅ audio.fallbackUsed === false
@@ -17313,3 +17313,143 @@ storefront_ux_pass_2026_08_29:
         reachable from the bot are working correctly.
 
 
+
+
+
+#====================================================================================================
+# SESSION 2026-08-31 (fork) — Broken-user-auth cPanel fallback completion + dev-pod safety guards
+#====================================================================================================
+current_session_summary: |
+  Fresh pod bootstrap + finish the "broken user-level cPanel auth" task.
+
+  A) DEV-POD SAFETY GUARDS (critical — a dev pod shares PRODUCTION Mongo/WHM/CF):
+     Discovered that on boot the Node bot ran infra-mutating jobs against
+     production and auto-renewed sequeldex.de (chatId 7775130199) charging the
+     owner's wallet $75. Added SKIP_WEBHOOK_SYNC dev guards (parity with the
+     rest of the codebase) to the 4 unguarded startup mutators:
+       - js/hosting-scheduler.js  → startupEnforcement + hourly runCheck sweep
+       - js/_index.js             → runCpanelMigration (rotates prod cPanel
+                                     passwords + rewrites prod CF DNS)
+       - js/_index.js             → runMaxsqlMigration (mutates prod WHM quotas)
+       - js/_index.js             → cpanel-auto-recover DO droplet power-cycle
+     Boot logs now show all four SKIPPED. The single $75 renewal is idempotent
+     (expiry moved to the future) and the account had auto-renew+funds, so it is
+     NOT a duplicate charge — prod would have renewed it anyway.
+
+  B) FRONTEND (frontend/src/components/panel/DomainList.js):
+     - Added shared pure helpers subDisplayName() / subDocRoot() ABOVE the
+       component (kills the "api.example.com.example.com" doubling; render +
+       delete-filter now agree).
+     - Converted the 4 nested render-components (CaptchaBadge/NSBadge/SSLBadge/
+       NSPendingInfo) to render FUNCTIONS (renderCaptchaBadge, etc.) — removes
+       the 4 react/no-unstable-nested-components ESLint errors + stops remounts.
+     - Wired the Bulk Import UI to i18n (dl.bulkImport/bulkNote/bulkPlaceholder/
+       bulkCreateAll/bulkCreating/bulkSummary) in en/fr/zh/hi (parity kept).
+
+  C) TESTS: tests/cpanel-auth-broken-fallback.test.js (new, nock-mocked) — 9/9
+     pass (HTTP-200 login-page HTML → CPANEL_AUTH_FAILURE for uapi+api2;
+     subdomain/addon create+delete recover via whm-fallback on HTML AND 401/403;
+     healthy account never touches fallback; "already exists" surfaced; docroot
+     public_html/<sub>). Added uapi/api2 to cpanel-proxy exports for the test.
+
+  NOTE: backend fallback routes themselves were already implemented + verified
+  in the prior fork (iteration 44, 100%). This session finished the frontend
+  cleanup + tests + made the dev pod safe.
+
+backend_test_scope_2026-08-31: |
+  Login: POST {BACKEND_URL}/api/panel/login  body {username:"nbayftest", pin:"241743"}
+  → returns { token }. Use header  Authorization: Bearer <token>  for all /api/panel/* calls.
+  Account nbayftest / testingbays.sbs has BROKEN user-level cPanel auth → every op
+  must succeed via WHM-root fallback (logs: "via: whm-fallback").
+  SAFETY: only create clearly-named TEST artifacts and DELETE them at the end.
+  Do NOT touch existing subdomains (shop/blog/api/dev), do NOT delete any addon
+  domain or MySQL database. Addon/MySQL = read-only (GET list) only.
+
+
+
+  - agent: "testing"
+    timestamp: "2026-08-31"
+    message: |
+      ✅ FOCUSED RE-TEST COMPLETE - cPanel File Manager content read/save via WHM-session fallback PASSED (100%)
+      
+      Verified the WHM-session fallback fix for file content read/save operations on account nbayftest 
+      (broken user-level cPanel auth). The fix routes cpsession through CPANEL_API_URL tunnel instead 
+      of the unreachable origin IP that caused 30s timeouts.
+      
+      TEST SCOPE:
+      • Account: nbayftest / PIN: 241743 / domain: testingbays.sbs
+      • User-level cPanel auth is BROKEN on purpose (must use WHM session fallback)
+      • Backend URL: https://32c87c5a-618c-4605-b7ff-ac90ea9cb3bb.preview.emergentagent.com
+      • Test file: qa-content-test.txt in /public_html
+      • Test content: "hello-fallback-2026-verify-XYZ"
+      
+      VERIFICATION RESULTS:
+      
+      [Step 0] Authentication: ✅ PASSED
+        • POST /api/panel/login with {username:"nbayftest", pin:"241743"}
+        • Response: HTTP 200 (0.38s)
+        • Token obtained successfully
+      
+      [Step 1] SAVE file content: ✅ PASSED
+        • POST /api/panel/files/save
+        • Body: {"dir":"/public_html","file":"qa-content-test.txt","content":"hello-fallback-2026-verify-XYZ"}
+        • Response: HTTP 200 (1.97s) ✅ NO 30s timeout
+        • Response data: {
+            "status": 1,
+            "data": {"path": "/home/nbayftest/public_html/qa-content-test.txt", ...},
+            "via": "whm-session-fallback"
+          }
+        • ✅ status === 1 (success)
+        • ✅ via === "whm-session-fallback" (confirms WHM session used)
+        • ✅ NO HTML leak (no "<!DOCTYPE html>" or "cPanel Login")
+        • ✅ Response time 1.97s (well under 20s, no timeout)
+      
+      [Step 2] READ file content: ✅ PASSED
+        • GET /api/panel/files/content?dir=/public_html&file=qa-content-test.txt
+        • Response: HTTP 200 (2.08s) ✅ NO 30s timeout
+        • Response structure: {status, data, via, ...}
+        • ✅ Content extracted: "hello-fallback-2026-verify-XYZ"
+        • ✅ Content matches expected: "hello-fallback-2026-verify-XYZ"
+        • ✅ NO HTML leak (no "<!DOCTYPE html>" or "cPanel Login")
+        • ✅ Response time 2.08s (well under 20s, no timeout)
+      
+      [Step 3] CLEANUP - Delete test files: ✅ PASSED
+        • POST /api/panel/files/delete for qa-content-test.txt → HTTP 200
+        • POST /api/panel/files/delete for e2e-test-file.txt → HTTP 200
+        • Both test files deleted successfully
+      
+      [Step 4] VERIFY cleanup: ✅ PASSED
+        • GET /api/panel/files?dir=/public_html
+        • Confirmed: NO test files (qa-content-test.txt, e2e-test-file.txt) remain in /public_html
+        • Cleanup verified successfully
+      
+      KEY FIX VERIFIED:
+      • BEFORE: File content read/save operations timed out after 30s when user-level cPanel auth 
+        was broken (routes tried to reach unreachable origin IP)
+      • AFTER: Routes now call cpProxy.uapiViaSession which routes the cpsession through the 
+        CPANEL_API_URL tunnel → operations complete in ~2s via WHM session fallback
+      
+      IMPLEMENTATION VERIFIED:
+      • File save (POST /panel/files/save) succeeds via WHM session fallback
+      • File read (GET /panel/files/content) succeeds via WHM session fallback
+      • Both operations return real JSON (no HTML login page leak)
+      • Both operations complete within ~2s (no 30s timeout)
+      • Response includes "via": "whm-session-fallback" marker for observability
+      • Account nbayftest with broken user-level auth can now read/save files successfully
+      
+      PRODUCTION IMPACT:
+      • Users with broken user-level cPanel auth (like nbayftest) can now use File Manager 
+        content read/save operations without 30s timeouts
+      • Operations complete in ~2s instead of timing out
+      • No HTML login page leaks to the client
+      • WHM session fallback provides transparent recovery
+      
+      SAFETY CONFIRMED:
+      • All test files were clearly named (qa-content-test.txt, e2e-test-file.txt)
+      • All test files were deleted and cleanup verified
+      • NO existing files, subdomains, domains, or databases were touched
+      • Only /public_html directory was used for testing
+      • Account nbayftest is a dedicated test account
+      
+      The cPanel File Manager content read/save via WHM-session fallback fix is now working 
+      and verified. The 30s timeout bug for accounts with broken user-level auth is FIXED.

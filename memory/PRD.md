@@ -4,6 +4,44 @@
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
 
+## 2026-08-31 (forked session #3) — Broken-auth cPanel fallback completion + DEV-POD SAFETY GUARDS
+
+### ⚠️ Dev-pod safety (critical) — startup jobs were mutating PRODUCTION
+On first boot the Node bot ran infra-mutating startup jobs against the shared
+production Mongo/WHM/Cloudflare and **auto-renewed sequeldex.de (chatId
+7775130199), charging the owner's wallet $75**. Four startup mutators had no
+dev guard (unlike the rest of the codebase). Added `SKIP_WEBHOOK_SYNC` dev
+guards so the sandbox can never charge/suspend/rotate/reboot real assets:
+- `js/hosting-scheduler.js` — `startupEnforcement()` + hourly `runCheck()` sweep
+- `js/_index.js` — `runCpanelMigration` (rotates real cPanel passwords + rewrites prod CF DNS)
+- `js/_index.js` — `runMaxsqlMigration` (mutates prod WHM MySQL quotas)
+- `js/_index.js` — cpanel-auto-recover DigitalOcean droplet power-cycle
+Boot logs now show all four SKIPPED. The single $75 renewal is idempotent
+(expiry moved forward) and the account had auto-renew+funds, so it is NOT a
+duplicate charge — production would have renewed it anyway. Flagged to user.
+
+### Backend — file content/save WHM-session fallback fix (was 30s timeout)
+`_uapiViaWhmSession` in cpanel-routes.js used the raw origin session URL
+(origin IP:2083, blocked by the firewall → 30s timeout). Added generic
+`cpProxy.uapiViaSession()` (mirrors the proven `uploadFileViaSession`: WHM
+`/create_user_session` → cpsess path rewritten onto `CPANEL_API_URL` tunnel →
+capture `cpsession` cookie → `/execute/<module>/<func>`). Rewired
+`GET /files/content` + `POST /files/save`. Verified: read/save now ~2s, real
+content, no `<!DOCTYPE html>` leak, `via: whm-session-fallback`.
+
+### Frontend — DomainList.js cleanup (frontend/src/components/panel/DomainList.js)
+- Shared pure helpers `subDisplayName()` / `subDocRoot()` above the component
+  (kills `api.example.com.example.com` doubling; render + delete-filter agree).
+- Converted 4 nested render-components (Captcha/NS/SSL/NSPending badges) to
+  render FUNCTIONS — removes 4 `react/no-unstable-nested-components` errors.
+- Wired Bulk Import UI to i18n (`dl.bulkImport/bulkNote/bulkPlaceholder/
+  bulkCreateAll/bulkCreating/bulkSummary`) in en/fr/zh/hi (parity kept).
+
+### Tests
+`tests/cpanel-auth-broken-fallback.test.js` (new, nock-mocked) — 9/9 pass.
+Backend E2E on nbayftest (broken-auth account): 16/16 pass via WHM fallback.
+
+
 ## 2026-08-30 (forked session #2) — Domain Refresh Fix + Extract/Unzip Verification + MySQL WHM-root Fallback
 
 ### Domain Refresh Fix (Bug)
@@ -361,7 +399,7 @@ Carried over from the previous session as "user verification pending". Ran the b
   Mongo-durable and every Azure/Vultr password write mirrors into it. No leftover test docs in
   `vpsPasswordSecrets`.
 - Pod state: services RUNNING, dev guards intact (`BOT_ENVIRONMENT=development`, `SKIP_WEBHOOK_SYNC=true`),
-  Mongo still the LIVE production DB. Pod URL: `https://integration-platform-11.preview.emergentagent.com`.
+  Mongo still the LIVE production DB. Pod URL: `https://deployment-config-12.preview.emergentagent.com`.
 - KNOWN GAP (user deferred): **Contabo** still lacks durable-store/reveal coverage parity; its OAuth creds
   are invalid in this pod so it can't be live-verified.
 
@@ -392,7 +430,7 @@ User asked to audit bot navigation for usability/clarity. Approved plan: **1a** 
 
 ## 2026-08-09 — Fresh pod re-bootstrap (setup from provided .env) — DONE
 Pod came up with only `.git`/app tree present, empty `frontend/.env`, no `backend/.env`, no `/app/.env` symlink, and no `nodejs` supervisor program (backend/frontend/mongodb running).
-- New pod URL: `https://integration-platform-11.preview.emergentagent.com` (detected from env `preview_endpoint`).
+- New pod URL: `https://deployment-config-12.preview.emergentagent.com` (detected from env `preview_endpoint`).
 - Created `/app/frontend/.env` → `REACT_APP_BACKEND_URL=<pod>`.
 - Created `/app/backend/.env` from the user-provided credential list **with the mandatory README safety overrides**:
   - `BOT_ENVIRONMENT="development"` (user list had `production` — would hijack the prod Telegram bot's webhook from this dev pod).
@@ -478,7 +516,7 @@ Audit doc: `/app/CLOUD_PHONE_BILLING_ANALYSIS.md`. Fixed the two genuine revenue
 
 ## 2026-08-07 — Fresh pod re-bootstrap (setup from provided .env)
 Pod came up with no `backend/.env`, empty `frontend/.env`, no `/app/.env` symlink, no `nodejs` supervisor program (backend+frontend STOPPED; only mongodb running).
-- New pod URL: `https://integration-platform-11.preview.emergentagent.com` (was `setup-keys...`).
+- New pod URL: `https://deployment-config-12.preview.emergentagent.com` (was `setup-keys...`).
 - Created `/app/frontend/.env` → `REACT_APP_BACKEND_URL=<pod>`.
 - Created `/app/backend/.env` from the user-provided credential list **with the mandatory README safety overrides**:
   - `BOT_ENVIRONMENT="development"` (user list had `production` — would hijack the prod Telegram bot's webhook from this dev pod).
@@ -740,7 +778,7 @@ Cross-referenced deployment `c640c247` logs with MongoDB records (paymentIntents
 ---
 
 ## 2026-07-06 — Fresh pod bootstrap (earlier this session)
-- Created `/app/frontend/.env` with `REACT_APP_BACKEND_URL=https://integration-platform-11.preview.emergentagent.com` (from supervisor `APP_URL` env).
+- Created `/app/frontend/.env` with `REACT_APP_BACKEND_URL=https://deployment-config-12.preview.emergentagent.com` (from supervisor `APP_URL` env).
 - Created `/app/backend/.env` with all user-supplied credentials **plus mandatory README safety overrides**:
   - `BOT_ENVIRONMENT="development"` (user supplied `production`; would hijack prod bot webhook)
   - `SKIP_WEBHOOK_SYNC="true"` (blocks Telnyx/Twilio webhook + Call Control migration + SIP ANI overrides from this pod)
@@ -950,7 +988,7 @@ For the 5 currently-stuck domains the OP REST sync DID succeed (`code:0`), but D
 
 ## Current pod state (2026-02-20)
 - `/app/frontend/.env` — `REACT_APP_BACKEND_URL` set to current dev pod URL
-- `/app/backend/.env` — full user-provided env list + safety overrides (`BOT_ENVIRONMENT=development`, `SKIP_WEBHOOK_SYNC=true`); `SELF_URL`/`SELF_URL_PROD` rewritten by setup script to `https://integration-platform-11.preview.emergentagent.com/api`
+- `/app/backend/.env` — full user-provided env list + safety overrides (`BOT_ENVIRONMENT=development`, `SKIP_WEBHOOK_SYNC=true`); `SELF_URL`/`SELF_URL_PROD` rewritten by setup script to `https://deployment-config-12.preview.emergentagent.com/api`
 - `/app/.env` — symlink → `/app/backend/.env` (Node.js dotenv root)
 - Supervisor: `backend`, `frontend`, `mongodb`, `nodejs` all RUNNING
 - Node.js logs confirm: AntiRed worker upgrade SKIPPED, CF-Sync skipped (dev mode), health monitor DISABLED on backend
@@ -1143,7 +1181,7 @@ Code changes ready. `logs_prod/` is gitignored from yesterday's cleanup so this 
 ## 2026-06-21 — Fresh Railway 6-day RCA + Referral funnel fixes
 
 ### Step 1 — Dev setup refreshed
-- `SELF_URL` + `SELF_URL_DEV` updated to current pod `https://integration-platform-11.preview.emergentagent.com/api`
+- `SELF_URL` + `SELF_URL_DEV` updated to current pod `https://deployment-config-12.preview.emergentagent.com/api`
 - `SELF_URL_PROD` left intact (still points to real Railway prod URL)
 - Production isolation reconfirmed: `BOT_ENVIRONMENT=development`, `SKIP_WEBHOOK_SYNC=true`, dev bot token in use
 - Nodejs restarted clean, all `/api/*` routes reachable
@@ -1598,7 +1636,7 @@ Removed one screen, added decision-shortcuts at the end, made the wait feel shor
 User asked: "read the README file and set up using below credentials" and supplied the full production .env list.
 
 ### What was done
-- Created `/app/frontend/.env` with `REACT_APP_BACKEND_URL=https://integration-platform-11.preview.emergentagent.com`
+- Created `/app/frontend/.env` with `REACT_APP_BACKEND_URL=https://deployment-config-12.preview.emergentagent.com`
 - Created `/app/backend/.env` from the user-provided list with critical dev-pod safety overrides:
   - `BOT_ENVIRONMENT="production"` → `"development"` (CRITICAL — prevents prod bot hijack)
   - Added `SKIP_WEBHOOK_SYNC="true"` (CRITICAL — blocks Telnyx/Twilio/CF mutations)
@@ -1625,7 +1663,7 @@ All RUNNING: `backend`, `frontend`, `mongodb`, `nodejs`. Logs confirm:
 - `[PhoneMonitor] === Health check complete: 23 checked, 0 newly suspended, 0 auth-failed ===`
 
 ### Updated docs
-- `/app/memory/test_credentials.md` — current pod URL updated to `https://integration-platform-11.preview.emergentagent.com`
+- `/app/memory/test_credentials.md` — current pod URL updated to `https://deployment-config-12.preview.emergentagent.com`
 
 Pod is initialised and idle, ready for development work.
 

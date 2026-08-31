@@ -461,6 +461,15 @@
     "unknownPlan": "inconnu"
   },
   "dl": {
+    "bulkImport": "Import groupé",
+    "bulkSingle": "Simple",
+    "bulkNote": "Créez plusieurs sous-domaines à la fois — séparez les noms par des virgules ou des retours à la ligne (max 50). Chacun obtient son propre dossier public_html/.",
+    "bulkPlaceholder": "shop, blog, api, dev, staging",
+    "bulkCreateAll": "Tout créer",
+    "bulkCreating": "Création...",
+    "bulkSummary": "{{succeeded}} sur {{total}} créés · {{failed}} échec(s)",
+    "bulkEmpty": "Saisissez au moins un nom de sous-domaine.",
+    "bulkDone": "Terminé",
     "title": "Domaines",
     "runAutoSSL": "Exécuter AutoSSL",
     "running": "En cours...",

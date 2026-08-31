@@ -1370,6 +1370,102 @@ async function uploadFileViaSession(cpUser, dir, fileName, fileBuffer, whmHost) 
   }
 }
 
+// ─── Generic UAPI over a WHM-minted cpsession ────────────────────────
+//
+// Same session ladder as uploadFileViaSession, but for non-multipart
+// /execute/<module>/<func> ops — specifically Fileman::get_file_content and
+// save_file_content. Those MUST go through a real cpsession on the
+// CPANEL_API_URL tunnel (port 2083), NOT the WHM json-api gateway (2087):
+//   - get_file_content over json-api returns the login-page HTML for a
+//     broken-auth user, and
+//   - the raw session URL WHM returns points at the origin IP:2083, which the
+//     ingress firewall blocks (30s timeout — the 2026-08-31 @nbayftest bug).
+// So we rewrite the cpsess path onto CPANEL_API_URL and carry the cpsession
+// cookie ourselves, exactly like the upload path.
+async function uapiViaSession(cpUser, module, func, params = {}, method = 'GET', whmHost = null) {
+  const whmToken = process.env.WHM_TOKEN
+  const eff = whmHost || WHM_HOST
+  if (!whmToken || !eff) {
+    return { status: 0, errors: ['WHM session fallback not configured (missing WHM_TOKEN or whmHost)'], data: null, via: 'session-unavailable' }
+  }
+  const whmApiUrl = process.env.WHM_API_URL
+  const useTunnel = whmApiUrl && eff === WHM_HOST
+  const whmBase = useTunnel ? `${whmApiUrl.replace(/\/+$/, '')}/json-api` : `https://${eff}:2087/json-api`
+  const cfAccess = (CF_ACCESS_CLIENT_ID && CF_ACCESS_CLIENT_SECRET) ? {
+    'CF-Access-Client-Id': CF_ACCESS_CLIENT_ID,
+    'CF-Access-Client-Secret': CF_ACCESS_CLIENT_SECRET,
+  } : {}
+  try {
+    // Step 1 — WHM mints a user session (this call goes over the WHM tunnel, which is reachable).
+    const sess = await axios.get(`${whmBase}/create_user_session`, {
+      params: { 'api.version': 1, user: cpUser, service: 'cpaneld' },
+      headers: { Authorization: `whm ${process.env.WHM_USERNAME || 'root'}:${whmToken}`, ...cfAccess },
+      httpsAgent, timeout: 30000, validateStatus: () => true,
+    })
+    if (sess.data?.metadata?.result !== 1) {
+      const reason = sess.data?.metadata?.reason || 'WHM create_user_session returned failure'
+      log(`[cPanel Proxy] uapiViaSession: create_user_session failed for ${cpUser} — ${reason}`)
+      return { status: 0, errors: [sanitizeString(String(reason), eff)], data: null, via: 'session-create-failed' }
+    }
+    const sessInfo = sess.data.data || {}
+    const cpsess = sessInfo.cp_security_token
+    const sessionToken = sessInfo.session
+    if (!cpsess || !sessionToken) {
+      return { status: 0, errors: ['WHM session response missing cp_security_token or session'], data: null, via: 'session-malformed' }
+    }
+
+    // Step 2 — Seed the cpsession cookie on the CPANEL tunnel host (port 2083).
+    const cpanelApiUrl = process.env.CPANEL_API_URL || ''
+    const useCpanelTunnel = cpanelApiUrl && eff === WHM_HOST
+    const tunnelBase = useCpanelTunnel ? cpanelApiUrl.replace(/\/+$/, '') : `https://${eff}:2083`
+    const loginUrl = `${tunnelBase}${cpsess}/login/?session=${encodeURIComponent(sessionToken)}`
+    const loginRes = await axios.get(loginUrl, {
+      headers: { ...cfAccess },
+      httpsAgent, timeout: 30000, validateStatus: () => true, maxRedirects: 0,
+    })
+    const setCookies = loginRes.headers['set-cookie'] || []
+    const cpsessionCookie = setCookies.map(c => (c.match(/cpsession=([^;]+)/) || [])[1]).find(Boolean)
+    if (!cpsessionCookie) {
+      log(`[cPanel Proxy] uapiViaSession: no cpsession cookie in login response for ${cpUser} (status ${loginRes.status})`)
+      return { status: 0, errors: ['session login did not set cpsession cookie'], data: null, via: 'session-cookie-missing' }
+    }
+
+    // Step 3 — Call /execute/<module>/<func> with the cpsession cookie.
+    const execUrl = `${tunnelBase}${cpsess}/execute/${module}/${func}`
+    const commonHeaders = { Cookie: `cpsession=${cpsessionCookie}`, ...cfAccess }
+    let res
+    if (method === 'POST') {
+      res = await axios.post(execUrl, new URLSearchParams(params).toString(), {
+        headers: { ...commonHeaders, 'Content-Type': 'application/x-www-form-urlencoded' },
+        httpsAgent, timeout: 60000, validateStatus: () => true,
+        maxContentLength: 50 * 1024 * 1024, maxBodyLength: 50 * 1024 * 1024,
+      })
+    } else {
+      res = await axios.get(execUrl, { params, headers: commonHeaders, httpsAgent, timeout: 60000, validateStatus: () => true })
+    }
+    if (res.status !== 200 || typeof res.data !== 'object') {
+      const preview = (typeof res.data === 'string' ? res.data : JSON.stringify(res.data)).slice(0, 200)
+      log(`[cPanel Proxy] uapiViaSession: ${module}::${func} HTTP ${res.status} for ${cpUser} — ${preview}`)
+      return { status: 0, errors: [sanitizeString(`HTTP ${res.status}: ${preview}`, eff)], data: null, httpStatus: res.status, via: 'session-exec-failed' }
+    }
+    const body = sanitize(res.data, eff)
+    return {
+      status: body?.status === 1 ? 1 : 0,
+      data: body?.data ?? null,
+      errors: body?.errors || null,
+      messages: body?.messages || null,
+      metadata: body?.metadata || null,
+      reason: (Array.isArray(body?.errors) && body.errors[0]) || body?.error || null,
+      via: 'whm-session',
+    }
+  } catch (err) {
+    const status = err.response?.status
+    const msg = extractCpanelErrorFromResponse(err, eff) || err.message
+    log(`[cPanel Proxy] uapiViaSession exception for ${cpUser} (${module}::${func}): (${status || 'no-status'}) ${msg}`)
+    return { status: 0, errors: [sanitizeString(String(msg), eff)], data: null, httpStatus: status || null, via: 'session-exception' }
+  }
+}
+
 // ─── WHM-root multipart upload fallback ──────────────────────────────
 //
 // When user-level UAPI upload_files fails with 401/403 (stale cpPass /
@@ -1502,12 +1598,19 @@ module.exports = {
   extractCpanelErrorFromResponse,
   looksLikeUapiPermFailure,
   looksLikeAuthFailure,
+  // Low-level API2 caller — surfaced so tests can assert the "HTTP 200 +
+  // login-page HTML" → CPANEL_AUTH_FAILURE normalisation directly (uapi is
+  // already exported above).
+  api2,
   sanitizeCpanelFileName,
   // WHM-root multipart upload fallback (2026-08-26 @HHR2009 /nnliae74 fix)
   uploadFileAsRoot,
   // WHM impersonation-session upload — definitive fix for cpsrvd-denies-basic-auth
   // (2026-08-26 @HHR2009 /nnliae74 final fix, superseded uploadFileAsRoot in routes)
   uploadFileViaSession,
+  // Generic UAPI over a WHM cpsession — file get/save fallback via CPANEL_API_URL
+  // tunnel (2026-08-31 fix: the routes' inline session helper hit the origin IP → 30s timeout)
+  uapiViaSession,
   // EPERM (broken homedir/quota) — UX + ops alerting
   getEpermUserMessage,
   getEpermLocalizedMessages,
