@@ -10,7 +10,74 @@ const transporter = nodemailer.createTransport({
   },
 })
 
-async function sendEmail(info, response, pin) {
+// Localized copy for the "update your nameservers" card (external domains only).
+const NS_COPY = {
+  en: {
+    title: '🌐 Action Required — Update Your Nameservers',
+    intro: (domain) => `Your domain <strong>${domain}</strong> is connected as an external domain. Update the nameservers at your domain registrar to the values below so your site goes live:`,
+    steps: `Go to your domain registrar's control panel → DNS / Nameserver settings → replace the existing nameservers with the two above.`,
+    note: `⏳ Your site won't be live until the nameservers are updated and fully propagate (up to 24 hours).`,
+  },
+  fr: {
+    title: '🌐 Action requise — Mettez à jour vos serveurs de noms',
+    intro: (domain) => `Votre domaine <strong>${domain}</strong> est connecté en tant que domaine externe. Mettez à jour les serveurs de noms chez votre registraire avec les valeurs ci-dessous pour que votre site soit en ligne :`,
+    steps: `Accédez au panneau de votre registraire → Paramètres DNS / Serveurs de noms → remplacez les serveurs de noms existants par les deux ci-dessus.`,
+    note: `⏳ Votre site ne sera pas en ligne tant que les serveurs de noms ne seront pas mis à jour et entièrement propagés (jusqu'à 24 heures).`,
+  },
+  zh: {
+    title: '🌐 需要操作 — 更新您的域名服务器',
+    intro: (domain) => `您的域名 <strong>${domain}</strong> 已作为外部域名连接。请在您的域名注册商处将域名服务器更新为以下值，以使您的网站上线：`,
+    steps: `前往您的域名注册商控制面板 → DNS / 域名服务器设置 → 将现有的域名服务器替换为以上两个。`,
+    note: `⏳ 在域名服务器更新并完全传播之前（最多24小时），您的网站将无法上线。`,
+  },
+  hi: {
+    title: '🌐 कार्रवाई आवश्यक — अपने नेमसर्वर अपडेट करें',
+    intro: (domain) => `आपका डोमेन <strong>${domain}</strong> एक बाहरी डोमेन के रूप में कनेक्ट किया गया है। अपनी साइट को लाइव करने के लिए अपने डोमेन रजिस्ट्रार पर नेमसर्वर को नीचे दिए गए मानों में अपडेट करें:`,
+    steps: `अपने डोमेन रजिस्ट्रार के कंट्रोल पैनल पर जाएं → DNS / नेमसर्वर सेटिंग्स → मौजूदा नेमसर्वर को ऊपर दिए गए दोनों से बदलें।`,
+    note: `⏳ जब तक नेमसर्वर अपडेट और पूरी तरह प्रसारित नहीं हो जाते (24 घंटे तक), आपकी साइट लाइव नहीं होगी।`,
+  },
+}
+
+function buildNameserverCard(info) {
+  const isExternal = info._isExternalDomain || info.connectExternalDomain
+  const ns = Array.isArray(info.cfNameservers) ? info.cfNameservers : []
+  if (!isExternal || ns.length < 2) return ''
+
+  const lang = info.userLanguage || 'en'
+  const c = NS_COPY[lang] || NS_COPY.en
+
+  return `
+              <!-- Nameserver Action (external domain) -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); border-radius: 12px; border: 1px solid #fcd34d; margin-bottom: 25px;">
+                <tr>
+                  <td style="padding: 25px;">
+                    <h2 style="margin: 0 0 12px; font-size: 16px; color: #92400e; text-transform: uppercase; letter-spacing: 1px;">${c.title}</h2>
+                    <p style="margin: 0 0 16px; font-size: 14px; color: #78350f; line-height: 1.6;">${c.intro(info.website_name)}</p>
+
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="padding: 10px 0; border-bottom: 1px solid rgba(146,64,14,0.15);">
+                          <span style="color: #92400e; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">NS1</span><br>
+                          <span style="color: #1a1a2e; font-size: 16px; font-weight: 600; font-family: 'Courier New', monospace; background: #fff; padding: 2px 8px; border-radius: 4px;">${ns[0]}</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 10px 0;">
+                          <span style="color: #92400e; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">NS2</span><br>
+                          <span style="color: #1a1a2e; font-size: 16px; font-weight: 600; font-family: 'Courier New', monospace; background: #fff; padding: 2px 8px; border-radius: 4px;">${ns[1]}</span>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <p style="margin: 16px 0 8px; font-size: 13px; color: #78350f; line-height: 1.6;">${c.steps}</p>
+                    <p style="margin: 0; font-size: 13px; color: #b45309; line-height: 1.6; font-weight: 600;">${c.note}</p>
+                  </td>
+                </tr>
+              </table>
+`
+}
+
+function buildEmailHtml(info, response, pin) {
   const plan = info.plan || 'Hosting Plan'
   const panelDomain = process.env.PANEL_DOMAIN
   const panelUrl = panelDomain
@@ -28,7 +95,9 @@ async function sendEmail(info, response, pin) {
   else if (plan.includes('1-Year') || plan.includes('Yearly')) duration = '1 Year'
   else duration = 'See your plan details'
 
-  const emailHtml = `
+  const nameserverCard = buildNameserverCard(info)
+
+  return `
 <!DOCTYPE html>
 <html>
 <head>
@@ -106,7 +175,7 @@ async function sendEmail(info, response, pin) {
                   </td>
                 </tr>
               </table>
-
+${nameserverCard}
               <!-- CTA Button -->
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 25px;">
                 <tr>
@@ -153,6 +222,12 @@ async function sendEmail(info, response, pin) {
 </body>
 </html>
 `
+}
+
+async function sendEmail(info, response, pin) {
+  const plan = info.plan || 'Hosting Plan'
+  const brandName = process.env.CHAT_BOT_BRAND || 'Nomadly'
+  const emailHtml = buildEmailHtml(info, response, pin)
 
   try {
     const mailResponse = await transporter.sendMail({
@@ -169,3 +244,5 @@ async function sendEmail(info, response, pin) {
 }
 
 module.exports = sendEmail
+module.exports.buildEmailHtml = buildEmailHtml
+module.exports.buildNameserverCard = buildNameserverCard

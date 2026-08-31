@@ -4,6 +4,37 @@
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
 
+## 2026-06 (forked session #4) — Hosting welcome email now shows Cloudflare nameservers for EXTERNAL domains (localized)
+
+**Task (user msg #10):** the hosting-plan confirmation email after purchase must include the
+Cloudflare nameservers when the customer connects an EXTERNAL domain, so they know what to
+point their registrar at (reduces support load). User chose: **localize (en/fr/zh/hi)**;
+verify via local HTML only (no live email send from the shared-prod dev pod).
+
+**Shipped:**
+- `js/send-email.js` — refactored the HTML build into a pure, exported `buildEmailHtml(info,response,pin)`
+  (+ `buildNameserverCard(info)`), `sendEmail` unchanged in behavior. New amber "Action Required —
+  Update Your Nameservers" card rendered ONLY when `(info._isExternalDomain || info.connectExternalDomain)`
+  AND `info.cfNameservers.length >= 2`. NS1/NS2 in monospace + localized intro/steps/propagation note
+  in en/fr/zh/hi (`NS_COPY`, falls back to EN for unknown langs). Internal/registered domains (NS auto-set
+  by us) show NO card; <2 NS shows NO card (no partial/empty leak).
+- `js/cr-register-domain-&-create-cpanel.js` — right before the single `sendEmail(info,response,pin)`
+  call (~L874, the ONE path all provisioning funnels through: bot flow, storefront `store-routes.js`,
+  queue re-run `cpanel-job-handlers.js`), stamp `info.cfNameservers = <resolved cfNameservers array>`
+  and `info._isExternalDomain = !!isExternal`. Uses the real resolved CF NS (the origin-IP-leak-safe
+  source), NOT stale session state. Recipient language comes from `info.userLanguage`.
+
+**Verified (no real email sent):** `js/tests/test_email_external_nameservers.js` = **17/17 pass**
+(external en/fr/zh/hi cards present w/ both NS; internal → no card; 0/1/undefined NS → no card;
+unknown lang → EN fallback). `node --check` clean on both files. Visual render screenshot confirmed
+the amber card layout. Node service healthy (`/api/health` connected), dev guards intact
+(`BOT_ENVIRONMENT=development`, `SKIP_WEBHOOK_SYNC=true`).
+
+**Reaches production** after Save-to-GitHub + Railway redeploy. Note: email template header/greeting/
+footer remain English (unchanged this session); only the new nameserver action card is localized per
+user request.
+
+
 ## 2026-08-31 (forked session #3) — Broken-auth cPanel fallback completion + DEV-POD SAFETY GUARDS
 
 ### ⚠️ Dev-pod safety (critical) — startup jobs were mutating PRODUCTION

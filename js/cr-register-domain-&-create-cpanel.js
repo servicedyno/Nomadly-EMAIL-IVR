@@ -871,6 +871,10 @@ Login: ${panelUrl}
     // Send email (if provided)
     if (info.email) {
       try {
+        // For external domains, surface the real Cloudflare nameservers in the
+        // welcome email so the user knows what to point their registrar to.
+        info.cfNameservers = Array.isArray(cfNameservers) ? cfNameservers : []
+        info._isExternalDomain = !!isExternal
         await sendEmail(info, response, pin)
         send(chatId, `📧 Credentials sent to <b>${info.email}</b>`, rem)
       } catch (error) {
