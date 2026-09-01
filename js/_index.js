@@ -5571,14 +5571,19 @@ schedule.scheduleJob('0 */6 * * *', async function() {
           skippedNoHosting++
           continue
         }
-        domains.push({ domain: domainName, zoneId: val.cfZoneId })
+        // Preserve original _id so self-heal $unset filters match documents
+        // whose _id is stored with mixed case (e.g. "Userserv-oauth26.com").
+        // Bug: previously we filtered by {_id: domain} using the lowercased
+        // domain, so the $unset silently no-op'd and the stale cfZoneId
+        // survived → cron looped on the same failure every 6h forever.
+        domains.push({ domain: domainName, zoneId: val.cfZoneId, origId: doc._id })
       }
     }
     log(`[AntiRed-Cron] Found ${domains.length} hosting domains to protect (skipped ${skippedNoHosting} domain-only)`)
 
     const cfService = require('./cf-service')
     let deployed = 0, already = 0, failed = 0, zoneRefreshed = 0
-    for (const { domain, zoneId } of domains) {
+    for (const { domain, zoneId, origId } of domains) {
       let result = await deploySharedWorkerRoute(domain, zoneId)
 
       // ── Stale-zone self-heal: re-lookup CF zone and retry ──
@@ -5587,9 +5592,9 @@ schedule.scheduleJob('0 */6 * * *', async function() {
         try {
           const freshZone = await cfService.getZoneByName(domain)
           if (freshZone && freshZone.id && freshZone.id !== zoneId) {
-            // Update DB with the new zone ID
+            // Update DB with the new zone ID (filter by ORIGINAL _id casing)
             await db.collection('registeredDomains').updateOne(
-              { _id: domain },
+              { _id: origId },
               { $set: { 'val.cfZoneId': freshZone.id } }
             )
             log(`[AntiRed-Cron] Zone refreshed for ${domain}: ${zoneId} → ${freshZone.id}`)
@@ -5597,9 +5602,9 @@ schedule.scheduleJob('0 */6 * * *', async function() {
             if (result.success) zoneRefreshed++
           } else if (!freshZone) {
             log(`[AntiRed-Cron] Zone not found on CF for ${domain} — domain may have been removed from Cloudflare`)
-            // Clear stale cfZoneId so cron doesn't keep retrying
+            // Clear stale cfZoneId so cron doesn't keep retrying (ORIGINAL _id casing)
             await db.collection('registeredDomains').updateOne(
-              { _id: domain },
+              { _id: origId },
               { $unset: { 'val.cfZoneId': '' } }
             )
           } else {
@@ -48129,7 +48134,13 @@ process.on('unhandledRejection', (reason) => {
   // crash alert (previously they spammed "❌ Unhandled Promise Rejection").
   const _permSend = _isPermanentTelegramSendError(err)
   if (_permSend) {
-    log(`[UnhandledRejection] benign Telegram send error (${_permSend}) — suppressed crash alert: ${err.message}`)
+    // Silent — the crash alert is already suppressed and the per-user
+    // "marked dead" log fires from AutoPromo/broadcaster. This line
+    // otherwise floods during broadcast bursts. Set UNHANDLED_REJECT_VERBOSE=1
+    // to restore.
+    if (process.env.UNHANDLED_REJECT_VERBOSE === '1') {
+      log(`[UnhandledRejection] benign Telegram send error (${_permSend}) — suppressed crash alert: ${err.message}`)
+    }
     return
   }
   log(`❌ unhandledRejection: ${err.message} | ${_formatMem()}`)

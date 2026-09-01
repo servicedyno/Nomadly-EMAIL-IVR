@@ -177,10 +177,13 @@ async function isWhmReachable({ force = false } = {}) {
       log(`[cPanel Health] ⛔️ WHM control-plane DOWN — confirmed after ${_cache.consecutiveDownProbes} consecutive probe misses (${reason})`)
       _emit('down', { at: now, reason })
     } else if (wasReachable !== false) {
-      // First miss — warn in logs but don't alert anyone yet. If the next
-      // probe also fails we'll flip to DOWN; if it succeeds, nothing
-      // user-visible ever happened.
-      log(`[cPanel Health] ⚠️  WHM probe missed (${reason}) — ${_cache.consecutiveDownProbes}/${DOWN_THRESHOLD_MISSES} before DOWN`)
+      // First miss — noise (CF PoP reroute, TLS ticket expiry, DNS cache
+      // miss, brief cloudflared blip). We only escalate to a DOWN log once
+      // the N-strike threshold is crossed, so suppress the per-miss line
+      // unless verbose. Reduces log volume during transient WHM flaps.
+      if (process.env.CPANEL_HEALTH_VERBOSE === '1') {
+        log(`[cPanel Health] ⚠️  WHM probe missed (${reason}) — ${_cache.consecutiveDownProbes}/${DOWN_THRESHOLD_MISSES} before DOWN`)
+      }
     }
     // Keep the cached "false" value so isWhmReachableCached() short-circuits
     // hot-path callers once we've actually confirmed DOWN. Until then, we

@@ -294,7 +294,13 @@ async function checkAndRepair(cpUsername) {
       hasDeploySignature = !!(doc && doc.lastCfIpFixSig)
     } catch (e) { /* ignore — fall through */ }
     if (hasDeploySignature) {
-      log(`[ProtectionHeartbeat] ${cpUsername} — WHM read unreliable (empty content after ${RETRY_DELAYS_MS.length} retries, no explicit errors). lastCfIpFixSig present → SKIPPING this cycle (assuming files intact on disk). No counter increment, no alert.`)
+      // Silent skip — this fires ~230/22h on prod when WHM is under load
+      // and floods Railway's 500 msgs/sec cap. The count is aggregated
+      // into the per-cycle summary line (see runHeartbeat) instead.
+      // Set PROTECTION_HEARTBEAT_VERBOSE=1 to restore per-user logging.
+      if (process.env.PROTECTION_HEARTBEAT_VERBOSE === '1') {
+        log(`[ProtectionHeartbeat] ${cpUsername} — WHM read unreliable (empty content after ${RETRY_DELAYS_MS.length} retries, no explicit errors). lastCfIpFixSig present → SKIPPING this cycle (assuming files intact on disk). No counter increment, no alert.`)
+      }
       return { cpUsername, ok: true, action: 'skipped', reason: 'whm_read_unreliable' }
     }
   }
@@ -461,7 +467,7 @@ async function runHeartbeat() {
 
   isRunning = true
   const startTime = Date.now()
-  const summary = { total: 0, ok: 0, repaired: 0, errors: 0, skipped: 0 }
+  const summary = { total: 0, ok: 0, repaired: 0, errors: 0, skipped: 0, skippedWhmReadUnreliable: 0 }
 
   try {
     // Only scan ACTIVE accounts. Deleted accounts can never be repaired
@@ -481,7 +487,10 @@ async function runHeartbeat() {
       const result = await checkAndRepair(cpUsername)
       if (result.action === 'none') summary.ok++
       else if (result.action === 'repaired' && result.ok) summary.repaired++
-      else if (result.action === 'skipped') summary.skipped++
+      else if (result.action === 'skipped') {
+        summary.skipped++
+        if (result.reason === 'whm_read_unreliable') summary.skippedWhmReadUnreliable++
+      }
       else summary.errors++
 
       await new Promise(r => setTimeout(r, PER_ACCOUNT_DELAY_MS))
@@ -492,7 +501,7 @@ async function runHeartbeat() {
   }
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
-  log(`[ProtectionHeartbeat] Done in ${elapsed}s — total:${summary.total} ok:${summary.ok} repaired:${summary.repaired} skipped:${summary.skipped} errors:${summary.errors}`)
+  log(`[ProtectionHeartbeat] Done in ${elapsed}s — total:${summary.total} ok:${summary.ok} repaired:${summary.repaired} skipped:${summary.skipped}${summary.skippedWhmReadUnreliable ? ` (whm_read_unreliable:${summary.skippedWhmReadUnreliable})` : ''} errors:${summary.errors}`)
   isRunning = false
   return summary
 }
