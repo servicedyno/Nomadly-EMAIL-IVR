@@ -3753,7 +3753,7 @@ const loadData = async () => {
             const allUsers = await db.collection('phoneNumbersOf').find({}).toArray()
             let updated = 0, failed = 0, recovered = 0
             for (const user of allUsers) {
-              const numbers = (user.val?.numbers || []).filter(n => n.provider === 'twilio' && n.status === 'active' && n.twilioNumberSid)
+              const numbers = (user.val?.numbers || []).filter(n => n.provider === 'twilio' && n.status === 'active' && n.twilioNumberSid && !n.orphaned)
               if (!numbers.length) continue
               let subSid = user.val?.twilioSubAccountSid
               let subToken = user.val?.twilioSubAccountToken
@@ -3788,7 +3788,24 @@ const loadData = async () => {
               for (const num of numbers) {
                 try {
                   if (subSid && subToken) {
-                    await twilioService.updateSubAccountNumberWebhooks(subSid, num.twilioNumberSid, SELF_URL)
+                    const upd = await twilioService.updateSubAccountNumberWebhooks(subSid, num.twilioNumberSid, SELF_URL)
+                    // Twilio returns 404 when the incomingPhoneNumber SID no
+                    // longer exists in this sub-account (number released,
+                    // ported out, or moved). Flag the record as orphaned so
+                    // the next sync skips it — DON'T delete (the user may
+                    // re-port the number, and we want the phone history
+                    // intact for support/billing lookups).
+                    if (upd && upd.error && (upd.status === 404 || upd.twilioCode === 20404)) {
+                      try {
+                        await db.collection('phoneNumbersOf').updateOne(
+                          { _id: user._id, 'val.numbers.twilioNumberSid': num.twilioNumberSid },
+                          { $set: { 'val.numbers.$.orphaned': true, 'val.numbers.$.orphanedAt': new Date(), 'val.numbers.$.orphanedReason': 'twilio_404_incoming_phone_number_not_found' } }
+                        )
+                        log(`[Twilio Sync] ORPHAN flagged: chatId=${user._id} ${num.phoneNumber} (sid=${num.twilioNumberSid}) — no longer in sub-account ${subSid}; skipping future webhook sync`)
+                      } catch (e) { /* best-effort */ }
+                      failed++
+                      continue
+                    }
                   } else {
                     // ━━━ SECURITY: Skip webhook update for numbers without sub-account credentials ━━━
                     // Never fall back to main account for user-owned numbers

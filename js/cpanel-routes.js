@@ -319,7 +319,12 @@ async function _fileopViaWhmRoot(whmApi, cpUser, op, params) {
 async function _repairCpPass(getCpanelCol, cpUser, whmHost) {
   const crypto = require('crypto')
   const cpAuth = require('./cpanel-auth')
-  const COOL_DOWN_MS = 60 * 60 * 1000
+  // Configurable cool-down (minutes). Default 60. Bumped via
+  // CPPASS_ROTATION_COOLDOWN_MIN so we can tune without a deploy —
+  // useful if WHM's cPHulk lockout window changes or we see churn
+  // on a single account.
+  const cooldownMin = parseInt(process.env.CPPASS_ROTATION_COOLDOWN_MIN || '60', 10)
+  const COOL_DOWN_MS = (Number.isFinite(cooldownMin) && cooldownMin > 0 ? cooldownMin : 60) * 60 * 1000
 
   const col = getCpanelCol()
   if (!col || !col.findOne) return { ok: false, error: 'accounts collection unavailable' }
@@ -457,6 +462,20 @@ async function _userCallWithHeal(req, doCall, selfHeal) {
   const healed = await selfHeal()
   if (healed) return doCall(req.cpPass)
   return result
+}
+
+// Write-route variant: wraps a user-level WRITE call (upload, mkdir, rename,
+// delete …) with the same self-heal-and-retry pattern, but gated behind the
+// CPANEL_SELFHEAL_WRITES=1 feature flag so we can roll it out gradually.
+// When the flag is OFF, this is a straight passthrough → identical to the
+// pre-existing behaviour (direct cpProxy call). When ON, an auth-broken
+// return value triggers _repairCpPass, and the call is retried once with the
+// fresh pass. Existing route-level WHM-root / session fallbacks still run
+// after this wrapper if the retry itself fails, so this ONLY adds recovery,
+// never removes it.
+async function _userWriteCallWithHeal(req, getCpanelCol, doCall) {
+  if (process.env.CPANEL_SELFHEAL_WRITES !== '1') return doCall(req.cpPass)
+  return _userCallWithHeal(req, doCall, () => _selfHealCpPass(req, getCpanelCol))
 }
 
 function _replyEperm(res, req, op) {
@@ -900,7 +919,7 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     if (isProtectedAntiRedFile(dir, uploadName)) {
       return res.status(403).json({ error: `Cannot upload ${uploadName} — this file is managed by the anti-red protection system.` })
     }
-    const result = await cpProxy.uploadFile(req.cpUser, req.cpPass, dir, uploadName, req.file.buffer, req.whmHost)
+    const result = await _userWriteCallWithHeal(req, getCpanelCol, (pass) => cpProxy.uploadFile(req.cpUser, pass, dir, uploadName, req.file.buffer, req.whmHost))
     // 2026-08-26 @HHR2009 / nnliae74 fix (final):
     // On user-level auth-broken (401 login-page / 403 Access denied), retry via
     // WHM impersonation session (create_user_session + cpsession cookie → POST
@@ -1045,7 +1064,7 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
         if (_cu.changed) log(`[Panel] Chunk upload filename sanitized: ${JSON.stringify(_cu.original)} → ${JSON.stringify(saveName)} (user: ${req.cpUser})`)
         log(`[Panel] Chunk upload complete: ${saveName} (${(assembled.length / (1024 * 1024)).toFixed(1)} MB) → ${dir} (user: ${req.cpUser}, id: ${uploadId})`)
 
-        const result = await cpProxy.uploadFile(req.cpUser, req.cpPass, dir, saveName, assembled, req.whmHost)
+        const result = await _userWriteCallWithHeal(req, getCpanelCol, (pass) => cpProxy.uploadFile(req.cpUser, pass, dir, saveName, assembled, req.whmHost))
         // 2026-08-26 @HHR2009 / nnliae74 fix (final): on user-level
         // auth-broken, retry via WHM impersonation session (create_user_session
         // + cpsession cookie → /execute/Fileman/upload_files). See the
@@ -1088,7 +1107,7 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     name = _mk.name
 
     // Attempt 1: user-level cPanel API2 (Fileman::mkdir).
-    const result = await cpProxy.createDirectory(req.cpUser, req.cpPass, dir, name, req.whmHost)
+    const result = await _userWriteCallWithHeal(req, getCpanelCol, (pass) => cpProxy.createDirectory(req.cpUser, pass, dir, name, req.whmHost))
     if (result?.status === 1) return res.json(_mk.changed ? { ...result, renamedFrom: _mk.original, savedAs: name } : result)
 
     // Attempt 2: WHM-root fallback for uapi EPERM / status-1 failures OR
@@ -1200,7 +1219,7 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
       return res.status(403).json({ error: `Cannot delete ${file} — this file is managed by the anti-red protection system and will be re-created automatically.` })
     }
     try {
-      const result = await cpProxy.deleteFile(req.cpUser, req.cpPass, dir, file, req.whmHost, !!isDirectory)
+      const result = await _userWriteCallWithHeal(req, getCpanelCol, (pass) => cpProxy.deleteFile(req.cpUser, pass, dir, file, req.whmHost, !!isDirectory))
       if (result?.status === 1) {
         log(`[Panel] Deleted ${isDirectory ? 'folder' : 'file'}: ${file} in ${dir} (user: ${req.cpUser})`)
         // A delete in public_html may have removed the root protection files
@@ -1315,7 +1334,7 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     if (_rn.changed) {
       return res.status(400).json({ error: `The name "${newName}" contains characters that aren't allowed (commas, slashes or line breaks). Try "${_rn.name}" instead.`, suggestedName: _rn.name })
     }
-    const result = await cpProxy.renameFile(req.cpUser, req.cpPass, dir, oldName, newName, req.whmHost)
+    const result = await _userWriteCallWithHeal(req, getCpanelCol, (pass) => cpProxy.renameFile(req.cpUser, pass, dir, oldName, newName, req.whmHost))
     // WHM-root fallback on user-auth-broken (@Devils_gods 2026-08-30 —
     // Fileman::fileop returned 403 [AUTH] silently; no fallback wired).
     if (result?.status !== 1 && _isAuthBroken(result)) {
@@ -3793,5 +3812,6 @@ module.exports = {
   // Exposed for unit tests (cpPass self-heal wiring)
   _selfHealCpPass,
   _userCallWithHeal,
+  _userWriteCallWithHeal,
   _repairCpPass,
 }

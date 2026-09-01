@@ -214,23 +214,39 @@ function _classifyRailwayError(err) {
 // still has the domain but the Cloudflare CNAME has been deleted.
 // Returns Promise<string[]> on success, or [] on any error (fail-safe).
 async function listRailwayCustomDomains() {
-  try {
-    const query = `query {
-      domains(projectId: "${PROJECT_ID}", serviceId: "${SERVICE_ID}", environmentId: "${ENVIRONMENT_ID}") {
-        customDomains { domain }
+  const query = `query {
+    domains(projectId: "${PROJECT_ID}", serviceId: "${SERVICE_ID}", environmentId: "${ENVIRONMENT_ID}") {
+      customDomains { domain }
+    }
+  }`
+  // Bumped from 15s → 30s and added a single retry with 500ms backoff.
+  // Railway's control plane occasionally takes >15s during peak load,
+  // producing spurious "listRailwayCustomDomains failed: timeout" logs
+  // that the reconciler then treats as an empty list (fail-safe).
+  const TIMEOUT_MS = 30000
+  const MAX_ATTEMPTS = 2
+  let lastErr = null
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const resp = await axios.post(
+        GRAPHQL_ENDPOINT,
+        { query },
+        { headers: railwayHeaders(), timeout: TIMEOUT_MS },
+      )
+      const customDomains = resp?.data?.data?.domains?.customDomains || []
+      return customDomains.map(d => d.domain).filter(Boolean)
+    } catch (err) {
+      lastErr = err
+      const isTransient = err.code === 'ECONNABORTED' || err.code === 'ECONNRESET' || err.code === 'ETIMEDOUT' || /timeout/i.test(err.message || '')
+      if (attempt < MAX_ATTEMPTS && isTransient) {
+        await new Promise(r => setTimeout(r, 500 * attempt))
+        continue
       }
-    }`
-    const resp = await axios.post(
-      GRAPHQL_ENDPOINT,
-      { query },
-      { headers: railwayHeaders(), timeout: 15000 },
-    )
-    const customDomains = resp?.data?.data?.domains?.customDomains || []
-    return customDomains.map(d => d.domain).filter(Boolean)
-  } catch (err) {
-    log(`[Railway] listRailwayCustomDomains failed: ${err.message}`)
-    return []
+      break
+    }
   }
+  log(`[Railway] listRailwayCustomDomains failed after ${MAX_ATTEMPTS} attempts: ${lastErr && lastErr.message} — returning empty list`)
+  return []
 }
 
 async function removeDomainFromRailway(domain) {

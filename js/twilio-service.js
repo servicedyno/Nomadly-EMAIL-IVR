@@ -933,7 +933,10 @@ async function updateSubAccountNumberWebhooks(subSid, numberSid, webhookBaseUrl)
     return { success: true }
   } catch (e) {
     log(`[Twilio] updateSubAccountNumberWebhooks error: ${e.message}`)
-    return { error: e.message }
+    // Surface HTTP status so callers can detect a 404 (number no longer
+    // exists in this sub-account → orphan in phoneNumbersOf) and flag the
+    // record without deleting it. `e.status` is Twilio SDK's field.
+    return { error: e.message, status: e.status || e.statusCode || null, twilioCode: e.code || null }
   }
 }
 
