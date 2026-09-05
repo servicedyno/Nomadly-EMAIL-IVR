@@ -24927,6 +24927,16 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     }
     const ivrObData = info?.ivrObData || {}
     ivrObData.ivrNumber = clean
+    // ── Prevent self-call loop: reject if transfer target matches the caller ID ──
+    const ownCallerId = (ivrObData.callerId || '').replace(/[^+\d]/g, '')
+    if (clean === ownCallerId) {
+      return send(chatId, ({
+        en: `❌ <b>Self-call conflict</b>\n\nYou cannot transfer to <b>${phoneConfig.formatPhone(clean)}</b> — that's the same number you're calling <i>from</i>.\n\nWhen the callee presses a key, the transfer would ring your own number and trigger the IVR greeting instead of connecting to you.\n\n📞 Enter a <b>different</b> number (e.g. your personal cell, SIP extension, or a second line):`,
+        fr: `❌ <b>Conflit d'auto-appel</b>\n\nVous ne pouvez pas transférer vers <b>${phoneConfig.formatPhone(clean)}</b> — c'est le numéro depuis lequel vous appelez.\n\n📞 Entrez un numéro <b>différent</b> :`,
+        zh: `❌ <b>自呼冲突</b>\n\n不能转接到 <b>${phoneConfig.formatPhone(clean)}</b> — 这是您的呼出号码。\n\n📞 请输入一个<b>不同的</b>号码：`,
+        hi: `❌ <b>सेल्फ-कॉल कॉन्फ्लिक्ट</b>\n\n<b>${phoneConfig.formatPhone(clean)}</b> पर ट्रांसफर नहीं कर सकते — यह वही नंबर है जिससे आप कॉल कर रहे हैं।\n\n📞 एक <b>अलग</b> नंबर दर्ज करें:`,
+      }[lang] || `❌ <b>Self-call conflict</b>\n\nYou cannot transfer to <b>${phoneConfig.formatPhone(clean)}</b> — that's the same number you're calling from.\n\nEnter a <b>different</b> number:`), { parse_mode: 'HTML', ...k.of([['🔀 Route each key (menu)'], ['↩️ Back']]) })
+    }
     await saveInfo('ivrObData', ivrObData)
     await set(state, chatId, 'action', a.ivrObSelectProvider)
     const ttsService = require('./tts-service.js')
@@ -25079,6 +25089,16 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     }
     if (dialGuard.classifyDial(clean).blocked) {
       return send(chatId, `🚫 ${clean} is a restricted premium/satellite number. Enter a standard number:`, { reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
+    }
+    // ── Prevent self-call loop: reject if forward target matches the caller ID ──
+    const obCallerId = (info?.ivrObData?.callerId || info?.bulkData?.callerId || '').replace(/[^+\d]/g, '')
+    if (obCallerId && clean === obCallerId) {
+      return send(chatId, ({
+        en: `❌ <b>Self-call conflict</b>\n\nYou cannot forward key <b>${displayKey}</b> to <b>${phoneConfig.formatPhone(clean)}</b> — that's the caller ID for this call.\n\nThe transfer would ring your own IVR instead of connecting. Enter a <b>different</b> number:`,
+        fr: `❌ <b>Conflit d'auto-appel</b>\n\nVous ne pouvez pas transférer la touche <b>${displayKey}</b> vers <b>${phoneConfig.formatPhone(clean)}</b> — c'est votre numéro d'appel.\n\nEntrez un numéro <b>différent</b> :`,
+        zh: `❌ <b>自呼冲突</b>\n\n不能将按键 <b>${displayKey}</b> 转接到 <b>${phoneConfig.formatPhone(clean)}</b> — 这是您的呼出号码。\n\n请输入<b>不同的</b>号码：`,
+        hi: `❌ <b>सेल्फ-कॉल कॉन्फ्लिक्ट</b>\n\nकुंजी <b>${displayKey}</b> को <b>${phoneConfig.formatPhone(clean)}</b> पर फ़ॉरवर्ड नहीं कर सकते — यह आपका कॉलर ID है।\n\nएक <b>अलग</b> नंबर दर्ज करें:`,
+      }[lang] || `❌ <b>Self-call conflict</b>\n\nYou cannot forward key ${displayKey} to ${phoneConfig.formatPhone(clean)} — that's the caller ID for this call. Enter a different number:`), { parse_mode: 'HTML', reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
     }
     const opt = { action: 'forward', forwardTo: clean }
     if (isSub) { draft.menu[draft.subParent].options = draft.menu[draft.subParent].options || {}; draft.menu[draft.subParent].options[key] = opt }
@@ -26121,6 +26141,16 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     }
     if (dialGuard.classifyDial(clean).blocked) {
       return send(chatId, `🚫 <b>Restricted Destination</b>\n\n${clean} is a premium/satellite number and cannot be used as a transfer target. Please use a standard phone number.`, { parse_mode: 'HTML', ...k.of([['↩️ Back']]) })
+    }
+    // ── Prevent self-call loop: reject if transfer target matches the caller ID ──
+    const bulkCallerId = (info?.bulkData?.callerId || '').replace(/[^+\d]/g, '')
+    if (bulkCallerId && clean === bulkCallerId) {
+      return send(chatId, ({
+        en: `❌ <b>Self-call conflict</b>\n\nYou cannot transfer to <b>${phoneConfig.formatPhone(clean)}</b> — that's the caller ID for this campaign.\n\nThe transfer would ring your own IVR instead of connecting. Enter a <b>different</b> number (e.g. your personal cell, SIP extension, or a second line):`,
+        fr: `❌ <b>Conflit d'auto-appel</b>\n\nVous ne pouvez pas transférer vers <b>${phoneConfig.formatPhone(clean)}</b> — c'est le numéro d'appel de cette campagne.\n\nEntrez un numéro <b>différent</b> :`,
+        zh: `❌ <b>自呼冲突</b>\n\n不能转接到 <b>${phoneConfig.formatPhone(clean)}</b> — 这是此活动的呼出号码。\n\n请输入<b>不同的</b>号码：`,
+        hi: `❌ <b>सेल्फ-कॉल कॉन्फ्लिक्ट</b>\n\n<b>${phoneConfig.formatPhone(clean)}</b> पर ट्रांसफर नहीं कर सकते — यह इस कैंपेन का कॉलर ID है।\n\nएक <b>अलग</b> नंबर दर्ज करें:`,
+      }[lang] || `❌ <b>Self-call conflict</b>\n\nYou cannot transfer to ${phoneConfig.formatPhone(clean)} — that's the caller ID for this campaign. Enter a different number:`), { parse_mode: 'HTML', ...k.of([['🔀 Route each key (menu)'], ['↩️ Back']]) })
     }
     const bulkData = info?.bulkData || {}
     bulkData.transferNumber = clean

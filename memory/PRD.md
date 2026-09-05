@@ -53,9 +53,16 @@ Multi-service Telegram bot platform: React frontend, FastAPI backend, Node.js bo
 ### 2026-09-05: Fix IVR Self-Transfer Bypass (trillionboy complaint)
 **Problem**: User @trillionboy reported that Quick IVR calls play a "default prompt" (press 1/2) before their custom script. Root cause: when the outbound IVR transfers the callee to the user's OWN number (From === To), the inbound IVR auto-attendant activates, replaying the IVR greeting menu on the transfer leg.
 
-**Fix**: Added `isSelfTransfer` detection in `/twilio/voice-webhook` (line ~45829 in _index.js). When `From` digits === `To` digits, the IVR auto-attendant is bypassed and the call falls through to normal SIP/forwarding/voicemail handling.
+**Fix**: Two-layer defense:
+1. **Runtime bypass** (`_index.js` voice-webhook): Added `isSelfTransfer` detection — when `From` digits === `To` digits, the IVR auto-attendant is bypassed and the call rings through to SIP/forwarding/voicemail.
+2. **Setup-time guard** (`_index.js` — 3 outbound IVR flows): Blocks self-call at the source:
+   - Quick IVR single transfer number (`ivrObEnterIvrNumber`) — rejects if transfer target === callerId
+   - Quick IVR per-key menu forward (`ivrObMenuForwardInput`) — rejects if forward target === callerId
+   - Bulk IVR transfer number (`bulkEnterTransfer`) — rejects if transfer target === callerId
+   - All guards show a clear localized message (EN/FR/ZH/HI) explaining the conflict and asking for a different number
+   - Note: Inbound IVR already had this guard (`cpIvrOptionMsg` line ~31339)
 
-**Files changed**: `_index.js` (voice-webhook handler)
+**Files changed**: `_index.js` (voice-webhook handler + 3 outbound IVR setup flows)
 
 ## Known Issues
 - `[PhoneMonitor] Error checking number +18883304418: Request failed with status code 401` — pre-existing auth issue with a different number's Telnyx check
