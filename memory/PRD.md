@@ -50,6 +50,13 @@ Multi-service Telegram bot platform: React frontend, FastAPI backend, Node.js bo
 - New fields on number objects: `_inactiveSince` (ISO string), `_releaseDetectedBy` (string)
 - New status value: `inactive_released` (joins `active`, `suspended`, `released`)
 
+### 2026-09-05: Fix IVR Self-Transfer Bypass (trillionboy complaint)
+**Problem**: User @trillionboy reported that Quick IVR calls play a "default prompt" (press 1/2) before their custom script. Root cause: when the outbound IVR transfers the callee to the user's OWN number (From === To), the inbound IVR auto-attendant activates, replaying the IVR greeting menu on the transfer leg.
+
+**Fix**: Added `isSelfTransfer` detection in `/twilio/voice-webhook` (line ~45829 in _index.js). When `From` digits === `To` digits, the IVR auto-attendant is bypassed and the call falls through to normal SIP/forwarding/voicemail handling.
+
+**Files changed**: `_index.js` (voice-webhook handler)
+
 ## Known Issues
 - `[PhoneMonitor] Error checking number +18883304418: Request failed with status code 401` — pre-existing auth issue with a different number's Telnyx check
 

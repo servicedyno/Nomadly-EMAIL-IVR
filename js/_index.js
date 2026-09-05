@@ -45822,8 +45822,16 @@ app.post('/twilio/voice-webhook', async (req, res) => {
     }
 
     // ━━━ PRIORITY 0: IVR Auto-Attendant (Business plan) ━━━
+    // Skip auto-attendant on self-call transfer legs (From === To).
+    // This happens when an outbound IVR call transfers to the caller's own
+    // number — the transfer leg should ring through (SIP/forward/voicemail),
+    // not replay the IVR menu to the callee.
+    const isSelfTransfer = From && To && From.replace(/\D/g, '') === To.replace(/\D/g, '')
+    if (isSelfTransfer) {
+      log(`[Twilio] Self-transfer detected (${From} → ${To}), bypassing IVR auto-attendant`)
+    }
     const ivrConfig = num.features?.ivr
-    if (ivrConfig?.enabled && phoneConfig.canAccessFeature(num.plan, 'ivr') && ivrConfig.options && Object.keys(ivrConfig.options).length > 0) {
+    if (ivrConfig?.enabled && !isSelfTransfer && phoneConfig.canAccessFeature(num.plan, 'ivr') && ivrConfig.options && Object.keys(ivrConfig.options).length > 0) {
       log(`[Twilio] Starting IVR auto-attendant for ${To}`)
       const ivrGatherUrl = `${SELF_URL}/twilio/inbound-ivr-gather?chatId=${chatId}&from=${encodeURIComponent(From)}&to=${encodeURIComponent(To)}`
       const gather = response.gather({ action: ivrGatherUrl, method: 'POST', numDigits: 1, timeout: 10, finishOnKey: '' })
