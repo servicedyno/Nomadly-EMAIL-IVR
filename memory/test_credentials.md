@@ -3,11 +3,17 @@
 This app uses Telegram bot authentication (chatId-based) — there is no email/password
 login for the panel. Auth flows are exercised via the bot / dev endpoints.
 
-## Sandbox runtime config (re-bootstrapped on NEW fresh pod, creds re-supplied by user)
-- Pod URL: https://deployment-config-12.preview.emergentagent.com
-  (previous pod: https://deployment-config-12.preview.emergentagent.com — decommissioned)
+## Sandbox runtime config (re-bootstrapped on NEW fresh pod 2026-09-05, creds re-supplied by user)
+- Pod URL: https://b47e0417-3fc5-4cbd-9592-c61e5bd767b5.preview.emergentagent.com
+  (previous pods: config-deploy-17.preview..., 72d1804b-07a5-49f2-bd81-3ccfa973b9bc.preview... — decommissioned)
 - Dev Telegram bot webhook (token TELEGRAM_BOT_TOKEN_DEV = 6597817067 @Nomadlytestbot) SET to
-  https://deployment-config-12.preview.emergentagent.com/api/telegram/webhook (verified ok)
+  https://b47e0417-3fc5-4cbd-9592-c61e5bd767b5.preview.emergentagent.com/api/telegram/webhook (verified ok, 0 pending)
+- NOTE: user's credential dump had BOT_ENVIRONMENT="production" — deliberately OVERRIDDEN to
+  `development` + `SKIP_WEBHOOK_SYNC=true` in backend/.env per README "Critical Safety Rules".
+- Extra vars added beyond the dump: SELF_URL_DEV, SKIP_WEBHOOK_SYNC, PORT=5000, CORS_ORIGINS=*,
+  RAILWAY_PROJECT_TOKEN (=API_KEY_RAILWAY), RAILWAY_PROJECT_ID / RAILWAY_ENVIRONMENT_ID / RAILWAY_SERVICE_ID (from README).
+- frontend/.env: REACT_APP_BACKEND_URL=<pod>, WDS_SOCKET_PORT=443, DISABLE_ESLINT_PLUGIN=true
+- Boot-time warning seen (pre-existing, non-blocking): `[PhoneMonitor] Error checking number +18883304418: 401`
 - Verified this bootstrap: node:5000 + FastAPI:8001 + external <pod>/api/health all healthy/DB connected;
   frontend :3000 → "HostBay | Hosting Panel"; PROD bot (6292288341) webhook confirmed STILL on Railway (0 pending), UNTOUCHED.
 - PROD bot (6292288341) webhook confirmed still on Railway (https://nomadly-email-ivr-production.up.railway.app/telegram/webhook) — UNTOUCHED
@@ -26,7 +32,7 @@ login for the panel. Auth flows are exercised via the bot / dev endpoints.
 - Domain: testingbays.sbs
 - Plan: Golden-Anti-Red-HostPanel-1-Month
 - WHM Host: 68.183.77.106
-- Login URL: https://deployment-config-12.preview.emergentagent.com/panel
+- Login URL: https://b47e0417-3fc5-4cbd-9592-c61e5bd767b5.preview.emergentagent.com/panel
 - NOTE: User-level cPanel auth is broken for this account. All API calls work via WHM-root fallback.
 - Password was rotated via WHM /passwd to force cPanel auth recognition (2026-08-30).
 - Existing subdomains: shop, blog, api, dev (all under testingbays.sbs with public_html/<name> docroot)

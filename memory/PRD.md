@@ -4,6 +4,27 @@
 Read the README file and set up using the provided `.env` variables, ensuring the development pod **does not** affect the production Telegram bot or production Telnyx/Twilio webhooks.
 
 
+## 2026-09-05 (forked session #5) — Fresh-pod bootstrap from user credential dump
+
+Fresh pod had NO `.env` files, no root `node_modules`, no nodejs supervisor conf. Re-bootstrapped per README:
+- Wrote `frontend/.env` (REACT_APP_BACKEND_URL=<pod>, WDS_SOCKET_PORT=443) and `backend/.env` (all ~200
+  user-supplied vars, grouped by service). **Overrode `BOT_ENVIRONMENT=production` → `development`** and
+  added `SKIP_WEBHOOK_SYNC=true` (README Critical Safety Rules) so the dev pod never hijacks the PROD bot
+  or mutates prod Telnyx/Twilio/WHM/CF/wallets. Added Railway IDs from README (`RAILWAY_PROJECT_*`,
+  `RAILWAY_ENVIRONMENT_ID`, `RAILWAY_SERVICE_ID`, `RAILWAY_PROJECT_TOKEN`=API_KEY_RAILWAY).
+- `yarn install --ignore-engines` (root, node v20) → `bash scripts/setup-nodejs.sh` (symlink, SELF_URL
+  rewrite to <pod>/api, supervisor `nodejs` program) → restarted backend/frontend.
+- Verified: Node boot log = `Environment: DEVELOPMENT`, `Token Source: TELEGRAM_BOT_TOKEN_DEV`, all
+  SKIP_WEBHOOK_SYNC guards logged as SKIPPED (CpanelMigration, MaxsqlMigration, CloudPhone migration/ANI,
+  HostingScheduler, ProtectionHeartbeat, NS Auto-Retry, AntiRed worker, FastAPI phone monitor).
+  `/api/health` → healthy + DB connected on :5000, :8001 and external pod URL. Frontend title
+  "HostBay | Hosting Panel"; admin dashboard shows Bot Running / DB Connected / REST Active.
+- Dev bot (6597817067) webhook moved from decommissioned pod → this pod (0 pending, no errors).
+  PROD bot (6292288341) webhook confirmed (read-only) still on Railway — UNTOUCHED.
+- Platform-only `webhook-crond` supervisor program is FATAL (no cron daemon in image) — unrelated to app.
+- Pre-existing non-blocking boot warning: `[PhoneMonitor] Error checking number +18883304418: 401`.
+
+
 ## 2026-06 (forked session #4, part 2) — Full email localization + cpPass self-heal wiring
 
 ### (1) Hosting welcome email fully localized (en/fr/zh/hi)
@@ -493,7 +514,7 @@ Carried over from the previous session as "user verification pending". Ran the b
   Mongo-durable and every Azure/Vultr password write mirrors into it. No leftover test docs in
   `vpsPasswordSecrets`.
 - Pod state: services RUNNING, dev guards intact (`BOT_ENVIRONMENT=development`, `SKIP_WEBHOOK_SYNC=true`),
-  Mongo still the LIVE production DB. Pod URL: `https://deployment-config-12.preview.emergentagent.com`.
+  Mongo still the LIVE production DB. Pod URL: `https://config-deploy-17.preview.emergentagent.com`.
 - KNOWN GAP (user deferred): **Contabo** still lacks durable-store/reveal coverage parity; its OAuth creds
   are invalid in this pod so it can't be live-verified.
 
@@ -524,7 +545,7 @@ User asked to audit bot navigation for usability/clarity. Approved plan: **1a** 
 
 ## 2026-08-09 — Fresh pod re-bootstrap (setup from provided .env) — DONE
 Pod came up with only `.git`/app tree present, empty `frontend/.env`, no `backend/.env`, no `/app/.env` symlink, and no `nodejs` supervisor program (backend/frontend/mongodb running).
-- New pod URL: `https://deployment-config-12.preview.emergentagent.com` (detected from env `preview_endpoint`).
+- New pod URL: `https://config-deploy-17.preview.emergentagent.com` (detected from env `preview_endpoint`).
 - Created `/app/frontend/.env` → `REACT_APP_BACKEND_URL=<pod>`.
 - Created `/app/backend/.env` from the user-provided credential list **with the mandatory README safety overrides**:
   - `BOT_ENVIRONMENT="development"` (user list had `production` — would hijack the prod Telegram bot's webhook from this dev pod).
@@ -610,7 +631,7 @@ Audit doc: `/app/CLOUD_PHONE_BILLING_ANALYSIS.md`. Fixed the two genuine revenue
 
 ## 2026-08-07 — Fresh pod re-bootstrap (setup from provided .env)
 Pod came up with no `backend/.env`, empty `frontend/.env`, no `/app/.env` symlink, no `nodejs` supervisor program (backend+frontend STOPPED; only mongodb running).
-- New pod URL: `https://deployment-config-12.preview.emergentagent.com` (was `setup-keys...`).
+- New pod URL: `https://config-deploy-17.preview.emergentagent.com` (was `setup-keys...`).
 - Created `/app/frontend/.env` → `REACT_APP_BACKEND_URL=<pod>`.
 - Created `/app/backend/.env` from the user-provided credential list **with the mandatory README safety overrides**:
   - `BOT_ENVIRONMENT="development"` (user list had `production` — would hijack the prod Telegram bot's webhook from this dev pod).
@@ -872,7 +893,7 @@ Cross-referenced deployment `c640c247` logs with MongoDB records (paymentIntents
 ---
 
 ## 2026-07-06 — Fresh pod bootstrap (earlier this session)
-- Created `/app/frontend/.env` with `REACT_APP_BACKEND_URL=https://deployment-config-12.preview.emergentagent.com` (from supervisor `APP_URL` env).
+- Created `/app/frontend/.env` with `REACT_APP_BACKEND_URL=https://config-deploy-17.preview.emergentagent.com` (from supervisor `APP_URL` env).
 - Created `/app/backend/.env` with all user-supplied credentials **plus mandatory README safety overrides**:
   - `BOT_ENVIRONMENT="development"` (user supplied `production`; would hijack prod bot webhook)
   - `SKIP_WEBHOOK_SYNC="true"` (blocks Telnyx/Twilio webhook + Call Control migration + SIP ANI overrides from this pod)
@@ -1082,7 +1103,7 @@ For the 5 currently-stuck domains the OP REST sync DID succeed (`code:0`), but D
 
 ## Current pod state (2026-02-20)
 - `/app/frontend/.env` — `REACT_APP_BACKEND_URL` set to current dev pod URL
-- `/app/backend/.env` — full user-provided env list + safety overrides (`BOT_ENVIRONMENT=development`, `SKIP_WEBHOOK_SYNC=true`); `SELF_URL`/`SELF_URL_PROD` rewritten by setup script to `https://deployment-config-12.preview.emergentagent.com/api`
+- `/app/backend/.env` — full user-provided env list + safety overrides (`BOT_ENVIRONMENT=development`, `SKIP_WEBHOOK_SYNC=true`); `SELF_URL`/`SELF_URL_PROD` rewritten by setup script to `https://config-deploy-17.preview.emergentagent.com/api`
 - `/app/.env` — symlink → `/app/backend/.env` (Node.js dotenv root)
 - Supervisor: `backend`, `frontend`, `mongodb`, `nodejs` all RUNNING
 - Node.js logs confirm: AntiRed worker upgrade SKIPPED, CF-Sync skipped (dev mode), health monitor DISABLED on backend
@@ -1275,7 +1296,7 @@ Code changes ready. `logs_prod/` is gitignored from yesterday's cleanup so this 
 ## 2026-06-21 — Fresh Railway 6-day RCA + Referral funnel fixes
 
 ### Step 1 — Dev setup refreshed
-- `SELF_URL` + `SELF_URL_DEV` updated to current pod `https://deployment-config-12.preview.emergentagent.com/api`
+- `SELF_URL` + `SELF_URL_DEV` updated to current pod `https://config-deploy-17.preview.emergentagent.com/api`
 - `SELF_URL_PROD` left intact (still points to real Railway prod URL)
 - Production isolation reconfirmed: `BOT_ENVIRONMENT=development`, `SKIP_WEBHOOK_SYNC=true`, dev bot token in use
 - Nodejs restarted clean, all `/api/*` routes reachable
@@ -1730,7 +1751,7 @@ Removed one screen, added decision-shortcuts at the end, made the wait feel shor
 User asked: "read the README file and set up using below credentials" and supplied the full production .env list.
 
 ### What was done
-- Created `/app/frontend/.env` with `REACT_APP_BACKEND_URL=https://deployment-config-12.preview.emergentagent.com`
+- Created `/app/frontend/.env` with `REACT_APP_BACKEND_URL=https://config-deploy-17.preview.emergentagent.com`
 - Created `/app/backend/.env` from the user-provided list with critical dev-pod safety overrides:
   - `BOT_ENVIRONMENT="production"` → `"development"` (CRITICAL — prevents prod bot hijack)
   - Added `SKIP_WEBHOOK_SYNC="true"` (CRITICAL — blocks Telnyx/Twilio/CF mutations)
@@ -1757,7 +1778,7 @@ All RUNNING: `backend`, `frontend`, `mongodb`, `nodejs`. Logs confirm:
 - `[PhoneMonitor] === Health check complete: 23 checked, 0 newly suspended, 0 auth-failed ===`
 
 ### Updated docs
-- `/app/memory/test_credentials.md` — current pod URL updated to `https://deployment-config-12.preview.emergentagent.com`
+- `/app/memory/test_credentials.md` — current pod URL updated to `https://config-deploy-17.preview.emergentagent.com`
 
 Pod is initialised and idle, ready for development work.
 
