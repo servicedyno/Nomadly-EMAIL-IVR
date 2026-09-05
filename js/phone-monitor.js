@@ -51,6 +51,34 @@ async function checkTwilioSubaccount(subAccountSid) {
 }
 
 /**
+ * Check if a specific Twilio number SID still exists on its sub-account.
+ * Uses the sub-account's own credentials (parent-auth returns 401 for
+ * IncomingPhoneNumbers on some sub-accounts).
+ * Returns { exists: true/false, error?: string }
+ */
+async function checkTwilioNumberExists(numberSid, subAccountSid, subAccountToken) {
+  if (!subAccountToken) {
+    // Can't verify without sub-account token — assume exists to avoid false positives
+    return { exists: true, error: 'missing_sub_token' };
+  }
+  try {
+    const url = `https://api.twilio.com/2010-04-01/Accounts/${subAccountSid}/IncomingPhoneNumbers/${numberSid}.json`;
+    await axios.get(url, {
+      auth: { username: subAccountSid, password: subAccountToken },
+      timeout: 15000,
+    });
+    return { exists: true };
+  } catch (err) {
+    if (err.response?.status === 404) {
+      return { exists: false };
+    }
+    // 401 or other errors — don't treat as "released", just skip
+    console.error(`[PhoneMonitor] Error checking Twilio number SID ${numberSid}: ${err.response?.status || err.message}`);
+    return { exists: true, error: err.message }; // default to exists on non-404 errors
+  }
+}
+
+/**
  * Check a Telnyx number's status
  */
 async function checkTelnyxNumber(phoneNumber) {
@@ -179,6 +207,95 @@ async function runHealthCheck(bot, db) {
   }
 
   // ----------------------------------------------------------
+  // TWILIO: Check individual number SIDs still exist on sub-account
+  // (Catches numbers silently released/removed by Twilio)
+  // ----------------------------------------------------------
+  let totalInactiveReleased = 0;
+  const twilioActiveNumbers = [];
+  for (const doc of allDocs) {
+    const numbers = doc.val?.numbers || [];
+    const topLevelSubToken = doc.val?.twilioSubAccountToken || null;
+    for (const num of numbers) {
+      if (num.provider === 'twilio' && num.status === 'active' && num.twilioNumberSid && num.twilioSubAccountSid) {
+        twilioActiveNumbers.push({
+          chatId: doc._id,
+          phoneNumber: num.phoneNumber,
+          numberSid: num.twilioNumberSid,
+          subAccountSid: num.twilioSubAccountSid || doc.val?.twilioSubAccountSid,
+          subAccountToken: num.subAccountAuthToken || topLevelSubToken,
+        });
+      }
+    }
+  }
+
+  console.log(`[PhoneMonitor] Verifying ${twilioActiveNumbers.length} active Twilio number SIDs on sub-accounts`);
+
+  for (const entry of twilioActiveNumbers) {
+    const { chatId, phoneNumber, numberSid, subAccountSid, subAccountToken } = entry;
+
+    // Skip numbers already marked inactive_released
+    const doc = allDocs.find(d => d._id === chatId);
+    const numRecord = (doc?.val?.numbers || []).find(n => n.phoneNumber === phoneNumber);
+    if (numRecord?.status === 'inactive_released') continue;
+
+    const result = await checkTwilioNumberExists(numberSid, subAccountSid, subAccountToken);
+    if (!result.exists && !result.error) {
+      // Number SID no longer on the sub-account — mark as inactive_released
+      console.log(`[PhoneMonitor] RELEASED: ${phoneNumber} (SID ${numberSid}) no longer on sub-account ${subAccountSid} | chatId=${chatId}`);
+      totalInactiveReleased++;
+
+      const now = new Date().toISOString();
+      await phoneNumbersOf.updateOne(
+        { _id: chatId, 'val.numbers.phoneNumber': phoneNumber },
+        { $set: {
+          'val.numbers.$.status': 'inactive_released',
+          'val.numbers.$._inactiveSince': now,
+          'val.numbers.$._releaseDetectedBy': 'phone-monitor',
+        } }
+      );
+
+      // Resolve user language for notification
+      let userLang = 'en';
+      try {
+        const userState = await db.collection('state').findOne({ _id: String(chatId) });
+        userLang = userState?.userLanguage || 'en';
+      } catch (_) { /* fallback */ }
+
+      // Notify user
+      const userMsgs = {
+        en: `🚫 <b>Number No Longer Active</b>\n\n📞 ${phoneNumber} is no longer active with the provider and has been marked <b>inactive</b>.\n\nThis number can no longer make or receive calls. It will be automatically removed from your account in <b>48 hours</b>.\n\nIf you believe this is an error, contact support before then.`,
+        fr: `🚫 <b>Numéro Plus Actif</b>\n\n📞 ${phoneNumber} n'est plus actif chez le fournisseur et a été marqué <b>inactif</b>.\n\nCe numéro ne peut plus passer ni recevoir d'appels. Il sera automatiquement supprimé de votre compte dans <b>48 heures</b>.\n\nSi vous pensez qu'il s'agit d'une erreur, contactez le support.`,
+        zh: `🚫 <b>号码已失效</b>\n\n📞 ${phoneNumber} 已被运营商停用，标记为<b>不活跃</b>。\n\n此号码无法再拨打或接听电话。将在 <b>48小时</b> 后自动从您的账户中移除。\n\n如有疑问，请联系客服。`,
+        hi: `🚫 <b>नंबर अब सक्रिय नहीं</b>\n\n📞 ${phoneNumber} अब प्रदाता के पास सक्रिय नहीं है और <b>निष्क्रिय</b> चिह्नित किया गया है।\n\nयह नंबर अब कॉल नहीं कर सकता। <b>48 घंटे</b> में यह आपके खाते से स्वचालित रूप से हटा दिया जाएगा।\n\nकोई प्रश्न हो तो सहायता से संपर्क करें।`,
+      };
+      try {
+        await bot.sendMessage(String(chatId), userMsgs[userLang] || userMsgs.en, { parse_mode: 'HTML' });
+      } catch (err) {
+        console.error(`[PhoneMonitor] User notification failed for ${chatId} (inactive_released):`, err.message);
+      }
+
+      // Notify admin
+      if (ADMIN_CHAT_ID) {
+        try {
+          await bot.sendMessage(ADMIN_CHAT_ID,
+            `🚫 <b>Number Released by Provider</b>\n\n` +
+            `Provider: Twilio\n` +
+            `Number SID: <code>${numberSid}</code>\n` +
+            `Sub-Account: <code>${subAccountSid}</code>\n` +
+            `User: <code>${chatId}</code>\n` +
+            `Number: ${phoneNumber}\n` +
+            `Detected: ${now.slice(0, 16).replace('T', ' ')} UTC\n` +
+            `Status: <b>inactive_released</b> (auto-remove in 48h)`,
+            { parse_mode: 'HTML' }
+          );
+        } catch (err) {
+          console.error(`[PhoneMonitor] Admin notification failed (inactive_released):`, err.message);
+        }
+      }
+    }
+  }
+
+  // ----------------------------------------------------------
   // TELNYX: Check number statuses
   // ----------------------------------------------------------
   const telnyxNumbers = [];
@@ -230,7 +347,7 @@ async function runHealthCheck(bot, db) {
     }
   }
 
-  console.log(`[PhoneMonitor] === Health check complete: ${totalChecked} checked, ${totalSuspended} newly suspended, ${authFailedSubs.length} auth-failed ===`);
+  console.log(`[PhoneMonitor] === Health check complete: ${totalChecked} checked, ${totalSuspended} newly suspended, ${totalInactiveReleased} inactive_released, ${authFailedSubs.length} auth-failed ===`);
 
   // Send a once-per-day admin digest about auth-failed sub-accounts (deduped per sub).
   // These are paid customers' lines we can no longer poll; admin needs to rotate
@@ -269,7 +386,7 @@ async function runHealthCheck(bot, db) {
     }
   }
 
-  return { checked: totalChecked, suspended: totalSuspended, authFailed: authFailedSubs.length };
+  return { checked: totalChecked, suspended: totalSuspended, inactiveReleased: totalInactiveReleased, authFailed: authFailedSubs.length };
 }
 
 /**

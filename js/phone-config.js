@@ -759,9 +759,13 @@ Incoming calls answered via SIP/browser + SMS included · Call forwarding & outb
     const primaryNumbers = numbers.filter(n => !n.isSubNumber)
     const subNumbers = numbers.filter(n => n.isSubNumber)
     primaryNumbers.forEach((n, i) => {
-      const status = n.status === 'active' ? '✅ Active' : n.status === 'suspended' ? '⚠️ Suspended' : '🗑️ Deleted'
+      const status = n.status === 'active' ? '✅ Active' : n.status === 'suspended' ? '⚠️ Suspended' : n.status === 'inactive_released' ? '🚫 Inactive (released by provider)' : '🗑️ Deleted'
       text += `${i + 1}️⃣  ${formatPhone(n.phoneNumber)}  ${status}\n`
       text += `    ${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)} Plan · Renews ${shortDate(n.expiresAt)}\n`
+      if (n.status === 'inactive_released') {
+        const hoursLeft = n._inactiveSince ? Math.max(0, 48 - Math.round((Date.now() - new Date(n._inactiveSince).getTime()) / 3600000)) : '?'
+        text += `    <i>Auto-removal in ~${hoursLeft}h · Contact support if this is an error</i>\n`
+      }
       // Show sub-numbers under this parent
       const subs = subNumbers.filter(s => s.parentNumber === n.phoneNumber && (s.status === 'active' || s.status === 'suspended'))
       if (subs.length > 0) {
@@ -806,6 +810,11 @@ Incoming calls answered via SIP/browser + SMS included · Call forwarding & outb
 
     let text = `⚙️ Managing: <b>${formatPhone(n.phoneNumber)}</b>`
     if (n.isSubNumber) text += ` <i>(sub-number)</i>`
+    if (n.status === 'inactive_released') {
+      const hoursLeft = n._inactiveSince ? Math.max(0, 48 - Math.round((Date.now() - new Date(n._inactiveSince).getTime()) / 3600000)) : '?'
+      text += `\n\n🚫 <b>INACTIVE — Released by Provider</b>\nThis number has been removed by the telecom provider and can no longer make or receive calls.\nIt will be auto-removed from your account in ~${hoursLeft}h.\n\nIf this is an error, contact support immediately.`
+      return text
+    }
     if (n.isSubNumber) {
       text += `\n\nStatus: ${n.status === 'active' ? '✅ Active' : '⚠️ ' + n.status}\nSub-number — $${n.planPrice}/mo (under ${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)} plan)`
     } else {
@@ -1908,9 +1917,13 @@ Votre propre numéro virtuel dans plus de 30 pays. Recevez des appels, envoyez d
       const primaryNumbers = numbers.filter(n => !n.isSubNumber)
       const subNumbers = numbers.filter(n => n.isSubNumber)
       primaryNumbers.forEach((n, i) => {
-        const status = n.status === 'active' ? '✅ Actif' : n.status === 'suspended' ? '⚠️ Suspendu' : '🗑️ Supprimé'
+        const status = n.status === 'active' ? '✅ Actif' : n.status === 'suspended' ? '⚠️ Suspendu' : n.status === 'inactive_released' ? '🚫 Inactif (libéré par le fournisseur)' : '🗑️ Supprimé'
         text += `${i + 1}️⃣  ${formatPhone(n.phoneNumber)}  ${status}\n`
         text += `    Forfait ${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)} · Renouvellement ${shortDate(n.expiresAt)}\n`
+        if (n.status === 'inactive_released') {
+          const hoursLeft = n._inactiveSince ? Math.max(0, 48 - Math.round((Date.now() - new Date(n._inactiveSince).getTime()) / 3600000)) : '?'
+          text += `    <i>Suppression auto dans ~${hoursLeft}h · Contactez le support en cas d'erreur</i>\n`
+        }
         const subs = subNumbers.filter(s => s.parentNumber === n.phoneNumber && (s.status === 'active' || s.status === 'suspended'))
         if (subs.length > 0) {
           subs.forEach(s => {
@@ -1949,6 +1962,11 @@ Votre propre numéro virtuel dans plus de 30 pays. Recevez des appels, envoyez d
       const hasVoice = n.capabilities?.voice !== false
       let text = `⚙️ Gestion : <b>${formatPhone(n.phoneNumber)}</b>`
       if (n.isSubNumber) text += ` <i>(numéro ajouté)</i>`
+      if (n.status === 'inactive_released') {
+        const hoursLeft = n._inactiveSince ? Math.max(0, 48 - Math.round((Date.now() - new Date(n._inactiveSince).getTime()) / 3600000)) : '?'
+        text += `\n\n🚫 <b>INACTIF — Libéré par le fournisseur</b>\nCe numéro a été supprimé par l'opérateur et ne peut plus passer ni recevoir d'appels.\nSuppression auto dans ~${hoursLeft}h.\n\nSi c'est une erreur, contactez le support immédiatement.`
+        return text
+      }
       if (n.isSubNumber) {
         text += `\n\nStatut : ${n.status === 'active' ? '✅ Actif' : '⚠️ ' + n.status}\nNuméro ajouté — $${n.planPrice}/mois (sous le forfait ${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)})`
       } else {
@@ -2383,9 +2401,13 @@ Envoyez /testsip ici pour obtenir votre code test.
       const primaryNumbers = numbers.filter(n => !n.isSubNumber)
       const subNumbers = numbers.filter(n => n.isSubNumber)
       primaryNumbers.forEach((n, i) => {
-        const status = n.status === 'active' ? '✅ 活跃' : n.status === 'suspended' ? '⚠️ 已暂停' : '🗑️ 已删除'
+        const status = n.status === 'active' ? '✅ 活跃' : n.status === 'suspended' ? '⚠️ 已暂停' : n.status === 'inactive_released' ? '🚫 不活跃 (已被运营商释放)' : '🗑️ 已删除'
         text += `${i + 1}️⃣  ${formatPhone(n.phoneNumber)}  ${status}\n`
         text += `    ${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)} 套餐 · 续费 ${shortDate(n.expiresAt)}\n`
+        if (n.status === 'inactive_released') {
+          const hoursLeft = n._inactiveSince ? Math.max(0, 48 - Math.round((Date.now() - new Date(n._inactiveSince).getTime()) / 3600000)) : '?'
+          text += `    <i>~${hoursLeft}小时后自动移除 · 如有错误请联系客服</i>\n`
+        }
         const subs = subNumbers.filter(s => s.parentNumber === n.phoneNumber && (s.status === 'active' || s.status === 'suspended'))
         if (subs.length > 0) {
           subs.forEach(s => {
@@ -2424,6 +2446,11 @@ Envoyez /testsip ici pour obtenir votre code test.
       const hasVoice = n.capabilities?.voice !== false
       let text = `⚙️ 管理：<b>${formatPhone(n.phoneNumber)}</b>`
       if (n.isSubNumber) text += ` <i>(附加号码)</i>`
+      if (n.status === 'inactive_released') {
+        const hoursLeft = n._inactiveSince ? Math.max(0, 48 - Math.round((Date.now() - new Date(n._inactiveSince).getTime()) / 3600000)) : '?'
+        text += `\n\n🚫 <b>不活跃 — 已被运营商释放</b>\n此号码已被电信运营商停用，无法再拨打或接听电话。\n将在约 ${hoursLeft} 小时后自动移除。\n\n如有错误，请立即联系客服。`
+        return text
+      }
       if (n.isSubNumber) {
         text += `\n\n状态：${n.status === 'active' ? '✅ 活跃' : '⚠️ ' + n.status}\n附加号码 — $${n.planPrice}/月（在 ${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)} 套餐下）`
       } else {
@@ -2858,9 +2885,13 @@ Envoyez /testsip ici pour obtenir votre code test.
       const primaryNumbers = numbers.filter(n => !n.isSubNumber)
       const subNumbers = numbers.filter(n => n.isSubNumber)
       primaryNumbers.forEach((n, i) => {
-        const status = n.status === 'active' ? '✅ सक्रिय' : n.status === 'suspended' ? '⚠️ निलंबित' : '🗑️ हटाया गया'
+        const status = n.status === 'active' ? '✅ सक्रिय' : n.status === 'suspended' ? '⚠️ निलंबित' : n.status === 'inactive_released' ? '🚫 निष्क्रिय (प्रदाता द्वारा जारी)' : '🗑️ हटाया गया'
         text += `${i + 1}️⃣  ${formatPhone(n.phoneNumber)}  ${status}\n`
         text += `    ${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)} प्लान · नवीनीकरण ${shortDate(n.expiresAt)}\n`
+        if (n.status === 'inactive_released') {
+          const hoursLeft = n._inactiveSince ? Math.max(0, 48 - Math.round((Date.now() - new Date(n._inactiveSince).getTime()) / 3600000)) : '?'
+          text += `    <i>~${hoursLeft} घंटे में स्वतः हटाया जाएगा · त्रुटि होने पर सहायता से संपर्क करें</i>\n`
+        }
         const subs = subNumbers.filter(s => s.parentNumber === n.phoneNumber && (s.status === 'active' || s.status === 'suspended'))
         if (subs.length > 0) {
           subs.forEach(s => {
@@ -2899,6 +2930,11 @@ Envoyez /testsip ici pour obtenir votre code test.
       const hasVoice = n.capabilities?.voice !== false
       let text = `⚙️ प्रबंधन: <b>${formatPhone(n.phoneNumber)}</b>`
       if (n.isSubNumber) text += ` <i>(अतिरिक्त नंबर)</i>`
+      if (n.status === 'inactive_released') {
+        const hoursLeft = n._inactiveSince ? Math.max(0, 48 - Math.round((Date.now() - new Date(n._inactiveSince).getTime()) / 3600000)) : '?'
+        text += `\n\n🚫 <b>निष्क्रिय — प्रदाता द्वारा जारी</b>\nयह नंबर टेलीकॉम प्रदाता द्वारा हटा दिया गया है और अब कॉल नहीं कर सकता।\nलगभग ${hoursLeft} घंटे में स्वतः हटाया जाएगा।\n\nगलती होने पर तुरंत सहायता से संपर्क करें।`
+        return text
+      }
       if (n.isSubNumber) {
         text += `\n\nस्थिति: ${n.status === 'active' ? '✅ सक्रिय' : '⚠️ ' + n.status}\nअतिरिक्त नंबर — $${n.planPrice}/माह (${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)} प्लान के तहत)`
       } else {

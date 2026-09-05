@@ -23668,7 +23668,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     }
     if (message === pc.myNumbers) {
       const userData = await get(phoneNumbersOf, chatId)
-      const numbers = (userData?.numbers || []).filter(n => n.status === 'active' || n.status === 'suspended')
+      const numbers = (userData?.numbers || []).filter(n => n.status === 'active' || n.status === 'suspended' || n.status === 'inactive_released')
 
       // Fetch pending bundles for this user
       let userPendingBundles = []
@@ -28368,7 +28368,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     if (isBackPress(message) || message === pc.back) {
       // Go back to My Numbers (with pending)
       const userData = await get(phoneNumbersOf, chatId)
-      const numbers = (userData?.numbers || []).filter(n => n.status === 'active' || n.status === 'suspended')
+      const numbers = (userData?.numbers || []).filter(n => n.status === 'active' || n.status === 'suspended' || n.status === 'inactive_released')
       let userPendingBundles = []
       try {
         if (pendingBundles?.find) {
@@ -28491,7 +28491,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     if (isBackPress(message) || message === pc.back) {
       // Go back to my numbers list
       const userData = await get(phoneNumbersOf, chatId)
-      const numbers = (userData?.numbers || []).filter(n => n.status === 'active' || n.status === 'suspended')
+      const numbers = (userData?.numbers || []).filter(n => n.status === 'active' || n.status === 'suspended' || n.status === 'inactive_released')
       await saveInfo('cpNumbers', numbers)
       await set(state, chatId, 'action', a.cpMyNumbers)
       const numBtns = numbers.map((_, i) => String(i + 1))
@@ -33036,9 +33036,9 @@ Select a category:`), k.of(catBtns))
     try {
       const phoneData = await get(phoneNumbersOf, chatId)
       const numbers = phoneData?.numbers || []
-      // Match the cpMyNumbers handler (line 20856) — include suspended so
-      // every number the user can manage is selectable here.
-      const activeNums = numbers.filter(n => n.status === 'active' || n.status === 'suspended')
+      // Match the cpMyNumbers handler (line 20856) — include suspended and
+      // inactive_released so every number the user can see/manage is listed here.
+      const activeNums = numbers.filter(n => n.status === 'active' || n.status === 'suspended' || n.status === 'inactive_released')
       if (activeNums.length > 0) {
         hasAnySub = true
         activeCpNumbers = activeNums  // hoisted for the interactive keyboard below

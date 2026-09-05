@@ -72,7 +72,15 @@ function initPhoneScheduler(deps) {
     await runPricingReconciler()
   })
 
-  log('[PhoneScheduler] Scheduled: expiry check (hourly), usage tracking (daily 3AM), monthly reset (daily 0:05AM), pricing reconciler (daily 0:30AM)')
+  // ── Every 6 hours: Remove numbers inactive_released for >48h ──
+  // Numbers silently released by the provider (detected by phone-monitor)
+  // get a 48h grace window. After that, this job cleans them up.
+  schedule.scheduleJob('0 */6 * * *', async () => {
+    log('[PhoneScheduler] Running inactive-released cleanup...')
+    await runInactiveReleasedCleanup()
+  })
+
+  log('[PhoneScheduler] Scheduled: expiry check (hourly), usage tracking (daily 3AM), monthly reset (daily 0:05AM), pricing reconciler (daily 0:30AM), inactive-released cleanup (every 6h)')
 }
 
 async function _getUserLang(chatId) {
@@ -961,10 +969,109 @@ async function runPricingReconciler() {
   }
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// INACTIVE-RELEASED CLEANUP — remove numbers 48h after provider release
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Numbers marked `inactive_released` by phone-monitor (detected gone from
+// the provider) get a 48-hour grace window for support intervention.
+// After that, this job removes the number from the user's array, logs
+// a phoneTransaction, and sends a final notification.
+
+async function runInactiveReleasedCleanup() {
+  try {
+    if (!_phoneNumbersOf?.find) return
+    const allUsers = await _phoneNumbersOf.find({}).toArray()
+    const GRACE_MS = 48 * 60 * 60 * 1000 // 48 hours
+    const now = Date.now()
+    let removed = 0
+    let skipped = 0
+
+    for (const user of allUsers) {
+      const chatId = user._id
+      const numbers = user.val?.numbers || []
+      const toRemove = []
+
+      for (let i = 0; i < numbers.length; i++) {
+        const num = numbers[i]
+        if (num.status !== 'inactive_released') continue
+
+        const inactiveSince = num._inactiveSince ? new Date(num._inactiveSince).getTime() : 0
+        if (!inactiveSince) { skipped++; continue }
+
+        const elapsed = now - inactiveSince
+        if (elapsed < GRACE_MS) {
+          skipped++
+          continue
+        }
+
+        // Past 48-hour grace — schedule for removal
+        toRemove.push({ index: i, num })
+      }
+
+      if (toRemove.length === 0) continue
+
+      // Remove from array (iterate in reverse to keep indices stable)
+      const updatedNumbers = numbers.filter((n, idx) =>
+        !toRemove.some(r => r.index === idx)
+      )
+
+      await _phoneNumbersOf.updateOne(
+        { _id: chatId },
+        { $set: { 'val.numbers': updatedNumbers } }
+      )
+
+      for (const { num } of toRemove) {
+        removed++
+
+        // Log the transaction
+        await _phoneTransactions?.insertOne({
+          chatId,
+          phoneNumber: num.phoneNumber,
+          action: 'inactive_released_cleanup',
+          plan: num.plan,
+          amount: 0,
+          timestamp: new Date().toISOString(),
+          _inactiveSince: num._inactiveSince,
+        })
+
+        // Resolve user language
+        let userLang = 'en'
+        try {
+          const userState = await _stateOf?.findOne?.({ _id: String(chatId) })
+          userLang = userState?.userLanguage || 'en'
+        } catch (_) { /* fallback */ }
+
+        // Notify user — final removal message
+        const userMsgs = {
+          en: `🗑️ <b>Number Removed</b>\n\n📞 ${formatPhone(num.phoneNumber)} has been removed from your account after being inactive for 48+ hours.\n\nThis number was released by the provider and could no longer make or receive calls.\n\nYou can purchase a new number anytime from the Cloud IVR menu.`,
+          fr: `🗑️ <b>Numéro Supprimé</b>\n\n📞 ${formatPhone(num.phoneNumber)} a été supprimé de votre compte après 48h+ d'inactivité.\n\nCe numéro a été libéré par le fournisseur.\n\nVous pouvez acheter un nouveau numéro depuis le menu Cloud IVR.`,
+          zh: `🗑️ <b>号码已移除</b>\n\n📞 ${formatPhone(num.phoneNumber)} 在不活跃超过48小时后已从您的账户中移除。\n\n此号码已被运营商释放。\n\n您可以随时从 Cloud IVR 菜单购买新号码。`,
+          hi: `🗑️ <b>नंबर हटाया गया</b>\n\n📞 ${formatPhone(num.phoneNumber)} 48+ घंटे निष्क्रिय रहने के बाद आपके खाते से हटा दिया गया है।\n\nयह नंबर प्रदाता द्वारा जारी किया गया था।\n\nआप Cloud IVR मेनू से कभी भी नया नंबर खरीद सकते हैं।`,
+        }
+        sendToUser(chatId, userMsgs[userLang] || userMsgs.en)
+
+        // Notify admin
+        const name = await get(_nameOf, chatId).catch(() => null)
+        _notifyGroup?.(
+          `🗑️ <b>Inactive number auto-removed:</b> ${_maskName?.(name) || ''} <code>${chatId}</code> ${maskPhone(num.phoneNumber)} — was inactive_released since ${num._inactiveSince}`,
+          `🗑️ <b>Inactive number auto-removed:</b> ${_maskName?.(name) || ''} <code>${chatId}</code> ${formatPhone(num.phoneNumber)} — was inactive_released since ${num._inactiveSince}`
+        )
+
+        log(`[PhoneScheduler] Auto-removed inactive_released number: ${chatId} ${num.phoneNumber} (inactive since ${num._inactiveSince})`)
+      }
+    }
+
+    log(`[PhoneScheduler] Inactive-released cleanup complete: ${removed} removed, ${skipped} still in grace period`)
+  } catch (e) {
+    log(`[PhoneScheduler] runInactiveReleasedCleanup error: ${e.message}`)
+  }
+}
+
 module.exports = {
   initPhoneScheduler,
   runExpiryCheck,
   runUsageTracking,
   runMonthlyReset,
   runPricingReconciler,
+  runInactiveReleasedCleanup,
 }
