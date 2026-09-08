@@ -11,7 +11,7 @@ import sys
 import time
 
 # Base URL from frontend/.env
-BASE_URL = "https://bot-balance-verify.preview.emergentagent.com"
+BASE_URL = "https://nameword-deploy.preview.emergentagent.com"
 
 # Test credentials
 USERNAME = "nbayftest"

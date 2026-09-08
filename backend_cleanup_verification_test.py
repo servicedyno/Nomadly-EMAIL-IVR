@@ -14,7 +14,7 @@ import json
 import sys
 
 # Backend URL from frontend/.env
-BACKEND_URL = "https://bot-balance-verify.preview.emergentagent.com"
+BACKEND_URL = "https://nameword-deploy.preview.emergentagent.com"
 
 def print_section(title):
     """Print a formatted section header"""

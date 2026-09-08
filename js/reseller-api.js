@@ -34,6 +34,31 @@ const { getBalance } = require('./utils')
 const domainService = require('./domain-service')
 const whmService = require('./whm-service')
 const vpsProvider = require('./vps-provider')
+const hostingScheduler = require('./hosting-scheduler')       // getPlanPrice / getPlanDuration (bot-accurate)
+const upgradeCredit = require('./hosting-upgrade-credit')     // getUpgradeTargets / computeUpgradeQuote (loyalty credit)
+const antiRed = require('./anti-red-service')                 // resolveDomainCfState / setDomainChallengeBypass
+const addonFlow = require('./addon-domain-flow')              // attachAddonDomain
+const cpanelAuth = require('./cpanel-auth')                   // resetPin (reveal = reset, prod mutation)
+
+// Customer-facing HostPanel URL (same one the Telegram bot shows).
+function panelUrl() {
+  const pd = process.env.PANEL_DOMAIN
+  if (pd) return pd.startsWith('http') ? pd : `https://${pd}`
+  const base = String(process.env.SELF_URL_PROD || process.env.SELF_URL || '').replace('/api', '')
+  return base ? `${base}/panel` : null
+}
+const serverIp = () => process.env.WHM_HOST || process.env.WHM_SERVER_IP || null
+
+// Addon-domain quota per hosting tier (mirrors bot gating).
+function addonQuota(plan) {
+  const n = String(plan || '').toLowerCase()
+  if (n.includes('golden')) return 'unlimited'
+  if (n.includes('premium') && !n.includes('week')) return 5
+  if (n.includes('week')) return 1
+  return 0
+}
+// hostingPlans() plan_id → hosting-upgrade-credit target.key
+const UPGRADE_ID_TO_KEY = { 'premium-monthly': 'premiumCpanel', 'golden-monthly': 'goldenCpanel' }
 
 // ── Hosting plan catalog (prices from prod .env, mirrors store-routes) ──
 function num(v, d) { const n = Number(v); return Number.isFinite(n) ? n : d }
@@ -276,7 +301,20 @@ function createResellerApi(deps = {}) {
 
   router.get('/domains', apiKeyAuth, h(async (req, res) => {
     const docs = await col('domainsOf').find({ chatId: String(req.reseller.ownerChatId) }).limit(500).toArray()
-    res.json({ domains: docs.map(d => ({ domain: d.domainName, registrar: d.registrar || null, nameserver_type: d.nameserverType || null, registered_at: d.registeredAt || null })) })
+    res.json({ domains: docs.map(d => {
+      const rawExp = d.expiresAt || d.expiryDate || d.renewalDate || d.expiry || (d.val && (d.val.expiresAt || d.val.expiryDate)) || null
+      const exp = rawExp ? new Date(rawExp) : null
+      return {
+        domain: d.domainName,
+        registrar: d.registrar || null,
+        nameserver_type: d.nameserverType || null,
+        nameservers: d.nameservers || (d.val && (d.val.cfNameservers || d.val.nameservers)) || [],
+        registered_at: d.registeredAt || null,
+        expires_at: (exp && !isNaN(exp)) ? exp.toISOString() : null,
+        dns_records_url: `/dns/${d.domainName}/records`,
+        nameservers_url: `/dns/${d.domainName}/nameservers`,
+      }
+    }) })
   }))
 
   // ════════════════════════════════════════════════════════
@@ -458,7 +496,19 @@ function createResellerApi(deps = {}) {
   // cPanel HOSTING
   // ════════════════════════════════════════════════════════
   router.get('/hosting/plans', apiKeyAuth, h(async (req, res) => {
-    res.json({ plans: hostingPlans().map(p => ({ plan_id: p.id, name: p.name, tier: p.tier, price_usd: p.priceUsd, duration_days: p.durationDays, addon_domains: p.addons, features: p.features })) })
+    res.json({
+      platform: {
+        hosting_trial_on: process.env.HOSTING_TRIAL_PLAN_ON === 'true',
+        offshore_hosting_on: process.env.OFFSHORE_HOSTING_ON === 'true',
+        gold_price_usd: num(process.env.GOLDEN_ANTIRED_CPANEL_PRICE, 100),
+      },
+      plans: hostingPlans().map(p => ({
+        plan_id: p.id, name: p.name, tier: p.tier, price_usd: p.priceUsd,
+        duration_days: p.durationDays, addon_domains: p.addons,
+        visitor_captcha_available: p.tier === 'gold',
+        features: p.features,
+      })),
+    })
   }))
 
   router.post('/hosting', apiKeyAuth, h(async (req, res) => {
@@ -497,14 +547,35 @@ function createResellerApi(deps = {}) {
         if (!r || r.success === false) return { success: false, error: r?.error || 'Provisioning failed' }
         // tag the account with the reseller owner for listing
         if (r.username) { try { await col('cpanelAccounts').updateOne({ _id: String(r.username).toLowerCase() }, { $set: { chatId: String(req.reseller.ownerChatId), source: 'reseller_api', ownerEmail: email } }) } catch (_) { /* tag best-effort */ } }
-        return { success: true, domain, plan: plan.name, cpanel_username: r.username || null, nameservers: r.nameservers || [], queued: !!r.queued }
+        return {
+          success: true, domain, plan: plan.name,
+          cpanel_username: r.username || null,
+          panel_url: panelUrl(),
+          server_ip: serverIp(),
+          nameservers: r.nameservers || [],
+          queued: !!r.queued,
+          credentials_url: r.username ? `/hosting/${String(r.username).toLowerCase()}/credentials` : null,
+          note: 'Call GET /hosting/{username}/credentials to reveal the panel PIN (live mode only).',
+        }
       },
     })
   }))
 
   router.get('/hosting', apiKeyAuth, h(async (req, res) => {
     const docs = await col('cpanelAccounts').find({ chatId: String(req.reseller.ownerChatId), deleted: { $ne: true } }).limit(500).toArray()
-    res.json({ accounts: docs.map(d => ({ username: d._id || d.username, domain: d.domain, plan: d.plan || null, suspended: !!d.suspended, created_at: d.createdAt || null })) })
+    res.json({
+      panel_url: panelUrl(),
+      server_ip: serverIp(),
+      accounts: docs.map(d => ({
+        username: d._id || d.username,
+        domain: d.domain,
+        plan: d.plan || null,
+        suspended: !!d.suspended,
+        created_at: d.createdAt || null,
+        expires_at: d.expiryDate ? new Date(d.expiryDate).toISOString() : null,
+        credentials_url: `/hosting/${d._id || d.username}/credentials`,
+      })),
+    })
   }))
 
   async function loadOwnedCpanel(req, username) {
@@ -545,6 +616,297 @@ function createResellerApi(deps = {}) {
     const session = await whmService.createUserSession(acct._id)
     res.json({ mode: 'live', username: acct._id, login_url: session?.url || session || null })
   }))
+
+  // Resolve a reseller-owned cPanel account by domain (main OR addon domain).
+  async function findOwnedAccountByDomain(req, domain) {
+    const chatId = String(req.reseller.ownerChatId)
+    const rx = new RegExp('^' + String(domain).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i')
+    let acct = await col('cpanelAccounts').findOne({ chatId, deleted: { $ne: true }, domain: { $regex: rx } })
+    if (!acct) acct = await col('cpanelAccounts').findOne({ chatId, deleted: { $ne: true }, addonDomains: { $elemMatch: { domain: { $regex: rx } } } })
+    return acct
+  }
+
+  // Resolve the customer-facing nameservers for a hosting account's domain
+  // (Cloudflare NS the customer must point their domain at).
+  async function resolveNameservers(acct) {
+    if (Array.isArray(acct?.nameservers) && acct.nameservers.length) return acct.nameservers
+    try {
+      const rd = await col('registeredDomains').findOne({ _id: String(acct?.domain || '').toLowerCase() })
+      const v = rd?.val || {}
+      return v.cfNameservers || v.nameservers || rd?.nameservers || []
+    } catch (_) { return [] }
+  }
+
+  // Non-secret hosting deliverables (safe in any mode). The PIN is revealed
+  // ONLY by GET /hosting/:user/credentials (reveal = PIN reset = prod write).
+  function hostingDeliverables(acct, nameservers) {
+    return {
+      cpanel_username: acct.cpUser || acct._id || null,
+      panel_url: panelUrl(),
+      server_ip: serverIp(),
+      nameservers: nameservers || [],
+      credentials_url: `/hosting/${acct.cpUser || acct._id}/credentials`,
+    }
+  }
+
+  // ════════════════════════════════════════════════════════
+  // RENEWAL ALERTS — upcoming expiries across every product the
+  // reseller owns (hosting + domains + VPS + RDP), one call.
+  // ?days=N filters to items expiring within N days (default 30);
+  // already-expired items are always included.
+  // ════════════════════════════════════════════════════════
+  router.get('/renewals', apiKeyAuth, h(async (req, res) => {
+    const chatId = String(req.reseller.ownerChatId)
+    const withinDays = num(req.query.days, 30)
+    const nowMs = Date.now()
+    const DAY = 86400000
+    const bucket = (days) => (days < 0 ? 'expired' : (days <= 3 ? 'expiring_soon' : 'upcoming'))
+    const items = []
+
+    // Hosting (cpanelAccounts.expiryDate)
+    try {
+      const hosting = await col('cpanelAccounts').find({ chatId, deleted: { $ne: true } }).limit(500).toArray()
+      for (const hp of hosting) {
+        if (!hp.expiryDate) continue
+        const exp = new Date(hp.expiryDate); if (isNaN(exp)) continue
+        const days = Math.ceil((exp.getTime() - nowMs) / DAY)
+        items.push({ product: 'hosting', id: hp._id || hp.username, domain: hp.domain || null, plan: hp.plan || null, expires_at: exp.toISOString(), days_until_expiry: days, status: bucket(days), suspended: !!hp.suspended, auto_renew: hp.autoRenew !== false })
+      }
+    } catch (e) { log(`[ResellerAPI] renewals hosting warn: ${e.message}`) }
+
+    // Domains (domainsOf — read whatever expiry field is present)
+    try {
+      const domains = await col('domainsOf').find({ chatId }).limit(1000).toArray()
+      for (const d of domains) {
+        const raw = d.expiresAt || d.expiryDate || d.renewalDate || d.expiry || (d.val && (d.val.expiresAt || d.val.expiryDate)) || null
+        if (!raw) continue
+        const exp = new Date(raw); if (isNaN(exp)) continue
+        const days = Math.ceil((exp.getTime() - nowMs) / DAY)
+        items.push({ product: 'domain', id: d.domainName || d._id, domain: d.domainName || null, registrar: d.registrar || null, expires_at: exp.toISOString(), days_until_expiry: days, status: bucket(days) })
+      }
+    } catch (e) { log(`[ResellerAPI] renewals domains warn: ${e.message}`) }
+
+    // VPS + RDP (reseller-owned flat docs)
+    try {
+      const vpsDocs = await col('vpsPlansOf').find({ chatId, status: { $ne: 'destroyed' } }).limit(500).toArray()
+      for (const v of vpsDocs) {
+        const raw = v.end_time || v.expiresAt || v.subscriptionEnd || (v.subscription && v.subscription.subscriptionEnd) || null
+        if (!raw) continue
+        const exp = new Date(raw); if (isNaN(exp)) continue
+        const days = Math.ceil((exp.getTime() - nowMs) / DAY)
+        items.push({ product: v.isRDP ? 'rdp' : 'vps', id: v.vpsId || v._id, plan: v.plan || null, region: v.region || null, expires_at: exp.toISOString(), days_until_expiry: days, status: bucket(days) })
+      }
+    } catch (e) { log(`[ResellerAPI] renewals vps warn: ${e.message}`) }
+
+    const filtered = items.filter(i => i.days_until_expiry <= withinDays).sort((a, b) => a.days_until_expiry - b.days_until_expiry)
+    res.json({
+      within_days: withinDays,
+      count: filtered.length,
+      summary: {
+        expired: filtered.filter(i => i.status === 'expired').length,
+        expiring_soon: filtered.filter(i => i.status === 'expiring_soon').length,
+        upcoming: filtered.filter(i => i.status === 'upcoming').length,
+      },
+      renewals: filtered,
+    })
+  }))
+
+  // ════════════════════════════════════════════════════════
+  // VISITOR CAPTCHA (Golden Anti-Red HostPanel only) — read + set
+  // ════════════════════════════════════════════════════════
+  router.get('/hosting/captcha/:domain', apiKeyAuth, h(async (req, res) => {
+    const domain = String(req.params.domain || '').trim().toLowerCase()
+    if (!domainOk(domain)) return res.status(400).json({ error: 'invalid_domain' })
+    const goldPrice = num(process.env.GOLDEN_ANTIRED_CPANEL_PRICE, 100)
+    const acct = await findOwnedAccountByDomain(req, domain)
+    if (!acct) return res.status(404).json({ error: 'not_found', message: 'No hosting account for that domain under your account.' })
+    const isGold = /golden[\s-]*anti[\s-]*red/i.test(acct.plan || '')
+    const cf = await antiRed.resolveDomainCfState(domain, getDb())
+    res.json({
+      domain,
+      cpanel_username: acct._id || acct.username,
+      plan: acct.plan || null,
+      gold_plan: isGold,
+      eligible: isGold && cf.hasCloudflare,
+      has_cloudflare: cf.hasCloudflare,
+      visitor_captcha_enabled: isGold ? !cf.isOff : false,
+      gold_price_usd: goldPrice,
+      ...(isGold ? {} : { note: `Visitor Captcha is exclusive to the Golden Anti-Red HostPanel ($${goldPrice}/mo). Upgrade to enable it.` }),
+    })
+  }))
+
+  router.post('/hosting/captcha/:domain', apiKeyAuth, h(async (req, res) => {
+    const domain = String(req.params.domain || '').trim().toLowerCase()
+    if (!domainOk(domain)) return res.status(400).json({ error: 'invalid_domain' })
+    const enabled = req.body?.enabled
+    if (typeof enabled !== 'boolean') return res.status(400).json({ error: 'invalid_body', message: 'Body must include { "enabled": true|false }.' })
+    const goldPrice = num(process.env.GOLDEN_ANTIRED_CPANEL_PRICE, 100)
+    const acct = await findOwnedAccountByDomain(req, domain)
+    if (!acct) return res.status(404).json({ error: 'not_found', message: 'No hosting account for that domain under your account.' })
+    if (!/golden[\s-]*anti[\s-]*red/i.test(acct.plan || '')) {
+      return res.status(403).json({ error: 'gold_plan_required', message: `Visitor Captcha is exclusive to the Golden Anti-Red HostPanel ($${goldPrice}/mo).`, gold_price_usd: goldPrice })
+    }
+    const cf = await antiRed.resolveDomainCfState(domain, getDb())
+    if (!cf.hasCloudflare) return res.status(409).json({ error: 'no_cloudflare', message: 'Domain is not on Cloudflare; Visitor Captcha cannot be toggled.' })
+    if (!isLive()) return res.json({ mode: 'dry_run', domain, visitor_captcha_enabled: enabled, note: 'Dry-run: no change applied to production Cloudflare / KV.' })
+    // captcha ON  → bypass OFF (challenge shown), visitorCaptchaOff cleared
+    // captcha OFF → bypass ON  (challenge skipped), visitorCaptchaOff=true
+    await antiRed.setDomainChallengeBypass(domain, !enabled)
+    await col('registeredDomains').updateOne({ _id: domain }, { $set: { 'val.visitorCaptchaOff': enabled ? '' : true } }, { upsert: true })
+    res.json({ mode: 'live', domain, visitor_captcha_enabled: enabled })
+  }))
+
+  // ════════════════════════════════════════════════════════
+  // DOMAIN RENEWAL (pricing/simulation; live renewal not yet wired)
+  // ════════════════════════════════════════════════════════
+  router.post('/domains/:domain/renew', apiKeyAuth, h(async (req, res) => {
+    const domain = String(req.params.domain || '').trim().toLowerCase()
+    if (!domainOk(domain)) return res.status(400).json({ error: 'invalid_domain' })
+    const owned = await col('domainsOf').findOne({ chatId: String(req.reseller.ownerChatId), domainName: domain })
+    if (!owned) return res.status(404).json({ error: 'not_found', message: 'That domain is not registered under your account.' })
+    const dp = await domainService.checkDomainPrice(domain, getDb())
+    const price = Number(dp?.price) || 0
+    if (!price) return res.status(502).json({ error: 'pricing_failed', message: 'Could not fetch a renewal price for this domain.' })
+    if (isLive()) {
+      // No registrar renewal path exists in the codebase yet — refuse BEFORE charging.
+      return res.status(501).json({ error: 'not_implemented', message: 'Live domain renewal via API is not yet available. Renew at the registrar or via the Telegram bot. Dry-run pricing is available on sandbox pods.', price_usd: price })
+    }
+    return billedProvision(req, res, { product: 'domain', action: 'renew', priceUsd: price, request: { domain, renew_usd: price }, provision: async () => ({ success: true, domain }) })
+  }))
+
+  // ════════════════════════════════════════════════════════
+  // HOSTING — details, renew, upgrade, addon domains
+  // ════════════════════════════════════════════════════════
+  router.post('/hosting/:user/renew', apiKeyAuth, h(async (req, res) => {
+    const acct = await loadOwnedCpanel(req, req.params.user)
+    if (!acct) return res.status(404).json({ error: 'not_found' })
+    const price = hostingScheduler.getPlanPrice(acct)
+    const durationDays = hostingScheduler.getPlanDuration(acct.plan)
+    if (!price || price <= 0) return res.status(502).json({ error: 'pricing_failed', message: 'Could not determine a renewal price for this plan.' })
+    return billedProvision(req, res, {
+      product: 'hosting', action: 'renew', priceUsd: price,
+      request: { username: acct._id, domain: acct.domain, plan: acct.plan, duration_days: durationDays },
+      provision: async () => {
+        const base = (acct.expiryDate && new Date(acct.expiryDate) > new Date()) ? new Date(acct.expiryDate) : new Date()
+        const newExpiry = new Date(base.getTime() + durationDays * 86400000)
+        await col('cpanelAccounts').updateOne({ _id: acct._id }, { $set: { expiryDate: newExpiry, lastRenewedAt: new Date(), renewalPriceUsd: price, suspended: false } })
+        if (acct.suspended) { try { await whmService.unsuspendAccount(acct._id) } catch (e) { log(`[ResellerAPI] renew unsuspend warn: ${e.message}`) } }
+        return { success: true, username: acct._id, domain: acct.domain, plan: acct.plan, new_expiry: newExpiry.toISOString() }
+      },
+    })
+  }))
+
+  router.post('/hosting/:user/upgrade', apiKeyAuth, h(async (req, res) => {
+    const acct = await loadOwnedCpanel(req, req.params.user)
+    if (!acct) return res.status(404).json({ error: 'not_found' })
+    const targets = upgradeCredit.getUpgradeTargets(acct.plan)
+    if (!targets.length) return res.status(409).json({ error: 'no_upgrade_path', message: 'This plan has no higher tier to upgrade to.' })
+    const wantKey = UPGRADE_ID_TO_KEY[req.body?.plan_id] || req.body?.plan_id
+    const target = targets.find(t => t.key === wantKey || t.name === req.body?.plan_id)
+    if (!target) {
+      const idFor = (key) => Object.keys(UPGRADE_ID_TO_KEY).find(k => UPGRADE_ID_TO_KEY[k] === key) || key
+      return res.status(400).json({ error: 'invalid_upgrade_target', message: 'plan_id must be one of the available upgrade targets.', available: targets.map(t => ({ plan_id: idFor(t.key), name: t.name, price_usd: t.price })) })
+    }
+    const oldPrice = hostingScheduler.getPlanPrice(acct)
+    const quote = upgradeCredit.computeUpgradeQuote({ planDoc: acct, oldPrice, newPrice: target.price })
+    return billedProvision(req, res, {
+      product: 'hosting', action: 'upgrade', priceUsd: quote.chargeAmount,
+      request: { username: acct._id, domain: acct.domain, from_plan: acct.plan, to_plan: target.name, sticker_price_usd: target.price, loyalty_credit_usd: quote.creditApplied, charge_usd: quote.chargeAmount },
+      provision: async () => {
+        try { if (typeof whmService.changePackage === 'function') await whmService.changePackage(acct._id, target.name) }
+        catch (e) { return { success: false, error: `WHM changePackage failed: ${e.message}` } }
+        await col('cpanelAccounts').updateOne({ _id: acct._id }, { $set: { plan: target.name, renewalPriceUsd: target.price, upgradedAt: new Date() } })
+        return { success: true, username: acct._id, domain: acct.domain, plan: target.name }
+      },
+    })
+  }))
+
+  router.get('/hosting/:user/addons', apiKeyAuth, h(async (req, res) => {
+    const acct = await loadOwnedCpanel(req, req.params.user)
+    if (!acct) return res.status(404).json({ error: 'not_found' })
+    const addons = Array.isArray(acct.addonDomains) ? acct.addonDomains : []
+    const quota = addonQuota(acct.plan)
+    res.json({ username: acct._id, plan: acct.plan || null, addon_quota: quota, addon_count: addons.length, addons: addons.map(a => ({ domain: a.domain || a, created_at: a.createdAt || a.addedAt || null })) })
+  }))
+
+  router.post('/hosting/:user/addons', apiKeyAuth, h(async (req, res) => {
+    const acct = await loadOwnedCpanel(req, req.params.user)
+    if (!acct) return res.status(404).json({ error: 'not_found' })
+    const domain = String(req.body?.domain || '').trim().toLowerCase()
+    if (!domainOk(domain)) return res.status(400).json({ error: 'invalid_domain', message: 'Provide a valid addon domain.' })
+    const addons = Array.isArray(acct.addonDomains) ? acct.addonDomains : []
+    if (addons.some(a => (a.domain || a) === domain)) return res.status(409).json({ error: 'addon_exists', message: 'That domain is already an addon on this account.' })
+    const quota = addonQuota(acct.plan)
+    if (quota !== 'unlimited' && addons.length >= Number(quota)) {
+      return res.status(409).json({ error: 'addon_quota_exceeded', message: `Your ${acct.plan} plan allows ${quota} addon domain(s).`, addon_quota: quota, addon_count: addons.length })
+    }
+    if (!isLive()) return res.json({ mode: 'dry_run', username: acct._id, addon_domain: domain, addon_quota: quota, note: 'Dry-run: quota check passed; addon not created on cPanel/Cloudflare.' })
+    const cpPass = acct.cpPass || acct.password || null
+    if (!cpPass) return res.status(501).json({ error: 'no_credentials', message: 'cPanel password is not on file for this account; cannot create the addon via API.' })
+    const r = await addonFlow.attachAddonDomain({ account: { cpUser: acct._id, ...acct }, cpPass, domain, db: getDb() })
+    if (!r || r.ok === false) return res.status(502).json({ error: 'addon_failed', message: r?.error || 'Addon creation failed.', kind: r?.errorKind || null })
+    await col('cpanelAccounts').updateOne({ _id: acct._id }, { $push: { addonDomains: { domain, createdAt: new Date() } } })
+    res.json({ mode: 'live', username: acct._id, addon_domain: domain, created: true })
+  }))
+
+  // Full hosting deliverables incl. PIN (reveal = reset) + direct cPanel SSO.
+  // Live-only for the secret parts, mirroring the bot's "reveal credentials"
+  // (PIN reset is a real prod mutation → not run on the dry-run sandbox).
+  router.get('/hosting/:user/credentials', apiKeyAuth, h(async (req, res) => {
+    const acct = await loadOwnedCpanel(req, req.params.user)
+    if (!acct) return res.status(404).json({ error: 'not_found' })
+    const nameservers = await resolveNameservers(acct)
+    const base = {
+      username: acct.cpUser || acct._id,
+      domain: acct.domain || null,
+      plan: acct.plan || null,
+      panel_url: panelUrl(),
+      server_ip: serverIp(),
+      nameservers,
+      expires_at: acct.expiryDate ? new Date(acct.expiryDate).toISOString() : null,
+      mode: mode(),
+    }
+    if (!isLive()) {
+      return res.json({ ...base, panel_pin: null, direct_cpanel_login_url: null, note: 'Revealing the PIN RESETS it (a production write), and direct cPanel SSO are available only in live mode. Username, panel URL, server IP and nameservers above are ready to use now.' })
+    }
+    const { pin } = await cpanelAuth.resetPin(col('cpanelAccounts'), acct.cpUser || acct._id)
+    let loginUrl = null
+    try { const s = await whmService.createUserSession(acct._id); loginUrl = s?.url || s || null }
+    catch (e) { log(`[ResellerAPI] credentials createUserSession warn: ${e.message}`) }
+    res.json({ ...base, panel_pin: pin, direct_cpanel_login_url: loginUrl, note: 'This PIN was freshly generated — the previous PIN is now invalid.' })
+  }))
+
+  // Account details/usage — 2-segment dynamic route registered LAST so the
+  // literal 3-segment routes above (renew/upgrade/addons/login/…) win first.
+  router.get('/hosting/:user', apiKeyAuth, h(async (req, res) => {
+    const acct = await loadOwnedCpanel(req, req.params.user)
+    if (!acct) return res.status(404).json({ error: 'not_found' })
+    const addons = Array.isArray(acct.addonDomains) ? acct.addonDomains : []
+    const nameservers = await resolveNameservers(acct)
+    let usage = null
+    if (isLive()) {
+      try { if (typeof whmService.getAccountSummary === 'function') usage = await whmService.getAccountSummary(acct._id) }
+      catch (e) { usage = { error: e.message } }
+    }
+    res.json({
+      username: acct._id || acct.username,
+      domain: acct.domain || null,
+      plan: acct.plan || null,
+      price_usd: hostingScheduler.getPlanPrice(acct),
+      duration_days: hostingScheduler.getPlanDuration(acct.plan),
+      suspended: !!acct.suspended,
+      auto_renew: acct.autoRenew !== false,
+      created_at: acct.createdAt || null,
+      expires_at: acct.expiryDate ? new Date(acct.expiryDate).toISOString() : null,
+      deliverables: hostingDeliverables(acct, nameservers),
+      addon_quota: addonQuota(acct.plan),
+      addon_domain_count: addons.length,
+      addon_domains: addons.map(a => a.domain || a),
+      usage,
+      mode: mode(),
+    })
+  }))
+
 
   log(`[ResellerAPI] mounted at /reseller/v1 (mode=${mode()})`)
   return router
