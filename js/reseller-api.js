@@ -49,6 +49,32 @@ function panelUrl() {
 }
 const serverIp = () => process.env.WHM_HOST || process.env.WHM_SERVER_IP || null
 
+// Parse WHM /accountsummary acct object into clean disk + bandwidth usage.
+function parseHostingUsage(acct) {
+  if (!acct || typeof acct !== 'object') return null
+  const toNum = (v) => { const n = parseFloat(String(v).replace(/[^0-9.]/g, '')); return Number.isFinite(n) ? n : null }
+  const isUnl = (v) => /unlimited/i.test(String(v))
+  const diskUsedMb = toNum(acct.diskused)
+  const diskLimitMb = isUnl(acct.disklimit) ? null : toNum(acct.disklimit)
+  // WHM reports bandwidth used as totalbytes (bytes) on most versions; bwlimit is in MB.
+  const bwUsedMb = acct.totalbytes != null ? Math.round((toNum(acct.totalbytes) || 0) / (1024 * 1024) * 10) / 10
+    : (acct.bwused != null ? toNum(acct.bwused) : null)
+  const bwLimitMb = isUnl(acct.bwlimit) ? null : toNum(acct.bwlimit)
+  return {
+    disk_used_mb: diskUsedMb,
+    disk_limit_mb: diskLimitMb,
+    disk_limit: isUnl(acct.disklimit) ? 'unlimited' : diskLimitMb,
+    disk_used_pct: (diskUsedMb != null && diskLimitMb) ? Math.round((diskUsedMb / diskLimitMb) * 1000) / 10 : null,
+    bandwidth_used_mb: bwUsedMb,
+    bandwidth_limit_mb: bwLimitMb,
+    bandwidth_limit: isUnl(acct.bwlimit) ? 'unlimited' : bwLimitMb,
+    inodes_used: toNum(acct.inodesused),
+    inodes_limit: isUnl(acct.inodeslimit) ? 'unlimited' : toNum(acct.inodeslimit),
+    email_accounts: toNum(acct.email_accounts) != null ? toNum(acct.email_accounts) : undefined,
+    suspended: acct.suspended === 1 || acct.suspended === '1' || acct.suspended === true || undefined,
+  }
+}
+
 // Addon-domain quota per hosting tier (mirrors bot gating).
 function addonQuota(plan) {
   const n = String(plan || '').toLowerCase()
@@ -883,11 +909,15 @@ function createResellerApi(deps = {}) {
     if (!acct) return res.status(404).json({ error: 'not_found' })
     const addons = Array.isArray(acct.addonDomains) ? acct.addonDomains : []
     const nameservers = await resolveNameservers(acct)
+    // Live disk/bandwidth usage from WHM (/accountsummary — a READ, safe on any
+    // pod). Best-effort: null if WHM is unreachable or the account is unknown.
     let usage = null
-    if (isLive()) {
-      try { if (typeof whmService.getAccountSummary === 'function') usage = await whmService.getAccountSummary(acct._id) }
-      catch (e) { usage = { error: e.message } }
-    }
+    try {
+      const info = await whmService.getAccountInfo(acct.cpUser || acct._id)
+      if (info && info.success) usage = parseHostingUsage(info.data)
+      else if (info && info.error) usage = { error: info.error }
+      else usage = { error: 'account_summary_unavailable' }
+    } catch (e) { usage = { error: e.message } }
     res.json({
       username: acct._id || acct.username,
       domain: acct.domain || null,

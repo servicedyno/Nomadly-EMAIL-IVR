@@ -128,9 +128,23 @@ function endpointGroups(base) {
       "domain": "mysite.com",
       "registrar": "ConnectReseller",
       "nameserver_type": "cloudflare",
-      "registered_at": "2026-09-08T10:22:00.000Z"
+      "nameservers": ["ada.ns.cloudflare.com", "rob.ns.cloudflare.com"],
+      "registered_at": "2026-09-08T10:22:00.000Z",
+      "expires_at": "2027-09-08T10:22:00.000Z",
+      "dns_records_url": "/dns/mysite.com/records",
+      "nameservers_url": "/dns/mysite.com/nameservers"
     }
   ]
+}`,
+        },
+        {
+          method: 'POST', path: '/domains/:domain/renew', auth: true, billed: true,
+          desc: 'Renew a domain you own for another registration term. Dry-run returns the price + wallet check; live registrar renewal is not yet wired (returns 501 not_implemented before any charge).',
+          curl: `curl -s -X POST ${base}/domains/mysite.com/renew \\
+  -H "Authorization: Bearer YOUR_API_KEY"`,
+          resp: `{
+  "mode": "dry_run", "product": "domain", "action": "renew",
+  "price_usd": 39, "wallet_balance_usd": 5, "sufficient_balance": false
 }`,
         },
       ],
@@ -350,10 +364,11 @@ function endpointGroups(base) {
           curl: `curl -s ${base}/hosting/plans \\
   -H "Authorization: Bearer YOUR_API_KEY"`,
           resp: `{
+  "platform": { "hosting_trial_on": false, "offshore_hosting_on": true, "gold_price_usd": 100 },
   "plans": [
     { "plan_id": "golden-monthly", "name": "Golden Anti-Red HostPanel (1-Month)",
       "tier": "gold", "price_usd": 100, "duration_days": 30,
-      "addon_domains": "unlimited",
+      "addon_domains": "unlimited", "visitor_captcha_available": true,
       "features": ["Anti-Red protection", "Unlimited addon domains", "Visitor Captcha + Geo", "30 days"] }
   ]
 }`,
@@ -382,8 +397,12 @@ function endpointGroups(base) {
     "domain": "mysite.com",
     "plan": "Golden Anti-Red HostPanel (1-Month)",
     "cpanel_username": "mysite01",
+    "panel_url": "https://panel.1.hostbay.io",
+    "server_ip": "68.183.77.106",
     "nameservers": ["ada.ns.cloudflare.com", "rob.ns.cloudflare.com"],
-    "queued": false
+    "queued": false,
+    "credentials_url": "/hosting/mysite01/credentials",
+    "note": "Call GET /hosting/{username}/credentials to reveal the panel PIN (live mode only)."
   }
 }`,
         },
@@ -392,10 +411,14 @@ function endpointGroups(base) {
           desc: 'List all cPanel hosting accounts you own.',
           curl: `curl -s ${base}/hosting -H "Authorization: Bearer YOUR_API_KEY"`,
           resp: `{
+  "panel_url": "https://panel.1.hostbay.io",
+  "server_ip": "68.183.77.106",
   "accounts": [
     { "username": "mysite01", "domain": "mysite.com",
       "plan": "Golden Anti-Red HostPanel (1-Month)", "suspended": false,
-      "created_at": "2026-09-08T11:00:00.000Z" }
+      "created_at": "2026-09-08T11:00:00.000Z",
+      "expires_at": "2026-10-08T11:00:00.000Z",
+      "credentials_url": "/hosting/mysite01/credentials" }
   ]
 }`,
         },
@@ -430,6 +453,149 @@ function endpointGroups(base) {
   -H "Authorization: Bearer YOUR_API_KEY"`,
           resp: `{ "mode": "live", "username": "mysite01", "login_url": "https://whm-host/cpsess…/login/?…" }`,
         },
+        {
+          method: 'GET', path: '/hosting/:user', auth: true, billed: false,
+          desc: 'Full account details for one hosting account — plan, price, expiry, addon quota/list, the customer deliverables block (panel URL, cPanel username, server IP, nameservers, credentials_url), and LIVE disk/bandwidth usage read from WHM.',
+          curl: `curl -s ${base}/hosting/mysite01 \\
+  -H "Authorization: Bearer YOUR_API_KEY"`,
+          resp: `{
+  "username": "mysite01",
+  "domain": "mysite.com",
+  "plan": "Golden Anti-Red HostPanel (1-Month)",
+  "price_usd": 100,
+  "duration_days": 30,
+  "suspended": false,
+  "expires_at": "2026-10-08T11:00:00.000Z",
+  "deliverables": {
+    "cpanel_username": "mysite01",
+    "panel_url": "https://panel.1.hostbay.io",
+    "server_ip": "68.183.77.106",
+    "nameservers": ["ada.ns.cloudflare.com", "rob.ns.cloudflare.com"],
+    "credentials_url": "/hosting/mysite01/credentials"
+  },
+  "addon_quota": "unlimited",
+  "addon_domain_count": 1,
+  "addon_domains": ["blog.mysite.com"],
+  "usage": {
+    "disk_used_mb": 412.5, "disk_limit": 5120, "disk_used_pct": 8.1,
+    "bandwidth_used_mb": 1830.2, "bandwidth_limit": "unlimited",
+    "inodes_used": 10432, "inodes_limit": "unlimited"
+  },
+  "mode": "dry_run"
+}`,
+        },
+        {
+          method: 'GET', path: '/hosting/:user/credentials', auth: true, billed: false,
+          desc: 'Reveal the customer login deliverables: cPanel username, HostPanel URL, server IP and nameservers (always), plus the panel PIN and a one-click direct cPanel SSO URL (LIVE mode only — revealing the PIN regenerates it, invalidating the previous one).',
+          curl: `curl -s ${base}/hosting/mysite01/credentials \\
+  -H "Authorization: Bearer YOUR_API_KEY"`,
+          resp: `{
+  "username": "mysite01",
+  "domain": "mysite.com",
+  "plan": "Golden Anti-Red HostPanel (1-Month)",
+  "panel_url": "https://panel.1.hostbay.io",
+  "server_ip": "68.183.77.106",
+  "nameservers": ["ada.ns.cloudflare.com", "rob.ns.cloudflare.com"],
+  "expires_at": "2026-10-08T11:00:00.000Z",
+  "mode": "live",
+  "panel_pin": "842196",
+  "direct_cpanel_login_url": "https://panel.1.hostbay.io/cpsess…/login/?…",
+  "note": "This PIN was freshly generated — the previous PIN is now invalid."
+}`,
+        },
+        {
+          method: 'POST', path: '/hosting/:user/renew', auth: true, billed: true,
+          desc: 'Renew a hosting account for another term at the exact bot price for its plan. Extends the expiry and unsuspends if needed.',
+          curl: `curl -s -X POST ${base}/hosting/mysite01/renew \\
+  -H "Authorization: Bearer YOUR_API_KEY"`,
+          resp: `{
+  "mode": "live", "product": "hosting", "action": "renew", "charged_usd": 100,
+  "wallet_balance_usd": 42.51,
+  "result": { "success": true, "username": "mysite01", "plan": "Golden Anti-Red HostPanel (1-Month)",
+    "new_expiry": "2026-11-08T11:00:00.000Z" }
+}`,
+        },
+        {
+          method: 'POST', path: '/hosting/:user/upgrade', auth: true, billed: true,
+          desc: 'Upgrade a hosting account to a higher tier. The charge uses the exact bot upgrade quote, applying any loyalty credit for the unused portion of the current cycle.',
+          params: [['plan_id', true, 'Target plan_id (e.g. "golden-monthly"). GET the current plan first; a 400 lists the available upgrade targets.']],
+          curl: `curl -s -X POST ${base}/hosting/mysite01/upgrade \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"plan_id":"golden-monthly"}'`,
+          resp: `{
+  "mode": "live", "product": "hosting", "action": "upgrade", "charged_usd": 44.29,
+  "wallet_balance_usd": 5.71,
+  "result": { "success": true, "username": "mysite01", "plan": "Golden Anti-Red HostPanel (30 Days)" }
+}`,
+        },
+        {
+          method: 'GET', path: '/hosting/:user/addons', auth: true, billed: false,
+          desc: 'List the addon domains on a hosting account, with the plan addon quota.',
+          curl: `curl -s ${base}/hosting/mysite01/addons \\
+  -H "Authorization: Bearer YOUR_API_KEY"`,
+          resp: `{ "username": "mysite01", "plan": "Golden Anti-Red HostPanel (1-Month)",
+  "addon_quota": "unlimited", "addon_count": 1,
+  "addons": [ { "domain": "blog.mysite.com", "created_at": "2026-09-08T12:00:00.000Z" } ] }`,
+        },
+        {
+          method: 'POST', path: '/hosting/:user/addons', auth: true, billed: false,
+          desc: 'Add an addon domain to a hosting account (free — no wallet charge; enforces the plan addon quota: weekly 1, premium 5, gold unlimited).',
+          params: [['domain', true, 'The addon domain to attach']],
+          curl: `curl -s -X POST ${base}/hosting/mysite01/addons \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"domain":"blog.mysite.com"}'`,
+          resp: `{ "mode": "live", "username": "mysite01", "addon_domain": "blog.mysite.com", "created": true }`,
+        },
+        {
+          method: 'GET', path: '/hosting/captcha/:domain', auth: true, billed: false,
+          desc: 'Read the Visitor Captcha status for a domain attached to a hosting account. Visitor Captcha is a Golden Anti-Red HostPanel exclusive; eligible requires a Gold plan + the domain on Cloudflare.',
+          curl: `curl -s ${base}/hosting/captcha/mysite.com \\
+  -H "Authorization: Bearer YOUR_API_KEY"`,
+          resp: `{
+  "domain": "mysite.com", "cpanel_username": "mysite01",
+  "plan": "Golden Anti-Red HostPanel (1-Month)",
+  "gold_plan": true, "eligible": true, "has_cloudflare": true,
+  "visitor_captcha_enabled": true, "gold_price_usd": 100
+}`,
+        },
+        {
+          method: 'POST', path: '/hosting/captcha/:domain', auth: true, billed: false,
+          desc: 'Turn Visitor Captcha ON or OFF for a Gold-plan domain. 403 if the domain is not on a Gold plan; 409 if the domain is not on Cloudflare.',
+          params: [['enabled', true, 'true = show the captcha challenge, false = bypass it']],
+          curl: `curl -s -X POST ${base}/hosting/captcha/mysite.com \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"enabled":false}'`,
+          resp: `{ "mode": "live", "domain": "mysite.com", "visitor_captcha_enabled": false }`,
+        },
+      ],
+    },
+    {
+      id: 'renewals', title: 'Renewal Alerts',
+      blurb: 'One call returns every product you own that is expiring soon — hosting, domains, VPS and RDP — with days remaining and a status bucket. Poll it to drive renewal reminders / auto-renew.',
+      endpoints: [
+        {
+          method: 'GET', path: '/renewals', auth: true, billed: false,
+          desc: 'Unified upcoming-expiry list across hosting + domains + VPS + RDP. Use ?days=N to filter to items expiring within N days (default 30); already-expired items are always included.',
+          params: [['days', false, 'Only return items expiring within this many days (default 30)']],
+          curl: `curl -s "${base}/renewals?days=30" \\
+  -H "Authorization: Bearer YOUR_API_KEY"`,
+          resp: `{
+  "within_days": 30,
+  "count": 2,
+  "summary": { "expired": 0, "expiring_soon": 1, "upcoming": 1 },
+  "renewals": [
+    { "product": "hosting", "id": "mysite01", "domain": "mysite.com",
+      "plan": "Golden Anti-Red HostPanel (1-Month)",
+      "expires_at": "2026-09-11T11:00:00.000Z", "days_until_expiry": 3,
+      "status": "expiring_soon", "suspended": false, "auto_renew": true },
+    { "product": "vps", "id": "b2f1c0a4-…", "plan": "s-1vcpu-1gb", "region": "EU",
+      "expires_at": "2026-10-01T11:00:00.000Z", "days_until_expiry": 23, "status": "upcoming" }
+  ]
+}`,
+        },
       ],
     },
   ]
@@ -444,7 +610,12 @@ const ERRORS = [
   ['409', 'domain_unavailable', 'The requested domain cannot be registered.'],
   ['409', 'domain_in_use', 'That domain already has an active hosting plan.'],
   ['404', 'not_found', 'The resource does not exist or is not owned by your account.'],
-  ['501', 'not_supported', 'The provider does not support this action for this resource.'],
+  ['400', 'invalid_body / invalid_upgrade_target', 'Request body missing/invalid (e.g. captcha needs {enabled:bool}); or plan_id is not a valid upgrade target (response lists the available targets).'],
+  ['403', 'gold_plan_required', 'Visitor Captcha is exclusive to the Golden Anti-Red HostPanel — the domain is not on a Gold plan.'],
+  ['409', 'no_cloudflare', 'The domain is not on Cloudflare, so Visitor Captcha cannot be toggled.'],
+  ['409', 'no_upgrade_path', 'The account is already on the top tier — no higher plan to upgrade to.'],
+  ['409', 'addon_exists / addon_quota_exceeded', 'The addon domain already exists, or the plan addon-domain quota is reached.'],
+  ['501', 'not_supported / not_implemented / no_credentials', 'The action is not available in this mode (e.g. live domain renewal is not yet wired; cPanel password not on file for an API addon).'],
   ['502', 'provisioning_failed', 'The provider failed to fulfil the request. Any charge is auto-refunded.'],
   ['500', 'internal_error / auth_error', 'Unexpected server error — safe to retry; contact support if persistent.'],
 ]
