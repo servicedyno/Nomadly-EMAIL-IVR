@@ -429,6 +429,59 @@ function methodBadge(m) {
   return `<span class="m m-${m.toLowerCase()}">${m}</span>`
 }
 
+// ── Auto-generate Node.js (fetch) + Python (requests) snippets from the cURL ──
+function parseCurl(curl) {
+  const src = String(curl).replace(/\\\n\s*/g, ' ')
+  const methodM = src.match(/-X\s+([A-Z]+)/)
+  const method = methodM ? methodM[1] : 'GET'
+  const urlM = src.match(/curl\s+-s\s+(?:"([^"]+)"|(\S+))/)
+  const url = urlM ? (urlM[1] || urlM[2]) : ''
+  const bodyM = src.match(/-d\s+'([^']*)'/)
+  const body = bodyM ? bodyM[1] : null
+  const hasAuth = /Authorization:\s*Bearer|X-API-Key/i.test(src)
+  return { method, url, body, hasAuth }
+}
+function prettyJson(body) {
+  try { return JSON.stringify(JSON.parse(body), null, 2) } catch (e) { return body }
+}
+function indentCont(s, pad) {
+  return s.split('\n').map((l, i) => (i === 0 ? l : pad + l)).join('\n')
+}
+function toNode({ method, url, body, hasAuth }) {
+  const headers = []
+  if (hasAuth) headers.push('    "Authorization": "Bearer YOUR_API_KEY"')
+  if (body) headers.push('    "Content-Type": "application/json"')
+  const opts = [`  method: "${method}"`]
+  if (headers.length) opts.push(`  headers: {\n${headers.join(',\n')}\n  }`)
+  if (body) opts.push(`  body: JSON.stringify(${indentCont(prettyJson(body), '  ')})`)
+  return `const res = await fetch("${url}", {\n${opts.join(',\n')}\n});\nconst data = await res.json();\nconsole.log(data);`
+}
+function toPython({ method, url, body, hasAuth }) {
+  const kwargs = []
+  if (hasAuth) kwargs.push('headers={"Authorization": "Bearer YOUR_API_KEY"}')
+  if (body) {
+    const py = prettyJson(body).replace(/\btrue\b/g, 'True').replace(/\bfalse\b/g, 'False').replace(/\bnull\b/g, 'None')
+    kwargs.push('json=' + indentCont(py, '    '))
+  }
+  let call = `res = requests.${method.toLowerCase()}("${url}"`
+  if (kwargs.length) call += ',\n    ' + kwargs.join(',\n    ')
+  call += ')'
+  return `import requests\n\n${call}\nprint(res.json())`
+}
+function renderSnippets(ep) {
+  const p = parseCurl(ep.curl)
+  return `
+    <div class="req-tabs">
+      <button class="tab" data-lang="curl">cURL</button>
+      <button class="tab" data-lang="node">Node.js</button>
+      <button class="tab" data-lang="python">Python</button>
+      <button class="copy snippet-copy">Copy</button>
+    </div>
+    <pre class="code snippet s-curl"><code>${esc(ep.curl)}</code></pre>
+    <pre class="code snippet s-node"><code>${esc(toNode(p))}</code></pre>
+    <pre class="code snippet s-python"><code>${esc(toPython(p))}</code></pre>`
+}
+
 function renderEndpoint(base, ep) {
   const badges = []
   badges.push(ep.auth ? '<span class="tag tag-auth">API key</span>' : '<span class="tag tag-open">No auth</span>')
@@ -449,8 +502,8 @@ function renderEndpoint(base, ep) {
     ${params}
     <div class="cols">
       <div class="col">
-        <div class="ctitle">Request<button class="copy" data-code="req">Copy</button></div>
-        <pre class="code"><code>${esc(ep.curl)}</code></pre>
+        <div class="ctitle">Request</div>
+        ${renderSnippets(ep)}
       </div>
       <div class="col">
         <div class="ctitle">Response<button class="copy" data-code="resp">Copy</button></div>
@@ -546,6 +599,13 @@ function renderApiDocPage(baseUrl) {
   .copy{background:var(--panel2);border:1px solid var(--border);color:var(--muted);font-size:11px;padding:3px 10px;border-radius:6px;cursor:pointer}
   .copy:hover{color:var(--text);border-color:var(--accent)}
   .copy.done{color:var(--accent2);border-color:var(--accent)}
+  .req-tabs{display:flex;align-items:center;gap:4px;margin-bottom:7px}
+  .tab{background:transparent;border:1px solid transparent;color:var(--muted);font-size:12px;font-weight:600;padding:4px 11px;border-radius:7px;cursor:pointer}
+  .tab:hover{color:var(--text)}
+  .snippet-copy{margin-left:auto}
+  .snippet{display:none}
+  body[data-lang="curl"] .s-curl,body[data-lang="node"] .s-node,body[data-lang="python"] .s-python{display:block}
+  body[data-lang="curl"] .tab[data-lang="curl"],body[data-lang="node"] .tab[data-lang="node"],body[data-lang="python"] .tab[data-lang="python"]{background:var(--panel2);border-color:var(--border);color:var(--accent2)}
   .etable{width:100%;border-collapse:collapse;font-size:13.5px}
   .etable th{text-align:left;color:var(--muted);border-bottom:1px solid var(--border);padding:8px}
   .etable td{border-bottom:1px solid var(--border);padding:9px 8px;vertical-align:top}
@@ -565,7 +625,7 @@ function renderApiDocPage(baseUrl) {
   }
 </style>
 </head>
-<body>
+<body data-lang="curl">
 <button class="menu-btn" id="menuBtn">☰ Menu</button>
 <div class="layout">
   <aside id="side">
@@ -662,11 +722,26 @@ X-API-Key: YOUR_API_KEY</code></pre>
 </div>
 
 <script>
-  // Copy buttons
+  // Language tabs — switch ALL request blocks at once
+  document.querySelectorAll('.tab').forEach(function(t){
+    t.addEventListener('click', function(){
+      document.body.setAttribute('data-lang', t.getAttribute('data-lang'));
+    });
+  });
+  // Copy buttons (copies the currently VISIBLE snippet in the block)
   document.querySelectorAll('.copy').forEach(function(btn){
     btn.addEventListener('click', function(){
       var text = btn.getAttribute('data-copy');
-      if(!text){ var pre = btn.closest('.col, .card, .baseurl'); var code = pre && pre.querySelector('pre code, b'); text = code ? code.innerText : ''; }
+      if(!text){
+        var scope = btn.closest('.col, .card, .baseurl');
+        var code = null;
+        if(scope){
+          var pres = scope.querySelectorAll('pre code');
+          for(var i=0;i<pres.length;i++){ if(pres[i].offsetParent!==null){ code=pres[i]; break; } }
+          if(!code) code = scope.querySelector('pre code, b');
+        }
+        text = code ? code.innerText : '';
+      }
       navigator.clipboard.writeText(text).then(function(){
         var old = btn.textContent; btn.textContent = 'Copied'; btn.classList.add('done');
         setTimeout(function(){ btn.textContent = old; btn.classList.remove('done'); }, 1400);
