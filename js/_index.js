@@ -45430,8 +45430,14 @@ try {
 // Production: https://1.speechcue.com/apidoc
 app.get('/apidoc', (req, res) => {
   try {
-    const host = (req.get('host') || '1.speechcue.com').split(',')[0].trim()
-    const proto = /(^|\.)localhost|127\.0\.0\.1|:5000$/.test(host) ? 'http' : 'https'
+    // Prefer the forwarded host (set by the FastAPI proxy / ingress) so the
+    // rendered self-URL is the real public host even when this Express app is
+    // reached via an internal proxy (which rewrites the raw Host to 127.0.0.1).
+    const fwdHost = (req.get('x-forwarded-host') || '').split(',')[0].trim()
+    const host = (fwdHost || req.get('host') || '1.speechcue.com').split(',')[0].trim()
+    const isLocal = /(^|\.)localhost|127\.0\.0\.1|:5000$/.test(host)
+    const fwdProto = (req.get('x-forwarded-proto') || '').split(',')[0].trim()
+    const proto = fwdProto || (isLocal ? 'http' : 'https')
     const base = `${proto}://${host}/reseller/v1`
     const { renderApiDocPage } = require('./apidoc-page')
     res.type('html').send(renderApiDocPage(base))

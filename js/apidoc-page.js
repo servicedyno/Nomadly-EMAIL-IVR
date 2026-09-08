@@ -18,7 +18,7 @@ function endpointGroups(base) {
   return [
     {
       id: 'meta', title: 'Meta',
-      blurb: 'Service status and your account/wallet snapshot.',
+      blurb: 'Service status, your account/wallet balance and the full bot price catalog.',
       endpoints: [
         {
           method: 'GET', path: '/health', auth: false, billed: false,
@@ -34,14 +34,41 @@ function endpointGroups(base) {
         },
         {
           method: 'GET', path: '/account', auth: true, billed: false,
-          desc: 'Returns the account bound to your API key and its current wallet balance in USD. Every billed call is funded by this wallet.',
+          desc: 'Returns the account bound to your API key and its current bot wallet balance in USD (usd_in − usd_out — the same balance the Telegram bot shows). Every billed call is funded by this wallet.',
           curl: `curl -s ${base}/account \\
   -H "Authorization: Bearer YOUR_API_KEY"`,
           resp: `{
   "owner_chat_id": "7304424395",
   "label": "acme-reseller",
   "wallet_balance_usd": 142.50,
+  "currency": "usd",
   "mode": "live"
+}`,
+        },
+        {
+          method: 'GET', path: '/pricing', auth: true, billed: false,
+          desc: 'One call returns the full bot price catalog — the exact prices the Telegram bot charges — for hosting, VPS and RDP, plus a domain-pricing note and your current wallet balance. Use it to compute resale margins without hitting each product endpoint.',
+          params: [['region', false, 'Region code for VPS/RDP plan pricing — defaults to EU']],
+          curl: `curl -s "${base}/pricing?region=EU" \\
+  -H "Authorization: Bearer YOUR_API_KEY"`,
+          resp: `{
+  "mode": "live",
+  "currency": "usd",
+  "wallet_balance_usd": 142.50,
+  "region": "EU",
+  "domains": {
+    "note": "Per-name; call /domains/search?domain=<name> for an exact quote.",
+    "min_price_usd": 30
+  },
+  "hosting": [
+    { "plan_id": "premium-weekly", "name": "Premium Anti-Red (1-Week)", "tier": "premium", "price_usd": 30, "duration_days": 7, "addon_domains": 1 }
+  ],
+  "vps": { "provider": "digitalocean", "region": "EU", "plans": [
+    { "plan_id": "s-1vcpu-1gb", "name": "1 vCPU / 1 GB", "ram_gb": 1, "disk_gb": 25, "price_usd": 18.00 }
+  ] },
+  "rdp": { "provider": "azure", "region": "EU", "plans": [
+    { "plan_id": "Standard_B2s", "name": "2 vCPU / 4 GB", "ram_gb": 4, "disk_gb": 30, "price_usd": 42.75 }
+  ] }
 }`,
         },
       ],
@@ -413,7 +440,7 @@ const ERRORS = [
   ['401', 'invalid_api_key', 'The key is unknown or has been disabled.'],
   ['400', 'invalid_domain / invalid_record / invalid_plan', 'A required parameter was missing or malformed.'],
   ['400', 'pricing_failed', 'A valid price could not be determined for the order.'],
-  ['402', 'insufficient_wallet_balance', 'Wallet balance is below the order price. Top up and retry.'],
+  ['402', 'insufficient_wallet_balance', 'Wallet balance is below the order price — order refused before provisioning (both live and dry-run). Response includes price_usd, wallet_balance_usd and shortfall_usd. Top up and retry.'],
   ['409', 'domain_unavailable', 'The requested domain cannot be registered.'],
   ['409', 'domain_in_use', 'That domain already has an active hosting plan.'],
   ['404', 'not_found', 'The resource does not exist or is not owned by your account.'],
@@ -667,7 +694,10 @@ curl -s ${esc(base)}/health
 # 2. Check your wallet balance
 curl -s ${esc(base)}/account -H "Authorization: Bearer YOUR_API_KEY"
 
-# 3. Search a domain, then register it
+# 3. See the full bot price catalog
+curl -s "${esc(base)}/pricing?region=EU" -H "Authorization: Bearer YOUR_API_KEY"
+
+# 4. Search a domain, then register it
 curl -s "${esc(base)}/domains/search?domain=mysite.com" -H "Authorization: Bearer YOUR_API_KEY"</code></pre>
       </div>
     </section>
@@ -689,14 +719,15 @@ X-API-Key: YOUR_API_KEY</code></pre>
       <div class="card">
         <h3>How billing works</h3>
         <ul class="muted" style="margin:0;padding-left:18px">
-          <li>The price is charged <b>atomically before</b> provisioning. If your balance is too low you get <code>402 insufficient_wallet_balance</code> and nothing is created.</li>
+          <li>Your wallet balance is checked <b>before</b> anything happens. If it can't cover the order price the request is refused with <code>402 insufficient_wallet_balance</code> — no resource is created, no funds move, and the response includes <code>price_usd</code>, <code>wallet_balance_usd</code> and the <code>shortfall_usd</code>. This guard applies in <b>both live and dry-run</b> modes.</li>
+          <li>When the balance is sufficient, the price is debited <b>atomically</b> (overdraft-safe) and only then is the resource provisioned.</li>
           <li>If the provider fails after the charge, the amount is <b>automatically refunded</b> and you get <code>502 provisioning_failed</code> with <code>"refunded": true</code>.</li>
           <li>Successful billed responses include <code>charged_usd</code> and your new <code>wallet_balance_usd</code>.</li>
         </ul>
       </div>
       <div class="card">
         <h3>Live vs. dry-run</h3>
-        <p class="muted" style="margin:0">Check <code>mode</code> on <code>GET /health</code>. In <b>dry_run</b> mode the API validates input, prices the order and checks your balance, but <b>never creates a real resource or charges funds</b> — perfect for integration testing. In <b>live</b> mode calls provision real resources and debit your wallet. Dry-run responses include <code>"mode": "dry_run"</code> and a <code>would_provision</code> preview.</p>
+        <p class="muted" style="margin:0">Check <code>mode</code> on <code>GET /health</code>. In <b>dry_run</b> mode the API validates input, prices the order and enforces the wallet balance check, but <b>never creates a real resource or charges funds</b> — perfect for integration testing. In <b>live</b> mode calls provision real resources and debit your wallet. An unaffordable order returns <code>402 insufficient_wallet_balance</code> in <b>both</b> modes; only an affordable dry-run returns <code>"mode": "dry_run"</code> with a <code>would_provision</code> preview.</p>
       </div>
     </section>
 

@@ -134,6 +134,25 @@ function createResellerApi(deps = {}) {
     }
     const balance = await walletBalance(chatId)
 
+    // ── Universal wallet guard (applies in BOTH dry_run and live) ──
+    // An API order is NEVER processed — neither simulated nor provisioned —
+    // when the bot wallet bound to the API key cannot cover the price. This
+    // makes the "insufficient balance ⇒ order refused" guarantee identical on
+    // every pod. In live mode the atomic chargeWallet() below adds a second,
+    // race-safe overdraft check.
+    if (balance < price) {
+      await recordOrder({ keyId: req.reseller.keyId, ownerChatId: chatId, product, action, request, priceUsd: price, mode: mode(), status: 'rejected_insufficient_balance' })
+      return res.status(402).json({
+        error: 'insufficient_wallet_balance',
+        message: `Wallet balance $${balance.toFixed(2)} is below the order price $${price.toFixed(2)}. Top up your wallet and retry.`,
+        product, action,
+        price_usd: price,
+        wallet_balance_usd: balance,
+        shortfall_usd: Math.round((price - balance) * 100) / 100,
+        mode: mode(),
+      })
+    }
+
     if (!isLive()) {
       await recordOrder({ keyId: req.reseller.keyId, ownerChatId: chatId, product, action, request, priceUsd: price, mode: 'dry_run', status: 'simulated' })
       return res.json({
@@ -141,16 +160,13 @@ function createResellerApi(deps = {}) {
         product, action,
         price_usd: price,
         wallet_balance_usd: balance,
-        sufficient_balance: balance >= price,
+        sufficient_balance: true,
         would_provision: request,
-        note: 'Dry-run: no resource was created and no funds were charged. Set RESELLER_API_LIVE=true on a production pod to go live.',
+        note: 'Dry-run: balance is sufficient; no resource was created and no funds were charged. Set RESELLER_API_LIVE=true on a production pod to go live.',
       })
     }
 
-    // ── LIVE ──
-    if (balance < price) {
-      return res.status(402).json({ error: 'insufficient_wallet_balance', message: `Wallet balance $${balance.toFixed(2)} is below the order price $${price.toFixed(2)}.`, price_usd: price, wallet_balance_usd: balance })
-    }
+    // ── LIVE ── (balance already confirmed sufficient; charge stays atomic + overdraft-safe against concurrent spend)
     const charged = await chargeWallet(chatId, price)
     if (!charged) {
       return res.status(402).json({ error: 'insufficient_wallet_balance', message: 'Wallet debit was declined (insufficient funds / concurrent spend).', price_usd: price, wallet_balance_usd: balance })
@@ -193,7 +209,38 @@ function createResellerApi(deps = {}) {
 
   router.get('/account', apiKeyAuth, h(async (req, res) => {
     const balance = await walletBalance(req.reseller.ownerChatId)
-    res.json({ owner_chat_id: req.reseller.ownerChatId, label: req.reseller.label, wallet_balance_usd: balance, mode: mode() })
+    res.json({ owner_chat_id: req.reseller.ownerChatId, label: req.reseller.label, wallet_balance_usd: balance, currency: 'usd', mode: mode() })
+  }))
+
+  // ── Bot pricing catalog (the same prices the Telegram bot charges) ──
+  // One call returns every sellable product's price plus your wallet balance,
+  // so a reseller can compute margins without hitting each product endpoint.
+  router.get('/pricing', apiKeyAuth, h(async (req, res) => {
+    const region = String(req.query.region || 'EU').toUpperCase()
+    const balance = await walletBalance(req.reseller.ownerChatId)
+
+    const mapPlans = (prov, isRDP) => (prov.listProducts(region, isRDP) || []).map(p => ({
+      plan_id: p.productId, name: p.name || p.productId,
+      vcpus: p.vcpus || p.vCpus || null, ram_gb: p.ramGb || null, disk_gb: p.diskGb || null,
+      price_usd: p.pricing ? p.pricing.totalWithMarkup : null,
+    }))
+    let vpsPlans = [], rdpPlans = [], vpsProviderName = process.env.VPS_DEFAULT_PROVIDER, rdpProviderName = process.env.VPS_RDP_PROVIDER
+    try { const pv = vpsProvider.getProvider(); vpsProviderName = pv.PROVIDER || vpsProviderName; vpsPlans = mapPlans(pv, false) } catch (e) { log(`[ResellerAPI] pricing vps warn: ${e.message}`) }
+    try { const pr = vpsProvider.getRdpProvider(); rdpProviderName = pr.PROVIDER || rdpProviderName; rdpPlans = mapPlans(pr, true) } catch (e) { log(`[ResellerAPI] pricing rdp warn: ${e.message}`) }
+
+    res.json({
+      mode: mode(),
+      currency: 'usd',
+      wallet_balance_usd: balance,
+      region,
+      domains: {
+        note: 'Domain prices are per-name and set live by the registrar (identical to bot pricing). Call GET /domains/search?domain=<name> for an exact, wallet-billable quote.',
+        min_price_usd: num(process.env.MIN_DOMAIN_PRICE, 30),
+      },
+      hosting: hostingPlans().map(p => ({ plan_id: p.id, name: p.name, tier: p.tier, price_usd: p.priceUsd, duration_days: p.durationDays, addon_domains: p.addons, features: p.features })),
+      vps: { provider: vpsProviderName, region, plans: vpsPlans },
+      rdp: { provider: rdpProviderName, region, plans: rdpPlans },
+    })
   }))
 
   // ════════════════════════════════════════════════════════
