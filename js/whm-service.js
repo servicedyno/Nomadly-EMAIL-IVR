@@ -482,6 +482,27 @@ async function getAccountInfo(username) {
   }
 }
 
+// Per-account bandwidth usage for the current month via WHM /showbw.
+// accountsummary does NOT carry bandwidth, so this is the source for it.
+// Returns { success, data:{ user, maindomain, totalbytes, limit, bwlimited } }.
+async function getAccountBandwidth(username) {
+  try {
+    const now = new Date()
+    const res = await whmApi.get('/showbw', {
+      params: { 'api.version': 1, month: now.getMonth() + 1, year: now.getFullYear() },
+    })
+    if (res.data?.metadata?.result === 1) {
+      const list = res.data.data?.acct || []
+      const acct = list.find(a => String(a.user).toLowerCase() === String(username).toLowerCase())
+      if (acct) return { success: true, data: acct }
+      return { success: false, error: 'account_not_in_bandwidth_report' }
+    }
+    return { success: false, error: res.data?.metadata?.reason || 'showbw_failed' }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+}
+
 // ─── Single-Use User Session (SSO) ──────────────────────
 //
 // Used to launch internal cPanel apps (phpMyAdmin, RoundCube, etc.) on
@@ -826,6 +847,7 @@ module.exports = {
   changePackage,
   changePrimaryDomain,
   getAccountInfo,
+  getAccountBandwidth,
   createUserSession,
   generatePassword,
   ensureCloudflareTweaks,

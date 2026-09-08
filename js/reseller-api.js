@@ -589,18 +589,39 @@ function createResellerApi(deps = {}) {
 
   router.get('/hosting', apiKeyAuth, h(async (req, res) => {
     const docs = await col('cpanelAccounts').find({ chatId: String(req.reseller.ownerChatId), deleted: { $ne: true } }).limit(500).toArray()
+    // ?usage=true adds a quick disk summary per account (live WHM read, capped
+    // fan-out). Off by default so the plain list stays fast.
+    const wantUsage = String(req.query.usage || '') === 'true'
+    const diskByUser = {}
+    if (wantUsage) {
+      await Promise.all(docs.slice(0, 50).map(async (d) => {
+        const u = d.cpUser || d._id
+        try {
+          const info = await whmService.getAccountInfo(u)
+          if (info && info.success && info.data) {
+            const full = parseHostingUsage(info.data)
+            diskByUser[u] = full ? { disk_used_mb: full.disk_used_mb, disk_limit: full.disk_limit, disk_used_pct: full.disk_used_pct } : null
+          }
+        } catch (_) { /* best-effort per account */ }
+      }))
+    }
     res.json({
       panel_url: panelUrl(),
       server_ip: serverIp(),
-      accounts: docs.map(d => ({
-        username: d._id || d.username,
-        domain: d.domain,
-        plan: d.plan || null,
-        suspended: !!d.suspended,
-        created_at: d.createdAt || null,
-        expires_at: d.expiryDate ? new Date(d.expiryDate).toISOString() : null,
-        credentials_url: `/hosting/${d._id || d.username}/credentials`,
-      })),
+      usage_included: wantUsage,
+      accounts: docs.map(d => {
+        const u = d._id || d.username
+        return {
+          username: u,
+          domain: d.domain,
+          plan: d.plan || null,
+          suspended: !!d.suspended,
+          created_at: d.createdAt || null,
+          expires_at: d.expiryDate ? new Date(d.expiryDate).toISOString() : null,
+          credentials_url: `/hosting/${u}/credentials`,
+          ...(wantUsage ? { usage: diskByUser[d.cpUser || u] || null } : {}),
+        }
+      }),
     })
   }))
 
@@ -917,6 +938,21 @@ function createResellerApi(deps = {}) {
       if (info && info.success) usage = parseHostingUsage(info.data)
       else if (info && info.error) usage = { error: info.error }
       else usage = { error: 'account_summary_unavailable' }
+      // Merge real bandwidth (WHM /showbw — accountsummary has no bandwidth).
+      if (usage && !usage.error) {
+        try {
+          const bw = await whmService.getAccountBandwidth(acct.cpUser || acct._id)
+          if (bw && bw.success && bw.data) {
+            const usedBytes = Number(bw.data.totalbytes) || 0
+            const limitBytes = Number(bw.data.limit) || 0
+            usage.bandwidth_used_mb = Math.round((usedBytes / 1048576) * 10) / 10
+            usage.bandwidth_limit_mb = limitBytes > 0 ? Math.round(limitBytes / 1048576) : null
+            usage.bandwidth_limit = limitBytes > 0 ? Math.round(limitBytes / 1048576) : 'unlimited'
+            usage.bandwidth_used_pct = limitBytes > 0 ? Math.round((usedBytes / limitBytes) * 1000) / 10 : null
+            usage.bandwidth_period = 'current_month'
+          }
+        } catch (_) { /* bandwidth best-effort */ }
+      }
     } catch (e) { usage = { error: e.message } }
     res.json({
       username: acct._id || acct.username,

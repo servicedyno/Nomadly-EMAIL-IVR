@@ -408,17 +408,20 @@ function endpointGroups(base) {
         },
         {
           method: 'GET', path: '/hosting', auth: true, billed: false,
-          desc: 'List all cPanel hosting accounts you own.',
-          curl: `curl -s ${base}/hosting -H "Authorization: Bearer YOUR_API_KEY"`,
+          desc: 'List all cPanel hosting accounts you own. Add ?usage=true to include a quick live disk summary (disk_used_mb / disk_limit / disk_used_pct) per account.',
+          params: [['usage', false, 'Set to "true" to include a per-account disk usage summary (live WHM read)']],
+          curl: `curl -s "${base}/hosting?usage=true" -H "Authorization: Bearer YOUR_API_KEY"`,
           resp: `{
   "panel_url": "https://panel.1.hostbay.io",
   "server_ip": "68.183.77.106",
+  "usage_included": true,
   "accounts": [
     { "username": "mysite01", "domain": "mysite.com",
       "plan": "Golden Anti-Red HostPanel (1-Month)", "suspended": false,
       "created_at": "2026-09-08T11:00:00.000Z",
       "expires_at": "2026-10-08T11:00:00.000Z",
-      "credentials_url": "/hosting/mysite01/credentials" }
+      "credentials_url": "/hosting/mysite01/credentials",
+      "usage": { "disk_used_mb": 412.5, "disk_limit": 5120, "disk_used_pct": 8.1 } }
   ]
 }`,
         },
@@ -478,7 +481,7 @@ function endpointGroups(base) {
   "addon_domains": ["blog.mysite.com"],
   "usage": {
     "disk_used_mb": 412.5, "disk_limit": 5120, "disk_used_pct": 8.1,
-    "bandwidth_used_mb": 1830.2, "bandwidth_limit": "unlimited",
+    "bandwidth_used_mb": 270.2, "bandwidth_limit": 100000, "bandwidth_used_pct": 0.3, "bandwidth_period": "current_month",
     "inodes_used": 10432, "inodes_limit": "unlimited"
   },
   "mode": "dry_run"
