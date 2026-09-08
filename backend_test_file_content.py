@@ -13,7 +13,7 @@ import time
 import sys
 
 # Base URL from frontend/.env
-BASE_URL = "https://api-integration-hub-55.preview.emergentagent.com"
+BASE_URL = "https://credential-staging.preview.emergentagent.com"
 
 # Test credentials
 USERNAME = "nbayftest"

@@ -3,11 +3,11 @@
 This app uses Telegram bot authentication (chatId-based) — there is no email/password
 login for the panel. Auth flows are exercised via the bot / dev endpoints.
 
-## Sandbox runtime config (re-bootstrapped on NEW fresh pod 2026-09-08, creds re-supplied by user)
-- Pod URL: https://84449d7e-751a-4eed-a99e-57131cb71fd5.preview.emergentagent.com
-  (previous pods: api-integration-hub-55.preview..., config-deploy-17.preview..., 72d1804b-...preview... — decommissioned)
+## Sandbox runtime config (re-bootstrapped on NEW fresh pod 2026-09-08b, creds re-supplied by user)
+- Pod URL: https://58c88981-d657-4261-a0ef-d0bf97774064.preview.emergentagent.com
+  (previous pods: credential-staging.preview..., api-integration-hub-55.preview..., config-deploy-17.preview..., 84449d7e-...preview... — decommissioned)
 - Dev Telegram bot webhook (token TELEGRAM_BOT_TOKEN_DEV = 6597817067 @Nomadlytestbot) SET to
-  https://84449d7e-751a-4eed-a99e-57131cb71fd5.preview.emergentagent.com/api/telegram/webhook (verified ok, 0 pending)
+  https://58c88981-d657-4261-a0ef-d0bf97774064.preview.emergentagent.com/api/telegram/webhook (verified ok, 0 pending)
 - NOTE: user's credential dump had BOT_ENVIRONMENT="production" — deliberately OVERRIDDEN to
   `development` + `SKIP_WEBHOOK_SYNC=true` in backend/.env per README "Critical Safety Rules".
 - Extra vars added beyond the dump: SELF_URL_DEV, SKIP_WEBHOOK_SYNC, PORT=5000, CORS_ORIGINS=*,
@@ -32,7 +32,7 @@ login for the panel. Auth flows are exercised via the bot / dev endpoints.
 - Domain: testingbays.sbs
 - Plan: Golden-Anti-Red-HostPanel-1-Month
 - WHM Host: 68.183.77.106
-- Login URL: https://84449d7e-751a-4eed-a99e-57131cb71fd5.preview.emergentagent.com/panel
+- Login URL: https://credential-staging.preview.emergentagent.com/panel
 - NOTE: User-level cPanel auth is broken for this account. All API calls work via WHM-root fallback.
 - Password was rotated via WHM /passwd to force cPanel auth recognition (2026-08-30).
 - Existing subdomains: shop, blog, api, dev (all under testingbays.sbs with public_html/<name> docroot)
