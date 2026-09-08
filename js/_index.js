@@ -36813,6 +36813,18 @@ app.use('/store', createStoreRoutes({
   notifyAdmin,
 }))
 
+// ── Reseller API (API-key authenticated public REST API) ──
+// Lets a reseller programmatically resell domains, DNS, VPS, RDP & cPanel
+// hosting. Billing debits the wallet system (walletOf). Provisioning only runs
+// LIVE when RESELLER_API_LIVE=true AND SKIP_WEBHOOK_SYNC!=='true' (dev pod = dry-run).
+// External URL: /api/reseller/v1/*  (FastAPI strips /api → node /reseller/v1)
+const { createResellerApi } = require('./reseller-api')
+app.use('/reseller/v1', createResellerApi({
+  getDb: () => db,
+  log,
+  notifyAdmin,
+}))
+
 // ── cPanel Server Migration (auto-sync accounts when WHM_HOST changes) ──
 const { runMigration: runCpanelMigration } = require('./cpanel-migration')
 // DEV SANDBOX GUARD: runCpanelMigration rotates REAL cPanel passwords via WHM /passwd

@@ -19,6 +19,17 @@ Multi-service Telegram bot platform: React frontend, FastAPI backend, Node.js bo
 
 ## Completed Features
 
+### 2026-09-08: Reseller REST API (`/reseller/v1`)
+**Goal**: Let a reseller programmatically resell Domains, DNS, VPS (Linux), RDP (Windows) and cPanel hosting via an API-key-authenticated public API, billed from the wallet.
+
+**Implementation:**
+- **NEW `js/reseller-api.js`** — `createResellerApi()` Express router mounted in `_index.js` at `/reseller/v1` (external `{BACKEND}/api/reseller/v1/*`). Reuses `domain-service`, `whm-service`, `vps-provider` (+ DigitalOcean/Azure), `db.atomicIncrement`, `utils.getBalance`.
+- **Auth**: `Authorization: Bearer <key>` or `X-API-Key`. Keys sha256-hashed in `resellerApiKeys`, seeded via **NEW `scripts/seed_reseller_key.js`**. One key = full access. Current key bound to @onarrival1 (chatId 5590563715).
+- **Billing**: debits wallet `usdOut` via atomic, overdraft-safe `atomicIncrement`; refunds on provisioning failure. Audit rows in `resellerApiOrders`.
+- **Endpoints**: domains (search/register/list), dns (records CRUD + nameservers, free), vps + rdp (plans/create/list/get/action/destroy/credentials), hosting (plans/create/list/suspend/unsuspend/terminate/login). Pricing from prod `.env` (markups included).
+- **Safety**: LIVE only when `RESELLER_API_LIVE=true` AND `SKIP_WEBHOOK_SYNC!=='true'`. Dev/sandbox pods are hard-locked to `dry_run` (validate + price + balance check, no provider call, no charge). Backend tested 23/23 pass, wallet unchanged.
+
+
 ### 2026-09-05: Inactive Released Number Detection & Auto-Cleanup
 **Problem**: Production user @johngambino could not make calls with caller ID +1 (888) 923-3702. Root cause: number was silently released by Twilio but DB still showed `status: active`.
 

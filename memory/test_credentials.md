@@ -45,6 +45,13 @@ login for the panel. Auth flows are exercised via the bot / dev endpoints.
 
 ## Keys for diagnostic / admin endpoints
 - Admin key for diagnostic endpoints: `o/Qb8ArGahlquhCQ` (first 16 chars of SESSION_SECRET)
+
+## Reseller API (added 2026-09-08)
+- Base: {REACT_APP_BACKEND_URL}/api/reseller/v1  (Node route /reseller/v1)
+- API key (bound to @onarrival1 / chatId 5590563715, wallet $5.00) — send as `Authorization: Bearer <key>` or `X-API-Key: <key>`:
+    rsk_live_cdc3f785ac3cfd813c6143d7813e1a59cc15fc42327ab736
+- Re-mint / rotate: `node /app/scripts/seed_reseller_key.js --rotate`  (raw key printed once; only sha256 stored in `resellerApiKeys`)
+- Mode: dry_run on this sandbox (SKIP_WEBHOOK_SYNC=true). Go live on prod pod with RESELLER_API_LIVE=true.
 - TELEGRAM_ADMIN_CHAT_ID: 5590563715
 - Dev-only endpoints (/api/dev/*) are ENABLED because BOT_ENVIRONMENT=development
   (they return 404 when BOT_ENVIRONMENT=production).
