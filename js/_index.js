@@ -20688,7 +20688,7 @@ ${message.replace(/\n/g, '<br>')}
     const reserved = new Set([
       'call', 'panel', 'phone', 'login', 'signup', 'dashboard', 'settings',
       'api', 'admin', 'webhook', 'webhooks', 'twilio', 'telnyx', 'static',
-      'health', 'sms-app', 'voice', 'sms', 'auth',
+      'health', 'sms-app', 'voice', 'sms', 'auth', 'apidoc',
     ])
     if (reserved.has(alias.toLowerCase())) {
       return send(chatId, trans('t.notValidHalf'))
@@ -45424,6 +45424,23 @@ try {
 }
 
 //
+// ── Reseller API developer docs (public HTML guide) ──
+// Explicit route MUST be registered before the /:id shortener below, otherwise
+// "apidoc" is treated as a short-link slug and returns "Link not found".
+// Production: https://1.speechcue.com/apidoc
+app.get('/apidoc', (req, res) => {
+  try {
+    const host = (req.get('host') || '1.speechcue.com').split(',')[0].trim()
+    const proto = /(^|\.)localhost|127\.0\.0\.1|:5000$/.test(host) ? 'http' : 'https'
+    const base = `${proto}://${host}/reseller/v1`
+    const { renderApiDocPage } = require('./apidoc-page')
+    res.type('html').send(renderApiDocPage(base))
+  } catch (e) {
+    log(`[apidoc] render error: ${e.message}`)
+    res.status(500).type('text/plain').send('Documentation temporarily unavailable.')
+  }
+})
+
 app.get('/:id', async (req, res) => {
   const id = req?.params?.id
   if (id === '') return res.json({ message: 'Salam', from: req.hostname })
