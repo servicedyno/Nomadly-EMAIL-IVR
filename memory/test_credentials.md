@@ -1,13 +1,15 @@
-# Test Credentials
+# Test / Setup Credentials
 
-## Reseller REST API (js/reseller-api.js)
-- Base (external): {REACT_APP_BACKEND_URL}/api/reseller/v1
-- Base (local):    http://127.0.0.1:5000/reseller/v1
-- API key (Bearer / X-API-Key): rsk_live_cdc3f785ac3cfd813c6143d7813e1a59cc15fc42327ab736
-- Owner chatId: 5590563715 (@onarrival1 reseller)
-- Wallet balance (bot wallet, usdIn-usdOut): $5.00
-- Mode on this pod: dry_run (SKIP_WEBHOOK_SYNC=true — no real provisioning/charges)
+## Vault (secrets restore)
+- Vault file: `memory/nomadly.vault.enc`
+- Unlock: `VAULT_PASSWORD='Katiekendra123@' bash scripts/vault.sh unlock`
+- Vault password: `Katiekendra123@`
+- Unlocking restores `/app/backend/.env` (all app/API credentials) and refreshes the `/app/.env` symlink.
 
-## Notes
-- This pod shares the PRODUCTION Railway MongoDB. Do NOT enable RESELLER_API_LIVE here.
-- Telegram webhook is left pointing at production (SKIP_WEBHOOK_SYNC=true).
+## Environment mode (this preview pod)
+- Configured as DEVELOPMENT sandbox: `BOT_ENVIRONMENT=development`, `SKIP_WEBHOOK_SYNC=true`
+- Uses `TELEGRAM_BOT_TOKEN_DEV` (never the production bot on a preview pod)
+- `SELF_URL` / `SELF_URL_DEV` point to the current pod `/api`; `SELF_URL_PROD` kept as the Railway URL reference.
+
+## Admin panel
+- Frontend admin dashboard is open (no login) at the pod root URL.

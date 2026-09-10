@@ -17,7 +17,7 @@ import os
 import sys
 
 # Configuration
-BACKEND_URL = os.getenv('REACT_APP_BACKEND_URL', 'https://49b04998-73a3-495c-94b7-ea9e42e66171.preview.emergentagent.com')
+BACKEND_URL = os.getenv('REACT_APP_BACKEND_URL', 'https://vault-init-3.preview.emergentagent.com')
 BASE_URL = f"{BACKEND_URL}/api/reseller/v1"
 API_KEY = "rsk_live_cdc3f785ac3cfd813c6143d7813e1a59cc15fc42327ab736"
 HEADERS = {"X-API-Key": API_KEY}
