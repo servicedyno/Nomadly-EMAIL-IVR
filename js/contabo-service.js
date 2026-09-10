@@ -258,25 +258,36 @@ async function apiRequest(method, path, data = null, params = null) {
   }
 }
 
-// ─── Product Catalog (from Contabo /v1/products API — April 2026) ────────────
-// Prices are Contabo's monthly USD prices (no setup fee).
-// Pattern: NVMe (V91,V94,V97,V100,V103,V106), SSD (V92,V95,V98,V101,V104,V107)
-// The old V45-V55 (NVMe) and V92-V97 (SSD) IDs are DEPRECATED.
+// ─── Product Catalog (Contabo current "Core VPS" generation — verified live via
+//     GET /v1/products on the production account, 2026-09) ──────────────────────
+// Prices are Contabo's current monthly USD prices (no setup fee).
+//
+// WHY THIS CHANGED (2026-09): the older V91/V92…V107 generation is no longer
+// orderable on this account — createInstance returned 400 "No offer was found for
+// product ID 'V91' and period '1'", causing every VPS/RDP purchase to fail+refund.
+// The account's live catalog is the "Core VPS" line, named by vCPU count:
+//   Cloud VPS 4/6/8/12/16/18  →  SSD ids V153-V158,  NVMe ids V165-V170.
+// (Confirmed anchor: running instance 203508080 uses productId V153 = 4 vCPU / 8 GB
+//  / 100 GB SSD.) NVMe Core exists only for tiers 4→16 (V165-V169) — there is NO
+// standalone "Cloud VPS 18 NVMe" offer, so the NVMe list has 5 tiers, SSD has 6.
+// NVMe disk = half the SSD capacity (Contabo's standard Core NVMe convention).
+// Bot tier labels (Cloud VPS 10/20/…) are kept for branding; specs/ids/prices are
+// the real current products underneath.
 const PRODUCT_CATALOG = [
   {
-    productId:   'V91',
+    productId:   'V165',   // Contabo "Cloud VPS 4 NVMe"
     name:        'Cloud VPS 10',
     cpuCores:    4,
     ramMb:       8192,
-    diskMb:      76800,    // 75 GB NVMe
+    diskMb:      51200,    // 50 GB NVMe
     diskType:    'nvme',
     bandwidthTb: 32,
     portSpeedMbps: 200,
-    basePriceUsd: 4.95,
+    basePriceUsd: 7.20,
     tier: 1
   },
   {
-    productId:   'V94',
+    productId:   'V166',   // Contabo "Cloud VPS 6 NVMe"
     name:        'Cloud VPS 20',
     cpuCores:    6,
     ramMb:       12288,
@@ -284,67 +295,56 @@ const PRODUCT_CATALOG = [
     diskType:    'nvme',
     bandwidthTb: 32,
     portSpeedMbps: 300,
-    basePriceUsd: 7.95,
+    basePriceUsd: 9.90,
     tier: 2
   },
   {
-    productId:   'V97',
+    productId:   'V167',   // Contabo "Cloud VPS 8 NVMe"
     name:        'Cloud VPS 30',
     cpuCores:    8,
     ramMb:       24576,
-    diskMb:      204800,   // 200 GB NVMe
+    diskMb:      153600,   // 150 GB NVMe
     diskType:    'nvme',
     bandwidthTb: 32,
     portSpeedMbps: 600,
-    basePriceUsd: 15.00,
+    basePriceUsd: 18.50,
     tier: 3
   },
   {
-    productId:   'V100',
+    productId:   'V168',   // Contabo "Cloud VPS 12 NVMe"
     name:        'Cloud VPS 40',
     cpuCores:    12,
     ramMb:       49152,
-    diskMb:      256000,   // 250 GB NVMe
+    diskMb:      204800,   // 200 GB NVMe
     diskType:    'nvme',
     bandwidthTb: 32,
     portSpeedMbps: 800,
-    basePriceUsd: 26.00,
+    basePriceUsd: 33.00,
     tier: 4
   },
   {
-    productId:   'V103',
+    productId:   'V169',   // Contabo "Cloud VPS 16 NVMe"
     name:        'Cloud VPS 50',
     cpuCores:    16,
     ramMb:       65536,
-    diskMb:      307200,   // 300 GB NVMe
+    diskMb:      256000,   // 250 GB NVMe
     diskType:    'nvme',
     bandwidthTb: 32,
     portSpeedMbps: 1000,
-    basePriceUsd: 46.00,
+    basePriceUsd: 49.00,
     tier: 5
-  },
-  {
-    productId:   'V106',
-    name:        'Cloud VPS 60',
-    cpuCores:    18,
-    ramMb:       98304,
-    diskMb:      358400,   // 350 GB NVMe
-    diskType:    'nvme',
-    bandwidthTb: 32,
-    portSpeedMbps: 1000,
-    basePriceUsd: 59.00,
-    tier: 6
   }
 ]
 
-// SSD variants (2x disk, same compute specs, same price)
+// SSD variants — the full 6-tier Core line (Cloud VPS 4→18 = V153→V158).
+// Contabo Core defaults to SSD; disk sizes are Contabo's official Core specs.
 const PRODUCT_CATALOG_SSD = [
-  { productId: 'V92',  name: 'Cloud VPS 10 SSD', cpuCores: 4,  ramMb: 8192,  diskMb: 153600, diskType: 'ssd', bandwidthTb: 32, portSpeedMbps: 200,  basePriceUsd: 4.95,  tier: 1 },
-  { productId: 'V95',  name: 'Cloud VPS 20 SSD', cpuCores: 6,  ramMb: 12288, diskMb: 204800, diskType: 'ssd', bandwidthTb: 32, portSpeedMbps: 300,  basePriceUsd: 7.95,  tier: 2 },
-  { productId: 'V98',  name: 'Cloud VPS 30 SSD', cpuCores: 8,  ramMb: 24576, diskMb: 409600, diskType: 'ssd', bandwidthTb: 32, portSpeedMbps: 600,  basePriceUsd: 15.00, tier: 3 },
-  { productId: 'V101', name: 'Cloud VPS 40 SSD', cpuCores: 12, ramMb: 49152, diskMb: 512000, diskType: 'ssd', bandwidthTb: 32, portSpeedMbps: 800,  basePriceUsd: 26.00, tier: 4 },
-  { productId: 'V104', name: 'Cloud VPS 50 SSD', cpuCores: 16, ramMb: 65536, diskMb: 614400, diskType: 'ssd', bandwidthTb: 32, portSpeedMbps: 1000, basePriceUsd: 46.00, tier: 5 },
-  { productId: 'V107', name: 'Cloud VPS 60 SSD', cpuCores: 18, ramMb: 98304, diskMb: 716800, diskType: 'ssd', bandwidthTb: 32, portSpeedMbps: 1000, basePriceUsd: 59.00, tier: 6 }
+  { productId: 'V153', name: 'Cloud VPS 10 SSD', cpuCores: 4,  ramMb: 8192,  diskMb: 102400, diskType: 'ssd', bandwidthTb: 32, portSpeedMbps: 200,  basePriceUsd: 6.60,  tier: 1 },
+  { productId: 'V154', name: 'Cloud VPS 20 SSD', cpuCores: 6,  ramMb: 12288, diskMb: 204800, diskType: 'ssd', bandwidthTb: 32, portSpeedMbps: 300,  basePriceUsd: 9.00,  tier: 2 },
+  { productId: 'V155', name: 'Cloud VPS 30 SSD', cpuCores: 8,  ramMb: 24576, diskMb: 307200, diskType: 'ssd', bandwidthTb: 32, portSpeedMbps: 600,  basePriceUsd: 16.80, tier: 3 },
+  { productId: 'V156', name: 'Cloud VPS 40 SSD', cpuCores: 12, ramMb: 49152, diskMb: 409600, diskType: 'ssd', bandwidthTb: 32, portSpeedMbps: 800,  basePriceUsd: 30.00, tier: 4 },
+  { productId: 'V157', name: 'Cloud VPS 50 SSD', cpuCores: 16, ramMb: 65536, diskMb: 512000, diskType: 'ssd', bandwidthTb: 32, portSpeedMbps: 1000, basePriceUsd: 44.50, tier: 5 },
+  { productId: 'V158', name: 'Cloud VPS 60 SSD', cpuCores: 18, ramMb: 98304, diskMb: 614400, diskType: 'ssd', bandwidthTb: 32, portSpeedMbps: 1000, basePriceUsd: 58.80, tier: 6 }
 ]
 
 // Region surcharges (monthly USD) — from Contabo /v1/products API (April 2026)
@@ -444,13 +444,14 @@ function getProduct(productId) {
 }
 
 /**
- * NVMe ↔ SSD product fallback mapping (Contabo V91-V107 product range).
- * Each Cloud VPS tier has NVMe + SSD variant with same compute specs.
- * Pattern: NVMe=V91,V94,V97,V100,V103,V106  SSD=V92,V95,V98,V101,V104,V107
- * NOTE: V93,V96,V99,V102,V105 are Storage VPS — NEVER use as Cloud VPS fallback!
+ * NVMe ↔ SSD product fallback mapping (Contabo current "Core VPS" generation).
+ * Each Cloud VPS tier has an SSD id (V153-V158) and, for tiers 1-5, an NVMe id
+ * (V165-V169). Tier 6 (Cloud VPS 18 / V158) is SSD-only — Contabo has no NVMe
+ * offer for it — so it has no NVMe fallback (returns null → stays SSD).
+ * Updated 2026-09 (was the deprecated V91-V107 generation).
  */
-const NVME_TO_SSD_FALLBACK = { V91: 'V92', V94: 'V95', V97: 'V98', V100: 'V101', V103: 'V104', V106: 'V107' }
-const SSD_TO_NVME_FALLBACK = { V92: 'V91', V95: 'V94', V98: 'V97', V101: 'V100', V104: 'V103', V107: 'V106' }
+const NVME_TO_SSD_FALLBACK = { V165: 'V153', V166: 'V154', V167: 'V155', V168: 'V156', V169: 'V157' }
+const SSD_TO_NVME_FALLBACK = { V153: 'V165', V154: 'V166', V155: 'V167', V156: 'V168', V157: 'V169' }
 
 function getProductFallback(productId) {
   return NVME_TO_SSD_FALLBACK[productId] || SSD_TO_NVME_FALLBACK[productId] || null
@@ -521,8 +522,10 @@ async function listRegions() {
 //
 // The NVME_PRODUCT_IDS / SSD_PRODUCT_IDS sets are kept because other
 // fallback logic (NVMe↔SSD product downgrade) still depends on them.
-const NVME_PRODUCT_IDS = new Set(['V91', 'V94', 'V97', 'V100', 'V103', 'V106'])
-const SSD_PRODUCT_IDS  = new Set(['V92', 'V95', 'V98', 'V101', 'V104', 'V107'])
+// Updated 2026-09 to the current Core VPS generation (SSD V153-V158,
+// NVMe V165-V169; Cloud VPS 18 / V158 is SSD-only — no NVMe variant).
+const NVME_PRODUCT_IDS = new Set(['V165', 'V166', 'V167', 'V168', 'V169'])
+const SSD_PRODUCT_IDS  = new Set(['V153', 'V154', 'V155', 'V156', 'V157', 'V158'])
 
 function isNVMeProduct(productId) { return NVME_PRODUCT_IDS.has(productId) }
 function isSSDProduct(productId)  { return SSD_PRODUCT_IDS.has(productId) }
