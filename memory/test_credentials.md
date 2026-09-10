@@ -15,9 +15,9 @@
 - Bot token (dev==prod): 8822506525:... (env: TELEGRAM_BOT_TOKEN_PROD / _DEV)
 
 ## URLs
-- Frontend/preview: https://f749731e-1dd0-49f4-b134-7e7d4ee5926b.preview.emergentagent.com
+- Frontend/preview: https://8c5fc3ec-c82f-49de-82f7-0941dc4f4ecd.preview.emergentagent.com
 - Backend API base (proxied to Node :5000): <preview>/api
-- Re-provisioned 2026-08-30: fresh .env from user creds; ran scripts/setup-nodejs.sh; all services verified (nodejs RUNNING, DB Connected, REST APIs Active).
+- Re-provisioned 2026-09-11 (WhiteLabel branch): fresh backend/.env + frontend/.env from user creds (BOT_ENVIRONMENT=development, SKIP_WEBHOOK_SYNC=true overrides); ran scripts/setup-nodejs.sh; restarted backend (had crashed on boot before .env existed — KeyError MONGO_URL — fixed by restart). All services verified: nodejs RUNNING, external /api/health healthy + DB connected, frontend title "SmadavHost | Hosting Panel".
 - Panel domain: panel.smadavhost.com | SIP domain: sip.smadavspeech.com
 
 ## Panel (cPanel management UI) testing

@@ -2362,6 +2362,30 @@ const sendDomainUpsell = (chatId, lang, domain, delayMs = 2000) => {
 // 2-arg form: `notifyGroup(groupMsg, adminMsg)` — admin gets unmasked, no buttons.
 // 1-arg form: `notifyGroup(message)` — legacy/back-compat (both groups + admin same msg).
 const TELEGRAM_NOTIFY_GROUP_ID = process.env.TELEGRAM_NOTIFY_GROUP_ID
+// Resilient Telegram send: retries transient network/rate errors a few times
+// with backoff so a momentary blip (e.g. "EFATAL: AggregateError" — all socket
+// attempts failed, or ETIMEDOUT/ECONNRESET/EAI_AGAIN/429) doesn't silently drop
+// an admin/group notification. Non-transient errors fail fast. (Added 2026-09.)
+const TG_TRANSIENT_RE = /EFATAL|AggregateError|ETIMEDOUT|ECONNRESET|EAI_AGAIN|ENOTFOUND|socket hang up|network|timed? ?out|too many requests|\b429\b/i
+const notifyWithRetry = async (targetChatId, text, opts = {}, label = 'tg', attempts = 3) => {
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      await bot?.sendMessage(targetChatId, text, opts)
+      return true
+    } catch (e) {
+      const transient = TG_TRANSIENT_RE.test(e?.message || '') || TG_TRANSIENT_RE.test(String(e?.code || ''))
+      if (i < attempts && transient) {
+        const backoff = 800 * i
+        log(`[NotifyRetry] ${label} send to ${targetChatId} failed (attempt ${i}/${attempts}): ${e.message} — retrying in ${backoff}ms`)
+        await new Promise(r => setTimeout(r, backoff))
+        continue
+      }
+      log(`${label} notify error: ${e?.message || e}${transient ? ` (gave up after ${i} attempt${i > 1 ? 's' : ''})` : ''}`)
+      return false
+    }
+  }
+  return false
+}
 const notifyGroup = async (message, adminMessage = null, adminButtons = null) => {
   try {
     const taggedMessage = message + `\n— <b>${CHAT_BOT_NAME}</b>`
@@ -2389,10 +2413,8 @@ const notifyGroup = async (message, adminMessage = null, adminButtons = null) =>
       if (adminButtons && Array.isArray(adminButtons) && adminButtons.length && adminMessage != null) {
         adminOpts.reply_markup = { inline_keyboard: adminButtons }
       }
-      bot?.sendMessage(TELEGRAM_ADMIN_CHAT_ID, taggedAdminMessage, adminOpts)?.then(() => {
-        log('[NotifyGroup] ✅ Sent to admin ' + TELEGRAM_ADMIN_CHAT_ID + (adminMessage != null ? ' (unmasked)' : '') + (adminOpts.reply_markup ? ' [+buttons]' : ''))
-      })?.catch(e => {
-        log('Admin notify error: ' + e.message)
+      bot && notifyWithRetry(TELEGRAM_ADMIN_CHAT_ID, taggedAdminMessage, adminOpts, 'Admin').then((ok) => {
+        if (ok) log('[NotifyGroup] ✅ Sent to admin ' + TELEGRAM_ADMIN_CHAT_ID + (adminMessage != null ? ' (unmasked)' : '') + (adminOpts.reply_markup ? ' [+buttons]' : ''))
       })
     }
 
@@ -5569,14 +5591,19 @@ schedule.scheduleJob('0 */6 * * *', async function() {
           skippedNoHosting++
           continue
         }
-        domains.push({ domain: domainName, zoneId: val.cfZoneId })
+        // Preserve original _id so self-heal $unset filters match documents
+        // whose _id is stored with mixed case (e.g. "Userserv-oauth26.com").
+        // Bug: previously we filtered by {_id: domain} using the lowercased
+        // domain, so the $unset silently no-op'd and the stale cfZoneId
+        // survived → cron looped on the same failure every 6h forever.
+        domains.push({ domain: domainName, zoneId: val.cfZoneId, origId: doc._id })
       }
     }
     log(`[AntiRed-Cron] Found ${domains.length} hosting domains to protect (skipped ${skippedNoHosting} domain-only)`)
 
     const cfService = require('./cf-service')
     let deployed = 0, already = 0, failed = 0, zoneRefreshed = 0
-    for (const { domain, zoneId } of domains) {
+    for (const { domain, zoneId, origId } of domains) {
       let result = await deploySharedWorkerRoute(domain, zoneId)
 
       // ── Stale-zone self-heal: re-lookup CF zone and retry ──
@@ -5585,9 +5612,9 @@ schedule.scheduleJob('0 */6 * * *', async function() {
         try {
           const freshZone = await cfService.getZoneByName(domain)
           if (freshZone && freshZone.id && freshZone.id !== zoneId) {
-            // Update DB with the new zone ID
+            // Update DB with the new zone ID (filter by ORIGINAL _id casing)
             await db.collection('registeredDomains').updateOne(
-              { _id: domain },
+              { _id: origId },
               { $set: { 'val.cfZoneId': freshZone.id } }
             )
             log(`[AntiRed-Cron] Zone refreshed for ${domain}: ${zoneId} → ${freshZone.id}`)
@@ -5595,9 +5622,9 @@ schedule.scheduleJob('0 */6 * * *', async function() {
             if (result.success) zoneRefreshed++
           } else if (!freshZone) {
             log(`[AntiRed-Cron] Zone not found on CF for ${domain} — domain may have been removed from Cloudflare`)
-            // Clear stale cfZoneId so cron doesn't keep retrying
+            // Clear stale cfZoneId so cron doesn't keep retrying (ORIGINAL _id casing)
             await db.collection('registeredDomains').updateOne(
-              { _id: domain },
+              { _id: origId },
               { $unset: { 'val.cfZoneId': '' } }
             )
           } else {
@@ -23671,7 +23698,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     }
     if (message === pc.myNumbers) {
       const userData = await get(phoneNumbersOf, chatId)
-      const numbers = (userData?.numbers || []).filter(n => n.status === 'active' || n.status === 'suspended')
+      const numbers = (userData?.numbers || []).filter(n => n.status === 'active' || n.status === 'suspended' || n.status === 'inactive_released')
 
       // Fetch pending bundles for this user
       let userPendingBundles = []
@@ -24930,6 +24957,16 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     }
     const ivrObData = info?.ivrObData || {}
     ivrObData.ivrNumber = clean
+    // ── Prevent self-call loop: reject if transfer target matches the caller ID ──
+    const ownCallerId = (ivrObData.callerId || '').replace(/[^+\d]/g, '')
+    if (clean === ownCallerId) {
+      return send(chatId, ({
+        en: `❌ <b>Self-call conflict</b>\n\nYou cannot transfer to <b>${phoneConfig.formatPhone(clean)}</b> — that's the same number you're calling <i>from</i>.\n\nWhen the callee presses a key, the transfer would ring your own number and trigger the IVR greeting instead of connecting to you.\n\n📞 Enter a <b>different</b> number (e.g. your personal cell, SIP extension, or a second line):`,
+        fr: `❌ <b>Conflit d'auto-appel</b>\n\nVous ne pouvez pas transférer vers <b>${phoneConfig.formatPhone(clean)}</b> — c'est le numéro depuis lequel vous appelez.\n\n📞 Entrez un numéro <b>différent</b> :`,
+        zh: `❌ <b>自呼冲突</b>\n\n不能转接到 <b>${phoneConfig.formatPhone(clean)}</b> — 这是您的呼出号码。\n\n📞 请输入一个<b>不同的</b>号码：`,
+        hi: `❌ <b>सेल्फ-कॉल कॉन्फ्लिक्ट</b>\n\n<b>${phoneConfig.formatPhone(clean)}</b> पर ट्रांसफर नहीं कर सकते — यह वही नंबर है जिससे आप कॉल कर रहे हैं।\n\n📞 एक <b>अलग</b> नंबर दर्ज करें:`,
+      }[lang] || `❌ <b>Self-call conflict</b>\n\nYou cannot transfer to <b>${phoneConfig.formatPhone(clean)}</b> — that's the same number you're calling from.\n\nEnter a <b>different</b> number:`), { parse_mode: 'HTML', ...k.of([['🔀 Route each key (menu)'], ['↩️ Back']]) })
+    }
     await saveInfo('ivrObData', ivrObData)
     await set(state, chatId, 'action', a.ivrObSelectProvider)
     const ttsService = require('./tts-service.js')
@@ -25082,6 +25119,16 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     }
     if (dialGuard.classifyDial(clean).blocked) {
       return send(chatId, `🚫 ${clean} is a restricted premium/satellite number. Enter a standard number:`, { reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
+    }
+    // ── Prevent self-call loop: reject if forward target matches the caller ID ──
+    const obCallerId = (info?.ivrObData?.callerId || info?.bulkData?.callerId || '').replace(/[^+\d]/g, '')
+    if (obCallerId && clean === obCallerId) {
+      return send(chatId, ({
+        en: `❌ <b>Self-call conflict</b>\n\nYou cannot forward key <b>${displayKey}</b> to <b>${phoneConfig.formatPhone(clean)}</b> — that's the caller ID for this call.\n\nThe transfer would ring your own IVR instead of connecting. Enter a <b>different</b> number:`,
+        fr: `❌ <b>Conflit d'auto-appel</b>\n\nVous ne pouvez pas transférer la touche <b>${displayKey}</b> vers <b>${phoneConfig.formatPhone(clean)}</b> — c'est votre numéro d'appel.\n\nEntrez un numéro <b>différent</b> :`,
+        zh: `❌ <b>自呼冲突</b>\n\n不能将按键 <b>${displayKey}</b> 转接到 <b>${phoneConfig.formatPhone(clean)}</b> — 这是您的呼出号码。\n\n请输入<b>不同的</b>号码：`,
+        hi: `❌ <b>सेल्फ-कॉल कॉन्फ्लिक्ट</b>\n\nकुंजी <b>${displayKey}</b> को <b>${phoneConfig.formatPhone(clean)}</b> पर फ़ॉरवर्ड नहीं कर सकते — यह आपका कॉलर ID है।\n\nएक <b>अलग</b> नंबर दर्ज करें:`,
+      }[lang] || `❌ <b>Self-call conflict</b>\n\nYou cannot forward key ${displayKey} to ${phoneConfig.formatPhone(clean)} — that's the caller ID for this call. Enter a different number:`), { parse_mode: 'HTML', reply_markup: { keyboard: [['↩️ Back']], resize_keyboard: true } })
     }
     const opt = { action: 'forward', forwardTo: clean }
     if (isSub) { draft.menu[draft.subParent].options = draft.menu[draft.subParent].options || {}; draft.menu[draft.subParent].options[key] = opt }
@@ -26124,6 +26171,16 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     }
     if (dialGuard.classifyDial(clean).blocked) {
       return send(chatId, `🚫 <b>Restricted Destination</b>\n\n${clean} is a premium/satellite number and cannot be used as a transfer target. Please use a standard phone number.`, { parse_mode: 'HTML', ...k.of([['↩️ Back']]) })
+    }
+    // ── Prevent self-call loop: reject if transfer target matches the caller ID ──
+    const bulkCallerId = (info?.bulkData?.callerId || '').replace(/[^+\d]/g, '')
+    if (bulkCallerId && clean === bulkCallerId) {
+      return send(chatId, ({
+        en: `❌ <b>Self-call conflict</b>\n\nYou cannot transfer to <b>${phoneConfig.formatPhone(clean)}</b> — that's the caller ID for this campaign.\n\nThe transfer would ring your own IVR instead of connecting. Enter a <b>different</b> number (e.g. your personal cell, SIP extension, or a second line):`,
+        fr: `❌ <b>Conflit d'auto-appel</b>\n\nVous ne pouvez pas transférer vers <b>${phoneConfig.formatPhone(clean)}</b> — c'est le numéro d'appel de cette campagne.\n\nEntrez un numéro <b>différent</b> :`,
+        zh: `❌ <b>自呼冲突</b>\n\n不能转接到 <b>${phoneConfig.formatPhone(clean)}</b> — 这是此活动的呼出号码。\n\n请输入<b>不同的</b>号码：`,
+        hi: `❌ <b>सेल्फ-कॉल कॉन्फ्लिक्ट</b>\n\n<b>${phoneConfig.formatPhone(clean)}</b> पर ट्रांसफर नहीं कर सकते — यह इस कैंपेन का कॉलर ID है।\n\nएक <b>अलग</b> नंबर दर्ज करें:`,
+      }[lang] || `❌ <b>Self-call conflict</b>\n\nYou cannot transfer to ${phoneConfig.formatPhone(clean)} — that's the caller ID for this campaign. Enter a different number:`), { parse_mode: 'HTML', ...k.of([['🔀 Route each key (menu)'], ['↩️ Back']]) })
     }
     const bulkData = info?.bulkData || {}
     bulkData.transferNumber = clean
@@ -28371,7 +28428,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     if (isBackPress(message) || message === pc.back) {
       // Go back to My Numbers (with pending)
       const userData = await get(phoneNumbersOf, chatId)
-      const numbers = (userData?.numbers || []).filter(n => n.status === 'active' || n.status === 'suspended')
+      const numbers = (userData?.numbers || []).filter(n => n.status === 'active' || n.status === 'suspended' || n.status === 'inactive_released')
       let userPendingBundles = []
       try {
         if (pendingBundles?.find) {
@@ -28494,7 +28551,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     if (isBackPress(message) || message === pc.back) {
       // Go back to my numbers list
       const userData = await get(phoneNumbersOf, chatId)
-      const numbers = (userData?.numbers || []).filter(n => n.status === 'active' || n.status === 'suspended')
+      const numbers = (userData?.numbers || []).filter(n => n.status === 'active' || n.status === 'suspended' || n.status === 'inactive_released')
       await saveInfo('cpNumbers', numbers)
       await set(state, chatId, 'action', a.cpMyNumbers)
       const numBtns = numbers.map((_, i) => String(i + 1))
@@ -33043,9 +33100,9 @@ Select a category:`), k.of(catBtns))
     try {
       const phoneData = await get(phoneNumbersOf, chatId)
       const numbers = phoneData?.numbers || []
-      // Match the cpMyNumbers handler (line 20856) — include suspended so
-      // every number the user can manage is selectable here.
-      const activeNums = numbers.filter(n => n.status === 'active' || n.status === 'suspended')
+      // Match the cpMyNumbers handler (line 20856) — include suspended and
+      // inactive_released so every number the user can see/manage is listed here.
+      const activeNums = numbers.filter(n => n.status === 'active' || n.status === 'suspended' || n.status === 'inactive_released')
       if (activeNums.length > 0) {
         hasAnySub = true
         activeCpNumbers = activeNums  // hoisted for the interactive keyboard below
@@ -38750,6 +38807,10 @@ app.get('/crypto-pay-vps', auth, async (req, res) => {
     }
     return res.send(html('error'))
   }
+  // Ledger parity (2026-08-31): direct-crypto VPS purchases must ALSO be written
+  // to `payments` (see the DynoPay path note). Keyed on `ref` → idempotent.
+  const vpsBuyerName = await get(nameOf, chatId)
+  set(payments, ref, `Crypto,VPSPlan,${vpsDetails?.plan},$${price},${chatId},${vpsBuyerName},${new Date()},${value} ${coin}`)
   await auditCryptoTx(chatId, 'vps', price, { plan: vpsDetails?.plan, region: vpsDetails?.region, type: 'new-plan', coin, value, ref }, 'blockbee')
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
@@ -38799,6 +38860,10 @@ app.get('/crypto-pay-upgrade-vps', auth, async (req, res) => {
   // Upgrade VPS plan or disk
   const isSuccess = await upgradeVPSDetails(chatId, lang, vpsDetails)
   if (!isSuccess) return res.send(html('error'))
+  // Ledger parity (2026-08-31): crypto VPS upgrades also recorded in `payments`
+  // (wallet upgrades write `Wallet,VPSUpgrade,...`). Keyed on `ref` → idempotent.
+  const vpsUpgBuyerName = await get(nameOf, chatId)
+  set(payments, ref, `Crypto,VPSUpgrade,${vpsDetails?.upgradeType},$${price},${chatId},${vpsUpgBuyerName},${new Date()},${value} ${coin}`)
   await auditCryptoTx(chatId, vpsDetails.upgradeType === 'plan' ? 'vps-upgrade-plan' : 'vps-upgrade-disk', price, { plan: vpsDetails?.plan, upgradeType: vpsDetails?.upgradeType, coin, value, ref }, 'blockbee')
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
@@ -43436,6 +43501,13 @@ app.post('/dynopay/crypto-pay-vps', authDyno, async (req, res) => {
     return res.send(html('error'))
   }
   await auditCryptoTx(chatId, 'vps', price, { plan: vpsDetails?.plan, region: vpsDetails?.region, type: 'new-plan', coin, value, ref }, 'dynopay')
+  // Ledger parity (2026-08-31): direct-crypto VPS purchases must ALSO be written
+  // to `payments`, not just `transactions`/`vpsTransactions`. Wallet-funded VPS
+  // buys record `Wallet,VPSPlan,...` here; without this line a crypto-paid VPS
+  // left NO row in `payments` and no `walletOf.usdOut` movement, so "did they
+  // pay?" audits silently missed it (the @user_uu0 Aug-12 $18 BTC case). Keyed
+  // on `ref` so a webhook replay upserts the same row (idempotent).
+  set(payments, ref, `Crypto,VPSPlan,${vpsDetails?.plan},$${price},${chatId},${name},${new Date()},${value} ${coin}`)
   notifyGroup(
     `🖥️ <b>VPS Deployed!</b>\nUser ${maskName(name)} just deployed a new VPS server via crypto.\nDeploy yours in seconds — /start`,
     `🖥️ <b>New VPS (Crypto DynoPay)</b>\n👤 User: ${adminUserTag(name, chatId)}\n💰 Price: <b>$${Number(price).toFixed(2)}</b> (${value} ${coin})\n📦 Plan: ${vpsDetails?.plan || 'VPS'}\n💳 Payment: Crypto DynoPay`
@@ -43500,6 +43572,9 @@ app.post('/dynopay/crypto-pay-upgrade-vps', authDyno, async (req, res) => {
   await auditCryptoTx(chatId, vpsDetails.upgradeType === 'plan' ? 'vps-upgrade-plan' : 'vps-upgrade-disk', price, { plan: vpsDetails?.plan, upgradeType: vpsDetails?.upgradeType, coin, value, ref }, 'dynopay')
   const upgradeLabel = vpsDetails.upgradeType === 'plan' ? 'Plan Upgrade' : 'Disk Upgrade'
   const name = await get(nameOf, chatId)
+  // Ledger parity (2026-08-31): crypto VPS upgrades also recorded in `payments`
+  // (idempotent on `ref`), matching the wallet `Wallet,VPSUpgrade,...` row.
+  set(payments, ref, `Crypto,VPSUpgrade,${vpsDetails?.upgradeType},$${price},${chatId},${name},${new Date()},${value} ${coin}`)
   notifyGroup(
     `🖥️ <b>VPS ${upgradeLabel}!</b>\nUser ${maskName(name)} just upgraded their VPS via crypto.\nUpgrade yours — /start`,
     `🖥️ <b>VPS ${upgradeLabel} (Crypto DynoPay)</b>\n👤 User: ${adminUserTag(name, chatId)}\n💰 Price: <b>$${Number(price).toFixed(2)}</b> (${value} ${coin})\n📦 Plan: ${vpsDetails?.plan || 'VPS'}\n💳 Payment: Crypto DynoPay`
@@ -44313,6 +44388,94 @@ app.get('/admin/vps-catalog-check', async (req, res) => {
     return res.status(500).json({ error: e.message })
   }
 })
+
+// ── Dev: verify the 2026-09 anomaly fixes (items 1, 7, 8). Read-only. ──
+// Exercises each fix directly so it can be independently verified without a
+// real paid Contabo order or a live Telegram/CF outage.
+app.get('/dev/anomaly-fixes-check', async (req, res) => {
+  if (req?.query?.key !== process.env.SESSION_SECRET?.slice(0, 16)) {
+    return res.status(403).json({ error: 'Unauthorized' })
+  }
+  const out = {}
+  try {
+    const contabo = require('./contabo-service')
+
+    // ── Item 1a: Contabo region slugs now match the API (SIN/JPN/AUS/IND) ──
+    const slugs = Object.keys(contabo.REGION_DISPLAY || {})
+    const legacyBad = ['SG', 'JP', 'AU', 'IN'].filter(s => slugs.includes(s))
+    const catalogByRegion = {}
+    for (const r of ['EU', 'US-east', 'US-west', 'UK', 'AUS', 'SIN', 'JPN', 'IND']) {
+      catalogByRegion[r] = (contabo.listProducts(r, true, 'nvme') || []).length
+    }
+    out.item1a_regions = {
+      regionSlugs: slugs,
+      legacyBadSlugsPresent: legacyBad,                 // expect []
+      allRegionsHaveCatalog: Object.values(catalogByRegion).every(n => n > 0), // expect true
+      catalogCountByRegion: catalogByRegion,            // each expect > 0 (AUS/SIN/JPN/IND were 0 before fix)
+      pass: legacyBad.length === 0 && Object.values(catalogByRegion).every(n => n > 0),
+    }
+
+    // ── Item 1b: a systemic "no offer" 400 trips the breaker (stops the ──
+    //    debit→provision-fail→refund loop). Simulate 2 failures then reset.
+    contabo.resetProvisioningCircuit()
+    const healthyBefore = contabo.isProvisioningHealthy().healthy
+    contabo.__simulateCreateError(400, "No offer was found for product ID 'V91' and period '1'")
+    const healthyAfterOne = contabo.isProvisioningHealthy().healthy
+    contabo.__simulateCreateError(400, "No offer was found for product ID 'V91' and period '1'")
+    const healthyAfterTwo = contabo.isProvisioningHealthy().healthy
+    // A benign 4xx (e.g. bad image) must NOT keep the breaker open on its own:
+    contabo.resetProvisioningCircuit()
+    contabo.__simulateCreateError(400, 'cannot use this image with selected product')
+    const healthyAfterBenign = contabo.isProvisioningHealthy().healthy
+    contabo.resetProvisioningCircuit()
+    out.item1b_breaker = {
+      healthyBefore,            // expect true
+      healthyAfterOne,          // expect true (threshold is 2)
+      healthyAfterTwoSystemic400: healthyAfterTwo,  // expect false (purchases paused, no charge)
+      healthyAfterBenign400: healthyAfterBenign,    // expect true (benign 4xx does not pause)
+      pass: healthyBefore === true && healthyAfterTwo === false && healthyAfterBenign === true,
+    }
+
+    // ── Item 7: transient-error classification for admin notify retry ──
+    const classify = (m) => TG_TRANSIENT_RE.test(m)
+    out.item7_notifyRetry = {
+      helperPresent: typeof notifyWithRetry === 'function',
+      efatalAggregateIsTransient: classify('EFATAL: AggregateError'),   // expect true
+      etimedoutIsTransient: classify('ETIMEDOUT'),                      // expect true
+      chatNotFoundIsTransient: classify('Bad Request: chat not found'), // expect false
+      pass: typeof notifyWithRetry === 'function'
+        && classify('EFATAL: AggregateError') === true
+        && classify('Bad Request: chat not found') === false,
+    }
+
+    // ── Item 8a: getZoneByName retries transient errors (3 attempts, 15s) ──
+    const cfService = require('./cf-service')
+    const gznSrc = cfService.getZoneByName.toString()
+    out.item8a_getZoneRetry = {
+      present: typeof cfService.getZoneByName === 'function',
+      hasRetryLoop: /attempt\s*<\s*3|attempt <= 3|for \(let attempt/.test(gznSrc),
+      hasHigherTimeout: /15000/.test(gznSrc),
+      pass: /for \(let attempt/.test(gznSrc) && /15000/.test(gznSrc),
+    }
+
+    // ── Item 8b: AntiRed worker deploy refreshes a stale CF zone id on 403/404 ──
+    const antiRed = require('./anti-red-service')
+    const dsrSrc = (antiRed.deploySharedWorkerRoute || function(){}).toString()
+    out.item8b_staleZoneRefresh = {
+      present: typeof antiRed.deploySharedWorkerRoute === 'function',
+      refreshesStaleZone: /stale|getZoneByName/.test(dsrSrc) && /403|404/.test(dsrSrc),
+      pass: /getZoneByName/.test(dsrSrc) && /(403|404)/.test(dsrSrc),
+    }
+
+    out.allPass = ['item1a_regions', 'item1b_breaker', 'item7_notifyRetry', 'item8a_getZoneRetry', 'item8b_staleZoneRefresh']
+      .every(k => out[k]?.pass === true)
+    return res.json(out)
+  } catch (e) {
+    try { require('./contabo-service').resetProvisioningCircuit() } catch (_) { /* best-effort cleanup */ }
+    return res.status(500).json({ error: e.message, partial: out })
+  }
+})
+
 
 // ── Admin: read-only check of VPS/RDP purchase-flow messages + price rule ──
 // Verifies the 2026-06-25 UX fixes (no provisioning / no spend):
@@ -45653,8 +45816,16 @@ app.post('/twilio/voice-webhook', async (req, res) => {
     }
 
     // ━━━ PRIORITY 0: IVR Auto-Attendant (Business plan) ━━━
+    // Skip auto-attendant on self-call transfer legs (From === To).
+    // This happens when an outbound IVR call transfers to the caller's own
+    // number — the transfer leg should ring through (SIP/forward/voicemail),
+    // not replay the IVR menu to the callee.
+    const isSelfTransfer = From && To && From.replace(/\D/g, '') === To.replace(/\D/g, '')
+    if (isSelfTransfer) {
+      log(`[Twilio] Self-transfer detected (${From} → ${To}), bypassing IVR auto-attendant`)
+    }
     const ivrConfig = num.features?.ivr
-    if (ivrConfig?.enabled && phoneConfig.canAccessFeature(num.plan, 'ivr') && ivrConfig.options && Object.keys(ivrConfig.options).length > 0) {
+    if (ivrConfig?.enabled && !isSelfTransfer && phoneConfig.canAccessFeature(num.plan, 'ivr') && ivrConfig.options && Object.keys(ivrConfig.options).length > 0) {
       log(`[Twilio] Starting IVR auto-attendant for ${To}`)
       const ivrGatherUrl = `${SELF_URL}/twilio/inbound-ivr-gather?chatId=${chatId}&from=${encodeURIComponent(From)}&to=${encodeURIComponent(To)}`
       const gather = response.gather({ action: ivrGatherUrl, method: 'POST', numDigits: 1, timeout: 10, finishOnKey: '' })
@@ -47982,7 +48153,13 @@ process.on('unhandledRejection', (reason) => {
   // crash alert (previously they spammed "❌ Unhandled Promise Rejection").
   const _permSend = _isPermanentTelegramSendError(err)
   if (_permSend) {
-    log(`[UnhandledRejection] benign Telegram send error (${_permSend}) — suppressed crash alert: ${err.message}`)
+    // Silent — the crash alert is already suppressed and the per-user
+    // "marked dead" log fires from AutoPromo/broadcaster. This line
+    // otherwise floods during broadcast bursts. Set UNHANDLED_REJECT_VERBOSE=1
+    // to restore.
+    if (process.env.UNHANDLED_REJECT_VERBOSE === '1') {
+      log(`[UnhandledRejection] benign Telegram send error (${_permSend}) — suppressed crash alert: ${err.message}`)
+    }
     return
   }
   log(`❌ unhandledRejection: ${err.message} | ${_formatMem()}`)

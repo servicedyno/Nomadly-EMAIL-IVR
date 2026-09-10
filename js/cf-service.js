@@ -169,16 +169,27 @@ const _applyHttpsDefaults = async (zoneId, domainName) => {
 }
 
 const getZoneByName = async (domainName) => {
-  try {
-    const res = await axios.get(`${CF_BASE_URL}/zones`, {
-      headers: cfHeaders(), params: { name: domainName }, timeout: 10000,
-    })
-    if (res.data?.success && res.data.result?.length > 0) return res.data.result[0]
-    return null
-  } catch (err) {
-    log('CF getZoneByName error:', err.message)
-    return null
+  // Retry transient failures (CF was intermittently timing out at 10s and
+  // returning null, which cascaded into "stale zone" worker-deploy 403s and
+  // failed DNS heals). 3 attempts, higher timeout, small backoff. (2026-09)
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const res = await axios.get(`${CF_BASE_URL}/zones`, {
+        headers: cfHeaders(), params: { name: domainName }, timeout: 15000,
+      })
+      if (res.data?.success && res.data.result?.length > 0) return res.data.result[0]
+      return null
+    } catch (err) {
+      const transient = /timeout|ETIMEDOUT|ECONNRESET|EAI_AGAIN|ENOTFOUND|socket hang up|network/i.test(err.message || '')
+      if (attempt < 3 && transient) {
+        await new Promise(r => setTimeout(r, 600 * attempt))
+        continue
+      }
+      log(`CF getZoneByName error (${domainName}, attempt ${attempt}/3):`, err.message)
+      return null
+    }
   }
+  return null
 }
 
 const deleteZone = async (zoneId) => {

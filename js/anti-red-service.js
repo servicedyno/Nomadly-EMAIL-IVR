@@ -1167,10 +1167,34 @@ async function deploySharedWorkerRoute(domain, zoneId) {
 
   try {
     // Check if route already exists
-    const routesRes = await axios.get(
-      `https://api.cloudflare.com/client/v4/zones/${zoneId}/workers/routes`,
-      { headers: cfHeaders, timeout: 10000 }
-    )
+    let routesRes
+    try {
+      routesRes = await axios.get(
+        `https://api.cloudflare.com/client/v4/zones/${zoneId}/workers/routes`,
+        { headers: cfHeaders, timeout: 10000 }
+      )
+    } catch (zerr) {
+      // A 403/404 here almost always means the passed zoneId is STALE (the zone
+      // was deleted & recreated in CF, so its ID changed). Re-resolve the zone
+      // by name and retry once with the fresh ID instead of giving up. (2026-09)
+      const st = zerr.response?.status
+      const cfService = require('./cf-service')
+      if ((st === 403 || st === 404) && cfService?.getZoneByName) {
+        const fresh = await cfService.getZoneByName(domain)
+        if (fresh?.id && fresh.id !== zoneId) {
+          log(`[AntiRed] zoneId ${zoneId} was stale for ${domain} — refreshed to ${fresh.id}, retrying worker deploy`)
+          zoneId = fresh.id
+          routesRes = await axios.get(
+            `https://api.cloudflare.com/client/v4/zones/${zoneId}/workers/routes`,
+            { headers: cfHeaders, timeout: 10000 }
+          )
+        } else {
+          throw zerr
+        }
+      } else {
+        throw zerr
+      }
+    }
     const routes = routesRes.data?.result || []
     const existingMain = routes.find(r => r.pattern === `${domain}/*`)
     const existingWww = routes.find(r => r.pattern === `www.${domain}/*`)

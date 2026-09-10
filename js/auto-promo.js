@@ -4434,7 +4434,13 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
           if (code === 403 || isUnreachableError(error)) {
             const reason = classifyOptOutReason(error)
             await recordSendFailure(chatId, reason)
-            log(`[AutoPromo] Unreachable ${chatId}: ${reason} (${error.message?.substring(0, 80)})`)
+            // De-dupe log: recordSendFailure() already logs the primary
+            // "User X marked dead (bot_blocked #N)" line for bot_blocked/deactivated.
+            // Only log the extra "Unreachable" line for non-terminal reasons or on verbose.
+            const alreadyLoggedByRecord = reason === 'bot_blocked' || reason === 'user_deactivated'
+            if (!alreadyLoggedByRecord || process.env.AUTOPROMO_VERBOSE === '1') {
+              log(`[AutoPromo] Unreachable ${chatId}: ${reason} (${error.message?.substring(0, 80)})`)
+            }
           } else {
             log(`[AutoPromo] Failed ${chatId}: [${code || 'unknown'}] ${error.message}`)
           }

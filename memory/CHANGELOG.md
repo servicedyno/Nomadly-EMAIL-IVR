@@ -457,7 +457,7 @@ last_error: "Wrong response from the webhook: 404 Not Found"
 ### Operational restoration
 - Called Telegram `setWebhook` to put the prod bot back on Railway:  
   `https://nomadly-email-ivr-production.up.railway.app/telegram/webhook` — verified `last_error: none, pending_update_count: 0`.
-- Local nodejs restarted cleanly; logs show `[Webhooks] SKIP_WEBHOOK_SYNC=true — preserving existing Telegram webhook (NOT overwriting)` and `📡 Existing webhook (left untouched): https://config-preview-9.preview.emergentagent.com/api/telegram/webhook` (the dev bot's webhook is preserved, even though it points at a dead preview pod — that's fine, we'll re-point it on demand if needed for dev testing).
+- Local nodejs restarted cleanly; logs show `[Webhooks] SKIP_WEBHOOK_SYNC=true — preserving existing Telegram webhook (NOT overwriting)` and `📡 Existing webhook (left untouched): https://multi-api-setup.preview.emergentagent.com/api/telegram/webhook` (the dev bot's webhook is preserved, even though it points at a dead preview pod — that's fine, we'll re-point it on demand if needed for dev testing).
 
 ### Tests
 - `/app/backend/tests/test_webhook_isolation.js` — 3 cases (the SKIP_WEBHOOK_SYNC guard comes before `bot.setWebHook` in source order; the setup-nodejs.sh `SKIP_SELF_URL_UPDATE` gate is wired correctly and sits BEFORE the sed rewrite; `.env` is in dev mode with the safety flag set). All pass.
@@ -1785,3 +1785,27 @@ boot:
   (dev pod uses a different bot token → must never delete real production notify groups on send-failure).
   Both prod groups confirmed intact after the run.
 
+
+## 2026-09-11 — Ported "last 2 weeks" bug fixes from upstream `main` onto WhiteLabel (Smadav)
+Task: WhiteLabel (Smadav, forked from main @2f9bd5c4 on 08-20, last worked 08-30) was missing
+main's bug fixes from 08-31→09-10 (main @5e367f50). Ported the BUG FIXES only (user: "bug fixes only"),
+preserving Smadav branding. Applied via `git apply --3way` (no commits — working tree only for Save-to-GitHub).
+Reseller REST API / /apidoc / Vault feature intentionally SKIPPED per user.
+
+Applied & verified:
+- Cloud-phone self-call guards (isSelfTransfer in /twilio/voice-webhook + 3 setup-time guards) — a422aac7, 9b2962dd → js/_index.js
+- Inactive/released number auto-cleanup (inactive_released status, 48h grace, badges 4 langs) — d3595fa5 → js/phone-monitor/config/scheduler + _index. TEST 21/21.
+- Contabo region codes (SG→SIN/JP→JPN/AU→AUS/IN→IND) + charge-fail circuit breaker + catalog refresh to Core VPS/V153 — 89ba7856, 5e367f50 → js/contabo-service.js, _index.js
+- Reliability: notifyWithRetry (admin TG), CF getZoneByName retry + AntiRed stale-zone 403 auto-refresh — 89ba7856 → _index/cf-service/anti-red-service
+- AntiRed cron case-sensitivity self-heal (origId) + env-gated log silencers — 3cee0cd1 → _index/cpanel-health/protection-heartbeat/auto-promo. TEST 4/4.
+- Crypto-VPS payments ledger unification (4 direct-crypto handlers now write `payments`) — 59816009 → _index.js
+- Railway custom-domains timeout+retry (P1 #8) — e834909b → js/rl-save-domain-in-server.js
+- **Hosting-scheduler DEV-SANDBOX guard** (skip startup enforcement + hourly expiry sweep when SKIP_WEBHOOK_SYNC=true — prevents dev pod auto-renewing/suspending REAL users) — fc77b86e → js/hosting-scheduler.js. VERIFIED in boot log.
+- Hosting welcome email: Cloudflare nameserver card for external domains + full i18n (en/fr/zh/hi), env-branded (CHAT_BOT_BRAND→Smadav) — 4b45e2f1, d5b62015 → js/send-email.js (taken from main), cr-register. TEST 35/35.
+- Panel subdomain-delete "reappear/flicker" fix (recentlyDeletedSubsRef guard) — 44c09e74 → frontend DomainList.js (3-way conflicts resolved; kept WhiteLabel's Single/Bulk toggle UI).
+
+Intentionally SKIPPED (WhiteLabel has its own equivalent OR architecture mismatch — porting would break its working panel):
+- cPanel write self-heal `_userWriteCallWithHeal` / cpPass cooldown (e834909b #6/#7, d5b62015 cpanel-routes) — main's `_userCallWithHeal`/`_selfHealCpPass` subsystem; WhiteLabel uses its own `_repairCpPass`.
+- cpProxy `uapiViaSession` (fc77b86e cpanel-proxy/cpanel-routes) — WhiteLabel's cpanel-proxy is a different impl.
+- Twilio "orphaned" number handling (e834909b #9) — already present in WhiteLabel.
+- DomainList subDisplayName/subDocRoot refactor (fc77b86e) — already present in WhiteLabel.
