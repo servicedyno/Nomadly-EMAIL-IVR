@@ -36308,6 +36308,28 @@ const buyVPSPlanFullProcess = async (chatId, lang, vpsDetails) => {
       await progress.completeStep(2)
     }
 
+    // ── Mark the DB record RUNNING now that provisioning succeeded ──────────
+    // ROOT-CAUSE FIX (2026-09): buyVPSPlanFullProcess never moved status off
+    // the initial 'provisioning' value — it only became RUNNING on a manual
+    // Start or a renewal. Non-Contabo providers (DigitalOcean / Vultr / OVH)
+    // are inserted with status 'provisioning' and, because the status-refresh
+    // poll in vm-instance-setup.js is Contabo-only, they stayed stuck at
+    // 'provisioning' forever even while the droplet was live and running (see
+    // DO audit 2026-09: do-593457561, do-593967362). Set the canonical RUNNING
+    // state here (provider-agnostic) once provisioning has succeeded.
+    try {
+      if (typeof vpsPlansOf !== 'undefined' && vpsPlansOf) {
+        const _sid = String(vpsData.contaboInstanceId || vpsData._id)
+        const _sidInt = parseInt(_sid, 10)
+        const _statusKey = (Number.isFinite(_sidInt) && String(_sidInt) === _sid)
+          ? { contaboInstanceId: _sidInt }   // Contabo (numeric id)
+          : { vpsId: _sid }                  // DigitalOcean / Vultr / OVH (string id)
+        await vpsPlansOf.updateOne(_statusKey, { $set: { status: 'RUNNING' } })
+      }
+    } catch (e) {
+      log('[VPS] status->RUNNING update failed (non-blocking): ' + (e.message || e))
+    }
+
     // Step 3: OS Installation (already happening in background)
     await progress.startStep(3)
     await sleep(10000) // Simulated OS install time
