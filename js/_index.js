@@ -2359,6 +2359,30 @@ const sendDomainUpsell = (chatId, lang, domain, delayMs = 2000) => {
 // 2-arg form: `notifyGroup(groupMsg, adminMsg)` — admin gets unmasked, no buttons.
 // 1-arg form: `notifyGroup(message)` — legacy/back-compat (both groups + admin same msg).
 const TELEGRAM_NOTIFY_GROUP_ID = process.env.TELEGRAM_NOTIFY_GROUP_ID
+// Resilient Telegram send: retries transient network/rate errors a few times
+// with backoff so a momentary blip (e.g. "EFATAL: AggregateError" — all socket
+// attempts failed, or ETIMEDOUT/ECONNRESET/EAI_AGAIN/429) doesn't silently drop
+// an admin/group notification. Non-transient errors fail fast. (Added 2026-09.)
+const TG_TRANSIENT_RE = /EFATAL|AggregateError|ETIMEDOUT|ECONNRESET|EAI_AGAIN|ENOTFOUND|socket hang up|network|timed? ?out|too many requests|\b429\b/i
+const notifyWithRetry = async (targetChatId, text, opts = {}, label = 'tg', attempts = 3) => {
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      await bot?.sendMessage(targetChatId, text, opts)
+      return true
+    } catch (e) {
+      const transient = TG_TRANSIENT_RE.test(e?.message || '') || TG_TRANSIENT_RE.test(String(e?.code || ''))
+      if (i < attempts && transient) {
+        const backoff = 800 * i
+        log(`[NotifyRetry] ${label} send to ${targetChatId} failed (attempt ${i}/${attempts}): ${e.message} — retrying in ${backoff}ms`)
+        await new Promise(r => setTimeout(r, backoff))
+        continue
+      }
+      log(`${label} notify error: ${e?.message || e}${transient ? ` (gave up after ${i} attempt${i > 1 ? 's' : ''})` : ''}`)
+      return false
+    }
+  }
+  return false
+}
 const notifyGroup = async (message, adminMessage = null, adminButtons = null) => {
   try {
     const taggedMessage = message + `\n— <b>${CHAT_BOT_NAME}</b>`
@@ -2386,10 +2410,8 @@ const notifyGroup = async (message, adminMessage = null, adminButtons = null) =>
       if (adminButtons && Array.isArray(adminButtons) && adminButtons.length && adminMessage != null) {
         adminOpts.reply_markup = { inline_keyboard: adminButtons }
       }
-      bot?.sendMessage(TELEGRAM_ADMIN_CHAT_ID, taggedAdminMessage, adminOpts)?.then(() => {
-        log('[NotifyGroup] ✅ Sent to admin ' + TELEGRAM_ADMIN_CHAT_ID + (adminMessage != null ? ' (unmasked)' : '') + (adminOpts.reply_markup ? ' [+buttons]' : ''))
-      })?.catch(e => {
-        log('Admin notify error: ' + e.message)
+      bot && notifyWithRetry(TELEGRAM_ADMIN_CHAT_ID, taggedAdminMessage, adminOpts, 'Admin').then((ok) => {
+        if (ok) log('[NotifyGroup] ✅ Sent to admin ' + TELEGRAM_ADMIN_CHAT_ID + (adminMessage != null ? ' (unmasked)' : '') + (adminOpts.reply_markup ? ' [+buttons]' : ''))
       })
     }
 
@@ -44524,6 +44546,94 @@ app.get('/admin/vps-catalog-check', async (req, res) => {
     return res.status(500).json({ error: e.message })
   }
 })
+
+// ── Dev: verify the 2026-09 anomaly fixes (items 1, 7, 8). Read-only. ──
+// Exercises each fix directly so it can be independently verified without a
+// real paid Contabo order or a live Telegram/CF outage.
+app.get('/dev/anomaly-fixes-check', async (req, res) => {
+  if (req?.query?.key !== process.env.SESSION_SECRET?.slice(0, 16)) {
+    return res.status(403).json({ error: 'Unauthorized' })
+  }
+  const out = {}
+  try {
+    const contabo = require('./contabo-service')
+
+    // ── Item 1a: Contabo region slugs now match the API (SIN/JPN/AUS/IND) ──
+    const slugs = Object.keys(contabo.REGION_DISPLAY || {})
+    const legacyBad = ['SG', 'JP', 'AU', 'IN'].filter(s => slugs.includes(s))
+    const catalogByRegion = {}
+    for (const r of ['EU', 'US-east', 'US-west', 'UK', 'AUS', 'SIN', 'JPN', 'IND']) {
+      catalogByRegion[r] = (contabo.listProducts(r, true, 'nvme') || []).length
+    }
+    out.item1a_regions = {
+      regionSlugs: slugs,
+      legacyBadSlugsPresent: legacyBad,                 // expect []
+      allRegionsHaveCatalog: Object.values(catalogByRegion).every(n => n > 0), // expect true
+      catalogCountByRegion: catalogByRegion,            // each expect > 0 (AUS/SIN/JPN/IND were 0 before fix)
+      pass: legacyBad.length === 0 && Object.values(catalogByRegion).every(n => n > 0),
+    }
+
+    // ── Item 1b: a systemic "no offer" 400 trips the breaker (stops the ──
+    //    debit→provision-fail→refund loop). Simulate 2 failures then reset.
+    contabo.resetProvisioningCircuit()
+    const healthyBefore = contabo.isProvisioningHealthy().healthy
+    contabo.__simulateCreateError(400, "No offer was found for product ID 'V91' and period '1'")
+    const healthyAfterOne = contabo.isProvisioningHealthy().healthy
+    contabo.__simulateCreateError(400, "No offer was found for product ID 'V91' and period '1'")
+    const healthyAfterTwo = contabo.isProvisioningHealthy().healthy
+    // A benign 4xx (e.g. bad image) must NOT keep the breaker open on its own:
+    contabo.resetProvisioningCircuit()
+    contabo.__simulateCreateError(400, 'cannot use this image with selected product')
+    const healthyAfterBenign = contabo.isProvisioningHealthy().healthy
+    contabo.resetProvisioningCircuit()
+    out.item1b_breaker = {
+      healthyBefore,            // expect true
+      healthyAfterOne,          // expect true (threshold is 2)
+      healthyAfterTwoSystemic400: healthyAfterTwo,  // expect false (purchases paused, no charge)
+      healthyAfterBenign400: healthyAfterBenign,    // expect true (benign 4xx does not pause)
+      pass: healthyBefore === true && healthyAfterTwo === false && healthyAfterBenign === true,
+    }
+
+    // ── Item 7: transient-error classification for admin notify retry ──
+    const classify = (m) => TG_TRANSIENT_RE.test(m)
+    out.item7_notifyRetry = {
+      helperPresent: typeof notifyWithRetry === 'function',
+      efatalAggregateIsTransient: classify('EFATAL: AggregateError'),   // expect true
+      etimedoutIsTransient: classify('ETIMEDOUT'),                      // expect true
+      chatNotFoundIsTransient: classify('Bad Request: chat not found'), // expect false
+      pass: typeof notifyWithRetry === 'function'
+        && classify('EFATAL: AggregateError') === true
+        && classify('Bad Request: chat not found') === false,
+    }
+
+    // ── Item 8a: getZoneByName retries transient errors (3 attempts, 15s) ──
+    const cfService = require('./cf-service')
+    const gznSrc = cfService.getZoneByName.toString()
+    out.item8a_getZoneRetry = {
+      present: typeof cfService.getZoneByName === 'function',
+      hasRetryLoop: /attempt\s*<\s*3|attempt <= 3|for \(let attempt/.test(gznSrc),
+      hasHigherTimeout: /15000/.test(gznSrc),
+      pass: /for \(let attempt/.test(gznSrc) && /15000/.test(gznSrc),
+    }
+
+    // ── Item 8b: AntiRed worker deploy refreshes a stale CF zone id on 403/404 ──
+    const antiRed = require('./anti-red-service')
+    const dsrSrc = (antiRed.deploySharedWorkerRoute || function(){}).toString()
+    out.item8b_staleZoneRefresh = {
+      present: typeof antiRed.deploySharedWorkerRoute === 'function',
+      refreshesStaleZone: /stale|getZoneByName/.test(dsrSrc) && /403|404/.test(dsrSrc),
+      pass: /getZoneByName/.test(dsrSrc) && /(403|404)/.test(dsrSrc),
+    }
+
+    out.allPass = ['item1a_regions', 'item1b_breaker', 'item7_notifyRetry', 'item8a_getZoneRetry', 'item8b_staleZoneRefresh']
+      .every(k => out[k]?.pass === true)
+    return res.json(out)
+  } catch (e) {
+    try { require('./contabo-service').resetProvisioningCircuit() } catch (_) { /* best-effort cleanup */ }
+    return res.status(500).json({ error: e.message, partial: out })
+  }
+})
+
 
 // ── Admin: read-only check of VPS/RDP purchase-flow messages + price rule ──
 // Verifies the 2026-06-25 UX fixes (no provisioning / no spend):

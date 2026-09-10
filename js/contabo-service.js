@@ -94,8 +94,30 @@ function _trackCreateResult(ok, err) {
       try { _circuit.onOpen && _circuit.onOpen(getCircuitState()) } catch (_) { /* onOpen handler failures must not block circuit logic */ }
     }
   } else {
-    // 4xx — reset counter (the failure was likely user-input or product-specific, not vendor outage)
-    _circuit.consecutive500 = 0
+    // 4xx — most are input/product-specific (e.g. invalid image for a product)
+    // and should NOT trip the breaker. BUT a *systemic* "no offer / product not
+    // orderable" 400 means EVERY purchase of that generation will fail (the
+    // account's active offer list doesn't include our catalog's product IDs) —
+    // e.g. Contabo: "No offer was found for product ID 'V91' and period '1'".
+    // Left unchecked this created a debit→provision-fail→refund loop for the
+    // customer on every retry. Treat it like an outage so isProvisioningHealthy()
+    // flips false and the bot's pre-flight guard stops charging.  (Added 2026-09.)
+    const msg = String(err?.message || err?.raw?.message || '').toLowerCase()
+    const systemic = /no offer was found|no offer found|not orderable|product .*not available/.test(msg)
+    if (systemic) {
+      _circuit.consecutive500 += 1
+      _circuit.lastError = err?.message || err?.raw?.message || 'No purchasable offer for product (catalog/account mismatch)'
+      _circuit.lastErrorAt = new Date()
+      if (!_circuit.open && _circuit.consecutive500 >= _circuit.threshold) {
+        _circuit.open = true
+        _circuit.openedAt = new Date()
+        console.error(`[Contabo] 🔌 CIRCUIT OPEN — createInstance rejected ${_circuit.consecutive500}× with a systemic 400 ("${_circuit.lastError}"). New VPS/RDP purchases paused (customers will NOT be charged).`)
+        try { _circuit.onOpen && _circuit.onOpen(getCircuitState()) } catch (_) { /* onOpen handler failures must not block circuit logic */ }
+      }
+    } else {
+      // Genuinely input/product-specific failure — reset the counter.
+      _circuit.consecutive500 = 0
+    }
   }
 }
 
@@ -334,10 +356,14 @@ const REGION_SURCHARGE = {
   'US-east':    [   1.80,   2.80,   5.50,   9.70,  14.30,  18.90   ],
   'US-west':    [   1.50,   2.30,   4.50,   8.10,  11.90,  15.80   ],
   'UK':         [   1.20,   0.45,   0.92,   2.60,   4.80,   7.62   ],
-  'SG':         [   2.90,   2.20,   4.40,   9.42,  16.24,  24.56   ],
-  'JP':         [   2.90,   2.25,   4.50,   9.60,  16.59,  25.12   ],
-  'AU':         [   2.40,   1.85,   3.75,   7.98,  13.79,  20.88   ],
-  'IN':         [   2.70,   2.10,   4.15,   8.82,  15.26,  23.04   ]
+  // Region slugs MUST match Contabo's /data-centers regionSlug values exactly,
+  // otherwise createInstance throws "Entry Region not found by region = X".
+  // Contabo uses SIN/JPN/AUS/IND (NOT SG/JP/AU/IN). Fixed 2026-09 after a
+  // customer's Australia order failed with "Region not found by region = AU".
+  'SIN':        [   2.90,   2.20,   4.40,   9.42,  16.24,  24.56   ],
+  'JPN':        [   2.90,   2.25,   4.50,   9.60,  16.59,  25.12   ],
+  'AUS':        [   2.40,   1.85,   3.75,   7.98,  13.79,  20.88   ],
+  'IND':        [   2.70,   2.10,   4.15,   8.82,  15.26,  23.04   ]
 }
 
 const REGION_DISPLAY = {
@@ -346,10 +372,10 @@ const REGION_DISPLAY = {
   'US-east':    { emoji: '🇺🇸', label: 'US East' },
   'US-west':    { emoji: '🇺🇸', label: 'US West' },
   'UK':         { emoji: '🇬🇧', label: 'United Kingdom' },
-  'SG':         { emoji: '🇸🇬', label: 'Singapore' },
-  'JP':         { emoji: '🇯🇵', label: 'Japan' },
-  'AU':         { emoji: '🇦🇺', label: 'Australia' },
-  'IN':         { emoji: '🇮🇳', label: 'India' }
+  'SIN':        { emoji: '🇸🇬', label: 'Singapore' },
+  'JPN':        { emoji: '🇯🇵', label: 'Japan' },
+  'AUS':        { emoji: '🇦🇺', label: 'Australia' },
+  'IND':        { emoji: '🇮🇳', label: 'India' }
 }
 
 // ─── Pricing ──────────────────────────────────────────────────────────────
@@ -1191,6 +1217,10 @@ module.exports = {
   getCircuitState,
   resetProvisioningCircuit,
   onProvisioningCircuitOpen,
+  // Test hook (read-only diagnostics): simulate a createInstance failure so a
+  // dev self-check can assert the systemic-400 breaker behaviour without a real
+  // paid order. Always paired with resetProvisioningCircuit() by the caller.
+  __simulateCreateError: (status, message) => _trackCreateResult(false, { status, message }),
 
   // Low-level
   apiRequest
