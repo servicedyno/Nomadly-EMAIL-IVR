@@ -295,12 +295,30 @@ If the issue persists, I'll connect you with our technical team who can check yo
 2. Your SIP credentials may have expired — regenerate them via <b>📞 Cloud IVR + SIP</b> → <b>📋 My Plans</b> → Select number → <b>🔑 SIP Credentials</b> → <b>🔄 Reset Password</b>
 I'll flag this for our technical team to review your call logs.
 
-### "IVR call not working / TTS audio failing"
-→ If your IVR call fails to generate audio:
+### "IVR call not working / no sound plays / audio failing"
+→ First disambiguate WHICH IVR flow the user is on — they behave completely differently:
+
+<b>A) Quick IVR Call — uses TTS (text-to-speech), no upload.</b> Path: 📞 Cloud IVR + SIP → 📢 Quick IVR Call. Audio is generated live from your script + selected voice. If audio fails here:
 1. Try a different voice from the voice selection menu
 2. Keep your script text under 1000 characters
 3. Try again — some TTS providers occasionally have temporary outages
-If the issue persists, our team can check the audio generation logs.
+This flow has NO file upload — do NOT ask the user about file formats.
+
+<b>B) Bulk IVR Campaign — uses an uploaded audio file from your Audio Library, NOT TTS.</b> Path: 📞 Cloud IVR + SIP → 📞 Bulk IVR Campaign → Select Caller ID → paste/upload leads → Select IVR Audio (🎵 from library, or 📎 Upload New Audio, or 📝 Use IVR Template for TTS). There is NO "voice selection menu" in this flow — never suggest that. If the recipient hears silence or the campaign shows calls completed but nothing played, the cause is almost always the uploaded audio file itself:
+1. Preferred format: <b>MP3</b> (mono, any sample rate). MP3 uploads always play correctly.
+2. WAV uploads are auto-converted to MP3 on upload (Feb 2026 fix). If you uploaded a WAV BEFORE that fix, re-upload the same file — it will be re-encoded and play correctly.
+3. If you generated the audio in a DAW/browser at high quality (44.1 kHz stereo, 32-bit float, etc.), export it as MP3 rather than WAV to be safe.
+4. Audio Library files under 🎵 that failed once will keep failing until re-uploaded — the fix runs at upload time. Tap 📎 Upload New Audio and re-send the file.
+5. Bulk IVR Templates (📝 Use IVR Template) also use TTS and behave like Quick IVR — if a template's audio fails, try a different voice.
+If a customer still hears silence AFTER re-uploading a fresh MP3, escalate — the audio-proxy or the campaign's stored audioUrl needs manual inspection.
+
+<b>C) IVR Auto-attendant / Voicemail greetings (Business plan)</b> — uploaded via 📞 Cloud IVR + SIP → 📋 My Plans → number → 🤖 IVR — same audio rules as (B). Re-upload if silent.
+
+### "Bulk IVR — calls failing with 'Account not authorized to call' or hitting the wrong country"
+→ This used to happen when a bare 10-digit US number (e.g. <code>4065067340</code>) was pasted without <code>+1</code> — the parser turned it into <code>+4065067340</code> (Romania +40), and Twilio rejected the call as unauthorized geo. <b>Fixed Feb 2026</b>: bare 10-digit numbers now auto-prepend <code>+1</code>, and <code>1XXXXXXXXXX</code> auto-gets <code>+</code>. If the user is still seeing "Account not authorized" errors after the fix:
+1. Confirm the numbers actually START with +1 in the "leads loaded" preview screen — if they show <code>+40…</code> or <code>+41…</code> etc for what should be US numbers, escalate.
+2. For legitimate international destinations (non-NANP), the user must include the correct country code with <code>+</code>. Twilio geo-permissions must be enabled per destination country on the sub-account — this is a support/billing action, escalate.
+
 
 ### 📱 SMS Leads
 From main menu → tap <b>📱 SMS Leads</b>

@@ -1910,6 +1910,19 @@ function _tgIsRateLimited(err) {
   if (s === 429) return true
   return /too many requests|retry after|\b429\b/i.test((err && err.message) || '')
 }
+// "message can't be edited" / "message to edit not found" / "message is not
+// modified" — all mean the edit path is a dead end for THIS specific mid, so
+// don't waste a second attempt (which will fail with the exact same error and
+// produce the noisy duplicate log line seen in prod for @blacknmilds et al).
+function _tgEditIsTerminal(err) {
+  const m = (err && err.message) || ''
+  return /message can'?t be edited|message to edit not found|MESSAGE_ID_INVALID/i.test(m)
+}
+// Per-session dedup for the "streaming edit couldn't land, delivered via
+// fresh send" info line. Was previously logged on EVERY reply of every session
+// (2-3 lines/reply × chatty sessions = 40+ noise lines in a Railway hour).
+const _fallbackLoggedThisSession = new Set()
+function _resetSupportFallbackNoise(chatId) { _fallbackLoggedThisSession.delete(String(chatId)) }
 
 async function deliverFinalReply(botApi, chatId, mid, aiResponse, safeHtml, alreadyShown) {
   const html = safeHtml
@@ -1920,6 +1933,7 @@ async function deliverFinalReply(botApi, chatId, mid, aiResponse, safeHtml, alre
     // A single rate-limit-aware retry absorbs Telegram 429 bursts that previously
     // dumped every reply onto the noisy send() fallback (43 in a row for one user).
     let editErr = null
+    let terminal = false
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         await botApi.editMessageText(html, { chat_id: chatId, message_id: mid, parse_mode: 'HTML', disable_web_page_preview: true })
@@ -1927,6 +1941,7 @@ async function deliverFinalReply(botApi, chatId, mid, aiResponse, safeHtml, alre
       } catch (e) {
         editErr = e
         if (e && /not modified/i.test(e.message || '')) return { delivered: true, via: 'already' }
+        if (_tgEditIsTerminal(e)) { terminal = true; break } // plain retry will fail identically
         if (attempt === 0 && _tgIsRateLimited(e)) {
           await _sleep(_tgRetryAfterMs(e) || 1200)
           continue // retry the HTML edit once after backing off
@@ -1934,21 +1949,27 @@ async function deliverFinalReply(botApi, chatId, mid, aiResponse, safeHtml, alre
         break
       }
     }
-    // HTML edit exhausted — try a plain-text edit (handles HTML parse quirks).
+    // HTML edit exhausted — try a plain-text edit only if the error was NOT
+    // terminal (parse-quirk fallback still worth it; "can't be edited" is not).
     let plainErr = null
-    try {
-      await botApi.editMessageText(aiResponse, { chat_id: chatId, message_id: mid, disable_web_page_preview: true })
-      return { delivered: true, via: 'edit-plain' }
-    } catch (e2) {
-      plainErr = e2
+    if (!terminal) {
+      try {
+        await botApi.editMessageText(aiResponse, { chat_id: chatId, message_id: mid, disable_web_page_preview: true })
+        return { delivered: true, via: 'edit-plain' }
+      } catch (e2) {
+        plainErr = e2
+      }
     }
-    // Both edits failed — surface the REAL Telegram reason (was swallowed before,
-    // which is why the fallback kept recurring invisibly).
-    log(`[Support] editMessageText failed for ${chatId} mid=${mid}: html="${(editErr && editErr.message) || ''}" plain="${(plainErr && plainErr.message) || ''}"`)
+    // Both edits failed — log ONCE per session (dedup) with the real Telegram
+    // reason so operators still get signal without per-reply spam.
+    const sessionKey = String(chatId)
+    if (!_fallbackLoggedThisSession.has(sessionKey)) {
+      _fallbackLoggedThisSession.add(sessionKey)
+      log(`[Support] editMessageText unavailable for ${chatId} — falling back to fresh send${terminal ? ' (terminal)' : ''}: "${(editErr && editErr.message) || ''}"${plainErr ? ` / plain="${plainErr.message || ''}"` : ''}`)
+    }
     // Remove the stuck placeholder BEFORE sending a fresh copy so we never
-    // double-post (placeholder + answer). Log if it can't be removed.
-    try { await botApi.deleteMessage(chatId, mid) }
-    catch (e3) { log(`[Support] deleteMessage failed for ${chatId} mid=${mid}: ${(e3 && e3.message) || ''}`) }
+    // double-post (placeholder + answer). Silent on failure — non-critical.
+    try { await botApi.deleteMessage(chatId, mid) } catch { /* noop */ }
   }
   try {
     await botApi.sendMessage(chatId, html, { parse_mode: 'HTML', disable_web_page_preview: true, reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
@@ -1992,8 +2013,14 @@ async function streamAiReply(chatId, message, lang = 'en') {
   let lastEditAt = 0
 
   // Returns true if the placeholder now shows `rawText`, false if the edit failed.
+  // Uses a session-scoped `terminalEdit` flag so once Telegram returns a permanent
+  // "message can't be edited"-class error, we STOP paying the round-trip cost for
+  // every subsequent stream chunk on this reply — deliverFinalReply will do the
+  // fallback send once at the end. (2026-02 @blacknmilds: 3× redundant terminal
+  // edit attempts per reply, ~600ms wasted per reply, log spam.)
+  let terminalEdit = false
   const doEdit = async (rawText) => {
-    if (!mid) return false
+    if (!mid || terminalEdit) return false
     const html = aiMarkdownToHtml(rawText)
     if (!html.trim()) return false
     if (html === lastShown) return true // already on screen
@@ -2006,12 +2033,16 @@ async function streamAiReply(chatId, message, lang = 'en') {
       return true
     } catch (e) {
       if (e && /not modified/i.test(e.message)) { lastShown = html; return true }
+      if (_tgEditIsTerminal(e)) { terminalEdit = true; return false } // dead placeholder — stop trying
       // HTML parse hiccup (e.g. a partial that cut mid-tag) — fall back to plain text.
       try {
         await bot.editMessageText(rawText, { chat_id: chatId, message_id: mid, disable_web_page_preview: true })
-        lastShown = rawText
+        lastShown = html // reflect what deliverFinalReply will compare against
         return true
-      } catch { return false /* caller guarantees delivery below */ }
+      } catch (e2) {
+        if (_tgEditIsTerminal(e2)) terminalEdit = true
+        return false /* caller guarantees delivery below */
+      }
     }
   }
 
@@ -2043,9 +2074,10 @@ async function streamAiReply(chatId, message, lang = 'en') {
   const delivery = await deliverFinalReply(bot, chatId, mid, aiResponse, safeHtml, lastShown)
   if (!delivery.delivered) {
     log(`[Support] ⚠️ Could not deliver AI reply to ${chatId} (all edit+send attempts failed)`)
-  } else if (delivery.via && delivery.via.startsWith('send')) {
-    log(`[Support] AI reply delivered via fallback message (${delivery.via}) for ${chatId} — editMessageText failed`)
   }
+  // Note: "delivered via fallback message (send)" spam is now deduped per session
+  // inside deliverFinalReply (see _fallbackLoggedThisSession). One line per
+  // session is enough — the info was in the log 40+ times per chatty user.
 
   // If the AI suggested actions, surface them on the reply keyboard.
   try {
@@ -7087,6 +7119,7 @@ bot?.on('callback_query', async (query) => {
         send(target, '✅ Support session closed. Use the menu below to continue.', translation('o', 'en'))
         send(adminId, `✅ Session closed for ${targetName || target} (${target})`)
         clearAiHistory(target)
+        _resetSupportFallbackNoise(target)
         await set(state, target, 'adminTakeover', false)
         // Auto-resolve any open/acknowledged escalations for this chat —
         // session close == ticket closed (added 2026-05-25 to fix the
@@ -7932,6 +7965,7 @@ bot?.on('message', msg => {
     send(targetChatId, '✅ Support session closed. Use the menu below to continue.', translation('o', 'en'))
     send(chatId, `✅ Session closed for ${targetName || targetChatId}`)
     clearAiHistory(targetChatId) // Clear AI conversation history
+    _resetSupportFallbackNoise(targetChatId)
     // Clear admin takeover flag on session close
     await set(state, targetChatId, 'adminTakeover', false)
     // Auto-resolve open/acknowledged escalations for this chat — see
@@ -13806,6 +13840,7 @@ All verified numbers generated during sourcing.`))
     send(chatId, t.supportEnded, trans('o'))
     send(TELEGRAM_ADMIN_CHAT_ID, `📴 Support session closed by user <b>${adminUserTag(name, chatId)}</b>`, adminMsgOpts({ chatId, supportSession: true }))
     clearAiHistory(chatId) // Clear AI conversation history
+    _resetSupportFallbackNoise(chatId) // Clear per-session editMessageText fallback dedup
     log(`[Support] Session ended by user ${chatId} — admin takeover OFF`)
     return
   }
@@ -14360,6 +14395,7 @@ All verified numbers generated during sourcing.`))
       await set(supportSessions, chatId, 0)
       await set(state, chatId, 'adminTakeover', false)
       clearAiHistory(chatId)
+      _resetSupportFallbackNoise(chatId)
       const name = await get(nameOf, chatId)
       send(TELEGRAM_ADMIN_CHAT_ID, `📴 Support session closed by user <b>${adminUserTag(name, chatId)}</b> via Cancel/Main Menu`, adminMsgOpts({ chatId, supportSession: true }))
       log(`[Support] Session ended by user ${chatId} via Cancel/Main Menu`)
