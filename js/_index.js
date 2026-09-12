@@ -45847,6 +45847,18 @@ async function handleInboundFax(payload) {
 app.get('/twilio/audio-proxy', async (req, res) => {
   const { url } = req.query
   if (!url) return res.status(400).send('Missing url parameter')
+  // Derive Content-Type from the file extension so Twilio's <Play> decoder
+  // gets the right MIME. Historically we hardcoded audio/mpeg for every file,
+  // which silently broke any WAV upload (Twilio picked the MP3 decoder →
+  // silent call). 2026-02 @blacknmilds: 1.67 MB WAV = silent IVR.
+  const mimeFromUrl = (u) => {
+    const ext = ((u.split('?')[0].split('#')[0].match(/\.([a-z0-9]+)$/i) || [])[1] || '').toLowerCase()
+    if (ext === 'wav') return 'audio/wav'
+    if (ext === 'ogg' || ext === 'opus') return 'audio/ogg'
+    if (ext === 'flac') return 'audio/flac'
+    if (ext === 'mp4' || ext === 'm4a' || ext === 'aac') return 'audio/mp4'
+    return 'audio/mpeg' // mp3 (default)
+  }
   try {
     // ── Validate URL protocol ──
     // Only allow http/https protocols; reject garbled/corrupted URLs
@@ -45864,7 +45876,7 @@ app.get('/twilio/audio-proxy', async (req, res) => {
       const urlPath = new URL(url).pathname
       const localPath = require('path').join(__dirname, urlPath)
       if (require('fs').existsSync(localPath)) {
-        res.set('Content-Type', 'audio/mpeg')
+        res.set('Content-Type', mimeFromUrl(urlPath))
         res.set('Cache-Control', 'public, max-age=3600')
         return require('fs').createReadStream(localPath).pipe(res)
       }
@@ -45877,7 +45889,7 @@ app.get('/twilio/audio-proxy', async (req, res) => {
           if (!require('fs').existsSync(dir)) require('fs').mkdirSync(dir, { recursive: true })
           require('fs').writeFileSync(localPath, Buffer.from(stored.buffer, 'base64'))
           log(`[AudioProxy] Restored ${filename} from MongoDB to disk`)
-          res.set('Content-Type', 'audio/mpeg')
+          res.set('Content-Type', stored.mimeType || mimeFromUrl(filename))
           res.set('Cache-Control', 'public, max-age=3600')
           return require('fs').createReadStream(localPath).pipe(res)
         }
@@ -45894,7 +45906,10 @@ app.get('/twilio/audio-proxy', async (req, res) => {
       timeout: 15000,
       headers: { 'Accept': 'audio/mpeg, audio/*' },
     })
-    res.set('Content-Type', 'audio/mpeg')
+    // Prefer upstream Content-Type when it looks like a real audio MIME,
+    // else fall back to the URL extension (never blindly audio/mpeg).
+    const upstreamType = (audioRes.headers && audioRes.headers['content-type']) || ''
+    res.set('Content-Type', /^audio\//i.test(upstreamType) ? upstreamType : mimeFromUrl(url))
     res.set('Cache-Control', 'public, max-age=3600')
     audioRes.data.pipe(res)
   } catch (e) {

@@ -94,14 +94,16 @@ async function downloadAndSave(fileLink, chatId, originalName, mimeType) {
   let finalMimeType = mimeType || 'audio/mpeg'
 
   // ── Decide conversion from the REAL container (magic bytes), not the ext/MIME ──
-  // Telephony <Play> (Twilio/Telnyx) only decodes MP3/WAV reliably. Anything else
-  // — an M4A/AAC file mislabeled as ".mp3", or ogg/opus/webm/flac — plays as STATIC
-  // if served as-is. So detect the true format and transcode everything that isn't
-  // already MP3/WAV into real mono MP3. (Fix: @Spirits_Of_The_Ancesters 7898648919 —
-  // his imported "MP3" was actually ftypM4A, so every call played static.)
+  // Telephony <Play> (Twilio/Telnyx) only decodes MP3 reliably at any sample-rate.
+  // WAV is technically supported BUT only 8-bit/16-bit PCM at 8 kHz or 16 kHz mono
+  // — anything else (44.1 kHz stereo, 32-bit float, etc.) plays as SILENCE. Plus
+  // /twilio/audio-proxy has historically served every file with Content-Type:
+  // audio/mpeg (silence on WAV either way). So we normalize EVERYTHING to real
+  // mono MP3. (Fix: @Spirits_Of_The_Ancesters 7898648919 — mislabeled ftypM4A =
+  // static; and 2026-02 @blacknmilds — 1.67 MB 44.1k stereo WAV = silence.)
   const realFormat = detectAudioFormat(downloadedBuf)
 
-  if (realFormat !== 'mp3' && realFormat !== 'wav') {
+  if (realFormat !== 'mp3') {
     const mp3Filename = `${chatId}_${id}.mp3`
     const mp3Path = path.join(AUDIO_DIR, mp3Filename)
     // ffmpeg can't edit a file in place; if the raw upload already ends in ".mp3"
@@ -129,7 +131,7 @@ async function downloadAndSave(fileLink, chatId, originalName, mimeType) {
       throw new Error(`Could not process your audio (detected format: ${realFormat}). Please upload a standard MP3 or WAV file.`)
     }
   } else {
-    finalMimeType = realFormat === 'wav' ? 'audio/wav' : 'audio/mpeg'
+    finalMimeType = 'audio/mpeg'
   }
 
   const size = fs.statSync(localPath).size

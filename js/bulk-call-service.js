@@ -508,7 +508,16 @@ function parseLeadsFile(content) {
 
     // Clean the number
     number = number.replace(/["'\s]/g, '')
-    if (!number.startsWith('+')) number = '+' + number.replace(/^0+/, '')
+    // NANP fix (2026-02 @blacknmilds): a bare 10-digit US/Canada number pasted
+    // without "+" was becoming "+4065067340" — which E.164 parses as Romania
+    // (+40), not US (+1). Every call then failed with Twilio "Account not
+    // authorized to call…" geo-permissions. Prepend +1 for 10-digit input.
+    number = number.replace(/[^\d+]/g, '')
+    if (!number.startsWith('+')) {
+      if (/^\d{10}$/.test(number)) number = '+1' + number           // NANP 10-digit
+      else if (/^1\d{10}$/.test(number)) number = '+' + number      // NANP 1-prefixed
+      else number = '+' + number.replace(/^0+/, '')
+    }
     number = number.replace(/[^+\d]/g, '')
 
     if (!number.match(/^\+\d{8,15}$/)) {
