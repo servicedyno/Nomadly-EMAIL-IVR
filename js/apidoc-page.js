@@ -819,6 +819,31 @@ function endpointGroups(base) {
         },
       ],
     },
+    {
+      id: 'hosting-advanced', title: 'Hosting · Advanced Management (full panel parity)',
+      blurb: 'The remaining HostPanel operations, exposed for building a full cPanel-like UI: send test email, phpMyAdmin SSO, bulk subdomain import, addon docroot mirror/own, replace primary domain, nameserver status, take a site offline/online, JS-challenge toggle and large-file chunked upload. All FREE; writes are dry-run on a sandbox pod.',
+      endpoints: [
+        { method: 'POST', path: '/hosting/:user/email/test', auth: true, billed: false, desc: 'Send a test email from a mailbox to verify SMTP.', params: [['from', true, 'Local part (sender mailbox)'], ['to', true, 'Recipient address']], curl: `curl -s -X POST ${base}/hosting/mysite01/email/test \\
+  -H "Authorization: Bearer YOUR_API_KEY" -H "Content-Type: application/json" -d '{"from":"info","to":"you@example.com"}'`, resp: `{ "success": true, "messageId": "…", "message": "Test email sent to you@example.com" }` },
+        { method: 'GET', path: '/hosting/:user/mysql/phpmyadmin', auth: true, billed: false, desc: 'Mint a one-click phpMyAdmin SSO URL (live mode only; Premium/Gold plans).', curl: `curl -s ${base}/hosting/mysite01/mysql/phpmyadmin \\
+  -H "Authorization: Bearer YOUR_API_KEY"`, resp: `{ "status": 1, "url": "https://server:2083/cpsess…/3rdparty/phpMyAdmin/", "expires": 1767225600 }` },
+        { method: 'POST', path: '/hosting/:user/subdomains/bulk-create', auth: true, billed: false, desc: 'Create up to 50 subdomains in one call (also creates Cloudflare tunnel CNAMEs).', params: [['subdomains', true, 'Array or comma/newline-separated string'], ['rootdomain', false, 'Defaults to the primary domain']], curl: `curl -s -X POST ${base}/hosting/mysite01/subdomains/bulk-create \\
+  -H "Authorization: Bearer YOUR_API_KEY" -H "Content-Type: application/json" -d '{"subdomains":"shop,blog,api"}'`, resp: `{ "results": [ { "subdomain": "shop", "fqdn": "shop.mysite.com", "success": true } ], "summary": { "total": 3, "succeeded": 3, "failed": 0 } }` },
+        { method: 'GET', path: '/hosting/:user/domains/docroot-modes', auth: true, billed: false, desc: 'Show whether each addon domain mirrors the primary site or serves its own folder. Change with POST /domains/docroot-mode {domain, mode:"mirror"|"own"}.', curl: `curl -s ${base}/hosting/mysite01/domains/docroot-modes \\
+  -H "Authorization: Bearer YOUR_API_KEY"`, resp: `{ "modes": { "blog.com": "own" }, "primary": "mysite.com" }` },
+        { method: 'POST', path: '/hosting/:user/domains/set-primary', auth: true, billed: false, desc: 'Promote an existing addon domain to be the account primary (WHM modifyacct + Cloudflare/anti-red redeploy for the new primary, cleanup of the old). Returns 400 needs_attach if the domain is not yet an addon.', params: [['domain', true, 'The addon domain to promote']], curl: `curl -s -X POST ${base}/hosting/mysite01/domains/set-primary \\
+  -H "Authorization: Bearer YOUR_API_KEY" -H "Content-Type: application/json" -d '{"domain":"blog.com"}'`, resp: `{ "success": true, "oldDomain": "mysite.com", "newDomain": "blog.com" }` },
+        { method: 'GET', path: '/hosting/:user/domains/ns-status', auth: true, billed: false, desc: 'Cloudflare nameserver / zone activation status for a domain.', params: [['domain', true, 'Domain to check']], curl: `curl -s "${base}/hosting/mysite01/domains/ns-status?domain=mysite.com" \\
+  -H "Authorization: Bearer YOUR_API_KEY"`, resp: `{ "status": "active", "nameservers": ["ada.ns.cloudflare.com","rob.ns.cloudflare.com"], "zoneId": "…" }` },
+        { method: 'GET', path: '/hosting/:user/account/site-status', auth: true, billed: false, desc: 'Whether the site is online, in maintenance, or suspended. Change with POST /account/site-status {action:"take_offline"|"bring_online", mode:"maintenance"|"suspended"}.', curl: `curl -s ${base}/hosting/mysite01/account/site-status \\
+  -H "Authorization: Bearer YOUR_API_KEY"`, resp: `{ "status": "online", "domain": "mysite.com", "plan": "Golden Anti-Red HostPanel (1-Month)", "autoRenew": true }` },
+        { method: 'POST', path: '/hosting/:user/security/js-challenge', auth: true, billed: false, desc: 'Enable/disable the JS "verify your browser" challenge for the primary domain (Golden plan only). Read state: GET /security/js-challenge.', params: [['enabled', true, 'boolean']], curl: `curl -s -X POST ${base}/hosting/mysite01/security/js-challenge \\
+  -H "Authorization: Bearer YOUR_API_KEY" -H "Content-Type: application/json" -d '{"enabled":true}'`, resp: `{ "jsChallengeEnabled": true, "workerRoutes": { "success": true } }` },
+        { method: 'POST', path: '/hosting/:user/files/upload-chunk', auth: true, billed: false, desc: 'Large-file upload via base64 chunks (up to 100 MB). Send each chunk with the same uploadId; the API acks {status:"chunk-received"} until the final chunk assembles and uploads. Cancel with POST /files/upload-chunk/cancel {uploadId}.', params: [['uploadId', true, 'Client-generated id for the upload'], ['chunkIndex', true, '0-based chunk index'], ['totalChunks', true, 'Total number of chunks'], ['fileName', true, 'Target file name'], ['dir', true, 'Target directory'], ['content_base64', true, 'Base64 of this chunk']], curl: `curl -s -X POST ${base}/hosting/mysite01/files/upload-chunk \\
+  -H "Authorization: Bearer YOUR_API_KEY" -H "Content-Type: application/json" \\
+  -d '{"uploadId":"u1","chunkIndex":0,"totalChunks":2,"fileName":"backup.zip","dir":"/public_html","content_base64":"UEsDBAo…"}'`, resp: `{ "status": "chunk-received", "uploadId": "u1", "received": 1, "totalChunks": 2 }` },
+      ],
+    },
   ]
 }
 

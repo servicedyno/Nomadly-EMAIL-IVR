@@ -31,6 +31,48 @@ const whmService = require('./whm-service')
 const cfService = require('./cf-service')
 const safeBrowsing = require('./safe-browsing-service')
 const antiRed = require('./anti-red-service')
+const siteStatusService = require('./site-status-service')       // site online/maintenance/suspended
+const addonFlow = require('./addon-domain-flow')                 // runDnsAndProtection (set-primary background)
+let nodemailer = null
+try { nodemailer = require('nodemailer') } catch (_) { /* email/test unavailable if the dep is missing */ }
+
+// Large-file chunked-upload assembly buffer (in-memory), keyed per
+// owner+account+uploadId so two resellers can never collide. Mirrors the
+// HostPanel /files/upload-chunk session map, but accepts base64 chunks over
+// JSON (no multipart) which is far easier for a custom UI to drive.
+const chunkSessions = new Map()
+const CHUNK_MAX_TOTAL_BYTES = 100 * 1024 * 1024 // 100 MB hard cap
+const CHUNK_SESSION_TTL_MS = 30 * 60 * 1000     // 30 min idle expiry
+function _sweepChunkSessions() {
+  const now = Date.now()
+  for (const [k, s] of chunkSessions) { if (now - (s.touchedAt || s.createdAt || 0) > CHUNK_SESSION_TTL_MS) chunkSessions.delete(k) }
+}
+
+// ── Cloudflare DNS helpers for subdomains (best-effort, mirror HostPanel) ──
+async function _cfCreateSubdomainDns(rootdomain, subdomain) {
+  try {
+    const zone = await cfService.getZoneByName(rootdomain)
+    if (zone && cfService.CF_TUNNEL_CNAME) {
+      // Tunnel CNAME only — never A→origin (prevents leaking the origin IP).
+      await cfService.createDNSRecord(zone.id, 'CNAME', `${subdomain}.${rootdomain}`, cfService.CF_TUNNEL_CNAME, 1, true)
+      return true
+    }
+  } catch (_) { /* non-blocking: subdomain still works via wildcard */ }
+  return false
+}
+async function _cfDeleteSubdomainDns(rootdomain, fullSubOrLabel) {
+  try {
+    const fqdn = String(fullSubOrLabel).includes('.') ? fullSubOrLabel : `${fullSubOrLabel}.${rootdomain}`
+    const rootOfFqdn = fqdn.split('.').slice(1).join('.')
+    const zone = (await cfService.getZoneByName(rootOfFqdn)) || (await cfService.getZoneByName(rootdomain))
+    if (zone) {
+      const records = await cfService.listDNSRecords(zone.id)
+      for (const r of (records || []).filter(rec => rec.name === fqdn)) {
+        await cfService.deleteDNSRecord(zone.id, r.id)
+      }
+    }
+  } catch (_) { /* best-effort cleanup */ }
+}
 
 // Files that back the Anti-Red protection — users must not clobber them.
 // Mirrors cpanel-routes.js PROTECTED_FILES / isProtectedAntiRedFile.
@@ -106,10 +148,10 @@ function registerHostingMgmtRoutes(deps) {
   // ── Standard dry-run envelope for a WRITE that is blocked on the sandbox ──
   function dryRun(res, acct, action, extra = {}) {
     return res.json({
+      ...extra,
       mode: 'dry_run',
       username: acct._id || acct.cpUser,
       action,
-      ...extra,
       note: 'Dry-run: input validated + ownership confirmed; no change was made on the cPanel/WHM/Cloudflare server. Set RESELLER_API_LIVE=true on a production pod to apply.',
     })
   }
@@ -234,7 +276,9 @@ function registerHostingMgmtRoutes(deps) {
     if (missing(res, ['subdomain', subdomain], ['rootdomain', rootdomain])) return
     if (!isLive()) return dryRun(res, acct, 'subdomain.create', { subdomain: `${subdomain}.${rootdomain}` })
     const ctx = withCreds(res, acct); if (!ctx) return
-    res.json(await cpProxy.createSubdomain(ctx.cpUser, ctx.cpPass, subdomain, rootdomain, dir, ctx.whmHost))
+    const r = await cpProxy.createSubdomain(ctx.cpUser, ctx.cpPass, subdomain, rootdomain, dir, ctx.whmHost)
+    if (r && r.status === 1) await _cfCreateSubdomainDns(rootdomain, subdomain)  // mirror panel: add CF tunnel CNAME
+    res.json(r)
   }))
 
   router.delete('/hosting/:user/subdomains', apiKeyAuth, h(async (req, res) => {
@@ -243,7 +287,9 @@ function registerHostingMgmtRoutes(deps) {
     if (missing(res, ['subdomain', full])) return
     if (!isLive()) return dryRun(res, acct, 'subdomain.delete', { subdomain: full })
     const ctx = withCreds(res, acct); if (!ctx) return
-    res.json(await cpProxy.deleteSubdomain(ctx.cpUser, ctx.cpPass, full, ctx.whmHost))
+    const r = await cpProxy.deleteSubdomain(ctx.cpUser, ctx.cpPass, full, ctx.whmHost)
+    await _cfDeleteSubdomainDns(acct.domain, full)  // mirror panel: clean up CF DNS
+    res.json(r)
   }))
 
   // ════════════════════════════════════════════════════════
@@ -693,7 +739,7 @@ function registerHostingMgmtRoutes(deps) {
     if (goldBlocked(res, ctx)) return
     const { countries, mode: geoMode, description } = req.body || {}
     if (!Array.isArray(countries) || !countries.length || !geoMode) return res.status(400).json({ error: 'missing_parameter', message: 'countries (non-empty array) and mode (block|allow) are required.' })
-    if (!isLive()) return dryRun(res, acct, 'geo.create', { countries, mode: geoMode })
+    if (!isLive()) return dryRun(res, acct, 'geo.create', { countries, requested_mode: geoMode })
     const zone = await cfService.getZoneByName(ctx.cpDomain)
     if (!zone) return res.status(400).json({ error: 'cf_zone_not_found', message: 'Domain not in Cloudflare.' })
     res.json(await cfService.createGeoRule(zone.id, countries, geoMode, description))
@@ -725,7 +771,300 @@ function registerHostingMgmtRoutes(deps) {
     res.json(await cfService.getZoneAnalytics(zone.id, days))
   }))
 
-  log(`[ResellerAPI] hosting-management routes registered (email, mysql, subdomains, files, domains, ssl, stats, security, geo, analytics)`)
+  // ════════════════════════════════════════════════════════
+  // EMAIL — send test email (mirror panel POST /email/test)
+  // ════════════════════════════════════════════════════════
+  router.post('/hosting/:user/email/test', apiKeyAuth, h(async (req, res) => {
+    const acct = await loadOwned(req, res); if (!acct) return
+    const { from, to } = req.body || {}
+    if (missing(res, ['from', from], ['to', to])) return
+    if (!isLive()) return dryRun(res, acct, 'email.test', { from: `${from}@${acct.domain}`, to })
+    if (!nodemailer) return res.status(501).json({ error: 'not_available', message: 'Email test transport (nodemailer) is not installed on this server.' })
+    const ctx = withCreds(res, acct); if (!ctx) return
+    const domain = ctx.cpDomain
+    const WHM_HOST = ctx.whmHost || process.env.WHM_HOST
+    const mailOpts = {
+      from: `"${domain} Test" <${from}@${domain}>`, to,
+      subject: `Test Email from ${domain} - ${new Date().toISOString().split('T')[0]}`,
+      text: `Test email from your hosting panel at ${domain}. If you received this, email is working. Sent: ${new Date().toISOString()}`,
+    }
+    const attempts = [
+      { port: 465, secure: true, user: `${from}@${domain}`, pass: ctx.cpPass },
+      { port: 25, secure: false, user: ctx.cpUser, pass: ctx.cpPass },
+      { port: 587, secure: false, user: `${from}@${domain}`, pass: ctx.cpPass },
+    ].map(cfg => nodemailer.createTransport({
+      host: WHM_HOST, port: cfg.port, secure: cfg.secure, auth: { user: cfg.user, pass: cfg.pass },
+      tls: { rejectUnauthorized: false }, connectionTimeout: 8000, greetingTimeout: 5000, socketTimeout: 10000,
+    }).sendMail(mailOpts).then(info => ({ info, port: cfg.port })))
+    try {
+      const r = await Promise.any(attempts)
+      res.json({ success: true, messageId: r.info.messageId, accepted: r.info.accepted, message: `Test email sent to ${to}` })
+    } catch (aggErr) {
+      const lastErr = (aggErr.errors && aggErr.errors[0] && aggErr.errors[0].message) || 'All SMTP connections failed'
+      res.json({ success: false, error: `SMTP connection failed: ${lastErr}`, hint: 'Ensure the mailbox exists and the server allows SMTP.' })
+    }
+  }))
+
+  // ════════════════════════════════════════════════════════
+  // MYSQL — phpMyAdmin SSO (mirror panel GET /mysql/phpmyadmin)
+  // ════════════════════════════════════════════════════════
+  router.get('/hosting/:user/mysql/phpmyadmin', apiKeyAuth, h(async (req, res) => {
+    const acct = await loadOwned(req, res); if (!acct) return
+    const ctx0 = ctxFromAccount(acct); if (mysqlBlocked(res, ctx0)) return
+    if (!isLive()) return dryRun(res, acct, 'mysql.phpmyadmin', { note_extra: 'SSO URL minted only in live mode.' })
+    const r = await whmService.createUserSession(ctx0.cpUser, 'phpMyAdmin', 'cpaneld')
+    if (!r || !r.success) return res.status(502).json({ status: 0, errors: [(r && r.error) || 'Could not open phpMyAdmin.'] })
+    res.json({ status: 1, url: r.url, expires: r.expires })
+  }))
+
+  // ════════════════════════════════════════════════════════
+  // SUBDOMAINS — bulk create (mirror panel POST /subdomains/bulk-create)
+  // ════════════════════════════════════════════════════════
+  router.post('/hosting/:user/subdomains/bulk-create', apiKeyAuth, h(async (req, res) => {
+    const acct = await loadOwned(req, res); if (!acct) return
+    let subdomains = req.body && req.body.subdomains
+    const rootdomain = (req.body && req.body.rootdomain) || acct.domain
+    if (!rootdomain) return res.status(400).json({ error: 'missing_parameter', message: "'rootdomain' is required." })
+    if (typeof subdomains === 'string') subdomains = subdomains.split(/[,\n\r]+/).map(s => s.trim()).filter(Boolean)
+    if (!Array.isArray(subdomains) || !subdomains.length) return res.status(400).json({ error: 'missing_parameter', message: "'subdomains' array (or comma-separated string) is required." })
+    if (subdomains.length > 50) return res.status(400).json({ error: 'too_many', message: 'Maximum 50 subdomains per bulk operation.' })
+    const validSubRe = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/i
+    const invalid = subdomains.filter(s => !validSubRe.test(s))
+    if (invalid.length) return res.status(400).json({ error: 'invalid_subdomain', message: `Invalid subdomain names: ${invalid.join(', ')}` })
+    const uniqueSubs = [...new Set(subdomains.map(s => s.toLowerCase()))]
+    if (!isLive()) return dryRun(res, acct, 'subdomain.bulk-create', { rootdomain, count: uniqueSubs.length, subdomains: uniqueSubs })
+    const ctx = withCreds(res, acct); if (!ctx) return
+    const results = []
+    for (const subdomain of uniqueSubs) {
+      try {
+        const r = await cpProxy.createSubdomain(ctx.cpUser, ctx.cpPass, subdomain, rootdomain, null, ctx.whmHost)
+        const ok = r && (r.status === 1 || (r.data && r.data[0] && r.data[0].result === 1))
+        if (ok) await _cfCreateSubdomainDns(rootdomain, subdomain)
+        results.push({ subdomain, fqdn: `${subdomain}.${rootdomain}`, success: !!ok, error: ok ? null : ((r && r.errors && r.errors[0]) || 'Unknown error') })
+      } catch (e) {
+        results.push({ subdomain, fqdn: `${subdomain}.${rootdomain}`, success: false, error: e.message })
+      }
+    }
+    const succeeded = results.filter(r => r.success).length
+    res.json({ results, summary: { total: uniqueSubs.length, succeeded, failed: results.length - succeeded } })
+  }))
+
+  // ════════════════════════════════════════════════════════
+  // DOMAINS — docroot mode (mirror/own) + set primary (mirror panel)
+  // ════════════════════════════════════════════════════════
+  router.get('/hosting/:user/domains/docroot-modes', apiKeyAuth, h(async (req, res) => {
+    const acct = await loadOwned(req, res); if (!acct) return
+    const ctx = ctxFromAccount(acct)
+    const stored = acct.docrootModes || {}
+    const modes = {}
+    for (const d of ctx.cpAddonDomains) { const key = (d || '').toLowerCase(); if (key) modes[key] = stored[key] === 'mirror' ? 'mirror' : 'own' }
+    res.json({ modes, primary: ctx.cpDomain })
+  }))
+
+  router.post('/hosting/:user/domains/docroot-mode', apiKeyAuth, h(async (req, res) => {
+    const acct = await loadOwned(req, res); if (!acct) return
+    const ctx = ctxFromAccount(acct)
+    const dom = String((req.body && req.body.domain) || '').toLowerCase().trim()
+    const wantMode = (req.body && req.body.mode) === 'mirror' ? 'mirror' : 'own'
+    if (!dom || !(req.body && req.body.mode)) return res.status(400).json({ error: 'missing_parameter', message: 'domain and mode (mirror|own) are required.' })
+    if (dom === (ctx.cpDomain || '').toLowerCase()) return res.status(400).json({ error: 'primary_immutable', message: 'The primary domain always serves public_html and cannot be changed here.' })
+    if (!ctx.cpAddonDomains.map(d => d.toLowerCase()).includes(dom)) return res.status(404).json({ error: 'not_addon', message: 'That domain is not an addon on this hosting plan.' })
+    if (!isLive()) return dryRun(res, acct, 'domain.docroot-mode', { domain: dom, requested_mode: wantMode })
+    const creds = withCreds(res, acct); if (!creds) return
+    const subdomainLabel = dom.replace(/\./g, '')
+    const dir = wantMode === 'mirror' ? 'public_html' : `public_html/${dom}`
+    if (wantMode === 'own') { try { await cpProxy.createDirectory(creds.cpUser, creds.cpPass, 'public_html', dom, creds.whmHost) } catch (_) {} }
+    const result = await cpProxy.changeDomainDocRoot(creds.cpUser, creds.cpPass, subdomainLabel, ctx.cpDomain, dir, creds.whmHost)
+    if (result.code === 'CPANEL_DOWN') return res.status(503).json({ error: 'cpanel_down', message: 'WHM control plane unreachable. Retry shortly.' })
+    if (result.status !== 1) return res.status(400).json({ error: 'docroot_failed', message: (result.errors && result.errors[0]) || 'Failed to update domain mode' })
+    try { await col('cpanelAccounts').updateOne({ _id: acct._id }, { $set: { [`docrootModes.${dom}`]: wantMode } }) } catch (_) {}
+    res.json({ success: true, domain: dom, mode: wantMode, docRoot: dir })
+  }))
+
+  router.post('/hosting/:user/domains/set-primary', apiKeyAuth, h(async (req, res) => {
+    const acct = await loadOwned(req, res); if (!acct) return
+    const ctx = ctxFromAccount(acct)
+    const newDomain = String((req.body && req.body.domain) || '').toLowerCase().trim()
+    if (!newDomain || !newDomain.includes('.')) return res.status(400).json({ error: 'invalid_domain', message: 'A valid domain is required.' })
+    const oldDomain = (ctx.cpDomain || '').toLowerCase()
+    if (newDomain === oldDomain) return res.status(400).json({ error: 'already_primary', message: 'That domain is already your primary domain.' })
+    if (!ctx.cpAddonDomains.map(d => d.toLowerCase()).includes(newDomain)) {
+      return res.status(400).json({ error: 'needs_attach', message: 'Add this domain to the plan as an addon first, then set it as primary.', needsAttach: true })
+    }
+    try { const db = getDb(); if (db) { const blocked = await db.collection('blockedDomains').findOne({ domain: newDomain }); if (blocked) return res.status(403).json({ error: 'blocked_domain', message: `${newDomain} is blocked and cannot be used.` }) } } catch (_) {}
+    if (!isLive()) return dryRun(res, acct, 'domain.set-primary', { from: oldDomain, to: newDomain })
+    const creds = withCreds(res, acct); if (!creds) return
+    // 1. Detach the target from addons (a domain can't be both addon + primary).
+    let removedAddon = false
+    try { const rm = await cpProxy.removeAddonDomain(creds.cpUser, creds.cpPass, newDomain, undefined, oldDomain, creds.whmHost); if (rm.code === 'CPANEL_DOWN') return res.status(503).json({ error: 'cpanel_down', message: 'WHM control plane unreachable. Retry shortly.' }); removedAddon = rm.status === 1 } catch (_) {}
+    // 2. Swap primary on WHM.
+    const swap = await whmService.changePrimaryDomain(creds.cpUser, newDomain)
+    if (!swap.success) {
+      if (removedAddon) { try { await cpProxy.addAddonDomain(creds.cpUser, creds.cpPass, newDomain, newDomain.replace(/\./g, ''), `public_html/${newDomain}`, creds.whmHost) } catch (_) {} }
+      return res.status(502).json({ error: 'set_primary_failed', message: swap.error || 'Failed to change primary domain.' })
+    }
+    // 3. DB update.
+    try { await col('cpanelAccounts').updateOne({ _id: acct._id }, { $set: { domain: newDomain }, $pull: { addonDomains: newDomain }, $unset: { [`docrootModes.${newDomain}`]: '', [`docrootModes.${oldDomain}`]: '' } }) } catch (_) {}
+    // 4. Background: (re)deploy CF + anti-red for new primary; clean up old primary.
+    ;(async () => {
+      try {
+        const db = getDb()
+        const fresh = (await col('cpanelAccounts').findOne({ _id: acct._id })) || acct
+        await addonFlow.runDnsAndProtection({ domain: newDomain, cpUser: creds.cpUser, whmHost: creds.whmHost, account: fresh, db, bot: null, lang: 'en' })
+      } catch (_) {}
+      try { const zone = await cfService.getZoneByName(oldDomain); if (zone) { await antiRed.removeWorkerRoutes(oldDomain, zone.id).catch(() => {}); await cfService.cleanupAllHostingRecords(zone.id, oldDomain).catch(() => {}) } } catch (_) {}
+    })()
+    res.json({ success: true, oldDomain, newDomain, domain: newDomain })
+  }))
+
+  // ════════════════════════════════════════════════════════
+  // DOMAINS — nameserver / Cloudflare zone status (read-only)
+  // ════════════════════════════════════════════════════════
+  router.get('/hosting/:user/domains/ns-status', apiKeyAuth, h(async (req, res) => {
+    const acct = await loadOwned(req, res); if (!acct) return
+    const domain = req.query.domain
+    if (!domain) return res.status(400).json({ error: 'missing_parameter', message: "'domain' query param is required." })
+    const zone = await cfService.getZoneByName(domain)
+    if (!zone) return res.json({ status: 'not_found', nameservers: [], message: 'Domain not in Cloudflare' })
+    const nsInfo = await cfService.checkZoneNSStatus(zone.id)
+    res.json({ status: nsInfo.status || 'unknown', nameservers: nsInfo.nameservers || [], originalNameservers: nsInfo.originalNameservers || [], zoneId: zone.id })
+  }))
+
+  // ════════════════════════════════════════════════════════
+  // ACCOUNT — site status (online / maintenance / suspended)
+  // ════════════════════════════════════════════════════════
+  router.get('/hosting/:user/account/site-status', apiKeyAuth, h(async (req, res) => {
+    const acct = await loadOwned(req, res); if (!acct) return
+    res.json({
+      status: siteStatusService.readStatus(acct),
+      domain: acct.domain, plan: acct.plan || null,
+      expiryDate: acct.expiryDate || null, autoRenew: acct.autoRenew !== false,
+      suspendedAt: acct.suspendedAt || null, maintenanceModeAt: acct.maintenanceModeAt || null,
+    })
+  }))
+
+  router.post('/hosting/:user/account/site-status', apiKeyAuth, h(async (req, res) => {
+    const acct = await loadOwned(req, res); if (!acct) return
+    const { action, mode: siteMode } = req.body || {}
+    if (action !== 'take_offline' && action !== 'bring_online') return res.status(400).json({ error: 'invalid_action', message: 'action must be take_offline or bring_online.' })
+    if (action === 'take_offline' && siteMode !== 'maintenance' && siteMode !== 'suspended') return res.status(400).json({ error: 'invalid_mode', message: 'mode must be maintenance or suspended.' })
+    if (acct.deleted) return res.status(409).json({ error: 'cancelled', message: 'This hosting plan has been cancelled.' })
+    const before = siteStatusService.readStatus(acct)
+    if (!isLive()) return dryRun(res, acct, 'account.site-status', { requested_action: action, requested_mode: siteMode || null, current: before })
+    if (action === 'take_offline') {
+      if (before !== 'online') return res.status(409).json({ error: 'already_offline', message: `Site is already ${before}.` })
+      let result
+      try { result = (siteMode === 'suspended') ? await siteStatusService.suspend(acct, 'Taken offline via reseller API') : await siteStatusService.enableMaintenanceMode(acct) }
+      catch (e) { result = { ok: false, error: e.message } }
+      if (!result || !result.ok) return res.status(502).json({ error: 'site_offline_failed', message: (result && result.error) || 'Failed to take site offline.' })
+      const update = (siteMode === 'suspended')
+        ? { suspended: true, suspendedAt: new Date(), suspendedBy: 'reseller_api', maintenanceMode: false }
+        : { maintenanceMode: true, maintenanceModeAt: new Date(), maintenanceModeBy: 'reseller_api', suspended: false }
+      await col('cpanelAccounts').updateOne({ _id: acct._id }, { $set: update })
+      return res.json({ success: true, status: siteMode })
+    }
+    if (before === 'online') return res.status(409).json({ error: 'already_online', message: 'Site is already online.' })
+    let result
+    try { result = (before === 'suspended') ? await siteStatusService.unsuspend(acct) : await siteStatusService.disableMaintenanceMode(acct) }
+    catch (e) { result = { ok: false, error: e.message } }
+    if (!result || !result.ok) return res.status(502).json({ error: 'site_online_failed', message: (result && result.error) || 'Failed to bring site online.' })
+    await col('cpanelAccounts').updateOne({ _id: acct._id }, { $set: { suspended: false, maintenanceMode: false, lastBroughtOnlineAt: new Date() } })
+    res.json({ success: true, status: 'online' })
+  }))
+
+  // ════════════════════════════════════════════════════════
+  // SECURITY — JS Challenge toggle (Golden plan) — mirror panel
+  // ════════════════════════════════════════════════════════
+  router.get('/hosting/:user/security/js-challenge', apiKeyAuth, h(async (req, res) => {
+    const acct = await loadOwned(req, res); if (!acct) return
+    const ctx = ctxFromAccount(acct)
+    res.json({ enabled: await antiRed.isJSChallengeEnabled(ctx.cpUser).catch(() => false) })
+  }))
+
+  router.post('/hosting/:user/security/js-challenge', apiKeyAuth, h(async (req, res) => {
+    const acct = await loadOwned(req, res); if (!acct) return
+    const ctx = ctxFromAccount(acct)
+    if (goldBlocked(res, ctx)) return
+    const enabled = req.body && req.body.enabled
+    if (typeof enabled !== 'boolean') return res.status(400).json({ error: 'missing_parameter', message: "'enabled' (boolean) is required." })
+    if (!isLive()) return dryRun(res, acct, 'security.js-challenge', { domain: ctx.cpDomain, enabled })
+    const db = getDb()
+    let result, workerResult = null
+    if (enabled) {
+      result = await antiRed.deployJSChallenge(ctx.cpUser)
+      // Best-effort: ensure the .htaccess auto-prepend is present (reuse cpProxy).
+      if (result && result.success && result.prependDirective) {
+        try {
+          const creds = ctxFromAccount(acct)
+          if (creds.cpPass) {
+            const cur = await cpProxy.getFileContent(creds.cpUser, creds.cpPass, '/public_html', '.htaccess', creds.whmHost)
+            const content = (cur && cur.data && (cur.data.content != null ? cur.data.content : cur.data)) || ''
+            if (typeof content === 'string' && !content.includes('antired-challenge.php')) {
+              await cpProxy.saveFileContent(creds.cpUser, creds.cpPass, '/public_html', '.htaccess', content + result.prependDirective, creds.whmHost)
+            }
+          }
+        } catch (_) {}
+      }
+      try { const zone = await cfService.getZoneByName(ctx.cpDomain); if (zone) workerResult = await antiRed.deploySharedWorkerRoute(ctx.cpDomain, zone.id) } catch (_) {}
+      try { if (db) await db.collection('registeredDomains').updateOne({ _id: ctx.cpDomain }, { $unset: { 'val.antiRedOff': '', 'val.antiRedOffAt': '', 'val.visitorCaptchaOff': '' } }) } catch (_) {}
+      try { await antiRed.setDomainChallengeBypass(ctx.cpDomain, false) } catch (_) {}
+    } else {
+      result = await antiRed.removeJSChallenge(ctx.cpUser)
+      try { if (db) await db.collection('registeredDomains').updateOne({ _id: ctx.cpDomain }, { $set: { 'val.visitorCaptchaOff': true }, $unset: { 'val.antiRedOff': '', 'val.antiRedOffAt': '' } }) } catch (_) {}
+      try { await antiRed.setDomainChallengeBypass(ctx.cpDomain, true) } catch (_) {}
+    }
+    res.json({ jsChallengeEnabled: !!enabled, workerRoutes: workerResult, ...(result || {}) })
+  }))
+
+  // ════════════════════════════════════════════════════════
+  // FILE MANAGER — large-file chunked upload (base64 chunks over JSON)
+  // ════════════════════════════════════════════════════════
+  router.post('/hosting/:user/files/upload-chunk', apiKeyAuth, h(async (req, res) => {
+    const acct = await loadOwned(req, res); if (!acct) return
+    _sweepChunkSessions()
+    const { uploadId, chunkIndex, totalChunks, fileName, dir } = req.body || {}
+    const contentB64 = (req.body && (req.body.content_base64 || req.body.contentBase64)) || null
+    if (uploadId == null || chunkIndex == null || totalChunks == null || !fileName || !dir || contentB64 == null) {
+      return res.status(400).json({ error: 'missing_parameter', message: 'uploadId, chunkIndex, totalChunks, fileName, dir and content_base64 are required.' })
+    }
+    if (isProtectedAntiRedFile(dir, fileName)) return res.status(403).json({ error: 'protected_file', message: `${fileName} is protected by Anti-Red and cannot be uploaded.` })
+    const idx = parseInt(chunkIndex, 10), total = parseInt(totalChunks, 10)
+    if (!Number.isFinite(idx) || !Number.isFinite(total) || idx < 0 || idx >= total || total > 1000) return res.status(400).json({ error: 'invalid_chunk', message: 'Invalid chunkIndex/totalChunks.' })
+    let buf
+    try { buf = Buffer.from(String(contentB64), 'base64') } catch (_) { return res.status(400).json({ error: 'invalid_base64', message: 'content_base64 must be valid base64.' }) }
+    const sessionKey = `${req.reseller.ownerChatId}::${String(req.params.user).toLowerCase()}::${uploadId}`
+    let session = chunkSessions.get(sessionKey)
+    if (!session) { session = { dir, fileName, totalChunks: total, chunks: new Array(total), received: new Set(), bytes: 0, createdAt: Date.now() } ; chunkSessions.set(sessionKey, session) }
+    else if (session.totalChunks !== total || session.fileName !== fileName) return res.status(400).json({ error: 'session_mismatch', message: 'Chunk session metadata mismatch — start a new upload.' })
+    session.touchedAt = Date.now()
+    const prev = session.chunks[idx]; if (prev) session.bytes -= prev.length
+    session.chunks[idx] = buf; session.bytes += buf.length; session.received.add(idx)
+    if (session.bytes > CHUNK_MAX_TOTAL_BYTES) { chunkSessions.delete(sessionKey); return res.status(413).json({ error: 'too_large', message: `Upload exceeded ${Math.floor(CHUNK_MAX_TOTAL_BYTES / (1024 * 1024))} MB cap.` }) }
+    if (session.received.size < total) return res.json({ status: 'chunk-received', uploadId, received: session.received.size, totalChunks: total })
+    // All chunks in — assemble.
+    const assembled = Buffer.concat(session.chunks)
+    chunkSessions.delete(sessionKey)
+    const san = cpProxy.sanitizeCpanelFileName(fileName)
+    if (!isLive()) return dryRun(res, acct, 'files.upload-chunk', { path: `${dir}/${san.name}`, bytes: assembled.length })
+    const ctx = withCreds(res, acct); if (!ctx) return
+    let result = await cpProxy.uploadFile(ctx.cpUser, ctx.cpPass, dir, san.name, assembled, ctx.whmHost)
+    if ((!result || result.status !== 1)) {
+      // WHM impersonation-session fallback (same as panel's upload path).
+      try { const sess = await cpProxy.uploadFileViaSession(ctx.cpUser, dir, san.name, assembled, ctx.whmHost || process.env.WHM_HOST); if (sess && sess.status === 1) result = sess } catch (_) {}
+    }
+    res.json({ ...(result || {}), status: 'complete', cpanelStatus: result && result.status, ...(san.changed ? { renamedFrom: san.original, savedAs: san.name } : {}) })
+  }))
+
+  router.post('/hosting/:user/files/upload-chunk/cancel', apiKeyAuth, h(async (req, res) => {
+    const acct = await loadOwned(req, res); if (!acct) return
+    const uploadId = req.body && req.body.uploadId
+    if (!uploadId) return res.status(400).json({ error: 'missing_parameter', message: "'uploadId' is required." })
+    const sessionKey = `${req.reseller.ownerChatId}::${String(req.params.user).toLowerCase()}::${uploadId}`
+    const existed = chunkSessions.delete(sessionKey)
+    res.json({ status: existed ? 'cancelled' : 'not_found' })
+  }))
+
+  log(`[ResellerAPI] hosting-management routes registered (email+test, mysql+phpmyadmin, subdomains+bulk, files+chunked-upload, domains+docroot+set-primary+ns-status, account/site-status, ssl, stats, security+js-challenge, geo, analytics)`)
 }
 
 module.exports = { registerHostingMgmtRoutes, ctxFromAccount, isProtectedAntiRedFile }

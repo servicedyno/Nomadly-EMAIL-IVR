@@ -889,7 +889,14 @@ function createResellerApi(deps = {}) {
       return res.status(409).json({ error: 'addon_quota_exceeded', message: `Your ${acct.plan} plan allows ${quota} addon domain(s).`, addon_quota: quota, addon_count: addons.length })
     }
     if (!isLive()) return res.json({ mode: 'dry_run', username: acct._id, addon_domain: domain, addon_quota: quota, note: 'Dry-run: quota check passed; addon not created on cPanel/Cloudflare.' })
-    const cpPass = acct.cpPass || acct.password || null
+    let cpPass = acct.cpPass || acct.password || null
+    if (!cpPass && acct.cpPass_encrypted && acct.cpPass_iv && acct.cpPass_tag) {
+      // Accounts store the cPanel password AES-256-GCM-encrypted (cpanel-auth),
+      // NOT in plaintext — decrypt it the same way the HostPanel does. Without
+      // this the live addon-create always failed with 501 no_credentials.
+      try { cpPass = cpanelAuth.decrypt({ encrypted: acct.cpPass_encrypted, iv: acct.cpPass_iv, tag: acct.cpPass_tag }) }
+      catch (e) { log(`[ResellerAPI] addon decrypt cpPass failed for ${acct._id}: ${e.message}`) }
+    }
     if (!cpPass) return res.status(501).json({ error: 'no_credentials', message: 'cPanel password is not on file for this account; cannot create the addon via API.' })
     const r = await addonFlow.attachAddonDomain({ account: { cpUser: acct._id, ...acct }, cpPass, domain, db: getDb() })
     if (!r || r.ok === false) return res.status(502).json({ error: 'addon_failed', message: r?.error || 'Addon creation failed.', kind: r?.errorKind || null })
