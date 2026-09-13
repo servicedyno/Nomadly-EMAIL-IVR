@@ -39,6 +39,7 @@ const upgradeCredit = require('./hosting-upgrade-credit')     // getUpgradeTarge
 const antiRed = require('./anti-red-service')                 // resolveDomainCfState / setDomainChallengeBypass
 const addonFlow = require('./addon-domain-flow')              // attachAddonDomain
 const cpanelAuth = require('./cpanel-auth')                   // resetPin (reveal = reset, prod mutation)
+const { registerHostingMgmtRoutes } = require('./reseller-hosting-mgmt') // in-account cPanel mgmt (reuses cpanel-proxy + services, no duplication)
 
 // Customer-facing HostPanel URL (same one the Telegram bot shows).
 function panelUrl() {
@@ -922,6 +923,14 @@ function createResellerApi(deps = {}) {
     catch (e) { log(`[ResellerAPI] credentials createUserSession warn: ${e.message}`) }
     res.json({ ...base, panel_pin: pin, direct_cpanel_login_url: loginUrl, note: 'This PIN was freshly generated — the previous PIN is now invalid.' })
   }))
+
+  // ════════════════════════════════════════════════════════
+  // IN-ACCOUNT cPANEL MANAGEMENT (email / mysql / subdomains / files /
+  // domains / ssl / stats / security / geo / analytics). Registered BEFORE the
+  // 2-segment GET /hosting/:user catch-all below so the multi-segment literal
+  // routes win first. Reuses cpanel-proxy.js + services (no duplicated logic).
+  // ════════════════════════════════════════════════════════
+  registerHostingMgmtRoutes({ router, apiKeyAuth, h, col, getDb, loadOwnedCpanel, isLive, mode, log })
 
   // Account details/usage — 2-segment dynamic route registered LAST so the
   // literal 3-segment routes above (renew/upgrade/addons/login/…) win first.

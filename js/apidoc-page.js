@@ -601,6 +601,224 @@ function endpointGroups(base) {
         },
       ],
     },
+    {
+      id: 'hosting-email', title: 'Hosting · Email Accounts',
+      blurb: 'Manage a hosting account\u2019s email mailboxes — the same operations the HostPanel and Telegram bot expose. All are FREE (no wallet charge). On a sandbox pod every write returns a dry-run envelope; reads run live.',
+      endpoints: [
+        {
+          method: 'GET', path: '/hosting/:user/email', auth: true, billed: false,
+          desc: 'List all email accounts (mailboxes) on the hosting account, with disk usage.',
+          curl: `curl -s ${base}/hosting/mysite01/email \\
+  -H "Authorization: Bearer YOUR_API_KEY"`,
+          resp: `{ "status": 1, "data": [ { "email": "info@mysite.com", "diskused": 12.4, "diskquota": 250 } ] }`,
+        },
+        {
+          method: 'POST', path: '/hosting/:user/email', auth: true, billed: false,
+          desc: 'Create a new email account.',
+          params: [['email', true, 'Local part (before the @)'], ['password', true, 'Mailbox password'], ['domain', true, 'Domain for the mailbox'], ['quota', false, 'Mailbox quota in MB (default 250)']],
+          curl: `curl -s -X POST ${base}/hosting/mysite01/email \\
+  -H "Authorization: Bearer YOUR_API_KEY" -H "Content-Type: application/json" \\
+  -d '{"email":"info","password":"S3cret!","domain":"mysite.com","quota":500}'`,
+          resp: `{ "status": 1, "data": [ { "reason": "OK", "result": 1 } ] }`,
+        },
+        {
+          method: 'DELETE', path: '/hosting/:user/email', auth: true, billed: false,
+          desc: 'Delete an email account. Params may be sent in the JSON body or the query string.',
+          params: [['email', true, 'Local part'], ['domain', true, 'Domain']],
+          curl: `curl -s -X DELETE "${base}/hosting/mysite01/email?email=info&domain=mysite.com" \\
+  -H "Authorization: Bearer YOUR_API_KEY"`,
+          resp: `{ "status": 1 }`,
+        },
+        {
+          method: 'PUT', path: '/hosting/:user/email/password', auth: true, billed: false,
+          desc: 'Change the password of an existing mailbox.',
+          params: [['email', true, 'Local part'], ['password', true, 'New password'], ['domain', true, 'Domain']],
+          curl: `curl -s -X PUT ${base}/hosting/mysite01/email/password \\
+  -H "Authorization: Bearer YOUR_API_KEY" -H "Content-Type: application/json" \\
+  -d '{"email":"info","password":"N3wPass!","domain":"mysite.com"}'`,
+          resp: `{ "status": 1 }`,
+        },
+      ],
+    },
+    {
+      id: 'hosting-mysql', title: 'Hosting · MySQL Databases',
+      blurb: 'Full MySQL management: databases, database users, per-database privileges and remote-access hosts. Requires the Premium (1-Month) or Golden plan (the 7-day trial is blocked with 403 mysql_requires_monthly). FREE.',
+      endpoints: [
+        {
+          method: 'GET', path: '/hosting/:user/mysql/databases', auth: true, billed: false,
+          desc: 'List all MySQL databases on the account.',
+          curl: `curl -s ${base}/hosting/mysite01/mysql/databases \\
+  -H "Authorization: Bearer YOUR_API_KEY"`,
+          resp: `{ "status": 1, "data": [ { "database": "mysite01_wp", "users": ["mysite01_admin"] } ] }`,
+        },
+        {
+          method: 'POST', path: '/hosting/:user/mysql/databases', auth: true, billed: false,
+          desc: 'Create a database (cPanel auto-prefixes it with the account username).',
+          params: [['name', true, 'Database name (unprefixed)']],
+          curl: `curl -s -X POST ${base}/hosting/mysite01/mysql/databases \\
+  -H "Authorization: Bearer YOUR_API_KEY" -H "Content-Type: application/json" -d '{"name":"wp"}'`,
+          resp: `{ "status": 1 }`,
+        },
+        {
+          method: 'DELETE', path: '/hosting/:user/mysql/databases', auth: true, billed: false,
+          desc: 'Delete a database. Also: POST /mysql/databases/rename {oldname,newname}, /repair {name}, /check {name}.',
+          params: [['name', true, 'Database name (prefixed)']],
+          curl: `curl -s -X DELETE "${base}/hosting/mysite01/mysql/databases?name=mysite01_wp" \\
+  -H "Authorization: Bearer YOUR_API_KEY"`,
+          resp: `{ "status": 1 }`,
+        },
+        {
+          method: 'GET', path: '/hosting/:user/mysql/users', auth: true, billed: false,
+          desc: 'List MySQL users. Create: POST {name,password}. Delete: DELETE {name}. Change password: PUT /mysql/users/password {user,password}. Rename: POST /mysql/users/rename {oldname,newname}.',
+          curl: `curl -s ${base}/hosting/mysite01/mysql/users \\
+  -H "Authorization: Bearer YOUR_API_KEY"`,
+          resp: `{ "status": 1, "data": [ "mysite01_admin" ] }`,
+        },
+        {
+          method: 'POST', path: '/hosting/:user/mysql/privileges/grant', auth: true, billed: false,
+          desc: 'Grant privileges to a user on a database. Revoke with POST /mysql/privileges/revoke {user,database}.',
+          params: [['user', true, 'DB user (prefixed)'], ['database', true, 'DB name (prefixed)'], ['privileges', true, 'Array e.g. ["ALL PRIVILEGES"] or ["SELECT","INSERT"]']],
+          curl: `curl -s -X POST ${base}/hosting/mysite01/mysql/privileges/grant \\
+  -H "Authorization: Bearer YOUR_API_KEY" -H "Content-Type: application/json" \\
+  -d '{"user":"mysite01_admin","database":"mysite01_wp","privileges":["ALL PRIVILEGES"]}'`,
+          resp: `{ "status": 1 }`,
+        },
+        {
+          method: 'GET', path: '/hosting/:user/mysql/remote-hosts', auth: true, billed: false,
+          desc: 'List whitelisted remote-MySQL hosts. Add: POST {host}. Remove: DELETE {host}.',
+          curl: `curl -s ${base}/hosting/mysite01/mysql/remote-hosts \\
+  -H "Authorization: Bearer YOUR_API_KEY"`,
+          resp: `{ "status": 1, "data": [ "203.0.113.40" ] }`,
+        },
+      ],
+    },
+    {
+      id: 'hosting-web', title: 'Hosting · Subdomains, Domains & SSL',
+      blurb: 'Manage subdomains, list domains, change an addon/subdomain document root, remove an addon domain, read SSL status and trigger AutoSSL, and read disk/bandwidth stats. FREE.',
+      endpoints: [
+        {
+          method: 'GET', path: '/hosting/:user/subdomains', auth: true, billed: false,
+          desc: 'List subdomains. Create: POST {subdomain, rootdomain?, dir?} (rootdomain defaults to the primary domain). Delete: DELETE {subdomain} (full subdomain).',
+          curl: `curl -s ${base}/hosting/mysite01/subdomains \\
+  -H "Authorization: Bearer YOUR_API_KEY"`,
+          resp: `{ "status": 1, "data": [ { "domain": "shop", "rootdomain": "mysite.com", "fullDomain": "shop.mysite.com" } ] }`,
+        },
+        {
+          method: 'GET', path: '/hosting/:user/domains', auth: true, billed: false,
+          desc: 'List every domain on the account (main, addon, parked, sub). Change docroot: POST /domains/docroot {subdomain,rootdomain,dir}. Remove an addon domain: DELETE /domains/addon {domain}.',
+          curl: `curl -s ${base}/hosting/mysite01/domains \\
+  -H "Authorization: Bearer YOUR_API_KEY"`,
+          resp: `{ "status": 1, "data": { "main_domain": "mysite.com", "addon_domains": ["blog.com"], "sub_domains": ["shop.mysite.com"] } }`,
+        },
+        {
+          method: 'GET', path: '/hosting/:user/ssl', auth: true, billed: false,
+          desc: 'SSL certificate status for the account\u2019s installed hosts (issuer, expiry, self-signed flag).',
+          curl: `curl -s ${base}/hosting/mysite01/ssl \\
+  -H "Authorization: Bearer YOUR_API_KEY"`,
+          resp: `{ "status": 1, "data": [ { "servername": "mysite.com", "certificate": { "not_after": 1767225600 } } ] }`,
+        },
+        {
+          method: 'POST', path: '/hosting/:user/ssl/autossl', auth: true, billed: false,
+          desc: 'Trigger an AutoSSL check to (re)issue certificates for all the account\u2019s domains.',
+          curl: `curl -s -X POST ${base}/hosting/mysite01/ssl/autossl \\
+  -H "Authorization: Bearer YOUR_API_KEY"`,
+          resp: `{ "success": true, "message": "AutoSSL check started. Certificates will be issued shortly (1-3 minutes)." }`,
+        },
+        {
+          method: 'GET', path: '/hosting/:user/stats', auth: true, billed: false,
+          desc: 'Disk quota + bandwidth usage for the account.',
+          curl: `curl -s ${base}/hosting/mysite01/stats \\
+  -H "Authorization: Bearer YOUR_API_KEY"`,
+          resp: `{ "username": "mysite01", "quota": { "status": 1, "data": { … } }, "bandwidth": { "status": 1, "data": { … } } }`,
+        },
+      ],
+    },
+    {
+      id: 'hosting-files', title: 'Hosting · File Manager',
+      blurb: 'Full File Manager over the API: list, read, save, mkdir, delete, rename, extract, compress, copy, move and base64 upload. Anti-Red protected files (.htaccess, .user.ini, .antired-challenge.php in public_html) are blocked from edit/delete with 403 protected_file. FREE.',
+      endpoints: [
+        {
+          method: 'GET', path: '/hosting/:user/files', auth: true, billed: false,
+          desc: 'List files/folders in a directory. Read a file: GET /files/content?dir=&file=.',
+          params: [['dir', false, 'Directory to list (default /public_html)']],
+          curl: `curl -s "${base}/hosting/mysite01/files?dir=/public_html" \\
+  -H "Authorization: Bearer YOUR_API_KEY"`,
+          resp: `{ "status": 1, "data": [ { "file": "index.php", "type": "file", "size": 1024 } ] }`,
+        },
+        {
+          method: 'POST', path: '/hosting/:user/files/save', auth: true, billed: false,
+          desc: 'Create/overwrite a text file. Other ops: /files/mkdir {dir,name}, /files/rename {dir,oldName,newName}, /files/extract {dir,file,destDir?}, /files/compress {dir,files[],destFile}, /files/copy {sourceDir,fileName,destDir}, /files/move {sourceDir,fileName,destDir}. Delete: DELETE /files {dir,file,isDirectory?}.',
+          params: [['dir', true, 'Directory'], ['file', true, 'File name'], ['content', false, 'File contents (text)']],
+          curl: `curl -s -X POST ${base}/hosting/mysite01/files/save \\
+  -H "Authorization: Bearer YOUR_API_KEY" -H "Content-Type: application/json" \\
+  -d '{"dir":"/public_html","file":"robots.txt","content":"User-agent: *"}'`,
+          resp: `{ "status": 1 }`,
+        },
+        {
+          method: 'POST', path: '/hosting/:user/files/upload', auth: true, billed: false,
+          desc: 'Upload a (small) binary/text file as base64.',
+          params: [['dir', true, 'Target directory'], ['fileName', true, 'File name'], ['content_base64', true, 'Base64-encoded file bytes']],
+          curl: `curl -s -X POST ${base}/hosting/mysite01/files/upload \\
+  -H "Authorization: Bearer YOUR_API_KEY" -H "Content-Type: application/json" \\
+  -d '{"dir":"/public_html","fileName":"logo.png","content_base64":"iVBORw0KGgo…"}'`,
+          resp: `{ "status": 1 }`,
+        },
+      ],
+    },
+    {
+      id: 'hosting-security', title: 'Hosting · Security, Geo & Analytics',
+      blurb: 'The premium Anti-Red / Cloudflare protection layer the HostPanel exposes: protection status, Anti-Red deploy, Cloudflare anti-bot profile, Safe-Browsing / blacklist checks, Visitor Captcha and Geo rules (both Golden-plan only), plus zone analytics. FREE.',
+      endpoints: [
+        {
+          method: 'GET', path: '/hosting/:user/security/status', auth: true, billed: false,
+          desc: 'Aggregated security posture: Cloudflare anti-bot settings, Safe-Browsing + blacklist results, JS-challenge state and scanner-signature counts.',
+          curl: `curl -s ${base}/hosting/mysite01/security/status \\
+  -H "Authorization: Bearer YOUR_API_KEY"`,
+          resp: `{ "username": "mysite01", "domain": "mysite.com", "is_gold": true,
+  "antiRed": { "safeBrowsing": { "safe": true }, "blacklist": { "listed": false } },
+  "protectionLayers": { "jsChallenge": true, "cloudflareZone": true } }`,
+        },
+        {
+          method: 'POST', path: '/hosting/:user/security/anti-red/deploy', auth: true, billed: false,
+          desc: 'Deploy the full Anti-Red protection stack (.htaccess cloaking, JS challenge, JA3 fingerprinting, CF worker) for the primary domain. Read status: GET /security/anti-red/status.',
+          curl: `curl -s -X POST ${base}/hosting/mysite01/security/anti-red/deploy \\
+  -H "Authorization: Bearer YOUR_API_KEY"`,
+          resp: `{ "success": true, "htaccess": true, "jsChallenge": true, "hardenedWorker": { "success": true } }`,
+        },
+        {
+          method: 'POST', path: '/hosting/:user/security/anti-bot', auth: true, billed: false,
+          desc: 'Set the Cloudflare anti-bot profile. Also: POST /security/anti-bot/rules (create WAF bot rules), GET /security/safe-browsing, GET /security/blacklist.',
+          params: [['profile', true, 'off | low | medium | high | under_attack']],
+          curl: `curl -s -X POST ${base}/hosting/mysite01/security/anti-bot \\
+  -H "Authorization: Bearer YOUR_API_KEY" -H "Content-Type: application/json" -d '{"profile":"high"}'`,
+          resp: `{ "success": true, "profile": "high" }`,
+        },
+        {
+          method: 'POST', path: '/hosting/:user/security/visitor-captcha', auth: true, billed: false,
+          desc: 'Turn the human "Verify your browser" challenge ON/OFF for a domain (Golden plan only — 403 gold_only otherwise; 400 no_cloudflare if the domain isn\u2019t on Cloudflare). Read state for all domains: GET /security/visitor-captcha.',
+          params: [['enabled', true, 'boolean'], ['domain', false, 'Target domain (defaults to the primary domain; must belong to the account)']],
+          curl: `curl -s -X POST ${base}/hosting/mysite01/security/visitor-captcha \\
+  -H "Authorization: Bearer YOUR_API_KEY" -H "Content-Type: application/json" \\
+  -d '{"enabled":true,"domain":"mysite.com"}'`,
+          resp: `{ "success": true, "username": "mysite01", "domain": "mysite.com", "enabled": true }`,
+        },
+        {
+          method: 'GET', path: '/hosting/:user/geo', auth: true, billed: false,
+          desc: 'List Cloudflare geo firewall rules (Golden only). Create: POST /geo {countries:[],mode:"block"|"allow",description?}. Delete: DELETE /geo {ruleId}.',
+          curl: `curl -s ${base}/hosting/mysite01/geo \\
+  -H "Authorization: Bearer YOUR_API_KEY"`,
+          resp: `{ "rules": [ { "id": "…", "action": "block", "expression": "ip.geoip.country in {\\"CN\\"}" } ], "zoneId": "…" }`,
+        },
+        {
+          method: 'GET', path: '/hosting/:user/analytics', auth: true, billed: false,
+          desc: 'Cloudflare zone analytics (traffic, threats, bandwidth) for the domain.',
+          params: [['days', false, 'Window in days (default 7)'], ['detailed', false, 'false for a lighter summary']],
+          curl: `curl -s "${base}/hosting/mysite01/analytics?days=7" \\
+  -H "Authorization: Bearer YOUR_API_KEY"`,
+          resp: `{ "success": true, "totals": { "requests": 12045, "threats": 132, "bandwidth_bytes": 894000 } }`,
+        },
+      ],
+    },
   ]
 }
 
@@ -614,7 +832,9 @@ const ERRORS = [
   ['409', 'domain_in_use', 'That domain already has an active hosting plan.'],
   ['404', 'not_found', 'The resource does not exist or is not owned by your account.'],
   ['400', 'invalid_body / invalid_upgrade_target', 'Request body missing/invalid (e.g. captcha needs {enabled:bool}); or plan_id is not a valid upgrade target (response lists the available targets).'],
-  ['403', 'gold_plan_required', 'Visitor Captcha is exclusive to the Golden Anti-Red HostPanel — the domain is not on a Gold plan.'],
+  ['403', 'gold_plan_required / gold_only', 'Visitor Captcha & Geo are exclusive to the Golden Anti-Red HostPanel — the account is not on a Gold plan.'],
+  ['403', 'mysql_requires_monthly', 'MySQL management requires the Premium (1-Month) or Golden plan — the 7-day trial is not eligible.'],
+  ['403', 'protected_file', 'An Anti-Red protected file (.htaccess / .user.ini / .antired-challenge.php in public_html) cannot be modified or deleted via the API.'],
   ['409', 'no_cloudflare', 'The domain is not on Cloudflare, so Visitor Captcha cannot be toggled.'],
   ['409', 'no_upgrade_path', 'The account is already on the top tier — no higher plan to upgrade to.'],
   ['409', 'addon_exists / addon_quota_exceeded', 'The addon domain already exists, or the plan addon-domain quota is reached.'],
