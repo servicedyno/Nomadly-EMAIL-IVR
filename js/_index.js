@@ -36106,7 +36106,7 @@ async function checkVPSPlansExpiryandPayment() {
     }).toArray()
 
     for (const vpsPlan of pastDeadline) {
-      const { chatId, _id, vpsId, label, contaboInstanceId, planPrice } = vpsPlan
+      const { chatId, _id, vpsId, label, contaboInstanceId, planPrice, lastDeleteAlertAt, deleteRetryCount } = vpsPlan
       const displayName = label || vpsPlan.name || 'VPS'
       const info = await state.findOne({ _id: String(chatId) })
       const lang = info?.userLanguage || 'en'
@@ -36115,18 +36115,47 @@ async function checkVPSPlansExpiryandPayment() {
         // Delete from Contabo to prevent their billing
         const deleteResult = await deleteVPSinstance(chatId, vpsId)
         if (deleteResult.success) {
-          await vpsPlansOf.updateOne({ _id }, { $set: { status: 'CANCELLED', cancelledAt: new Date(), cancelReason: 'auto_renewal_failed' } })
+          await vpsPlansOf.updateOne({ _id }, { $set: { status: 'CANCELLED', cancelledAt: new Date(), cancelReason: deleteResult.alreadyGone ? 'auto_renewal_failed_already_gone' : 'auto_renewal_failed' } })
           try { send(chatId, translation('t.util_5', lang, displayName)) } catch (notifErr) { log(`[VPS Scheduler] notify failed: ${notifErr.message}`) }
-          send(TELEGRAM_ADMIN_CHAT_ID, `🗑️ <b>VPS Auto-Deleted</b>\nUser: ${adminUserTag(await get(nameOf, chatId), chatId)}\nVPS: ${displayName}\nReason: Renewal failed, deadline passed\nPrice was: $${planPrice}/mo`, adminMsgOpts({ chatId }))
-          log(`[VPS Scheduler] DELETED ${displayName} on Contabo for ${chatId} — deadline passed`)
+          // Only alert admin on ACTIVE deletions (skip idempotent no-ops:
+          // the instance was already gone on the provider — nothing new).
+          if (!deleteResult.alreadyGone) {
+            send(TELEGRAM_ADMIN_CHAT_ID, `🗑️ <b>VPS Auto-Deleted</b>\nUser: ${adminUserTag(await get(nameOf, chatId), chatId)}\nVPS: ${displayName}\nReason: Renewal failed, deadline passed\nPrice was: $${planPrice}/mo`, adminMsgOpts({ chatId }))
+          }
+          log(`[VPS Scheduler] DELETED ${displayName} on Contabo for ${chatId} — deadline passed${deleteResult.alreadyGone ? ' (already gone)' : ''}`)
         } else {
-          // Delete failed — retry next cycle, alert admin
-          log(`[VPS Scheduler] ERROR: Failed to delete ${displayName} on Contabo: ${deleteResult.error}`)
-          send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>VPS DELETE FAILED</b>\nUser: ${adminUserTag(await get(nameOf, chatId), chatId)}\nVPS: ${displayName} (vpsId: ${vpsId})\nInstance ID: ${contaboInstanceId}\nError: ${deleteResult.error}\n\n⚠️ Manual deletion required to prevent provider billing!`, adminMsgOpts({ chatId }))
+          // Delete failed — retry next cycle. Admin alert is throttled to
+          // avoid the spam pattern seen 2026-02 with vmi3508080 (43× same
+          // alert in a day). Alert at attempt 1, then only every 6 hours,
+          // and stop entirely after 10 retries (manual intervention needed).
+          const retries = (deleteRetryCount || 0) + 1
+          const lastAlertAgeMs = lastDeleteAlertAt ? (Date.now() - new Date(lastDeleteAlertAt).getTime()) : Infinity
+          const shouldAlert = retries === 1 || (retries <= 10 && lastAlertAgeMs >= 6 * 3600 * 1000)
+          await vpsPlansOf.updateOne(
+            { _id },
+            {
+              $set: { deleteRetryCount: retries, lastDeleteError: deleteResult.error, ...(shouldAlert ? { lastDeleteAlertAt: new Date() } : {}) },
+            }
+          )
+          log(`[VPS Scheduler] ERROR: Failed to delete ${displayName} on Contabo (attempt ${retries}): ${deleteResult.error}${shouldAlert ? '' : ' — admin alert throttled'}`)
+          if (shouldAlert) {
+            send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>VPS DELETE FAILED</b> ${retries === 1 ? '' : `(retry ${retries})`}\nUser: ${adminUserTag(await get(nameOf, chatId), chatId)}\nVPS: ${displayName} (vpsId: ${vpsId})\nInstance ID: ${contaboInstanceId}\nError: ${deleteResult.error}\n\n⚠️ Manual deletion required to prevent provider billing! ${retries >= 10 ? '\n\n🛑 Auto-retries exhausted — no further alerts on this instance.' : `(next alert in ≥6h)`}`, adminMsgOpts({ chatId }))
+          }
         }
       } catch (err) {
         log(`[VPS Scheduler] CRASH deleting ${displayName}: ${err.message}`)
-        send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>VPS Delete Crash</b>\nUser: ${adminUserTag(await get(nameOf, chatId), chatId)}\nVPS: ${displayName}\nError: ${err.message}`, adminMsgOpts({ chatId }))
+        // Crash path — also throttle to prevent unbounded alerts on
+        // repeatable exceptions (e.g. transient Contabo 500s).
+        const retries = (deleteRetryCount || 0) + 1
+        const lastAlertAgeMs = lastDeleteAlertAt ? (Date.now() - new Date(lastDeleteAlertAt).getTime()) : Infinity
+        const shouldAlert = retries === 1 || (retries <= 10 && lastAlertAgeMs >= 6 * 3600 * 1000)
+        await vpsPlansOf.updateOne(
+          { _id },
+          { $set: { deleteRetryCount: retries, lastDeleteError: err.message, ...(shouldAlert ? { lastDeleteAlertAt: new Date() } : {}) } }
+        )
+        if (shouldAlert) {
+          send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>VPS Delete Crash</b> ${retries === 1 ? '' : `(retry ${retries})`}\nUser: ${adminUserTag(await get(nameOf, chatId), chatId)}\nVPS: ${displayName}\nError: ${err.message}${retries >= 10 ? '\n\n🛑 Auto-retries exhausted.' : ''}`, adminMsgOpts({ chatId }))
+        }
       }
     }
 

@@ -1,84 +1,47 @@
-# Nomadly PRD
+# PRD — Nomadly Cloud IVR + Telegram Bot
 
-## Overview
-Multi-service Telegram bot platform: React frontend, FastAPI backend, Node.js bot server.
+## Original problem statement (this fork session, Feb 2026)
+User inherited a fully-set-up Nomadly bot pod pointed at LIVE PRODUCTION. Task became: mine Railway production logs, identify complaints from real users (starting with @blacknmilds), find root causes, and ship fixes.
 
-## Core Services
-- **Frontend**: React on port 3000
-- **Backend**: FastAPI on port 8001
-- **Node.js Bot**: Express + Telegram Bot on port 5000
-- **Database**: MongoDB (production on Railway)
+## Architecture (unchanged from previous fork)
+- React frontend (port 3000)
+- FastAPI proxy (port 8001) — forwards `/api/*` to Node
+- **Node.js Express + Telegram Bot API** (port 5000) — most business logic lives here
+- MongoDB (LIVE PRODUCTION via Railway `mongo:...@roundhouse.proxy.rlwy.net:52715`)
+- Railway CLI in sandbox (`/opt/node22/bin/railway` + `RAILWAY_TOKEN=API_KEY_RAILWAY` from .env) — grants read access to production `Nomadly-EMAIL-IVR` service logs.
 
-## 3rd Party Integrations
-- Telegram Bot API
-- Twilio (Voice/SIP/SMS, sub-account architecture)
-- Telnyx (Voice/SIP/SMS)
-- Stripe (Payments)
-- Cloudflare (Domain Management)
-- Railway (Production Deployment)
+## Guardrails (never touch)
+- `BOT_ENVIRONMENT="production"` in `/app/backend/.env`
+- `SKIP_WEBHOOK_SYNC="true"` — critical safeguard preventing the sandbox from hijacking the production Telegram webhook
 
-## Completed Features
+## What was implemented in this Feb 2026 fork
+See CHANGELOG.md for the running log. High-level list:
+- ✅ WAV → MP3 auto-transcode at upload time (`audio-library-service.js`)
+- ✅ Audio-proxy Content-Type derived from file extension for legacy WAVs already in `ivrAudioStore`
+- ✅ Bulk IVR NANP normalization (10-digit paste → `+1XXXXXXXXXX`, was `+40…` = Romania)
+- ✅ AI Support KB disambiguates Quick IVR (TTS) vs Bulk IVR (uploaded audio); NANP fix documented
+- ✅ `editMessageText "message can't be edited"` fallback spam — terminal-error short-circuit + per-session log dedup + streaming short-circuit
+- ✅ VPS deletion spam — Contabo "already been canceled" now treated as idempotent success; admin alert throttled to ≥6h with 10-retry hard-stop; `Auto-Deleted` post skipped for no-op cycles
 
-### 2026-09-08: Reseller REST API (`/reseller/v1`)
-**Goal**: Let a reseller programmatically resell Domains, DNS, VPS (Linux), RDP (Windows) and cPanel hosting via an API-key-authenticated public API, billed from the wallet.
+## Prioritized backlog (P0/P1/P2)
+### P0
+_(none open)_
 
-**Implementation:**
-- **NEW `js/reseller-api.js`** — `createResellerApi()` Express router mounted in `_index.js` at `/reseller/v1` (external `{BACKEND}/api/reseller/v1/*`). Reuses `domain-service`, `whm-service`, `vps-provider` (+ DigitalOcean/Azure), `db.atomicIncrement`, `utils.getBalance`.
-- **Auth**: `Authorization: Bearer <key>` or `X-API-Key`. Keys sha256-hashed in `resellerApiKeys`, seeded via **NEW `scripts/seed_reseller_key.js`**. One key = full access. Current key bound to @onarrival1 (chatId 5590563715).
-- **Billing**: debits wallet `usdOut` via atomic, overdraft-safe `atomicIncrement`; refunds on provisioning failure. Audit rows in `resellerApiOrders`.
-- **Endpoints**: domains (search/register/list), dns (records CRUD + nameservers, free), vps + rdp (plans/create/list/get/action/destroy/credentials), hosting (plans/create/list/suspend/unsuspend/terminate/login). Pricing from prod `.env` (markups included).
-- **Safety**: LIVE only when `RESELLER_API_LIVE=true` AND `SKIP_WEBHOOK_SYNC!=='true'`. Dev/sandbox pods are hard-locked to `dry_run` (validate + price + balance check, no provider call, no charge). Backend tested 23/23 pass, wallet unchanged.
+### P1
+- _(none open — all P1s from BLACKNMILDS_CLOUDIVR_COMPLAINTS have been fixed)_
 
+### P2
+- **Bulk IVR $50 minimum-balance surfacing** — currently only errors at Launch after 6 form steps. Surface at Bulk IVR entry screen or block flow at "Select Caller ID" when wallet < $50.
+- **Root-cause investigation for the underlying "message can't be edited" error** — resilience is now in place, but Telegram is still returning this on every reply. Instrumentation exists (log dedup shows the real error message once per session), next step is to see what makes the placeholder uneditable (suspected: interaction between `parse_mode=HTML` on very short italic-only placeholders + `reply_markup` with `ReplyKeyboardMarkup`).
+- **File modularization** — `js/_index.js` is 48,983 lines. Testing-agent flagged this in iteration 45 (not blocking, but a scale/maintenance concern).
 
-### 2026-09-05: Inactive Released Number Detection & Auto-Cleanup
-**Problem**: Production user @johngambino could not make calls with caller ID +1 (888) 923-3702. Root cause: number was silently released by Twilio but DB still showed `status: active`.
+## Test files (running suite)
+- `/app/backend/tests/test_blacknmilds_fixes.js` — WAV+NANP fixes (5 assertions)
+- `/app/backend/tests/test_support_reply_fixes.js` — KB + fallback dedup source patterns
+- `/app/backend/tests/test_deliver_final_reply.js` — 7 runtime scenarios of `deliverFinalReply`
+- `/app/backend/tests/test_vps_delete_idempotent.js` — 6 tests for VPS delete idempotency + throttle math (testing-agent iteration 45)
 
-**Solution implemented across 4 files:**
-
-1. **phone-monitor.js** — New `checkTwilioNumberExists()` function
-   - Verifies each active Twilio number SID still exists on its sub-account via API
-   - Uses sub-account credentials (parent-auth returns 401 for IncomingPhoneNumbers)
-   - On 404: marks number as `inactive_released`, sets `_inactiveSince` timestamp
-   - Sends localized notification to user and admin
-
-2. **phone-config.js** — Updated user-facing displays (all 4 languages: EN/FR/ZH/HI)
-   - `myNumbersList()`: Shows `🚫 Inactive (released by provider)` with countdown timer
-   - `manageNumber()`: Shows warning block and early-returns (no management options for released numbers)
-
-3. **phone-scheduler.js** — New `runInactiveReleasedCleanup()` job
-   - Runs every 6 hours
-   - Removes numbers with `inactive_released` status where `_inactiveSince` > 48 hours
-   - Logs transaction in `phoneTransactions` collection
-   - Sends final removal notification to user in their language
-   - Notifies admin group
-
-4. **_index.js** — Updated number list filters
-   - "My Plans" and "My Numbers" views now include `inactive_released` numbers for visibility
-   - Caller ID selection (Quick IVR, Bulk IVR) still excludes `inactive_released` (existing `status === 'active'` filter)
-   - `findNumberOwner()` in voice-service.js already excludes non-active numbers
-
-**DB Schema changes:**
-- New fields on number objects: `_inactiveSince` (ISO string), `_releaseDetectedBy` (string)
-- New status value: `inactive_released` (joins `active`, `suspended`, `released`)
-
-### 2026-09-05: Fix IVR Self-Transfer Bypass (trillionboy complaint)
-**Problem**: User @trillionboy reported that Quick IVR calls play a "default prompt" (press 1/2) before their custom script. Root cause: when the outbound IVR transfers the callee to the user's OWN number (From === To), the inbound IVR auto-attendant activates, replaying the IVR greeting menu on the transfer leg.
-
-**Fix**: Two-layer defense:
-1. **Runtime bypass** (`_index.js` voice-webhook): Added `isSelfTransfer` detection — when `From` digits === `To` digits, the IVR auto-attendant is bypassed and the call rings through to SIP/forwarding/voicemail.
-2. **Setup-time guard** (`_index.js` — 3 outbound IVR flows): Blocks self-call at the source:
-   - Quick IVR single transfer number (`ivrObEnterIvrNumber`) — rejects if transfer target === callerId
-   - Quick IVR per-key menu forward (`ivrObMenuForwardInput`) — rejects if forward target === callerId
-   - Bulk IVR transfer number (`bulkEnterTransfer`) — rejects if transfer target === callerId
-   - All guards show a clear localized message (EN/FR/ZH/HI) explaining the conflict and asking for a different number
-   - Note: Inbound IVR already had this guard (`cpIvrOptionMsg` line ~31339)
-
-**Files changed**: `_index.js` (voice-webhook handler + 3 outbound IVR setup flows)
-
-## Known Issues
-- `[PhoneMonitor] Error checking number +18883304418: Request failed with status code 401` — pre-existing auth issue with a different number's Telnyx check
-
-## Architecture Notes
-- Phone numbers stored in `phoneNumbersOf` collection, `val.numbers[]` array per user (keyed by chatId)
-- Twilio uses sub-account architecture (each user gets their own sub-account)
-- Phone monitor runs every 30 minutes; scheduler runs hourly + daily jobs
+## Reference documents
+- `/app/memory/BLACKNMILDS_CLOUDIVR_COMPLAINTS_2026-02.md` — full investigation report with railway log excerpts and file:line pointers for each fix
+- `/app/investigations/rl_prod_5k.log` — 5000-line prod log snapshot used for initial investigation
+- `/app/investigations/rl_prod_vps.log` — 3000-line prod log snapshot showing the VPS deletion spam pattern

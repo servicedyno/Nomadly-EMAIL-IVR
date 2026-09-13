@@ -95,13 +95,14 @@ Both AI replies to blacknmilds fell back to `sendMessage`. `deliverFinalReply` (
 
 ## Summary table
 
-| # | Severity | Component | Symptom user saw | Fix location |
-|---|----------|-----------|------------------|--------------|
-| 1 | P0 | `js/_index.js:45847` audio-proxy | WAV upload → silent IVR call | `res.set('Content-Type', …)` derive from ext OR transcode WAV→MP3 in `audio-library-service.js:104` |
-| 2 | P1 | `js/bulk-call-service.js:511` parseLeadsFile | US 10-digit paste dialed Romania | prepend `+1` for 10-digit NANP or use libphonenumber-js `defaultCountry` |
-| 3 | P1 | AI Support prompt/KB | AI told user to change TTS voice for a WAV problem in Bulk-IVR | update AI Support KB (Quick-IVR ≠ Bulk-IVR; add WAV compat note) |
-| 4 | P2 | `js/_index.js:1947` streamAiReply | 400 "can't be edited" → duplicate reply + latency | do not `deleteMessage` before `deliverFinalReply` |
-| 5 | P2 | Bulk IVR entry UX | $50 min balance error only at launch | check wallet at Bulk IVR entry step |
+| # | Severity | Component | Symptom user saw | Fix location | Status |
+|---|----------|-----------|------------------|--------------|--------|
+| 1 | P0 | `js/_index.js:45847` audio-proxy | WAV upload → silent IVR call | `res.set('Content-Type', …)` derive from ext OR transcode WAV→MP3 in `audio-library-service.js:104` | ✅ FIXED |
+| 2 | P1 | `js/bulk-call-service.js:511` parseLeadsFile | US 10-digit paste dialed Romania | prepend `+1` for 10-digit NANP or use libphonenumber-js `defaultCountry` | ✅ FIXED |
+| 3 | P1 | AI Support prompt/KB | AI told user to change TTS voice for a WAV problem in Bulk-IVR | update AI Support KB (Quick-IVR ≠ Bulk-IVR; add WAV compat note) | ✅ FIXED |
+| 4 | P2 | `js/_index.js:1947` streamAiReply | 400 "can't be edited" → duplicate reply + latency | do not `deleteMessage` before `deliverFinalReply` | ✅ FIXED |
+| 5 | P2 | Bulk IVR entry UX | $50 min balance error only at launch | check wallet at Bulk IVR entry step | ⏳ backlog |
+| 6 | P0 | `js/vm-instance-setup.js:1247` isAlreadyGone helper | `🚨 VPS DELETE FAILED` spammed admin 43× in a day for vmi3508080 | Match Contabo's "already been cancelled" error as idempotent success; DB → DELETED; skip Auto-Deleted admin post on alreadyGone; throttle failure alerts to ≥6h with 10-retry hard-stop | ✅ FIXED (6/6 tests pass, testing agent iteration 45) |
 
 ## Notes / non-issues
 - Twilio sub-account provisioning, SIP cred creation, wallet crediting, first-deposit bonus, cart-recovery clearing — all worked correctly for this user.
