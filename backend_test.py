@@ -9,7 +9,7 @@ import json
 import sys
 
 # Configuration
-BASE_URL = "https://vault-init-4.preview.emergentagent.com"
+BASE_URL = "https://deploy-setup-18.preview.emergentagent.com"
 SESSION_SECRET = "o/Qb8ArGahlquhCQafi6752xMe0p0S93Uf5g2gTX6MZtBE7vVcp230LKEsGTz3YJ/q9fluyEvweAMB9FGdv8zQ=="
 KEY = SESSION_SECRET[:16]  # First 16 characters
 
