@@ -385,7 +385,7 @@ ${CHAT_BOT_NAME}`,
  chooseFreeDomainText: `<b>好消息！</b> 此域名可随您的订阅免费提供。您想领取吗？`,
 
  chooseDomainToBuy: text => `<b>获取你的网络角落！</b> 请分享你希望购买的域名，例如“abcpay.com”。${text}`,
- askDomainToUseWithShortener: `将此域名用作<b>自定义短链接</b>？\n\n<b>是</b> — 自动配置 DNS，短链接变为 <code>yourdomain.com/abc</code>。\n\n<b>否</b> — 仅注册。可随时从 DNS 管理中启用。`,
+ askDomainToUseWithShortener: `👉 <b>确认上方的域名。</b> 点击<b>否</b>立即注册，或点击<b>是</b>同时开启短链接。\n\n<b>否</b> — 仅注册<i>（推荐）</i>。可随时从 🔧 DNS 管理中启用短链接。\n<b>是</b> — 同时自动配置 DNS，短链接变为 <code>yourdomain.com/abc</code>。`,
  blockUser: `请分享需要被封锁的用户的用户名。`,
  unblockUser: `请分享需要解封的用户的用户名。`,
  blockedUser: `你目前被封锁，无法使用机器人。请点击 💬 获取支持。更多信息 ${TG_HANDLE}。`,
@@ -826,7 +826,7 @@ ${CHAT_BOT_NAME}`,
  walletBalanceLow: `您的钱包余额不足。点击"👛 我的钱包" → "➕💵 充值"进行充值。`,
 
  sentLessMoney: (expected, got) =>
- `您发送的金额少于预期，所以我们将收到的金额存入您的钱包。我们预期 ${expected} 但收到 ${got}`,
+ `⚠️ <b>付款不足</b>\n\n应付：<b>${expected}</b>\n收到：<b>${got}</b>\n\n✅ <b>${got} 已存入您的钱包</b> — 分文未失。\n\n💳 完成此订单：重新打开该服务，在结账时选择 <b>👛 钱包</b>（如有小额差额请补足）。输入 /start 继续。`,
 
  sentMoreMoney: (expected, got) =>
  `您发送的金额多于预期，因此我们将多余的金额存入您的钱包。我们预期 ${expected} 但收到 ${got}`,
@@ -2392,9 +2392,9 @@ const adminKeyboard = {
 const userKeyboard = {
  reply_markup: {
  keyboard: [
- [user.cloudPhone, user.referEarn],
- [user.marketplace, user.digitalProducts],
- [user.domainNames, user.hostingDomainsRedirect],
+ [user.cloudPhone, user.hostingDomainsRedirect],
+ [user.domainNames, user.digitalProducts],
+ [user.marketplace, user.referEarn],
  ...(VPS_ENABLED === 'true'
  ? (HIDE_SMS_APP !== 'true' ? [[user.vpsPlans, user.smsAppMain]] : [[user.vpsPlans]])
  : (HIDE_SMS_APP !== 'true' ? [[user.smsAppMain]] : [])),
@@ -2768,7 +2768,16 @@ ${plan.panel}`
  return `${commonSteps[step]}`
  },
 
- generateDomainFoundText: (websiteName, price) => `域名 ${websiteName} 可用！费用为 $${price}。`,
+ generateDomainFoundText: (websiteName, price, hostingPrice, total, planName) => {
+   if (hostingPrice && total) {
+     return `✅ <b>${websiteName}</b> 可用！\n\n` +
+       `🌐 域名：<b>$${price}</b>\n` +
+       `🛡️ 主机${planName ? `（${planName}）` : ''}：<b>$${hostingPrice}</b>\n` +
+       `━━━━━━━━━━━━\n` +
+       `💰 <b>今日合计：$${total}</b>`
+   }
+   return `域名 ${websiteName} 可用！费用为 $${price}。`
+ },
  generateExistingDomainText: websiteName => `您选择了 ${websiteName} 作为您的域名。`,
  connectExternalDomainText: websiteName => `您想将 <b>${websiteName}</b> 连接为您的域名。\n\n购买后，您需要将域名的名称服务器指向 Cloudflare。`,
  domainNotFound: websiteName => `域名 ${websiteName} 不可用。`,

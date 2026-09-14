@@ -7,44 +7,48 @@
  * Generate improved insufficient balance message
  */
 function getInsufficientBalanceMessage(currentBalance, requiredAmount, currency = 'USD', lang = 'en') {
-  const shortfall = requiredAmount - currentBalance
+  const shortfall = Math.max(0, requiredAmount - currentBalance)
   const symbol = currency === 'NGN' ? '₦' : '$'
 
   const messages = {
     en: {
-      title: '❌ Insufficient Balance',
-      current: 'Current',
-      required: 'Required',
-      shortfall: 'Shortfall',
+      title: '💳 Almost there!',
+      need: 'You need',
+      more: 'more to complete this order',
+      current: 'Current balance',
+      required: 'Order total',
+      pick: 'Pick an amount below — you\'ll go straight to payment.',
       addFunds: '💰 Add Funds',
-      viewPlans: '📊 View Plans',
       cancel: '❌ Cancel'
     },
     fr: {
-      title: '❌ Solde insuffisant',
-      current: 'Actuel',
-      required: 'Requis',
-      shortfall: 'Manquant',
+      title: '💳 Presque terminé !',
+      need: 'Il vous faut',
+      more: 'de plus pour finaliser cette commande',
+      current: 'Solde actuel',
+      required: 'Total de la commande',
+      pick: 'Choisissez un montant ci-dessous — vous irez directement au paiement.',
       addFunds: '💰 Ajouter des fonds',
-      viewPlans: '📊 Voir les plans',
       cancel: '❌ Annuler'
     },
     zh: {
-      title: '❌ 余额不足',
-      current: '当前',
-      required: '需要',
-      shortfall: '缺额',
+      title: '💳 就差一点！',
+      need: '您还需要',
+      more: '即可完成此订单',
+      current: '当前余额',
+      required: '订单总额',
+      pick: '在下方选择一个金额 — 将直接进入付款。',
       addFunds: '💰 添加资金',
-      viewPlans: '📊 查看计划',
       cancel: '❌ 取消'
     },
     hi: {
-      title: '❌ अपर्याप्त शेष',
-      current: 'वर्तमान',
-      required: 'आवश्यक',
-      shortfall: 'कमी',
+      title: '💳 बस थोड़ा और!',
+      need: 'इस ऑर्डर को पूरा करने के लिए आपको',
+      more: 'और चाहिए',
+      current: 'वर्तमान बैलेंस',
+      required: 'ऑर्डर कुल',
+      pick: 'नीचे एक राशि चुनें — आप सीधे भुगतान पर पहुंच जाएंगे।',
       addFunds: '💰 फंड जोड़ें',
-      viewPlans: '📊 योजनाएं देखें',
       cancel: '❌ रद्द करें'
     }
   }
@@ -52,16 +56,32 @@ function getInsufficientBalanceMessage(currentBalance, requiredAmount, currency 
   const t = messages[lang] || messages.en
 
   const message = `${t.title}\n\n` +
+    `${t.need} <b>${symbol}${shortfall.toFixed(2)}</b> ${t.more}.\n\n` +
     `${t.current}: <b>${symbol}${currentBalance.toFixed(2)}</b>\n` +
-    `${t.required}: <b>${symbol}${requiredAmount.toFixed(2)}</b>\n` +
-    `${t.shortfall}: <b>${symbol}${shortfall.toFixed(2)}</b>\n\n` +
-    `Tap below to add funds and continue.`
+    `${t.required}: <b>${symbol}${requiredAmount.toFixed(2)}</b>\n\n` +
+    `${t.pick}`
+
+  // ── Pre-filled deposit wall (USD) ──
+  // Buttons carry the exact top-up amount so the deposit handler can skip the
+  // wallet menu + amount entry and jump straight to the coin picker.
+  if (currency !== 'NGN') {
+    const dep1 = Math.max(10, Math.ceil(shortfall))
+    const dep2 = dep1 < 20 ? 20 : dep1 + 20
+    return {
+      message,
+      keyboard: [
+        [`💵 Deposit $${dep1}`],
+        [`💵 Deposit $${dep2}`],
+        [t.cancel]
+      ]
+    }
+  }
 
   return {
     message,
     keyboard: [
       [t.addFunds],
-      [t.viewPlans, t.cancel]
+      [t.cancel]
     ]
   }
 }

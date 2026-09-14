@@ -421,7 +421,7 @@ Included:
 
  chooseDomainToBuy: text =>
  `Enter your domain name (e.g., <code>mysite.com</code>)\n\n💰 Pricing from $30/year${text}`,
- askDomainToUseWithShortener: `Use this domain as a <b>custom URL shortener</b>?\n\n<b>Yes</b> — Auto-configure DNS. Short links become <code>yourdomain.com/abc</code>.\n\n<b>No</b> — Register only. Enable shortener anytime from Manage Domains.`,
+ askDomainToUseWithShortener: `👉 <b>Confirm your domain above.</b> Tap <b>No</b> to register it now, or <b>Yes</b> to also turn on the URL shortener.\n\n<b>No</b> — Just register it <i>(recommended)</i>. You can enable the shortener anytime from 🔧 Manage Domains.\n<b>Yes</b> — Also auto-configure DNS so short links become <code>yourdomain.com/abc</code>.`,
  blockUser: `Please share the username of the user that needs to be blocked.`,
  unblockUser: `Please share the username of the user that needs to be unblocked.`,
  blockedUser: `You are currently blocked from using the bot. Please tap 💬 Get Support. Discover more ${TG_HANDLE}.`,
@@ -982,13 +982,14 @@ Need: <b>$${(needed - balance).toFixed(2)} more</b>
 Tap Deposit ⬇️`,
 
  sentLessMoney: (expected, got) =>
- `⚠️ Underpayment detected
+ `⚠️ <b>Underpayment</b>
 
 Expected: <b>${expected}</b>
 Received: <b>${got}</b>
 
-Amount credited to wallet.
-Service not delivered.`,
+✅ <b>${got} was added to your wallet</b> — nothing is lost.
+
+💳 To finish this order, reopen the service and pick <b>👛 Wallet</b> at checkout (top up the small difference if needed). Tap /start to continue.`,
  sentMoreMoney: (expected, got) =>
  `💰 Overpayment detected
 
@@ -2567,9 +2568,9 @@ const adminKeyboard = {
 const userKeyboard = {
  reply_markup: {
  keyboard: [
- [user.cloudPhone, user.referEarn],
- [user.marketplace, user.digitalProducts],
- [user.domainNames, user.hostingDomainsRedirect],
+ [user.cloudPhone, user.hostingDomainsRedirect],
+ [user.domainNames, user.digitalProducts],
+ [user.marketplace, user.referEarn],
  ...(VPS_ENABLED === 'true'
  ? (HIDE_SMS_APP !== 'true' ? [[user.vpsPlans, user.smsAppMain]] : [[user.vpsPlans]])
  : (HIDE_SMS_APP !== 'true' ? [[user.smsAppMain]] : [])),
@@ -2950,7 +2951,16 @@ ${plan.panel}`
 
  return `${commonSteps[step]}`
  },
- generateDomainFoundText: (websiteName, price) => `<b>${websiteName}</b> is available — $${price}`,
+ generateDomainFoundText: (websiteName, price, hostingPrice, total, planName) => {
+   if (hostingPrice && total) {
+     return `✅ <b>${websiteName}</b> is available!\n\n` +
+       `🌐 Domain: <b>$${price}</b>\n` +
+       `🛡️ Hosting${planName ? ` (${planName})` : ''}: <b>$${hostingPrice}</b>\n` +
+       `━━━━━━━━━━━━\n` +
+       `💰 <b>Total today: $${total}</b>`
+   }
+   return `<b>${websiteName}</b> is available — $${price}`
+ },
  generateExistingDomainText: websiteName => `Domain set: <b>${websiteName}</b>`,
  connectExternalDomainText: websiteName => `Domain: <b>${websiteName}</b>\n\nNameservers will be pointed to Cloudflare. DNS records auto-configured.`,
  domainNotFound: websiteName => `<b>${websiteName}</b> is not available. Try another.`,

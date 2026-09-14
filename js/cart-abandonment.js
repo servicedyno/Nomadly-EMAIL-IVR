@@ -185,56 +185,88 @@ function actionToCategory(action) {
   return 'general'
 }
 
-// ── Nudge messages per category — all 4 languages ────────────────────
+// ── Nudge hook messages per category — all 4 languages ───────────────
+// NOTE: the coupon line + working CTA are appended dynamically in sendNudge()
+// (a live coupon code + a /start deep-link back to the product). We no longer
+// tell users to "type /menu → 🎟️ Daily Coupon" — /menu was never a command and
+// there is no Daily Coupon button, so that instruction dead-ended every nudge.
 const NUDGE_MESSAGES = {
   domain: {
-    en: '🌐 Hey! You were checking out a domain earlier. It might not be available for long.\n\n💡 Use your daily coupon for a discount — just type /menu and look for 🎟️ Daily Coupon!',
-    fr: '🌐 Hé ! Vous regardiez un domaine plus tôt. Il pourrait ne plus être disponible longtemps.\n\n💡 Utilisez votre coupon quotidien pour une réduction — tapez /menu et cherchez 🎟️ Coupon !',
-    zh: '🌐 嘿！你刚才在看一个域名，它可能很快就被注册了。\n\n💡 使用你的每日优惠券获得折扣 — 输入 /menu 查找 🎟️ 每日优惠券！',
-    hi: '🌐 अरे! आप पहले एक डोमेन देख रहे थे। यह ज्यादा देर उपलब्ध नहीं रह सकता।\n\n💡 छूट के लिए अपना दैनिक कूपन उपयोग करें — /menu टाइप करें और 🎟️ दैनिक कूपन खोजें!',
+    en: '🌐 You were checking out a domain earlier — grab it before someone else does.',
+    fr: '🌐 Vous regardiez un domaine plus tôt — réservez-le avant qu\'il ne parte.',
+    zh: '🌐 您刚才在看一个域名 — 趁还没被注册赶快拿下。',
+    hi: '🌐 आप पहले एक डोमेन देख रहे थे — किसी और के लेने से पहले इसे पा लें।',
   },
   hosting: {
-    en: '🛡️ Still thinking about hosting? Our bulletproof hosting keeps your sites running no matter what.\n\n💡 Check your daily coupon for a discount — /menu → 🎟️ Daily Coupon',
-    fr: '🛡️ Vous hésitez encore pour l\'hébergement ? Notre hébergement anti-blocage garde vos sites en ligne.\n\n💡 Vérifiez votre coupon quotidien pour une réduction — /menu → 🎟️ Coupon !',
-    zh: '🛡️ 还在考虑主机？我们的防封主机让您的网站始终在线。\n\n💡 查看您的每日优惠券获得折扣 — /menu → 🎟️ 每日优惠券',
-    hi: '🛡️ अभी भी होस्टिंग के बारे में सोच रहे हैं? हमारी बुलेटप्रूफ होस्टिंग आपकी साइट्स को हर हाल में चालू रखती है।\n\n💡 छूट के लिए दैनिक कूपन देखें — /menu → 🎟️ दैनिक कूपन',
+    en: '🛡️ Still thinking about hosting? Our bulletproof hosting keeps your sites online no matter what.',
+    fr: '🛡️ Vous hésitez pour l\'hébergement ? Notre hébergement anti-blocage garde vos sites en ligne.',
+    zh: '🛡️ 还在考虑主机？我们的防封主机让您的网站始终在线。',
+    hi: '🛡️ अभी भी होस्टिंग सोच रहे हैं? हमारी बुलेटप्रूफ होस्टिंग आपकी साइट्स को हर हाल में चालू रखती है।',
   },
   cloudphone: {
-    en: '📞 Your Cloud IVR plan is still waiting! Make unlimited calls with custom voice menus.\n\n💡 Grab your daily coupon for savings — /menu → 🎟️ Daily Coupon',
-    fr: '📞 Votre plan Cloud IVR attend toujours ! Passez des appels illimités avec des menus vocaux personnalisés.\n\n💡 Profitez de votre coupon quotidien — /menu → 🎟️ Coupon !',
-    zh: '📞 您的云IVR方案还在等您！自定义语音菜单，无限通话。\n\n💡 领取每日优惠券节省费用 — /menu → 🎟️ 每日优惠券',
-    hi: '📞 आपका Cloud IVR प्लान अभी भी इंतज़ार कर रहा है! कस्टम वॉइस मेनू के साथ अनलिमिटेड कॉल करें।\n\n💡 बचत के लिए दैनिक कूपन लें — /menu → 🎟️ दैनिक कूपन',
+    en: '📞 Your Cloud IVR + SIP number is still waiting — real calls, SMS & voice menus.',
+    fr: '📞 Votre numéro Cloud IVR + SIP vous attend — appels réels, SMS et menus vocaux.',
+    zh: '📞 您的云IVR + SIP号码还在等您 — 真实通话、短信和语音菜单。',
+    hi: '📞 आपका Cloud IVR + SIP नंबर अभी भी इंतज़ार कर रहा है — असली कॉल, SMS और वॉइस मेनू।',
   },
   virtualcard: {
-    en: '💳 Need that virtual card? Perfect for online payments with full privacy.\n\n💡 Daily coupon available — /menu → 🎟️ Daily Coupon',
-    fr: '💳 Besoin de cette carte virtuelle ? Parfaite pour les paiements en ligne en toute confidentialité.\n\n💡 Coupon quotidien disponible — /menu → 🎟️ Coupon !',
-    zh: '💳 需要虚拟卡？完全隐私的在线支付利器。\n\n💡 每日优惠券可用 — /menu → 🎟️ 每日优惠券',
-    hi: '💳 वर्चुअल कार्ड चाहिए? पूरी प्राइवेसी के साथ ऑनलाइन भुगतान के लिए एकदम सही।\n\n💡 दैनिक कूपन उपलब्ध — /menu → 🎟️ दैनिक कूपन',
+    en: '💳 Need that virtual card? Perfect for online payments with full privacy.',
+    fr: '💳 Besoin de cette carte virtuelle ? Parfaite pour les paiements en ligne en toute confidentialité.',
+    zh: '💳 需要虚拟卡？完全隐私的在线支付利器。',
+    hi: '💳 वर्चुअल कार्ड चाहिए? पूरी प्राइवेसी के साथ ऑनलाइन भुगतान के लिए एकदम सही।',
   },
   wallet: {
-    en: '👛 Your wallet deposit didn\'t go through. Top up now and unlock all services instantly.\n\n💡 Check your daily coupon — /menu → 🎟️ Daily Coupon',
-    fr: '👛 Votre dépôt n\'a pas abouti. Rechargez maintenant et débloquez tous les services.\n\n💡 Vérifiez votre coupon quotidien — /menu → 🎟️ Coupon !',
-    zh: '👛 您的钱包充值未完成。立即充值，解锁所有服务。\n\n💡 查看每日优惠券 — /menu → 🎟️ 每日优惠券',
-    hi: '👛 आपकी वॉलेट जमा राशि पूरी नहीं हुई। अभी टॉप अप करें और सभी सेवाएं तुरंत अनलॉक करें।\n\n💡 दैनिक कूपन देखें — /menu → 🎟️ दैनिक कूपन',
+    en: '👛 Your wallet top-up didn\'t finish. Add funds now and unlock all services instantly.',
+    fr: '👛 Votre recharge n\'a pas abouti. Ajoutez des fonds et débloquez tous les services.',
+    zh: '👛 您的钱包充值未完成。立即充值，解锁所有服务。',
+    hi: '👛 आपकी वॉलेट टॉप-अप पूरी नहीं हुई। अभी फंड जोड़ें और सभी सेवाएं तुरंत अनलॉक करें।',
   },
   digitalproduct: {
-    en: '🛒 Still interested in that digital product? Verified sellers, instant delivery.\n\n💡 Your daily coupon is waiting — /menu → 🎟️ Daily Coupon',
-    fr: '🛒 Toujours intéressé par ce produit numérique ? Vendeurs vérifiés, livraison instantanée.\n\n💡 Votre coupon quotidien vous attend — /menu → 🎟️ Coupon !',
-    zh: '🛒 还对那个数字产品感兴趣吗？认证卖家，即时交付。\n\n💡 您的每日优惠券在等你 — /menu → 🎟️ 每日优惠券',
-    hi: '🛒 उस डिजिटल प्रोडक्ट में अभी भी रुचि है? सत्यापित विक्रेता, तुरंत डिलीवरी।\n\n💡 आपका दैनिक कूपन इंतज़ार कर रहा है — /menu → 🎟️ दैनिक कूपन',
+    en: '🛒 Still interested in that digital product? Verified sellers, instant delivery.',
+    fr: '🛒 Toujours intéressé par ce produit numérique ? Vendeurs vérifiés, livraison instantanée.',
+    zh: '🛒 还对那个数字产品感兴趣吗？认证卖家，即时交付。',
+    hi: '🛒 उस डिजिटल प्रोडक्ट में अभी भी रुचि है? सत्यापित विक्रेता, तुरंत डिलीवरी।',
   },
   bundle: {
-    en: '🎁 You were looking at a service bundle — combine services and save big!\n\n💡 Daily coupon available — /menu → 🎟️ Daily Coupon',
-    fr: '🎁 Vous regardiez un pack de services — combinez les services et économisez !\n\n💡 Coupon quotidien disponible — /menu → 🎟️ Coupon !',
-    zh: '🎁 您之前在看服务套餐 — 组合服务，大幅节省！\n\n💡 每日优惠券可用 — /menu → 🎟️ 每日优惠券',
-    hi: '🎁 आप सर्विस बंडल देख रहे थे — सेवाएं मिलाकर बड़ी बचत करें!\n\n💡 दैनिक कूपन उपलब्ध — /menu → 🎟️ दैनिक कूपन',
+    en: '🎁 You were looking at a service bundle — combine services and save big!',
+    fr: '🎁 Vous regardiez un pack de services — combinez les services et économisez !',
+    zh: '🎁 您之前在看服务套餐 — 组合服务，大幅节省！',
+    hi: '🎁 आप सर्विस बंडल देख रहे थे — सेवाएं मिलाकर बड़ी बचत करें!',
   },
   general: {
-    en: '👋 Looks like you were about to make a purchase! Come back and finish your order.\n\n💡 Your daily coupon is waiting — /menu → 🎟️ Daily Coupon',
-    fr: '👋 On dirait que vous alliez faire un achat ! Revenez terminer votre commande.\n\n💡 Votre coupon quotidien vous attend — /menu → 🎟️ Coupon !',
-    zh: '👋 看起来你快要下单了！回来完成你的订单吧。\n\n💡 你的每日优惠券正在等你 — /menu → 🎟️ 每日优惠券',
-    hi: '👋 लगता है आप खरीदारी करने वाले थे! वापस आकर अपना ऑर्डर पूरा करें।\n\n💡 आपका दैनिक कूपन इंतज़ार कर रहा है — /menu → 🎟️ दैनिक कूपन',
+    en: '👋 Looks like you were about to make a purchase — come back and finish your order.',
+    fr: '👋 On dirait que vous alliez faire un achat — revenez terminer votre commande.',
+    zh: '👋 看起来你快要下单了 — 回来完成你的订单吧。',
+    hi: '👋 लगता है आप खरीदारी करने वाले थे — वापस आकर अपना ऑर्डर पूरा करें।',
   }
+}
+
+// Live coupon line (shown only when the user actually has an active coupon).
+const NUDGE_COUPON_LINE = {
+  en: (code, pct) => `\n\n🎟️ <b>${pct}% OFF</b> waiting — coupon <code>${code}</code>. Enter it at checkout.`,
+  fr: (code, pct) => `\n\n🎟️ <b>${pct}% DE RÉDUCTION</b> — coupon <code>${code}</code>. Saisissez-le au paiement.`,
+  zh: (code, pct) => `\n\n🎟️ <b>${pct}% 折扣</b> 等您 — 优惠码 <code>${code}</code>。结账时输入。`,
+  hi: (code, pct) => `\n\n🎟️ <b>${pct}% छूट</b> इंतज़ार कर रही है — कूपन <code>${code}</code>। चेकआउट पर दर्ज करें।`,
+}
+
+// Working call-to-action (a real /start deep-link back to the abandoned hub).
+const NUDGE_CTA = {
+  en: (link) => `\n\n👉 <a href="${link}">Tap here to finish your order</a>`,
+  fr: (link) => `\n\n👉 <a href="${link}">Appuyez ici pour terminer votre commande</a>`,
+  zh: (link) => `\n\n👉 <a href="${link}">点击这里完成订单</a>`,
+  hi: (link) => `\n\n👉 <a href="${link}">अपना ऑर्डर पूरा करने के लिए यहां टैप करें</a>`,
+}
+
+// Map an abandoned-cart category → the /start deep-link payload that reopens it.
+const CATEGORY_DEEPLINK = {
+  domain: 'open_domains',
+  hosting: 'open_hosting',
+  cloudphone: 'open_cloudphone',
+  virtualcard: 'open_vcard',
+  digitalproduct: 'open_digital',
+  bundle: 'open_bundle',
+  wallet: 'open_wallet',
+  general: '',
 }
 
 // ── Silent Abandonment Detection ─────────────────────────────────────
@@ -403,8 +435,33 @@ function initCartAbandonment(bot, db, stateCol, onPaymentCompleted) {
         return
       }
 
-      const messages = NUDGE_MESSAGES[category] || NUDGE_MESSAGES.general
-      const message = messages[lang] || messages.en || NUDGE_MESSAGES.general.en
+      const hooks = NUDGE_MESSAGES[category] || NUDGE_MESSAGES.general
+      const hook = hooks[lang] || hooks.en || NUDGE_MESSAGES.general.en
+
+      // ── Live coupon: prefer the user's unused welcome-offer coupon, else today's daily coupon ──
+      let couponLine = ''
+      try {
+        const cid = String(chatId)
+        const now = new Date()
+        const wc = await db.collection('welcomeCoupons').findOne({ chatId: cid, used: false, expiresAt: { $gt: now } })
+        if (wc?.code) {
+          couponLine = (NUDGE_COUPON_LINE[lang] || NUDGE_COUPON_LINE.en)(wc.code, wc.discount || 25)
+        } else {
+          const today = now.toISOString().slice(0, 10)
+          const dc = await db.collection('dailyCoupons').findOne({ date: today })
+          const code = dc?.codes ? Object.keys(dc.codes)[0] : null
+          const pct = code ? dc.codes[code]?.discount : null
+          if (code && pct) couponLine = (NUDGE_COUPON_LINE[lang] || NUDGE_COUPON_LINE.en)(code, pct)
+        }
+      } catch (_) { /* coupon lookup is best-effort */ }
+
+      // ── Working /start deep-link back to the abandoned hub (replaces the dead "/menu") ──
+      const botUser = process.env.BOT_USERNAME || 'Nomadlybot'
+      const payload = CATEGORY_DEEPLINK[category] || ''
+      const link = payload ? `https://t.me/${botUser}?start=${payload}` : `https://t.me/${botUser}?start`
+      const cta = (NUDGE_CTA[lang] || NUDGE_CTA.en)(link)
+
+      const message = `${hook}${couponLine}${cta}`
 
       await bot.sendMessage(chatId, message, { parse_mode: 'HTML', disable_web_page_preview: true })
       await abandonedCarts.updateOne({ _id: cartId }, { $set: { status: 'nudged', nudgedAt: new Date() } })

@@ -395,7 +395,7 @@ Inclus :
 
  chooseDomainToBuy: text =>
  `<b>Réclamez votre coin du web !</b> Veuillez partager le nom de domaine que vous souhaitez acheter, par exemple "abcpay.com". ${text}`,
- askDomainToUseWithShortener: `Utiliser ce domaine comme <b>raccourcisseur d'URL</b> ?\n\n<b>Oui</b> — DNS auto-configuré. Liens courts : <code>votredomaine.com/abc</code>.\n\n<b>Non</b> — Enregistrement seul. Activable plus tard depuis Gestion DNS.`,
+ askDomainToUseWithShortener: `👉 <b>Confirmez votre domaine ci-dessus.</b> Tapez <b>Non</b> pour l'enregistrer maintenant, ou <b>Oui</b> pour activer aussi le raccourcisseur d'URL.\n\n<b>Non</b> — Enregistrement seul <i>(recommandé)</i>. Activable plus tard depuis 🔧 Gestion DNS.\n<b>Oui</b> — Configure aussi le DNS : liens courts <code>votredomaine.com/abc</code>.`,
  blockUser: `Veuillez partager le nom d'utilisateur de l'utilisateur à bloquer.`,
  unblockUser: `Veuillez partager le nom d'utilisateur de l'utilisateur à débloquer.`,
  blockedUser: `Vous êtes actuellement bloqué d'utiliser le bot. Veuillez appuyer sur 💬 Obtenir de l'aide. Découvrez plus ${TG_HANDLE}.`,
@@ -835,7 +835,7 @@ ${CHAT_BOT_NAME}`,
  walletBalanceLow: `Votre solde est insuffisant. Appuyez sur "👛 Mon portefeuille" → "➕💵 Déposer" pour recharger.`,
 
  sentLessMoney: (expected, got) =>
- `Vous avez envoyé moins d'argent que prévu, donc nous avons crédité le montant reçu dans votre portefeuille. Nous attendions ${expected} mais nous avons reçu ${got}`,
+ `⚠️ <b>Paiement insuffisant</b>\n\nAttendu : <b>${expected}</b>\nReçu : <b>${got}</b>\n\n✅ <b>${got} a été crédité sur votre portefeuille</b> — rien n'est perdu.\n\n💳 Pour finaliser, rouvrez le service et choisissez <b>👛 Portefeuille</b> au paiement (rechargez la petite différence si besoin). Tapez /start pour continuer.`,
 
  sentMoreMoney: (expected, got) =>
  `Vous avez envoyé plus d'argent que prévu, donc nous avons crédité le montant supplémentaire dans votre portefeuille. Nous attendions ${expected} mais nous avons reçu ${got}`,
@@ -2408,9 +2408,9 @@ const adminKeyboard = {
 const userKeyboard = {
  reply_markup: {
  keyboard: [
- [user.cloudPhone, user.referEarn],
- [user.marketplace, user.digitalProducts],
- [user.domainNames, user.hostingDomainsRedirect],
+ [user.cloudPhone, user.hostingDomainsRedirect],
+ [user.domainNames, user.digitalProducts],
+ [user.marketplace, user.referEarn],
  ...(VPS_ENABLED === 'true'
  ? (HIDE_SMS_APP !== 'true' ? [[user.vpsPlans, user.smsAppMain]] : [[user.vpsPlans]])
  : (HIDE_SMS_APP !== 'true' ? [[user.smsAppMain]] : [])),
@@ -2788,8 +2788,16 @@ ${plan.panel}`
  return `${commonSteps[step]}`
  },
 
- generateDomainFoundText: (websiteName, price) =>
- `Le domaine ${websiteName} est disponible ! Le coût est de $${price}.`,
+ generateDomainFoundText: (websiteName, price, hostingPrice, total, planName) => {
+   if (hostingPrice && total) {
+     return `✅ <b>${websiteName}</b> est disponible !\n\n` +
+       `🌐 Domaine : <b>$${price}</b>\n` +
+       `🛡️ Hébergement${planName ? ` (${planName})` : ''} : <b>$${hostingPrice}</b>\n` +
+       `━━━━━━━━━━━━\n` +
+       `💰 <b>Total aujourd'hui : $${total}</b>`
+   }
+   return `Le domaine ${websiteName} est disponible ! Le coût est de $${price}.`
+ },
  generateExistingDomainText: websiteName => `Vous avez sélectionné ${websiteName} comme votre domaine.`,
  connectExternalDomainText: websiteName => `Vous souhaitez connecter <b>${websiteName}</b> comme votre domaine.\n\nAprès l'achat, vous devrez pointer les serveurs de noms de votre domaine vers Cloudflare.`,
  domainNotFound: websiteName => `Le domaine ${websiteName} n'est pas disponible.`,

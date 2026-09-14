@@ -28,6 +28,11 @@ const PHONE_PRO_PRICE = Number(process.env.PHONE_PRO_PRICE || 75)
 const PHONE_BUSINESS_PRICE = Number(process.env.PHONE_BUSINESS_PRICE || 120)
 const PREMIUM_ANTIRED_WEEKLY = Number(process.env.PREMIUM_ANTIRED_WEEKLY_PRICE || 30)
 const PREMIUM_ANTIRED_CPANEL = Number(process.env.PREMIUM_ANTIRED_CPANEL_PRICE || 75)
+// ── Single source of truth for per-minute overage / forwarding rates ──
+// Read from the SAME env vars phone-config.js uses so the upsell copy can never
+// quote a different rate than the billing engine (audit P0: $0.04 vs $0.15 mismatch).
+const OVERAGE_RATE_MIN = parseFloat(process.env.OVERAGE_RATE_MIN || '0.15')
+const CALL_FORWARDING_RATE_MIN = parseFloat(process.env.CALL_FORWARDING_RATE_MIN || '0.50')
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // FEATURE 1: Smart Upsell Triggers
@@ -69,7 +74,7 @@ const UPSELL_MESSAGES = {
     minuteLimitHit: () =>
       `📞 <b>Call minutes exhausted!</b>\n\n` +
       `Your calls are working — let's keep them going:\n` +
-      `├ 💰 Add wallet funds for <b>overage minutes</b> ($0.04/min)\n` +
+      `├ 💰 Add wallet funds for <b>overage minutes</b> ($${OVERAGE_RATE_MIN}/min)\n` +
       `└ ⬆️ Upgrade for more included minutes\n\n` +
       `📦 <b>Plans:</b>\n` +
       `├ Starter (${process.env.STARTER_MINUTES || 100} min) — $${PHONE_STARTER_PRICE}\n` +
@@ -109,7 +114,7 @@ const UPSELL_MESSAGES = {
     lastLinkWarning: (remaining) =>
       `⚠️ <b>Plus que ${remaining} lien${remaining !== 1 ? 's' : ''} gratuit${remaining !== 1 ? 's' : ''} !</b>\n\nAbonnez-vous pour des liens illimités. À partir de <b>$${PRICE_DAILY}/jour</b>.`,
     smsLimitHit: () => `📱 <b>Limite SMS atteinte !</b>\n\nAjoutez des fonds pour continuer ($0.02/SMS) ou passez au forfait supérieur.`,
-    minuteLimitHit: () => `📞 <b>Minutes épuisées !</b>\n\nAjoutez des fonds pour continuer ($0.04/min) ou passez au forfait supérieur.`,
+    minuteLimitHit: () => `📞 <b>Minutes épuisées !</b>\n\nAjoutez des fonds pour continuer ($${OVERAGE_RATE_MIN}/min) ou passez au forfait supérieur.`,
     domainLimitHit: (planType) => `🌐 <b>Limite de domaines gratuits atteinte !</b>\n\nVotre forfait ${planType} a atteint sa limite. Achetez des domaines individuels ou passez au forfait supérieur.`,
     noPhonePlanYet: () => `📞 <b>Essayez Cloud Phone !</b>\n\nNuméros virtuels dans 30+ pays. À partir de <b>$${PHONE_STARTER_PRICE}/mois</b>.`,
   },
@@ -117,7 +122,7 @@ const UPSELL_MESSAGES = {
     linksExhausted: () => `🔥 <b>免费链接已用完！</b>\n\n升级即可获得无限链接+免费域名+点击分析。\n\n💰 方案从 <b>$${PRICE_DAILY}/天</b> 起`,
     lastLinkWarning: (remaining) => `⚠️ <b>仅剩 ${remaining} 个免费链接！</b>\n\n订阅后永不断链。方案从 <b>$${PRICE_DAILY}/天</b> 起。`,
     smsLimitHit: () => `📱 <b>短信额度已用完！</b>\n\n充值钱包继续发送（$0.02/条）或升级套餐。`,
-    minuteLimitHit: () => `📞 <b>通话分钟已用完！</b>\n\n充值钱包继续通话（$0.04/分钟）或升级套餐。`,
+    minuteLimitHit: () => `📞 <b>通话分钟已用完！</b>\n\n充值钱包继续通话（$${OVERAGE_RATE_MIN}/分钟）或升级套餐。`,
     domainLimitHit: (planType) => `🌐 <b>免费域名额度已达上限！</b>\n\n升级套餐获取更多免费域名。`,
     noPhonePlanYet: () => `📞 <b>试试云电话！</b>\n\n30+国家虚拟号码。方案从 <b>$${PHONE_STARTER_PRICE}/月</b> 起。`,
   },
@@ -125,7 +130,7 @@ const UPSELL_MESSAGES = {
     linksExhausted: () => `🔥 <b>आपके मुफ्त लिंक समाप्त हो गए!</b>\n\nअपग्रेड करें — असीमित लिंक + मुफ्त डोमेन + एनालिटिक्स।\n\n💰 प्लान <b>$${PRICE_DAILY}/दिन</b> से शुरू`,
     lastLinkWarning: (remaining) => `⚠️ <b>केवल ${remaining} मुफ्त लिंक बचे!</b>\n\nसब्सक्राइब करें — कभी लिंक खत्म नहीं होंगे। <b>$${PRICE_DAILY}/दिन</b> से।`,
     smsLimitHit: () => `📱 <b>SMS सीमा पूरी हो गई!</b>\n\nवॉलेट में पैसे डालें ($0.02/SMS) या प्लान अपग्रेड करें।`,
-    minuteLimitHit: () => `📞 <b>कॉल मिनट समाप्त!</b>\n\nवॉलेट में पैसे डालें ($0.04/मिनट) या प्लान अपग्रेड करें।`,
+    minuteLimitHit: () => `📞 <b>कॉल मिनट समाप्त!</b>\n\nवॉलेट में पैसे डालें ($${OVERAGE_RATE_MIN}/मिनट) या प्लान अपग्रेड करें।`,
     domainLimitHit: (planType) => `🌐 <b>मुफ्त डोमेन सीमा पूरी!</b>\n\nअधिक मुफ्त डोमेन के लिए प्लान अपग्रेड करें।`,
     noPhonePlanYet: () => `📞 <b>Cloud Phone आज़माएं!</b>\n\n30+ देशों में वर्चुअल नंबर। <b>$${PHONE_STARTER_PRICE}/माह</b> से।`,
   },

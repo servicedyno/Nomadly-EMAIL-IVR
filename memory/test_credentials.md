@@ -26,8 +26,8 @@
   will fire again.
 
 ## Frontend env (recreated during setup)
-- `/app/frontend/.env` was missing and was recreated with:
-  `REACT_APP_BACKEND_URL=https://66efaf81-991e-4067-b0b1-8d539c000969.preview.emergentagent.com`
+- `/app/frontend/.env` present with:
+  `REACT_APP_BACKEND_URL=https://quick-setup-113.preview.emergentagent.com` (current pod; earlier forks had a different preview host — always trust the live value in frontend/.env, not older docs)
 
 ## Admin panel
 - Frontend admin dashboard is open (no login) at the pod root URL.

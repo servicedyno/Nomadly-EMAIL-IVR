@@ -391,7 +391,7 @@ ${CHAT_BOT_NAME}`,
 
  chooseDomainToBuy: text =>
  `<b>वेबसाइट का हिस्सा बनाएं!</b> कृपया वह डोमेन नाम साझा करें जिसे आप खरीदना चाहते हैं, जैसे कि "abcpay.com". ${text}`,
- askDomainToUseWithShortener: `इस डोमेन को <b>कस्टम URL शॉर्टनर</b> बनाएं?\n\n<b>हाँ</b> — DNS ऑटो-कॉन्फ़िगर। शॉर्ट लिंक: <code>yourdomain.com/abc</code>.\n\n<b>नहीं</b> — केवल रजिस्टर। बाद में DNS प्रबंधन से सक्रिय करें।`,
+ askDomainToUseWithShortener: `👉 <b>ऊपर अपना डोमेन कन्फ़र्म करें।</b> अभी रजिस्टर करने के लिए <b>नहीं</b> दबाएं, या URL शॉर्टनर भी चालू करने के लिए <b>हाँ</b> दबाएं।\n\n<b>नहीं</b> — केवल रजिस्टर करें <i>(अनुशंसित)</i>। बाद में 🔧 DNS प्रबंधन से शॉर्टनर सक्रिय करें।\n<b>हाँ</b> — DNS भी ऑटो-कॉन्फ़िगर: शॉर्ट लिंक <code>yourdomain.com/abc</code>.`,
  blockUser: `कृपया उस उपयोगकर्ता का उपयोगकर्ता नाम साझा करें जिसे ब्लॉक करना है।`,
  unblockUser: `कृपया उस उपयोगकर्ता का उपयोगकर्ता नाम साझा करें जिसे अनब्लॉक करना है।`,
  blockedUser: `आप फिलहाल बॉट के उपयोग से अवरुद्ध हैं। कृपया 💬 सहायता प्राप्त करें बटन दबाएं. ${TG_HANDLE} पर अधिक जानें।`,
@@ -825,7 +825,7 @@ ${CHAT_BOT_NAME}`,
  walletBalanceLow: `आपका वॉलेट बैलेंस कम है। "👛 मेरा वॉलेट" → "➕💵 जमा" पर टैप करके रिचार्ज करें।`,
 
  sentLessMoney: (expected, got) =>
- `आपने अपेक्षित राशि से कम पैसा भेजा, इसलिए हम प्राप्त राशि को आपके वॉलेट में क्रेडिट कर चुके हैं। हमसे ${expected} की उम्मीद थी लेकिन हमने ${got} प्राप्त की।`,
+ `⚠️ <b>कम भुगतान</b>\n\nअपेक्षित: <b>${expected}</b>\nप्राप्त: <b>${got}</b>\n\n✅ <b>${got} आपके वॉलेट में जोड़ दिया गया</b> — कुछ भी नहीं खोया।\n\n💳 ऑर्डर पूरा करने के लिए, सेवा फिर से खोलें और चेकआउट पर <b>👛 वॉलेट</b> चुनें (ज़रूरत हो तो छोटा अंतर टॉप-अप करें)। जारी रखने के लिए /start टैप करें।`,
 
  sentMoreMoney: (expected, got) =>
  `आपने अपेक्षित राशि से अधिक पैसा भेजा, इसलिए हमने अतिरिक्त राशि को आपके वॉलेट में क्रेडिट कर दिया। हमसे ${expected} की उम्मीद थी लेकिन हमने ${got} प्राप्त की।`,
@@ -2400,9 +2400,9 @@ const adminKeyboard = {
 const userKeyboard = {
  reply_markup: {
  keyboard: [
- [user.cloudPhone, user.referEarn],
- [user.marketplace, user.digitalProducts],
- [user.domainNames, user.hostingDomainsRedirect],
+ [user.cloudPhone, user.hostingDomainsRedirect],
+ [user.domainNames, user.digitalProducts],
+ [user.marketplace, user.referEarn],
  ...(VPS_ENABLED === 'true'
  ? (HIDE_SMS_APP !== 'true' ? [[user.vpsPlans, user.smsAppMain]] : [[user.vpsPlans]])
  : (HIDE_SMS_APP !== 'true' ? [[user.smsAppMain]] : [])),
@@ -2781,7 +2781,16 @@ ${plan.panel}`
  return `${commonSteps[step]}`
  },
 
- generateDomainFoundText: (websiteName, price) => `डोमेन ${websiteName} उपलब्ध है! इसकी लागत $${price} है।`,
+ generateDomainFoundText: (websiteName, price, hostingPrice, total, planName) => {
+   if (hostingPrice && total) {
+     return `✅ <b>${websiteName}</b> उपलब्ध है!\n\n` +
+       `🌐 डोमेन: <b>$${price}</b>\n` +
+       `🛡️ होस्टिंग${planName ? ` (${planName})` : ''}: <b>$${hostingPrice}</b>\n` +
+       `━━━━━━━━━━━━\n` +
+       `💰 <b>आज कुल: $${total}</b>`
+   }
+   return `डोमेन ${websiteName} उपलब्ध है! इसकी लागत $${price} है।`
+ },
  generateExistingDomainText: websiteName => `आपने ${websiteName} को अपने डोमेन के रूप में चुना है।`,
  connectExternalDomainText: websiteName => `आप <b>${websiteName}</b> को अपने डोमेन के रूप में जोड़ना चाहते हैं।\n\nखरीदारी के बाद, आपको अपने डोमेन के नेमसर्वर Cloudflare की ओर इंगित करने होंगे।`,
  domainNotFound: websiteName => `डोमेन ${websiteName} उपलब्ध नहीं है।`,

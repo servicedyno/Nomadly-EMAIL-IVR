@@ -1296,6 +1296,16 @@ const nanoid = customAlphabet('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVW
 const PREMIUM_ANTIRED_WEEKLY_PRICE = parseFloat(process.env.PREMIUM_ANTIRED_WEEKLY_PRICE)
 const GOLDEN_ANTIRED_CPANEL_PRICE = parseFloat(process.env.GOLDEN_ANTIRED_CPANEL_PRICE)
 const PREMIUM_ANTIRED_CPANEL_PRICE = parseFloat(process.env.PREMIUM_ANTIRED_CPANEL_PRICE)
+// audit fix #7: "trial sells" — CTA shown after a free /testsip code / Quick IVR
+// trial. Pre-selects the Pro plan and jumps straight to number selection, and
+// surfaces the user's live welcome coupon so it can be applied at checkout.
+const TRIAL_PRO_CTA = {
+  en: '⭐ Get My Own Number (Pro)',
+  fr: '⭐ Obtenir mon numéro (Pro)',
+  zh: '⭐ 获取我的专属号码（Pro）',
+  hi: '⭐ मेरा अपना नंबर पाएं (Pro)',
+}
+const TRIAL_PRO_CTA_ALL = Object.values(TRIAL_PRO_CTA)
 const VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE = parseFloat(process.env.VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE)
 const HOSTING_TRIAL_PLAN_ON = process.env.HOSTING_TRIAL_PLAN_ON
 const VPS_ENABLED = process.env.VPS_ENABLED || 'true' // default: enabled
@@ -11286,7 +11296,14 @@ Enter new value:`), bc)
     registerNewDomainFound: async (websiteName, price) => {
       await set(state, chatId, 'action', a.registerNewDomainFound)
       saveInfo('website_name', websiteName)
-      const domainFoundText = hP.generateDomainFoundText(websiteName, price);
+      // audit fix #8: show plan + domain = total so the user sees the real amount
+      // due today, not just the bare domain price (Lalapmo abandoned at a lone "$65").
+      let _hostingPrice = parseFloat(PREMIUM_ANTIRED_WEEKLY_PRICE)
+      if (info.plan === 'Golden Anti-Red HostPanel (1-Month)') _hostingPrice = parseFloat(GOLDEN_ANTIRED_CPANEL_PRICE)
+      else if (info.plan === 'Premium Anti-Red HostPanel (1-Month)') _hostingPrice = parseFloat(PREMIUM_ANTIRED_CPANEL_PRICE)
+      const _domainPrice = (info.existingDomain || info.connectExternalDomain) ? 0 : Number(price || 0)
+      const _total = Number.isFinite(_hostingPrice) ? _domainPrice + _hostingPrice : null
+      const domainFoundText = hP.generateDomainFoundText(websiteName, price, _hostingPrice, _total, info.plan);
       send(chatId, domainFoundText, k.of([[user.continueWithDomain(websiteName)], [user.searchAnotherDomain]]))
     },
 
@@ -12148,6 +12165,15 @@ Enter new value:`), bc)
     } catch (e) { /* non-critical */ }
   }
 
+  // Fire cart-recovery + conversion "purchased" hooks ONLY after a wallet charge
+  // has actually succeeded (called inside each walletOk handler, post-atomicIncrement).
+  // Previously these ran in the dispatch BEFORE the handler's balance check, so
+  // insufficient-balance users were wrongly marked as buyers and dropped from every
+  // recovery sequence (welcome offer / browse follow-up / cart nudge).
+  const _finalizeWalletPurchase = () => {
+    try { if (cartRecovery) cartRecovery.recordPaymentCompleted(chatId) } catch (_) {}
+    try { if (userConversion) userConversion.markPurchased(chatId) } catch (_) {}
+  }
   const walletOk = {
     'plan-pay': async coin => {
       await set(state, chatId, 'action', 'none')
@@ -12165,9 +12191,10 @@ Enter new value:`), bc)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
       const priceUsd = price
-      if (usdBal < priceUsd) return send(chatId, t.walletBalanceLowAmount(priceUsd, usdBal), k.of([u.deposit]))
+      if (usdBal < priceUsd) { const _w = getInsufficientBalanceMessage(usdBal, priceUsd, 'USD', info?.userLanguage || 'en'); return send(chatId, _w.message, k.of(_w.keyboard)) }
       set(payments, nanoid(), `Wallet,Plan,${plan},$${priceUsd},${chatId},${name},${new Date()}`)
       await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
+      _finalizeWalletPurchase()
       checkAndNotifyTierUpgrade(preSpend)
 
       const { usdBal: usd } = await getBalance(walletOf, chatId)
@@ -12191,7 +12218,7 @@ Enter new value:`), bc)
       const { usdBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
-      if (usdBal < shownPrice) return send(chatId, t.walletBalanceLowAmount(shownPrice, usdBal), k.of([u.deposit]))
+      if (usdBal < shownPrice) { const _w = getInsufficientBalanceMessage(usdBal, shownPrice, 'USD', info?.userLanguage || 'en'); return send(chatId, _w.message, k.of(_w.keyboard)) }
 
       const lang = info?.userLanguage ?? 'en'
 
@@ -12212,6 +12239,7 @@ Enter new value:`), bc)
 
         set(payments, nanoid(), `Wallet,Domain,${domain},$${chargeUsd},${chatId},${name},${new Date()}`)
         await atomicIncrement(walletOf, chatId, 'usdOut', chargeUsd)
+        _finalizeWalletPurchase()
         if (savings > 0) {
           send(chatId, trans('t.dom_3', savings, domain, chargeUsd, shownPrice, chargeUsd), { parse_mode: 'HTML' })
         }
@@ -12252,7 +12280,7 @@ Enter new value:`), bc)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
       const priceUsd = price
-      if (usdBal < priceUsd) return send(chatId, t.walletBalanceLowAmount(priceUsd, usdBal), k.of([u.deposit]))
+      if (usdBal < priceUsd) { const _w = getInsufficientBalanceMessage(usdBal, priceUsd, 'USD', info?.userLanguage || 'en'); return send(chatId, _w.message, k.of(_w.keyboard)) }
 
       const txDomain = info?.website_name || info?.domain
       const txPlan = info?.plan || null
@@ -12323,6 +12351,7 @@ Enter new value:`), bc)
 
       set(payments, nanoid(), `Wallet,Hosting,${info.domain},$${priceUsd},${chatId},${new Date()}`)
       await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
+      _finalizeWalletPurchase()
       const { usdBal: usd } = await getBalance(walletOf, chatId)
       sendAndReact(chatId, purchaseDoneLine(info?.userLanguage || 'en', usd), '🎉', trans('o'))
       checkAndNotifyTierUpgrade(preSpend)
@@ -12354,7 +12383,7 @@ Enter new value:`), bc)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
       const priceUsd = price
-      if (usdBal < priceUsd) return send(chatId, t.walletBalanceLowAmount(priceUsd, usdBal), k.of([u.deposit]))
+      if (usdBal < priceUsd) { const _w = getInsufficientBalanceMessage(usdBal, priceUsd, 'USD', info?.userLanguage || 'en'); return send(chatId, _w.message, k.of(_w.keyboard)) }
 
       const lang = info?.userLanguage ?? 'en'
       const name = await get(nameOf, chatId)
@@ -12395,7 +12424,7 @@ Enter new value:`), bc)
         if (!isSuccess) {
           throw new Error('VPS provisioning failed')
         }
-        
+        _finalizeWalletPurchase()
         checkAndNotifyTierUpgrade(preSpend)
         // Post-purchase upsell — the single "what's next" card (RDP-aware).
         // (No separate wallet-balance message here — the credentials message
@@ -12424,13 +12453,14 @@ Enter new value:`), bc)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
       const priceUsd = price
-      if (usdBal < priceUsd) return send(chatId, t.walletBalanceLowAmount(priceUsd, usdBal), k.of([u.deposit]))
+      if (usdBal < priceUsd) { const _w = getInsufficientBalanceMessage(usdBal, priceUsd, 'USD', info?.userLanguage || 'en'); return send(chatId, _w.message, k.of(_w.keyboard)) }
 
       const lang = info?.userLanguage ?? 'en'
       const name = await get(nameOf, chatId)
 
       set(payments, nanoid(), `Wallet,VPSUpgrade,${vpsDetails?.upgradeType},$${priceUsd},${chatId},${name},${new Date()}`)
       await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
+      _finalizeWalletPurchase()
       sendMessage(chatId, translation('vp.vpsChangePaymentRecieved', lang), rem)
 
       const isSuccess = await upgradeVPSDetails(chatId, lang, vpsDetails)
@@ -12453,13 +12483,14 @@ Enter new value:`), bc)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
       const priceUsd = price
-      if (usdBal < priceUsd) return send(chatId, t.walletBalanceLowAmount(priceUsd, usdBal), k.of([u.deposit]))
+      if (usdBal < priceUsd) { const _w = getInsufficientBalanceMessage(usdBal, priceUsd, 'USD', info?.userLanguage || 'en'); return send(chatId, _w.message, k.of(_w.keyboard)) }
 
       const name = await get(nameOf, chatId)
       const orderId = nanoid(8).toUpperCase()
 
       set(payments, nanoid(), `Wallet,DigitalProduct,${product},$${priceUsd},${chatId},${name},${new Date()}`)
       await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
+      _finalizeWalletPurchase()
 
       await digitalOrdersCol.insertOne({
         orderId,
@@ -12504,13 +12535,14 @@ Enter new value:`), bc)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
       const priceUsd = price
-      if (usdBal < priceUsd) return send(chatId, t.walletBalanceLowAmount(priceUsd, usdBal), k.of([u.deposit]))
+      if (usdBal < priceUsd) { const _w = getInsufficientBalanceMessage(usdBal, priceUsd, 'USD', info?.userLanguage || 'en'); return send(chatId, _w.message, k.of(_w.keyboard)) }
 
       const name = await get(nameOf, chatId)
       const orderId = nanoid(8).toUpperCase()
 
       set(payments, nanoid(), `Wallet,VirtualCard,$${vcAmount}+fee,$${priceUsd},${chatId},${name},${new Date()}`)
       await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
+      _finalizeWalletPurchase()
 
       await digitalOrdersCol.insertOne({
         orderId, chatId, username: username || '', name: name || '',
@@ -12557,6 +12589,7 @@ Enter new value:`), bc)
         return send(chatId, balMsg, k.of(balKeyboard))
       }
       set(payments, nanoid(), `Wallet,CloudPhone,$${priceUsd},${chatId},${name},${new Date()}`)
+      _finalizeWalletPurchase()
 
       // Buy number via Telnyx or Twilio depending on provider
       let selectedNumber = info?.cpSelectedNumber
@@ -13176,7 +13209,7 @@ All verified numbers generated during sourcing.`))
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
       const priceUsd = price
-      if (usdBal < priceUsd) return send(chatId, t.walletBalanceLowAmount(priceUsd, usdBal), k.of([u.deposit]))
+      if (usdBal < priceUsd) { const _w = getInsufficientBalanceMessage(usdBal, priceUsd, 'USD', info?.userLanguage || 'en'); return send(chatId, _w.message, k.of(_w.keyboard)) }
 
       let cc = countryCodeOf[info?.country]
       let country = info?.country
@@ -13276,7 +13309,7 @@ All verified numbers generated during sourcing.`))
 
       const priceUsd = price
       const name = await get(nameOf, chatId)
-      if (usdBal < priceUsd) return send(chatId, t.walletBalanceLowAmount(priceUsd, usdBal), k.of([u.deposit]))
+      if (usdBal < priceUsd) { const _w = getInsufficientBalanceMessage(usdBal, priceUsd, 'USD', info?.userLanguage || 'en'); return send(chatId, _w.message, k.of(_w.keyboard)) }
       let _shortUrl
       try {
         const { url } = info
@@ -13358,7 +13391,7 @@ All verified numbers generated during sourcing.`))
       const { usdBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
-      if (usdBal < price) return send(chatId, t.walletBalanceLowAmount(price, usdBal), k.of([u.deposit]))
+      if (usdBal < price) { const _w = getInsufficientBalanceMessage(usdBal, price, 'USD', info?.userLanguage || 'en'); return send(chatId, _w.message, k.of(_w.keyboard)) }
 
       const name = await get(nameOf, chatId)
 
@@ -13546,6 +13579,29 @@ All verified numbers generated during sourcing.`))
     }
   }
 
+  // ── Cart-recovery / welcome-offer hub deep links (2026-06) ──────────────
+  // Nudges + the welcome offer now link back with `?start=open_<hub>` so the
+  // user lands directly on the hub they abandoned/browsed (replaces the dead
+  // "/menu → 🎟️ Daily Coupon" instruction that never worked). Existing users
+  // are routed straight to the hub; brand-new users fall through to normal
+  // /start onboarding below.
+  if (typeof message === 'string' && message.startsWith('/start open_') && info?.userLanguage) {
+    const _hub = message.slice('/start open_'.length).trim()
+    bot?.sendChatAction?.(chatId, 'typing').catch(() => {})
+    log(`[DeepLink] ${chatId} opened hub deep link: open_${_hub}`)
+    const _hubGoto = {
+      domains: () => goto.submenu2 && goto.submenu2(),
+      hosting: () => goto.submenu3 && goto.submenu3(),
+      cloudphone: () => goto.submenu5 && goto.submenu5(),
+      digital: () => goto.submenu6 && goto.submenu6(),
+      vcard: () => goto['virtual-card-start'] && goto['virtual-card-start'](),
+      wallet: () => goto[user.wallet] && goto[user.wallet](),
+    }[_hub]
+    if (_hubGoto) return _hubGoto()
+    // Unknown payload → fall through to the normal /start below.
+  }
+
+
   // UX P2 fix (2026-06-21): "mute" / "stop promos" opt-out keyword.
   // Cart-recovery and new-user-conversion nudges now suggest replying with `mute`
   // to stop them.  Honour that with a one-liner write to the `promoOptOut`
@@ -13580,7 +13636,7 @@ All verified numbers generated during sourcing.`))
     }
   }
 
-  if (message === '/start' || message.startsWith('/start ref_') || message === '/start pinreset' || message === '/start resetpin') {
+  if (message === '/start' || message.startsWith('/start ref_') || message === '/start pinreset' || message === '/start resetpin' || message.startsWith('/start open_')) {
     // Bug 7: Immediate typing indicator — gives instant visual feedback so users
     // don't tap /start multiple times while waiting for the first reply.
     bot?.sendChatAction?.(chatId, 'typing').catch(() => {})
@@ -13803,7 +13859,7 @@ All verified numbers generated during sourcing.`))
       return send(chatId, msg, { parse_mode: 'HTML', reply_markup: { keyboard: [[user.cloudPhone], ['↩️ Back']], resize_keyboard: true } })
     }
     // Add CTA buttons after showing OTP so user knows what to do next
-    return send(chatId, pMsg.sipTestCode(result.otp, result.callsRemaining), { parse_mode: 'HTML', reply_markup: { keyboard: [[user.cloudPhone], ['↩️ Back']], resize_keyboard: true } })
+    return send(chatId, pMsg.sipTestCode(result.otp, result.callsRemaining), { parse_mode: 'HTML', reply_markup: { keyboard: [[TRIAL_PRO_CTA[info?.userLanguage || 'en'] || TRIAL_PRO_CTA.en], [user.cloudPhone], ['↩️ Back']], resize_keyboard: true } })
   }
 
   // /sipguide — show SIP / 3CX setup guide (accessible without owning a number)
@@ -23389,6 +23445,21 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   //
   // ── Skip global wallet redirect when inside a payment flow ──
   const _payActions = ['phone-pay', 'domain-pay', 'hosting-pay', 'vps-plan-pay', 'vps-upgrade-plan-pay', 'digital-product-pay', 'virtual-card-pay', 'leads-pay', 'ebPayment', 'bundleConfirm', 'cpChangePlan']
+  // ── Pre-filled balance-wall deposit buttons ("💵 Deposit $34") ──────────
+  // Shown by getInsufficientBalanceMessage when a wallet purchase hits a balance
+  // wall. Tapping pre-fills the deposit amount and jumps STRAIGHT to the coin
+  // picker (or method picker), skipping the wallet menu + amount-entry screen.
+  {
+    const _depWallMatch = String(message || '').match(/^💵 Deposit \$(\d+(?:\.\d+)?)$/)
+    if (_depWallMatch) {
+      const _amt = Math.max(10, Math.ceil(Number(_depWallMatch[1])))
+      await saveInfo('depositAmountUsd', _amt)
+      await saveInfo('amount', _amt)
+      if (process.env.HIDE_BANK_PAYMENT === 'true') return goto[a.selectCryptoToDeposit]()
+      return goto[a.depositMethodSelect]()
+    }
+  }
+
   if (message === user.wallet && !_payActions.includes(action)) {
     // Clear any stale support session — user is navigating the bot normally
     await set(supportSessions, chatId, 0)
@@ -23570,10 +23641,11 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
         await set(state, chatId, 'action', 'none')
         return send(chatId, ({ en: '⚠️ Your session expired. Please start your purchase again from the main menu.', fr: '⚠️ Votre session a expiré. Veuillez recommencer votre achat depuis le menu principal.', zh: '⚠️ 您的会话已过期。请从主菜单重新开始购买。', hi: '⚠️ आपका सत्र समाप्त हो गया। कृपया मुख्य मेनू से अपनी खरीदारी फिर से शुरू करें।' }[lang] || '⚠️ Your session expired. Please start your purchase again from the main menu.'), trans('o'))
       }
-      // Track payment completion for cart recovery
-      if (cartRecovery) cartRecovery.recordPaymentCompleted(chatId)
-      // Mark user as purchased (cancels welcome offer + browse follow-up timers)
-      if (userConversion) userConversion.markPurchased(chatId)
+      // FIX (2026-06): recordPaymentCompleted()/markPurchased() moved INTO each
+      // walletOk handler — fired only AFTER a successful charge (see
+      // _finalizeWalletPurchase). Running them here (before the handler's balance
+      // check) wrongly marked insufficient-balance users as buyers and cancelled
+      // their recovery nudges.
       return handler(info?.coin)
     } catch (error) {
       log(`[Wallet] walletOk error for lastStep=${info?.lastStep}: ${error?.message}`)
@@ -23605,6 +23677,49 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     }
     return goto.submenu3()
   }
+  // ── Trial → Pro CTA (audit fix #7) ──────────────────────────────────────
+  // Shown after a free /testsip code / Quick IVR trial. Pre-selects the Pro plan
+  // and jumps straight to number/country selection, and surfaces the user's live
+  // welcome coupon so it can be applied at the order summary.
+  if (TRIAL_PRO_CTA_ALL.includes(message)) {
+    if (process.env.PHONE_SERVICE_ON !== 'true' || !phoneConfig.isPlanAvailable('pro')) {
+      return goto.submenu5 ? goto.submenu5() : send(chatId, t.what, trans('o'))
+    }
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
+    // reset stale phone-purchase state (mirrors the submenu5 buy flow)
+    saveInfo('cpIsSubNumber', false)
+    saveInfo('cpSubParentNumber', null)
+    saveInfo('cpSubParentPlan', null)
+    saveInfo('cpSubParentPlanPrice', null)
+    saveInfo('cpSubParentExpiresAt', null)
+    saveInfo('cpSelectedNumber', null)
+    saveInfo('cpPrice', null)
+    saveInfo('cpCountryCode', null)
+    saveInfo('cpCountryName', null)
+    saveInfo('cpProvider', null)
+    await saveInfo('cpPlanKey', 'pro')
+    await saveInfo('cpPlanBasePrice', phoneConfig.plans.pro.price)
+    // Surface the live welcome coupon (auto-apply hint) if the user has one.
+    try {
+      const _wc = await db.collection('welcomeCoupons').findOne({ chatId: String(chatId), used: false, expiresAt: { $gt: new Date() } })
+      if (_wc?.code) {
+        const _cmsg = {
+          en: `🎟️ Your <b>${_wc.discount || 25}% OFF</b> coupon <code>${_wc.code}</code> is ready — tap 🎟️ Apply Coupon at the order summary.`,
+          fr: `🎟️ Votre coupon <b>${_wc.discount || 25}%</b> <code>${_wc.code}</code> est prêt — appuyez sur 🎟️ au récapitulatif.`,
+          zh: `🎟️ 您的 <b>${_wc.discount || 25}%</b> 优惠码 <code>${_wc.code}</code> 已就绪 — 在订单摘要点击 🎟️ 应用。`,
+          hi: `🎟️ आपका <b>${_wc.discount || 25}%</b> कूपन <code>${_wc.code}</code> तैयार है — ऑर्डर सारांश पर 🎟️ अप्लाई करें।`,
+        }
+        await send(chatId, _cmsg[info?.userLanguage || 'en'] || _cmsg.en, { parse_mode: 'HTML' })
+      }
+    } catch (_) { /* coupon hint is best-effort */ }
+    await set(state, chatId, 'action', a.cpSelectCountry)
+    const _countryBtns = phoneConfig.allCountries.map(c => c.name)
+    const _rows = []
+    for (let i = 0; i < _countryBtns.length; i += 2) _rows.push(_countryBtns.slice(i, i + 2))
+    if (phoneConfig.moreCountries.length > 0) _rows.push([pc.moreCountries])
+    return send(chatId, trans('t.cp_232', '⭐ Pro'), k.of(_rows))
+  }
+
   if (message === user.cloudPhone || message === phoneConfig.btn.cloudPhone || message === '📞☁️ Cloud IVR + SIP') {
     if (process.env.PHONE_SERVICE_ON !== 'true') {
       return send(chatId, trans('t.cp_4', process.env.SUPPORT_USERNAME || '@support'), trans('o'))
@@ -23645,7 +23760,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       }
       return send(chatId, msg, { parse_mode: 'HTML' })
     }
-    return send(chatId, pMsg.sipTestCode(result.otp, result.callsRemaining), { parse_mode: 'HTML' })
+    return send(chatId, pMsg.sipTestCode(result.otp, result.callsRemaining), { parse_mode: 'HTML', reply_markup: { keyboard: [[TRIAL_PRO_CTA[info?.userLanguage || 'en'] || TRIAL_PRO_CTA.en], [user.cloudPhone], ['↩️ Back']], resize_keyboard: true } })
   }
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -23947,7 +24062,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
         }
         return send(chatId, msg, { parse_mode: 'HTML' })
       }
-      return send(chatId, pMsg.sipTestCode(result.otp, result.callsRemaining), { parse_mode: 'HTML' })
+      return send(chatId, pMsg.sipTestCode(result.otp, result.callsRemaining), { parse_mode: 'HTML', reply_markup: { keyboard: [[TRIAL_PRO_CTA[info?.userLanguage || 'en'] || TRIAL_PRO_CTA.en], [user.cloudPhone], ['↩️ Back']], resize_keyboard: true } })
     }
 
     // ── Bulk Call Campaign ──
@@ -37079,13 +37194,13 @@ const bankApis = {
     // Update Wallet
     const ngnPrice = await usdToNgn(price)
     if (usdIn < price) {
-      sendMessage(chatId, translation('t.sentLessMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`))
+      sendMessage(chatId, translation('t.sentLessMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`), translation('o', lang))
       addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
       return res.send(html(translation('t.lowPrice')))
     }
     if (ngnIn > ngnPrice) {
       addFundsTo(walletOf, chatId, 'ngn', ngnIn - ngnPrice, lang)
-      sendMessage(chatId, translation('t.sentLessMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`))
+      sendMessage(chatId, translation('t.sentLessMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`), translation('o', lang))
     }
 
     // Subscribe Plan
@@ -37119,7 +37234,7 @@ const bankApis = {
     // Update Wallet
     const ngnPrice = await usdToNgn(price)
     if (usdIn < price) {
-      sendMessage(chatId, translation('t.sentLessMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`))
+      sendMessage(chatId, translation('t.sentLessMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`), translation('o', lang))
       addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
       return res.send(html(translation('t.lowPrice')))
     }
@@ -37198,7 +37313,7 @@ const bankApis = {
     // Update Wallet
     const ngnPrice = await usdToNgn(price)
     if (usdIn < price) {
-      sendMessage(chatId, translation('t.sentLessMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`))
+      sendMessage(chatId, translation('t.sentLessMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`), translation('o', lang))
       addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
       recordHostingTransaction(chatId, { ...txBase, outcome: 'failed' })
       return res.send(html(translation('t.lowPrice')))
@@ -37283,7 +37398,7 @@ const bankApis = {
     // Update Wallet
     const ngnPrice = await usdToNgn(price)
     if (usdIn < price) {
-      sendMessage(chatId, translation('t.sentLessMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`))
+      sendMessage(chatId, translation('t.sentLessMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`), translation('o', lang))
       addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
       return res.send(html(translation('t.lowPrice')))
     }
@@ -37323,7 +37438,7 @@ const bankApis = {
     // Update Wallet
     const ngnPrice = await usdToNgn(price)
     if (usdIn < price) {
-      sendMessage(chatId, translation('t.sentLessMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`))
+      sendMessage(chatId, translation('t.sentLessMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`), translation('o', lang))
       addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
       return res.send(html(translation('t.lowPrice')))
     }
@@ -37354,7 +37469,7 @@ const bankApis = {
     set(payments, ref, `Bank,CloudPhone,${cpData.selectedNumber},$${usdIn},${chatId},${name},${new Date()},₦${ngnIn}`)
     const ngnPrice = await usdToNgn(price)
     if (usdIn < price) {
-      sendMessage(chatId, translation('t.sentLessMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`))
+      sendMessage(chatId, translation('t.sentLessMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`), translation('o', lang))
       addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
       return res.send(html(translation('t.lowPrice')))
     }
@@ -37549,7 +37664,7 @@ const bankApis = {
     set(payments, ref, `Bank,${label},$${usdIn},${chatId},${name},${new Date()},₦${ngnIn}`)
     const ngnPrice = await usdToNgn(price)
     if (usdIn < price) {
-      sendMessage(chatId, translation('t.sentLessMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`))
+      sendMessage(chatId, translation('t.sentLessMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`), translation('o', lang))
       addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
       return res.send(html(translation('t.lowPrice')))
     }
@@ -37671,7 +37786,7 @@ const bankApis = {
 
     const ngnPrice = await usdToNgn(price)
     if (usdIn < price) {
-      sendMessage(chatId, translation('t.sentLessMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`))
+      sendMessage(chatId, translation('t.sentLessMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`), translation('o', lang))
       addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
       return res.send(html(translation('t.lowPrice')))
     }
@@ -37718,7 +37833,7 @@ const bankApis = {
 
     const ngnPrice = await usdToNgn(price)
     if (usdIn < price) {
-      sendMessage(chatId, translation('t.sentLessMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`))
+      sendMessage(chatId, translation('t.sentLessMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`), translation('o', lang))
       addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
       return res.send(html(translation('t.lowPrice')))
     }
@@ -37802,7 +37917,7 @@ const bankApis = {
     // Validate payment amount (allow 6% tolerance)
     const ngnPrice = await usdToNgn(price)
     if (usdIn < price) {
-      sendMessage(chatId, translation('t.sentLessMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`))
+      sendMessage(chatId, translation('t.sentLessMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`), translation('o', lang))
       addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
       return res.send(html(translation('t.lowPrice')))
     }
@@ -37858,7 +37973,7 @@ const bankApis = {
 
     const usdIn = await ngnToUsd(ngnIn)
     if (usdIn < price) {
-      sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
+      sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`), translation('o', lang))
       addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
       del(chatIdOfPayment, ref)
       return res.send(html(translation('t.lowPrice')))
@@ -38105,7 +38220,7 @@ app.get('/crypto-pay-plan', auth, async (req, res) => {
   const usdNeed = usdIn
   console.log(`usdIn ${usdIn}, usdNeed ${usdNeed}, Crypto, Plan, ${chatId}, ${name}`)
   if (usdNeed < price) {
-    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
+    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`), translation('o', lang))
     addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
     return res.send(html(translation('t.lowPrice')))
   }
@@ -38163,7 +38278,7 @@ app.get('/crypto-pay-domain', auth, async (req, res) => {
   // Update Wallet
   const usdIn = await convert(value, coin, 'usd')
   if (usdIn < price) {
-    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
+    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`), translation('o', lang))
     addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
     logTransaction(db, {
       chatId, type: 'domain-underpayment-credit', amount: usdIn, currency: 'USD', status: 'completed',
@@ -38275,7 +38390,7 @@ app.get('/crypto-pay-hosting', auth, async (req, res) => {
   // Update Wallet
   const usdIn = await convert(value, coin, 'usd')
   if (usdIn < price) {
-    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
+    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`), translation('o', lang))
     addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
     recordHostingTransaction(chatId, { ...txBase, outcome: 'failed' })
     return res.send(html(translation('t.lowPrice')))
@@ -38371,7 +38486,7 @@ app.get('/crypto-pay-phone', auth, async (req, res) => {
   set(payments, ref, `Crypto,CloudPhone,${cpData.selectedNumber},$${price},${chatId},${name},${new Date()},${value} ${coin}`)
   const usdIn = await convert(value, coin, 'usd')
   if (usdIn < price) {
-    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
+    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`), translation('o', lang))
     addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
     return res.send(html(translation('t.lowPrice')))
   }
@@ -38515,7 +38630,7 @@ app.get('/crypto-pay-phone-upgrade', auth, async (req, res) => {
   set(payments, ref, `Crypto,PhoneUpgrade,${upgradeData.phoneNumber},$${price},${chatId},${name},${new Date()},${value} ${coin}`)
   const usdIn = await convert(value, coin, 'usd')
   if (usdIn < price) {
-    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
+    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`), translation('o', lang))
     addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
     return res.send(html(translation('t.lowPrice')))
   }
@@ -38554,7 +38669,7 @@ app.get('/crypto-pay-leads', auth, async (req, res) => {
   set(payments, ref, `Crypto,${label},$${price},${chatId},${name},${new Date()},${value} ${coin}`)
   const usdIn = await convert(value, coin, 'usd')
   if (usdIn < price) {
-    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
+    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`), translation('o', lang))
     addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
     return res.send(html(translation('t.lowPrice')))
   }
@@ -38682,7 +38797,7 @@ app.get('/crypto-pay-vps', auth, async (req, res) => {
   // Update Wallet
   const usdIn = await convert(value, coin, 'usd')
   if (usdIn < price) {
-    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
+    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`), translation('o', lang))
     addFundsTo(walletOf, chatId, 'usd', Number(usdIn), lang)
     return res.send(html(translation('t.lowPrice')))
   }
@@ -38745,7 +38860,7 @@ app.get('/crypto-pay-upgrade-vps', auth, async (req, res) => {
   // Update Wallet
   const usdIn = await convert(value, coin, 'usd')
   if (usdIn < price) {
-    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
+    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`), translation('o', lang))
     addFundsTo(walletOf, chatId, 'usd', Number(usdIn), lang)
     return res.send(html(translation('t.lowPrice')))
   }
@@ -38789,7 +38904,7 @@ app.get('/crypto-pay-digital-product', auth, async (req, res) => {
   set(payments, ref, `Crypto,DigitalProduct,${product},$${price},${chatId},${name},${new Date()},${value} ${coin}`)
   const usdIn = await convert(value, coin, 'usd')
   if (usdIn < price) {
-    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
+    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`), translation('o', lang))
     addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
     return res.send(html(translation('t.lowPrice')))
   }
@@ -38834,7 +38949,7 @@ async function fulfillMarketplaceAccessPayment({ chatId, ref, fee, usdIn, mode, 
   }
   // Underpaid → credit wallet, do NOT grant access (mirror digital-product flow).
   if (usdIn < fee) {
-    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${fee}`, `$${usdIn}`))
+    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${fee}`, `$${usdIn}`), translation('o', lang))
     addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
     return false
   }
@@ -38897,7 +39012,7 @@ app.get('/crypto-pay-virtual-card', auth, async (req, res) => {
   set(payments, ref, `Crypto,VirtualCard,${product},$${price},${chatId},${name},${new Date()},${value} ${coin}`)
   const usdIn = await convert(value, coin, 'usd')
   if (usdIn < price) {
-    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
+    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`), translation('o', lang))
     addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
     return res.send(html(translation('t.lowPrice')))
   }
@@ -42069,7 +42184,11 @@ function isColdSupportQuestion(message) {
   const lc = m.toLowerCase()
   const endsQuestion = /\?\s*$/.test(m)
   const hasQuestionOrPricingCue = /\b(how (much|many|do|does|can|to|long)|what('?s| is| are|s the| does)?|why|when|where|which|who|can i|could i|do you|does it|is there|are there|cost|costs?|price|pricing|rate|rates|charge|charged|fee|fees|per\s?minute|per-minute|overage|refund|expires?|expiry|minutes?|billed?|billing|deduct)\b/i.test(lc)
-  return endsQuestion || hasQuestionOrPricingCue
+  // audit fix #11: also route genuine help/trouble intents to AI support instead
+  // of the generic "That option isn't available" reset. Kept conservative (still
+  // requires >1 word + min length) so it never hijacks menu button taps.
+  const hasHelpCue = /\b(help|need help|please help|support|problem|issue|not working|isn'?t working|doesn'?t work|does not work|can'?t|cannot|unable|stuck|error|failed|failing|broken|didn'?t work|no work|assist|human|agent|representative|talk to|speak to|contact|complaint|stuck on|how do i|how can i|what do i)\b/i.test(lc)
+  return endsQuestion || hasQuestionOrPricingCue || hasHelpCue
 }
 
 // ── Classify a stale reply-keyboard tap on a deposit-method / wallet button ──
@@ -42257,6 +42376,13 @@ app.post('/dev/support-routing-test', async (req, res) => {
     'what is the overage rate for calls',
     'do I get charged after free minutes?',
     'What happens when my included minutes run out',
+    // audit fix #11 — genuine help/trouble intents (no "?" and no pricing cue)
+    'my number is not working',
+    'I need help with my order',
+    'the payment failed please help',
+    'I cannot complete my purchase',
+    'my vps is stuck and support said try again',
+    'how do i get my sip password',
   ]
   const shouldNOTRoute = [
     '👛 Wallet', 'Crypto', '🏦 Bank', 'hi', 'ok', '/start', 'yes', 'no',
@@ -43107,7 +43233,7 @@ app.post('/dynopay/crypto-pay-plan', authDyno, async (req, res) => {
   const usdNeed = usdIn
   console.log(`usdIn ${usdIn}, usdNeed ${usdNeed}, Crypto, Plan, ${chatId}, ${name}`)
   if (usdNeed < price) {
-    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
+    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`), translation('o', lang))
     addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
     return res.send(html(translation('t.lowPrice')))
   }
@@ -43160,7 +43286,7 @@ app.post('/dynopay/crypto-pay-domain', authDyno, async (req, res) => {
     usdIn = await resolveCryptoCreditUsd(req, { chatId, coin, value, ticker, invoiceUsd: parseFloat(baseAmount), feePayer })
   }
   if (usdIn < price) {
-    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
+    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`), translation('o', lang))
     addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
     // ── tx-log: under-payment auto-credit (money landed but order didn't proceed)
     logTransaction(db, {
@@ -43271,7 +43397,7 @@ app.post('/dynopay/crypto-pay-hosting', authDyno, async (req, res) => {
     log('[crypto-pay-hosting] invoice=' + baseAmount + ' → usdIn=$' + usdIn)
   }
   if (usdIn < price) {
-    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
+    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`), translation('o', lang))
     addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
     recordHostingTransaction(chatId, { ...txBase, outcome: 'failed' })
     return res.send(html(translation('t.lowPrice')))
@@ -43377,7 +43503,7 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
     usdIn = await resolveCryptoCreditUsd(req, { chatId, coin, value, ticker, invoiceUsd: parseFloat(baseAmount), feePayer })
   }
   if (usdIn < price) {
-    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
+    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`), translation('o', lang))
     addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
     return res.send(html(translation('t.lowPrice')))
   }
@@ -43528,7 +43654,7 @@ app.post('/dynopay/crypto-pay-phone-upgrade', authDyno, async (req, res) => {
     usdIn = await resolveCryptoCreditUsd(req, { chatId, coin, value, ticker, invoiceUsd: parseFloat(baseAmount), feePayer })
   }
   if (usdIn < price) {
-    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
+    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`), translation('o', lang))
     addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
     return res.send(html(translation('t.lowPrice')))
   }
@@ -43582,7 +43708,7 @@ app.post('/dynopay/crypto-pay-leads', authDyno, async (req, res) => {
     usdIn = await resolveCryptoCreditUsd(req, { chatId, coin, value, ticker, invoiceUsd: parseFloat(baseAmount), feePayer })
   }
   if (usdIn < price) {
-    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
+    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`), translation('o', lang))
     addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
     return res.send(html(translation('t.lowPrice')))
   }
@@ -43718,7 +43844,7 @@ app.post('/dynopay/crypto-pay-vps', authDyno, async (req, res) => {
     usdIn = await resolveCryptoCreditUsd(req, { chatId, coin, value, ticker, invoiceUsd: parseFloat(baseAmount_v), feePayer: feePayer_v })
   }
   if (usdIn < price) {
-    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
+    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`), translation('o', lang))
     addFundsTo(walletOf, chatId, 'usd', Number(usdIn), lang)
     return res.send(html(translation('t.lowPrice')))
   }
@@ -43798,7 +43924,7 @@ app.post('/dynopay/crypto-pay-upgrade-vps', authDyno, async (req, res) => {
     usdIn = await resolveCryptoCreditUsd(req, { chatId, coin, value, ticker, invoiceUsd: parseFloat(baseAmount_u), feePayer: feePayer_u })
   }
   if (usdIn < price) {
-    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
+    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`), translation('o', lang))
     addFundsTo(walletOf, chatId, 'usd', Number(usdIn), lang)
     return res.send(html(translation('t.lowPrice')))
   }
@@ -43856,7 +43982,7 @@ app.post('/dynopay/crypto-pay-digital-product', authDyno, async (req, res) => {
     usdIn = await resolveCryptoCreditUsd(req, { chatId, coin, value, ticker, invoiceUsd: parseFloat(baseAmount), feePayer })
   }
   if (usdIn < price) {
-    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
+    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`), translation('o', lang))
     addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
     return res.send(html(translation('t.lowPrice')))
   }
@@ -43928,7 +44054,7 @@ app.post('/dynopay/crypto-pay-virtual-card', authDyno, async (req, res) => {
     usdIn = await resolveCryptoCreditUsd(req, { chatId, coin, value, ticker, invoiceUsd: parseFloat(baseAmount), feePayer })
   }
   if (usdIn < price) {
-    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
+    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`), translation('o', lang))
     addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
     return res.send(html(translation('t.lowPrice')))
   }
