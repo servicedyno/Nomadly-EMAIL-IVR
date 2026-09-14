@@ -3284,8 +3284,8 @@ Please top up your wallet to continue using your VPS Plan.
  : `\n⚠️ <b>Save your credentials securely.</b>`
  
  const readinessNote = isRDP
- ? `\n⏱ <b>Allow 5–10 min</b> for Windows first-boot. If RDP rejects the password right after delivery, wait a couple of minutes and retry — the password is correct.`
- : `\n⏱ <b>Allow 2–5 min</b> for first-boot setup. If SSH says "permission denied" right after delivery, wait a couple of minutes and retry — the password is correct.`
+ ? `\n⏱ <b>Allow 5–10 minutes</b> for Windows first-boot. If RDP rejects the password right after delivery, wait a couple of minutes and retry — the password is correct.`
+ : `\n⏱ <b>Allow 2–5 minutes</b> for first-boot setup. If SSH says "permission denied" right after delivery, wait a couple of minutes and retry — the password is correct.`
 
  return `<strong>🎉 ${isRDP ? 'RDP' : 'VPS'} [${response.label}] is active!</strong>
 

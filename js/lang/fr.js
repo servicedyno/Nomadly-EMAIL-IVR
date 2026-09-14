@@ -3128,8 +3128,8 @@ Veuillez recharger votre portefeuille pour continuer à utiliser votre plan VPS.
  : `\n⚠️ <b>Enregistrez vos identifiants en lieu sûr.</b>`
  
  const readinessNote = isRDP
- ? `\n⏱ <b>Comptez 5–10 min</b> pour le premier démarrage Windows. Si RDP refuse le mot de passe juste après la livraison, patientez quelques minutes puis réessayez — le mot de passe est correct.`
- : `\n⏱ <b>Comptez 2–5 min</b> pour la configuration initiale. Si SSH affiche "permission denied" juste après la livraison, patientez quelques minutes puis réessayez — le mot de passe est correct.`
+ ? `\n⏱ <b>Comptez 5–10 minutes</b> pour le premier démarrage Windows. Si RDP refuse le mot de passe juste après la livraison, patientez quelques minutes puis réessayez — le mot de passe est correct.`
+ : `\n⏱ <b>Comptez 2–5 minutes</b> pour la configuration initiale. Si SSH affiche "permission denied" juste après la livraison, patientez quelques minutes puis réessayez — le mot de passe est correct.`
 
  return `<strong>🎉 ${isRDP ? 'RDP' : 'VPS'} [${response.label}] est actif !</strong>
 
@@ -3757,6 +3757,58 @@ const fr = {
  vpsPlanOf,
  vpsCpanelOptional,
 }
+
+// ── Localization parity (#21, 2026-06) ────────────────────────────────
+// Close FR gaps that previously fell back to English mid-flow:
+//  • reverse record-type map t[t.a]='A' … keyed by THIS locale's own labels
+//    (the DNS "add record" wizard reads t[recordType]; without these, FR users
+//    got undefined and the flow broke),
+//  • Cloudflare proxied-mode strings + keyboard,
+//  • VPS "SSH blocked" help.
+Object.assign(t, {
+  [t.a]: 'A',
+  [t.aaaa]: 'AAAA',
+  [t.cname]: 'CNAME',
+  [t.mx]: 'MX',
+  [t.txt]: 'TXT',
+  [t.ns]: 'NS',
+  [t.srvRecord]: 'SRV',
+  [t.caaRecord]: 'CAA',
+  [t.caaTagIssue]: 'issue',
+  [t.caaTagIssuewild]: 'issuewild',
+  [t.caaTagIodef]: 'iodef',
+  dnsProxiedChoiceLabelDnsOnly: '⚪ DNS uniquement (Recommandé)',
+  dnsProxiedChoiceLabelProxied: '🟠 Proxifié via Cloudflare',
+  dnsProxiedChoiceInvalid: "Veuillez appuyer sur l'un des boutons : ⚪ DNS uniquement ou 🟠 Proxifié via Cloudflare.",
+  dnsProxiedChoiceAsk: (recordType, value) =>
+    `⚙️ <b>Mode Cloudflare pour cet enregistrement ${recordType}</b>\n\n` +
+    `Cible : <code>${value}</code>\n\n` +
+    `⚪  <b>DNS uniquement</b> (recommandé)\n` +
+    `<i>Les requêtes renvoient directement votre IP d'origine. Idéal pour pointer vers votre propre VPS, serveur mail, ou lorsqu'un accès direct à la cible est nécessaire.</i>\n\n` +
+    `🟠  <b>Proxifié via Cloudflare</b>\n` +
+    `<i>Cloudflare protège votre origine — SSL gratuit, cache CDN, protection DDoS, et votre IP d'origine reste masquée. Idéal pour les sites publics.</i>`,
+})
+Object.assign(fr, {
+  dnsProxiedChoiceKeyboard: {
+    parse_mode: 'HTML',
+    reply_markup: { keyboard: [[t.dnsProxiedChoiceLabelDnsOnly], [t.dnsProxiedChoiceLabelProxied], _bc], resize_keyboard: true },
+    disable_web_page_preview: true,
+  },
+})
+Object.assign(vp, {
+  vpsSshBlockedHelp: (name, host, username) =>
+    `🟠 <strong>Votre VPS est en ligne — mais SSH est bloqué</strong>\n\n` +
+    `🖥️ <strong>Serveur :</strong> ${name}\n` +
+    `🌐 <strong>IP :</strong> <code>${host}</code>\n\n` +
+    `Nous avons atteint votre serveur (il fonctionne), mais <b>le port 22 (SSH) est fermé par un pare-feu à l'intérieur du serveur</b>. C'est pourquoi la connexion et la réinitialisation du mot de passe ne fonctionnent pas — aucun mot de passe ne peut passer par un port fermé.\n\n` +
+    `✅ <strong>Comment le rouvrir (2 minutes) :</strong>\n` +
+    `1. Ouvrez la <b>Console de récupération / Web</b> de votre fournisseur pour ce serveur (sans SSH).\n` +
+    `2. Connectez-vous en tant que <code>${username}</code>.\n` +
+    `3. Exécutez : <code>ufw allow OpenSSH</code>  (ou <code>ufw allow 22/tcp</code>)\n` +
+    `4. Puis exécutez : <code>ufw reload</code>\n\n` +
+    `Une fois le port 22 ouvert, revenez et appuyez sur <b>🔑 Réinitialiser le mot de passe</b> — nous définirons un nouveau mot de passe sur le serveur en marche et confirmerons qu'il fonctionne, vos données conservées.\n\n` +
+    `💬 Bloqué ? Appuyez sur <b>💬 Support</b> et nous le rouvrirons pour vous.`,
+})
 
 module.exports = {
  fr,

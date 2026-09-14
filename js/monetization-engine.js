@@ -674,6 +674,22 @@ async function runWinBackCampaign(bot) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 const SERVICE_BUNDLES = {
+  'starter-launch': {
+    name: { en: '🚀 Starter Launch Bundle', fr: '🚀 Pack Lancement Débutant', zh: '🚀 入门启动套餐', hi: '🚀 स्टार्टर लॉन्च बंडल' },
+    description: {
+      en: 'Your first site, live today — a domain + a full week of bulletproof hosting for one flat $50. A single $50 deposit covers it exactly.',
+      fr: 'Votre premier site en ligne aujourd\'hui — un domaine + une semaine d\'hébergement anti-blocage pour 50$ tout compris. Un seul dépôt de 50$ suffit.',
+      zh: '今天就让您的第一个网站上线 — 域名 + 整整一周防封主机，统一价 50 美元。一次 50 美元充值即可完全覆盖。',
+      hi: 'आज ही आपकी पहली साइट लाइव — एक डोमेन + पूरे एक हफ़्ते की बुलेटप्रूफ होस्टिंग, फ्लैट $50 में। एक $50 डिपॉज़िट में पूरा हो जाता है।',
+    },
+    items: [
+      { service: 'domain', label: { en: '1× Domain (.sbs)', fr: '1× Domaine (.sbs)', zh: '1个域名 (.sbs)', hi: '1× डोमेन (.sbs)' }, basePrice: 30 },
+      { service: 'hosting_weekly', label: { en: '1× Premium Anti-Red Hosting (Weekly)', fr: '1× Hébergement Anti-Red Premium (Hebdo)', zh: '1× 高级防红主机 (每周)', hi: '1× प्रीमियम एंटी-रेड होस्टिंग (साप्ताहिक)' }, basePrice: PREMIUM_ANTIRED_WEEKLY },
+    ],
+    flatPrice: 50,          // matches the $50 wallet-deposit preset exactly (audit #19)
+    firstPurchase: true,    // featured to first-time buyers
+    popular: true,
+  },
   'starter-web': {
     name: { en: '🌐 Starter Web Bundle', fr: '🌐 Pack Web Débutant', zh: '🌐 网站入门套餐', hi: '🌐 स्टार्टर वेब बंडल' },
     description: {
@@ -744,8 +760,18 @@ function getBundleDetails(bundleId, lang = 'en') {
   if (!bundle) return null
 
   const totalBase = bundle.items.reduce((sum, item) => sum + item.basePrice, 0)
-  const discountAmount = Math.round(totalBase * bundle.discountPercent / 100)
-  const finalPrice = totalBase - discountAmount
+  // A bundle may pin an exact flatPrice (e.g. the $50 first-purchase bundle that
+  // matches a single deposit preset). Otherwise use its discountPercent.
+  let discountPercent, discountAmount, finalPrice
+  if (bundle.flatPrice != null) {
+    finalPrice = bundle.flatPrice
+    discountAmount = Math.max(0, totalBase - finalPrice)
+    discountPercent = totalBase > 0 ? Math.round(discountAmount / totalBase * 100) : 0
+  } else {
+    discountPercent = bundle.discountPercent
+    discountAmount = Math.round(totalBase * bundle.discountPercent / 100)
+    finalPrice = totalBase - discountAmount
+  }
 
   return {
     id: bundleId,
@@ -757,10 +783,11 @@ function getBundleDetails(bundleId, lang = 'en') {
       basePrice: item.basePrice,
     })),
     totalBase,
-    discountPercent: bundle.discountPercent,
+    discountPercent,
     discountAmount,
     finalPrice,
     popular: bundle.popular,
+    firstPurchase: !!bundle.firstPurchase,
   }
 }
 
@@ -768,16 +795,25 @@ function getAllBundles(lang = 'en') {
   return Object.keys(SERVICE_BUNDLES).map(id => getBundleDetails(id, lang))
 }
 
+// The featured first-purchase bundle (priced to match a single deposit preset).
+function getFirstPurchaseBundle(lang = 'en') {
+  const id = Object.keys(SERVICE_BUNDLES).find(k => SERVICE_BUNDLES[k].firstPurchase)
+  return id ? getBundleDetails(id, lang) : null
+}
+
 function formatBundleCard(bundle, lang = 'en') {
-  const popularTag = bundle.popular ? ' ⭐ POPULAR' : ''
+  const popularTag = bundle.firstPurchase ? ' ✅ PERFECT FIRST ORDER' : (bundle.popular ? ' ⭐ POPULAR' : '')
   const itemLines = bundle.items.map(item => `  ├ ${item.label} — $${item.basePrice}`).join('\n')
+  const firstLine = bundle.firstPurchase
+    ? '\n💡 ' + ({ en: `A single <b>$${bundle.finalPrice} deposit</b> covers this exactly — no leftover.`, fr: `Un seul dépôt de <b>$${bundle.finalPrice}</b> suffit — sans reste.`, zh: `一次 <b>$${bundle.finalPrice}</b> 充值即可完全覆盖 — 无剩余。`, hi: `एक ही <b>$${bundle.finalPrice} डिपॉज़िट</b> में पूरा — कुछ नहीं बचता।` }[lang] || `A single <b>$${bundle.finalPrice} deposit</b> covers this exactly.`)
+    : ''
 
   return `${bundle.name}${popularTag}\n` +
     `${bundle.description}\n\n` +
     `📦 <b>Includes:</b>\n${itemLines}\n\n` +
     `💲 Regular price: <s>$${bundle.totalBase}</s>\n` +
     `🏷️ Bundle discount: <b>${bundle.discountPercent}% off</b> (−$${bundle.discountAmount})\n` +
-    `✅ <b>Bundle price: $${bundle.finalPrice}</b>`
+    `✅ <b>Bundle price: $${bundle.finalPrice}</b>${firstLine}`
 }
 
 function formatBundleMenu(lang = 'en') {
@@ -791,7 +827,7 @@ function formatBundleMenu(lang = 'en') {
 
   let msg = header[lang] || header.en
   bundles.forEach((b, i) => {
-    const tag = b.popular ? ' ⭐' : ''
+    const tag = b.firstPurchase ? ' ✅ start here' : (b.popular ? ' ⭐' : '')
     msg += `\n${i + 1}. <b>${b.name}</b>${tag}\n`
     msg += `   <s>$${b.totalBase}</s> → <b>$${b.finalPrice}</b> (${b.discountPercent}% off)\n`
   })
@@ -895,6 +931,7 @@ module.exports = {
   SERVICE_BUNDLES,
   getBundleDetails,
   getAllBundles,
+  getFirstPurchaseBundle,
   formatBundleCard,
   formatBundleMenu,
 

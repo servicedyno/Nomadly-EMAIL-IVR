@@ -125,8 +125,9 @@ section('Fix #5 — pre-filled balance wall (improved-messages.js + _index.js)')
   }
 
   const s = src('_index.js')
-  check('balance checks now use getInsufficientBalanceMessage (>=8 sites)',
-    (s.match(/getInsufficientBalanceMessage\(usdBal/g) || []).length >= 6)
+  check('balance checks route through the shared wall which builds getInsufficientBalanceMessage',
+    (s.match(/return _showBalanceWall\(usdBal, /g) || []).length >= 10 &&
+    /const _showBalanceWall = async[\s\S]{0,1600}getInsufficientBalanceMessage\(usdBal, priceUsd/.test(s))
   check('deposit-wall tap is parsed ("💵 Deposit $N")', /\^💵 Deposit \\\$\(\\d\+/.test(s))
   check('deposit-wall tap jumps to coin picker when bank hidden', /HIDE_BANK_PAYMENT === 'true'[\s\S]{0,80}selectCryptoToDeposit/.test(s))
 }

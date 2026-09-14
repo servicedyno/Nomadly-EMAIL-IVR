@@ -274,7 +274,7 @@ const CATEGORY_DEEPLINK = {
 // treat it as abandonment (they closed the app without pressing Back/Cancel)
 const SILENT_TIMEOUT_MS = 20 * 60 * 1000 // 20 minutes of silence = abandoned
 
-function initCartAbandonment(bot, db, stateCol, onPaymentCompleted) {
+function initCartAbandonment(bot, db, stateCol, onPaymentCompleted, lifecycleDiet = null) {
   const abandonedCarts = db.collection('abandonedCarts')
 
   // Cooldown: don't nudge the same user more than once per 24 hours
@@ -435,6 +435,19 @@ function initCartAbandonment(bot, db, stateCol, onPaymentCompleted) {
         return
       }
 
+      // ── Lifecycle Diet (#18): respect the 1-per-24h unsolicited cap and the
+      //    balance-wall pause (if they hit a wall, the low-balance shortfall
+      //    reminder handles them instead). New users (<72h) still get cart
+      //    nudges — a real abandonment is high-intent regardless of age.
+      if (lifecycleDiet?.canSendPromo) {
+        const gate = await lifecycleDiet.canSendPromo(chatId, { skipWelcomeWindow: true })
+        if (!gate.ok) {
+          log(`[CartRecovery] Skipping nudge for ${chatId} — lifecycle diet (${gate.reason})`)
+          await abandonedCarts.updateOne({ _id: cartId }, { $set: { status: 'suppressed_diet', dietReason: gate.reason, suppressedAt: new Date() } }).catch(() => {})
+          return
+        }
+      }
+
       const hooks = NUDGE_MESSAGES[category] || NUDGE_MESSAGES.general
       const hook = hooks[lang] || hooks.en || NUDGE_MESSAGES.general.en
 
@@ -463,8 +476,15 @@ function initCartAbandonment(bot, db, stateCol, onPaymentCompleted) {
 
       const message = `${hook}${couponLine}${cta}`
 
-      await bot.sendMessage(chatId, message, { parse_mode: 'HTML', disable_web_page_preview: true })
+      // One-tap "🔕 Mute promos" button (#18) — reuses the AutoPromo opt-out handler.
+      const muteLabel = { en: '🔕 Mute promos', fr: '🔕 Couper les promos', zh: '🔕 停止促销', hi: '🔕 प्रोमो बंद करें' }[lang] || '🔕 Mute promos'
+      await bot.sendMessage(chatId, message, {
+        parse_mode: 'HTML',
+        disable_web_page_preview: true,
+        reply_markup: { inline_keyboard: [[{ text: muteLabel, callback_data: 'promo_optout' }]] },
+      })
       await abandonedCarts.updateOne({ _id: cartId }, { $set: { status: 'nudged', nudgedAt: new Date() } })
+      if (lifecycleDiet?.markUnsolicitedSent) lifecycleDiet.markUnsolicitedSent(chatId, 'cart_nudge').catch(() => {})
       log(`[CartRecovery] ✅ Nudged ${chatId} for ${category} abandonment (lang: ${lang})`)
 
       // Track stats

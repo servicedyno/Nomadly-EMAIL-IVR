@@ -3747,6 +3747,56 @@ const hi = {
  vpsCpanelOptional,
 }
 
+// ── Localization parity (#21, 2026-06) ────────────────────────────────
+// Close HI gaps that previously fell back to English mid-flow:
+//  • reverse record-type map t[t.a]='A' … keyed by THIS locale's own labels,
+//  • Cloudflare proxied-mode strings + keyboard,
+//  • VPS "SSH blocked" help.
+Object.assign(t, {
+  [t.a]: 'A',
+  [t.aaaa]: 'AAAA',
+  [t.cname]: 'CNAME',
+  [t.mx]: 'MX',
+  [t.txt]: 'TXT',
+  [t.ns]: 'NS',
+  [t.srvRecord]: 'SRV',
+  [t.caaRecord]: 'CAA',
+  [t.caaTagIssue]: 'issue',
+  [t.caaTagIssuewild]: 'issuewild',
+  [t.caaTagIodef]: 'iodef',
+  dnsProxiedChoiceLabelDnsOnly: '⚪ केवल DNS (अनुशंसित)',
+  dnsProxiedChoiceLabelProxied: '🟠 Cloudflare के माध्यम से प्रॉक्सी',
+  dnsProxiedChoiceInvalid: 'कृपया इनमें से एक बटन दबाएं: ⚪ केवल DNS या 🟠 Cloudflare के माध्यम से प्रॉक्सी।',
+  dnsProxiedChoiceAsk: (recordType, value) =>
+    `⚙️ <b>इस ${recordType} रिकॉर्ड के लिए Cloudflare मोड</b>\n\n` +
+    `लक्ष्य: <code>${value}</code>\n\n` +
+    `⚪  <b>केवल DNS</b> (अनुशंसित)\n` +
+    `<i>लुकअप सीधे आपका ओरिजिन IP लौटाते हैं। अपने VPS, मेल सर्वर की ओर इंगित करने या लक्ष्य तक सीधी पहुंच चाहिए, तब सर्वोत्तम।</i>\n\n` +
+    `🟠  <b>Cloudflare के माध्यम से प्रॉक्सी</b>\n` +
+    `<i>Cloudflare आपके ओरिजिन के सामने रहता है — मुफ्त SSL, CDN कैशिंग, DDoS सुरक्षा, और आपका ओरिजिन IP छिपा रहता है। सार्वजनिक वेबसाइटों के लिए सर्वोत्तम।</i>`,
+})
+Object.assign(hi, {
+  dnsProxiedChoiceKeyboard: {
+    parse_mode: 'HTML',
+    reply_markup: { keyboard: [[t.dnsProxiedChoiceLabelDnsOnly], [t.dnsProxiedChoiceLabelProxied], _bc], resize_keyboard: true },
+    disable_web_page_preview: true,
+  },
+})
+Object.assign(vp, {
+  vpsSshBlockedHelp: (name, host, username) =>
+    `🟠 <strong>आपका VPS ऑनलाइन है — लेकिन SSH अवरुद्ध है</strong>\n\n` +
+    `🖥️ <strong>सर्वर:</strong> ${name}\n` +
+    `🌐 <strong>IP:</strong> <code>${host}</code>\n\n` +
+    `हम आपके सर्वर तक पहुंच गए (यह चालू है), लेकिन <b>सर्वर के अंदर एक फ़ायरवॉल ने पोर्ट 22 (SSH) बंद कर दिया है</b>। इसीलिए लॉगिन और पासवर्ड रीसेट काम नहीं करते — बंद पोर्ट से कोई पासवर्ड नहीं गुजर सकता।\n\n` +
+    `✅ <strong>इसे फिर से कैसे खोलें (2 मिनट):</strong>\n` +
+    `1. इस सर्वर के लिए अपने प्रोवाइडर का <b>Recovery / Web Console</b> खोलें (SSH की ज़रूरत नहीं)।\n` +
+    `2. <code>${username}</code> के रूप में लॉग इन करें।\n` +
+    `3. चलाएं: <code>ufw allow OpenSSH</code>  (या <code>ufw allow 22/tcp</code>)\n` +
+    `4. फिर चलाएं: <code>ufw reload</code>\n\n` +
+    `पोर्ट 22 खुलने के बाद, वापस आएं और <b>🔑 पासवर्ड रीसेट करें</b> टैप करें — हम चालू सर्वर पर नया पासवर्ड सेट करेंगे और पुष्टि करेंगे कि यह काम करता है, आपका डेटा सुरक्षित रहेगा।\n\n` +
+    `💬 अटक गए? <b>💬 सपोर्ट</b> टैप करें और हम इसे आपके लिए फिर से खोल देंगे।`,
+})
+
 module.exports = {
  hi,
  setCustomNsPrompt: (domain, nsRecords) => {

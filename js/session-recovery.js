@@ -111,26 +111,26 @@ function generateResumePrompt(session, lang = 'en') {
   const messages = {
     en: {
       title: '👋 Welcome back!',
-      incomplete: 'You have an incomplete',
-      resume: '✅ Resume Where I Left Off',
+      incomplete: 'You have an unfinished',
+      resume: '✅ Complete My Order',
       startFresh: '🆕 Start Fresh'
     },
     fr: {
       title: '👋 Bon retour !',
-      incomplete: 'Vous avez un',
-      resume: '✅ Reprendre où j\'ai laissé',
+      incomplete: 'Vous avez une commande',
+      resume: '✅ Terminer ma commande',
       startFresh: '🆕 Recommencer'
     },
     zh: {
       title: '👋 欢迎回来！',
       incomplete: '您有一个未完成的',
-      resume: '✅ 从我离开的地方继续',
+      resume: '✅ 完成我的订单',
       startFresh: '🆕 重新开始'
     },
     hi: {
       title: '👋 वापसी पर स्वागत है!',
-      incomplete: 'आपके पास एक अधूरा है',
-      resume: '✅ जहां छोड़ा था वहीं से शुरू करें',
+      incomplete: 'आपके पास एक अधूरा',
+      resume: '✅ मेरा ऑर्डर पूरा करें',
       startFresh: '🆕 नए सिरे से शुरू करें'
     }
   }
@@ -140,13 +140,11 @@ function generateResumePrompt(session, lang = 'en') {
 
   // Generate details based on flow type
   let details = ''
-  if (session.data.domain) {
-    details = `Domain: <b>${session.data.domain}</b>`
-  } else if (session.data.phone) {
-    details = `Phone: <b>${session.data.phone}</b>`
-  } else if (session.data.amount) {
-    details = `Amount: <b>$${session.data.amount}</b>`
-  }
+  const d = session.data || {}
+  if (d.label) details = `${d.label}`
+  else if (d.domain) details = `Domain: <b>${d.domain}</b>`
+  else if (d.phone) details = `Phone: <b>${d.phone}</b>`
+  if (d.price) details = (details ? `${details} — ` : '') + `<b>$${Number(d.price).toFixed(2)}</b>`
 
   const message = `${t.title}\n\n` +
     `${t.incomplete} <b>${flowName}</b>:\n` +

@@ -257,7 +257,7 @@ const SOCIAL_PROOF_LABELS = {
 // Main init function
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
+function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol, lifecycleDiet = null) {
   const conversionCol = db.collection('userConversion')
   const welcomeCouponsCol = db.collection('welcomeCoupons')
   const browseTrackingCol = db.collection('browseTracking')
@@ -521,6 +521,10 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
       
       try {
         await bot.sendMessage(chatId, offerMsg, { parse_mode: 'HTML' })
+        // Lifecycle Diet (#18): the welcome offer is the anchor of the welcome
+        // sequence — always sent, but it marks the 1-per-24h cap so cart nudges /
+        // browse follow-ups defer to it for the next 24h.
+        if (lifecycleDiet?.markUnsolicitedSent) lifecycleDiet.markUnsolicitedSent(cid, 'welcome_offer').catch(() => {})
         log(`[Conversion] ✅ Welcome offer sent to ${cid}: ${code} (${WELCOME_OFFER_DISCOUNT}% off, expires ${expiresAt.toISOString()})`)
       } catch (sendErr) {
         // Handle "chat not found" / "bot blocked" errors — mark user as inactive
@@ -639,7 +643,16 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
         return
       }
 
-      // Check browse tracking
+      // Lifecycle Diet (#18): honour the 1-per-24h cap + balance-wall pause.
+      // Browse follow-up is discretionary — drop it if the user already got a
+      // message today (the welcome offer takes priority).
+      if (lifecycleDiet?.canSendPromo) {
+        const gate = await lifecycleDiet.canSendPromo(cid, { skipWelcomeWindow: true })
+        if (!gate.ok) {
+          log(`[Conversion] Skipping browse follow-up for ${cid} — lifecycle diet (${gate.reason})`)
+          return
+        }
+      }
       const tracking = await browseTrackingCol.findOne({ chatId: cid })
       if (!tracking || !tracking.browseCount || tracking.followUpSent) return
 
@@ -668,6 +681,7 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
         )
 
         log(`[Conversion] ✅ Browse follow-up sent to ${cid} for category: ${topCategory}`)
+        if (lifecycleDiet?.markUnsolicitedSent) lifecycleDiet.markUnsolicitedSent(cid, 'browse_followup').catch(() => {})
       } catch (sendErr) {
         // Handle "chat not found" / "bot blocked" errors — mark user as inactive
         if (sendErr.response?.body?.error_code === 400 && 

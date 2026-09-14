@@ -3714,6 +3714,56 @@ const zh = {
  vpsCpanelOptional,
 }
 
+// ── Localization parity (#21, 2026-06) ────────────────────────────────
+// Close ZH gaps that previously fell back to English mid-flow:
+//  • reverse record-type map t[t.a]='A' … keyed by THIS locale's own labels,
+//  • Cloudflare proxied-mode strings + keyboard,
+//  • VPS "SSH blocked" help.
+Object.assign(t, {
+  [t.a]: 'A',
+  [t.aaaa]: 'AAAA',
+  [t.cname]: 'CNAME',
+  [t.mx]: 'MX',
+  [t.txt]: 'TXT',
+  [t.ns]: 'NS',
+  [t.srvRecord]: 'SRV',
+  [t.caaRecord]: 'CAA',
+  [t.caaTagIssue]: 'issue',
+  [t.caaTagIssuewild]: 'issuewild',
+  [t.caaTagIodef]: 'iodef',
+  dnsProxiedChoiceLabelDnsOnly: '⚪ 仅 DNS（推荐）',
+  dnsProxiedChoiceLabelProxied: '🟠 通过 Cloudflare 代理',
+  dnsProxiedChoiceInvalid: '请点击其中一个按钮：⚪ 仅 DNS（推荐）或 🟠 通过 Cloudflare 代理。',
+  dnsProxiedChoiceAsk: (recordType, value) =>
+    `⚙️ <b>此 ${recordType} 记录的 Cloudflare 模式</b>\n\n` +
+    `目标：<code>${value}</code>\n\n` +
+    `⚪  <b>仅 DNS</b>（推荐）\n` +
+    `<i>查询直接返回您的源站 IP。适合指向您自己的 VPS、邮件服务器，或需要直接访问目标时使用。</i>\n\n` +
+    `🟠  <b>通过 Cloudflare 代理</b>\n` +
+    `<i>Cloudflare 代理您的源站——免费 SSL、CDN 缓存、DDoS 防护，且您的源站 IP 保持隐藏。适合公开网站。</i>`,
+})
+Object.assign(zh, {
+  dnsProxiedChoiceKeyboard: {
+    parse_mode: 'HTML',
+    reply_markup: { keyboard: [[t.dnsProxiedChoiceLabelDnsOnly], [t.dnsProxiedChoiceLabelProxied], _bc], resize_keyboard: true },
+    disable_web_page_preview: true,
+  },
+})
+Object.assign(vp, {
+  vpsSshBlockedHelp: (name, host, username) =>
+    `🟠 <strong>您的 VPS 在线 — 但 SSH 被阻止</strong>\n\n` +
+    `🖥️ <strong>服务器：</strong> ${name}\n` +
+    `🌐 <strong>IP：</strong> <code>${host}</code>\n\n` +
+    `我们已连接到您的服务器（它正在运行），但<b>服务器内部的防火墙关闭了 22 端口（SSH）</b>。因此登录和密码重置无法工作——密码无法通过已关闭的端口。\n\n` +
+    `✅ <strong>如何重新打开（2 分钟）：</strong>\n` +
+    `1. 打开您的服务商为此服务器提供的<b>恢复 / 网页控制台</b>（无需 SSH）。\n` +
+    `2. 以 <code>${username}</code> 身份登录。\n` +
+    `3. 运行：<code>ufw allow OpenSSH</code>（或 <code>ufw allow 22/tcp</code>）\n` +
+    `4. 然后运行：<code>ufw reload</code>\n\n` +
+    `22 端口打开后，返回并点击 <b>🔑 重置密码</b> — 我们将在运行中的服务器上设置新密码并确认其可用，同时保留您的数据。\n\n` +
+    `💬 遇到问题？点击 <b>💬 支持</b>，我们将为您重新打开。`,
+})
+
 module.exports = {
  zh,
  setCustomNsPrompt: (domain, nsRecords) => {

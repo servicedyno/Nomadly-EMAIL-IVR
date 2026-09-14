@@ -566,6 +566,7 @@ const dnsChecker = require('./dns-checker.js')
 const { sanitizeProviderError, sanitizeHangupCause } = require('./sanitize-provider.js')
 const { initCartAbandonment } = require('./cart-abandonment.js')
 const { initNewUserConversion } = require('./new-user-conversion.js')
+const { initLifecycleDiet } = require('./lifecycle-diet.js')
 const callBillingReconciler = require('./call-billing-reconciler.js')
 const dialGuard = require('./dial-rate-guard.js')
 
@@ -1306,6 +1307,19 @@ const TRIAL_PRO_CTA = {
   hi: '⭐ मेरा अपना नंबर पाएं (Pro)',
 }
 const TRIAL_PRO_CTA_ALL = Object.values(TRIAL_PRO_CTA)
+// First-session intent funnel (audit #17) — asked once, right after a NEW user
+// picks their language, so first-timers jump straight to what they came for
+// instead of facing the full 17-button menu. "Just looking" opens the full menu.
+const FIRST_SESSION_INTENT = {
+  numbers: { en: '📞 Phone Numbers / IVR', fr: '📞 Numéros / IVR', zh: '📞 电话号码 / IVR', hi: '📞 फ़ोन नंबर / IVR' },
+  hosting: { en: '🛡️ Bulletproof Hosting', fr: '🛡️ Hébergement Anti-Red', zh: '🛡️ 防封主机', hi: '🛡️ बुलेटप्रूफ होस्टिंग' },
+  domains: { en: '🌐 Domains', fr: '🌐 Domaines', zh: '🌐 域名', hi: '🌐 डोमेन' },
+  digital: { en: '🛒 Digital Products', fr: '🛒 Produits numériques', zh: '🛒 数字产品', hi: '🛒 डिजिटल प्रोडक्ट' },
+  looking: { en: '👀 Just looking', fr: '👀 Je regarde', zh: '👀 随便看看', hi: '👀 बस देख रहे हैं' },
+}
+const FIRST_SESSION_INTENT_ALL = Object.fromEntries(
+  Object.entries(FIRST_SESSION_INTENT).map(([k, v]) => [k, Object.values(v)])
+)
 const VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE = parseFloat(process.env.VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE)
 const HOSTING_TRIAL_PLAN_ON = process.env.HOSTING_TRIAL_PLAN_ON
 const VPS_ENABLED = process.env.VPS_ENABLED || 'true' // default: enabled
@@ -3220,6 +3234,7 @@ function resolveUserTagSync(chatId, cachedName) {
 let autoPromo = null
 let cartRecovery = null
 let userConversion = null
+let lifecycleDiet = null
 
 // Telnyx resources (set during init)
 let telnyxResources = { sipConnectionId: null, messagingProfileId: null, callControlAppId: null }
@@ -3693,16 +3708,20 @@ const loadData = async () => {
 
   // Initialize auto-promo system only when Telegram bot is actually enabled
   if (TELEGRAM_BOT_ON === 'true') {
-    autoPromo = initAutoPromo(bot, db, nameOf, state)
+    // Lifecycle Diet (#18) — shared unsolicited-message throttle. Init first so
+    // it can be threaded into every marketing sender below.
+    lifecycleDiet = initLifecycleDiet(db)
+    log('[LifecycleDiet] System loaded successfully')
+    autoPromo = initAutoPromo(bot, db, nameOf, state, lifecycleDiet)
     log('[AutoPromo] System loaded successfully')
     dailyCouponSystem = initDailyCoupons(db, bot, nameOf, state)
     log('[DailyCoupon] System loaded successfully')
     // Link coupon system to promo for coupon-in-promo messages
     autoPromo.setDailyCouponSystem(dailyCouponSystem)
     // Initialize cart abandonment recovery
-    cartRecovery = initCartAbandonment(bot, db, state, redeemPendingCoupon)
+    cartRecovery = initCartAbandonment(bot, db, state, redeemPendingCoupon, lifecycleDiet)
     log('[CartRecovery] System loaded successfully')
-    userConversion = initNewUserConversion(bot, db, state, walletOf, payments)
+    userConversion = initNewUserConversion(bot, db, state, walletOf, payments, lifecycleDiet)
     log('[Conversion] System loaded successfully')
 
     // ── Recover any admin broadcasts interrupted by redeployment ──
@@ -5388,6 +5407,12 @@ async function sendDay12UpgradeCreditNudges() {
         const quote = phoneConfig.computeUpgradeQuote(num, nextUp)
         if (!quote || !quote.eligibleForCredit) continue // belt-and-braces
 
+        // Lifecycle Diet (#18): respect the shared 1-per-24h cap + balance-wall pause.
+        if (lifecycleDiet?.canSendPromo) {
+          const gate = await lifecycleDiet.canSendPromo(chatId, { skipWelcomeWindow: true })
+          if (!gate.ok) { log(`[Day12Nudge] Skipping ${chatId} — lifecycle diet (${gate.reason})`); continue }
+        }
+
         try {
           const info = await get(state, chatId)
           const lang = info?.userLanguage || 'en'
@@ -5427,6 +5452,7 @@ async function sendDay12UpgradeCreditNudges() {
           updatePath[`val.numbers.${i}._upgradeCreditNudgeSentAt`] = new Date().toISOString()
           await phoneNumbersOf.updateOne({ _id: chatId }, { $set: updatePath })
           sent++
+          if (lifecycleDiet?.markUnsolicitedSent) lifecycleDiet.markUnsolicitedSent(chatId, 'day12_nudge').catch(() => {})
           log(`[Day12Nudge] Sent to ${chatId} for ${num.phoneNumber} ${num.plan}→${nextUp} ($${quote.chargeAmount.toFixed(2)})`)
         } catch (innerErr) {
           errors++
@@ -5507,6 +5533,52 @@ async function applyReferralCredit(refereeChatId, amountUsd, source) {
   }
 }
 
+// ── Order Resume (audit #16) ─────────────────────────────────────────────
+// Localized buttons for the "you topped up enough — finish your order" offer.
+const RESUME_ORDER_CTA = { en: '✅ Complete My Order', fr: '✅ Terminer ma commande', zh: '✅ 完成我的订单', hi: '✅ मेरा ऑर्डर पूरा करें' }
+const RESUME_DISMISS_CTA = { en: '🆕 Start Fresh', fr: '🆕 Recommencer', zh: '🆕 重新开始', hi: '🆕 नए सिरे से शुरू करें' }
+const RESUME_ORDER_CTA_ALL = Object.values(RESUME_ORDER_CTA)
+const RESUME_DISMISS_CTA_ALL = Object.values(RESUME_DISMISS_CTA)
+
+// Map a walletOk pay-step → a session-recovery flowType (for the resume prompt).
+function _resumeFlowType(step) {
+  return ({
+    'domain-pay': 'domain-purchase', 'hosting-pay': 'hosting-setup',
+    'phone-pay': 'phone-order', 'plan-pay': 'phone-order',
+    'vps-plan-pay': 'vps-order', 'vps-upgrade-plan-pay': 'vps-order',
+    'digital-product-pay': 'digital-purchase', 'virtual-card-pay': 'vcard-order',
+    'leads-pay': 'leads-purchase',
+  })[step] || 'order'
+}
+
+// After a wallet top-up, if the user has a saved order they can now afford,
+// offer a one-tap completion. The button routes back into the existing
+// confirm→pay flow (walletSelectCurrencyConfirm → Yes → walletOk[lastStep]).
+async function maybeOfferResume(chatId, lang = 'en') {
+  try {
+    if (!db || typeof getResumableSession !== 'function') return
+    const session = await getResumableSession(db, chatId)
+    if (!session) return
+    const price = Number(session?.data?.price || 0)
+    if (!(price > 0)) return
+    const { usdBal } = await getBalance(walletOf, chatId)
+    if (!(usdBal >= price)) return  // still short — the wall's own nudges handle it
+    const label = session?.data?.label || ''
+    const btn = RESUME_ORDER_CTA[lang] || RESUME_ORDER_CTA.en
+    const dismiss = RESUME_DISMISS_CTA[lang] || RESUME_DISMISS_CTA.en
+    const msg = ({
+      en: `✅ <b>$${usdBal.toFixed(2)} is now in your wallet.</b>\n\nYou can finish your ${label ? `<b>${label}</b> ` : ''}order (<b>$${price.toFixed(2)}</b>) right now — tap below.`,
+      fr: `✅ <b>$${usdBal.toFixed(2)} sont maintenant dans votre portefeuille.</b>\n\nVous pouvez finaliser votre commande ${label ? `<b>${label}</b> ` : ''}(<b>$${price.toFixed(2)}</b>) — appuyez ci-dessous.`,
+      zh: `✅ <b>您的钱包现有 $${usdBal.toFixed(2)}。</b>\n\n现在即可完成您的${label ? `<b>${label}</b>` : ''}订单（<b>$${price.toFixed(2)}</b>）— 点击下方。`,
+      hi: `✅ <b>अब आपके वॉलेट में $${usdBal.toFixed(2)} हैं।</b>\n\nआप अभी अपना ${label ? `<b>${label}</b> ` : ''}ऑर्डर (<b>$${price.toFixed(2)}</b>) पूरा कर सकते हैं — नीचे टैप करें।`,
+    })[lang] || `✅ <b>$${usdBal.toFixed(2)} is now in your wallet.</b>\n\nYou can finish your order (<b>$${price.toFixed(2)}</b>) — tap below.`
+    if (bot && typeof bot.sendMessage === 'function') {
+      await bot.sendMessage(chatId, msg, { parse_mode: 'HTML', reply_markup: { keyboard: [[btn], [dismiss]], resize_keyboard: true } })
+      log(`[Resume] offered completion to ${chatId} (order $${price} covered by $${usdBal.toFixed(2)})`)
+    }
+  } catch (e) { log(`[Resume] maybeOfferResume error: ${e.message}`) }
+}
+
 // ─── Low-balance proactive nudge (UX P-Funnel #11, 2026-06-21) ───────
 // Runs daily at 11:00 UTC. Finds users who:
 //   1. Hit an insufficient_balance_wall in the last 7 days
@@ -5575,6 +5647,10 @@ async function sendLowBalanceNudges() {
     // 5. Send DMs
     for (const c of candidates) {
       if (recentAlertSet.has(c.chatId)) { skipped++; continue }
+      // Lifecycle Diet (#18): respect the shared 1-per-24h cap. This shortfall
+      // reminder IS the balance-wall message, so it's exempt from the balance-wall
+      // and welcome-window gates.
+      if (lifecycleDiet?.isWithin24hCap && await lifecycleDiet.isWithin24hCap(c.chatId)) { skipped++; continue }
       try {
         const lang = ((await get(state, c.chatId)) || {}).userLanguage || 'en'
         const balDoc = await walletOf.findOne({ _id: parseInt(c.chatId) })
@@ -5593,6 +5669,7 @@ async function sendLowBalanceNudges() {
           { upsert: true }
         )
         sent++
+        if (lifecycleDiet?.markUnsolicitedSent) lifecycleDiet.markUnsolicitedSent(c.chatId, 'low_balance').catch(() => {})
         log(`[LowBalanceNudge] Sent to ${c.chatId} bal=$${usdBal.toFixed(2)}`)
       } catch (e) {
         errors++
@@ -9158,6 +9235,7 @@ bot?.on('message', msg => {
     registerNewDomainFound: 'registerNewDomainFound',
     useExistingDomain: 'useExistingDomain',
     useExistingDomainFound: 'useExistingDomainFound',
+    firstSessionIntent: 'firstSessionIntent',
     useMyDomain: 'useMyDomain',
     selectMyDomain: 'selectMyDomain',
     connectExternalDomain: 'connectExternalDomain',
@@ -12174,6 +12252,57 @@ Enter new value:`), bc)
     try { if (cartRecovery) cartRecovery.recordPaymentCompleted(chatId) } catch (_) {}
     try { if (userConversion) userConversion.markPurchased(chatId) } catch (_) {}
   }
+  // Shared balance-wall (audit #5 + #16): saves a RESUMABLE order so the user
+  // can finish it in one tap after topping up, logs the funnel event, then
+  // shows the pre-filled deposit wall.
+  const _showBalanceWall = async (usdBal, priceUsd) => {
+    const _lang = info?.userLanguage || 'en'
+    const step = info?.lastStep
+    try {
+      if (step) {
+        let label = ''
+        if (step === 'domain-pay') label = info?.website_name || info?.domain || 'domain'
+        else if (step === 'hosting-pay') label = info?.plan || 'hosting'
+        else if (step === 'plan-pay' || step === 'phone-pay') label = 'Cloud IVR'
+        else if (step === 'vps-plan-pay' || step === 'vps-upgrade-plan-pay') label = 'VPS'
+        else if (step === 'digital-product-pay') label = info?.product || 'digital product'
+        else if (step === 'virtual-card-pay') label = 'Virtual Card'
+        await saveResumableSession(db, chatId, {
+          flowType: _resumeFlowType(step),
+          step,
+          data: { price: Number(priceUsd), coin: 'usd', label },
+        })
+      }
+    } catch (_) { /* resume-save best effort */ }
+    try {
+      await db.collection('funnelEvents').insertOne({
+        ts: new Date(), chatId: String(chatId), event: 'insufficient_balance_wall',
+        funnel: 'wallet_purchase', step: step || null,
+        shortBy: Number(Math.max(0, Number(priceUsd) - Number(usdBal)).toFixed(2)),
+        walletBalance: Number(Number(usdBal).toFixed(2)), finalPrice: Number(priceUsd),
+      })
+    } catch (_) { /* funnel best effort */ }
+    const _w = getInsufficientBalanceMessage(usdBal, priceUsd, 'USD', _lang)
+    return send(chatId, _w.message, k.of(_w.keyboard))
+  }
+  // Early-floor wall (audit #22): surface a feature's wallet minimum at ENTRY
+  // (Bulk IVR $50) with pre-filled deposit buttons, instead of after a long
+  // form. Unlike _showBalanceWall it does NOT save a resumable order (these
+  // features re-enter from the menu, not a walletOk confirm step).
+  const _showEntryFloorWall = (usdBal, floorUsd, featureLabel) => {
+    const _lang = info?.userLanguage || 'en'
+    const need = Math.max(0, floorUsd - usdBal)
+    const dep1 = Math.max(10, Math.ceil(need))
+    const dep2 = dep1 < Math.ceil(floorUsd) ? Math.ceil(floorUsd) : dep1 + 20
+    const cancel = ({ en: '❌ Cancel', fr: '❌ Annuler', zh: '❌ 取消', hi: '❌ रद्द करें' })[_lang] || '❌ Cancel'
+    const msg = ({
+      en: `💳 <b>${featureLabel} needs a $${floorUsd} wallet balance.</b>\n\n💰 You have <b>$${usdBal.toFixed(2)}</b> — add <b>$${need.toFixed(2)}</b> more to unlock it.\n\nPick an amount below — you'll go straight to payment:`,
+      fr: `💳 <b>${featureLabel} nécessite un solde de $${floorUsd}.</b>\n\n💰 Vous avez <b>$${usdBal.toFixed(2)}</b> — ajoutez <b>$${need.toFixed(2)}</b> de plus pour l'activer.\n\nChoisissez un montant ci-dessous :`,
+      zh: `💳 <b>${featureLabel} 需要 $${floorUsd} 钱包余额。</b>\n\n💰 您有 <b>$${usdBal.toFixed(2)}</b> — 再充值 <b>$${need.toFixed(2)}</b> 即可解锁。\n\n在下方选择金额：`,
+      hi: `💳 <b>${featureLabel} के लिए $${floorUsd} वॉलेट बैलेंस चाहिए।</b>\n\n💰 आपके पास <b>$${usdBal.toFixed(2)}</b> है — इसे अनलॉक करने के लिए <b>$${need.toFixed(2)}</b> और जोड़ें।\n\nनीचे एक राशि चुनें:`,
+    })[_lang] || `💳 <b>${featureLabel} needs a $${floorUsd} wallet balance.</b>\n\n💰 You have <b>$${usdBal.toFixed(2)}</b> — add <b>$${need.toFixed(2)}</b> more.\n\nPick an amount below:`
+    return send(chatId, msg, k.of([[`💵 Deposit $${dep1}`], [`💵 Deposit $${dep2}`], [cancel]]))
+  }
   const walletOk = {
     'plan-pay': async coin => {
       await set(state, chatId, 'action', 'none')
@@ -12191,7 +12320,7 @@ Enter new value:`), bc)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
       const priceUsd = price
-      if (usdBal < priceUsd) { const _w = getInsufficientBalanceMessage(usdBal, priceUsd, 'USD', info?.userLanguage || 'en'); return send(chatId, _w.message, k.of(_w.keyboard)) }
+      if (usdBal < priceUsd) { return _showBalanceWall(usdBal, priceUsd) }
       set(payments, nanoid(), `Wallet,Plan,${plan},$${priceUsd},${chatId},${name},${new Date()}`)
       await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
       _finalizeWalletPurchase()
@@ -12218,7 +12347,7 @@ Enter new value:`), bc)
       const { usdBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
-      if (usdBal < shownPrice) { const _w = getInsufficientBalanceMessage(usdBal, shownPrice, 'USD', info?.userLanguage || 'en'); return send(chatId, _w.message, k.of(_w.keyboard)) }
+      if (usdBal < shownPrice) { return _showBalanceWall(usdBal, shownPrice) }
 
       const lang = info?.userLanguage ?? 'en'
 
@@ -12280,7 +12409,7 @@ Enter new value:`), bc)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
       const priceUsd = price
-      if (usdBal < priceUsd) { const _w = getInsufficientBalanceMessage(usdBal, priceUsd, 'USD', info?.userLanguage || 'en'); return send(chatId, _w.message, k.of(_w.keyboard)) }
+      if (usdBal < priceUsd) { return _showBalanceWall(usdBal, priceUsd) }
 
       const txDomain = info?.website_name || info?.domain
       const txPlan = info?.plan || null
@@ -12383,7 +12512,7 @@ Enter new value:`), bc)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
       const priceUsd = price
-      if (usdBal < priceUsd) { const _w = getInsufficientBalanceMessage(usdBal, priceUsd, 'USD', info?.userLanguage || 'en'); return send(chatId, _w.message, k.of(_w.keyboard)) }
+      if (usdBal < priceUsd) { return _showBalanceWall(usdBal, priceUsd) }
 
       const lang = info?.userLanguage ?? 'en'
       const name = await get(nameOf, chatId)
@@ -12453,7 +12582,7 @@ Enter new value:`), bc)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
       const priceUsd = price
-      if (usdBal < priceUsd) { const _w = getInsufficientBalanceMessage(usdBal, priceUsd, 'USD', info?.userLanguage || 'en'); return send(chatId, _w.message, k.of(_w.keyboard)) }
+      if (usdBal < priceUsd) { return _showBalanceWall(usdBal, priceUsd) }
 
       const lang = info?.userLanguage ?? 'en'
       const name = await get(nameOf, chatId)
@@ -12483,7 +12612,7 @@ Enter new value:`), bc)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
       const priceUsd = price
-      if (usdBal < priceUsd) { const _w = getInsufficientBalanceMessage(usdBal, priceUsd, 'USD', info?.userLanguage || 'en'); return send(chatId, _w.message, k.of(_w.keyboard)) }
+      if (usdBal < priceUsd) { return _showBalanceWall(usdBal, priceUsd) }
 
       const name = await get(nameOf, chatId)
       const orderId = nanoid(8).toUpperCase()
@@ -12535,7 +12664,7 @@ Enter new value:`), bc)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
       const priceUsd = price
-      if (usdBal < priceUsd) { const _w = getInsufficientBalanceMessage(usdBal, priceUsd, 'USD', info?.userLanguage || 'en'); return send(chatId, _w.message, k.of(_w.keyboard)) }
+      if (usdBal < priceUsd) { return _showBalanceWall(usdBal, priceUsd) }
 
       const name = await get(nameOf, chatId)
       const orderId = nanoid(8).toUpperCase()
@@ -13209,7 +13338,7 @@ All verified numbers generated during sourcing.`))
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
       const priceUsd = price
-      if (usdBal < priceUsd) { const _w = getInsufficientBalanceMessage(usdBal, priceUsd, 'USD', info?.userLanguage || 'en'); return send(chatId, _w.message, k.of(_w.keyboard)) }
+      if (usdBal < priceUsd) { return _showBalanceWall(usdBal, priceUsd) }
 
       let cc = countryCodeOf[info?.country]
       let country = info?.country
@@ -13309,7 +13438,7 @@ All verified numbers generated during sourcing.`))
 
       const priceUsd = price
       const name = await get(nameOf, chatId)
-      if (usdBal < priceUsd) { const _w = getInsufficientBalanceMessage(usdBal, priceUsd, 'USD', info?.userLanguage || 'en'); return send(chatId, _w.message, k.of(_w.keyboard)) }
+      if (usdBal < priceUsd) { return _showBalanceWall(usdBal, priceUsd) }
       let _shortUrl
       try {
         const { url } = info
@@ -13391,7 +13520,7 @@ All verified numbers generated during sourcing.`))
       const { usdBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
-      if (usdBal < price) { const _w = getInsufficientBalanceMessage(usdBal, price, 'USD', info?.userLanguage || 'en'); return send(chatId, _w.message, k.of(_w.keyboard)) }
+      if (usdBal < price) { return _showBalanceWall(usdBal, price) }
 
       const name = await get(nameOf, chatId)
 
@@ -13589,6 +13718,7 @@ All verified numbers generated during sourcing.`))
     const _hub = message.slice('/start open_'.length).trim()
     bot?.sendChatAction?.(chatId, 'typing').catch(() => {})
     log(`[DeepLink] ${chatId} opened hub deep link: open_${_hub}`)
+    autoPromo?.recordPromoLift?.(chatId, 'hubtap')
     const _hubGoto = {
       domains: () => goto.submenu2 && goto.submenu2(),
       hosting: () => goto.submenu3 && goto.submenu3(),
@@ -13596,6 +13726,16 @@ All verified numbers generated during sourcing.`))
       digital: () => goto.submenu6 && goto.submenu6(),
       vcard: () => goto['virtual-card-start'] && goto['virtual-card-start'](),
       wallet: () => goto[user.wallet] && goto[user.wallet](),
+      bundle: async () => {
+        const _l = info?.userLanguage || 'en'
+        await set(state, chatId, 'action', a.bundleMenu)
+        const _btns = Object.keys(monetization.SERVICE_BUNDLES).map(id => {
+          const b = monetization.getBundleDetails(id, _l)
+          return [b.popular ? `⭐ ${b.name}` : b.name]
+        })
+        _btns.push(['↩️ Back'])
+        return send(chatId, monetization.formatBundleMenu(_l), k.of(_btns))
+      },
     }[_hub]
     if (_hubGoto) return _hubGoto()
     // Unknown payload → fall through to the normal /start below.
@@ -13636,10 +13776,36 @@ All verified numbers generated during sourcing.`))
     }
   }
 
+  // ── Global language switch (#21): change UI language from ANY state ──────
+  // Previously the language picker was only reachable from the Settings submenu,
+  // so a user mid-flow (payment / DNS form / etc.) had to back all the way out
+  // first (audit: "Lalapmo needed 4 attempts"). Intercept the /language command
+  // and the Settings "🌍 Change Language" button here, before any action-specific
+  // handler, and jump straight to the picker. NOTE: only the 🌍 UI-language
+  // button is matched — the IVR 🌐 "Change Language" (voice greeting language)
+  // is intentionally left to its own handlers.
+  {
+    const _m = String(message || '').trim()
+    const _isLangCmd = _m === '/language' || _m === '/lang' || _m === '/langue'
+    const _changeLangLabels = new Set([
+      '🌍 Change Language',
+      '🌍 Changer de langue',
+      '🌍 更改语言',
+      '🌍 भाषा बदलें',
+    ])
+    if (_isLangCmd || _changeLangLabels.has(_m)) {
+      await set(state, chatId, 'action', a.updateUserLanguage)
+      return send(chatId, trans('l.askPreferredLanguage'), trans('languageMenu'))
+    }
+  }
+
   if (message === '/start' || message.startsWith('/start ref_') || message === '/start pinreset' || message === '/start resetpin' || message.startsWith('/start open_')) {
     // Bug 7: Immediate typing indicator — gives instant visual feedback so users
     // don't tap /start multiple times while waiting for the first reply.
     bot?.sendChatAction?.(chatId, 'typing').catch(() => {})
+
+    // Lifecycle lift metric (#18): a /start within 45 min of a blast counts as a return.
+    autoPromo?.recordPromoLift?.(chatId, 'start')
 
     // UX P1 fix (2026-06-21): debounce /start spam.  Logs show users tapping
     // /start 3-5× in a row, each re-rendering the full main menu.  If the same
@@ -14587,13 +14753,27 @@ All verified numbers generated during sourcing.`))
         userConversion.scheduleWelcomeOffer(chatId, validLanguage)
       }
 
-      // Send the full main menu greeting (with balance, tier, free IVR hint)
-      // after a small delay so it lands after the welcome-bonus message.
+      // First-session intent funnel (audit #17): ask once "what do you need
+      // today?" so a first-timer jumps straight to a hub instead of the full
+      // 17-button menu. "👀 Just looking" (or any other input) opens the full
+      // menu, so users are never stuck. Lands after the welcome-bonus message.
       setTimeout(async () => {
         try {
-          const greeting = await getMainMenuGreeting()
-          send(chatId, greeting, trans('o'))
-          await maybeSendTrialNudge(chatId, validLanguage || 'en')
+          const _l = validLanguage || 'en'
+          const q = ({
+            en: `👋 <b>Welcome!</b> What do you need today?\n\nTap one to jump straight in — or 👀 Just looking to browse everything.`,
+            fr: `👋 <b>Bienvenue !</b> De quoi avez-vous besoin aujourd'hui ?\n\nAppuyez pour aller droit au but — ou 👀 Je regarde pour tout parcourir.`,
+            zh: `👋 <b>欢迎！</b>您今天需要什么？\n\n点击直接进入 — 或点 👀 随便看看 浏览全部。`,
+            hi: `👋 <b>स्वागत है!</b> आज आपको क्या चाहिए?\n\nसीधे जाने के लिए टैप करें — या सब कुछ ब्राउज़ करने के लिए 👀 बस देख रहे हैं।`,
+          })[_l] || `👋 <b>Welcome!</b> What do you need today?`
+          const rows = [
+            [FIRST_SESSION_INTENT.numbers[_l] || FIRST_SESSION_INTENT.numbers.en],
+            [FIRST_SESSION_INTENT.hosting[_l] || FIRST_SESSION_INTENT.hosting.en, FIRST_SESSION_INTENT.domains[_l] || FIRST_SESSION_INTENT.domains.en],
+            [FIRST_SESSION_INTENT.digital[_l] || FIRST_SESSION_INTENT.digital.en],
+            [FIRST_SESSION_INTENT.looking[_l] || FIRST_SESSION_INTENT.looking.en],
+          ]
+          await set(state, chatId, 'action', a.firstSessionIntent)
+          send(chatId, q, { parse_mode: 'HTML', reply_markup: { keyboard: rows, resize_keyboard: true } })
         } catch (e) { /* non-critical */ }
       }, 2000)
 
@@ -14605,6 +14785,18 @@ All verified numbers generated during sourcing.`))
     send(chatId, greeting, trans('o'))
     await maybeSendTrialNudge(chatId, validLanguage || 'en')
     return
+  }
+
+  // First-session intent funnel routing (audit #17) — new-user only (gated by
+  // the firstSessionIntent action, which is set once after language selection).
+  if (action === a.firstSessionIntent) {
+    await set(state, chatId, 'action', 'none')
+    if (FIRST_SESSION_INTENT_ALL.numbers.includes(message)) return goto.submenu5 ? goto.submenu5() : goto.displayMainMenuButtons()
+    if (FIRST_SESSION_INTENT_ALL.hosting.includes(message)) return goto.submenu3 ? goto.submenu3() : goto.displayMainMenuButtons()
+    if (FIRST_SESSION_INTENT_ALL.domains.includes(message)) return goto.submenu2 ? goto.submenu2() : goto.displayMainMenuButtons()
+    if (FIRST_SESSION_INTENT_ALL.digital.includes(message)) return goto.submenu6 ? goto.submenu6() : goto.displayMainMenuButtons()
+    // "👀 Just looking" OR anything else → full menu (never stuck)
+    return goto.displayMainMenuButtons()
   }
 
   // ━━━ Settings Menu ━━━
@@ -23460,6 +23652,32 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     }
   }
 
+  // ── Order Resume (audit #16): finish a saved order after topping up ──────
+  // Entry points: the post-deposit "Complete My Order" offer (maybeOfferResume)
+  // and the /start "Welcome back" prompt (generateResumePrompt) — both use the
+  // same RESUME_ORDER_CTA / RESUME_DISMISS_CTA labels.
+  if (RESUME_ORDER_CTA_ALL.includes(message)) {
+    const session = await getResumableSession(db, chatId)
+    if (!session || !session.step) {
+      await clearResumableSession(db, chatId)
+      return send(chatId, ({ en: '⚠️ That saved order has expired — please start again from the menu.', fr: '⚠️ Cette commande sauvegardée a expiré — veuillez recommencer depuis le menu.', zh: '⚠️ 该保存的订单已过期 — 请从菜单重新开始。', hi: '⚠️ वह सहेजा गया ऑर्डर समाप्त हो गया — कृपया मेनू से फिर से शुरू करें।' }[lang] || '⚠️ That saved order has expired — please start again from the menu.'), trans('o'))
+    }
+    const _price = Number(session?.data?.price || 0)
+    const { usdBal: _rBal } = await getBalance(walletOf, chatId)
+    await saveInfo('lastStep', session.step)
+    if (_price > 0 && _rBal < _price) {
+      // Top-up didn't fully cover the order — re-show the pre-filled wall (keeps session).
+      return _showBalanceWall(_rBal, _price)
+    }
+    await saveInfo('coin', 'usd')
+    await set(state, chatId, 'action', session.step)
+    await clearResumableSession(db, chatId)
+    return goto.walletSelectCurrencyConfirm()
+  }
+  if (RESUME_DISMISS_CTA_ALL.includes(message)) {
+    await clearResumableSession(db, chatId)
+    return send(chatId, ({ en: '👍 No problem — here\'s the menu.', fr: '👍 Pas de souci — voici le menu.', zh: '👍 没问题 — 这是菜单。', hi: '👍 कोई बात नहीं — यह रहा मेनू।' }[lang] || '👍 No problem — here\'s the menu.'), trans('o'))
+  }
   if (message === user.wallet && !_payActions.includes(action)) {
     // Clear any stale support session — user is navigating the bot normally
     await set(supportSessions, chatId, 0)
@@ -24112,6 +24330,14 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       }
       await saveInfo('bulkData', {})
       await saveInfo('bulkCallerIds', allCallerIds)
+      // audit #22 — surface the Bulk IVR $50 wallet floor HERE (at Select Caller
+      // ID) with a pre-filled deposit, instead of failing at Launch after the
+      // user has filled 6 form steps.
+      try {
+        const { usdBal: _bulkBal } = await getBalance(walletOf, chatId)
+        const _bulkFloor = parseFloat(process.env.BULK_CALL_MIN_WALLET || '50')
+        if (_bulkBal < _bulkFloor) return _showEntryFloorWall(_bulkBal, _bulkFloor, 'Bulk IVR')
+      } catch (_) { /* floor check best-effort — never block on a balance read error */ }
       await set(state, chatId, 'action', a.bulkSelectCaller)
       const numBtns = allCallerIds.map(c => [c.label])
       return send(chatId, trans('t.cp_12'), k.of([...numBtns, ['↩️ Back']]))
@@ -28712,7 +28938,21 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
         ? [[pc.alwaysForward], [pc.forwardBusy], [pc.forwardNoAnswer], [holdLabel], ['📲 Change Forward-To Number'], [pc.disableForwarding]]
         : [[pc.alwaysForward], [pc.forwardBusy], [pc.forwardNoAnswer]]
       const preview = phoneConfig.formatCallFlowPreview(num, info?.userLanguage || 'en')
-      return send(chatId, `${preview}\n\n${cpTxt.forwardingStatus(num.phoneNumber, fwd, walletBal)}`, k.of(btns))
+      // audit #22 — surface the forwarding wallet floor HERE with a pre-filled
+      // deposit, so a low-balance user tops up before setting a forward number.
+      let _fwdMsg = `${preview}\n\n${cpTxt.forwardingStatus(num.phoneNumber, fwd, walletBal)}`
+      const _fwdFloor = parseFloat(process.env.FORWARDING_MIN_WALLET || '25')
+      if (walletBal < _fwdFloor) {
+        const _fwdDep = Math.max(10, Math.ceil(_fwdFloor - walletBal))
+        btns.unshift([`💵 Deposit $${_fwdDep}`])
+        _fwdMsg += ({
+          en: `\n\n💡 Forwarding bills per-minute from your wallet — we recommend at least <b>$${_fwdFloor}</b>. Tap 💵 Deposit $${_fwdDep} to top up now.`,
+          fr: `\n\n💡 Le transfert est facturé à la minute depuis votre portefeuille — nous recommandons au moins <b>$${_fwdFloor}</b>. Appuyez sur 💵 Deposit $${_fwdDep}.`,
+          zh: `\n\n💡 呼叫转移按分钟从钱包扣费 — 建议至少 <b>$${_fwdFloor}</b>。点击 💵 Deposit $${_fwdDep} 立即充值。`,
+          hi: `\n\n💡 फ़ॉरवर्डिंग वॉलेट से प्रति-मिनट बिल होती है — कम से कम <b>$${_fwdFloor}</b> रखें। अभी टॉप-अप के लिए 💵 Deposit $${_fwdDep} टैप करें।`,
+        }[info?.userLanguage || 'en'] || `\n\n💡 Forwarding bills per-minute from your wallet — we recommend at least $${_fwdFloor}. Tap 💵 Deposit $${_fwdDep} to top up now.`)
+      }
+      return send(chatId, _fwdMsg, k.of(btns))
     }
 
     // SMS Settings
@@ -39096,6 +39336,7 @@ app.get('/crypto-wallet', auth, async (req, res) => {
   if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
   await set(state, chatId, 'action', 'none') // Reset action after crypto wallet deposit
+  try { await maybeOfferResume(chatId, lang) } catch (_) { /* resume offer best effort */ }
 })
 
 // ── DEV-ONLY credit-logic preview (read-only, no DB writes) ──────────────
@@ -44279,6 +44520,7 @@ app.post('/dynopay/crypto-wallet', authDyno, async (req, res) => {
     log(`[Referral] applyReferralCredit (dynopay) non-fatal err: ${e.message}`)
   }
   await set(state, chatId, 'action', 'none') // Reset action after crypto wallet deposit
+  try { await maybeOfferResume(chatId, lang) } catch (_) { /* resume offer best effort */ }
   
   log('=== DYNOPAY WALLET WEBHOOK PROCESSING COMPLETE ===')
 })

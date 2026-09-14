@@ -43,6 +43,14 @@ Verified by testing_agent iteration_46: Node suite `js/tests/test_quickwins_2026
 - #11 typed-text → AI support — help/trouble intents routed via `isColdSupportQuestion` (`_index.js`; live check `/api/dev/support-routing-test`)
 - #12 welcome-offer deep link — links to most-browsed hub via `buildWelcomeCta`/`HUB_DEEPLINKS` (`new-user-conversion.js`, `_index.js`)
 
+## 2026-06 (fork) — Phase 2 structural conversion enhancements
+Approved audit items executed (all verified via custom Node suites + testing_agent iteration_47/48):
+- ✅ #16 Order Resume, #22 Early Floors, #19 First-Purchase Bundle, #17 First-Session Intent Funnel (prior turns).
+- ✅ #18 Lifecycle Diet + Mute + Lift Metric — `js/lifecycle-diet.js` shared throttle (1/24h cap on marketing, <72h welcome-window suppression, active-balance-wall pause, cart-nudge mute button, per-blast /start+hub-tap lift into `promoStats` with zero-lift admin alert). Wired into AutoPromo, cart-abandonment, new-user-conversion, low-balance & day-12 nudges.
+- ✅ #21 Localization Parity — per-locale reverse DNS record-type map (fixed a real FR/ZH/HI DNS-add breakage where `t[recordType]` was undefined), translated `dnsProxiedChoice*` + `vp.vpsSshBlockedHelp` into FR/ZH/HI, and a global `/language` + 🌍 Change Language handler that works from any state.
+- ✅ VPS credentials copy: `vpsBoughtSuccess` readiness note min→minutes in en/fr (locale parity).
+- New tests: `js/tests/test_lifecycle_diet_2026-06.js` (24), `test_promo_lift_metric_2026-06.js` (13), `test_localization_parity_2026-06.js` (79). Regression: quickwins 82, all Phase 2 + i18n suites green.
+
 ## Prioritized backlog (P0/P1/P2)
 ### P0 (from 2026-09-14 audit)
 - ✅ DONE — move `markPurchased`/`recordPaymentCompleted` after a successful charge (audit #3 / fix #1)

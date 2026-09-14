@@ -157,15 +157,20 @@ async function sendAlert(result) {
 // 5xx / network error AFTER it's been observed on TWO consecutive checks —
 // otherwise a one-off Twilio / Telnyx edge blip would page the admin every time.
 let _consecutiveErrors = {}        // { provider: { count, lastStatus } }
+// Providers whose API key was rejected (HTTP 401/403). A rejected key is a
+// config problem, not a balance problem — we alert once then STOP polling that
+// provider until the next restart, so a stale/rotated key can't spam an ERROR
+// line every check cycle. (In production a valid key never trips this.)
+let _authDisabled = {}             // { provider: true }
 
 async function checkAllBalances() {
   log('[BalanceMonitor] Running provider balance checks...')
   const results = []
 
-  const telnyxResult = await checkTelnyxBalance()
+  const telnyxResult = _authDisabled.Telnyx ? null : await checkTelnyxBalance()
   if (telnyxResult) results.push(telnyxResult)
 
-  const twilioResult = await checkTwilioBalance()
+  const twilioResult = _authDisabled.Twilio ? null : await checkTwilioBalance()
   if (twilioResult) results.push(twilioResult)
 
   for (const r of results) {
@@ -184,6 +189,13 @@ async function checkAllBalances() {
 
       // Decide whether to alert
       const isAuthError = r.errorCategory === 'auth'
+      // A rejected key (401/403) means this provider is misconfigured in this
+      // environment. Alert once (below), then pause it so we stop logging the
+      // same 401 every cycle. Cleared only by a restart (fresh/valid key).
+      if (isAuthError && !_authDisabled[r.provider]) {
+        _authDisabled[r.provider] = true
+        log(`[BalanceMonitor] ${r.provider}: key rejected (HTTP ${r.errorStatus}) — pausing ${r.provider} balance checks until restart`)
+      }
       const isPersistentTransient = r.errorCategory === 'transient' && consecutive >= 2
       const shouldAlert_ = isAuthError || isPersistentTransient
 
