@@ -1,7 +1,7 @@
 # cPanel Auth-Broken Fallback Bug Fix Verification Report
 
 **Pod:** SMADAV whitelabel (Node.js backend on port 5000)  
-**External URL:** https://multi-api-setup.preview.emergentagent.com  
+**External URL:** https://service-config-7.preview.emergentagent.com  
 **Test Date:** 2025-01-26  
 **Test Type:** READ-ONLY verification (no real WHM traffic, no data mutation)
 

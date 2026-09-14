@@ -15,9 +15,9 @@
 - Bot token (dev==prod): 8822506525:... (env: TELEGRAM_BOT_TOKEN_PROD / _DEV)
 
 ## URLs
-- Frontend/preview: https://8c5fc3ec-c82f-49de-82f7-0941dc4f4ecd.preview.emergentagent.com
+- Frontend/preview: https://db36f8f4-9811-46a0-9fb2-7155a17d8c81.preview.emergentagent.com
 - Backend API base (proxied to Node :5000): <preview>/api
-- Re-provisioned 2026-09-11 (WhiteLabel branch): fresh backend/.env + frontend/.env from user creds (BOT_ENVIRONMENT=development, SKIP_WEBHOOK_SYNC=true overrides); ran scripts/setup-nodejs.sh; restarted backend (had crashed on boot before .env existed — KeyError MONGO_URL — fixed by restart). All services verified: nodejs RUNNING, external /api/health healthy + DB connected, frontend title "SmadavHost | Hosting Panel".
+- Re-provisioned 2026-09-14 (WhiteLabel branch, this pod): fresh backend/.env + frontend/.env from user creds (BOT_ENVIRONMENT=development, SKIP_WEBHOOK_SYNC=true overrides); ran scripts/setup-nodejs.sh; restarted backend+frontend (both had started before .env existed — backend KeyError MONGO_URL + frontend un-interpolated %REACT_APP_BRAND_PANEL_NAME% — both fixed by restart). All services verified: nodejs RUNNING + Mongo pool ready, external /api/health healthy + DB connected, frontend title "SmadavHost | Hosting Panel", panel dashboard renders (Bot: Running / DB: Connected / REST APIs: Active). Dev guards confirmed in node log (NS-retry / AntiRed / CF-Sync / hosting scheduler / phone-health-monitor all SKIPPED). Known non-blocker: BalanceMonitor Telnyx HTTP 401 (provided TELNYX_API_KEY rejected by Telnyx balance endpoint — Twilio balance OK $11.50).
 - Panel domain: panel.smadavhost.com | SIP domain: sip.smadavspeech.com
 
 ## Panel (cPanel management UI) testing
