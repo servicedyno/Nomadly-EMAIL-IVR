@@ -23,9 +23,17 @@ See CHANGELOG.md for the running log. High-level list:
 - ✅ `editMessageText "message can't be edited"` fallback spam — terminal-error short-circuit + per-session log dedup + streaming short-circuit
 - ✅ VPS deletion spam — Contabo "already been canceled" now treated as idempotent success; admin alert throttled to ≥6h with 10-retry hard-stop; `Auto-Deleted` post skipped for no-op cycles
 
+## 2026-09-14 — User-journey / conversion audit (analysis only, no bot changes)
+- Report: `/app/memory/USER_JOURNEY_AUDIT_2026-09-14.md` (exec summary, journey map, pain-point register, ranked recs, 30-day plan)
+- Data: read-only 7-day Railway log sample in `/app/investigations/journey7d/` via `ops/railway_journey_pull.js`; analysis `ops/journey_funnel_analysis.py`
+- Headline: 36 new users → 1 deposit, 0 purchases; VPS checkout 8/8 failed (Contabo invalid_client); social proof is seeded random; `markPurchased` fires before balance check (kills recovery nudges); no order resume after top-up; 10k promos/week with zero /start lift; 0/30 welcome coupons redeemed.
+
 ## Prioritized backlog (P0/P1/P2)
-### P0
-_(none open)_
+### P0 (from 2026-09-14 audit — awaiting user go-ahead)
+- Hide/fix VPS until Contabo creds valid; auto-ticket on provisioning failure
+- Replace seeded social proof with real counts (or remove)
+- Move `recordPaymentCompleted`/`markPurchased` after successful charge (`_index.js:23573-23577`)
+- Single price source ($0.04 vs $0.15/min overage in `monetization-engine.js`); cart-nudge "/menu → Daily Coupon" copy fix
 
 ### P1
 - _(none open — all P1s from BLACKNMILDS_CLOUDIVR_COMPLAINTS have been fixed)_
