@@ -424,7 +424,7 @@ Included:
 
  chooseDomainToBuy: text =>
  `Enter your domain name (e.g., <code>mysite.com</code>)\n\n💰 Pricing from $30/year${text}`,
- askDomainToUseWithShortener: `Use this domain as a <b>custom URL shortener</b>?\n\n<b>Yes</b> — Auto-configure DNS. Short links become <code>yourdomain.com/abc</code>.\n\n<b>No</b> — Register only. Enable shortener anytime from Manage Domains.`,
+ askDomainToUseWithShortener: `👉 <b>Confirm your domain above.</b> Tap <b>No</b> to register it now, or <b>Yes</b> to also turn on the URL shortener.\n\n<b>No</b> — Just register it <i>(recommended)</i>. You can enable the shortener anytime from 🔧 Manage Domains.\n<b>Yes</b> — Also auto-configure DNS so short links become <code>yourdomain.com/abc</code>.`,
  blockUser: `Please share the username of the user that needs to be blocked.`,
  unblockUser: `Please share the username of the user that needs to be unblocked.`,
  blockedUser: `You are currently blocked from using the bot. Please tap 💬 Get Support. Discover more ${TG_HANDLE}.`,
@@ -985,13 +985,14 @@ Need: <b>$${(needed - balance).toFixed(2)} more</b>
 Tap Deposit ⬇️`,
 
  sentLessMoney: (expected, got) =>
- `⚠️ Underpayment detected
+ `⚠️ <b>Underpayment</b>
 
 Expected: <b>${expected}</b>
 Received: <b>${got}</b>
 
-Amount credited to wallet.
-Service not delivered.`,
+✅ <b>${got} was added to your wallet</b> — nothing is lost.
+
+💳 To finish this order, reopen the service and pick <b>👛 Wallet</b> at checkout (top up the small difference if needed). Tap /start to continue.`,
  sentMoreMoney: (expected, got) =>
  `💰 Overpayment detected
 
@@ -2570,9 +2571,9 @@ const adminKeyboard = {
 const userKeyboard = {
  reply_markup: {
  keyboard: [
- [user.cloudPhone, user.referEarn],
- [user.marketplace, user.digitalProducts],
- [user.domainNames, user.hostingDomainsRedirect],
+ [user.cloudPhone, user.hostingDomainsRedirect],
+ [user.domainNames, user.digitalProducts],
+ [user.marketplace, user.referEarn],
  ...(VPS_ENABLED === 'true'
  ? (HIDE_SMS_APP !== 'true' ? [[user.vpsPlans, user.smsAppMain]] : [[user.vpsPlans]])
  : (HIDE_SMS_APP !== 'true' ? [[user.smsAppMain]] : [])),
@@ -2953,7 +2954,16 @@ ${plan.panel}`
 
  return `${commonSteps[step]}`
  },
- generateDomainFoundText: (websiteName, price) => `<b>${websiteName}</b> is available — $${price}`,
+ generateDomainFoundText: (websiteName, price, hostingPrice, total, planName) => {
+   if (hostingPrice && total) {
+     return `✅ <b>${websiteName}</b> is available!\n\n` +
+       `🌐 Domain: <b>$${price}</b>\n` +
+       `🛡️ Hosting${planName ? ` (${planName})` : ''}: <b>$${hostingPrice}</b>\n` +
+       `━━━━━━━━━━━━\n` +
+       `💰 <b>Total today: $${total}</b>`
+   }
+   return `<b>${websiteName}</b> is available — $${price}`
+ },
  generateExistingDomainText: websiteName => `Domain set: <b>${websiteName}</b>`,
  connectExternalDomainText: websiteName => `Domain: <b>${websiteName}</b>\n\nNameservers will be pointed to Cloudflare. DNS records auto-configured.`,
  domainNotFound: websiteName => `<b>${websiteName}</b> is not available. Try another.`,
@@ -3277,8 +3287,8 @@ Please top up your wallet to continue using your VPS Plan.
  : `\n⚠️ <b>Save your credentials securely.</b>`
  
  const readinessNote = isRDP
- ? `\n⏱ <b>Allow 5–10 min</b> for Windows first-boot. If RDP rejects the password right after delivery, wait a couple of minutes and retry — the password is correct.`
- : `\n⏱ <b>Allow 2–5 min</b> for first-boot setup. If SSH says "permission denied" right after delivery, wait a couple of minutes and retry — the password is correct.`
+ ? `\n⏱ <b>Allow 5–10 minutes</b> for Windows first-boot. If RDP rejects the password right after delivery, wait a couple of minutes and retry — the password is correct.`
+ : `\n⏱ <b>Allow 2–5 minutes</b> for first-boot setup. If SSH says "permission denied" right after delivery, wait a couple of minutes and retry — the password is correct.`
 
  return `<strong>🎉 ${isRDP ? 'RDP' : 'VPS'} [${response.label}] is active!</strong>
 
@@ -3570,6 +3580,23 @@ ${dataPreserved
 🔑 <strong>For instant access, use your SSH key.</strong>
 
 ⚠️ <i>Note: with this provider we can't display the password here for security — it is emailed by the provider or you authenticate with your SSH key.</i>`,
+
+ vpsSshBlockedHelp: (name, ip, username = 'root') => `🟠 <strong>Your VPS is online — but SSH is blocked</strong>
+
+🖥️ <strong>Server:</strong> ${name}
+🌐 <strong>IP:</strong> <code>${ip}</code>
+
+We reached your server (it's up and running), but <b>port 22 (SSH) is closed by a firewall inside the server</b>. That's why login and password reset don't work — no password can get through a closed port.
+
+✅ <strong>How to reopen it (2 minutes):</strong>
+1. Open your provider's <b>Recovery / Web Console</b> for this server (no SSH needed).
+2. Log in as <code>${username}</code>.
+3. Run: <code>ufw allow OpenSSH</code>  (or <code>ufw allow 22/tcp</code>)
+4. Then run: <code>ufw reload</code>
+
+Once port 22 is open, come back and tap <b>🔑 Reset Password</b> — we'll set a fresh password on the running server and confirm it works, with your data kept.
+
+💬 Stuck? Tap <b>💬 Support</b> and we'll reopen it for you.`,
 
  windowsReinstallEmailed: (name, ip, username, note) => `🎉 <strong>Windows Reinstall Started!</strong>
 

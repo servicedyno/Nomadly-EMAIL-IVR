@@ -98,39 +98,74 @@ const ONBOARDING_MESSAGES = {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 const WELCOME_OFFER_MESSAGES = {
-  en: (code) =>
+  en: (code, cta) =>
     `🔥 <b>Special Offer for You!</b>\n\n` +
     `We noticed you haven't made your first purchase yet.\n\n` +
     `Here's an exclusive <b>${WELCOME_OFFER_DISCOUNT}% OFF</b> your first order!\n\n` +
     `🎟️ Coupon Code: <code>${code}</code>\n` +
     `⏰ Expires in <b>${WELCOME_OFFER_EXPIRY_HOURS} hours</b>\n\n` +
     `Works on: Hosting, Domains, Cloud Phone, VPS, Digital Products & more.\n\n` +
-    `👇 Tap /start and browse our services!`,
-  fr: (code) =>
+    `${cta}`,
+  fr: (code, cta) =>
     `🔥 <b>Offre spéciale pour vous !</b>\n\n` +
     `Nous avons remarqué que vous n'avez pas encore fait d'achat.\n\n` +
     `Voici <b>${WELCOME_OFFER_DISCOUNT}% de réduction</b> exclusive sur votre première commande !\n\n` +
     `🎟️ Code : <code>${code}</code>\n` +
     `⏰ Expire dans <b>${WELCOME_OFFER_EXPIRY_HOURS} heures</b>\n\n` +
     `Valable sur : Hébergement, Domaines, Cloud Phone, VPS et plus.\n\n` +
-    `👇 Tapez /start pour explorer !`,
-  zh: (code) =>
+    `${cta}`,
+  zh: (code, cta) =>
     `🔥 <b>专属优惠！</b>\n\n` +
     `您还没有进行首次购买。\n\n` +
     `专属 <b>${WELCOME_OFFER_DISCOUNT}% 折扣</b>！\n\n` +
     `🎟️ 优惠码：<code>${code}</code>\n` +
     `⏰ <b>${WELCOME_OFFER_EXPIRY_HOURS}小时</b>后过期\n\n` +
     `适用于：主机、域名、云电话、VPS、数字产品等。\n\n` +
-    `👇 输入 /start 开始探索！`,
-  hi: (code) =>
+    `${cta}`,
+  hi: (code, cta) =>
     `🔥 <b>आपके लिए विशेष ऑफ़र!</b>\n\n` +
     `आपने अभी तक पहली खरीदारी नहीं की है।\n\n` +
     `विशेष <b>${WELCOME_OFFER_DISCOUNT}% छूट</b> आपके पहले ऑर्डर पर!\n\n` +
     `🎟️ कूपन कोड: <code>${code}</code>\n` +
     `⏰ <b>${WELCOME_OFFER_EXPIRY_HOURS} घंटे</b> में समाप्त\n\n` +
     `होस्टिंग, डोमेन, क्लाउड फ़ोन, VPS और अधिक पर लागू।\n\n` +
-    `👇 /start टैप करें और एक्सप्लोर करें!`,
+    `${cta}`,
 }
+
+// Hub deep-link map: browse category → `?start=open_<hub>` payload + localized label.
+// Payloads are handled in _index.js (routes the user straight to that hub).
+const HUB_DEEPLINKS = {
+  hosting:         { payload: 'open_hosting',    label: { en: '🛡️ Anti-Red Hosting', fr: '🛡️ Hébergement Anti-Red', zh: '🛡️ 防封主机', hi: '🛡️ एंटी-रेड होस्टिंग' } },
+  domains:         { payload: 'open_domains',    label: { en: '🌐 Domains', fr: '🌐 Domaines', zh: '🌐 域名', hi: '🌐 डोमेन' } },
+  cloudphone:      { payload: 'open_cloudphone', label: { en: '📞 Cloud IVR + SIP', fr: '📞 Cloud IVR + SIP', zh: '📞 云IVR + SIP', hi: '📞 क्लाउड IVR + SIP' } },
+  digitalproducts: { payload: 'open_digital',    label: { en: '🛒 Digital Products', fr: '🛒 Produits numériques', zh: '🛒 数字产品', hi: '🛒 डिजिटल प्रोडक्ट' } },
+  virtualcard:     { payload: 'open_vcard',      label: { en: '💳 Virtual Card', fr: '💳 Carte virtuelle', zh: '💳 虚拟卡', hi: '💳 वर्चुअल कार्ड' } },
+}
+
+// Build the welcome-offer CTA: a working deep link back to the user's most-browsed
+// hub (falls back to a plain /start when no hub was browsed / VPS-only browse).
+function buildWelcomeCta(lang, topCategory) {
+  const botUser = process.env.BOT_USERNAME || 'Nomadlybot'
+  const hub = HUB_DEEPLINKS[topCategory]
+  if (hub) {
+    const link = `https://t.me/${botUser}?start=${hub.payload}`
+    const label = hub.label[lang] || hub.label.en
+    return ({
+      en: `👉 <a href="${link}">Open ${label}</a> and enter your code at checkout.`,
+      fr: `👉 <a href="${link}">Ouvrez ${label}</a> et saisissez votre code au paiement.`,
+      zh: `👉 <a href="${link}">打开 ${label}</a>，结账时输入优惠码。`,
+      hi: `👉 <a href="${link}">${label} खोलें</a> और चेकआउट पर अपना कोड दर्ज करें।`,
+    }[lang]) || `👉 <a href="${link}">Open ${label}</a> and enter your code at checkout.`
+  }
+  const link = `https://t.me/${botUser}?start`
+  return ({
+    en: `👉 <a href="${link}">Tap here to browse</a> and enter your code at checkout.`,
+    fr: `👉 <a href="${link}">Appuyez ici pour explorer</a> et saisissez votre code au paiement.`,
+    zh: `👉 <a href="${link}">点击这里浏览</a>，结账时输入优惠码。`,
+    hi: `👉 <a href="${link}">ब्राउज़ करने के लिए यहां टैप करें</a> और चेकआउट पर अपना कोड दर्ज करें।`,
+  }[lang]) || `👉 <a href="${link}">Tap here to browse</a> and enter your code at checkout.`
+}
+
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // FEATURE 4: Browse-Based Follow-Up Messages
@@ -222,7 +257,7 @@ const SOCIAL_PROOF_LABELS = {
 // Main init function
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
+function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol, lifecycleDiet = null) {
   const conversionCol = db.collection('userConversion')
   const welcomeCouponsCol = db.collection('welcomeCoupons')
   const browseTrackingCol = db.collection('browseTracking')
@@ -471,11 +506,25 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
 
       // Send message
       const msgFn = WELCOME_OFFER_MESSAGES[lang] || WELCOME_OFFER_MESSAGES.en
-      const offerMsg = msgFn(code)
+      // ── Deep-link CTA to the hub the user browsed most (audit fix #12) ──
+      let topCategory = 'general'
+      try {
+        const tracking = await browseTrackingCol.findOne({ chatId: cid })
+        let topCount = 0
+        for (const [c, n] of Object.entries(tracking?.browseCount || {})) {
+          if (n > topCount) { topCategory = c; topCount = n }
+        }
+      } catch (_) { /* best-effort */ }
+      const cta = buildWelcomeCta(lang, topCategory)
+      const offerMsg = msgFn(code, cta)
       log('reply: ' + offerMsg + '\tto: ' + chatId)
       
       try {
         await bot.sendMessage(chatId, offerMsg, { parse_mode: 'HTML' })
+        // Lifecycle Diet (#18): the welcome offer is the anchor of the welcome
+        // sequence — always sent, but it marks the 1-per-24h cap so cart nudges /
+        // browse follow-ups defer to it for the next 24h.
+        if (lifecycleDiet?.markUnsolicitedSent) lifecycleDiet.markUnsolicitedSent(cid, 'welcome_offer').catch(() => {})
         log(`[Conversion] ✅ Welcome offer sent to ${cid}: ${code} (${WELCOME_OFFER_DISCOUNT}% off, expires ${expiresAt.toISOString()})`)
       } catch (sendErr) {
         // Handle "chat not found" / "bot blocked" errors — mark user as inactive
@@ -594,7 +643,16 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
         return
       }
 
-      // Check browse tracking
+      // Lifecycle Diet (#18): honour the 1-per-24h cap + balance-wall pause.
+      // Browse follow-up is discretionary — drop it if the user already got a
+      // message today (the welcome offer takes priority).
+      if (lifecycleDiet?.canSendPromo) {
+        const gate = await lifecycleDiet.canSendPromo(cid, { skipWelcomeWindow: true })
+        if (!gate.ok) {
+          log(`[Conversion] Skipping browse follow-up for ${cid} — lifecycle diet (${gate.reason})`)
+          return
+        }
+      }
       const tracking = await browseTrackingCol.findOne({ chatId: cid })
       if (!tracking || !tracking.browseCount || tracking.followUpSent) return
 
@@ -623,6 +681,7 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
         )
 
         log(`[Conversion] ✅ Browse follow-up sent to ${cid} for category: ${topCategory}`)
+        if (lifecycleDiet?.markUnsolicitedSent) lifecycleDiet.markUnsolicitedSent(cid, 'browse_followup').catch(() => {})
       } catch (sendErr) {
         // Handle "chat not found" / "bot blocked" errors — mark user as inactive
         if (sendErr.response?.body?.error_code === 400 && 

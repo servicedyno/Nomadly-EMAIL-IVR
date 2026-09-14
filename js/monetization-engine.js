@@ -30,6 +30,11 @@ const PHONE_PRO_PRICE = Number(process.env.PHONE_PRO_PRICE || 75)
 const PHONE_BUSINESS_PRICE = Number(process.env.PHONE_BUSINESS_PRICE || 120)
 const PREMIUM_ANTIRED_WEEKLY = Number(process.env.PREMIUM_ANTIRED_WEEKLY_PRICE || 30)
 const PREMIUM_ANTIRED_CPANEL = Number(process.env.PREMIUM_ANTIRED_CPANEL_PRICE || 75)
+// ── Single source of truth for per-minute overage / forwarding rates ──
+// Read from the SAME env vars phone-config.js uses so the upsell copy can never
+// quote a different rate than the billing engine (audit P0: $0.04 vs $0.15 mismatch).
+const OVERAGE_RATE_MIN = parseFloat(process.env.OVERAGE_RATE_MIN || '0.15')
+const CALL_FORWARDING_RATE_MIN = parseFloat(process.env.CALL_FORWARDING_RATE_MIN || '0.50')
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // FEATURE 1: Smart Upsell Triggers
@@ -71,7 +76,7 @@ const UPSELL_MESSAGES = {
     minuteLimitHit: () =>
       `📞 <b>Call minutes exhausted!</b>\n\n` +
       `Your calls are working — let's keep them going:\n` +
-      `├ 💰 Add wallet funds for <b>overage minutes</b> ($0.04/min)\n` +
+      `├ 💰 Add wallet funds for <b>overage minutes</b> ($${OVERAGE_RATE_MIN}/min)\n` +
       `└ ⬆️ Upgrade for more included minutes\n\n` +
       `📦 <b>Plans:</b>\n` +
       `├ Starter (${process.env.STARTER_MINUTES || 100} min) — $${PHONE_STARTER_PRICE}\n` +
@@ -111,7 +116,7 @@ const UPSELL_MESSAGES = {
     lastLinkWarning: (remaining) =>
       `⚠️ <b>Plus que ${remaining} lien${remaining !== 1 ? 's' : ''} gratuit${remaining !== 1 ? 's' : ''} !</b>\n\nAbonnez-vous pour des liens illimités. À partir de <b>$${PRICE_DAILY}/jour</b>.`,
     smsLimitHit: () => `📱 <b>Limite SMS atteinte !</b>\n\nAjoutez des fonds pour continuer ($0.02/SMS) ou passez au forfait supérieur.`,
-    minuteLimitHit: () => `📞 <b>Minutes épuisées !</b>\n\nAjoutez des fonds pour continuer ($0.04/min) ou passez au forfait supérieur.`,
+    minuteLimitHit: () => `📞 <b>Minutes épuisées !</b>\n\nAjoutez des fonds pour continuer ($${OVERAGE_RATE_MIN}/min) ou passez au forfait supérieur.`,
     domainLimitHit: (planType) => `🌐 <b>Limite de domaines gratuits atteinte !</b>\n\nVotre forfait ${planType} a atteint sa limite. Achetez des domaines individuels ou passez au forfait supérieur.`,
     noPhonePlanYet: () => `📞 <b>Essayez Cloud Phone !</b>\n\nNuméros virtuels dans 30+ pays. À partir de <b>$${PHONE_STARTER_PRICE}/mois</b>.`,
   },
@@ -119,7 +124,7 @@ const UPSELL_MESSAGES = {
     linksExhausted: () => `🔥 <b>免费链接已用完！</b>\n\n升级即可获得无限链接+免费域名+点击分析。\n\n💰 方案从 <b>$${PRICE_DAILY}/天</b> 起`,
     lastLinkWarning: (remaining) => `⚠️ <b>仅剩 ${remaining} 个免费链接！</b>\n\n订阅后永不断链。方案从 <b>$${PRICE_DAILY}/天</b> 起。`,
     smsLimitHit: () => `📱 <b>短信额度已用完！</b>\n\n充值钱包继续发送（$0.02/条）或升级套餐。`,
-    minuteLimitHit: () => `📞 <b>通话分钟已用完！</b>\n\n充值钱包继续通话（$0.04/分钟）或升级套餐。`,
+    minuteLimitHit: () => `📞 <b>通话分钟已用完！</b>\n\n充值钱包继续通话（$${OVERAGE_RATE_MIN}/分钟）或升级套餐。`,
     domainLimitHit: (planType) => `🌐 <b>免费域名额度已达上限！</b>\n\n升级套餐获取更多免费域名。`,
     noPhonePlanYet: () => `📞 <b>试试云电话！</b>\n\n30+国家虚拟号码。方案从 <b>$${PHONE_STARTER_PRICE}/月</b> 起。`,
   },
@@ -127,7 +132,7 @@ const UPSELL_MESSAGES = {
     linksExhausted: () => `🔥 <b>आपके मुफ्त लिंक समाप्त हो गए!</b>\n\nअपग्रेड करें — असीमित लिंक + मुफ्त डोमेन + एनालिटिक्स।\n\n💰 प्लान <b>$${PRICE_DAILY}/दिन</b> से शुरू`,
     lastLinkWarning: (remaining) => `⚠️ <b>केवल ${remaining} मुफ्त लिंक बचे!</b>\n\nसब्सक्राइब करें — कभी लिंक खत्म नहीं होंगे। <b>$${PRICE_DAILY}/दिन</b> से।`,
     smsLimitHit: () => `📱 <b>SMS सीमा पूरी हो गई!</b>\n\nवॉलेट में पैसे डालें ($0.02/SMS) या प्लान अपग्रेड करें।`,
-    minuteLimitHit: () => `📞 <b>कॉल मिनट समाप्त!</b>\n\nवॉलेट में पैसे डालें ($0.04/मिनट) या प्लान अपग्रेड करें।`,
+    minuteLimitHit: () => `📞 <b>कॉल मिनट समाप्त!</b>\n\nवॉलेट में पैसे डालें ($${OVERAGE_RATE_MIN}/मिनट) या प्लान अपग्रेड करें।`,
     domainLimitHit: (planType) => `🌐 <b>मुफ्त डोमेन सीमा पूरी!</b>\n\nअधिक मुफ्त डोमेन के लिए प्लान अपग्रेड करें।`,
     noPhonePlanYet: () => `📞 <b>Cloud Phone आज़माएं!</b>\n\n30+ देशों में वर्चुअल नंबर। <b>$${PHONE_STARTER_PRICE}/माह</b> से।`,
   },
@@ -671,6 +676,22 @@ async function runWinBackCampaign(bot) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 const SERVICE_BUNDLES = {
+  'starter-launch': {
+    name: { en: '🚀 Starter Launch Bundle', fr: '🚀 Pack Lancement Débutant', zh: '🚀 入门启动套餐', hi: '🚀 स्टार्टर लॉन्च बंडल' },
+    description: {
+      en: 'Your first site, live today — a domain + a full week of bulletproof hosting for one flat $50. A single $50 deposit covers it exactly.',
+      fr: 'Votre premier site en ligne aujourd\'hui — un domaine + une semaine d\'hébergement anti-blocage pour 50$ tout compris. Un seul dépôt de 50$ suffit.',
+      zh: '今天就让您的第一个网站上线 — 域名 + 整整一周防封主机，统一价 50 美元。一次 50 美元充值即可完全覆盖。',
+      hi: 'आज ही आपकी पहली साइट लाइव — एक डोमेन + पूरे एक हफ़्ते की बुलेटप्रूफ होस्टिंग, फ्लैट $50 में। एक $50 डिपॉज़िट में पूरा हो जाता है।',
+    },
+    items: [
+      { service: 'domain', label: { en: '1× Domain (.sbs)', fr: '1× Domaine (.sbs)', zh: '1个域名 (.sbs)', hi: '1× डोमेन (.sbs)' }, basePrice: 30 },
+      { service: 'hosting_weekly', label: { en: '1× Premium Anti-Red Hosting (Weekly)', fr: '1× Hébergement Anti-Red Premium (Hebdo)', zh: '1× 高级防红主机 (每周)', hi: '1× प्रीमियम एंटी-रेड होस्टिंग (साप्ताहिक)' }, basePrice: PREMIUM_ANTIRED_WEEKLY },
+    ],
+    flatPrice: 50,          // matches the $50 wallet-deposit preset exactly (audit #19)
+    firstPurchase: true,    // featured to first-time buyers
+    popular: true,
+  },
   'starter-web': {
     name: { en: '🌐 Starter Web Bundle', fr: '🌐 Pack Web Débutant', zh: '🌐 网站入门套餐', hi: '🌐 स्टार्टर वेब बंडल' },
     description: {
@@ -741,8 +762,18 @@ function getBundleDetails(bundleId, lang = 'en') {
   if (!bundle) return null
 
   const totalBase = bundle.items.reduce((sum, item) => sum + item.basePrice, 0)
-  const discountAmount = Math.round(totalBase * bundle.discountPercent / 100)
-  const finalPrice = totalBase - discountAmount
+  // A bundle may pin an exact flatPrice (e.g. the $50 first-purchase bundle that
+  // matches a single deposit preset). Otherwise use its discountPercent.
+  let discountPercent, discountAmount, finalPrice
+  if (bundle.flatPrice != null) {
+    finalPrice = bundle.flatPrice
+    discountAmount = Math.max(0, totalBase - finalPrice)
+    discountPercent = totalBase > 0 ? Math.round(discountAmount / totalBase * 100) : 0
+  } else {
+    discountPercent = bundle.discountPercent
+    discountAmount = Math.round(totalBase * bundle.discountPercent / 100)
+    finalPrice = totalBase - discountAmount
+  }
 
   return {
     id: bundleId,
@@ -754,10 +785,11 @@ function getBundleDetails(bundleId, lang = 'en') {
       basePrice: item.basePrice,
     })),
     totalBase,
-    discountPercent: bundle.discountPercent,
+    discountPercent,
     discountAmount,
     finalPrice,
     popular: bundle.popular,
+    firstPurchase: !!bundle.firstPurchase,
   }
 }
 
@@ -765,16 +797,25 @@ function getAllBundles(lang = 'en') {
   return Object.keys(SERVICE_BUNDLES).map(id => getBundleDetails(id, lang))
 }
 
+// The featured first-purchase bundle (priced to match a single deposit preset).
+function getFirstPurchaseBundle(lang = 'en') {
+  const id = Object.keys(SERVICE_BUNDLES).find(k => SERVICE_BUNDLES[k].firstPurchase)
+  return id ? getBundleDetails(id, lang) : null
+}
+
 function formatBundleCard(bundle, lang = 'en') {
-  const popularTag = bundle.popular ? ' ⭐ POPULAR' : ''
+  const popularTag = bundle.firstPurchase ? ' ✅ PERFECT FIRST ORDER' : (bundle.popular ? ' ⭐ POPULAR' : '')
   const itemLines = bundle.items.map(item => `  ├ ${item.label} — $${item.basePrice}`).join('\n')
+  const firstLine = bundle.firstPurchase
+    ? '\n💡 ' + ({ en: `A single <b>$${bundle.finalPrice} deposit</b> covers this exactly — no leftover.`, fr: `Un seul dépôt de <b>$${bundle.finalPrice}</b> suffit — sans reste.`, zh: `一次 <b>$${bundle.finalPrice}</b> 充值即可完全覆盖 — 无剩余。`, hi: `एक ही <b>$${bundle.finalPrice} डिपॉज़िट</b> में पूरा — कुछ नहीं बचता।` }[lang] || `A single <b>$${bundle.finalPrice} deposit</b> covers this exactly.`)
+    : ''
 
   return `${bundle.name}${popularTag}\n` +
     `${bundle.description}\n\n` +
     `📦 <b>Includes:</b>\n${itemLines}\n\n` +
     `💲 Regular price: <s>$${bundle.totalBase}</s>\n` +
     `🏷️ Bundle discount: <b>${bundle.discountPercent}% off</b> (−$${bundle.discountAmount})\n` +
-    `✅ <b>Bundle price: $${bundle.finalPrice}</b>`
+    `✅ <b>Bundle price: $${bundle.finalPrice}</b>${firstLine}`
 }
 
 function formatBundleMenu(lang = 'en') {
@@ -788,7 +829,7 @@ function formatBundleMenu(lang = 'en') {
 
   let msg = header[lang] || header.en
   bundles.forEach((b, i) => {
-    const tag = b.popular ? ' ⭐' : ''
+    const tag = b.firstPurchase ? ' ✅ start here' : (b.popular ? ' ⭐' : '')
     msg += `\n${i + 1}. <b>${b.name}</b>${tag}\n`
     msg += `   <s>$${b.totalBase}</s> → <b>$${b.finalPrice}</b> (${b.discountPercent}% off)\n`
   })
@@ -892,6 +933,7 @@ module.exports = {
   SERVICE_BUNDLES,
   getBundleDetails,
   getAllBundles,
+  getFirstPurchaseBundle,
   formatBundleCard,
   formatBundleMenu,
 

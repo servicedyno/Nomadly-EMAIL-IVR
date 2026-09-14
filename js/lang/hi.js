@@ -394,7 +394,7 @@ ${CHAT_BOT_NAME}`,
 
  chooseDomainToBuy: text =>
  `<b>वेबसाइट का हिस्सा बनाएं!</b> कृपया वह डोमेन नाम साझा करें जिसे आप खरीदना चाहते हैं, जैसे कि "abcpay.com". ${text}`,
- askDomainToUseWithShortener: `इस डोमेन को <b>कस्टम URL शॉर्टनर</b> बनाएं?\n\n<b>हाँ</b> — DNS ऑटो-कॉन्फ़िगर। शॉर्ट लिंक: <code>yourdomain.com/abc</code>.\n\n<b>नहीं</b> — केवल रजिस्टर। बाद में DNS प्रबंधन से सक्रिय करें।`,
+ askDomainToUseWithShortener: `👉 <b>ऊपर अपना डोमेन कन्फ़र्म करें।</b> अभी रजिस्टर करने के लिए <b>नहीं</b> दबाएं, या URL शॉर्टनर भी चालू करने के लिए <b>हाँ</b> दबाएं।\n\n<b>नहीं</b> — केवल रजिस्टर करें <i>(अनुशंसित)</i>। बाद में 🔧 DNS प्रबंधन से शॉर्टनर सक्रिय करें।\n<b>हाँ</b> — DNS भी ऑटो-कॉन्फ़िगर: शॉर्ट लिंक <code>yourdomain.com/abc</code>.`,
  blockUser: `कृपया उस उपयोगकर्ता का उपयोगकर्ता नाम साझा करें जिसे ब्लॉक करना है।`,
  unblockUser: `कृपया उस उपयोगकर्ता का उपयोगकर्ता नाम साझा करें जिसे अनब्लॉक करना है।`,
  blockedUser: `आप फिलहाल बॉट के उपयोग से अवरुद्ध हैं। कृपया 💬 सहायता प्राप्त करें बटन दबाएं. ${TG_HANDLE} पर अधिक जानें।`,
@@ -828,7 +828,7 @@ ${CHAT_BOT_NAME}`,
  walletBalanceLow: `आपका वॉलेट बैलेंस कम है। "👛 मेरा वॉलेट" → "➕💵 जमा" पर टैप करके रिचार्ज करें।`,
 
  sentLessMoney: (expected, got) =>
- `आपने अपेक्षित राशि से कम पैसा भेजा, इसलिए हम प्राप्त राशि को आपके वॉलेट में क्रेडिट कर चुके हैं। हमसे ${expected} की उम्मीद थी लेकिन हमने ${got} प्राप्त की।`,
+ `⚠️ <b>कम भुगतान</b>\n\nअपेक्षित: <b>${expected}</b>\nप्राप्त: <b>${got}</b>\n\n✅ <b>${got} आपके वॉलेट में जोड़ दिया गया</b> — कुछ भी नहीं खोया।\n\n💳 ऑर्डर पूरा करने के लिए, सेवा फिर से खोलें और चेकआउट पर <b>👛 वॉलेट</b> चुनें (ज़रूरत हो तो छोटा अंतर टॉप-अप करें)। जारी रखने के लिए /start टैप करें।`,
 
  sentMoreMoney: (expected, got) =>
  `आपने अपेक्षित राशि से अधिक पैसा भेजा, इसलिए हमने अतिरिक्त राशि को आपके वॉलेट में क्रेडिट कर दिया। हमसे ${expected} की उम्मीद थी लेकिन हमने ${got} प्राप्त की।`,
@@ -2403,9 +2403,9 @@ const adminKeyboard = {
 const userKeyboard = {
  reply_markup: {
  keyboard: [
- [user.cloudPhone, user.referEarn],
- [user.marketplace, user.digitalProducts],
- [user.domainNames, user.hostingDomainsRedirect],
+ [user.cloudPhone, user.hostingDomainsRedirect],
+ [user.domainNames, user.digitalProducts],
+ [user.marketplace, user.referEarn],
  ...(VPS_ENABLED === 'true'
  ? (HIDE_SMS_APP !== 'true' ? [[user.vpsPlans, user.smsAppMain]] : [[user.vpsPlans]])
  : (HIDE_SMS_APP !== 'true' ? [[user.smsAppMain]] : [])),
@@ -2784,7 +2784,16 @@ ${plan.panel}`
  return `${commonSteps[step]}`
  },
 
- generateDomainFoundText: (websiteName, price) => `डोमेन ${websiteName} उपलब्ध है! इसकी लागत $${price} है।`,
+ generateDomainFoundText: (websiteName, price, hostingPrice, total, planName) => {
+   if (hostingPrice && total) {
+     return `✅ <b>${websiteName}</b> उपलब्ध है!\n\n` +
+       `🌐 डोमेन: <b>$${price}</b>\n` +
+       `🛡️ होस्टिंग${planName ? ` (${planName})` : ''}: <b>$${hostingPrice}</b>\n` +
+       `━━━━━━━━━━━━\n` +
+       `💰 <b>आज कुल: $${total}</b>`
+   }
+   return `डोमेन ${websiteName} उपलब्ध है! इसकी लागत $${price} है।`
+ },
  generateExistingDomainText: websiteName => `आपने ${websiteName} को अपने डोमेन के रूप में चुना है।`,
  connectExternalDomainText: websiteName => `आप <b>${websiteName}</b> को अपने डोमेन के रूप में जोड़ना चाहते हैं।\n\nखरीदारी के बाद, आपको अपने डोमेन के नेमसर्वर Cloudflare की ओर इंगित करने होंगे।`,
  domainNotFound: websiteName => `डोमेन ${websiteName} उपलब्ध नहीं है।`,
@@ -3740,6 +3749,56 @@ const hi = {
  vpsPlanOf,
  vpsCpanelOptional,
 }
+
+// ── Localization parity (#21, 2026-06) ────────────────────────────────
+// Close HI gaps that previously fell back to English mid-flow:
+//  • reverse record-type map t[t.a]='A' … keyed by THIS locale's own labels,
+//  • Cloudflare proxied-mode strings + keyboard,
+//  • VPS "SSH blocked" help.
+Object.assign(t, {
+  [t.a]: 'A',
+  [t.aaaa]: 'AAAA',
+  [t.cname]: 'CNAME',
+  [t.mx]: 'MX',
+  [t.txt]: 'TXT',
+  [t.ns]: 'NS',
+  [t.srvRecord]: 'SRV',
+  [t.caaRecord]: 'CAA',
+  [t.caaTagIssue]: 'issue',
+  [t.caaTagIssuewild]: 'issuewild',
+  [t.caaTagIodef]: 'iodef',
+  dnsProxiedChoiceLabelDnsOnly: '⚪ केवल DNS (अनुशंसित)',
+  dnsProxiedChoiceLabelProxied: '🟠 Cloudflare के माध्यम से प्रॉक्सी',
+  dnsProxiedChoiceInvalid: 'कृपया इनमें से एक बटन दबाएं: ⚪ केवल DNS या 🟠 Cloudflare के माध्यम से प्रॉक्सी।',
+  dnsProxiedChoiceAsk: (recordType, value) =>
+    `⚙️ <b>इस ${recordType} रिकॉर्ड के लिए Cloudflare मोड</b>\n\n` +
+    `लक्ष्य: <code>${value}</code>\n\n` +
+    `⚪  <b>केवल DNS</b> (अनुशंसित)\n` +
+    `<i>लुकअप सीधे आपका ओरिजिन IP लौटाते हैं। अपने VPS, मेल सर्वर की ओर इंगित करने या लक्ष्य तक सीधी पहुंच चाहिए, तब सर्वोत्तम।</i>\n\n` +
+    `🟠  <b>Cloudflare के माध्यम से प्रॉक्सी</b>\n` +
+    `<i>Cloudflare आपके ओरिजिन के सामने रहता है — मुफ्त SSL, CDN कैशिंग, DDoS सुरक्षा, और आपका ओरिजिन IP छिपा रहता है। सार्वजनिक वेबसाइटों के लिए सर्वोत्तम।</i>`,
+})
+Object.assign(hi, {
+  dnsProxiedChoiceKeyboard: {
+    parse_mode: 'HTML',
+    reply_markup: { keyboard: [[t.dnsProxiedChoiceLabelDnsOnly], [t.dnsProxiedChoiceLabelProxied], _bc], resize_keyboard: true },
+    disable_web_page_preview: true,
+  },
+})
+Object.assign(vp, {
+  vpsSshBlockedHelp: (name, host, username) =>
+    `🟠 <strong>आपका VPS ऑनलाइन है — लेकिन SSH अवरुद्ध है</strong>\n\n` +
+    `🖥️ <strong>सर्वर:</strong> ${name}\n` +
+    `🌐 <strong>IP:</strong> <code>${host}</code>\n\n` +
+    `हम आपके सर्वर तक पहुंच गए (यह चालू है), लेकिन <b>सर्वर के अंदर एक फ़ायरवॉल ने पोर्ट 22 (SSH) बंद कर दिया है</b>। इसीलिए लॉगिन और पासवर्ड रीसेट काम नहीं करते — बंद पोर्ट से कोई पासवर्ड नहीं गुजर सकता।\n\n` +
+    `✅ <strong>इसे फिर से कैसे खोलें (2 मिनट):</strong>\n` +
+    `1. इस सर्वर के लिए अपने प्रोवाइडर का <b>Recovery / Web Console</b> खोलें (SSH की ज़रूरत नहीं)।\n` +
+    `2. <code>${username}</code> के रूप में लॉग इन करें।\n` +
+    `3. चलाएं: <code>ufw allow OpenSSH</code>  (या <code>ufw allow 22/tcp</code>)\n` +
+    `4. फिर चलाएं: <code>ufw reload</code>\n\n` +
+    `पोर्ट 22 खुलने के बाद, वापस आएं और <b>🔑 पासवर्ड रीसेट करें</b> टैप करें — हम चालू सर्वर पर नया पासवर्ड सेट करेंगे और पुष्टि करेंगे कि यह काम करता है, आपका डेटा सुरक्षित रहेगा।\n\n` +
+    `💬 अटक गए? <b>💬 सपोर्ट</b> टैप करें और हम इसे आपके लिए फिर से खोल देंगे।`,
+})
 
 module.exports = {
  hi,

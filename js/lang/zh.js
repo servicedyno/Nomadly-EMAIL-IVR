@@ -388,7 +388,7 @@ ${CHAT_BOT_NAME}`,
  chooseFreeDomainText: `<b>好消息！</b> 此域名可随您的订阅免费提供。您想领取吗？`,
 
  chooseDomainToBuy: text => `<b>获取你的网络角落！</b> 请分享你希望购买的域名，例如“abcpay.com”。${text}`,
- askDomainToUseWithShortener: `将此域名用作<b>自定义短链接</b>？\n\n<b>是</b> — 自动配置 DNS，短链接变为 <code>yourdomain.com/abc</code>。\n\n<b>否</b> — 仅注册。可随时从 DNS 管理中启用。`,
+ askDomainToUseWithShortener: `👉 <b>确认上方的域名。</b> 点击<b>否</b>立即注册，或点击<b>是</b>同时开启短链接。\n\n<b>否</b> — 仅注册<i>（推荐）</i>。可随时从 🔧 DNS 管理中启用短链接。\n<b>是</b> — 同时自动配置 DNS，短链接变为 <code>yourdomain.com/abc</code>。`,
  blockUser: `请分享需要被封锁的用户的用户名。`,
  unblockUser: `请分享需要解封的用户的用户名。`,
  blockedUser: `你目前被封锁，无法使用机器人。请点击 💬 获取支持。更多信息 ${TG_HANDLE}。`,
@@ -829,7 +829,7 @@ ${CHAT_BOT_NAME}`,
  walletBalanceLow: `您的钱包余额不足。点击"👛 我的钱包" → "➕💵 充值"进行充值。`,
 
  sentLessMoney: (expected, got) =>
- `您发送的金额少于预期，所以我们将收到的金额存入您的钱包。我们预期 ${expected} 但收到 ${got}`,
+ `⚠️ <b>付款不足</b>\n\n应付：<b>${expected}</b>\n收到：<b>${got}</b>\n\n✅ <b>${got} 已存入您的钱包</b> — 分文未失。\n\n💳 完成此订单：重新打开该服务，在结账时选择 <b>👛 钱包</b>（如有小额差额请补足）。输入 /start 继续。`,
 
  sentMoreMoney: (expected, got) =>
  `您发送的金额多于预期，因此我们将多余的金额存入您的钱包。我们预期 ${expected} 但收到 ${got}`,
@@ -2395,9 +2395,9 @@ const adminKeyboard = {
 const userKeyboard = {
  reply_markup: {
  keyboard: [
- [user.cloudPhone, user.referEarn],
- [user.marketplace, user.digitalProducts],
- [user.domainNames, user.hostingDomainsRedirect],
+ [user.cloudPhone, user.hostingDomainsRedirect],
+ [user.domainNames, user.digitalProducts],
+ [user.marketplace, user.referEarn],
  ...(VPS_ENABLED === 'true'
  ? (HIDE_SMS_APP !== 'true' ? [[user.vpsPlans, user.smsAppMain]] : [[user.vpsPlans]])
  : (HIDE_SMS_APP !== 'true' ? [[user.smsAppMain]] : [])),
@@ -2771,7 +2771,16 @@ ${plan.panel}`
  return `${commonSteps[step]}`
  },
 
- generateDomainFoundText: (websiteName, price) => `域名 ${websiteName} 可用！费用为 $${price}。`,
+ generateDomainFoundText: (websiteName, price, hostingPrice, total, planName) => {
+   if (hostingPrice && total) {
+     return `✅ <b>${websiteName}</b> 可用！\n\n` +
+       `🌐 域名：<b>$${price}</b>\n` +
+       `🛡️ 主机${planName ? `（${planName}）` : ''}：<b>$${hostingPrice}</b>\n` +
+       `━━━━━━━━━━━━\n` +
+       `💰 <b>今日合计：$${total}</b>`
+   }
+   return `域名 ${websiteName} 可用！费用为 $${price}。`
+ },
  generateExistingDomainText: websiteName => `您选择了 ${websiteName} 作为您的域名。`,
  connectExternalDomainText: websiteName => `您想将 <b>${websiteName}</b> 连接为您的域名。\n\n购买后，您需要将域名的名称服务器指向 Cloudflare。`,
  domainNotFound: websiteName => `域名 ${websiteName} 不可用。`,
@@ -3707,6 +3716,56 @@ const zh = {
  vpsPlanOf,
  vpsCpanelOptional,
 }
+
+// ── Localization parity (#21, 2026-06) ────────────────────────────────
+// Close ZH gaps that previously fell back to English mid-flow:
+//  • reverse record-type map t[t.a]='A' … keyed by THIS locale's own labels,
+//  • Cloudflare proxied-mode strings + keyboard,
+//  • VPS "SSH blocked" help.
+Object.assign(t, {
+  [t.a]: 'A',
+  [t.aaaa]: 'AAAA',
+  [t.cname]: 'CNAME',
+  [t.mx]: 'MX',
+  [t.txt]: 'TXT',
+  [t.ns]: 'NS',
+  [t.srvRecord]: 'SRV',
+  [t.caaRecord]: 'CAA',
+  [t.caaTagIssue]: 'issue',
+  [t.caaTagIssuewild]: 'issuewild',
+  [t.caaTagIodef]: 'iodef',
+  dnsProxiedChoiceLabelDnsOnly: '⚪ 仅 DNS（推荐）',
+  dnsProxiedChoiceLabelProxied: '🟠 通过 Cloudflare 代理',
+  dnsProxiedChoiceInvalid: '请点击其中一个按钮：⚪ 仅 DNS（推荐）或 🟠 通过 Cloudflare 代理。',
+  dnsProxiedChoiceAsk: (recordType, value) =>
+    `⚙️ <b>此 ${recordType} 记录的 Cloudflare 模式</b>\n\n` +
+    `目标：<code>${value}</code>\n\n` +
+    `⚪  <b>仅 DNS</b>（推荐）\n` +
+    `<i>查询直接返回您的源站 IP。适合指向您自己的 VPS、邮件服务器，或需要直接访问目标时使用。</i>\n\n` +
+    `🟠  <b>通过 Cloudflare 代理</b>\n` +
+    `<i>Cloudflare 代理您的源站——免费 SSL、CDN 缓存、DDoS 防护，且您的源站 IP 保持隐藏。适合公开网站。</i>`,
+})
+Object.assign(zh, {
+  dnsProxiedChoiceKeyboard: {
+    parse_mode: 'HTML',
+    reply_markup: { keyboard: [[t.dnsProxiedChoiceLabelDnsOnly], [t.dnsProxiedChoiceLabelProxied], _bc], resize_keyboard: true },
+    disable_web_page_preview: true,
+  },
+})
+Object.assign(vp, {
+  vpsSshBlockedHelp: (name, host, username) =>
+    `🟠 <strong>您的 VPS 在线 — 但 SSH 被阻止</strong>\n\n` +
+    `🖥️ <strong>服务器：</strong> ${name}\n` +
+    `🌐 <strong>IP：</strong> <code>${host}</code>\n\n` +
+    `我们已连接到您的服务器（它正在运行），但<b>服务器内部的防火墙关闭了 22 端口（SSH）</b>。因此登录和密码重置无法工作——密码无法通过已关闭的端口。\n\n` +
+    `✅ <strong>如何重新打开（2 分钟）：</strong>\n` +
+    `1. 打开您的服务商为此服务器提供的<b>恢复 / 网页控制台</b>（无需 SSH）。\n` +
+    `2. 以 <code>${username}</code> 身份登录。\n` +
+    `3. 运行：<code>ufw allow OpenSSH</code>（或 <code>ufw allow 22/tcp</code>）\n` +
+    `4. 然后运行：<code>ufw reload</code>\n\n` +
+    `22 端口打开后，返回并点击 <b>🔑 重置密码</b> — 我们将在运行中的服务器上设置新密码并确认其可用，同时保留您的数据。\n\n` +
+    `💬 遇到问题？点击 <b>💬 支持</b>，我们将为您重新打开。`,
+})
 
 module.exports = {
  zh,

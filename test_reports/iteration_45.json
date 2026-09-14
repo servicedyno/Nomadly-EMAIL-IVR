@@ -1,0 +1,21 @@
+{
+  "summary": "Backend-only unit/behavioural testing of the VPS-delete spam fix (2026-02 vmi3508080). Extended /app/backend/tests/test_vps_delete_idempotent.js from 2 checks to 6 comprehensive tests covering: source patterns, regex spelling coverage (American 'canceled' + British 'cancelled'), behavioural exercise of deleteVPSinstance against a mocked smart-proxy Contabo throwing the exact prod error, throttle-math for the scheduler's 6h/10-retry alert window, guard on the 'VPS Auto-Deleted' admin post for alreadyGone=true, and verification that all 5 deleteVPSinstance call sites in _index.js gate on .success/.error (so alreadyGone success shape is safe). ALL 6 TESTS PASS.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/backend/tests/test_vps_delete_idempotent.js"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Fix is well-targeted: isAlreadyGone helper (L1255-1258) + outer catch (L1366-1368) BOTH match /already been cancel(l)?ed|already cancel(l)?ed|instance is already cancel(l)?ed/i, so both American and British spellings are caught.",
+    "Scheduler Phase 2 (L36108-36160) correctly gates the 'Auto-Deleted' admin post on !deleteResult.alreadyGone AND writes a differentiated cancelReason ('auto_renewal_failed_already_gone' vs 'auto_renewal_failed'), so the DB record moves to CANCELLED on the very next successful tick regardless of whether Contabo actually did anything — preventing the scheduler from re-picking the record.",
+    "Throttle math is correct: 1st attempt always alerts, then only every ≥6h, hard-stop after 10 retries. Verified 11th attempt at any age → no alert. Crash-path (L36145-36159) mirrors the same throttle — good.",
+    "All 5 deleteVPSinstance call sites in _index.js gate on cancelResult.success (or .error), so the new alreadyGone success shape is backwards-compatible with the 3 EARLY-CANCEL paths (L35941 auto-renew-off, L35992 wallet-fail, L36031 pre-emptive) and the profile-page path at L19982.",
+    "Minor nit (non-blocking): _index.js is 48,983 lines. Violates the file-size guideline (>700 lines). Not related to this fix but worth flagging for future modularisation."
+  ],
+  "updated_files": ["/app/backend/tests/test_vps_delete_idempotent.js"],
+  "success_rate": {"backend": "100% (6/6)", "frontend": "N/A (backend-only)"},
+  "seed_data_creation": "None — tests are fully mocked (Contabo smart-proxy + Mongo collection).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Test file at /app/backend/tests/test_vps_delete_idempotent.js is now a full regression suite (T1 source patterns, T2 regex spellings, T3 behavioural deleteVPSinstance against smart-proxy mock, T4 6h/10-retry throttle math, T5 alreadyGone guard on admin post, T6 all 5 call sites safe). Run via `/opt/node22/bin/node /app/backend/tests/test_vps_delete_idempotent.js` — exits 0 on success. Note: vm-instance-setup.js uses `require('./vps-provider').buildSmartProxy()` (NOT direct './providers/contabo') — stub './vps-provider' when mocking Contabo for this module.",
+  "rca of the issue": "Root cause: Contabo's 400 'Cannot cancel instance as it has already been canceled.' was not in the isAlreadyGone regex (only 404 + 'Entry Instances not found' were). Scheduler kept picking up PENDING_CANCELLATION records → retried every ~30s → each retry emitted an admin alert (43× in one day for vmi3508080). Fix expands the regex to catch both American and British spellings, marks the record DELETED on the idempotent path, and throttles admin alerts to ≤1/6h with hard-stop after 10 retries. Verified end-to-end behaviourally."
+}

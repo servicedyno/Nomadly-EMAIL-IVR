@@ -1212,9 +1212,19 @@ async function deleteVPSinstance(chatId, vpsId) {
 
     // Helper: Contabo returns 404 when the instance was already deleted
     // (manually via panel, prior-successful-but-undelivered-response, or
-    // expired billing cycle). Treat it as success and mark our DB record.
+    // expired billing cycle). It ALSO returns 400 "Cannot cancel instance as
+    // it has already been canceled" when we're calling cancelInstance on an
+    // instance that's already in cancelled/scheduled-for-deletion state
+    // (auto-renew off → provider grace window). BOTH mean: our earlier
+    // cancel already succeeded on the provider side, we just have a stale
+    // PENDING_CANCELLATION status in our DB. Treat as idempotent success —
+    // otherwise the scheduler retries every tick and spams admin with
+    // "🚨 VPS DELETE FAILED" (2026-02 vmi3508080 fired 43× in one day before
+    // this fix).
     const isAlreadyGone = (e) =>
-      e?.status === 404 || /Entry Instances not found/i.test(e?.message || '')
+      e?.status === 404 ||
+      /Entry Instances not found/i.test(e?.message || '') ||
+      /already been cancel(l)?ed|already cancel(l)?ed|instance is already cancel(l)?ed/i.test(e?.message || '')
 
     // Step 1: Call Contabo cancel
     let result
@@ -1319,14 +1329,18 @@ async function deleteVPSinstance(chatId, vpsId) {
 
     return { success: true, data: result, cancelDate: verifiedCancelDate, alreadyGone: verifiedAlreadyGone }
   } catch (err) {
-    // Final safety net: if anything else surfaces as a 404 (e.g. axios
-    // wrapper), still treat as success rather than infinite-loop.
-    if (err?.status === 404 || /Entry Instances not found/i.test(err?.message || '')) {
-      console.log(`[VPS] caught 404 in outer handler — marking DELETED locally for ${vpsId}`)
+    // Final safety net: 404 or "already canceled" surfaced through an outer
+    // wrapper (e.g. axios error transformed elsewhere). Still treat as
+    // success rather than infinite-loop the scheduler.
+    if (err?.status === 404 ||
+        /Entry Instances not found/i.test(err?.message || '') ||
+        /already been cancel(l)?ed|already cancel(l)?ed|instance is already cancel(l)?ed/i.test(err?.message || '')) {
+      const wasAlreadyCancelled = /already/i.test(err?.message || '')
+      console.log(`[VPS] caught ${wasAlreadyCancelled ? 'already-cancelled' : '404'} in outer handler — marking DELETED locally for ${vpsId}`)
       if (_vpsPlansOf) {
         await _vpsPlansOf.updateOne(
           { vpsId: String(vpsId) },
-          { $set: { status: 'DELETED', deletedAt: new Date(), cancelReason: 'contabo_404_outer' } }
+          { $set: { status: 'DELETED', deletedAt: new Date(), cancelReason: wasAlreadyCancelled ? 'contabo_already_cancelled' : 'contabo_404_outer' } }
         )
       }
       return { success: true, alreadyGone: true }

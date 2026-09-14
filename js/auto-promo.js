@@ -4158,10 +4158,13 @@ function _buildBlockRateReport({ theme, lang, slot, totalUsers, targets, dead, d
 }
 
 // ─── Initialize Auto-Promo System ─────────────────────────────────────
-function initAutoPromo(bot, db, nameOf, stateCol) {
+function initAutoPromo(bot, db, nameOf, stateCol, lifecycleDiet = null) {
   const promoTracker = db.collection('promoTracker')
   const promoOptOut = db.collection('promoOptOut')
   const adminChatId = process.env.TELEGRAM_ADMIN_CHAT_ID
+
+  // ── Per-blast lift window (#18): count /start + hub taps within 45 min ──
+  const LIFT_WINDOW_MS = 45 * 60 * 1000
 
   let dailyCouponSystem = null
   function setDailyCouponSystem(sys) { dailyCouponSystem = sys }
@@ -4394,6 +4397,7 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
           }
           // Success! Reset fail count so user stays healthy
           await promoOptOut.updateOne({ _id: chatId }, { $set: { failCount: 0 } }).catch(() => {})
+          if (lifecycleDiet?.markUnsolicitedSent) lifecycleDiet.markUnsolicitedSent(chatId, isEvening ? 'autopromo_evening' : 'autopromo_morning').catch(() => {})
           return { success: true }
         } catch (error) {
           const code = error.response?.statusCode
@@ -4416,6 +4420,7 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
             try {
               await trySend(true)
               await promoOptOut.updateOne({ _id: chatId }, { $set: { failCount: 0 } }).catch(() => {})
+              if (lifecycleDiet?.markUnsolicitedSent) lifecycleDiet.markUnsolicitedSent(chatId, isEvening ? 'autopromo_evening' : 'autopromo_morning').catch(() => {})
               return { success: true, retryAfterWait: true }
             } catch (retryErr) {
               log(`[AutoPromo] Still rate limited on ${chatId} after wait, skipping`)
@@ -4502,8 +4507,30 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
       const userLang = await getUserLanguage(chatId)
       if (userLang === lang) targetChatIds.push(chatId)
     }
-    if (targetChatIds.length === 0) return log(`[AutoPromo] No ${lang} users for ${theme} (${skippedDead} dead, ${skippedInactive} inactive 30+ days skipped)`)
-    log(`[AutoPromo] Targeting ${targetChatIds.length} active ${lang} users (${skippedDead} dead, ${skippedInactive} inactive skipped)`)
+
+    // ── Lifecycle Diet (#18): suppress marketing to (a) users messaged in the
+    //    last 24h, (b) users < 72h old (still in the welcome sequence), and
+    //    (c) users who hit a balance wall and haven't deposited since. Sets are
+    //    computed in bulk so this stays O(1) per user.
+    let dietCap = 0, dietWelcome = 0, dietWall = 0
+    const preDietCount = targetChatIds.length
+    if (lifecycleDiet?.buildSuppressionSets) {
+      try {
+        const sets = await lifecycleDiet.buildSuppressionSets(targetChatIds)
+        const kept = []
+        for (const cid of targetChatIds) {
+          if (sets.capped.has(cid)) { dietCap++; continue }
+          if (sets.welcome.has(cid)) { dietWelcome++; continue }
+          if (sets.balanceWall.has(cid)) { dietWall++; continue }
+          kept.push(cid)
+        }
+        targetChatIds.length = 0
+        targetChatIds.push(...kept)
+      } catch (e) { log(`[AutoPromo] Lifecycle-diet filter error (sending unfiltered): ${e.message}`) }
+    }
+
+    if (targetChatIds.length === 0) return log(`[AutoPromo] No ${lang} users for ${theme} (${skippedDead} dead, ${skippedInactive} inactive; diet: cap=${dietCap} welcome=${dietWelcome} wall=${dietWall} skipped)`)
+    log(`[AutoPromo] Targeting ${targetChatIds.length}/${preDietCount} active ${lang} users (diet suppressed cap=${dietCap} welcome=${dietWelcome} wall=${dietWall}; ${skippedDead} dead, ${skippedInactive} inactive)`)
 
     // ── Pre-blast block-rate report to admin (2026-08-20) ──────────────────
     // Send a quick health snapshot BEFORE the blast so the admin can see the
@@ -4604,7 +4631,7 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
       if (i + batchSize < targetChatIds.length) await sleep(nextDelay)
     }
 
-    const stats = { theme, lang, slot: isEvening ? 'evening' : 'morning', variation: usedAI ? 'ai' : variationIndex + 1, usedAI, total: targetChatIds.length, success: successCount, errors: errorCount, skipped: skippedCount, errorBreakdown: errorReasonCounts, timestamp: new Date().toISOString() }
+    const stats = { theme, lang, slot: isEvening ? 'evening' : 'morning', variation: usedAI ? 'ai' : variationIndex + 1, usedAI, total: targetChatIds.length, success: successCount, errors: errorCount, skipped: skippedCount, errorBreakdown: errorReasonCounts, timestamp: new Date().toISOString(), sentAt: new Date(), diet: { cap: dietCap, welcome: dietWelcome, balanceWall: dietWall }, liftStartCount: 0, liftHubTapCount: 0, liftUserIds: [], liftWindowMs: LIFT_WINDOW_MS, liftEvaluated: false }
     log(`[AutoPromo] Done:`, JSON.stringify(stats))
     if (errorCount > 0) {
       const breakdownStr = Object.entries(errorReasonCounts).map(([k,v]) => `${k}=${v}`).join(' ')
@@ -4614,7 +4641,11 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
         log(`[AutoPromo]   ↳ failed chatId=${f.chatId} error="${f.error}"`)
       }
     }
-    await db.collection('promoStats').insertOne(stats)
+    const _statsRes = await db.collection('promoStats').insertOne(stats)
+    // Evaluate this blast's lift just after the 45-min window closes.
+    if (_statsRes?.insertedId) {
+      setTimeout(() => { evaluateBlastLift(_statsRes.insertedId).catch(() => {}) }, LIFT_WINDOW_MS + 60 * 1000)
+    }
   }
 
   // ─── Day-of-week → Theme mapping (Morning Hero + Evening Cross-sell) ──
@@ -4751,6 +4782,47 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
     }
   }
 
+  // ─── Per-blast Lift Metric (#18) ──────────────────────────────────────
+  // A user who does /start or taps a hub deep link within 45 min of a blast
+  // counts as "returned". Deduped to one lift/user/blast.
+  async function recordPromoLift(chatId, kind = 'start') {
+    try {
+      const cid = String(chatId)
+      const since = new Date(Date.now() - LIFT_WINDOW_MS)
+      const userLang = await getUserLanguage(cid)
+      const blast = await db.collection('promoStats')
+        .find({ sentAt: { $gte: since }, lang: userLang })
+        .sort({ sentAt: -1 }).limit(1).next()
+      if (!blast) return
+      if (Array.isArray(blast.liftUserIds) && blast.liftUserIds.includes(cid)) return // 1 lift/user/blast
+      const incField = kind === 'hubtap' ? 'liftHubTapCount' : 'liftStartCount'
+      const update = { $inc: { [incField]: 1 } }
+      if (!Array.isArray(blast.liftUserIds) || blast.liftUserIds.length < 2000) {
+        update.$addToSet = { liftUserIds: cid }
+      }
+      await db.collection('promoStats').updateOne({ _id: blast._id }, update)
+    } catch (_) { /* metric only — never break the main flow */ }
+  }
+
+  async function evaluateBlastLift(statsId) {
+    try {
+      const doc = await db.collection('promoStats').findOne({ _id: statsId })
+      if (!doc || doc.liftEvaluated) return
+      const returned = Array.isArray(doc.liftUserIds) ? doc.liftUserIds.length : 0
+      const delivered = doc.success || 0
+      const liftRate = delivered > 0 ? +((returned / delivered) * 100).toFixed(2) : 0
+      await db.collection('promoStats').updateOne(
+        { _id: statsId },
+        { $set: { liftEvaluated: true, liftReturnedUsers: returned, liftRate } }
+      )
+      log(`[AutoPromo][Lift] ${doc.theme}/${doc.lang}/${doc.slot}: ${returned} returned of ${delivered} delivered (${liftRate}% lift, starts=${doc.liftStartCount || 0} hubtaps=${doc.liftHubTapCount || 0})`)
+      // Report/flag zero-lift blasts to admin (no auto-disabling per product decision).
+      if (returned === 0 && delivered >= 20) {
+        alertAdmin(`⚠️ Zero-lift blast: <b>${doc.theme}/${doc.lang}/${doc.slot}</b> — 0 returns from ${delivered} delivered. Consider dropping this theme/slot.`)
+      }
+    } catch (e) { log(`[AutoPromo][Lift] eval error: ${e.message}`) }
+  }
+
   return {
     setOptOut,
     isOptedOut,
@@ -4759,6 +4831,8 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
     setDailyCouponSystem,
     runResurrectionScan,
     trackPromoResponse,
+    recordPromoLift,
+    evaluateBlastLift,
     getPromoMessages: () => promoMessages,
     getCrossSellMessages: () => crossSellMessages,
     getThemes: () => THEMES,

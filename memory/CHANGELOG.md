@@ -1,3 +1,39 @@
+## 2026-06 (fork) — Phase 2 conversion enhancements (#18, #21) + VPS copy parity fix
+
+Verified end-to-end by testing_agent (iteration_48.json): 12 Node suites green, 0 backend issues.
+
+**#18 Lifecycle Diet + Mute + Lift Metric** — new shared throttle `js/lifecycle-diet.js`, threaded into
+AutoPromo, cart-abandonment, welcome-offer/browse-followup, low-balance and day-12 nudges:
+- 1-per-24h cap on unsolicited MARKETING messages (transactional/support exempt).
+- AutoPromo suppressed for users < 72h old (still in welcome sequence).
+- Promos paused for users with an active balance wall (no deposit since); the low-balance shortfall
+  reminder is the exempt message. Reuses existing `funnelEvents` (`insufficient_balance_wall` /
+  `deposit_confirmed`).
+- One-tap 🔕 Mute promos button added to cart nudges (AutoPromo already had one).
+- Per-blast lift = unique `/start` + hub taps within 45 min, stored on the `promoStats` blast doc;
+  zero-lift blasts (≥20 delivered) flagged to admin, no auto-disable (product decision).
+- Tests: `js/tests/test_lifecycle_diet_2026-06.js` (24), `test_promo_lift_metric_2026-06.js` (13).
+
+**#21 Localization Parity** —
+- Added per-locale reverse DNS record-type map keyed by each locale's OWN button labels
+  (`t[t.mx]='MX'` …). This FIXED a real bug: the DNS add-record wizard read `t[recordType]` and got
+  `undefined` for FR/ZH/HI users, breaking the flow.
+- Translated Cloudflare proxied-mode strings + keyboard (`dnsProxiedChoice*`) and VPS SSH-blocked help
+  (`vp.vpsSshBlockedHelp`) into FR/ZH/HI (appended `Object.assign` blocks in each lang file).
+- Global language switch: `/language` command + 🌍 Change Language button now work from ANY state
+  (previously only reachable from the Settings submenu — the "Lalapmo needed 4 attempts" complaint).
+  Intentionally does NOT hijack the IVR 🌐 voice-language button.
+- Test: `js/tests/test_localization_parity_2026-06.js` (79).
+
+**VPS credentials copy parity fix** — `vpsBoughtSuccess` readiness note in en.js/fr.js used the
+abbreviation "min"; changed to full "minutes" (RDP 5–10 minutes, Linux 2–5 minutes) so all 4 locales
+match. Verified by `test_vps_credentials_message.js` (7 checks × 4 locales).
+
+Safety unchanged: `MONGO_URL=mongodb://localhost:27017`, `BOT_ENVIRONMENT=development`,
+`SKIP_WEBHOOK_SYNC=true`. No production DB contact.
+
+---
+
 ## 2026-06 — VPS password reveal/reset i18n parity + DO fallback (forked session)
 
 Fixed the P0 crash where the Telegram inline keyboard was rejected for **non-English users** on the
