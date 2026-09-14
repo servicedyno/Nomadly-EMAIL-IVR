@@ -2607,7 +2607,7 @@ backend:
               
               ✅ ok === true
               ✅ audio.audioUrl present and ending in .mp3
-                URL: https://deploy-setup-18.preview.emergentagent.com/api/assets/user-audio/tts_1786329027952_rachel.mp3
+                URL: https://quick-setup-113.preview.emergentagent.com/api/assets/user-audio/tts_1786329027952_rachel.mp3
               ✅ NO audio.error field
               ✅ audio.voice === "Rachel"
               ✅ audio.fallbackUsed === false
@@ -5779,7 +5779,7 @@ backend:
             
             ✅ Step 2: permanent_mp3_url (CORE FIX)
                 • pass: true ✅
-                • audioUrl: "https://deploy-setup-18.preview.emergentagent.com/api/assets/user-audio/DEVTEST-VM_01e0ce71-bbb.mp3" ✅
+                • audioUrl: "https://quick-setup-113.preview.emergentagent.com/api/assets/user-audio/DEVTEST-VM_01e0ce71-bbb.mp3" ✅
                 ★ CORE FIX VERIFIED: The saved audioUrl is a PERMANENT /assets/user-audio/*.mp3 URL
                 ★ NOT an api.telegram.org link (which would expire in ~1h)
                 ★ The OGG voice note was transcoded to MP3 format
@@ -10499,7 +10499,7 @@ backend:
             • test_phone_scheduler_no_leak.js: 12 passed, 0 failed ✓
           
           TEST 10 - Admin endpoint smoke test: ✅ PASSED
-            • GET https://deploy-setup-18.preview.emergentagent.com/api/admin/dns-heal-status?key=o/Qb8ArGahlquhCQ
+            • GET https://quick-setup-113.preview.emergentagent.com/api/admin/dns-heal-status?key=o/Qb8ArGahlquhCQ
             • HTTP 200, ok=true ✓
           
           CONCLUSION:
@@ -11723,7 +11723,7 @@ frontend:
           ✅ HOSTBAY PANEL END-TO-END TEST PASSED (2026-08-31) - All core functionality working with WHM-root fallback:
           
           TEST ENVIRONMENT:
-          • URL: https://deploy-setup-18.preview.emergentagent.com/panel
+          • URL: https://quick-setup-113.preview.emergentagent.com/panel
           • Test account: nbayftest / PIN: 241743
           • Domain: testingbays.sbs
           • Context: Account has DEAD user-level cPanel auth (by design) - all operations use WHM-root fallback
@@ -11815,7 +11815,7 @@ frontend:
           ❌ CRITICAL ISSUES FOUND - Subdomain quick-nav and bulk import features tested (2026-08-30):
           
           TEST ENVIRONMENT:
-          • URL: https://deploy-setup-18.preview.emergentagent.com/panel
+          • URL: https://quick-setup-113.preview.emergentagent.com/panel
           • Test account: nbayftest / PIN: 241743
           • Domain: testingbays.sbs
           
@@ -11884,7 +11884,7 @@ frontend:
         comment: |
           ✅ READ-ONLY UI VERIFICATION COMPLETE - ALL TESTS PASSED (100% pass rate)
           
-          SCOPE: Verified the Nomadly admin panel UI at https://deploy-setup-18.preview.emergentagent.com
+          SCOPE: Verified the Nomadly admin panel UI at https://quick-setup-113.preview.emergentagent.com
           in READ-ONLY mode. This is a LIVE PRODUCTION environment with real MongoDB and payment/domain/telephony APIs.
           NO data-modifying actions were taken (no clicks on Buy, Register, Purchase, Create, Delete, Send, Connect, 
           Verify, Submit, Save buttons). Only page navigation, reading text, and capturing console/network errors.
@@ -13262,7 +13262,7 @@ agent_communication:
         
         ✅ ok === true
         ✅ audio.audioUrl present and ending in .mp3
-          URL: https://deploy-setup-18.preview.emergentagent.com/api/assets/user-audio/tts_1786329027952_rachel.mp3
+          URL: https://quick-setup-113.preview.emergentagent.com/api/assets/user-audio/tts_1786329027952_rachel.mp3
         ✅ NO audio.error field
         ✅ audio.voice === "Rachel"
         ✅ audio.fallbackUsed === false
@@ -18972,7 +18972,7 @@ frontend_ui_test_scope_2026-08-31: |
       TEST SCOPE:
       • Account: nbayftest / PIN: 241743 / domain: testingbays.sbs
       • User-level cPanel auth is BROKEN on purpose (must use WHM session fallback)
-      • Backend URL: https://deploy-setup-18.preview.emergentagent.com
+      • Backend URL: https://quick-setup-113.preview.emergentagent.com
       • Test file: qa-content-test.txt in /public_html
       • Test content: "hello-fallback-2026-verify-XYZ"
       
@@ -19054,7 +19054,7 @@ frontend_ui_test_scope_2026-08-31: |
       ✅ VERIFICATION PASSED - HostBay Panel subdomain delete fix WORKING (2/2 tests passed):
       
       SCOPE: Re-verified the subdomain delete fix in the HostBay hosting panel (React app at 
-      https://deploy-setup-18.preview.emergentagent.com/panel). This is a 
+      https://quick-setup-113.preview.emergentagent.com/panel). This is a 
       PRODUCTION-connected environment. Account: nbayftest / PIN: 241743 / domain: testingbays.sbs.
       
       [TEST 1] PRIMARY - Subdomain delete must not "reappear": ✅ PASSED
@@ -19167,7 +19167,7 @@ frontend_ui_test_scope_2026-08-31: |
       ❌ VERIFICATION FAILED - HostBay Panel subdomain delete & console warnings (3/3 CRITICAL FAILURES):
       
       SCOPE: Verified two specific fixes in the HostBay hosting panel (React app at 
-      https://deploy-setup-18.preview.emergentagent.com/panel). This is a 
+      https://quick-setup-113.preview.emergentagent.com/panel). This is a 
       PRODUCTION-connected environment. Account: nbayftest / PIN: 241743 / domain: testingbays.sbs.
       
       [TEST 1] FIX #1 - Subdomain delete must not "reappear": ❌ CRITICAL FAILURE

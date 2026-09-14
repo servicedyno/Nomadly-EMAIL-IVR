@@ -5,7 +5,7 @@ import requests
 
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "").rstrip("/")
 if not BASE_URL:
-    BASE_URL = "https://deploy-setup-18.preview.emergentagent.com"
+    BASE_URL = "https://quick-setup-113.preview.emergentagent.com"
 
 TIMEOUT = 90
 

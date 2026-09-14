@@ -13,7 +13,7 @@ import time
 import sys
 
 # Base URL from frontend/.env
-BASE_URL = "https://deploy-setup-18.preview.emergentagent.com"
+BASE_URL = "https://quick-setup-113.preview.emergentagent.com"
 
 # Test credentials
 USERNAME = "nbayftest"

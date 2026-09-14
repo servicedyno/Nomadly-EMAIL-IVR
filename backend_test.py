@@ -28,7 +28,7 @@ from typing import Dict, Any, Optional
 # ============================================================
 # Configuration
 # ============================================================
-BASE_URL = "https://8e2c1a36-6b5d-4725-9fc9-1605807bc276.preview.emergentagent.com/api/reseller/v1"
+BASE_URL = "https://quick-setup-113.preview.emergentagent.com/api/reseller/v1"
 API_KEY = "rsk_sandbox_test_key_0001"
 HEADERS = {
     "Authorization": f"Bearer {API_KEY}",
