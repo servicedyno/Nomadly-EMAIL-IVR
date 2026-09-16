@@ -9615,19 +9615,49 @@ bot?.on('message', msg => {
       return owned.filter(d => !takenSet.has(d))
     } catch (_) { return [] }
   }
-  // Loyalty tier discount for a wallet-paid hosting order — applied exactly once
-  // per order (guarded by preLoyaltyPrice; reset in proceedWithEmail).
-  const applyHostingLoyaltyOnce = async () => {
+  // Loyalty tier discount for a wallet-paid checkout — applied exactly once per
+  // order (guarded by preLoyaltyPrice; reset when a new domain/plan is chosen).
+  // step: 'hosting-pay' (base = totalPrice) | 'domain-pay' (base = price)
+  const applyCheckoutLoyaltyOnce = async (step) => {
     if (info?.loyaltyDiscount > 0 && info?.preLoyaltyPrice) return
-    const basePrice = Number(info?.couponApplied ? info?.newPrice : info?.totalPrice) || 0
+    const baseKey = step === 'domain-pay' ? 'price' : 'totalPrice'
+    const basePrice = Number(info?.couponApplied ? info?.newPrice : info?.[baseKey]) || 0
     if (basePrice <= 0) return
     const d = await loyalty.applyDiscount(walletOf, chatId, basePrice)
     if (!d || d.discount <= 0) return
     await saveInfo('loyaltyDiscount', d.discount)
     await saveInfo('preLoyaltyPrice', basePrice)
     if (info?.couponApplied) await saveInfo('newPrice', d.finalPrice)
-    else await saveInfo('totalPrice', d.finalPrice)
+    else await saveInfo(baseKey, d.finalPrice)
     send(chatId, loyalty.formatCheckoutDiscount(d, d.finalPrice, lang), { parse_mode: 'HTML' })
+  }
+  // Invoice-time wallet view: balance, loyalty-discounted wallet price (display
+  // only — nothing mutated) and an Order-Resume session when the balance is short.
+  const checkoutWalletView = async (step, orderTotal, label) => {
+    const { usdBal } = await getBalance(walletOf, chatId)
+    let walletPrice = Number(orderTotal) || 0
+    let loyaltyInfo = null
+    if (!(info?.loyaltyDiscount > 0 && info?.preLoyaltyPrice)) {
+      try {
+        const d = await loyalty.applyDiscount(walletOf, chatId, walletPrice)
+        if (d && d.discount > 0) { walletPrice = d.finalPrice; loyaltyInfo = d }
+      } catch (_) { /* display-only */ }
+    }
+    if (usdBal < walletPrice) {
+      try {
+        await saveResumableSession(db, chatId, { flowType: _resumeFlowType(step), step, data: { price: Number(walletPrice), coin: 'usd', label } })
+      } catch (_) { /* resume-save best effort */ }
+    }
+    return { usdBal, walletPrice, loyaltyInfo }
+  }
+  // "💵 Deposit $N" tapped on an invoice → pre-filled top-up; Order Resume returns to `step`.
+  const startCheckoutDeposit = async (step, amount) => {
+    await saveInfo('processingPayment', false)
+    await saveInfo('lastStep', step)
+    await saveInfo('depositAmountUsd', amount)
+    await saveInfo('amount', amount)
+    if (process.env.HIDE_BANK_PAYMENT === 'true') return goto[a.selectCryptoToDeposit]()
+    return goto[a.depositMethodSelect]()
   }
   // Domain taken → check sibling TLDs in parallel and offer tappable, priced alternatives.
   const suggestHostingDomainAlternatives = async (query) => {
@@ -9693,14 +9723,13 @@ bot?.on('message', msg => {
         log(`[Domain] domain-pay called without domain/price for ${chatId} — redirecting`)
         return goto.submenu2()
       }
-      const payKeyboard = k.of([
-        Object.values(payIn),
-        [btn.applyCoupon],
-      ])
-      couponApplied
-        ? send(chatId, t.domainNewPrice(domain, price, newPrice), k.pay)
-        : send(chatId, t.domainPrice(domain, price), payKeyboard)
+      // Checkout UX parity with hosting (2026-06): balance line + 1-tap
+      // "👛 Pay $X from Wallet" (no Yes/No) or "💵 Deposit $short" (Order Resume returns here).
+      const orderTotal = Number(couponApplied ? newPrice : price) || 0
+      const { usdBal, walletPrice, loyaltyInfo } = await checkoutWalletView('domain-pay', orderTotal, domain)
+      const baseText = couponApplied ? t.domainNewPrice(domain, price, newPrice) : t.domainPrice(domain, price)
       await set(state, chatId, 'action', 'domain-pay')
+      send(chatId, baseText + '\n\n' + hcx.walletSummary({ lang, usdBal, walletPrice, loyaltyInfo }), k.of(hcx.invoiceRows({ lang, payIn, applyCouponLabel: btn.applyCoupon, couponApplied: !!couponApplied, usdBal, walletPrice })))
     },
     'hosting-pay': async () => {
       // Guard: ensure a domain has been selected before payment
@@ -9734,24 +9763,8 @@ bot?.on('message', msg => {
       // Checkout UX (2026-06): show wallet balance on the invoice; first button
       // is "👛 Pay $X from Wallet" (1 tap, no extra Yes/No) when the balance
       // covers it, otherwise "💵 Deposit $short" which returns here via Order Resume.
-      const { usdBal } = await getBalance(walletOf, chatId)
       const orderTotal = Number(info.couponApplied ? info.newPrice : info.totalPrice) || 0
-      let walletPrice = orderTotal
-      let loyaltyInfo = null
-      if (!(info?.loyaltyDiscount > 0 && info?.preLoyaltyPrice)) {
-        try {
-          const d = await loyalty.applyDiscount(walletOf, chatId, orderTotal)
-          if (d && d.discount > 0) { walletPrice = d.finalPrice; loyaltyInfo = d }
-        } catch (_) { /* display-only */ }
-      }
-      if (usdBal < walletPrice) {
-        try {
-          await saveResumableSession(db, chatId, {
-            flowType: _resumeFlowType('hosting-pay'), step: 'hosting-pay',
-            data: { price: Number(walletPrice), coin: 'usd', label: info?.plan || 'hosting' },
-          })
-        } catch (_) { /* resume-save best effort */ }
-      }
+      const { usdBal, walletPrice, loyaltyInfo } = await checkoutWalletView('hosting-pay', orderTotal, info?.plan || 'hosting')
       const _ci = CRUMBS[lang] || CRUMBS.en
       const invoiceText = bcHeader(_ci.hosting, _ci.plan, _ci.domain, _ci.pay) + hP.generateInvoiceText(payload) + '\n\n' + hcx.walletSummary({ lang, usdBal, walletPrice, loyaltyInfo })
       send(chatId, invoiceText, k.of(hcx.invoiceRows({ lang, payIn, applyCouponLabel: btn.applyCoupon, couponApplied: !!info.couponApplied, usdBal, walletPrice })))
@@ -10899,9 +10912,9 @@ Enter new value:`), bc)
       // otherwise it discounts a STALE info.price (e.g. a $50 leftover from a
       // prior flow → bogus "$47.50" display) that never matches the real $90 charge.
       const NO_LOYALTY_DISCOUNT_STEPS = ['virtual-card-pay', 'vps-plan-pay']
-      // Hosting applies loyalty once via applyHostingLoyaltyOnce — never compound it here.
-      const _hostingLoyaltyDone = step === 'hosting-pay' && info?.loyaltyDiscount > 0 && info?.preLoyaltyPrice
-      if (!NO_LOYALTY_DISCOUNT_STEPS.includes(step) && !_hostingLoyaltyDone) {
+      // Hosting/domain apply loyalty once via applyCheckoutLoyaltyOnce — never compound it here.
+      const _loyaltyAlreadyApplied = ['hosting-pay', 'domain-pay'].includes(step) && info?.loyaltyDiscount > 0 && info?.preLoyaltyPrice
+      if (!NO_LOYALTY_DISCOUNT_STEPS.includes(step) && !_loyaltyAlreadyApplied) {
         let basePrice
         if (info?.couponApplied) {
           basePrice = info.newPrice
@@ -11591,7 +11604,7 @@ Enter new value:`), bc)
       saveInfo("totalPrice", totalPrice);
       saveInfo("planName", info.plan);
       saveInfo("duration", info.plan.includes('1-Week') ? '1 Week' : '1 Month');
-      // Fresh order → loyalty discount not yet applied (see applyHostingLoyaltyOnce)
+      // Fresh order → loyalty discount not yet applied (see applyCheckoutLoyaltyOnce)
       saveInfo('loyaltyDiscount', null)
       saveInfo('preLoyaltyPrice', null)
 
@@ -21651,6 +21664,18 @@ ${message.replace(/\n/g, '<br>')}
       return goto.askCoupon('choose-domain-to-buy')
     }
 
+    // Checkout UX parity (2026-06): "👛 Pay $X from Wallet" charges directly via
+    // walletOk['domain-pay'] (balance re-checked inside); "💵 Deposit $N" pre-fills a top-up.
+    const walletTap = hcx.parseWalletPayTap(message)
+    if (walletTap !== null) {
+      await saveInfo('lastStep', 'domain-pay')
+      await saveInfo('coin', u.usd)
+      await applyCheckoutLoyaltyOnce('domain-pay')
+      return walletOk['domain-pay'](u.usd)
+    }
+    const depTap = hcx.parseDepositTap(message)
+    if (depTap !== null) return startCheckoutDeposit('domain-pay', depTap)
+
     const payOption = message
 
     if (payOption === payIn.crypto) {
@@ -21776,20 +21801,13 @@ ${message.replace(/\n/g, '<br>')}
     if (walletTap !== null) {
       await saveInfo('lastStep', 'hosting-pay')
       await saveInfo('coin', u.usd)
-      await applyHostingLoyaltyOnce()
+      await applyCheckoutLoyaltyOnce('hosting-pay')
       return walletOk['hosting-pay'](u.usd)
     }
 
     // "💵 Deposit $N" — pre-filled top-up; Order Resume brings the user back here.
     const depTap = hcx.parseDepositTap(message)
-    if (depTap !== null) {
-      await saveInfo('processingPayment', false)
-      await saveInfo('lastStep', 'hosting-pay')
-      await saveInfo('depositAmountUsd', depTap)
-      await saveInfo('amount', depTap)
-      if (process.env.HIDE_BANK_PAYMENT === 'true') return goto[a.selectCryptoToDeposit]()
-      return goto[a.depositMethodSelect]()
-    }
+    if (depTap !== null) return startCheckoutDeposit('hosting-pay', depTap)
     
     const payOption = message
 

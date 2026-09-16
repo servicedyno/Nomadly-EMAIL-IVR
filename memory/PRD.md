@@ -66,6 +66,10 @@ Hosting purchase went from 9–10 screens to **4 taps** (menu → plan → domai
 - **DEV-only** `POST /dev/hosting-flow-sim` (404 in prod): seeds a synthetic chat (wallet/domains/lastEmail), feeds taps through the REAL handler via `bot.processUpdate`, captures replies for that chat only, refuses payment-confirming taps. Body: `{chatId, seed:{usdBal,domains,lastOrderEmail,lang,keep}, steps:[...], settleMs, cleanup}`.
 - Tests: `js/tests/test_hosting_checkout_ux_2026-06.js` (101). Regression: nav_mainmenu_escape 109, quickwins 82, wallet_no_stale_charge 18, localization_parity 79 — all green. Live sim verified: owned-domain path, insufficient→Deposit→coin picker+resume session, typed/invalid email, coupon skip, Golden Back routing, register-new → taken → alternatives → tap → invoice $60 (domain+hosting), external-domain validation.
 
+## 2026-09-16 (fork) — Domain checkout parity
+- `goto['domain-pay']` now shows the wallet balance line and the same 1-tap `👛 Pay $X from Wallet` / `💵 Deposit $short` keyboard as hosting; Deposit saves an Order-Resume session (`flowType: domain-purchase`). Shared closure helpers in `_index.js`: `applyCheckoutLoyaltyOnce(step)` (price for domain / totalPrice for hosting), `checkoutWalletView(step, total, label)`, `startCheckoutDeposit(step, amount)`. `walletSelectCurrency` skips loyalty re-application for both steps. Legacy `👛 Wallet` tap still works for stale keyboards.
+- Suite now 109 assertions; live sim: domain search → No → invoice w/ balance → coupon Skip → Back → re-invoice, and $15 balance → `💵 Deposit $24` → coin picker + resume session `{price:39, step:'domain-pay'}`.
+
 
 ## Prioritized backlog (P0/P1/P2)
 ### P0 (from 2026-09-14 audit)
