@@ -139,7 +139,10 @@ console.log('\n=== Breadcrumb header helper (Task 3) ===')
   ok('deposit amount step wired with breadcrumb', /bcHeader\(_c\.wallet, _c\.deposit, _c\.amount\) \+ t\.selectCurrencyToDeposit/.test(src))
   ok('deposit method step wired with breadcrumb', /bcHeader\(_cm\.wallet, _cm\.deposit, _cm\.method\)/.test(src))
   ok('hosting selectPlan wired with breadcrumb', /bcHeader\(_cp\.hosting, _cp\.plan\) \+ message/.test(src))
-  ok('hosting buyPlan wired with breadcrumb', /bcHeader\(_cb\.hosting, _cb\.plan, _cb\.domain\) \+ message/.test(src))
+  // Checkout UX 2026-06: the standalone Buy screen was folded into selectPlan;
+  // breadcrumbs now continue on the email + payment steps instead.
+  ok('hosting email step wired with breadcrumb', /bcHeader\(_ce\.hosting, _ce\.plan, _ce\.domain, _ce\.email\)/.test(src))
+  ok('hosting invoice step wired with breadcrumb', /bcHeader\(_ci\.hosting, _ci\.plan, _ci\.domain, _ci\.pay\)/.test(src))
 }
 
 console.log('\n=== Stuck-flow nudge (Task 2) ===')

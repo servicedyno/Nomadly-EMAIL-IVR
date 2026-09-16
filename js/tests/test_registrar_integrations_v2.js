@@ -12,7 +12,7 @@
  * 
  * Run with: node js/tests/test_registrar_integrations_v2.js
  */
-require('dotenv').config({ path: '/app/.env' })
+require('dotenv').config({ path: '/app/backend/.env' })
 const { log } = require('console')
 const fs = require('fs')
 

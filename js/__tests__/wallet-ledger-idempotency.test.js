@@ -22,7 +22,7 @@
 const { MongoClient } = require('mongodb')
 
 ;(async () => {
-  require('dotenv').config({ path: '/app/.env' })
+  require('dotenv').config({ path: '/app/backend/.env' })
   const url = process.env.MONGO_URL
   if (!url) { console.log('SKIP: no MONGO_URL'); process.exit(0) }
   const client = new MongoClient(url, { serverSelectionTimeoutMS: 4000 })
