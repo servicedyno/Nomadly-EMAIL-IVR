@@ -171,32 +171,58 @@ section('SOURCE guards — _index.js wiring')
   check('email Back routes to connectExternalDomainFound when that was the origin', /last === 'connectExternalDomain'\) return goto\.connectExternalDomainFound\(/.test(emailHandler))
   check('connectExternalDomainFound continue stamps continue_domain_last_state', /saveInfo\('continue_domain_last_state', 'connectExternalDomain'\)/.test(s))
 
-  check('hosting-pay goto renders walletSummary/invoiceRows from checkoutWalletView', /'hosting-pay': async \(\) => \{[\s\S]{0,2200}checkoutWalletView\('hosting-pay', orderTotal[\s\S]{0,600}hcx\.walletSummary\([\s\S]{0,300}hcx\.invoiceRows\(/.test(s))
-  check('checkoutWalletView saves a resumable session when balance is short', /checkoutWalletView = async \(step, orderTotal, label\) => \{[\s\S]{0,900}if \(usdBal < walletPrice\) \{[\s\S]{0,200}saveResumableSession\(db, chatId, \{ flowType: _resumeFlowType\(step\), step,/.test(s))
-  const payHandler = s.slice(s.indexOf("if (action === 'hosting-pay') {"), s.indexOf("if (action === 'hosting-apply-coupon') {"))
-  check('Pay-from-Wallet tap charges via walletOk[hosting-pay] (no Yes/No screen)', /parseWalletPayTap\(message\)[\s\S]{0,400}applyCheckoutLoyaltyOnce\('hosting-pay'\)\s*return walletOk\['hosting-pay'\]\(u\.usd\)/.test(payHandler))
-  check('Deposit tap inside hosting-pay → startCheckoutDeposit', /parseDepositTap\(message\)\s*if \(depTap !== null\) return startCheckoutDeposit\('hosting-pay', depTap\)/.test(payHandler))
-  check('startCheckoutDeposit pre-fills amount and jumps to method picker', /startCheckoutDeposit = async \(step, amount\) => \{[\s\S]{0,400}saveInfo\('depositAmountUsd', amount\)[\s\S]{0,200}goto\[a\.depositMethodSelect\]\(\)/.test(s))
-  check('legacy "👛 Wallet" tap still handled (stale keyboards)', /payOption === payIn\.wallet/.test(payHandler))
-  check('applyCheckoutLoyaltyOnce guards on preLoyaltyPrice (no compounding)', /applyCheckoutLoyaltyOnce = async \(step\) => \{\s*if \(info\?\.loyaltyDiscount > 0 && info\?\.preLoyaltyPrice\) return/.test(s))
-  check('applyCheckoutLoyaltyOnce uses price for domain, totalPrice for hosting', /const baseKey = step === 'domain-pay' \? 'price' : 'totalPrice'/.test(s))
-  check('walletSelectCurrency skips loyalty for hosting/domain when already applied', /_loyaltyAlreadyApplied = \['hosting-pay', 'domain-pay'\]\.includes\(step\) && info\?\.loyaltyDiscount > 0 && info\?\.preLoyaltyPrice/.test(s))
-  check('proceedWithEmail resets loyalty markers for a fresh order', /saveInfo\("duration"[^\n]*\n[\s\S]{0,200}saveInfo\('loyaltyDiscount', null\)\s*saveInfo\('preLoyaltyPrice', null\)/.test(s))
-  check('walletSelectCurrency shows totalPrice (not domain price) for hosting', /else if \(step === 'hosting-pay'\) \{[^\n]*\n[^\n]*\n\s*finalPrice = info\?\.couponApplied \? info\?\.newPrice : \(info\?\.totalPrice \|\| 0\)/.test(s))
-  check('walletSelectCurrencyConfirm shows totalPrice for hosting (resume path)', /lastStep === 'hosting-pay' \? \(totalPrice \|\| 0\)/.test(s))
+  // ── Unified checkout layer (all pay screens) ──
+  check('checkoutOrder() is the single price source (mirrors walletOk reads)', /const checkoutOrder = \(rawStep\) => \{[\s\S]{0,2600}case 'phone-pay': return \{ step, total: n\(info\?\.cpPrice\)[\s\S]{0,800}case 'digital-product-pay': return \{ step, total: n\(info\?\.dpPrice\)[\s\S]{0,1200}case 'leads-pay'/.test(s))
+  check('loyalty only for steps whose walletOk honours price/newPrice/totalPrice', /CHECKOUT_LOYALTY_STEPS = \(\) => new Set\(\['plan-pay', 'domain-pay', 'hosting-pay', 'leads-pay', a\.redSelectProvider\]\)/.test(s))
+  check('applyCheckoutLoyaltyOnce is identity-guarded (no compounding on same price)', /applyCheckoutLoyaltyOnce = async \(rawStep\) => \{[\s\S]{0,700}if \(la && la\.step === step && Number\(la\.to\) === current\) return/.test(s))
+  check('applyCheckoutLoyaltyOnce uses totalPrice for hosting, price otherwise', /loyaltyBaseKey = step => \(normalizeCheckoutStep\(step\) === 'hosting-pay' \? 'totalPrice' : 'price'\)/.test(s))
+  check('checkoutScreen restores transient loyalty mutation before rendering', /checkoutScreen = async \(step, text, \{[^\n]*\} = \{\}\) => \{\s*await restoreLoyaltyMutation\(\)/.test(s))
+  check('checkoutWalletView saves a resumable session keyed by the walletOk step when short', /checkoutWalletView = async \(rawStep\) => \{[\s\S]{0,1200}if \(total > 0 && usdBal < walletPrice\) \{[\s\S]{0,300}saveResumableSession\(db, chatId, \{ flowType: _resumeFlowType\(walletOkKey\), step: walletOkKey/.test(s))
+  check('runCheckoutTap: deposit → startCheckoutDeposit, wallet → loyalty once → walletOk[key]', /runCheckoutTap = async \(rawStep, tap\) => \{[\s\S]{0,300}if \(tap\.type === 'deposit'\) return startCheckoutDeposit\(walletOkKey, tap\.amount\)[\s\S]{0,300}await applyCheckoutLoyaltyOnce\(step\)[\s\S]{0,300}return handler\(u\.usd\)/.test(s))
+  check('startCheckoutDeposit pre-fills amount and jumps to method picker', /startCheckoutDeposit = async \(walletOkKey, amount\) => \{[\s\S]{0,400}saveInfo\('depositAmountUsd', amount\)[\s\S]{0,200}goto\[a\.depositMethodSelect\]\(\)/.test(s))
+  check('legacy walletSelectCurrency shows exactly what walletOk charges (checkoutOrder total)', /await applyCheckoutLoyaltyOnce\(step\)\s*\n\s*\/\/ USD-only wallet[\s\S]{0,300}const finalPrice = checkoutOrder\(step\)\.total/.test(s))
+  check('walletSelectCurrencyConfirm (resume path) uses checkoutOrder total', /const p = checkoutOrder\(info\?\.lastStep\)\.total/.test(s))
+  check('Order Resume re-applies loyalty before the confirm screen', /await clearResumableSession\(db, chatId\)\s*\n[^\n]*\n\s*await applyCheckoutLoyaltyOnce\(session\.step\)\s*return goto\.walletSelectCurrencyConfirm\(\)/.test(s))
+  check('no k.pay screens remain except the wallet-only red-coupon flow', (s.match(/, k\.pay\)/g) || []).length === 1 && /t\.redNewPrice\(price, newPrice\), k\.pay\)/.test(s))
+
+  // Every pay screen renders through checkoutScreen and handles the 1-tap buttons
+  const screens = [
+    ['domain-pay', "if (action === 'domain-pay') {", "if (action === 'bank-pay-domain') {", /checkoutScreen\('domain-pay', \(\) => \{[\s\S]{0,300}\}, \{ couponLabel: btn\.applyCoupon \}\)/],
+    ['hosting-pay', "if (action === 'hosting-pay') {", "if (action === 'hosting-apply-coupon') {", /checkoutScreen\('hosting-pay', \(\) => bcHeader\(/],
+    ['phone-pay', "if (action === 'phone-pay') {", "if (action === 'bank-pay-phone') {", /checkoutScreen\('phone-pay', \(\) => cpOrderSummaryText\(\) \+ [^\n]*couponLabel: pc\.applyCoupon, backLabel: pc\.back/],
+    ['digital-product-pay', "if (action === a.digitalProductPay) {", "if (action === 'bank-pay-digital-product') {", /checkoutScreen\('digital-product-pay', \(\) => t\.dpPaymentPrompt\([^\n]*extraRows: \[\['💬 Ask Question'\]\]/],
+    ['virtual-card-pay', "if (action === a.virtualCardPay) {", "if (action === 'bank-pay-virtual-card') {", /checkoutScreen\('virtual-card-pay', \(\) => \{[\s\S]{0,300}t\.vcOrderSummary\(amount, fee, total\)/],
+    ['vps-plan-pay', "if (action === 'vps-plan-pay') {", "if (action === 'bank-pay-vps') {", /checkoutScreen\('vps-plan-pay', vp\.askPaymentMethod\)/],
+    ['vps-upgrade-plan-pay', "if (action === 'vps-upgrade-plan-pay') {", "if (action === 'bank-pay-vps-upgrade') {", /checkoutScreen\('vps-upgrade-plan-pay', vp\.askPaymentMethod\)/],
+    ['plan-pay', "if (action === 'plan-pay') {", "if (action === 'bank-pay-plan') {", /checkoutScreen\('plan-pay', \(\) => \{[\s\S]{0,300}t\.planNewPrice\(plan, price, newPrice\) : t\.planPrice\(plan, price\)/],
+    ['leads-pay', "if (action === 'leads-pay') {", "if (action === 'bank-pay-leads') {", /checkoutScreen\('leads-pay', \(\) => \{/],
+  ]
+  for (const [step, from, to, gotoRe] of screens) {
+    const block = s.slice(s.indexOf(from), s.indexOf(to))
+    check(`[${step}] goto renders via checkoutScreen`, gotoRe.test(s))
+    check(`[${step}] handler routes 1-tap buttons via runCheckoutTap`, new RegExp(`parseCheckoutTap\\(message\\)\\s*if \\(\\w+\\) return runCheckoutTap\\('${step}', \\w+\\)`).test(block))
+    check(`[${step}] legacy "👛 Wallet" tap still handled`, /payOption === payIn\.wallet/.test(block))
+  }
+  const bundleBlock = s.slice(s.indexOf('if (action === a.bundleConfirm) {'), s.indexOf('// Coupon apply within bundle flow'))
+  check('[bundleConfirm] Purchase Bundle → wallet-only checkoutScreen (no crypto/bank handlers exist)', /checkoutScreen\('bundleConfirm', bundlePayText\(bundle\.name, finalPrice\), \{ walletOnly: true \}\)/.test(bundleBlock))
+  check('[bundleConfirm] 1-tap buttons routed via runCheckoutTap', /if \(bundleTap && info\?\.bundlePrice\) return runCheckoutTap\('bundleConfirm', bundleTap\)/.test(bundleBlock))
+  check('[bundleConfirm] stale loyaltyDiscount no longer subtracted from bundle price', !/finalPrice - info\.loyaltyDiscount/.test(bundleBlock))
+  check('[bundleMenu] selecting a bundle resets bundlePrice/coupon for a fresh order', /saveInfo\('selectedBundle', selectedId\)\s*\n[^\n]*\n\s*await saveInfo\('bundlePrice', bundle\.finalPrice\)[\s\S]{0,200}saveInfo\('couponApplied', false\)/.test(s))
+  // Cloud IVR end-to-end
+  check('[Cloud IVR] number selection lands directly on phone-pay (summary + payment on one screen)', /await saveInfo\('cpNumberSurcharge', surcharge\)\s*\n[\s\S]{0,120}return goto\['phone-pay'\]\(\)/.test(s))
+  check('[Cloud IVR] number selection resets cpPriceBase/coupon for a fresh order', /saveInfo\('cpPrice', totalPrice\)\s*await saveInfo\('cpPriceBase', null\)[\s\S]{0,120}saveInfo\('couponApplied', false\)/.test(s))
+  check('[Cloud IVR] coupon handler exists (codes were previously silently ignored)', /if \(action === a\.askCoupon \+ 'cpOrderSummary'\) \{[\s\S]{0,900}saveInfo\('cpPriceBase', base\)\s*await saveInfo\('cpPrice', newPrice\)/.test(s))
+  check('[Cloud IVR] phone-pay handler accepts coupon button + Back → plan selection', /if \(message === pc\.applyCoupon \|\| message === btn\.applyCoupon\) return goto\.askCoupon\('cpOrderSummary'\)/.test(s))
+  check('[Cloud IVR] legacy cpOrderSummary screen forwards to phone-pay', /if \(action === a\.cpOrderSummary\) \{[\s\S]{0,900}return goto\['phone-pay'\]\(\)\s*\}/.test(s))
+  check('[Cloud IVR] plan-upgrade keyboard uses 1-tap pay/deposit (both render sites)', (s.match(/k\.of\(cpUpgradePayRows\(chargeAmount, walletBal, /g) || []).length === 2)
+  check('[Cloud IVR] plan-upgrade wallet handler accepts 1-tap label + deposit tap', /if \(payOption === payIn\.wallet \|\| hcx\.parseWalletPayTap\(message\) !== null\) \{/.test(s) && /const upgDep = hcx\.parseDepositTap\(message\)\s*if \(upgDep !== null\) return startCheckoutDeposit\(null, upgDep\)/.test(s))
+  check('_showBalanceWall labels leads/validation/bundle resumes', /step === a\.buyLeadsSelectFormat\) label = 'Phone Leads'/.test(s) && /step === 'bundleConfirm'\) label = info\?\.bundleName/.test(s))
   check('coupon screen clears the 30s payment lock before re-rendering invoice', /if \(action === 'hosting-apply-coupon'\) \{\s*\/\/[^\n]*\n\s*await saveInfo\('processingPayment', false\)/.test(s))
 
   check('registerNewDomain handler suggests alternatives when taken', /if \(action === a\.registerNewDomain\) \{[\s\S]{0,900}if \(!altTap\) await suggestHostingDomainAlternatives\(query\)/.test(s))
   check('suggestHostingDomainAlternatives uses checkAlternativeTLDs with a timeout race', /suggestHostingDomainAlternatives = async \(query\) => \{[\s\S]{0,700}Promise\.race\(\[\s*domainService\.checkAlternativeTLDs\(baseName, db\)/.test(s))
   check('CRUMBS gained email + pay breadcrumbs in all 4 locales', (s.match(/email: '[^']+', pay: '[^']+' \}/g) || []).length === 4)
 
-  // Domain checkout parity (follow-up)
-  check('domain-pay goto renders balance line + invoiceRows via checkoutWalletView', /'domain-pay': async \(\) => \{[\s\S]{0,1200}checkoutWalletView\('domain-pay', orderTotal, domain\)[\s\S]{0,500}hcx\.walletSummary\([\s\S]{0,200}hcx\.invoiceRows\(/.test(s))
-  check('domain-pay goto keeps coupon price text (domainNewPrice) when coupon applied', /couponApplied \? t\.domainNewPrice\(domain, price, newPrice\) : t\.domainPrice\(domain, price\)/.test(s))
-  const domHandler = s.slice(s.indexOf("if (action === 'domain-pay') {"), s.indexOf("if (action === 'bank-pay-domain') {"))
-  check('domain-pay Pay-from-Wallet tap charges via walletOk[domain-pay] (no Yes/No)', /parseWalletPayTap\(message\)[\s\S]{0,400}applyCheckoutLoyaltyOnce\('domain-pay'\)\s*return walletOk\['domain-pay'\]\(u\.usd\)/.test(domHandler))
-  check('domain-pay Deposit tap → startCheckoutDeposit(domain-pay)', /if \(depTap !== null\) return startCheckoutDeposit\('domain-pay', depTap\)/.test(domHandler))
-  check('domain-pay legacy "👛 Wallet" tap still handled', /payOption === payIn\.wallet/.test(domHandler))
   check('domain search resets loyalty markers so a fresh order never inherits a discount', /saveInfo\('loyaltyDiscount', null\)\s*await saveInfo\('preLoyaltyPrice', null\)\s*return goto\.askDomainToUseWithShortener\(\)/.test(s))
 }
 

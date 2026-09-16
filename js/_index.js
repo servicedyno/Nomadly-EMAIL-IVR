@@ -9604,6 +9604,40 @@ bot?.on('message', msg => {
   // Resolve the plan the user is buying from info.plan so Back/fallbacks never
   // silently downgrade a Golden order to Premium Weekly.
   const currentPlanAction = () => hcx.planKeyOfName(info?.plan) || a.premiumWeekly
+  // Cloud IVR plan-upgrade payment keyboard: 1-tap "👛 Pay $X from Wallet" when the
+  // balance covers the prorated charge, "💵 Deposit $short" otherwise; $0 → plain wallet confirm.
+  const cpUpgradePayRows = (chargeAmount, walletBal, backLabel) => {
+    const amt = Number(chargeAmount) || 0
+    const first = amt <= 0 ? payIn.wallet
+      : (Number(walletBal) + 1e-9 >= amt ? hcx.strings(lang).payWallet(amt) : `💵 Deposit $${hcx.depositAmountFor(amt, walletBal)}`)
+    const rows = [[first], [payIn.crypto]]
+    if (payIn.bank) rows.push([payIn.bank])
+    rows.push([backLabel])
+    return rows
+  }
+  // Cloud IVR order summary (number · plan · surcharge · coupon) — rendered on the
+  // payment screen itself since the separate "Proceed to Payment" hop was removed.
+  const cpOrderSummaryText = () => {
+    const planKey = info?.cpPlanKey || 'starter'
+    const plan = phoneConfig.plans[planKey]
+    const totalPrice = Number(info?.cpPrice ?? plan?.price) || 0
+    const surcharge = Number(info?.cpNumberSurcharge) || 0
+    const caps = info?.cpSelectedCapabilities || {}
+    const capLabels = []
+    if (caps.voice) capLabels.push('Voice')
+    if (caps.sms) capLabels.push('SMS')
+    if (caps.fax) capLabels.push('Fax')
+    const bulkTag = info?.cpBulkIvrCapable ? '\n☎️ <b>Bulk IVR capable</b>' : ''
+    let s = cpTxt.orderSummary(info?.cpSelectedNumber, info?.cpCountryName || 'US', plan, totalPrice)
+    if (capLabels.length) s += `\n📋 Capabilities: ${capLabels.join(' · ')}${bulkTag}`
+    if (surcharge > 0) {
+      const gross = Math.max(totalPrice, Number(info?.cpPriceBase) || 0)
+      s += `\n\n💰 <b>Number Cost:</b> $${surcharge.toFixed(2)}/mo (added to plan)\n📋 Plan: $${info?.cpPlanBasePrice || plan?.price}/mo + Number: $${surcharge.toFixed(2)}/mo = <b>$${gross.toFixed(2)}/mo</b>`
+    }
+    const base = Number(info?.cpPriceBase) || 0
+    if (base > totalPrice) s += `\n\n🎟️ Coupon: <s>$${base.toFixed(2)}</s> → <b>$${totalPrice.toFixed(2)}</b>`
+    return s
+  }
   // Domains registered with us that are NOT already on an active hosting plan
   // → shown inline as "📂 example.com" 1-tap buttons on the plan-details screen.
   const getHostableOwnedDomains = async () => {
@@ -9615,49 +9649,132 @@ bot?.on('message', msg => {
       return owned.filter(d => !takenSet.has(d))
     } catch (_) { return [] }
   }
-  // Loyalty tier discount for a wallet-paid checkout — applied exactly once per
-  // order (guarded by preLoyaltyPrice; reset when a new domain/plan is chosen).
-  // step: 'hosting-pay' (base = totalPrice) | 'domain-pay' (base = price)
-  const applyCheckoutLoyaltyOnce = async (step) => {
-    if (info?.loyaltyDiscount > 0 && info?.preLoyaltyPrice) return
-    const baseKey = step === 'domain-pay' ? 'price' : 'totalPrice'
-    const basePrice = Number(info?.couponApplied ? info?.newPrice : info?.[baseKey]) || 0
-    if (basePrice <= 0) return
-    const d = await loyalty.applyDiscount(walletOf, chatId, basePrice)
+  // ── Unified checkout layer (2026-06) ──────────────────────────────────
+  // Every "choose payment method" screen renders through checkoutScreen():
+  // invoice text + wallet balance line + 1-tap "👛 Pay $X from Wallet" (or
+  // "💵 Deposit $short" when the balance can't cover it) + Crypto/Bank + coupon.
+  // Prices AT REST are always undiscounted; the loyalty tier discount is applied
+  // transiently at charge time (Pay tap / Order Resume) and restored on re-render.
+  const LEADS_WALLET_KEYS = () => [a.buyLeadsSelectFormat, a.validatorSelectFormat]
+  const normalizeCheckoutStep = s => (LEADS_WALLET_KEYS().includes(s) ? 'leads-pay' : s)
+  // Steps whose walletOk[...] handler charges info.price / newPrice / totalPrice →
+  // the loyalty discount can be honoured. Fixed-field steps (cpPrice, dpPrice,
+  // vcAmount, vpsDetails, bundlePrice) charge exactly what the invoice shows.
+  const CHECKOUT_LOYALTY_STEPS = () => new Set(['plan-pay', 'domain-pay', 'hosting-pay', 'leads-pay', a.redSelectProvider])
+  const loyaltyEligible = step => CHECKOUT_LOYALTY_STEPS().has(normalizeCheckoutStep(step))
+  const loyaltyBaseKey = step => (normalizeCheckoutStep(step) === 'hosting-pay' ? 'totalPrice' : 'price')
+  // Single source of truth for "what does this checkout charge" — mirrors the
+  // price reads inside walletOk[...] so invoice, confirm and charge always agree.
+  const checkoutOrder = (rawStep) => {
+    const step = normalizeCheckoutStep(rawStep)
+    const cp = !!info?.couponApplied
+    const n = v => Number(v) || 0
+    switch (step) {
+      case 'hosting-pay': return { step, total: n(cp ? info?.newPrice : info?.totalPrice), label: info?.plan || 'hosting', walletOkKey: step }
+      case 'domain-pay': return { step, total: n(cp ? info?.newPrice : info?.price), label: info?.domain || 'domain', walletOkKey: step }
+      case 'plan-pay': return { step, total: n(cp ? info?.newPrice : info?.price), label: info?.plan || 'plan', walletOkKey: step }
+      case 'phone-pay': return { step, total: n(info?.cpPrice), label: info?.cpSelectedNumber || 'Cloud IVR', walletOkKey: step }
+      case 'digital-product-pay': return { step, total: n(info?.dpPrice), label: info?.dpProductName || 'digital product', walletOkKey: step }
+      case 'virtual-card-pay': {
+        const amount = n(info?.vcAmount)
+        const fee = amount < 200 ? 20 : Math.round(amount * 0.1 * 100) / 100
+        return { step, total: Math.round((amount + fee) * 100) / 100, label: 'Virtual Card', walletOkKey: step }
+      }
+      case 'vps-plan-pay': {
+        const vd = info?.vpsDetails || {}
+        return { step, total: n(vd.couponApplied ? vd.planNewPrice : (vd.totalPrice || vd.plantotalPrice)), label: 'VPS', walletOkKey: step }
+      }
+      case 'vps-upgrade-plan-pay': return { step, total: n(info?.vpsDetails?.totalPrice), label: 'VPS upgrade', walletOkKey: step }
+      case 'leads-pay': {
+        const isValidator = info?.lastStep === a.validatorSelectFormat
+        return { step, total: n(cp ? info?.newPrice : info?.price), label: isValidator ? 'Phone Validation' : 'Phone Leads', walletOkKey: isValidator ? a.validatorSelectFormat : a.buyLeadsSelectFormat }
+      }
+      case 'bundleConfirm': return { step, total: n(cp && info?.newPrice ? info?.newPrice : info?.bundlePrice), label: info?.bundleName || 'bundle', walletOkKey: 'bundleConfirm' }
+      default: return { step, total: n(cp ? info?.newPrice : (info?.price || info?.totalPrice)), label: step, walletOkKey: rawStep }
+    }
+  }
+  // Apply the tier discount to the field walletOk[...] will charge — once.
+  // Identity-guarded: skipped when the field already holds the discounted value.
+  const applyCheckoutLoyaltyOnce = async (rawStep) => {
+    const step = normalizeCheckoutStep(rawStep)
+    if (!loyaltyEligible(step)) return
+    const key = info?.couponApplied ? 'newPrice' : loyaltyBaseKey(step)
+    const current = Number(info?.[key]) || 0
+    if (current <= 0) return
+    const la = info?.loyaltyApplied
+    if (la && la.step === step && Number(la.to) === current) return
+    const d = await loyalty.applyDiscount(walletOf, chatId, current)
     if (!d || d.discount <= 0) return
+    await saveInfo('loyaltyApplied', { step, key, from: current, to: d.finalPrice })
     await saveInfo('loyaltyDiscount', d.discount)
-    await saveInfo('preLoyaltyPrice', basePrice)
-    if (info?.couponApplied) await saveInfo('newPrice', d.finalPrice)
-    else await saveInfo(baseKey, d.finalPrice)
+    await saveInfo('preLoyaltyPrice', current)
+    await saveInfo(key, d.finalPrice)
     send(chatId, loyalty.formatCheckoutDiscount(d, d.finalPrice, lang), { parse_mode: 'HTML' })
+  }
+  // Undo a transient loyalty mutation (invoice re-render, new order) so coupons
+  // and displays always start from the undiscounted price. Never clobbers a
+  // field that has since been recomputed by the flow.
+  const restoreLoyaltyMutation = async () => {
+    const la = info?.loyaltyApplied
+    if (!la) return
+    if (Number(info?.[la.key]) === Number(la.to)) await saveInfo(la.key, la.from)
+    await saveInfo('loyaltyApplied', null)
+    await saveInfo('loyaltyDiscount', null)
+    await saveInfo('preLoyaltyPrice', null)
   }
   // Invoice-time wallet view: balance, loyalty-discounted wallet price (display
   // only — nothing mutated) and an Order-Resume session when the balance is short.
-  const checkoutWalletView = async (step, orderTotal, label) => {
+  const checkoutWalletView = async (rawStep) => {
+    const { step, total, label, walletOkKey } = checkoutOrder(rawStep)
     const { usdBal } = await getBalance(walletOf, chatId)
-    let walletPrice = Number(orderTotal) || 0
+    let walletPrice = total
     let loyaltyInfo = null
-    if (!(info?.loyaltyDiscount > 0 && info?.preLoyaltyPrice)) {
+    if (loyaltyEligible(step) && total > 0) {
       try {
-        const d = await loyalty.applyDiscount(walletOf, chatId, walletPrice)
+        const d = await loyalty.applyDiscount(walletOf, chatId, total)
         if (d && d.discount > 0) { walletPrice = d.finalPrice; loyaltyInfo = d }
       } catch (_) { /* display-only */ }
     }
-    if (usdBal < walletPrice) {
+    if (total > 0 && usdBal < walletPrice) {
       try {
-        await saveResumableSession(db, chatId, { flowType: _resumeFlowType(step), step, data: { price: Number(walletPrice), coin: 'usd', label } })
+        await saveResumableSession(db, chatId, { flowType: _resumeFlowType(walletOkKey), step: walletOkKey, data: { price: Number(walletPrice), coin: 'usd', label } })
       } catch (_) { /* resume-save best effort */ }
     }
-    return { usdBal, walletPrice, loyaltyInfo }
+    return { usdBal, walletPrice, loyaltyInfo, total }
   }
-  // "💵 Deposit $N" tapped on an invoice → pre-filled top-up; Order Resume returns to `step`.
-  const startCheckoutDeposit = async (step, amount) => {
+  // Render a payment-method screen. `text` may be a function (evaluated after the
+  // loyalty restore so it never shows a transiently discounted price).
+  const checkoutScreen = async (step, text, { couponLabel = null, extraRows = [], backLabel = '↩️ Back', walletOnly = false } = {}) => {
+    await restoreLoyaltyMutation()
+    const { usdBal, walletPrice, loyaltyInfo } = await checkoutWalletView(step)
+    const body = typeof text === 'function' ? text() : text
+    const rows = hcx.invoiceRows({ lang, payIn: walletOnly ? {} : payIn, applyCouponLabel: couponLabel, couponApplied: !!info?.couponApplied, usdBal, walletPrice, extraRows, backLabel })
+    return send(chatId, body + '\n\n' + hcx.walletSummary({ lang, usdBal, walletPrice, loyaltyInfo }), k.of(rows))
+  }
+  // "💵 Deposit $N" tapped on an invoice → pre-filled top-up; Order Resume returns to `walletOkKey`.
+  const startCheckoutDeposit = async (walletOkKey, amount) => {
     await saveInfo('processingPayment', false)
-    await saveInfo('lastStep', step)
+    if (walletOkKey) await saveInfo('lastStep', walletOkKey)
     await saveInfo('depositAmountUsd', amount)
     await saveInfo('amount', amount)
     if (process.env.HIDE_BANK_PAYMENT === 'true') return goto[a.selectCryptoToDeposit]()
     return goto[a.depositMethodSelect]()
+  }
+  // 1-tap invoice buttons. "👛 Pay $X from Wallet" carries the amount, so it IS
+  // the confirmation — charge via the same walletOk handler the old Yes/No used
+  // (balance re-checked inside).
+  const runCheckoutTap = async (rawStep, tap) => {
+    const { step, walletOkKey } = checkoutOrder(rawStep)
+    if (tap.type === 'deposit') return startCheckoutDeposit(walletOkKey, tap.amount)
+    await saveInfo('lastStep', walletOkKey)
+    await saveInfo('coin', u.usd)
+    await applyCheckoutLoyaltyOnce(step)
+    const handler = walletOk[walletOkKey]
+    if (typeof handler !== 'function') {
+      log(`[Checkout] walletOk handler missing for ${walletOkKey} (step ${step})`)
+      return send(chatId, trans('t.someIssue'))
+    }
+    return handler(u.usd)
   }
   // Domain taken → check sibling TLDs in parallel and offer tappable, priced alternatives.
   const suggestHostingDomainAlternatives = async (query) => {
@@ -9717,19 +9834,16 @@ bot?.on('message', msg => {
       await set(state, chatId, 'action', a.askCoupon + action)
     },
     'domain-pay': async () => {
-      const { domain, price, couponApplied, newPrice } = info
       // Guard: ensure domain and price exist before showing payment
-      if (!domain || !price) {
+      if (!info?.domain || !info?.price) {
         log(`[Domain] domain-pay called without domain/price for ${chatId} — redirecting`)
         return goto.submenu2()
       }
-      // Checkout UX parity with hosting (2026-06): balance line + 1-tap
-      // "👛 Pay $X from Wallet" (no Yes/No) or "💵 Deposit $short" (Order Resume returns here).
-      const orderTotal = Number(couponApplied ? newPrice : price) || 0
-      const { usdBal, walletPrice, loyaltyInfo } = await checkoutWalletView('domain-pay', orderTotal, domain)
-      const baseText = couponApplied ? t.domainNewPrice(domain, price, newPrice) : t.domainPrice(domain, price)
       await set(state, chatId, 'action', 'domain-pay')
-      send(chatId, baseText + '\n\n' + hcx.walletSummary({ lang, usdBal, walletPrice, loyaltyInfo }), k.of(hcx.invoiceRows({ lang, payIn, applyCouponLabel: btn.applyCoupon, couponApplied: !!couponApplied, usdBal, walletPrice })))
+      return checkoutScreen('domain-pay', () => {
+        const { domain, price, couponApplied, newPrice } = info
+        return couponApplied ? t.domainNewPrice(domain, price, newPrice) : t.domainPrice(domain, price)
+      }, { couponLabel: btn.applyCoupon })
     },
     'hosting-pay': async () => {
       // Guard: ensure a domain has been selected before payment
@@ -9745,8 +9859,11 @@ bot?.on('message', msg => {
       }
       saveInfo('processingPayment', true)
       saveInfo('paymentLockTime', now)
-      
-      const payload = {
+      await set(state, chatId, 'action', 'hosting-pay')
+      // Checkout UX (2026-06): invoice + wallet balance + 1-tap "👛 Pay $X from
+      // Wallet" (no extra Yes/No) or "💵 Deposit $short" (Order Resume returns here).
+      const _ci = CRUMBS[lang] || CRUMBS.en
+      return checkoutScreen('hosting-pay', () => bcHeader(_ci.hosting, _ci.plan, _ci.domain, _ci.pay) + hP.generateInvoiceText({
         domainName: info.website_name,
         domainPrice: info.price,
         existingDomain: info.existingDomain,
@@ -9758,16 +9875,7 @@ bot?.on('message', msg => {
         newPrice: info.newPrice,
         planName: info.planName || info.plan,
         duration: info.duration || (info.plan && info.plan.includes('1-Week') ? '1 Week' : '1 Month'),
-      }
-      await set(state, chatId, 'action', 'hosting-pay')
-      // Checkout UX (2026-06): show wallet balance on the invoice; first button
-      // is "👛 Pay $X from Wallet" (1 tap, no extra Yes/No) when the balance
-      // covers it, otherwise "💵 Deposit $short" which returns here via Order Resume.
-      const orderTotal = Number(info.couponApplied ? info.newPrice : info.totalPrice) || 0
-      const { usdBal, walletPrice, loyaltyInfo } = await checkoutWalletView('hosting-pay', orderTotal, info?.plan || 'hosting')
-      const _ci = CRUMBS[lang] || CRUMBS.en
-      const invoiceText = bcHeader(_ci.hosting, _ci.plan, _ci.domain, _ci.pay) + hP.generateInvoiceText(payload) + '\n\n' + hcx.walletSummary({ lang, usdBal, walletPrice, loyaltyInfo })
-      send(chatId, invoiceText, k.of(hcx.invoiceRows({ lang, payIn, applyCouponLabel: btn.applyCoupon, couponApplied: !!info.couponApplied, usdBal, walletPrice })))
+      }), { couponLabel: btn.applyCoupon })
     },
     'vps-plan-pay' : async () => {
       // Guard: ensure VPS details exist before showing payment (prevents TypeError crash)
@@ -9776,15 +9884,11 @@ bot?.on('message', msg => {
         return goto.displayMainMenuButtons()
       }
       await set(state, chatId, 'action', 'vps-plan-pay')
-      const { usdBal } = await getBalance(walletOf, chatId)
-      send(chatId, t.showWallet(usdBal))
-      send(chatId, vp.askPaymentMethod, k.pay)
+      return checkoutScreen('vps-plan-pay', vp.askPaymentMethod)
     },
     'vps-upgrade-plan-pay' : async () => {
       await set(state, chatId, 'action', 'vps-upgrade-plan-pay')
-      const { usdBal } = await getBalance(walletOf, chatId)
-      send(chatId, t.showWallet(usdBal))
-      send(chatId, vp.askPaymentMethod, k.pay) // Monthly billing — all payment methods available
+      return checkoutScreen('vps-upgrade-plan-pay', vp.askPaymentMethod) // Monthly billing — all payment methods available
     },
     // ━━━ Cloud IVR goto functions ━━━
     submenu5: async () => {
@@ -9836,9 +9940,10 @@ bot?.on('message', msg => {
         return goto.submenu5()
       }
       await set(state, chatId, 'action', 'phone-pay')
-      const { usdBal } = await getBalance(walletOf, chatId)
-      send(chatId, t.showWallet(usdBal))
-      send(chatId, cpTxt.paymentPrompt(info.cpPrice), k.pay)
+      // Checkout UX (2026-06): order summary + payment on ONE screen (the old
+      // "Proceed to Payment" hop is gone) with balance line + 1-tap wallet pay.
+      const pc = phoneConfig.getBtn(lang)
+      return checkoutScreen('phone-pay', () => cpOrderSummaryText() + '\n\n' + cpTxt.paymentPrompt(info.cpPrice), { couponLabel: pc.applyCoupon, backLabel: pc.back })
     },
     // ━━━ Digital Products goto functions ━━━
     submenu6: async () => {
@@ -9870,9 +9975,7 @@ bot?.on('message', msg => {
         return goto.submenu6()
       }
       await set(state, chatId, 'action', a.digitalProductPay)
-      const product = info?.dpProductName
-      const price = info?.dpPrice
-      send(chatId, t.dpPaymentPrompt(product, price), k.pay)
+      return checkoutScreen('digital-product-pay', () => t.dpPaymentPrompt(info?.dpProductName, info?.dpPrice), { extraRows: [['💬 Ask Question']] })
     },
     'airvoice-duration': async () => {
       await set(state, chatId, 'action', a.airvoiceDuration)
@@ -9906,10 +10009,12 @@ bot?.on('message', msg => {
         return goto['virtual-card-start']()
       }
       await set(state, chatId, 'action', a.virtualCardPay)
-      const amount = info?.vcAmount
-      const fee = amount < 200 ? 20 : Math.round(amount * 0.1 * 100) / 100
-      const total = Math.round((amount + fee) * 100) / 100
-      send(chatId, t.vcOrderSummary(amount, fee, total), k.pay)
+      return checkoutScreen('virtual-card-pay', () => {
+        const amount = info?.vcAmount
+        const fee = amount < 200 ? 20 : Math.round(amount * 0.1 * 100) / 100
+        const total = Math.round((amount + fee) * 100) / 100
+        return t.vcOrderSummary(amount, fee, total)
+      })
     },
     // ━━━ Marketplace ━━━
     marketplace: async () => {
@@ -9952,11 +10057,11 @@ bot?.on('message', msg => {
     },
     'leads-pay': async () => {
       await set(state, chatId, 'action', 'leads-pay')
-      const price = info?.couponApplied ? info?.newPrice : info?.price
-      const { usdBal } = await getBalance(walletOf, chatId)
-      send(chatId, t.showWallet(usdBal))
-      const amount = info?.amount || 0
-      send(chatId, ({ en: `💰 <b>Payment for ${info?.lastStep === a.validatorSelectFormat ? 'Phone Validation' : 'Phone Leads'}</b>\n\n📦 Quantity: <b>${amount.toLocaleString()}</b>\n💵 Total: <b>$${Number(price).toFixed(2)}</b>\n\nSelect payment method:`, fr: `💰 <b>Paiement pour ${info?.lastStep === a.validatorSelectFormat ? 'Validation Téléphonique' : 'Leads Téléphoniques'}</b>\n\n📦 Quantité : <b>${amount.toLocaleString()}</b>\n💵 Total : <b>$${Number(price).toFixed(2)}</b>\n\nSélectionnez le mode de paiement :`, zh: `💰 <b>${info?.lastStep === a.validatorSelectFormat ? '号码验证' : '电话线索'}付款</b>\n\n📦 数量：<b>${amount.toLocaleString()}</b>\n💵 总计：<b>$${Number(price).toFixed(2)}</b>\n\n选择支付方式：`, hi: `💰 <b>${info?.lastStep === a.validatorSelectFormat ? 'फ़ोन सत्यापन' : 'फ़ोन लीड्स'} का भुगतान</b>\n\n📦 मात्रा: <b>${amount.toLocaleString()}</b>\n💵 कुल: <b>$${Number(price).toFixed(2)}</b>\n\nभुगतान विधि चुनें:` }[lang] || `💰 <b>Payment for ${info?.lastStep === a.validatorSelectFormat ? 'Phone Validation' : 'Phone Leads'}</b>\n\n📦 Quantity: <b>${amount.toLocaleString()}</b>\n💵 Total: <b>$${Number(price).toFixed(2)}</b>\n\nSelect payment method:`), k.pay)
+      return checkoutScreen('leads-pay', () => {
+        const price = info?.couponApplied ? info?.newPrice : info?.price
+        const amount = info?.amount || 0
+        return ({ en: `💰 <b>Payment for ${info?.lastStep === a.validatorSelectFormat ? 'Phone Validation' : 'Phone Leads'}</b>\n\n📦 Quantity: <b>${amount.toLocaleString()}</b>\n💵 Total: <b>$${Number(price).toFixed(2)}</b>\n\nSelect payment method:`, fr: `💰 <b>Paiement pour ${info?.lastStep === a.validatorSelectFormat ? 'Validation Téléphonique' : 'Leads Téléphoniques'}</b>\n\n📦 Quantité : <b>${amount.toLocaleString()}</b>\n💵 Total : <b>$${Number(price).toFixed(2)}</b>\n\nSélectionnez le mode de paiement :`, zh: `💰 <b>${info?.lastStep === a.validatorSelectFormat ? '号码验证' : '电话线索'}付款</b>\n\n📦 数量：<b>${amount.toLocaleString()}</b>\n💵 总计：<b>$${Number(price).toFixed(2)}</b>\n\n选择支付方式：`, hi: `💰 <b>${info?.lastStep === a.validatorSelectFormat ? 'फ़ोन सत्यापन' : 'फ़ोन लीड्स'} का भुगतान</b>\n\n📦 मात्रा: <b>${amount.toLocaleString()}</b>\n💵 कुल: <b>$${Number(price).toFixed(2)}</b>\n\nभुगतान विधि चुनें:` }[lang] || `💰 <b>Payment for ${info?.lastStep === a.validatorSelectFormat ? 'Phone Validation' : 'Phone Leads'}</b>\n\n📦 Quantity: <b>${amount.toLocaleString()}</b>\n💵 Total: <b>$${Number(price).toFixed(2)}</b>\n\nSelect payment method:`)
+      })
     },
     'choose-domain-to-buy': async () => {
       let text = ``
@@ -9995,16 +10100,16 @@ bot?.on('message', msg => {
       send(chatId, ({ en: `Enter your custom nameservers separated by space.\n\nExample: <code>ns1.example.com ns2.example.com</code>\n\nMinimum 2 nameservers required.`, fr: `Entrez vos serveurs de noms personnalisés séparés par un espace.\n\nExemple : <code>ns1.example.com ns2.example.com</code>\n\nMinimum 2 serveurs de noms requis.`, zh: `输入自定义域名服务器（用空格分隔）。\n\n示例：<code>ns1.example.com ns2.example.com</code>\n\n至少需要 2 个域名服务器。`, hi: `अपने कस्टम नेमसर्वर स्पेस से अलग करके दर्ज करें।\n\nउदाहरण: <code>ns1.example.com ns2.example.com</code>\n\nकम से कम 2 नेमसर्वर आवश्यक।` }[lang] || `Enter your custom nameservers separated by space.\n\nExample: <code>ns1.example.com ns2.example.com</code>\n\nMinimum 2 nameservers required.`), k.of([]))
     },
     'plan-pay': async () => {
-      const { plan, price, couponApplied, newPrice } = info
       // Guard: ensure plan and price exist before showing payment
-      if (!plan || !price) {
+      if (!info?.plan || !info?.price) {
         log(`[Plan] plan-pay called without plan/price for ${chatId} — redirecting`)
         return goto['choose-subscription']()
       }
-      couponApplied
-        ? send(chatId, t.planNewPrice(plan, price, newPrice), k.pay)
-        : send(chatId, t.planPrice(plan, price), k.pay)
       await set(state, chatId, 'action', 'plan-pay')
+      return checkoutScreen('plan-pay', () => {
+        const { plan, price, couponApplied, newPrice } = info
+        return couponApplied ? t.planNewPrice(plan, price, newPrice) : t.planPrice(plan, price)
+      })
     },
     'choose-subscription': async () => {
       await set(state, chatId, 'action', 'choose-subscription')
@@ -10904,64 +11009,30 @@ Enter new value:`), bc)
 
       }
 
-      // Apply loyalty discount to the price
-      const step = info?.lastStep
-      // VPS/RDP pricing lives in info.vpsDetails (totalPrice) and the charge path
-      // ('vps-plan-pay', see ~line 10347) charges that value directly WITHOUT
-      // applying loyalty. So the generic loyalty block here MUST NOT run for VPS,
-      // otherwise it discounts a STALE info.price (e.g. a $50 leftover from a
-      // prior flow → bogus "$47.50" display) that never matches the real $90 charge.
-      const NO_LOYALTY_DISCOUNT_STEPS = ['virtual-card-pay', 'vps-plan-pay']
-      // Hosting/domain apply loyalty once via applyCheckoutLoyaltyOnce — never compound it here.
-      const _loyaltyAlreadyApplied = ['hosting-pay', 'domain-pay'].includes(step) && info?.loyaltyDiscount > 0 && info?.preLoyaltyPrice
-      if (!NO_LOYALTY_DISCOUNT_STEPS.includes(step) && !_loyaltyAlreadyApplied) {
-        let basePrice
-        if (info?.couponApplied) {
-          basePrice = info.newPrice
-        } else if (step === 'hosting-pay') {
-          basePrice = info?.totalPrice || info?.price || 0
-        } else {
-          basePrice = info?.price || 0
-        }
-        if (basePrice > 0) {
-          const discountInfo = await loyalty.applyDiscount(walletOf, chatId, basePrice)
-          if (discountInfo.discount > 0) {
-            await saveInfo('loyaltyDiscount', discountInfo.discount)
-            await saveInfo('preLoyaltyPrice', basePrice)
-            const discountedPrice = discountInfo.finalPrice
-            if (info?.couponApplied) {
-              await saveInfo('newPrice', discountedPrice)
-            } else if (step !== 'domain-pay' && info?.totalPrice) {
-              await saveInfo('totalPrice', discountedPrice)
-            }
-            await saveInfo('price', discountedPrice)
-            send(chatId, loyalty.formatCheckoutDiscount(discountInfo, discountedPrice, info?.userLanguage || 'en'), { parse_mode: 'HTML' })
-          }
-        }
+      // Legacy confirm path (stale "👛 Wallet" keyboards). Unified checkout layer:
+      // loyalty applied once (identity-guarded) only for steps whose walletOk
+      // honours it, and the displayed amount is exactly what walletOk will charge
+      // (fixes the stale info.price shown for phone / digital / vcard / VPS).
+      // The step comes from the live action: legacy handlers set lastStep WITHOUT
+      // await, so info.lastStep can still be the previous flow's on the first tap.
+      let step = info?.lastStep
+      if (typeof action === 'string' && (action.endsWith('-pay') || action === 'bundleConfirm')) {
+        step = action
+        const { walletOkKey } = checkoutOrder(step)
+        if (info?.lastStep !== walletOkKey) await saveInfo('lastStep', walletOkKey)
       }
+      await applyCheckoutLoyaltyOnce(step)
 
       // USD-only wallet — auto-set coin and go straight to confirm
       await saveInfo('coin', u.usd)
       const { usdBal } = await getBalance(walletOf, chatId)
-      // For VPS/RDP the authoritative price is in info.vpsDetails (totalPrice) —
-      // info.price can be a stale leftover from a previous flow, so never use it here.
-      let finalPrice
-      if (step === 'vps-plan-pay' && info?.vpsDetails) {
-        const vd = info.vpsDetails
-        finalPrice = Number(vd.couponApplied ? vd.planNewPrice : (vd.totalPrice || vd.plantotalPrice)) || 0
-      } else if (step === 'hosting-pay') {
-        // Hosting: info.price is the DOMAIN price — the charge is totalPrice (walletOk['hosting-pay'])
-        finalPrice = info?.couponApplied ? info?.newPrice : (info?.totalPrice || 0)
-      } else {
-        finalPrice = info?.couponApplied ? info?.newPrice : (info?.price || info?.totalPrice || 0)
-      }
+      const finalPrice = checkoutOrder(step).total
       send(chatId, t.walletSelectCurrency(usdBal) + `\n\n💵 Amount: <b>$${Number(finalPrice).toFixed(2)}</b>\n\n` + t.walletSelectCurrencyConfirm, k.of([[t.yes], [t.no], ['↩️ Back']]))
       await set(state, chatId, 'action', a.walletSelectCurrencyConfirm)
     },
     walletSelectCurrencyConfirm: async () => {
       // kept for backward compat — walletSelectCurrency now goes directly here
-      const { price, totalPrice, couponApplied, newPrice, lastStep } = info
-      const p = couponApplied ? newPrice : (lastStep === 'hosting-pay' ? (totalPrice || 0) : (price || totalPrice || 0))
+      const p = checkoutOrder(info?.lastStep).total
 
       send(chatId, trans('t.ld_1', Number(p).toFixed(2)) + t.walletSelectCurrencyConfirm, k.of([[t.yes], [t.no], ['↩️ Back']]))
       await set(state, chatId, 'action', a.walletSelectCurrencyConfirm)
@@ -12367,8 +12438,11 @@ Enter new value:`), bc)
         else if (step === 'hosting-pay') label = info?.plan || 'hosting'
         else if (step === 'plan-pay' || step === 'phone-pay') label = 'Cloud IVR'
         else if (step === 'vps-plan-pay' || step === 'vps-upgrade-plan-pay') label = 'VPS'
-        else if (step === 'digital-product-pay') label = info?.product || 'digital product'
+        else if (step === 'digital-product-pay') label = info?.dpProductName || info?.product || 'digital product'
         else if (step === 'virtual-card-pay') label = 'Virtual Card'
+        else if (step === a.buyLeadsSelectFormat) label = 'Phone Leads'
+        else if (step === a.validatorSelectFormat) label = 'Phone Validation'
+        else if (step === 'bundleConfirm') label = info?.bundleName || 'bundle'
         await saveResumableSession(db, chatId, {
           flowType: _resumeFlowType(step),
           step,
@@ -17092,6 +17166,11 @@ All verified numbers generated during sourcing.`))
     }
     const bundle = monetization.getBundleDetails(selectedId, lang)
     await saveInfo('selectedBundle', selectedId)
+    // Fresh bundle order → undiscounted price, no coupon carried over
+    await saveInfo('bundlePrice', bundle.finalPrice)
+    await saveInfo('bundleName', bundle.name)
+    await saveInfo('couponApplied', false)
+    await saveInfo('newPrice', null)
     await set(state, chatId, 'action', a.bundleConfirm)
     const card = monetization.formatBundleCard(bundle, lang)
     const confirmMsg = {
@@ -17119,27 +17198,29 @@ All verified numbers generated during sourcing.`))
       return send(chatId, bundleMenuMsg, k.of(bundleBtns))
     }
     const confirmBtn = { en: '✅ Purchase Bundle', fr: '✅ Acheter le Pack', zh: '✅ 购买套餐', hi: '✅ बंडल खरीदें' }[lang] || '✅ Purchase Bundle'
+    const bundlePayText = (name, finalPrice) => ({
+      en: `💰 <b>Payment for ${name}</b>\n\n💵 Total: <b>$${finalPrice.toFixed(2)}</b>\n\nPay from your wallet:`,
+      fr: `💰 <b>Paiement pour ${name}</b>\n\n💵 Total : <b>$${finalPrice.toFixed(2)}</b>\n\nPayez depuis votre portefeuille :`,
+      zh: `💰 <b>${name} 付款</b>\n\n💵 总计：<b>$${finalPrice.toFixed(2)}</b>\n\n使用钱包支付：`,
+      hi: `💰 <b>${name} का भुगतान</b>\n\n💵 कुल: <b>$${finalPrice.toFixed(2)}</b>\n\nअपने वॉलेट से भुगतान करें:`,
+    }[lang] || `💰 <b>Payment for ${name}</b>\n\n💵 Total: <b>$${finalPrice.toFixed(2)}</b>\n\nPay from your wallet:`)
+    // Checkout UX (2026-06): 1-tap wallet pay / deposit. Bundles are wallet-only
+    // (no crypto/bank handlers exist) — the old k.pay screen's Wallet tap was unhandled.
+    const bundleTap = hcx.parseCheckoutTap(message)
+    if (bundleTap && info?.bundlePrice) return runCheckoutTap('bundleConfirm', bundleTap)
+    if ([payIn.wallet, payIn.crypto, payIn.bank].includes(message) && info?.bundlePrice) {
+      return checkoutScreen('bundleConfirm', bundlePayText(info?.bundleName || '', Number(info.bundlePrice)), { walletOnly: true })
+    }
     if (message === confirmBtn) {
       const bundleId = info?.selectedBundle
       const bundle = monetization.getBundleDetails(bundleId, lang)
       if (!bundle) return send(chatId, trans('t.ebBundleNotFound'))
-      // Route to wallet payment with bundle price
-      let finalPrice = bundle.finalPrice
-      // Apply any saved coupon discount
-      if (info?.loyaltyDiscount > 0) {
-        finalPrice = Math.max(1, finalPrice - info.loyaltyDiscount)
-      }
+      // Coupon (if any) already lowered bundlePrice in the bundle coupon handler
+      const finalPrice = Number(info?.bundlePrice) || bundle.finalPrice
       await saveInfo('bundlePrice', finalPrice)
       await saveInfo('bundleName', bundle.name)
       await saveInfo('lastStep', 'bundleConfirm')
-      // Show payment options
-      const payMsg = {
-        en: `💰 <b>Payment for ${bundle.name}</b>\n\n💵 Total: <b>$${finalPrice.toFixed(2)}</b>\n\nSelect payment method:`,
-        fr: `💰 <b>Paiement pour ${bundle.name}</b>\n\n💵 Total : <b>$${finalPrice.toFixed(2)}</b>\n\nChoisissez le mode de paiement :`,
-        zh: `💰 <b>${bundle.name} 付款</b>\n\n💵 总计：<b>$${finalPrice.toFixed(2)}</b>\n\n选择支付方式：`,
-        hi: `💰 <b>${bundle.name} का भुगतान</b>\n\n💵 कुल: <b>$${finalPrice.toFixed(2)}</b>\n\nभुगतान विधि चुनें:`,
-      }
-      return send(chatId, payMsg[lang] || payMsg.en, k.pay)
+      return checkoutScreen('bundleConfirm', bundlePayText(bundle.name, finalPrice), { walletOnly: true })
     }
     // Coupon apply within bundle flow
     if (message === btn.applyCoupon) {
@@ -18762,6 +18843,9 @@ ${message.replace(/\n/g, '<br>')}
       return
     }
 
+    const dpTap = hcx.parseCheckoutTap(message)
+    if (dpTap) return runCheckoutTap('digital-product-pay', dpTap)
+
     const payOption = message
 
     if (payOption === payIn.crypto) {
@@ -19010,6 +19094,9 @@ ${message.replace(/\n/g, '<br>')}
   // Virtual Card: payment method selection
   if (action === a.virtualCardPay) {
     if (isBackPress(message)) return goto['virtual-card-address']()
+
+    const vcTap = hcx.parseCheckoutTap(message)
+    if (vcTap) return runCheckoutTap('virtual-card-pay', vcTap)
 
     const payOption = message
 
@@ -21664,17 +21751,9 @@ ${message.replace(/\n/g, '<br>')}
       return goto.askCoupon('choose-domain-to-buy')
     }
 
-    // Checkout UX parity (2026-06): "👛 Pay $X from Wallet" charges directly via
-    // walletOk['domain-pay'] (balance re-checked inside); "💵 Deposit $N" pre-fills a top-up.
-    const walletTap = hcx.parseWalletPayTap(message)
-    if (walletTap !== null) {
-      await saveInfo('lastStep', 'domain-pay')
-      await saveInfo('coin', u.usd)
-      await applyCheckoutLoyaltyOnce('domain-pay')
-      return walletOk['domain-pay'](u.usd)
-    }
-    const depTap = hcx.parseDepositTap(message)
-    if (depTap !== null) return startCheckoutDeposit('domain-pay', depTap)
+    // Checkout UX parity (2026-06): 1-tap "👛 Pay $X from Wallet" / "💵 Deposit $N"
+    const tap = hcx.parseCheckoutTap(message)
+    if (tap) return runCheckoutTap('domain-pay', tap)
 
     const payOption = message
 
@@ -21795,19 +21874,9 @@ ${message.replace(/\n/g, '<br>')}
     }
 
     // Checkout UX (2026-06): "👛 Pay $X from Wallet" — the amount is on the
-    // button, so it IS the confirmation; charge via the same walletOk handler
-    // the old Yes/No screen used (balance re-checked inside).
-    const walletTap = hcx.parseWalletPayTap(message)
-    if (walletTap !== null) {
-      await saveInfo('lastStep', 'hosting-pay')
-      await saveInfo('coin', u.usd)
-      await applyCheckoutLoyaltyOnce('hosting-pay')
-      return walletOk['hosting-pay'](u.usd)
-    }
-
-    // "💵 Deposit $N" — pre-filled top-up; Order Resume brings the user back here.
-    const depTap = hcx.parseDepositTap(message)
-    if (depTap !== null) return startCheckoutDeposit('hosting-pay', depTap)
+    // button, so it IS the confirmation; "💵 Deposit $N" pre-fills a top-up.
+    const tap = hcx.parseCheckoutTap(message)
+    if (tap) return runCheckoutTap('hosting-pay', tap)
     
     const payOption = message
 
@@ -21972,6 +22041,8 @@ ${message.replace(/\n/g, '<br>')}
   // VPS Payments
   if (action === 'vps-plan-pay') {
     if (isBackPress(message)) return goto.vpsAskPaymentConfirmation()
+    const vpsTap = hcx.parseCheckoutTap(message)
+    if (vpsTap) return runCheckoutTap('vps-plan-pay', vpsTap)
     const payOption = message
 
     if (payOption === payIn.crypto) {
@@ -22079,6 +22150,8 @@ ${message.replace(/\n/g, '<br>')}
   if (action === 'vps-upgrade-plan-pay') {
     if (isBackPress(message)) return info.vpsDetails.upgradeType === 'vps-renew' || info.vpsDetails.upgradeType === 'vps-cPanel-renew' ? goto.confirmVPSRenewDetails()
       : goto.askVpsUpgradePayment()
+    const vpsUpTap = hcx.parseCheckoutTap(message)
+    if (vpsUpTap) return runCheckoutTap('vps-upgrade-plan-pay', vpsUpTap)
     const payOption = message
 
     if (payOption === payIn.crypto) {
@@ -22227,6 +22300,8 @@ ${message.replace(/\n/g, '<br>')}
   }
   if (action === 'plan-pay') {
     if (isBackPress(message)) return goto.askCoupon('choose-subscription')
+    const planTap = hcx.parseCheckoutTap(message)
+    if (planTap) return runCheckoutTap('plan-pay', planTap)
     const payOption = message
     if (payOption === payIn.crypto) {
       await set(state, chatId, 'action', 'crypto-pay-plan')
@@ -23783,6 +23858,10 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     const _depWallMatch = String(message || '').match(/^💵 Deposit \$(\d+(?:\.\d+)?)$/)
     if (_depWallMatch) {
       const _amt = Math.max(10, Math.ceil(Number(_depWallMatch[1])))
+      // Tapped on a checkout screen → keep lastStep so Order Resume returns there
+      if (_payActions.includes(action) && action !== 'ebPayment') {
+        return startCheckoutDeposit(action === 'cpChangePlan' ? null : checkoutOrder(action).walletOkKey, _amt)
+      }
       await saveInfo('depositAmountUsd', _amt)
       await saveInfo('amount', _amt)
       if (process.env.HIDE_BANK_PAYMENT === 'true') return goto[a.selectCryptoToDeposit]()
@@ -23810,6 +23889,8 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     await saveInfo('coin', 'usd')
     await set(state, chatId, 'action', session.step)
     await clearResumableSession(db, chatId)
+    // Re-apply the tier discount the wall promised (prices at rest are undiscounted)
+    await applyCheckoutLoyaltyOnce(session.step)
     return goto.walletSelectCurrencyConfirm()
   }
   if (RESUME_DISMISS_CTA_ALL.includes(message)) {
@@ -27654,22 +27735,15 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     const totalPrice = plan.price + surcharge
 
     await saveInfo('cpPrice', totalPrice)
+    await saveInfo('cpPriceBase', null) // fresh order → no coupon yet
+    await saveInfo('couponApplied', false)
+    await saveInfo('newPrice', null)
     await saveInfo('price', totalPrice)
     await saveInfo('totalPrice', null) // Clear stale hosting totalPrice to prevent walletSelectCurrency from using wrong base
     await saveInfo('cpNumberSurcharge', surcharge)
 
-    await set(state, chatId, 'action', a.cpOrderSummary)
-    const capLabels = []
-    if (caps.voice) capLabels.push('Voice')
-    if (caps.sms) capLabels.push('SMS')
-    if (caps.fax) capLabels.push('Fax')
-    const bulkTag = selected._bulkIvrCapable ? '\n☎️ <b>Bulk IVR capable</b>' : ''
-    let summaryText = cpTxt.orderSummary(selected.phone_number, info?.cpCountryName || 'US', plan, totalPrice)
-    summaryText += `\n📋 Capabilities: ${capLabels.join(' · ')}${bulkTag}`
-    if (surcharge > 0) {
-      summaryText += `\n\n💰 <b>Number Cost:</b> $${surcharge.toFixed(2)}/mo (added to plan)\n📋 Plan: $${plan.price}/mo + Number: $${surcharge.toFixed(2)}/mo = <b>$${totalPrice.toFixed(2)}/mo</b>`
-    }
-    return send(chatId, summaryText, k.of([[pc.proceedPayment], [pc.applyCoupon]]))
+    // Checkout UX (2026-06): summary + payment options on one screen
+    return goto['phone-pay']()
   }
 
   // ── BUY FLOW: Select Plan (FIRST STEP) ──
@@ -27702,7 +27776,8 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     return send(chatId, trans('t.cp_232', planLabel), k.of(rows))
   }
 
-  // ── BUY FLOW: Order Summary → Payment ──
+  // ── BUY FLOW: Order Summary (legacy screen — kept for stale keyboards; new
+  //    orders land directly on 'phone-pay' which shows summary + payment) ──
   if (action === a.cpOrderSummary) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     if (isBackPress(message) || message === pc.back) {
@@ -27716,28 +27791,48 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     if (message === pc.applyCoupon) {
       return goto.askCoupon('cpOrderSummary')
     }
-    if (message === pc.proceedPayment) {
-      return goto['phone-pay']()
+    return goto['phone-pay']()
+  }
+
+  // ── Cloud IVR coupon (was unhandled → codes silently ignored) ──
+  if (action === a.askCoupon + 'cpOrderSummary') {
+    if (isBackPress(message) || message === t.skip) return goto['phone-pay']()
+    const base = Number(info?.cpPriceBase || info?.cpPrice) || 0
+    if (base <= 0) return goto['phone-pay']()
+    const coupon = message.toUpperCase()
+    const couponResult = await resolveCoupon(coupon, chatId)
+    if (!couponResult) return send(chatId, t.couponInvalid)
+    if (couponResult.error === 'already_used') return send(chatId, trans('t.couponUsedToday'))
+    const newPrice = Math.max(1, Math.round((base - (base * couponResult.discount) / 100) * 100) / 100)
+    // Every phone charge path (wallet/crypto/bank) reads cpPrice → discount it in place, keep the base for display
+    await saveInfo('cpPriceBase', base)
+    await saveInfo('cpPrice', newPrice)
+    await saveInfo('price', newPrice)
+    await saveInfo('newPrice', newPrice)
+    await saveInfo('couponApplied', true)
+    // Coupon burn DEFERRED to payment completion (see redeemPendingCoupon)
+    if (couponResult.type === 'daily' || couponResult.type === 'welcome_offer') {
+      await saveInfo('pendingCouponCode', couponResult.code || '')
+      await saveInfo('pendingCouponType', couponResult.type)
     }
-    return send(chatId, phoneConfig.getMsg(info?.userLanguage).proceedOrBack)
+    return goto['phone-pay']()
   }
 
   // ── PHONE PAY ──
   if (action === 'phone-pay') {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
-    if (isBackPress(message)) {
-      await set(state, chatId, 'action', a.cpOrderSummary)
-      const plan = phoneConfig.plans[info?.cpPlanKey]
-      const totalPrice = info?.cpPrice || plan?.price
-      const surcharge = info?.cpNumberSurcharge || 0
-      let summaryText = cpTxt.orderSummary(
-        info?.cpSelectedNumber, info?.cpCountryName || 'US', plan, totalPrice
-      )
-      if (surcharge > 0) {
-        summaryText += `\n\n💰 <b>Number Cost:</b> $${surcharge.toFixed(2)}/mo (added to plan)\n📋 Plan: $${info?.cpPlanBasePrice || plan?.price}/mo + Number: $${surcharge.toFixed(2)}/mo = <b>$${totalPrice.toFixed ? totalPrice.toFixed(2) : totalPrice}/mo</b>`
-      }
-      return send(chatId, summaryText, k.of([[pc.proceedPayment], [pc.applyCoupon]]))
+    if (isBackPress(message) || message === pc.back) {
+      // Back → plan re-selection (same as the old Order Summary's Back)
+      await set(state, chatId, 'action', a.cpSelectPlan)
+      const availBtns2 = []
+      if (phoneConfig.isPlanAvailable('starter')) availBtns2.push([pc.starterPlan])
+      if (phoneConfig.isPlanAvailable('pro')) availBtns2.push([pc.proPlan])
+      if (phoneConfig.isPlanAvailable('business')) availBtns2.push([pc.businessPlan])
+      return send(chatId, cpTxt.selectPlan(info?.cpSelectedNumber), k.of(availBtns2))
     }
+    if (message === pc.applyCoupon || message === btn.applyCoupon) return goto.askCoupon('cpOrderSummary')
+    const tap = hcx.parseCheckoutTap(message)
+    if (tap) return runCheckoutTap('phone-pay', tap)
     const payOption = message
     if (payOption === payIn.crypto) {
       await set(state, chatId, 'action', 'crypto-pay-phone')
@@ -28476,6 +28571,8 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       if (info?.targetName) return goto.targetLeadsConfirm()
       return goto.buyLeadsSelectFormat()
     }
+    const leadsTap = hcx.parseCheckoutTap(message)
+    if (leadsTap) return runCheckoutTap('leads-pay', leadsTap)
     const payOption = message
     if (payOption === payIn.crypto) {
       await set(state, chatId, 'action', 'crypto-pay-leads')
@@ -28708,11 +28805,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     await saveInfo('cpPendingPlan', newPlan)
     await saveInfo('cpUpgradeData', { chargeAmount, newPlan, oldPlan, newPrice, phoneNumber: num.phoneNumber, credit, eligibleForCredit, ageDays, prorationBasis: quote.prorationBasis, remainingDays: quote.remainingDays })
     const _pcBtn = phoneConfig.getBtn(lang || 'en')
-    const payBtns = [[payIn.wallet]]
-    payBtns.push([payIn.crypto])
-    if (payIn.bank) payBtns.push([payIn.bank])
-    payBtns.push([_pcBtn.back])
-    return send(chatId, upgradeMsg, k.of(payBtns))
+    return send(chatId, upgradeMsg, k.of(cpUpgradePayRows(chargeAmount, walletBal, _pcBtn.back)))
   }
 
   // ── Reciprocal-conflict helper ──
@@ -32821,8 +32914,12 @@ Select a category:`), k.of(catBtns))
       const upgradeData = info.cpUpgradeData
       const payOption = message
 
-      // Wallet payment for upgrade
-      if (payOption === payIn.wallet) {
+      // "💵 Deposit $N" (balance short) → pre-filled top-up (no resumable order for upgrades)
+      const upgDep = hcx.parseDepositTap(message)
+      if (upgDep !== null) return startCheckoutDeposit(null, upgDep)
+
+      // Wallet payment for upgrade — legacy "👛 Wallet" or 1-tap "👛 Pay $X from Wallet"
+      if (payOption === payIn.wallet || hcx.parseWalletPayTap(message) !== null) {
         const { chargeAmount, newPlan: upgNewPlan, phoneNumber: upgPhone } = upgradeData
         const newPrice = phoneConfig.plans[upgNewPlan].price
 
@@ -33034,11 +33131,7 @@ Select a category:`), k.of(catBtns))
     // Store upgrade data for all payment methods
     await saveInfo('cpPendingPlan', newPlan)
     await saveInfo('cpUpgradeData', { chargeAmount, newPlan, oldPlan, newPrice, phoneNumber: num.phoneNumber, credit })
-    const payBtns = [[payIn.wallet]]
-    payBtns.push([payIn.crypto])
-    if (payIn.bank) payBtns.push([payIn.bank])
-    payBtns.push([pc.back])
-    return send(chatId, upgradeMsg, k.of(payBtns))
+    return send(chatId, upgradeMsg, k.of(cpUpgradePayRows(chargeAmount, walletBal, pc.back)))
   }
 
   // ━━━ RELEASE NUMBER ━━━
@@ -42761,6 +42854,7 @@ app.post('/dev/hosting-flow-sim', async (req, res) => {
   await state.deleteOne({ _id: chatId })
   const stateDoc = { _id: chatId, action: 'none', userLanguage: seed.lang || 'en' }
   if (seed.lastOrderEmail) stateDoc.lastOrderEmail = String(seed.lastOrderEmail)
+  if (seed.state && typeof seed.state === 'object') Object.assign(stateDoc, seed.state, { _id: chatId })
   await state.insertOne(stateDoc)
   await walletOf.updateOne({ _id: chatId }, { $set: { usdIn: Number(seed.usdBal || 0), usdOut: 0 } }, { upsert: true })
   await domainsOf.deleteOne({ _id: chatId })

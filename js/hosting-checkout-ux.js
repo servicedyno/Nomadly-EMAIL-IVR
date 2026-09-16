@@ -169,14 +169,15 @@ function walletSummary({ lang, usdBal, walletPrice, loyaltyInfo = null }) {
   return text
 }
 
-function invoiceRows({ lang, payIn, applyCouponLabel, couponApplied, usdBal, walletPrice }) {
+function invoiceRows({ lang, payIn, applyCouponLabel, couponApplied, usdBal, walletPrice, extraRows = [], backLabel = '↩️ Back' }) {
   const rows = []
   const covers = Number(usdBal) + 1e-9 >= Number(walletPrice)
   rows.push([covers ? strings(lang).payWallet(walletPrice) : `💵 Deposit $${depositAmountFor(walletPrice, usdBal)}`])
   const others = [payIn.crypto, payIn.bank].filter(Boolean)
   if (others.length) rows.push(others)
   if (!couponApplied && applyCouponLabel) rows.push([applyCouponLabel])
-  rows.push(['↩️ Back'])
+  for (const r of extraRows) if (Array.isArray(r) && r.length) rows.push(r)
+  rows.push([backLabel])
   return rows
 }
 
@@ -190,6 +191,15 @@ function parseWalletPayTap(message) {
 function parseDepositTap(message) {
   const m = /^💵 Deposit \$(\d+(?:\.\d+)?)$/.exec(String(message || '').trim())
   return m ? Math.max(10, Math.ceil(Number(m[1]))) : null
+}
+
+// One parser for both 1-tap invoice buttons → { type: 'wallet'|'deposit', amount } | null
+function parseCheckoutTap(message) {
+  const w = parseWalletPayTap(message)
+  if (w !== null) return { type: 'wallet', amount: w }
+  const d = parseDepositTap(message)
+  if (d !== null) return { type: 'deposit', amount: d }
+  return null
 }
 
 // ── Domain-not-available alternatives ─────────────────────────────────
@@ -235,6 +245,7 @@ module.exports = {
   invoiceRows,
   parseWalletPayTap,
   parseDepositTap,
+  parseCheckoutTap,
   baseNameOf,
   sortAlts,
   altRows,
