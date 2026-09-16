@@ -1,5 +1,17 @@
 {
   "store": {
+    "mostPopular": "★ 最受欢迎",
+    "billedMonthly": "按月计费",
+    "perMonthEquiv": "≈ {{price}}/月 · 按周计费",
+    "antiRedExplain": "“Anti-Red”可防止您的链接出现在浏览器和 Google 的“欺骗性网站”红色警告页面上。",
+    "byoDomainHint": "结账后，您需要将域名的名称服务器指向我们——我们会告诉您具体操作方法（约需 5 分钟）。",
+    "returningCustomer": "已经是客户？登录 ↓",
+    "discardConfirm": "放弃此订单？您输入的信息将会丢失。",
+    "close": "关闭",
+    "trustInstant": "即时开通",
+    "trustProtection": "Anti-Red 保护",
+    "trustReplace": "被标记可免费更换",
+    "trustSupport": "全天候支持",
     "heroTitle": "坚不可摧的防红主机",
     "tagline": "购买主机，使用加密货币付款，即时开通 — 无需 Telegram。",
     "panelLogin": "有 PIN？面板登录 →",

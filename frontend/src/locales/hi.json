@@ -1,5 +1,17 @@
 {
   "store": {
+    "mostPopular": "★ सबसे लोकप्रिय",
+    "billedMonthly": "मासिक बिलिंग",
+    "perMonthEquiv": "≈ {{price}}/माह · साप्ताहिक बिलिंग",
+    "antiRedExplain": "“Anti-Red” आपके लिंक को ब्राउज़र और Google के “deceptive site” लाल-चेतावनी पेजों से दूर रखता है।",
+    "byoDomainHint": "चेकआउट के बाद आप अपने डोमेन के नेमसर्वर हमारी ओर इंगित करेंगे — हम आपको बिलकुल तरीका दिखाएँगे (लगभग 5 मिनट)।",
+    "returningCustomer": "पहले से ग्राहक हैं? साइन इन करें ↓",
+    "discardConfirm": "इस ऑर्डर को छोड़ें? आपके द्वारा दर्ज विवरण खो जाएगा।",
+    "close": "बंद करें",
+    "trustInstant": "तुरंत सेटअप",
+    "trustProtection": "Anti-Red सुरक्षा",
+    "trustReplace": "फ़्लैग होने पर मुफ़्त प्रतिस्थापन",
+    "trustSupport": "24/7 सहायता",
     "heroTitle": "बुलेटप्रूफ़ Anti-Red होस्टिंग",
     "tagline": "होस्टिंग खरीदें, क्रिप्टो से भुगतान करें, तुरंत एक्सेस पाएं — Telegram की ज़रूरत नहीं।",
     "panelLogin": "PIN है? पैनल लॉगिन →",

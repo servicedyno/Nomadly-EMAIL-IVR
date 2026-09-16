@@ -14,7 +14,8 @@
 
 const path = require('path');
 
-const LANG_DIR = '/app/js/lang';
+const REPO_ROOT = path.resolve(__dirname, '..');
+const LANG_DIR = path.join(REPO_ROOT, 'js', 'lang');
 const TARGETS = ['fr', 'hi', 'zh']; // verified against en
 const SOURCE = 'en';
 

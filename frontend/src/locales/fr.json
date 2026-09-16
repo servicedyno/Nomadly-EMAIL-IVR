@@ -1,5 +1,17 @@
 {
   "store": {
+    "mostPopular": "★ Le plus populaire",
+    "billedMonthly": "facturé mensuellement",
+    "perMonthEquiv": "≈ {{price}}/mois · facturé chaque semaine",
+    "antiRedExplain": "« Anti-Red » empêche vos liens d’apparaître sur les pages d’avertissement rouge « site trompeur » des navigateurs et de Google.",
+    "byoDomainHint": "Après le paiement, vous dirigerez les serveurs de noms de votre domaine vers nous — nous vous montrerons exactement comment (environ 5 min).",
+    "returningCustomer": "Déjà client ? Connectez-vous ↓",
+    "discardConfirm": "Abandonner cette commande ? Les informations saisies seront perdues.",
+    "close": "Fermer",
+    "trustInstant": "Configuration instantanée",
+    "trustProtection": "Protection Anti-Red",
+    "trustReplace": "Remplacement gratuit en cas de signalement",
+    "trustSupport": "Assistance 24h/24 et 7j/7",
     "heroTitle": "Hébergement Anti-Red blindé",
     "tagline": "Achetez un hébergement, payez en crypto, accès instantané — sans Telegram.",
     "panelLogin": "Vous avez un PIN ? Connexion au panneau →",

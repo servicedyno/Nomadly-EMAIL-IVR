@@ -18,7 +18,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const LOCALES_DIR = path.join('/app/frontend/src/locales');
+const REPO_ROOT = path.resolve(__dirname, '..');
+const LOCALES_DIR = path.join(REPO_ROOT, 'frontend', 'src', 'locales');
 const TARGETS = ['fr', 'hi', 'zh'];
 const SOURCE = 'en';
 
