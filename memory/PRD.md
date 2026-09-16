@@ -55,6 +55,17 @@ Approved audit items executed (all verified via custom Node suites + testing_age
 - Platform auto-commit was failing (`git add failed: ... ignored ... .env`) because `/app/.env` existed as a gitignored symlink → `backend/.env`; git literally matches an ignored root `.env` against the platform's `':(exclude).env'` pathspec → exit 1.
 - Fixed: symlink removed; `js/config-setup.js` loads `[cwd/.env, ../backend/.env]`; `scripts/setup-nodejs.sh` + `scripts/vault.sh` no longer create it; 5 tests point at `/app/backend/.env`. Staging rc=0, nodejs healthy, all suites green. **Never create a root `/app/.env` again.**
 
+## 2026-09-16 (fork) — Hosting checkout usability (user-approved 5/5)
+Hosting purchase went from 9–10 screens to **4 taps** (menu → plan → domain → email/skip → 1-tap pay). New module `js/hosting-checkout-ux.js` (pure copy/keyboard/parsers, 4 locales) + wiring in `js/_index.js`:
+- ✅ #1 Plan menu = comparison card with prices, durations, specs, ⭐ Most popular (`submenu3` → `hcx.planMenuText`). Buttons unchanged.
+- ✅ #2 Buy screen removed — domain options live on the plan-details screen; user's hostable owned domains listed inline as `📂 example.com` (max 3, excludes domains already on an active `cpanelAccounts` plan). `buyPlan` is now an alias; `currentPlanAction()` fixes the old "Back always downgraded to Premium Weekly" bug. New `goto.selectOwnedDomain`.
+- ✅ #3 Email step: no "Use this email?" confirm screen, ↩️ Back button, `✅ Use last@email` 1-tap (`state.lastOrderEmail`).
+- ✅ #4 Invoice shows wallet balance; first button `👛 Pay $X from Wallet` (charges via `walletOk['hosting-pay']`, no Yes/No) or `💵 Deposit $short` (pre-fills amount + saves Order-Resume session). Loyalty applied once via `applyHostingLoyaltyOnce` (guarded by `preLoyaltyPrice`, reset in `proceedWithEmail`). Fixed: wallet confirm/resume screens showed the *domain* price instead of total for hosting; coupon Skip/apply no longer trips the 30s payment lock.
+- ✅ #5 Domain taken → `checkAlternativeTLDs` (12s race) → tappable `🌐 name.sbs — $30` buttons, hosting-friendly TLDs ranked first; tapping re-runs the normal check.
+- Bonus: `user.freeTrial` → `goto.freeTrial()` (was calling `selectPlan('freeTrial')` which throws); `connectExternalDomain` input validated with `isDomainLike` (previously accepted anything containing a dot).
+- **DEV-only** `POST /dev/hosting-flow-sim` (404 in prod): seeds a synthetic chat (wallet/domains/lastEmail), feeds taps through the REAL handler via `bot.processUpdate`, captures replies for that chat only, refuses payment-confirming taps. Body: `{chatId, seed:{usdBal,domains,lastOrderEmail,lang,keep}, steps:[...], settleMs, cleanup}`.
+- Tests: `js/tests/test_hosting_checkout_ux_2026-06.js` (101). Regression: nav_mainmenu_escape 109, quickwins 82, wallet_no_stale_charge 18, localization_parity 79 — all green. Live sim verified: owned-domain path, insufficient→Deposit→coin picker+resume session, typed/invalid email, coupon skip, Golden Back routing, register-new → taken → alternatives → tap → invoice $60 (domain+hosting), external-domain validation.
+
 
 ## Prioritized backlog (P0/P1/P2)
 ### P0 (from 2026-09-14 audit)

@@ -609,6 +609,7 @@ const { validatePhoneBulkFile } = require('./validatePhoneBulkFile.js')
 // support custom aliases. Custom alias path now uses our own SELF_URL/{alias} directly.
 const schedule = require('node-schedule')
 const loyalty = require('./loyalty-service.js')
+const hcx = require('./hosting-checkout-ux.js')
 const { registerDomainAndCreateCpanel } = require('./cr-register-domain-&-create-cpanel.js')
 const { isEmail } = require('validator')
 const { 
@@ -1658,10 +1659,10 @@ function bcHeader(...parts) {
 }
 // Localized structural words for breadcrumbs (kept here so no lang-file churn).
 const CRUMBS = {
-  en: { wallet: 'Wallet', deposit: 'Deposit', amount: 'Amount', method: 'Payment', hosting: 'Hosting', plan: 'Plan', domain: 'Domain' },
-  fr: { wallet: 'Portefeuille', deposit: 'Dépôt', amount: 'Montant', method: 'Paiement', hosting: 'Hébergement', plan: 'Forfait', domain: 'Domaine' },
-  zh: { wallet: '钱包', deposit: '充值', amount: '金额', method: '支付', hosting: '托管', plan: '套餐', domain: '域名' },
-  hi: { wallet: 'वॉलेट', deposit: 'जमा', amount: 'राशि', method: 'भुगतान', hosting: 'होस्टिंग', plan: 'प्लान', domain: 'डोमेन' },
+  en: { wallet: 'Wallet', deposit: 'Deposit', amount: 'Amount', method: 'Payment', hosting: 'Hosting', plan: 'Plan', domain: 'Domain', email: 'Email', pay: 'Pay' },
+  fr: { wallet: 'Portefeuille', deposit: 'Dépôt', amount: 'Montant', method: 'Paiement', hosting: 'Hébergement', plan: 'Forfait', domain: 'Domaine', email: 'Email', pay: 'Paiement' },
+  zh: { wallet: '钱包', deposit: '充值', amount: '金额', method: '支付', hosting: '托管', plan: '套餐', domain: '域名', email: '邮箱', pay: '支付' },
+  hi: { wallet: 'वॉलेट', deposit: 'जमा', amount: 'राशि', method: 'भुगतान', hosting: 'होस्टिंग', plan: 'प्लान', domain: 'डोमेन', email: 'ईमेल', pay: 'भुगतान' },
 }
 // Gentle "you seem stuck" nudge shown after repeated Back taps in a flow.
 const STUCK_NUDGE = {
@@ -9599,6 +9600,54 @@ bot?.on('message', msg => {
     evAdminIps: 'evAdminIps',
   }
 
+  // ── Hosting checkout UX (2026-06) closure helpers ──────────────────────
+  // Resolve the plan the user is buying from info.plan so Back/fallbacks never
+  // silently downgrade a Golden order to Premium Weekly.
+  const currentPlanAction = () => hcx.planKeyOfName(info?.plan) || a.premiumWeekly
+  // Domains registered with us that are NOT already on an active hosting plan
+  // → shown inline as "📂 example.com" 1-tap buttons on the plan-details screen.
+  const getHostableOwnedDomains = async () => {
+    try {
+      const owned = await getPurchasedDomains(chatId)
+      if (!owned.length) return []
+      const taken = await cpanelAccounts.find({ domain: { $in: owned }, deleted: { $ne: true } }, { projection: { domain: 1 } }).toArray()
+      const takenSet = new Set(taken.map(x => x.domain))
+      return owned.filter(d => !takenSet.has(d))
+    } catch (_) { return [] }
+  }
+  // Loyalty tier discount for a wallet-paid hosting order — applied exactly once
+  // per order (guarded by preLoyaltyPrice; reset in proceedWithEmail).
+  const applyHostingLoyaltyOnce = async () => {
+    if (info?.loyaltyDiscount > 0 && info?.preLoyaltyPrice) return
+    const basePrice = Number(info?.couponApplied ? info?.newPrice : info?.totalPrice) || 0
+    if (basePrice <= 0) return
+    const d = await loyalty.applyDiscount(walletOf, chatId, basePrice)
+    if (!d || d.discount <= 0) return
+    await saveInfo('loyaltyDiscount', d.discount)
+    await saveInfo('preLoyaltyPrice', basePrice)
+    if (info?.couponApplied) await saveInfo('newPrice', d.finalPrice)
+    else await saveInfo('totalPrice', d.finalPrice)
+    send(chatId, loyalty.formatCheckoutDiscount(d, d.finalPrice, lang), { parse_mode: 'HTML' })
+  }
+  // Domain taken → check sibling TLDs in parallel and offer tappable, priced alternatives.
+  const suggestHostingDomainAlternatives = async (query) => {
+    const baseName = hcx.baseNameOf(query)
+    if (!baseName) return
+    const s = hcx.strings(lang)
+    send(chatId, s.altsSearching(baseName), { parse_mode: 'HTML' })
+    let alts = []
+    try {
+      alts = await Promise.race([
+        domainService.checkAlternativeTLDs(baseName, db),
+        new Promise(resolve => setTimeout(() => resolve([]), hcx.ALT_TIMEOUT_MS)),
+      ])
+    } catch (_) { alts = [] }
+    const typed = removeProtocolFromDomain(String(query || '')).toLowerCase()
+    alts = (alts || []).filter(x => x && x.domain && x.domain.toLowerCase() !== typed)
+    if (!alts.length) return send(chatId, s.altsNone(baseName), k.of([['↩️ Back']]))
+    return send(chatId, s.altsIntro, k.of([...hcx.altRows(alts), ['↩️ Back']]))
+  }
+
   const firstSteps = [
     'block-user',
     'unblock-user',
@@ -9656,9 +9705,9 @@ bot?.on('message', msg => {
     'hosting-pay': async () => {
       // Guard: ensure a domain has been selected before payment
       if (!info.website_name) {
-        log(`[Hosting] hosting-pay called without website_name for ${chatId} — redirecting to buyPlan`)
+        log(`[Hosting] hosting-pay called without website_name for ${chatId} — redirecting to plan screen`)
         saveInfo('processingPayment', false)
-        return goto.buyPlan(a.premiumWeekly)
+        return goto.selectPlan(currentPlanAction())
       }
       // P0 FIX: Prevent duplicate payment processing (time-based debounce — 30s window)
       const now = Date.now()
@@ -9681,15 +9730,31 @@ bot?.on('message', msg => {
         planName: info.planName || info.plan,
         duration: info.duration || (info.plan && info.plan.includes('1-Week') ? '1 Week' : '1 Month'),
       }
-      const payKeyboard = info.couponApplied
-        ? k.pay
-        : k.of([
-            Object.values(payIn),
-            [btn.applyCoupon],
-            ['↩️ Back'],
-          ])
       await set(state, chatId, 'action', 'hosting-pay')
-      send(chatId, hP.generateInvoiceText(payload), payKeyboard)
+      // Checkout UX (2026-06): show wallet balance on the invoice; first button
+      // is "👛 Pay $X from Wallet" (1 tap, no extra Yes/No) when the balance
+      // covers it, otherwise "💵 Deposit $short" which returns here via Order Resume.
+      const { usdBal } = await getBalance(walletOf, chatId)
+      const orderTotal = Number(info.couponApplied ? info.newPrice : info.totalPrice) || 0
+      let walletPrice = orderTotal
+      let loyaltyInfo = null
+      if (!(info?.loyaltyDiscount > 0 && info?.preLoyaltyPrice)) {
+        try {
+          const d = await loyalty.applyDiscount(walletOf, chatId, orderTotal)
+          if (d && d.discount > 0) { walletPrice = d.finalPrice; loyaltyInfo = d }
+        } catch (_) { /* display-only */ }
+      }
+      if (usdBal < walletPrice) {
+        try {
+          await saveResumableSession(db, chatId, {
+            flowType: _resumeFlowType('hosting-pay'), step: 'hosting-pay',
+            data: { price: Number(walletPrice), coin: 'usd', label: info?.plan || 'hosting' },
+          })
+        } catch (_) { /* resume-save best effort */ }
+      }
+      const _ci = CRUMBS[lang] || CRUMBS.en
+      const invoiceText = bcHeader(_ci.hosting, _ci.plan, _ci.domain, _ci.pay) + hP.generateInvoiceText(payload) + '\n\n' + hcx.walletSummary({ lang, usdBal, walletPrice, loyaltyInfo })
+      send(chatId, invoiceText, k.of(hcx.invoiceRows({ lang, payIn, applyCouponLabel: btn.applyCoupon, couponApplied: !!info.couponApplied, usdBal, walletPrice })))
     },
     'vps-plan-pay' : async () => {
       // Guard: ensure VPS details exist before showing payment (prevents TypeError crash)
@@ -10834,7 +10899,9 @@ Enter new value:`), bc)
       // otherwise it discounts a STALE info.price (e.g. a $50 leftover from a
       // prior flow → bogus "$47.50" display) that never matches the real $90 charge.
       const NO_LOYALTY_DISCOUNT_STEPS = ['virtual-card-pay', 'vps-plan-pay']
-      if (!NO_LOYALTY_DISCOUNT_STEPS.includes(step)) {
+      // Hosting applies loyalty once via applyHostingLoyaltyOnce — never compound it here.
+      const _hostingLoyaltyDone = step === 'hosting-pay' && info?.loyaltyDiscount > 0 && info?.preLoyaltyPrice
+      if (!NO_LOYALTY_DISCOUNT_STEPS.includes(step) && !_hostingLoyaltyDone) {
         let basePrice
         if (info?.couponApplied) {
           basePrice = info.newPrice
@@ -10869,6 +10936,9 @@ Enter new value:`), bc)
       if (step === 'vps-plan-pay' && info?.vpsDetails) {
         const vd = info.vpsDetails
         finalPrice = Number(vd.couponApplied ? vd.planNewPrice : (vd.totalPrice || vd.plantotalPrice)) || 0
+      } else if (step === 'hosting-pay') {
+        // Hosting: info.price is the DOMAIN price — the charge is totalPrice (walletOk['hosting-pay'])
+        finalPrice = info?.couponApplied ? info?.newPrice : (info?.totalPrice || 0)
       } else {
         finalPrice = info?.couponApplied ? info?.newPrice : (info?.price || info?.totalPrice || 0)
       }
@@ -10877,8 +10947,8 @@ Enter new value:`), bc)
     },
     walletSelectCurrencyConfirm: async () => {
       // kept for backward compat — walletSelectCurrency now goes directly here
-      const { price, totalPrice, couponApplied, newPrice } = info
-      const p = couponApplied ? newPrice : (price || totalPrice || 0)
+      const { price, totalPrice, couponApplied, newPrice, lastStep } = info
+      const p = couponApplied ? newPrice : (lastStep === 'hosting-pay' ? (totalPrice || 0) : (price || totalPrice || 0))
 
       send(chatId, trans('t.ld_1', Number(p).toFixed(2)) + t.walletSelectCurrencyConfirm, k.of([[t.yes], [t.no], ['↩️ Back']]))
       await set(state, chatId, 'action', a.walletSelectCurrencyConfirm)
@@ -11245,7 +11315,12 @@ Enter new value:`), bc)
       saveInfo('username', username)
       await set(state, chatId, 'action', a.submenu3)
       // ── Browse Tracking (Feature 4) + Social Proof (Feature 5) ──
-      let planMsg = t.selectPlan
+      // Checkout UX (2026-06): compare prices/specs on the menu itself instead
+      // of forcing a tap into each plan.
+      let planMsg = hcx.planMenuText(lang, {
+        weekly: PREMIUM_ANTIRED_WEEKLY_PRICE, premium: PREMIUM_ANTIRED_CPANEL_PRICE, golden: GOLDEN_ANTIRED_CPANEL_PRICE,
+        trialOn: HOSTING_TRIAL_PLAN_ON === 'true',
+      })
       if (userConversion) {
         userConversion.trackBrowse(chatId, 'hosting', info?.userLanguage || 'en')
         const proof = userConversion.getSocialProof('hosting', info?.userLanguage || 'en')
@@ -11317,19 +11392,41 @@ Enter new value:`), bc)
         planName = 'Premium Anti-Red HostPanel (1-Month)';
       }
 
-      saveInfo('plan', planName)
+      await saveInfo('plan', planName)
       await set(state, chatId, 'action', plan)
+      // Fresh order — clear stale flags from a previous attempt (moved here from
+      // the removed "Buy → how to connect a domain?" screen).
+      await saveInfo('processingPayment', false)
+      await saveInfo('connectExternalDomain', false)
+      await saveInfo('existingDomain', false)
+      await saveInfo('website_name', null)
+      await saveInfo('price', null)
+      await saveInfo('continue_domain_last_state', null)
       const message = hP.generatePlanText(info.hostingType, plan);
 
-      let actions = [[user.buyPremiumWeekly], [user.viewPremiumCpanel, user.viewGoldenCpanel], [user.backToHostingPlans]];
-      if (plan === a.premiumCpanel) {
-        actions = [[user.buyPremiumCpanel], [user.viewPremiumWeekly, user.viewGoldenCpanel], [user.backToHostingPlans]];
-      } else if (plan === a.goldenCpanel) {
-        actions = [[user.buyGoldenCpanel], [user.viewPremiumWeekly, user.viewPremiumCpanel], [user.backToHostingPlans]];
-      }
+      // Checkout UX (2026-06): domain options live directly on the plan screen
+      // (1 tap fewer), with the user's own hostable domains listed inline.
+      const ownedDomains = await getHostableOwnedDomains()
+      const actions = hcx.planDetailRows({ user, planKey: plan, ownedDomains })
 
       const _cp = CRUMBS[lang] || CRUMBS.en
-      send(chatId, bcHeader(_cp.hosting, _cp.plan) + message, k.of(actions))
+      send(chatId, bcHeader(_cp.hosting, _cp.plan) + message + '\n\n' + hcx.chooseDomainLine(lang, ownedDomains.length), k.of(actions))
+    },
+
+    // 1-tap owned-domain selection (inline "📂 example.com" buttons + Use My Domain list)
+    selectOwnedDomain: async (domain) => {
+      const domains = await getPurchasedDomains(chatId)
+      if (!domains.includes(domain)) return send(chatId, trans('t.host_24'), k.of([['↩️ Back']]))
+      // Deleted/terminated plans must NOT block domain reuse
+      const existingPlan = await cpanelAccounts.findOne({ domain, deleted: { $ne: true } })
+      if (existingPlan) return send(chatId, trans('t.host_23', domain, existingPlan.plan), k.of([['↩️ Back']]))
+      await saveInfo('website_name', domain)
+      await saveInfo('domain', domain)
+      await saveInfo('existingDomain', true)
+      await saveInfo('connectExternalDomain', false)
+      await saveInfo('nameserver', 'cloudflare')
+      await saveInfo('continue_domain_last_state', 'useMyDomain')
+      return goto.enterYourEmail()
     },
 
     // Step 1.1: View Plan
@@ -11339,26 +11436,10 @@ Enter new value:`), bc)
       send(chatId, message, bc)
     },
 
-    // Step 2: Buy Plan
-    buyPlan: async (plan) => {
-      await set(state, chatId, 'action', plan)
-      saveInfo('processingPayment', false) // Clear stale payment lock on new purchase attempt
-      // Reset domain-related state to prevent stale flags from previous attempts
-      saveInfo('connectExternalDomain', false)
-      saveInfo('existingDomain', false)
-      saveInfo('website_name', null)
-      saveInfo('price', null)
-      saveInfo('continue_domain_last_state', null)
-      console.log("buyPlan", plan)
-      const message = hP.generatePlanStepText("buyText");
-      let backBtn = user.backToPremiumWeeklyDetails
-      if (plan === a.goldenCpanel) backBtn = user.backToGoldenCpanelDetails
-      else if (plan === a.premiumCpanel) backBtn = user.backToPremiumCpanelDetails
-
-      const actions = [user.registerANewDomain, user.useMyDomain, user.connectExternalDomain, [backBtn]];
-      const _cb = CRUMBS[lang] || CRUMBS.en
-      send(chatId, bcHeader(_cb.hosting, _cb.plan, _cb.domain) + message, k.of(actions))
-    },
+    // Step 2: Buy Plan — the separate "how to connect a domain?" screen was
+    // folded into selectPlan (checkout UX 2026-06). Kept as an alias so stale
+    // "🛒 Buy …" keyboards and legacy callers still land on the right plan.
+    buyPlan: async (plan) => goto.selectPlan(plan || currentPlanAction()),
 
     // Step 2.1: Register New Domain
     registerNewDomain: async () => {
@@ -11464,11 +11545,14 @@ Enter new value:`), bc)
     enterYourEmail: async () => {
       // Guard: ensure a domain has been selected before reaching email/payment
       if (!info.website_name) {
-        log(`[Hosting] enterYourEmail called without website_name for ${chatId} — redirecting to buyPlan`)
-        return goto.buyPlan(a.premiumWeekly)
+        log(`[Hosting] enterYourEmail called without website_name for ${chatId} — redirecting to plan screen`)
+        return goto.selectPlan(currentPlanAction())
       }
       await set(state, chatId, 'action', a.enterYourEmail)
-      send(chatId, hP.generatePlanStepText('enterYourEmail'), k.of([t.skipEmail]))
+      // Checkout UX (2026-06): Back button + 1-tap reuse of the last order email
+      const lastEmail = isValidEmail(info?.lastOrderEmail || '') ? info.lastOrderEmail : null
+      const _ce = CRUMBS[lang] || CRUMBS.en
+      send(chatId, bcHeader(_ce.hosting, _ce.plan, _ce.domain, _ce.email) + hP.generatePlanStepText('enterYourEmail'), k.of(hcx.emailRows({ lang, skipLabel: t.skipEmail, lastEmail })))
     },
 
     // Step 4.1: Confirm Email
@@ -11507,8 +11591,13 @@ Enter new value:`), bc)
       saveInfo("totalPrice", totalPrice);
       saveInfo("planName", info.plan);
       saveInfo("duration", info.plan.includes('1-Week') ? '1 Week' : '1 Month');
+      // Fresh order → loyalty discount not yet applied (see applyHostingLoyaltyOnce)
+      saveInfo('loyaltyDiscount', null)
+      saveInfo('preLoyaltyPrice', null)
 
       // Also update local info snapshot so goto['hosting-pay'] can read them immediately
+      info.loyaltyDiscount = null
+      info.preLoyaltyPrice = null
       info.couponApplied = false
       info.couponDiscount = 0
       info.domainPrice = domainPrice
@@ -14852,9 +14941,9 @@ All verified numbers generated during sourcing.`))
     return
   }
 
-  // Free Plan
+  // Free Plan — dedicated trial screen (selectPlan has no 'freeTrial' spec and would throw)
   if (message === user.freeTrial) {
-    return goto.selectPlan(a.freeTrial)
+    return goto.freeTrial()
   }
 
   if (action === a.freeTrial) {
@@ -14911,6 +15000,13 @@ All verified numbers generated during sourcing.`))
   }
 
 
+  // Checkout UX (2026-06): "📂 example.com" 1-tap owned-domain buttons shown
+  // inline on the plan-details screen (all three paid-plan states).
+  if ([a.premiumWeekly, a.premiumCpanel, a.goldenCpanel].includes(action)) {
+    const ownedTap = hcx.parseOwnedDomainTap(message)
+    if (ownedTap) return goto.selectOwnedDomain(ownedTap)
+  }
+
   // Premium Anti-Red Weekly Plan
   if (message === user.premiumWeekly) {
     return goto.selectPlan(a.premiumWeekly)
@@ -14966,10 +15062,17 @@ All verified numbers generated during sourcing.`))
 
 
   if (action === a.registerNewDomain) {
-    if (isBackPress(message)) return goto.buyPlan(a.premiumWeekly)
+    if (isBackPress(message)) return goto.selectPlan(currentPlanAction())
+    // Checkout UX (2026-06): tapping a suggested "🌐 name.net — $X" alternative
+    // re-runs the normal check so price/registrar are freshly saved.
+    const altTap = hcx.parseAltDomainTap(message)
+    const query = altTap || message
     send(chatId, t.checkingDomainAvail)
-    const { modifiedDomain, price } = await planGetNewDomain(message, chatId, send, saveInfo, info.hostingType);
-    if (modifiedDomain === null || price === null) return
+    const { modifiedDomain, price } = await planGetNewDomain(query, chatId, send, saveInfo, info.hostingType);
+    if (modifiedDomain === null || price === null) {
+      if (!altTap) await suggestHostingDomainAlternatives(query)
+      return
+    }
     return goto.registerNewDomainFound(modifiedDomain, price)
   }
 
@@ -14988,37 +15091,21 @@ All verified numbers generated during sourcing.`))
 
   // Use My Domain — user selects from their purchased domains
   if (action === a.useMyDomain) {
-    if (message === '↩️ Back' || isBackPress(message)) return goto.buyPlan(a.premiumWeekly)
-    // User tapped a domain name from the list
+    if (message === '↩️ Back' || isBackPress(message)) return goto.selectPlan(currentPlanAction())
+    // User tapped a domain name from the list → shared 1-tap path (awaits every
+    // saveInfo — see BUG FIX 2026-05-06 / @jasonthekidd loop — and stamps
+    // `domain` so payment intents never carry a stale earlier search).
     const domains = await getPurchasedDomains(chatId)
-    if (domains.includes(message)) {
-      // BUG FIX 2026-05-06 — these three saveInfo calls MUST be awaited.
-      // saveInfo is `async` and reassigns the outer-scope `info` inside, so
-      // without await the `goto.enterYourEmail()` guard `if (!info.website_name)`
-      // reads stale closure state → redirects back to "Connect External Domain"
-      // menu, creating the exact loop @jasonthekidd reported (tap domain →
-      // bounce to options, repeat). Observed in Railway prod logs:
-      //   "[Hosting] enterYourEmail called without website_name for 7893016294 — redirecting to buyPlan"
-      await saveInfo('website_name', message)
-      await saveInfo('existingDomain', true)
-      await saveInfo('nameserver', 'cloudflare')
-      // Check if domain is already used by an ACTIVE hosting plan
-      // (deleted/terminated plans should NOT block domain reuse)
-      const existingPlan = await cpanelAccounts.findOne({ domain: message, deleted: { $ne: true } })
-      if (existingPlan) {
-        return send(chatId, trans('t.host_23', message, existingPlan.plan), k.of([['↩️ Back']]))
-      }
-      return goto.enterYourEmail()
-    }
+    if (domains.includes(message)) return goto.selectOwnedDomain(message)
     return send(chatId, trans('t.host_24'), k.of([['↩️ Back']]))
   }
 
   // Connect External Domain — user types a domain they own elsewhere
   if (action === a.connectExternalDomain) {
-    if (isBackPress(message) || message === '↩️ Back' || isCancelPress(message)) return goto.buyPlan(a.premiumWeekly)
+    if (isBackPress(message) || message === '↩️ Back' || isCancelPress(message)) return goto.selectPlan(currentPlanAction())
     let modifiedDomain = removeProtocolFromDomain(message)
-    // Validate it looks like a domain
-    if (!modifiedDomain || !modifiedDomain.includes('.')) {
+    // Validate it looks like a domain (hostname chars + TLD — not just "contains a dot")
+    if (!hcx.isDomainLike(modifiedDomain)) {
       return send(chatId, ({ en: 'Please enter a valid domain name (e.g., example.com).', fr: 'Veuillez entrer un nom de domaine valide (ex : example.com).', zh: '请输入有效的域名（如 example.com）。', hi: 'कृपया एक मान्य डोमेन नाम दर्ज करें (जैसे example.com)।' }[lang] || 'Please enter a valid domain name (e.g., example.com).'), bc)
     }
     // Check if domain is already used by an ACTIVE hosting plan
@@ -15035,12 +15122,13 @@ All verified numbers generated during sourcing.`))
     if (message === user.continueWithDomain(info.website_name)) {
       saveInfo('connectExternalDomain', true)
       saveInfo('nameserver', 'cloudflare')
+      await saveInfo('continue_domain_last_state', 'connectExternalDomain')
       return goto.enterYourEmail()
     }
   }
 
   if (action === a.domainNotFound) {
-    if (isBackPress(message)) return goto.buyPlan(a.premiumWeekly)
+    if (isBackPress(message)) return goto.selectPlan(currentPlanAction())
     if (message === user.searchAnotherDomain) return goto.registerNewDomain()
     if (message === user.continueWithDomain(info.website_name)) return goto.enterYourEmail()
   }
@@ -15073,10 +15161,12 @@ All verified numbers generated during sourcing.`))
 
   if (action === a.enterYourEmail) {
     if (isBackPress(message)) {
-      // Go back to the domain step, not NS selection
-      if (info?.continue_domain_last_state === 'registerNewDomain') return goto.registerNewDomainFound(info.website_name, info.price)
-      else if (info?.continue_domain_last_state === 'useExistingDomain') return goto.useExistingDomainFound(info.website_name)
-      return goto.buyPlan(a.premiumWeekly)
+      // Go back to the domain step the user actually came from
+      const last = info?.continue_domain_last_state
+      if (last === 'registerNewDomain') return goto.registerNewDomainFound(info.website_name, info.price)
+      if (last === 'useExistingDomain') return goto.useExistingDomainFound(info.website_name)
+      if (last === 'connectExternalDomain') return goto.connectExternalDomainFound(info.website_name)
+      return goto.selectPlan(currentPlanAction())
     }
 
     // Skip email — proceed without email
@@ -15085,10 +15175,16 @@ All verified numbers generated during sourcing.`))
       return goto.proceedWithEmail(info.website_name, info.price)
     }
 
-    if (!isValidEmail(message)) {
-      return send(chatId, hP.generatePlanStepText('invalidEmail'), k.of([t.skipEmail]))
+    // Checkout UX (2026-06): "✅ Use previous@email" 1-tap or a typed address —
+    // both go straight to the invoice (the old "Use this email?" confirm screen is gone).
+    const email = hcx.parseUseEmailTap(message) || message
+    if (!isValidEmail(email)) {
+      const lastEmail = isValidEmail(info?.lastOrderEmail || '') ? info.lastOrderEmail : null
+      return send(chatId, hP.generatePlanStepText('invalidEmail'), k.of(hcx.emailRows({ lang, skipLabel: t.skipEmail, lastEmail })))
     }
-    return goto.confirmEmailBeforeProceeding(message)
+    await saveInfo('email', email)
+    await saveInfo('lastOrderEmail', email)
+    return goto.proceedWithEmail(info.website_name, info.price)
   }
 
   if (action === a.confirmEmailBeforeProceeding) {
@@ -21672,6 +21768,28 @@ ${message.replace(/\n/g, '<br>')}
       await set(state, chatId, 'action', 'hosting-apply-coupon')
       return send(chatId, trans('t.enterCouponCode'), k.of([t.skip]))
     }
+
+    // Checkout UX (2026-06): "👛 Pay $X from Wallet" — the amount is on the
+    // button, so it IS the confirmation; charge via the same walletOk handler
+    // the old Yes/No screen used (balance re-checked inside).
+    const walletTap = hcx.parseWalletPayTap(message)
+    if (walletTap !== null) {
+      await saveInfo('lastStep', 'hosting-pay')
+      await saveInfo('coin', u.usd)
+      await applyHostingLoyaltyOnce()
+      return walletOk['hosting-pay'](u.usd)
+    }
+
+    // "💵 Deposit $N" — pre-filled top-up; Order Resume brings the user back here.
+    const depTap = hcx.parseDepositTap(message)
+    if (depTap !== null) {
+      await saveInfo('processingPayment', false)
+      await saveInfo('lastStep', 'hosting-pay')
+      await saveInfo('depositAmountUsd', depTap)
+      await saveInfo('amount', depTap)
+      if (process.env.HIDE_BANK_PAYMENT === 'true') return goto[a.selectCryptoToDeposit]()
+      return goto[a.depositMethodSelect]()
+    }
     
     const payOption = message
 
@@ -21693,6 +21811,8 @@ ${message.replace(/\n/g, '<br>')}
     return send(chatId, t.askValidPayOption)
   }
   if (action === 'hosting-apply-coupon') {
+    // Re-rendering the invoice must not trip the 30s duplicate-payment lock
+    await saveInfo('processingPayment', false)
     if (message === t.skip || isBackPress(message)) return goto['hosting-pay']()
     const couponResult = await resolveCoupon(message, chatId)
     if (!couponResult) return send(chatId, trans('t.invalidCoupon'), k.of([t.skip]))
@@ -42603,6 +42723,76 @@ function _escalationAlertPlan(esc, now, opts) {
   const ccSecondary = secondaryConfigured && (overdue || reminderCount >= 3)
   return { action: 'remind', overdue, ccSecondary, reminderCount, ageMs }
 }
+
+// ── DEV-ONLY: drive the hosting checkout flow through the REAL message handler ──
+// Seeds a synthetic user (wallet balance / owned domains / last email), feeds
+// button taps via bot.processUpdate, and captures every reply for that chatId
+// only (bot.sendMessage intercepted for the sim chat, passthrough otherwise).
+// Refuses payment-confirming taps so nothing can ever be provisioned. 404 in prod.
+app.post('/dev/hosting-flow-sim', async (req, res) => {
+  if ((process.env.BOT_ENVIRONMENT || '').toLowerCase() === 'production') {
+    return res.status(404).json({ error: 'not found' })
+  }
+  const chatId = String(Number(req.body?.chatId) || 900000001)
+  const steps = Array.isArray(req.body?.steps) ? req.body.steps.map(String) : []
+  const seed = req.body?.seed || {}
+  if (steps.some(s => hcx.parseWalletPayTap(s) !== null || isYesPress(s))) {
+    return res.status(400).json({ error: 'refusing payment-confirming steps in sim' })
+  }
+  if (!seed.keep) {
+  await state.deleteOne({ _id: chatId })
+  const stateDoc = { _id: chatId, action: 'none', userLanguage: seed.lang || 'en' }
+  if (seed.lastOrderEmail) stateDoc.lastOrderEmail = String(seed.lastOrderEmail)
+  await state.insertOne(stateDoc)
+  await walletOf.updateOne({ _id: chatId }, { $set: { usdIn: Number(seed.usdBal || 0), usdOut: 0 } }, { upsert: true })
+  await domainsOf.deleteOne({ _id: chatId })
+  if (Array.isArray(seed.domains) && seed.domains.length) {
+    const doc = { _id: chatId }
+    for (const d of seed.domains) doc[String(d).replaceAll('.', '@')] = true
+    await domainsOf.insertOne(doc)
+  }
+  }
+  const captured = []
+  const origSend = bot.sendMessage.bind(bot)
+  bot.sendMessage = (cid, text, opts) => {
+    if (String(cid) === chatId) {
+      captured.push({ text, keyboard: opts?.reply_markup?.keyboard || opts?.reply_markup?.inline_keyboard || null })
+      return Promise.resolve({ message_id: captured.length })
+    }
+    return origSend(cid, text, opts)
+  }
+  const origAction = bot.sendChatAction ? bot.sendChatAction.bind(bot) : null
+  if (origAction) bot.sendChatAction = (cid, act) => (String(cid) === chatId ? Promise.resolve(true) : origAction(cid, act))
+  const settleQuietMs = Math.min(15000, Number(req.body?.settleMs) || 1200)
+  const settle = async () => {
+    let n = captured.length, quiet = 0, waited = 0
+    while (quiet < settleQuietMs && waited < 60000) {
+      await sleep(300); waited += 300
+      if (captured.length === n) quiet += 300; else { n = captured.length; quiet = 0 }
+    }
+  }
+  const out = []
+  try {
+    let updateId = Date.now()
+    for (const text of steps) {
+      const from = captured.length
+      bot.processUpdate({
+        update_id: updateId++,
+        message: { message_id: updateId, date: Math.floor(Date.now() / 1000), chat: { id: Number(chatId), type: 'private' }, from: { id: Number(chatId), is_bot: false, first_name: 'Sim', username: 'simuser' }, text },
+      })
+      await settle()
+      const st = await state.findOne({ _id: chatId })
+      out.push({ input: text, action: st?.action, website_name: st?.website_name, totalPrice: st?.totalPrice, replies: captured.slice(from) })
+    }
+  } finally {
+    bot.sendMessage = origSend
+    if (origAction) bot.sendChatAction = origAction
+    if (req.body?.cleanup !== false) {
+      await Promise.all([state.deleteOne({ _id: chatId }), walletOf.deleteOne({ _id: chatId }), domainsOf.deleteOne({ _id: chatId })])
+    }
+  }
+  return res.json({ chatId, steps: out })
+})
 
 // ── DEV-ONLY: verify the cold-question → AI routing heuristic ──────────────
 // Ensures genuine questions (esp. the "cost after free inbound minutes" case)
