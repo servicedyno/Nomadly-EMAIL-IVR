@@ -45,7 +45,7 @@ const path = require('path');
 const acorn = require('acorn');
 
 const explicitArgs = process.argv.slice(2);
-const ROOT = '/app';
+const ROOT = path.resolve(__dirname, '..');
 const DEFAULT_TARGETS = ['js'];
 const targets = explicitArgs.length ? explicitArgs : DEFAULT_TARGETS;
 

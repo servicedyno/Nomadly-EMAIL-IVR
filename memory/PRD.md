@@ -78,6 +78,13 @@ Every "choose payment method" screen now renders through one closure layer in `_
 - Fixed along the way: Cloud IVR coupon handler was missing (`askCoupon + 'cpOrderSummary'` → codes silently ignored) — now discounts `cpPrice` in place with `cpPriceBase` for the strikethrough; bundle wallet tap was unhandled (k.pay → nothing); bundle price subtracted a stale `loyaltyDiscount`; bundle/cp state reset on fresh selection; global `💵 Deposit $N` matcher now routes through `startCheckoutDeposit` so lastStep is preserved for resume.
 - Verified live via `/dev/hosting-flow-sim` (`seed.state` deep-seeding): Cloud IVR summary+pay → coupon STA158 → $46.75 → Deposit $17 → coin picker + resume `{price:46.75, step:'phone-pay'}`; bundle wallet-only deposit; digital legacy Wallet tap shows $80 (not stale $12); vCard $170 short → Deposit $70; plan-pay; leads $40 1-tap; Gold user domain: $35.10 button, no compounding on No, price restored to $39 on Back. Suite: 143 assertions + 12 regression suites green.
 
+## 2026-09-16 (fork) — GitHub Actions `lint` workflow fixed (was MODULE_NOT_FOUND)
+- Root cause: `scripts/check_lang_parity.js`, `scripts/check_panel_lang_parity.js`, `scripts/lint_async_in_if.js` hardcoded `/app/...`; the runner checks out at `/home/runner/work/<repo>/<repo>` → `require('/app/js/lang/en.js')` → MODULE_NOT_FOUND. All three now use `path.resolve(__dirname, '..')`.
+- Second latent failure: `lint-lang` job had no install step but `js/lang/plan-copy.js` requires `dotenv` → added `npm install dotenv --no-save` step. Job now also runs `check_panel_lang_parity.js`.
+- Panel locale drift fixed: 16 `store.*` keys (Storefront pricing/trust/login copy) added to `frontend/src/locales/{fr,hi,zh}.json`; `npm run lint:lang` green.
+- Verified: both jobs simulated at `/tmp/runner/work/repo` with only the YAML-installed deps → rc=0; FR storefront renders all new keys, no raw `store.*` leaks; i18n suites 79/79 + 26/26.
+- **Rule:** scripts under `scripts/` must never hardcode `/app` — CI runs elsewhere.
+
 
 ## Prioritized backlog (P0/P1/P2)
 ### P0 (from 2026-09-14 audit)

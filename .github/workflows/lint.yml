@@ -30,5 +30,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Install minimal deps (lang files require dotenv)
+        run: npm install dotenv --no-save --no-audit --no-fund
       - name: Run lint:lang
-        run: node scripts/check_lang_parity.js
+        run: node scripts/check_lang_parity.js && node scripts/check_panel_lang_parity.js
