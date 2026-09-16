@@ -115,6 +115,7 @@
   "dashboard": {
     "tabs": {
       "overview": "Aperçu",
+      "site": "Site",
       "domains": "Domaines",
       "files": "Fichiers",
       "email": "Email",

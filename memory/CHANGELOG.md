@@ -1,3 +1,30 @@
+## 2026-06 (fork) — Site online/offline: dedicated panel tab + reseller API parity
+
+User asked for the "bring site online/offline" endpoint (thought it was missing). It already
+existed end-to-end (customer HostPanel `GET/POST /panel/account/site-status` backed by
+`site-status-service.js` + WHM, reachable from React via the FastAPI `/api/panel/*` proxy; plus a
+fully-wired `SiteStatusCard` React component and the Telegram bot flow). Delivered the two real gaps:
+
+**(a) Discoverability — dedicated "Site" tab (React HostPanel):**
+- Promoted the existing `SiteStatusCard` out of the buried Account → Danger Zone into its own
+  top-level **Site** tab (first tab) in `PanelDashboard.js` (added `power` icon + `dashboard.tabs.site`
+  in en/fr/zh/hi). Removed the duplicate render from `AccountSettings`.
+- Verified rendering on desktop + mobile: shows status (online/maintenance/suspended), domain/plan/
+  expiry/auto-renew, and Take-offline (Maintenance vs Suspend) / Bring-online controls.
+- Route test: `js/tests/test_site_status_endpoint_2026-06.js` (12) proves the customer endpoint's full
+  online↔suspended↔maintenance lifecycle + 400/409/401 handling.
+
+**(b) Reseller API parity — maintenance mode + unified status:**
+- Added `GET /reseller/v1/hosting/:user/site-status` (online|suspended|maintenance + metadata) and
+  `POST /reseller/v1/hosting/:user/site-status` `{action:'take_offline'|'bring_online', mode:'suspended'|'maintenance'}`.
+  Previously reseller only had suspend/unsuspend (no maintenance mode, no status read). Honours the
+  existing `isLive()` dry-run guard so the sandbox never touches real WHM.
+- Route test: `js/tests/test_reseller_site_status_2026-06.js` (13) incl. dry-run safety.
+
+Safety unchanged; `/app/backend/.env` untouched.
+
+---
+
 ## 2026-06 (fork) — Phase 2 conversion enhancements (#18, #21) + VPS copy parity fix
 
 Verified end-to-end by testing_agent (iteration_48.json): 12 Node suites green, 0 backend issues.
@@ -1821,3 +1848,10 @@ boot:
   (dev pod uses a different bot token → must never delete real production notify groups on send-failure).
   Both prod groups confirmed intact after the run.
 
+
+## 2026-09-16 — Git commit blocker fixed (root `.env` symlink vs platform staging)
+- Symptom: platform auto-commit failed 3× (`/var/log/e1_agent.log`): `git add failed: The following paths are ignored by one of your .gitignore files: .env`. No hooks, no lock files.
+- Root cause: `/app/.env` was a gitignored **symlink → backend/.env** (from `setup-nodejs.sh`). Git's `exclude_matches_pathspec` literally matches an ignored root `.env` against the platform's `':(exclude).env'` pathspec and makes `git add -A` exit 1; the platform now aborts on non-zero.
+- Fix: removed the symlink; `js/config-setup.js` loads dotenv from `[cwd/.env, ../backend/.env]`; `setup-nodejs.sh` now removes any legacy symlink instead of creating it; `vault.sh unlock` no longer recreates it; 5 test files → `/app/backend/.env`.
+- Verified: platform stage command rc=0 (no .env/.log staged), nodejs restarted with all critical env present, suites green (quickwins 82, lifecycle 24, promo-lift 13, i18n 79, site-status 12, reseller 13, webhook-isolation, wallet-ledger 5/5).
+- Rule: **never create a file or symlink literally named `.env` at `/app/` root** — it blocks every platform commit.

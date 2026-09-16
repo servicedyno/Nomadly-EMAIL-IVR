@@ -115,6 +115,7 @@
   "dashboard": {
     "tabs": {
       "overview": "सारांश",
+      "site": "साइट",
       "domains": "डोमेन",
       "files": "फाइलें",
       "email": "ईमेल",

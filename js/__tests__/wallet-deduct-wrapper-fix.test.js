@@ -26,7 +26,7 @@ const { MongoClient } = require('mongodb')
 
 ;(async () => {
   // Use a throwaway db on the local mongo from .env
-  require('dotenv').config({ path: '/app/.env' })
+  require('dotenv').config({ path: '/app/backend/.env' })
   const url = process.env.MONGO_URL
   if (!url) {
     console.log('SKIP: no MONGO_URL in .env')

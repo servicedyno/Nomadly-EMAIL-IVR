@@ -115,6 +115,7 @@
   "dashboard": {
     "tabs": {
       "overview": "概览",
+      "site": "网站",
       "domains": "域名",
       "files": "文件",
       "email": "邮件",

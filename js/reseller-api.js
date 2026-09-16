@@ -648,6 +648,75 @@ function createResellerApi(deps = {}) {
     res.json({ mode: 'live', username: acct._id, suspended: false, detail: r || null })
   }))
 
+  // ── Unified site online/offline (adds Maintenance mode on top of suspend) ──
+  // GET  → current status: 'online' | 'suspended' | 'maintenance'
+  // POST → { action:'take_offline'|'bring_online', mode?:'suspended'|'maintenance' }
+  //   • take_offline + mode 'suspended'   → WHM suspend (blocks HTTP/FTP/mail/DB)
+  //   • take_offline + mode 'maintenance' → friendly 503 maintenance page (mail/FTP stay up)
+  //   • bring_online                      → auto-reverses whichever mode is active
+  router.get('/hosting/:user/site-status', apiKeyAuth, h(async (req, res) => {
+    const acct = await loadOwnedCpanel(req, req.params.user)
+    if (!acct) return res.status(404).json({ error: 'not_found' })
+    const siteStatus = require('./site-status-service')
+    res.json({
+      username: acct._id,
+      domain: acct.domain,
+      status: siteStatus.readStatus(acct),
+      plan: acct.plan || null,
+      expires_at: acct.expiryDate ? new Date(acct.expiryDate).toISOString() : null,
+      suspended_at: acct.suspendedAt ? new Date(acct.suspendedAt).toISOString() : null,
+      maintenance_mode_at: acct.maintenanceModeAt ? new Date(acct.maintenanceModeAt).toISOString() : null,
+      last_brought_online_at: acct.lastBroughtOnlineAt ? new Date(acct.lastBroughtOnlineAt).toISOString() : null,
+    })
+  }))
+
+  router.post('/hosting/:user/site-status', apiKeyAuth, h(async (req, res) => {
+    const { action, mode } = req.body || {}
+    if (action !== 'take_offline' && action !== 'bring_online') {
+      return res.status(400).json({ error: 'action must be take_offline or bring_online' })
+    }
+    if (action === 'take_offline' && mode !== 'maintenance' && mode !== 'suspended') {
+      return res.status(400).json({ error: 'mode must be maintenance or suspended' })
+    }
+    const acct = await loadOwnedCpanel(req, req.params.user)
+    if (!acct) return res.status(404).json({ error: 'not_found' })
+    if (acct.deleted) return res.status(409).json({ error: 'account_terminated' })
+
+    const siteStatus = require('./site-status-service')
+    const before = siteStatus.readStatus(acct)
+    const cpCol = col('cpanelAccounts')
+
+    if (action === 'take_offline') {
+      if (before !== 'online') return res.status(409).json({ error: `already_${before}` })
+      if (!isLive()) return res.json({ mode: 'dry_run', username: acct._id, note: `Dry-run: site not taken offline (${mode}).` })
+      let result
+      try {
+        result = (mode === 'suspended')
+          ? await siteStatus.suspend(acct, 'Taken offline via reseller API')
+          : await siteStatus.enableMaintenanceMode(acct)
+      } catch (err) { result = { ok: false, error: err.message } }
+      if (!result?.ok) return res.status(502).json({ error: result?.error || 'failed_take_offline' })
+      const update = (mode === 'suspended')
+        ? { suspended: true, suspendedAt: new Date(), suspendedBy: 'reseller_api', maintenanceMode: false }
+        : { maintenanceMode: true, maintenanceModeAt: new Date(), maintenanceModeBy: 'reseller_api', suspended: false }
+      await cpCol.updateOne({ _id: acct._id }, { $set: update })
+      return res.json({ mode: 'live', username: acct._id, status: mode })
+    }
+
+    // action === 'bring_online'
+    if (before === 'online') return res.status(409).json({ error: 'already_online' })
+    if (!isLive()) return res.json({ mode: 'dry_run', username: acct._id, note: 'Dry-run: site not brought online.' })
+    let result
+    try {
+      result = (before === 'suspended')
+        ? await siteStatus.unsuspend(acct)
+        : await siteStatus.disableMaintenanceMode(acct)
+    } catch (err) { result = { ok: false, error: err.message } }
+    if (!result?.ok) return res.status(502).json({ error: result?.error || 'failed_bring_online' })
+    await cpCol.updateOne({ _id: acct._id }, { $set: { suspended: false, maintenanceMode: false, lastBroughtOnlineAt: new Date() } })
+    return res.json({ mode: 'live', username: acct._id, status: 'online' })
+  }))
+
   router.delete('/hosting/:user', apiKeyAuth, h(async (req, res) => {
     const acct = await loadOwnedCpanel(req, req.params.user)
     if (!acct) return res.status(404).json({ error: 'not_found' })

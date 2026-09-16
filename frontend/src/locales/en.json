@@ -131,8 +131,9 @@
   "dashboard": {
     "tabs": {
       "overview": "Overview",
-      "domains": "Domains",
+      "site": "Site",
       "files": "Files",
+      "domains": "Domains",
       "email": "Email",
       "mysql": "Databases",
       "geo": "Geo Cloak",

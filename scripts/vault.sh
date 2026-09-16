@@ -48,8 +48,8 @@ case "$cmd" in
       rm -f "$tmp"; echo "❌ Wrong password or corrupt vault"; exit 1
     fi
     mv "$tmp" "$ENV_FILE"
-    ln -sf "$ENV_FILE" /app/.env
-    echo "🔓 Unlocked $VAULT_FILE -> $ENV_FILE (symlink /app/.env refreshed)"
+    rm -f /app/.env
+    echo "🔓 Unlocked $VAULT_FILE -> $ENV_FILE"
     echo "   Run: sudo supervisorctl restart backend nodejs frontend"
     ;;
   verify)

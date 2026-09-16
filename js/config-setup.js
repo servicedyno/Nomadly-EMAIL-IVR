@@ -1,7 +1,12 @@
 // Configuration setup for the application
 // This file loads environment variables and sets up basic configuration
 
-require('dotenv').config();
+// Load <cwd>/.env first, then backend/.env (no root .env symlink — a gitignored
+// root .env breaks the platform's `git add -A ':(exclude).env'` staging step).
+const path = require('path');
+require('dotenv').config({
+  path: [path.resolve(process.cwd(), '.env'), path.resolve(__dirname, '../backend/.env')],
+});
 
 console.log('🔧 Loading configuration...');
 

@@ -2,7 +2,7 @@
  * Test file for OpenProvider, Cloudflare, and Domain Service integrations
  * Run with: node js/tests/test_registrar_integrations.js
  */
-require('dotenv').config({ path: '/app/.env' })
+require('dotenv').config({ path: '/app/backend/.env' })
 const { log } = require('console')
 
 // Test counters

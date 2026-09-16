@@ -1,7 +1,7 @@
 /**
  * Integration test: Verify FREE_LINKS=5 flow against MongoDB
  */
-require('dotenv').config({ path: '/app/.env' });
+require('dotenv').config({ path: '/app/backend/.env' });
 const { MongoClient } = require('mongodb');
 
 async function testFreeLinksFlow() {

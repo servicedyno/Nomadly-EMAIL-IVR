@@ -75,12 +75,12 @@ if [ -z "$SKIP_SELF_URL_UPDATE" ]; then
   fi
 fi
 
-# ── Step 3: Create .env symlink for Node.js dotenv ──
-if [ ! -L /app/.env ]; then
-  ln -sf /app/backend/.env /app/.env
-  echo "✅ Created symlink /app/.env → /app/backend/.env"
-else
-  echo "✅ Symlink /app/.env already exists"
+# ── Step 3: Ensure NO root /app/.env symlink ──
+# js/config-setup.js loads backend/.env directly. A gitignored root .env makes
+# the platform's `git add -A ':(exclude).env'` exit 1 and blocks every commit.
+if [ -L /app/.env ]; then
+  rm -f /app/.env
+  echo "✅ Removed legacy /app/.env symlink (config-setup.js loads backend/.env)"
 fi
 
 # ── Step 4: Install Node.js dependencies ──

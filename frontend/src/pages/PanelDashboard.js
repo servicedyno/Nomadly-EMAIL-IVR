@@ -9,10 +9,12 @@ import GeoManager from '../components/panel/GeoManager';
 import Analytics from '../components/panel/Analytics';
 import SecurityPanel from '../components/panel/SecurityPanel';
 import AccountSettings from '../components/panel/AccountSettings';
+import SiteStatusCard from '../components/panel/SiteStatusCard';
 import LanguageSwitcher from '../components/LanguageSwitcher';
 import useTheme from '../components/panel/useTheme';
 
 const TABS = [
+  { id: 'site', i18nKey: 'site', icon: 'power' },
   { id: 'files', i18nKey: 'files', icon: 'folder' },
   { id: 'domains', i18nKey: 'domains', icon: 'globe' },
   { id: 'email', i18nKey: 'email', icon: 'mail' },
@@ -134,6 +136,11 @@ export default function PanelDashboard() {
       </nav>
 
       <main className="panel-main" data-testid="panel-main">
+        {activeTab === 'site' && (
+          <div className="acct-section" data-testid="site-status-section">
+            <SiteStatusCard />
+          </div>
+        )}
         {activeTab === 'files' && <FileManager targetDir={fileManagerTargetDir} onTargetDirConsumed={() => setFileManagerTargetDir(null)} />}
         {activeTab === 'domains' && <DomainList onNavigateToFileManager={navigateToFileManager} />}
         {activeTab === 'email' && <EmailManager />}
@@ -157,6 +164,7 @@ function TabIcon({ name }) {
     lock: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>,
     chart: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,
     user: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
+    power: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18.36 6.64a9 9 0 11-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>,
   };
   return icons[name] || null;
 }
