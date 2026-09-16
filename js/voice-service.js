@@ -1146,82 +1146,18 @@ setInterval(() => {
  * (e.g., auto-routing race condition killed the call before transfer).
  * Creates a fresh outbound call via Twilio REST API.
  */
-async function _attemptTwilioDirectCall(chatId, num, destination, bridgeId, callControlId) {
-  try {
-    // Sub-account creds may be on the number or the user's phoneNumbersOf doc
-    let subSid = num.subAccountSid || num.twilioSubAccountSid || null
-    let subToken = num.subAccountAuthToken || num.twilioSubAccountToken || null
-    if (!subSid || !subToken) {
-      try {
-        const userData = await _phoneNumbersOf.findOne({ _id: chatId })
-        subSid = subSid || userData?.val?.twilioSubAccountSid || null
-        subToken = subToken || userData?.val?.twilioSubAccountToken || null
-      } catch (e) { /* ignore */ }
-    }
-
-    // ── TOKEN RECOVERY: If we have a subSid but no subToken, fetch it from Twilio API ──
-    // This handles cases where the sub-account was created and number transferred,
-    // but the auth token was never persisted to the DB.
-    if (subSid && !subToken && _twilioService) {
-      try {
-        log(`[Voice] Twilio direct fallback: subSid found (${subSid}) but no token — recovering from Twilio API`)
-        const subAcct = await _twilioService.getSubAccount(subSid)
-        if (subAcct && subAcct.authToken && !subAcct.error) {
-          subToken = subAcct.authToken
-          log(`[Voice] Twilio direct fallback: Token recovered for subSid=${subSid}`)
-          // Persist recovered credentials back to the user document so this is a one-time recovery
-          try {
-            const userData = await _phoneNumbersOf.findOne({ _id: chatId })
-            if (userData?.val) {
-              userData.val.twilioSubAccountSid = subSid
-              userData.val.twilioSubAccountToken = subToken
-              await _phoneNumbersOf.updateOne({ _id: chatId }, { $set: { 'val.twilioSubAccountSid': subSid, 'val.twilioSubAccountToken': subToken } })
-              log(`[Voice] Twilio direct fallback: Persisted recovered credentials for chatId=${chatId}`)
-            }
-          } catch (persistErr) { log(`[Voice] Twilio direct fallback: Failed to persist recovered creds: ${persistErr.message}`) }
-        } else {
-          log(`[Voice] Twilio direct fallback: Could not recover token for subSid=${subSid}: ${subAcct?.error || 'no authToken'}`)
-        }
-      } catch (recoveryErr) {
-        log(`[Voice] Twilio direct fallback: Token recovery failed: ${recoveryErr.message}`)
-      }
-    }
-
-    if (!subSid || !subToken) {
-      log(`[Voice] Twilio direct fallback: No sub-account credentials for chatId=${chatId} (subSid=${!!subSid}, subToken=${!!subToken})`)
-      const lang = await _getUserLang(chatId)
-      const msg = _trans('vs.outboundCallFailedRouting', lang, formatPhone(num.phoneNumber), formatPhone(destination))
-      if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
-      delete pendingBridges[bridgeId]
-      if (activeCalls[callControlId]) delete activeCalls[callControlId]
-      return
-    }
-    const subClient = require('twilio')(subSid, subToken)
-    // ── Direct Twilio call: Use inline TwiML instead of webhook URL ──
-    // When this fallback triggers, the Telnyx SIP leg is dead (answer failed or transfer failed).
-    // We can't bridge audio to the SIP client, but we CAN place a call with correct caller ID.
-    // The call connects the destination to our webhook for status tracking.
-    const bridge = pendingBridges[bridgeId]
-    const call = await subClient.calls.create({
-      url: `${_selfUrl}/twilio/sip-voice?bridgeId=${bridgeId}`,
-      to: destination,
-      from: num.phoneNumber,
-      statusCallback: `${_selfUrl}/twilio/voice-dial-status?chatId=${chatId}&from=${encodeURIComponent(destination)}&to=${encodeURIComponent(num.phoneNumber)}&type=sip_outbound`,
-      statusCallbackEvent: ['completed'],
-    })
-    log(`[Voice] Twilio direct fallback call created: ${call.sid} (${num.phoneNumber} → ${destination})`)
-    if (activeCalls[callControlId]) {
-      activeCalls[callControlId].phase = 'outbound_twilio_direct'
-      activeCalls[callControlId].twilioCallSid = call.sid
-    }
-  } catch (twilioErr) {
-    log(`[Voice] Twilio direct fallback failed: ${twilioErr.message}`)
-    const lang = await _getUserLang(chatId)
-    const msg = _trans('vs.outboundCallFailedRouting', lang, formatPhone(num.phoneNumber), formatPhone(destination))
-    if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
-    delete pendingBridges[bridgeId]
-    if (activeCalls[callControlId]) delete activeCalls[callControlId]
-  }
+// A bridge that cannot be established is abandoned WITHOUT any fallback PSTN call. The old "Twilio direct
+// call" fallback dialled the destination after the SIP caller was already gone → unbillable ghost calls
+// (prod audit 2026-09-16: 32/week, 4 answered by real people).
+async function _abandonBridge({ chatId, num, destination, bridgeId, callControlId, reason, notify = true }) {
+  log(`[Voice] Outbound SIP (Twilio): bridge abandoned — ${reason}. ${num.phoneNumber} → ${destination}. No fallback call placed.`)
+  if (bridgeId) delete pendingBridges[bridgeId]
+  if (!notify) return
+  await _telnyxApi.hangupCall(callControlId).catch(() => {})
+  _releaseOutbound(chatId, callControlId)
+  const lang = await _getUserLang(chatId)
+  const msg = _trans('vs.outboundCallFailedRouting', lang, formatPhone(num.phoneNumber), formatPhone(destination))
+  if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
 }
 
 function initVoiceService(deps) {
@@ -3175,10 +3111,7 @@ async function handleOutboundSipCall(payload) {
       await _telnyxApi.answerCall(callControlId)
       log(`[Voice] Outbound SIP (Twilio): Answered call IMMEDIATELY to prevent auto-routing race`)
     } catch (ansErr) {
-      // If answer fails (e.g., call already ended), fall back to Twilio direct call
-      log(`[Voice] Outbound SIP (Twilio): Answer failed (${ansErr.message}) — will attempt Twilio direct call`)
-      const bridgeId = `bridge_${_nanoid ? _nanoid() : Date.now()}`
-      await _attemptTwilioDirectCall(chatId, num, destination, bridgeId, callControlId)
+      await _abandonBridge({ chatId, num, destination, callControlId, reason: `answer failed: ${ansErr.message}` })
       return
     }
 
@@ -3306,11 +3239,10 @@ async function handleOutboundSipCall(payload) {
     // Wait 200ms for potential immediate rejections to be caught.
     await new Promise(resolve => setTimeout(resolve, 200))
 
-    // ── CHECK: Is the call still alive? ──
+    // ── CHECK: Is the call still alive? The hangup handler already billed/notified/cleaned up. ──
     const callSession = activeCalls[callControlId]
     if (!callSession || callSession.alive === false) {
-      log(`[Voice] Call ${callControlId} already hung up — skipping transfer, using Twilio direct call`)
-      await _attemptTwilioDirectCall(chatId, num, destination, bridgeId, callControlId)
+      await _abandonBridge({ chatId, num, destination, bridgeId, callControlId, reason: 'SIP caller hung up before transfer', notify: false })
       return
     }
 
@@ -3319,14 +3251,12 @@ async function handleOutboundSipCall(payload) {
       const transferResult = await _telnyxApi.transferCall(callControlId, sipUri, telnyxDefaultAni || undefined)
 
       if (!transferResult) {
-        // Transfer failed (call may already be dead from auto-routing race)
-        log(`[Voice] Telnyx transfer returned null — falling back to Twilio direct call`)
-        await _attemptTwilioDirectCall(chatId, num, destination, bridgeId, callControlId)
+        await _abandonBridge({ chatId, num, destination, bridgeId, callControlId, reason: 'Telnyx transfer returned null' })
+        return
       }
     } catch (e) {
-      log(`[Voice] Telnyx→Twilio transfer failed: ${e.message} — falling back to Twilio direct call`)
-      await _telnyxApi.hangupCall(callControlId).catch(() => {})
-      await _attemptTwilioDirectCall(chatId, num, destination, bridgeId, callControlId)
+      await _abandonBridge({ chatId, num, destination, bridgeId, callControlId, reason: `Telnyx→Twilio transfer failed: ${e.message}` })
+      return
     }
 
     // NOTE: Do NOT restore connection-level ANI to user's number.

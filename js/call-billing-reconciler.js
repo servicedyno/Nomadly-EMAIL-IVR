@@ -94,6 +94,7 @@ async function recordPendingBill(rec = {}) {
         $setOnInsert: {
           _id: rec.callRef,
           callRef: rec.callRef,
+          altCallRef: rec.altCallRef || null,
           chatId: rec.chatId != null ? String(rec.chatId) : null,
           phoneNumber: rec.phoneNumber || null,
           destination: rec.destination || null,
@@ -133,7 +134,9 @@ async function fetchTwilioLegDuration(parentSid, subAccountSid) {
     const client = twilioService.getClient && twilioService.getClient()
     if (!client) return null
     const acct = subAccountSid ? client.api.v2010.accounts(subAccountSid) : client
-    const children = await acct.calls.list({ parentCallSid: parentSid, limit: 10 })
+    let children = await acct.calls.list({ parentCallSid: parentSid, limit: 10 })
+    // Calls that arrive on the SIP domain live on the MASTER account even when the number is in a sub-account
+    if (!children.length && subAccountSid) children = await client.calls.list({ parentCallSid: parentSid, limit: 10 })
     let best = null
     for (const c of children) {
       const dur = parseInt(c.duration || '0', 10)
@@ -183,11 +186,13 @@ async function sweepPendingBills(opts = {}) {
       continue
     }
 
-    // Already billed? walletLedger is keyed by callRef.
-    const led = await _walletLedger.findOne({ callRef: row.callRef })
+    // Already billed? walletLedger is keyed by callRef. altCallRef = the other leg's callRef
+    // (SIP bridge: telnyx_<callControlId>) which carries the charge for the whole call.
+    const refs = row.altCallRef ? [row.callRef, row.altCallRef] : [row.callRef]
+    const led = await _walletLedger.findOne({ callRef: { $in: refs } })
     if (led) {
       summary.reconciledByWebhook++
-      if (!dryRun) await markBillSettled(row.callRef, 'webhook')
+      if (!dryRun) await markBillSettled(row.callRef, led.callRef === row.callRef ? 'webhook' : 'other_leg')
       continue
     }
 
