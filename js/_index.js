@@ -48039,13 +48039,28 @@ app.post('/twilio/single-ivr-status', async (req, res) => {
 
 // Twilio Dial Status Callback — handles forwarded call result (no answer → voicemail)
 // Also handles SIP bridge and SIP outbound call results
+// phoneNumbersOf._id is stored as a STRING (bot: String(msg.chat.id)). Tolerates legacy numeric docs.
+async function lookupNumbersOwner(rawChatId) {
+  const key = String(rawChatId)
+  const userData = await get(phoneNumbersOf, key)
+  if (userData) return { key, numbers: userData.numbers || [] }
+  if (/^\d+$/.test(key)) {
+    const legacy = await get(phoneNumbersOf, Number(key))
+    if (legacy) return { key: Number(key), numbers: legacy.numbers || [] }
+  }
+  return { key, numbers: [] }
+}
+
 app.post('/twilio/voice-dial-status', async (req, res) => {
   const VoiceResponse = require('twilio').twiml.VoiceResponse
   const voiceService = require('./voice-service.js')
   try {
     const { DialCallStatus, DialCallDuration, CallSid } = req.body || {}
     const { chatId: rawChatId, from, to, type, fwdTo } = req.query || {}
-    const chatId = rawChatId ? parseInt(rawChatId) : null
+    // parseInt() here made every owner lookup miss (numeric key vs string _id) → this webhook billed $0 (prod audit 2026-09-16)
+    const chatId = rawChatId ? String(rawChatId) : null
+    // The PSTN leg of a SIP bridge is already charged on the Telnyx SIP leg (SIPOutbound at hangup) — never bill it here too
+    const isBridgeLeg = type === 'sip_bridge'
     const response = new VoiceResponse()
 
     log(`[Twilio] Dial status: ${DialCallStatus} (${DialCallDuration || 0}s) chatId=${chatId} type=${type || 'forward'} sid=${CallSid || '?'}`)
@@ -48054,18 +48069,17 @@ app.post('/twilio/voice-dial-status', async (req, res) => {
       // Call was answered and completed — bill using unified billing (plan minutes first, then wallet overage)
       const duration = parseInt(DialCallDuration || '0')
       const minutes = duration > 0 ? Math.ceil(duration / 60) : 0
-      if (minutes > 0 && chatId && to) {
+      if (isBridgeLeg) {
+        log(`[Twilio] SIP Bridge Call completed: ${minutes} min PSTN leg — not billed here (charged on the Telnyx SIP leg as SIPOutbound)`)
+      } else if (minutes > 0 && chatId && to) {
+        const label = type === 'sip_outbound' ? 'SIP Outbound Call' : 'Forwarded Call'
         try {
           const decodedTo = decodeURIComponent(to)
-          // Determine destination for rate calculation
           // fwdTo: explicit IVR forward destination (passed from inbound-ivr-gather)
           const destination = fwdTo ? decodeURIComponent(fwdTo)
-            : (type === 'sip_bridge' || type === 'sip_outbound')
-              ? decodeURIComponent(from || '')
-              : ''  // Will be resolved inside billing
-          // Try unified billing first
-          const userData = await get(phoneNumbersOf, chatId)
-          const numbers = userData?.numbers || []
+            : type === 'sip_outbound' ? decodeURIComponent(from || '')
+            : ''  // Will be resolved inside billing
+          const { key: ownerKey, numbers } = await lookupNumbersOwner(chatId)
           // LEAK #2 fix: provider-drift-tolerant lookup so a connected, billable
           // forward is never billed $0 just because the number's `provider` field
           // drifted away from 'twilio' (this webhook is Twilio, so a match-by-number
@@ -48073,12 +48087,13 @@ app.post('/twilio/voice-dial-status', async (req, res) => {
           const { num, drifted } = callBillingReconciler.resolveOwnedTwilioNumber(numbers, decodedTo)
           if (num && drifted) {
             log(`[Twilio] ⚠️ provider-drift heal: billing ${decodedTo} matched by number only (provider='${num.provider || 'unset'}') — self-healing to 'twilio'`)
-            phoneNumbersOf.updateOne({ _id: chatId, 'val.numbers.phoneNumber': decodedTo }, { $set: { 'val.numbers.$.provider': 'twilio' } }).catch(() => {})
+            phoneNumbersOf.updateOne({ _id: ownerKey, 'val.numbers.phoneNumber': decodedTo }, { $set: { 'val.numbers.$.provider': 'twilio' } }).catch(() => {})
           }
           if (num) {
             const fwdDest = destination || (num.features?.callForwarding?.forwardTo || decodeURIComponent(from || ''))
-            const callType = type === 'sip_bridge' ? 'Twilio_SIP_Bridge' : type === 'sip_outbound' ? 'Twilio_SIP_Outbound' : 'Twilio_Forwarding'
-            const billingInfo = await voiceService.billCallMinutesUnified(chatId, num.phoneNumber, minutes, fwdDest, callType, `twilio_${CallSid || ''}`)
+            const callType = type === 'sip_outbound' ? 'Twilio_SIP_Outbound' : 'Twilio_Forwarding'
+            const callRef = `twilio_${CallSid || ''}`
+            const billingInfo = await voiceService.billCallMinutesUnified(ownerKey, num.phoneNumber, minutes, fwdDest, callType, callRef)
             const remaining = billingInfo.limit > 0 ? Math.max(0, billingInfo.limit - billingInfo.used) : null
             const planLine = remaining !== null
               ? `${minutes} min · <b>${remaining}/${billingInfo.limit}</b> remaining`
@@ -48086,11 +48101,13 @@ app.post('/twilio/voice-dial-status', async (req, res) => {
             const overageLine = billingInfo.overageCharge > 0
               ? `\n💰 Overage: $${billingInfo.overageCharge.toFixed(2)} from wallet`
               : ''
-            const label = type === 'sip_bridge' ? 'SIP Bridge Call' : type === 'sip_outbound' ? 'SIP Outbound Call' : 'Forwarded Call'
             log(`[Twilio] ${label} billed via unified: ${minutes} min (${billingInfo.planMinUsed} plan + ${billingInfo.overageMin} overage)`)
             // Mark this CallSid as already billed — voice-status must skip it
             if (CallSid) _twilioBilledCallSids.add(CallSid)
-            bot?.sendMessage(chatId, `📞 <b>${label} Ended</b>\n📲 ${fwdDest ? phoneConfig.formatPhone(fwdDest) : ''}\n⏱️ ${planLine}${overageLine}`, { parse_mode: 'HTML' }).catch(() => {})
+            callBillingReconciler.markBillSettled(callRef, 'webhook')
+            bot?.sendMessage(ownerKey, `📞 <b>${label} Ended</b>\n📲 ${fwdDest ? phoneConfig.formatPhone(fwdDest) : ''}\n⏱️ ${planLine}${overageLine}`, { parse_mode: 'HTML' }).catch(() => {})
+          } else {
+            log(`[Twilio] ⚠️ ${label} completed (${minutes} min) but NOT BILLED — ${decodedTo} not found in phoneNumbersOf for chatId=${chatId} (numbers=${numbers.length}). Reconciler sweep will retry.`)
           }
         } catch (e) { log(`[Twilio] Call billing error: ${e.message}`) }
       }
@@ -48114,44 +48131,31 @@ app.post('/twilio/voice-dial-status', async (req, res) => {
       // Bill 1-minute minimum for ALL unanswered outbound calls
       // Every call attempt incurs carrier cost — charge regardless of status
       let chargeLine = ''
-      if (chatId && to) {
+      if (isBridgeLeg) {
+        log(`[Twilio] ${label} ${reason} ${parseInt(DialCallDuration || '0')}s — 1-min minimum is charged on the Telnyx SIP leg, not here`)
+      } else if (chatId && to) {
         try {
           const decodedToNum = decodeURIComponent(to)
           const destination = decodeURIComponent(from || '')
           const dur = parseInt(DialCallDuration || '0')
-          const userData = await get(phoneNumbersOf, chatId)
-          const numbers = userData?.numbers || []
+          const { key: ownerKey, numbers } = await lookupNumbersOwner(chatId)
           // LEAK #2 fix: provider-drift-tolerant lookup (see completed-path note).
           const { num, drifted } = callBillingReconciler.resolveOwnedTwilioNumber(numbers, decodedToNum)
           if (num && drifted) {
             log(`[Twilio] ⚠️ provider-drift heal: billing ${decodedToNum} matched by number only (provider='${num.provider || 'unset'}') — self-healing to 'twilio'`)
-            phoneNumbersOf.updateOne({ _id: chatId, 'val.numbers.phoneNumber': decodedToNum }, { $set: { 'val.numbers.$.provider': 'twilio' } }).catch(() => {})
+            phoneNumbersOf.updateOne({ _id: ownerKey, 'val.numbers.phoneNumber': decodedToNum }, { $set: { 'val.numbers.$.provider': 'twilio' } }).catch(() => {})
           }
           if (num) {
             const fwdDest = destination || (num.features?.callForwarding?.forwardTo || '')
-            const callType = type === 'sip_bridge' ? 'Twilio_SIP_Bridge' : 'Twilio_SIP_Outbound'
-            const billingInfo = await voiceService.billCallMinutesUnified(chatId, num.phoneNumber, 1, fwdDest, callType, `twilio_${CallSid || ''}`)
+            const callRef = `twilio_${CallSid || ''}`
+            const billingInfo = await voiceService.billCallMinutesUnified(ownerKey, num.phoneNumber, 1, fwdDest, 'Twilio_SIP_Outbound', callRef)
             if (billingInfo.overageCharge > 0) {
               chargeLine = `\n💰 Charged: $${billingInfo.rate.toFixed(2)} (1 min minimum)`
             }
+            callBillingReconciler.markBillSettled(callRef, 'webhook')
             log(`[Twilio] ${label} unanswered billed: 1 min minimum @ $${billingInfo.rate} — ${reason}`)
           } else {
-            // Lookup miss — this is EXPECTED when the "to" on the webhook
-            // isn't one of the user's owned Nomadly Twilio numbers (e.g. a
-            // destination/transfer target appears in `to` for certain SIP
-            // flows). Old log said `number not found for +XXX` which scared
-            // on-call engineers into thinking billing was broken. Clarify
-            // that billing is intentionally not charged, include call
-            // status + duration so the line is actually auditable, and
-            // escalate to WARN severity only if the number MIGHT be one of
-            // the user's owned numbers (string match without provider
-            // filter), because that's a real provider-metadata drift bug.
-            const hasSameNumberWithWrongProvider = numbers.some(n => n.phoneNumber === decodedToNum && n.provider !== 'twilio')
-            if (hasSameNumberWithWrongProvider) {
-              log(`[Twilio] ${label} ${reason} ${dur}s — ⚠️ NOT BILLED: ${decodedToNum} is in user numbers but provider != 'twilio'. Check number-doc hygiene for chatId=${chatId}.`)
-            } else {
-              log(`[Twilio] ${label} ${reason} ${dur}s — not billed (${decodedToNum} is not a Nomadly-owned Twilio number for chatId=${chatId}; likely a destination/transfer leg, which is correct).`)
-            }
+            log(`[Twilio] ⚠️ ${label} ${reason} ${dur}s — NOT BILLED: ${decodedToNum} not found in phoneNumbersOf for chatId=${chatId} (numbers=${numbers.length})`)
           }
         } catch (e) { log(`[Twilio] ${label} unanswered billing error: ${e.message}`) }
       }
@@ -48170,8 +48174,7 @@ app.post('/twilio/voice-dial-status', async (req, res) => {
 
     // For forwarded calls: check if voicemail is enabled
     if (chatId && to) {
-      const userData = await get(phoneNumbersOf, chatId)
-      const numbers = userData?.numbers || []
+      const { numbers } = await lookupNumbersOwner(chatId)
       const num = numbers.find(n => n.phoneNumber === decodedTo && n.provider === 'twilio')
       const vmConfig = num?.features?.voicemail
 
@@ -48539,10 +48542,7 @@ app.post('/twilio/sip-voice', async (req, res) => {
       destinationOrBridgeId = To.replace('sip:', '').split('@')[0]
     }
 
-    // ── FIX: Also check query param for bridgeId ──
-    // When _attemptTwilioDirectCall creates calls.create({to: destination, url: /sip-voice?bridgeId=xxx}),
-    // the To field is the destination phone number, not the bridge ID.
-    // The bridgeId is passed in the URL query param instead.
+    // ── Also check query param for bridgeId (dev sip_bridge_test calls pass it in the URL) ──
     if (!destinationOrBridgeId?.startsWith('bridge_') && req.query?.bridgeId) {
       destinationOrBridgeId = req.query.bridgeId
       log(`[Twilio] SIP voice: Using bridgeId from query param: ${destinationOrBridgeId}`)
@@ -48589,13 +48589,15 @@ app.post('/twilio/sip-voice', async (req, res) => {
       }
       const dial = response.dial(dialOpts)
       dial.number(bridge.destination)
-      // LEAK sweeper coverage (2026-08-07): record durable pending-bill row (billed by
-      // /twilio/voice-dial-status as Twilio_SIP_Bridge). Lets the reconciler settle it if
-      // that callback is dropped. callRef matches the webhook's twilio_<CallSid>.
+      // LEAK sweeper coverage: the bridge PSTN leg is charged on the Telnyx SIP leg (callRef
+      // telnyx_<callControlId>), so altCallRef lets the reconciler see that charge and only bill
+      // Twilio_SIP_Bridge when the Telnyx hangup webhook was lost. Bridge calls arrive on the SIP
+      // domain = MASTER account, so subAccountSid must be null for the Twilio leg lookup.
       callBillingReconciler.recordPendingBill({
-        callRef: `twilio_${CallSid}`, chatId: bridge.chatId, phoneNumber: bridge.twilioNumber,
+        callRef: `twilio_${CallSid}`, altCallRef: bridge.callControlId ? `telnyx_${bridge.callControlId}` : null,
+        chatId: bridge.chatId, phoneNumber: bridge.twilioNumber,
         destination: bridge.destination, callType: 'Twilio_SIP_Bridge',
-        provider: 'twilio', subAccountSid: bridge.num?.twilioSubAccountSid,
+        provider: 'twilio', subAccountSid: null,
       }).catch(() => {})
 
       log(`[Twilio] Bridge call: ${bridge.twilioNumber} → ${bridge.destination} (callerId=${bridge.twilioNumber})`)
