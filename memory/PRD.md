@@ -85,14 +85,19 @@ Every "choose payment method" screen now renders through one closure layer in `_
 - Verified: both jobs simulated at `/tmp/runner/work/repo` with only the YAML-installed deps → rc=0; FR storefront renders all new keys, no raw `store.*` leaks; i18n suites 79/79 + 26/26.
 - **Rule:** scripts under `scripts/` must never hardcode `/app` — CI runs elsewhere.
 
-## 2026-09-16 — Cloud IVR production billing audit (Railway logs, 7d) + fixes F2/F3/F4
-- Full report: `memory/CLOUDIVR_BILLING_AUDIT_2026-09-16.md`. Log tooling: `ops/railway_billing_pull.js`, `ops/railway_grep_billing.js` (read-only, Railway GraphQL via `API_KEY_RAILWAY`).
+## 2026-09-16 — Cloud IVR production billing audit (Railway logs, 7d) + fixes F2/F3/F4- Full report: `memory/CLOUDIVR_BILLING_AUDIT_2026-09-16.md`. Log tooling: `ops/railway_billing_pull.js`, `ops/railway_grep_billing.js` (read-only, Railway GraphQL via `API_KEY_RAILWAY`).
 - F2 fixed: `/twilio/voice-dial-status` billed $0 for months — `parseInt(chatId)` vs string `phoneNumbersOf._id`. Now `String()` + legacy fallback; bridge legs excluded (Telnyx leg bills them).
 - F3 fixed: reconciler `altCallRef` (Telnyx leg) + master-account lookup for bridge rows → no more 560/589 false `no_charge`, no double-settle.
 - F4 fixed: ghost "Twilio direct fallback" calls removed (`_abandonBridge`).
 - F1 OPEN (P0 over-billing): mid-call timers deduct per minute AND hangup bills full minutes (`voice-service.js` L356/L3057/L3243). User deferred. Refund needs prod `walletLedger` query (in report).
 - Tests: `js/tests/test_dial_status_billing_fix_2026-09.js`, `test_reconciler_altcallref_2026-09.js`, `test_no_ghost_direct_call_2026-09.js`; 9 existing SIP/billing suites + `/dev/reconciler-widen-test` + `/dev/call-reconciler-test` green.
 
+
+## 2026-09-17 — 48h prod log audit + self-heal loop fixes
+- Report: `memory/PROD_LOG_AUDIT_2026-09-17_48h.md`. Tooling: `ops/railway_48h_anomaly.js` (read-only). Payments/billing/Twilio/DB/bot all healthy; F2/F3/F4 billing fixes visibly working (all 161 "not billed" lines are correct bridge/transfer-leg exclusions).
+- **FIXED (code)** — cPanel self-heal thrash on SUSPENDED accounts (ghrx51df, 38×/48h): `_repairCpPass` detects terminal WHM `/passwd` reasons (`_isTerminalPasswdReason`) and backs off `CPPASS_SUSPENDED_COOLDOWN_MIN` (6h) instead of retrying a rotation that can never succeed. Tests: `test_cpanel_suspended_selfheal_2026-09.js` 15/15.
+- **QUIETED (code)** — Contabo auth spam (~200 lines/48h): `getAccessToken` auth circuit breaker (`VPS_AUTH_DOWN`, `CONTABO_AUTH_COOLDOWN_MIN` 30m) + `isAuthHealthy()`; VPS self-heal skips the whole Contabo sweep in one log when auth is down. Tests: `test_contabo_auth_breaker_2026-09.js` 10/10. Infra creds (`invalid_client`) still invalid — owner to fix.
+- **IGNORED (per user)** — Connect Reseller 401 infra (prod IP not whitelisted / CR portal login broken); OpenProvider fallback covers domain pricing. CR loop already throttled per-process; residual volume is restart-amplified.
 
 ## Prioritized backlog (P0/P1/P2)
 ### P0 (from 2026-09-14 audit)

@@ -316,6 +316,14 @@ async function _fileopViaWhmRoot(whmApi, cpUser, op, params) {
 //   { ok: true,  cpPass: '<plaintext>', rotated: true  }  — just rotated
 //   { ok: true,  cpPass: '<plaintext>', rotated: false, reason: 'cool-down' } — recently rotated, reuse
 //   { ok: false, error: '<reason>' }                     — repair failed
+// Terminal-failure detection for WHM /passwd. A "suspended" (or locked/
+// disabled) account can NEVER be repaired by a password rotation — WHM refuses
+// because /passwd would unsuspend it. Callers back off instead of thrashing.
+function _isTerminalPasswdReason(reason) {
+  const r = String(reason || '').toLowerCase()
+  return /suspend|would unsuspend|account is (locked|disabled)|is (locked|disabled)/.test(r)
+}
+
 async function _repairCpPass(getCpanelCol, cpUser, whmHost) {
   const crypto = require('crypto')
   const cpAuth = require('./cpanel-auth')
@@ -330,6 +338,19 @@ async function _repairCpPass(getCpanelCol, cpUser, whmHost) {
   if (!col || !col.findOne) return { ok: false, error: 'accounts collection unavailable' }
   const doc = await col.findOne({ _id: cpUser.toLowerCase() })
   if (!doc) return { ok: false, error: 'account not found in Mongo' }
+
+  // Terminal-state back-off: if a previous attempt found the account SUSPENDED
+  // (or otherwise unfixable by a password rotation), don't thrash WHM + the
+  // logs on every request. A rotation literally CANNOT succeed while the
+  // account is suspended — WHM refuses /passwd because it would unsuspend the
+  // account. Back off for CPPASS_SUSPENDED_COOLDOWN_MIN (default 6h) and stay
+  // silent until it expires (prod log: ghrx51df thrashed 38×/48h).
+  const suspMin = parseInt(process.env.CPPASS_SUSPENDED_COOLDOWN_MIN || '360', 10)
+  const SUSPEND_COOL_MS = (Number.isFinite(suspMin) && suspMin > 0 ? suspMin : 360) * 60 * 1000
+  const suspendedAt = doc.cpPassSuspendedAt ? new Date(doc.cpPassSuspendedAt).getTime() : 0
+  if (suspendedAt && Date.now() - suspendedAt < SUSPEND_COOL_MS) {
+    return { ok: false, error: 'account suspended — rotation skipped (cooling down)', terminal: true, suppressed: true }
+  }
 
   // Cool-down: if we just rotated within COOL_DOWN_MS, don't rotate again —
   // just return the current cached pass. This keeps the caller from thrashing
@@ -366,6 +387,20 @@ async function _repairCpPass(getCpanelCol, cpUser, whmHost) {
     const ok = res.data?.metadata?.result === 1
     if (!ok) {
       const reason = res.data?.metadata?.reason || res.data?.data?.reason || 'WHM /passwd returned failure'
+      if (_isTerminalPasswdReason(reason)) {
+        // Suspended / terminal state — a password rotation can NEVER fix this
+        // (WHM refuses because /passwd would unsuspend the account). Stamp a
+        // back-off marker so we stop thrashing WHM + logs every request, and
+        // log the reason exactly ONCE per back-off window.
+        try {
+          await col.updateOne(
+            { _id: cpUser.toLowerCase() },
+            { $set: { cpPassSuspendedAt: new Date(), cpPassLastSuspendReason: reason } }
+          )
+        } catch (_) { /* marker is best-effort */ }
+        log(`[Panel] Self-heal: cpPass rotation SKIPPED for ${cpUser} — terminal state ("${reason}"); rotation cannot fix, backing off ${Math.round(SUSPEND_COOL_MS / 60000)}m`)
+        return { ok: false, error: reason, terminal: true }
+      }
       log(`[Panel] Self-heal: cpPass rotation FAILED for ${cpUser} — ${reason}`)
       return { ok: false, error: reason }
     }
@@ -387,7 +422,10 @@ async function _repairCpPass(getCpanelCol, cpUser, whmHost) {
         cpPass_tag: encPass.tag,
         cpPassRotatedAt: new Date(),
         cpPassLastRotateReason: 'CPANEL_AUTH_FAILURE',
-      } }
+      },
+        // Account is clearly no longer suspended if WHM accepted the rotation —
+        // clear the back-off marker so future heals aren't suppressed.
+        $unset: { cpPassSuspendedAt: '', cpPassLastSuspendReason: '' } }
     )
   } catch (err) {
     log(`[Panel] Self-heal: cpPass rotated on WHM but Mongo update FAILED for ${cpUser} — ${err.message}`)
@@ -441,7 +479,12 @@ async function _selfHealCpPass(req, getCpanelCol, repairFn = _repairCpPass) {
       }
       return req._selfHealOk
     }
-    log(`[Panel] Self-heal: cpPass repair failed for ${req.cpUser} — ${(repair && repair.error) || 'unknown'}`)
+    // Suppress the generic "repair failed" noise for terminal/suspended
+    // accounts — _repairCpPass already logged a concise one-time reason and is
+    // now backing off, so repeating it on every request just spams the logs.
+    if (!(repair && (repair.suppressed || repair.terminal))) {
+      log(`[Panel] Self-heal: cpPass repair failed for ${req.cpUser} — ${(repair && repair.error) || 'unknown'}`)
+    }
     req._selfHealOk = false
     return false
   } catch (e) {
@@ -3814,4 +3857,5 @@ module.exports = {
   _userCallWithHeal,
   _userWriteCallWithHeal,
   _repairCpPass,
+  _isTerminalPasswdReason,
 }
