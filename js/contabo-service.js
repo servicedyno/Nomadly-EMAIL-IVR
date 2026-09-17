@@ -38,6 +38,39 @@ const WINDOWS_LICENSE_BY_TIER = {
 let _tokenCache = { token: null, expiresAt: 0 }
 let _tokenInflight = null
 
+// ─── Auth circuit breaker (getAccessToken) ────────────────────────────────
+// Prod log (48h): keycloak returns `invalid_client` 101× and every downstream
+// caller (VPS self-heal, fetchVPSDetails) then logs its own failure — ~200
+// noise lines/48h for a credential problem no retry can fix. When auth fails
+// we trip this breaker: subsequent getAccessToken() calls fast-fail WITHOUT
+// hitting keycloak or logging, until CONTABO_AUTH_COOLDOWN_MIN (default 30m)
+// elapses, at which point one probe is allowed through. The reason is logged
+// exactly ONCE per open window.
+const _authFail = { openUntil: 0, lastError: null, loggedForWindow: false }
+
+function _authCooldownMs() {
+  const m = parseInt(process.env.CONTABO_AUTH_COOLDOWN_MIN || '30', 10)
+  return (Number.isFinite(m) && m > 0 ? m : 30) * 60 * 1000
+}
+
+function _makeAuthError() {
+  const e = new Error('VPS provider authentication failed')
+  e.code = 'VPS_AUTH_DOWN'
+  return e
+}
+
+/**
+ * Public: is Contabo AUTH currently healthy (or at least not in a known-broken
+ * back-off window)? Callers (e.g. the VPS self-heal sweep) use this to skip a
+ * whole batch instead of failing per-instance.
+ */
+function isAuthHealthy() {
+  if (Date.now() < _authFail.openUntil) {
+    return { healthy: false, reason: 'VPS_AUTH_DOWN', lastError: _authFail.lastError, minutesLeft: Math.ceil((_authFail.openUntil - Date.now()) / 60000) }
+  }
+  return { healthy: true, reason: null, lastError: null }
+}
+
 // ─── Provisioning circuit breaker (createInstance) ────────────────────────
 // 2026-06-08: Contabo started returning HTTP 500 in ~3ms on POST /compute/instances
 // for our account while every other endpoint (auth, READs, /secrets POST) keeps
@@ -180,6 +213,10 @@ async function getAccessToken() {
   if (_tokenCache.token && now < _tokenCache.expiresAt - 60000) {
     return _tokenCache.token
   }
+  // Auth breaker open → fast-fail without touching keycloak or logging.
+  if (now < _authFail.openUntil) {
+    throw _makeAuthError()
+  }
   if (_tokenInflight) return _tokenInflight
 
   _tokenInflight = (async () => {
@@ -202,19 +239,34 @@ async function getAccessToken() {
           token:     res.data.access_token,
           expiresAt: Date.now() + (res.data.expires_in * 1000)
         }
+        // Recovered — clear any open auth breaker.
+        _authFail.openUntil = 0
+        _authFail.lastError = null
+        _authFail.loggedForWindow = false
 
         console.log(`[Contabo] Token acquired (attempt ${attempt}), expires in ${res.data.expires_in}s`)
         return _tokenCache.token
       } catch (err) {
         const grantErr = err?.response?.data?.error === 'invalid_grant'
-        console.error(
-          `[Contabo] Token fetch failed (attempt ${attempt}):`,
-          err?.response?.data || err.message
-        )
         if (attempt === 2 || !grantErr) {
-          throw new Error('VPS provider authentication failed')
+          // Terminal auth failure — open the breaker and log the reason ONCE
+          // per cooldown window (was logging on every single call before).
+          const detail = err?.response?.data || err.message
+          _authFail.lastError = typeof detail === 'string' ? detail : (detail?.error || 'auth failed')
+          const alreadyOpen = Date.now() < _authFail.openUntil
+          _authFail.openUntil = Date.now() + _authCooldownMs()
+          if (!alreadyOpen || !_authFail.loggedForWindow) {
+            _authFail.loggedForWindow = true
+            console.error(
+              `[Contabo] 🔌 Auth circuit OPEN — token fetch failed:`,
+              detail,
+              `— suppressing further attempts for ${Math.round(_authCooldownMs() / 60000)}m`
+            )
+          }
+          throw _makeAuthError()
         }
-        // brief backoff before the retry
+        // Transient invalid_grant — brief backoff before the one retry.
+        console.error(`[Contabo] Token fetch failed (attempt ${attempt}): invalid_grant — retrying`)
         await new Promise(r => setTimeout(r, 1500))
       }
     }
@@ -1220,10 +1272,16 @@ module.exports = {
   getCircuitState,
   resetProvisioningCircuit,
   onProvisioningCircuitOpen,
+  // Auth circuit breaker (credential health) — lets callers skip a whole batch
+  // instead of failing (and logging) per-instance when creds are rejected.
+  isAuthHealthy,
   // Test hook (read-only diagnostics): simulate a createInstance failure so a
   // dev self-check can assert the systemic-400 breaker behaviour without a real
   // paid order. Always paired with resetProvisioningCircuit() by the caller.
   __simulateCreateError: (status, message) => _trackCreateResult(false, { status, message }),
+
+  // Test hook: exercise the auth breaker without the full apiRequest stack.
+  __getAccessTokenForTest: getAccessToken,
 
   // Low-level
   apiRequest

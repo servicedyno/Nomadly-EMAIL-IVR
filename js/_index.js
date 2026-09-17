@@ -36059,6 +36059,7 @@ async function reconcileContaboOrphans() {
 // plan is moved there, the main vpsPlansOf collection no longer contains it
 // so this sweep stops touching it.
 const SELF_HEAL_GRACE_DAYS = 2  // tolerance: Contabo cancelDate vs DB end_time
+let _vpsAuthDownLoggedAt = 0    // throttles the "Contabo auth down" skip log (≤1 / 6h)
 async function selfHealRenewedAfterCancelVPS() {
   if (!vpsPlansOf || typeof vpsPlansOf.find !== 'function') {
     console.log('[VPS Self-heal] Database not ready — skipping')
@@ -36075,6 +36076,17 @@ async function selfHealRenewedAfterCancelVPS() {
   let alerted = 0
   try {
     const contabo = require('./contabo-service.js')
+    // If Contabo credentials are in a known-broken back-off window, skip the
+    // whole sweep with ONE throttled log instead of failing (and logging) per
+    // instance — prod log had 96 "Could not fetch … authentication failed"/48h.
+    const authH = contabo.isAuthHealthy()
+    if (!authH.healthy) {
+      if (Date.now() - _vpsAuthDownLoggedAt > 6 * 60 * 60 * 1000) {
+        _vpsAuthDownLoggedAt = Date.now()
+        log(`[VPS Self-heal] SKIP — Contabo auth down (${authH.lastError || 'invalid credentials'}); backing off ${authH.minutesLeft || '?'}m`)
+      }
+      return
+    }
     // Bucket A: DB cancelled/deleted (renewed-after-cancel + cancel-never-propagated)
     const cancelled = await vpsPlansOf.find({
       status: { $in: ['CANCELLED', 'DELETED'] },
@@ -36152,6 +36164,10 @@ async function selfHealRenewedAfterCancelVPS() {
           await vpsPlansOf.updateOne({ _id: plan._id }, { $set: { _contaboCancelledEarly: true, _selfHealAttemptedAt: new Date(), _selfHealReason: 'contabo_404_on_lookup' } })
           continue
         }
+        if (err?.code === 'VPS_AUTH_DOWN') {
+          log(`[VPS Self-heal] Contabo auth down mid-cycle — aborting remaining backfill checks`)
+          break
+        }
         log(`[VPS Self-heal] BACKFILL fetch ${cid} failed: ${err.message || err}`)
       }
     }
@@ -36202,6 +36218,10 @@ async function selfHealRenewedAfterCancelVPS() {
             log(`[VPS Self-heal] ${cid} 404 archive failed (${archErr.message}); stamped instead`)
           }
           continue
+        }
+        if (err?.code === 'VPS_AUTH_DOWN') {
+          log(`[VPS Self-heal] Contabo auth down mid-cycle — aborting remaining checks`)
+          break
         }
         log(`[VPS Self-heal] Could not fetch ${cid}: ${err.message || err}`)
         continue
