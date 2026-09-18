@@ -724,16 +724,16 @@
 {"t":"2026-09-16T19:58:56.291641084Z","s":"error","m":"[Contabo] Token fetch failed (attempt 1): {"}
 {"t":"2026-09-16T20:00:06.488548202Z","s":"error","m":"[Contabo] Token fetch failed (attempt 1): {"}
 {"t":"2026-09-16T20:00:06.488560482Z","s":"info","m":"[VPS Self-heal] Could not fetch 203508080: VPS provider authentication failed"}
-{"t":"2026-09-16T20:06:12.546342647Z","s":"info","m":"[BulkIVR] Status: campaign=a87f4598-f362-4376-a990-aeb9ef881acf lead=4 sid=CAdea9c48c7e12cdb389239f969140ccbe status=failed duration=0s"}
-{"t":"2026-09-16T20:06:12.567891058Z","s":"info","m":"[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=a87f4598-f362-4376-a990-aeb9ef881acf lead=4"}
-{"t":"2026-09-16T20:06:13.492690298Z","s":"info","m":"[BulkIVR] Status: campaign=a87f4598-f362-4376-a990-aeb9ef881acf lead=5 sid=CAd36916db032d5a0a244caf853e426d38 status=failed duration=0s"}
-{"t":"2026-09-16T20:06:13.511355924Z","s":"info","m":"[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=a87f4598-f362-4376-a990-aeb9ef881acf lead=5"}
-{"t":"2026-09-16T20:10:23.714383766Z","s":"info","m":"[BulkIVR] Status: campaign=4a212f77-8250-4df5-aa8a-4237f1c89a2b lead=14 sid=CA8d3ca024353ca5aaeaa5675d8e550c7a status=failed duration=0s"}
-{"t":"2026-09-16T20:10:23.714390925Z","s":"info","m":"[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=4a212f77-8250-4df5-aa8a-4237f1c89a2b lead=14"}
-{"t":"2026-09-16T20:10:24.706188972Z","s":"info","m":"[BulkIVR] Status: campaign=4a212f77-8250-4df5-aa8a-4237f1c89a2b lead=15 sid=CAc8794233372c3c88c554c5a41fcacde2 status=failed duration=0s"}
-{"t":"2026-09-16T20:10:24.706192742Z","s":"info","m":"[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=4a212f77-8250-4df5-aa8a-4237f1c89a2b lead=15"}
-{"t":"2026-09-16T20:10:26.851626578Z","s":"info","m":"[BulkIVR] Status: campaign=4a212f77-8250-4df5-aa8a-4237f1c89a2b lead=15 sid=CA16ac332b1f70ea0e713cf3b10d6ba679 status=failed duration=0s"}
-{"t":"2026-09-16T20:10:26.860822489Z","s":"info","m":"[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=4a212f77-8250-4df5-aa8a-4237f1c89a2b lead=15"}
+{"t":"2026-09-16T20:06:12.546342647Z","s":"info","m":"[BulkIVR] Status: campaign=vault-auth-7 lead=4 sid=CAdea9c48c7e12cdb389239f969140ccbe status=failed duration=0s"}
+{"t":"2026-09-16T20:06:12.567891058Z","s":"info","m":"[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=vault-auth-7 lead=4"}
+{"t":"2026-09-16T20:06:13.492690298Z","s":"info","m":"[BulkIVR] Status: campaign=vault-auth-7 lead=5 sid=CAd36916db032d5a0a244caf853e426d38 status=failed duration=0s"}
+{"t":"2026-09-16T20:06:13.511355924Z","s":"info","m":"[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=vault-auth-7 lead=5"}
+{"t":"2026-09-16T20:10:23.714383766Z","s":"info","m":"[BulkIVR] Status: campaign=vault-auth-7 lead=14 sid=CA8d3ca024353ca5aaeaa5675d8e550c7a status=failed duration=0s"}
+{"t":"2026-09-16T20:10:23.714390925Z","s":"info","m":"[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=vault-auth-7 lead=14"}
+{"t":"2026-09-16T20:10:24.706188972Z","s":"info","m":"[BulkIVR] Status: campaign=vault-auth-7 lead=15 sid=CAc8794233372c3c88c554c5a41fcacde2 status=failed duration=0s"}
+{"t":"2026-09-16T20:10:24.706192742Z","s":"info","m":"[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=vault-auth-7 lead=15"}
+{"t":"2026-09-16T20:10:26.851626578Z","s":"info","m":"[BulkIVR] Status: campaign=vault-auth-7 lead=15 sid=CA16ac332b1f70ea0e713cf3b10d6ba679 status=failed duration=0s"}
+{"t":"2026-09-16T20:10:26.860822489Z","s":"info","m":"[BulkCall] Skipped billing — call never connected (status=failed, 0s) campaign=vault-auth-7 lead=15"}
 {"t":"2026-09-16T20:20:08.803276071Z","s":"error","m":"Error in getting Crypto address Request failed with status code 401"}
 {"t":"2026-09-16T20:26:23.647028372Z","s":"info","m":"[PhoneMonitor] === Health check complete: 39 checked, 0 newly suspended, 0 inactive_released, 0 auth-failed ==="}
 {"t":"2026-09-16T20:30:05.552025844Z","s":"error","m":"[Contabo] Token fetch failed (attempt 1): {"}

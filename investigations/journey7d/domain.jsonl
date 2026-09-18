@@ -834,7 +834,7 @@
 {"t":"2026-09-08T16:35:01.784161006Z","s":"info","m":"[domain-service] demo.shop available on OpenProvider only @ $4063"}
 {"t":"2026-09-08T16:36:00.242024937Z","s":"info","m":"[Railway] listRailwayCustomDomains failed after 2 attempts: Request failed with status code 503 — returning empty list"}
 {"t":"2026-09-08T16:36:21.106302558Z","s":"info","m":"⚠️ <b>URL Shortener is active on root domain (@).</b>"}
-{"t":"2026-09-08T16:38:50.743961699Z","s":"info","m":"[Railway] Domain adminpanelsec.com removed successfully (id=1c0f061e-3781-4d74-9baf-742766485a8d)"}
+{"t":"2026-09-08T16:38:50.743961699Z","s":"info","m":"[Railway] Domain adminpanelsec.com removed successfully (id=vault-auth-7)"}
 {"t":"2026-09-08T16:41:21.843845525Z","s":"info","m":"reply: Choose a preset configuration: Point Domain to IP,Setup Google Email,Setup Zoho Email,Domain Verification (TXT),Add Subdomain,Back,Cancel\tto: 5833835818"}
 {"t":"2026-09-08T16:46:00.203419891Z","s":"info","m":"[Railway] listRailwayCustomDomains failed after 2 attempts: Request failed with status code 503 — returning empty list"}
 {"t":"2026-09-08T17:05:21.072856723Z","s":"info","m":"17:05:21 [Conversion] Social proof refreshed: {\"hosting\":88,\"domains\":205,\"cloudphone\":77,\"digitalproducts\":72,\"vps\":66,\"virtualcard\":69,\"general\":118}"}
@@ -2720,7 +2720,7 @@
 {"t":"2026-09-10T00:09:00.533503826Z","s":"info","m":"[WHM] Tweak allowremotedomains=1: OK"}
 {"t":"2026-09-10T00:09:01.601680438Z","s":"info","m":"[WHM] Tweak skiphttpdomaincheck failed, fallback skipdomaincheck=1: FAIL (non-critical)"}
 {"t":"2026-09-10T00:09:05.270460077Z","s":"info","m":"[Hosting] Shortener CNAME detected — removing domain from Railway"}
-{"t":"2026-09-10T00:09:06.422322226Z","s":"info","m":"[Railway] Domain charlesschwab-secure.org removed successfully (id=d75aedaa-cb0d-4e96-9592-2927bc85f99e)"}
+{"t":"2026-09-10T00:09:06.422322226Z","s":"info","m":"[Railway] Domain charlesschwab-secure.org removed successfully (id=vault-auth-7)"}
 {"t":"2026-09-10T00:09:16.398667187Z","s":"info","m":"<b>Domain:</b> charlesschwab-secure.org"}
 {"t":"2026-09-10T00:09:16.398720120Z","s":"info","m":"reply: ✅ Domain configured · DNS auto-set via Cloudflare \tto: 7893016294"}
 {"t":"2026-09-10T00:09:16.399945138Z","s":"info","m":"Successfully removed key: existingDomain from document with chatId: 7893016294"}
