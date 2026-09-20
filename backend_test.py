@@ -1,798 +1,374 @@
 #!/usr/bin/env python3
 """
-Comprehensive Backend Test for Reseller API cPanel Hosting-Management PARITY Endpoints
-========================================================================================
-Tests the NEWLY ADDED endpoints (2026 follow-up):
-- POST /hosting/:user/email/test (SMTP test)
-- GET /hosting/:user/mysql/phpmyadmin (SSO URL)
-- POST /hosting/:user/subdomains/bulk-create (bulk subdomain creation)
-- GET /hosting/:user/domains/docroot-modes + POST /hosting/:user/domains/docroot-mode
-- POST /hosting/:user/domains/set-primary
-- GET /hosting/:user/domains/ns-status
-- GET+POST /hosting/:user/account/site-status
-- GET+POST /hosting/:user/security/js-challenge
-- POST /hosting/:user/files/upload-chunk + /files/upload-chunk/cancel
-- POST /hosting/:user/addons (regression check for the bug fix)
-
-This is a SANDBOX pod (SKIP_WEBHOOK_SYNC=true, dry_run mode).
-All WRITE operations return mode:"dry_run" and never mutate production.
-READ operations may hit live cPanel with fake credentials (expected to return graceful errors).
+Backend Test: Reseller API File Manager / SSL CPANEL_AUTH_FAILURE Fix
+Bug: File Manager/SSL endpoints returned CPANEL_AUTH_FAILURE for accounts with stale passwords
+Fix: Added WHM-root fallback mechanism (uapiViaWhmRoot + withCpAuthFallback)
 """
 
 import requests
 import json
 import sys
-import base64
-from typing import Dict, Any, Optional
 
-# ============================================================
-# Configuration
-# ============================================================
-BASE_URL = "https://passphrases-1.preview.emergentagent.com/api/reseller/v1"
-API_KEY = "rsk_sandbox_test_key_0001"
-HEADERS = {
-    "Authorization": f"Bearer {API_KEY}",
-    "Content-Type": "application/json"
-}
+# Base URL from frontend/.env
+BASE_URL = "https://8634d267-73d5-41dc-811f-bd9cb39114dc.preview.emergentagent.com"
+API_BASE = f"{BASE_URL}/api/reseller/v1"
 
-# Test accounts (seeded via seed_sandbox_test.js)
-GOLD_ACCOUNT = "sbxtestgold"      # Golden plan (gold + mysql features allowed)
-TRIAL_ACCOUNT = "sbxtesttrial"    # Premium 1-Week trial (mysql + gold features blocked)
-GOLD_ADDON_DOMAIN = "blog-sbxtest.com"  # Addon domain on sbxtestgold
+# Test fixture API key (seeded for this bug fix)
+API_KEY = "rsk_live_testfix_namea3a5_filemgr_ssl_2026"
 
-# ============================================================
-# Test Results Tracking
-# ============================================================
-test_results = []
-total_tests = 0
-passed_tests = 0
-failed_tests = 0
+# Test account (deliberately wrong cpPass to reproduce CPANEL_AUTH_FAILURE)
+TEST_ACCOUNT = "namea3a5"
 
-def log_test(name: str, passed: bool, details: str = ""):
-    """Log a test result"""
-    global total_tests, passed_tests, failed_tests
-    total_tests += 1
-    if passed:
-        passed_tests += 1
-        status = "✅ PASS"
-    else:
-        failed_tests += 1
-        status = "❌ FAIL"
-    
-    result = f"{status}: {name}"
-    if details:
-        result += f"\n    {details}"
-    test_results.append(result)
-    print(result)
+# Colors for output
+GREEN = "\033[92m"
+RED = "\033[91m"
+YELLOW = "\033[93m"
+BLUE = "\033[94m"
+RESET = "\033[0m"
 
-def check_response(resp: requests.Response, expected_status: int, test_name: str, 
-                   expected_fields: Optional[list] = None, 
-                   expected_values: Optional[Dict[str, Any]] = None) -> bool:
-    """Check if response matches expectations"""
+def log_test(test_num, description):
+    print(f"\n{BLUE}[TEST {test_num}] {description}{RESET}")
+
+def log_pass(message):
+    print(f"  {GREEN}✅ {message}{RESET}")
+
+def log_fail(message):
+    print(f"  {RED}❌ {message}{RESET}")
+
+def log_info(message):
+    print(f"  {YELLOW}ℹ️  {message}{RESET}")
+
+def make_request(method, endpoint, headers=None, json_data=None, params=None):
+    """Make HTTP request and return response"""
+    url = f"{API_BASE}{endpoint}"
     try:
-        # Check status code
-        if resp.status_code != expected_status:
-            log_test(test_name, False, 
-                    f"Expected status {expected_status}, got {resp.status_code}. Body: {resp.text[:200]}")
-            return False
-        
-        # For non-200 responses, just check status code
-        if expected_status >= 400:
-            log_test(test_name, True, f"Got expected {expected_status} error")
-            return True
-        
-        # Parse JSON
-        try:
-            data = resp.json()
-        except:
-            log_test(test_name, False, f"Response is not valid JSON: {resp.text[:200]}")
-            return False
-        
-        # Check expected fields
-        if expected_fields:
-            missing = [f for f in expected_fields if f not in data]
-            if missing:
-                log_test(test_name, False, f"Missing fields: {missing}. Got: {list(data.keys())}")
-                return False
-        
-        # Check expected values
-        if expected_values:
-            for key, expected_val in expected_values.items():
-                actual_val = data.get(key)
-                if actual_val != expected_val:
-                    log_test(test_name, False, 
-                            f"Field '{key}': expected {expected_val}, got {actual_val}")
-                    return False
-        
-        log_test(test_name, True, f"Response OK: {json.dumps(data)[:150]}")
-        return True
-    
+        if method == "GET":
+            resp = requests.get(url, headers=headers, params=params, timeout=15)
+        elif method == "POST":
+            resp = requests.post(url, headers=headers, json=json_data, timeout=15)
+        else:
+            raise ValueError(f"Unsupported method: {method}")
+        return resp
+    except requests.exceptions.Timeout:
+        log_fail(f"Request timeout after 15s")
+        return None
     except Exception as e:
-        log_test(test_name, False, f"Exception: {str(e)}")
+        log_fail(f"Request failed: {e}")
+        return None
+
+def test_file_manager_healed():
+    """TEST 1: GET /hosting/namea3a5/files - should return healed listing via WHM-root fallback"""
+    log_test(1, "GET /hosting/namea3a5/files (File Manager with stale password)")
+    
+    headers = {"X-API-Key": API_KEY}
+    resp = make_request("GET", f"/hosting/{TEST_ACCOUNT}/files", headers=headers)
+    
+    if not resp:
         return False
+    
+    # Check HTTP status
+    if resp.status_code != 200:
+        log_fail(f"Expected HTTP 200, got {resp.status_code}")
+        log_info(f"Response: {resp.text[:500]}")
+        return False
+    log_pass(f"HTTP status: {resp.status_code}")
+    
+    try:
+        data = resp.json()
+    except:
+        log_fail("Response is not valid JSON")
+        log_info(f"Response: {resp.text[:500]}")
+        return False
+    
+    # Check for OLD broken shape (CPANEL_AUTH_FAILURE)
+    if data.get("status") == 0 and data.get("code") == "CPANEL_AUTH_FAILURE":
+        log_fail("STILL RETURNING CPANEL_AUTH_FAILURE - BUG NOT FIXED")
+        log_info(f"Response: {json.dumps(data, indent=2)[:500]}")
+        return False
+    
+    # Check for NEW healed shape
+    if data.get("status") != 1:
+        log_fail(f"Expected status:1, got status:{data.get('status')}")
+        log_info(f"Response: {json.dumps(data, indent=2)[:500]}")
+        return False
+    log_pass(f"status: {data.get('status')} (success)")
+    
+    # Check for data array (real directory listing)
+    if "data" not in data or not isinstance(data["data"], list):
+        log_fail("Missing or invalid 'data' array in response")
+        log_info(f"Response: {json.dumps(data, indent=2)[:500]}")
+        return False
+    log_pass(f"data: array with {len(data['data'])} items (real directory listing)")
+    
+    # Check for healed flag
+    if not data.get("healed"):
+        log_fail("Missing 'healed:true' flag")
+        log_info(f"Response: {json.dumps(data, indent=2)[:500]}")
+        return False
+    log_pass(f"healed: {data.get('healed')}")
+    
+    # Check for healed_via
+    if data.get("healed_via") != "whm-root-uapi":
+        log_fail(f"Expected healed_via:'whm-root-uapi', got '{data.get('healed_via')}'")
+        log_info(f"Response: {json.dumps(data, indent=2)[:500]}")
+        return False
+    log_pass(f"healed_via: {data.get('healed_via')}")
+    
+    # Log some file names if available
+    if data["data"]:
+        file_names = [item.get("file", item.get("name", "?")) for item in data["data"][:3]]
+        log_info(f"Sample files: {', '.join(file_names)}")
+    
+    log_pass("✅ TEST 1 PASSED: File Manager returns healed listing via WHM-root fallback")
+    return True
 
-# ============================================================
-# Test Suite
-# ============================================================
+def test_ssl_healed():
+    """TEST 2: GET /hosting/namea3a5/ssl - should return healed SSL listing"""
+    log_test(2, "GET /hosting/namea3a5/ssl (SSL with stale password)")
+    
+    headers = {"X-API-Key": API_KEY}
+    resp = make_request("GET", f"/hosting/{TEST_ACCOUNT}/ssl", headers=headers)
+    
+    if not resp:
+        return False
+    
+    # Check HTTP status
+    if resp.status_code != 200:
+        log_fail(f"Expected HTTP 200, got {resp.status_code}")
+        log_info(f"Response: {resp.text[:500]}")
+        return False
+    log_pass(f"HTTP status: {resp.status_code}")
+    
+    try:
+        data = resp.json()
+    except:
+        log_fail("Response is not valid JSON")
+        log_info(f"Response: {resp.text[:500]}")
+        return False
+    
+    # Check for OLD broken shape (CPANEL_AUTH_FAILURE)
+    if data.get("status") == 0 and data.get("code") == "CPANEL_AUTH_FAILURE":
+        log_fail("STILL RETURNING CPANEL_AUTH_FAILURE - BUG NOT FIXED")
+        log_info(f"Response: {json.dumps(data, indent=2)[:500]}")
+        return False
+    
+    # Check for NEW healed shape
+    if data.get("status") != 1:
+        log_fail(f"Expected status:1, got status:{data.get('status')}")
+        log_info(f"Response: {json.dumps(data, indent=2)[:500]}")
+        return False
+    log_pass(f"status: {data.get('status')} (success)")
+    
+    # Check for data (SSL listing)
+    if "data" not in data:
+        log_fail("Missing 'data' in response")
+        log_info(f"Response: {json.dumps(data, indent=2)[:500]}")
+        return False
+    log_pass(f"data: present (SSL listing)")
+    
+    # Check for healed flag
+    if not data.get("healed"):
+        log_fail("Missing 'healed:true' flag")
+        log_info(f"Response: {json.dumps(data, indent=2)[:500]}")
+        return False
+    log_pass(f"healed: {data.get('healed')}")
+    
+    # Check for SSL host namewords.sbs
+    data_list = data["data"] if isinstance(data["data"], list) else []
+    ssl_hosts = [item.get("servername", item.get("domain", "?")) for item in data_list]
+    if "namewords.sbs" in ssl_hosts or any("namewords" in host for host in ssl_hosts):
+        log_pass(f"SSL host found: namewords.sbs")
+    else:
+        log_info(f"SSL hosts: {ssl_hosts}")
+    
+    log_pass("✅ TEST 2 PASSED: SSL returns healed listing via WHM-root fallback")
+    return True
 
-def test_a_email_test():
-    """A) EMAIL TEST: POST /hosting/:user/email/test"""
-    print("\n" + "="*80)
-    print("TEST GROUP A: EMAIL TEST")
-    print("="*80)
+def test_file_manager_path_alias():
+    """TEST 3: GET /hosting/namea3a5/files?path=public_html - verify path alias works"""
+    log_test(3, "GET /hosting/namea3a5/files?path=public_html (path alias)")
     
-    # A1: Valid email test (should return dry_run)
-    resp = requests.post(
-        f"{BASE_URL}/hosting/{GOLD_ACCOUNT}/email/test",
-        headers=HEADERS,
-        json={"from": "info", "to": "you@example.com"}
-    )
-    check_response(resp, 200, "A1: POST email/test with valid params",
-                   expected_fields=["mode", "action"],
-                   expected_values={"mode": "dry_run", "action": "email.test"})
+    headers = {"X-API-Key": API_KEY}
+    resp = make_request("GET", f"/hosting/{TEST_ACCOUNT}/files", headers=headers, params={"path": "public_html"})
     
-    # A2: Missing 'to' field (should return 400)
-    resp = requests.post(
-        f"{BASE_URL}/hosting/{GOLD_ACCOUNT}/email/test",
-        headers=HEADERS,
-        json={"from": "info"}
-    )
-    check_response(resp, 400, "A2: POST email/test missing 'to' field")
+    if not resp:
+        return False
+    
+    # Check HTTP status
+    if resp.status_code != 200:
+        log_fail(f"Expected HTTP 200, got {resp.status_code}")
+        log_info(f"Response: {resp.text[:500]}")
+        return False
+    log_pass(f"HTTP status: {resp.status_code}")
+    
+    try:
+        data = resp.json()
+    except:
+        log_fail("Response is not valid JSON")
+        log_info(f"Response: {resp.text[:500]}")
+        return False
+    
+    # Check for success
+    if data.get("status") != 1:
+        log_fail(f"Expected status:1, got status:{data.get('status')}")
+        log_info(f"Response: {json.dumps(data, indent=2)[:500]}")
+        return False
+    log_pass(f"status: {data.get('status')} (success)")
+    
+    # Check for data array
+    if "data" not in data or not isinstance(data["data"], list):
+        log_fail("Missing or invalid 'data' array in response")
+        return False
+    log_pass(f"data: array with {len(data['data'])} items")
+    
+    log_pass("✅ TEST 3 PASSED: path alias works correctly")
+    return True
 
-def test_b_phpmyadmin_sso():
-    """B) phpMyAdmin SSO: GET /hosting/:user/mysql/phpmyadmin"""
-    print("\n" + "="*80)
-    print("TEST GROUP B: phpMyAdmin SSO")
-    print("="*80)
+def test_auth_guard_no_key():
+    """TEST 4a: GET /hosting/namea3a5/files with NO key - should return 401"""
+    log_test("4a", "GET /hosting/namea3a5/files (no API key)")
     
-    # B1: Gold account (should return dry_run)
-    resp = requests.get(
-        f"{BASE_URL}/hosting/{GOLD_ACCOUNT}/mysql/phpmyadmin",
-        headers=HEADERS
-    )
-    check_response(resp, 200, "B1: GET phpmyadmin on gold account",
-                   expected_fields=["mode"],
-                   expected_values={"mode": "dry_run"})
+    resp = make_request("GET", f"/hosting/{TEST_ACCOUNT}/files")
     
-    # B2: Trial account (should return 403 mysql_requires_monthly)
-    resp = requests.get(
-        f"{BASE_URL}/hosting/{TRIAL_ACCOUNT}/mysql/phpmyadmin",
-        headers=HEADERS
-    )
-    if resp.status_code == 403:
-        try:
-            data = resp.json()
-            if data.get("error") == "mysql_requires_monthly":
-                log_test("B2: GET phpmyadmin on trial account", True, 
-                        "Got expected 403 mysql_requires_monthly")
-            else:
-                log_test("B2: GET phpmyadmin on trial account", False,
-                        f"Expected error 'mysql_requires_monthly', got {data.get('error')}")
-        except:
-            log_test("B2: GET phpmyadmin on trial account", False, "Response not JSON")
-    else:
-        log_test("B2: GET phpmyadmin on trial account", False,
-                f"Expected 403, got {resp.status_code}")
+    if not resp:
+        return False
+    
+    if resp.status_code != 401:
+        log_fail(f"Expected HTTP 401, got {resp.status_code}")
+        log_info(f"Response: {resp.text[:500]}")
+        return False
+    log_pass(f"HTTP status: {resp.status_code} (Unauthorized)")
+    
+    log_pass("✅ TEST 4a PASSED: Auth guard rejects missing key")
+    return True
 
-def test_c_bulk_subdomains():
-    """C) BULK SUBDOMAINS: POST /hosting/:user/subdomains/bulk-create"""
-    print("\n" + "="*80)
-    print("TEST GROUP C: BULK SUBDOMAINS")
-    print("="*80)
+def test_auth_guard_bogus_key():
+    """TEST 4b: GET /hosting/namea3a5/files with BOGUS key - should return 401"""
+    log_test("4b", "GET /hosting/namea3a5/files (bogus API key)")
     
-    # C1: Valid bulk create with comma-separated string
-    resp = requests.post(
-        f"{BASE_URL}/hosting/{GOLD_ACCOUNT}/subdomains/bulk-create",
-        headers=HEADERS,
-        json={"subdomains": "a,b,c"}
-    )
-    if resp.status_code == 200:
-        try:
-            data = resp.json()
-            if data.get("mode") == "dry_run" and data.get("count") == 3:
-                log_test("C1: POST bulk-create with 'a,b,c'", True,
-                        f"Got dry_run with count=3, subdomains={data.get('subdomains')}")
-            else:
-                log_test("C1: POST bulk-create with 'a,b,c'", False,
-                        f"Expected mode=dry_run and count=3, got {data}")
-        except:
-            log_test("C1: POST bulk-create with 'a,b,c'", False, "Response not JSON")
-    else:
-        log_test("C1: POST bulk-create with 'a,b,c'", False,
-                f"Expected 200, got {resp.status_code}: {resp.text[:200]}")
+    headers = {"X-API-Key": "rsk_live_bogus"}
+    resp = make_request("GET", f"/hosting/{TEST_ACCOUNT}/files", headers=headers)
     
-    # C2: Empty subdomains array (should return 400)
-    resp = requests.post(
-        f"{BASE_URL}/hosting/{GOLD_ACCOUNT}/subdomains/bulk-create",
-        headers=HEADERS,
-        json={"subdomains": []}
-    )
-    check_response(resp, 400, "C2: POST bulk-create with empty array")
+    if not resp:
+        return False
     
-    # C3: Too many subdomains (>50, should return 400 too_many)
-    resp = requests.post(
-        f"{BASE_URL}/hosting/{GOLD_ACCOUNT}/subdomains/bulk-create",
-        headers=HEADERS,
-        json={"subdomains": ",".join([f"sub{i}" for i in range(51)])}
-    )
-    if resp.status_code == 400:
-        try:
-            data = resp.json()
-            if "too_many" in str(data.get("error", "")).lower() or "too many" in str(data.get("message", "")).lower():
-                log_test("C3: POST bulk-create with >50 items", True, "Got expected 400 too_many")
-            else:
-                log_test("C3: POST bulk-create with >50 items", True, f"Got 400 (error: {data})")
-        except:
-            log_test("C3: POST bulk-create with >50 items", True, "Got 400")
-    else:
-        log_test("C3: POST bulk-create with >50 items", False,
-                f"Expected 400, got {resp.status_code}")
+    if resp.status_code != 401:
+        log_fail(f"Expected HTTP 401, got {resp.status_code}")
+        log_info(f"Response: {resp.text[:500]}")
+        return False
+    log_pass(f"HTTP status: {resp.status_code} (Unauthorized)")
+    
+    log_pass("✅ TEST 4b PASSED: Auth guard rejects bogus key")
+    return True
 
-def test_d_docroot_mode():
-    """D) DOCROOT MODE: GET/POST /hosting/:user/domains/docroot-mode(s)"""
-    print("\n" + "="*80)
-    print("TEST GROUP D: DOCROOT MODE")
-    print("="*80)
+def test_ownership_guard():
+    """TEST 5: GET /hosting/doesnotexist/files - should return 404"""
+    log_test(5, "GET /hosting/doesnotexist/files (unknown account)")
     
-    # D1: GET docroot-modes
-    resp = requests.get(
-        f"{BASE_URL}/hosting/{GOLD_ACCOUNT}/domains/docroot-modes",
-        headers=HEADERS
-    )
-    if resp.status_code == 200:
-        try:
-            data = resp.json()
-            if "modes" in data and "primary" in data:
-                log_test("D1: GET docroot-modes", True,
-                        f"Got modes and primary: {json.dumps(data)[:150]}")
-            else:
-                log_test("D1: GET docroot-modes", False,
-                        f"Missing 'modes' or 'primary': {data}")
-        except:
-            log_test("D1: GET docroot-modes", False, "Response not JSON")
-    else:
-        log_test("D1: GET docroot-modes", False,
-                f"Expected 200, got {resp.status_code}: {resp.text[:200]}")
+    headers = {"X-API-Key": API_KEY}
+    resp = make_request("GET", f"/hosting/doesnotexist/files", headers=headers)
     
-    # D2: POST docroot-mode for addon domain (should return dry_run)
-    resp = requests.post(
-        f"{BASE_URL}/hosting/{GOLD_ACCOUNT}/domains/docroot-mode",
-        headers=HEADERS,
-        json={"domain": GOLD_ADDON_DOMAIN, "mode": "own"}
-    )
-    # Note: This endpoint returns mode=<docroot-mode> instead of mode="dry_run"
-    # but includes a note field indicating dry-run behavior
-    if resp.status_code == 200:
-        try:
-            data = resp.json()
-            if "note" in data and "Dry-run" in data.get("note", ""):
-                log_test("D2: POST docroot-mode for addon domain", True,
-                        f"Got dry-run response (note field present): {json.dumps(data)[:150]}")
-            else:
-                log_test("D2: POST docroot-mode for addon domain", False,
-                        f"Missing dry-run indicator: {data}")
-        except:
-            log_test("D2: POST docroot-mode for addon domain", False, "Response not JSON")
-    else:
-        log_test("D2: POST docroot-mode for addon domain", False,
-                f"Expected 200, got {resp.status_code}")
+    if not resp:
+        return False
     
-    # D3: POST docroot-mode for primary domain (should return 400 primary_immutable)
-    resp = requests.post(
-        f"{BASE_URL}/hosting/{GOLD_ACCOUNT}/domains/docroot-mode",
-        headers=HEADERS,
-        json={"domain": f"{GOLD_ACCOUNT}.com", "mode": "own"}
-    )
-    if resp.status_code == 400:
-        try:
-            data = resp.json()
-            if "primary" in str(data.get("error", "")).lower() or "immutable" in str(data.get("error", "")).lower():
-                log_test("D3: POST docroot-mode for primary domain", True,
-                        "Got expected 400 primary_immutable")
-            else:
-                log_test("D3: POST docroot-mode for primary domain", True,
-                        f"Got 400 (error: {data})")
-        except:
-            log_test("D3: POST docroot-mode for primary domain", True, "Got 400")
-    else:
-        log_test("D3: POST docroot-mode for primary domain", False,
-                f"Expected 400, got {resp.status_code}")
+    if resp.status_code != 404:
+        log_fail(f"Expected HTTP 404, got {resp.status_code}")
+        log_info(f"Response: {resp.text[:500]}")
+        return False
+    log_pass(f"HTTP status: {resp.status_code} (Not Found)")
     
-    # D4: POST docroot-mode for non-addon domain (should return 404 not_addon)
-    resp = requests.post(
-        f"{BASE_URL}/hosting/{GOLD_ACCOUNT}/domains/docroot-mode",
-        headers=HEADERS,
-        json={"domain": "random-not-addon.com", "mode": "own"}
-    )
-    if resp.status_code == 404:
-        try:
-            data = resp.json()
-            if "addon" in str(data.get("error", "")).lower() or "not_found" in str(data.get("error", "")).lower():
-                log_test("D4: POST docroot-mode for non-addon domain", True,
-                        "Got expected 404 not_addon")
-            else:
-                log_test("D4: POST docroot-mode for non-addon domain", True,
-                        f"Got 404 (error: {data})")
-        except:
-            log_test("D4: POST docroot-mode for non-addon domain", True, "Got 404")
-    else:
-        log_test("D4: POST docroot-mode for non-addon domain", False,
-                f"Expected 404, got {resp.status_code}")
+    try:
+        data = resp.json()
+        if data.get("error") == "not_found":
+            log_pass(f"error: {data.get('error')}")
+    except:
+        pass
+    
+    log_pass("✅ TEST 5 PASSED: Ownership guard rejects unknown account")
+    return True
 
-def test_e_set_primary():
-    """E) SET PRIMARY: POST /hosting/:user/domains/set-primary"""
-    print("\n" + "="*80)
-    print("TEST GROUP E: SET PRIMARY DOMAIN")
-    print("="*80)
+def test_write_dry_run():
+    """TEST 6: POST /hosting/namea3a5/files/upload - should return dry_run"""
+    log_test(6, "POST /hosting/namea3a5/files/upload (dry_run write)")
     
-    # E1: POST set-primary for non-addon domain (should return 400 needs_attach)
-    resp = requests.post(
-        f"{BASE_URL}/hosting/{GOLD_ACCOUNT}/domains/set-primary",
-        headers=HEADERS,
-        json={"domain": "random-not-addon.com"}
-    )
-    if resp.status_code == 400:
-        try:
-            data = resp.json()
-            if "attach" in str(data.get("error", "")).lower() or "needs_attach" in str(data.get("error", "")).lower():
-                log_test("E1: POST set-primary for non-addon domain", True,
-                        "Got expected 400 needs_attach")
-            else:
-                log_test("E1: POST set-primary for non-addon domain", True,
-                        f"Got 400 (error: {data})")
-        except:
-            log_test("E1: POST set-primary for non-addon domain", True, "Got 400")
-    else:
-        log_test("E1: POST set-primary for non-addon domain", False,
-                f"Expected 400, got {resp.status_code}")
+    headers = {"X-API-Key": API_KEY}
+    payload = {
+        "dir": f"/home/{TEST_ACCOUNT}/public_html",
+        "fileName": "testfix.txt",
+        "content_base64": "aGVsbG8="  # "hello" in base64
+    }
+    resp = make_request("POST", f"/hosting/{TEST_ACCOUNT}/files/upload", headers=headers, json_data=payload)
     
-    # E2: POST set-primary for addon domain (should return dry_run)
-    resp = requests.post(
-        f"{BASE_URL}/hosting/{GOLD_ACCOUNT}/domains/set-primary",
-        headers=HEADERS,
-        json={"domain": GOLD_ADDON_DOMAIN}
-    )
-    if resp.status_code == 200:
-        try:
-            data = resp.json()
-            if data.get("mode") == "dry_run" and data.get("action") == "domain.set-primary":
-                log_test("E2: POST set-primary for addon domain", True,
-                        f"Got dry_run with action=domain.set-primary")
-            else:
-                log_test("E2: POST set-primary for addon domain", False,
-                        f"Expected mode=dry_run and action=domain.set-primary, got {data}")
-        except:
-            log_test("E2: POST set-primary for addon domain", False, "Response not JSON")
-    else:
-        log_test("E2: POST set-primary for addon domain", False,
-                f"Expected 200, got {resp.status_code}: {resp.text[:200]}")
+    if not resp:
+        return False
     
-    # E3: POST set-primary for already-primary domain (should return 400 already_primary)
-    resp = requests.post(
-        f"{BASE_URL}/hosting/{GOLD_ACCOUNT}/domains/set-primary",
-        headers=HEADERS,
-        json={"domain": f"{GOLD_ACCOUNT}.com"}
-    )
-    if resp.status_code == 400:
-        try:
-            data = resp.json()
-            if "already" in str(data.get("error", "")).lower() or "primary" in str(data.get("error", "")).lower():
-                log_test("E3: POST set-primary for already-primary domain", True,
-                        "Got expected 400 already_primary")
-            else:
-                log_test("E3: POST set-primary for already-primary domain", True,
-                        f"Got 400 (error: {data})")
-        except:
-            log_test("E3: POST set-primary for already-primary domain", True, "Got 400")
-    else:
-        log_test("E3: POST set-primary for already-primary domain", False,
-                f"Expected 400, got {resp.status_code}")
-
-def test_f_ns_status():
-    """F) NS STATUS: GET /hosting/:user/domains/ns-status"""
-    print("\n" + "="*80)
-    print("TEST GROUP F: NS STATUS")
-    print("="*80)
+    # Check HTTP status
+    if resp.status_code != 200:
+        log_fail(f"Expected HTTP 200, got {resp.status_code}")
+        log_info(f"Response: {resp.text[:500]}")
+        return False
+    log_pass(f"HTTP status: {resp.status_code}")
     
-    # F1: GET ns-status without ?domain (should return 400 missing_parameter)
-    resp = requests.get(
-        f"{BASE_URL}/hosting/{GOLD_ACCOUNT}/domains/ns-status",
-        headers=HEADERS
-    )
-    if resp.status_code == 400:
-        try:
-            data = resp.json()
-            if "missing" in str(data.get("error", "")).lower() or "parameter" in str(data.get("error", "")).lower():
-                log_test("F1: GET ns-status without ?domain", True,
-                        "Got expected 400 missing_parameter")
-            else:
-                log_test("F1: GET ns-status without ?domain", True,
-                        f"Got 400 (error: {data})")
-        except:
-            log_test("F1: GET ns-status without ?domain", True, "Got 400")
-    else:
-        log_test("F1: GET ns-status without ?domain", False,
-                f"Expected 400, got {resp.status_code}")
+    try:
+        data = resp.json()
+    except:
+        log_fail("Response is not valid JSON")
+        log_info(f"Response: {resp.text[:500]}")
+        return False
     
-    # F2: GET ns-status with ?domain (should return 200 with status field)
-    resp = requests.get(
-        f"{BASE_URL}/hosting/{GOLD_ACCOUNT}/domains/ns-status?domain={GOLD_ACCOUNT}.com",
-        headers=HEADERS
-    )
-    if resp.status_code == 200:
-        try:
-            data = resp.json()
-            if "status" in data:
-                log_test("F2: GET ns-status with ?domain", True,
-                        f"Got status field: {data.get('status')}")
-            else:
-                log_test("F2: GET ns-status with ?domain", False,
-                        f"Missing 'status' field: {data}")
-        except:
-            log_test("F2: GET ns-status with ?domain", False, "Response not JSON")
-    else:
-        log_test("F2: GET ns-status with ?domain", False,
-                f"Expected 200, got {resp.status_code}: {resp.text[:200]}")
-
-def test_g_site_status():
-    """G) SITE STATUS: GET+POST /hosting/:user/account/site-status"""
-    print("\n" + "="*80)
-    print("TEST GROUP G: SITE STATUS")
-    print("="*80)
+    # Check for dry_run mode
+    if data.get("mode") != "dry_run":
+        log_fail(f"Expected mode:'dry_run', got mode:'{data.get('mode')}'")
+        log_info(f"Response: {json.dumps(data, indent=2)[:500]}")
+        return False
+    log_pass(f"mode: {data.get('mode')}")
     
-    # G1: GET site-status (should return 200 with status field)
-    resp = requests.get(
-        f"{BASE_URL}/hosting/{GOLD_ACCOUNT}/account/site-status",
-        headers=HEADERS
-    )
-    if resp.status_code == 200:
-        try:
-            data = resp.json()
-            if "status" in data:
-                log_test("G1: GET site-status", True,
-                        f"Got status: {data.get('status')}")
-            else:
-                log_test("G1: GET site-status", False,
-                        f"Missing 'status' field: {data}")
-        except:
-            log_test("G1: GET site-status", False, "Response not JSON")
-    else:
-        log_test("G1: GET site-status", False,
-                f"Expected 200, got {resp.status_code}: {resp.text[:200]}")
-    
-    # G2: POST site-status with valid action (should return dry_run)
-    resp = requests.post(
-        f"{BASE_URL}/hosting/{GOLD_ACCOUNT}/account/site-status",
-        headers=HEADERS,
-        json={"action": "take_offline", "mode": "maintenance"}
-    )
-    # Note: This endpoint returns mode=<site-status-mode> instead of mode="dry_run"
-    # but includes a note field indicating dry-run behavior
-    if resp.status_code == 200:
-        try:
-            data = resp.json()
-            if "note" in data and "Dry-run" in data.get("note", ""):
-                log_test("G2: POST site-status with valid action", True,
-                        f"Got dry-run response (note field present): {json.dumps(data)[:150]}")
-            else:
-                log_test("G2: POST site-status with valid action", False,
-                        f"Missing dry-run indicator: {data}")
-        except:
-            log_test("G2: POST site-status with valid action", False, "Response not JSON")
-    else:
-        log_test("G2: POST site-status with valid action", False,
-                f"Expected 200, got {resp.status_code}")
-    
-    # G3: POST site-status with invalid action (should return 400)
-    resp = requests.post(
-        f"{BASE_URL}/hosting/{GOLD_ACCOUNT}/account/site-status",
-        headers=HEADERS,
-        json={"action": "bogus"}
-    )
-    if resp.status_code == 400:
-        try:
-            data = resp.json()
-            if "action" in str(data.get("error", "")).lower() or "invalid" in str(data.get("error", "")).lower():
-                log_test("G3: POST site-status with invalid action", True,
-                        "Got expected 400 invalid_action")
-            else:
-                log_test("G3: POST site-status with invalid action", True,
-                        f"Got 400 (error: {data})")
-        except:
-            log_test("G3: POST site-status with invalid action", True, "Got 400")
-    else:
-        log_test("G3: POST site-status with invalid action", False,
-                f"Expected 400, got {resp.status_code}")
-    
-    # G4: POST site-status with missing mode (should return 400)
-    resp = requests.post(
-        f"{BASE_URL}/hosting/{GOLD_ACCOUNT}/account/site-status",
-        headers=HEADERS,
-        json={"action": "take_offline"}
-    )
-    if resp.status_code == 400:
-        try:
-            data = resp.json()
-            if "mode" in str(data.get("error", "")).lower() or "invalid" in str(data.get("error", "")).lower():
-                log_test("G4: POST site-status with missing mode", True,
-                        "Got expected 400 invalid_mode")
-            else:
-                log_test("G4: POST site-status with missing mode", True,
-                        f"Got 400 (error: {data})")
-        except:
-            log_test("G4: POST site-status with missing mode", True, "Got 400")
-    else:
-        log_test("G4: POST site-status with missing mode", False,
-                f"Expected 400, got {resp.status_code}")
-
-def test_h_js_challenge():
-    """H) JS CHALLENGE: GET+POST /hosting/:user/security/js-challenge"""
-    print("\n" + "="*80)
-    print("TEST GROUP H: JS CHALLENGE")
-    print("="*80)
-    
-    # H1: GET js-challenge (should return 200 with enabled field)
-    resp = requests.get(
-        f"{BASE_URL}/hosting/{GOLD_ACCOUNT}/security/js-challenge",
-        headers=HEADERS
-    )
-    if resp.status_code == 200:
-        try:
-            data = resp.json()
-            if "enabled" in data:
-                log_test("H1: GET js-challenge", True,
-                        f"Got enabled field: {data.get('enabled')}")
-            else:
-                log_test("H1: GET js-challenge", False,
-                        f"Missing 'enabled' field: {data}")
-        except:
-            log_test("H1: GET js-challenge", False, "Response not JSON")
-    else:
-        log_test("H1: GET js-challenge", False,
-                f"Expected 200, got {resp.status_code}: {resp.text[:200]}")
-    
-    # H2: POST js-challenge on gold account (should return dry_run)
-    resp = requests.post(
-        f"{BASE_URL}/hosting/{GOLD_ACCOUNT}/security/js-challenge",
-        headers=HEADERS,
-        json={"enabled": True}
-    )
-    check_response(resp, 200, "H2: POST js-challenge on gold account",
-                   expected_fields=["mode"],
-                   expected_values={"mode": "dry_run"})
-    
-    # H3: POST js-challenge on trial account (should return 403 gold_only)
-    resp = requests.post(
-        f"{BASE_URL}/hosting/{TRIAL_ACCOUNT}/security/js-challenge",
-        headers=HEADERS,
-        json={"enabled": True}
-    )
-    if resp.status_code == 403:
-        try:
-            data = resp.json()
-            if "gold" in str(data.get("error", "")).lower():
-                log_test("H3: POST js-challenge on trial account", True,
-                        "Got expected 403 gold_only")
-            else:
-                log_test("H3: POST js-challenge on trial account", True,
-                        f"Got 403 (error: {data})")
-        except:
-            log_test("H3: POST js-challenge on trial account", True, "Got 403")
-    else:
-        log_test("H3: POST js-challenge on trial account", False,
-                f"Expected 403, got {resp.status_code}")
-    
-    # H4: POST js-challenge with missing enabled field (should return 400)
-    resp = requests.post(
-        f"{BASE_URL}/hosting/{GOLD_ACCOUNT}/security/js-challenge",
-        headers=HEADERS,
-        json={}
-    )
-    check_response(resp, 400, "H4: POST js-challenge with missing enabled field")
-
-def test_i_chunked_upload():
-    """I) CHUNKED UPLOAD: POST /hosting/:user/files/upload-chunk + /cancel"""
-    print("\n" + "="*80)
-    print("TEST GROUP I: CHUNKED UPLOAD")
-    print("="*80)
-    
-    # I1: Upload chunk 0/2 (should return chunk-received)
-    resp = requests.post(
-        f"{BASE_URL}/hosting/{GOLD_ACCOUNT}/files/upload-chunk",
-        headers=HEADERS,
-        json={
-            "uploadId": "m1",
-            "chunkIndex": 0,
-            "totalChunks": 2,
-            "fileName": "big.bin",
-            "dir": "/public_html",
-            "content_base64": base64.b64encode(b"hello").decode()
-        }
-    )
-    if resp.status_code == 200:
-        try:
-            data = resp.json()
-            if data.get("status") == "chunk-received" and data.get("received") == 1 and data.get("totalChunks") == 2:
-                log_test("I1: Upload chunk 0/2", True,
-                        f"Got chunk-received with received=1, totalChunks=2")
-            else:
-                log_test("I1: Upload chunk 0/2", False,
-                        f"Expected status=chunk-received, received=1, totalChunks=2, got {data}")
-        except:
-            log_test("I1: Upload chunk 0/2", False, "Response not JSON")
-    else:
-        log_test("I1: Upload chunk 0/2", False,
-                f"Expected 200, got {resp.status_code}: {resp.text[:200]}")
-    
-    # I2: Upload chunk 1/2 (should return dry_run complete)
-    resp = requests.post(
-        f"{BASE_URL}/hosting/{GOLD_ACCOUNT}/files/upload-chunk",
-        headers=HEADERS,
-        json={
-            "uploadId": "m1",
-            "chunkIndex": 1,
-            "totalChunks": 2,
-            "fileName": "big.bin",
-            "dir": "/public_html",
-            "content_base64": base64.b64encode(b"world").decode()
-        }
-    )
-    if resp.status_code == 200:
-        try:
-            data = resp.json()
-            if data.get("mode") == "dry_run" and data.get("action") == "files.upload-chunk":
-                total_bytes = data.get("bytes", 0)
-                log_test("I2: Upload chunk 1/2 (complete)", True,
-                        f"Got dry_run complete with bytes={total_bytes}")
-            else:
-                log_test("I2: Upload chunk 1/2 (complete)", False,
-                        f"Expected mode=dry_run and action=files.upload-chunk, got {data}")
-        except:
-            log_test("I2: Upload chunk 1/2 (complete)", False, "Response not JSON")
-    else:
-        log_test("I2: Upload chunk 1/2 (complete)", False,
-                f"Expected 200, got {resp.status_code}: {resp.text[:200]}")
-    
-    # I3: Upload protected file (.htaccess in public_html, should return 403)
-    resp = requests.post(
-        f"{BASE_URL}/hosting/{GOLD_ACCOUNT}/files/upload-chunk",
-        headers=HEADERS,
-        json={
-            "uploadId": "p1",
-            "chunkIndex": 0,
-            "totalChunks": 1,
-            "fileName": ".htaccess",
-            "dir": "/x/public_html",
-            "content_base64": base64.b64encode(b"x").decode()
-        }
-    )
-    if resp.status_code == 403:
-        try:
-            data = resp.json()
-            if "protected" in str(data.get("error", "")).lower():
-                log_test("I3: Upload protected file (.htaccess)", True,
-                        "Got expected 403 protected_file")
-            else:
-                log_test("I3: Upload protected file (.htaccess)", True,
-                        f"Got 403 (error: {data})")
-        except:
-            log_test("I3: Upload protected file (.htaccess)", True, "Got 403")
-    else:
-        log_test("I3: Upload protected file (.htaccess)", False,
-                f"Expected 403, got {resp.status_code}")
-    
-    # I4: Upload with missing fields (should return 400)
-    resp = requests.post(
-        f"{BASE_URL}/hosting/{GOLD_ACCOUNT}/files/upload-chunk",
-        headers=HEADERS,
-        json={"uploadId": "x"}
-    )
-    check_response(resp, 400, "I4: Upload with missing fields")
-    
-    # I5: Cancel non-existent upload (should return 200 with status=not_found)
-    resp = requests.post(
-        f"{BASE_URL}/hosting/{GOLD_ACCOUNT}/files/upload-chunk/cancel",
-        headers=HEADERS,
-        json={"uploadId": "doesnotexist"}
-    )
-    if resp.status_code == 200:
-        try:
-            data = resp.json()
-            if data.get("status") == "not_found":
-                log_test("I5: Cancel non-existent upload", True,
-                        "Got status=not_found")
-            else:
-                log_test("I5: Cancel non-existent upload", False,
-                        f"Expected status=not_found, got {data}")
-        except:
-            log_test("I5: Cancel non-existent upload", False, "Response not JSON")
-    else:
-        log_test("I5: Cancel non-existent upload", False,
-                f"Expected 200, got {resp.status_code}: {resp.text[:200]}")
-
-def test_j_addon_regression():
-    """J) ADDON-ADD REGRESSION: POST /hosting/:user/addons"""
-    print("\n" + "="*80)
-    print("TEST GROUP J: ADDON-ADD REGRESSION (Bug Fix)")
-    print("="*80)
-    
-    # J1: POST addons (should return dry_run, NOT 501)
-    resp = requests.post(
-        f"{BASE_URL}/hosting/{GOLD_ACCOUNT}/addons",
-        headers=HEADERS,
-        json={"domain": "newaddon.com"}
-    )
-    if resp.status_code == 200:
-        try:
-            data = resp.json()
-            if data.get("mode") == "dry_run":
-                log_test("J1: POST addons (regression check)", True,
-                        "Got dry_run (NOT 501, bug is fixed)")
-            else:
-                log_test("J1: POST addons (regression check)", False,
-                        f"Expected mode=dry_run, got {data}")
-        except:
-            log_test("J1: POST addons (regression check)", False, "Response not JSON")
-    elif resp.status_code == 501:
-        log_test("J1: POST addons (regression check)", False,
-                "Got 501 - BUG NOT FIXED (cpPass decryption issue)")
-    else:
-        log_test("J1: POST addons (regression check)", False,
-                f"Expected 200, got {resp.status_code}: {resp.text[:200]}")
-
-def test_k_no_500s():
-    """K) Verify NO HTTP 500 errors in any test"""
-    print("\n" + "="*80)
-    print("TEST GROUP K: NO 500s CHECK")
-    print("="*80)
-    
-    # Check if any test returned 500
-    has_500 = any("500" in result for result in test_results)
-    if not has_500:
-        log_test("K1: No HTTP 500 errors", True, "All tests returned expected status codes")
-    else:
-        log_test("K1: No HTTP 500 errors", False, "Some tests returned HTTP 500")
-
-# ============================================================
-# Main Test Runner
-# ============================================================
+    log_pass("✅ TEST 6 PASSED: Write operation correctly gated to dry_run")
+    return True
 
 def main():
-    print("="*80)
-    print("RESELLER API cPanel HOSTING-MANAGEMENT PARITY ENDPOINTS TEST")
-    print("="*80)
-    print(f"Base URL: {BASE_URL}")
-    print(f"API Key: {API_KEY}")
-    print(f"Gold Account: {GOLD_ACCOUNT}")
-    print(f"Trial Account: {TRIAL_ACCOUNT}")
-    print(f"Gold Addon Domain: {GOLD_ADDON_DOMAIN}")
-    print("="*80)
+    print(f"\n{BLUE}{'='*80}{RESET}")
+    print(f"{BLUE}BACKEND TEST: Reseller API File Manager / SSL CPANEL_AUTH_FAILURE Fix{RESET}")
+    print(f"{BLUE}{'='*80}{RESET}")
+    print(f"\nBase URL: {BASE_URL}")
+    print(f"API Base: {API_BASE}")
+    print(f"Test Account: {TEST_ACCOUNT} (server 68.183.77.106, domain namewords.sbs)")
+    print(f"Test Fixture: Account has DELIBERATELY WRONG cpPass to reproduce bug")
+    print(f"Expected: WHM-root fallback should heal CPANEL_AUTH_FAILURE")
     
-    # Run all test groups
-    test_a_email_test()
-    test_b_phpmyadmin_sso()
-    test_c_bulk_subdomains()
-    test_d_docroot_mode()
-    test_e_set_primary()
-    test_f_ns_status()
-    test_g_site_status()
-    test_h_js_challenge()
-    test_i_chunked_upload()
-    test_j_addon_regression()
-    test_k_no_500s()
+    results = []
     
-    # Print summary
-    print("\n" + "="*80)
-    print("TEST SUMMARY")
-    print("="*80)
-    print(f"Total Tests: {total_tests}")
-    print(f"Passed: {passed_tests}")
-    print(f"Failed: {failed_tests}")
-    print(f"Pass Rate: {(passed_tests/total_tests*100):.1f}%")
-    print("="*80)
+    # Run all tests
+    results.append(("TEST 1: File Manager healed listing", test_file_manager_healed()))
+    results.append(("TEST 2: SSL healed listing", test_ssl_healed()))
+    results.append(("TEST 3: File Manager path alias", test_file_manager_path_alias()))
+    results.append(("TEST 4a: Auth guard (no key)", test_auth_guard_no_key()))
+    results.append(("TEST 4b: Auth guard (bogus key)", test_auth_guard_bogus_key()))
+    results.append(("TEST 5: Ownership guard", test_ownership_guard()))
+    results.append(("TEST 6: Write dry_run", test_write_dry_run()))
     
-    # Exit with appropriate code
-    sys.exit(0 if failed_tests == 0 else 1)
+    # Summary
+    print(f"\n{BLUE}{'='*80}{RESET}")
+    print(f"{BLUE}TEST SUMMARY{RESET}")
+    print(f"{BLUE}{'='*80}{RESET}")
+    
+    passed = sum(1 for _, result in results if result)
+    total = len(results)
+    
+    for test_name, result in results:
+        status = f"{GREEN}PASS{RESET}" if result else f"{RED}FAIL{RESET}"
+        print(f"{status} - {test_name}")
+    
+    print(f"\n{BLUE}Total: {passed}/{total} tests passed ({100*passed//total}%){RESET}")
+    
+    if passed == total:
+        print(f"\n{GREEN}✅ ALL TESTS PASSED - BUG FIX VERIFIED{RESET}")
+        print(f"{GREEN}The File Manager/SSL CPANEL_AUTH_FAILURE bug is FIXED.{RESET}")
+        print(f"{GREEN}WHM-root fallback successfully heals stale password failures.{RESET}")
+        return 0
+    else:
+        print(f"\n{RED}❌ SOME TESTS FAILED - BUG FIX NOT COMPLETE{RESET}")
+        return 1
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

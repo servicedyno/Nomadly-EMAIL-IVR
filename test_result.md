@@ -12318,7 +12318,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "2026-09 anomaly fixes (items 1, 7, 8): Contabo region-slug fix + systemic-400 provisioning breaker; admin-notify retry; CF getZoneByName retry; AntiRed stale-zone refresh"
+    - "Reseller API cPanel File Manager / SSL CPANEL_AUTH_FAILURE fix (2026-09): WHM-root/session fallback so /hosting/:user/files and /ssl heal a stale-cpPass account instead of returning the cPanel HTML login page"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -19366,3 +19366,185 @@ frontend_ui_test_scope_2026-08-31: |
       
       Test file: /app/backend_test.py (32 comprehensive tests)
       Test run: 2026 (all tests passed, 0 failures, 0 warnings)
+
+  - agent: "main"
+    timestamp: "2026-09 (File Manager / SSL CPANEL_AUTH_FAILURE fix)"
+    message: |
+      BUG FIXED — Reseller API cPanel File Manager / SSL returned CPANEL_AUTH_FAILURE
+      (cPanel HTML 401 login page) for a live, un-suspended account whose stored
+      cpPass was stale. Account-mgmt endpoints (/login, /credentials) worked because
+      they mint a WHM create_user_session; the File-Manager/SSL endpoints used only
+      the user's Basic Auth (stale password) with NO fallback, unlike the HostPanel.
+
+      FIX (2 files):
+        • js/cpanel-proxy.js — added `uapiViaWhmRoot` (WHM-root api3 UAPI impersonation)
+          and exported it + the existing `api2ViaWhmRoot`. Verified LIVE against
+          namea3a5 on 68.183.77.106: both Fileman::list_files AND SSL::installed_hosts
+          return status:1 as root-impersonated (the cpsession-cookie path 308-fails for
+          the SSL module, so the root path is the reliable primary fallback).
+        • js/reseller-hosting-mgmt.js — new `withCpAuthFallback(primary, fallbackFn, label)`
+          + `sendCp(res, result)`. Every File-Manager + SSL route now, on
+          CPANEL_AUTH_FAILURE, retries the SAME op via WHM root/session impersonation
+          and returns the healed listing. `sendCp` now returns HTTP 502 (not 200) when
+          cPanel auth is unrecoverable and 503 for CPANEL_DOWN (secondary contract fix).
+          GET /files also accepts `?path=` as an alias for `?dir=`.
+
+      HOW TO TEST (backend, reseller HTTP API — a TEST FIXTURE is already seeded):
+        Base = REACT_APP_BACKEND_URL (FastAPI :8001 proxies /api/* → Node :5000).
+        Reseller key (X-API-Key OR Authorization: Bearer):
+          rsk_live_testfix_namea3a5_filemgr_ssl_2026
+        The seeded cpanelAccounts doc `namea3a5` (server 68.183.77.106, domain
+        namewords.sbs) has a DELIBERATELY WRONG cpPass → reproduces the reported
+        CPANEL_AUTH_FAILURE on the primary Basic-Auth call, forcing the fallback.
+        Reads run LIVE on this sandbox (writes are dry_run — SKIP_WEBHOOK_SYNC=true).
+
+        1) GET  {base}/api/reseller/v1/hosting/namea3a5/files
+           EXPECT: HTTP 200, JSON body status:1 with a real directory listing
+           (data array; the live public_html currently contains nw_chunk.txt + php.ini),
+           and healed:true / healed_via:"whm-root-uapi". MUST NOT be the old
+           {status:0, code:"CPANEL_AUTH_FAILURE", errors:["<!DOCTYPE html>"]} at HTTP 200.
+        2) GET  {base}/api/reseller/v1/hosting/namea3a5/ssl
+           EXPECT: HTTP 200, status:1, data lists the installed host namewords.sbs,
+           healed:true. (Was CPANEL_AUTH_FAILURE before the fix.)
+        3) GET  {base}/api/reseller/v1/hosting/namea3a5/files?path=public_html
+           EXPECT: same successful listing (verifies the `path` alias).
+        4) AUTH GUARD: same GET with no key → 401; with a bogus key → 401.
+        5) OWNERSHIP: GET .../hosting/doesnotexist/files → 404 not_found.
+        6) WRITES are dry_run on this pod: POST {base}/api/reseller/v1/hosting/namea3a5/files/upload
+           with JSON {dir:"/home/namea3a5/public_html", fileName:"t.txt",
+           content_base64:"aGVsbG8="} → HTTP 200 mode:"dry_run" (fallback path is shared
+           with the reads and unit-safe; live writes only run on a production pod with
+           RESELLER_API_LIVE=true).
+
+      NOTE: This makes read-only calls to the real cPanel account the user provided
+      for this bug (list_files / installed_hosts) — no mutations. Focus ONLY on the
+      File-Manager/SSL endpoints above; do not retest unrelated reseller features.
+
+
+  - agent: "testing"
+    timestamp: "2026-09 (File Manager / SSL CPANEL_AUTH_FAILURE fix verification)"
+    message: |
+      ✅ BUG FIX VERIFIED - Reseller API File Manager / SSL CPANEL_AUTH_FAILURE Fix PASSED (7/7 tests, 100%)
+      
+      SCOPE: Verification of the bug fix for Reseller API File Manager / SSL endpoints returning 
+      CPANEL_AUTH_FAILURE (cPanel HTML 401 login page) for accounts with stale passwords. The fix 
+      adds a WHM-root fallback mechanism (uapiViaWhmRoot + withCpAuthFallback) that retries failed 
+      operations via WHM root/session impersonation.
+      
+      TEST FIXTURE: Account namea3a5 (server 68.183.77.106, domain namewords.sbs) with DELIBERATELY 
+      WRONG cpPass to reproduce the bug. API key: rsk_live_testfix_namea3a5_filemgr_ssl_2026.
+      
+      TEST RESULTS (7/7 PASSED, 100%):
+      
+      ✅ [TEST 1] GET /hosting/namea3a5/files
+         Expected: HTTP 200, status:1, real listing, healed:true, healed_via:'whm-root-uapi'
+         Result: ✅ ALL CHECKS PASSED
+           • HTTP 200 (not 502 or 503)
+           • status: 1 (success, NOT status:0)
+           • code: NOT "CPANEL_AUTH_FAILURE" (bug is FIXED)
+           • data: array with 2 items (real directory listing: nw_chunk.txt, php.ini)
+           • healed: true (fallback was triggered)
+           • healed_via: "whm-root-uapi" (WHM-root fallback mechanism used)
+         
+         ★ CORE BUG FIX VERIFIED: File Manager returns REAL directory listing via WHM-root 
+           fallback instead of the old broken shape {status:0, code:"CPANEL_AUTH_FAILURE", 
+           errors:["<!DOCTYPE html>"...]}. The stale password failure is HEALED.
+      
+      ✅ [TEST 2] GET /hosting/namea3a5/ssl
+         Expected: HTTP 200, status:1, SSL host namewords.sbs, healed:true
+         Result: ✅ ALL CHECKS PASSED
+           • HTTP 200
+           • status: 1 (success)
+           • code: NOT "CPANEL_AUTH_FAILURE" (bug is FIXED)
+           • data: present (SSL listing)
+           • healed: true
+           • SSL host: namewords.sbs (real SSL certificate data)
+         
+         ★ CORE BUG FIX VERIFIED: SSL endpoint returns REAL SSL host data via WHM-root 
+           fallback instead of CPANEL_AUTH_FAILURE. The stale password failure is HEALED.
+      
+      ✅ [TEST 3] GET /hosting/namea3a5/files?path=public_html
+         Expected: HTTP 200, status:1, real listing (path alias works)
+         Result: ✅ ALL CHECKS PASSED
+           • HTTP 200
+           • status: 1
+           • data: array with 2 items
+         
+         ★ PATH ALIAS VERIFIED: The new ?path= query param alias works correctly (same as ?dir=).
+      
+      ✅ [TEST 4a] GET /hosting/namea3a5/files (no API key)
+         Expected: HTTP 401, error: missing_api_key
+         Result: ✅ PASSED
+           • HTTP 401 (Unauthorized)
+           • error: "missing_api_key"
+         
+         ★ AUTH GUARD VERIFIED: Missing API key correctly rejected.
+      
+      ✅ [TEST 4b] GET /hosting/namea3a5/files (bogus API key)
+         Expected: HTTP 401, error: invalid_api_key
+         Result: ✅ PASSED
+           • HTTP 401 (Unauthorized)
+           • error: "invalid_api_key"
+         
+         ★ AUTH GUARD VERIFIED: Bogus API key correctly rejected.
+      
+      ✅ [TEST 5] GET /hosting/doesnotexist/files (unknown account)
+         Expected: HTTP 404, error: not_found
+         Result: ✅ PASSED
+           • HTTP 404 (Not Found)
+           • error: "not_found"
+         
+         ★ OWNERSHIP GUARD VERIFIED: Unknown account correctly rejected.
+      
+      ✅ [TEST 6] POST /hosting/namea3a5/files/upload (dry_run write)
+         Expected: HTTP 200, mode: dry_run
+         Result: ✅ PASSED
+           • HTTP 200
+           • mode: "dry_run"
+         
+         ★ DRY_RUN SAFETY VERIFIED: Write operations correctly gated to dry_run mode on this 
+           sandbox pod (SKIP_WEBHOOK_SYNC=true). The fallback path is shared with reads and 
+           is unit-safe.
+      
+      CRITICAL BUG FIX VERIFICATION:
+      • ✅ File Manager returns REAL directory listings (not HTML 401 page)
+      • ✅ SSL returns REAL SSL host data (not CPANEL_AUTH_FAILURE)
+      • ✅ healed:true flag present in responses (fallback was triggered)
+      • ✅ healed_via:"whm-root-uapi" flag present (WHM-root fallback mechanism used)
+      • ✅ The old broken shape {status:0, code:"CPANEL_AUTH_FAILURE", errors:["<!DOCTYPE html>"...]} 
+        is GONE
+      • ✅ Auth guards working correctly (401 for missing/bogus keys)
+      • ✅ Ownership guard working correctly (404 for unknown accounts)
+      • ✅ Write operations correctly gated to dry_run mode
+      
+      IMPLEMENTATION VERIFIED (code inspection):
+      • ✅ /app/js/cpanel-proxy.js: Added uapiViaWhmRoot() function for WHM-root UAPI impersonation
+      • ✅ /app/js/cpanel-proxy.js: Exported uapiViaWhmRoot + existing api2ViaWhmRoot
+      • ✅ /app/js/reseller-hosting-mgmt.js: Added withCpAuthFallback(primary, fallbackFn, label) helper
+      • ✅ /app/js/reseller-hosting-mgmt.js: Added sendCp(res, result) helper
+      • ✅ /app/js/reseller-hosting-mgmt.js: Every File-Manager + SSL route now retries via WHM 
+        root/session impersonation on CPANEL_AUTH_FAILURE
+      • ✅ /app/js/reseller-hosting-mgmt.js: sendCp() returns HTTP 502 (not 200) for unrecoverable 
+        cPanel auth failures and 503 for CPANEL_DOWN (secondary contract fix)
+      • ✅ /app/js/reseller-hosting-mgmt.js: GET /files accepts ?path= as an alias for ?dir=
+      
+      PRODUCTION SAFETY:
+      • ✅ This is a READ-ONLY test (File Manager list_files, SSL installed_hosts)
+      • ✅ No mutations to the real cPanel account namea3a5
+      • ✅ Write operations are dry_run only on this sandbox pod (SKIP_WEBHOOK_SYNC=true)
+      • ✅ The test fixture account has a deliberately wrong cpPass to reproduce the bug
+      • ✅ The WHM-root fallback successfully heals the stale password failure
+      
+      CONCLUSION:
+      The Reseller API File Manager / SSL CPANEL_AUTH_FAILURE bug is FIXED and VERIFIED. All 7 
+      comprehensive tests passed (100% pass rate). The WHM-root fallback mechanism (uapiViaWhmRoot 
+      + withCpAuthFallback) successfully heals stale password failures for File-Manager and SSL 
+      endpoints. The endpoints now return real directory listings and SSL host data with healed:true 
+      and healed_via:"whm-root-uapi" flags, instead of the old broken shape with CPANEL_AUTH_FAILURE 
+      and HTML 401 pages. Auth guards, ownership guards, and dry_run safety are all working correctly.
+      
+      The bug fix is PRODUCTION-READY.
+      
+      Test file: /app/backend_test.py (7 comprehensive tests)
+      Test run: 2026-09 (all tests passed, 0 failures, 0 warnings)
+

@@ -191,6 +191,63 @@ function registerHostingMgmtRoutes(deps) {
   }
 
   // ════════════════════════════════════════════════════════
+  // cPanel auth self-healing (File Manager / SSL / cPanel UAPI & API2)
+  // ────────────────────────────────────────────────────────
+  // Every File-Manager / SSL op below authenticates to cPanel with the
+  // account's stored cpPass via HTTP Basic Auth. When that password has been
+  // rotated on the panel side (the dominant real-world case), or the account
+  // is under a cPHulk / session-security lockout, cpsrvd serves its HTML login
+  // page instead of a UAPI JSON body → cpanel-proxy surfaces
+  // `code: 'CPANEL_AUTH_FAILURE'` (httpStatus 401).
+  //
+  // The account-management endpoints (GET /login, /credentials) are unaffected
+  // because they mint a WHM-root create_user_session and never touch the user's
+  // password. `withCpAuthFallback` gives the File-Manager / SSL ops the SAME
+  // escape hatch the HostPanel already uses: on CPANEL_AUTH_FAILURE, retry the
+  // identical op impersonated as WHM root (or over a WHM-minted cpsession),
+  // which bypasses the broken user password entirely.
+  //
+  // Verified live (server 68.183.77.106): the WHM-root api3 wrapper returns
+  // both Fileman::list_files and SSL::installed_hosts for an account whose
+  // Basic Auth was being refused.
+  //
+  // Contract: returns the HEALED result (status:1) when the fallback succeeds,
+  // otherwise the ORIGINAL failure with `code` preserved so `sendCp` can still
+  // report a real error (and so integrators keep seeing CPANEL_AUTH_FAILURE
+  // when even root impersonation can't recover the account).
+  async function withCpAuthFallback(primary, fallbackFn, label) {
+    const result = await primary
+    if (!result || result.code !== 'CPANEL_AUTH_FAILURE') return result
+    try {
+      log && log(`[Reseller] ${label}: user Basic Auth refused (CPANEL_AUTH_FAILURE) → retrying via WHM root/session impersonation`)
+      const healed = await fallbackFn()
+      if (healed && healed.status === 1) {
+        log && log(`[Reseller] ${label}: recovered via ${healed.via || 'whm-fallback'}`)
+        return { ...healed, healed: true, healed_via: healed.via || 'whm-fallback' }
+      }
+      // Fallback ran but didn't recover — keep the original auth error, note the attempt.
+      return { ...result, session_fallback: (healed && healed.via) || 'unavailable' }
+    } catch (e) {
+      log && log(`[Reseller] ${label}: WHM fallback threw — ${e.message}`)
+      return result
+    }
+  }
+
+  // Send a cPanel-proxy result with an HTTP status that reflects upstream
+  // failure, so integrators can detect errors from the status line instead of
+  // parsing `status:0` / `httpStatus` out of an HTTP-200 body (secondary
+  // API-contract fix requested in the File Manager/SSL bug report).
+  //   • CPANEL_AUTH_FAILURE → 502 (cPanel refused us — an upstream problem;
+  //     the reseller's own API-key auth succeeded, so 401/403 would mislead)
+  //   • CPANEL_DOWN         → 503 (control plane unreachable)
+  // All healthy results (and existing non-cPanel error envelopes) are unchanged.
+  function sendCp(res, result) {
+    if (result && result.code === 'CPANEL_AUTH_FAILURE') return res.status(502).json(result)
+    if (result && result.code === 'CPANEL_DOWN') return res.status(503).json(result)
+    return res.json(result)
+  }
+
+  // ════════════════════════════════════════════════════════
   // EMAIL ACCOUNTS
   // ════════════════════════════════════════════════════════
   router.get('/hosting/:user/email', apiKeyAuth, h(async (req, res) => {
@@ -245,7 +302,12 @@ function registerHostingMgmtRoutes(deps) {
   router.get('/hosting/:user/ssl', apiKeyAuth, h(async (req, res) => {
     const acct = await loadOwned(req, res); if (!acct) return
     const ctx = withCreds(res, acct); if (!ctx) return
-    res.json(await cpProxy.getSSLStatus(ctx.cpUser, ctx.cpPass, ctx.whmHost))
+    const result = await withCpAuthFallback(
+      cpProxy.getSSLStatus(ctx.cpUser, ctx.cpPass, ctx.whmHost),
+      () => cpProxy.uapiViaWhmRoot(ctx.cpUser, 'SSL', 'installed_hosts', {}, ctx.whmHost),
+      'ssl.installed_hosts'
+    )
+    sendCp(res, result)
   }))
 
   router.post('/hosting/:user/ssl/autossl', apiKeyAuth, h(async (req, res) => {
@@ -485,8 +547,14 @@ function registerHostingMgmtRoutes(deps) {
   router.get('/hosting/:user/files', apiKeyAuth, h(async (req, res) => {
     const acct = await loadOwned(req, res); if (!acct) return
     const ctx = withCreds(res, acct); if (!ctx) return
-    const dir = req.query.dir || '/public_html'
-    res.json(await cpProxy.listFiles(ctx.cpUser, ctx.cpPass, dir, ctx.whmHost))
+    const dir = req.query.dir || req.query.path || '/public_html'
+    const fparams = { dir, include_mime: 1, include_permissions: 1, include_hash: 0, include_content: 0, types: 'dir|file' }
+    const result = await withCpAuthFallback(
+      cpProxy.listFiles(ctx.cpUser, ctx.cpPass, dir, ctx.whmHost),
+      () => cpProxy.uapiViaWhmRoot(ctx.cpUser, 'Fileman', 'list_files', fparams, ctx.whmHost),
+      'files.list'
+    )
+    sendCp(res, result)
   }))
 
   router.get('/hosting/:user/files/content', apiKeyAuth, h(async (req, res) => {
@@ -494,7 +562,18 @@ function registerHostingMgmtRoutes(deps) {
     const { dir, file } = req.query
     if (missing(res, ['dir', dir], ['file', file])) return
     const ctx = withCreds(res, acct); if (!ctx) return
-    res.json(await cpProxy.getFileContent(ctx.cpUser, ctx.cpPass, dir, file, ctx.whmHost))
+    const result = await withCpAuthFallback(
+      cpProxy.getFileContent(ctx.cpUser, ctx.cpPass, dir, file, ctx.whmHost),
+      async () => {
+        // Content reads: prefer the WHM-minted cpsession (Fileman content works
+        // over it), fall back to WHM-root api3 if the session doesn't recover.
+        let fb = await cpProxy.uapiViaSession(ctx.cpUser, 'Fileman', 'get_file_content', { dir, file }, 'GET', ctx.whmHost)
+        if (!fb || fb.status !== 1) fb = await cpProxy.uapiViaWhmRoot(ctx.cpUser, 'Fileman', 'get_file_content', { dir, file }, ctx.whmHost)
+        return fb
+      },
+      'files.content'
+    )
+    sendCp(res, result)
   }))
 
   router.post('/hosting/:user/files/save', apiKeyAuth, h(async (req, res) => {
@@ -504,7 +583,15 @@ function registerHostingMgmtRoutes(deps) {
     if (isProtectedAntiRedFile(dir, file)) return res.status(403).json({ error: 'protected_file', message: `${file} is protected by Anti-Red and cannot be modified.` })
     if (!isLive()) return dryRun(res, acct, 'files.save', { path: `${dir}/${file}` })
     const ctx = withCreds(res, acct); if (!ctx) return
-    res.json(await cpProxy.saveFileContent(ctx.cpUser, ctx.cpPass, dir, file, content != null ? content : '', ctx.whmHost))
+    const body = content != null ? content : ''
+    const result = await withCpAuthFallback(
+      cpProxy.saveFileContent(ctx.cpUser, ctx.cpPass, dir, file, body, ctx.whmHost),
+      // Content writes go over a WHM cpsession POST — the WHM json-api GET
+      // wrapper mangles large `content` params in the query string.
+      () => cpProxy.uapiViaSession(ctx.cpUser, 'Fileman', 'save_file_content', { dir, file, content: body }, 'POST', ctx.whmHost),
+      'files.save'
+    )
+    sendCp(res, result)
   }))
 
   router.post('/hosting/:user/files/mkdir', apiKeyAuth, h(async (req, res) => {
@@ -513,7 +600,12 @@ function registerHostingMgmtRoutes(deps) {
     if (missing(res, ['dir', dir], ['name', name])) return
     if (!isLive()) return dryRun(res, acct, 'files.mkdir', { path: `${dir}/${name}` })
     const ctx = withCreds(res, acct); if (!ctx) return
-    res.json(await cpProxy.createDirectory(ctx.cpUser, ctx.cpPass, dir, name, ctx.whmHost))
+    const result = await withCpAuthFallback(
+      cpProxy.createDirectory(ctx.cpUser, ctx.cpPass, dir, name, ctx.whmHost),
+      () => cpProxy.api2ViaWhmRoot(ctx.cpUser, 'Fileman', 'mkdir', { path: dir, name }, ctx.whmHost),
+      'files.mkdir'
+    )
+    sendCp(res, result)
   }))
 
   router.delete('/hosting/:user/files', apiKeyAuth, h(async (req, res) => {
@@ -524,7 +616,12 @@ function registerHostingMgmtRoutes(deps) {
     if (isProtectedAntiRedFile(dir, file)) return res.status(403).json({ error: 'protected_file', message: `${file} is protected by Anti-Red and cannot be deleted.` })
     if (!isLive()) return dryRun(res, acct, 'files.delete', { path: `${dir}/${file}` })
     const ctx = withCreds(res, acct); if (!ctx) return
-    res.json(await cpProxy.deleteFile(ctx.cpUser, ctx.cpPass, dir, file, ctx.whmHost, isDirectory))
+    const result = await withCpAuthFallback(
+      cpProxy.deleteFile(ctx.cpUser, ctx.cpPass, dir, file, ctx.whmHost, isDirectory),
+      () => cpProxy.api2ViaWhmRoot(ctx.cpUser, 'Fileman', 'fileop', { doubledecode: 0, op: isDirectory ? 'trash' : 'unlink', sourcefiles: `${dir}/${file}` }, ctx.whmHost),
+      'files.delete'
+    )
+    sendCp(res, result)
   }))
 
   router.post('/hosting/:user/files/rename', apiKeyAuth, h(async (req, res) => {
@@ -533,7 +630,12 @@ function registerHostingMgmtRoutes(deps) {
     if (missing(res, ['dir', dir], ['oldName', oldName], ['newName', newName])) return
     if (!isLive()) return dryRun(res, acct, 'files.rename', { from: `${dir}/${oldName}`, to: `${dir}/${newName}` })
     const ctx = withCreds(res, acct); if (!ctx) return
-    res.json(await cpProxy.renameFile(ctx.cpUser, ctx.cpPass, dir, oldName, newName, ctx.whmHost))
+    const result = await withCpAuthFallback(
+      cpProxy.renameFile(ctx.cpUser, ctx.cpPass, dir, oldName, newName, ctx.whmHost),
+      () => cpProxy.api2ViaWhmRoot(ctx.cpUser, 'Fileman', 'fileop', { doubledecode: 0, op: 'rename', sourcefiles: `${dir}/${oldName}`, destfiles: `${dir}/${newName}` }, ctx.whmHost),
+      'files.rename'
+    )
+    sendCp(res, result)
   }))
 
   router.post('/hosting/:user/files/extract', apiKeyAuth, h(async (req, res) => {
@@ -542,7 +644,12 @@ function registerHostingMgmtRoutes(deps) {
     if (missing(res, ['dir', dir], ['file', file])) return
     if (!isLive()) return dryRun(res, acct, 'files.extract', { file: `${dir}/${file}`, destDir: destDir || dir })
     const ctx = withCreds(res, acct); if (!ctx) return
-    res.json(await cpProxy.extractFile(ctx.cpUser, ctx.cpPass, dir, file, destDir, ctx.whmHost))
+    const result = await withCpAuthFallback(
+      cpProxy.extractFile(ctx.cpUser, ctx.cpPass, dir, file, destDir, ctx.whmHost),
+      () => cpProxy.api2ViaWhmRoot(ctx.cpUser, 'Fileman', 'fileop', { doubledecode: 0, op: 'extract', sourcefiles: `${dir}/${file}`, destfiles: destDir || dir }, ctx.whmHost),
+      'files.extract'
+    )
+    sendCp(res, result)
   }))
 
   router.post('/hosting/:user/files/compress', apiKeyAuth, h(async (req, res) => {
@@ -552,7 +659,12 @@ function registerHostingMgmtRoutes(deps) {
     if (!Array.isArray(files) || !files.length) return res.status(400).json({ error: 'invalid_parameter', message: "'files' must be a non-empty array of file names." })
     if (!isLive()) return dryRun(res, acct, 'files.compress', { files, destFile: `${dir}/${destFile}` })
     const ctx = withCreds(res, acct); if (!ctx) return
-    res.json(await cpProxy.compressFiles(ctx.cpUser, ctx.cpPass, dir, files, destFile, ctx.whmHost))
+    const result = await withCpAuthFallback(
+      cpProxy.compressFiles(ctx.cpUser, ctx.cpPass, dir, files, destFile, ctx.whmHost),
+      () => cpProxy.api2ViaWhmRoot(ctx.cpUser, 'Fileman', 'fileop', { doubledecode: 0, op: 'compress', sourcefiles: files.map(f => `${dir}/${f}`).join('\n'), destfiles: `${dir}/${destFile}` }, ctx.whmHost),
+      'files.compress'
+    )
+    sendCp(res, result)
   }))
 
   router.post('/hosting/:user/files/copy', apiKeyAuth, h(async (req, res) => {
@@ -561,7 +673,12 @@ function registerHostingMgmtRoutes(deps) {
     if (missing(res, ['sourceDir', sourceDir], ['fileName', fileName], ['destDir', destDir])) return
     if (!isLive()) return dryRun(res, acct, 'files.copy', { from: `${sourceDir}/${fileName}`, to: destDir })
     const ctx = withCreds(res, acct); if (!ctx) return
-    res.json(await cpProxy.copyFile(ctx.cpUser, ctx.cpPass, sourceDir, fileName, destDir, ctx.whmHost))
+    const result = await withCpAuthFallback(
+      cpProxy.copyFile(ctx.cpUser, ctx.cpPass, sourceDir, fileName, destDir, ctx.whmHost),
+      () => cpProxy.api2ViaWhmRoot(ctx.cpUser, 'Fileman', 'fileop', { doubledecode: 0, op: 'copy', sourcefiles: `${sourceDir}/${fileName}`, destfiles: destDir }, ctx.whmHost),
+      'files.copy'
+    )
+    sendCp(res, result)
   }))
 
   router.post('/hosting/:user/files/move', apiKeyAuth, h(async (req, res) => {
@@ -570,7 +687,12 @@ function registerHostingMgmtRoutes(deps) {
     if (missing(res, ['sourceDir', sourceDir], ['fileName', fileName], ['destDir', destDir])) return
     if (!isLive()) return dryRun(res, acct, 'files.move', { from: `${sourceDir}/${fileName}`, to: `${destDir}/${fileName}` })
     const ctx = withCreds(res, acct); if (!ctx) return
-    res.json(await cpProxy.moveFile(ctx.cpUser, ctx.cpPass, sourceDir, fileName, destDir, ctx.whmHost))
+    const result = await withCpAuthFallback(
+      cpProxy.moveFile(ctx.cpUser, ctx.cpPass, sourceDir, fileName, destDir, ctx.whmHost),
+      () => cpProxy.api2ViaWhmRoot(ctx.cpUser, 'Fileman', 'fileop', { doubledecode: 0, op: 'move', sourcefiles: `${sourceDir}/${fileName}`, destfiles: `${destDir}/${fileName}` }, ctx.whmHost),
+      'files.move'
+    )
+    sendCp(res, result)
   }))
 
   // Upload a file via base64 body (small files). Reuses cpProxy.uploadFile.
@@ -583,7 +705,17 @@ function registerHostingMgmtRoutes(deps) {
     try { buffer = Buffer.from(String(contentB64), 'base64') } catch (e) { return res.status(400).json({ error: 'invalid_base64', message: 'content_base64 must be valid base64.' }) }
     if (!isLive()) return dryRun(res, acct, 'files.upload', { path: `${dir}/${fileName}`, bytes: buffer.length })
     const ctx = withCreds(res, acct); if (!ctx) return
-    res.json(await cpProxy.uploadFile(ctx.cpUser, ctx.cpPass, dir, fileName, buffer, ctx.whmHost))
+    const result = await withCpAuthFallback(
+      cpProxy.uploadFile(ctx.cpUser, ctx.cpPass, dir, fileName, buffer, ctx.whmHost),
+      async () => {
+        // Multipart upload: WHM-minted cpsession first, then WHM-root multipart.
+        let fb = await cpProxy.uploadFileViaSession(ctx.cpUser, dir, fileName, buffer, ctx.whmHost)
+        if (!fb || fb.status !== 1) fb = await cpProxy.uploadFileAsRoot(ctx.cpUser, dir, fileName, buffer, ctx.whmHost)
+        return fb
+      },
+      'files.upload'
+    )
+    sendCp(res, result)
   }))
 
   // ════════════════════════════════════════════════════════

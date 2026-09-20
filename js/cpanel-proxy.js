@@ -602,6 +602,71 @@ async function _api2ViaWhmRoot(cpUser, module, func, params = {}, host = null) {
   }
 }
 
+// ─── WHM-root impersonation for cPanel UAPI (api3) ─────────────────────
+//
+// Sibling of _api2ViaWhmRoot, but for UAPI (api3) functions like
+// Fileman::list_files, Fileman::get_file_content and SSL::installed_hosts.
+// WHM's /json-api/cpanel wrapper with cpanel_jsonapi_apiversion=3 runs the
+// UAPI call authenticated as WHM root and impersonates <cpUser> — bypassing
+// the user's (possibly stale/rotated) Basic-Auth password entirely.
+//
+// 2026 File-Manager/SSL reseller bug: for a live account whose cpsrvd was
+// refusing the stored cpPass, the cpsession-cookie mechanism (uapiViaSession)
+// 308-redirected on the SSL module (no cpsession cookie → SSL never healed),
+// whereas THIS root wrapper returned both list_files AND SSL::installed_hosts
+// cleanly. It is therefore the preferred fallback for UAPI reads.
+//
+// Returns the SAME { status, data, errors, ... } shape as the direct call so
+// callers don't branch. Returns `null` when WHM_TOKEN / host is missing so the
+// caller can surface the original error.
+async function _uapiViaWhmRoot(cpUser, module, func, params = {}, host = null) {
+  const whmToken = process.env.WHM_TOKEN
+  const whmUser = process.env.WHM_USERNAME || 'root'
+  const eff = host || WHM_HOST
+  if (!eff || !whmToken) return null
+  const baseUrl = _resolveWhmBaseUrl(host)
+  const url = `${baseUrl}/cpanel`
+  const queryParams = {
+    'api.version': 1,
+    cpanel_jsonapi_user: cpUser,
+    cpanel_jsonapi_apiversion: 3,
+    cpanel_jsonapi_module: module,
+    cpanel_jsonapi_func: func,
+    ...params,
+  }
+  const headers = {
+    Authorization: `whm ${whmUser}:${whmToken}`,
+    ...(CF_ACCESS_CLIENT_ID && CF_ACCESS_CLIENT_SECRET ? {
+      'CF-Access-Client-Id': CF_ACCESS_CLIENT_ID,
+      'CF-Access-Client-Secret': CF_ACCESS_CLIENT_SECRET,
+    } : {}),
+  }
+  try {
+    const res = await axios.get(url, { params: queryParams, headers, httpsAgent, timeout: 30000, validateStatus: () => true })
+    const body = sanitize(res.data, host)
+    // WHM wraps the UAPI (api3) response under `result`.
+    const cp = body?.result || body || {}
+    const ok = cp.status === 1 || cp.status === '1'
+    if (ok) {
+      log(`[cPanel Proxy] ${module}::${func} succeeded via WHM-root UAPI fallback (user: ${cpUser})`)
+      return {
+        status: 1,
+        data: cp.data ?? null,
+        errors: null,
+        messages: cp.messages || null,
+        metadata: cp.metadata || null,
+        via: 'whm-root-uapi',
+      }
+    }
+    const reason = (Array.isArray(cp.errors) && cp.errors[0]) || cp.error || `Failed to ${func}`
+    log(`[cPanel Proxy] ${module}::${func} WHM-root UAPI fallback returned failure (user: ${cpUser}): ${reason}`)
+    return { status: 0, data: null, errors: [sanitizeString(String(reason), host)], via: 'whm-root-uapi-failed' }
+  } catch (err) {
+    log(`[cPanel Proxy] ${module}::${func} WHM-root UAPI fallback error (user: ${cpUser}): ${err.message}`)
+    return null
+  }
+}
+
 // ─── cPanel API2 call (for functions not available in UAPI) ──
 // Normalizes API2 response to match UAPI format: { status, data, errors }
 
@@ -1611,6 +1676,12 @@ module.exports = {
   // Generic UAPI over a WHM cpsession — file get/save fallback via CPANEL_API_URL
   // tunnel (2026-08-31 fix: the routes' inline session helper hit the origin IP → 30s timeout)
   uapiViaSession,
+  // WHM-root impersonation fallbacks — authenticate as root + impersonate the
+  // user, bypassing a stale/rotated user cpPass. Surfaced so the reseller API
+  // (js/reseller-hosting-mgmt.js) can heal File-Manager/SSL CPANEL_AUTH_FAILURE
+  // the same way the HostPanel already does (2026 reseller File Manager/SSL bug).
+  uapiViaWhmRoot: _uapiViaWhmRoot,   // UAPI / api3  (list_files, SSL::installed_hosts, get_file_content)
+  api2ViaWhmRoot: _api2ViaWhmRoot,   // API2         (Fileman::mkdir, Fileman::fileop extract/copy/move/rename/compress)
   // EPERM (broken homedir/quota) — UX + ops alerting
   getEpermUserMessage,
   getEpermLocalizedMessages,
