@@ -28,7 +28,7 @@ from typing import Dict, Any, Optional
 # ============================================================
 # Configuration
 # ============================================================
-BASE_URL = "https://vault-auth-7.preview.emergentagent.com/api/reseller/v1"
+BASE_URL = "https://passphrases-1.preview.emergentagent.com/api/reseller/v1"
 API_KEY = "rsk_sandbox_test_key_0001"
 HEADERS = {
     "Authorization": f"Bearer {API_KEY}",
