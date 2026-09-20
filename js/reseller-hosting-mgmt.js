@@ -82,6 +82,33 @@ function isProtectedAntiRedFile(dir, file) {
   return !!inPublicHtml && PROTECTED_FILES.includes(file)
 }
 
+// Normalize a reseller-supplied path to an ABSOLUTE cPanel path under the
+// account home (/home/<cpUser>/...).
+//
+// WHY (Bug #2): cPanel's API2 Fileman::fileop resolves a RELATIVE `destfiles`
+// against the SOURCE file's directory, NOT $HOME. So an extract/copy with
+// dir="public_html" and destfiles="public_html" landed in
+// $HOME/public_html/public_html (path duplicated), and move/rename resolved to
+// a non-existent/!owned directory → cPanel "Access denied". The HostPanel never
+// hit this because it always sends absolute "/home/<user>/..." paths; this
+// helper brings the reseller API to the identical contract. Verified live on
+// namea3a5: with absolute paths extract lands in the exact dir and
+// move/rename/copy all succeed (status:1).
+//
+// Accepts "public_html", "/public_html", "public_html/sub", "~/x", an already
+// absolute "/home/<user>/x", or a foreign "/home/other/x" (re-rooted to THIS
+// account's home as a safety measure). Empty/"~"/"." → the home dir itself.
+function toAbsPath(cpUser, p) {
+  const home = `/home/${cpUser}`
+  let s = (p == null ? '' : String(p)).trim()
+  if (!s || s === '~' || s === '.') return home
+  if (s.startsWith('~/')) s = s.slice(2)
+  if (s === home || s.startsWith(home + '/')) return s.replace(/\/+$/, '') || home
+  s = s.replace(/^\/+/, '').replace(/^home\/[^/]+\/?/, '')
+  const abs = `${home}/${s}`.replace(/\/{2,}/g, '/').replace(/\/+$/, '')
+  return abs || home
+}
+
 // Derive the same request context the panel's resolveCpPass middleware builds.
 function ctxFromAccount(acct) {
   const cpUser = acct.cpUser || acct._id
@@ -155,6 +182,16 @@ function registerHostingMgmtRoutes(deps) {
       note: 'Dry-run: input validated + ownership confirmed; no change was made on the cPanel/WHM/Cloudflare server. Set RESELLER_API_LIVE=true on a production pod to apply.',
     })
   }
+
+  // ── File-Manager WRITE gate ──
+  // Same as isLive(), but ALSO honours a narrow, opt-in RESELLER_FILEOPS_LIVE=true
+  // escape so a sandbox pod can verify File-Manager behaviour against a real
+  // OWNED account without un-gating any platform-level mutation — email / MySQL /
+  // subdomain / domain / SSL-AutoSSL / security ops stay dry-run under isLive().
+  // cPanel jails every fileop to the account home, so this is strictly
+  // account-scoped. Defaults OFF (identical to prior behaviour); on a production
+  // pod isLive() is already true so it is a no-op there.
+  const fileOpsLive = () => isLive() || process.env.RESELLER_FILEOPS_LIVE === 'true'
 
   // ── MySQL plan gate (mirror requireMysqlEligible: reject 7-day trial only) ──
   function mysqlBlocked(res, ctx) {
@@ -628,11 +665,14 @@ function registerHostingMgmtRoutes(deps) {
     const acct = await loadOwned(req, res); if (!acct) return
     const { dir, oldName, newName } = req.body || {}
     if (missing(res, ['dir', dir], ['oldName', oldName], ['newName', newName])) return
-    if (!isLive()) return dryRun(res, acct, 'files.rename', { from: `${dir}/${oldName}`, to: `${dir}/${newName}` })
+    const cpUser = acct.cpUser || acct._id
+    const absDir = toAbsPath(cpUser, dir)
+    const sourcefiles = `${absDir}/${oldName}`, destfiles = `${absDir}/${newName}`
+    if (!isLive()) return dryRun(res, acct, 'files.rename', { sourcefiles, destfiles })
     const ctx = withCreds(res, acct); if (!ctx) return
     const result = await withCpAuthFallback(
-      cpProxy.renameFile(ctx.cpUser, ctx.cpPass, dir, oldName, newName, ctx.whmHost),
-      () => cpProxy.api2ViaWhmRoot(ctx.cpUser, 'Fileman', 'fileop', { doubledecode: 0, op: 'rename', sourcefiles: `${dir}/${oldName}`, destfiles: `${dir}/${newName}` }, ctx.whmHost),
+      cpProxy.renameFile(ctx.cpUser, ctx.cpPass, absDir, oldName, newName, ctx.whmHost),
+      () => cpProxy.api2ViaWhmRoot(ctx.cpUser, 'Fileman', 'fileop', { doubledecode: 0, op: 'rename', sourcefiles, destfiles }, ctx.whmHost),
       'files.rename'
     )
     sendCp(res, result)
@@ -642,11 +682,16 @@ function registerHostingMgmtRoutes(deps) {
     const acct = await loadOwned(req, res); if (!acct) return
     const { dir, file, destDir } = req.body || {}
     if (missing(res, ['dir', dir], ['file', file])) return
-    if (!isLive()) return dryRun(res, acct, 'files.extract', { file: `${dir}/${file}`, destDir: destDir || dir })
+    const cpUser = acct.cpUser || acct._id
+    const absDir = toAbsPath(cpUser, dir)
+    // No destDir → unpack into <dir> (dirname of the archive). destDir → $HOME/<destDir>.
+    const absDest = destDir ? toAbsPath(cpUser, destDir) : absDir
+    const sourcefiles = `${absDir}/${file}`
+    if (!isLive()) return dryRun(res, acct, 'files.extract', { sourcefiles, destfiles: absDest })
     const ctx = withCreds(res, acct); if (!ctx) return
     const result = await withCpAuthFallback(
-      cpProxy.extractFile(ctx.cpUser, ctx.cpPass, dir, file, destDir, ctx.whmHost),
-      () => cpProxy.api2ViaWhmRoot(ctx.cpUser, 'Fileman', 'fileop', { doubledecode: 0, op: 'extract', sourcefiles: `${dir}/${file}`, destfiles: destDir || dir }, ctx.whmHost),
+      cpProxy.extractFile(ctx.cpUser, ctx.cpPass, absDir, file, absDest, ctx.whmHost),
+      () => cpProxy.api2ViaWhmRoot(ctx.cpUser, 'Fileman', 'fileop', { doubledecode: 0, op: 'extract', sourcefiles, destfiles: absDest }, ctx.whmHost),
       'files.extract'
     )
     sendCp(res, result)
@@ -657,11 +702,14 @@ function registerHostingMgmtRoutes(deps) {
     const { dir, files, destFile } = req.body || {}
     if (missing(res, ['dir', dir], ['destFile', destFile])) return
     if (!Array.isArray(files) || !files.length) return res.status(400).json({ error: 'invalid_parameter', message: "'files' must be a non-empty array of file names." })
-    if (!isLive()) return dryRun(res, acct, 'files.compress', { files, destFile: `${dir}/${destFile}` })
+    const cpUser = acct.cpUser || acct._id
+    const absDir = toAbsPath(cpUser, dir)
+    const sourcefiles = files.map(f => `${absDir}/${f}`).join('\n'), destfiles = `${absDir}/${destFile}`
+    if (!isLive()) return dryRun(res, acct, 'files.compress', { sourcefiles: files.map(f => `${absDir}/${f}`), destfiles })
     const ctx = withCreds(res, acct); if (!ctx) return
     const result = await withCpAuthFallback(
-      cpProxy.compressFiles(ctx.cpUser, ctx.cpPass, dir, files, destFile, ctx.whmHost),
-      () => cpProxy.api2ViaWhmRoot(ctx.cpUser, 'Fileman', 'fileop', { doubledecode: 0, op: 'compress', sourcefiles: files.map(f => `${dir}/${f}`).join('\n'), destfiles: `${dir}/${destFile}` }, ctx.whmHost),
+      cpProxy.compressFiles(ctx.cpUser, ctx.cpPass, absDir, files, destFile, ctx.whmHost),
+      () => cpProxy.api2ViaWhmRoot(ctx.cpUser, 'Fileman', 'fileop', { doubledecode: 0, op: 'compress', sourcefiles, destfiles }, ctx.whmHost),
       'files.compress'
     )
     sendCp(res, result)
@@ -671,11 +719,14 @@ function registerHostingMgmtRoutes(deps) {
     const acct = await loadOwned(req, res); if (!acct) return
     const { sourceDir, fileName, destDir } = req.body || {}
     if (missing(res, ['sourceDir', sourceDir], ['fileName', fileName], ['destDir', destDir])) return
-    if (!isLive()) return dryRun(res, acct, 'files.copy', { from: `${sourceDir}/${fileName}`, to: destDir })
+    const cpUser = acct.cpUser || acct._id
+    const absSrc = toAbsPath(cpUser, sourceDir), absDest = toAbsPath(cpUser, destDir)
+    const sourcefiles = `${absSrc}/${fileName}`
+    if (!isLive()) return dryRun(res, acct, 'files.copy', { sourcefiles, destfiles: absDest })
     const ctx = withCreds(res, acct); if (!ctx) return
     const result = await withCpAuthFallback(
-      cpProxy.copyFile(ctx.cpUser, ctx.cpPass, sourceDir, fileName, destDir, ctx.whmHost),
-      () => cpProxy.api2ViaWhmRoot(ctx.cpUser, 'Fileman', 'fileop', { doubledecode: 0, op: 'copy', sourcefiles: `${sourceDir}/${fileName}`, destfiles: destDir }, ctx.whmHost),
+      cpProxy.copyFile(ctx.cpUser, ctx.cpPass, absSrc, fileName, absDest, ctx.whmHost),
+      () => cpProxy.api2ViaWhmRoot(ctx.cpUser, 'Fileman', 'fileop', { doubledecode: 0, op: 'copy', sourcefiles, destfiles: absDest }, ctx.whmHost),
       'files.copy'
     )
     sendCp(res, result)
@@ -685,11 +736,14 @@ function registerHostingMgmtRoutes(deps) {
     const acct = await loadOwned(req, res); if (!acct) return
     const { sourceDir, fileName, destDir } = req.body || {}
     if (missing(res, ['sourceDir', sourceDir], ['fileName', fileName], ['destDir', destDir])) return
-    if (!isLive()) return dryRun(res, acct, 'files.move', { from: `${sourceDir}/${fileName}`, to: `${destDir}/${fileName}` })
+    const cpUser = acct.cpUser || acct._id
+    const absSrc = toAbsPath(cpUser, sourceDir), absDest = toAbsPath(cpUser, destDir)
+    const sourcefiles = `${absSrc}/${fileName}`, destfiles = `${absDest}/${fileName}`
+    if (!isLive()) return dryRun(res, acct, 'files.move', { sourcefiles, destfiles })
     const ctx = withCreds(res, acct); if (!ctx) return
     const result = await withCpAuthFallback(
-      cpProxy.moveFile(ctx.cpUser, ctx.cpPass, sourceDir, fileName, destDir, ctx.whmHost),
-      () => cpProxy.api2ViaWhmRoot(ctx.cpUser, 'Fileman', 'fileop', { doubledecode: 0, op: 'move', sourcefiles: `${sourceDir}/${fileName}`, destfiles: `${destDir}/${fileName}` }, ctx.whmHost),
+      cpProxy.moveFile(ctx.cpUser, ctx.cpPass, absSrc, fileName, absDest, ctx.whmHost),
+      () => cpProxy.api2ViaWhmRoot(ctx.cpUser, 'Fileman', 'fileop', { doubledecode: 0, op: 'move', sourcefiles, destfiles }, ctx.whmHost),
       'files.move'
     )
     sendCp(res, result)
