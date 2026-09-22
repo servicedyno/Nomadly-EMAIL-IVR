@@ -64,8 +64,16 @@ Debug a running build: VNC `<ip>:5901`, password = build doc `vnc_password` (sta
 ## Reseller API
 - `GET /rdp/plans` → `default_os`, `os_options[{id,name,default,fast_deploy,eta_minutes,fast_deploy_regions}]`
 - `POST /rdp` accepts `os` (ws2019|ws2022|ws2025, default ws2022); result has `os`, `fast_deploy`, `eta_minutes`.
+- `GET /rdp/:id` → `provisioning` block for status pages (stage/label, progress, `eta_seconds` countdown, `steps[4]`,
+  `credentials_ready`, `password_confirmed`, last 10 logs) + `credentials_url`. `GET /rdp/:id/credentials` → live IP + password (live mode).
 - Fast path only when `golden_status=available` AND tier disk ≥ min_disk AND region in `golden_regions`;
   otherwise full conversion (+ on-demand image transfer to that region for next time).
+
+## Admin alerts (Telegram, via `notifyAdmin` injected in `_index.js`)
+Order failed · fast-path order not active after 3 min (stage + last message) · fast→slow fallback · password not applied ·
+golden build failed · region transfer failed · daily digest (24 h orders, time-to-active avg/max, misses, failures).
+De-duplicated per key for 10 min. Digest/expiry sweep are off when `SKIP_WEBHOOK_SYNC=true`.
+Live checks: `node js/ops/rdp_status_api_e2e.js --os ws2019 --region US [--keep-on-fail]` (public-API status polling + login check).
 
 ## Costs
 Build ≈ $0.20–0.40 per edition (droplet 2–3 h incl. import + volume). Custom image storage $0.06/GB/mo per
