@@ -285,6 +285,62 @@ function registerHostingMgmtRoutes(deps) {
   }
 
   // ════════════════════════════════════════════════════════
+  // FILE-OP RECEIPTS  (before/after directory listings)
+  // ────────────────────────────────────────────────────────
+  // move/copy/extract/unzip return a concise `receipt` so integrators can
+  // confirm placement WITHOUT a second request. Best-effort: listing failures
+  // never break the underlying file operation (receipt is simply omitted).
+  const okStatus = (r) => !!(r && (r.status === 1 || r.status === '1') && !r.code)
+
+  // List a single ABSOLUTE directory → just the entry names (sorted), healing a
+  // stale-cpPass account via the same WHM-root UAPI fallback GET /files uses.
+  async function listDirNames(ctx, absDir) {
+    try {
+      const fparams = { dir: absDir, include_mime: 0, include_permissions: 0, include_hash: 0, include_content: 0, types: 'dir|file' }
+      const result = await withCpAuthFallback(
+        cpProxy.listFiles(ctx.cpUser, ctx.cpPass, absDir, ctx.whmHost),
+        () => cpProxy.uapiViaWhmRoot(ctx.cpUser, 'Fileman', 'list_files', fparams, ctx.whmHost),
+        'files.list(receipt)'
+      )
+      if (!result || (result.status !== 1 && result.status !== '1') || !Array.isArray(result.data)) return null
+      return result.data.map(f => f && (f.file || f.fullname)).filter(Boolean).sort()
+    } catch (_) { return null }
+  }
+
+  // Names present in `a` but not in `b` (compare by name).
+  const diffNames = (a, b) => {
+    if (!Array.isArray(a)) return []
+    const bset = new Set(Array.isArray(b) ? b : [])
+    return a.filter(x => !bset.has(x))
+  }
+
+  // Receipts are ON by default; callers opt out with { receipt:false } or ?receipt=false.
+  const receiptDisabled = (req) =>
+    (req.body && (req.body.receipt === false || req.body.receipt === 'false')) ||
+    String((req.query && req.query.receipt) || '').toLowerCase() === 'false'
+
+  // Snapshot dest (and optional source) dir BEFORE running `opFn`, snapshot
+  // AFTER, and attach `receipt` when the op succeeded. `dirs` are ABSOLUTE paths.
+  async function withReceipt(req, ctx, dirs, opFn) {
+    const want = !receiptDisabled(req)
+    const twoDirs = dirs.srcDir && dirs.srcDir !== dirs.destDir
+    const destBefore = want ? await listDirNames(ctx, dirs.destDir) : null
+    const srcBefore = want && twoDirs ? await listDirNames(ctx, dirs.srcDir) : null
+    const result = await opFn()
+    if (!want || !okStatus(result)) return result
+    const destAfter = await listDirNames(ctx, dirs.destDir)
+    const srcAfter = twoDirs ? await listDirNames(ctx, dirs.srcDir) : null
+    const receipt = {
+      dest: { dir: dirs.destDir, before: destBefore, after: destAfter, added: diffNames(destAfter, destBefore) },
+    }
+    if (twoDirs) {
+      receipt.source = { dir: dirs.srcDir, before: srcBefore, after: srcAfter, removed: diffNames(srcBefore, srcAfter) }
+    }
+    return { ...result, receipt }
+  }
+
+
+  // ════════════════════════════════════════════════════════
   // EMAIL ACCOUNTS
   // ════════════════════════════════════════════════════════
   router.get('/hosting/:user/email', apiKeyAuth, h(async (req, res) => {
@@ -689,11 +745,11 @@ function registerHostingMgmtRoutes(deps) {
     const sourcefiles = `${absDir}/${file}`
     if (!fileOpsLive()) return dryRun(res, acct, 'files.extract', { sourcefiles, destfiles: absDest })
     const ctx = withCreds(res, acct); if (!ctx) return
-    const result = await withCpAuthFallback(
+    const result = await withReceipt(req, ctx, { destDir: absDest }, () => withCpAuthFallback(
       cpProxy.extractFile(ctx.cpUser, ctx.cpPass, absDir, file, absDest, ctx.whmHost),
       () => cpProxy.api2ViaWhmRoot(ctx.cpUser, 'Fileman', 'fileop', { doubledecode: 0, op: 'extract', sourcefiles, destfiles: absDest }, ctx.whmHost),
       'files.extract'
-    )
+    ))
     sendCp(res, result)
   }))
 
@@ -724,11 +780,11 @@ function registerHostingMgmtRoutes(deps) {
     const sourcefiles = `${absSrc}/${fileName}`
     if (!fileOpsLive()) return dryRun(res, acct, 'files.copy', { sourcefiles, destfiles: absDest })
     const ctx = withCreds(res, acct); if (!ctx) return
-    const result = await withCpAuthFallback(
+    const result = await withReceipt(req, ctx, { destDir: absDest }, () => withCpAuthFallback(
       cpProxy.copyFile(ctx.cpUser, ctx.cpPass, absSrc, fileName, absDest, ctx.whmHost),
       () => cpProxy.api2ViaWhmRoot(ctx.cpUser, 'Fileman', 'fileop', { doubledecode: 0, op: 'copy', sourcefiles, destfiles: absDest }, ctx.whmHost),
       'files.copy'
-    )
+    ))
     sendCp(res, result)
   }))
 
@@ -741,11 +797,11 @@ function registerHostingMgmtRoutes(deps) {
     const sourcefiles = `${absSrc}/${fileName}`, destfiles = `${absDest}/${fileName}`
     if (!fileOpsLive()) return dryRun(res, acct, 'files.move', { sourcefiles, destfiles })
     const ctx = withCreds(res, acct); if (!ctx) return
-    const result = await withCpAuthFallback(
+    const result = await withReceipt(req, ctx, { destDir: absDest, srcDir: absSrc }, () => withCpAuthFallback(
       cpProxy.moveFile(ctx.cpUser, ctx.cpPass, absSrc, fileName, absDest, ctx.whmHost),
       () => cpProxy.api2ViaWhmRoot(ctx.cpUser, 'Fileman', 'fileop', { doubledecode: 0, op: 'move', sourcefiles, destfiles }, ctx.whmHost),
       'files.move'
-    )
+    ))
     sendCp(res, result)
   }))
 
@@ -770,6 +826,83 @@ function registerHostingMgmtRoutes(deps) {
       'files.upload'
     )
     sendCp(res, result)
+  }))
+
+  // One-tap "unzip": upload a base64 archive into `dir`, extract it into
+  // `destDir` (default = dir), then list the destination — all in ONE call, so
+  // integrators get a clean unzip action instead of upload → extract → list.
+  // Optional { removeArchive:true } deletes the uploaded archive after a
+  // successful extract. Same absolute-path + WHM-root-fallback contract as the
+  // individual ops; on the sandbox it returns a dry-run plan.
+  router.post('/hosting/:user/files/unzip', apiKeyAuth, h(async (req, res) => {
+    const acct = await loadOwned(req, res); if (!acct) return
+    const { dir, fileName, destDir, removeArchive } = req.body || {}
+    const contentB64 = (req.body && (req.body.content_base64 || req.body.contentBase64)) || null
+    if (missing(res, ['dir', dir], ['fileName', fileName], ['content_base64', contentB64])) return
+    if (isProtectedAntiRedFile(dir, fileName)) return res.status(403).json({ error: 'protected_file', message: `${fileName} is protected by Anti-Red and cannot be uploaded.` })
+    let buffer
+    try { buffer = Buffer.from(String(contentB64), 'base64') } catch (e) { return res.status(400).json({ error: 'invalid_base64', message: 'content_base64 must be valid base64.' }) }
+    const cpUser = acct.cpUser || acct._id
+    const absDir = toAbsPath(cpUser, dir)
+    const absDest = destDir ? toAbsPath(cpUser, destDir) : absDir
+    const sourcefiles = `${absDir}/${fileName}`
+    if (!fileOpsLive()) return dryRun(res, acct, 'files.unzip', { steps: ['upload', 'extract', 'list'], upload: sourcefiles, bytes: buffer.length, destfiles: absDest, removeArchive: !!removeArchive })
+    const ctx = withCreds(res, acct); if (!ctx) return
+
+    // 1) Upload the archive (multipart, with WHM-session / WHM-root fallback).
+    const uploaded = await withCpAuthFallback(
+      cpProxy.uploadFile(ctx.cpUser, ctx.cpPass, dir, fileName, buffer, ctx.whmHost),
+      async () => {
+        let fb = await cpProxy.uploadFileViaSession(ctx.cpUser, dir, fileName, buffer, ctx.whmHost)
+        if (!fb || fb.status !== 1) fb = await cpProxy.uploadFileAsRoot(ctx.cpUser, dir, fileName, buffer, ctx.whmHost)
+        return fb
+      },
+      'files.unzip.upload'
+    )
+    if (!okStatus(uploaded)) {
+      return sendCp(res, { ...(uploaded || { status: 0, errors: ['upload failed'] }), action: 'files.unzip', step: 'upload' })
+    }
+
+    // Snapshot destination BEFORE extracting so we can report exactly what landed.
+    const receiptWanted = !receiptDisabled(req)
+    const destBefore = receiptWanted ? await listDirNames(ctx, absDest) : null
+
+    // 2) Extract the archive into destDir (or its own dir).
+    const extracted = await withCpAuthFallback(
+      cpProxy.extractFile(ctx.cpUser, ctx.cpPass, absDir, fileName, absDest, ctx.whmHost),
+      () => cpProxy.api2ViaWhmRoot(ctx.cpUser, 'Fileman', 'fileop', { doubledecode: 0, op: 'extract', sourcefiles, destfiles: absDest }, ctx.whmHost),
+      'files.unzip.extract'
+    )
+    if (!okStatus(extracted)) {
+      return sendCp(res, { ...(extracted || { status: 0, errors: ['extract failed'] }), action: 'files.unzip', step: 'extract', uploaded: { fileName, bytes: buffer.length } })
+    }
+
+    // 3) Optionally remove the uploaded archive.
+    let archiveRemoved = null
+    if (removeArchive) {
+      const del = await withCpAuthFallback(
+        cpProxy.deleteFile(ctx.cpUser, ctx.cpPass, absDir, fileName, ctx.whmHost, false),
+        () => cpProxy.api2ViaWhmRoot(ctx.cpUser, 'Fileman', 'fileop', { doubledecode: 0, op: 'unlink', sourcefiles }, ctx.whmHost),
+        'files.unzip.cleanup'
+      )
+      archiveRemoved = okStatus(del)
+    }
+
+    // 4) List the destination so the caller sees the unpacked files (the receipt).
+    const listing = receiptWanted ? await listDirNames(ctx, absDest) : null
+    const added = receiptWanted ? diffNames(listing, destBefore) : null
+
+    return sendCp(res, {
+      status: 1,
+      action: 'files.unzip',
+      uploaded: { fileName, bytes: buffer.length, dir: absDir },
+      extracted: { src: (extracted.data && extracted.data.src) || sourcefiles, dest: (extracted.data && extracted.data.dest) || absDest },
+      archiveRemoved,
+      listing,
+      added,
+      healed: !!(uploaded.healed || extracted.healed),
+      healed_via: extracted.healed_via || uploaded.healed_via || null,
+    })
   }))
 
   // ════════════════════════════════════════════════════════
