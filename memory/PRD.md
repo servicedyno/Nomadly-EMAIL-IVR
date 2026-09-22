@@ -99,17 +99,22 @@ Every "choose payment method" screen now renders through one closure layer in `_
 - **QUIETED (code)** — Contabo auth spam (~200 lines/48h): `getAccessToken` auth circuit breaker (`VPS_AUTH_DOWN`, `CONTABO_AUTH_COOLDOWN_MIN` 30m) + `isAuthHealthy()`; VPS self-heal skips the whole Contabo sweep in one log when auth is down. Tests: `test_contabo_auth_breaker_2026-09.js` 10/10. Infra creds (`invalid_client`) still invalid — owner to fix.
 - **IGNORED (per user)** — Connect Reseller 401 infra (prod IP not whitelisted / CR portal login broken); OpenProvider fallback covers domain pricing. CR loop already throttled per-process; residual volume is restart-amplified.
 
-## 2026-09-22 — Windows RDP on DigitalOcean: golden images (fast ≤3-min deploys) — IN PROGRESS
+## 2026-09-22 — Windows RDP on DigitalOcean: golden images (fast ≤3-min deploys)
 Goal: `POST /api/reseller/v1/rdp` must return a working Windows server in ~3 min for ws2019/ws2022/ws2025 instead of a 20-45 min QEMU conversion.
 Runbook: `memory/RDP_GOLDEN_IMAGES.md`; lessons: `memory/DO_RDP_LESSONS.md`.
 - ❌ Droplet **snapshots** of a converted Windows disk are unusable on DO (create/rebuild action errors, droplet auto-deleted) — reproduced 4×. Both legacy snapshots deleted.
 - ✅ Pipeline rewritten to **DO Custom Images**: build droplet → QEMU install → QEMU first boot (RDP probe) → Windows self-shutdown → **offline ntfs-3g verify** (apply.ps1 sha + CloudInitApply task) → `qemu-img convert` qcow2 → HTTP serve → `POST /v2/images` (distribution Unknown) → poll → register → delete build droplet → transfer to 9 regions.
-- ✅ apply.ps1 now ships on the answer ISO and is copied from the CD by FirstLogonCommands (certutil -decode silently failed on WS2019/WS2025). Verified OK on WS2022 + WS2019.
+- ✅ apply.ps1 now ships on the answer ISO and is copied from the CD by FirstLogonCommands (certutil -decode silently failed on WS2019/WS2025). Verified OK on WS2022 + WS2019 + WS2025.
 - ✅ Build-size fallback on `422 Size is not available` (live `GET /v2/regions` sizes; 50 GB-disk candidates only).
 - ✅ Direct (customer) conversion: robust finalize (`dd` O_DIRECT + sysrq remount-ro + builtins-only reboot).
 - ✅ Fast path falls back to full conversion automatically if DO deletes the droplet (create errored).
-- ✅ Tests: `js/tests/test_do_rdp_golden_2026-06.js` 61/61. E2E script `js/ops/rdp_golden_e2e.js` hardened (DO action check, PASS/FAIL).
-- ⏳ Builds running (2026-09-22 18:40 UTC): ws2022 import image 246587962 pending since 17:46; ws2019 import 246588371 pending since 18:16; ws2025 build-3abbc79163b6 installing. Next: wait for `available` → E2E each edition → testing_agent on reseller API.
+- ✅ **WS2025 fix (this fork)**: 24H2 Setup appends a 681 MB WinRE partition after C: → offline verify mounted the wrong partition (2 failed builds). `convert_to_windows.sh` now finds the OS partition by content and `sfdisk --delete`s trailing partitions so C: can grow. ws2025 build passed verify first time after the fix.
+- ✅ **P0 password bug fixed (this fork)**: `provisionServer` sent `ADMIN_PASSWORD=undefined` (password lives in the secret store, not on `doRdpServers`) → Windows rejected it → customers could never log in (fast AND slow path). Diagnosed live on a kept droplet via RDP (`memory/rdp_apply_log_ws2019_bug_repro.log`). Fix: load from `getSecretPassword()`; unit tests now assert the real password in user-data + autounattend.
+- ✅ apply.ps1 hardened: public DNS (67.207.67.2/3, 1.1.1.1) before DO's VPC resolver (10.x timed out for 5+ min after boot → callbacks failed), `net user /y`, SetPassword retry, `Clear-DnsClientCache` before callback retries, bootscript self-refresh retried 3×. Baked into future builds; existing images self-refresh it on later boots.
+- ✅ Region transfer race: DO 422 "already being transferred" now waits for the region instead of marking it FAILED. `callbackGraceMs` 150→90 s.
+- ✅ **E2E PASS**: ws2019 (image 246589188) fast path active in 3.2 min, NLA login with per-order password OK; ws2022 (image 246587962) 3.7 min, login OK. Logs in `memory/rdp_golden_e2e_ws*.log`.
+- ✅ testing_agent iteration_49: 11/11 reseller RDP API + admin status + unit suite 66/66.
+- ⏳ Still importing at DO (22:40 UTC): ws2022 rebuild image 246589203 (queued 19:30) and ws2025 image 246605289 (queued 21:02). Registration + old-image deletion + 9-region transfer are automatic (resumable across restarts). **ws2025 E2E not yet run** (needs its image `available`): `node js/ops/rdp_golden_e2e.js --os ws2025 --region US`.
 - Sandbox reseller API key in `memory/test_credentials.md`.
 
 ## Prioritized backlog (P0/P1/P2)

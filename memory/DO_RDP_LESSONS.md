@@ -20,3 +20,13 @@
    Fix: locate the OS partition by content (`Windows/System32`), then `sfdisk --delete` every trailing
    partition so C: stays last and apply.ps1's `Resize-Partition` can grow it on 50–320 GB customer disks.
    Layout is now echoed in the verify messages (`Layout: sda1 31.3G ntfs ...`).
+9. **The per-order password is NOT on `doRdpServers`** — it lives in `vpsPasswordSecrets` (secret store). Anything that
+   builds user-data / autounattend from a server doc must call `getSecretPassword(server_id)` first. The bug shipped
+   `ADMIN_PASSWORD=undefined` → Windows policy rejected it → RDP up but login impossible. Caught only by a real login
+   check (`xfreerdp +auth-only`); the unit suite now asserts the real password is in the user-data.
+10. **DO's VPC resolver (10.x.15.254 from metadata `dns.nameservers`) times out for 5+ min after a Windows boot** →
+    "remote name could not be resolved" on every callback. apply.ps1 puts 67.207.67.2/3 + 1.1.1.1 first.
+11. `net user Administrator <pw>` prompts (and fails non-interactively) for passwords > 14 chars → always pass `/y`.
+12. Debugging a golden droplet from the sandbox: `Xvfb :98` + `xfreerdp /v:IP /u:Administrator /p:<build admin_password>
+    /drive:share,/tmp/rdpshare` + `xdotool key super+r` → run a `.cmd` from `\\tsclient\share` (Run box truncates long
+    commands) → copy `C:\cloudinit\apply.log` back to the share. Build-time password = `doRdpImageBuilds.admin_password`.

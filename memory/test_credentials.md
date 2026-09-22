@@ -36,3 +36,7 @@
 - Key label `golden e2e sandbox key` (`resellerApiKeys._id = e2e-golden-key`)
 - `X-API-Key: nmdly_e2e_51573577f5db956c5c0cb039` (or `Authorization: Bearer ...`)
 - Base: `${REACT_APP_BACKEND_URL}/api/reseller/v1` — e.g. `GET /rdp/plans`, `POST /rdp`
+
+## RDP golden-image admin endpoints (sandbox)
+- `GET/POST ${REACT_APP_BACKEND_URL}/api/admin/rdp-golden/{status|build|sync|transfer|cancel}?key=<first 16 chars of SESSION_SECRET in backend/.env>` (URL-encode the key)
+- CLI wrappers: `node js/ops/rdp_golden_build.js status|watch|build|transfer|cancel`, E2E: `node js/ops/rdp_golden_e2e.js --os ws2019|ws2022|ws2025 --region US` (creates + destroys one real droplet)

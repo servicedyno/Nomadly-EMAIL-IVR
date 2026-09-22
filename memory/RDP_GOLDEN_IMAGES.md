@@ -43,9 +43,11 @@ source of truth) and `resumeBuilds()` continues interrupted builds. Auto-sync ev
 `DO_RDP_GOLDEN_AUTOSYNC=false`.
 
 ## Customer fast path
-`provisionServer`: create droplet from `golden_image_id` with KEY=VALUE user-data → `apply.ps1` (boot task) sets
-network + Administrator password + calls back `rdp_ready`; backend also polls 3389. If DO deletes the droplet
-(create action errored) the order **falls back to the full conversion automatically** and logs why.
+`provisionServer`: loads the per-order password from the secret store (`getSecretPassword`), creates the droplet from
+`golden_image_id` with KEY=VALUE user-data → `apply.ps1` (boot task) sets network + Administrator password + calls back
+`rdp_ready`; backend also polls 3389 and declares active 90 s after the port opens if no callback arrived. If DO deletes
+the droplet (create action errored) the order **falls back to the full conversion automatically** and logs why.
+Measured (2026-09-22, nyc3, starter): RDP up ~110 s after order, active 3.2–3.7 min, NLA login with per-order password OK.
 
 ## Admin endpoints (key = first 16 chars of SESSION_SECRET, `?key=`)
 - `GET  /api/admin/rdp-golden/status`
