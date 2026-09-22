@@ -31,3 +31,8 @@
 
 ## Admin panel
 - Frontend admin dashboard is open (no login) at the pod root URL.
+
+## Reseller API (sandbox, local Mongo `test`)
+- Key label `golden e2e sandbox key` (`resellerApiKeys._id = e2e-golden-key`)
+- `X-API-Key: nmdly_e2e_51573577f5db956c5c0cb039` (or `Authorization: Bearer ...`)
+- Base: `${REACT_APP_BACKEND_URL}/api/reseller/v1` — e.g. `GET /rdp/plans`, `POST /rdp`

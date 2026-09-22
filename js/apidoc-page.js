@@ -66,8 +66,8 @@ function endpointGroups(base) {
   "vps": { "provider": "digitalocean", "region": "EU", "plans": [
     { "plan_id": "s-1vcpu-1gb", "name": "1 vCPU / 1 GB", "ram_gb": 1, "disk_gb": 25, "price_usd": 18.00 }
   ] },
-  "rdp": { "provider": "azure", "region": "EU", "plans": [
-    { "plan_id": "Standard_B2s", "name": "2 vCPU / 4 GB", "ram_gb": 4, "disk_gb": 30, "price_usd": 42.75 }
+  "rdp": { "provider": "digitalocean", "region": "EU", "plans": [
+    { "plan_id": "standard-1m", "name": "Standard — Windows RDP (1 month)", "ram_gb": 4, "disk_gb": 80, "price_usd": 48.00 }
   ] }
 }`,
         },
@@ -319,33 +319,36 @@ function endpointGroups(base) {
     },
     {
       id: 'rdp', title: 'RDP (Windows)',
-      blurb: 'Identical to the VPS endpoints but provisions Windows servers. Replace /vps with /rdp. The login user is "Administrator".',
+      blurb: 'Identical to the VPS endpoints but provisions Windows Server (DigitalOcean). Replace /vps with /rdp. The login user is "Administrator". Choose the edition with the optional "os" field (ws2019 | ws2022 | ws2025, default ws2022). Editions flagged fast_deploy in GET /rdp/plans boot from a pre-built golden image and are RDP-ready in about 3 minutes; otherwise a full unattended Windows install runs (20-45 min). Poll GET /rdp/:id until status is "active", then read GET /rdp/:id/credentials.',
       endpoints: [
         {
           method: 'GET', path: '/rdp/plans', auth: true, billed: false,
-          desc: 'List available Windows RDP plans and prices for a region.',
+          desc: 'List Windows RDP plans and prices for a region, plus os_options with per-edition fast_deploy readiness and eta_minutes.',
           params: [['region', false, 'Region code — defaults to EU']],
           curl: `curl -s "${base}/rdp/plans?region=EU" \\
   -H "Authorization: Bearer YOUR_API_KEY"`,
-          resp: `{ "product": "rdp", "provider": "azure", "region": "EU", "plans": [ … ] }`,
+          resp: `{ "product": "rdp", "provider": "digitalocean", "region": "EU", "default_os": "ws2022",
+  "plans": [ { "plan_id": "standard-1m", "name": "Standard — Windows RDP (1 month)", "vcpus": 2, "ram_gb": 4, "disk_gb": 80, "price_usd": 48 }, … ],
+  "os_options": [ { "id": "ws2022", "name": "Windows Server 2022", "default": true, "fast_deploy": true, "eta_minutes": 3, "fast_deploy_regions": ["EU","US","UK",…] }, … ] }`,
         },
         {
           method: 'POST', path: '/rdp', auth: true, billed: true,
-          desc: 'Create a Windows RDP server. Same body as POST /vps (os is forced to windows).',
+          desc: 'Create a Windows RDP server. Same body as POST /vps plus an optional "os" edition. The response includes fast_deploy + eta_minutes so you know whether to expect ~3 or ~45 minutes.',
           params: [
-            ['plan_id', true, 'A plan_id from GET /rdp/plans'],
+            ['plan_id', true, 'A plan_id from GET /rdp/plans (e.g. standard-1m)'],
             ['region', false, 'Region code — defaults to EU'],
+            ['os', false, 'Windows edition: ws2019 | ws2022 | ws2025 — defaults to ws2022'],
             ['hostname', false, 'Optional label/hostname'],
           ],
           curl: `curl -s -X POST ${base}/rdp \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
-  -d '{"plan_id":"Standard_B1s","region":"EU"}'`,
-          resp: `{ "mode": "live", "product": "rdp", "action": "create", "charged_usd": 24.00,
-  "result": { "success": true, "id": "…", "ip": "203.0.113.80", "status": "provisioning" } }`,
+  -d '{"plan_id":"standard-1m","region":"EU","os":"ws2022"}'`,
+          resp: `{ "mode": "live", "product": "rdp", "action": "create", "charged_usd": 48.00,
+  "result": { "success": true, "id": "…", "ip": null, "status": "provisioning", "os": "ws2022", "fast_deploy": true, "eta_minutes": 3 } }`,
         },
-        { method: 'GET', path: '/rdp', auth: true, billed: false, desc: 'List all Windows RDP instances you own.', curl: `curl -s ${base}/rdp -H "Authorization: Bearer YOUR_API_KEY"`, resp: `{ "rdp": [ … ] }` },
-        { method: 'GET', path: '/rdp/:id', auth: true, billed: false, desc: 'Get one RDP instance with live provider status.', curl: `curl -s ${base}/rdp/ID -H "Authorization: Bearer YOUR_API_KEY"`, resp: `{ "id": "…", "os": "windows", "status": "active", "ip": "203.0.113.80" }` },
+        { method: 'GET', path: '/rdp', auth: true, billed: false, desc: 'List all Windows RDP instances you own.', curl: `curl -s ${base}/rdp -H "Authorization: Bearer YOUR_API_KEY"`, resp: `{ "rdp": [ { "id": "…", "os": "windows", "os_id": "ws2022", "status": "active", "ip": "203.0.113.80" }, … ] }` },
+        { method: 'GET', path: '/rdp/:id', auth: true, billed: false, desc: 'Get one RDP instance with live provider status + progress logs. Status goes queued → creating → booting → installing/converting → active.', curl: `curl -s ${base}/rdp/ID -H "Authorization: Bearer YOUR_API_KEY"`, resp: `{ "id": "…", "os": "windows", "os_id": "ws2022", "status": "active", "ip": "203.0.113.80", "live": { "progress": 100, "logs": [ … ] } }` },
         { method: 'POST', path: '/rdp/:id/action', auth: true, billed: false, desc: 'Power action (start, stop, reboot, shutdown).', params: [['action', true, 'start | stop | reboot | shutdown']], curl: `curl -s -X POST ${base}/rdp/ID/action \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\

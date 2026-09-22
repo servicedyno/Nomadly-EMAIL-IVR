@@ -46072,6 +46072,44 @@ app.post('/admin/contabo-circuit-reset', (req, res) => {
   }
 })
 
+// ── Admin: DigitalOcean Windows-RDP golden images (build / status / sync / transfer / cancel) ──
+// A build creates BILLABLE DO resources (build droplet ~1 h + snapshot storage per region),
+// so it needs the admin key AND {"confirm":true}. CLI wrapper: node js/ops/rdp_golden_build.js
+{
+  const rdpGoldenSvc = (req, res) => {
+    if (req?.query?.key !== process.env.SESSION_SECRET?.slice(0, 16)) { res.status(403).json({ error: 'Unauthorized' }); return null }
+    return require('./digitalocean-rdp-service.js')
+  }
+  app.get('/admin/rdp-golden/status', async (req, res) => {
+    const svc = rdpGoldenSvc(req, res); if (!svc) return
+    try { res.json(await svc.goldenStatus()) } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+  app.post('/admin/rdp-golden/build', async (req, res) => {
+    const svc = rdpGoldenSvc(req, res); if (!svc) return
+    try {
+      const body = req.body || {}
+      if (body.confirm !== true) return res.status(400).json({ error: 'confirm_required', message: 'Golden builds create billable DigitalOcean resources. Send {"confirm":true}.' })
+      const ids = (!body.os_id || body.os_id === 'all') ? Object.keys(svc.OS_OPTIONS) : [String(body.os_id).toLowerCase()]
+      const results = []
+      for (const osId of ids) results.push({ os_id: osId, ...(await svc.startGoldenBuild({ osId, region: body.region, targetRegions: body.regions, keepOnFailure: !!body.keep_on_failure })) })
+      log(`[admin] rdp-golden build requested: ${ids.join(',')} regions=${JSON.stringify(body.regions || null)}`)
+      res.json({ success: true, results })
+    } catch (e) { res.status(400).json({ error: e.message }) }
+  })
+  app.post('/admin/rdp-golden/sync', async (req, res) => {
+    const svc = rdpGoldenSvc(req, res); if (!svc) return
+    try { res.json({ success: true, synced: await svc.syncGoldenFromDO() }) } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+  app.post('/admin/rdp-golden/transfer', async (req, res) => {
+    const svc = rdpGoldenSvc(req, res); if (!svc) return
+    try { res.json({ success: true, ...(await svc.transferGolden(req.body?.os_id, req.body?.regions || 'all')) }) } catch (e) { res.status(400).json({ error: e.message }) }
+  })
+  app.post('/admin/rdp-golden/cancel', async (req, res) => {
+    const svc = rdpGoldenSvc(req, res); if (!svc) return
+    try { res.json({ success: true, ...(await svc.cancelBuild(String(req.body?.build_id || ''))) }) } catch (e) { res.status(400).json({ error: e.message }) }
+  })
+}
+
 // ── Admin: Generate carrier-validated leads & deliver to a chatId ──
 // Used for fulfilling manual lead orders (e.g. compensation, freebies).
 // Auth: ?key=<SESSION_SECRET first 16 chars>

@@ -68,11 +68,19 @@ function regionToSlug(region) {
   return REGION_TO_DO[r.toUpperCase()] || 'nyc3'
 }
 
-// Golden-image build droplet needs >=4 GB for the QEMU install; its 80 GB disk
-// becomes the minimum disk for droplets launched from the snapshot.
-const BUILD_SIZE = 's-2vcpu-4gb'
-const BUILD_DISK_GB = 80
+// Golden-image build droplet: needs >=4 GB RAM for the QEMU install AND a 50 GB
+// disk — the snapshot's min_disk_size must fit EVERY tier (starter = 50 GB).
+// gd-2vcpu-8gb = dedicated 2 vCPU / 8 GB / 50 GB (~$0.10/h; a build is ~1 h).
+const BUILD_SIZE = process.env.DO_RDP_BUILD_SIZE || 'gd-2vcpu-8gb'
+// Same 50 GB disk, tried in order when DO reports "Size is not available in this region" (capacity fluctuates).
+const BUILD_SIZE_FALLBACKS = ['c-4', 'm-2vcpu-16gb', 'm-2vcpu-16gb-intel', 'c-4-intel', 'c2-2vcpu-4gb']
+const BUILD_DISK_GB = 50
+const BUILD_REGION = process.env.DO_RDP_BUILD_REGION || 'nyc3'
+const GOLDEN_ALL_REGIONS = [...new Set(Object.values(REGION_TO_DO))]
 const UBUNTU_IMAGE = process.env.DO_UBUNTU_IMAGE || 'ubuntu-22-04-x64'
+
+// Poll timings (ms / min) — exported as _timing so tests can shrink them.
+const T = { bootPoll: 5000, rdpPoll: 30000, actionPoll: 15000, offPoll: 10000, rdpPort: 3389, rdpMaxMin: 90, transferMaxMin: 90, buildMaxMin: 120, importPoll: 30000, importMaxMin: 240, callbackGraceMs: 90000 }
 
 // ─────────────────────────────────────────────────────────────
 // Products (tier × duration). productId encodes both, so it slots into the
@@ -137,19 +145,96 @@ const doCreateDroplet = (b) => doRequest('POST', '/droplets', b)
 const doGetDroplet = (id) => doRequest('GET', `/droplets/${id}`)
 const doDropletAction = (id, b) => doRequest('POST', `/droplets/${id}/actions`, b)
 const doDeleteDroplet = (id) => doRequest('DELETE', `/droplets/${id}`)
+const doGetAction = (id) => doRequest('GET', `/actions/${id}`)
+const doGetImage = (id) => doRequest('GET', `/images/${id}`)
+const doDeleteImage = (id) => doRequest('DELETE', `/images/${id}`)
+const doImageAction = (id, b) => doRequest('POST', `/images/${id}/actions`, b)
+const doListPrivateImages = () => doRequest('GET', '/images?private=true&per_page=200')
+const doCreateCustomImage = (b) => doRequest('POST', '/images', b)
+const doListSshKeys = () => doRequest('GET', '/account/keys?per_page=200')
+const doCreateSshKey = (b) => doRequest('POST', '/account/keys', b)
+
+// Droplets from custom images MUST be created with an SSH key (DO: "does not use root passwords").
+// Windows ignores it — apply.ps1 sets the per-order Administrator password — so one throwaway
+// ed25519 public key per account is registered once and reused.
+const SSH_KEY_NAME = 'nomadly-rdp-golden'
+let _sshKeyId = null
+async function ensureSshKeyId() {
+  if (process.env.DO_RDP_SSH_KEY_ID) return Number(process.env.DO_RDP_SSH_KEY_ID)
+  if (_sshKeyId) return _sshKeyId
+  const found = (((await doListSshKeys()).ssh_keys) || []).find(k => k.name === SSH_KEY_NAME)
+  if (found) return (_sshKeyId = found.id)
+  const raw = crypto.generateKeyPairSync('ed25519').publicKey.export({ type: 'spki', format: 'der' }).subarray(-32)
+  const field = (buf) => Buffer.concat([Buffer.from([0, 0, 0, buf.length]), buf])
+  const wire = Buffer.concat([field(Buffer.from('ssh-ed25519')), field(raw)]).toString('base64')
+  const created = (await doCreateSshKey({ name: SSH_KEY_NAME, public_key: `ssh-ed25519 ${wire} ${SSH_KEY_NAME}` })).ssh_key || {}
+  if (!created.id) throw new Error('could not register the golden-image SSH key on DigitalOcean')
+  return (_sshKeyId = created.id)
+}
+const doListDropletsByTag = (tag) => doRequest('GET', `/droplets?tag_name=${encodeURIComponent(tag)}&per_page=200`)
+const doCreateVolume = (b) => doRequest('POST', '/volumes', b)
+const doDeleteVolume = (id) => doRequest('DELETE', `/volumes/${id}`)
+const doVolumeAction = (id, b) => doRequest('POST', `/volumes/${id}/actions`, b)
+const doListVolumesByName = (name, region) => doRequest('GET', `/volumes?name=${encodeURIComponent(name)}&region=${encodeURIComponent(region)}`)
+const doListRegions = () => doRequest('GET', '/regions?per_page=200')
+
+// Build sizes in preference order, the ones DO currently offers in this region first.
+async function buildSizeCandidates(region) {
+  const all = [...new Set([BUILD_SIZE, ...BUILD_SIZE_FALLBACKS])]
+  let avail = null
+  try { avail = ((((await doListRegions()).regions) || []).find(r => r.slug === region) || {}).sizes || null } catch (_) {}
+  if (!avail) return all
+  return [...all.filter(s => avail.includes(s)), ...all.filter(s => !avail.includes(s))]
+}
+
+// Windows is installed onto a block-storage volume (then dd'd over the boot disk)
+// so Ubuntu's disk - which holds the ISOs - is never overwritten mid-install.
+const CONVERT_VOLUME_GB = Number(process.env.DO_RDP_CONVERT_VOLUME_GB || 32)
+
+// Create the install-target volume, then the Ubuntu droplet with it attached.
+async function launchConversion({ name, region, size, doc, osOption, tags }) {
+  const volName = `${name}-win`
+  let vol = null
+  try { vol = (((await doListVolumesByName(volName, region)).volumes) || [])[0] || null } catch (_) {}
+  if (!vol) vol = (await doCreateVolume({ size_gigabytes: CONVERT_VOLUME_GB, name: volName, region, description: 'Windows RDP conversion target (auto-deleted)' })).volume
+  const targetDisk = `/dev/disk/by-id/scsi-0DO_Volume_${volName}`
+  try {
+    const d = (await doCreateDroplet({ name, region, size, image: UBUNTU_IMAGE, user_data: buildUserData(doc, osOption, targetDisk), tags, volumes: [vol.id] })).droplet || {}
+    if (!d.id) throw new Error('DigitalOcean returned no droplet id')
+    return { dropletId: d.id, volumeId: vol.id }
+  } catch (e) {
+    try { await doDeleteVolume(vol.id) } catch (_) {}
+    throw e
+  }
+}
+
+// Detach (best effort) + delete the conversion volume; retried because DO needs a moment after detach.
+async function releaseVolume(volumeId, dropletId) {
+  if (!volumeId) return false
+  try { if (dropletId) await doVolumeAction(volumeId, { type: 'detach', droplet_id: dropletId }) } catch (_) {}
+  for (let i = 0; i < 8; i++) {
+    try { await doDeleteVolume(volumeId); return true } catch (e) { if (e.status === 404) return true }
+    await sleep(T.offPoll)
+  }
+  log(`releaseVolume(${volumeId}) could not delete the volume - remove it manually`)
+  return false
+}
 
 // ─────────────────────────────────────────────────────────────
-// Mongo state (doRdpServers) — initialised once from _index.js
+// Mongo state (doRdpServers, doRdpOsOptions, doRdpImageBuilds) — initialised once from _index.js
 // ─────────────────────────────────────────────────────────────
 let _servers = null
 let _osCol = null
+let _builds = null
 function init(db) {
   try {
     if (!db || typeof db.collection !== 'function') return false
     _servers = db.collection('doRdpServers')
     _osCol = db.collection('doRdpOsOptions')
+    _builds = db.collection('doRdpImageBuilds')
     _servers.createIndex({ server_id: 1 }, { unique: true }).catch(() => {})
     _servers.createIndex({ status: 1, expires_at: 1 }).catch(() => {})
+    _builds.createIndex({ build_id: 1 }, { unique: true }).catch(() => {})
     // Seed golden-image state rows for each OS (idempotent).
     for (const id of Object.keys(OS_OPTIONS)) {
       _osCol.updateOne(
@@ -158,12 +243,21 @@ function init(db) {
         { upsert: true },
       ).catch(() => {})
     }
-    log('initialised (collections=doRdpServers, doRdpOsOptions)')
+    log('initialised (collections=doRdpServers, doRdpOsOptions, doRdpImageBuilds)')
     // Expiry sweep — NEVER on a dev sandbox (would power off real servers).
     if (process.env.SKIP_WEBHOOK_SYNC !== 'true') {
       setInterval(() => { processExpiries().catch(e => log('expiry sweep error:', e.message)) }, 60 * 60 * 1000)
     } else {
       log('SKIP_WEBHOOK_SYNC=true — expiry sweep DISABLED (dev sandbox)')
+    }
+    // Golden images: DO snapshots are the source of truth (read-only sync, safe on
+    // every pod) and any build interrupted by a restart is resumed at its phase.
+    if (_token() && process.env.DO_RDP_GOLDEN_AUTOSYNC !== 'false') {
+      setTimeout(() => {
+        syncGoldenFromDO().then(r => log('golden sync:', JSON.stringify(r))).catch(e => log('golden sync error:', e.message))
+        resumeBuilds().catch(e => log('resumeBuilds error:', e.message))
+      }, 15000)
+      setInterval(() => { syncGoldenFromDO().catch(e => log('golden sync error:', e.message)) }, 6 * 60 * 60 * 1000)
     }
     return true
   } catch (e) {
@@ -176,7 +270,29 @@ async function getOsOption(osId) {
   const base = OS_OPTIONS[osId] || OS_OPTIONS[DEFAULT_OS_ID]
   let golden = null
   try { if (_osCol) golden = await _osCol.findOne({ _id: base.id }) } catch (_) {}
-  return { ...base, golden_status: (golden && golden.golden_status) || 'none', golden_image_id: golden && golden.golden_image_id, golden_regions: (golden && golden.golden_regions) || [], golden_min_disk_gb: (golden && golden.golden_min_disk_gb) || 0 }
+  const { _id, ...g } = golden || {}
+  return { ...base, golden_status: 'none', golden_image_id: null, golden_regions: [], golden_min_disk_gb: 0, ...g }
+}
+
+// Reseller-facing OS list: which editions deploy in ~3 min (golden image) and where.
+async function listOsOptions() {
+  const all = await Promise.all(Object.keys(OS_OPTIONS).map(getOsOption))
+  return all.map(o => {
+    const regs = o.golden_regions || []
+    const fast = o.golden_status === 'available' && !!o.golden_image_id
+    return {
+      id: o.id, name: o.name, default: o.id === DEFAULT_OS_ID,
+      fast_deploy: fast, eta_minutes: fast ? 3 : 45,
+      fast_deploy_regions: fast ? Object.entries(REGION_TO_DO).filter(([, slug]) => regs.includes(slug)).map(([code]) => code) : [],
+    }
+  })
+}
+
+function goldenFastPathOk(server, osOption) {
+  const goldenReady = osOption.golden_status === 'available' && !!osOption.golden_image_id
+  const diskOk = (server.disk_gb || 0) >= (osOption.golden_min_disk_gb || 1e9)
+  const regionReady = (osOption.golden_regions || []).includes(server.region)
+  return { goldenReady, diskOk, regionReady, ok: goldenReady && diskOk && regionReady }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -191,14 +307,31 @@ function genPassword(n = 18) {
 function genToken() { return crypto.randomBytes(24).toString('base64url') }
 function callbackBase() { return String(process.env.SELF_URL || '').replace(/\/+$/, '') } // already ends with /api
 
+/** Windows Setup FirstLogonCommands: RDP on, copy apply.ps1 from the answer disc (attached as a
+ *  CD during the QEMU first boot), register it as a boot task, then shut Windows down (the build
+ *  host verifies the baked files offline and ships the disk). No network, no certutil. */
+function firstLogonCommandsXml() {
+  const cmds = [
+    'cmd /c reg add "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Terminal Server" /v fDenyTSConnections /t REG_DWORD /d 0 /f',
+    'cmd /c reg add "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Terminal Server\\WinStations\\RDP-Tcp" /v UserAuthentication /t REG_DWORD /d 1 /f',
+    'cmd /c netsh advfirewall firewall set rule group="remote desktop" new enable=Yes',
+    'cmd /c mkdir C:\\cloudinit',
+    'cmd /c for %d in (D E F G H I) do if exist %d:\\cloudinit\\apply.ps1 copy /y %d:\\cloudinit\\apply.ps1 C:\\cloudinit\\apply.ps1',
+    'cmd /c schtasks /create /tn CloudInitApply /tr "powershell -ExecutionPolicy Bypass -WindowStyle Hidden -File C:\\cloudinit\\apply.ps1" /sc onstart /ru SYSTEM /rl HIGHEST /f',
+    'cmd /c shutdown /s /t 20 /f /d p:4:1 /c "Windows image build complete"',
+  ]
+  const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  return cmds.map((c, i) => `        <SynchronousCommand wcm:action="add">\n          <Order>${i + 1}</Order>\n          <CommandLine>${esc(c)}</CommandLine>\n        </SynchronousCommand>`).join('\n')
+}
+
 /** Build the Ubuntu→Windows conversion cloud-init user-data (full path). */
-function buildUserData(server, osOption) {
+function buildUserData(server, osOption, targetDisk) {
   let script = fs.readFileSync(path.join(SCRIPTS_DIR, 'convert_to_windows.sh'), 'utf8')
   let answer = fs.readFileSync(path.join(SCRIPTS_DIR, 'autounattend.xml.tmpl'), 'utf8')
   const base = callbackBase()
   answer = answer.split('{{ADMIN_PASSWORD}}').join(server.admin_password)
   answer = answer.split('{{IMAGE_NAME}}').join(osOption.image_name)
-  answer = answer.split('{{BOOTSCRIPT_URL}}').join(`${base}/provision/bootscript`)
+  answer = answer.split('{{FIRST_LOGON_COMMANDS}}').join(firstLogonCommandsXml())
   const answerB64 = Buffer.from(answer, 'utf8').toString('base64')
   const repl = {
     '{{ISO_URL}}': osOption.iso_url,
@@ -206,10 +339,15 @@ function buildUserData(server, osOption) {
     '{{INSTALL_METHOD}}': osOption.install_method || 'qemu',
     '{{IMAGE_URL}}': osOption.image_url || '',
     '{{VIRTIO_DIR}}': osOption.virtio_dir || '2k22',
+    '{{APPLY_SHA256}}': crypto.createHash('sha256').update(fs.readFileSync(path.join(SCRIPTS_DIR, 'apply.ps1'))).digest('hex'),
+    '{{APPLY_PS1_B64}}': fs.readFileSync(path.join(SCRIPTS_DIR, 'apply.ps1')).toString('base64'),
     '{{CALLBACK_URL}}': `${base}/provision/callback`,
     '{{CALLBACK_TOKEN}}': server.callback_token,
     '{{SERVER_ID}}': server.server_id,
-    '{{ADMIN_PASSWORD}}': server.admin_password,
+    '{{TARGET_DISK}}': targetDisk || '',
+    '{{VNC_PASSWORD}}': server.vnc_password || '',
+    '{{BUILD_MODE}}': server.build_mode || 'direct',
+    '{{IMAGE_TOKEN}}': server.image_token || '',
     '{{AUTOUNATTEND_B64}}': answerB64,
   }
   for (const [k, v] of Object.entries(repl)) script = script.split(k).join(v)
@@ -251,18 +389,20 @@ function tcpOpen(ip, port = 3389, timeoutMs = 5000) {
   })
 }
 
+// Resolves { ip } once the droplet is active, { ip: null } on timeout, { gone: true } if DO
+// deleted it (a "create" action that errored — e.g. an image DO cannot provision).
 async function waitBootIp(dropletId, tries = 72) {
   for (let i = 0; i < tries; i++) {
-    await sleep(5000)
+    await sleep(T.bootPoll)
     let d
-    try { d = (await doGetDroplet(dropletId)).droplet || {} } catch (_) { continue }
+    try { d = (await doGetDroplet(dropletId)).droplet || {} } catch (e) { if (e.status === 404) return { ip: null, gone: true }; continue }
     if (d.status === 'active') {
       const v4 = (d.networks && d.networks.v4) || []
       const pub = v4.find(n => n.type === 'public')
-      if (pub && pub.ip_address) return pub.ip_address
+      if (pub && pub.ip_address) return { ip: pub.ip_address }
     }
   }
-  return null
+  return { ip: null }
 }
 
 async function applyActivation(server) {
@@ -272,22 +412,31 @@ async function applyActivation(server) {
     { $set: { status: 'active', progress: 100, activated_at: activated, expires_at: expires } })
 }
 
-async function pollRdp(serverId, ip, minutes = 90) {
-  let waited = 0
+async function pollRdp(serverId, ip, minutes = 90, { callbackGraceMs = 0 } = {}) {
+  let waited = 0, rdpUpSince = 0
   const interval = 30000, deadline = minutes * 60000
+  const done = async () => {
+    const s = await _servers.findOne({ server_id: serverId }, { projection: { volume_id: 1, do_droplet_id: 1 } }).catch(() => null)
+    if (s && s.volume_id) { await releaseVolume(s.volume_id, s.do_droplet_id); await _servers.updateOne({ server_id: serverId }, { $set: { volume_id: null } }) }
+  }
   while (waited < deadline) {
     await sleep(interval); waited += interval
     let s
     try { s = await _servers.findOne({ server_id: serverId }, { projection: { status: 1 } }) } catch (_) { s = null }
-    if (!s || ['destroyed', 'failed', 'active', 'suspended', 'expired'].includes(s.status)) return
-    if (await tcpOpen(ip, 3389)) {
+    if (!s || ['destroyed', 'failed', 'active', 'suspended', 'expired'].includes(s.status)) return done()
+    if (await tcpOpen(ip, T.rdpPort)) {
+      // Golden path: apply.ps1 confirms the per-order password via callback (→ active). Give it a
+      // grace period after 3389 opens before declaring active on the port probe alone.
+      if (!rdpUpSince) { rdpUpSince = Date.now(); if (callbackGraceMs) await addLog(serverId, 'rdp_up', `RDP port open at ${ip}:3389 - waiting for the password confirmation from the server...`, 90) }
+      if (callbackGraceMs && Date.now() - rdpUpSince < callbackGraceMs) continue
       const srv = await _servers.findOne({ server_id: serverId })
       await applyActivation(srv)
-      await addLog(serverId, 'rdp_ready', `RDP reachable at ${ip}:3389. Server is active.`, 100, 'active')
-      return
+      await addLog(serverId, 'rdp_ready', callbackGraceMs ? `RDP reachable at ${ip}:3389 (no password callback received - verify credentials). Server is active.` : `RDP reachable at ${ip}:3389. Server is active.`, 100, 'active')
+      return done()
     }
   }
   await addLog(serverId, 'failed', `RDP not reachable at ${ip}:3389 after ${minutes} min. Windows conversion did not complete.`, null, 'failed')
+  return done()
 }
 
 // Fire-and-forget provisioning orchestrator (golden fast-path → conversion fallback).
@@ -295,37 +444,46 @@ async function provisionServer(serverId) {
   try {
     const server = await _servers.findOne({ server_id: serverId })
     if (!server) return
+    // The per-order Administrator password lives only in the secret store (never in doRdpServers).
+    server.admin_password = await getSecretPassword(serverId)
+    if (!server.admin_password) throw new Error('per-order Administrator password not found in the secret store')
     const osOption = await getOsOption(server.os_id)
     const name = `rdp-${serverId.slice(0, 8)}`
-    const goldenReady = osOption.golden_status === 'available' && osOption.golden_image_id
-    const diskOk = (server.disk_gb || 0) >= (osOption.golden_min_disk_gb || 1e9)
-    const regionReady = (osOption.golden_regions || []).includes(server.region)
+    const fast = goldenFastPathOk(server, osOption)
 
-    if (goldenReady && diskOk && regionReady) {
+    if (fast.ok) {
       await addLog(serverId, 'creating', 'Creating droplet from golden image (fast, ~2-3 min)...', 10, 'creating')
-      const data = await doCreateDroplet({ name, region: server.region, size: server.do_size_slug, image: osOption.golden_image_id, user_data: buildMetadataUserData(server), tags: ['rdp-reseller'] })
+      const data = await doCreateDroplet({ name, region: server.region, size: server.do_size_slug, image: osOption.golden_image_id, ssh_keys: [await ensureSshKeyId()], user_data: buildMetadataUserData(server), tags: ['rdp-reseller'] })
       const dropletId = data.droplet && data.droplet.id
       await _servers.updateOne({ server_id: serverId }, { $set: { do_droplet_id: dropletId } })
       await addLog(serverId, 'booting', `Droplet ${dropletId} created from image. Booting...`, 30, 'booting')
-      const ip = await waitBootIp(dropletId)
-      if (ip) {
-        await _servers.updateOne({ server_id: serverId }, { $set: { ip_address: ip } })
-        await addLog(serverId, 'installing', `Booted from image at ${ip}. Applying config + password.`, 60, 'installing')
-        pollRdp(serverId, ip, 20).catch(() => {})
-      } else {
-        await addLog(serverId, 'installing', 'Droplet active; awaiting first boot.', 60, 'installing')
+      const boot = await waitBootIp(dropletId)
+      if (!boot.gone) {
+        if (boot.ip) {
+          await _servers.updateOne({ server_id: serverId }, { $set: { ip_address: boot.ip } })
+          await addLog(serverId, 'installing', `Booted from image at ${boot.ip}. Applying config + password.`, 60, 'installing')
+          pollRdp(serverId, boot.ip, 20, { callbackGraceMs: T.callbackGraceMs }).catch(() => {})
+        } else {
+          await addLog(serverId, 'installing', 'Droplet active; awaiting first boot.', 60, 'installing')
+        }
+        return
       }
-      return
+      // DO deleted the droplet = its create action errored. Fall back to the full conversion.
+      await _servers.updateOne({ server_id: serverId }, { $set: { do_droplet_id: null } })
+      await addLog(serverId, 'info', `DigitalOcean could not provision droplet ${dropletId} from golden image ${osOption.golden_image_id} (create action errored) - falling back to a full Windows conversion (20-45 min).`, 5)
+      log(`fast path failed for ${serverId}: droplet ${dropletId} from image ${osOption.golden_image_id} vanished`)
+    } else if (fast.goldenReady && fast.diskOk && !fast.regionReady) {
+      // Golden image exists but not in this region yet → copy it for next time.
+      transferGoldenImage(osOption.golden_image_id, server.region, osOption.id).catch(e => log(`on-demand transfer ${osOption.id}→${server.region} failed: ${e.message}`))
+      await addLog(serverId, 'info', `Golden image not in ${server.region} yet - using full conversion this time (image transfer started for future orders).`, 5)
     }
 
-    // Full Ubuntu → Windows conversion.
-    await addLog(serverId, 'creating', 'Creating DigitalOcean droplet...', 5, 'creating')
-    const userData = buildUserData(server, osOption)
-    const data = await doCreateDroplet({ name, region: server.region, size: server.do_size_slug, image: UBUNTU_IMAGE, user_data: userData, tags: ['rdp-reseller'] })
-    const dropletId = data.droplet && data.droplet.id
-    await _servers.updateOne({ server_id: serverId }, { $set: { do_droplet_id: dropletId } })
+    // Full Ubuntu → Windows conversion (onto an attached volume, then dd'd to the boot disk).
+    await addLog(serverId, 'creating', 'Creating DigitalOcean droplet + install volume...', 5, 'creating')
+    const { dropletId, volumeId } = await launchConversion({ name, region: server.region, size: server.do_size_slug, doc: server, osOption, tags: ['rdp-reseller'] })
+    await _servers.updateOne({ server_id: serverId }, { $set: { do_droplet_id: dropletId, volume_id: volumeId } })
     await addLog(serverId, 'booting', `Droplet ${dropletId} created. Waiting for boot...`, 10, 'booting')
-    const ip = await waitBootIp(dropletId)
+    const { ip } = await waitBootIp(dropletId)
     if (ip) {
       await _servers.updateOne({ server_id: serverId }, { $set: { ip_address: ip } })
       await addLog(serverId, 'converting', `Ubuntu booted at ${ip}. Windows conversion running on host (20-45 min).`, 15, 'converting')
@@ -339,6 +497,342 @@ async function provisionServer(serverId) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Golden images (doRdpImageBuilds) — bake Windows ONCE per edition, then every
+// order boots from the image in ~2-3 min instead of a 20-45 min conversion.
+// The build droplet installs Windows under QEMU, verifies the baked boot task
+// offline, packages the disk as qcow2 and serves it; DigitalOcean imports it as
+// a CUSTOM IMAGE (distribution "Unknown"). Plain droplet snapshots of a Windows
+// disk are NOT usable: DO treats them as Ubuntu and the create action errors.
+// runBuild() is a resumable phase machine (creating → booting → converting →
+// importing → registering → transferring → done); state lives in Mongo so a
+// Node restart mid-build re-enters at the stored phase (resumeBuilds()).
+// ─────────────────────────────────────────────────────────────
+const goldenSnapRe = (osId) => new RegExp(`^golden-${osId}-\\d+$`)
+const goldenAnyRe = /^golden-ws\d{4}-\d+$/
+const imageIdNum = (id) => (/^\d+$/.test(String(id)) ? Number(id) : id)
+
+function publicBuild(b) {
+  if (!b) return null
+  const { callback_token, admin_password, _id, ...rest } = b
+  return { ...rest, logs: (rest.logs || []).slice(-15) }
+}
+
+async function addBuildLog(buildId, stage, message, progress, status) {
+  if (!_builds) return
+  const set = { updated_at: new Date() }
+  if (progress != null) set.progress = progress
+  if (status != null) set.status = status
+  try { await _builds.updateOne({ build_id: buildId }, { $push: { logs: { ts: new Date(), stage, message } }, $set: set }) }
+  catch (e) { log(`addBuildLog(${buildId}) warn: ${e.message}`) }
+  log(`[golden ${buildId}] ${stage}: ${message}`)
+}
+const setBuild = (buildId, set) => _builds.updateOne({ build_id: buildId }, { $set: { ...set, updated_at: new Date() } })
+
+async function waitAction(actionId, minutes) {
+  const deadline = Date.now() + minutes * 60000
+  while (Date.now() < deadline) {
+    await sleep(T.actionPoll)
+    let a
+    try { a = (await doGetAction(actionId)).action || {} } catch (_) { continue }
+    if (a.status === 'completed') return true
+    if (a.status === 'errored') return false
+  }
+  return false
+}
+
+// Wait for the build droplet to report the packaged qcow2 URL (callback stage image_ready);
+// abort early if the on-droplet script reported failure / admin cancelled.
+async function waitBuildImage(buildId) {
+  const deadline = Date.now() + T.buildMaxMin * 60000
+  while (Date.now() < deadline) {
+    await sleep(T.rdpPoll)
+    const b = await _builds.findOne({ build_id: buildId }, { projection: { status: 1, conv_error: 1, image_url: 1 } })
+    if (!b || b.status !== 'building') throw new Error(b && b.conv_error ? `conversion failed on droplet: ${b.conv_error}` : 'build cancelled')
+    if (b.image_url) return b.image_url
+  }
+  return null
+}
+
+// Poll a custom-image import: NEW → pending → available (or deleted + error_message).
+async function waitImageAvailable(imageId, minutes) {
+  const deadline = Date.now() + minutes * 60000
+  while (Date.now() < deadline) {
+    await sleep(T.importPoll)
+    let img
+    try { img = (await doGetImage(imageId)).image || {} } catch (e) { if (e.status === 404) return { ok: false, error: 'image disappeared during import' }; continue }
+    if (img.status === 'available') return { ok: true, image: img }
+    if (img.status === 'deleted' || img.error_message) return { ok: false, error: img.error_message || `status ${img.status}` }
+  }
+  return { ok: false, error: `import not finished within ${minutes} min` }
+}
+
+async function waitImageInRegion(imageId, region, minutes) {
+  const deadline = Date.now() + minutes * 60000
+  while (Date.now() < deadline) {
+    await sleep(T.importPoll)
+    try { if ((((await doGetImage(imageId)).image || {}).regions || []).includes(region)) return true } catch (_) {}
+  }
+  return false
+}
+
+async function transferGoldenImage(imageId, region, osId) {
+  let img = {}
+  try { img = (await doGetImage(imageId)).image || {} } catch (_) {}
+  let ok = (img.regions || []).includes(region)
+  if (!ok) {
+    let act = {}
+    try { act = (await doImageAction(imageId, { type: 'transfer', region })).action || {} } catch (e) { log(`transfer ${imageId}→${region} request failed: ${e.message}`) }
+    ok = !!act.id && await waitAction(act.id, T.transferMaxMin)
+    // DO rejects a second transfer while one is already running (resumed build / admin) - that one still lands.
+    if (!ok) ok = await waitImageInRegion(imageId, region, Math.min(T.transferMaxMin, 30))
+  }
+  if (ok && _osCol) await _osCol.updateOne({ _id: osId, golden_image_id: imageIdNum(imageId) }, { $addToSet: { golden_regions: region } })
+  return ok
+}
+
+// Every private image (custom import or legacy droplet snapshot) named golden-<os>-<ts>.
+async function listGoldenImages() {
+  return (((await doListPrivateImages()).images) || []).filter(i => goldenAnyRe.test(String(i.name || '')))
+}
+
+async function deleteSupersededImages(osId, keepId) {
+  const old = (await listGoldenImages()).filter(i => goldenSnapRe(osId).test(i.name) && String(i.id) !== String(keepId))
+  const removed = []
+  for (const i of old) {
+    try { await doDeleteImage(i.id); removed.push(imageIdNum(i.id)) } catch (e) { log(`delete old golden image ${i.id} warn: ${e.message}`) }
+  }
+  return removed
+}
+
+async function startGoldenBuild({ osId, region, targetRegions, keepOnFailure } = {}) {
+  if (!_builds || !_osCol) throw new Error('DO-RDP service not initialised')
+  if (!_token()) throw new Error('DIGITALOCEAN_API_TOKEN not configured')
+  const id = String(osId || '').toLowerCase()
+  if (!OS_OPTIONS[id]) throw new Error(`unknown os_id "${osId}" (valid: ${Object.keys(OS_OPTIONS).join(', ')})`)
+  const existing = await _builds.findOne({ os_id: id, status: 'building' })
+  if (existing) return { started: false, reason: 'already_building', build: publicBuild(existing) }
+  const buildRegion = regionToSlug(region || BUILD_REGION)
+  const extra = targetRegions === 'all' ? GOLDEN_ALL_REGIONS : (Array.isArray(targetRegions) ? targetRegions.map(regionToSlug) : [])
+  const build = {
+    build_id: `build-${crypto.randomBytes(6).toString('hex')}`, os_id: id, region: buildRegion,
+    target_regions: [...new Set([buildRegion, ...extra])], status: 'building', phase: 'creating', progress: 0, logs: [],
+    callback_token: genToken(), admin_password: genPassword(), vnc_password: crypto.randomBytes(6).toString('base64url').slice(0, 8),
+    image_token: crypto.randomBytes(12).toString('hex'), image_url: null, import_image_id: null,
+    do_droplet_id: null, volume_id: null, ip_address: null,
+    snapshot_name: null, snapshot_action_id: null, snapshot_image_id: null, transferred_regions: [],
+    keep_on_failure: !!keepOnFailure, created_at: new Date(), updated_at: new Date(), finished_at: null,
+  }
+  await _builds.insertOne(build)
+  // Keep serving an existing image while a rebuild runs; only a first build flips the row to "building".
+  const cur = await _osCol.findOne({ _id: id })
+  const keepServing = !!(cur && cur.golden_status === 'available' && cur.golden_image_id)
+  await _osCol.updateOne({ _id: id }, { $set: { golden_status: keepServing ? 'available' : 'building', golden_build_id: build.build_id, golden_error: null } }, { upsert: true })
+  runBuild(build.build_id).catch(e => log(`runBuild(${build.build_id}) error: ${e.message}`))
+  return { started: true, build: publicBuild(build) }
+}
+
+async function runBuild(buildId) {
+  let b = await _builds.findOne({ build_id: buildId })
+  if (!b || b.status !== 'building') return
+  const fresh = async () => {
+    b = await _builds.findOne({ build_id: buildId })
+    if (!b || b.status !== 'building') throw new Error(b && b.conv_error ? `conversion failed on droplet: ${b.conv_error}` : 'build cancelled')
+  }
+  try {
+    const osOption = await getOsOption(b.os_id)
+    const dropletName = `golden-${b.os_id}-${b.build_id.slice(-6)}`
+    if (b.phase === 'creating') {
+      // Adopt the droplet/volume this build already created if the process died before the ids were saved.
+      let d = null
+      try { d = (((await doListDropletsByTag('golden-build')).droplets) || []).find(x => x.name === dropletName) || null } catch (_) {}
+      let dropletId, volumeId = null
+      if (d) {
+        dropletId = d.id
+        try { volumeId = (((await doListVolumesByName(`${dropletName}-win`, b.region)).volumes) || [{}])[0].id || null } catch (_) {}
+      } else {
+        const pseudo = { server_id: buildId, admin_password: b.admin_password, callback_token: b.callback_token, vnc_password: b.vnc_password, build_mode: 'golden', image_token: b.image_token }
+        let lastErr = null
+        for (const size of await buildSizeCandidates(b.region)) {
+          await addBuildLog(buildId, 'creating', `Creating build droplet ${size} + ${CONVERT_VOLUME_GB} GB install volume in ${b.region} for ${osOption.name}...`, 5)
+          try {
+            ;({ dropletId, volumeId } = await launchConversion({ name: dropletName, region: b.region, size, doc: pseudo, osOption, tags: ['golden-build'] }))
+            await setBuild(buildId, { build_size: size }); lastErr = null; break
+          } catch (e) {
+            if (!(e.status === 422 && /not available/i.test(e.message))) throw e
+            lastErr = e
+            await addBuildLog(buildId, 'creating', `${size} is not available in ${b.region} right now - trying the next build size...`)
+          }
+        }
+        if (lastErr) throw lastErr
+      }
+      await setBuild(buildId, { do_droplet_id: dropletId, volume_id: volumeId, phase: 'booting' })
+      await addBuildLog(buildId, 'booting', `Droplet ${dropletId} (${dropletName}) created. Waiting for boot...`, 10)
+      await fresh()
+    }
+    if (b.phase === 'booting') {
+      const ip = b.ip_address || (await waitBootIp(b.do_droplet_id)).ip
+      if (!ip) throw new Error('build droplet never got a public IP')
+      await setBuild(buildId, { ip_address: ip, phase: 'converting' })
+      await addBuildLog(buildId, 'converting', `Ubuntu booted at ${ip}. Unattended Windows install running under QEMU/KVM (~30-45 min; VNC ${ip}:5901 during Setup)...`, 20)
+      await fresh()
+    }
+    if (b.phase === 'converting') {
+      const url = await waitBuildImage(buildId)
+      if (!url) throw new Error(`build droplet did not deliver a Windows image within ${T.buildMaxMin} min`)
+      if (b.volume_id) { await releaseVolume(b.volume_id, b.do_droplet_id); await setBuild(buildId, { volume_id: null }) }
+      const imgName = `golden-${b.os_id}-${Math.floor(Date.now() / 1000)}`
+      const created = (await doCreateCustomImage({ name: imgName, url, distribution: 'Unknown', region: b.region, description: `Nomadly Windows RDP golden image - ${osOption.name}`, tags: ['golden-rdp'] })).image || {}
+      if (!created.id) throw new Error('custom image import was not accepted by DigitalOcean')
+      await setBuild(buildId, { snapshot_name: imgName, import_image_id: imageIdNum(created.id), phase: 'importing' })
+      await addBuildLog(buildId, 'importing', `DigitalOcean is importing "${imgName}" (custom image ${created.id}) from the build droplet - this takes 20-90 min...`, 75)
+      await fresh()
+    }
+    if (b.phase === 'importing') {
+      const r = await waitImageAvailable(b.import_image_id, T.importMaxMin)
+      if (!r.ok) throw new Error(`custom image import failed: ${r.error}`)
+      await setBuild(buildId, { snapshot_image_id: imageIdNum(b.import_image_id), phase: 'registering' })
+      await fresh()
+    }
+    if (b.phase === 'registering') {
+      let img = {}
+      try { img = (await doGetImage(b.snapshot_image_id)).image || {} } catch (_) {}
+      const regions = (img.regions && img.regions.length) ? img.regions : [b.region]
+      const minDisk = img.min_disk_size || BUILD_DISK_GB
+      await _osCol.updateOne({ _id: b.os_id }, { $set: {
+        golden_status: 'available', golden_image_id: b.snapshot_image_id, golden_region: b.region, golden_regions: regions,
+        golden_min_disk_gb: minDisk, golden_built_at: new Date(), golden_build_id: buildId, golden_error: null,
+      } }, { upsert: true })
+      await addBuildLog(buildId, 'registered', `Golden image ${b.snapshot_image_id} registered for ${b.os_id} (min disk ${minDisk} GB). Fast-path LIVE in ${regions.join(', ')}.`, 85)
+      try { await doDeleteDroplet(b.do_droplet_id); await addBuildLog(buildId, 'cleanup', `Build droplet ${b.do_droplet_id} destroyed.`) }
+      catch (e) { await addBuildLog(buildId, 'cleanup', `Could not destroy build droplet ${b.do_droplet_id}: ${e.message}`) }
+      const removed = await deleteSupersededImages(b.os_id, b.snapshot_image_id)
+      if (removed.length) await addBuildLog(buildId, 'cleanup', `Deleted superseded golden image(s): ${removed.join(', ')}.`)
+      await setBuild(buildId, { transferred_regions: regions, phase: 'transferring' })
+      await fresh()
+    }
+    if (b.phase === 'transferring') {
+      const pending = (b.target_regions || []).filter(r => !(b.transferred_regions || []).includes(r))
+      for (const region of pending) {
+        await addBuildLog(buildId, 'transferring', `Transferring image ${b.snapshot_image_id} to ${region}...`)
+        let ok = false
+        try { ok = await transferGoldenImage(b.snapshot_image_id, region, b.os_id) } catch (e) { log(`transfer ${b.os_id}→${region} error: ${e.message}`) }
+        await addBuildLog(buildId, 'transferring', ok ? `Image available in ${region}.` : `Transfer to ${region} FAILED (retry: admin transfer).`)
+        if (ok) await _builds.updateOne({ build_id: buildId }, { $addToSet: { transferred_regions: region } })
+        await fresh()
+      }
+      await setBuild(buildId, { phase: 'done', status: 'available', progress: 100, finished_at: new Date() })
+      await addBuildLog(buildId, 'done', `Golden image build complete for ${b.os_id}.`, 100, 'available')
+    }
+  } catch (e) {
+    // Cancelled while we were still creating → the droplet id landed after failBuild ran; make sure it is gone.
+    const cur = await _builds.findOne({ build_id: buildId }).catch(() => null)
+    if (cur && cur.finished_at && cur.do_droplet_id && !cur.keep_on_failure && !['transferring', 'done'].includes(cur.phase)) {
+      try { await doDeleteDroplet(cur.do_droplet_id) } catch (_) {}
+      if (cur.volume_id) await releaseVolume(cur.volume_id, cur.do_droplet_id)
+    }
+    await failBuild(buildId, e.message)
+  }
+}
+
+async function failBuild(buildId, reason) {
+  const b = await _builds.findOne({ build_id: buildId })
+  if (!b || b.finished_at) return
+  await addBuildLog(buildId, 'failed', `Build failed: ${reason}`, null, b.status === 'cancelled' ? 'cancelled' : 'failed')
+  await setBuild(buildId, { finished_at: new Date() })
+  // Revert the OS row — keep serving an older golden image if one exists.
+  const cur = await _osCol.findOne({ _id: b.os_id })
+  if (cur && cur.golden_status === 'building') {
+    await _osCol.updateOne({ _id: b.os_id }, { $set: { golden_status: cur.golden_image_id ? 'available' : 'failed', golden_error: reason } })
+  }
+  if (b.do_droplet_id && b.phase !== 'transferring' && b.phase !== 'done') {
+    if (b.import_image_id && !b.snapshot_image_id) { try { await doDeleteImage(b.import_image_id) } catch (_) {} }
+    if (b.keep_on_failure) await addBuildLog(buildId, 'cleanup', `Build droplet ${b.do_droplet_id} KEPT for inspection (keep_on_failure) — delete it (and its volume) manually.`)
+    else {
+      try { await doDeleteDroplet(b.do_droplet_id); await addBuildLog(buildId, 'cleanup', `Build droplet ${b.do_droplet_id} destroyed.`) } catch (e) { if (e.status !== 404) await addBuildLog(buildId, 'cleanup', `Could not destroy build droplet: ${e.message}`) }
+      if (b.volume_id) { const ok = await releaseVolume(b.volume_id, b.do_droplet_id); await addBuildLog(buildId, 'cleanup', ok ? `Install volume ${b.volume_id} deleted.` : `Install volume ${b.volume_id} could NOT be deleted — remove manually.`) }
+    }
+  } else if (b.volume_id && !b.keep_on_failure) {
+    await releaseVolume(b.volume_id, b.do_droplet_id)
+  }
+}
+
+async function cancelBuild(buildId) {
+  const b = _builds ? await _builds.findOne({ build_id: buildId }) : null
+  if (!b) throw new Error('build not found')
+  if (b.status !== 'building') return { cancelled: false, status: b.status }
+  await setBuild(buildId, { status: 'cancelled', conv_error: 'cancelled by admin' })
+  await failBuild(buildId, 'cancelled by admin')
+  return { cancelled: true }
+}
+
+async function resumeBuilds() {
+  if (!_builds) return 0
+  const active = await _builds.find({ status: 'building' }).toArray()
+  for (const b of active) {
+    log(`resuming golden build ${b.build_id} (${b.os_id}, phase=${b.phase})`)
+    runBuild(b.build_id).catch(e => log(`resume ${b.build_id} error: ${e.message}`))
+  }
+  return active.length
+}
+
+// DO custom images named golden-<os>-<ts> are the source of truth → register the
+// newest per edition. Read-only against DO; lets a production pod pick up images
+// built from another pod/DB automatically. Legacy droplet snapshots are ignored
+// (DO cannot create droplets from a Windows snapshot).
+async function syncGoldenFromDO() {
+  if (!_osCol || !_token()) return null
+  const imgs = (await listGoldenImages()).filter(i => i.type === 'custom')
+  const out = {}
+  for (const osId of Object.keys(OS_OPTIONS)) {
+    const cur = await _osCol.findOne({ _id: osId })
+    if (cur && cur.golden_status === 'building') { out[osId] = { status: 'building', build_id: cur.golden_build_id }; continue }
+    const mine = imgs.filter(s => goldenSnapRe(osId).test(s.name) && s.status === 'available').sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    if (!mine.length) {
+      if (cur && cur.golden_status === 'available') await _osCol.updateOne({ _id: osId }, { $set: { golden_status: 'none', golden_image_id: null, golden_regions: [], golden_synced_at: new Date() } })
+      out[osId] = { status: 'none' }
+      continue
+    }
+    const s = mine[0]
+    await _osCol.updateOne({ _id: osId }, { $set: {
+      golden_status: 'available', golden_image_id: imageIdNum(s.id), golden_regions: s.regions || [],
+      golden_min_disk_gb: s.min_disk_size || BUILD_DISK_GB, golden_synced_at: new Date(),
+    } }, { upsert: true })
+    out[osId] = { status: 'available', image_id: imageIdNum(s.id), regions: s.regions || [] }
+  }
+  return out
+}
+
+// Copy an available golden image to more regions (background, sequential).
+async function transferGolden(osId, regions) {
+  const o = await getOsOption(String(osId || '').toLowerCase())
+  if (!(o.golden_status === 'available' && o.golden_image_id)) throw new Error(`no golden image available for ${osId}`)
+  const wanted = regions === 'all' || !regions ? GOLDEN_ALL_REGIONS : regions.map(regionToSlug)
+  const targets = [...new Set(wanted)].filter(r => !(o.golden_regions || []).includes(r))
+  ;(async () => {
+    for (const r of targets) {
+      try { const ok = await transferGoldenImage(o.golden_image_id, r, o.id); log(`transfer ${o.id}→${r}: ${ok ? 'ok' : 'FAILED'}`) }
+      catch (e) { log(`transfer ${o.id}→${r} error: ${e.message}`) }
+    }
+  })()
+  return { os_id: o.id, image_id: o.golden_image_id, queued_regions: targets }
+}
+
+async function goldenStatus() {
+  const os = await Promise.all(Object.keys(OS_OPTIONS).map(getOsOption))
+  const builds = _builds ? await _builds.find({}).sort({ created_at: -1 }).limit(20).toArray() : []
+  const activeFor = (osId) => (builds.find(b => b.os_id === osId && b.status === 'building') || {}).build_id || null
+  return {
+    build_size: BUILD_SIZE, build_region: BUILD_REGION, all_regions: GOLDEN_ALL_REGIONS,
+    os_options: os.map(o => ({
+      id: o.id, name: o.name, golden_status: o.golden_status, golden_image_id: o.golden_image_id, golden_regions: o.golden_regions,
+      golden_min_disk_gb: o.golden_min_disk_gb, golden_built_at: o.golden_built_at || null, golden_build_id: o.golden_build_id || null,
+      golden_error: o.golden_error || null, fast_deploy: o.golden_status === 'available' && !!o.golden_image_id, active_build_id: activeFor(o.id),
+    })),
+    builds: builds.map(publicBuild),
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
 // Provider interface (consumed by reseller-api vps*Handlers)
 // ─────────────────────────────────────────────────────────────
 async function createInstance(opts = {}) {
@@ -346,6 +840,7 @@ async function createInstance(opts = {}) {
   if (!product) throw new Error(`createInstance: unknown plan_id "${opts.productId}"`)
   const region = regionToSlug(opts.regionSlug)
   const osId = String(opts.osId || DEFAULT_OS_ID).toLowerCase()
+  if (!OS_OPTIONS[osId]) throw new Error(`createInstance: unknown os "${opts.osId}"`)
   const serverId = crypto.randomUUID()
   const adminPassword = genPassword()
   const callbackToken = genToken()
@@ -353,14 +848,15 @@ async function createInstance(opts = {}) {
   const doc = {
     server_id: serverId, os_id: osId, tier_slug: product.slug,
     duration_months: product.durationMonths, region, do_size_slug: product.do_size_slug,
-    disk_gb: product.diskGb, do_droplet_id: null, ip_address: null,
-    admin_username: 'Administrator', callback_token: callbackToken,
+    disk_gb: product.diskGb, do_droplet_id: null, volume_id: null, ip_address: null,
+    admin_username: 'Administrator', callback_token: callbackToken, vnc_password: crypto.randomBytes(6).toString('base64url').slice(0, 8),
     status: 'queued', progress: 0, logs: [], label: opts.label || null,
     created_at: new Date(), activated_at: null, expires_at: null,
   }
   if (_servers) await _servers.insertOne(doc)
   // Store the password durably so /rdp/:id/credentials can reveal it later.
   await secretStore.putSecret(serverId, adminPassword, { name: `rdp-${serverId.slice(0, 8)}`, provider: PROVIDER })
+  const fast = goldenFastPathOk(doc, await getOsOption(osId)).ok
 
   // Kick off provisioning asynchronously; return immediately.
   provisionServer(serverId).catch(e => log(`provisionServer(${serverId}) error: ${e.message}`))
@@ -371,6 +867,9 @@ async function createInstance(opts = {}) {
     status: 'provisioning',
     passwordSecretId: serverId,
     defaultPassword: adminPassword,
+    osId,
+    fastDeploy: fast,
+    etaMinutes: fast ? 3 : 45,
   }
 }
 // No cross-provider fallback for DO-RDP (golden→conversion fallback is internal).
@@ -405,7 +904,8 @@ const restartInstance  = (id) => _dropletActionByServer(id, { type: 'reboot' }, 
 async function cancelInstance(instanceId) {
   const s = _servers ? await _servers.findOne({ server_id: instanceId }) : null
   if (s && s.do_droplet_id) { try { await doDeleteDroplet(s.do_droplet_id) } catch (e) { if (e.status !== 404) throw e } }
-  if (_servers) await _servers.updateOne({ server_id: instanceId }, { $set: { status: 'destroyed', ip_address: null, do_droplet_id: null } })
+  if (s && s.volume_id) await releaseVolume(s.volume_id, s.do_droplet_id)
+  if (_servers) await _servers.updateOne({ server_id: instanceId }, { $set: { status: 'destroyed', ip_address: null, do_droplet_id: null, volume_id: null } })
   try { await secretStore.deleteSecret(instanceId) } catch (_) {}
   return { destroyed: true }
 }
@@ -444,12 +944,31 @@ function provisionRouter() {
       const { server_id, token, stage, message, progress, status } = req.body || {}
       if (!server_id || !token) return res.status(400).json({ error: 'missing server_id/token' })
       const s = _servers ? await _servers.findOne({ server_id }) : null
-      if (!s || s.callback_token !== token) return res.status(403).json({ error: 'Invalid callback token' })
+      if (!s) {
+        // Golden-image build droplets report here too (server_id = build_id).
+        const b = _builds ? await _builds.findOne({ build_id: server_id }) : null
+        if (!b || b.callback_token !== token) return res.status(403).json({ error: 'Invalid callback token' })
+        const set = { updated_at: new Date() }
+        if (progress != null && Number.isFinite(Number(progress))) set.conv_progress = Number(progress)
+        if (stage === 'failed' && b.status === 'building') { set.status = 'failed'; set.conv_error = message || 'conversion failed on droplet' }
+        const { image_url, image_bytes } = req.body || {}
+        if (stage === 'image_ready' && /^https?:\/\/[\w.:-]+\/[\w-]+\/windows\.qcow2$/.test(String(image_url || ''))) {
+          set.image_url = String(image_url)
+          if (Number.isFinite(Number(image_bytes))) set.image_bytes = Number(image_bytes)
+          if (b.image_url === set.image_url) { await _builds.updateOne({ build_id: server_id }, { $set: set }); return res.json({ ok: true }) } // droplet re-announces every 10 min
+        }
+        await _builds.updateOne({ build_id: server_id }, { $push: { logs: { ts: new Date(), stage: `droplet:${stage || 'progress'}`, message: message || '' } }, $set: set })
+        log(`[golden ${server_id}] droplet:${stage} ${progress != null ? progress + '% ' : ''}${message || ''}`)
+        return res.json({ ok: true })
+      }
+      if (s.callback_token !== token) return res.status(403).json({ error: 'Invalid callback token' })
       if (stage === 'rdp_ready' || (progress != null && Number(progress) >= 100)) {
         await applyActivation(s)
         await addLog(server_id, 'rdp_ready', message || 'Windows is live.', 100, 'active')
       } else if (stage === 'failed') {
         await addLog(server_id, 'failed', message || 'Conversion failed.', progress, 'failed')
+      } else if (stage === 'password_failed') {
+        await addLog(server_id, 'password_failed', message || 'The per-order password could not be applied.', null, null)
       } else {
         await addLog(server_id, stage || 'converting', message || stage || 'progress', progress, status || 'converting')
       }
@@ -470,8 +989,10 @@ module.exports = {
   cancelInstance, getSecretPassword,
   // ops
   processExpiries, provisionRouter,
+  // golden images
+  startGoldenBuild, cancelBuild, resumeBuilds, syncGoldenFromDO, transferGolden, goldenStatus, listOsOptions,
   // exported for tests / internal use
   _buildUserData: buildUserData, _buildMetadataUserData: buildMetadataUserData,
-  _products: () => PRODUCTS, regionToSlug, _genPassword: genPassword, getOsOption,
-  DURATIONS, TIERS, OS_OPTIONS, DEFAULT_OS_ID,
+  _products: () => PRODUCTS, regionToSlug, _genPassword: genPassword, getOsOption, _timing: T, _runBuild: runBuild, _provisionServer: provisionServer,
+  DURATIONS, TIERS, OS_OPTIONS, DEFAULT_OS_ID, BUILD_SIZE, BUILD_REGION, GOLDEN_ALL_REGIONS,
 }

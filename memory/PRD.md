@@ -99,7 +99,21 @@ Every "choose payment method" screen now renders through one closure layer in `_
 - **QUIETED (code)** — Contabo auth spam (~200 lines/48h): `getAccessToken` auth circuit breaker (`VPS_AUTH_DOWN`, `CONTABO_AUTH_COOLDOWN_MIN` 30m) + `isAuthHealthy()`; VPS self-heal skips the whole Contabo sweep in one log when auth is down. Tests: `test_contabo_auth_breaker_2026-09.js` 10/10. Infra creds (`invalid_client`) still invalid — owner to fix.
 - **IGNORED (per user)** — Connect Reseller 401 infra (prod IP not whitelisted / CR portal login broken); OpenProvider fallback covers domain pricing. CR loop already throttled per-process; residual volume is restart-amplified.
 
+## 2026-09-22 — Windows RDP on DigitalOcean: golden images (fast ≤3-min deploys) — IN PROGRESS
+Goal: `POST /api/reseller/v1/rdp` must return a working Windows server in ~3 min for ws2019/ws2022/ws2025 instead of a 20-45 min QEMU conversion.
+Runbook: `memory/RDP_GOLDEN_IMAGES.md`; lessons: `memory/DO_RDP_LESSONS.md`.
+- ❌ Droplet **snapshots** of a converted Windows disk are unusable on DO (create/rebuild action errors, droplet auto-deleted) — reproduced 4×. Both legacy snapshots deleted.
+- ✅ Pipeline rewritten to **DO Custom Images**: build droplet → QEMU install → QEMU first boot (RDP probe) → Windows self-shutdown → **offline ntfs-3g verify** (apply.ps1 sha + CloudInitApply task) → `qemu-img convert` qcow2 → HTTP serve → `POST /v2/images` (distribution Unknown) → poll → register → delete build droplet → transfer to 9 regions.
+- ✅ apply.ps1 now ships on the answer ISO and is copied from the CD by FirstLogonCommands (certutil -decode silently failed on WS2019/WS2025). Verified OK on WS2022 + WS2019.
+- ✅ Build-size fallback on `422 Size is not available` (live `GET /v2/regions` sizes; 50 GB-disk candidates only).
+- ✅ Direct (customer) conversion: robust finalize (`dd` O_DIRECT + sysrq remount-ro + builtins-only reboot).
+- ✅ Fast path falls back to full conversion automatically if DO deletes the droplet (create errored).
+- ✅ Tests: `js/tests/test_do_rdp_golden_2026-06.js` 61/61. E2E script `js/ops/rdp_golden_e2e.js` hardened (DO action check, PASS/FAIL).
+- ⏳ Builds running (2026-09-22 18:40 UTC): ws2022 import image 246587962 pending since 17:46; ws2019 import 246588371 pending since 18:16; ws2025 build-3abbc79163b6 installing. Next: wait for `available` → E2E each edition → testing_agent on reseller API.
+- Sandbox reseller API key in `memory/test_credentials.md`.
+
 ## Prioritized backlog (P0/P1/P2)
+
 ### P0 (from 2026-09-14 audit)
 - ✅ DONE — move `markPurchased`/`recordPaymentCompleted` after a successful charge (audit #3 / fix #1)
 - ✅ DONE — single price source + cart-nudge copy (audit #4/#5 → fixes #3/#4)

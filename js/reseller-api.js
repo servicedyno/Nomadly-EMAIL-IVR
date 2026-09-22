@@ -403,7 +403,7 @@ function createResellerApi(deps = {}) {
     const region = String(req.query.region || 'EU').toUpperCase()
     const prov = providerFor(isRDP)
     const products = prov.listProducts(region, isRDP) || []
-    res.json({
+    const out = {
       product: isRDP ? 'rdp' : 'vps',
       provider: prov.PROVIDER || (isRDP ? process.env.VPS_RDP_PROVIDER : process.env.VPS_DEFAULT_PROVIDER),
       region,
@@ -412,7 +412,13 @@ function createResellerApi(deps = {}) {
         vcpus: p.vcpus || p.vCpus || null, ram_gb: p.ramGb || null, disk_gb: p.diskGb || null,
         price_usd: p.pricing ? p.pricing.totalWithMarkup : null,
       })),
-    })
+    }
+    // Windows editions + fast-deploy (golden image) readiness per region code.
+    if (isRDP && typeof prov.listOsOptions === 'function') {
+      try { out.default_os = prov.DEFAULT_OS_ID || null; out.os_options = await prov.listOsOptions() }
+      catch (e) { log(`[ResellerAPI] listOsOptions warn: ${e.message}`) }
+    }
+    res.json(out)
   }
 
   async function vpsCreateHandler(req, res, isRDP) {
@@ -424,13 +430,19 @@ function createResellerApi(deps = {}) {
     if (!product) return res.status(400).json({ error: 'invalid_plan', message: 'Unknown plan_id. Call GET plans first.' })
     const pricing = prov.calculatePrice(product, region, isRDP)
     if (!pricing) return res.status(400).json({ error: 'unavailable', message: `Plan not available in region ${region}.` })
+    // RDP: optional Windows edition (ws2019 | ws2022 | ws2025) when the provider exposes OS options.
+    let osId = null
+    if (isRDP && prov.OS_OPTIONS) {
+      osId = String(req.body?.os || prov.DEFAULT_OS_ID || '').toLowerCase()
+      if (!prov.OS_OPTIONS[osId]) return res.status(400).json({ error: 'invalid_os', message: `Unknown os "${req.body?.os}". Valid values: ${Object.keys(prov.OS_OPTIONS).join(', ')} (see os_options in GET /rdp/plans).` })
+    }
 
     return billedProvision(req, res, {
       product: isRDP ? 'rdp' : 'vps', action: 'create', priceUsd: pricing.totalWithMarkup,
-      request: { plan_id: planId, region, hostname, os: isRDP ? 'windows' : (req.body?.os || 'ubuntu') },
+      request: { plan_id: planId, region, hostname, os: isRDP ? (osId || 'windows') : (req.body?.os || 'ubuntu') },
       provision: async () => {
         const createFn = (isRDP && prov.createInstanceWithFallback) ? prov.createInstanceWithFallback.bind(prov) : prov.createInstance.bind(prov)
-        const inst = await createFn({ productId: planId, regionSlug: region, isWindows: isRDP, label: hostname || undefined })
+        const inst = await createFn({ productId: planId, regionSlug: region, isWindows: isRDP, osId: osId || undefined, label: hostname || undefined })
         // Persist a record so GET /vps|/rdp lists it for this owner
         const vpsId = crypto.randomUUID()
         try {
@@ -438,12 +450,14 @@ function createResellerApi(deps = {}) {
             _id: vpsId, chatId: String(req.reseller.ownerChatId), vpsId,
             provider: prov.PROVIDER, instanceId: inst.instanceId || null, host: inst.mainIp || null,
             region, productId: planId, plan: product.name || planId, planPrice: pricing.totalWithMarkup,
-            osType: isRDP ? 'windows' : 'linux', isRDP: !!isRDP, status: inst.status || 'provisioning',
+            osType: isRDP ? 'windows' : 'linux', osId: osId || null, isRDP: !!isRDP, status: inst.status || 'provisioning',
             rootPasswordSecretId: inst.passwordSecretId || null, source: 'reseller_api',
             start_time: new Date(), timestamp: new Date(),
           })
         } catch (e) { log(`[ResellerAPI] vpsPlansOf insert warn: ${e.message}`) }
-        return { success: true, id: vpsId, instance_id: inst.instanceId || null, ip: inst.mainIp || null, status: inst.status || 'provisioning', default_password: inst.defaultPassword || null }
+        const out = { success: true, id: vpsId, instance_id: inst.instanceId || null, ip: inst.mainIp || null, status: inst.status || 'provisioning', default_password: inst.defaultPassword || null }
+        if (osId) { out.os = osId; out.fast_deploy = !!inst.fastDeploy; out.eta_minutes = inst.etaMinutes || null }
+        return out
       },
     })
   }
@@ -452,7 +466,7 @@ function createResellerApi(deps = {}) {
     const docs = await col('vpsPlansOf').find({ chatId: String(req.reseller.ownerChatId), isRDP: !!isRDP }).limit(500).toArray()
     res.json({ [isRDP ? 'rdp' : 'vps']: docs.map(d => ({
       id: d.vpsId || d._id, instance_id: d.instanceId || d.contaboInstanceId || null, ip: d.host || null,
-      plan: d.plan || null, region: d.region || null, os: d.osType || null, status: d.status || null,
+      plan: d.plan || null, region: d.region || null, os: d.osType || null, os_id: d.osId || null, status: d.status || null,
       created_at: d.start_time || d.timestamp || null,
     })) })
   }
@@ -466,7 +480,7 @@ function createResellerApi(deps = {}) {
     if (!rec) return res.status(404).json({ error: 'not_found' })
     let live = null
     if (rec.instanceId) { try { const prov = providerFor(isRDP); live = await prov.getInstance(rec.instanceId) } catch (e) { live = { error: e.message } } }
-    res.json({ id: rec.vpsId || rec._id, instance_id: rec.instanceId || null, plan: rec.plan, region: rec.region, os: rec.osType, status: live?.status || rec.status, ip: live?.mainIp || rec.host || null, live })
+    res.json({ id: rec.vpsId || rec._id, instance_id: rec.instanceId || null, plan: rec.plan, region: rec.region, os: rec.osType, os_id: rec.osId || null, status: live?.status || rec.status, ip: live?.mainIp || rec.host || null, live })
   }
 
   async function vpsActionHandler(req, res, isRDP) {
