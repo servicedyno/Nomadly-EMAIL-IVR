@@ -95,7 +95,8 @@ process.env.SKIP_WEBHOOK_SYNC = 'true'
 process.env.DO_RDP_GOLDEN_AUTOSYNC = 'false'
 const svc = require('../digitalocean-rdp-service.js')
 // Shrink every poll interval so the whole machine runs in seconds.
-Object.assign(svc._timing, { bootPoll: 20, rdpPoll: 40, actionPoll: 20, offPoll: 20, rdpMaxMin: 0.05, transferMaxMin: 0.05, buildMaxMin: 0.2, importPoll: 20, importMaxMin: 0.05 })
+Object.assign(svc._timing, { bootPoll: 20, rdpPoll: 40, actionPoll: 20, offPoll: 20, rdpMaxMin: 0.05, transferMaxMin: 0.05, buildMaxMin: 0.2, importPoll: 20, importMaxMin: 0.05, callbackGraceMs: 50, fastTargetMs: 400 })
+const alerts = [] // admin Telegram alerts captured via the injected notifyAdmin
 
 const MONGO_URL = process.env.MONGO_URL || 'mongodb://localhost:27017'
 const TEST_DB = 'do_rdp_golden_test'
@@ -109,7 +110,7 @@ async function main() {
   await client.connect()
   const db = client.db(TEST_DB)
   for (const c of ['doRdpServers', 'doRdpOsOptions', 'doRdpImageBuilds', 'vpsSecrets']) await db.collection(c).deleteMany({}).catch(() => {})
-  ok('init(db) succeeds', svc.init(db) === true)
+  ok('init(db, { notifyAdmin }) succeeds', svc.init(db, { notifyAdmin: (m) => { alerts.push(m); return Promise.resolve() } }) === true)
   await sleep(50)
   const osCol = db.collection('doRdpOsOptions'), builds = db.collection('doRdpImageBuilds')
 
@@ -200,6 +201,46 @@ async function main() {
   try { await svc.createInstance({ productId: 'starter-1m', regionSlug: 'US', osId: 'win11' }) } catch (e) { threw = e }
   ok('createInstance rejects unknown os', threw && /unknown os/.test(threw.message))
 
+  console.log('\n[2b] Reseller status block (GET /rdp/:id → provisioning) + admin alerts')
+  const fastRaw = await db.collection('doRdpServers').findOne({ server_id: inst.instanceId })
+  ok('fast-path order records fast_deploy / eta / golden_image_id at provision time', fastRaw.fast_deploy === true && fastRaw.eta_minutes === 3 && fastRaw.golden_image_id === b.snapshot_image_id)
+  let gi = await svc.getInstance(inst.instanceId)
+  ok('password_confirmed is null until apply.ps1 calls back', gi.provisioning && gi.provisioning.password_confirmed === null && gi.provisioning.credentials_ready === false)
+  // apply.ps1 on the droplet confirms network + password → order active.
+  await post({ server_id: inst.instanceId, token: fastRaw.callback_token, stage: 'rdp_ready', progress: 100, message: 'Windows booted from golden image; network + password applied; RDP ready' })
+  const fastDoc = await db.collection('doRdpServers').findOne({ server_id: inst.instanceId })
+  ok('rdp_ready callback → active + password_confirmed + time_to_active_s recorded', fastDoc.status === 'active' && fastDoc.password_confirmed === true && Number.isFinite(fastDoc.time_to_active_s) && fastDoc.activated_at)
+  gi = await svc.getInstance(inst.instanceId)
+  const p = gi.provisioning
+  ok('getInstance exposes provisioning block: active, 100%, credentials_ready, eta 0, 4 steps all done', p && p.status === 'active' && p.progress === 100 && p.credentials_ready === true && p.password_confirmed === true && p.eta_seconds === 0 && p.eta_at === null && p.fast_deploy === true && p.os === 'ws2022' && p.steps.length === 4 && p.steps.every(s => s.done) && Array.isArray(p.logs) && p.stage_label === 'Windows is ready')
+  await post({ server_id: inst.instanceId, token: fastRaw.callback_token, stage: 'rdp_ready', progress: 100, message: 'again' })
+  ok('second activation keeps the first activated_at', String((await db.collection('doRdpServers').findOne({ server_id: inst.instanceId })).activated_at) === String(fastDoc.activated_at))
+  const inFlight = { server_id: 'srv-inflight', os_id: 'ws2019', tier_slug: 'starter', region: 'nyc3', status: 'installing', progress: 60, fast_deploy: true, eta_minutes: 3, created_at: new Date(Date.now() - 100000), logs: [{ ts: new Date(), stage: 'creating', message: 'c' }, { ts: new Date(), stage: 'booting', message: 'b' }, { ts: new Date(), stage: 'rdp_up', message: 'RDP port open' }] }
+  const ps = svc.provisioningStatus(inFlight)
+  ok('in-flight status: eta countdown ~80s, elapsed ~100s, stage label, step 3 done + step 4 current, credentials not ready', ps.eta_seconds > 70 && ps.eta_seconds <= 80 && ps.elapsed_seconds >= 100 && ps.elapsed_seconds <= 101 && ps.stage === 'rdp_up' && /confirming password/.test(ps.stage_label) && ps.steps[2].done === true && ps.steps[3].done === false && ps.steps[3].current === true && ps.credentials_ready === false && typeof ps.eta_at === 'string')
+  const slowPs = svc.provisioningStatus({ ...inFlight, fast_deploy: false, eta_minutes: 45, status: 'converting', logs: [{ ts: new Date(), stage: 'converting', message: 'x' }] })
+  ok('slow-path status uses the converting step + 45-min ETA', slowPs.steps[2].key === 'converting' && slowPs.eta_minutes === 45 && slowPs.eta_seconds > 40 * 60)
+  const beforeAlerts = alerts.length
+  const slowRaw = await db.collection('doRdpServers').findOne({ server_id: slow.instanceId })
+  await post({ server_id: slow.instanceId, token: slowRaw.callback_token, stage: 'failed', progress: 20, message: 'No /dev/kvm on this droplet' })
+  await waitFor(async () => alerts.length > beforeAlerts, 3000)
+  ok('failed order → admin Telegram alert with order ref + reason', alerts.slice(beforeAlerts).some(m => /RDP order .*FAILED/.test(m) && /No \/dev\/kvm/.test(m) && new RegExp(slow.instanceId.slice(0, 8)).test(m)))
+  ok('failed order provisioning block: terminal, eta 0, stage failed', (await svc.getInstance(slow.instanceId)).provisioning.stage === 'failed' && (await svc.getInstance(slow.instanceId)).provisioning.eta_seconds === 0)
+  await db.collection('doRdpServers').insertOne({ server_id: 'srv-slowfast', os_id: 'ws2022', tier_slug: 'pro', region: 'fra1', status: 'installing', progress: 60, fast_deploy: true, created_at: new Date(), logs: [{ ts: new Date(), stage: 'rdp_up', message: 'RDP port open at 1.2.3.4:3389' }] })
+  svc._watchFastTarget('srv-slowfast')
+  await waitFor(async () => alerts.some(m => /missed the 0-min|missed the \d+-min fast-deploy target/.test(m) && /srv-slow/.test(m)), 3000)
+  ok('fast-path order still provisioning after the target → one admin alert with stage + last message', alerts.some(m => /fast-deploy target/.test(m) && /srv-slow/.test(m) && /rdp_up/.test(m) && /RDP port open/.test(m)))
+  const nAlerts = alerts.length
+  svc._watchFastTarget('srv-slowfast'); await sleep(600)
+  ok('same alert is de-duplicated', alerts.length === nAlerts)
+  svc._watchFastTarget(inst.instanceId); await sleep(600)
+  ok('no target alert for an order that is already active', !alerts.some(m => /fast-deploy target/.test(m) && new RegExp(inst.instanceId.slice(0, 8)).test(m) && /status=active/.test(m)))
+  await db.collection('doRdpServers').insertOne({ server_id: 'srv-active', os_id: 'ws2019', tier_slug: 'starter', region: 'nyc3', status: 'active', fast_deploy: true, created_at: new Date(), logs: [] })
+  svc._watchFastTarget('srv-active'); await sleep(600)
+  ok('watchdog is silent for an active order', !alerts.some(m => /srv-active/.test(m)))
+  const digest = await svc.sendDailyDigest()
+  ok('daily digest summarises last-24h orders (count, fast-path time to active, failures)', typeof digest === 'string' && /RDP orders last 24h: \d+/.test(digest) && /fast path \d+/.test(digest) && /failed 1/.test(digest))
+
   console.log('\n[3] Droplet-reported conversion failure via /provision/callback → build fails + cleanup')
   reset()
   r = await svc.startGoldenBuild({ osId: 'ws2019', region: 'nyc3' })
@@ -214,6 +255,7 @@ async function main() {
   await waitFor(async () => !!(await builds.findOne({ build_id: r.build.build_id })).finished_at, 5000)
   const fb = await builds.findOne({ build_id: r.build.build_id })
   ok('build marked failed with droplet reason', fb.status === 'failed' && (fb.logs || []).some(l => l.stage === 'failed' && /No \/dev\/kvm/.test(l.message)))
+  ok('failed golden build → admin Telegram alert with os + phase + retry command', alerts.some(m => /Golden image build build-.* \(ws2019, nyc3\) FAILED/.test(m) && /No \/dev\/kvm/.test(m) && /rdp_golden_build.js build --os ws2019/.test(m)))
   ok('failed build droplet destroyed (no keep_on_failure)', !fake.droplets[fb.do_droplet_id])
   await waitFor(async () => Object.keys(fake.volumes).length === 0, 3000).catch(() => {})
   ok('failed build install volume deleted', Object.keys(fake.volumes).length === 0)

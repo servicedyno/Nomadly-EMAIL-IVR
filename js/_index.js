@@ -3473,7 +3473,7 @@ const loadData = async () => {
 
   // DigitalOcean Windows-RDP provider state (droplets, callback tokens, expiry).
   try {
-    require('./digitalocean-rdp-service').init(db)
+    require('./digitalocean-rdp-service').init(db, { notifyAdmin })
   } catch (e) {
     log(`[DO-RDP] init failed: ${e.message || e}`)
   }

@@ -319,7 +319,7 @@ function endpointGroups(base) {
     },
     {
       id: 'rdp', title: 'RDP (Windows)',
-      blurb: 'Identical to the VPS endpoints but provisions Windows Server (DigitalOcean). Replace /vps with /rdp. The login user is "Administrator". Choose the edition with the optional "os" field (ws2019 | ws2022 | ws2025, default ws2022). Editions flagged fast_deploy in GET /rdp/plans boot from a pre-built golden image and are RDP-ready in about 3 minutes; otherwise a full unattended Windows install runs (20-45 min). Poll GET /rdp/:id until status is "active", then read GET /rdp/:id/credentials.',
+      blurb: 'Identical to the VPS endpoints but provisions Windows Server (DigitalOcean). Replace /vps with /rdp. The login user is "Administrator". Choose the edition with the optional "os" field (ws2019 | ws2022 | ws2025, default ws2022). Editions flagged fast_deploy in GET /rdp/plans boot from a pre-built golden image and are RDP-ready in about 3 minutes; otherwise a full unattended Windows install runs (20-45 min). Poll GET /rdp/:id (its "provisioning" block gives stage, progress, ETA countdown and a step timeline you can render as a live "Windows is booting" status page) until credentials_ready is true, then read GET /rdp/:id/credentials.',
       endpoints: [
         {
           method: 'GET', path: '/rdp/plans', auth: true, billed: false,
@@ -348,7 +348,13 @@ function endpointGroups(base) {
   "result": { "success": true, "id": "…", "ip": null, "status": "provisioning", "os": "ws2022", "fast_deploy": true, "eta_minutes": 3 } }`,
         },
         { method: 'GET', path: '/rdp', auth: true, billed: false, desc: 'List all Windows RDP instances you own.', curl: `curl -s ${base}/rdp -H "Authorization: Bearer YOUR_API_KEY"`, resp: `{ "rdp": [ { "id": "…", "os": "windows", "os_id": "ws2022", "status": "active", "ip": "203.0.113.80" }, … ] }` },
-        { method: 'GET', path: '/rdp/:id', auth: true, billed: false, desc: 'Get one RDP instance with live provider status + progress logs. Status goes queued → creating → booting → installing/converting → active.', curl: `curl -s ${base}/rdp/ID -H "Authorization: Bearer YOUR_API_KEY"`, resp: `{ "id": "…", "os": "windows", "os_id": "ws2022", "status": "active", "ip": "203.0.113.80", "live": { "progress": 100, "logs": [ … ] } }` },
+        { method: 'GET', path: '/rdp/:id', auth: true, billed: false, desc: 'Get one RDP instance with a live "provisioning" status block built for order/status pages: stage + human label, progress %, eta_seconds countdown (eta_at), elapsed_seconds, a 4-step timeline (steps[].done/current), credentials_ready and password_confirmed flags, and the last 10 log lines. Poll every 10-15 s until credentials_ready is true, then call credentials_url. Status goes queued → creating → booting → installing (fast path) or converting (full install) → active; "failed" is terminal.', curl: `curl -s ${base}/rdp/ID -H "Authorization: Bearer YOUR_API_KEY"`, resp: `{ "id": "…", "os": "windows", "os_id": "ws2022", "status": "installing", "ip": "203.0.113.80", "credentials_ready": false, "credentials_url": null,
+  "provisioning": { "status": "installing", "stage": "rdp_up", "stage_label": "RDP port open - confirming password", "progress": 90,
+    "fast_deploy": true, "os": "ws2022", "eta_minutes": 3, "eta_seconds": 42, "eta_at": "2026-09-22T22:25:00.000Z", "elapsed_seconds": 138, "time_to_active_s": null,
+    "credentials_ready": false, "password_confirmed": null,
+    "steps": [ { "key": "creating", "label": "Creating the server", "done": true, "current": false }, { "key": "booting", "label": "Server booting", "done": true }, { "key": "installing", "label": "Windows starting - applying network + password", "done": true }, { "key": "rdp_ready", "label": "Windows is ready", "done": false, "current": true } ],
+    "logs": [ { "ts": "…", "stage": "booting", "message": "Droplet 6028… created from image. Booting..." }, … ] },
+  "live": { "status": "installing", "progress": 90, "logs": [ … ], "provisioning": { … } } }` },
         { method: 'POST', path: '/rdp/:id/action', auth: true, billed: false, desc: 'Power action (start, stop, reboot, shutdown).', params: [['action', true, 'start | stop | reboot | shutdown']], curl: `curl -s -X POST ${base}/rdp/ID/action \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\

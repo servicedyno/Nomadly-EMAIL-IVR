@@ -80,7 +80,25 @@ const GOLDEN_ALL_REGIONS = [...new Set(Object.values(REGION_TO_DO))]
 const UBUNTU_IMAGE = process.env.DO_UBUNTU_IMAGE || 'ubuntu-22-04-x64'
 
 // Poll timings (ms / min) — exported as _timing so tests can shrink them.
-const T = { bootPoll: 5000, rdpPoll: 30000, actionPoll: 15000, offPoll: 10000, rdpPort: 3389, rdpMaxMin: 90, transferMaxMin: 90, buildMaxMin: 120, importPoll: 30000, importMaxMin: 240, callbackGraceMs: 90000 }
+const T = { bootPoll: 5000, rdpPoll: 30000, actionPoll: 15000, offPoll: 10000, rdpPort: 3389, rdpMaxMin: 90, transferMaxMin: 90, buildMaxMin: 120, importPoll: 30000, importMaxMin: 240, callbackGraceMs: 90000, fastTargetMs: 180000, digestMs: 24 * 60 * 60 * 1000 }
+
+// ─────────────────────────────────────────────────────────────
+// Admin alerts (Telegram via the bot's notifyAdmin, injected by _index.js init)
+// ─────────────────────────────────────────────────────────────
+let _notifyAdmin = null
+const _alertSeen = new Map()
+function alertAdmin(key, message) {
+  const now = Date.now()
+  for (const [k, t] of _alertSeen) if (now - t > 10 * 60 * 1000) _alertSeen.delete(k)
+  if (key && _alertSeen.has(key)) return false
+  if (key) _alertSeen.set(key, now)
+  log(`ADMIN ALERT: ${message.replace(/\n/g, ' | ')}`)
+  if (!_notifyAdmin) return false
+  try { const r = _notifyAdmin(`🖥 DO-RDP\n${message}`); if (r && r.catch) r.catch(() => {}) } catch (_) {}
+  return true
+}
+const fmtSecs = (s) => (s >= 60 ? `${Math.floor(s / 60)}m ${Math.round(s % 60)}s` : `${Math.round(s)}s`)
+const orderRef = (s) => `${(s.server_id || '').slice(0, 8)} (${s.os_id || '?'}, ${s.region || '?'}, ${s.tier_slug || '?'}${s.label ? `, "${s.label}"` : ''})`
 
 // ─────────────────────────────────────────────────────────────
 // Products (tier × duration). productId encodes both, so it slots into the
@@ -226,9 +244,10 @@ async function releaseVolume(volumeId, dropletId) {
 let _servers = null
 let _osCol = null
 let _builds = null
-function init(db) {
+function init(db, { notifyAdmin } = {}) {
   try {
     if (!db || typeof db.collection !== 'function') return false
+    if (typeof notifyAdmin === 'function') _notifyAdmin = notifyAdmin
     _servers = db.collection('doRdpServers')
     _osCol = db.collection('doRdpOsOptions')
     _builds = db.collection('doRdpImageBuilds')
@@ -244,11 +263,12 @@ function init(db) {
       ).catch(() => {})
     }
     log('initialised (collections=doRdpServers, doRdpOsOptions, doRdpImageBuilds)')
-    // Expiry sweep — NEVER on a dev sandbox (would power off real servers).
+    // Expiry sweep + daily deploy digest — NEVER on a dev sandbox (would power off real servers / spam admin).
     if (process.env.SKIP_WEBHOOK_SYNC !== 'true') {
       setInterval(() => { processExpiries().catch(e => log('expiry sweep error:', e.message)) }, 60 * 60 * 1000)
+      setInterval(() => { sendDailyDigest().catch(e => log('digest error:', e.message)) }, T.digestMs)
     } else {
-      log('SKIP_WEBHOOK_SYNC=true — expiry sweep DISABLED (dev sandbox)')
+      log('SKIP_WEBHOOK_SYNC=true — expiry sweep + daily digest DISABLED (dev sandbox)')
     }
     // Golden images: DO snapshots are the source of truth (read-only sync, safe on
     // every pod) and any build interrupted by a restart is resumed at its phase.
@@ -374,6 +394,20 @@ async function addLog(serverId, stage, message, progress, status) {
     await _servers.updateOne({ server_id: serverId },
       { $push: { logs: { ts: new Date(), stage, message } }, $set: set })
   } catch (e) { log(`addLog(${serverId}) warn: ${e.message}`) }
+  if (status === 'failed') {
+    const s = await _servers.findOne({ server_id: serverId }).catch(() => null) || { server_id: serverId }
+    alertAdmin(`fail:${serverId}`, `❌ RDP order ${orderRef(s)} FAILED after ${fmtSecs((Date.now() - new Date(s.created_at || Date.now())) / 1000)}\n${message}${s.ip_address ? `\nIP ${s.ip_address}` : ''}${s.do_droplet_id ? ` · droplet ${s.do_droplet_id}` : ''}`)
+  }
+}
+
+// Fast-path promise = RDP-ready in ~3 min. Alert the admin once if an order is still provisioning past the target.
+function watchFastTarget(serverId) {
+  setTimeout(async () => {
+    const s = _servers ? await _servers.findOne({ server_id: serverId }).catch(() => null) : null
+    if (!s || ['active', 'failed', 'destroyed', 'suspended', 'expired'].includes(s.status)) return
+    const last = (s.logs || []).slice(-1)[0] || {}
+    alertAdmin(`slow:${serverId}`, `⏱ RDP order ${orderRef(s)} missed the ${Math.round(T.fastTargetMs / 60000)}-min fast-deploy target\nstatus=${s.status} progress=${s.progress || 0}% stage=${last.stage || '-'}\n${last.message || ''}${s.ip_address ? `\nIP ${s.ip_address}` : ''}`)
+  }, T.fastTargetMs).unref()
 }
 
 function tcpOpen(ip, port = 3389, timeoutMs = 5000) {
@@ -408,8 +442,11 @@ async function waitBootIp(dropletId, tries = 72) {
 async function applyActivation(server) {
   const activated = new Date()
   const expires = new Date(activated.getTime() + 30 * (server.duration_months || 1) * 86400000)
-  await _servers.updateOne({ server_id: server.server_id },
-    { $set: { status: 'active', progress: 100, activated_at: activated, expires_at: expires } })
+  // Keep the first activation timestamp if the port probe and the callback both fire.
+  await _servers.updateOne({ server_id: server.server_id, status: { $ne: 'active' } }, { $set: {
+    status: 'active', progress: 100, activated_at: activated, expires_at: expires,
+    time_to_active_s: server.created_at ? Math.round((activated - new Date(server.created_at)) / 1000) : null,
+  } })
 }
 
 async function pollRdp(serverId, ip, minutes = 90, { callbackGraceMs = 0 } = {}) {
@@ -450,8 +487,10 @@ async function provisionServer(serverId) {
     const osOption = await getOsOption(server.os_id)
     const name = `rdp-${serverId.slice(0, 8)}`
     const fast = goldenFastPathOk(server, osOption)
+    await _servers.updateOne({ server_id: serverId }, { $set: { fast_deploy: fast.ok, eta_minutes: fast.ok ? 3 : 45, golden_image_id: fast.ok ? osOption.golden_image_id : null } })
 
     if (fast.ok) {
+      watchFastTarget(serverId)
       await addLog(serverId, 'creating', 'Creating droplet from golden image (fast, ~2-3 min)...', 10, 'creating')
       const data = await doCreateDroplet({ name, region: server.region, size: server.do_size_slug, image: osOption.golden_image_id, ssh_keys: [await ensureSshKeyId()], user_data: buildMetadataUserData(server), tags: ['rdp-reseller'] })
       const dropletId = data.droplet && data.droplet.id
@@ -469,9 +508,10 @@ async function provisionServer(serverId) {
         return
       }
       // DO deleted the droplet = its create action errored. Fall back to the full conversion.
-      await _servers.updateOne({ server_id: serverId }, { $set: { do_droplet_id: null } })
+      await _servers.updateOne({ server_id: serverId }, { $set: { do_droplet_id: null, fast_deploy: false, eta_minutes: 45 } })
       await addLog(serverId, 'info', `DigitalOcean could not provision droplet ${dropletId} from golden image ${osOption.golden_image_id} (create action errored) - falling back to a full Windows conversion (20-45 min).`, 5)
       log(`fast path failed for ${serverId}: droplet ${dropletId} from image ${osOption.golden_image_id} vanished`)
+      alertAdmin(`fallback:${serverId}`, `⚠️ RDP order ${orderRef(server)}: DigitalOcean errored the create from golden image ${osOption.golden_image_id} (droplet ${dropletId} vanished) - falling back to the 20-45 min conversion. Check the image with rdp_golden_build.js status.`)
     } else if (fast.goldenReady && fast.diskOk && !fast.regionReady) {
       // Golden image exists but not in this region yet → copy it for next time.
       transferGoldenImage(osOption.golden_image_id, server.region, osOption.id).catch(e => log(`on-demand transfer ${osOption.id}→${server.region} failed: ${e.message}`))
@@ -718,6 +758,7 @@ async function runBuild(buildId) {
         try { ok = await transferGoldenImage(b.snapshot_image_id, region, b.os_id) } catch (e) { log(`transfer ${b.os_id}→${region} error: ${e.message}`) }
         await addBuildLog(buildId, 'transferring', ok ? `Image available in ${region}.` : `Transfer to ${region} FAILED (retry: admin transfer).`)
         if (ok) await _builds.updateOne({ build_id: buildId }, { $addToSet: { transferred_regions: region } })
+        else alertAdmin(`xfer:${b.os_id}:${region}`, `🌍 Golden image ${b.snapshot_image_id} (${b.os_id}) could not be copied to ${region} - orders there fall back to the slow conversion.\nRetry: node js/ops/rdp_golden_build.js transfer --os ${b.os_id} --regions ${region}`)
         await fresh()
       }
       await setBuild(buildId, { phase: 'done', status: 'available', progress: 100, finished_at: new Date() })
@@ -739,6 +780,7 @@ async function failBuild(buildId, reason) {
   if (!b || b.finished_at) return
   await addBuildLog(buildId, 'failed', `Build failed: ${reason}`, null, b.status === 'cancelled' ? 'cancelled' : 'failed')
   await setBuild(buildId, { finished_at: new Date() })
+  if (b.status !== 'cancelled') alertAdmin(`build:${buildId}`, `🧱 Golden image build ${buildId} (${b.os_id}, ${b.region}) FAILED at phase ${b.phase}${b.conv_progress != null ? ` (droplet ${b.conv_progress}%)` : ''}\n${String(reason).slice(0, 600)}\nRetry: node js/ops/rdp_golden_build.js build --os ${b.os_id}`)
   // Revert the OS row — keep serving an older golden image if one exists.
   const cur = await _osCol.findOne({ _id: b.os_id })
   if (cur && cur.golden_status === 'building') {
@@ -810,8 +852,10 @@ async function transferGolden(osId, regions) {
   const targets = [...new Set(wanted)].filter(r => !(o.golden_regions || []).includes(r))
   ;(async () => {
     for (const r of targets) {
-      try { const ok = await transferGoldenImage(o.golden_image_id, r, o.id); log(`transfer ${o.id}→${r}: ${ok ? 'ok' : 'FAILED'}`) }
+      let ok = false
+      try { ok = await transferGoldenImage(o.golden_image_id, r, o.id); log(`transfer ${o.id}→${r}: ${ok ? 'ok' : 'FAILED'}`) }
       catch (e) { log(`transfer ${o.id}→${r} error: ${e.message}`) }
+      if (!ok) alertAdmin(`xfer:${o.id}:${r}`, `🌍 Golden image ${o.golden_image_id} (${o.id}) could not be copied to ${r} - orders there fall back to the slow conversion.\nRetry: node js/ops/rdp_golden_build.js transfer --os ${o.id} --regions ${r}`)
     }
   })()
   return { os_id: o.id, image_id: o.golden_image_id, queued_regions: targets }
@@ -875,6 +919,37 @@ async function createInstance(opts = {}) {
 // No cross-provider fallback for DO-RDP (golden→conversion fallback is internal).
 async function createInstanceWithFallback(opts) { return createInstance(opts) }
 
+// Reseller-facing provisioning status (GET /rdp/:id): stage, progress, ETA countdown, credentials readiness.
+const STAGE_LABELS = {
+  queued: 'Order received', creating: 'Creating the server', booting: 'Server booting', installing: 'Windows starting - applying network + password',
+  converting: 'Installing Windows (full unattended install)', rdp_up: 'RDP port open - confirming password', rdp_ready: 'Windows is ready',
+  password_failed: 'Password could not be applied', failed: 'Provisioning failed', info: 'Provisioning',
+}
+function provisioningStatus(s) {
+  const now = Date.now()
+  const last = (s.logs || []).slice(-1)[0] || {}
+  const created = s.created_at ? new Date(s.created_at).getTime() : now
+  const done = ['active', 'destroyed', 'suspended', 'expired'].includes(s.status)
+  const failed = s.status === 'failed'
+  const etaMin = s.eta_minutes || (s.fast_deploy ? 3 : 45)
+  const endMs = s.activated_at ? new Date(s.activated_at).getTime() : now
+  const elapsed = Math.max(0, Math.round((endMs - created) / 1000))
+  const etaSeconds = done || failed ? 0 : Math.max(0, Math.round((created + etaMin * 60000 - now) / 1000))
+  const order = ['creating', 'booting', s.fast_deploy ? 'installing' : 'converting', 'rdp_ready']
+  const seen = new Set((s.logs || []).map(l => l.stage === 'rdp_up' ? (s.fast_deploy ? 'installing' : 'converting') : l.stage))
+  const reached = Math.max(-1, ...order.map((k, i) => (seen.has(k) || s.status === k || (k === 'rdp_ready' && s.status === 'active')) ? i : -1))
+  return {
+    status: s.status, stage: last.stage || s.status, stage_label: STAGE_LABELS[last.stage] || STAGE_LABELS[s.status] || 'Provisioning',
+    message: last.message || null, progress: s.status === 'active' ? 100 : (s.progress || 0),
+    fast_deploy: !!s.fast_deploy, os: s.os_id, eta_minutes: etaMin, eta_seconds: etaSeconds,
+    eta_at: done || failed ? null : new Date(created + etaMin * 60000).toISOString(), elapsed_seconds: elapsed,
+    time_to_active_s: s.time_to_active_s ?? (s.activated_at ? Math.round((new Date(s.activated_at) - created) / 1000) : null),
+    credentials_ready: s.status === 'active', password_confirmed: s.password_confirmed ?? null,
+    steps: order.map((k, i) => ({ key: k, label: STAGE_LABELS[k], done: i <= reached, current: i === reached + 1 && !done && !failed })),
+    logs: (s.logs || []).slice(-10).map(l => ({ ts: l.ts, stage: l.stage, message: l.message })),
+  }
+}
+
 async function getInstance(instanceId) {
   const s = _servers ? await _servers.findOne({ server_id: instanceId }) : null
   if (!s) return { status: 'unknown', mainIp: null }
@@ -886,7 +961,22 @@ async function getInstance(instanceId) {
       if (pub && pub.ip_address) { s.ip_address = pub.ip_address; await _servers.updateOne({ server_id: instanceId }, { $set: { ip_address: pub.ip_address } }) }
     } catch (_) {}
   }
-  return { status: s.status, mainIp: s.ip_address || null, progress: s.progress, expires_at: s.expires_at || null, logs: (s.logs || []).slice(-10) }
+  return { status: s.status, mainIp: s.ip_address || null, progress: s.progress, expires_at: s.expires_at || null, logs: (s.logs || []).slice(-10), provisioning: provisioningStatus(s) }
+}
+
+// Daily admin digest of the last 24 h of RDP orders (only when there were any).
+async function sendDailyDigest() {
+  if (!_servers) return null
+  const since = new Date(Date.now() - T.digestMs)
+  const rows = await _servers.find({ created_at: { $gte: since } }).toArray()
+  if (!rows.length) return null
+  const fast = rows.filter(r => r.fast_deploy), slow = rows.filter(r => !r.fast_deploy)
+  const tta = (list) => { const v = list.map(r => r.time_to_active_s).filter(x => Number.isFinite(x)); return v.length ? `${fmtSecs(v.reduce((a, b) => a + b, 0) / v.length)} avg / ${fmtSecs(Math.max(...v))} max (${v.length})` : 'n/a' }
+  const failed = rows.filter(r => r.status === 'failed'), missed = fast.filter(r => Number.isFinite(r.time_to_active_s) && r.time_to_active_s > T.fastTargetMs / 1000)
+  const byOs = Object.entries(rows.reduce((m, r) => { m[r.os_id] = (m[r.os_id] || 0) + 1; return m }, {})).map(([k, v]) => `${k}:${v}`).join(' ')
+  const msg = `📊 RDP orders last 24h: ${rows.length} (${byOs})\n⚡ fast path ${fast.length} - time to active ${tta(fast)}${missed.length ? ` - ${missed.length} over the 3-min target` : ''}\n🐢 full conversion ${slow.length} - ${tta(slow)}\n❌ failed ${failed.length}${failed.length ? ': ' + failed.map(orderRef).join(', ') : ''}`
+  alertAdmin(null, msg)
+  return msg
 }
 
 async function _dropletActionByServer(instanceId, actionBody, newStatus) {
@@ -964,11 +1054,14 @@ function provisionRouter() {
       if (s.callback_token !== token) return res.status(403).json({ error: 'Invalid callback token' })
       if (stage === 'rdp_ready' || (progress != null && Number(progress) >= 100)) {
         await applyActivation(s)
+        await _servers.updateOne({ server_id }, { $set: { password_confirmed: true } })
         await addLog(server_id, 'rdp_ready', message || 'Windows is live.', 100, 'active')
       } else if (stage === 'failed') {
         await addLog(server_id, 'failed', message || 'Conversion failed.', progress, 'failed')
       } else if (stage === 'password_failed') {
+        await _servers.updateOne({ server_id }, { $set: { password_confirmed: false } })
         await addLog(server_id, 'password_failed', message || 'The per-order password could not be applied.', null, null)
+        alertAdmin(`pw:${server_id}`, `🔑 RDP order ${orderRef(s)}: Windows booted but the per-order Administrator password could NOT be applied (${message || 'no detail'}). Customer cannot log in - check C:\\cloudinit\\apply.log on ${s.ip_address || 'the droplet'}.`)
       } else {
         await addLog(server_id, stage || 'converting', message || stage || 'progress', progress, status || 'converting')
       }
@@ -988,11 +1081,11 @@ module.exports = {
   startInstance, stopInstance, restartInstance, shutdownInstance,
   cancelInstance, getSecretPassword,
   // ops
-  processExpiries, provisionRouter,
+  processExpiries, provisionRouter, sendDailyDigest, provisioningStatus,
   // golden images
   startGoldenBuild, cancelBuild, resumeBuilds, syncGoldenFromDO, transferGolden, goldenStatus, listOsOptions,
   // exported for tests / internal use
   _buildUserData: buildUserData, _buildMetadataUserData: buildMetadataUserData,
-  _products: () => PRODUCTS, regionToSlug, _genPassword: genPassword, getOsOption, _timing: T, _runBuild: runBuild, _provisionServer: provisionServer,
+  _products: () => PRODUCTS, regionToSlug, _genPassword: genPassword, getOsOption, _timing: T, _runBuild: runBuild, _provisionServer: provisionServer, _watchFastTarget: watchFastTarget,
   DURATIONS, TIERS, OS_OPTIONS, DEFAULT_OS_ID, BUILD_SIZE, BUILD_REGION, GOLDEN_ALL_REGIONS,
 }

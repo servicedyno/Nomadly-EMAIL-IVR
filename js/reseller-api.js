@@ -480,7 +480,16 @@ function createResellerApi(deps = {}) {
     if (!rec) return res.status(404).json({ error: 'not_found' })
     let live = null
     if (rec.instanceId) { try { const prov = providerFor(isRDP); live = await prov.getInstance(rec.instanceId) } catch (e) { live = { error: e.message } } }
-    res.json({ id: rec.vpsId || rec._id, instance_id: rec.instanceId || null, plan: rec.plan, region: rec.region, os: rec.osType, os_id: rec.osId || null, status: live?.status || rec.status, ip: live?.mainIp || rec.host || null, live })
+    if (live && (live.mainIp || live.status) && (live.mainIp !== rec.host || live.status !== rec.status)) {
+      col('vpsPlansOf').updateOne({ _id: rec._id }, { $set: { ...(live.mainIp ? { host: live.mainIp } : {}), ...(live.status ? { status: live.status } : {}) } }).catch(() => {})
+    }
+    const out = { id: rec.vpsId || rec._id, instance_id: rec.instanceId || null, plan: rec.plan, region: rec.region, os: rec.osType, os_id: rec.osId || null, status: live?.status || rec.status, ip: live?.mainIp || rec.host || null, live }
+    if (live && live.provisioning) {
+      out.provisioning = live.provisioning
+      out.credentials_ready = !!live.provisioning.credentials_ready
+      out.credentials_url = live.provisioning.credentials_ready ? `/api/reseller/v1/${isRDP ? 'rdp' : 'vps'}/${out.id}/credentials` : null
+    }
+    res.json(out)
   }
 
   async function vpsActionHandler(req, res, isRDP) {
@@ -512,7 +521,10 @@ function createResellerApi(deps = {}) {
     if (!rec) return res.status(404).json({ error: 'not_found' })
     let password = null
     if (isLive() && rec.rootPasswordSecretId) { try { const prov = providerFor(isRDP); password = await prov.getSecretPassword(rec.rootPasswordSecretId) } catch (e) { log(`[ResellerAPI] getSecretPassword warn: ${e.message}`) } }
-    res.json({ id: rec.vpsId || rec._id, ip: rec.host || null, username: isRDP ? 'Administrator' : 'root', password: password || (isLive() ? null : '••• (revealed only in live mode)'), mode: mode() })
+    // RDP orders are created with ip=null; resolve the live IP once provisioning assigned one.
+    let ip = rec.host || null
+    if (!ip && rec.instanceId) { try { ip = (await providerFor(isRDP).getInstance(rec.instanceId))?.mainIp || null; if (ip) await col('vpsPlansOf').updateOne({ _id: rec._id }, { $set: { host: ip } }) } catch (_) {} }
+    res.json({ id: rec.vpsId || rec._id, ip, username: isRDP ? 'Administrator' : 'root', password: password || (isLive() ? null : '••• (revealed only in live mode)'), mode: mode() })
   }
 
   // VPS routes

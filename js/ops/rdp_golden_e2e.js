@@ -37,6 +37,8 @@ const doGet = async (p) => (await axios.get(`https://api.digitalocean.com/v2${p}
 
   const t0 = Date.now()
   const inst = await svc.createInstance({ productId: PLAN, regionSlug: REGION, osId: OS, label: 'golden-e2e' })
+  // Never leak a billable droplet if this process is killed (pause / Ctrl-C) - unless --keep was asked for.
+  if (!KEEP) for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(sig, () => { console.log(`\n${sig} → destroying droplet of ${inst.instanceId}`); svc.cancelInstance(inst.instanceId).catch(() => {}).then(() => process.exit(1)) })
   console.log(`[${ts()}] createInstance → id=${inst.instanceId} fastDeploy=${inst.fastDeploy} eta=${inst.etaMinutes}min password=${inst.defaultPassword}`)
   if (!inst.fastDeploy) console.log('!! NOT on the fast path (no golden image for this OS/region/tier) - this will be a slow conversion')
 
