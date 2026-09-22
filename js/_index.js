@@ -3471,6 +3471,13 @@ const loadData = async () => {
     log(`[VpsSecretStore] init failed: ${e.message || e}`)
   }
 
+  // DigitalOcean Windows-RDP provider state (droplets, callback tokens, expiry).
+  try {
+    require('./digitalocean-rdp-service').init(db)
+  } catch (e) {
+    log(`[DO-RDP] init failed: ${e.message || e}`)
+  }
+
   // ── Register Contabo provisioning circuit-breaker admin alert ──
   // When createInstance hits the 5xx threshold, fire a one-shot DM to the
   // admin so they can open a vendor ticket. The bot meanwhile blocks all
@@ -37539,6 +37546,16 @@ app.use('/reseller/v1', createResellerApi({
   log,
   notifyAdmin,
 }))
+
+// ── DigitalOcean RDP provisioning callbacks (on-droplet Windows conversion) ──
+// External URL: /api/provision/*  (FastAPI strips /api → node /provision).
+// The convert_to_windows.sh / apply.ps1 scripts POST progress to /provision/callback
+// (token-gated) and fetch /provision/bootscript for the golden-image boot task.
+try {
+  app.use('/provision', require('./digitalocean-rdp-service').provisionRouter())
+} catch (e) {
+  log(`[DO-RDP] provision router mount failed: ${e.message || e}`)
+}
 
 // ── cPanel Server Migration (auto-sync accounts when WHM_HOST changes) ──
 const { runMigration: runCpanelMigration } = require('./cpanel-migration')

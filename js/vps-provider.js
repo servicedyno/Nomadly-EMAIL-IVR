@@ -84,7 +84,10 @@ function getProvider() {
  */
 function getRdpProvider() {
   if (!RDP_PROVIDER) return null
-  if (!_rdp) _rdp = _loadProvider(RDP_PROVIDER)
+  // DigitalOcean has no native Windows — the RDP provider is the dedicated
+  // Ubuntu→Windows conversion service (js/digitalocean-rdp-service.js), NOT the
+  // Linux digitalocean-service.js (which returns [] for Windows).
+  if (!_rdp) _rdp = (RDP_PROVIDER === 'digitalocean') ? require('./digitalocean-rdp-service') : _loadProvider(RDP_PROVIDER)
   return _rdp
 }
 
