@@ -66,14 +66,15 @@ async function fakeDO({ method, url, data }) {
   // Custom-image import: NEW → available after 2 polls (or a scripted failure).
   if (m === 'POST' && u === '/images') {
     const id = fake.nextId++
-    fake.images[id] = { id, name: data.name, type: 'custom', distribution: data.distribution, status: fake.failImport ? 'deleted' : 'NEW', error_message: fake.failImport ? 'Unsupported image format' : '', regions: [data.region], min_disk_size: 32, size_gigabytes: 11.5, created_at: new Date().toISOString(), polls: 0, url: data.url }
+    const stuck = (fake.stuckImports || 0) > 0; if (stuck) fake.stuckImports--
+    fake.images[id] = { id, name: data.name, type: 'custom', distribution: data.distribution, status: fake.failImport ? 'deleted' : 'NEW', error_message: fake.failImport ? 'Unsupported image format' : '', regions: [data.region], min_disk_size: 32, size_gigabytes: 11.5, created_at: new Date().toISOString(), polls: 0, url: data.url, stuck }
     return { status: 202, data: { image: fake.images[id] } }
   }
   if (m === 'GET' && u.startsWith('/images?private=true')) return { status: 200, data: { images: Object.values(fake.images) } }
   if (m === 'GET' && (mt = u.match(/^\/images\/(\d+)$/))) {
     const img = fake.images[mt[1]]
     if (!img) return { status: 404, data: { message: 'nf' } }
-    if (img.status === 'NEW' && ++img.polls >= 2) img.status = 'available'
+    if (img.status === 'NEW' && !img.stuck && ++img.polls >= 2) img.status = 'available'
     return { status: 200, data: { image: img } }
   }
   if (m === 'DELETE' && (mt = u.match(/^\/images\/(\d+)$/))) { if (!fake.images[mt[1]]) return { status: 404, data: { message: 'nf' } }; delete fake.images[mt[1]]; return { status: 204, data: '' } }
@@ -95,7 +96,7 @@ process.env.SKIP_WEBHOOK_SYNC = 'true'
 process.env.DO_RDP_GOLDEN_AUTOSYNC = 'false'
 const svc = require('../digitalocean-rdp-service.js')
 // Shrink every poll interval so the whole machine runs in seconds.
-Object.assign(svc._timing, { bootPoll: 20, rdpPoll: 40, actionPoll: 20, offPoll: 20, rdpMaxMin: 0.05, transferMaxMin: 0.05, buildMaxMin: 0.2, importPoll: 20, importMaxMin: 0.05, callbackGraceMs: 50, fastTargetMs: 400 })
+Object.assign(svc._timing, { bootPoll: 20, rdpPoll: 40, actionPoll: 20, offPoll: 20, rdpMaxMin: 0.05, transferMaxMin: 0.05, buildMaxMin: 0.2, importPoll: 20, importMaxMin: 0.05, importRetryMin: 0.03, importRetries: 2, callbackGraceMs: 50, fastTargetMs: 400 })
 const alerts = [] // admin Telegram alerts captured via the injected notifyAdmin
 
 const MONGO_URL = process.env.MONGO_URL || 'mongodb://localhost:27017'
@@ -280,6 +281,22 @@ async function main() {
   ok('import failure surfaces DO error_message', fbi.status === 'failed' && (fbi.logs || []).some(l => /custom image import failed: Unsupported image format/.test(l.message)))
   ok('half-imported image deleted + build droplet destroyed', !fake.images[fbi.import_image_id] && !fake.droplets[fbi.do_droplet_id])
   fake.failImport = false
+
+  console.log('\n[3b-2] Import stuck in "pending" at DigitalOcean → stuck entry deleted, same qcow2 re-submitted, build completes')
+  reset()
+  fake.stuckImports = 1
+  r = await svc.startGoldenBuild({ osId: 'ws2019', region: 'nyc3', regions: ['nyc3'] })
+  await waitFor(async () => (await builds.findOne({ build_id: r.build.build_id })).phase === 'converting')
+  const rawS = await builds.findOne({ build_id: r.build.build_id })
+  await post({ server_id: r.build.build_id, token: rawS.callback_token, stage: 'image_ready', progress: 90, message: 'ready', image_url: `http://127.0.0.1/${rawS.image_token}/windows.qcow2` })
+  await waitFor(async () => (await builds.findOne({ build_id: r.build.build_id })).phase === 'importing')
+  const firstImport = (await builds.findOne({ build_id: r.build.build_id })).import_image_id
+  await waitFor(async () => (await builds.findOne({ build_id: r.build.build_id })).status === 'available', 15000)
+  const sb = await builds.findOne({ build_id: r.build.build_id })
+  ok('stuck import detected after importRetryMin and logged', (sb.logs || []).some(l => /still pending after .* looks stuck.*re-submitting.*attempt 1\/2/.test(l.message)))
+  ok('stuck DO image entry deleted, new import created from the SAME qcow2 URL with -r1 suffix', !fake.images[firstImport] && fake.images[sb.import_image_id] && fake.images[sb.import_image_id].url === sb.image_url && /-r1$/.test(fake.images[sb.import_image_id].name) && sb.import_attempts === 1 && sb.import_image_id !== firstImport)
+  ok('re-imported image registered as the golden image and build finished', sb.status === 'available' && sb.snapshot_image_id === sb.import_image_id && (await svc.getOsOption('ws2019')).golden_image_id === sb.import_image_id)
+  fake.stuckImports = 0
 
   console.log('\n[3c] Build-size fallback when DO reports 422 "Size is not available"')
   reset()

@@ -80,7 +80,7 @@ const GOLDEN_ALL_REGIONS = [...new Set(Object.values(REGION_TO_DO))]
 const UBUNTU_IMAGE = process.env.DO_UBUNTU_IMAGE || 'ubuntu-22-04-x64'
 
 // Poll timings (ms / min) — exported as _timing so tests can shrink them.
-const T = { bootPoll: 5000, rdpPoll: 30000, actionPoll: 15000, offPoll: 10000, rdpPort: 3389, rdpMaxMin: 90, transferMaxMin: 90, buildMaxMin: 120, importPoll: 30000, importMaxMin: 240, callbackGraceMs: 90000, fastTargetMs: 180000, digestMs: 24 * 60 * 60 * 1000 }
+const T = { bootPoll: 5000, rdpPoll: 30000, actionPoll: 15000, offPoll: 10000, rdpPort: 3389, rdpMaxMin: 90, transferMaxMin: 90, buildMaxMin: 120, importPoll: 30000, importMaxMin: 240, importRetryMin: 150, importRetries: 2, callbackGraceMs: 90000, fastTargetMs: 180000, digestMs: 24 * 60 * 60 * 1000 }
 
 // ─────────────────────────────────────────────────────────────
 // Admin alerts (Telegram via the bot's notifyAdmin, injected by _index.js init)
@@ -728,8 +728,24 @@ async function runBuild(buildId) {
       await fresh()
     }
     if (b.phase === 'importing') {
-      const r = await waitImageAvailable(b.import_image_id, T.importMaxMin)
-      if (!r.ok) throw new Error(`custom image import failed: ${r.error}`)
+      // DO's importer normally flips pending→available well within ~2 h of downloading the file. A pending entry that
+      // never completes is a stuck job on their side: delete it and re-submit the same URL (the build droplet still
+      // serves the qcow2). Deadline is DB-based so restarts do not extend the wait.
+      const startedAt = b.import_started_at ? new Date(b.import_started_at).getTime() : Date.now()
+      if (!b.import_started_at) await setBuild(buildId, { import_started_at: new Date(startedAt) })
+      let attempt = b.import_attempts || 0
+      let r = await waitImageAvailable(b.import_image_id, Math.max((T.importPoll * 2) / 60000, T.importRetryMin - (Date.now() - startedAt) / 60000))
+      while (!r.ok && /not finished/.test(r.error) && attempt < T.importRetries) {
+        attempt++
+        await addBuildLog(buildId, 'importing', `Custom image ${b.import_image_id} still pending after ${T.importRetryMin} min - the DigitalOcean import looks stuck. Deleting it and re-submitting the same qcow2 (attempt ${attempt}/${T.importRetries})...`, 75)
+        try { await doDeleteImage(b.import_image_id) } catch (e) { log(`delete stuck import ${b.import_image_id}: ${e.message}`) }
+        const created = (await doCreateCustomImage({ name: `${b.snapshot_name}-r${attempt}`, url: b.image_url, distribution: 'Unknown', region: b.region, description: `Nomadly Windows RDP golden image - ${osOption.name}`, tags: ['golden-rdp'] })).image || {}
+        if (!created.id) throw new Error('custom image re-import was not accepted by DigitalOcean')
+        await setBuild(buildId, { import_image_id: imageIdNum(created.id), import_attempts: attempt, import_started_at: new Date() })
+        await fresh()
+        r = await waitImageAvailable(b.import_image_id, T.importRetryMin)
+      }
+      if (!r.ok) throw new Error(`custom image import failed: ${r.error}${attempt ? ` (after ${attempt} re-import${attempt > 1 ? 's' : ''})` : ''}`)
       await setBuild(buildId, { snapshot_image_id: imageIdNum(b.import_image_id), phase: 'registering' })
       await fresh()
     }

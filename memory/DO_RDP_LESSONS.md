@@ -30,3 +30,9 @@
 12. Debugging a golden droplet from the sandbox: `Xvfb :98` + `xfreerdp /v:IP /u:Administrator /p:<build admin_password>
     /drive:share,/tmp/rdpshare` + `xdotool key super+r` → run a `.cmd` from `\\tsclient\share` (Run box truncates long
     commands) → copy `C:\cloudinit\apply.log` back to the share. Build-time password = `doRdpImageBuilds.admin_password`.
+13. **DO custom-image imports can hang in `pending` forever after the download finished.** Check the build droplet's
+    outbound bandwidth (`GET /v2/monitoring/metrics/droplet/bandwidth?host_id=..&interface=public&direction=outbound`,
+    values in Mbps): a 6–14 min burst = DO fetched the qcow2; no `available` within ~2 h after that = stuck (ws2022 sat
+    3h40m, ws2025 2h20m on 2026-09-22). `runBuild` now deletes the stuck entry and re-submits the same URL after
+    `T.importRetryMin` (150 min, DB-based deadline, max `T.importRetries`=2); the build droplet keeps serving the qcow2
+    until registration, so no rebuild is needed.
