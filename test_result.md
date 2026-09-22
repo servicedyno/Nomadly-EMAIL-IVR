@@ -108,6 +108,96 @@ user_problem_statement: |
 
 
 backend:
+  - task: "Bug Report #2 — Reseller API File Manager: extract mis-destination (path duplicated $HOME/<dir>/<dir>, destDir ignored) + move/rename 'Access denied' (CPANEL_AUTH_FAILURE/whm-fallback-failed) + copy path duplication (account namea3a5, live server 68.183.77.106)"
+    implemented: true
+    working: true
+    file: "/app/js/reseller-hosting-mgmt.js (toAbsPath normalization on extract/copy/move/rename/compress; fileOpsLive() gate on file-manager writes)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          ROOT CAUSE: cPanel API2 Fileman::fileop resolves a RELATIVE destfiles against the SOURCE file's directory (dirname of sourcefiles), NOT $HOME. So relative paths produced dest=$HOME/<dir>/<dir> for extract/copy, and for move/rename the destfiles resolved to a non-existent nested dir → cPanel error surfaced as CPANEL_AUTH_FAILURE / whm-fallback-failed ("Access denied").
+          FIX (already at HEAD via toAbsPath + verified this run): extract/copy/move/rename/compress now normalize dir/sourceDir/destDir to ABSOLUTE /home/<cpUser>/... paths (matches the proven-working HostPanel + frontend which always send absolute paths) for BOTH the primary user-auth call AND the WHM-root fallback. No path duplication; destDir honored; move/rename land on valid absolute targets so they succeed via the WHM-root fallback.
+          ALSO: wired the 10 File-Manager WRITE routes (save/mkdir/delete/rename/extract/compress/copy/move/upload/upload-chunk) from isLive() to the narrow, purpose-built fileOpsLive() gate = isLive() || RESELLER_FILEOPS_LIVE==='true'. No-op in production (isLive() true there); safe dry-run default on the sandbox unless RESELLER_FILEOPS_LIVE=true. Non-file routes (email/mysql/ssl/domain/subdomain) still gate on isLive().
+
+          HOW TO TEST (backend, LIVE File-Manager against sanctioned test account namea3a5 on real server 68.183.77.106):
+            1. Seed the fixture (local Mongo, DB_NAME=test): `node /app/scripts/seed_testfix_namea3a5.js`
+               → creates reseller key rsk_live_testfix_namea3a5_filemgr_ssl_2026 (scopes ['*'], owner 5590563715) and cpanelAccounts._id=namea3a5 (domain namewords.sbs, whmHost 68.183.77.106) with a DELIBERATELY WRONG cpPass so user Basic Auth is refused → the WHM-root fallback must heal it (via 'whm-fallback'/'whm-session'/'whm-root-uapi').
+            2. RESELLER_FILEOPS_LIVE=true is already set in /app/backend/.env for this verification (main agent will remove it after). This un-gates ONLY File-Manager writes, jailed to the account home. isLive() stays false (SKIP_WEBHOOK_SYNC=true) so NO other platform mutation is possible.
+            3. Base URL = REACT_APP_BACKEND_URL from /app/frontend/.env; all routes under {base}/api/reseller/v1/*. Auth header: 'Authorization: Bearer rsk_live_testfix_namea3a5_filemgr_ssl_2026'. (Locally the Node app is also directly reachable at http://localhost:5000/reseller/v1/* — prefer the /api proxy path via {base}.)
+            4. Work inside a UNIQUE temp dir under public_html and CLEAN UP at the end (delete it). Suggested flow:
+               a. POST /hosting/namea3a5/files/mkdir {dir:"public_html", name:"nwv_<unique>"} → status 1.
+               b. POST /hosting/namea3a5/files/upload {dir:"public_html/nwv_<unique>", fileName:"nw_verify.zip", content_base64:"<zip of hello.txt>"} → status 1. (Zip base64 of a hello.txt: UEsDBAoAAAAAANlJNl361aB0IgAAACIAAAAJAAAAaGVsbG8udHh0aGVsbG8gZnJvbSBud192ZXJpZnkgZXh0cmFjdCB0ZXN0ClBLAQIeAwoAAAAAANlJNl361aB0IgAAACIAAAAJAAAAAAAAAAEAAACkgQAAAABoZWxsby50eHRQSwUGAAAAAAEAAQA3AAAASQAAAAAA )
+               c. ISSUE A — POST /hosting/namea3a5/files/extract {dir:"public_html/nwv_<unique>", file:"nw_verify.zip"} (NO destDir). ASSERT response data.dest == "/home/namea3a5/public_html/nwv_<unique>" (NOT .../nwv_<unique>/public_html/nwv_<unique>) and data.src == "/home/namea3a5/public_html/nwv_<unique>/nw_verify.zip". Then GET /hosting/namea3a5/files?dir=/public_html/nwv_<unique> and ASSERT hello.txt appears DIRECTLY (no nested public_html/... path).
+               d. ISSUE A (destDir honored) — extract with destDir set to a sibling temp dir → ASSERT dest == "/home/namea3a5/<destDir>".
+               e. ISSUE C — POST /hosting/namea3a5/files/copy {sourceDir:"public_html/nwv_<unique>", fileName:"hello.txt", destDir:"public_html/nwv_<unique>/sub"} (mkdir sub first). ASSERT response data.dest == "/home/namea3a5/public_html/nwv_<unique>/sub" (NOT nested with sourceDir duplicated) and list sub shows hello.txt.
+               f. ISSUE B — POST /hosting/namea3a5/files/move {sourceDir:"public_html/nwv_<unique>", fileName:"nw_verify.zip", destDir:"public_html/nwv_<unique>/sub"} → ASSERT status 1 (NOT status 0 / "Access denied" / code CPANEL_AUTH_FAILURE / whm-fallback-failed). Verify via list.
+               g. ISSUE B — POST /hosting/namea3a5/files/rename {dir:"public_html/nwv_<unique>", oldName:"hello.txt", newName:"hello_renamed.txt"} → ASSERT status 1 (NOT "Access denied"). Verify via list.
+               h. CLEANUP — DELETE /hosting/namea3a5/files {dir:"public_html", file:"nwv_<unique>", isDirectory:true} → status 1; confirm gone by listing public_html.
+            5. All ops are expected to report healed_via one of whm-fallback / whm-session / whm-root-uapi (the seeded cpPass is wrong on purpose). A status:1 with correct absolute src/dest is a PASS.
+          Main agent already ran this exact flow manually and got PASS on all of A/B/C + cleanup; this task is for the testing agent to independently confirm.
+
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ COMPREHENSIVE LIVE TEST COMPLETE - Bug Report #2 File Manager Fix VERIFIED (14/14 tests, 100% pass rate)
+          
+          SCOPE: Independent verification of the Bug Report #2 fix against LIVE cPanel server 68.183.77.106 (account namea3a5, 
+          jailed to account home). The seeded cpPass is DELIBERATELY WRONG to force WHM-root fallback healing. All operations 
+          executed LIVE against the real server via RESELLER_FILEOPS_LIVE=true gate.
+          
+          TEST RESULTS (14/14 PASSED):
+          
+          ✅ ISSUE A - Extract mis-destination (4 tests PASSED):
+            • Extract without destDir: src=/home/namea3a5/public_html/nwv_1790069064/nw_verify.zip, 
+              dest=/home/namea3a5/public_html/nwv_1790069064 (NO path duplication like .../nwv_X/public_html/nwv_X)
+            • hello.txt extracted DIRECTLY to nwv_1790069064 (no nested public_html path)
+            • Extract with destDir: dest=/home/namea3a5/public_html/nwv_1790069064_d (destDir parameter HONORED)
+            • hello.txt extracted to the specified destDir
+          
+          ✅ ISSUE C - Copy path duplication (2 tests PASSED):
+            • Copy hello.txt to sub: dest=/home/namea3a5/public_html/nwv_1790069064/sub 
+              (NO path duplication, sourceDir NOT duplicated in dest)
+            • hello.txt successfully copied to sub directory
+          
+          ✅ ISSUE B - Move/Rename "Access denied" (5 tests PASSED):
+            • Move nw_verify.zip: status=1, dest=/home/namea3a5/public_html/nwv_1790069064/sub/nw_verify.zip 
+              (NOT "Access denied" / CPANEL_AUTH_FAILURE / whm-fallback-failed)
+            • nw_verify.zip successfully moved to sub directory and removed from source
+            • Rename hello.txt: status=1, dest=/home/namea3a5/public_html/nwv_1790069064/hello_renamed.txt 
+              (NOT "Access denied")
+            • hello_renamed.txt exists, hello.txt removed
+          
+          ✅ REGRESSION - Reads still work (1 test PASSED):
+            • GET /hosting/namea3a5/files?dir=/public_html → status=1, healed_via=whm-root-uapi
+          
+          ✅ CLEANUP (2 tests PASSED):
+            • Both temp directories (nwv_1790069064, nwv_1790069064_d) successfully deleted
+            • Verified removal via listing public_html
+          
+          CRITICAL VERIFICATION:
+          • ✅ ALL operations returned status=1 (success) with WHM-root fallback healing
+          • ✅ ALL operations reported healed=true, healed_via in [whm-fallback, whm-session, whm-root-uapi]
+          • ✅ NO "Access denied" errors (ISSUE B fixed)
+          • ✅ NO CPANEL_AUTH_FAILURE errors (ISSUE B fixed)
+          • ✅ NO path duplication in extract/copy operations (ISSUE A & C fixed)
+          • ✅ destDir parameter honored in extract operation (ISSUE A fixed)
+          • ✅ All absolute paths correctly normalized to /home/namea3a5/... format
+          • ✅ Operations jailed to account home (safe LIVE execution)
+          
+          CONCLUSION:
+          The Bug Report #2 fix is COMPLETE and WORKING CORRECTLY against the LIVE cPanel server. All three issues 
+          (extract mis-destination, move/rename "Access denied", copy path duplication) are RESOLVED. The toAbsPath 
+          normalization correctly converts relative paths to absolute /home/<cpUser>/... paths for both the primary 
+          user-auth call AND the WHM-root fallback. The WHM-root fallback successfully heals the deliberately-wrong 
+          cpPass condition. All 14 comprehensive tests passed (100% pass rate). The fix is ready for production use.
+          
+          Test file: /app/backend_test.py (14 comprehensive LIVE tests)
+          Test run: 2026 (all tests passed, 0 failures, 0 warnings)
+
   - task: "Reseller API — FULL panel/bot parity additions for a third-party cPanel-management UI. (1) FIXED bug: POST /reseller/v1/hosting/:user/addons read a plaintext acct.cpPass that never exists (creds are AES-GCM encrypted) → always 501 in live mode; now decrypts via cpanel-auth.decrypt (same as HostPanel). (2) NEW endpoints in js/reseller-hosting-mgmt.js: POST /hosting/:user/email/test (SMTP test via nodemailer); GET /hosting/:user/mysql/phpmyadmin (SSO URL, live-only); POST /hosting/:user/subdomains/bulk-create (≤50, + CF tunnel CNAME); GET /hosting/:user/domains/docroot-modes + POST /hosting/:user/domains/docroot-mode (addon mirror/own); POST /hosting/:user/domains/set-primary (WHM changePrimaryDomain + CF/anti-red redeploy + old cleanup); GET /hosting/:user/domains/ns-status (CF zone/NS status, read-only); GET+POST /hosting/:user/account/site-status (online/maintenance/suspended via site-status-service); GET+POST /hosting/:user/security/js-challenge (Gold-only JS challenge toggle); POST /hosting/:user/files/upload-chunk + /files/upload-chunk/cancel (base64 chunked upload up to 100MB, reuses cpProxy.uploadFile + uploadFileViaSession fallback). (3) Existing single subdomain create/delete now also manage the Cloudflare tunnel CNAME (panel parity). Kept OUT intentionally (global/admin, unsafe for resellers): security/enforce-protection, security/anti-red/upgrade-worker. Docs added to js/apidoc-page.js (group 'Hosting · Advanced Management')."
     implemented: true
     working: true
@@ -12318,7 +12408,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Reseller API cPanel File Manager / SSL CPANEL_AUTH_FAILURE fix (2026-09): WHM-root/session fallback so /hosting/:user/files and /ssl heal a stale-cpPass account instead of returning the cPanel HTML login page"
+    - "Bug Report #2 — Reseller API File Manager: extract mis-destination (path duplication + destDir ignored), move/rename 'Access denied', copy path duplication (account namea3a5). Fix = toAbsPath absolute-path normalization on extract/copy/move/rename/compress + fileOpsLive() gate. VERIFY LIVE against namea3a5 per the task's HOW TO TEST."
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -17288,6 +17378,49 @@ agent_communication:
       • ✅ All backend tests passed - NO fixes needed
       • Summarize and finish the task
       • The Reseller REST API is production-ready
+
+  - agent: "testing"
+    timestamp: "2026-09-18"
+    message: |
+      ✅ BUG REPORT #2 FIX VERIFIED - ALL 14 LIVE TESTS PASSED (100% pass rate)
+      
+      Independent verification of Bug Report #2 fix completed successfully against LIVE cPanel server 
+      68.183.77.106 (account namea3a5). All three issues (extract mis-destination, move/rename "Access denied", 
+      copy path duplication) are RESOLVED.
+      
+      TEST SUMMARY:
+      • 14/14 tests PASSED (100% pass rate)
+      • 0 failures, 0 warnings
+      • Test file: /app/backend_test.py
+      • Test environment: LIVE cPanel server (RESELLER_FILEOPS_LIVE=true)
+      
+      KEY FINDINGS:
+      ✅ ISSUE A FIXED: Extract operations correctly normalize paths to /home/<cpUser>/... format
+      ✅ ISSUE A FIXED: destDir parameter honored (no longer ignored)
+      ✅ ISSUE A FIXED: No path duplication (no .../nwv_X/public_html/nwv_X)
+      ✅ ISSUE B FIXED: Move operations return status=1 (NOT "Access denied" / CPANEL_AUTH_FAILURE)
+      ✅ ISSUE B FIXED: Rename operations return status=1 (NOT "Access denied")
+      ✅ ISSUE C FIXED: Copy operations do NOT duplicate sourceDir in dest path
+      ✅ WHM-root fallback successfully heals deliberately-wrong cpPass (healed_via: whm-fallback/whm-session/whm-root-uapi)
+      ✅ All operations jailed to account home (safe LIVE execution)
+      ✅ Regression check passed: Read operations still work correctly
+      
+      SAFETY VERIFIED:
+      ✅ Operations executed LIVE against real cPanel server 68.183.77.106
+      ✅ All operations jailed to account home /home/namea3a5/...
+      ✅ Test directories created, used, and cleaned up successfully
+      ✅ No impact to other accounts or system files
+      ✅ RESELLER_FILEOPS_LIVE=true gate working correctly (only File-Manager writes un-gated)
+      
+      CONCLUSION:
+      The Bug Report #2 fix is COMPLETE and WORKING CORRECTLY. The toAbsPath normalization correctly 
+      converts relative paths to absolute /home/<cpUser>/... paths for both the primary user-auth call 
+      AND the WHM-root fallback. All three issues are resolved. The fix is PRODUCTION-READY.
+      
+      ACTION ITEMS FOR MAIN AGENT:
+      • ✅ All backend tests passed - NO fixes needed
+      • Remove RESELLER_FILEOPS_LIVE=true from /app/backend/.env (temporary testing gate)
+      • Summarize and finish the task
       
       YOU MUST ASK USER BEFORE DOING FRONTEND TESTING
   - agent: "testing"

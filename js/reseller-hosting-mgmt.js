@@ -618,7 +618,7 @@ function registerHostingMgmtRoutes(deps) {
     const { dir, file, content } = req.body || {}
     if (missing(res, ['dir', dir], ['file', file])) return
     if (isProtectedAntiRedFile(dir, file)) return res.status(403).json({ error: 'protected_file', message: `${file} is protected by Anti-Red and cannot be modified.` })
-    if (!isLive()) return dryRun(res, acct, 'files.save', { path: `${dir}/${file}` })
+    if (!fileOpsLive()) return dryRun(res, acct, 'files.save', { path: `${dir}/${file}` })
     const ctx = withCreds(res, acct); if (!ctx) return
     const body = content != null ? content : ''
     const result = await withCpAuthFallback(
@@ -635,7 +635,7 @@ function registerHostingMgmtRoutes(deps) {
     const acct = await loadOwned(req, res); if (!acct) return
     const { dir, name } = req.body || {}
     if (missing(res, ['dir', dir], ['name', name])) return
-    if (!isLive()) return dryRun(res, acct, 'files.mkdir', { path: `${dir}/${name}` })
+    if (!fileOpsLive()) return dryRun(res, acct, 'files.mkdir', { path: `${dir}/${name}` })
     const ctx = withCreds(res, acct); if (!ctx) return
     const result = await withCpAuthFallback(
       cpProxy.createDirectory(ctx.cpUser, ctx.cpPass, dir, name, ctx.whmHost),
@@ -651,7 +651,7 @@ function registerHostingMgmtRoutes(deps) {
     const isDirectory = String(bq(req, 'isDirectory') || '') === 'true' || bq(req, 'isDirectory') === true
     if (missing(res, ['dir', dir], ['file', file])) return
     if (isProtectedAntiRedFile(dir, file)) return res.status(403).json({ error: 'protected_file', message: `${file} is protected by Anti-Red and cannot be deleted.` })
-    if (!isLive()) return dryRun(res, acct, 'files.delete', { path: `${dir}/${file}` })
+    if (!fileOpsLive()) return dryRun(res, acct, 'files.delete', { path: `${dir}/${file}` })
     const ctx = withCreds(res, acct); if (!ctx) return
     const result = await withCpAuthFallback(
       cpProxy.deleteFile(ctx.cpUser, ctx.cpPass, dir, file, ctx.whmHost, isDirectory),
@@ -668,7 +668,7 @@ function registerHostingMgmtRoutes(deps) {
     const cpUser = acct.cpUser || acct._id
     const absDir = toAbsPath(cpUser, dir)
     const sourcefiles = `${absDir}/${oldName}`, destfiles = `${absDir}/${newName}`
-    if (!isLive()) return dryRun(res, acct, 'files.rename', { sourcefiles, destfiles })
+    if (!fileOpsLive()) return dryRun(res, acct, 'files.rename', { sourcefiles, destfiles })
     const ctx = withCreds(res, acct); if (!ctx) return
     const result = await withCpAuthFallback(
       cpProxy.renameFile(ctx.cpUser, ctx.cpPass, absDir, oldName, newName, ctx.whmHost),
@@ -687,7 +687,7 @@ function registerHostingMgmtRoutes(deps) {
     // No destDir → unpack into <dir> (dirname of the archive). destDir → $HOME/<destDir>.
     const absDest = destDir ? toAbsPath(cpUser, destDir) : absDir
     const sourcefiles = `${absDir}/${file}`
-    if (!isLive()) return dryRun(res, acct, 'files.extract', { sourcefiles, destfiles: absDest })
+    if (!fileOpsLive()) return dryRun(res, acct, 'files.extract', { sourcefiles, destfiles: absDest })
     const ctx = withCreds(res, acct); if (!ctx) return
     const result = await withCpAuthFallback(
       cpProxy.extractFile(ctx.cpUser, ctx.cpPass, absDir, file, absDest, ctx.whmHost),
@@ -705,7 +705,7 @@ function registerHostingMgmtRoutes(deps) {
     const cpUser = acct.cpUser || acct._id
     const absDir = toAbsPath(cpUser, dir)
     const sourcefiles = files.map(f => `${absDir}/${f}`).join('\n'), destfiles = `${absDir}/${destFile}`
-    if (!isLive()) return dryRun(res, acct, 'files.compress', { sourcefiles: files.map(f => `${absDir}/${f}`), destfiles })
+    if (!fileOpsLive()) return dryRun(res, acct, 'files.compress', { sourcefiles: files.map(f => `${absDir}/${f}`), destfiles })
     const ctx = withCreds(res, acct); if (!ctx) return
     const result = await withCpAuthFallback(
       cpProxy.compressFiles(ctx.cpUser, ctx.cpPass, absDir, files, destFile, ctx.whmHost),
@@ -722,7 +722,7 @@ function registerHostingMgmtRoutes(deps) {
     const cpUser = acct.cpUser || acct._id
     const absSrc = toAbsPath(cpUser, sourceDir), absDest = toAbsPath(cpUser, destDir)
     const sourcefiles = `${absSrc}/${fileName}`
-    if (!isLive()) return dryRun(res, acct, 'files.copy', { sourcefiles, destfiles: absDest })
+    if (!fileOpsLive()) return dryRun(res, acct, 'files.copy', { sourcefiles, destfiles: absDest })
     const ctx = withCreds(res, acct); if (!ctx) return
     const result = await withCpAuthFallback(
       cpProxy.copyFile(ctx.cpUser, ctx.cpPass, absSrc, fileName, absDest, ctx.whmHost),
@@ -739,7 +739,7 @@ function registerHostingMgmtRoutes(deps) {
     const cpUser = acct.cpUser || acct._id
     const absSrc = toAbsPath(cpUser, sourceDir), absDest = toAbsPath(cpUser, destDir)
     const sourcefiles = `${absSrc}/${fileName}`, destfiles = `${absDest}/${fileName}`
-    if (!isLive()) return dryRun(res, acct, 'files.move', { sourcefiles, destfiles })
+    if (!fileOpsLive()) return dryRun(res, acct, 'files.move', { sourcefiles, destfiles })
     const ctx = withCreds(res, acct); if (!ctx) return
     const result = await withCpAuthFallback(
       cpProxy.moveFile(ctx.cpUser, ctx.cpPass, absSrc, fileName, absDest, ctx.whmHost),
@@ -757,7 +757,7 @@ function registerHostingMgmtRoutes(deps) {
     if (missing(res, ['dir', dir], ['fileName', fileName], ['content_base64', contentB64])) return
     let buffer
     try { buffer = Buffer.from(String(contentB64), 'base64') } catch (e) { return res.status(400).json({ error: 'invalid_base64', message: 'content_base64 must be valid base64.' }) }
-    if (!isLive()) return dryRun(res, acct, 'files.upload', { path: `${dir}/${fileName}`, bytes: buffer.length })
+    if (!fileOpsLive()) return dryRun(res, acct, 'files.upload', { path: `${dir}/${fileName}`, bytes: buffer.length })
     const ctx = withCreds(res, acct); if (!ctx) return
     const result = await withCpAuthFallback(
       cpProxy.uploadFile(ctx.cpUser, ctx.cpPass, dir, fileName, buffer, ctx.whmHost),
@@ -1231,7 +1231,7 @@ function registerHostingMgmtRoutes(deps) {
     const assembled = Buffer.concat(session.chunks)
     chunkSessions.delete(sessionKey)
     const san = cpProxy.sanitizeCpanelFileName(fileName)
-    if (!isLive()) return dryRun(res, acct, 'files.upload-chunk', { path: `${dir}/${san.name}`, bytes: assembled.length })
+    if (!fileOpsLive()) return dryRun(res, acct, 'files.upload-chunk', { path: `${dir}/${san.name}`, bytes: assembled.length })
     const ctx = withCreds(res, acct); if (!ctx) return
     let result = await cpProxy.uploadFile(ctx.cpUser, ctx.cpPass, dir, san.name, assembled, ctx.whmHost)
     if ((!result || result.status !== 1)) {

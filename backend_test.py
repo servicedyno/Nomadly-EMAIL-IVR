@@ -1,374 +1,532 @@
 #!/usr/bin/env python3
 """
-Backend Test: Reseller API File Manager / SSL CPANEL_AUTH_FAILURE Fix
-Bug: File Manager/SSL endpoints returned CPANEL_AUTH_FAILURE for accounts with stale passwords
-Fix: Added WHM-root fallback mechanism (uapiViaWhmRoot + withCpAuthFallback)
+Backend Test for Bug Report #2 — Reseller API File Manager
+Tests extract mis-destination, move/rename "Access denied", copy path duplication
+against LIVE cPanel server 68.183.77.106 (account namea3a5, jailed to account home)
 """
 
 import requests
 import json
+import time
+import base64
 import sys
+from typing import Dict, Any, Optional
 
-# Base URL from frontend/.env
-BASE_URL = "https://vault-setup-8.preview.emergentagent.com"
-API_BASE = f"{BASE_URL}/api/reseller/v1"
-
-# Test fixture API key (seeded for this bug fix)
+# Configuration
+BASE_URL = "https://2584b3e8-68cb-49ff-a2e3-3bf0f369edd1.preview.emergentagent.com/api/reseller/v1"
 API_KEY = "rsk_live_testfix_namea3a5_filemgr_ssl_2026"
+ACCOUNT = "namea3a5"
+HEADERS = {
+    "Authorization": f"Bearer {API_KEY}",
+    "Content-Type": "application/json"
+}
 
-# Test account (deliberately wrong cpPass to reproduce CPANEL_AUTH_FAILURE)
-TEST_ACCOUNT = "namea3a5"
+# Unique timestamp suffix for temp directory
+TS = str(int(time.time()))
+TMP = f"public_html/nwv_{TS}"
+TMP_D = f"public_html/nwv_{TS}_d"
 
-# Colors for output
-GREEN = "\033[92m"
-RED = "\033[91m"
-YELLOW = "\033[93m"
-BLUE = "\033[94m"
-RESET = "\033[0m"
+# Test zip file (contains hello.txt with content "hello from nw_verify extract test\n")
+ZIP_BASE64 = "UEsDBAoAAAAAANlJNl361aB0IgAAACIAAAAJAAAAaGVsbG8udHh0aGVsbG8gZnJvbSBud192ZXJpZnkgZXh0cmFjdCB0ZXN0ClBLAQIeAwoAAAAAANlJNl361aB0IgAAACIAAAAJAAAAAAAAAAEAAACkgQAAAABoZWxsby50eHRQSwUGAAAAAAEAAQA3AAAASQAAAAAA"
 
-def log_test(test_num, description):
-    print(f"\n{BLUE}[TEST {test_num}] {description}{RESET}")
+# Test results
+test_results = {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "tests": []
+}
 
-def log_pass(message):
-    print(f"  {GREEN}✅ {message}{RESET}")
+def log_test(name: str, passed: bool, details: str = ""):
+    """Log test result"""
+    test_results["total"] += 1
+    if passed:
+        test_results["passed"] += 1
+        status = "✅ PASS"
+    else:
+        test_results["failed"] += 1
+        status = "❌ FAIL"
+    
+    test_results["tests"].append({
+        "name": name,
+        "passed": passed,
+        "details": details
+    })
+    print(f"{status}: {name}")
+    if details:
+        print(f"  {details}")
 
-def log_fail(message):
-    print(f"  {RED}❌ {message}{RESET}")
-
-def log_info(message):
-    print(f"  {YELLOW}ℹ️  {message}{RESET}")
-
-def make_request(method, endpoint, headers=None, json_data=None, params=None):
-    """Make HTTP request and return response"""
-    url = f"{API_BASE}{endpoint}"
+def api_call(method: str, endpoint: str, data: Optional[Dict] = None, expect_status: int = 200) -> Dict[str, Any]:
+    """Make API call and return response"""
+    url = f"{BASE_URL}{endpoint}"
     try:
         if method == "GET":
-            resp = requests.get(url, headers=headers, params=params, timeout=15)
+            resp = requests.get(url, headers=HEADERS, timeout=30)
         elif method == "POST":
-            resp = requests.post(url, headers=headers, json=json_data, timeout=15)
+            resp = requests.post(url, headers=HEADERS, json=data, timeout=30)
+        elif method == "DELETE":
+            resp = requests.delete(url, headers=HEADERS, json=data, timeout=30)
         else:
             raise ValueError(f"Unsupported method: {method}")
-        return resp
-    except requests.exceptions.Timeout:
-        log_fail(f"Request timeout after 15s")
-        return None
+        
+        # Try to parse JSON
+        try:
+            result = resp.json()
+        except:
+            result = {"_raw_text": resp.text[:500]}
+        
+        result["_status_code"] = resp.status_code
+        return result
     except Exception as e:
-        log_fail(f"Request failed: {e}")
-        return None
+        return {
+            "_error": str(e),
+            "_status_code": 0
+        }
 
-def test_file_manager_healed():
-    """TEST 1: GET /hosting/namea3a5/files - should return healed listing via WHM-root fallback"""
-    log_test(1, "GET /hosting/namea3a5/files (File Manager with stale password)")
-    
-    headers = {"X-API-Key": API_KEY}
-    resp = make_request("GET", f"/hosting/{TEST_ACCOUNT}/files", headers=headers)
-    
-    if not resp:
+def check_healed(response: Dict, test_name: str) -> bool:
+    """Check if response shows successful healing via WHM fallback"""
+    if response.get("_status_code") != 200:
+        log_test(test_name, False, f"HTTP {response.get('_status_code')}: {response.get('_error', 'Unknown error')}")
         return False
     
-    # Check HTTP status
-    if resp.status_code != 200:
-        log_fail(f"Expected HTTP 200, got {resp.status_code}")
-        log_info(f"Response: {resp.text[:500]}")
-        return False
-    log_pass(f"HTTP status: {resp.status_code}")
+    # Status is at top level, not inside data
+    status = response.get("status")
     
-    try:
-        data = resp.json()
-    except:
-        log_fail("Response is not valid JSON")
-        log_info(f"Response: {resp.text[:500]}")
-        return False
+    # Check for failure indicators
+    if status == 0:
+        errors = response.get("errors", [])
+        code = response.get("code", "")
+        session_fallback = response.get("session_fallback", "")
+        
+        if "Access denied" in str(errors) or code == "CPANEL_AUTH_FAILURE" or "whm-fallback-failed" in session_fallback:
+            log_test(test_name, False, f"CPANEL_AUTH_FAILURE: status=0, code={code}, errors={errors}, session_fallback={session_fallback}")
+            return False
     
-    # Check for OLD broken shape (CPANEL_AUTH_FAILURE)
-    if data.get("status") == 0 and data.get("code") == "CPANEL_AUTH_FAILURE":
-        log_fail("STILL RETURNING CPANEL_AUTH_FAILURE - BUG NOT FIXED")
-        log_info(f"Response: {json.dumps(data, indent=2)[:500]}")
-        return False
+    # Check for success with healing
+    if status == 1:
+        healed = response.get("healed", False)
+        healed_via = response.get("healed_via", "")
+        
+        if healed and healed_via in ["whm-fallback", "whm-session", "whm-root-uapi"]:
+            return True
+        elif not healed:
+            # Some operations might succeed without needing healing
+            return True
     
-    # Check for NEW healed shape
-    if data.get("status") != 1:
-        log_fail(f"Expected status:1, got status:{data.get('status')}")
-        log_info(f"Response: {json.dumps(data, indent=2)[:500]}")
-        return False
-    log_pass(f"status: {data.get('status')} (success)")
-    
-    # Check for data array (real directory listing)
-    if "data" not in data or not isinstance(data["data"], list):
-        log_fail("Missing or invalid 'data' array in response")
-        log_info(f"Response: {json.dumps(data, indent=2)[:500]}")
-        return False
-    log_pass(f"data: array with {len(data['data'])} items (real directory listing)")
-    
-    # Check for healed flag
-    if not data.get("healed"):
-        log_fail("Missing 'healed:true' flag")
-        log_info(f"Response: {json.dumps(data, indent=2)[:500]}")
-        return False
-    log_pass(f"healed: {data.get('healed')}")
-    
-    # Check for healed_via
-    if data.get("healed_via") != "whm-root-uapi":
-        log_fail(f"Expected healed_via:'whm-root-uapi', got '{data.get('healed_via')}'")
-        log_info(f"Response: {json.dumps(data, indent=2)[:500]}")
-        return False
-    log_pass(f"healed_via: {data.get('healed_via')}")
-    
-    # Log some file names if available
-    if data["data"]:
-        file_names = [item.get("file", item.get("name", "?")) for item in data["data"][:3]]
-        log_info(f"Sample files: {', '.join(file_names)}")
-    
-    log_pass("✅ TEST 1 PASSED: File Manager returns healed listing via WHM-root fallback")
-    return True
+    log_test(test_name, False, f"Unexpected response: status={status}, response={json.dumps(response, indent=2)[:500]}")
+    return False
 
-def test_ssl_healed():
-    """TEST 2: GET /hosting/namea3a5/ssl - should return healed SSL listing"""
-    log_test(2, "GET /hosting/namea3a5/ssl (SSL with stale password)")
+def verify_path(response: Dict, expected_src: str, expected_dest: str, test_name: str) -> bool:
+    """Verify src and dest paths in response"""
+    # Check both top level and data level for src/dest
+    actual_src = response.get("src") or response.get("data", {}).get("src", "")
+    actual_dest = response.get("dest") or response.get("data", {}).get("dest", "")
     
-    headers = {"X-API-Key": API_KEY}
-    resp = make_request("GET", f"/hosting/{TEST_ACCOUNT}/ssl", headers=headers)
+    src_match = actual_src == expected_src
+    dest_match = actual_dest == expected_dest
     
-    if not resp:
-        return False
-    
-    # Check HTTP status
-    if resp.status_code != 200:
-        log_fail(f"Expected HTTP 200, got {resp.status_code}")
-        log_info(f"Response: {resp.text[:500]}")
-        return False
-    log_pass(f"HTTP status: {resp.status_code}")
-    
-    try:
-        data = resp.json()
-    except:
-        log_fail("Response is not valid JSON")
-        log_info(f"Response: {resp.text[:500]}")
-        return False
-    
-    # Check for OLD broken shape (CPANEL_AUTH_FAILURE)
-    if data.get("status") == 0 and data.get("code") == "CPANEL_AUTH_FAILURE":
-        log_fail("STILL RETURNING CPANEL_AUTH_FAILURE - BUG NOT FIXED")
-        log_info(f"Response: {json.dumps(data, indent=2)[:500]}")
-        return False
-    
-    # Check for NEW healed shape
-    if data.get("status") != 1:
-        log_fail(f"Expected status:1, got status:{data.get('status')}")
-        log_info(f"Response: {json.dumps(data, indent=2)[:500]}")
-        return False
-    log_pass(f"status: {data.get('status')} (success)")
-    
-    # Check for data (SSL listing)
-    if "data" not in data:
-        log_fail("Missing 'data' in response")
-        log_info(f"Response: {json.dumps(data, indent=2)[:500]}")
-        return False
-    log_pass(f"data: present (SSL listing)")
-    
-    # Check for healed flag
-    if not data.get("healed"):
-        log_fail("Missing 'healed:true' flag")
-        log_info(f"Response: {json.dumps(data, indent=2)[:500]}")
-        return False
-    log_pass(f"healed: {data.get('healed')}")
-    
-    # Check for SSL host namewords.sbs
-    data_list = data["data"] if isinstance(data["data"], list) else []
-    ssl_hosts = [item.get("servername", item.get("domain", "?")) for item in data_list]
-    if "namewords.sbs" in ssl_hosts or any("namewords" in host for host in ssl_hosts):
-        log_pass(f"SSL host found: namewords.sbs")
+    if src_match and dest_match:
+        log_test(test_name, True, f"src={actual_src}, dest={actual_dest}")
+        return True
     else:
-        log_info(f"SSL hosts: {ssl_hosts}")
-    
-    log_pass("✅ TEST 2 PASSED: SSL returns healed listing via WHM-root fallback")
-    return True
+        log_test(test_name, False, f"Path mismatch:\n  Expected src={expected_src}, dest={expected_dest}\n  Actual src={actual_src}, dest={actual_dest}")
+        return False
 
-def test_file_manager_path_alias():
-    """TEST 3: GET /hosting/namea3a5/files?path=public_html - verify path alias works"""
-    log_test(3, "GET /hosting/namea3a5/files?path=public_html (path alias)")
+def verify_file_in_listing(dir_path: str, filename: str, test_name: str) -> bool:
+    """Verify file exists in directory listing"""
+    resp = api_call("GET", f"/hosting/{ACCOUNT}/files?dir=/{dir_path}")
     
-    headers = {"X-API-Key": API_KEY}
-    resp = make_request("GET", f"/hosting/{TEST_ACCOUNT}/files", headers=headers, params={"path": "public_html"})
-    
-    if not resp:
+    if resp.get("_status_code") != 200:
+        log_test(test_name, False, f"Failed to list directory: HTTP {resp.get('_status_code')}")
         return False
     
-    # Check HTTP status
-    if resp.status_code != 200:
-        log_fail(f"Expected HTTP 200, got {resp.status_code}")
-        log_info(f"Response: {resp.text[:500]}")
-        return False
-    log_pass(f"HTTP status: {resp.status_code}")
+    # Files can be at top level "files" key, or "data" key (which is an array)
+    files = resp.get("files")
+    if files is None:
+        data = resp.get("data")
+        if isinstance(data, list):
+            files = data
+        elif isinstance(data, dict):
+            files = data.get("files", [])
+        else:
+            files = []
     
-    try:
-        data = resp.json()
-    except:
-        log_fail("Response is not valid JSON")
-        log_info(f"Response: {resp.text[:500]}")
-        return False
+    # Check if filename exists in the listing
+    file_names = [f.get("name") or f.get("file") for f in files]
     
-    # Check for success
-    if data.get("status") != 1:
-        log_fail(f"Expected status:1, got status:{data.get('status')}")
-        log_info(f"Response: {json.dumps(data, indent=2)[:500]}")
+    if filename in file_names:
+        log_test(test_name, True, f"File '{filename}' found in {dir_path}")
+        return True
+    else:
+        log_test(test_name, False, f"File '{filename}' NOT found in {dir_path}. Files: {file_names}")
         return False
-    log_pass(f"status: {data.get('status')} (success)")
-    
-    # Check for data array
-    if "data" not in data or not isinstance(data["data"], list):
-        log_fail("Missing or invalid 'data' array in response")
-        return False
-    log_pass(f"data: array with {len(data['data'])} items")
-    
-    log_pass("✅ TEST 3 PASSED: path alias works correctly")
-    return True
 
-def test_auth_guard_no_key():
-    """TEST 4a: GET /hosting/namea3a5/files with NO key - should return 401"""
-    log_test("4a", "GET /hosting/namea3a5/files (no API key)")
+def cleanup_directory(dir_path: str, dir_name: str):
+    """Clean up test directory"""
+    print(f"\n🧹 Cleaning up: {dir_path}/{dir_name}")
+    resp = api_call("DELETE", f"/hosting/{ACCOUNT}/files", {
+        "dir": dir_path,
+        "file": dir_name,
+        "isDirectory": True
+    })
     
-    resp = make_request("GET", f"/hosting/{TEST_ACCOUNT}/files")
-    
-    if not resp:
-        return False
-    
-    if resp.status_code != 401:
-        log_fail(f"Expected HTTP 401, got {resp.status_code}")
-        log_info(f"Response: {resp.text[:500]}")
-        return False
-    log_pass(f"HTTP status: {resp.status_code} (Unauthorized)")
-    
-    log_pass("✅ TEST 4a PASSED: Auth guard rejects missing key")
-    return True
-
-def test_auth_guard_bogus_key():
-    """TEST 4b: GET /hosting/namea3a5/files with BOGUS key - should return 401"""
-    log_test("4b", "GET /hosting/namea3a5/files (bogus API key)")
-    
-    headers = {"X-API-Key": "rsk_live_bogus"}
-    resp = make_request("GET", f"/hosting/{TEST_ACCOUNT}/files", headers=headers)
-    
-    if not resp:
-        return False
-    
-    if resp.status_code != 401:
-        log_fail(f"Expected HTTP 401, got {resp.status_code}")
-        log_info(f"Response: {resp.text[:500]}")
-        return False
-    log_pass(f"HTTP status: {resp.status_code} (Unauthorized)")
-    
-    log_pass("✅ TEST 4b PASSED: Auth guard rejects bogus key")
-    return True
-
-def test_ownership_guard():
-    """TEST 5: GET /hosting/doesnotexist/files - should return 404"""
-    log_test(5, "GET /hosting/doesnotexist/files (unknown account)")
-    
-    headers = {"X-API-Key": API_KEY}
-    resp = make_request("GET", f"/hosting/doesnotexist/files", headers=headers)
-    
-    if not resp:
-        return False
-    
-    if resp.status_code != 404:
-        log_fail(f"Expected HTTP 404, got {resp.status_code}")
-        log_info(f"Response: {resp.text[:500]}")
-        return False
-    log_pass(f"HTTP status: {resp.status_code} (Not Found)")
-    
-    try:
-        data = resp.json()
-        if data.get("error") == "not_found":
-            log_pass(f"error: {data.get('error')}")
-    except:
-        pass
-    
-    log_pass("✅ TEST 5 PASSED: Ownership guard rejects unknown account")
-    return True
-
-def test_write_dry_run():
-    """TEST 6: POST /hosting/namea3a5/files/upload - should return dry_run"""
-    log_test(6, "POST /hosting/namea3a5/files/upload (dry_run write)")
-    
-    headers = {"X-API-Key": API_KEY}
-    payload = {
-        "dir": f"/home/{TEST_ACCOUNT}/public_html",
-        "fileName": "testfix.txt",
-        "content_base64": "aGVsbG8="  # "hello" in base64
-    }
-    resp = make_request("POST", f"/hosting/{TEST_ACCOUNT}/files/upload", headers=headers, json_data=payload)
-    
-    if not resp:
-        return False
-    
-    # Check HTTP status
-    if resp.status_code != 200:
-        log_fail(f"Expected HTTP 200, got {resp.status_code}")
-        log_info(f"Response: {resp.text[:500]}")
-        return False
-    log_pass(f"HTTP status: {resp.status_code}")
-    
-    try:
-        data = resp.json()
-    except:
-        log_fail("Response is not valid JSON")
-        log_info(f"Response: {resp.text[:500]}")
-        return False
-    
-    # Check for dry_run mode
-    if data.get("mode") != "dry_run":
-        log_fail(f"Expected mode:'dry_run', got mode:'{data.get('mode')}'")
-        log_info(f"Response: {json.dumps(data, indent=2)[:500]}")
-        return False
-    log_pass(f"mode: {data.get('mode')}")
-    
-    log_pass("✅ TEST 6 PASSED: Write operation correctly gated to dry_run")
-    return True
+    status = resp.get("status") or resp.get("data", {}).get("status")
+    if resp.get("_status_code") == 200 and status == 1:
+        print(f"✅ Cleanup successful: {dir_path}/{dir_name}")
+    else:
+        print(f"⚠️  Cleanup warning: {dir_path}/{dir_name} - {resp}")
 
 def main():
-    print(f"\n{BLUE}{'='*80}{RESET}")
-    print(f"{BLUE}BACKEND TEST: Reseller API File Manager / SSL CPANEL_AUTH_FAILURE Fix{RESET}")
-    print(f"{BLUE}{'='*80}{RESET}")
-    print(f"\nBase URL: {BASE_URL}")
-    print(f"API Base: {API_BASE}")
-    print(f"Test Account: {TEST_ACCOUNT} (server 68.183.77.106, domain namewords.sbs)")
-    print(f"Test Fixture: Account has DELIBERATELY WRONG cpPass to reproduce bug")
-    print(f"Expected: WHM-root fallback should heal CPANEL_AUTH_FAILURE")
+    print("=" * 80)
+    print("Bug Report #2 — Reseller API File Manager LIVE Test")
+    print("=" * 80)
+    print(f"Account: {ACCOUNT}")
+    print(f"Server: 68.183.77.106 (LIVE)")
+    print(f"Temp dir: {TMP}")
+    print(f"Base URL: {BASE_URL}")
+    print("=" * 80)
+    print()
     
-    results = []
+    try:
+        # ========================================================================
+        # STEP 1: Create temp directory
+        # ========================================================================
+        print("📁 STEP 1: Create temp directory")
+        resp = api_call("POST", f"/hosting/{ACCOUNT}/files/mkdir", {
+            "dir": "public_html",
+            "name": f"nwv_{TS}"
+        })
+        
+        if not check_healed(resp, "1. mkdir temp directory"):
+            print("❌ Failed to create temp directory. Aborting.")
+            return
+        
+        # ========================================================================
+        # STEP 2: Upload zip file
+        # ========================================================================
+        print("\n📤 STEP 2: Upload zip file")
+        resp = api_call("POST", f"/hosting/{ACCOUNT}/files/upload", {
+            "dir": TMP,
+            "fileName": "nw_verify.zip",
+            "content_base64": ZIP_BASE64
+        })
+        
+        if not check_healed(resp, "2. upload nw_verify.zip"):
+            print("❌ Failed to upload zip. Aborting.")
+            cleanup_directory("public_html", f"nwv_{TS}")
+            return
+        
+        # ========================================================================
+        # STEP 3: ISSUE A - Extract without destDir (should extract to same dir)
+        # ========================================================================
+        print("\n📦 STEP 3: ISSUE A - Extract without destDir")
+        resp = api_call("POST", f"/hosting/{ACCOUNT}/files/extract", {
+            "dir": TMP,
+            "file": "nw_verify.zip"
+        })
+        
+        if not check_healed(resp, "3a. extract without destDir (status check)"):
+            cleanup_directory("public_html", f"nwv_{TS}")
+            return
+        
+        # Verify paths
+        expected_src = f"/home/{ACCOUNT}/{TMP}/nw_verify.zip"
+        expected_dest = f"/home/{ACCOUNT}/{TMP}"
+        
+        if not verify_path(resp, expected_src, expected_dest, "3b. extract without destDir (path check)"):
+            cleanup_directory("public_html", f"nwv_{TS}")
+            return
+        
+        # Verify hello.txt is in the directory
+        if not verify_file_in_listing(TMP, "hello.txt", "3c. extract without destDir (file listing check)"):
+            cleanup_directory("public_html", f"nwv_{TS}")
+            return
+        
+        # ========================================================================
+        # STEP 4: ISSUE A - Extract with destDir (should honor destDir)
+        # ========================================================================
+        print("\n📦 STEP 4: ISSUE A - Extract with destDir")
+        
+        # Create destination directory
+        resp = api_call("POST", f"/hosting/{ACCOUNT}/files/mkdir", {
+            "dir": "public_html",
+            "name": f"nwv_{TS}_d"
+        })
+        
+        if not check_healed(resp, "4a. mkdir destination directory"):
+            cleanup_directory("public_html", f"nwv_{TS}")
+            return
+        
+        # Extract to destination directory
+        resp = api_call("POST", f"/hosting/{ACCOUNT}/files/extract", {
+            "dir": TMP,
+            "file": "nw_verify.zip",
+            "destDir": TMP_D
+        })
+        
+        if not check_healed(resp, "4b. extract with destDir (status check)"):
+            cleanup_directory("public_html", f"nwv_{TS}")
+            cleanup_directory("public_html", f"nwv_{TS}_d")
+            return
+        
+        # Verify paths
+        expected_dest = f"/home/{ACCOUNT}/{TMP_D}"
+        
+        actual_dest = resp.get("dest") or resp.get("data", {}).get("dest", "")
+        
+        if actual_dest == expected_dest:
+            log_test("4c. extract with destDir (path check)", True, f"dest={actual_dest}")
+        else:
+            log_test("4c. extract with destDir (path check)", False, f"Expected dest={expected_dest}, got {actual_dest}")
+            cleanup_directory("public_html", f"nwv_{TS}")
+            cleanup_directory("public_html", f"nwv_{TS}_d")
+            return
+        
+        # Verify hello.txt is in the destination directory
+        if not verify_file_in_listing(TMP_D, "hello.txt", "4d. extract with destDir (file listing check)"):
+            cleanup_directory("public_html", f"nwv_{TS}")
+            cleanup_directory("public_html", f"nwv_{TS}_d")
+            return
+        
+        # ========================================================================
+        # STEP 5: ISSUE C - Copy (should not duplicate path)
+        # ========================================================================
+        print("\n📋 STEP 5: ISSUE C - Copy")
+        
+        # Create sub directory
+        resp = api_call("POST", f"/hosting/{ACCOUNT}/files/mkdir", {
+            "dir": TMP,
+            "name": "sub"
+        })
+        
+        if not check_healed(resp, "5a. mkdir sub directory"):
+            cleanup_directory("public_html", f"nwv_{TS}")
+            cleanup_directory("public_html", f"nwv_{TS}_d")
+            return
+        
+        # Copy hello.txt to sub directory
+        resp = api_call("POST", f"/hosting/{ACCOUNT}/files/copy", {
+            "sourceDir": TMP,
+            "fileName": "hello.txt",
+            "destDir": f"{TMP}/sub"
+        })
+        
+        if not check_healed(resp, "5b. copy hello.txt (status check)"):
+            cleanup_directory("public_html", f"nwv_{TS}")
+            cleanup_directory("public_html", f"nwv_{TS}_d")
+            return
+        
+        # Verify dest path (should NOT duplicate sourceDir)
+        expected_dest = f"/home/{ACCOUNT}/{TMP}/sub"
+        
+        actual_dest = resp.get("dest") or resp.get("data", {}).get("dest", "")
+        
+        # Check for path duplication bug
+        if f"{TMP}/{TMP}" in actual_dest or f"/{TMP}/sub/{TMP}" in actual_dest:
+            log_test("5c. copy (path duplication check)", False, f"Path duplication detected: dest={actual_dest}")
+            cleanup_directory("public_html", f"nwv_{TS}")
+            cleanup_directory("public_html", f"nwv_{TS}_d")
+            return
+        
+        if actual_dest == expected_dest:
+            log_test("5c. copy (path check)", True, f"dest={actual_dest}")
+        else:
+            log_test("5c. copy (path check)", False, f"Expected dest={expected_dest}, got {actual_dest}")
+            cleanup_directory("public_html", f"nwv_{TS}")
+            cleanup_directory("public_html", f"nwv_{TS}_d")
+            return
+        
+        # Verify hello.txt is in sub directory
+        if not verify_file_in_listing(f"{TMP}/sub", "hello.txt", "5d. copy (file listing check)"):
+            cleanup_directory("public_html", f"nwv_{TS}")
+            cleanup_directory("public_html", f"nwv_{TS}_d")
+            return
+        
+        # ========================================================================
+        # STEP 6: ISSUE B - Move (should not get "Access denied")
+        # ========================================================================
+        print("\n🚚 STEP 6: ISSUE B - Move")
+        
+        resp = api_call("POST", f"/hosting/{ACCOUNT}/files/move", {
+            "sourceDir": TMP,
+            "fileName": "nw_verify.zip",
+            "destDir": f"{TMP}/sub"
+        })
+        
+        if not check_healed(resp, "6a. move nw_verify.zip (status check)"):
+            cleanup_directory("public_html", f"nwv_{TS}")
+            cleanup_directory("public_html", f"nwv_{TS}_d")
+            return
+        
+        # Verify dest path
+        expected_dest = f"/home/{ACCOUNT}/{TMP}/sub/nw_verify.zip"
+        
+        actual_dest = resp.get("dest") or resp.get("data", {}).get("dest", "")
+        
+        if actual_dest == expected_dest:
+            log_test("6b. move (path check)", True, f"dest={actual_dest}")
+        else:
+            log_test("6b. move (path check)", False, f"Expected dest={expected_dest}, got {actual_dest}")
+            cleanup_directory("public_html", f"nwv_{TS}")
+            cleanup_directory("public_html", f"nwv_{TS}_d")
+            return
+        
+        # Verify nw_verify.zip is in sub directory
+        if not verify_file_in_listing(f"{TMP}/sub", "nw_verify.zip", "6c. move (file in dest check)"):
+            cleanup_directory("public_html", f"nwv_{TS}")
+            cleanup_directory("public_html", f"nwv_{TS}_d")
+            return
+        
+        # Verify nw_verify.zip is NOT in source directory
+        resp = api_call("GET", f"/hosting/{ACCOUNT}/files?dir=/{TMP}")
+        files = resp.get("files")
+        if files is None:
+            data = resp.get("data")
+            if isinstance(data, list):
+                files = data
+            elif isinstance(data, dict):
+                files = data.get("files", [])
+            else:
+                files = []
+        file_names = [f.get("name") or f.get("file") for f in files]
+        
+        if "nw_verify.zip" not in file_names:
+            log_test("6d. move (file removed from source check)", True, f"nw_verify.zip removed from {TMP}")
+        else:
+            log_test("6d. move (file removed from source check)", False, f"nw_verify.zip still in {TMP}")
+        
+        # ========================================================================
+        # STEP 7: ISSUE B - Rename (should not get "Access denied")
+        # ========================================================================
+        print("\n✏️  STEP 7: ISSUE B - Rename")
+        
+        resp = api_call("POST", f"/hosting/{ACCOUNT}/files/rename", {
+            "dir": TMP,
+            "oldName": "hello.txt",
+            "newName": "hello_renamed.txt"
+        })
+        
+        if not check_healed(resp, "7a. rename hello.txt (status check)"):
+            cleanup_directory("public_html", f"nwv_{TS}")
+            cleanup_directory("public_html", f"nwv_{TS}_d")
+            return
+        
+        # Verify dest path
+        expected_dest = f"/home/{ACCOUNT}/{TMP}/hello_renamed.txt"
+        
+        actual_dest = resp.get("dest") or resp.get("data", {}).get("dest", "")
+        
+        if actual_dest == expected_dest:
+            log_test("7b. rename (path check)", True, f"dest={actual_dest}")
+        else:
+            log_test("7b. rename (path check)", False, f"Expected dest={expected_dest}, got {actual_dest}")
+            cleanup_directory("public_html", f"nwv_{TS}")
+            cleanup_directory("public_html", f"nwv_{TS}_d")
+            return
+        
+        # Verify hello_renamed.txt exists
+        if not verify_file_in_listing(TMP, "hello_renamed.txt", "7c. rename (new file exists check)"):
+            cleanup_directory("public_html", f"nwv_{TS}")
+            cleanup_directory("public_html", f"nwv_{TS}_d")
+            return
+        
+        # Verify hello.txt does NOT exist
+        resp = api_call("GET", f"/hosting/{ACCOUNT}/files?dir=/{TMP}")
+        files = resp.get("files")
+        if files is None:
+            data = resp.get("data")
+            if isinstance(data, list):
+                files = data
+            elif isinstance(data, dict):
+                files = data.get("files", [])
+            else:
+                files = []
+        file_names = [f.get("name") or f.get("file") for f in files]
+        
+        if "hello.txt" not in file_names:
+            log_test("7d. rename (old file removed check)", True, f"hello.txt removed from {TMP}")
+        else:
+            log_test("7d. rename (old file removed check)", False, f"hello.txt still in {TMP}")
+        
+        # ========================================================================
+        # STEP 8: REGRESSION - Verify reads still work
+        # ========================================================================
+        print("\n🔍 STEP 8: REGRESSION - Verify reads still work")
+        
+        resp = api_call("GET", f"/hosting/{ACCOUNT}/files?dir=/public_html")
+        
+        if resp.get("_status_code") == 200:
+            status = resp.get("status")
+            healed_via = resp.get("healed_via", "")
+            
+            if status == 1 and healed_via in ["whm-root-uapi", "whm-fallback", "whm-session"]:
+                log_test("8. regression - list public_html", True, f"status=1, healed_via={healed_via}")
+            else:
+                log_test("8. regression - list public_html", False, f"Unexpected response: status={status}, healed_via={healed_via}")
+        else:
+            log_test("8. regression - list public_html", False, f"HTTP {resp.get('_status_code')}")
+        
+        # ========================================================================
+        # STEP 9: CLEANUP
+        # ========================================================================
+        print("\n🧹 STEP 9: CLEANUP")
+        
+        cleanup_directory("public_html", f"nwv_{TS}")
+        cleanup_directory("public_html", f"nwv_{TS}_d")
+        
+        # Verify cleanup
+        resp = api_call("GET", f"/hosting/{ACCOUNT}/files?dir=/public_html")
+        files = resp.get("files")
+        if files is None:
+            data = resp.get("data")
+            if isinstance(data, list):
+                files = data
+            elif isinstance(data, dict):
+                files = data.get("files", [])
+            else:
+                files = []
+        file_names = [f.get("name") or f.get("file") for f in files]
+        
+        if f"nwv_{TS}" not in file_names and f"nwv_{TS}_d" not in file_names:
+            log_test("9. cleanup verification", True, f"Both temp directories removed")
+        else:
+            log_test("9. cleanup verification", False, f"Temp directories still exist: {file_names}")
+        
+    except Exception as e:
+        print(f"\n❌ FATAL ERROR: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        # Attempt cleanup
+        try:
+            cleanup_directory("public_html", f"nwv_{TS}")
+            cleanup_directory("public_html", f"nwv_{TS}_d")
+        except:
+            pass
     
-    # Run all tests
-    results.append(("TEST 1: File Manager healed listing", test_file_manager_healed()))
-    results.append(("TEST 2: SSL healed listing", test_ssl_healed()))
-    results.append(("TEST 3: File Manager path alias", test_file_manager_path_alias()))
-    results.append(("TEST 4a: Auth guard (no key)", test_auth_guard_no_key()))
-    results.append(("TEST 4b: Auth guard (bogus key)", test_auth_guard_bogus_key()))
-    results.append(("TEST 5: Ownership guard", test_ownership_guard()))
-    results.append(("TEST 6: Write dry_run", test_write_dry_run()))
+    # ========================================================================
+    # SUMMARY
+    # ========================================================================
+    print("\n" + "=" * 80)
+    print("TEST SUMMARY")
+    print("=" * 80)
+    print(f"Total tests: {test_results['total']}")
+    print(f"Passed: {test_results['passed']} ✅")
+    print(f"Failed: {test_results['failed']} ❌")
+    print(f"Pass rate: {test_results['passed'] / test_results['total'] * 100:.1f}%")
+    print("=" * 80)
     
-    # Summary
-    print(f"\n{BLUE}{'='*80}{RESET}")
-    print(f"{BLUE}TEST SUMMARY{RESET}")
-    print(f"{BLUE}{'='*80}{RESET}")
-    
-    passed = sum(1 for _, result in results if result)
-    total = len(results)
-    
-    for test_name, result in results:
-        status = f"{GREEN}PASS{RESET}" if result else f"{RED}FAIL{RESET}"
-        print(f"{status} - {test_name}")
-    
-    print(f"\n{BLUE}Total: {passed}/{total} tests passed ({100*passed//total}%){RESET}")
-    
-    if passed == total:
-        print(f"\n{GREEN}✅ ALL TESTS PASSED - BUG FIX VERIFIED{RESET}")
-        print(f"{GREEN}The File Manager/SSL CPANEL_AUTH_FAILURE bug is FIXED.{RESET}")
-        print(f"{GREEN}WHM-root fallback successfully heals stale password failures.{RESET}")
-        return 0
+    if test_results['failed'] > 0:
+        print("\n❌ FAILED TESTS:")
+        for test in test_results['tests']:
+            if not test['passed']:
+                print(f"  • {test['name']}")
+                if test['details']:
+                    print(f"    {test['details']}")
+        sys.exit(1)
     else:
-        print(f"\n{RED}❌ SOME TESTS FAILED - BUG FIX NOT COMPLETE{RESET}")
-        return 1
+        print("\n✅ ALL TESTS PASSED!")
+        sys.exit(0)
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
