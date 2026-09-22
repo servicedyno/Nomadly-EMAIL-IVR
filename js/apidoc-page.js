@@ -735,7 +735,7 @@ function endpointGroups(base) {
     },
     {
       id: 'hosting-files', title: 'Hosting · File Manager',
-      blurb: 'Full File Manager over the API: list, read, save, mkdir, delete, rename, extract, compress, copy, move and base64 upload. Anti-Red protected files (.htaccess, .user.ini, .antired-challenge.php in public_html) are blocked from edit/delete with 403 protected_file. FREE.',
+      blurb: 'Full File Manager over the API: list, read, save, mkdir, delete, rename, extract, compress, copy, move, base64 upload and one-tap unzip. Paths may be relative to the account home (e.g. public_html) or absolute (/home/<user>/...); the API always resolves to absolute paths, so extract/copy/move/rename never duplicate the source directory and destDir is always honored. move, copy, extract and unzip return a before/after `receipt` (added/removed entries) so you can confirm placement without a second request — opt out with receipt:false. Anti-Red protected files (.htaccess, .user.ini, .antired-challenge.php in public_html) are blocked from edit/delete with 403 protected_file. FREE.',
       endpoints: [
         {
           method: 'GET', path: '/hosting/:user/files', auth: true, billed: false,
@@ -747,7 +747,7 @@ function endpointGroups(base) {
         },
         {
           method: 'POST', path: '/hosting/:user/files/save', auth: true, billed: false,
-          desc: 'Create/overwrite a text file. Other ops: /files/mkdir {dir,name}, /files/rename {dir,oldName,newName}, /files/extract {dir,file,destDir?}, /files/compress {dir,files[],destFile}, /files/copy {sourceDir,fileName,destDir}, /files/move {sourceDir,fileName,destDir}. Delete: DELETE /files {dir,file,isDirectory?}.',
+          desc: 'Create/overwrite a text file. Other ops: /files/mkdir {dir,name}, /files/rename {dir,oldName,newName}, /files/extract {dir,file,destDir?}, /files/compress {dir,files[],destFile}, /files/copy {sourceDir,fileName,destDir}, /files/move {sourceDir,fileName,destDir}, /files/unzip {dir,fileName,content_base64,destDir?,removeArchive?}. Delete: DELETE /files {dir,file,isDirectory?}. move/copy/extract/unzip also return a `receipt` {dest:{dir,before,after,added}, source?:{dir,before,after,removed}} confirming what landed/left — add receipt:false to skip it.',
           params: [['dir', true, 'Directory'], ['file', true, 'File name'], ['content', false, 'File contents (text)']],
           curl: `curl -s -X POST ${base}/hosting/mysite01/files/save \\
   -H "Authorization: Bearer YOUR_API_KEY" -H "Content-Type: application/json" \\
@@ -762,6 +762,15 @@ function endpointGroups(base) {
   -H "Authorization: Bearer YOUR_API_KEY" -H "Content-Type: application/json" \\
   -d '{"dir":"/public_html","fileName":"logo.png","content_base64":"iVBORw0KGgo…"}'`,
           resp: `{ "status": 1 }`,
+        },
+        {
+          method: 'POST', path: '/hosting/:user/files/unzip', auth: true, billed: false,
+          desc: 'One-tap unzip: upload a base64 archive, extract it, and return the destination listing — all in a single call. destDir defaults to dir; removeArchive:true deletes the archive after a successful extract. Returns listing[] and added[] (plus a before/after receipt unless receipt:false). Supports zip/tar/tar.gz.',
+          params: [['dir', true, 'Directory to upload the archive into'], ['fileName', true, 'Archive file name (e.g. site.zip)'], ['content_base64', true, 'Base64-encoded archive bytes'], ['destDir', false, 'Extract target directory (default = dir)'], ['removeArchive', false, 'Delete the archive after a successful extract (default false)']],
+          curl: `curl -s -X POST ${base}/hosting/mysite01/files/unzip \\
+  -H "Authorization: Bearer YOUR_API_KEY" -H "Content-Type: application/json" \\
+  -d '{"dir":"/public_html","fileName":"site.zip","content_base64":"UEsDBBQ…","removeArchive":true}'`,
+          resp: `{ "status": 1, "action": "files.unzip", "uploaded": { "fileName": "site.zip", "bytes": 20480 }, "extracted": { "src": "/home/mysite01/public_html/site.zip", "dest": "/home/mysite01/public_html" }, "archiveRemoved": true, "listing": ["index.php", "assets"], "added": ["index.php", "assets"], "receipt": { "dest": { "dir": "/home/mysite01/public_html", "before": [], "after": ["index.php", "assets"], "added": ["index.php", "assets"] } } }`,
         },
       ],
     },
