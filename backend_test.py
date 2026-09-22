@@ -10,7 +10,7 @@ import json
 import sys
 
 # Base URL from frontend/.env
-BASE_URL = "https://8634d267-73d5-41dc-811f-bd9cb39114dc.preview.emergentagent.com"
+BASE_URL = "https://vault-setup-8.preview.emergentagent.com"
 API_BASE = f"{BASE_URL}/api/reseller/v1"
 
 # Test fixture API key (seeded for this bug fix)
