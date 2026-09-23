@@ -399,6 +399,23 @@ function createResellerApi(deps = {}) {
   // ════════════════════════════════════════════════════════
   function providerFor(isRDP) { return isRDP ? vpsProvider.getRdpProvider() : vpsProvider.getProvider() }
 
+  // DO-RDP lifecycle ops (get / password-reset / reinstall) must route by the RECORD, not the
+  // statically-configured VPS_RDP_PROVIDER. A golden-image DO-RDP instance (provider
+  // 'digitalocean-rdp' or an rdp-* id) has to reach the DO-RDP service even when VPS_RDP_PROVIDER
+  // is azure/other; anything else falls back to the configured RDP provider. Matches the design
+  // note: "per-record / per-instanceId ops route by the ID prefix on the record".
+  function rdpProviderForRecord(rec) {
+    const explicit = String((rec && rec.provider) || '').toLowerCase()
+    const idIsRdp = /^rdp-/i.test(String((rec && rec.instanceId) || ''))
+    if (explicit === 'digitalocean-rdp' || idIsRdp) {
+      try {
+        const p = vpsProvider.getProviderForRecord({ ...rec, provider: 'digitalocean-rdp' })
+        if (p) return p
+      } catch (_) { /* fall through to configured RDP provider */ }
+    }
+    return providerFor(true)
+  }
+
   async function vpsPlansHandler(req, res, isRDP) {
     const region = String(req.query.region || 'EU').toUpperCase()
     const prov = providerFor(isRDP)
@@ -479,11 +496,13 @@ function createResellerApi(deps = {}) {
     const rec = await loadOwnedVps(req, req.params.id, isRDP)
     if (!rec) return res.status(404).json({ error: 'not_found' })
     let live = null
-    if (rec.instanceId) { try { const prov = providerFor(isRDP); live = await prov.getInstance(rec.instanceId) } catch (e) { live = { error: e.message } } }
+    if (rec.instanceId) { try { const prov = isRDP ? rdpProviderForRecord(rec) : providerFor(false); live = await prov.getInstance(rec.instanceId) } catch (e) { live = { error: e.message } } }
     if (live && (live.mainIp || live.status) && (live.mainIp !== rec.host || live.status !== rec.status)) {
       col('vpsPlansOf').updateOne({ _id: rec._id }, { $set: { ...(live.mainIp ? { host: live.mainIp } : {}), ...(live.status ? { status: live.status } : {}) } }).catch(() => {})
     }
     const out = { id: rec.vpsId || rec._id, instance_id: rec.instanceId || null, plan: rec.plan, region: rec.region, os: rec.osType, os_id: rec.osId || null, status: live?.status || rec.status, ip: live?.mainIp || rec.host || null, live }
+    // RDP only: whether the in-guest management agent (used by password-reset) has checked in recently.
+    if (isRDP) out.agent_online = live ? !!live.agentOnline : null
     if (live && live.provisioning) {
       out.provisioning = live.provisioning
       out.credentials_ready = !!live.provisioning.credentials_ready
@@ -527,6 +546,57 @@ function createResellerApi(deps = {}) {
     res.json({ id: rec.vpsId || rec._id, ip, username: isRDP ? 'Administrator' : 'root', password: password || (isLive() ? null : '••• (revealed only in live mode)'), mode: mode() })
   }
 
+  // ── RDP-only lifecycle: password reset (in-place, agent) + reinstall (DO rebuild) ──
+  // vpsActionHandler only maps power actions (start/stop/reboot/shutdown); these two
+  // need dedicated routes because they take an os edition / return a fresh password.
+
+  // POST /rdp/:id/password-reset → in-place Administrator password change via the in-guest
+  // agent (apply.ps1 -Agent). Data preserved, no reinstall. Requires agent_online=true.
+  async function rdpPasswordResetHandler(req, res) {
+    const rec = await loadOwnedVps(req, req.params.id, true)
+    if (!rec) return res.status(404).json({ error: 'not_found' })
+    if (!isLive()) return res.json({ mode: 'dry_run', id: rec.vpsId || rec._id, username: 'Administrator', method: 'agent', note: 'Dry-run: no password reset sent to provider.' })
+    const prov = rdpProviderForRecord(rec)
+    if (!rec.instanceId || typeof prov.resetPassword !== 'function') return res.status(501).json({ error: 'not_supported' })
+    try {
+      const r = await prov.resetPassword(rec.instanceId)
+      // Persist the new secret id so GET /rdp/:id/credentials reveals the new password.
+      if (r && r.secretId && r.secretId !== rec.rootPasswordSecretId) {
+        await col('vpsPlansOf').updateOne({ _id: rec._id }, { $set: { rootPasswordSecretId: r.secretId } })
+      }
+      res.json({ mode: 'live', id: rec.vpsId || rec._id, password: r.password, username: 'Administrator', method: 'agent', data_preserved: true })
+    } catch (e) {
+      // Agent offline / server not started / apply-timeout — client-actionable, not a 5xx.
+      res.status(409).json({ error: 'password_reset_failed', message: e.message })
+    }
+  }
+
+  // POST /rdp/:id/reinstall {os} → DO rebuild of the SAME droplet from the chosen golden image
+  // (IP kept, disk wiped, ~3 min). Returns { os, ip, eta_minutes, password } and updates the record.
+  async function rdpReinstallHandler(req, res) {
+    const rec = await loadOwnedVps(req, req.params.id, true)
+    if (!rec) return res.status(404).json({ error: 'not_found' })
+    const prov = rdpProviderForRecord(rec)
+    const osId = String(req.body?.os || rec.osId || prov.DEFAULT_OS_ID || '').toLowerCase()
+    if (prov.OS_OPTIONS && !prov.OS_OPTIONS[osId]) {
+      return res.status(400).json({ error: 'invalid_os', message: `Unknown os "${req.body?.os}". Valid values: ${Object.keys(prov.OS_OPTIONS).join(', ')} (see os_options in GET /rdp/plans).` })
+    }
+    if (!isLive()) return res.json({ mode: 'dry_run', id: rec.vpsId || rec._id, os: osId, note: 'Dry-run: no reinstall sent to provider.' })
+    if (!rec.instanceId || typeof prov.reinstallInstance !== 'function') return res.status(501).json({ error: 'not_supported' })
+    try {
+      const r = await prov.reinstallInstance(rec.instanceId, { osId })
+      await col('vpsPlansOf').updateOne({ _id: rec._id }, { $set: {
+        osId: r.osId || osId,
+        status: 'reinstalling',
+        ...(r.secretId ? { rootPasswordSecretId: r.secretId } : {}),
+        ...(r.ip ? { host: r.ip } : {}),
+      } })
+      res.json({ mode: 'live', id: rec.vpsId || rec._id, os: r.osId || osId, os_name: r.osName || null, ip: r.ip || rec.host || null, eta_minutes: r.etaMinutes || 3, password: r.password })
+    } catch (e) {
+      res.status(409).json({ error: 'reinstall_failed', message: e.message })
+    }
+  }
+
   // VPS routes
   router.get('/vps/plans', apiKeyAuth, h((req, res) => vpsPlansHandler(req, res, false)))
   router.post('/vps', apiKeyAuth, h((req, res) => vpsCreateHandler(req, res, false)))
@@ -542,6 +612,8 @@ function createResellerApi(deps = {}) {
   router.get('/rdp', apiKeyAuth, h((req, res) => vpsListHandler(req, res, true)))
   router.get('/rdp/:id', apiKeyAuth, h((req, res) => vpsGetHandler(req, res, true)))
   router.post('/rdp/:id/action', apiKeyAuth, h((req, res) => vpsActionHandler(req, res, true)))
+  router.post('/rdp/:id/password-reset', apiKeyAuth, h((req, res) => rdpPasswordResetHandler(req, res)))
+  router.post('/rdp/:id/reinstall', apiKeyAuth, h((req, res) => rdpReinstallHandler(req, res)))
   router.delete('/rdp/:id', apiKeyAuth, h((req, res) => vpsDestroyHandler(req, res, true)))
   router.get('/rdp/:id/credentials', apiKeyAuth, h((req, res) => vpsCredsHandler(req, res, true)))
 

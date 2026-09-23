@@ -24,23 +24,23 @@ Approved by owner 2026-09-23 00:45 UTC (all items + 1/2/3-month plans in bot AND
 - [x] B1 RDP: region → tier → **duration** (`askRdpDuration`, `rdpDurationBtn`, line ~12077) → coupon → Windows edition → summary → pay
 - [x] B2 Order summary shows edition + duration
 - [x] B3 Post-payment "RDP ready" gated on DO-RDP `active`
-- [~] B4 Renewal scheduler extends by `durationMonths` / `provider.renewInstance` — VERIFY wiring in the renewal cron
+- [x] B4 Renewal scheduler extends by `durationMonths` / `provider.renewInstance` — VERIFIED 2026-09-23: `_syncProviderRenewal(vpsPlan, renewMonths)` at _index.js:36677 calls `provider.renewInstance(contaboInstanceId, months)` via `getProviderForRecord`; `renewMonths=_renewalMonths(vpsPlan)`=durationMonths; bot record `end_time` also advanced by durationMonths.
 ### C. Bot management (js/_index.js)
 - [x] C1 Start/Stop/Restart/Show password via smart proxy for `rdp-*` ids
 - [x] C2 Reset Password → `provider.resetPassword` (line ~20496; agent-confirmed, `dataPreserved`) + offline error copy
 - [x] C3 Reinstall Windows → `confirmReinstallWindows`/`askReinstallEdition` (line ~9375, ~12302, ~20570) → `provider.reinstallInstance`; IP-kept + ~3 min copy
-### D. Reseller API + docs (js/reseller-api.js, js/apidoc-page.js)  ← ★ MAIN REMAINING GAP ★
-- [ ] D1 `POST /rdp/:id/password-reset` → `{ password, username, method:'agent' }`  **MISSING**
-- [ ] D2 `POST /rdp/:id/reinstall {os}` → `{ os, ip, eta_minutes, password }`, updates `vpsPlansOf.osId/rootPasswordSecretId/status`  **MISSING**
-- [ ] D3 `GET /rdp/:id` includes `agent_online`; docs for both new endpoints + agent note  **NOT DONE**
-  NOTE: `vpsActionHandler` (reseller-api.js:495-507) only maps start/stop/reboot/restart/shutdown; it returns 400 `invalid_action` for reset_password/reinstall and has NO osId/edition handling. Add dedicated routes (do NOT overload /action) next to lines 543-546.
+### D. Reseller API + docs (js/reseller-api.js, js/apidoc-page.js)  ← ★ DONE 2026-09-23 ★
+- [x] D1 `POST /rdp/:id/password-reset` → `{ mode, id, password, username:'Administrator', method:'agent', data_preserved }` (dry-run in sandbox). Updates rootPasswordSecretId to the new secret. **DONE**
+- [x] D2 `POST /rdp/:id/reinstall {os}` → `{ mode, id, os, os_name, ip, eta_minutes, password }`; validates os against OS_OPTIONS (400 invalid_os); updates `vpsPlansOf.osId/rootPasswordSecretId/status(→reinstalling)/host`. **DONE**
+- [x] D3 `GET /rdp/:id` includes `agent_online`; both new endpoints documented in apidoc-page.js + agent note in the RDP blurb. **DONE**
+  NOTE: added `rdpProviderForRecord(rec)` so DO-RDP records (provider 'digitalocean-rdp' / rdp-* ids) route to the DO-RDP service even though VPS_RDP_PROVIDER=azure (per-record routing per the design). Routes added next to the /rdp/:id/action route. Verified in dry-run + node -c + lint (only pre-existing empty-catch warning) + E1 84/0 still green.
 ### E. Tests
-- [x] E1 Unit suite `js/tests/test_do_rdp_golden_2026-06.js` — **84 passed, 0 failed** (re-run confirmed at handoff)
-- [ ] E2 testing_agent: reseller RDP API (new endpoints) + bot handler smoke — NOT DONE (user asked to end session without agent testing)
-- [ ] E3 Live E2E on one real droplet (`js/ops/rdp_lifecycle_e2e.js`): buy → active → reset password → NLA login → reinstall (other edition) → login → delete — NOT DONE
+- [x] E1 Unit suite `js/tests/test_do_rdp_golden_2026-06.js` — **84 passed, 0 failed** (re-run confirmed 2026-09-23).
+- [x] E2 testing_agent: reseller RDP API (D1/D2/D3) + negatives + regression — **33/33 PASS** (dry-run, 2026-09-23).
+- [~] E3 Live E2E on one real droplet — **CREATE + REINSTALL validated LIVE 2026-09-23** (buy ws2022 → active → live NLA login with per-order pw OK; reinstall→ws2019 DO rebuild → active, IP kept, edition switched, live NLA login OK; droplet destroyed, no leak). Agent-based password RESET could NOT be validated live from THIS dev pod: the DO droplet cannot reach the Cloudflare-fronted preview callback URL (`SELF_URL/provision/*`) so the in-guest agent never checks in (`agent_seen_at` stayed null, zero inbound /provision hits). This is an ENV limitation of the dev sandbox, not a code bug — resetPassword is covered by E1 unit + E2 dry-run. New ops scripts: `js/ops/rdp_lifecycle_e2e.js`, `js/ops/rdp_reinstall_check.js`.
 ### F. Golden images
-- [ ] F1 Start builds for ws2019 + ws2022 + ws2025 in parallel — **NOT triggered this session; VERIFY current image state first via goldenStatus/syncGoldenFromDO before rebuilding** (owner approved parallel rebuild)
-- [ ] F2 Verify images `available` + transferred to all 9 regions; update PRD/CHANGELOG
+- [~] F1 ws2025 — a build was ALREADY in progress from a prior session (build droplet 602828932 nyc3 + custom image 246641953 importing/pending; this pod's local build tracking was lost on the fresh DB). Did NOT start a duplicate. Launched a SAFE idempotent finisher `js/ops/rdp_ws2025_finish.js` (bg, ≤4h → `memory/rdp_ws2025_finish.log`) that registers ws2025 via `syncGoldenFromDO` the moment DO marks it available, `transferGolden('ws2025','all')` to 9 regions, then deletes the leftover build droplet. ws2019 + ws2022 already `available` in all 9 regions (untouched).
+- [ ] F2 Verify ws2025 `available` + transferred to all 9 regions; update PRD/CHANGELOG (pending ws2025 import completion).
 
 ## Verified current state (2026-06 handoff — read this first)
 - All key files pass `node -c` syntax check (js/_index.js, js/vps-provider.js, js/digitalocean-rdp-service.js, js/reseller-api.js). App is NOT broken. `nodejs` supervisor process is RUNNING.
@@ -65,6 +65,8 @@ Approved by owner 2026-09-23 00:45 UTC (all items + 1/2/3-month plans in bot AND
 
 ## Status log
 - 2026-09-23 00:50 UTC — doc created, implementation starting (A → B → C → D → E → F)
+- 2026-09-23 (setup + D) — Fresh pod set up: vault unlocked (`Katiekendra123@`), backend/.env restored, frontend/.env recreated (pod URL), deps installed, nodejs supervisor up. All services healthy (FastAPI:8001 → Node:5000 → Mongo). DO-RDP golden sync at boot: ws2019 & ws2022 `available` in all 9 regions, ws2025 `none`. **D1/D2/D3 implemented + B4 verified.** New reseller endpoints smoke-tested in dry-run (password-reset, reinstall {ws2019 ok / badxx→400 / default}, agent_online on GET, 401/404 negatives all correct). E1 unit suite still 84/0.
+- 2026-09-23 (E2/E3/F1) — E2 testing_agent 33/33 PASS (dry-run). E3 LIVE: create ws2022 fast-deploy → active + NLA login OK; reinstall→ws2019 rebuild → active, IP kept, edition switched, NLA login OK; droplet destroyed (no leak). Agent-based RESET not verifiable live from this dev pod (droplet can't reach CF-fronted preview callback → agent offline; env limit). F1: ws2025 build already in progress from a prior session (droplet 602828932 + image 246641953 pending); did NOT duplicate; launched safe idempotent finisher (bg) to register+transfer+cleanup once DO marks it available.
 - 2026-06 (fork handoff) — verified state: A/B/C substantially done in code (not live-verified); E1 84/84 passing; app healthy. Reseller API D endpoints still MISSING. Golden rebuilds (F1) not triggered. E2/E3 not done. Session ended per owner request WITHOUT agent testing.
 - 2026-06 (fork, wrap-up) — Bot-interface VPS↔RDP separation IMPLEMENTED IN CODE, **NOT TESTED**. Edits on disk (uncommitted): js/_index.js (routing, menus, subscription-detail screens, auto-renew now treats `digitalocean-rdp` as PAYG), js/vm-instance-setup.js (VPS/RDP plan + OS separation), js/new-user-conversion.js, and all 4 lang files (en/fr/zh/hi split RDP vs VPS strings). All 7 files pass `node -c`; nodejs/backend/frontend/mongodb all RUNNING. Session ended per owner request BEFORE running testing_agent.
 

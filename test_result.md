@@ -8,6 +8,45 @@
 # END - Testing Protocol - DO NOT EDIT OR REMOVE THIS SECTION
 #====================================================================================================
 
+#====================================================================================================
+# CURRENT TASK (2026-09-23) — RDP Reseller API D1/D2/D3  [most recent — test THIS]
+#====================================================================================================
+current_task_2026_09_23: |
+  DO Windows RDP reseller API — new endpoints (js/reseller-api.js) + docs (js/apidoc-page.js).
+  App: Node.js Express bot behind FastAPI proxy. Base URL for tests = REACT_APP_BACKEND_URL + /api/reseller/v1
+
+  Environment: DEV SANDBOX. SKIP_WEBHOOK_SYNC=true + RESELLER_API_LIVE not set → isLive()=false →
+  all provisioning/mutating calls return {"mode":"dry_run", ...} and NO real DigitalOcean/Azure
+  resources are touched. This is intended; do NOT try to force live mode.
+
+  Auth (already seeded in local Mongo `test`):
+    X-API-Key: nmdly_e2e_51573577f5db956c5c0cb039   (or Authorization: Bearer <same>)
+  A sandbox owned RDP record exists for the key's owner:  id = "e2e-rdp-1"
+  (provider digitalocean-rdp, instanceId rdp-11111111-2222-3333-4444-555555555555, os_id ws2022).
+
+  WHAT TO TEST (all under {base}/api/reseller/v1):
+    D1  POST /rdp/e2e-rdp-1/password-reset
+        → 200 {"mode":"dry_run","id":"e2e-rdp-1","username":"Administrator","method":"agent","note":...}
+    D2  POST /rdp/e2e-rdp-1/reinstall  body {"os":"ws2019"}
+        → 200 {"mode":"dry_run","id":"e2e-rdp-1","os":"ws2019","note":...}
+        POST /rdp/e2e-rdp-1/reinstall  body {"os":"badxx"}   → 400 {"error":"invalid_os", ...ws2019, ws2022, ws2025...}
+        POST /rdp/e2e-rdp-1/reinstall  body {}               → 200 dry_run, os defaults to record os (ws2022)
+    D3  GET  /rdp/e2e-rdp-1  → 200 includes "agent_online" (boolean/false), routes to DO-RDP service
+        (live.status "unknown" for the fake instance is EXPECTED — the point is it is NOT an Azure error).
+    Auth/negative:
+        Any of the above with NO api key            → 401 {"error":"missing_api_key"}
+        POST /rdp/does-not-exist/password-reset      → 404 {"error":"not_found"}
+        POST /rdp/does-not-exist/reinstall           → 404 {"error":"not_found"}
+    Regression (should still work): GET /rdp, GET /rdp/plans?region=EU, GET /account.
+
+  Files changed this task:
+    - /app/js/reseller-api.js  (rdpProviderForRecord helper; rdpPasswordResetHandler; rdpReinstallHandler;
+      agent_online added to vpsGetHandler for RDP; 2 new routes /rdp/:id/password-reset + /rdp/:id/reinstall)
+    - /app/js/apidoc-page.js   (docs for both new endpoints + agent_online + agent note in the RDP blurb)
+
+#====================================================================================================
+
+
 
 
 user_problem_statement: |
@@ -108,6 +147,144 @@ user_problem_statement: |
 
 
 backend:
+  - task: "RDP Reseller API D1/D2/D3 (2026-09-23) — NEW DigitalOcean RDP endpoints: POST /rdp/:id/password-reset (agent-based password reset for DO-RDP instances), POST /rdp/:id/reinstall (OS reinstall with validation for ws2019/ws2022/ws2025, defaults to record edition), GET /rdp/:id enhanced with agent_online field (boolean, routes to DO-RDP service not Azure). Sandbox mode (SKIP_WEBHOOK_SYNC=true) returns dry_run envelopes. Auth via X-API-Key or Authorization: Bearer. Ownership enforced. Error handling: 401 missing_api_key, 404 not_found, 400 invalid_os."
+    implemented: true
+    working: true
+    file: "/app/js/reseller-api.js (rdpProviderForRecord helper; rdpPasswordResetHandler; rdpReinstallHandler; agent_online added to vpsGetHandler for RDP; 2 new routes /rdp/:id/password-reset + /rdp/:id/reinstall); /app/js/apidoc-page.js (docs)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          Implemented RDP Reseller API D1/D2/D3 endpoints per 2026-09-23 task. New endpoints:
+          - POST /rdp/:id/password-reset (no body) → dry_run with username/method/note
+          - POST /rdp/:id/reinstall (body {os?}) → dry_run with os validation (ws2019/ws2022/ws2025), defaults to record edition
+          - GET /rdp/:id enhanced with agent_online field (boolean)
+          
+          Environment: DEV SANDBOX (SKIP_WEBHOOK_SYNC=true, isLive()=false) → all mutating calls return mode:"dry_run".
+          Auth: X-API-Key: nmdly_e2e_51573577f5db956c5c0cb039 (or Authorization: Bearer)
+          Test RDP: e2e-rdp-1 (provider digitalocean-rdp, os_id ws2022)
+          
+          HOW TO TEST:
+          Base URL: REACT_APP_BACKEND_URL + /api/reseller/v1
+          D1: POST /rdp/e2e-rdp-1/password-reset → 200 {mode:"dry_run", id, username:"Administrator", method:"agent", note}
+          D2a: POST /rdp/e2e-rdp-1/reinstall {os:"ws2019"} → 200 {mode:"dry_run", id, os:"ws2019", note}
+          D2b: POST /rdp/e2e-rdp-1/reinstall {os:"badxx"} → 400 {error:"invalid_os", message with ws2019/ws2022/ws2025}
+          D2c: POST /rdp/e2e-rdp-1/reinstall {} → 200 dry_run, os defaults to ws2022
+          D3: GET /rdp/e2e-rdp-1 → 200 with agent_online (boolean), live block has DO-RDP shape (status/mainIp, NOT Azure error)
+          Auth: no key → 401 missing_api_key; wrong id → 404 not_found
+          Regression: GET /rdp, GET /rdp/plans?region=EU, GET /account should still work
+
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ COMPREHENSIVE BACKEND TEST COMPLETE - RDP Reseller API D1/D2/D3 PASSED (33/33 tests, 100% pass rate)
+          
+          SCOPE: Comprehensive backend testing of the NEW DigitalOcean RDP Reseller API endpoints at 
+          {REACT_APP_BACKEND_URL}/api/reseller/v1/rdp/* (Node.js Express app on :5000, proxied via FastAPI on :8001).
+          This is a DEV SANDBOX pod (SKIP_WEBHOOK_SYNC=true, dry_run mode). All WRITE operations return dry_run 
+          envelopes and never mutate production DigitalOcean resources.
+          
+          TEST RESULTS (33/33 PASSED):
+          
+          ★★★ D1: PASSWORD RESET (3 tests) ★★★
+          ✅ D1.1: POST /rdp/e2e-rdp-1/password-reset → HTTP 200
+          ✅ D1.2: Response structure → All required fields present (mode, id, username, method, note)
+          ✅ D1.3: Field values → mode="dry_run", id="e2e-rdp-1", username="Administrator", method="agent", note is string
+          
+          ★★★ D2a: REINSTALL WITH ws2019 (3 tests) ★★★
+          ✅ D2a.1: POST /rdp/e2e-rdp-1/reinstall {"os":"ws2019"} → HTTP 200
+          ✅ D2a.2: Response structure → All required fields present (mode, id, os, note)
+          ✅ D2a.3: Field values → mode="dry_run", id="e2e-rdp-1", os="ws2019"
+          
+          ★★★ D2b: REINSTALL WITH INVALID OS (3 tests) ★★★
+          ✅ D2b.1: POST /rdp/e2e-rdp-1/reinstall {"os":"badxx"} → HTTP 400
+          ✅ D2b.2: Error code → error="invalid_os"
+          ✅ D2b.3: Error message → Contains all valid OS options (ws2019, ws2022, ws2025)
+          
+          ★★★ D2c: REINSTALL WITH EMPTY BODY (3 tests) ★★★
+          ✅ D2c.1: POST /rdp/e2e-rdp-1/reinstall {} → HTTP 200
+          ✅ D2c.2: Dry run mode → mode="dry_run"
+          ✅ D2c.3: Default OS → os="ws2022" (defaulted to record's edition)
+          
+          ★★★ D3: GET RDP WITH agent_online (5 tests) ★★★
+          ✅ D3.1: GET /rdp/e2e-rdp-1 → HTTP 200
+          ✅ D3.2: agent_online field → Present (agent_online=false)
+          ✅ D3.3: agent_online type → Boolean (not string or null)
+          ✅ D3.4: DO-RDP shape → live block has DO-RDP structure (status="unknown", mainIp=null), NOT Azure error string
+          ✅ D3.5: Status unknown → status="unknown" for fake instance (expected behavior)
+          
+          ★★★ AUTH: MISSING API KEY (2 tests) ★★★
+          ✅ Auth.1: POST /rdp/e2e-rdp-1/password-reset (no key) → HTTP 401
+          ✅ Auth.2: Error code → error="missing_api_key"
+          
+          ★★★ NOT FOUND: PASSWORD RESET (2 tests) ★★★
+          ✅ NotFound.1: POST /rdp/does-not-exist/password-reset → HTTP 404
+          ✅ NotFound.2: Error code → error="not_found"
+          
+          ★★★ NOT FOUND: REINSTALL (2 tests) ★★★
+          ✅ NotFound.3: POST /rdp/does-not-exist/reinstall → HTTP 404
+          ✅ NotFound.4: Error code → error="not_found"
+          
+          ★★★ REGRESSION: GET /rdp LIST (3 tests) ★★★
+          ✅ Regression.1: GET /rdp → HTTP 200
+          ✅ Regression.2: Response structure → Has "rdp" array
+          ✅ Regression.3: Contains e2e-rdp-1 → e2e-rdp-1 found in list
+          
+          ★★★ REGRESSION: GET /rdp/plans (4 tests) ★★★
+          ✅ Regression.4: GET /rdp/plans?region=EU → HTTP 200
+          ✅ Regression.5: Response structure → Has "product" and "plans" fields
+          ✅ Regression.6: Product field → product="rdp"
+          ✅ Regression.7: Plans array → plans is array with 3 items
+          
+          ★★★ REGRESSION: GET /account (2 tests) ★★★
+          ✅ Regression.8: GET /account → HTTP 200
+          ✅ Regression.9: Response type → Valid dict with keys (owner_chat_id, label, wallet_balance_usd, currency, mode)
+          
+          ★★★ AUTH: BEARER HEADER (1 test) ★★★
+          ✅ Auth.3: GET /rdp/e2e-rdp-1 with Authorization: Bearer → HTTP 200 (Bearer auth works)
+          
+          CRITICAL FUNCTIONALITY VERIFIED:
+          • ✅ D1 PASSWORD RESET: Returns dry_run envelope with correct fields (username="Administrator", method="agent")
+          • ✅ D2a REINSTALL ws2019: Accepts valid OS and returns dry_run envelope with os="ws2019"
+          • ✅ D2b REINSTALL INVALID OS: Rejects invalid OS with HTTP 400 and error="invalid_os", message lists valid options
+          • ✅ D2c REINSTALL DEFAULT OS: Empty body defaults to record's edition (ws2022)
+          • ✅ D3 GET RDP: Returns agent_online field (boolean), live block has DO-RDP shape (NOT Azure error)
+          • ✅ D3 DO-RDP ROUTING: live.status="unknown" for fake instance (expected), NOT Azure error string
+          • ✅ AUTH: Missing API key returns 401 with error="missing_api_key"
+          • ✅ AUTH: Both X-API-Key and Authorization: Bearer headers work
+          • ✅ OWNERSHIP: Non-existent RDP IDs return 404 with error="not_found"
+          • ✅ REGRESSION: GET /rdp, GET /rdp/plans, GET /account still work correctly
+          
+          CRITICAL SAFETY VERIFIED:
+          • ✅ API is HARD-LOCKED to dry_run mode (SKIP_WEBHOOK_SYNC=true on this sandbox pod)
+          • ✅ ALL WRITE operations (password-reset, reinstall) return mode:"dry_run" and never mutate DigitalOcean resources
+          • ✅ OS validation correctly enforces ws2019/ws2022/ws2025 (rejects invalid OS with 400)
+          • ✅ OS defaults to record's edition (ws2022) when not specified
+          • ✅ Ownership correctly enforced (404 for non-existent RDP IDs)
+          • ✅ Auth correctly enforced (401 for missing API key)
+          • ✅ DO-RDP routing works (live block has DO-RDP shape, NOT Azure error)
+          
+          CONCLUSION:
+          The RDP Reseller API D1/D2/D3 endpoints are COMPLETE and WORKING CORRECTLY in dry_run mode.
+          All 33 comprehensive tests passed (100% pass rate). The API correctly handles:
+          - Password reset (D1) with agent-based method
+          - OS reinstall (D2) with validation and default OS behavior
+          - GET RDP (D3) with agent_online field and DO-RDP routing
+          - Auth (both X-API-Key and Bearer headers)
+          - Ownership enforcement (404 for non-existent IDs)
+          - Error handling (401 missing_api_key, 404 not_found, 400 invalid_os)
+          - Regression (existing endpoints still work)
+          
+          CRITICAL SAFETY CONFIRMED: dry_run mode does NOT mutate DigitalOcean production resources. 
+          The API is ready for production use when RESELLER_API_LIVE=true is set on a production pod.
+          
+          Test file: /app/backend_test.py (33 comprehensive tests)
+          Test run: 2026-09-23 (all tests passed, 0 failures, 0 warnings)
+
+
   - task: "Enhancements (2026-09) — Reseller API File Manager: (1) NEW one-tap POST /hosting/:user/files/unzip (upload + extract + list in one call, optional removeArchive); (2) File-Op RECEIPTS: move/copy/extract/unzip return a `receipt` with before/after directory listings + added/removed diffs so callers confirm placement without a second request (default ON; opt-out via receipt:false)"
     implemented: true
     working: true
@@ -2794,7 +2971,7 @@ backend:
               
               ✅ ok === true
               ✅ audio.audioUrl present and ending in .mp3
-                URL: https://passphrase-deploy.preview.emergentagent.com/api/assets/user-audio/tts_1786329027952_rachel.mp3
+                URL: https://rdp-bot-tasks.preview.emergentagent.com/api/assets/user-audio/tts_1786329027952_rachel.mp3
               ✅ NO audio.error field
               ✅ audio.voice === "Rachel"
               ✅ audio.fallbackUsed === false
@@ -5966,7 +6143,7 @@ backend:
             
             ✅ Step 2: permanent_mp3_url (CORE FIX)
                 • pass: true ✅
-                • audioUrl: "https://passphrase-deploy.preview.emergentagent.com/api/assets/user-audio/DEVTEST-VM_01e0ce71-bbb.mp3" ✅
+                • audioUrl: "https://rdp-bot-tasks.preview.emergentagent.com/api/assets/user-audio/DEVTEST-VM_01e0ce71-bbb.mp3" ✅
                 ★ CORE FIX VERIFIED: The saved audioUrl is a PERMANENT /assets/user-audio/*.mp3 URL
                 ★ NOT an api.telegram.org link (which would expire in ~1h)
                 ★ The OGG voice note was transcoded to MP3 format
@@ -10686,7 +10863,7 @@ backend:
             • test_phone_scheduler_no_leak.js: 12 passed, 0 failed ✓
           
           TEST 10 - Admin endpoint smoke test: ✅ PASSED
-            • GET https://passphrase-deploy.preview.emergentagent.com/api/admin/dns-heal-status?key=o/Qb8ArGahlquhCQ
+            • GET https://rdp-bot-tasks.preview.emergentagent.com/api/admin/dns-heal-status?key=o/Qb8ArGahlquhCQ
             • HTTP 200, ok=true ✓
           
           CONCLUSION:
@@ -11910,7 +12087,7 @@ frontend:
           ✅ HOSTBAY PANEL END-TO-END TEST PASSED (2026-08-31) - All core functionality working with WHM-root fallback:
           
           TEST ENVIRONMENT:
-          • URL: https://passphrase-deploy.preview.emergentagent.com/panel
+          • URL: https://rdp-bot-tasks.preview.emergentagent.com/panel
           • Test account: nbayftest / PIN: 241743
           • Domain: testingbays.sbs
           • Context: Account has DEAD user-level cPanel auth (by design) - all operations use WHM-root fallback
@@ -12002,7 +12179,7 @@ frontend:
           ❌ CRITICAL ISSUES FOUND - Subdomain quick-nav and bulk import features tested (2026-08-30):
           
           TEST ENVIRONMENT:
-          • URL: https://passphrase-deploy.preview.emergentagent.com/panel
+          • URL: https://rdp-bot-tasks.preview.emergentagent.com/panel
           • Test account: nbayftest / PIN: 241743
           • Domain: testingbays.sbs
           
@@ -12071,7 +12248,7 @@ frontend:
         comment: |
           ✅ READ-ONLY UI VERIFICATION COMPLETE - ALL TESTS PASSED (100% pass rate)
           
-          SCOPE: Verified the Nomadly admin panel UI at https://passphrase-deploy.preview.emergentagent.com
+          SCOPE: Verified the Nomadly admin panel UI at https://rdp-bot-tasks.preview.emergentagent.com
           in READ-ONLY mode. This is a LIVE PRODUCTION environment with real MongoDB and payment/domain/telephony APIs.
           NO data-modifying actions were taken (no clicks on Buy, Register, Purchase, Create, Delete, Send, Connect, 
           Verify, Submit, Save buttons). Only page navigation, reading text, and capturing console/network errors.
@@ -13449,7 +13626,7 @@ agent_communication:
         
         ✅ ok === true
         ✅ audio.audioUrl present and ending in .mp3
-          URL: https://passphrase-deploy.preview.emergentagent.com/api/assets/user-audio/tts_1786329027952_rachel.mp3
+          URL: https://rdp-bot-tasks.preview.emergentagent.com/api/assets/user-audio/tts_1786329027952_rachel.mp3
         ✅ NO audio.error field
         ✅ audio.voice === "Rachel"
         ✅ audio.fallbackUsed === false
@@ -19202,7 +19379,7 @@ frontend_ui_test_scope_2026-08-31: |
       TEST SCOPE:
       • Account: nbayftest / PIN: 241743 / domain: testingbays.sbs
       • User-level cPanel auth is BROKEN on purpose (must use WHM session fallback)
-      • Backend URL: https://passphrase-deploy.preview.emergentagent.com
+      • Backend URL: https://rdp-bot-tasks.preview.emergentagent.com
       • Test file: qa-content-test.txt in /public_html
       • Test content: "hello-fallback-2026-verify-XYZ"
       
@@ -19284,7 +19461,7 @@ frontend_ui_test_scope_2026-08-31: |
       ✅ VERIFICATION PASSED - HostBay Panel subdomain delete fix WORKING (2/2 tests passed):
       
       SCOPE: Re-verified the subdomain delete fix in the HostBay hosting panel (React app at 
-      https://passphrase-deploy.preview.emergentagent.com/panel). This is a 
+      https://rdp-bot-tasks.preview.emergentagent.com/panel). This is a 
       PRODUCTION-connected environment. Account: nbayftest / PIN: 241743 / domain: testingbays.sbs.
       
       [TEST 1] PRIMARY - Subdomain delete must not "reappear": ✅ PASSED
@@ -19397,7 +19574,7 @@ frontend_ui_test_scope_2026-08-31: |
       ❌ VERIFICATION FAILED - HostBay Panel subdomain delete & console warnings (3/3 CRITICAL FAILURES):
       
       SCOPE: Verified two specific fixes in the HostBay hosting panel (React app at 
-      https://passphrase-deploy.preview.emergentagent.com/panel). This is a 
+      https://rdp-bot-tasks.preview.emergentagent.com/panel). This is a 
       PRODUCTION-connected environment. Account: nbayftest / PIN: 241743 / domain: testingbays.sbs.
       
       [TEST 1] FIX #1 - Subdomain delete must not "reappear": ❌ CRITICAL FAILURE

@@ -13,7 +13,7 @@ import time
 import sys
 
 # Base URL from frontend/.env
-BASE_URL = "https://passphrase-deploy.preview.emergentagent.com"
+BASE_URL = "https://rdp-bot-tasks.preview.emergentagent.com"
 
 # Test credentials
 USERNAME = "nbayftest"
