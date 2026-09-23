@@ -1,3 +1,23 @@
+## 2026-09-23 (fork) — "Make Windows RDPs Fast" fast-plan IMPLEMENTED (DO-RDP levers 1-4)
+
+Resumed the approved-but-paused fast-plan (see `RDP_FAST_PLAN_PROGRESS.md`). All in `js/`:
+- **Lever 1/2** `digitalocean-rdp-service.js`: retired Starter (1vCPU/2GB); Standard/Pro/Power now on
+  Premium **AMD NVMe** (`do_size_slug` = `-amd`, `do_size_slug_basic` = Basic fallback for nyc3/tor1
+  via new `AMD_REGIONS` + `sizeSlugFor()`); costs 28/56/112 → sell $56/$112/$224 per mo (×2). Existing
+  `starter` servers still resolve via `LEGACY_TIERS`/`legacyProductFor()`.
+- **Lever 3** `rdp-scripts/apply.ps1`: idempotent per-boot perf tuning (High-Perf power plan,
+  VisualFXSetting=2 in Administrator+Default hives, ServerManager off, WSearch/SysMain off, telemetry
+  off, Defender idle+CPU-cap no-exclusions, RDP fEnableVirtualizedGraphics; NLA kept on).
+- **Lever 4** optimised `.rdp`: `buildRdpFile()` (LAN preset) added + exported; reseller
+  `GET /rdp/:id/credentials` returns `rdp_file` when IP known; bot sends it as a Telegram document via
+  `sendRdpConnectionFile()` at RDP-ready + on background IP resolve.
+
+Verified WITHOUT live DO cost / prod writes: fake-DO golden test **88/88** (incl. 2 new region-aware
+size asserts); live `GET /rdp/plans` → 9 plans, no Starter, $56/$112/$224 (dev provider temp-flipped to
+`digitalocean` then reverted to `azure`); `/provision/bootscript` serves the tuned apply.ps1. Deploy =
+owner Save-to-GitHub + golden rebuild (levers 3/4 bake in; 3 also self-refreshes to existing droplets).
+
+
 ## 2026-06 (fork) — Site online/offline: dedicated panel tab + reseller API parity
 
 User asked for the "bring site online/offline" endpoint (thought it was missing). It already

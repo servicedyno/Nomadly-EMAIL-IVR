@@ -37125,6 +37125,8 @@ const buyVPSPlanFullProcess = async (chatId, lang, vpsDetails) => {
                           : `🎉 Your VPS is now ready! IP address: <code>${ip}</code>\nYou can now connect: <code>${vpsData.isRDP ? 'RDP' : 'ssh'} ${ip}</code>`
                     sendMessage(cChat, note, { parse_mode: 'HTML' })
                   } catch (_) { /* noop */ }
+                  // Speed lever 4: RDP now has an IP → deliver the pre-tuned fast-connect .rdp file.
+                  if (vpsData.isRDP) { try { sendRdpConnectionFile(cChat, ip, cLang) } catch (_) {} }
                   return
                 }
               } catch (e) {
@@ -37204,6 +37206,11 @@ const buyVPSPlanFullProcess = async (chatId, lang, vpsDetails) => {
       ? ({ en: '🎉 RDP ready!', fr: '🎉 RDP prêt !', zh: '🎉 RDP 就绪！', hi: '🎉 RDP तैयार!' }[lang] || '🎉 RDP ready!')
       : ({ en: '🎉 VPS ready!', fr: '🎉 VPS prêt !', zh: '🎉 VPS 就绪！', hi: '🎉 VPS तैयार!' }[lang] || '🎉 VPS ready!')
     await progress.complete(readyMsg)
+
+    // Speed lever 4: if this is an RDP and the IP is already known, deliver the pre-tuned
+    // fast-connect .rdp file now. (If the IP is still resolving, the background poller below
+    // sends it once the IP lands.)
+    if (isRDPsucc) { try { sendRdpConnectionFile(chatId, vpsData.host, lang) } catch (_) {} }
 
     // NOTE: a single post-purchase "what's next" cross-sell is sent by the
     // caller (vps_5d, RDP-aware). The previous +10s inline cross-sell card was
@@ -37838,6 +37845,32 @@ async function webhookTierCheck(chatId, preSpend, lang) {
       sendMessage(chatId, loyalty.formatUpgradeMessage(upgrade, lang || 'en'))
     }
   } catch (e) { /* non-critical */ }
+}
+//
+// ━━━ Speed lever 4: fast-connect .rdp file ━━━
+// Sends the customer a ready-tuned .rdp connection file (LAN/high-speed preset, bitmap cache on,
+// wallpaper/animations off) so they get the snappiest session without touching client settings.
+// Best-effort — never throws into the caller. Only sends for a real IPv4 address.
+async function sendRdpConnectionFile(chatId, ip, lang = 'en') {
+  try {
+    if (!ip || !/^\d{1,3}(\.\d{1,3}){3}$/.test(String(ip))) return
+    if (!bot || typeof bot.sendDocument !== 'function') return
+    const rdpSvc = require('./digitalocean-rdp-service')
+    const content = (typeof rdpSvc.buildRdpFile === 'function') ? rdpSvc.buildRdpFile(String(ip), 'Administrator') : null
+    if (!content) return
+    const caption = ({
+      en: '⚡ <b>Fast-connect file</b> — open this <code>.rdp</code> to launch a pre-tuned session (bitmap cache on, wallpaper/animations off) for the snappiest experience.',
+      fr: '⚡ <b>Fichier de connexion rapide</b> — ouvrez ce <code>.rdp</code> pour une session pré-optimisée (cache bitmap activé, fond/animations désactivés).',
+      zh: '⚡ <b>快速连接文件</b> — 打开此 <code>.rdp</code> 启动预优化会话（位图缓存开启，壁纸/动画关闭），体验最流畅。',
+      hi: '⚡ <b>फ़ास्ट-कनेक्ट फ़ाइल</b> — सबसे तेज़ अनुभव के लिए यह <code>.rdp</code> खोलें (बिटमैप कैश चालू, वॉलपेपर/एनिमेशन बंद)।',
+    }[lang] || '⚡ <b>Fast-connect file</b> — open this <code>.rdp</code> for a pre-tuned, snappy session.')
+    await bot.sendDocument(
+      chatId,
+      Buffer.from(content, 'utf8'),
+      { caption, parse_mode: 'HTML' },
+      { filename: `nomadly-rdp-${String(ip).replace(/[^0-9.]/g, '')}.rdp`, contentType: 'application/x-rdp' }
+    )
+  } catch (e) { try { log(`[DO-RDP] sendRdpConnectionFile failed: ${e.message || e}`) } catch (_) {} }
 }
 //
 const bankApis = {

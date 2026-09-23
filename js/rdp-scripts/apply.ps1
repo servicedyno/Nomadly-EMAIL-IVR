@@ -212,6 +212,50 @@ reg add $wl /v AutoAdminLogon /t REG_SZ /d 0 /f | Out-Null
 reg delete $wl /v DefaultPassword /f | Out-Null
 reg delete $wl /v AutoLogonCount /f | Out-Null
 
+# ---- 3b. performance tuning (speed lever 3): make every RDP feel responsive out of the box.
+# Idempotent, re-applied every boot, entirely best-effort — must NEVER block provisioning. This
+# task runs as SYSTEM before interactive login, so per-user visual settings are written into the
+# Administrator + Default profile hives (free at boot; skipped harmlessly if a hive is locked). ----
+try {
+    # High-Performance power plan — stops CPU down-throttling (idle/energy-saver kills interactive feel).
+    try { powercfg /s SCHEME_MIN | Out-Null; Log "power plan -> High Performance" } catch {}
+
+    # "Adjust for best performance" (VisualFXSetting=2): disables animations/transparency/shadows.
+    # Applied per-user via hive load because this script is SYSTEM, not the interactive Administrator.
+    $fxTargets = @()
+    if (Test-Path "C:\Users\Administrator\NTUSER.DAT") { $fxTargets += @{ hive = 'HKU\NL_ADM'; file = 'C:\Users\Administrator\NTUSER.DAT' } }
+    if (Test-Path "C:\Users\Default\NTUSER.DAT")        { $fxTargets += @{ hive = 'HKU\NL_DEF'; file = 'C:\Users\Default\NTUSER.DAT' } }
+    foreach ($t in $fxTargets) {
+        try {
+            reg load $t.hive $t.file 2>$null | Out-Null
+            reg add "$($t.hive)\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" /v VisualFXSetting /t REG_DWORD /d 2 /f | Out-Null
+            [gc]::Collect(); Start-Sleep -Milliseconds 200
+            reg unload $t.hive 2>$null | Out-Null
+        } catch { try { reg unload $t.hive 2>$null | Out-Null } catch {} }
+    }
+
+    # Don't auto-open Server Manager at logon (steals CPU + focus every login).
+    try { reg add "HKLM\SOFTWARE\Microsoft\ServerManager" /v DoNotOpenServerManagerAtLogon /t REG_DWORD /d 1 /f | Out-Null } catch {}
+
+    # Disable background services that hurt interactive responsiveness on a single-user RDP box.
+    foreach ($svc in @('WSearch', 'SysMain')) {
+        try { Set-Service -Name $svc -StartupType Disabled -ErrorAction SilentlyContinue; Stop-Service -Name $svc -Force -ErrorAction SilentlyContinue } catch {}
+    }
+
+    # Trim telemetry (lowers idle background CPU; no functional impact for the user).
+    try { reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection" /v AllowTelemetry /t REG_DWORD /d 0 /f | Out-Null } catch {}
+
+    # Windows Defender: only scan when idle + cap its CPU so it never fights an interactive session.
+    # NOTE: no exclusions added — real-time protection stays fully on (nothing dangerous disabled).
+    try { Set-MpPreference -ScanOnlyIfIdleEnabled $true -ScanAvgCPULoadFactor 20 -ErrorAction SilentlyContinue } catch {}
+
+    # RDP server-side tuning: enable virtualized (hardware) graphics where present. NLA stays ON
+    # (UserAuthentication=1 set in section 3 above) — do NOT disable it.
+    try { reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" /v fEnableVirtualizedGraphics /t REG_DWORD /d 1 /f | Out-Null } catch {}
+
+    Log "performance tuning applied (power/visualfx/servermgr/services/telemetry/defender/rdp-gfx)"
+} catch { Log "performance tuning failed: $($_.Exception.Message)" }
+
 # ---- 4. callback (password applied above; sent once per SERVER_ID, also after a bootscript re-run) ----
 $cbDone = (Test-Path $cbMarker) -and ((Get-Content $cbMarker -ErrorAction SilentlyContinue) -eq $sid)
 if ($sid -and $cfg["CALLBACK_URL"] -and $cfg["CALLBACK_TOKEN"] -and -not $cbDone) {

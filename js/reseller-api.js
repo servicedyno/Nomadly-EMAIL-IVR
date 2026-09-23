@@ -543,7 +543,13 @@ function createResellerApi(deps = {}) {
     // RDP orders are created with ip=null; resolve the live IP once provisioning assigned one.
     let ip = rec.host || null
     if (!ip && rec.instanceId) { try { ip = (await providerFor(isRDP).getInstance(rec.instanceId))?.mainIp || null; if (ip) await col('vpsPlansOf').updateOne({ _id: rec._id }, { $set: { host: ip } }) } catch (_) {} }
-    res.json({ id: rec.vpsId || rec._id, ip, username: isRDP ? 'Administrator' : 'root', password: password || (isLive() ? null : '••• (revealed only in live mode)'), mode: mode() })
+    const out = { id: rec.vpsId || rec._id, ip, username: isRDP ? 'Administrator' : 'root', password: password || (isLive() ? null : '••• (revealed only in live mode)'), mode: mode() }
+    // Speed lever 4: ship a ready-tuned .rdp connection file (LAN preset, bitmap cache on,
+    // wallpaper/animations off) so the customer connects fast without touching client settings.
+    if (isRDP && ip) {
+      try { const prov = providerFor(true); if (typeof prov.buildRdpFile === 'function') { const f = prov.buildRdpFile(ip, 'Administrator'); if (f) out.rdp_file = f } } catch (_) {}
+    }
+    res.json(out)
   }
 
   // ── RDP-only lifecycle: password reset (in-place, agent) + reinstall (DO rebuild) ──

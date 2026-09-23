@@ -175,12 +175,13 @@ async function main() {
   ok('ws2019 fast_deploy=false eta 45', o19.fast_deploy === false && o19.eta_minutes === 45 && o19.default === false)
   ok('ws2022 is default', o22.default === true)
   calls.length = 0
-  const inst = await svc.createInstance({ productId: 'starter-1m', regionSlug: 'US', osId: 'ws2022' })
-  ok('createInstance reports fastDeploy + eta 3 for starter (50 GB) in nyc3', inst.fastDeploy === true && inst.etaMinutes === 3 && inst.osId === 'ws2022')
+  const inst = await svc.createInstance({ productId: 'standard-1m', regionSlug: 'US', osId: 'ws2022' })
+  ok('createInstance reports fastDeploy + eta 3 for standard in nyc3', inst.fastDeploy === true && inst.etaMinutes === 3 && inst.osId === 'ws2022')
   await waitFor(async () => calls.some(c => c.m === 'POST' && c.u === '/droplets'))
   await sleep(100)
   const fastCreate = calls.find(c => c.m === 'POST' && c.u === '/droplets')
   ok('fast path creates droplet FROM golden image with KEY=VALUE user-data', fastCreate && fastCreate.data.image === b.snapshot_image_id && /^ADMIN_PASSWORD=.+\nCALLBACK_URL=https:\/\/example\.test\/api\/provision\/callback\n/.test(fastCreate.data.user_data))
+  ok('region-aware size: nyc3 has NO AMD → Basic slug (s-2vcpu-4gb)', fastCreate.data.size === 's-2vcpu-4gb')
   ok('fast-path user-data carries the REAL per-order password (from the secret store, not "undefined")', fastCreate.data.user_data.startsWith(`ADMIN_PASSWORD=${inst.defaultPassword}\n`) && inst.defaultPassword.length >= 16)
   const keyPost = calls.find(c => c.m === 'POST' && c.u === '/account/keys')
   ok('custom-image create carries the auto-registered throwaway ed25519 SSH key', keyPost && /^ssh-ed25519 [A-Za-z0-9+/=]+ nomadly-rdp-golden$/.test(keyPost.data.public_key) && JSON.stringify(fastCreate.data.ssh_keys) === '[555]')
@@ -191,6 +192,7 @@ async function main() {
   await sleep(150)
   const slowCreate = calls.find(c => c.m === 'POST' && c.u === '/droplets')
   ok('slow path creates Ubuntu droplet with conversion script in direct mode', slowCreate && slowCreate.data.image === 'ubuntu-22-04-x64' && /qemu-system-x86_64/.test(slowCreate.data.user_data) && slowCreate.data.user_data.includes('BUILD_MODE="direct"'))
+  ok('region-aware size: sgp1 HAS AMD → AMD slug (s-4vcpu-8gb-amd)', slowCreate.data.size === 's-4vcpu-8gb-amd')
   ok('slow-path autounattend bakes the REAL per-order Administrator password', (() => { const x = Buffer.from(slowCreate.data.user_data.match(/AUTOUNATTEND_B64="([^"]+)"/)[1], 'base64').toString(); return x.includes(`<Value>${slow.defaultPassword}</Value>`) && !x.includes('undefined') })())
   ok('slow path attaches an install volume and records volume_id', slowCreate.data.volumes && slowCreate.data.volumes.length === 1 && (await db.collection('doRdpServers').findOne({ server_id: slow.serverId })).volume_id === slowCreate.data.volumes[0])
   ok('on-demand transfer to sgp1 kicked off', calls.some(c => c.m === 'POST' && c.u === `/images/${b.snapshot_image_id}/actions` && c.data.region === 'sgp1'))
@@ -199,7 +201,7 @@ async function main() {
   const srvLog = await db.collection('doRdpServers').findOne({ server_id: slow.serverId })
   ok('order log notes the transfer', (srvLog.logs || []).some(l => /image transfer started/.test(l.message)))
   let threw = null
-  try { await svc.createInstance({ productId: 'starter-1m', regionSlug: 'US', osId: 'win11' }) } catch (e) { threw = e }
+  try { await svc.createInstance({ productId: 'standard-1m', regionSlug: 'US', osId: 'win11' }) } catch (e) { threw = e }
   ok('createInstance rejects unknown os', threw && /unknown os/.test(threw.message))
 
   console.log('\n[2b] Reseller status block (GET /rdp/:id → provisioning) + admin alerts')

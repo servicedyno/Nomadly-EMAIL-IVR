@@ -41,7 +41,14 @@ class TestRdpPlans:
         assert j.get("product") == "rdp"
         assert j.get("provider") == "digitalocean"
         assert j.get("default_os") == "ws2022"
-        assert isinstance(j.get("plans"), list) and len(j["plans"]) == 12, f"plans length={len(j.get('plans',[]))}"
+        assert isinstance(j.get("plans"), list) and len(j["plans"]) == 9, f"plans length={len(j.get('plans',[]))}"
+        # Speed lever 2: Starter (1vCPU/2GB) retired — must not be sold anymore.
+        assert not any(str(p.get("plan_id", "")).startswith("starter") for p in j["plans"]), "starter plan must be removed"
+        # Speed lever 1: ×2 pricing off the faster Premium-AMD hardware.
+        by_plan = {p["plan_id"]: p for p in j["plans"]}
+        assert by_plan["standard-1m"]["price_usd"] == 56, by_plan.get("standard-1m")
+        assert by_plan["pro-1m"]["price_usd"] == 112, by_plan.get("pro-1m")
+        assert by_plan["power-1m"]["price_usd"] == 224, by_plan.get("power-1m")
         os_opts = j.get("os_options")
         assert isinstance(os_opts, list) and len(os_opts) == 3, f"os_options={os_opts}"
         by_id = {o["id"]: o for o in os_opts}
@@ -83,7 +90,7 @@ class TestRdpPlans:
 class TestRdpCreateValidation:
     def test_no_auth(self):
         r = requests.post(f"{BASE_URL}/api/reseller/v1/rdp",
-                          json={"plan_id": "starter-1m", "region": "US", "os": "ws2016"},
+                          json={"plan_id": "standard-1m", "region": "US", "os": "ws2016"},
                           timeout=30)
         assert r.status_code in (401, 403), f"got {r.status_code}: {r.text[:200]}"
 
@@ -99,7 +106,7 @@ class TestRdpCreateValidation:
     def test_invalid_os(self):
         r = requests.post(f"{BASE_URL}/api/reseller/v1/rdp",
                           headers=HEADERS,
-                          json={"plan_id": "starter-1m", "region": "US", "os": "ws2016"}, timeout=30)
+                          json={"plan_id": "standard-1m", "region": "US", "os": "ws2016"}, timeout=30)
         assert r.status_code == 400, f"got {r.status_code}: {r.text[:300]}"
         j = r.json()
         err = j.get("error") or j.get("code") or ""

@@ -46,12 +46,40 @@ const SCRIPTS_DIR = path.join(__dirname, 'rdp-scripts')
 // ─────────────────────────────────────────────────────────────
 const DURATIONS = [1, 2, 3]
 
+// Sellable tiers. Speed lever 1: RDPs run on Premium **AMD** droplets (newer CPU, faster RAM,
+// true NVMe) — `do_size_slug` is the AMD slug and is the default. `do_size_slug_basic` is the
+// Basic-Regular fallback used ONLY in regions without AMD (nyc3, tor1) so provisioning never
+// fails on an unavailable size. Prices track the AMD monthly cost × months × 2 (see sellPrice):
+// Standard $56/mo, Pro $112/mo, Power $224/mo.
+// Speed lever 2: the 1vCPU/2GB "Starter" was retired 2026-09 (below Windows Server's memory
+// floor → always slow). It lives in LEGACY_TIERS only, so servers already provisioned on it
+// still render a name/spec; it is NOT sold anymore.
 const TIERS = [
-  { slug: 'starter',  name: 'Starter',  vcpu: 1, ram_gb: 2,  disk_gb: 50,  do_size_slug: 's-1vcpu-2gb',  monthly_do_cost: 12 },
-  { slug: 'standard', name: 'Standard', vcpu: 2, ram_gb: 4,  disk_gb: 80,  do_size_slug: 's-2vcpu-4gb',  monthly_do_cost: 24 },
-  { slug: 'pro',      name: 'Pro',      vcpu: 4, ram_gb: 8,  disk_gb: 160, do_size_slug: 's-4vcpu-8gb',  monthly_do_cost: 48 },
-  { slug: 'power',    name: 'Power',    vcpu: 8, ram_gb: 16, disk_gb: 320, do_size_slug: 's-8vcpu-16gb', monthly_do_cost: 96 },
+  { slug: 'standard', name: 'Standard', vcpu: 2, ram_gb: 4,  disk_gb: 80,  do_size_slug: 's-2vcpu-4gb-amd',  do_size_slug_basic: 's-2vcpu-4gb',  monthly_do_cost: 28 },
+  { slug: 'pro',      name: 'Pro',      vcpu: 4, ram_gb: 8,  disk_gb: 160, do_size_slug: 's-4vcpu-8gb-amd',  do_size_slug_basic: 's-4vcpu-8gb',  monthly_do_cost: 56 },
+  { slug: 'power',    name: 'Power',    vcpu: 8, ram_gb: 16, disk_gb: 320, do_size_slug: 's-8vcpu-16gb-amd', do_size_slug_basic: 's-8vcpu-16gb', monthly_do_cost: 112 },
 ]
+// Retired tiers — NOT sold, kept only so existing servers still resolve a name/spec.
+const LEGACY_TIERS = [
+  { slug: 'starter', name: 'Starter (legacy)', vcpu: 1, ram_gb: 2, disk_gb: 50, do_size_slug: 's-1vcpu-2gb', do_size_slug_basic: 's-1vcpu-2gb', monthly_do_cost: 12 },
+]
+const TIER_BY_SLUG = new Map([...TIERS, ...LEGACY_TIERS].map(t => [t.slug, t]))
+
+// Regions where DigitalOcean Premium AMD (NVMe) sizes exist (verified live via DO API 2026-09).
+// Everywhere else (nyc3, tor1) we fall back to the Basic-Regular `do_size_slug_basic`.
+const AMD_REGIONS = new Set(['ams3', 'blr1', 'fra1', 'lon1', 'nyc1', 'nyc2', 'sfo3', 'sgp1', 'syd1'])
+// Resolve the DO size slug for a tier in a given region (AMD where available, Basic fallback elsewhere).
+function sizeSlugFor(tier, regionSlug) {
+  if (!tier) return null
+  return AMD_REGIONS.has(String(regionSlug || '')) ? tier.do_size_slug : (tier.do_size_slug_basic || tier.do_size_slug)
+}
+// Display-only product shape for retired tiers (e.g. legacy 'starter' servers still running).
+function legacyProductFor(s) {
+  const t = TIER_BY_SLUG.get(s && s.tier_slug)
+  if (!t) return null
+  const m = s.duration_months || 1
+  return { productId: `${t.slug}-${m}m`, slug: t.slug, cpuCores: t.vcpu, vcpus: t.vcpu, ramGb: t.ram_gb, ramMb: t.ram_gb * 1024, diskGb: t.disk_gb, diskMb: t.disk_gb * 1024, durationMonths: m, do_size_slug: t.do_size_slug, do_size_slug_basic: t.do_size_slug_basic }
+}
 
 const VIRTIO = 'https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/virtio-win.iso'
 const OS_OPTIONS = {
@@ -78,7 +106,8 @@ function regionToSlug(region) {
 }
 
 // Golden-image build droplet: needs >=4 GB RAM for the QEMU install AND a 50 GB
-// disk — the snapshot's min_disk_size must fit EVERY tier (starter = 50 GB).
+// disk — a small 50 GB build keeps the snapshot's min_disk_size low so it fits
+// EVERY sellable tier (smallest is now Standard = 80 GB after Starter was retired).
 // gd-2vcpu-8gb = dedicated 2 vCPU / 8 GB / 50 GB (~$0.10/h; a build is ~1 h).
 const BUILD_SIZE = process.env.DO_RDP_BUILD_SIZE || 'gd-2vcpu-8gb'
 // Same 50 GB disk, tried in order when DO reports "Size is not available in this region" (capacity fluctuates).
@@ -130,7 +159,7 @@ function _products() {
         vcpus: t.vcpu, ramGb: t.ram_gb, diskGb: t.disk_gb,
         // bot / vm-instance-setup compat fields
         cpuCores: t.vcpu, ramMb: t.ram_gb * 1024, diskMb: t.disk_gb * 1024, diskType: 'nvme', bandwidthTb: 4, portSpeedMbps: 1000, tier: tierIdx + 1,
-        do_size_slug: t.do_size_slug,
+        do_size_slug: t.do_size_slug, do_size_slug_basic: t.do_size_slug_basic,
         pricing: { base: price, markup: 0, totalWithMarkup: price, basePriceUsd: price, regionSurcharge: 0, windowsLicense: 0, totalBeforeMarkup: price, currency: 'usd', durationMonths: m },
       })
     }
@@ -152,6 +181,34 @@ function calculatePrice(product, _regionSlug, _isWindows) {
   return p.pricing
 }
 function formatSpecs(p) { return p ? `${p.cpuCores || p.vcpus} vCPU · ${p.ramGb} GB RAM · ${p.diskGb} GB NVMe · Windows Server` : '' }
+
+// Speed lever 4: a ready-made .rdp connection file tuned for a fast/LAN-like experience so the
+// customer isn't stuck on laggy client defaults (bitmap caching ON, wallpaper/animations OFF,
+// full 32-bit colour, high-speed connection profile). Returns null without a valid IP.
+function buildRdpFile(ip, username = 'Administrator') {
+  if (!ip || typeof ip !== 'string') return null
+  const lines = [
+    `full address:s:${ip}:3389`,
+    `username:s:${username || 'Administrator'}`,
+    'screen mode id:i:2',            // full screen
+    'session bpp:i:32',              // 32-bit colour
+    'compression:i:1',               // enable compression
+    'bitmapcachepersistenable:i:1',  // persist bitmap cache across sessions
+    'connection type:i:6',           // LAN (10 Mbps+) high-speed profile
+    'networkautodetect:i:0',         // trust the LAN profile, skip auto-detect
+    'bandwidthautodetect:i:1',
+    'disable wallpaper:i:1',
+    'disable menu anims:i:1',
+    'disable full window drag:i:1',
+    'allow font smoothing:i:1',
+    'audiomode:i:2',                 // do not play remote audio (less bandwidth)
+    'redirectclipboard:i:1',
+    'authentication level:i:2',
+    'prompt for credentials:i:0',
+    'administrative session:i:0',
+  ]
+  return lines.join('\r\n') + '\r\n'
+}
 
 // Regions for the bot's country step (same 9 datacenters the reseller API maps to).
 const REGION_DISPLAY = {
@@ -986,9 +1043,12 @@ async function createInstance(opts = {}) {
   const callbackToken = genToken()
   const label = opts.label || opts.displayName || null
 
+  // Speed lever 2: pick the region-aware DO size — AMD (NVMe) where available, Basic elsewhere.
+  const sizeSlug = sizeSlugFor(product, region)
+
   const doc = {
     server_id: serverId, os_id: osId, tier_slug: product.slug,
-    duration_months: product.durationMonths, region, do_size_slug: product.do_size_slug,
+    duration_months: product.durationMonths, region, do_size_slug: sizeSlug,
     disk_gb: product.diskGb, do_droplet_id: null, volume_id: null, ip_address: null,
     admin_username: 'Administrator', callback_token: callbackToken, vnc_password: crypto.randomBytes(6).toString('base64url').slice(0, 8),
     status: 'queued', progress: 0, logs: [], label, product_id: product.productId,
@@ -1082,7 +1142,7 @@ async function getInstance(instanceId) {
       if (pub && pub.ip_address) { s.ip_address = pub.ip_address; await _servers.updateOne({ server_id: id }, { $set: { ip_address: pub.ip_address } }) }
     } catch (_) {}
   }
-  const product = getProduct(s.product_id) || PRODUCTS.find(p => p.slug === s.tier_slug && p.durationMonths === (s.duration_months || 1)) || null
+  const product = getProduct(s.product_id) || PRODUCTS.find(p => p.slug === s.tier_slug && p.durationMonths === (s.duration_months || 1)) || legacyProductFor(s) || null
   const osName = (OS_OPTIONS[s.os_id] || {}).name || 'Windows Server'
   return {
     // reseller API fields
@@ -1319,7 +1379,7 @@ module.exports = {
   PROVIDER,
   init,
   // catalog / pricing
-  listProducts, getProduct, calculatePrice, formatSpecs, listRegions, REGION_DISPLAY, getDefaultWindowsImageId,
+  listProducts, getProduct, calculatePrice, formatSpecs, buildRdpFile, listRegions, REGION_DISPLAY, getDefaultWindowsImageId,
   // lifecycle
   createInstance, createInstanceWithFallback, getInstance,
   startInstance, stopInstance, restartInstance, shutdownInstance,
