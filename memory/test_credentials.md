@@ -27,7 +27,7 @@
 
 ## Frontend env (recreated during setup)
 - `/app/frontend/.env` present with:
-  `REACT_APP_BACKEND_URL=https://secure-passphrase-2.preview.emergentagent.com` (current pod; earlier forks had a different preview host — always trust the live value in frontend/.env, not older docs)
+  `REACT_APP_BACKEND_URL=https://8633191f-6ba6-4d2e-bc03-8cf5a3d4157c.preview.emergentagent.com` (current pod; earlier forks had a different preview host — always trust the live value in frontend/.env, not older docs)
 
 ## Admin panel
 - Frontend admin dashboard is open (no login) at the pod root URL.
@@ -36,7 +36,8 @@
 - Key label `golden e2e sandbox key` (`resellerApiKeys._id = e2e-golden-key`)
 - `X-API-Key: nmdly_e2e_51573577f5db956c5c0cb039` (or `Authorization: Bearer ...`)
 - Base: `${REACT_APP_BACKEND_URL}/api/reseller/v1` — e.g. `GET /rdp/plans`, `POST /rdp`
-- Re-seed on a fresh pod: `node scripts/seed_e2e_sandbox.js` (idempotent — upserts the key + owner wallet $1000).
+- Re-seed on a fresh pod: `node scripts/seed_rdp_reseller_e2e.js` (idempotent — upserts the key + owner
+  wallet $1000 AND the `e2e-rdp-1` RDP record below). The older `seed_e2e_sandbox.js` seeds only the key+wallet.
 - Sandbox owned RDP record for the key owner: `vpsPlansOf._id = "e2e-rdp-1"` (provider `digitalocean-rdp`,
   instanceId `rdp-11111111-2222-3333-4444-555555555555`, os_id `ws2022`). Used to exercise the new
   `POST /rdp/:id/password-reset`, `POST /rdp/:id/reinstall`, and `agent_online` on `GET /rdp/:id`

@@ -284,6 +284,47 @@ backend:
           Test file: /app/backend_test.py (33 comprehensive tests)
           Test run: 2026-09-23 (all tests passed, 0 failures, 0 warnings)
 
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ RE-VERIFICATION COMPLETE - RDP Reseller API D1/D2/D3 CONFIRMED WORKING (33/33 tests, 100% pass rate)
+          
+          Re-verified all RDP Reseller API endpoints on the current pod (https://8633191f-6ba6-4d2e-bc03-8cf5a3d4157c.preview.emergentagent.com).
+          All 33 tests passed with identical results to the previous test run. The API continues to work correctly.
+          
+          TEST RESULTS (33/33 PASSED):
+          ✅ D1 PASSWORD RESET: 3/3 tests passed (dry_run envelope, username="Administrator", method="agent")
+          ✅ D2a REINSTALL ws2019: 3/3 tests passed (dry_run envelope, os="ws2019")
+          ✅ D2b REINSTALL INVALID OS: 3/3 tests passed (HTTP 400, error="invalid_os", message lists valid OS)
+          ✅ D2c REINSTALL DEFAULT OS: 3/3 tests passed (dry_run envelope, os defaults to "ws2022")
+          ✅ D3 GET RDP: 5/5 tests passed (agent_online field present, DO-RDP routing confirmed)
+          ✅ AUTH MISSING KEY: 2/2 tests passed (HTTP 401, error="missing_api_key")
+          ✅ NOT FOUND PASSWORD RESET: 2/2 tests passed (HTTP 404, error="not_found")
+          ✅ NOT FOUND REINSTALL: 2/2 tests passed (HTTP 404, error="not_found")
+          ✅ REGRESSION GET /rdp: 3/3 tests passed (list endpoint, e2e-rdp-1 found)
+          ✅ REGRESSION GET /rdp/plans: 4/4 tests passed (plans endpoint, 3 plans returned)
+          ✅ REGRESSION GET /account: 2/2 tests passed (account endpoint)
+          ✅ AUTH BEARER HEADER: 1/1 test passed (Bearer auth works)
+          
+          CRITICAL VERIFICATION:
+          • ✅ All endpoints return correct HTTP status codes (200, 400, 401, 404)
+          • ✅ All dry_run envelopes contain correct fields and values
+          • ✅ OS validation works correctly (ws2019/ws2022/ws2025 accepted, others rejected)
+          • ✅ OS defaults to record's edition (ws2022) when not specified
+          • ✅ agent_online field present and boolean type
+          • ✅ DO-RDP routing confirmed (live.status="unknown" for fake instance, NOT Azure error)
+          • ✅ Auth works with both X-API-Key and Authorization: Bearer headers
+          • ✅ Ownership enforcement works (404 for non-existent IDs)
+          • ✅ Regression endpoints still work correctly
+          
+          CONCLUSION:
+          The RDP Reseller API D1/D2/D3 endpoints are VERIFIED WORKING on the current pod. All functionality 
+          confirmed operational. No issues found. The API is ready for production use when RESELLER_API_LIVE=true 
+          is set on a production pod.
+          
+          Test file: /app/backend_test.py (33 comprehensive tests)
+          Test run: 2026-09-23 (re-verification, all tests passed, 0 failures, 0 warnings)
+
 
   - task: "Enhancements (2026-09) — Reseller API File Manager: (1) NEW one-tap POST /hosting/:user/files/unzip (upload + extract + list in one call, optional removeArchive); (2) File-Op RECEIPTS: move/copy/extract/unzip return a `receipt` with before/after directory listings + added/removed diffs so callers confirm placement without a second request (default ON; opt-out via receipt:false)"
     implemented: true
@@ -19954,4 +19995,51 @@ frontend_ui_test_scope_2026-08-31: |
       
       Test file: /app/backend_test.py (7 comprehensive tests)
       Test run: 2026-09 (all tests passed, 0 failures, 0 warnings)
+
+  - agent: "testing"
+    message: |
+      ✅ RDP RESELLER API D1/D2/D3 RE-VERIFICATION COMPLETE (2026-09-23)
+      
+      Re-verified the DO Windows RDP reseller API endpoints on the current pod. All 33 tests passed (100% pass rate).
+      The API is working correctly and ready for production use when RESELLER_API_LIVE=true is set.
+      
+      VERIFICATION SCOPE:
+      • Base URL: https://8633191f-6ba6-4d2e-bc03-8cf5a3d4157c.preview.emergentagent.com/api/reseller/v1
+      • Auth: X-API-Key: nmdly_e2e_51573577f5db956c5c0cb039 (or Authorization: Bearer)
+      • Test RDP: e2e-rdp-1 (provider digitalocean-rdp, os_id ws2022)
+      • Environment: DEV SANDBOX (SKIP_WEBHOOK_SYNC=true, dry_run mode)
+      
+      TEST RESULTS (33/33 PASSED):
+      ✅ D1 PASSWORD RESET: 3/3 tests (dry_run envelope, username="Administrator", method="agent")
+      ✅ D2a REINSTALL ws2019: 3/3 tests (dry_run envelope, os="ws2019")
+      ✅ D2b REINSTALL INVALID OS: 3/3 tests (HTTP 400, error="invalid_os")
+      ✅ D2c REINSTALL DEFAULT OS: 3/3 tests (os defaults to "ws2022")
+      ✅ D3 GET RDP: 5/5 tests (agent_online field, DO-RDP routing)
+      ✅ AUTH MISSING KEY: 2/2 tests (HTTP 401, error="missing_api_key")
+      ✅ NOT FOUND PASSWORD RESET: 2/2 tests (HTTP 404, error="not_found")
+      ✅ NOT FOUND REINSTALL: 2/2 tests (HTTP 404, error="not_found")
+      ✅ REGRESSION GET /rdp: 3/3 tests (list endpoint works)
+      ✅ REGRESSION GET /rdp/plans: 4/4 tests (plans endpoint works)
+      ✅ REGRESSION GET /account: 2/2 tests (account endpoint works)
+      ✅ AUTH BEARER HEADER: 1/1 test (Bearer auth works)
+      
+      CRITICAL VERIFICATION:
+      • ✅ All endpoints return correct HTTP status codes (200, 400, 401, 404)
+      • ✅ All dry_run envelopes contain correct fields and values
+      • ✅ OS validation works (ws2019/ws2022/ws2025 accepted, others rejected)
+      • ✅ OS defaults to record's edition (ws2022) when not specified
+      • ✅ agent_online field present and boolean type
+      • ✅ DO-RDP routing confirmed (live.status="unknown" for fake instance)
+      • ✅ Auth works with both X-API-Key and Authorization: Bearer headers
+      • ✅ Ownership enforcement works (404 for non-existent IDs)
+      • ✅ Regression endpoints still work correctly
+      
+      CONCLUSION:
+      The RDP Reseller API D1/D2/D3 endpoints are VERIFIED WORKING. All functionality confirmed operational.
+      No issues found. The API is ready for production use when RESELLER_API_LIVE=true is set on a production pod.
+      
+      ACTION ITEMS FOR MAIN AGENT:
+      • ✅ All backend APIs have passed with no major issues
+      • ✅ Please summarize and finish
+      • ✅ YOU MUST ASK USER BEFORE DOING FRONTEND TESTING
 
