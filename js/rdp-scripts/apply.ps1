@@ -140,6 +140,21 @@ if ($meta) {
     }
 } else { Log "metadata unreachable - leaving network as is" }
 
+# ---- 2a'. DNS safety-net: force public resolvers on EVERY 'Up' adapter, even if the metadata
+# MAC-match above missed the NIC. Server 2025's adapter/driver naming differs from 2019/2022, so
+# the per-interface Set-DnsClientServerAddress above can silently miss the public NIC, leaving DO's
+# VPC 10.x resolver in place - it times out for minutes after boot and makes every callback / agent
+# poll / bootscript self-refresh fail with "remote name could not be resolved". Redundant (harmless)
+# on 2019/2022 where the match already succeeded. ----
+try {
+    $pubDns = @('1.1.1.1', '8.8.8.8', '67.207.67.2', '67.207.67.3')
+    Get-NetAdapter | Where-Object { $_.Status -eq 'Up' } | ForEach-Object {
+        try { Set-DnsClientServerAddress -InterfaceIndex $_.ifIndex -ServerAddresses $pubDns -ErrorAction SilentlyContinue } catch {}
+    }
+    Clear-DnsClientCache
+    Log "DNS safety-net: public resolvers ($($pubDns -join ',')) forced on all up adapters"
+} catch { Log "DNS safety-net failed: $($_.Exception.Message)" }
+
 # ---- 2b. per-order settings: KEY=VALUE user-data (separate endpoint - v1.json has no user_data) ----
 if ($meta -and $cfg.Count -eq 0) { $cfg = Read-UserDataCfg 20 }
 Log "user-data keys: $($cfg.Keys -join ',')"
