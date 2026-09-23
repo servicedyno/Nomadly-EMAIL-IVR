@@ -45,3 +45,14 @@
 ## RDP golden-image admin endpoints (sandbox)
 - `GET/POST ${REACT_APP_BACKEND_URL}/api/admin/rdp-golden/{status|build|sync|transfer|cancel}?key=<first 16 chars of SESSION_SECRET in backend/.env>` (URL-encode the key)
 - CLI wrappers: `node js/ops/rdp_golden_build.js status|watch|build|transfer|cancel`, E2E: `node js/ops/rdp_golden_e2e.js --os ws2019|ws2022|ws2025 --region US` (creates + destroys one real droplet)
+
+## Telegram bot simulation harness (sandbox only, added 2026-09-23)
+- `backend/.env` has `TELEGRAM_API_BASE_URL=http://127.0.0.1:5099` → the bot talks to the local mock Bot API
+  `js/tests/mock_telegram_api.js` instead of Telegram (nothing reaches real users). Start it if not running:
+  `nohup node js/tests/mock_telegram_api.js > /tmp/mock_tg.log 2>&1 &`  (health: `GET http://127.0.0.1:5099/_health`)
+- Drive the bot: `POST http://localhost:5000/telegram/webhook` with a Telegram update JSON
+  (`{"update_id":1,"message":{"message_id":1,"date":<unix>,"chat":{"id":777000123,"type":"private","first_name":"Sim"},"from":{"id":777000123,"is_bot":false,"first_name":"Sim","username":"sim_user"},"text":"<button label or text>"}}`).
+- Read replies: `GET http://127.0.0.1:5099/_calls?chat_id=777000123&since=<epoch_ms>&method=sendMessage` → `[{ts,method,chat_id,text,buttons[],reply_markup}]`.
+  `DELETE /_calls` clears the log. Reply-keyboard buttons are "tapped" by sending their exact label as the message text.
+- Sim user chat_id `777000123`: onboarded (English), wallet `walletOf._id="777000123"` seeded usdIn=500.
+- Local `VPS_RDP_PROVIDER="digitalocean-rdp"` (same as production after 2026-09-23) → bot RDP flow = DigitalOcean golden images.

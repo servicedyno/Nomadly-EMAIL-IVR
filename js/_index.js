@@ -1334,8 +1334,9 @@ let bot
 
 // Initialize bot with webhooks (no polling)
 if (TELEGRAM_BOT_ON === 'true') {
-  bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { webHook: false })
-  log('TELEGRAM_BOT_ON: ' + TELEGRAM_BOT_ON)
+  // TELEGRAM_API_BASE_URL: sandbox-only override pointing at js/tests/mock_telegram_api.js (unset in production).
+  bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { webHook: false, baseApiUrl: process.env.TELEGRAM_API_BASE_URL || undefined })
+  log('TELEGRAM_BOT_ON: ' + TELEGRAM_BOT_ON + (process.env.TELEGRAM_API_BASE_URL ? ` (Bot API → ${process.env.TELEGRAM_API_BASE_URL})` : ''))
   log('Bot initialized with webhook support')
   log('Bot ran away! ' + new Date())
 } else {

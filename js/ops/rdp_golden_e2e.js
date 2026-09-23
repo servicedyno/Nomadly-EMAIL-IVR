@@ -46,7 +46,7 @@ const doGet = async (p) => (await axios.get(`https://api.digitalocean.com/v2${p}
   let seen = 0, doc = null, dropletChecked = false
   while (Date.now() - t0 < WAIT_MIN * 60000) {
     await sleep(10000)
-    doc = await servers.findOne({ server_id: inst.instanceId })
+    doc = await servers.findOne({ server_id: svc.normId(inst.instanceId) })
     if (!doc) { console.log(`[${ts()}] server doc missing?!`); continue }
     for (const l of (doc.logs || []).slice(seen)) console.log(`[${ts()}] +${Math.round((Date.now() - t0) / 1000)}s ${String(l.stage).padEnd(12)} ${l.message}`)
     seen = (doc.logs || []).length
