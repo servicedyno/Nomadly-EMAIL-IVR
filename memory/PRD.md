@@ -153,3 +153,9 @@ Runbook: `memory/RDP_GOLDEN_IMAGES.md`; lessons: `memory/DO_RDP_LESSONS.md`.
 - MAIN REMAINING GAP: Reseller API — `POST /rdp/:id/password-reset` and `POST /rdp/:id/reinstall` endpoints DO NOT exist yet (`vpsActionHandler` only supports start/stop/reboot/shutdown). `agent_online` not yet on `GET /rdp/:id`. Docs pending.
 - Also pending: golden image parallel rebuild (F1, owner-approved), testing_agent + live E2E (E2/E3).
 - Full task tracker with line pointers: `/app/memory/RDP_BOT_INTEGRATION_TASKS.md`.
+
+## 2026-06 (fork, wrap-up) — Bot interface VPS↔RDP separation (CODE ONLY, UNTESTED)
+User reported confusion in the bot between Windows RDP and Linux VPS (they are different products with different plans). Fix implemented on disk but **NOT verified** — session ended per owner request before testing.
+- Edited (uncommitted): `js/_index.js` (routing, menus, plan lists, subscription-detail screens; auto-renew now treats `digitalocean-rdp` as a PAYG provider), `js/vm-instance-setup.js` (VPS vs RDP plan setup + OS selection), `js/new-user-conversion.js`, and all 4 locale files `js/lang/{en,fr,zh,hi}.js` (split RDP vs VPS strings).
+- Health: all 7 files pass `node -c`; nodejs/backend/frontend/mongodb RUNNING.
+- ⚠️ NEXT AGENT MUST: run testing_agent (bot/backend flow) or a local sim to verify RDP purchase flow and VPS purchase flow load correctly with no UI overlap/crash. Then resume Reseller API D endpoints + F1 golden rebuilds. See `/app/memory/RDP_BOT_INTEGRATION_TASKS.md` "Highest-priority pending items".

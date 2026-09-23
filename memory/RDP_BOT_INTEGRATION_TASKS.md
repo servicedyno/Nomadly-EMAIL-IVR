@@ -66,3 +66,10 @@ Approved by owner 2026-09-23 00:45 UTC (all items + 1/2/3-month plans in bot AND
 ## Status log
 - 2026-09-23 00:50 UTC — doc created, implementation starting (A → B → C → D → E → F)
 - 2026-06 (fork handoff) — verified state: A/B/C substantially done in code (not live-verified); E1 84/84 passing; app healthy. Reseller API D endpoints still MISSING. Golden rebuilds (F1) not triggered. E2/E3 not done. Session ended per owner request WITHOUT agent testing.
+- 2026-06 (fork, wrap-up) — Bot-interface VPS↔RDP separation IMPLEMENTED IN CODE, **NOT TESTED**. Edits on disk (uncommitted): js/_index.js (routing, menus, subscription-detail screens, auto-renew now treats `digitalocean-rdp` as PAYG), js/vm-instance-setup.js (VPS/RDP plan + OS separation), js/new-user-conversion.js, and all 4 lang files (en/fr/zh/hi split RDP vs VPS strings). All 7 files pass `node -c`; nodejs/backend/frontend/mongodb all RUNNING. Session ended per owner request BEFORE running testing_agent.
+
+## ⚠️ Highest-priority pending items for next agent
+1. **TEST the VPS↔RDP UI separation** (Issue 1, P0) — code is written but unverified. Run testing_agent (backend/bot flow) or a local sim to confirm RDP purchase flow and VPS purchase flow work end-to-end with no UI overlap or crashes. This was the user's explicit request and was NOT verified.
+2. **D1/D2/D3 Reseller API** (P1) — `POST /rdp/:id/password-reset`, `POST /rdp/:id/reinstall {os}`, `agent_online` on `GET /rdp/:id` + apidoc. STILL MISSING (see D section, reseller-api.js:495-507 / add routes near 543-546).
+3. **F1 golden rebuilds** (P1) — check image state via goldenStatus first, then trigger the 3 owner-approved parallel rebuilds. Verify ws2025 E2E (image must be `available`).
+4. **E2/E3** — testing_agent on reseller RDP API + bot smoke, then live E2E on one droplet, then destroy it.

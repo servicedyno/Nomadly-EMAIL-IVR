@@ -197,6 +197,12 @@ async function fetchAvailableDiskTpes(zone, isRDP = false) {
         { id: 'nvme', _id: 'nvme', name: 'NVMe', value: 'nvme', label: '⚡ NVMe SSD', type: 'nvme', description: '⚡ <b>NVMe SSD</b>\n   └ High-performance enterprise storage' },
       ]
     }
+    if (active.PROVIDER === 'digitalocean') {
+      // DigitalOcean Linux droplets are SSD-only — a single entry makes the bot skip the disk step.
+      return [
+        { id: 'ssd', _id: 'ssd', name: 'SSD', value: 'ssd', label: '💾 SSD', type: 'ssd', description: '💾 <b>SSD</b>\n   └ Enterprise SSD storage' },
+      ]
+    }
     return [
       { id: 'nvme', _id: 'nvme', name: 'NVMe', value: 'nvme', label: '⚡ NVMe — Faster Speed', type: 'nvme', description: '⚡ <b>NVMe — Faster Speed</b>\n   └ Best for databases, apps & heavy I/O\n   └ Up to 10× faster read/write vs SSD' },
       { id: 'ssd',  _id: 'ssd',  name: 'SSD',  value: 'ssd',  label: '💾 SSD — 2× More Storage', type: 'ssd', description: '💾 <b>SSD — 2× More Storage</b>\n   └ Same price, double the disk space\n   └ Great for file hosting & backups' }
@@ -1038,7 +1044,7 @@ async function fetchUserVPSList(telegramId) {
           name: record.name,
           label: record.label,
           host: ip,
-          status: live?.status?.toUpperCase() || record.status,
+          status: (live?.botStatus || live?.status)?.toUpperCase() || record.status,
           region: record.region,
           productId: record.productId,
           osType: record.osType,
@@ -1051,7 +1057,7 @@ async function fetchUserVPSList(telegramId) {
           subscription_id: record.vpsId, // for compatibility
           subscription: {
             subscriptionEnd: record.end_time,
-            osId: { os_name: record.osType === 'Windows' ? 'Windows Server 2025' : 'Ubuntu' }
+            osId: { os_name: record.osType === 'Windows' ? (live?.osName || 'Windows Server') : 'Ubuntu' }
           }
         })
 
@@ -1145,6 +1151,10 @@ async function fetchVPSDetails(telegramId, vpsId) {
         osId: { os_name: isRDP ? 'Windows Server' : (live.imageId || 'Ubuntu') }
       },
       defaultUser: localRecord?.defaultUser || live.defaultUser || (isRDP ? 'Administrator' : 'root'),
+      durationMonths: Number(localRecord?.durationMonths || live.durationMonths) || 1,
+      osName: live.osName || null,
+      agentOnline: live.agentOnline === true,
+      provisioning: live.provisioning || null,
 
       // ── Compat fields required by lang/en.js selectedVpsData template ──
       planDetails: {
@@ -1159,7 +1169,7 @@ async function fetchVPSDetails(telegramId, vpsId) {
         type: diskType.toUpperCase()
       },
       osDetails: {
-        name: isRDP ? '🖥 Windows Server (RDP)' : (live.osType || 'Linux')
+        name: isRDP ? `🪟 ${live.osName || 'Windows Server'}` : (live.osType || 'Linux')
       },
       cPanelPlanDetails: null
     }

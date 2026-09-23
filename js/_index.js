@@ -9692,7 +9692,7 @@ bot?.on('message', msg => {
       }
       case 'vps-plan-pay': {
         const vd = info?.vpsDetails || {}
-        return { step, total: n(vd.couponApplied ? vd.planNewPrice : (vd.totalPrice || vd.plantotalPrice)), label: 'VPS', walletOkKey: step }
+        return { step, total: n(vd.couponApplied ? vd.planNewPrice : (vd.totalPrice || vd.plantotalPrice)), label: vd.isRDP ? 'Windows RDP' : 'Linux VPS', walletOkKey: step }
       }
       case 'vps-upgrade-plan-pay': return { step, total: n(info?.vpsDetails?.totalPrice), label: 'VPS upgrade', walletOkKey: step }
       case 'leads-pay': {
@@ -11951,7 +11951,7 @@ Enter new value:`), bc)
         const proof = userConversion.getSocialProof('vps', info?.userLanguage || 'en')
         if (proof) vpsMsg += `\n\n${proof}`
       }
-      send(chatId, vpsMsg, trans('k.of', [user.manageVpsPlan, user.buyVpsPlan]))
+      send(chatId, vpsMsg, trans('k.of', [user.buyLinuxVpsBtn, user.buyRdpBtn, user.manageVpsPlan]))
     },
 
     // ask vps plan — Step 1: VPS or RDP?
@@ -11995,13 +11995,25 @@ Enter new value:`), bc)
 
     askVpsDiskType: async () => {
       await set(state, chatId, 'action', a.askVpsDiskType)
-      send(chatId, vp.vpsWaitingTime)
       const diskTypes = await fetchAvailableDiskTpes(info?.vpsDetails?.zone, !!info?.vpsDetails?.isRDP)
-      log(diskTypes)
       if (!diskTypes || !diskTypes.length) return send(chatId, vp.failedFetchingData, trans('o'))
-      const diskList = diskTypes?.map((item) => item.label) || []
-      saveInfo('vpsDiskTypes', diskTypes)
-      return send(chatId, vp.askVpsDiskType(diskTypes), vp.of(diskList))
+      await saveInfo('vpsDiskTypes', diskTypes)
+      // Single storage type (DigitalOcean Linux/RDP, OVH): nothing to choose — straight to the plans.
+      if (diskTypes.length === 1) return goto.selectVpsDiskType(diskTypes[0])
+      return send(chatId, vp.askVpsDiskType(diskTypes), vp.of(diskTypes.map((item) => item.label)))
+    },
+
+    selectVpsDiskType: async (diskDetails) => {
+      const vpsDetails = info?.vpsDetails || {}
+      vpsDetails.diskType = diskDetails.value
+      vpsDetails.diskLabel = diskDetails.label
+      vpsDetails.diskTypeId = diskDetails._id
+      send(chatId, vp.vpsWaitingTime)
+      const configTypes = await fetchAvailableVPSConfigs(chatId, vpsDetails)
+      if (!configTypes) return send(chatId, vp.failedFetchingData, trans('o'))
+      await saveInfo('vpsConfigTypes', configTypes)
+      await saveInfo('vpsDetails', vpsDetails)
+      return goto.askVpsConfig()
     },
    
     askVpsConfig: async () => {
@@ -12038,11 +12050,11 @@ Enter new value:`), bc)
         console.log(`[VPS] askVpsConfig: getBalance failed for ${chatId}: ${e.message}`)
       }
 
-      // Social proof reused from the VPS-menu screen
+      // Social proof reused from the VPS-menu screen (product-correct wording for Windows RDP)
       let socialProof = ''
       try {
         if (userConversion) {
-          const p = userConversion.getSocialProof('vps', lang)
+          const p = userConversion.getSocialProof(configTypes.some(c => c.isRDP) ? 'rdp' : 'vps', lang)
           if (p) socialProof = String(p)
         }
       } catch (e) {
@@ -12207,8 +12219,8 @@ Enter new value:`), bc)
       list = vpsList.map((vps) => vps.name || vps.vps_name)
       saveInfo('userVPSDetails', vpsDetails)
       return list.length ? 
-        send(chatId, vp.vpsList(vpsList), vp.of([...list, user.buyVpsPlan]))
-        : send(chatId, vp.noVPSfound, vp.of([user.buyVpsPlan]))
+        send(chatId, vp.vpsList(vpsList), vp.of([...list, user.buyLinuxVpsBtn, user.buyRdpBtn]))
+        : send(chatId, vp.noVPSfound, vp.of([user.buyLinuxVpsBtn, user.buyRdpBtn]))
     },
 
     getVPSDetails: async () => {
@@ -12225,8 +12237,12 @@ Enter new value:`), bc)
       const extraButtons = isRDP
         ? [vp.revealPasswordBtn, vp.resetPasswordBtn, vp.reinstallWindowsBtn]
         : [vp.revealPasswordBtn, vp.resetPasswordBtn]
+      // SSH keys are meaningless on a Windows RDP — hide the button there.
+      const tailButtons = isRDP
+        ? [vp.subscriptionBtn, vp.upgradeVpsBtn, vp.deleteVpsBtn]
+        : [vp.subscriptionBtn, vp.VpsLinkedKeysBtn, vp.upgradeVpsBtn, vp.deleteVpsBtn]
       
-      return send(chatId, vp.selectedVpsData(vpsData), vp.of([ ...action, ...extraButtons, vp.subscriptionBtn, vp.VpsLinkedKeysBtn, vp.upgradeVpsBtn,  vp.deleteVpsBtn]))
+      return send(chatId, vp.selectedVpsData(vpsData), vp.of([ ...action, ...extraButtons, ...tailButtons]))
     },
 
     confirmStopVps : async () => {
@@ -19980,6 +19996,18 @@ ${message.replace(/\n/g, '<br>')}
     return goto.createNewVpsFlow()
   }
 
+  // Direct product entry from the hub / manage screens — no "VPS or RDP?" picker needed.
+  if (message === user.buyLinuxVpsBtn || message === user.buyRdpBtn) {
+    if (VPS_ENABLED !== 'true') return send(chatId, trans('t.vps_55'), trans('o'))
+    const isRDP = message === user.buyRdpBtn
+    const vpsDetails = isRDP
+      ? { isRDP: true, os: { name: '🖥 RDP', value: 'win', osType: 'Windows', isRDP: true, pricePerMonth: 0 } }
+      : { isRDP: false }
+    info.vpsDetails = vpsDetails
+    await saveInfo('vpsDetails', vpsDetails)
+    return goto.askRegionForVps()
+  }
+
   // ━━ VPS Step 1: VPS or RDP? ━━
   if (action === a.vpsChooseType) {
     if (message === vp.back) return goto.submenu4()
@@ -20004,8 +20032,9 @@ ${message.replace(/\n/g, '<br>')}
     if (!areaList.includes(message)) return send(chatId, vp.chooseValidCountry, vp.of(areaList))
     let vpsDetails = info?.vpsDetails || {}
     vpsDetails.country = message
-    // Auto-resolve region slug and zone (Contabo: 1 DC + 1 zone per region)
-    const regions = await fetchAvailableRegionsOfCountry(message)
+    // Resolve the region slug on the provider that will actually build this server
+    // (Linux → default provider, RDP → RDP provider; their region lists differ).
+    const regions = await fetchAvailableRegionsOfCountry(message, !!vpsDetails.isRDP)
     if (!regions || !regions.length) return send(chatId, vp.failedFetchingData, trans('o'))
     const region = regions[0]
     vpsDetails.region = region.value
@@ -20039,24 +20068,13 @@ ${message.replace(/\n/g, '<br>')}
     const diskList = options?.map((item) => item?.label) || [];
     if (!diskList || !diskList.length) return send(chatId, vp.failedFetchingData, trans('o'))
     if (!diskList.includes(message)) return send (chatId, vp.chooseValidDiskType, vp.of(diskList))
-    let vpsDetails = info?.vpsDetails
-    const diskDetails = options.find((op) => op.label === message)
-    vpsDetails.diskType = diskDetails.value
-    vpsDetails.diskLabel = message
-    vpsDetails.diskTypeId = diskDetails._id
-    send(chatId, vp.vpsWaitingTime)
-    const configTypes = await fetchAvailableVPSConfigs(chatId, vpsDetails)
-    if (!configTypes) return send(chatId, vp.failedFetchingData, trans('o'))
-    info.vpsDetails = vpsDetails
-    info.vpsConfigTypes = configTypes
-    saveInfo('vpsConfigTypes', configTypes)
-    saveInfo('vpsDetails', vpsDetails)
-    return goto.askVpsConfig()
+    return goto.selectVpsDiskType(options.find((op) => op.label === message))
   }
 
     // save vps configs
   if (action === a.askVpsConfig) {
-    if (message === vp.back) return goto.askVpsDiskType()
+    // The disk step is auto-skipped when the provider has a single storage type — Back goes to the region then.
+    if (message === vp.back) return (info?.vpsDiskTypes || []).length > 1 ? goto.askVpsDiskType() : goto.askRegionForVps()
     const vpsConfigurations = info?.vpsConfigTypes
     // Match by button text "Cloud VPS 1 — $8.18/mo" OR by plain name "Cloud VPS 1".
     // The cheapest plan button now ships with a "🌟 " prefix (see goto.askVpsConfig)
@@ -20072,15 +20090,54 @@ ${message.replace(/\n/g, '<br>')}
     if (!selectedConfigType) return send(chatId, vp.validVpsConfig, vp.of(configButtonLabels))
     let vpsDetails = info?.vpsDetails
     vpsDetails.config = selectedConfigType
-    // Contabo: Monthly only — skip billing cycle selection
     vpsDetails.plan = 'Monthly'
+    vpsDetails.durationMonths = 1
+    vpsDetails.productId = selectedConfigType._id
     vpsDetails.plantotalPrice = vpsDetails.config.billingCycles[0]?.price || vpsDetails.config.monthlyPrice
     vpsDetails.couponApplied = false
     vpsDetails.couponDiscount = 0
     vpsDetails.planNewPrice = 0
     info.vpsDetails = vpsDetails
     saveInfo('vpsDetails', vpsDetails)
+    // Windows RDP (DigitalOcean) sells 1 / 2 / 3-month prepaid periods — ask before the coupon.
+    if (vpsDetails.isRDP && (selectedConfigType.billingCycles || []).length > 1) return goto.askRdpDuration()
     return goto.askCouponForVPSPlan()
+  }
+
+  // RDP: prepaid duration → <tier>-<N>m product + total for the whole period
+  if (action === a.askRdpDuration) {
+    if (message === vp.back) return goto.askVpsConfig()
+    let vpsDetails = info?.vpsDetails || {}
+    const cycles = (vpsDetails.config?.billingCycles || []).filter(c => c && c.price != null)
+    const cycle = cycles.find(c => vp.rdpDurationBtn(c) === message)
+    if (!cycle) return send(chatId, vp.askRdpDuration(vpsDetails.config, cycles), vp.of(cycles.map(c => vp.rdpDurationBtn(c))))
+    vpsDetails.plan = cycle.type
+    vpsDetails.durationMonths = Number(cycle.period) || 1
+    vpsDetails.plantotalPrice = cycle.price
+    vpsDetails.productId = cycle.productId || vpsDetails.config._id
+    vpsDetails.config = { ...vpsDetails.config, _id: vpsDetails.productId }
+    vpsDetails.couponApplied = false
+    vpsDetails.couponDiscount = 0
+    vpsDetails.planNewPrice = 0
+    info.vpsDetails = vpsDetails
+    saveInfo('vpsDetails', vpsDetails)
+    return goto.askCouponForVPSPlan()
+  }
+
+  // RDP: Windows edition — ⚡ golden image ready in this region (~3 min) or ⏳ full install (~45 min)
+  if (action === a.askRdpEdition) {
+    if (message === vp.back) return goto.askCouponForVPSPlan()
+    let vpsDetails = info?.vpsDetails || {}
+    const options = info?.rdpEditionOptions || []
+    const picked = options.find(o => vp.rdpEditionBtn(o) === message)
+    if (!picked) return send(chatId, vp.askRdpEdition(options), vp.of(options.map(o => vp.rdpEditionBtn(o))))
+    vpsDetails.os = { id: picked.id, name: picked.name, value: 'win', osType: 'Windows', isRDP: true, pricePerMonth: 0, fastDeploy: !!picked.fast_deploy, etaMinutes: picked.eta_minutes || null }
+    vpsDetails.selectedOSPrice = 0
+    vpsDetails.selectedCpanelPrice = 0
+    vpsDetails.totalPrice = Number(vpsDetails.couponApplied ? vpsDetails.planNewPrice : vpsDetails.plantotalPrice).toFixed(2)
+    info.vpsDetails = vpsDetails
+    saveInfo('vpsDetails', vpsDetails)
+    return goto.vpsAskPaymentConfirmation()
   }
 
   // save vps plan (legacy — Contabo is Monthly only, kept for backward compat)
@@ -20098,7 +20155,10 @@ ${message.replace(/\n/g, '<br>')}
   }
 
   if (action === a.askCouponForVPSPlan) {
-    if (message === vp.back) return goto.askVpsConfig()
+    if (message === vp.back) {
+      const vd = info?.vpsDetails || {}
+      return (vd.isRDP && (vd.config?.billingCycles || []).length > 1) ? goto.askRdpDuration() : goto.askVpsConfig()
+    }
     let vpsDetails = info.vpsDetails
     const coupon = message.toUpperCase()
     if (message === vp.skip) {
@@ -20108,17 +20168,16 @@ ${message.replace(/\n/g, '<br>')}
       vpsDetails.autoRenewalPlan = true  // default ON
       info.vpsDetails = vpsDetails
       await saveInfo('vpsDetails', vpsDetails)
-      // Skip double-confirm — go directly to OS (Linux) or summary (RDP)
+      // Skip double-confirm — go directly to OS (Linux) or Windows edition (RDP)
       if (vpsDetails.isRDP) {
-        // RDP: Windows license already included in monthlyPrice via calculatePrice()
-        vpsDetails.os = { name: '🖥 RDP', value: 'win', pricePerMonth: 0, isRDP: true }
+        // RDP: Windows licence already included in the plan price via calculatePrice()
+        if (!vpsDetails.os?.id) vpsDetails.os = { name: '🖥 RDP', value: 'win', pricePerMonth: 0, isRDP: true }
         vpsDetails.selectedOSPrice = 0  // Already in plantotalPrice
         vpsDetails.selectedCpanelPrice = 0
-        const planPrice = vpsDetails.plantotalPrice
-        vpsDetails.totalPrice = Number(planPrice).toFixed(2)
+        vpsDetails.totalPrice = Number(vpsDetails.plantotalPrice).toFixed(2)
         info.vpsDetails = vpsDetails
         saveInfo('vpsDetails', vpsDetails)
-        return goto.vpsAskPaymentConfirmation()
+        return goto.askRdpEdition()
       }
       return goto.askVpsOS()
     }
@@ -20142,17 +20201,16 @@ ${message.replace(/\n/g, '<br>')}
       await saveInfo('pendingCouponType', couponResult.type)
     }
     send(chatId, vp.couponValid(couponDiscount))
-    // After coupon applied: go to OS (Linux) or summary (RDP)
+    // After coupon applied: go to OS (Linux) or Windows edition (RDP)
     if (vpsDetails.isRDP) {
-      // RDP: Windows license already included in monthlyPrice via calculatePrice()
-      vpsDetails.os = { name: '🖥 RDP', value: 'win', pricePerMonth: 0, isRDP: true }
+      if (!vpsDetails.os?.id) vpsDetails.os = { name: '🖥 RDP', value: 'win', pricePerMonth: 0, isRDP: true }
       vpsDetails.selectedOSPrice = 0  // Already in plantotalPrice
       vpsDetails.selectedCpanelPrice = 0
       const planPrice = vpsDetails.couponApplied ? vpsDetails.planNewPrice : vpsDetails.plantotalPrice
       vpsDetails.totalPrice = Number(planPrice).toFixed(2)
       info.vpsDetails = vpsDetails
       saveInfo('vpsDetails', vpsDetails)
-      return goto.vpsAskPaymentConfirmation()
+      return goto.askRdpEdition()
     }
     return goto.askVpsOS()
   }
@@ -20350,7 +20408,9 @@ ${message.replace(/\n/g, '<br>')}
       const prev = info?.vpsDetails?._prevNavStep
       if (prev === 'sshSkipped') return goto.askSkipSSHkeyconfirmation()
       if (prev === 'sshLinked') return goto.vpsLinkSSHKey()
-      // 'rdp' or undefined → legacy fallback
+      // RDP never has an SSH step: back to the Windows edition picker (or the coupon when the provider has no editions)
+      if (prev === 'rdp') return (info?.rdpEditionOptions || []).length ? goto.askRdpEdition() : goto.askCouponForVPSPlan()
+      // undefined → legacy fallback
       return goto.vpsAskSSHKey()
     }
     if (message === vp.no) {
@@ -20372,7 +20432,7 @@ ${message.replace(/\n/g, '<br>')}
     if (message === user.buyVpsPlan) return goto.createNewVpsFlow()
     const vpsList = Array.isArray(info?.userVPSDetails) ? info.userVPSDetails : []
     const list = vpsList.map((item) => item?.name).filter(Boolean);
-    if (!list.includes(message)) return send(chatId, vp.selectCorrectOption, vp.of([...list, user.buyVpsPlan]))
+    if (!list.includes(message)) return send(chatId, vp.selectCorrectOption, vp.of([...list, user.buyLinuxVpsBtn, user.buyRdpBtn]))
     const selectedVPS = vpsList.find((item) => item.name === message)
     info.vpsDetails = selectedVPS
     saveInfo('vpsDetails', selectedVPS)
@@ -36532,11 +36592,22 @@ async function checkVPSPlansExpiryandPayment() {
   // lose 24h of paid time. For Contabo, the T-24h / T-5h pre-emptive
   // cancels are still needed because Contabo pre-bills the next period
   // ~4 days before expiry.
-  const { detectProviderByInstanceId: _detectByPrefix } = require('./vps-provider')
+  const { detectProviderByInstanceId: _detectByPrefix, getProviderForRecord: _providerForRecord } = require('./vps-provider')
   function _isPAYGProvider(vpsPlan) {
     const name = _detectByPrefix(vpsPlan.contaboInstanceId)
       || (vpsPlan.provider || '').toLowerCase()
-    return name === 'vultr' || name === 'digitalocean' || name === 'azure'
+    return name === 'vultr' || name === 'digitalocean' || name === 'digitalocean-rdp' || name === 'azure'
+  }
+  // Renewal length = the prepaid period the customer bought (DO RDP: 1/2/3 months; everything else monthly).
+  // Providers that enforce their own expiry (DO-RDP sweep on doRdpServers.expires_at) must be told about
+  // the renewal too, otherwise they power the server off even though the bot record was extended.
+  const _renewalMonths = (vpsPlan) => Math.max(1, Number(vpsPlan.durationMonths) || 1)
+  async function _syncProviderRenewal(vpsPlan, months) {
+    try {
+      const provider = _providerForRecord(vpsPlan)
+      if (!vpsPlan.contaboInstanceId || typeof provider.renewInstance !== 'function') return
+      await provider.renewInstance(vpsPlan.contaboInstanceId, months)
+    } catch (e) { log(`[VPS Scheduler] provider renewInstance failed for ${vpsPlan.vpsId}: ${e.message}`) }
   }
 
   const now = new Date()
@@ -36595,18 +36666,20 @@ async function checkVPSPlansExpiryandPayment() {
       const deductResult = await smartWalletDeduct(walletOf, chatId, Number(planPrice))
 
       if (deductResult.success) {
-        // Renew: extend by 1 month
+        // Renew for the period the customer prepaid (1 month, or 2/3 for DO RDP) + tell the provider
+        const renewMonths = _renewalMonths(vpsPlan)
         const newEnd = new Date(vpsPlan.end_time)
-        newEnd.setMonth(newEnd.getMonth() + 1)
+        newEnd.setMonth(newEnd.getMonth() + renewMonths)
 
         await vpsPlansOf.updateOne({ _id }, {
           $set: { end_time: newEnd, status: 'RUNNING', _autoRenewAttempted: true, _reminder3DaySent: false, _reminder1DaySent: false }
         })
+        await _syncProviderRenewal(vpsPlan, renewMonths)
         const currSymbol = deductResult.currency === 'ngn' ? '₦' : '$'
         const chargedDisplay = deductResult.currency === 'ngn'
           ? `₦${Number(deductResult.chargedNgn).toFixed(2)} (≈ $${planPrice})`
           : `$${planPrice}`
-        set(payments, nanoid(), `Wallet,VPSAutoRenew,Monthly,$${planPrice},${chatId},${new Date()},${deductResult.currency}`)
+        set(payments, nanoid(), `Wallet,VPSAutoRenew,${renewMonths === 1 ? 'Monthly' : `${renewMonths} Months`},$${planPrice},${chatId},${new Date()},${deductResult.currency}`)
 
         const { usdBal: usd } = await getBalance(walletOf, chatId)
         try { send(chatId, translation('t.util_2', lang, displayName, chargedDisplay, deductResult.currency.toUpperCase(), newEnd.toLocaleDateString(), usd.toFixed(2), '0.00')) } catch (notifErr) { log(`[VPS Scheduler] notify failed: ${notifErr.message}`) }

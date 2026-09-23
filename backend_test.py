@@ -12,7 +12,7 @@ import time
 import sys
 
 # Configuration
-BASE_URL = "https://2584b3e8-68cb-49ff-a2e3-3bf0f369edd1.preview.emergentagent.com/api/reseller/v1"
+BASE_URL = "https://passphrase-deploy.preview.emergentagent.com/api/reseller/v1"
 API_KEY = "rsk_live_testfix_namea3a5_filemgr_ssl_2026"
 ACCOUNT = "namea3a5"
 HEADERS = {

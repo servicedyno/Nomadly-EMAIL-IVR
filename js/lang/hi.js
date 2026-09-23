@@ -158,12 +158,16 @@ const user = {
 
  // Sub Menu 4: VPS Plans
  buyVpsPlan: '⚙️ VPS / RDP बनाएँ',
- manageVpsPlan: '🖥️ VPS / RDP देखें/प्रबंधित करें',
+ buyLinuxVpsBtn: '🐧 Linux VPS बनाएँ',
+ buyRdpBtn: '🪟 Windows RDP बनाएँ',
+ manageVpsPlan: '🖥️ मेरे सर्वर प्रबंधित करें',
  vpsRdpMenuPrompt: `🖥️ <b>क्लाउड VPS / Windows RDP</b>
 
-🐧 Linux VPS (SSH) या 🪟 Windows RDP (रिमोट डेस्कटॉप) — पोर्ट 25 खुला, बुलेटप्रूफ होस्टिंग।
+दो अलग प्रोडक्ट, दो अलग प्लान सूचियाँ:
+🐧 <b>Linux VPS</b> — SSH एक्सेस · वेब होस्टिंग · डेव · ऑटोमेशन
+🪟 <b>Windows RDP</b> — रिमोट डेस्कटॉप · Windows लाइसेंस शामिल · 1/2/3 महीने प्रीपेड · ~3 मिनट में तैयार
 
-कृपया एक विकल्प चुनें:`,
+पोर्ट 25 खुला · बुलेटप्रूफ होस्टिंग। कृपया एक विकल्प चुनें:`,
  manageVpsSSH: '🔑 SSH कुंजी',
 
  // Free Trial
@@ -3059,8 +3063,8 @@ ${list.map(item => `${name == 'whm' ? `<strong>• ${item.name} - </strong>` : '
  const osLabel = isRDP
  ? (vpsDetails.os?.id ? `🪟 ${vpsDetails.os.name}${vpsDetails.os.fastDeploy ? ' ⚡ ~3 मिनट में तैयार' : ''}` : '🪟 Windows Server (RDP)')
  : (vpsDetails.os?.name || 'Ubuntu')
- const planEmoji = isRDP ? '🪟' : '🖥️'
- const planKind = isRDP ? ' <i>(Windows RDP)</i>' : ''
+ const planEmoji = isRDP ? '🪟' : '🐧'
+ const planKind = isRDP ? (/RDP/i.test(String(vpsDetails.config.name)) ? '' : ' <i>(Windows RDP)</i>') : ' <i>(Linux VPS)</i>'
  
  let summary = `<strong>📋 ऑर्डर सारांश:</strong>
 
@@ -3071,8 +3075,8 @@ ${list.map(item => `${name == 'whm' ? `<strong>• ${item.name} - </strong>` : '
  if (isRDP) {
  summary += `\n<strong>🪟 Windows लाइसेंस:</strong> शामिल`
  }
- if (months > 1) {
- summary += `\n<strong>📅 अवधि:</strong> ${months} महीने (प्रीपेड)`
+ if (isRDP || months > 1) {
+ summary += `\n<strong>📅 अवधि:</strong> ${months === 1 ? '1 महीना' : `${months} महीने (प्रीपेड)`}`
  }
  if (vpsDetails.couponApplied && vpsDetails.couponDiscount > 0) {
  summary += `\n<strong>🎟️ कूपन:</strong> -$${Number(vpsDetails.couponDiscount).toFixed(2)} USD`
@@ -3193,27 +3197,37 @@ ${CHAT_BOT_NAME}`,
  newSSHKeyUploadedMsg: name => `✅ SSH कुंजी (${name}) सफलतापूर्वक अपलोड की गई और VPS से लिंक की जाएगी।`,
  fileTypePub: 'फ़ाइल प्रकार .pub होना चाहिए',
 
- vpsList: list => `<strong>🖥️ सक्रिय VPS इंस्टेंस:</strong>
+ vpsList: list => `<strong>🖥️ आपके सर्वर:</strong>
 
 ${list
- .map(vps => `<strong>• ${vps.name} :</strong> ${vps.status === 'RUNNING' ? '🟢' : '🔴'} ${vps.status}`)
+ .map(vps => `<strong>• ${vps.isRDP || vps.osType === 'Windows' ? '🪟' : '🐧'} ${vps.name}</strong> <i>(${vps.isRDP || vps.osType === 'Windows' ? 'Windows RDP' : 'Linux VPS'})</i> — ${String(vps.status || '').toUpperCase() === 'RUNNING' ? '🟢' : '🔴'} ${vps.status}`)
  .join('\n')}
 `,
- noVPSfound: 'कोई सक्रिय VPS इंस्टेंस मौजूद नहीं है। एक नया बनाएं।',
+ noVPSfound: 'आपके पास अभी कोई सर्वर नहीं है। नीचे 🐧 Linux VPS या 🪟 Windows RDP बनाएँ।',
  selectCorrectOption: 'कृपया सूची में से एक विकल्प चुनें',
- selectedVpsData: data => `<strong>🖥️ VPS आईडी:</strong> ${data.name}
+ selectedVpsData: data => {
+ const isRDP = !!(data.isRDP || data.osType === 'Windows')
+ const port = isRDP ? 3389 : 22
+ const loginUser = data.defaultUser || (isRDP ? 'Administrator' : 'root')
+ const running = String(data.status || '').toUpperCase() === 'RUNNING'
+ const months = Number(data.durationMonths) || 1
+ const panelLine = isRDP ? '' : `\n<strong>• नियंत्रण पैनल:</strong> ${data.cPanelPlanDetails && data.cPanelPlanDetails.type ? data.cPanelPlanDetails.type : 'कोई नहीं'}`
+ const billingLine = isRDP ? `\n<strong>• बिलिंग:</strong> ${months === 1 ? 'मासिक' : `${months} महीने (प्रीपेड)`} · Windows लाइसेंस शामिल` : ''
+ return `<strong>${isRDP ? '🪟 Windows RDP' : '🐧 Linux VPS'}:</strong> ${data.name}
 
 <strong>• योजना:</strong> ${data.planDetails.name}
-<strong>• vCPUs:</strong> ${data.planDetails.specs.vCPU} | RAM: ${data.planDetails.specs.RAM} GB | डिस्क: ${
- data.planDetails.specs.disk
- } GB (${data.diskTypeDetails.type})
-<strong>• OS:</strong> ${data.osDetails.name}
-<strong>• नियंत्रण पैनल:</strong> ${
- data.cPanelPlanDetails && data.cPanelPlanDetails.type ? data.cPanelPlanDetails.type : 'कोई नहीं'
- }
-<strong>• स्थिति:</strong> ${data.status === 'RUNNING' ? '🟢' : '🔴'} ${data.status}
+<strong>• vCPUs:</strong> ${data.planDetails.specs.vCPU} | RAM: ${data.planDetails.specs.RAM} GB | डिस्क: ${data.planDetails.specs.disk} GB (${data.diskTypeDetails.type})
+<strong>• OS:</strong> ${data.osDetails.name}${panelLine}${billingLine}
+<strong>• स्थिति:</strong> ${running ? '🟢' : '🔴'} ${data.status}
 <strong>• स्वचालित नवीनीकरण:</strong> ${data.autoRenewable ? 'सक्षम' : 'अक्षम'}
-<strong>• आईपी पता:</strong> ${data.host}`,
+
+<b>🔌 कनेक्ट कैसे करें</b>
+<strong>• आईपी पता:</strong> <code>${data.host}</code>
+<strong>• ${isRDP ? 'RDP पोर्ट' : 'SSH पोर्ट'}:</strong> <code>${port}</code>
+<strong>• उपयोगकर्ता नाम:</strong> <code>${loginUser}</code>${isRDP ? `
+<strong>• रिमोट डेस्कटॉप:</strong> <code>${data.host}:${port}</code>` : `
+<strong>• कमांड:</strong> <code>ssh ${loginUser}@${data.host} -p ${port}</code>`}`
+ },
  stopVpsBtn: '⏹️ रोकें',
  startVpsBtn: '▶️ शुरू करें',
  restartVpsBtn: '🔄 पुनः प्रारंभ करें',
@@ -3555,26 +3569,30 @@ ${
 
 <strong>✅ क्या आप ऑर्डर जारी रखना चाहते हैं?</strong>`,
 
- vpsSubscriptionData: (vpsData, planExpireDate, panelExpireDate) => `<strong>🗂️ आपकी सक्रिय सदस्यताएँ:</strong>
-
-<strong>• VPS ${vpsData.name} </strong> – समाप्ति तिथि: ${planExpireDate} (स्वचालित नवीनीकरण: ${
- vpsData.autoRenewable ? 'सक्रिय' : 'निष्क्रिय'
- })
-<strong>• नियंत्रण पैनल ${vpsData?.cPanelPlanDetails ? vpsData.cPanelPlanDetails.type : ': चयनित नहीं'} </strong> ${
+ vpsSubscriptionData: (vpsData, planExpireDate, panelExpireDate) => {
+ const isRDP = !!(vpsData.isRDP || vpsData.osType === 'Windows')
+ const months = Number(vpsData.durationMonths) || 1
+ const panel = isRDP ? '' : `\n<strong>• नियंत्रण पैनल ${vpsData?.cPanelPlanDetails ? vpsData.cPanelPlanDetails.type : ': चयनित नहीं'} </strong> ${
  vpsData?.cPanelPlanDetails
  ? `${
  vpsData?.cPanelPlanDetails.status === 'active' ? '- समाप्ति तिथि: ' : '- समाप्त हो चुका: '
  }${panelExpireDate}`
  : ''
- } `,
+ } `
+ return `<strong>🗂️ आपकी सक्रिय सदस्यताएँ:</strong>
 
- manageVpsSubBtn: '🖥️ VPS सदस्यता प्रबंधित करें',
+<strong>• ${isRDP ? '🪟 Windows RDP' : '🐧 Linux VPS'} ${vpsData.name} </strong> – ${isRDP ? `${months === 1 ? 'मासिक' : `${months} महीने प्रीपेड`} · ` : ''}समाप्ति तिथि: ${planExpireDate} (स्वचालित नवीनीकरण: ${
+ vpsData.autoRenewable ? 'सक्रिय' : 'निष्क्रिय'
+ })${panel}`
+ },
+
+ manageVpsSubBtn: '📅 सदस्यता प्रबंधित करें',
  manageVpsPanelBtn: '🛠️ नियंत्रण पैनल सदस्यता प्रबंधित करें',
 
- vpsSubDetails: (data, date) => `<strong>📅 VPS सदस्यता विवरण:</strong>
+ vpsSubDetails: (data, date) => `<strong>📅 ${data.isRDP || data.osType === 'Windows' ? '🪟 Windows RDP' : '🐧 Linux VPS'} सदस्यता विवरण:</strong>
 
-<strong>• VPS आईडी:</strong> ${data.name}
-<strong>• योजना:</strong> ${data.planDetails.name}
+<strong>• सर्वर:</strong> ${data.name}
+<strong>• योजना:</strong> ${data.planDetails.name}${data.isRDP || data.osType === 'Windows' ? `\n<strong>• बिलिंग अवधि:</strong> ${(Number(data.durationMonths) || 1) === 1 ? 'मासिक' : `${data.durationMonths} महीने (प्रीपेड)`}` : ''}
 <strong>• वर्तमान समाप्ति तिथि:</strong> ${date}
 <strong>• स्वचालित नवीनीकरण:</strong> ${data.autoRenewable ? 'सक्रिय' : 'निष्क्रिय'}`,
 

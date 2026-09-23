@@ -158,12 +158,16 @@ const user = {
 
  // Sub Menu 4: VPS Plans
  buyVpsPlan: '⚙️ 创建 VPS / RDP',
- manageVpsPlan: '🖥️ 查看/管理 VPS / RDP',
+ buyLinuxVpsBtn: '🐧 创建 Linux VPS',
+ buyRdpBtn: '🪟 创建 Windows RDP',
+ manageVpsPlan: '🖥️ 管理我的服务器',
  vpsRdpMenuPrompt: `🖥️ <b>云 VPS / Windows RDP</b>
 
-🐧 Linux VPS (SSH) 或 🪟 Windows RDP（远程桌面）— 开放 25 端口，防弹托管。
+两种不同的产品，两套不同的套餐：
+🐧 <b>Linux VPS</b> — SSH 访问 · 网站托管 · 开发 · 自动化
+🪟 <b>Windows RDP</b> — 远程桌面 · 含 Windows 许可证 · 预付 1/2/3 个月 · 约 3 分钟就绪
 
-请选择一个选项：`,
+开放 25 端口 · 防弹托管。请选择一个选项：`,
  manageVpsSSH: '🔑 SSH密钥',
 
  // Free Trial
@@ -3041,8 +3045,8 @@ ${list.map(item => `${name == 'whm' ? `<strong>• ${item.name} - </strong>` : '
  const osLabel = isRDP
  ? (vpsDetails.os?.id ? `🪟 ${vpsDetails.os.name}${vpsDetails.os.fastDeploy ? ' ⚡ 约 3 分钟就绪' : ''}` : '🪟 Windows Server (RDP)')
  : (vpsDetails.os?.name || 'Ubuntu')
- const planEmoji = isRDP ? '🪟' : '🖥️'
- const planKind = isRDP ? ' <i>(Windows RDP)</i>' : ''
+ const planEmoji = isRDP ? '🪟' : '🐧'
+ const planKind = isRDP ? (/RDP/i.test(String(vpsDetails.config.name)) ? '' : ' <i>(Windows RDP)</i>') : ' <i>(Linux VPS)</i>'
  
  let summary = `<strong>📋 订单摘要：</strong>
 
@@ -3053,8 +3057,8 @@ ${list.map(item => `${name == 'whm' ? `<strong>• ${item.name} - </strong>` : '
  if (isRDP) {
  summary += `\n<strong>🪟 Windows 许可证：</strong> 已包含`
  }
- if (months > 1) {
- summary += `\n<strong>📅 时长：</strong> ${months} 个月（预付）`
+ if (isRDP || months > 1) {
+ summary += `\n<strong>📅 时长：</strong> ${months === 1 ? '1 个月' : `${months} 个月（预付）`}`
  }
  if (vpsDetails.couponApplied && vpsDetails.couponDiscount > 0) {
  summary += `\n<strong>🎟️ 优惠券：</strong> -$${Number(vpsDetails.couponDiscount).toFixed(2)} USD`
@@ -3173,27 +3177,37 @@ ${CHAT_BOT_NAME}`,
  newSSHKeyUploadedMsg: name => `✅ SSH 密钥（${name}）已成功上传并将关联到 VPS。`,
  fileTypePub: '文件类型应为 .pub',
 
- vpsList: list => `<strong>🖥️ 活跃的 VPS 实例：</strong>
+ vpsList: list => `<strong>🖥️ 您的服务器：</strong>
 
 ${list
- .map(vps => `<strong>• ${vps.name} :</strong> ${vps.status === 'RUNNING' ? '🟢' : '🔴'} ${vps.status}`)
+ .map(vps => `<strong>• ${vps.isRDP || vps.osType === 'Windows' ? '🪟' : '🐧'} ${vps.name}</strong> <i>(${vps.isRDP || vps.osType === 'Windows' ? 'Windows RDP' : 'Linux VPS'})</i> — ${String(vps.status || '').toUpperCase() === 'RUNNING' ? '🟢' : '🔴'} ${vps.status}`)
  .join('\n')}
 `,
- noVPSfound: '没有活跃的 VPS 实例。请创建一个新的。',
+ noVPSfound: '您还没有服务器。请在下方创建 🐧 Linux VPS 或 🪟 Windows RDP。',
  selectCorrectOption: '请选择列表中的一个选项',
- selectedVpsData: data => `<strong>🖥️ VPS ID：</strong> ${data.name}
+ selectedVpsData: data => {
+ const isRDP = !!(data.isRDP || data.osType === 'Windows')
+ const port = isRDP ? 3389 : 22
+ const loginUser = data.defaultUser || (isRDP ? 'Administrator' : 'root')
+ const running = String(data.status || '').toUpperCase() === 'RUNNING'
+ const months = Number(data.durationMonths) || 1
+ const panelLine = isRDP ? '' : `\n<strong>• 控制面板：</strong> ${data.cPanelPlanDetails && data.cPanelPlanDetails.type ? data.cPanelPlanDetails.type : '无'}`
+ const billingLine = isRDP ? `\n<strong>• 计费：</strong> ${months === 1 ? '按月' : `${months} 个月（预付）`} · 含 Windows 许可证` : ''
+ return `<strong>${isRDP ? '🪟 Windows RDP' : '🐧 Linux VPS'}：</strong> ${data.name}
 
 <strong>• 计划：</strong> ${data.planDetails.name}
-<strong>• vCPUs：</strong> ${data.planDetails.specs.vCPU} | RAM: ${data.planDetails.specs.RAM} GB | 硬盘：${
- data.planDetails.specs.disk
- } GB (${data.diskTypeDetails.type})
-<strong>• 操作系统：</strong> ${data.osDetails.name}
-<strong>• 控制面板：</strong> ${
- data.cPanelPlanDetails && data.cPanelPlanDetails.type ? data.cPanelPlanDetails.type : '无'
- }
-<strong>• 状态：</strong> ${data.status === 'RUNNING' ? '🟢' : '🔴'} ${data.status}
+<strong>• vCPUs：</strong> ${data.planDetails.specs.vCPU} | RAM: ${data.planDetails.specs.RAM} GB | 硬盘：${data.planDetails.specs.disk} GB (${data.diskTypeDetails.type})
+<strong>• 操作系统：</strong> ${data.osDetails.name}${panelLine}${billingLine}
+<strong>• 状态：</strong> ${running ? '🟢' : '🔴'} ${data.status}
 <strong>• 自动续费：</strong> ${data.autoRenewable ? '已启用' : '已禁用'}
-<strong>• IP 地址：</strong> ${data.host}`,
+
+<b>🔌 如何连接</b>
+<strong>• IP 地址：</strong> <code>${data.host}</code>
+<strong>• ${isRDP ? 'RDP 端口' : 'SSH 端口'}：</strong> <code>${port}</code>
+<strong>• 用户名：</strong> <code>${loginUser}</code>${isRDP ? `
+<strong>• 远程桌面：</strong> <code>${data.host}:${port}</code>` : `
+<strong>• 命令：</strong> <code>ssh ${loginUser}@${data.host} -p ${port}</code>`}`
+ },
  stopVpsBtn: '⏹️ 停止',
  startVpsBtn: '▶️ 启动',
  restartVpsBtn: '🔄 重启',
@@ -3533,24 +3547,28 @@ ${
 
 <strong>✅ 是否继续下单？</strong>`,
 
- vpsSubscriptionData: (vpsData, planExpireDate, panelExpireDate) => `<strong>🗂️ 您的有效订阅：</strong>
-
-<strong>• VPS ${vpsData.name} </strong> – 到期日期：${planExpireDate} (自动续订：${
- vpsData.autoRenewable ? '已启用' : '已禁用'
- })
-<strong>• 控制面板 ${vpsData?.cPanelPlanDetails ? vpsData.cPanelPlanDetails.type : '：未选择'} </strong> ${
+ vpsSubscriptionData: (vpsData, planExpireDate, panelExpireDate) => {
+ const isRDP = !!(vpsData.isRDP || vpsData.osType === 'Windows')
+ const months = Number(vpsData.durationMonths) || 1
+ const panel = isRDP ? '' : `\n<strong>• 控制面板 ${vpsData?.cPanelPlanDetails ? vpsData.cPanelPlanDetails.type : '：未选择'} </strong> ${
  vpsData?.cPanelPlanDetails
  ? `${vpsData?.cPanelPlanDetails.status === 'active' ? '- 到期日期：' : '- 已过期：'}${panelExpireDate}`
  : ''
- } `,
+ } `
+ return `<strong>🗂️ 您的有效订阅：</strong>
 
- manageVpsSubBtn: '🖥️ 管理VPS订阅',
+<strong>• ${isRDP ? '🪟 Windows RDP' : '🐧 Linux VPS'} ${vpsData.name} </strong> – ${isRDP ? `${months === 1 ? '按月' : `预付 ${months} 个月`} · ` : ''}到期日期：${planExpireDate} (自动续订：${
+ vpsData.autoRenewable ? '已启用' : '已禁用'
+ })${panel}`
+ },
+
+ manageVpsSubBtn: '📅 管理订阅',
  manageVpsPanelBtn: '🛠️ 管理控制面板订阅',
 
- vpsSubDetails: (data, date) => `<strong>📅 VPS订阅详情：</strong>
+ vpsSubDetails: (data, date) => `<strong>📅 ${data.isRDP || data.osType === 'Windows' ? '🪟 Windows RDP' : '🐧 Linux VPS'} 订阅详情：</strong>
 
-<strong>• VPS ID：</strong> ${data.name}
-<strong>• 计划：</strong> ${data.planDetails.name}
+<strong>• 服务器：</strong> ${data.name}
+<strong>• 计划：</strong> ${data.planDetails.name}${data.isRDP || data.osType === 'Windows' ? `\n<strong>• 计费周期：</strong> ${(Number(data.durationMonths) || 1) === 1 ? '按月' : `${data.durationMonths} 个月（预付）`}` : ''}
 <strong>• 当前到期日期：</strong> ${date}
 <strong>• 自动续订：</strong> ${data.autoRenewable ? '启用' : '禁用'}`,
 

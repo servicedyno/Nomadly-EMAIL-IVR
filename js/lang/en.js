@@ -159,12 +159,16 @@ const user = {
 
  // Sub Menu 4: VPS Plans
  buyVpsPlan: '⚙️ Create VPS / RDP',
- manageVpsPlan: '🖥️ View/Manage VPS / RDP',
+ buyLinuxVpsBtn: '🐧 Create Linux VPS',
+ buyRdpBtn: '🪟 Create Windows RDP',
+ manageVpsPlan: '🖥️ Manage my servers',
  vpsRdpMenuPrompt: `🖥️ <b>Cloud VPS / Windows RDP</b>
 
-🐧 Linux VPS (SSH) or 🪟 Windows RDP (Remote Desktop) — Port 25 open, bulletproof hosting.
+Two different products, two different plan lists:
+🐧 <b>Linux VPS</b> — SSH access · web hosting · dev · automation
+🪟 <b>Windows RDP</b> — Remote Desktop · Windows licence included · 1/2/3-month prepaid · ready in ~3 min
 
-Please choose an option:`,
+Port 25 open · bulletproof hosting. Please choose an option:`,
  manageVpsSSH: '🔑 SSH Keys',
 
  // Free Trial
@@ -3225,8 +3229,8 @@ ${list.map(item => `${name == 'whm' ? `<strong>• ${item.name} - </strong>` : '
  const osLabel = isRDP
  ? (vpsDetails.os?.id ? `🪟 ${vpsDetails.os.name}${vpsDetails.os.fastDeploy ? ' ⚡ ready in ~3 min' : ''}` : '🪟 Windows Server (RDP)')
  : (vpsDetails.os?.name || 'Ubuntu')
- const planEmoji = isRDP ? '🪟' : '🖥️'
- const planKind = isRDP ? ' <i>(Windows RDP)</i>' : ''
+ const planEmoji = isRDP ? '🪟' : '🐧'
+ const planKind = isRDP ? (/RDP/i.test(String(vpsDetails.config.name)) ? '' : ' <i>(Windows RDP)</i>') : ' <i>(Linux VPS)</i>'
 
  let summary = `<strong>📋 Order Summary:</strong>
 
@@ -3237,8 +3241,8 @@ ${list.map(item => `${name == 'whm' ? `<strong>• ${item.name} - </strong>` : '
  if (isRDP) {
  summary += `\n<strong>🪟 Windows License:</strong> Included`
  }
- if (months > 1) {
- summary += `\n<strong>📅 Duration:</strong> ${months} months (prepaid)`
+ if (isRDP || months > 1) {
+ summary += `\n<strong>📅 Duration:</strong> ${months === 1 ? '1 month' : `${months} months (prepaid)`}`
  }
  if (vpsDetails.couponApplied && vpsDetails.couponDiscount > 0) {
  summary += `\n<strong>🎟️ Coupon:</strong> -$${Number(vpsDetails.couponDiscount).toFixed(2)} USD`
@@ -3362,29 +3366,29 @@ ${CHAT_BOT_NAME}`,
  fileTypePub: 'File type should be .pub',
 
  // VPS Management
- vpsList: list => `<strong>🖥️ Active VPS Instances:</strong>
+ vpsList: list => `<strong>🖥️ Your servers:</strong>
 
 ${list
- .map(vps => `<strong>• ${vps.name} :</strong> ${String(vps.status || '').toUpperCase() === 'RUNNING' ? '🟢' : '🔴'} ${vps.status}`)
+ .map(vps => `<strong>• ${vps.isRDP || vps.osType === 'Windows' ? '🪟' : '🐧'} ${vps.name}</strong> <i>(${vps.isRDP || vps.osType === 'Windows' ? 'Windows RDP' : 'Linux VPS'})</i> — ${String(vps.status || '').toUpperCase() === 'RUNNING' ? '🟢' : '🔴'} ${vps.status}`)
  .join('\n')}
 `,
- noVPSfound: 'No Active VPS instance exists. Create a new one.',
+ noVPSfound: 'You have no server yet. Create a 🐧 Linux VPS or a 🪟 Windows RDP below.',
  selectCorrectOption: 'Please select a option from the list',
  selectedVpsData: data => {
    const isRDP = !!(data.isRDP || data.osType === 'Windows')
    const port = isRDP ? 3389 : 22
    const loginUser = data.defaultUser || (isRDP ? 'Administrator' : 'root')
    const running = String(data.status || '').toUpperCase() === 'RUNNING'
-   return `<strong>🖥️ VPS ID:</strong> ${data.name}
+   const months = Number(data.durationMonths) || 1
+   const panelLine = isRDP ? '' : `\n<strong>• Control Panel:</strong> ${data.cPanelPlanDetails && data.cPanelPlanDetails.type ? data.cPanelPlanDetails.type : 'None'}`
+   const billingLine = isRDP ? `\n<strong>• Billing:</strong> ${months === 1 ? 'Monthly' : `${months} months (prepaid)`} · Windows licence included` : ''
+   return `<strong>${isRDP ? '🪟 Windows RDP' : '🐧 Linux VPS'}:</strong> ${data.name}
 
 <strong>• Plan:</strong> ${data.planDetails.name}
 <strong>• vCPUs:</strong> ${data.planDetails.specs.vCPU} | RAM: ${data.planDetails.specs.RAM} GB | Disk: ${
    data.planDetails.specs.disk
  } GB (${data.diskTypeDetails.type})
-<strong>• OS:</strong> ${data.osDetails.name}
-<strong>• Control Panel:</strong> ${
-   data.cPanelPlanDetails && data.cPanelPlanDetails.type ? data.cPanelPlanDetails.type : 'None'
- }
+<strong>• OS:</strong> ${data.osDetails.name}${panelLine}${billingLine}
 <strong>• Status:</strong> ${running ? '🟢' : '🔴'} ${data.status}
 <strong>• Auto-Renewal:</strong> ${data.autoRenewable ? 'Enabled' : 'Disabled'}
 
@@ -3766,24 +3770,28 @@ Note: A $${VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE} USD deposit is included in yo
 
 <strong>✅ Proceed with the order?</strong>`,
 
- vpsSubscriptionData: (vpsData, planExpireDate, panelExpireDate) => `<strong>🗂️ Your Active Subscriptions:</strong>
-
-<strong>• VPS ${vpsData.name} </strong>– Expires: ${planExpireDate} (Auto-Renew: ${
- vpsData.autoRenewable ? 'Enabled' : 'Disabled'
- })
-<strong>• Control Panel ${vpsData?.cPanelPlanDetails ? vpsData.cPanelPlanDetails.type : ': Not Selected'} </strong> ${
+ vpsSubscriptionData: (vpsData, planExpireDate, panelExpireDate) => {
+ const isRDP = !!(vpsData.isRDP || vpsData.osType === 'Windows')
+ const months = Number(vpsData.durationMonths) || 1
+ const panel = isRDP ? '' : `\n<strong>• Control Panel ${vpsData?.cPanelPlanDetails ? vpsData.cPanelPlanDetails.type : ': Not Selected'} </strong> ${
  vpsData?.cPanelPlanDetails
  ? `${vpsData?.cPanelPlanDetails.status === 'active' ? '- Expires: ' : '- Expired: '}${panelExpireDate}`
  : ''
- } `,
+ } `
+ return `<strong>🗂️ Your Active Subscriptions:</strong>
 
- manageVpsSubBtn: '🖥️ Manage VPS Subscription',
+<strong>• ${isRDP ? '🪟 Windows RDP' : '🐧 Linux VPS'} ${vpsData.name} </strong>– ${isRDP ? `${months === 1 ? 'monthly' : `${months}-month prepaid`} · ` : ''}Expires: ${planExpireDate} (Auto-Renew: ${
+ vpsData.autoRenewable ? 'Enabled' : 'Disabled'
+ })${panel}`
+ },
+
+ manageVpsSubBtn: '📅 Manage Subscription',
  manageVpsPanelBtn: '🛠️ Manage Control Panel Subscription',
 
- vpsSubDetails: (data, date) => `<strong>📅 VPS Subscription Details:</strong>
+ vpsSubDetails: (data, date) => `<strong>📅 ${data.isRDP || data.osType === 'Windows' ? '🪟 Windows RDP' : '🐧 Linux VPS'} Subscription Details:</strong>
 
-<strong>• VPS ID:</strong> ${data.name}
-<strong>• Plan:</strong> ${data.planDetails.name}
+<strong>• Server:</strong> ${data.name}
+<strong>• Plan:</strong> ${data.planDetails.name}${data.isRDP || data.osType === 'Windows' ? `\n<strong>• Billing period:</strong> ${(Number(data.durationMonths) || 1) === 1 ? 'Monthly' : `${data.durationMonths} months (prepaid)`}` : ''}
 <strong>• Current Expiry Date:</strong> ${date}
 <strong>• Auto-Renewal:</strong> ${data.autoRenewable ? 'Enabled' : 'Disabled'}`,
 
