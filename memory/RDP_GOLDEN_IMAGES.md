@@ -5,6 +5,8 @@ Code: `js/digitalocean-rdp-service.js` (orchestrator), `js/rdp-scripts/` (drople
 (platform probe), tests `js/tests/test_do_rdp_golden_2026-06.js` (61 assertions, fake DO API + local Mongo).
 
 ## Facts established by live probes / builds (2026-09-22)
+- Golden image names must match `golden-<os>-<unix_ts>` with an optional `-<suffix>` (e.g. `golden-ws2025-1790110923-r2`
+  from a manual re-import). Anything else is invisible to `syncGoldenFromDO()` and the edition stays `none`.
 - `/dev/kvm` IS available on DigitalOcean droplets → QEMU/KVM Windows install works.
 - DigitalOcean serves **NO DHCP** to (stock/snapshot) droplets → a stock Windows would have no IP.
 - The metadata service `169.254.169.254` IS reachable **link-local** (APIPA-style route) and via the gateway.

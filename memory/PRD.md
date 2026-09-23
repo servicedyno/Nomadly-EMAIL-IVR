@@ -121,6 +121,12 @@ Runbook: `memory/RDP_GOLDEN_IMAGES.md`; lessons: `memory/DO_RDP_LESSONS.md`.
 - ⏳ Still importing at DO (22:40 UTC): ws2022 rebuild image 246589203 (queued 19:30) and ws2025 image 246605289 (queued 21:02). Registration + old-image deletion + 9-region transfer are automatic (resumable across restarts). **ws2025 E2E not yet run** (needs its image `available`): `node js/ops/rdp_golden_e2e.js --os ws2025 --region US`.
 - Sandbox reseller API key in `memory/test_credentials.md`.
 
+## 2026-09-23 (fork) — ws2025 golden image availability check (user request)
+- Live DO check (token from `backend/.env`): ws2019 `246589188` + ws2022 `246587962` available in all 9 regions. **ws2025 `246641953` (`golden-ws2025-1790110923-r2`) was `available` on DO but the app showed `golden_status: none`** → the `-r2` suffix (manual re-import) did not match `^golden-ws2025-\d+$` in `syncGoldenFromDO()`/`listGoldenImages()`.
+- ✅ Fix: `goldenSnapRe`/`goldenAnyRe` now accept an optional `-<suffix>` (`js/digitalocean-rdp-service.js`). Unit suite `js/tests/test_do_rdp_golden_2026-06.js` +2 assertions → 86/86.
+- ✅ After nodejs restart auto-sync registered ws2025 (`available`, fast_deploy=true, 5 regions: sfo3 nyc3 lon1 fra1 ams3). Transfer to tor1/blr1/sgp1/syd1 queued via `POST /admin/rdp-golden/transfer` (DO copies sequentially; `golden_regions` grows as each lands).
+- Note: `VPS_RDP_PROVIDER="azure"` in `.env` → public `GET /rdp/plans` advertises Azure; DO-RDP golden path is reached via bot / per-record routing (`digitalocean-rdp`). ws2025 E2E (`node js/ops/rdp_golden_e2e.js --os ws2025 --region US`) still not run.
+
 ## Prioritized backlog (P0/P1/P2)
 
 ### P0 (from 2026-09-14 audit)

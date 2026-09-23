@@ -611,8 +611,9 @@ async function provisionServer(serverId) {
 // importing → registering → transferring → done); state lives in Mongo so a
 // Node restart mid-build re-enters at the stored phase (resumeBuilds()).
 // ─────────────────────────────────────────────────────────────
-const goldenSnapRe = (osId) => new RegExp(`^golden-${osId}-\\d+$`)
-const goldenAnyRe = /^golden-ws\d{4}-\d+$/
+// Accepts an optional manual re-import suffix, e.g. golden-ws2025-1790110923-r2
+const goldenSnapRe = (osId) => new RegExp(`^golden-${osId}-\\d+(-[a-z0-9]+)?$`)
+const goldenAnyRe = /^golden-ws\d{4}-\d+(-[a-z0-9]+)?$/
 const imageIdNum = (id) => (/^\d+$/.test(String(id)) ? Number(id) : id)
 
 function publicBuild(b) {

@@ -352,6 +352,13 @@ async function main() {
   let bad = null; try { await svc.transferGolden('ws2025', 'all') } catch (e) { bad = e }
   ok('transferGolden refuses OS without image', bad && /no golden image/.test(bad.message))
 
+  console.log('\n[6] syncGoldenFromDO: manually re-imported image with suffix (golden-ws2025-<ts>-r2) is registered')
+  fake.images[506] = { id: 506, name: 'golden-ws2025-1790110923-r2', type: 'custom', status: 'available', regions: ['nyc3'], min_disk_size: 32, created_at: '2026-09-23T02:02:59Z' }
+  fake.images[507] = { id: 507, name: 'golden-ws2025-not-a-golden-image-at-all', type: 'custom', status: 'available', regions: ['nyc3'], min_disk_size: 32, created_at: '2026-09-24T00:00:00Z' }
+  const sync2 = await svc.syncGoldenFromDO()
+  ok('ws2025 -r2 custom image picked up as available in nyc3', sync2.ws2025.status === 'available' && sync2.ws2025.image_id === 506 && JSON.stringify(sync2.ws2025.regions) === JSON.stringify(['nyc3']))
+  ok('transferGolden ws2025 queues the 8 missing regions', (await svc.transferGolden('ws2025', 'all')).queued_regions.length === svc.GOLDEN_ALL_REGIONS.length - 1)
+
   rdp.close()
   await client.close()
   console.log(`\n${pass} passed, ${fail} failed`)
