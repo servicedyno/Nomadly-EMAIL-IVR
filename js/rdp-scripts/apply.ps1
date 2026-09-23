@@ -8,11 +8,65 @@
 #   3. Per-order Administrator password + callback from KEY=VALUE user-data
 #      (http://169.254.169.254/metadata/v1/user-data). Refreshes itself from the
 #      backend's /provision/bootscript first, so fixes don't need a new golden image.
+#   4. Management agent: registers itself as the CloudInitAgent task (every minute,
+#      `apply.ps1 -Agent`) that polls the backend for commands (set_password, reboot)
+#      so password resets / reinstalls work in place without touching the disk.
 $ErrorActionPreference = "SilentlyContinue"
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 New-Item -ItemType Directory -Path "C:\cloudinit" -Force | Out-Null
 $logFile = "C:\cloudinit\apply.log"
+$cfgFile = "C:\cloudinit\cfg.json"
 function Log($m) { Add-Content -Path $logFile -Value ("{0} {1}" -f (Get-Date -Format s), $m) }
+
+function Read-UserDataCfg {
+    $cfg = @{}
+    $data = ""
+    try { $data = [string](Invoke-WebRequest -UseBasicParsing -Uri "http://169.254.169.254/metadata/v1/user-data" -TimeoutSec 8).Content } catch {}
+    foreach ($line in ($data -split "`n")) { $line = $line.Trim(); if ($line -match '^([A-Z_]+)=(.*)$') { $cfg[$matches[1]] = $matches[2] } }
+    return $cfg
+}
+function Set-AdminPassword($pw) {
+    try { $u = [ADSI]"WinNT://./Administrator,user"; $u.SetPassword([string]$pw); $u.SetInfo(); return @{ ok = $true; msg = 'password applied (ADSI)' } }
+    catch { $err = ($_.Exception.Message -replace '\s+', ' ') }
+    try { & net user Administrator ([string]$pw) /y | Out-Null; if ($LASTEXITCODE -eq 0) { return @{ ok = $true; msg = 'password applied (net user)' } } } catch {}
+    return @{ ok = $false; msg = "SetPassword failed: $err" }
+}
+# One agent pass: fetch pending commands for this server, execute, report back. Silent when idle.
+function Invoke-AgentPoll($cfg) {
+    if (-not $cfg["CALLBACK_URL"] -or -not $cfg["SERVER_ID"] -or -not $cfg["CALLBACK_TOKEN"]) { return }
+    $api = ($cfg["CALLBACK_URL"] -replace '/callback/?$', '')
+    $resp = $null
+    try { $resp = Invoke-RestMethod -UseBasicParsing -Uri "$api/commands?server_id=$($cfg['SERVER_ID'])&token=$($cfg['CALLBACK_TOKEN'])" -TimeoutSec 15 } catch { Log "agent: poll failed: $($_.Exception.Message)"; Clear-DnsClientCache; return }
+    foreach ($c in @($resp.commands)) {
+        if (-not $c -or -not $c.id) { continue }
+        $ok = $false; $msg = ''
+        if ($c.type -eq 'set_password') { $r = Set-AdminPassword ([string]$c.payload.password); $ok = $r.ok; $msg = $r.msg }
+        elseif ($c.type -eq 'reboot') { $ok = $true; $msg = 'rebooting' }
+        else { $msg = "unknown command type $($c.type)" }
+        Log "agent: command $($c.id) $($c.type) -> ok=$ok $msg"
+        $body = @{ server_id = $cfg["SERVER_ID"]; token = $cfg["CALLBACK_TOKEN"]; id = $c.id; ok = $ok; message = $msg } | ConvertTo-Json -Compress
+        try { Invoke-RestMethod -UseBasicParsing -Uri "$api/commands/result" -Method Post -ContentType 'application/json' -Body $body -TimeoutSec 15 | Out-Null } catch { Log "agent: result post failed: $($_.Exception.Message)" }
+        if ($c.type -eq 'reboot' -and $ok) { & shutdown /r /t 5 /f }
+    }
+}
+function Register-AgentTask {
+    try {
+        $act = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File `"C:\cloudinit\apply.ps1`" -Agent"
+        $trig = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 1)
+        $set = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 5) -MultipleInstances IgnoreNew -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+        Register-ScheduledTask -TaskName 'CloudInitAgent' -Action $act -Trigger $trig -Settings $set -User 'SYSTEM' -RunLevel Highest -Force | Out-Null
+        Log "agent task CloudInitAgent registered (every minute)"
+    } catch { Log "agent task registration failed: $($_.Exception.Message)" }
+}
+
+# ---- agent mode: `apply.ps1 -Agent` (scheduled every minute) ----
+if ($args -contains '-Agent') {
+    $cfg = @{}
+    if (Test-Path $cfgFile) { try { $j = Get-Content $cfgFile -Raw | ConvertFrom-Json; foreach ($p in $j.PSObject.Properties) { $cfg[$p.Name] = [string]$p.Value } } catch {} }
+    if (-not $cfg["CALLBACK_URL"]) { $cfg = Read-UserDataCfg }
+    Invoke-AgentPoll $cfg
+    exit
+}
 Log "---- CloudInitApply start ----"
 
 $mdUrl = "http://169.254.169.254/metadata/v1.json"
@@ -78,15 +132,9 @@ if ($meta) {
 
 # ---- 2b. per-order settings: KEY=VALUE user-data (separate endpoint - v1.json has no user_data) ----
 $cfg = @{}
-$data = ""
-if ($meta) {
-    try { $data = [string](Invoke-WebRequest -UseBasicParsing -Uri "http://169.254.169.254/metadata/v1/user-data" -TimeoutSec 8).Content } catch { $data = [string]$meta.user_data }
-}
-foreach ($line in ($data -split "`n")) {
-    $line = $line.Trim()
-    if ($line -match '^([A-Z_]+)=(.*)$') { $cfg[$matches[1]] = $matches[2] }
-}
+if ($meta) { $cfg = Read-UserDataCfg }
 Log "user-data keys: $($cfg.Keys -join ',')"
+if ($cfg["CALLBACK_URL"]) { try { $cfg | ConvertTo-Json -Compress | Set-Content -Path $cfgFile } catch {} }
 
 # ---- 2c. self-update: fetch the current apply.ps1 from the backend so boot logic can be fixed
 # without rebuilding the golden image (backend serves it at <callback base>/bootscript). ----
@@ -131,9 +179,9 @@ if ($cfg["ADMIN_PASSWORD"] -and $sid -and -not $already) {
     $pw = [string]$cfg["ADMIN_PASSWORD"]
     $set = $false
     for ($i = 0; $i -lt 6 -and -not $set; $i++) {
-        try { $u = [ADSI]"WinNT://./Administrator,user"; $u.SetPassword($pw); $u.SetInfo(); $set = $true; Log "Administrator password applied (ADSI) for $sid" } catch { Log "ADSI SetPassword failed (attempt $i): $($_.Exception.Message -replace '\s+',' ')" }
-        if (-not $set) { try { & net user Administrator "$pw" /y | Out-Null; $set = ($LASTEXITCODE -eq 0); if ($set) { Log "Administrator password applied (net user) for $sid" } } catch {} }
-        if (-not $set) { Start-Sleep -Seconds 10 }
+        $r = Set-AdminPassword $pw
+        $set = $r.ok
+        if ($set) { Log "Administrator $($r.msg) for $sid" } else { Log "attempt $i - $($r.msg)"; Start-Sleep -Seconds 10 }
     }
     if ($set) { Set-Content -Path $marker -Value $sid }
     if ($cfg["CALLBACK_URL"] -and $cfg["CALLBACK_TOKEN"]) {
@@ -144,5 +192,11 @@ if ($cfg["ADMIN_PASSWORD"] -and $sid -and -not $already) {
             Start-Sleep -Seconds 10
         }
     }
+}
+
+# ---- 5. management agent: every-minute task + one immediate pass (picks up a password queued for a reinstall) ----
+if ($cfg["CALLBACK_URL"] -and $sid) {
+    Register-AgentTask
+    Invoke-AgentPoll $cfg
 }
 Log "---- CloudInitApply done ----"

@@ -32,7 +32,12 @@ const path = require('path')
 const secretStore = require('./vps-secret-store')
 
 const log = (...a) => console.log('[DO-RDP]', ...a)
-const PROVIDER = 'digitalocean'
+const PROVIDER = 'digitalocean-rdp'
+// Bot-facing instance ids carry an `rdp-` prefix so vps-provider.js can route them here
+// (bare UUIDs would be mistaken for Vultr). Internally doRdpServers.server_id stays the bare UUID.
+const ID_PREFIX = 'rdp-'
+const normId = (id) => String(id || '').replace(/^rdp-/i, '')
+const extId = (id) => (id ? ID_PREFIX + normId(id) : id)
 const DO_BASE = 'https://api.digitalocean.com/v2'
 const SCRIPTS_DIR = path.join(__dirname, 'rdp-scripts')
 
@@ -80,7 +85,7 @@ const GOLDEN_ALL_REGIONS = [...new Set(Object.values(REGION_TO_DO))]
 const UBUNTU_IMAGE = process.env.DO_UBUNTU_IMAGE || 'ubuntu-22-04-x64'
 
 // Poll timings (ms / min) — exported as _timing so tests can shrink them.
-const T = { bootPoll: 5000, rdpPoll: 30000, actionPoll: 15000, offPoll: 10000, rdpPort: 3389, rdpMaxMin: 90, transferMaxMin: 90, buildMaxMin: 120, importPoll: 30000, importMaxMin: 240, importRetryMin: 150, importRetries: 2, callbackGraceMs: 90000, fastTargetMs: 180000, digestMs: 24 * 60 * 60 * 1000 }
+const T = { bootPoll: 5000, rdpPoll: 30000, actionPoll: 15000, offPoll: 10000, rdpPort: 3389, rdpMaxMin: 90, transferMaxMin: 90, buildMaxMin: 120, importPoll: 30000, importMaxMin: 240, importRetryMin: 150, importRetries: 2, importSlotMaxMin: 480, callbackGraceMs: 90000, fastTargetMs: 180000, digestMs: 24 * 60 * 60 * 1000, commandWaitMs: 150000, commandPoll: 2000, agentStaleMs: 10 * 60 * 1000, rebuildMaxMin: 20 }
 
 // ─────────────────────────────────────────────────────────────
 // Admin alerts (Telegram via the bot's notifyAdmin, injected by _index.js init)
@@ -109,7 +114,7 @@ function sellPrice(tier, months) { return Math.round(tier.monthly_do_cost * mont
 
 function _products() {
   const out = []
-  for (const t of TIERS) {
+  TIERS.forEach((t, tierIdx) => {
     for (const m of DURATIONS) {
       const price = sellPrice(t, m)
       out.push({
@@ -117,26 +122,51 @@ function _products() {
         slug: t.slug,
         durationMonths: m,
         name: `${t.name} — Windows RDP (${m} month${m > 1 ? 's' : ''})`,
+        botName: `${t.name} — Windows RDP`,
         vcpus: t.vcpu, ramGb: t.ram_gb, diskGb: t.disk_gb,
+        // bot / vm-instance-setup compat fields
+        cpuCores: t.vcpu, ramMb: t.ram_gb * 1024, diskMb: t.disk_gb * 1024, diskType: 'nvme', bandwidthTb: 4, portSpeedMbps: 1000, tier: tierIdx + 1,
         do_size_slug: t.do_size_slug,
-        pricing: { base: price, markup: 0, totalWithMarkup: price, currency: 'usd', durationMonths: m },
+        pricing: { base: price, markup: 0, totalWithMarkup: price, basePriceUsd: price, regionSurcharge: 0, windowsLicense: 0, totalBeforeMarkup: price, currency: 'usd', durationMonths: m },
       })
     }
-  }
+  })
   return out
 }
 const PRODUCTS = _products()
 const PRODUCT_BY_ID = new Map(PRODUCTS.map(p => [p.productId, p]))
 
-function listProducts(_regionSlug = 'EU', isWindows = true /* , diskPreference */) {
+// Bot purchase flow is monthly: hide the 2/3-month bundles there (the reseller API still sells them).
+function listProducts(_regionSlug = 'EU', isWindows = true, _diskPreference, { monthlyOnly = false } = {}) {
   if (isWindows === false) return [] // this provider is RDP-only
-  return PRODUCTS
+  return monthlyOnly ? PRODUCTS.filter(p => p.durationMonths === 1) : PRODUCTS
 }
 function getProduct(planId) { return PRODUCT_BY_ID.get(String(planId || '')) || null }
 function calculatePrice(product, _regionSlug, _isWindows) {
   const p = typeof product === 'string' ? getProduct(product) : product
   if (!p || !p.pricing) return null
   return p.pricing
+}
+function formatSpecs(p) { return p ? `${p.cpuCores || p.vcpus} vCPU · ${p.ramGb} GB RAM · ${p.diskGb} GB NVMe · Windows Server` : '' }
+
+// Regions for the bot's country step (same 9 datacenters the reseller API maps to).
+const REGION_DISPLAY = {
+  nyc3: { emoji: '🇺🇸', label: 'United States (New York)', code: 'US' },
+  sfo3: { emoji: '🇺🇸', label: 'United States (San Francisco)', code: 'US-WEST' },
+  tor1: { emoji: '🇨🇦', label: 'Canada (Toronto)', code: 'CA' },
+  lon1: { emoji: '🇬🇧', label: 'United Kingdom (London)', code: 'UK' },
+  fra1: { emoji: '🇩🇪', label: 'Germany (Frankfurt)', code: 'EU' },
+  ams3: { emoji: '🇳🇱', label: 'Netherlands (Amsterdam)', code: 'NL' },
+  blr1: { emoji: '🇮🇳', label: 'India (Bangalore)', code: 'IN' },
+  sgp1: { emoji: '🇸🇬', label: 'Singapore', code: 'SG' },
+  syd1: { emoji: '🇦🇺', label: 'Australia (Sydney)', code: 'AU' },
+}
+function listRegions() { return Object.entries(REGION_DISPLAY).map(([slug, d]) => ({ regionSlug: slug, code: d.code, display: { emoji: d.emoji, label: d.label } })) }
+// Default Windows edition for a plan when the customer did not pick one: the fastest ready one (prefers 2022).
+async function getDefaultWindowsImageId(_productId) {
+  const opts = await listOsOptions()
+  const fast = opts.filter(o => o.fast_deploy)
+  return (fast.find(o => o.id === DEFAULT_OS_ID) || fast[0] || opts.find(o => o.id === DEFAULT_OS_ID) || opts[0]).id
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -308,6 +338,17 @@ async function listOsOptions() {
   })
 }
 
+// Bot-facing: editions with fast-deploy readiness for ONE region (bot regions are DO slugs or reseller codes).
+async function listOsOptionsForRegion(region) {
+  const slug = regionToSlug(region)
+  const all = await Promise.all(Object.keys(OS_OPTIONS).map(getOsOption))
+  return all.map(o => {
+    const golden = o.golden_status === 'available' && !!o.golden_image_id
+    const fast = golden && (o.golden_regions || []).includes(slug)
+    return { id: o.id, name: o.name, default: o.id === DEFAULT_OS_ID, golden, fast_deploy: fast, eta_minutes: fast ? 3 : 45 }
+  })
+}
+
 function goldenFastPathOk(server, osOption) {
   const goldenReady = osOption.golden_status === 'available' && !!osOption.golden_image_id
   const diskOk = (server.disk_gb || 0) >= (osOption.golden_min_disk_gb || 1e9)
@@ -441,12 +482,35 @@ async function waitBootIp(dropletId, tries = 72) {
 
 async function applyActivation(server) {
   const activated = new Date()
-  const expires = new Date(activated.getTime() + 30 * (server.duration_months || 1) * 86400000)
+  const set = { status: 'active', progress: 100 }
+  if (server.expires_at) {
+    // Reinstall of an already-activated server: the paid period is untouched.
+    set.reinstalled_at = activated
+  } else {
+    set.activated_at = activated
+    set.expires_at = new Date(activated.getTime() + 30 * (server.duration_months || 1) * 86400000)
+    set.time_to_active_s = server.created_at ? Math.round((activated - new Date(server.created_at)) / 1000) : null
+  }
   // Keep the first activation timestamp if the port probe and the callback both fire.
-  await _servers.updateOne({ server_id: server.server_id, status: { $ne: 'active' } }, { $set: {
-    status: 'active', progress: 100, activated_at: activated, expires_at: expires,
-    time_to_active_s: server.created_at ? Math.round((activated - new Date(server.created_at)) / 1000) : null,
-  } })
+  await _servers.updateOne({ server_id: server.server_id, status: { $ne: 'active' } }, { $set: set })
+}
+
+// Renewal hook (bot auto-renew / manual renew): push the paid period; wake an expired server.
+async function renewInstance(instanceId, months = 1) {
+  const id = normId(instanceId)
+  const s = _servers ? await _servers.findOne({ server_id: id }) : null
+  if (!s) throw new Error('unknown RDP server')
+  const m = Math.max(1, Number(months) || 1)
+  const base = s.expires_at && new Date(s.expires_at) > new Date() ? new Date(s.expires_at) : new Date()
+  const expires = new Date(base.getTime() + 30 * m * 86400000)
+  const set = { expires_at: expires, renewed_at: new Date() }
+  if (s.status === 'expired' || s.status === 'suspended') {
+    try { if (s.do_droplet_id) await doDropletAction(s.do_droplet_id, { type: 'power_on' }) } catch (_) {}
+    set.status = 'active'
+  }
+  await _servers.updateOne({ server_id: id }, { $set: set })
+  await addLog(id, 'renewed', `Renewed for ${m} month${m > 1 ? 's' : ''} - now expires ${expires.toISOString().slice(0, 10)}.`, null, null)
+  return { instanceId: extId(id), expires_at: expires, months: m }
 }
 
 async function pollRdp(serverId, ip, minutes = 90, { callbackGraceMs = 0 } = {}) {
@@ -720,6 +784,15 @@ async function runBuild(buildId) {
       const url = await waitBuildImage(buildId)
       if (!url) throw new Error(`build droplet did not deliver a Windows image within ${T.buildMaxMin} min`)
       if (b.volume_id) { await releaseVolume(b.volume_id, b.do_droplet_id); await setBuild(buildId, { volume_id: null }) }
+      // One DO import at a time per account: concurrent imports stalled in "pending" for hours (2026-09-22).
+      const slotDeadline = Date.now() + T.importSlotMaxMin * 60000
+      let announced = false
+      while (Date.now() < slotDeadline) {
+        const other = await _builds.findOne({ build_id: { $ne: buildId }, status: 'building', phase: 'importing' }, { projection: { build_id: 1, os_id: 1 } })
+        if (!other) break
+        if (!announced) { announced = true; await addBuildLog(buildId, 'converting', `qcow2 ready - waiting for the DigitalOcean import slot (${other.build_id} / ${other.os_id} is importing; imports run one at a time).`, 72) }
+        await sleep(T.importPoll)
+      }
       const imgName = `golden-${b.os_id}-${Math.floor(Date.now() / 1000)}`
       const created = (await doCreateCustomImage({ name: imgName, url, distribution: 'Unknown', region: b.region, description: `Nomadly Windows RDP golden image - ${osOption.name}`, tags: ['golden-rdp'] })).image || {}
       if (!created.id) throw new Error('custom image import was not accepted by DigitalOcean')
@@ -898,20 +971,23 @@ async function goldenStatus() {
 async function createInstance(opts = {}) {
   const product = getProduct(opts.productId)
   if (!product) throw new Error(`createInstance: unknown plan_id "${opts.productId}"`)
-  const region = regionToSlug(opts.regionSlug)
-  const osId = String(opts.osId || DEFAULT_OS_ID).toLowerCase()
-  if (!OS_OPTIONS[osId]) throw new Error(`createInstance: unknown os "${opts.osId}"`)
+  // Accepts both the reseller shape {regionSlug, osId, label} and the bot's vm-instance-setup shape
+  // {region, imageId, displayName, rootPassword: <secretId>}.
+  const region = regionToSlug(opts.regionSlug || opts.region)
+  const osId = String(opts.osId || opts.imageId || DEFAULT_OS_ID).toLowerCase()
+  if (!OS_OPTIONS[osId]) throw new Error(`createInstance: unknown os "${opts.osId || opts.imageId}"`)
   const serverId = crypto.randomUUID()
-  const adminPassword = genPassword()
+  const adminPassword = (opts.rootPassword && await getSecretPassword(opts.rootPassword)) || opts.adminPassword || genPassword()
   const callbackToken = genToken()
+  const label = opts.label || opts.displayName || null
 
   const doc = {
     server_id: serverId, os_id: osId, tier_slug: product.slug,
     duration_months: product.durationMonths, region, do_size_slug: product.do_size_slug,
     disk_gb: product.diskGb, do_droplet_id: null, volume_id: null, ip_address: null,
     admin_username: 'Administrator', callback_token: callbackToken, vnc_password: crypto.randomBytes(6).toString('base64url').slice(0, 8),
-    status: 'queued', progress: 0, logs: [], label: opts.label || null,
-    created_at: new Date(), activated_at: null, expires_at: null,
+    status: 'queued', progress: 0, logs: [], label, product_id: product.productId,
+    created_at: new Date(), activated_at: null, expires_at: null, commands: [], agent_seen_at: null,
   }
   if (_servers) await _servers.insertOne(doc)
   // Store the password durably so /rdp/:id/credentials can reveal it later.
@@ -922,10 +998,13 @@ async function createInstance(opts = {}) {
   provisionServer(serverId).catch(e => log(`provisionServer(${serverId}) error: ${e.message}`))
 
   return {
-    instanceId: serverId,
-    mainIp: null,
+    instanceId: extId(serverId),
+    serverId,
+    name: label || `rdp-${serverId.slice(0, 8)}`, displayName: label || `rdp-${serverId.slice(0, 8)}`,
+    mainIp: null, ipConfig: { v4: { ip: null } },
     status: 'provisioning',
-    passwordSecretId: serverId,
+    region, productId: product.productId, imageId: osId, osType: 'Windows', defaultUser: 'Administrator',
+    passwordSecretId: opts.rootPassword || serverId,
     defaultPassword: adminPassword,
     osId,
     fastDeploy: fast,
@@ -934,50 +1013,159 @@ async function createInstance(opts = {}) {
 }
 // No cross-provider fallback for DO-RDP (golden→conversion fallback is internal).
 async function createInstanceWithFallback(opts) { return createInstance(opts) }
+// vm-instance-setup.js stores the generated root password through the provider before createInstance.
+async function createSecret(name, value, type = 'password') {
+  const secretId = String(name || `pwd-${crypto.randomUUID()}`)
+  await secretStore.putSecret(secretId, String(value), { name: secretId, provider: PROVIDER, type })
+  return { secretId, name: secretId, type }
+}
 
 // Reseller-facing provisioning status (GET /rdp/:id): stage, progress, ETA countdown, credentials readiness.
 const STAGE_LABELS = {
   queued: 'Order received', creating: 'Creating the server', booting: 'Server booting', installing: 'Windows starting - applying network + password',
   converting: 'Installing Windows (full unattended install)', rdp_up: 'RDP port open - confirming password', rdp_ready: 'Windows is ready',
   password_failed: 'Password could not be applied', failed: 'Provisioning failed', info: 'Provisioning',
+  reinstall: 'Reinstalling Windows from the golden image', reinstalling: 'Reinstalling Windows', password_reset: 'Administrator password changed', power: 'Power action',
 }
 function provisioningStatus(s) {
   const now = Date.now()
   const last = (s.logs || []).slice(-1)[0] || {}
-  const created = s.created_at ? new Date(s.created_at).getTime() : now
+  const reinstall = s.reinstall_started_at && (!s.created_at || new Date(s.reinstall_started_at) > new Date(s.created_at))
+  const created = reinstall ? new Date(s.reinstall_started_at).getTime() : (s.created_at ? new Date(s.created_at).getTime() : now)
   const done = ['active', 'destroyed', 'suspended', 'expired'].includes(s.status)
   const failed = s.status === 'failed'
   const etaMin = s.eta_minutes || (s.fast_deploy ? 3 : 45)
-  const endMs = s.activated_at ? new Date(s.activated_at).getTime() : now
+  const finishedAt = reinstall ? s.reinstalled_at : s.activated_at
+  const endMs = finishedAt ? new Date(finishedAt).getTime() : now
   const elapsed = Math.max(0, Math.round((endMs - created) / 1000))
   const etaSeconds = done || failed ? 0 : Math.max(0, Math.round((created + etaMin * 60000 - now) / 1000))
   const order = ['creating', 'booting', s.fast_deploy ? 'installing' : 'converting', 'rdp_ready']
-  const seen = new Set((s.logs || []).map(l => l.stage === 'rdp_up' ? (s.fast_deploy ? 'installing' : 'converting') : l.stage))
+  const logs = reinstall ? (s.logs || []).filter(l => new Date(l.ts) >= new Date(s.reinstall_started_at)) : (s.logs || [])
+  const seen = new Set(logs.map(l => l.stage === 'rdp_up' ? (s.fast_deploy ? 'installing' : 'converting') : (l.stage === 'reinstall' ? 'creating' : l.stage)))
   const reached = Math.max(-1, ...order.map((k, i) => (seen.has(k) || s.status === k || (k === 'rdp_ready' && s.status === 'active')) ? i : -1))
   return {
     status: s.status, stage: last.stage || s.status, stage_label: STAGE_LABELS[last.stage] || STAGE_LABELS[s.status] || 'Provisioning',
     message: last.message || null, progress: s.status === 'active' ? 100 : (s.progress || 0),
     fast_deploy: !!s.fast_deploy, os: s.os_id, eta_minutes: etaMin, eta_seconds: etaSeconds,
     eta_at: done || failed ? null : new Date(created + etaMin * 60000).toISOString(), elapsed_seconds: elapsed,
-    time_to_active_s: s.time_to_active_s ?? (s.activated_at ? Math.round((new Date(s.activated_at) - created) / 1000) : null),
+    time_to_active_s: reinstall ? (s.reinstalled_at ? elapsed : null) : (s.time_to_active_s ?? (s.activated_at ? Math.round((new Date(s.activated_at) - created) / 1000) : null)),
     credentials_ready: s.status === 'active', password_confirmed: s.password_confirmed ?? null,
+    reinstall: !!reinstall,
     steps: order.map((k, i) => ({ key: k, label: STAGE_LABELS[k], done: i <= reached, current: i === reached + 1 && !done && !failed })),
     logs: (s.logs || []).slice(-10).map(l => ({ ts: l.ts, stage: l.stage, message: l.message })),
   }
 }
 
+// Bot-facing status vocabulary (vm-instance-setup upper-cases it: RUNNING shows Stop/Restart, else Start).
+function botStatus(s) {
+  if (s === 'active') return 'running'
+  if (s === 'suspended' || s === 'expired') return 'stopped'
+  if (s === 'failed') return 'error'
+  if (s === 'destroyed') return 'deleted'
+  return 'provisioning'
+}
 async function getInstance(instanceId) {
-  const s = _servers ? await _servers.findOne({ server_id: instanceId }) : null
+  const id = normId(instanceId)
+  const s = _servers ? await _servers.findOne({ server_id: id }) : null
   if (!s) return { status: 'unknown', mainIp: null }
   // Best-effort live refresh of IP from DO.
   if (s.do_droplet_id && !s.ip_address) {
     try {
       const d = (await doGetDroplet(s.do_droplet_id)).droplet || {}
       const pub = ((d.networks && d.networks.v4) || []).find(n => n.type === 'public')
-      if (pub && pub.ip_address) { s.ip_address = pub.ip_address; await _servers.updateOne({ server_id: instanceId }, { $set: { ip_address: pub.ip_address } }) }
+      if (pub && pub.ip_address) { s.ip_address = pub.ip_address; await _servers.updateOne({ server_id: id }, { $set: { ip_address: pub.ip_address } }) }
     } catch (_) {}
   }
-  return { status: s.status, mainIp: s.ip_address || null, progress: s.progress, expires_at: s.expires_at || null, logs: (s.logs || []).slice(-10), provisioning: provisioningStatus(s) }
+  const product = getProduct(s.product_id) || PRODUCTS.find(p => p.slug === s.tier_slug && p.durationMonths === (s.duration_months || 1)) || null
+  const osName = (OS_OPTIONS[s.os_id] || {}).name || 'Windows Server'
+  return {
+    // reseller API fields
+    status: s.status, mainIp: s.ip_address || null, progress: s.progress, expires_at: s.expires_at || null, logs: (s.logs || []).slice(-10), provisioning: provisioningStatus(s),
+    // bot / smart-proxy compat fields (contabo-service shape)
+    instanceId: extId(id), name: s.label || `rdp-${id.slice(0, 8)}`, displayName: s.label || `rdp-${id.slice(0, 8)}`,
+    ipConfig: { v4: { ip: s.ip_address || null } }, ipv4: s.ip_address || null,
+    botStatus: botStatus(s.status), region: s.region, productId: product ? product.productId : `${s.tier_slug}-${s.duration_months || 1}m`,
+    cpuCores: product && product.cpuCores, ramMb: product && product.ramMb, diskMb: product && product.diskMb,
+    osType: 'Windows', imageId: s.os_id, osName, defaultUser: 'Administrator', provider: PROVIDER, durationMonths: s.duration_months || 1,
+    agentOnline: !!(s.agent_seen_at && Date.now() - new Date(s.agent_seen_at) < T.agentStaleMs), agentSeenAt: s.agent_seen_at || null,
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// In-guest management agent (apply.ps1 -Agent polls every minute)
+// ─────────────────────────────────────────────────────────────
+async function queueCommand(serverId, type, payload) {
+  const cmd = { id: crypto.randomBytes(8).toString('hex'), type, payload, status: 'pending', created_at: new Date(), finished_at: null, result: null }
+  await _servers.updateOne({ server_id: serverId }, { $push: { commands: cmd } })
+  return cmd.id
+}
+async function waitCommand(serverId, cmdId, ms) {
+  const deadline = Date.now() + ms
+  while (Date.now() < deadline) {
+    await sleep(T.commandPoll)
+    const s = await _servers.findOne({ server_id: serverId }, { projection: { commands: 1 } })
+    const c = ((s && s.commands) || []).find(x => x.id === cmdId)
+    if (c && c.status !== 'pending') return c
+  }
+  return null
+}
+function agentAge(s) { return s && s.agent_seen_at ? Date.now() - new Date(s.agent_seen_at).getTime() : Infinity }
+
+// In-place Administrator password change through the agent (no reinstall, data preserved).
+async function resetPassword(instanceId, opts = {}) {
+  const id = normId(instanceId)
+  const s = _servers ? await _servers.findOne({ server_id: id }) : null
+  if (!s) throw new Error('unknown RDP server')
+  if (!['active', 'installing', 'booting', 'reinstalling'].includes(s.status)) throw new Error(`server is ${s.status} - start it first`)
+  if (agentAge(s) > T.agentStaleMs) throw new Error(`the management agent on this server has not checked in${s.agent_seen_at ? ` for ${fmtSecs(agentAge(s) / 1000)}` : ' yet'} - restart the server (or reinstall Windows) and try again`)
+  const password = (opts.rootPassword && await getSecretPassword(opts.rootPassword)) || genPassword()
+  const cmdId = await queueCommand(id, 'set_password', { password })
+  const r = await waitCommand(id, cmdId, T.commandWaitMs)
+  if (!r) throw new Error('the server did not confirm the password change in time - try again in a minute')
+  if (r.status !== 'done') throw new Error(`the server could not apply the password: ${r.result || 'unknown error'}`)
+  const secretId = opts.rootPassword || `pwd-reset-${id.slice(0, 8)}-${Date.now()}`
+  await secretStore.putSecret(id, password, { name: `rdp-${id.slice(0, 8)}`, provider: PROVIDER })
+  if (secretId !== id) await secretStore.putSecret(secretId, password, { name: secretId, provider: PROVIDER, type: 'password' })
+  await _servers.updateOne({ server_id: id }, { $set: { password_confirmed: true, password_reset_at: new Date() } })
+  await addLog(id, 'password_reset', 'Administrator password changed (in place, agent confirmed).', null, null)
+  return { password, secretId, reinstalled: false, verified: true, raw: { method: 'agent', adminUser: 'Administrator' }, note: null }
+}
+
+// Reinstall Windows (optionally another edition) = DO rebuild of the SAME droplet from the golden image:
+// IP kept, disk wiped, ~3 min. The new password is queued for the agent so it lands right after first boot.
+async function reinstallInstance(instanceId, opts = {}) {
+  const id = normId(instanceId)
+  const s = _servers ? await _servers.findOne({ server_id: id }) : null
+  if (!s || !s.do_droplet_id) throw new Error('server has no droplet yet')
+  if (['creating', 'booting', 'reinstalling', 'converting'].includes(s.status)) throw new Error(`server is ${s.status} - wait for the current operation to finish`)
+  const osId = String(opts.osId || opts.imageId || s.os_id).toLowerCase()
+  if (!OS_OPTIONS[osId]) throw new Error(`unknown Windows edition "${opts.osId || opts.imageId}"`)
+  const osOption = await getOsOption(osId)
+  if (!(osOption.golden_status === 'available' && osOption.golden_image_id)) throw new Error(`${osOption.name} has no ready image yet - choose another edition`)
+  if (!(osOption.golden_regions || []).includes(s.region)) {
+    transferGolden(osId, [s.region]).catch(() => {})
+    throw new Error(`${osOption.name} is not available in ${s.region} yet - it is being copied there now, try again in ~15 minutes`)
+  }
+  const password = (opts.rootPassword && await getSecretPassword(opts.rootPassword)) || genPassword()
+  const secretId = opts.rootPassword || id
+  await _servers.updateOne({ server_id: id }, {
+    $set: { status: 'reinstalling', progress: 5, os_id: osId, fast_deploy: true, eta_minutes: 3, golden_image_id: osOption.golden_image_id, password_confirmed: null, agent_seen_at: null, commands: [], reinstall_started_at: new Date() },
+    $push: { logs: { ts: new Date(), stage: 'reinstall', message: `Reinstalling ${osOption.name} from golden image ${osOption.golden_image_id} (disk wiped, IP ${s.ip_address || ''} kept)...` } },
+  })
+  await queueCommand(id, 'set_password', { password })
+  await secretStore.putSecret(id, password, { name: `rdp-${id.slice(0, 8)}`, provider: PROVIDER })
+  if (secretId !== id) await secretStore.putSecret(secretId, password, { name: secretId, provider: PROVIDER, type: 'password' })
+  const act = (await doDropletAction(s.do_droplet_id, { type: 'rebuild', image: osOption.golden_image_id })).action || {}
+  ;(async () => {
+    try {
+      const ok = !!act.id && await waitAction(act.id, T.rebuildMaxMin)
+      if (!ok) { await addLog(id, 'failed', `DigitalOcean could not rebuild droplet ${s.do_droplet_id} from image ${osOption.golden_image_id}.`, null, 'failed'); return }
+      await addLog(id, 'booting', `Droplet rebuilt from the ${osOption.name} golden image. Windows booting...`, 30, 'booting')
+      watchFastTarget(id)
+      await pollRdp(id, s.ip_address, T.rdpMaxMin, { callbackGraceMs: T.callbackGraceMs })
+    } catch (e) { await addLog(id, 'failed', `Reinstall failed: ${e.message}`, null, 'failed') }
+  })()
+  return { success: true, instanceId: extId(id), osId, osName: osOption.name, imageId: osOption.golden_image_id, password, secretId, ip: s.ip_address, etaMinutes: 3 }
 }
 
 // Daily admin digest of the last 24 h of RDP orders (only when there were any).
@@ -996,24 +1184,27 @@ async function sendDailyDigest() {
 }
 
 async function _dropletActionByServer(instanceId, actionBody, newStatus) {
-  const s = _servers ? await _servers.findOne({ server_id: instanceId }) : null
+  const id = normId(instanceId)
+  const s = _servers ? await _servers.findOne({ server_id: id }) : null
   if (!s || !s.do_droplet_id) throw new Error('server has no droplet yet')
   const r = await doDropletAction(s.do_droplet_id, actionBody)
-  if (newStatus) await _servers.updateOne({ server_id: instanceId }, { $set: { status: newStatus } })
-  return { action: r.action || null }
+  if (newStatus) await _servers.updateOne({ server_id: id }, { $set: { status: newStatus } })
+  await addLog(id, 'power', `${actionBody.type} requested`, null, null)
+  return { action: r.action || null, instanceId: extId(id), status: newStatus || s.status }
 }
 const startInstance    = (id) => _dropletActionByServer(id, { type: 'power_on' }, 'active')
 const stopInstance     = (id) => _dropletActionByServer(id, { type: 'power_off' }, 'suspended')
-const shutdownInstance = (id) => _dropletActionByServer(id, { type: 'shutdown' }, null)
+const shutdownInstance = (id) => _dropletActionByServer(id, { type: 'shutdown' }, 'suspended')
 const restartInstance  = (id) => _dropletActionByServer(id, { type: 'reboot' }, null)
 
 async function cancelInstance(instanceId) {
-  const s = _servers ? await _servers.findOne({ server_id: instanceId }) : null
+  const id = normId(instanceId)
+  const s = _servers ? await _servers.findOne({ server_id: id }) : null
   if (s && s.do_droplet_id) { try { await doDeleteDroplet(s.do_droplet_id) } catch (e) { if (e.status !== 404) throw e } }
   if (s && s.volume_id) await releaseVolume(s.volume_id, s.do_droplet_id)
-  if (_servers) await _servers.updateOne({ server_id: instanceId }, { $set: { status: 'destroyed', ip_address: null, do_droplet_id: null, volume_id: null } })
-  try { await secretStore.deleteSecret(instanceId) } catch (_) {}
-  return { destroyed: true }
+  if (_servers) await _servers.updateOne({ server_id: id }, { $set: { status: 'destroyed', ip_address: null, do_droplet_id: null, volume_id: null } })
+  try { await secretStore.deleteSecret(id) } catch (_) {}
+  return { destroyed: true, instanceId: extId(id) }
 }
 
 async function getSecretPassword(secretId) {
@@ -1070,7 +1261,10 @@ function provisionRouter() {
       if (s.callback_token !== token) return res.status(403).json({ error: 'Invalid callback token' })
       if (stage === 'rdp_ready' || (progress != null && Number(progress) >= 100)) {
         await applyActivation(s)
-        await _servers.updateOne({ server_id }, { $set: { password_confirmed: true } })
+        // After a reinstall the boot script applies the ORIGINAL user-data password first; the new one is
+        // still queued for the agent - don't advertise it as confirmed yet.
+        const pendingPw = (s.commands || []).some(c => c.type === 'set_password' && c.status === 'pending')
+        if (!pendingPw) await _servers.updateOne({ server_id }, { $set: { password_confirmed: true } })
         await addLog(server_id, 'rdp_ready', message || 'Windows is live.', 100, 'active')
       } else if (stage === 'failed') {
         await addLog(server_id, 'failed', message || 'Conversion failed.', progress, 'failed')
@@ -1084,6 +1278,34 @@ function provisionRouter() {
       res.json({ ok: true })
     } catch (e) { log(`callback error: ${e.message}`); res.status(500).json({ error: 'callback_error' }) }
   })
+  // In-guest agent (apply.ps1 -Agent, every minute): pending commands + results. Token-gated like /callback.
+  const agentAuth = async (server_id, token) => {
+    if (!server_id || !token || !_servers) return null
+    const s = await _servers.findOne({ server_id: normId(server_id) })
+    return s && s.callback_token === token ? s : null
+  }
+  router.get('/commands', async (req, res) => {
+    try {
+      const s = await agentAuth(req.query.server_id, req.query.token)
+      if (!s) return res.status(403).json({ error: 'Invalid token' })
+      await _servers.updateOne({ server_id: s.server_id }, { $set: { agent_seen_at: new Date() } })
+      res.json({ commands: (s.commands || []).filter(c => c.status === 'pending').map(c => ({ id: c.id, type: c.type, payload: c.payload })) })
+    } catch (e) { log(`commands error: ${e.message}`); res.status(500).json({ error: 'commands_error' }) }
+  })
+  router.post('/commands/result', express.json({ limit: '64kb' }), async (req, res) => {
+    try {
+      const { server_id, token, id, ok, message } = req.body || {}
+      const s = await agentAuth(server_id, token)
+      if (!s) return res.status(403).json({ error: 'Invalid token' })
+      const cmd = (s.commands || []).find(c => c.id === id)
+      if (!cmd) return res.status(404).json({ error: 'unknown command' })
+      const set = { 'commands.$.status': ok ? 'done' : 'failed', 'commands.$.finished_at': new Date(), 'commands.$.result': String(message || ''), agent_seen_at: new Date() }
+      if (cmd.type === 'set_password' && ok) set.password_confirmed = true
+      await _servers.updateOne({ server_id: s.server_id, 'commands.id': id }, { $set: set })
+      log(`agent ${s.server_id.slice(0, 8)}: ${cmd.type} ${id} → ${ok ? 'ok' : 'FAILED'} ${message || ''}`)
+      res.json({ ok: true })
+    } catch (e) { log(`commands/result error: ${e.message}`); res.status(500).json({ error: 'commands_error' }) }
+  })
   return router
 }
 
@@ -1091,17 +1313,17 @@ module.exports = {
   PROVIDER,
   init,
   // catalog / pricing
-  listProducts, getProduct, calculatePrice,
+  listProducts, getProduct, calculatePrice, formatSpecs, listRegions, REGION_DISPLAY, getDefaultWindowsImageId,
   // lifecycle
   createInstance, createInstanceWithFallback, getInstance,
   startInstance, stopInstance, restartInstance, shutdownInstance,
-  cancelInstance, getSecretPassword,
+  cancelInstance, getSecretPassword, createSecret, resetPassword, reinstallInstance, renewInstance,
   // ops
   processExpiries, provisionRouter, sendDailyDigest, provisioningStatus,
   // golden images
-  startGoldenBuild, cancelBuild, resumeBuilds, syncGoldenFromDO, transferGolden, goldenStatus, listOsOptions,
+  startGoldenBuild, cancelBuild, resumeBuilds, syncGoldenFromDO, transferGolden, goldenStatus, listOsOptions, listOsOptionsForRegion,
   // exported for tests / internal use
   _buildUserData: buildUserData, _buildMetadataUserData: buildMetadataUserData,
-  _products: () => PRODUCTS, regionToSlug, _genPassword: genPassword, getOsOption, _timing: T, _runBuild: runBuild, _provisionServer: provisionServer, _watchFastTarget: watchFastTarget,
+  _products: () => PRODUCTS, regionToSlug, _genPassword: genPassword, getOsOption, _timing: T, _runBuild: runBuild, _provisionServer: provisionServer, _watchFastTarget: watchFastTarget, normId, extId,
   DURATIONS, TIERS, OS_OPTIONS, DEFAULT_OS_ID, BUILD_SIZE, BUILD_REGION, GOLDEN_ALL_REGIONS,
 }

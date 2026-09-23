@@ -3055,7 +3055,10 @@ ${list.map(item => `${name == 'whm' ? `<strong>• ${item.name} - </strong>` : '
  const planPrice = vpsDetails.couponApplied ? vpsDetails.planNewPrice : vpsDetails.plantotalPrice
  const total = vpsDetails.totalPrice || Number(planPrice).toFixed(2)
  const isRDP = vpsDetails.isRDP
- const osLabel = isRDP ? '🪟 Windows Server (RDP)' : (vpsDetails.os?.name || 'Ubuntu')
+ const months = Number(vpsDetails.durationMonths) || 1
+ const osLabel = isRDP
+ ? (vpsDetails.os?.id ? `🪟 ${vpsDetails.os.name}${vpsDetails.os.fastDeploy ? ' ⚡ ~3 मिनट में तैयार' : ''}` : '🪟 Windows Server (RDP)')
+ : (vpsDetails.os?.name || 'Ubuntu')
  const planEmoji = isRDP ? '🪟' : '🖥️'
  const planKind = isRDP ? ' <i>(Windows RDP)</i>' : ''
  
@@ -3068,11 +3071,14 @@ ${list.map(item => `${name == 'whm' ? `<strong>• ${item.name} - </strong>` : '
  if (isRDP) {
  summary += `\n<strong>🪟 Windows लाइसेंस:</strong> शामिल`
  }
+ if (months > 1) {
+ summary += `\n<strong>📅 अवधि:</strong> ${months} महीने (प्रीपेड)`
+ }
  if (vpsDetails.couponApplied && vpsDetails.couponDiscount > 0) {
  summary += `\n<strong>🎟️ कूपन:</strong> -$${Number(vpsDetails.couponDiscount).toFixed(2)} USD`
  }
  summary += `\n<strong>🔄 ऑटो-रिन्यूअल:</strong> ✅ सक्षम`
- summary += `\n\n<strong>💰 कुल: $${total} USD/माह</strong>`
+ summary += `\n\n<strong>💰 कुल: $${total} USD${months > 1 ? ` / ${months} महीने` : '/माह'}</strong>`
  summary += `\n\n<strong>✅ क्या आप ऑर्डर जारी रखना चाहते हैं?</strong>`
  return summary
  },
@@ -3431,6 +3437,44 @@ ${dataPreserved
  rdpNotSupported: `⚠️ यह सुविधा केवल Windows RDP इंस्टेंसेज के लिए उपलब्ध है।
 
 आपका VPS Linux चला रहा है। एक्सेस प्रबंधन के लिए इसके बजाय SSH कुंजी का उपयोग करें।`,
+
+ // ── DigitalOcean Windows RDP: अवधि + संस्करण चयन, इन-प्लेस रीइंस्टॉल ──
+ rdpDurationBtn: c => (Number(c.period) === 1 ? `1 महीना — $${c.price}` : `${c.period} महीने — $${c.price}`),
+ askRdpDuration: (config, cycles) => `📅 <strong>आप कितने समय के लिए प्रीपे करना चाहते हैं?</strong>
+
+<strong>${config.name}</strong> — ${config.specs.vCPU} vCPU · ${config.specs.RAM}GB RAM · ${config.specs.disk}GB NVMe
+${cycles.map(c => `• ${Number(c.period) === 1 ? '1 महीना' : `${c.period} महीने`} — <b>$${c.price}</b>`).join('\n')}
+
+लंबी अवधि का भुगतान एक बार में होता है; अवधि समाप्त होने पर ऑटो-रिन्यूअल उसी अवधि का शुल्क फिर से लेता है।`,
+ rdpEditionBtn: o => `🪟 ${o.name}${o.fast_deploy ? ' ⚡ ~3 मिनट' : ' ⏳ ~45 मिनट'}`,
+ askRdpEdition: options => `🪟 <strong>अपना Windows संस्करण चुनें</strong>
+
+${options.map(o => `• <b>${o.name}</b> — ${o.fast_deploy ? '⚡ लगभग 3 मिनट में तैयार (आपके क्षेत्र में प्री-बिल्ट इमेज)' : '⏳ पूर्ण इंस्टॉल, लगभग 45 मिनट'}`).join('\n')}
+
+सभी संस्करण Windows Server Standard (Desktop Experience) हैं, RDP सक्षम और Administrator खाते के साथ।`,
+ askReinstallEdition: (name, options) => `🔄 <strong>${name} पर Windows रीइंस्टॉल करें</strong>
+
+इंस्टॉल करने के लिए संस्करण चुनें। आपका IP पता वही रहेगा।
+
+${options.map(o => `• <b>${o.name}</b> — ${o.fast_deploy ? '⚡ लगभग 3 मिनट' : '⏳ लगभग 45 मिनट'}`).join('\n')}`,
+ confirmReinstallWindowsRdpText: (name, osName, etaMin) => `🔄 <strong>${name} पर ${osName} रीइंस्टॉल करें</strong>
+
+⚠️ <strong>चेतावनी — डिस्क मिटा दी जाएगी:</strong>
+• सर्वर की सभी फ़ाइलें, प्रोग्राम और सेटिंग्स हट जाएंगी
+• हमारी प्री-बिल्ट इमेज से नया ${osName} इंस्टॉल होगा (~${etaMin} मिनट)
+• एक नया Administrator पासवर्ड बनेगा — पुराना काम नहीं करेगा
+• ✅ आपका IP पता और भुगतान की गई अवधि बनी रहेगी
+
+क्या आप जारी रखना चाहते हैं?`,
+ windowsReinstallStarted: (name, ip, username, password, osName, etaMin) => `🔄 <strong>${name} पर ${osName} रीइंस्टॉल हो रहा है</strong>
+
+🌐 <strong>IP:</strong> <code>${ip || 'अपरिवर्तित'}</code>
+👤 <strong>यूज़रनेम:</strong> ${username}
+🔑 <strong>नया पासवर्ड:</strong> <code>${password}</code>
+
+⏱️ Windows अभी इंस्टॉल हो रहा है — लगभग <b>${etaMin} मिनट</b> में इन क्रेडेंशियल्स से कनेक्ट करें।
+💡 कॉपी करने के लिए पासवर्ड पर टैप करें। आप इसे 🔐 पासवर्ड दिखाएँ से कभी भी फिर देख सकते हैं।`,
+ rdpActionReason: reason => `\n\n<i>कारण: ${reason}</i>`,
  vpsBeingDeleted: name => `⚙️ कृपया प्रतीक्षा करें, आपका VPS (${name}) हटाया जा रहा है`,
  vpsDeleted: name => `✅ VPS (${name}) स्थायी रूप से हटा दिया गया है।`,
  failedDeletingVPS: name => `❌ VPS (${name}) को हटाने में विफल।

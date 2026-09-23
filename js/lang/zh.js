@@ -3037,7 +3037,10 @@ ${list.map(item => `${name == 'whm' ? `<strong>• ${item.name} - </strong>` : '
  const planPrice = vpsDetails.couponApplied ? vpsDetails.planNewPrice : vpsDetails.plantotalPrice
  const total = vpsDetails.totalPrice || Number(planPrice).toFixed(2)
  const isRDP = vpsDetails.isRDP
- const osLabel = isRDP ? '🪟 Windows Server (RDP)' : (vpsDetails.os?.name || 'Ubuntu')
+ const months = Number(vpsDetails.durationMonths) || 1
+ const osLabel = isRDP
+ ? (vpsDetails.os?.id ? `🪟 ${vpsDetails.os.name}${vpsDetails.os.fastDeploy ? ' ⚡ 约 3 分钟就绪' : ''}` : '🪟 Windows Server (RDP)')
+ : (vpsDetails.os?.name || 'Ubuntu')
  const planEmoji = isRDP ? '🪟' : '🖥️'
  const planKind = isRDP ? ' <i>(Windows RDP)</i>' : ''
  
@@ -3050,11 +3053,14 @@ ${list.map(item => `${name == 'whm' ? `<strong>• ${item.name} - </strong>` : '
  if (isRDP) {
  summary += `\n<strong>🪟 Windows 许可证：</strong> 已包含`
  }
+ if (months > 1) {
+ summary += `\n<strong>📅 时长：</strong> ${months} 个月（预付）`
+ }
  if (vpsDetails.couponApplied && vpsDetails.couponDiscount > 0) {
  summary += `\n<strong>🎟️ 优惠券：</strong> -$${Number(vpsDetails.couponDiscount).toFixed(2)} USD`
  }
  summary += `\n<strong>🔄 自动续费：</strong> ✅ 启用`
- summary += `\n\n<strong>💰 总计：$${total} USD/月</strong>`
+ summary += `\n\n<strong>💰 总计：$${total} USD${months > 1 ? ` / ${months} 个月` : '/月'}</strong>`
  summary += `\n\n<strong>✅ 是否继续下单？</strong>`
  return summary
  },
@@ -3410,6 +3416,44 @@ ${dataPreserved
  rdpNotSupported: `⚠️ 此功能仅适用于 Windows RDP 实例。
 
 您的 VPS 运行 Linux。请改用 SSH 密钥进行访问管理。`,
+
+ // ── DigitalOcean Windows RDP：时长 + 版本选择，原地重装 ──
+ rdpDurationBtn: c => `${c.period} 个月 — $${c.price}`,
+ askRdpDuration: (config, cycles) => `📅 <strong>您想预付多长时间？</strong>
+
+<strong>${config.name}</strong> — ${config.specs.vCPU} vCPU · ${config.specs.RAM}GB RAM · ${config.specs.disk}GB NVMe
+${cycles.map(c => `• ${c.period} 个月 — <b>$${c.price}</b>`).join('\n')}
+
+更长的周期一次性付费；到期时自动续费将按同一周期再次扣费。`,
+ rdpEditionBtn: o => `🪟 ${o.name}${o.fast_deploy ? ' ⚡ 约 3 分钟' : ' ⏳ 约 45 分钟'}`,
+ askRdpEdition: options => `🪟 <strong>选择您的 Windows 版本</strong>
+
+${options.map(o => `• <b>${o.name}</b> — ${o.fast_deploy ? '⚡ 约 3 分钟就绪（您所在区域已有预构建镜像）' : '⏳ 完整安装，约 45 分钟'}`).join('\n')}
+
+所有版本均为 Windows Server Standard（桌面体验），已启用 RDP 并使用 Administrator 账户。`,
+ askReinstallEdition: (name, options) => `🔄 <strong>在 ${name} 上重装 Windows</strong>
+
+请选择要安装的版本。您的 IP 地址保持不变。
+
+${options.map(o => `• <b>${o.name}</b> — ${o.fast_deploy ? '⚡ 约 3 分钟' : '⏳ 约 45 分钟'}`).join('\n')}`,
+ confirmReinstallWindowsRdpText: (name, osName, etaMin) => `🔄 <strong>在 ${name} 上重装 ${osName}</strong>
+
+⚠️ <strong>警告 — 将清空磁盘：</strong>
+• 服务器上的所有文件、程序和设置都会被删除
+• 将从我们的预构建镜像全新安装 ${osName}（约 ${etaMin} 分钟）
+• 将生成新的 Administrator 密码 — 旧密码失效
+• ✅ 您的 IP 地址和已付费周期保持不变
+
+是否继续？`,
+ windowsReinstallStarted: (name, ip, username, password, osName, etaMin) => `🔄 <strong>正在 ${name} 上重装 ${osName}</strong>
+
+🌐 <strong>IP：</strong> <code>${ip || '不变'}</code>
+👤 <strong>用户名：</strong> ${username}
+🔑 <strong>新密码：</strong> <code>${password}</code>
+
+⏱️ Windows 正在安装 — 约 <b>${etaMin} 分钟</b> 后即可使用这些凭据连接。
+💡 点击密码即可复制。您随时可以通过 🔐 显示密码 再次查看。`,
+ rdpActionReason: reason => `\n\n<i>原因：${reason}</i>`,
  vpsBeingDeleted: name => `⚙️ 请稍等，您的 VPS (${name}) 正在删除中`,
  vpsDeleted: name => `✅ VPS (${name}) 已永久删除。`,
  failedDeletingVPS: name => `❌ 删除 VPS (${name}) 失败。

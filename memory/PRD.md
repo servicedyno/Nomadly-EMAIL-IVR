@@ -147,3 +147,9 @@ Runbook: `memory/RDP_GOLDEN_IMAGES.md`; lessons: `memory/DO_RDP_LESSONS.md`.
 - `/app/memory/BLACKNMILDS_CLOUDIVR_COMPLAINTS_2026-02.md` — full investigation report with railway log excerpts and file:line pointers for each fix
 - `/app/investigations/rl_prod_5k.log` — 5000-line prod log snapshot used for initial investigation
 - `/app/investigations/rl_prod_vps.log` — 3000-line prod log snapshot showing the VPS deletion spam pattern
+
+## 2026-06 fork handoff — DO Windows RDP lifecycle (bot + reseller API)
+- Status: A/B/C (provider wiring, bot purchase flow with 1/2/3-month durations, bot management: reset password + reinstall) substantially implemented in code (not yet live-verified). Unit suite `js/tests/test_do_rdp_golden_2026-06.js` = 84 passed / 0 failed. App healthy (all services running, all key JS files pass `node -c`).
+- MAIN REMAINING GAP: Reseller API — `POST /rdp/:id/password-reset` and `POST /rdp/:id/reinstall` endpoints DO NOT exist yet (`vpsActionHandler` only supports start/stop/reboot/shutdown). `agent_online` not yet on `GET /rdp/:id`. Docs pending.
+- Also pending: golden image parallel rebuild (F1, owner-approved), testing_agent + live E2E (E2/E3).
+- Full task tracker with line pointers: `/app/memory/RDP_BOT_INTEGRATION_TASKS.md`.

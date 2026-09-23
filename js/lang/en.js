@@ -3221,7 +3221,10 @@ ${list.map(item => `${name == 'whm' ? `<strong>• ${item.name} - </strong>` : '
  const planPrice = vpsDetails.couponApplied ? vpsDetails.planNewPrice : vpsDetails.plantotalPrice
  const total = vpsDetails.totalPrice || Number(planPrice).toFixed(2)
  const isRDP = vpsDetails.isRDP
- const osLabel = isRDP ? '🪟 Windows Server (RDP)' : (vpsDetails.os?.name || 'Ubuntu')
+ const months = Number(vpsDetails.durationMonths) || 1
+ const osLabel = isRDP
+ ? (vpsDetails.os?.id ? `🪟 ${vpsDetails.os.name}${vpsDetails.os.fastDeploy ? ' ⚡ ready in ~3 min' : ''}` : '🪟 Windows Server (RDP)')
+ : (vpsDetails.os?.name || 'Ubuntu')
  const planEmoji = isRDP ? '🪟' : '🖥️'
  const planKind = isRDP ? ' <i>(Windows RDP)</i>' : ''
 
@@ -3234,11 +3237,14 @@ ${list.map(item => `${name == 'whm' ? `<strong>• ${item.name} - </strong>` : '
  if (isRDP) {
  summary += `\n<strong>🪟 Windows License:</strong> Included`
  }
+ if (months > 1) {
+ summary += `\n<strong>📅 Duration:</strong> ${months} months (prepaid)`
+ }
  if (vpsDetails.couponApplied && vpsDetails.couponDiscount > 0) {
  summary += `\n<strong>🎟️ Coupon:</strong> -$${Number(vpsDetails.couponDiscount).toFixed(2)} USD`
  }
  summary += `\n<strong>🔄 Auto-Renewal:</strong> ✅ Enabled`
- summary += `\n\n<strong>💰 Total: $${total} USD/mo</strong>`
+ summary += `\n\n<strong>💰 Total: $${total} USD${months > 1 ? ` / ${months} months` : '/mo'}</strong>`
  summary += `\n\n<strong>✅ Proceed with the order?</strong>`
  return summary
  },
@@ -3643,6 +3649,44 @@ Please try again in a few minutes or contact support if the issue persists.`,
  rdpNotSupported: `⚠️ This feature is only available for Windows RDP instances.
 
 Your VPS is running Linux. Use SSH keys for access management instead.`,
+
+ // ── DigitalOcean Windows RDP: duration + edition pickers, in-place reinstall ──
+ rdpDurationBtn: c => (Number(c.period) === 1 ? `1 month — $${c.price}` : `${c.period} months — $${c.price}`),
+ askRdpDuration: (config, cycles) => `📅 <strong>How long do you want to prepay?</strong>
+
+<strong>${config.name}</strong> — ${config.specs.vCPU} vCPU · ${config.specs.RAM}GB RAM · ${config.specs.disk}GB NVMe
+${cycles.map(c => `• ${Number(c.period) === 1 ? '1 month' : `${c.period} months`} — <b>$${c.price}</b>`).join('\n')}
+
+Longer periods are billed once up front; auto-renewal charges the same period again when it ends.`,
+ rdpEditionBtn: o => `🪟 ${o.name}${o.fast_deploy ? ' ⚡ ~3 min' : ' ⏳ ~45 min'}`,
+ askRdpEdition: options => `🪟 <strong>Choose your Windows edition</strong>
+
+${options.map(o => `• <b>${o.name}</b> — ${o.fast_deploy ? '⚡ ready in about 3 minutes (pre-built image in your region)' : '⏳ full install, about 45 minutes'}`).join('\n')}
+
+All editions are Windows Server Standard (Desktop Experience) with RDP enabled and the Administrator account.`,
+ askReinstallEdition: (name, options) => `🔄 <strong>Reinstall Windows on ${name}</strong>
+
+Pick the edition to install. Your IP address stays the same.
+
+${options.map(o => `• <b>${o.name}</b> — ${o.fast_deploy ? '⚡ about 3 minutes' : '⏳ about 45 minutes'}`).join('\n')}`,
+ confirmReinstallWindowsRdpText: (name, osName, etaMin) => `🔄 <strong>Reinstall ${osName} on ${name}</strong>
+
+⚠️ <strong>WARNING — this erases the disk:</strong>
+• All files, programs and settings on the server are deleted
+• A fresh ${osName} is installed from our pre-built image (~${etaMin} min)
+• A NEW Administrator password is generated — the old one stops working
+• ✅ Your IP address and your paid period are kept
+
+Do you want to continue?`,
+ windowsReinstallStarted: (name, ip, username, password, osName, etaMin) => `🔄 <strong>Reinstalling ${osName} on ${name}</strong>
+
+🌐 <strong>IP:</strong> <code>${ip || 'unchanged'}</code>
+👤 <strong>Username:</strong> ${username}
+🔑 <strong>New password:</strong> <code>${password}</code>
+
+⏱️ Windows is being installed now — connect with these credentials in about <b>${etaMin} minutes</b>.
+💡 Tap the password to copy it. You can always show it again with 🔐 Show Password.`,
+ rdpActionReason: reason => `\n\n<i>Reason: ${reason}</i>`,
  vpsBeingDeleted: name => `⚙️ Please wait while your VPS (${name}) is being deleted`,
  vpsDeleted: name => `✅ VPS (${name}) has been permanently deleted.`,
  failedDeletingVPS: name => `❌ Failed to delete VPS (${name}). 

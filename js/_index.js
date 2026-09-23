@@ -9351,6 +9351,8 @@ bot?.on('message', msg => {
     confirmZoneForVPS: 'confirmZoneForVPS',
     askUserVpsPlan: 'askUserVpsPlan',
     askVpsConfig: 'askVpsConfig',
+    askRdpDuration: 'askRdpDuration',
+    askRdpEdition: 'askRdpEdition',
     askVPSPlanAutoRenewal: 'askVPSPlanAutoRenewal',
     askVpsOS: 'askVpsOS',
     askVpsCpanel: 'askVpsCpanel',
@@ -9371,6 +9373,7 @@ bot?.on('message', msg => {
     confirmDeleteVps: 'confirmDeleteVps',
     confirmResetPassword: 'confirmResetPassword',
     confirmReinstallWindows: 'confirmReinstallWindows',
+    askReinstallEdition: 'askReinstallEdition',
     upgradeVpsInstance: 'upgradeVpsInstance',
     upgradeVpsPlan: 'upgradeVpsPlan',
     askVpsUpgradePayment: 'askVpsUpgradePayment',
@@ -11960,7 +11963,7 @@ Enter new value:`), bc)
     // Step 2: Region selection (after VPS/RDP choice)
     askRegionForVps: async () => {
       await set(state, chatId, 'action', a.askCountryForVPS)
-      const availableCountry = await fetchAvailableCountries()
+      const availableCountry = await fetchAvailableCountries(!!info?.vpsDetails?.isRDP)
       if (!availableCountry) return send(chatId, vp.failedFetchingData, trans('o'))
       saveInfo('vpsAreaList', availableCountry)
       return send(chatId, vp.askCountryForUser, vp.of(availableCountry))
@@ -11968,7 +11971,7 @@ Enter new value:`), bc)
 
     askRegionAreaForVps: async () => {
       await set(state, chatId, 'action', a.askRegionAreaForVPS)
-      const availableRegions = await fetchAvailableRegionsOfCountry(info?.vpsDetails?.country)
+      const availableRegions = await fetchAvailableRegionsOfCountry(info?.vpsDetails?.country, !!info?.vpsDetails?.isRDP)
       if (!availableRegions) return send(chatId, vp.failedFetchingData, trans('o'))
       const regionsList = availableRegions.map((item) => item.label)
       saveInfo('vpsAreaList', availableRegions)
@@ -11993,7 +11996,7 @@ Enter new value:`), bc)
     askVpsDiskType: async () => {
       await set(state, chatId, 'action', a.askVpsDiskType)
       send(chatId, vp.vpsWaitingTime)
-      const diskTypes = await fetchAvailableDiskTpes(info?.vpsDetails?.zone)
+      const diskTypes = await fetchAvailableDiskTpes(info?.vpsDetails?.zone, !!info?.vpsDetails?.isRDP)
       log(diskTypes)
       if (!diskTypes || !diskTypes.length) return send(chatId, vp.failedFetchingData, trans('o'))
       const diskList = diskTypes?.map((item) => item.label) || []
@@ -12063,6 +12066,29 @@ Enter new value:`), bc)
       vpsDetails.plantotalPrice = vpsDetails.config.billingCycles?.[0]?.price || vpsDetails.config.monthlyPrice
       saveInfo('vpsDetails', vpsDetails)
       return goto.askCouponForVPSPlan()
+    },
+
+    // RDP (DigitalOcean): prepaid duration — 1 / 2 / 3 months, one button per billing cycle.
+    askRdpDuration: async () => {
+      const vpsDetails = info?.vpsDetails || {}
+      const cycles = (vpsDetails.config?.billingCycles || []).filter(c => c && c.price != null)
+      if (cycles.length < 2) return goto.askCouponForVPSPlan()
+      await set(state, chatId, 'action', a.askRdpDuration)
+      return send(chatId, vp.askRdpDuration(vpsDetails.config, cycles), vp.of(cycles.map(c => vp.rdpDurationBtn(c))))
+    },
+
+    // RDP (DigitalOcean): Windows edition with per-region fast-deploy readiness (⚡ ~3 min vs ⏳ ~45 min).
+    askRdpEdition: async () => {
+      const vpsDetails = info?.vpsDetails || {}
+      let options = []
+      try {
+        const rdpSvc = require('./vps-provider').pickProviderForOs(true)
+        if (typeof rdpSvc.listOsOptionsForRegion === 'function') options = await rdpSvc.listOsOptionsForRegion(vpsDetails.zone || vpsDetails.region)
+      } catch (e) { console.log(`[RDP] askRdpEdition: listOsOptionsForRegion failed for ${chatId}: ${e.message}`) }
+      if (!options.length) return goto.vpsAskPaymentConfirmation() // provider without selectable editions
+      await set(state, chatId, 'action', a.askRdpEdition)
+      saveInfo('rdpEditionOptions', options)
+      return send(chatId, vp.askRdpEdition(options), vp.of(options.map(o => vp.rdpEditionBtn(o))))
     },
 
     askCouponForVPSPlan: async () => {

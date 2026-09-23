@@ -3066,7 +3066,10 @@ Découvrez-en plus sur ${TG_HANDLE}.`,
  const planPrice = vpsDetails.couponApplied ? vpsDetails.planNewPrice : vpsDetails.plantotalPrice
  const total = vpsDetails.totalPrice || Number(planPrice).toFixed(2)
  const isRDP = vpsDetails.isRDP
- const osLabel = isRDP ? '🪟 Windows Server (RDP)' : (vpsDetails.os?.name || 'Ubuntu')
+ const months = Number(vpsDetails.durationMonths) || 1
+ const osLabel = isRDP
+ ? (vpsDetails.os?.id ? `🪟 ${vpsDetails.os.name}${vpsDetails.os.fastDeploy ? ' ⚡ prêt en ~3 min' : ''}` : '🪟 Windows Server (RDP)')
+ : (vpsDetails.os?.name || 'Ubuntu')
  const planEmoji = isRDP ? '🪟' : '🖥️'
  const planKind = isRDP ? ' <i>(Windows RDP)</i>' : ''
  
@@ -3079,11 +3082,14 @@ Découvrez-en plus sur ${TG_HANDLE}.`,
  if (isRDP) {
  summary += `\n<strong>🪟 Licence Windows :</strong> Incluse`
  }
+ if (months > 1) {
+ summary += `\n<strong>📅 Durée :</strong> ${months} mois (prépayés)`
+ }
  if (vpsDetails.couponApplied && vpsDetails.couponDiscount > 0) {
  summary += `\n<strong>🎟️ Coupon :</strong> -$${Number(vpsDetails.couponDiscount).toFixed(2)} USD`
  }
  summary += `\n<strong>🔄 Renouvellement auto :</strong> ✅ Activé`
- summary += `\n\n<strong>💰 Total : $${total} USD/mo</strong>`
+ summary += `\n\n<strong>💰 Total : $${total} USD${months > 1 ? ` / ${months} mois` : '/mo'}</strong>`
  summary += `\n\n<strong>✅ Procéder à la commande ?</strong>`
  return summary
  },
@@ -3444,6 +3450,44 @@ Veuillez réessayer dans quelques minutes ou contacter le support si le problèm
  rdpNotSupported: `⚠️ Cette fonctionnalité n'est disponible que pour les instances Windows RDP.
 
 Votre VPS exécute Linux. Utilisez plutôt les clés SSH pour la gestion des accès.`,
+
+ // ── DigitalOcean Windows RDP : durée + édition, réinstallation sur place ──
+ rdpDurationBtn: c => (Number(c.period) === 1 ? `1 mois — $${c.price}` : `${c.period} mois — $${c.price}`),
+ askRdpDuration: (config, cycles) => `📅 <strong>Quelle durée souhaitez-vous prépayer ?</strong>
+
+<strong>${config.name}</strong> — ${config.specs.vCPU} vCPU · ${config.specs.RAM}GB RAM · ${config.specs.disk}GB NVMe
+${cycles.map(c => `• ${c.period} mois — <b>$${c.price}</b>`).join('\n')}
+
+Les périodes plus longues sont facturées en une fois ; le renouvellement automatique refacture la même période à l'échéance.`,
+ rdpEditionBtn: o => `🪟 ${o.name}${o.fast_deploy ? ' ⚡ ~3 min' : ' ⏳ ~45 min'}`,
+ askRdpEdition: options => `🪟 <strong>Choisissez votre édition Windows</strong>
+
+${options.map(o => `• <b>${o.name}</b> — ${o.fast_deploy ? '⚡ prêt en environ 3 minutes (image pré-construite dans votre région)' : '⏳ installation complète, environ 45 minutes'}`).join('\n')}
+
+Toutes les éditions sont Windows Server Standard (Expérience utilisateur) avec RDP activé et le compte Administrator.`,
+ askReinstallEdition: (name, options) => `🔄 <strong>Réinstaller Windows sur ${name}</strong>
+
+Choisissez l'édition à installer. Votre adresse IP reste la même.
+
+${options.map(o => `• <b>${o.name}</b> — ${o.fast_deploy ? '⚡ environ 3 minutes' : '⏳ environ 45 minutes'}`).join('\n')}`,
+ confirmReinstallWindowsRdpText: (name, osName, etaMin) => `🔄 <strong>Réinstaller ${osName} sur ${name}</strong>
+
+⚠️ <strong>ATTENTION — le disque sera effacé :</strong>
+• Tous les fichiers, programmes et paramètres du serveur sont supprimés
+• Un ${osName} neuf est installé depuis notre image pré-construite (~${etaMin} min)
+• Un NOUVEAU mot de passe Administrator est généré — l'ancien ne fonctionne plus
+• ✅ Votre adresse IP et votre période payée sont conservées
+
+Voulez-vous continuer ?`,
+ windowsReinstallStarted: (name, ip, username, password, osName, etaMin) => `🔄 <strong>Réinstallation de ${osName} sur ${name}</strong>
+
+🌐 <strong>IP :</strong> <code>${ip || 'inchangée'}</code>
+👤 <strong>Utilisateur :</strong> ${username}
+🔑 <strong>Nouveau mot de passe :</strong> <code>${password}</code>
+
+⏱️ Windows s'installe maintenant — connectez-vous avec ces identifiants dans environ <b>${etaMin} minutes</b>.
+💡 Touchez le mot de passe pour le copier. Vous pouvez le réafficher à tout moment avec 🔐 Afficher le mot de passe.`,
+ rdpActionReason: reason => `\n\n<i>Raison : ${reason}</i>`,
  vpsBeingDeleted: name => `⚙️ Veuillez patienter pendant que votre VPS (${name}) est en cours de suppression`,
  vpsDeleted: name => `✅ Le VPS (${name}) a été supprimé de manière permanente.`,
  failedDeletingVPS: name => `❌ Échec de la suppression du VPS (${name}).
