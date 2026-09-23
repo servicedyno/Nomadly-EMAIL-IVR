@@ -14,7 +14,7 @@ import json
 import sys
 
 # Backend URL from frontend/.env
-BACKEND_URL = "https://rdp-bot-tasks.preview.emergentagent.com"
+BACKEND_URL = "https://key-manager-94.preview.emergentagent.com"
 
 def print_section(title):
     """Print a formatted section header"""
