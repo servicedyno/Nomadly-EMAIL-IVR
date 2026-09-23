@@ -1,80 +1,99 @@
-# Nomadly Telegram Bot — End-to-End User Journey Audit & Conversion Recommendations
+# Plan — Make the Windows RDPs Fast
+
+## The problem you hit
+The RDP you tested is the **Starter** plan: **1 vCPU / 2 GB RAM**, on DigitalOcean's
+**Basic "Regular" CPU** class (shared, oldest-generation hardware, shared SSD — not NVMe).
+Windows Server 2025 on that spec is genuinely slow: the OS alone wants ~2 GB RAM at idle,
+so it's constantly starved.
+
+There is no single "fast RDP" switch. Speed comes from four levers, and today all four are
+set to the slow/cheap end:
+
+| Lever | Today | Effect |
+|---|---|---|
+| **Droplet class** | Basic **Regular** (shared, old CPU, SSD) | Sluggish, variable, no NVMe |
+| **Minimum size sold** | Starter = **1 vCPU / 2 GB** | Under Windows' floor → always slow |
+| **Windows image tuning** | Stock Windows defaults | Visual effects, background services, power-saving all on |
+| **RDP connection** | Customer uses default client settings | Wallpaper/animations/no cache → laggy feel |
+
+The catalog also advertises "NVMe" on every plan, which is only true on Premium/Dedicated
+droplets — worth correcting either way.
 
 ## Objective
-Audit the complete Nomadly bot experience as a new user lives it — from the first `/start` to first payment and beyond — and return a prioritized set of recommendations that shorten the path to a first purchase and reduce drop-off.
+Make every RDP the platform sells feel responsive, and make "fast" honest in the catalog —
+without over-spending. This changes the **droplet class**, the **plans/specs offered**, the
+**Windows image**, and the **connection experience** delivered to customers.
 
-## Deliverable
-One written report (saved under `/app/memory/` and summarized in chat) containing:
+## What will change (recommended defaults — challenge any of these)
 
-1. **Journey map** — every stage a user passes through, the taps required, and where value, price and payment first become visible.
-2. **Pain-point register** — each friction point with severity (Blocker / Major / Minor), which stage it hits, and why it costs conversions.
-3. **Recommendations** — ranked by expected impact on first-purchase conversion vs. effort, split into:
-   - *Quick wins* (copy, button order, defaults — shippable in hours)
-   - *Structural* (flow redesign, pricing/packaging, lifecycle messaging)
-4. **Suggested 30-day sequence** — what to change first, second, third.
+### 1. Move RDPs onto faster hardware (droplet class)
+Switch the RDP plans from Basic **Regular** to Basic **Premium AMD** — newer CPUs, higher
+memory speed, and true **NVMe** disks. This is the best speed-per-dollar and makes the "NVMe"
+claim accurate. Cost rises only modestly (~15–20% more than Regular).
 
-This pass is **analysis only**. Nothing in the bot is changed. Implementation happens as a follow-up once you pick which recommendations to act on.
+Option for the top tiers (Pro/Power): use **Dedicated CPU** instead of shared, for guaranteed
+performance under sustained load. This is noticeably pricier (roughly 2–3× the Basic cost) and
+is optional.
 
-## Scope — journeys covered
+**Decision:** Premium AMD for all tiers (recommended), or Premium for entry tiers + Dedicated
+for Pro/Power, or stay on Basic Regular (cheapest, slowest — not recommended).
 
-| # | Stage | What is examined |
-|---|-------|------------------|
-| 1 | Discovery → `/start` | Entry via promos, channel, referral links; first message the user sees |
-| 2 | First run | Language pick, Terms acceptance, welcome gift, guided intro, arrival at main menu — how many messages/steps before the user can do anything |
-| 3 | Free value | `/testsip` free call, 5 free short links, BulkSMS trial, email-validation trial — is free value discoverable, and does it lead anywhere |
-| 4 | Browse | Main menu → each product hub (Cloud IVR, Anti-Red Hosting, Domains, Digital Products, VPS/RDP, Phone Leads, Marketplace, Virtual Card, Bundles) — clarity, pricing visibility, taps to a price |
-| 5 | Purchase | Plan/number selection → coupon → order summary → payment method → crypto / bank / wallet → confirmation |
-| 6 | Wallet & payments | Deposit minimums, exact-amount crypto, under/over-payment handling, TRC20 floor, insufficient-balance dead ends |
-| 7 | Post-purchase | Activation message, setup guidance (SIP/softphone), upsells, renewals, auto-renew, expiry warnings |
-| 8 | Lifecycle messaging | Welcome offer, browse follow-up, cart-abandonment nudge, twice-daily promos, win-back, daily coupons, opt-out — frequency and coherence |
-| 9 | Support | AI support, "Ask Question", escalation to a human, dead-end typed input |
-| 10 | Localization | French / Chinese / Hindi parity with English on the above |
+### 2. Raise the minimum Windows spec (retire "Starter" as it stands)
+1 vCPU / 2 GB is below what Windows Server needs and is the main reason for the slow experience.
+Recommended new line-up:
 
-Cloud IVR gets the deepest treatment (it is the bot's headline product), but every service on the main menu is covered.
+| Plan | Spec | Notes |
+|---|---|---|
+| Entry | **2 vCPU / 4 GB / 80 GB** | New floor — the current "Standard" |
+| Mid | **4 vCPU / 8 GB / 160 GB** | Comfortable for most real work |
+| High | **8 vCPU / 16 GB / 320 GB** | Heavy workloads |
 
-## Method
-- Walk every user-facing screen in the order a real user encounters it, counting taps to (a) understand the offer, (b) see a price, (c) reach payment, (d) get the product.
-- Cross-check against the three earlier production-log analyses already on file so previously fixed items are excluded and still-open ones are re-weighted.
-- Pull a **fresh, read-only** sample of recent production logs to quantify drop-off (Back/Cancel frequency, `/testsip` → purchase, deposit started → deposit completed). No writes, no messages sent, the sandbox stays on its isolated local database.
-- Limitations: real user accounts and the live production bot cannot be driven from here; findings rest on the exact screens/copy users receive plus production logs.
+The old **1 vCPU / 2 GB Starter** would be removed from the Windows catalog (or kept only as a
+clearly-labelled "light use, not recommended for Windows" option).
 
-## Preliminary findings (from the walkthrough so far — to be validated and expanded in the report)
+**Decision:** remove Starter entirely, or keep it with a "not recommended / may be slow" warning.
 
-**Trust & consistency (likely Blockers)**
-- Prices and quotas differ between surfaces users see back-to-back: e.g. Pro plan minutes shown as 400 in the plan picker but 500 in promos; Business shown as 600 min / 300 SMS vs "Unlimited / 1000 SMS"; domains "from $30/yr" in the bot vs "from $3" in promos; overage quoted at $0.15/min in one place and $0.04/min in another.
-- Post-purchase "recommended add-ons" reference products/prices that don't exist in the catalog ($4.99 hosting, $2.99 email, $5.99 SMS).
-- "X users bought this week" social-proof numbers are generated, not measured.
+### 3. Bake performance tuning into the Windows image
+Ship the image already optimised so every plan feels faster at no extra infrastructure cost:
+- High-Performance power plan (stop CPU down-throttling)
+- "Adjust for best performance" (disable animations, transparency, shadows, wallpaper)
+- Don't auto-open Server Manager at login; trim unnecessary startup/telemetry/search-indexing
+- Tune Windows Defender so it isn't heavily scanning during interactive use
+- Server-side Remote Desktop compression/graphics settings tuned for responsiveness
 
-**Onboarding (Major)**
-- Several welcome systems overlap (welcome gift, guided 3-choice intro, service-list intro, Terms, language) — a new user receives multiple stacked messages before reaching the menu; "Skip Intro" was among the most-pressed buttons in prior logs.
-- Main menu presents ~17 buttons across ~10 rows with no hierarchy or "start here"; prior logs show heavy window-shopping and Back/Cancel as the 2nd most common action.
-- The best free hook (`/testsip`) is a typed command, not a visible button, and ends without a next step.
+### 4. Give customers an optimised way to connect
+Provide a ready-made connection file / clear settings so the customer isn't stuck on laggy
+defaults: LAN/high-speed experience preset, bitmap caching on, wallpaper/animations/font-smoothing
+off, and guidance on UDP vs TCP if a link is unstable. Also nudge customers to pick the region
+closest to them (already offered) to cut latency.
 
-**Cloud IVR purchase path (Major)**
-- ~9–11 steps from hub to activation; price is visible early but the plan picker repeats the "Starter does NOT include IVR" warning three times — the product is called *Cloud IVR* yet its entry plan has no IVR, which forces disclaimers instead of a clean ladder.
-- Required minimums appear late: $50 wallet floor for Bulk IVR surfaces only at launch after a 6-step form; forwarding asks for a $25 top-up after setup.
+## Cost & pricing impact (your call)
+Customer price today is set as **(DigitalOcean monthly cost × 2)**. Faster hardware raises the
+DigitalOcean cost, so either the price goes up in step, or the margin shrinks if prices are held.
 
-**Wallet & payments (Major)**
-- Wallet screen shows only a balance and a Deposit button — no "what $X gets you", no quick amounts, no bonus visible; prior logs show instant abandonment here.
-- Crypto checkout demands an exact coin amount; under-payment credits the wallet but does not complete the order, leaving the user to re-purchase manually.
-- Deposit minimum $10, but TRC20 needs $20 and several services effectively need $25–$50 — the first deposit prompt doesn't say so.
+- Premium AMD: small increase — entry plan's DO cost goes from ~$24 to ~$28/mo.
+- Dedicated (if chosen for top tiers): significantly higher DO cost.
 
-**Lifecycle messaging (Major)**
-- A new non-buyer can receive a welcome offer (2 h), a browse follow-up (2 h), a cart nudge (45 min), and two daily promos with two sales footers each — in the first 24 h. Prior logs recorded hundreds of "bot blocked" responses to promos.
+**Decision:** keep the ×2 formula (prices rise automatically with the faster hardware), or hold
+current customer prices and accept a slightly thinner margin, or set new fixed prices.
 
-**Navigation & help (Minor–Major)**
-- Unknown typed text yields "That option isn't available" rather than routing to help/AI support; "Ask Question" exists only on Digital Products.
-- Non-English copy is shorter and omits details present in English on several screens.
+## Dependency / timing
+Levers **3 and 4** (image tuning + connection) require the same one-time step already pending for
+the callback fix: the code change reaching production (via **Save to GitHub** → auto-deploy) and a
+**golden-image rebuild** (~a couple of hours). These will be **bundled into that single rebuild** so
+the image is only rebuilt once. Levers **1 and 2** (class + plan line-up) also deploy through that
+same push, then apply to all new orders.
 
-## How recommendations will be prioritized
-Each recommendation gets an impact estimate (which stage's drop-off it attacks and how many users hit that stage) and an effort estimate. Ranking = impact ÷ effort, with trust-breaking issues (wrong prices, invented numbers) treated as P0 regardless of effort because they undermine every other fix.
+Your currently-running test RDP can optionally be **resized up** in place (e.g. to 4 vCPU / 8 GB)
+so you can feel the difference immediately, before any of the above ships.
 
-## Assumptions (push back on any of these)
-- **Analysis first, build second.** The report returns recommendations; no bot changes are made in this pass.
-- **"Convert quickly" = first paid action within the first session or first 24 hours**, with wallet top-up counted as a conversion milestone.
-- **Whole-bot coverage, Cloud IVR deepest.**
-- **Fresh production logs will be sampled read-only** to put numbers on drop-off. If you'd rather keep this strictly to the screens/copy and existing reports, say so.
-- Report written in English.
+## Assumptions
+- Existing already-provisioned customer RDPs are left on their current size (this changes what is
+  *sold going forward*, not a forced migration of live servers).
+- Image tuning and the optimised connection file are wanted as described (no per-item sign-off).
+- Windows editions offered (2019/2022/2025) stay the same; this is about speed, not OS choice.
 
 ## Out of scope
-- Code or copy changes, database edits, sending any messages to users, touching production configuration.
+- Changing cloud providers or adding GPU instances.
+- Migrating/rebilling existing running servers.
+- Any change to how RDPs are provisioned, activated, or billed beyond spec/class/price.
