@@ -69,14 +69,22 @@ const doGet = async (p) => (await axios.get(`https://api.digitalocean.com/v2${p}
     let xvfb = null
     if (!process.env.DISPLAY) { try { xvfb = require('child_process').spawn('Xvfb', [':97', '-screen', '0', '640x480x16'], { stdio: 'ignore' }); await sleep(1500) } catch (_) {} }
     const env = { ...process.env, DISPLAY: process.env.DISPLAY || ':97' }
-    for (const bin of ['xfreerdp', 'xfreerdp3']) {
-      const r = spawnSync(bin, [`/v:${doc.ip_address}`, '/u:Administrator', `/p:${inst.defaultPassword}`, '/cert:ignore', '+auth-only', '/sec:nla'], { env, encoding: 'utf8', timeout: 60000 })
-      if (r.error && r.error.code === 'ENOENT') continue
-      const out = `${r.stdout || ''}\n${r.stderr || ''}`
-      const m = out.match(/Authentication only, exit status (\d+)/)
-      if (m && m[1] === '0') { auth = `OK via ${bin} (NLA login with the per-order password succeeded)`; authOk = true }
-      else { auth = `FAILED via ${bin}: ${m ? 'exit status ' + m[1] : 'no result'} ${(out.match(/STATUS_[A-Z_]+/) || [''])[0]} ${(out.match(/ERRCONNECT_[A-Z_]+/) || [''])[0]}`.trim(); authOk = false }
-      break
+    // The per-order password can land a minute or two AFTER 3389 opens (WS2025 especially): retry for up to 4 min.
+    const authDeadline = Date.now() + 4 * 60000
+    let tries = 0
+    outer: for (const bin of ['xfreerdp', 'xfreerdp3']) {
+      while (true) {
+        tries++
+        const r = spawnSync(bin, [`/v:${doc.ip_address}`, '/u:Administrator', `/p:${inst.defaultPassword}`, '/cert:ignore', '+auth-only', '/sec:nla'], { env, encoding: 'utf8', timeout: 60000 })
+        if (r.error && r.error.code === 'ENOENT') continue outer
+        const out = `${r.stdout || ''}\n${r.stderr || ''}`
+        const m = out.match(/Authentication only, exit status (\d+)/)
+        if (m && m[1] === '0') { auth = `OK via ${bin} after ${tries} attempt(s), ${Math.round((Date.now() - t0) / 1000)}s after order (NLA login with the per-order password succeeded)`; authOk = true; break outer }
+        auth = `FAILED via ${bin} after ${tries} attempts: ${m ? 'exit status ' + m[1] : 'no result'} ${(out.match(/STATUS_[A-Z_]+/) || [''])[0]} ${(out.match(/ERRCONNECT_[A-Z_]+/) || [''])[0]}`.trim(); authOk = false
+        if (Date.now() > authDeadline) break outer
+        console.log(`[${ts()}] login attempt ${tries} rejected (${(out.match(/STATUS_[A-Z_]+/) || ['no status'])[0]}) - retrying in 20s`)
+        await sleep(20000)
+      }
     }
     if (xvfb) xvfb.kill()
     console.log(`[${ts()}] RDP credential check: ${auth}`)

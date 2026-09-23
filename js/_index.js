@@ -12317,16 +12317,42 @@ Enter new value:`), bc)
     },
 
     confirmReinstallWindows: async () => {
-      await set(state, chatId, 'action', a.confirmReinstallWindows)
       const vpsDetails = info.userVPSDetails
       
       // Check if this is a Windows RDP instance
       const isRDP = vpsDetails.isRDP || vpsDetails.osType === 'Windows'
       if (!isRDP) {
+        await set(state, chatId, 'action', a.confirmReinstallWindows)
         return send(chatId, vp.rdpNotSupported, trans('o'))
       }
+
+      // DigitalOcean RDP: the customer picks the Windows edition first, then confirms with it named.
+      if (require('./vps-provider').providerNameForRecord(vpsDetails) === 'digitalocean-rdp') {
+        const picked = info.reinstallEdition
+        if (!picked) return goto.askReinstallEdition()
+        await set(state, chatId, 'action', a.confirmReinstallWindows)
+        return send(chatId, vp.confirmReinstallWindowsRdpText(vpsDetails.name, picked.name, picked.eta_minutes || 3), vp.of([vp.confirmChangeBtn, vp.cancel]))
+      }
       
+      await set(state, chatId, 'action', a.confirmReinstallWindows)
       return send(chatId, vp.confirmReinstallWindowsText(vpsDetails.name), vp.of([vp.confirmChangeBtn, vp.cancel]))
+    },
+
+    // DigitalOcean RDP: Windows edition picker for a reinstall (⚡ golden image in this region ~3 min / ⏳ ~45 min).
+    askReinstallEdition: async () => {
+      const vpsDetails = info.userVPSDetails
+      let options = []
+      try {
+        const rdpSvc = require('./vps-provider').getProviderForRecord(vpsDetails)
+        if (typeof rdpSvc.listOsOptionsForRegion === 'function') options = await rdpSvc.listOsOptionsForRegion(vpsDetails.region || vpsDetails.zone)
+      } catch (e) { console.log(`[RDP] askReinstallEdition: listOsOptionsForRegion failed for ${chatId}: ${e.message}`) }
+      if (!options.length) {
+        await set(state, chatId, 'action', a.confirmReinstallWindows)
+        return send(chatId, vp.confirmReinstallWindowsText(vpsDetails.name), vp.of([vp.confirmChangeBtn, vp.cancel]))
+      }
+      await set(state, chatId, 'action', a.askReinstallEdition)
+      await saveInfo('reinstallEditionOptions', options)
+      return send(chatId, vp.askReinstallEdition(vpsDetails.name, options), vp.of([...options.map(o => vp.rdpEditionBtn(o)), vp.cancel]))
     },
 
     upgradeVpsInstance: async () => {
@@ -20450,7 +20476,11 @@ ${message.replace(/\n/g, '<br>')}
     if (message === vp.VpsLinkedKeysBtn) return goto.vpsLinkedSSHkeys()
     if (message === vp.resetPasswordBtn) return goto.confirmResetPassword()
     if (message === vp.revealPasswordBtn) return goto.revealVpsPassword()
-    if (message === vp.reinstallWindowsBtn) return goto.confirmReinstallWindows()
+    if (message === vp.reinstallWindowsBtn) {
+      info.reinstallEdition = null
+      await saveInfo('reinstallEdition', null)
+      return goto.confirmReinstallWindows()
+    }
     if (message === vp.startVpsBtn) {
       send(chatId, vp.vpsBeingStarted(userVPSDetails.name))
       const changeVpsStatus = await changeVpsInstanceStatus(userVPSDetails, 'start')
@@ -20628,6 +20658,17 @@ ${message.replace(/\n/g, '<br>')}
   }
 
   // ━━━ Reinstall Windows ━━━
+  // DigitalOcean RDP reinstall: edition picked → confirmation screen naming that edition
+  if (action === a.askReinstallEdition) {
+    if (message === vp.back || message === vp.cancel) return goto.getVPSDetails()
+    const options = info?.reinstallEditionOptions || []
+    const picked = options.find(o => vp.rdpEditionBtn(o) === message)
+    if (!picked) return send(chatId, vp.askReinstallEdition(info.userVPSDetails?.name, options), vp.of([...options.map(o => vp.rdpEditionBtn(o)), vp.cancel]))
+    info.reinstallEdition = picked
+    await saveInfo('reinstallEdition', picked)
+    return goto.confirmReinstallWindows()
+  }
+
   if (action === a.confirmReinstallWindows) {
     if (message === vp.back || message === vp.cancel) return goto.getVPSDetails()
     if (message === vp.confirmChangeBtn) {
@@ -20641,12 +20682,16 @@ ${message.replace(/\n/g, '<br>')}
         const provider = require('./vps-provider').getProviderForRecord(userVPSDetails)
         const { generateRandomPassword } = require('./vm-instance-setup')
         const providerName = provider.PROVIDER || 'contabo'
+        const isDoRdp = providerName === 'digitalocean-rdp'
 
-        // Get the correct Windows image for this product
-        const windowsImageId = await provider.getDefaultWindowsImageId(productId)
+        // Get the correct Windows image for this product (DO-RDP: the edition the customer just picked)
+        const windowsImageId = isDoRdp
+          ? (info.reinstallEdition?.id || userVPSDetails.imageId || userVPSDetails.osId || await provider.getDefaultWindowsImageId(productId))
+          : await provider.getDefaultWindowsImageId(productId)
 
         let newPassword = null
         let newSecretId = null
+        let reinstallResult = null
 
         if (providerName === 'ovh') {
           // OVH rebuilds with the Windows image and emails the new Administrator
@@ -20657,7 +20702,7 @@ ${message.replace(/\n/g, '<br>')}
             isRDP: true
           })
         } else {
-          // Contabo: create a password secret, then reinstall referencing it.
+          // Contabo / DigitalOcean RDP: create a password secret, then reinstall referencing it.
           newPassword = generateRandomPassword(20)
           const newSecret = await provider.createSecret(
             `pwd-reinstall-${instanceId}-${Date.now()}`,
@@ -20665,7 +20710,7 @@ ${message.replace(/\n/g, '<br>')}
             'password'
           )
           newSecretId = newSecret.secretId
-          await provider.reinstallInstance(instanceId, {
+          reinstallResult = await provider.reinstallInstance(instanceId, {
             imageId: windowsImageId,
             rootPassword: newSecret.secretId
           })
@@ -20678,16 +20723,28 @@ ${message.replace(/\n/g, '<br>')}
             $set: { 
               rootPasswordSecretId: newSecretId,
               lastReinstall: new Date(),
-              status: 'provisioning'
+              status: 'provisioning',
+              ...(isDoRdp ? { imageId: windowsImageId, osId: windowsImageId, ...(reinstallResult?.ip ? { host: reinstallResult.ip } : {}) } : {})
             } 
           }
         )
+        info.reinstallEdition = null
+        saveInfo('reinstallEdition', null)
         
         // Enhanced logging
-        console.log(`[RDP] Windows reinstalled (provider=${providerName}) - ChatId: ${chatId}, Instance: ${instanceId}, Name: ${userVPSDetails.name}`)
+        console.log(`[RDP] Windows reinstalled (provider=${providerName}, image=${windowsImageId}) - ChatId: ${chatId}, Instance: ${instanceId}, Name: ${userVPSDetails.name}`)
         
         // Send new credentials with CRITICAL WARNING
-        if (newPassword) {
+        if (isDoRdp && newPassword) {
+          send(chatId, vp.windowsReinstallStarted(
+            userVPSDetails.name,
+            reinstallResult?.ip || userVPSDetails.host,
+            'Administrator',
+            newPassword,
+            reinstallResult?.osName || info.reinstallEditionOptions?.find(o => o.id === windowsImageId)?.name || 'Windows Server',
+            reinstallResult?.etaMinutes || 3
+          ))
+        } else if (newPassword) {
           send(chatId, vp.windowsReinstallSuccess(
             userVPSDetails.name,
             userVPSDetails.host,

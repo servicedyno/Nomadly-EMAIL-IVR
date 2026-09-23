@@ -3460,17 +3460,17 @@ ${dataPreserved
 ${cycles.map(c => `• ${Number(c.period) === 1 ? '1 महीना' : `${c.period} महीने`} — <b>$${c.price}</b>`).join('\n')}
 
 लंबी अवधि का भुगतान एक बार में होता है; अवधि समाप्त होने पर ऑटो-रिन्यूअल उसी अवधि का शुल्क फिर से लेता है।`,
- rdpEditionBtn: o => `🪟 ${o.name}${o.fast_deploy ? ' ⚡ ~3 मिनट' : ' ⏳ ~45 मिनट'}`,
+ rdpEditionBtn: o => `🪟 ${o.name}${o.fast_deploy ? ` ⚡ ~${o.eta_minutes || 3} मिनट` : ' ⏳ ~45 मिनट'}`,
  askRdpEdition: options => `🪟 <strong>अपना Windows संस्करण चुनें</strong>
 
-${options.map(o => `• <b>${o.name}</b> — ${o.fast_deploy ? '⚡ लगभग 3 मिनट में तैयार (आपके क्षेत्र में प्री-बिल्ट इमेज)' : '⏳ पूर्ण इंस्टॉल, लगभग 45 मिनट'}`).join('\n')}
+${options.map(o => `• <b>${o.name}</b> — ${o.fast_deploy ? `⚡ लगभग ${o.eta_minutes || 3} मिनट में तैयार (आपके क्षेत्र में प्री-बिल्ट इमेज)` : '⏳ पूर्ण इंस्टॉल, लगभग 45 मिनट'}`).join('\n')}
 
 सभी संस्करण Windows Server Standard (Desktop Experience) हैं, RDP सक्षम और Administrator खाते के साथ।`,
  askReinstallEdition: (name, options) => `🔄 <strong>${name} पर Windows रीइंस्टॉल करें</strong>
 
 इंस्टॉल करने के लिए संस्करण चुनें। आपका IP पता वही रहेगा।
 
-${options.map(o => `• <b>${o.name}</b> — ${o.fast_deploy ? '⚡ लगभग 3 मिनट' : '⏳ लगभग 45 मिनट'}`).join('\n')}`,
+${options.map(o => `• <b>${o.name}</b> — ${o.fast_deploy ? `⚡ लगभग ${o.eta_minutes || 3} मिनट` : '⏳ लगभग 45 मिनट'}`).join('\n')}`,
  confirmReinstallWindowsRdpText: (name, osName, etaMin) => `🔄 <strong>${name} पर ${osName} रीइंस्टॉल करें</strong>
 
 ⚠️ <strong>चेतावनी — डिस्क मिटा दी जाएगी:</strong>

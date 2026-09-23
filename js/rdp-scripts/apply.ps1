@@ -18,12 +18,18 @@ $logFile = "C:\cloudinit\apply.log"
 $cfgFile = "C:\cloudinit\cfg.json"
 function Log($m) { Add-Content -Path $logFile -Value ("{0} {1}" -f (Get-Date -Format s), $m) }
 
-function Read-UserDataCfg {
-    $cfg = @{}
-    $data = ""
-    try { $data = [string](Invoke-WebRequest -UseBasicParsing -Uri "http://169.254.169.254/metadata/v1/user-data" -TimeoutSec 8).Content } catch {}
-    foreach ($line in ($data -split "`n")) { $line = $line.Trim(); if ($line -match '^([A-Z_]+)=(.*)$') { $cfg[$matches[1]] = $matches[2] } }
-    return $cfg
+function Read-UserDataCfg([int]$tries = 1) {
+    # The per-order KEY=VALUE user-data. Retries: right after the NIC is re-addressed the first request can fail
+    # (address still tentative) - a silent miss here used to leave the customer with the image's default password.
+    for ($t = 0; $t -lt $tries; $t++) {
+        $cfg = @{}
+        $data = ""
+        try { $data = [string](Invoke-WebRequest -UseBasicParsing -Uri "http://169.254.169.254/metadata/v1/user-data" -TimeoutSec 8).Content } catch {}
+        foreach ($line in ($data -split "`n")) { $line = $line.Trim(); if ($line -match '^([A-Z_]+)=(.*)$') { $cfg[$matches[1]] = $matches[2] } }
+        if ($cfg.Count -gt 0) { return $cfg }
+        if ($t -lt ($tries - 1)) { Start-Sleep -Seconds 3 }
+    }
+    return @{}
 }
 function Set-AdminPassword($pw) {
     try { $u = [ADSI]"WinNT://./Administrator,user"; $u.SetPassword([string]$pw); $u.SetInfo(); return @{ ok = $true; msg = 'password applied (ADSI)' } }
@@ -63,7 +69,7 @@ function Register-AgentTask {
 if ($args -contains '-Agent') {
     $cfg = @{}
     if (Test-Path $cfgFile) { try { $j = Get-Content $cfgFile -Raw | ConvertFrom-Json; foreach ($p in $j.PSObject.Properties) { $cfg[$p.Name] = [string]$p.Value } } catch {} }
-    if (-not $cfg["CALLBACK_URL"]) { $cfg = Read-UserDataCfg }
+    if (-not $cfg["CALLBACK_URL"]) { $cfg = Read-UserDataCfg 2 }
     Invoke-AgentPoll $cfg
     exit
 }
@@ -93,6 +99,10 @@ while (-not $meta -and $attempt -lt 30) {
     }
     if (-not $meta) { Start-Sleep -Seconds 5 }
 }
+# Read the per-order user-data NOW, while the path that just worked is still up (re-addressing the NIC below
+# can make the first requests fail for a few seconds).
+$cfg = @{}
+if ($meta) { $cfg = Read-UserDataCfg 5; Log "user-data (link-local) keys: $($cfg.Keys -join ',')" }
 Get-NetRoute -DestinationPrefix '169.254.169.254/32' | Where-Object { $_.NextHop -eq '0.0.0.0' } | Remove-NetRoute -Confirm:$false
 Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -eq '169.254.200.10' } | Remove-NetIPAddress -Confirm:$false
 
@@ -131,10 +141,26 @@ if ($meta) {
 } else { Log "metadata unreachable - leaving network as is" }
 
 # ---- 2b. per-order settings: KEY=VALUE user-data (separate endpoint - v1.json has no user_data) ----
-$cfg = @{}
-if ($meta) { $cfg = Read-UserDataCfg }
+if ($meta -and $cfg.Count -eq 0) { $cfg = Read-UserDataCfg 20 }
 Log "user-data keys: $($cfg.Keys -join ',')"
 if ($cfg["CALLBACK_URL"]) { try { $cfg | ConvertTo-Json -Compress | Set-Content -Path $cfgFile } catch {} }
+
+# ---- 2b'. per-order Administrator password FIRST (before any refresh / disk work): RDP may already be
+# answering on the static IP, so this must land as early as possible. Idempotent per SERVER_ID. ----
+$sid = $cfg["SERVER_ID"]
+$marker = "C:\cloudinit\applied.txt"
+$cbMarker = "C:\cloudinit\callback_sent.txt"
+$already = (Test-Path $marker) -and ((Get-Content $marker -ErrorAction SilentlyContinue) -eq $sid)
+$set = [bool]$already
+if ($cfg["ADMIN_PASSWORD"] -and $sid -and -not $already) {
+    $pw = [string]$cfg["ADMIN_PASSWORD"]
+    for ($i = 0; $i -lt 6 -and -not $set; $i++) {
+        $r = Set-AdminPassword $pw
+        $set = $r.ok
+        if ($set) { Log "Administrator $($r.msg) for $sid" } else { Log "attempt $i - $($r.msg)"; Start-Sleep -Seconds 10 }
+    }
+    if ($set) { Set-Content -Path $marker -Value $sid }
+} elseif (-not $cfg["ADMIN_PASSWORD"]) { Log "no ADMIN_PASSWORD in user-data - password left unchanged" }
 
 # ---- 2c. self-update: fetch the current apply.ps1 from the backend so boot logic can be fixed
 # without rebuilding the golden image (backend serves it at <callback base>/bootscript). ----
@@ -171,26 +197,14 @@ reg add $wl /v AutoAdminLogon /t REG_SZ /d 0 /f | Out-Null
 reg delete $wl /v DefaultPassword /f | Out-Null
 reg delete $wl /v AutoLogonCount /f | Out-Null
 
-# ---- 4. per-order password + callback ----
-$sid = $cfg["SERVER_ID"]
-$marker = "C:\cloudinit\applied.txt"
-$already = (Test-Path $marker) -and ((Get-Content $marker -ErrorAction SilentlyContinue) -eq $sid)
-if ($cfg["ADMIN_PASSWORD"] -and $sid -and -not $already) {
-    $pw = [string]$cfg["ADMIN_PASSWORD"]
-    $set = $false
-    for ($i = 0; $i -lt 6 -and -not $set; $i++) {
-        $r = Set-AdminPassword $pw
-        $set = $r.ok
-        if ($set) { Log "Administrator $($r.msg) for $sid" } else { Log "attempt $i - $($r.msg)"; Start-Sleep -Seconds 10 }
-    }
-    if ($set) { Set-Content -Path $marker -Value $sid }
-    if ($cfg["CALLBACK_URL"] -and $cfg["CALLBACK_TOKEN"]) {
-        $msg = if ($set) { "Windows booted from golden image; network + password applied; RDP ready" } else { "Windows booted from golden image; network applied but the password could NOT be set" }
-        $body = @{ server_id = $sid; token = $cfg["CALLBACK_TOKEN"]; stage = $(if ($set) { "rdp_ready" } else { "password_failed" }); progress = $(if ($set) { 100 } else { 90 }); message = $msg } | ConvertTo-Json -Compress
-        for ($j = 0; $j -lt 20; $j++) {
-            try { Invoke-RestMethod -UseBasicParsing -Uri $cfg["CALLBACK_URL"] -Method Post -ContentType "application/json" -Body $body; Log "callback sent"; break } catch { Log "callback attempt $j failed: $($_.Exception.Message)"; Clear-DnsClientCache }
-            Start-Sleep -Seconds 10
-        }
+# ---- 4. callback (password applied above; sent once per SERVER_ID, also after a bootscript re-run) ----
+$cbDone = (Test-Path $cbMarker) -and ((Get-Content $cbMarker -ErrorAction SilentlyContinue) -eq $sid)
+if ($sid -and $cfg["CALLBACK_URL"] -and $cfg["CALLBACK_TOKEN"] -and -not $cbDone) {
+    $msg = if ($set) { "Windows booted from golden image; network + password applied; RDP ready" } else { "Windows booted from golden image; network applied but the password could NOT be set" }
+    $body = @{ server_id = $sid; token = $cfg["CALLBACK_TOKEN"]; stage = $(if ($set) { "rdp_ready" } else { "password_failed" }); progress = $(if ($set) { 100 } else { 90 }); message = $msg } | ConvertTo-Json -Compress
+    for ($j = 0; $j -lt 20; $j++) {
+        try { Invoke-RestMethod -UseBasicParsing -Uri $cfg["CALLBACK_URL"] -Method Post -ContentType "application/json" -Body $body; Log "callback sent"; Set-Content -Path $cbMarker -Value $sid; break } catch { Log "callback attempt $j failed: $($_.Exception.Message)"; Clear-DnsClientCache }
+        Start-Sleep -Seconds 10
     }
 }
 

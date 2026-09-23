@@ -165,3 +165,22 @@ User reported confusion in the bot between Windows RDP and Linux VPS (they are d
 - Edited (uncommitted): `js/_index.js` (routing, menus, plan lists, subscription-detail screens; auto-renew now treats `digitalocean-rdp` as a PAYG provider), `js/vm-instance-setup.js` (VPS vs RDP plan setup + OS selection), `js/new-user-conversion.js`, and all 4 locale files `js/lang/{en,fr,zh,hi}.js` (split RDP vs VPS strings).
 - Health: all 7 files pass `node -c`; nodejs/backend/frontend/mongodb RUNNING.
 - ⚠️ NEXT AGENT MUST: run testing_agent (bot/backend flow) or a local sim to verify RDP purchase flow and VPS purchase flow load correctly with no UI overlap/crash. Then resume Reseller API D endpoints + F1 golden rebuilds. See `/app/memory/RDP_BOT_INTEGRATION_TASKS.md` "Highest-priority pending items".
+
+## 2026-06 (fork, wrap-up) — WS2025 DO RDP verified; callback "DNS failure" is a sandbox artifact
+Full handoff: `/app/memory/WS2025_RDP_HANDOFF_2026-06.md`.
+- ✅ **ws2025 is functionally equal to ws2019/ws2022.** Live E2E (`js/ops/rdp_golden_e2e.js --os ws2025`,
+  log `memory/rdp_golden_e2e_ws2025_keep2.log`): golden image 246641953 **available in all 8 regions**,
+  fast deploy **active in 7.2 min**, ADSI Administrator password applied, **RDP/NLA login OK via xfreerdp**.
+- ✅ **The "callback DNS resolution failure" is NOT a code bug.** On-droplet apply.log shows the password
+  applies fine, then the callback to the sandbox preview host `*.preview.emergentagent.com` cannot resolve —
+  because that hostname only resolves inside the Emergent K8s ingress, never on the public internet. In
+  production `CALLBACK_URL` is the public Railway domain → it resolves and the callback succeeds. Backend
+  also declares the order active ~90s after port 3389 opens even without the callback. **Do NOT keep
+  patching apply.ps1 DNS.**
+- ⏳ **REMAINING ACTIONABLE (owner go-ahead needed): Issue 2 / Task 1** — set Railway prod
+  `VPS_RDP_PROVIDER=digitalocean-rdp` (currently Azure) on service `Nomadly-EMAIL-IVR` via Railway CLI
+  (`/opt/node22/bin/railway`, `RAILWAY_TOKEN` in backend/.env), redeploy, then place one real ws2025
+  order in prod to confirm the callback lands + credentials deliver. Deferred by design until ws2025 was
+  proven (now proven). This is a LIVE PROD config change — confirm with owner first.
+- 🧹 Cleanup owed: e2e left droplet **602990345** (104.131.68.31, order `rdp-109b0d03-198f-43fe-a772-39b681b6d58e`)
+  running for manual inspection — destroy via `svc.cancelInstance(...)` to stop billing.

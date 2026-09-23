@@ -57,8 +57,12 @@ const VIRTIO = 'https://fedorapeople.org/groups/virt/virtio-win/direct-downloads
 const OS_OPTIONS = {
   ws2019: { id: 'ws2019', name: 'Windows Server 2019', image_name: 'Windows Server 2019 SERVERSTANDARD', virtio_dir: '2k19', iso_url: 'https://go.microsoft.com/fwlink/p/?linkid=2195167&clcid=0x409&culture=en-us&country=US', virtio_url: VIRTIO, install_method: 'qemu', image_url: '' },
   ws2022: { id: 'ws2022', name: 'Windows Server 2022', image_name: 'Windows Server 2022 SERVERSTANDARD', virtio_dir: '2k22', iso_url: 'https://go.microsoft.com/fwlink/p/?LinkID=2195280&clcid=0x409&culture=en-us&country=US', virtio_url: VIRTIO, install_method: 'qemu', image_url: '' },
-  ws2025: { id: 'ws2025', name: 'Windows Server 2025', image_name: 'Windows Server 2025 SERVERSTANDARD', virtio_dir: '2k25', iso_url: 'https://go.microsoft.com/fwlink/?linkid=2293312&clcid=0x409&culture=en-us&country=US', virtio_url: VIRTIO, install_method: 'qemu', image_url: '' },
+  // WS2025 (24H2) first boot is slower: the per-order password lands ~2-3 min AFTER 3389 opens (measured 2026-09-23),
+  // so it gets a longer no-callback grace and an honest ETA.
+  ws2025: { id: 'ws2025', name: 'Windows Server 2025', image_name: 'Windows Server 2025 SERVERSTANDARD', virtio_dir: '2k25', iso_url: 'https://go.microsoft.com/fwlink/?linkid=2293312&clcid=0x409&culture=en-us&country=US', virtio_url: VIRTIO, install_method: 'qemu', image_url: '', fast_eta_min: 5, boot_grace_ms: 300000 },
 }
+const fastEta = (o) => (o && o.fast_eta_min) || 3
+const bootGraceMs = (o) => (o && o.boot_grace_ms) || T.callbackGraceMs
 const DEFAULT_OS_ID = String(process.env.DO_RDP_DEFAULT_OS || 'ws2022').toLowerCase()
 
 // Reseller region codes → DigitalOcean region slugs. Also accepts a raw DO slug.
@@ -332,7 +336,7 @@ async function listOsOptions() {
     const fast = o.golden_status === 'available' && !!o.golden_image_id
     return {
       id: o.id, name: o.name, default: o.id === DEFAULT_OS_ID,
-      fast_deploy: fast, eta_minutes: fast ? 3 : 45,
+      fast_deploy: fast, eta_minutes: fast ? fastEta(o) : 45,
       fast_deploy_regions: fast ? Object.entries(REGION_TO_DO).filter(([, slug]) => regs.includes(slug)).map(([code]) => code) : [],
     }
   })
@@ -345,7 +349,7 @@ async function listOsOptionsForRegion(region) {
   return all.map(o => {
     const golden = o.golden_status === 'available' && !!o.golden_image_id
     const fast = golden && (o.golden_regions || []).includes(slug)
-    return { id: o.id, name: o.name, default: o.id === DEFAULT_OS_ID, golden, fast_deploy: fast, eta_minutes: fast ? 3 : 45 }
+    return { id: o.id, name: o.name, default: o.id === DEFAULT_OS_ID, golden, fast_deploy: fast, eta_minutes: fast ? fastEta(o) : 45 }
   })
 }
 
@@ -442,13 +446,13 @@ async function addLog(serverId, stage, message, progress, status) {
 }
 
 // Fast-path promise = RDP-ready in ~3 min. Alert the admin once if an order is still provisioning past the target.
-function watchFastTarget(serverId) {
+function watchFastTarget(serverId, targetMs = T.fastTargetMs) {
   setTimeout(async () => {
     const s = _servers ? await _servers.findOne({ server_id: serverId }).catch(() => null) : null
     if (!s || ['active', 'failed', 'destroyed', 'suspended', 'expired'].includes(s.status)) return
     const last = (s.logs || []).slice(-1)[0] || {}
-    alertAdmin(`slow:${serverId}`, `⏱ RDP order ${orderRef(s)} missed the ${Math.round(T.fastTargetMs / 60000)}-min fast-deploy target\nstatus=${s.status} progress=${s.progress || 0}% stage=${last.stage || '-'}\n${last.message || ''}${s.ip_address ? `\nIP ${s.ip_address}` : ''}`)
-  }, T.fastTargetMs).unref()
+    alertAdmin(`slow:${serverId}`, `⏱ RDP order ${orderRef(s)} missed the ${Math.round(targetMs / 60000)}-min fast-deploy target\nstatus=${s.status} progress=${s.progress || 0}% stage=${last.stage || '-'}\n${last.message || ''}${s.ip_address ? `\nIP ${s.ip_address}` : ''}`)
+  }, targetMs).unref()
 }
 
 function tcpOpen(ip, port = 3389, timeoutMs = 5000) {
@@ -551,10 +555,10 @@ async function provisionServer(serverId) {
     const osOption = await getOsOption(server.os_id)
     const name = `rdp-${serverId.slice(0, 8)}`
     const fast = goldenFastPathOk(server, osOption)
-    await _servers.updateOne({ server_id: serverId }, { $set: { fast_deploy: fast.ok, eta_minutes: fast.ok ? 3 : 45, golden_image_id: fast.ok ? osOption.golden_image_id : null } })
+    await _servers.updateOne({ server_id: serverId }, { $set: { fast_deploy: fast.ok, eta_minutes: fast.ok ? fastEta(osOption) : 45, golden_image_id: fast.ok ? osOption.golden_image_id : null } })
 
     if (fast.ok) {
-      watchFastTarget(serverId)
+      watchFastTarget(serverId, Math.max(T.fastTargetMs, fastEta(osOption) * 60000))
       await addLog(serverId, 'creating', 'Creating droplet from golden image (fast, ~2-3 min)...', 10, 'creating')
       const data = await doCreateDroplet({ name, region: server.region, size: server.do_size_slug, image: osOption.golden_image_id, ssh_keys: [await ensureSshKeyId()], user_data: buildMetadataUserData(server), tags: ['rdp-reseller'] })
       const dropletId = data.droplet && data.droplet.id
@@ -565,7 +569,7 @@ async function provisionServer(serverId) {
         if (boot.ip) {
           await _servers.updateOne({ server_id: serverId }, { $set: { ip_address: boot.ip } })
           await addLog(serverId, 'installing', `Booted from image at ${boot.ip}. Applying config + password.`, 60, 'installing')
-          pollRdp(serverId, boot.ip, 20, { callbackGraceMs: T.callbackGraceMs }).catch(() => {})
+          pollRdp(serverId, boot.ip, 20, { callbackGraceMs: bootGraceMs(osOption) }).catch(() => {})
         } else {
           await addLog(serverId, 'installing', 'Droplet active; awaiting first boot.', 60, 'installing')
         }
@@ -993,7 +997,8 @@ async function createInstance(opts = {}) {
   if (_servers) await _servers.insertOne(doc)
   // Store the password durably so /rdp/:id/credentials can reveal it later.
   await secretStore.putSecret(serverId, adminPassword, { name: `rdp-${serverId.slice(0, 8)}`, provider: PROVIDER })
-  const fast = goldenFastPathOk(doc, await getOsOption(osId)).ok
+  const osOpt = await getOsOption(osId)
+  const fast = goldenFastPathOk(doc, osOpt).ok
 
   // Kick off provisioning asynchronously; return immediately.
   provisionServer(serverId).catch(e => log(`provisionServer(${serverId}) error: ${e.message}`))
@@ -1009,7 +1014,7 @@ async function createInstance(opts = {}) {
     defaultPassword: adminPassword,
     osId,
     fastDeploy: fast,
-    etaMinutes: fast ? 3 : 45,
+    etaMinutes: fast ? fastEta(osOpt) : 45,
   }
 }
 // No cross-provider fallback for DO-RDP (golden→conversion fallback is internal).
@@ -1150,7 +1155,7 @@ async function reinstallInstance(instanceId, opts = {}) {
   const password = (opts.rootPassword && await getSecretPassword(opts.rootPassword)) || genPassword()
   const secretId = opts.rootPassword || id
   await _servers.updateOne({ server_id: id }, {
-    $set: { status: 'reinstalling', progress: 5, os_id: osId, fast_deploy: true, eta_minutes: 3, golden_image_id: osOption.golden_image_id, password_confirmed: null, agent_seen_at: null, commands: [], reinstall_started_at: new Date() },
+    $set: { status: 'reinstalling', progress: 5, os_id: osId, fast_deploy: true, eta_minutes: fastEta(osOption), golden_image_id: osOption.golden_image_id, password_confirmed: null, agent_seen_at: null, commands: [], reinstall_started_at: new Date() },
     $push: { logs: { ts: new Date(), stage: 'reinstall', message: `Reinstalling ${osOption.name} from golden image ${osOption.golden_image_id} (disk wiped, IP ${s.ip_address || ''} kept)...` } },
   })
   await queueCommand(id, 'set_password', { password })
@@ -1162,11 +1167,11 @@ async function reinstallInstance(instanceId, opts = {}) {
       const ok = !!act.id && await waitAction(act.id, T.rebuildMaxMin)
       if (!ok) { await addLog(id, 'failed', `DigitalOcean could not rebuild droplet ${s.do_droplet_id} from image ${osOption.golden_image_id}.`, null, 'failed'); return }
       await addLog(id, 'booting', `Droplet rebuilt from the ${osOption.name} golden image. Windows booting...`, 30, 'booting')
-      watchFastTarget(id)
-      await pollRdp(id, s.ip_address, T.rdpMaxMin, { callbackGraceMs: T.callbackGraceMs })
+      watchFastTarget(id, Math.max(T.fastTargetMs, fastEta(osOption) * 60000))
+      await pollRdp(id, s.ip_address, T.rdpMaxMin, { callbackGraceMs: bootGraceMs(osOption) })
     } catch (e) { await addLog(id, 'failed', `Reinstall failed: ${e.message}`, null, 'failed') }
   })()
-  return { success: true, instanceId: extId(id), osId, osName: osOption.name, imageId: osOption.golden_image_id, password, secretId, ip: s.ip_address, etaMinutes: 3 }
+  return { success: true, instanceId: extId(id), osId, osName: osOption.name, imageId: osOption.golden_image_id, password, secretId, ip: s.ip_address, etaMinutes: fastEta(osOption) }
 }
 
 // Daily admin digest of the last 24 h of RDP orders (only when there were any).

@@ -3662,17 +3662,17 @@ Your VPS is running Linux. Use SSH keys for access management instead.`,
 ${cycles.map(c => `• ${Number(c.period) === 1 ? '1 month' : `${c.period} months`} — <b>$${c.price}</b>`).join('\n')}
 
 Longer periods are billed once up front; auto-renewal charges the same period again when it ends.`,
- rdpEditionBtn: o => `🪟 ${o.name}${o.fast_deploy ? ' ⚡ ~3 min' : ' ⏳ ~45 min'}`,
+ rdpEditionBtn: o => `🪟 ${o.name}${o.fast_deploy ? ` ⚡ ~${o.eta_minutes || 3} min` : ' ⏳ ~45 min'}`,
  askRdpEdition: options => `🪟 <strong>Choose your Windows edition</strong>
 
-${options.map(o => `• <b>${o.name}</b> — ${o.fast_deploy ? '⚡ ready in about 3 minutes (pre-built image in your region)' : '⏳ full install, about 45 minutes'}`).join('\n')}
+${options.map(o => `• <b>${o.name}</b> — ${o.fast_deploy ? `⚡ ready in about ${o.eta_minutes || 3} minutes (pre-built image in your region)` : '⏳ full install, about 45 minutes'}`).join('\n')}
 
 All editions are Windows Server Standard (Desktop Experience) with RDP enabled and the Administrator account.`,
  askReinstallEdition: (name, options) => `🔄 <strong>Reinstall Windows on ${name}</strong>
 
 Pick the edition to install. Your IP address stays the same.
 
-${options.map(o => `• <b>${o.name}</b> — ${o.fast_deploy ? '⚡ about 3 minutes' : '⏳ about 45 minutes'}`).join('\n')}`,
+${options.map(o => `• <b>${o.name}</b> — ${o.fast_deploy ? `⚡ about ${o.eta_minutes || 3} minutes` : '⏳ about 45 minutes'}`).join('\n')}`,
  confirmReinstallWindowsRdpText: (name, osName, etaMin) => `🔄 <strong>Reinstall ${osName} on ${name}</strong>
 
 ⚠️ <strong>WARNING — this erases the disk:</strong>

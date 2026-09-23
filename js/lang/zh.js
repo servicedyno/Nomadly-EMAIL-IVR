@@ -3439,17 +3439,17 @@ ${dataPreserved
 ${cycles.map(c => `• ${c.period} 个月 — <b>$${c.price}</b>`).join('\n')}
 
 更长的周期一次性付费；到期时自动续费将按同一周期再次扣费。`,
- rdpEditionBtn: o => `🪟 ${o.name}${o.fast_deploy ? ' ⚡ 约 3 分钟' : ' ⏳ 约 45 分钟'}`,
+ rdpEditionBtn: o => `🪟 ${o.name}${o.fast_deploy ? ` ⚡ 约 ${o.eta_minutes || 3} 分钟` : ' ⏳ 约 45 分钟'}`,
  askRdpEdition: options => `🪟 <strong>选择您的 Windows 版本</strong>
 
-${options.map(o => `• <b>${o.name}</b> — ${o.fast_deploy ? '⚡ 约 3 分钟就绪（您所在区域已有预构建镜像）' : '⏳ 完整安装，约 45 分钟'}`).join('\n')}
+${options.map(o => `• <b>${o.name}</b> — ${o.fast_deploy ? `⚡ 约 ${o.eta_minutes || 3} 分钟就绪（您所在区域已有预构建镜像）` : '⏳ 完整安装，约 45 分钟'}`).join('\n')}
 
 所有版本均为 Windows Server Standard（桌面体验），已启用 RDP 并使用 Administrator 账户。`,
  askReinstallEdition: (name, options) => `🔄 <strong>在 ${name} 上重装 Windows</strong>
 
 请选择要安装的版本。您的 IP 地址保持不变。
 
-${options.map(o => `• <b>${o.name}</b> — ${o.fast_deploy ? '⚡ 约 3 分钟' : '⏳ 约 45 分钟'}`).join('\n')}`,
+${options.map(o => `• <b>${o.name}</b> — ${o.fast_deploy ? `⚡ 约 ${o.eta_minutes || 3} 分钟` : '⏳ 约 45 分钟'}`).join('\n')}`,
  confirmReinstallWindowsRdpText: (name, osName, etaMin) => `🔄 <strong>在 ${name} 上重装 ${osName}</strong>
 
 ⚠️ <strong>警告 — 将清空磁盘：</strong>
