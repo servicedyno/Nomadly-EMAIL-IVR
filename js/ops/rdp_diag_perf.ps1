@@ -1,3 +1,4 @@
+# Live performance snapshot of a Windows RDP droplet (run through js/ops/rdp_run_ps.sh <ip> <pw> "$(cat js/ops/rdp_diag_perf.ps1)").
 $ErrorActionPreference = 'SilentlyContinue'
 "=== OS ==="; (Get-CimInstance Win32_OperatingSystem | Select Caption, Version, LastBootUpTime, TotalVisibleMemorySize, FreePhysicalMemory | Format-List | Out-String).Trim()
 "=== CPU ==="; (Get-CimInstance Win32_Processor | Select Name, NumberOfCores, NumberOfLogicalProcessors, LoadPercentage, CurrentClockSpeed, MaxClockSpeed | Format-List | Out-String).Trim()

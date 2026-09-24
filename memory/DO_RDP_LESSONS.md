@@ -36,3 +36,11 @@
     3h40m, ws2025 2h20m on 2026-09-22). `runBuild` now deletes the stuck entry and re-submits the same URL after
     `T.importRetryMin` (150 min, DB-based deadline, max `T.importRetries`=2); the build droplet keeps serving the qcow2
     until registration, so no rebuild is needed.
+
+## 2026-09-24 — performance lessons (live 2vCPU/4GB WS2022 box)
+6. `VisualFXSetting=2` alone does NOTHING — it is only the radio button the dialog shows. The effects live in `UserPreferencesMask` (+ MinAnimate/TaskbarAnimations/ListviewShadow/EnableAeroPeek...). `9012038012000000` = best performance with ClearType kept on.
+7. Eval ISOs ship Defender signatures from 2020 and Windows Update is off → MsMpEng becomes the #1 CPU consumer. `Update-MpSignature -UpdateSource MMPC` works without WU (took <10 min on the live box).
+8. No droplet has a GPU: Chrome/Edge "hardware acceleration" = SwiftShader on the CPU. Policy `HardwareAccelerationModeEnabled=0` + Memory Saver (`HighEfficiencyModeEnabled=1`, `MemorySaverModeSavings=2`) are the biggest wins on 4 GB.
+9. DO Premium **Intel** (`s-*-intel`) is sold in nyc3/tor1/fra1 where Premium AMD is not, same price/disk. Never send the AMD slug to fra1 (422). Basic `s-2vcpu-4gb` = shared "DO-Regular" 2.3 GHz — visibly slower for a Windows desktop.
+10. `reg load` of `C:\Users\Administrator\NTUSER.DAT` fails while that user is logged in — check `$LASTEXITCODE` and skip, otherwise every `reg add` on the hive prints "The parameter is incorrect".
+11. Pagefile changes via `Win32_PageFileSetting` need a reboot; system-managed on a 4 GB box was only 1.4 GB.
