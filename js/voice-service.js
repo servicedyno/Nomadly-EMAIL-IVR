@@ -136,6 +136,43 @@ const HARD_BLOCK_DURATION = 600000     // 10 minutes of silent drop
 const _expiredTestBlockSet = new Map()
 const EXPIRED_TEST_BLOCK_DURATION = 600000  // 10 minutes
 
+// ── UNIDENTIFIED-CREDENTIAL COST-LEAK GUARD ──
+// A SIP credential that repeatedly fails to map to an owner keeps generating billable inbound SIP legs
+// (Telnyx bills the leg + the Call Control per-leg fee) plus a wasteful 250-credential reverse lookup,
+// with NO user to charge. After N consecutive identification failures we hard-block it briefly to stop
+// the recurring cost leak. Auto-expires (self-heals a transient DB hiccup); cleared on any success.
+const _unidentifiedFailCount = new Map()  // sipUsername → { count, firstAt }
+const _unidentifiedBlockSet = new Map()   // sipUsername → blockedAt
+const UNIDENTIFIED_FAIL_THRESHOLD = 3
+const UNIDENTIFIED_FAIL_WINDOW = 300000    // 5 min window to accumulate failures
+const UNIDENTIFIED_BLOCK_DURATION = 600000 // 10 min hard block
+function _recordUnidentifiedFailure(sipUsername) {
+  if (!sipUsername) return false
+  const now = Date.now()
+  let e = _unidentifiedFailCount.get(sipUsername)
+  if (!e || now - e.firstAt > UNIDENTIFIED_FAIL_WINDOW) e = { count: 0, firstAt: now }
+  e.count++
+  _unidentifiedFailCount.set(sipUsername, e)
+  if (e.count >= UNIDENTIFIED_FAIL_THRESHOLD) {
+    _unidentifiedBlockSet.set(sipUsername, now)
+    _unidentifiedFailCount.delete(sipUsername)
+    return true
+  }
+  return false
+}
+function _isUnidentifiedBlocked(sipUsername) {
+  if (!sipUsername) return false
+  const blockedAt = _unidentifiedBlockSet.get(sipUsername)
+  if (!blockedAt) return false
+  if (Date.now() - blockedAt > UNIDENTIFIED_BLOCK_DURATION) { _unidentifiedBlockSet.delete(sipUsername); return false }
+  return true
+}
+function _clearUnidentifiedFailure(sipUsername) {
+  if (!sipUsername) return
+  if (_unidentifiedFailCount.has(sipUsername)) _unidentifiedFailCount.delete(sipUsername)
+  if (_unidentifiedBlockSet.has(sipUsername)) _unidentifiedBlockSet.delete(sipUsername)
+}
+
 // ── TEST CALL RATE LIMITER ──
 // Strict per-user rate limit specifically for test SIP credentials.
 // Much tighter than paid user limits to prevent abuse of free test calls.
@@ -2550,6 +2587,14 @@ async function handleOutboundSipCall(payload) {
     _expiredTestBlockSet.delete(sipUsername) // expired block, allow re-check
   }
 
+  // ── UNIDENTIFIED-CREDENTIAL COST-LEAK BLOCK ──
+  // A credential that repeatedly failed to map to an owner is temporarily hard-blocked so it stops
+  // generating billable legs (and the expensive 250-credential reverse lookup) with no user to charge.
+  if (credentialExtracted && sipUsername && _isUnidentifiedBlocked(sipUsername)) {
+    try { await _telnyxApi.hangupCall(callControlId) } catch (e) { /* call may have already ended */ }
+    return
+  }
+
   // ── SIP Rate Limiting — prevent spam dialing ──
   if (!checkSipRateLimit(sipUsername, destination)) {
     log(`[Voice] ⚠️ SIP RATE LIMIT: ${sipUsername} → ${destination} — exceeded ${SIP_RATE_LIMIT_MAX} calls/${SIP_RATE_LIMIT_WINDOW/1000}s, rejecting`)
@@ -2817,12 +2862,23 @@ async function handleOutboundSipCall(payload) {
   }
 
   if (!chatId || !num) {
-    log(`[Voice] Outbound SIP: No owner found for SIP user ${sipUsername}, rejecting`)
+    const nowBlocked = (credentialExtracted && sipUsername) ? _recordUnidentifiedFailure(sipUsername) : false
+    log(`[Voice] Outbound SIP: No owner found for SIP user ${sipUsername}, rejecting${nowBlocked ? ` — ${UNIDENTIFIED_FAIL_THRESHOLD} consecutive failures, credential BLOCKED for ${UNIDENTIFIED_BLOCK_DURATION / 60000}min to stop billable-leg cost leak` : ''}`)
+    // Cost-leak visibility: record the unbillable billable-leg so the operator can see/reconcile it.
+    try {
+      const db = _phoneNumbersOf?.s?.db
+      if (db) db.collection('unidentifiedCallLeaks').insertOne({
+        sipUsername: sipUsername || null, from: fromClean || null, destination: destination || null,
+        callControlId, isAutoRouted: !!isAutoRouted, blocked: nowBlocked, createdAt: new Date(),
+      }).catch(() => {})
+    } catch (e) { /* non-critical */ }
     try {
       await _telnyxApi.hangupCall(callControlId)
     } catch (e) { log(`[Voice] Reject error: ${e.message}`) }
     return
   }
+  // Identification succeeded — clear any prior unidentified-failure state for this credential.
+  if (credentialExtracted && sipUsername) _clearUnidentifiedFailure(sipUsername)
 
   // ── TEST OUTBOUND SIP HOOK ──
   // If this user has an active "Test Outbound SIP" session, short-circuit the call:
@@ -5316,4 +5372,7 @@ module.exports = {
   _isSelfPstnLeg,
   _markSelfPstnLeg,
   PSTN_LEG_STATE,
+  // Unidentified-credential cost-leak guard — exported for tests
+  _isUnidentifiedBlocked,
+  _clearUnidentifiedFailure,
 }

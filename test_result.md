@@ -10789,6 +10789,84 @@ backend:
         agent: "main"
         comment: "Fix applied: unescaped all 81 x 4 = 324 placeholders (\\${ -> ${) across js/lang/{en,fr,zh,hi}.js, preserving literal money signs ($\\${rate} -> $${rate}). Awaiting testing-agent verification via node-level translation function testing (not HTTP endpoints)."
 
+  - task: "SIP unidentified-credential cost-leak block (2026-09). BUG: A SIP credential that repeatedly fails user identification kept generating billable inbound legs plus a wasteful 250-credential reverse lookup with no user to charge (a cost leak). FIX (js/voice-service.js): After 3 consecutive identification failures within 5 min, the credential is hard-blocked for 10 min and calls are hung up instantly BEFORE any lookup/transfer; each failure is logged to unidentifiedCallLeaks; the block self-heals on the next successful identification. No PSTN leg is ever created for these calls."
+    implemented: true
+    working: true
+    file: "/app/js/voice-service.js (handleCallInitiated unidentified-credential blocking logic + unidentifiedCallLeaks logging)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFICATION COMPLETE - SIP unidentified-credential cost-leak block PASSED (2/2 steps, 100% pass rate)
+          
+          SCOPE: Verified the SIP billing cost-leak bug fix on the Smadav/Nomadly WhiteLabel platform 
+          (Telegram phone product). Architecture: React (:3000) → FastAPI (:8001) → proxy → Node.js 
+          Express (:5000) → LIVE prod MongoDB. Base URL: https://service-config-test.preview.emergentagent.com. 
+          Safe Dev Sandbox mode.
+          
+          BUG CONTEXT:
+          • BEFORE: A SIP credential that repeatedly fails user identification kept generating billable 
+            inbound legs + a wasteful 250-credential reverse lookup with no user to charge (cost leak)
+          • FIX: After 3 consecutive identification failures within 5 min, hard-block the credential for 
+            10 min and hang up instantly BEFORE any lookup/transfer; log each failure to unidentifiedCallLeaks; 
+            self-heals on next success/expiry
+          
+          VERIFICATION RESULTS:
+          
+          [STEP 1] REGRESSION CHECK - Health endpoint: ✅ PASSED
+              • GET /api/health → HTTP 200
+              • Response: {"status":"healthy","database":"connected","uptime":"0.02 hours"}
+              • CONFIRMED: The +61-line voice-service change didn't break server boot
+          
+          [STEP 2] VERIFY FIX LOGIC - Mocked unit test (deterministic, no live Telnyx): ✅ PASSED
+              • Command: MONGO_URL="mongodb://localhost:27017" node js/tests/test_sip_unidentified_leak_block_2026-09.js
+              • Final line: "ALL PASSED — unidentified-credential cost leak stopped, no false PSTN legs"
+              
+              Key assertions verified:
+              ✅ failures 1-3 each hung up the billable leg (3)
+              ✅ failures 1-3 each recorded a cost-leak event (3)
+              ✅ credential is BLOCKED after 3 consecutive failures
+              ✅ the 3rd leak record is flagged blocked=true
+              ✅ blocked calls still hung up instantly (5)
+              ✅ blocked calls short-circuit BEFORE identification — no extra work/leak rows (still 3)
+              ✅ blocked calls never trigger a reverse lookup (listSIPCredentials still 0)
+              ✅ no PSTN transfer ever created for unidentified calls (0)
+              ✅ block clears on success/expiry (self-heals transient failures)
+          
+          TOTAL: 2/2 steps passed (100% pass rate)
+          
+          KEY FIX VERIFIED:
+          • The fix correctly blocks a credential after 3 consecutive identification failures
+          • Blocked calls are hung up instantly BEFORE any reverse lookup (no 250-cred scan)
+          • No PSTN transfer leg is ever created for unidentified calls (stops billable-leg cost leak)
+          • Each failure is logged to unidentifiedCallLeaks collection
+          • The 3rd failure record is flagged with blocked=true
+          • Block self-heals on next successful identification or expiry (transient failures don't permanently block)
+          • The mocked unit test proves the fix logic without touching live Telnyx/billing
+          
+          PRODUCTION IMPACT:
+          • SIP credentials that repeatedly fail user identification will no longer generate billable inbound legs
+          • No more wasteful 250-credential reverse lookups for unidentified calls (eliminates cost leak)
+          • Credentials are automatically unblocked after 10 min or on next successful identification
+          • All failures are logged for admin visibility (unidentifiedCallLeaks collection)
+          • The fix is transparent to legitimate users (only affects orphaned/misconfigured credentials)
+          
+          SAFETY CONFIRMED:
+          • All testing was SIDE-EFFECT-FREE (mocked unit test only, no live Telnyx webhooks)
+          • NO live call.initiated or any event posted to /api/telnyx/voice-webhook
+          • NO real calls triggered, NO Mongo writes to production
+          • Verification via mocked unit test with stubbed Telnyx/voice-service (deterministic)
+          
+          The SIP unidentified-credential cost-leak block is now working and verified. The fix stops 
+          the billable-leg cost leak and eliminates the wasteful 250-credential reverse lookup for 
+          unidentified calls.
+      - working: "NA"
+        agent: "main"
+        comment: "Fix implemented: after 3 consecutive identification failures within 5 min, hard-block the credential for 10 min and hang up instantly BEFORE any lookup/transfer; log each failure to unidentifiedCallLeaks; self-heals on next success/expiry. Awaiting testing-agent verification via mocked unit test (NO live SIP webhooks)."
+
 frontend:
   - task: "React nested component warnings fix (2026-08-30): Converted 4 badge components in DomainList.js from nested component definitions to plain render functions to eliminate React 'unstable nested component' warnings. The 4 functions are: renderSSLBadge (SSL certificate status badge), renderNSBadge (nameserver status badge), renderCaptchaBadge (visitor captcha toggle badge), and renderNSPendingInfo (NS pending instructions panel). These were causing React to remount subtrees on every render, triggering ~4 console warnings. Fix converts them to plain functions that return JSX without creating new component instances."
     implemented: true
@@ -12449,13 +12527,34 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus:
-    - "Cloud IVR dropped-call + SIP billing double-charge fix (Track 1) + RDP discount polish (Track 2, non-reseller) — verify fix, READ-ONLY / side-effect-free"
+  current_focus: []
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
+  - agent: "main"
+    timestamp: "2026 pod — SIP unidentified-credential leak fix"
+    message: |
+      VERIFY BUG FIX (SIP unidentified-credential cost leak). Ported main's fix: a SIP credential that repeatedly
+      fails user identification kept generating billable inbound legs + a wasteful 250-cred reverse lookup with no
+      user to charge. Fix (js/voice-service.js): after 3 consecutive identification failures in 5 min, hard-block the
+      credential for 10 min and hang up instantly BEFORE any lookup/transfer; log each failure to unidentifiedCallLeaks;
+      self-heals on next success/expiry. No PSTN leg is ever created for these calls.
+      Architecture: React :3000 -> FastAPI :8001 -> proxy -> Node :5000 -> LIVE prod Mongo. Base URL from
+      /app/frontend/.env REACT_APP_BACKEND_URL. Safe Dev Sandbox.
+      DO EXACTLY THESE TWO STEPS:
+        1) Regression: GET <BASE>/api/health -> 200 {status:healthy, database:connected} (the +61-line change didn't
+           break boot).
+        2) Verify the fix logic with the MOCKED unit test (no live Telnyx, deterministic). Run in bash from /app:
+             MONGO_URL="mongodb://localhost:27017" node js/tests/test_sip_unidentified_leak_block_2026-09.js
+           Expect final line "ALL PASSED — unidentified-credential cost leak stopped, no false PSTN legs" and assertions
+           incl. "block after 3 failures", "blocked calls never trigger a reverse lookup", "no PSTN transfer ever
+           created", "block clears on success/expiry". Report the tail.
+      CRITICAL SAFETY — LIVE Telnyx/billing creds. You MUST NOT POST unidentified/any call.initiated (or any event)
+      to the live /api/telnyx/voice-webhook — an unidentified inbound SIP webhook triggers the live reverse lookup /
+      reject path against real Telnyx. Verify via the mocked unit test only. No Mongo writes to prod, no real calls.
+      Report pass/total for the 2 steps + the unit-test tail.
   - agent: "main"
     timestamp: "2026 pod — IVR fix + RDP polish port"
     message: |
@@ -18186,3 +18285,68 @@ api" → 4 subdomains
       ⚠️ 4 React hydration warnings in console (common React 18 SSR issue, no functional impact)
       
       The feature is production-ready. No action items for main agent.
+  - agent: "testing"
+    timestamp: "2026-09 (SIP unidentified-credential cost-leak block)"
+    message: |
+      ✅ SIP UNIDENTIFIED-CREDENTIAL COST-LEAK BLOCK VERIFICATION COMPLETE - ALL STEPS PASSED (2/2, 100% pass rate)
+      
+      Verified the SIP billing cost-leak bug fix on the Smadav/Nomadly WhiteLabel platform (Telegram phone 
+      product). Architecture: React (:3000) → FastAPI (:8001) → proxy → Node.js Express (:5000) → LIVE 
+      prod MongoDB. Base URL: https://service-config-test.preview.emergentagent.com. Safe Dev Sandbox mode.
+      
+      BUG CONTEXT:
+      • BEFORE: A SIP credential that repeatedly fails user identification kept generating billable 
+        inbound legs + a wasteful 250-credential reverse lookup with no user to charge (cost leak)
+      • FIX: After 3 consecutive identification failures within 5 min, hard-block the credential for 
+        10 min and hang up instantly BEFORE any lookup/transfer; log each failure to unidentifiedCallLeaks; 
+        self-heals on next success/expiry
+      
+      VERIFICATION RESULTS:
+      
+      [STEP 1] REGRESSION CHECK - Health endpoint: ✅ PASSED
+          • GET /api/health → HTTP 200
+          • Response: {"status":"healthy","database":"connected","uptime":"0.02 hours"}
+          • CONFIRMED: The +61-line voice-service change didn't break server boot
+      
+      [STEP 2] VERIFY FIX LOGIC - Mocked unit test (deterministic, no live Telnyx): ✅ PASSED
+          • Command: MONGO_URL="mongodb://localhost:27017" node js/tests/test_sip_unidentified_leak_block_2026-09.js
+          • Final line: "ALL PASSED — unidentified-credential cost leak stopped, no false PSTN legs"
+          
+          Key assertions verified:
+          ✅ failures 1-3 each hung up the billable leg (3)
+          ✅ failures 1-3 each recorded a cost-leak event (3)
+          ✅ credential is BLOCKED after 3 consecutive failures
+          ✅ the 3rd leak record is flagged blocked=true
+          ✅ blocked calls still hung up instantly (5)
+          ✅ blocked calls short-circuit BEFORE identification — no extra work/leak rows (still 3)
+          ✅ blocked calls never trigger a reverse lookup (listSIPCredentials still 0)
+          ✅ no PSTN transfer ever created for unidentified calls (0)
+          ✅ block clears on success/expiry (self-heals transient failures)
+      
+      TOTAL: 2/2 steps passed (100% pass rate)
+      
+      KEY FIX VERIFIED:
+      • The fix correctly blocks a credential after 3 consecutive identification failures
+      • Blocked calls are hung up instantly BEFORE any reverse lookup (no 250-cred scan)
+      • No PSTN transfer leg is ever created for unidentified calls (stops billable-leg cost leak)
+      • Each failure is logged to unidentifiedCallLeaks collection
+      • The 3rd failure record is flagged with blocked=true
+      • Block self-heals on next successful identification or expiry (transient failures don't permanently block)
+      • The mocked unit test proves the fix logic without touching live Telnyx/billing
+      
+      PRODUCTION IMPACT:
+      • SIP credentials that repeatedly fail user identification will no longer generate billable inbound legs
+      • No more wasteful 250-credential reverse lookups for unidentified calls (eliminates cost leak)
+      • Credentials are automatically unblocked after 10 min or on next successful identification
+      • All failures are logged for admin visibility (unidentifiedCallLeaks collection)
+      • The fix is transparent to legitimate users (only affects orphaned/misconfigured credentials)
+      
+      SAFETY CONFIRMED:
+      • All testing was SIDE-EFFECT-FREE (mocked unit test only, no live Telnyx webhooks)
+      • NO live call.initiated or any event posted to /api/telnyx/voice-webhook
+      • NO real calls triggered, NO Mongo writes to production
+      • Verification via mocked unit test with stubbed Telnyx/voice-service (deterministic)
+      
+      The SIP unidentified-credential cost-leak block is now working and verified. The fix stops 
+      the billable-leg cost leak and eliminates the wasteful 250-credential reverse lookup for 
+      unidentified calls.
