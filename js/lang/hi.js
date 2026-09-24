@@ -2978,10 +2978,8 @@ ${plans
   const { walletUsd, cheapestName, socialProof } = extras
   const plans = list.map(config => {
    const star = config.name === cheapestName ? '🌟 ' : ''
-   const monthly = Number(config.monthlyPrice) || 0
-   const daily = monthly > 0 ? (monthly / 30).toFixed(2) : null
-   const dailyHint = daily ? ` <i>(~$${daily}/दिन)</i>` : ''
-   return `<strong>• ${star}${config.name}</strong> — ${config.specs.vCPU} vCPU · ${config.specs.RAM}GB RAM · ${config.specs.disk}GB ${config.specs.diskType} — $${config.monthlyPrice}/माह${dailyHint}`
+   const line = `<strong>• ${star}${config.name}</strong> — ${config.specs.vCPU} vCPU · ${config.specs.RAM}GB RAM · ${config.specs.disk}GB ${config.specs.diskType} — $${config.monthlyPrice}/माह`
+   return config.isRDP ? `${line}\n   ⚡ <i>Premium AMD · NVMe SSD</i>` : line
   }).join('\n')
 
   let walletLine = ''

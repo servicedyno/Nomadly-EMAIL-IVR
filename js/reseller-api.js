@@ -294,6 +294,7 @@ function createResellerApi(deps = {}) {
     const mapPlans = (prov, isRDP) => (prov.listProducts(region, isRDP) || []).map(p => ({
       plan_id: p.productId, name: p.name || p.productId,
       vcpus: p.vcpus || p.vCpus || null, ram_gb: p.ramGb || null, disk_gb: p.diskGb || null,
+      ...hwFromProduct(p),
       duration_months: p.durationMonths || 1, discount_pct: (p.pricing && p.pricing.discountPct) || 0,
       price_usd: p.pricing ? p.pricing.totalWithMarkup : null,
     }))
@@ -437,6 +438,41 @@ function createResellerApi(deps = {}) {
     return providerFor(true)
   }
 
+  // ── Customer-facing hardware fields (CPU vendor + storage media) ──
+  // storage_type comes from the provider catalog's diskType ('nvme'→"NVMe SSD", 'ssd'→"SSD").
+  // cpu is read from the size identifier: DigitalOcean slugs end -amd / -intel; Azure Dasv/Dadsv SKUs
+  // are AMD, Dsv/Ddsv are Intel; anything with no vendor marker is reported as "Standard".
+  // DO note: the -amd/-intel Premium sizes are NVMe-backed; a plain "Basic" fallback slug is SSD.
+  function _cpuVendor(sizeId) {
+    const s = String(sizeId || '').toLowerCase()
+    if (!s) return 'Standard'
+    if (s.endsWith('-amd') || /d\d+ad?s_v\d/.test(s) || /\bepyc\b/.test(s)) return 'AMD'
+    if (s.endsWith('-intel') || /d\d+d?s_v[45678]\b/.test(s)) return 'Intel'
+    return 'Standard'
+  }
+  function _storageLabel(diskType) {
+    const d = String(diskType || '').toLowerCase()
+    return d === 'nvme' ? 'NVMe SSD' : d === 'ssd' ? 'SSD' : null
+  }
+  // From a catalog product (has do_size_slug for DO, azureSku for Azure, diskType for every provider).
+  function hwFromProduct(p) {
+    const slug = String((p && p.do_size_slug) || '').toLowerCase()
+    if (slug.endsWith('-amd')) return { cpu: 'AMD', storage_type: 'NVMe SSD' }
+    if (slug.endsWith('-intel')) return { cpu: 'Intel', storage_type: 'NVMe SSD' }
+    if (slug) return { cpu: 'Standard', storage_type: 'SSD' } // plain DO Basic size = SSD
+    return { cpu: _cpuVendor((p && (p.azureSku || p.productId)) || ''), storage_type: _storageLabel(p && p.diskType) }
+  }
+  // From a stored instance record: prefer the EXACT size slug the droplet got, else the catalog default.
+  function hwFromRecord(prov, rec) {
+    const slug = String((rec && rec.do_size_slug) || '').toLowerCase()
+    if (slug.endsWith('-amd')) return { cpu: 'AMD', storage_type: 'NVMe SSD' }
+    if (slug.endsWith('-intel')) return { cpu: 'Intel', storage_type: 'NVMe SSD' }
+    if (slug) return { cpu: 'Standard', storage_type: 'SSD' }
+    let prod = null
+    try { if (prov && typeof prov.getProduct === 'function') prod = prov.getProduct((rec && rec.productId) || (rec && rec.plan)) } catch (_) { /* unknown product */ }
+    return hwFromProduct(prod || {})
+  }
+
   async function vpsPlansHandler(req, res, isRDP) {
     const region = String(req.query.region || 'EU').toUpperCase()
     const prov = providerFor(isRDP)
@@ -448,6 +484,7 @@ function createResellerApi(deps = {}) {
       plans: products.map(p => ({
         plan_id: p.productId, name: p.name || p.productId,
         vcpus: p.vcpus || p.vCpus || null, ram_gb: p.ramGb || null, disk_gb: p.diskGb || null,
+        ...hwFromProduct(p),
         duration_months: p.durationMonths || 1, discount_pct: (p.pricing && p.pricing.discountPct) || 0,
         price_usd: p.pricing ? p.pricing.totalWithMarkup : null,
       })),
@@ -506,6 +543,7 @@ function createResellerApi(deps = {}) {
     res.json({ [isRDP ? 'rdp' : 'vps']: docs.map(d => ({
       id: d.vpsId || d._id, instance_id: d.instanceId || d.contaboInstanceId || null, ip: d.host || null,
       plan: d.plan || null, region: d.region || null, os: d.osType || null, os_id: d.osId || null, status: d.status || null,
+      ...hwFromRecord(isRDP ? rdpProviderForRecord(d) : providerFor(false), d),
       created_at: d.start_time || d.timestamp || null,
     })) })
   }
@@ -522,7 +560,7 @@ function createResellerApi(deps = {}) {
     if (live && (live.mainIp || live.status) && (live.mainIp !== rec.host || live.status !== rec.status)) {
       col('vpsPlansOf').updateOne({ _id: rec._id }, { $set: { ...(live.mainIp ? { host: live.mainIp } : {}), ...(live.status ? { status: live.status } : {}) } }).catch(() => {})
     }
-    const out = { id: rec.vpsId || rec._id, instance_id: rec.instanceId || null, plan: rec.plan, region: rec.region, os: rec.osType, os_id: rec.osId || null, status: live?.status || rec.status, ip: live?.mainIp || rec.host || null, live }
+    const out = { id: rec.vpsId || rec._id, instance_id: rec.instanceId || null, plan: rec.plan, region: rec.region, os: rec.osType, os_id: rec.osId || null, ...hwFromRecord(isRDP ? rdpProviderForRecord(rec) : providerFor(false), rec), status: live?.status || rec.status, ip: live?.mainIp || rec.host || null, live }
     // RDP only: whether the in-guest management agent (used by password-reset) has checked in recently.
     if (isRDP) out.agent_online = live ? !!live.agentOnline : null
     // RDP 3-day grace: surface pending-deletion so a polling reseller sees the box is expired-but-not-yet-deleted.
