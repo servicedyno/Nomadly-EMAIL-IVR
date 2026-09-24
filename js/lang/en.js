@@ -162,12 +162,16 @@ const user = {
 
  // Sub Menu 4: VPS Plans
  buyVpsPlan: '⚙️ Create VPS / RDP',
- manageVpsPlan: '🖥️ View/Manage VPS / RDP',
+ buyLinuxVpsBtn: '🐧 Create Linux VPS',
+ buyRdpBtn: '🪟 Create Windows RDP',
+ manageVpsPlan: '🖥️ Manage my servers',
  vpsRdpMenuPrompt: `🖥️ <b>Cloud VPS / Windows RDP</b>
 
-🐧 Linux VPS (SSH) or 🪟 Windows RDP (Remote Desktop) — Port 25 open, bulletproof hosting.
+Two different products, two different plan lists:
+🐧 <b>Linux VPS</b> — SSH access · web hosting · dev · automation
+🪟 <b>Windows RDP</b> — Remote Desktop · Windows licence included · 1/2/3-month prepaid · ready in ~3 min
 
-Please choose an option:`,
+Port 25 open · bulletproof hosting. Please choose an option:`,
  manageVpsSSH: '🔑 SSH Keys',
 
  // Free Trial
@@ -2257,6 +2261,11 @@ host_4: (safeHtml) => `${safeHtml}`,
  util_8: (displayName, expiryDate, planPrice, toFixed, statusIcon, v5) => `🖥️ <b>VPS Expiring in 3 Days</b>\n\n<b>${displayName}</b> expires on <b>${expiryDate}</b>.\n💵 Required: <b>$${planPrice}/mo</b>\n💳 Balance: $${toFixed}\n${statusIcon} ${v5}`,
  util_9: (domain, ngnPrice) => `💰 <b>Auto-Refund:</b> Domain registration for <b>${domain}</b> failed. Your payment of ${ngnPrice} NGN has been credited to your wallet balance.`,
 
+ // === Windows RDP 3-day grace lifecycle ===
+ rdpGraceStart: (displayName, deleteDate) => `🖥 <b>${displayName}</b> has <b>expired</b> and was <b>powered off</b>.\n\n🗑 It will be <b>permanently deleted on ${deleteDate}</b> (3-day grace period) unless you renew — all data will be lost.\n\n♻️ Renew now: 🖥️ VPS/RDP → Manage → Renew`,
+ rdpGraceReminder: (displayName, deleteDate) => `⏳ <b>Final reminder</b>\n\n🖥 <b>${displayName}</b> will be <b>permanently deleted on ${deleteDate}</b> unless you renew.\n\nAfter that, the server and all its data are gone for good.\n\n♻️ Renew now: 🖥️ VPS/RDP → Manage → Renew`,
+ rdpDeletedAfterGrace: (displayName) => `🗑 <b>${displayName}</b> was <b>permanently deleted</b> after the 3-day grace period ended without a renewal.\n\nAll data on the server is gone. You can order a new Windows RDP anytime from the menu.`,
+
  // === Admin ===
  adm_1: '📸 Maximum 5 images. Tap ✅ Done Uploading to continue.',
  adm_10: (orderId, buyerName, chatId, product) => `✅ Order <code>${orderId}</code> delivered to ${buyerName} (${chatId}).\nProduct: ${product}`,
@@ -3224,9 +3233,12 @@ ${list.map(item => `${name == 'whm' ? `<strong>• ${item.name} - </strong>` : '
  const planPrice = vpsDetails.couponApplied ? vpsDetails.planNewPrice : vpsDetails.plantotalPrice
  const total = vpsDetails.totalPrice || Number(planPrice).toFixed(2)
  const isRDP = vpsDetails.isRDP
- const osLabel = isRDP ? '🪟 Windows Server (RDP)' : (vpsDetails.os?.name || 'Ubuntu')
- const planEmoji = isRDP ? '🪟' : '🖥️'
- const planKind = isRDP ? ' <i>(Windows RDP)</i>' : ''
+ const months = Number(vpsDetails.durationMonths) || 1
+ const osLabel = isRDP
+ ? (vpsDetails.os?.id ? `🪟 ${vpsDetails.os.name}${vpsDetails.os.fastDeploy ? ' ⚡ ready in ~3 min' : ''}` : '🪟 Windows Server (RDP)')
+ : (vpsDetails.os?.name || 'Ubuntu')
+ const planEmoji = isRDP ? '🪟' : '🐧'
+ const planKind = isRDP ? (/RDP/i.test(String(vpsDetails.config.name)) ? '' : ' <i>(Windows RDP)</i>') : ' <i>(Linux VPS)</i>'
 
  let summary = `<strong>📋 Order Summary:</strong>
 
@@ -3237,11 +3249,14 @@ ${list.map(item => `${name == 'whm' ? `<strong>• ${item.name} - </strong>` : '
  if (isRDP) {
  summary += `\n<strong>🪟 Windows License:</strong> Included`
  }
+ if (isRDP || months > 1) {
+ summary += `\n<strong>📅 Duration:</strong> ${months === 1 ? '1 month' : `${months} months (prepaid)`}`
+ }
  if (vpsDetails.couponApplied && vpsDetails.couponDiscount > 0) {
  summary += `\n<strong>🎟️ Coupon:</strong> -$${Number(vpsDetails.couponDiscount).toFixed(2)} USD`
  }
  summary += `\n<strong>🔄 Auto-Renewal:</strong> ✅ Enabled`
- summary += `\n\n<strong>💰 Total: $${total} USD/mo</strong>`
+ summary += `\n\n<strong>💰 Total: $${total} USD${months > 1 ? ` / ${months} months` : '/mo'}</strong>`
  summary += `\n\n<strong>✅ Proceed with the order?</strong>`
  return summary
  },
@@ -3258,7 +3273,7 @@ Send exactly <b>${priceCrypto} ${tickerView}</b> to:
 
 <code>${address}</code>
 
-Your ${vpsDetails?.plan || 'VPS'} plan will activate automatically once payment is confirmed (usually within a few minutes).
+Your ${vpsDetails?.isRDP ? 'Windows RDP' : 'VPS'} will activate automatically once payment is confirmed (usually within a few minutes).
 
 Best regards,
 ${CHAT_BOT_NAME}`,
@@ -3279,16 +3294,12 @@ Please top up your wallet to continue using your VPS Plan.
  vpsBoughtSuccess: (vpsDetails, response, credentials) => {
  const isRDP = response.isRDP || vpsDetails.isRDP || response.osType === 'Windows'
  const connectInfo = isRDP
- ? ` <strong>• Connect:</strong> 🖥 Remote Desktop → <code>${response.host}:3389</code>\n <strong>• How:</strong> Open Remote Desktop Connection (mstsc) and enter the address above.`
- : ` <strong>• Connect:</strong> 💻 <code>ssh ${credentials.username}@${response.host}</code>`
- 
- const passwordWarning = isRDP
- ? `\n⚠️ <b>Save your password now</b> — it can't be retrieved later. If lost, use "Reset Password" in VPS management (your data is preserved).`
- : `\n⚠️ <b>Save your credentials securely.</b>`
- 
+ ? `<strong>🔗 Connect:</strong> 🖥 Remote Desktop (mstsc) → <code>${response.host}:3389</code>`
+ : `<strong>🔗 Connect:</strong> 💻 <code>ssh ${credentials.username}@${response.host}</code>`
+
  const readinessNote = isRDP
- ? `\n⏱ <b>Allow 5–10 minutes</b> for Windows first-boot. If RDP rejects the password right after delivery, wait a couple of minutes and retry — the password is correct.`
- : `\n⏱ <b>Allow 2–5 minutes</b> for first-boot setup. If SSH says "permission denied" right after delivery, wait a couple of minutes and retry — the password is correct.`
+ ? `\n⏱ <b>Allow 5–10 minutes</b> for Windows first boot. ⚠️ <b>Save your password now</b> — it can't be retrieved later (use "Reset Password" in RDP management if lost).`
+ : `\n⏱ <b>Allow 2–5 minutes</b> for first-boot setup. ⚠️ <b>Save your credentials securely.</b>`
 
  return `<strong>🎉 ${isRDP ? 'RDP' : 'VPS'} [${response.label}] is active!</strong>
 
@@ -3298,9 +3309,8 @@ Please top up your wallet to continue using your VPS Plan.
  <strong>• Username:</strong> <code>${credentials.username}</code>
  <strong>• Password:</strong> <tg-spoiler><code>${credentials.password}</code></tg-spoiler> (tap to reveal & copy)
 
-<strong>🔗 Connection:</strong>
 ${connectInfo}
-${readinessNote}${passwordWarning}
+${readinessNote}
 
 ${CHAT_BOT_NAME}`
  },
@@ -3359,29 +3369,29 @@ ${CHAT_BOT_NAME}`,
  fileTypePub: 'File type should be .pub',
 
  // VPS Management
- vpsList: list => `<strong>🖥️ Active VPS Instances:</strong>
+ vpsList: list => `<strong>🖥️ Your servers:</strong>
 
 ${list
- .map(vps => `<strong>• ${vps.name} :</strong> ${String(vps.status || '').toUpperCase() === 'RUNNING' ? '🟢' : '🔴'} ${vps.status}`)
+ .map(vps => `<strong>• ${vps.isRDP || vps.osType === 'Windows' ? '🪟' : '🐧'} ${vps.name}</strong> <i>(${vps.isRDP || vps.osType === 'Windows' ? 'Windows RDP' : 'Linux VPS'})</i> — ${String(vps.status || '').toUpperCase() === 'RUNNING' ? '🟢' : '🔴'} ${vps.status}`)
  .join('\n')}
 `,
- noVPSfound: 'No Active VPS instance exists. Create a new one.',
+ noVPSfound: 'You have no server yet. Create a 🐧 Linux VPS or a 🪟 Windows RDP below.',
  selectCorrectOption: 'Please select a option from the list',
  selectedVpsData: data => {
    const isRDP = !!(data.isRDP || data.osType === 'Windows')
    const port = isRDP ? 3389 : 22
    const loginUser = data.defaultUser || (isRDP ? 'Administrator' : 'root')
    const running = String(data.status || '').toUpperCase() === 'RUNNING'
-   return `<strong>🖥️ VPS ID:</strong> ${data.name}
+   const months = Number(data.durationMonths) || 1
+   const panelLine = isRDP ? '' : `\n<strong>• Control Panel:</strong> ${data.cPanelPlanDetails && data.cPanelPlanDetails.type ? data.cPanelPlanDetails.type : 'None'}`
+   const billingLine = isRDP ? `\n<strong>• Billing:</strong> ${months === 1 ? 'Monthly' : `${months} months (prepaid)`} · Windows licence included` : ''
+   return `<strong>${isRDP ? '🪟 Windows RDP' : '🐧 Linux VPS'}:</strong> ${data.name}
 
 <strong>• Plan:</strong> ${data.planDetails.name}
 <strong>• vCPUs:</strong> ${data.planDetails.specs.vCPU} | RAM: ${data.planDetails.specs.RAM} GB | Disk: ${
    data.planDetails.specs.disk
  } GB (${data.diskTypeDetails.type})
-<strong>• OS:</strong> ${data.osDetails.name}
-<strong>• Control Panel:</strong> ${
-   data.cPanelPlanDetails && data.cPanelPlanDetails.type ? data.cPanelPlanDetails.type : 'None'
- }
+<strong>• OS:</strong> ${data.osDetails.name}${panelLine}${billingLine}
 <strong>• Status:</strong> ${running ? '🟢' : '🔴'} ${data.status}
 <strong>• Auto-Renewal:</strong> ${data.autoRenewable ? 'Enabled' : 'Disabled'}
 
@@ -3644,6 +3654,49 @@ Please try again in a few minutes or contact support if the issue persists.`,
  rdpNotSupported: `⚠️ This feature is only available for Windows RDP instances.
 
 Your VPS is running Linux. Use SSH keys for access management instead.`,
+
+ // ── DigitalOcean Windows RDP: duration + edition pickers, in-place reinstall ──
+ rdpDurationBtn: c => (Number(c.period) === 1 ? `1 month — $${c.price}` : `${c.period} months — $${c.price}`),
+ askRdpDuration: (config, cycles) => `📅 <strong>How long do you want to prepay?</strong>
+
+<strong>${config.name}</strong> — ${config.specs.vCPU} vCPU · ${config.specs.RAM}GB RAM · ${config.specs.disk}GB NVMe
+${cycles.map(c => {
+  const per = Number(c.period) || 1
+  const base = (Number(config.monthlyPrice) || 0) * per
+  const save = per > 1 && base > 0 && Number(c.price) < base ? Math.round((1 - Number(c.price) / base) * 100) : 0
+  return `• ${per === 1 ? '1 month' : `${per} months`} — <b>$${c.price}</b>${save > 0 ? ` <i>(save ${save}%)</i>` : ''}`
+}).join('\n')}
+
+Longer periods are billed once up front and include a bundle discount; auto-renewal charges the same period again when it ends.`,
+ rdpEditionBtn: o => `🪟 ${o.name}${o.fast_deploy ? ` ⚡ ~${o.eta_minutes || 3} min` : ' ⏳ ~45 min'}`,
+ askRdpEdition: options => `🪟 <strong>Choose your Windows edition</strong>
+
+${options.map(o => `• <b>${o.name}</b> — ${o.fast_deploy ? `⚡ ready in about ${o.eta_minutes || 3} minutes (pre-built image in your region)` : '⏳ full install, about 45 minutes'}`).join('\n')}
+
+All editions are Windows Server Standard (Desktop Experience) with RDP enabled and the Administrator account.`,
+ askReinstallEdition: (name, options) => `🔄 <strong>Reinstall Windows on ${name}</strong>
+
+Pick the edition to install. Your IP address stays the same.
+
+${options.map(o => `• <b>${o.name}</b> — ${o.fast_deploy ? `⚡ about ${o.eta_minutes || 3} minutes` : '⏳ about 45 minutes'}`).join('\n')}`,
+ confirmReinstallWindowsRdpText: (name, osName, etaMin) => `🔄 <strong>Reinstall ${osName} on ${name}</strong>
+
+⚠️ <strong>WARNING — this erases the disk:</strong>
+• All files, programs and settings on the server are deleted
+• A fresh ${osName} is installed from our pre-built image (~${etaMin} min)
+• A NEW Administrator password is generated — the old one stops working
+• ✅ Your IP address and your paid period are kept
+
+Do you want to continue?`,
+ windowsReinstallStarted: (name, ip, username, password, osName, etaMin) => `🔄 <strong>Reinstalling ${osName} on ${name}</strong>
+
+🌐 <strong>IP:</strong> <code>${ip || 'unchanged'}</code>
+👤 <strong>Username:</strong> ${username}
+🔑 <strong>New password:</strong> <code>${password}</code>
+
+⏱️ Windows is being installed now — connect with these credentials in about <b>${etaMin} minutes</b>.
+💡 Tap the password to copy it. You can always show it again with 🔐 Show Password.`,
+ rdpActionReason: reason => `\n\n<i>Reason: ${reason}</i>`,
  vpsBeingDeleted: name => `⚙️ Please wait while your VPS (${name}) is being deleted`,
  vpsDeleted: name => `✅ VPS (${name}) has been permanently deleted.`,
  failedDeletingVPS: name => `❌ Failed to delete VPS (${name}). 
@@ -3723,24 +3776,28 @@ Note: A $${VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE} USD deposit is included in yo
 
 <strong>✅ Proceed with the order?</strong>`,
 
- vpsSubscriptionData: (vpsData, planExpireDate, panelExpireDate) => `<strong>🗂️ Your Active Subscriptions:</strong>
-
-<strong>• VPS ${vpsData.name} </strong>– Expires: ${planExpireDate} (Auto-Renew: ${
- vpsData.autoRenewable ? 'Enabled' : 'Disabled'
- })
-<strong>• Control Panel ${vpsData?.cPanelPlanDetails ? vpsData.cPanelPlanDetails.type : ': Not Selected'} </strong> ${
+ vpsSubscriptionData: (vpsData, planExpireDate, panelExpireDate) => {
+ const isRDP = !!(vpsData.isRDP || vpsData.osType === 'Windows')
+ const months = Number(vpsData.durationMonths) || 1
+ const panel = isRDP ? '' : `\n<strong>• Control Panel ${vpsData?.cPanelPlanDetails ? vpsData.cPanelPlanDetails.type : ': Not Selected'} </strong> ${
  vpsData?.cPanelPlanDetails
  ? `${vpsData?.cPanelPlanDetails.status === 'active' ? '- Expires: ' : '- Expired: '}${panelExpireDate}`
  : ''
- } `,
+ } `
+ return `<strong>🗂️ Your Active Subscriptions:</strong>
 
- manageVpsSubBtn: '🖥️ Manage VPS Subscription',
+<strong>• ${isRDP ? '🪟 Windows RDP' : '🐧 Linux VPS'} ${vpsData.name} </strong>– ${isRDP ? `${months === 1 ? 'monthly' : `${months}-month prepaid`} · ` : ''}Expires: ${planExpireDate} (Auto-Renew: ${
+ vpsData.autoRenewable ? 'Enabled' : 'Disabled'
+ })${panel}`
+ },
+
+ manageVpsSubBtn: '📅 Manage Subscription',
  manageVpsPanelBtn: '🛠️ Manage Control Panel Subscription',
 
- vpsSubDetails: (data, date) => `<strong>📅 VPS Subscription Details:</strong>
+ vpsSubDetails: (data, date) => `<strong>📅 ${data.isRDP || data.osType === 'Windows' ? '🪟 Windows RDP' : '🐧 Linux VPS'} Subscription Details:</strong>
 
-<strong>• VPS ID:</strong> ${data.name}
-<strong>• Plan:</strong> ${data.planDetails.name}
+<strong>• Server:</strong> ${data.name}
+<strong>• Plan:</strong> ${data.planDetails.name}${data.isRDP || data.osType === 'Windows' ? `\n<strong>• Billing period:</strong> ${(Number(data.durationMonths) || 1) === 1 ? 'Monthly' : `${data.durationMonths} months (prepaid)`}` : ''}
 <strong>• Current Expiry Date:</strong> ${date}
 <strong>• Auto-Renewal:</strong> ${data.autoRenewable ? 'Enabled' : 'Disabled'}`,
 

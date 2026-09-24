@@ -161,12 +161,16 @@ const user = {
 
  // Sub Menu 4: VPS Plans
  buyVpsPlan: '⚙️ 创建 VPS / RDP',
- manageVpsPlan: '🖥️ 查看/管理 VPS / RDP',
+ buyLinuxVpsBtn: '🐧 创建 Linux VPS',
+ buyRdpBtn: '🪟 创建 Windows RDP',
+ manageVpsPlan: '🖥️ 管理我的服务器',
  vpsRdpMenuPrompt: `🖥️ <b>云 VPS / Windows RDP</b>
 
-🐧 Linux VPS (SSH) 或 🪟 Windows RDP（远程桌面）— 开放 25 端口，防弹托管。
+两种不同的产品，两套不同的套餐：
+🐧 <b>Linux VPS</b> — SSH 访问 · 网站托管 · 开发 · 自动化
+🪟 <b>Windows RDP</b> — 远程桌面 · 含 Windows 许可证 · 预付 1/2/3 个月 · 约 3 分钟就绪
 
-请选择一个选项：`,
+开放 25 端口 · 防弹托管。请选择一个选项：`,
  manageVpsSSH: '🔑 SSH密钥',
 
  // Free Trial
@@ -2013,6 +2017,11 @@ host_4: (safeHtml) => `${safeHtml}`,
  util_7: (displayName, toFixed) => `🚨 <b>URGENT — VPS 已过期</b>\n\n🖥️ <b>${displayName}</b> has expired.\n💰 余额: $${toFixed}\n\n⚠️ <b>服务器 will be deleted shortly.</b>\nRenew NOW: VPS/RDP → Manage → 📅 续费 Now`,
  util_8: (displayName, expiryDate, planPrice, toFixed, statusIcon, v5) => `🖥️ <b>VPS即将到期 in 3 Days</b>\n\n<b>${displayName}</b> 到期 on <b>${expiryDate}</b>.\n💵 Required: <b>$${planPrice}/mo</b>\n💳 余额: $${toFixed}\n${statusIcon} ${sufficient ? 'Auto-renewal will be attempted 1 day before expiry.' : '余额不足 — top up or renew manually to keep your server!'}`,
  util_9: '💡 使用下方按钮进行导航。',
+
+ // === Windows RDP 3 天宽限期 ===
+ rdpGraceStart: (displayName, deleteDate) => `🖥 <b>${displayName}</b> 已<b>到期</b>并已<b>关机</b>。\n\n🗑 除非续订，否则将于 <b>${deleteDate}</b> <b>永久删除</b>（3 天宽限期）——所有数据都将丢失。\n\n♻️ 立即续订：🖥️ VPS/RDP → 管理 → 续订`,
+ rdpGraceReminder: (displayName, deleteDate) => `⏳ <b>最后提醒</b>\n\n🖥 除非续订，<b>${displayName}</b> 将于 <b>${deleteDate}</b> <b>永久删除</b>。\n\n之后服务器及其所有数据将无法恢复。\n\n♻️ 立即续订：🖥️ VPS/RDP → 管理 → 续订`,
+ rdpDeletedAfterGrace: (displayName) => `🗑 <b>${displayName}</b> 在 3 天宽限期结束且未续订后已被<b>永久删除</b>。\n\n服务器上的所有数据均已丢失。您可以随时从菜单订购新的 Windows RDP。`,
  vps_1: (message) => `❌ 失败 to read file: ${message}`,
  vps_10: '✏️ 输入 the new <b>Subject</b> line:',
  vps_11: '⚙️ <b>Email 管理员 Panel</b>',
@@ -3040,9 +3049,12 @@ ${list.map(item => `${name == 'whm' ? `<strong>• ${item.name} - </strong>` : '
  const planPrice = vpsDetails.couponApplied ? vpsDetails.planNewPrice : vpsDetails.plantotalPrice
  const total = vpsDetails.totalPrice || Number(planPrice).toFixed(2)
  const isRDP = vpsDetails.isRDP
- const osLabel = isRDP ? '🪟 Windows Server (RDP)' : (vpsDetails.os?.name || 'Ubuntu')
- const planEmoji = isRDP ? '🪟' : '🖥️'
- const planKind = isRDP ? ' <i>(Windows RDP)</i>' : ''
+ const months = Number(vpsDetails.durationMonths) || 1
+ const osLabel = isRDP
+ ? (vpsDetails.os?.id ? `🪟 ${vpsDetails.os.name}${vpsDetails.os.fastDeploy ? ' ⚡ 约 3 分钟就绪' : ''}` : '🪟 Windows Server (RDP)')
+ : (vpsDetails.os?.name || 'Ubuntu')
+ const planEmoji = isRDP ? '🪟' : '🐧'
+ const planKind = isRDP ? (/RDP/i.test(String(vpsDetails.config.name)) ? '' : ' <i>(Windows RDP)</i>') : ' <i>(Linux VPS)</i>'
  
  let summary = `<strong>📋 订单摘要：</strong>
 
@@ -3053,11 +3065,14 @@ ${list.map(item => `${name == 'whm' ? `<strong>• ${item.name} - </strong>` : '
  if (isRDP) {
  summary += `\n<strong>🪟 Windows 许可证：</strong> 已包含`
  }
+ if (isRDP || months > 1) {
+ summary += `\n<strong>📅 时长：</strong> ${months === 1 ? '1 个月' : `${months} 个月（预付）`}`
+ }
  if (vpsDetails.couponApplied && vpsDetails.couponDiscount > 0) {
  summary += `\n<strong>🎟️ 优惠券：</strong> -$${Number(vpsDetails.couponDiscount).toFixed(2)} USD`
  }
  summary += `\n<strong>🔄 自动续费：</strong> ✅ 启用`
- summary += `\n\n<strong>💰 总计：$${total} USD/月</strong>`
+ summary += `\n\n<strong>💰 总计：$${total} USD${months > 1 ? ` / ${months} 个月` : '/月'}</strong>`
  summary += `\n\n<strong>✅ 是否继续下单？</strong>`
  return summary
  },
@@ -3072,7 +3087,7 @@ ${list.map(item => `${name == 'whm' ? `<strong>• ${item.name} - </strong>` : '
 
 <code>${address}</code>
 
-您的 ${vpsDetails?.plan || 'VPS'} 计划将在支付确认后自动激活（通常只需几分钟）。
+您的 ${vpsDetails?.isRDP ? 'Windows RDP' : 'VPS'} 将在支付确认后自动激活（通常只需几分钟）。
 
 此致,
 ${CHAT_BOT_NAME}`,
@@ -3092,16 +3107,12 @@ ${CHAT_BOT_NAME}`,
  vpsBoughtSuccess: (vpsDetails, response, credentials) => {
  const isRDP = response.isRDP || vpsDetails.isRDP || response.osType === 'Windows'
  const connectInfo = isRDP
- ? ` <strong>• 连接:</strong> 🖥 远程桌面 → <code>${response.host}:3389</code>\n <strong>• 方法:</strong> 打开远程桌面连接 (mstsc) 并输入上述地址。`
- : ` <strong>• 连接:</strong> 💻 <code>ssh ${credentials.username}@${response.host}</code>`
- 
- const passwordWarning = isRDP
- ? `\n⚠️ <b>请立即保存您的密码</b> — 之后无法找回。如丢失，请在 VPS 管理中使用"重置密码"（数据将保留）。`
- : `\n⚠️ <b>请安全保存您的凭据。</b>`
- 
+ ? `<strong>🔗 连接:</strong> 🖥 远程桌面 (mstsc) → <code>${response.host}:3389</code>`
+ : `<strong>🔗 连接:</strong> 💻 <code>ssh ${credentials.username}@${response.host}</code>`
+
  const readinessNote = isRDP
- ? `\n⏱ <b>请预留 5–10 分钟</b>用于 Windows 首次启动。若交付后 RDP 立即拒绝密码，请稍候几分钟再重试——密码是正确的。`
- : `\n⏱ <b>请预留 2–5 分钟</b>用于首次启动设置。若交付后 SSH 立即提示 "permission denied"，请稍候几分钟再重试——密码是正确的。`
+ ? `\n⏱ <b>请预留 5–10 分钟</b>用于 Windows 首次启动。⚠️ <b>请立即保存您的密码</b> — 之后无法找回（如丢失，请在 RDP 管理中使用"重置密码"）。`
+ : `\n⏱ <b>请预留 2–5 分钟</b>用于首次启动设置。⚠️ <b>请安全保存您的凭据。</b>`
 
  return `<strong>🎉 ${isRDP ? 'RDP' : 'VPS'} [${response.label}] 已激活！</strong>
 
@@ -3111,9 +3122,8 @@ ${CHAT_BOT_NAME}`,
  <strong>• 用户名:</strong> <code>${credentials.username}</code>
  <strong>• 密码:</strong> <tg-spoiler><code>${credentials.password}</code></tg-spoiler>（点击查看并复制）
 
-<strong>🔗 连接方式:</strong>
 ${connectInfo}
-${readinessNote}${passwordWarning}
+${readinessNote}
 
 ${CHAT_BOT_NAME}`
  },
@@ -3170,27 +3180,37 @@ ${CHAT_BOT_NAME}`,
  newSSHKeyUploadedMsg: name => `✅ SSH 密钥（${name}）已成功上传并将关联到 VPS。`,
  fileTypePub: '文件类型应为 .pub',
 
- vpsList: list => `<strong>🖥️ 活跃的 VPS 实例：</strong>
+ vpsList: list => `<strong>🖥️ 您的服务器：</strong>
 
 ${list
- .map(vps => `<strong>• ${vps.name} :</strong> ${vps.status === 'RUNNING' ? '🟢' : '🔴'} ${vps.status}`)
+ .map(vps => `<strong>• ${vps.isRDP || vps.osType === 'Windows' ? '🪟' : '🐧'} ${vps.name}</strong> <i>(${vps.isRDP || vps.osType === 'Windows' ? 'Windows RDP' : 'Linux VPS'})</i> — ${String(vps.status || '').toUpperCase() === 'RUNNING' ? '🟢' : '🔴'} ${vps.status}`)
  .join('\n')}
 `,
- noVPSfound: '没有活跃的 VPS 实例。请创建一个新的。',
+ noVPSfound: '您还没有服务器。请在下方创建 🐧 Linux VPS 或 🪟 Windows RDP。',
  selectCorrectOption: '请选择列表中的一个选项',
- selectedVpsData: data => `<strong>🖥️ VPS ID：</strong> ${data.name}
+ selectedVpsData: data => {
+ const isRDP = !!(data.isRDP || data.osType === 'Windows')
+ const port = isRDP ? 3389 : 22
+ const loginUser = data.defaultUser || (isRDP ? 'Administrator' : 'root')
+ const running = String(data.status || '').toUpperCase() === 'RUNNING'
+ const months = Number(data.durationMonths) || 1
+ const panelLine = isRDP ? '' : `\n<strong>• 控制面板：</strong> ${data.cPanelPlanDetails && data.cPanelPlanDetails.type ? data.cPanelPlanDetails.type : '无'}`
+ const billingLine = isRDP ? `\n<strong>• 计费：</strong> ${months === 1 ? '按月' : `${months} 个月（预付）`} · 含 Windows 许可证` : ''
+ return `<strong>${isRDP ? '🪟 Windows RDP' : '🐧 Linux VPS'}：</strong> ${data.name}
 
 <strong>• 计划：</strong> ${data.planDetails.name}
-<strong>• vCPUs：</strong> ${data.planDetails.specs.vCPU} | RAM: ${data.planDetails.specs.RAM} GB | 硬盘：${
- data.planDetails.specs.disk
- } GB (${data.diskTypeDetails.type})
-<strong>• 操作系统：</strong> ${data.osDetails.name}
-<strong>• 控制面板：</strong> ${
- data.cPanelPlanDetails && data.cPanelPlanDetails.type ? data.cPanelPlanDetails.type : '无'
- }
-<strong>• 状态：</strong> ${data.status === 'RUNNING' ? '🟢' : '🔴'} ${data.status}
+<strong>• vCPUs：</strong> ${data.planDetails.specs.vCPU} | RAM: ${data.planDetails.specs.RAM} GB | 硬盘：${data.planDetails.specs.disk} GB (${data.diskTypeDetails.type})
+<strong>• 操作系统：</strong> ${data.osDetails.name}${panelLine}${billingLine}
+<strong>• 状态：</strong> ${running ? '🟢' : '🔴'} ${data.status}
 <strong>• 自动续费：</strong> ${data.autoRenewable ? '已启用' : '已禁用'}
-<strong>• IP 地址：</strong> ${data.host}`,
+
+<b>🔌 如何连接</b>
+<strong>• IP 地址：</strong> <code>${data.host}</code>
+<strong>• ${isRDP ? 'RDP 端口' : 'SSH 端口'}：</strong> <code>${port}</code>
+<strong>• 用户名：</strong> <code>${loginUser}</code>${isRDP ? `
+<strong>• 远程桌面：</strong> <code>${data.host}:${port}</code>` : `
+<strong>• 命令：</strong> <code>ssh ${loginUser}@${data.host} -p ${port}</code>`}`
+ },
  stopVpsBtn: '⏹️ 停止',
  startVpsBtn: '▶️ 启动',
  restartVpsBtn: '🔄 重启',
@@ -3413,6 +3433,49 @@ ${dataPreserved
  rdpNotSupported: `⚠️ 此功能仅适用于 Windows RDP 实例。
 
 您的 VPS 运行 Linux。请改用 SSH 密钥进行访问管理。`,
+
+ // ── DigitalOcean Windows RDP：时长 + 版本选择，原地重装 ──
+ rdpDurationBtn: c => `${c.period} 个月 — $${c.price}`,
+ askRdpDuration: (config, cycles) => `📅 <strong>您想预付多长时间？</strong>
+
+<strong>${config.name}</strong> — ${config.specs.vCPU} vCPU · ${config.specs.RAM}GB RAM · ${config.specs.disk}GB NVMe
+${cycles.map(c => {
+  const per = Number(c.period) || 1
+  const base = (Number(config.monthlyPrice) || 0) * per
+  const save = per > 1 && base > 0 && Number(c.price) < base ? Math.round((1 - Number(c.price) / base) * 100) : 0
+  return `• ${per === 1 ? '1 个月' : `${per} 个月`} — <b>$${c.price}</b>${save > 0 ? ` <i>(省 ${save}%)</i>` : ''}`
+}).join('\n')}
+
+更长的周期一次性付费并享受套餐折扣；到期时自动续费将按同一周期再次扣费。`,
+ rdpEditionBtn: o => `🪟 ${o.name}${o.fast_deploy ? ` ⚡ 约 ${o.eta_minutes || 3} 分钟` : ' ⏳ 约 45 分钟'}`,
+ askRdpEdition: options => `🪟 <strong>选择您的 Windows 版本</strong>
+
+${options.map(o => `• <b>${o.name}</b> — ${o.fast_deploy ? `⚡ 约 ${o.eta_minutes || 3} 分钟就绪（您所在区域已有预构建镜像）` : '⏳ 完整安装，约 45 分钟'}`).join('\n')}
+
+所有版本均为 Windows Server Standard（桌面体验），已启用 RDP 并使用 Administrator 账户。`,
+ askReinstallEdition: (name, options) => `🔄 <strong>在 ${name} 上重装 Windows</strong>
+
+请选择要安装的版本。您的 IP 地址保持不变。
+
+${options.map(o => `• <b>${o.name}</b> — ${o.fast_deploy ? `⚡ 约 ${o.eta_minutes || 3} 分钟` : '⏳ 约 45 分钟'}`).join('\n')}`,
+ confirmReinstallWindowsRdpText: (name, osName, etaMin) => `🔄 <strong>在 ${name} 上重装 ${osName}</strong>
+
+⚠️ <strong>警告 — 将清空磁盘：</strong>
+• 服务器上的所有文件、程序和设置都会被删除
+• 将从我们的预构建镜像全新安装 ${osName}（约 ${etaMin} 分钟）
+• 将生成新的 Administrator 密码 — 旧密码失效
+• ✅ 您的 IP 地址和已付费周期保持不变
+
+是否继续？`,
+ windowsReinstallStarted: (name, ip, username, password, osName, etaMin) => `🔄 <strong>正在 ${name} 上重装 ${osName}</strong>
+
+🌐 <strong>IP：</strong> <code>${ip || '不变'}</code>
+👤 <strong>用户名：</strong> ${username}
+🔑 <strong>新密码：</strong> <code>${password}</code>
+
+⏱️ Windows 正在安装 — 约 <b>${etaMin} 分钟</b> 后即可使用这些凭据连接。
+💡 点击密码即可复制。您随时可以通过 🔐 显示密码 再次查看。`,
+ rdpActionReason: reason => `\n\n<i>原因：${reason}</i>`,
  vpsBeingDeleted: name => `⚙️ 请稍等，您的 VPS (${name}) 正在删除中`,
  vpsDeleted: name => `✅ VPS (${name}) 已永久删除。`,
  failedDeletingVPS: name => `❌ 删除 VPS (${name}) 失败。
@@ -3492,24 +3555,28 @@ ${
 
 <strong>✅ 是否继续下单？</strong>`,
 
- vpsSubscriptionData: (vpsData, planExpireDate, panelExpireDate) => `<strong>🗂️ 您的有效订阅：</strong>
-
-<strong>• VPS ${vpsData.name} </strong> – 到期日期：${planExpireDate} (自动续订：${
- vpsData.autoRenewable ? '已启用' : '已禁用'
- })
-<strong>• 控制面板 ${vpsData?.cPanelPlanDetails ? vpsData.cPanelPlanDetails.type : '：未选择'} </strong> ${
+ vpsSubscriptionData: (vpsData, planExpireDate, panelExpireDate) => {
+ const isRDP = !!(vpsData.isRDP || vpsData.osType === 'Windows')
+ const months = Number(vpsData.durationMonths) || 1
+ const panel = isRDP ? '' : `\n<strong>• 控制面板 ${vpsData?.cPanelPlanDetails ? vpsData.cPanelPlanDetails.type : '：未选择'} </strong> ${
  vpsData?.cPanelPlanDetails
  ? `${vpsData?.cPanelPlanDetails.status === 'active' ? '- 到期日期：' : '- 已过期：'}${panelExpireDate}`
  : ''
- } `,
+ } `
+ return `<strong>🗂️ 您的有效订阅：</strong>
 
- manageVpsSubBtn: '🖥️ 管理VPS订阅',
+<strong>• ${isRDP ? '🪟 Windows RDP' : '🐧 Linux VPS'} ${vpsData.name} </strong> – ${isRDP ? `${months === 1 ? '按月' : `预付 ${months} 个月`} · ` : ''}到期日期：${planExpireDate} (自动续订：${
+ vpsData.autoRenewable ? '已启用' : '已禁用'
+ })${panel}`
+ },
+
+ manageVpsSubBtn: '📅 管理订阅',
  manageVpsPanelBtn: '🛠️ 管理控制面板订阅',
 
- vpsSubDetails: (data, date) => `<strong>📅 VPS订阅详情：</strong>
+ vpsSubDetails: (data, date) => `<strong>📅 ${data.isRDP || data.osType === 'Windows' ? '🪟 Windows RDP' : '🐧 Linux VPS'} 订阅详情：</strong>
 
-<strong>• VPS ID：</strong> ${data.name}
-<strong>• 计划：</strong> ${data.planDetails.name}
+<strong>• 服务器：</strong> ${data.name}
+<strong>• 计划：</strong> ${data.planDetails.name}${data.isRDP || data.osType === 'Windows' ? `\n<strong>• 计费周期：</strong> ${(Number(data.durationMonths) || 1) === 1 ? '按月' : `${data.durationMonths} 个月（预付）`}` : ''}
 <strong>• 当前到期日期：</strong> ${date}
 <strong>• 自动续订：</strong> ${data.autoRenewable ? '启用' : '禁用'}`,
 

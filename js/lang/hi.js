@@ -161,12 +161,16 @@ const user = {
 
  // Sub Menu 4: VPS Plans
  buyVpsPlan: '⚙️ VPS / RDP बनाएँ',
- manageVpsPlan: '🖥️ VPS / RDP देखें/प्रबंधित करें',
+ buyLinuxVpsBtn: '🐧 Linux VPS बनाएँ',
+ buyRdpBtn: '🪟 Windows RDP बनाएँ',
+ manageVpsPlan: '🖥️ मेरे सर्वर प्रबंधित करें',
  vpsRdpMenuPrompt: `🖥️ <b>क्लाउड VPS / Windows RDP</b>
 
-🐧 Linux VPS (SSH) या 🪟 Windows RDP (रिमोट डेस्कटॉप) — पोर्ट 25 खुला, बुलेटप्रूफ होस्टिंग।
+दो अलग प्रोडक्ट, दो अलग प्लान सूचियाँ:
+🐧 <b>Linux VPS</b> — SSH एक्सेस · वेब होस्टिंग · डेव · ऑटोमेशन
+🪟 <b>Windows RDP</b> — रिमोट डेस्कटॉप · Windows लाइसेंस शामिल · 1/2/3 महीने प्रीपेड · ~3 मिनट में तैयार
 
-कृपया एक विकल्प चुनें:`,
+पोर्ट 25 खुला · बुलेटप्रूफ होस्टिंग। कृपया एक विकल्प चुनें:`,
  manageVpsSSH: '🔑 SSH कुंजी',
 
  // Free Trial
@@ -2014,6 +2018,11 @@ host_4: (safeHtml) => `${safeHtml}`,
  util_7: (displayName, toFixed) => `🚨 <b>URGENT — VPS समाप्त</b>\n\n🖥️ <b>${displayName}</b> has expired.\n💰 शेष राशि: $${toFixed}\n\n⚠️ <b>सर्वर will be deleted shortly.</b>\nRenew NOW: VPS/RDP → Manage → 📅 नवीनीकरण Now`,
  util_8: (displayName, expiryDate, planPrice, toFixed, statusIcon, v5) => `🖥️ <b>VPS समाप्त हो रहा है in 3 Days</b>\n\n<b>${displayName}</b> समाप्त होता है on <b>${expiryDate}</b>.\n💵 Required: <b>$${planPrice}/mo</b>\n💳 शेष राशि: $${toFixed}\n${statusIcon} ${sufficient ? 'Auto-renewal will be attempted 1 day before expiry.' : 'अपर्याप्त शेष राशि — top up or नवीनीकरण manually to keep your server!'}`,
  util_9: '💡 नेविगेट करने के लिए नीचे बटन का उपयोग करें।',
+
+ // === Windows RDP — 3 दिन की छूट अवधि ===
+ rdpGraceStart: (displayName, deleteDate) => `🖥 <b>${displayName}</b> <b>समाप्त</b> हो गया और <b>बंद</b> कर दिया गया।\n\n🗑 नवीनीकरण न करने पर इसे <b>${deleteDate} को स्थायी रूप से हटा दिया जाएगा</b> (3-दिन की छूट अवधि) — सारा डेटा नष्ट हो जाएगा।\n\n♻️ अभी नवीनीकृत करें: 🖥️ VPS/RDP → Manage → Renew`,
+ rdpGraceReminder: (displayName, deleteDate) => `⏳ <b>अंतिम अनुस्मारक</b>\n\n🖥 नवीनीकरण न करने पर <b>${displayName}</b> को <b>${deleteDate} को स्थायी रूप से हटा दिया जाएगा</b>।\n\nउसके बाद सर्वर और उसका सारा डेटा हमेशा के लिए चला जाएगा।\n\n♻️ अभी नवीनीकृत करें: 🖥️ VPS/RDP → Manage → Renew`,
+ rdpDeletedAfterGrace: (displayName) => `🗑 <b>${displayName}</b> को 3-दिन की छूट अवधि बिना नवीनीकरण के समाप्त होने के बाद <b>स्थायी रूप से हटा दिया गया</b>।\n\nसर्वर का सारा डेटा नष्ट हो गया है। आप मेनू से कभी भी नया Windows RDP ऑर्डर कर सकते हैं।`,
  vps_1: (message) => `❌ विफल to read file: ${message}`,
  vps_10: '✏️ दर्ज करें the new <b>Subject</b> line:',
  vps_11: '⚙️ <b>Email एडमिन Panel</b>',
@@ -3058,9 +3067,12 @@ ${list.map(item => `${name == 'whm' ? `<strong>• ${item.name} - </strong>` : '
  const planPrice = vpsDetails.couponApplied ? vpsDetails.planNewPrice : vpsDetails.plantotalPrice
  const total = vpsDetails.totalPrice || Number(planPrice).toFixed(2)
  const isRDP = vpsDetails.isRDP
- const osLabel = isRDP ? '🪟 Windows Server (RDP)' : (vpsDetails.os?.name || 'Ubuntu')
- const planEmoji = isRDP ? '🪟' : '🖥️'
- const planKind = isRDP ? ' <i>(Windows RDP)</i>' : ''
+ const months = Number(vpsDetails.durationMonths) || 1
+ const osLabel = isRDP
+ ? (vpsDetails.os?.id ? `🪟 ${vpsDetails.os.name}${vpsDetails.os.fastDeploy ? ' ⚡ ~3 मिनट में तैयार' : ''}` : '🪟 Windows Server (RDP)')
+ : (vpsDetails.os?.name || 'Ubuntu')
+ const planEmoji = isRDP ? '🪟' : '🐧'
+ const planKind = isRDP ? (/RDP/i.test(String(vpsDetails.config.name)) ? '' : ' <i>(Windows RDP)</i>') : ' <i>(Linux VPS)</i>'
  
  let summary = `<strong>📋 ऑर्डर सारांश:</strong>
 
@@ -3071,11 +3083,14 @@ ${list.map(item => `${name == 'whm' ? `<strong>• ${item.name} - </strong>` : '
  if (isRDP) {
  summary += `\n<strong>🪟 Windows लाइसेंस:</strong> शामिल`
  }
+ if (isRDP || months > 1) {
+ summary += `\n<strong>📅 अवधि:</strong> ${months === 1 ? '1 महीना' : `${months} महीने (प्रीपेड)`}`
+ }
  if (vpsDetails.couponApplied && vpsDetails.couponDiscount > 0) {
  summary += `\n<strong>🎟️ कूपन:</strong> -$${Number(vpsDetails.couponDiscount).toFixed(2)} USD`
  }
  summary += `\n<strong>🔄 ऑटो-रिन्यूअल:</strong> ✅ सक्षम`
- summary += `\n\n<strong>💰 कुल: $${total} USD/माह</strong>`
+ summary += `\n\n<strong>💰 कुल: $${total} USD${months > 1 ? ` / ${months} महीने` : '/माह'}</strong>`
  summary += `\n\n<strong>✅ क्या आप ऑर्डर जारी रखना चाहते हैं?</strong>`
  return summary
  },
@@ -3091,7 +3106,7 @@ ${list.map(item => `${name == 'whm' ? `<strong>• ${item.name} - </strong>` : '
 
 <code>${address}</code>
 
-भुगतान की पुष्टि होने पर आपका ${vpsDetails?.plan || 'VPS'} प्लान स्वचालित रूप से सक्रिय हो जाएगा (आमतौर पर कुछ ही मिनटों में)।
+भुगतान की पुष्टि होने पर आपका ${vpsDetails?.isRDP ? 'Windows RDP' : 'VPS'} स्वचालित रूप से सक्रिय हो जाएगा (आमतौर पर कुछ ही मिनटों में)।
 
 सादर,
 ${CHAT_BOT_NAME}`,
@@ -3111,16 +3126,12 @@ ${CHAT_BOT_NAME}`,
  vpsBoughtSuccess: (vpsDetails, response, credentials) => {
  const isRDP = response.isRDP || vpsDetails.isRDP || response.osType === 'Windows'
  const connectInfo = isRDP
- ? ` <strong>• कनेक्ट:</strong> 🖥 रिमोट डेस्कटॉप → <code>${response.host}:3389</code>\n <strong>• कैसे:</strong> रिमोट डेस्कटॉप कनेक्शन (mstsc) खोलें और ऊपर दिया गया पता दर्ज करें।`
- : ` <strong>• कनेक्ट:</strong> 💻 <code>ssh ${credentials.username}@${response.host}</code>`
- 
- const passwordWarning = isRDP
- ? `\n⚠️ <b>अभी अपना पासवर्ड सहेजें</b> — इसे बाद में प्राप्त नहीं किया जा सकता। खो जाने पर VPS प्रबंधन में "पासवर्ड रीसेट करें" का उपयोग करें (आपका डेटा सुरक्षित रहेगा)।`
- : `\n⚠️ <b>अपने क्रेडेंशियल सुरक्षित रूप से सहेजें।</b>`
- 
+ ? `<strong>🔗 कनेक्ट:</strong> 🖥 रिमोट डेस्कटॉप (mstsc) → <code>${response.host}:3389</code>`
+ : `<strong>🔗 कनेक्ट:</strong> 💻 <code>ssh ${credentials.username}@${response.host}</code>`
+
  const readinessNote = isRDP
- ? `\n⏱ <b>5–10 मिनट दें</b> Windows के पहले बूट के लिए। यदि डिलीवरी के तुरंत बाद RDP पासवर्ड अस्वीकार करे, तो कुछ मिनट रुककर पुनः प्रयास करें — पासवर्ड सही है।`
- : `\n⏱ <b>2–5 मिनट दें</b> पहले बूट सेटअप के लिए। यदि डिलीवरी के तुरंत बाद SSH "permission denied" कहे, तो कुछ मिनट रुककर पुनः प्रयास करें — पासवर्ड सही है।`
+ ? `\n⏱ <b>5–10 मिनट दें</b> Windows के पहले बूट के लिए। ⚠️ <b>अभी अपना पासवर्ड सहेजें</b> — इसे बाद में प्राप्त नहीं किया जा सकता (खो जाने पर RDP प्रबंधन में "पासवर्ड रीसेट करें" का उपयोग करें)।`
+ : `\n⏱ <b>2–5 मिनट दें</b> पहले बूट सेटअप के लिए। ⚠️ <b>अपने क्रेडेंशियल सुरक्षित रूप से सहेजें।</b>`
 
  return `<strong>🎉 ${isRDP ? 'RDP' : 'VPS'} [${response.label}] सक्रिय हो गया!</strong>
 
@@ -3130,9 +3141,8 @@ ${CHAT_BOT_NAME}`,
  <strong>• उपयोगकर्ता नाम:</strong> <code>${credentials.username}</code>
  <strong>• पासवर्ड:</strong> <tg-spoiler><code>${credentials.password}</code></tg-spoiler> (दिखाने व कॉपी के लिए टैप करें)
 
-<strong>🔗 कनेक्शन:</strong>
 ${connectInfo}
-${readinessNote}${passwordWarning}
+${readinessNote}
 
 ${CHAT_BOT_NAME}`
  },
@@ -3190,27 +3200,37 @@ ${CHAT_BOT_NAME}`,
  newSSHKeyUploadedMsg: name => `✅ SSH कुंजी (${name}) सफलतापूर्वक अपलोड की गई और VPS से लिंक की जाएगी।`,
  fileTypePub: 'फ़ाइल प्रकार .pub होना चाहिए',
 
- vpsList: list => `<strong>🖥️ सक्रिय VPS इंस्टेंस:</strong>
+ vpsList: list => `<strong>🖥️ आपके सर्वर:</strong>
 
 ${list
- .map(vps => `<strong>• ${vps.name} :</strong> ${vps.status === 'RUNNING' ? '🟢' : '🔴'} ${vps.status}`)
+ .map(vps => `<strong>• ${vps.isRDP || vps.osType === 'Windows' ? '🪟' : '🐧'} ${vps.name}</strong> <i>(${vps.isRDP || vps.osType === 'Windows' ? 'Windows RDP' : 'Linux VPS'})</i> — ${String(vps.status || '').toUpperCase() === 'RUNNING' ? '🟢' : '🔴'} ${vps.status}`)
  .join('\n')}
 `,
- noVPSfound: 'कोई सक्रिय VPS इंस्टेंस मौजूद नहीं है। एक नया बनाएं।',
+ noVPSfound: 'आपके पास अभी कोई सर्वर नहीं है। नीचे 🐧 Linux VPS या 🪟 Windows RDP बनाएँ।',
  selectCorrectOption: 'कृपया सूची में से एक विकल्प चुनें',
- selectedVpsData: data => `<strong>🖥️ VPS आईडी:</strong> ${data.name}
+ selectedVpsData: data => {
+ const isRDP = !!(data.isRDP || data.osType === 'Windows')
+ const port = isRDP ? 3389 : 22
+ const loginUser = data.defaultUser || (isRDP ? 'Administrator' : 'root')
+ const running = String(data.status || '').toUpperCase() === 'RUNNING'
+ const months = Number(data.durationMonths) || 1
+ const panelLine = isRDP ? '' : `\n<strong>• नियंत्रण पैनल:</strong> ${data.cPanelPlanDetails && data.cPanelPlanDetails.type ? data.cPanelPlanDetails.type : 'कोई नहीं'}`
+ const billingLine = isRDP ? `\n<strong>• बिलिंग:</strong> ${months === 1 ? 'मासिक' : `${months} महीने (प्रीपेड)`} · Windows लाइसेंस शामिल` : ''
+ return `<strong>${isRDP ? '🪟 Windows RDP' : '🐧 Linux VPS'}:</strong> ${data.name}
 
 <strong>• योजना:</strong> ${data.planDetails.name}
-<strong>• vCPUs:</strong> ${data.planDetails.specs.vCPU} | RAM: ${data.planDetails.specs.RAM} GB | डिस्क: ${
- data.planDetails.specs.disk
- } GB (${data.diskTypeDetails.type})
-<strong>• OS:</strong> ${data.osDetails.name}
-<strong>• नियंत्रण पैनल:</strong> ${
- data.cPanelPlanDetails && data.cPanelPlanDetails.type ? data.cPanelPlanDetails.type : 'कोई नहीं'
- }
-<strong>• स्थिति:</strong> ${data.status === 'RUNNING' ? '🟢' : '🔴'} ${data.status}
+<strong>• vCPUs:</strong> ${data.planDetails.specs.vCPU} | RAM: ${data.planDetails.specs.RAM} GB | डिस्क: ${data.planDetails.specs.disk} GB (${data.diskTypeDetails.type})
+<strong>• OS:</strong> ${data.osDetails.name}${panelLine}${billingLine}
+<strong>• स्थिति:</strong> ${running ? '🟢' : '🔴'} ${data.status}
 <strong>• स्वचालित नवीनीकरण:</strong> ${data.autoRenewable ? 'सक्षम' : 'अक्षम'}
-<strong>• आईपी पता:</strong> ${data.host}`,
+
+<b>🔌 कनेक्ट कैसे करें</b>
+<strong>• आईपी पता:</strong> <code>${data.host}</code>
+<strong>• ${isRDP ? 'RDP पोर्ट' : 'SSH पोर्ट'}:</strong> <code>${port}</code>
+<strong>• उपयोगकर्ता नाम:</strong> <code>${loginUser}</code>${isRDP ? `
+<strong>• रिमोट डेस्कटॉप:</strong> <code>${data.host}:${port}</code>` : `
+<strong>• कमांड:</strong> <code>ssh ${loginUser}@${data.host} -p ${port}</code>`}`
+ },
  stopVpsBtn: '⏹️ रोकें',
  startVpsBtn: '▶️ शुरू करें',
  restartVpsBtn: '🔄 पुनः प्रारंभ करें',
@@ -3434,6 +3454,49 @@ ${dataPreserved
  rdpNotSupported: `⚠️ यह सुविधा केवल Windows RDP इंस्टेंसेज के लिए उपलब्ध है।
 
 आपका VPS Linux चला रहा है। एक्सेस प्रबंधन के लिए इसके बजाय SSH कुंजी का उपयोग करें।`,
+
+ // ── DigitalOcean Windows RDP: अवधि + संस्करण चयन, इन-प्लेस रीइंस्टॉल ──
+ rdpDurationBtn: c => (Number(c.period) === 1 ? `1 महीना — $${c.price}` : `${c.period} महीने — $${c.price}`),
+ askRdpDuration: (config, cycles) => `📅 <strong>आप कितने समय के लिए प्रीपे करना चाहते हैं?</strong>
+
+<strong>${config.name}</strong> — ${config.specs.vCPU} vCPU · ${config.specs.RAM}GB RAM · ${config.specs.disk}GB NVMe
+${cycles.map(c => {
+  const per = Number(c.period) || 1
+  const base = (Number(config.monthlyPrice) || 0) * per
+  const save = per > 1 && base > 0 && Number(c.price) < base ? Math.round((1 - Number(c.price) / base) * 100) : 0
+  return `• ${per === 1 ? '1 महीना' : `${per} महीने`} — <b>$${c.price}</b>${save > 0 ? ` <i>(${save}% बचत)</i>` : ''}`
+}).join('\n')}
+
+लंबी अवधि का भुगतान एक बार में होता है और इसमें बंडल छूट शामिल है; अवधि समाप्त होने पर ऑटो-रिन्यूअल उसी अवधि का शुल्क फिर से लेता है।`,
+ rdpEditionBtn: o => `🪟 ${o.name}${o.fast_deploy ? ` ⚡ ~${o.eta_minutes || 3} मिनट` : ' ⏳ ~45 मिनट'}`,
+ askRdpEdition: options => `🪟 <strong>अपना Windows संस्करण चुनें</strong>
+
+${options.map(o => `• <b>${o.name}</b> — ${o.fast_deploy ? `⚡ लगभग ${o.eta_minutes || 3} मिनट में तैयार (आपके क्षेत्र में प्री-बिल्ट इमेज)` : '⏳ पूर्ण इंस्टॉल, लगभग 45 मिनट'}`).join('\n')}
+
+सभी संस्करण Windows Server Standard (Desktop Experience) हैं, RDP सक्षम और Administrator खाते के साथ।`,
+ askReinstallEdition: (name, options) => `🔄 <strong>${name} पर Windows रीइंस्टॉल करें</strong>
+
+इंस्टॉल करने के लिए संस्करण चुनें। आपका IP पता वही रहेगा।
+
+${options.map(o => `• <b>${o.name}</b> — ${o.fast_deploy ? `⚡ लगभग ${o.eta_minutes || 3} मिनट` : '⏳ लगभग 45 मिनट'}`).join('\n')}`,
+ confirmReinstallWindowsRdpText: (name, osName, etaMin) => `🔄 <strong>${name} पर ${osName} रीइंस्टॉल करें</strong>
+
+⚠️ <strong>चेतावनी — डिस्क मिटा दी जाएगी:</strong>
+• सर्वर की सभी फ़ाइलें, प्रोग्राम और सेटिंग्स हट जाएंगी
+• हमारी प्री-बिल्ट इमेज से नया ${osName} इंस्टॉल होगा (~${etaMin} मिनट)
+• एक नया Administrator पासवर्ड बनेगा — पुराना काम नहीं करेगा
+• ✅ आपका IP पता और भुगतान की गई अवधि बनी रहेगी
+
+क्या आप जारी रखना चाहते हैं?`,
+ windowsReinstallStarted: (name, ip, username, password, osName, etaMin) => `🔄 <strong>${name} पर ${osName} रीइंस्टॉल हो रहा है</strong>
+
+🌐 <strong>IP:</strong> <code>${ip || 'अपरिवर्तित'}</code>
+👤 <strong>यूज़रनेम:</strong> ${username}
+🔑 <strong>नया पासवर्ड:</strong> <code>${password}</code>
+
+⏱️ Windows अभी इंस्टॉल हो रहा है — लगभग <b>${etaMin} मिनट</b> में इन क्रेडेंशियल्स से कनेक्ट करें।
+💡 कॉपी करने के लिए पासवर्ड पर टैप करें। आप इसे 🔐 पासवर्ड दिखाएँ से कभी भी फिर देख सकते हैं।`,
+ rdpActionReason: reason => `\n\n<i>कारण: ${reason}</i>`,
  vpsBeingDeleted: name => `⚙️ कृपया प्रतीक्षा करें, आपका VPS (${name}) हटाया जा रहा है`,
  vpsDeleted: name => `✅ VPS (${name}) स्थायी रूप से हटा दिया गया है।`,
  failedDeletingVPS: name => `❌ VPS (${name}) को हटाने में विफल।
@@ -3514,26 +3577,30 @@ ${
 
 <strong>✅ क्या आप ऑर्डर जारी रखना चाहते हैं?</strong>`,
 
- vpsSubscriptionData: (vpsData, planExpireDate, panelExpireDate) => `<strong>🗂️ आपकी सक्रिय सदस्यताएँ:</strong>
-
-<strong>• VPS ${vpsData.name} </strong> – समाप्ति तिथि: ${planExpireDate} (स्वचालित नवीनीकरण: ${
- vpsData.autoRenewable ? 'सक्रिय' : 'निष्क्रिय'
- })
-<strong>• नियंत्रण पैनल ${vpsData?.cPanelPlanDetails ? vpsData.cPanelPlanDetails.type : ': चयनित नहीं'} </strong> ${
+ vpsSubscriptionData: (vpsData, planExpireDate, panelExpireDate) => {
+ const isRDP = !!(vpsData.isRDP || vpsData.osType === 'Windows')
+ const months = Number(vpsData.durationMonths) || 1
+ const panel = isRDP ? '' : `\n<strong>• नियंत्रण पैनल ${vpsData?.cPanelPlanDetails ? vpsData.cPanelPlanDetails.type : ': चयनित नहीं'} </strong> ${
  vpsData?.cPanelPlanDetails
  ? `${
  vpsData?.cPanelPlanDetails.status === 'active' ? '- समाप्ति तिथि: ' : '- समाप्त हो चुका: '
  }${panelExpireDate}`
  : ''
- } `,
+ } `
+ return `<strong>🗂️ आपकी सक्रिय सदस्यताएँ:</strong>
 
- manageVpsSubBtn: '🖥️ VPS सदस्यता प्रबंधित करें',
+<strong>• ${isRDP ? '🪟 Windows RDP' : '🐧 Linux VPS'} ${vpsData.name} </strong> – ${isRDP ? `${months === 1 ? 'मासिक' : `${months} महीने प्रीपेड`} · ` : ''}समाप्ति तिथि: ${planExpireDate} (स्वचालित नवीनीकरण: ${
+ vpsData.autoRenewable ? 'सक्रिय' : 'निष्क्रिय'
+ })${panel}`
+ },
+
+ manageVpsSubBtn: '📅 सदस्यता प्रबंधित करें',
  manageVpsPanelBtn: '🛠️ नियंत्रण पैनल सदस्यता प्रबंधित करें',
 
- vpsSubDetails: (data, date) => `<strong>📅 VPS सदस्यता विवरण:</strong>
+ vpsSubDetails: (data, date) => `<strong>📅 ${data.isRDP || data.osType === 'Windows' ? '🪟 Windows RDP' : '🐧 Linux VPS'} सदस्यता विवरण:</strong>
 
-<strong>• VPS आईडी:</strong> ${data.name}
-<strong>• योजना:</strong> ${data.planDetails.name}
+<strong>• सर्वर:</strong> ${data.name}
+<strong>• योजना:</strong> ${data.planDetails.name}${data.isRDP || data.osType === 'Windows' ? `\n<strong>• बिलिंग अवधि:</strong> ${(Number(data.durationMonths) || 1) === 1 ? 'मासिक' : `${data.durationMonths} महीने (प्रीपेड)`}` : ''}
 <strong>• वर्तमान समाप्ति तिथि:</strong> ${date}
 <strong>• स्वचालित नवीनीकरण:</strong> ${data.autoRenewable ? 'सक्रिय' : 'निष्क्रिय'}`,
 

@@ -65,9 +65,15 @@ function _loadProvider(name) {
   if (name === 'contabo')      return require('./contabo-service')
   if (name === 'vultr')        return require('./vultr-service')
   if (name === 'digitalocean') return require('./digitalocean-service')
+  if (name === 'digitalocean-rdp') return require('./digitalocean-rdp-service')
   if (name === 'azure')        return require('./azure-service')
   throw new Error(`Unknown VPS provider: ${name}`)
 }
+
+const KNOWN_PROVIDERS = new Set(['ovh', 'contabo', 'vultr', 'digitalocean', 'digitalocean-rdp', 'azure'])
+// Providers whose cancelInstance() destroys the server immediately (no scheduled cancel).
+const DESTRUCTIVE_CANCEL_PROVIDERS = new Set(['vultr', 'digitalocean', 'digitalocean-rdp', 'azure'])
+function isDestructiveCancelProvider(name) { return DESTRUCTIVE_CANCEL_PROVIDERS.has(String(name || '').toLowerCase()) }
 
 function getProvider() {
   if (!_primary) _primary = _loadProvider(DEFAULT_PROVIDER)
@@ -84,7 +90,10 @@ function getProvider() {
  */
 function getRdpProvider() {
   if (!RDP_PROVIDER) return null
-  if (!_rdp) _rdp = _loadProvider(RDP_PROVIDER)
+  // DigitalOcean has no native Windows — the RDP provider is the dedicated
+  // Ubuntu→Windows conversion service (js/digitalocean-rdp-service.js), NOT the
+  // Linux digitalocean-service.js (which returns [] for Windows).
+  if (!_rdp) _rdp = (RDP_PROVIDER === 'digitalocean') ? require('./digitalocean-rdp-service') : _loadProvider(RDP_PROVIDER)
   return _rdp
 }
 
@@ -135,12 +144,13 @@ function getFallbackProvider() {
 function providerNameForRecord(vpsRecord) {
   if (!vpsRecord) return DEFAULT_PROVIDER
   const explicit = (vpsRecord.provider || '').toLowerCase()
-  if (explicit === 'ovh' || explicit === 'contabo' || explicit === 'vultr' || explicit === 'digitalocean' || explicit === 'azure') return explicit
+  if (KNOWN_PROVIDERS.has(explicit)) return explicit
   if (vpsRecord._ovhServiceName || (typeof vpsRecord.contaboInstanceId === 'string' && /^vps-/.test(vpsRecord.contaboInstanceId))) {
     return 'ovh'
   }
   if (vpsRecord.contaboInstanceId != null) {
     const s = String(vpsRecord.contaboInstanceId)
+    if (/^rdp-/i.test(s)) return 'digitalocean-rdp'
     if (/^az-/i.test(s)) return 'azure'
     if (/^do-/i.test(s)) return 'digitalocean'
     if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)) return 'vultr'
@@ -205,6 +215,7 @@ function detectProviderByInstanceId(instanceId) {
   if (instanceId == null) return null
   const s = String(instanceId)
   if (/^vps-/.test(s)) return 'ovh'
+  if (/^rdp-/i.test(s)) return 'digitalocean-rdp'
   if (/^az-/i.test(s)) return 'azure'
   if (/^do-/i.test(s)) return 'digitalocean'
   if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)) return 'vultr'
@@ -218,7 +229,7 @@ function detectProviderByInstanceId(instanceId) {
  */
 function dispatchByInstanceId(instanceId) {
   const name = detectProviderByInstanceId(instanceId)
-  if (name === 'ovh' || name === 'contabo' || name === 'vultr' || name === 'digitalocean' || name === 'azure') return _loadProvider(name)
+  if (KNOWN_PROVIDERS.has(name)) return _loadProvider(name)
   return getProvider()
 }
 
@@ -233,7 +244,7 @@ function dispatchByInstanceId(instanceId) {
 const PER_INSTANCE_METHODS = new Set([
   'getInstance', 'cancelInstance',
   'startInstance', 'stopInstance', 'restartInstance', 'shutdownInstance',
-  'resetPassword', 'reinstallInstance', 'updateInstanceName', 'upgradeInstance',
+  'resetPassword', 'reinstallInstance', 'renewInstance', 'updateInstanceName', 'upgradeInstance',
   'createSnapshot', 'listSnapshots', 'deleteSnapshot',
 ])
 
@@ -266,6 +277,7 @@ module.exports = {
   getProviderForRecord,
   providerNameForRecord,
   passwordResetImpact,
+  isDestructiveCancelProvider,
   
   detectProviderByInstanceId,
   dispatchByInstanceId,

@@ -221,6 +221,7 @@ const SOCIAL_PROOF_LABELS = {
     cloudphone: (n) => `📞 ${n} phone numbers activated this week`,
     digitalproducts: (n) => `📦 ${n} digital products sold this week`,
     vps: (n) => `🖥️ ${n} VPS servers deployed this week`,
+    rdp: (n) => `🪟 ${n} Windows RDP servers deployed this week`,
     virtualcard: (n) => `💳 ${n} virtual cards created this week`,
     general: (n) => `⭐ ${n} purchases this week`,
   },
@@ -230,6 +231,7 @@ const SOCIAL_PROOF_LABELS = {
     cloudphone: (n) => `📞 ${n} numéros activés cette semaine`,
     digitalproducts: (n) => `📦 ${n} produits numériques vendus cette semaine`,
     vps: (n) => `🖥️ ${n} serveurs VPS déployés cette semaine`,
+    rdp: (n) => `🪟 ${n} serveurs Windows RDP déployés cette semaine`,
     virtualcard: (n) => `💳 ${n} cartes virtuelles créées cette semaine`,
     general: (n) => `⭐ ${n} achats cette semaine`,
   },
@@ -239,6 +241,7 @@ const SOCIAL_PROOF_LABELS = {
     cloudphone: (n) => `📞 本周激活 ${n} 个电话号码`,
     digitalproducts: (n) => `📦 本周售出 ${n} 个数字产品`,
     vps: (n) => `🖥️ 本周部署 ${n} 台VPS服务器`,
+    rdp: (n) => `🪟 本周部署 ${n} 台 Windows RDP 服务器`,
     virtualcard: (n) => `💳 本周创建 ${n} 张虚拟卡`,
     general: (n) => `⭐ 本周 ${n} 笔交易`,
   },
@@ -248,6 +251,7 @@ const SOCIAL_PROOF_LABELS = {
     cloudphone: (n) => `📞 इस हफ्ते ${n} फ़ोन नंबर एक्टिवेट हुए`,
     digitalproducts: (n) => `📦 इस हफ्ते ${n} डिजिटल प्रोडक्ट बिके`,
     vps: (n) => `🖥️ इस हफ्ते ${n} VPS सर्वर डिप्लॉय हुए`,
+    rdp: (n) => `🪟 इस हफ्ते ${n} Windows RDP सर्वर डिप्लॉय हुए`,
     virtualcard: (n) => `💳 इस हफ्ते ${n} वर्चुअल कार्ड बने`,
     general: (n) => `⭐ इस हफ्ते ${n} खरीदारी`,
   },
@@ -755,6 +759,7 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol, life
       counts.cloudphone    = seededRandom(50, 100, 3)
       counts.digitalproducts = seededRandom(50, 90, 4)
       counts.vps           = seededRandom(50, 80, 5)
+      counts.rdp           = seededRandom(30, 60, 8)
       counts.virtualcard   = seededRandom(50, 85, 6)
       counts.general       = seededRandom(80, 150, 7)
 
@@ -767,7 +772,7 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol, life
       if (Object.keys(socialProofCache).length === 0) {
         socialProofCache = {
           hosting: 72, domains: 189, cloudphone: 65,
-          digitalproducts: 58, vps: 53, virtualcard: 61, general: 105,
+          digitalproducts: 58, vps: 53, rdp: 41, virtualcard: 61, general: 105,
         }
       }
     }

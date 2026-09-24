@@ -162,12 +162,16 @@ const user = {
 
  // Sub Menu 4: VPS Plans
  buyVpsPlan: '⚙️ Créer VPS / RDP',
- manageVpsPlan: '🖥️ Afficher/Gérer VPS / RDP',
+ buyLinuxVpsBtn: '🐧 Créer un VPS Linux',
+ buyRdpBtn: '🪟 Créer un RDP Windows',
+ manageVpsPlan: '🖥️ Gérer mes serveurs',
  vpsRdpMenuPrompt: `🖥️ <b>VPS Cloud / RDP Windows</b>
 
-🐧 VPS Linux (SSH) ou 🪟 RDP Windows (Bureau à distance) — Port 25 ouvert, hébergement blindé.
+Deux produits différents, deux listes de plans différentes :
+🐧 <b>VPS Linux</b> — accès SSH · hébergement web · dev · automatisation
+🪟 <b>RDP Windows</b> — Bureau à distance · licence Windows incluse · prépayé 1/2/3 mois · prêt en ~3 min
 
-Veuillez choisir une option :`,
+Port 25 ouvert · hébergement blindé. Veuillez choisir une option :`,
  manageVpsSSH: '🔑 Clés SSH',
 
  // Free Trial
@@ -2030,6 +2034,11 @@ host_4: (safeHtml) => `${safeHtml}`,
  util_7: (displayName, toFixed) => `🚨 <b>URGENT — VPS Expiré</b>\n\n🖥️ <b>${displayName}</b> has expired.\n💰 Solde: $${toFixed}\n\n⚠️ <b>Serveur will be deleted shortly.</b>\nRenew NOW: VPS/RDP → Manage → 📅 Renouveler Now`,
  util_8: (displayName, expiryDate, planPrice, toFixed, statusIcon, v5) => `🖥️ <b>VPS en expiration in 3 Days</b>\n\n<b>${displayName}</b> expire on <b>${expiryDate}</b>.\n💵 Required: <b>$${planPrice}/mo</b>\n💳 Solde: $${toFixed}\n${statusIcon} ${v5}`,
  util_9: '💡 Utilisez les boutons ci-dessous pour naviguer.',
+
+ // === Windows RDP — période de grâce de 3 jours ===
+ rdpGraceStart: (displayName, deleteDate) => `🖥 <b>${displayName}</b> a <b>expiré</b> et a été <b>éteint</b>.\n\n🗑 Il sera <b>définitivement supprimé le ${deleteDate}</b> (période de grâce de 3 jours) sauf renouvellement — toutes les données seront perdues.\n\n♻️ Renouveler : 🖥️ VPS/RDP → Gérer → Renouveler`,
+ rdpGraceReminder: (displayName, deleteDate) => `⏳ <b>Dernier rappel</b>\n\n🖥 <b>${displayName}</b> sera <b>définitivement supprimé le ${deleteDate}</b> sauf renouvellement.\n\nEnsuite, le serveur et toutes ses données seront perdus.\n\n♻️ Renouveler : 🖥️ VPS/RDP → Gérer → Renouveler`,
+ rdpDeletedAfterGrace: (displayName) => `🗑 <b>${displayName}</b> a été <b>définitivement supprimé</b> après la fin de la période de grâce de 3 jours sans renouvellement.\n\nToutes les données du serveur sont perdues. Vous pouvez commander un nouveau RDP Windows à tout moment depuis le menu.`,
  vps_1: (message) => `❌ Échoué to read file: ${message}`,
  vps_10: '✏️ Entrez the new <b>Subject</b> line:',
  vps_11: '⚙️ <b>Email Admin Panel</b>',
@@ -3069,9 +3078,12 @@ Découvrez-en plus sur ${TG_HANDLE}.`,
  const planPrice = vpsDetails.couponApplied ? vpsDetails.planNewPrice : vpsDetails.plantotalPrice
  const total = vpsDetails.totalPrice || Number(planPrice).toFixed(2)
  const isRDP = vpsDetails.isRDP
- const osLabel = isRDP ? '🪟 Windows Server (RDP)' : (vpsDetails.os?.name || 'Ubuntu')
- const planEmoji = isRDP ? '🪟' : '🖥️'
- const planKind = isRDP ? ' <i>(Windows RDP)</i>' : ''
+ const months = Number(vpsDetails.durationMonths) || 1
+ const osLabel = isRDP
+ ? (vpsDetails.os?.id ? `🪟 ${vpsDetails.os.name}${vpsDetails.os.fastDeploy ? ' ⚡ prêt en ~3 min' : ''}` : '🪟 Windows Server (RDP)')
+ : (vpsDetails.os?.name || 'Ubuntu')
+ const planEmoji = isRDP ? '🪟' : '🐧'
+ const planKind = isRDP ? (/RDP/i.test(String(vpsDetails.config.name)) ? '' : ' <i>(RDP Windows)</i>') : ' <i>(VPS Linux)</i>'
  
  let summary = `<strong>📋 Résumé de commande :</strong>
 
@@ -3082,11 +3094,14 @@ Découvrez-en plus sur ${TG_HANDLE}.`,
  if (isRDP) {
  summary += `\n<strong>🪟 Licence Windows :</strong> Incluse`
  }
+ if (isRDP || months > 1) {
+ summary += `\n<strong>📅 Durée :</strong> ${months === 1 ? '1 mois' : `${months} mois (prépayés)`}`
+ }
  if (vpsDetails.couponApplied && vpsDetails.couponDiscount > 0) {
  summary += `\n<strong>🎟️ Coupon :</strong> -$${Number(vpsDetails.couponDiscount).toFixed(2)} USD`
  }
  summary += `\n<strong>🔄 Renouvellement auto :</strong> ✅ Activé`
- summary += `\n\n<strong>💰 Total : $${total} USD/mo</strong>`
+ summary += `\n\n<strong>💰 Total : $${total} USD${months > 1 ? ` / ${months} mois` : '/mo'}</strong>`
  summary += `\n\n<strong>✅ Procéder à la commande ?</strong>`
  return summary
  },
@@ -3103,7 +3118,7 @@ Envoyez exactement <b>${priceCrypto} ${tickerView}</b> à :
 
 <code>${address}</code>
 
-Votre plan ${vpsDetails?.plan || 'VPS'} sera activé automatiquement une fois le paiement confirmé (généralement en quelques minutes).
+Votre ${vpsDetails?.isRDP ? 'RDP Windows' : 'VPS'} sera activé automatiquement une fois le paiement confirmé (généralement en quelques minutes).
 
 Cordialement,
 ${CHAT_BOT_NAME}`,
@@ -3123,16 +3138,12 @@ Veuillez recharger votre portefeuille pour continuer à utiliser votre plan VPS.
  vpsBoughtSuccess: (vpsDetails, response, credentials) => {
  const isRDP = response.isRDP || vpsDetails.isRDP || response.osType === 'Windows'
  const connectInfo = isRDP
- ? ` <strong>• Connexion:</strong> 🖥 Bureau à distance → <code>${response.host}:3389</code>\n <strong>• Comment:</strong> Ouvrez Connexion Bureau à distance (mstsc) et entrez l'adresse ci-dessus.`
- : ` <strong>• Connexion:</strong> 💻 <code>ssh ${credentials.username}@${response.host}</code>`
- 
- const passwordWarning = isRDP
- ? `\n⚠️ <b>Enregistrez votre mot de passe maintenant</b> — il ne peut pas être récupéré ensuite. En cas de perte, utilisez "Réinitialiser le mot de passe" dans la gestion VPS (vos données sont conservées).`
- : `\n⚠️ <b>Enregistrez vos identifiants en lieu sûr.</b>`
- 
+ ? `<strong>🔗 Connexion:</strong> 🖥 Bureau à distance (mstsc) → <code>${response.host}:3389</code>`
+ : `<strong>🔗 Connexion:</strong> 💻 <code>ssh ${credentials.username}@${response.host}</code>`
+
  const readinessNote = isRDP
- ? `\n⏱ <b>Comptez 5–10 minutes</b> pour le premier démarrage Windows. Si RDP refuse le mot de passe juste après la livraison, patientez quelques minutes puis réessayez — le mot de passe est correct.`
- : `\n⏱ <b>Comptez 2–5 minutes</b> pour la configuration initiale. Si SSH affiche "permission denied" juste après la livraison, patientez quelques minutes puis réessayez — le mot de passe est correct.`
+ ? `\n⏱ <b>Comptez 5–10 minutes</b> pour le premier démarrage Windows. ⚠️ <b>Enregistrez votre mot de passe maintenant</b> — il ne peut pas être récupéré ensuite (en cas de perte, utilisez "Réinitialiser le mot de passe" dans la gestion RDP).`
+ : `\n⏱ <b>Comptez 2–5 minutes</b> pour la configuration initiale. ⚠️ <b>Enregistrez vos identifiants en lieu sûr.</b>`
 
  return `<strong>🎉 ${isRDP ? 'RDP' : 'VPS'} [${response.label}] est actif !</strong>
 
@@ -3142,9 +3153,8 @@ Veuillez recharger votre portefeuille pour continuer à utiliser votre plan VPS.
  <strong>• Nom d'utilisateur:</strong> <code>${credentials.username}</code>
  <strong>• Mot de passe:</strong> <tg-spoiler><code>${credentials.password}</code></tg-spoiler> (touchez pour révéler & copier)
 
-<strong>🔗 Connexion:</strong>
 ${connectInfo}
-${readinessNote}${passwordWarning}
+${readinessNote}
 
 ${CHAT_BOT_NAME}`
  },
@@ -3203,27 +3213,37 @@ ${CHAT_BOT_NAME}`,
  newSSHKeyUploadedMsg: name => `✅ Clé SSH (${name}) téléchargée avec succès et sera liée au VPS.`,
  fileTypePub: 'Le type de fichier doit être .pub',
 
- vpsList: list => `<strong>🖥️ Instances VPS actives :</strong>
+ vpsList: list => `<strong>🖥️ Vos serveurs :</strong>
 
 ${list
- .map(vps => `<strong>• ${vps.name} :</strong> ${vps.status === 'RUNNING' ? '🟢' : '🔴'} ${vps.status}`)
+ .map(vps => `<strong>• ${vps.isRDP || vps.osType === 'Windows' ? '🪟' : '🐧'} ${vps.name}</strong> <i>(${vps.isRDP || vps.osType === 'Windows' ? 'RDP Windows' : 'VPS Linux'})</i> — ${String(vps.status || '').toUpperCase() === 'RUNNING' ? '🟢' : '🔴'} ${vps.status}`)
  .join('\n')}
 `,
- noVPSfound: "Aucune instance VPS active n'existe. Créez-en une nouvelle.",
+ noVPSfound: "Vous n'avez encore aucun serveur. Créez un 🐧 VPS Linux ou un 🪟 RDP Windows ci-dessous.",
  selectCorrectOption: 'Veuillez sélectionner une option dans la liste',
- selectedVpsData: data => `<strong>🖥️ ID du VPS :</strong> ${data.name}
+ selectedVpsData: data => {
+ const isRDP = !!(data.isRDP || data.osType === 'Windows')
+ const port = isRDP ? 3389 : 22
+ const loginUser = data.defaultUser || (isRDP ? 'Administrator' : 'root')
+ const running = String(data.status || '').toUpperCase() === 'RUNNING'
+ const months = Number(data.durationMonths) || 1
+ const panelLine = isRDP ? '' : `\n<strong>• Panneau de contrôle :</strong> ${data.cPanelPlanDetails && data.cPanelPlanDetails.type ? data.cPanelPlanDetails.type : 'Aucun'}`
+ const billingLine = isRDP ? `\n<strong>• Facturation :</strong> ${months === 1 ? 'Mensuelle' : `${months} mois (prépayés)`} · licence Windows incluse` : ''
+ return `<strong>${isRDP ? '🪟 RDP Windows' : '🐧 VPS Linux'} :</strong> ${data.name}
 
 <strong>• Plan :</strong> ${data.planDetails.name}
-<strong>• vCPUs :</strong> ${data.planDetails.specs.vCPU} | RAM : ${data.planDetails.specs.RAM} Go | Disque : ${
- data.planDetails.specs.disk
- } Go (${data.diskTypeDetails.type})
-<strong>• OS :</strong> ${data.osDetails.name}
-<strong>• Panneau de contrôle :</strong> ${
- data.cPanelPlanDetails && data.cPanelPlanDetails.type ? data.cPanelPlanDetails.type : 'Aucun'
- }
-<strong>• Statut :</strong> ${data.status === 'RUNNING' ? '🟢' : '🔴'} ${data.status}
+<strong>• vCPUs :</strong> ${data.planDetails.specs.vCPU} | RAM : ${data.planDetails.specs.RAM} Go | Disque : ${data.planDetails.specs.disk} Go (${data.diskTypeDetails.type})
+<strong>• OS :</strong> ${data.osDetails.name}${panelLine}${billingLine}
+<strong>• Statut :</strong> ${running ? '🟢' : '🔴'} ${data.status}
 <strong>• Renouvellement automatique :</strong> ${data.autoRenewable ? 'Activé' : 'Désactivé'}
-<strong>• Adresse IP :</strong> ${data.host}`,
+
+<b>🔌 Comment se connecter</b>
+<strong>• Adresse IP :</strong> <code>${data.host}</code>
+<strong>• ${isRDP ? 'Port RDP' : 'Port SSH'} :</strong> <code>${port}</code>
+<strong>• Utilisateur :</strong> <code>${loginUser}</code>${isRDP ? `
+<strong>• Bureau à distance :</strong> <code>${data.host}:${port}</code>` : `
+<strong>• Commande :</strong> <code>ssh ${loginUser}@${data.host} -p ${port}</code>`}`
+ },
  stopVpsBtn: '⏹️ Arrêter',
  startVpsBtn: '▶️ Démarrer',
  restartVpsBtn: '🔄 Redémarrer',
@@ -3447,6 +3467,49 @@ Veuillez réessayer dans quelques minutes ou contacter le support si le problèm
  rdpNotSupported: `⚠️ Cette fonctionnalité n'est disponible que pour les instances Windows RDP.
 
 Votre VPS exécute Linux. Utilisez plutôt les clés SSH pour la gestion des accès.`,
+
+ // ── DigitalOcean Windows RDP : durée + édition, réinstallation sur place ──
+ rdpDurationBtn: c => (Number(c.period) === 1 ? `1 mois — $${c.price}` : `${c.period} mois — $${c.price}`),
+ askRdpDuration: (config, cycles) => `📅 <strong>Quelle durée souhaitez-vous prépayer ?</strong>
+
+<strong>${config.name}</strong> — ${config.specs.vCPU} vCPU · ${config.specs.RAM}GB RAM · ${config.specs.disk}GB NVMe
+${cycles.map(c => {
+  const per = Number(c.period) || 1
+  const base = (Number(config.monthlyPrice) || 0) * per
+  const save = per > 1 && base > 0 && Number(c.price) < base ? Math.round((1 - Number(c.price) / base) * 100) : 0
+  return `• ${per === 1 ? '1 mois' : `${per} mois`} — <b>$${c.price}</b>${save > 0 ? ` <i>(−${save} %)</i>` : ''}`
+}).join('\n')}
+
+Les périodes plus longues sont facturées en une fois et incluent une remise ; le renouvellement automatique refacture la même période à l'échéance.`,
+ rdpEditionBtn: o => `🪟 ${o.name}${o.fast_deploy ? ` ⚡ ~${o.eta_minutes || 3} min` : ' ⏳ ~45 min'}`,
+ askRdpEdition: options => `🪟 <strong>Choisissez votre édition Windows</strong>
+
+${options.map(o => `• <b>${o.name}</b> — ${o.fast_deploy ? `⚡ prêt en environ ${o.eta_minutes || 3} minutes (image pré-construite dans votre région)` : '⏳ installation complète, environ 45 minutes'}`).join('\n')}
+
+Toutes les éditions sont Windows Server Standard (Expérience utilisateur) avec RDP activé et le compte Administrator.`,
+ askReinstallEdition: (name, options) => `🔄 <strong>Réinstaller Windows sur ${name}</strong>
+
+Choisissez l'édition à installer. Votre adresse IP reste la même.
+
+${options.map(o => `• <b>${o.name}</b> — ${o.fast_deploy ? `⚡ environ ${o.eta_minutes || 3} minutes` : '⏳ environ 45 minutes'}`).join('\n')}`,
+ confirmReinstallWindowsRdpText: (name, osName, etaMin) => `🔄 <strong>Réinstaller ${osName} sur ${name}</strong>
+
+⚠️ <strong>ATTENTION — le disque sera effacé :</strong>
+• Tous les fichiers, programmes et paramètres du serveur sont supprimés
+• Un ${osName} neuf est installé depuis notre image pré-construite (~${etaMin} min)
+• Un NOUVEAU mot de passe Administrator est généré — l'ancien ne fonctionne plus
+• ✅ Votre adresse IP et votre période payée sont conservées
+
+Voulez-vous continuer ?`,
+ windowsReinstallStarted: (name, ip, username, password, osName, etaMin) => `🔄 <strong>Réinstallation de ${osName} sur ${name}</strong>
+
+🌐 <strong>IP :</strong> <code>${ip || 'inchangée'}</code>
+👤 <strong>Utilisateur :</strong> ${username}
+🔑 <strong>Nouveau mot de passe :</strong> <code>${password}</code>
+
+⏱️ Windows s'installe maintenant — connectez-vous avec ces identifiants dans environ <b>${etaMin} minutes</b>.
+💡 Touchez le mot de passe pour le copier. Vous pouvez le réafficher à tout moment avec 🔐 Afficher le mot de passe.`,
+ rdpActionReason: reason => `\n\n<i>Raison : ${reason}</i>`,
  vpsBeingDeleted: name => `⚙️ Veuillez patienter pendant que votre VPS (${name}) est en cours de suppression`,
  vpsDeleted: name => `✅ Le VPS (${name}) a été supprimé de manière permanente.`,
  failedDeletingVPS: name => `❌ Échec de la suppression du VPS (${name}).
@@ -3528,26 +3591,30 @@ Note : Un dépôt de $${VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE} USD est inclus d
 
 <strong>✅ Confirmer la commande ?</strong>`,
 
- vpsSubscriptionData: (vpsData, planExpireDate, panelExpireDate) => `<strong>🗂️ Vos abonnements actifs :</strong>
-
-<strong>• VPS ${vpsData.name} </strong> – Expire le : ${planExpireDate} (Renouvellement automatique : ${
- vpsData.autoRenewable ? 'Activé' : 'Désactivé'
- })
-<strong>• Panneau de contrôle ${
+ vpsSubscriptionData: (vpsData, planExpireDate, panelExpireDate) => {
+ const isRDP = !!(vpsData.isRDP || vpsData.osType === 'Windows')
+ const months = Number(vpsData.durationMonths) || 1
+ const panel = isRDP ? '' : `\n<strong>• Panneau de contrôle ${
  vpsData?.cPanelPlanDetails ? vpsData.cPanelPlanDetails.type : ': Non sélectionné'
  } </strong> ${
  vpsData?.cPanelPlanDetails
  ? `${vpsData?.cPanelPlanDetails.status === 'active' ? '- Expire le : ' : '- Expiré le : '}${panelExpireDate}`
  : ''
- } `,
+ } `
+ return `<strong>🗂️ Vos abonnements actifs :</strong>
 
- manageVpsSubBtn: "🖥️ Gérer l'abonnement VPS",
+<strong>• ${isRDP ? '🪟 RDP Windows' : '🐧 VPS Linux'} ${vpsData.name} </strong> – ${isRDP ? `${months === 1 ? 'mensuel' : `${months} mois prépayés`} · ` : ''}Expire le : ${planExpireDate} (Renouvellement automatique : ${
+ vpsData.autoRenewable ? 'Activé' : 'Désactivé'
+ })${panel}`
+ },
+
+ manageVpsSubBtn: "📅 Gérer l'abonnement",
  manageVpsPanelBtn: "🛠️ Gérer l'abonnement au panneau de contrôle",
 
- vpsSubDetails: (data, date) => `<strong>📅 Détails de l\'abonnement VPS :</strong>
+ vpsSubDetails: (data, date) => `<strong>📅 Détails de l\'abonnement ${data.isRDP || data.osType === 'Windows' ? '🪟 RDP Windows' : '🐧 VPS Linux'} :</strong>
 
-<strong>• VPS ID :</strong> ${data.name}
-<strong>• Plan :</strong> ${data.planDetails.name}
+<strong>• Serveur :</strong> ${data.name}
+<strong>• Plan :</strong> ${data.planDetails.name}${data.isRDP || data.osType === 'Windows' ? `\n<strong>• Période de facturation :</strong> ${(Number(data.durationMonths) || 1) === 1 ? 'Mensuelle' : `${data.durationMonths} mois (prépayés)`}` : ''}
 <strong>• Date d\'expiration actuelle :</strong> ${date}
 <strong>• Renouvellement automatique :</strong> ${data.autoRenewable ? 'Activé' : 'Désactivé'}`,
 

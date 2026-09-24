@@ -93,6 +93,18 @@ function generateRandomName(prefix, number = 12) {
   return `${prefix}-${randomSuffix}`
 }
 
+// Short, brandable instance label: "nomadly-x7k2p9" (brand + 6-char code).
+// Cosmetic display/label only (NOT a lookup key) — replaces the old
+// nomadly-<telegramId>-<epoch> label that leaked the Telegram ID and was noisy.
+function shortInstanceLabel(prefix = 'nomadly') {
+  const alphabet = 'abcdefghijkmnpqrstuvwxyz23456789' // drop look-alikes l,o,0,1
+  let code = ''
+  const buf = crypto.randomBytes(6)
+  for (let i = 0; i < 6; i++) code += alphabet[buf[i] % alphabet.length]
+  return `${prefix}-${code}`
+}
+
+
 function generateRandomPassword(length = 16) {
   const upperCase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
   const lowerCase = 'abcdefghijklmnopqrstuvwxyz'
@@ -130,9 +142,9 @@ function generateRandomPassword(length = 16) {
  * NEW: Returns Contabo region slugs as "countries".
  *      _index.js uses these as button labels.
  */
-async function fetchAvailableCountries() {
+async function fetchAvailableCountries(isRDP = false) {
   try {
-    const regions = await contabo.listRegions()
+    const regions = await vpsProvider.pickProviderForOs(!!isRDP).listRegions()
     // Return array of display labels — used as button text
     return regions.map(r => `${r.display.emoji} ${r.display.label}`)
   } catch (err) {
@@ -146,9 +158,9 @@ async function fetchAvailableCountries() {
  * NEW: Since regions are already flat, this just returns the single region.
  *      The "country" param is the button label from fetchAvailableCountries.
  */
-async function fetchAvailableRegionsOfCountry(country) {
+async function fetchAvailableRegionsOfCountry(country, isRDP = false) {
   try {
-    const regions = await contabo.listRegions()
+    const regions = await vpsProvider.pickProviderForOs(!!isRDP).listRegions()
     // Find the region matching the button label
     const match = regions.find(r => `${r.display.emoji} ${r.display.label}` === country)
     if (match) {
@@ -187,14 +199,20 @@ async function fetchAvailableZones(region) {
  * NEW (OVH): returns only NVMe (OVH does not split NVMe/SSD).
  * NEW (Contabo): returns NVMe + SSD as before.
  */
-async function fetchAvailableDiskTpes(zone) {
+async function fetchAvailableDiskTpes(zone, isRDP = false) {
   try {
-    const active = vpsProvider.getProvider()
-    if (active.PROVIDER === 'ovh') {
-      // OVH catalog is NVMe-only. Show a single button so the existing flow
-      // (which always requires a disk-type pick) keeps working.
+    const active = vpsProvider.pickProviderForOs(!!isRDP)
+    if (active.PROVIDER === 'ovh' || active.PROVIDER === 'digitalocean-rdp') {
+      // OVH catalog and the DO Windows RDP catalog are NVMe-only. Show a single button so the
+      // existing flow (which always requires a disk-type pick) keeps working.
       return [
         { id: 'nvme', _id: 'nvme', name: 'NVMe', value: 'nvme', label: '⚡ NVMe SSD', type: 'nvme', description: '⚡ <b>NVMe SSD</b>\n   └ High-performance enterprise storage' },
+      ]
+    }
+    if (active.PROVIDER === 'digitalocean') {
+      // DigitalOcean Linux droplets are SSD-only — a single entry makes the bot skip the disk step.
+      return [
+        { id: 'ssd', _id: 'ssd', name: 'SSD', value: 'ssd', label: '💾 SSD', type: 'ssd', description: '💾 <b>SSD</b>\n   └ Enterprise SSD storage' },
       ]
     }
     return [
@@ -223,12 +241,21 @@ async function fetchAvailableVPSConfigs(telegramId, vpsDetails) {
     // OS-aware: Linux purchases use the default provider (DigitalOcean),
     // RDP purchases route to the dedicated RDP provider (Azure) when configured.
     const providerForOs = vpsProvider.pickProviderForOs(isRDP)
-    const products = providerForOs.listProducts(region, isRDP, diskType)
+    const allProducts = providerForOs.listProducts(region, isRDP, diskType) || []
+    // Multi-duration catalogs (DO RDP: <tier>-1m/2m/3m) → one button per tier (monthly price);
+    // the sibling durations become that tier's billingCycles for the duration step.
+    const multiDuration = allProducts.some(p => Number(p.durationMonths) > 1)
+    const products = multiDuration ? allProducts.filter(p => Number(p.durationMonths || 1) === 1) : allProducts
+    const cyclesFor = (p) => {
+      if (!multiDuration) return [{ type: 'Monthly', price: p.pricing.totalWithMarkup, period: 1, productId: p.productId }]
+      return allProducts.filter(x => x.slug === p.slug).sort((x, y) => x.durationMonths - y.durationMonths)
+        .map(x => ({ type: x.durationMonths === 1 ? 'Monthly' : `${x.durationMonths} Months`, price: x.pricing.totalWithMarkup, period: x.durationMonths, productId: x.productId }))
+    }
     
     // Adapt to old format expected by _index.js
     return products.map(p => ({
       _id: p.productId,
-      name: p.name,
+      name: p.botName || p.name,
       cpuCores: p.cpuCores,
       ramMb: p.ramMb,
       ramGb: p.ramGb,
@@ -244,13 +271,7 @@ async function fetchAvailableVPSConfigs(telegramId, vpsDetails) {
       regionSurcharge: p.pricing.regionSurcharge,
       windowsLicense: p.pricing.windowsLicense,
       totalBeforeMarkup: p.pricing.totalBeforeMarkup,
-      billingCycles: [
-        {
-          type: 'Monthly',
-          price: p.pricing.totalWithMarkup,
-          period: 1
-        }
-      ],
+      billingCycles: cyclesFor(p),
       // Spec display (object for templates, string for fallback)
       specs: { vCPU: p.cpuCores, RAM: p.ramGb, disk: p.diskGb, diskType: p.diskType?.toUpperCase() || 'NVMe' },
       specsStr: providerForOs.formatSpecs(p),
@@ -642,7 +663,7 @@ async function createVPSInstance(telegramId, vpsDetails) {
       productId:    productId,
       region:       region,
       imageId:      imageId,
-      displayName:  `nomadly-${telegramId}-${Date.now()}`,
+      displayName:  shortInstanceLabel(),
       rootPassword: passwordSecret.secretId,
       period:       1 // monthly
     }
@@ -820,10 +841,11 @@ async function createVPSInstance(telegramId, vpsDetails) {
     }
     const defaultUser = resolvedDefaultUser || (isRDP ? 'admin' : 'root')
 
-    // Calculate expiry (monthly billing)
+    // Calculate expiry (1 month, or the prepaid duration picked in the bot — DO RDP sells 1/2/3 months)
     const now = new Date()
     const expiresAt = new Date(now)
-    expiresAt.setMonth(expiresAt.getMonth() + 1)
+    const durationMonths = Math.max(1, Number(vpsDetails.durationMonths || (newProvider.getProduct && newProvider.getProduct(actualProductId)?.durationMonths) || 1))
+    expiresAt.setMonth(expiresAt.getMonth() + durationMonths)
 
     // Adapt to old return format expected by _index.js
     // Cross-provider IP extraction: Contabo nests at ipConfig.v4.ip,
@@ -869,7 +891,8 @@ async function createVPSInstance(telegramId, vpsDetails) {
         defaultUser: defaultUser,
         start_time: now,
         end_time: expiresAt,
-        plan: 'Monthly',
+        plan: vpsDetails.plan || 'Monthly',
+        durationMonths,
         planPrice: vpsDetails.plantotalPrice || vpsDetails.monthlyPrice,
         status: vpsData.status,
         // Explicit default: safer for user (no surprise wallet deductions).
@@ -897,7 +920,7 @@ async function createVPSInstance(telegramId, vpsDetails) {
     // to cancel and we'd just log noise from a guaranteed 404.
     if (String(instance.instanceId).startsWith('dryrun-')) {
       console.log(`[VPS] Skipping cancel-on-create for dry-run instance ${instance.instanceId}`)
-    } else if (['vultr', 'digitalocean', 'azure'].includes(vpsProvider.detectProviderByInstanceId(instance.instanceId))) {
+    } else if (vpsProvider.isDestructiveCancelProvider(vpsProvider.detectProviderByInstanceId(instance.instanceId))) {
       // ── Vultr, DigitalOcean & Azure have no scheduled cancel — DELETE is destructive. ──
       // Calling cancelInstance on these providers without scheduleOnly=true would
       // destroy the just-created VPS instantly. autoRenewable=false in our DB
@@ -1002,7 +1025,7 @@ async function fetchUserVPSList(telegramId) {
           name: record.name,
           label: record.label,
           host: ip,
-          status: live?.status?.toUpperCase() || record.status,
+          status: (live?.botStatus || live?.status)?.toUpperCase() || record.status,
           region: record.region,
           productId: record.productId,
           osType: record.osType,
@@ -1015,7 +1038,7 @@ async function fetchUserVPSList(telegramId) {
           subscription_id: record.vpsId, // for compatibility
           subscription: {
             subscriptionEnd: record.end_time,
-            osId: { os_name: record.osType === 'Windows' ? 'Windows Server 2025' : 'Ubuntu' }
+            osId: { os_name: record.osType === 'Windows' ? (live?.osName || 'Windows Server') : 'Ubuntu' }
           }
         })
 
@@ -1088,7 +1111,7 @@ async function fetchVPSDetails(telegramId, vpsId) {
       label: localRecord?.label || live.displayName,
       host: ip,
       ipv6: live.ipConfig?.v6?.ip || '',
-      status: live.status?.toUpperCase() || 'UNKNOWN',
+      status: (live.botStatus || live.status)?.toUpperCase() || 'UNKNOWN',
       region: live.region || localRecord?.region,
       productId: live.productId || localRecord?.productId,
       productName: product?.name || live.productId || localRecord?.productId,
@@ -1109,6 +1132,10 @@ async function fetchVPSDetails(telegramId, vpsId) {
         osId: { os_name: isRDP ? 'Windows Server' : (live.imageId || 'Ubuntu') }
       },
       defaultUser: localRecord?.defaultUser || live.defaultUser || (isRDP ? 'Administrator' : 'root'),
+      durationMonths: Number(localRecord?.durationMonths || live.durationMonths) || 1,
+      osName: live.osName || null,
+      agentOnline: live.agentOnline === true,
+      provisioning: live.provisioning || null,
 
       // ── Compat fields required by lang/en.js selectedVpsData template ──
       planDetails: {
@@ -1123,7 +1150,7 @@ async function fetchVPSDetails(telegramId, vpsId) {
         type: diskType.toUpperCase()
       },
       osDetails: {
-        name: isRDP ? '🖥 Windows Server (RDP)' : (live.osType || 'Linux')
+        name: isRDP ? `🪟 ${live.osName || 'Windows Server'}` : (live.osType || 'Linux')
       },
       cPanelPlanDetails: null
     }
@@ -1272,7 +1299,7 @@ async function deleteVPSinstance(chatId, vpsId) {
       }
       return { success: true, data: result, method: 'ovh-serviceInfos' }
     }
-    if (_providerName === 'vultr' || _providerName === 'digitalocean' || _providerName === 'azure') {
+    if (vpsProvider.isDestructiveCancelProvider(_providerName)) {
       console.log(`[VPS] ${_providerName} cancel confirmed for ${contaboId} (immediate delete — VPS resources destroyed)`)
       if (_vpsPlansOf) {
         await _vpsPlansOf.updateOne(
@@ -1457,7 +1484,7 @@ async function changeVpsAutoRenewal(telegramId, vpsDetails) {
       // (the renewal scheduler already honours it).
       const _provName = vpsProvider.detectProviderByInstanceId(contaboInstanceId)
         || (vpsDetails.provider || '').toLowerCase()
-      if (_provName === 'vultr' || _provName === 'digitalocean' || _provName === 'azure') {
+      if (vpsProvider.isDestructiveCancelProvider(_provName)) {
         console.log(`[VPS] auto-renew OFF for ${_provName} instance ${contaboInstanceId} — skipping provider cancelInstance (would be destructive); DB flag is sufficient`)
         update.cancelReason = `auto_renew_disabled_by_user_${_provName}_db_only`
       } else {
@@ -1551,6 +1578,8 @@ async function fetchVpsUpgradeOptions(telegramId, vpsId, upgradeType = 'vps') {
 
     const currentProduct = upgradeProvider.getProduct(vpsDetails.productId)
     if (!currentProduct) return false
+    // Providers without a resize API (DO Windows RDP) offer no in-place upgrades.
+    if (typeof upgradeProvider.upgradeInstance !== 'function') return []
 
     if (upgradeType === 'vps' || upgradeType === 'plan') {
       // Return higher-tier products of the same disk type
@@ -1713,6 +1742,16 @@ async function renewVPSPlan(telegramId, subscriptionId) {
     }
     const unset = {}
 
+    // A renewal always clears any 3-day grace state (DigitalOcean-RDP): the
+    // customer is back in good standing, so the box must leave EXPIRED_GRACE and
+    // not be swept for deletion. Unsetting fields that don't exist is a no-op.
+    unset.expired_at = ''
+    unset.grace_until = ''
+    unset._graceReminderSent = ''
+    unset.deleteRetryCount = ''
+    unset.lastDeleteError = ''
+    unset.lastDeleteAlertAt = ''
+
     // If the plan was previously cancelled-early on Contabo (e.g. wallet
     // deduct failed at T-24h and we proactively cancelled), this manual
     // renewal means the customer is back in good standing. Clear our cancel
@@ -1736,6 +1775,18 @@ async function renewVPSPlan(telegramId, subscriptionId) {
     const mongoUpdate = { $set: update }
     if (Object.keys(unset).length) mongoUpdate.$unset = unset
     await _vpsPlansOf.updateOne({ vpsId: String(subscriptionId) }, mongoUpdate)
+
+    // DigitalOcean-RDP: tell the provider to power the box back on + clear its
+    // own doRdpServers grace fields (svc.renewInstance handles both). Other
+    // providers manage renewal on their side / via the scheduler.
+    try {
+      if (vpsProvider.detectProviderByInstanceId(record.contaboInstanceId) === 'digitalocean-rdp') {
+        const prov = vpsProvider.getProviderForRecord(record)
+        if (prov && typeof prov.renewInstance === 'function') {
+          await prov.renewInstance(record.contaboInstanceId, Math.max(1, Number(record.durationMonths) || 1))
+        }
+      }
+    } catch (e) { console.log(`[VPS] DO-RDP provider renew sync failed for ${subscriptionId}: ${e.message}`) }
 
     return {
       success: true,
