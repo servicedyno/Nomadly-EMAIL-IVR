@@ -136,6 +136,7 @@ Runbook: `memory/RDP_GOLDEN_IMAGES.md`; lessons: `memory/DO_RDP_LESSONS.md`.
 - ✅ Tests: `js/tests/test_do_rdp_golden_2026-06.js` 91/91 (size ladder, 422 fallback, race in "failed build droplet destroyed" fixed with waitFor). testing_agent iteration_52: 100 % backend.
 - ⚠️ Existing droplets (e.g. 165.22.43.171 on `s-2vcpu-4gb` Basic) keep their size; a DO resize to `s-2vcpu-4gb-intel` needs a power-off (~1–2 min) — not done.
 - 💡 Product recommendation (not implemented): 4 GB is the Windows Server floor — Standard tier customers running Chrome will still hit RAM limits; consider 8 GB as the minimum Windows tier or an in-bot "light browsing only" note on Standard.
+- 🧹 **Test droplet cleanup (user request, 2026-09-24)**: destroyed `rdp-655708fc` (104.131.181.56, orphan — no record anywhere) and `rdp-ac8f897e` (165.22.43.171, owner's test order, chat 5168006768) at DO; in **production Mongo** (Railway) mirrored the bot's own delete flow: `doRdpServers` → `status: destroyed` (+`destroyed_at`/`destroy_reason`), `vpsPasswordSecrets` row deleted, `vpsPlansOf` row deleted. Also cleaned the stale `c05c84be` "ws2025-confirm" E2E leftover (droplet 603051404 already 404 at DO). Production now: 0 live DO-RDP orders. DO inventory = WHM, dynopay + the 3 golden-build droplets (auto-destroyed after import).
 
 ## Prioritized backlog (P0/P1/P2)
 
