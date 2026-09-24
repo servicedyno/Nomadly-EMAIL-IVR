@@ -34,7 +34,7 @@ function endpointGroups(base) {
         },
         {
           method: 'GET', path: '/account', auth: true, billed: false,
-          desc: 'Returns the account bound to your API key and its current bot wallet balance in USD (usd_in − usd_out — the same balance the Telegram bot shows). Every billed call is funded by this wallet.',
+          desc: 'Returns the account bound to your API key and its current bot wallet balance in USD (usd_in − usd_out — the same balance the Telegram bot shows). Every billed call is funded by this wallet. webhook_url is the RDP-lifecycle push webhook currently registered on your key (null if none).',
           curl: `curl -s ${base}/account \\
   -H "Authorization: Bearer YOUR_API_KEY"`,
           resp: `{
@@ -42,8 +42,39 @@ function endpointGroups(base) {
   "label": "acme-reseller",
   "wallet_balance_usd": 142.50,
   "currency": "usd",
+  "webhook_url": "https://your-app.com/hooks/nomadly",
   "mode": "live"
 }`,
+        },
+        {
+          method: 'GET', path: '/account/webhook', auth: true, billed: false,
+          desc: 'Get the push-webhook URL currently registered on your API key and the RDP lifecycle events it receives. Registering a webhook lets you react to expiry/deletion instantly instead of polling GET /renewals.',
+          curl: `curl -s ${base}/account/webhook \\
+  -H "Authorization: Bearer YOUR_API_KEY"`,
+          resp: `{
+  "webhook_url": "https://your-app.com/hooks/nomadly",
+  "events": ["rdp.grace_start", "rdp.deleted"],
+  "delivery": "POST (no signature), auto-retry with backoff"
+}`,
+        },
+        {
+          method: 'PUT', path: '/account/webhook', auth: true, billed: false,
+          desc: 'Register (or clear) the push-webhook URL for your account. Send {"webhook_url":"https://…"} to set it, or {"webhook_url":null} to clear it. Nomadly then POSTs a JSON body { event, occurred_at, data:{ id, plan, region, … } } to your URL for each RDP lifecycle event: rdp.grace_start (subscription expired → server powered off and a 3-day grace period begins; data also carries expired_at + delete_at) and rdp.deleted (droplet permanently deleted after grace ended unrenewed; data also carries reason:"expired_grace"). Delivery is a plain POST with no signature, retried with backoff, and de-duplicated per server+event so you never get the same event twice. Reply 2xx to acknowledge.',
+          params: [['webhook_url', true, 'Your http(s) endpoint URL, or null to clear']],
+          curl: `curl -s -X PUT ${base}/account/webhook \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"webhook_url":"https://your-app.com/hooks/nomadly"}'`,
+          resp: `{
+  "webhook_url": "https://your-app.com/hooks/nomadly",
+  "events": ["rdp.grace_start", "rdp.deleted"],
+  "delivery": "POST (no signature), auto-retry with backoff"
+}
+
+// Example event Nomadly POSTs to your URL:
+// { "event": "rdp.grace_start", "occurred_at": "2026-09-24T15:00:00.000Z",
+//   "data": { "id": "6631...", "plan": "Standard — Windows RDP (1 month)", "region": "EU",
+//             "expired_at": "2026-09-24T15:00:00.000Z", "delete_at": "2026-09-27T15:00:00.000Z" } }`,
         },
         {
           method: 'GET', path: '/pricing', auth: true, billed: false,
@@ -871,7 +902,7 @@ function endpointGroups(base) {
   -H "Authorization: Bearer YOUR_API_KEY" -H "Content-Type: application/json" -d '{"domain":"blog.com"}'`, resp: `{ "success": true, "oldDomain": "mysite.com", "newDomain": "blog.com" }` },
         { method: 'GET', path: '/hosting/:user/domains/ns-status', auth: true, billed: false, desc: 'Cloudflare nameserver / zone activation status for a domain.', params: [['domain', true, 'Domain to check']], curl: `curl -s "${base}/hosting/mysite01/domains/ns-status?domain=mysite.com" \\
   -H "Authorization: Bearer YOUR_API_KEY"`, resp: `{ "status": "active", "nameservers": ["ada.ns.cloudflare.com","rob.ns.cloudflare.com"], "zoneId": "…" }` },
-        { method: 'GET', path: '/hosting/:user/account/site-status', auth: true, billed: false, desc: 'Whether the site is online, in maintenance, or suspended. Change with POST /account/site-status {action:"take_offline"|"bring_online", mode:"maintenance"|"suspended"}.', curl: `curl -s ${base}/hosting/mysite01/account/site-status \\
+        { method: 'GET', path: '/hosting/:user/site-status', auth: true, billed: false, desc: 'Whether the site is online, in maintenance, or suspended. Change with POST /hosting/:user/site-status {action:"take_offline"|"bring_online", mode:"maintenance"|"suspended"}.', curl: `curl -s ${base}/hosting/mysite01/site-status \\
   -H "Authorization: Bearer YOUR_API_KEY"`, resp: `{ "status": "online", "domain": "mysite.com", "plan": "Golden Anti-Red HostPanel (1-Month)", "autoRenew": true }` },
         { method: 'POST', path: '/hosting/:user/security/js-challenge', auth: true, billed: false, desc: 'Enable/disable the JS "verify your browser" challenge for the primary domain (Golden plan only). Read state: GET /security/js-challenge.', params: [['enabled', true, 'boolean']], curl: `curl -s -X POST ${base}/hosting/mysite01/security/js-challenge \\
   -H "Authorization: Bearer YOUR_API_KEY" -H "Content-Type: application/json" -d '{"enabled":true}'`, resp: `{ "jsChallengeEnabled": true, "workerRoutes": { "success": true } }` },

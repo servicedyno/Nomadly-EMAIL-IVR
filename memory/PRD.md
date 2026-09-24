@@ -254,6 +254,12 @@ User authorized the ~$0.05–0.10 charge. Built `js/ops/rdp_full_mgmt_e2e.js` an
 - 🧹 Owner note: 3 golden-build droplets (`golden-ws2019/2022/2025-*`, nyc3, created 2026-09-24 07:20, predate this session) are still `active` on the DO account — leftover golden build droplets to review/destroy if their imports are done (not touched here — golden builds are guarded).
 
 
+## 2026-09 (fork) — API documentation refresh (js/apidoc-page.js → https://1.speechcue.com/apidoc)
+Audited the served reseller API doc (`js/apidoc-page.js`, rendered by `_index.js` GET /apidoc) against the live routes in `js/reseller-api.js`. Two real gaps fixed:
+1. **Push webhooks were undocumented** — added `GET /account/webhook` + `PUT /account/webhook` to the Meta group, including the events (`rdp.grace_start`, `rdp.deleted`), delivery semantics (plain POST, no signature, retry+backoff, de-duped per server+event), and an example delivered payload `{ event, occurred_at, data:{ id, plan, region, expired_at, delete_at } }`. Also added `webhook_url` to the `/account` response example.
+2. **Wrong path** — doc said `GET/POST /hosting/:user/account/site-status`; actual route is `/hosting/:user/site-status`. Corrected path + curl + inline POST reference (resellers using the old doc path would 404).
+Verified: `renderApiDocPage()` renders (204KB), local GET /apidoc → HTTP 200 with `/account/webhook` present; full route-vs-doc diff now clean (only `POST /hosting/:user/site-status` remains "unmodeled" — intentionally described inline in its GET card, matching the doc's pattern for all POST sub-routes). Already-current: RDP grace lifecycle, `/rdp/:id/renew`, `discount_pct`+`duration_months`, 1/2/3-month bundle terms. 🔴 Redeploy Railway prod for https://1.speechcue.com/apidoc to reflect it.
+
 ## 2026-09 (fork) — @chemist454 "dropped calls" (SIP outbound) — RCA + D1 FIX shipped + tested
 User: prod user @chemist454 reported dropped calls during **SIP calls**; asked to mine ~4 days of prod logs. Full RCA: `memory/CHEMIST454_DROPPED_CALLS_RCA_2026-09.md`.
 - **Access rebuilt (read-only):** `js/ops/prod_lookup_chemist.js` (prod Mongo lookup via `ORIGINAL_PROD_MONGO_URL`) + `js/ops/railway_log_pull.js` (Railway GraphQL env-log pager; project "New Hosting", env production `889fd56a…`, svc Nomadly-EMAIL-IVR `b9c4ad64…`; **project-scoped** `API_KEY_RAILWAY` via header `Project-Access-Token`, endpoint `backboard.railway.com/graphql/v2`).
