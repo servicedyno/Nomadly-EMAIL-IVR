@@ -3098,7 +3098,7 @@ ${list.map(item => `${name == 'whm' ? `<strong>• ${item.name} - </strong>` : '
 
 <code>${address}</code>
 
-भुगतान की पुष्टि होने पर आपका ${vpsDetails?.plan || 'VPS'} प्लान स्वचालित रूप से सक्रिय हो जाएगा (आमतौर पर कुछ ही मिनटों में)।
+भुगतान की पुष्टि होने पर आपका ${vpsDetails?.isRDP ? 'Windows RDP' : 'VPS'} स्वचालित रूप से सक्रिय हो जाएगा (आमतौर पर कुछ ही मिनटों में)।
 
 सादर,
 ${CHAT_BOT_NAME}`,
@@ -3118,16 +3118,12 @@ ${CHAT_BOT_NAME}`,
  vpsBoughtSuccess: (vpsDetails, response, credentials) => {
  const isRDP = response.isRDP || vpsDetails.isRDP || response.osType === 'Windows'
  const connectInfo = isRDP
- ? ` <strong>• कनेक्ट:</strong> 🖥 रिमोट डेस्कटॉप → <code>${response.host}:3389</code>\n <strong>• कैसे:</strong> रिमोट डेस्कटॉप कनेक्शन (mstsc) खोलें और ऊपर दिया गया पता दर्ज करें।`
- : ` <strong>• कनेक्ट:</strong> 💻 <code>ssh ${credentials.username}@${response.host}</code>`
- 
- const passwordWarning = isRDP
- ? `\n⚠️ <b>अभी अपना पासवर्ड सहेजें</b> — इसे बाद में प्राप्त नहीं किया जा सकता। खो जाने पर VPS प्रबंधन में "पासवर्ड रीसेट करें" का उपयोग करें (आपका डेटा सुरक्षित रहेगा)।`
- : `\n⚠️ <b>अपने क्रेडेंशियल सुरक्षित रूप से सहेजें।</b>`
- 
+ ? `<strong>🔗 कनेक्ट:</strong> 🖥 रिमोट डेस्कटॉप (mstsc) → <code>${response.host}:3389</code>`
+ : `<strong>🔗 कनेक्ट:</strong> 💻 <code>ssh ${credentials.username}@${response.host}</code>`
+
  const readinessNote = isRDP
- ? `\n⏱ <b>5–10 मिनट दें</b> Windows के पहले बूट के लिए। यदि डिलीवरी के तुरंत बाद RDP पासवर्ड अस्वीकार करे, तो कुछ मिनट रुककर पुनः प्रयास करें — पासवर्ड सही है।`
- : `\n⏱ <b>2–5 मिनट दें</b> पहले बूट सेटअप के लिए। यदि डिलीवरी के तुरंत बाद SSH "permission denied" कहे, तो कुछ मिनट रुककर पुनः प्रयास करें — पासवर्ड सही है।`
+ ? `\n⏱ <b>5–10 मिनट दें</b> Windows के पहले बूट के लिए। ⚠️ <b>अभी अपना पासवर्ड सहेजें</b> — इसे बाद में प्राप्त नहीं किया जा सकता (खो जाने पर RDP प्रबंधन में "पासवर्ड रीसेट करें" का उपयोग करें)।`
+ : `\n⏱ <b>2–5 मिनट दें</b> पहले बूट सेटअप के लिए। ⚠️ <b>अपने क्रेडेंशियल सुरक्षित रूप से सहेजें।</b>`
 
  return `<strong>🎉 ${isRDP ? 'RDP' : 'VPS'} [${response.label}] सक्रिय हो गया!</strong>
 
@@ -3137,9 +3133,8 @@ ${CHAT_BOT_NAME}`,
  <strong>• उपयोगकर्ता नाम:</strong> <code>${credentials.username}</code>
  <strong>• पासवर्ड:</strong> <tg-spoiler><code>${credentials.password}</code></tg-spoiler> (दिखाने व कॉपी के लिए टैप करें)
 
-<strong>🔗 कनेक्शन:</strong>
 ${connectInfo}
-${readinessNote}${passwordWarning}
+${readinessNote}
 
 ${CHAT_BOT_NAME}`
  },
@@ -3457,9 +3452,14 @@ ${dataPreserved
  askRdpDuration: (config, cycles) => `📅 <strong>आप कितने समय के लिए प्रीपे करना चाहते हैं?</strong>
 
 <strong>${config.name}</strong> — ${config.specs.vCPU} vCPU · ${config.specs.RAM}GB RAM · ${config.specs.disk}GB NVMe
-${cycles.map(c => `• ${Number(c.period) === 1 ? '1 महीना' : `${c.period} महीने`} — <b>$${c.price}</b>`).join('\n')}
+${cycles.map(c => {
+  const per = Number(c.period) || 1
+  const base = (Number(config.monthlyPrice) || 0) * per
+  const save = per > 1 && base > 0 && Number(c.price) < base ? Math.round((1 - Number(c.price) / base) * 100) : 0
+  return `• ${per === 1 ? '1 महीना' : `${per} महीने`} — <b>$${c.price}</b>${save > 0 ? ` <i>(${save}% बचत)</i>` : ''}`
+}).join('\n')}
 
-लंबी अवधि का भुगतान एक बार में होता है; अवधि समाप्त होने पर ऑटो-रिन्यूअल उसी अवधि का शुल्क फिर से लेता है।`,
+लंबी अवधि का भुगतान एक बार में होता है और इसमें बंडल छूट शामिल है; अवधि समाप्त होने पर ऑटो-रिन्यूअल उसी अवधि का शुल्क फिर से लेता है।`,
  rdpEditionBtn: o => `🪟 ${o.name}${o.fast_deploy ? ` ⚡ ~${o.eta_minutes || 3} मिनट` : ' ⏳ ~45 मिनट'}`,
  askRdpEdition: options => `🪟 <strong>अपना Windows संस्करण चुनें</strong>
 

@@ -3110,7 +3110,7 @@ Envoyez exactement <b>${priceCrypto} ${tickerView}</b> à :
 
 <code>${address}</code>
 
-Votre plan ${vpsDetails?.plan || 'VPS'} sera activé automatiquement une fois le paiement confirmé (généralement en quelques minutes).
+Votre ${vpsDetails?.isRDP ? 'RDP Windows' : 'VPS'} sera activé automatiquement une fois le paiement confirmé (généralement en quelques minutes).
 
 Cordialement,
 ${CHAT_BOT_NAME}`,
@@ -3130,16 +3130,12 @@ Veuillez recharger votre portefeuille pour continuer à utiliser votre plan VPS.
  vpsBoughtSuccess: (vpsDetails, response, credentials) => {
  const isRDP = response.isRDP || vpsDetails.isRDP || response.osType === 'Windows'
  const connectInfo = isRDP
- ? ` <strong>• Connexion:</strong> 🖥 Bureau à distance → <code>${response.host}:3389</code>\n <strong>• Comment:</strong> Ouvrez Connexion Bureau à distance (mstsc) et entrez l'adresse ci-dessus.`
- : ` <strong>• Connexion:</strong> 💻 <code>ssh ${credentials.username}@${response.host}</code>`
- 
- const passwordWarning = isRDP
- ? `\n⚠️ <b>Enregistrez votre mot de passe maintenant</b> — il ne peut pas être récupéré ensuite. En cas de perte, utilisez "Réinitialiser le mot de passe" dans la gestion VPS (vos données sont conservées).`
- : `\n⚠️ <b>Enregistrez vos identifiants en lieu sûr.</b>`
- 
+ ? `<strong>🔗 Connexion:</strong> 🖥 Bureau à distance (mstsc) → <code>${response.host}:3389</code>`
+ : `<strong>🔗 Connexion:</strong> 💻 <code>ssh ${credentials.username}@${response.host}</code>`
+
  const readinessNote = isRDP
- ? `\n⏱ <b>Comptez 5–10 minutes</b> pour le premier démarrage Windows. Si RDP refuse le mot de passe juste après la livraison, patientez quelques minutes puis réessayez — le mot de passe est correct.`
- : `\n⏱ <b>Comptez 2–5 minutes</b> pour la configuration initiale. Si SSH affiche "permission denied" juste après la livraison, patientez quelques minutes puis réessayez — le mot de passe est correct.`
+ ? `\n⏱ <b>Comptez 5–10 minutes</b> pour le premier démarrage Windows. ⚠️ <b>Enregistrez votre mot de passe maintenant</b> — il ne peut pas être récupéré ensuite (en cas de perte, utilisez "Réinitialiser le mot de passe" dans la gestion RDP).`
+ : `\n⏱ <b>Comptez 2–5 minutes</b> pour la configuration initiale. ⚠️ <b>Enregistrez vos identifiants en lieu sûr.</b>`
 
  return `<strong>🎉 ${isRDP ? 'RDP' : 'VPS'} [${response.label}] est actif !</strong>
 
@@ -3149,9 +3145,8 @@ Veuillez recharger votre portefeuille pour continuer à utiliser votre plan VPS.
  <strong>• Nom d'utilisateur:</strong> <code>${credentials.username}</code>
  <strong>• Mot de passe:</strong> <tg-spoiler><code>${credentials.password}</code></tg-spoiler> (touchez pour révéler & copier)
 
-<strong>🔗 Connexion:</strong>
 ${connectInfo}
-${readinessNote}${passwordWarning}
+${readinessNote}
 
 ${CHAT_BOT_NAME}`
  },
@@ -3470,9 +3465,14 @@ Votre VPS exécute Linux. Utilisez plutôt les clés SSH pour la gestion des acc
  askRdpDuration: (config, cycles) => `📅 <strong>Quelle durée souhaitez-vous prépayer ?</strong>
 
 <strong>${config.name}</strong> — ${config.specs.vCPU} vCPU · ${config.specs.RAM}GB RAM · ${config.specs.disk}GB NVMe
-${cycles.map(c => `• ${c.period} mois — <b>$${c.price}</b>`).join('\n')}
+${cycles.map(c => {
+  const per = Number(c.period) || 1
+  const base = (Number(config.monthlyPrice) || 0) * per
+  const save = per > 1 && base > 0 && Number(c.price) < base ? Math.round((1 - Number(c.price) / base) * 100) : 0
+  return `• ${per === 1 ? '1 mois' : `${per} mois`} — <b>$${c.price}</b>${save > 0 ? ` <i>(−${save} %)</i>` : ''}`
+}).join('\n')}
 
-Les périodes plus longues sont facturées en une fois ; le renouvellement automatique refacture la même période à l'échéance.`,
+Les périodes plus longues sont facturées en une fois et incluent une remise ; le renouvellement automatique refacture la même période à l'échéance.`,
  rdpEditionBtn: o => `🪟 ${o.name}${o.fast_deploy ? ` ⚡ ~${o.eta_minutes || 3} min` : ' ⏳ ~45 min'}`,
  askRdpEdition: options => `🪟 <strong>Choisissez votre édition Windows</strong>
 

@@ -141,9 +141,16 @@ const orderRef = (s) => `${(s.server_id || '').slice(0, 8)} (${s.os_id || '?'}, 
 // ─────────────────────────────────────────────────────────────
 // Products (tier × duration). productId encodes both, so it slots into the
 // generic reseller vps flow (which has no duration param). Price = repo's
-// monthly_do_cost × months × 2 (no extra Nomadly markup — per product decision).
+// monthly_do_cost × months × 2, then a multi-month bundle discount (2mo −10%, 3mo −15%).
 // ─────────────────────────────────────────────────────────────
-function sellPrice(tier, months) { return Math.round(tier.monthly_do_cost * months * 2 * 100) / 100 }
+// Multi-month bundle discount: 2-month = 10% off, 3-month = 15% off (1-month = no discount).
+// Base = monthly_do_cost × months × 2; discount applied on top as a multi-month incentive.
+const BUNDLE_DISCOUNT = { 1: 0, 2: 0.10, 3: 0.15 }
+function bundleDiscount(months) { return BUNDLE_DISCOUNT[Number(months)] || 0 }
+function sellPrice(tier, months) {
+  const base = tier.monthly_do_cost * months * 2
+  return Math.round(base * (1 - bundleDiscount(months)) * 100) / 100
+}
 
 function _products() {
   const out = []

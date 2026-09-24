@@ -93,6 +93,18 @@ function generateRandomName(prefix, number = 12) {
   return `${prefix}-${randomSuffix}`
 }
 
+// Short, brandable instance label: "nomadly-x7k2p9" (brand + 6-char code).
+// Cosmetic display/label only (NOT a lookup key) — replaces the old
+// nomadly-<telegramId>-<epoch> label that leaked the Telegram ID and was noisy.
+function shortInstanceLabel(prefix = 'nomadly') {
+  const alphabet = 'abcdefghijkmnpqrstuvwxyz23456789' // drop look-alikes l,o,0,1
+  let code = ''
+  const buf = crypto.randomBytes(6)
+  for (let i = 0; i < 6; i++) code += alphabet[buf[i] % alphabet.length]
+  return `${prefix}-${code}`
+}
+
+
 function generateRandomPassword(length = 16) {
   const upperCase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
   const lowerCase = 'abcdefghijklmnopqrstuvwxyz'
@@ -713,7 +725,7 @@ async function createVPSInstance(telegramId, vpsDetails) {
       productId:    productId,
       region:       region,
       imageId:      imageId,
-      displayName:  `nomadly-${telegramId}-${Date.now()}`,
+      displayName:  shortInstanceLabel(),
       rootPassword: passwordSecret.secretId,
       period:       1 // monthly
     }

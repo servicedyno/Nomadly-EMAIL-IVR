@@ -184,3 +184,13 @@ Full handoff: `/app/memory/WS2025_RDP_HANDOFF_2026-06.md`.
   proven (now proven). This is a LIVE PROD config change — confirm with owner first.
 - 🧹 Cleanup owed: e2e left droplet **602990345** (104.131.68.31, order `rdp-109b0d03-198f-43fe-a772-39b681b6d58e`)
   running for manual inspection — destroy via `svc.cancelInstance(...)` to stop billing.
+
+## 2026-06 (fork) — RDP order-flow polish (4 tasks) VERIFIED
+User request: 4 RDP tweaks. All implemented (prior agent) and now VERIFIED this session.
+1. ✅ **Bundle discount** — `js/digitalocean-rdp-service.js` `BUNDLE_DISCOUNT={1:0,2:0.10,3:0.15}`; `sellPrice()` = monthly×2×months × (1−disc). Live: Standard 2mo=$100.8 (−10%), 3mo=$142.8 (−15%); Pro/Power scale identically.
+2. ✅ **Short droplet label** — `js/vm-instance-setup.js` `shortInstanceLabel()` → `nomadly-<6char>` (alphabet drops look-alikes l/o/0/1); single call site `createVPSInstance` displayName. Old `nomadly-<telegramId>-<epoch>` gone.
+3. ✅ **Concise "RDP ready" msg** — `vps.vpsBoughtSuccess` (lang en/fr/zh/hi): title + credentials + ONE connect line (mstsc :3389, no SSH leak) + one short note (9 lines). "Reset Password in VPS management" → "RDP management" leak fixed.
+4. ✅ **Order-flow wording** — `askRdpDuration` shows per-cycle save % (en `(save 10%)`, fr `(−10 %)`); `showDepositCryptoInfoVps` says "Windows RDP" for RDP / "VPS" for Linux; shared order summary + edition screens carry RDP wording, no VPS/SSH/Linux leaks.
+- Verification: unit suites `test_do_rdp_golden_2026-06.js` 88/88, `test_vps_credentials_message.js` (all 4 langs), lang parity OK; new render regression `js/tests/verify_rdp_tasks_render.js` 44/44; **live bot sim** (mock Telegram + local Mongo, VPS_RDP_PROVIDER=digitalocean-rdp) drove RDP menu → region → plan → duration ($100.8 −10% / $142.8 −15%) → edition → order summary ($100.80 / 2 months) — all correct, no leaks, stopped before payment (no droplet created).
+- ⚠️ CONFIG NOTE: vault restores `VPS_RDP_PROVIDER="azure"` in backend/.env; sim temporarily set it to `digitalocean-rdp` (production intent per 2026-09-23 note) then reverted. Owner should confirm the intended production RDP provider — the discount/duration flow only routes through DO-RDP when this = `digitalocean-rdp`.
+

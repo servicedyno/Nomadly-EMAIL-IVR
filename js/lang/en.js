@@ -3265,7 +3265,7 @@ Send exactly <b>${priceCrypto} ${tickerView}</b> to:
 
 <code>${address}</code>
 
-Your ${vpsDetails?.plan || 'VPS'} plan will activate automatically once payment is confirmed (usually within a few minutes).
+Your ${vpsDetails?.isRDP ? 'Windows RDP' : 'VPS'} will activate automatically once payment is confirmed (usually within a few minutes).
 
 Best regards,
 ${CHAT_BOT_NAME}`,
@@ -3286,16 +3286,12 @@ Please top up your wallet to continue using your VPS Plan.
  vpsBoughtSuccess: (vpsDetails, response, credentials) => {
  const isRDP = response.isRDP || vpsDetails.isRDP || response.osType === 'Windows'
  const connectInfo = isRDP
- ? ` <strong>• Connect:</strong> 🖥 Remote Desktop → <code>${response.host}:3389</code>\n <strong>• How:</strong> Open Remote Desktop Connection (mstsc) and enter the address above.`
- : ` <strong>• Connect:</strong> 💻 <code>ssh ${credentials.username}@${response.host}</code>`
- 
- const passwordWarning = isRDP
- ? `\n⚠️ <b>Save your password now</b> — it can't be retrieved later. If lost, use "Reset Password" in VPS management (your data is preserved).`
- : `\n⚠️ <b>Save your credentials securely.</b>`
- 
+ ? `<strong>🔗 Connect:</strong> 🖥 Remote Desktop (mstsc) → <code>${response.host}:3389</code>`
+ : `<strong>🔗 Connect:</strong> 💻 <code>ssh ${credentials.username}@${response.host}</code>`
+
  const readinessNote = isRDP
- ? `\n⏱ <b>Allow 5–10 minutes</b> for Windows first-boot. If RDP rejects the password right after delivery, wait a couple of minutes and retry — the password is correct.`
- : `\n⏱ <b>Allow 2–5 minutes</b> for first-boot setup. If SSH says "permission denied" right after delivery, wait a couple of minutes and retry — the password is correct.`
+ ? `\n⏱ <b>Allow 5–10 minutes</b> for Windows first boot. ⚠️ <b>Save your password now</b> — it can't be retrieved later (use "Reset Password" in RDP management if lost).`
+ : `\n⏱ <b>Allow 2–5 minutes</b> for first-boot setup. ⚠️ <b>Save your credentials securely.</b>`
 
  return `<strong>🎉 ${isRDP ? 'RDP' : 'VPS'} [${response.label}] is active!</strong>
 
@@ -3305,9 +3301,8 @@ Please top up your wallet to continue using your VPS Plan.
  <strong>• Username:</strong> <code>${credentials.username}</code>
  <strong>• Password:</strong> <tg-spoiler><code>${credentials.password}</code></tg-spoiler> (tap to reveal & copy)
 
-<strong>🔗 Connection:</strong>
 ${connectInfo}
-${readinessNote}${passwordWarning}
+${readinessNote}
 
 ${CHAT_BOT_NAME}`
  },
@@ -3659,9 +3654,14 @@ Your VPS is running Linux. Use SSH keys for access management instead.`,
  askRdpDuration: (config, cycles) => `📅 <strong>How long do you want to prepay?</strong>
 
 <strong>${config.name}</strong> — ${config.specs.vCPU} vCPU · ${config.specs.RAM}GB RAM · ${config.specs.disk}GB NVMe
-${cycles.map(c => `• ${Number(c.period) === 1 ? '1 month' : `${c.period} months`} — <b>$${c.price}</b>`).join('\n')}
+${cycles.map(c => {
+  const per = Number(c.period) || 1
+  const base = (Number(config.monthlyPrice) || 0) * per
+  const save = per > 1 && base > 0 && Number(c.price) < base ? Math.round((1 - Number(c.price) / base) * 100) : 0
+  return `• ${per === 1 ? '1 month' : `${per} months`} — <b>$${c.price}</b>${save > 0 ? ` <i>(save ${save}%)</i>` : ''}`
+}).join('\n')}
 
-Longer periods are billed once up front; auto-renewal charges the same period again when it ends.`,
+Longer periods are billed once up front and include a bundle discount; auto-renewal charges the same period again when it ends.`,
  rdpEditionBtn: o => `🪟 ${o.name}${o.fast_deploy ? ` ⚡ ~${o.eta_minutes || 3} min` : ' ⏳ ~45 min'}`,
  askRdpEdition: options => `🪟 <strong>Choose your Windows edition</strong>
 

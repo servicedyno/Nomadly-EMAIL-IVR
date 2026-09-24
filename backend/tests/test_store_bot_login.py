@@ -13,7 +13,7 @@ import pytest
 
 BASE_URL = os.environ.get(
     "REACT_APP_BACKEND_URL",
-    "https://fsst-rdp-config.preview.emergentagent.com",
+    "https://rdp-order-refactor.preview.emergentagent.com",
 ).rstrip("/")
 TEST_CHATID = "5346193142"
 

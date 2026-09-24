@@ -3079,7 +3079,7 @@ ${list.map(item => `${name == 'whm' ? `<strong>• ${item.name} - </strong>` : '
 
 <code>${address}</code>
 
-您的 ${vpsDetails?.plan || 'VPS'} 计划将在支付确认后自动激活（通常只需几分钟）。
+您的 ${vpsDetails?.isRDP ? 'Windows RDP' : 'VPS'} 将在支付确认后自动激活（通常只需几分钟）。
 
 此致,
 ${CHAT_BOT_NAME}`,
@@ -3099,16 +3099,12 @@ ${CHAT_BOT_NAME}`,
  vpsBoughtSuccess: (vpsDetails, response, credentials) => {
  const isRDP = response.isRDP || vpsDetails.isRDP || response.osType === 'Windows'
  const connectInfo = isRDP
- ? ` <strong>• 连接:</strong> 🖥 远程桌面 → <code>${response.host}:3389</code>\n <strong>• 方法:</strong> 打开远程桌面连接 (mstsc) 并输入上述地址。`
- : ` <strong>• 连接:</strong> 💻 <code>ssh ${credentials.username}@${response.host}</code>`
- 
- const passwordWarning = isRDP
- ? `\n⚠️ <b>请立即保存您的密码</b> — 之后无法找回。如丢失，请在 VPS 管理中使用"重置密码"（数据将保留）。`
- : `\n⚠️ <b>请安全保存您的凭据。</b>`
- 
+ ? `<strong>🔗 连接:</strong> 🖥 远程桌面 (mstsc) → <code>${response.host}:3389</code>`
+ : `<strong>🔗 连接:</strong> 💻 <code>ssh ${credentials.username}@${response.host}</code>`
+
  const readinessNote = isRDP
- ? `\n⏱ <b>请预留 5–10 分钟</b>用于 Windows 首次启动。若交付后 RDP 立即拒绝密码，请稍候几分钟再重试——密码是正确的。`
- : `\n⏱ <b>请预留 2–5 分钟</b>用于首次启动设置。若交付后 SSH 立即提示 "permission denied"，请稍候几分钟再重试——密码是正确的。`
+ ? `\n⏱ <b>请预留 5–10 分钟</b>用于 Windows 首次启动。⚠️ <b>请立即保存您的密码</b> — 之后无法找回（如丢失，请在 RDP 管理中使用"重置密码"）。`
+ : `\n⏱ <b>请预留 2–5 分钟</b>用于首次启动设置。⚠️ <b>请安全保存您的凭据。</b>`
 
  return `<strong>🎉 ${isRDP ? 'RDP' : 'VPS'} [${response.label}] 已激活！</strong>
 
@@ -3118,9 +3114,8 @@ ${CHAT_BOT_NAME}`,
  <strong>• 用户名:</strong> <code>${credentials.username}</code>
  <strong>• 密码:</strong> <tg-spoiler><code>${credentials.password}</code></tg-spoiler>（点击查看并复制）
 
-<strong>🔗 连接方式:</strong>
 ${connectInfo}
-${readinessNote}${passwordWarning}
+${readinessNote}
 
 ${CHAT_BOT_NAME}`
  },
@@ -3436,9 +3431,14 @@ ${dataPreserved
  askRdpDuration: (config, cycles) => `📅 <strong>您想预付多长时间？</strong>
 
 <strong>${config.name}</strong> — ${config.specs.vCPU} vCPU · ${config.specs.RAM}GB RAM · ${config.specs.disk}GB NVMe
-${cycles.map(c => `• ${c.period} 个月 — <b>$${c.price}</b>`).join('\n')}
+${cycles.map(c => {
+  const per = Number(c.period) || 1
+  const base = (Number(config.monthlyPrice) || 0) * per
+  const save = per > 1 && base > 0 && Number(c.price) < base ? Math.round((1 - Number(c.price) / base) * 100) : 0
+  return `• ${per === 1 ? '1 个月' : `${per} 个月`} — <b>$${c.price}</b>${save > 0 ? ` <i>(省 ${save}%)</i>` : ''}`
+}).join('\n')}
 
-更长的周期一次性付费；到期时自动续费将按同一周期再次扣费。`,
+更长的周期一次性付费并享受套餐折扣；到期时自动续费将按同一周期再次扣费。`,
  rdpEditionBtn: o => `🪟 ${o.name}${o.fast_deploy ? ` ⚡ 约 ${o.eta_minutes || 3} 分钟` : ' ⏳ 约 45 分钟'}`,
  askRdpEdition: options => `🪟 <strong>选择您的 Windows 版本</strong>
 
