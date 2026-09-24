@@ -10,7 +10,7 @@ import time
 from typing import Dict, Any, Optional
 
 # Backend URL from environment
-BACKEND_URL = "https://service-config-7.preview.emergentagent.com"
+BACKEND_URL = "https://service-config-test.preview.emergentagent.com"
 TEST_CHAT_ID = "6687923716"
 INVALID_CHAT_ID = "9999999999"
 

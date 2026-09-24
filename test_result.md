@@ -187,7 +187,7 @@ user_problem_statement: |
           
           SCOPE: Verified the new bulk subdomain import feature end-to-end using the test account 
           btpk8j (PIN: 135790, primary domain: btpk8jbulk.com) on the hosting panel at 
-          https://service-config-7.preview.emergentagent.com/panel. This is a 
+          https://service-config-test.preview.emergentagent.com/panel. This is a 
           LIVE PRODUCTION environment with real cPanel/WHM integration. Testing was performed with 
           a throwaway test account safe to mutate.
           
@@ -354,7 +354,7 @@ backend:
           ✅ VERIFICATION COMPLETE - cPanel stale-cpPass SELF-HEAL fix v2 PASSED (all checks, 100% pass):
           
           SCOPE: Verified the cPanel stale-cpPass SELF-HEAL fix (v2) on the SMADAV whitelabel pod 
-          (Node.js backend port 5000, external URL https://service-config-7.preview.emergentagent.com). 
+          (Node.js backend port 5000, external URL https://service-config-test.preview.emergentagent.com). 
           This is a PRODUCTION-connected MongoDB environment. All verification was READ-ONLY via the dev endpoint 
           (NO real WHM /passwd calls, NO real uploads, NO data mutations).
           
@@ -532,7 +532,7 @@ backend:
           • All verification via the dev endpoint /api/dev/cpanel-auth-broken-check
           
           MINOR NOTE (NOT CRITICAL):
-          • Panel routes via external URL (https://service-config-7.preview.emergentagent.com) 
+          • Panel routes via external URL (https://service-config-test.preview.emergentagent.com) 
             return HTML/Cloudflare challenges instead of 401 JSON. This is a proxy/ingress configuration 
             issue, NOT a code issue. The routes work correctly on localhost:5000 (verified above).
           
@@ -553,7 +553,7 @@ backend:
           ✅ VERIFICATION COMPLETE - cPanel WHM impersonation session upload fix v3 PASSED (all checks, 100% pass):
           
           SCOPE: Verified the cPanel WHM impersonation session upload fix (v3) on the SMADAV whitelabel pod 
-          (Node.js backend port 5000, external URL https://service-config-7.preview.emergentagent.com). 
+          (Node.js backend port 5000, external URL https://service-config-test.preview.emergentagent.com). 
           This is a PRODUCTION-connected MongoDB environment. All verification was READ-ONLY via the dev endpoint 
           (NO real WHM traffic, NO real uploads, NO data mutations).
           
@@ -767,7 +767,7 @@ backend:
           • All verification via the dev endpoint /api/dev/cpanel-auth-broken-check
           
           MINOR NOTE (NOT CRITICAL):
-          • Panel routes via external URL (https://service-config-7.preview.emergentagent.com) 
+          • Panel routes via external URL (https://service-config-test.preview.emergentagent.com) 
             return 404 for POST routes. This is a proxy/ingress configuration issue, NOT a code issue. The 
             routes work correctly on localhost:5000 (verified above).
           
@@ -1289,7 +1289,7 @@ backend:
               
               ✅ ok === true
               ✅ audio.audioUrl present and ending in .mp3
-                URL: https://service-config-7.preview.emergentagent.com/api/assets/user-audio/tts_1786329027952_rachel.mp3
+                URL: https://service-config-test.preview.emergentagent.com/api/assets/user-audio/tts_1786329027952_rachel.mp3
               ✅ NO audio.error field
               ✅ audio.voice === "Rachel"
               ✅ audio.fallbackUsed === false
@@ -4461,7 +4461,7 @@ backend:
             
             ✅ Step 2: permanent_mp3_url (CORE FIX)
                 • pass: true ✅
-                • audioUrl: "https://service-config-7.preview.emergentagent.com/api/assets/user-audio/DEVTEST-VM_01e0ce71-bbb.mp3" ✅
+                • audioUrl: "https://service-config-test.preview.emergentagent.com/api/assets/user-audio/DEVTEST-VM_01e0ce71-bbb.mp3" ✅
                 ★ CORE FIX VERIFIED: The saved audioUrl is a PERMANENT /assets/user-audio/*.mp3 URL
                 ★ NOT an api.telegram.org link (which would expire in ~1h)
                 ★ The OGG voice note was transcoded to MP3 format
@@ -9181,7 +9181,7 @@ backend:
             • test_phone_scheduler_no_leak.js: 12 passed, 0 failed ✓
           
           TEST 10 - Admin endpoint smoke test: ✅ PASSED
-            • GET https://service-config-7.preview.emergentagent.com/api/admin/dns-heal-status?key=o/Qb8ArGahlquhCQ
+            • GET https://service-config-test.preview.emergentagent.com/api/admin/dns-heal-status?key=o/Qb8ArGahlquhCQ
             • HTTP 200, ok=true ✓
           
           CONCLUSION:
@@ -10700,7 +10700,7 @@ frontend:
           
           SCOPE: Regression + console-cleanliness check on the hosting panel after the fix that removed React 
           "unstable nested component" warnings. Tested with account btu2ga (PIN: 135790, primary domain: 
-          btu2gabulk.com) at https://service-config-7.preview.emergentagent.com/panel. 
+          btu2gabulk.com) at https://service-config-test.preview.emergentagent.com/panel. 
           This is a LIVE PRODUCTION environment with real cPanel/WHM integration.
           
           [PRIMARY OBJECTIVE] React "unstable nested component" warnings: ✅ FIXED (0 warnings found)
@@ -10860,7 +10860,7 @@ frontend:
         comment: |
           ✅ READ-ONLY UI VERIFICATION COMPLETE - ALL TESTS PASSED (100% pass rate)
           
-          SCOPE: Verified the Nomadly admin panel UI at https://service-config-7.preview.emergentagent.com
+          SCOPE: Verified the Nomadly admin panel UI at https://service-config-test.preview.emergentagent.com
           in READ-ONLY mode. This is a LIVE PRODUCTION environment with real MongoDB and payment/domain/telephony APIs.
           NO data-modifying actions were taken (no clicks on Buy, Register, Purchase, Create, Delete, Send, Connect, 
           Verify, Submit, Save buttons). Only page navigation, reading text, and capturing console/network errors.
@@ -11300,7 +11300,7 @@ frontend:
           ✅ VERIFICATION COMPLETE - Sales Dashboard welcome bonus indicator PASSED (all checks, 100% pass):
           
           SCOPE: Verified the new welcome bonus indicator feature on the Sales Dashboard at 
-          https://service-config-7.preview.emergentagent.com/sales. This is a 
+          https://service-config-test.preview.emergentagent.com/sales. This is a 
           READ-ONLY verification of the UI indicators - no data mutations.
           
           [TEST 1] Login verification: ✅ PASSED
@@ -11412,7 +11412,7 @@ frontend:
           ✅ VERIFICATION COMPLETE - Sales Dashboard welcome bonus deducted from Net Profit PASSED (all checks, 100% pass):
           
           SCOPE: Verified the new welcome bonus deduction feature on the Sales Dashboard at 
-          https://service-config-7.preview.emergentagent.com/sales. This is a 
+          https://service-config-test.preview.emergentagent.com/sales. This is a 
           READ-ONLY verification on production-connected MongoDB. Current DB state: 25 users × $5 
           welcome bonus = $125 welcome bonuses given, $0 sales, $0 deposits. Platform shows a $125 
           marketing OPEX loss.
@@ -11532,7 +11532,7 @@ frontend:
         comment: |
           ✅ VERIFICATION COMPLETE - Storefront UI/UX usability pass PASSED (13/15 items, 2 minor issues):
           
-          SCOPE: Verified the storefront hosting-plan panel UI/UX at https://service-config-7.preview.emergentagent.com/store
+          SCOPE: Verified the storefront hosting-plan panel UI/UX at https://service-config-test.preview.emergentagent.com/store
           (also accessible at root "/"). This is a LIVE PRODUCTION site with real MongoDB + live crypto/domain/Telegram APIs.
           All testing was STRICT READ-ONLY (no final checkout clicks, no real login submissions, no purchases).
           
@@ -11734,7 +11734,7 @@ backend:
           ✅ VERIFICATION COMPLETE - DO VPS full control (A+B+C) PASSED (all checks, 100% pass):
           
           SCOPE: Verified the DigitalOcean "full VPS control" feature (A+B+C) on the Smadav/Nomadly 
-          Node.js bot backend (port 5000, external URL https://service-config-7.preview.emergentagent.com). 
+          Node.js bot backend (port 5000, external URL https://service-config-test.preview.emergentagent.com). 
           This is a PRODUCTION-connected MongoDB environment with LIVE DigitalOcean and Telegram credentials. 
           All verification was READ-ONLY via the dev regression endpoint (NO real DigitalOcean or Telegram actions).
           
@@ -12211,13 +12211,31 @@ metadata:
 
 test_plan:
   current_focus:
-    - "FIX 1 — WHM origin-IP leak in storefront nameservers payload (whm-service + cr-register + Storefront + store.css)"
-    - "FIX 2 — WHM userdata self-heal (hosting-scheduler + whm-userdata-heal + addon-domain-flow + _index change-primary)"
+    - "SETUP/RE-BOOTSTRAP health verification (2026 pod) — Safe Dev Sandbox; READ-ONLY backend smoke test only"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
+  - agent: "main"
+    timestamp: "2026 pod re-bootstrap"
+    message: |
+      SETUP HEALTH CHECK ONLY — the app was just re-bootstrapped from user creds in Safe Dev Sandbox mode
+      (BOT_ENVIRONMENT=development, SKIP_WEBHOOK_SYNC=true). Architecture: React panel :3000 -> FastAPI :8001
+      -> proxy -> Node Express :5000 -> LIVE Railway PRODUCTION MongoDB (DB_NAME=smadav).
+      GOAL: confirm the backend came up correctly. STRICT READ-ONLY, NON-DESTRUCTIVE smoke test only:
+        1) GET <REACT_APP_BACKEND_URL>/api/health -> expect {status:"healthy", database:"connected"}
+        2) Confirm auth-protection: GET <REACT_APP_BACKEND_URL>/api/panel/subdomains (no auth) -> expect 401 JSON
+        3) Sales dashboard login endpoint returns a token for the known password (SALES_DASHBOARD_PASSWORD=Nomadly123@),
+           then ONE READ-ONLY GET (e.g. /overview) — do NOT mutate anything.
+      LIVE PRODUCTION DATA + live crypto/domain/telephony/Telegram creds. DO NOT:
+        - create/pay any order, deposit, or invoice (no crypto/DynoPay/Fincra calls),
+        - provision/delete any VPS/RDP/domain/subdomain/cPanel/MySQL/DNS,
+        - send any SMS / place any call / buy any number,
+        - trigger the Telegram bot to write, or overwrite any webhook,
+        - write/modify/delete any Mongo document.
+      Just verify health + read-only endpoints respond and report pass/total. If a check needs a write to
+      pass, SKIP it and note why.
   - agent: "main"
     timestamp: "2026-08-29"
     message: |
@@ -12880,7 +12898,7 @@ agent_communication:
         
         ✅ ok === true
         ✅ audio.audioUrl present and ending in .mp3
-          URL: https://service-config-7.preview.emergentagent.com/api/assets/user-audio/tts_1786329027952_rachel.mp3
+          URL: https://service-config-test.preview.emergentagent.com/api/assets/user-audio/tts_1786329027952_rachel.mp3
         ✅ NO audio.error field
         ✅ audio.voice === "Rachel"
         ✅ audio.fallbackUsed === false
@@ -17604,7 +17622,7 @@ vps_show_password_feature_2026_08_13:
           ✅ VERIFICATION COMPLETE - Enhanced wallet-composition indicators PASSED (all checks, 100% pass):
           
           SCOPE: Verified the enhanced wallet-composition indicators on the Sales Dashboard at 
-          https://service-config-7.preview.emergentagent.com/sales. This is a 
+          https://service-config-test.preview.emergentagent.com/sales. This is a 
           READ-ONLY verification of the UI indicators - no data mutations. DB currently only has 
           welcome-bonus transactions ($120.00 total = 24 users × $5.00 each), so refunds/adjustments/
           deposits read $0.00 as expected per review request.
