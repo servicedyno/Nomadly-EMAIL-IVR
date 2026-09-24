@@ -16,7 +16,7 @@ xdotool key --delay 200 super+r; sleep 3
 # The snippet itself is read from the shared drive, so no quoting issues in the Run box.
 xdotool type --delay 40 'powershell -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -Command "& { . \\tsclient\share\cmd.ps1 } *>&1 | Out-File \\tsclient\share\out.txt; Get-Date | Out-File \\tsclient\share\done.txt"'
 sleep 1; xdotool key Return
-for i in $(seq 1 45); do [ -f "$OUT/done.txt" ] && break; sleep 2; done
+for i in $(seq 1 "${WAIT_ITER:-45}"); do [ -f "$OUT/done.txt" ] && break; sleep 2; done
 import -window root "$OUT/desktop.png" 2>/dev/null
 kill $RDP 2>/dev/null; kill $XV 2>/dev/null
 [ -f "$OUT/out.txt" ] && { iconv -f UTF-16 -t UTF-8 "$OUT/out.txt" 2>/dev/null || cat "$OUT/out.txt"; exit 0; }

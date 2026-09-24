@@ -21,7 +21,7 @@ const { MongoClient } = require('mongodb')
 const axios = require('axios')
 
 function arg(name, def) { const i = process.argv.indexOf(`--${name}`); return i === -1 ? def : (process.argv[i + 1] && !process.argv[i + 1].startsWith('--') ? process.argv[i + 1] : true) }
-const OS = String(arg('os', 'ws2022')), REGION = String(arg('region', 'US')), PLAN = String(arg('plan', 'starter-1m')), KEEP = !!arg('keep', false), WAIT_MIN = Number(arg('wait-min', 30))
+const OS = String(arg('os', 'ws2022')), REGION = String(arg('region', 'US')), PLAN = String(arg('plan', 'standard-1m')), KEEP = !!arg('keep', false), WAIT_MIN = Number(arg('wait-min', 30))
 const sleep = (ms) => new Promise(r => setTimeout(r, ms))
 const ts = () => new Date().toISOString().slice(11, 19)
 const doGet = async (p) => (await axios.get(`https://api.digitalocean.com/v2${p}`, { headers: { Authorization: `Bearer ${process.env.DIGITALOCEAN_API_TOKEN}` }, validateStatus: () => true })).data
