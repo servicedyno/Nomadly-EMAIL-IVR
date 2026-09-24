@@ -2015,6 +2015,11 @@ host_4: (safeHtml) => `${safeHtml}`,
  util_7: (displayName, toFixed) => `🚨 <b>URGENT — VPS समाप्त</b>\n\n🖥️ <b>${displayName}</b> has expired.\n💰 शेष राशि: $${toFixed}\n\n⚠️ <b>सर्वर will be deleted shortly.</b>\nRenew NOW: VPS/RDP → Manage → 📅 नवीनीकरण Now`,
  util_8: (displayName, expiryDate, planPrice, toFixed, statusIcon, v5) => `🖥️ <b>VPS समाप्त हो रहा है in 3 Days</b>\n\n<b>${displayName}</b> समाप्त होता है on <b>${expiryDate}</b>.\n💵 Required: <b>$${planPrice}/mo</b>\n💳 शेष राशि: $${toFixed}\n${statusIcon} ${sufficient ? 'Auto-renewal will be attempted 1 day before expiry.' : 'अपर्याप्त शेष राशि — top up or नवीनीकरण manually to keep your server!'}`,
  util_9: '💡 नेविगेट करने के लिए नीचे बटन का उपयोग करें।',
+
+ // === Windows RDP — 3 दिन की छूट अवधि ===
+ rdpGraceStart: (displayName, deleteDate) => `🖥 <b>${displayName}</b> <b>समाप्त</b> हो गया और <b>बंद</b> कर दिया गया।\n\n🗑 नवीनीकरण न करने पर इसे <b>${deleteDate} को स्थायी रूप से हटा दिया जाएगा</b> (3-दिन की छूट अवधि) — सारा डेटा नष्ट हो जाएगा।\n\n♻️ अभी नवीनीकृत करें: 🖥️ VPS/RDP → Manage → Renew`,
+ rdpGraceReminder: (displayName, deleteDate) => `⏳ <b>अंतिम अनुस्मारक</b>\n\n🖥 नवीनीकरण न करने पर <b>${displayName}</b> को <b>${deleteDate} को स्थायी रूप से हटा दिया जाएगा</b>।\n\nउसके बाद सर्वर और उसका सारा डेटा हमेशा के लिए चला जाएगा।\n\n♻️ अभी नवीनीकृत करें: 🖥️ VPS/RDP → Manage → Renew`,
+ rdpDeletedAfterGrace: (displayName) => `🗑 <b>${displayName}</b> को 3-दिन की छूट अवधि बिना नवीनीकरण के समाप्त होने के बाद <b>स्थायी रूप से हटा दिया गया</b>।\n\nसर्वर का सारा डेटा नष्ट हो गया है। आप मेनू से कभी भी नया Windows RDP ऑर्डर कर सकते हैं।`,
  vps_1: (message) => `❌ विफल to read file: ${message}`,
  vps_10: '✏️ दर्ज करें the new <b>Subject</b> line:',
  vps_11: '⚙️ <b>Email एडमिन Panel</b>',

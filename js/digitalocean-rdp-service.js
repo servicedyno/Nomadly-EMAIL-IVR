@@ -130,7 +130,7 @@ const GOLDEN_ALL_REGIONS = [...new Set(Object.values(REGION_TO_DO))]
 const UBUNTU_IMAGE = process.env.DO_UBUNTU_IMAGE || 'ubuntu-22-04-x64'
 
 // Poll timings (ms / min) — exported as _timing so tests can shrink them.
-const T = { bootPoll: 5000, rdpPoll: 30000, actionPoll: 15000, offPoll: 10000, rdpPort: 3389, rdpMaxMin: 90, transferMaxMin: 90, buildMaxMin: 120, importPoll: 30000, importMaxMin: 240, importRetryMin: 150, importRetries: 2, importSlotMaxMin: 480, callbackGraceMs: 90000, fastTargetMs: 180000, digestMs: 24 * 60 * 60 * 1000, commandWaitMs: 150000, commandPoll: 2000, agentStaleMs: 10 * 60 * 1000, rebuildMaxMin: 20 }
+const T = { bootPoll: 5000, rdpPoll: 30000, actionPoll: 15000, offPoll: 10000, rdpPort: 3389, rdpMaxMin: 90, transferMaxMin: 90, buildMaxMin: 120, importPoll: 30000, importMaxMin: 240, importRetryMin: 150, importRetries: 2, importSlotMaxMin: 480, callbackGraceMs: 90000, fastTargetMs: 180000, digestMs: 24 * 60 * 60 * 1000, commandWaitMs: 150000, commandPoll: 2000, agentStaleMs: 10 * 60 * 1000, rebuildMaxMin: 20, graceDays: Number(process.env.RDP_GRACE_DAYS || 3) }
 
 // ─────────────────────────────────────────────────────────────
 // Admin alerts (Telegram via the bot's notifyAdmin, injected by _index.js init)
@@ -354,10 +354,12 @@ async function releaseVolume(volumeId, dropletId) {
 let _servers = null
 let _osCol = null
 let _builds = null
+let _db = null
 function init(db, { notifyAdmin } = {}) {
   try {
     if (!db || typeof db.collection !== 'function') return false
     if (typeof notifyAdmin === 'function') _notifyAdmin = notifyAdmin
+    _db = db
     _servers = db.collection('doRdpServers')
     _osCol = db.collection('doRdpOsOptions')
     _builds = db.collection('doRdpImageBuilds')
@@ -584,11 +586,14 @@ async function renewInstance(instanceId, months = 1) {
   const base = s.expires_at && new Date(s.expires_at) > new Date() ? new Date(s.expires_at) : new Date()
   const expires = new Date(base.getTime() + 30 * m * 86400000)
   const set = { expires_at: expires, renewed_at: new Date() }
+  // A renewal always clears any 3-day grace state — the server is back in good standing.
+  set.expired_at = null
+  set.grace_until = null
   if (s.status === 'expired' || s.status === 'suspended') {
     try { if (s.do_droplet_id) await doDropletAction(s.do_droplet_id, { type: 'power_on' }) } catch (_) {}
     set.status = 'active'
   }
-  await _servers.updateOne({ server_id: id }, { $set: set })
+  await _servers.updateOne({ server_id: id }, { $set: set, $unset: { destroy_reason: '', destroyed_at: '', delete_retry_count: '' } })
   await addLog(id, 'renewed', `Renewed for ${m} month${m > 1 ? 's' : ''} - now expires ${expires.toISOString().slice(0, 10)}.`, null, null)
   return { instanceId: extId(id), expires_at: expires, months: m }
 }
@@ -1304,31 +1309,92 @@ const stopInstance     = (id) => _dropletActionByServer(id, { type: 'power_off' 
 const shutdownInstance = (id) => _dropletActionByServer(id, { type: 'shutdown' }, 'suspended')
 const restartInstance  = (id) => _dropletActionByServer(id, { type: 'reboot' }, null)
 
-async function cancelInstance(instanceId) {
+async function cancelInstance(instanceId, opts = {}) {
   const id = normId(instanceId)
   const s = _servers ? await _servers.findOne({ server_id: id }) : null
   if (s && s.do_droplet_id) { try { await doDeleteDroplet(s.do_droplet_id) } catch (e) { if (e.status !== 404) throw e } }
   if (s && s.volume_id) await releaseVolume(s.volume_id, s.do_droplet_id)
-  if (_servers) await _servers.updateOne({ server_id: id }, { $set: { status: 'destroyed', ip_address: null, do_droplet_id: null, volume_id: null } })
+  const set = { status: 'destroyed', ip_address: null, do_droplet_id: null, volume_id: null }
+  if (opts && opts.reason) { set.destroy_reason = opts.reason; set.destroyed_at = new Date() }
+  if (_servers) await _servers.updateOne({ server_id: id }, { $set: set })
   try { await secretStore.deleteSecret(id) } catch (_) {}
   return { destroyed: true, instanceId: extId(id) }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 3-day grace lifecycle helpers.
+// The bot VPS scheduler (js/_index.js) OWNS the DO-RDP grace lifecycle and
+// mirrors the grace state onto doRdpServers via these helpers so this service's
+// safety-net sweep + the reseller API read a consistent state.
+// ─────────────────────────────────────────────────────────────
+// Mirror a grace/lifecycle change onto the customer-facing vpsPlansOf record.
+// RDP records use contaboInstanceId = vpsId = extId(server_id) (vm-instance-setup.js).
+async function _mirrorVpsPlan(serverId, set) {
+  if (!_db || typeof _db.collection !== 'function') return
+  try {
+    await _db.collection('vpsPlansOf').updateOne(
+      { $or: [{ contaboInstanceId: extId(serverId) }, { vpsId: extId(serverId) }] },
+      { $set: set },
+    )
+  } catch (e) { log(`_mirrorVpsPlan(${serverId}) warn: ${e.message}`) }
+}
+
+// Enter grace on doRdpServers (called by the bot scheduler after it powers the box off).
+async function markGrace(instanceId, { expired_at, grace_until } = {}) {
+  if (!_servers) return false
+  const id = normId(instanceId)
+  const set = { status: 'expired' }
+  if (expired_at) set.expired_at = expired_at
+  if (grace_until) set.grace_until = grace_until
+  const r = await _servers.updateOne({ server_id: id }, { $set: set })
+  return !!(r && (r.matchedCount || r.modifiedCount))
+}
+
+// Mark the doRdpServers row as destroyed-by-grace (called after the scheduler destroys the droplet).
+async function markGraceDestroy(instanceId) {
+  if (!_servers) return false
+  const id = normId(instanceId)
+  const r = await _servers.updateOne({ server_id: id }, { $set: { status: 'destroyed', destroy_reason: 'expired_grace', destroyed_at: new Date() } })
+  return !!(r && (r.matchedCount || r.modifiedCount))
 }
 
 async function getSecretPassword(secretId) {
   try { return await secretStore.getSecretPassword(secretId) } catch (_) { return null }
 }
 
+// Hourly sweep (production only). Two passes:
+//   Sweep-1: an ACTIVE subscription that just expired → power OFF + enter the 3-day grace
+//            (set expired_at / grace_until) and mirror it onto vpsPlansOf. Customer loses
+//            access but the box (and its data) survive for grace before deletion.
+//   Sweep-2 (SAFETY NET): an EXPIRED box whose grace deadline has passed → DESTROY the droplet
+//            so DigitalOcean stops billing us (DO bills powered-off droplets per hour).
+//            The bot VPS scheduler normally owns this destroy (it can notify the user); the
+//            sweep only fires for records the scheduler missed.
 async function processExpiries() {
   if (!_servers) return []
   const now = new Date()
   const suspended = []
+  const destroyed = []
+  // Sweep-1 — active → expired (enter grace).
   const cursor = _servers.find({ status: 'active', expires_at: { $lte: now } })
   for await (const s of cursor) {
     try { if (s.do_droplet_id) await doDropletAction(s.do_droplet_id, { type: 'power_off' }) } catch (_) {}
-    await _servers.updateOne({ server_id: s.server_id }, { $set: { status: 'expired' } })
+    const graceUntil = new Date(new Date(s.expires_at || now).getTime() + T.graceDays * 86400000)
+    await _servers.updateOne({ server_id: s.server_id }, { $set: { status: 'expired', expired_at: now, grace_until: graceUntil } })
+    await _mirrorVpsPlan(s.server_id, { status: 'EXPIRED_GRACE', expired_at: now, grace_until: graceUntil })
     suspended.push(s.server_id)
   }
-  if (suspended.length) log(`processExpiries: powered off ${suspended.length} expired server(s)`)
+  // Sweep-2 — expired past the grace deadline → destroy (safety net).
+  const graceCursor = _servers.find({ status: 'expired', do_droplet_id: { $ne: null }, grace_until: { $lte: now } })
+  for await (const s of graceCursor) {
+    try {
+      await cancelInstance(s.server_id, { reason: 'expired_grace' })
+      await _mirrorVpsPlan(s.server_id, { status: 'CANCELLED', cancelledAt: now, cancelReason: 'expired_grace' })
+      destroyed.push(s.server_id)
+    } catch (e) { log(`processExpiries: grace-destroy error for ${s.server_id}: ${e.message}`) }
+  }
+  if (suspended.length) log(`processExpiries: powered off ${suspended.length} expired server(s) into ${T.graceDays}-day grace`)
+  if (destroyed.length) log(`processExpiries: DESTROYED ${destroyed.length} server(s) past grace (safety net)`)
   return suspended
 }
 
@@ -1425,6 +1491,8 @@ module.exports = {
   createInstance, createInstanceWithFallback, getInstance,
   startInstance, stopInstance, restartInstance, shutdownInstance,
   cancelInstance, getSecretPassword, createSecret, resetPassword, reinstallInstance, renewInstance,
+  // grace lifecycle mirror helpers (bot scheduler owns the grace lifecycle; these keep doRdpServers in sync)
+  markGrace, markGraceDestroy,
   // ops
   processExpiries, provisionRouter, sendDailyDigest, provisioningStatus,
   // golden images

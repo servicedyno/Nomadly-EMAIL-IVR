@@ -503,6 +503,18 @@ function createResellerApi(deps = {}) {
     const out = { id: rec.vpsId || rec._id, instance_id: rec.instanceId || null, plan: rec.plan, region: rec.region, os: rec.osType, os_id: rec.osId || null, status: live?.status || rec.status, ip: live?.mainIp || rec.host || null, live }
     // RDP only: whether the in-guest management agent (used by password-reset) has checked in recently.
     if (isRDP) out.agent_online = live ? !!live.agentOnline : null
+    // RDP 3-day grace: surface pending-deletion so a polling reseller sees the box is expired-but-not-yet-deleted.
+    if (isRDP) {
+      const graceUntil = rec.grace_until ? new Date(rec.grace_until) : null
+      const destroyedByGrace = rec.cancelReason === 'expired_grace' || rec.destroy_reason === 'expired_grace'
+      if (destroyedByGrace || out.status === 'destroyed') {
+        out.status = 'destroyed'
+        if (destroyedByGrace) out.destroy_reason = 'expired_grace'
+      } else if (graceUntil && !isNaN(graceUntil.getTime())) {
+        const daysRemaining = Math.max(0, Math.ceil((graceUntil.getTime() - Date.now()) / 86400000))
+        out.grace = { in_grace: true, expired_at: rec.expired_at || null, delete_at: graceUntil.toISOString(), days_remaining: daysRemaining }
+      }
+    }
     if (live && live.provisioning) {
       out.provisioning = live.provisioning
       out.credentials_ready = !!live.provisioning.credentials_ready
@@ -603,6 +615,45 @@ function createResellerApi(deps = {}) {
     }
   }
 
+  // POST /rdp/:id/renew {months} → extend the paid period (1/2/3 months, bundle-discounted),
+  // power the box back on if it was expired/in grace, and CLEAR the 3-day grace state so the
+  // RDP-service safety-net sweep + the bot scheduler stop counting it down for deletion.
+  // Billed against the API key's wallet (mirrors GET /rdp/plans pricing).
+  async function rdpRenewHandler(req, res) {
+    const rec = await loadOwnedVps(req, req.params.id, true)
+    if (!rec) return res.status(404).json({ error: 'not_found' })
+    const destroyedByGrace = rec.cancelReason === 'expired_grace' || rec.destroy_reason === 'expired_grace'
+    if (destroyedByGrace || ['destroyed', 'DESTROYED', 'CANCELLED', 'DELETED'].includes(String(rec.status))) {
+      return res.status(409).json({ error: 'already_destroyed', message: 'This RDP was permanently deleted (grace period ended) and cannot be renewed. Order a new one.' })
+    }
+    const prov = rdpProviderForRecord(rec)
+    const months = Math.min(3, Math.max(1, parseInt(req.body?.months, 10) || 1))
+    // Price the renewal for the record's tier at the requested month count (bundle discount applies).
+    const slug = String(rec.productId || '').replace(/-\d+m$/i, '')
+    const product = (slug && typeof prov.getProduct === 'function') ? prov.getProduct(`${slug}-${months}m`) : null
+    if (!product || !product.pricing) {
+      return res.status(400).json({ error: 'pricing_failed', message: 'Could not determine a renewal price for this RDP plan. Contact support.' })
+    }
+    if (!rec.instanceId || typeof prov.renewInstance !== 'function') return res.status(501).json({ error: 'not_supported' })
+
+    return billedProvision(req, res, {
+      product: 'rdp', action: 'renew', priceUsd: product.pricing.totalWithMarkup,
+      request: { id: rec.vpsId || rec._id, months, plan: rec.plan || product.name },
+      provision: async () => {
+        const r = await prov.renewInstance(rec.instanceId, months)
+        const base = (rec.end_time && new Date(rec.end_time) > new Date()) ? new Date(rec.end_time) : new Date()
+        const newExpiry = r?.expires_at ? new Date(r.expires_at) : new Date(base.getTime() + 30 * months * 86400000)
+        // Mirror onto vpsPlansOf: back to good standing + clear every grace/cancel field so
+        // neither the bot scheduler nor the RDP-service sweep destroys the box.
+        await col('vpsPlansOf').updateOne({ _id: rec._id }, {
+          $set: { status: 'RUNNING', end_time: newExpiry, renewed_at: new Date() },
+          $unset: { expired_at: '', grace_until: '', _graceReminderSent: '', cancelReason: '', cancelledAt: '', deleteRetryCount: '', lastDeleteError: '', lastDeleteAlertAt: '' },
+        })
+        return { success: true, id: rec.vpsId || rec._id, months, plan: rec.plan || product.name, expires_at: newExpiry.toISOString() }
+      },
+    })
+  }
+
   // VPS routes
   router.get('/vps/plans', apiKeyAuth, h((req, res) => vpsPlansHandler(req, res, false)))
   router.post('/vps', apiKeyAuth, h((req, res) => vpsCreateHandler(req, res, false)))
@@ -620,6 +671,7 @@ function createResellerApi(deps = {}) {
   router.post('/rdp/:id/action', apiKeyAuth, h((req, res) => vpsActionHandler(req, res, true)))
   router.post('/rdp/:id/password-reset', apiKeyAuth, h((req, res) => rdpPasswordResetHandler(req, res)))
   router.post('/rdp/:id/reinstall', apiKeyAuth, h((req, res) => rdpReinstallHandler(req, res)))
+  router.post('/rdp/:id/renew', apiKeyAuth, h((req, res) => rdpRenewHandler(req, res)))
   router.delete('/rdp/:id', apiKeyAuth, h((req, res) => vpsDestroyHandler(req, res, true)))
   router.get('/rdp/:id/credentials', apiKeyAuth, h((req, res) => vpsCredsHandler(req, res, true)))
 
@@ -910,12 +962,24 @@ function createResellerApi(deps = {}) {
     // VPS + RDP (reseller-owned flat docs)
     try {
       const vpsDocs = await col('vpsPlansOf').find({ chatId, status: { $ne: 'destroyed' } }).limit(500).toArray()
+      const TERMINAL = ['CANCELLED', 'DESTROYED', 'destroyed', 'DELETED']
       for (const v of vpsDocs) {
         const raw = v.end_time || v.expiresAt || v.subscriptionEnd || (v.subscription && v.subscription.subscriptionEnd) || null
         if (!raw) continue
         const exp = new Date(raw); if (isNaN(exp)) continue
         const days = Math.ceil((exp.getTime() - nowMs) / DAY)
-        items.push({ product: v.isRDP ? 'rdp' : 'vps', id: v.vpsId || v._id, plan: v.plan || null, region: v.region || null, expires_at: exp.toISOString(), days_until_expiry: days, status: bucket(days) })
+        const item = { product: v.isRDP ? 'rdp' : 'vps', id: v.vpsId || v._id, plan: v.plan || null, region: v.region || null, expires_at: exp.toISOString(), days_until_expiry: days, status: bucket(days) }
+        // RDP 3-day grace: an expired-but-not-yet-deleted box is powered off and pending
+        // permanent deletion at grace_until. Surface it so a polling reseller can renew in time.
+        const graceUntil = v.grace_until ? new Date(v.grace_until) : null
+        if (v.isRDP && graceUntil && !isNaN(graceUntil.getTime()) && !TERMINAL.includes(String(v.status))) {
+          item.status = 'grace'
+          item.in_grace = true
+          item.expired_at = v.expired_at ? new Date(v.expired_at).toISOString() : null
+          item.delete_at = graceUntil.toISOString()
+          item.days_until_deletion = Math.max(0, Math.ceil((graceUntil.getTime() - nowMs) / DAY))
+        }
+        items.push(item)
       }
     } catch (e) { log(`[ResellerAPI] renewals vps warn: ${e.message}`) }
 
@@ -927,6 +991,7 @@ function createResellerApi(deps = {}) {
         expired: filtered.filter(i => i.status === 'expired').length,
         expiring_soon: filtered.filter(i => i.status === 'expiring_soon').length,
         upcoming: filtered.filter(i => i.status === 'upcoming').length,
+        in_grace: filtered.filter(i => i.status === 'grace').length,
       },
       renewals: filtered,
     })

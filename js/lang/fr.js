@@ -2031,6 +2031,11 @@ host_4: (safeHtml) => `${safeHtml}`,
  util_7: (displayName, toFixed) => `🚨 <b>URGENT — VPS Expiré</b>\n\n🖥️ <b>${displayName}</b> has expired.\n💰 Solde: $${toFixed}\n\n⚠️ <b>Serveur will be deleted shortly.</b>\nRenew NOW: VPS/RDP → Manage → 📅 Renouveler Now`,
  util_8: (displayName, expiryDate, planPrice, toFixed, statusIcon, v5) => `🖥️ <b>VPS en expiration in 3 Days</b>\n\n<b>${displayName}</b> expire on <b>${expiryDate}</b>.\n💵 Required: <b>$${planPrice}/mo</b>\n💳 Solde: $${toFixed}\n${statusIcon} ${v5}`,
  util_9: '💡 Utilisez les boutons ci-dessous pour naviguer.',
+
+ // === Windows RDP — période de grâce de 3 jours ===
+ rdpGraceStart: (displayName, deleteDate) => `🖥 <b>${displayName}</b> a <b>expiré</b> et a été <b>éteint</b>.\n\n🗑 Il sera <b>définitivement supprimé le ${deleteDate}</b> (période de grâce de 3 jours) sauf renouvellement — toutes les données seront perdues.\n\n♻️ Renouveler : 🖥️ VPS/RDP → Gérer → Renouveler`,
+ rdpGraceReminder: (displayName, deleteDate) => `⏳ <b>Dernier rappel</b>\n\n🖥 <b>${displayName}</b> sera <b>définitivement supprimé le ${deleteDate}</b> sauf renouvellement.\n\nEnsuite, le serveur et toutes ses données seront perdus.\n\n♻️ Renouveler : 🖥️ VPS/RDP → Gérer → Renouveler`,
+ rdpDeletedAfterGrace: (displayName) => `🗑 <b>${displayName}</b> a été <b>définitivement supprimé</b> après la fin de la période de grâce de 3 jours sans renouvellement.\n\nToutes les données du serveur sont perdues. Vous pouvez commander un nouveau RDP Windows à tout moment depuis le menu.`,
  vps_1: (message) => `❌ Échoué to read file: ${message}`,
  vps_10: '✏️ Entrez the new <b>Subject</b> line:',
  vps_11: '⚙️ <b>Email Admin Panel</b>',

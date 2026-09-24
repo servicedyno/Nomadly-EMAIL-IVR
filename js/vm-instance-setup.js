@@ -1773,6 +1773,16 @@ async function renewVPSPlan(telegramId, subscriptionId) {
     }
     const unset = {}
 
+    // A renewal always clears any 3-day grace state (DigitalOcean-RDP): the
+    // customer is back in good standing, so the box must leave EXPIRED_GRACE and
+    // not be swept for deletion. Unsetting fields that don't exist is a no-op.
+    unset.expired_at = ''
+    unset.grace_until = ''
+    unset._graceReminderSent = ''
+    unset.deleteRetryCount = ''
+    unset.lastDeleteError = ''
+    unset.lastDeleteAlertAt = ''
+
     // If the plan was previously cancelled-early on Contabo (e.g. wallet
     // deduct failed at T-24h and we proactively cancelled), this manual
     // renewal means the customer is back in good standing. Clear our cancel
@@ -1796,6 +1806,18 @@ async function renewVPSPlan(telegramId, subscriptionId) {
     const mongoUpdate = { $set: update }
     if (Object.keys(unset).length) mongoUpdate.$unset = unset
     await _vpsPlansOf.updateOne({ vpsId: String(subscriptionId) }, mongoUpdate)
+
+    // DigitalOcean-RDP: tell the provider to power the box back on + clear its
+    // own doRdpServers grace fields (svc.renewInstance handles both). Other
+    // providers manage renewal on their side / via the scheduler.
+    try {
+      if (vpsProvider.detectProviderByInstanceId(record.contaboInstanceId) === 'digitalocean-rdp') {
+        const prov = vpsProvider.getProviderForRecord(record)
+        if (prov && typeof prov.renewInstance === 'function') {
+          await prov.renewInstance(record.contaboInstanceId, Math.max(1, Number(record.durationMonths) || 1))
+        }
+      }
+    } catch (e) { console.log(`[VPS] DO-RDP provider renew sync failed for ${subscriptionId}: ${e.message}`) }
 
     return {
       success: true,
