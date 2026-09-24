@@ -3656,7 +3656,7 @@ Please try again in a few minutes or contact support if the issue persists.`,
 Your VPS is running Linux. Use SSH keys for access management instead.`,
 
  // ── DigitalOcean Windows RDP: duration + edition pickers, in-place reinstall ──
- rdpDurationBtn: c => (Number(c.period) === 1 ? `1 month — $${c.price}` : `${c.period} months — $${c.price}`),
+ rdpDurationBtn: c => (Number(c.period) === 1 ? `1 month — $${c.price}` : `${c.period} months — $${c.price}${c.discountPct ? ` (Save ${c.discountPct}%)` : ''}`),
  askRdpDuration: (config, cycles) => `📅 <strong>How long do you want to prepay?</strong>
 
 <strong>${config.name}</strong> — ${config.specs.vCPU} vCPU · ${config.specs.RAM}GB RAM · ${config.specs.disk}GB NVMe

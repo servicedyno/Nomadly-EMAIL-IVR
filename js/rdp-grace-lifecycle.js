@@ -25,7 +25,9 @@ const { detectProviderByInstanceId } = require('./vps-provider')
 
 const GRACE_DAYS = Math.max(0, Number(process.env.RDP_GRACE_DAYS || 3))
 // Send the "about to be deleted" reminder this long before the grace deadline.
-const REMINDER_LEAD_MS = 24 * 60 * 60 * 1000
+// Configurable via RDP_GRACE_REMINDER_LEAD_HOURS (default 24h).
+const REMINDER_LEAD_HOURS = Math.max(0, Number(process.env.RDP_GRACE_REMINDER_LEAD_HOURS || 24))
+const REMINDER_LEAD_MS = REMINDER_LEAD_HOURS * 60 * 60 * 1000
 
 function _ms(d) { return d == null ? null : (d instanceof Date ? d.getTime() : new Date(d).getTime()) }
 function _fmtDate(d) { try { return new Date(d).toLocaleDateString() } catch (_) { return String(d) } }
@@ -83,6 +85,7 @@ function decideRdpGrace(vpsPlan, opts = {}) {
 //   mirrorGrace(instanceId, fields) -> RDP service markGrace (doRdpServers -> expired + grace fields)
 //   mirrorDestroy(instanceId)       -> RDP service markGraceDestroy (doRdpServers -> destroyed/expired_grace)
 //   notifyUser(chatId, msgKey, args)-> localized Telegram send (caller resolves lang)
+//   notifyReseller(event, payload)  -> push webhook to the reseller API key owner (best-effort)
 //   notifyAdmin(text)               -> admin Telegram alert (destroy failures)
 //   log(msg)
 // }
@@ -102,6 +105,7 @@ async function applyRdpGrace(vpsPlan, decision, deps = {}) {
       if (deps.updatePlan) await deps.updatePlan(vpsPlan._id, { status: 'EXPIRED_GRACE', expired_at: expiredAt, grace_until: graceUntilD, _graceReminderSent: false })
       if (deps.mirrorGrace) { try { await deps.mirrorGrace(inst, { expired_at: expiredAt, grace_until: graceUntilD }) } catch (e) { log(`[RDP Grace] mirror(grace) failed: ${e.message}`) } }
       if (deps.notifyUser) { try { deps.notifyUser(chatId, 't.rdpGraceStart', [displayName, _fmtDate(graceUntilD)]) } catch (_) {} }
+      if (deps.notifyReseller) { try { deps.notifyReseller('rdp.grace_start', { plan: vpsPlan.plan || null, region: vpsPlan.region || null, expired_at: new Date(expiredAt).toISOString(), delete_at: new Date(graceUntilD).toISOString() }) } catch (_) {} }
       log(`[RDP Grace] ${displayName} (${vpsId}) powered off — grace until ${_iso(graceUntilD)}`)
       return { action: 'enter_grace', grace_until: graceUntilD }
     }
@@ -119,6 +123,7 @@ async function applyRdpGrace(vpsPlan, decision, deps = {}) {
         if (deps.updatePlan) await deps.updatePlan(vpsPlan._id, { status: 'CANCELLED', cancelledAt: now, cancelReason: 'expired_grace' })
         if (deps.mirrorDestroy) { try { await deps.mirrorDestroy(inst) } catch (e) { log(`[RDP Grace] mirror(destroy) failed: ${e.message}`) } }
         if (deps.notifyUser) { try { deps.notifyUser(chatId, 't.rdpDeletedAfterGrace', [displayName]) } catch (_) {} }
+        if (deps.notifyReseller) { try { deps.notifyReseller('rdp.deleted', { plan: vpsPlan.plan || null, region: vpsPlan.region || null, reason: 'expired_grace' }) } catch (_) {} }
         log(`[RDP Grace] ${displayName} (${vpsId}) DELETED after the ${GRACE_DAYS}-day grace period`)
         return { action: 'destroy', destroyed: true }
       }
@@ -156,6 +161,7 @@ async function runRdpGracePass(records, deps = {}) {
 
 module.exports = {
   GRACE_DAYS,
+  REMINDER_LEAD_HOURS,
   REMINDER_LEAD_MS,
   isDigitalOceanRdp,
   graceUntil,

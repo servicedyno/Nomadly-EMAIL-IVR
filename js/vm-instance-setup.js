@@ -249,7 +249,7 @@ async function fetchAvailableVPSConfigs(telegramId, vpsDetails) {
     const cyclesFor = (p) => {
       if (!multiDuration) return [{ type: 'Monthly', price: p.pricing.totalWithMarkup, period: 1, productId: p.productId }]
       return allProducts.filter(x => x.slug === p.slug).sort((x, y) => x.durationMonths - y.durationMonths)
-        .map(x => ({ type: x.durationMonths === 1 ? 'Monthly' : `${x.durationMonths} Months`, price: x.pricing.totalWithMarkup, period: x.durationMonths, productId: x.productId }))
+        .map(x => ({ type: x.durationMonths === 1 ? 'Monthly' : `${x.durationMonths} Months`, price: x.pricing.totalWithMarkup, period: x.durationMonths, productId: x.productId, discountPct: (x.pricing && x.pricing.discountPct) || 0 }))
     }
     
     // Adapt to old format expected by _index.js

@@ -3469,7 +3469,7 @@ Veuillez réessayer dans quelques minutes ou contacter le support si le problèm
 Votre VPS exécute Linux. Utilisez plutôt les clés SSH pour la gestion des accès.`,
 
  // ── DigitalOcean Windows RDP : durée + édition, réinstallation sur place ──
- rdpDurationBtn: c => (Number(c.period) === 1 ? `1 mois — $${c.price}` : `${c.period} mois — $${c.price}`),
+ rdpDurationBtn: c => (Number(c.period) === 1 ? `1 mois — $${c.price}` : `${c.period} mois — $${c.price}${c.discountPct ? ` (Économisez ${c.discountPct}%)` : ''}`),
  askRdpDuration: (config, cycles) => `📅 <strong>Quelle durée souhaitez-vous prépayer ?</strong>
 
 <strong>${config.name}</strong> — ${config.specs.vCPU} vCPU · ${config.specs.RAM}GB RAM · ${config.specs.disk}GB NVMe

@@ -396,6 +396,8 @@ async function transferCall(callControlId, toNumber, fromNumber, options = {}) {
     if (fromNumber) body.from = fromNumber
     if (options.audioUrl) body.audio_url = options.audioUrl
     if (options.timeoutSecs) body.timeout_secs = options.timeoutSecs
+    // Tag the NEW leg created by the transfer (Telnyx echoes this base64 client_state on that leg's webhooks).
+    if (options.targetLegClientState) body.target_leg_client_state = Buffer.from(String(options.targetLegClientState)).toString('base64')
     log(`[Telnyx] Transferring call ${callControlId} to ${toNumber}${fromNumber ? ' from ' + fromNumber : ''}${options.audioUrl ? ' with hold music' : ''}`)
     const res = await axios.post(`${BASE}/calls/${callControlId}/actions/transfer`, body, { headers: headers() })
     log(`[Telnyx] Transfer initiated successfully`)

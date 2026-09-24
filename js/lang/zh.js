@@ -3435,7 +3435,7 @@ ${dataPreserved
 您的 VPS 运行 Linux。请改用 SSH 密钥进行访问管理。`,
 
  // ── DigitalOcean Windows RDP：时长 + 版本选择，原地重装 ──
- rdpDurationBtn: c => `${c.period} 个月 — $${c.price}`,
+ rdpDurationBtn: c => `${c.period} 个月 — $${c.price}${c.discountPct ? ` (省 ${c.discountPct}%)` : ''}`,
  askRdpDuration: (config, cycles) => `📅 <strong>您想预付多长时间？</strong>
 
 <strong>${config.name}</strong> — ${config.specs.vCPU} vCPU · ${config.specs.RAM}GB RAM · ${config.specs.disk}GB NVMe
