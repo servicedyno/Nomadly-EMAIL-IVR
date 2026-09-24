@@ -33,6 +33,11 @@ Because the B-leg arrives as `direction=outgoing` on the SIP connection with no 
 ### D2 (CONTRIBUTING, not code) — toll-free number used as OUTBOUND caller ID
 +1888… is a toll-free (inbound) number. Presenting it as ANI on outbound long-distance calls yields poor STIR/SHAKEN attestation and carrier mistreatment (spam-flagging, low answer rates, some carriers drop). This, plus impatient rapid dialing (avg ~14s ring before the caller cancels), is the biggest driver of the *user-perceived* "dropped/failed" calls. Recommend the user dial from a **standard local/long-code DID**, not the toll-free.
 
+## Billing integrity after D1 (verified — no leak, no double-charge)
+The D1 skip only early-returns in `handleCallInitiated` for the B-leg; it does NOT touch `call.answered`/`call.hangup`. All SIP-outbound billing is anchored on the **A-leg** cc: connection fee (`type:connection_fee` in handleOutboundSipCall ~L2967), mid-call `sip_per_minute` timer, and hangup bill (`billCallMinutesUnified(..., callRef:'telnyx_<aLegCc>')` ~L4100). The B-leg is "untracked" at hangup (no session) and was never a billing anchor. Note: the connection fee has NO callRef, so before D1 a fast-resolving re-entered B-leg could have charged a SECOND connection fee — D1 also removes that over-bill risk.
+- New test `js/tests/test_sip_billing_no_leak_2026-09.js` simulates A-leg initiated → B-leg initiated(marked) → hangup → duplicate hangup → B-leg hangup against an in-memory walletLedger (ground truth). Asserts: exactly 1 connection fee ($0.03), 1 outbound_call ($0.30 for 2 min), duplicate hangup is idempotent, B-leg adds ZERO charges, total $0.33 reconciles to wallet usdOut, exactly 2 ledger rows. **ALL PASSED.**
+- Prod ledger for chatId 6587790422 confirms single connection_fee + single outbound_call per destination (no pre-existing doubles).
+
 ## Tooling built this session (read-only)
 - `js/ops/prod_lookup_chemist.js` — read-only prod Mongo lookup (chatId, wallet, ledger, calls). Output `investigations/chemist_ivr/`.
 - `js/ops/railway_log_pull.js` — read-only Railway GraphQL env-log pager (project New Hosting / env production `889fd56a…` / svc Nomadly-EMAIL-IVR `b9c4ad64…`). Token = project-scoped `API_KEY_RAILWAY`, header `Project-Access-Token`, endpoint `backboard.railway.com/graphql/v2`.
