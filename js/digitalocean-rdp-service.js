@@ -169,6 +169,7 @@ function _products() {
   TIERS.forEach((t, tierIdx) => {
     for (const m of DURATIONS) {
       const price = sellPrice(t, m)
+      const discountPct = Math.round(bundleDiscount(m) * 100)
       out.push({
         productId: `${t.slug}-${m}m`,
         slug: t.slug,
@@ -179,7 +180,7 @@ function _products() {
         // bot / vm-instance-setup compat fields
         cpuCores: t.vcpu, ramMb: t.ram_gb * 1024, diskMb: t.disk_gb * 1024, diskType: 'nvme', bandwidthTb: 4, portSpeedMbps: 1000, tier: tierIdx + 1,
         do_size_slug: t.do_size_slug, do_size_slug_intel: t.do_size_slug_intel, do_size_slug_basic: t.do_size_slug_basic,
-        pricing: { base: price, markup: 0, totalWithMarkup: price, basePriceUsd: price, regionSurcharge: 0, windowsLicense: 0, totalBeforeMarkup: price, currency: 'usd', durationMonths: m },
+        pricing: { base: price, markup: 0, totalWithMarkup: price, basePriceUsd: price, regionSurcharge: 0, windowsLicense: 0, totalBeforeMarkup: price, currency: 'usd', durationMonths: m, discountPct },
       })
     }
   })

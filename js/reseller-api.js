@@ -294,6 +294,7 @@ function createResellerApi(deps = {}) {
     const mapPlans = (prov, isRDP) => (prov.listProducts(region, isRDP) || []).map(p => ({
       plan_id: p.productId, name: p.name || p.productId,
       vcpus: p.vcpus || p.vCpus || null, ram_gb: p.ramGb || null, disk_gb: p.diskGb || null,
+      duration_months: p.durationMonths || 1, discount_pct: (p.pricing && p.pricing.discountPct) || 0,
       price_usd: p.pricing ? p.pricing.totalWithMarkup : null,
     }))
     let vpsPlans = [], rdpPlans = [], vpsProviderName = process.env.VPS_DEFAULT_PROVIDER, rdpProviderName = process.env.VPS_RDP_PROVIDER
@@ -447,6 +448,7 @@ function createResellerApi(deps = {}) {
       plans: products.map(p => ({
         plan_id: p.productId, name: p.name || p.productId,
         vcpus: p.vcpus || p.vCpus || null, ram_gb: p.ramGb || null, disk_gb: p.diskGb || null,
+        duration_months: p.durationMonths || 1, discount_pct: (p.pricing && p.pricing.discountPct) || 0,
         price_usd: p.pricing ? p.pricing.totalWithMarkup : null,
       })),
     }

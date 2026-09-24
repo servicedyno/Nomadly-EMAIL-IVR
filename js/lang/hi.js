@@ -3453,7 +3453,7 @@ ${dataPreserved
 आपका VPS Linux चला रहा है। एक्सेस प्रबंधन के लिए इसके बजाय SSH कुंजी का उपयोग करें।`,
 
  // ── DigitalOcean Windows RDP: अवधि + संस्करण चयन, इन-प्लेस रीइंस्टॉल ──
- rdpDurationBtn: c => (Number(c.period) === 1 ? `1 महीना — $${c.price}` : `${c.period} महीने — $${c.price}`),
+ rdpDurationBtn: c => (Number(c.period) === 1 ? `1 महीना — $${c.price}` : `${c.period} महीने — $${c.price}${c.discountPct ? ` (${c.discountPct}% बचत)` : ''}`),
  askRdpDuration: (config, cycles) => `📅 <strong>आप कितने समय के लिए प्रीपे करना चाहते हैं?</strong>
 
 <strong>${config.name}</strong> — ${config.specs.vCPU} vCPU · ${config.specs.RAM}GB RAM · ${config.specs.disk}GB NVMe

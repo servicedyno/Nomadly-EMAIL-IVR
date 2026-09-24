@@ -15,9 +15,9 @@ const rdpDetails = { isRDP: true, os: { name: 'Windows Server 2022' } }
 // askRdpDuration inputs: a config + billingCycles with real bundle prices (Standard tier)
 const config = { name: 'Standard \u2014 Windows RDP', monthlyPrice: 56, specs: { vCPU: 2, RAM: 4, disk: 80 } }
 const cycles = [
-  { type: 'Monthly', price: 56, period: 1, productId: 'standard-1m' },
-  { type: '2 Months', price: 100.8, period: 2, productId: 'standard-2m' },
-  { type: '3 Months', price: 142.8, period: 3, productId: 'standard-3m' },
+  { type: 'Monthly', price: 56, period: 1, productId: 'standard-1m', discountPct: 0 },
+  { type: '2 Months', price: 100.8, period: 2, productId: 'standard-2m', discountPct: 10 },
+  { type: '3 Months', price: 142.8, period: 3, productId: 'standard-3m', discountPct: 15 },
 ]
 
 for (const lng of langs) {
@@ -40,6 +40,12 @@ for (const lng of langs) {
   ok(dur.includes('100.8') && dur.includes('142.8'), 'duration screen shows 2mo & 3mo prices')
   ok(/10\s?%/.test(dur) && /15\s?%/.test(dur), 'duration screen shows save 10% and 15%')
   ok(!/\bVPS\b/.test(dur) && !/SSH|Linux/i.test(dur), 'duration screen has no VPS/SSH/Linux leak')
+
+  // ── Duration BUTTONS carry the localized "Save X%" label on 2/3-month terms ──
+  const b1 = t.rdpDurationBtn(cycles[0]), b2 = t.rdpDurationBtn(cycles[1]), b3 = t.rdpDurationBtn(cycles[2])
+  ok(b2.includes('100.8') && b3.includes('142.8'), 'duration buttons show discounted 2mo/3mo prices')
+  ok(/10\s?%/.test(b2) && /15\s?%/.test(b3), 'duration buttons show 10% / 15% savings label')
+  ok(!/%/.test(b1), '1-month button has no savings label')
 
   // ── Task 4: crypto checkout wording (RDP vs VPS) ──
   const cryptoRdp = t.showDepositCryptoInfoVps(142.8, 0.0021, 'BTC', 'bc1qexampleaddress', { isRDP: true })
