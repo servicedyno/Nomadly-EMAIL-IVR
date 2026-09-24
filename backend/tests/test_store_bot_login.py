@@ -13,7 +13,7 @@ import pytest
 
 BASE_URL = os.environ.get(
     "REACT_APP_BACKEND_URL",
-    "https://network-diagnostics-24.preview.emergentagent.com",
+    "https://lifecycle-hub-35.preview.emergentagent.com",
 ).rstrip("/")
 TEST_CHATID = "5346193142"
 
