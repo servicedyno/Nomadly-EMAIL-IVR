@@ -280,6 +280,40 @@ function registerRecentTestCredential(sipUsername, chatId) {
 const autoRoutedPendingBilling = {} // Legacy — kept for hangup fallback
 const AUTO_ROUTE_BILLING_TTL = 600000 // 10 min — auto-expire stale entries
 
+// ── Self-originated PSTN transfer-leg guard ──
+// When we `transfer` an outbound SIP call to the PSTN, Telnyx creates a NEW outbound leg that fires
+// its OWN call.initiated (direction=outgoing, from=<our ANI>, no SIP credential). Without this guard
+// that leg re-enters handleOutboundSipCall and triggers a wasteful 250-credential reverse lookup,
+// resolves the WRONG user, and delays the call ~3s. We tag the new leg via Telnyx
+// `target_leg_client_state` (primary) and also record a short-TTL guard (backup) so the leg is skipped.
+const PSTN_LEG_STATE = 'nomadly_pstn_leg'
+const PSTN_LEG_GUARD_TTL = 20000 // 20s
+const _pstnLegGuard = new Map() // `${connectionId}|${to}|${ani}` → ts
+function _markSelfPstnLeg(connectionId, to, ani) {
+  if (_pstnLegGuard.size > 500) {
+    const cutoff = Date.now() - PSTN_LEG_GUARD_TTL
+    for (const [k, t] of _pstnLegGuard) if (t < cutoff) _pstnLegGuard.delete(k)
+  }
+  _pstnLegGuard.set(`${connectionId}|${(to || '').replace(/[^+\d]/g, '')}|${(ani || '').replace(/[^+\d]/g, '')}`, Date.now())
+}
+function _isSelfPstnLeg(payload) {
+  // Primary: Telnyx echoes our target_leg_client_state (base64) on the new leg's webhooks.
+  try {
+    if (payload.client_state) {
+      const cs = Buffer.from(payload.client_state, 'base64').toString('utf8')
+      if (cs === PSTN_LEG_STATE) return true
+    }
+  } catch (e) { /* not base64 — ignore */ }
+  // Backup: short-TTL guard recorded right before we issued the transfer.
+  const connectionId = payload.connection_id || ''
+  const to = (payload.to || '').replace(/[^+\d]/g, '')
+  const from = (payload.from || '').replace(/[^+\d]/g, '')
+  const key = `${connectionId}|${to}|${from}`
+  const ts = _pstnLegGuard.get(key)
+  if (ts && Date.now() - ts < PSTN_LEG_GUARD_TTL) { _pstnLegGuard.delete(key); return true }
+  return false
+}
+
 // Fix #5: Real-time billing for auto-routed calls that bypass normal flow
 // Called from rate-limit/hard-block handlers when isAutoRouted=true.
 // Does: user lookup → wallet check → connection fee → session + per-minute timer → hangup if broke
@@ -2077,6 +2111,15 @@ async function handleCallInitiated(payload) {
 
   log(`[Voice] handleCallInitiated: ${direction || '?'} from=${from} to=${to} conn=${connectionId} cc=${callControlId}`)
 
+  // ── SKIP: our own outbound PSTN leg created by an auto-routed transfer ──
+  // Telnyx fires call.initiated for the NEW leg we created via `transfer` (direction=outgoing,
+  // from=<our ANI>, no SIP credential). It's already tracked/billed on the A-leg. Re-processing it
+  // would run a 250-credential reverse lookup, resolve the WRONG user, and delay the call ~3s.
+  if (_isSelfPstnLeg(payload)) {
+    log(`[Voice] Skipping self-originated PSTN transfer leg cc=${callControlId} to=${to} (already tracked on A-leg)`)
+    return
+  }
+
   // ── OUTBOUND / SIP CALLS ──
   // Route to SIP handler if:
   // 1. direction is 'outgoing' (explicit outbound)
@@ -3028,7 +3071,9 @@ async function handleOutboundSipCall(payload) {
       if (callState && callState.phase === 'outbound_telnyx') {
         callState._pendingTransfer = { destination, callerNumber: num.phoneNumber }
       }
-      await _telnyxApi.transferCall(callControlId, destination, num.phoneNumber)
+      // Tag the NEW PSTN leg so its own call.initiated is skipped (no reverse lookup / re-route).
+      _markSelfPstnLeg(payload.connection_id, destination, num.phoneNumber)
+      await _telnyxApi.transferCall(callControlId, destination, num.phoneNumber, { targetLegClientState: PSTN_LEG_STATE })
       log(`[Voice] Outbound SIP (Telnyx): Transfer initiated ${callerDisplay} → ${destination} (autoRouted=${isAutoRouted})`)
     } catch (e) {
       const errMsg = e.message || ''
@@ -3042,7 +3087,8 @@ async function handleOutboundSipCall(payload) {
           }
           await new Promise(r => setTimeout(r, 1500))
           try {
-            await _telnyxApi.transferCall(callControlId, destination, num.phoneNumber)
+            _markSelfPstnLeg(payload.connection_id, destination, num.phoneNumber)
+            await _telnyxApi.transferCall(callControlId, destination, num.phoneNumber, { targetLegClientState: PSTN_LEG_STATE })
             log(`[Voice] Outbound SIP (Telnyx): Transfer retry ${retryCount + 1} succeeded ${callerDisplay} → ${destination}`)
           } catch (retryErr) {
             if ((retryErr.message || '').includes('not been answered') || (retryErr.message || '').includes('not answered')) {
@@ -5266,4 +5312,8 @@ module.exports = {
   
   trackIvrAnalytics,
   removeSipPreDialBlockByChatId,
+  // D1 fix (self-originated PSTN transfer leg skip) — exported for tests
+  _isSelfPstnLeg,
+  _markSelfPstnLeg,
+  PSTN_LEG_STATE,
 }

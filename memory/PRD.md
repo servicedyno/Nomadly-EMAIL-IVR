@@ -227,6 +227,23 @@ Follow-up to the grace work. Both DONE this session (unit + live curl; NOT re-ru
 - ✅ Tests: `js/tests/test_rdp_grace_destroy_2026-06.js` now **73/73** (adds webhook emit/dedup/delivery via a local capture server + real-axios swap, and reminder-lead assertions). Regression green (golden 91, render 44, phone-scheduler 34, lint:lang OK). Live: `PUT/GET /account/webhook` set/read/invalid-400/clear all correct.
 - ⏳ **STILL PENDING — LIVE E2E (user-authorized ~$0.05–0.10, NOT run)**: `js/ops/rdp_full_mgmt_e2e.js` (off/on/restart/reinstall/renew + grace-destroy sweep on ws2022/US). Full spec in `memory/RDP_MGMT_LIFECYCLE_PLAN_2026-06.md` "IMPLEMENTATION STATUS". Run once next session, then destroy the droplet.
 
+## 2026-06 (fork) — Golden-image internet-fix rebuild completion + RDP bundle-discount visibility
+Two threads handled live this session.
+
+### Golden image rebuilds (new apply.ps1 internet/DNS fix: public DNS first, private VPC resolver filtered, self-test+netsh remediation)
+- The 3 build droplets (ws2019/ws2022/ws2025, created 07:20) had all CONVERTED (serving qcow2 on :80, VNC closed) but the pre-fork orchestrator died before importing ws2019/ws2025. This forked pod had no build tracking (`doRdpImageBuilds` empty) → orphaned.
+- Wrote `js/ops/rdp_finish_golden.js` (idempotent: discover droplet+qcow2 → import → poll available → transfer 9 regions → `syncGoldenFromDO` register → delete old image → destroy build droplet) and `js/ops/rdp_transfer_golden.js` (region transfer only).
+- ✅ **ws2022** DONE: image `246825481` in all 9 regions, registered, old `246587962` deleted, build droplet destroyed.
+- ✅ **ws2019** DONE: image `246842152` in all 9 regions, registered, old `246589188` deleted, build droplet destroyed.
+- ⏳ **ws2025**: first import stuck in DO `pending` ~2h (lesson #13 — bandwidth burst confirmed download finished, convert hung). Deleted + resubmitted → fresh image `246855801`; `rdp_finish_golden.js --os ws2025` driving it (import→transfer→register→delete old `…r2`→destroy droplet `603245275`). Old `golden-ws2025-…r2` (`246641953`) stays live until the new one lands.
+- ⚠️ **Ops lesson:** long-lived `nohup` background jobs get REAPED here (nodejs supervisor restart ~reaped the finish drivers at 12:41). `rdp_finish_golden.js` is idempotent so re-running resumes safely (skips re-import if a recent image exists). Used `setsid` on relaunch.
+
+### RDP 2/3-month bundle-discount NOT showing on Railway production — FIXED (code) + user must redeploy
+- Report: 2/3-month RDP showed full 2×/3× price, no discount, no "% off" label. Provider IS `digitalocean-rdp` (correct). Root cause = **production running stale code** (bundle discount `{2:−10%,3:−15%}` exists & is correct in the current codebase — verified $56 / $100.80 / $142.80) + **no visible savings label anywhere**.
+- ✅ Added a visible localized **"Save X%"** label: `pricing.discountPct` in `_products()` (digitalocean-rdp-service.js); carried through `cyclesFor` (vm-instance-setup.js); appended on `vp.rdpDurationBtn` in all 4 locales (en "Save X%", fr "Économisez X%", zh "省 X%", hi "X% बचत"), 1-month has none; reseller `GET /rdp/plans` + `GET /pricing` now return `duration_months` + `discount_pct`; apidoc-page updated.
+- ✅ Verified: new `js/tests/test_rdp_discount_2026-06.js` (15/15 — mounts the real reseller router in-process with `digitalocean-rdp` and asserts discount_pct on /rdp/plans + /pricing, plus 4-locale buttons), `verify_rdp_tasks_render.js` 56/56, grace 73/73, golden 91/91, lang parity ✓. **testing_agent iteration_54: all green, zero issues.**
+- 🔴 **ACTION ON USER:** redeploy Railway production from GitHub (Save to GitHub → Railway redeploy) so the discount math AND the new label go live. Sandbox stays `VPS_RDP_PROVIDER=azure` (owner's earlier choice) so its live reseller endpoint shows Azure; the DO-RDP path is tested in-process.
+
 ## 2026-06 (fork) — LIVE E2E RAN + PASSED (real DigitalOcean ws2022/US droplet)
 User authorized the ~$0.05–0.10 charge. Built `js/ops/rdp_full_mgmt_e2e.js` and ran it live. **Every RDP management op verified on real infra, plus the 3-day grace auto-destroy:**
 - ✅ create (golden fast path) → active; ✅ **off** → doRdpServers=suspended + DO droplet status=off + 3389 closed; ✅ **on** → active + DO active + 3389 open; ✅ **restart** → reboot accepted + 3389 recovered; ✅ **resetPassword** → in-guest agent checked in and confirmed the new Administrator password (agent callback WORKED this run); ✅ **reinstall** → rebuilt to ws2019, IP kept, edition switched, active; ✅ **renew(1)** → expires_at extended ~30d + grace fields cleared.
