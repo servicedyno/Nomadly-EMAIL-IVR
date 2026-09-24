@@ -95,10 +95,10 @@ function endpointGroups(base) {
     { "plan_id": "premium-weekly", "name": "Premium Anti-Red (1-Week)", "tier": "premium", "price_usd": 30, "duration_days": 7, "addon_domains": 1 }
   ],
   "vps": { "provider": "digitalocean", "region": "EU", "plans": [
-    { "plan_id": "s-1vcpu-1gb", "name": "1 vCPU / 1 GB", "ram_gb": 1, "disk_gb": 25, "price_usd": 18.00 }
+    { "plan_id": "s-1vcpu-1gb", "name": "1 vCPU / 1 GB", "ram_gb": 1, "disk_gb": 25, "cpu": "Standard", "storage_type": "SSD", "price_usd": 18.00 }
   ] },
   "rdp": { "provider": "digitalocean", "region": "EU", "plans": [
-    { "plan_id": "standard-1m", "name": "Standard — Windows RDP (1 month)", "ram_gb": 4, "disk_gb": 80, "price_usd": 48.00 }
+    { "plan_id": "standard-1m", "name": "Standard — Windows RDP (1 month)", "ram_gb": 4, "disk_gb": 80, "cpu": "AMD", "storage_type": "NVMe SSD", "price_usd": 56 }
   ] }
 }`,
         },
@@ -266,7 +266,7 @@ function endpointGroups(base) {
   "provider": "digitalocean",
   "region": "EU",
   "plans": [
-    { "plan_id": "s-1vcpu-1gb", "name": "1 vCPU / 1 GB", "vcpus": 1, "ram_gb": 1, "disk_gb": 25, "price_usd": 18.00 }
+    { "plan_id": "s-1vcpu-1gb", "name": "1 vCPU / 1 GB", "vcpus": 1, "ram_gb": 1, "disk_gb": 25, "cpu": "Standard", "storage_type": "SSD", "price_usd": 18.00 }
   ]
 }`,
         },
@@ -354,15 +354,15 @@ function endpointGroups(base) {
       endpoints: [
         {
           method: 'GET', path: '/rdp/plans', auth: true, billed: false,
-          desc: 'List Windows RDP plans and prices for a region, plus os_options with per-edition fast_deploy readiness and eta_minutes. Each tier is sold in 1/2/3-month terms — the multi-month terms carry a bundle discount (2 months = 10% off, 3 months = 15% off); each plan returns duration_months and discount_pct, and price_usd is already the discounted total.',
+          desc: 'List Windows RDP plans and prices for a region, plus os_options with per-edition fast_deploy readiness and eta_minutes. Each tier is sold in 1/2/3-month terms — the multi-month terms carry a bundle discount (2 months = 10% off, 3 months = 15% off); each plan returns duration_months and discount_pct, and price_usd is already the discounted total. Every tier runs on premium AMD hardware with NVMe SSD storage — each plan also returns cpu (AMD/Intel) and storage_type (NVMe SSD) so resale buyers can see the class of hardware at a glance.',
           params: [['region', false, 'Region code — defaults to EU']],
           curl: `curl -s "${base}/rdp/plans?region=EU" \\
   -H "Authorization: Bearer YOUR_API_KEY"`,
           resp: `{ "product": "rdp", "provider": "digitalocean", "region": "EU", "default_os": "ws2022",
   "plans": [
-    { "plan_id": "standard-1m", "name": "Standard — Windows RDP (1 month)",  "vcpus": 2, "ram_gb": 4, "disk_gb": 80, "duration_months": 1, "discount_pct": 0,  "price_usd": 56 },
-    { "plan_id": "standard-2m", "name": "Standard — Windows RDP (2 months)", "vcpus": 2, "ram_gb": 4, "disk_gb": 80, "duration_months": 2, "discount_pct": 10, "price_usd": 100.8 },
-    { "plan_id": "standard-3m", "name": "Standard — Windows RDP (3 months)", "vcpus": 2, "ram_gb": 4, "disk_gb": 80, "duration_months": 3, "discount_pct": 15, "price_usd": 142.8 }, … ],
+    { "plan_id": "standard-1m", "name": "Standard — Windows RDP (1 month)",  "vcpus": 2, "ram_gb": 4, "disk_gb": 80, "cpu": "AMD", "storage_type": "NVMe SSD", "duration_months": 1, "discount_pct": 0,  "price_usd": 56 },
+    { "plan_id": "standard-2m", "name": "Standard — Windows RDP (2 months)", "vcpus": 2, "ram_gb": 4, "disk_gb": 80, "cpu": "AMD", "storage_type": "NVMe SSD", "duration_months": 2, "discount_pct": 10, "price_usd": 100.8 },
+    { "plan_id": "standard-3m", "name": "Standard — Windows RDP (3 months)", "vcpus": 2, "ram_gb": 4, "disk_gb": 80, "cpu": "AMD", "storage_type": "NVMe SSD", "duration_months": 3, "discount_pct": 15, "price_usd": 142.8 }, … ],
   "os_options": [ { "id": "ws2022", "name": "Windows Server 2022", "default": true, "fast_deploy": true, "eta_minutes": 3, "fast_deploy_regions": ["EU","US","UK",…] }, … ] }`,
         },
         {
