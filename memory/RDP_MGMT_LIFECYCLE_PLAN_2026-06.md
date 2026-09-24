@@ -173,3 +173,15 @@ Fold into the golden suite pattern.
 
 ## Backlog (not now)
 - Reseller **push** webhooks (`webhook_url` per key + event emitter for `rdp.grace_start` / `rdp.deleted`) — no framework exists today; API is pull-only. Build only if the user asks.
+
+---
+
+## ✅ IMPLEMENTATION STATUS (2026-06 fork — updated end of session)
+Code + mocked tests COMPLETE and self-verified. Only the LIVE E2E (Part 3) remains.
+
+- ✅ **Part 2A/2B/2C DONE + testing_agent-verified (iteration_53)**: bot scheduler owns the DO-RDP grace lifecycle (`js/_index.js` Phase 2-RDP), RDP-service safety-net sweep + `markGrace`/`markGraceDestroy` + `renewInstance` grace-clear (`js/digitalocean-rdp-service.js`), 4-locale keys, reseller API grace fields on `GET /rdp/:id` + `GET /renewals`, new `POST /rdp/:id/renew {months}` (bundle-priced, clears grace).
+- ✅ **Reminder lead time is now CONFIGURABLE** (`js/rdp-grace-lifecycle.js`): `RDP_GRACE_REMINDER_LEAD_HOURS` env (default 24). Exposed as `REMINDER_LEAD_HOURS`/`REMINDER_LEAD_MS`.
+- ✅ **Reseller PUSH webhooks BUILT** (moved out of backlog): `js/reseller-webhooks.js` (`emit()` — plain POST, no signature, auto-retry/backoff, idempotent per `(keyId,event,instanceId)` via `resellerWebhookDeliveries`). Events: `rdp.grace_start`, `rdp.deleted`. Wired into BOTH the bot scheduler (`applyRdpGrace` `notifyReseller` dep) and the RDP-service safety-net sweep (`_emitResellerWebhook`, fire-and-forget). Resellers register a URL via `PUT /account/webhook {webhook_url}` (GET to read, null to clear); `GET /account` returns `webhook_url`. Documented in `js/apidoc-page.js`.
+- ✅ **Tests**: `js/tests/test_rdp_grace_destroy_2026-06.js` = **73/73** (state machine, Sweep-1/Sweep-2 vs fake DO + local Mongo, renewInstance, markGrace/markGraceDestroy, 4-locale parity, reminder-lead config, webhook emit/dedup/delivery). Regression green: golden 91/91, render 44/44, phone-scheduler 34/34, `lint:lang` OK. Live curl checks: `/renewals` grace + `/rdp/:id` grace block + `/rdp/:id/renew` ($56/$100.8/$142.8, 404, 409) + `/account/webhook` set/read/invalid-400/clear.
+- ⚠️ **items 3 (reminder config) + 4 (webhooks) were NOT re-run through testing_agent** (self-tested via the unit suite + live curl only). Optional: run testing_agent on the webhook endpoints + emit path for a second opinion.
+- ⏳ **REMAINING — LIVE E2E (Part 3), USER-AUTHORIZED (~$0.05–0.10), NOT YET RUN**: build `js/ops/rdp_full_mgmt_e2e.js` (extend `js/ops/rdp_lifecycle_e2e.js`) covering create → off → on → restart → resetPassword → reinstall → renew → grace-destroy (seed `expired_at`=now-4d, `grace_until`=now-1d, `await svc.processExpiries()` safety-net sweep → assert droplet 404 + doRdpServers destroyed/expired_grace + vpsPlansOf CANCELLED) → always `cancelInstance` on exit/SIGINT/TERM/HUP. Run once: `node js/ops/rdp_full_mgmt_e2e.js --os ws2022 --region US`. Judge PASS on DO/Mongo state (NLA login is informational — pod egress to :3389 + preview-host callback don't resolve on sandbox). User already gave the go-ahead for the small charge; session was wrapped before running it.

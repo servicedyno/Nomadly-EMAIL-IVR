@@ -36661,6 +36661,7 @@ async function checkVPSPlansExpiryandPayment() {
   // after a 3-day grace period (not just powered off). This scheduler OWNS that lifecycle
   // (it can notify the user); the RDP-service processExpiries() sweep is only a safety net.
   const rdpGrace = require('./rdp-grace-lifecycle')
+  const resellerWebhooks = require('./reseller-webhooks')
   const _isDoRdp = (vpsPlan) => rdpGrace.isDigitalOceanRdp(vpsPlan)
   // Renewal length = the prepaid period the customer bought (DO RDP: 1/2/3 months; everything else monthly).
   // Providers that enforce their own expiry (DO-RDP sweep on doRdpServers.expires_at) must be told about
@@ -36904,6 +36905,7 @@ async function checkVPSPlansExpiryandPayment() {
           mirrorGrace: (inst, fields) => (typeof rdpSvc.markGrace === 'function') ? rdpSvc.markGrace(inst, fields) : Promise.resolve(),
           mirrorDestroy: (inst) => (typeof rdpSvc.markGraceDestroy === 'function') ? rdpSvc.markGraceDestroy(inst) : Promise.resolve(),
           notifyUser: (cid, key, args) => { try { send(cid, translation(key, lang, ...(args || []))) } catch (e) { log(`[RDP Grace] notify failed: ${e.message}`) } },
+          notifyReseller: (event, payload) => { try { resellerWebhooks.emit(db, { chatId: vpsPlan.chatId, event, instanceId: vpsPlan.vpsId || vpsPlan._id, payload, log }).catch(() => {}) } catch (_) {} },
           notifyAdmin: (text) => { try { send(TELEGRAM_ADMIN_CHAT_ID, text, adminMsgOpts({ chatId: vpsPlan.chatId })) } catch (_) {} },
           log,
         })

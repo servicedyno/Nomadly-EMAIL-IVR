@@ -319,7 +319,7 @@ function endpointGroups(base) {
     },
     {
       id: 'rdp', title: 'RDP (Windows)',
-      blurb: 'Identical to the VPS endpoints but provisions Windows Server (DigitalOcean). Replace /vps with /rdp. The login user is "Administrator". Choose the edition with the optional "os" field (ws2019 | ws2022 | ws2025, default ws2022). Editions flagged fast_deploy in GET /rdp/plans boot from a pre-built golden image and are RDP-ready in about 3 minutes (Windows Server 2025: about 5 — see eta_minutes per edition); otherwise a full unattended Windows install runs (20-45 min). Poll GET /rdp/:id (its "provisioning" block gives stage, progress, ETA countdown and a step timeline you can render as a live "Windows is booting" status page) until credentials_ready is true, then read GET /rdp/:id/credentials. Manage the running server with POST /rdp/:id/password-reset (in-place Administrator password change, data preserved) and POST /rdp/:id/reinstall (rebuild from a golden image, same IP, disk wiped, ~3-5 min). Password reset runs through a lightweight in-guest agent — check agent_online on GET /rdp/:id first (it must be true); reinstall needs no agent.',
+      blurb: 'Identical to the VPS endpoints but provisions Windows Server (DigitalOcean). Replace /vps with /rdp. The login user is "Administrator". Choose the edition with the optional "os" field (ws2019 | ws2022 | ws2025, default ws2022). Editions flagged fast_deploy in GET /rdp/plans boot from a pre-built golden image and are RDP-ready in about 3 minutes (Windows Server 2025: about 5 — see eta_minutes per edition); otherwise a full unattended Windows install runs (20-45 min). Poll GET /rdp/:id (its "provisioning" block gives stage, progress, ETA countdown and a step timeline you can render as a live "Windows is booting" status page) until credentials_ready is true, then read GET /rdp/:id/credentials. Manage the running server with POST /rdp/:id/password-reset (in-place Administrator password change, data preserved) and POST /rdp/:id/reinstall (rebuild from a golden image, same IP, disk wiped, ~3-5 min). Password reset runs through a lightweight in-guest agent — check agent_online on GET /rdp/:id first (it must be true); reinstall needs no agent. When a subscription ends without renewal the server is powered off and held for a 3-day grace period (GET /rdp/:id then shows a "grace" block with delete_at + days_remaining, and GET /renewals lists it with status "grace"); if it is still not renewed the droplet is permanently deleted. Call POST /rdp/:id/renew {months} any time before deletion to extend the term, power the box back on and cancel the pending deletion.',
       endpoints: [
         {
           method: 'GET', path: '/rdp/plans', auth: true, billed: false,
@@ -348,7 +348,7 @@ function endpointGroups(base) {
   "result": { "success": true, "id": "…", "ip": null, "status": "provisioning", "os": "ws2022", "fast_deploy": true, "eta_minutes": 3 } }`,
         },
         { method: 'GET', path: '/rdp', auth: true, billed: false, desc: 'List all Windows RDP instances you own.', curl: `curl -s ${base}/rdp -H "Authorization: Bearer YOUR_API_KEY"`, resp: `{ "rdp": [ { "id": "…", "os": "windows", "os_id": "ws2022", "status": "active", "ip": "203.0.113.80" }, … ] }` },
-        { method: 'GET', path: '/rdp/:id', auth: true, billed: false, desc: 'Get one RDP instance with a live "provisioning" status block built for order/status pages: stage + human label, progress %, eta_seconds countdown (eta_at), elapsed_seconds, a 4-step timeline (steps[].done/current), credentials_ready and password_confirmed flags, and the last 10 log lines. Also returns agent_online — true when the in-guest management agent has checked in recently (required before POST /rdp/:id/password-reset). Poll every 10-15 s until credentials_ready is true, then call credentials_url. Status goes queued → creating → booting → installing (fast path) or converting (full install) → active; "failed" is terminal.', curl: `curl -s ${base}/rdp/ID -H "Authorization: Bearer YOUR_API_KEY"`, resp: `{ "id": "…", "os": "windows", "os_id": "ws2022", "status": "installing", "ip": "203.0.113.80", "agent_online": false, "credentials_ready": false, "credentials_url": null,
+        { method: 'GET', path: '/rdp/:id', auth: true, billed: false, desc: 'Get one RDP instance with a live "provisioning" status block built for order/status pages: stage + human label, progress %, eta_seconds countdown (eta_at), elapsed_seconds, a 4-step timeline (steps[].done/current), credentials_ready and password_confirmed flags, and the last 10 log lines. Also returns agent_online — true when the in-guest management agent has checked in recently (required before POST /rdp/:id/password-reset). Poll every 10-15 s until credentials_ready is true, then call credentials_url. Status goes queued → creating → booting → installing (fast path) or converting (full install) → active; "failed" is terminal. If the subscription has expired and entered the 3-day grace period, the response also carries a "grace" block: { in_grace: true, expired_at, delete_at, days_remaining }; once the box is deleted after grace, status becomes "destroyed" with destroy_reason "expired_grace". Renew with POST /rdp/:id/renew to clear grace.', curl: `curl -s ${base}/rdp/ID -H "Authorization: Bearer YOUR_API_KEY"`, resp: `{ "id": "…", "os": "windows", "os_id": "ws2022", "status": "installing", "ip": "203.0.113.80", "agent_online": false, "credentials_ready": false, "credentials_url": null,
   "provisioning": { "status": "installing", "stage": "rdp_up", "stage_label": "RDP port open - confirming password", "progress": 90,
     "fast_deploy": true, "os": "ws2022", "eta_minutes": 3, "eta_seconds": 42, "eta_at": "2026-09-22T22:25:00.000Z", "elapsed_seconds": 138, "time_to_active_s": null,
     "credentials_ready": false, "password_confirmed": null,
@@ -365,6 +365,11 @@ function endpointGroups(base) {
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{"os":"ws2019"}'`, resp: `{ "mode": "live", "id": "…", "os": "ws2019", "os_name": "Windows Server 2019", "ip": "203.0.113.80", "eta_minutes": 3, "password": "N3w-Pass-…" }` },
+        { method: 'POST', path: '/rdp/:id/renew', auth: true, billed: true, desc: 'Renew (extend) a Windows RDP subscription and, if it had expired, bring it out of the 3-day grace period — the server is powered back on and its scheduled deletion is cancelled. Charged from your wallet at the bundle-discounted rate for the chosen term (1 month = full price, 2 months −10%, 3 months −15%). Returns 409 if the RDP was already permanently deleted after grace (order a new one instead). months defaults to 1 and is clamped to 1–3.', params: [['months', false, 'Renewal term in months: 1 | 2 | 3 — defaults to 1']], curl: `curl -s -X POST ${base}/rdp/ID/renew \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"months":1}'`, resp: `{ "mode": "live", "product": "rdp", "action": "renew", "charged_usd": 56.00,
+  "result": { "success": true, "id": "…", "months": 1, "plan": "Standard — Windows RDP (1 month)", "expires_at": "2026-08-01T11:00:00.000Z" } }` },
         { method: 'DELETE', path: '/rdp/:id', auth: true, billed: false, desc: 'Destroy the RDP instance (irreversible).', curl: `curl -s -X DELETE ${base}/rdp/ID -H "Authorization: Bearer YOUR_API_KEY"`, resp: `{ "mode": "live", "id": "…", "destroyed": true }` },
         { method: 'GET', path: '/rdp/:id/credentials', auth: true, billed: false, desc: 'Reveal Administrator credentials (live mode only).', curl: `curl -s ${base}/rdp/ID/credentials -H "Authorization: Bearer YOUR_API_KEY"`, resp: `{ "id": "…", "ip": "203.0.113.80", "username": "Administrator", "password": "…", "mode": "live" }` },
       ],
@@ -603,12 +608,16 @@ function endpointGroups(base) {
           resp: `{
   "within_days": 30,
   "count": 2,
-  "summary": { "expired": 0, "expiring_soon": 1, "upcoming": 1 },
+  "summary": { "expired": 0, "expiring_soon": 1, "upcoming": 1, "in_grace": 1 },
   "renewals": [
     { "product": "hosting", "id": "mysite01", "domain": "mysite.com",
       "plan": "Golden Anti-Red HostPanel (1-Month)",
       "expires_at": "2026-09-11T11:00:00.000Z", "days_until_expiry": 3,
       "status": "expiring_soon", "suspended": false, "auto_renew": true },
+    { "product": "rdp", "id": "a1b2c3d4-…", "plan": "Standard — Windows RDP (1 month)", "region": "US",
+      "expires_at": "2026-06-14T11:00:00.000Z", "days_until_expiry": -1,
+      "status": "grace", "in_grace": true, "expired_at": "2026-06-14T11:00:00.000Z",
+      "delete_at": "2026-06-17T11:00:00.000Z", "days_until_deletion": 2 },
     { "product": "vps", "id": "b2f1c0a4-…", "plan": "s-1vcpu-1gb", "region": "EU",
       "expires_at": "2026-10-01T11:00:00.000Z", "days_until_expiry": 23, "status": "upcoming" }
   ]

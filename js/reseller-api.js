@@ -165,7 +165,7 @@ function createResellerApi(deps = {}) {
       const keyDoc = await col('resellerApiKeys').findOne({ keyHash: sha256(raw), enabled: true })
       if (!keyDoc) return res.status(401).json({ error: 'invalid_api_key', message: 'API key not recognised or disabled.' })
 
-      req.reseller = { keyId: keyDoc._id, ownerChatId: String(keyDoc.ownerChatId), label: keyDoc.label || null }
+      req.reseller = { keyId: keyDoc._id, ownerChatId: String(keyDoc.ownerChatId), label: keyDoc.label || null, webhookUrl: keyDoc.webhookUrl || null }
       // best-effort usage tracking (never blocks the request)
       col('resellerApiKeys').updateOne({ _id: keyDoc._id }, { $set: { lastUsedAt: new Date() }, $inc: { requestCount: 1 } }).catch(() => {})
       next()
@@ -261,7 +261,27 @@ function createResellerApi(deps = {}) {
 
   router.get('/account', apiKeyAuth, h(async (req, res) => {
     const balance = await walletBalance(req.reseller.ownerChatId)
-    res.json({ owner_chat_id: req.reseller.ownerChatId, label: req.reseller.label, wallet_balance_usd: balance, currency: 'usd', mode: mode() })
+    res.json({ owner_chat_id: req.reseller.ownerChatId, label: req.reseller.label, wallet_balance_usd: balance, currency: 'usd', webhook_url: req.reseller.webhookUrl || null, mode: mode() })
+  }))
+
+  // ── Push webhooks (optional): register a URL to receive RDP lifecycle events
+  // (rdp.grace_start, rdp.deleted) instead of polling /renewals. Plain POST, no signature.
+  const resellerWebhooks = require('./reseller-webhooks')
+  router.get('/account/webhook', apiKeyAuth, h(async (req, res) => {
+    const keyDoc = await col('resellerApiKeys').findOne({ _id: req.reseller.keyId }, { projection: { webhookUrl: 1 } })
+    res.json({ webhook_url: (keyDoc && keyDoc.webhookUrl) || null, events: ['rdp.grace_start', 'rdp.deleted'], delivery: 'POST (no signature), auto-retry with backoff' })
+  }))
+  router.put('/account/webhook', apiKeyAuth, h(async (req, res) => {
+    const raw = req.body?.webhook_url
+    // null / '' clears the webhook.
+    if (raw === null || raw === '' || raw === undefined) {
+      await col('resellerApiKeys').updateOne({ _id: req.reseller.keyId }, { $unset: { webhookUrl: '' } })
+      return res.json({ webhook_url: null, cleared: true })
+    }
+    const url = String(raw).trim()
+    if (!resellerWebhooks.isHttpUrl(url)) return res.status(400).json({ error: 'invalid_webhook_url', message: 'Provide a valid http(s) URL, or null to clear.' })
+    await col('resellerApiKeys').updateOne({ _id: req.reseller.keyId }, { $set: { webhookUrl: url } })
+    res.json({ webhook_url: url, events: ['rdp.grace_start', 'rdp.deleted'], delivery: 'POST (no signature), auto-retry with backoff' })
   }))
 
   // ── Bot pricing catalog (the same prices the Telegram bot charges) ──
