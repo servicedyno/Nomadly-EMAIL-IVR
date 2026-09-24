@@ -10867,6 +10867,77 @@ backend:
         agent: "main"
         comment: "Fix implemented: after 3 consecutive identification failures within 5 min, hard-block the credential for 10 min and hang up instantly BEFORE any lookup/transfer; log each failure to unidentifiedCallLeaks; self-heals on next success/expiry. Awaiting testing-agent verification via mocked unit test (NO live SIP webhooks)."
 
+
+  - task: "Backend health regression check after language file edits (2026-09-24). Quick READ-ONLY verification that Node backend (port 5000) boots healthy after bot-UI copy changes in js/lang/{en,fr,hi,zh}.js (removed '(~$X/day)' hint, added 'Premium AMD · NVMe SSD' descriptor under RDP plan cards) and addition of standalone ops script js/ops/rdp_ws2022_dns_verify.js (not wired into server). No API endpoint changes. Verified GET /api/health returns HTTP 200 with {status:'healthy', database:'connected'}."
+    implemented: true
+    working: true
+    file: "/app/js/lang/{en,fr,hi,zh}.js (language file edits); /app/js/ops/rdp_ws2022_dns_verify.js (standalone ops script)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: |
+          ✅ VERIFICATION COMPLETE - Backend health regression check PASSED (1/1 test, 100% pass):
+          
+          SCOPE: Quick READ-ONLY backend health regression check on the Smadav/Nomadly WhiteLabel platform 
+          after bot-UI copy changes in language files. Architecture: React (:3000) → FastAPI (:8001) → 
+          proxy → Node.js Express (:5000) → LIVE prod MongoDB. Base URL: 
+          https://service-config-test.preview.emergentagent.com (from REACT_APP_BACKEND_URL in /app/frontend/.env).
+          
+          CONTEXT:
+          • Language file changes: js/lang/{en,fr,hi,zh}.js
+            - Removed "(~$X/day)" hint from RDP plan cards
+            - Added "Premium AMD · NVMe SSD" descriptor under RDP plan cards
+          • Added standalone ops script: js/ops/rdp_ws2022_dns_verify.js (NOT wired into server)
+          • NO API endpoint changes
+          • NO server logic changes
+          • ONLY bot-UI copy updates
+          
+          [TEST 1] Health endpoint regression: ✅ PASSED
+            GET https://service-config-test.preview.emergentagent.com/api/health
+            
+            Response: HTTP 200 ✅
+            {
+              "status": "healthy",
+              "database": "connected",
+              "uptime": "0.04 hours"
+            }
+            
+            [VALIDATION]
+            ✅ HTTP 200: YES
+            ✅ Content-Type JSON: YES
+            ✅ Has 'status' field: YES
+            ✅ Has 'database' field: YES
+            ✅ status == 'healthy': YES
+            ✅ database == 'connected': YES
+            
+            ★ REGRESSION CHECK PASSED: Node backend boots healthy after language file edits
+            ★ Database connection working correctly
+            ★ Server uptime: 0.04 hours (recently restarted, healthy)
+          
+          CONCLUSION:
+          The backend health regression check PASSED (1/1 test, 100% pass rate). The Node backend (port 5000) 
+          is running healthy after the language file changes. No regressions detected.
+          
+          KEY VERIFICATION:
+          • CONFIRMED: Language file edits did NOT break Node backend boot
+          • CONFIRMED: Database connection is healthy ("connected")
+          • CONFIRMED: Health endpoint returns expected HTTP 200 JSON response
+          • CONFIRMED: Server is running and responding correctly
+          
+          SAFETY CONFIRMED:
+          • All testing was READ-ONLY (single GET /api/health request only)
+          • NO POST requests made
+          • NO database writes or mutations
+          • NO call/SMS/Telegram triggers
+          • NO other endpoints accessed
+          • LIVE production data was NOT modified
+          • Total requests: 1 (health check only)
+          
+          The language file changes are SAFE and the backend is HEALTHY. No regressions detected.
+
 frontend:
   - task: "React nested component warnings fix (2026-08-30): Converted 4 badge components in DomainList.js from nested component definitions to plain render functions to eliminate React 'unstable nested component' warnings. The 4 functions are: renderSSLBadge (SSL certificate status badge), renderNSBadge (nameserver status badge), renderCaptchaBadge (visitor captcha toggle badge), and renderNSPendingInfo (NS pending instructions panel). These were causing React to remount subtrees on every render, triggering ~4 console warnings. Fix converts them to plain functions that return JSX without creating new component instances."
     implemented: true
@@ -12527,12 +12598,26 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "RDP bot-UI copy update (remove $/day hint, add 'Premium AMD · NVMe SSD') + ws2022 DNS verifier tool — READ-ONLY backend health regression (reseller excluded)"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
+  - agent: "main"
+    timestamp: "2026 pod — RDP UI copy port"
+    message: |
+      READ-ONLY health regression. This round ported only non-reseller upstream changes: (1) bot RDP/VPS plan-card
+      copy in js/lang/{en,fr,hi,zh}.js — removed the "(~$X/day)" hint and added a "Premium AMD · NVMe SSD" descriptor
+      under RDP plans; (2) a standalone RDP ops verifier js/ops/rdp_ws2022_dns_verify.js (NOT wired into the server).
+      No API/endpoint changes. Reseller API docs + reseller hardware-metadata + a reseller-coupled checkout-math test
+      were EXCLUDED. Already validated offline: node --check clean, node reboots clean, verify_rdp_tasks_render 56/0,
+      lang parity OK.
+      DO ONLY THIS: GET <BASE>/api/health -> expect HTTP 200 {status:"healthy", database:"connected"} (confirms the
+      lang-file edits didn't break the Node backend boot). Base URL = REACT_APP_BACKEND_URL in /app/frontend/.env.
+      CRITICAL SAFETY — LIVE PRODUCTION DATA + live telephony/Telegram creds. Do NOT POST anything, do NOT trigger
+      calls/SMS/Telegram, do NOT write to Mongo. Just the one health GET. Report pass/total.
   - agent: "main"
     timestamp: "2026 pod — SIP unidentified-credential leak fix"
     message: |
