@@ -46,18 +46,19 @@ const SCRIPTS_DIR = path.join(__dirname, 'rdp-scripts')
 // ─────────────────────────────────────────────────────────────
 const DURATIONS = [1, 2, 3]
 
-// Sellable tiers. Speed lever 1: RDPs run on Premium **AMD** droplets (newer CPU, faster RAM,
-// true NVMe) — `do_size_slug` is the AMD slug and is the default. `do_size_slug_basic` is the
-// Basic-Regular fallback used ONLY in regions without AMD (nyc3, tor1) so provisioning never
-// fails on an unavailable size. Prices track the AMD monthly cost × months × 2 (see sellPrice):
+// Sellable tiers. Speed lever 1: RDPs run on DigitalOcean **Premium** droplets (dedicated-class
+// AMD EPYC / Intel Xeon CPUs, faster RAM, true NVMe) — never on Basic-Regular shared CPUs unless
+// nothing else is in stock. `do_size_slug` = Premium AMD, `do_size_slug_intel` = Premium Intel
+// (same price + disk, offered in the regions AMD is not: nyc3, tor1, fra1), `do_size_slug_basic`
+// = last-resort Basic-Regular. Prices track the Premium monthly cost × months × 2 (see sellPrice):
 // Standard $56/mo, Pro $112/mo, Power $224/mo.
 // Speed lever 2: the 1vCPU/2GB "Starter" was retired 2026-09 (below Windows Server's memory
 // floor → always slow). It lives in LEGACY_TIERS only, so servers already provisioned on it
 // still render a name/spec; it is NOT sold anymore.
 const TIERS = [
-  { slug: 'standard', name: 'Standard', vcpu: 2, ram_gb: 4,  disk_gb: 80,  do_size_slug: 's-2vcpu-4gb-amd',  do_size_slug_basic: 's-2vcpu-4gb',  monthly_do_cost: 28 },
-  { slug: 'pro',      name: 'Pro',      vcpu: 4, ram_gb: 8,  disk_gb: 160, do_size_slug: 's-4vcpu-8gb-amd',  do_size_slug_basic: 's-4vcpu-8gb',  monthly_do_cost: 56 },
-  { slug: 'power',    name: 'Power',    vcpu: 8, ram_gb: 16, disk_gb: 320, do_size_slug: 's-8vcpu-16gb-amd', do_size_slug_basic: 's-8vcpu-16gb', monthly_do_cost: 112 },
+  { slug: 'standard', name: 'Standard', vcpu: 2, ram_gb: 4,  disk_gb: 80,  do_size_slug: 's-2vcpu-4gb-amd',  do_size_slug_intel: 's-2vcpu-4gb-intel',  do_size_slug_basic: 's-2vcpu-4gb',  monthly_do_cost: 28 },
+  { slug: 'pro',      name: 'Pro',      vcpu: 4, ram_gb: 8,  disk_gb: 160, do_size_slug: 's-4vcpu-8gb-amd',  do_size_slug_intel: 's-4vcpu-8gb-intel',  do_size_slug_basic: 's-4vcpu-8gb',  monthly_do_cost: 56 },
+  { slug: 'power',    name: 'Power',    vcpu: 8, ram_gb: 16, disk_gb: 320, do_size_slug: 's-8vcpu-16gb-amd', do_size_slug_intel: 's-8vcpu-16gb-intel', do_size_slug_basic: 's-8vcpu-16gb', monthly_do_cost: 112 },
 ]
 // Retired tiers — NOT sold, kept only so existing servers still resolve a name/spec.
 const LEGACY_TIERS = [
@@ -65,20 +66,31 @@ const LEGACY_TIERS = [
 ]
 const TIER_BY_SLUG = new Map([...TIERS, ...LEGACY_TIERS].map(t => [t.slug, t]))
 
-// Regions where DigitalOcean Premium AMD (NVMe) sizes exist (verified live via DO API 2026-09).
-// Everywhere else (nyc3, tor1) we fall back to the Basic-Regular `do_size_slug_basic`.
-const AMD_REGIONS = new Set(['ams3', 'blr1', 'fra1', 'lon1', 'nyc1', 'nyc2', 'sfo3', 'sgp1', 'syd1'])
-// Resolve the DO size slug for a tier in a given region (AMD where available, Basic fallback elsewhere).
-function sizeSlugFor(tier, regionSlug) {
-  if (!tier) return null
-  return AMD_REGIONS.has(String(regionSlug || '')) ? tier.do_size_slug : (tier.do_size_slug_basic || tier.do_size_slug)
+// Regions where each DigitalOcean Premium family is sold (verified live via GET /v2/sizes, 2026-09-24).
+// AMD is NOT sold in fra1/nyc3/tor1; Intel covers exactly those, so every region gets a Premium CPU.
+const PREMIUM_AMD_REGIONS = new Set(['ams3', 'blr1', 'lon1', 'nyc1', 'nyc2', 'sfo3', 'sgp1', 'syd1'])
+const PREMIUM_INTEL_REGIONS = new Set(['blr1', 'fra1', 'nyc2', 'nyc3', 'sfo3', 'sgp1', 'tor1'])
+// Ordered DO size candidates for a tier in a region: Premium AMD → Premium Intel → Basic (capacity
+// fallback only). provisionServer walks this list on 422 "not available" so an order never fails
+// just because one size family is out of stock or not sold in that region.
+function sizeCandidatesFor(tier, regionSlug) {
+  if (!tier) return []
+  const r = String(regionSlug || '')
+  const out = []
+  if (PREMIUM_AMD_REGIONS.has(r) && tier.do_size_slug) out.push(tier.do_size_slug)
+  if (PREMIUM_INTEL_REGIONS.has(r) && tier.do_size_slug_intel) out.push(tier.do_size_slug_intel)
+  if (tier.do_size_slug_basic) out.push(tier.do_size_slug_basic)
+  if (!out.length) out.push(tier.do_size_slug)
+  return [...new Set(out)]
 }
+// Preferred DO size slug for a tier in a given region (first candidate).
+function sizeSlugFor(tier, regionSlug) { return sizeCandidatesFor(tier, regionSlug)[0] || null }
 // Display-only product shape for retired tiers (e.g. legacy 'starter' servers still running).
 function legacyProductFor(s) {
   const t = TIER_BY_SLUG.get(s && s.tier_slug)
   if (!t) return null
   const m = s.duration_months || 1
-  return { productId: `${t.slug}-${m}m`, slug: t.slug, cpuCores: t.vcpu, vcpus: t.vcpu, ramGb: t.ram_gb, ramMb: t.ram_gb * 1024, diskGb: t.disk_gb, diskMb: t.disk_gb * 1024, durationMonths: m, do_size_slug: t.do_size_slug, do_size_slug_basic: t.do_size_slug_basic }
+  return { productId: `${t.slug}-${m}m`, slug: t.slug, cpuCores: t.vcpu, vcpus: t.vcpu, ramGb: t.ram_gb, ramMb: t.ram_gb * 1024, diskGb: t.disk_gb, diskMb: t.disk_gb * 1024, durationMonths: m, do_size_slug: t.do_size_slug, do_size_slug_intel: t.do_size_slug_intel, do_size_slug_basic: t.do_size_slug_basic }
 }
 
 const VIRTIO = 'https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/virtio-win.iso'
@@ -166,7 +178,7 @@ function _products() {
         vcpus: t.vcpu, ramGb: t.ram_gb, diskGb: t.disk_gb,
         // bot / vm-instance-setup compat fields
         cpuCores: t.vcpu, ramMb: t.ram_gb * 1024, diskMb: t.disk_gb * 1024, diskType: 'nvme', bandwidthTb: 4, portSpeedMbps: 1000, tier: tierIdx + 1,
-        do_size_slug: t.do_size_slug, do_size_slug_basic: t.do_size_slug_basic,
+        do_size_slug: t.do_size_slug, do_size_slug_intel: t.do_size_slug_intel, do_size_slug_basic: t.do_size_slug_basic,
         pricing: { base: price, markup: 0, totalWithMarkup: price, basePriceUsd: price, regionSurcharge: 0, windowsLicense: 0, totalBeforeMarkup: price, currency: 'usd', durationMonths: m },
       })
     }
@@ -608,6 +620,27 @@ async function pollRdp(serverId, ip, minutes = 90, { callbackGraceMs = 0 } = {})
   return done()
 }
 
+// Run a droplet-creating `create(size)` with the order's size first, then the remaining region
+// candidates when DO answers 422 "not available" (out of stock / family not sold there). Persists
+// the size that actually worked so the record matches the running droplet.
+async function createWithSizeFallback(server, create) {
+  const tier = TIER_BY_SLUG.get(server.tier_slug)
+  const candidates = [...new Set([server.do_size_slug, ...sizeCandidatesFor(tier, server.region)].filter(Boolean))]
+  let lastErr = null
+  for (const size of candidates) {
+    try {
+      const out = await create(size)
+      if (size !== server.do_size_slug) { server.do_size_slug = size; await _servers.updateOne({ server_id: server.server_id }, { $set: { do_size_slug: size } }) }
+      return out
+    } catch (e) {
+      if (!(e.status === 422 && /not available|invalid size/i.test(e.message))) throw e
+      lastErr = e
+      await addLog(server.server_id, 'info', `${size} is not available in ${server.region} right now - trying the next size...`)
+    }
+  }
+  throw lastErr || new Error(`no droplet size available in ${server.region}`)
+}
+
 // Fire-and-forget provisioning orchestrator (golden fast-path → conversion fallback).
 async function provisionServer(serverId) {
   try {
@@ -624,7 +657,8 @@ async function provisionServer(serverId) {
     if (fast.ok) {
       watchFastTarget(serverId, Math.max(T.fastTargetMs, fastEta(osOption) * 60000))
       await addLog(serverId, 'creating', 'Creating droplet from golden image (fast, ~2-3 min)...', 10, 'creating')
-      const data = await doCreateDroplet({ name, region: server.region, size: server.do_size_slug, image: osOption.golden_image_id, ssh_keys: [await ensureSshKeyId()], user_data: buildMetadataUserData(server), tags: ['rdp-reseller'] })
+      const sshKeyId = await ensureSshKeyId()
+      const data = await createWithSizeFallback(server, (size) => doCreateDroplet({ name, region: server.region, size, image: osOption.golden_image_id, ssh_keys: [sshKeyId], user_data: buildMetadataUserData(server), tags: ['rdp-reseller'] }))
       const dropletId = data.droplet && data.droplet.id
       await _servers.updateOne({ server_id: serverId }, { $set: { do_droplet_id: dropletId } })
       await addLog(serverId, 'booting', `Droplet ${dropletId} created from image. Booting...`, 30, 'booting')
@@ -652,7 +686,7 @@ async function provisionServer(serverId) {
 
     // Full Ubuntu → Windows conversion (onto an attached volume, then dd'd to the boot disk).
     await addLog(serverId, 'creating', 'Creating DigitalOcean droplet + install volume...', 5, 'creating')
-    const { dropletId, volumeId } = await launchConversion({ name, region: server.region, size: server.do_size_slug, doc: server, osOption, tags: ['rdp-reseller'] })
+    const { dropletId, volumeId } = await createWithSizeFallback(server, (size) => launchConversion({ name, region: server.region, size, doc: server, osOption, tags: ['rdp-reseller'] }))
     await _servers.updateOne({ server_id: serverId }, { $set: { do_droplet_id: dropletId, volume_id: volumeId } })
     await addLog(serverId, 'booting', `Droplet ${dropletId} created. Waiting for boot...`, 10, 'booting')
     const { ip } = await waitBootIp(dropletId)
@@ -1386,7 +1420,7 @@ module.exports = {
   PROVIDER,
   init,
   // catalog / pricing
-  listProducts, getProduct, calculatePrice, formatSpecs, buildRdpFile, listRegions, REGION_DISPLAY, getDefaultWindowsImageId,
+  listProducts, getProduct, calculatePrice, formatSpecs, buildRdpFile, listRegions, REGION_DISPLAY, getDefaultWindowsImageId, sizeCandidatesFor,
   // lifecycle
   createInstance, createInstanceWithFallback, getInstance,
   startInstance, stopInstance, restartInstance, shutdownInstance,

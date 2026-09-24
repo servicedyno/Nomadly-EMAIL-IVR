@@ -181,10 +181,26 @@ async function main() {
   await sleep(100)
   const fastCreate = calls.find(c => c.m === 'POST' && c.u === '/droplets')
   ok('fast path creates droplet FROM golden image with KEY=VALUE user-data', fastCreate && fastCreate.data.image === b.snapshot_image_id && /^ADMIN_PASSWORD=.+\nCALLBACK_URL=https:\/\/example\.test\/api\/provision\/callback\n/.test(fastCreate.data.user_data))
-  ok('region-aware size: nyc3 has NO AMD → Basic slug (s-2vcpu-4gb)', fastCreate.data.size === 's-2vcpu-4gb')
+  ok('region-aware size: nyc3 has NO AMD → Premium Intel slug (s-2vcpu-4gb-intel), not Basic shared CPU', fastCreate.data.size === 's-2vcpu-4gb-intel')
+  ok('size candidates: fra1/tor1 → Intel then Basic; sgp1 → AMD, Intel, Basic; legacy starter → basic only',
+    JSON.stringify(svc.sizeCandidatesFor(svc.getProduct('standard-1m'), 'fra1')) === JSON.stringify(['s-2vcpu-4gb-intel', 's-2vcpu-4gb'])
+    && JSON.stringify(svc.sizeCandidatesFor(svc.getProduct('power-1m'), 'tor1')) === JSON.stringify(['s-8vcpu-16gb-intel', 's-8vcpu-16gb'])
+    && JSON.stringify(svc.sizeCandidatesFor(svc.getProduct('pro-1m'), 'sgp1')) === JSON.stringify(['s-4vcpu-8gb-amd', 's-4vcpu-8gb-intel', 's-4vcpu-8gb'])
+    && JSON.stringify(svc.sizeCandidatesFor({ do_size_slug: 's-1vcpu-2gb', do_size_slug_basic: 's-1vcpu-2gb' }, 'ams3')) === JSON.stringify(['s-1vcpu-2gb']))
   ok('fast-path user-data carries the REAL per-order password (from the secret store, not "undefined")', fastCreate.data.user_data.startsWith(`ADMIN_PASSWORD=${inst.defaultPassword}\n`) && inst.defaultPassword.length >= 16)
   const keyPost = calls.find(c => c.m === 'POST' && c.u === '/account/keys')
   ok('custom-image create carries the auto-registered throwaway ed25519 SSH key', keyPost && /^ssh-ed25519 [A-Za-z0-9+/=]+ nomadly-rdp-golden$/.test(keyPost.data.public_key) && JSON.stringify(fastCreate.data.ssh_keys) === '[555]')
+  // Premium Intel out of stock in nyc3 → order falls back to Basic instead of failing.
+  calls.length = 0
+  fake.unavailableSizes = ['s-2vcpu-4gb-intel']
+  const oos = await svc.createInstance({ productId: 'standard-1m', regionSlug: 'US', osId: 'ws2022' })
+  await waitFor(async () => calls.filter(c => c.m === 'POST' && c.u === '/droplets').length >= 2)
+  await sleep(100)
+  const oosPosts = calls.filter(c => c.m === 'POST' && c.u === '/droplets')
+  const oosDoc = await db.collection('doRdpServers').findOne({ server_id: oos.serverId })
+  ok('422 "Size is not available" on the Premium size → Basic size tried next, order continues', oosPosts.length === 2 && oosPosts[0].data.size === 's-2vcpu-4gb-intel' && oosPosts[1].data.size === 's-2vcpu-4gb' && oosDoc.do_droplet_id)
+  ok('fallback persisted: do_size_slug = size actually used + order log explains it', oosDoc.do_size_slug === 's-2vcpu-4gb' && (oosDoc.logs || []).some(l => /s-2vcpu-4gb-intel is not available in nyc3/.test(l.message)))
+  fake.unavailableSizes = []
   calls.length = 0
   const slow = await svc.createInstance({ productId: 'pro-1m', regionSlug: 'SG', osId: 'ws2022' })
   ok('region without image → fastDeploy=false eta 45', slow.fastDeploy === false && slow.etaMinutes === 45)
@@ -259,6 +275,7 @@ async function main() {
   const fb = await builds.findOne({ build_id: r.build.build_id })
   ok('build marked failed with droplet reason', fb.status === 'failed' && (fb.logs || []).some(l => l.stage === 'failed' && /No \/dev\/kvm/.test(l.message)))
   ok('failed golden build → admin Telegram alert with os + phase + retry command', alerts.some(m => /Golden image build build-.* \(ws2019, nyc3\) FAILED/.test(m) && /No \/dev\/kvm/.test(m) && /rdp_golden_build.js build --os ws2019/.test(m)))
+  await waitFor(async () => !fake.droplets[fb.do_droplet_id], 3000)
   ok('failed build droplet destroyed (no keep_on_failure)', !fake.droplets[fb.do_droplet_id])
   await waitFor(async () => Object.keys(fake.volumes).length === 0, 3000).catch(() => {})
   ok('failed build install volume deleted', Object.keys(fake.volumes).length === 0)

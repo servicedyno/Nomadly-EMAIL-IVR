@@ -27,7 +27,7 @@
 
 ## Frontend env (recreated during setup)
 - `/app/frontend/.env` present with:
-  `REACT_APP_BACKEND_URL=https://rdp-order-refactor.preview.emergentagent.com` (current pod; earlier forks had a different preview host — always trust the live value in frontend/.env, not older docs)
+  `REACT_APP_BACKEND_URL=https://network-diagnostics-24.preview.emergentagent.com` (current pod; earlier forks had a different preview host — always trust the live value in frontend/.env, not older docs)
 
 ## Admin panel
 - Frontend admin dashboard is open (no login) at the pod root URL.
@@ -56,4 +56,5 @@
 - Read replies: `GET http://127.0.0.1:5099/_calls?chat_id=777000123&since=<epoch_ms>&method=sendMessage` → `[{ts,method,chat_id,text,buttons[],reply_markup}]`.
   `DELETE /_calls` clears the log. Reply-keyboard buttons are "tapped" by sending their exact label as the message text.
 - Sim user chat_id `777000123`: onboarded (English), wallet `walletOf._id="777000123"` seeded usdIn=500.
-- Local `VPS_RDP_PROVIDER="digitalocean-rdp"` (same as production after 2026-09-23) → bot RDP flow = DigitalOcean golden images.
+- Vault `.env` restores `VPS_RDP_PROVIDER="azure"`; production uses `digitalocean-rdp` (2026-09-23). Set `digitalocean-rdp` locally only if you need the bot's DO-RDP order flow.
+- 2026-09-24 pod: fresh setup done via vault unlock + `scripts/setup-nodejs.sh`; frontend/.env recreated with the current pod URL. `TELEGRAM_API_BASE_URL` mock harness is NOT set in the vault .env (add it manually before driving the bot in a sim).
