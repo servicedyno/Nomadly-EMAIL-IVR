@@ -205,3 +205,9 @@ User request: 4 RDP tweaks. All implemented (prior agent) and now VERIFIED this 
 - Verification: unit suites `test_do_rdp_golden_2026-06.js` 88/88, `test_vps_credentials_message.js` (all 4 langs), lang parity OK; new render regression `js/tests/verify_rdp_tasks_render.js` 44/44; **live bot sim** (mock Telegram + local Mongo, VPS_RDP_PROVIDER=digitalocean-rdp) drove RDP menu → region → plan → duration ($100.8 −10% / $142.8 −15%) → edition → order summary ($100.80 / 2 months) — all correct, no leaks, stopped before payment (no droplet created).
 - ⚠️ CONFIG NOTE: vault restores `VPS_RDP_PROVIDER="azure"` in backend/.env; sim temporarily set it to `digitalocean-rdp` (production intent per 2026-09-23 note) then reverted. Owner should confirm the intended production RDP provider — the discount/duration flow only routes through DO-RDP when this = `digitalocean-rdp`.
 
+## 2026-06 (fork) — RDP mgmt lifecycle test + 3-day grace auto-destroy (PLANNED, not yet built)
+User asked to (1) live-test all RDP management (re-install/off/on/restart/renew) on one real droplet, and (2) **destroy an unrenewed RDP droplet after a 3-day grace period** (DO bills powered-off droplets per hour — today `processExpiries` only powers them off, never destroys → billing leak). User locked decisions: live box = **ws2022/US**; grace clock starts at **subscription end**; **notify the bot user (Telegram) AND the reseller API** on grace-start and on deletion.
+- Full execution-ready plan: **`/app/memory/RDP_MGMT_LIFECYCLE_PLAN_2026-06.md`** (surface map, the two expiry engines to reconcile, bot-scheduler-owns-grace design, notification/locale-key spec, reseller API grace fields, live E2E + unit test plan, guardrails).
+- ⚠️ Golden image rebuilds were still importing when this was written (watcher PID 3277, log `memory/golden_rebuild_2026-09-24.log`) — do NOT restart supervisor/nodejs.
+- Status: investigation + plan only; NO code changed this turn (user paused execution).
+
