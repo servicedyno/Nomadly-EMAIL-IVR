@@ -71,3 +71,11 @@
 - Stood up by `node js/ops/reseller_test_server.js` (standalone reseller router on :5000, external
   providers stubbed, isLive()=false). Seeds domainsOf/registeredDomains/cpanelAccounts for the owner.
 - Base: `${REACT_APP_BACKEND_URL}/api/reseller/v1`. Used to verify the 7 gap fixes + change-primary.
+
+## SMADAV / SAMDAV white-label (2026-09-25) — same Railway account, DIFFERENT branch + service
+- White-label of Nomadly. Railway project **zippy-radiance** `0f41a48b-…` (same as Nomadly) · service **SAMDAV** `6d40a2dd-dfdf-4d05-9c68-4962a065885c` · env **production** `b9a9e5d2-…`.
+- Deploys from GitHub branch **`WhiteLabel`** (NOT `main`; Nomadly = `main`). Same repo `servicedyno1/Nomadly-EMAIL-IVR`. Platform auto-commits land on `main`, so ops scripts here do NOT rebuild SAMDAV.
+- Public URL `samdav1.up.railway.app`. Custom domains (attached this session): `1.smadavspeech.com` (call page) + `1.panel.smadavhost.com` (host panel).
+- Cloudflare zones (same CF account, `expressdrop247@gmail.com`): `smadavspeech.com` `4e3fa86fdd52ea305d3ae2e57a9705aa`, `smadavhost.com` `b3667eb4a8adce1f33b86d7f9d614431`.
+- SIP (branded Telnyx domain `sip.smadavspeech.com`): needs A `192.76.120.10` + SRV `_sip._tcp/_udp`(5060) `_sips._tcp`(5061) → `sip.telnyx.com` (mirrors Nomadly `sip.speechcue.com`). Added this session. Telnyx conn `3034191521164298080` ("Smadav Cloud Phone SIP", active). Twilio SIP domain `smadav-7937a0.sip.twilio.com` (Twilio-hosted, no DNS). Shared Twilio account with Nomadly, isolated via `TWILIO_SIP_DOMAIN_PREFIX=smadav`.
+- Ops helpers (js/ops/, read the SAMDAV service by id): `smadav_discover.js`, `smadav_inspect.js`, `smadav_domains.js` (attach 1.* domains), `smadav_cf_apply.js` (railway DNS), `smadav_cf_redirects.js` (bare→1. 301), `smadav_env_update.js` (--apply), `smadav_sip_dns.js`, `smadav_sip_verify.js`, `smadav_provider_dump.js`.

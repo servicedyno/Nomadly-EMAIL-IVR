@@ -100,6 +100,28 @@ earlyApp.get('/admin/scanner-block-stats', (req, res) => {
 })
 // ── /Edge scanner block ─────────────────────────────────────────────────────
 
+// ── Legacy host redirects (2026-06) ─────────────────────────────────────────
+// Old hostnames (1.speechcue.com, panel.1.hostbay.io) keep working after the
+// move to the 2.* hosts: LEGACY_HOST_REDIRECTS="old.host=new.host,old2=new2".
+// 301 for GET/HEAD, 308 otherwise; path + query preserved. Reseller API calls
+// (/reseller/v1/*) are served in place — API clients don't follow redirects.
+const LEGACY_HOST_REDIRECTS = new Map(
+  (process.env.LEGACY_HOST_REDIRECTS || '').split(',')
+    .map(p => p.split('=').map(s => s.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '')))
+    .filter(([from, to]) => from && to && from !== to)
+)
+if (LEGACY_HOST_REDIRECTS.size) {
+  earlyApp.use((req, res, next) => {
+    const host = (req.headers['x-forwarded-host'] || req.headers.host || '').toString().split(',')[0].trim().toLowerCase().split(':')[0]
+    const target = LEGACY_HOST_REDIRECTS.get(host)
+    if (!target || (req.url || '').startsWith('/reseller/')) return next()
+    res.set('Cache-Control', 'public, max-age=3600')
+    res.redirect(req.method === 'GET' || req.method === 'HEAD' ? 301 : 308, `https://${target}${req.originalUrl || req.url || '/'}`)
+  })
+  console.log(`[Express] Legacy host redirects active: ${[...LEGACY_HOST_REDIRECTS].map(([f, t]) => `${f}→${t}`).join(', ')}`)
+}
+// ── /Legacy host redirects ──────────────────────────────────────────────────
+
 earlyApp.use(cors())
 earlyApp.use(express.json({ limit: '50mb' }))
 earlyApp.use(express.urlencoded({ extended: true, limit: '50mb' }))
@@ -46609,14 +46631,14 @@ try {
 // ── Reseller API developer docs (public HTML guide) ──
 // Explicit route MUST be registered before the /:id shortener below, otherwise
 // "apidoc" is treated as a short-link slug and returns "Link not found".
-// Production: https://1.speechcue.com/apidoc
+// Production: https://2.speechcue.com/apidoc
 app.get('/apidoc', (req, res) => {
   try {
     // Prefer the forwarded host (set by the FastAPI proxy / ingress) so the
     // rendered self-URL is the real public host even when this Express app is
     // reached via an internal proxy (which rewrites the raw Host to 127.0.0.1).
     const fwdHost = (req.get('x-forwarded-host') || '').split(',')[0].trim()
-    const host = (fwdHost || req.get('host') || '1.speechcue.com').split(',')[0].trim()
+    const host = (fwdHost || req.get('host') || '2.speechcue.com').split(',')[0].trim()
     const isLocal = /(^|\.)localhost|127\.0\.0\.1|:5000$/.test(host)
     const fwdProto = (req.get('x-forwarded-proto') || '').split(',')[0].trim()
     const proto = fwdProto || (isLocal ? 'http' : 'https')

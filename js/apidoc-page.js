@@ -3,7 +3,7 @@
 // ------------------------------------------------------------
 // Renders a self-contained, dependency-free HTML developer guide for the
 // public Reseller REST API (js/reseller-api.js). Served by Express at:
-//     GET /apidoc      →  https://1.speechcue.com/apidoc
+//     GET /apidoc      →  https://2.speechcue.com/apidoc
 //
 // The page has ZERO external assets (all CSS + JS are inline) so it renders
 // instantly and keeps working even if a CDN is blocked.
@@ -1027,7 +1027,7 @@ function renderEndpoint(base, ep) {
 }
 
 function renderApiDocPage(baseUrl) {
-  const base = baseUrl || 'https://1.speechcue.com/reseller/v1'
+  const base = baseUrl || 'https://2.speechcue.com/reseller/v1'
   const groups = endpointGroups(base)
 
   const nav = groups.map(g =>
